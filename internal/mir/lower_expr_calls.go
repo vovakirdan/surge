@@ -203,6 +203,38 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 				case hir.ExprFieldAccess:
 					if fa, ok := data.Callee.Data.(hir.FieldAccessData); ok && fa.Object != nil && fa.FieldName == "__len" {
 						recvType := fa.Object.Type
+						// Recover receiver type from symbol/local metadata when HIR lost ref info.
+						needRecvType := recvType == types.NoTypeID
+						if !needRecvType && l.types != nil {
+							if tt, ok := l.types.Lookup(resolveAlias(l.types, recvType)); ok && tt.Kind != types.KindReference {
+								needRecvType = true
+							}
+						}
+						if needRecvType {
+							if vr, ok := fa.Object.Data.(hir.VarRefData); ok && vr.SymbolID.IsValid() {
+								if l.f != nil {
+									if local, ok := l.symToLocal[vr.SymbolID]; ok {
+										idx := int(local)
+										if idx >= 0 && idx < len(l.f.Locals) && l.f.Locals[idx].Type != types.NoTypeID {
+											recvType = l.f.Locals[idx].Type
+										}
+									}
+								}
+								if recvType == types.NoTypeID && l.out != nil {
+									if global, ok := l.symToGlobal[vr.SymbolID]; ok {
+										idx := int(global)
+										if idx >= 0 && idx < len(l.out.Globals) && l.out.Globals[idx].Type != types.NoTypeID {
+											recvType = l.out.Globals[idx].Type
+										}
+									}
+								}
+								if recvType == types.NoTypeID && l.symbols != nil && l.symbols.Table != nil && l.symbols.Table.Symbols != nil {
+									if sym := l.symbols.Table.Symbols.Get(vr.SymbolID); sym != nil && sym.Type != types.NoTypeID {
+										recvType = sym.Type
+									}
+								}
+							}
+						}
 						isRef := false
 						if l.types != nil && recvType != types.NoTypeID {
 							if tt, ok := l.types.Lookup(resolveAlias(l.types, recvType)); ok && tt.Kind == types.KindReference {
@@ -214,6 +246,9 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 							op, err := l.lowerExpr(fa.Object, true)
 							if err != nil {
 								return Operand{}, err
+							}
+							if recvType != types.NoTypeID && op.Type != recvType {
+								op.Type = recvType
 							}
 							recvOp = op
 						} else {

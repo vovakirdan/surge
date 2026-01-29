@@ -188,12 +188,10 @@ func (b *monoBuilder) ensureBorrow(expr *hir.Expr, mut bool) *hir.Expr {
 		if mut && !recvMut {
 			return expr
 		}
-		if isBorrowExpr(expr) {
-			return expr
-		}
-		if expr.Kind == hir.ExprVarRef {
-			return b.borrowExpr(expr, mut)
-		}
+		// Already a reference; avoid creating &&T.
+		return expr
+	}
+	if isBorrowExpr(expr) {
 		return expr
 	}
 	return b.borrowExpr(expr, mut)
