@@ -34,6 +34,8 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 		if call == nil || data == nil {
 			return nil
 		}
+		// Convert bound-method calls into direct method calls before normal rewriting.
+		b.rewriteBoundMethodCall(call, data)
 		kind := InstFn
 		var (
 			calleeSym symbols.SymbolID

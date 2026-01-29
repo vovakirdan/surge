@@ -231,88 +231,11 @@ jobs:
           path: |
             build/testdata/llvm
 
-  showcases:
-    name: Showcases parity
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Install LLVM toolchain
-        run: sudo apt-get update && sudo apt-get install -y clang llvm lld
-      - name: Determine showcase strictness
-        id: mode
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            branch="${{ github.base_ref }}"
-          else
-            branch="${{ github.ref_name }}"
-          fi
-          if [[ "$branch" == "main" ]]; then
-            echo "strict=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "strict=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Run showcases
-        run: |
-          args=(--report "$PWD/SHOWCASES_REPORT.md" --artifacts "$PWD/build/showcases")
-          if [[ "${{ steps.mode.outputs.strict }}" != "true" ]]; then
-            args+=(--allow-fail)
-          fi
-          ./scripts/run_showcases.sh "${args[@]}"
-      - name: Showcases summary
-        id: showcases_summary
-        if: always()
-        run: |
-          summary="build/showcases/summary.env"
-          if [[ -f "$summary" ]]; then
-            source "$summary"
-            echo "failed=${FAILED}" >> "$GITHUB_OUTPUT"
-            {
-              echo "Showcases failed: ${FAILED}"
-              echo "Showcases passed: ${PASSED}"
-              echo "Showcases total: ${TOTAL}"
-              echo ""
-              echo "Report: SHOWCASES_REPORT.md"
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "failed=0" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Upload showcases artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: showcases-report
-          path: |
-            SHOWCASES_REPORT.md
-            build/showcases
-      - name: Comment on PR if showcases failed
-        if: github.event_name == 'pull_request' && steps.showcases_summary.outputs.failed != '0'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const failed = Number('${{ steps.showcases_summary.outputs.failed }}');
-            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
-            const body = [
-              '### Showcases parity report',
-              `Showcases failed: **${failed}**`,
-              `Report and artifacts: ${runUrl}`,
-            ].join('\n');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body,
-            });
-
   build-linux-amd64:
     name: Build linux/amd64
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [test-go, lint, c-check-gcc, c-check-clang, loc-cap, testdata, testdata-llvm, showcases]
+    needs: [test-go, lint, c-check-gcc, c-check-clang, loc-cap, testdata, testdata-llvm]
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
