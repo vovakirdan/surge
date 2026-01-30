@@ -47,7 +47,7 @@ func (e *Emitter) prepareFunctions() error {
 			if int(localID) < 0 || int(localID) >= len(f.Locals) {
 				return fmt.Errorf("invalid param local %d", localID)
 			}
-			llvmTy, llvmErr := llvmValueType(e.types, f.Locals[localID].Type)
+			llvmTy, llvmErr := llvmLocalValueType(e.types, f.Locals[localID])
 			if llvmErr != nil {
 				return llvmErr
 			}

@@ -65,6 +65,12 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			if vmErr != nil {
 				return Location{}, vmErr
 			}
+			for i := 0; i < 8 && (v.Kind == VKRef || v.Kind == VKRefMut); i++ {
+				v, vmErr = vm.loadLocationRaw(v.Loc)
+				if vmErr != nil {
+					return Location{}, vmErr
+				}
+			}
 			if v.Kind != VKHandleStruct {
 				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection on non-struct value (got %s)", v.Kind))
 			}
@@ -126,6 +132,12 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			v, vmErr := vm.loadLocationRaw(loc)
 			if vmErr != nil {
 				return Location{}, vmErr
+			}
+			for i := 0; i < 8 && (v.Kind == VKRef || v.Kind == VKRefMut); i++ {
+				v, vmErr = vm.loadLocationRaw(v.Loc)
+				if vmErr != nil {
+					return Location{}, vmErr
+				}
 			}
 			if v.Kind != VKHandleArray {
 				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection on non-array value (got %s)", v.Kind))

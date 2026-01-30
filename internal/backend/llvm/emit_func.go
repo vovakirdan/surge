@@ -112,7 +112,7 @@ func (fe *funcEmitter) blockOrder() []*mir.Block {
 
 func (fe *funcEmitter) emitAllocas() error {
 	for i, local := range fe.f.Locals {
-		llvmTy, err := llvmValueType(fe.emitter.types, local.Type)
+		llvmTy, err := llvmLocalValueType(fe.emitter.types, local)
 		if err != nil {
 			return err
 		}
@@ -127,7 +127,7 @@ func (fe *funcEmitter) emitAllocas() error {
 
 func (fe *funcEmitter) emitParamStores() error {
 	for i, localID := range fe.paramLocals {
-		llvmTy, err := llvmValueType(fe.emitter.types, fe.f.Locals[localID].Type)
+		llvmTy, err := llvmLocalValueType(fe.emitter.types, fe.f.Locals[localID])
 		if err != nil {
 			return err
 		}

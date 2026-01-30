@@ -48,7 +48,7 @@ func (fe *funcEmitter) emitChannelHandle(op *mir.Operand) (string, error) {
 	if valTy != "ptr" {
 		return "", fmt.Errorf("channel expects ptr handle, got %s", valTy)
 	}
-	if isRefType(fe.emitter.types, op.Type) && op.Kind != mir.OperandAddrOf && op.Kind != mir.OperandAddrOfMut {
+	if isRefType(fe.emitter.types, op.Type) {
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, val)
 		return tmp, nil

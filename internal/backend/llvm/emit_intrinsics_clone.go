@@ -67,8 +67,10 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 	if err != nil {
 		return true, err
 	}
-	if dstTy != valTy {
-		dstTy = valTy
+	if valTy == "ptr" && dstTy != "ptr" {
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, dstTy, val)
+		val = tmp
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
 	return true, nil

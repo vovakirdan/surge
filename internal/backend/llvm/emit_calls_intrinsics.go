@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"fmt"
+	"strings"
 
 	"surge/internal/mir"
 	"surge/internal/symbols"
@@ -48,14 +49,10 @@ func (fe *funcEmitter) emitLenIntrinsic(call *mir.CallInstr) (bool, error) {
 		name = fe.symbolName(call.Callee.Sym)
 	}
 	name = stripGenericSuffix(name)
-	if name != "__len" {
+	if name != "__len" && !strings.HasSuffix(name, ".__len") {
 		return false, nil
 	}
-	if call.Callee.Sym.IsValid() && fe.emitter != nil && fe.emitter.mod != nil {
-		if _, ok := fe.emitter.mod.FuncBySym[call.Callee.Sym]; ok {
-			return false, nil
-		}
-	}
+	// Always treat __len as intrinsic, even if a symbol exists in the module.
 	if len(call.Args) != 1 {
 		return true, fmt.Errorf("__len requires 1 argument")
 	}
@@ -67,9 +64,17 @@ func (fe *funcEmitter) emitLenIntrinsic(call *mir.CallInstr) (bool, error) {
 		dstType = fe.f.Locals[call.Dst.Local].Type
 	}
 	targetType := operandValueType(fe.emitter.types, &call.Args[0])
-	if targetType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
-		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
-			targetType = baseType
+	if call.Args[0].Kind != mir.OperandConst {
+		if call.Args[0].Kind == mir.OperandAddrOf || call.Args[0].Kind == mir.OperandAddrOfMut ||
+			((call.Args[0].Kind == mir.OperandCopy || call.Args[0].Kind == mir.OperandMove) &&
+				fe.operandIsRef(&call.Args[0], call.Args[0].Type)) {
+			if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
+				targetType = baseType
+			}
+		} else if targetType == types.NoTypeID {
+			if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
+				targetType = baseType
+			}
 		}
 	}
 	handlePtr, err := fe.emitHandleOperandPtr(&call.Args[0])

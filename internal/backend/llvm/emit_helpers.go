@@ -16,6 +16,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 	}
 	var curPtr string
 	var curType types.TypeID
+	curIsValue := false
 	switch place.Kind {
 	case mir.PlaceLocal:
 		name, ok := fe.localAlloca[place.Local]
@@ -39,7 +40,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 		return "", "", err
 	}
 
-	for _, proj := range place.Proj {
+	for i, proj := range place.Proj {
 		switch proj.Kind {
 		case mir.PlaceProjDeref:
 			if curLLVMType != "ptr" {
@@ -57,6 +58,16 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			if err != nil {
 				return "", "", err
 			}
+			curIsValue = false
+			if i+1 < len(place.Proj) && isHandleValueType(fe.emitter.types, curType) {
+				next := place.Proj[i+1].Kind
+				if next == mir.PlaceProjField {
+					tmpVal := fe.nextTemp()
+					fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmpVal, curPtr)
+					curPtr = tmpVal
+					curIsValue = true
+				}
+			}
 		case mir.PlaceProjField:
 			fieldIdx, fieldType, err := fe.structFieldInfo(curType, proj)
 			if err != nil {
@@ -70,8 +81,12 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
 			}
 			off := layoutInfo.FieldOffsets[fieldIdx]
-			base := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", base, curLLVMType, curPtr)
+			base := curPtr
+			if !curIsValue {
+				tmp := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, curLLVMType, curPtr)
+				base = tmp
+			}
 			bytePtr := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, base, off)
 			fieldLLVMType, err := llvmValueType(fe.emitter.types, fieldType)
@@ -81,6 +96,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			curPtr = bytePtr
 			curType = fieldType
 			curLLVMType = fieldLLVMType
+			curIsValue = false
 		case mir.PlaceProjIndex:
 			if proj.IndexLocal == mir.NoLocalID {
 				return "", "", fmt.Errorf("missing index local")
@@ -100,8 +116,12 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			idxPtr := fmt.Sprintf("%%%s", fe.localAlloca[idxLocal])
 			idxVal := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", idxVal, idxLLVM, idxPtr)
+			handlePtr := curPtr
+			if curIsValue {
+				handlePtr = fe.emitHandleAddr(curPtr)
+			}
 			if dynamic {
-				elemPtr, elemLLVM, err := fe.emitArrayElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
+				elemPtr, elemLLVM, err := fe.emitArrayElemPtr(handlePtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
 				if err != nil {
 					return "", "", err
 				}
@@ -113,7 +133,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				if !ok {
 					return "", "", fmt.Errorf("index projection on non-array type")
 				}
-				elemPtr, elemLLVM, err := fe.emitArrayFixedElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, fixedElem, fixedLen)
+				elemPtr, elemLLVM, err := fe.emitArrayFixedElemPtr(handlePtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, fixedElem, fixedLen)
 				if err != nil {
 					return "", "", err
 				}
@@ -121,6 +141,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				curType = fixedElem
 				curLLVMType = elemLLVM
 			}
+			curIsValue = false
 		default:
 			return "", "", fmt.Errorf("unsupported place projection kind %v", proj.Kind)
 		}
@@ -652,6 +673,45 @@ func isRefType(typesIn *types.Interner, id types.TypeID) bool {
 	return ok && tt.Kind == types.KindReference
 }
 
+func (fe *funcEmitter) operandIsRef(op *mir.Operand, opType types.TypeID) bool {
+	if op == nil {
+		return false
+	}
+	switch op.Kind {
+	case mir.OperandAddrOf, mir.OperandAddrOfMut:
+		return true
+	case mir.OperandCopy, mir.OperandMove:
+		if op.Place.Kind == mir.PlaceLocal && int(op.Place.Local) >= 0 && int(op.Place.Local) < len(fe.f.Locals) {
+			if len(op.Place.Proj) == 0 || op.Place.Proj[0].Kind != mir.PlaceProjDeref {
+				flags := fe.f.Locals[op.Place.Local].Flags
+				if flags&(mir.LocalFlagRef|mir.LocalFlagRefMut) != 0 {
+					return true
+				}
+			}
+		}
+	}
+	return isRefType(fe.emitter.types, opType)
+}
+
+func isHandleValueType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	id = resolveAliasAndOwn(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	if !ok {
+		return false
+	}
+	switch tt.Kind {
+	case types.KindStruct, types.KindTuple, types.KindUnion, types.KindEnum, types.KindString, types.KindArray, types.KindFn:
+		return true
+	case types.KindPointer, types.KindReference:
+		return false
+	default:
+		return false
+	}
+}
+
 func isNothingType(typesIn *types.Interner, id types.TypeID) bool {
 	if typesIn == nil || id == types.NoTypeID {
 		return false
@@ -661,11 +721,43 @@ func isNothingType(typesIn *types.Interner, id types.TypeID) bool {
 	return ok && tt.Kind == types.KindNothing
 }
 
+func llvmLocalValueType(typesIn *types.Interner, local mir.Local) (string, error) {
+	if local.Flags&(mir.LocalFlagRef|mir.LocalFlagRefMut|mir.LocalFlagPtr) != 0 {
+		return "ptr", nil
+	}
+	return llvmValueType(typesIn, local.Type)
+}
+
 func (fe *funcEmitter) emitHandleOperandPtr(op *mir.Operand) (string, error) {
 	if op == nil {
 		return "", fmt.Errorf("nil operand")
 	}
-	if isRefType(fe.emitter.types, op.Type) {
+	opType := op.Type
+	if op.Kind == mir.OperandCopy || op.Kind == mir.OperandMove {
+		if base, err := fe.placeBaseType(op.Place); err == nil {
+			opType = base
+		}
+	}
+	baseType := opType
+	if isRefType(fe.emitter.types, baseType) {
+		if next, ok := derefType(fe.emitter.types, baseType); ok {
+			baseType = next
+		}
+	}
+	if fe.isArrayOrMapType(baseType) || isStringLike(fe.emitter.types, baseType) || isBytesViewType(fe.emitter.types, baseType) {
+		if fe.operandIsRef(op, opType) {
+			val, ty, err := fe.emitOperand(op)
+			if err != nil {
+				return "", err
+			}
+			if ty != "ptr" {
+				return "", fmt.Errorf("expected ptr handle, got %s", ty)
+			}
+			return val, nil
+		}
+		if ptr, err := fe.emitOperandAddr(op); err == nil {
+			return ptr, nil
+		}
 		val, ty, err := fe.emitOperand(op)
 		if err != nil {
 			return "", err
@@ -673,9 +765,33 @@ func (fe *funcEmitter) emitHandleOperandPtr(op *mir.Operand) (string, error) {
 		if ty != "ptr" {
 			return "", fmt.Errorf("expected ptr handle, got %s", ty)
 		}
-		return val, nil
+		return fe.emitHandleAddr(val), nil
 	}
-	return fe.emitOperandAddr(op)
+	val, ty, err := fe.emitOperand(op)
+	if err != nil {
+		return "", err
+	}
+	if ty != "ptr" {
+		return "", fmt.Errorf("expected ptr handle, got %s", ty)
+	}
+	return val, nil
+}
+
+func (fe *funcEmitter) isArrayOrMapType(id types.TypeID) bool {
+	if fe == nil || fe.emitter == nil || fe.emitter.types == nil || id == types.NoTypeID {
+		return false
+	}
+	id = resolveValueType(fe.emitter.types, id)
+	if _, ok := fe.emitter.types.ArrayInfo(id); ok {
+		return true
+	}
+	if _, _, ok := fe.emitter.types.MapInfo(id); ok {
+		return true
+	}
+	if tt, ok := fe.emitter.types.Lookup(id); ok && tt.Kind == types.KindArray {
+		return true
+	}
+	return false
 }
 
 func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (ptrOffset, lenOffset int, lenLLVM string, err error) {
