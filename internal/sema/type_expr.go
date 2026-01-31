@@ -486,7 +486,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprCompare:
 		if cmp, ok := tc.builder.Exprs.Compare(id); ok && cmp != nil {
+			movedBefore := tc.snapshotMovedBindings()
+			movedArms := make([]map[symbols.SymbolID]source.Span, len(cmp.Arms))
+			armClosed := make([]bool, len(cmp.Arms))
 			valueType := tc.typeExpr(cmp.Value)
+			movedAfterValue := tc.snapshotMovedBindings()
 			resultType := types.NoTypeID
 			expectedCompare := tc.expectedTypeForExpr(id)
 			if expectedCompare != types.NoTypeID {
@@ -499,6 +503,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			armTypes := make([]types.TypeID, len(cmp.Arms))
 			for i, arm := range cmp.Arms {
+				tc.restoreMovedBindings(movedAfterValue)
 				armSubject := valueType
 				if narrowed := tc.narrowCompareSubjectType(valueType, remainingMembers); narrowed != types.NoTypeID {
 					armSubject = narrowed
@@ -513,6 +518,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					armResult = nothingType
 					explicitReturn = true
 				}
+				armClosed[i] = explicitReturn
 				armTypes[i] = armResult
 				if armResult != types.NoTypeID {
 					if expectedCompare != types.NoTypeID {
@@ -540,6 +546,24 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				if len(remainingMembers) > 0 {
 					remainingMembers = tc.consumeCompareMembers(remainingMembers, arm)
 				}
+				movedArms[i] = tc.snapshotMovedBindings()
+			}
+			// Merge move state across arms (closed arms don't contribute).
+			mergedMoves := map[symbols.SymbolID]source.Span(nil)
+			for i := range cmp.Arms {
+				if armClosed[i] {
+					continue
+				}
+				if mergedMoves == nil {
+					mergedMoves = movedArms[i]
+					continue
+				}
+				mergedMoves = mergeMovedBindings(mergedMoves, movedArms[i])
+			}
+			if mergedMoves == nil {
+				tc.movedBindings = movedBefore
+			} else {
+				tc.movedBindings = mergedMoves
 			}
 			if expectedCompare == types.NoTypeID && resultType != types.NoTypeID {
 				for i, arm := range cmp.Arms {
