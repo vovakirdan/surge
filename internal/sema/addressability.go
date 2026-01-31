@@ -97,11 +97,32 @@ func (tc *typeChecker) isMutablePlaceExpr(expr ast.ExprID) bool {
 	if !ok {
 		return false
 	}
-	sym := tc.symbolFromID(desc.Base)
+	return tc.isMutableBinding(desc.Base)
+}
+
+func (tc *typeChecker) isMutableBinding(symID symbols.SymbolID) bool {
+	if !symID.IsValid() {
+		return false
+	}
+	sym := tc.symbolFromID(symID)
 	if sym == nil {
 		return false
 	}
-	return sym.Flags&symbols.SymbolFlagMutable != 0
+	if sym.Flags&symbols.SymbolFlagMutable != 0 {
+		return true
+	}
+	if tc.types == nil {
+		return false
+	}
+	ty := tc.bindingType(symID)
+	if ty == types.NoTypeID {
+		return false
+	}
+	tt, ok := tc.types.Lookup(tc.resolveAlias(ty))
+	if !ok {
+		return false
+	}
+	return tt.Kind == types.KindReference && tt.Mutable
 }
 
 func (tc *typeChecker) isStringLiteralExpr(expr ast.ExprID) bool {

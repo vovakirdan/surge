@@ -1,0 +1,123 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Board" at 3:6-3:11 (leading: Space)
+  3: Assign          "=" at 3:12-3:13 (leading: Space)
+  4: LBrace          "{" at 3:14-3:15 (leading: Space)
+  5: Ident           "cells" at 3:16-3:21 (leading: Space)
+  6: Colon           ":" at 3:21-3:22
+  7: Ident           "int" at 3:23-3:26 (leading: Space)
+  8: LBracket        "[" at 3:26-3:27
+  9: IntLit          "2" at 3:27-3:28
+ 10: RBracket        "]" at 3:28-3:29
+ 11: LBracket        "[" at 3:29-3:30
+ 12: IntLit          "2" at 3:30-3:31
+ 13: RBracket        "]" at 3:31-3:32
+ 14: RBrace          "}" at 3:33-3:34 (leading: Space)
+ 15: KwExtern        "extern" at 5:1-5:7 (leading: Newline)
+ 16: Lt              "<" at 5:7-5:8
+ 17: Ident           "Board" at 5:8-5:13
+ 18: Gt              ">" at 5:13-5:14
+ 19: LBrace          "{" at 5:15-5:16 (leading: Space)
+ 20: KwFn            "fn" at 6:5-6:7 (leading: Newline, Space)
+ 21: Ident           "set_via_ref" at 6:8-6:19 (leading: Space)
+ 22: LParen          "(" at 6:19-6:20
+ 23: Ident           "self" at 6:20-6:24
+ 24: Colon           ":" at 6:24-6:25
+ 25: Amp             "&" at 6:26-6:27 (leading: Space)
+ 26: KwMut           "mut" at 6:27-6:30
+ 27: Ident           "Board" at 6:31-6:36 (leading: Space)
+ 28: Comma           "," at 6:36-6:37
+ 29: Ident           "r" at 6:38-6:39 (leading: Space)
+ 30: Colon           ":" at 6:39-6:40
+ 31: Ident           "int" at 6:41-6:44 (leading: Space)
+ 32: Comma           "," at 6:44-6:45
+ 33: Ident           "c" at 6:46-6:47 (leading: Space)
+ 34: Colon           ":" at 6:47-6:48
+ 35: Ident           "int" at 6:49-6:52 (leading: Space)
+ 36: Comma           "," at 6:52-6:53
+ 37: Ident           "v" at 6:54-6:55 (leading: Space)
+ 38: Colon           ":" at 6:55-6:56
+ 39: Ident           "int" at 6:57-6:60 (leading: Space)
+ 40: RParen          ")" at 6:60-6:61
+ 41: Arrow           "->" at 6:62-6:64 (leading: Space)
+ 42: NothingLit      "nothing" at 6:65-6:72 (leading: Space)
+ 43: LBrace          "{" at 6:73-6:74 (leading: Space)
+ 44: KwLet           "let" at 7:9-7:12 (leading: Newline, Space)
+ 45: Ident           "cells" at 7:13-7:18 (leading: Space)
+ 46: Assign          "=" at 7:19-7:20 (leading: Space)
+ 47: Amp             "&" at 7:21-7:22 (leading: Space)
+ 48: KwMut           "mut" at 7:22-7:25
+ 49: Ident           "self" at 7:26-7:30 (leading: Space)
+ 50: Dot             "." at 7:30-7:31
+ 51: Ident           "cells" at 7:31-7:36
+ 52: Semicolon       ";" at 7:36-7:37
+ 53: Ident           "cells" at 8:9-8:14 (leading: Newline, Space)
+ 54: LBracket        "[" at 8:14-8:15
+ 55: Ident           "r" at 8:15-8:16
+ 56: RBracket        "]" at 8:16-8:17
+ 57: LBracket        "[" at 8:17-8:18
+ 58: Ident           "c" at 8:18-8:19
+ 59: RBracket        "]" at 8:19-8:20
+ 60: Assign          "=" at 8:21-8:22 (leading: Space)
+ 61: Ident           "v" at 8:23-8:24 (leading: Space)
+ 62: Semicolon       ";" at 8:24-8:25
+ 63: KwReturn        "return" at 9:9-9:15 (leading: Newline, Space)
+ 64: NothingLit      "nothing" at 9:16-9:23 (leading: Space)
+ 65: Semicolon       ";" at 9:23-9:24
+ 66: RBrace          "}" at 10:5-10:6 (leading: Newline, Space)
+ 67: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 68: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 69: Ident           "main" at 13:4-13:8 (leading: Space)
+ 70: LParen          "(" at 13:8-13:9
+ 71: RParen          ")" at 13:9-13:10
+ 72: Arrow           "->" at 13:11-13:13 (leading: Space)
+ 73: Ident           "int" at 13:14-13:17 (leading: Space)
+ 74: LBrace          "{" at 13:18-13:19 (leading: Space)
+ 75: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 76: KwMut           "mut" at 14:9-14:12 (leading: Space)
+ 77: Ident           "b" at 14:13-14:14 (leading: Space)
+ 78: Colon           ":" at 14:14-14:15
+ 79: Ident           "Board" at 14:16-14:21 (leading: Space)
+ 80: Assign          "=" at 14:22-14:23 (leading: Space)
+ 81: Ident           "Board" at 14:24-14:29 (leading: Space)
+ 82: LBrace          "{" at 14:30-14:31 (leading: Space)
+ 83: Ident           "cells" at 14:32-14:37 (leading: Space)
+ 84: Assign          "=" at 14:38-14:39 (leading: Space)
+ 85: LBracket        "[" at 14:40-14:41 (leading: Space)
+ 86: LBracket        "[" at 14:41-14:42
+ 87: IntLit          "1" at 14:42-14:43
+ 88: Comma           "," at 14:43-14:44
+ 89: IntLit          "2" at 14:45-14:46 (leading: Space)
+ 90: RBracket        "]" at 14:46-14:47
+ 91: Comma           "," at 14:47-14:48
+ 92: LBracket        "[" at 14:49-14:50 (leading: Space)
+ 93: IntLit          "3" at 14:50-14:51
+ 94: Comma           "," at 14:51-14:52
+ 95: IntLit          "4" at 14:53-14:54 (leading: Space)
+ 96: RBracket        "]" at 14:54-14:55
+ 97: RBracket        "]" at 14:55-14:56
+ 98: RBrace          "}" at 14:57-14:58 (leading: Space)
+ 99: Semicolon       ";" at 14:58-14:59
+100: Ident           "b" at 15:5-15:6 (leading: Newline, Space)
+101: Dot             "." at 15:6-15:7
+102: Ident           "set_via_ref" at 15:7-15:18
+103: LParen          "(" at 15:18-15:19
+104: IntLit          "0" at 15:19-15:20
+105: Comma           "," at 15:20-15:21
+106: IntLit          "1" at 15:22-15:23 (leading: Space)
+107: Comma           "," at 15:23-15:24
+108: IntLit          "9" at 15:25-15:26 (leading: Space)
+109: RParen          ")" at 15:26-15:27
+110: Semicolon       ";" at 15:27-15:28
+111: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space)
+112: Ident           "b" at 16:12-16:13 (leading: Space)
+113: Dot             "." at 16:13-16:14
+114: Ident           "cells" at 16:14-16:19
+115: LBracket        "[" at 16:19-16:20
+116: IntLit          "0" at 16:20-16:21
+117: RBracket        "]" at 16:21-16:22
+118: LBracket        "[" at 16:22-16:23
+119: IntLit          "1" at 16:23-16:24
+120: RBracket        "]" at 16:24-16:25
+121: Semicolon       ";" at 16:25-16:26
+122: RBrace          "}" at 17:1-17:2 (leading: Newline)
+123: EOF             at 18:1-18:1

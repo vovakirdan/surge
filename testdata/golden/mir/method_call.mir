@@ -6,22 +6,30 @@ fn add:
   locals:
     L0: &type#1483 [copy,ref] name=self
     L1: &type#1483 [copy,ref] name=other
-    L2: int [copy] name=tmp_field1
+    L2: type#1483 name=tmp_un1
     L3: int [copy] name=tmp_field2
-    L4: int [copy] name=tmp_call3
+    L4: type#1483 name=tmp_un3
     L5: int [copy] name=tmp_field4
-    L6: int [copy] name=tmp_field5
-    L7: int [copy] name=tmp_call6
-    L8: type#1483 name=tmp_struct7
+    L6: int [copy] name=tmp_call5
+    L7: type#1483 name=tmp_un6
+    L8: int [copy] name=tmp_field7
+    L9: type#1483 name=tmp_un8
+    L10: int [copy] name=tmp_field9
+    L11: int [copy] name=tmp_call10
+    L12: type#1483 name=tmp_struct11
   bb0:
-    L2 = field copy L0.x
-    L3 = field copy L1.x
-    L4 = call __add(copy L2, copy L3)
-    L5 = field copy L0.y
-    L6 = field copy L1.y
-    L7 = call __add(copy L5, copy L6)
-    L8 = struct_lit type#1483 {x=copy L4, y=copy L7}
-    return move L8
+    L2 = (* copy L0)
+    L3 = field copy L2.x
+    L4 = (* copy L1)
+    L5 = field copy L4.x
+    L6 = call __add(copy L3, copy L5)
+    L7 = (* copy L0)
+    L8 = field copy L7.y
+    L9 = (* copy L1)
+    L10 = field copy L9.y
+    L11 = call __add(copy L8, copy L10)
+    L12 = struct_lit type#1483 {x=copy L6, y=copy L11}
+    return move L12
 
 fn main:
   locals:

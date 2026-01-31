@@ -1,0 +1,41 @@
+self_mut_field_index_set.sg (span: 3:1-21:1)
+├─ Item[0]: Type (span: 3:1-3:34)
+│  ├─ Name: Board
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: cells: int[2][2]
+├─ Item[1]: Extern (span: 5:1-14:2)
+│  ├─ Target: Board
+│  ├─ Members:
+│  │  ├─ Fn[0]: set
+│  │  │  ├─ Params: (self: &mut Board, r: int, c: int, v: int)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 6:65-9:6)
+│  │  │     ├─ Stmt[0]: Expr (span: 7:9-7:30)
+│  │  │     │  └─ Expr: expr#8: (self.cells[r][c] = v)
+│  │  │     └─ Stmt[1]: Return (span: 8:9-8:24)
+│  │  │        └─ Expr: expr#9: nothing
+│  │  └─ Fn[1]: get
+│  │     ├─ Params: (self: &Board, r: int, c: int)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 11:49-13:6)
+│  │        └─ Stmt[0]: Return (span: 12:9-12:33)
+│  │           └─ Expr: expr#15: self.cells[r][c]
+└─ Item[2]: Fn (span: 16:1-20:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:18-20:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:59)
+         │  ├─ Name: b
+         │  ├─ Mutable: true
+         │  ├─ Type: Board
+         │  └─ Value: expr#24: <ExprKind(22)>
+         ├─ Stmt[1]: Expr (span: 18:5-18:20)
+         │  └─ Expr: expr#30: b.set(1, 1, 7)
+         └─ Stmt[2]: Return (span: 19:5-19:24)
+            └─ Expr: expr#35: b.get(1, 1)

@@ -1,0 +1,20 @@
+// &mut self should allow field/index mutation via implicit deref.
+
+type Board = { cells: int[2][2] }
+
+extern<Board> {
+    fn set(self: &mut Board, r: int, c: int, v: int) -> nothing {
+        self.cells[r][c] = v;
+        return nothing;
+    }
+
+    fn get(self: &Board, r: int, c: int) -> int {
+        return self.cells[r][c];
+    }
+}
+
+fn main() -> int {
+    let mut b: Board = Board { cells = [[0, 0], [0, 0]] };
+    b.set(1, 1, 7);
+    return b.get(1, 1);
+}

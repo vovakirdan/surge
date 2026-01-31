@@ -52,23 +52,17 @@ func (tc *typeChecker) isWriteThroughMutRef(desc placeDescriptor) bool {
 	if !desc.Base.IsValid() || len(desc.Segments) == 0 {
 		return false
 	}
-	// Check if the first segment is a deref (i.e., *base)
-	if desc.Segments[0].Kind != PlaceSegmentDeref {
+	// Check if the base binding has a mutable reference type.
+	ty := tc.bindingType(desc.Base)
+	if ty == types.NoTypeID || !tc.isMutRefType(ty) {
 		return false
 	}
-	// Check if the base binding has a mutable reference type
-	sym := tc.symbolFromID(desc.Base)
-	if sym == nil {
-		return false
+	// If the first segment is a deref (i.e., *base), it's a direct write-through.
+	if desc.Segments[0].Kind == PlaceSegmentDeref {
+		return true
 	}
-	ty := tc.result.BindingTypes[desc.Base]
-	if ty == types.NoTypeID {
-		ty = sym.Type
-	}
-	if ty == types.NoTypeID {
-		return false
-	}
-	return tc.isMutRefType(ty)
+	// For field/index access on &mut bindings, treat it as implicit deref.
+	return true
 }
 
 // isMutRefType checks if a type is &mut T.
@@ -87,11 +81,7 @@ func (tc *typeChecker) ensureMutablePlace(place Place, span source.Span) bool {
 	if !place.IsValid() {
 		return false
 	}
-	sym := tc.symbolFromID(place.Base)
-	if sym == nil {
-		return false
-	}
-	if sym.Flags&symbols.SymbolFlagMutable == 0 {
+	if !tc.isMutableBinding(place.Base) {
 		tc.report(diag.SemaBorrowImmutable, span, "cannot take mutable borrow of %s", tc.placeLabel(place))
 		return false
 	}

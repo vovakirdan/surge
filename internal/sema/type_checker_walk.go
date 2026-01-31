@@ -277,13 +277,29 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			movedBefore := tc.snapshotMovedBindings()
 			tc.walkStmt(ifStmt.Then)
 			movedThen := tc.snapshotMovedBindings()
+			thenClosed := tc.returnStatus(ifStmt.Then) == returnClosed
 			if ifStmt.Else.IsValid() {
 				tc.restoreMovedBindings(movedBefore)
 				tc.walkStmt(ifStmt.Else)
 				movedElse := tc.snapshotMovedBindings()
-				tc.movedBindings = mergeMovedBindings(movedThen, movedElse)
+				elseClosed := tc.returnStatus(ifStmt.Else) == returnClosed
+				switch {
+				case thenClosed && elseClosed:
+					// Both branches return; state after if is unreachable.
+					tc.movedBindings = movedBefore
+				case thenClosed:
+					tc.movedBindings = movedElse
+				case elseClosed:
+					tc.movedBindings = movedThen
+				default:
+					tc.movedBindings = mergeMovedBindings(movedThen, movedElse)
+				}
 			} else {
-				tc.movedBindings = mergeMovedBindings(movedThen, movedBefore)
+				if thenClosed {
+					tc.movedBindings = movedBefore
+				} else {
+					tc.movedBindings = mergeMovedBindings(movedThen, movedBefore)
+				}
 			}
 		}
 	case ast.StmtWhile:
