@@ -65,9 +65,28 @@ func (l *funcLowerer) lowerArrayLitExpr(e *hir.Expr, consume bool) (Operand, err
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: array lit: unexpected payload %T", e.Data)
 	}
+	var expectedElem types.TypeID
+	if l != nil && l.types != nil && e.Type != types.NoTypeID {
+		resolved := resolveAliasType(l.types, e.Type)
+		if elem, ok := l.types.ArrayInfo(resolved); ok {
+			expectedElem = elem
+		} else if elem, _, ok := l.types.ArrayFixedInfo(resolved); ok {
+			expectedElem = elem
+		} else if tt, ok := l.types.Lookup(resolved); ok && tt.Kind == types.KindArray {
+			expectedElem = tt.Elem
+		}
+	}
 	elems := make([]Operand, 0, len(data.Elements))
 	for _, el := range data.Elements {
-		op, err := l.lowerExpr(el, true)
+		var (
+			op  Operand
+			err error
+		)
+		if expectedElem != types.NoTypeID {
+			op, err = l.lowerExprForType(el, expectedElem)
+		} else {
+			op, err = l.lowerExpr(el, true)
+		}
 		if err != nil {
 			return Operand{}, err
 		}

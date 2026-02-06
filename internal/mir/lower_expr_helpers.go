@@ -122,6 +122,22 @@ func (l *funcLowerer) lowerExprForType(e *hir.Expr, expected types.TypeID) (Oper
 			e = &clone
 		}
 	}
+	if expected != types.NoTypeID && e != nil && e.Kind == hir.ExprArrayLit && l != nil && l.types != nil {
+		resolved := resolveAliasType(l.types, expected)
+		if _, ok := l.types.ArrayInfo(resolved); ok {
+			clone := *e
+			clone.Type = expected
+			e = &clone
+		} else if _, _, ok := l.types.ArrayFixedInfo(resolved); ok {
+			clone := *e
+			clone.Type = expected
+			e = &clone
+		} else if tt, ok := l.types.Lookup(resolved); ok && tt.Kind == types.KindArray {
+			clone := *e
+			clone.Type = expected
+			e = &clone
+		}
+	}
 	consume := true
 	if expected != types.NoTypeID && l.types != nil {
 		if tt, ok := l.types.Lookup(resolveAlias(l.types, expected)); ok && tt.Kind == types.KindReference {

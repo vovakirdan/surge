@@ -186,7 +186,37 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 				return val, nil
 			}
 		}
-		return Value{}, vm.eb.unimplemented("move from projected place")
+		loc, vmErr := vm.EvalPlace(frame, op.Place)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		val, vmErr := vm.loadLocationRaw(loc)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if val.IsHeap() && val.H != 0 {
+			vm.Heap.Retain(val.H)
+		}
+		var def Value
+		if op.Type != types.NoTypeID {
+			def, vmErr = vm.defaultValue(op.Type)
+			if vmErr != nil {
+				if val.IsHeap() && val.H != 0 {
+					vm.Heap.Release(val.H)
+				}
+				return Value{}, vmErr
+			}
+		} else {
+			def = MakeNothing()
+		}
+		if vmErr := vm.storeLocation(loc, def); vmErr != nil {
+			vm.dropValue(def)
+			if val.IsHeap() && val.H != 0 {
+				vm.Heap.Release(val.H)
+			}
+			return Value{}, vmErr
+		}
+		return val, nil
 
 	case mir.OperandAddrOf:
 		loc, vmErr := vm.EvalPlace(frame, op.Place)

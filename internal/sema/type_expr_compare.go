@@ -36,6 +36,15 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 	case ast.ExprIdent:
 		symID := tc.symbolForExpr(pattern)
 		tc.setBindingType(symID, subject)
+	case ast.ExprMember:
+		if member, ok := tc.builder.Exprs.Member(pattern); ok && member != nil {
+			if enumType := tc.enumTypeForExpr(member.Target); enumType != types.NoTypeID {
+				ty := tc.typeOfEnumVariant(enumType, member.Field, expr.Span)
+				if ty != types.NoTypeID {
+					tc.result.ExprTypes[pattern] = ty
+				}
+			}
+		}
 	case ast.ExprCall:
 		call, _ := tc.builder.Exprs.Call(pattern)
 		if call == nil {

@@ -1,0 +1,21 @@
+// scenario: compare patterns with enum variants
+
+enum Color = {
+    Red,
+    Green,
+    Blue
+}
+
+fn label(c: int) -> string {
+    return compare c {
+        Color::Red => "red";
+        Color::Green => "green";
+        _ => "other";
+    };
+}
+
+@entrypoint
+fn main() {
+    print(label(Color::Red));
+    print(label(Color::Blue));
+}
