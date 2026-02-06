@@ -149,9 +149,9 @@ surge diag file.sg --emit-mir
 - сохраняет/восстанавливает live locals между подвесами
 - добавляет structured concurrency (`rt_scope_*`)
 
-Ограничение v1:
+Примечание:
 
-- `await` внутри циклов не поддержан (ошибка lowering).
+- `await` внутри циклов поддерживается.
 
 ---
 

@@ -26,25 +26,24 @@ See `docs/CONCURRENCY.md` for the precise model.
 
 ## 2. Data-parallel alternative today
 
-If you need to process a collection, use `spawn` + await. You cannot
-`await` in loops, so awaiting tasks is structured via recursion:
+If you need to process a collection, use `spawn` + `.await()`:
 
 ```sg
-async fn await_all<T>(tasks: Task<T>[], idx: int, mut out: T[]) -> T[] {
-    if idx >= (len(tasks) to int) { return out; }
-    compare tasks[idx].await() {
-        Success(v) => out.push(v);
-        Cancelled() => return [];
-    };
-    return await_all(tasks, idx + 1, out);
-}
-
 async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
     for x in xs {
         tasks.push(spawn f(x));
     }
-    return await_all(tasks, 0, []);
+
+    // `.await()` consumes the task handle, so iterate tasks by value.
+    let mut out: U[] = [];
+    for t in tasks {
+        compare t.await() {
+            Success(v) => out.push(v);
+            Cancelled() => return [];
+        };
+    }
+    return out;
 }
 ```
 

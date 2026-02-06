@@ -1591,14 +1591,14 @@ async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
     for x in xs {
         tasks.push(spawn f(x));
-    }
+	    }
 
-    let mut results: U[] = [];
-    // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
-    for t in tasks {
-        compare t.await() {
-            Success(v) => results.push(v);
-            Cancelled() => return [];
+	    let mut results: U[] = [];
+	    // NOTE: await inside loops is supported.
+	    for t in tasks {
+	        compare t.await() {
+	            Success(v) => results.push(v);
+	            Cancelled() => return [];
         };
     }
     return results;
@@ -1744,14 +1744,14 @@ async fn process_all(urls: string[]) -> Data[] {
         let mut tasks: Task<Data>[] = [];
         for url in urls {
             tasks.push(spawn fetch(url));
-        }
+	        }
 
-        let mut results: Data[] = [];
-        // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
-        for t in tasks {
-            compare t.await() {
-                Success(v) => results.push(v);
-                Cancelled() => return [];
+	        let mut results: Data[] = [];
+	        // NOTE: await inside loops is supported.
+	        for t in tasks {
+	            compare t.await() {
+	                Success(v) => results.push(v);
+	                Cancelled() => return [];
             };
         }
         return results;
@@ -2136,14 +2136,14 @@ async fn process_urls(urls: string[]) -> Erring<Data[], Error> {
 
         for url in urls {
             tasks.push(spawn fetch_data(url));
-        }
+	        }
 
-        let mut results: Data[] = [];
-        // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
-        for t in tasks {
-            compare t.await() {
-                Success(res) => {
-                    compare res {
+	        let mut results: Data[] = [];
+	        // NOTE: await inside loops is supported.
+	        for t in tasks {
+	            compare t.await() {
+	                Success(res) => {
+	                    compare res {
                         Success(data) => results.push(data);
                         err => return err; // Early return on error
                     };
@@ -2166,14 +2166,14 @@ async fn process_urls_failfast(urls: string[]) -> Erring<Data[], Error> {
         let mut tasks: Task<Erring<Data, Error>>[] = [];
         for url in urls {
             tasks.push(spawn fetch_data(url));
-        }
+	        }
 
-        let mut results: Data[] = [];
-        // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
-        for t in tasks {
-            compare t.await() {
-                Success(res) => {
-                    compare res {
+	        let mut results: Data[] = [];
+	        // NOTE: await inside loops is supported.
+	        for t in tasks {
+	            compare t.await() {
+	                Success(res) => {
+	                    compare res {
                         Success(data) => results.push(data);
                         err => return err;
                     };
