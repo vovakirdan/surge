@@ -1,0 +1,21 @@
+array_fixed_struct.sg (span: 1:1-10:1)
+├─ Item[0]: Type (span: 1:1-1:32)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+└─ Item[1]: Fn (span: 3:1-9:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:18-9:2)
+         ├─ Stmt[0]: Let (span: 4:5-7:7)
+         │  ├─ Name: pts
+         │  ├─ Mutable: false
+         │  ├─ Type: Point[2]
+         │  └─ Value: expr#11: <ExprKind(8)>
+         └─ Stmt[1]: Return (span: 8:5-8:32)
+            └─ Expr: expr#20: (pts[0].x + pts[1].y)

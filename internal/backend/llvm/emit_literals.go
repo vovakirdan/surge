@@ -153,9 +153,10 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		return "", "", fmt.Errorf("nil array literal")
 	}
 	elemType, dynamic, ok := arrayElemType(fe.emitter.types, dstType)
-	if !ok || !dynamic {
+	if !ok {
 		return "", "", fmt.Errorf("unsupported array literal type")
 	}
+
 	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
 	if err != nil {
 		return "", "", err
@@ -169,38 +170,107 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 	}
 	stride := roundUpInt(elemSize, elemAlign)
 	length := len(lit.Elems)
-	dataSize := stride * length
 
-	dataPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, elemAlign)
-	headPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
+	if dynamic {
+		dataSize := stride * length
 
-	lenPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, headPtr, arrayLenOffset)
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, lenPtr)
-	capPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, headPtr, arrayCapOffset)
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, capPtr)
-	dataPtrPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, headPtr, arrayDataOffset)
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", dataPtr, dataPtrPtr)
+		dataPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, elemAlign)
+		headPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
 
+		lenPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, headPtr, arrayLenOffset)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, lenPtr)
+		capPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, headPtr, arrayCapOffset)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, capPtr)
+		dataPtrPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, headPtr, arrayDataOffset)
+		fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", dataPtr, dataPtrPtr)
+
+		for i := range lit.Elems {
+			val, valTy, emitErr := fe.emitValueOperand(&lit.Elems[i])
+			if emitErr != nil {
+				return "", "", emitErr
+			}
+			if valTy != elemLLVM {
+				valType := operandValueType(fe.emitter.types, &lit.Elems[i])
+				if valType == types.NoTypeID && lit.Elems[i].Kind != mir.OperandConst {
+					if baseType, baseErr := fe.placeBaseType(lit.Elems[i].Place); baseErr == nil {
+						valType = baseType
+					}
+				}
+				casted, castTy, emitErr := fe.coerceNumericValue(val, valTy, valType, elemType)
+				if emitErr != nil {
+					return "", "", emitErr
+				}
+				val = casted
+				valTy = castTy
+			}
+			if valTy != elemLLVM {
+				valTy = elemLLVM
+			}
+			offset := i * stride
+			elemPtr := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, dataPtr, offset)
+			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+		}
+		return headPtr, "ptr", nil
+	}
+
+	elemType, fixedLen, ok := arrayFixedInfo(fe.emitter.types, dstType)
+	if !ok {
+		return "", "", fmt.Errorf("unsupported array literal type")
+	}
+	if length != int(fixedLen) {
+		return "", "", fmt.Errorf("array literal length mismatch")
+	}
+	layoutInfo, err := fe.emitter.layoutOf(dstType)
+	if err != nil {
+		return "", "", err
+	}
+	size := layoutInfo.Size
+	align := layoutInfo.Align
+	if size <= 0 {
+		size = 1
+	}
+	if align <= 0 {
+		align = 1
+	}
+	mem := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	if fixedLen == 0 {
+		return mem, "ptr", nil
+	}
+
+	elemLLVM, err = llvmValueType(fe.emitter.types, elemType)
+	if err != nil {
+		return "", "", err
+	}
+	elemSize, elemAlign, err = llvmTypeSizeAlign(elemLLVM)
+	if err != nil {
+		return "", "", err
+	}
+	if elemAlign <= 0 {
+		elemAlign = 1
+	}
+	stride = roundUpInt(elemSize, elemAlign)
 	for i := range lit.Elems {
-		val, valTy, err := fe.emitValueOperand(&lit.Elems[i])
-		if err != nil {
-			return "", "", err
+		val, valTy, emitErr := fe.emitValueOperand(&lit.Elems[i])
+		if emitErr != nil {
+			return "", "", emitErr
 		}
 		if valTy != elemLLVM {
 			valType := operandValueType(fe.emitter.types, &lit.Elems[i])
 			if valType == types.NoTypeID && lit.Elems[i].Kind != mir.OperandConst {
-				if baseType, err := fe.placeBaseType(lit.Elems[i].Place); err == nil {
+				if baseType, baseErr := fe.placeBaseType(lit.Elems[i].Place); baseErr == nil {
 					valType = baseType
 				}
 			}
-			casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, elemType)
-			if err != nil {
-				return "", "", err
+			casted, castTy, emitErr := fe.coerceNumericValue(val, valTy, valType, elemType)
+			if emitErr != nil {
+				return "", "", emitErr
 			}
 			val = casted
 			valTy = castTy
@@ -210,8 +280,8 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		}
 		offset := i * stride
 		elemPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, dataPtr, offset)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, mem, offset)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
 	}
-	return headPtr, "ptr", nil
+	return mem, "ptr", nil
 }

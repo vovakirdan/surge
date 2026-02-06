@@ -1,0 +1,9 @@
+type Point = { x: int, y: int }
+
+fn main() -> int {
+    let pts: Point[2] = [
+        Point { x = 1, y = 2 },
+        Point { x = 3, y = 4 },
+    ];
+    return pts[0].x + pts[1].y;
+}

@@ -1,0 +1,69 @@
+  1: KwType          "type" at 1:1-1:5
+  2: Ident           "Point" at 1:6-1:11 (leading: Space)
+  3: Assign          "=" at 1:12-1:13 (leading: Space)
+  4: LBrace          "{" at 1:14-1:15 (leading: Space)
+  5: Ident           "x" at 1:16-1:17 (leading: Space)
+  6: Colon           ":" at 1:17-1:18
+  7: Ident           "int" at 1:19-1:22 (leading: Space)
+  8: Comma           "," at 1:22-1:23
+  9: Ident           "y" at 1:24-1:25 (leading: Space)
+ 10: Colon           ":" at 1:25-1:26
+ 11: Ident           "int" at 1:27-1:30 (leading: Space)
+ 12: RBrace          "}" at 1:31-1:32 (leading: Space)
+ 13: KwFn            "fn" at 3:1-3:3 (leading: Newline)
+ 14: Ident           "main" at 3:4-3:8 (leading: Space)
+ 15: LParen          "(" at 3:8-3:9
+ 16: RParen          ")" at 3:9-3:10
+ 17: Arrow           "->" at 3:11-3:13 (leading: Space)
+ 18: Ident           "int" at 3:14-3:17 (leading: Space)
+ 19: LBrace          "{" at 3:18-3:19 (leading: Space)
+ 20: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 21: Ident           "pts" at 4:9-4:12 (leading: Space)
+ 22: Colon           ":" at 4:12-4:13
+ 23: Ident           "Point" at 4:14-4:19 (leading: Space)
+ 24: LBracket        "[" at 4:19-4:20
+ 25: IntLit          "2" at 4:20-4:21
+ 26: RBracket        "]" at 4:21-4:22
+ 27: Assign          "=" at 4:23-4:24 (leading: Space)
+ 28: LBracket        "[" at 4:25-4:26 (leading: Space)
+ 29: Ident           "Point" at 5:9-5:14 (leading: Newline, Space)
+ 30: LBrace          "{" at 5:15-5:16 (leading: Space)
+ 31: Ident           "x" at 5:17-5:18 (leading: Space)
+ 32: Assign          "=" at 5:19-5:20 (leading: Space)
+ 33: IntLit          "1" at 5:21-5:22 (leading: Space)
+ 34: Comma           "," at 5:22-5:23
+ 35: Ident           "y" at 5:24-5:25 (leading: Space)
+ 36: Assign          "=" at 5:26-5:27 (leading: Space)
+ 37: IntLit          "2" at 5:28-5:29 (leading: Space)
+ 38: RBrace          "}" at 5:30-5:31 (leading: Space)
+ 39: Comma           "," at 5:31-5:32
+ 40: Ident           "Point" at 6:9-6:14 (leading: Newline, Space)
+ 41: LBrace          "{" at 6:15-6:16 (leading: Space)
+ 42: Ident           "x" at 6:17-6:18 (leading: Space)
+ 43: Assign          "=" at 6:19-6:20 (leading: Space)
+ 44: IntLit          "3" at 6:21-6:22 (leading: Space)
+ 45: Comma           "," at 6:22-6:23
+ 46: Ident           "y" at 6:24-6:25 (leading: Space)
+ 47: Assign          "=" at 6:26-6:27 (leading: Space)
+ 48: IntLit          "4" at 6:28-6:29 (leading: Space)
+ 49: RBrace          "}" at 6:30-6:31 (leading: Space)
+ 50: Comma           "," at 6:31-6:32
+ 51: RBracket        "]" at 7:5-7:6 (leading: Newline, Space)
+ 52: Semicolon       ";" at 7:6-7:7
+ 53: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 54: Ident           "pts" at 8:12-8:15 (leading: Space)
+ 55: LBracket        "[" at 8:15-8:16
+ 56: IntLit          "0" at 8:16-8:17
+ 57: RBracket        "]" at 8:17-8:18
+ 58: Dot             "." at 8:18-8:19
+ 59: Ident           "x" at 8:19-8:20
+ 60: Plus            "+" at 8:21-8:22 (leading: Space)
+ 61: Ident           "pts" at 8:23-8:26 (leading: Space)
+ 62: LBracket        "[" at 8:26-8:27
+ 63: IntLit          "1" at 8:27-8:28
+ 64: RBracket        "]" at 8:28-8:29
+ 65: Dot             "." at 8:29-8:30
+ 66: Ident           "y" at 8:30-8:31
+ 67: Semicolon       ";" at 8:31-8:32
+ 68: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 69: EOF             at 10:1-10:1

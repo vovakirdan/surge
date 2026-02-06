@@ -1,0 +1,14 @@
+array_fixed_len_mismatch.sg (span: 1:1-5:1)
+└─ Item[0]: Fn (span: 1:1-4:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:18-4:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:32)
+         │  ├─ Name: xs
+         │  ├─ Mutable: false
+         │  ├─ Type: int[2]
+         │  └─ Value: expr#4: <ExprKind(8)>
+         └─ Stmt[1]: Return (span: 3:5-3:18)
+            └─ Expr: expr#7: xs[0]
