@@ -785,6 +785,10 @@ func (fe *funcEmitter) isArrayOrMapType(id types.TypeID) bool {
 	if _, ok := fe.emitter.types.ArrayInfo(id); ok {
 		return true
 	}
+	// Fixed arrays are represented as the nominal `ArrayFixed<T, N>` type.
+	if _, _, ok := fe.emitter.types.ArrayFixedInfo(id); ok {
+		return true
+	}
 	if _, _, ok := fe.emitter.types.MapInfo(id); ok {
 		return true
 	}
