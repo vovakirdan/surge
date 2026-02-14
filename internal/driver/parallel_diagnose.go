@@ -29,7 +29,26 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 	if err != nil {
 		return nil, nil, err
 	}
-	return DiagnoseFilesWithOptions(ctx, dir, files, opts, jobs)
+
+	// listSGFiles returns paths rooted at dir (i.e. it prefixes each file with dir when dir is relative).
+	// DiagnoseFilesWithOptions treats the file list as relative-to-baseDir inputs, so we must strip the
+	// dir prefix here to avoid joining baseDir twice (dir/dir/...).
+	relFiles := make([]string, 0, len(files))
+	for _, p := range files {
+		rel, relErr := filepath.Rel(dir, p)
+		if relErr != nil {
+			relFiles = append(relFiles, p)
+			continue
+		}
+		// Defensive: keep original path if Rel escapes the root.
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			relFiles = append(relFiles, p)
+			continue
+		}
+		relFiles = append(relFiles, rel)
+	}
+
+	return DiagnoseFilesWithOptions(ctx, dir, relFiles, opts, jobs)
 }
 
 // DiagnoseFilesWithOptions runs diagnostics for an explicit list of .sg files.
@@ -61,6 +80,8 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 		id, err = fileSet.Load(p)
 		if err != nil {
 			loadErrors[p] = err
+			// Keep a placeholder so formatting can still resolve spans even when all loads fail.
+			fileIDs[p] = fileSet.AddVirtual(p, nil)
 			continue
 		}
 		fileIDs[p] = id
@@ -72,11 +93,13 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 
 	// Общий in-memory кэш на прогон
 	mcache := NewModuleCache(len(files) * 2)
-	// Диск-кэш (под будущие экспорты/семантику). Ошибки игнорируем — не критично.
 	var dcache *DiskCache
-	dcache, err = OpenDiskCache("surge")
-	if err != nil {
-		return nil, nil, err
+	// Диск-кэш (под будущие экспорты/семантику). Включается флагом --disk-cache.
+	if opts.EnableDiskCache {
+		dcache, err = OpenDiskCache("surge")
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Metrics for parallel processing (Phase 6)
@@ -141,13 +164,14 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 				if loadErr, hadErr := loadErrors[path]; hadErr {
 					loadIdx := begin("load_file")
 					end(loadIdx, "error")
+					fileID := fileIDs[path]
 					bag.Add(&diag.Diagnostic{
 						Severity: diag.SevError,
 						Code:     diag.IOLoadFileError,
 						Message:  "failed to load file: " + loadErr.Error(),
-						Primary:  source.Span{},
+						Primary:  source.Span{File: fileID},
 					})
-					results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
+					results[i] = DiagnoseDirResult{Path: path, FileID: fileID, Bag: bag}
 					reportTimings()
 					return nil
 				}
