@@ -185,7 +185,7 @@ Rules:
 
 - Allowed inside `async` functions/blocks and `@entrypoint` functions.
 - Rejected in plain sync functions (`SemaIntrinsicBadContext`).
-- `await` inside loops is currently **not supported** (MIR lowering rejects it).
+- `await` inside loops is supported.
 
 ---
 

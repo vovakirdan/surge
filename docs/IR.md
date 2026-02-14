@@ -149,9 +149,9 @@ Note: `--emit-mir` is supported only for single files.
 - saves/restores live locals across suspensions
 - adds structured concurrency (`rt_scope_*`)
 
-v1 limitation:
+Note:
 
-- `await` inside loops is not supported (lowering error).
+- `await` inside loops is supported.
 
 ---
 

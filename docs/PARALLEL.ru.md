@@ -27,25 +27,24 @@
 
 ## 2. Альтернатива для data-parallel сегодня
 
-Если нужна обработка коллекции, используйте `spawn` + ожидание. Нельзя
-делать `await` в циклах, поэтому ожидание задач оформляется через рекурсию:
+Если нужна обработка коллекции, используйте `spawn` + `.await()`:
 
 ```sg
-async fn await_all<T>(tasks: Task<T>[], idx: int, mut out: T[]) -> T[] {
-    if idx >= (len(tasks) to int) { return out; }
-    compare tasks[idx].await() {
-        Success(v) => out.push(v);
-        Cancelled() => return [];
-    };
-    return await_all(tasks, idx + 1, out);
-}
-
 async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
     for x in xs {
         tasks.push(spawn f(x));
     }
-    return await_all(tasks, 0, []);
+
+    // `.await()` поглощает task handle, поэтому по задачам удобно идти по значению.
+    let mut out: U[] = [];
+    for t in tasks {
+        compare t.await() {
+            Success(v) => out.push(v);
+            Cancelled() => return [];
+        };
+    }
+    return out;
 }
 ```
 
