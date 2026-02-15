@@ -1,78 +1,53 @@
 package driver
 
 import (
+	"bytes"
 	"context"
-	"path/filepath"
 
 	"surge/internal/ast"
 	"surge/internal/source"
 )
 
-// enrichModuleResults reruns symbol/semantic resolution for module directories
-// using the full module-graph path, while leaving non-module files unchanged
-// from the initial per-file diagnostics.
+// enrichModuleResults runs a full module-graph pass for directory diagnostics
+// when module directories are present.
 func enrichModuleResults(ctx context.Context, _ string, fileSet *source.FileSet, results []DiagnoseDirResult, opts *DiagnoseOptions) error {
 	if fileSet == nil {
 		return nil
 	}
+	if opts == nil {
+		opts = &DiagnoseOptions{}
+	}
+	if !hasModulePragmaInResults(fileSet, results) {
+		return nil
+	}
+	return resolveDirModuleGraph(ctx, fileSet, results, opts)
+}
 
-	pathToIndex := make(map[string]int, len(results))
-	moduleDirs := make(map[string]struct{})
-
+func hasModulePragmaInResults(fileSet *source.FileSet, results []DiagnoseDirResult) bool {
 	for i := range results {
-		resPath := resultPath(fileSet, &results[i])
-		if resPath == "" {
-			continue
-		}
-		pathToIndex[filepath.ToSlash(resPath)] = i
-
 		res := &results[i]
-		if res.Builder != nil && hasModulePragma(res.Builder, res.ASTFile) {
-			moduleDirs[filepath.ToSlash(filepath.Dir(resPath))] = struct{}{}
+		if hasModulePragma(res.Builder, res.ASTFile) {
+			return true
 		}
-	}
-
-	if len(moduleDirs) == 0 {
-		return nil
-	}
-
-	moduleResults := make([]DiagnoseDirResult, 0, len(results))
-	for i := range results {
-		resPath := resultPath(fileSet, &results[i])
-		if resPath == "" {
+		path := resultPath(fileSet, res)
+		file := resultFile(fileSet, res, path)
+		if file == nil {
 			continue
 		}
-		if _, ok := moduleDirs[filepath.ToSlash(filepath.Dir(resPath))]; !ok {
-			continue
+		if bytes.Contains(file.Content, []byte("pragma module::")) {
+			return true
 		}
-		moduleResults = append(moduleResults, results[i])
-	}
-	if len(moduleResults) == 0 {
-		return nil
-	}
-
-	if err := resolveDirModuleGraph(ctx, fileSet, moduleResults, opts); err != nil {
-		return err
-	}
-
-	for _, moduleRes := range moduleResults {
-		path := resultPath(fileSet, &moduleRes)
-		if path == "" {
-			continue
+		if bytes.Contains(file.Content, []byte("pragma module")) {
+			return true
 		}
-		idx, ok := pathToIndex[filepath.ToSlash(path)]
-		if !ok {
-			continue
+		if bytes.Contains(file.Content, []byte("pragma binary::")) {
+			return true
 		}
-		results[idx].Bag = moduleRes.Bag
-		results[idx].FileID = moduleRes.FileID
-		results[idx].ASTFile = moduleRes.ASTFile
-		results[idx].Builder = moduleRes.Builder
-		results[idx].Symbols = moduleRes.Symbols
-		results[idx].Sema = moduleRes.Sema
+		if bytes.Contains(file.Content, []byte("pragma binary")) {
+			return true
+		}
 	}
-
-	return nil
+	return false
 }
 
 func hasModulePragma(builder *ast.Builder, fileID ast.FileID) bool {

@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -32,19 +33,53 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 	cache := NewModuleCache(len(results) * 2)
 
 	pathToIndex := make(map[string]int, len(results))
+	fileIDToIndex := make(map[source.FileID]int, len(results))
+	normalizePathForIndex := func(p string) string {
+		if p == "" {
+			return ""
+		}
+		return filepath.Clean(filepath.ToSlash(p))
+	}
+	addPathIndex := func(path string, idx int) {
+		if path == "" {
+			return
+		}
+		clean := normalizePathForIndex(path)
+		if clean != "" {
+			pathToIndex[clean] = idx
+		}
+		if absPath, absErr := filepath.Abs(path); absErr == nil {
+			pathToIndex[normalizePathForIndex(absPath)] = idx
+		}
+		if baseDir != "" {
+			if relPath, relErr := source.RelativePath(path, baseDir); relErr == nil {
+				pathToIndex[normalizePathForIndex(relPath)] = idx
+			}
+		}
+	}
 	for i := range results {
 		if resPath := resultPath(fileSet, &results[i]); resPath != "" {
-			pathToIndex[filepath.ToSlash(resPath)] = i
+			addPathIndex(resPath, i)
 		}
+		fileIDToIndex[results[i].FileID] = i
 	}
 
 	moduleDirs := make(map[string]struct{})
 	for i := range results {
 		res := &results[i]
 		if res.Builder == nil || !res.ASTFile.IsValid() {
-			continue
-		}
-		if !hasModulePragma(res.Builder, res.ASTFile) {
+			resPath := resultPath(fileSet, res)
+			file := resultFile(fileSet, res, resPath)
+			if file == nil {
+				continue
+			}
+			if !bytes.Contains(file.Content, []byte("pragma module::")) &&
+				!bytes.Contains(file.Content, []byte("pragma module")) &&
+				!bytes.Contains(file.Content, []byte("pragma binary::")) &&
+				!bytes.Contains(file.Content, []byte("pragma binary")) {
+				continue
+			}
+		} else if !hasModulePragma(res.Builder, res.ASTFile) {
 			continue
 		}
 		resPath := resultPath(fileSet, res)
@@ -95,7 +130,7 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 			if file == nil {
 				continue
 			}
-			handledFiles[filepath.ToSlash(file.Path)] = struct{}{}
+			handledFiles[normalizePathForIndex(file.Path)] = struct{}{}
 		}
 	}
 
@@ -105,7 +140,7 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 		if resPath == "" {
 			continue
 		}
-		pathKey := filepath.ToSlash(resPath)
+		pathKey := normalizePathForIndex(resPath)
 		if _, ok := handledFiles[pathKey]; ok {
 			continue
 		}
@@ -288,9 +323,24 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 			if file == nil {
 				continue
 			}
-			resIdx, ok := pathToIndex[filepath.ToSlash(file.Path)]
+			resIdx, ok := pathToIndex[normalizePathForIndex(file.Path)]
 			if !ok {
-				continue
+				if absPath, absErr := filepath.Abs(file.Path); absErr == nil {
+					resIdx, ok = pathToIndex[normalizePathForIndex(absPath)]
+				}
+			}
+			if !ok {
+				if baseDir != "" {
+					if relPath, relErr := source.RelativePath(file.Path, baseDir); relErr == nil {
+						resIdx, ok = pathToIndex[normalizePathForIndex(relPath)]
+					}
+				}
+			}
+			if !ok {
+				resIdx, ok = fileIDToIndex[file.ID]
+				if !ok {
+					continue
+				}
 			}
 			res := &results[resIdx]
 			res.Path = file.Path

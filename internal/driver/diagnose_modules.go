@@ -165,9 +165,9 @@ func resolveModuleRecord(
 		}
 	}
 
-	resolveModulePath := strings.Trim(rec.Meta.Name, "/")
-	if rec.Meta.Dir != "" {
-		resolveModulePath = strings.Trim(strings.Trim(rec.Meta.Dir, "/")+"/"+rec.Meta.Name, "/")
+	resolveModulePath := strings.Trim(rec.Meta.Path, "/")
+	if resolveModulePath == "" {
+		resolveModulePath = strings.Trim(rec.Meta.Name, "/")
 	}
 	noStd := rec.Meta != nil && rec.Meta.NoStd
 
