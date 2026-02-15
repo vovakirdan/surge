@@ -11,6 +11,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/parser"
+	"surge/internal/project"
 	"surge/internal/project/dag"
 	"surge/internal/sema"
 	"surge/internal/source"
@@ -165,9 +166,21 @@ func resolveModuleRecord(
 		}
 	}
 
-	resolveModulePath := strings.Trim(rec.Meta.Path, "/")
-	if resolveModulePath == "" {
-		resolveModulePath = strings.Trim(rec.Meta.Name, "/")
+	// For import resolution we want a "file-based" module path (e.g. neon/tui/app),
+	// not the directory module path (e.g. neon/tui). This matches collectImports().
+	// Fallback to the module meta path if we can't derive it from the file path.
+	resolveModulePath := func(filePath string) string {
+		if strings.TrimSpace(filePath) != "" {
+			mp := logicalPathForFile(filePath, baseDir, opts.ModuleMapping)
+			if norm, err := project.NormalizeModulePath(mp); err == nil && norm != "" {
+				return norm
+			}
+		}
+		mp := strings.Trim(rec.Meta.Path, "/")
+		if mp == "" {
+			mp = strings.Trim(rec.Meta.Name, "/")
+		}
+		return mp
 	}
 	noStd := rec.Meta != nil && rec.Meta.NoStd
 
@@ -181,7 +194,7 @@ func resolveModuleRecord(
 			Table:         table,
 			Reporter:      reporter,
 			Validate:      false,
-			ModulePath:    resolveModulePath,
+			ModulePath:    resolveModulePath(filePath),
 			FilePath:      filePath,
 			BaseDir:       baseDir,
 			ModuleExports: moduleExports,
@@ -201,7 +214,7 @@ func resolveModuleRecord(
 			Table:         table,
 			Reporter:      reporter,
 			Validate:      false,
-			ModulePath:    resolveModulePath,
+			ModulePath:    resolveModulePath(filePath),
 			FilePath:      filePath,
 			BaseDir:       baseDir,
 			ModuleExports: moduleExports,
