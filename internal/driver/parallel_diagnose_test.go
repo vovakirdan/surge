@@ -5,8 +5,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"surge/internal/diag"
 	"surge/internal/diagfmt"
 	"surge/internal/source"
 )
@@ -90,10 +92,99 @@ func TestDiagnoseDirWithOptions_RelativeDirDoesNotDoubleJoin(t *testing.T) {
 	}
 }
 
+func TestDiagnoseDirWithOptions_ModuleDirectoryNoCascadingSEM3005(t *testing.T) {
+	stdlibRoot := detectStdlibRootFrom(".")
+	if stdlibRoot == "" {
+		t.Skip("stdlib root not found")
+	}
+	t.Setenv("SURGE_STDLIB", stdlibRoot)
+
+	projDir := t.TempDir()
+	moduleDir := filepath.Join(projDir, "m")
+	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
+		t.Fatalf("mkdir module dir: %v", err)
+	}
+
+	boardPath := filepath.Join(moduleDir, "board.sg")
+	boardSrc := strings.TrimSpace(`
+pragma module::m;
+
+pub type Board = { cell: Option<int> }
+
+fn x() -> Option<int> {
+	return nothing;
+}
+`)
+	if err := os.WriteFile(boardPath, []byte(boardSrc), 0o600); err != nil {
+		t.Fatalf("write board.sg: %v", err)
+	}
+
+	mainPath := filepath.Join(projDir, "main.sg")
+	mainSrc := "fn main() {}\n"
+	if err := os.WriteFile(mainPath, []byte(mainSrc), 0o600); err != nil {
+		t.Fatalf("write main.sg: %v", err)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 64,
+	}
+	single, err := DiagnoseWithOptions(context.Background(), boardPath, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if hasDiagCode(single.Bag, diag.SemaUnresolvedSymbol) {
+		t.Fatalf("baseline single-file diagnostics contained SemaUnresolvedSymbol for %s: %v", boardPath, single.Bag.Items())
+	}
+
+	_, dirResults, err := DiagnoseDirWithOptions(context.Background(), projDir, &opts, 1)
+	if err != nil {
+		t.Fatalf("DiagnoseDirWithOptions error: %v", err)
+	}
+
+	boardRes, ok := lookupResult(dirResults, boardPath)
+	if !ok {
+		t.Fatalf("missing result for %s", boardPath)
+	}
+	if hasDiagCode(boardRes.Bag, diag.SemaUnresolvedSymbol) {
+		t.Fatalf("module directory diagnostics still contains SemaUnresolvedSymbol for %s: %v", boardPath, boardRes.Bag.Items())
+	}
+
+	mainRes, ok := lookupResult(dirResults, mainPath)
+	if !ok {
+		t.Fatalf("missing result for %s", mainPath)
+	}
+	if hasDiagCode(mainRes.Bag, diag.SemaUnresolvedSymbol) {
+		t.Fatalf("non-module file diagnostics unexpectedly include SemaUnresolvedSymbol for %s: %v", mainPath, mainRes.Bag.Items())
+	}
+}
+
 func keys[M ~map[string]V, V any](m M) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
 	}
 	return out
+}
+
+func hasDiagCode(bag *diag.Bag, code diag.Code) bool {
+	if bag == nil {
+		return false
+	}
+	for _, d := range bag.Items() {
+		if d.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func lookupResult(results []DiagnoseDirResult, path string) (DiagnoseDirResult, bool) {
+	target := filepath.Clean(path)
+	for _, res := range results {
+		if filepath.Clean(res.Path) == target {
+			return res, true
+		}
+	}
+	return DiagnoseDirResult{}, false
 }

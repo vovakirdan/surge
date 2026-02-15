@@ -85,7 +85,7 @@ type DiagnoseOptions struct {
 	EmitHIR            bool                 // Build HIR (High-level IR) from AST + sema
 	EmitInstantiations bool                 // Capture generic instantiation map (sema artefact)
 	KeepArtifacts      bool                 // Retain AST/symbol/semantic data (for analysis snapshots)
-	FullModuleGraph    bool                 // Resolve full module graph for directory diagnostics (LSP analysis)
+	FullModuleGraph    bool                 // Canonical module-directory strategy is full graph resolution. In directory diagnostics, this keeps module scopes coherent and avoids cascading SEM3005-style errors; non-module files follow the initial per-file pass.
 	ExportsOut         *map[string]*symbols.ModuleExports
 }
 
