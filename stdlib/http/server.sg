@@ -1,0 +1,519 @@
+pragma module;
+
+// stdlib/http/server.sg
+// Connection loop, worker pool, and server runtime glue.
+
+fn dummy_response() -> Response {
+    return response_empty(500);
+}
+
+fn pick_read_cap(cfg: &ServerConfig) -> uint {
+    let mut cap: uint = 1024:uint;
+    if cfg.max_header_bytes != 0:uint && cfg.max_header_bytes < cap {
+        cap = cfg.max_header_bytes;
+    }
+    if cap == 0:uint {
+        cap = 1:uint;
+    }
+    return cap;
+}
+
+fn pick_worker_count(cfg: &ServerConfig) -> uint {
+    if cfg.worker_count == 0:uint {
+        return 1:uint;
+    }
+    return cfg.worker_count;
+}
+
+fn append_buffer(buf: &mut byte[], data: &byte[]) -> nothing {
+    let extra: uint = data.__len();
+    if extra == 0:uint {
+        return nothing;
+    }
+    let new_cap: uint = buf.__len() + extra;
+    buf.reserve(new_cap);
+    append_bytes(buf, data);
+    return nothing;
+}
+
+async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpResult<byte[]> {
+    if timeout_ms == 0:uint {
+        let read_task = net.read_some(&conn, cap);
+        let read_res = read_task.await();
+        let mut ok: bool = false;
+        let mut bytes: byte[] = [];
+        let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "read failed");
+        compare read_res {
+            Success(net_res) => {
+                compare net_res {
+                    Success(data) => {
+                        bytes = data;
+                        ok = true;
+                        0:int;
+                    }
+                    err => {
+                        let _ = err;
+                        err_out = http_error(HTTP_ERR_BODY, "read failed");
+                        ok = false;
+                        0:int;
+                    }
+                };
+                0:int;
+            }
+            Cancelled() => {
+                err_out = http_error(HTTP_ERR_TIMEOUT, "read timeout");
+                ok = false;
+                0:int;
+            }
+        };
+        if !ok {
+            return err_out;
+        }
+        return Success(bytes);
+    }
+    let read_task = spawn net.read_some(&conn, cap);
+    let read_res = timeout(read_task, timeout_ms);
+    let mut ok: bool = false;
+    let mut bytes: byte[] = [];
+    let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "read failed");
+    compare read_res {
+        Success(net_res) => {
+            compare net_res {
+                Success(data) => {
+                    bytes = data;
+                    ok = true;
+                    0:int;
+                }
+                err => {
+                    let _ = err;
+                    err_out = http_error(HTTP_ERR_BODY, "read failed");
+                    ok = false;
+                    0:int;
+                }
+            };
+            0:int;
+        }
+        Cancelled() => {
+            err_out = http_error(HTTP_ERR_TIMEOUT, "read timeout");
+            ok = false;
+            0:int;
+        }
+    };
+    if !ok {
+        return err_out;
+    }
+    return Success(bytes);
+}
+
+async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) -> HttpResult<nothing> {
+    let bytes = write_response(resp);
+    if timeout_ms == 0:uint {
+        let write_task = net.write_all(&conn, bytes);
+        let write_res = write_task.await();
+        let mut ok: bool = false;
+        let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "write failed");
+        compare write_res {
+            Success(net_res) => {
+                compare net_res {
+                    Success(_) => {
+                        ok = true;
+                        0:int;
+                    }
+                    err => {
+                        let _ = err;
+                        err_out = http_error(HTTP_ERR_BODY, "write failed");
+                        ok = false;
+                        0:int;
+                    }
+                };
+                0:int;
+            }
+            Cancelled() => {
+                err_out = http_error(HTTP_ERR_TIMEOUT, "write timeout");
+                ok = false;
+                0:int;
+            }
+        };
+        if !ok {
+            return err_out;
+        }
+        return Success(nothing);
+    }
+    let write_task = spawn net.write_all(&conn, bytes);
+    let write_res = timeout(write_task, timeout_ms);
+    let mut ok: bool = false;
+    let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "write failed");
+    compare write_res {
+        Success(net_res) => {
+            compare net_res {
+                Success(_) => {
+                    ok = true;
+                    0:int;
+                }
+                err => {
+                    let _ = err;
+                    err_out = http_error(HTTP_ERR_BODY, "write failed");
+                    ok = false;
+                    0:int;
+                }
+            };
+            0:int;
+        }
+        Cancelled() => {
+            err_out = http_error(HTTP_ERR_TIMEOUT, "write timeout");
+            ok = false;
+            0:int;
+        }
+    };
+    if !ok {
+        return err_out;
+    }
+    return Success(nothing);
+}
+
+fn response_with_close(resp: Response, close: bool) -> Response {
+    let mut out: Response = resp;
+    if close && !headers_has_connection_close(&out.headers) {
+        out.headers.push(Header { key: "Connection", value: "close" });
+    }
+    return out;
+}
+
+async fn handler_response(handler: Handler, req: Request, close: bool) -> Response {
+    let task_res = handler(req).await();
+    let resp: Response = task_result_to_response(task_res);
+    return response_with_close(resp, close);
+}
+
+async fn response_task(resp: Response, close: bool) -> Response {
+    return response_with_close(resp, close);
+}
+
+fn spawn_handler_task(handler: Handler, req: Request, close: bool) -> Task<Response> {
+    return spawn handler_response(handler, req, close);
+}
+
+fn spawn_response_task(resp: Response, close: bool) -> Task<Response> {
+    return spawn response_task(resp, close);
+}
+
+async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothing {
+    let mut buffer: byte[] = [];
+    let mut pending_in: QueueItem[] = [];
+    let mut pending_out: Task<Response>[] = [];
+    let mut closing: bool = false;
+    let mut eof: bool = false;
+    let mut write_failed: bool = false;
+    let mut max_depth: uint = cfg.max_pipeline_depth;
+    if max_depth == 0:uint {
+        max_depth = 1:uint;
+    }
+    let read_cap: uint = pick_read_cap(&cfg);
+
+    while true {
+        if !closing {
+            if pending_in.__len() + pending_out.__len() < max_depth {
+                let mut need_read: bool = false;
+                while pending_in.__len() + pending_out.__len() < max_depth {
+                    let parse_res = try_parse_request(&buffer, &cfg);
+                    compare parse_res {
+                        ParseMore() => {
+                            need_read = true;
+                            break;
+                        }
+                        ParseErr(err) => {
+                            let resp = response_from_error(&err);
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_RESP,
+                                req: dummy_request(),
+                                resp: resp,
+                                close: true
+                            });
+                            closing = true;
+                            break;
+                        }
+                        ParseOk(parsed) => {
+                            buffer = buffer_drop_prefix(&buffer, parsed.consumed);
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_REQ,
+                                req: parsed.req,
+                                resp: dummy_response(),
+                                close: parsed.close
+                            });
+                            if parsed.close {
+                                closing = true;
+                                break;
+                            }
+                        }
+                    };
+                }
+                if !closing && pending_in.__len() + pending_out.__len() >= max_depth && buffer.__len() != 0:uint {
+                    let overflow_res = try_parse_request(&buffer, &cfg);
+                    compare overflow_res {
+                        ParseErr(err) => {
+                            let resp = response_from_error(&err);
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_RESP,
+                                req: dummy_request(),
+                                resp: resp,
+                                close: true
+                            });
+                            closing = true;
+                        }
+                        ParseOk(parsed) => {
+                            buffer = buffer_drop_prefix(&buffer, parsed.consumed);
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_RESP,
+                                req: dummy_request(),
+                                resp: response_unavailable(),
+                                close: true
+                            });
+                            closing = true;
+                        }
+                        ParseMore() => {
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_RESP,
+                                req: dummy_request(),
+                                resp: response_unavailable(),
+                                close: true
+                            });
+                            closing = true;
+                        }
+                    };
+                }
+                if pending_in.__len() + pending_out.__len() == 0:uint {
+                    if closing || eof {
+                        break;
+                    }
+                    if need_read && !eof {
+                        let mut timeout_ms: uint = cfg.read_timeout_ms;
+                        if timeout_ms == 0:uint && buffer.__len() == 0:uint {
+                            timeout_ms = cfg.idle_timeout_ms;
+                        }
+                        let read_task = read_into_buffer(copy_conn(&conn), read_cap, timeout_ms);
+                        let read_task_res = read_task.await();
+                        compare read_task_res {
+                            Success(read_res) => {
+                                compare read_res {
+                                    Success(bytes) => {
+                                        if bytes.__len() == 0:uint {
+                                            eof = true;
+                                        } else {
+                                            append_buffer(&mut buffer, &bytes);
+                                        }
+                                    }
+                                    err => {
+                                        let resp = response_from_error(&err);
+                                        pending_in.push(QueueItem {
+                                            kind: QUEUE_KIND_RESP,
+                                            req: dummy_request(),
+                                            resp: resp,
+                                            close: true
+                                        });
+                                        closing = true;
+                                    }
+                                };
+                            }
+                            Cancelled() => {
+                                let timeout_err = http_error(HTTP_ERR_TIMEOUT, "read cancelled");
+                                let resp = response_from_error(&timeout_err);
+                                pending_in.push(QueueItem {
+                                    kind: QUEUE_KIND_RESP,
+                                    req: dummy_request(),
+                                    resp: resp,
+                                    close: true
+                                });
+                                closing = true;
+                            }
+                        };
+                    }
+                    continue;
+                }
+            } else {
+                let parse_res = try_parse_request(&buffer, &cfg);
+                compare parse_res {
+                    ParseMore() => {}
+                    ParseErr(err) => {
+                        let resp = response_from_error(&err);
+                        pending_in.push(QueueItem {
+                            kind: QUEUE_KIND_RESP,
+                            req: dummy_request(),
+                            resp: resp,
+                            close: true
+                        });
+                        closing = true;
+                    }
+                    ParseOk(parsed) => {
+                        buffer = buffer_drop_prefix(&buffer, parsed.consumed);
+                        pending_in.push(QueueItem {
+                            kind: QUEUE_KIND_RESP,
+                            req: dummy_request(),
+                            resp: response_unavailable(),
+                            close: true
+                        });
+                        closing = true;
+                    }
+                };
+            }
+        }
+
+        if pending_in.__len() + pending_out.__len() == 0:uint {
+            if closing || eof {
+                break;
+            }
+            continue;
+        }
+
+        if pending_out.__len() == 0:uint {
+            while true {
+                let item_opt = pending_in.pop();
+                compare item_opt {
+                    Some(item) => {
+                        if item.kind == QUEUE_KIND_REQ {
+                            let task = spawn_handler_task(handler, item.req, item.close);
+                            pending_out.push(task);
+                        } else {
+                            let task = spawn_response_task(item.resp, item.close);
+                            pending_out.push(task);
+                        }
+                    }
+                    nothing => {
+                        break;
+                    }
+                };
+            }
+        }
+
+        while pending_out.__len() != 0:uint {
+            let task_res = pending_out.pop().safe().await();
+            let resp: Response = task_result_to_response(task_res);
+            let should_close: bool = headers_has_connection_close(&resp.headers);
+            if !write_failed {
+                let write_task = write_response_conn(copy_conn(&conn), resp, cfg.write_timeout_ms);
+                let write_task_res = write_task.await();
+                compare write_task_res {
+                    Success(write_res) => {
+                        compare write_res {
+                            Success(_) => {}
+                            err => {
+                                let _ = err;
+                                write_failed = true;
+                                closing = true;
+                            }
+                        };
+                    }
+                    Cancelled() => {
+                        write_failed = true;
+                        closing = true;
+                    }
+                };
+            }
+            if should_close {
+                closing = true;
+            }
+        }
+
+        if closing || eof {
+            if pending_in.__len() + pending_out.__len() == 0:uint {
+                break;
+            }
+        }
+    }
+
+    while pending_out.__len() != 0:uint {
+        let _ = pending_out.pop().safe().await();
+    }
+
+    let _ = net.close_conn(own conn);
+    return nothing;
+}
+
+async fn serve_worker(conns: Channel<int>, cfg: ServerConfig, handler: Handler) -> nothing {
+    while true {
+        let handle_opt = conns.recv();
+        compare handle_opt {
+            Some(handle) => {
+                let cfg_copy = copy_server_config(&cfg);
+                let conn: TcpConn = { __opaque = handle };
+                let _ = serve_conn(conn, cfg_copy, handler).await();
+            }
+            nothing => {
+                break;
+            }
+        };
+    }
+    return nothing;
+}
+
+pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: Handler) -> nothing {
+    let listen_res = net.listen(addr, port);
+    compare listen_res {
+        Success(listener) => {
+            let worker_count: uint = pick_worker_count(&cfg);
+            let conn_queue = make_channel::<int>(worker_count);
+            let mut workers: Task<nothing>[] = [];
+            workers.reserve(worker_count);
+            let mut worker_idx: uint = 0:uint;
+            while worker_idx < worker_count {
+                let cfg_copy = copy_server_config(&cfg);
+                let worker_queue = conn_queue;
+                let worker = spawn serve_worker(worker_queue, cfg_copy, handler);
+                workers.push(worker);
+                worker_idx = worker_idx + 1:uint;
+            }
+            while true {
+                if cfg.accept_timeout_ms == 0:uint {
+                    let accept_task = net.accept(&listener);
+                    let accept_res = accept_task.await();
+                    compare accept_res {
+                        Success(net_res) => {
+                            compare net_res {
+                                Success(conn) => {
+                                    let handle: int = conn.__opaque;
+                                    conn_queue.send(handle);
+                                }
+                                err => {
+                                    let _ = err;
+                                    break;
+                                }
+                            };
+                        }
+                        Cancelled() => {
+                            break;
+                        }
+                    };
+                } else {
+                    let accept_task = spawn net.accept(&listener);
+                    let accept_res = timeout(accept_task, cfg.accept_timeout_ms);
+                    compare accept_res {
+                        Success(net_res) => {
+                            compare net_res {
+                                Success(conn) => {
+                                    let handle: int = conn.__opaque;
+                                    conn_queue.send(handle);
+                                }
+                                err => {
+                                    let _ = err;
+                                    break;
+                                }
+                            };
+                        }
+                        Cancelled() => {
+                            break;
+                        }
+                    };
+                }
+            }
+            conn_queue.close();
+            while workers.__len() != 0:uint {
+                let worker = workers.pop().safe();
+                let _ = worker.await();
+            }
+            let _ = net.close_listener(own listener);
+        }
+        err => {
+            let _ = err;
+        }
+    };
+    return nothing;
+}

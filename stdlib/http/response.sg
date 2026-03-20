@@ -1,0 +1,289 @@
+pragma module;
+
+// stdlib/http/response.sg
+// Response serialization and response builder helpers.
+
+fn append_string_bytes(out: &mut byte[], s: &string) -> nothing {
+    let view = s.bytes();
+    let length: int = view.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        let b: byte = view[i];
+        out.push(b);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn append_bytes(out: &mut byte[], data: &byte[]) -> nothing {
+    let length: int = data.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        let b: byte = clone(data[i]);
+        out.push(b);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn append_header_line(out: &mut byte[], key: &string, value: &string) -> nothing {
+    append_string_bytes(out, key);
+    append_string_bytes(out, ": ");
+    append_string_bytes(out, value);
+    append_string_bytes(out, "\r\n");
+    return nothing;
+}
+
+fn is_reserved_header(key: &string) -> bool {
+    return string_eq_ascii_ci(key, "content-length") || string_eq_ascii_ci(key, "transfer-encoding");
+}
+
+fn status_reason(status: int) -> string {
+    if status == 100 {
+        return "Continue";
+    }
+    if status == 200 {
+        return "OK";
+    }
+    if status == 201 {
+        return "Created";
+    }
+    if status == 204 {
+        return "No Content";
+    }
+    if status == 301 {
+        return "Moved Permanently";
+    }
+    if status == 302 {
+        return "Found";
+    }
+    if status == 303 {
+        return "See Other";
+    }
+    if status == 304 {
+        return "Not Modified";
+    }
+    if status == 307 {
+        return "Temporary Redirect";
+    }
+    if status == 308 {
+        return "Permanent Redirect";
+    }
+    if status == 400 {
+        return "Bad Request";
+    }
+    if status == 408 {
+        return "Request Timeout";
+    }
+    if status == 404 {
+        return "Not Found";
+    }
+    if status == 413 {
+        return "Payload Too Large";
+    }
+    if status == 431 {
+        return "Request Header Fields Too Large";
+    }
+    if status == 500 {
+        return "Internal Server Error";
+    }
+    if status == 503 {
+        return "Service Unavailable";
+    }
+    return "";
+}
+
+fn status_has_no_body(status: int) -> bool {
+    return (status >= 100 && status < 200) || status == 204 || status == 304;
+}
+
+fn hex_digit(n: uint) -> string {
+    let digits = "0123456789abcdef";
+    let idx: int = n to int;
+    return digits[[idx..idx + 1]];
+}
+
+fn hex_string(n: uint) -> string {
+    if n == 0:uint {
+        return "0";
+    }
+    let mut out: string = "";
+    let mut v: uint = n;
+    while v > 0:uint {
+        let digit: uint = v % 16:uint;
+        out = hex_digit(digit) + out;
+        v = v / 16:uint;
+    }
+    return out;
+}
+
+pub fn write_response(resp: Response) -> byte[] {
+    let status: int = resp.status;
+    let body = resp.body;
+    let headers = resp.headers;
+
+    let mut out: byte[] = [];
+    append_string_bytes(&mut out, "HTTP/1.1 ");
+    append_string_bytes(&mut out, status to string);
+    let reason = status_reason(status);
+    if reason.__len() != 0:uint {
+        append_string_bytes(&mut out, " ");
+        append_string_bytes(&mut out, &reason);
+    }
+    append_string_bytes(&mut out, "\r\n");
+
+    let count: int = headers.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let key: string = clone(headers[i].key);
+        let value: string = clone(headers[i].value);
+        if !is_reserved_header(&key) {
+            append_header_line(&mut out, &key, &value);
+        }
+        i = i + 1;
+    }
+
+    if status_has_no_body(status) {
+        append_header_line(&mut out, "Content-Length", "0");
+        append_string_bytes(&mut out, "\r\n");
+        return out;
+    }
+
+    compare body {
+        Empty() => {
+            append_header_line(&mut out, "Content-Length", "0");
+            append_string_bytes(&mut out, "\r\n");
+        }
+        Bytes(bytes) => {
+            let len_str: string = bytes.__len() to string;
+            append_header_line(&mut out, "Content-Length", &len_str);
+            append_string_bytes(&mut out, "\r\n");
+            append_bytes(&mut out, &bytes);
+        }
+        Stream(stream) => {
+            append_header_line(&mut out, "Transfer-Encoding", "chunked");
+            append_string_bytes(&mut out, "\r\n");
+            let mut s: ByteStream = stream;
+            while true {
+                let next = s.next();
+                compare next {
+                    Some(chunk) => {
+                        let size_hex = hex_string(chunk.__len());
+                        append_string_bytes(&mut out, &size_hex);
+                        append_string_bytes(&mut out, "\r\n");
+                        append_bytes(&mut out, &chunk);
+                        append_string_bytes(&mut out, "\r\n");
+                    }
+                    nothing => {
+                        append_string_bytes(&mut out, "0\r\n\r\n");
+                        break;
+                    }
+                };
+            }
+        }
+    };
+    return out;
+}
+
+fn buffer_drop_prefix(data: &byte[], consumed: uint) -> byte[] {
+    let length: int = data.__len() to int;
+    let start: int = consumed to int;
+    if start <= 0 {
+        return copy_bytes_range(data, 0, length);
+    }
+    if start >= length {
+        let out: byte[] = [];
+        return out;
+    }
+    return copy_bytes_range(data, start, length);
+}
+
+pub fn response_empty(status: int) -> Response {
+    let headers: Headers = [];
+    return { status: status, headers: headers, body: Empty() };
+}
+
+pub fn response_bytes(status: int, body: byte[]) -> Response {
+    let headers: Headers = [];
+    return { status: status, headers: headers, body: Bytes(body) };
+}
+
+pub fn response_text(status: int, body: &string) -> Response {
+    let headers: Headers = [];
+    let body_bytes: byte[] = body.__clone() to byte[];
+    let mut resp: Response = { status: status, headers: headers, body: Bytes(body_bytes) };
+    resp.headers.push(Header { key: "Content-Type", value: "text/plain; charset=utf-8" });
+    return resp;
+}
+
+pub fn response_stream(status: int, body: ByteStream) -> Response {
+    let headers: Headers = [];
+    return { status: status, headers: headers, body: Stream(body) };
+}
+
+pub fn response_redirect(status: int, location: &string) -> Response {
+    let mut resp = response_empty(status);
+    resp.headers.push(Header { key: "Location", value: clone(location) });
+    return resp;
+}
+
+pub fn response_found(location: &string) -> Response {
+    return response_redirect(302, location);
+}
+
+pub fn response_see_other(location: &string) -> Response {
+    return response_redirect(303, location);
+}
+
+pub fn response_temporary_redirect(location: &string) -> Response {
+    return response_redirect(307, location);
+}
+
+pub fn response_permanent_redirect(location: &string) -> Response {
+    return response_redirect(308, location);
+}
+
+pub fn response_with_header(resp: Response, key: &string, value: &string) -> Response {
+    let mut out: Response = resp;
+    out.headers.push(Header { key: clone(key), value: clone(value) });
+    return out;
+}
+
+fn response_bad_request() -> Response {
+    return response_empty(400);
+}
+
+fn response_from_error(err: &HttpError) -> Response {
+    let mut status: int = 400;
+    if err.code >= 400:uint && err.code <= 599:uint {
+        status = err.code to int;
+    }
+    return response_empty(status);
+}
+
+fn response_internal_error() -> Response {
+    return response_empty(500);
+}
+
+fn response_unavailable() -> Response {
+    return response_empty(503);
+}
+
+fn task_result_to_response(res: TaskResult<Response>) -> Response {
+    return compare res {
+        Success(ok) => ok;
+        Cancelled() => response_internal_error();
+    };
+}
+
+fn dummy_request() -> Request {
+    return {
+        method: "",
+        target: "",
+        path: "",
+        query: "",
+        version: HttpVersion::Http11,
+        headers: [],
+        body: body_reader_none()
+    };
+}

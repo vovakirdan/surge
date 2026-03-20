@@ -1,0 +1,188 @@
+pragma module;
+
+// stdlib/http/query.sg
+// Query-string parsing and query helper APIs.
+
+fn hex_nibble(b: uint) -> int {
+    if b >= 48:uint && b <= 57:uint {
+        return (b - 48:uint) to int;
+    }
+    if b >= 65:uint && b <= 70:uint {
+        return (b - 65:uint + 10:uint) to int;
+    }
+    if b >= 97:uint && b <= 102:uint {
+        return (b - 97:uint + 10:uint) to int;
+    }
+    return -1;
+}
+
+fn decode_query_component(raw: &byte[]) -> HttpResult<string> {
+    let len_i: int = raw.__len() to int;
+    let mut out: byte[] = [];
+    let mut out_res: HttpResult<string> = http_error(HTTP_ERR_PARSE, "invalid utf-8 in query");
+    if len_i > 0 {
+        out.reserve(raw.__len());
+    }
+    let mut i: int = 0;
+    while i < len_i {
+        let b: uint = raw[i] to uint;
+        if b == 43:uint {
+            out.push(32:uint to byte);
+            i = i + 1;
+            continue;
+        }
+        if b == 37:uint {
+            if i + 2 >= len_i {
+                return http_error(HTTP_ERR_PARSE, "invalid percent-encoding");
+            }
+            let hi: int = hex_nibble(raw[i + 1] to uint);
+            let lo: int = hex_nibble(raw[i + 2] to uint);
+            if hi < 0 || lo < 0 {
+                return http_error(HTTP_ERR_PARSE, "invalid percent-encoding");
+            }
+            let decoded: uint = (hi * 16 + lo) to uint;
+            out.push(decoded to byte);
+            i = i + 3;
+            continue;
+        }
+        let raw_b: byte = raw[i];
+        out.push(raw_b);
+        i = i + 1;
+    }
+
+    let text_res = string.from_bytes(&out);
+    compare text_res {
+        Success(text) => {
+            out_res = Success(text);
+            0:int;
+        }
+        err => {
+            let _ = err;
+            out_res = http_error(HTTP_ERR_PARSE, "invalid utf-8 in query");
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+fn push_query_param(out: &mut QueryParams, key_raw: byte[], value_raw: byte[]) -> HttpResult<nothing> {
+    let mut out_res: HttpResult<nothing> = Success(nothing);
+    let key_res = decode_query_component(&key_raw);
+    compare key_res {
+        Success(key_text) => {
+            let value_res = decode_query_component(&value_raw);
+            compare value_res {
+                Success(value_text) => {
+                    out.push(QueryParam { key = key_text, value = value_text });
+                    out_res = Success(nothing);
+                    0:int;
+                }
+                err => {
+                    out_res = err;
+                    0:int;
+                }
+            };
+            0:int;
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub fn parse_query(query: &string) -> Erring<QueryParams, HttpError> {
+    let view = query.bytes();
+    let len_i: int = view.__len() to int;
+    let mut out: QueryParams = [];
+    let mut key_raw: byte[] = [];
+    let mut value_raw: byte[] = [];
+    let mut in_value: bool = false;
+    let mut segment_started: bool = false;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: uint = view[i] to uint;
+        if b == 38:uint {
+            if segment_started {
+                let pushed = push_query_param(&mut out, key_raw, value_raw);
+                compare pushed {
+                    Success(_) => {}
+                    err => {
+                        return err;
+                    }
+                };
+            }
+            key_raw = [];
+            value_raw = [];
+            in_value = false;
+            segment_started = false;
+            i = i + 1;
+            continue;
+        }
+        if !in_value && b == 61:uint {
+            in_value = true;
+            segment_started = true;
+            i = i + 1;
+            continue;
+        }
+        if in_value {
+            let value_b: byte = view[i];
+            value_raw.push(value_b);
+        } else {
+            let key_b: byte = view[i];
+            key_raw.push(key_b);
+        }
+        segment_started = true;
+        i = i + 1;
+    }
+    if segment_started {
+        let pushed = push_query_param(&mut out, key_raw, value_raw);
+        compare pushed {
+            Success(_) => {}
+            err => {
+                return err;
+            }
+        };
+    }
+    return Success(out);
+}
+
+pub fn request_query_params(req: &Request) -> Erring<QueryParams, HttpError> {
+    return parse_query(req.query);
+}
+
+pub fn query_param(params: &QueryParams, key: &string) -> Option<string> {
+    let count: int = params.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let param_key: string = clone(params[i].key);
+        if param_key == *key {
+            return Some(clone(params[i].value));
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+pub fn query_has(params: &QueryParams, key: &string) -> bool {
+    return compare query_param(params, key) {
+        Some(_) => true;
+        nothing => false;
+    };
+}
+
+pub fn query_values(params: &QueryParams, key: &string) -> string[] {
+    let mut out: string[] = [];
+    let count: int = params.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let param_key: string = clone(params[i].key);
+        if param_key == *key {
+            out.push(clone(params[i].value));
+        }
+        i = i + 1;
+    }
+    return out;
+}
+

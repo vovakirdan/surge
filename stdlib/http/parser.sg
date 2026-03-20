@@ -1,0 +1,418 @@
+pragma module;
+
+// stdlib/http/parser.sg
+// HTTP request parsing from raw bytes and strings.
+
+fn find_double_crlf(s: &string) -> int {
+    let sep = "\r\n\r\n";
+    return string_find_from(s, &sep, 0);
+}
+
+fn find_double_crlf_bytes(data: &byte[]) -> int {
+    let length: int = data.__len() to int;
+    if length < 4 {
+        return -1;
+    }
+    let mut i: int = 0;
+    let last: int = length - 4;
+    while i <= last {
+        let b0: byte = clone(data[i]);
+        let b1: byte = clone(data[i + 1]);
+        let b2: byte = clone(data[i + 2]);
+        let b3: byte = clone(data[i + 3]);
+        let b0_u: uint = b0 to uint;
+        let b1_u: uint = b1 to uint;
+        let b2_u: uint = b2 to uint;
+        let b3_u: uint = b3 to uint;
+        if b0_u == 13:uint && b1_u == 10:uint && b2_u == 13:uint && b3_u == 10:uint {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn find_crlf_bytes(data: &byte[]) -> int {
+    let length: int = data.__len() to int;
+    if length < 2 {
+        return -1;
+    }
+    let mut i: int = 0;
+    let last: int = length - 2;
+    while i <= last {
+        let b0: byte = clone(data[i]);
+        let b1: byte = clone(data[i + 1]);
+        let b0_u: uint = b0 to uint;
+        let b1_u: uint = b1 to uint;
+        if b0_u == 13:uint && b1_u == 10:uint {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn parse_request_head(head: &string, max_headers_count: uint) -> Erring<ParsedHead, HttpError> {
+    let lines = head.split("\r\n");
+    let count: int = lines.__len() to int;
+    if count <= 0 {
+        return http_error(HTTP_ERR_PARSE, "empty request");
+    }
+
+    let req_line: string = clone(lines[0]);
+    let parts = req_line.split(" ");
+    if parts.__len() != 3:uint {
+        return http_error(HTTP_ERR_PARSE, "invalid request line");
+    }
+    let method: string = clone(parts[0]);
+    let target: string = clone(parts[1]);
+    let version_str: string = clone(parts[2]);
+    if version_str != "HTTP/1.1" {
+        return http_error(HTTP_ERR_PARSE, "unsupported http version");
+    }
+
+    let mut path: string = target.__clone();
+    let mut query: string = "";
+    let qidx: int = target.find("?");
+    if qidx >= 0 {
+        let tlen: int = target.__len() to int;
+        path = target[[0..qidx]];
+        query = target[[qidx + 1..tlen]];
+    }
+
+    let mut headers: Headers = [];
+    let mut content_len: uint = 0:uint;
+    let mut has_content_len: bool = false;
+    let mut chunked: bool = false;
+    let mut has_transfer_encoding: bool = false;
+    let mut close: bool = false;
+    let mut has_host: bool = false;
+    let mut header_count: uint = 0:uint;
+    let mut i: int = 1;
+    while i < count {
+        let line: string = clone(lines[i]);
+        if line.__len() == 0:uint {
+            i = i + 1;
+            continue;
+        }
+        header_count = header_count + 1;
+        if max_headers_count != 0:uint && header_count > max_headers_count {
+            return http_error(HTTP_ERR_HEADER_TOO_LARGE, "too many headers");
+        }
+        let colon: int = line.find(":");
+        if colon < 0 {
+            return http_error(HTTP_ERR_HEADER, "invalid header");
+        }
+        let key_raw = line[[0..colon]];
+        let val_raw = line[[colon + 1..line.__len() to int]];
+        let key = key_raw.trim();
+        let value = val_raw.trim();
+        if string_eq_ascii_ci(&key, "content-length") {
+            let len_res = uint.from_str(&value);
+            let mut len_ok: bool = true;
+            let mut next_len: uint = 0:uint;
+            compare len_res {
+                Success(n) => {
+                    next_len = n;
+                    0:int;
+                }
+                err => {
+                    let _ = err;
+                    len_ok = false;
+                    0:int;
+                }
+            };
+            if !len_ok {
+                return http_error(HTTP_ERR_HEADER, "invalid content-length");
+            }
+            if has_content_len && next_len != content_len {
+                return http_error(HTTP_ERR_HEADER, "conflicting content-length");
+            }
+            content_len = next_len;
+            has_content_len = true;
+        }
+        if string_eq_ascii_ci(&key, "transfer-encoding") {
+            has_transfer_encoding = true;
+            if string_contains_ascii_ci(&value, "chunked") {
+                chunked = true;
+            }
+        }
+        if string_eq_ascii_ci(&key, "connection") {
+            if string_contains_ascii_ci(&value, "close") {
+                close = true;
+            }
+        }
+        if string_eq_ascii_ci(&key, "host") {
+            has_host = true;
+        }
+        headers.push(Header { key: key, value: value });
+        i = i + 1;
+    }
+    if !has_host {
+        return http_error(HTTP_ERR_HEADER, "missing host header");
+    }
+    if has_transfer_encoding && !chunked {
+        return http_error(HTTP_ERR_HEADER, "unsupported transfer-encoding");
+    }
+    if chunked && has_content_len {
+        return http_error(HTTP_ERR_HEADER, "conflicting body framing");
+    }
+    let meta: HeaderMeta = { content_len: content_len, has_content_len: has_content_len, chunked: chunked, close: close };
+    let out: ParsedHead = {
+        method: method,
+        target: target,
+        path: path,
+        query: query,
+        version: HttpVersion::Http11,
+        headers: headers,
+        meta: meta
+    };
+    return Success(out);
+}
+
+pub fn parse_request(raw: &string) -> Erring<Request, HttpError> {
+    let length: int = raw.__len() to int;
+    let header_end: int = find_double_crlf(raw);
+    if header_end < 0 {
+        return http_error(HTTP_ERR_PARSE, "missing header terminator");
+    }
+
+    let head_text = raw[[0..header_end]];
+    let body_str = raw[[header_end + 4..length]];
+    let head_res = parse_request_head(&head_text, 0:uint);
+    let mut parsed_head: ParsedHead = {
+        method = "",
+        target = "",
+        path = "",
+        query = "",
+        version = HttpVersion::Http11,
+        headers = [],
+        meta = { content_len = 0:uint, has_content_len = false, chunked = false, close = false }
+    };
+    let mut head_ok: bool = false;
+    let mut head_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid request");
+    compare head_res {
+        Success(parsed) => {
+            parsed_head = parsed;
+            head_ok = true;
+            0:int;
+        }
+        err => {
+            head_err = err;
+            head_ok = false;
+            0:int;
+        }
+    };
+    if !head_ok {
+        return head_err;
+    }
+
+    let mut body: BodyReader = body_reader_none();
+    if parsed_head.meta.chunked {
+        let body_bytes: byte[] = body_str to byte[];
+        body = body_reader_chunked(body_bytes, 0:uint);
+    } else if parsed_head.meta.has_content_len {
+        let body_bytes: byte[] = body_str to byte[];
+        let body_len: uint = body_bytes.__len();
+        if parsed_head.meta.content_len > body_len {
+            return http_error(HTTP_ERR_BODY, "content-length exceeds body");
+        }
+        let slice = copy_bytes_range(body_bytes, 0, parsed_head.meta.content_len to int);
+        body = body_reader_length(slice);
+    }
+
+    return Success(Request {
+        method: parsed_head.method,
+        target: parsed_head.target,
+        path: parsed_head.path,
+        query: parsed_head.query,
+        version: parsed_head.version,
+        headers: parsed_head.headers,
+        body: body
+    });
+}
+
+fn headers_has_connection_close(headers: &Headers) -> bool {
+    let count: int = headers.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let key: string = clone(headers[i].key);
+        if string_eq_ascii_ci(&key, "connection") {
+            let value: string = clone(headers[i].value);
+            if string_contains_ascii_ci(&value, "close") {
+                return true;
+            }
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
+    let buf_len: int = buf.__len() to int;
+    if buf_len == 0 {
+        return ParseMore();
+    }
+
+    let max_line: uint = cfg.max_initial_line_bytes;
+    if max_line != 0:uint {
+        let line_end: int = find_crlf_bytes(buf);
+        if line_end < 0 {
+            if buf_len > (max_line to int) {
+                return ParseErr(http_error(HTTP_ERR_PARSE, "initial line too long"));
+            }
+        } else if line_end > (max_line to int) {
+            return ParseErr(http_error(HTTP_ERR_PARSE, "initial line too long"));
+        }
+    }
+
+    let header_end: int = find_double_crlf_bytes(buf);
+    if header_end < 0 {
+        let max_header: uint = cfg.max_header_bytes;
+        if max_header != 0:uint && buf_len > (max_header to int) {
+            return ParseErr(http_error(HTTP_ERR_HEADER_TOO_LARGE, "headers too large"));
+        }
+        return ParseMore();
+    }
+
+    let header_len: int = header_end + 4;
+    if cfg.max_header_bytes != 0:uint && header_len > (cfg.max_header_bytes to int) {
+        return ParseErr(http_error(HTTP_ERR_HEADER_TOO_LARGE, "headers too large"));
+    }
+
+    let head_bytes = copy_bytes_range(buf, 0, header_end);
+    let head_res = bytes_to_ascii(&head_bytes);
+    let mut head_str: string = "";
+    let mut head_ok: bool = false;
+    let mut head_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid utf-8");
+    compare head_res {
+        Success(head) => {
+            head_str = head;
+            head_ok = true;
+            0:int;
+        }
+        err => {
+            head_err = err;
+            head_ok = false;
+            0:int;
+        }
+    };
+    if !head_ok {
+        return ParseErr(head_err);
+    }
+    let head_parse_res = parse_request_head(&head_str, cfg.max_headers_count);
+    let mut parsed_head: ParsedHead = {
+        method = "",
+        target = "",
+        path = "",
+        query = "",
+        version = HttpVersion::Http11,
+        headers = [],
+        meta = { content_len = 0:uint, has_content_len = false, chunked = false, close = false }
+    };
+    let mut parsed_ok: bool = false;
+    let mut parsed_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid request");
+    compare head_parse_res {
+        Success(parsed) => {
+            parsed_head = parsed;
+            parsed_ok = true;
+            0:int;
+        }
+        err => {
+            parsed_err = err;
+            parsed_ok = false;
+            0:int;
+        }
+    };
+    if !parsed_ok {
+        return ParseErr(parsed_err);
+    }
+
+    let max_body: uint = cfg.max_body_bytes;
+    let mut total_len: int = header_len;
+    if parsed_head.meta.chunked {
+        let chunk_res = find_chunked_end(buf, header_len to uint, max_body);
+        let mut chunk_end: uint = 0:uint;
+        let mut chunk_ok: bool = false;
+        let mut chunk_need_more: bool = false;
+        let mut chunk_err: HttpError = http_error(HTTP_ERR_BODY, "invalid chunk");
+        compare chunk_res {
+            ChunkedNeedMore() => {
+                chunk_need_more = true;
+                0:int;
+            }
+            ChunkedErr(err) => {
+                chunk_err = err;
+                chunk_ok = false;
+                chunk_need_more = false;
+                0:int;
+            }
+            ChunkedOk(end_pos) => {
+                chunk_end = end_pos;
+                chunk_ok = true;
+                chunk_need_more = false;
+                0:int;
+            }
+        };
+        if chunk_need_more {
+            return ParseMore();
+        }
+        if !chunk_ok {
+            return ParseErr(chunk_err);
+        }
+        total_len = chunk_end to int;
+    } else if parsed_head.meta.has_content_len {
+        if max_body != 0:uint && parsed_head.meta.content_len > max_body {
+            return ParseErr(http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large"));
+        }
+        total_len = header_len + (parsed_head.meta.content_len to int);
+        if buf_len < total_len {
+            return ParseMore();
+        }
+    }
+
+    if buf_len < total_len {
+        return ParseMore();
+    }
+
+    let mut body: BodyReader = body_reader_none();
+    if parsed_head.meta.chunked {
+        let body_bytes = copy_bytes_range(buf, header_len, total_len);
+        body = body_reader_chunked(body_bytes, max_body);
+    } else if parsed_head.meta.has_content_len {
+        let body_bytes = copy_bytes_range(buf, header_len, total_len);
+        body = body_reader_length(body_bytes);
+    }
+    let req: Request = {
+        method: parsed_head.method,
+        target: parsed_head.target,
+        path: parsed_head.path,
+        query: parsed_head.query,
+        version: parsed_head.version,
+        headers: parsed_head.headers,
+        body: body
+    };
+    let parsed: ParsedRequest = { req: req, consumed: total_len to uint, close: parsed_head.meta.close };
+    return ParseOk(parsed);
+}
+
+extern<ByteStream> {
+    pub fn next(self: &mut ByteStream) -> Option<byte[]> {
+        let chunks = self.chunks;
+        let count: int = chunks.__len() to int;
+        let idx: int = self.index to int;
+        if idx >= count {
+            return nothing;
+        }
+        let src: &byte[] = chunks[idx];
+        let length: uint = src.__len();
+        let mut chunk: byte[] = [];
+        if length != 0:uint {
+            chunk.reserve(length);
+            append_bytes(&mut chunk, src);
+        }
+        self.index = self.index + 1;
+        return Some(chunk);
+    }
+}
+
