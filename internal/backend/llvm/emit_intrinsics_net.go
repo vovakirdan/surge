@@ -193,7 +193,7 @@ func (fe *funcEmitter) emitNetHandle(op *mir.Operand, kind string) (string, erro
 			opType = baseType
 		}
 	}
-	if isRefType(fe.emitter.types, opType) {
+	if op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut || isRefType(fe.emitter.types, opType) {
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, val)
 		return tmp, nil

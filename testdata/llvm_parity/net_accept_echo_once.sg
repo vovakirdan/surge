@@ -1,0 +1,161 @@
+import stdlib/net as net;
+
+fn one_byte() -> byte[] {
+    let mut out: byte[] = [];
+    out.push(88:byte);
+    return out;
+}
+
+fn is_expected_echo(bytes: &byte[]) -> bool {
+    return bytes.__len() == 1:uint && bytes[0] == 88:byte;
+}
+
+async fn accept_and_echo_once(listener: TcpListener) -> int {
+    let accept_task = net.accept(&listener).await();
+    compare accept_task {
+        Success(conn_res) => {
+            compare conn_res {
+                Success(conn) => {
+                    let read_task = net.read_some(&conn, 1:uint).await();
+                    compare read_task {
+                        Success(read_res) => {
+                            compare read_res {
+                                Success(bytes) => {
+                                    if !is_expected_echo(&bytes) {
+                                        print("server_read_bad");
+                                        let _ = net.close_conn(own conn);
+                                        return 1;
+                                    }
+                                    let write_task = net.write_all(&conn, bytes).await();
+                                    compare write_task {
+                                        Success(write_res) => {
+                                            compare write_res {
+                                                Success(_) => {
+                                                    let _ = net.close_conn(own conn);
+                                                    print("server_echo_ok");
+                                                    return 0;
+                                                }
+                                                err => {
+                                                    print("server_write_err=" + (err.code to string));
+                                                    let _ = net.close_conn(own conn);
+                                                    return 1;
+                                                }
+                                            };
+                                        }
+                                        Cancelled() => {
+                                            print("server_write_cancelled");
+                                            let _ = net.close_conn(own conn);
+                                            return 1;
+                                        }
+                                    };
+                                }
+                                err => {
+                                    print("server_read_err=" + (err.code to string));
+                                    let _ = net.close_conn(own conn);
+                                    return 1;
+                                }
+                            };
+                        }
+                        Cancelled() => {
+                            print("server_read_cancelled");
+                            let _ = net.close_conn(own conn);
+                            return 1;
+                        }
+                    };
+                }
+                err => {
+                    print("server_accept_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+        }
+        Cancelled() => {
+            print("server_accept_cancelled");
+            return 1;
+        }
+    };
+    return 1;
+}
+
+@entrypoint("argv")
+fn main(port: uint) -> int {
+    let listen_res = net.listen("127.0.0.1", port);
+    compare listen_res {
+        Success(listener) => {
+            let server_task: Task<int> = spawn accept_and_echo_once(listener);
+            let conn_res = net.connect("127.0.0.1", port);
+            compare conn_res {
+                Success(conn) => {
+                    let data = one_byte();
+                    let write_task = net.write_all(&conn, data).await();
+                    compare write_task {
+                        Success(write_res) => {
+                            compare write_res {
+                                Success(_) => {}
+                                err => {
+                                    print("client_write_err=" + (err.code to string));
+                                    let _ = net.close_conn(own conn);
+                                    let _ = server_task.clone().await();
+                                    return 1;
+                                }
+                            };
+                        }
+                        Cancelled() => {
+                            print("client_write_cancelled");
+                            let _ = net.close_conn(own conn);
+                            let _ = server_task.clone().await();
+                            return 1;
+                        }
+                    };
+                    let read_task = net.read_some(&conn, 1:uint).await();
+                    compare read_task {
+                        Success(read_res) => {
+                            compare read_res {
+                                Success(bytes) => {
+                                    let _ = net.close_conn(own conn);
+                                    if is_expected_echo(&bytes) {
+                                        print("client_echo_ok");
+                                    } else {
+                                        print("client_echo_bad");
+                                        let _ = server_task.clone().await();
+                                        return 1;
+                                    }
+                                }
+                                err => {
+                                    print("client_read_err=" + (err.code to string));
+                                    let _ = net.close_conn(own conn);
+                                    let _ = server_task.clone().await();
+                                    return 1;
+                                }
+                            };
+                        }
+                        Cancelled() => {
+                            print("client_read_cancelled");
+                            let _ = net.close_conn(own conn);
+                            let _ = server_task.clone().await();
+                            return 1;
+                        }
+                    };
+                }
+                err => {
+                    print("client_connect_err=" + (err.code to string));
+                    let _ = server_task.clone().await();
+                    return 1;
+                }
+            };
+            let server_res = server_task.await();
+            return compare server_res {
+                Success(code) => code;
+                Cancelled() => {
+                    print("server_task_cancelled");
+                    1;
+                }
+            };
+        }
+        err => {
+            print("listen_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 1;
+}

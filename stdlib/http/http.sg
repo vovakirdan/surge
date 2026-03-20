@@ -1266,7 +1266,7 @@ async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpRes
         }
         return Success(bytes);
     }
-    let read_task = net.read_some(&conn, cap);
+    let read_task = spawn net.read_some(&conn, cap);
     let read_res = timeout(read_task, timeout_ms);
     let mut ok: bool = false;
     let mut bytes: byte[] = [];
@@ -1334,7 +1334,7 @@ async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) ->
         }
         return Success(nothing);
     }
-    let write_task = net.write_all(&conn, bytes);
+    let write_task = spawn net.write_all(&conn, bytes);
     let write_res = timeout(write_task, timeout_ms);
     let mut ok: bool = false;
     let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "write failed");
@@ -1630,7 +1630,7 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: Handler
             let mut conn_tasks: Task<nothing>[] = [];
             while true {
                 if cfg.idle_timeout_ms == 0:uint {
-                    let accept_task = net.accept(&listener);
+                    let accept_task = spawn net.accept(&listener);
                     let accept_res = accept_task.await();
                     compare accept_res {
                         Success(net_res) => {
@@ -1651,7 +1651,7 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: Handler
                         }
                     };
                 } else {
-                    let accept_task = net.accept(&listener);
+                    let accept_task = spawn net.accept(&listener);
                     let accept_res = timeout(accept_task, cfg.idle_timeout_ms);
                     compare accept_res {
                         Success(net_res) => {
