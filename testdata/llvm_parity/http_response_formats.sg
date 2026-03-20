@@ -1,0 +1,46 @@
+import stdlib/http as http;
+import stdlib/json as json;
+
+fn bytes_to_ascii(bytes: byte[]) -> string {
+    let res = string.from_bytes(&bytes);
+    return compare res {
+        Success(s) => s;
+        err => {
+            let _ = err;
+            "";
+        }
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let html_resp = http.response_html(200, &"<h1>hello</h1>");
+    let html_text = bytes_to_ascii(http.write_response(html_resp));
+    if !html_text.contains("Content-Type: text/html; charset=utf-8\r\n") {
+        print("html_type_bad");
+        return 1;
+    }
+    if !html_text.contains("<h1>hello</h1>") {
+        print("html_body_bad");
+        return 1;
+    }
+
+    let mut obj: Map<string, json.JsonValue> = Map::<string, json.JsonValue>.new();
+    let _ = obj.insert("b", json.JsonNumber("2"));
+    let _ = obj.insert("a", json.JsonString("x"));
+    let value: json.JsonValue = json.JsonObject(obj);
+    let json_resp = http.response_json(200, &value);
+    let json_text = bytes_to_ascii(http.write_response(json_resp));
+    if !json_text.contains("Content-Type: application/json; charset=utf-8\r\n") {
+        print("json_type_bad");
+        return 1;
+    }
+    if !json_text.contains("{\"a\":\"x\",\"b\":2}") {
+        print("json_body_bad");
+        return 1;
+    }
+
+    print("html_ok");
+    print("json_ok");
+    return 0;
+}

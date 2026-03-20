@@ -3,6 +3,8 @@ pragma module;
 // stdlib/http/response.sg
 // Response serialization and response builder helpers.
 
+import stdlib/json as json;
+
 fn append_string_bytes(out: &mut byte[], s: &string) -> nothing {
     let view = s.bytes();
     let length: int = view.__len() to int;
@@ -213,6 +215,22 @@ pub fn response_text(status: int, body: &string) -> Response {
     let body_bytes: byte[] = body.__clone() to byte[];
     let mut resp: Response = { status: status, headers: headers, body: Bytes(body_bytes) };
     resp.headers.push(Header { key: "Content-Type", value: "text/plain; charset=utf-8" });
+    return resp;
+}
+
+pub fn response_html(status: int, body: &string) -> Response {
+    let headers: Headers = [];
+    let body_bytes: byte[] = body.__clone() to byte[];
+    let mut resp: Response = { status: status, headers: headers, body: Bytes(body_bytes) };
+    resp.headers.push(Header { key: "Content-Type", value: "text/html; charset=utf-8" });
+    return resp;
+}
+
+pub fn response_json(status: int, value: &json.JsonValue) -> Response {
+    let body_text: string = json.stringify(value);
+    let body_bytes: byte[] = body_text to byte[];
+    let mut resp: Response = { status: status, headers: [], body: Bytes(body_bytes) };
+    resp.headers.push(Header { key: "Content-Type", value: "application/json; charset=utf-8" });
     return resp;
 }
 
