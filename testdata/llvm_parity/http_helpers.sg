@@ -1,0 +1,72 @@
+import stdlib/http as http;
+
+fn bytes_to_ascii(bytes: byte[]) -> string {
+    let res = string.from_bytes(&bytes);
+    return compare res {
+        Success(s) => s;
+        err => {
+            let _ = err;
+            "";
+        }
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let cfg = http.default_server_config();
+    print("accept_timeout_ms=" + (cfg.accept_timeout_ms to string));
+    print("idle_timeout_ms=" + (cfg.idle_timeout_ms to string));
+
+    let raw = "POST /submit?x=1 HTTP/1.1\r\nHost: example.com\r\nContent-Length: 5\r\nX-Test: yes\r\n\r\nhello";
+    let req_res = http.parse_request(&raw);
+    compare req_res {
+        Success(req) => {
+            compare http.request_header(&req, "X-Test") {
+                Some(value) => print("x-test=" + value);
+                nothing => print("x-test=<none>");
+            };
+            if http.request_has_header(&req, "Host") {
+                print("has_host=true");
+            } else {
+                print("has_host=false");
+            }
+            if http.request_keep_alive(&req) {
+                print("keep_alive=true");
+            } else {
+                print("keep_alive=false");
+            }
+            compare http.request_content_length(&req) {
+                Some(n) => print("content_length=" + (n to string));
+                nothing => print("content_length=<none>");
+            };
+            let mut body = req.body;
+            let body_task = http.read_body_text(&mut body, 32:uint);
+            compare body_task.await() {
+                Success(body_res) => {
+                    compare body_res {
+                        Success(text) => print("body=" + text);
+                        err => {
+                            print("body_err=" + (err.code to string));
+                            return 1;
+                        }
+                    };
+                }
+                Cancelled() => {
+                    print("body_cancelled");
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("parse_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let resp = http.response_with_header(http.response_text(200, &"hello"), "X-Test", "ok");
+    print(bytes_to_ascii(http.write_response(resp)));
+
+    let no_body_resp = http.response_text(204, &"ignored");
+    print(bytes_to_ascii(http.write_response(no_body_resp)));
+    return 0;
+}

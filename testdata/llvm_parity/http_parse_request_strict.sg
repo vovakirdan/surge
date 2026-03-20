@@ -1,0 +1,25 @@
+import stdlib/http as http;
+
+fn print_error(label: string, res: Erring<http.Request, http.HttpError>) -> int {
+    compare res {
+        Success(_) => {
+            print(label + "=ok");
+            return 0;
+        }
+        err => {
+            print(label + "=" + (err.code to string));
+            return 0;
+        }
+    };
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let _ = print_error("missing_host", http.parse_request(&"GET / HTTP/1.1\r\n\r\n"));
+    let _ = print_error("dup_cl_same", http.parse_request(&"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\nhello"));
+    let _ = print_error("dup_cl_conflict", http.parse_request(&"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 5\r\nContent-Length: 7\r\n\r\nhello!!"));
+    let _ = print_error("te_conflict", http.parse_request(&"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\nhello"));
+    let _ = print_error("te_unsupported", http.parse_request(&"POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: gzip\r\n\r\nhello"));
+    return 0;
+}

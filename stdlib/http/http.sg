@@ -74,10 +74,25 @@ pub type ServerConfig = {
     max_header_bytes: uint,
     max_headers_count: uint,
     max_body_bytes: uint,
+    accept_timeout_ms: uint,
     idle_timeout_ms: uint,
     read_timeout_ms: uint,
     write_timeout_ms: uint
 };
+
+pub fn default_server_config() -> ServerConfig {
+    return {
+        max_pipeline_depth = 8:uint,
+        max_initial_line_bytes = 1024:uint,
+        max_header_bytes = 8192:uint,
+        max_headers_count = 64:uint,
+        max_body_bytes = 1024:uint * 1024:uint,
+        accept_timeout_ms = 0:uint,
+        idle_timeout_ms = 30_000:uint,
+        read_timeout_ms = 30_000:uint,
+        write_timeout_ms = 30_000:uint
+    };
+}
 
 fn copy_server_config(cfg: &ServerConfig) -> ServerConfig {
     return {
@@ -86,6 +101,7 @@ fn copy_server_config(cfg: &ServerConfig) -> ServerConfig {
         max_header_bytes = cfg.max_header_bytes,
         max_headers_count = cfg.max_headers_count,
         max_body_bytes = cfg.max_body_bytes,
+        accept_timeout_ms = cfg.accept_timeout_ms,
         idle_timeout_ms = cfg.idle_timeout_ms,
         read_timeout_ms = cfg.read_timeout_ms,
         write_timeout_ms = cfg.write_timeout_ms
@@ -230,6 +246,49 @@ fn bytes_to_ascii(bytes: &byte[]) -> Erring<string, HttpError> {
         }
     };
     return out;
+}
+
+pub fn request_header(req: &Request, key: &string) -> Option<string> {
+    let count: int = req.headers.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let header_key: string = clone(req.headers[i].key);
+        if string_eq_ascii_ci(&header_key, key) {
+            let header_value: string = clone(req.headers[i].value);
+            return Some(header_value);
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+pub fn request_has_header(req: &Request, key: &string) -> bool {
+    return compare request_header(req, key) {
+        Some(_) => true;
+        nothing => false;
+    };
+}
+
+pub fn request_content_length(req: &Request) -> Option<uint> {
+    return compare request_header(req, "Content-Length") {
+        Some(value) => {
+            compare uint.from_str(&value) {
+                Success(n) => Some(n);
+                err => {
+                    let _ = err;
+                    nothing;
+                }
+            }
+        }
+        nothing => nothing;
+    };
+}
+
+pub fn request_keep_alive(req: &Request) -> bool {
+    return compare headers_has_connection_close(req.headers) {
+        true => false;
+        false => true;
+    };
 }
 
 fn find_double_crlf(s: &string) -> int {
@@ -653,6 +712,85 @@ extern<BodyReader> {
     }
 }
 
+pub async fn read_all_body(reader: &mut BodyReader, limit: uint) -> Erring<byte[], HttpError> {
+    let mut out: byte[] = [];
+    let mut total: uint = 0:uint;
+    while true {
+        let next_res = next(reader).await();
+        compare next_res {
+            Success(body_res) => {
+                compare body_res {
+                    Success(chunk) => {
+                        let chunk_len: uint = chunk.__len();
+                        if chunk_len == 0:uint {
+                            return Success(out);
+                        }
+                        if limit != 0:uint {
+                            if total >= limit {
+                                return http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large");
+                            }
+                            let remaining: uint = limit - total;
+                            if chunk_len > remaining {
+                                return http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large");
+                            }
+                        }
+                        out.reserve(out.__len() + chunk_len);
+                        append_bytes(&mut out, &chunk);
+                        total = total + chunk_len;
+                    }
+                    err => {
+                        return err;
+                    }
+                };
+            }
+            Cancelled() => {
+                return http_error(HTTP_ERR_TIMEOUT, "body read cancelled");
+            }
+        };
+    }
+    return Success(out);
+}
+
+pub async fn discard_body(reader: &mut BodyReader, limit: uint) -> Erring<nothing, HttpError> {
+    let read_res = read_all_body(reader, limit).await();
+    compare read_res {
+        Success(body_res) => {
+            compare body_res {
+                Success(_) => {
+                    return Success(nothing);
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        Cancelled() => {
+            return http_error(HTTP_ERR_TIMEOUT, "body discard cancelled");
+        }
+    };
+    return Success(nothing);
+}
+
+pub async fn read_body_text(reader: &mut BodyReader, limit: uint) -> Erring<string, HttpError> {
+    let read_res = read_all_body(reader, limit).await();
+    compare read_res {
+        Success(body_res) => {
+            compare body_res {
+                Success(bytes) => {
+                    return bytes_to_ascii(&bytes);
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        Cancelled() => {
+            return http_error(HTTP_ERR_TIMEOUT, "body read cancelled");
+        }
+    };
+    return http_error(HTTP_ERR_TIMEOUT, "body read cancelled");
+}
+
 fn parse_request_head(head: &string, max_headers_count: uint) -> Erring<ParsedHead, HttpError> {
     let lines = head.split("\r\n");
     let count: int = lines.__len() to int;
@@ -685,7 +823,9 @@ fn parse_request_head(head: &string, max_headers_count: uint) -> Erring<ParsedHe
     let mut content_len: uint = 0:uint;
     let mut has_content_len: bool = false;
     let mut chunked: bool = false;
+    let mut has_transfer_encoding: bool = false;
     let mut close: bool = false;
+    let mut has_host: bool = false;
     let mut header_count: uint = 0:uint;
     let mut i: int = 1;
     while i < count {
@@ -709,10 +849,10 @@ fn parse_request_head(head: &string, max_headers_count: uint) -> Erring<ParsedHe
         if string_eq_ascii_ci(&key, "content-length") {
             let len_res = uint.from_str(&value);
             let mut len_ok: bool = true;
+            let mut next_len: uint = 0:uint;
             compare len_res {
                 Success(n) => {
-                    content_len = n;
-                    has_content_len = true;
+                    next_len = n;
                     0:int;
                 }
                 err => {
@@ -724,8 +864,14 @@ fn parse_request_head(head: &string, max_headers_count: uint) -> Erring<ParsedHe
             if !len_ok {
                 return http_error(HTTP_ERR_HEADER, "invalid content-length");
             }
+            if has_content_len && next_len != content_len {
+                return http_error(HTTP_ERR_HEADER, "conflicting content-length");
+            }
+            content_len = next_len;
+            has_content_len = true;
         }
         if string_eq_ascii_ci(&key, "transfer-encoding") {
+            has_transfer_encoding = true;
             if string_contains_ascii_ci(&value, "chunked") {
                 chunked = true;
             }
@@ -735,8 +881,20 @@ fn parse_request_head(head: &string, max_headers_count: uint) -> Erring<ParsedHe
                 close = true;
             }
         }
+        if string_eq_ascii_ci(&key, "host") {
+            has_host = true;
+        }
         headers.push(Header { key: key, value: value });
         i = i + 1;
+    }
+    if !has_host {
+        return http_error(HTTP_ERR_HEADER, "missing host header");
+    }
+    if has_transfer_encoding && !chunked {
+        return http_error(HTTP_ERR_HEADER, "unsupported transfer-encoding");
+    }
+    if chunked && has_content_len {
+        return http_error(HTTP_ERR_HEADER, "conflicting body framing");
     }
     let meta: HeaderMeta = { content_len: content_len, has_content_len: has_content_len, chunked: chunked, close: close };
     let out: ParsedHead = {
@@ -1033,6 +1191,9 @@ fn is_reserved_header(key: &string) -> bool {
 }
 
 fn status_reason(status: int) -> string {
+    if status == 100 {
+        return "Continue";
+    }
     if status == 200 {
         return "OK";
     }
@@ -1041,6 +1202,9 @@ fn status_reason(status: int) -> string {
     }
     if status == 204 {
         return "No Content";
+    }
+    if status == 304 {
+        return "Not Modified";
     }
     if status == 400 {
         return "Bad Request";
@@ -1064,6 +1228,10 @@ fn status_reason(status: int) -> string {
         return "Service Unavailable";
     }
     return "";
+}
+
+fn status_has_no_body(status: int) -> bool {
+    return (status >= 100 && status < 200) || status == 204 || status == 304;
 }
 
 fn hex_digit(n: uint) -> string {
@@ -1110,6 +1278,12 @@ pub fn write_response(resp: Response) -> byte[] {
             append_header_line(&mut out, &key, &value);
         }
         i = i + 1;
+    }
+
+    if status_has_no_body(status) {
+        append_header_line(&mut out, "Content-Length", "0");
+        append_string_bytes(&mut out, "\r\n");
+        return out;
     }
 
     compare body {
@@ -1161,9 +1335,32 @@ fn buffer_drop_prefix(data: &byte[], consumed: uint) -> byte[] {
     return copy_bytes_range(data, start, length);
 }
 
-fn response_empty(status: int) -> Response {
+pub fn response_empty(status: int) -> Response {
     let headers: Headers = [];
     return { status: status, headers: headers, body: Empty() };
+}
+
+pub fn response_bytes(status: int, body: byte[]) -> Response {
+    let headers: Headers = [];
+    return { status: status, headers: headers, body: Bytes(body) };
+}
+
+pub fn response_text(status: int, body: &string) -> Response {
+    let headers: Headers = [];
+    let mut resp: Response = { status: status, headers: headers, body: Bytes(string_to_bytes(body)) };
+    resp.headers.push(Header { key: "Content-Type", value: "text/plain; charset=utf-8" });
+    return resp;
+}
+
+pub fn response_stream(status: int, body: ByteStream) -> Response {
+    let headers: Headers = [];
+    return { status: status, headers: headers, body: Stream(body) };
+}
+
+pub fn response_with_header(resp: Response, key: &string, value: &string) -> Response {
+    let mut out: Response = resp;
+    out.headers.push(Header { key: clone(key), value: clone(value) });
+    return out;
 }
 
 fn response_bad_request() -> Response {
@@ -1629,7 +1826,7 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: Handler
         Success(listener) => {
             let mut conn_tasks: Task<nothing>[] = [];
             while true {
-                if cfg.idle_timeout_ms == 0:uint {
+                if cfg.accept_timeout_ms == 0:uint {
                     let accept_task = spawn net.accept(&listener);
                     let accept_res = accept_task.await();
                     compare accept_res {
@@ -1652,7 +1849,7 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: Handler
                     };
                 } else {
                     let accept_task = spawn net.accept(&listener);
-                    let accept_res = timeout(accept_task, cfg.idle_timeout_ms);
+                    let accept_res = timeout(accept_task, cfg.accept_timeout_ms);
                     compare accept_res {
                         Success(net_res) => {
                             compare net_res {
