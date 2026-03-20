@@ -108,7 +108,53 @@ fn main() -> int {
         }
     };
 
+    let expiring_res = http.response_expiring_cookie(http.response_empty(204), "refresh", "v1", 120);
+    compare expiring_res {
+        Success(resp) => {
+            let text = bytes_to_ascii(http.write_response(resp));
+            if !text.contains("Set-Cookie: refresh=v1; Path=/; Max-Age=120\r\n") {
+                print("expiring_cookie_bad");
+                return 1;
+            }
+        }
+        err => {
+            print("expiring_cookie_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let delete_res = http.response_delete_cookie(http.response_empty(204), "session");
+    compare delete_res {
+        Success(resp) => {
+            let text = bytes_to_ascii(http.write_response(resp));
+            if !text.contains("Set-Cookie: session=; Path=/; Max-Age=0\r\n") {
+                print("delete_cookie_bad");
+                return 1;
+            }
+        }
+        err => {
+            print("delete_cookie_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let delete_at_res = http.response_delete_cookie_at(http.response_empty(204), "session", "/app", "example.com");
+    compare delete_at_res {
+        Success(resp) => {
+            let text = bytes_to_ascii(http.write_response(resp));
+            if !text.contains("Set-Cookie: session=; Path=/app; Domain=example.com; Max-Age=0\r\n") {
+                print("delete_cookie_at_bad");
+                return 1;
+            }
+        }
+        err => {
+            print("delete_cookie_at_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
     print("cookies_ok");
     print("set_cookie_ok");
+    print("expire_cookie_ok");
     return 0;
 }

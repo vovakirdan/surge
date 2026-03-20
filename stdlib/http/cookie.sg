@@ -201,6 +201,25 @@ pub fn default_set_cookie(name: &string, value: &string) -> SetCookie {
     };
 }
 
+pub fn expiring_set_cookie(name: &string, value: &string, max_age: int) -> SetCookie {
+    let mut cookie = default_set_cookie(name, value);
+    cookie.max_age = max_age;
+    return cookie;
+}
+
+pub fn delete_set_cookie(name: &string) -> SetCookie {
+    let mut cookie = expiring_set_cookie(name, "", 0);
+    cookie.path = "/";
+    return cookie;
+}
+
+pub fn delete_set_cookie_at(name: &string, path: &string, domain: &string) -> SetCookie {
+    let mut cookie = delete_set_cookie(name);
+    cookie.path = clone(path);
+    cookie.domain = clone(domain);
+    return cookie;
+}
+
 fn serialize_set_cookie(cookie: &SetCookie) -> Erring<string, HttpError> {
     if !cookie_name_valid(cookie.name) {
         return http_error(HTTP_ERR_HEADER, "invalid cookie name");
@@ -260,5 +279,20 @@ pub fn response_with_set_cookie(resp: Response, cookie: &SetCookie) -> Erring<Re
 
 pub fn response_set_cookie(resp: Response, name: &string, value: &string) -> Erring<Response, HttpError> {
     let cookie = default_set_cookie(name, value);
+    return response_with_set_cookie(resp, &cookie);
+}
+
+pub fn response_expiring_cookie(resp: Response, name: &string, value: &string, max_age: int) -> Erring<Response, HttpError> {
+    let cookie = expiring_set_cookie(name, value, max_age);
+    return response_with_set_cookie(resp, &cookie);
+}
+
+pub fn response_delete_cookie(resp: Response, name: &string) -> Erring<Response, HttpError> {
+    let cookie = delete_set_cookie(name);
+    return response_with_set_cookie(resp, &cookie);
+}
+
+pub fn response_delete_cookie_at(resp: Response, name: &string, path: &string, domain: &string) -> Erring<Response, HttpError> {
+    let cookie = delete_set_cookie_at(name, path, domain);
     return response_with_set_cookie(resp, &cookie);
 }
