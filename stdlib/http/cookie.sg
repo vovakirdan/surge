@@ -1,0 +1,264 @@
+pragma module;
+
+// stdlib/http/cookie.sg
+// Cookie parsing and Set-Cookie response helpers.
+
+pub type Cookie = { name: string, value: string };
+pub type Cookies = Cookie[];
+
+pub type SetCookie = {
+    name: string,
+    value: string,
+    path: string,
+    domain: string,
+    max_age: int,
+    secure: bool,
+    http_only: bool,
+    same_site: string
+};
+
+fn cookie_name_valid(name: &string) -> bool {
+    let len_i: int = name.__len() to int;
+    if len_i == 0 {
+        return false;
+    }
+    let mut i: int = 0;
+    while i < len_i {
+        let cp: uint32 = name[i];
+        if cp <= 32:uint32 || cp >= 127:uint32 {
+            return false;
+        }
+        if cp == 40:uint32 || cp == 41:uint32 || cp == 60:uint32 || cp == 62:uint32 {
+            return false;
+        }
+        if cp == 64:uint32 || cp == 44:uint32 || cp == 59:uint32 || cp == 58:uint32 {
+            return false;
+        }
+        if cp == 92:uint32 || cp == 34:uint32 || cp == 47:uint32 || cp == 91:uint32 {
+            return false;
+        }
+        if cp == 93:uint32 || cp == 63:uint32 || cp == 61:uint32 || cp == 123:uint32 || cp == 125:uint32 {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn cookie_value_valid(value: &string) -> bool {
+    let len_i: int = value.__len() to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let cp: uint32 = value[i];
+        if cp <= 32:uint32 || cp == 127:uint32 || cp == 59:uint32 {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn cookie_attr_value_valid(value: &string) -> bool {
+    let len_i: int = value.__len() to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let cp: uint32 = value[i];
+        if cp == 13:uint32 || cp == 10:uint32 || cp == 59:uint32 {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn same_site_valid(value: &string) -> bool {
+    if value.__len() == 0:uint {
+        return true;
+    }
+    return *value == "Strict" || *value == "Lax" || *value == "None";
+}
+
+fn parse_cookie_pair(raw: &string) -> Erring<Cookie, HttpError> {
+    let trimmed: string = raw.trim();
+    if trimmed.__len() == 0:uint {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie");
+    }
+    let eq_idx: int = trimmed.find("=");
+    if eq_idx < 0 {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie");
+    }
+    let name: string = trimmed[[0..eq_idx]].trim();
+    let value: string = trimmed[[eq_idx + 1..trimmed.__len() to int]].trim();
+    if !cookie_name_valid(&name) {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie name");
+    }
+    if !cookie_value_valid(&value) {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie value");
+    }
+    return Success(Cookie { name = name, value = value });
+}
+
+pub fn parse_cookie_header(raw: &string) -> Erring<Cookies, HttpError> {
+    let parts = raw.split(";");
+    let count: int = parts.__len() to int;
+    let mut out: Cookies = [];
+    let mut i: int = 0;
+    while i < count {
+        let segment: string = clone(parts[i]);
+        let trimmed: string = segment.trim();
+        if trimmed.__len() != 0:uint {
+            let pair_res = parse_cookie_pair(&trimmed);
+            compare pair_res {
+                Success(cookie) => {
+                    out.push(cookie);
+                    0:int;
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        i = i + 1;
+    }
+    return Success(out);
+}
+
+pub fn request_cookies(req: &Request) -> Erring<Cookies, HttpError> {
+    let count: int = req.headers.__len() to int;
+    let mut out: Cookies = [];
+    let mut i: int = 0;
+    while i < count {
+        let key: string = clone(req.headers[i].key);
+        if string_eq_ascii_ci(&key, "Cookie") {
+            let value: string = clone(req.headers[i].value);
+            let parsed = parse_cookie_header(&value);
+            compare parsed {
+                Success(cookies) => {
+                    let cookie_count: int = cookies.__len() to int;
+                    let mut j: int = 0;
+                    while j < cookie_count {
+                        out.push(Cookie { name = clone(cookies[j].name), value = clone(cookies[j].value) });
+                        j = j + 1;
+                    }
+                    0:int;
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        i = i + 1;
+    }
+    return Success(out);
+}
+
+pub fn cookie_value(cookies: &Cookies, name: &string) -> Option<string> {
+    let count: int = cookies.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let cookie_name: string = clone(cookies[i].name);
+        if cookie_name == *name {
+            return Some(clone(cookies[i].value));
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+pub fn cookie_has(cookies: &Cookies, name: &string) -> bool {
+    return compare cookie_value(cookies, name) {
+        Some(_) => true;
+        nothing => false;
+    };
+}
+
+pub fn request_cookie(req: &Request, name: &string) -> Option<string> {
+    let cookies_res = request_cookies(req);
+    compare cookies_res {
+        Success(cookies) => {
+            return cookie_value(&cookies, name);
+            0:int;
+        }
+        err => {
+            let _ = err;
+            return nothing;
+            0:int;
+        }
+    };
+    return nothing;
+}
+
+pub fn default_set_cookie(name: &string, value: &string) -> SetCookie {
+    return {
+        name = clone(name),
+        value = clone(value),
+        path = "/",
+        domain = "",
+        max_age = -1,
+        secure = false,
+        http_only = false,
+        same_site = ""
+    };
+}
+
+fn serialize_set_cookie(cookie: &SetCookie) -> Erring<string, HttpError> {
+    if !cookie_name_valid(cookie.name) {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie name");
+    }
+    if !cookie_value_valid(cookie.value) {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie value");
+    }
+    if cookie.path.__len() != 0:uint && !cookie_attr_value_valid(cookie.path) {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie path");
+    }
+    if cookie.domain.__len() != 0:uint && !cookie_attr_value_valid(cookie.domain) {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie domain");
+    }
+    if !same_site_valid(cookie.same_site) {
+        return http_error(HTTP_ERR_HEADER, "invalid cookie SameSite");
+    }
+
+    let mut out: string = cookie.name.__clone() + "=" + cookie.value.__clone();
+    if cookie.path.__len() != 0:uint {
+        out = out + "; Path=" + cookie.path.__clone();
+    }
+    if cookie.domain.__len() != 0:uint {
+        out = out + "; Domain=" + cookie.domain.__clone();
+    }
+    if cookie.max_age >= 0 {
+        out = out + "; Max-Age=" + (cookie.max_age to string);
+    }
+    if cookie.secure {
+        out = out + "; Secure";
+    }
+    if cookie.http_only {
+        out = out + "; HttpOnly";
+    }
+    if cookie.same_site.__len() != 0:uint {
+        out = out + "; SameSite=" + cookie.same_site.__clone();
+    }
+    return Success(out);
+}
+
+pub fn response_with_set_cookie(resp: Response, cookie: &SetCookie) -> Erring<Response, HttpError> {
+    let mut out_res: Erring<Response, HttpError> = http_error(HTTP_ERR_HEADER, "invalid cookie");
+    let header_res = serialize_set_cookie(cookie);
+    compare header_res {
+        Success(header_value) => {
+            let mut out: Response = resp;
+            out.headers.push(Header { key = "Set-Cookie", value = header_value });
+            out_res = Success(out);
+            0:int;
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub fn response_set_cookie(resp: Response, name: &string, value: &string) -> Erring<Response, HttpError> {
+    let cookie = default_set_cookie(name, value);
+    return response_with_set_cookie(resp, &cookie);
+}

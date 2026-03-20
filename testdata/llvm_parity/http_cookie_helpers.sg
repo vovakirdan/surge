@@ -1,0 +1,114 @@
+import stdlib/http as http;
+
+fn bytes_to_ascii(bytes: byte[]) -> string {
+    let res = string.from_bytes(&bytes);
+    return compare res {
+        Success(s) => s;
+        err => {
+            let _ = err;
+            "";
+        }
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let raw = "GET / HTTP/1.1\r\nHost: example.com\r\nCookie: session=abc123; theme=dark; empty=; token=a=b\r\n\r\n";
+    let req_res = http.parse_request(&raw);
+    compare req_res {
+        Success(req) => {
+            let cookies_res = http.request_cookies(&req);
+            compare cookies_res {
+                Success(cookies) => {
+                    if cookies.__len() != 4:uint {
+                        print("cookies_len_bad");
+                        return 1;
+                    }
+                    if !http.cookie_has(&cookies, "session") {
+                        print("missing_session");
+                        return 1;
+                    }
+                    compare http.cookie_value(&cookies, "theme") {
+                        Some(value) => {
+                            if value != "dark" {
+                                print("theme_bad");
+                                return 1;
+                            }
+                        }
+                        nothing => {
+                            print("theme_missing");
+                            return 1;
+                        }
+                    };
+                    compare http.request_cookie(&req, "token") {
+                        Some(value) => {
+                            if value != "a=b" {
+                                print("token_bad");
+                                return 1;
+                            }
+                        }
+                        nothing => {
+                            print("token_missing");
+                            return 1;
+                        }
+                    };
+                }
+                err => {
+                    print("cookies_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("parse_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    compare http.parse_cookie_header(&"badpair") {
+        Success(_) => {
+            print("bad_cookie_accepted");
+            return 1;
+        }
+        err => {
+            print("bad_cookie=" + (err.code to string));
+        }
+    };
+
+    let mut cookie = http.default_set_cookie("session", "abc123");
+    cookie.path = "/";
+    cookie.max_age = 3600;
+    cookie.secure = true;
+    cookie.http_only = true;
+    cookie.same_site = "Lax";
+
+    let base = http.response_text(200, &"ok");
+    let cookie_resp_res = http.response_with_set_cookie(base, &cookie);
+    compare cookie_resp_res {
+        Success(resp) => {
+            let text = bytes_to_ascii(http.write_response(resp));
+            if !text.contains("Set-Cookie: session=abc123; Path=/; Max-Age=3600; Secure; HttpOnly; SameSite=Lax\r\n") {
+                print("set_cookie_bad");
+                return 1;
+            }
+        }
+        err => {
+            print("set_cookie_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    compare http.response_set_cookie(http.response_empty(204), "bad name", "x") {
+        Success(_) => {
+            print("invalid_set_cookie_accepted");
+            return 1;
+        }
+        err => {
+            print("invalid_set_cookie=" + (err.code to string));
+        }
+    };
+
+    print("cookies_ok");
+    print("set_cookie_ok");
+    return 0;
+}
