@@ -1,0 +1,269 @@
+pragma module;
+
+// stdlib/http/context.sg
+// Ergonomic request/response wrapper for handler code.
+
+pub type Context = {
+    req: Request,
+    resp: Response
+};
+
+pub fn context(req: Request) -> Context {
+    return { req = req, resp = response_empty(200) };
+}
+
+pub fn context_with_response(req: Request, resp: Response) -> Context {
+    return { req = req, resp = resp };
+}
+
+pub fn into_response(ctx: Context) -> Response {
+    return ctx.resp;
+}
+
+fn context_remove_content_type(ctx: &mut Context) -> nothing {
+    ctx.resp.headers = headers_without(ctx.resp.headers, "Content-Type");
+    return nothing;
+}
+
+fn context_set_content_type(ctx: &mut Context, value: &string) -> nothing {
+    ctx.resp.headers = headers_set(ctx.resp.headers, "Content-Type", value);
+    return nothing;
+}
+
+fn context_set_empty(ctx: &mut Context, status: int) -> nothing {
+    ctx.resp.status = status;
+    ctx.resp.body = Empty();
+    context_remove_content_type(ctx);
+    return nothing;
+}
+
+pub fn context_json(ctx: &mut Context, status: int, value: &json.JsonValue) -> nothing {
+    let body_text: string = json.stringify(value);
+    ctx.resp.status = status;
+    ctx.resp.body = Bytes(body_text to byte[]);
+    context_set_content_type(ctx, "application/json; charset=utf-8");
+    return nothing;
+}
+
+fn context_read_body_task(ctx: &mut Context, limit: uint) -> Task<Erring<byte[], HttpError>> {
+    return read_all_body(ctx.req.body, limit);
+}
+
+fn context_discard_body_task(ctx: &mut Context, limit: uint) -> Task<Erring<nothing, HttpError>> {
+    return discard_body(ctx.req.body, limit);
+}
+
+fn context_read_body_text_task(ctx: &mut Context, limit: uint) -> Task<Erring<string, HttpError>> {
+    return read_body_text(ctx.req.body, limit);
+}
+
+extern<Context> {
+    pub fn header(self: &Context, key: &string) -> Option<string> {
+        return request_header(self.req, key);
+    }
+
+    pub fn has_header(self: &Context, key: &string) -> bool {
+        return request_has_header(self.req, key);
+    }
+
+    pub fn content_length(self: &Context) -> Option<uint> {
+        return request_content_length(self.req);
+    }
+
+    pub fn keep_alive(self: &Context) -> bool {
+        return request_keep_alive(self.req);
+    }
+
+    pub fn query_params(self: &Context) -> Erring<QueryParams, HttpError> {
+        return request_query_params(self.req);
+    }
+
+    pub fn query(self: &Context, key: &string) -> Option<string> {
+        let params_res = request_query_params(self.req);
+        compare params_res {
+            Success(params) => {
+                return query_param(params, key);
+                0:int;
+            }
+            err => {
+                let _ = err;
+                return nothing;
+                0:int;
+            }
+        };
+        return nothing;
+    }
+
+    pub fn has_query(self: &Context, key: &string) -> bool {
+        let params_res = request_query_params(self.req);
+        compare params_res {
+            Success(params) => {
+                return query_has(params, key);
+                0:int;
+            }
+            err => {
+                let _ = err;
+                return false;
+                0:int;
+            }
+        };
+        return false;
+    }
+
+    pub fn query_all(self: &Context, key: &string) -> string[] {
+        let params_res = request_query_params(self.req);
+        compare params_res {
+            Success(params) => {
+                let mut out: string[] = [];
+                let count: int = params.__len() to int;
+                let mut i: int = 0;
+                while i < count {
+                    let param_key: string = clone(params[i].key);
+                    if param_key == *key {
+                        out.push(clone(params[i].value));
+                    }
+                    i = i + 1;
+                }
+                return out;
+                0:int;
+            }
+            err => {
+                let _ = err;
+                return [];
+                0:int;
+            }
+        };
+        return [];
+    }
+
+    pub fn cookies(self: &Context) -> Erring<Cookies, HttpError> {
+        return request_cookies(self.req);
+    }
+
+    pub fn cookie(self: &Context, name: &string) -> Option<string> {
+        return request_cookie(self.req, name);
+    }
+
+    pub fn read_body(self: &mut Context, limit: uint) -> Task<Erring<byte[], HttpError>> {
+        return context_read_body_task(self, limit);
+    }
+
+    pub fn discard_body(self: &mut Context, limit: uint) -> Task<Erring<nothing, HttpError>> {
+        return context_discard_body_task(self, limit);
+    }
+
+    pub fn read_body_text(self: &mut Context, limit: uint) -> Task<Erring<string, HttpError>> {
+        return context_read_body_text_task(self, limit);
+    }
+
+    pub fn set_status(self: &mut Context, status: int) -> nothing {
+        self.resp.status = status;
+        return nothing;
+    }
+
+    pub fn append_header(self: &mut Context, key: &string, value: &string) -> nothing {
+        self.resp.headers = headers_with(self.resp.headers, key, value);
+        return nothing;
+    }
+
+    pub fn set_header(self: &mut Context, key: &string, value: &string) -> nothing {
+        self.resp.headers = headers_set(self.resp.headers, key, value);
+        return nothing;
+    }
+
+    pub fn remove_header(self: &mut Context, key: &string) -> nothing {
+        self.resp.headers = headers_without(self.resp.headers, key);
+        return nothing;
+    }
+
+    pub fn set_cookie(self: &mut Context, cookie: &SetCookie) -> Erring<nothing, HttpError> {
+        let header_res = serialize_set_cookie(cookie);
+        compare header_res {
+            Success(value) => {
+                self.resp.headers = headers_with(self.resp.headers, "Set-Cookie", &value);
+                return Success(nothing);
+                0:int;
+            }
+            err => {
+                return err;
+                0:int;
+            }
+        };
+        return Success(nothing);
+    }
+
+    pub fn set_cookie_value(self: &mut Context, name: &string, value: &string) -> Erring<nothing, HttpError> {
+        let cookie = default_set_cookie(name, value);
+        return self.set_cookie(&cookie);
+    }
+
+    pub fn expire_cookie(self: &mut Context, name: &string, value: &string, max_age: int) -> Erring<nothing, HttpError> {
+        let cookie = expiring_set_cookie(name, value, max_age);
+        return self.set_cookie(&cookie);
+    }
+
+    pub fn delete_cookie(self: &mut Context, name: &string) -> Erring<nothing, HttpError> {
+        let cookie = delete_set_cookie(name);
+        return self.set_cookie(&cookie);
+    }
+
+    pub fn delete_cookie_at(self: &mut Context, name: &string, path: &string, domain: &string) -> Erring<nothing, HttpError> {
+        let cookie = delete_set_cookie_at(name, path, domain);
+        return self.set_cookie(&cookie);
+    }
+
+    pub fn empty(self: &mut Context, status: int) -> nothing {
+        context_set_empty(self, status);
+        return nothing;
+    }
+
+    pub fn bytes(self: &mut Context, status: int, body: byte[]) -> nothing {
+        self.resp.status = status;
+        self.resp.body = Bytes(body);
+        return nothing;
+    }
+
+    pub fn text(self: &mut Context, status: int, body: &string) -> nothing {
+        self.bytes(status, body.__clone() to byte[]);
+        context_set_content_type(self, "text/plain; charset=utf-8");
+        return nothing;
+    }
+
+    pub fn html(self: &mut Context, status: int, body: &string) -> nothing {
+        self.bytes(status, body.__clone() to byte[]);
+        context_set_content_type(self, "text/html; charset=utf-8");
+        return nothing;
+    }
+
+    pub fn stream(self: &mut Context, status: int, body: ByteStream) -> nothing {
+        self.resp.status = status;
+        self.resp.body = Stream(body);
+        return nothing;
+    }
+
+    pub fn redirect(self: &mut Context, status: int, location: &string) -> nothing {
+        context_set_empty(self, status);
+        self.resp.headers = headers_set(self.resp.headers, "Location", location);
+        return nothing;
+    }
+
+    pub fn found(self: &mut Context, location: &string) -> nothing {
+        self.redirect(302, location);
+        return nothing;
+    }
+
+    pub fn see_other(self: &mut Context, location: &string) -> nothing {
+        self.redirect(303, location);
+        return nothing;
+    }
+
+    pub fn temporary_redirect(self: &mut Context, location: &string) -> nothing {
+        self.redirect(307, location);
+        return nothing;
+    }
+
+    pub fn permanent_redirect(self: &mut Context, location: &string) -> nothing {
+        self.redirect(308, location);
+        return nothing;
+    }
+}

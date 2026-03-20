@@ -1,0 +1,188 @@
+import stdlib/http as http;
+import stdlib/json as json;
+
+fn bytes_to_ascii(bytes: byte[]) -> string {
+    let res = string.from_bytes(&bytes);
+    return compare res {
+        Success(s) => s;
+        err => {
+            let _ = err;
+            "";
+        }
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let raw = "POST /submit?q=surge&tag=http&tag=context HTTP/1.1\r\nHost: example.com\r\nX-Test: yes\r\nCookie: session=abc123\r\nContent-Length: 5\r\n\r\nhello";
+    let req_res = http.parse_request(&raw);
+    compare req_res {
+        Success(req) => {
+            let mut ctx = http.context(req);
+            compare ctx.header(&"X-Test") {
+                Some(value) => {
+                    if value != "yes" {
+                        print("ctx_header_bad");
+                        return 1;
+                    }
+                }
+                nothing => {
+                    print("ctx_header_missing");
+                    return 1;
+                }
+            };
+            if !ctx.has_header(&"Host") {
+                print("ctx_host_missing");
+                return 1;
+            }
+            if !ctx.has_query(&"tag") {
+                print("ctx_tag_missing");
+                return 1;
+            }
+            compare ctx.query(&"q") {
+                Some(value) => {
+                    if value != "surge" {
+                        print("ctx_query_bad");
+                        return 1;
+                    }
+                }
+                nothing => {
+                    print("ctx_query_missing");
+                    return 1;
+                }
+            };
+            let tags = ctx.query_all(&"tag");
+            if tags.__len() != 2:uint || tags[0] != "http" || tags[1] != "context" {
+                print("ctx_query_values_bad");
+                return 1;
+            }
+            compare ctx.cookie(&"session") {
+                Some(value) => {
+                    if value != "abc123" {
+                        print("ctx_cookie_bad");
+                        return 1;
+                    }
+                }
+                nothing => {
+                    print("ctx_cookie_missing");
+                    return 1;
+                }
+            };
+            compare ctx.read_body_text(32:uint).await() {
+                Success(body_res) => {
+                    compare body_res {
+                        Success(text) => {
+                            if text != "hello" {
+                                print("ctx_body_bad");
+                                return 1;
+                            }
+                        }
+                        err => {
+                            print("ctx_body_err=" + (err.code to string));
+                            return 1;
+                        }
+                    };
+                }
+                Cancelled() => {
+                    print("ctx_body_cancelled");
+                    return 1;
+                }
+            };
+
+            ctx.set_header(&"X-Trace", &"one");
+            ctx.set_header(&"X-Trace", &"two");
+            compare ctx.set_cookie_value(&"session", &"next") {
+                Success(_) => { 0:int; }
+                err => {
+                    print("ctx_set_cookie_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            ctx.text(201, &"done");
+            let resp = http.into_response(ctx);
+            let text = bytes_to_ascii(http.write_response(resp));
+            if !text.contains("HTTP/1.1 201 Created\r\n") {
+                print("ctx_status_bad");
+                return 1;
+            }
+            if !text.contains("Content-Type: text/plain; charset=utf-8\r\n") {
+                print("ctx_content_type_bad");
+                return 1;
+            }
+            if !text.contains("Set-Cookie: session=next; Path=/\r\n") {
+                print("ctx_set_cookie_missing");
+                return 1;
+            }
+            if !text.contains("X-Trace: two\r\n") || text.contains("X-Trace: one\r\n") {
+                print("ctx_set_header_bad");
+                return 1;
+            }
+            if !text.contains("\r\ndone") {
+                print("ctx_text_body_bad");
+                return 1;
+            }
+        }
+        err => {
+            print("ctx_parse_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let get_res = http.parse_request(&"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n");
+    compare get_res {
+        Success(req) => {
+            let mut ctx = http.context(req);
+            let mut obj: Map<string, json.JsonValue> = Map::<string, json.JsonValue>.new();
+            let _ = obj.insert("ok", json.JsonBool(true));
+            let value: json.JsonValue = json.JsonObject(obj);
+            http.context_json(ctx, 200, &value);
+            let json_resp = http.into_response(ctx);
+            compare http.response_header(&json_resp, "Content-Type") {
+                Some(content_type) => {
+                    if content_type != "application/json; charset=utf-8" {
+                        print("ctx_json_type_bad");
+                        return 1;
+                    }
+                }
+                nothing => {
+                    print("ctx_json_type_missing");
+                    return 1;
+                }
+            };
+            let json_text = bytes_to_ascii(http.write_response(json_resp));
+            if !json_text.contains("{\"ok\":true}") {
+                print("ctx_json_body_bad");
+                return 1;
+            }
+        }
+        err => {
+            print("ctx_get_parse_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let get_res2 = http.parse_request(&"GET /old HTTP/1.1\r\nHost: example.com\r\n\r\n");
+    compare get_res2 {
+        Success(req) => {
+            let mut ctx = http.context(req);
+            ctx.text(200, &"old");
+            ctx.found(&"/next");
+            let redirect_text = bytes_to_ascii(http.write_response(http.into_response(ctx)));
+            if !redirect_text.contains("Location: /next\r\n") {
+                print("ctx_redirect_location_bad");
+                return 1;
+            }
+            if redirect_text.contains("Content-Type:") {
+                print("ctx_redirect_content_type_bad");
+                return 1;
+            }
+        }
+        err => {
+            print("ctx_redirect_parse_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    print("context_ok");
+    return 0;
+}

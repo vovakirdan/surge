@@ -263,9 +263,9 @@ pub fn response_with_set_cookie(resp: Response, cookie: &SetCookie) -> Erring<Re
     let mut out_res: Erring<Response, HttpError> = http_error(HTTP_ERR_HEADER, "invalid cookie");
     let header_res = serialize_set_cookie(cookie);
     compare header_res {
-        Success(header_value) => {
+        Success(cookie_header_value) => {
             let mut out: Response = resp;
-            out.headers.push(Header { key = "Set-Cookie", value = header_value });
+            out.headers.push(Header { key = "Set-Cookie", value = cookie_header_value });
             out_res = Success(out);
             0:int;
         }

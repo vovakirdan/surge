@@ -1,0 +1,74 @@
+pragma module;
+
+// stdlib/http/headers.sg
+// Shared header collection helpers for requests and responses.
+
+pub fn header_value(headers: &Headers, key: &string) -> Option<string> {
+    let count: int = headers.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let header_key: string = clone(headers[i].key);
+        if string_eq_ascii_ci(&header_key, key) {
+            return Some(clone(headers[i].value));
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+pub fn headers_has(headers: &Headers, key: &string) -> bool {
+    return compare header_value(headers, key) {
+        Some(_) => true;
+        nothing => false;
+    };
+}
+
+pub fn headers_with(headers: &Headers, key: &string, value: &string) -> Headers {
+    let mut out: Headers = [];
+    let count: int = headers.__len() to int;
+    if count > 0 {
+        out.reserve(headers.__len() + 1);
+    }
+    let mut i: int = 0;
+    while i < count {
+        out.push(Header { key = clone(headers[i].key), value = clone(headers[i].value) });
+        i = i + 1;
+    }
+    out.push(Header { key = clone(key), value = clone(value) });
+    return out;
+}
+
+pub fn headers_set(headers: &Headers, key: &string, value: &string) -> Headers {
+    let mut out: Headers = [];
+    let count: int = headers.__len() to int;
+    if count > 0 {
+        out.reserve(headers.__len() + 1);
+    }
+    let mut i: int = 0;
+    while i < count {
+        let header_key: string = clone(headers[i].key);
+        if !string_eq_ascii_ci(&header_key, key) {
+            out.push(Header { key = header_key, value = clone(headers[i].value) });
+        }
+        i = i + 1;
+    }
+    out.push(Header { key = clone(key), value = clone(value) });
+    return out;
+}
+
+pub fn headers_without(headers: &Headers, key: &string) -> Headers {
+    let mut out: Headers = [];
+    let count: int = headers.__len() to int;
+    if count > 0 {
+        out.reserve(headers.__len());
+    }
+    let mut i: int = 0;
+    while i < count {
+        let header_key: string = clone(headers[i].key);
+        if !string_eq_ascii_ci(&header_key, key) {
+            out.push(Header { key = header_key, value = clone(headers[i].value) });
+        }
+        i = i + 1;
+    }
+    return out;
+}

@@ -241,24 +241,11 @@ fn bytes_to_ascii(bytes: &byte[]) -> Erring<string, HttpError> {
 }
 
 pub fn request_header(req: &Request, key: &string) -> Option<string> {
-    let count: int = req.headers.__len() to int;
-    let mut i: int = 0;
-    while i < count {
-        let header_key: string = clone(req.headers[i].key);
-        if string_eq_ascii_ci(&header_key, key) {
-            let header_value: string = clone(req.headers[i].value);
-            return Some(header_value);
-        }
-        i = i + 1;
-    }
-    return nothing;
+    return header_value(req.headers, key);
 }
 
 pub fn request_has_header(req: &Request, key: &string) -> bool {
-    return compare request_header(req, key) {
-        Some(_) => true;
-        nothing => false;
-    };
+    return headers_has(req.headers, key);
 }
 
 pub fn request_content_length(req: &Request) -> Option<uint> {
@@ -282,4 +269,3 @@ pub fn request_keep_alive(req: &Request) -> bool {
         false => true;
     };
 }
-

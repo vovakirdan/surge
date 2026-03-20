@@ -263,7 +263,27 @@ pub fn response_permanent_redirect(location: &string) -> Response {
 
 pub fn response_with_header(resp: Response, key: &string, value: &string) -> Response {
     let mut out: Response = resp;
-    out.headers.push(Header { key: clone(key), value: clone(value) });
+    out.headers = headers_with(&out.headers, key, value);
+    return out;
+}
+
+pub fn response_header(resp: &Response, key: &string) -> Option<string> {
+    return header_value(resp.headers, key);
+}
+
+pub fn response_has_header(resp: &Response, key: &string) -> bool {
+    return headers_has(resp.headers, key);
+}
+
+pub fn response_set_header(resp: Response, key: &string, value: &string) -> Response {
+    let mut out: Response = resp;
+    out.headers = headers_set(&out.headers, key, value);
+    return out;
+}
+
+pub fn response_remove_header(resp: Response, key: &string) -> Response {
+    let mut out: Response = resp;
+    out.headers = headers_without(&out.headers, key);
     return out;
 }
 
