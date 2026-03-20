@@ -199,18 +199,16 @@ func (fe *funcEmitter) emitFsFileHandle(op *mir.Operand) (string, error) {
 	if ty != "ptr" {
 		return "", fmt.Errorf("expected File handle, got %s", ty)
 	}
-	if op.Kind != mir.OperandAddrOf && op.Kind != mir.OperandAddrOfMut {
-		opType := op.Type
-		if opType == types.NoTypeID && op.Kind != mir.OperandConst {
-			if baseType, err := fe.placeBaseType(op.Place); err == nil {
-				opType = baseType
-			}
+	opType := op.Type
+	if opType == types.NoTypeID && op.Kind != mir.OperandConst {
+		if baseType, err := fe.placeBaseType(op.Place); err == nil {
+			opType = baseType
 		}
-		if isRefType(fe.emitter.types, opType) {
-			tmp := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, val)
-			val = tmp
-		}
+	}
+	if op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut || isRefType(fe.emitter.types, opType) {
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, val)
+		val = tmp
 	}
 	return val, nil
 }
