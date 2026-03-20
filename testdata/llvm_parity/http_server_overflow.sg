@@ -34,11 +34,12 @@ async fn handle(req: http.Request) -> http.Response {
 fn main(port: uint) -> int {
     let cfg: http.ServerConfig = {
         max_pipeline_depth = 1:uint,
+        worker_count = 4:uint,
         max_initial_line_bytes = 1024:uint,
         max_header_bytes = 4096:uint,
         max_headers_count = 32:uint,
         max_body_bytes = 0:uint,
-        accept_timeout_ms = 1000:uint,
+        accept_timeout_ms = 0:uint,
         idle_timeout_ms = 1000:uint,
         read_timeout_ms = 1000:uint,
         write_timeout_ms = 1000:uint

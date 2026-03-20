@@ -34,6 +34,10 @@ pub fn listen(addr: string, port: uint) -> NetResult<TcpListener> {
     return rt_net_listen(&addr, port);
 }
 
+pub fn close_listener(l: own TcpListener) -> NetResult<nothing> {
+    return rt_net_close_listener(own l);
+}
+
 pub fn connect(addr: string, port: uint) -> NetResult<TcpConn> {
     return rt_net_connect(&addr, port);
 }

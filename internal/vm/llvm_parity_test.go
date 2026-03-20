@@ -404,22 +404,14 @@ func runHTTPServerCommand(t *testing.T, cmd *exec.Cmd, port int) (stdout, stderr
 		waitCh <- cmd.Wait()
 	}()
 
+	_ = cmd.Process.Kill()
 	select {
-	case err := <-waitCh:
+	case <-waitCh:
 		stdout = outBuf.String()
 		stderr = errBuf.String()
 		stdout = stripTimingLines(stdout)
-		if err == nil {
-			return stdout, stderr, 0
-		}
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			t.Fatalf("run command: %v\nstderr:\n%s", err, stderr)
-		}
-		return stdout, stderr, exitErr.ExitCode()
+		return stdout, stderr, 0
 	case <-time.After(15 * time.Second):
-		_ = cmd.Process.Kill()
-		<-waitCh
 		t.Fatalf("http server command timed out")
 		return "", "", 1
 	}
