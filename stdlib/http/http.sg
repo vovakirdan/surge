@@ -21,6 +21,8 @@ pub enum HttpVersion = {
 
 pub type Header = { key: string, value: string };
 pub type Headers = Header[];
+pub type QueryParam = { key: string, value: string };
+pub type QueryParams = QueryParam[];
 
 pub type HttpError = { message: string, code: uint };
 type HttpResult<T> = Erring<T, HttpError>;
@@ -219,21 +221,6 @@ fn string_contains_ascii_ci(hay: &string, needle: &string) -> bool {
     return false;
 }
 
-fn string_to_bytes(s: &string) -> byte[] {
-    let view = s.bytes();
-    let length: uint = view.__len();
-    let mut out: byte[] = [];
-    out.reserve(length);
-    let len_i: int = length to int;
-    let mut i: int = 0;
-    while i < len_i {
-        let b: byte = view[i];
-        out.push(b);
-        i = i + 1;
-    }
-    return out;
-}
-
 fn bytes_to_ascii(bytes: &byte[]) -> Erring<string, HttpError> {
     let res = string.from_bytes(bytes);
     let mut out: Erring<string, HttpError> = http_error(HTTP_ERR_PARSE, "invalid utf-8");
@@ -292,6 +279,189 @@ pub fn request_keep_alive(req: &Request) -> bool {
         true => false;
         false => true;
     };
+}
+
+fn hex_nibble(b: uint) -> int {
+    if b >= 48:uint && b <= 57:uint {
+        return (b - 48:uint) to int;
+    }
+    if b >= 65:uint && b <= 70:uint {
+        return (b - 65:uint + 10:uint) to int;
+    }
+    if b >= 97:uint && b <= 102:uint {
+        return (b - 97:uint + 10:uint) to int;
+    }
+    return -1;
+}
+
+fn decode_query_component(raw: &byte[]) -> HttpResult<string> {
+    let len_i: int = raw.__len() to int;
+    let mut out: byte[] = [];
+    let mut out_res: HttpResult<string> = http_error(HTTP_ERR_PARSE, "invalid utf-8 in query");
+    if len_i > 0 {
+        out.reserve(raw.__len());
+    }
+    let mut i: int = 0;
+    while i < len_i {
+        let b: uint = raw[i] to uint;
+        if b == 43:uint {
+            out.push(32:uint to byte);
+            i = i + 1;
+            continue;
+        }
+        if b == 37:uint {
+            if i + 2 >= len_i {
+                return http_error(HTTP_ERR_PARSE, "invalid percent-encoding");
+            }
+            let hi: int = hex_nibble(raw[i + 1] to uint);
+            let lo: int = hex_nibble(raw[i + 2] to uint);
+            if hi < 0 || lo < 0 {
+                return http_error(HTTP_ERR_PARSE, "invalid percent-encoding");
+            }
+            let decoded: uint = (hi * 16 + lo) to uint;
+            out.push(decoded to byte);
+            i = i + 3;
+            continue;
+        }
+        let raw_b: byte = raw[i];
+        out.push(raw_b);
+        i = i + 1;
+    }
+
+    let text_res = string.from_bytes(&out);
+    compare text_res {
+        Success(text) => {
+            out_res = Success(text);
+            0:int;
+        }
+        err => {
+            let _ = err;
+            out_res = http_error(HTTP_ERR_PARSE, "invalid utf-8 in query");
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+fn push_query_param(out: &mut QueryParams, key_raw: byte[], value_raw: byte[]) -> HttpResult<nothing> {
+    let mut out_res: HttpResult<nothing> = Success(nothing);
+    let key_res = decode_query_component(&key_raw);
+    compare key_res {
+        Success(key_text) => {
+            let value_res = decode_query_component(&value_raw);
+            compare value_res {
+                Success(value_text) => {
+                    out.push(QueryParam { key = key_text, value = value_text });
+                    out_res = Success(nothing);
+                    0:int;
+                }
+                err => {
+                    out_res = err;
+                    0:int;
+                }
+            };
+            0:int;
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub fn parse_query(query: &string) -> Erring<QueryParams, HttpError> {
+    let view = query.bytes();
+    let len_i: int = view.__len() to int;
+    let mut out: QueryParams = [];
+    let mut key_raw: byte[] = [];
+    let mut value_raw: byte[] = [];
+    let mut in_value: bool = false;
+    let mut segment_started: bool = false;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: uint = view[i] to uint;
+        if b == 38:uint {
+            if segment_started {
+                let pushed = push_query_param(&mut out, key_raw, value_raw);
+                compare pushed {
+                    Success(_) => {}
+                    err => {
+                        return err;
+                    }
+                };
+            }
+            key_raw = [];
+            value_raw = [];
+            in_value = false;
+            segment_started = false;
+            i = i + 1;
+            continue;
+        }
+        if !in_value && b == 61:uint {
+            in_value = true;
+            segment_started = true;
+            i = i + 1;
+            continue;
+        }
+        if in_value {
+            let value_b: byte = view[i];
+            value_raw.push(value_b);
+        } else {
+            let key_b: byte = view[i];
+            key_raw.push(key_b);
+        }
+        segment_started = true;
+        i = i + 1;
+    }
+    if segment_started {
+        let pushed = push_query_param(&mut out, key_raw, value_raw);
+        compare pushed {
+            Success(_) => {}
+            err => {
+                return err;
+            }
+        };
+    }
+    return Success(out);
+}
+
+pub fn request_query_params(req: &Request) -> Erring<QueryParams, HttpError> {
+    return parse_query(req.query);
+}
+
+pub fn query_param(params: &QueryParams, key: &string) -> Option<string> {
+    let count: int = params.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let param_key: string = clone(params[i].key);
+        if param_key == *key {
+            return Some(clone(params[i].value));
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+pub fn query_has(params: &QueryParams, key: &string) -> bool {
+    return compare query_param(params, key) {
+        Some(_) => true;
+        nothing => false;
+    };
+}
+
+pub fn query_values(params: &QueryParams, key: &string) -> string[] {
+    let mut out: string[] = [];
+    let count: int = params.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let param_key: string = clone(params[i].key);
+        if param_key == *key {
+            out.push(clone(params[i].value));
+        }
+        i = i + 1;
+    }
+    return out;
 }
 
 fn find_double_crlf(s: &string) -> int {
@@ -951,10 +1121,10 @@ pub fn parse_request(raw: &string) -> Erring<Request, HttpError> {
 
     let mut body: BodyReader = body_reader_none();
     if parsed_head.meta.chunked {
-        let body_bytes = string_to_bytes(&body_str);
+        let body_bytes: byte[] = body_str to byte[];
         body = body_reader_chunked(body_bytes, 0:uint);
     } else if parsed_head.meta.has_content_len {
-        let body_bytes = string_to_bytes(&body_str);
+        let body_bytes: byte[] = body_str to byte[];
         let body_len: uint = body_bytes.__len();
         if parsed_head.meta.content_len > body_len {
             return http_error(HTTP_ERR_BODY, "content-length exceeds body");
@@ -1206,8 +1376,23 @@ fn status_reason(status: int) -> string {
     if status == 204 {
         return "No Content";
     }
+    if status == 301 {
+        return "Moved Permanently";
+    }
+    if status == 302 {
+        return "Found";
+    }
+    if status == 303 {
+        return "See Other";
+    }
     if status == 304 {
         return "Not Modified";
+    }
+    if status == 307 {
+        return "Temporary Redirect";
+    }
+    if status == 308 {
+        return "Permanent Redirect";
     }
     if status == 400 {
         return "Bad Request";
@@ -1350,7 +1535,8 @@ pub fn response_bytes(status: int, body: byte[]) -> Response {
 
 pub fn response_text(status: int, body: &string) -> Response {
     let headers: Headers = [];
-    let mut resp: Response = { status: status, headers: headers, body: Bytes(string_to_bytes(body)) };
+    let body_bytes: byte[] = body.__clone() to byte[];
+    let mut resp: Response = { status: status, headers: headers, body: Bytes(body_bytes) };
     resp.headers.push(Header { key: "Content-Type", value: "text/plain; charset=utf-8" });
     return resp;
 }
@@ -1358,6 +1544,28 @@ pub fn response_text(status: int, body: &string) -> Response {
 pub fn response_stream(status: int, body: ByteStream) -> Response {
     let headers: Headers = [];
     return { status: status, headers: headers, body: Stream(body) };
+}
+
+pub fn response_redirect(status: int, location: &string) -> Response {
+    let mut resp = response_empty(status);
+    resp.headers.push(Header { key: "Location", value: clone(location) });
+    return resp;
+}
+
+pub fn response_found(location: &string) -> Response {
+    return response_redirect(302, location);
+}
+
+pub fn response_see_other(location: &string) -> Response {
+    return response_redirect(303, location);
+}
+
+pub fn response_temporary_redirect(location: &string) -> Response {
+    return response_redirect(307, location);
+}
+
+pub fn response_permanent_redirect(location: &string) -> Response {
+    return response_redirect(308, location);
 }
 
 pub fn response_with_header(resp: Response, key: &string, value: &string) -> Response {

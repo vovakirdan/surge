@@ -1,0 +1,95 @@
+import stdlib/http as http;
+
+fn bytes_to_ascii(bytes: byte[]) -> string {
+    let res = string.from_bytes(&bytes);
+    return compare res {
+        Success(s) => s;
+        err => {
+            let _ = err;
+            "";
+        }
+    };
+}
+
+fn expect_query_value(params: &http.QueryParams, key: &string, want: &string) -> bool {
+    return compare http.query_param(params, key) {
+        Some(value) => value == *want;
+        nothing => false;
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let raw = "GET /search?q=surge+lang&tag=http&tag=stdlib&empty=&encoded=a%2Bb HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    let req_res = http.parse_request(&raw);
+    compare req_res {
+        Success(req) => {
+            let params_res = http.request_query_params(&req);
+            compare params_res {
+                Success(params) => {
+                    if params.__len() != 5:uint {
+                        print("params_len_bad");
+                        return 1;
+                    }
+                    if !expect_query_value(&params, "q", "surge lang") {
+                        print("q_bad");
+                        return 1;
+                    }
+                    if !expect_query_value(&params, "empty", "") {
+                        print("empty_bad");
+                        return 1;
+                    }
+                    if !expect_query_value(&params, "encoded", "a+b") {
+                        print("encoded_bad");
+                        return 1;
+                    }
+                    if !http.query_has(&params, "tag") {
+                        print("tag_missing");
+                        return 1;
+                    }
+                    let tags = http.query_values(&params, "tag");
+                    if tags.__len() != 2:uint {
+                        print("tag_len_bad");
+                        return 1;
+                    }
+                    if tags[0] != "http" || tags[1] != "stdlib" {
+                        print("tag_values_bad");
+                        return 1;
+                    }
+                }
+                err => {
+                    print("params_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("parse_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    compare http.parse_query(&"bad=%ZZ") {
+        Success(_) => {
+            print("invalid_query_accepted");
+            return 1;
+        }
+        err => {
+            print("invalid_query=" + (err.code to string));
+        }
+    };
+
+    let redirect = http.response_found(&"/next?x=1");
+    let redirect_text = bytes_to_ascii(http.write_response(redirect));
+    if !redirect_text.contains("HTTP/1.1 302 Found\r\n") {
+        print("redirect_status_bad");
+        return 1;
+    }
+    if !redirect_text.contains("Location: /next?x=1\r\n") {
+        print("redirect_location_bad");
+        return 1;
+    }
+    print("query_ok");
+    print("redirect_ok");
+    return 0;
+}

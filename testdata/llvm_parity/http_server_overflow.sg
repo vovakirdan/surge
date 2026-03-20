@@ -1,22 +1,7 @@
 import stdlib/http as http;
 
-fn string_to_bytes(s: &string) -> byte[] {
-    let view = s.bytes();
-    let length: uint = view.__len();
-    let mut out: byte[] = [];
-    out.reserve(length);
-    let len_i: int = length to int;
-    let mut i: int = 0;
-    while i < len_i {
-        let b: byte = view[i];
-        out.push(b);
-        i = i + 1;
-    }
-    return out;
-}
-
 async fn respond_for_path() -> http.Response {
-    let bytes = string_to_bytes(&"ok");
+    let bytes: byte[] = "ok" to byte[];
     return { status = 200, headers = [], body = http.Bytes(bytes) };
 }
 

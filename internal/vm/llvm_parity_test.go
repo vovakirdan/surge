@@ -93,6 +93,7 @@ func TestLLVMParity(t *testing.T) {
 		{name: "http_parse_request_strict", file: "http_parse_request_strict.sg"},
 		{name: "http_response_bytes", file: "http_response_bytes.sg"},
 		{name: "http_helpers", file: "http_helpers.sg"},
+		{name: "http_query_helpers", file: "http_query_helpers.sg"},
 		{name: "http_chunked_request", file: "http_chunked_request.sg"},
 		{name: "http_chunked_response", file: "http_chunked_response.sg"},
 		{name: "http_server", file: "http_server.sg"},

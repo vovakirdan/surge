@@ -21,3 +21,7 @@ Short notes collected during stdlib work when something looked like a compiler o
 
 - `Channel<TcpConn>` currently failed method resolution at `send(...)` inside `stdlib/http::serve`.
   A temporary workaround was to queue raw socket handles (`int`) and reconstruct `TcpConn` inside workers.
+
+- `string -> byte[]` conversion currently accepts owned `string`, but rejects `&string` with `SEM3015: cannot cast &string to [byte]`.
+  Observed while deduplicating local `string_to_bytes(...)` helpers in `stdlib/http` and `stdlib/json/parser`.
+  Current workaround is `borrowed_string.__clone() to byte[]`.

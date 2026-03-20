@@ -1,20 +1,5 @@
 import stdlib/net as net;
 
-fn string_to_bytes(s: &string) -> byte[] {
-    let view = s.bytes();
-    let length: uint = view.__len();
-    let mut out: byte[] = [];
-    out.reserve(length);
-    let len_i: int = length to int;
-    let mut i: int = 0;
-    while i < len_i {
-        let b: byte = view[i];
-        out.push(b);
-        i = i + 1;
-    }
-    return out;
-}
-
 fn bytes_eq(a: &byte[], b: &byte[]) -> bool {
     if a.__len() != b.__len() {
         return false;
@@ -41,7 +26,7 @@ fn main(port: uint, msg: string) -> int {
                 Success(conn_res) => {
                     compare conn_res {
                         Success(conn) => {
-                            let expected: byte[] = string_to_bytes(&msg);
+                            let expected: byte[] = msg to byte[];
                             let target_len: uint = expected.__len();
                             let read_task = net.read_some(&conn, target_len).await();
                             compare read_task {

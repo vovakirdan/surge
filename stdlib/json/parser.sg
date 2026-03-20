@@ -48,21 +48,6 @@ fn skip_ws(p: &mut Parser) -> nothing {
     return nothing;
 }
 
-fn string_to_bytes(s: &string) -> byte[] {
-    let view = s.bytes();
-    let length: uint = view.__len();
-    let mut out: byte[] = [];
-    out.reserve(length);
-    let len_i: int = length to int;
-    let mut i: int = 0;
-    while i < len_i {
-        let b: byte = view[i];
-        out.push(b);
-        i = i + 1;
-    }
-    return out;
-}
-
 fn copy_bytes_range(data: &&byte[], start: int, end: int) -> byte[] {
     let mut out: byte[] = [];
     if end > start {
@@ -666,6 +651,6 @@ pub fn parse_bytes(input: byte[]) -> Erring<JsonValue, JsonError> {
 }
 
 pub fn parse(input: &string) -> Erring<JsonValue, JsonError> {
-    let bytes: byte[] = string_to_bytes(input);
+    let bytes: byte[] = input.__clone() to byte[];
     return parse_bytes(bytes);
 }

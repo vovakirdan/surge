@@ -1,21 +1,6 @@
 import stdlib/net as net;
 import stdlib/http as http;
 
-fn string_to_bytes(s: &string) -> byte[] {
-    let view = s.bytes();
-    let length: uint = view.__len();
-    let mut out: byte[] = [];
-    out.reserve(length);
-    let len_i: int = length to int;
-    let mut i: int = 0;
-    while i < len_i {
-        let b: byte = view[i];
-        out.push(b);
-        i = i + 1;
-    }
-    return out;
-}
-
 fn bytes_to_string(bytes: &byte[]) -> string {
     let res = string.from_bytes(bytes);
     return compare res {
@@ -56,7 +41,7 @@ async fn serve_once(listener: TcpListener) -> nothing {
                                     if !ok {
                                         body = "bad";
                                     }
-                                    let body_bytes = string_to_bytes(&body);
+                                    let body_bytes: byte[] = body to byte[];
                                     let resp: http.Response = { status = 200, headers = [], body = http.Bytes(body_bytes) };
                                     let out = http.write_response(resp);
                                     let write_task = net.write_all(&conn, out).await();
@@ -95,7 +80,7 @@ fn main(port: uint) -> int {
             compare conn_res {
                 Success(conn) => {
                     let req = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n";
-                    let req_bytes = string_to_bytes(&req);
+                    let req_bytes: byte[] = req to byte[];
                     let write_task = net.write_all(&conn, req_bytes).await();
                     compare write_task {
                         Success(write_res) => {
