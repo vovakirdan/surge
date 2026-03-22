@@ -120,7 +120,11 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	if selMono.ok {
 		if sym := tc.symbolFromID(selMono.sym); sym != nil {
 			tc.materializeCallArguments(sym, args, selMono.typeArgs)
-			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
+			argTypes := tc.collectArgTypes(args)
+			tc.validateFunctionCall(sym, call, argTypes)
+			if !tc.validateSpecialCall(sym, call, argTypes, span) {
+				return types.NoTypeID
+			}
 			tc.recordImplicitConversionsForCall(sym, args)
 			tc.applyCallOwnership(sym, args)
 			tc.dropImplicitBorrowsForCall(sym, args, selMono.result)
@@ -145,7 +149,11 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	if selGeneric.ok {
 		if sym := tc.symbolFromID(selGeneric.sym); sym != nil {
 			tc.materializeCallArguments(sym, args, selGeneric.typeArgs)
-			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
+			argTypes := tc.collectArgTypes(args)
+			tc.validateFunctionCall(sym, call, argTypes)
+			if !tc.validateSpecialCall(sym, call, argTypes, span) {
+				return types.NoTypeID
+			}
 			tc.recordImplicitConversionsForCall(sym, args)
 			tc.dropImplicitBorrowsForCall(sym, args, selGeneric.result)
 		}

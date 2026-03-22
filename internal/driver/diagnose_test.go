@@ -148,3 +148,64 @@ fn main() -> nothing {
 		t.Fatalf("borrow %d should end on @drop, not at scope end; events %+v", dropBorrow, res.Sema.BorrowEvents)
 	}
 }
+
+func TestDiagnoseRejectsExitOnUnionErrorPath(t *testing.T) {
+	stdlibRoot := detectStdlibRootFrom(".")
+	if stdlibRoot == "" {
+		t.Fatal("failed to locate stdlib root for test")
+	}
+	t.Setenv("SURGE_STDLIB", stdlibRoot)
+
+	src := `
+tag Help(string);
+tag ErrorDiag(Error);
+type ParseDiag = Help(string) | ErrorDiag(Error);
+
+fn bad() -> Erring<int, ParseDiag> {
+    let e: Error = { message = "bad", code = 1:uint };
+    return ErrorDiag(e);
+}
+
+@entrypoint
+fn main() {
+    let result = bad();
+    compare result {
+        Success(v) => { print(v to string); }
+        err => { exit(err); }
+    }
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "exit_union.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code != diag.SemaTypeMismatch {
+			continue
+		}
+		if d.Message == "exit requires ErrorLike-compatible argument with fields 'message: string' and 'code: int/uint'; got ParseDiag" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected exit ErrorLike diagnostic, got %+v", res.Bag.Items())
+	}
+}
