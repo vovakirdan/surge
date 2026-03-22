@@ -616,7 +616,11 @@ func decodeUTF16Strict(units []uint16) (string, bool) {
 				return "", false
 			}
 			code := 0x10000 + ((uint32(u) - 0xD800) << 10) + (uint32(lo) - 0xDC00)
-			runes = append(runes, rune(code))
+			r, err := safecast.Conv[rune](code)
+			if err != nil {
+				return "", false
+			}
+			runes = append(runes, r)
 			i++
 		case u >= 0xDC00 && u <= 0xDFFF:
 			return "", false

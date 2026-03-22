@@ -25,7 +25,7 @@ func FormatTokensPretty(w io.Writer, tokens []token.Token, fs *source.FileSet) e
 		startPos, endPos := fs.Resolve(tok.Span)
 
 		// Форматируем leading trivia
-		var leading []string
+		leading := make([]string, 0, len(tok.Leading))
 		for _, trivia := range tok.Leading {
 			leading = append(leading, trivia.Kind.String())
 		}
@@ -68,7 +68,7 @@ func FormatTokensPretty(w io.Writer, tokens []token.Token, fs *source.FileSet) e
 func TokenOutputsJSON(tokens []token.Token) []TokenOutput {
 	output := make([]TokenOutput, 0, len(tokens))
 	for _, tok := range tokens {
-		var leading []string
+		leading := make([]string, 0, len(tok.Leading))
 		for _, trivia := range tok.Leading {
 			leading = append(leading, trivia.Kind.String())
 		}

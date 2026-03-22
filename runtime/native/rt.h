@@ -59,8 +59,8 @@ void* rt_fs_file_metadata(void* file);
 
 void* rt_net_listen(void* addr, uint64_t port);
 void* rt_net_connect(void* addr, uint64_t port);
-void* rt_net_close_listener(const void* listener);
-void* rt_net_close_conn(const void* conn);
+void* rt_net_close_listener(void* listener);
+void* rt_net_close_conn(void* conn);
 void* rt_net_accept(const void* listener);
 void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap);
 void* rt_net_write(const void* conn, const uint8_t* buf, uint64_t len);

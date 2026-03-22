@@ -23,8 +23,9 @@ func addTestdataSeeds(f *testing.F) {
 	if _, err := os.Stat(root); err != nil {
 		return
 	}
+	rootFS := os.DirFS(root)
 	// проходим по дереву testdata, добавляем все *.sg файлы
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+	err := fs.WalkDir(rootFS, ".", func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return nil
 		}
@@ -34,8 +35,7 @@ func addTestdataSeeds(f *testing.F) {
 		if filepath.Ext(path) != ".sg" {
 			return nil
 		}
-		// #nosec G304 -- path comes from repository testdata walk
-		src, err := os.ReadFile(path)
+		src, err := fs.ReadFile(rootFS, path)
 		if err != nil {
 			return nil
 		}

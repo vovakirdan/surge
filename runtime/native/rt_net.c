@@ -209,28 +209,28 @@ static int net_set_nonblocking(int fd, uint64_t* out_code) {
     return 1;
 }
 
-static NetListener* net_listener_from_borrowed(const void* listener) {
+static const NetListener* net_listener_from_borrowed(const void* listener) {
     if (listener == NULL) {
         return NULL;
     }
-    return *(NetListener* const*)listener;
+    return *(const NetListener* const*)listener;
 }
 
-static NetListener* net_listener_from_value(const void* listener) {
+static NetListener* net_listener_from_value(void* listener) {
     if (listener == NULL) {
         return NULL;
     }
     return (NetListener*)listener;
 }
 
-static NetConn* net_conn_from_borrowed(const void* conn) {
+static const NetConn* net_conn_from_borrowed(const void* conn) {
     if (conn == NULL) {
         return NULL;
     }
-    return *(NetConn* const*)conn;
+    return *(const NetConn* const*)conn;
 }
 
-static NetConn* net_conn_from_value(const void* conn) {
+static NetConn* net_conn_from_value(void* conn) {
     if (conn == NULL) {
         return NULL;
     }
@@ -342,7 +342,7 @@ void* rt_net_connect(void* addr, uint64_t port) {
     return net_make_success_ptr(conn);
 }
 
-void* rt_net_close_listener(const void* listener) {
+void* rt_net_close_listener(void* listener) {
     NetListener* l = net_listener_from_value(listener);
     if (l == NULL || l->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
@@ -356,7 +356,7 @@ void* rt_net_close_listener(const void* listener) {
     return net_make_success_nothing();
 }
 
-void* rt_net_close_conn(const void* conn) {
+void* rt_net_close_conn(void* conn) {
     NetConn* c = net_conn_from_value(conn);
     if (c == NULL || c->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
@@ -371,7 +371,7 @@ void* rt_net_close_conn(const void* conn) {
 }
 
 void* rt_net_accept(const void* listener) {
-    NetListener* l = net_listener_from_borrowed(listener);
+    const NetListener* l = net_listener_from_borrowed(listener);
     if (l == NULL || l->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
@@ -398,7 +398,7 @@ void* rt_net_accept(const void* listener) {
 }
 
 void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap) {
-    NetConn* c = net_conn_from_borrowed(conn);
+    const NetConn* c = net_conn_from_borrowed(conn);
     if (c == NULL || c->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
@@ -421,7 +421,7 @@ void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap) {
 }
 
 void* rt_net_write(const void* conn, const uint8_t* buf, uint64_t len) {
-    NetConn* c = net_conn_from_borrowed(conn);
+    const NetConn* c = net_conn_from_borrowed(conn);
     if (c == NULL || c->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }

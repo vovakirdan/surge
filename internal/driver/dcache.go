@@ -69,6 +69,7 @@ func OpenDiskCache(app string) (*DiskCache, error) {
 		base = filepath.Join(home, ".cache")
 	}
 	dir := filepath.Join(base, app)
+	// #nosec G703 -- dir is rooted under the user's cache directory for this application.
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, err
 	}

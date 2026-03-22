@@ -1,6 +1,8 @@
 package lexer
 
 import (
+	"fortio.org/safecast"
+
 	"surge/internal/dialect"
 	"surge/internal/token"
 )
@@ -20,7 +22,8 @@ func (lx *Lexer) scanIdentOrKeyword() token.Token {
 	}
 	if r < utf8RuneSelf {
 		// ASCII
-		if !isIdentStartByte(byte(r)) {
+		ascii, convErr := safecast.Conv[byte](r)
+		if convErr != nil || !isIdentStartByte(ascii) {
 			// fallback на оператор
 			return lx.scanOperatorOrPunct()
 		}

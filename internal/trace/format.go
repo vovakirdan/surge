@@ -94,7 +94,7 @@ func formatText(ev *Event) []byte {
 	var sb strings.Builder
 
 	// Display sequence number for ordering
-	sb.WriteString(fmt.Sprintf("[seq %6d] ", ev.Seq))
+	fmt.Fprintf(&sb, "[seq %6d] ", ev.Seq)
 
 	// Indentation based on parent ID (simplified - just use 0 or 2 spaces)
 	if ev.ParentID > 0 {

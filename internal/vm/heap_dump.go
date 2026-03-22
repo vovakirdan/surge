@@ -115,7 +115,7 @@ func (vm *VM) heapDumpString() string {
 		}
 		sb.WriteString(line)
 		if count > 1 {
-			sb.WriteString(fmt.Sprintf(" count=%d", count))
+			fmt.Fprintf(&sb, " count=%d", count)
 		}
 		sb.WriteString("\n")
 		i += count

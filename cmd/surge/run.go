@@ -411,6 +411,7 @@ func splitArgsAtDash(cmd *cobra.Command, args []string) (before, after []string)
 }
 
 func runBinary(path string, args []string, workDir string) error {
+	// #nosec G204 -- path is an already built executable path and args are forwarded without shell interpolation.
 	cmd := exec.Command(path, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

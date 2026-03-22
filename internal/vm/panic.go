@@ -88,7 +88,7 @@ func (p *VMError) FormatWithFiles(files *source.FileSet) string {
 	var sb strings.Builder
 
 	// Header: panic VM1004: <message>
-	sb.WriteString(fmt.Sprintf("panic %s: %s\n", p.Code, p.Message))
+	fmt.Fprintf(&sb, "panic %s: %s\n", p.Code, p.Message)
 
 	// Location: at <file>:<line>:<col>
 	sb.WriteString("at ")
@@ -99,7 +99,7 @@ func (p *VMError) FormatWithFiles(files *source.FileSet) string {
 	if len(p.Backtrace) > 0 {
 		sb.WriteString("backtrace:\n")
 		for i, frame := range p.Backtrace {
-			sb.WriteString(fmt.Sprintf("  %d: %s at %s\n", i, frame.FuncName, formatSpan(frame.Span, files)))
+			fmt.Fprintf(&sb, "  %d: %s at %s\n", i, frame.FuncName, formatSpan(frame.Span, files))
 		}
 	}
 

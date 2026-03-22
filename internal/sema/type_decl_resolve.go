@@ -246,15 +246,19 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 		return types.NoTypeID
 	}
 	if tc.mapSymbol.IsValid() && symID == tc.mapSymbol {
+		if len(args) < 2 {
+			return types.NoTypeID
+		}
 		return tc.instantiateMapType(args[0], args[1], span)
 	}
-	for i, tp := range sym.TypeParamSymbols {
-		if i >= len(args) {
+	for i, arg := range args {
+		if i >= len(sym.TypeParamSymbols) {
 			break
 		}
+		tp := sym.TypeParamSymbols[i]
 		if tp.IsConst {
-			if !tc.constArgAcceptable(args[i], tp.ConstType) {
-				argLabel := tc.typeLabel(args[i])
+			if !tc.constArgAcceptable(arg, tp.ConstType) {
+				argLabel := tc.typeLabel(arg)
 				argSpan := span
 				if i < len(argSpans) && argSpans[i] != (source.Span{}) {
 					argSpan = argSpans[i]

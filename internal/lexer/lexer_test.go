@@ -970,7 +970,7 @@ func BenchmarkLexer_LargeFile(b *testing.B) {
 	var sb strings.Builder
 	for i := range 100 {
 		sb.WriteString("fn function")
-		sb.WriteString(fmt.Sprintf("%d", i))
+		fmt.Fprintf(&sb, "%d", i)
 		sb.WriteString("(arg1, arg2) -> int { return arg1 + arg2 }\n")
 	}
 	input := sb.String()

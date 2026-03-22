@@ -371,6 +371,7 @@ func runCommand(printCommands bool, name string, args ...string) error {
 			return fmt.Errorf("failed to print command: %w", printErr)
 		}
 	}
+	// #nosec G204 -- name/args are constructed by the build pipeline and executed without a shell.
 	cmd := exec.Command(name, args...)
 	cmd.Stdout = os.Stdout
 	var stderr strings.Builder

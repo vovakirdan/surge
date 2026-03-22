@@ -1,5 +1,7 @@
 package bignum
 
+import "fortio.org/safecast"
+
 // BigInt represents a big signed integer.
 type BigInt struct {
 	Neg bool
@@ -92,7 +94,11 @@ func (i BigInt) Int64() (int64, bool) {
 	if mag == uint64(^uint64(0)>>1)+1 {
 		return -1 << 63, true
 	}
-	return -int64(mag), true
+	mag64, err := safecast.Conv[int64](mag)
+	if err != nil {
+		return 0, false
+	}
+	return -mag64, true
 }
 
 // IntAdd adds two BigInt values.

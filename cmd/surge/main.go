@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"fortio.org/safecast"
 	"github.com/spf13/cobra"
 
 	"golang.org/x/term"
@@ -72,10 +73,11 @@ func main() {
 
 // isTerminal проверяет, является ли файл терминалом
 func isTerminal(f *os.File) bool {
-	return term.IsTerminal(int(f.Fd()))
+	fd, err := safecast.Conv[int](f.Fd())
+	return err == nil && term.IsTerminal(fd)
 }
 
-func applyTimeout(cmd *cobra.Command, _ []string) error {
+func applyTimeout(cmd *cobra.Command, _ []string) (err error) {
 	if cmd.Name() == "lsp" {
 		return nil
 	}
@@ -90,6 +92,13 @@ func applyTimeout(cmd *cobra.Command, _ []string) error {
 	timeoutDuration = time.Duration(secs) * time.Second
 	ctx, cancel := context.WithTimeout(cmd.Context(), timeoutDuration)
 	timeoutCancel = cancel
+	defer func() {
+		if err == nil {
+			return
+		}
+		cancel()
+		timeoutCancel = nil
+	}()
 
 	cmd.SetContext(ctx)
 	cmd.Root().SetContext(ctx)

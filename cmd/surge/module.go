@@ -372,6 +372,7 @@ func preflightModuleAdd(manifestPath, projectRoot, name string) error {
 }
 
 func gitClone(projectRoot, url, dest string) error {
+	// #nosec G204 -- exec.Command does not invoke a shell; url and dest are passed as separate argv entries.
 	cmd := exec.Command("git", "clone", url, dest)
 	cmd.Dir = projectRoot
 	cmd.Stdout = os.Stdout

@@ -59,9 +59,9 @@ func formatSummary(payload timingPayload) string {
 		if summary.Len() > 0 {
 			summary.WriteString(" • ")
 		}
-		summary.WriteString(fmt.Sprintf("%s %.2fms", phase.Name, phase.DurationMS))
+		fmt.Fprintf(&summary, "%s %.2fms", phase.Name, phase.DurationMS)
 		if phase.Note != "" {
-			summary.WriteString(fmt.Sprintf(" (%s)", phase.Note))
+			fmt.Fprintf(&summary, " (%s)", phase.Note)
 		}
 		if i == len(payload.Phases)-1 {
 			break

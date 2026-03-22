@@ -211,6 +211,7 @@ func ensureGitignoreHasDeps(path string) error {
 		content += "\n"
 	}
 	content += "deps/\n"
+	// #nosec G703 -- path points to the project-local .gitignore selected by surge init.
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("failed to update .gitignore: %w", err)
 	}

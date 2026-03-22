@@ -61,11 +61,13 @@ func hasStdModule(root string) bool {
 		return false
 	}
 	candidate := filepath.Join(root, "core", "intrinsics.sg")
+	// #nosec G703 -- candidate is derived from stdlib root discovery and only probed for existence.
 	info, err := os.Stat(candidate)
 	if err != nil || info.IsDir() {
 		return false
 	}
 	coreDir := filepath.Join(root, "core")
+	// #nosec G703 -- coreDir is derived from stdlib root discovery and only probed for existence.
 	info, err = os.Stat(coreDir)
 	if err != nil || !info.IsDir() {
 		return false

@@ -27,9 +27,9 @@ func FormatUint(u BigUint) string {
 
 	var sb strings.Builder
 	last := parts[len(parts)-1]
-	sb.WriteString(fmt.Sprintf("%d", last))
+	fmt.Fprintf(&sb, "%d", last)
 	for i := len(parts) - 2; i >= 0; i-- {
-		sb.WriteString(fmt.Sprintf("%09d", parts[i]))
+		fmt.Fprintf(&sb, "%09d", parts[i])
 		if i == 0 {
 			break
 		}
@@ -227,10 +227,10 @@ func formatScientificDigits(digits string, exp int) string {
 	}
 	if exp >= 0 {
 		sb.WriteString("E+")
-		sb.WriteString(fmt.Sprintf("%d", exp))
+		fmt.Fprintf(&sb, "%d", exp)
 	} else {
 		sb.WriteString("E-")
-		sb.WriteString(fmt.Sprintf("%d", -exp))
+		fmt.Fprintf(&sb, "%d", -exp)
 	}
 	return sb.String()
 }
