@@ -1,0 +1,29 @@
+
+== HIR ==
+module 
+
+@entrypoint fn main() -> nothing (id=1, sym=1389) {
+  let mut xs: type#76 = [1, 2, 3]: type#76
+  let item: &mut int [&mut] = get_mut((&mut xs), 0): &mut int
+  ((* item) = 10): int
+  drop item
+  let shared: &type#76 [&] = (& xs): &type#76
+  print(__to((* shared[0]))): nothing
+  return nothing
+}
+
+borrow edges:
+  L2779(item) (&mut) borrows L2778(xs) at 0:95-97 scope=S3
+  L2780(shared) (&) borrows L2778(xs) at 0:167-170 scope=S3
+events:
+  borrow_start L2779(item) -> L2778(xs) (&mut) at 0:95-97 scope=S3 note="B1"
+  write L2779(item) at 0:114-124 scope=S3 note="write_through_mut_ref"
+  drop L2779(item) -> L2778(xs) at 0:130-141 scope=S3 note="B1"
+  borrow_end L2779(item) -> L2778(xs) at 0:130-141 scope=S3 note="drop B1"
+  borrow_start L2780(shared) -> L2778(xs) (&) at 0:167-170 scope=S3 note="B2"
+  borrow_end L2780(shared) -> L2778(xs) scope=S3 note="scope_end B2"
+move plan:
+  L2778(xs): MoveNeedsDrop (non-copy (drop))
+  L2779(item): MoveAllowed (non-copy reference)
+  L2780(shared): MoveCopy (copy type)
+

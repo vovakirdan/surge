@@ -1,0 +1,74 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: NothingLit      "nothing" at 2:14-2:21 (leading: Space)
+  9: LBrace          "{" at 2:22-2:23 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: KwMut           "mut" at 3:9-3:12 (leading: Space)
+ 12: Ident           "xs" at 3:13-3:15 (leading: Space)
+ 13: Colon           ":" at 3:15-3:16
+ 14: Ident           "int" at 3:17-3:20 (leading: Space)
+ 15: LBracket        "[" at 3:20-3:21
+ 16: RBracket        "]" at 3:21-3:22
+ 17: Assign          "=" at 3:23-3:24 (leading: Space)
+ 18: LBracket        "[" at 3:25-3:26 (leading: Space)
+ 19: IntLit          "1" at 3:26-3:27
+ 20: Comma           "," at 3:27-3:28
+ 21: IntLit          "2" at 3:29-3:30 (leading: Space)
+ 22: Comma           "," at 3:30-3:31
+ 23: IntLit          "3" at 3:32-3:33 (leading: Space)
+ 24: RBracket        "]" at 3:33-3:34
+ 25: Semicolon       ";" at 3:34-3:35
+ 26: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 27: Ident           "item" at 4:9-4:13 (leading: Space)
+ 28: Colon           ":" at 4:13-4:14
+ 29: Amp             "&" at 4:15-4:16 (leading: Space)
+ 30: KwMut           "mut" at 4:16-4:19
+ 31: Ident           "int" at 4:20-4:23 (leading: Space)
+ 32: Assign          "=" at 4:24-4:25 (leading: Space)
+ 33: Ident           "xs" at 4:26-4:28 (leading: Space)
+ 34: Dot             "." at 4:28-4:29
+ 35: Ident           "get_mut" at 4:29-4:36
+ 36: LParen          "(" at 4:36-4:37
+ 37: IntLit          "0" at 4:37-4:38
+ 38: RParen          ")" at 4:38-4:39
+ 39: Semicolon       ";" at 4:39-4:40
+ 40: Star            "*" at 5:5-5:6 (leading: Newline, Space)
+ 41: Ident           "item" at 5:6-5:10
+ 42: Assign          "=" at 5:11-5:12 (leading: Space)
+ 43: IntLit          "10" at 5:13-5:15 (leading: Space)
+ 44: Semicolon       ";" at 5:15-5:16
+ 45: At              "@" at 6:5-6:6 (leading: Newline, Space)
+ 46: Ident           "drop" at 6:6-6:10
+ 47: Ident           "item" at 6:11-6:15 (leading: Space)
+ 48: Semicolon       ";" at 6:15-6:16
+ 49: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 50: Ident           "shared" at 7:9-7:15 (leading: Space)
+ 51: Colon           ":" at 7:15-7:16
+ 52: Amp             "&" at 7:17-7:18 (leading: Space)
+ 53: Ident           "int" at 7:18-7:21
+ 54: LBracket        "[" at 7:21-7:22
+ 55: RBracket        "]" at 7:22-7:23
+ 56: Assign          "=" at 7:24-7:25 (leading: Space)
+ 57: Amp             "&" at 7:26-7:27 (leading: Space)
+ 58: Ident           "xs" at 7:27-7:29
+ 59: Semicolon       ";" at 7:29-7:30
+ 60: Ident           "print" at 8:5-8:10 (leading: Newline, Space)
+ 61: LParen          "(" at 8:10-8:11
+ 62: Ident           "shared" at 8:11-8:17
+ 63: LBracket        "[" at 8:17-8:18
+ 64: IntLit          "0" at 8:18-8:19
+ 65: RBracket        "]" at 8:19-8:20
+ 66: KwTo            "to" at 8:21-8:23 (leading: Space)
+ 67: Ident           "string" at 8:24-8:30 (leading: Space)
+ 68: RParen          ")" at 8:30-8:31
+ 69: Semicolon       ";" at 8:31-8:32
+ 70: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 71: NothingLit      "nothing" at 9:12-9:19 (leading: Space)
+ 72: Semicolon       ";" at 9:19-9:20
+ 73: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 74: EOF             at 11:1-11:1

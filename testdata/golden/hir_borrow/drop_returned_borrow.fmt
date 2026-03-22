@@ -1,0 +1,10 @@
+@entrypoint
+fn main() -> nothing {
+    let mut xs: int[] = [1, 2, 3];
+    let item: &mut int = xs.get_mut(0);
+    *item = 10;
+    @drop item;
+    let shared: &int[] = &xs;
+    print(shared[0] to string);
+    return nothing;
+}

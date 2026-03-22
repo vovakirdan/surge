@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"surge/internal/diag"
+	"surge/internal/sema"
 )
 
 func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
@@ -69,5 +70,81 @@ func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected unresolved symbol diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseDropReleasesBorrowReturnedFromMethodCall(t *testing.T) {
+	stdlibRoot := detectStdlibRootFrom(".")
+	if stdlibRoot == "" {
+		t.Fatal("failed to locate stdlib root for test")
+	}
+	t.Setenv("SURGE_STDLIB", stdlibRoot)
+
+	src := `
+@entrypoint
+fn main() -> nothing {
+    let mut xs: int[] = [1, 2, 3];
+    let item: &mut int = xs.get_mut(0);
+    *item = 10;
+    @drop item;
+    let shared: &int[] = &xs;
+    print(shared[0] to string);
+    return nothing;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "drop_returned_borrow.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(t.Context(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
+	}
+	if res.Sema == nil {
+		t.Fatal("expected sema artefacts")
+	}
+
+	dropBorrow := sema.NoBorrowID
+	for _, ev := range res.Sema.BorrowEvents {
+		if ev.Kind == sema.BorrowEvDrop && ev.Borrow != sema.NoBorrowID {
+			dropBorrow = ev.Borrow
+			break
+		}
+	}
+	if dropBorrow == sema.NoBorrowID {
+		t.Fatalf("expected @drop to target an active borrow, got events %+v", res.Sema.BorrowEvents)
+	}
+
+	dropEnded := false
+	for _, ev := range res.Sema.BorrowEvents {
+		if ev.Kind == sema.BorrowEvBorrowEnd && ev.Borrow == dropBorrow && ev.Note == "drop" {
+			dropEnded = true
+			break
+		}
+	}
+	if !dropEnded {
+		t.Fatalf("expected borrow_end on @drop for borrow %d, got events %+v", dropBorrow, res.Sema.BorrowEvents)
+	}
+
+	scopeEndedDropBorrow := false
+	for _, ev := range res.Sema.BorrowEvents {
+		if ev.Kind == sema.BorrowEvBorrowEnd && ev.Borrow == dropBorrow && ev.Note == "scope_end" {
+			scopeEndedDropBorrow = true
+			break
+		}
+	}
+	if scopeEndedDropBorrow {
+		t.Fatalf("borrow %d should end on @drop, not at scope end; events %+v", dropBorrow, res.Sema.BorrowEvents)
 	}
 }

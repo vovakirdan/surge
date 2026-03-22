@@ -1,0 +1,29 @@
+testdata/golden/hir_borrow/drop_returned_borrow.sg (span: 1:1-11:1)
+└─ Item[0]: Fn (span: 1:1-10:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:22-10:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:35)
+         │  ├─ Name: xs
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#4: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 4:5-4:40)
+         │  ├─ Name: item
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut int
+         │  └─ Value: expr#8: xs.get_mut(0)
+         ├─ Stmt[2]: Expr (span: 5:5-5:16)
+         │  └─ Expr: expr#12: (*item = 10)
+         ├─ Stmt[3]: StmtKind(12) (span: 6:5-6:16)
+         ├─ Stmt[4]: Let (span: 7:5-7:30)
+         │  ├─ Name: shared
+         │  ├─ Mutable: false
+         │  ├─ Type: &int[]
+         │  └─ Value: expr#15: &xs
+         ├─ Stmt[5]: Expr (span: 8:5-8:32)
+         │  └─ Expr: expr#21: print(shared[0] to string)
+         └─ Stmt[6]: Return (span: 9:5-9:20)
+            └─ Expr: expr#22: nothing
