@@ -66,23 +66,13 @@ func hasStdModule(root string) bool {
 		return false
 	}
 	coreDir := filepath.Join(root, "core")
-	entries, err := os.ReadDir(coreDir)
-	if err != nil {
+	info, err = os.Stat(coreDir)
+	if err != nil || !info.IsDir() {
 		return false
 	}
-	for _, ent := range entries {
-		if ent.IsDir() || filepath.Ext(ent.Name()) != ".sg" {
-			continue
-		}
-		// #nosec G304 -- path is derived from the stdlib root and core dir scan.
-		f, err := os.Open(filepath.Join(coreDir, ent.Name()))
-		if err != nil {
-			return false
-		}
-		if err := f.Close(); err != nil {
-			return false
-		}
-	}
+	// Only validate the stdlib layout here. Unreadable files should fail later
+	// during module loading with an explicit error instead of silently disabling
+	// the prelude and changing behavior based on the current working directory.
 	return true
 }
 

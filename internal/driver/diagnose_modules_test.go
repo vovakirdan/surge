@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -111,6 +112,32 @@ func TestStdlibDependencyUsesStdlibRoot(t *testing.T) {
 	}
 	if rec.Meta.Path != "stdlib/fs" {
 		t.Fatalf("expected stdlib module path, got %q", rec.Meta.Path)
+	}
+}
+
+func TestResolveStdlibRootKeepsUnreadableLayout(t *testing.T) {
+	root := t.TempDir()
+	coreDir := filepath.Join(root, "core")
+	if err := os.MkdirAll(coreDir, 0o755); err != nil {
+		t.Fatalf("mkdir core: %v", err)
+	}
+	intrinsicsPath := filepath.Join(coreDir, "intrinsics.sg")
+	if err := os.WriteFile(intrinsicsPath, []byte("pragma module, no_std;\n"), 0o644); err != nil {
+		t.Fatalf("write intrinsics: %v", err)
+	}
+	lockedPath := filepath.Join(coreDir, "entrypoint.sg")
+	if err := os.WriteFile(lockedPath, []byte("pragma module, no_std;\n"), 0o600); err != nil {
+		t.Fatalf("write locked file: %v", err)
+	}
+	if err := os.Chmod(lockedPath, 0o000); err != nil {
+		t.Fatalf("chmod locked file: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(lockedPath, 0o600)
+	})
+
+	if got := resolveStdlibRoot(root); got != root {
+		t.Fatalf("expected resolveStdlibRoot to keep layout root %q, got %q", root, got)
 	}
 }
 

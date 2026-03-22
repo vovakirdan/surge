@@ -267,7 +267,12 @@ install-system: build
 	@sudo cp surge $(SYSTEM_BINDIR)/surge
 	@echo ">> Installing standard library to $(SYSTEM_SHAREDIR) (requires sudo)"
 	@sudo mkdir -p $(SYSTEM_SHAREDIR)
-	@sudo cp -r core stdlib $(SYSTEM_SHAREDIR)/
+	@sudo rm -rf $(SYSTEM_SHAREDIR)/core $(SYSTEM_SHAREDIR)/stdlib
+	@sudo mkdir -p $(SYSTEM_SHAREDIR)/core $(SYSTEM_SHAREDIR)/stdlib
+	@sudo cp -r core/. $(SYSTEM_SHAREDIR)/core/
+	@sudo cp -r stdlib/. $(SYSTEM_SHAREDIR)/stdlib/
+	@sudo find $(SYSTEM_SHAREDIR)/core $(SYSTEM_SHAREDIR)/stdlib -type d -exec chmod 755 {} +
+	@sudo find $(SYSTEM_SHAREDIR)/core $(SYSTEM_SHAREDIR)/stdlib -type f -exec chmod 644 {} +
 ifeq ($(OS),darwin)
 	@echo ">> On macOS, add to ~/.zshrc or ~/.bash_profile:"
 	@echo ">>   export SURGE_STDLIB=$(SYSTEM_SHAREDIR)"
