@@ -89,6 +89,7 @@ type typeChecker struct {
 	typeParamMarks              []int
 	expectedExpr                ast.ExprID
 	expectedType                types.TypeID
+	discardExpr                 ast.ExprID
 	arrayName                   source.StringID
 	arraySymbol                 symbols.SymbolID
 	arrayType                   types.TypeID

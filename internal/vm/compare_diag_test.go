@@ -1,0 +1,75 @@
+package vm_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestBuildAndRunRejectCompareArmBlockFallingThroughAsNothing(t *testing.T) {
+	root := repoRoot(t)
+	surge := buildSurgeBinary(t, root)
+
+	tmpDir := t.TempDir()
+	srcPath := filepath.Join(tmpDir, "main.sg")
+	source := `fn source(flag: bool) -> Erring<string, Error> {
+    if flag {
+        return Success("hello");
+    }
+    return Error { message = "missing", code = 1:uint };
+}
+
+fn recover(flag: bool) -> Erring<string, Error> {
+    let res = source(flag);
+    return compare res {
+        Success(text) => Success(text);
+        err => {
+            if err.code == 1:uint {
+                let empty: string = "";
+                Success(empty);
+            } else {
+                err;
+            }
+        }
+    };
+}
+
+@entrypoint
+fn main() {
+    let res = recover(false);
+    compare res {
+        Success(text) => print("text=" + text);
+        err => exit(err);
+    }
+    return nothing;
+}
+`
+	if err := os.WriteFile(srcPath, []byte(source), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	buildOut, buildErr, buildCode := runSurgeWithInput(t, root, surge, "", "build", "--ui", "off", srcPath)
+	if buildCode == 0 {
+		t.Fatalf("build unexpectedly succeeded\nstdout:\n%s\nstderr:\n%s", buildOut, buildErr)
+	}
+	buildCombined := buildOut + buildErr
+	if strings.Contains(buildCombined, "LLVM emit failed") {
+		t.Fatalf("build should fail in diagnostics before LLVM emit\noutput:\n%s", buildCombined)
+	}
+	if !strings.Contains(buildCombined, "compare arm type mismatch") || !strings.Contains(buildCombined, "got nothing") {
+		t.Fatalf("missing compare-arm diagnostic in build output:\n%s", buildCombined)
+	}
+
+	runOut, runErr, runCode := runSurgeWithInput(t, root, surge, "", "run", "--ui", "off", srcPath)
+	if runCode == 0 {
+		t.Fatalf("run unexpectedly succeeded\nstdout:\n%s\nstderr:\n%s", runOut, runErr)
+	}
+	runCombined := runOut + runErr
+	if strings.Contains(runCombined, "panic VM1003") || strings.Contains(runCombined, "panic:") {
+		t.Fatalf("run should fail in diagnostics before VM execution\noutput:\n%s", runCombined)
+	}
+	if !strings.Contains(runCombined, "compare arm type mismatch") || !strings.Contains(runCombined, "got nothing") {
+		t.Fatalf("missing compare-arm diagnostic in run output:\n%s", runCombined)
+	}
+}

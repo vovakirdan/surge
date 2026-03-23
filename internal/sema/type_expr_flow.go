@@ -16,6 +16,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	movedBefore := tc.snapshotMovedBindings()
 	movedArms := make([]map[symbols.SymbolID]source.Span, len(cmp.Arms))
 	armClosed := make([]bool, len(cmp.Arms))
+	armFallsThrough := make([]bool, len(cmp.Arms))
 	valueType := tc.typeExpr(cmp.Value)
 	movedAfterValue := tc.snapshotMovedBindings()
 	expectedCompare := tc.expectedTypeForExpr(id)
@@ -44,6 +45,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			explicitReturn = true
 		}
 		armClosed[i] = explicitReturn
+		armFallsThrough[i] = !explicitReturn && nothingType != types.NoTypeID && armResult == nothingType && tc.compareArmFallsThroughBlock(arm.Result)
 		armTypes[i] = armResult
 		if armResult != types.NoTypeID {
 			if expectedCompare != types.NoTypeID {
@@ -69,6 +71,19 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			remainingMembers = tc.consumeCompareMembers(remainingMembers, arm)
 		}
 		movedArms[i] = tc.snapshotMovedBindings()
+	}
+
+	targetCompare := resultType
+	if expectedCompare != types.NoTypeID {
+		targetCompare = expectedCompare
+	}
+	if targetCompare != types.NoTypeID && tc.discardExpr != id && (nothingType == types.NoTypeID || targetCompare != nothingType) {
+		for i, arm := range cmp.Arms {
+			if !armFallsThrough[i] {
+				continue
+			}
+			tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(targetCompare), tc.typeLabel(nothingType))
+		}
 	}
 
 	var mergedMoves map[symbols.SymbolID]source.Span

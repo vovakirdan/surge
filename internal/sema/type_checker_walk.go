@@ -247,7 +247,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		}
 	case ast.StmtExpr:
 		if exprStmt := tc.builder.Stmts.Expr(id); exprStmt != nil {
+			prevDiscard := tc.discardExpr
+			tc.discardExpr = exprStmt.Expr
 			tc.typeExpr(exprStmt.Expr)
+			tc.discardExpr = prevDiscard
 		}
 	case ast.StmtReturn:
 		tc.noteTaskContainerLoopReturn()

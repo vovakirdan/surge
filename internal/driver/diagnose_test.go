@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"surge/internal/diag"
@@ -207,5 +208,70 @@ fn main() {
 	}
 	if !found {
 		t.Fatalf("expected exit ErrorLike diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseRejectsCompareArmBlockThatFallsThroughAsNothing(t *testing.T) {
+	stdlibRoot := detectStdlibRootFrom(".")
+	if stdlibRoot == "" {
+		t.Fatal("failed to locate stdlib root for test")
+	}
+	t.Setenv("SURGE_STDLIB", stdlibRoot)
+
+	src := `
+fn source(flag: bool) -> Erring<string, Error> {
+    if flag {
+        return Success("hello");
+    }
+    return Error { message = "missing", code = 1:uint };
+}
+
+fn recover(flag: bool) -> Erring<string, Error> {
+    let res = source(flag);
+    return compare res {
+        Success(text) => Success(text);
+        err => {
+            if err.code == 1:uint {
+                let empty: string = "";
+                Success(empty);
+            } else {
+                err;
+            }
+        }
+    };
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compare_arm_fallthrough.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code != diag.SemaTypeMismatch {
+			continue
+		}
+		if strings.Contains(d.Message, "compare arm type mismatch") && strings.Contains(d.Message, "got nothing") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected compare arm mismatch diagnostic, got %+v", res.Bag.Items())
 	}
 }

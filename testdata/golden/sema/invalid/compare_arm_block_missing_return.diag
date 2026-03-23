@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/compare_arm_block_missing_return.sg:13:16 compare arm type mismatch: expected Erring<string, Error>, got nothing

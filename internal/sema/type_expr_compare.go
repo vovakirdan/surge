@@ -267,13 +267,27 @@ func (tc *typeChecker) compareArmIsExplicitReturn(result ast.ExprID) bool {
 		return false
 	}
 	if !ret.Expr.IsValid() {
-		return true
+		return !stmt.Span.Empty()
 	}
 	retExpr := tc.builder.Exprs.Get(ret.Expr)
 	if retExpr == nil {
 		return true
 	}
 	return stmt.Span.Start < retExpr.Span.Start
+}
+
+// compareArmFallsThroughBlock reports whether a compare arm result is a block
+// expression that stays in value flow but only produces the parser's implicit
+// tail "return nothing". That should not satisfy a non-nothing compare result.
+func (tc *typeChecker) compareArmFallsThroughBlock(result ast.ExprID) bool {
+	if !result.IsValid() || tc.builder == nil {
+		return false
+	}
+	expr := tc.builder.Exprs.Get(result)
+	if expr == nil || expr.Kind != ast.ExprBlock {
+		return false
+	}
+	return !tc.compareArmIsExplicitReturn(result)
 }
 
 // emitNonExhaustiveMatchForMembers reports a diagnostic for uncovered union members (tags, types, or nothing)
