@@ -1,0 +1,18 @@
+type Holder = {}
+
+extern<Holder> {
+    fn pass(self: &Holder, value: Option<string>) -> Option<string> {
+        return value;
+    }
+}
+
+@entrypoint
+fn main() -> int {
+    let holder: Holder = {};
+    let value = holder.pass(nothing);
+    compare value {
+        Some(text) => print(text);
+        nothing => print("none");
+    };
+    return 0;
+}

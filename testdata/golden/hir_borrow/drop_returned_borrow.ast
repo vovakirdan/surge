@@ -1,4 +1,4 @@
-testdata/golden/hir_borrow/drop_returned_borrow.sg (span: 1:1-11:1)
+drop_returned_borrow.sg (span: 1:1-11:1)
 └─ Item[0]: Fn (span: 1:1-10:2)
    ├─ Name: main
    ├─ Params: ()

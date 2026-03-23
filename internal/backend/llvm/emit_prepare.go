@@ -43,6 +43,7 @@ func (e *Emitter) prepareFunctions() error {
 			return err
 		}
 		params := make([]string, 0, len(paramLocals))
+		paramTypes := make([]types.TypeID, 0, len(paramLocals))
 		for _, localID := range paramLocals {
 			if int(localID) < 0 || int(localID) >= len(f.Locals) {
 				return fmt.Errorf("invalid param local %d", localID)
@@ -52,6 +53,7 @@ func (e *Emitter) prepareFunctions() error {
 				return llvmErr
 			}
 			params = append(params, llvmTy)
+			paramTypes = append(paramTypes, f.Locals[localID].Type)
 		}
 		ret, err := llvmType(e.types, f.Result)
 		if err != nil {
@@ -64,7 +66,7 @@ func (e *Emitter) prepareFunctions() error {
 			}
 			ret = inferred
 		}
-		e.funcSigs[f.ID] = funcSig{ret: ret, params: params}
+		e.funcSigs[f.ID] = funcSig{ret: ret, params: params, paramTypes: paramTypes}
 	}
 	return nil
 }

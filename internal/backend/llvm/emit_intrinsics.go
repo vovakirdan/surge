@@ -49,18 +49,20 @@ func (fe *funcEmitter) funcSigFromType(typeID types.TypeID) (funcSig, error) {
 		return funcSig{}, fmt.Errorf("missing function signature for type#%d", typeID)
 	}
 	params := make([]string, 0, len(info.Params))
+	paramTypes := make([]types.TypeID, 0, len(info.Params))
 	for _, p := range info.Params {
 		llvmTy, err := llvmValueType(fe.emitter.types, p)
 		if err != nil {
 			return funcSig{}, err
 		}
 		params = append(params, llvmTy)
+		paramTypes = append(paramTypes, p)
 	}
 	ret, err := llvmType(fe.emitter.types, info.Result)
 	if err != nil {
 		return funcSig{}, err
 	}
-	return funcSig{ret: ret, params: params}, nil
+	return funcSig{ret: ret, params: params, paramTypes: paramTypes}, nil
 }
 
 func (fe *funcEmitter) emitCallValue(call *mir.CallInstr) error {
@@ -80,7 +82,9 @@ func (fe *funcEmitter) emitCallValue(call *mir.CallInstr) error {
 	}
 	args := make([]string, 0, len(call.Args))
 	for i := range call.Args {
-		val, ty, err := fe.emitOperand(&call.Args[i])
+		arg := call.Args[i]
+		fe.patchNothingCallArg(&arg, sig, i)
+		val, ty, err := fe.emitOperand(&arg)
 		if err != nil {
 			return err
 		}

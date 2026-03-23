@@ -10,8 +10,9 @@ import (
 )
 
 type funcSig struct {
-	ret    string
-	params []string
+	ret        string
+	params     []string
+	paramTypes []types.TypeID
 }
 
 type stringConst struct {

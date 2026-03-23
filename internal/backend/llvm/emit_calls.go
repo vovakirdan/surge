@@ -77,7 +77,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	}
 	args := make([]string, 0, len(call.Args))
 	for i := range call.Args {
-		val, ty, err := fe.emitOperand(&call.Args[i])
+		arg := call.Args[i]
+		fe.patchNothingCallArg(&arg, sig, i)
+		val, ty, err := fe.emitOperand(&arg)
 		if err != nil {
 			return err
 		}
@@ -102,6 +104,28 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  %s\n", callStmt)
 	return nil
+}
+
+func (fe *funcEmitter) patchNothingCallArg(op *mir.Operand, sig funcSig, idx int) {
+	if op == nil {
+		return
+	}
+	if op.Kind != mir.OperandConst || op.Const.Kind != mir.ConstNothing {
+		return
+	}
+	if idx < 0 || idx >= len(sig.paramTypes) {
+		return
+	}
+	paramType := sig.paramTypes[idx]
+	if paramType == types.NoTypeID {
+		return
+	}
+	if op.Type == types.NoTypeID || isNothingType(fe.emitter.types, op.Type) {
+		op.Type = paramType
+	}
+	if op.Const.Type == types.NoTypeID || isNothingType(fe.emitter.types, op.Const.Type) {
+		op.Const.Type = paramType
+	}
 }
 
 func (fe *funcEmitter) resolveCallee(call *mir.CallInstr) (string, funcSig, error) {
