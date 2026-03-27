@@ -45,9 +45,10 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 			tailType = tc.typeExpr(tailExpr)
 		}
 		if tailType != types.NoTypeID && tailType != nothing {
-			returns = append(returns, collectedResult{typ: tailType, span: tailSpan})
+			returns = append(returns, collectedResult{typ: tailType, span: tailSpan, expr: tailExpr})
 		}
 	}
+	tc.recordBlockResultExprs(id, returns)
 	sawNonNothing := false
 	for _, result := range returns {
 		rt := result.typ

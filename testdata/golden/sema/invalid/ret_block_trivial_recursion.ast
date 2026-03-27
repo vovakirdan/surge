@@ -1,0 +1,9 @@
+ret_block_trivial_recursion.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: loop
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:24-5:2)
+         └─ Stmt[0]: Return (span: 2:5-4:7)
+            └─ Expr: expr#4: <ExprKind(25)>

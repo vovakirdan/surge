@@ -262,16 +262,9 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				}
 				valueType = tc.typeExprWithExpected(ret.Expr, expected)
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
-				if tc.isLocalTaskExpr(ret.Expr) {
-					tc.report(diag.SemaLocalTaskNotSendable, tc.exprSpan(ret.Expr),
-						"local task handle cannot be returned from function")
-				}
-				tc.checkTaskContainerEscape(ret.Expr, valueType, tc.exprSpan(ret.Expr))
-				// Track task return for structured concurrency
-				tc.trackTaskReturn(ret.Expr)
+				tc.applyReturnPathChecks(ret.Expr)
 			}
 			tc.validateReturn(stmt.Span, ret.Expr, valueType)
-			tc.checkTrivialReturnRecursion(ret.Expr)
 		}
 	case ast.StmtRet:
 		if ret := tc.builder.Stmts.Ret(id); ret != nil {

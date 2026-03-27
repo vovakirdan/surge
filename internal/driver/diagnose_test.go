@@ -382,6 +382,39 @@ fn main(flag: bool) -> int {
 	}
 }
 
+func TestDiagnoseAllowsTaskReturnedViaRetBlock(t *testing.T) {
+	src := `
+async fn work() -> int {
+    return 42;
+}
+
+fn start() -> Task<int> {
+    return {
+        ret spawn work();
+    };
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_block_task_return.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
+	}
+}
+
 func TestDiagnoseRejectsRetOutsideBlockExpression(t *testing.T) {
 	src := `
 fn main() -> nothing {
@@ -421,6 +454,46 @@ fn main() -> nothing {
 	}
 	if !found {
 		t.Fatalf("expected ret-outside-block diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseRejectsTrivialRecursionThroughRetBlock(t *testing.T) {
+	src := `
+fn loop(x: int) -> int {
+    return {
+        ret loop(x);
+    };
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_block_trivial_recursion.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code == diag.SemaTrivialRecursion {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected trivial recursion diagnostic, got %+v", res.Bag.Items())
 	}
 }
 
