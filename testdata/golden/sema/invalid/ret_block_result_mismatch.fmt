@@ -1,0 +1,10 @@
+fn main(flag: bool) -> nothing {
+    let x = {
+        if flag {
+            ret 1;
+        }
+        ret nothing;
+    };
+    x;
+    return nothing;
+}

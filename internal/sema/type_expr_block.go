@@ -19,14 +19,14 @@ const (
 // typeBlockExpr processes a block expression and returns its type.
 // During the migration, block values can still come from legacy implicit tail
 // returns, but explicit `ret` statements also contribute block-local result types.
-func (tc *typeChecker) typeBlockExpr(block *ast.ExprBlockData) types.TypeID {
+func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) types.TypeID {
 	if block == nil || len(block.Stmts) == 0 {
 		// Empty block has type nothing
 		return tc.types.Builtins().Nothing
 	}
 
 	// Collect return types (like async blocks do)
-	var returns []types.TypeID
+	var returns []collectedResult
 	var bareRetSpans []source.Span
 	tc.pushReturnContext(returnCtxBlockExpr, types.NoTypeID, source.Span{}, &returns, &bareRetSpans)
 
@@ -45,11 +45,12 @@ func (tc *typeChecker) typeBlockExpr(block *ast.ExprBlockData) types.TypeID {
 			tailType = tc.typeExpr(tailExpr)
 		}
 		if tailType != types.NoTypeID && tailType != nothing {
-			returns = append(returns, tailType)
+			returns = append(returns, collectedResult{typ: tailType, span: tailSpan})
 		}
 	}
 	sawNonNothing := false
-	for _, rt := range returns {
+	for _, result := range returns {
+		rt := result.typ
 		if rt != types.NoTypeID && rt != nothing {
 			sawNonNothing = true
 			break
@@ -69,30 +70,32 @@ func (tc *typeChecker) typeBlockExpr(block *ast.ExprBlockData) types.TypeID {
 
 	// Unify all return types
 	payload := nothing
-	for _, rt := range returns {
+	for _, result := range returns {
+		rt := result.typ
 		if rt == types.NoTypeID {
 			continue
 		}
-		if payload == tc.types.Builtins().Nothing {
+		if payload == nothing {
 			payload = rt
 			continue
 		}
-		// Check if types are compatible
-		if !tc.typesAssignable(payload, rt, true) && !tc.typesAssignable(rt, payload, true) {
-			payload = types.NoTypeID
+		switch {
+		case tc.typesAssignable(payload, rt, true):
+		case tc.typesAssignable(rt, payload, true):
+			payload = rt
+		default:
+			tc.report(diag.SemaTypeMismatch, result.span, "block result type mismatch: expected %s, got %s", tc.typeLabel(payload), tc.typeLabel(rt))
+			return types.NoTypeID
 		}
 	}
 
-	if payload == types.NoTypeID {
-		return tc.types.Builtins().Nothing
-	}
-	tc.warnLegacyImplicitBlockValue(tailSpan, hasLegacyTail, payload)
+	tc.warnLegacyImplicitBlockValue(id, tailSpan, hasLegacyTail, payload)
 
 	return payload
 }
 
-func (tc *typeChecker) warnLegacyImplicitBlockValue(tailSpan source.Span, hasLegacyTail bool, payload types.TypeID) {
-	if tc == nil || tc.reporter == nil || tc.types == nil || tc.discardDepth > 0 {
+func (tc *typeChecker) warnLegacyImplicitBlockValue(id ast.ExprID, tailSpan source.Span, hasLegacyTail bool, payload types.TypeID) {
+	if tc == nil || tc.reporter == nil || tc.types == nil || tc.isExprDiscarded(id) {
 		return
 	}
 	nothing := tc.types.Builtins().Nothing

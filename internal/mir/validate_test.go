@@ -106,6 +106,16 @@ func TestValidate_ValidPrograms(t *testing.T) {
 				return x;
 			}`,
 		},
+		{
+			name: "compare_block_ret_arms",
+			src: `fn main(flag: bool) -> int {
+				let x = compare flag {
+					true => { ret 1; }
+					false => { ret 2; }
+				};
+				return x;
+			}`,
+		},
 	}
 
 	for _, tt := range tests {

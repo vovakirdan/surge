@@ -109,7 +109,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		ty = tc.typeExprStruct(id, expr.Span)
 	case ast.ExprBlock:
 		if block, ok := tc.builder.Exprs.Block(id); ok && block != nil {
-			ty = tc.typeBlockExpr(block)
+			ty = tc.typeBlockExpr(id, block)
 		}
 	default:
 	}

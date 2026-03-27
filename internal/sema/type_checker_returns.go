@@ -86,7 +86,7 @@ func (tc *typeChecker) isBoolLiteralTrue(expr ast.ExprID) bool {
 	return false
 }
 
-func (tc *typeChecker) pushReturnContext(kind returnContextKind, expected types.TypeID, span source.Span, collect *[]types.TypeID, bareRet *[]source.Span) {
+func (tc *typeChecker) pushReturnContext(kind returnContextKind, expected types.TypeID, span source.Span, collect *[]collectedResult, bareRet *[]source.Span) {
 	ctx := returnContext{kind: kind, expected: expected, span: span, collect: collect, bareRet: bareRet}
 	tc.returnStack = append(tc.returnStack, ctx)
 }
@@ -113,6 +113,13 @@ func (tc *typeChecker) currentBlockReturnContext() *returnContext {
 	return ctx
 }
 
+func (tc *typeChecker) appendCollectedResult(ctx *returnContext, span source.Span, typ types.TypeID) {
+	if tc == nil || ctx == nil || ctx.collect == nil || typ == types.NoTypeID {
+		return
+	}
+	*ctx.collect = append(*ctx.collect, collectedResult{typ: typ, span: span})
+}
+
 func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual types.TypeID) {
 	ctx := tc.currentReturnContext()
 	if ctx == nil || tc.types == nil {
@@ -137,9 +144,7 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		if !expr.IsValid() {
 			record = tc.types.Builtins().Nothing
 		}
-		if record != types.NoTypeID {
-			*ctx.collect = append(*ctx.collect, record)
-		}
+		tc.appendCollectedResult(ctx, span, record)
 		return
 	}
 	expected := ctx.expected
@@ -238,7 +243,7 @@ func (tc *typeChecker) validateRet(span source.Span, expr ast.ExprID, actual typ
 		}
 	}
 	if record != types.NoTypeID {
-		*ctx.collect = append(*ctx.collect, record)
+		tc.appendCollectedResult(ctx, span, record)
 	}
 }
 

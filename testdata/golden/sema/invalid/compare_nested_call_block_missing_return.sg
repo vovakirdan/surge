@@ -1,0 +1,13 @@
+fn consume(x: int) -> nothing {
+    return nothing;
+}
+
+fn main(flag: bool) -> nothing {
+    consume(compare flag {
+        true => {
+            1;
+        }
+        false => {}
+    });
+    return nothing;
+}

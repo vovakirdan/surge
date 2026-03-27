@@ -266,7 +266,7 @@ fn recover(flag: bool) -> Erring<string, Error> {
 		if d.Code != diag.SemaTypeMismatch {
 			continue
 		}
-		if strings.Contains(d.Message, "compare arm type mismatch") && strings.Contains(d.Message, "got nothing") {
+		if strings.Contains(d.Message, "nothing") && (strings.Contains(d.Message, "compare arm type mismatch") || strings.Contains(d.Message, "cannot assign nothing")) {
 			found = true
 			break
 		}
@@ -333,6 +333,37 @@ fn main() -> int {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ret_block.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseAllowsCompareArmRetBlockResults(t *testing.T) {
+	src := `
+fn main(flag: bool) -> int {
+    let x = compare flag {
+        true => { ret 1; }
+        false => { ret 2; }
+    };
+    return x;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compare_ret_arms.sg")
 	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
 		t.Fatalf("write file: %v", writeErr)
 	}
@@ -571,5 +602,150 @@ fn main() -> int {
 	}
 	if fix.Edits[0].NewText != "ret " {
 		t.Fatalf("expected fix to insert 'ret ', got %+v", fix.Edits[0])
+	}
+}
+
+func TestDiagnoseKeepsNestedCompareMismatchWhenResultFeedsCall(t *testing.T) {
+	src := `
+fn consume(x: int) -> nothing {
+    return nothing;
+}
+
+fn main(flag: bool) -> nothing {
+    consume(compare flag {
+        true => {
+            1;
+        }
+        false => {}
+    });
+    return nothing;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compare_nested_call.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code != diag.SemaTypeMismatch {
+			continue
+		}
+		if strings.Contains(d.Message, "nothing") && (strings.Contains(d.Message, "compare arm type mismatch") || strings.Contains(d.Message, "cannot assign nothing")) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected compare mismatch diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseRejectsConflictingRetBlockResults(t *testing.T) {
+	src := `
+fn main(flag: bool) -> nothing {
+    let x = {
+        if flag {
+            ret 1;
+        }
+        ret nothing;
+    };
+    x;
+    return nothing;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_block_mismatch.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code != diag.SemaTypeMismatch {
+			continue
+		}
+		if strings.Contains(d.Message, "block result type mismatch") && strings.Contains(d.Message, "got nothing") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected block result mismatch diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseWarnsOnLegacyImplicitBlockValueUsedAsCallArg(t *testing.T) {
+	src := `
+fn consume(x: int) -> nothing {
+    return nothing;
+}
+
+fn main() -> nothing {
+    consume({
+        let y = 1;
+        y;
+    });
+    return nothing;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "implicit_block_call_arg.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected warning, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code == diag.SemaImplicitBlockValue && d.Severity == diag.SevWarning {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected implicit-block-value warning, got %+v", res.Bag.Items())
 	}
 }

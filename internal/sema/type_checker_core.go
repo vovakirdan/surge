@@ -89,7 +89,7 @@ type typeChecker struct {
 	typeParamMarks              []int
 	expectedExpr                ast.ExprID
 	expectedType                types.TypeID
-	discardDepth                int
+	discardedExprs              []ast.ExprID
 	arrayName                   source.StringID
 	arraySymbol                 symbols.SymbolID
 	arrayType                   types.TypeID
@@ -116,8 +116,13 @@ type returnContext struct {
 	kind     returnContextKind
 	expected types.TypeID
 	span     source.Span
-	collect  *[]types.TypeID
+	collect  *[]collectedResult
 	bareRet  *[]source.Span
+}
+
+type collectedResult struct {
+	typ  types.TypeID
+	span source.Span
 }
 
 type returnContextKind uint8
