@@ -777,6 +777,86 @@ fn main(flag: bool) -> nothing {
 	}
 }
 
+func TestDiagnoseRejectsRetBlockThatFallsThroughWithoutValue(t *testing.T) {
+	src := `
+fn main(flag: bool) -> int {
+    let x = {
+        if flag {
+            ret 1;
+        }
+    };
+    return x;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_block_fallthrough.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code != diag.SemaTypeMismatch {
+			continue
+		}
+		if strings.Contains(d.Message, "block result type mismatch") && strings.Contains(d.Message, "got nothing") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected block result mismatch diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseAllowsRetBlockWhenAllPathsProduceValue(t *testing.T) {
+	src := `
+fn main(flag: bool) -> int {
+    let x = {
+        if flag {
+            ret 1;
+        } else {
+            ret 2;
+        }
+    };
+    return x;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_block_all_paths.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
+	}
+}
+
 func TestDiagnoseWarnsOnLegacyImplicitBlockValueUsedAsCallArg(t *testing.T) {
 	src := `
 fn consume(x: int) -> nothing {

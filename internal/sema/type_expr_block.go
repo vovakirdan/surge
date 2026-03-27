@@ -90,9 +90,31 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 		}
 	}
 
+	if payload != nothing && !tc.blockExprProducesValueOnAllPaths(block, tailExpr, hasLegacyTail) {
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(id), "block result type mismatch: expected %s, got nothing", tc.typeLabel(payload))
+		return types.NoTypeID
+	}
+
 	tc.warnLegacyImplicitBlockValue(id, tailSpan, hasLegacyTail, payload)
 
 	return payload
+}
+
+func (tc *typeChecker) blockExprProducesValueOnAllPaths(block *ast.ExprBlockData, tailExpr ast.ExprID, hasLegacyTail bool) bool {
+	if tc == nil || block == nil {
+		return false
+	}
+	if tc.blockReturnStatus(block.Stmts) == returnClosed {
+		return true
+	}
+	if !hasLegacyTail || !tailExpr.IsValid() || tc.types == nil {
+		return false
+	}
+	tailType := tc.result.ExprTypes[tailExpr]
+	if tailType == types.NoTypeID {
+		tailType = tc.typeExpr(tailExpr)
+	}
+	return tailType != types.NoTypeID && tailType != tc.types.Builtins().Nothing
 }
 
 func (tc *typeChecker) warnLegacyImplicitBlockValue(id ast.ExprID, tailSpan source.Span, hasLegacyTail bool, payload types.TypeID) {

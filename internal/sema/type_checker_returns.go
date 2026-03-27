@@ -20,11 +20,22 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		return returnClosed
 	case ast.StmtBlock:
 		if block := tc.builder.Stmts.Block(stmtID); block != nil {
-			for _, child := range block.Stmts {
-				if tc.returnStatus(child) == returnClosed {
-					return returnClosed
-				}
-			}
+			return tc.blockReturnStatus(block.Stmts)
+		}
+		return returnOpen
+	case ast.StmtLet:
+		if letStmt := tc.builder.Stmts.Let(stmtID); letStmt != nil && letStmt.Value.IsValid() && tc.exprAbruptExit(letStmt.Value) {
+			return returnClosed
+		}
+		return returnOpen
+	case ast.StmtConst:
+		if constStmt := tc.builder.Stmts.Const(stmtID); constStmt != nil && constStmt.Value.IsValid() && tc.exprAbruptExit(constStmt.Value) {
+			return returnClosed
+		}
+		return returnOpen
+	case ast.StmtExpr:
+		if exprStmt := tc.builder.Stmts.Expr(stmtID); exprStmt != nil && tc.exprAbruptExit(exprStmt.Expr) {
+			return returnClosed
 		}
 		return returnOpen
 	case ast.StmtIf:
@@ -32,9 +43,21 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		if ifStmt == nil {
 			return returnOpen
 		}
+		if tc.exprAbruptExit(ifStmt.Cond) {
+			return returnClosed
+		}
 		thenStatus := tc.returnStatus(ifStmt.Then)
+		if tc.isBoolLiteralTrue(ifStmt.Cond) {
+			return thenStatus
+		}
+		if !ifStmt.Else.IsValid() {
+			return returnOpen
+		}
 		elseStatus := tc.returnStatus(ifStmt.Else)
-		if ifStmt.Else.IsValid() && thenStatus == returnClosed && elseStatus == returnClosed {
+		if tc.isBoolLiteralFalse(ifStmt.Cond) {
+			return elseStatus
+		}
+		if thenStatus == returnClosed && elseStatus == returnClosed {
 			return returnClosed
 		}
 		return returnOpen
@@ -42,6 +65,9 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		whileStmt := tc.builder.Stmts.While(stmtID)
 		if whileStmt == nil {
 			return returnOpen
+		}
+		if tc.exprAbruptExit(whileStmt.Cond) {
+			return returnClosed
 		}
 		if tc.isBoolLiteralTrue(whileStmt.Cond) && tc.returnStatus(whileStmt.Body) == returnClosed {
 			return returnClosed
@@ -52,6 +78,12 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		if forStmt == nil {
 			return returnOpen
 		}
+		if forStmt.Init.IsValid() && tc.returnStatus(forStmt.Init) == returnClosed {
+			return returnClosed
+		}
+		if forStmt.Cond.IsValid() && tc.exprAbruptExit(forStmt.Cond) {
+			return returnClosed
+		}
 		// Classic for can skip the body unless condition is explicitly true/absent.
 		infinite := !forStmt.Cond.IsValid() || tc.isBoolLiteralTrue(forStmt.Cond)
 		if infinite && tc.returnStatus(forStmt.Body) == returnClosed {
@@ -59,6 +91,9 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		}
 		return returnOpen
 	case ast.StmtForIn:
+		if forInStmt := tc.builder.Stmts.ForIn(stmtID); forInStmt != nil && tc.exprAbruptExit(forInStmt.Iterable) {
+			return returnClosed
+		}
 		return returnOpen
 	default:
 		return returnOpen
