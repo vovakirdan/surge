@@ -521,3 +521,55 @@ fn main(flag: bool) -> string {
 		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
 	}
 }
+
+func TestDiagnoseWarnsOnLegacyImplicitBlockValueWithFix(t *testing.T) {
+	src := `
+fn main() -> int {
+    let x = {
+        let base = 1;
+        base + 1;
+    };
+    return x;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "implicit_block_value.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected warning, got none")
+	}
+
+	var warning *diag.Diagnostic
+	for _, d := range res.Bag.Items() {
+		if d.Code == diag.SemaImplicitBlockValue && d.Severity == diag.SevWarning {
+			warning = d
+			break
+		}
+	}
+	if warning == nil {
+		t.Fatalf("expected implicit-block-value warning, got %+v", res.Bag.Items())
+	}
+	if len(warning.Fixes) == 0 {
+		t.Fatalf("expected quick-fix on warning, got %+v", warning)
+	}
+	fix := warning.Fixes[0]
+	if fix == nil || len(fix.Edits) != 1 {
+		t.Fatalf("expected single edit fix, got %+v", fix)
+	}
+	if fix.Edits[0].NewText != "ret " {
+		t.Fatalf("expected fix to insert 'ret ', got %+v", fix.Edits[0])
+	}
+}

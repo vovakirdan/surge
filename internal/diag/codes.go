@@ -285,6 +285,7 @@ const (
 	SemaLocalTaskNotSendable           Code = 3132 // Local task handle used in sendable context
 	SemaBlockingBorrowCapture          Code = 3133 // blocking capture cannot borrow
 	SemaRetOutsideBlock                Code = 3134 // ret used outside block expression / async payload
+	SemaImplicitBlockValue             Code = 3135 // legacy implicit block value should use ret
 
 	// Ошибки I/O
 
@@ -529,6 +530,7 @@ var ( // todo расширить описания и использовать к
 		SemaUseAfterMove:                   "use of moved value",
 		SemaTrivialRecursion:               "obvious infinite recursion cycle",
 		SemaLocalTaskNotSendable:           "local task handle is not sendable",
+		SemaImplicitBlockValue:             "legacy implicit block value should use 'ret'",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

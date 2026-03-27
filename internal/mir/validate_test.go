@@ -96,6 +96,16 @@ func TestValidate_ValidPrograms(t *testing.T) {
 				return x;
 			}`,
 		},
+		{
+			name: "legacy_implicit_block_value",
+			src: `fn main() -> int {
+				let x = {
+					let base = 1;
+					base + 1;
+				};
+				return x;
+			}`,
+		},
 	}
 
 	for _, tt := range tests {
