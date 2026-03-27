@@ -275,3 +275,49 @@ fn recover(flag: bool) -> Erring<string, Error> {
 		t.Fatalf("expected compare arm mismatch diagnostic, got %+v", res.Bag.Items())
 	}
 }
+
+func TestDiagnoseAllowsCompareArmControlFlowBlock(t *testing.T) {
+	stdlibRoot := detectStdlibRootFrom(".")
+	if stdlibRoot == "" {
+		t.Fatal("failed to locate stdlib root for test")
+	}
+	t.Setenv("SURGE_STDLIB", stdlibRoot)
+
+	src := `
+fn demo(flag: bool) -> nothing {
+    let mut updated: bool = false;
+    compare flag {
+        true => compare flag {
+            true => {
+                updated = true;
+            }
+            finally => {}
+        };
+        false => {}
+    };
+    if updated {
+        print("ok");
+    }
+    return nothing;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compare_arm_control_flow.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
+	}
+}

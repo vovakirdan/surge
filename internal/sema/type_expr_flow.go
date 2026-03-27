@@ -77,7 +77,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	if expectedCompare != types.NoTypeID {
 		targetCompare = expectedCompare
 	}
-	if targetCompare != types.NoTypeID && tc.discardExpr != id && (nothingType == types.NoTypeID || targetCompare != nothingType) {
+	if targetCompare != types.NoTypeID && tc.discardDepth == 0 && (nothingType == types.NoTypeID || targetCompare != nothingType) {
 		for i, arm := range cmp.Arms {
 			if !armFallsThrough[i] {
 				continue

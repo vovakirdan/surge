@@ -1,0 +1,17 @@
+// scenario: compare arm block used for control flow only
+fn demo(flag: bool) -> nothing {
+    let mut updated: bool = false;
+    compare flag {
+        true => compare flag {
+            true => {
+                updated = true;
+            }
+            finally => {}
+        };
+        false => {}
+    };
+    if updated {
+        print("ok");
+    }
+    return nothing;
+}
