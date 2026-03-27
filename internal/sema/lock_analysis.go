@@ -434,6 +434,12 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) Pat
 		// Return statement exits the function - this path doesn't continue
 		return PathReturns
 
+	case ast.StmtRet:
+		if retStmt := tc.builder.Stmts.Ret(stmtID); retStmt != nil && retStmt.Expr.IsValid() {
+			tc.checkExprForLockOps(la, retStmt.Expr)
+		}
+		return PathContinues
+
 	case ast.StmtBreak:
 		return PathBreaks
 

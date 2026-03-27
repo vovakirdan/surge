@@ -7,19 +7,19 @@ import_all_private.sg (span: 2:1-20:1)
    ├─ Return: int
    └─ Body:
       └─ Stmt[0]: Block (span: 5:18-19:2)
-         ├─ Stmt[0]: StmtKind(2) (span: 7:5-7:39)
+         ├─ Stmt[0]: Const (span: 7:5-7:39)
          ├─ Stmt[1]: Let (span: 8:5-8:40)
          │  ├─ Name: pub_result
          │  ├─ Mutable: false
          │  ├─ Type: int
          │  └─ Value: expr#3: publicFunc()
-         ├─ Stmt[2]: StmtKind(2) (span: 11:5-11:41)
+         ├─ Stmt[2]: Const (span: 11:5-11:41)
          ├─ Stmt[3]: Let (span: 12:5-12:42)
          │  ├─ Name: priv_result
          │  ├─ Mutable: false
          │  ├─ Type: int
          │  └─ Value: expr#6: privateFunc()
-         ├─ Stmt[4]: StmtKind(2) (span: 15:5-15:42)
+         ├─ Stmt[4]: Const (span: 15:5-15:42)
          ├─ Stmt[5]: Let (span: 16:5-16:43)
          │  ├─ Name: hidden_result
          │  ├─ Mutable: false

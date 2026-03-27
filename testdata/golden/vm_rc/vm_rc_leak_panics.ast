@@ -31,7 +31,7 @@ vm_rc_leak_panics.sg (span: 1:1-17:1)
          │  ├─ Mutable: false
          │  ├─ Type: Node[]
          │  └─ Value: expr#12: *a_ref
-         ├─ Stmt[4]: StmtKind(12) (span: 9:5-9:17)
+         ├─ Stmt[4]: Drop (span: 9:5-9:17)
          ├─ Stmt[5]: Let (span: 10:5-10:20)
          │  ├─ Name: b_ref
          │  ├─ Mutable: false
@@ -42,7 +42,7 @@ vm_rc_leak_panics.sg (span: 1:1-17:1)
          │  ├─ Mutable: false
          │  ├─ Type: Node[]
          │  └─ Value: expr#17: *b_ref
-         ├─ Stmt[7]: StmtKind(12) (span: 12:5-12:17)
+         ├─ Stmt[7]: Drop (span: 12:5-12:17)
          ├─ Stmt[8]: Expr (span: 13:5-13:24)
          │  └─ Expr: expr#24: (a[0].next = b_copy)
          ├─ Stmt[9]: Expr (span: 14:5-14:24)

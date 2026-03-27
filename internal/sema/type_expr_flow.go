@@ -113,7 +113,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 
 func (tc *typeChecker) taskBlockPayload(span source.Span, body ast.StmtID, async bool) types.TypeID {
 	var returns []types.TypeID
-	tc.pushReturnContext(types.NoTypeID, span, &returns)
+	tc.pushReturnContext(returnCtxTaskPayload, types.NoTypeID, span, &returns, nil)
 	if async {
 		tc.awaitDepth++
 		tc.asyncBlockDepth++

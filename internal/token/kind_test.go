@@ -70,7 +70,7 @@ func TestIsIdent(t *testing.T) {
 func TestIsKeyword(t *testing.T) {
 	keywords := []token.Kind{
 		token.KwFn, token.KwLet, token.KwMut, token.KwOwn, token.KwIf, token.KwElse, token.KwWhile,
-		token.KwFor, token.KwIn, token.KwBreak, token.KwContinue, token.KwReturn, token.KwImport,
+		token.KwFor, token.KwIn, token.KwBreak, token.KwContinue, token.KwReturn, token.KwRet, token.KwImport,
 		token.KwAs, token.KwType, token.KwTag,
 		token.KwExtern, token.KwPub, token.KwAsync, token.KwCompare, token.KwSelect, token.KwRace, token.KwFinally,
 		token.KwBlocking, token.KwChannel, token.KwSpawn, token.KwTrue, token.KwFalse, token.KwSignal, token.KwParallel,

@@ -47,7 +47,7 @@ func (p *Parser) parseBraceExpr() (ast.ExprID, bool) {
 func isStatementKeyword(kind token.Kind) bool {
 	switch kind {
 	case token.KwLet, token.KwConst, token.KwIf, token.KwWhile, token.KwFor,
-		token.KwReturn, token.KwBreak, token.KwContinue, token.KwCompare, token.KwSelect, token.KwRace:
+		token.KwReturn, token.KwRet, token.KwBreak, token.KwContinue, token.KwCompare, token.KwSelect, token.KwRace:
 		return true
 	}
 	return false
@@ -125,7 +125,7 @@ func (p *Parser) normalizeBlockExprValue(exprID ast.ExprID) {
 		return
 	}
 	switch lastStmt.Kind {
-	case ast.StmtReturn:
+	case ast.StmtReturn, ast.StmtRet:
 		return
 	case ast.StmtExpr:
 		exprStmt := p.arenas.Stmts.Expr(lastID)

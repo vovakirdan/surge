@@ -17,12 +17,16 @@ func formatStmtKind(kind ast.StmtKind) string {
 		return "Block"
 	case ast.StmtLet:
 		return "Let"
+	case ast.StmtConst:
+		return "Const"
 	case ast.StmtExpr:
 		return "Expr"
 	case ast.StmtSignal:
 		return "Signal"
 	case ast.StmtReturn:
 		return "Return"
+	case ast.StmtRet:
+		return "Ret"
 	case ast.StmtBreak:
 		return "Break"
 	case ast.StmtContinue:
@@ -35,6 +39,8 @@ func formatStmtKind(kind ast.StmtKind) string {
 		return "ForClassic"
 	case ast.StmtForIn:
 		return "ForIn"
+	case ast.StmtDrop:
+		return "Drop"
 	default:
 		return fmt.Sprintf("StmtKind(%d)", kind)
 	}
@@ -132,6 +138,17 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 
 	case ast.StmtReturn:
 		retStmt := builder.Stmts.Return(stmtID)
+		if retStmt == nil {
+			return nil
+		}
+		value := "<none>"
+		if retStmt.Expr.IsValid() {
+			value = formatExprSummary(builder, retStmt.Expr)
+		}
+		fmt.Fprintf(w, "%s└─ Expr: %s\n", prefix, value) //nolint:errcheck
+
+	case ast.StmtRet:
+		retStmt := builder.Stmts.Ret(stmtID)
 		if retStmt == nil {
 			return nil
 		}

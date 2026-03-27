@@ -60,6 +60,12 @@ func collectTypesFromStmt(st *hir.Stmt, visit func(id types.TypeID)) {
 			return
 		}
 		collectTypesFromExpr(data.Value, visit)
+	case hir.StmtRet:
+		data, ok := st.Data.(hir.RetData)
+		if !ok {
+			return
+		}
+		collectTypesFromExpr(data.Value, visit)
 	case hir.StmtIf:
 		data, ok := st.Data.(hir.IfStmtData)
 		if !ok {

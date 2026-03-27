@@ -18,6 +18,8 @@ const (
 	StmtAssign
 	// StmtReturn represents return statement (always explicit in HIR).
 	StmtReturn
+	// StmtRet represents a block-local return statement.
+	StmtRet
 	// StmtBreak represents break statement.
 	StmtBreak
 	// StmtContinue represents continue statement.
@@ -46,6 +48,8 @@ func (k StmtKind) String() string {
 		return "Assign"
 	case StmtReturn:
 		return "Return"
+	case StmtRet:
+		return "Ret"
 	case StmtBreak:
 		return "Break"
 	case StmtContinue:
@@ -114,6 +118,13 @@ type ReturnData struct {
 }
 
 func (ReturnData) stmtData() {}
+
+// RetData holds data for StmtRet.
+type RetData struct {
+	Value *Expr // nil for bare ret
+}
+
+func (RetData) stmtData() {}
 
 // BreakData holds data for StmtBreak.
 type BreakData struct {

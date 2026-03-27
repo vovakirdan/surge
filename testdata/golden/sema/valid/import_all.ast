@@ -7,7 +7,7 @@ import_all.sg (span: 2:1-12:1)
    ├─ Return: int
    └─ Body:
       └─ Stmt[0]: Block (span: 5:18-11:2)
-         ├─ Stmt[0]: StmtKind(2) (span: 7:5-7:35)
+         ├─ Stmt[0]: Const (span: 7:5-7:35)
          ├─ Stmt[1]: Let (span: 8:5-8:36)
          │  ├─ Name: result
          │  ├─ Mutable: false

@@ -95,7 +95,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	}
 
 	if fn.Body.IsValid() {
-		tc.pushReturnContext(returnType, returnSpan, nil)
+		tc.pushReturnContext(returnCtxFunction, returnType, returnSpan, nil, nil)
 		pushed := tc.pushScope(scope)
 		tc.walkStmt(fn.Body)
 		if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fn.Body) != returnClosed {

@@ -10,6 +10,7 @@ func TestLookupKeyword_Positive(t *testing.T) {
 		"let":      KwLet,
 		"const":    KwConst,
 		"return":   KwReturn,
+		"ret":      KwRet,
 		"select":   KwSelect,
 		"race":     KwRace,
 		"parallel": KwParallel,

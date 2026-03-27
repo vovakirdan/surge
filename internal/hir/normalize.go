@@ -129,6 +129,16 @@ func normalizeStmt(ctx *normCtx, s *Stmt) ([]Stmt, error) {
 		s.Data = data
 		return []Stmt{*s}, nil
 
+	case StmtRet:
+		data := s.Data.(RetData)
+		if data.Value != nil {
+			if err := normalizeExpr(ctx, data.Value); err != nil {
+				return nil, err
+			}
+		}
+		s.Data = data
+		return []Stmt{*s}, nil
+
 	case StmtIf:
 		data := s.Data.(IfStmtData)
 		if data.Cond != nil {

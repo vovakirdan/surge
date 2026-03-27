@@ -66,6 +66,15 @@ func rewriteCallsInStmt(st *hir.Stmt, f callRewriteFunc) error {
 			return err
 		}
 		st.Data = data
+	case hir.StmtRet:
+		data, ok := st.Data.(hir.RetData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteCallsInExpr(data.Value, f); err != nil {
+			return err
+		}
+		st.Data = data
 	case hir.StmtIf:
 		data, ok := st.Data.(hir.IfStmtData)
 		if !ok {

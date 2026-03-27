@@ -17,7 +17,7 @@ drop_returned_borrow.sg (span: 1:1-11:1)
          │  └─ Value: expr#8: xs.get_mut(0)
          ├─ Stmt[2]: Expr (span: 5:5-5:16)
          │  └─ Expr: expr#12: (*item = 10)
-         ├─ Stmt[3]: StmtKind(12) (span: 6:5-6:16)
+         ├─ Stmt[3]: Drop (span: 6:5-6:16)
          ├─ Stmt[4]: Let (span: 7:5-7:30)
          │  ├─ Name: shared
          │  ├─ Mutable: false

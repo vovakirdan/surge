@@ -113,10 +113,20 @@ type typeChecker struct {
 }
 
 type returnContext struct {
+	kind     returnContextKind
 	expected types.TypeID
 	span     source.Span
 	collect  *[]types.TypeID
+	bareRet  *[]source.Span
 }
+
+type returnContextKind uint8
+
+const (
+	returnCtxFunction returnContextKind = iota
+	returnCtxBlockExpr
+	returnCtxTaskPayload
+)
 
 type returnStatus int
 

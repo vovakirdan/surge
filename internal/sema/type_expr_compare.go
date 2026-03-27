@@ -244,7 +244,7 @@ func (tc *typeChecker) isNamedBindingPattern(pattern ast.ExprID) bool {
 }
 
 // compareArmIsExplicitReturn reports whether a compare arm result is a block that
-// ends with an explicit "return" statement (not a synthetic block return).
+// ends with an explicit block-closing statement rather than a synthetic tail value.
 func (tc *typeChecker) compareArmIsExplicitReturn(result ast.ExprID) bool {
 	if !result.IsValid() || tc.builder == nil {
 		return false
@@ -259,21 +259,28 @@ func (tc *typeChecker) compareArmIsExplicitReturn(result ast.ExprID) bool {
 	}
 	stmtID := block.Stmts[len(block.Stmts)-1]
 	stmt := tc.builder.Stmts.Get(stmtID)
-	if stmt == nil || stmt.Kind != ast.StmtReturn {
+	if stmt == nil {
 		return false
 	}
-	ret := tc.builder.Stmts.Return(stmtID)
-	if ret == nil {
-		return false
-	}
-	if !ret.Expr.IsValid() {
-		return !stmt.Span.Empty()
-	}
-	retExpr := tc.builder.Exprs.Get(ret.Expr)
-	if retExpr == nil {
+	switch stmt.Kind {
+	case ast.StmtReturn:
+		ret := tc.builder.Stmts.Return(stmtID)
+		if ret == nil {
+			return false
+		}
+		if !ret.Expr.IsValid() {
+			return !stmt.Span.Empty()
+		}
+		retExpr := tc.builder.Exprs.Get(ret.Expr)
+		if retExpr == nil {
+			return true
+		}
+		return stmt.Span.Start < retExpr.Span.Start
+	case ast.StmtRet:
 		return true
+	default:
+		return false
 	}
-	return stmt.Span.Start < retExpr.Span.Start
 }
 
 // compareArmFallsThroughBlock reports whether a compare arm result is a block

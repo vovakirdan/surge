@@ -1,0 +1,9 @@
+fn main(flag: bool) -> int {
+    let x = {
+        if flag {
+            ret;
+        }
+        ret 1;
+    };
+    return x;
+}

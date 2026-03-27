@@ -1,0 +1,16 @@
+ret_async_payload.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:22-7:2)
+         ├─ Stmt[0]: Let (span: 2:5-4:7)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#2: async { 1 stmt(s) }
+         ├─ Stmt[1]: Expr (span: 5:5-5:7)
+         │  └─ Expr: expr#3: t
+         └─ Stmt[2]: Return (span: 6:5-6:20)
+            └─ Expr: expr#4: nothing

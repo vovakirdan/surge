@@ -321,3 +321,203 @@ fn demo(flag: bool) -> nothing {
 		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
 	}
 }
+
+func TestDiagnoseAllowsRetInBlockExpression(t *testing.T) {
+	src := `
+fn main() -> int {
+    let x = { ret 1; };
+    let y = { ret 2; };
+    return x + y;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_block.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseRejectsRetOutsideBlockExpression(t *testing.T) {
+	src := `
+fn main() -> nothing {
+    ret;
+    return nothing;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_outside_block.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code != diag.SemaRetOutsideBlock {
+			continue
+		}
+		if strings.Contains(d.Message, "'ret' can only be used inside value-producing blocks") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected ret-outside-block diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseRejectsBareRetInValueProducingBlock(t *testing.T) {
+	src := `
+fn main(flag: bool) -> int {
+    let x = {
+        if flag {
+            ret;
+        }
+        ret 1;
+    };
+    return x;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_bare_non_nothing.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code != diag.SemaTypeMismatch {
+			continue
+		}
+		if strings.Contains(d.Message, "bare 'ret;' can only be used in blocks whose result type is nothing") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected bare-ret diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseRejectsRetInAsyncPayload(t *testing.T) {
+	src := `
+fn main() -> nothing {
+    let t = async {
+        ret 1;
+    };
+    t;
+    return nothing;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_async_payload.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code != diag.SemaRetOutsideBlock {
+			continue
+		}
+		if strings.Contains(d.Message, "'ret' is not supported inside async/blocking payloads; use 'return' for now") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected async-payload ret diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
+func TestDiagnoseTreatsRetAsTerminatingForMoveAnalysis(t *testing.T) {
+	src := `
+fn main(flag: bool) -> string {
+    let s: string = "x";
+    let out = {
+        if flag {
+            ret s;
+        } else {
+            ret "y";
+        }
+        let y = s;
+        ret y;
+    };
+    return out;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ret_reachability.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %+v", res.Bag.Items())
+	}
+}

@@ -69,12 +69,12 @@ Block (span: 10:22-13:10)
          │  │  ├─ Mutable: false
          │  │  ├─ Type: HeapStats
          │  │  └─ Value: expr#67: rt_heap_stats()
-         │  ├─ Stmt[9]: StmtKind(12) (span: 21:9-21:17)
-         │  ├─ Stmt[10]: StmtKind(12) (span: 22:9-22:17)
-         │  ├─ Stmt[11]: StmtKind(12) (span: 23:9-23:17)
-         │  ├─ Stmt[12]: StmtKind(12) (span: 24:9-24:17)
-         │  ├─ Stmt[13]: StmtKind(12) (span: 25:9-25:17)
-         │  ├─ Stmt[14]: StmtKind(12) (span: 26:9-26:17)
+         │  ├─ Stmt[9]: Drop (span: 21:9-21:17)
+         │  ├─ Stmt[10]: Drop (span: 22:9-22:17)
+         │  ├─ Stmt[11]: Drop (span: 23:9-23:17)
+         │  ├─ Stmt[12]: Drop (span: 24:9-24:17)
+         │  ├─ Stmt[13]: Drop (span: 25:9-25:17)
+         │  ├─ Stmt[14]: Drop (span: 26:9-26:17)
          │  ├─ Stmt[15]: Let (span: 28:9-28:54)
          │  │  ├─ Name: stats_after
          │  │  ├─ Mutable: false

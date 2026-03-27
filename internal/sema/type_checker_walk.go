@@ -124,7 +124,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			}
 		}
 		if fnItem.Body.IsValid() {
-			tc.pushReturnContext(returnType, returnSpan, nil)
+			tc.pushReturnContext(returnCtxFunction, returnType, returnSpan, nil, nil)
 			if fnItem.Flags&ast.FnModifierAsync != 0 {
 				tc.awaitDepth++
 			}
@@ -272,6 +272,15 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			}
 			tc.validateReturn(stmt.Span, ret.Expr, valueType)
 			tc.checkTrivialReturnRecursion(ret.Expr)
+		}
+	case ast.StmtRet:
+		if ret := tc.builder.Stmts.Ret(id); ret != nil {
+			var valueType types.TypeID
+			if ret.Expr.IsValid() {
+				valueType = tc.typeExpr(ret.Expr)
+				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+			}
+			tc.validateRet(stmt.Span, ret.Expr, valueType)
 		}
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {

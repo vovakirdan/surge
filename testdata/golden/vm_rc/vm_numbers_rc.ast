@@ -25,7 +25,7 @@ vm_numbers_rc.sg (span: 1:1-13:1)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#4: c
-         ├─ Stmt[4]: StmtKind(12) (span: 9:5-9:13)
-         ├─ Stmt[5]: StmtKind(12) (span: 10:5-10:13)
+         ├─ Stmt[4]: Drop (span: 9:5-9:13)
+         ├─ Stmt[5]: Drop (span: 10:5-10:13)
          └─ Stmt[6]: Return (span: 11:5-11:14)
             └─ Expr: expr#7: 0

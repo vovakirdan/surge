@@ -1,11 +1,11 @@
-  1: Kind(5)         "const" at 1:1-1:6
+  1: KwConst         "const" at 1:1-1:6
   2: Ident           "BASE" at 1:7-1:11 (leading: Space)
   3: Colon           ":" at 1:11-1:12
   4: Ident           "int" at 1:13-1:16 (leading: Space)
   5: Assign          "=" at 1:17-1:18 (leading: Space)
   6: IntLit          "40" at 1:19-1:21 (leading: Space)
   7: Semicolon       ";" at 1:21-1:22
-  8: Kind(5)         "const" at 2:1-2:6 (leading: Newline)
+  8: KwConst         "const" at 2:1-2:6 (leading: Newline)
   9: Ident           "ANSWER" at 2:7-2:13 (leading: Space)
  10: Colon           ":" at 2:13-2:14
  11: Ident           "int" at 2:15-2:18 (leading: Space)

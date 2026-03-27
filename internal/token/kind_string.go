@@ -14,6 +14,8 @@ func (k Kind) String() string {
 		return "KwFn"
 	case KwLet:
 		return "KwLet"
+	case KwConst:
+		return "KwConst"
 	case KwMut:
 		return "KwMut"
 	case KwOwn:
@@ -34,6 +36,8 @@ func (k Kind) String() string {
 		return "KwContinue"
 	case KwReturn:
 		return "KwReturn"
+	case KwRet:
+		return "KwRet"
 	case KwImport:
 		return "KwImport"
 	case KwAs:
@@ -92,6 +96,8 @@ func (k Kind) String() string {
 		return "KwIs"
 	case KwField:
 		return "KwField"
+	case KwEnum:
+		return "KwEnum"
 	case NothingLit:
 		return "NothingLit"
 	case IntLit:
@@ -118,6 +124,26 @@ func (k Kind) String() string {
 		return "Percent"
 	case Assign:
 		return "Assign"
+	case PlusAssign:
+		return "PlusAssign"
+	case MinusAssign:
+		return "MinusAssign"
+	case StarAssign:
+		return "StarAssign"
+	case SlashAssign:
+		return "SlashAssign"
+	case PercentAssign:
+		return "PercentAssign"
+	case AmpAssign:
+		return "AmpAssign"
+	case PipeAssign:
+		return "PipeAssign"
+	case CaretAssign:
+		return "CaretAssign"
+	case ShlAssign:
+		return "ShlAssign"
+	case ShrAssign:
+		return "ShrAssign"
 	case EqEq:
 		return "EqEq"
 	case Bang:
@@ -148,10 +174,14 @@ func (k Kind) String() string {
 		return "OrOr"
 	case Question:
 		return "Question"
+	case QuestionQuestion:
+		return "QuestionQuestion"
 	case Colon:
 		return "Colon"
 	case ColonColon:
 		return "ColonColon"
+	case ColonAssign:
+		return "ColonAssign"
 	case Semicolon:
 		return "Semicolon"
 	case Comma:

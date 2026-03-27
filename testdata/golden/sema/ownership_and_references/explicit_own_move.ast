@@ -45,7 +45,7 @@ explicit_own_move.sg (span: 3:1-21:1)
          │  ├─ Mutable: false
          │  ├─ Type: &int
          │  └─ Value: expr#11: &x
-         ├─ Stmt[8]: StmtKind(12) (span: 14:5-14:13)
+         ├─ Stmt[8]: Drop (span: 14:5-14:13)
          ├─ Stmt[9]: Expr (span: 15:5-15:11)
          │  └─ Expr: expr#15: (x = 2)
          ├─ Stmt[10]: Let (span: 17:5-17:24)

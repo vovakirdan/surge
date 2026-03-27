@@ -2,14 +2,14 @@ package sema
 
 import (
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/types"
 )
 
 // typeBlockExpr processes a block expression and returns its type.
-// A block expression contains statements and must end with a return statement
-// (unless the expected type is 'nothing').
-// The type of the block is the type of the return expression.
+// During the migration, block values can still come from legacy implicit tail
+// returns, but explicit `ret` statements also contribute block-local result types.
 func (tc *typeChecker) typeBlockExpr(block *ast.ExprBlockData) types.TypeID {
 	if block == nil || len(block.Stmts) == 0 {
 		// Empty block has type nothing
@@ -18,7 +18,8 @@ func (tc *typeChecker) typeBlockExpr(block *ast.ExprBlockData) types.TypeID {
 
 	// Collect return types (like async blocks do)
 	var returns []types.TypeID
-	tc.pushReturnContext(types.NoTypeID, source.Span{}, &returns)
+	var bareRetSpans []source.Span
+	tc.pushReturnContext(returnCtxBlockExpr, types.NoTypeID, source.Span{}, &returns, &bareRetSpans)
 
 	// Walk all statements in the block
 	for _, stmtID := range block.Stmts {
@@ -27,13 +28,28 @@ func (tc *typeChecker) typeBlockExpr(block *ast.ExprBlockData) types.TypeID {
 
 	tc.popReturnContext()
 
+	nothing := tc.types.Builtins().Nothing
+	sawNonNothing := false
+	for _, rt := range returns {
+		if rt != types.NoTypeID && rt != nothing {
+			sawNonNothing = true
+			break
+		}
+	}
+	if sawNonNothing && len(bareRetSpans) > 0 {
+		for _, span := range bareRetSpans {
+			tc.report(diag.SemaTypeMismatch, span, "bare 'ret;' can only be used in blocks whose result type is nothing; use 'ret value;' or 'ret nothing;'")
+		}
+		return nothing
+	}
+
 	// Determine block type from collected returns
 	if len(returns) == 0 {
-		return tc.types.Builtins().Nothing
+		return nothing
 	}
 
 	// Unify all return types
-	payload := tc.types.Builtins().Nothing
+	payload := nothing
 	for _, rt := range returns {
 		if rt == types.NoTypeID {
 			continue

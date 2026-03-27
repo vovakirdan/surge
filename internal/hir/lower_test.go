@@ -167,6 +167,46 @@ fn test() {
 	}
 }
 
+func TestLowerRetInBlockExpr(t *testing.T) {
+	src := `
+fn main() -> int {
+    let x = { ret 1; };
+    let y = { ret 2; };
+    return x + y;
+}
+`
+	module, _, err := parseAndLower(t, src)
+	if err != nil {
+		t.Fatalf("failed to lower: %v", err)
+	}
+	if module == nil || len(module.Funcs) != 1 {
+		t.Fatalf("expected one function, got %+v", module)
+	}
+
+	fn := module.Funcs[0]
+	if fn.Body == nil || len(fn.Body.Stmts) < 2 {
+		t.Fatalf("expected at least two statements, got %+v", fn.Body)
+	}
+
+	for _, idx := range []int{0, 1} {
+		stmt := fn.Body.Stmts[idx]
+		if stmt.Kind != hir.StmtLet {
+			t.Fatalf("stmt %d: expected let, got %s", idx, stmt.Kind)
+		}
+		data := stmt.Data.(hir.LetData)
+		if data.Value == nil || data.Value.Kind != hir.ExprBlock {
+			t.Fatalf("stmt %d: expected block expr value, got %+v", idx, data.Value)
+		}
+		block := data.Value.Data.(hir.BlockExprData).Block
+		if block == nil || len(block.Stmts) != 1 {
+			t.Fatalf("stmt %d: expected one block stmt, got %+v", idx, block)
+		}
+		if block.Stmts[0].Kind != hir.StmtRet {
+			t.Fatalf("stmt %d: expected hir ret, got %s", idx, block.Stmts[0].Kind)
+		}
+	}
+}
+
 func parseAndLower(t *testing.T, src string) (*hir.Module, *types.Interner, error) {
 	t.Helper()
 

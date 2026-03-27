@@ -2,7 +2,7 @@
   2: Ident           "module" at 2:8-2:14 (leading: Space)
   3: Semicolon       ";" at 2:14-2:15
   4: KwPub           "pub" at 4:1-4:4 (leading: Newline)
-  5: Kind(5)         "const" at 4:5-4:10 (leading: Space)
+  5: KwConst         "const" at 4:5-4:10 (leading: Space)
   6: Ident           "MODULE_CONST" at 4:11-4:23 (leading: Space)
   7: Colon           ":" at 4:23-4:24
   8: Ident           "int" at 4:25-4:28 (leading: Space)
@@ -31,7 +31,7 @@
  31: Ident           "int" at 6:32-6:35 (leading: Space)
  32: RBrace          "}" at 6:36-6:37 (leading: Space)
  33: Semicolon       ";" at 6:37-6:38
- 34: Kind(5)         "const" at 9:1-9:6 (leading: Newline, LineComment, Newline)
+ 34: KwConst         "const" at 9:1-9:6 (leading: Newline, LineComment, Newline)
  35: Ident           "privateConst" at 9:7-9:19 (leading: Space)
  36: Colon           ":" at 9:19-9:20
  37: Ident           "int" at 9:21-9:24 (leading: Space)

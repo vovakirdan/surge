@@ -79,6 +79,19 @@ func buildStmtTreeNode(builder *ast.Builder, stmtID ast.StmtID, fs *source.FileS
 			label: fmt.Sprintf("Expr: %s", value),
 		})
 
+	case ast.StmtRet:
+		retStmt := builder.Stmts.Ret(stmtID)
+		if retStmt == nil {
+			return node
+		}
+		value := "<none>"
+		if retStmt.Expr.IsValid() {
+			value = formatExprSummary(builder, retStmt.Expr)
+		}
+		node.children = append(node.children, &treeNode{
+			label: fmt.Sprintf("Expr: %s", value),
+		})
+
 	case ast.StmtBreak:
 		node.children = append(node.children, &treeNode{label: "(no additional data)"})
 
@@ -255,6 +268,21 @@ func formatStmtJSON(builder *ast.Builder, stmtID ast.StmtID) (ASTNodeOutput, err
 
 	case ast.StmtReturn:
 		retStmt := builder.Stmts.Return(stmtID)
+		if retStmt != nil {
+			fields := map[string]any{
+				"expr": formatExprInline(builder, retStmt.Expr),
+				"exprID": func() any {
+					if retStmt.Expr.IsValid() {
+						return uint32(retStmt.Expr)
+					}
+					return nil
+				}(),
+			}
+			output.Fields = cleanupNilFields(fields)
+		}
+
+	case ast.StmtRet:
+		retStmt := builder.Stmts.Ret(stmtID)
 		if retStmt != nil {
 			fields := map[string]any{
 				"expr": formatExprInline(builder, retStmt.Expr),

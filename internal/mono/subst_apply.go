@@ -66,6 +66,17 @@ func (s *Subst) ApplyStmt(st *hir.Stmt) error {
 			}
 		}
 		st.Data = data
+	case hir.StmtRet:
+		data, ok := st.Data.(hir.RetData)
+		if !ok {
+			return nil
+		}
+		if data.Value != nil {
+			if err := s.ApplyExpr(data.Value); err != nil {
+				return err
+			}
+		}
+		st.Data = data
 	case hir.StmtIf:
 		data, ok := st.Data.(hir.IfStmtData)
 		if !ok {
