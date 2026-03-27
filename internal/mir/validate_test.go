@@ -75,6 +75,47 @@ func TestValidate_ValidPrograms(t *testing.T) {
 				return;
 			}`,
 		},
+		{
+			name: "block_ret_keeps_function_flow",
+			src: `fn main() -> int {
+				let x = { ret 1; };
+				let y = 2;
+				return x + y;
+			}`,
+		},
+		{
+			name: "block_ret_if_branches_assign_result",
+			src: `fn main(flag: bool) -> int {
+				let x = {
+					if flag {
+						ret 1;
+					} else {
+						ret 2;
+					}
+				};
+				return x;
+			}`,
+		},
+		{
+			name: "legacy_implicit_block_value",
+			src: `fn main() -> int {
+				let x = {
+					let base = 1;
+					base + 1;
+				};
+				return x;
+			}`,
+		},
+		{
+			name: "compare_block_ret_arms",
+			src: `fn main(flag: bool) -> int {
+				let x = compare flag {
+					true => { ret 1; }
+					false => { ret 2; }
+				};
+				return x;
+			}`,
+		},
 	}
 
 	for _, tt := range tests {

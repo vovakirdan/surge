@@ -17,7 +17,7 @@
  17: Arrow           "->" at 5:11-5:13 (leading: Space)
  18: Ident           "int" at 5:14-5:17 (leading: Space)
  19: LBrace          "{" at 5:18-5:19 (leading: Space)
- 20: Kind(5)         "const" at 7:5-7:10 (leading: Newline, Space, LineComment, Newline, Space)
+ 20: KwConst         "const" at 7:5-7:10 (leading: Newline, Space, LineComment, Newline, Space)
  21: Ident           "val" at 7:11-7:14 (leading: Space)
  22: Colon           ":" at 7:14-7:15
  23: Ident           "int" at 7:16-7:19 (leading: Space)

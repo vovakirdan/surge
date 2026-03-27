@@ -37,6 +37,8 @@ const (
 	KwContinue // continue
 	// KwReturn represents the 'return' keyword.
 	KwReturn // return
+	// KwRet represents the 'ret' keyword.
+	KwRet // ret
 	// KwImport represents the 'import' keyword.
 	KwImport // import
 	// KwAs represents the 'as' keyword.

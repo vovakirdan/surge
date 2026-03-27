@@ -100,7 +100,7 @@
 100: Semicolon       ";" at 31:60-31:61
 101: At              "@" at 34:1-34:2 (leading: Newline, LineComment, Newline)
 102: Ident           "deprecated" at 34:2-34:12
-103: Kind(5)         "const" at 34:13-34:18 (leading: Space)
+103: KwConst         "const" at 34:13-34:18 (leading: Space)
 104: Ident           "OLD_CONST" at 34:19-34:28 (leading: Space)
 105: Colon           ":" at 34:28-34:29
 106: Ident           "int" at 34:30-34:33 (leading: Space)
@@ -112,7 +112,7 @@
 112: LParen          "(" at 37:12-37:13
 113: StringLit       "\"Use NEW_CONST instead\"" at 37:13-37:36
 114: RParen          ")" at 37:36-37:37
-115: Kind(5)         "const" at 37:38-37:43 (leading: Space)
+115: KwConst         "const" at 37:38-37:43 (leading: Space)
 116: Ident           "OLD_CONST_MSG" at 37:44-37:57 (leading: Space)
 117: Colon           ":" at 37:57-37:58
 118: Ident           "int" at 37:59-37:62 (leading: Space)

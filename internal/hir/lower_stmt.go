@@ -72,6 +72,18 @@ func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
 			Data: ReturnData{Value: value, IsTail: false, IsImplicit: isImplicit},
 		}
 
+	case ast.StmtRet:
+		retStmt := l.builder.Stmts.Ret(stmtID)
+		var value *Expr
+		if retStmt != nil && retStmt.Expr.IsValid() {
+			value = l.lowerExpr(retStmt.Expr)
+		}
+		return &Stmt{
+			Kind: StmtRet,
+			Span: stmt.Span,
+			Data: RetData{Value: value},
+		}
+
 	case ast.StmtBreak:
 		return &Stmt{
 			Kind: StmtBreak,

@@ -278,6 +278,12 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 				return
 			}
 			walkExpr(data.Value)
+		case hir.StmtRet:
+			data, ok := st.Data.(hir.RetData)
+			if !ok {
+				return
+			}
+			walkExpr(data.Value)
 		case hir.StmtIf:
 			data, ok := st.Data.(hir.IfStmtData)
 			if !ok {

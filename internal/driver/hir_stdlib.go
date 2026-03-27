@@ -412,6 +412,13 @@ func remapStmt(st *hir.Stmt, mapping map[symbols.SymbolID]symbols.SymbolID, stat
 		}
 		remapExpr(data.Value, mapping, state)
 		st.Data = data
+	case hir.StmtRet:
+		data, ok := st.Data.(hir.RetData)
+		if !ok {
+			return
+		}
+		remapExpr(data.Value, mapping, state)
+		st.Data = data
 	case hir.StmtIf:
 		data, ok := st.Data.(hir.IfStmtData)
 		if !ok {

@@ -1,0 +1,19 @@
+ret_block_expr.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:18-5:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#2: <ExprKind(25)>
+         ├─ Stmt[1]: Let (span: 3:5-3:24)
+         │  ├─ Name: y
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: <ExprKind(25)>
+         └─ Stmt[2]: Return (span: 4:5-4:18)
+            └─ Expr: expr#7: (x + y)

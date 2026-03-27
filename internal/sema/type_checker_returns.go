@@ -16,15 +16,26 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		return returnOpen
 	}
 	switch stmt.Kind {
-	case ast.StmtReturn:
+	case ast.StmtReturn, ast.StmtRet:
 		return returnClosed
 	case ast.StmtBlock:
 		if block := tc.builder.Stmts.Block(stmtID); block != nil {
-			for _, child := range block.Stmts {
-				if tc.returnStatus(child) == returnClosed {
-					return returnClosed
-				}
-			}
+			return tc.blockReturnStatus(block.Stmts)
+		}
+		return returnOpen
+	case ast.StmtLet:
+		if letStmt := tc.builder.Stmts.Let(stmtID); letStmt != nil && letStmt.Value.IsValid() && tc.exprAbruptExit(letStmt.Value) {
+			return returnClosed
+		}
+		return returnOpen
+	case ast.StmtConst:
+		if constStmt := tc.builder.Stmts.Const(stmtID); constStmt != nil && constStmt.Value.IsValid() && tc.exprAbruptExit(constStmt.Value) {
+			return returnClosed
+		}
+		return returnOpen
+	case ast.StmtExpr:
+		if exprStmt := tc.builder.Stmts.Expr(stmtID); exprStmt != nil && tc.exprAbruptExit(exprStmt.Expr) {
+			return returnClosed
 		}
 		return returnOpen
 	case ast.StmtIf:
@@ -32,9 +43,21 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		if ifStmt == nil {
 			return returnOpen
 		}
+		if tc.exprAbruptExit(ifStmt.Cond) {
+			return returnClosed
+		}
 		thenStatus := tc.returnStatus(ifStmt.Then)
+		if tc.isBoolLiteralTrue(ifStmt.Cond) {
+			return thenStatus
+		}
+		if !ifStmt.Else.IsValid() {
+			return returnOpen
+		}
 		elseStatus := tc.returnStatus(ifStmt.Else)
-		if ifStmt.Else.IsValid() && thenStatus == returnClosed && elseStatus == returnClosed {
+		if tc.isBoolLiteralFalse(ifStmt.Cond) {
+			return elseStatus
+		}
+		if thenStatus == returnClosed && elseStatus == returnClosed {
 			return returnClosed
 		}
 		return returnOpen
@@ -42,6 +65,9 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		whileStmt := tc.builder.Stmts.While(stmtID)
 		if whileStmt == nil {
 			return returnOpen
+		}
+		if tc.exprAbruptExit(whileStmt.Cond) {
+			return returnClosed
 		}
 		if tc.isBoolLiteralTrue(whileStmt.Cond) && tc.returnStatus(whileStmt.Body) == returnClosed {
 			return returnClosed
@@ -52,6 +78,12 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		if forStmt == nil {
 			return returnOpen
 		}
+		if forStmt.Init.IsValid() && tc.returnStatus(forStmt.Init) == returnClosed {
+			return returnClosed
+		}
+		if forStmt.Cond.IsValid() && tc.exprAbruptExit(forStmt.Cond) {
+			return returnClosed
+		}
 		// Classic for can skip the body unless condition is explicitly true/absent.
 		infinite := !forStmt.Cond.IsValid() || tc.isBoolLiteralTrue(forStmt.Cond)
 		if infinite && tc.returnStatus(forStmt.Body) == returnClosed {
@@ -59,6 +91,9 @@ func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
 		}
 		return returnOpen
 	case ast.StmtForIn:
+		if forInStmt := tc.builder.Stmts.ForIn(stmtID); forInStmt != nil && tc.exprAbruptExit(forInStmt.Iterable) {
+			return returnClosed
+		}
 		return returnOpen
 	default:
 		return returnOpen
@@ -86,8 +121,8 @@ func (tc *typeChecker) isBoolLiteralTrue(expr ast.ExprID) bool {
 	return false
 }
 
-func (tc *typeChecker) pushReturnContext(expected types.TypeID, span source.Span, collect *[]types.TypeID) {
-	ctx := returnContext{expected: expected, span: span, collect: collect}
+func (tc *typeChecker) pushReturnContext(kind returnContextKind, expected types.TypeID, span source.Span, collect *[]collectedResult, bareRet *[]source.Span) {
+	ctx := returnContext{kind: kind, expected: expected, span: span, collect: collect, bareRet: bareRet}
 	tc.returnStack = append(tc.returnStack, ctx)
 }
 
@@ -105,15 +140,31 @@ func (tc *typeChecker) currentReturnContext() *returnContext {
 	return &tc.returnStack[len(tc.returnStack)-1]
 }
 
+func (tc *typeChecker) currentBlockReturnContext() *returnContext {
+	ctx := tc.currentReturnContext()
+	if ctx == nil || ctx.kind != returnCtxBlockExpr || ctx.collect == nil {
+		return nil
+	}
+	return ctx
+}
+
+func (tc *typeChecker) appendCollectedResult(ctx *returnContext, span source.Span, expr ast.ExprID, typ types.TypeID) {
+	if tc == nil || ctx == nil || ctx.collect == nil || typ == types.NoTypeID {
+		return
+	}
+	*ctx.collect = append(*ctx.collect, collectedResult{typ: typ, span: span, expr: expr})
+}
+
 func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual types.TypeID) {
 	ctx := tc.currentReturnContext()
 	if ctx == nil || tc.types == nil {
 		return
 	}
-	if ctx.collect != nil && ctx.expected == types.NoTypeID {
-		// Returns inside block expressions still return from the function.
-		// Apply implicit tag injection against the outer return type (if any).
-		if expr.IsValid() && actual != types.NoTypeID && tc.types != nil {
+	if ctx.collect != nil && ctx.kind != returnCtxFunction {
+		// Returns inside block expressions still return from the enclosing function.
+		// Apply implicit tag injection against the outer function return type when the
+		// top collecting context is a block expression.
+		if ctx.kind == returnCtxBlockExpr && expr.IsValid() && actual != types.NoTypeID && tc.types != nil {
 			var outerExpected types.TypeID
 			if len(tc.returnStack) > 1 {
 				outerExpected = tc.returnStack[len(tc.returnStack)-2].expected
@@ -128,9 +179,7 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		if !expr.IsValid() {
 			record = tc.types.Builtins().Nothing
 		}
-		if record != types.NoTypeID {
-			*ctx.collect = append(*ctx.collect, record)
-		}
+		tc.appendCollectedResult(ctx, span, expr, record)
 		return
 	}
 	expected := ctx.expected
@@ -206,6 +255,31 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		return
 	}
 	tc.report(diag.SemaTypeMismatch, span, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
+}
+
+func (tc *typeChecker) validateRet(span source.Span, expr ast.ExprID, actual types.TypeID) {
+	if tc.types == nil {
+		return
+	}
+	ctx := tc.currentBlockReturnContext()
+	if ctx == nil {
+		if outer := tc.currentReturnContext(); outer != nil && outer.kind == returnCtxTaskPayload {
+			tc.report(diag.SemaRetOutsideBlock, span, "'ret' is not supported inside async/blocking payloads; use 'return' for now")
+			return
+		}
+		tc.report(diag.SemaRetOutsideBlock, span, "'ret' can only be used inside value-producing blocks")
+		return
+	}
+	record := actual
+	if !expr.IsValid() {
+		record = tc.types.Builtins().Nothing
+		if ctx.bareRet != nil {
+			*ctx.bareRet = append(*ctx.bareRet, span)
+		}
+	}
+	if record != types.NoTypeID {
+		tc.appendCollectedResult(ctx, span, expr, record)
+	}
 }
 
 func (tc *typeChecker) coerceLiteralForBinding(declared, actual types.TypeID, expr ast.ExprID) types.TypeID {

@@ -191,6 +191,8 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 		return p.parseSignalStmt()
 	case token.KwReturn:
 		return p.parseReturnStmt()
+	case token.KwRet:
+		return p.parseRetStmt()
 	case token.KwIf:
 		return p.parseIfStmt()
 	case token.KwWhile:
@@ -554,6 +556,57 @@ func (p *Parser) parseReturnStmt() (ast.StmtID, bool) {
 	stmtSpan = stmtSpan.Cover(semiTok.Span)
 
 	stmtID := p.arenas.Stmts.NewReturn(stmtSpan, exprID)
+	return stmtID, true
+}
+
+func (p *Parser) parseRetStmt() (ast.StmtID, bool) {
+	retTok := p.advance()
+
+	exprID := ast.NoExprID
+	if !p.at(token.Semicolon) && !p.at(token.RBrace) && !p.at(token.EOF) {
+		var ok bool
+		exprID, ok = p.parseExpr()
+		if !ok {
+			return ast.NoStmtID, false
+		}
+	}
+
+	insertSpan := p.lastSpan.ZeroideToEnd()
+	semiTok, semiOK := p.expect(
+		token.Semicolon,
+		diag.SynExpectSemicolon,
+		"expected ';' after ret statement",
+		func(b *diag.ReportBuilder) {
+			if b == nil {
+				return
+			}
+			fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
+			suggestion := fix.InsertText(
+				"insert ';' after ret statement",
+				insertSpan,
+				";",
+				"",
+				fix.WithID(fixID),
+				fix.WithKind(diag.FixKindRefactor),
+				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				fix.Preferred(),
+			)
+			b.WithFixSuggestion(suggestion)
+			b.WithNote(insertSpan, "insert missing semicolon")
+		},
+	)
+	if !semiOK {
+		return ast.NoStmtID, false
+	}
+
+	stmtSpan := retTok.Span
+	if exprID.IsValid() {
+		exprSpan := p.arenas.Exprs.Get(exprID).Span
+		stmtSpan = stmtSpan.Cover(exprSpan)
+	}
+	stmtSpan = stmtSpan.Cover(semiTok.Span)
+
+	stmtID := p.arenas.Stmts.NewRet(stmtSpan, exprID)
 	return stmtID, true
 }
 

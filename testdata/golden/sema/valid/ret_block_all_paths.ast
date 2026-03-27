@@ -1,0 +1,14 @@
+ret_block_all_paths.sg (span: 2:1-12:1)
+└─ Item[0]: Fn (span: 2:1-11:2)
+   ├─ Name: main
+   ├─ Params: (flag: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:28-11:2)
+         ├─ Stmt[0]: Let (span: 3:5-9:7)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: <ExprKind(25)>
+         └─ Stmt[1]: Return (span: 10:5-10:14)
+            └─ Expr: expr#5: x

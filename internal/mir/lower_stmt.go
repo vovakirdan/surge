@@ -170,6 +170,42 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: op, Early: early}})
 		return nil
 
+	case hir.StmtRet:
+		data, ok := st.Data.(hir.RetData)
+		if !ok {
+			return fmt.Errorf("mir: ret: unexpected payload %T", st.Data)
+		}
+		if len(l.returnStack) == 0 {
+			return fmt.Errorf("mir: ret outside of a block-return context")
+		}
+		ctx := l.returnStack[len(l.returnStack)-1]
+		if ctx.hasResult && data.Value != nil {
+			expected := types.NoTypeID
+			if l.f != nil && ctx.result.Local != NoLocalID {
+				idx := int(ctx.result.Local)
+				if idx >= 0 && idx < len(l.f.Locals) {
+					expected = l.f.Locals[idx].Type
+				}
+			}
+			op, err := l.lowerExprForType(data.Value, expected)
+			if err != nil {
+				return err
+			}
+			l.emit(&Instr{
+				Kind: InstrAssign,
+				Assign: AssignInstr{
+					Dst: ctx.result,
+					Src: RValue{Kind: RValueUse, Use: op},
+				},
+			})
+		} else if data.Value != nil {
+			if err := l.lowerExprForSideEffects(data.Value); err != nil {
+				return err
+			}
+		}
+		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: ctx.exit}})
+		return nil
+
 	case hir.StmtBreak:
 		if len(l.loopStack) == 0 {
 			return fmt.Errorf("mir: break outside of a loop")

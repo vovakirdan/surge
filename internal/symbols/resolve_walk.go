@@ -244,6 +244,11 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 		if returnStmt != nil {
 			fr.walkExpr(returnStmt.Expr)
 		}
+	case ast.StmtRet:
+		retStmt := fr.builder.Stmts.Ret(stmtID)
+		if retStmt != nil {
+			fr.walkExpr(retStmt.Expr)
+		}
 	case ast.StmtBreak, ast.StmtContinue:
 	default:
 	}

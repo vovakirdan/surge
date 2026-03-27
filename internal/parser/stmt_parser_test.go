@@ -307,6 +307,70 @@ func TestParseBlockStatements_Positive(t *testing.T) {
 	}
 }
 
+func TestParseRetStatementsInBlockExpressions(t *testing.T) {
+	input := `
+fn demo() {
+    let a = { ret 1; };
+    let b = { ret; };
+    let c = { ret nothing; };
+}
+`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
+	}
+
+	file := builder.Files.Get(fileID)
+	if file == nil || len(file.Items) != 1 {
+		t.Fatalf("expected one file item, got %+v", file)
+	}
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok || fnItem == nil {
+		t.Fatal("expected fn payload")
+	}
+	body := builder.Stmts.Block(fnItem.Body)
+	if body == nil || len(body.Stmts) != 3 {
+		t.Fatalf("expected 3 let statements, got %d", len(body.Stmts))
+	}
+
+	for i, stmtID := range body.Stmts {
+		letStmt := builder.Stmts.Let(stmtID)
+		if letStmt == nil || !letStmt.Value.IsValid() {
+			t.Fatalf("stmt %d: expected let with value", i)
+		}
+		blockExpr, ok := builder.Exprs.Block(letStmt.Value)
+		if !ok || blockExpr == nil {
+			t.Fatalf("stmt %d: expected block expression", i)
+		}
+		if len(blockExpr.Stmts) != 1 {
+			t.Fatalf("stmt %d: expected single ret statement in block, got %d", i, len(blockExpr.Stmts))
+		}
+		stmt := builder.Stmts.Get(blockExpr.Stmts[0])
+		if stmt == nil || stmt.Kind != ast.StmtRet {
+			t.Fatalf("stmt %d: expected ret statement, got %+v", i, stmt)
+		}
+		ret := builder.Stmts.Ret(blockExpr.Stmts[0])
+		if ret == nil {
+			t.Fatalf("stmt %d: expected ret payload", i)
+		}
+		switch i {
+		case 0:
+			if !ret.Expr.IsValid() {
+				t.Fatalf("stmt %d: expected ret expr", i)
+			}
+		case 1:
+			if ret.Expr.IsValid() {
+				t.Fatalf("stmt %d: expected bare ret", i)
+			}
+		case 2:
+			if !ret.Expr.IsValid() {
+				t.Fatalf("stmt %d: expected ret nothing expr", i)
+			}
+		}
+	}
+}
+
 func TestSignalStatement(t *testing.T) {
 	input := `
 		fn main() {

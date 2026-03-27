@@ -1,0 +1,9 @@
+async fn work() -> int {
+    return 42;
+}
+
+pub fn start() -> Task<int> {
+    return {
+        ret spawn work();
+    };
+}
