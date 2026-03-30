@@ -1,0 +1,12 @@
+fn main(flag: bool) -> int {
+    return compare flag {
+        true => {
+            if flag {
+                return 1;
+            } else {
+                return 2;
+            }
+        }
+        false => 3
+    };
+}

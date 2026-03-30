@@ -204,6 +204,10 @@ fn main() -> int {
 		if block.Stmts[0].Kind != hir.StmtRet {
 			t.Fatalf("stmt %d: expected hir ret, got %s", idx, block.Stmts[0].Kind)
 		}
+		retData, ok := block.Stmts[0].Data.(hir.RetData)
+		if !ok || retData.Value == nil {
+			t.Fatalf("stmt %d: expected hir ret payload, got %+v", idx, block.Stmts[0].Data)
+		}
 	}
 }
 

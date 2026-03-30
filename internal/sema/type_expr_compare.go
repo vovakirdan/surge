@@ -243,44 +243,6 @@ func (tc *typeChecker) isNamedBindingPattern(pattern ast.ExprID) bool {
 	return !tc.isTagConstructor(ident.Name)
 }
 
-// compareArmHasFunctionReturn reports whether a compare arm result is a block that
-// ends with a real function return. Block-local `ret` still produces the arm value.
-func (tc *typeChecker) compareArmHasFunctionReturn(result ast.ExprID) bool {
-	if !result.IsValid() || tc.builder == nil {
-		return false
-	}
-	expr := tc.builder.Exprs.Get(result)
-	if expr == nil || expr.Kind != ast.ExprBlock {
-		return false
-	}
-	block, ok := tc.builder.Exprs.Block(result)
-	if !ok || block == nil || len(block.Stmts) == 0 {
-		return false
-	}
-	stmtID := block.Stmts[len(block.Stmts)-1]
-	stmt := tc.builder.Stmts.Get(stmtID)
-	if stmt == nil {
-		return false
-	}
-	switch stmt.Kind {
-	case ast.StmtReturn:
-		ret := tc.builder.Stmts.Return(stmtID)
-		if ret == nil {
-			return false
-		}
-		if !ret.Expr.IsValid() {
-			return !stmt.Span.Empty()
-		}
-		retExpr := tc.builder.Exprs.Get(ret.Expr)
-		if retExpr == nil {
-			return true
-		}
-		return stmt.Span.Start < retExpr.Span.Start
-	default:
-		return false
-	}
-}
-
 func (tc *typeChecker) compareArmAbruptExit(result ast.ExprID) bool {
 	if !result.IsValid() || tc.builder == nil {
 		return false
@@ -293,26 +255,10 @@ func (tc *typeChecker) compareArmAbruptExit(result ast.ExprID) bool {
 		return tc.exprAbruptExit(result)
 	}
 	block, ok := tc.builder.Exprs.Block(result)
-	if !ok || block == nil || len(block.Stmts) == 0 {
+	if !ok || block == nil {
 		return false
 	}
-	stmtID := block.Stmts[len(block.Stmts)-1]
-	stmt := tc.builder.Stmts.Get(stmtID)
-	if stmt == nil {
-		return false
-	}
-	switch stmt.Kind {
-	case ast.StmtReturn:
-		return tc.compareArmHasFunctionReturn(result)
-	case ast.StmtExpr:
-		exprStmt := tc.builder.Stmts.Expr(stmtID)
-		if exprStmt == nil {
-			return false
-		}
-		return tc.exprAbruptExit(exprStmt.Expr)
-	default:
-		return false
-	}
+	return tc.blockAbruptStatus(block.Stmts) == returnClosed
 }
 
 func (tc *typeChecker) exprAbruptExit(expr ast.ExprID) bool {

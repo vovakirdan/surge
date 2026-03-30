@@ -24,23 +24,40 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 		// Empty block has type nothing
 		return tc.types.Builtins().Nothing
 	}
+	tailExpr, tailSpan, tailKind, hasLegacyTail := tc.legacyImplicitBlockTailExpr(block)
+	tailReachable := true
+	if n := len(block.Stmts); n > 1 {
+		tailReachable = tc.blockReturnStatus(block.Stmts[:n-1]) != returnClosed
+	}
 
 	// Collect return types (like async blocks do)
 	var returns []collectedResult
 	var bareRetSpans []source.Span
-	tc.pushReturnContext(returnCtxBlockExpr, types.NoTypeID, source.Span{}, &returns, &bareRetSpans)
+	tc.pushReturnContext(returnCtxBlockExpr, tc.expectedTypeForExpr(id), source.Span{}, &returns, &bareRetSpans)
+	tc.returnStack[len(tc.returnStack)-1].discarded = tc.isExprDiscarded(id)
 
 	// Walk all statements in the block
+	blockDiscarded := tc.returnStack[len(tc.returnStack)-1].discarded
+	tailType := types.NoTypeID
 	for _, stmtID := range block.Stmts {
+		if hasLegacyTail && tailKind == legacyBlockTailExprStmt && stmtID == block.Stmts[len(block.Stmts)-1] {
+			if blockDiscarded {
+				tc.pushDiscardedExpr(tailExpr)
+				tailType = tc.typeExpr(tailExpr)
+				tc.popDiscardedExpr()
+			} else {
+				tailType = tc.typeExprWithExpected(tailExpr, tc.currentBlockReturnExpectedType())
+			}
+			tc.observeMove(tailExpr, tailSpan)
+			continue
+		}
 		tc.walkStmt(stmtID)
 	}
 
 	tc.popReturnContext()
 
 	nothing := tc.types.Builtins().Nothing
-	tailExpr, tailSpan, tailKind, hasLegacyTail := tc.legacyImplicitBlockTailExpr(block)
-	if hasLegacyTail && tailKind == legacyBlockTailExprStmt {
-		tailType := tc.result.ExprTypes[tailExpr]
+	if tailReachable && hasLegacyTail && tailKind == legacyBlockTailExprStmt {
 		if tailType == types.NoTypeID {
 			tailType = tc.typeExpr(tailExpr)
 		}
@@ -49,8 +66,13 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 		}
 	}
 	tc.recordBlockResultExprs(id, returns)
+	haveValueResult := false
 	sawNonNothing := false
 	for _, result := range returns {
+		if result.abrupt {
+			continue
+		}
+		haveValueResult = true
 		rt := result.typ
 		if rt != types.NoTypeID && rt != nothing {
 			sawNonNothing = true
@@ -65,19 +87,24 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 	}
 
 	// Determine block type from collected returns
-	if len(returns) == 0 {
+	if !haveValueResult {
 		return nothing
 	}
 
 	// Unify all return types
-	payload := nothing
+	payload := types.NoTypeID
+	havePayload := false
 	for _, result := range returns {
+		if result.abrupt {
+			continue
+		}
 		rt := result.typ
 		if rt == types.NoTypeID {
 			continue
 		}
-		if payload == nothing {
+		if !havePayload {
 			payload = rt
+			havePayload = true
 			continue
 		}
 		switch {
@@ -89,25 +116,28 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 			return types.NoTypeID
 		}
 	}
+	if !havePayload {
+		return nothing
+	}
 
-	if payload != nothing && !tc.blockExprProducesValueOnAllPaths(block, tailExpr, hasLegacyTail) {
+	if payload != nothing && !tc.blockExprProducesValueOnAllPaths(block, tailExpr, hasLegacyTail, tailReachable) {
 		tc.report(diag.SemaTypeMismatch, tc.exprSpan(id), "block result type mismatch: expected %s, got nothing", tc.typeLabel(payload))
 		return types.NoTypeID
 	}
 
-	tc.warnLegacyImplicitBlockValue(id, tailSpan, hasLegacyTail, payload)
+	tc.warnLegacyImplicitBlockValue(id, tailSpan, tailReachable && hasLegacyTail, payload)
 
 	return payload
 }
 
-func (tc *typeChecker) blockExprProducesValueOnAllPaths(block *ast.ExprBlockData, tailExpr ast.ExprID, hasLegacyTail bool) bool {
+func (tc *typeChecker) blockExprProducesValueOnAllPaths(block *ast.ExprBlockData, tailExpr ast.ExprID, hasLegacyTail, tailReachable bool) bool {
 	if tc == nil || block == nil {
 		return false
 	}
 	if tc.blockReturnStatus(block.Stmts) == returnClosed {
 		return true
 	}
-	if !hasLegacyTail || !tailExpr.IsValid() || tc.types == nil {
+	if !tailReachable || !hasLegacyTail || !tailExpr.IsValid() || tc.types == nil {
 		return false
 	}
 	tailType := tc.result.ExprTypes[tailExpr]

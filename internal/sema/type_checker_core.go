@@ -114,17 +114,19 @@ type typeChecker struct {
 }
 
 type returnContext struct {
-	kind     returnContextKind
-	expected types.TypeID
-	span     source.Span
-	collect  *[]collectedResult
-	bareRet  *[]source.Span
+	kind      returnContextKind
+	expected  types.TypeID
+	span      source.Span
+	collect   *[]collectedResult
+	bareRet   *[]source.Span
+	discarded bool
 }
 
 type collectedResult struct {
-	typ  types.TypeID
-	span source.Span
-	expr ast.ExprID
+	typ    types.TypeID
+	span   source.Span
+	expr   ast.ExprID
+	abrupt bool
 }
 
 type returnContextKind uint8

@@ -41,7 +41,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		if compareDiscarded {
 			tc.pushDiscardedExpr(arm.Result)
 		}
-		armResult := tc.typeExpr(arm.Result)
+		armResult := tc.typeExprWithExpected(arm.Result, expectedCompare)
 		if compareDiscarded {
 			tc.popDiscardedExpr()
 		}

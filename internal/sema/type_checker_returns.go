@@ -7,99 +7,6 @@ import (
 	"surge/internal/types"
 )
 
-func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
-	if !stmtID.IsValid() || tc.builder == nil {
-		return returnOpen
-	}
-	stmt := tc.builder.Stmts.Get(stmtID)
-	if stmt == nil {
-		return returnOpen
-	}
-	switch stmt.Kind {
-	case ast.StmtReturn, ast.StmtRet:
-		return returnClosed
-	case ast.StmtBlock:
-		if block := tc.builder.Stmts.Block(stmtID); block != nil {
-			return tc.blockReturnStatus(block.Stmts)
-		}
-		return returnOpen
-	case ast.StmtLet:
-		if letStmt := tc.builder.Stmts.Let(stmtID); letStmt != nil && letStmt.Value.IsValid() && tc.exprAbruptExit(letStmt.Value) {
-			return returnClosed
-		}
-		return returnOpen
-	case ast.StmtConst:
-		if constStmt := tc.builder.Stmts.Const(stmtID); constStmt != nil && constStmt.Value.IsValid() && tc.exprAbruptExit(constStmt.Value) {
-			return returnClosed
-		}
-		return returnOpen
-	case ast.StmtExpr:
-		if exprStmt := tc.builder.Stmts.Expr(stmtID); exprStmt != nil && tc.exprAbruptExit(exprStmt.Expr) {
-			return returnClosed
-		}
-		return returnOpen
-	case ast.StmtIf:
-		ifStmt := tc.builder.Stmts.If(stmtID)
-		if ifStmt == nil {
-			return returnOpen
-		}
-		if tc.exprAbruptExit(ifStmt.Cond) {
-			return returnClosed
-		}
-		thenStatus := tc.returnStatus(ifStmt.Then)
-		if tc.isBoolLiteralTrue(ifStmt.Cond) {
-			return thenStatus
-		}
-		if !ifStmt.Else.IsValid() {
-			return returnOpen
-		}
-		elseStatus := tc.returnStatus(ifStmt.Else)
-		if tc.isBoolLiteralFalse(ifStmt.Cond) {
-			return elseStatus
-		}
-		if thenStatus == returnClosed && elseStatus == returnClosed {
-			return returnClosed
-		}
-		return returnOpen
-	case ast.StmtWhile:
-		whileStmt := tc.builder.Stmts.While(stmtID)
-		if whileStmt == nil {
-			return returnOpen
-		}
-		if tc.exprAbruptExit(whileStmt.Cond) {
-			return returnClosed
-		}
-		if tc.isBoolLiteralTrue(whileStmt.Cond) && tc.returnStatus(whileStmt.Body) == returnClosed {
-			return returnClosed
-		}
-		return returnOpen
-	case ast.StmtForClassic:
-		forStmt := tc.builder.Stmts.ForClassic(stmtID)
-		if forStmt == nil {
-			return returnOpen
-		}
-		if forStmt.Init.IsValid() && tc.returnStatus(forStmt.Init) == returnClosed {
-			return returnClosed
-		}
-		if forStmt.Cond.IsValid() && tc.exprAbruptExit(forStmt.Cond) {
-			return returnClosed
-		}
-		// Classic for can skip the body unless condition is explicitly true/absent.
-		infinite := !forStmt.Cond.IsValid() || tc.isBoolLiteralTrue(forStmt.Cond)
-		if infinite && tc.returnStatus(forStmt.Body) == returnClosed {
-			return returnClosed
-		}
-		return returnOpen
-	case ast.StmtForIn:
-		if forInStmt := tc.builder.Stmts.ForIn(stmtID); forInStmt != nil && tc.exprAbruptExit(forInStmt.Iterable) {
-			return returnClosed
-		}
-		return returnOpen
-	default:
-		return returnOpen
-	}
-}
-
 func (tc *typeChecker) isBoolLiteralTrue(expr ast.ExprID) bool {
 	if !expr.IsValid() || tc.builder == nil {
 		return false
@@ -152,7 +59,34 @@ func (tc *typeChecker) appendCollectedResult(ctx *returnContext, span source.Spa
 	if tc == nil || ctx == nil || ctx.collect == nil || typ == types.NoTypeID {
 		return
 	}
-	*ctx.collect = append(*ctx.collect, collectedResult{typ: typ, span: span, expr: expr})
+	*ctx.collect = append(*ctx.collect, collectedResult{
+		typ:    typ,
+		span:   span,
+		expr:   expr,
+		abrupt: ctx.kind == returnCtxBlockExpr,
+	})
+}
+
+func (tc *typeChecker) currentBlockReturnExpectedType() types.TypeID {
+	ctx := tc.currentBlockReturnContext()
+	if ctx == nil {
+		return types.NoTypeID
+	}
+	if ctx.expected != types.NoTypeID {
+		return ctx.expected
+	}
+	if ctx.collect == nil {
+		return types.NoTypeID
+	}
+	results := *ctx.collect
+	for i := len(results) - 1; i >= 0; i-- {
+		result := results[i]
+		if result.abrupt || result.typ == types.NoTypeID {
+			continue
+		}
+		return result.typ
+	}
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual types.TypeID) {
@@ -270,6 +204,13 @@ func (tc *typeChecker) validateRet(span source.Span, expr ast.ExprID, actual typ
 		tc.report(diag.SemaRetOutsideBlock, span, "'ret' can only be used inside value-producing blocks")
 		return
 	}
+	if expr.IsValid() && actual == types.NoTypeID && ctx.expected != types.NoTypeID {
+		if tc.applyExpectedType(expr, ctx.expected) {
+			actual = tc.result.ExprTypes[expr]
+		} else if data, ok := tc.builder.Exprs.Struct(expr); ok && data != nil && !data.Type.IsValid() {
+			tc.validateStructLiteralFields(ctx.expected, data, tc.exprSpan(expr))
+		}
+	}
 	record := actual
 	if !expr.IsValid() {
 		record = tc.types.Builtins().Nothing
@@ -278,8 +219,39 @@ func (tc *typeChecker) validateRet(span source.Span, expr ast.ExprID, actual typ
 		}
 	}
 	if record != types.NoTypeID {
-		tc.appendCollectedResult(ctx, span, expr, record)
+		*ctx.collect = append(*ctx.collect, collectedResult{
+			typ:    record,
+			span:   span,
+			expr:   expr,
+			abrupt: false,
+		})
 	}
+}
+
+func (tc *typeChecker) validateImplicitBlockReturn(span source.Span, expr ast.ExprID, actual types.TypeID) {
+	if tc.types == nil {
+		return
+	}
+	ctx := tc.currentBlockReturnContext()
+	if ctx == nil || ctx.collect == nil {
+		return
+	}
+	if expr.IsValid() && actual == types.NoTypeID && ctx.expected != types.NoTypeID {
+		if tc.applyExpectedType(expr, ctx.expected) {
+			actual = tc.result.ExprTypes[expr]
+		} else if data, ok := tc.builder.Exprs.Struct(expr); ok && data != nil && !data.Type.IsValid() {
+			tc.validateStructLiteralFields(ctx.expected, data, tc.exprSpan(expr))
+		}
+	}
+	if actual == types.NoTypeID {
+		return
+	}
+	*ctx.collect = append(*ctx.collect, collectedResult{
+		typ:    actual,
+		span:   span,
+		expr:   expr,
+		abrupt: false,
+	})
 }
 
 func (tc *typeChecker) coerceLiteralForBinding(declared, actual types.TypeID, expr ast.ExprID) types.TypeID {

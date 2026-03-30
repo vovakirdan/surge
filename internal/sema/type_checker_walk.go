@@ -252,25 +252,45 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			tc.popDiscardedExpr()
 		}
 	case ast.StmtReturn:
-		tc.noteTaskContainerLoopReturn()
 		if ret := tc.builder.Stmts.Return(id); ret != nil {
+			explicitReturn := tc.isExplicitReturnStmt(id)
 			var valueType types.TypeID
 			if ret.Expr.IsValid() {
 				expected := types.NoTypeID
-				if ctx := tc.currentReturnContext(); ctx != nil {
+				switch {
+				case !explicitReturn && tc.currentBlockReturnContext() != nil:
+					if ctx := tc.currentBlockReturnContext(); ctx != nil && ctx.discarded {
+						tc.pushDiscardedExpr(ret.Expr)
+						valueType = tc.typeExpr(ret.Expr)
+						tc.popDiscardedExpr()
+						tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+						break
+					}
+					expected = tc.currentBlockReturnExpectedType()
+				case tc.currentReturnContext() != nil:
+					ctx := tc.currentReturnContext()
 					expected = ctx.expected
 				}
-				valueType = tc.typeExprWithExpected(ret.Expr, expected)
-				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
-				tc.applyReturnPathChecks(ret.Expr)
+				if valueType == types.NoTypeID {
+					valueType = tc.typeExprWithExpected(ret.Expr, expected)
+					tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+					if explicitReturn {
+						tc.applyReturnPathChecks(ret.Expr)
+					}
+				}
 			}
-			tc.validateReturn(stmt.Span, ret.Expr, valueType)
+			if explicitReturn || tc.currentBlockReturnContext() == nil {
+				tc.noteTaskContainerLoopReturn()
+				tc.validateReturn(stmt.Span, ret.Expr, valueType)
+			} else {
+				tc.validateImplicitBlockReturn(stmt.Span, ret.Expr, valueType)
+			}
 		}
 	case ast.StmtRet:
 		if ret := tc.builder.Stmts.Ret(id); ret != nil {
 			var valueType types.TypeID
 			if ret.Expr.IsValid() {
-				valueType = tc.typeExpr(ret.Expr)
+				valueType = tc.typeExprWithExpected(ret.Expr, tc.currentBlockReturnExpectedType())
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
 			}
 			tc.validateRet(stmt.Span, ret.Expr, valueType)
