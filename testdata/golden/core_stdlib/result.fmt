@@ -21,9 +21,9 @@ extern<Erring<T, E>> {
         };
     }
 
-    pub fn exit(self: Erring<T, E>) -> nothing {
-        compare self {
-            Success(_) => nothing;
+    pub fn exit(self: Erring<T, E>) -> T {
+        return compare self {
+            Success(value) => value;
             err => exit(err);
         };
     }

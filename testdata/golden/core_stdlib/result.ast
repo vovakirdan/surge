@@ -41,10 +41,10 @@ result.sg (span: 1:1-60:1)
    │  │        └─ Expr: expr#17: compare self { 2 arms }
    │  ├─ Fn[1]: exit
    │  │  ├─ Params: (self: Erring<T, E>)
-   │  │  ├─ Return: nothing
+   │  │  ├─ Return: T
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 24:48-29:6)
-   │  │     └─ Stmt[0]: Expr (span: 25:9-28:11)
+   │  │     Stmt[0]: Block (span: 24:42-29:6)
+   │  │     └─ Stmt[0]: Return (span: 25:9-28:11)
    │  │        └─ Expr: expr#27: compare self { 2 arms }
    │  ├─ Fn[2]: error
    │  │  ├─ Params: (self: Erring<T, E>)
