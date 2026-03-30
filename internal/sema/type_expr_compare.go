@@ -243,51 +243,50 @@ func (tc *typeChecker) isNamedBindingPattern(pattern ast.ExprID) bool {
 	return !tc.isTagConstructor(ident.Name)
 }
 
-// compareArmIsExplicitReturn reports whether a compare arm result is a block that
-// ends with an explicit "return" statement (not a synthetic block return).
-func (tc *typeChecker) compareArmIsExplicitReturn(result ast.ExprID) bool {
+func (tc *typeChecker) compareArmAbruptExit(result ast.ExprID) bool {
 	if !result.IsValid() || tc.builder == nil {
 		return false
 	}
 	expr := tc.builder.Exprs.Get(result)
-	if expr == nil || expr.Kind != ast.ExprBlock {
+	if expr == nil {
 		return false
+	}
+	if expr.Kind != ast.ExprBlock {
+		return tc.exprAbruptExit(result)
 	}
 	block, ok := tc.builder.Exprs.Block(result)
-	if !ok || block == nil || len(block.Stmts) == 0 {
+	if !ok || block == nil {
 		return false
 	}
-	stmtID := block.Stmts[len(block.Stmts)-1]
-	stmt := tc.builder.Stmts.Get(stmtID)
-	if stmt == nil || stmt.Kind != ast.StmtReturn {
-		return false
-	}
-	ret := tc.builder.Stmts.Return(stmtID)
-	if ret == nil {
-		return false
-	}
-	if !ret.Expr.IsValid() {
-		return !stmt.Span.Empty()
-	}
-	retExpr := tc.builder.Exprs.Get(ret.Expr)
-	if retExpr == nil {
-		return true
-	}
-	return stmt.Span.Start < retExpr.Span.Start
+	return tc.blockAbruptStatus(block.Stmts) == returnClosed
 }
 
-// compareArmFallsThroughBlock reports whether a compare arm result is a block
-// expression that stays in value flow but only produces the parser's implicit
-// tail "return nothing". That should not satisfy a non-nothing compare result.
-func (tc *typeChecker) compareArmFallsThroughBlock(result ast.ExprID) bool {
-	if !result.IsValid() || tc.builder == nil {
+func (tc *typeChecker) exprAbruptExit(expr ast.ExprID) bool {
+	if !expr.IsValid() || tc.builder == nil {
 		return false
 	}
-	expr := tc.builder.Exprs.Get(result)
-	if expr == nil || expr.Kind != ast.ExprBlock {
+	expr = tc.unwrapGroupExpr(expr)
+	call, ok := tc.builder.Exprs.Call(expr)
+	if !ok || call == nil {
 		return false
 	}
-	return !tc.compareArmIsExplicitReturn(result)
+	return tc.isAbruptCallTarget(call.Target)
+}
+
+func (tc *typeChecker) isAbruptCallTarget(target ast.ExprID) bool {
+	if !target.IsValid() || tc.builder == nil {
+		return false
+	}
+	target = tc.unwrapGroupExpr(target)
+	if ident, ok := tc.builder.Exprs.Ident(target); ok && ident != nil {
+		name := tc.lookupName(ident.Name)
+		return name == "panic" || name == "exit"
+	}
+	if member, ok := tc.builder.Exprs.Member(target); ok && member != nil && tc.moduleSymbolForExpr(member.Target) != nil {
+		name := tc.lookupName(member.Field)
+		return name == "panic" || name == "exit"
+	}
+	return false
 }
 
 // emitNonExhaustiveMatchForMembers reports a diagnostic for uncovered union members (tags, types, or nothing)

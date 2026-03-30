@@ -124,7 +124,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			}
 		}
 		if fnItem.Body.IsValid() {
-			tc.pushReturnContext(returnType, returnSpan, nil)
+			tc.pushReturnContext(returnCtxFunction, returnType, returnSpan, nil, nil)
 			if fnItem.Flags&ast.FnModifierAsync != 0 {
 				tc.awaitDepth++
 			}
@@ -247,32 +247,53 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		}
 	case ast.StmtExpr:
 		if exprStmt := tc.builder.Stmts.Expr(id); exprStmt != nil {
-			prevDiscard := tc.discardExpr
-			tc.discardExpr = exprStmt.Expr
+			tc.pushDiscardedExpr(exprStmt.Expr)
 			tc.typeExpr(exprStmt.Expr)
-			tc.discardExpr = prevDiscard
+			tc.popDiscardedExpr()
 		}
 	case ast.StmtReturn:
-		tc.noteTaskContainerLoopReturn()
 		if ret := tc.builder.Stmts.Return(id); ret != nil {
+			explicitReturn := tc.isExplicitReturnStmt(id)
 			var valueType types.TypeID
 			if ret.Expr.IsValid() {
 				expected := types.NoTypeID
-				if ctx := tc.currentReturnContext(); ctx != nil {
+				switch {
+				case !explicitReturn && tc.currentBlockReturnContext() != nil:
+					if ctx := tc.currentBlockReturnContext(); ctx != nil && ctx.discarded {
+						tc.pushDiscardedExpr(ret.Expr)
+						valueType = tc.typeExpr(ret.Expr)
+						tc.popDiscardedExpr()
+						tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+						break
+					}
+					expected = tc.currentBlockReturnExpectedType()
+				case tc.currentReturnContext() != nil:
+					ctx := tc.currentReturnContext()
 					expected = ctx.expected
 				}
-				valueType = tc.typeExprWithExpected(ret.Expr, expected)
-				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
-				if tc.isLocalTaskExpr(ret.Expr) {
-					tc.report(diag.SemaLocalTaskNotSendable, tc.exprSpan(ret.Expr),
-						"local task handle cannot be returned from function")
+				if valueType == types.NoTypeID {
+					valueType = tc.typeExprWithExpected(ret.Expr, expected)
+					tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+					if explicitReturn {
+						tc.applyReturnPathChecks(ret.Expr)
+					}
 				}
-				tc.checkTaskContainerEscape(ret.Expr, valueType, tc.exprSpan(ret.Expr))
-				// Track task return for structured concurrency
-				tc.trackTaskReturn(ret.Expr)
 			}
-			tc.validateReturn(stmt.Span, ret.Expr, valueType)
-			tc.checkTrivialReturnRecursion(ret.Expr)
+			if explicitReturn || tc.currentBlockReturnContext() == nil {
+				tc.noteTaskContainerLoopReturn()
+				tc.validateReturn(stmt.Span, ret.Expr, valueType)
+			} else {
+				tc.validateImplicitBlockReturn(stmt.Span, ret.Expr, valueType)
+			}
+		}
+	case ast.StmtRet:
+		if ret := tc.builder.Stmts.Ret(id); ret != nil {
+			var valueType types.TypeID
+			if ret.Expr.IsValid() {
+				valueType = tc.typeExprWithExpected(ret.Expr, tc.currentBlockReturnExpectedType())
+				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+			}
+			tc.validateRet(stmt.Span, ret.Expr, valueType)
 		}
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {

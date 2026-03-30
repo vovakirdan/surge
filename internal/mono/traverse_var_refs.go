@@ -63,6 +63,15 @@ func rewriteVarRefsInStmt(st *hir.Stmt, f varRefRewriteFunc) error {
 			return err
 		}
 		st.Data = data
+	case hir.StmtRet:
+		data, ok := st.Data.(hir.RetData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteVarRefsInExpr(data.Value, f); err != nil {
+			return err
+		}
+		st.Data = data
 	case hir.StmtIf:
 		data, ok := st.Data.(hir.IfStmtData)
 		if !ok {

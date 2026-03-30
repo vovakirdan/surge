@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/ret_block_result_mismatch_nothing_first.sg:6:9 block result type mismatch: expected nothing, got int

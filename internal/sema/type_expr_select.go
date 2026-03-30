@@ -260,12 +260,23 @@ func (tc *typeChecker) selectAwaitExprFromBlock(exprID ast.ExprID) ast.ExprID {
 		return ast.NoExprID
 	}
 	stmt := tc.builder.Stmts.Get(block.Stmts[0])
-	if stmt == nil || stmt.Kind != ast.StmtReturn {
+	if stmt == nil {
 		return ast.NoExprID
 	}
-	ret := tc.builder.Stmts.Return(block.Stmts[0])
-	if ret == nil || !ret.Expr.IsValid() {
+	switch stmt.Kind {
+	case ast.StmtReturn:
+		ret := tc.builder.Stmts.Return(block.Stmts[0])
+		if ret == nil || !ret.Expr.IsValid() {
+			return ast.NoExprID
+		}
+		return ret.Expr
+	case ast.StmtRet:
+		ret := tc.builder.Stmts.Ret(block.Stmts[0])
+		if ret == nil || !ret.Expr.IsValid() {
+			return ast.NoExprID
+		}
+		return ret.Expr
+	default:
 		return ast.NoExprID
 	}
-	return ret.Expr
 }

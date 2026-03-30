@@ -228,6 +228,10 @@ func (tc *typeChecker) collectBlockingCaptures(stmtID ast.StmtID) []blockingCapt
 			if data := tc.builder.Stmts.Return(id); data != nil {
 				scanExpr(data.Expr)
 			}
+		case ast.StmtRet:
+			if data := tc.builder.Stmts.Ret(id); data != nil {
+				scanExpr(data.Expr)
+			}
 		case ast.StmtSignal:
 			if data := tc.builder.Stmts.Signal(id); data != nil {
 				scanExpr(data.Value)

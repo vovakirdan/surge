@@ -176,6 +176,7 @@ func TestKeywords_Lowercase(t *testing.T) {
 		{"break", token.KwBreak},
 		{"continue", token.KwContinue},
 		{"return", token.KwReturn},
+		{"ret", token.KwRet},
 		{"import", token.KwImport},
 		{"as", token.KwAs},
 		{"type", token.KwType},

@@ -239,6 +239,15 @@ func (p *Printer) printStmt(s *Stmt) {
 		}
 		p.printf("\n")
 
+	case StmtRet:
+		data := s.Data.(RetData)
+		p.printf("ret")
+		if data.Value != nil {
+			p.printf(" ")
+			p.printExpr(data.Value)
+		}
+		p.printf("\n")
+
 	case StmtBreak:
 		p.printf("break\n")
 

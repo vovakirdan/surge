@@ -1,9 +1,9 @@
-// scenario: block expressions with return
+// scenario: block expressions with explicit ret
 fn test_block_expr() -> int {
     let x: int = {
         let a: int = 10;
         let b: int = 20;
-        return a + b;
+        ret a + b;
     };
     return x;
 }
@@ -12,9 +12,9 @@ fn test_nested_block_expr() -> int {
     // Block expression inside block expression
     let y: int = {
         let outer: int = 5;
-        return {
+        ret {
             let inner: int = outer * 2;
-            return inner;
+            ret inner;
         };
     };
     return y;

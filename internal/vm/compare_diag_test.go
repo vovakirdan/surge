@@ -57,7 +57,7 @@ fn main() {
 	if strings.Contains(buildCombined, "LLVM emit failed") {
 		t.Fatalf("build should fail in diagnostics before LLVM emit\noutput:\n%s", buildCombined)
 	}
-	if !strings.Contains(buildCombined, "compare arm type mismatch") || !strings.Contains(buildCombined, "got nothing") {
+	if !strings.Contains(buildCombined, "nothing") || (!strings.Contains(buildCombined, "compare arm type mismatch") && !strings.Contains(buildCombined, "cannot assign nothing")) {
 		t.Fatalf("missing compare-arm diagnostic in build output:\n%s", buildCombined)
 	}
 
@@ -69,7 +69,56 @@ fn main() {
 	if strings.Contains(runCombined, "panic VM1003") || strings.Contains(runCombined, "panic:") {
 		t.Fatalf("run should fail in diagnostics before VM execution\noutput:\n%s", runCombined)
 	}
-	if !strings.Contains(runCombined, "compare arm type mismatch") || !strings.Contains(runCombined, "got nothing") {
+	if !strings.Contains(runCombined, "nothing") || (!strings.Contains(runCombined, "compare arm type mismatch") && !strings.Contains(runCombined, "cannot assign nothing")) {
 		t.Fatalf("missing compare-arm diagnostic in run output:\n%s", runCombined)
+	}
+}
+
+func TestBuildAndRunRejectRetBlockFallingThroughAsNothing(t *testing.T) {
+	root := repoRoot(t)
+	surge := buildSurgeBinary(t, root)
+
+	tmpDir := t.TempDir()
+	srcPath := filepath.Join(tmpDir, "main.sg")
+	source := `fn f(flag: bool) -> int {
+    let x = {
+        if flag {
+            ret 1;
+        }
+    };
+    return x;
+}
+
+@entrypoint
+fn main() -> int {
+    return f(false);
+}
+`
+	if err := os.WriteFile(srcPath, []byte(source), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	buildOut, buildErr, buildCode := runSurgeWithInput(t, root, surge, "", "build", "--ui", "off", srcPath)
+	if buildCode == 0 {
+		t.Fatalf("build unexpectedly succeeded\nstdout:\n%s\nstderr:\n%s", buildOut, buildErr)
+	}
+	buildCombined := buildOut + buildErr
+	if strings.Contains(buildCombined, "LLVM emit failed") {
+		t.Fatalf("build should fail in diagnostics before LLVM emit\noutput:\n%s", buildCombined)
+	}
+	if !strings.Contains(buildCombined, "block result type mismatch") || !strings.Contains(buildCombined, "got nothing") {
+		t.Fatalf("missing block-result diagnostic in build output:\n%s", buildCombined)
+	}
+
+	runOut, runErr, runCode := runSurgeWithInput(t, root, surge, "", "run", "--ui", "off", srcPath)
+	if runCode == 0 {
+		t.Fatalf("run unexpectedly succeeded\nstdout:\n%s\nstderr:\n%s", runOut, runErr)
+	}
+	runCombined := runOut + runErr
+	if strings.Contains(runCombined, "panic VM1999") || strings.Contains(runCombined, "panic:") {
+		t.Fatalf("run should fail in diagnostics before VM execution\noutput:\n%s", runCombined)
+	}
+	if !strings.Contains(runCombined, "block result type mismatch") || !strings.Contains(runCombined, "got nothing") {
+		t.Fatalf("missing block-result diagnostic in run output:\n%s", runCombined)
 	}
 }

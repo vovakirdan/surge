@@ -772,6 +772,7 @@ func (l *lowerer) lowerBlockExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 			block.Stmts = append(block.Stmts, *s)
 		}
 	}
+	l.rewriteLegacyBlockTailRet(block, ty)
 
 	return &Expr{
 		Kind: ExprBlock,

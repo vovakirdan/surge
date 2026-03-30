@@ -20,8 +20,8 @@ vm_rc_chain.sg (span: 1:1-11:1)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#8: a[0]
-         ├─ Stmt[3]: StmtKind(12) (span: 6:5-6:13)
-         ├─ Stmt[4]: StmtKind(12) (span: 7:5-7:13)
-         ├─ Stmt[5]: StmtKind(12) (span: 8:5-8:13)
+         ├─ Stmt[3]: Drop (span: 6:5-6:13)
+         ├─ Stmt[4]: Drop (span: 7:5-7:13)
+         ├─ Stmt[5]: Drop (span: 8:5-8:13)
          └─ Stmt[6]: Return (span: 9:5-9:14)
             └─ Expr: expr#12: 0

@@ -16,7 +16,6 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	movedBefore := tc.snapshotMovedBindings()
 	movedArms := make([]map[symbols.SymbolID]source.Span, len(cmp.Arms))
 	armClosed := make([]bool, len(cmp.Arms))
-	armFallsThrough := make([]bool, len(cmp.Arms))
 	valueType := tc.typeExpr(cmp.Value)
 	movedAfterValue := tc.snapshotMovedBindings()
 	expectedCompare := tc.expectedTypeForExpr(id)
@@ -27,6 +26,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		nothingType = tc.types.Builtins().Nothing
 	}
 	armTypes := make([]types.TypeID, len(cmp.Arms))
+	compareDiscarded := tc.isExprDiscarded(id)
 
 	for i, arm := range cmp.Arms {
 		tc.restoreMovedBindings(movedAfterValue)
@@ -38,20 +38,19 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		if arm.Guard.IsValid() {
 			tc.ensureBoolContext(arm.Guard, tc.exprSpan(arm.Guard))
 		}
-		armResult := tc.typeExpr(arm.Result)
-		explicitReturn := false
-		if nothingType != types.NoTypeID && tc.compareArmIsExplicitReturn(arm.Result) {
-			armResult = nothingType
-			explicitReturn = true
+		if compareDiscarded {
+			tc.pushDiscardedExpr(arm.Result)
 		}
-		armClosed[i] = explicitReturn
-		armFallsThrough[i] = !explicitReturn && nothingType != types.NoTypeID && armResult == nothingType && tc.compareArmFallsThroughBlock(arm.Result)
+		armResult := tc.typeExprWithExpected(arm.Result, expectedCompare)
+		if compareDiscarded {
+			tc.popDiscardedExpr()
+		}
+		armAbrupt := tc.compareArmAbruptExit(arm.Result)
+		armClosed[i] = armAbrupt
 		armTypes[i] = armResult
-		if armResult != types.NoTypeID {
+		if !armAbrupt && armResult != types.NoTypeID {
 			if expectedCompare != types.NoTypeID {
-				if !explicitReturn && (nothingType == types.NoTypeID || armResult != nothingType) {
-					tc.ensureBindingTypeMatch(ast.NoTypeID, expectedCompare, armResult, arm.Result)
-				}
+				tc.ensureBindingTypeMatch(ast.NoTypeID, expectedCompare, armResult, arm.Result)
 			} else {
 				switch {
 				case resultType == types.NoTypeID:
@@ -77,12 +76,12 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	if expectedCompare != types.NoTypeID {
 		targetCompare = expectedCompare
 	}
-	if targetCompare != types.NoTypeID && tc.discardExpr != id && (nothingType == types.NoTypeID || targetCompare != nothingType) {
+	if expectedCompare == types.NoTypeID && targetCompare != types.NoTypeID && !tc.isExprDiscarded(id) && (nothingType == types.NoTypeID || targetCompare != nothingType) {
 		for i, arm := range cmp.Arms {
-			if !armFallsThrough[i] {
+			if armClosed[i] || armTypes[i] != nothingType {
 				continue
 			}
-			tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(targetCompare), tc.typeLabel(nothingType))
+			tc.ensureBindingTypeMatch(ast.NoTypeID, targetCompare, armTypes[i], arm.Result)
 		}
 	}
 
@@ -112,8 +111,8 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 }
 
 func (tc *typeChecker) taskBlockPayload(span source.Span, body ast.StmtID, async bool) types.TypeID {
-	var returns []types.TypeID
-	tc.pushReturnContext(types.NoTypeID, span, &returns)
+	var returns []collectedResult
+	tc.pushReturnContext(returnCtxTaskPayload, types.NoTypeID, span, &returns, nil)
 	if async {
 		tc.awaitDepth++
 		tc.asyncBlockDepth++
@@ -126,7 +125,8 @@ func (tc *typeChecker) taskBlockPayload(span source.Span, body ast.StmtID, async
 	tc.popReturnContext()
 
 	payload := tc.types.Builtins().Nothing
-	for _, rt := range returns {
+	for _, result := range returns {
+		rt := result.typ
 		if rt == types.NoTypeID {
 			continue
 		}

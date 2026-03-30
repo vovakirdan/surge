@@ -195,6 +195,10 @@ func collectBlockingSpans(mod *hir.Module) []source.Span {
 			if data, ok := stmt.Data.(hir.ReturnData); ok {
 				scanExpr(data.Value)
 			}
+		case hir.StmtRet:
+			if data, ok := stmt.Data.(hir.RetData); ok {
+				scanExpr(data.Value)
+			}
 		case hir.StmtIf:
 			if data, ok := stmt.Data.(hir.IfStmtData); ok {
 				scanExpr(data.Cond)

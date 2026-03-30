@@ -25,14 +25,14 @@
  25: LParen          "(" at 5:8-5:9
  26: RParen          ")" at 5:9-5:10
  27: LBrace          "{" at 5:11-5:12 (leading: Space)
- 28: Kind(5)         "const" at 6:5-6:10 (leading: Newline, Space)
+ 28: KwConst         "const" at 6:5-6:10 (leading: Newline, Space)
  29: Ident           "private_const" at 6:11-6:24 (leading: Space)
  30: Assign          "=" at 6:25-6:26 (leading: Space)
  31: Ident           "_stub_const_fn_type_contract" at 6:27-6:55 (leading: Space)
  32: Dot             "." at 6:55-6:56
  33: Ident           "INNER_PRIVATE_CONST" at 6:56-6:75
  34: Semicolon       ";" at 6:75-6:76
- 35: Kind(5)         "const" at 7:5-7:10 (leading: Newline, Space)
+ 35: KwConst         "const" at 7:5-7:10 (leading: Newline, Space)
  36: Ident           "private_const_2" at 7:11-7:26 (leading: Space)
  37: Assign          "=" at 7:27-7:28 (leading: Space)
  38: Ident           "PRIVATE_CONST" at 7:29-7:42 (leading: Space)

@@ -121,6 +121,12 @@ func (tc *typeChecker) walkStmtForBlockingCalls(stmtID ast.StmtID, fnSpan source
 		if retStmt != nil && retStmt.Expr.IsValid() {
 			tc.walkExprForBlockingCalls(retStmt.Expr, fnSpan)
 		}
+
+	case ast.StmtRet:
+		retStmt := tc.builder.Stmts.Ret(stmtID)
+		if retStmt != nil && retStmt.Expr.IsValid() {
+			tc.walkExprForBlockingCalls(retStmt.Expr, fnSpan)
+		}
 	}
 }
 

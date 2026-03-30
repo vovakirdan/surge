@@ -339,19 +339,38 @@ func (l *funcLowerer) unwrapSelectAwaitExpr(expr *hir.Expr) *hir.Expr {
 				return nil
 			}
 			stmt := data.Block.Stmts[0]
-			if stmt.Kind != hir.StmtReturn {
+			value := l.unwrapSelectBlockResult(&stmt)
+			if value == nil {
 				return nil
 			}
-			ret, ok := stmt.Data.(hir.ReturnData)
-			if !ok || ret.Value == nil {
-				return nil
-			}
-			expr = ret.Value
+			expr = value
 		default:
 			return expr
 		}
 	}
 	return nil
+}
+
+func (l *funcLowerer) unwrapSelectBlockResult(stmt *hir.Stmt) *hir.Expr {
+	if stmt == nil {
+		return nil
+	}
+	switch stmt.Kind {
+	case hir.StmtReturn:
+		ret, ok := stmt.Data.(hir.ReturnData)
+		if !ok {
+			return nil
+		}
+		return ret.Value
+	case hir.StmtRet:
+		ret, ok := stmt.Data.(hir.RetData)
+		if !ok {
+			return nil
+		}
+		return ret.Value
+	default:
+		return nil
+	}
 }
 
 func (l *funcLowerer) selectCallName(expr *hir.Expr) string {

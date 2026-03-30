@@ -2,23 +2,23 @@
 
 fn test_block_expr() -> int {
     return {
-        return 1;
+        ret 1;
     };
 }
 
 fn test_block_expr_2() -> int {
     let x: Option<int> = {
-        return Some(1);
+        ret Some(1);
     };
     let y: Option<int> = {
-        return nothing;
+        ret nothing;
     };
     return x.safe();
 }
 
 fn test_block_expr_3() -> int {
     let x: Erring<int, Error> = {
-        return Success(1);
+        ret Success(1);
     };
     return x.safe();
 }
@@ -26,9 +26,9 @@ fn test_block_expr_3() -> int {
 fn test_block_expr_4() -> int {
     let x: int = {
         let y: int = 1;
-        return {
+        ret {
             let z: int = y + 1;
-            return z;
+            ret z;
         };
     };
     return x;
@@ -51,7 +51,7 @@ type Foo<T> = Bar(T) | int;
 
 fn test_block_expr_6() -> nothing {
     let x: Foo<int> = {
-        return Bar(1);
+        ret Bar(1);
     };
     return nothing;
 }

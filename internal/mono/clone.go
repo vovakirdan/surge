@@ -102,6 +102,15 @@ func cloneStmt(s hir.Stmt) hir.Stmt {
 			data.Value = cloneExpr(data.Value)
 		}
 		out.Data = data
+	case hir.StmtRet:
+		data, ok := s.Data.(hir.RetData)
+		if !ok {
+			return out
+		}
+		if data.Value != nil {
+			data.Value = cloneExpr(data.Value)
+		}
+		out.Data = data
 	case hir.StmtIf:
 		data, ok := s.Data.(hir.IfStmtData)
 		if !ok {

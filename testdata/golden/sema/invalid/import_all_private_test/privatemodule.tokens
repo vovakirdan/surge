@@ -2,14 +2,14 @@
   2: Ident           "module" at 2:8-2:14 (leading: Space)
   3: Semicolon       ";" at 2:14-2:15
   4: KwPub           "pub" at 4:1-4:4 (leading: Newline)
-  5: Kind(5)         "const" at 4:5-4:10 (leading: Space)
+  5: KwConst         "const" at 4:5-4:10 (leading: Space)
   6: Ident           "PUBLIC_CONST" at 4:11-4:23 (leading: Space)
   7: Colon           ":" at 4:23-4:24
   8: Ident           "int" at 4:25-4:28 (leading: Space)
   9: Assign          "=" at 4:29-4:30 (leading: Space)
  10: IntLit          "42" at 4:31-4:33 (leading: Space)
  11: Semicolon       ";" at 4:33-4:34
- 12: Kind(5)         "const" at 5:1-5:6 (leading: Newline)
+ 12: KwConst         "const" at 5:1-5:6 (leading: Newline)
  13: Ident           "PRIVATE_CONST" at 5:7-5:20 (leading: Space)
  14: Colon           ":" at 5:20-5:21
  15: Ident           "int" at 5:22-5:25 (leading: Space)
@@ -42,7 +42,7 @@
  42: At              "@" at 10:1-10:2 (leading: Newline)
  43: Ident           "hidden" at 10:2-10:8
  44: KwPub           "pub" at 10:9-10:12 (leading: Space)
- 45: Kind(5)         "const" at 10:13-10:18 (leading: Space)
+ 45: KwConst         "const" at 10:13-10:18 (leading: Space)
  46: Ident           "HIDDEN_CONST" at 10:19-10:31 (leading: Space)
  47: Colon           ":" at 10:31-10:32
  48: Ident           "int" at 10:33-10:36 (leading: Space)

@@ -1,0 +1,2 @@
+error SEM3015 testdata/golden/sema/invalid/ret_bare_non_nothing_block.sg:4:13 bare 'ret;' can only be used in blocks whose result type is nothing; use 'ret value;' or 'ret nothing;'
+error SEM3015 testdata/golden/sema/invalid/ret_bare_non_nothing_block.sg:8:5 return type mismatch: expected int, got nothing

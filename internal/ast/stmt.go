@@ -18,6 +18,8 @@ const (
 	StmtSignal
 	// StmtReturn represents a return statement.
 	StmtReturn
+	// StmtRet represents a block-return statement.
+	StmtRet
 	// StmtBreak represents a break statement.
 	StmtBreak
 	// StmtContinue represents a continue statement.
@@ -52,6 +54,7 @@ type Stmts struct {
 	Exprs       *Arena[ExprStmt]
 	Signals     *Arena[SignalStmt]
 	Returns     *Arena[ReturnStmt]
+	Rets        *Arena[RetStmt]
 	Ifs         *Arena[IfStmt]
 	Whiles      *Arena[WhileStmt]
 	ClassicFors *Arena[ForClassicStmt]
@@ -75,6 +78,7 @@ func NewStmts(capHint uint) *Stmts {
 		Exprs:       NewArena[ExprStmt](capHint),
 		Signals:     NewArena[SignalStmt](capHint),
 		Returns:     NewArena[ReturnStmt](capHint),
+		Rets:        NewArena[RetStmt](capHint),
 		Ifs:         NewArena[IfStmt](capHint),
 		Whiles:      NewArena[WhileStmt](capHint),
 		ClassicFors: NewArena[ForClassicStmt](capHint),
@@ -137,6 +141,11 @@ type SignalStmt struct {
 
 // ReturnStmt represents a 'return' statement.
 type ReturnStmt struct {
+	Expr ExprID
+}
+
+// RetStmt represents a 'ret' block-return statement.
+type RetStmt struct {
 	Expr ExprID
 }
 
@@ -295,6 +304,23 @@ func (s *Stmts) Return(id StmtID) *ReturnStmt {
 		return nil
 	}
 	return s.Returns.Get(uint32(stmt.Payload))
+}
+
+// NewRet creates a new ret statement.
+func (s *Stmts) NewRet(span source.Span, expr ExprID) StmtID {
+	payload := PayloadID(s.Rets.Allocate(RetStmt{
+		Expr: expr,
+	}))
+	return s.New(StmtRet, span, payload)
+}
+
+// Ret returns the ret statement data for the given StmtID.
+func (s *Stmts) Ret(id StmtID) *RetStmt {
+	stmt := s.Get(id)
+	if stmt == nil || stmt.Kind != StmtRet || !stmt.Payload.IsValid() {
+		return nil
+	}
+	return s.Rets.Get(uint32(stmt.Payload))
 }
 
 // NewBreak creates a new break statement.

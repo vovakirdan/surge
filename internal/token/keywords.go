@@ -14,6 +14,7 @@ var keywords = map[string]Kind{
 	"break":    KwBreak,
 	"continue": KwContinue,
 	"return":   KwReturn,
+	"ret":      KwRet,
 	"import":   KwImport,
 	"as":       KwAs,
 	"type":     KwType,

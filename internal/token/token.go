@@ -40,7 +40,7 @@ func (t Token) IsPunctOrOp() bool {
 // IsKeyword reports whether the token is a language keyword.
 func (t Token) IsKeyword() bool {
 	switch t.Kind {
-	case KwFn, KwLet, KwConst, KwMut, KwOwn, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue, KwReturn,
+	case KwFn, KwLet, KwConst, KwMut, KwOwn, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue, KwReturn, KwRet,
 		KwImport, KwAs, KwType, KwContract, KwTag, KwExtern, KwPub, KwAsync, KwBlocking,
 		KwCompare, KwSelect, KwRace, KwFinally, KwChannel, KwSpawn, KwTrue, KwFalse, KwSignal, KwParallel, KwMap, KwReduce,
 		KwWith, KwMacro, KwPragma, KwTo, KwHeir, KwIs, KwField:

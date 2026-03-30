@@ -15,6 +15,6 @@ drop_releases_borrow.sg (span: 1:1-8:1)
          │  ├─ Mutable: false
          │  ├─ Type: &int
          │  └─ Value: expr#3: &x
-         ├─ Stmt[2]: StmtKind(12) (span: 4:5-4:13)
+         ├─ Stmt[2]: Drop (span: 4:5-4:13)
          └─ Stmt[3]: Expr (span: 5:5-5:11)
             └─ Expr: expr#7: (x = 2)

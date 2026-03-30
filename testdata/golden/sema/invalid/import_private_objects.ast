@@ -14,8 +14,8 @@ import_private_objects.sg (span: 2:1-21:1)
 │  ├─ Return: nothing
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 5:11-12:2)
-│        ├─ Stmt[0]: StmtKind(2) (span: 6:5-6:76)
-│        ├─ Stmt[1]: StmtKind(2) (span: 7:5-7:43)
+│        ├─ Stmt[0]: Const (span: 6:5-6:76)
+│        ├─ Stmt[1]: Const (span: 7:5-7:43)
 │        ├─ Stmt[2]: Let (span: 8:5-8:27)
 │        │  ├─ Name: _
 │        │  ├─ Mutable: false

@@ -89,7 +89,8 @@ type typeChecker struct {
 	typeParamMarks              []int
 	expectedExpr                ast.ExprID
 	expectedType                types.TypeID
-	discardExpr                 ast.ExprID
+	discardedExprs              []ast.ExprID
+	blockResultExprs            map[ast.ExprID][]ast.ExprID
 	arrayName                   source.StringID
 	arraySymbol                 symbols.SymbolID
 	arrayType                   types.TypeID
@@ -113,10 +114,28 @@ type typeChecker struct {
 }
 
 type returnContext struct {
-	expected types.TypeID
-	span     source.Span
-	collect  *[]types.TypeID
+	kind      returnContextKind
+	expected  types.TypeID
+	span      source.Span
+	collect   *[]collectedResult
+	bareRet   *[]source.Span
+	discarded bool
 }
+
+type collectedResult struct {
+	typ    types.TypeID
+	span   source.Span
+	expr   ast.ExprID
+	abrupt bool
+}
+
+type returnContextKind uint8
+
+const (
+	returnCtxFunction returnContextKind = iota
+	returnCtxBlockExpr
+	returnCtxTaskPayload
+)
 
 type returnStatus int
 
@@ -203,6 +222,7 @@ func (tc *typeChecker) run() {
 	tc.lockOrderGraph = NewLockOrderGraph()
 	tc.taskTracker = NewTaskTracker()
 	tc.localTaskBindings = make(map[symbols.SymbolID]struct{})
+	tc.blockResultExprs = make(map[ast.ExprID][]ast.ExprID)
 	tc.arrayViewExprs = make(map[ast.ExprID]struct{})
 	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
 	tc.movedBindings = make(map[symbols.SymbolID]source.Span)
