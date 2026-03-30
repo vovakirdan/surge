@@ -4,14 +4,14 @@
 
 ## 📊 Main code (without tests)
 
-- **Files:** 662 (Go: 634, C: 28)
-- **Lines of code:** 150947 (Go: 138019, C: 12928)
+- **Files:** 664 (Go: 636, C: 28)
+- **Lines of code:** 151244 (Go: 138316, C: 12928)
 
 ## 📁 Directory breakdown
 
 | Directory | Files | Lines |
 |------------|--------|-------|
-| `cmd/` | 24 | 4303 |
+| `cmd/` | 26 | 4600 |
 | `internal/` | 609 | 133701 |
 | `runtime/native/` (C code) | 28 | 12928 |
 
@@ -28,17 +28,17 @@
 | 7 | `internal/driver` | 6009 |
 | 8 | `internal/mono` | 5120 |
 | 9 | `internal/lsp` | 5082 |
-| 10 | `internal/ast` | 4448 |
+| 10 | `cmd/surge` | 4600 |
 
 ## 🧪 Test files
 
-- **Files:** 148
-- **Lines of code:** 31753
+- **Files:** 149
+- **Lines of code:** 31901
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 810
-- **Lines of code:** 182700
+- **Files:** 813
+- **Lines of code:** 183145
 
 ## 📊 Percentage breakdown
 

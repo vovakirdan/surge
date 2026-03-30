@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -17,6 +16,9 @@ import (
 var moduleCmd = &cobra.Command{
 	Use:   "module",
 	Short: "Manage surge modules",
+	Aliases: []string{
+		"modules",
+	},
 }
 
 var moduleAddCmd = &cobra.Command{
@@ -40,6 +42,13 @@ var moduleListCmd = &cobra.Command{
 	RunE:  runModuleList,
 }
 
+var moduleUpdateCmd = &cobra.Command{
+	Use:   "update",
+	Short: "Update installed modules from surge.toml",
+	Args:  cobra.NoArgs,
+	RunE:  runModuleUpdate,
+}
+
 var moduleRemoveCmd = &cobra.Command{
 	Use:   "remove <name>",
 	Short: "Remove a module dependency",
@@ -52,12 +61,14 @@ func init() {
 	moduleAddCmd.Flags().String("toml", "", "path to surge.toml")
 	moduleInstallCmd.Flags().String("toml", "", "path to surge.toml")
 	moduleListCmd.Flags().String("toml", "", "path to surge.toml")
+	moduleUpdateCmd.Flags().String("toml", "", "path to surge.toml")
 	moduleRemoveCmd.Flags().Bool("keep-files", false, "keep deps/<name> on disk")
 	moduleRemoveCmd.Flags().String("toml", "", "path to surge.toml")
 
 	moduleCmd.AddCommand(moduleAddCmd)
 	moduleCmd.AddCommand(moduleInstallCmd)
 	moduleCmd.AddCommand(moduleListCmd)
+	moduleCmd.AddCommand(moduleUpdateCmd)
 	moduleCmd.AddCommand(moduleRemoveCmd)
 }
 
@@ -367,18 +378,6 @@ func preflightModuleAdd(manifestPath, projectRoot, name string) error {
 	}
 	if _, ok := modules[name]; ok {
 		return fmt.Errorf("module %q already added in surge.toml", name)
-	}
-	return nil
-}
-
-func gitClone(projectRoot, url, dest string) error {
-	// #nosec G204 -- exec.Command does not invoke a shell; url and dest are passed as separate argv entries.
-	cmd := exec.Command("git", "clone", url, dest)
-	cmd.Dir = projectRoot
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git clone failed: %w", err)
 	}
 	return nil
 }
