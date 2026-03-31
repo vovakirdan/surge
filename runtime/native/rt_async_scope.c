@@ -59,10 +59,10 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
         rt_unlock(ex);
         return;
     }
-    scope_add_child(scope, child_id);
-    child->parent_scope_id = scope_id;
-    child->scope_registered = 1;
     if (task_status_load(child) != TASK_DONE) {
+        scope_add_child(scope, child_id);
+        child->parent_scope_id = scope_id;
+        child->scope_registered = 1;
         scope->active_children++;
     } else if (child->result_kind == TASK_RESULT_CANCELLED && scope->failfast &&
                !scope->failfast_triggered) {

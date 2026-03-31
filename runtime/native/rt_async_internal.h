@@ -334,8 +334,9 @@ uint64_t task_id_from_handle(void* handle);
 
 void task_add_child(rt_task* parent, uint64_t child_id);
 void scope_add_child(rt_scope* scope, uint64_t child_id);
+int scope_remove_child(rt_scope* scope, uint64_t child_id);
 void scope_cancel_children_locked(rt_executor* ex, const rt_scope* scope);
-void scope_child_done_locked(rt_executor* ex, rt_scope* scope);
+void scope_child_done_locked(rt_executor* ex, rt_scope* scope, uint64_t child_id);
 void scope_exit_locked(rt_executor* ex, rt_scope* scope);
 
 void task_add_ref(rt_task* task);

@@ -1479,6 +1479,25 @@ void scope_add_child(rt_scope* scope, uint64_t child_id) {
     scope->children[scope->children_len++] = child_id;
 }
 
+int scope_remove_child(rt_scope* scope, uint64_t child_id) {
+    if (scope == NULL || child_id == 0 || scope->children_len == 0) {
+        return 0;
+    }
+    for (size_t i = 0; i < scope->children_len; i++) {
+        if (scope->children[i] != child_id) {
+            continue;
+        }
+        size_t last = scope->children_len - 1;
+        if (i != last) {
+            scope->children[i] = scope->children[last];
+        }
+        scope->children[last] = 0;
+        scope->children_len--;
+        return 1;
+    }
+    return 0;
+}
+
 void scope_cancel_children_locked(rt_executor* ex, const rt_scope* scope) {
     if (ex == NULL || scope == NULL) {
         return;
@@ -1488,10 +1507,11 @@ void scope_cancel_children_locked(rt_executor* ex, const rt_scope* scope) {
     }
 }
 
-void scope_child_done_locked(rt_executor* ex, rt_scope* scope) {
+void scope_child_done_locked(rt_executor* ex, rt_scope* scope, uint64_t child_id) {
     if (ex == NULL || scope == NULL) {
         return;
     }
+    (void)scope_remove_child(scope, child_id);
     if (scope->active_children > 0) {
         scope->active_children--;
     }
@@ -1615,7 +1635,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
             }
         }
         if (task->scope_registered) {
-            scope_child_done_locked(ex, scope);
+            scope_child_done_locked(ex, scope, task->id);
             task->scope_registered = 0;
         }
     }
