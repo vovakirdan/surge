@@ -139,7 +139,7 @@ pub fn test_semaphore_try() -> bool {
 
 type GuardedStruct = {
     lock: Mutex,
-    @guarded_by("lock")data: int,
+    @guarded_by("lock") data: int,
 };
 
 pub fn test_guarded_access() {
@@ -154,7 +154,7 @@ pub fn test_guarded_access() {
 
 type RwGuardedStruct = {
     rw: RwLock,
-    @guarded_by("rw")data: string,
+    @guarded_by("rw") data: string,
 };
 
 pub fn test_rwlock_guarded_read() {
@@ -227,9 +227,9 @@ pub fn nonblocking_fn() -> int {
 // --- @atomic Attribute ---
 
 type AtomicStruct = {
-    @atomiccounter: int,
-    @atomicflag: bool,
-    @atomicuvalue: uint,
+    @atomic counter: int,
+    @atomic flag: bool,
+    @atomic uvalue: uint,
 };
 
 pub fn test_atomic_load() -> int {
@@ -279,7 +279,7 @@ type NonSendableData = {
 // @send type with @atomic fields is valid
 @send
 type SendWithAtomic = {
-    @atomiccounter: int,
+    @atomic counter: int,
     data: int,
 };
 

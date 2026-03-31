@@ -1,6 +1,6 @@
 type S = {
     a: uint8,
-    @align(8)b: uint8,
+    @align(8) b: uint8,
 }
 
 @entrypoint

@@ -2,12 +2,12 @@
 
 type Counter = {
     lock: Mutex,
-    @guarded_by("lock")value: int,
+    @guarded_by("lock") value: int,
 }
 
 type SharedData = {
     rw: RwLock,
-    @guarded_by("rw")data: string,
+    @guarded_by("rw") data: string,
 }
 
 pub fn test_counter() -> nothing {

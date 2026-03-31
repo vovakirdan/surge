@@ -114,19 +114,11 @@ func (p *printer) printStructDecl(item *ast.Item, typeItem *ast.TypeItem, decl *
 		if cursor < fieldStart {
 			p.writer.CopyRange(cursor, fieldStart)
 		}
-		cursor = fieldStart
 
 		attrs := p.builder.Items.CollectAttrs(field.AttrStart, field.AttrCount)
-		fieldBodyStart := fieldStart
 		if len(attrs) > 0 {
-			lastAttrEnd := int(attrs[len(attrs)-1].Span.End)
-			p.writer.CopyRange(cursor, lastAttrEnd)
-			cursor = lastAttrEnd
-			fieldBodyStart = lastAttrEnd
-		}
-
-		if cursor < fieldBodyStart {
-			p.writer.CopyRange(cursor, fieldBodyStart)
+			p.printAttrsInline(attrs)
+			p.writer.Space()
 		}
 
 		p.writeStructFieldBody(field)

@@ -29,7 +29,7 @@ type Derived2 = Standalone: {
 
 // ERROR: Cannot write to @readonly field
 type ReadOnlyContainer = {
-    @readonlyid: int,
+    @readonly id: int,
 
     value: int,
 };

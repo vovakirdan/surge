@@ -1,7 +1,7 @@
 // ERROR: Direct read of @atomic field without atomic_load
 
 type Counter = {
-    @atomicvalue: int,
+    @atomic value: int,
 };
 
 pub fn bad_read() -> int {

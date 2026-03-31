@@ -2,31 +2,31 @@
 
 type Container = {
     // @readonly - field cannot be modified after initialization
-    @readonlyid: int,
+    @readonly id: int,
 
     // @hidden - field is hidden from public API
-    @hiddeninternal_state: int,
+    @hidden internal_state: int,
 
     // @deprecated - field is deprecated
-    @deprecatedlegacy_field: int,
+    @deprecated legacy_field: int,
 
     // @packed - pack field without padding
-    @packedcompact_data: int32,
+    @packed compact_data: int32,
 
     // @align - specify field alignment
-    @align(8)aligned_value: int64,
+    @align(8) aligned_value: int64,
 
     // @atomic - field has atomic access semantics
-    @atomiccounter: int,
+    @atomic counter: int,
 
     // @weak - weak reference
-    @weakweak_ref: own int,
+    @weak weak_ref: own int,
 
     // @shared - shared ownership
-    @sharedshared_data: int,
+    @shared shared_data: int,
 
     // @noinherit - field not inherited by derived types
-    @noinheritprivate_field: int,
+    @noinherit private_field: int,
 
     normal_field: int,
 };
@@ -40,7 +40,7 @@ type ThreadSafeContainer = {
 
 // @arena - arena allocation
 type ArenaAllocated = {
-    @arena("temp")temporary: int,
+    @arena("temp") temporary: int,
 
-    @arena("persistent")persistent: int,
+    @arena("persistent") persistent: int,
 };

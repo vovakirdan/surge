@@ -2,7 +2,7 @@
 
 type SharedData = {
     rw: RwLock,
-    @guarded_by("rw")data: int,
+    @guarded_by("rw") data: int,
 }
 
 pub fn test_write_with_read_lock() -> nothing {

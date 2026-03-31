@@ -1,7 +1,7 @@
 // ERROR: Direct write to @atomic field without atomic_store
 
 type Counter = {
-    @atomicvalue: int,
+    @atomic value: int,
 };
 
 pub fn bad_write() -> nothing {

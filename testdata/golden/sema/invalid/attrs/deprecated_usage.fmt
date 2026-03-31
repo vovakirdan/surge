@@ -14,13 +14,13 @@
 
 // Deprecated field without message
 type ContainerNoMsg = {
-    @deprecatedfield1: int,
+    @deprecated field1: int,
     normal: int,
 };
 
 // Deprecated field with message
 type ContainerWithMsg = {
-    @deprecated("Use field2 instead")old_field: int,
+    @deprecated("Use field2 instead") old_field: int,
     field2: int,
 };
 

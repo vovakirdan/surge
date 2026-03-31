@@ -51,3 +51,5 @@ surge
 !stdlib/directives/test/test.sg
 
 *.o
+
+.security-key

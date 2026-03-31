@@ -12,7 +12,7 @@ import (
 	"surge/internal/source"
 )
 
-func parseSource(t *testing.T, src []byte) (*source.FileSet, *source.File, *ast.Builder, ast.FileID) {
+func parseSource(t *testing.T, src []byte) (*source.File, *ast.Builder, ast.FileID) {
 	t.Helper()
 
 	fs := source.NewFileSetWithBase("")
@@ -35,7 +35,7 @@ func parseSource(t *testing.T, src []byte) (*source.FileSet, *source.File, *ast.
 		t.Fatalf("parse failed: %v", issues)
 	}
 
-	return fs, sf, builder, result.File
+	return sf, builder, result.File
 }
 
 func TestFormatFileBasic(t *testing.T) {
@@ -50,7 +50,7 @@ func TestFormatFileBasic(t *testing.T) {
 			"let mut point : Vec2 = call((x ,y ,), [z ,w ,],);\n" +
 			"fn foo<T>(a: int=call((x ,y ,), [z ,w ,],), b :int,) -> Vec2;\n",
 	)
-	_, sf, builder, fileID := parseSource(t, src)
+	sf, builder, fileID := parseSource(t, src)
 	formatted, err := FormatFile(sf, builder, fileID, Options{})
 	if err != nil {
 		t.Fatalf("FormatFile failed: %v", err)
@@ -73,5 +73,31 @@ func TestFormatFileBasic(t *testing.T) {
 
 	if ok, msg := CheckRoundTrip(sf, Options{}, 128); !ok {
 		t.Fatalf("CheckRoundTrip failed: %s", msg)
+	}
+}
+
+func TestFormatStructFieldAttributes(t *testing.T) {
+	src := []byte(
+		"type Foo = {\n" +
+			"    @hidden bar: int,\n" +
+			"    @align(8)\n" +
+			"    baz: int,\n" +
+			"}\n",
+	)
+	sf, builder, fileID := parseSource(t, src)
+	formatted, err := FormatFile(sf, builder, fileID, Options{})
+	if err != nil {
+		t.Fatalf("FormatFile failed: %v", err)
+	}
+
+	got := string(formatted)
+	want := "" +
+		"type Foo = {\n" +
+		"    @hidden bar: int,\n" +
+		"    @align(8) baz: int,\n" +
+		"}\n"
+
+	if got != want {
+		t.Fatalf("FormatFile mismatch:\nwant %q\ngot  %q", want, got)
 	}
 }

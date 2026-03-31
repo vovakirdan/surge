@@ -1,8 +1,8 @@
 // Valid: @atomic field accessed via atomic intrinsics
 
 type Counter = {
-    @atomicvalue: int,
-    @atomicucount: uint,
+    @atomic value: int,
+    @atomic ucount: uint,
 };
 
 pub fn proper_read() -> int {

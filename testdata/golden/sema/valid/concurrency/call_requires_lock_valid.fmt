@@ -1,5 +1,5 @@
 // Valid: calling @requires_lock function while holding the lock
-type Counter = { lock: Mutex, @guarded_by("lock")value: int }
+type Counter = { lock: Mutex, @guarded_by("lock") value: int }
 
 extern<Counter> {
     @requires_lock("lock")

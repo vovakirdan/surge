@@ -2,9 +2,9 @@
 // @atomic fields must be accessed via atomic intrinsics
 
 type AtomicCounter = {
-    @atomiccount: int,
-    @atomicflags: uint,
-    @atomicactive: bool,
+    @atomic count: int,
+    @atomic flags: uint,
+    @atomic active: bool,
 }
 
 pub fn test_atomic_store() -> nothing {

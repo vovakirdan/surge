@@ -9,7 +9,7 @@ type Message = {
 
 @send
 type SafeData = {
-    @atomiccount: int,    // @atomic fields are considered safe for @send
+    @atomic count: int,    // @atomic fields are considered safe for @send
     data: int,
 };
 
