@@ -154,16 +154,30 @@ func isTaskType(typesIn *types.Interner, typeID types.TypeID) bool {
 	return ok && name == "Task"
 }
 
+func (fe *funcEmitter) emitTaskHandleOperand(op *mir.Operand) (string, error) {
+	if op == nil {
+		return "", fmt.Errorf("nil task operand")
+	}
+	val, valTy, typeID, err := fe.emitToSource(op)
+	if err != nil {
+		return "", err
+	}
+	if !isTaskType(fe.emitter.types, typeID) {
+		return "", fmt.Errorf("expected Task handle, got type#%d", typeID)
+	}
+	if valTy != "ptr" {
+		return "", fmt.Errorf("expected Task pointer, got %s", valTy)
+	}
+	return val, nil
+}
+
 func (fe *funcEmitter) emitInstrSpawn(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
-	val, valTy, err := fe.emitValueOperand(&ins.Spawn.Value)
+	val, err := fe.emitTaskHandleOperand(&ins.Spawn.Value)
 	if err != nil {
-		return err
-	}
-	if valTy != "ptr" {
-		return fmt.Errorf("spawn expects Task pointer, got %s", valTy)
+		return fmt.Errorf("spawn expects Task pointer: %w", err)
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_wake(ptr %s)\n", val)
 	ptr, dstTy, err := fe.emitPlacePtr(ins.Spawn.Dst)
@@ -220,12 +234,9 @@ func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
-	val, valTy, err := fe.emitValueOperand(&ins.Await.Task)
+	val, err := fe.emitTaskHandleOperand(&ins.Await.Task)
 	if err != nil {
-		return err
-	}
-	if valTy != "ptr" {
-		return fmt.Errorf("await expects Task pointer, got %s", valTy)
+		return fmt.Errorf("await expects Task pointer: %w", err)
 	}
 	kindPtr := fe.nextTemp()
 	bitsPtr := fe.nextTemp()
@@ -292,12 +303,9 @@ func (fe *funcEmitter) emitInstrPoll(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
-	val, valTy, err := fe.emitValueOperand(&ins.Poll.Task)
+	val, err := fe.emitTaskHandleOperand(&ins.Poll.Task)
 	if err != nil {
-		return err
-	}
-	if valTy != "ptr" {
-		return fmt.Errorf("poll expects Task pointer, got %s", valTy)
+		return fmt.Errorf("poll expects Task pointer: %w", err)
 	}
 	bitsPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
@@ -407,12 +415,9 @@ func (fe *funcEmitter) emitInstrTimeout(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
-	val, valTy, err := fe.emitValueOperand(&ins.Timeout.Task)
+	val, err := fe.emitTaskHandleOperand(&ins.Timeout.Task)
 	if err != nil {
-		return err
-	}
-	if valTy != "ptr" {
-		return fmt.Errorf("timeout expects Task pointer, got %s", valTy)
+		return fmt.Errorf("timeout expects Task pointer: %w", err)
 	}
 	ms64, err := fe.emitUintOperandToI64(&ins.Timeout.Ms, "timeout duration out of range")
 	if err != nil {
@@ -526,12 +531,9 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 %d\n", handlePtr, armCount, handlesPtr, i)
 		switch arm.Kind {
 		case mir.SelectArmTask, mir.SelectArmTimeout:
-			val, valTy, err := fe.emitValueOperand(&arm.Task)
+			val, err := fe.emitTaskHandleOperand(&arm.Task)
 			if err != nil {
-				return err
-			}
-			if valTy != "ptr" {
-				return fmt.Errorf("select expects Task pointer, got %s", valTy)
+				return fmt.Errorf("select expects Task pointer: %w", err)
 			}
 			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", val, handlePtr)
 		case mir.SelectArmChanRecv, mir.SelectArmChanSend:

@@ -134,16 +134,9 @@ func (fe *funcEmitter) emitTaskCancelIntrinsic(call *mir.CallInstr) (bool, error
 	if len(call.Args) != 1 {
 		return true, fmt.Errorf("cancel requires 1 argument")
 	}
-	argType := operandValueType(fe.emitter.types, &call.Args[0])
-	if !isTaskType(fe.emitter.types, argType) {
-		return true, fmt.Errorf("cancel requires Task handle")
-	}
-	val, valTy, err := fe.emitValueOperand(&call.Args[0])
+	val, err := fe.emitTaskHandleOperand(&call.Args[0])
 	if err != nil {
 		return true, err
-	}
-	if valTy != "ptr" {
-		return true, fmt.Errorf("cancel expects Task pointer, got %s", valTy)
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_cancel(ptr %s)\n", val)
 	return true, nil

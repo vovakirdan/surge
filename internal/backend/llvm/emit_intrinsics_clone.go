@@ -35,12 +35,9 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 		return true, err
 	}
 	if isTaskType(fe.emitter.types, dstType) {
-		val, valTy, valErr := fe.emitValueOperand(&call.Args[0])
+		val, valErr := fe.emitTaskHandleOperand(&call.Args[0])
 		if valErr != nil {
 			return true, valErr
-		}
-		if valTy != "ptr" {
-			return true, fmt.Errorf("clone expects Task pointer, got %s", valTy)
 		}
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_task_clone(ptr %s)\n", tmp, val)
