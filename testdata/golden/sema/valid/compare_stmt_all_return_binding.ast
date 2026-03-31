@@ -1,0 +1,22 @@
+compare_stmt_all_return_binding.sg (span: 2:1-15:1)
+├─ Item[0]: Tag (span: 2:1-2:17)
+│  ├─ Name: ResOk
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[1]: Type (span: 3:1-3:34)
+│  ├─ Name: Result
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  ├─ Generics: <T, E>
+│  └─ Union:
+│     ├─ Member[0]: ResOk(T)
+│     └─ Member[1]: E
+└─ Item[2]: Fn (span: 5:1-14:2)
+   ├─ Name: classify
+   ├─ Params: (res: Result<int, string>)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 5:46-14:2)
+         └─ Stmt[0]: Expr (span: 6:5-13:7)
+            └─ Expr: expr#10: compare res { 2 arms }

@@ -1,0 +1,11 @@
+// scenario: non-exhaustive statement-level compare still needs an outer return
+tag ResOk<T>(T);
+type Result<T, E> = ResOk(T) | E;
+
+fn classify(res: Result<int, string>) -> int {
+    compare res {
+        ResOk(value) => {
+            return value;
+        }
+    };
+}

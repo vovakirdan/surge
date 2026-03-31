@@ -261,11 +261,113 @@ func (tc *typeChecker) compareArmAbruptExit(result ast.ExprID) bool {
 	return tc.blockAbruptStatus(block.Stmts) == returnClosed
 }
 
+func (tc *typeChecker) compareExprAbruptExit(expr ast.ExprID) bool {
+	if !expr.IsValid() || tc.builder == nil {
+		return false
+	}
+	expr = tc.unwrapGroupExpr(expr)
+	cmp, ok := tc.builder.Exprs.Compare(expr)
+	if !ok || cmp == nil || len(cmp.Arms) == 0 {
+		return false
+	}
+	for _, arm := range cmp.Arms {
+		if !tc.compareArmAbruptExit(arm.Result) {
+			return false
+		}
+	}
+	return tc.compareAlwaysMatches(cmp)
+}
+
+func (tc *typeChecker) compareAlwaysMatches(cmp *ast.ExprCompareData) bool {
+	if cmp == nil || len(cmp.Arms) == 0 {
+		return false
+	}
+	for _, arm := range cmp.Arms {
+		if arm.Guard.IsValid() {
+			continue
+		}
+		if arm.IsFinally || tc.isWildcardPattern(arm.Pattern) || tc.isNamedBindingPattern(arm.Pattern) {
+			return true
+		}
+	}
+	subjectType, ok := tc.compareSubjectType(cmp)
+	if !ok {
+		return false
+	}
+	if tc.isBoolType(subjectType) {
+		return tc.compareBoolAlwaysMatches(cmp)
+	}
+	remaining := tc.unionMembers(subjectType)
+	if len(remaining) == 0 {
+		return false
+	}
+	for _, arm := range cmp.Arms {
+		if arm.Guard.IsValid() {
+			continue
+		}
+		remaining = tc.consumeCompareMembers(remaining, arm)
+		if len(remaining) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (tc *typeChecker) compareSubjectType(cmp *ast.ExprCompareData) (types.TypeID, bool) {
+	if tc == nil || tc.types == nil || cmp == nil || !cmp.Value.IsValid() {
+		return types.NoTypeID, false
+	}
+	subjectType := tc.result.ExprTypes[cmp.Value]
+	if subjectType == types.NoTypeID {
+		return types.NoTypeID, false
+	}
+	return tc.compareUnionSubjectType(subjectType), true
+}
+
+func (tc *typeChecker) isBoolType(typ types.TypeID) bool {
+	if tc == nil || tc.types == nil || typ == types.NoTypeID {
+		return false
+	}
+	return tc.resolveAlias(tc.stripOwnType(typ)) == tc.types.Builtins().Bool
+}
+
+func (tc *typeChecker) compareBoolAlwaysMatches(cmp *ast.ExprCompareData) bool {
+	if cmp == nil {
+		return false
+	}
+	matchedTrue := false
+	matchedFalse := false
+	for _, arm := range cmp.Arms {
+		if arm.Guard.IsValid() || !arm.Pattern.IsValid() || tc.builder == nil {
+			continue
+		}
+		pattern := tc.unwrapGroupExpr(arm.Pattern)
+		node := tc.builder.Exprs.Get(pattern)
+		if node == nil || node.Kind != ast.ExprLit {
+			continue
+		}
+		lit, ok := tc.builder.Exprs.Literal(pattern)
+		if !ok || lit == nil {
+			continue
+		}
+		switch lit.Kind {
+		case ast.ExprLitTrue:
+			matchedTrue = true
+		case ast.ExprLitFalse:
+			matchedFalse = true
+		}
+	}
+	return matchedTrue && matchedFalse
+}
+
 func (tc *typeChecker) exprAbruptExit(expr ast.ExprID) bool {
 	if !expr.IsValid() || tc.builder == nil {
 		return false
 	}
 	expr = tc.unwrapGroupExpr(expr)
+	if tc.compareExprAbruptExit(expr) {
+		return true
+	}
 	call, ok := tc.builder.Exprs.Call(expr)
 	if !ok || call == nil {
 		return false

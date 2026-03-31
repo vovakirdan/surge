@@ -11,7 +11,6 @@ fn print_error(label: string, res: Erring<http.Request, http.HttpError>) -> int 
             return 0;
         }
     };
-    return 0;
 }
 
 @entrypoint

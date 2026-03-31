@@ -1,0 +1,9 @@
+compare_stmt_all_return_bool.sg (span: 2:1-12:1)
+└─ Item[0]: Fn (span: 2:1-11:2)
+   ├─ Name: classify
+   ├─ Params: (flag: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:32-11:2)
+         └─ Stmt[0]: Expr (span: 3:5-10:7)
+            └─ Expr: expr#8: compare flag { 2 arms }
