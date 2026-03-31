@@ -17,6 +17,7 @@ type ExportedSymbol struct {
 	ReceiverKey    TypeKey
 	TypeParams     []source.StringID
 	TypeParamNames []string
+	TypeAttrNames  []string
 	TypeParamSpan  source.Span
 	TypeParamSyms  []TypeParamSymbol
 	Type           types.TypeID
@@ -99,6 +100,7 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 		if len(typeParamNames) == 0 {
 			typeParamNames = lookupNames(builder, sym.TypeParams)
 		}
+		typeAttrNames := lookupTypeAttrNames(builder, sym)
 		exports.Add(&ExportedSymbol{
 			Name:           name,
 			NameID:         sym.Name,
@@ -110,6 +112,7 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 			ReceiverKey:    sym.ReceiverKey,
 			TypeParams:     append([]source.StringID(nil), sym.TypeParams...),
 			TypeParamNames: typeParamNames,
+			TypeAttrNames:  typeAttrNames,
 			TypeParamSpan:  sym.TypeParamSpan,
 			TypeParamSyms:  CloneTypeParamSymbols(sym.TypeParamSymbols),
 			Contract:       cloneContractSpec(sym.Contract),
@@ -144,6 +147,32 @@ func lookupTypeParamSymbols(builder *ast.Builder, params []TypeParamSymbol) []st
 		result = append(result, builder.StringsInterner.MustLookup(param.Name))
 	}
 	return result
+}
+
+func lookupTypeAttrNames(builder *ast.Builder, sym *Symbol) []string {
+	if builder == nil || sym == nil || sym.Kind != SymbolType || !sym.Decl.Item.IsValid() {
+		return nil
+	}
+	typeItem, ok := builder.Items.Type(sym.Decl.Item)
+	if !ok || typeItem == nil {
+		return nil
+	}
+	attrs := builder.Items.CollectAttrs(typeItem.AttrStart, typeItem.AttrCount)
+	if len(attrs) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(attrs))
+	for _, attr := range attrs {
+		if attr.Name == source.NoStringID {
+			continue
+		}
+		name, ok := builder.StringsInterner.Lookup(attr.Name)
+		if !ok || name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
 }
 
 func isExportableKind(kind SymbolKind) bool {

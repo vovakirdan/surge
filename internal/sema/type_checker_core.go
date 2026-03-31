@@ -148,6 +148,7 @@ func (tc *typeChecker) run() {
 	if tc.builder == nil || tc.result == nil || tc.types == nil {
 		return
 	}
+	tc.seedExportedTypeAttrs()
 
 	// Create root span for sema if tracing is enabled
 	var rootSpan *trace.Span

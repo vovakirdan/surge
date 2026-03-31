@@ -4,6 +4,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -35,6 +36,69 @@ func (tc *typeChecker) typeHasAttr(typeID types.TypeID, attrName string) bool {
 	}
 	_, found := hasAttr(infos, attrName)
 	return found
+}
+
+func (tc *typeChecker) seedExportedTypeAttrs() {
+	if tc == nil || len(tc.exports) == 0 {
+		return
+	}
+	for _, exports := range tc.exports {
+		if exports == nil {
+			continue
+		}
+		for _, overloads := range exports.Symbols {
+			for i := range overloads {
+				exp := &overloads[i]
+				if exp.Kind != symbols.SymbolType || exp.Type == types.NoTypeID || len(exp.TypeAttrNames) == 0 {
+					continue
+				}
+				tc.recordImportedTypeAttrNames(exp.Type, exp.TypeAttrNames)
+			}
+		}
+	}
+}
+
+func (tc *typeChecker) recordImportedTypeAttrNames(typeID types.TypeID, names []string) {
+	if typeID == types.NoTypeID || len(names) == 0 {
+		return
+	}
+
+	merged := make(map[string]AttrInfo, len(names))
+	for _, info := range tc.typeAttrs[typeID] {
+		if info.Spec.Name == "" {
+			continue
+		}
+		merged[info.Spec.Name] = info
+	}
+	for _, name := range names {
+		spec, ok := ast.LookupAttr(name)
+		if !ok {
+			continue
+		}
+		merged[spec.Name] = AttrInfo{Spec: spec}
+	}
+	if len(merged) == 0 {
+		return
+	}
+
+	if tc.typeAttrs == nil {
+		tc.typeAttrs = make(map[types.TypeID][]AttrInfo)
+	}
+	infos := make([]AttrInfo, 0, len(merged))
+	for _, info := range merged {
+		infos = append(infos, info)
+	}
+	tc.typeAttrs[typeID] = infos
+
+	if _, ok := merged["copy"]; ok {
+		if tc.copyTypes == nil {
+			tc.copyTypes = make(map[types.TypeID]struct{})
+		}
+		tc.copyTypes[typeID] = struct{}{}
+		if tc.types != nil {
+			tc.types.MarkCopyType(typeID)
+		}
+	}
 }
 
 // validateTypeAttrs validates all attributes on a type declaration

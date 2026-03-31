@@ -40,16 +40,18 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 				}
 			}
 			methodName := tc.lookupName(member.Field)
-			if !receiverIsType && tc.isChannelType(receiverType) &&
-				(methodName == "send" || methodName == "try_send") && len(call.Args) > 0 {
-				tc.checkChannelSendValue(call.Args[0].Value, span)
-			}
 			argTypes := make([]types.TypeID, 0, len(call.Args))
 			argExprs := make([]ast.ExprID, 0, len(call.Args))
 			for _, arg := range call.Args {
 				argTypes = append(argTypes, tc.typeExpr(arg.Value))
 				argExprs = append(argExprs, arg.Value)
 				tc.trackTaskPassedAsArg(arg.Value)
+			}
+			if !receiverIsType && tc.isChannelType(receiverType) &&
+				(methodName == "send" || methodName == "try_send") && len(call.Args) > 0 {
+				if tc.checkChannelSendValue(call.Args[0].Value, tc.exprSpan(call.Args[0].Value)) {
+					return types.NoTypeID
+				}
 			}
 			if !receiverIsType && methodName == "push" && len(argTypes) > 0 &&
 				tc.isTaskType(argTypes[0]) && tc.isTaskContainerType(receiverType) {

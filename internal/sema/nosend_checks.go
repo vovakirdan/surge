@@ -50,20 +50,20 @@ func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source
 // Channel sends transfer ownership to another task, so @nosend types are prohibited.
 //
 // This check is performed when evaluating channel send operations (ch.send(value)).
-func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.Span) {
+func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.Span) bool {
 	if !valueExpr.IsValid() {
-		return
+		return false
 	}
 
 	if tc.isLocalTaskExpr(valueExpr) {
 		tc.report(diag.SemaChannelNosendValue, span,
 			"cannot send local task handle through channel")
-		return
+		return true
 	}
 
 	valueType := tc.result.ExprTypes[valueExpr]
 	if valueType == types.NoTypeID {
-		return
+		return false
 	}
 
 	// Strip ownership/reference modifiers to get base type
@@ -74,11 +74,12 @@ func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.S
 		typeName := tc.typeLabel(baseType)
 		tc.report(diag.SemaChannelNosendValue, span,
 			"cannot send @nosend type '%s' through channel", typeName)
-		return
+		return true
 	}
 
 	// Recursively check struct fields for nested @nosend types
 	tc.checkNestedNosendWith(baseType, span, diag.SemaChannelNosendValue)
+	return false
 }
 
 // checkNestedNosendWith recursively checks struct fields for @nosend attribute.

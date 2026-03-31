@@ -1,0 +1,1 @@
+error SEM3105 testdata/golden/sema/invalid/concurrency/channel_send_nosend_tcpconn.sg:7:13 cannot send @nosend type 'TcpConn' through channel

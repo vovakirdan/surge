@@ -1,0 +1,9 @@
+// @nosend payloads must be rejected before method overload fallback runs.
+
+@entrypoint
+fn main() -> int {
+    let ch: own Channel<TcpConn> = make_channel::<TcpConn>(1:uint);
+    let conn: TcpConn = TcpConn::new();
+    ch.send(conn);
+    return 0;
+}

@@ -4,20 +4,20 @@ funcs=1
 
 fn main:
   locals:
-    L0: type#1486 name=pts
-    L1: type#1483 name=tmp_struct1
-    L2: type#1483 name=tmp_struct2
-    L3: type#1486 name=tmp_arr3
+    L0: type#1487 name=pts
+    L1: type#1484 name=tmp_struct1
+    L2: type#1484 name=tmp_struct2
+    L3: type#1487 name=tmp_arr3
     L4: int [copy] name=tmp_idx4
-    L5: type#1483 name=tmp_un5
+    L5: type#1484 name=tmp_un5
     L6: int [copy] name=tmp_field6
     L7: int [copy] name=tmp_idx7
-    L8: type#1483 name=tmp_un8
+    L8: type#1484 name=tmp_un8
     L9: int [copy] name=tmp_field9
     L10: int [copy] name=tmp_call10
   bb0:
-    L1 = struct_lit type#1483 {x=const 1, y=const 2}
-    L2 = struct_lit type#1483 {x=const 3, y=const 4}
+    L1 = struct_lit type#1484 {x=const 1, y=const 2}
+    L2 = struct_lit type#1484 {x=const 3, y=const 4}
     L3 = array_lit [move L1, move L2]
     L0 = move L3
     L4 = const 0

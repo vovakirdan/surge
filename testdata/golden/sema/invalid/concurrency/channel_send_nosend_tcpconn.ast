@@ -1,0 +1,21 @@
+channel_send_nosend_tcpconn.sg (span: 3:1-10:1)
+└─ Item[0]: Fn (span: 3:1-9:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:18-9:2)
+         ├─ Stmt[0]: Let (span: 5:5-5:68)
+         │  ├─ Name: ch
+         │  ├─ Mutable: false
+         │  ├─ Type: own Channel<TcpConn>
+         │  └─ Value: expr#4: make_channel(1 to uint)
+         ├─ Stmt[1]: Let (span: 6:5-6:40)
+         │  ├─ Name: conn
+         │  ├─ Mutable: false
+         │  ├─ Type: TcpConn
+         │  └─ Value: expr#7: TcpConn.new()
+         ├─ Stmt[2]: Expr (span: 7:5-7:19)
+         │  └─ Expr: expr#11: ch.send(conn)
+         └─ Stmt[3]: Return (span: 8:5-8:14)
+            └─ Expr: expr#12: 0

@@ -100,6 +100,12 @@ pub type NetResult<T> = Erring<T, NetError>;
 @intrinsic fn rt_net_wait_readable(c: &TcpConn) -> Task<nothing>;
 @intrinsic fn rt_net_wait_writable(c: &TcpConn) -> Task<nothing>;
 
+extern<TcpConn> {
+    pub fn new() -> TcpConn {
+        return { __opaque: 0 };
+    }
+}
+
 // String access intrinsics
 @intrinsic fn rt_string_ptr(s: &string) -> *byte;
 // Returns Unicode code point length (not bytes).
