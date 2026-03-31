@@ -1,0 +1,43 @@
+json_method_jsonvalue_param.sg (span: 1:1-18:1)
+├─ Item[0]: Import (span: 1:1-1:28)
+│  ├─ Module: stdlib::json
+│  └─ Alias: json
+├─ Item[1]: Type (span: 3:1-3:19)
+│  ├─ Name: Ctx
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  └─ Struct:
+│     <empty>
+├─ Item[2]: Extern (span: 5:1-10:2)
+│  ├─ Target: Ctx
+│  ├─ Members:
+│  │  └─ Fn[0]: json_response
+│  │     ├─ Params: (self: &mut Ctx, value: json.JsonValue)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 6:72-9:6)
+│  │        ├─ Stmt[0]: Let (span: 7:9-7:23)
+│  │        │  ├─ Name: _
+│  │        │  ├─ Mutable: false
+│  │        │  ├─ Type: <inferred>
+│  │        │  └─ Value: expr#1: value
+│  │        └─ Stmt[1]: Return (span: 8:9-8:18)
+│  │           └─ Expr: expr#2: 0
+└─ Item[3]: Fn (span: 12:1-17:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:18-17:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:27)
+         │  ├─ Name: ctx
+         │  ├─ Mutable: true
+         │  ├─ Type: Ctx
+         │  └─ Value: expr#3: <ExprKind(22)>
+         ├─ Stmt[1]: Let (span: 15:5-15:54)
+         │  ├─ Name: value
+         │  ├─ Mutable: false
+         │  ├─ Type: json.JsonValue
+         │  └─ Value: expr#7: json.JsonString("x")
+         └─ Stmt[2]: Return (span: 16:5-16:37)
+            └─ Expr: expr#11: ctx.json_response(value)

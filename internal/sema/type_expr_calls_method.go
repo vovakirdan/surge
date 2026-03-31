@@ -643,11 +643,34 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 		}
 	}
 	if expectedType := tc.typeFromKey(substituted); expectedType != types.NoTypeID {
+		if tc.methodResolvedTypeMatches(expectedType, arg) {
+			if argOwnNonCopy && !strings.HasPrefix(substitutedStr, "own ") {
+				return false
+			}
+			return true
+		}
 		if tc.isUnionMember(expectedType, arg) {
 			return true
 		}
 	}
 	return false
+}
+
+func (tc *typeChecker) methodResolvedTypeMatches(expectedType, actual types.TypeID) bool {
+	if tc == nil || expectedType == types.NoTypeID || actual == types.NoTypeID {
+		return false
+	}
+	if expectedType == actual {
+		return true
+	}
+	expectedResolved := tc.resolveAlias(expectedType)
+	actualResolved := tc.resolveAlias(actual)
+	if expectedResolved == actualResolved {
+		return true
+	}
+	expectedKey := tc.typeKeyForType(expectedType)
+	actualKey := tc.typeKeyForType(actual)
+	return expectedKey != "" && typeKeyEqual(expectedKey, actualKey)
 }
 
 func (tc *typeChecker) selfParamAddressable(selfKey symbols.TypeKey, recv types.TypeID, recvExpr ast.ExprID, info *borrowMatchInfo) bool {
