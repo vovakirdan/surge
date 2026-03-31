@@ -469,13 +469,9 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 	}
 
 	thenB := &Block{Span: span}
-
-	var payloadConds []*Expr
+	current := thenB
 	for i, pat := range payload {
 		if pat == nil {
-			continue
-		}
-		if isWildcardPattern(pat) {
 			continue
 		}
 		payloadType := tagPayloadType(ctx, subject.Type, tag, i)
@@ -485,76 +481,97 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 			Span: span,
 			Data: TagPayloadData{Value: subject, TagName: tag, Index: i},
 		}
-		payloadValue := payloadExpr
-		if derefType := derefReferenceType(ctx, payloadType); derefType != types.NoTypeID {
-			payloadValue = &Expr{
-				Kind: ExprUnaryOp,
-				Type: derefType,
-				Span: span,
-				Data: UnaryOpData{Op: ast.ExprUnaryDeref, Operand: payloadExpr},
-			}
-		}
-		if isNothingPattern(pat) {
-			// Payload cannot be `nothing` in v1 lowering; treat as a best-effort literal check.
-			payloadConds = append(payloadConds, ctx.binary(ast.ExprBinaryEq, payloadValue, pat, ctx.boolType(), span))
-			continue
-		}
-
-		if name, sym, ok := bindingPattern(ctx, pat); ok {
-			ty := ctx.bindingType(sym)
-			if ty == types.NoTypeID {
-				ty = payloadType
-			}
-			thenB.Stmts = append(thenB.Stmts, Stmt{
-				Kind: StmtLet,
-				Span: span,
-				Data: LetData{
-					Name:      name,
-					SymbolID:  sym,
-					Type:      ty,
-					Value:     payloadExpr,
-					IsMut:     false,
-					IsConst:   false,
-					Ownership: ctx.inferOwnership(ty),
-				},
-			})
-			continue
-		}
-
-		// Literal pattern: compare payload slot to the literal.
-		if pat.Kind == ExprLiteral {
-			payloadConds = append(payloadConds, ctx.binary(ast.ExprBinaryEq,
-				payloadValue,
-				pat,
-				ctx.boolType(),
-				span,
-			))
-			continue
+		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current)
+		if current == nil {
+			current = &Block{Span: span}
 		}
 	}
 
-	var innerCond *Expr
-	if len(payloadConds) > 0 {
-		innerCond = payloadConds[0]
-		for i := 1; i < len(payloadConds); i++ {
-			innerCond = ctx.binary(ast.ExprBinaryLogicalAnd, innerCond, payloadConds[i], ctx.boolType(), span)
-		}
-	}
-	if guard != nil {
-		if innerCond == nil {
-			innerCond = guard
-		} else {
-			innerCond = ctx.binary(ast.ExprBinaryLogicalAnd, innerCond, guard, ctx.boolType(), span)
-		}
-	}
-
-	if innerCond == nil {
-		thenB.Stmts = append(thenB.Stmts, mkReturn(span, result))
+	if guard == nil {
+		current.Stmts = append(current.Stmts, mkReturn(span, result))
 	} else {
-		thenB.Stmts = append(thenB.Stmts, mkIf(span, innerCond, &Block{Span: span, Stmts: []Stmt{mkReturn(span, result)}}))
+		current.Stmts = append(current.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: []Stmt{mkReturn(span, result)}}))
 	}
 
 	return mkIf(span, cond, thenB)
+}
+
+func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, pat *Expr, body *Block) *Block {
+	if ctx == nil || subject == nil || body == nil || pat == nil {
+		return body
+	}
+	if isWildcardPattern(pat) {
+		return body
+	}
+	if isNothingPattern(pat) {
+		thenB := &Block{Span: span}
+		body.Stmts = append(body.Stmts, mkIf(span, &Expr{
+			Kind: ExprTagTest,
+			Type: ctx.boolType(),
+			Span: span,
+			Data: TagTestData{Value: subject, TagName: "nothing"},
+		}, thenB))
+		return thenB
+	}
+	if tagName, payloadPats, ok := tagPattern(ctx, pat); ok {
+		thenB := &Block{Span: span}
+		body.Stmts = append(body.Stmts, mkIf(span, &Expr{
+			Kind: ExprTagTest,
+			Type: ctx.boolType(),
+			Span: span,
+			Data: TagTestData{Value: subject, TagName: tagName},
+		}, thenB))
+		for i, subPat := range payloadPats {
+			if subPat == nil {
+				continue
+			}
+			payloadType := tagPayloadType(ctx, subjectTy, tagName, i)
+			payloadExpr := &Expr{
+				Kind: ExprTagPayload,
+				Type: payloadType,
+				Span: span,
+				Data: TagPayloadData{Value: subject, TagName: tagName, Index: i},
+			}
+			thenB = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, subPat, thenB)
+			if thenB == nil {
+				thenB = &Block{Span: span}
+			}
+		}
+		return thenB
+	}
+	if name, sym, ok := bindingPattern(ctx, pat); ok {
+		ty := ctx.bindingType(sym)
+		if ty == types.NoTypeID {
+			ty = subjectTy
+		}
+		body.Stmts = append(body.Stmts, Stmt{
+			Kind: StmtLet,
+			Span: span,
+			Data: LetData{
+				Name:      name,
+				SymbolID:  sym,
+				Type:      ty,
+				Value:     subject,
+				IsMut:     false,
+				IsConst:   false,
+				Ownership: ctx.inferOwnership(ty),
+			},
+		})
+		return body
+	}
+
+	condSubject := subject
+	if derefType := derefReferenceType(ctx, subjectTy); derefType != types.NoTypeID {
+		condSubject = &Expr{
+			Kind: ExprUnaryOp,
+			Type: derefType,
+			Span: span,
+			Data: UnaryOpData{Op: ast.ExprUnaryDeref, Operand: subject},
+		}
+	}
+	thenB := &Block{Span: span}
+	body.Stmts = append(body.Stmts, mkIf(span, ctx.binary(ast.ExprBinaryEq, condSubject, pat, ctx.boolType(), span), thenB))
+	return thenB
 }
 
 func lowerTupleArm(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, elems []*Expr, guard, result *Expr) Stmt {

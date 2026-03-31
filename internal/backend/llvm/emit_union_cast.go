@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"surge/internal/mir"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -66,6 +67,19 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 				return "", "", err
 			}
 			for j, payloadType := range srcCase.PayloadTypes {
+				srcPayload := resolveValueType(fe.emitter.types, payloadType)
+				dstPayload := resolveValueType(fe.emitter.types, dstCase.PayloadTypes[j])
+				if isNothingType(fe.emitter.types, srcPayload) {
+					liftedVal, liftedLLVM, lifted, err := fe.emitNothingPayloadValue(dstPayload)
+					if err != nil {
+						return "", "", err
+					}
+					if lifted {
+						payloadVals = append(payloadVals, liftedVal)
+						payloadLLVM = append(payloadLLVM, liftedLLVM)
+						continue
+					}
+				}
 				srcLLVM, err := llvmValueType(fe.emitter.types, payloadType)
 				if err != nil {
 					return "", "", err
@@ -82,8 +96,6 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 				fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, val, off)
 				loaded := fe.nextTemp()
 				fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", loaded, srcLLVM, bytePtr)
-				srcPayload := resolveValueType(fe.emitter.types, payloadType)
-				dstPayload := resolveValueType(fe.emitter.types, dstCase.PayloadTypes[j])
 				if srcPayload != dstPayload && isUnionType(fe.emitter.types, srcPayload) && isUnionType(fe.emitter.types, dstPayload) {
 					casted, castTy, err := fe.emitUnionCast(loaded, payloadType, dstCase.PayloadTypes[j])
 					if err != nil {
@@ -111,6 +123,27 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 	out := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", out, resPtr)
 	return out, "ptr", nil
+}
+
+func (fe *funcEmitter) emitNothingPayloadValue(dstType types.TypeID) (value, llvmTy string, ok bool, err error) {
+	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
+		return "", "", false, fmt.Errorf("missing emitter")
+	}
+	dstType = resolveValueType(fe.emitter.types, dstType)
+	if isNothingType(fe.emitter.types, dstType) {
+		return "0", "i8", true, nil
+	}
+	if !isUnionType(fe.emitter.types, dstType) {
+		return "", "", false, nil
+	}
+	if _, _, lookupErr := fe.emitter.tagCaseMeta(dstType, "nothing", symbols.NoSymbolID); lookupErr != nil {
+		return "", "", false, nil
+	}
+	ptr, err := fe.emitTagValue(dstType, "nothing", symbols.NoSymbolID, nil)
+	if err != nil {
+		return "", "", false, err
+	}
+	return ptr, "ptr", true, nil
 }
 
 func matchTagCase(cases []mir.TagCaseMeta, src mir.TagCaseMeta) (int, mir.TagCaseMeta, bool) {

@@ -64,6 +64,9 @@ func detectTagTestChain(f *Func, bb *Block) *tagTestChain {
 			{TagName: tagTest.TagName, Target: bb.Term.If.Then},
 		},
 	}
+	seenTags := map[string]struct{}{
+		tagTest.TagName: {},
+	}
 
 	// Follow the else branch to find more tag_tests on the same value
 	elseBlock := bb.Term.If.Else
@@ -109,6 +112,10 @@ func detectTagTestChain(f *Func, bb *Block) *tagTestChain {
 			chain.defBlock = elseBlock
 			break
 		}
+		if _, seen := seenTags[nextTagTest.TagName]; seen {
+			return nil
+		}
+		seenTags[nextTagTest.TagName] = struct{}{}
 
 		// Add this case to the chain
 		chain.cases = append(chain.cases, SwitchTagCase{

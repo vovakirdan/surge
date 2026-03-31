@@ -1,0 +1,78 @@
+
+== MIR ==
+funcs=3
+
+fn __surge_start:
+  locals:
+    L0: int name=entry_ret
+    L1: int [copy] name=code
+  bb0:
+    L0 = call main()
+    L1 = copy L0
+    call rt_exit(copy L1)
+    return
+
+fn demo:
+  locals:
+    L0: bool [copy] name=flag
+    L1: type#1487 name=tmp_call1
+    L2: type#1488 name=tmp_call2
+    L3: type#1485 name=tmp_cast3
+    L4: type#1489 name=tmp_call4
+    L5: type#1485 name=tmp_cast5
+  bb0:
+    if copy L0 then bb1 else bb2
+  bb1:
+    L1 = call Some(const "\"x\"")
+    L2 = call Success(move L1)
+    L3 = cast move L2 to type#1485
+    return move L3
+  bb2:
+    L4 = call Success(const nothing)
+    L5 = cast move L4 to type#1485
+    return move L5
+
+fn main:
+  locals:
+    L0: type#1485 name=v
+    L1: type#1485 name=tmp_call1
+    L2: type#1485 name=__cmp1
+    L3: bool [copy] name=tmp_tagtest2
+    L4: type#1484 name=tmp_payload3
+    L5: bool [copy] name=tmp_tagtest4
+    L6: string name=s
+    L7: type#1484 name=tmp_payload5
+    L8: string name=tmp_payload6
+    L9: bool [copy] name=tmp_tagtest7
+    L10: type#1484 name=tmp_payload8
+    L11: bool [copy] name=tmp_tagtest9
+    L12: type#48 name=err
+  bb0:
+    L1 = call demo(const true)
+    L0 = move L1
+    L2 = move L0
+    L3 = tag_test copy L2 is Success
+    if copy L3 then bb1 else bb2
+  bb1:
+    L4 = tag_payload copy L2.Success[0]
+    L5 = tag_test copy L4 is Some
+    if copy L5 then bb3 else bb2
+  bb2:
+    L9 = tag_test copy L2 is Success
+    if copy L9 then bb4 else bb5
+  bb3:
+    L7 = tag_payload copy L2.Success[0]
+    L8 = tag_payload copy L7.Some[0]
+    L6 = move L8
+    call print(move L6)
+    return const 0
+  bb4:
+    L10 = tag_payload copy L2.Success[0]
+    L11 = tag_test copy L10 is nothing
+    if copy L11 then bb6 else bb5
+  bb5:
+    L12 = move L2
+    return const 1
+  bb6:
+    call print(const "\"none\"")
+    return const 0

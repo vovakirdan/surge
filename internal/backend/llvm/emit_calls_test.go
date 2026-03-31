@@ -42,6 +42,42 @@ fn main() -> int {
 	}
 }
 
+func TestEmitErringOptionNestedTagPipeline(t *testing.T) {
+	sourceCode := `fn demo(flag: bool) -> Erring<Option<string>, Error> {
+    if flag {
+        return Success(Some("x"));
+    }
+    return Success(nothing);
+}
+
+@entrypoint
+fn main() -> int {
+    let v = demo(true);
+    compare v {
+        Success(Some(s)) => {
+            print(s);
+            return 0;
+        }
+        Success(nothing) => {
+            print("none");
+            return 0;
+        }
+        err => {
+            let _ = err;
+            return 1;
+        }
+    };
+    return 1;
+}
+`
+
+	ir := emitLLVMFromSource(t, sourceCode)
+
+	if !regexp.MustCompile(`call ptr @rt_alloc`).MatchString(ir) {
+		t.Fatalf("expected nested union construction to emit runtime allocation:\n%s", ir)
+	}
+}
+
 func emitLLVMFromSource(t *testing.T, sourceCode string) string {
 	t.Helper()
 

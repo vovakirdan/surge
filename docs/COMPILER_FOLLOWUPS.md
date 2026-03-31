@@ -26,10 +26,6 @@ Short notes collected during stdlib work when something looked like a compiler o
   Observed while deduplicating local `string_to_bytes(...)` helpers in `stdlib/http` and `stdlib/json/parser`.
   Current workaround is `borrowed_string.__clone() to byte[]`.
 
-- LLVM emit currently breaks on `Erring<Option<T>, E>` in at least some code paths.
-  Observed while implementing `stdlib/http::request_cookie` as `Erring<Option<string>, HttpError>`, which failed in LLVM emit with `union cast payload type mismatch for tag "Success"`.
-  Current workaround is to keep the strict parser at `request_cookies(...) -> Erring<Cookies, HttpError>` and make `request_cookie(...)` return plain `Option<string>`.
-
 - Method resolution currently trips on user-defined methods whose parameter type is `stdlib/json::JsonValue`.
   Observed while adding `stdlib/http::Context`; both `ctx.json(...)` and `ctx.json_response(...)` failed with `SEM3046: no matching overload`, while an equivalent free function compiled.
   Current workaround is `http.context_json(&mut ctx, status, &value)`.

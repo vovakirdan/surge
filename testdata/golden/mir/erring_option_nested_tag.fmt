@@ -1,0 +1,26 @@
+fn demo(flag: bool) -> Erring<Option<string>, Error> {
+    if flag {
+        return Success(Some("x"));
+    }
+    return Success(nothing);
+}
+
+@entrypoint
+fn main() -> int {
+    let v = demo(true);
+    compare v {
+        Success(Some(s)) => {
+            print(s);
+            return 0;
+        }
+        Success(nothing) => {
+            print("none");
+            return 0;
+        }
+        err => {
+            let _ = err;
+            return 1;
+        }
+    };
+    return 1;
+}

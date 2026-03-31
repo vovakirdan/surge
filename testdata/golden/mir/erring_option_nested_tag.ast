@@ -1,0 +1,31 @@
+erring_option_nested_tag.sg (span: 1:1-27:1)
+├─ Item[0]: Fn (span: 1:1-6:2)
+│  ├─ Name: demo
+│  ├─ Params: (flag: bool)
+│  ├─ Return: Erring<Option<string>, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:54-6:2)
+│        ├─ Stmt[0]: If (span: 2:5-4:6)
+│        │  ├─ Cond: expr#1: flag
+│        │  ├─ Then:
+Block (span: 2:13-4:6)
+│        │  │  └─ Stmt[0]: Return (span: 3:9-3:35)
+│        │  │     └─ Expr: expr#6: Success(Some("x"))
+│        │  └─ Else: <none>
+│        └─ Stmt[1]: Return (span: 5:5-5:29)
+│           └─ Expr: expr#9: Success(nothing)
+└─ Item[1]: Fn (span: 8:1-26:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:18-26:2)
+         ├─ Stmt[0]: Let (span: 10:5-10:24)
+         │  ├─ Name: v
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#12: demo(true)
+         ├─ Stmt[1]: Expr (span: 11:5-24:7)
+         │  └─ Expr: expr#36: compare v { 3 arms }
+         └─ Stmt[2]: Return (span: 25:5-25:14)
+            └─ Expr: expr#37: 1
