@@ -239,6 +239,8 @@ jobs:
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -246,16 +248,7 @@ jobs:
       - name: Build surge (linux/amd64)
         run: |
           set -euo pipefail
-          BASE_VERSION=$(sed -n 's/.*BaseVersion = "\([^"]*\)".*/\1/p' internal/version/version.go | head -n 1)
-          PRE_RELEASE=""
-          if [[ "${{ github.ref_name }}" == "dev" ]]; then
-            PRE_RELEASE="-dev"
-          fi
-          GIT_COMMIT=$(git rev-parse --short=12 HEAD)
-          GIT_MESSAGE=$(git log -1 --pretty=%s)
-          GIT_MESSAGE_ESC=$(printf '%s' "$GIT_MESSAGE" | sed "s/'/'\"'\"'/g")
-          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          LDFLAGS="-X surge/internal/version.BaseVersion=${BASE_VERSION} -X surge/internal/version.PreRelease=${PRE_RELEASE} -X surge/internal/version.GitCommit=${GIT_COMMIT} -X 'surge/internal/version.GitMessage=${GIT_MESSAGE_ESC}' -X surge/internal/version.BuildDate=${BUILD_DATE}"
+          LDFLAGS=$(./scripts/ldflags.sh)
           mkdir -p build
           GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o build/surge ./cmd/surge
       - name: Upload surge artifact

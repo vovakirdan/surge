@@ -48,7 +48,7 @@ fi
 
 if [[ "$needs_build" -eq 1 ]]; then
 	echo ">> building surge for showcases"
-	(cd "$root" && go build -o "$surge_bin" ./cmd/surge)
+	(cd "$root" && go build -ldflags "$(./scripts/ldflags.sh --local)" -o "$surge_bin" ./cmd/surge)
 fi
 
 run_with_stdin() {

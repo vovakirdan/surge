@@ -1,4 +1,4 @@
-.PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system
+.PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -11,13 +11,7 @@ ifeq ($(GOBIN),)
 GOBIN := $(shell $(GO) env GOPATH)/bin
 endif
 
-GIT_COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
-GIT_MESSAGE ?= $(shell git log -1 --pretty=%s 2>/dev/null || echo unknown)
-GIT_MESSAGE_ESC := $(shell printf '%s' "$(GIT_MESSAGE)" | sed "s/'/'\"'\"'/g")
-BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS := -X surge/internal/version.GitCommit=$(GIT_COMMIT) \
-	-X 'surge/internal/version.GitMessage=$(GIT_MESSAGE_ESC)' \
-	-X surge/internal/version.BuildDate=$(BUILD_DATE)
+LDFLAGS_SCRIPT := ./scripts/ldflags.sh
 
 GOLANGCI_LINT := $(GOBIN)/golangci-lint
 GOLANGCI_LINT_VERSION := v2.7.2
@@ -67,7 +61,7 @@ endif
 build:
 	@echo ">> Building surge"
 	@rm -f surge
-	@$(GO) build -ldflags "$(LDFLAGS)" -o surge ./cmd/surge/
+	@$(GO) build -ldflags "$$($(LDFLAGS_SCRIPT) --local)" -o surge ./cmd/surge/
 
 # ===== Run =====
 run:
@@ -247,6 +241,19 @@ trace:
 # ===== Statistics =====
 stats:
 	@./scripts/code_stats.sh
+
+# ===== Git Hooks =====
+install-hooks:
+	@echo ">> Installing pre-commit hook"
+	@hook_path="$$(git rev-parse --git-path hooks/pre-commit 2>/dev/null)"; \
+	if [ -z "$$hook_path" ]; then \
+		echo "Error: this target must be run inside a git repository"; \
+		exit 1; \
+	fi; \
+	mkdir -p "$$(dirname "$$hook_path")"; \
+	chmod +x "$(CURDIR)/scripts/pre-commit" "$(CURDIR)/scripts/ldflags.sh"; \
+	ln -sf "$(CURDIR)/scripts/pre-commit" "$$hook_path"; \
+	echo ">> Installed $$hook_path -> $(CURDIR)/scripts/pre-commit"
 
 # ===== Install =====
 # Установка в $GOBIN (обычно ~/go/bin или $GOPATH/bin)

@@ -1,22 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Pre-commit hook для автоматического обновления STATS.md
+repo_root="$(git rev-parse --show-toplevel)"
+stats_script="$repo_root/scripts/code_stats_md.sh"
+stats_file="$repo_root/STATS.md"
 
-# Определяем корень репозитория
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-STATS_SCRIPT="$REPO_ROOT/scripts/code_stats_md.sh"
-STATS_FILE="$REPO_ROOT/STATS.md"
+cd "$repo_root"
 
-# Проверяем наличие скрипта и обновляем статистику
-if [ -f "$STATS_SCRIPT" ] && [ -x "$STATS_SCRIPT" ]; then
-    # Запускаем скрипт и сохраняем результат в STATS.md
-    if "$STATS_SCRIPT" > "$STATS_FILE" 2>/dev/null; then
-        # Добавляем обновленный файл в staging area
-        git add "$STATS_FILE" 2>/dev/null || true
-    else
-        echo "Warning: Failed to update STATS.md" >&2
-    fi
+echo ">> pre-commit: running make check"
+make check
+
+if [[ -x "$stats_script" ]]; then
+	if "$stats_script" >"$stats_file" 2>/dev/null; then
+		git add "$stats_file" 2>/dev/null || true
+	else
+		echo "Warning: failed to update STATS.md" >&2
+	fi
 fi
-
-# Всегда разрешаем коммит (не блокируем)
-exit 0

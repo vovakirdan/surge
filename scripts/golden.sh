@@ -8,7 +8,7 @@ action="${1:-check}"
 # ensure binary is built
 if [[ ! -x "$bin" ]]; then
   echo ">> building surge binary"
-  (cd "$root" && go build -ldflags "-X surge/internal/version.GitCommit=dev -X surge/internal/version.GitMessage=dev -X surge/internal/version.BuildDate=dev" -o surge ./cmd/surge/)
+  (cd "$root" && go build -ldflags "$(./scripts/ldflags.sh --local)" -o surge ./cmd/surge/)
 fi
 
 status=0

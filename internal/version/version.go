@@ -10,11 +10,11 @@ import (
 // These variables can be overridden at build time via -ldflags.
 
 var (
-	// BaseVersion is the base semantic version (without pre-release suffix).
+	// BaseVersion is the fallback semantic version used when build metadata is not injected.
 	BaseVersion = "0.1.0"
 
 	// PreRelease is the optional pre-release suffix, e.g. "-dev".
-	PreRelease = "-dev"
+	PreRelease = ""
 
 	// GitCommit is an optional git commit hash.
 	GitCommit = ""

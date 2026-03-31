@@ -25,9 +25,9 @@ type moduleSyncResult struct {
 }
 
 func syncGitModule(projectRoot, name, url, dest string) (moduleSyncResult, error) {
-	info, err := os.Stat(dest)
+	info, statErr := os.Stat(dest)
 	switch {
-	case errors.Is(err, os.ErrNotExist):
+	case errors.Is(statErr, os.ErrNotExist):
 		if err := gitClone(projectRoot, url, dest); err != nil {
 			return moduleSyncResult{}, err
 		}
@@ -45,8 +45,8 @@ func syncGitModule(projectRoot, name, url, dest string) (moduleSyncResult, error
 			State:    moduleSyncInstalled,
 			AfterRev: rev,
 		}, nil
-	case err != nil:
-		return moduleSyncResult{}, fmt.Errorf("failed to stat %s: %w", filepath.Join("deps", name), err)
+	case statErr != nil:
+		return moduleSyncResult{}, fmt.Errorf("failed to stat %s: %w", filepath.Join("deps", name), statErr)
 	case !info.IsDir():
 		return moduleSyncResult{}, fmt.Errorf("%s exists and is not a directory", filepath.Join("deps", name))
 	}
@@ -67,19 +67,19 @@ func syncGitModule(projectRoot, name, url, dest string) (moduleSyncResult, error
 		return moduleSyncResult{}, err
 	}
 
-	beforeRev, err := gitHeadRevision(dest)
-	if err != nil {
-		return moduleSyncResult{}, err
+	beforeRev, revErr := gitHeadRevision(dest)
+	if revErr != nil {
+		return moduleSyncResult{}, revErr
 	}
-	if err := gitPullFFOnly(dest); err != nil {
-		return moduleSyncResult{}, err
+	if pullErr := gitPullFFOnly(dest); pullErr != nil {
+		return moduleSyncResult{}, pullErr
 	}
-	if err := validateModuleRepo(name, dest); err != nil {
-		return moduleSyncResult{}, err
+	if validateErr := validateModuleRepo(name, dest); validateErr != nil {
+		return moduleSyncResult{}, validateErr
 	}
-	afterRev, err := gitHeadRevision(dest)
-	if err != nil {
-		return moduleSyncResult{}, err
+	afterRev, revErr := gitHeadRevision(dest)
+	if revErr != nil {
+		return moduleSyncResult{}, revErr
 	}
 
 	state := moduleSyncUpdated
