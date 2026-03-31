@@ -108,7 +108,7 @@ check:
 	$(MAKE) c-check
 	@echo ">> Checking file sizes"
 	@echo "It may take a while... please wait..."
-	./check_file_sizes.sh | grep BAD || echo "No files need refactoring"
+	./check_file_sizes.sh
 
 # ===== Lint =====
 $(GOLANGCI_LINT):
