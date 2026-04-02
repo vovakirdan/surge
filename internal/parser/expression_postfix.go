@@ -23,11 +23,11 @@ func (p *Parser) parseCallExpr(target ast.ExprID, typeArgs []ast.TypeID) (ast.Ex
 			// like `3:uint` inside calls.
 			suspendCast := p.lx.Peek().Kind == token.Ident
 			if suspendCast {
-				p.suspendColonCast++
+				p.pushColonCastSuspension()
 			}
 			argExpr, ok := p.parseExpr()
 			if suspendCast {
-				p.suspendColonCast--
+				p.popColonCastSuspension()
 			}
 			if !ok {
 				// Ошибка парсинга аргумента - восстанавливаемся

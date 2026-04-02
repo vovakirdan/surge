@@ -1,0 +1,34 @@
+shorthand_cast_frontend_consistency.sg (span: 2:1-16:1)
+├─ Item[0]: Unknown(2) (span: 2:1-2:26)
+├─ Item[1]: Unknown(2) (span: 3:1-3:29)
+├─ Item[2]: Fn (span: 5:1-7:2)
+│  ├─ Name: take
+│  ├─ Params: (a: uint, b: uint)
+│  ├─ Return: uint
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:35-7:2)
+│        └─ Stmt[0]: Return (span: 6:5-6:18)
+│           └─ Expr: expr#7: (a + b)
+└─ Item[3]: Fn (span: 9:1-15:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:11-15:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:29)
+         │  ├─ Name: base
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#9: 0 to uint
+         ├─ Stmt[1]: Let (span: 12:5-12:47)
+         │  ├─ Name: left
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#16: take(ONE, (base + (1 to uint)))
+         ├─ Stmt[2]: Let (span: 13:5-13:50)
+         │  ├─ Name: right
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#24: take(1 to uint, (TWO + (1 to uint)))
+         └─ Stmt[3]: Expr (span: 14:5-14:37)
+            └─ Expr: expr#31: print(((left + right)) to string)

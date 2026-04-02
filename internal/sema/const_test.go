@@ -86,6 +86,21 @@ const BAD2 = some_var + 1;
 	}
 }
 
+func TestConstAllowsCastInitializers(t *testing.T) {
+	src := `
+const A: uint = 1:uint;
+const B: uint = 1 to uint;
+
+fn main() {
+    let value = A + B;
+}
+`
+	bag := runConstSema(t, src)
+	if bag.Len() != 0 {
+		t.Fatalf("unexpected diagnostics: %v", collectCodes(bag))
+	}
+}
+
 func TestConstCycle(t *testing.T) {
 	src := `
 const A = B + 1;

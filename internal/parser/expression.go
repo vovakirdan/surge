@@ -352,7 +352,7 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 			}
 			return expr, true
 		case token.Colon:
-			if p.suspendColonCast > 0 {
+			if p.colonCastSuspended() {
 				return expr, true
 			}
 			colonTok := p.advance()

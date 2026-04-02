@@ -353,6 +353,81 @@ func TestCastExpression(t *testing.T) {
 	}
 }
 
+func TestCallArgumentsAllowNestedColonCast(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let x = take(1:uint, base + 1:uint);")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected expression value")
+	}
+
+	call, ok := arenas.Exprs.Call(letItem.Value)
+	if !ok {
+		t.Fatalf("expected call expression, got %v", arenas.Exprs.Get(letItem.Value).Kind)
+	}
+	if len(call.Args) != 2 {
+		t.Fatalf("expected 2 call args, got %d", len(call.Args))
+	}
+
+	firstArg := arenas.Exprs.Get(call.Args[0].Value)
+	if firstArg.Kind != ast.ExprCast {
+		t.Fatalf("expected first arg cast, got %v", firstArg.Kind)
+	}
+
+	secondArg := arenas.Exprs.Get(call.Args[1].Value)
+	if secondArg.Kind != ast.ExprBinary {
+		t.Fatalf("expected second arg binary expression, got %v", secondArg.Kind)
+	}
+	secondData, ok := arenas.Exprs.Binary(call.Args[1].Value)
+	if !ok || secondData == nil {
+		t.Fatal("failed to read second arg binary expression")
+	}
+	right := arenas.Exprs.Get(secondData.Right)
+	if right.Kind != ast.ExprCast {
+		t.Fatalf("expected nested cast on rhs, got %v", right.Kind)
+	}
+}
+
+func TestCallArgumentsStillParseNamedArgs(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let x = foo(label: value + 1:uint);")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected expression value")
+	}
+
+	call, ok := arenas.Exprs.Call(letItem.Value)
+	if !ok {
+		t.Fatalf("expected call expression, got %v", arenas.Exprs.Get(letItem.Value).Kind)
+	}
+	if len(call.Args) != 1 {
+		t.Fatalf("expected 1 call arg, got %d", len(call.Args))
+	}
+	if got := arenas.StringsInterner.MustLookup(call.Args[0].Name); got != "label" {
+		t.Fatalf("expected named arg 'label', got %q", got)
+	}
+
+	value := arenas.Exprs.Get(call.Args[0].Value)
+	if value.Kind != ast.ExprBinary {
+		t.Fatalf("expected named arg value to be binary expression, got %v", value.Kind)
+	}
+	valueData, ok := arenas.Exprs.Binary(call.Args[0].Value)
+	if !ok || valueData == nil {
+		t.Fatal("failed to read named arg value")
+	}
+	right := arenas.Exprs.Get(valueData.Right)
+	if right.Kind != ast.ExprCast {
+		t.Fatalf("expected nested cast inside named arg value, got %v", right.Kind)
+	}
+}
+
+func TestTernaryBranchesStillUseColonSeparator(t *testing.T) {
+	_, _, bag := parseSource(t, `
+fn choose(flag: bool, a: int, b: int) -> int {
+    return flag ? a + b : a * b;
+}
+`)
+	if bag.HasErrors() {
+		t.Fatalf("expected ternary with binary branches to parse, got %s", diagnosticsSummary(bag))
+	}
+}
+
 func TestAwaitMemberCalls(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		letItem, arenas := parseExprTestInput(t, "let x = future.await();")

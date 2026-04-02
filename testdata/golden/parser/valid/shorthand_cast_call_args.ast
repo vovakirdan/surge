@@ -1,0 +1,32 @@
+shorthand_cast_call_args.sg (span: 2:1-12:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: take
+│  ├─ Params: (a: uint, b: uint)
+│  ├─ Return: uint
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:35-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#3: (a + b)
+└─ Item[1]: Fn (span: 6:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:11-11:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:29)
+         │  ├─ Name: base
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#5: 0 to uint
+         ├─ Stmt[1]: Let (span: 8:5-8:56)
+         │  ├─ Name: positional
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#13: take(1 to uint, (base + (1 to uint)))
+         ├─ Stmt[2]: Let (span: 9:5-9:57)
+         │  ├─ Name: named
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#23: take(a: 2 to uint, b: (base + (3 to uint)))
+         └─ Stmt[3]: Expr (span: 10:5-10:43)
+            └─ Expr: expr#30: print(((positional + named)) to string)

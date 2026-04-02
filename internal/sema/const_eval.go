@@ -153,6 +153,10 @@ func (tc *typeChecker) isConstExpr(expr ast.ExprID) bool {
 				return false
 			}
 		}
+	case ast.ExprCast:
+		if data, ok := tc.builder.Exprs.Cast(expr); ok && data != nil {
+			return tc.isConstExpr(data.Value)
+		}
 	case ast.ExprBinary:
 		if data, ok := tc.builder.Exprs.Binary(expr); ok && data != nil {
 			if !tc.isConstBinaryOp(data.Op) {

@@ -47,9 +47,15 @@ type Parser struct {
 	fs       *source.FileSet // нужен только для спанов/путей при надобности
 	opts     Options
 	lastSpan source.Span // span последнего съеденного токена для лучшей диагностики
-	// suspendColonCast > 0 disables treating ':' as a cast operator. Used for constructs
-	// like struct literals where ':' has its own meaning.
+	// suspendColonCast > 0 disables treating ':' as a cast operator across the
+	// full recursive expression parse. Used for constructs where ':' is grammar
+	// punctuation, such as ternary branches and struct literal fields.
 	suspendColonCast int
+	// suspendColonCastDepths tracks parseBinaryExpr depths where ':' must not be
+	// treated as a cast operator only at the top level of an expression parse.
+	// This is narrower than suspendColonCast and is used for call-arg named
+	// argument detection so nested subexpressions may still use expr: Type.
+	suspendColonCastDepths []int
 	// allowFatArrow tracks the nesting depth of constructs where fat arrows are valid (compare/select/race arms, parallel expressions).
 	allowFatArrow int
 	// inTypeOperandContext > 0 indicates we're parsing a type operand (right side of 'is'/'heir').
@@ -118,6 +124,28 @@ func ParseFile(
 
 func (p *Parser) at(k token.Kind) bool {
 	return p.lx.Peek().Kind == k
+}
+
+func (p *Parser) pushColonCastSuspension() {
+	p.suspendColonCastDepths = append(p.suspendColonCastDepths, p.exprDepth+1)
+}
+
+func (p *Parser) popColonCastSuspension() {
+	if n := len(p.suspendColonCastDepths); n > 0 {
+		p.suspendColonCastDepths = p.suspendColonCastDepths[:n-1]
+	}
+}
+
+func (p *Parser) colonCastSuspended() bool {
+	if p.suspendColonCast > 0 {
+		return true
+	}
+	for i := len(p.suspendColonCastDepths) - 1; i >= 0; i-- {
+		if p.suspendColonCastDepths[i] == p.exprDepth {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Parser) atOr(kinds ...token.Kind) bool {
