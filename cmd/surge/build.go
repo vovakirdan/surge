@@ -2,7 +2,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -70,7 +69,7 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 
 	argsBeforeDash, _ := splitArgsAtDash(cmd, args)
 
-	manifest, manifestFound, err := loadProjectManifest(".")
+	selected, err := resolveCommandTarget(argsBeforeDash)
 	if err != nil {
 		return err
 	}
@@ -81,25 +80,11 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 		rootKind   project.ModuleKind
 		outputName string
 	)
-	if manifestFound {
-		targetPath, dirInfo, err = resolveProjectRunTarget(manifest)
-		if err != nil {
-			return err
-		}
-		baseDir = manifest.Root
-		rootKind = project.ModuleKindBinary
-		outputName = manifest.Config.Package.Name
-	} else {
-		if len(argsBeforeDash) == 0 || filepath.Clean(argsBeforeDash[0]) == "." {
-			return errors.New(noSurgeTomlMessage)
-		}
-		inputPath := argsBeforeDash[0]
-		targetPath, dirInfo, err = resolveRunTarget(inputPath)
-		if err != nil {
-			return err
-		}
-		outputName = outputNameFromPath(inputPath, dirInfo)
-	}
+	targetPath = selected.targetPath
+	dirInfo = selected.dirInfo
+	baseDir = selected.baseDir
+	rootKind = selected.rootKind
+	outputName = selected.outputName
 	if outputName == "" {
 		outputName = "a.out"
 	}
@@ -154,8 +139,8 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 		KeepTmp:        keepTmpFlag,
 		PrintCommands:  printCommands,
 	}
-	if manifestFound {
-		buildReq.ManifestRoot = manifest.Root
+	if selected.usesManifest {
+		buildReq.ManifestRoot = selected.manifestRoot
 		buildReq.ManifestFound = true
 	}
 

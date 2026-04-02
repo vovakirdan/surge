@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -46,7 +45,7 @@ func init() {
 func runExecution(cmd *cobra.Command, args []string) error {
 	argsBeforeDash, argsAfterDash := splitArgsAtDash(cmd, args)
 
-	manifest, manifestFound, err := loadProjectManifest(".")
+	selected, err := resolveCommandTarget(argsBeforeDash)
 	if err != nil {
 		return err
 	}
@@ -58,25 +57,14 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		rootKind    project.ModuleKind
 		outputName  string
 	)
-	if manifestFound {
-		targetPath, dirInfo, err = resolveProjectRunTarget(manifest)
-		if err != nil {
-			return err
-		}
-		baseDir = manifest.Root
-		rootKind = project.ModuleKindBinary
-		outputName = manifest.Config.Package.Name
+	targetPath = selected.targetPath
+	dirInfo = selected.dirInfo
+	baseDir = selected.baseDir
+	rootKind = selected.rootKind
+	outputName = selected.outputName
+	if selected.usesManifest {
 		programArgs = argsAfterDash
 	} else {
-		if len(argsBeforeDash) == 0 || filepath.Clean(argsBeforeDash[0]) == "." {
-			return errors.New(noSurgeTomlMessage)
-		}
-		inputPath := argsBeforeDash[0]
-		targetPath, dirInfo, err = resolveRunTarget(inputPath)
-		if err != nil {
-			return err
-		}
-		outputName = outputNameFromPath(inputPath, dirInfo)
 		programArgs = append(programArgs, argsBeforeDash[1:]...)
 		if len(argsAfterDash) > 0 {
 			programArgs = append(programArgs, argsAfterDash...)
@@ -206,8 +194,8 @@ func runExecution(cmd *cobra.Command, args []string) error {
 			Profile:        "debug",
 			Backend:        buildpipeline.BackendLLVM,
 		}
-		if manifestFound {
-			buildReq.ManifestRoot = manifest.Root
+		if selected.usesManifest {
+			buildReq.ManifestRoot = selected.manifestRoot
 			buildReq.ManifestFound = true
 		}
 
