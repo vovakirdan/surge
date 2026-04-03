@@ -122,3 +122,42 @@ fn main() -> int {
 		t.Fatalf("missing block-result diagnostic in run output:\n%s", runCombined)
 	}
 }
+
+func TestCompareArmBlockMutationKeepsOuterStringLive(t *testing.T) {
+	root := repoRoot(t)
+	surge := buildSurgeBinary(t, root)
+
+	tmpDir := t.TempDir()
+	srcPath := filepath.Join(tmpDir, "main.sg")
+	source := `fn case_bool() -> string {
+    let mut out: string = "";
+    compare true {
+        true => {
+            out = out + "x";
+        };
+        false => {};
+    };
+    return out;
+}
+
+@entrypoint
+fn main() -> nothing {
+    print(case_bool());
+    return nothing;
+}
+`
+	if err := os.WriteFile(srcPath, []byte(source), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	stdout, stderr, exitCode := runSurgeWithInput(t, root, surge, "", "run", "--backend=vm", "--ui", "off", srcPath)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	if strings.TrimSpace(stdout) != "x" {
+		t.Fatalf("expected stdout x, got %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected empty stderr, got:\n%s", stderr)
+	}
+}

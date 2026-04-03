@@ -135,7 +135,7 @@ func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace, 
 					Src: RValue{Kind: RValueUse, Use: op},
 				}})
 			} else {
-				if _, err := l.lowerExpr(arm.Result, false); err != nil {
+				if err := l.lowerExprForSideEffects(arm.Result); err != nil {
 					return Operand{}, err
 				}
 			}

@@ -66,7 +66,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 				},
 			})
 		} else {
-			if _, err := l.lowerExpr(data.Then, false); err != nil {
+			if err := l.lowerExprForSideEffects(data.Then); err != nil {
 				return Operand{}, err
 			}
 		}
@@ -92,7 +92,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 				},
 			})
 		} else {
-			if _, err := l.lowerExpr(data.Else, false); err != nil {
+			if err := l.lowerExprForSideEffects(data.Else); err != nil {
 				return Operand{}, err
 			}
 		}

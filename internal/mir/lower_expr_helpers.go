@@ -159,6 +159,10 @@ func (l *funcLowerer) lowerExprForSideEffects(e *hir.Expr) error {
 	if e == nil {
 		return nil
 	}
+	if discarded := l.discardResultExpr(e); discarded != nil {
+		_, err := l.lowerExpr(discarded, false)
+		return err
+	}
 	if e.Kind == hir.ExprIndex && l.types != nil && e.Type != types.NoTypeID {
 		if tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type)); ok && tt.Kind == types.KindReference {
 			_, err := l.lowerValueExpr(e, false)
