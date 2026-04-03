@@ -1,0 +1,19 @@
+// compare on an owned scrutinee consumes the binding.
+
+fn bad() -> int? {
+    let next: int? = Some(1);
+    compare next {
+        nothing => {};
+        _ => {};
+    };
+    return next;
+}
+
+@entrypoint
+fn main() -> int {
+    compare bad() {
+        nothing => return 0;
+        Some(v) => return v;
+    };
+    return 2;
+}

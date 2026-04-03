@@ -1,0 +1,26 @@
+compare_owned_scrutinee_use_after_move.sg (span: 3:1-20:1)
+├─ Item[0]: Fn (span: 3:1-10:2)
+│  ├─ Name: bad
+│  ├─ Params: ()
+│  ├─ Return: <unknown-type>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:18-10:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:30)
+│        │  ├─ Name: next
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <unknown-type>
+│        │  └─ Value: expr#3: Some(1)
+│        ├─ Stmt[1]: Expr (span: 5:5-8:7)
+│        │  └─ Expr: expr#9: compare next { 2 arms }
+│        └─ Stmt[2]: Return (span: 9:5-9:17)
+│           └─ Expr: expr#10: next
+└─ Item[1]: Fn (span: 12:1-19:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:18-19:2)
+         ├─ Stmt[0]: Expr (span: 14:5-17:7)
+         │  └─ Expr: expr#21: compare bad() { 2 arms }
+         └─ Stmt[1]: Return (span: 18:5-18:14)
+            └─ Expr: expr#22: 2

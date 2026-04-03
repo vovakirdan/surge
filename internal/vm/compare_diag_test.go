@@ -161,3 +161,56 @@ fn main() -> nothing {
 		t.Fatalf("expected empty stderr, got:\n%s", stderr)
 	}
 }
+
+func TestBuildAndRunRejectUseAfterMoveFromCompareOwnedScrutinee(t *testing.T) {
+	root := repoRoot(t)
+	surge := buildSurgeBinary(t, root)
+
+	tmpDir := t.TempDir()
+	srcPath := filepath.Join(tmpDir, "main.sg")
+	source := `fn bad() -> int? {
+    let next: int? = Some(1);
+    compare next {
+        nothing => {};
+        _ => {};
+    };
+    return next;
+}
+
+@entrypoint
+fn main() -> int {
+    compare bad() {
+        nothing => return 0;
+        Some(v) => return v;
+    };
+    return 2;
+}
+`
+	if err := os.WriteFile(srcPath, []byte(source), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	buildOut, buildErr, buildCode := runSurgeWithInput(t, root, surge, "", "build", "--ui", "off", srcPath)
+	if buildCode == 0 {
+		t.Fatalf("build unexpectedly succeeded\nstdout:\n%s\nstderr:\n%s", buildOut, buildErr)
+	}
+	buildCombined := buildOut + buildErr
+	if strings.Contains(buildCombined, "LLVM emit failed") {
+		t.Fatalf("build should fail in diagnostics before LLVM emit\noutput:\n%s", buildCombined)
+	}
+	if !strings.Contains(buildCombined, "use of moved value 'next'") {
+		t.Fatalf("missing use-after-move diagnostic in build output:\n%s", buildCombined)
+	}
+
+	runOut, runErr, runCode := runSurgeWithInput(t, root, surge, "", "run", "--ui", "off", srcPath)
+	if runCode == 0 {
+		t.Fatalf("run unexpectedly succeeded\nstdout:\n%s\nstderr:\n%s", runOut, runErr)
+	}
+	runCombined := runOut + runErr
+	if strings.Contains(runCombined, "panic VM1002") || strings.Contains(runCombined, "panic:") {
+		t.Fatalf("run should fail in diagnostics before VM execution\noutput:\n%s", runCombined)
+	}
+	if !strings.Contains(runCombined, "use of moved value 'next'") {
+		t.Fatalf("missing use-after-move diagnostic in run output:\n%s", runCombined)
+	}
+}

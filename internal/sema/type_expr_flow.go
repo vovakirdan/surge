@@ -17,6 +17,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	movedArms := make([]map[symbols.SymbolID]source.Span, len(cmp.Arms))
 	armClosed := make([]bool, len(cmp.Arms))
 	valueType := tc.typeExpr(cmp.Value)
+	tc.observeMove(cmp.Value, tc.exprSpan(cmp.Value))
 	movedAfterValue := tc.snapshotMovedBindings()
 	expectedCompare := tc.expectedTypeForExpr(id)
 	resultType := expectedCompare

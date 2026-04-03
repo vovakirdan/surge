@@ -1,0 +1,1 @@
+error SEM3130 testdata/golden/sema/invalid/ownership/compare_owned_scrutinee_use_after_move.sg:9:12 use of moved value 'next'

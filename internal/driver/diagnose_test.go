@@ -319,6 +319,58 @@ fn demo(flag: bool) -> nothing {
 	}
 }
 
+func TestDiagnoseReportsUseAfterMoveFromCompareOwnedScrutinee(t *testing.T) {
+	src := `
+fn bad() -> int? {
+    let next: int? = Some(1);
+    compare next {
+        nothing => {};
+        _ => {};
+    };
+    return next;
+}
+
+@entrypoint
+fn main() -> int {
+    compare bad() {
+        nothing => return 0;
+        Some(v) => return v;
+    };
+    return 2;
+}
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compare_owned_scrutinee_move.sg")
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code == diag.SemaUseAfterMove && strings.Contains(d.Message, "next") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected compare scrutinee use-after-move diagnostic, got %+v", res.Bag.Items())
+	}
+}
+
 func TestDiagnoseAllowsRetInBlockExpression(t *testing.T) {
 	src := `
 fn main() -> int {
