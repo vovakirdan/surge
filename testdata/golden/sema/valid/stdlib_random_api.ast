@@ -1,0 +1,69 @@
+stdlib_random_api.sg (span: 2:1-28:1)
+├─ Item[0]: Import (span: 2:1-2:32)
+│  ├─ Module: stdlib::random
+│  └─ Alias: random
+├─ Item[1]: Fn (span: 4:1-7:2)
+│  ├─ Name: use_random_fill
+│  ├─ Params: ()
+│  ├─ Return: Erring<nothing, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:48-7:2)
+│        ├─ Stmt[0]: Let (span: 5:5-5:62)
+│        │  ├─ Name: scratch
+│        │  ├─ Mutable: true
+│        │  ├─ Type: byte[]
+│        │  └─ Value: expr#5: Array.with_len(8 to uint)
+│        └─ Stmt[1]: Return (span: 6:5-6:38)
+│           └─ Expr: expr#10: random.fill(&mut scratch)
+├─ Item[2]: Fn (span: 9:1-11:2)
+│  ├─ Name: use_random_bytes
+│  ├─ Params: ()
+│  ├─ Return: Erring<byte[], Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:48-11:2)
+│        └─ Stmt[0]: Return (span: 10:5-10:33)
+│           └─ Expr: expr#15: random.bytes(8 to uint)
+├─ Item[3]: Fn (span: 13:1-16:2)
+│  ├─ Name: use_system_rng
+│  ├─ Params: ()
+│  ├─ Return: Erring<uint32, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:46-16:2)
+│        ├─ Stmt[0]: Let (span: 14:5-14:53)
+│        │  ├─ Name: rng
+│        │  ├─ Mutable: true
+│        │  ├─ Type: random.SystemRng
+│        │  └─ Value: expr#18: random.system()
+│        └─ Stmt[1]: Return (span: 15:5-15:27)
+│           └─ Expr: expr#21: rng.next_u32()
+├─ Item[4]: Fn (span: 18:1-21:2)
+│  ├─ Name: use_pcg32_next
+│  ├─ Params: ()
+│  ├─ Return: Erring<uint64, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 18:46-21:2)
+│        ├─ Stmt[0]: Let (span: 19:5-19:75)
+│        │  ├─ Name: rng
+│        │  ├─ Mutable: true
+│        │  ├─ Type: random.Pcg32
+│        │  └─ Value: expr#28: random.pcg32_stream(42 to uint64, 54 to uint64)
+│        └─ Stmt[1]: Return (span: 20:5-20:27)
+│           └─ Expr: expr#31: rng.next_u64()
+└─ Item[5]: Fn (span: 23:1-27:2)
+   ├─ Name: use_pcg32_fill
+   ├─ Params: ()
+   ├─ Return: Erring<nothing, Error>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 23:47-27:2)
+         ├─ Stmt[0]: Let (span: 24:5-24:56)
+         │  ├─ Name: rng
+         │  ├─ Mutable: true
+         │  ├─ Type: random.Pcg32
+         │  └─ Value: expr#36: random.pcg32(7 to uint64)
+         ├─ Stmt[1]: Let (span: 25:5-25:62)
+         │  ├─ Name: scratch
+         │  ├─ Mutable: true
+         │  ├─ Type: byte[]
+         │  └─ Value: expr#41: Array.with_len(4 to uint)
+         └─ Stmt[2]: Return (span: 26:5-26:35)
+            └─ Expr: expr#46: rng.fill(&mut scratch)

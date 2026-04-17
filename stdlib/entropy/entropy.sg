@@ -1,3 +1,4 @@
+// stdlib/entropy/entropy.sg
 // Secure host entropy. The backend must never silently degrade to a weak source.
 
 pub const ENTROPY_ERR_UNAVAILABLE: uint = 1;
@@ -5,10 +6,12 @@ pub const ENTROPY_ERR_BACKEND: uint = 2;
 
 @intrinsic fn rt_entropy_bytes(len: uint) -> Erring<byte[], Error>;
 
+// Return a fresh buffer filled with secure host entropy bytes.
 pub fn bytes(len: uint) -> Erring<byte[], Error> {
     return rt_entropy_bytes(len);
 }
 
+// Overwrite an existing buffer with fresh secure host entropy bytes.
 pub fn fill(out: &mut byte[]) -> Erring<nothing, Error> {
     compare rt_entropy_bytes(out.__len()) {
         Success(data) => {

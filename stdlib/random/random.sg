@@ -1,3 +1,6 @@
+// stdlib/random/random.sg
+// Host-backed and deterministic random helpers for Surge.
+
 import stdlib/entropy as entropy;
 
 const U32_MOD: uint = 4_294_967_296;
@@ -9,11 +12,14 @@ pub contract RandomSource<T> {
     pub fn next_u64(self: &mut T) -> Erring<uint64, Error>;
 }
 
+// SystemRng reads secure randomness from stdlib/entropy.
 @copy
 pub type SystemRng = {
     _private: uint8,
 };
 
+// Pcg32 is deterministic and intended for reproducible tests and fixtures.
+// It is not cryptographically secure.
 pub type Pcg32 = {
     state: uint64,
     inc: uint64,
@@ -157,29 +163,35 @@ pub fn system() -> SystemRng {
     return SystemRng.new();
 }
 
+// Convenience wrapper over stdlib/entropy.bytes.
 pub fn bytes(n: uint) -> Erring<byte[], Error> {
     return entropy.bytes(n);
 }
 
+// Fill an existing buffer using SystemRng.
 pub fn fill(out: &mut byte[]) -> Erring<nothing, Error> {
     let mut rng: SystemRng = system();
     return rng.fill(out);
 }
 
+// Read one little-endian uint32 from SystemRng.
 pub fn next_u32() -> Erring<uint32, Error> {
     let mut rng: SystemRng = system();
     return rng.next_u32();
 }
 
+// Read one little-endian uint64 from SystemRng.
 pub fn next_u64() -> Erring<uint64, Error> {
     let mut rng: SystemRng = system();
     return rng.next_u64();
 }
 
+// Construct a deterministic PCG32 stream with the default stream selector.
 pub fn pcg32(seed: uint64) -> Pcg32 {
     return pcg32_stream(seed, 54:uint64);
 }
 
+// Construct a deterministic PCG32 stream with an explicit stream selector.
 pub fn pcg32_stream(seed: uint64, stream: uint64) -> Pcg32 {
     let mut rng: Pcg32 = {
         state = 0:uint64,

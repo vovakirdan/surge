@@ -40,6 +40,7 @@ The VM talks to the outside world via `Runtime` (`internal/vm/runtime.go`):
 
 - `Argv()` provides program arguments for `@entrypoint("argv")`.
 - `StdinReadAll()` powers `@entrypoint("stdin")`.
+- `EntropyBytes(n)` provides secure host entropy bytes for `stdlib/entropy`.
 - `Exit(code)` records the exit code and halts execution.
 
 Implementations:
@@ -88,6 +89,8 @@ The VM can record and replay execution:
 - `Replayer` replays a log and validates every intrinsic result.
 - `RecordingRuntime` wraps another runtime to capture argv/stdin, while
   `ReplayRuntime` serves recorded values and panics on mismatches.
+- Entropy-consuming programs are replayed deterministically: exact entropy
+  bytes are logged and then replayed without consulting the host RNG.
 
 This is used in golden tests and determinism checks.
 

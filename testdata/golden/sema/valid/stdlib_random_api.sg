@@ -1,0 +1,27 @@
+// scenario: stdlib random concrete public API typechecks
+import stdlib/random as random;
+
+fn use_random_fill() -> Erring<nothing, Error> {
+    let mut scratch: byte[] = Array::<byte>.with_len(8:uint);
+    return random.fill(&mut scratch);
+}
+
+fn use_random_bytes() -> Erring<byte[], Error> {
+    return random.bytes(8:uint);
+}
+
+fn use_system_rng() -> Erring<uint32, Error> {
+    let mut rng: random.SystemRng = random.system();
+    return rng.next_u32();
+}
+
+fn use_pcg32_next() -> Erring<uint64, Error> {
+    let mut rng: random.Pcg32 = random.pcg32_stream(42:uint64, 54:uint64);
+    return rng.next_u64();
+}
+
+fn use_pcg32_fill() -> Erring<nothing, Error> {
+    let mut rng: random.Pcg32 = random.pcg32(7:uint64);
+    let mut scratch: byte[] = Array::<byte>.with_len(4:uint);
+    return rng.fill(&mut scratch);
+}

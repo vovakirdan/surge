@@ -1,5 +1,8 @@
 pragma module;
 
+// stdlib/uuid/uuid.sg
+// UUID parse/format helpers plus version 4 generation on top of stdlib/random.
+
 import stdlib/random as random;
 
 pub const UUID_ERR_PARSE: uint = 1;
@@ -112,6 +115,7 @@ pub fn nil() -> Uuid {
     return { bytes = Array::<byte>.with_len(16:uint) };
 }
 
+// Parse a canonical 36-character UUID string.
 pub fn parse(text: &string) -> Erring<Uuid, Error> {
     let view = text.bytes();
     if view.__len() != 36:uint {
@@ -142,13 +146,15 @@ pub fn parse(text: &string) -> Erring<Uuid, Error> {
     return Success(value);
 }
 
+// Generate a version 4 UUID using the host-backed SystemRng.
 pub fn v4() -> Erring<Uuid, Error> {
     let mut rng: random.SystemRng = random.system();
     return v4_from_system(&mut rng);
 }
 
+// Generate a version 4 UUID from SystemRng.
 pub fn v4_from_system(rng: &mut random.SystemRng) -> Erring<Uuid, Error> {
-        compare rng.next_u64() {
+    compare rng.next_u64() {
         Success(lo) => {
             compare rng.next_u64() {
                 Success(hi) => {
@@ -166,6 +172,7 @@ pub fn v4_from_system(rng: &mut random.SystemRng) -> Erring<Uuid, Error> {
     };
 }
 
+// Generate a version 4 UUID from a deterministic PCG32 source.
 pub fn v4_from_pcg32(rng: &mut random.Pcg32) -> Erring<Uuid, Error> {
     compare rng.next_u64() {
         Success(lo) => {
