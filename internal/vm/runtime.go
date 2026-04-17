@@ -30,6 +30,9 @@ type Runtime interface {
 
 	// MonotonicNow returns monotonic time in nanoseconds.
 	MonotonicNow() int64
+
+	// EntropyBytes returns secure entropy bytes or an explicit runtime error.
+	EntropyBytes(n int) ([]byte, error)
 }
 
 // DefaultRuntime implements Runtime using OS facilities.
@@ -116,6 +119,10 @@ type TestRuntime struct {
 	stdinPos int
 	exitCode int
 	exited   bool
+
+	entropyQueue  [][]byte
+	entropyErr    error
+	entropyCursor uint64
 
 	termEvents  []TermEventData
 	termCalls   []TermCall

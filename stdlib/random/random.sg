@@ -1,0 +1,192 @@
+import stdlib/entropy as entropy;
+
+const U32_MOD: uint = 4_294_967_296;
+const U64_MOD: uint = 18_446_744_073_709_551_616;
+
+pub contract RandomSource<T> {
+    pub fn fill(self: &mut T, out: &mut byte[]) -> Erring<nothing, Error>;
+    pub fn next_u32(self: &mut T) -> Erring<uint32, Error>;
+    pub fn next_u64(self: &mut T) -> Erring<uint64, Error>;
+}
+
+@copy
+pub type SystemRng = {
+    _private: uint8,
+};
+
+pub type Pcg32 = {
+    state: uint64,
+    inc: uint64,
+};
+
+fn decode_le_u32(data: &byte[]) -> uint32 {
+    let b0: uint32 = clone(data[0]) to uint32;
+    let b1: uint32 = clone(data[1]) to uint32;
+    let b2: uint32 = clone(data[2]) to uint32;
+    let b3: uint32 = clone(data[3]) to uint32;
+    return b0 | (b1 << 8:uint32) | (b2 << 16:uint32) | (b3 << 24:uint32);
+}
+
+fn decode_le_u64(data: &byte[]) -> uint64 {
+    let b0: uint64 = clone(data[0]) to uint64;
+    let b1: uint64 = clone(data[1]) to uint64;
+    let b2: uint64 = clone(data[2]) to uint64;
+    let b3: uint64 = clone(data[3]) to uint64;
+    let b4: uint64 = clone(data[4]) to uint64;
+    let b5: uint64 = clone(data[5]) to uint64;
+    let b6: uint64 = clone(data[6]) to uint64;
+    let b7: uint64 = clone(data[7]) to uint64;
+    return b0
+        | (b1 << 8:uint64)
+        | (b2 << 16:uint64)
+        | (b3 << 24:uint64)
+        | (b4 << 32:uint64)
+        | (b5 << 40:uint64)
+        | (b6 << 48:uint64)
+        | (b7 << 56:uint64);
+}
+
+fn wrap_u64_mul_add(a: uint64, b: uint64, c: uint64) -> uint64 {
+    let wide_a: uint = a to uint;
+    let wide_b: uint = b to uint;
+    let wide_c: uint = c to uint;
+    let wide: uint = ((wide_a * wide_b) + wide_c) % U64_MOD;
+    return wide to uint64;
+}
+
+fn wrap_u64_shift_left(value: uint64, shift: uint64) -> uint64 {
+    let wide_value: uint = value to uint;
+    let wide_shift: uint = shift to uint;
+    let wide: uint = (wide_value << wide_shift) % U64_MOD;
+    return wide to uint64;
+}
+
+fn truncate_u64_to_u32(value: uint64) -> uint32 {
+    let wide: uint = (value to uint) % U32_MOD;
+    return wide to uint32;
+}
+
+fn rotate_right_u32(value: uint32, rot: uint32) -> uint32 {
+    let shift: uint32 = rot & 31:uint32;
+    let right: uint32 = value >> shift;
+    let left_shift: uint32 = (32:uint32 - shift) & 31:uint32;
+    let wide_left: uint = ((value to uint) << (left_shift to uint)) % U32_MOD;
+    let wide: uint = (right to uint) | wide_left;
+    return wide to uint32;
+}
+
+fn pcg32_step(self: &mut Pcg32) -> uint32 {
+    let old_state: uint64 = self.state;
+    self.state = wrap_u64_mul_add(old_state, 6364136223846793005:uint64, self.inc);
+
+    let xorshifted_u64: uint64 = (((old_state >> 18:uint64) ^ old_state) >> 27:uint64);
+    let xorshifted: uint32 = truncate_u64_to_u32(xorshifted_u64);
+    let rot: uint32 = (old_state >> 59:uint64) to uint32;
+
+    return rotate_right_u32(xorshifted, rot);
+}
+
+extern<SystemRng> {
+    pub fn new() -> SystemRng {
+        return { _private = 0:uint8 };
+    }
+
+    pub fn fill(self: &mut SystemRng, out: &mut byte[]) -> Erring<nothing, Error> {
+        let _ = self;
+        return entropy.fill(out);
+    }
+
+    pub fn next_u32(self: &mut SystemRng) -> Erring<uint32, Error> {
+        let _ = self;
+        compare entropy.bytes(4:uint) {
+            Success(data) => {
+                return Success(decode_le_u32(&data));
+            }
+            err => {
+                return err;
+            }
+        };
+    }
+
+    pub fn next_u64(self: &mut SystemRng) -> Erring<uint64, Error> {
+        let _ = self;
+        compare entropy.bytes(8:uint) {
+            Success(data) => {
+                return Success(decode_le_u64(&data));
+            }
+            err => {
+                return err;
+            }
+        };
+    }
+}
+
+extern<Pcg32> {
+    pub fn fill(self: &mut Pcg32, out: &mut byte[]) -> Erring<nothing, Error> {
+        let length: int = out.__len() to int;
+        let mut i: int = 0;
+        while i < length {
+            let value: uint32 = pcg32_step(self);
+            out[i] = (value & 0xFF:uint32) to byte;
+            if i + 1 < length {
+                out[i + 1] = ((value >> 8:uint32) & 0xFF:uint32) to byte;
+            }
+            if i + 2 < length {
+                out[i + 2] = ((value >> 16:uint32) & 0xFF:uint32) to byte;
+            }
+            if i + 3 < length {
+                out[i + 3] = ((value >> 24:uint32) & 0xFF:uint32) to byte;
+            }
+            i = i + 4;
+        }
+        return Success(nothing);
+    }
+
+    pub fn next_u32(self: &mut Pcg32) -> Erring<uint32, Error> {
+        return Success(pcg32_step(self));
+    }
+
+    pub fn next_u64(self: &mut Pcg32) -> Erring<uint64, Error> {
+        let lo: uint64 = pcg32_step(self) to uint64;
+        let hi: uint64 = pcg32_step(self) to uint64;
+        return Success(lo | (hi << 32:uint64));
+    }
+}
+
+pub fn system() -> SystemRng {
+    return SystemRng.new();
+}
+
+pub fn bytes(n: uint) -> Erring<byte[], Error> {
+    return entropy.bytes(n);
+}
+
+pub fn fill(out: &mut byte[]) -> Erring<nothing, Error> {
+    let mut rng: SystemRng = system();
+    return rng.fill(out);
+}
+
+pub fn next_u32() -> Erring<uint32, Error> {
+    let mut rng: SystemRng = system();
+    return rng.next_u32();
+}
+
+pub fn next_u64() -> Erring<uint64, Error> {
+    let mut rng: SystemRng = system();
+    return rng.next_u64();
+}
+
+pub fn pcg32(seed: uint64) -> Pcg32 {
+    return pcg32_stream(seed, 54:uint64);
+}
+
+pub fn pcg32_stream(seed: uint64, stream: uint64) -> Pcg32 {
+    let mut rng: Pcg32 = {
+        state = 0:uint64,
+        inc = wrap_u64_shift_left(stream, 1:uint64) | 1:uint64
+    };
+    let _ = pcg32_step(&mut rng);
+    rng.state = rng.state + seed;
+    let _ = pcg32_step(&mut rng);
+    return rng;
+}

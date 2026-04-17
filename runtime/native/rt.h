@@ -19,6 +19,7 @@ void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size);
 
 uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length);
 uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length);
+void* rt_entropy_bytes(uint64_t len);
 void rt_term_enter_alt_screen(void);
 void rt_term_exit_alt_screen(void);
 void rt_term_set_raw_mode(bool enabled);

@@ -103,18 +103,7 @@ func (e *Emitter) reachableFuncs() map[mir.FuncID]struct{} {
 				call := &ins.Call
 				switch call.Callee.Kind {
 				case mir.CalleeSym:
-					if call.Callee.Sym.IsValid() {
-						if nextID, ok := e.mod.FuncBySym[call.Callee.Sym]; ok {
-							if _, seen := reachable[nextID]; !seen {
-								queue = append(queue, nextID)
-							}
-						}
-						continue
-					}
-					if call.Callee.Name == "" {
-						continue
-					}
-					if nextID, ok := e.funcByName(call.Callee.Name); ok {
+					if nextID, ok := e.resolveFuncIDForCall(f, call); ok {
 						if _, seen := reachable[nextID]; !seen {
 							queue = append(queue, nextID)
 						}
@@ -128,10 +117,7 @@ func (e *Emitter) reachableFuncs() map[mir.FuncID]struct{} {
 						}
 						continue
 					}
-					if call.Callee.Name == "" {
-						continue
-					}
-					if nextID, ok := e.funcByName(call.Callee.Name); ok {
+					if nextID, ok := e.resolveFuncIDForCall(f, call); ok {
 						if _, seen := reachable[nextID]; !seen {
 							queue = append(queue, nextID)
 						}

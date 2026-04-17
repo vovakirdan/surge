@@ -133,26 +133,12 @@ func (fe *funcEmitter) resolveCallee(call *mir.CallInstr) (string, funcSig, erro
 		return "", funcSig{}, fmt.Errorf("nil call")
 	}
 	if call.Callee.Kind == mir.CalleeSym {
-		if call.Callee.Sym.IsValid() {
-			if fe.emitter.mod != nil {
-				if id, ok := fe.emitter.mod.FuncBySym[call.Callee.Sym]; ok {
-					name := fe.emitter.funcNames[id]
-					sig := fe.emitter.funcSigs[id]
-					return name, sig, nil
-				}
-			}
+		if id, ok := fe.emitter.resolveFuncIDForCall(fe.f, call); ok {
+			return fe.emitter.funcNames[id], fe.emitter.funcSigs[id], nil
 		}
 		name := call.Callee.Name
 		if name == "" {
 			name = fe.symbolName(call.Callee.Sym)
-		}
-		if name != "" && fe.emitter != nil {
-			if id, ok := fe.emitter.funcByExactName(name); ok {
-				return fe.emitter.funcNames[id], fe.emitter.funcSigs[id], nil
-			}
-			if id, ok := fe.emitter.funcByName(name); ok {
-				return fe.emitter.funcNames[id], fe.emitter.funcSigs[id], nil
-			}
 		}
 		if sig, ok := fe.emitter.runtimeSigs[name]; ok {
 			return name, sig, nil
@@ -167,7 +153,7 @@ func (fe *funcEmitter) resolveCallee(call *mir.CallInstr) (string, funcSig, erro
 		if name == "" {
 			return "", funcSig{}, fmt.Errorf("missing callee name")
 		}
-		if id, ok := fe.emitter.funcByName(name); ok {
+		if id, ok := fe.emitter.resolveFuncIDForCall(fe.f, call); ok {
 			return fe.emitter.funcNames[id], fe.emitter.funcSigs[id], nil
 		}
 		if sig, ok := fe.emitter.runtimeSigs[name]; ok {
@@ -179,14 +165,18 @@ func (fe *funcEmitter) resolveCallee(call *mir.CallInstr) (string, funcSig, erro
 }
 
 func (fe *funcEmitter) symbolName(symID symbols.SymbolID) string {
-	if !symID.IsValid() || fe.emitter.syms == nil || fe.emitter.syms.Symbols == nil || fe.emitter.syms.Strings == nil {
+	return fe.emitter.symbolName(symID)
+}
+
+func (e *Emitter) symbolName(symID symbols.SymbolID) string {
+	if e == nil || !symID.IsValid() || e.syms == nil || e.syms.Symbols == nil || e.syms.Strings == nil {
 		return ""
 	}
-	sym := fe.emitter.syms.Symbols.Get(symID)
+	sym := e.syms.Symbols.Get(symID)
 	if sym == nil {
 		return ""
 	}
-	return fe.emitter.syms.Strings.MustLookup(sym.Name)
+	return e.syms.Strings.MustLookup(sym.Name)
 }
 
 func stripGenericSuffix(name string) string {

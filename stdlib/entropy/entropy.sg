@@ -1,0 +1,27 @@
+// Secure host entropy. The backend must never silently degrade to a weak source.
+
+pub const ENTROPY_ERR_UNAVAILABLE: uint = 1;
+pub const ENTROPY_ERR_BACKEND: uint = 2;
+
+@intrinsic fn rt_entropy_bytes(len: uint) -> Erring<byte[], Error>;
+
+pub fn bytes(len: uint) -> Erring<byte[], Error> {
+    return rt_entropy_bytes(len);
+}
+
+pub fn fill(out: &mut byte[]) -> Erring<nothing, Error> {
+    compare rt_entropy_bytes(out.__len()) {
+        Success(data) => {
+            let count: int = data.__len() to int;
+            let mut i: int = 0;
+            while i < count {
+                out[i] = data[i];
+                i = i + 1;
+            }
+            return Success(nothing);
+        }
+        err => {
+            return err;
+        }
+    };
+}

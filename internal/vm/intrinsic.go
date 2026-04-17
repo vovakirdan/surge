@@ -169,6 +169,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleWriteStdout(frame, call, writes)
 	case "rt_write_stderr":
 		return vm.handleWriteStderr(frame, call, writes)
+	case "rt_entropy_bytes":
+		return vm.handleRtEntropyBytes(frame, call, writes)
 	case "term_enter_alt_screen":
 		return vm.handleTermEnterAltScreen(frame, call)
 	case "term_exit_alt_screen":

@@ -1,0 +1,71 @@
+import stdlib/random as random;
+import stdlib/uuid as uuid;
+
+@entrypoint
+fn main() -> int {
+    let nil_uuid: uuid.Uuid = uuid.nil();
+    if !nil_uuid.is_nil() {
+        return 1;
+    }
+    if nil_uuid.to_string() != "00000000-0000-0000-0000-000000000000" {
+        return 2;
+    }
+
+    let mut seeded: random.Pcg32 = random.pcg32_stream(42:uint64, 54:uint64);
+    let expected: string = "b7025ca1-09f4-477b-b033-1dba93f2d283";
+    compare uuid.v4_from_pcg32(&mut seeded) {
+        Success(value) => {
+            if value.is_nil() {
+                return 3;
+            }
+            if value.to_string() != expected {
+                return 4;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+
+    compare uuid.parse(&"B7025CA1-09F4-477B-B033-1DBA93F2D283") {
+        Success(value) => {
+            if value.to_string() != expected {
+                return 5;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+
+    compare uuid.v4() {
+        Success(value) => {
+            let text: string = value.to_string();
+            if text.__len() != 36:uint {
+                return 6;
+            }
+            if text[14] != 52:uint32 {
+                return 7;
+            }
+            let variant: uint32 = text[19];
+            if variant != 56:uint32 && variant != 57:uint32 && variant != 97:uint32 && variant != 98:uint32 {
+                return 8;
+            }
+            compare uuid.parse(&text) {
+                Success(parsed) => {
+                    if parsed.to_string() != text {
+                        return 9;
+                    }
+                }
+                err => {
+                    return err.code to int;
+                }
+            };
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+
+    return 0;
+}

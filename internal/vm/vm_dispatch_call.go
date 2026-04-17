@@ -15,10 +15,7 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 	var targetFn *mir.Func
 	switch call.Callee.Kind {
 	case mir.CalleeSym:
-		if !call.Callee.Sym.IsValid() {
-			return nil, vm.callIntrinsic(frame, call, writes)
-		}
-		targetFn = vm.findFunctionBySym(call.Callee.Sym)
+		targetFn = vm.resolveCallTarget(frame, call)
 		if targetFn == nil {
 			// Support selected intrinsics and extern calls that are not lowered into MIR.
 			return nil, vm.callIntrinsic(frame, call, writes)
@@ -38,7 +35,7 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 				return nil, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing function sym %d", val.Sym))
 			}
 		} else {
-			targetFn = vm.findFunction(call.Callee.Name)
+			targetFn = vm.resolveCallTarget(frame, call)
 			if targetFn == nil {
 				return nil, vm.callIntrinsic(frame, call, writes)
 			}

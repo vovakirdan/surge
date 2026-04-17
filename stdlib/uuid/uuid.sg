@@ -1,0 +1,225 @@
+pragma module;
+
+import stdlib/random as random;
+
+pub const UUID_ERR_PARSE: uint = 1;
+pub const UUID_ERR_RANDOM: uint = 2;
+
+pub type Uuid = {
+    bytes: byte[],
+};
+
+fn uuid_parse_error(message: string) -> Erring<Uuid, Error> {
+    return Error { message: message, code: UUID_ERR_PARSE };
+}
+
+fn uuid_random_error(err: Error) -> Erring<Uuid, Error> {
+    let message: string = clone(err.message);
+    return Error { message: message, code: UUID_ERR_RANDOM };
+}
+
+fn append_byte(out: &mut byte[], value: uint) -> nothing {
+    out.push(value to byte);
+    return nothing;
+}
+
+fn hex_digit(value: uint) -> uint {
+    if value < 10:uint {
+        return 48:uint + value;
+    }
+    return 87:uint + value;
+}
+
+fn hex_value(value: uint) -> int {
+    if value >= 48:uint && value <= 57:uint {
+        return (value - 48:uint) to int;
+    }
+    if value >= 65:uint && value <= 70:uint {
+        return (value - 65:uint + 10:uint) to int;
+    }
+    if value >= 97:uint && value <= 102:uint {
+        return (value - 97:uint + 10:uint) to int;
+    }
+    return -1;
+}
+
+fn append_hex_byte(out: &mut byte[], value: byte) -> nothing {
+    let wide: uint = clone(value) to uint;
+    append_byte(out, hex_digit((wide >> 4:uint) & 0xF:uint));
+    append_byte(out, hex_digit(wide & 0xF:uint));
+    return nothing;
+}
+
+fn parse_hex_byte(view: &BytesView, hi_index: int, lo_index: int) -> int {
+    let hi: int = hex_value(view[hi_index] to uint);
+    if hi < 0 {
+        return -1;
+    }
+    let lo: int = hex_value(view[lo_index] to uint);
+    if lo < 0 {
+        return -1;
+    }
+    return (hi << 4) | lo;
+}
+
+fn ensure_uuid_bytes(bytes: &byte[]) -> byte[] {
+    let mut out: byte[] = Array::<byte>.with_len(16:uint);
+    let mut i: int = 0;
+    while i < 16 {
+        out[i] = bytes[i];
+        i = i + 1;
+    }
+    return out;
+}
+
+fn clone_byte(bytes: &byte[], index: int) -> byte {
+    return clone(bytes[index]);
+}
+
+fn write_le_u64(out: &mut byte[], start: int, value: uint64) -> nothing {
+    out[start] = (value & 0xFF:uint64) to byte;
+    out[start + 1] = ((value >> 8:uint64) & 0xFF:uint64) to byte;
+    out[start + 2] = ((value >> 16:uint64) & 0xFF:uint64) to byte;
+    out[start + 3] = ((value >> 24:uint64) & 0xFF:uint64) to byte;
+    out[start + 4] = ((value >> 32:uint64) & 0xFF:uint64) to byte;
+    out[start + 5] = ((value >> 40:uint64) & 0xFF:uint64) to byte;
+    out[start + 6] = ((value >> 48:uint64) & 0xFF:uint64) to byte;
+    out[start + 7] = ((value >> 56:uint64) & 0xFF:uint64) to byte;
+    return nothing;
+}
+
+fn uuid_from_words(lo: uint64, hi: uint64) -> Uuid {
+    let mut out: byte[] = Array::<byte>.with_len(16:uint);
+    write_le_u64(&mut out, 0, lo);
+    write_le_u64(&mut out, 8, hi);
+
+    let b6: uint8 = clone_byte(&out, 6) to uint8;
+    let b8: uint8 = clone_byte(&out, 8) to uint8;
+
+    {
+        let slot6: &mut byte = out.get_mut(6);
+        *slot6 = ((b6 & 0x0F:uint8) | 0x40:uint8) to byte;
+    }
+    {
+        let slot8: &mut byte = out.get_mut(8);
+        *slot8 = ((b8 & 0x3F:uint8) | 0x80:uint8) to byte;
+    }
+
+    return { bytes = out };
+}
+
+pub fn nil() -> Uuid {
+    return { bytes = Array::<byte>.with_len(16:uint) };
+}
+
+pub fn parse(text: &string) -> Erring<Uuid, Error> {
+    let view = text.bytes();
+    if view.__len() != 36:uint {
+        return uuid_parse_error("uuid: invalid length");
+    }
+
+    let mut out: byte[] = Array::<byte>.with_len(16:uint);
+    let mut src: int = 0;
+    let mut dst: int = 0;
+    while dst < 16 {
+        if src == 8 || src == 13 || src == 18 || src == 23 {
+            if view[src] != 45:uint8 {
+                return uuid_parse_error("uuid: invalid separator");
+            }
+            src = src + 1;
+        }
+
+        let parsed: int = parse_hex_byte(&view, src, src + 1);
+        if parsed < 0 {
+            return uuid_parse_error("uuid: invalid hex digit");
+        }
+        out[dst] = parsed to byte;
+        src = src + 2;
+        dst = dst + 1;
+    }
+
+    let value: Uuid = { bytes = out };
+    return Success(value);
+}
+
+pub fn v4() -> Erring<Uuid, Error> {
+    let mut rng: random.SystemRng = random.system();
+    return v4_from_system(&mut rng);
+}
+
+pub fn v4_from_system(rng: &mut random.SystemRng) -> Erring<Uuid, Error> {
+        compare rng.next_u64() {
+        Success(lo) => {
+            compare rng.next_u64() {
+                Success(hi) => {
+                    let value: Uuid = uuid_from_words(lo, hi);
+                    return Success(value);
+                }
+                err => {
+                    return uuid_random_error(err);
+                }
+            };
+        }
+        err => {
+            return uuid_random_error(err);
+        }
+    };
+}
+
+pub fn v4_from_pcg32(rng: &mut random.Pcg32) -> Erring<Uuid, Error> {
+    compare rng.next_u64() {
+        Success(lo) => {
+            compare rng.next_u64() {
+                Success(hi) => {
+                    let value: Uuid = uuid_from_words(lo, hi);
+                    return Success(value);
+                }
+                err => {
+                    return uuid_random_error(err);
+                }
+            };
+        }
+        err => {
+            return uuid_random_error(err);
+        }
+    };
+}
+
+extern<Uuid> {
+    pub fn to_string(self: &Uuid) -> string {
+        let raw: byte[] = ensure_uuid_bytes(self.bytes);
+        let mut out: byte[] = [];
+        out.reserve(36:uint);
+
+        let mut i: int = 0;
+        while i < 16 {
+            if i == 4 || i == 6 || i == 8 || i == 10 {
+                append_byte(&mut out, 45:uint);
+            }
+            append_hex_byte(&mut out, raw[i]);
+            i = i + 1;
+        }
+
+        compare string.from_bytes(&out) {
+            Success(text) => {
+                return text;
+            }
+            err => {
+                panic(clone(err.message));
+                return "";
+            }
+        };
+    }
+
+    pub fn is_nil(self: &Uuid) -> bool {
+        let raw: byte[] = ensure_uuid_bytes(self.bytes);
+        let mut i: int = 0;
+        while i < 16 {
+            if raw[i] != 0:byte {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+}
