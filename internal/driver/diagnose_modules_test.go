@@ -115,6 +115,51 @@ func TestStdlibDependencyUsesStdlibRoot(t *testing.T) {
 	}
 }
 
+func TestRandomParityModuleSeesTransitiveStdlibExports(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	baseDir := filepath.Clean(filepath.Join(cwd, "..", ".."))
+	filePath := filepath.Join(baseDir, "testdata", "llvm_parity", "random_pcg32.sg")
+	fs := source.NewFileSetWithBase(baseDir)
+	fileID, err := fs.Load(filePath)
+	if err != nil {
+		t.Fatalf("load %s: %v", filePath, err)
+	}
+	file := fs.Get(fileID)
+
+	bag := diag.NewBag(32)
+	lx := lexer.New(file, lexer.Options{})
+	sharedStrings := source.NewInterner()
+	builder := ast.NewBuilder(ast.Hints{}, sharedStrings)
+	parseRes := parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{
+		Reporter:  &diag.BagReporter{Bag: bag},
+		MaxErrors: 32,
+	})
+	typeInterner := types.NewInterner()
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageSema,
+		MaxDiagnostics: 128,
+	}
+	exports, _, records, err := runModuleGraph(context.Background(), fs, file, builder, parseRes.File, bag, &opts, NewModuleCache(16), typeInterner, sharedStrings)
+	if err != nil {
+		t.Fatalf("runModuleGraph failed: %v", err)
+	}
+	if exports["stdlib/random"] == nil {
+		t.Fatalf("expected exports for stdlib/random, export_paths=%v, records=%v", exportKeysMap(exports), sortedModulePaths(records))
+	}
+	if exports["stdlib/entropy"] == nil {
+		t.Fatalf("expected exports for stdlib/entropy, export_paths=%v, records=%v", exportKeysMap(exports), sortedModulePaths(records))
+	}
+	if rec := records["stdlib/random"]; rec == nil || rec.Bag == nil || rec.Bag.HasErrors() {
+		t.Fatalf("expected stdlib/random record without errors, records=%v, diags=%v", sortedModulePaths(records), bagMessages(recordBag(rec)))
+	}
+	if rec := records["stdlib/entropy"]; rec == nil || rec.Bag == nil || rec.Bag.HasErrors() {
+		t.Fatalf("expected stdlib/entropy record without errors, records=%v, diags=%v", sortedModulePaths(records), bagMessages(recordBag(rec)))
+	}
+}
+
 func TestResolveStdlibRootKeepsUnreadableLayout(t *testing.T) {
 	root := t.TempDir()
 	coreDir := filepath.Join(root, "core")
@@ -198,4 +243,47 @@ func dumpOptionScope(fs *source.FileSet, exports map[string]*symbols.ModuleExpor
 	}
 	sort.Strings(names)
 	return fmt.Sprintf("externs=%d, names=%s", externs, strings.Join(names, ","))
+}
+
+func sortedModulePaths(records map[string]*moduleRecord) []string {
+	if len(records) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(records))
+	for path := range records {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func exportKeysMap(exports map[string]*symbols.ModuleExports) []string {
+	if len(exports) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(exports))
+	for path := range exports {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func bagMessages(bag *diag.Bag) []string {
+	if bag == nil {
+		return nil
+	}
+	items := bag.Items()
+	msgs := make([]string, 0, len(items))
+	for _, item := range items {
+		msgs = append(msgs, item.Message)
+	}
+	return msgs
+}
+
+func recordBag(rec *moduleRecord) *diag.Bag {
+	if rec == nil {
+		return nil
+	}
+	return rec.Bag
 }

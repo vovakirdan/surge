@@ -42,6 +42,8 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitRtWrite(call, "rt_write_stdout", "stdout write length out of range")
 	case "rt_write_stderr":
 		return true, fe.emitRtWrite(call, "rt_write_stderr", "stderr write length out of range")
+	case "rt_entropy_bytes":
+		return true, fe.emitRtEntropyBytes(call)
 	case "term_enter_alt_screen":
 		return true, fe.emitTermNoop(call, "rt_term_enter_alt_screen")
 	case "term_exit_alt_screen":
@@ -129,6 +131,32 @@ func (fe *funcEmitter) emitRtWorkerCount(call *mir.CallInstr) error {
 		if err := fe.emitLenStore(call.Dst, dstType, tmp); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (fe *funcEmitter) emitRtEntropyBytes(call *mir.CallInstr) error {
+	if call == nil {
+		return nil
+	}
+	if len(call.Args) != 1 {
+		return fmt.Errorf("rt_entropy_bytes requires 1 argument")
+	}
+	n64, err := fe.emitUintOperandToI64(&call.Args[0], "entropy length out of range")
+	if err != nil {
+		return err
+	}
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_entropy_bytes(i64 %s)\n", tmp, n64)
+	if call.HasDst {
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return err
+		}
+		if dstTy != "ptr" {
+			dstTy = "ptr"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
 	}
 	return nil
 }

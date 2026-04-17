@@ -45,6 +45,9 @@ func TestLLVMParity(t *testing.T) {
 		{name: "select_channel", file: "select_channel.sg"},
 		{name: "select_timeout", file: "select_timeout.sg"},
 		{name: "unicode_len", file: "unicode_len.sg"},
+		{name: "entropy_len", file: "entropy_len.sg"},
+		{name: "random_pcg32", file: "random_pcg32.sg"},
+		{name: "uuid_v4", file: "uuid_v4.sg"},
 		{name: "path_smoke", file: "path_smoke.sg"},
 		{
 			name: "fs_dir_smoke",

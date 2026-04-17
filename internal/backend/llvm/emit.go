@@ -106,6 +106,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("memmove length out of range")
 	e.ensureStringConst("stdout write length out of range")
 	e.ensureStringConst("stderr write length out of range")
+	e.ensureStringConst("entropy length out of range")
 	e.ensureStringConst("fs open flags out of range")
 	e.ensureStringConst("fs read cap out of range")
 	e.ensureStringConst("fs write length out of range")

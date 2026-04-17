@@ -45,6 +45,7 @@ surgesqlite/
 neon/
 sigil/
 schess/
+surgekv/
 
 surge
 !cmd/surge

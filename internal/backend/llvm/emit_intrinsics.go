@@ -39,6 +39,160 @@ func (e *Emitter) funcByExactName(name string) (mir.FuncID, bool) {
 	return mir.NoFuncID, false
 }
 
+func (e *Emitter) resolveFuncIDForCall(current *mir.Func, call *mir.CallInstr) (mir.FuncID, bool) {
+	if e == nil || e.mod == nil || call == nil {
+		return mir.NoFuncID, false
+	}
+	if call.Callee.Kind == mir.CalleeSym && call.Callee.Sym.IsValid() {
+		if id, ok := e.mod.FuncBySym[call.Callee.Sym]; ok {
+			return id, true
+		}
+	}
+	if call.Callee.Kind == mir.CalleeValue {
+		name := call.Callee.Name
+		if name == "" {
+			return mir.NoFuncID, false
+		}
+		if id, ok := e.funcByExactName(name); ok {
+			return id, true
+		}
+		return e.funcByName(name)
+	}
+
+	name := call.Callee.Name
+	if name == "" && call.Callee.Kind == mir.CalleeSym {
+		name = e.symbolName(call.Callee.Sym)
+	}
+	if name == "" {
+		return mir.NoFuncID, false
+	}
+	if shouldDeferToIntrinsicFallback(name) {
+		return mir.NoFuncID, false
+	}
+
+	argTypes := make([]types.TypeID, 0, len(call.Args))
+	for i := range call.Args {
+		argTypes = append(argTypes, call.Args[i].Type)
+	}
+	resultType := types.NoTypeID
+	if current != nil && call.HasDst {
+		if idx := int(call.Dst.Local); idx >= 0 && idx < len(current.Locals) {
+			resultType = current.Locals[idx].Type
+		}
+	}
+
+	exact := e.collectFuncCandidates(name, true)
+	if id, ok := e.pickFuncCandidate(exact, argTypes, resultType); ok {
+		return id, true
+	}
+	base := stripGenericSuffix(name)
+	if base != "" && base != name {
+		return e.pickFuncCandidate(e.collectFuncCandidates(base, false), argTypes, resultType)
+	}
+	return mir.NoFuncID, false
+}
+
+func (e *Emitter) collectFuncCandidates(name string, exact bool) []mir.FuncID {
+	if e == nil || e.mod == nil || name == "" {
+		return nil
+	}
+	candidates := make([]mir.FuncID, 0, 4)
+	for id, f := range e.mod.Funcs {
+		if f == nil {
+			continue
+		}
+		if exact {
+			if f.Name == name {
+				candidates = append(candidates, mir.FuncID(id))
+			}
+			continue
+		}
+		if stripGenericSuffix(f.Name) == name {
+			candidates = append(candidates, mir.FuncID(id))
+		}
+	}
+	return candidates
+}
+
+func (e *Emitter) pickFuncCandidate(candidates []mir.FuncID, argTypes []types.TypeID, resultType types.TypeID) (mir.FuncID, bool) {
+	if len(candidates) == 0 {
+		return mir.NoFuncID, false
+	}
+
+	steps := []func(mir.FuncID) bool{
+		func(id mir.FuncID) bool { return e.funcSignatureMatches(id, argTypes, resultType, true) },
+		func(id mir.FuncID) bool { return e.funcSignatureMatches(id, argTypes, types.NoTypeID, true) },
+		func(id mir.FuncID) bool { return e.funcSignatureMatches(id, argTypes, resultType, false) },
+		func(id mir.FuncID) bool { return e.funcSignatureMatches(id, argTypes, types.NoTypeID, false) },
+	}
+	for _, step := range steps {
+		match := mir.NoFuncID
+		for _, id := range candidates {
+			if !step(id) {
+				continue
+			}
+			if match != mir.NoFuncID {
+				match = mir.NoFuncID
+				break
+			}
+			match = id
+		}
+		if match != mir.NoFuncID {
+			return match, true
+		}
+	}
+	return mir.NoFuncID, false
+}
+
+func (e *Emitter) funcSignatureMatches(id mir.FuncID, argTypes []types.TypeID, resultType types.TypeID, strictArgs bool) bool {
+	if e == nil || e.mod == nil || int(id) < 0 || int(id) >= len(e.mod.Funcs) {
+		return false
+	}
+	fn := e.mod.Funcs[id]
+	if fn == nil || fn.ParamCount != len(argTypes) {
+		return false
+	}
+	if resultType != types.NoTypeID && normalizeCallType(e.types, fn.Result) != normalizeCallType(e.types, resultType) {
+		return false
+	}
+	if !strictArgs {
+		return true
+	}
+	sig, ok := e.funcSigs[id]
+	if !ok {
+		return false
+	}
+	for i, argType := range argTypes {
+		if argType == types.NoTypeID || i >= len(sig.paramTypes) {
+			continue
+		}
+		if normalizeCallType(e.types, sig.paramTypes[i]) != normalizeCallType(e.types, argType) {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeCallType(typesIn *types.Interner, id types.TypeID) types.TypeID {
+	return resolveAliasAndOwn(typesIn, id)
+}
+
+func shouldDeferToIntrinsicFallback(name string) bool {
+	base := stripGenericSuffix(name)
+	if base == "" {
+		return false
+	}
+	if strings.HasPrefix(base, "__") || strings.HasPrefix(base, "rt_") {
+		return true
+	}
+	switch base {
+	case "size_of", "align_of", "default", "from_str", "from_bytes":
+		return true
+	default:
+		return false
+	}
+}
+
 func (fe *funcEmitter) funcSigFromType(typeID types.TypeID) (funcSig, error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return funcSig{}, fmt.Errorf("missing type interner for function value")

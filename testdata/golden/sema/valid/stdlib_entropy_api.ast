@@ -1,0 +1,25 @@
+stdlib_entropy_api.sg (span: 2:1-12:1)
+├─ Item[0]: Import (span: 2:1-2:34)
+│  ├─ Module: stdlib::entropy
+│  └─ Alias: entropy
+├─ Item[1]: Fn (span: 4:1-7:2)
+│  ├─ Name: use_entropy_fill
+│  ├─ Params: ()
+│  ├─ Return: Erring<nothing, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:49-7:2)
+│        ├─ Stmt[0]: Let (span: 5:5-5:62)
+│        │  ├─ Name: scratch
+│        │  ├─ Mutable: true
+│        │  ├─ Type: byte[]
+│        │  └─ Value: expr#5: Array.with_len(8 to uint)
+│        └─ Stmt[1]: Return (span: 6:5-6:39)
+│           └─ Expr: expr#10: entropy.fill(&mut scratch)
+└─ Item[2]: Fn (span: 9:1-11:2)
+   ├─ Name: use_entropy_bytes
+   ├─ Params: ()
+   ├─ Return: Erring<byte[], Error>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:49-11:2)
+         └─ Stmt[0]: Return (span: 10:5-10:35)
+            └─ Expr: expr#15: entropy.bytes(16 to uint)

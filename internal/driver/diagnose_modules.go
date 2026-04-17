@@ -54,7 +54,7 @@ func analyzeDependencyModule(
 	}
 
 	metaBaseDir := baseDir
-	if stdlibRoot != "" && isStdlibModulePath(modulePath) {
+	if stdlibRoot != "" && isStdlibModulePath(modulePath) && pathWithin(stdlibRoot, dirPath) {
 		metaBaseDir = stdlibRoot
 	}
 	bag := diag.NewBag(opts.MaxDiagnostics)

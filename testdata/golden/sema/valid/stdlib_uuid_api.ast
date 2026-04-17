@@ -1,0 +1,41 @@
+stdlib_uuid_api.sg (span: 2:1-40:1)
+├─ Item[0]: Import (span: 2:1-2:32)
+│  ├─ Module: stdlib::random
+│  └─ Alias: random
+├─ Item[1]: Import (span: 3:1-3:28)
+│  ├─ Module: stdlib::uuid
+│  └─ Alias: uuid
+├─ Item[2]: Fn (span: 5:1-23:2)
+│  ├─ Name: use_uuid_seeded
+│  ├─ Params: ()
+│  ├─ Return: Erring<string, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:47-23:2)
+│        ├─ Stmt[0]: Let (span: 6:5-6:78)
+│        │  ├─ Name: seeded
+│        │  ├─ Mutable: true
+│        │  ├─ Type: random.Pcg32
+│        │  └─ Value: expr#7: random.pcg32_stream(42 to uint64, 54 to uint64)
+│        └─ Stmt[1]: Expr (span: 7:5-22:7)
+│           └─ Expr: expr#41: compare uuid.v4_from_pcg32(&mut seeded) { 2 arms }
+├─ Item[3]: Fn (span: 25:1-34:2)
+│  ├─ Name: use_uuid_system
+│  ├─ Params: ()
+│  ├─ Return: Erring<bool, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 25:45-34:2)
+│        └─ Stmt[0]: Expr (span: 26:5-33:7)
+│           └─ Expr: expr#57: compare uuid.v4() { 2 arms }
+└─ Item[4]: Fn (span: 36:1-39:2)
+   ├─ Name: use_uuid_nil
+   ├─ Params: ()
+   ├─ Return: string
+   └─ Body:
+      └─ Stmt[0]: Block (span: 36:29-39:2)
+         ├─ Stmt[0]: Let (span: 37:5-37:39)
+         │  ├─ Name: value
+         │  ├─ Mutable: false
+         │  ├─ Type: uuid.Uuid
+         │  └─ Value: expr#60: uuid.nil()
+         └─ Stmt[1]: Return (span: 38:5-38:30)
+            └─ Expr: expr#63: value.to_string()

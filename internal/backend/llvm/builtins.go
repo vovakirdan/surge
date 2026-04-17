@@ -16,6 +16,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_memmove", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_write_stdout", ret: "i64", params: []string{"ptr", "i64"}},
 		{name: "rt_write_stderr", ret: "i64", params: []string{"ptr", "i64"}},
+		{name: "rt_entropy_bytes", ret: "ptr", params: []string{"i64"}},
 		{name: "rt_term_enter_alt_screen", ret: "void", params: nil},
 		{name: "rt_term_exit_alt_screen", ret: "void", params: nil},
 		{name: "rt_term_set_raw_mode", ret: "void", params: []string{"i1"}},

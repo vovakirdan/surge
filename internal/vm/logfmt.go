@@ -85,6 +85,21 @@ func LogInt64(v int64) LogValue {
 	return LogValue{Type: "int64", V: mustJSON(v)}
 }
 
+// LogBytes creates a LogValue from a byte slice.
+func LogBytes(v []byte) LogValue {
+	cp := append([]byte(nil), v...)
+	return LogValue{Type: "bytes", V: mustJSON(cp)}
+}
+
+type logEntropyError struct {
+	Code uint64 `json:"code"`
+}
+
+// LogEntropyError creates a LogValue from an entropy runtime error code.
+func LogEntropyError(code uint64) LogValue {
+	return LogValue{Type: "entropy_error", V: mustJSON(logEntropyError{Code: code})}
+}
+
 // MustDecodeString decodes a LogValue as a string.
 func MustDecodeString(v LogValue) (string, error) {
 	if v.Type != "string" {
@@ -131,6 +146,30 @@ func MustDecodeInt64(v LogValue) (int64, error) {
 		return 0, err
 	}
 	return out, nil
+}
+
+// MustDecodeBytes decodes a LogValue as a byte slice.
+func MustDecodeBytes(v LogValue) ([]byte, error) {
+	if v.Type != "bytes" {
+		return nil, fmt.Errorf("expected value type bytes, got %q", v.Type)
+	}
+	var out []byte
+	if err := json.Unmarshal(v.V, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MustDecodeEntropyError decodes a LogValue as an entropy runtime error code.
+func MustDecodeEntropyError(v LogValue) (uint64, error) {
+	if v.Type != "entropy_error" {
+		return 0, fmt.Errorf("expected value type entropy_error, got %q", v.Type)
+	}
+	var out logEntropyError
+	if err := json.Unmarshal(v.V, &out); err != nil {
+		return 0, err
+	}
+	return out.Code, nil
 }
 
 type logTermSize struct {
