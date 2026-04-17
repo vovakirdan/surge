@@ -118,9 +118,6 @@ func (e *Emitter) pickFuncCandidate(candidates []mir.FuncID, argTypes []types.Ty
 	if len(candidates) == 0 {
 		return mir.NoFuncID, false
 	}
-	if len(candidates) == 1 {
-		return candidates[0], true
-	}
 
 	steps := []func(mir.FuncID) bool{
 		func(id mir.FuncID) bool { return e.funcSignatureMatches(id, argTypes, resultType, true) },
@@ -144,7 +141,7 @@ func (e *Emitter) pickFuncCandidate(candidates []mir.FuncID, argTypes []types.Ty
 			return match, true
 		}
 	}
-	return candidates[0], true
+	return mir.NoFuncID, false
 }
 
 func (e *Emitter) funcSignatureMatches(id mir.FuncID, argTypes []types.TypeID, resultType types.TypeID, strictArgs bool) bool {

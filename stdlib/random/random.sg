@@ -60,6 +60,13 @@ fn wrap_u64_mul_add(a: uint64, b: uint64, c: uint64) -> uint64 {
     return wide to uint64;
 }
 
+fn wrap_u64_add(a: uint64, b: uint64) -> uint64 {
+    let wide_a: uint = a to uint;
+    let wide_b: uint = b to uint;
+    let wide: uint = (wide_a + wide_b) % U64_MOD;
+    return wide to uint64;
+}
+
 fn wrap_u64_shift_left(value: uint64, shift: uint64) -> uint64 {
     let wide_value: uint = value to uint;
     let wide_shift: uint = shift to uint;
@@ -198,7 +205,7 @@ pub fn pcg32_stream(seed: uint64, stream: uint64) -> Pcg32 {
         inc = wrap_u64_shift_left(stream, 1:uint64) | 1:uint64
     };
     let _ = pcg32_step(&mut rng);
-    rng.state = rng.state + seed;
+    rng.state = wrap_u64_add(rng.state, seed);
     let _ = pcg32_step(&mut rng);
     return rng;
 }

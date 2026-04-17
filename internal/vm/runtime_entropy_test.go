@@ -3,6 +3,7 @@ package vm
 import (
 	"bytes"
 	"errors"
+	"math"
 	"testing"
 )
 
@@ -69,5 +70,21 @@ func TestRecordingRuntimeEntropyBytesRecordsReplayableError(t *testing.T) {
 	}
 	if rp.Remaining() != 0 {
 		t.Fatalf("expected replay log fully consumed, remaining=%d", rp.Remaining())
+	}
+}
+
+func TestTestRuntimeEntropyBytesWrapsCursorWithoutIntConversions(t *testing.T) {
+	rt := NewTestRuntime(nil, "")
+	rt.entropyCursor = math.MaxUint64 - 1
+
+	data, err := rt.EntropyBytes(3)
+	if err != nil {
+		t.Fatalf("EntropyBytes returned error: %v", err)
+	}
+	if !bytes.Equal(data, []byte{0xFE, 0xFF, 0x00}) {
+		t.Fatalf("unexpected wrapped entropy bytes: %v", data)
+	}
+	if got := rt.entropyCursor; got != 1 {
+		t.Fatalf("unexpected wrapped entropy cursor: got %d want 1", got)
 	}
 }

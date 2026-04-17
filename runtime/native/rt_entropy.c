@@ -88,6 +88,12 @@ static void* entropy_make_success_bytes(const uint8_t* bytes, uint64_t len) {
     size_t payload_offset = rt_tag_payload_offset(payload_align);
     uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
     if (mem == NULL) {
+        if (data != NULL) {
+            rt_free((uint8_t*)data, len, (uint64_t)alignof(uint8_t));
+        }
+        rt_free((uint8_t*)header,
+                (uint64_t)sizeof(SurgeArrayHeader),
+                (uint64_t)alignof(SurgeArrayHeader));
         return entropy_make_error(ENTROPY_ERR_BACKEND);
     }
     void* payload = (void*)header;
@@ -151,7 +157,7 @@ static bool entropy_fill_linux(uint8_t* out, uint64_t len, uint64_t* err_code) {
                 continue;
             }
             if (errno == ENOSYS) {
-                return entropy_fill_urandom(out, len, err_code);
+                return entropy_fill_urandom(out + off, len - off, err_code);
             }
             if (err_code != NULL) {
                 *err_code = entropy_err_from_errno(errno);

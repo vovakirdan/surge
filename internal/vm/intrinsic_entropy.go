@@ -19,8 +19,21 @@ func entropyErrorMessage(code uint64) string {
 	}
 }
 
-func (vm *VM) entropyErrorValue(errType types.TypeID, code uint64) (Value, *VMError) {
-	return vm.makeErrorLikeValue(errType, entropyErrorMessage(code), code)
+func (vm *VM) entropyErrorValue(dstType types.TypeID, code uint64) (Value, *VMError) {
+	layout, vmErr := vm.tagLayoutFor(dstType)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	tc, ok := layout.CaseByName("Error")
+	if !ok || len(tc.PayloadTypes) != 1 {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch, "Erring missing Error tag payload")
+	}
+	errVal, vmErr := vm.makeErrorLikeValue(tc.PayloadTypes[0], entropyErrorMessage(code), code)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	h := vm.Heap.AllocTag(dstType, tc.TagSym, []Value{errVal})
+	return MakeHandleTag(h, dstType), nil
 }
 
 func (vm *VM) entropySuccessValue(dstType types.TypeID, payload Value) (Value, *VMError) {
@@ -43,8 +56,8 @@ func (vm *VM) entropySuccessValue(dstType types.TypeID, payload Value) (Value, *
 	return MakeHandleTag(h, dstType), nil
 }
 
-func (vm *VM) entropyWriteError(frame *Frame, dstLocal mir.LocalID, errType types.TypeID, code uint64, writes *[]LocalWrite) *VMError {
-	errVal, vmErr := vm.entropyErrorValue(errType, code)
+func (vm *VM) entropyWriteError(frame *Frame, dstLocal mir.LocalID, dstType types.TypeID, code uint64, writes *[]LocalWrite) *VMError {
+	errVal, vmErr := vm.entropyErrorValue(dstType, code)
 	if vmErr != nil {
 		return vmErr
 	}
@@ -106,14 +119,10 @@ func (vm *VM) handleRtEntropyBytes(frame *Frame, call *mir.CallInstr, writes *[]
 
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
-	errType, vmErr := vm.erringErrorType(dstType)
-	if vmErr != nil {
-		return vmErr
-	}
 
 	data, err := vm.RT.EntropyBytes(n)
 	if err != nil {
-		return vm.entropyWriteError(frame, dstLocal, errType, entropyErrorCode(err), writes)
+		return vm.entropyWriteError(frame, dstLocal, dstType, entropyErrorCode(err), writes)
 	}
 
 	layout, vmErr := vm.tagLayoutFor(dstType)
@@ -125,8 +134,12 @@ func (vm *VM) handleRtEntropyBytes(frame *Frame, call *mir.CallInstr, writes *[]
 		return vm.eb.makeError(PanicTypeMismatch, "Erring missing Success tag payload")
 	}
 	arrType := tc.PayloadTypes[0]
-	elemType, ok := vm.Types.ArrayInfo(arrType)
+	baseArrType := vm.valueType(arrType)
+	elemType, ok := vm.Types.ArrayInfo(baseArrType)
 	if !ok {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_entropy_bytes requires byte[] payload")
+	}
+	if vm.valueType(elemType) != vm.Types.Builtins().Uint8 {
 		return vm.eb.makeError(PanicTypeMismatch, "rt_entropy_bytes requires byte[] payload")
 	}
 	elems := make([]Value, len(data))

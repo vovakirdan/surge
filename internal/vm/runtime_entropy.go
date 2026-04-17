@@ -86,10 +86,12 @@ func (r *TestRuntime) EntropyBytes(n int) ([]byte, error) {
 		return next, nil
 	}
 	out := make([]byte, n)
-	for i := range n {
-		out[i] = byte((r.entropyCursor + uint64(i)) & 0xFF)
+	cursor := r.entropyCursor
+	for i := range out {
+		out[i] = byte(cursor & 0xFF)
+		cursor++
 	}
-	r.entropyCursor += uint64(n)
+	r.entropyCursor = cursor
 	return out, nil
 }
 

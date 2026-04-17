@@ -100,9 +100,6 @@ func (vm *VM) pickFunctionCandidate(candidates []*mir.Func, argTypes []types.Typ
 	if len(candidates) == 0 {
 		return nil
 	}
-	if len(candidates) == 1 {
-		return candidates[0]
-	}
 
 	steps := []func(*mir.Func) bool{
 		func(fn *mir.Func) bool { return vm.functionSignatureMatches(fn, argTypes, resultType, true) },
@@ -126,7 +123,7 @@ func (vm *VM) pickFunctionCandidate(candidates []*mir.Func, argTypes []types.Typ
 			return match
 		}
 	}
-	return candidates[0]
+	return nil
 }
 
 func (vm *VM) functionSignatureMatches(fn *mir.Func, argTypes []types.TypeID, resultType types.TypeID, strictArgs bool) bool {
@@ -161,11 +158,20 @@ func (vm *VM) normalizeCallType(id types.TypeID) types.TypeID {
 	if vm == nil || vm.Types == nil {
 		return id
 	}
-	id = resolveAlias(vm.Types, id)
-	if tt, ok := vm.Types.Lookup(id); ok && tt.Kind == types.KindOwn {
-		return vm.normalizeCallType(tt.Elem)
+	seen := make(map[types.TypeID]struct{}, 8)
+	for id != types.NoTypeID {
+		if _, ok := seen[id]; ok {
+			return id
+		}
+		seen[id] = struct{}{}
+		id = resolveAlias(vm.Types, id)
+		tt, ok := vm.Types.Lookup(id)
+		if !ok || tt.Kind != types.KindOwn {
+			return id
+		}
+		id = tt.Elem
 	}
-	return id
+	return types.NoTypeID
 }
 
 func stripGenericSuffix(name string) string {
