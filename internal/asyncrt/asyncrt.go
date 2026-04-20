@@ -112,6 +112,12 @@ type Task struct {
 	checkpointPolled bool
 }
 
+// DrainedTasks contains executor-owned payloads that must be released by the caller.
+type DrainedTasks struct {
+	Tasks           []*Task
+	ChannelPayloads []any
+}
+
 // Config configures executor scheduling behavior.
 type Config struct {
 	Deterministic bool
@@ -550,11 +556,12 @@ func (e *Executor) removeWaiter(key WakerKey, id TaskID) {
 	e.waiters[key] = waiters
 }
 
-// DrainTasks returns all tasks and resets executor queues.
-func (e *Executor) DrainTasks() []*Task {
+// DrainTasks returns all tasks plus pending channel payloads and resets executor queues.
+func (e *Executor) DrainTasks() DrainedTasks {
 	if e == nil {
-		return nil
+		return DrainedTasks{}
 	}
+	channelPayloads := e.drainChannelPayloads()
 	if len(e.tasks) == 0 {
 		e.ready = nil
 		if e.readySet != nil {
@@ -585,7 +592,7 @@ func (e *Executor) DrainTasks() []*Task {
 		e.nextSelectID = 1
 		e.nowMs = 0
 		e.current = 0
-		return nil
+		return DrainedTasks{ChannelPayloads: channelPayloads}
 	}
 	tasks := make([]*Task, 0, len(e.tasks))
 	for _, task := range e.tasks {
@@ -620,5 +627,41 @@ func (e *Executor) DrainTasks() []*Task {
 	e.nextTimerID = 1
 	e.nowMs = 0
 	e.current = 0
-	return tasks
+	return DrainedTasks{
+		Tasks:           tasks,
+		ChannelPayloads: channelPayloads,
+	}
+}
+
+func (e *Executor) drainChannelPayloads() []any {
+	if e == nil || len(e.channels) == 0 {
+		return nil
+	}
+	payloads := make([]any, 0)
+	for _, ch := range e.channels {
+		if ch == nil {
+			continue
+		}
+		payloads = append(payloads, ch.buf...)
+		clear(ch.buf)
+		ch.buf = nil
+		ch.head = 0
+
+		for i := range ch.sendq {
+			waiter := &ch.sendq[i]
+			if waiter.hasValue {
+				payloads = append(payloads, waiter.value)
+			}
+			waiter.value = nil
+			waiter.hasValue = false
+		}
+		ch.sendq = nil
+		ch.recvq = nil
+		ch.recvNotify = nil
+		ch.sendNotify = nil
+	}
+	if len(payloads) == 0 {
+		return nil
+	}
+	return payloads
 }

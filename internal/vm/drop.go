@@ -90,8 +90,8 @@ func (vm *VM) dropAsyncTasks() {
 	if vm == nil || vm.Async == nil {
 		return
 	}
-	tasks := vm.Async.DrainTasks()
-	for _, task := range tasks {
+	drained := vm.Async.DrainTasks()
+	for _, task := range drained.Tasks {
 		if task == nil {
 			continue
 		}
@@ -101,8 +101,17 @@ func (vm *VM) dropAsyncTasks() {
 		if v, ok := task.ResultValue.(Value); ok {
 			vm.dropValue(v)
 		}
+		if v, ok := task.ResumeValue.(Value); ok {
+			vm.dropValue(v)
+		}
 		task.State = nil
 		task.ResultValue = nil
+		task.ResumeValue = nil
+	}
+	for _, payload := range drained.ChannelPayloads {
+		if v, ok := payload.(Value); ok {
+			vm.dropValue(v)
+		}
 	}
 }
 

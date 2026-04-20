@@ -318,7 +318,7 @@ func (vm *VM) handleRtExit(frame *Frame, call *mir.CallInstr) *VMError {
 	}
 	vm.ExitCode = code
 	vm.RT.Exit(code)
-	vm.requestShutdown(false)
+	vm.requestShutdown(true)
 	return nil
 }
 
@@ -331,21 +331,25 @@ func (vm *VM) handleRtPanic(frame *Frame, call *mir.CallInstr) *VMError {
 	if vmErr != nil {
 		return vmErr
 	}
-	defer vm.dropValue(ptrVal)
 	if ptrVal.Kind != VKPtr {
+		vm.dropValue(ptrVal)
 		return vm.eb.typeMismatch("*byte", ptrVal.Kind.String())
 	}
 	lenVal, vmErr := vm.evalOperand(frame, &call.Args[1])
 	if vmErr != nil {
+		vm.dropValue(ptrVal)
 		return vmErr
 	}
-	defer vm.dropValue(lenVal)
 
 	n, vmErr := vm.uintValueToInt(lenVal, "panic message length out of range")
 	if vmErr != nil {
+		vm.dropValue(lenVal)
+		vm.dropValue(ptrVal)
 		return vmErr
 	}
 	raw, vmErr := vm.readBytesFromPointer(ptrVal, n)
+	vm.dropValue(lenVal)
+	vm.dropValue(ptrVal)
 	if vmErr != nil {
 		return vmErr
 	}
@@ -361,7 +365,7 @@ func (vm *VM) handleRtPanic(frame *Frame, call *mir.CallInstr) *VMError {
 	code := 1
 	vm.ExitCode = code
 	vm.RT.Exit(code)
-	vm.requestShutdown(false)
+	vm.requestShutdown(true)
 	return nil
 }
 
