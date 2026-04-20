@@ -105,6 +105,7 @@ type Task struct {
 	Cancelled        bool
 	ScopeID          ScopeID
 	ParentScopeID    ScopeID
+	ScopeRegistered  bool
 	Children         []TaskID
 	TimeoutTaskID    TaskID
 	SelectID         SelectID
@@ -451,6 +452,7 @@ func (e *Executor) MarkDone(id TaskID, kind TaskResultKind, result any) {
 			}
 		}
 	}
+	e.unregisterScopeChild(task)
 	e.WakeKeyAll(JoinKey(id))
 }
 

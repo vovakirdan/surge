@@ -1,6 +1,9 @@
 package asyncrt
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // ScopeID identifies an async scope.
 type ScopeID uint64
@@ -48,16 +51,9 @@ func (e *Executor) ExitScope(scopeID ScopeID) {
 	if scope == nil {
 		return
 	}
-	live := make([]TaskID, 0, len(scope.Children))
-	for _, child := range scope.Children {
-		task := e.tasks[child]
-		if task == nil || task.Status == TaskDone {
-			continue
-		}
-		live = append(live, child)
-	}
-	if len(live) > 0 {
-		panic(fmt.Sprintf("scope %d exited with live children: %v", scopeID, live))
+	e.compactScopeChildren(scope)
+	if len(scope.Children) > 0 {
+		panic(fmt.Sprintf("scope %d exited with live children: %v", scopeID, scope.Children))
 	}
 	delete(e.scopes, scopeID)
 	if task := e.tasks[scope.Owner]; task != nil && task.ScopeID == scopeID {
@@ -74,10 +70,23 @@ func (e *Executor) RegisterChild(scopeID ScopeID, child TaskID) {
 	if scope == nil {
 		return
 	}
-	scope.Children = append(scope.Children, child)
-	if task := e.tasks[child]; task != nil {
-		task.ParentScopeID = scopeID
+	task := e.tasks[child]
+	if task == nil || task.ScopeRegistered {
+		return
 	}
+	if task.Status == TaskDone {
+		if task.ResultKind == TaskResultCancelled && scope.Failfast && !scope.FailfastTriggered {
+			scope.FailfastTriggered = true
+			e.CancelAllChildren(scopeID)
+			if owner := e.tasks[scope.Owner]; owner != nil && owner.Status != TaskDone {
+				e.Wake(scope.Owner)
+			}
+		}
+		return
+	}
+	scope.Children = append(scope.Children, child)
+	task.ParentScopeID = scopeID
+	task.ScopeRegistered = true
 }
 
 // CancelAllChildren cancels all children in task order.
@@ -89,6 +98,7 @@ func (e *Executor) CancelAllChildren(scopeID ScopeID) {
 	if scope == nil {
 		return
 	}
+	e.compactScopeChildren(scope)
 	for _, child := range scope.Children {
 		e.Cancel(child)
 	}
@@ -105,12 +115,42 @@ func (e *Executor) JoinAllChildrenBlocking(scopeID ScopeID) (done bool, pending 
 	if scope == nil {
 		return true, 0, false
 	}
-	for _, child := range scope.Children {
-		task := e.tasks[child]
-		if task == nil || task.Status == TaskDone {
-			continue
-		}
-		return false, child, scope.FailfastTriggered
+	e.compactScopeChildren(scope)
+	if len(scope.Children) > 0 {
+		return false, scope.Children[0], scope.FailfastTriggered
 	}
 	return true, 0, scope.FailfastTriggered
+}
+
+func (e *Executor) compactScopeChildren(scope *Scope) {
+	if e == nil || scope == nil || len(scope.Children) == 0 {
+		return
+	}
+	scope.Children = slices.DeleteFunc(scope.Children, func(child TaskID) bool {
+		task := e.tasks[child]
+		if task == nil || task.Status == TaskDone {
+			if task != nil {
+				task.ParentScopeID = 0
+				task.ScopeRegistered = false
+			}
+			return true
+		}
+		return false
+	})
+}
+
+func (e *Executor) unregisterScopeChild(task *Task) {
+	if e == nil || task == nil {
+		return
+	}
+	scopeID := task.ParentScopeID
+	if scopeID != 0 {
+		if scope := e.scopes[scopeID]; scope != nil && len(scope.Children) > 0 {
+			if idx := slices.Index(scope.Children, task.ID); idx >= 0 {
+				scope.Children = slices.Delete(scope.Children, idx, idx+1)
+			}
+		}
+	}
+	task.ParentScopeID = 0
+	task.ScopeRegistered = false
 }
