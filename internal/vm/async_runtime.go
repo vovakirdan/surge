@@ -597,7 +597,14 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 	vm.deferredShutdown = savedDeferredShutdown
 
 	if deferredShutdown.active {
-		vm.finishShutdown(deferredShutdown.checkLeaks || savedDeferredShutdown.checkLeaks)
+		checkLeaks := deferredShutdown.checkLeaks || savedDeferredShutdown.checkLeaks
+		if savedAsync != nil {
+			vm.Halted = true
+			vm.deferredShutdown.active = true
+			vm.deferredShutdown.checkLeaks = checkLeaks
+			return asyncrt.PollOutcome{}, Value{}, nil
+		}
+		vm.finishShutdown(checkLeaks)
 		return asyncrt.PollOutcome{}, Value{}, nil
 	}
 

@@ -23,6 +23,7 @@ func (vm *VM) execInstrAwait(frame *Frame, instr *mir.Instr, writes []LocalWrite
 		return false, Location{}, Value{}, writes, vmErr
 	}
 	if vm.Halted {
+		vm.dropValue(res)
 		return false, Location{}, Value{}, writes, nil
 	}
 	dst := instr.Await.Dst

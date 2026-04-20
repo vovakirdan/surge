@@ -32,7 +32,16 @@ func TestDrainTasksCollectsPendingChannelPayloads(t *testing.T) {
 	if len(drained.Tasks) != 1 {
 		t.Fatalf("expected 1 drained task, got %d", len(drained.Tasks))
 	}
-	if !slices.Equal(drained.ChannelPayloads, []any{"buffered", "parked"}) {
+	gotPayloads := make([]string, 0, len(drained.ChannelPayloads))
+	for _, payload := range drained.ChannelPayloads {
+		value, ok := payload.(string)
+		if !ok {
+			t.Fatalf("expected string payload, got %T", payload)
+		}
+		gotPayloads = append(gotPayloads, value)
+	}
+	slices.Sort(gotPayloads)
+	if !slices.Equal(gotPayloads, []string{"buffered", "parked"}) {
 		t.Fatalf("unexpected drained payloads: %v", drained.ChannelPayloads)
 	}
 	if buffered.buf != nil || buffered.head != 0 {

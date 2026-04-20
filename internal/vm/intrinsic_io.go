@@ -348,12 +348,14 @@ func (vm *VM) handleRtPanic(frame *Frame, call *mir.CallInstr) *VMError {
 		return vmErr
 	}
 	raw, vmErr := vm.readBytesFromPointer(ptrVal, n)
-	vm.dropValue(lenVal)
-	vm.dropValue(ptrVal)
 	if vmErr != nil {
+		vm.dropValue(lenVal)
+		vm.dropValue(ptrVal)
 		return vmErr
 	}
 	msg := string(raw)
+	vm.dropValue(lenVal)
+	vm.dropValue(ptrVal)
 	if !strings.HasSuffix(msg, "\n") {
 		msg += "\n"
 	}
