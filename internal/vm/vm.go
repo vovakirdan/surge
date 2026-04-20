@@ -179,6 +179,10 @@ func (vm *VM) Step() (vmErr *VMError) {
 				vmErr = e
 				return
 			}
+			if e, ok := r.(*asyncrt.ScopeExitError); ok {
+				vmErr = vm.eb.makeError(PanicUnimplemented, "async scope invariant violated: "+e.Error())
+				return
+			}
 			panic(r)
 		}
 	}()

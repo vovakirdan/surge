@@ -5,6 +5,19 @@ import (
 	"slices"
 )
 
+// ScopeExitError reports that a scope was exited with live children still attached.
+type ScopeExitError struct {
+	ScopeID      ScopeID
+	LiveChildren []TaskID
+}
+
+func (e *ScopeExitError) Error() string {
+	if e == nil {
+		return "scope exited with live children"
+	}
+	return fmt.Sprintf("scope %d exited with live children: %v", e.ScopeID, e.LiveChildren)
+}
+
 // ScopeID identifies an async scope.
 type ScopeID uint64
 
@@ -53,7 +66,10 @@ func (e *Executor) ExitScope(scopeID ScopeID) {
 	}
 	e.compactScopeChildren(scope)
 	if len(scope.Children) > 0 {
-		panic(fmt.Sprintf("scope %d exited with live children: %v", scopeID, scope.Children))
+		panic(&ScopeExitError{
+			ScopeID:      scopeID,
+			LiveChildren: slices.Clone(scope.Children),
+		})
 	}
 	delete(e.scopes, scopeID)
 	if task := e.tasks[scope.Owner]; task != nil && task.ScopeID == scopeID {

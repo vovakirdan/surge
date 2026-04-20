@@ -17,10 +17,20 @@ func TestScopeExitPanicsOnLiveChildren(t *testing.T) {
 		if r == nil {
 			t.Fatalf("expected panic on scope exit with live children")
 		}
-		msg := fmt.Sprint(r)
+		scopeErr, ok := r.(*ScopeExitError)
+		if !ok {
+			t.Fatalf("expected ScopeExitError, got %T", r)
+		}
+		msg := scopeErr.Error()
 		want := fmt.Sprintf("scope %d exited with live children: [%d]", scopeID, child)
 		if msg != want {
 			t.Fatalf("panic mismatch: want %q, got %q", want, msg)
+		}
+		if scopeErr.ScopeID != scopeID {
+			t.Fatalf("expected scope id %d, got %d", scopeID, scopeErr.ScopeID)
+		}
+		if len(scopeErr.LiveChildren) != 1 || scopeErr.LiveChildren[0] != child {
+			t.Fatalf("expected live children [%d], got %v", child, scopeErr.LiveChildren)
 		}
 	}()
 
