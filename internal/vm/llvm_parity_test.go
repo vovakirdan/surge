@@ -36,6 +36,8 @@ func TestLLVMParity(t *testing.T) {
 		file  string
 		setup func(t *testing.T) []string
 	}{
+		{name: "async_rt_exit", file: "async_rt_exit.sg"},
+		{name: "async_panic", file: "async_panic.sg"},
 		{name: "exit_code", file: "exit_code.sg"},
 		{name: "panic", file: "panic.sg"},
 		{name: "string_concat", file: "string_concat.sg"},

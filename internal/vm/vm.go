@@ -48,6 +48,8 @@ type VM struct {
 	captureReturn       *Value
 	asyncCapture        *asyncExit
 	asyncPendingParkKey asyncrt.WakerKey
+	pollDepth           int
+	deferredShutdown    shutdownState
 }
 
 // New creates a new VM for executing the given MIR module.

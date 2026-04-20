@@ -318,13 +318,7 @@ func (vm *VM) handleRtExit(frame *Frame, call *mir.CallInstr) *VMError {
 	}
 	vm.ExitCode = code
 	vm.RT.Exit(code)
-
-	vm.dropAllFrames()
-	vm.dropGlobals()
-	vm.dropAsyncTasks()
-
-	vm.Halted = true
-	vm.Stack = nil
+	vm.requestShutdown(false)
 	return nil
 }
 
@@ -367,13 +361,7 @@ func (vm *VM) handleRtPanic(frame *Frame, call *mir.CallInstr) *VMError {
 	code := 1
 	vm.ExitCode = code
 	vm.RT.Exit(code)
-
-	vm.dropAllFrames()
-	vm.dropGlobals()
-	vm.dropAsyncTasks()
-
-	vm.Halted = true
-	vm.Stack = nil
+	vm.requestShutdown(false)
 	return nil
 }
 
