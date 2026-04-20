@@ -81,6 +81,10 @@ func (vm *VM) handleChannelSend(frame *Frame, call *mir.CallInstr) *VMError {
 	}
 
 	for {
+		if vm.Halted {
+			vm.dropValue(val)
+			return nil
+		}
 		if exec.ChanSendOrPark(chID, val) {
 			return nil
 		}
@@ -92,6 +96,10 @@ func (vm *VM) handleChannelSend(frame *Frame, call *mir.CallInstr) *VMError {
 		if vmErr != nil {
 			vm.dropValue(val)
 			return vmErr
+		}
+		if vm.Halted {
+			vm.dropValue(val)
+			return nil
 		}
 		if !ran {
 			vm.dropValue(val)
@@ -129,6 +137,9 @@ func (vm *VM) handleChannelRecv(frame *Frame, call *mir.CallInstr, writes *[]Loc
 	dstType := frame.Locals[dstLocal].TypeID
 
 	for {
+		if vm.Halted {
+			return nil
+		}
 		valAny, ok := exec.ChanRecvOrPark(chID)
 		if ok {
 			v, ok := valAny.(Value)
@@ -174,6 +185,9 @@ func (vm *VM) handleChannelRecv(frame *Frame, call *mir.CallInstr, writes *[]Loc
 		ran, vmErr := vm.runReadyOne()
 		if vmErr != nil {
 			return vmErr
+		}
+		if vm.Halted {
+			return nil
 		}
 		if !ran {
 			return vm.eb.makeError(PanicUnimplemented, "async deadlock")

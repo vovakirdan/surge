@@ -1,0 +1,13 @@
+async fn child() -> nothing {
+    panic("boom");
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let task: Task<nothing> = spawn child();
+    compare task.await() {
+        Success(_) => return 42;
+        Cancelled() => return 99;
+    }
+}

@@ -48,6 +48,8 @@ type VM struct {
 	captureReturn       *Value
 	asyncCapture        *asyncExit
 	asyncPendingParkKey asyncrt.WakerKey
+	pollDepth           int
+	deferredShutdown    shutdownState
 }
 
 // New creates a new VM for executing the given MIR module.
@@ -175,6 +177,10 @@ func (vm *VM) Step() (vmErr *VMError) {
 		if r := recover(); r != nil {
 			if e, ok := r.(*VMError); ok {
 				vmErr = e
+				return
+			}
+			if e, ok := r.(*asyncrt.ScopeExitError); ok {
+				vmErr = vm.eb.makeError(PanicUnimplemented, "async scope invariant violated: "+e.Error())
 				return
 			}
 			panic(r)

@@ -471,6 +471,10 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 		exec.SetCurrent(0)
 		return true, vmErr
 	}
+	if vm.Halted {
+		exec.SetCurrent(0)
+		return true, nil
+	}
 	switch outcome.Kind {
 	case asyncrt.PollDoneSuccess:
 		exec.MarkDone(id, asyncrt.TaskResultSuccess, outcome.Value)
@@ -504,6 +508,9 @@ func (vm *VM) runUntilDone(id asyncrt.TaskID, resultType types.TypeID) (Value, *
 		exec.Wake(id)
 	}
 	for {
+		if vm.Halted {
+			return Value{}, nil
+		}
 		task := exec.Task(id)
 		if task == nil {
 			return Value{}, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", id))
@@ -514,6 +521,9 @@ func (vm *VM) runUntilDone(id asyncrt.TaskID, resultType types.TypeID) (Value, *
 		ran, vmErr := vm.runReadyOne()
 		if vmErr != nil {
 			return Value{}, vmErr
+		}
+		if vm.Halted {
+			return Value{}, nil
 		}
 		if !ran {
 			return Value{}, vm.eb.makeError(PanicUnimplemented, "async deadlock")
@@ -544,17 +554,22 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 	savedCapture := vm.captureReturn
 	savedAsync := vm.asyncCapture
 	savedPendingParkKey := vm.asyncPendingParkKey
+	savedDeferredShutdown := vm.deferredShutdown
 
 	exit := asyncExit{}
+	vm.pollDepth++
+	defer func() {
+		vm.pollDepth--
+	}()
 	vm.asyncCapture = &exit
 	vm.asyncPendingParkKey = asyncrt.WakerKey{}
 	vm.captureReturn = nil
-	vm.Stack = append([]Frame(nil), vm.Stack...)
+	vm.deferredShutdown = shutdownState{}
 	vm.Halted = false
 	vm.started = true
 
 	frame := NewFrame(fn)
-	vm.Stack = append(vm.Stack, *frame)
+	vm.Stack = []Frame{*frame}
 
 	for len(vm.Stack) > 0 && !vm.Halted {
 		if vmErr := vm.Step(); vmErr != nil {
@@ -564,6 +579,7 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 			vm.captureReturn = savedCapture
 			vm.asyncCapture = savedAsync
 			vm.asyncPendingParkKey = savedPendingParkKey
+			vm.deferredShutdown = savedDeferredShutdown
 			return asyncrt.PollOutcome{}, Value{}, vmErr
 		}
 		if exit.set {
@@ -571,12 +587,26 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 		}
 	}
 
+	deferredShutdown := vm.deferredShutdown
 	vm.Stack = savedStack
 	vm.Halted = savedHalted
 	vm.started = savedStarted
 	vm.captureReturn = savedCapture
 	vm.asyncCapture = savedAsync
 	vm.asyncPendingParkKey = savedPendingParkKey
+	vm.deferredShutdown = savedDeferredShutdown
+
+	if deferredShutdown.active {
+		checkLeaks := deferredShutdown.checkLeaks || savedDeferredShutdown.checkLeaks
+		if savedAsync != nil {
+			vm.Halted = true
+			vm.deferredShutdown.active = true
+			vm.deferredShutdown.checkLeaks = checkLeaks
+			return asyncrt.PollOutcome{}, Value{}, nil
+		}
+		vm.finishShutdown(checkLeaks)
+		return asyncrt.PollOutcome{}, Value{}, nil
+	}
 
 	if !exit.set {
 		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "poll function exited without async terminator")

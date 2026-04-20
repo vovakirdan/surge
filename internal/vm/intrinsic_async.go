@@ -166,6 +166,9 @@ func (vm *VM) handleTimeout(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	})
 
 	for {
+		if vm.Halted {
+			return nil
+		}
 		timeoutTask := exec.Task(timeoutID)
 		if timeoutTask == nil {
 			return vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", timeoutID))
@@ -206,6 +209,9 @@ func (vm *VM) handleTimeout(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		ran, vmErr := vm.runReadyOne()
 		if vmErr != nil {
 			return vmErr
+		}
+		if vm.Halted {
+			return nil
 		}
 		if !ran {
 			return vm.eb.makeError(PanicUnimplemented, "async deadlock")

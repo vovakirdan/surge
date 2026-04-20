@@ -1,6 +1,6 @@
 # Compiler And Runtime Follow-ups
 
-Short notes collected during stdlib work when something looked like a compiler or runtime sharp edge but did not block the current task.
+Open follow-up notes collected during stdlib work when something looked like a compiler or runtime sharp edge but did not block the current task.
 
 ## 2026-03-20
 
