@@ -163,6 +163,9 @@ func (c *taskStatePinCollector) pinLocal(frame *Frame, local int32) *VMError {
 	if !slot.IsInit {
 		return c.vm.eb.useBeforeInit(slot.Name)
 	}
+	if slot.IsMoved {
+		return c.vm.eb.useAfterMove(slot.Name)
+	}
 	if slot.IsDropped {
 		return c.vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: local %q used after drop", slot.Name))
 	}

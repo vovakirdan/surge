@@ -105,9 +105,7 @@ func (vm *VM) dropAsyncTasks() {
 			state.state = Value{}
 			state.pins = taskStatePins{}
 			task.State = nil
-			continue
-		}
-		if v, ok := task.State.(Value); ok {
+		} else if v, ok := task.State.(Value); ok {
 			vm.dropValue(v)
 		}
 		if v, ok := task.ResultValue.(Value); ok {

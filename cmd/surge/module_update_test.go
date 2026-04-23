@@ -154,7 +154,7 @@ func pushModuleCommit(t *testing.T, remote, source string) string {
 func mustGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	if len(args) > 0 && args[0] == "commit" {
-		args = append([]string{"-c", "core.hooksPath=/dev/null"}, args...)
+		args = append([]string{"-c", "core.hooksPath=" + os.DevNull}, args...)
 	}
 	out, err := gitRun(dir, args...)
 	if err != nil {
