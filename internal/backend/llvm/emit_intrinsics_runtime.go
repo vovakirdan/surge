@@ -99,47 +99,17 @@ func (fe *funcEmitter) emitRtMonotonicNow(call *mir.CallInstr) error {
 	if !call.HasDst {
 		return nil
 	}
-	dstType, err := fe.placeBaseType(call.Dst)
+	size, align, opaqueOffset, err := fe.monotonicDurationLayout(call.Dst)
 	if err != nil {
 		return err
-	}
-	layoutInfo, err := fe.emitter.layoutOf(dstType)
-	if err != nil {
-		return err
-	}
-	fieldIdx, fieldType, err := fe.structFieldInfo(dstType, mir.PlaceProj{
-		Kind:      mir.PlaceProjField,
-		FieldName: "__opaque",
-		FieldIdx:  -1,
-	})
-	if err != nil {
-		return err
-	}
-	if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
-		return fmt.Errorf("duration field index %d out of range", fieldIdx)
-	}
-	fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
-	if err != nil {
-		return err
-	}
-	if fieldLLVM != "i64" {
-		return fmt.Errorf("monotonic_now requires int64 __opaque field, got %s", fieldLLVM)
-	}
-	size := layoutInfo.Size
-	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
-		align = 1
 	}
 	mem := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	now := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_monotonic_now()\n", now)
-	fieldPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", fieldPtr, mem, layoutInfo.FieldOffsets[fieldIdx])
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", now, fieldPtr)
+	elapsedNs := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_monotonic_now()\n", elapsedNs)
+	opaquePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", opaquePtr, mem, opaqueOffset)
+	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", elapsedNs, opaquePtr)
 	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
 	if err != nil {
 		return err
@@ -149,6 +119,44 @@ func (fe *funcEmitter) emitRtMonotonicNow(call *mir.CallInstr) error {
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, mem, ptr)
 	return nil
+}
+
+func (fe *funcEmitter) monotonicDurationLayout(dst mir.Place) (size, align, opaqueOffset int, err error) {
+	dstType, err := fe.placeBaseType(dst)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	layoutInfo, err := fe.emitter.layoutOf(dstType)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	fieldIdx, fieldType, err := fe.structFieldInfo(dstType, mir.PlaceProj{
+		Kind:      mir.PlaceProjField,
+		FieldName: "__opaque",
+		FieldIdx:  -1,
+	})
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
+		return 0, 0, 0, fmt.Errorf("duration field index %d out of range", fieldIdx)
+	}
+	fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	if fieldLLVM != "i64" {
+		return 0, 0, 0, fmt.Errorf("monotonic_now requires int64 __opaque field, got %s", fieldLLVM)
+	}
+	size = layoutInfo.Size
+	align = layoutInfo.Align
+	if size <= 0 {
+		size = 1
+	}
+	if align <= 0 {
+		align = 1
+	}
+	return size, align, layoutInfo.FieldOffsets[fieldIdx], nil
 }
 
 func (fe *funcEmitter) emitRtSleep(call *mir.CallInstr) error {
