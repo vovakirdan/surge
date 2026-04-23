@@ -1,0 +1,11 @@
+import stdlib/time;
+
+@entrypoint
+fn main() -> int {
+    let started = time.monotonic_now();
+    let later = time.monotonic_now();
+    if later.__opaque < started.__opaque {
+        return 1;
+    }
+    return 0;
+}
