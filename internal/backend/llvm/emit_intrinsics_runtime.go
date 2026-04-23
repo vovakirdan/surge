@@ -74,6 +74,8 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitRtPanic(call)
 	case "rt_panic_bounds":
 		return true, fe.emitRtPanicBounds(call)
+	case "monotonic_now":
+		return true, fe.emitRtMonotonicNow(call)
 	case "rt_worker_count":
 		return true, fe.emitRtWorkerCount(call)
 	case "rt_exit":
@@ -85,6 +87,68 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 	default:
 		return false, nil
 	}
+}
+
+func (fe *funcEmitter) emitRtMonotonicNow(call *mir.CallInstr) error {
+	if call == nil {
+		return nil
+	}
+	if len(call.Args) != 0 {
+		return fmt.Errorf("monotonic_now requires 0 arguments")
+	}
+	if !call.HasDst {
+		return nil
+	}
+	dstType, err := fe.placeBaseType(call.Dst)
+	if err != nil {
+		return err
+	}
+	layoutInfo, err := fe.emitter.layoutOf(dstType)
+	if err != nil {
+		return err
+	}
+	fieldIdx, fieldType, err := fe.structFieldInfo(dstType, mir.PlaceProj{
+		Kind:      mir.PlaceProjField,
+		FieldName: "__opaque",
+		FieldIdx:  -1,
+	})
+	if err != nil {
+		return err
+	}
+	if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
+		return fmt.Errorf("duration field index %d out of range", fieldIdx)
+	}
+	fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
+	if err != nil {
+		return err
+	}
+	if fieldLLVM != "i64" {
+		return fmt.Errorf("monotonic_now requires int64 __opaque field, got %s", fieldLLVM)
+	}
+	size := layoutInfo.Size
+	align := layoutInfo.Align
+	if size <= 0 {
+		size = 1
+	}
+	if align <= 0 {
+		align = 1
+	}
+	mem := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	now := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_monotonic_now()\n", now)
+	fieldPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", fieldPtr, mem, layoutInfo.FieldOffsets[fieldIdx])
+	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", now, fieldPtr)
+	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	if err != nil {
+		return err
+	}
+	if dstTy != "ptr" {
+		dstTy = "ptr"
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, mem, ptr)
+	return nil
 }
 
 func (fe *funcEmitter) emitRtSleep(call *mir.CallInstr) error {

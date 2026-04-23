@@ -27,6 +27,7 @@ func TestLLVMSmoke(t *testing.T) {
 		file string
 	}{
 		{name: "hello_print", file: "hello_print.sg"},
+		{name: "time_monotonic_now", file: "time_monotonic_now.sg"},
 		{name: "unicode_print", file: "unicode_print.sg"},
 		{name: "exit_code", file: "exit_code.sg"},
 	}

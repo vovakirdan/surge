@@ -1,0 +1,7 @@
+import stdlib/time;
+
+@entrypoint
+fn main() -> int {
+    let started = time.monotonic_now();
+    return 0;
+}
