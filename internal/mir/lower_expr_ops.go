@@ -211,10 +211,6 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: cast: unexpected payload %T", e.Data)
 	}
-	value, err := l.lowerValueExpr(data.Value, false)
-	if err != nil {
-		return Operand{}, err
-	}
 	resultTy := e.Type
 	if resultTy == types.NoTypeID {
 		resultTy = data.TargetTy
@@ -222,6 +218,16 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 	targetTy := data.TargetTy
 	if targetTy == types.NoTypeID {
 		targetTy = resultTy
+	}
+	valueExpr := data.Value
+	if valueExpr != nil && valueExpr.Type == types.NoTypeID && targetTy != types.NoTypeID && valueExpr.Kind == hir.ExprLiteral {
+		clone := *valueExpr
+		clone.Type = targetTy
+		valueExpr = &clone
+	}
+	value, err := l.lowerValueExpr(valueExpr, false)
+	if err != nil {
+		return Operand{}, err
 	}
 	tmp := l.newTemp(resultTy, "cast", e.Span)
 	l.emit(&Instr{

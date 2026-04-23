@@ -231,12 +231,13 @@ func (b *surgeStartBuilder) emitExitCall(codeLocal LocalID) {
 	})
 }
 
-func (b *surgeStartBuilder) lowerDefaultExpr(expr *hir.Expr) (Operand, error) {
+func (b *surgeStartBuilder) lowerDefaultExpr(expr *hir.Expr, expected types.TypeID) (Operand, error) {
 	if expr == nil {
 		return Operand{}, fmt.Errorf("nil default expression")
 	}
 	lowerer := &funcLowerer{
 		f:                   b.f,
+		sema:                b.sema,
 		types:               b.typesIn,
 		symToLocal:          make(map[symbols.SymbolID]LocalID, len(b.paramLocals)),
 		nextTemp:            1,
@@ -249,7 +250,7 @@ func (b *surgeStartBuilder) lowerDefaultExpr(expr *hir.Expr) (Operand, error) {
 	for sym, local := range b.paramLocals {
 		lowerer.symToLocal[sym] = local
 	}
-	op, err := lowerer.lowerExpr(expr, true)
+	op, err := lowerer.lowerExprForType(expr, expected)
 	if err != nil {
 		return Operand{}, err
 	}
