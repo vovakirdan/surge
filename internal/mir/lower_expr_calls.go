@@ -9,6 +9,36 @@ import (
 	"surge/internal/types"
 )
 
+func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID) (Operand, error) {
+	if op, ok := l.lowerSharedRefReborrowArg(argExpr, paramType); ok {
+		return op, nil
+	}
+	return l.lowerExpr(argExpr, true)
+}
+
+func (l *funcLowerer) lowerSharedRefReborrowArg(argExpr *hir.Expr, paramType types.TypeID) (Operand, bool) {
+	if l == nil || l.types == nil || argExpr == nil || argExpr.Type == types.NoTypeID || paramType == types.NoTypeID {
+		return Operand{}, false
+	}
+
+	paramInfo, ok := l.types.Lookup(resolveAlias(l.types, paramType))
+	if !ok || paramInfo.Kind != types.KindReference || paramInfo.Mutable {
+		return Operand{}, false
+	}
+
+	argInfo, ok := l.types.Lookup(resolveAlias(l.types, argExpr.Type))
+	if !ok || argInfo.Kind != types.KindReference || !argInfo.Mutable {
+		return Operand{}, false
+	}
+
+	place, err := l.lowerPlace(argExpr)
+	if err != nil {
+		return Operand{}, false
+	}
+	place.Proj = append(place.Proj, PlaceProj{Kind: PlaceProjDeref})
+	return Operand{Kind: OperandAddrOf, Type: paramType, Place: place}, true
+}
+
 func (l *funcLowerer) calleeFunc(symID symbols.SymbolID) *hir.Func {
 	if l == nil || !symID.IsValid() || l.mono == nil || l.mono.FuncBySym == nil {
 		return nil
@@ -25,7 +55,11 @@ func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, 
 	if fn == nil || fn.IsIntrinsic() || len(data.Args) >= len(fn.Params) {
 		args := make([]Operand, 0, len(data.Args))
 		for i, a := range data.Args {
-			op, err := l.lowerExpr(a, true)
+			paramType := types.NoTypeID
+			if fn != nil && i < len(fn.Params) {
+				paramType = fn.Params[i].Type
+			}
+			op, err := l.lowerCallArgExpr(a, paramType)
 			if err != nil {
 				return nil, err
 			}
@@ -87,7 +121,7 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 
 	args := make([]Operand, 0, len(params))
 	for i, argExpr := range data.Args {
-		op, err := l.lowerExpr(argExpr, true)
+		op, err := l.lowerCallArgExpr(argExpr, params[i].Type)
 		if err != nil {
 			return nil, err
 		}
