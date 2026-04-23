@@ -1,0 +1,17 @@
+type Entry = {
+    borrowers: string[],
+};
+
+fn add_borrower(entry: &mut Entry, client_id: &string) -> nothing {
+    if !entry.borrowers.contains(client_id) {
+        entry.borrowers.push(client_id.__clone());
+    }
+    return nothing;
+}
+
+fn main() -> int {
+    let mut entry: Entry = { borrowers = [] };
+    add_borrower(&mut entry, &"client-a");
+    add_borrower(&mut entry, &"client-a");
+    return entry.borrowers.__len() to int;
+}

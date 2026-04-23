@@ -143,3 +143,115 @@ func (l *funcLowerer) needsDerefForRefObject(e *hir.Expr) bool {
 		return true
 	}
 }
+
+func (l *funcLowerer) reborrowPlaceNeedsDeref(place Place) bool {
+	ty, ok := l.placeType(place)
+	if !ok {
+		return true
+	}
+	tt, ok := l.types.Lookup(resolveAlias(l.types, ty))
+	return ok && tt.Kind == types.KindReference && tt.Mutable
+}
+
+func (l *funcLowerer) placeType(place Place) (types.TypeID, bool) {
+	if l == nil || l.types == nil || !place.IsValid() {
+		return types.NoTypeID, false
+	}
+
+	var cur types.TypeID
+	switch place.Kind {
+	case PlaceLocal:
+		idx := int(place.Local)
+		if l.f == nil || idx < 0 || idx >= len(l.f.Locals) {
+			return types.NoTypeID, false
+		}
+		cur = l.f.Locals[idx].Type
+	case PlaceGlobal:
+		idx := int(place.Global)
+		if l.out == nil || idx < 0 || idx >= len(l.out.Globals) {
+			return types.NoTypeID, false
+		}
+		cur = l.out.Globals[idx].Type
+	default:
+		return types.NoTypeID, false
+	}
+
+	for _, proj := range place.Proj {
+		next, ok := l.projectedPlaceType(cur, proj)
+		if !ok {
+			return types.NoTypeID, false
+		}
+		cur = next
+	}
+	return cur, true
+}
+
+func (l *funcLowerer) projectedPlaceType(cur types.TypeID, proj PlaceProj) (types.TypeID, bool) {
+	switch proj.Kind {
+	case PlaceProjDeref:
+		return l.derefPlaceType(cur)
+	case PlaceProjField:
+		return l.fieldPlaceType(cur, proj)
+	case PlaceProjIndex:
+		return l.indexPlaceType(cur)
+	default:
+		return types.NoTypeID, false
+	}
+}
+
+func (l *funcLowerer) derefPlaceType(id types.TypeID) (types.TypeID, bool) {
+	tt, ok := l.types.Lookup(resolveAlias(l.types, id))
+	if !ok {
+		return types.NoTypeID, false
+	}
+	switch tt.Kind {
+	case types.KindOwn, types.KindPointer, types.KindReference:
+		return tt.Elem, true
+	default:
+		return types.NoTypeID, false
+	}
+}
+
+func (l *funcLowerer) fieldPlaceType(id types.TypeID, proj PlaceProj) (types.TypeID, bool) {
+	id = resolveAliasType(l.types, id)
+	if info, ok := l.types.StructInfo(id); ok && info != nil {
+		fieldIdx := proj.FieldIdx
+		if fieldIdx >= 0 && fieldIdx < len(info.Fields) {
+			return info.Fields[fieldIdx].Type, true
+		}
+		if proj.FieldName != "" && l.types.Strings != nil {
+			for i, field := range info.Fields {
+				name, ok := l.types.Strings.Lookup(field.Name)
+				if ok && name == proj.FieldName {
+					fieldIdx = i
+					break
+				}
+			}
+		}
+		if fieldIdx >= 0 && fieldIdx < len(info.Fields) {
+			return info.Fields[fieldIdx].Type, true
+		}
+	}
+	if info, ok := l.types.TupleInfo(id); ok && info != nil {
+		fieldIdx := proj.FieldIdx
+		if fieldIdx >= 0 && fieldIdx < len(info.Elems) {
+			return info.Elems[fieldIdx], true
+		}
+	}
+	return types.NoTypeID, false
+}
+
+func (l *funcLowerer) indexPlaceType(id types.TypeID) (types.TypeID, bool) {
+	id = resolveAliasType(l.types, id)
+	if elem, ok := l.types.ArrayInfo(id); ok {
+		return elem, true
+	}
+	if elem, _, ok := l.types.ArrayFixedInfo(id); ok {
+		return elem, true
+	}
+	tt, ok := l.types.Lookup(id)
+	if !ok || tt.Kind != types.KindArray {
+		return types.NoTypeID, false
+	}
+	return tt.Elem, true
+}

@@ -1,0 +1,111 @@
+  1: KwType          "type" at 1:1-1:5
+  2: Ident           "Entry" at 1:6-1:11 (leading: Space)
+  3: Assign          "=" at 1:12-1:13 (leading: Space)
+  4: LBrace          "{" at 1:14-1:15 (leading: Space)
+  5: Ident           "borrowers" at 2:5-2:14 (leading: Newline, Space)
+  6: Colon           ":" at 2:14-2:15
+  7: Ident           "string" at 2:16-2:22 (leading: Space)
+  8: LBracket        "[" at 2:22-2:23
+  9: RBracket        "]" at 2:23-2:24
+ 10: Comma           "," at 2:24-2:25
+ 11: RBrace          "}" at 3:1-3:2 (leading: Newline)
+ 12: Semicolon       ";" at 3:2-3:3
+ 13: KwFn            "fn" at 5:1-5:3 (leading: Newline)
+ 14: Ident           "add_borrower" at 5:4-5:16 (leading: Space)
+ 15: LParen          "(" at 5:16-5:17
+ 16: Ident           "entry" at 5:17-5:22
+ 17: Colon           ":" at 5:22-5:23
+ 18: Amp             "&" at 5:24-5:25 (leading: Space)
+ 19: KwMut           "mut" at 5:25-5:28
+ 20: Ident           "Entry" at 5:29-5:34 (leading: Space)
+ 21: Comma           "," at 5:34-5:35
+ 22: Ident           "client_id" at 5:36-5:45 (leading: Space)
+ 23: Colon           ":" at 5:45-5:46
+ 24: Amp             "&" at 5:47-5:48 (leading: Space)
+ 25: Ident           "string" at 5:48-5:54
+ 26: RParen          ")" at 5:54-5:55
+ 27: Arrow           "->" at 5:56-5:58 (leading: Space)
+ 28: NothingLit      "nothing" at 5:59-5:66 (leading: Space)
+ 29: LBrace          "{" at 5:67-5:68 (leading: Space)
+ 30: KwIf            "if" at 6:5-6:7 (leading: Newline, Space)
+ 31: Bang            "!" at 6:8-6:9 (leading: Space)
+ 32: Ident           "entry" at 6:9-6:14
+ 33: Dot             "." at 6:14-6:15
+ 34: Ident           "borrowers" at 6:15-6:24
+ 35: Dot             "." at 6:24-6:25
+ 36: Ident           "contains" at 6:25-6:33
+ 37: LParen          "(" at 6:33-6:34
+ 38: Ident           "client_id" at 6:34-6:43
+ 39: RParen          ")" at 6:43-6:44
+ 40: LBrace          "{" at 6:45-6:46 (leading: Space)
+ 41: Ident           "entry" at 7:9-7:14 (leading: Newline, Space)
+ 42: Dot             "." at 7:14-7:15
+ 43: Ident           "borrowers" at 7:15-7:24
+ 44: Dot             "." at 7:24-7:25
+ 45: Ident           "push" at 7:25-7:29
+ 46: LParen          "(" at 7:29-7:30
+ 47: Ident           "client_id" at 7:30-7:39
+ 48: Dot             "." at 7:39-7:40
+ 49: Ident           "__clone" at 7:40-7:47
+ 50: LParen          "(" at 7:47-7:48
+ 51: RParen          ")" at 7:48-7:49
+ 52: RParen          ")" at 7:49-7:50
+ 53: Semicolon       ";" at 7:50-7:51
+ 54: RBrace          "}" at 8:5-8:6 (leading: Newline, Space)
+ 55: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 56: NothingLit      "nothing" at 9:12-9:19 (leading: Space)
+ 57: Semicolon       ";" at 9:19-9:20
+ 58: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 59: KwFn            "fn" at 12:1-12:3 (leading: Newline)
+ 60: Ident           "main" at 12:4-12:8 (leading: Space)
+ 61: LParen          "(" at 12:8-12:9
+ 62: RParen          ")" at 12:9-12:10
+ 63: Arrow           "->" at 12:11-12:13 (leading: Space)
+ 64: Ident           "int" at 12:14-12:17 (leading: Space)
+ 65: LBrace          "{" at 12:18-12:19 (leading: Space)
+ 66: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 67: KwMut           "mut" at 13:9-13:12 (leading: Space)
+ 68: Ident           "entry" at 13:13-13:18 (leading: Space)
+ 69: Colon           ":" at 13:18-13:19
+ 70: Ident           "Entry" at 13:20-13:25 (leading: Space)
+ 71: Assign          "=" at 13:26-13:27 (leading: Space)
+ 72: LBrace          "{" at 13:28-13:29 (leading: Space)
+ 73: Ident           "borrowers" at 13:30-13:39 (leading: Space)
+ 74: Assign          "=" at 13:40-13:41 (leading: Space)
+ 75: LBracket        "[" at 13:42-13:43 (leading: Space)
+ 76: RBracket        "]" at 13:43-13:44
+ 77: RBrace          "}" at 13:45-13:46 (leading: Space)
+ 78: Semicolon       ";" at 13:46-13:47
+ 79: Ident           "add_borrower" at 14:5-14:17 (leading: Newline, Space)
+ 80: LParen          "(" at 14:17-14:18
+ 81: Amp             "&" at 14:18-14:19
+ 82: KwMut           "mut" at 14:19-14:22
+ 83: Ident           "entry" at 14:23-14:28 (leading: Space)
+ 84: Comma           "," at 14:28-14:29
+ 85: Amp             "&" at 14:30-14:31 (leading: Space)
+ 86: StringLit       "\"client-a\"" at 14:31-14:41
+ 87: RParen          ")" at 14:41-14:42
+ 88: Semicolon       ";" at 14:42-14:43
+ 89: Ident           "add_borrower" at 15:5-15:17 (leading: Newline, Space)
+ 90: LParen          "(" at 15:17-15:18
+ 91: Amp             "&" at 15:18-15:19
+ 92: KwMut           "mut" at 15:19-15:22
+ 93: Ident           "entry" at 15:23-15:28 (leading: Space)
+ 94: Comma           "," at 15:28-15:29
+ 95: Amp             "&" at 15:30-15:31 (leading: Space)
+ 96: StringLit       "\"client-a\"" at 15:31-15:41
+ 97: RParen          ")" at 15:41-15:42
+ 98: Semicolon       ";" at 15:42-15:43
+ 99: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space)
+100: Ident           "entry" at 16:12-16:17 (leading: Space)
+101: Dot             "." at 16:17-16:18
+102: Ident           "borrowers" at 16:18-16:27
+103: Dot             "." at 16:27-16:28
+104: Ident           "__len" at 16:28-16:33
+105: LParen          "(" at 16:33-16:34
+106: RParen          ")" at 16:34-16:35
+107: KwTo            "to" at 16:36-16:38 (leading: Space)
+108: Ident           "int" at 16:39-16:42 (leading: Space)
+109: Semicolon       ";" at 16:42-16:43
+110: RBrace          "}" at 17:1-17:2 (leading: Newline)
+111: EOF             at 18:1-18:1
