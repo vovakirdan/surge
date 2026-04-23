@@ -163,6 +163,8 @@ func (c *taskStatePinCollector) pinLocal(frame *Frame, local int32) *VMError {
 	if !slot.IsInit {
 		return c.vm.eb.useBeforeInit(slot.Name)
 	}
+	// Pinned task state may extend backing storage lifetime, but it must not
+	// resurrect locals whose ownership has already moved elsewhere.
 	if slot.IsMoved {
 		return c.vm.eb.useAfterMove(slot.Name)
 	}
