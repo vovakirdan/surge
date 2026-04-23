@@ -3,6 +3,9 @@
 
 import stdlib/entropy as entropy;
 
+pub const RANDOM_ERR_ZERO_LIMIT: uint = 1;
+pub const RANDOM_ERR_EMPTY_RANGE: uint = 2;
+
 const U32_MOD: uint = 4_294_967_296;
 const U64_MOD: uint = 18_446_744_073_709_551_616;
 
@@ -52,6 +55,8 @@ fn decode_le_u64(data: &byte[]) -> uint64 {
         | (b7 << 56:uint64);
 }
 
+// PCG needs modulo wraparound, while fixed-width numeric operations are checked.
+// Use dynamic uint for the intermediate and cast back only after reducing.
 fn wrap_u64_mul_add(a: uint64, b: uint64, c: uint64) -> uint64 {
     let wide_a: uint = a to uint;
     let wide_b: uint = b to uint;
@@ -67,10 +72,9 @@ fn wrap_u64_add(a: uint64, b: uint64) -> uint64 {
     return wide to uint64;
 }
 
-fn wrap_u64_shift_left(value: uint64, shift: uint64) -> uint64 {
+fn wrap_u64_shift_left(value: uint64, shift: uint) -> uint64 {
     let wide_value: uint = value to uint;
-    let wide_shift: uint = shift to uint;
-    let wide: uint = (wide_value << wide_shift) % U64_MOD;
+    let wide: uint = (wide_value << shift) % U64_MOD;
     return wide to uint64;
 }
 
@@ -99,6 +103,22 @@ fn pcg32_step(self: &mut Pcg32) -> uint32 {
     return rotate_right_u32(xorshifted, rot);
 }
 
+fn zero_limit_u32() -> Erring<uint32, Error> {
+    return Error { message: "random: limit must be greater than zero", code: RANDOM_ERR_ZERO_LIMIT };
+}
+
+fn zero_limit_u64() -> Erring<uint64, Error> {
+    return Error { message: "random: limit must be greater than zero", code: RANDOM_ERR_ZERO_LIMIT };
+}
+
+fn empty_range_u32() -> Erring<uint32, Error> {
+    return Error { message: "random: empty range", code: RANDOM_ERR_EMPTY_RANGE };
+}
+
+fn empty_range_u64() -> Erring<uint64, Error> {
+    return Error { message: "random: empty range", code: RANDOM_ERR_EMPTY_RANGE };
+}
+
 extern<SystemRng> {
     pub fn new() -> SystemRng {
         return { _private = 0:uint8 };
@@ -114,6 +134,97 @@ extern<SystemRng> {
         compare entropy.bytes(4:uint) {
             Success(data) => {
                 return Success(decode_le_u32(&data));
+            }
+            err => {
+                return err;
+            }
+        };
+    }
+
+    pub fn next_bool(self: &mut SystemRng) -> Erring<bool, Error> {
+        compare self.next_u32() {
+            Success(value) => {
+                return Success((value & 1:uint32) == 1:uint32);
+            }
+            err => {
+                return err;
+            }
+        };
+    }
+
+    pub fn below_u32(self: &mut SystemRng, limit: uint32) -> Erring<uint32, Error> {
+        if limit == 0:uint32 {
+            return zero_limit_u32();
+        }
+
+        let wide_limit: uint = limit to uint;
+        let threshold: uint = (U32_MOD - wide_limit) % wide_limit;
+        while true {
+            compare self.next_u32() {
+                Success(candidate) => {
+                    let wide: uint = candidate to uint;
+                    if wide >= threshold {
+                        return Success((wide % wide_limit) to uint32);
+                    }
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        // Unreachable; satisfies current return analysis for infinite rejection loops.
+        return zero_limit_u32();
+    }
+
+    pub fn below_u64(self: &mut SystemRng, limit: uint64) -> Erring<uint64, Error> {
+        if limit == 0:uint64 {
+            return zero_limit_u64();
+        }
+
+        let wide_limit: uint = limit to uint;
+        let threshold: uint = (U64_MOD - wide_limit) % wide_limit;
+        while true {
+            compare self.next_u64() {
+                Success(candidate) => {
+                    let wide: uint = candidate to uint;
+                    if wide >= threshold {
+                        return Success((wide % wide_limit) to uint64);
+                    }
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        // Unreachable; satisfies current return analysis for infinite rejection loops.
+        return zero_limit_u64();
+    }
+
+    pub fn range_u32(self: &mut SystemRng, start: uint32, end_exclusive: uint32) -> Erring<uint32, Error> {
+        if start >= end_exclusive {
+            return empty_range_u32();
+        }
+
+        let span: uint32 = end_exclusive - start;
+        compare self.below_u32(span) {
+            Success(offset) => {
+                return Success(start + offset);
+            }
+            err => {
+                return err;
+            }
+        };
+    }
+
+    pub fn range_u64(self: &mut SystemRng, start: uint64, end_exclusive: uint64) -> Erring<uint64, Error> {
+        if start >= end_exclusive {
+            return empty_range_u64();
+        }
+
+        let span: uint64 = end_exclusive - start;
+        compare self.below_u64(span) {
+            Success(offset) => {
+                return Success(start + offset);
             }
             err => {
                 return err;
@@ -159,10 +270,101 @@ extern<Pcg32> {
         return Success(pcg32_step(self));
     }
 
+    pub fn next_bool(self: &mut Pcg32) -> Erring<bool, Error> {
+        compare self.next_u32() {
+            Success(value) => {
+                return Success((value & 1:uint32) == 1:uint32);
+            }
+            err => {
+                return err;
+            }
+        };
+    }
+
     pub fn next_u64(self: &mut Pcg32) -> Erring<uint64, Error> {
         let lo: uint64 = pcg32_step(self) to uint64;
         let hi: uint64 = pcg32_step(self) to uint64;
         return Success(lo | (hi << 32:uint64));
+    }
+
+    pub fn below_u32(self: &mut Pcg32, limit: uint32) -> Erring<uint32, Error> {
+        if limit == 0:uint32 {
+            return zero_limit_u32();
+        }
+
+        let wide_limit: uint = limit to uint;
+        let threshold: uint = (U32_MOD - wide_limit) % wide_limit;
+        while true {
+            compare self.next_u32() {
+                Success(candidate) => {
+                    let wide: uint = candidate to uint;
+                    if wide >= threshold {
+                        return Success((wide % wide_limit) to uint32);
+                    }
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        // Unreachable; satisfies current return analysis for infinite rejection loops.
+        return zero_limit_u32();
+    }
+
+    pub fn below_u64(self: &mut Pcg32, limit: uint64) -> Erring<uint64, Error> {
+        if limit == 0:uint64 {
+            return zero_limit_u64();
+        }
+
+        let wide_limit: uint = limit to uint;
+        let threshold: uint = (U64_MOD - wide_limit) % wide_limit;
+        while true {
+            compare self.next_u64() {
+                Success(candidate) => {
+                    let wide: uint = candidate to uint;
+                    if wide >= threshold {
+                        return Success((wide % wide_limit) to uint64);
+                    }
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        // Unreachable; satisfies current return analysis for infinite rejection loops.
+        return zero_limit_u64();
+    }
+
+    pub fn range_u32(self: &mut Pcg32, start: uint32, end_exclusive: uint32) -> Erring<uint32, Error> {
+        if start >= end_exclusive {
+            return empty_range_u32();
+        }
+
+        let span: uint32 = end_exclusive - start;
+        compare self.below_u32(span) {
+            Success(offset) => {
+                return Success(start + offset);
+            }
+            err => {
+                return err;
+            }
+        };
+    }
+
+    pub fn range_u64(self: &mut Pcg32, start: uint64, end_exclusive: uint64) -> Erring<uint64, Error> {
+        if start >= end_exclusive {
+            return empty_range_u64();
+        }
+
+        let span: uint64 = end_exclusive - start;
+        compare self.below_u64(span) {
+            Success(offset) => {
+                return Success(start + offset);
+            }
+            err => {
+                return err;
+            }
+        };
     }
 }
 
@@ -193,6 +395,36 @@ pub fn next_u64() -> Erring<uint64, Error> {
     return rng.next_u64();
 }
 
+// Read one random boolean from SystemRng.
+pub fn next_bool() -> Erring<bool, Error> {
+    let mut rng: SystemRng = system();
+    return rng.next_bool();
+}
+
+// Return a uniform uint32 in [0, limit).
+pub fn below_u32(limit: uint32) -> Erring<uint32, Error> {
+    let mut rng: SystemRng = system();
+    return rng.below_u32(limit);
+}
+
+// Return a uniform uint64 in [0, limit).
+pub fn below_u64(limit: uint64) -> Erring<uint64, Error> {
+    let mut rng: SystemRng = system();
+    return rng.below_u64(limit);
+}
+
+// Return a uniform uint32 in [start, end_exclusive).
+pub fn range_u32(start: uint32, end_exclusive: uint32) -> Erring<uint32, Error> {
+    let mut rng: SystemRng = system();
+    return rng.range_u32(start, end_exclusive);
+}
+
+// Return a uniform uint64 in [start, end_exclusive).
+pub fn range_u64(start: uint64, end_exclusive: uint64) -> Erring<uint64, Error> {
+    let mut rng: SystemRng = system();
+    return rng.range_u64(start, end_exclusive);
+}
+
 // Construct a deterministic PCG32 stream with the default stream selector.
 pub fn pcg32(seed: uint64) -> Pcg32 {
     return pcg32_stream(seed, 54:uint64);
@@ -202,7 +434,7 @@ pub fn pcg32(seed: uint64) -> Pcg32 {
 pub fn pcg32_stream(seed: uint64, stream: uint64) -> Pcg32 {
     let mut rng: Pcg32 = {
         state = 0:uint64,
-        inc = wrap_u64_shift_left(stream, 1:uint64) | 1:uint64
+        inc = wrap_u64_shift_left(stream, 1:uint) | 1:uint64
     };
     let _ = pcg32_step(&mut rng);
     rng.state = wrap_u64_add(rng.state, seed);

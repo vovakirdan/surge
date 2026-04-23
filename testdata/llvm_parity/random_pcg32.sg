@@ -62,5 +62,105 @@ fn main() -> int {
         }
     };
 
+    let mut helpers: random.Pcg32 = random.pcg32_stream(42:uint64, 54:uint64);
+    compare helpers.next_bool() {
+        Success(flag) => {
+            if !flag {
+                return 7;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+    compare helpers.below_u32(10:uint32) {
+        Success(v) => {
+            if v != 7:uint32 {
+                return 8;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+    compare helpers.range_u32(20:uint32, 30:uint32) {
+        Success(v) => {
+            if v != 24:uint32 {
+                return 9;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+    compare helpers.below_u64(1000:uint64) {
+        Success(v) => {
+            if v != 635:uint64 {
+                return 10;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+    compare helpers.range_u64(1000:uint64, 2000:uint64) {
+        Success(v) => {
+            if v != 1926:uint64 {
+                return 11;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+
+    compare helpers.below_u32(0:uint32) {
+        Success(_) => {
+            return 12;
+        }
+        err => {
+            if err.code != random.RANDOM_ERR_ZERO_LIMIT {
+                return 13;
+            }
+        }
+    };
+    compare helpers.range_u64(5:uint64, 5:uint64) {
+        Success(_) => {
+            return 14;
+        }
+        err => {
+            if err.code != random.RANDOM_ERR_EMPTY_RANGE {
+                return 15;
+            }
+        }
+    };
+
+    compare random.next_bool() {
+        Success(_) => {}
+        err => {
+            return err.code to int;
+        }
+    };
+    compare random.below_u32(10:uint32) {
+        Success(v) => {
+            if v >= 10:uint32 {
+                return 16;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+    compare random.range_u64(1000:uint64, 2000:uint64) {
+        Success(v) => {
+            if v < 1000:uint64 || v >= 2000:uint64 {
+                return 17;
+            }
+        }
+        err => {
+            return err.code to int;
+        }
+    };
+
     return 0;
 }

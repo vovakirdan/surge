@@ -49,7 +49,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
 		if module := tc.moduleSymbolForExpr(member.Target); module != nil {
 			typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
-			return tc.moduleFunctionResult(module, member.Field, args, typeArgs, span)
+			return tc.moduleFunctionResult(callID, module, member.Field, args, typeArgs, span)
 		}
 	}
 	ident, ok := tc.builder.Exprs.Ident(call.Target)

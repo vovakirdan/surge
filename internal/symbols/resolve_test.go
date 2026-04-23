@@ -771,8 +771,8 @@ func TestResolveModuleAndItemImportDoesNotConflict(t *testing.T) {
 
 func TestResolveModuleMemberUsesExports(t *testing.T) {
 	src := `
-        import foo;
-        fn run() {
+	        import foo;
+	        fn run() {
             foo.bar();
         }
     `
@@ -802,9 +802,76 @@ func TestResolveModuleMemberUsesExports(t *testing.T) {
 	}
 }
 
+func TestResolveModuleMemberPrefersFreeFunctionOverMethod(t *testing.T) {
+	src := `
+	        import foo;
+	        fn run() {
+	            foo.next();
+	        }
+	    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	exports := NewModuleExports("foo")
+	exports.Add(&ExportedSymbol{
+		Name:        "next",
+		Kind:        SymbolFunction,
+		Flags:       SymbolFlagPublic | SymbolFlagMethod,
+		Signature:   &FunctionSignature{Params: []TypeKey{"&mut Rng"}, Variadic: []bool{false}, Result: "uint32", HasSelf: true},
+		ReceiverKey: "Rng",
+	})
+	exports.Add(&ExportedSymbol{
+		Name:      "next",
+		Kind:      SymbolFunction,
+		Flags:     SymbolFlagPublic,
+		Signature: &FunctionSignature{Result: "uint32"},
+	})
+
+	bag := diag.NewBag(8)
+	res := ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+		ModuleExports: map[string]*ModuleExports{
+			"foo": exports,
+		},
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+
+	nextID := builder.StringsInterner.Intern("next")
+	var memberID ast.ExprID
+	for i := uint32(1); i <= builder.Exprs.Arena.Len(); i++ {
+		id := ast.ExprID(i)
+		member, ok := builder.Exprs.Member(id)
+		if ok && member != nil && member.Field == nextID {
+			memberID = id
+			break
+		}
+	}
+	if !memberID.IsValid() {
+		t.Fatalf("expected foo.next member expression")
+	}
+
+	symID := res.ExprSymbols[memberID]
+	sym := res.Table.Symbols.Get(symID)
+	if sym == nil {
+		t.Fatalf("expected resolved module member symbol")
+	}
+	if sym.ReceiverKey != "" {
+		t.Fatalf("expected free function export, got receiver %q", sym.ReceiverKey)
+	}
+	if sym.Signature == nil || len(sym.Signature.Params) != 0 {
+		t.Fatalf("expected zero-arg free function signature, got %#v", sym.Signature)
+	}
+}
+
 func TestResolveModuleMemberMissing(t *testing.T) {
 	src := `
-        import foo;
+	        import foo;
         fn run() {
             foo.missing();
         }
