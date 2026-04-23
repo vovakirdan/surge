@@ -49,18 +49,12 @@ func (tc *typeChecker) resolveImportedValueSymbol(sym *symbols.Symbol, name sour
 		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no member %q", sym.ModulePath, nameStr)
 		return sym
 	}
-	var candidate *symbols.ExportedSymbol
-	for i := range exported {
-		if exported[i].Flags&symbols.SymbolFlagPublic != 0 {
-			candidate = &exported[i]
-			break
-		}
-	}
-	if candidate == nil {
+	candidates := tc.publicModuleValueExports(exported)
+	if len(candidates) == 0 {
 		tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public", nameStr, sym.ModulePath)
 		return sym
 	}
-	tc.applyExportToSymbol(sym, candidate, sym.ModulePath)
+	tc.applyExportToSymbol(sym, candidates[0], sym.ModulePath)
 	return sym
 }
 
@@ -78,20 +72,29 @@ func (tc *typeChecker) typeOfModuleMember(module *symbols.Symbol, field source.S
 	}
 }
 
-func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.StringID, args []callArg, typeArgs []types.TypeID, span source.Span) types.TypeID {
+func (tc *typeChecker) moduleFunctionResult(callID ast.ExprID, module *symbols.Symbol, name source.StringID, args []callArg, typeArgs []types.TypeID, span source.Span) types.TypeID {
 	exported := tc.moduleExportsByName(module, name, span)
 	if len(exported) == 0 {
 		return types.NoTypeID
 	}
-	candidates := make([]*symbols.Symbol, 0, len(exported))
-	for i := range exported {
-		if exported[i].Flags&symbols.SymbolFlagPublic == 0 {
+	type moduleCandidate struct {
+		id  symbols.SymbolID
+		sym *symbols.Symbol
+	}
+	candidates := make([]moduleCandidate, 0, len(exported))
+	for _, exp := range tc.publicModuleValueExports(exported) {
+		if exp == nil || (exp.Kind != symbols.SymbolFunction && exp.Kind != symbols.SymbolTag) {
 			continue
 		}
-		if exported[i].Kind != symbols.SymbolFunction && exported[i].Kind != symbols.SymbolTag {
+		if tc.receiverBoundModuleExport(exp) {
 			continue
 		}
-		candidates = append(candidates, tc.exportedSymbolToSymbol(&exported[i], module.ModulePath))
+		symID := tc.ensureImportedModuleExportSymbol(module.ModulePath, name, exp, span)
+		sym := tc.symbolFromID(symID)
+		if sym == nil {
+			sym = tc.exportedSymbolToSymbol(exp, module.ModulePath)
+		}
+		candidates = append(candidates, moduleCandidate{id: symID, sym: sym})
 	}
 	if len(candidates) == 0 {
 		tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public or not a function", tc.lookupName(name), module.ModulePath)
@@ -100,6 +103,7 @@ func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.
 	bestCost := -1
 	bestType := types.NoTypeID
 	var bestSym *symbols.Symbol
+	var bestSymID symbols.SymbolID
 	var bestArgs []types.TypeID
 	bestName := tc.lookupName(name)
 	if bestName == "" {
@@ -107,14 +111,15 @@ func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.
 	}
 	var borrowInfo borrowMatchInfo
 	for _, cand := range candidates {
-		cost, result, concreteArgs, ok := tc.evaluateFunctionCandidate(cand, args, typeArgs, &borrowInfo)
+		cost, result, concreteArgs, ok := tc.evaluateFunctionCandidate(cand.sym, args, typeArgs, &borrowInfo)
 		if !ok {
 			continue
 		}
 		if bestCost == -1 || cost < bestCost {
 			bestCost = cost
 			bestType = result
-			bestSym = cand
+			bestSym = cand.sym
+			bestSymID = cand.id
 			bestArgs = concreteArgs
 		} else if cost == bestCost {
 			tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", bestName)
@@ -131,13 +136,22 @@ func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.
 				tc.checkArrayViewResizeCall(bestName, args, span)
 			}
 		}
+		if bestSymID.IsValid() {
+			tc.checkDeprecatedSymbol(bestSymID, "function", span)
+			note := "call"
+			if bestSym != nil && bestSym.Kind == symbols.SymbolTag {
+				note = "tag"
+			}
+			tc.rememberFunctionInstantiation(bestSymID, bestArgs, span, note)
+			tc.recordCallSymbol(callID, bestSymID)
+		}
 		return bestType
 	}
 	if borrowInfo.expr.IsValid() {
 		tc.reportBorrowFailure(&borrowInfo)
 		return types.NoTypeID
 	}
-	if len(candidates) == 1 && tc.reportCallArgumentMismatch(candidates[0], args, typeArgs) {
+	if len(candidates) == 1 && tc.reportCallArgumentMismatch(candidates[0].sym, args, typeArgs) {
 		return types.NoTypeID
 	}
 	tc.report(diag.SemaNoOverload, span, "no matching overload for %s", bestName)
@@ -170,10 +184,9 @@ func (tc *typeChecker) lookupModuleExport(module *symbols.Symbol, field source.S
 	if len(exported) == 0 {
 		return nil
 	}
-	for i := range exported {
-		if exported[i].Flags&symbols.SymbolFlagPublic != 0 {
-			return &exported[i]
-		}
+	candidates := tc.publicModuleValueExports(exported)
+	if len(candidates) > 0 {
+		return candidates[0]
 	}
 	nameStr := tc.lookupName(field)
 	if nameStr == "" {
@@ -181,6 +194,114 @@ func (tc *typeChecker) lookupModuleExport(module *symbols.Symbol, field source.S
 	}
 	tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public", nameStr, module.ModulePath)
 	return nil
+}
+
+func (tc *typeChecker) receiverBoundModuleExport(exp *symbols.ExportedSymbol) bool {
+	return exp != nil && exp.Kind == symbols.SymbolFunction && (exp.ReceiverKey != "" || exp.Flags&symbols.SymbolFlagMethod != 0)
+}
+
+func (tc *typeChecker) publicModuleValueExports(exported []symbols.ExportedSymbol) []*symbols.ExportedSymbol {
+	values := make([]*symbols.ExportedSymbol, 0, len(exported))
+	methods := make([]*symbols.ExportedSymbol, 0, len(exported))
+	for i := range exported {
+		if exported[i].Flags&symbols.SymbolFlagPublic == 0 {
+			continue
+		}
+		if tc.receiverBoundModuleExport(&exported[i]) {
+			methods = append(methods, &exported[i])
+			continue
+		}
+		values = append(values, &exported[i])
+	}
+	if len(values) > 0 {
+		return values
+	}
+	return methods
+}
+
+func (tc *typeChecker) ensureImportedModuleExportSymbol(modulePath string, name source.StringID, exp *symbols.ExportedSymbol, fallback source.Span) symbols.SymbolID {
+	if exp == nil || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+	nameID := exp.NameID
+	if nameID == source.NoStringID {
+		nameID = name
+	}
+	if nameID == source.NoStringID && exp.Name != "" && tc.builder != nil && tc.builder.StringsInterner != nil {
+		nameID = tc.builder.StringsInterner.Intern(exp.Name)
+	}
+	if nameID == source.NoStringID {
+		return symbols.NoSymbolID
+	}
+
+	scope := tc.fileScope()
+	if scope.IsValid() && tc.symbols.Table.Scopes != nil {
+		if scopeData := tc.symbols.Table.Scopes.Get(scope); scopeData != nil {
+			for _, id := range scopeData.NameIndex[nameID] {
+				sym := tc.symbolFromID(id)
+				if tc.moduleExportMatchesSymbol(sym, modulePath, nameID, exp) {
+					return id
+				}
+			}
+		}
+	}
+
+	sym := tc.exportedSymbolToSymbol(exp, modulePath)
+	if sym == nil {
+		return symbols.NoSymbolID
+	}
+	sym.Name = nameID
+	sym.ImportName = nameID
+	sym.Scope = scope
+	if sym.Span == (source.Span{}) {
+		sym.Span = fallback
+	}
+	id := tc.symbols.Table.Symbols.New(sym)
+	if scope.IsValid() && tc.symbols.Table.Scopes != nil {
+		if scopeData := tc.symbols.Table.Scopes.Get(scope); scopeData != nil {
+			scopeData.Symbols = append(scopeData.Symbols, id)
+			if scopeData.NameIndex == nil {
+				scopeData.NameIndex = make(map[source.StringID][]symbols.SymbolID)
+			}
+			scopeData.NameIndex[nameID] = append(scopeData.NameIndex[nameID], id)
+		}
+	}
+	return id
+}
+
+func (tc *typeChecker) moduleExportMatchesSymbol(sym *symbols.Symbol, modulePath string, name source.StringID, exp *symbols.ExportedSymbol) bool {
+	if sym == nil || exp == nil {
+		return false
+	}
+	if sym.ModulePath != modulePath || sym.Name != name || sym.Kind != exp.Kind {
+		return false
+	}
+	if !typeKeyEqual(sym.ReceiverKey, exp.ReceiverKey) {
+		return false
+	}
+	return moduleFunctionSignaturesEqual(sym.Signature, exp.Signature)
+}
+
+func moduleFunctionSignaturesEqual(a, b *symbols.FunctionSignature) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if !typeKeyEqual(a.Result, b.Result) || len(a.Params) != len(b.Params) || a.HasSelf != b.HasSelf {
+		return false
+	}
+	for i := range a.Params {
+		if !typeKeyEqual(a.Params[i], b.Params[i]) ||
+			boolAt(a.Variadic, i) != boolAt(b.Variadic, i) ||
+			boolAt(a.Defaults, i) != boolAt(b.Defaults, i) ||
+			boolAt(a.AllowTo, i) != boolAt(b.AllowTo, i) {
+			return false
+		}
+	}
+	return true
+}
+
+func boolAt(values []bool, index int) bool {
+	return index >= 0 && index < len(values) && values[index]
 }
 
 func (tc *typeChecker) applyExportToSymbol(target *symbols.Symbol, exp *symbols.ExportedSymbol, modulePath string) {

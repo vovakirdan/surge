@@ -258,12 +258,7 @@ func (fr *fileResolver) tryResolveImportSymbol(exprID ast.ExprID, span source.Sp
 		fr.reportModuleMemberNotFound(modulePath, name, span)
 		return true
 	}
-	publics := make([]*ExportedSymbol, 0, len(exported))
-	for i := range exported {
-		if exported[i].Flags&SymbolFlagPublic != 0 {
-			publics = append(publics, &exported[i])
-		}
-	}
+	publics := publicModuleValueExports(exported)
 	if len(publics) == 0 {
 		refSpan := exported[0].Span
 		fr.reportModuleMemberNotPublic(modulePath, name, span, refSpan)

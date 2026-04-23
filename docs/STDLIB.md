@@ -103,23 +103,36 @@ import stdlib/random as random;
 Public API:
 
 - `contract RandomSource<T>`
+- `RANDOM_ERR_ZERO_LIMIT`
+- `RANDOM_ERR_EMPTY_RANGE`
 - `type SystemRng`
 - `type Pcg32`
 - `system() -> SystemRng`
 - `bytes(n: uint) -> Erring<byte[], Error>`
 - `fill(out: &mut byte[]) -> Erring<nothing, Error>`
+- `next_bool() -> Erring<bool, Error>`
 - `next_u32() -> Erring<uint32, Error>`
 - `next_u64() -> Erring<uint64, Error>`
+- `below_u32(limit: uint32) -> Erring<uint32, Error>`
+- `below_u64(limit: uint64) -> Erring<uint64, Error>`
+- `range_u32(start: uint32, end_exclusive: uint32) -> Erring<uint32, Error>`
+- `range_u64(start: uint64, end_exclusive: uint64) -> Erring<uint64, Error>`
 - `pcg32(seed: uint64) -> Pcg32`
 - `pcg32_stream(seed: uint64, stream: uint64) -> Pcg32`
-- `SystemRng.fill(...)`, `SystemRng.next_u32()`, `SystemRng.next_u64()`
-- `Pcg32.fill(...)`, `Pcg32.next_u32()`, `Pcg32.next_u64()`
+- `SystemRng.fill(...)`, `SystemRng.next_bool()`, `SystemRng.next_u32()`, `SystemRng.next_u64()`
+- `SystemRng.below_u32(...)`, `SystemRng.below_u64(...)`, `SystemRng.range_u32(...)`, `SystemRng.range_u64(...)`
+- `Pcg32.fill(...)`, `Pcg32.next_bool()`, `Pcg32.next_u32()`, `Pcg32.next_u64()`
+- `Pcg32.below_u32(...)`, `Pcg32.below_u64(...)`, `Pcg32.range_u32(...)`, `Pcg32.range_u64(...)`
 
 Design split:
 
 - `SystemRng` is host-backed and uses `stdlib/entropy`.
 - `Pcg32` is deterministic and suitable for tests and fixtures.
 - `Pcg32` is not cryptographically secure.
+- `RandomSource<T>` remains the minimal primitive contract: `fill`, `next_u32`, `next_u64`.
+- Range helpers use half-open ranges: `[start, end_exclusive)`.
+- `below_*` returns `RANDOM_ERR_ZERO_LIMIT` for a zero limit; `range_*` returns `RANDOM_ERR_EMPTY_RANGE` when `start >= end_exclusive`.
+- Entropy/backend errors from the source are passed through unchanged.
 
 Example: secure random bytes
 
@@ -139,6 +152,17 @@ import stdlib/random as random;
 fn fixture_word() -> Erring<uint64, Error> {
     let mut rng: random.Pcg32 = random.pcg32_stream(42:uint64, 54:uint64);
     return rng.next_u64();
+}
+```
+
+Example: deterministic bounded value
+
+```sg
+import stdlib/random as random;
+
+fn fixture_index() -> Erring<uint32, Error> {
+    let mut rng: random.Pcg32 = random.pcg32(123:uint64);
+    return rng.range_u32(10:uint32, 20:uint32);
 }
 ```
 

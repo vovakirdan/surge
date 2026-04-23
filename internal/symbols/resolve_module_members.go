@@ -53,22 +53,49 @@ func (fr *fileResolver) resolveModuleMember(exprID ast.ExprID, member *ast.ExprM
 		fr.reportModuleMemberNotFound(modulePath, member.Field, useSpan)
 		return
 	}
-	var candidate *ExportedSymbol
-	for i := range exported {
-		if exported[i].Flags&SymbolFlagPublic != 0 {
-			candidate = &exported[i]
-			break
-		}
-	}
-	if candidate == nil {
+	candidates := publicModuleValueExports(exported)
+	if len(candidates) == 0 {
 		refSpan := exported[0].Span
 		fr.reportModuleMemberNotPublic(modulePath, member.Field, useSpan, refSpan)
 		return
 	}
-	symID := fr.syntheticSymbolForExport(modulePath, memberName, candidate, useSpan)
-	if symID.IsValid() {
-		fr.result.ExprSymbols[exprID] = symID
+
+	var first SymbolID
+	for _, candidate := range candidates {
+		if candidate == nil {
+			continue
+		}
+		symID := fr.syntheticSymbolForExport(modulePath, memberName, candidate, useSpan)
+		if symID.IsValid() && !first.IsValid() {
+			first = symID
+		}
 	}
+	if first.IsValid() {
+		fr.result.ExprSymbols[exprID] = first
+	}
+}
+
+func receiverBoundExport(exp *ExportedSymbol) bool {
+	return exp != nil && exp.Kind == SymbolFunction && (exp.ReceiverKey != "" || exp.Flags&SymbolFlagMethod != 0)
+}
+
+func publicModuleValueExports(exported []ExportedSymbol) []*ExportedSymbol {
+	values := make([]*ExportedSymbol, 0, len(exported))
+	methods := make([]*ExportedSymbol, 0, len(exported))
+	for i := range exported {
+		if exported[i].Flags&SymbolFlagPublic == 0 {
+			continue
+		}
+		if receiverBoundExport(&exported[i]) {
+			methods = append(methods, &exported[i])
+			continue
+		}
+		values = append(values, &exported[i])
+	}
+	if len(values) > 0 {
+		return values
+	}
+	return methods
 }
 
 func signatureKey(sig *FunctionSignature) string {

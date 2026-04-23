@@ -48,6 +48,18 @@ func (l *lowerer) packVariadicArgs(symID symbols.SymbolID, args []*Expr, span so
 	return packed
 }
 
+func (l *lowerer) isModuleExpr(id ast.ExprID) bool {
+	if l == nil || l.symRes == nil || l.symRes.Table == nil || l.symRes.Table.Symbols == nil {
+		return false
+	}
+	symID := l.symRes.ExprSymbols[id]
+	if !symID.IsValid() {
+		return false
+	}
+	sym := l.symRes.Table.Symbols.Get(symID)
+	return sym != nil && sym.Kind == symbols.SymbolModule
+}
+
 // lowerCallExpr lowers a function call expression.
 func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	callData := l.builder.Exprs.Calls.Get(uint32(expr.Payload))
@@ -112,10 +124,12 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 
 	if isMember && member != nil {
 		if symID.IsValid() {
-			recv := l.lowerExpr(member.Target)
-			if recv != nil && recv.Type != types.NoTypeID {
-				recv = l.applySelfBorrow(symID, recv)
-				args = append([]*Expr{recv}, args...)
+			if !l.isModuleExpr(member.Target) {
+				recv := l.lowerExpr(member.Target)
+				if recv != nil && recv.Type != types.NoTypeID {
+					recv = l.applySelfBorrow(symID, recv)
+					args = append([]*Expr{recv}, args...)
+				}
 			}
 			args = l.packVariadicArgs(symID, args, expr.Span)
 			args = l.applyParamBorrow(symID, args)

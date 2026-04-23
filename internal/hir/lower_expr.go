@@ -76,7 +76,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerCallExpr(exprID, expr, ty)
 
 	case ast.ExprMember:
-		return l.lowerMemberExpr(expr, ty)
+		return l.lowerMemberExpr(exprID, expr, ty)
 
 	case ast.ExprIndex:
 		return l.lowerIndexExpr(exprID, expr, ty)
@@ -345,10 +345,20 @@ func (l *lowerer) lowerUnaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Typ
 }
 
 // lowerMemberExpr lowers a member access expression.
-func (l *lowerer) lowerMemberExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerMemberExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	memberData := l.builder.Exprs.Members.Get(uint32(expr.Payload))
 	if memberData == nil {
 		return nil
+	}
+
+	if l.isModuleExpr(memberData.Target) && l.symRes != nil {
+		if symID := l.symRes.ExprSymbols[exprID]; symID.IsValid() {
+			ref := l.varRefForSymbol(symID, expr.Span)
+			if ref != nil {
+				ref.Type = ty
+				return ref
+			}
+		}
 	}
 
 	if lit := l.enumVariantLiteral(memberData, ty, expr.Span); lit != nil {
