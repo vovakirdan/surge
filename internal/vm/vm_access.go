@@ -24,9 +24,6 @@ func (vm *VM) readLocal(frame *Frame, id mir.LocalID) (Value, *VMError) {
 	}
 
 	if slot.IsMoved {
-		if frame.BorrowOnly {
-			return slot.V, nil
-		}
 		return Value{}, vm.eb.useAfterMove(slot.Name)
 	}
 

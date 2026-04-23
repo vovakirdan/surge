@@ -31,7 +31,11 @@ func (vm *VM) handleTaskCreate(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	if exec == nil {
 		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
 	}
-	id := exec.Spawn(pollFnID, &userTaskState{state: stateVal})
+	state := &userTaskState{}
+	if stateErr := vm.setUserTaskState(state, stateVal); stateErr != nil {
+		return stateErr
+	}
+	id := exec.Spawn(pollFnID, state)
 	taskVal, vmErr := vm.taskValue(id, frame.Locals[call.Dst.Local].TypeID)
 	if vmErr != nil {
 		return vmErr

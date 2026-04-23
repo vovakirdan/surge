@@ -13,12 +13,13 @@ type asyncExit struct {
 	kind    asyncrt.PollOutcomeKind
 	parkKey asyncrt.WakerKey
 	state   Value
+	pins    taskStatePins
 	value   Value
 }
 
 type userTaskState struct {
-	state       Value
-	pinnedFrame []*Frame
+	state Value
+	pins  taskStatePins
 }
 
 func (vm *VM) ensureExecutor() *asyncrt.Executor {
@@ -47,30 +48,12 @@ func (vm *VM) ensureUserTaskState(task *asyncrt.Task) *userTaskState {
 	}
 	state := &userTaskState{}
 	if val, ok := task.State.(Value); ok {
-		state.state = val
+		if vmErr := vm.setUserTaskState(state, val); vmErr != nil {
+			vm.panic(vmErr.Code, vmErr.Message)
+		}
 	}
 	task.State = state
 	return state
-}
-
-func (vm *VM) pinAsyncFrame(frame *Frame) {
-	if vm == nil || frame == nil {
-		return
-	}
-	exec := vm.ensureExecutor()
-	if exec == nil {
-		return
-	}
-	task := exec.Task(exec.Current())
-	if task == nil || task.Kind != asyncrt.TaskKindUser {
-		return
-	}
-	state := vm.ensureUserTaskState(task)
-	if state == nil {
-		return
-	}
-	frame.BorrowOnly = true
-	state.pinnedFrame = append(state.pinnedFrame, frame)
 }
 
 func (vm *VM) currentTaskCancelled() bool {
@@ -480,15 +463,14 @@ func (vm *VM) pollUserTask(task *asyncrt.Task) (outcome asyncrt.PollOutcome, vmE
 		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
 	}
 	state := vm.ensureUserTaskState(task)
-	outcome, stateOut, vmErr := vm.runPoll(fn)
+	outcome, stateOut, statePins, vmErr := vm.runPoll(fn)
 	if vmErr != nil {
 		return asyncrt.PollOutcome{}, vmErr
 	}
-	if stateOut.Kind != VKInvalid {
-		state.state = stateOut
-	} else {
-		state.state = Value{}
+	if stateOut.Kind == VKInvalid {
+		stateOut = Value{}
 	}
+	vm.setUserTaskStateWithPins(state, stateOut, statePins)
 	task.State = state
 	return outcome, nil
 }
@@ -581,9 +563,9 @@ func (vm *VM) releaseTaskState(task *asyncrt.Task) {
 		if state.state.Kind != VKInvalid {
 			vm.dropValue(state.state)
 		}
-		vm.releasePinnedFrames(state.pinnedFrame)
+		vm.releaseTaskStatePins(state.pins)
 		state.state = Value{}
-		state.pinnedFrame = nil
+		state.pins = taskStatePins{}
 		task.State = nil
 		return
 	}
@@ -593,12 +575,12 @@ func (vm *VM) releaseTaskState(task *asyncrt.Task) {
 	task.State = nil
 }
 
-func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value, vmErr *VMError) {
+func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value, statePins taskStatePins, vmErr *VMError) {
 	if vm == nil {
-		return asyncrt.PollOutcome{}, Value{}, nil
+		return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, nil
 	}
 	if fn == nil {
-		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing poll function")
+		return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, vm.eb.makeError(PanicUnimplemented, "missing poll function")
 	}
 	savedStack := vm.Stack
 	savedHalted := vm.Halted
@@ -632,7 +614,7 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 			vm.asyncCapture = savedAsync
 			vm.asyncPendingParkKey = savedPendingParkKey
 			vm.deferredShutdown = savedDeferredShutdown
-			return asyncrt.PollOutcome{}, Value{}, vmErr
+			return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, vmErr
 		}
 		if exit.set {
 			break
@@ -654,16 +636,16 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 			vm.Halted = true
 			vm.deferredShutdown.active = true
 			vm.deferredShutdown.checkLeaks = checkLeaks
-			return asyncrt.PollOutcome{}, Value{}, nil
+			return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, nil
 		}
 		vm.finishShutdown(checkLeaks)
-		return asyncrt.PollOutcome{}, Value{}, nil
+		return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, nil
 	}
 
 	if !exit.set {
-		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "poll function exited without async terminator")
+		return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, vm.eb.makeError(PanicUnimplemented, "poll function exited without async terminator")
 	}
 
 	outcome = asyncrt.PollOutcome{Kind: exit.kind, Value: exit.value, ParkKey: exit.parkKey}
-	return outcome, exit.state, nil
+	return outcome, exit.state, exit.pins, nil
 }

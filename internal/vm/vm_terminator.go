@@ -87,7 +87,11 @@ func (vm *VM) execTermAsyncYield(frame *Frame, term *mir.Terminator) *VMError {
 	if vmErr != nil {
 		return vmErr
 	}
-	vm.pinAsyncFrame(frame)
+	statePins, vmErr := vm.collectTaskStatePins(stateVal)
+	if vmErr != nil {
+		return vmErr
+	}
+	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
 	vm.asyncCapture.set = true
 	switch {
@@ -104,6 +108,7 @@ func (vm *VM) execTermAsyncYield(frame *Frame, term *mir.Terminator) *VMError {
 		vm.asyncCapture.parkKey = asyncrt.WakerKey{}
 	}
 	vm.asyncCapture.state = stateVal
+	vm.asyncCapture.pins = statePins
 	return nil
 }
 

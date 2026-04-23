@@ -52,41 +52,19 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 	if frame == nil || frame.Func == nil {
 		return
 	}
-	if frame.BorrowOnly {
-		return
-	}
 	// Contract: implicit drops run in strictly reverse local order.
 	for id := len(frame.Locals) - 1; id >= 0; id-- {
 		slot := &frame.Locals[id]
-		if !slot.IsInit || slot.IsMoved || slot.IsDropped {
+		if !slot.IsInit || slot.PinCount != 0 {
 			continue
 		}
-		vm.dropValue(slot.V)
+		if !slot.IsMoved && !slot.IsDropped {
+			vm.dropValue(slot.V)
+		}
 		slot.V = Value{}
 		slot.IsInit = false
 		slot.IsMoved = false
 		slot.IsDropped = false
-	}
-}
-
-func (vm *VM) releasePinnedFrames(frames []*Frame) {
-	for _, frame := range frames {
-		if frame == nil {
-			continue
-		}
-		for id := len(frame.Locals) - 1; id >= 0; id-- {
-			slot := &frame.Locals[id]
-			if !slot.IsInit || slot.IsDropped {
-				continue
-			}
-			if !slot.IsMoved {
-				vm.dropValue(slot.V)
-			}
-			slot.V = Value{}
-			slot.IsInit = false
-			slot.IsMoved = false
-			slot.IsDropped = false
-		}
 	}
 }
 
@@ -123,10 +101,11 @@ func (vm *VM) dropAsyncTasks() {
 			if state.state.Kind != VKInvalid {
 				vm.dropValue(state.state)
 			}
-			vm.releasePinnedFrames(state.pinnedFrame)
+			vm.releaseTaskStatePins(state.pins)
 			state.state = Value{}
-			state.pinnedFrame = nil
+			state.pins = taskStatePins{}
 			task.State = nil
+			continue
 		}
 		if v, ok := task.State.(Value); ok {
 			vm.dropValue(v)

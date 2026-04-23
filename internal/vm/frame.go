@@ -12,18 +12,18 @@ type LocalSlot struct {
 	IsInit    bool         // True if initialized (assigned at least once)
 	IsMoved   bool         // True if value has been moved out
 	IsDropped bool         // True if value has been dropped (@drop)
+	PinCount  uint32       // Async task states borrowing this slot as backing storage
 	Name      string       // Debug name from MIR
 	TypeID    types.TypeID // Static type from MIR
 }
 
 // Frame represents a function activation record on the call stack.
 type Frame struct {
-	Func       *mir.Func   // The function being executed
-	BB         mir.BlockID // Current basic block
-	IP         int         // Instruction pointer within BB.Instrs
-	Locals     []LocalSlot // Local variable slots
-	Span       source.Span // Current instruction span for error reporting
-	BorrowOnly bool        // Suspended async frame retained only as borrow backing storage
+	Func   *mir.Func   // The function being executed
+	BB     mir.BlockID // Current basic block
+	IP     int         // Instruction pointer within BB.Instrs
+	Locals []LocalSlot // Local variable slots
+	Span   source.Span // Current instruction span for error reporting
 }
 
 // NewFrame creates a new frame for executing the given function.

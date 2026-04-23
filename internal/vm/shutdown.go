@@ -15,8 +15,8 @@ func (vm *VM) requestShutdown(checkLeaks bool) {
 		// runPoll restores the parent stack.
 		vm.dropAllFrames()
 		vm.Stack = nil
-		vm.dropAsyncTasks()
 		vm.Halted = true
+		vm.dropAsyncTasks()
 		vm.deferredShutdown.active = true
 		vm.deferredShutdown.checkLeaks = vm.deferredShutdown.checkLeaks || checkLeaks
 		return

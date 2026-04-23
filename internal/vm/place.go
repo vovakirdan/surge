@@ -237,6 +237,10 @@ func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 		if err != nil {
 			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("invalid local id %d", loc.Local))
 		}
+		slot := &frame.Locals[localID]
+		if slot.IsInit && !slot.IsDropped && slot.IsMoved && slot.PinCount != 0 {
+			return slot.V, nil
+		}
 		return vm.readLocal(frame, localID)
 
 	case LKGlobal:

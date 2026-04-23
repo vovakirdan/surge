@@ -6,6 +6,13 @@ import (
 	"testing"
 )
 
+func requireNoAsyncBorrowPanic(t *testing.T, stderr string) {
+	t.Helper()
+	if strings.Contains(stderr, "invalid local id") || strings.Contains(stderr, "used after move") {
+		t.Fatalf("expected no async borrow VM panic, got:\n%s", stderr)
+	}
+}
+
 func TestBorrowedTcpConnAsyncHelperRunsWithoutVMPanic(t *testing.T) {
 	requireVMBackend(t)
 
@@ -80,9 +87,7 @@ fn main(port: uint) -> int {
 	if res.exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d\nstderr:\n%s", res.exitCode, res.stderr)
 	}
-	if strings.Contains(res.stderr, "invalid local id") || strings.Contains(res.stderr, "used after move") {
-		t.Fatalf("expected no async borrow VM panic, got:\n%s", res.stderr)
-	}
+	requireNoAsyncBorrowPanic(t, res.stderr)
 }
 
 func TestBorrowedIntAsyncHelperRunsAfterSuspend(t *testing.T) {
@@ -106,7 +111,5 @@ fn main() -> int {
 	if res.exitCode != 2 {
 		t.Fatalf("expected exit code 2, got %d\nstderr:\n%s", res.exitCode, res.stderr)
 	}
-	if strings.Contains(res.stderr, "invalid local id") || strings.Contains(res.stderr, "used after move") {
-		t.Fatalf("expected no async borrow VM panic, got:\n%s", res.stderr)
-	}
+	requireNoAsyncBorrowPanic(t, res.stderr)
 }
