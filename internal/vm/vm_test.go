@@ -200,6 +200,39 @@ func TestVMEntrypointArgvInt(t *testing.T) {
 	}
 }
 
+func TestVMEntrypointArgvDefault(t *testing.T) {
+	sourceCode := `@entrypoint("argv") fn main(port: uint = 7379:uint) -> int {
+    if port == 7379:uint {
+        return 0;
+    }
+    return 1;
+}
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.exitCode)
+	}
+}
+
+func TestVMCallDefaultUintCast(t *testing.T) {
+	sourceCode := `fn port(value: uint = 7379:uint) -> int {
+    if value == 7379:uint {
+        return 0;
+    }
+    return 1;
+}
+
+@entrypoint
+fn main() -> int {
+    return port();
+}
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.exitCode)
+	}
+}
+
 func TestVMEntrypointStdinInt(t *testing.T) {
 	sourceCode := `@entrypoint("stdin") fn main(x: int) -> int { return x; }
 `

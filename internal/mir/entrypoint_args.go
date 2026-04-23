@@ -22,7 +22,7 @@ func (b *surgeStartBuilder) prepareArgsNone() []Operand {
 			b.emitExitWithMessage(fmt.Sprintf("missing default for parameter %q", param.Name), 1)
 			break
 		}
-		op, err := b.lowerDefaultExpr(param.Default)
+		op, err := b.lowerDefaultExpr(param.Default, param.Type)
 		if err != nil {
 			b.emitExitWithMessage(fmt.Sprintf("failed to lower default for parameter %q", param.Name), 1)
 			break
@@ -129,7 +129,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 
 		b.startBlock(noArgBB)
 		if param.HasDefault && param.Default != nil {
-			op, err := b.lowerDefaultExpr(param.Default)
+			op, err := b.lowerDefaultExpr(param.Default, param.Type)
 			if err != nil {
 				b.emitExitWithMessage(fmt.Sprintf("failed to lower default for parameter %q", param.Name), 1)
 			} else {

@@ -121,7 +121,7 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 			}
 			return nil, fmt.Errorf("mir: call: missing default for parameter %q", name)
 		}
-		op, err := l.lowerExpr(param.Default, true)
+		op, err := l.lowerExprForType(param.Default, param.Type)
 		if err != nil {
 			return nil, err
 		}
