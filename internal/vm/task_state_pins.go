@@ -31,10 +31,33 @@ func (vm *VM) collectTaskStatePins(state Value) (taskStatePins, *VMError) {
 		retainedHandles: make(map[Handle]struct{}),
 	}
 	if vmErr := collector.visitValue(state); vmErr != nil {
-		vm.releaseTaskStatePins(collector.pins)
+		collector.rollbackPins()
 		return taskStatePins{}, vmErr
 	}
 	return collector.pins, nil
+}
+
+func (c *taskStatePinCollector) rollbackPins() {
+	if c == nil || c.vm == nil {
+		return
+	}
+	for i := len(c.pins.handles) - 1; i >= 0; i-- {
+		handle := c.pins.handles[i]
+		if handle != 0 {
+			c.vm.Heap.Release(handle)
+		}
+	}
+	for i := len(c.pins.locals) - 1; i >= 0; i-- {
+		pin := c.pins.locals[i]
+		if pin.frame == nil || pin.local < 0 || int(pin.local) >= len(pin.frame.Locals) {
+			continue
+		}
+		slot := &pin.frame.Locals[pin.local]
+		if slot.PinCount == 0 {
+			continue
+		}
+		slot.PinCount--
+	}
 }
 
 func (vm *VM) setUserTaskState(state *userTaskState, next Value) *VMError {
