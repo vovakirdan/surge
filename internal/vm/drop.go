@@ -52,6 +52,9 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 	if frame == nil || frame.Func == nil {
 		return
 	}
+	if frame.BorrowOnly {
+		return
+	}
 	// Contract: implicit drops run in strictly reverse local order.
 	for id := len(frame.Locals) - 1; id >= 0; id-- {
 		slot := &frame.Locals[id]
@@ -66,9 +69,30 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 	}
 }
 
+func (vm *VM) releasePinnedFrames(frames []*Frame) {
+	for _, frame := range frames {
+		if frame == nil {
+			continue
+		}
+		for id := len(frame.Locals) - 1; id >= 0; id-- {
+			slot := &frame.Locals[id]
+			if !slot.IsInit || slot.IsDropped {
+				continue
+			}
+			if !slot.IsMoved {
+				vm.dropValue(slot.V)
+			}
+			slot.V = Value{}
+			slot.IsInit = false
+			slot.IsMoved = false
+			slot.IsDropped = false
+		}
+	}
+}
+
 func (vm *VM) dropAllFrames() {
 	for i := len(vm.Stack) - 1; i >= 0; i-- {
-		vm.dropFrameLocals(&vm.Stack[i])
+		vm.dropFrameLocals(vm.Stack[i])
 	}
 }
 
@@ -94,6 +118,15 @@ func (vm *VM) dropAsyncTasks() {
 	for _, task := range drained.Tasks {
 		if task == nil {
 			continue
+		}
+		if state, ok := task.State.(*userTaskState); ok && state != nil {
+			if state.state.Kind != VKInvalid {
+				vm.dropValue(state.state)
+			}
+			vm.releasePinnedFrames(state.pinnedFrame)
+			state.state = Value{}
+			state.pinnedFrame = nil
+			task.State = nil
 		}
 		if v, ok := task.State.(Value); ok {
 			vm.dropValue(v)

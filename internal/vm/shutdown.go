@@ -11,9 +11,11 @@ func (vm *VM) requestShutdown(checkLeaks bool) {
 	}
 	if vm.pollDepth > 0 {
 		// Poll frames are isolated from the outer caller stack, so drop them now
-		// and defer full-program cleanup until runPoll restores the parent stack.
+		// and drain async task payloads before deferring full-program cleanup until
+		// runPoll restores the parent stack.
 		vm.dropAllFrames()
 		vm.Stack = nil
+		vm.dropAsyncTasks()
 		vm.Halted = true
 		vm.deferredShutdown.active = true
 		vm.deferredShutdown.checkLeaks = vm.deferredShutdown.checkLeaks || checkLeaks

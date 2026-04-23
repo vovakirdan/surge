@@ -536,14 +536,10 @@ func (t *Tracer) formatLocation(loc Location) string {
 	switch loc.Kind {
 	case LKLocal:
 		name := "?"
-		if t.vm != nil {
-			stackIdx := int(loc.Frame)
-			if loc.Frame >= 0 && stackIdx >= 0 && stackIdx < len(t.vm.Stack) {
-				frame := &t.vm.Stack[stackIdx]
-				localIdx := int(loc.Local)
-				if loc.Local >= 0 && localIdx >= 0 && localIdx < len(frame.Locals) && frame.Locals[localIdx].Name != "" {
-					name = frame.Locals[localIdx].Name
-				}
+		if frame := loc.FrameRef; frame != nil {
+			localIdx := int(loc.Local)
+			if loc.Local >= 0 && localIdx >= 0 && localIdx < len(frame.Locals) && frame.Locals[localIdx].Name != "" {
+				name = frame.Locals[localIdx].Name
 			}
 		}
 		return fmt.Sprintf("L%d(%s)", loc.Local, name)

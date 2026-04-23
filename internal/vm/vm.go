@@ -18,7 +18,7 @@ type Options struct {
 // VM is a direct MIR interpreter.
 type VM struct {
 	M             *mir.Module
-	Stack         []Frame
+	Stack         []*Frame
 	Globals       []LocalSlot
 	RT            Runtime
 	Recorder      *Recorder
@@ -159,7 +159,7 @@ func (vm *VM) Start() *VMError {
 		return nil
 	}
 
-	vm.Stack = append(vm.Stack, *NewFrame(startFn))
+	vm.Stack = append(vm.Stack, NewFrame(startFn))
 	vm.started = true
 
 	if vm.Replayer != nil {
@@ -193,7 +193,7 @@ func (vm *VM) Step() (vmErr *VMError) {
 
 	preDepth := len(vm.Stack)
 	frameIdx := preDepth - 1
-	frame := &vm.Stack[frameIdx]
+	frame := vm.Stack[frameIdx]
 	block := frame.CurrentBlock()
 	if block == nil {
 		return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid block id: %d", frame.BB))
@@ -214,7 +214,7 @@ func (vm *VM) Step() (vmErr *VMError) {
 		return vmErr
 	}
 	if pushFrame != nil {
-		vm.Stack = append(vm.Stack, *pushFrame)
+		vm.Stack = append(vm.Stack, pushFrame)
 		return nil
 	}
 	if advanceIP && !vm.Halted && len(vm.Stack) == preDepth {
@@ -230,7 +230,7 @@ func (vm *VM) StopPoint() (sp StopPoint, ok bool) {
 		return StopPoint{}, false
 	}
 
-	frame := &vm.Stack[len(vm.Stack)-1]
+	frame := vm.Stack[len(vm.Stack)-1]
 	block := frame.CurrentBlock()
 	if block == nil {
 		return StopPoint{}, false

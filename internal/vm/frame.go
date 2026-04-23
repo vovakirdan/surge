@@ -18,11 +18,12 @@ type LocalSlot struct {
 
 // Frame represents a function activation record on the call stack.
 type Frame struct {
-	Func   *mir.Func   // The function being executed
-	BB     mir.BlockID // Current basic block
-	IP     int         // Instruction pointer within BB.Instrs
-	Locals []LocalSlot // Local variable slots
-	Span   source.Span // Current instruction span for error reporting
+	Func       *mir.Func   // The function being executed
+	BB         mir.BlockID // Current basic block
+	IP         int         // Instruction pointer within BB.Instrs
+	Locals     []LocalSlot // Local variable slots
+	Span       source.Span // Current instruction span for error reporting
+	BorrowOnly bool        // Suspended async frame retained only as borrow backing storage
 }
 
 // NewFrame creates a new frame for executing the given function.

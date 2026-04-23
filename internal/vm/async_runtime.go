@@ -16,6 +16,11 @@ type asyncExit struct {
 	value   Value
 }
 
+type userTaskState struct {
+	state       Value
+	pinnedFrame []*Frame
+}
+
 func (vm *VM) ensureExecutor() *asyncrt.Executor {
 	if vm == nil {
 		return nil
@@ -31,6 +36,41 @@ func (vm *VM) ensureExecutor() *asyncrt.Executor {
 		vm.Async = asyncrt.NewExecutor(cfg)
 	}
 	return vm.Async
+}
+
+func (vm *VM) ensureUserTaskState(task *asyncrt.Task) *userTaskState {
+	if task == nil {
+		return nil
+	}
+	if state, ok := task.State.(*userTaskState); ok && state != nil {
+		return state
+	}
+	state := &userTaskState{}
+	if val, ok := task.State.(Value); ok {
+		state.state = val
+	}
+	task.State = state
+	return state
+}
+
+func (vm *VM) pinAsyncFrame(frame *Frame) {
+	if vm == nil || frame == nil {
+		return
+	}
+	exec := vm.ensureExecutor()
+	if exec == nil {
+		return
+	}
+	task := exec.Task(exec.Current())
+	if task == nil || task.Kind != asyncrt.TaskKindUser {
+		return
+	}
+	state := vm.ensureUserTaskState(task)
+	if state == nil {
+		return
+	}
+	frame.BorrowOnly = true
+	state.pinnedFrame = append(state.pinnedFrame, frame)
 }
 
 func (vm *VM) currentTaskCancelled() bool {
@@ -414,14 +454,9 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 	case asyncrt.TaskKindNetAccept, asyncrt.TaskKindNetRead, asyncrt.TaskKindNetWrite:
 		return vm.pollNetWaitTask(task)
 	default:
-		outcome, stateOut, vmErr := vm.pollUserTask(task)
+		outcome, vmErr := vm.pollUserTask(task)
 		if vmErr != nil {
 			return asyncrt.PollOutcome{}, vmErr
-		}
-		if stateOut.Kind != VKInvalid {
-			task.State = stateOut
-		} else {
-			task.State = nil
 		}
 		if outcome.Kind == asyncrt.PollDoneSuccess || outcome.Kind == asyncrt.PollDoneCancelled {
 			vm.releaseTaskState(task)
@@ -430,25 +465,32 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 	}
 }
 
-func (vm *VM) pollUserTask(task *asyncrt.Task) (outcome asyncrt.PollOutcome, stateOut Value, vmErr *VMError) {
+func (vm *VM) pollUserTask(task *asyncrt.Task) (outcome asyncrt.PollOutcome, vmErr *VMError) {
 	if vm == nil {
-		return asyncrt.PollOutcome{}, Value{}, nil
+		return asyncrt.PollOutcome{}, nil
 	}
 	if task == nil {
-		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing task")
+		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if vm.M == nil {
-		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing module")
+		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing module")
 	}
 	fn := vm.M.Funcs[mir.FuncID(task.PollFuncID)] //nolint:gosec // PollFuncID is bounded by module
 	if fn == nil {
-		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
+		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
 	}
-	outcome, stateOut, vmErr = vm.runPoll(fn)
+	state := vm.ensureUserTaskState(task)
+	outcome, stateOut, vmErr := vm.runPoll(fn)
 	if vmErr != nil {
-		return asyncrt.PollOutcome{}, Value{}, vmErr
+		return asyncrt.PollOutcome{}, vmErr
 	}
-	return outcome, stateOut, nil
+	if stateOut.Kind != VKInvalid {
+		state.state = stateOut
+	} else {
+		state.state = Value{}
+	}
+	task.State = state
+	return outcome, nil
 }
 
 func (vm *VM) runReadyOne() (bool, *VMError) {
@@ -535,6 +577,16 @@ func (vm *VM) releaseTaskState(task *asyncrt.Task) {
 	if vm == nil || task == nil {
 		return
 	}
+	if state, ok := task.State.(*userTaskState); ok && state != nil {
+		if state.state.Kind != VKInvalid {
+			vm.dropValue(state.state)
+		}
+		vm.releasePinnedFrames(state.pinnedFrame)
+		state.state = Value{}
+		state.pinnedFrame = nil
+		task.State = nil
+		return
+	}
 	if v, ok := task.State.(Value); ok {
 		vm.dropValue(v)
 	}
@@ -569,7 +621,7 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 	vm.started = true
 
 	frame := NewFrame(fn)
-	vm.Stack = []Frame{*frame}
+	vm.Stack = []*Frame{frame}
 
 	for len(vm.Stack) > 0 && !vm.Halted {
 		if vmErr := vm.Step(); vmErr != nil {

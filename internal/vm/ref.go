@@ -26,11 +26,10 @@ const (
 
 // Location represents a memory location in the VM.
 type Location struct {
-	Frame int32
-
-	Local  int32
-	Global int32
-	Index  int32
+	FrameRef *Frame
+	Local    int32
+	Global   int32
+	Index    int32
 	// ByteOffset is the ABI byte offset of the projected location within its base object.
 	// It is used for layout-consistent addressing (even if the VM stores values differently).
 	ByteOffset int32

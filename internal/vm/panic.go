@@ -134,14 +134,14 @@ func (eb *errorBuilder) makeError(code PanicCode, msg string) *VMError {
 
 	// Get current span from top frame
 	if len(eb.vm.Stack) > 0 {
-		frame := &eb.vm.Stack[len(eb.vm.Stack)-1]
+		frame := eb.vm.Stack[len(eb.vm.Stack)-1]
 		e.Span = frame.Span
 	}
 
 	// Build backtrace from stack (top to bottom)
 	e.Backtrace = make([]BacktraceFrame, len(eb.vm.Stack))
 	for i := len(eb.vm.Stack) - 1; i >= 0; i-- {
-		frame := &eb.vm.Stack[i]
+		frame := eb.vm.Stack[i]
 		e.Backtrace[len(eb.vm.Stack)-1-i] = BacktraceFrame{
 			FuncName: frame.Func.Name,
 			Span:     frame.Span,

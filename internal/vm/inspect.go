@@ -61,7 +61,7 @@ func (i *Inspector) PrintLocal(spec string) bool {
 		return false
 	}
 
-	frame := &i.vm.Stack[len(i.vm.Stack)-1]
+	frame := i.vm.Stack[len(i.vm.Stack)-1]
 	slot, label, ok := i.findLocal(frame, spec)
 	if !ok {
 		_, printErr = fmt.Fprintf(i.out, "error: unknown local '%s'\n", spec)

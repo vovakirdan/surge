@@ -235,7 +235,7 @@ func (d *Debugger) cmdNext() (DebuggerResult, *VMError) {
 	}
 
 	origDepth := len(d.vm.Stack)
-	caller := &d.vm.Stack[origDepth-1]
+	caller := d.vm.Stack[origDepth-1]
 	callerFunc := caller.Func
 	callerBB := caller.BB
 	callerIP := caller.IP
@@ -257,7 +257,7 @@ func (d *Debugger) cmdNext() (DebuggerResult, *VMError) {
 		}
 
 		if len(d.vm.Stack) == origDepth {
-			top := &d.vm.Stack[origDepth-1]
+			top := d.vm.Stack[origDepth-1]
 			if top.Func == callerFunc && top.BB == callerBB && top.IP == targetIP {
 				d.printStepLine(sp)
 				return DebuggerResult{}, nil
