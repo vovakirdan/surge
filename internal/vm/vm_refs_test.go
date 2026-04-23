@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/mir"
 	"surge/internal/vm"
 )
 
@@ -135,5 +136,103 @@ fn main() -> int {
 	}
 	if !strings.Contains(out, "backtrace:") || !strings.Contains(out, "main") {
 		t.Fatalf("expected backtrace with main frame, got:\n%s", out)
+	}
+}
+
+func TestVMRefsMapGetMutReadonlyHelperKeepsMutRefLive(t *testing.T) {
+	sourceCode := `type Entry = { value: string, owner: string? };
+
+fn inspect(entry: &Entry) -> nothing {
+    let _ = entry;
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut entries = { "k" => Entry { value = "seed", owner = nothing } };
+    compare entries.get_mut(&"k") {
+        Some(entry) => {
+            inspect(entry);
+            entry.owner = Some("client-a");
+            return 7;
+        }
+        nothing => return 1;
+    }
+    return 2;
+}
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 7 {
+		t.Fatalf("expected exit code 7, got %d\nstderr:\n%s", result.exitCode, result.stderr)
+	}
+	if result.stderr != "" {
+		t.Fatalf("expected empty stderr, got:\n%s", result.stderr)
+	}
+}
+
+func TestVMRefsMapGetMutReadonlyHelperUsesSharedReborrowInMIR(t *testing.T) {
+	sourceCode := `type Entry = { value: string, owner: string? };
+
+fn inspect(entry: &Entry) -> nothing {
+    let _ = entry;
+    return nothing;
+}
+
+@entrypoint
+fn main() -> nothing {
+    let mut entries = { "k" => Entry { value = "seed", owner = nothing } };
+    compare entries.get_mut(&"k") {
+        Some(entry) => {
+            inspect(entry);
+            entry.owner = Some("client-a");
+        }
+        nothing => {}
+    }
+    return nothing;
+}
+`
+
+	mirMod, _, _ := compileToMIRFromSource(t, sourceCode)
+
+	var inspectCall *mir.CallInstr
+	for _, fn := range mirMod.Funcs {
+		if fn == nil || fn.Name != "main" {
+			continue
+		}
+		for _, bb := range fn.Blocks {
+			for _, instr := range bb.Instrs {
+				if instr.Kind != mir.InstrCall {
+					continue
+				}
+				if instr.Call.Callee.Name != "inspect" {
+					continue
+				}
+				call := instr.Call
+				inspectCall = &call
+				break
+			}
+			if inspectCall != nil {
+				break
+			}
+		}
+	}
+
+	if inspectCall == nil {
+		t.Fatal("expected inspect call in MIR")
+	}
+	if len(inspectCall.Args) != 1 {
+		t.Fatalf("expected 1 inspect arg, got %d", len(inspectCall.Args))
+	}
+
+	arg := inspectCall.Args[0]
+	if arg.Kind != mir.OperandAddrOf {
+		t.Fatalf("expected inspect arg to be addr_of reborrow, got %s", arg.Kind.String())
+	}
+	if len(arg.Place.Proj) == 0 {
+		t.Fatalf("expected inspect arg place to deref the mutable ref local")
+	}
+	lastProj := arg.Place.Proj[len(arg.Place.Proj)-1]
+	if lastProj.Kind != mir.PlaceProjDeref {
+		t.Fatalf("expected final projection to be deref, got %v", lastProj.Kind)
 	}
 }
