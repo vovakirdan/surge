@@ -465,8 +465,8 @@ func (vm *VM) handleMapKeys(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
 	elems := make([]Value, len(obj.MapEntries))
-	for i, entry := range obj.MapEntries {
-		cloned, cloneErr := vm.cloneForShare(entry.Key)
+	for i := range obj.MapEntries {
+		cloned, cloneErr := vm.cloneForShare(obj.MapEntries[i].Key)
 		if cloneErr != nil {
 			for j := range i {
 				vm.dropValue(elems[j])

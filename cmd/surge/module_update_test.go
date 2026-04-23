@@ -82,6 +82,26 @@ func TestSyncGitModuleRejectsTrackedLocalChanges(t *testing.T) {
 	}
 }
 
+func TestSyncGitModuleIgnoresParentGitEnv(t *testing.T) {
+	requireGit(t)
+
+	t.Setenv("GIT_DIR", filepath.Join(t.TempDir(), "not-a-repo"))
+	t.Setenv("GIT_WORK_TREE", t.TempDir())
+	t.Setenv("GIT_INDEX_FILE", filepath.Join(t.TempDir(), "index"))
+
+	projectRoot := t.TempDir()
+	remote := createModuleRemote(t)
+	dest := filepath.Join(projectRoot, "deps", "sigil")
+
+	got, err := syncGitModule(projectRoot, "sigil", remote, dest)
+	if err != nil {
+		t.Fatalf("syncGitModule with parent git env: %v", err)
+	}
+	if got.State != moduleSyncInstalled {
+		t.Fatalf("state = %q, want %q", got.State, moduleSyncInstalled)
+	}
+}
+
 func requireGit(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
@@ -100,7 +120,7 @@ func createModuleRemote(t *testing.T) string {
 	mustGit(t, root, "clone", remote, worktree)
 	mustGit(t, worktree, "config", "user.email", "test@example.com")
 	mustGit(t, worktree, "config", "user.name", "Test User")
-	mustGit(t, worktree, "checkout", "-b", "main")
+	mustGit(t, worktree, "checkout", "-B", "main")
 
 	writeFile(t, filepath.Join(worktree, "surge.toml"), `[package]
 name = "sigil"
@@ -133,6 +153,9 @@ func pushModuleCommit(t *testing.T, remote, source string) string {
 
 func mustGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
+	if len(args) > 0 && args[0] == "commit" {
+		args = append([]string{"-c", "core.hooksPath=" + os.DevNull}, args...)
+	}
 	out, err := gitRun(dir, args...)
 	if err != nil {
 		t.Fatalf("git %v failed: %v", args, err)

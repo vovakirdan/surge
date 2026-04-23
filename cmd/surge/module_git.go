@@ -10,6 +10,23 @@ import (
 	"strings"
 )
 
+var gitLocalEnvVars = map[string]struct{}{
+	"GIT_ALTERNATE_OBJECT_DIRECTORIES": {},
+	"GIT_COMMON_DIR":                   {},
+	"GIT_DIR":                          {},
+	"GIT_GRAFT_FILE":                   {},
+	"GIT_IMPLICIT_WORK_TREE":           {},
+	"GIT_INDEX_FILE":                   {},
+	"GIT_INTERNAL_SUPER_PREFIX":        {},
+	"GIT_NO_REPLACE_OBJECTS":           {},
+	"GIT_OBJECT_DIRECTORY":             {},
+	"GIT_PREFIX":                       {},
+	"GIT_QUARANTINE_PATH":              {},
+	"GIT_REPLACE_REF_BASE":             {},
+	"GIT_SHALLOW_FILE":                 {},
+	"GIT_WORK_TREE":                    {},
+}
+
 type moduleSyncState string
 
 const (
@@ -176,6 +193,7 @@ func gitRun(dir string, args ...string) (string, error) {
 	// #nosec G204 -- exec.Command does not invoke a shell; argv entries are passed directly.
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	cmd.Env = gitRunEnv()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -188,4 +206,20 @@ func gitRun(dir string, args ...string) (string, error) {
 		return "", errors.New(msg)
 	}
 	return stdout.String(), nil
+}
+
+func gitRunEnv() []string {
+	env := os.Environ()
+	filtered := make([]string, 0, len(env))
+	for _, item := range env {
+		name := item
+		if idx := strings.IndexByte(item, '='); idx >= 0 {
+			name = item[:idx]
+		}
+		if _, ok := gitLocalEnvVars[name]; ok {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
 }

@@ -12,6 +12,7 @@ type LocalSlot struct {
 	IsInit    bool         // True if initialized (assigned at least once)
 	IsMoved   bool         // True if value has been moved out
 	IsDropped bool         // True if value has been dropped (@drop)
+	PinCount  uint32       // Async task states borrowing this slot as backing storage
 	Name      string       // Debug name from MIR
 	TypeID    types.TypeID // Static type from MIR
 }

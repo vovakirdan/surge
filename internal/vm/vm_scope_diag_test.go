@@ -40,7 +40,7 @@ func TestVMScopeExitInvariantBecomesVMError(t *testing.T) {
 	}
 
 	vmInstance := New(&mir.Module{}, NewTestRuntime(nil, ""), nil, typesIn, nil)
-	vmInstance.Stack = []Frame{*NewFrame(fn)}
+	vmInstance.Stack = []*Frame{NewFrame(fn)}
 	exec := vmInstance.ensureExecutor()
 	owner := exec.Spawn(1, nil)
 	actualScopeID := exec.EnterScope(owner, false)

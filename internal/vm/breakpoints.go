@@ -150,7 +150,7 @@ func (bps *Breakpoints) Match(vm *VM, sp StopPoint) (*Breakpoint, bool) {
 	}
 
 	if vm != nil && len(vm.Stack) > 0 {
-		f := &vm.Stack[len(vm.Stack)-1]
+		f := vm.Stack[len(vm.Stack)-1]
 		isEntry = f.Func != nil && f.BB == f.Func.Entry && f.IP == 0
 	}
 

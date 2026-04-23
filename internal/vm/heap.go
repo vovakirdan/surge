@@ -385,9 +385,9 @@ func (h *Heap) Free(handle Handle) {
 		obj.ArrSliceLen = 0
 		obj.ArrSliceCap = 0
 	case OKMap:
-		for _, entry := range obj.MapEntries {
-			h.releaseContainedValue(entry.Key)
-			h.releaseContainedValue(entry.Value)
+		for i := range obj.MapEntries {
+			h.releaseContainedValue(obj.MapEntries[i].Key)
+			h.releaseContainedValue(obj.MapEntries[i].Value)
 		}
 		obj.MapEntries = nil
 		obj.MapIndex = nil

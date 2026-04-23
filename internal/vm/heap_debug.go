@@ -193,11 +193,11 @@ func (vm *VM) objectRefCount(obj *Object) int {
 			count++
 		}
 	case OKMap:
-		for _, entry := range obj.MapEntries {
-			if entry.Key.IsHeap() && entry.Key.H != 0 {
+		for i := range obj.MapEntries {
+			if obj.MapEntries[i].Key.IsHeap() && obj.MapEntries[i].Key.H != 0 {
 				count++
 			}
-			if entry.Value.IsHeap() && entry.Value.H != 0 {
+			if obj.MapEntries[i].Value.IsHeap() && obj.MapEntries[i].Value.H != 0 {
 				count++
 			}
 		}

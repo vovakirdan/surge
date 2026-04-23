@@ -30,13 +30,9 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			IsMut:      true,
 		}
 	} else {
-		frameIdx, err := safecast.Conv[int32](len(vm.Stack) - 1)
-		if err != nil {
-			return Location{}, vm.eb.invalidLocation("invalid place: stack too deep")
-		}
 		loc = Location{
 			Kind:       LKLocal,
-			Frame:      frameIdx,
+			FrameRef:   frame,
 			Local:      int32(p.Local),
 			ByteOffset: 0,
 			IsMut:      true,
@@ -233,14 +229,17 @@ func maxIntValue(a, b int) int {
 func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 	switch loc.Kind {
 	case LKLocal:
-		frameIdx := int(loc.Frame)
-		if loc.Frame < 0 || frameIdx < 0 || frameIdx >= len(vm.Stack) {
-			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("invalid local frame %d", loc.Frame))
+		frame := loc.FrameRef
+		if frame == nil {
+			return Value{}, vm.eb.invalidLocation("invalid local frame <nil>")
 		}
-		frame := &vm.Stack[frameIdx]
 		localID, err := safecast.Conv[mir.LocalID](loc.Local)
 		if err != nil {
 			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("invalid local id %d", loc.Local))
+		}
+		slot := &frame.Locals[localID]
+		if slot.IsInit && !slot.IsDropped && slot.IsMoved && slot.PinCount != 0 {
+			return slot.V, nil
 		}
 		return vm.readLocal(frame, localID)
 
@@ -339,11 +338,10 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 
 	switch loc.Kind {
 	case LKLocal:
-		frameIdx := int(loc.Frame)
-		if loc.Frame < 0 || frameIdx < 0 || frameIdx >= len(vm.Stack) {
-			return vm.eb.invalidLocation(fmt.Sprintf("invalid local frame %d", loc.Frame))
+		frame := loc.FrameRef
+		if frame == nil {
+			return vm.eb.invalidLocation("invalid local frame <nil>")
 		}
-		frame := &vm.Stack[frameIdx]
 		localID, err := safecast.Conv[mir.LocalID](loc.Local)
 		if err != nil {
 			return vm.eb.invalidLocation(fmt.Sprintf("invalid local id %d", loc.Local))

@@ -31,7 +31,11 @@ func (vm *VM) handleTaskCreate(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	if exec == nil {
 		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
 	}
-	id := exec.Spawn(pollFnID, stateVal)
+	state := &userTaskState{}
+	if stateErr := vm.setUserTaskState(state, stateVal); stateErr != nil {
+		return stateErr
+	}
+	id := exec.Spawn(pollFnID, state)
 	taskVal, vmErr := vm.taskValue(id, frame.Locals[call.Dst.Local].TypeID)
 	if vmErr != nil {
 		return vmErr
@@ -304,11 +308,12 @@ func (vm *VM) handleTaskState(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if task == nil {
 		return vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", current))
 	}
-	stateVal, ok := task.State.(Value)
-	if !ok {
+	state := vm.ensureUserTaskState(task)
+	if state == nil || state.state.Kind == VKInvalid {
 		return vm.eb.makeError(PanicUnimplemented, "__task_state missing state")
 	}
-	task.State = nil
+	stateVal := state.state
+	state.state = Value{}
 	if vmErr := vm.writeLocal(frame, call.Dst.Local, stateVal); vmErr != nil {
 		return vmErr
 	}

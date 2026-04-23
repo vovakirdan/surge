@@ -55,10 +55,12 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 	// Contract: implicit drops run in strictly reverse local order.
 	for id := len(frame.Locals) - 1; id >= 0; id-- {
 		slot := &frame.Locals[id]
-		if !slot.IsInit || slot.IsMoved || slot.IsDropped {
+		if !slot.IsInit || slot.PinCount != 0 {
 			continue
 		}
-		vm.dropValue(slot.V)
+		if !slot.IsMoved && !slot.IsDropped {
+			vm.dropValue(slot.V)
+		}
 		slot.V = Value{}
 		slot.IsInit = false
 		slot.IsMoved = false
@@ -68,7 +70,7 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 
 func (vm *VM) dropAllFrames() {
 	for i := len(vm.Stack) - 1; i >= 0; i-- {
-		vm.dropFrameLocals(&vm.Stack[i])
+		vm.dropFrameLocals(vm.Stack[i])
 	}
 }
 
@@ -95,7 +97,15 @@ func (vm *VM) dropAsyncTasks() {
 		if task == nil {
 			continue
 		}
-		if v, ok := task.State.(Value); ok {
+		if state, ok := task.State.(*userTaskState); ok && state != nil {
+			if state.state.Kind != VKInvalid {
+				vm.dropValue(state.state)
+			}
+			vm.releaseTaskStatePins(state.pins)
+			state.state = Value{}
+			state.pins = taskStatePins{}
+			task.State = nil
+		} else if v, ok := task.State.(Value); ok {
 			vm.dropValue(v)
 		}
 		if v, ok := task.ResultValue.(Value); ok {

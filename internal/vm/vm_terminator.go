@@ -57,7 +57,7 @@ func (vm *VM) execTermReturn(frame *Frame, term *mir.Terminator) *VMError {
 
 	// If stack not empty, store return value in caller's destination
 	if len(vm.Stack) > 0 {
-		callerFrame := &vm.Stack[len(vm.Stack)-1]
+		callerFrame := vm.Stack[len(vm.Stack)-1]
 		// The caller's IP points to the call instruction that was just executed
 		// Find the call instruction and its destination
 		block := callerFrame.CurrentBlock()
@@ -87,6 +87,10 @@ func (vm *VM) execTermAsyncYield(frame *Frame, term *mir.Terminator) *VMError {
 	if vmErr != nil {
 		return vmErr
 	}
+	statePins, vmErr := vm.collectTaskStatePins(stateVal)
+	if vmErr != nil {
+		return vmErr
+	}
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
 	vm.asyncCapture.set = true
@@ -104,6 +108,7 @@ func (vm *VM) execTermAsyncYield(frame *Frame, term *mir.Terminator) *VMError {
 		vm.asyncCapture.parkKey = asyncrt.WakerKey{}
 	}
 	vm.asyncCapture.state = stateVal
+	vm.asyncCapture.pins = statePins
 	return nil
 }
 
