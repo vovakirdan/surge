@@ -290,13 +290,13 @@ func (fe *funcEmitter) projectType(cur placeProjectionType, proj mir.PlaceProj, 
 			cur = placeProjectionType{ty: next, storageLocal: storageLocal(nextPlace)}
 		}
 		_, fieldType, err := fe.structFieldInfo(resolveValueType(fe.emitter.types, cur.ty), proj)
-		return placeProjectionType{ty: fieldType}, err
+		return placeProjectionType{ty: fieldType, storageLocal: mir.NoLocalID}, err
 	case mir.PlaceProjIndex:
 		elemType, _, ok := arrayElemType(fe.emitter.types, cur.ty)
 		if !ok {
 			return placeProjectionType{}, fmt.Errorf("index projection on non-array type")
 		}
-		return placeProjectionType{ty: elemType}, nil
+		return placeProjectionType{ty: elemType, storageLocal: mir.NoLocalID}, nil
 	default:
 		return placeProjectionType{}, fmt.Errorf("unsupported place projection kind %v", proj.Kind)
 	}

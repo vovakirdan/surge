@@ -35,6 +35,7 @@ fn main() -> int {
 
 	mirMod, result := lowerMIRFromSource(t, sourceCode)
 	mainFn := findMIRFunc(t, mirMod, "main")
+	docLocal := findMIRLocal(t, mainFn, "doc")
 	entryLocal := findMIRLocal(t, mainFn, "entry")
 	keyLocal := findMIRLocal(t, mainFn, "key")
 	fe := &funcEmitter{
@@ -72,6 +73,29 @@ fn main() -> int {
 			types.Label(result.Sema.TypeInterner, projected.ty),
 			types.Label(result.Sema.TypeInterner, entryTarget.ty),
 		)
+	}
+
+	entries, err := fe.projectType(
+		placeProjectionType{ty: mainFn.Locals[docLocal].Type, storageLocal: docLocal},
+		mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: "entries", FieldIdx: -1},
+		targets,
+	)
+	if err != nil {
+		t.Fatalf("project entries field: %v", err)
+	}
+	if entries.storageLocal != mir.NoLocalID {
+		t.Fatalf("field projection storage local = %d, want NoLocalID", entries.storageLocal)
+	}
+	entryElem, err := fe.projectType(
+		entries,
+		mir.PlaceProj{Kind: mir.PlaceProjIndex},
+		targets,
+	)
+	if err != nil {
+		t.Fatalf("project entries index: %v", err)
+	}
+	if entryElem.storageLocal != mir.NoLocalID {
+		t.Fatalf("index projection storage local = %d, want NoLocalID", entryElem.storageLocal)
 	}
 }
 
