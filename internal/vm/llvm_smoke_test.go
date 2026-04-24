@@ -26,6 +26,7 @@ func TestLLVMSmoke(t *testing.T) {
 		name string
 		file string
 	}{
+		{name: "array_field_mut_ref_reborrow", file: "array_field_mut_ref_reborrow.sg"},
 		{name: "hello_print", file: "hello_print.sg"},
 		{name: "time_monotonic_now", file: "time_monotonic_now.sg"},
 		{name: "unicode_print", file: "unicode_print.sg"},

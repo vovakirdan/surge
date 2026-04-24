@@ -100,6 +100,32 @@ fn main() -> int {
 	}
 }
 
+func TestVMRefsArrayFieldMutRefSharedReborrow(t *testing.T) {
+	sourceCode := `type Entry = {
+    borrowers: string[],
+};
+
+fn add_borrower(entry: &mut Entry, client_id: &string) -> nothing {
+    if !entry.borrowers.contains(client_id) {
+        entry.borrowers.push(client_id.__clone());
+    }
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut entry: Entry = { borrowers = [] };
+    add_borrower(&mut entry, &"client-a");
+    add_borrower(&mut entry, &"client-a");
+    return entry.borrowers.__len() to int;
+}
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d\nstderr:\n%s", result.exitCode, result.stderr)
+	}
+}
+
 func TestVMRefsStoreThroughSharedRefPanics(t *testing.T) {
 	requireVMBackend(t)
 	sourceCode := `fn set(x: &int) -> nothing {

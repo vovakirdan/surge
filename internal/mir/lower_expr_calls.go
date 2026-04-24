@@ -35,7 +35,9 @@ func (l *funcLowerer) lowerSharedRefReborrowArg(argExpr *hir.Expr, paramType typ
 	if err != nil {
 		return Operand{}, false
 	}
-	place.Proj = append(place.Proj, PlaceProj{Kind: PlaceProjDeref})
+	if l.reborrowPlaceNeedsDeref(place) {
+		place.Proj = append(place.Proj, PlaceProj{Kind: PlaceProjDeref})
+	}
 	return Operand{Kind: OperandAddrOf, Type: paramType, Place: place}, true
 }
 
