@@ -46,6 +46,7 @@ neon/
 sigil/
 schess/
 surgekv/
+scribe/
 
 surge
 !cmd/surge
