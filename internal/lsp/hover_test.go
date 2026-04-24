@@ -75,3 +75,46 @@ func TestHoverTargets(t *testing.T) {
 		t.Fatalf("unexpected hover range: %+v", *varHover.Range)
 	}
 }
+
+func TestHoverAndDefinitionUseResolvedCallSymbolWhenNameShadowsMethod(t *testing.T) {
+	src := strings.Join([]string{
+		"fn fail(msg: string) -> nothing {",
+		"    return nothing;",
+		"}",
+		"",
+		"type Box = {}",
+		"",
+		"extern<Box> {",
+		"    fn fail(self: Box, msg: string) -> nothing {",
+		"        fail(msg);",
+		"    }",
+		"}",
+		"",
+	}, "\n")
+	snapshot, uri := analyzeSnapshot(t, src)
+
+	callIdx := strings.LastIndex(src, "fail(msg);")
+	if callIdx < 0 {
+		t.Fatal("missing inner fail call")
+	}
+	callPos := positionForOffsetUTF16(src, callIdx)
+
+	callHover := buildHover(snapshot, uri, callPos)
+	if callHover == nil {
+		t.Fatal("expected hover for inner fail call")
+	}
+	if !strings.Contains(callHover.Contents.Value, "fn fail(msg: string) -> nothing") {
+		t.Fatalf("expected hover for free fail function, got %q", callHover.Contents.Value)
+	}
+	if strings.Contains(callHover.Contents.Value, "self: Box") {
+		t.Fatalf("hover resolved to shadowing method instead of free function: %q", callHover.Contents.Value)
+	}
+
+	locs := buildDefinition(snapshot, uri, callPos)
+	if len(locs) != 1 {
+		t.Fatalf("expected one definition location, got %d", len(locs))
+	}
+	if locs[0].Range.Start.Line != 0 {
+		t.Fatalf("expected definition to point at free fail function on line 0, got %+v", locs[0].Range)
+	}
+}
