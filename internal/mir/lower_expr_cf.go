@@ -1,6 +1,9 @@
 package mir
 
 import (
+	"fmt"
+
+	"surge/internal/ast"
 	"surge/internal/hir"
 	"surge/internal/types"
 )
@@ -108,6 +111,103 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 		return l.constNothing(e.Type), nil
 	}
 	return l.placeOperand(Place{Local: resultLocal}, e.Type, consume), nil
+}
+
+func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryOpData, consume bool) (Operand, error) {
+	if l == nil || e == nil {
+		return Operand{}, nil
+	}
+	if !isLogicalShortCircuitOp(data.Op) {
+		return Operand{}, fmt.Errorf("mir: logical short-circuit: unsupported op %s", data.Op)
+	}
+	resultTy, typeErr := l.logicalShortCircuitResultType(e, data, types.NoTypeID)
+	left := Operand{}
+	leftReady := false
+	if typeErr != nil {
+		var err error
+		left, err = l.lowerValueExpr(data.Left, false)
+		if err != nil {
+			return Operand{}, err
+		}
+		leftReady = true
+		resultTy, typeErr = l.logicalShortCircuitResultType(e, data, left.Type)
+		if typeErr != nil {
+			return Operand{}, typeErr
+		}
+	}
+	resultLocal := l.newTemp(resultTy, "logic", e.Span)
+
+	if !leftReady {
+		var err error
+		left, err = l.lowerValueExpr(data.Left, false)
+		if err != nil {
+			return Operand{}, err
+		}
+	}
+
+	rhsBB := l.newBlock()
+	shortBB := l.newBlock()
+	joinBB := l.newBlock()
+
+	thenBB := rhsBB
+	elseBB := shortBB
+	shortValue := false
+	if data.Op == ast.ExprBinaryLogicalOr {
+		thenBB = shortBB
+		elseBB = rhsBB
+		shortValue = true
+	}
+	l.setTerm(&Terminator{Kind: TermIf, If: IfTerm{Cond: left, Then: thenBB, Else: elseBB}})
+
+	l.startBlock(shortBB)
+	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: resultLocal},
+		Src: RValue{Kind: RValueUse, Use: Operand{Kind: OperandConst, Type: resultTy, Const: Const{
+			Kind:      ConstBool,
+			Type:      resultTy,
+			BoolValue: shortValue,
+		}}},
+	}})
+	l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
+
+	l.startBlock(rhsBB)
+	right, err := l.lowerValueExpr(data.Right, false)
+	if err != nil {
+		return Operand{}, err
+	}
+	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: resultLocal},
+		Src: RValue{Kind: RValueUse, Use: right},
+	}})
+	if !l.curBlock().Terminated() {
+		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
+	}
+
+	l.startBlock(joinBB)
+	return l.placeOperand(Place{Local: resultLocal}, resultTy, consume), nil
+}
+
+func isLogicalShortCircuitOp(op ast.ExprBinaryOp) bool {
+	return op == ast.ExprBinaryLogicalAnd || op == ast.ExprBinaryLogicalOr
+}
+
+func (l *funcLowerer) logicalShortCircuitResultType(e *hir.Expr, data hir.BinaryOpData, leftTy types.TypeID) (types.TypeID, error) {
+	if e != nil && e.Type != types.NoTypeID {
+		return e.Type, nil
+	}
+	if l != nil && l.types != nil {
+		return l.types.Builtins().Bool, nil
+	}
+	if leftTy != types.NoTypeID {
+		return leftTy, nil
+	}
+	if data.Left != nil && data.Left.Type != types.NoTypeID {
+		return data.Left.Type, nil
+	}
+	if data.Right != nil && data.Right.Type != types.NoTypeID {
+		return data.Right.Type, nil
+	}
+	return types.NoTypeID, fmt.Errorf("mir: logical short-circuit: unable to resolve result type")
 }
 
 func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consume bool) (Operand, error) {
