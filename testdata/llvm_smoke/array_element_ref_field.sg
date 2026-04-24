@@ -1,0 +1,21 @@
+type Entry = {
+    key: string,
+    value: string,
+};
+
+type Doc = {
+    entries: Entry[],
+};
+
+@entrypoint
+fn main() -> int {
+    let doc: Doc = Doc { entries = [Entry { key = "HOST", value = "localhost" }] };
+    let mut i: int = 0;
+    while i < (doc.entries.__len() to int) {
+        let entry = &doc.entries[i];
+        print(entry.key + "=" + entry.value);
+        print("\n");
+        i = i + 1;
+    }
+    return 0;
+}

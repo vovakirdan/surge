@@ -56,7 +56,8 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				return "", "", err
 			}
 			curIsValue = false
-			if i+1 < len(place.Proj) && isHandleValueType(fe.emitter.types, curType) {
+			valueType := resolveValueType(fe.emitter.types, curType)
+			if i+1 < len(place.Proj) && isHandleValueType(fe.emitter.types, valueType) {
 				next := place.Proj[i+1].Kind
 				if next == mir.PlaceProjField {
 					tmpVal := fe.nextTemp()
@@ -66,11 +67,12 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				}
 			}
 		case mir.PlaceProjField:
-			fieldIdx, fieldType, err := fe.structFieldInfo(curType, proj)
+			fieldBaseType := resolveValueType(fe.emitter.types, curType)
+			fieldIdx, fieldType, err := fe.structFieldInfo(fieldBaseType, proj)
 			if err != nil {
 				return "", "", err
 			}
-			layoutInfo, err := fe.emitter.layoutOf(curType)
+			layoutInfo, err := fe.emitter.layoutOf(fieldBaseType)
 			if err != nil {
 				return "", "", err
 			}
