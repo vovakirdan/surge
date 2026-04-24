@@ -120,15 +120,29 @@ func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryO
 	if !isLogicalShortCircuitOp(data.Op) {
 		return Operand{}, fmt.Errorf("mir: logical short-circuit: unsupported op %s", data.Op)
 	}
-	resultTy := e.Type
-	if resultTy == types.NoTypeID && l.types != nil {
-		resultTy = l.types.Builtins().Bool
+	resultTy, typeErr := l.logicalShortCircuitResultType(e, data, types.NoTypeID)
+	left := Operand{}
+	leftReady := false
+	if typeErr != nil {
+		var err error
+		left, err = l.lowerValueExpr(data.Left, false)
+		if err != nil {
+			return Operand{}, err
+		}
+		leftReady = true
+		resultTy, typeErr = l.logicalShortCircuitResultType(e, data, left.Type)
+		if typeErr != nil {
+			return Operand{}, typeErr
+		}
 	}
 	resultLocal := l.newTemp(resultTy, "logic", e.Span)
 
-	left, err := l.lowerValueExpr(data.Left, false)
-	if err != nil {
-		return Operand{}, err
+	if !leftReady {
+		var err error
+		left, err = l.lowerValueExpr(data.Left, false)
+		if err != nil {
+			return Operand{}, err
+		}
 	}
 
 	rhsBB := l.newBlock()
@@ -175,6 +189,25 @@ func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryO
 
 func isLogicalShortCircuitOp(op ast.ExprBinaryOp) bool {
 	return op == ast.ExprBinaryLogicalAnd || op == ast.ExprBinaryLogicalOr
+}
+
+func (l *funcLowerer) logicalShortCircuitResultType(e *hir.Expr, data hir.BinaryOpData, leftTy types.TypeID) (types.TypeID, error) {
+	if e != nil && e.Type != types.NoTypeID {
+		return e.Type, nil
+	}
+	if l != nil && l.types != nil {
+		return l.types.Builtins().Bool, nil
+	}
+	if leftTy != types.NoTypeID {
+		return leftTy, nil
+	}
+	if data.Left != nil && data.Left.Type != types.NoTypeID {
+		return data.Left.Type, nil
+	}
+	if data.Right != nil && data.Right.Type != types.NoTypeID {
+		return data.Right.Type, nil
+	}
+	return types.NoTypeID, fmt.Errorf("mir: logical short-circuit: unable to resolve result type")
 }
 
 func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consume bool) (Operand, error) {
