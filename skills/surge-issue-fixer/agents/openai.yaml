@@ -1,0 +1,4 @@
+interface:
+  display_name: "Surge Issue Fixer"
+  short_description: "Fix Surge issues through tested PRs"
+  default_prompt: "Use $surge-issue-fixer to fix a Surge GitHub issue with tests, goldens, checks, commit, and PR."
