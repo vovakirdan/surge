@@ -334,6 +334,9 @@ func (fe *funcEmitter) emitCloneIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, err
 	}
 	if !isStringLike(fe.emitter.types, srcType) {
+		if _, ok := fe.emitter.resolveFuncIDForCall(fe.f, call); ok {
+			return false, nil
+		}
 		return true, fmt.Errorf("__clone unsupported for type")
 	}
 	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)

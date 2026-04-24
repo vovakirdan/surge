@@ -29,3 +29,43 @@ fn main() -> int {
 		t.Fatalf("task clone did not load the task handle before calling rt_task_clone:\n%s", ir)
 	}
 }
+
+func TestEmitCloneErrorPayloadInErringCompare(t *testing.T) {
+	sourceCode := `pragma module;
+
+pub tag Help(string);
+pub tag ErrorDiag(Error);
+
+pub type ParseDiag = Help(string) | ErrorDiag(Error);
+
+extern<ParseDiag> {
+    pub fn pretty(self: &ParseDiag) -> string! {
+        return compare self {
+            Help(s) => clone(s);
+            ErrorDiag(e) => clone(e);
+        };
+    }
+}
+
+@entrypoint
+fn main() -> int {
+    let diag: ParseDiag = ErrorDiag(Error { message = "boom", code = 1:uint });
+    compare diag.pretty() {
+        Success(text) => {
+            print(text);
+            return 0;
+        }
+        err => {
+            print(err.message);
+            return 1;
+        }
+    };
+}
+`
+
+	ir := emitLLVMFromSource(t, sourceCode)
+
+	if regexp.MustCompile(`call [^(]+ @__clone\(`).MatchString(ir) {
+		t.Fatalf("Error clone leaked as an unresolved external __clone call:\n%s", ir)
+	}
+}
