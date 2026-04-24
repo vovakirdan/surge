@@ -9,11 +9,19 @@ type Doc = {
 
 @entrypoint
 fn main() -> int {
-    let doc: Doc = Doc { entries = [Entry { key = "HOST", value = "localhost" }] };
+    let doc: Doc = Doc {
+        entries = [
+            Entry { key = "HOST", value = "localhost" },
+            Entry { key = "PORT", value = "5432" },
+        ],
+    };
     let mut i: int = 0;
     while i < (doc.entries.__len() to int) {
         let entry = &doc.entries[i];
+        let nested = &entry;
         print(entry.key + "=" + entry.value);
+        print(";");
+        print(nested.key.__clone() + "=" + nested.value.__clone());
         print("\n");
         i = i + 1;
     }

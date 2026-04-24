@@ -14,6 +14,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 	var curPtr string
 	var curType types.TypeID
 	curIsValue := false
+	curStorageLocal := mir.NoLocalID
 	switch place.Kind {
 	case mir.PlaceLocal:
 		name, ok := fe.localAlloca[place.Local]
@@ -22,6 +23,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 		}
 		curPtr = fmt.Sprintf("%%%s", name)
 		curType = fe.f.Locals[place.Local].Type
+		curStorageLocal = place.Local
 	case mir.PlaceGlobal:
 		name := fe.emitter.globalNames[place.Global]
 		if name == "" {
@@ -45,28 +47,45 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			}
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, curPtr)
-			nextType, ok := derefType(fe.emitter.types, curType)
+			nextType, nextPlace, ok := fe.derefStorageType(curStorageLocal, curType)
 			if !ok {
 				return "", "", fmt.Errorf("unsupported place deref type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
 			}
 			curPtr = tmp
 			curType = nextType
+			curStorageLocal = storageLocal(nextPlace)
 			curLLVMType, err = llvmValueType(fe.emitter.types, curType)
 			if err != nil {
 				return "", "", err
 			}
 			curIsValue = false
-			valueType := resolveValueType(fe.emitter.types, curType)
-			if i+1 < len(place.Proj) && isHandleValueType(fe.emitter.types, valueType) {
+			if i+1 < len(place.Proj) && !isRefType(fe.emitter.types, curType) && isHandleValueType(fe.emitter.types, resolveValueType(fe.emitter.types, curType)) {
 				next := place.Proj[i+1].Kind
 				if next == mir.PlaceProjField {
 					tmpVal := fe.nextTemp()
 					fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmpVal, curPtr)
 					curPtr = tmpVal
 					curIsValue = true
+					curStorageLocal = mir.NoLocalID
 				}
 			}
 		case mir.PlaceProjField:
+			for isRefType(fe.emitter.types, curType) {
+				nextType, nextPlace, ok := fe.derefStorageType(curStorageLocal, curType)
+				if !ok {
+					return "", "", fmt.Errorf("unsupported field reference type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
+				}
+				tmp := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, curPtr)
+				curPtr = tmp
+				curType = nextType
+				curStorageLocal = storageLocal(nextPlace)
+				curLLVMType, err = llvmValueType(fe.emitter.types, curType)
+				if err != nil {
+					return "", "", err
+				}
+				curIsValue = false
+			}
 			fieldBaseType := resolveValueType(fe.emitter.types, curType)
 			fieldIdx, fieldType, err := fe.structFieldInfo(fieldBaseType, proj)
 			if err != nil {
@@ -96,6 +115,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			curType = fieldType
 			curLLVMType = fieldLLVMType
 			curIsValue = false
+			curStorageLocal = mir.NoLocalID
 		case mir.PlaceProjIndex:
 			if proj.IndexLocal == mir.NoLocalID {
 				return "", "", fmt.Errorf("missing index local")
@@ -141,12 +161,128 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				curLLVMType = elemLLVM
 			}
 			curIsValue = false
+			curStorageLocal = mir.NoLocalID
 		default:
 			return "", "", fmt.Errorf("unsupported place projection kind %v", proj.Kind)
 		}
 	}
 
 	return curPtr, curLLVMType, nil
+}
+
+func (fe *funcEmitter) derefStorageType(local mir.LocalID, curType types.TypeID) (types.TypeID, *mir.Place, bool) {
+	if local != mir.NoLocalID && fe.addrOfTargets != nil {
+		if target, ok := fe.addrOfTargets[local]; ok && target.ty != types.NoTypeID {
+			return target.ty, &target.place, true
+		}
+	}
+	next, ok := derefType(fe.emitter.types, curType)
+	return next, nil, ok
+}
+
+func storageLocal(place *mir.Place) mir.LocalID {
+	if place == nil || place.Kind != mir.PlaceLocal || len(place.Proj) != 0 {
+		return mir.NoLocalID
+	}
+	return place.Local
+}
+
+func (fe *funcEmitter) collectAddrOfTargets() map[mir.LocalID]addrOfTarget {
+	if fe == nil || fe.f == nil {
+		return nil
+	}
+	targets := make(map[mir.LocalID]addrOfTarget)
+	conflicts := make(map[mir.LocalID]struct{})
+	for bi := range fe.f.Blocks {
+		for ii := range fe.f.Blocks[bi].Instrs {
+			ins := &fe.f.Blocks[bi].Instrs[ii]
+			if ins.Kind != mir.InstrAssign || ins.Assign.Dst.Kind != mir.PlaceLocal || len(ins.Assign.Dst.Proj) != 0 {
+				continue
+			}
+			local := ins.Assign.Dst.Local
+			if ins.Assign.Src.Kind != mir.RValueUse {
+				conflicts[local] = struct{}{}
+				continue
+			}
+			use := ins.Assign.Src.Use
+			if use.Kind != mir.OperandAddrOf && use.Kind != mir.OperandAddrOfMut {
+				conflicts[local] = struct{}{}
+				continue
+			}
+			ty, err := fe.projectedPlaceType(use.Place)
+			if err != nil || ty == types.NoTypeID {
+				conflicts[local] = struct{}{}
+				continue
+			}
+			next := addrOfTarget{place: use.Place, ty: ty}
+			if existing, ok := targets[local]; ok && !sameAddrOfTarget(existing, next) {
+				conflicts[local] = struct{}{}
+				continue
+			}
+			targets[local] = next
+		}
+	}
+	for local := range conflicts {
+		delete(targets, local)
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	return targets
+}
+
+func sameAddrOfTarget(a, b addrOfTarget) bool {
+	if a.ty != b.ty || a.place.Kind != b.place.Kind || a.place.Local != b.place.Local || a.place.Global != b.place.Global {
+		return false
+	}
+	if len(a.place.Proj) != len(b.place.Proj) {
+		return false
+	}
+	for i := range a.place.Proj {
+		if a.place.Proj[i] != b.place.Proj[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (fe *funcEmitter) projectedPlaceType(place mir.Place) (types.TypeID, error) {
+	base := place
+	base.Proj = nil
+	cur, err := fe.placeBaseType(base)
+	if err != nil {
+		return types.NoTypeID, err
+	}
+	for _, proj := range place.Proj {
+		next, err := fe.projectType(cur, proj)
+		if err != nil {
+			return types.NoTypeID, err
+		}
+		cur = next
+	}
+	return cur, nil
+}
+
+func (fe *funcEmitter) projectType(cur types.TypeID, proj mir.PlaceProj) (types.TypeID, error) {
+	switch proj.Kind {
+	case mir.PlaceProjDeref:
+		next, ok := derefType(fe.emitter.types, cur)
+		if !ok {
+			return types.NoTypeID, fmt.Errorf("unsupported place deref type %s (id=%d)", types.Label(fe.emitter.types, cur), cur)
+		}
+		return next, nil
+	case mir.PlaceProjField:
+		_, fieldType, err := fe.structFieldInfo(resolveValueType(fe.emitter.types, cur), proj)
+		return fieldType, err
+	case mir.PlaceProjIndex:
+		elemType, _, ok := arrayElemType(fe.emitter.types, cur)
+		if !ok {
+			return types.NoTypeID, fmt.Errorf("index projection on non-array type")
+		}
+		return elemType, nil
+	default:
+		return types.NoTypeID, fmt.Errorf("unsupported place projection kind %v", proj.Kind)
+	}
 }
 
 func (fe *funcEmitter) placeBaseType(place mir.Place) (types.TypeID, error) {

@@ -15,6 +15,11 @@ type funcSig struct {
 	paramTypes []types.TypeID
 }
 
+type addrOfTarget struct {
+	place mir.Place
+	ty    types.TypeID
+}
+
 type stringConst struct {
 	raw        string
 	bytes      []byte
@@ -44,6 +49,7 @@ type funcEmitter struct {
 	tmpID           int
 	inlineBlock     int
 	localAlloca     map[mir.LocalID]string
+	addrOfTargets   map[mir.LocalID]addrOfTarget
 	paramLocals     []mir.LocalID
 	blockTerminated bool
 }
