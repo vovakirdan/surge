@@ -341,11 +341,15 @@ import stdlib/time as time;
 
 - `type Duration`
 - `monotonic_now() -> Duration`
-- `Duration.sub(...)`
-- `Duration.as_seconds()`
-- `Duration.as_millis()`
-- `Duration.as_micros()`
-- `Duration.as_nanos()`
+- `Duration.new(nanos) -> Duration`
+- `Duration.now() -> Duration`
+- `Duration.sub(other) -> Duration`
+- `Duration.as_seconds() -> int64`
+- `Duration.as_millis() -> int64`
+- `Duration.as_micros() -> int64`
+- `Duration.as_nanos() -> int64`
+
+`Duration` копируемый и хранит целые наносекунды. `Duration.new` строит duration из целых наносекунд. `Duration.now` возвращает текущую монотонную отметку времени как duration; используйте её с `sub` для измерения elapsed time. Методы конвертации единиц возвращают целые значения `int64`.
 
 `time` сейчас даёт монотонные часы для измерения elapsed time. Это не wall-clock calendar API.
 
@@ -354,8 +358,8 @@ import stdlib/time as time;
 ```sg
 import stdlib/time as time;
 
-fn elapsed_ms(start: time.Duration) -> float {
-    let now: time.Duration = time.monotonic_now();
+fn elapsed_ms(start: time.Duration) -> int64 {
+    let now: time.Duration = time.Duration.now();
     return now.sub(start).as_millis();
 }
 ```

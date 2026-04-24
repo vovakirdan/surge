@@ -72,6 +72,47 @@ func (tc *typeChecker) typeOfModuleMember(module *symbols.Symbol, field source.S
 	}
 }
 
+func (tc *typeChecker) moduleTypeMember(module *symbols.Symbol, field source.StringID, span source.Span, report bool) types.TypeID {
+	if module == nil || module.ModulePath == "" || tc.exports == nil {
+		return types.NoTypeID
+	}
+	exports := tc.exports[module.ModulePath]
+	if exports == nil {
+		if report {
+			tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no exports", module.ModulePath)
+		}
+		return types.NoTypeID
+	}
+	nameStr := tc.lookupName(field)
+	if nameStr == "" {
+		nameStr = "_"
+	}
+	exported := exports.Lookup(nameStr)
+	if len(exported) == 0 {
+		if report {
+			tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no member %q", module.ModulePath, nameStr)
+		}
+		return types.NoTypeID
+	}
+	for i := range exported {
+		exp := &exported[i]
+		if exp.Kind != symbols.SymbolType {
+			continue
+		}
+		if exp.Flags&symbols.SymbolFlagPublic == 0 {
+			if report {
+				tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public", nameStr, module.ModulePath)
+			}
+			return types.NoTypeID
+		}
+		return exp.Type
+	}
+	if report {
+		tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not a type", nameStr, module.ModulePath)
+	}
+	return types.NoTypeID
+}
+
 func (tc *typeChecker) moduleFunctionResult(callID ast.ExprID, module *symbols.Symbol, name source.StringID, args []callArg, typeArgs []types.TypeID, span source.Span) types.TypeID {
 	exported := tc.moduleExportsByName(module, name, span)
 	if len(exported) == 0 {
