@@ -27,91 +27,112 @@
  27: RParen          ")" at 4:50-4:51
  28: Semicolon       ";" at 4:51-4:52
  29: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
- 30: Ident           "earlier" at 5:9-5:16 (leading: Space)
- 31: Assign          "=" at 5:17-5:18 (leading: Space)
- 32: Ident           "time" at 5:19-5:23 (leading: Space)
- 33: Dot             "." at 5:23-5:24
- 34: Ident           "Duration" at 5:24-5:32
- 35: Dot             "." at 5:32-5:33
- 36: Ident           "new" at 5:33-5:36
- 37: LParen          "(" at 5:36-5:37
- 38: IntLit          "234_567_890" at 5:37-5:48
- 39: Colon           ":" at 5:48-5:49
- 40: Ident           "int64" at 5:49-5:54
- 41: RParen          ")" at 5:54-5:55
- 42: Semicolon       ";" at 5:55-5:56
- 43: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
- 44: Ident           "diff" at 6:9-6:13 (leading: Space)
- 45: Assign          "=" at 6:14-6:15 (leading: Space)
- 46: Ident           "d" at 6:16-6:17 (leading: Space)
- 47: Dot             "." at 6:17-6:18
- 48: Ident           "sub" at 6:18-6:21
- 49: LParen          "(" at 6:21-6:22
- 50: Ident           "earlier" at 6:22-6:29
- 51: RParen          ")" at 6:29-6:30
- 52: Semicolon       ";" at 6:30-6:31
- 53: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
- 54: Ident           "started" at 7:9-7:16 (leading: Space)
- 55: Assign          "=" at 7:17-7:18 (leading: Space)
- 56: Ident           "time" at 7:19-7:23 (leading: Space)
- 57: Dot             "." at 7:23-7:24
- 58: Ident           "Duration" at 7:24-7:32
- 59: Dot             "." at 7:32-7:33
- 60: Ident           "now" at 7:33-7:36
- 61: LParen          "(" at 7:36-7:37
- 62: RParen          ")" at 7:37-7:38
- 63: Semicolon       ";" at 7:38-7:39
- 64: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
- 65: Ident           "finished" at 8:9-8:17 (leading: Space)
- 66: Assign          "=" at 8:18-8:19 (leading: Space)
- 67: Ident           "time" at 8:20-8:24 (leading: Space)
- 68: Dot             "." at 8:24-8:25
- 69: Ident           "Duration" at 8:25-8:33
- 70: Dot             "." at 8:33-8:34
- 71: Ident           "now" at 8:34-8:37
- 72: LParen          "(" at 8:37-8:38
- 73: RParen          ")" at 8:38-8:39
- 74: Semicolon       ";" at 8:39-8:40
- 75: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
- 76: Ident           "elapsed" at 9:9-9:16 (leading: Space)
- 77: Assign          "=" at 9:17-9:18 (leading: Space)
- 78: Ident           "finished" at 9:19-9:27 (leading: Space)
- 79: Dot             "." at 9:27-9:28
- 80: Ident           "sub" at 9:28-9:31
- 81: LParen          "(" at 9:31-9:32
- 82: Ident           "started" at 9:32-9:39
- 83: RParen          ")" at 9:39-9:40
- 84: Semicolon       ";" at 9:40-9:41
- 85: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
- 86: Ident           "diff" at 10:12-10:16 (leading: Space)
- 87: Dot             "." at 10:16-10:17
- 88: Ident           "as_seconds" at 10:17-10:27
- 89: LParen          "(" at 10:27-10:28
- 90: RParen          ")" at 10:28-10:29
- 91: Plus            "+" at 10:30-10:31 (leading: Space)
- 92: Ident           "diff" at 10:32-10:36 (leading: Space)
- 93: Dot             "." at 10:36-10:37
- 94: Ident           "as_millis" at 10:37-10:46
- 95: LParen          "(" at 10:46-10:47
- 96: RParen          ")" at 10:47-10:48
- 97: Plus            "+" at 10:49-10:50 (leading: Space)
- 98: Ident           "diff" at 10:51-10:55 (leading: Space)
- 99: Dot             "." at 10:55-10:56
-100: Ident           "as_micros" at 10:56-10:65
-101: LParen          "(" at 10:65-10:66
-102: RParen          ")" at 10:66-10:67
-103: Plus            "+" at 10:68-10:69 (leading: Space)
-104: Ident           "diff" at 10:70-10:74 (leading: Space)
-105: Dot             "." at 10:74-10:75
-106: Ident           "as_nanos" at 10:75-10:83
-107: LParen          "(" at 10:83-10:84
-108: RParen          ")" at 10:84-10:85
-109: Plus            "+" at 10:86-10:87 (leading: Space)
-110: Ident           "elapsed" at 10:88-10:95 (leading: Space)
-111: Dot             "." at 10:95-10:96
-112: Ident           "as_nanos" at 10:96-10:104
-113: LParen          "(" at 10:104-10:105
-114: RParen          ")" at 10:105-10:106
-115: Semicolon       ";" at 10:106-10:107
-116: RBrace          "}" at 11:1-11:2 (leading: Newline)
-117: EOF             at 12:1-12:1
+ 30: Ident           "copied" at 5:9-5:15 (leading: Space)
+ 31: Assign          "=" at 5:16-5:17 (leading: Space)
+ 32: Ident           "d" at 5:18-5:19 (leading: Space)
+ 33: Semicolon       ";" at 5:19-5:20
+ 34: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 35: Ident           "earlier" at 6:9-6:16 (leading: Space)
+ 36: Assign          "=" at 6:17-6:18 (leading: Space)
+ 37: Ident           "time" at 6:19-6:23 (leading: Space)
+ 38: Dot             "." at 6:23-6:24
+ 39: Ident           "Duration" at 6:24-6:32
+ 40: Dot             "." at 6:32-6:33
+ 41: Ident           "new" at 6:33-6:36
+ 42: LParen          "(" at 6:36-6:37
+ 43: IntLit          "234_567_890" at 6:37-6:48
+ 44: Colon           ":" at 6:48-6:49
+ 45: Ident           "int64" at 6:49-6:54
+ 46: RParen          ")" at 6:54-6:55
+ 47: Semicolon       ";" at 6:55-6:56
+ 48: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 49: Ident           "diff" at 7:9-7:13 (leading: Space)
+ 50: Assign          "=" at 7:14-7:15 (leading: Space)
+ 51: Ident           "d" at 7:16-7:17 (leading: Space)
+ 52: Dot             "." at 7:17-7:18
+ 53: Ident           "sub" at 7:18-7:21
+ 54: LParen          "(" at 7:21-7:22
+ 55: Ident           "earlier" at 7:22-7:29
+ 56: RParen          ")" at 7:29-7:30
+ 57: Semicolon       ";" at 7:30-7:31
+ 58: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 59: Ident           "copy_diff" at 8:9-8:18 (leading: Space)
+ 60: Assign          "=" at 8:19-8:20 (leading: Space)
+ 61: Ident           "copied" at 8:21-8:27 (leading: Space)
+ 62: Dot             "." at 8:27-8:28
+ 63: Ident           "sub" at 8:28-8:31
+ 64: LParen          "(" at 8:31-8:32
+ 65: Ident           "earlier" at 8:32-8:39
+ 66: RParen          ")" at 8:39-8:40
+ 67: Semicolon       ";" at 8:40-8:41
+ 68: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 69: Ident           "started" at 9:9-9:16 (leading: Space)
+ 70: Assign          "=" at 9:17-9:18 (leading: Space)
+ 71: Ident           "time" at 9:19-9:23 (leading: Space)
+ 72: Dot             "." at 9:23-9:24
+ 73: Ident           "Duration" at 9:24-9:32
+ 74: Dot             "." at 9:32-9:33
+ 75: Ident           "now" at 9:33-9:36
+ 76: LParen          "(" at 9:36-9:37
+ 77: RParen          ")" at 9:37-9:38
+ 78: Semicolon       ";" at 9:38-9:39
+ 79: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 80: Ident           "finished" at 10:9-10:17 (leading: Space)
+ 81: Assign          "=" at 10:18-10:19 (leading: Space)
+ 82: Ident           "time" at 10:20-10:24 (leading: Space)
+ 83: Dot             "." at 10:24-10:25
+ 84: Ident           "Duration" at 10:25-10:33
+ 85: Dot             "." at 10:33-10:34
+ 86: Ident           "now" at 10:34-10:37
+ 87: LParen          "(" at 10:37-10:38
+ 88: RParen          ")" at 10:38-10:39
+ 89: Semicolon       ";" at 10:39-10:40
+ 90: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
+ 91: Ident           "elapsed" at 11:9-11:16 (leading: Space)
+ 92: Assign          "=" at 11:17-11:18 (leading: Space)
+ 93: Ident           "finished" at 11:19-11:27 (leading: Space)
+ 94: Dot             "." at 11:27-11:28
+ 95: Ident           "sub" at 11:28-11:31
+ 96: LParen          "(" at 11:31-11:32
+ 97: Ident           "started" at 11:32-11:39
+ 98: RParen          ")" at 11:39-11:40
+ 99: Semicolon       ";" at 11:40-11:41
+100: KwReturn        "return" at 12:5-12:11 (leading: Newline, Space)
+101: Ident           "diff" at 12:12-12:16 (leading: Space)
+102: Dot             "." at 12:16-12:17
+103: Ident           "as_seconds" at 12:17-12:27
+104: LParen          "(" at 12:27-12:28
+105: RParen          ")" at 12:28-12:29
+106: Plus            "+" at 12:30-12:31 (leading: Space)
+107: Ident           "diff" at 12:32-12:36 (leading: Space)
+108: Dot             "." at 12:36-12:37
+109: Ident           "as_millis" at 12:37-12:46
+110: LParen          "(" at 12:46-12:47
+111: RParen          ")" at 12:47-12:48
+112: Plus            "+" at 12:49-12:50 (leading: Space)
+113: Ident           "diff" at 12:51-12:55 (leading: Space)
+114: Dot             "." at 12:55-12:56
+115: Ident           "as_micros" at 12:56-12:65
+116: LParen          "(" at 12:65-12:66
+117: RParen          ")" at 12:66-12:67
+118: Plus            "+" at 12:68-12:69 (leading: Space)
+119: Ident           "diff" at 12:70-12:74 (leading: Space)
+120: Dot             "." at 12:74-12:75
+121: Ident           "as_nanos" at 12:75-12:83
+122: LParen          "(" at 12:83-12:84
+123: RParen          ")" at 12:84-12:85
+124: Plus            "+" at 12:86-12:87 (leading: Space)
+125: Ident           "copy_diff" at 12:88-12:97 (leading: Space)
+126: Dot             "." at 12:97-12:98
+127: Ident           "as_seconds" at 12:98-12:108
+128: LParen          "(" at 12:108-12:109
+129: RParen          ")" at 12:109-12:110
+130: Plus            "+" at 12:111-12:112 (leading: Space)
+131: Ident           "elapsed" at 12:113-12:120 (leading: Space)
+132: Dot             "." at 12:120-12:121
+133: Ident           "as_nanos" at 12:121-12:129
+134: LParen          "(" at 12:129-12:130
+135: RParen          ")" at 12:130-12:131
+136: Semicolon       ";" at 12:131-12:132
+137: RBrace          "}" at 13:1-13:2 (leading: Newline)
+138: EOF             at 14:1-14:1

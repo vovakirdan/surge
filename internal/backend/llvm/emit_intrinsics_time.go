@@ -104,6 +104,11 @@ func (fe *funcEmitter) emitDurationNanosOperand(op *mir.Operand) (nanos string, 
 			return "", false, placeErr
 		}
 	}
+	if op != nil && isRefType(fe.emitter.types, op.Type) {
+		if elem, refOK := derefType(fe.emitter.types, op.Type); refOK {
+			typeID = elem
+		}
+	}
 	_, _, opaqueOffset, ok, err := fe.durationLayoutForType(typeID)
 	if err != nil || !ok {
 		return "", ok, err
@@ -145,7 +150,7 @@ func (fe *funcEmitter) emitDurationValue(dst mir.Place, nanos string) error {
 		return err
 	}
 	if dstTy != "ptr" {
-		dstTy = "ptr"
+		return fmt.Errorf("duration destination must lower to ptr, got %s", dstTy)
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, mem, ptr)
 	return nil
