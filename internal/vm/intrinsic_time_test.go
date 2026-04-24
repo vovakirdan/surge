@@ -8,13 +8,9 @@ func TestVMDurationIntrinsicMethods(t *testing.T) {
 
 	sourceCode := `import stdlib/time as time;
 
-fn duration(ns: int64) -> time.Duration {
-    return time.Duration { __opaque = ns };
-}
-
 @entrypoint
 fn main() -> int {
-    let d = duration(1_500_250_999:int64);
+    let d = time.Duration.new(1_500_250_999:int64);
     if d.as_nanos() != 1_500_250_999:int64 {
         return 1;
     }
@@ -27,10 +23,15 @@ fn main() -> int {
     if d.as_seconds() != 1:int64 {
         return 4;
     }
-    let later = duration(2_000_000_000:int64);
+    let later = time.Duration.new(2_000_000_000:int64);
     let diff = later.sub(d);
     if diff.as_micros() != 499_749:int64 {
         return 5;
+    }
+    let started = time.Duration.now();
+    let finished = time.Duration.now();
+    if finished.sub(started).as_nanos() < 0:int64 {
+        return 6;
     }
     return 0;
 }

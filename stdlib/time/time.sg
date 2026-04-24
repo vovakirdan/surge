@@ -16,6 +16,17 @@ pub type Duration = {
 pub fn monotonic_now() -> Duration;
 
 extern<Duration> {
+    // Build a Duration from whole nanoseconds.
+    pub fn new(nanos: int64) -> Duration {
+        return Duration { __opaque = nanos };
+    }
+
+    // Return the current monotonic timestamp as a Duration.
+    // Use it with sub() to measure elapsed time; it is not wall-clock time.
+    pub fn now() -> Duration {
+        return monotonic_now();
+    }
+
     // Subtract another duration from this one.
     // Returns self - other.
     @intrinsic

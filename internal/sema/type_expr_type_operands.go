@@ -69,6 +69,14 @@ func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (ty
 				return tc.symbolType(symID), true
 			}
 		}
+	case ast.ExprMember:
+		if member, ok := tc.builder.Exprs.Member(exprID); ok && member != nil {
+			if module := tc.moduleSymbolForExpr(member.Target); module != nil {
+				if ty := tc.moduleTypeMember(module, member.Field, expr.Span, true); ty != types.NoTypeID {
+					return ty, true
+				}
+			}
+		}
 	case ast.ExprLit:
 		// Handle 'nothing' literal as type operand
 		if lit, ok := tc.builder.Exprs.Literal(exprID); ok && lit != nil {
@@ -133,6 +141,12 @@ func (tc *typeChecker) tryResolveTypeOperand(exprID ast.ExprID) types.TypeID {
 			scope := tc.scopeOrFile(tc.currentScope())
 			if symID := tc.lookupTypeSymbol(ident.Name, scope); symID.IsValid() {
 				return tc.symbolType(symID)
+			}
+		}
+	case ast.ExprMember:
+		if member, ok := tc.builder.Exprs.Member(exprID); ok && member != nil {
+			if module := tc.moduleSymbolForExpr(member.Target); module != nil {
+				return tc.moduleTypeMember(module, member.Field, expr.Span, false)
 			}
 		}
 	case ast.ExprLit:

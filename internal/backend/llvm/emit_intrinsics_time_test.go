@@ -12,14 +12,10 @@ func TestEmitDurationIntrinsicsLowered(t *testing.T) {
 
 	sourceCode := `import stdlib/time as time;
 
-fn duration(ns: int64) -> time.Duration {
-    return time.Duration { __opaque = ns };
-}
-
 @entrypoint
 fn main() -> int {
-    let d = duration(1_500_250_999:int64);
-    let later = duration(2_000_000_000:int64);
+    let d = time.Duration.new(1_500_250_999:int64);
+    let later = time.Duration.new(2_000_000_000:int64);
     let diff = later.sub(d);
     if diff.as_millis() != 499:int64 {
         return 1;
@@ -33,13 +29,16 @@ fn main() -> int {
     if d.as_nanos() != 1_500_250_999:int64 {
         return 4;
     }
+    let started = time.Duration.now();
+    let finished = time.Duration.now();
+    let _ = finished.sub(started).as_nanos();
     return 0;
 }
 `
 
 	ir := emitLLVMFromSource(t, sourceCode)
 
-	for _, name := range []string{"sub", "as_seconds", "as_millis", "as_micros", "as_nanos"} {
+	for _, name := range []string{"sub", "as_seconds", "as_millis", "as_micros", "as_nanos", "monotonic_now"} {
 		pattern := regexp.MustCompile(`call [^(]+ @` + name + `\(`)
 		if pattern.MatchString(ir) {
 			t.Fatalf("duration intrinsic %s leaked as external call:\n%s", name, ir)
@@ -53,6 +52,9 @@ fn main() -> int {
 	}
 	if !regexp.MustCompile(`sdiv i64 [^,]+, 1000000000`).MatchString(ir) {
 		t.Fatalf("expected as_seconds to divide nanoseconds by 1_000_000_000:\n%s", ir)
+	}
+	if !regexp.MustCompile(`call i64 @rt_monotonic_now\(\)`).MatchString(ir) {
+		t.Fatalf("expected Duration.now to call rt_monotonic_now:\n%s", ir)
 	}
 }
 
