@@ -1,0 +1,35 @@
+time_duration_conversions.sg (span: 1:1-13:1)
+├─ Item[0]: Import (span: 1:1-1:28)
+│  ├─ Module: stdlib::time
+│  └─ Alias: time
+├─ Item[1]: Fn (span: 3:1-5:2)
+│  ├─ Name: duration
+│  ├─ Params: (ns: int64)
+│  ├─ Return: time.Duration
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:41-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:44)
+│           └─ Expr: expr#5: <ExprKind(22)>
+└─ Item[2]: Fn (span: 7:1-12:2)
+   ├─ Name: duration_total
+   ├─ Params: ()
+   ├─ Return: int64
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:30-12:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:43)
+         │  ├─ Name: d
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#9: duration(1_234_567_890 to int64)
+         ├─ Stmt[1]: Let (span: 9:5-9:47)
+         │  ├─ Name: earlier
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#13: duration(234_567_890 to int64)
+         ├─ Stmt[2]: Let (span: 10:5-10:31)
+         │  ├─ Name: diff
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#17: d.sub(earlier)
+         └─ Stmt[3]: Return (span: 11:5-11:86)
+            └─ Expr: expr#32: (((((diff.as_seconds() + diff.as_millis())) + diff.as_micros())) + diff.as_nanos())

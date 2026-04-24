@@ -3,6 +3,7 @@
 
 // Duration represents a time span with nanosecond precision.
 // Stored internally as nanoseconds in an int64.
+@copy
 @intrinsic
 pub type Duration = {
     __opaque: int64,
@@ -18,21 +19,21 @@ extern<Duration> {
     // Subtract another duration from this one.
     // Returns self - other.
     @intrinsic
-    pub fn sub(self: Duration, other: Duration) -> Duration;
+    pub fn sub(self: &Duration, other: Duration) -> Duration;
 
-    // Convert duration to floating-point seconds.
+    // Convert duration to whole seconds.
     @intrinsic
-    pub fn as_seconds(self: Duration) -> float;
+    pub fn as_seconds(self: &Duration) -> int64;
 
-    // Convert duration to floating-point milliseconds.
+    // Convert duration to whole milliseconds.
     @intrinsic
-    pub fn as_millis(self: Duration) -> float;
+    pub fn as_millis(self: &Duration) -> int64;
 
-    // Convert duration to floating-point microseconds.
+    // Convert duration to whole microseconds.
     @intrinsic
-    pub fn as_micros(self: Duration) -> float;
+    pub fn as_micros(self: &Duration) -> int64;
 
-    // Convert duration to floating-point nanoseconds.
+    // Convert duration to nanoseconds.
     @intrinsic
-    pub fn as_nanos(self: Duration) -> float;
+    pub fn as_nanos(self: &Duration) -> int64;
 }

@@ -341,11 +341,13 @@ Public API:
 
 - `type Duration`
 - `monotonic_now() -> Duration`
-- `Duration.sub(...)`
-- `Duration.as_seconds()`
-- `Duration.as_millis()`
-- `Duration.as_micros()`
-- `Duration.as_nanos()`
+- `Duration.sub(other) -> Duration`
+- `Duration.as_seconds() -> int64`
+- `Duration.as_millis() -> int64`
+- `Duration.as_micros() -> int64`
+- `Duration.as_nanos() -> int64`
+
+`Duration` is copyable and stores whole nanoseconds. Unit conversion methods return whole units as `int64`.
 
 `time` currently exposes a monotonic clock for measuring elapsed time. It is not a wall-clock calendar API.
 
@@ -354,7 +356,7 @@ Example:
 ```sg
 import stdlib/time as time;
 
-fn elapsed_ms(start: time.Duration) -> float {
+fn elapsed_ms(start: time.Duration) -> int64 {
     let now: time.Duration = time.monotonic_now();
     return now.sub(start).as_millis();
 }

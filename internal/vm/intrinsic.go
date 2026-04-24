@@ -24,6 +24,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	}
 
 	switch name {
+	case "sub", "as_seconds", "as_millis", "as_micros", "as_nanos":
+		return vm.handleDurationMethod(frame, call, writes, name)
+
 	case "size_of", "align_of":
 		return vm.handleSizeOfAlignOf(frame, call, writes, name)
 
