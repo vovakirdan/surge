@@ -117,7 +117,7 @@ func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryO
 	if l == nil || e == nil {
 		return Operand{}, nil
 	}
-	if data.Op != ast.ExprBinaryLogicalAnd && data.Op != ast.ExprBinaryLogicalOr {
+	if !isLogicalShortCircuitOp(data.Op) {
 		return Operand{}, fmt.Errorf("mir: logical short-circuit: unsupported op %s", data.Op)
 	}
 	resultTy := e.Type
@@ -171,6 +171,10 @@ func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryO
 
 	l.startBlock(joinBB)
 	return l.placeOperand(Place{Local: resultLocal}, resultTy, consume), nil
+}
+
+func isLogicalShortCircuitOp(op ast.ExprBinaryOp) bool {
+	return op == ast.ExprBinaryLogicalAnd || op == ast.ExprBinaryLogicalOr
 }
 
 func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consume bool) (Operand, error) {
