@@ -43,6 +43,7 @@ func (e *Emitter) emitFunction(f *mir.Func) error {
 		}
 		fe.localAlloca[localID] = fmt.Sprintf("l%d", i)
 	}
+	fe.addrOfTargets = fe.collectAddrOfTargets()
 
 	order := fe.blockOrder()
 	for _, bb := range order {
