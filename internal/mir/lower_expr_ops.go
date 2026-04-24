@@ -167,6 +167,9 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 	if base, ok := assignmentBaseOp(data.Op); ok {
 		return l.lowerCompoundAssignExpr(e, data, base, consume)
 	}
+	if data.Op == ast.ExprBinaryLogicalAnd || data.Op == ast.ExprBinaryLogicalOr {
+		return l.lowerLogicalShortCircuitExpr(e, data, consume)
+	}
 	left, err := l.lowerValueExpr(data.Left, false)
 	if err != nil {
 		return Operand{}, err

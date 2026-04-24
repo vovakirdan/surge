@@ -1,0 +1,44 @@
+short_circuit.sg (span: 1:1-16:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: rhs
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:18-3:2)
+│        └─ Stmt[0]: Return (span: 2:5-2:17)
+│           └─ Expr: expr#1: true
+└─ Item[1]: Fn (span: 5:1-15:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 5:18-15:2)
+         ├─ Stmt[0]: Let (span: 6:5-6:27)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#2: "abc"
+         ├─ Stmt[1]: Let (span: 7:5-7:20)
+         │  ├─ Name: i
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#3: 3
+         ├─ Stmt[2]: Let (span: 8:5-8:69)
+         │  ├─ Name: guarded
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#17: (((i < (s.__len() to int))) && ((s[i] == (34 to uint32))))
+         ├─ Stmt[3]: Let (span: 9:5-9:40)
+         │  ├─ Name: fallback
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#21: (true || rhs())
+         ├─ Stmt[4]: If (span: 11:5-13:6)
+         │  ├─ Cond: expr#25: (guarded || !fallback)
+         │  ├─ Then:
+Block (span: 11:29-13:6)
+         │  │  └─ Stmt[0]: Return (span: 12:9-12:18)
+         │  │     └─ Expr: expr#26: 1
+         │  └─ Else: <none>
+         └─ Stmt[5]: Return (span: 14:5-14:14)
+            └─ Expr: expr#27: 0

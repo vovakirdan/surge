@@ -1,0 +1,68 @@
+
+== MIR ==
+funcs=2
+
+fn main:
+  locals:
+    L0: string name=s
+    L1: int [copy] name=i
+    L2: bool [copy] name=guarded
+    L3: bool [copy] name=tmp_logic1
+    L4: uint [copy] name=tmp_call2
+    L5: int [copy] name=tmp_cast3
+    L6: bool [copy] name=tmp_call4
+    L7: uint32 [copy] name=tmp_idx5
+    L8: uint32 [copy] name=tmp_cast6
+    L9: bool [copy] name=tmp_call7
+    L10: bool [copy] name=fallback
+    L11: bool [copy] name=tmp_logic8
+    L12: bool [copy] name=tmp_call9
+    L13: bool [copy] name=tmp_logic10
+    L14: bool [copy] name=tmp_call11
+  bb0:
+    L0 = const "\"abc\""
+    L1 = const 3
+    L4 = call __len(addr_of L0)
+    L5 = cast copy L4 to int
+    L6 = call __lt(copy L1, copy L5)
+    if copy L6 then bb1 else bb2
+  bb1:
+    L7 = index copy L0[copy L1]
+    L8 = cast const 34 to uint32
+    L9 = call __eq(copy L7, copy L8)
+    L3 = copy L9
+    goto bb3
+  bb2:
+    L3 = const false
+    goto bb3
+  bb3:
+    L2 = copy L3
+    if const true then bb5 else bb4
+  bb4:
+    L12 = call rhs()
+    L11 = copy L12
+    goto bb6
+  bb5:
+    L11 = const true
+    goto bb6
+  bb6:
+    L10 = copy L11
+    if copy L2 then bb8 else bb7
+  bb7:
+    L14 = call __not(copy L10)
+    L13 = copy L14
+    goto bb9
+  bb8:
+    L13 = const true
+    goto bb9
+  bb9:
+    if copy L13 then bb10 else bb11
+  bb10:
+    return const 1
+  bb11:
+    return const 0
+
+fn rhs:
+  locals:
+  bb0:
+    return const true

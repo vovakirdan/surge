@@ -1,0 +1,15 @@
+fn rhs() -> bool {
+    return true;
+}
+
+fn main() -> int {
+    let s: string = "abc";
+    let i: int = 3;
+    let guarded: bool = i < (s.__len() to int) && s[i] == 34:uint32;
+    let fallback: bool = true || rhs();
+
+    if guarded || !fallback {
+        return 1;
+    }
+    return 0;
+}

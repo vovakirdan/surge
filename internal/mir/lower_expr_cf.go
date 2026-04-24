@@ -1,6 +1,7 @@
 package mir
 
 import (
+	"surge/internal/ast"
 	"surge/internal/hir"
 	"surge/internal/types"
 )
@@ -108,6 +109,63 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 		return l.constNothing(e.Type), nil
 	}
 	return l.placeOperand(Place{Local: resultLocal}, e.Type, consume), nil
+}
+
+func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryOpData, consume bool) (Operand, error) {
+	if l == nil || e == nil {
+		return Operand{}, nil
+	}
+	resultTy := e.Type
+	if resultTy == types.NoTypeID && l.types != nil {
+		resultTy = l.types.Builtins().Bool
+	}
+	resultLocal := l.newTemp(resultTy, "logic", e.Span)
+
+	left, err := l.lowerValueExpr(data.Left, false)
+	if err != nil {
+		return Operand{}, err
+	}
+
+	rhsBB := l.newBlock()
+	shortBB := l.newBlock()
+	joinBB := l.newBlock()
+
+	thenBB := rhsBB
+	elseBB := shortBB
+	shortValue := false
+	if data.Op == ast.ExprBinaryLogicalOr {
+		thenBB = shortBB
+		elseBB = rhsBB
+		shortValue = true
+	}
+	l.setTerm(&Terminator{Kind: TermIf, If: IfTerm{Cond: left, Then: thenBB, Else: elseBB}})
+
+	l.startBlock(shortBB)
+	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: resultLocal},
+		Src: RValue{Kind: RValueUse, Use: Operand{Kind: OperandConst, Type: resultTy, Const: Const{
+			Kind:      ConstBool,
+			Type:      resultTy,
+			BoolValue: shortValue,
+		}}},
+	}})
+	l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
+
+	l.startBlock(rhsBB)
+	right, err := l.lowerValueExpr(data.Right, false)
+	if err != nil {
+		return Operand{}, err
+	}
+	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: resultLocal},
+		Src: RValue{Kind: RValueUse, Use: right},
+	}})
+	if !l.curBlock().Terminated() {
+		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
+	}
+
+	l.startBlock(joinBB)
+	return l.placeOperand(Place{Local: resultLocal}, resultTy, consume), nil
 }
 
 func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consume bool) (Operand, error) {
