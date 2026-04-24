@@ -18,8 +18,11 @@ fn main() -> int {
     let mut i: int = 0;
     while i < (doc.entries.__len() to int) {
         let entry = &doc.entries[i];
+        let key = &entry.key;
         let nested = &entry;
         print(entry.key + "=" + entry.value);
+        print(";");
+        print(key.__clone());
         print(";");
         print(nested.key.__clone() + "=" + nested.value.__clone());
         print("\n");

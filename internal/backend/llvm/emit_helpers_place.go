@@ -171,8 +171,12 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 }
 
 func (fe *funcEmitter) derefStorageType(local mir.LocalID, curType types.TypeID) (types.TypeID, *mir.Place, bool) {
-	if local != mir.NoLocalID && fe.addrOfTargets != nil {
-		if target, ok := fe.addrOfTargets[local]; ok && target.ty != types.NoTypeID {
+	return fe.derefStorageTypeWithTargets(local, curType, fe.addrOfTargets)
+}
+
+func (fe *funcEmitter) derefStorageTypeWithTargets(local mir.LocalID, curType types.TypeID, targets map[mir.LocalID]addrOfTarget) (types.TypeID, *mir.Place, bool) {
+	if local != mir.NoLocalID && targets != nil {
+		if target, ok := targets[local]; ok && target.ty != types.NoTypeID {
 			return target.ty, &target.place, true
 		}
 	}
@@ -185,6 +189,11 @@ func storageLocal(place *mir.Place) mir.LocalID {
 		return mir.NoLocalID
 	}
 	return place.Local
+}
+
+type placeProjectionType struct {
+	ty           types.TypeID
+	storageLocal mir.LocalID
 }
 
 func (fe *funcEmitter) collectAddrOfTargets() map[mir.LocalID]addrOfTarget {
@@ -209,7 +218,7 @@ func (fe *funcEmitter) collectAddrOfTargets() map[mir.LocalID]addrOfTarget {
 				conflicts[local] = struct{}{}
 				continue
 			}
-			ty, err := fe.projectedPlaceType(use.Place)
+			ty, err := fe.projectedPlaceTypeWithTargets(use.Place, targets)
 			if err != nil || ty == types.NoTypeID {
 				conflicts[local] = struct{}{}
 				continue
@@ -246,42 +255,50 @@ func sameAddrOfTarget(a, b addrOfTarget) bool {
 	return true
 }
 
-func (fe *funcEmitter) projectedPlaceType(place mir.Place) (types.TypeID, error) {
+func (fe *funcEmitter) projectedPlaceTypeWithTargets(place mir.Place, targets map[mir.LocalID]addrOfTarget) (types.TypeID, error) {
 	base := place
 	base.Proj = nil
 	cur, err := fe.placeBaseType(base)
 	if err != nil {
 		return types.NoTypeID, err
 	}
+	state := placeProjectionType{ty: cur, storageLocal: storageLocal(&base)}
 	for _, proj := range place.Proj {
-		next, err := fe.projectType(cur, proj)
+		next, err := fe.projectType(state, proj, targets)
 		if err != nil {
 			return types.NoTypeID, err
 		}
-		cur = next
+		state = next
 	}
-	return cur, nil
+	return state.ty, nil
 }
 
-func (fe *funcEmitter) projectType(cur types.TypeID, proj mir.PlaceProj) (types.TypeID, error) {
+func (fe *funcEmitter) projectType(cur placeProjectionType, proj mir.PlaceProj, targets map[mir.LocalID]addrOfTarget) (placeProjectionType, error) {
 	switch proj.Kind {
 	case mir.PlaceProjDeref:
-		next, ok := derefType(fe.emitter.types, cur)
+		next, nextPlace, ok := fe.derefStorageTypeWithTargets(cur.storageLocal, cur.ty, targets)
 		if !ok {
-			return types.NoTypeID, fmt.Errorf("unsupported place deref type %s (id=%d)", types.Label(fe.emitter.types, cur), cur)
+			return placeProjectionType{}, fmt.Errorf("unsupported place deref type %s (id=%d)", types.Label(fe.emitter.types, cur.ty), cur.ty)
 		}
-		return next, nil
+		return placeProjectionType{ty: next, storageLocal: storageLocal(nextPlace)}, nil
 	case mir.PlaceProjField:
-		_, fieldType, err := fe.structFieldInfo(resolveValueType(fe.emitter.types, cur), proj)
-		return fieldType, err
-	case mir.PlaceProjIndex:
-		elemType, _, ok := arrayElemType(fe.emitter.types, cur)
-		if !ok {
-			return types.NoTypeID, fmt.Errorf("index projection on non-array type")
+		for isRefType(fe.emitter.types, cur.ty) {
+			next, nextPlace, ok := fe.derefStorageTypeWithTargets(cur.storageLocal, cur.ty, targets)
+			if !ok {
+				return placeProjectionType{}, fmt.Errorf("unsupported field reference type %s (id=%d)", types.Label(fe.emitter.types, cur.ty), cur.ty)
+			}
+			cur = placeProjectionType{ty: next, storageLocal: storageLocal(nextPlace)}
 		}
-		return elemType, nil
+		_, fieldType, err := fe.structFieldInfo(resolveValueType(fe.emitter.types, cur.ty), proj)
+		return placeProjectionType{ty: fieldType}, err
+	case mir.PlaceProjIndex:
+		elemType, _, ok := arrayElemType(fe.emitter.types, cur.ty)
+		if !ok {
+			return placeProjectionType{}, fmt.Errorf("index projection on non-array type")
+		}
+		return placeProjectionType{ty: elemType}, nil
 	default:
-		return types.NoTypeID, fmt.Errorf("unsupported place projection kind %v", proj.Kind)
+		return placeProjectionType{}, fmt.Errorf("unsupported place projection kind %v", proj.Kind)
 	}
 }
 

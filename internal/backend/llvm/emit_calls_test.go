@@ -81,6 +81,18 @@ fn main() -> int {
 func emitLLVMFromSource(t *testing.T, sourceCode string) string {
 	t.Helper()
 
+	mirMod, result := lowerMIRFromSource(t, sourceCode)
+
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	return ir
+}
+
+func lowerMIRFromSource(t *testing.T, sourceCode string) (*mir.Module, *driver.DiagnoseResult) {
+	t.Helper()
+
 	tmpFile, err := os.CreateTemp(t.TempDir(), "emit-call-*.sg")
 	if err != nil {
 		t.Fatalf("create temp source: %v", err)
@@ -152,9 +164,5 @@ func emitLLVMFromSource(t *testing.T, sourceCode string) string {
 		t.Fatalf("validate MIR: %v", err)
 	}
 
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
-	if err != nil {
-		t.Fatalf("emit LLVM IR: %v", err)
-	}
-	return ir
+	return mirMod, result
 }
