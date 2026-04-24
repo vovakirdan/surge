@@ -67,6 +67,9 @@ fn main() -> int {
 	if !regexp.MustCompile(`sdiv i64 [^,]+, 1000000000(?:\n|$)`).MatchString(ir) {
 		t.Fatalf("expected as_seconds to divide nanoseconds by 1_000_000_000:\n%s", ir)
 	}
+	if regexp.MustCompile(`sdiv i64 [^,]+, 1(?:\n|$)`).MatchString(ir) {
+		t.Fatalf("expected as_nanos to use raw nanoseconds without division:\n%s", ir)
+	}
 	if !regexp.MustCompile(`call i64 @rt_monotonic_now\(\)`).MatchString(ir) {
 		t.Fatalf("expected Duration.now to call rt_monotonic_now:\n%s", ir)
 	}

@@ -75,6 +75,7 @@ func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (ty
 				if ty := tc.moduleTypeMember(module, member.Field, expr.Span, true); ty != types.NoTypeID {
 					return ty, true
 				}
+				return types.NoTypeID, false
 			}
 		}
 	case ast.ExprLit:
