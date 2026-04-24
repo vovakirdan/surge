@@ -129,6 +129,9 @@ func resolveSymbolAt(af *diagnose.AnalysisFile, file *source.File, offset uint32
 		return resolvedSymbol{}
 	}
 	if af.Builder != nil && tok.Span != (source.Span{}) {
+		if resolved := resolveCallTargetSymbolAt(af, offset, tok); resolved.Sym != nil {
+			return resolved
+		}
 		if identID := findIdentExprBySpan(af.Builder, tok.Span); identID.IsValid() {
 			if symID, ok := af.Symbols.ExprSymbols[identID]; ok && symID.IsValid() {
 				if sym := af.Symbols.Table.Symbols.Get(symID); sym != nil {
@@ -152,6 +155,73 @@ func resolveSymbolAt(af *diagnose.AnalysisFile, file *source.File, offset uint32
 		}
 	}
 	return resolvedSymbol{}
+}
+
+func resolveCallTargetSymbolAt(af *diagnose.AnalysisFile, offset uint32, tok token.Token) resolvedSymbol {
+	if af == nil || af.Builder == nil || af.Builder.Exprs == nil || af.Symbols == nil ||
+		af.Symbols.ExprSymbols == nil || af.Symbols.Table == nil || af.Symbols.Table.Symbols == nil {
+		return resolvedSymbol{}
+	}
+	var (
+		bestID    symbols.SymbolID
+		bestSym   *symbols.Symbol
+		bestWidth uint32
+	)
+	for i := uint32(1); i <= af.Builder.Exprs.Arena.Len(); i++ {
+		exprID := ast.ExprID(i)
+		expr := af.Builder.Exprs.Get(exprID)
+		if expr == nil || expr.Kind != ast.ExprCall {
+			continue
+		}
+		call, ok := af.Builder.Exprs.Call(exprID)
+		if !ok || call == nil || !callTargetContainsOffset(af, call.Target, offset, tok) {
+			continue
+		}
+		symID := af.Symbols.ExprSymbols[exprID]
+		if !symID.IsValid() {
+			continue
+		}
+		sym := af.Symbols.Table.Symbols.Get(symID)
+		if sym == nil {
+			continue
+		}
+		width := expr.Span.End - expr.Span.Start
+		if bestSym == nil || width < bestWidth {
+			bestID = symID
+			bestSym = sym
+			bestWidth = width
+		}
+	}
+	if bestSym == nil {
+		return resolvedSymbol{}
+	}
+	return resolvedSymbol{ID: bestID, Sym: bestSym}
+}
+
+func callTargetContainsOffset(af *diagnose.AnalysisFile, targetID ast.ExprID, offset uint32, tok token.Token) bool {
+	if af == nil || af.Builder == nil || af.Builder.Exprs == nil || !targetID.IsValid() {
+		return false
+	}
+	target := af.Builder.Exprs.Get(targetID)
+	if target == nil || offset < target.Span.Start || offset >= target.Span.End {
+		return false
+	}
+	switch target.Kind {
+	case ast.ExprIdent:
+		return target.Span == tok.Span
+	case ast.ExprMember:
+		member, ok := af.Builder.Exprs.Member(targetID)
+		if !ok || member == nil {
+			return false
+		}
+		recv := af.Builder.Exprs.Get(member.Target)
+		if recv != nil && offset >= recv.Span.Start && offset < recv.Span.End {
+			return false
+		}
+		return lookupName(af, member.Field) == tok.Text
+	default:
+		return false
+	}
 }
 
 func symbolForItemAtOffset(af *diagnose.AnalysisFile, file *source.File, offset uint32) symbols.SymbolID {
