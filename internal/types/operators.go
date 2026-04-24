@@ -81,7 +81,7 @@ var binarySpecTable = map[ast.ExprBinaryOp][]BinarySpec{
 		{Left: FamilyBool, Right: FamilyBool, Result: BinaryResultBool, Flags: BinaryFlagShortCircuit},
 	},
 	ast.ExprBinaryNullCoalescing: {
-		{Left: FamilyOptional | FamilyResult | FamilyAny, Right: FamilyAny, Result: BinaryResultLeft, Flags: BinaryFlagShortCircuit},
+		{Left: FamilyOptional | FamilyResult | FamilyAny, Right: FamilyAny, Result: BinaryResultLeft},
 	},
 	ast.ExprBinaryRange: {
 		{Left: FamilyNumeric | FamilyAny, Right: FamilyNumeric | FamilyAny, Result: BinaryResultRange},

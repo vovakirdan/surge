@@ -1,6 +1,8 @@
 package mir
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/hir"
 	"surge/internal/types"
@@ -114,6 +116,9 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryOpData, consume bool) (Operand, error) {
 	if l == nil || e == nil {
 		return Operand{}, nil
+	}
+	if data.Op != ast.ExprBinaryLogicalAnd && data.Op != ast.ExprBinaryLogicalOr {
+		return Operand{}, fmt.Errorf("mir: logical short-circuit: unsupported op %s", data.Op)
 	}
 	resultTy := e.Type
 	if resultTy == types.NoTypeID && l.types != nil {

@@ -12,6 +12,10 @@ fn rhs_panic() -> bool {
     return false;
 }
 
+fn rhs_false() -> bool {
+    return false;
+}
+
 @entrypoint
 fn main() -> int {
     let s: string = "abc";
@@ -25,6 +29,9 @@ fn main() -> int {
     }
     if i < (s.__len() to int) && s[i] == 34:uint32 {
         return 3;
+    }
+    if true && rhs_false() {
+        return 5;
     }
     if true || rhs_panic() {
         return 0;
