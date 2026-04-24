@@ -11,8 +11,10 @@ import (
 
 // ImportMeta captures metadata for a single module import.
 type ImportMeta struct {
-	Path string
-	Span source.Span
+	Path         string
+	Span         source.Span
+	IsRelative   bool
+	SegmentCount int
 }
 
 // ModuleKind distinguishes between library modules and executables.
@@ -42,6 +44,7 @@ type ModuleMeta struct {
 	Kind            ModuleKind // module или binary
 	NoStd           bool       // признак pragma no_std, согласованный для всего модуля
 	HasModulePragma bool
+	HasExplicitName bool
 	Span            source.Span  // span всего файла (или места объявления модуля)
 	Imports         []ImportMeta // нормализованные пути импортов с их спанами
 	Files           []ModuleFileMeta

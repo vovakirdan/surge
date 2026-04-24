@@ -1,0 +1,5 @@
+pragma module::chess;
+
+pub fn initial_game() -> int {
+    return 42;
+}
