@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -469,20 +468,6 @@ type moduleRecord struct {
 	checkedEntrypoints bool
 }
 
-func moduleHasExplicitName(meta *project.ModuleMeta) bool {
-	if meta == nil {
-		return false
-	}
-	if !meta.HasModulePragma {
-		return false
-	}
-	if meta.Dir == "" {
-		return false
-	}
-	dirBase := filepath.Base(meta.Dir)
-	return dirBase != "" && dirBase != meta.Name
-}
-
 func runModuleGraph(
 	ctx context.Context,
 	fs *source.FileSet,
@@ -594,7 +579,7 @@ func runModuleGraph(
 			importedPath := normalizeExportsKey(imp.Path)
 			actualPath := normalizeExportsKey(depRec.Meta.Path)
 			if importedPath != "" && actualPath != "" && importedPath != actualPath {
-				if moduleHasExplicitName(depRec.Meta) && rec != nil && rec.Bag != nil && path.Base(importedPath) != depRec.Meta.Name {
+				if rec != nil && rec.Bag != nil && shouldReportWrongExplicitImport(imp, depRec.Meta, importedPath, actualPath) {
 					reporter := &diag.BagReporter{Bag: rec.Bag}
 					msg := fmt.Sprintf("module is named %q, not %q", depRec.Meta.Path, imp.Path)
 					if b := diag.ReportError(reporter, diag.ProjWrongModuleNameInImport, imp.Span, msg); b != nil {

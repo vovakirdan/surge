@@ -1,0 +1,12 @@
+main.sg (span: 1:1-6:1)
+├─ Item[0]: Import (span: 1:1-1:37)
+│  ├─ Module: .::actual::chess
+│  └─ One: initial_game
+└─ Item[1]: Fn (span: 3:1-5:2)
+   ├─ Name: use_game
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:22-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:27)
+            └─ Expr: expr#2: initial_game()

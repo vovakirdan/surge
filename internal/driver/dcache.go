@@ -17,7 +17,7 @@ import (
 )
 
 // Current schema version - increment when DiskPayload format changes
-const diskCacheSchemaVersion uint16 = 1
+const diskCacheSchemaVersion uint16 = 4
 
 // DiskCache хранит полезные артефакты по ModuleHash на диске.
 // Сейчас — только заглушка под будущие экспорты семантики.
@@ -39,9 +39,12 @@ type DiskPayload struct {
 	Kind            uint8 // ModuleKind
 	NoStd           bool
 	HasModulePragma bool
+	HasExplicitName bool
 
-	// Imports (paths only, spans not cached)
-	ImportPaths []string
+	// Imports (spans not cached)
+	ImportPaths         []string
+	ImportRelative      []bool
+	ImportSegmentCounts []int
 
 	// Files (paths and hashes)
 	FilePaths  []string
@@ -186,6 +189,7 @@ func moduleToDiskPayload(meta *project.ModuleMeta, broken bool, depHash project.
 		Kind:            uint8(meta.Kind),
 		NoStd:           meta.NoStd,
 		HasModulePragma: meta.HasModulePragma,
+		HasExplicitName: meta.HasExplicitName,
 		ContentHash:     meta.ContentHash,
 		ModuleHash:      meta.ModuleHash,
 		DependencyHash:  depHash,
@@ -194,8 +198,12 @@ func moduleToDiskPayload(meta *project.ModuleMeta, broken bool, depHash project.
 
 	// Extract import paths
 	payload.ImportPaths = make([]string, len(meta.Imports))
+	payload.ImportRelative = make([]bool, len(meta.Imports))
+	payload.ImportSegmentCounts = make([]int, len(meta.Imports))
 	for i, imp := range meta.Imports {
 		payload.ImportPaths[i] = imp.Path
+		payload.ImportRelative[i] = imp.IsRelative
+		payload.ImportSegmentCounts[i] = imp.SegmentCount
 	}
 
 	// Extract file paths and hashes
@@ -222,6 +230,7 @@ func diskPayloadToModule(payload *DiskPayload) *project.ModuleMeta {
 		Kind:            project.ModuleKind(payload.Kind),
 		NoStd:           payload.NoStd,
 		HasModulePragma: payload.HasModulePragma,
+		HasExplicitName: payload.HasExplicitName,
 		ContentHash:     payload.ContentHash,
 		ModuleHash:      payload.ModuleHash,
 	}
@@ -229,9 +238,16 @@ func diskPayloadToModule(payload *DiskPayload) *project.ModuleMeta {
 	// Restore imports (without spans - use zero spans)
 	meta.Imports = make([]project.ImportMeta, len(payload.ImportPaths))
 	for i, path := range payload.ImportPaths {
+		isRelative := i < len(payload.ImportRelative) && payload.ImportRelative[i]
+		segmentCount := 0
+		if i < len(payload.ImportSegmentCounts) {
+			segmentCount = payload.ImportSegmentCounts[i]
+		}
 		meta.Imports[i] = project.ImportMeta{
-			Path: path,
-			Span: source.Span{}, // Zero span - not cached
+			Path:         path,
+			Span:         source.Span{}, // Zero span - not cached
+			IsRelative:   isRelative,
+			SegmentCount: segmentCount,
 		}
 	}
 

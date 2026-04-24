@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
 	"path/filepath"
 	"sort"
 
@@ -220,7 +219,7 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 			importedPath := normalizeExportsKey(imp.Path)
 			actualPath := normalizeExportsKey(depRec.Meta.Path)
 			if importedPath != "" && actualPath != "" && importedPath != actualPath {
-				if moduleHasExplicitName(depRec.Meta) && rec.Bag != nil && path.Base(importedPath) != depRec.Meta.Name {
+				if rec.Bag != nil && shouldReportWrongExplicitImport(imp, depRec.Meta, importedPath, actualPath) {
 					reporter := &diag.BagReporter{Bag: rec.Bag}
 					msg := fmt.Sprintf("module is named %q, not %q", depRec.Meta.Path, imp.Path)
 					if b := diag.ReportError(reporter, diag.ProjWrongModuleNameInImport, imp.Span, msg); b != nil {

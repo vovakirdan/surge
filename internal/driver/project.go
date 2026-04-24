@@ -240,6 +240,7 @@ func buildModuleMeta(
 		Kind:            kind,
 		NoStd:           hasNoStd && !hasStd,
 		HasModulePragma: hasPragma,
+		HasExplicitName: len(explicitNames) == 1 && len(filesWithExplicit) == len(files),
 		Span:            files[0].node.Span,
 		Imports:         imports,
 		Files:           fileMetas,
@@ -315,6 +316,7 @@ func collectImports(
 		}
 
 		rawPath := strings.Join(segments, "/")
+		isRelative := segments[0] == "." || segments[0] == ".."
 		normImport, err := project.ResolveImportPath(fullModulePath, baseDir, segments)
 		if err != nil {
 			if reporter != nil {
@@ -333,8 +335,10 @@ func collectImports(
 		baseExists := moduleFileExists(fs, baseDir, normImport, mapping)
 		if baseExists {
 			imports = append(imports, project.ImportMeta{
-				Path: normImport,
-				Span: item.Span,
+				Path:         normImport,
+				Span:         item.Span,
+				IsRelative:   isRelative,
+				SegmentCount: len(segments),
 			})
 			continue
 		}
@@ -346,8 +350,10 @@ func collectImports(
 				if candidatePath, err := project.ResolveImportPath(fullModulePath, baseDir, candidateSegments); err == nil {
 					if moduleFileExists(fs, baseDir, candidatePath, mapping) {
 						imports = append(imports, project.ImportMeta{
-							Path: candidatePath,
-							Span: item.Span,
+							Path:         candidatePath,
+							Span:         item.Span,
+							IsRelative:   isRelative,
+							SegmentCount: len(segments),
 						})
 						hasCandidate = true
 					}
@@ -371,8 +377,10 @@ func collectImports(
 				}
 				if moduleFileExists(fs, baseDir, candidatePath, mapping) {
 					imports = append(imports, project.ImportMeta{
-						Path: candidatePath,
-						Span: item.Span,
+						Path:         candidatePath,
+						Span:         item.Span,
+						IsRelative:   isRelative,
+						SegmentCount: len(segments),
 					})
 					hasCandidate = true
 				}
@@ -384,8 +392,10 @@ func collectImports(
 		}
 
 		imports = append(imports, project.ImportMeta{
-			Path: normImport,
-			Span: item.Span,
+			Path:         normImport,
+			Span:         item.Span,
+			IsRelative:   isRelative,
+			SegmentCount: len(segments),
 		})
 	}
 
