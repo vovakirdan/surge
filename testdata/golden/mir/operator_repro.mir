@@ -1,0 +1,29 @@
+
+== MIR ==
+funcs=2
+
+fn __eq:
+  locals:
+    L0: type#1484 [copy] name=self
+    L1: type#1484 [copy] name=other
+    L2: uint64 [copy] name=tmp_field1
+    L3: uint64 [copy] name=tmp_field2
+    L4: bool [copy] name=tmp_call3
+  bb0:
+    L2 = field copy L0.value
+    L3 = field copy L1.value
+    L4 = call __eq(copy L2, copy L3)
+    return copy L4
+
+fn __ne:
+  locals:
+    L0: type#1484 [copy] name=self
+    L1: type#1484 [copy] name=other
+    L2: uint64 [copy] name=tmp_field1
+    L3: uint64 [copy] name=tmp_field2
+    L4: bool [copy] name=tmp_call3
+  bb0:
+    L2 = field copy L0.value
+    L3 = field copy L1.value
+    L4 = call __ne(copy L2, copy L3)
+    return copy L4

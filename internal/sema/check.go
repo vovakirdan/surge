@@ -47,6 +47,10 @@ type Result struct {
 	ImplicitConversions    map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
 	ToSymbols              map[ast.ExprID]symbols.SymbolID   // Resolved __to symbols for casts/conversions
 	CloneSymbols           map[ast.ExprID]symbols.SymbolID   // Resolved __clone symbols for clone() calls
+	BoolSymbols            map[ast.ExprID]symbols.SymbolID   // Resolved __bool symbols for boolean contexts
+	BoolBoundMethods       map[ast.ExprID]struct{}           // Generic bound __bool calls resolved after monomorphization
+	RangeSymbols           map[ast.ExprID]symbols.SymbolID   // Resolved __range symbols for for-in iterables
+	RangeTypes             map[ast.ExprID]types.TypeID       // Result Range<T> types for __range symbols
 	MagicUnarySymbols      map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for unary operators
 	MagicBinarySymbols     map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for binary operators
 	IndexSymbols           map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for index expressions
@@ -68,6 +72,10 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		ImplicitConversions:    make(map[ast.ExprID]ImplicitConversion),
 		ToSymbols:              make(map[ast.ExprID]symbols.SymbolID),
 		CloneSymbols:           make(map[ast.ExprID]symbols.SymbolID),
+		BoolSymbols:            make(map[ast.ExprID]symbols.SymbolID),
+		BoolBoundMethods:       make(map[ast.ExprID]struct{}),
+		RangeSymbols:           make(map[ast.ExprID]symbols.SymbolID),
+		RangeTypes:             make(map[ast.ExprID]types.TypeID),
 		MagicUnarySymbols:      make(map[ast.ExprID]symbols.SymbolID),
 		MagicBinarySymbols:     make(map[ast.ExprID]symbols.SymbolID),
 		IndexSymbols:           make(map[ast.ExprID]symbols.SymbolID),

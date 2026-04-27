@@ -1,0 +1,13 @@
+import ./operator_repro as repro;
+
+@entrypoint
+fn main() -> int {
+    let digest: repro.Digest = repro.Digest { value = 42:uint64 };
+    let same: repro.Digest = repro.Digest { value = 42:uint64 };
+
+    if digest != same {
+        return 1;
+    }
+
+    return 0;
+}

@@ -1,0 +1,38 @@
+pub type Box = { value: string };
+pub type Flag = { value: int };
+pub type Bag = { values: int[] };
+
+extern<Box> {
+    pub fn __clone(self: &Box) -> Box {
+        return Box { value = self.value.__clone() };
+    }
+
+    pub fn __not(self: &Box) -> bool {
+        return self.value == "";
+    }
+
+    pub fn __to(self: &Box, _: int) -> int {
+        return 7;
+    }
+}
+
+extern<Flag> {
+    pub fn __bool(self: &Flag) -> bool {
+        return self.value != 0;
+    }
+}
+
+extern<Bag> {
+    pub fn __range(self: &Bag) -> Range<int> {
+        return self.values.__range();
+    }
+
+    pub fn __index(self: &Bag, index: int) -> int {
+        return self.values[index];
+    }
+
+    pub fn __index_set(self: &mut Bag, index: int, value: int) -> nothing {
+        self.values[index] = value;
+        return nothing;
+    }
+}

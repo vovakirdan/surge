@@ -1,0 +1,79 @@
+magic_methods_repro.sg (span: 1:1-39:1)
+├─ Item[0]: Type (span: 1:1-1:34)
+│  ├─ Name: Box
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  └─ Struct:
+│     └─ Field[0]: value: string
+├─ Item[1]: Type (span: 2:1-2:32)
+│  ├─ Name: Flag
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  └─ Struct:
+│     └─ Field[0]: value: int
+├─ Item[2]: Type (span: 3:1-3:34)
+│  ├─ Name: Bag
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  └─ Struct:
+│     └─ Field[0]: values: int[]
+├─ Item[3]: Extern (span: 5:1-17:2)
+│  ├─ Target: Box
+│  ├─ Members:
+│  │  ├─ Fn[0]: __clone
+│  │  │  ├─ Params: (self: &Box)
+│  │  │  ├─ Return: Box
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 6:39-8:6)
+│  │  │     └─ Stmt[0]: Return (span: 7:9-7:53)
+│  │  │        └─ Expr: expr#6: <ExprKind(22)>
+│  │  ├─ Fn[1]: __not
+│  │  │  ├─ Params: (self: &Box)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 10:38-12:6)
+│  │  │     └─ Stmt[0]: Return (span: 11:9-11:33)
+│  │  │        └─ Expr: expr#10: (self.value == "")
+│  │  └─ Fn[2]: __to
+│  │     ├─ Params: (self: &Box, _: int)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 14:44-16:6)
+│  │        └─ Stmt[0]: Return (span: 15:9-15:18)
+│  │           └─ Expr: expr#11: 7
+├─ Item[4]: Extern (span: 19:1-23:2)
+│  ├─ Target: Flag
+│  ├─ Members:
+│  │  └─ Fn[0]: __bool
+│  │     ├─ Params: (self: &Flag)
+│  │     ├─ Return: bool
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 20:40-22:6)
+│  │        └─ Stmt[0]: Return (span: 21:9-21:32)
+│  │           └─ Expr: expr#15: (self.value != 0)
+└─ Item[5]: Extern (span: 25:1-38:2)
+   ├─ Target: Bag
+   ├─ Members:
+   │  ├─ Fn[0]: __range
+   │  │  ├─ Params: (self: &Bag)
+   │  │  ├─ Return: Range<int>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 26:46-28:6)
+   │  │     └─ Stmt[0]: Return (span: 27:9-27:38)
+   │  │        └─ Expr: expr#19: self.values.__range()
+   │  ├─ Fn[1]: __index
+   │  │  ├─ Params: (self: &Bag, index: int)
+   │  │  ├─ Return: int
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 30:51-32:6)
+   │  │     └─ Stmt[0]: Return (span: 31:9-31:35)
+   │  │        └─ Expr: expr#23: self.values[index]
+   │  └─ Fn[2]: __index_set
+   │     ├─ Params: (self: &mut Bag, index: int, value: int)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 34:75-37:6)
+   │        ├─ Stmt[0]: Expr (span: 35:9-35:36)
+   │        │  └─ Expr: expr#29: (self.values[index] = value)
+   │        └─ Stmt[1]: Return (span: 36:9-36:24)
+   │           └─ Expr: expr#30: nothing

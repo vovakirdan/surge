@@ -357,64 +357,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			}
 		}
 	case ast.StmtForIn:
-		if forIn := tc.builder.Stmts.ForIn(id); forIn != nil {
-			scope := tc.scopeForStmt(id)
-			pushed := tc.pushScope(scope)
-
-			// 1. Get iterable type
-			iterableType := tc.typeExpr(forIn.Iterable)
-			var containerPlace Place
-			containerTracked := tc.isTaskContainerType(iterableType)
-			if containerTracked {
-				if place, ok := tc.taskContainerPlace(forIn.Iterable); ok {
-					containerPlace = place
-				} else {
-					containerTracked = false
-				}
-			}
-
-			// 2. Determine element type
-			var elemType types.TypeID
-
-			// 2a. Explicit type annotation
-			if forIn.Type.IsValid() {
-				elemType = tc.resolveTypeExprWithScope(forIn.Type, scope)
-			}
-
-			// 2b. Infer from iterable
-			if elemType == types.NoTypeID && iterableType != types.NoTypeID {
-				elemType = tc.inferForInElementType(iterableType, stmt.Span)
-			}
-
-			// 3. Assign type to loop variable symbol
-			var loopSym symbols.SymbolID
-			if forIn.Pattern != source.NoStringID {
-				if symID := tc.stmtSymbols[id]; symID.IsValid() && elemType != types.NoTypeID {
-					tc.bindingTypes[symID] = elemType
-					loopSym = symID
-				}
-			}
-
-			movedBefore := tc.bindingMoved(loopSym)
-			tc.walkStmt(forIn.Body)
-			movedAfter := tc.bindingMoved(loopSym)
-			if containerTracked {
-				if info := tc.taskContainers[containerPlace]; info != nil && info.Pending {
-					consumed := movedAfter && !movedBefore
-					if !consumed {
-						span := forIn.PatternSpan
-						if span == (source.Span{}) {
-							span = stmt.Span
-						}
-						tc.report(diag.SemaTaskNotAwaited, span, "task in container is not consumed in for-in loop")
-					}
-					tc.markTaskContainerConsumed(containerPlace)
-				}
-			}
-			if pushed {
-				tc.leaveScope()
-			}
-		}
+		tc.walkForInStmt(id, stmt)
 	case ast.StmtSignal:
 		if signal := tc.builder.Stmts.Signal(id); signal != nil {
 			tc.reporter.Report(diag.FutSignalNotSupported, diag.SevError, stmt.Span, "'signal' is not supported in v1, reserved for future use", nil, nil)

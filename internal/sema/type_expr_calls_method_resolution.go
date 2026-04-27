@@ -107,6 +107,8 @@ func (tc *typeChecker) matchMethodSignature(name string, recv types.TypeID, recv
 func (tc *typeChecker) reportSingleMethodCandidateMismatch(name string, recv types.TypeID, recvExpr ast.ExprID, args []types.TypeID, argExprs []ast.ExprID, span source.Span, staticReceiver bool) bool {
 	type mismatchCandidate struct {
 		sym      *symbols.Symbol
+		sig      *symbols.FunctionSignature
+		subst    map[string]symbols.TypeKey
 		usesSelf bool
 	}
 
@@ -116,11 +118,13 @@ func (tc *typeChecker) reportSingleMethodCandidateMismatch(name string, recv typ
 		if recvCand.key == "" {
 			continue
 		}
-		for _, sig := range tc.lookupMagicMethods(recvCand.key, name) {
+		methods := tc.lookupMagicMethods(recvCand.key, name)
+		for _, sig := range methods {
 			if sig == nil {
 				continue
 			}
 
+			subst := tc.methodSubst(recv, recvCand.key, sig)
 			usesSelf := false
 			switch {
 			case len(sig.Params) > 0 && tc.selfParamCompatible(recv, sig.Params[0], recvCand.key):
@@ -143,22 +147,29 @@ func (tc *typeChecker) reportSingleMethodCandidateMismatch(name string, recv typ
 			if !symID.IsValid() {
 				symID = tc.ensureExportedMethodSymbol(name, sig, span)
 			}
-			if !symID.IsValid() {
-				continue
+			var sym *symbols.Symbol
+			if symID.IsValid() {
+				if _, ok := seen[symID]; ok {
+					continue
+				}
+				seen[symID] = struct{}{}
+				sym = tc.symbolFromID(symID)
+			} else {
+				sym = tc.exportedMethodSymbolForSignature(name, sig, span)
+				if sym == nil {
+					sym = &symbols.Symbol{Kind: symbols.SymbolFunction, Signature: sig}
+				}
 			}
-			if _, ok := seen[symID]; ok {
-				continue
-			}
-			seen[symID] = struct{}{}
-
-			sym := tc.symbolFromID(symID)
 			if sym == nil || sym.Signature == nil {
 				continue
 			}
 			if candidate != nil {
+				if candidate.usesSelf == usesSelf && functionSignaturesMatch(candidate.sig, sig) {
+					continue
+				}
 				return false
 			}
-			candidate = &mismatchCandidate{sym: sym, usesSelf: usesSelf}
+			candidate = &mismatchCandidate{sym: sym, sig: sig, subst: subst, usesSelf: usesSelf}
 		}
 	}
 	if candidate == nil {
@@ -184,7 +195,60 @@ func (tc *typeChecker) reportSingleMethodCandidateMismatch(name string, recv typ
 			expr:      expr,
 		})
 	}
-	return tc.reportCallArgumentMismatch(candidate.sym, callArgs, nil)
+	if tc.reportCallArgumentMismatch(candidate.sym, callArgs, nil) {
+		return true
+	}
+	return tc.reportMethodSignatureArgumentMismatch(candidate.sig, candidate.subst, candidate.usesSelf, recv, recvExpr, args, argExprs)
+}
+
+func (tc *typeChecker) reportMethodSignatureArgumentMismatch(sig *symbols.FunctionSignature, subst map[string]symbols.TypeKey, usesSelf bool, recv types.TypeID, recvExpr ast.ExprID, args []types.TypeID, argExprs []ast.ExprID) bool {
+	if sig == nil {
+		return false
+	}
+	totalArgs := len(args)
+	if usesSelf {
+		totalArgs++
+	}
+	if len(sig.Params) != totalArgs {
+		return false
+	}
+
+	for i, param := range sig.Params {
+		var argType types.TypeID
+		argExpr := ast.NoExprID
+		switch {
+		case usesSelf && i == 0:
+			argType = recv
+			argExpr = recvExpr
+		case usesSelf:
+			argIndex := i - 1
+			argType = args[argIndex]
+			if argIndex < len(argExprs) {
+				argExpr = argExprs[argIndex]
+			}
+		default:
+			argType = args[i]
+			if i < len(argExprs) {
+				argExpr = argExprs[i]
+			}
+		}
+
+		expected := tc.typeFromKey(substituteTypeKeyParams(param, subst))
+		if expected == types.NoTypeID {
+			return false
+		}
+		var borrowInfo borrowMatchInfo
+		if _, ok := tc.matchArgument(expected, argType, tc.isLiteralExpr(argExpr), false, argExpr, &borrowInfo); ok {
+			continue
+		}
+		if borrowInfo.expr.IsValid() {
+			tc.reportBorrowFailure(&borrowInfo)
+			return true
+		}
+		tc.reportCallArgumentTypeMismatch(expected, argType, argExpr, false)
+		return true
+	}
+	return false
 }
 
 func methodSignatureAcceptsUserArgs(sig *symbols.FunctionSignature, argCount int, usesSelf bool) bool {

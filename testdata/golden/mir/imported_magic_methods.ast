@@ -1,0 +1,124 @@
+imported_magic_methods.sg (span: 1:1-54:1)
+├─ Item[0]: Import (span: 1:1-1:39)
+│  ├─ Module: .::magic_methods_repro
+│  └─ Alias: repro
+└─ Item[1]: Fn (span: 3:1-53:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:18-53:2)
+         ├─ Stmt[0]: Let (span: 5:5-5:53)
+         │  ├─ Name: empty
+         │  ├─ Mutable: false
+         │  ├─ Type: repro.Box
+         │  └─ Value: expr#5: <ExprKind(22)>
+         ├─ Stmt[1]: If (span: 6:5-10:6)
+         │  ├─ Cond: expr#7: !empty
+         │  ├─ Then:
+Block (span: 6:15-8:6)
+         │  │  └─ Stmt[0]: Expr (span: 7:9-7:15)
+         │  │     └─ Expr: expr#9: 0 to int
+         │  └─ Else:
+Block (span: 8:12-10:6)
+         │     └─ Stmt[0]: Return (span: 9:9-9:18)
+         │        └─ Expr: expr#10: 1
+         ├─ Stmt[2]: Let (span: 12:5-12:58)
+         │  ├─ Name: original
+         │  ├─ Mutable: false
+         │  ├─ Type: repro.Box
+         │  └─ Value: expr#15: <ExprKind(22)>
+         ├─ Stmt[3]: Let (span: 13:5-13:45)
+         │  ├─ Name: cloned
+         │  ├─ Mutable: false
+         │  ├─ Type: repro.Box
+         │  └─ Value: expr#18: clone(original)
+         ├─ Stmt[4]: If (span: 14:5-16:6)
+         │  ├─ Cond: expr#22: (cloned.value != "ok")
+         │  ├─ Then:
+Block (span: 14:29-16:6)
+         │  │  └─ Stmt[0]: Return (span: 15:9-15:18)
+         │  │     └─ Expr: expr#23: 2
+         │  └─ Else: <none>
+         ├─ Stmt[5]: Let (span: 18:5-18:53)
+         │  ├─ Name: flag
+         │  ├─ Mutable: false
+         │  ├─ Type: repro.Flag
+         │  └─ Value: expr#28: <ExprKind(22)>
+         ├─ Stmt[6]: If (span: 19:5-23:6)
+         │  ├─ Cond: expr#29: flag
+         │  ├─ Then:
+Block (span: 19:13-21:6)
+         │  │  └─ Stmt[0]: Expr (span: 20:9-20:15)
+         │  │     └─ Expr: expr#31: 0 to int
+         │  └─ Else:
+Block (span: 21:12-23:6)
+         │     └─ Stmt[0]: Return (span: 22:9-22:18)
+         │        └─ Expr: expr#32: 3
+         ├─ Stmt[7]: Let (span: 25:5-25:42)
+         │  ├─ Name: converted
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#34: original to int
+         ├─ Stmt[8]: If (span: 26:5-28:6)
+         │  ├─ Cond: expr#37: (converted != 7)
+         │  ├─ Then:
+Block (span: 26:23-28:6)
+         │  │  └─ Stmt[0]: Return (span: 27:9-27:18)
+         │  │     └─ Expr: expr#38: 4
+         │  └─ Else: <none>
+         ├─ Stmt[9]: Let (span: 30:5-30:63)
+         │  ├─ Name: bag
+         │  ├─ Mutable: true
+         │  ├─ Type: repro.Bag
+         │  └─ Value: expr#46: <ExprKind(22)>
+         ├─ Stmt[10]: Expr (span: 31:5-31:16)
+         │  └─ Expr: expr#51: (bag[1] = 9)
+         ├─ Stmt[11]: If (span: 32:5-34:6)
+         │  ├─ Cond: expr#56: (bag[1] != 9)
+         │  ├─ Then:
+Block (span: 32:20-34:6)
+         │  │  └─ Stmt[0]: Return (span: 33:9-33:18)
+         │  │     └─ Expr: expr#57: 5
+         │  └─ Else: <none>
+         ├─ Stmt[12]: Let (span: 36:5-36:26)
+         │  ├─ Name: sum
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#58: 0
+         ├─ Stmt[13]: ForIn (span: 37:5-39:6)
+         │  ├─ Pattern: v
+         │  ├─ Iterable: expr#59: bag
+         │  └─ Body:
+Block (span: 37:18-39:6)
+         │     └─ Stmt[0]: Expr (span: 38:9-38:23)
+         │        └─ Expr: expr#64: (sum = ((sum + v)))
+         ├─ Stmt[14]: If (span: 40:5-42:6)
+         │  ├─ Cond: expr#67: (sum != 13)
+         │  ├─ Then:
+Block (span: 40:18-42:6)
+         │  │  └─ Stmt[0]: Return (span: 41:9-41:18)
+         │  │     └─ Expr: expr#68: 6
+         │  └─ Else: <none>
+         ├─ Stmt[15]: Let (span: 44:5-44:32)
+         │  ├─ Name: typed_sum
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#69: 0
+         ├─ Stmt[16]: ForIn (span: 45:5-47:6)
+         │  ├─ Pattern: typed
+         │  ├─ Type: int
+         │  ├─ Iterable: expr#70: bag
+         │  └─ Body:
+Block (span: 45:27-47:6)
+         │     └─ Stmt[0]: Expr (span: 46:9-46:39)
+         │        └─ Expr: expr#75: (typed_sum = ((typed_sum + typed)))
+         ├─ Stmt[17]: If (span: 48:5-50:6)
+         │  ├─ Cond: expr#78: (typed_sum != 13)
+         │  ├─ Then:
+Block (span: 48:24-50:6)
+         │  │  └─ Stmt[0]: Return (span: 49:9-49:18)
+         │  │     └─ Expr: expr#79: 7
+         │  └─ Else: <none>
+         └─ Stmt[18]: Return (span: 52:5-52:14)
+            └─ Expr: expr#80: 0

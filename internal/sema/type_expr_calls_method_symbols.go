@@ -41,24 +41,6 @@ func (tc *typeChecker) ensureExportedMethodSymbol(name string, sig *symbols.Func
 		return symID
 	}
 
-	matchesSignature := func(a, b *symbols.FunctionSignature) bool {
-		if a == b {
-			return true
-		}
-		if a == nil || b == nil || len(a.Params) != len(b.Params) {
-			return false
-		}
-		if !typeKeyEqual(a.Result, b.Result) {
-			return false
-		}
-		for i := range a.Params {
-			if !typeKeyEqual(a.Params[i], b.Params[i]) {
-				return false
-			}
-		}
-		return true
-	}
-
 	nameID := tc.builder.StringsInterner.Intern(name)
 	for modulePath, exports := range tc.exports {
 		if exports == nil {
@@ -70,7 +52,10 @@ func (tc *typeChecker) ensureExportedMethodSymbol(name string, sig *symbols.Func
 			if exp.Kind != symbols.SymbolFunction || exp.ReceiverKey == "" {
 				continue
 			}
-			if !matchesSignature(exp.Signature, sig) {
+			if exp.Flags&symbols.SymbolFlagBuiltin != 0 {
+				continue
+			}
+			if !functionSignaturesMatch(exp.Signature, sig) {
 				continue
 			}
 			sym := tc.exportedSymbolToSymbol(exp, modulePath)
@@ -99,6 +84,66 @@ func (tc *typeChecker) ensureExportedMethodSymbol(name string, sig *symbols.Func
 		}
 	}
 	return symbols.NoSymbolID
+}
+
+func functionSignaturesMatch(a, b *symbols.FunctionSignature) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil || len(a.Params) != len(b.Params) {
+		return false
+	}
+	if !typeKeyEqual(a.Result, b.Result) {
+		return false
+	}
+	for i := range a.Params {
+		if !typeKeyEqual(a.Params[i], b.Params[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (tc *typeChecker) exportedMethodSymbolForSignature(name string, sig *symbols.FunctionSignature, fallback source.Span) *symbols.Symbol {
+	if name == "" || sig == nil || tc.exports == nil {
+		return nil
+	}
+	for modulePath, exports := range tc.exports {
+		if exports == nil {
+			continue
+		}
+		exported := exports.Lookup(name)
+		for i := range exported {
+			exp := &exported[i]
+			if exp.Kind != symbols.SymbolFunction || exp.ReceiverKey == "" {
+				continue
+			}
+			if !functionSignaturesMatch(exp.Signature, sig) {
+				continue
+			}
+			sym := tc.exportedSymbolToSymbol(exp, modulePath)
+			if sym == nil {
+				return nil
+			}
+			if sym.Span == (source.Span{}) {
+				sym.Span = fallback
+			}
+			if tc.builder != nil && tc.builder.StringsInterner != nil {
+				nameID := tc.builder.StringsInterner.Intern(name)
+				sym.Name = nameID
+				sym.ImportName = nameID
+			}
+			return sym
+		}
+	}
+	return nil
+}
+
+func (tc *typeChecker) ensureMagicMethodSymbol(name string, sig *symbols.FunctionSignature, fallback source.Span) symbols.SymbolID {
+	if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+		return symID
+	}
+	return tc.ensureExportedMethodSymbol(name, sig, fallback)
 }
 
 func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, recv types.TypeID, explicitArgs []types.TypeID, span source.Span) {
