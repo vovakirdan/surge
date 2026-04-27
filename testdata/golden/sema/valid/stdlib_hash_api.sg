@@ -1,0 +1,39 @@
+// scenario: stdlib hash concrete public API typechecks
+import stdlib/hash as hash;
+
+fn use_hash64_bucket() -> Option<uint> {
+    let digest: hash.Hash64 = hash.Hash64 { value = 42:uint64 };
+    return digest.bucket(8:uint);
+}
+
+fn use_raw_xxh64(bytes: &byte[], text: &string) -> hash.Hash64 {
+    let a: hash.Hash64 = hash.xxh64_bytes(bytes, 0:uint64);
+    let b: hash.Hash64 = hash.xxh64_string(text, 0:uint64);
+    if a == b {
+        return a;
+    }
+    return b;
+}
+
+fn use_streaming(text: &string) -> hash.Hash64 {
+    let mut h: hash.Xxh64 = hash.Xxh64::new(7:uint64);
+    h.update_string_bytes(text);
+    return h.finish();
+}
+
+fn use_stable(bytes: &byte[], text: &string) -> hash.Hash64 {
+    let mut h: hash.Stable64 = hash.Stable64::new();
+    h.begin_record(&"CacheKey", 2:uint);
+    h.write_field(&"tenant");
+    h.write_string(text);
+    h.write_field(&"payload");
+    h.write_bytes(bytes);
+    return h.finish();
+}
+
+fn use_helpers(bytes: &byte[], text: &string) -> string {
+    let a: hash.Hash64 = hash.stable64_bytes(bytes);
+    let b: hash.Hash64 = hash.stable64_string(text);
+    let _ = a.as_u64();
+    return b.to_hex();
+}

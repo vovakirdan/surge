@@ -1,0 +1,45 @@
+import stdlib/hash as hash;
+
+fn bytes_range(start: int, end: int) -> byte[] {
+    let mut out: byte[] = [];
+    let mut i: int = start;
+    while i < end {
+        out.push(i to byte);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn check(got: hash.Hash64, expected: uint64) -> bool {
+    return got.as_u64() == expected;
+}
+
+@entrypoint
+fn main() -> int {
+    let empty: byte[] = [];
+    let text_hello: string = "hello";
+    if !check(hash.xxh64_bytes(&empty, 0:uint64), 0xEF46DB3751D8E999:uint64) {
+        return 1;
+    }
+    if !check(hash.xxh64_string(&text_hello, 0:uint64), 0x26C7827D889F6DA3:uint64) {
+        return 2;
+    }
+
+    let bytes64: byte[] = bytes_range(0, 64);
+    if !check(hash.xxh64_bytes(&bytes64, 7:uint64), 0x3C65D1809A38A9BF:uint64) {
+        return 3;
+    }
+
+    let first: byte[] = bytes_range(0, 17);
+    let second: byte[] = bytes_range(17, 64);
+    let mut streamed: hash.Xxh64 = hash.Xxh64::new(7:uint64);
+    streamed.update_bytes(&first);
+    streamed.update_bytes(&second);
+    let streamed_digest: hash.Hash64 = streamed.finish();
+    let one_shot_digest: hash.Hash64 = hash.xxh64_bytes(&bytes64, 7:uint64);
+    if streamed_digest.as_u64() != one_shot_digest.as_u64() {
+        return 4;
+    }
+
+    return 0;
+}

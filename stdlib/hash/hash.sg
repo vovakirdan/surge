@@ -1,0 +1,65 @@
+pragma module;
+
+// stdlib/hash/hash.sg
+// Public facade for stable, non-cryptographic hashing.
+
+pub const STABLE64_VERSION: uint = 1:uint;
+pub const STABLE64_SEED: uint64 = 0:uint64;
+
+@copy
+pub type Hash64 = {
+    value: uint64,
+};
+
+fn hex_digit(value: uint64) -> byte {
+    if value < 10:uint64 {
+        return (48:uint64 + value) to byte;
+    }
+    return (87:uint64 + value) to byte;
+}
+
+extern<Hash64> {
+    pub fn as_u64(self: &Hash64) -> uint64 {
+        return self.value;
+    }
+
+    pub fn bucket(self: &Hash64, bucket_count: uint) -> Option<uint> {
+        if bucket_count == 0:uint {
+            return nothing;
+        }
+        return Some(((self.value % (bucket_count to uint64)) to uint));
+    }
+
+    pub fn to_hex(self: &Hash64) -> string {
+        let mut out: byte[] = Array::<byte>.with_len(16:uint);
+        let mut i: int = 0;
+        while i < 16 {
+            let shift: uint64 = ((15 - i) * 4) to uint64;
+            let nibble: uint64 = (self.value >> shift) & 0xF:uint64;
+            out[i] = hex_digit(nibble);
+            i = i + 1;
+        }
+        compare string.from_bytes(&out) {
+            Success(text) => {
+                return text;
+            }
+            err => {
+                panic(clone(err.message));
+                return "";
+            }
+        };
+    }
+
+    pub fn __eq(self: Hash64, other: Hash64) -> bool {
+        return self.value == other.value;
+    }
+
+    pub fn __ne(self: Hash64, other: Hash64) -> bool {
+        return self.value != other.value;
+    }
+
+    pub fn __to(self: &Hash64, target: string) -> string {
+        let _ = target;
+        return self.to_hex();
+    }
+}

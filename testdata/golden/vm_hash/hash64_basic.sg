@@ -1,0 +1,51 @@
+import stdlib/hash as hash;
+
+@entrypoint
+fn main() -> int {
+    let digest: hash.Hash64 = hash.Hash64 { value = 0x1234ABCD:uint64 };
+    if digest.as_u64() != 0x1234ABCD:uint64 {
+        return 1;
+    }
+
+    compare digest.bucket(0:uint) {
+        Some(_) => {
+            return 2;
+        }
+        nothing => {}
+    };
+
+    compare digest.bucket(10:uint) {
+        Some(value) => {
+            if value != ((0x1234ABCD:uint64 % 10:uint64) to uint) {
+                return 3;
+            }
+        }
+        nothing => {
+            return 4;
+        }
+    };
+
+    let same: hash.Hash64 = hash.Hash64 { value = 0x1234ABCD:uint64 };
+    let other: hash.Hash64 = hash.Hash64 { value = 0x1234ABCE:uint64 };
+    if digest != same {
+        return 5;
+    }
+    if !(digest == same) {
+        return 6;
+    }
+    if !(digest != other) {
+        return 7;
+    }
+    if digest == other {
+        return 8;
+    }
+    if digest.to_hex() != "000000001234abcd" {
+        return 9;
+    }
+    let digest_text: string = digest to string;
+    if digest_text != "000000001234abcd" {
+        return 10;
+    }
+
+    return 0;
+}

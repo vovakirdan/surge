@@ -1,0 +1,85 @@
+hash64_basic.sg (span: 1:1-52:1)
+├─ Item[0]: Import (span: 1:1-1:28)
+│  ├─ Module: stdlib::hash
+│  └─ Alias: hash
+└─ Item[1]: Fn (span: 3:1-51:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:18-51:2)
+         ├─ Stmt[0]: Let (span: 5:5-5:73)
+         │  ├─ Name: digest
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#6: <ExprKind(22)>
+         ├─ Stmt[1]: If (span: 6:5-8:6)
+         │  ├─ Cond: expr#12: (digest.as_u64() != (0x1234ABCD to uint64))
+         │  ├─ Then:
+Block (span: 6:45-8:6)
+         │  │  └─ Stmt[0]: Return (span: 7:9-7:18)
+         │  │     └─ Expr: expr#13: 1
+         │  └─ Else: <none>
+         ├─ Stmt[2]: Expr (span: 10:5-15:7)
+         │  └─ Expr: expr#26: compare digest.bucket(0 to uint) { 2 arms }
+         ├─ Stmt[3]: Expr (span: 17:5-26:7)
+         │  └─ Expr: expr#50: compare digest.bucket(10 to uint) { 2 arms }
+         ├─ Stmt[4]: Let (span: 28:5-28:71)
+         │  ├─ Name: same
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#56: <ExprKind(22)>
+         ├─ Stmt[5]: Let (span: 29:5-29:72)
+         │  ├─ Name: other
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#62: <ExprKind(22)>
+         ├─ Stmt[6]: If (span: 30:5-32:6)
+         │  ├─ Cond: expr#65: (digest != same)
+         │  ├─ Then:
+Block (span: 30:23-32:6)
+         │  │  └─ Stmt[0]: Return (span: 31:9-31:18)
+         │  │     └─ Expr: expr#66: 5
+         │  └─ Else: <none>
+         ├─ Stmt[7]: If (span: 33:5-35:6)
+         │  ├─ Cond: expr#71: !((digest == same))
+         │  ├─ Then:
+Block (span: 33:26-35:6)
+         │  │  └─ Stmt[0]: Return (span: 34:9-34:18)
+         │  │     └─ Expr: expr#72: 6
+         │  └─ Else: <none>
+         ├─ Stmt[8]: If (span: 36:5-38:6)
+         │  ├─ Cond: expr#77: !((digest != other))
+         │  ├─ Then:
+Block (span: 36:27-38:6)
+         │  │  └─ Stmt[0]: Return (span: 37:9-37:18)
+         │  │     └─ Expr: expr#78: 7
+         │  └─ Else: <none>
+         ├─ Stmt[9]: If (span: 39:5-41:6)
+         │  ├─ Cond: expr#81: (digest == other)
+         │  ├─ Then:
+Block (span: 39:24-41:6)
+         │  │  └─ Stmt[0]: Return (span: 40:9-40:18)
+         │  │     └─ Expr: expr#82: 8
+         │  └─ Else: <none>
+         ├─ Stmt[10]: If (span: 42:5-44:6)
+         │  ├─ Cond: expr#87: (digest.to_hex() != "000000001234abcd")
+         │  ├─ Then:
+Block (span: 42:46-44:6)
+         │  │  └─ Stmt[0]: Return (span: 43:9-43:18)
+         │  │     └─ Expr: expr#88: 9
+         │  └─ Else: <none>
+         ├─ Stmt[11]: Let (span: 45:5-45:48)
+         │  ├─ Name: digest_text
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#90: digest to string
+         ├─ Stmt[12]: If (span: 46:5-48:6)
+         │  ├─ Cond: expr#93: (digest_text != "000000001234abcd")
+         │  ├─ Then:
+Block (span: 46:42-48:6)
+         │  │  └─ Stmt[0]: Return (span: 47:9-47:19)
+         │  │     └─ Expr: expr#94: 10
+         │  └─ Else: <none>
+         └─ Stmt[13]: Return (span: 50:5-50:14)
+            └─ Expr: expr#95: 0

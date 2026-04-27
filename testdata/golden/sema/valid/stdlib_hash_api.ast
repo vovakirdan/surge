@@ -1,0 +1,103 @@
+stdlib_hash_api.sg (span: 2:1-40:1)
+├─ Item[0]: Import (span: 2:1-2:28)
+│  ├─ Module: stdlib::hash
+│  └─ Alias: hash
+├─ Item[1]: Fn (span: 4:1-7:2)
+│  ├─ Name: use_hash64_bucket
+│  ├─ Params: ()
+│  ├─ Return: Option<uint>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:40-7:2)
+│        ├─ Stmt[0]: Let (span: 5:5-5:65)
+│        │  ├─ Name: digest
+│        │  ├─ Mutable: false
+│        │  ├─ Type: hash.Hash64
+│        │  └─ Value: expr#6: <ExprKind(22)>
+│        └─ Stmt[1]: Return (span: 6:5-6:34)
+│           └─ Expr: expr#11: digest.bucket(8 to uint)
+├─ Item[2]: Fn (span: 9:1-16:2)
+│  ├─ Name: use_raw_xxh64
+│  ├─ Params: (bytes: &byte[], text: &string)
+│  ├─ Return: hash.Hash64
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:64-16:2)
+│        ├─ Stmt[0]: Let (span: 10:5-10:60)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: false
+│        │  ├─ Type: hash.Hash64
+│        │  └─ Value: expr#17: hash.xxh64_bytes(bytes, 0 to uint64)
+│        ├─ Stmt[1]: Let (span: 11:5-11:60)
+│        │  ├─ Name: b
+│        │  ├─ Mutable: false
+│        │  ├─ Type: hash.Hash64
+│        │  └─ Value: expr#23: hash.xxh64_string(text, 0 to uint64)
+│        ├─ Stmt[2]: If (span: 12:5-14:6)
+│        │  ├─ Cond: expr#26: (a == b)
+│        │  ├─ Then:
+Block (span: 12:15-14:6)
+│        │  │  └─ Stmt[0]: Return (span: 13:9-13:18)
+│        │  │     └─ Expr: expr#27: a
+│        │  └─ Else: <none>
+│        └─ Stmt[3]: Return (span: 15:5-15:14)
+│           └─ Expr: expr#28: b
+├─ Item[3]: Fn (span: 18:1-22:2)
+│  ├─ Name: use_streaming
+│  ├─ Params: (text: &string)
+│  ├─ Return: hash.Hash64
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 18:48-22:2)
+│        ├─ Stmt[0]: Let (span: 19:5-19:55)
+│        │  ├─ Name: h
+│        │  ├─ Mutable: true
+│        │  ├─ Type: hash.Xxh64
+│        │  └─ Value: expr#34: hash.Xxh64.new(7 to uint64)
+│        ├─ Stmt[1]: Expr (span: 20:5-20:33)
+│        │  └─ Expr: expr#38: h.update_string_bytes(text)
+│        └─ Stmt[2]: Return (span: 21:5-21:23)
+│           └─ Expr: expr#41: h.finish()
+├─ Item[4]: Fn (span: 24:1-32:2)
+│  ├─ Name: use_stable
+│  ├─ Params: (bytes: &byte[], text: &string)
+│  ├─ Return: hash.Hash64
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 24:61-32:2)
+│        ├─ Stmt[0]: Let (span: 25:5-25:53)
+│        │  ├─ Name: h
+│        │  ├─ Mutable: true
+│        │  ├─ Type: hash.Stable64
+│        │  └─ Value: expr#45: hash.Stable64.new()
+│        ├─ Stmt[1]: Expr (span: 26:5-26:41)
+│        │  └─ Expr: expr#52: h.begin_record(&"CacheKey", 2 to uint)
+│        ├─ Stmt[2]: Expr (span: 27:5-27:30)
+│        │  └─ Expr: expr#57: h.write_field(&"tenant")
+│        ├─ Stmt[3]: Expr (span: 28:5-28:26)
+│        │  └─ Expr: expr#61: h.write_string(text)
+│        ├─ Stmt[4]: Expr (span: 29:5-29:31)
+│        │  └─ Expr: expr#66: h.write_field(&"payload")
+│        ├─ Stmt[5]: Expr (span: 30:5-30:26)
+│        │  └─ Expr: expr#70: h.write_bytes(bytes)
+│        └─ Stmt[6]: Return (span: 31:5-31:23)
+│           └─ Expr: expr#73: h.finish()
+└─ Item[5]: Fn (span: 34:1-39:2)
+   ├─ Name: use_helpers
+   ├─ Params: (bytes: &byte[], text: &string)
+   ├─ Return: string
+   └─ Body:
+      └─ Stmt[0]: Block (span: 34:57-39:2)
+         ├─ Stmt[0]: Let (span: 35:5-35:53)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#77: hash.stable64_bytes(bytes)
+         ├─ Stmt[1]: Let (span: 36:5-36:53)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#81: hash.stable64_string(text)
+         ├─ Stmt[2]: Let (span: 37:5-37:24)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#84: a.as_u64()
+         └─ Stmt[3]: Return (span: 38:5-38:23)
+            └─ Expr: expr#87: b.to_hex()

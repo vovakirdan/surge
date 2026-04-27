@@ -1,0 +1,136 @@
+import stdlib/hash as hash;
+
+fn push_le_uint(out: &mut byte[], value: uint64, width: int) -> nothing {
+    let mut i: int = 0;
+    while i < width {
+        let shift: uint64 = (i * 8) to uint64;
+        out.push(((value >> shift) & 0xFF:uint64) to byte);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn push_le_u64(out: &mut byte[], value: uint64) -> nothing {
+    push_le_uint(out, value, 8);
+    return nothing;
+}
+
+fn push_raw_bytes(out: &mut byte[], value: &byte[]) -> nothing {
+    push_le_u64(out, value.__len() to uint64);
+    let mut i: int = 0;
+    let count: int = value.__len() to int;
+    while i < count {
+        out.push(clone(value[i]));
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn push_raw_string(out: &mut byte[], value: &string) -> nothing {
+    let view = value.bytes();
+    push_le_u64(out, view.__len() to uint64);
+    let mut i: int = 0;
+    let count: int = view.__len() to int;
+    while i < count {
+        out.push(view[i] to byte);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn same_digest(a: hash.Hash64, b: hash.Hash64) -> bool {
+    return a.as_u64() == b.as_u64();
+}
+
+@entrypoint
+fn main() -> int {
+    let record_name: string = "CacheKey";
+    let field_tenant: string = "tenant";
+    let field_payload: string = "payload";
+    let tenant: string = "acme";
+    let payload: byte[] = [9:byte, 8:byte, 7:byte];
+
+    let mut record_hash: hash.Stable64 = hash.Stable64::new();
+    record_hash.begin_record(&record_name, 2:uint);
+    record_hash.write_field(&field_tenant);
+    record_hash.write_string(&tenant);
+    record_hash.write_field(&field_payload);
+    record_hash.write_bytes(&payload);
+
+    let mut record_frame: byte[] = [];
+    record_frame.push(0x31:byte);
+    push_raw_string(&mut record_frame, &record_name);
+    push_le_u64(&mut record_frame, 2:uint64);
+    record_frame.push(0x32:byte);
+    push_raw_string(&mut record_frame, &field_tenant);
+    record_frame.push(0x21:byte);
+    push_raw_string(&mut record_frame, &tenant);
+    record_frame.push(0x32:byte);
+    push_raw_string(&mut record_frame, &field_payload);
+    record_frame.push(0x20:byte);
+    push_raw_bytes(&mut record_frame, &payload);
+
+    let expected_record: hash.Hash64 = hash.xxh64_bytes(&record_frame, hash.STABLE64_SEED);
+    let actual_record: hash.Hash64 = record_hash.finish();
+    if !same_digest(actual_record, expected_record) {
+        return 1;
+    }
+
+    let a: string = "a";
+    let bc: string = "bc";
+    let ab: string = "ab";
+    let c: string = "c";
+    let mut left: hash.Stable64 = hash.Stable64::new();
+    left.write_string(&a);
+    left.write_string(&bc);
+    let left_digest: hash.Hash64 = left.finish();
+    let mut right: hash.Stable64 = hash.Stable64::new();
+    right.write_string(&ab);
+    right.write_string(&c);
+    let right_digest: hash.Hash64 = right.finish();
+    if same_digest(left_digest, right_digest) {
+        return 2;
+    }
+
+    let option_type: string = "Option";
+    let some_variant: string = "Some";
+    let value_field: string = "value";
+    let mut variant_hash: hash.Stable64 = hash.Stable64::new();
+    variant_hash.begin_variant(&option_type, &some_variant, 1:uint, 1:uint);
+    variant_hash.write_field(&value_field);
+    variant_hash.write_u64(42:uint64);
+
+    let mut variant_frame: byte[] = [];
+    variant_frame.push(0x33:byte);
+    push_raw_string(&mut variant_frame, &option_type);
+    push_raw_string(&mut variant_frame, &some_variant);
+    push_le_u64(&mut variant_frame, 1:uint64);
+    push_le_u64(&mut variant_frame, 1:uint64);
+    variant_frame.push(0x32:byte);
+    push_raw_string(&mut variant_frame, &value_field);
+    variant_frame.push(0x10:byte);
+    variant_frame.push(8:byte);
+    push_le_u64(&mut variant_frame, 42:uint64);
+
+    let expected_variant: hash.Hash64 = hash.xxh64_bytes(&variant_frame, hash.STABLE64_SEED);
+    let actual_variant: hash.Hash64 = variant_hash.finish();
+    if !same_digest(actual_variant, expected_variant) {
+        return 3;
+    }
+
+    let mut list_hash: hash.Stable64 = hash.Stable64::new();
+    list_hash.begin_list(2:uint);
+    list_hash.write_u8(1:uint8);
+    list_hash.write_u8(2:uint8);
+    let list_digest: hash.Hash64 = list_hash.finish();
+
+    let mut flat_hash: hash.Stable64 = hash.Stable64::new();
+    flat_hash.write_u8(1:uint8);
+    flat_hash.write_u8(2:uint8);
+    let flat_digest: hash.Hash64 = flat_hash.finish();
+    if same_digest(list_digest, flat_digest) {
+        return 4;
+    }
+
+    return 0;
+}

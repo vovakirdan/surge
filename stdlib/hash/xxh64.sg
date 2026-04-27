@@ -1,0 +1,183 @@
+pragma module;
+
+// stdlib/hash/xxh64.sg
+// Raw xxHash64 byte-stream hasher.
+
+const HASH_U64_MOD: uint = 18_446_744_073_709_551_616;
+
+const XXH64_PRIME1: uint64 = 11_400_714_785_074_694_791:uint64;
+const XXH64_PRIME2: uint64 = 14_029_467_366_897_019_727:uint64;
+const XXH64_PRIME3: uint64 = 1_609_587_929_392_839_161:uint64;
+const XXH64_PRIME4: uint64 = 9_650_029_242_287_828_579:uint64;
+const XXH64_PRIME5: uint64 = 2_870_177_450_012_600_261:uint64;
+
+pub type Xxh64 = {
+    seed: uint64,
+    mem: byte[],
+};
+
+fn wrap_u64(value: uint) -> uint64 {
+    return (value % HASH_U64_MOD) to uint64;
+}
+
+fn wrap_u64_add(a: uint64, b: uint64) -> uint64 {
+    return wrap_u64((a to uint) + (b to uint));
+}
+
+fn wrap_u64_sub(a: uint64, b: uint64) -> uint64 {
+    let wide_a: uint = a to uint;
+    let wide_b: uint = b to uint;
+    return wrap_u64((wide_a + HASH_U64_MOD - wide_b) % HASH_U64_MOD);
+}
+
+fn wrap_u64_mul(a: uint64, b: uint64) -> uint64 {
+    return wrap_u64((a to uint) * (b to uint));
+}
+
+fn wrap_u64_shl(value: uint64, shift: uint64) -> uint64 {
+    return wrap_u64((value to uint) << (shift to uint));
+}
+
+fn rotl64(value: uint64, shift: uint64) -> uint64 {
+    return wrap_u64_shl(value, shift) | (value >> (64:uint64 - shift));
+}
+
+fn byte_to_u64(bytes: &byte[], index: int) -> uint64 {
+    return clone(bytes[index]) to uint64;
+}
+
+fn read_le_u32(bytes: &byte[], index: int) -> uint64 {
+    return byte_to_u64(bytes, index)
+        | (byte_to_u64(bytes, index + 1) << 8:uint64)
+        | (byte_to_u64(bytes, index + 2) << 16:uint64)
+        | (byte_to_u64(bytes, index + 3) << 24:uint64);
+}
+
+fn read_le_u64(bytes: &byte[], index: int) -> uint64 {
+    return read_le_u32(bytes, index)
+        | (read_le_u32(bytes, index + 4) << 32:uint64);
+}
+
+fn xxh64_round(acc: uint64, lane: uint64) -> uint64 {
+    let mixed: uint64 = wrap_u64_add(acc, wrap_u64_mul(lane, XXH64_PRIME2));
+    return wrap_u64_mul(rotl64(mixed, 31:uint64), XXH64_PRIME1);
+}
+
+fn xxh64_merge_round(acc: uint64, lane: uint64) -> uint64 {
+    let rounded: uint64 = xxh64_round(0:uint64, lane);
+    let xored: uint64 = acc ^ rounded;
+    return wrap_u64_add(wrap_u64_mul(xored, XXH64_PRIME1), XXH64_PRIME4);
+}
+
+fn xxh64_avalanche(value: uint64) -> uint64 {
+    let mut h: uint64 = value;
+    h = h ^ (h >> 33:uint64);
+    h = wrap_u64_mul(h, XXH64_PRIME2);
+    h = h ^ (h >> 29:uint64);
+    h = wrap_u64_mul(h, XXH64_PRIME3);
+    h = h ^ (h >> 32:uint64);
+    return h;
+}
+
+fn xxh64_compute(bytes: &byte[], seed: uint64) -> Hash64 {
+    let length: int = bytes.__len() to int;
+    let mut offset: int = 0;
+    let mut h: uint64 = 0:uint64;
+
+    if length >= 32 {
+        let mut v1: uint64 = wrap_u64_add(wrap_u64_add(seed, XXH64_PRIME1), XXH64_PRIME2);
+        let mut v2: uint64 = wrap_u64_add(seed, XXH64_PRIME2);
+        let mut v3: uint64 = seed;
+        let mut v4: uint64 = wrap_u64_sub(seed, XXH64_PRIME1);
+
+        while offset <= length - 32 {
+            v1 = xxh64_round(v1, read_le_u64(bytes, offset));
+            v2 = xxh64_round(v2, read_le_u64(bytes, offset + 8));
+            v3 = xxh64_round(v3, read_le_u64(bytes, offset + 16));
+            v4 = xxh64_round(v4, read_le_u64(bytes, offset + 24));
+            offset = offset + 32;
+        }
+
+        h = wrap_u64_add(
+            wrap_u64_add(rotl64(v1, 1:uint64), rotl64(v2, 7:uint64)),
+            wrap_u64_add(rotl64(v3, 12:uint64), rotl64(v4, 18:uint64))
+        );
+        h = xxh64_merge_round(h, v1);
+        h = xxh64_merge_round(h, v2);
+        h = xxh64_merge_round(h, v3);
+        h = xxh64_merge_round(h, v4);
+    } else {
+        h = wrap_u64_add(seed, XXH64_PRIME5);
+    }
+
+    h = wrap_u64_add(h, length to uint64);
+
+    while offset <= length - 8 {
+        let lane: uint64 = xxh64_round(0:uint64, read_le_u64(bytes, offset));
+        h = h ^ lane;
+        h = wrap_u64_add(wrap_u64_mul(rotl64(h, 27:uint64), XXH64_PRIME1), XXH64_PRIME4);
+        offset = offset + 8;
+    }
+
+    if offset <= length - 4 {
+        h = h ^ wrap_u64_mul(read_le_u32(bytes, offset), XXH64_PRIME1);
+        h = wrap_u64_add(wrap_u64_mul(rotl64(h, 23:uint64), XXH64_PRIME2), XXH64_PRIME3);
+        offset = offset + 4;
+    }
+
+    while offset < length {
+        h = h ^ wrap_u64_mul(byte_to_u64(bytes, offset), XXH64_PRIME5);
+        h = wrap_u64_mul(rotl64(h, 11:uint64), XXH64_PRIME1);
+        offset = offset + 1;
+    }
+
+    return { value = xxh64_avalanche(h) };
+}
+
+extern<Xxh64> {
+    pub fn new(seed: uint64) -> Xxh64 {
+        let data: byte[] = [];
+        return { seed = seed, mem = data };
+    }
+
+    pub fn update_bytes(self: &mut Xxh64, bytes: &byte[]) -> nothing {
+        let count: int = bytes.__len() to int;
+        if count > 0 {
+            self.mem.reserve(self.mem.__len() + bytes.__len());
+        }
+        let mut i: int = 0;
+        while i < count {
+            self.mem.push(clone(bytes[i]));
+            i = i + 1;
+        }
+        return nothing;
+    }
+
+    pub fn update_string_bytes(self: &mut Xxh64, text: &string) -> nothing {
+        let view = text.bytes();
+        let count: int = view.__len() to int;
+        if count > 0 {
+            self.mem.reserve(self.mem.__len() + view.__len());
+        }
+        let mut i: int = 0;
+        while i < count {
+            self.mem.push(view[i] to byte);
+            i = i + 1;
+        }
+        return nothing;
+    }
+
+    pub fn finish(self: &Xxh64) -> Hash64 {
+        return xxh64_compute(self.mem, self.seed);
+    }
+}
+
+pub fn xxh64_bytes(bytes: &byte[], seed: uint64) -> Hash64 {
+    return xxh64_compute(bytes, seed);
+}
+
+pub fn xxh64_string(text: &string, seed: uint64) -> Hash64 {
+    let mut h: Xxh64 = Xxh64::new(seed);
+    h.update_string_bytes(text);
+    return h.finish();
+}
