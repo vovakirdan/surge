@@ -8,10 +8,10 @@ fn main() -> int {
     }
 
     compare digest.bucket(0:uint) {
+        nothing => {}
         Some(_) => {
             return 2;
         }
-        nothing => {}
     };
 
     compare digest.bucket(10:uint) {
@@ -25,26 +25,37 @@ fn main() -> int {
         }
     };
 
+    compare digest.bucket(18_446_744_073_709_551_616:uint) {
+        Some(value) => {
+            if value != (digest.as_u64() to uint) {
+                return 5;
+            }
+        }
+        nothing => {
+            return 6;
+        }
+    };
+
     let same: hash.Hash64 = hash.Hash64 { value = 0x1234ABCD:uint64 };
     let other: hash.Hash64 = hash.Hash64 { value = 0x1234ABCE:uint64 };
     if digest != same {
-        return 5;
-    }
-    if !(digest == same) {
-        return 6;
-    }
-    if !(digest != other) {
         return 7;
     }
-    if digest == other {
+    if !(digest == same) {
         return 8;
     }
-    if digest.to_hex() != "000000001234abcd" {
+    if !(digest != other) {
         return 9;
+    }
+    if digest == other {
+        return 10;
+    }
+    if digest.to_hex() != "000000001234abcd" {
+        return 11;
     }
     let digest_text: string = digest to string;
     if digest_text != "000000001234abcd" {
-        return 10;
+        return 12;
     }
 
     return 0;

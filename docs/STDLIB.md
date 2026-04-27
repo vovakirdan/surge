@@ -262,6 +262,7 @@ Public API:
 - `Hash64.bucket(bucket_count: uint) -> Option<uint>`
 - `Hash64.to_hex() -> string`
 - `Xxh64::new(seed: uint64) -> Xxh64`
+- `Xxh64.update_byte(value: byte)`
 - `Xxh64.update_bytes(...)`
 - `Xxh64.update_string_bytes(...)`
 - `Xxh64.finish() -> Hash64`

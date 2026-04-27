@@ -512,8 +512,102 @@
 512: IntLit          "8" at 64:16-64:17 (leading: Space)
 513: Semicolon       ";" at 64:17-64:18
 514: RBrace          "}" at 65:5-65:6 (leading: Newline, Space)
-515: KwReturn        "return" at 67:5-67:11 (leading: Newline, Space)
-516: IntLit          "0" at 67:12-67:13 (leading: Space)
-517: Semicolon       ";" at 67:13-67:14
-518: RBrace          "}" at 68:1-68:2 (leading: Newline)
-519: EOF             at 69:1-69:1
+515: KwLet           "let" at 67:5-67:8 (leading: Newline, Space)
+516: KwMut           "mut" at 67:9-67:12 (leading: Space)
+517: Ident           "byte_streamed" at 67:13-67:26 (leading: Space)
+518: Colon           ":" at 67:26-67:27
+519: Ident           "hash" at 67:28-67:32 (leading: Space)
+520: Dot             "." at 67:32-67:33
+521: Ident           "Xxh64" at 67:33-67:38
+522: Assign          "=" at 67:39-67:40 (leading: Space)
+523: Ident           "hash" at 67:41-67:45 (leading: Space)
+524: Dot             "." at 67:45-67:46
+525: Ident           "Xxh64" at 67:46-67:51
+526: ColonColon      "::" at 67:51-67:53
+527: Ident           "new" at 67:53-67:56
+528: LParen          "(" at 67:56-67:57
+529: IntLit          "0" at 67:57-67:58
+530: Colon           ":" at 67:58-67:59
+531: Ident           "uint64" at 67:59-67:65
+532: RParen          ")" at 67:65-67:66
+533: Semicolon       ";" at 67:66-67:67
+534: Ident           "byte_streamed" at 68:5-68:18 (leading: Newline, Space)
+535: Dot             "." at 68:18-68:19
+536: Ident           "update_byte" at 68:19-68:30
+537: LParen          "(" at 68:30-68:31
+538: IntLit          "104" at 68:31-68:34
+539: Colon           ":" at 68:34-68:35
+540: Ident           "byte" at 68:35-68:39
+541: RParen          ")" at 68:39-68:40
+542: Semicolon       ";" at 68:40-68:41
+543: Ident           "byte_streamed" at 69:5-69:18 (leading: Newline, Space)
+544: Dot             "." at 69:18-69:19
+545: Ident           "update_byte" at 69:19-69:30
+546: LParen          "(" at 69:30-69:31
+547: IntLit          "101" at 69:31-69:34
+548: Colon           ":" at 69:34-69:35
+549: Ident           "byte" at 69:35-69:39
+550: RParen          ")" at 69:39-69:40
+551: Semicolon       ";" at 69:40-69:41
+552: Ident           "byte_streamed" at 70:5-70:18 (leading: Newline, Space)
+553: Dot             "." at 70:18-70:19
+554: Ident           "update_byte" at 70:19-70:30
+555: LParen          "(" at 70:30-70:31
+556: IntLit          "108" at 70:31-70:34
+557: Colon           ":" at 70:34-70:35
+558: Ident           "byte" at 70:35-70:39
+559: RParen          ")" at 70:39-70:40
+560: Semicolon       ";" at 70:40-70:41
+561: Ident           "byte_streamed" at 71:5-71:18 (leading: Newline, Space)
+562: Dot             "." at 71:18-71:19
+563: Ident           "update_byte" at 71:19-71:30
+564: LParen          "(" at 71:30-71:31
+565: IntLit          "108" at 71:31-71:34
+566: Colon           ":" at 71:34-71:35
+567: Ident           "byte" at 71:35-71:39
+568: RParen          ")" at 71:39-71:40
+569: Semicolon       ";" at 71:40-71:41
+570: Ident           "byte_streamed" at 72:5-72:18 (leading: Newline, Space)
+571: Dot             "." at 72:18-72:19
+572: Ident           "update_byte" at 72:19-72:30
+573: LParen          "(" at 72:30-72:31
+574: IntLit          "111" at 72:31-72:34
+575: Colon           ":" at 72:34-72:35
+576: Ident           "byte" at 72:35-72:39
+577: RParen          ")" at 72:39-72:40
+578: Semicolon       ";" at 72:40-72:41
+579: KwLet           "let" at 73:5-73:8 (leading: Newline, Space)
+580: Ident           "byte_streamed_digest" at 73:9-73:29 (leading: Space)
+581: Colon           ":" at 73:29-73:30
+582: Ident           "hash" at 73:31-73:35 (leading: Space)
+583: Dot             "." at 73:35-73:36
+584: Ident           "Hash64" at 73:36-73:42
+585: Assign          "=" at 73:43-73:44 (leading: Space)
+586: Ident           "byte_streamed" at 73:45-73:58 (leading: Space)
+587: Dot             "." at 73:58-73:59
+588: Ident           "finish" at 73:59-73:65
+589: LParen          "(" at 73:65-73:66
+590: RParen          ")" at 73:66-73:67
+591: Semicolon       ";" at 73:67-73:68
+592: KwIf            "if" at 74:5-74:7 (leading: Newline, Space)
+593: Ident           "byte_streamed_digest" at 74:8-74:28 (leading: Space)
+594: Dot             "." at 74:28-74:29
+595: Ident           "as_u64" at 74:29-74:35
+596: LParen          "(" at 74:35-74:36
+597: RParen          ")" at 74:36-74:37
+598: BangEq          "!=" at 74:38-74:40 (leading: Space)
+599: Ident           "one_shot_text_digest" at 74:41-74:61 (leading: Space)
+600: Dot             "." at 74:61-74:62
+601: Ident           "as_u64" at 74:62-74:68
+602: LParen          "(" at 74:68-74:69
+603: RParen          ")" at 74:69-74:70
+604: LBrace          "{" at 74:71-74:72 (leading: Space)
+605: KwReturn        "return" at 75:9-75:15 (leading: Newline, Space)
+606: IntLit          "9" at 75:16-75:17 (leading: Space)
+607: Semicolon       ";" at 75:17-75:18
+608: RBrace          "}" at 76:5-76:6 (leading: Newline, Space)
+609: KwReturn        "return" at 78:5-78:11 (leading: Newline, Space)
+610: IntLit          "0" at 78:12-78:13 (leading: Space)
+611: Semicolon       ";" at 78:13-78:14
+612: RBrace          "}" at 79:1-79:2 (leading: Newline)
+613: EOF             at 80:1-80:1

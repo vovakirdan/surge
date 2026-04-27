@@ -25,8 +25,7 @@ pub type Stable64 = {
 };
 
 fn stable_write_one(h: &mut Stable64, value: byte) -> nothing {
-    let data: byte[] = [value];
-    h.inner.update_bytes(&data);
+    h.inner.update_byte(value);
     return nothing;
 }
 

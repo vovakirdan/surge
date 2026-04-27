@@ -41,5 +41,17 @@ fn main() -> int {
         return 4;
     }
 
+    let mut byte_streamed: hash.Xxh64 = hash.Xxh64::new(0:uint64);
+    byte_streamed.update_byte(104:byte);
+    byte_streamed.update_byte(101:byte);
+    byte_streamed.update_byte(108:byte);
+    byte_streamed.update_byte(108:byte);
+    byte_streamed.update_byte(111:byte);
+    let byte_streamed_digest: hash.Hash64 = byte_streamed.finish();
+    let one_shot_text_digest: hash.Hash64 = hash.xxh64_string(&text_hello, 0:uint64);
+    if byte_streamed_digest.as_u64() != one_shot_text_digest.as_u64() {
+        return 5;
+    }
+
     return 0;
 }

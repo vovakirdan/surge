@@ -104,7 +104,7 @@ extern<Hash64> {
 }
 ```
 
-`bucket()` returns `nothing` when `bucket_count == 0`; otherwise it returns `value % bucket_count`. This is the direct helper needed for sharding and bucket selection.
+`bucket()` returns `nothing` when `bucket_count == 0`; otherwise it returns `Some(value % bucket_count)`. The `Option<uint>` result keeps zero-bucket handling explicit while still giving callers the direct helper needed for sharding and bucket selection.
 
 `to_hex()` is part of v1. It should return fixed-width lowercase hexadecimal text, 16 characters for `Hash64`.
 
@@ -131,6 +131,7 @@ pub type Xxh64 = { ... };
 
 extern<Xxh64> {
     pub fn new(seed: uint64) -> Xxh64;
+    pub fn update_byte(self: &mut Xxh64, value: byte) -> nothing;
     pub fn update_bytes(self: &mut Xxh64, bytes: &byte[]) -> nothing;
     pub fn update_string_bytes(self: &mut Xxh64, text: &string) -> nothing;
     pub fn finish(self: &Xxh64) -> Hash64;

@@ -27,7 +27,8 @@ extern<Hash64> {
         if bucket_count == 0:uint {
             return nothing;
         }
-        return Some(((self.value % (bucket_count to uint64)) to uint));
+        let value: uint = self.value to uint;
+        return Some(value % bucket_count);
     }
 
     pub fn to_hex(self: &Hash64) -> string {

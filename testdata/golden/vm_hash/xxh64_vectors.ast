@@ -1,4 +1,4 @@
-xxh64_vectors.sg (span: 1:1-69:1)
+xxh64_vectors.sg (span: 1:1-80:1)
 ├─ Item[0]: Import (span: 1:1-1:28)
 │  ├─ Module: stdlib::hash
 │  └─ Alias: hash
@@ -36,12 +36,12 @@ Block (span: 6:19-9:6)
 │     └─ Stmt[0]: Block (span: 13:54-15:2)
 │        └─ Stmt[0]: Return (span: 14:5-14:37)
 │           └─ Expr: expr#21: (got.as_u64() == expected)
-└─ Item[3]: Fn (span: 17:1-68:2)
+└─ Item[3]: Fn (span: 17:1-79:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 18:18-68:2)
+      └─ Stmt[0]: Block (span: 18:18-79:2)
          ├─ Stmt[0]: Let (span: 19:5-19:28)
          │  ├─ Name: empty
          │  ├─ Mutable: false
@@ -181,5 +181,32 @@ Block (span: 63:71-65:6)
          │  │  └─ Stmt[0]: Return (span: 64:9-64:18)
          │  │     └─ Expr: expr#188: 8
          │  └─ Else: <none>
-         └─ Stmt[27]: Return (span: 67:5-67:14)
-            └─ Expr: expr#189: 0
+         ├─ Stmt[27]: Let (span: 67:5-67:67)
+         │  ├─ Name: byte_streamed
+         │  ├─ Mutable: true
+         │  ├─ Type: hash.Xxh64
+         │  └─ Value: expr#194: hash.Xxh64.new(0 to uint64)
+         ├─ Stmt[28]: Expr (span: 68:5-68:41)
+         │  └─ Expr: expr#199: byte_streamed.update_byte(104 to byte)
+         ├─ Stmt[29]: Expr (span: 69:5-69:41)
+         │  └─ Expr: expr#204: byte_streamed.update_byte(101 to byte)
+         ├─ Stmt[30]: Expr (span: 70:5-70:41)
+         │  └─ Expr: expr#209: byte_streamed.update_byte(108 to byte)
+         ├─ Stmt[31]: Expr (span: 71:5-71:41)
+         │  └─ Expr: expr#214: byte_streamed.update_byte(108 to byte)
+         ├─ Stmt[32]: Expr (span: 72:5-72:41)
+         │  └─ Expr: expr#219: byte_streamed.update_byte(111 to byte)
+         ├─ Stmt[33]: Let (span: 73:5-73:68)
+         │  ├─ Name: byte_streamed_digest
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#222: byte_streamed.finish()
+         ├─ Stmt[34]: If (span: 74:5-76:6)
+         │  ├─ Cond: expr#229: (byte_streamed_digest.as_u64() != one_shot_text_digest.as_u64())
+         │  ├─ Then:
+Block (span: 74:71-76:6)
+         │  │  └─ Stmt[0]: Return (span: 75:9-75:18)
+         │  │     └─ Expr: expr#230: 9
+         │  └─ Else: <none>
+         └─ Stmt[35]: Return (span: 78:5-78:14)
+            └─ Expr: expr#231: 0

@@ -124,12 +124,26 @@ fn main() -> int {
     list_hash.write_u8(2:uint8);
     let list_digest: hash.Hash64 = list_hash.finish();
 
+    let mut list_frame: byte[] = [];
+    list_frame.push(0x30:byte);
+    push_le_u64(&mut list_frame, 2:uint64);
+    list_frame.push(0x10:byte);
+    list_frame.push(1:byte);
+    list_frame.push(1:byte);
+    list_frame.push(0x10:byte);
+    list_frame.push(1:byte);
+    list_frame.push(2:byte);
+    let expected_list: hash.Hash64 = hash.xxh64_bytes(&list_frame, hash.STABLE64_SEED);
+    if !same_digest(list_digest, expected_list) {
+        return 4;
+    }
+
     let mut flat_hash: hash.Stable64 = hash.Stable64::new();
     flat_hash.write_u8(1:uint8);
     flat_hash.write_u8(2:uint8);
     let flat_digest: hash.Hash64 = flat_hash.finish();
     if same_digest(list_digest, flat_digest) {
-        return 4;
+        return 5;
     }
 
     return 0;

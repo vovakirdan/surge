@@ -1,4 +1,4 @@
-stable64_frames.sg (span: 1:1-137:1)
+stable64_frames.sg (span: 1:1-151:1)
 ├─ Item[0]: Import (span: 1:1-1:28)
 │  ├─ Module: stdlib::hash
 │  └─ Alias: hash
@@ -107,12 +107,12 @@ Block (span: 34:21-37:6)
 │     └─ Stmt[0]: Block (span: 41:56-43:2)
 │        └─ Stmt[0]: Return (span: 42:5-42:37)
 │           └─ Expr: expr#100: (a.as_u64() == b.as_u64())
-└─ Item[6]: Fn (span: 45:1-136:2)
+└─ Item[6]: Fn (span: 45:1-150:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 46:18-136:2)
+      └─ Stmt[0]: Block (span: 46:18-150:2)
          ├─ Stmt[0]: Let (span: 47:5-47:42)
          │  ├─ Name: record_name
          │  ├─ Mutable: false
@@ -336,26 +336,59 @@ Block (span: 117:55-119:6)
          │  ├─ Mutable: false
          │  ├─ Type: hash.Hash64
          │  └─ Value: expr#386: list_hash.finish()
-         ├─ Stmt[65]: Let (span: 127:5-127:61)
+         ├─ Stmt[65]: Let (span: 127:5-127:37)
+         │  ├─ Name: list_frame
+         │  ├─ Mutable: true
+         │  ├─ Type: byte[]
+         │  └─ Value: expr#387: <ExprKind(8)>
+         ├─ Stmt[66]: Expr (span: 128:5-128:32)
+         │  └─ Expr: expr#392: list_frame.push(0x30 to byte)
+         ├─ Stmt[67]: Expr (span: 129:5-129:44)
+         │  └─ Expr: expr#398: push_le_u64(&mut list_frame, 2 to uint64)
+         ├─ Stmt[68]: Expr (span: 130:5-130:32)
+         │  └─ Expr: expr#403: list_frame.push(0x10 to byte)
+         ├─ Stmt[69]: Expr (span: 131:5-131:29)
+         │  └─ Expr: expr#408: list_frame.push(1 to byte)
+         ├─ Stmt[70]: Expr (span: 132:5-132:29)
+         │  └─ Expr: expr#413: list_frame.push(1 to byte)
+         ├─ Stmt[71]: Expr (span: 133:5-133:32)
+         │  └─ Expr: expr#418: list_frame.push(0x10 to byte)
+         ├─ Stmt[72]: Expr (span: 134:5-134:29)
+         │  └─ Expr: expr#423: list_frame.push(1 to byte)
+         ├─ Stmt[73]: Expr (span: 135:5-135:29)
+         │  └─ Expr: expr#428: list_frame.push(2 to byte)
+         ├─ Stmt[74]: Let (span: 136:5-136:88)
+         │  ├─ Name: expected_list
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#435: hash.xxh64_bytes(&list_frame, hash.STABLE64_SEED)
+         ├─ Stmt[75]: If (span: 137:5-139:6)
+         │  ├─ Cond: expr#440: !same_digest(list_digest, expected_list)
+         │  ├─ Then:
+Block (span: 137:49-139:6)
+         │  │  └─ Stmt[0]: Return (span: 138:9-138:18)
+         │  │     └─ Expr: expr#441: 4
+         │  └─ Else: <none>
+         ├─ Stmt[76]: Let (span: 141:5-141:61)
          │  ├─ Name: flat_hash
          │  ├─ Mutable: true
          │  ├─ Type: hash.Stable64
-         │  └─ Value: expr#390: hash.Stable64.new()
-         ├─ Stmt[66]: Expr (span: 128:5-128:33)
-         │  └─ Expr: expr#395: flat_hash.write_u8(1 to uint8)
-         ├─ Stmt[67]: Expr (span: 129:5-129:33)
-         │  └─ Expr: expr#400: flat_hash.write_u8(2 to uint8)
-         ├─ Stmt[68]: Let (span: 130:5-130:55)
+         │  └─ Value: expr#445: hash.Stable64.new()
+         ├─ Stmt[77]: Expr (span: 142:5-142:33)
+         │  └─ Expr: expr#450: flat_hash.write_u8(1 to uint8)
+         ├─ Stmt[78]: Expr (span: 143:5-143:33)
+         │  └─ Expr: expr#455: flat_hash.write_u8(2 to uint8)
+         ├─ Stmt[79]: Let (span: 144:5-144:55)
          │  ├─ Name: flat_digest
          │  ├─ Mutable: false
          │  ├─ Type: hash.Hash64
-         │  └─ Value: expr#403: flat_hash.finish()
-         ├─ Stmt[69]: If (span: 131:5-133:6)
-         │  ├─ Cond: expr#407: same_digest(list_digest, flat_digest)
+         │  └─ Value: expr#458: flat_hash.finish()
+         ├─ Stmt[80]: If (span: 145:5-147:6)
+         │  ├─ Cond: expr#462: same_digest(list_digest, flat_digest)
          │  ├─ Then:
-Block (span: 131:46-133:6)
-         │  │  └─ Stmt[0]: Return (span: 132:9-132:18)
-         │  │     └─ Expr: expr#408: 4
+Block (span: 145:46-147:6)
+         │  │  └─ Stmt[0]: Return (span: 146:9-146:18)
+         │  │     └─ Expr: expr#463: 5
          │  └─ Else: <none>
-         └─ Stmt[70]: Return (span: 135:5-135:14)
-            └─ Expr: expr#409: 0
+         └─ Stmt[81]: Return (span: 149:5-149:14)
+            └─ Expr: expr#464: 0

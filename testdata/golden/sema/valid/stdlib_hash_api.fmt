@@ -17,6 +17,7 @@ fn use_raw_xxh64(bytes: &byte[], text: &string) -> hash.Hash64 {
 
 fn use_streaming(text: &string) -> hash.Hash64 {
     let mut h: hash.Xxh64 = hash.Xxh64::new(7:uint64);
+    h.update_byte(42:byte);
     h.update_string_bytes(text);
     return h.finish();
 }
