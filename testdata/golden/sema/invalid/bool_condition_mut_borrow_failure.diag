@@ -1,0 +1,1 @@
+error SEM3022 testdata/golden/sema/invalid/bool_condition_mut_borrow_failure.sg:12:8 cannot take mutable borrow of 'flag'

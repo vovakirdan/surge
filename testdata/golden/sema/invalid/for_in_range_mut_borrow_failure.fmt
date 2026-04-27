@@ -1,0 +1,15 @@
+// __range requiring a mutable receiver should report the borrow failure only.
+type Bag = { values: int[] };
+
+extern<Bag> {
+    fn __range(self: &mut Bag) -> Range<int> {
+        return self.values.__range();
+    }
+}
+
+fn bad() {
+    let bag: Bag = { values = [1, 2] };
+    for v in bag {
+        v;
+    }
+}

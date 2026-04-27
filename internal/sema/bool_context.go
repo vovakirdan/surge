@@ -4,6 +4,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -22,12 +23,27 @@ func (tc *typeChecker) ensureBoolContext(expr ast.ExprID, span source.Span) {
 		tc.dropImplicitBorrow(expr, boolType, ty, span)
 		return
 	}
-	if res, found := tc.boolMethodResult(ty); found {
+	if res, sig, found, reportedFailure := tc.boolMethodResult(expr, ty); found {
+		if reportedFailure {
+			return
+		}
 		if res == types.NoTypeID {
 			tc.report(diag.SemaInvalidBoolContext, span, "__bool for %s has unknown return type", tc.typeLabel(ty))
 			return
 		}
 		if tc.typesAssignable(boolType, res, true) {
+			if sig == nil {
+				tc.recordBoolBoundMethod(expr)
+				return
+			}
+			if len(sig.Params) > 0 {
+				if symID := tc.ensureMagicMethodSymbol("__bool", sig, span); symID.IsValid() {
+					tc.recordBoolSymbol(expr, symID)
+					tc.recordMethodCallInstantiation(symID, ty, nil, span)
+				}
+				tc.applyParamOwnership(sig.Params[0], expr, ty, span)
+				tc.dropImplicitBorrowForRefParam(expr, sig.Params[0], ty, res, span)
+			}
 			return
 		}
 		tc.report(diag.SemaInvalidBoolContext, span, "__bool for %s must return bool, got %s", tc.typeLabel(ty), tc.typeLabel(res))
@@ -37,25 +53,45 @@ func (tc *typeChecker) ensureBoolContext(expr ast.ExprID, span source.Span) {
 }
 
 // boolMethodResult tries to resolve __bool on the given receiver type and returns its result type.
-// The second bool indicates whether a matching receiver+arity method exists.
-func (tc *typeChecker) boolMethodResult(recv types.TypeID) (types.TypeID, bool) {
+// The bools indicate whether a matching receiver+arity method exists and whether
+// lookup already reported a more specific failure.
+func (tc *typeChecker) boolMethodResult(recvExpr ast.ExprID, recv types.TypeID) (types.TypeID, *symbols.FunctionSignature, bool, bool) {
 	if recv == types.NoTypeID {
-		return types.NoTypeID, false
+		return types.NoTypeID, nil, false, false
 	}
 	if res := tc.boundMethodResult(recv, "__bool", nil); res != types.NoTypeID {
-		return res, true
+		return res, nil, true, false
 	}
+	bestCost := -1
+	var bestSig *symbols.FunctionSignature
+	var bestCand typeKeyCandidate
+	var borrowInfo borrowMatchInfo
 	for _, cand := range tc.typeKeyCandidates(recv) {
 		if cand.key == "" {
 			continue
 		}
 		for _, sig := range tc.lookupMagicMethods(cand.key, "__bool") {
-			if sig == nil || len(sig.Params) != 1 || !typeKeyEqual(sig.Params[0], cand.key) {
+			if sig == nil || len(sig.Params) != 1 || !tc.selfParamCompatible(recv, sig.Params[0], cand.key) {
 				continue
 			}
-			res := tc.typeFromKey(sig.Result)
-			return tc.adjustAliasUnaryResult(res, cand), true
+			cost, ok := tc.magicParamCost(sig.Params[0], recv, recvExpr, &borrowInfo)
+			if !ok {
+				continue
+			}
+			if bestCost == -1 || cost < bestCost {
+				bestCost = cost
+				bestSig = sig
+				bestCand = cand
+			}
 		}
 	}
-	return types.NoTypeID, false
+	if bestCost == -1 {
+		if borrowInfo.expr.IsValid() {
+			tc.reportBorrowFailure(&borrowInfo)
+			return types.NoTypeID, nil, true, true
+		}
+		return types.NoTypeID, nil, false, false
+	}
+	res := tc.typeFromKey(bestSig.Result)
+	return tc.adjustAliasUnaryResult(res, bestCand), bestSig, true, false
 }

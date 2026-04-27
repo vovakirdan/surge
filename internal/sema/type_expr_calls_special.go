@@ -297,7 +297,10 @@ func (tc *typeChecker) handleCloneCall(callID ast.ExprID, args []callArg, span s
 			if args[0].expr.IsValid() {
 				tc.applyParamOwnership(symbols.TypeKey("&"), args[0].expr, args[0].ty, tc.exprSpan(args[0].expr))
 			}
-			tc.recordCloneSymbol(callID, innerType)
+			if symID := tc.ensureCloneMethodSymbol(sig, innerType, span); symID.IsValid() {
+				tc.recordCloneSymbol(callID, symID)
+				tc.recordMethodCallInstantiation(symID, innerType, nil, span)
+			}
 			return innerType
 		}
 	}
@@ -308,16 +311,26 @@ func (tc *typeChecker) handleCloneCall(callID ast.ExprID, args []callArg, span s
 	return types.NoTypeID
 }
 
-func (tc *typeChecker) recordCloneSymbol(expr ast.ExprID, recv types.TypeID) {
-	if !expr.IsValid() || tc.result == nil || tc.builder == nil || tc.builder.StringsInterner == nil {
+func (tc *typeChecker) ensureCloneMethodSymbol(sig *symbols.FunctionSignature, recv types.TypeID, fallback source.Span) symbols.SymbolID {
+	if symID := tc.ensureMagicMethodSymbol("__clone", sig, fallback); symID.IsValid() {
+		return symID
+	}
+	if tc.builder == nil || tc.builder.StringsInterner == nil {
+		return symbols.NoSymbolID
+	}
+	nameID := tc.builder.StringsInterner.Intern("__clone")
+	member := &ast.ExprMemberData{Field: nameID}
+	return tc.resolveMethodCallSymbol(member, recv, ast.NoExprID, nil, nil, false)
+}
+
+func (tc *typeChecker) recordCloneSymbol(expr ast.ExprID, symID symbols.SymbolID) {
+	if !expr.IsValid() || tc.result == nil || !symID.IsValid() {
 		return
 	}
 	if tc.result.CloneSymbols == nil {
 		tc.result.CloneSymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
-	nameID := tc.builder.StringsInterner.Intern("__clone")
-	member := &ast.ExprMemberData{Field: nameID}
-	tc.result.CloneSymbols[expr] = tc.resolveMethodCallSymbol(member, recv, ast.NoExprID, nil, nil, false)
+	tc.result.CloneSymbols[expr] = symID
 }
 
 func (tc *typeChecker) reportCannotInferTypeParams(name string, missing []string, span source.Span, call *ast.ExprCallData) {

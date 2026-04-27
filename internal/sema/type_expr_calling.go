@@ -156,7 +156,7 @@ func (tc *typeChecker) typeExprIndex(id ast.ExprID, span source.Span) types.Type
 		return types.NoTypeID
 	case sig != nil:
 		resultType := tc.magicIndexResultFromSig(sig, sigCand, sigSubst, indexType)
-		if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+		if symID := tc.ensureMagicMethodSymbol("__index", sig, span); symID.IsValid() {
 			tc.recordIndexSymbol(id, symID)
 			tc.recordMethodCallInstantiation(symID, container, nil, span)
 		}

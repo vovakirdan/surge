@@ -1,0 +1,25 @@
+operator_repro.sg (span: 1:1-15:1)
+├─ Item[0]: Type (span: 1:1-4:3)
+│  ├─ Name: Digest
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     └─ Field[0]: value: uint64
+└─ Item[1]: Extern (span: 6:1-14:2)
+   ├─ Target: Digest
+   ├─ Members:
+   │  ├─ Fn[0]: __eq
+   │  │  ├─ Params: (self: Digest, other: Digest)
+   │  │  ├─ Return: bool
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 7:54-9:6)
+   │  │     └─ Stmt[0]: Return (span: 8:9-8:42)
+   │  │        └─ Expr: expr#5: (self.value == other.value)
+   │  └─ Fn[1]: __ne
+   │     ├─ Params: (self: Digest, other: Digest)
+   │     ├─ Return: bool
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 11:54-13:6)
+   │        └─ Stmt[0]: Return (span: 12:9-12:42)
+   │           └─ Expr: expr#10: (self.value != other.value)

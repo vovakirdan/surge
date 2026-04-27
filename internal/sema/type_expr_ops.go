@@ -100,7 +100,7 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 			return types.NoTypeID
 		}
 		if sig != nil {
-			if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+			if symID := tc.ensureMagicMethodSymbol(magicNameForUnaryOp(data.Op), sig, span); symID.IsValid() {
 				tc.recordMagicUnarySymbol(exprID, symID)
 				tc.recordMagicOpInstantiation(symID, operandType, span)
 			}
@@ -160,7 +160,7 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 		return types.NoTypeID
 	}
 	if sig != nil {
-		if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+		if symID := tc.ensureMagicMethodSymbol(magicNameForBinaryOp(data.Op), sig, span); symID.IsValid() {
 			tc.recordMagicBinarySymbol(exprID, symID)
 			tc.recordMagicOpInstantiation(symID, leftType, span)
 		}
@@ -226,61 +226,6 @@ func (tc *typeChecker) recordHeirOperand(exprID ast.ExprID, leftType, rightType 
 		tc.result.HeirOperands = make(map[ast.ExprID]HeirOperand)
 	}
 	tc.result.HeirOperands[exprID] = HeirOperand{Left: leftType, Right: rightType}
-}
-
-func (tc *typeChecker) recordMagicUnarySymbol(exprID ast.ExprID, symID symbols.SymbolID) {
-	if tc.result == nil || !symID.IsValid() {
-		return
-	}
-	if tc.result.MagicUnarySymbols == nil {
-		tc.result.MagicUnarySymbols = make(map[ast.ExprID]symbols.SymbolID)
-	}
-	tc.result.MagicUnarySymbols[exprID] = symID
-}
-
-func (tc *typeChecker) recordMagicOpInstantiation(symID symbols.SymbolID, recv types.TypeID, span source.Span) {
-	if tc == nil || !symID.IsValid() {
-		return
-	}
-	sym := tc.symbolFromID(symID)
-	if sym == nil || len(sym.TypeParams) == 0 {
-		return
-	}
-	recvArgs := tc.receiverTypeArgs(recv)
-	if len(recvArgs) == 0 || len(recvArgs) != len(sym.TypeParams) {
-		return
-	}
-	tc.rememberFunctionInstantiation(symID, recvArgs, span, "magic-op")
-}
-
-func (tc *typeChecker) recordMagicBinarySymbol(exprID ast.ExprID, symID symbols.SymbolID) {
-	if tc.result == nil || !symID.IsValid() {
-		return
-	}
-	if tc.result.MagicBinarySymbols == nil {
-		tc.result.MagicBinarySymbols = make(map[ast.ExprID]symbols.SymbolID)
-	}
-	tc.result.MagicBinarySymbols[exprID] = symID
-}
-
-func (tc *typeChecker) recordIndexSymbol(exprID ast.ExprID, symID symbols.SymbolID) {
-	if tc.result == nil || !symID.IsValid() {
-		return
-	}
-	if tc.result.IndexSymbols == nil {
-		tc.result.IndexSymbols = make(map[ast.ExprID]symbols.SymbolID)
-	}
-	tc.result.IndexSymbols[exprID] = symID
-}
-
-func (tc *typeChecker) recordIndexSetSymbol(exprID ast.ExprID, symID symbols.SymbolID) {
-	if tc.result == nil || !symID.IsValid() {
-		return
-	}
-	if tc.result.IndexSetSymbols == nil {
-		tc.result.IndexSetSymbols = make(map[ast.ExprID]symbols.SymbolID)
-	}
-	tc.result.IndexSetSymbols[exprID] = symID
 }
 
 func (tc *typeChecker) resolveIsOperand(leftType types.TypeID, rightExpr ast.ExprID, opLabel string) (IsOperand, bool) {
@@ -529,7 +474,7 @@ func (tc *typeChecker) applyIndexSetterOwnership(leftExpr, rightExpr ast.ExprID,
 	if sig == nil || len(sig.Params) < 3 {
 		return
 	}
-	if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+	if symID := tc.ensureMagicMethodSymbol("__index_set", sig, tc.exprSpan(leftExpr)); symID.IsValid() {
 		tc.recordIndexSetSymbol(leftExpr, symID)
 		tc.recordMethodCallInstantiation(symID, container, nil, tc.exprSpan(leftExpr))
 	}

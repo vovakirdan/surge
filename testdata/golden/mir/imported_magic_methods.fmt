@@ -1,0 +1,53 @@
+import ./magic_methods_repro as repro;
+
+@entrypoint
+fn main() -> int {
+    let empty: repro.Box = repro.Box { value = "" };
+    if !empty {
+        0:int;
+    } else {
+        return 1;
+    }
+
+    let original: repro.Box = repro.Box { value = "ok" };
+    let cloned: repro.Box = clone(original);
+    if cloned.value != "ok" {
+        return 2;
+    }
+
+    let flag: repro.Flag = repro.Flag { value = 1 };
+    if flag {
+        0:int;
+    } else {
+        return 3;
+    }
+
+    let converted: int = original to int;
+    if converted != 7 {
+        return 4;
+    }
+
+    let mut bag: repro.Bag = repro.Bag { values = [1, 2, 3] };
+    bag[1] = 9;
+    if bag[1] != 9 {
+        return 5;
+    }
+
+    let mut sum: int = 0;
+    for v in bag {
+        sum = sum + v;
+    }
+    if sum != 13 {
+        return 6;
+    }
+
+    let mut typed_sum: int = 0;
+    for typed: int in bag {
+        typed_sum = typed_sum + typed;
+    }
+    if typed_sum != 13 {
+        return 7;
+    }
+
+    return 0;
+}

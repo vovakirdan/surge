@@ -128,6 +128,54 @@ func (l *lowerer) magicCallExpr(span source.Span, ty types.TypeID, symID symbols
 	}
 }
 
+func (l *lowerer) boolType() types.TypeID {
+	if l == nil || l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return types.NoTypeID
+	}
+	return l.semaRes.TypeInterner.Builtins().Bool
+}
+
+func (l *lowerer) applyBoolMagic(exprID ast.ExprID, result *Expr) *Expr {
+	if result == nil || l.semaRes == nil {
+		return result
+	}
+	if l.semaRes.BoolSymbols != nil {
+		if symID, ok := l.semaRes.BoolSymbols[exprID]; ok && symID.IsValid() {
+			return l.magicCallExpr(result.Span, l.boolType(), symID, []*Expr{result})
+		}
+	}
+	if l.semaRes.BoolBoundMethods != nil {
+		if _, ok := l.semaRes.BoolBoundMethods[exprID]; ok {
+			return l.boundBoolCallExpr(result)
+		}
+	}
+	return result
+}
+
+func (l *lowerer) boundBoolCallExpr(result *Expr) *Expr {
+	if result == nil {
+		return nil
+	}
+	callee := &Expr{
+		Kind: ExprFieldAccess,
+		Type: types.NoTypeID,
+		Span: result.Span,
+		Data: FieldAccessData{
+			Object:    result,
+			FieldName: "__bool",
+			FieldIdx:  -1,
+		},
+	}
+	return &Expr{
+		Kind: ExprCall,
+		Type: l.boolType(),
+		Span: result.Span,
+		Data: CallData{
+			Callee: callee,
+		},
+	}
+}
+
 // referenceType creates a reference type for the given element type.
 func (l *lowerer) referenceType(elem types.TypeID, mutable bool) types.TypeID {
 	if elem == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {

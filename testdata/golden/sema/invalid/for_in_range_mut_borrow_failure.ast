@@ -1,0 +1,35 @@
+for_in_range_mut_borrow_failure.sg (span: 2:1-16:1)
+├─ Item[0]: Type (span: 2:1-2:30)
+│  ├─ Name: Bag
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: values: int[]
+├─ Item[1]: Extern (span: 4:1-8:2)
+│  ├─ Target: Bag
+│  ├─ Members:
+│  │  └─ Fn[0]: __range
+│  │     ├─ Params: (self: &mut Bag)
+│  │     ├─ Return: Range<int>
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 5:46-7:6)
+│  │        └─ Stmt[0]: Return (span: 6:9-6:38)
+│  │           └─ Expr: expr#4: self.values.__range()
+└─ Item[2]: Fn (span: 10:1-15:2)
+   ├─ Name: bad
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:10-15:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:40)
+         │  ├─ Name: bag
+         │  ├─ Mutable: false
+         │  ├─ Type: Bag
+         │  └─ Value: expr#9: <ExprKind(22)>
+         └─ Stmt[1]: ForIn (span: 12:5-14:6)
+            ├─ Pattern: v
+            ├─ Iterable: expr#10: bag
+            └─ Body:
+Block (span: 12:18-14:6)
+               └─ Stmt[0]: Expr (span: 13:9-13:11)
+                  └─ Expr: expr#11: v

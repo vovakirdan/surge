@@ -1,0 +1,14 @@
+@copy
+pub type Digest = {
+    value: uint64,
+};
+
+extern<Digest> {
+    pub fn __eq(self: Digest, other: Digest) -> bool {
+        return self.value == other.value;
+    }
+
+    pub fn __ne(self: Digest, other: Digest) -> bool {
+        return self.value != other.value;
+    }
+}

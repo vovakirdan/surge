@@ -1,0 +1,36 @@
+
+== MIR ==
+funcs=2
+
+fn __surge_start:
+  locals:
+    L0: int name=entry_ret
+    L1: int [copy] name=code
+  bb0:
+    L0 = call main()
+    L1 = copy L0
+    call rt_exit(copy L1)
+    return
+
+fn main:
+  locals:
+    L0: type#1484 [copy] name=digest
+    L1: uint64 [copy] name=tmp_cast1
+    L2: type#1484 [copy] name=tmp_struct2
+    L3: type#1484 [copy] name=same
+    L4: uint64 [copy] name=tmp_cast3
+    L5: type#1484 [copy] name=tmp_struct4
+    L6: bool [copy] name=tmp_call5
+  bb0:
+    L1 = cast const 42 to uint64
+    L2 = struct_lit type#1484 {value=copy L1}
+    L0 = copy L2
+    L4 = cast const 42 to uint64
+    L5 = struct_lit type#1484 {value=copy L4}
+    L3 = copy L5
+    L6 = call __ne(copy L0, copy L3)
+    if copy L6 then bb1 else bb2
+  bb1:
+    return const 1
+  bb2:
+    return const 0

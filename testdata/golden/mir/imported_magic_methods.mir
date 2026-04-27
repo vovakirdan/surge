@@ -1,0 +1,161 @@
+
+== MIR ==
+globals=1
+  G0: string name=strlit$0
+funcs=2
+
+fn __surge_start:
+  locals:
+    L0: int name=entry_ret
+    L1: int [copy] name=code
+  bb0:
+    G0 = const "\"ok\""
+    L0 = call main()
+    L1 = copy L0
+    call rt_exit(copy L1)
+    return
+
+fn main:
+  locals:
+    L0: type#1484 name=empty
+    L1: type#1484 name=tmp_struct1
+    L2: bool [copy] name=tmp_call2
+    L3: int [copy] name=tmp_cast3
+    L4: type#1484 name=original
+    L5: type#1484 name=tmp_struct4
+    L6: type#1484 name=cloned
+    L7: type#1484 name=tmp_call5
+    L8: bool [copy] name=tmp_call6
+    L9: type#1485 name=flag
+    L10: type#1485 name=tmp_struct7
+    L11: bool [copy] name=tmp_call8
+    L12: int [copy] name=tmp_cast9
+    L13: int [copy] name=converted
+    L14: int [copy] name=tmp_call10
+    L15: int [copy] name=tmp_call11
+    L16: bool [copy] name=tmp_call12
+    L17: type#1486 name=bag
+    L18: type#76 name=tmp_arr13
+    L19: type#1486 name=tmp_struct14
+    L20: int [copy] name=tmp_call15
+    L21: int [copy] name=tmp_call16
+    L22: bool [copy] name=tmp_call17
+    L23: int [copy] name=sum
+    L24: type#187 name=__iter1
+    L25: type#187 name=tmp_call18
+    L26: type#187 name=tmp_iter19
+    L27: type#1501 name=__next2
+    L28: type#1501 name=tmp_next20
+    L29: bool [copy] name=tmp_tagtest21
+    L30: int [copy] name=v
+    L31: int [copy] name=tmp_payload22
+    L32: int [copy] name=tmp_call23
+    L33: bool [copy] name=tmp_call24
+    L34: int [copy] name=typed_sum
+    L35: type#187 name=__iter3
+    L36: type#187 name=tmp_call25
+    L37: type#187 name=tmp_iter26
+    L38: type#1501 name=__next4
+    L39: type#1501 name=tmp_next27
+    L40: bool [copy] name=tmp_tagtest28
+    L41: int [copy] name=typed
+    L42: int [copy] name=tmp_payload29
+    L43: int [copy] name=tmp_call30
+    L44: bool [copy] name=tmp_call31
+  bb0:
+    L1 = struct_lit type#1484 {value=const "\"\""}
+    L0 = move L1
+    L2 = call __not(addr_of L0)
+    if copy L2 then bb1 else bb2
+  bb1:
+    L3 = cast const 0 to int
+    goto bb3
+  bb2:
+    return const 1
+  bb3:
+    L5 = struct_lit type#1484 {value=const "\"ok\""}
+    L4 = move L5
+    L7 = call __clone(addr_of L4)
+    L6 = move L7
+    L8 = call __ne(addr_of L6.value, addr_of G0)
+    if copy L8 then bb4 else bb5
+  bb4:
+    return const 2
+  bb5:
+    L10 = struct_lit type#1485 {value=const 1}
+    L9 = move L10
+    L11 = call __bool(addr_of L9)
+    if copy L11 then bb6 else bb7
+  bb6:
+    L12 = cast const 0 to int
+    goto bb8
+  bb7:
+    return const 3
+  bb8:
+    L14 = call default()
+    L15 = call __to(addr_of L4, copy L14)
+    L13 = copy L15
+    L16 = call __ne(copy L13, const 7)
+    if copy L16 then bb9 else bb10
+  bb9:
+    return const 4
+  bb10:
+    L18 = array_lit [const 1, const 2, const 3]
+    L19 = struct_lit type#1486 {values=move L18}
+    L17 = move L19
+    L20 = call __index_set(addr_of_mut L17, const 1, const 9)
+    L21 = call __index(addr_of L17, const 1)
+    L22 = call __ne(copy L21, const 9)
+    if copy L22 then bb11 else bb12
+  bb11:
+    return const 5
+  bb12:
+    L23 = const 0
+    L25 = call __range(addr_of L17)
+    L26 = iter_init copy L25
+    L24 = move L26
+    goto bb13
+  bb13:
+    if const true then bb14 else bb15
+  bb14:
+    L28 = iter_next copy L24
+    L27 = move L28
+    L29 = tag_test copy L27 is nothing
+    if copy L29 then bb15 else bb16
+  bb15:
+    L33 = call __ne(copy L23, const 13)
+    if copy L33 then bb17 else bb18
+  bb16:
+    L31 = tag_payload copy L27.Some[0]
+    L30 = copy L31
+    L32 = call __add(copy L23, copy L30)
+    L23 = copy L32
+    goto bb13
+  bb17:
+    return const 6
+  bb18:
+    L34 = const 0
+    L36 = call __range(addr_of L17)
+    L37 = iter_init copy L36
+    L35 = move L37
+    goto bb19
+  bb19:
+    if const true then bb20 else bb21
+  bb20:
+    L39 = iter_next copy L35
+    L38 = move L39
+    L40 = tag_test copy L38 is nothing
+    if copy L40 then bb21 else bb22
+  bb21:
+    L44 = call __ne(copy L34, const 13)
+    if copy L44 then bb23 else bb24
+  bb22:
+    L42 = tag_payload copy L38.Some[0]
+    L41 = copy L42
+    L43 = call __add(copy L34, copy L41)
+    L34 = copy L43
+    goto bb19
+  bb23:
+    return const 7
+  bb24:
+    return const 0

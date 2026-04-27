@@ -345,6 +345,17 @@ func (l *lowerer) lowerForInStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 	}
 	if forStmt.Iterable.IsValid() {
 		data.Iterable = l.lowerExpr(forStmt.Iterable)
+		if data.Iterable != nil && l.semaRes != nil && l.semaRes.RangeSymbols != nil {
+			if symID, ok := l.semaRes.RangeSymbols[forStmt.Iterable]; ok && symID.IsValid() {
+				rangeType := data.Iterable.Type
+				if l.semaRes.RangeTypes != nil {
+					if ty := l.semaRes.RangeTypes[forStmt.Iterable]; ty != types.NoTypeID {
+						rangeType = ty
+					}
+				}
+				data.Iterable = l.magicCallExpr(data.Iterable.Span, rangeType, symID, []*Expr{data.Iterable})
+			}
+		}
 	}
 	if forStmt.Body.IsValid() {
 		data.Body = l.lowerBlockOrWrap(forStmt.Body)

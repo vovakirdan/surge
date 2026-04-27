@@ -1,0 +1,72 @@
+
+== MIR ==
+globals=1
+  G0: string name=strlit$0
+funcs=7
+
+fn __bool:
+  locals:
+    L0: &type#1485 [copy,ref] name=self
+    L1: type#1485 name=tmp_un1
+    L2: int [copy] name=tmp_field2
+    L3: bool [copy] name=tmp_call3
+  bb0:
+    L1 = (* copy L0)
+    L2 = field copy L1.value
+    L3 = call __ne(copy L2, const 0)
+    return copy L3
+
+fn __clone:
+  locals:
+    L0: &type#1484 [copy,ref] name=self
+    L1: string name=tmp_call1
+    L2: type#1484 name=tmp_struct2
+  bb0:
+    L1 = call __clone(addr_of (*L0).value)
+    L2 = struct_lit type#1484 {value=move L1}
+    return move L2
+
+fn __index:
+  locals:
+    L0: &type#1486 [copy,ref] name=self
+    L1: int [copy] name=index
+    L2: int [copy] name=tmp_idx1
+    L3: int [copy] name=tmp_un2
+  bb0:
+    L2 = copy L1
+    L3 = (* addr_of (*L0).values[L2])
+    return copy L3
+
+fn __index_set:
+  locals:
+    L0: &mut type#1486 [refmut] name=self
+    L1: int [copy] name=index
+    L2: int [copy] name=value
+    L3: int [copy] name=tmp_idx1
+  bb0:
+    L3 = copy L1
+    (*L0).values[L3] = copy L2
+    return
+
+fn __not:
+  locals:
+    L0: &type#1484 [copy,ref] name=self
+    L1: bool [copy] name=tmp_call1
+  bb0:
+    L1 = call __eq(addr_of (*L0).value, addr_of G0)
+    return copy L1
+
+fn __range:
+  locals:
+    L0: &type#1486 [copy,ref] name=self
+    L1: type#187 name=tmp_call1
+  bb0:
+    L1 = call __range::<int>(addr_of (*L0).values)
+    return move L1
+
+fn __to:
+  locals:
+    L0: &type#1484 [copy,ref] name=self
+    L1: int [copy] name=_
+  bb0:
+    return const 7
