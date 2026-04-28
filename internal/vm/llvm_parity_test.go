@@ -49,6 +49,8 @@ func TestLLVMParity(t *testing.T) {
 		{name: "unicode_len", file: "unicode_len.sg"},
 		{name: "entropy_len", file: "entropy_len.sg"},
 		{name: "random_pcg32", file: "random_pcg32.sg"},
+		{name: "hash_xxh64", file: "hash_xxh64.sg"},
+		{name: "hash_stable64", file: "hash_stable64.sg"},
 		{name: "uuid_v4", file: "uuid_v4.sg"},
 		{name: "path_smoke", file: "path_smoke.sg"},
 		{

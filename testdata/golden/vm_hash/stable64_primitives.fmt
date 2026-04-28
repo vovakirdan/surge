@@ -1,0 +1,122 @@
+import stdlib/hash as hash;
+
+fn push_le_uint(out: &mut byte[], value: uint64, width: int) -> nothing {
+    let mut i: int = 0;
+    while i < width {
+        let shift: uint64 = (i * 8) to uint64;
+        out.push(((value >> shift) & 0xFF:uint64) to byte);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn push_le_u64(out: &mut byte[], value: uint64) -> nothing {
+    push_le_uint(out, value, 8);
+    return nothing;
+}
+
+fn push_raw_bytes(out: &mut byte[], value: &byte[]) -> nothing {
+    push_le_u64(out, value.__len() to uint64);
+    let mut i: int = 0;
+    let count: int = value.__len() to int;
+    while i < count {
+        out.push(clone(value[i]));
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn push_raw_string(out: &mut byte[], value: &string) -> nothing {
+    let view = value.bytes();
+    push_le_u64(out, view.__len() to uint64);
+    let mut i: int = 0;
+    let count: int = view.__len() to int;
+    while i < count {
+        out.push(view[i] to byte);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn same_digest(a: hash.Hash64, b: hash.Hash64) -> bool {
+    return a.as_u64() == b.as_u64();
+}
+
+@entrypoint
+fn main() -> int {
+    let text: string = "hello";
+    let mut string_frame: byte[] = [];
+    string_frame.push(0x21:byte);
+    push_raw_string(&mut string_frame, &text);
+    let expected_string: hash.Hash64 = hash.xxh64_bytes(&string_frame, hash.STABLE64_SEED);
+    let actual_string: hash.Hash64 = hash.stable64_string(&text);
+    if !same_digest(actual_string, expected_string) {
+        return 1;
+    }
+    let raw_string: hash.Hash64 = hash.xxh64_string(&text, hash.STABLE64_SEED);
+    if same_digest(actual_string, raw_string) {
+        return 2;
+    }
+
+    let payload: byte[] = [1:byte, 2:byte, 3:byte];
+    let mut bytes_frame: byte[] = [];
+    bytes_frame.push(0x20:byte);
+    push_raw_bytes(&mut bytes_frame, &payload);
+    let expected_bytes: hash.Hash64 = hash.xxh64_bytes(&bytes_frame, hash.STABLE64_SEED);
+    let actual_bytes: hash.Hash64 = hash.stable64_bytes(&payload);
+    if !same_digest(actual_bytes, expected_bytes) {
+        return 3;
+    }
+
+    let mut h: hash.Stable64 = hash.Stable64::new();
+    h.write_bool(false);
+    h.write_bool(true);
+    h.write_byte(1:byte);
+    h.write_u8(1:uint8);
+    h.write_u64(1:uint64);
+    h.write_i8(-1:int8);
+    h.write_i64(-1:int64);
+
+    let mut frame: byte[] = [];
+    frame.push(0x01:byte);
+    frame.push(0x02:byte);
+    frame.push(0x12:byte);
+    frame.push(1:byte);
+    frame.push(0x10:byte);
+    frame.push(1:byte);
+    push_le_uint(&mut frame, 1:uint64, 1);
+    frame.push(0x10:byte);
+    frame.push(8:byte);
+    push_le_u64(&mut frame, 1:uint64);
+    frame.push(0x11:byte);
+    frame.push(1:byte);
+    push_le_uint(&mut frame, 0xFF:uint64, 1);
+    frame.push(0x11:byte);
+    frame.push(8:byte);
+    push_le_u64(&mut frame, 18_446_744_073_709_551_615:uint64);
+
+    let expected: hash.Hash64 = hash.xxh64_bytes(&frame, hash.STABLE64_SEED);
+    let actual: hash.Hash64 = h.finish();
+    if !same_digest(actual, expected) {
+        return 4;
+    }
+
+    let mut u8_hash: hash.Stable64 = hash.Stable64::new();
+    u8_hash.write_u8(1:uint8);
+    let u8_digest: hash.Hash64 = u8_hash.finish();
+    let mut u64_hash: hash.Stable64 = hash.Stable64::new();
+    u64_hash.write_u64(1:uint64);
+    let u64_digest: hash.Hash64 = u64_hash.finish();
+    if same_digest(u8_digest, u64_digest) {
+        return 5;
+    }
+
+    let mut byte_hash: hash.Stable64 = hash.Stable64::new();
+    byte_hash.write_byte(1:byte);
+    let byte_digest: hash.Hash64 = byte_hash.finish();
+    if same_digest(byte_digest, u8_digest) {
+        return 6;
+    }
+
+    return 0;
+}

@@ -1,0 +1,327 @@
+pragma module;
+
+// stdlib/hash/xxh64.sg
+// Raw xxHash64 byte-stream hasher.
+
+const HASH_U64_MOD: uint = 18_446_744_073_709_551_616;
+
+const XXH64_PRIME1: uint64 = 11_400_714_785_074_694_791:uint64;
+const XXH64_PRIME2: uint64 = 14_029_467_366_897_019_727:uint64;
+const XXH64_PRIME3: uint64 = 1_609_587_929_392_839_161:uint64;
+const XXH64_PRIME4: uint64 = 9_650_029_242_287_828_579:uint64;
+const XXH64_PRIME5: uint64 = 2_870_177_450_012_600_261:uint64;
+
+@copy
+type Xxh64Lanes = {
+    v1: uint64,
+    v2: uint64,
+    v3: uint64,
+    v4: uint64,
+};
+
+pub type Xxh64 = {
+    seed: uint64,
+    total_len: uint64,
+    v1: uint64,
+    v2: uint64,
+    v3: uint64,
+    v4: uint64,
+    tail: byte[],
+};
+
+fn wrap_u64(value: uint) -> uint64 {
+    return (value % HASH_U64_MOD) to uint64;
+}
+
+fn wrap_u64_add(a: uint64, b: uint64) -> uint64 {
+    return wrap_u64((a to uint) + (b to uint));
+}
+
+fn wrap_u64_sub(a: uint64, b: uint64) -> uint64 {
+    let wide_a: uint = a to uint;
+    let wide_b: uint = b to uint;
+    return wrap_u64((wide_a + HASH_U64_MOD - wide_b) % HASH_U64_MOD);
+}
+
+fn wrap_u64_mul(a: uint64, b: uint64) -> uint64 {
+    return wrap_u64((a to uint) * (b to uint));
+}
+
+fn wrap_u64_shl(value: uint64, shift: uint64) -> uint64 {
+    return wrap_u64((value to uint) << (shift to uint));
+}
+
+fn rotl64(value: uint64, shift: uint64) -> uint64 {
+    return wrap_u64_shl(value, shift) | (value >> (64:uint64 - shift));
+}
+
+fn byte_to_u64(bytes: &byte[], index: int) -> uint64 {
+    return clone(bytes[index]) to uint64;
+}
+
+fn view_byte_to_u64(bytes: &BytesView, index: int) -> uint64 {
+    return (bytes[index] to byte) to uint64;
+}
+
+fn read_le_u32(bytes: &byte[], index: int) -> uint64 {
+    return byte_to_u64(bytes, index)
+        | (byte_to_u64(bytes, index + 1) << 8:uint64)
+        | (byte_to_u64(bytes, index + 2) << 16:uint64)
+        | (byte_to_u64(bytes, index + 3) << 24:uint64);
+}
+
+fn read_view_le_u32(bytes: &BytesView, index: int) -> uint64 {
+    return view_byte_to_u64(bytes, index)
+        | (view_byte_to_u64(bytes, index + 1) << 8:uint64)
+        | (view_byte_to_u64(bytes, index + 2) << 16:uint64)
+        | (view_byte_to_u64(bytes, index + 3) << 24:uint64);
+}
+
+fn read_le_u64(bytes: &byte[], index: int) -> uint64 {
+    return read_le_u32(bytes, index)
+        | (read_le_u32(bytes, index + 4) << 32:uint64);
+}
+
+fn read_view_le_u64(bytes: &BytesView, index: int) -> uint64 {
+    return read_view_le_u32(bytes, index)
+        | (read_view_le_u32(bytes, index + 4) << 32:uint64);
+}
+
+fn xxh64_round(acc: uint64, lane: uint64) -> uint64 {
+    let mixed: uint64 = wrap_u64_add(acc, wrap_u64_mul(lane, XXH64_PRIME2));
+    return wrap_u64_mul(rotl64(mixed, 31:uint64), XXH64_PRIME1);
+}
+
+fn xxh64_merge_round(acc: uint64, lane: uint64) -> uint64 {
+    let rounded: uint64 = xxh64_round(0:uint64, lane);
+    let xored: uint64 = acc ^ rounded;
+    return wrap_u64_add(wrap_u64_mul(xored, XXH64_PRIME1), XXH64_PRIME4);
+}
+
+fn xxh64_avalanche(value: uint64) -> uint64 {
+    let mut h: uint64 = value;
+    h = h ^ (h >> 33:uint64);
+    h = wrap_u64_mul(h, XXH64_PRIME2);
+    h = h ^ (h >> 29:uint64);
+    h = wrap_u64_mul(h, XXH64_PRIME3);
+    h = h ^ (h >> 32:uint64);
+    return h;
+}
+
+fn xxh64_initial_lanes(seed: uint64) -> Xxh64Lanes {
+    return {
+        v1 = wrap_u64_add(wrap_u64_add(seed, XXH64_PRIME1), XXH64_PRIME2),
+        v2 = wrap_u64_add(seed, XXH64_PRIME2),
+        v3 = seed,
+        v4 = wrap_u64_sub(seed, XXH64_PRIME1),
+    };
+}
+
+fn xxh64_round_bytes_block(lanes: Xxh64Lanes, bytes: &byte[], offset: int) -> Xxh64Lanes {
+    return {
+        v1 = xxh64_round(lanes.v1, read_le_u64(bytes, offset)),
+        v2 = xxh64_round(lanes.v2, read_le_u64(bytes, offset + 8)),
+        v3 = xxh64_round(lanes.v3, read_le_u64(bytes, offset + 16)),
+        v4 = xxh64_round(lanes.v4, read_le_u64(bytes, offset + 24)),
+    };
+}
+
+fn xxh64_round_view_block(lanes: Xxh64Lanes, bytes: &BytesView, offset: int) -> Xxh64Lanes {
+    return {
+        v1 = xxh64_round(lanes.v1, read_view_le_u64(bytes, offset)),
+        v2 = xxh64_round(lanes.v2, read_view_le_u64(bytes, offset + 8)),
+        v3 = xxh64_round(lanes.v3, read_view_le_u64(bytes, offset + 16)),
+        v4 = xxh64_round(lanes.v4, read_view_le_u64(bytes, offset + 24)),
+    };
+}
+
+fn xxh64_current_lanes(h: &Xxh64) -> Xxh64Lanes {
+    return { v1 = h.v1, v2 = h.v2, v3 = h.v3, v4 = h.v4 };
+}
+
+fn xxh64_store_lanes(h: &mut Xxh64, lanes: Xxh64Lanes) -> nothing {
+    h.v1 = lanes.v1;
+    h.v2 = lanes.v2;
+    h.v3 = lanes.v3;
+    h.v4 = lanes.v4;
+    return nothing;
+}
+
+fn xxh64_process_bytes_block(h: &mut Xxh64, bytes: &byte[], offset: int) -> nothing {
+    xxh64_store_lanes(h, xxh64_round_bytes_block(xxh64_current_lanes(h), bytes, offset));
+    return nothing;
+}
+
+fn xxh64_process_view_block(h: &mut Xxh64, bytes: &BytesView, offset: int) -> nothing {
+    xxh64_store_lanes(h, xxh64_round_view_block(xxh64_current_lanes(h), bytes, offset));
+    return nothing;
+}
+
+fn xxh64_process_tail_block(h: &mut Xxh64) -> nothing {
+    xxh64_store_lanes(h, xxh64_round_bytes_block(xxh64_current_lanes(h), h.tail, 0));
+    let empty: byte[] = [];
+    h.tail = empty;
+    return nothing;
+}
+
+fn xxh64_append_tail(h: &mut Xxh64, value: byte) -> nothing {
+    h.tail.push(value);
+    if h.tail.__len() == 32:uint {
+        xxh64_process_tail_block(h);
+    }
+    return nothing;
+}
+
+fn xxh64_finalize(seed: uint64, total_len: uint64, lanes: Xxh64Lanes, tail: &byte[]) -> Hash64 {
+    let mut h: uint64 = 0:uint64;
+    if total_len >= 32:uint64 {
+        h = wrap_u64_add(
+            wrap_u64_add(rotl64(lanes.v1, 1:uint64), rotl64(lanes.v2, 7:uint64)),
+            wrap_u64_add(rotl64(lanes.v3, 12:uint64), rotl64(lanes.v4, 18:uint64))
+        );
+        h = xxh64_merge_round(h, lanes.v1);
+        h = xxh64_merge_round(h, lanes.v2);
+        h = xxh64_merge_round(h, lanes.v3);
+        h = xxh64_merge_round(h, lanes.v4);
+    } else {
+        h = wrap_u64_add(seed, XXH64_PRIME5);
+    }
+
+    h = wrap_u64_add(h, total_len);
+
+    let length: int = tail.__len() to int;
+    let mut offset: int = 0;
+    while offset <= length - 8 {
+        let lane: uint64 = xxh64_round(0:uint64, read_le_u64(tail, offset));
+        h = h ^ lane;
+        h = wrap_u64_add(wrap_u64_mul(rotl64(h, 27:uint64), XXH64_PRIME1), XXH64_PRIME4);
+        offset = offset + 8;
+    }
+
+    if offset <= length - 4 {
+        h = h ^ wrap_u64_mul(read_le_u32(tail, offset), XXH64_PRIME1);
+        h = wrap_u64_add(wrap_u64_mul(rotl64(h, 23:uint64), XXH64_PRIME2), XXH64_PRIME3);
+        offset = offset + 4;
+    }
+
+    while offset < length {
+        h = h ^ wrap_u64_mul(byte_to_u64(tail, offset), XXH64_PRIME5);
+        h = wrap_u64_mul(rotl64(h, 11:uint64), XXH64_PRIME1);
+        offset = offset + 1;
+    }
+
+    return { value = xxh64_avalanche(h) };
+}
+
+fn xxh64_compute(bytes: &byte[], seed: uint64) -> Hash64 {
+    let mut h: Xxh64 = Xxh64::new(seed);
+    h.update_bytes(bytes);
+    return h.finish();
+}
+
+extern<Xxh64> {
+    pub fn new(seed: uint64) -> Xxh64 {
+        let lanes: Xxh64Lanes = xxh64_initial_lanes(seed);
+        let tail: byte[] = [];
+        return {
+            seed = seed,
+            total_len = 0:uint64,
+            v1 = lanes.v1,
+            v2 = lanes.v2,
+            v3 = lanes.v3,
+            v4 = lanes.v4,
+            tail = tail,
+        };
+    }
+
+    pub fn update_byte(self: &mut Xxh64, value: byte) -> nothing {
+        self.total_len = wrap_u64_add(self.total_len, 1:uint64);
+        xxh64_append_tail(self, value);
+        return nothing;
+    }
+
+    pub fn update_bytes(self: &mut Xxh64, bytes: &byte[]) -> nothing {
+        let count_u: uint = bytes.__len();
+        if count_u == 0:uint {
+            return nothing;
+        }
+
+        self.total_len = wrap_u64_add(self.total_len, count_u to uint64);
+        let count: int = count_u to int;
+        let mut offset: int = 0;
+
+        if self.tail.__len() != 0:uint {
+            while offset < count && self.tail.__len() < 32:uint {
+                self.tail.push(clone(bytes[offset]));
+                offset = offset + 1;
+            }
+            if self.tail.__len() == 32:uint {
+                xxh64_process_tail_block(self);
+            }
+        }
+
+        while offset <= count - 32 {
+            xxh64_process_bytes_block(self, bytes, offset);
+            offset = offset + 32;
+        }
+
+        if offset < count {
+            self.tail.reserve(self.tail.__len() + ((count - offset) to uint));
+            while offset < count {
+                self.tail.push(clone(bytes[offset]));
+                offset = offset + 1;
+            }
+        }
+        return nothing;
+    }
+
+    pub fn update_string_bytes(self: &mut Xxh64, text: &string) -> nothing {
+        let view = text.bytes();
+        let count_u: uint = view.__len();
+        if count_u == 0:uint {
+            return nothing;
+        }
+
+        self.total_len = wrap_u64_add(self.total_len, count_u to uint64);
+        let count: int = count_u to int;
+        let mut offset: int = 0;
+
+        if self.tail.__len() != 0:uint {
+            while offset < count && self.tail.__len() < 32:uint {
+                self.tail.push(view[offset] to byte);
+                offset = offset + 1;
+            }
+            if self.tail.__len() == 32:uint {
+                xxh64_process_tail_block(self);
+            }
+        }
+
+        while offset <= count - 32 {
+            xxh64_process_view_block(self, &view, offset);
+            offset = offset + 32;
+        }
+
+        if offset < count {
+            self.tail.reserve(self.tail.__len() + ((count - offset) to uint));
+            while offset < count {
+                self.tail.push(view[offset] to byte);
+                offset = offset + 1;
+            }
+        }
+        return nothing;
+    }
+
+    pub fn finish(self: &Xxh64) -> Hash64 {
+        return xxh64_finalize(self.seed, self.total_len, xxh64_current_lanes(self), self.tail);
+    }
+}
+
+pub fn xxh64_bytes(bytes: &byte[], seed: uint64) -> Hash64 {
+    return xxh64_compute(bytes, seed);
+}
+
+pub fn xxh64_string(text: &string, seed: uint64) -> Hash64 {
+    let mut h: Xxh64 = Xxh64::new(seed);
+    h.update_string_bytes(text);
+    return h.finish();
+}

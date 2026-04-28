@@ -40,6 +40,7 @@ Important notes:
 | `stdlib/entropy` | Secure host entropy bytes | secure randomness input |
 | `stdlib/random` | Host-backed RNG plus deterministic `Pcg32` | tokens, tests, fixtures |
 | `stdlib/uuid` | UUID parse/format/v4 | identifiers |
+| `stdlib/hash` | Stable non-cryptographic hashing | sharding, cache keys, snapshots |
 | `stdlib/fs` | Filesystem IO | read/write files, walk directories |
 | `stdlib/path` | Pure path helpers | join, normalize, basename |
 | `stdlib/strings` | Small string helpers | `ord`, `chr`, `is_int` |
@@ -237,7 +238,104 @@ Reality note:
 
 ---
 
-## 6. `stdlib/fs`
+## 6. `stdlib/hash`
+
+Import:
+
+```sg
+import stdlib/hash as hash;
+```
+
+Public API:
+
+- `STABLE64_VERSION`
+- `STABLE64_SEED`
+- `type Hash64`
+- `type Xxh64`
+- `type Stable64`
+- `xxh64_bytes(bytes: &byte[], seed: uint64) -> Hash64`
+- `xxh64_string(text: &string, seed: uint64) -> Hash64`
+- `stable64_bytes(bytes: &byte[]) -> Hash64`
+- `stable64_string(text: &string) -> Hash64`
+- `stable64_with_seed(seed: uint64) -> Stable64`
+- `Hash64.as_u64() -> uint64`
+- `Hash64.bucket(bucket_count: uint) -> Option<uint>`
+- `Hash64.to_hex() -> string`
+- `Xxh64::new(seed: uint64) -> Xxh64`
+- `Xxh64.update_byte(value: byte)`
+- `Xxh64.update_bytes(...)`
+- `Xxh64.update_string_bytes(...)`
+- `Xxh64.finish() -> Hash64`
+- `Stable64::new() -> Stable64`
+- `Stable64::with_seed(seed: uint64) -> Stable64`
+- `Stable64.write_bool(...)`, `write_byte(...)`
+- `Stable64.write_u8(...)`, `write_u16(...)`, `write_u32(...)`, `write_u64(...)`
+- `Stable64.write_i8(...)`, `write_i16(...)`, `write_i32(...)`, `write_i64(...)`
+- `Stable64.write_bytes(...)`, `write_string(...)`
+- `Stable64.begin_list(...)`, `begin_record(...)`, `write_field(...)`, `begin_variant(...)`
+- `Stable64.finish() -> Hash64`
+
+Design split:
+
+- `Xxh64` is the raw byte-stream xxHash64 algorithm. It adds no tags, length prefixes, or schema information.
+- `Stable64` is the structured hasher. It writes type tags, fixed-width little-endian payloads, lengths, and structural frames before hashing.
+- `stable64_*` helpers use the v1 stable encoding. The unversioned names are the permanent v1 contract.
+- This module is not cryptographic. Do not use it for passwords, signatures, MACs, authentication tokens, or hostile-input integrity checks.
+- Dynamic `int` and `uint` writers are intentionally omitted. Pick an explicit fixed-width writer such as `write_i64()` or `write_u64()`.
+
+Example: shard a key
+
+```sg
+import stdlib/hash as hash;
+
+fn shard_for(key: &string, shard_count: uint) -> Option<uint> {
+    let digest: hash.Hash64 = hash.stable64_string(key);
+    return digest.bucket(shard_count);
+}
+```
+
+Example: structured cache key
+
+```sg
+import stdlib/hash as hash;
+
+fn cache_key(tenant: &string, key: &string, generation: uint64) -> hash.Hash64 {
+    let record_name: string = "CacheKey";
+    let tenant_field: string = "tenant";
+    let key_field: string = "key";
+    let generation_field: string = "generation";
+
+    let mut h: hash.Stable64 = hash.Stable64::new();
+    h.begin_record(&record_name, 3:uint);
+    h.write_field(&tenant_field);
+    h.write_string(tenant);
+    h.write_field(&key_field);
+    h.write_string(key);
+    h.write_field(&generation_field);
+    h.write_u64(generation);
+    return h.finish();
+}
+```
+
+Example: raw xxHash64 for byte compatibility
+
+```sg
+import stdlib/hash as hash;
+
+fn raw_digest(bytes: &byte[]) -> string {
+    let digest: hash.Hash64 = hash.xxh64_bytes(bytes, 0:uint64);
+    return digest.to_hex();
+}
+```
+
+Reality note:
+
+- Generic `StableHash<T>` is planned separately after the concrete `Stable64` API has settled.
+- FNV-1a is deferred. If added later, it should be documented as a compatibility or teaching algorithm, not the recommended default.
+
+---
+
+## 7. `stdlib/fs`
 
 Import:
 
@@ -289,7 +387,7 @@ fn load_config(path: string) -> Erring<string, FsError> {
 
 ---
 
-## 7. `stdlib/path`
+## 8. `stdlib/path`
 
 Import:
 
@@ -310,7 +408,7 @@ These helpers use POSIX-style `/` semantics and are pure string transformations.
 
 ---
 
-## 8. `stdlib/strings`
+## 9. `stdlib/strings`
 
 Import:
 
@@ -329,7 +427,7 @@ Use this module for small Unicode and validation helpers.
 
 ---
 
-## 9. `stdlib/time`
+## 10. `stdlib/time`
 
 Import:
 
@@ -366,7 +464,7 @@ fn elapsed_ms(start: time.Duration) -> int64 {
 
 ---
 
-## 10. `stdlib/json`
+## 11. `stdlib/json`
 
 Imports:
 
@@ -409,7 +507,7 @@ fn parse_payload(raw: &string) -> Erring<json.JsonValue, json.JsonError> {
 
 ---
 
-## 11. `stdlib/net`
+## 12. `stdlib/net`
 
 Import:
 
@@ -439,9 +537,9 @@ This module provides async TCP helpers backed by runtime intrinsics.
 
 ---
 
-## 12. HTTP Family
+## 13. HTTP Family
 
-### 12.1 `stdlib/http`
+### 13.1 `stdlib/http`
 
 Import:
 
@@ -472,14 +570,14 @@ Core public constructors and helpers:
 - `request_content_length`
 - `request_keep_alive`
 
-### 12.2 `stdlib/http/parser`
+### 13.2 `stdlib/http/parser`
 
 Public API:
 
 - `parse_request`
 - `ByteStream.next()`
 
-### 12.3 `stdlib/http/query`
+### 13.3 `stdlib/http/query`
 
 Public API:
 
@@ -489,7 +587,7 @@ Public API:
 - `query_has`
 - `query_values`
 
-### 12.4 `stdlib/http/headers`
+### 13.4 `stdlib/http/headers`
 
 Public API:
 
@@ -499,7 +597,7 @@ Public API:
 - `headers_set`
 - `headers_without`
 
-### 12.5 `stdlib/http/cookie`
+### 13.5 `stdlib/http/cookie`
 
 Public API:
 
@@ -524,7 +622,7 @@ Public API:
   - `response_delete_cookie`
   - `response_delete_cookie_at`
 
-### 12.6 `stdlib/http/response`
+### 13.6 `stdlib/http/response`
 
 Public API:
 
@@ -546,7 +644,7 @@ Public API:
 - `response_set_header`
 - `response_remove_header`
 
-### 12.7 `stdlib/http/context`
+### 13.7 `stdlib/http/context`
 
 Public API:
 
@@ -592,21 +690,21 @@ Public API:
   - `temporary_redirect`
   - `permanent_redirect`
 
-### 12.8 `stdlib/http/body`
+### 13.8 `stdlib/http/body`
 
 Public API:
 
 - `BodyReader.next() -> Task<Erring<byte[], HttpError>>`
 
-### 12.9 `stdlib/http/server`
+### 13.9 `stdlib/http/server`
 
 - This file currently contains implementation support for the HTTP stack and does not expose its own public API.
 
 ---
 
-## 13. Terminal Modules
+## 14. Terminal Modules
 
-### 13.1 `stdlib/term`
+### 14.1 `stdlib/term`
 
 Public API:
 
@@ -628,7 +726,7 @@ Public API:
   - `write_str`
   - `read_event_async`
 
-### 13.2 `stdlib/term/ansi`
+### 14.2 `stdlib/term/ansi`
 
 Public API:
 
@@ -659,18 +757,18 @@ Public API:
 
 Use `term` for terminal mode and events, and `ansi` to build escape-sequence output safely.
 
-### 13.3 `stdlib/term/intrinsics`
+### 14.3 `stdlib/term/intrinsics`
 
 - This file exposes low-level terminal intrinsics used by `stdlib/term` and `stdlib/term/ansi`.
 - Treat it as implementation detail, not as stable user-facing API.
 
 ---
 
-## 14. Directive Modules
+## 15. Directive Modules
 
 These modules are intended for directive-driven workflows rather than regular runtime libraries.
 
-### 14.1 `stdlib/directives/test`
+### 15.1 `stdlib/directives/test`
 
 Directive pragma:
 
@@ -687,7 +785,7 @@ Public API:
 - `fail(message)`
 - `skip(reason)`
 
-### 14.2 `stdlib/directives/benchmark`
+### 15.2 `stdlib/directives/benchmark`
 
 Directive pragma:
 
@@ -706,7 +804,7 @@ Current reality:
 
 - This module is still mostly a stage-level helper. Its API is present, but the implementation is still lightweight.
 
-### 14.3 `stdlib/directives/time`
+### 15.3 `stdlib/directives/time`
 
 Directive pragma:
 
@@ -727,7 +825,7 @@ Current reality:
 
 ---
 
-## 15. `stdlib/saturating_cast`
+## 16. `stdlib/saturating_cast`
 
 Import:
 
@@ -753,7 +851,7 @@ fn to_u8(x: int) -> uint8 {
 
 ---
 
-## 16. Practical Combinations
+## 17. Practical Combinations
 
 ### Generate a secure UUID and serialize it
 

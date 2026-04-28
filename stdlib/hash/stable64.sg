@@ -1,0 +1,204 @@
+pragma module;
+
+// stdlib/hash/stable64.sg
+// Structured stable hashing.
+
+const STABLE_TAG_BOOL_FALSE: byte = 0x01:byte;
+const STABLE_TAG_BOOL_TRUE: byte = 0x02:byte;
+const STABLE_TAG_UNSIGNED: byte = 0x10:byte;
+const STABLE_TAG_SIGNED: byte = 0x11:byte;
+const STABLE_TAG_BYTE: byte = 0x12:byte;
+const STABLE_TAG_BYTES: byte = 0x20:byte;
+const STABLE_TAG_STRING: byte = 0x21:byte;
+const STABLE_TAG_LIST: byte = 0x30:byte;
+const STABLE_TAG_RECORD: byte = 0x31:byte;
+const STABLE_TAG_FIELD: byte = 0x32:byte;
+const STABLE_TAG_VARIANT: byte = 0x33:byte;
+
+const STABLE_I8_MOD: int = 256;
+const STABLE_I16_MOD: int = 65_536;
+const STABLE_I32_MOD: int = 4_294_967_296;
+const STABLE_I64_MOD: int = 18_446_744_073_709_551_616;
+
+pub type Stable64 = {
+    inner: Xxh64,
+};
+
+fn stable_write_one(h: &mut Stable64, value: byte) -> nothing {
+    h.inner.update_byte(value);
+    return nothing;
+}
+
+fn stable_write_raw_uint(h: &mut Stable64, value: uint64, width: int) -> nothing {
+    let mut i: int = 0;
+    while i < width {
+        let shift: uint64 = (i * 8) to uint64;
+        stable_write_one(h, ((value >> shift) & 0xFF:uint64) to byte);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn stable_write_raw_u64(h: &mut Stable64, value: uint64) -> nothing {
+    stable_write_raw_uint(h, value, 8);
+    return nothing;
+}
+
+fn stable_write_unsigned(h: &mut Stable64, width: int, value: uint64) -> nothing {
+    stable_write_one(h, STABLE_TAG_UNSIGNED);
+    stable_write_one(h, width to byte);
+    stable_write_raw_uint(h, value, width);
+    return nothing;
+}
+
+fn stable_signed_bits(value: int, modulo: int) -> uint64 {
+    if value < 0 {
+        return ((value + modulo) to uint) to uint64;
+    }
+    return (value to uint) to uint64;
+}
+
+fn stable_write_signed(h: &mut Stable64, width: int, value: int, modulo: int) -> nothing {
+    stable_write_one(h, STABLE_TAG_SIGNED);
+    stable_write_one(h, width to byte);
+    stable_write_raw_uint(h, stable_signed_bits(value, modulo), width);
+    return nothing;
+}
+
+fn stable_write_raw_bytes(h: &mut Stable64, value: &byte[]) -> nothing {
+    stable_write_raw_u64(h, value.__len() to uint64);
+    h.inner.update_bytes(value);
+    return nothing;
+}
+
+fn stable_write_raw_string(h: &mut Stable64, value: &string) -> nothing {
+    let view = value.bytes();
+    stable_write_raw_u64(h, view.__len() to uint64);
+    h.inner.update_string_bytes(value);
+    return nothing;
+}
+
+extern<Stable64> {
+    pub fn new() -> Stable64 {
+        return Stable64::with_seed(STABLE64_SEED);
+    }
+
+    pub fn with_seed(seed: uint64) -> Stable64 {
+        return { inner = Xxh64::new(seed) };
+    }
+
+    pub fn write_bool(self: &mut Stable64, value: bool) -> nothing {
+        if value {
+            stable_write_one(self, STABLE_TAG_BOOL_TRUE);
+        } else {
+            stable_write_one(self, STABLE_TAG_BOOL_FALSE);
+        }
+        return nothing;
+    }
+
+    pub fn write_byte(self: &mut Stable64, value: byte) -> nothing {
+        stable_write_one(self, STABLE_TAG_BYTE);
+        stable_write_one(self, value);
+        return nothing;
+    }
+
+    pub fn write_u8(self: &mut Stable64, value: uint8) -> nothing {
+        stable_write_unsigned(self, 1, value to uint64);
+        return nothing;
+    }
+
+    pub fn write_u16(self: &mut Stable64, value: uint16) -> nothing {
+        stable_write_unsigned(self, 2, value to uint64);
+        return nothing;
+    }
+
+    pub fn write_u32(self: &mut Stable64, value: uint32) -> nothing {
+        stable_write_unsigned(self, 4, value to uint64);
+        return nothing;
+    }
+
+    pub fn write_u64(self: &mut Stable64, value: uint64) -> nothing {
+        stable_write_unsigned(self, 8, value);
+        return nothing;
+    }
+
+    pub fn write_i8(self: &mut Stable64, value: int8) -> nothing {
+        stable_write_signed(self, 1, value to int, STABLE_I8_MOD);
+        return nothing;
+    }
+
+    pub fn write_i16(self: &mut Stable64, value: int16) -> nothing {
+        stable_write_signed(self, 2, value to int, STABLE_I16_MOD);
+        return nothing;
+    }
+
+    pub fn write_i32(self: &mut Stable64, value: int32) -> nothing {
+        stable_write_signed(self, 4, value to int, STABLE_I32_MOD);
+        return nothing;
+    }
+
+    pub fn write_i64(self: &mut Stable64, value: int64) -> nothing {
+        stable_write_signed(self, 8, value to int, STABLE_I64_MOD);
+        return nothing;
+    }
+
+    pub fn write_bytes(self: &mut Stable64, value: &byte[]) -> nothing {
+        stable_write_one(self, STABLE_TAG_BYTES);
+        stable_write_raw_bytes(self, value);
+        return nothing;
+    }
+
+    pub fn write_string(self: &mut Stable64, value: &string) -> nothing {
+        stable_write_one(self, STABLE_TAG_STRING);
+        stable_write_raw_string(self, value);
+        return nothing;
+    }
+
+    pub fn begin_list(self: &mut Stable64, list_len: uint) -> nothing {
+        stable_write_one(self, STABLE_TAG_LIST);
+        stable_write_raw_u64(self, list_len to uint64);
+        return nothing;
+    }
+
+    pub fn begin_record(self: &mut Stable64, name: &string, field_count: uint) -> nothing {
+        stable_write_one(self, STABLE_TAG_RECORD);
+        stable_write_raw_string(self, name);
+        stable_write_raw_u64(self, field_count to uint64);
+        return nothing;
+    }
+
+    pub fn write_field(self: &mut Stable64, name: &string) -> nothing {
+        stable_write_one(self, STABLE_TAG_FIELD);
+        stable_write_raw_string(self, name);
+        return nothing;
+    }
+
+    pub fn begin_variant(self: &mut Stable64, type_name: &string, variant_name: &string, variant_index: uint, field_count: uint) -> nothing {
+        stable_write_one(self, STABLE_TAG_VARIANT);
+        stable_write_raw_string(self, type_name);
+        stable_write_raw_string(self, variant_name);
+        stable_write_raw_u64(self, variant_index to uint64);
+        stable_write_raw_u64(self, field_count to uint64);
+        return nothing;
+    }
+
+    pub fn finish(self: &Stable64) -> Hash64 {
+        return self.inner.finish();
+    }
+}
+
+pub fn stable64_bytes(bytes: &byte[]) -> Hash64 {
+    let mut h: Stable64 = Stable64::new();
+    h.write_bytes(bytes);
+    return h.finish();
+}
+
+pub fn stable64_string(text: &string) -> Hash64 {
+    let mut h: Stable64 = Stable64::new();
+    h.write_string(text);
+    return h.finish();
+}
+
+pub fn stable64_with_seed(seed: uint64) -> Stable64 {
+    return Stable64::with_seed(seed);
+}
