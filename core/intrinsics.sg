@@ -95,6 +95,8 @@ pub type NetResult<T> = Erring<T, NetError>;
 @intrinsic fn rt_net_accept(l: &TcpListener) -> NetResult<TcpConn>;
 @intrinsic fn rt_net_read(c: &TcpConn, buf: *byte, cap: uint) -> NetResult<uint>;
 @intrinsic fn rt_net_write(c: &TcpConn, buf: *byte, length: uint) -> NetResult<uint>;
+@intrinsic fn rt_net_read_bytes(c: &TcpConn, cap: uint) -> NetResult<byte[]>;
+@intrinsic fn rt_net_write_bytes(c: &TcpConn, data: &byte[], offset: uint, length: uint) -> NetResult<uint>;
 
 @intrinsic fn rt_net_wait_accept(l: &TcpListener) -> Task<nothing>;
 @intrinsic fn rt_net_wait_readable(c: &TcpConn) -> Task<nothing>;

@@ -53,6 +53,8 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_net_accept", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_net_read", ret: "ptr", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_net_write", ret: "ptr", params: []string{"ptr", "ptr", "i64"}},
+		{name: "rt_net_read_bytes", ret: "ptr", params: []string{"ptr", "i64"}},
+		{name: "rt_net_write_bytes", ret: "ptr", params: []string{"ptr", "ptr", "i64", "i64"}},
 		{name: "rt_net_wait_accept", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_net_wait_readable", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_net_wait_writable", ret: "ptr", params: []string{"ptr"}},

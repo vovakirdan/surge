@@ -66,6 +66,8 @@ void* rt_net_close_conn(void* conn);
 void* rt_net_accept(const void* listener);
 void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap);
 void* rt_net_write(const void* conn, const uint8_t* buf, uint64_t len);
+void* rt_net_read_bytes(const void* conn, uint64_t cap);
+void* rt_net_write_bytes(const void* conn, const void* bytes, uint64_t offset, uint64_t len);
 void* rt_net_wait_accept(const void* listener);
 void* rt_net_wait_readable(const void* conn);
 void* rt_net_wait_writable(const void* conn);
