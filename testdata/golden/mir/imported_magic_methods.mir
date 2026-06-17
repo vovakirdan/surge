@@ -17,26 +17,26 @@ fn __surge_start:
 
 fn main:
   locals:
-    L0: type#1484 name=empty
-    L1: type#1484 name=tmp_struct1
+    L0: type#1488 name=empty
+    L1: type#1488 name=tmp_struct1
     L2: bool [copy] name=tmp_call2
     L3: int [copy] name=tmp_cast3
-    L4: type#1484 name=original
-    L5: type#1484 name=tmp_struct4
-    L6: type#1484 name=cloned
-    L7: type#1484 name=tmp_call5
+    L4: type#1488 name=original
+    L5: type#1488 name=tmp_struct4
+    L6: type#1488 name=cloned
+    L7: type#1488 name=tmp_call5
     L8: bool [copy] name=tmp_call6
-    L9: type#1485 name=flag
-    L10: type#1485 name=tmp_struct7
+    L9: type#1489 name=flag
+    L10: type#1489 name=tmp_struct7
     L11: bool [copy] name=tmp_call8
     L12: int [copy] name=tmp_cast9
     L13: int [copy] name=converted
     L14: int [copy] name=tmp_call10
     L15: int [copy] name=tmp_call11
     L16: bool [copy] name=tmp_call12
-    L17: type#1486 name=bag
+    L17: type#1490 name=bag
     L18: type#76 name=tmp_arr13
-    L19: type#1486 name=tmp_struct14
+    L19: type#1490 name=tmp_struct14
     L20: int [copy] name=tmp_call15
     L21: int [copy] name=tmp_call16
     L22: bool [copy] name=tmp_call17
@@ -44,8 +44,8 @@ fn main:
     L24: type#187 name=__iter1
     L25: type#187 name=tmp_call18
     L26: type#187 name=tmp_iter19
-    L27: type#1501 name=__next2
-    L28: type#1501 name=tmp_next20
+    L27: type#1505 name=__next2
+    L28: type#1505 name=tmp_next20
     L29: bool [copy] name=tmp_tagtest21
     L30: int [copy] name=v
     L31: int [copy] name=tmp_payload22
@@ -55,15 +55,15 @@ fn main:
     L35: type#187 name=__iter3
     L36: type#187 name=tmp_call25
     L37: type#187 name=tmp_iter26
-    L38: type#1501 name=__next4
-    L39: type#1501 name=tmp_next27
+    L38: type#1505 name=__next4
+    L39: type#1505 name=tmp_next27
     L40: bool [copy] name=tmp_tagtest28
     L41: int [copy] name=typed
     L42: int [copy] name=tmp_payload29
     L43: int [copy] name=tmp_call30
     L44: bool [copy] name=tmp_call31
   bb0:
-    L1 = struct_lit type#1484 {value=const "\"\""}
+    L1 = struct_lit type#1488 {value=const "\"\""}
     L0 = move L1
     L2 = call __not(addr_of L0)
     if copy L2 then bb1 else bb2
@@ -73,7 +73,7 @@ fn main:
   bb2:
     return const 1
   bb3:
-    L5 = struct_lit type#1484 {value=const "\"ok\""}
+    L5 = struct_lit type#1488 {value=const "\"ok\""}
     L4 = move L5
     L7 = call __clone(addr_of L4)
     L6 = move L7
@@ -82,7 +82,7 @@ fn main:
   bb4:
     return const 2
   bb5:
-    L10 = struct_lit type#1485 {value=const 1}
+    L10 = struct_lit type#1489 {value=const 1}
     L9 = move L10
     L11 = call __bool(addr_of L9)
     if copy L11 then bb6 else bb7
@@ -101,7 +101,7 @@ fn main:
     return const 4
   bb10:
     L18 = array_lit [const 1, const 2, const 3]
-    L19 = struct_lit type#1486 {values=move L18}
+    L19 = struct_lit type#1490 {values=move L18}
     L17 = move L19
     L20 = call __index_set(addr_of_mut L17, const 1, const 9)
     L21 = call __index(addr_of L17, const 1)

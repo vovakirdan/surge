@@ -31,6 +31,10 @@ func (fe *funcEmitter) emitNetIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitNetRead(call)
 	case "rt_net_write":
 		return true, fe.emitNetWrite(call)
+	case "rt_net_read_bytes":
+		return true, fe.emitNetReadBytes(call)
+	case "rt_net_write_bytes":
+		return true, fe.emitNetWriteBytes(call)
 	case "rt_net_wait_accept":
 		return true, fe.emitNetWait(call, "rt_net_wait_accept", "TcpListener")
 	case "rt_net_wait_readable":
@@ -137,6 +141,48 @@ func (fe *funcEmitter) emitNetWrite(call *mir.CallInstr) error {
 	return fe.storePtrResult(call, tmp)
 }
 
+func (fe *funcEmitter) emitNetReadBytes(call *mir.CallInstr) error {
+	if len(call.Args) != 2 {
+		return fmt.Errorf("rt_net_read_bytes requires 2 arguments")
+	}
+	connVal, err := fe.emitNetHandle(&call.Args[0], "TcpConn")
+	if err != nil {
+		return err
+	}
+	cap64, err := fe.emitUintOperandToI64(&call.Args[1], "net read cap out of range")
+	if err != nil {
+		return err
+	}
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_net_read_bytes(ptr %s, i64 %s)\n", tmp, connVal, cap64)
+	return fe.storePtrResult(call, tmp)
+}
+
+func (fe *funcEmitter) emitNetWriteBytes(call *mir.CallInstr) error {
+	if len(call.Args) != 4 {
+		return fmt.Errorf("rt_net_write_bytes requires 4 arguments")
+	}
+	connVal, err := fe.emitNetHandle(&call.Args[0], "TcpConn")
+	if err != nil {
+		return err
+	}
+	bytesVal, err := fe.emitNetByteArrayHandle(&call.Args[1])
+	if err != nil {
+		return err
+	}
+	offset64, err := fe.emitUintOperandToI64(&call.Args[2], "net write length out of range")
+	if err != nil {
+		return err
+	}
+	len64, err := fe.emitUintOperandToI64(&call.Args[3], "net write length out of range")
+	if err != nil {
+		return err
+	}
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_net_write_bytes(ptr %s, ptr %s, i64 %s, i64 %s)\n", tmp, connVal, bytesVal, offset64, len64)
+	return fe.storePtrResult(call, tmp)
+}
+
 func (fe *funcEmitter) emitNetUnary(call *mir.CallInstr, name, kind string) error {
 	if len(call.Args) != 1 {
 		return fmt.Errorf("%s requires 1 argument", name)
@@ -186,6 +232,31 @@ func (fe *funcEmitter) emitNetHandle(op *mir.Operand, kind string) (string, erro
 	}
 	if op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut {
 		return val, nil
+	}
+	opType := op.Type
+	if opType == types.NoTypeID && op.Kind != mir.OperandConst {
+		if baseType, err := fe.placeBaseType(op.Place); err == nil {
+			opType = baseType
+		}
+	}
+	if op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut || isRefType(fe.emitter.types, opType) {
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, val)
+		return tmp, nil
+	}
+	return val, nil
+}
+
+func (fe *funcEmitter) emitNetByteArrayHandle(op *mir.Operand) (string, error) {
+	if op == nil {
+		return "", fmt.Errorf("missing byte[] handle")
+	}
+	val, ty, err := fe.emitValueOperand(op)
+	if err != nil {
+		return "", err
+	}
+	if ty != "ptr" {
+		return "", fmt.Errorf("expected byte[] handle, got %s", ty)
 	}
 	opType := op.Type
 	if opType == types.NoTypeID && op.Kind != mir.OperandConst {

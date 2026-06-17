@@ -55,6 +55,12 @@ typedef struct NetPollFd {
     uint8_t want_write;
 } NetPollFd;
 
+typedef struct SurgeArrayHeader {
+    uint64_t len;
+    uint64_t cap;
+    void* data;
+} SurgeArrayHeader;
+
 static int net_poll_wake_read_fd = -1;
 static int net_poll_wake_write_fd = -1;
 
@@ -226,6 +232,31 @@ static void* net_make_success_nothing(void) {
     }
     mem[payload_offset] = 0;
     return mem;
+}
+
+static void* net_make_success_bytes(uint8_t* data, uint64_t len, uint64_t cap) {
+    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
+                                                           (uint64_t)alignof(SurgeArrayHeader));
+    if (header == NULL) {
+        if (data != NULL) {
+            rt_free(data, cap, (uint64_t)alignof(uint8_t));
+        }
+        return net_make_error(NET_ERR_IO);
+    }
+    header->len = len;
+    header->cap = cap;
+    header->data = data;
+    void* out = net_make_success_ptr((void*)header);
+    if (out == NULL) {
+        if (data != NULL) {
+            rt_free(data, cap, (uint64_t)alignof(uint8_t));
+        }
+        rt_free((uint8_t*)header,
+                (uint64_t)sizeof(SurgeArrayHeader),
+                (uint64_t)alignof(SurgeArrayHeader));
+        return net_make_error(NET_ERR_IO);
+    }
+    return out;
 }
 
 static char* net_copy_addr(void* addr, uint64_t* out_len, uint64_t* err_code) {
@@ -513,6 +544,66 @@ void* rt_net_write(const void* conn, const uint8_t* buf, uint64_t len) {
     ssize_t n = -1;
     do {
         n = write(c->fd, buf, (size_t)len);
+    } while (n < 0 && errno == EINTR);
+    if (n < 0) {
+        return net_make_error(net_error_code_from_errno(errno));
+    }
+    void* count = rt_biguint_from_u64((uint64_t)n);
+    return net_make_success_ptr(count);
+}
+
+void* rt_net_read_bytes(const void* conn, uint64_t cap) {
+    const NetConn* c = net_conn_from_borrowed(conn);
+    if (c == NULL || c->closed) {
+        return net_make_error(NET_ERR_NOT_CONNECTED);
+    }
+    if (cap == 0) {
+        return net_make_success_bytes(NULL, 0, 0);
+    }
+    if (cap > (uint64_t)SSIZE_MAX) {
+        return net_make_error(NET_ERR_IO);
+    }
+    uint8_t* data = (uint8_t*)rt_alloc(cap, (uint64_t)alignof(uint8_t));
+    if (data == NULL) {
+        return net_make_error(NET_ERR_IO);
+    }
+    ssize_t n = -1;
+    do {
+        n = read(c->fd, data, (size_t)cap);
+    } while (n < 0 && errno == EINTR);
+    if (n < 0) {
+        uint64_t code = net_error_code_from_errno(errno);
+        rt_free(data, cap, (uint64_t)alignof(uint8_t));
+        return net_make_error(code);
+    }
+    if (n == 0) {
+        rt_free(data, cap, (uint64_t)alignof(uint8_t));
+        return net_make_success_bytes(NULL, 0, 0);
+    }
+    return net_make_success_bytes(data, (uint64_t)n, cap);
+}
+
+void* rt_net_write_bytes(const void* conn, const void* bytes, uint64_t offset, uint64_t len) {
+    const NetConn* c = net_conn_from_borrowed(conn);
+    if (c == NULL || c->closed) {
+        return net_make_error(NET_ERR_NOT_CONNECTED);
+    }
+    const SurgeArrayHeader* header = (const SurgeArrayHeader*)bytes;
+    if (header == NULL || offset > header->len || len > header->len - offset ||
+        len > (uint64_t)SSIZE_MAX) {
+        return net_make_error(NET_ERR_IO);
+    }
+    if (len == 0) {
+        void* count = rt_biguint_from_u64(0);
+        return net_make_success_ptr(count);
+    }
+    const uint8_t* data = (const uint8_t*)header->data;
+    if (data == NULL) {
+        return net_make_error(NET_ERR_IO);
+    }
+    ssize_t n = -1;
+    do {
+        n = write(c->fd, data + offset, (size_t)len);
     } while (n < 0 && errno == EINTR);
     if (n < 0) {
         return net_make_error(net_error_code_from_errno(errno));

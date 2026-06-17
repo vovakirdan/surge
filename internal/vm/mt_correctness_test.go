@@ -748,7 +748,11 @@ func TestMTNetWaiterWakeupLatency(t *testing.T) {
 
 fn pong() -> byte[] {
     let mut out: byte[] = [];
-    out.push(88:byte);
+    out.push(80:byte);
+    out.push(79:byte);
+    out.push(78:byte);
+    out.push(71:byte);
+    out.push(10:byte);
     return out;
 }
 
@@ -864,14 +868,14 @@ fn main(port: uint, count: uint) -> int {
 			_ = conn.Close()
 			fail("write ping: %v", err)
 		}
-		var buf [1]byte
+		var buf [5]byte
 		if _, err = io.ReadFull(conn, buf[:]); err != nil {
 			_ = conn.Close()
 			fail("read pong: %v", err)
 		}
-		if buf[0] != 'X' {
+		if string(buf[:]) != "PONG\n" {
 			_ = conn.Close()
-			fail("unexpected response: %q", buf[0])
+			fail("unexpected response: %q", string(buf[:]))
 		}
 	}
 	elapsed := time.Since(started)
