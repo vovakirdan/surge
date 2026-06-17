@@ -161,7 +161,9 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
         rt_unlock(ex);
         return;
     }
+    rt_task* current = rt_current_task();
     run_until_done(ex, target, out_kind, out_bits);
+    rt_set_current_task(current);
     rt_lock(ex);
     task_release(ex, target);
     rt_unlock(ex);
