@@ -167,7 +167,7 @@ func (vm *VM) handleNetConnect(frame *Frame, call *mir.CallInstr, writes *[]Loca
 		closeNetFD(fd)
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
-	if err := syscall.SetNonblock(fd, true); err != nil {
+	if err := netPrepareConnFD(fd); err != nil {
 		closeNetFD(fd)
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
@@ -327,7 +327,7 @@ func (vm *VM) handleNetAccept(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if err != nil {
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
-	if err := syscall.SetNonblock(fd, true); err != nil {
+	if err := netPrepareConnFD(fd); err != nil {
 		closeNetFD(fd)
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
