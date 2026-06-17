@@ -1760,10 +1760,21 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     rt_lock(ex);
     move_current_local_to_inject_locked(ex);
     ex->channel_blocked_workers++;
+    int dropped_running = 0;
+    if (ex->running_count > 0) {
+        ex->running_count--;
+        dropped_running = 1;
+        if (ex->running_count == 0 && runnable_is_empty(ex)) {
+            pthread_cond_signal(&ex->io_cv);
+        }
+    }
     maybe_start_compensation_worker_locked(ex);
     while (!ex->shutdown && task->resume_kind == RESUME_NONE &&
            task_wake_token_exchange(task, 0) == 0) {
         pthread_cond_wait(&ex->ready_cv, &ex->lock);
+    }
+    if (dropped_running) {
+        ex->running_count++;
     }
     if (ex->channel_blocked_workers > 0) {
         ex->channel_blocked_workers--;
