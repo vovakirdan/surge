@@ -55,6 +55,84 @@ typedef struct NetPollFd {
     uint8_t want_write;
 } NetPollFd;
 
+static int net_poll_wake_read_fd = -1;
+static int net_poll_wake_write_fd = -1;
+
+static int net_set_nonblocking_cloexec(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        return 0;
+    }
+    flags = fcntl(fd, F_GETFD, 0);
+    if (flags < 0 || fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static int net_poll_wake_init(void) {
+    if (net_poll_wake_read_fd >= 0 && net_poll_wake_write_fd >= 0) {
+        return 1;
+    }
+    int fds[2] = {-1, -1};
+    if (pipe(fds) != 0) {
+        return 0;
+    }
+    if (!net_set_nonblocking_cloexec(fds[0]) || !net_set_nonblocking_cloexec(fds[1])) {
+        close(fds[0]);
+        close(fds[1]);
+        return 0;
+    }
+    net_poll_wake_read_fd = fds[0];
+    net_poll_wake_write_fd = fds[1];
+    return 1;
+}
+
+void rt_net_wake_poll(void) {
+    if (net_poll_wake_write_fd < 0) {
+        return;
+    }
+    uint8_t byte = 1;
+    ssize_t n = -1;
+    do {
+        n = write(net_poll_wake_write_fd, &byte, 1);
+    } while (n < 0 && errno == EINTR);
+    (void)n;
+}
+
+static void net_poll_wake_drain(void) {
+    if (net_poll_wake_read_fd < 0) {
+        return;
+    }
+    uint8_t buf[64];
+    for (;;) {
+        ssize_t n = read(net_poll_wake_read_fd, buf, sizeof(buf));
+        if (n > 0) {
+            continue;
+        }
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        break;
+    }
+}
+
+static void complete_net_waiters(rt_executor* ex, waker_key key) {
+    uint64_t task_id = 0;
+    while (pop_waiter(ex, key, &task_id)) {
+        rt_task* task = get_task(ex, task_id);
+        if (task == NULL || task_status_load(task) == TASK_DONE) {
+            continue;
+        }
+        if (task->kind == TASK_KIND_NET_ACCEPT || task->kind == TASK_KIND_NET_READ ||
+            task->kind == TASK_KIND_NET_WRITE) {
+            mark_done(ex, task, TASK_RESULT_SUCCESS, 0);
+            continue;
+        }
+        wake_task(ex, task_id, 0);
+    }
+}
+
 static const char* net_error_message(uint64_t code) {
     switch (code) {
         case NET_ERR_WOULD_BLOCK:
@@ -616,32 +694,43 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 0;
     }
-    if (count > (size_t)((nfds_t)-1)) {
+    int wake_fd = net_poll_wake_init() ? net_poll_wake_read_fd : -1;
+    size_t wake_count = wake_fd >= 0 ? 1U : 0U;
+    size_t poll_count = count + wake_count;
+    if (poll_count < count || poll_count > (size_t)((nfds_t)-1)) {
         rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 0;
     }
 
     struct pollfd* pfds = (struct pollfd*)rt_alloc(
-        (uint64_t)count * (uint64_t)sizeof(struct pollfd), _Alignof(struct pollfd));
+        (uint64_t)poll_count * (uint64_t)sizeof(struct pollfd), _Alignof(struct pollfd));
     if (pfds == NULL) {
         rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 0;
     }
+    size_t offset = 0;
+    if (wake_fd >= 0) {
+        pfds[0].fd = wake_fd;
+        pfds[0].events = POLLIN;
+        pfds[0].revents = 0;
+        offset = 1;
+    }
     for (size_t i = 0; i < count; i++) {
-        pfds[i].fd = fds[i].fd;
-        pfds[i].events = 0;
-        pfds[i].revents = 0;
+        size_t poll_idx = offset + i;
+        pfds[poll_idx].fd = fds[i].fd;
+        pfds[poll_idx].events = 0;
+        pfds[poll_idx].revents = 0;
         if (fds[i].want_read) {
-            pfds[i].events |= POLLIN;
+            pfds[poll_idx].events |= POLLIN;
         }
         if (fds[i].want_write) {
-            pfds[i].events |= POLLOUT;
+            pfds[poll_idx].events |= POLLOUT;
         }
     }
 
     rt_unlock(ex);
     int n = -1;
-    nfds_t nfds = (nfds_t)count;
+    nfds_t nfds = (nfds_t)poll_count;
     do {
         n = poll(pfds, nfds, timeout_ms);
     } while (n < 0 && errno == EINTR);
@@ -649,47 +738,53 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     if (n < 0) {
         for (size_t i = 0; i < count; i++) {
             if (fds[i].want_read) {
-                wake_key_all(ex, net_read_key(fds[i].fd));
-                wake_key_all(ex, net_accept_key(fds[i].fd));
+                complete_net_waiters(ex, net_read_key(fds[i].fd));
+                complete_net_waiters(ex, net_accept_key(fds[i].fd));
             }
             if (fds[i].want_write) {
-                wake_key_all(ex, net_write_key(fds[i].fd));
+                complete_net_waiters(ex, net_write_key(fds[i].fd));
             }
         }
         rt_free((uint8_t*)pfds,
-                (uint64_t)count * (uint64_t)sizeof(struct pollfd),
+                (uint64_t)poll_count * (uint64_t)sizeof(struct pollfd),
                 _Alignof(struct pollfd));
         rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 1;
     }
     if (n == 0) {
         rt_free((uint8_t*)pfds,
-                (uint64_t)count * (uint64_t)sizeof(struct pollfd),
+                (uint64_t)poll_count * (uint64_t)sizeof(struct pollfd),
                 _Alignof(struct pollfd));
         rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 0;
     }
 
     int woke = 0;
+    if (wake_fd >= 0 && pfds[0].revents != 0) {
+        net_poll_wake_drain();
+        woke = 1;
+    }
     for (size_t i = 0; i < count; i++) {
-        if (pfds[i].revents == 0) {
+        size_t poll_idx = offset + i;
+        if (pfds[poll_idx].revents == 0) {
             continue;
         }
-        bool read_ready = (pfds[i].revents & (POLLIN | POLLERR | POLLHUP)) != 0;
-        bool write_ready = (pfds[i].revents & (POLLOUT | POLLERR | POLLHUP)) != 0;
+        bool read_ready = (pfds[poll_idx].revents & (POLLIN | POLLERR | POLLHUP)) != 0;
+        bool write_ready = (pfds[poll_idx].revents & (POLLOUT | POLLERR | POLLHUP)) != 0;
         if (read_ready) {
-            wake_key_all(ex, net_read_key(fds[i].fd));
-            wake_key_all(ex, net_accept_key(fds[i].fd));
+            complete_net_waiters(ex, net_read_key(fds[i].fd));
+            complete_net_waiters(ex, net_accept_key(fds[i].fd));
             woke = 1;
         }
         if (write_ready) {
-            wake_key_all(ex, net_write_key(fds[i].fd));
+            complete_net_waiters(ex, net_write_key(fds[i].fd));
             woke = 1;
         }
     }
 
-    rt_free(
-        (uint8_t*)pfds, (uint64_t)count * (uint64_t)sizeof(struct pollfd), _Alignof(struct pollfd));
+    rt_free((uint8_t*)pfds,
+            (uint64_t)poll_count * (uint64_t)sizeof(struct pollfd),
+            _Alignof(struct pollfd));
     rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
     return woke;
 }
