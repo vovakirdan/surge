@@ -47,27 +47,46 @@ static poll_outcome poll_sleep_task(const rt_executor* ex, rt_task* task) {
     return out;
 }
 
+static void restore_poll_context(jmp_buf* saved_env,
+                                 int saved_active,
+                                 poll_outcome saved_result,
+                                 waker_key saved_pending) {
+    poll_env = saved_env;
+    poll_active = saved_active;
+    poll_result = saved_result;
+    pending_key = saved_pending;
+}
+
 static poll_outcome poll_user_task(const rt_executor* ex, const rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
+    // Single-thread awaits can poll another task while an async poll is already active.
+    // Keep the outer poll terminator target intact for when the outer task resumes.
+    jmp_buf env;
+    jmp_buf* saved_env = poll_env;
+    int saved_active = poll_active;
+    poll_outcome saved_result = poll_result;
+    waker_key saved_pending = pending_key;
     pending_key = waker_none();
     poll_result.kind = POLL_NONE;
     poll_result.park_key = waker_none();
     poll_result.state = NULL;
     poll_result.value_bits = 0;
+    poll_env = &env;
     poll_active = 1;
-    if (setjmp(poll_env) == 0) {
+    if (setjmp(env) == 0) {
         __surge_poll_call((uint64_t)task->poll_fn_id);
-        poll_active = 0;
+        restore_poll_context(saved_env, saved_active, saved_result, saved_pending);
         panic_msg("async poll returned without terminator");
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
-    poll_active = 0;
-    return poll_result;
+    out = poll_result;
+    restore_poll_context(saved_env, saved_active, saved_result, saved_pending);
+    return out;
 }
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task) {
@@ -246,7 +265,7 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
 }
 
 void rt_async_yield(void* state) {
-    if (!poll_active) {
+    if (!poll_active || poll_env == NULL) {
         panic_msg("async_yield outside poll");
         return;
     }
@@ -256,7 +275,7 @@ void rt_async_yield(void* state) {
         poll_result.kind = POLL_DONE_CANCELLED;
         poll_result.park_key = waker_none();
         pending_key = waker_none();
-        longjmp(poll_env, 1);
+        longjmp(*poll_env, 1);
     }
     if (waker_valid(pending_key)) {
         poll_result.kind = POLL_PARKED;
@@ -266,11 +285,11 @@ void rt_async_yield(void* state) {
         poll_result.park_key = waker_none();
     }
     pending_key = waker_none();
-    longjmp(poll_env, 1);
+    longjmp(*poll_env, 1);
 }
 
 void rt_async_return(void* state, uint64_t bits) {
-    if (!poll_active) {
+    if (!poll_active || poll_env == NULL) {
         panic_msg("async_return outside poll");
         return;
     }
@@ -279,11 +298,11 @@ void rt_async_return(void* state, uint64_t bits) {
     poll_result.kind = POLL_DONE_SUCCESS;
     poll_result.park_key = waker_none();
     pending_key = waker_none();
-    longjmp(poll_env, 1);
+    longjmp(*poll_env, 1);
 }
 
 void rt_async_return_cancelled(void* state) {
-    if (!poll_active) {
+    if (!poll_active || poll_env == NULL) {
         panic_msg("async_cancel outside poll");
         return;
     }
@@ -292,5 +311,5 @@ void rt_async_return_cancelled(void* state) {
     poll_result.kind = POLL_DONE_CANCELLED;
     poll_result.park_key = waker_none();
     pending_key = waker_none();
-    longjmp(poll_env, 1);
+    longjmp(*poll_env, 1);
 }

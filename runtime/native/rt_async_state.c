@@ -23,7 +23,7 @@
 // - virtual time still advances on yields; timers only fast-forward when the system is idle.
 
 rt_executor exec_state;
-_Thread_local jmp_buf poll_env;
+_Thread_local jmp_buf* poll_env;
 _Thread_local int poll_active = 0;
 _Thread_local poll_outcome poll_result;
 _Thread_local waker_key pending_key;

@@ -275,7 +275,7 @@ __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl3
 extern uint64_t __surge_blocking_call(uint64_t id, void* state);
 
 extern rt_executor exec_state;
-extern _Thread_local jmp_buf poll_env;
+extern _Thread_local jmp_buf* poll_env;
 extern _Thread_local int poll_active;
 extern _Thread_local poll_outcome poll_result;
 extern _Thread_local waker_key pending_key;

@@ -897,6 +897,243 @@ fn main(port: uint, count: uint) -> int {
 	}
 }
 
+func TestNativeNetSingleThreadBlockingChannelInAsyncServer(t *testing.T) {
+	ensureLLVMToolchain(t)
+
+	source := `import stdlib/net as net;
+
+fn pong() -> byte[] {
+    let mut out: byte[] = [];
+    out.push(80:byte);
+    out.push(79:byte);
+    out.push(78:byte);
+    out.push(71:byte);
+    out.push(10:byte);
+    return out;
+}
+
+tag Request(Channel<string>);
+type RequestMsg = Request(Channel<string>);
+
+fn manager_apply(requests: &Channel<RequestMsg>) -> string {
+    let reply = make_channel::<string>(1:uint);
+    let request: RequestMsg = Request(reply);
+    requests.send(own request);
+
+    return compare reply.recv() {
+        Some(response) => response;
+        nothing => "stopped";
+    };
+}
+
+async fn manager_run(requests: Channel<RequestMsg>) -> nothing {
+    let mut done: bool = false;
+    while !done {
+        compare requests.recv() {
+            Some(msg) => {
+                compare msg {
+                    Request(reply) => {
+                        let response: string = "OK";
+                        reply.send(own response);
+                    }
+                };
+            }
+            nothing => {
+                done = true;
+            }
+        };
+    }
+    return nothing;
+}
+
+async fn handle_client(handle: int, requests: Channel<RequestMsg>) -> nothing {
+    let conn: TcpConn = { __opaque: handle };
+    while true {
+        let read_res = net.read_some(&conn, 16:uint).await();
+        let read_ok: bool = compare read_res {
+            Success(net_read_res) => compare net_read_res {
+                Success(bytes) => bytes.__len() != 0:uint;
+                _ => false;
+            };
+            Cancelled() => false;
+        };
+        if !read_ok {
+            break;
+        }
+
+        let data = pong();
+        let write_res = net.write_all(&conn, data).await();
+        let write_ok: bool = compare write_res {
+            Success(net_write_res) => compare net_write_res {
+                Success(_) => true;
+                _ => false;
+            };
+            Cancelled() => false;
+        };
+        if !write_ok {
+            break;
+        }
+    }
+
+    let _ = manager_apply(&requests);
+    let _ = net.close_conn(own conn);
+    return nothing;
+}
+
+async fn serve_worker(clients: Channel<int>, requests: Channel<RequestMsg>) -> nothing {
+    let mut client_tasks: Task<nothing>[] = [];
+    let mut done: bool = false;
+    while !done {
+        compare clients.recv() {
+            Some(handle) => {
+                let client_requests = requests;
+                let client_task = spawn handle_client(handle, client_requests);
+                client_tasks.push(client_task);
+            }
+            nothing => {
+                done = true;
+            }
+        };
+    }
+
+    while client_tasks.__len() != 0:uint {
+        let client_task = client_tasks.pop().safe();
+        let _ = client_task.await();
+    }
+    return nothing;
+}
+
+async fn serve_one(listener: TcpListener) -> int {
+    let clients = make_channel::<int>(1:uint);
+    let requests = make_channel::<RequestMsg>(1:uint);
+    let manager_requests = requests;
+    let manager_task = spawn manager_run(manager_requests);
+    let worker_clients = clients;
+    let worker_requests = requests;
+    let worker_task = spawn serve_worker(worker_clients, worker_requests);
+
+    while true {
+        let accept_res = net.accept(&listener).await();
+        compare accept_res {
+            Success(conn_res) => {
+                compare conn_res {
+                    Success(conn) => {
+                        clients.send(conn.__opaque);
+                    }
+                    _ => {
+                        clients.close();
+                        let _ = worker_task.await();
+                        requests.close();
+                        let _ = manager_task.await();
+                        return 1;
+                    }
+                };
+            }
+            Cancelled() => {
+                clients.close();
+                let _ = worker_task.await();
+                requests.close();
+                let _ = manager_task.await();
+                return 1;
+            }
+        };
+    }
+
+    clients.close();
+    let _ = worker_task.await();
+    requests.close();
+    let _ = manager_task.await();
+    return 0;
+}
+
+@entrypoint("argv")
+fn main(port: uint) -> int {
+    let listen_res = net.listen("127.0.0.1", port);
+    compare listen_res {
+        Success(listener) => {
+            print("ready");
+            let task: Task<int> = @local spawn serve_one(listener);
+            return compare task.await() {
+                Success(code) => code;
+                Cancelled() => 99;
+            };
+        }
+        err => {
+            print("listen_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 1;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	port := pickFreePort(t)
+	cmd := exec.Command(outputPath, strconv.Itoa(port))
+	env := envWithStdlib(repoRoot(t))
+	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_BLOCKING_THREADS", "1")
+	cmd.Env = env
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start single-thread echo server: %v", err)
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+	defer func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		select {
+		case <-waitCh:
+		case <-time.After(2 * time.Second):
+		}
+	}()
+
+	fail := func(format string, args ...any) {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		<-waitCh
+		t.Fatalf(format+"\nstdout:\n%s\nstderr:\n%s", append(args, outBuf.String(), errBuf.String())...)
+	}
+
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		fail("dial single-thread echo server: %v", err)
+	}
+	if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		_ = conn.Close()
+		fail("set deadline: %v", err)
+	}
+	if _, err = conn.Write([]byte("PING\n")); err != nil {
+		_ = conn.Close()
+		fail("write ping: %v", err)
+	}
+	var buf [5]byte
+	if _, err = io.ReadFull(conn, buf[:]); err != nil {
+		_ = conn.Close()
+		fail("read pong: %v", err)
+	}
+	_ = conn.Close()
+	if string(buf[:]) != "PONG\n" {
+		fail("unexpected response: %q", string(buf[:]))
+	}
+
+	select {
+	case err := <-waitCh:
+		t.Fatalf("single-thread echo server exited early: %v\nstdout:\n%s\nstderr:\n%s", err, outBuf.String(), errBuf.String())
+	case <-time.After(2 * time.Second):
+	}
+}
+
 func runMTHTTPKeepaliveScenario(addr string) error {
 	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
 	if err != nil {
