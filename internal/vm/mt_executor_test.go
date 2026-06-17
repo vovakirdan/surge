@@ -607,6 +607,117 @@ fn main() -> int {
 	}
 }
 
+func TestMTBlockingChannelHelpersDoNotParkWorkers(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+
+	source := `tag Request(Channel<int>);
+type Message = Request(Channel<int>);
+
+fn apply(requests: &Channel<Message>) -> int {
+    let reply = make_channel::<int>(0:uint);
+    let request: Message = Request(reply);
+    requests.send(own request);
+    return compare reply.recv() {
+        Some(v) => v;
+        nothing => -1;
+    };
+}
+
+async fn manager(requests: Channel<Message>, expected: int) -> int {
+    let mut handled = 0;
+    while handled < expected {
+        compare requests.recv() {
+            Some(msg) => {
+                compare msg {
+                    Request(reply) => {
+                        checkpoint().await();
+                        reply.send(1);
+                        handled = handled + 1;
+                    }
+                };
+            }
+            nothing => {
+                return -1;
+            }
+        };
+    }
+    return handled;
+}
+
+async fn client(requests: Channel<Message>, rounds: int) -> int {
+    let mut i = 0;
+    let mut sum = 0;
+    while i < rounds {
+        sum = sum + apply(&requests);
+        i = i + 1;
+    }
+    return sum;
+}
+
+@entrypoint
+fn main() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 90;
+    }
+
+    let clients = 8;
+    let rounds = 25;
+    let expected = clients * rounds;
+    let requests = make_channel::<Message>(0:uint);
+    let manager_requests = requests;
+    let manager_task = spawn manager(manager_requests, expected);
+    let mut tasks: Task<int>[] = Array::<Task<int>>::with_len(clients to uint);
+
+    let mut i = 0;
+    while i < clients {
+        let client_requests = requests;
+        tasks[i] = spawn client(client_requests, rounds);
+        i = i + 1;
+    }
+
+    let mut total = 0;
+    for task in tasks {
+        let res = task.await();
+        let ok = compare res {
+            Success(v) => {
+                total = total + v;
+                true;
+            }
+            Cancelled() => false;
+        };
+        if !ok {
+            return 1;
+        }
+    }
+
+    let manager_res = manager_task.await();
+    let manager_ok = compare manager_res {
+        Success(v) => v == expected;
+        Cancelled() => false;
+    };
+    if !manager_ok || total != expected {
+        return 2;
+    }
+
+    print("ok");
+    return 0;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
 func TestMTWorkStealing(t *testing.T) {
 	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)

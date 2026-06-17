@@ -168,6 +168,8 @@ typedef struct {
     rt_worker_ctx* worker_ctxs;
     uint32_t worker_count;
     uint32_t running_count;
+    uint32_t channel_blocked_workers;
+    uint32_t compensation_count;
     uint8_t sched_mode;
     uint8_t initialized;
     uint8_t io_started;
@@ -360,5 +362,6 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms);
 void rt_net_wake_poll(void);
 int run_ready_one(rt_executor* ex);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
+int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task);
 
 #endif

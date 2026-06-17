@@ -348,6 +348,11 @@ uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64
 }
 
 static void channel_blocking_yield(void) {
+    rt_executor* ex = ensure_exec();
+    rt_task* current = rt_current_task();
+    if (rt_wait_current_worker_wakeup(ex, current)) {
+        return;
+    }
     void* task = checkpoint();
     if (task == NULL) {
         return;
@@ -363,6 +368,18 @@ void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
     }
     rt_async_debug_printf(
         "async chan send start ch=%p bits=%llu\n", (void*)ch, (unsigned long long)value_bits);
+    if (rt_current_task() != NULL) {
+        while (!rt_channel_send(channel, value_bits)) {
+            if (current_task_cancelled(ex)) {
+                pending_key = waker_none();
+                return;
+            }
+            channel_blocking_yield();
+        }
+        pending_key = waker_none();
+        rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
+        return;
+    }
     for (;;) {
         rt_lock(ex);
         uint8_t status = rt_channel_try_send_status_locked(ex, channel, value_bits);
@@ -387,6 +404,27 @@ uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {
         return 2;
     }
     rt_async_debug_printf("async chan recv start ch=%p\n", (void*)ch);
+    if (rt_current_task() != NULL) {
+        for (;;) {
+            uint8_t status = rt_channel_recv(channel, out_bits);
+            if (status != 0) {
+                pending_key = waker_none();
+                if (status == 1 && out_bits != NULL) {
+                    rt_async_debug_printf("async chan recv ok ch=%p bits=%llu\n",
+                                          (void*)ch,
+                                          (unsigned long long)*out_bits);
+                } else if (status == 2) {
+                    rt_async_debug_printf("async chan recv closed ch=%p\n", (void*)ch);
+                }
+                return status;
+            }
+            if (current_task_cancelled(ex)) {
+                pending_key = waker_none();
+                return 2;
+            }
+            channel_blocking_yield();
+        }
+    }
     for (;;) {
         rt_lock(ex);
         uint8_t status = rt_channel_try_recv_status_locked(ex, channel, out_bits);
