@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <poll.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -318,6 +319,27 @@ static int net_set_nonblocking(int fd, uint64_t* out_code) {
     return 1;
 }
 
+static int net_set_tcp_nodelay(int fd, uint64_t* out_code) {
+    if (out_code != NULL) {
+        *out_code = 0;
+    }
+    int enabled = 1;
+    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &enabled, (socklen_t)sizeof(enabled)) != 0) {
+        if (out_code != NULL) {
+            *out_code = net_error_code_from_errno(errno);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+static int net_prepare_conn_fd(int fd, uint64_t* out_code) {
+    if (!net_set_tcp_nodelay(fd, out_code)) {
+        return 0;
+    }
+    return net_set_nonblocking(fd, out_code);
+}
+
 static const NetListener* net_listener_from_borrowed(const void* listener) {
     if (listener == NULL) {
         return NULL;
@@ -420,7 +442,6 @@ void* rt_net_connect(void* addr, uint64_t port) {
     if (fd < 0) {
         return net_make_error(net_error_code_from_errno(errno));
     }
-
     struct sockaddr_in sa;
     memset(&sa, 0, sizeof(sa));
     sa.sin_family = AF_INET;
@@ -436,7 +457,7 @@ void* rt_net_connect(void* addr, uint64_t port) {
         return net_make_error(code);
     }
 
-    if (!net_set_nonblocking(fd, &err_code)) {
+    if (!net_prepare_conn_fd(fd, &err_code)) {
         close(fd);
         return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
     }
@@ -492,7 +513,7 @@ void* rt_net_accept(const void* listener) {
         return net_make_error(net_error_code_from_errno(errno));
     }
     uint64_t err_code = 0;
-    if (!net_set_nonblocking(fd, &err_code)) {
+    if (!net_prepare_conn_fd(fd, &err_code)) {
         close(fd);
         return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
     }

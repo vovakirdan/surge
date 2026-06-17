@@ -96,6 +96,17 @@ func netErrorCodeFromErrno(errno syscall.Errno) uint64 {
 	}
 }
 
+func netSetNoDelay(fd int) error {
+	return syscall.SetsockoptInt(fd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1)
+}
+
+func netPrepareConnFD(fd int) error {
+	if err := netSetNoDelay(fd); err != nil {
+		return err
+	}
+	return syscall.SetNonblock(fd, true)
+}
+
 func (vm *VM) netErrorValue(errType types.TypeID, code uint64) (Value, *VMError) {
 	return vm.makeErrorLikeValue(errType, netErrorMessage(code), code)
 }
