@@ -447,6 +447,8 @@ static void* rt_io_main(void* arg);
 static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome);
 static int runnable_is_empty(const rt_executor* ex);
 static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_id);
+static void maybe_start_compensation_worker_locked(rt_executor* ex);
+static void move_current_local_to_inject_locked(rt_executor* ex);
 static void trace_exec_init(void);
 
 static void exec_init_once(void) {
@@ -1280,6 +1282,8 @@ void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
     (void)task_wake_token_exchange(task, 1);
     if (ready_push_inner(ex, id, 0)) {
         trace_exec_inc(&trace_wake_enqueued_total);
+    } else if (ex->channel_blocked_workers > 0) {
+        pthread_cond_broadcast(&ex->ready_cv);
     }
 }
 
@@ -1691,6 +1695,92 @@ static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outc
             panic_msg("async: unknown poll outcome");
             break;
     }
+}
+
+static void maybe_start_compensation_worker_locked(rt_executor* ex) {
+    if (ex == NULL || ex->worker_count <= 1) {
+        return;
+    }
+    uint32_t total_workers = ex->worker_count + ex->compensation_count;
+    if (ex->channel_blocked_workers < total_workers) {
+        return;
+    }
+    uint32_t limit = ex->worker_count > UINT32_MAX / 4U ? UINT32_MAX : ex->worker_count * 4U;
+    if (ex->compensation_count >= limit) {
+        return;
+    }
+    // Compensation workers live until executor shutdown; their context is process-lifetime.
+    rt_worker_ctx* ctx = (rt_worker_ctx*)rt_alloc(sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
+    if (ctx == NULL) {
+        panic_msg("async: compensation worker context allocation failed");
+        return;
+    }
+    memset(ctx, 0, sizeof(rt_worker_ctx));
+    ctx->ex = ex;
+    ctx->worker_id = ex->compensation_count % ex->worker_count;
+    ctx->sched_rng =
+        ex->sched_seed +
+        UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(ex->worker_count + ex->compensation_count + 1U);
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, rt_worker_main, ctx) != 0) {
+        rt_free((uint8_t*)ctx, sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
+        panic_msg("async: compensation worker start failed");
+        return;
+    }
+    (void)pthread_detach(thread);
+    ex->compensation_count++;
+}
+
+static void move_current_local_to_inject_locked(rt_executor* ex) {
+    if (ex == NULL || tls_worker_id < 0 || (uint32_t)tls_worker_id >= ex->worker_count ||
+        ex->local_queues == NULL) {
+        return;
+    }
+    rt_deque* local = &ex->local_queues[(uint32_t)tls_worker_id];
+    uint64_t id = 0;
+    int moved = 0;
+    while (deque_pop_head(local, &id)) {
+        if (deque_push_tail(&ex->inject,
+                            id,
+                            "async: inject queue overflow",
+                            "async: inject queue allocation failed")) {
+            moved = 1;
+        }
+    }
+    if (moved) {
+        pthread_cond_broadcast(&ex->ready_cv);
+    }
+}
+
+int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
+    if (ex == NULL || task == NULL || tls_worker_id < 0) {
+        return 0;
+    }
+    rt_lock(ex);
+    move_current_local_to_inject_locked(ex);
+    ex->channel_blocked_workers++;
+    int dropped_running = 0;
+    if (ex->running_count > 0) {
+        ex->running_count--;
+        dropped_running = 1;
+        if (ex->running_count == 0 && runnable_is_empty(ex)) {
+            pthread_cond_signal(&ex->io_cv);
+        }
+    }
+    maybe_start_compensation_worker_locked(ex);
+    while (!ex->shutdown && task->resume_kind == RESUME_NONE &&
+           task_wake_token_exchange(task, 0) == 0) {
+        pthread_cond_wait(&ex->ready_cv, &ex->lock);
+    }
+    if (dropped_running) {
+        ex->running_count++;
+    }
+    if (ex->channel_blocked_workers > 0) {
+        ex->channel_blocked_workers--;
+    }
+    rt_unlock(ex);
+    return 1;
 }
 
 static void* rt_worker_main(void* arg) {
