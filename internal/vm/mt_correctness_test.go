@@ -741,6 +741,158 @@ fn main(port: uint) -> int {
 	}
 }
 
+func TestMTNetWaiterWakeupLatency(t *testing.T) {
+	ensureLLVMToolchain(t)
+
+	source := `import stdlib/net as net;
+
+fn pong() -> byte[] {
+    let mut out: byte[] = [];
+    out.push(88:byte);
+    return out;
+}
+
+async fn serve_one(listener: TcpListener, count: uint) -> int {
+    let accept_task = net.accept(&listener).await();
+    compare accept_task {
+        Success(conn_res) => {
+            compare conn_res {
+                Success(conn) => {
+                    let mut seen: uint = 0:uint;
+                    while seen < count {
+                        let read_task = net.read_some(&conn, 16:uint).await();
+                        let read_ok: bool = compare read_task {
+                            Success(read_res) => compare read_res {
+                                Success(bytes) => bytes.__len() != 0:uint;
+                                _ => false;
+                            };
+                            Cancelled() => false;
+                        };
+                        if !read_ok {
+                            let _ = net.close_conn(own conn);
+                            return 2;
+                        }
+                        let data = pong();
+                        let write_task = net.write_all(&conn, data).await();
+                        let write_ok: bool = compare write_task {
+                            Success(write_res) => compare write_res {
+                                Success(_) => true;
+                                _ => false;
+                            };
+                            Cancelled() => false;
+                        };
+                        if !write_ok {
+                            let _ = net.close_conn(own conn);
+                            return 3;
+                        }
+                        seen = seen + 1:uint;
+                    }
+                    let _ = net.close_conn(own conn);
+                    return 0;
+                }
+                _ => {
+                    return 1;
+                }
+            };
+        }
+        Cancelled() => {
+            return 1;
+        }
+    };
+    return 1;
+}
+
+@entrypoint("argv")
+fn main(port: uint, count: uint) -> int {
+    let listen_res = net.listen("127.0.0.1", port);
+    compare listen_res {
+        Success(listener) => {
+            let result = serve_one(listener, count).await();
+            return compare result {
+                Success(code) => code;
+                Cancelled() => 99;
+            };
+        }
+        err => {
+            print("listen_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 1;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	port := pickFreePort(t)
+	count := 20
+	cmd := exec.Command(outputPath, strconv.Itoa(port), strconv.Itoa(count))
+	cmd.Env = mtEnv(t)
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start ping server: %v", err)
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	fail := func(format string, args ...any) {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		<-waitCh
+		t.Fatalf(format+"\nstdout:\n%s\nstderr:\n%s", append(args, outBuf.String(), errBuf.String())...)
+	}
+
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		fail("dial ping server: %v", err)
+	}
+	if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		_ = conn.Close()
+		fail("set deadline: %v", err)
+	}
+
+	started := time.Now()
+	for range count {
+		if _, err = conn.Write([]byte("PING\n")); err != nil {
+			_ = conn.Close()
+			fail("write ping: %v", err)
+		}
+		var buf [1]byte
+		if _, err = io.ReadFull(conn, buf[:]); err != nil {
+			_ = conn.Close()
+			fail("read pong: %v", err)
+		}
+		if buf[0] != 'X' {
+			_ = conn.Close()
+			fail("unexpected response: %q", buf[0])
+		}
+	}
+	elapsed := time.Since(started)
+	_ = conn.Close()
+
+	select {
+	case err := <-waitCh:
+		if err != nil {
+			t.Fatalf("ping server exit: %v\nstdout:\n%s\nstderr:\n%s", err, outBuf.String(), errBuf.String())
+		}
+	case <-time.After(5 * time.Second):
+		_ = cmd.Process.Kill()
+		<-waitCh
+		t.Fatalf("ping server timed out\nstdout:\n%s\nstderr:\n%s", outBuf.String(), errBuf.String())
+	}
+
+	if elapsed > 800*time.Millisecond {
+		t.Fatalf("persistent ping loop too slow: %s for %d requests", elapsed, count)
+	}
+}
+
 func runMTHTTPKeepaliveScenario(addr string) error {
 	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
 	if err != nil {

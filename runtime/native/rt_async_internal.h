@@ -357,6 +357,7 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task);
 int poll_net_waiters(rt_executor* ex, int timeout_ms);
+void rt_net_wake_poll(void);
 int run_ready_one(rt_executor* ex);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
 

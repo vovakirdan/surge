@@ -1329,6 +1329,10 @@ void park_current(rt_executor* ex, waker_key key) {
         return;
     }
     trace_exec_inc(&trace_park_committed_total);
+    waker_kind kind = (waker_kind)key.kind;
+    if (kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ || kind == WAKER_NET_WRITE) {
+        rt_net_wake_poll();
+    }
     pthread_cond_signal(&ex->io_cv);
 }
 
