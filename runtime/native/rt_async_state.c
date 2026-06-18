@@ -107,7 +107,7 @@ void rt_async_debug_printf(const char* fmt, ...) {
     rt_write_stderr((const uint8_t*)buf, len);
 }
 
-static int trace_exec_enabled(void) {
+int rt_exec_trace_enabled(void) {
     return trace_exec_enabled_flag != 0;
 }
 
@@ -116,11 +116,14 @@ static int trace_sched_enabled(void) {
 }
 
 static void trace_exec_inc(_Atomic uint64_t* counter) {
-    if (!trace_exec_enabled() || counter == NULL) {
+    if (!rt_exec_trace_enabled() || counter == NULL) {
         return;
     }
     (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
 }
+
+static void
+trace_exec_append_kv_u64(char* buf, size_t* pos, size_t cap, const char* name, uint64_t value);
 
 static size_t trace_exec_append_literal(char* buf, size_t pos, size_t cap, const char* lit) {
     if (buf == NULL || lit == NULL) {
@@ -146,7 +149,7 @@ static size_t trace_exec_append_u64(char* buf, size_t pos, size_t cap, uint64_t 
 }
 
 static void trace_exec_dump(const char* reason) {
-    if (!trace_exec_enabled()) {
+    if (!rt_exec_trace_enabled()) {
         return;
     }
     char buf[768];
@@ -253,7 +256,7 @@ trace_exec_append_kv_u64(char* buf, size_t* pos, size_t cap, const char* name, u
 }
 
 static void trace_exec_snapshot_dump(const char* reason) {
-    if (!trace_exec_enabled()) {
+    if (!rt_exec_trace_enabled()) {
         return;
     }
     rt_executor* ex = &exec_state;
@@ -406,6 +409,9 @@ static void trace_exec_signal_handler(int sig) {
 
 void rt_exec_trace_dump(void) {
     trace_exec_dump("exit");
+    if (rt_exec_trace_enabled()) {
+        rt_net_trace_dump();
+    }
     trace_exec_snapshot_dump("exit");
 }
 
