@@ -1109,6 +1109,7 @@ static void ensure_wait_keys_cap(rt_task* task, size_t want) {
 }
 
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
+    // Caller holds ex->lock; compaction preserves relative order of other waiters.
     if (ex == NULL || ex->waiters_len == 0) {
         return;
     }
@@ -1124,6 +1125,7 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
 }
 
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
+    // Caller holds ex->lock; waiters are consumed FIFO per key by pop_waiter.
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
@@ -1193,6 +1195,7 @@ void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_add
 }
 
 int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
+    // Caller holds ex->lock; stale/done/cancelled waiters are dropped while scanning.
     if (ex == NULL || !waker_valid(key) || ex->waiters_len == 0) {
         return 0;
     }
@@ -1268,6 +1271,7 @@ pop_task_from_deque(rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, u
 }
 
 static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
+    // Caller holds ex->lock; enqueued prevents duplicate ready-queue entries.
     if (ex == NULL) {
         return 0;
     }
@@ -1313,10 +1317,12 @@ static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
 }
 
 void ready_push(rt_executor* ex, uint64_t id) {
+    // Caller holds ex->lock.
     (void)ready_push_inner(ex, id, 0);
 }
 
 int ready_pop(rt_executor* ex, uint64_t* out_id) {
+    // Caller holds ex->lock; worker_next_ready adds local and steal paths.
     return pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT);
 }
 
@@ -1434,6 +1440,7 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
 }
 
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
+    // Caller holds ex->lock; wake_token handles a wake that races with park_current.
     if (ex == NULL) {
         return;
     }
@@ -1931,6 +1938,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     trace_exec_inc(&trace_channel_blocking_wait_total);
     rt_lock(ex);
     move_current_local_to_inject_locked(ex);
+    // This sync helper parks the OS worker, so it stops contributing to scheduler progress.
     ex->channel_blocked_workers++;
     int dropped_running = 0;
     if (ex->running_count > 0) {
@@ -1968,6 +1976,7 @@ static void* rt_worker_main(void* arg) {
         rt_lock(ex);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ex, worker_id, &id)) {
+            // Sleep only after local, inject, and steal queues have been checked under ex->lock.
             trace_exec_inc(&trace_worker_sleep_total);
             pthread_cond_wait(&ex->ready_cv, &ex->lock);
             trace_exec_inc(&trace_worker_wake_total);
@@ -1983,6 +1992,7 @@ static void* rt_worker_main(void* arg) {
         }
         task_status_store(task, TASK_RUNNING);
         (void)task_wake_token_exchange(task, 0);
+        // running_count is changed only while holding ex->lock.
         ex->running_count++;
         rt_set_current_task(task);
 
