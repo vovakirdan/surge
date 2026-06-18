@@ -1040,6 +1040,29 @@ deque_push_tail(rt_deque* dq, uint64_t id, const char* overflow_msg, const char*
     return 1;
 }
 
+static int
+deque_push_head(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg) {
+    if (dq == NULL) {
+        return 0;
+    }
+    if (dq->len == 0) {
+        return deque_push_tail(dq, id, overflow_msg, alloc_msg);
+    }
+    if (dq->head > 0) {
+        dq->head--;
+        dq->buf[dq->head] = id;
+        dq->len++;
+        return 1;
+    }
+    if (!deque_ensure_space(dq, 1, overflow_msg, alloc_msg)) {
+        return 0;
+    }
+    memmove(dq->buf + 1, dq->buf, dq->len * sizeof(uint64_t));
+    dq->buf[0] = id;
+    dq->len++;
+    return 1;
+}
+
 static int deque_pop_head(rt_deque* dq, uint64_t* out_id) {
     if (dq == NULL || dq->len == 0) {
         return 0;
@@ -1365,7 +1388,7 @@ pop_task_from_deque(rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, u
     return 0;
 }
 
-static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
+static int ready_push_with_policy(rt_executor* ex, uint64_t id, int force_inject, int front) {
     // Caller holds ex->lock; enqueued prevents duplicate ready-queue entries.
     if (ex == NULL) {
         return 0;
@@ -1390,15 +1413,22 @@ static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
         local = current_local_queue(ex);
     }
     if (local != NULL) {
-        if (!deque_push_tail(
-                local, id, "async: local queue overflow", "async: local queue allocation failed")) {
+        // Local queues are popped from the tail, so tail insertion is the local priority path.
+        int ok = deque_push_tail(
+            local, id, "async: local queue overflow", "async: local queue allocation failed");
+        if (!ok) {
             return 0;
         }
     } else {
-        if (!deque_push_tail(&ex->inject,
-                             id,
-                             "async: inject queue overflow",
-                             "async: inject queue allocation failed")) {
+        int ok = front ? deque_push_head(&ex->inject,
+                                         id,
+                                         "async: inject queue overflow",
+                                         "async: inject queue allocation failed")
+                       : deque_push_tail(&ex->inject,
+                                         id,
+                                         "async: inject queue overflow",
+                                         "async: inject queue allocation failed");
+        if (!ok) {
             return 0;
         }
     }
@@ -1409,6 +1439,10 @@ static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
     }
     pthread_cond_signal(&ex->ready_cv);
     return 1;
+}
+
+static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
+    return ready_push_with_policy(ex, id, force_inject, 0);
 }
 
 void ready_push(rt_executor* ex, uint64_t id) {
@@ -1534,8 +1568,8 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
     return 0;
 }
 
-static void
-wake_task_with_policy(rt_executor* ex, uint64_t id, int remove_waiter_flag, int force_inject) {
+static void wake_task_with_policy(
+    rt_executor* ex, uint64_t id, int remove_waiter_flag, int force_inject, int front) {
     // Caller holds ex->lock; wake_token handles a wake that races with park_current.
     if (ex == NULL) {
         return;
@@ -1552,7 +1586,7 @@ wake_task_with_policy(rt_executor* ex, uint64_t id, int remove_waiter_flag, int 
     task->park_key = waker_none();
     task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
-    if (ready_push_inner(ex, id, force_inject)) {
+    if (ready_push_with_policy(ex, id, force_inject, front)) {
         trace_exec_inc(&trace_wake_enqueued_total);
     } else if (ex->channel_blocked_workers > 0) {
         pthread_cond_broadcast(&ex->ready_cv);
@@ -1560,11 +1594,11 @@ wake_task_with_policy(rt_executor* ex, uint64_t id, int remove_waiter_flag, int 
 }
 
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    wake_task_with_policy(ex, id, remove_waiter_flag, 0);
+    wake_task_with_policy(ex, id, remove_waiter_flag, 0, 0);
 }
 
 void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0);
+    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0, 0);
 }
 
 static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key) {
@@ -1574,7 +1608,7 @@ static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key
     (void)ready_push_inner(ex, id, force_inject);
 }
 
-void wake_key_all(rt_executor* ex, waker_key key) {
+static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) {
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
@@ -1582,12 +1616,16 @@ void wake_key_all(rt_executor* ex, waker_key key) {
     for (size_t i = 0; i < ex->waiters_len; i++) {
         waiter w = ex->waiters[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
-            wake_task(ex, w.task_id, 0);
+            wake_task_with_policy(ex, w.task_id, 0, 0, front);
             continue;
         }
         ex->waiters[out++] = w;
     }
     ex->waiters_len = out;
+}
+
+void wake_key_all(rt_executor* ex, waker_key key) {
+    wake_key_all_with_policy(ex, key, 0);
 }
 
 void park_current(rt_executor* ex, waker_key key) {
@@ -1934,7 +1972,9 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
             task->scope_registered = 0;
         }
     }
-    wake_key_all(ex, join_key(task->id));
+    uint8_t net_task = task->kind == TASK_KIND_NET_ACCEPT || task->kind == TASK_KIND_NET_READ ||
+                       task->kind == TASK_KIND_NET_WRITE;
+    wake_key_all_with_policy(ex, join_key(task->id), net_task != 0);
     pthread_cond_broadcast(&ex->done_cv);
     if (atomic_load_explicit(&task->handle_refs, memory_order_relaxed) == 0) {
         free_task(ex, task);
