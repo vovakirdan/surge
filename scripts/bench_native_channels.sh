@@ -116,6 +116,8 @@ cat >>"$report" <<'EOF'
 
 - `channel_reused_reply` approximates the state-manager request/reply hop used by surgekv.
 - `channel_new_reply` keeps the older per-request reply-channel shape visible.
+- `channel_ping_pong` measures direct async send/recv handoff between two tasks.
+- `channel_sync_new_reply` measures the sync-wrapper fallback from async task context.
 - This is a manual benchmark. Do not wire it into `make check`; use it for before/after runtime PRs.
 EOF
 
