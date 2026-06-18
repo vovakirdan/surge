@@ -13,9 +13,13 @@
 // Async runtime internals shared across modules.
 
 typedef enum {
+    // READY tasks must be in exactly one ready queue or about to be queued.
     TASK_READY = 0,
+    // RUNNING tasks are being polled by one worker and counted in running_count.
     TASK_RUNNING = 1,
+    // WAITING tasks are parked behind at least one waker_key until wake_task runs.
     TASK_WAITING = 2,
+    // DONE is terminal; tasks may remain in tasks[] until the last handle is released.
     TASK_DONE = 3,
 } task_status;
 
@@ -188,6 +192,25 @@ typedef struct {
     struct rt_blocking_job* blocking_head;
     struct rt_blocking_job* blocking_tail;
 } rt_executor;
+
+// Executor invariants:
+// - ex->lock owns tasks[], scopes[], waiters, inject/local queues, running_count,
+//   channel_blocked_workers, compensation_count, timer state, and shutdown flags.
+// - task status is atomic so external helpers can observe it, but transitions that
+//   touch queues or waiters still happen under ex->lock.
+// - waiters is a FIFO-by-key registration list. prepare_park may pre-register a
+//   waiter before the task stores TASK_WAITING; wake_task uses wake_token to close
+//   wake-before-park races.
+// - ready queues hold task ids whose enqueued flag is set. Worker threads pop local
+//   queues first, then inject, then steal; non-worker threads inject globally.
+// - running_count counts tasks currently being polled. User tasks may poll without
+//   ex->lock, but the increment/decrement around that poll is protected by ex->lock.
+// - channel_blocked_workers counts executor workers parked inside sync channel
+//   helpers after temporarily leaving running_count. Compensation workers are a
+//   fallback for that path, not a normal async parking mechanism.
+// - The I/O thread is signaled when the executor becomes idle, when net waiters are
+//   registered, or when shutdown changes. Workers sleep on ready_cv only after they
+//   fail to find local, injected, or stealable ready work.
 
 typedef struct rt_channel rt_channel;
 
