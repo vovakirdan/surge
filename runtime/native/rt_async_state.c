@@ -61,6 +61,7 @@ static uint64_t trace_sched_local_pops;
 static uint64_t trace_sched_inject_pops;
 static uint64_t trace_sched_steal_pops;
 static uint8_t channel_wake_force_inject;
+static volatile sig_atomic_t trace_dump_requested_flag;
 
 static int async_debug_enabled_cached = -1;
 
@@ -407,15 +408,31 @@ static void trace_sched_record(uint8_t source, uint64_t id) {
 
 static void trace_exec_signal_handler(int sig) {
     (void)sig;
-    trace_exec_dump("sigusr1");
+#ifdef SIGUSR1
+    (void)signal(SIGUSR1, trace_exec_signal_handler);
+#endif
+    trace_dump_requested_flag = 1;
+}
+
+static void trace_dump_all(const char* reason) {
+    trace_exec_dump(reason);
+    if (rt_exec_trace_enabled()) {
+        rt_net_trace_dump(reason);
+    }
+    trace_exec_snapshot_dump(reason);
+}
+
+void rt_trace_drain_signal_dump(void) {
+    if (trace_dump_requested_flag == 0) {
+        return;
+    }
+    trace_dump_requested_flag = 0;
+    trace_dump_all("sigusr1");
+    rt_sched_trace_dump();
 }
 
 void rt_exec_trace_dump(void) {
-    trace_exec_dump("exit");
-    if (rt_exec_trace_enabled()) {
-        rt_net_trace_dump();
-    }
-    trace_exec_snapshot_dump("exit");
+    trace_dump_all("exit");
 }
 
 static void trace_sched_init(void) {
@@ -2004,6 +2021,7 @@ static void* rt_worker_main(void* arg) {
     tls_worker_id = (int)worker_id;
     rt_set_current_task(NULL);
     for (;;) {
+        rt_trace_drain_signal_dump();
         rt_lock(ex);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ex, worker_id, &id)) {
@@ -2068,6 +2086,11 @@ static void* rt_io_main(void* arg) {
     const int poll_slice_ms = 50;
     rt_lock(ex);
     for (;;) {
+        if (trace_dump_requested_flag != 0) {
+            rt_unlock(ex);
+            rt_trace_drain_signal_dump();
+            rt_lock(ex);
+        }
         if (ex->shutdown) {
             break;
         }

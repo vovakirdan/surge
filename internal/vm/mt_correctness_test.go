@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -863,7 +864,7 @@ fn main(port: uint, count: uint) -> int {
 	}
 
 	started := time.Now()
-	for range count {
+	for i := range count {
 		if _, err = conn.Write([]byte("PING\n")); err != nil {
 			_ = conn.Close()
 			fail("write ping: %v", err)
@@ -876,6 +877,12 @@ fn main(port: uint, count: uint) -> int {
 		if string(buf[:]) != "PONG\n" {
 			_ = conn.Close()
 			fail("unexpected response: %q", string(buf[:]))
+		}
+		if i == count/2 {
+			if err = cmd.Process.Signal(syscall.SIGUSR1); err != nil {
+				_ = conn.Close()
+				fail("signal live trace: %v", err)
+			}
 		}
 	}
 	elapsed := time.Since(started)
@@ -895,31 +902,52 @@ fn main(port: uint, count: uint) -> int {
 	if elapsed > 800*time.Millisecond {
 		t.Fatalf("persistent ping loop too slow: %s for %d requests", elapsed, count)
 	}
-	requireNetTracePollCounters(t, errBuf.String())
+	stderr := errBuf.String()
+	requireNetTracePollCounters(t, stderr)
+	requireNetTracePollCountersForReason(t, stderr, "sigusr1")
+	if !strings.Contains(stderr, "TRACE_EXEC_SNAPSHOT reason=sigusr1") {
+		t.Fatalf("missing live TRACE_EXEC_SNAPSHOT in stderr:\n%s", stderr)
+	}
 }
 
 func requireNetTracePollCounters(t *testing.T, stderr string) {
 	t.Helper()
-	if !strings.Contains(stderr, "TRACE_NET ") {
-		t.Fatalf("missing TRACE_NET in stderr:\n%s", stderr)
+	requireNetTracePollCountersForReason(t, stderr, "")
+}
+
+func requireNetTracePollCountersForReason(t *testing.T, stderr string, reason string) {
+	t.Helper()
+	prefix := "TRACE_NET "
+	if reason != "" {
+		prefix += "reason=" + reason + " "
 	}
-	if strings.Contains(stderr, "io_poll_calls=0 ") {
-		t.Fatalf("expected non-zero io_poll_calls in TRACE_NET\nstderr:\n%s", stderr)
+	line := ""
+	for _, candidate := range strings.Split(stderr, "\n") {
+		if strings.HasPrefix(candidate, prefix) {
+			line = candidate
+			break
+		}
 	}
-	if strings.Contains(stderr, "io_poll_net_ready=0 ") {
-		t.Fatalf("expected non-zero io_poll_net_ready in TRACE_NET\nstderr:\n%s", stderr)
+	if line == "" {
+		t.Fatalf("missing %sline in stderr:\n%s", prefix, stderr)
 	}
-	if strings.Contains(stderr, "io_poll_waiters_last=0 ") {
-		t.Fatalf("expected non-zero io_poll_waiters_last in TRACE_NET\nstderr:\n%s", stderr)
+	if strings.Contains(line, "io_poll_calls=0 ") {
+		t.Fatalf("expected non-zero io_poll_calls in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
 	}
-	if strings.Contains(stderr, "io_poll_waiters_max=0 ") {
-		t.Fatalf("expected non-zero io_poll_waiters_max in TRACE_NET\nstderr:\n%s", stderr)
+	if strings.Contains(line, "io_poll_net_ready=0 ") {
+		t.Fatalf("expected non-zero io_poll_net_ready in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
 	}
-	if !strings.Contains(stderr, "io_poll_timeouts=") {
-		t.Fatalf("missing IO timeout counter in TRACE_NET\nstderr:\n%s", stderr)
+	if strings.Contains(line, "io_poll_waiters_last=0 ") {
+		t.Fatalf("expected non-zero io_poll_waiters_last in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
 	}
-	if !strings.Contains(stderr, "io_poll_timeout_max_ms=") {
-		t.Fatalf("missing IO timeout max counter in TRACE_NET\nstderr:\n%s", stderr)
+	if strings.Contains(line, "io_poll_waiters_max=0 ") {
+		t.Fatalf("expected non-zero io_poll_waiters_max in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
+	}
+	if !strings.Contains(line, "io_poll_timeouts=") {
+		t.Fatalf("missing IO timeout counter in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
+	}
+	if !strings.Contains(line, "io_poll_timeout_max_ms=") {
+		t.Fatalf("missing IO timeout max counter in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
 	}
 }
 
