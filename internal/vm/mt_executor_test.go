@@ -76,6 +76,58 @@ type schedTrace struct {
 	hash   uint64
 }
 
+type execTrace map[string]uint64
+
+func parseExecTrace(t *testing.T, stderr string) execTrace {
+	t.Helper()
+	for _, line := range strings.Split(stderr, "\n") {
+		if !strings.HasPrefix(line, "TRACE_EXEC ") {
+			continue
+		}
+		out := execTrace{}
+		fields := strings.Fields(line)
+		for _, field := range fields[1:] {
+			kv := strings.SplitN(field, "=", 2)
+			if len(kv) != 2 || kv[0] == "reason" {
+				continue
+			}
+			v, err := strconv.ParseUint(kv[1], 10, 64)
+			if err != nil {
+				t.Fatalf("parse TRACE_EXEC %s: %v", kv[0], err)
+			}
+			out[kv[0]] = v
+		}
+		return out
+	}
+	t.Fatalf("missing TRACE_EXEC in stderr:\n%s", stderr)
+	return nil
+}
+
+func parseExecSnapshot(t *testing.T, stderr string) execTrace {
+	t.Helper()
+	for _, line := range strings.Split(stderr, "\n") {
+		if !strings.HasPrefix(line, "TRACE_EXEC_SNAPSHOT ") {
+			continue
+		}
+		out := execTrace{}
+		fields := strings.Fields(line)
+		for _, field := range fields[1:] {
+			kv := strings.SplitN(field, "=", 2)
+			if len(kv) != 2 || kv[0] == "reason" {
+				continue
+			}
+			v, err := strconv.ParseUint(kv[1], 10, 64)
+			if err != nil {
+				t.Fatalf("parse TRACE_EXEC_SNAPSHOT %s: %v", kv[0], err)
+			}
+			out[kv[0]] = v
+		}
+		return out
+	}
+	t.Fatalf("missing TRACE_EXEC_SNAPSHOT in stderr:\n%s", stderr)
+	return nil
+}
+
 func parseSchedTrace(t *testing.T, stderr string) schedTrace {
 	t.Helper()
 	for _, line := range strings.Split(stderr, "\n") {
@@ -708,6 +760,7 @@ fn main() -> int {
 	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnv(baseEnv, "2")
+	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
@@ -715,6 +768,19 @@ fn main() -> int {
 	}
 	if !strings.Contains(res.stdout, "ok") {
 		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+	trace := parseExecTrace(t, res.stderr)
+	if trace["channel_blocking_wait"] == 0 {
+		t.Fatalf("expected task-context blocking channel waits in TRACE_EXEC, got %+v\nstderr:\n%s",
+			trace, res.stderr)
+	}
+	if trace["compensation_started"] == 0 {
+		t.Fatalf("expected compensation workers in TRACE_EXEC, got %+v\nstderr:\n%s",
+			trace, res.stderr)
+	}
+	snapshot := parseExecSnapshot(t, res.stderr)
+	if snapshot["worker_count"] != 2 || snapshot["compensation"] == 0 {
+		t.Fatalf("unexpected TRACE_EXEC_SNAPSHOT %+v\nstderr:\n%s", snapshot, res.stderr)
 	}
 }
 

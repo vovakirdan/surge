@@ -53,6 +53,8 @@ static _Atomic uint64_t trace_park_attempt_total;
 static _Atomic uint64_t trace_park_committed_total;
 static _Atomic uint64_t trace_worker_sleep_total;
 static _Atomic uint64_t trace_worker_wake_total;
+static _Atomic uint64_t trace_channel_blocking_wait_total;
+static _Atomic uint64_t trace_compensation_started_total;
 static uint64_t trace_sched_hash;
 static uint64_t trace_sched_events;
 static uint64_t trace_sched_local_pops;
@@ -147,7 +149,7 @@ static void trace_exec_dump(const char* reason) {
     if (!trace_exec_enabled()) {
         return;
     }
-    char buf[512];
+    char buf[768];
     size_t pos = 0;
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC ");
     if (reason != NULL) {
@@ -197,6 +199,18 @@ static void trace_exec_dump(const char* reason) {
                               pos,
                               sizeof(buf),
                               atomic_load_explicit(&trace_worker_wake_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_blocking_wait=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_channel_blocking_wait_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " compensation_started=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_compensation_started_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_submitted=");
     pos = trace_exec_append_u64(
         buf,
@@ -227,6 +241,147 @@ static void trace_exec_dump(const char* reason) {
     (void)write(STDERR_FILENO, buf, pos);
 }
 
+static void
+trace_exec_append_kv_u64(char* buf, size_t* pos, size_t cap, const char* name, uint64_t value) {
+    if (buf == NULL || pos == NULL || name == NULL) {
+        return;
+    }
+    *pos = trace_exec_append_literal(buf, *pos, cap, " ");
+    *pos = trace_exec_append_literal(buf, *pos, cap, name);
+    *pos = trace_exec_append_literal(buf, *pos, cap, "=");
+    *pos = trace_exec_append_u64(buf, *pos, cap, value);
+}
+
+static void trace_exec_snapshot_dump(const char* reason) {
+    if (!trace_exec_enabled()) {
+        return;
+    }
+    rt_executor* ex = &exec_state;
+    if (!ex->initialized) {
+        return;
+    }
+    uint64_t local_total = 0;
+    uint64_t local_max = 0;
+    uint64_t tasks_ready = 0;
+    uint64_t tasks_running = 0;
+    uint64_t tasks_waiting = 0;
+    uint64_t tasks_done = 0;
+    uint64_t waiters_join = 0;
+    uint64_t waiters_timer = 0;
+    uint64_t waiters_chan_send = 0;
+    uint64_t waiters_chan_recv = 0;
+    uint64_t waiters_net = 0;
+    uint64_t waiters_other = 0;
+
+    // Snapshot reads executor-owned fields, so it is intentionally exit-only and best-effort.
+    if (pthread_mutex_trylock(&ex->lock) != 0) {
+        char busy_buf[128];
+        size_t busy_pos = 0;
+        busy_pos =
+            trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), "TRACE_EXEC_SNAPSHOT");
+        if (reason != NULL) {
+            busy_pos = trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), " reason=");
+            busy_pos = trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), reason);
+        }
+        trace_exec_append_kv_u64(busy_buf, &busy_pos, sizeof(busy_buf), "lock_busy", 1);
+        if (busy_pos + 1 < sizeof(busy_buf)) {
+            busy_buf[busy_pos++] = '\n';
+        }
+        (void)write(STDERR_FILENO, busy_buf, busy_pos);
+        return;
+    }
+    if (ex->local_queues != NULL) {
+        for (uint32_t i = 0; i < ex->worker_count; i++) {
+            uint64_t len = (uint64_t)ex->local_queues[i].len;
+            local_total += len;
+            if (len > local_max) {
+                local_max = len;
+            }
+        }
+    }
+    for (size_t i = 1; i < ex->tasks_cap; i++) {
+        const rt_task* task = ex->tasks[i];
+        if (task == NULL) {
+            continue;
+        }
+        switch (task_status_load(task)) {
+            case TASK_READY:
+                tasks_ready++;
+                break;
+            case TASK_RUNNING:
+                tasks_running++;
+                break;
+            case TASK_WAITING:
+                tasks_waiting++;
+                break;
+            case TASK_DONE:
+            default:
+                tasks_done++;
+                break;
+        }
+    }
+    for (size_t i = 0; i < ex->waiters_len; i++) {
+        switch ((waker_kind)ex->waiters[i].key.kind) {
+            case WAKER_JOIN:
+            case WAKER_SCOPE:
+            case WAKER_BLOCKING:
+                waiters_join++;
+                break;
+            case WAKER_TIMER:
+                waiters_timer++;
+                break;
+            case WAKER_CHAN_SEND:
+                waiters_chan_send++;
+                break;
+            case WAKER_CHAN_RECV:
+                waiters_chan_recv++;
+                break;
+            case WAKER_NET_ACCEPT:
+            case WAKER_NET_READ:
+            case WAKER_NET_WRITE:
+                waiters_net++;
+                break;
+            case WAKER_NONE:
+            default:
+                waiters_other++;
+                break;
+        }
+    }
+
+    char buf[1024];
+    size_t pos = 0;
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC_SNAPSHOT");
+    if (reason != NULL) {
+        pos = trace_exec_append_literal(buf, pos, sizeof(buf), " reason=");
+        pos = trace_exec_append_literal(buf, pos, sizeof(buf), reason);
+    }
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "worker_count", (uint64_t)ex->worker_count);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "running", (uint64_t)ex->running_count);
+    trace_exec_append_kv_u64(
+        buf, &pos, sizeof(buf), "channel_blocked", (uint64_t)ex->channel_blocked_workers);
+    trace_exec_append_kv_u64(
+        buf, &pos, sizeof(buf), "compensation", (uint64_t)ex->compensation_count);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "inject_len", (uint64_t)ex->inject.len);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_max", local_max);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters", (uint64_t)ex->waiters_len);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_join", waiters_join);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_timer", waiters_timer);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_send", waiters_chan_send);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_recv", waiters_chan_recv);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_net", waiters_net);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_other", waiters_other);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready", tasks_ready);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_running", tasks_running);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting", tasks_waiting);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done", tasks_done);
+    if (pos + 1 < sizeof(buf)) {
+        buf[pos++] = '\n';
+    }
+    pthread_mutex_unlock(&ex->lock);
+    (void)write(STDERR_FILENO, buf, pos);
+}
+
 static void trace_sched_record(uint8_t source, uint64_t id) {
     if (!trace_sched_enabled()) {
         return;
@@ -247,6 +402,11 @@ static void trace_sched_record(uint8_t source, uint64_t id) {
 static void trace_exec_signal_handler(int sig) {
     (void)sig;
     trace_exec_dump("sigusr1");
+}
+
+void rt_exec_trace_dump(void) {
+    trace_exec_dump("exit");
+    trace_exec_snapshot_dump("exit");
 }
 
 static void trace_sched_init(void) {
@@ -1733,6 +1893,7 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
         return;
     }
     (void)pthread_detach(thread);
+    trace_exec_inc(&trace_compensation_started_total);
     ex->compensation_count++;
 }
 
@@ -1761,6 +1922,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL || tls_worker_id < 0) {
         return 0;
     }
+    trace_exec_inc(&trace_channel_blocking_wait_total);
     rt_lock(ex);
     move_current_local_to_inject_locked(ex);
     ex->channel_blocked_workers++;
