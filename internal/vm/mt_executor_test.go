@@ -788,7 +788,8 @@ fn main() -> int {
 			trace, res.stderr)
 	}
 	snapshot := parseExecSnapshot(t, res.stderr)
-	if snapshot["worker_count"] != 2 || snapshot["compensation"] == 0 || snapshot["channel_blocked"] != 0 {
+	if snapshot["worker_count"] != 2 || snapshot["compensation"] == 0 ||
+		snapshot["compensation_high_water"] == 0 || snapshot["channel_blocked"] != 0 {
 		t.Fatalf("unexpected TRACE_EXEC_SNAPSHOT %+v\nstderr:\n%s", snapshot, res.stderr)
 	}
 }

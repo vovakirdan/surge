@@ -174,6 +174,7 @@ typedef struct {
     uint32_t running_count;
     uint32_t channel_blocked_workers;
     uint32_t compensation_count;
+    uint32_t compensation_high_water;
     uint8_t sched_mode;
     uint8_t initialized;
     uint8_t io_started;
@@ -195,7 +196,7 @@ typedef struct {
 
 // Executor invariants:
 // - ex->lock owns tasks[], scopes[], waiters, inject/local queues, running_count,
-//   channel_blocked_workers, compensation_count, timer state, and shutdown flags.
+//   channel_blocked_workers, compensation_count/high-water, timer state, and shutdown flags.
 // - task status is atomic so external helpers can observe it, but transitions that
 //   touch queues or waiters still happen under ex->lock.
 // - waiters is a FIFO-by-key registration list. prepare_park may pre-register a

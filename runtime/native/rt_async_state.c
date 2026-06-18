@@ -364,6 +364,8 @@ static void trace_exec_snapshot_dump(const char* reason) {
         buf, &pos, sizeof(buf), "channel_blocked", (uint64_t)ex->channel_blocked_workers);
     trace_exec_append_kv_u64(
         buf, &pos, sizeof(buf), "compensation", (uint64_t)ex->compensation_count);
+    trace_exec_append_kv_u64(
+        buf, &pos, sizeof(buf), "compensation_high_water", (uint64_t)ex->compensation_high_water);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "inject_len", (uint64_t)ex->inject.len);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_max", local_max);
@@ -1908,6 +1910,9 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     (void)pthread_detach(thread);
     trace_exec_inc(&trace_compensation_started_total);
     ex->compensation_count++;
+    if (ex->compensation_count > ex->compensation_high_water) {
+        ex->compensation_high_water = ex->compensation_count;
+    }
 }
 
 static void move_current_local_to_inject_locked(rt_executor* ex) {
