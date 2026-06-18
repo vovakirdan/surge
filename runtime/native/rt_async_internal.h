@@ -350,6 +350,7 @@ void clear_select_timers(rt_executor* ex, rt_task* task);
 void ready_push(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
+void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_key_all(rt_executor* ex, waker_key key);
 void park_current(rt_executor* ex, waker_key key);
 void tick_virtual(rt_executor* ex);
