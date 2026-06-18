@@ -19,3 +19,8 @@ SURGE_CHANNEL_BENCH_REPORT=/tmp/channel.md ./scripts/bench_native_channels.sh
 
 Compare future runtime PRs against
 `benchmarks/native/channel-request-reply-baseline.md`.
+
+The fixture also prints scheduler-shape rows:
+
+- `channel_ping_pong`: direct async send/recv handoff between two tasks.
+- `channel_sync_new_reply`: sync wrapper fallback called from an async task.

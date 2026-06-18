@@ -6,6 +6,42 @@ tag Apply(int, Channel<int>);
 tag Stop();
 type Message = Apply(int, Channel<int>) | Stop();
 
+async fn ping_loop(out: Channel<int>, inp: Channel<int>, iterations: int) -> int {
+    let mut sum = 0;
+    let mut i = 0;
+    while i < iterations {
+        out.send(i);
+        compare inp.recv() {
+            Some(v) => {
+                sum = sum + v;
+            }
+            nothing => {
+                return -1;
+            }
+        };
+        i = i + 1;
+    }
+    return sum;
+}
+
+async fn pong_loop(inp: Channel<int>, out: Channel<int>, iterations: int) -> int {
+    let mut sum = 0;
+    let mut i = 0;
+    while i < iterations {
+        compare inp.recv() {
+            Some(v) => {
+                sum = sum + v;
+                out.send(v);
+            }
+            nothing => {
+                return -1;
+            }
+        };
+        i = i + 1;
+    }
+    return sum;
+}
+
 fn elapsed_us(start: time.Duration) -> int64 {
     let now = time.monotonic_now();
     let elapsed = now.sub(start);
@@ -97,6 +133,57 @@ async fn echo_loop(requests: Channel<Message>) -> nothing {
     return nothing;
 }
 
+fn apply_sync_new_reply(requests: &Channel<Message>, value: int) -> int {
+    let reply = make_channel::<int>(1:uint);
+    let request: Message = Apply(value, reply);
+    requests.send(own request);
+    return compare reply.recv() {
+        Some(v) => v;
+        nothing => -1;
+    };
+}
+
+async fn bench_channel_ping_pong(iterations: int) -> nothing {
+    let ping_ch = make_channel::<int>(0:uint);
+    let pong_ch = make_channel::<int>(0:uint);
+    let ping_out = ping_ch;
+    let ping_in = pong_ch;
+    let pong_in = ping_ch;
+    let pong_out = pong_ch;
+    let start = time.monotonic_now();
+    let ping_task = spawn ping_loop(ping_out, ping_in, iterations);
+    let pong_task = spawn pong_loop(pong_in, pong_out, iterations);
+    let ping_res = ping_task.await();
+    let pong_res = pong_task.await();
+    let total_us = elapsed_us(start);
+    let mut ok = true;
+    compare ping_res {
+        Success(v) => {
+            if v < 0 {
+                ok = false;
+            }
+        }
+        Cancelled() => {
+            ok = false;
+        }
+    };
+    compare pong_res {
+        Success(v) => {
+            if v < 0 {
+                ok = false;
+            }
+        }
+        Cancelled() => {
+            ok = false;
+        }
+    };
+    if !ok {
+        print("impossible");
+    }
+    print_row("channel_ping_pong", iterations, total_us);
+    return nothing;
+}
+
 async fn bench_channel_reused_reply(iterations: int) -> nothing {
     let requests = make_channel::<Message>(64:uint);
     let reply = make_channel::<int>(1:uint);
@@ -143,12 +230,36 @@ async fn bench_channel_new_reply(iterations: int) -> nothing {
     return nothing;
 }
 
+async fn bench_channel_sync_new_reply(iterations: int) -> nothing {
+    let requests = make_channel::<Message>(64:uint);
+    let task = spawn echo_loop(requests);
+    let start = time.monotonic_now();
+    let mut total = 0;
+    let mut i: int = 0;
+    while i < iterations {
+        total = total + apply_sync_new_reply(&requests, i);
+        i = i + 1;
+    }
+    let total_us = elapsed_us(start);
+    let stop: Message = Stop();
+    requests.send(own stop);
+    let _ = task.await();
+    if total < 0 {
+        print("impossible");
+    }
+    print_row("channel_sync_new_reply", iterations, total_us);
+    return nothing;
+}
+
 @entrypoint
 fn main() -> int {
     let iterations: int = 20000;
+    let sync_iterations: int = iterations / 4;
     bench_empty_loop(iterations);
     bench_response_bytes(iterations);
+    let _ = bench_channel_ping_pong(iterations).await();
     let _ = bench_channel_reused_reply(iterations).await();
     let _ = bench_channel_new_reply(iterations).await();
+    let _ = bench_channel_sync_new_reply(sync_iterations).await();
     return 0;
 }
