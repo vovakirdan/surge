@@ -1139,6 +1139,9 @@ static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
     }
     task_enqueued_store(task, 1);
     task_status_store(task, TASK_READY);
+    if (ex->channel_blocked_workers > 0) {
+        maybe_start_compensation_worker_locked(ex);
+    }
     pthread_cond_signal(&ex->ready_cv);
     return 1;
 }
@@ -1705,7 +1708,8 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     if (ex->channel_blocked_workers < total_workers) {
         return;
     }
-    uint32_t limit = ex->worker_count > UINT32_MAX / 4U ? UINT32_MAX : ex->worker_count * 4U;
+    // Stateful channel fanout can park many workers behind sync request/reply chains.
+    uint32_t limit = ex->worker_count > UINT32_MAX / 32U ? UINT32_MAX : ex->worker_count * 32U;
     if (ex->compensation_count >= limit) {
         return;
     }

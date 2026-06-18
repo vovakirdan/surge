@@ -783,6 +783,136 @@ fn main() -> int {
 	}
 }
 
+func TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+
+	source := `tag Request(Channel<int>);
+type Message = Request(Channel<int>);
+
+fn apply(requests: &Channel<Message>) -> int {
+    let reply = make_channel::<int>(0:uint);
+    let request: Message = Request(reply);
+    requests.send(own request);
+    return compare reply.recv() {
+        Some(v) => v;
+        nothing => -1;
+    };
+}
+
+async fn manager(requests: Channel<Message>, expected: int) -> int {
+    let mut handled = 0;
+    while handled < expected {
+        compare requests.recv() {
+            Some(msg) => {
+                compare msg {
+                    Request(reply) => {
+                        checkpoint().await();
+                        reply.send(1);
+                        handled = handled + 1;
+                    }
+                };
+            }
+            nothing => {
+                return -1;
+            }
+        };
+    }
+    return handled;
+}
+
+async fn client(requests: Channel<Message>, rounds: int) -> int {
+    let mut i = 0;
+    let mut sum = 0;
+    while i < rounds {
+        sum = sum + apply(&requests);
+        i = i + 1;
+    }
+    return sum;
+}
+
+@entrypoint
+fn main() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 90;
+    }
+
+    let manager_count = 4;
+    let clients_per_manager = 8;
+    let rounds = 8;
+    let expected_per_manager = clients_per_manager * rounds;
+    let expected_total = manager_count * expected_per_manager;
+    let mut managers: Task<int>[] = [];
+    let mut clients: Task<int>[] = [];
+    managers.reserve(manager_count to uint);
+    clients.reserve(expected_total to uint);
+
+    let mut manager_idx = 0;
+    while manager_idx < manager_count {
+        let requests = make_channel::<Message>(0:uint);
+        let manager_requests = requests;
+        managers.push(spawn manager(manager_requests, expected_per_manager));
+        let mut client_idx = 0;
+        while client_idx < clients_per_manager {
+            let client_requests = requests;
+            clients.push(spawn client(client_requests, rounds));
+            client_idx = client_idx + 1;
+        }
+        manager_idx = manager_idx + 1;
+    }
+
+    let mut client_total = 0;
+    for task in clients {
+        let client_res = task.await();
+        let client_ok = compare client_res {
+            Success(v) => {
+                client_total = client_total + v;
+                true;
+            }
+            Cancelled() => false;
+        };
+        if !client_ok {
+            return 1;
+        }
+    }
+
+    let mut manager_total = 0;
+    for task in managers {
+        let manager_res = task.await();
+        let manager_ok = compare manager_res {
+            Success(v) => {
+                manager_total = manager_total + v;
+                true;
+            }
+            Cancelled() => false;
+        };
+        if !manager_ok {
+            return 1;
+        }
+    }
+
+    if client_total != expected_total || manager_total != expected_total {
+        return 2;
+    }
+
+    print("ok");
+    return 0;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
 func TestMTWorkStealing(t *testing.T) {
 	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
