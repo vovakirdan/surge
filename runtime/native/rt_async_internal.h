@@ -214,6 +214,7 @@ typedef struct rt_blocking_job {
 void panic_msg(const char* msg);
 int rt_async_debug_enabled(void);
 void rt_async_debug_printf(const char* fmt, ...);
+int rt_exec_trace_enabled(void);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
@@ -360,6 +361,7 @@ poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task);
 int poll_net_waiters(rt_executor* ex, int timeout_ms);
 void rt_net_wake_poll(void);
+void rt_net_trace_dump(void);
 int run_ready_one(rt_executor* ex);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
 int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task);

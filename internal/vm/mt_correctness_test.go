@@ -830,7 +830,7 @@ fn main(port: uint, count: uint) -> int {
 	port := pickFreePort(t)
 	count := 20
 	cmd := exec.Command(outputPath, strconv.Itoa(port), strconv.Itoa(count))
-	cmd.Env = mtEnv(t)
+	cmd.Env = overrideEnvVar(mtEnv(t), "SURGE_TRACE_EXEC", "1")
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
@@ -894,6 +894,32 @@ fn main(port: uint, count: uint) -> int {
 
 	if elapsed > 800*time.Millisecond {
 		t.Fatalf("persistent ping loop too slow: %s for %d requests", elapsed, count)
+	}
+	requireNetTracePollCounters(t, errBuf.String())
+}
+
+func requireNetTracePollCounters(t *testing.T, stderr string) {
+	t.Helper()
+	if !strings.Contains(stderr, "TRACE_NET ") {
+		t.Fatalf("missing TRACE_NET in stderr:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "io_poll_calls=0 ") {
+		t.Fatalf("expected non-zero io_poll_calls in TRACE_NET\nstderr:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "io_poll_net_ready=0 ") {
+		t.Fatalf("expected non-zero io_poll_net_ready in TRACE_NET\nstderr:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "io_poll_waiters_last=0 ") {
+		t.Fatalf("expected non-zero io_poll_waiters_last in TRACE_NET\nstderr:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "io_poll_waiters_max=0 ") {
+		t.Fatalf("expected non-zero io_poll_waiters_max in TRACE_NET\nstderr:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "io_poll_timeouts=") {
+		t.Fatalf("missing IO timeout counter in TRACE_NET\nstderr:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "io_poll_timeout_max_ms=") {
+		t.Fatalf("missing IO timeout max counter in TRACE_NET\nstderr:\n%s", stderr)
 	}
 }
 
