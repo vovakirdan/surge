@@ -649,6 +649,7 @@ fn main() -> int {
 	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnv(baseEnv, "2")
+	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 	dur, res := runBinaryWithTimeout(t, outputPath, env, 20*time.Second)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
@@ -656,6 +657,14 @@ fn main() -> int {
 	}
 	if !strings.Contains(res.stdout, "ok") {
 		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+	trace := parseExecTrace(t, res.stderr)
+	if trace["channel_blocking_wait"] != 0 || trace["compensation_started"] != 0 {
+		t.Fatalf("async channel path should not pin workers, got %+v\nstderr:\n%s", trace, res.stderr)
+	}
+	snapshot := parseExecSnapshot(t, res.stderr)
+	if snapshot["compensation"] != 0 || snapshot["channel_blocked"] != 0 {
+		t.Fatalf("unexpected async channel snapshot %+v\nstderr:\n%s", snapshot, res.stderr)
 	}
 }
 
@@ -779,7 +788,7 @@ fn main() -> int {
 			trace, res.stderr)
 	}
 	snapshot := parseExecSnapshot(t, res.stderr)
-	if snapshot["worker_count"] != 2 || snapshot["compensation"] == 0 {
+	if snapshot["worker_count"] != 2 || snapshot["compensation"] == 0 || snapshot["channel_blocked"] != 0 {
 		t.Fatalf("unexpected TRACE_EXEC_SNAPSHOT %+v\nstderr:\n%s", snapshot, res.stderr)
 	}
 }
