@@ -240,13 +240,18 @@ check_directory() {
     echo -e "(≤575 строк): ${GREEN}$ok_files${NC}"
     echo -e "(576-675 строк): ${YELLOW}$acceptable_files${NC}"
     echo -e "(>675 строк): ${RED}$bad_files${NC}"
+
+    if [ $total_files -eq 0 ]; then
+        echo ""
+        echo "После фильтрации файлов для проверки не осталось."
+        echo -e "Общая оценка: ${GREEN}ОТЛИЧНО${NC} (нет применимых файлов)"
+        exit 0
+    fi
     
     # Рассчитываем процент "хороших" файлов (OK + ACCEPTABLE)
     local good_files=$((ok_files + acceptable_files))
     local percentage=0
-    if [ $total_files -gt 0 ]; then
-        percentage=$((good_files * 100 / total_files))
-    fi
+    percentage=$((good_files * 100 / total_files))
     
     echo ""
     echo "Процент хороших файлов: $percentage%"
