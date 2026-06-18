@@ -57,7 +57,7 @@ static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch) {
     }
     sender->resume_kind = RESUME_CHAN_SEND_ACK;
     sender->resume_bits = 0;
-    wake_task(ex, sender_id, 1);
+    wake_channel_task(ex, sender_id, 1);
 }
 
 void* rt_channel_new(uint64_t capacity) {
@@ -131,7 +131,7 @@ bool rt_channel_send(void* channel, uint64_t value_bits) {
         if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
             recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
             recv_task->resume_bits = value_bits;
-            wake_task(ex, recv_id, 1);
+            wake_channel_task(ex, recv_id, 1);
         }
         rt_unlock(ex);
         return 1;
@@ -207,7 +207,7 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
             }
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_bits = 0;
-            wake_task(ex, sender_id, 1);
+            wake_channel_task(ex, sender_id, 1);
         }
         rt_unlock(ex);
         return 1;
@@ -238,7 +238,7 @@ bool rt_channel_try_send(void* channel, uint64_t value_bits) {
         if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
             recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
             recv_task->resume_bits = value_bits;
-            wake_task(ex, recv_id, 1);
+            wake_channel_task(ex, recv_id, 1);
         }
         rt_unlock(ex);
         return 1;
@@ -278,7 +278,7 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
             }
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_bits = 0;
-            wake_task(ex, sender_id, 1);
+            wake_channel_task(ex, sender_id, 1);
         }
         rt_unlock(ex);
         return 1;
@@ -311,7 +311,7 @@ uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64
             }
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_bits = 0;
-            wake_task(ex, sender_id, 1);
+            wake_channel_task(ex, sender_id, 1);
         }
         return 1;
     }
@@ -337,7 +337,7 @@ uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64
         if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
             recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
             recv_task->resume_bits = value_bits;
-            wake_task(ex, recv_id, 1);
+            wake_channel_task(ex, recv_id, 1);
         }
         return 1;
     }
@@ -469,7 +469,7 @@ void rt_channel_close(void* channel) {
         }
         task->resume_kind = RESUME_CHAN_RECV_CLOSED;
         task->resume_bits = 0;
-        wake_task(ex, task_id, 1);
+        wake_channel_task(ex, task_id, 1);
     }
 
     waker_key send_key = channel_send_key(ch);
@@ -480,7 +480,7 @@ void rt_channel_close(void* channel) {
         }
         task->resume_kind = RESUME_CHAN_SEND_CLOSED;
         task->resume_bits = 0;
-        wake_task(ex, task_id, 1);
+        wake_channel_task(ex, task_id, 1);
     }
     rt_unlock(ex);
 }

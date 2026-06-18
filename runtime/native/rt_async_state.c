@@ -60,6 +60,7 @@ static uint64_t trace_sched_events;
 static uint64_t trace_sched_local_pops;
 static uint64_t trace_sched_inject_pops;
 static uint64_t trace_sched_steal_pops;
+static uint8_t channel_wake_force_inject;
 
 static int async_debug_enabled_cached = -1;
 
@@ -583,6 +584,14 @@ static uint64_t rt_env_sched_seed(void) {
     return (uint64_t)parsed;
 }
 
+static uint8_t rt_env_channel_wake_force_inject(void) {
+    const char* value = getenv("SURGE_CHANNEL_WAKE_INJECT");
+    if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
+        return 0;
+    }
+    return 1;
+}
+
 static uint32_t rt_detect_cpu_count(void) {
     long cpus = sysconf(_SC_NPROCESSORS_ONLN);
     if (cpus <= 0) {
@@ -637,6 +646,7 @@ static void exec_init_once(void) {
     ex->worker_count = threads;
     ex->sched_mode = rt_env_sched_mode();
     ex->sched_seed = rt_env_sched_seed();
+    channel_wake_force_inject = rt_env_channel_wake_force_inject();
     uint32_t blocking_threads = rt_env_blocking_count();
     if (blocking_threads == 0) {
         blocking_threads = rt_default_blocking_count(ex->worker_count);
@@ -1441,7 +1451,8 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
     return 0;
 }
 
-void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
+static void
+wake_task_with_policy(rt_executor* ex, uint64_t id, int remove_waiter_flag, int force_inject) {
     // Caller holds ex->lock; wake_token handles a wake that races with park_current.
     if (ex == NULL) {
         return;
@@ -1458,11 +1469,26 @@ void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
     task->park_key = waker_none();
     task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
-    if (ready_push_inner(ex, id, 0)) {
+    if (ready_push_inner(ex, id, force_inject)) {
         trace_exec_inc(&trace_wake_enqueued_total);
     } else if (ex->channel_blocked_workers > 0) {
         pthread_cond_broadcast(&ex->ready_cv);
     }
+}
+
+void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
+    wake_task_with_policy(ex, id, remove_waiter_flag, 0);
+}
+
+void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
+    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0);
+}
+
+static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key) {
+    waker_kind kind = (waker_kind)key.kind;
+    int force_inject =
+        channel_wake_force_inject != 0 && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV);
+    (void)ready_push_inner(ex, id, force_inject);
 }
 
 void wake_key_all(rt_executor* ex, waker_key key) {
@@ -1494,7 +1520,7 @@ void park_current(rt_executor* ex, waker_key key) {
         task->park_prepared = 0;
         task->park_key = waker_none();
         task_status_store(task, TASK_READY);
-        ready_push(ex, task->id);
+        ready_push_for_waker_key(ex, task->id, key);
         return;
     }
     task_status_store(task, TASK_WAITING);
@@ -1507,7 +1533,7 @@ void park_current(rt_executor* ex, waker_key key) {
         remove_waiter(ex, key, task->id);
         task->park_key = waker_none();
         task_status_store(task, TASK_READY);
-        ready_push(ex, task->id);
+        ready_push_for_waker_key(ex, task->id, key);
         return;
     }
     trace_exec_inc(&trace_park_committed_total);

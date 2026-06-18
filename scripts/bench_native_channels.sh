@@ -6,6 +6,10 @@ fixture="$root/benchmarks/native/channel_request_reply"
 report="${SURGE_CHANNEL_BENCH_REPORT:-$root/build/benchmarks/native-channel-request-reply.md}"
 modes="${SURGE_CHANNEL_BENCH_MODES:-1 2 4 8 default}"
 surge="${SURGE:-$root/surge}"
+channel_wake_policy="local-first"
+if [[ -n "${SURGE_CHANNEL_WAKE_INJECT:-}" && "${SURGE_CHANNEL_WAKE_INJECT:-}" != "0" ]]; then
+	channel_wake_policy="force-inject"
+fi
 
 fail() {
 	echo "bench_native_channels: $*" >&2
@@ -72,6 +76,7 @@ mkdir -p "$(dirname "$report")"
 	echo "- surge: $("$surge" version --full | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 	echo "- fixture: ${fixture#$root/}"
 	echo "- modes: $modes"
+	echo "- channel wake policy: $channel_wake_policy"
 	echo "- trace: separate SURGE_TRACE_EXEC=1 pass"
 	echo
 	echo "## Results"

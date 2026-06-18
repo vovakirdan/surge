@@ -15,6 +15,7 @@ Useful overrides:
 ```bash
 SURGE_CHANNEL_BENCH_MODES="1 2 4 8 default" ./scripts/bench_native_channels.sh
 SURGE_CHANNEL_BENCH_REPORT=/tmp/channel.md ./scripts/bench_native_channels.sh
+SURGE_CHANNEL_WAKE_INJECT=1 SURGE_CHANNEL_BENCH_REPORT=/tmp/channel-inject.md ./scripts/bench_native_channels.sh
 ```
 
 Compare future runtime PRs against
@@ -24,3 +25,5 @@ The fixture also prints scheduler-shape rows:
 
 - `channel_ping_pong`: direct async send/recv handoff between two tasks.
 - `channel_sync_new_reply`: sync wrapper fallback called from an async task.
+
+Use `SURGE_CHANNEL_WAKE_INJECT=1` only for A/B placement experiments.
