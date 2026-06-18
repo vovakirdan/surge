@@ -1,0 +1,154 @@
+pragma module;
+
+import stdlib/time as time;
+
+tag Apply(int, Channel<int>);
+tag Stop();
+type Message = Apply(int, Channel<int>) | Stop();
+
+fn elapsed_us(start: time.Duration) -> int64 {
+    let now = time.monotonic_now();
+    let elapsed = now.sub(start);
+    return elapsed.as_micros();
+}
+
+fn print_row(name: string, iterations: int, total_us: int64) -> nothing {
+    let ns_op: int64 = (total_us * (1000):int64) / (iterations to int64);
+    print("| " + name
+        + " | " + (iterations to string)
+        + " | " + (total_us to string)
+        + " | " + (ns_op to string)
+        + " |");
+    return nothing;
+}
+
+fn bench_empty_loop(iterations: int) -> nothing {
+    let start = time.monotonic_now();
+    let mut sum: int = 0;
+    let mut i: int = 0;
+    while i < iterations {
+        sum = sum + i;
+        i = i + 1;
+    }
+    let total_us = elapsed_us(start);
+    if sum < 0 {
+        print("impossible");
+    }
+    print_row("empty_loop", iterations, total_us);
+    return nothing;
+}
+
+fn append_string_bytes(out: &mut byte[], s: &string) -> nothing {
+    let view = s.bytes();
+    let length: int = view.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        out.push(view[i]);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn line_bytes(line: &string) -> byte[] {
+    let mut out: byte[] = [];
+    out.reserve(line.__len() + 1:uint);
+    append_string_bytes(&mut out, line);
+    out.push(10:byte);
+    return out;
+}
+
+fn bench_response_bytes(iterations: int) -> nothing {
+    let start = time.monotonic_now();
+    let mut total: uint = 0:uint;
+    let mut i: int = 0;
+    let line: string = "VALUE {\"v\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}";
+    while i < iterations {
+        let bytes = line_bytes(&line);
+        total = total + bytes.__len();
+        i = i + 1;
+    }
+    let total_us = elapsed_us(start);
+    if total == 0:uint {
+        print("impossible");
+    }
+    print_row("response_bytes", iterations, total_us);
+    return nothing;
+}
+
+async fn echo_loop(requests: Channel<Message>) -> nothing {
+    let mut done: bool = false;
+    while !done {
+        compare requests.recv() {
+            Some(msg) => {
+                compare msg {
+                    Apply(value, reply) => {
+                        reply.send(own value);
+                    }
+                    Stop() => {
+                        done = true;
+                    }
+                };
+            }
+            nothing => {
+                done = true;
+            }
+        };
+    }
+    return nothing;
+}
+
+async fn bench_channel_reused_reply(iterations: int) -> nothing {
+    let requests = make_channel::<Message>(64:uint);
+    let reply = make_channel::<int>(1:uint);
+    let task = spawn echo_loop(requests);
+    let start = time.monotonic_now();
+    let mut i: int = 0;
+    while i < iterations {
+        let request: Message = Apply(i, reply);
+        requests.send(own request);
+        compare reply.recv() {
+            Some(_) => {}
+            nothing => {}
+        };
+        i = i + 1;
+    }
+    let total_us = elapsed_us(start);
+    let stop: Message = Stop();
+    requests.send(own stop);
+    let _ = task.await();
+    print_row("channel_reused_reply", iterations, total_us);
+    return nothing;
+}
+
+async fn bench_channel_new_reply(iterations: int) -> nothing {
+    let requests = make_channel::<Message>(64:uint);
+    let task = spawn echo_loop(requests);
+    let start = time.monotonic_now();
+    let mut i: int = 0;
+    while i < iterations {
+        let reply = make_channel::<int>(1:uint);
+        let request: Message = Apply(i, reply);
+        requests.send(own request);
+        compare reply.recv() {
+            Some(_) => {}
+            nothing => {}
+        };
+        i = i + 1;
+    }
+    let total_us = elapsed_us(start);
+    let stop: Message = Stop();
+    requests.send(own stop);
+    let _ = task.await();
+    print_row("channel_new_reply", iterations, total_us);
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let iterations: int = 20000;
+    bench_empty_loop(iterations);
+    bench_response_bytes(iterations);
+    let _ = bench_channel_reused_reply(iterations).await();
+    let _ = bench_channel_new_reply(iterations).await();
+    return 0;
+}
