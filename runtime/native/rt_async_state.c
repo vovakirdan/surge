@@ -271,6 +271,13 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t tasks_running = 0;
     uint64_t tasks_waiting = 0;
     uint64_t tasks_done = 0;
+    uint64_t tasks_user = 0;
+    uint64_t tasks_sleep = 0;
+    uint64_t tasks_net_accept = 0;
+    uint64_t tasks_net_read = 0;
+    uint64_t tasks_net_write = 0;
+    uint64_t tasks_blocking = 0;
+    uint64_t tasks_other_kind = 0;
     uint64_t waiters_join = 0;
     uint64_t waiters_timer = 0;
     uint64_t waiters_chan_send = 0;
@@ -308,6 +315,30 @@ static void trace_exec_snapshot_dump(const char* reason) {
                 tasks_done++;
                 break;
         }
+        switch (task->kind) {
+            case TASK_KIND_USER:
+                tasks_user++;
+                break;
+            case TASK_KIND_SLEEP:
+                tasks_sleep++;
+                break;
+            case TASK_KIND_NET_ACCEPT:
+                tasks_net_accept++;
+                break;
+            case TASK_KIND_NET_READ:
+                tasks_net_read++;
+                break;
+            case TASK_KIND_NET_WRITE:
+                tasks_net_write++;
+                break;
+            case TASK_KIND_BLOCKING:
+                tasks_blocking++;
+                break;
+            case TASK_KIND_CHECKPOINT:
+            default:
+                tasks_other_kind++;
+                break;
+        }
     }
     for (size_t i = 0; i < ex->waiters_len; i++) {
         switch ((waker_kind)ex->waiters[i].key.kind) {
@@ -337,7 +368,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
         }
     }
 
-    char buf[1024];
+    char buf[1400];
     size_t pos = 0;
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC_SNAPSHOT");
     if (reason != NULL) {
@@ -366,6 +397,13 @@ static void trace_exec_snapshot_dump(const char* reason) {
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_running", tasks_running);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting", tasks_waiting);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done", tasks_done);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_user", tasks_user);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_sleep", tasks_sleep);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_accept", tasks_net_accept);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_read", tasks_net_read);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_write", tasks_net_write);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_blocking", tasks_blocking);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_other_kind", tasks_other_kind);
     if (pos + 1 < sizeof(buf)) {
         buf[pos++] = '\n';
     }
