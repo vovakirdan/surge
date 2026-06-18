@@ -12,6 +12,24 @@ fail() {
 	exit 1
 }
 
+trace_value() {
+	local file="$1"
+	local record="$2"
+	local key="$3"
+	awk -v record="$record" -v key="$key" '
+		$1 == record {
+			for (i = 2; i <= NF; i++) {
+				split($i, kv, "=")
+				if (kv[1] == key) value = kv[2]
+			}
+		}
+		END {
+			if (value == "") value = "n/a"
+			print value
+		}
+	' "$file"
+}
+
 if [[ ! -x "$surge" ]]; then
 	surge="$(command -v surge || true)"
 fi
@@ -20,7 +38,8 @@ fi
 export SURGE_STDLIB="${SURGE_STDLIB:-$root}"
 
 build_log="$(mktemp)"
-trap 'rm -f "$build_log"' EXIT
+trace_rows="$(mktemp)"
+trap 'rm -f "$build_log" "$trace_rows"' EXIT
 
 if ! "$surge" build --release "$fixture" >"$build_log" 2>&1; then
 	cat "$build_log" >&2
@@ -53,6 +72,7 @@ mkdir -p "$(dirname "$report")"
 	echo "- surge: $("$surge" version --full | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 	echo "- fixture: ${fixture#$root/}"
 	echo "- modes: $modes"
+	echo "- trace: separate SURGE_TRACE_EXEC=1 pass"
 	echo
 	echo "## Results"
 	echo
@@ -61,16 +81,34 @@ mkdir -p "$(dirname "$report")"
 } >"$report"
 
 for mode in $modes; do
+	trace_log="$(mktemp)"
 	if [[ "$mode" == "default" ]]; then
 		output="$(env -u SURGE_THREADS "$bench_bin")"
+		env -u SURGE_THREADS SURGE_TRACE_EXEC=1 "$bench_bin" >/dev/null 2>"$trace_log"
 	else
 		output="$(SURGE_THREADS="$mode" "$bench_bin")"
+		SURGE_TRACE_EXEC=1 SURGE_THREADS="$mode" "$bench_bin" >/dev/null 2>"$trace_log"
 	fi
 	while IFS= read -r line; do
 		[[ "$line" == \|* ]] || continue
 		printf '| %s |%s\n' "$mode" "${line#|}" >>"$report"
 	done <<<"$output"
+	printf '| %s | %s | %s | %s |\n' \
+		"$mode" \
+		"$(trace_value "$trace_log" TRACE_EXEC channel_blocking_wait)" \
+		"$(trace_value "$trace_log" TRACE_EXEC compensation_started)" \
+		"$(trace_value "$trace_log" TRACE_EXEC_SNAPSHOT compensation_high_water)" >>"$trace_rows"
+	rm -f "$trace_log"
 done
+
+cat >>"$report" <<'EOF'
+
+## Runtime Trace
+
+| mode | channel blocking waits | compensation started | compensation high-water |
+| --- | ---: | ---: | ---: |
+EOF
+cat "$trace_rows" >>"$report"
 
 cat >>"$report" <<'EOF'
 
