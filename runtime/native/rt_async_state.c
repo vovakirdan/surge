@@ -271,6 +271,12 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t tasks_running = 0;
     uint64_t tasks_waiting = 0;
     uint64_t tasks_done = 0;
+    uint64_t tasks_ready_user = 0;
+    uint64_t tasks_ready_net = 0;
+    uint64_t tasks_waiting_user = 0;
+    uint64_t tasks_waiting_net = 0;
+    uint64_t tasks_done_user = 0;
+    uint64_t tasks_done_net = 0;
     uint64_t tasks_user = 0;
     uint64_t tasks_sleep = 0;
     uint64_t tasks_net_accept = 0;
@@ -300,7 +306,8 @@ static void trace_exec_snapshot_dump(const char* reason) {
         if (task == NULL) {
             continue;
         }
-        switch (task_status_load(task)) {
+        uint8_t status = task_status_load(task);
+        switch (status) {
             case TASK_READY:
                 tasks_ready++;
                 break;
@@ -314,6 +321,37 @@ static void trace_exec_snapshot_dump(const char* reason) {
             default:
                 tasks_done++;
                 break;
+        }
+        uint8_t net_task = task->kind == TASK_KIND_NET_ACCEPT || task->kind == TASK_KIND_NET_READ ||
+                           task->kind == TASK_KIND_NET_WRITE;
+        if (task->kind == TASK_KIND_USER) {
+            switch (status) {
+                case TASK_READY:
+                    tasks_ready_user++;
+                    break;
+                case TASK_WAITING:
+                    tasks_waiting_user++;
+                    break;
+                case TASK_DONE:
+                    tasks_done_user++;
+                    break;
+                default:
+                    break;
+            }
+        } else if (net_task) {
+            switch (status) {
+                case TASK_READY:
+                    tasks_ready_net++;
+                    break;
+                case TASK_WAITING:
+                    tasks_waiting_net++;
+                    break;
+                case TASK_DONE:
+                    tasks_done_net++;
+                    break;
+                default:
+                    break;
+            }
         }
         switch (task->kind) {
             case TASK_KIND_USER:
@@ -368,7 +406,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
         }
     }
 
-    char buf[1400];
+    char buf[1800];
     size_t pos = 0;
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC_SNAPSHOT");
     if (reason != NULL) {
@@ -397,6 +435,12 @@ static void trace_exec_snapshot_dump(const char* reason) {
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_running", tasks_running);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting", tasks_waiting);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done", tasks_done);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready_user", tasks_ready_user);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready_net", tasks_ready_net);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting_user", tasks_waiting_user);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting_net", tasks_waiting_net);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done_user", tasks_done_user);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done_net", tasks_done_net);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_user", tasks_user);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_sleep", tasks_sleep);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_accept", tasks_net_accept);
