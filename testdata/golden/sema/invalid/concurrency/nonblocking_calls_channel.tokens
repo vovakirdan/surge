@@ -1,0 +1,41 @@
+  1: At              "@" at 2:1-2:2 (leading: LineComment, Newline)
+  2: Ident           "nonblocking" at 2:2-2:13
+  3: KwPub           "pub" at 3:1-3:4 (leading: Newline)
+  4: KwFn            "fn" at 3:5-3:7 (leading: Space)
+  5: Ident           "bad_channel" at 3:8-3:19 (leading: Space)
+  6: LParen          "(" at 3:19-3:20
+  7: Ident           "ch" at 3:20-3:22
+  8: Colon           ":" at 3:22-3:23
+  9: Amp             "&" at 3:24-3:25 (leading: Space)
+ 10: Ident           "Channel" at 3:25-3:32
+ 11: Lt              "<" at 3:32-3:33
+ 12: Ident           "int" at 3:33-3:36
+ 13: Gt              ">" at 3:36-3:37
+ 14: RParen          ")" at 3:37-3:38
+ 15: Arrow           "->" at 3:39-3:41 (leading: Space)
+ 16: NothingLit      "nothing" at 3:42-3:49 (leading: Space)
+ 17: LBrace          "{" at 3:50-3:51 (leading: Space)
+ 18: Ident           "ch" at 4:5-4:7 (leading: Newline, Space)
+ 19: Dot             "." at 4:7-4:8
+ 20: Ident           "send" at 4:8-4:12
+ 21: LParen          "(" at 4:12-4:13
+ 22: IntLit          "1" at 4:13-4:14
+ 23: RParen          ")" at 4:14-4:15
+ 24: Semicolon       ";" at 4:15-4:16
+ 25: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 26: Underscore      "_" at 5:9-5:10 (leading: Space)
+ 27: Assign          "=" at 5:11-5:12 (leading: Space)
+ 28: Ident           "ch" at 5:13-5:15 (leading: Space)
+ 29: Dot             "." at 5:15-5:16
+ 30: Ident           "recv" at 5:16-5:20
+ 31: LParen          "(" at 5:20-5:21
+ 32: RParen          ")" at 5:21-5:22
+ 33: Semicolon       ";" at 5:22-5:23
+ 34: Ident           "ch" at 6:5-6:7 (leading: Newline, Space)
+ 35: Dot             "." at 6:7-6:8
+ 36: Ident           "close" at 6:8-6:13
+ 37: LParen          "(" at 6:13-6:14
+ 38: RParen          ")" at 6:14-6:15
+ 39: Semicolon       ";" at 6:15-6:16
+ 40: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 41: EOF             at 8:1-8:1

@@ -1,0 +1,7 @@
+// Invalid: @nonblocking function calls blocking channel methods
+@nonblocking
+pub fn bad_channel(ch: &Channel<int>) -> nothing {
+    ch.send(1);
+    let _ = ch.recv();
+    ch.close();
+}

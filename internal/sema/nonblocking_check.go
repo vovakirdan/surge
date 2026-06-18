@@ -210,6 +210,11 @@ func (tc *typeChecker) checkBlockingCall(call *ast.ExprCallData, callSpan, _ sou
 
 	// Check for blocking method calls (e.g., mutex.lock())
 	if methodName, typeName, isBlocking := tc.isBlockingMethodCall(call); isBlocking {
+		if typeName == "Channel" {
+			tc.report(diag.SemaChannelBlockingInNonblocking, callSpan,
+				"@nonblocking function cannot call blocking channel method %s.%s", typeName, methodName)
+			return
+		}
 		tc.report(diag.SemaLockNonblockingCallsWait, callSpan,
 			"@nonblocking function cannot call blocking method %s.%s", typeName, methodName)
 		return
@@ -252,9 +257,13 @@ func (tc *typeChecker) isBlockingMethodCall(call *ast.ExprCallData) (methodName,
 	if receiverType == types.NoTypeID {
 		return methodName, "", false
 	}
+	if tc.isChannelType(receiverType) {
+		typeName = "Channel"
+	} else {
+		// Get the base type name (stripping references)
+		typeName = tc.baseTypeName(receiverType)
+	}
 
-	// Get the base type name (stripping references)
-	typeName = tc.baseTypeName(receiverType)
 	if typeName == "" {
 		return methodName, "", false
 	}
