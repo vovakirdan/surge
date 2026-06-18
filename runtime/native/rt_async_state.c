@@ -278,23 +278,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t waiters_net = 0;
     uint64_t waiters_other = 0;
 
-    // Snapshot reads executor-owned fields, so it is intentionally exit-only and best-effort.
-    if (pthread_mutex_trylock(&ex->lock) != 0) {
-        char busy_buf[128];
-        size_t busy_pos = 0;
-        busy_pos =
-            trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), "TRACE_EXEC_SNAPSHOT");
-        if (reason != NULL) {
-            busy_pos = trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), " reason=");
-            busy_pos = trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), reason);
-        }
-        trace_exec_append_kv_u64(busy_buf, &busy_pos, sizeof(busy_buf), "lock_busy", 1);
-        if (busy_pos + 1 < sizeof(busy_buf)) {
-            busy_buf[busy_pos++] = '\n';
-        }
-        (void)write(STDERR_FILENO, busy_buf, busy_pos);
-        return;
-    }
+    rt_lock(ex);
     if (ex->local_queues != NULL) {
         for (uint32_t i = 0; i < ex->worker_count; i++) {
             uint64_t len = (uint64_t)ex->local_queues[i].len;
@@ -385,7 +369,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
     if (pos + 1 < sizeof(buf)) {
         buf[pos++] = '\n';
     }
-    pthread_mutex_unlock(&ex->lock);
+    rt_unlock(ex);
     (void)write(STDERR_FILENO, buf, pos);
 }
 
