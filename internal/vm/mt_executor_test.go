@@ -350,6 +350,108 @@ fn main() -> int {
 	}
 }
 
+func TestMTNonYieldingTrySendHandoffWakesReceiver(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+	if runtime.NumCPU() < 2 {
+		t.Skip("non-yielding channel handoff test needs >=2 CPUs")
+	}
+	t.Parallel()
+
+	source := `async fn receiver(ch: own Channel<nothing>, ready: own Channel<nothing>, count: int) -> int {
+    ready.send(nothing);
+    checkpoint().await();
+
+    let mut seen: int = 0;
+    while seen < count {
+        let v = ch.recv();
+        let ok = compare v {
+            Some(_) => true;
+            nothing => false;
+        };
+        if !ok {
+            return 2;
+        }
+        seen = seen + 1;
+    }
+    return seen;
+}
+
+async fn nonyielding_sender(ch: own Channel<nothing>, count: int) -> int {
+    let mut sent: int = 0;
+    while sent < count {
+        let mut ok = ch.try_send(nothing);
+        while !ok {
+            ok = ch.try_send(nothing);
+        }
+        sent = sent + 1;
+    }
+    return sent;
+}
+
+async fn run() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 3;
+    }
+    let count: int = 64;
+    let ch = make_channel::<nothing>(0:uint);
+    let ready = make_channel::<nothing>(0:uint);
+    let recv_ch = ch;
+    let recv_ready = ready;
+    let recv_task = spawn receiver(recv_ch, recv_ready, count);
+
+    let started = ready.recv();
+    let started_ok = compare started {
+        Some(_) => true;
+        nothing => false;
+    };
+    if !started_ok {
+        return 4;
+    }
+    checkpoint().await();
+    checkpoint().await();
+
+    let send_task = spawn nonyielding_sender(ch, count);
+    let send_res = send_task.await();
+    let recv_res = recv_task.await();
+    let send_ok = compare send_res {
+        Success(v) => v == count;
+        Cancelled() => false;
+    };
+    let recv_ok = compare recv_res {
+        Success(v) => v == count;
+        Cancelled() => false;
+    };
+    if !send_ok || !recv_ok {
+        return 5;
+    }
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let res = run().await();
+    return compare res {
+        Success(v) => v;
+        Cancelled() => 1;
+    };
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
 func TestMTWakeupsAndCancellation(t *testing.T) {
 	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
