@@ -350,6 +350,108 @@ fn main() -> int {
 	}
 }
 
+func TestMTNonYieldingTrySendHandoffWakesReceiver(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+	if runtime.NumCPU() < 2 {
+		t.Skip("non-yielding channel handoff test needs >=2 CPUs")
+	}
+	t.Parallel()
+
+	source := `async fn receiver(ch: own Channel<nothing>, ready: own Channel<nothing>, count: int) -> int {
+    ready.send(nothing);
+    checkpoint().await();
+
+    let mut seen: int = 0;
+    while seen < count {
+        let v = ch.recv();
+        let ok = compare v {
+            Some(_) => true;
+            nothing => false;
+        };
+        if !ok {
+            return 2;
+        }
+        seen = seen + 1;
+    }
+    return seen;
+}
+
+async fn nonyielding_sender(ch: own Channel<nothing>, count: int) -> int {
+    let mut sent: int = 0;
+    while sent < count {
+        let mut ok = ch.try_send(nothing);
+        while !ok {
+            ok = ch.try_send(nothing);
+        }
+        sent = sent + 1;
+    }
+    return sent;
+}
+
+async fn run() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 3;
+    }
+    let count: int = 64;
+    let ch = make_channel::<nothing>(0:uint);
+    let ready = make_channel::<nothing>(0:uint);
+    let recv_ch = ch;
+    let recv_ready = ready;
+    let recv_task = spawn receiver(recv_ch, recv_ready, count);
+
+    let started = ready.recv();
+    let started_ok = compare started {
+        Some(_) => true;
+        nothing => false;
+    };
+    if !started_ok {
+        return 4;
+    }
+    checkpoint().await();
+    checkpoint().await();
+
+    let send_task = spawn nonyielding_sender(ch, count);
+    let send_res = send_task.await();
+    let recv_res = recv_task.await();
+    let send_ok = compare send_res {
+        Success(v) => v == count;
+        Cancelled() => false;
+    };
+    let recv_ok = compare recv_res {
+        Success(v) => v == count;
+        Cancelled() => false;
+    };
+    if !send_ok || !recv_ok {
+        return 5;
+    }
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let res = run().await();
+    return compare res {
+        Success(v) => v;
+        Cancelled() => 1;
+    };
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
 func TestMTWakeupsAndCancellation(t *testing.T) {
 	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
@@ -413,6 +515,249 @@ fn main() -> int {
         return 2;
     }
 
+    print("ok");
+    return 0;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
+func TestMTRecvAckHandoffCompletesSenderAfterNonYieldingReceiver(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+	if runtime.NumCPU() < 2 {
+		t.Skip("recv ack handoff test needs >=2 CPUs")
+	}
+	t.Parallel()
+
+	source := `async fn sender(ch: own Channel<nothing>) -> int {
+    ch.send(nothing);
+    return 7;
+}
+
+async fn receiver(ch: own Channel<nothing>, spins: int) -> int {
+    let value = ch.recv();
+    let ok = compare value {
+        Some(_) => true;
+        nothing => false;
+    };
+    if !ok {
+        return 2;
+    }
+
+    let mut i: int = 0;
+    let mut total: int = 0;
+    while i < spins {
+        total = total + i;
+        i = i + 1;
+    }
+    if total < 0 {
+        return 3;
+    }
+    return 5;
+}
+
+async fn run() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 4;
+    }
+    let ch = make_channel::<nothing>(0:uint);
+    let send_ch = ch;
+    let recv_ch = ch;
+    let send_task = spawn sender(send_ch);
+    checkpoint().await();
+    checkpoint().await();
+    let recv_task = spawn receiver(recv_ch, 200000);
+
+    let recv_res = recv_task.await();
+    let send_res = send_task.await();
+    let recv_ok = compare recv_res {
+        Success(v) => v == 5;
+        Cancelled() => false;
+    };
+    let send_ok = compare send_res {
+        Success(v) => v == 7;
+        Cancelled() => false;
+    };
+    if !recv_ok || !send_ok {
+        return 6;
+    }
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let res = run().await();
+    return compare res {
+        Success(v) => v;
+        Cancelled() => 1;
+    };
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
+func TestMTBufferedRecvRefillCompletesSenderAfterNonYieldingReceiver(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+	if runtime.NumCPU() < 2 {
+		t.Skip("buffered recv refill handoff test needs >=2 CPUs")
+	}
+	t.Parallel()
+
+	source := `async fn sender(ch: own Channel<int>) -> int {
+    ch.send(200);
+    return 7;
+}
+
+async fn receiver(ch: own Channel<int>, spins: int) -> int {
+    let first = ch.recv();
+    let first_ok = compare first {
+        Some(v) => v == 100;
+        nothing => false;
+    };
+    if !first_ok {
+        return 2;
+    }
+
+    let mut i: int = 0;
+    let mut total: int = 0;
+    while i < spins {
+        total = total + i;
+        i = i + 1;
+    }
+    if total < 0 {
+        return 3;
+    }
+
+    let second = ch.recv();
+    let second_ok = compare second {
+        Some(v) => v == 200;
+        nothing => false;
+    };
+    if !second_ok {
+        return 4;
+    }
+    return 5;
+}
+
+async fn run() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 6;
+    }
+    let ch = make_channel::<int>(1:uint);
+    ch.send(100);
+    let send_ch = ch;
+    let recv_ch = ch;
+    let send_task = spawn sender(send_ch);
+    checkpoint().await();
+    checkpoint().await();
+    let recv_task = spawn receiver(recv_ch, 200000);
+
+    let recv_res = recv_task.await();
+    let send_res = send_task.await();
+    let recv_ok = compare recv_res {
+        Success(v) => v == 5;
+        Cancelled() => false;
+    };
+    let send_ok = compare send_res {
+        Success(v) => v == 7;
+        Cancelled() => false;
+    };
+    if !recv_ok || !send_ok {
+        return 8;
+    }
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let res = run().await();
+    return compare res {
+        Success(v) => v;
+        Cancelled() => 1;
+    };
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
+func TestMTBufferedBlockingRecvRefillWakesSender(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+	if runtime.NumCPU() < 2 {
+		t.Skip("buffered blocking recv refill test needs >=2 CPUs")
+	}
+	t.Parallel()
+
+	source := `async fn sender(ch: own Channel<int>) -> int {
+    ch.send(2);
+    return 7;
+}
+
+@entrypoint
+fn main() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 90;
+    }
+    let ch = make_channel::<int>(1:uint);
+    ch.send(1);
+    let send_ch = ch;
+    let task = spawn sender(send_ch);
+    sleep(10:uint).await();
+
+    let first = ch.recv();
+    let first_ok = compare first {
+        Some(v) => v == 1;
+        nothing => false;
+    };
+    if !first_ok {
+        return 1;
+    }
+
+    let send_res = task.await();
+    let send_ok = compare send_res {
+        Success(v) => v == 7;
+        Cancelled() => false;
+    };
+    if !send_ok {
+        return 2;
+    }
     print("ok");
     return 0;
 }
@@ -659,8 +1004,13 @@ fn main() -> int {
 		t.Fatalf("unexpected stdout: %q", res.stdout)
 	}
 	trace := parseExecTrace(t, res.stderr)
-	if trace["channel_blocking_wait"] != 0 || trace["compensation_started"] != 0 {
+	if trace["channel_blocking_wait"] != 0 || trace["channel_task_blocking_send"] != 0 ||
+		trace["channel_task_blocking_recv"] != 0 || trace["compensation_started"] != 0 {
 		t.Fatalf("async channel path should not pin workers, got %+v\nstderr:\n%s", trace, res.stderr)
+	}
+	if trace["channel_handoff_yield"] == 0 {
+		t.Fatalf("expected async channel handoff yields in TRACE_EXEC, got %+v\nstderr:\n%s",
+			trace, res.stderr)
 	}
 	snapshot := parseExecSnapshot(t, res.stderr)
 	if snapshot["compensation"] != 0 || snapshot["channel_blocked"] != 0 {
@@ -781,6 +1131,14 @@ fn main() -> int {
 	trace := parseExecTrace(t, res.stderr)
 	if trace["channel_blocking_wait"] == 0 {
 		t.Fatalf("expected task-context blocking channel waits in TRACE_EXEC, got %+v\nstderr:\n%s",
+			trace, res.stderr)
+	}
+	if trace["channel_task_blocking_send"] == 0 || trace["channel_task_blocking_recv"] == 0 {
+		t.Fatalf("expected task-context blocking channel helper counters in TRACE_EXEC, got %+v\nstderr:\n%s",
+			trace, res.stderr)
+	}
+	if trace["channel_handoff_yield"] != 0 {
+		t.Fatalf("sync channel helper path should not use async handoff yields, got %+v\nstderr:\n%s",
 			trace, res.stderr)
 	}
 	if trace["compensation_started"] == 0 {

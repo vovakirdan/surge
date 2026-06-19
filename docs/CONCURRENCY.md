@@ -323,6 +323,20 @@ Notes:
 - Executor worker threads must not perform OS-blocking operations.
 - Suspension points park a task until a wakeup event, releasing the worker.
 
+### 10.2.1 Channel waits and sync wrappers
+
+Direct channel operations in `async fn` bodies are task suspension points: the
+native runtime parks the task and keeps executor workers available.
+
+Channel operations inside synchronous helper functions use the sync channel
+fallback. If async code calls such a helper, the runtime cannot suspend the
+helper's sync stack; it may temporarily park the executor worker and rely on
+the compensation fallback for progress. Keep hot async request/reply paths in
+async code, or add an async helper variant for those paths.
+
+Use `blocking { ... }` only for OS-blocking work. It is not a way to make hot
+channel request/reply cheaper.
+
 ### 10.3 Scheduling modes
 
 - **Parallel mode:** multiple workers with nondeterministic interleavings; only

@@ -6,7 +6,7 @@ fixture="$root/benchmarks/native/channel_request_reply"
 report="${SURGE_CHANNEL_BENCH_REPORT:-$root/build/benchmarks/native-channel-request-reply.md}"
 modes="${SURGE_CHANNEL_BENCH_MODES:-1 2 4 8 default}"
 surge="${SURGE:-$root/surge}"
-channel_wake_policy="local-first"
+channel_wake_policy="handoff-inject"
 if [[ -n "${SURGE_CHANNEL_WAKE_INJECT:-}" && "${SURGE_CHANNEL_WAKE_INJECT:-}" != "0" ]]; then
 	channel_wake_policy="force-inject"
 fi
@@ -98,9 +98,12 @@ for mode in $modes; do
 		[[ "$line" == \|* ]] || continue
 		printf '| %s |%s\n' "$mode" "${line#|}" >>"$report"
 	done <<<"$output"
-	printf '| %s | %s | %s | %s |\n' \
+	printf '| %s | %s | %s | %s | %s | %s | %s |\n' \
 		"$mode" \
 		"$(trace_value "$trace_log" TRACE_EXEC channel_blocking_wait)" \
+		"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_send)" \
+		"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_recv)" \
+		"$(trace_value "$trace_log" TRACE_EXEC channel_handoff_yield)" \
 		"$(trace_value "$trace_log" TRACE_EXEC compensation_started)" \
 		"$(trace_value "$trace_log" TRACE_EXEC_SNAPSHOT compensation_high_water)" >>"$trace_rows"
 	rm -f "$trace_log"
@@ -110,8 +113,8 @@ cat >>"$report" <<'EOF'
 
 ## Runtime Trace
 
-| mode | channel blocking waits | compensation started | compensation high-water |
-| --- | ---: | ---: | ---: |
+| mode | channel blocking waits | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
 EOF
 cat "$trace_rows" >>"$report"
 

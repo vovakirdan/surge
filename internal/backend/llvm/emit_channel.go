@@ -337,8 +337,12 @@ func (fe *funcEmitter) emitInstrChanSend(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
+	callee := "rt_channel_send"
+	if ins.ChanSend.YieldAfterHandoff {
+		callee = "rt_channel_send_yield"
+	}
 	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_send(ptr %s, i64 %s)\n", okVal, chVal, bitsVal)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, i64 %s)\n", okVal, callee, chVal, bitsVal)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb%d\n", okVal, ins.ChanSend.ReadyBB, ins.ChanSend.PendBB)
 	fe.blockTerminated = true
 	return nil

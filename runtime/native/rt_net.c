@@ -77,13 +77,13 @@ static _Atomic uint64_t net_poll_waiters_max;
 static _Atomic uint64_t net_poll_waiters_total;
 
 #define NET_TRACE_DUMP_FORMAT                                                                      \
-    "TRACE_NET reason=exit io_poll_calls=%llu io_poll_timeouts=%llu "                              \
+    "TRACE_NET reason=%s io_poll_calls=%llu io_poll_timeouts=%llu "                                \
     "io_poll_wake_fd=%llu io_poll_net_ready=%llu io_poll_errors=%llu "                             \
     "io_poll_timeout_last_ms=%llu io_poll_timeout_max_ms=%llu "                                    \
     "io_poll_waiters_last=%llu io_poll_waiters_max=%llu "                                          \
     "io_poll_waiters_total=%llu\n"
-#define NET_TRACE_DUMP_ARGS                                                                        \
-    net_trace_load(&net_poll_calls_total), net_trace_load(&net_poll_timeouts_total),               \
+#define NET_TRACE_DUMP_ARGS(reason)                                                                \
+    (reason), net_trace_load(&net_poll_calls_total), net_trace_load(&net_poll_timeouts_total),     \
         net_trace_load(&net_poll_wake_fd_total), net_trace_load(&net_poll_ready_total),            \
         net_trace_load(&net_poll_errors_total), net_trace_load(&net_poll_timeout_last_ms),         \
         net_trace_load(&net_poll_timeout_max_ms), net_trace_load(&net_poll_waiters_last),          \
@@ -114,8 +114,11 @@ static void net_trace_store(_Atomic uint64_t* counter, uint64_t value) {
     atomic_store_explicit(counter, value, memory_order_relaxed);
 }
 
-void rt_net_trace_dump(void) {
-    (void)dprintf(STDERR_FILENO, NET_TRACE_DUMP_FORMAT, NET_TRACE_DUMP_ARGS);
+void rt_net_trace_dump(const char* reason) {
+    if (reason == NULL || reason[0] == '\0') {
+        reason = "unknown";
+    }
+    (void)dprintf(STDERR_FILENO, NET_TRACE_DUMP_FORMAT, NET_TRACE_DUMP_ARGS(reason));
 }
 
 static uint64_t net_trace_timeout_ms(int timeout_ms) {
@@ -459,6 +462,12 @@ void* rt_net_listen(void* addr, uint64_t port) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
         return net_make_error(net_error_code_from_errno(errno));
+    }
+    int reuse = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, (socklen_t)sizeof(reuse)) != 0) {
+        uint64_t code = net_error_code_from_errno(errno);
+        close(fd);
+        return net_make_error(code);
     }
     if (!net_set_nonblocking(fd, &err_code)) {
         close(fd);

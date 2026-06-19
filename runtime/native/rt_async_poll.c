@@ -150,6 +150,7 @@ int run_ready_one(rt_executor* ex) {
     if (ex == NULL) {
         return 0;
     }
+    rt_trace_drain_signal_dump();
     rt_lock(ex);
     uint64_t id = 0;
     if (!next_ready(ex, &id)) {
@@ -239,6 +240,7 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
     }
     rt_unlock(ex);
     for (;;) {
+        rt_trace_drain_signal_dump();
         rt_lock(ex);
         const rt_task* current = get_task(ex, id);
         if (current == NULL) {

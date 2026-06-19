@@ -54,6 +54,9 @@ static _Atomic uint64_t trace_park_committed_total;
 static _Atomic uint64_t trace_worker_sleep_total;
 static _Atomic uint64_t trace_worker_wake_total;
 static _Atomic uint64_t trace_channel_blocking_wait_total;
+static _Atomic uint64_t trace_channel_task_blocking_send_total;
+static _Atomic uint64_t trace_channel_task_blocking_recv_total;
+static _Atomic uint64_t trace_channel_handoff_yield_total;
 static _Atomic uint64_t trace_compensation_started_total;
 static uint64_t trace_sched_hash;
 static uint64_t trace_sched_events;
@@ -61,6 +64,7 @@ static uint64_t trace_sched_local_pops;
 static uint64_t trace_sched_inject_pops;
 static uint64_t trace_sched_steal_pops;
 static uint8_t channel_wake_force_inject;
+static _Atomic sig_atomic_t trace_dump_requested_flag;
 
 static int async_debug_enabled_cached = -1;
 
@@ -121,6 +125,18 @@ static void trace_exec_inc(_Atomic uint64_t* counter) {
         return;
     }
     (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
+}
+
+void rt_trace_channel_task_blocking_send(void) {
+    trace_exec_inc(&trace_channel_task_blocking_send_total);
+}
+
+void rt_trace_channel_task_blocking_recv(void) {
+    trace_exec_inc(&trace_channel_task_blocking_recv_total);
+}
+
+void rt_trace_channel_handoff_yield(void) {
+    trace_exec_inc(&trace_channel_handoff_yield_total);
 }
 
 static void
@@ -209,6 +225,24 @@ static void trace_exec_dump(const char* reason) {
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_channel_blocking_wait_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_task_blocking_send=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_channel_task_blocking_send_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_task_blocking_recv=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_channel_task_blocking_recv_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_handoff_yield=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_channel_handoff_yield_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " compensation_started=");
     pos = trace_exec_append_u64(
         buf,
@@ -270,6 +304,19 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t tasks_running = 0;
     uint64_t tasks_waiting = 0;
     uint64_t tasks_done = 0;
+    uint64_t tasks_ready_user = 0;
+    uint64_t tasks_ready_net = 0;
+    uint64_t tasks_waiting_user = 0;
+    uint64_t tasks_waiting_net = 0;
+    uint64_t tasks_done_user = 0;
+    uint64_t tasks_done_net = 0;
+    uint64_t tasks_user = 0;
+    uint64_t tasks_sleep = 0;
+    uint64_t tasks_net_accept = 0;
+    uint64_t tasks_net_read = 0;
+    uint64_t tasks_net_write = 0;
+    uint64_t tasks_blocking = 0;
+    uint64_t tasks_other_kind = 0;
     uint64_t waiters_join = 0;
     uint64_t waiters_timer = 0;
     uint64_t waiters_chan_send = 0;
@@ -277,23 +324,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t waiters_net = 0;
     uint64_t waiters_other = 0;
 
-    // Snapshot reads executor-owned fields, so it is intentionally exit-only and best-effort.
-    if (pthread_mutex_trylock(&ex->lock) != 0) {
-        char busy_buf[128];
-        size_t busy_pos = 0;
-        busy_pos =
-            trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), "TRACE_EXEC_SNAPSHOT");
-        if (reason != NULL) {
-            busy_pos = trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), " reason=");
-            busy_pos = trace_exec_append_literal(busy_buf, busy_pos, sizeof(busy_buf), reason);
-        }
-        trace_exec_append_kv_u64(busy_buf, &busy_pos, sizeof(busy_buf), "lock_busy", 1);
-        if (busy_pos + 1 < sizeof(busy_buf)) {
-            busy_buf[busy_pos++] = '\n';
-        }
-        (void)write(STDERR_FILENO, busy_buf, busy_pos);
-        return;
-    }
+    rt_lock(ex);
     if (ex->local_queues != NULL) {
         for (uint32_t i = 0; i < ex->worker_count; i++) {
             uint64_t len = (uint64_t)ex->local_queues[i].len;
@@ -308,7 +339,8 @@ static void trace_exec_snapshot_dump(const char* reason) {
         if (task == NULL) {
             continue;
         }
-        switch (task_status_load(task)) {
+        uint8_t status = task_status_load(task);
+        switch (status) {
             case TASK_READY:
                 tasks_ready++;
                 break;
@@ -321,6 +353,61 @@ static void trace_exec_snapshot_dump(const char* reason) {
             case TASK_DONE:
             default:
                 tasks_done++;
+                break;
+        }
+        uint8_t net_task = task->kind == TASK_KIND_NET_ACCEPT || task->kind == TASK_KIND_NET_READ ||
+                           task->kind == TASK_KIND_NET_WRITE;
+        if (task->kind == TASK_KIND_USER) {
+            switch (status) {
+                case TASK_READY:
+                    tasks_ready_user++;
+                    break;
+                case TASK_WAITING:
+                    tasks_waiting_user++;
+                    break;
+                case TASK_DONE:
+                    tasks_done_user++;
+                    break;
+                default:
+                    break;
+            }
+        } else if (net_task) {
+            switch (status) {
+                case TASK_READY:
+                    tasks_ready_net++;
+                    break;
+                case TASK_WAITING:
+                    tasks_waiting_net++;
+                    break;
+                case TASK_DONE:
+                    tasks_done_net++;
+                    break;
+                default:
+                    break;
+            }
+        }
+        switch (task->kind) {
+            case TASK_KIND_USER:
+                tasks_user++;
+                break;
+            case TASK_KIND_SLEEP:
+                tasks_sleep++;
+                break;
+            case TASK_KIND_NET_ACCEPT:
+                tasks_net_accept++;
+                break;
+            case TASK_KIND_NET_READ:
+                tasks_net_read++;
+                break;
+            case TASK_KIND_NET_WRITE:
+                tasks_net_write++;
+                break;
+            case TASK_KIND_BLOCKING:
+                tasks_blocking++;
+                break;
+            case TASK_KIND_CHECKPOINT:
+            default:
+                tasks_other_kind++;
                 break;
         }
     }
@@ -352,7 +439,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
         }
     }
 
-    char buf[1024];
+    char buf[1800];
     size_t pos = 0;
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC_SNAPSHOT");
     if (reason != NULL) {
@@ -381,10 +468,23 @@ static void trace_exec_snapshot_dump(const char* reason) {
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_running", tasks_running);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting", tasks_waiting);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done", tasks_done);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready_user", tasks_ready_user);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready_net", tasks_ready_net);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting_user", tasks_waiting_user);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting_net", tasks_waiting_net);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done_user", tasks_done_user);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done_net", tasks_done_net);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_user", tasks_user);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_sleep", tasks_sleep);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_accept", tasks_net_accept);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_read", tasks_net_read);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_write", tasks_net_write);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_blocking", tasks_blocking);
+    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_other_kind", tasks_other_kind);
     if (pos + 1 < sizeof(buf)) {
         buf[pos++] = '\n';
     }
-    pthread_mutex_unlock(&ex->lock);
+    rt_unlock(ex);
     (void)write(STDERR_FILENO, buf, pos);
 }
 
@@ -407,15 +507,30 @@ static void trace_sched_record(uint8_t source, uint64_t id) {
 
 static void trace_exec_signal_handler(int sig) {
     (void)sig;
-    trace_exec_dump("sigusr1");
+#ifdef SIGUSR1
+    (void)signal(SIGUSR1, trace_exec_signal_handler);
+#endif
+    atomic_store_explicit(&trace_dump_requested_flag, 1, memory_order_relaxed);
+}
+
+static void trace_dump_all(const char* reason) {
+    trace_exec_dump(reason);
+    if (rt_exec_trace_enabled()) {
+        rt_net_trace_dump(reason);
+    }
+    trace_exec_snapshot_dump(reason);
+}
+
+void rt_trace_drain_signal_dump(void) {
+    if (atomic_exchange_explicit(&trace_dump_requested_flag, 0, memory_order_relaxed) == 0) {
+        return;
+    }
+    trace_dump_all("sigusr1");
+    rt_sched_trace_dump();
 }
 
 void rt_exec_trace_dump(void) {
-    trace_exec_dump("exit");
-    if (rt_exec_trace_enabled()) {
-        rt_net_trace_dump();
-    }
-    trace_exec_snapshot_dump("exit");
+    trace_dump_all("exit");
 }
 
 static void trace_sched_init(void) {
@@ -957,6 +1072,29 @@ deque_push_tail(rt_deque* dq, uint64_t id, const char* overflow_msg, const char*
     return 1;
 }
 
+static int
+deque_push_head(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg) {
+    if (dq == NULL) {
+        return 0;
+    }
+    if (dq->len == 0) {
+        return deque_push_tail(dq, id, overflow_msg, alloc_msg);
+    }
+    if (dq->head > 0) {
+        dq->head--;
+        dq->buf[dq->head] = id;
+        dq->len++;
+        return 1;
+    }
+    if (!deque_ensure_space(dq, 1, overflow_msg, alloc_msg)) {
+        return 0;
+    }
+    memmove(dq->buf + 1, dq->buf, dq->len * sizeof(uint64_t));
+    dq->buf[0] = id;
+    dq->len++;
+    return 1;
+}
+
 static int deque_pop_head(rt_deque* dq, uint64_t* out_id) {
     if (dq == NULL || dq->len == 0) {
         return 0;
@@ -1282,7 +1420,8 @@ pop_task_from_deque(rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, u
     return 0;
 }
 
-static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
+static int ready_push_with_policy(
+    rt_executor* ex, uint64_t id, int force_inject, int front, int signal_ready) {
     // Caller holds ex->lock; enqueued prevents duplicate ready-queue entries.
     if (ex == NULL) {
         return 0;
@@ -1307,15 +1446,22 @@ static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
         local = current_local_queue(ex);
     }
     if (local != NULL) {
-        if (!deque_push_tail(
-                local, id, "async: local queue overflow", "async: local queue allocation failed")) {
+        // Local queues are popped from the tail, so tail insertion is the local priority path.
+        int ok = deque_push_tail(
+            local, id, "async: local queue overflow", "async: local queue allocation failed");
+        if (!ok) {
             return 0;
         }
     } else {
-        if (!deque_push_tail(&ex->inject,
-                             id,
-                             "async: inject queue overflow",
-                             "async: inject queue allocation failed")) {
+        int ok = front ? deque_push_head(&ex->inject,
+                                         id,
+                                         "async: inject queue overflow",
+                                         "async: inject queue allocation failed")
+                       : deque_push_tail(&ex->inject,
+                                         id,
+                                         "async: inject queue overflow",
+                                         "async: inject queue allocation failed");
+        if (!ok) {
             return 0;
         }
     }
@@ -1324,13 +1470,25 @@ static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
     if (ex->channel_blocked_workers > 0) {
         maybe_start_compensation_worker_locked(ex);
     }
-    pthread_cond_signal(&ex->ready_cv);
+    if (signal_ready) {
+        pthread_cond_signal(&ex->ready_cv);
+    }
     return 1;
+}
+
+static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
+    return ready_push_with_policy(ex, id, force_inject, 0, 1);
 }
 
 void ready_push(rt_executor* ex, uint64_t id) {
     // Caller holds ex->lock.
     (void)ready_push_inner(ex, id, 0);
+}
+
+static int ready_push_yielded_task(rt_executor* ex, uint64_t id) {
+    // A yielding worker immediately re-enters the scheduler loop, so waking another
+    // worker here mostly creates condvar churn for task-to-task handoffs.
+    return ready_push_with_policy(ex, id, 1, 0, 0);
 }
 
 int ready_pop(rt_executor* ex, uint64_t* out_id) {
@@ -1451,8 +1609,12 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
     return 0;
 }
 
-static void
-wake_task_with_policy(rt_executor* ex, uint64_t id, int remove_waiter_flag, int force_inject) {
+static void wake_task_with_policy(rt_executor* ex,
+                                  uint64_t id,
+                                  int remove_waiter_flag,
+                                  int force_inject,
+                                  int front,
+                                  int signal_ready) {
     // Caller holds ex->lock; wake_token handles a wake that races with park_current.
     if (ex == NULL) {
         return;
@@ -1469,7 +1631,7 @@ wake_task_with_policy(rt_executor* ex, uint64_t id, int remove_waiter_flag, int 
     task->park_key = waker_none();
     task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
-    if (ready_push_inner(ex, id, force_inject)) {
+    if (ready_push_with_policy(ex, id, force_inject, front, signal_ready)) {
         trace_exec_inc(&trace_wake_enqueued_total);
     } else if (ex->channel_blocked_workers > 0) {
         pthread_cond_broadcast(&ex->ready_cv);
@@ -1477,11 +1639,19 @@ wake_task_with_policy(rt_executor* ex, uint64_t id, int remove_waiter_flag, int 
 }
 
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    wake_task_with_policy(ex, id, remove_waiter_flag, 0);
+    wake_task_with_policy(ex, id, remove_waiter_flag, 0, 0, 1);
 }
 
 void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0);
+    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0, 0, 1);
+}
+
+void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
+    // Use only for cooperative channel handoffs where the current worker is still
+    // active and can drain the injected continuation after the current poll yields,
+    // parks, or completes. Generic external/net/timer wakes must signal sleepers.
+    // Force inject keeps handoff order predictable and avoids local LIFO ping-pong.
+    wake_task_with_policy(ex, id, remove_waiter_flag, 1, 0, 0);
 }
 
 static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key) {
@@ -1491,7 +1661,7 @@ static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key
     (void)ready_push_inner(ex, id, force_inject);
 }
 
-void wake_key_all(rt_executor* ex, waker_key key) {
+static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) {
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
@@ -1499,12 +1669,16 @@ void wake_key_all(rt_executor* ex, waker_key key) {
     for (size_t i = 0; i < ex->waiters_len; i++) {
         waiter w = ex->waiters[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
-            wake_task(ex, w.task_id, 0);
+            wake_task_with_policy(ex, w.task_id, 0, 0, front, 1);
             continue;
         }
         ex->waiters[out++] = w;
     }
     ex->waiters_len = out;
+}
+
+void wake_key_all(rt_executor* ex, waker_key key) {
+    wake_key_all_with_policy(ex, key, 0);
 }
 
 void park_current(rt_executor* ex, waker_key key) {
@@ -1851,7 +2025,9 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
             task->scope_registered = 0;
         }
     }
-    wake_key_all(ex, join_key(task->id));
+    uint8_t net_task = task->kind == TASK_KIND_NET_ACCEPT || task->kind == TASK_KIND_NET_READ ||
+                       task->kind == TASK_KIND_NET_WRITE;
+    wake_key_all_with_policy(ex, join_key(task->id), net_task != 0);
     pthread_cond_broadcast(&ex->done_cv);
     if (atomic_load_explicit(&task->handle_refs, memory_order_relaxed) == 0) {
         free_task(ex, task);
@@ -1888,7 +2064,7 @@ static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outc
             task->state = outcome.state;
             task_status_store(task, TASK_READY);
             // Yielded tasks go through the inject queue to avoid local LIFO starvation.
-            (void)ready_push_inner(ex, task->id, 1);
+            (void)ready_push_yielded_task(ex, task->id);
             tick_virtual(ex);
             break;
         case POLL_PARKED:
@@ -2004,6 +2180,7 @@ static void* rt_worker_main(void* arg) {
     tls_worker_id = (int)worker_id;
     rt_set_current_task(NULL);
     for (;;) {
+        rt_trace_drain_signal_dump();
         rt_lock(ex);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ex, worker_id, &id)) {
@@ -2068,6 +2245,11 @@ static void* rt_io_main(void* arg) {
     const int poll_slice_ms = 50;
     rt_lock(ex);
     for (;;) {
+        if (atomic_load_explicit(&trace_dump_requested_flag, memory_order_relaxed) != 0) {
+            rt_unlock(ex);
+            rt_trace_drain_signal_dump();
+            rt_lock(ex);
+        }
         if (ex->shutdown) {
             break;
         }

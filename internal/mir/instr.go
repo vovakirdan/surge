@@ -184,10 +184,11 @@ type JoinAllInstr struct {
 
 // ChanSendInstr represents a channel send instruction.
 type ChanSendInstr struct {
-	Channel Operand
-	Value   Operand
-	ReadyBB BlockID
-	PendBB  BlockID
+	Channel           Operand
+	Value             Operand
+	ReadyBB           BlockID
+	PendBB            BlockID
+	YieldAfterHandoff bool
 }
 
 // ChanRecvInstr represents a channel receive instruction.

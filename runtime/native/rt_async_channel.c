@@ -10,6 +10,38 @@ struct rt_channel {
     size_t buf_head;
 };
 
+static uint64_t channel_align_up(uint64_t size, uint64_t align) {
+    if (align == 0) {
+        return size;
+    }
+    uint64_t rem = size % align;
+    if (rem == 0) {
+        return size;
+    }
+    uint64_t add = align - rem;
+    if (size > UINT64_MAX - add) {
+        panic_msg("async: channel allocation overflow");
+        return 0;
+    }
+    return size + add;
+}
+
+static uint64_t channel_buffer_offset(void) {
+    return channel_align_up((uint64_t)sizeof(rt_channel), (uint64_t) _Alignof(uint64_t));
+}
+
+static uint64_t channel_alloc_size(uint64_t capacity) {
+    if (capacity == 0) {
+        return (uint64_t)sizeof(rt_channel);
+    }
+    uint64_t offset = channel_buffer_offset();
+    if (capacity > (UINT64_MAX - offset) / (uint64_t)sizeof(uint64_t)) {
+        panic_msg("async: channel allocation overflow");
+        return 0;
+    }
+    return offset + capacity * (uint64_t)sizeof(uint64_t);
+}
+
 static rt_channel* channel_from_handle(void* handle) {
     if (handle == NULL) {
         panic_msg("async: null channel handle");
@@ -40,7 +72,7 @@ static int buf_pop(rt_channel* ch, uint64_t* out_bits) {
     return 1;
 }
 
-static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch) {
+static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch, int signal_sender) {
     if (ch == NULL || ch->capacity == 0 || ch->buf_len >= ch->capacity) {
         return;
     }
@@ -57,11 +89,30 @@ static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch) {
     }
     sender->resume_kind = RESUME_CHAN_SEND_ACK;
     sender->resume_bits = 0;
-    wake_channel_task(ex, sender_id, 1);
+    if (signal_sender) {
+        wake_channel_task(ex, sender_id, 1);
+    } else {
+        wake_channel_task_no_signal(ex, sender_id, 1);
+    }
+}
+
+static int prepare_channel_send_yield(rt_task* task) {
+    if (task == NULL) {
+        return 0;
+    }
+    // The compiler emits this helper only when the ready path immediately
+    // reaches a recv suspend point. Re-polling consumes this ack without
+    // repeating the already completed send.
+    task->resume_kind = RESUME_CHAN_SEND_ACK;
+    task->resume_bits = 0;
+    pending_key = waker_none();
+    rt_trace_channel_handoff_yield();
+    return 1;
 }
 
 void* rt_channel_new(uint64_t capacity) {
-    rt_channel* ch = (rt_channel*)rt_alloc(sizeof(rt_channel), _Alignof(rt_channel));
+    uint64_t bytes = channel_alloc_size(capacity);
+    rt_channel* ch = (rt_channel*)rt_alloc(bytes, _Alignof(rt_channel));
     if (ch == NULL) {
         panic_msg("async: channel allocation failed");
         return NULL;
@@ -69,20 +120,14 @@ void* rt_channel_new(uint64_t capacity) {
     memset(ch, 0, sizeof(rt_channel));
     ch->capacity = capacity;
     if (capacity > 0) {
-        uint64_t bytes = capacity * sizeof(uint64_t);
-        ch->buf = (uint64_t*)rt_alloc(bytes, _Alignof(uint64_t));
-        if (ch->buf == NULL) {
-            panic_msg("async: channel buffer allocation failed");
-            rt_free((uint8_t*)ch, sizeof(rt_channel), _Alignof(rt_channel));
-            return NULL;
-        }
+        ch->buf = (uint64_t*)((uint8_t*)ch + channel_buffer_offset());
     }
     rt_async_debug_printf(
         "async chan new ch=%p cap=%llu\n", (void*)ch, (unsigned long long)capacity);
     return ch;
 }
 
-bool rt_channel_send(void* channel, uint64_t value_bits) {
+static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_after_handoff) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);
     if (ex == NULL || ch == NULL) {
@@ -131,7 +176,15 @@ bool rt_channel_send(void* channel, uint64_t value_bits) {
         if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
             recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
             recv_task->resume_bits = value_bits;
-            wake_channel_task(ex, recv_id, 1);
+            if (yield_after_handoff) {
+                wake_channel_task_no_signal(ex, recv_id, 1);
+            } else {
+                wake_channel_task(ex, recv_id, 1);
+            }
+            if (yield_after_handoff && prepare_channel_send_yield(task)) {
+                rt_unlock(ex);
+                return 0;
+            }
         }
         rt_unlock(ex);
         return 1;
@@ -147,6 +200,14 @@ bool rt_channel_send(void* channel, uint64_t value_bits) {
     pending_key = send_key;
     rt_unlock(ex);
     return 0;
+}
+
+bool rt_channel_send(void* channel, uint64_t value_bits) {
+    return rt_channel_send_inner(channel, value_bits, 0);
+}
+
+bool rt_channel_send_yield(void* channel, uint64_t value_bits) {
+    return rt_channel_send_inner(channel, value_bits, 1);
 }
 
 uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
@@ -193,7 +254,7 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
         if (out_bits != NULL) {
             *out_bits = val;
         }
-        refill_buffer_from_sender(ex, ch);
+        refill_buffer_from_sender(ex, ch, 0);
         rt_unlock(ex);
         return 1;
     }
@@ -207,7 +268,7 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
             }
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_bits = 0;
-            wake_channel_task(ex, sender_id, 1);
+            wake_channel_task_no_signal(ex, sender_id, 1);
         }
         rt_unlock(ex);
         return 1;
@@ -265,7 +326,7 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
         if (out_bits != NULL) {
             *out_bits = val;
         }
-        refill_buffer_from_sender(ex, ch);
+        refill_buffer_from_sender(ex, ch, 1);
         rt_unlock(ex);
         return 1;
     }
@@ -299,7 +360,7 @@ uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64
         if (out_bits != NULL) {
             *out_bits = val;
         }
-        refill_buffer_from_sender(ex, ch);
+        refill_buffer_from_sender(ex, ch, 1);
         return 1;
     }
     uint64_t sender_id = 0;
@@ -369,6 +430,7 @@ void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
     rt_async_debug_printf(
         "async chan send start ch=%p bits=%llu\n", (void*)ch, (unsigned long long)value_bits);
     if (rt_current_task() != NULL) {
+        rt_trace_channel_task_blocking_send();
         while (!rt_channel_send(channel, value_bits)) {
             if (current_task_cancelled(ex)) {
                 pending_key = waker_none();
@@ -405,6 +467,7 @@ uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {
     }
     rt_async_debug_printf("async chan recv start ch=%p\n", (void*)ch);
     if (rt_current_task() != NULL) {
+        rt_trace_channel_task_blocking_recv();
         for (;;) {
             uint8_t status = rt_channel_recv(channel, out_bits);
             if (status != 0) {
