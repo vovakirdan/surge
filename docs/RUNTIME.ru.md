@@ -1,111 +1,360 @@
-# Рантайм Surge (VM)
+# Рантайм Surge
 [English](RUNTIME.md) | [Russian](RUNTIME.ru.md)
 
-Этот документ описывает VM-рантайм. Native/LLVM используют отдельный MT-рантайм;
-см. `docs/CONCURRENCY.ru.md` для модели конкурентности.
+Этот документ описывает слои рантайма, которые исполняют уже пониженные
+программы Surge. Правила async на уровне языка описаны в
+`docs/CONCURRENCY.ru.md`; здесь речь о реализации VM и native/LLVM.
 
-См. также: `docs/IR.ru.md`, `docs/CONCURRENCY.ru.md`, `docs/ABI_LAYOUT.ru.md`.
-
----
-
-## 1. Обзор
-
-- Компилятор понижает исходники в MIR и исполняет их в VM
-  (`internal/vm`).
-- Исполнение начинается с синтетической `__surge_start`, созданной
-  lowering-ом `@entrypoint`.
-- VM доступна через `surge run --backend=vm` и по умолчанию использует
-  детерминированное планирование.
+См. также: `docs/IR.ru.md`, `docs/CONCURRENCY.ru.md`, `docs/TRACING.ru.md`,
+`docs/ABI_LAYOUT.ru.md`.
 
 ---
 
-## 2. Архитектура VM
+## 1. Карта рантайма
 
-- **Прямой интерпретатор MIR:** инструкции и терминаторы выполняются
-  пошагово (`VM.Step`).
-- **Стек фреймов + локалы:** каждый вызов пушит `Frame` с локалами и
-  instruction pointer.
-- **Heap-объекты:** массивы, строки, структуры, tagged unions и другие
-  владеемые значения живут в VM heap (`internal/vm/heap.go`).
-- **ABI-осознанность:** правила layout задаются `layout.LayoutEngine`
-  (см. `docs/ABI_LAYOUT.ru.md`).
-- **Drop/RAII:** значения явно дропаются в VM; порядок drop-а трассируется
-  в тестах и валидируется intrinsics.
+В Surge есть две семьи исполнения:
+
+- **VM-бэкенд:** Go-интерпретатор MIR в `internal/vm`, нужен для корректности,
+  golden-тестов, диагностики, детерминированного планирования и record/replay.
+- **Native/LLVM-бэкенд:** LLVM создает бинарь, связанный с C-рантаймом из
+  `runtime/native`. Это production async-рантайм с несколькими worker'ами,
+  native sockets, blocking pool и счетчиками native heap.
+
+```mermaid
+flowchart TD
+    Source[Surge source] --> Frontend[parse, sema, HIR]
+    Frontend --> MIR[MIR and async state machines]
+    MIR --> VM[VM backend]
+    MIR --> LLVM[LLVM backend]
+
+    VM --> VMRT[Go VM runtime]
+    LLVM --> Binary[Native binary]
+    Binary --> CRT[C runtime]
+
+    VMRT --> VMAsync[internal/asyncrt]
+    CRT --> NativeAsync[MT executor]
+    CRT --> NativeNet[Native net runtime]
+    CRT --> NativeHeap[Native heap and debug intrinsics]
+```
+
+VM и native-бэкенды имеют общую семантику языка, но не общий планировщик.
+
+| Область | VM | Native/LLVM |
+|---------|----|-------------|
+| Основная роль | диагностика и parity | production-исполнение |
+| Планировщик | один worker, детерминирован по умолчанию | multi-worker executor |
+| Async tasks | Go executor поверх MIR poll state | C executor поверх скомпилированных poll-функций |
+| Таймеры | virtual по умолчанию, есть VM real-time mode | executor time |
+| Blocking scope | отклоняется | выделенный blocking pool |
+| Network I/O | VM intrinsic tasks | native nonblocking sockets плюс poll thread |
+| Heap debug | VM object heap и RC-проверки | native allocation counters |
 
 ---
 
-## 3. Интерфейс хост-рантайма
+## 2. VM-рантайм
 
-VM общается с внешним миром через `Runtime` (`internal/vm/runtime.go`):
+VM исполняет MIR напрямую из `internal/vm`.
 
-- `Argv()` даёт аргументы программы для `@entrypoint("argv")`.
+- Исполнение начинается с синтетической `__surge_start`, созданной lowering-ом
+  `@entrypoint`.
+- `VM.Step` интерпретирует MIR-инструкции и терминаторы.
+- Каждый вызов пушит `Frame` с локалами и instruction pointer.
+- Массивы, строки, структуры, tagged unions и владеемые значения живут в VM heap.
+- Layout задается `layout.LayoutEngine` (см. `docs/ABI_LAYOUT.ru.md`).
+- Значения явно дропаются; тесты проверяют порядок drop-а и утечки heap.
+
+Интерфейс к хосту - `Runtime` в `internal/vm/runtime.go`:
+
+- `Argv()` дает аргументы программы для `@entrypoint("argv")`.
 - `StdinReadAll()` обслуживает `@entrypoint("stdin")`.
-- `EntropyBytes(n)` даёт безопасные байты энтропии для `stdlib/entropy`.
-- `Exit(code)` фиксирует код выхода и завершает исполнение.
+- `EntropyBytes(n)` дает host entropy для `stdlib/entropy`.
+- `Exit(code)` фиксирует код выхода и останавливает исполнение.
 
-Реализации:
+Реализации включают `DefaultRuntime`, `TestRuntime`, `RecordingRuntime` и
+`ReplayRuntime`.
 
-- `DefaultRuntime` использует argv/stdin ОС.
-- `TestRuntime` даёт контролируемые входы для тестов.
-- `RecordingRuntime` и `ReplayRuntime` обеспечивают детерминированный
-  record/replay.
+### 2.1 VM async
 
----
+VM async исполняется через `internal/asyncrt`:
 
-## 4. Intrinsics и IO
+- задачи - stackless state machines, созданные async lowering-ом;
+- executor однопоточный и кооперативный;
+- планирование по умолчанию детерминированное FIFO;
+- fuzz-планирование может использовать фиксированный seed для воспроизводимых
+  interleavings;
+- scopes отслеживают structured concurrency и дочерние задачи;
+- channels, timers, joins, select, race и cancellation паркуют задачи, а не
+  блокируют OS thread.
 
-Многие базовые операции реализованы как VM-интринсики, включая:
-
-- числовые преобразования и проверки границ
-- операции со строками и массивами
-- IO-хелперы (stdout write, stdin read)
-- async-примитивы (task handles, channels, timers)
-
-`@intrinsic`-декларации в стандартной библиотеке мапятся на эти реализации.
-
----
-
-## 5. Async-рантайм
-
-За async отвечает `internal/asyncrt`:
-
-- **Однопоточный executor** с кооперативным планированием.
-- **Детерминированный FIFO** по умолчанию; есть fuzz-планирование с
-  фиксированным seed для воспроизводимых interleavings.
-- **Задачи — state machines**, созданные async lowering-ом (`poll`-функции).
-- **Scopes** отслеживают structured concurrency и дочерние задачи.
-- **Каналы** — типизированные FIFO очереди с блокирующими и неблокирующими
-  операциями.
-- **Таймеры** реализуют `sleep` и `timeout` через виртуальное время.
-
-См. `docs/CONCURRENCY.ru.md` для модели на уровне языка.
+VM - самый удобный бэкенд для семантических багов, потому что планировщик малый
+и детерминированный. Native-only races и worker-pinning всё равно требуют
+native/LLVM тестов.
 
 ---
 
-## 6. Детерминизм и replay
+## 3. Native/LLVM-рантайм
 
-VM умеет записывать и воспроизводить выполнение:
+Native runtime - это C-код в `runtime/native`. Компилятор генерирует вызовы
+runtime entry points для задач, каналов, network I/O, heap diagnostics, terminal
+support и числовых helpers.
 
-- `Recorder` пишет детерминированный NDJSON лог intrinsics, exit и panic.
-- `Replayer` проигрывает лог и проверяет каждый результат.
-- `RecordingRuntime` оборачивает рантайм и пишет argv/stdin, а
-  `ReplayRuntime` выдаёт записанные значения и паникует на несовпадениях.
-- Программы, использующие энтропию, воспроизводятся детерминированно: точные
-  байты энтропии пишутся в лог и затем replay'ятся без обращения к host RNG.
+Native async state глобален на процесс и лениво инициализируется при первом
+использовании рантайма. Центральная структура - `rt_executor` в
+`rt_async_internal.h`.
 
-Это используется в golden-тестах и проверках детерминизма.
+```mermaid
+flowchart LR
+    subgraph Binary[Native Surge process]
+        Main[main thread]
+        Workers[executor workers]
+        IO[IO poll thread]
+        Blocking[blocking pool]
+        Exec[rt_executor]
+    end
+
+    Main --> Exec
+    Workers --> Exec
+    IO --> Exec
+    Blocking --> Exec
+
+    Exec --> Tasks[tasks and scopes]
+    Exec --> Ready[local queues and inject queue]
+    Exec --> Waiters[waiter list]
+    Exec --> Timers[executor time]
+    Exec --> Channels[channels]
+    Exec --> Net[net waiters]
+```
+
+Важное состояние, которым владеет executor:
+
+- `tasks[]`: записи задач, status, state pointer, result bits, cancellation и
+  handle refs.
+- `scopes[]`: владение structured concurrency и failfast propagation.
+- `waiters`: FIFO-регистрации по ключам join, timer, channel, net, scope или
+  blocking wait.
+- `inject`: глобальная ready queue для non-worker threads и yielded tasks.
+- `local_queues`: worker-local queues для cache-friendly wakeups.
+- `ready_cv`, `io_cv`, `done_cv`: координация workers, I/O и join.
+- `blocking_*`: отдельный pool для `blocking { ... }`.
+
+### 3.1 Жизненный цикл задачи
+
+```mermaid
+stateDiagram-v2
+    [*] --> READY: create or wake
+    READY --> RUNNING: worker polls
+    RUNNING --> READY: yields
+    RUNNING --> WAITING: parks on waker key
+    WAITING --> READY: wake_task
+    RUNNING --> DONE: success or cancelled
+    WAITING --> DONE: cancellation completes
+    DONE --> [*]: last handle released
+```
+
+Базовые инварианты:
+
+- Задача никогда не poll'ится одновременно несколькими worker'ами.
+- `ex->lock` владеет переходами задач, которые трогают queues, waiters, scopes,
+  timers и shutdown state.
+- Ready queues хранят task IDs с установленным флагом `enqueued`; дубли в
+  очередях отбрасываются.
+- `wake_token` закрывает wake-before-park race, когда wake приходит во время
+  подготовки задачи к park.
+- User poll functions выполняются вне `ex->lock`; переход в `TASK_RUNNING` и
+  выход из него защищены.
+
+### 3.2 Планирование
+
+Native scheduling использует worker-local queues, глобальную inject queue и
+stealing.
+
+```mermaid
+flowchart TD
+    Worker[worker loop] --> Local{local queue has work?}
+    Local -->|yes| Poll[poll task]
+    Local -->|no| Inject{inject queue has work?}
+    Inject -->|yes| Poll
+    Inject -->|no| Steal{other worker queue has work?}
+    Steal -->|yes| Poll
+    Steal -->|no| Sleep[wait on ready_cv]
+
+    Poll --> Outcome{poll outcome}
+    Outcome -->|yielded| Requeue[inject queue]
+    Outcome -->|parked| Waiter[waiter list]
+    Outcome -->|done| Complete[mark done and wake joiners]
+    Requeue --> Worker
+```
+
+Режим по умолчанию - `parallel`. `SURGE_SCHED=seeded` делает решения
+планировщика детерминированными при том же seed и том же порядке внешних
+событий. Он не контролирует OS scheduling, порядок socket readiness, FFI или
+timing blocking pool.
+
+Количество worker'ов:
+
+- `SURGE_THREADS=<n>` переопределяет число executor workers.
+- Без override рантайм использует число CPU, но минимум 2.
+- `rt_worker_count()` возвращает native worker count в Surge-код.
+
+### 3.3 Каналы
+
+Native channels - FIFO handles с опциональным ограниченным buffer. Прямые
+операции каналов в async-коде используют task parking:
+
+```mermaid
+sequenceDiagram
+    participant Sender
+    participant Channel
+    participant Receiver
+    participant Scheduler
+
+    Sender->>Channel: send value
+    alt receiver already waiting
+        Channel->>Receiver: set resume value
+        Channel->>Scheduler: wake receiver
+        Channel-->>Sender: send complete
+    else buffer has capacity
+        Channel-->>Sender: buffer value
+    else no receiver and buffer full
+        Channel->>Scheduler: park sender on CHAN_SEND
+    end
+
+    Receiver->>Channel: recv
+    alt value buffered
+        Channel-->>Receiver: return value
+        Channel->>Scheduler: wake one parked sender
+    else sender waiting
+        Channel-->>Receiver: take sender value
+        Channel->>Scheduler: wake sender with send ack
+    else empty
+        Channel->>Scheduler: park receiver on CHAN_RECV
+    end
+```
+
+Direct async channel handoff - быстрый путь. Он должен парковать задачи, а не
+worker threads, и не должен требовать compensation workers.
+
+Синхронные helper-функции работают иначе. Если async-задача вызывает sync helper,
+который делает `Channel.send`, `Channel.recv` или `Channel.close`, native runtime
+не может приостановить C-stack этого helper'а как async state machine. Поэтому
+используется blocking compatibility path:
+
+- worker временно паркуется внутри sync helper;
+- `channel_blocked_workers` считает pinned workers;
+- ready work выносится из текущей local queue, чтобы другие workers могли его
+  увидеть;
+- compensation workers могут стартовать для сохранения progress.
+
+Этот путь нужен для совместимости, не для скорости. Горячие request/reply paths
+должны держать channel ops прямо в async-коде или использовать async helper
+functions.
+
+### 3.4 Network I/O
+
+Native network wait tasks - обычные runtime tasks:
+
+- `rt_net_wait_accept`, `rt_net_wait_readable` и `rt_net_wait_writable` создают
+  wait tasks с ключом fd и видом readiness.
+- Poll net task сначала пробует `poll(..., timeout=0)`.
+- Если fd не готов, задача паркуется на net waker key.
+- I/O thread следит за зарегистрированными net waiters через `poll`.
+- Когда fd готов, он завершает matching net waiters и будит задачи.
+
+I/O thread сигналится, когда executor становится idle, когда регистрируются net
+waiters или когда меняется shutdown state. `TRACE_NET` counters выводятся как
+часть execution tracing.
+
+### 3.5 Blocking pool
+
+`blocking { ... }` выполняется вне executor workers:
+
+- block становится `TASK_KIND_BLOCKING` task;
+- работа отправляется в выделенный blocking pool;
+- async task ожидает завершения через blocking waker key;
+- cancellation best-effort, потому что underlying OS call может быть
+  непрерываемым.
+
+Размер pool по умолчанию равен числу executor workers и переопределяется через
+`SURGE_BLOCKING_THREADS=<n>`.
+
+### 3.6 Heap и debug intrinsics
+
+Native allocations проходят через `rt_alloc`, `rt_free` и `rt_realloc`. Runtime
+считает allocation count, free count, live blocks и live bytes. Intrinsic
+`rt_heap_stats()` отдает эти counters.
+
+У VM собственная heap model и похожее debug-facing поведение, где это возможно,
+но native counters описывают только native allocation traffic.
 
 ---
 
-## 7. Трассировка и отладка
+## 4. Runtime tracing
 
-- `surge run --vm-trace` включает трассировку исполнения VM.
-- VM экспортирует stop points (имя функции, блок, instruction pointer)
-  для отладки и тестовых хелперов.
+Runtime tracing отделен от compiler tracing в `docs/TRACING.ru.md`.
+
+| Управление | Эффект |
+|------------|--------|
+| `SURGE_TRACE_EXEC=1` | выводит `TRACE_EXEC`, `TRACE_EXEC_SNAPSHOT` и `TRACE_NET` в stderr |
+| `SIGUSR1` вместе с `SURGE_TRACE_EXEC=1` | запрашивает live execution snapshot на поддерживаемых платформах |
+| `SURGE_SCHED_TRACE=1` | выводит summary lines `SCHED_TRACE` |
+| `SURGE_SCHED=seeded` | включает seeded scheduler decisions |
+| `SURGE_SCHED_SEED=<n>` | задает seed для seeded scheduler |
+| `SURGE_ASYNC_DEBUG=1` | включает подробные native async debug prints |
+| `SURGE_CHANNEL_WAKE_INJECT=1` | принудительно отправляет channel wake через inject для экспериментов |
+
+Полезные поля `TRACE_EXEC`:
+
+- `wake_called`, `wake_enqueued`, `park_attempt`, `park_committed`: активность
+  wake/park.
+- `channel_blocking_wait`, `channel_task_blocking_send`,
+  `channel_task_blocking_recv`: sync channel fallback из task context.
+- `channel_handoff_yield`: direct async channel handoff yields.
+- `compensation_started`, `compensation_high_water`: fallback для pinned workers.
+- `waiters_*`, `tasks_*`, `local_total`, `inject_len`: форма scheduler snapshot.
+
+Полезные поля `TRACE_NET`:
+
+- `io_poll_calls`, `io_poll_timeouts`, `io_poll_timeout_max_ms`;
+- `io_poll_wake_fd`, `io_poll_net_ready`, `io_poll_errors`;
+- `io_poll_waiters_last`, `io_poll_waiters_max`, `io_poll_waiters_total`.
+
+Для здорового прямого async channel request/reply path ожидаются
+`channel_task_blocking_send=0`, `channel_task_blocking_recv=0` и
+`compensation_high_water=0`. Ненулевые значения не всегда ошибка, но они
+означают, что workload использовал sync compatibility path или pinned workers.
 
 ---
 
-## 8. Известные ограничения (v1)
+## 5. Диагностика runtime issues
 
-- Нет параллелизма на уровнях ОС-потоков (однопоточный рантайм).
-- `parallel` / `signal` зарезервированы и отклоняются.
+Начинайте с самого маленького слоя, который воспроизводит симптом.
+
+1. **Backend check:** запустите программу на VM и native/LLVM, если возможно.
+   VM-only failure обычно указывает на MIR/semantics; native-only failure - на
+   C runtime, LLVM lowering или real I/O.
+2. **Worker count:** сначала `SURGE_THREADS=1`, затем маленькое multi-worker
+   значение вроде `SURGE_THREADS=2` или `4`.
+3. **Trace counters:** запустите с `SURGE_TRACE_EXEC=1` и проверьте channel,
+   compensation, waiter и net counters.
+4. **Scheduler mode:** используйте
+   `SURGE_SCHED=seeded SURGE_SCHED_SEED=<n>` для воспроизводимых scheduler
+   choices. Не ждите полной воспроизводимости внешнего I/O.
+5. **Channel path:** если `channel_task_blocking_*` или `compensation_*` ненулевые
+   на горячем async path, ищите sync helper functions, скрывающие channel ops.
+6. **Network path:** если net latency остается после чистых channel counters,
+   сравните с маленькой native echo/accept программой до обвинения application
+   logic.
+
+---
+
+## 6. Текущие ограничения
+
+- VM остается single-worker по дизайну.
+- Native/LLVM parallel scheduling не является глобально детерминированным.
+- Seeded scheduling best-effort и зависит от порядка внешних событий.
+- Native waiter list пока общая FIFO registration list; замену на keyed queues
+  нужно делать только по измерениям.
+- Sync channel compatibility всё еще может pin workers. Это fallback, а не
+  рекомендуемая форма горячего async-кода.
+- `parallel map/reduce` и `signal` остаются зарезервированными возможностями
+  языка.

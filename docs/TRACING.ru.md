@@ -197,5 +197,13 @@ surge diag file.sg --trace=trace.json --trace-level=detail --trace-format=chrome
 
 - `--runtime-trace=<file>`: трассировка рантайма Go
 - `surge run --vm-trace`: трассировка выполнения VM
+- `SURGE_TRACE_EXEC=1`: счетчики native/LLVM execution в stderr
+  (`TRACE_EXEC`, `TRACE_EXEC_SNAPSHOT`, `TRACE_NET`)
+- `SURGE_SCHED_TRACE=1`: summary планировщика native/LLVM (`SCHED_TRACE`)
+- `SIGUSR1` вместе с `SURGE_TRACE_EXEC=1`: live snapshot native runtime на
+  поддерживаемых платформах
 
 Они **не** являются частью потока трассировки компилятора.
+
+См. `docs/RUNTIME.ru.md` для значений native runtime counters и порядка
+диагностики.
