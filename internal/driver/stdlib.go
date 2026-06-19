@@ -11,6 +11,11 @@ const (
 	stdModuleCore = "core"
 )
 
+// DetectStdlibRootFrom locates the root that contains Surge core and stdlib modules.
+func DetectStdlibRootFrom(start string) string {
+	return detectStdlibRootFrom(start)
+}
+
 func detectStdlibRootFrom(start string) string {
 	if root := resolveStdlibRoot(os.Getenv("SURGE_STDLIB")); root != "" {
 		return root

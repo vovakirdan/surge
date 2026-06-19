@@ -59,10 +59,12 @@ Surge официально тестировался **только на Linux x8
    ```bash
    curl -fsSL https://surge-lang.org/install.sh | sh
    export PATH="$HOME/.surge/bin:$PATH"
+   surge doctor
    ```
 
    Установщик копирует `surge`, `core` и `stdlib` в `~/.surge`.
    Go для установки релиза не нужен.
+   `surge doctor` проверяет установленную stdlib и инструменты native/LLVM backend.
    Для обновления запустите ту же команду ещё раз.
 
    Чтобы установить конкретный релиз:
@@ -507,6 +509,7 @@ surge parse       → показать полное AST
 surge fix         → автоматически применить безопасные исправления
 surge fmt         → форматирование кода
 surge init        → создать базовый проект
+surge doctor      → проверить stdlib и инструменты native/LLVM backend
 surge build       → сборка LLVM бинаря (нужны clang/llvm) или VM wrapper с --backend=vm
 ```
 
