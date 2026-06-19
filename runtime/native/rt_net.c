@@ -463,6 +463,12 @@ void* rt_net_listen(void* addr, uint64_t port) {
     if (fd < 0) {
         return net_make_error(net_error_code_from_errno(errno));
     }
+    int reuse = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, (socklen_t)sizeof(reuse)) != 0) {
+        uint64_t code = net_error_code_from_errno(errno);
+        close(fd);
+        return net_make_error(code);
+    }
     if (!net_set_nonblocking(fd, &err_code)) {
         close(fd);
         return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);

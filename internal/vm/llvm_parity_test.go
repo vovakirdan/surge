@@ -95,6 +95,13 @@ func TestLLVMParity(t *testing.T) {
 			},
 		},
 		{name: "net_listen_close", file: "net_listen_close.sg"},
+		{
+			name: "net_listen_reuseaddr",
+			file: "net_listen_reuseaddr.sg",
+			setup: func(t *testing.T) []string {
+				return []string{strconv.Itoa(pickFreePort(t))}
+			},
+		},
 		{name: "net_echo", file: "net_echo.sg"},
 		{name: "http_parse_request", file: "http_parse_request.sg"},
 		{name: "http_parse_request_strict", file: "http_parse_request_strict.sg"},
