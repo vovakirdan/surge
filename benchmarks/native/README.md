@@ -26,4 +26,6 @@ The fixture also prints scheduler-shape rows:
 - `channel_ping_pong`: direct async send/recv handoff between two tasks.
 - `channel_sync_new_reply`: sync wrapper fallback called from an async task.
 
-Use `SURGE_CHANNEL_WAKE_INJECT=1` only for A/B placement experiments.
+Default channel placement keeps generic wakes local-first, while no-signal
+handoff wakes use inject placement. Use `SURGE_CHANNEL_WAKE_INJECT=1` only for
+A/B experiments that force all channel wakes through inject.
