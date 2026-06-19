@@ -27,7 +27,7 @@ If you're too lazy to read the documentation (or you've already read it), let's 
 > Surge is currently in the *developers-only* stage.
 > Be prepared for the fact that:
 >
-> * there is no "simple installer",
+> * the installer is intentionally small and Linux x86_64-only,
 > * `hello world` may not work on the first try,
 > * the function you need may not yet be implemented.
 >
@@ -49,38 +49,47 @@ We do it that way.
 
 Required dependencies:
 
-* `go >= 1.25.1`
-* `clang >= 18.1.3`
-* `gcc >= 13.3.0`
-* `llvm` & `lld`
+* release install: `curl` or `wget`, `tar`
+* source build: `go >= 1.25.1`
+* native/LLVM backend: `clang >= 18.1.3`, `gcc >= 13.3.0`, `llvm` & `lld`
 * good mood and desire to win
 
 ---
 
 ### Start
 
-1. Clone the repository:
+1. Install Surge:
+
+   ```bash
+   curl -fsSL https://surge-lang.org/install.sh | sh
+   export PATH="$HOME/.surge/bin:$PATH"
+   ```
+
+   The installer copies `surge`, `core`, and `stdlib` to `~/.surge`.
+   Go is not required for release installs.
+   To update, run the same installer command again.
+
+   To install a specific release:
+
+   ```bash
+   curl -fsSL https://surge-lang.org/install.sh | SURGE_VERSION=0.1.0 sh
+   ```
+
+2. Or build Surge from source:
 
    ```bash
    git clone https://github.com/vovakirdan/surge.git
    cd surge
-   ```
-
-2. Build Surge:
-
-   ```bash
    make build
    ```
 
-   *(optional)*
-   If you have Linux/MacOS, you can install Surge in the system:
+   Optional system install from a source checkout:
 
    ```bash
    make install-system
    ```
 
    This is not required for the first run.
-   The command simply copies the binary to the system directory and sets the `SURGE_STDLIB` environment variable for access to the standard library.
 
 3. Create a file `hello.sg` and open it in any editor.
 
