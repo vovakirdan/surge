@@ -620,6 +620,103 @@ fn main() -> int {
 	}
 }
 
+func TestMTBufferedRecvRefillCompletesSenderAfterNonYieldingReceiver(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+	if runtime.NumCPU() < 2 {
+		t.Skip("buffered recv refill handoff test needs >=2 CPUs")
+	}
+	t.Parallel()
+
+	source := `async fn sender(ch: own Channel<int>) -> int {
+    ch.send(200);
+    return 7;
+}
+
+async fn receiver(ch: own Channel<int>, spins: int) -> int {
+    let first = ch.recv();
+    let first_ok = compare first {
+        Some(v) => v == 100;
+        nothing => false;
+    };
+    if !first_ok {
+        return 2;
+    }
+
+    let mut i: int = 0;
+    let mut total: int = 0;
+    while i < spins {
+        total = total + i;
+        i = i + 1;
+    }
+    if total < 0 {
+        return 3;
+    }
+
+    let second = ch.recv();
+    let second_ok = compare second {
+        Some(v) => v == 200;
+        nothing => false;
+    };
+    if !second_ok {
+        return 4;
+    }
+    return 5;
+}
+
+async fn run() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 6;
+    }
+    let ch = make_channel::<int>(1:uint);
+    ch.send(100);
+    let send_ch = ch;
+    let recv_ch = ch;
+    let send_task = spawn sender(send_ch);
+    checkpoint().await();
+    checkpoint().await();
+    let recv_task = spawn receiver(recv_ch, 200000);
+
+    let recv_res = recv_task.await();
+    let send_res = send_task.await();
+    let recv_ok = compare recv_res {
+        Success(v) => v == 5;
+        Cancelled() => false;
+    };
+    let send_ok = compare send_res {
+        Success(v) => v == 7;
+        Cancelled() => false;
+    };
+    if !recv_ok || !send_ok {
+        return 8;
+    }
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let res = run().await();
+    return compare res {
+        Success(v) => v;
+        Cancelled() => 1;
+    };
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
 func TestMTChannelParkUnpark(t *testing.T) {
 	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
