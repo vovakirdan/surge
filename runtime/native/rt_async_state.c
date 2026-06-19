@@ -1648,10 +1648,10 @@ void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
 }
 
 void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    // Only use when the current task is about to yield before running user code.
-    // Generic channel wakes must signal so non-yielding producers cannot starve waiters.
-    // The yielding sender is injected after poll returns, so FIFO inject order keeps
-    // this handoff receiver ahead of it without leaving the receiver in a local queue.
+    // Use only for cooperative channel handoffs where the current worker is still
+    // active and can drain the injected continuation after the current poll yields,
+    // parks, or completes. Generic external/net/timer wakes must signal sleepers.
+    // Force inject keeps handoff order predictable and avoids local LIFO ping-pong.
     wake_task_with_policy(ex, id, remove_waiter_flag, 1, 0, 0);
 }
 

@@ -237,7 +237,7 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
             }
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_bits = 0;
-            wake_channel_task(ex, sender_id, 1);
+            wake_channel_task_no_signal(ex, sender_id, 1);
         }
         rt_unlock(ex);
         return 1;
