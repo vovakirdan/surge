@@ -1486,6 +1486,12 @@ void ready_push(rt_executor* ex, uint64_t id) {
     (void)ready_push_inner(ex, id, 0);
 }
 
+static int ready_push_yielded_task(rt_executor* ex, uint64_t id) {
+    // A yielding worker immediately re-enters the scheduler loop, so waking another
+    // worker here mostly creates condvar churn for task-to-task handoffs.
+    return ready_push_with_policy(ex, id, 1, 0, 0);
+}
+
 int ready_pop(rt_executor* ex, uint64_t* out_id) {
     // Caller holds ex->lock; worker_next_ready adds local and steal paths.
     return pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT);
@@ -2059,7 +2065,7 @@ static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outc
             task->state = outcome.state;
             task_status_store(task, TASK_READY);
             // Yielded tasks go through the inject queue to avoid local LIFO starvation.
-            (void)ready_push_inner(ex, task->id, 1);
+            (void)ready_push_yielded_task(ex, task->id);
             tick_virtual(ex);
             break;
         case POLL_PARKED:
