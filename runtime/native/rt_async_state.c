@@ -54,6 +54,8 @@ static _Atomic uint64_t trace_park_committed_total;
 static _Atomic uint64_t trace_worker_sleep_total;
 static _Atomic uint64_t trace_worker_wake_total;
 static _Atomic uint64_t trace_channel_blocking_wait_total;
+static _Atomic uint64_t trace_channel_task_blocking_send_total;
+static _Atomic uint64_t trace_channel_task_blocking_recv_total;
 static _Atomic uint64_t trace_compensation_started_total;
 static uint64_t trace_sched_hash;
 static uint64_t trace_sched_events;
@@ -122,6 +124,14 @@ static void trace_exec_inc(_Atomic uint64_t* counter) {
         return;
     }
     (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
+}
+
+void rt_trace_channel_task_blocking_send(void) {
+    trace_exec_inc(&trace_channel_task_blocking_send_total);
+}
+
+void rt_trace_channel_task_blocking_recv(void) {
+    trace_exec_inc(&trace_channel_task_blocking_recv_total);
 }
 
 static void
@@ -210,6 +220,18 @@ static void trace_exec_dump(const char* reason) {
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_channel_blocking_wait_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_task_blocking_send=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_channel_task_blocking_send_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_task_blocking_recv=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_channel_task_blocking_recv_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " compensation_started=");
     pos = trace_exec_append_u64(
         buf,

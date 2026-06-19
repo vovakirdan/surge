@@ -659,7 +659,8 @@ fn main() -> int {
 		t.Fatalf("unexpected stdout: %q", res.stdout)
 	}
 	trace := parseExecTrace(t, res.stderr)
-	if trace["channel_blocking_wait"] != 0 || trace["compensation_started"] != 0 {
+	if trace["channel_blocking_wait"] != 0 || trace["channel_task_blocking_send"] != 0 ||
+		trace["channel_task_blocking_recv"] != 0 || trace["compensation_started"] != 0 {
 		t.Fatalf("async channel path should not pin workers, got %+v\nstderr:\n%s", trace, res.stderr)
 	}
 	snapshot := parseExecSnapshot(t, res.stderr)
@@ -781,6 +782,10 @@ fn main() -> int {
 	trace := parseExecTrace(t, res.stderr)
 	if trace["channel_blocking_wait"] == 0 {
 		t.Fatalf("expected task-context blocking channel waits in TRACE_EXEC, got %+v\nstderr:\n%s",
+			trace, res.stderr)
+	}
+	if trace["channel_task_blocking_send"] == 0 || trace["channel_task_blocking_recv"] == 0 {
+		t.Fatalf("expected task-context blocking channel helper counters in TRACE_EXEC, got %+v\nstderr:\n%s",
 			trace, res.stderr)
 	}
 	if trace["compensation_started"] == 0 {

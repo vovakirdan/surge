@@ -369,6 +369,7 @@ void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
     rt_async_debug_printf(
         "async chan send start ch=%p bits=%llu\n", (void*)ch, (unsigned long long)value_bits);
     if (rt_current_task() != NULL) {
+        rt_trace_channel_task_blocking_send();
         while (!rt_channel_send(channel, value_bits)) {
             if (current_task_cancelled(ex)) {
                 pending_key = waker_none();
@@ -405,6 +406,7 @@ uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {
     }
     rt_async_debug_printf("async chan recv start ch=%p\n", (void*)ch);
     if (rt_current_task() != NULL) {
+        rt_trace_channel_task_blocking_recv();
         for (;;) {
             uint8_t status = rt_channel_recv(channel, out_bits);
             if (status != 0) {
