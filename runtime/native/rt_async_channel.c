@@ -10,6 +10,38 @@ struct rt_channel {
     size_t buf_head;
 };
 
+static uint64_t channel_align_up(uint64_t size, uint64_t align) {
+    if (align == 0) {
+        return size;
+    }
+    uint64_t rem = size % align;
+    if (rem == 0) {
+        return size;
+    }
+    uint64_t add = align - rem;
+    if (size > UINT64_MAX - add) {
+        panic_msg("async: channel allocation overflow");
+        return 0;
+    }
+    return size + add;
+}
+
+static uint64_t channel_buffer_offset(void) {
+    return channel_align_up((uint64_t)sizeof(rt_channel), (uint64_t) _Alignof(uint64_t));
+}
+
+static uint64_t channel_alloc_size(uint64_t capacity) {
+    if (capacity == 0) {
+        return (uint64_t)sizeof(rt_channel);
+    }
+    uint64_t offset = channel_buffer_offset();
+    if (capacity > (UINT64_MAX - offset) / (uint64_t)sizeof(uint64_t)) {
+        panic_msg("async: channel allocation overflow");
+        return 0;
+    }
+    return offset + capacity * (uint64_t)sizeof(uint64_t);
+}
+
 static rt_channel* channel_from_handle(void* handle) {
     if (handle == NULL) {
         panic_msg("async: null channel handle");
@@ -75,7 +107,8 @@ static int prepare_channel_send_yield(rt_task* task) {
 }
 
 void* rt_channel_new(uint64_t capacity) {
-    rt_channel* ch = (rt_channel*)rt_alloc(sizeof(rt_channel), _Alignof(rt_channel));
+    uint64_t bytes = channel_alloc_size(capacity);
+    rt_channel* ch = (rt_channel*)rt_alloc(bytes, _Alignof(rt_channel));
     if (ch == NULL) {
         panic_msg("async: channel allocation failed");
         return NULL;
@@ -83,13 +116,7 @@ void* rt_channel_new(uint64_t capacity) {
     memset(ch, 0, sizeof(rt_channel));
     ch->capacity = capacity;
     if (capacity > 0) {
-        uint64_t bytes = capacity * sizeof(uint64_t);
-        ch->buf = (uint64_t*)rt_alloc(bytes, _Alignof(uint64_t));
-        if (ch->buf == NULL) {
-            panic_msg("async: channel buffer allocation failed");
-            rt_free((uint8_t*)ch, sizeof(rt_channel), _Alignof(rt_channel));
-            return NULL;
-        }
+        ch->buf = (uint64_t*)((uint8_t*)ch + channel_buffer_offset());
     }
     rt_async_debug_printf(
         "async chan new ch=%p cap=%llu\n", (void*)ch, (unsigned long long)capacity);
