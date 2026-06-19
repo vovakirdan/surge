@@ -56,6 +56,7 @@ static _Atomic uint64_t trace_worker_wake_total;
 static _Atomic uint64_t trace_channel_blocking_wait_total;
 static _Atomic uint64_t trace_channel_task_blocking_send_total;
 static _Atomic uint64_t trace_channel_task_blocking_recv_total;
+static _Atomic uint64_t trace_channel_handoff_yield_total;
 static _Atomic uint64_t trace_compensation_started_total;
 static uint64_t trace_sched_hash;
 static uint64_t trace_sched_events;
@@ -132,6 +133,10 @@ void rt_trace_channel_task_blocking_send(void) {
 
 void rt_trace_channel_task_blocking_recv(void) {
     trace_exec_inc(&trace_channel_task_blocking_recv_total);
+}
+
+void rt_trace_channel_handoff_yield(void) {
+    trace_exec_inc(&trace_channel_handoff_yield_total);
 }
 
 static void
@@ -232,6 +237,12 @@ static void trace_exec_dump(const char* reason) {
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_channel_task_blocking_recv_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_handoff_yield=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_channel_handoff_yield_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " compensation_started=");
     pos = trace_exec_append_u64(
         buf,
@@ -1410,7 +1421,8 @@ pop_task_from_deque(rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, u
     return 0;
 }
 
-static int ready_push_with_policy(rt_executor* ex, uint64_t id, int force_inject, int front) {
+static int ready_push_with_policy(
+    rt_executor* ex, uint64_t id, int force_inject, int front, int signal_ready) {
     // Caller holds ex->lock; enqueued prevents duplicate ready-queue entries.
     if (ex == NULL) {
         return 0;
@@ -1459,12 +1471,14 @@ static int ready_push_with_policy(rt_executor* ex, uint64_t id, int force_inject
     if (ex->channel_blocked_workers > 0) {
         maybe_start_compensation_worker_locked(ex);
     }
-    pthread_cond_signal(&ex->ready_cv);
+    if (signal_ready) {
+        pthread_cond_signal(&ex->ready_cv);
+    }
     return 1;
 }
 
 static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
-    return ready_push_with_policy(ex, id, force_inject, 0);
+    return ready_push_with_policy(ex, id, force_inject, 0, 1);
 }
 
 void ready_push(rt_executor* ex, uint64_t id) {
@@ -1590,8 +1604,12 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
     return 0;
 }
 
-static void wake_task_with_policy(
-    rt_executor* ex, uint64_t id, int remove_waiter_flag, int force_inject, int front) {
+static void wake_task_with_policy(rt_executor* ex,
+                                  uint64_t id,
+                                  int remove_waiter_flag,
+                                  int force_inject,
+                                  int front,
+                                  int signal_ready) {
     // Caller holds ex->lock; wake_token handles a wake that races with park_current.
     if (ex == NULL) {
         return;
@@ -1608,7 +1626,7 @@ static void wake_task_with_policy(
     task->park_key = waker_none();
     task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
-    if (ready_push_with_policy(ex, id, force_inject, front)) {
+    if (ready_push_with_policy(ex, id, force_inject, front, signal_ready)) {
         trace_exec_inc(&trace_wake_enqueued_total);
     } else if (ex->channel_blocked_workers > 0) {
         pthread_cond_broadcast(&ex->ready_cv);
@@ -1616,11 +1634,17 @@ static void wake_task_with_policy(
 }
 
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    wake_task_with_policy(ex, id, remove_waiter_flag, 0, 0);
+    wake_task_with_policy(ex, id, remove_waiter_flag, 0, 0, 1);
 }
 
 void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0, 0);
+    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0, 0, 1);
+}
+
+void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
+    // Only use when the current task is about to yield before running user code.
+    // Generic channel wakes must signal so non-yielding producers cannot starve waiters.
+    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0, 0, 0);
 }
 
 static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key) {
@@ -1638,7 +1662,7 @@ static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) 
     for (size_t i = 0; i < ex->waiters_len; i++) {
         waiter w = ex->waiters[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
-            wake_task_with_policy(ex, w.task_id, 0, 0, front);
+            wake_task_with_policy(ex, w.task_id, 0, 0, front, 1);
             continue;
         }
         ex->waiters[out++] = w;

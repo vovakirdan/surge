@@ -60,6 +60,20 @@ static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch) {
     wake_channel_task(ex, sender_id, 1);
 }
 
+static int prepare_channel_send_yield(rt_task* task) {
+    if (task == NULL) {
+        return 0;
+    }
+    // The compiler emits this helper only when the ready path immediately
+    // reaches a recv suspend point. Re-polling consumes this ack without
+    // repeating the already completed send.
+    task->resume_kind = RESUME_CHAN_SEND_ACK;
+    task->resume_bits = 0;
+    pending_key = waker_none();
+    rt_trace_channel_handoff_yield();
+    return 1;
+}
+
 void* rt_channel_new(uint64_t capacity) {
     rt_channel* ch = (rt_channel*)rt_alloc(sizeof(rt_channel), _Alignof(rt_channel));
     if (ch == NULL) {
@@ -82,7 +96,7 @@ void* rt_channel_new(uint64_t capacity) {
     return ch;
 }
 
-bool rt_channel_send(void* channel, uint64_t value_bits) {
+static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_after_handoff) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);
     if (ex == NULL || ch == NULL) {
@@ -131,7 +145,15 @@ bool rt_channel_send(void* channel, uint64_t value_bits) {
         if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
             recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
             recv_task->resume_bits = value_bits;
-            wake_channel_task(ex, recv_id, 1);
+            if (yield_after_handoff) {
+                wake_channel_task_no_signal(ex, recv_id, 1);
+            } else {
+                wake_channel_task(ex, recv_id, 1);
+            }
+            if (yield_after_handoff && prepare_channel_send_yield(task)) {
+                rt_unlock(ex);
+                return 0;
+            }
         }
         rt_unlock(ex);
         return 1;
@@ -147,6 +169,14 @@ bool rt_channel_send(void* channel, uint64_t value_bits) {
     pending_key = send_key;
     rt_unlock(ex);
     return 0;
+}
+
+bool rt_channel_send(void* channel, uint64_t value_bits) {
+    return rt_channel_send_inner(channel, value_bits, 0);
+}
+
+bool rt_channel_send_yield(void* channel, uint64_t value_bits) {
+    return rt_channel_send_inner(channel, value_bits, 1);
 }
 
 uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
