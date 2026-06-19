@@ -1,0 +1,74 @@
+import stdlib/net as net;
+
+async fn accept_and_close(listener: TcpListener) -> int {
+    let accept_task = net.accept(&listener).await();
+    compare accept_task {
+        Success(conn_res) => {
+            compare conn_res {
+                Success(conn) => {
+                    let _ = net.close_conn(own conn);
+                    let _ = net.close_listener(own listener);
+                    return 0;
+                }
+                err => {
+                    print("accept_err=" + (err.code to string));
+                    let _ = net.close_listener(own listener);
+                    return 1;
+                }
+            };
+        }
+        Cancelled() => {
+            print("accept_cancelled");
+            let _ = net.close_listener(own listener);
+            return 1;
+        }
+    };
+    return 1;
+}
+
+@entrypoint("argv")
+fn main(port: uint) -> int {
+    let listen_res = net.listen("127.0.0.1", port);
+    compare listen_res {
+        Success(listener) => {
+            let task: Task<int> = @local spawn accept_and_close(listener);
+            let conn_res = net.connect("127.0.0.1", port);
+            compare conn_res {
+                Success(conn) => {
+                    let accept_res = task.await();
+                    let _ = net.close_conn(own conn);
+                    let accept_ok: bool = compare accept_res {
+                        Success(code) => code == 0;
+                        Cancelled() => false;
+                    };
+                    if !accept_ok {
+                        return 1;
+                    }
+                }
+                err => {
+                    print("connect_err=" + (err.code to string));
+                    let _ = task.await();
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("listen_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let second = net.listen("127.0.0.1", port);
+    compare second {
+        Success(listener) => {
+            let _ = net.close_listener(own listener);
+            print("reuse_ok");
+            return 0;
+        }
+        err => {
+            print("reuse_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 1;
+}
