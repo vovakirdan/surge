@@ -18,7 +18,10 @@ func detectStdlibRootFrom(start string) string {
 	if start == "" {
 		start = "."
 	}
-	return resolveStdlibRootUpwards(start)
+	if root := resolveStdlibRootUpwards(start); root != "" {
+		return root
+	}
+	return resolveStdlibRootNearExecutable()
 }
 
 func resolveStdlibRootUpwards(start string) string {
@@ -54,6 +57,21 @@ func resolveStdlibRoot(candidate string) string {
 		return alt
 	}
 	return ""
+}
+
+func resolveStdlibRootNearExecutable() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return resolveStdlibRootNearExecutablePath(exe)
+}
+
+func resolveStdlibRootNearExecutablePath(exe string) string {
+	if exe == "" {
+		return ""
+	}
+	return resolveStdlibRoot(filepath.Join(filepath.Dir(exe), "..", "share", "surge"))
 }
 
 func hasStdModule(root string) bool {

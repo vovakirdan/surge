@@ -186,6 +186,23 @@ func TestResolveStdlibRootKeepsUnreadableLayout(t *testing.T) {
 	}
 }
 
+func TestResolveStdlibRootNearExecutablePath(t *testing.T) {
+	root := t.TempDir()
+	coreDir := filepath.Join(root, "share", "surge", "core")
+	if err := os.MkdirAll(coreDir, 0o755); err != nil {
+		t.Fatalf("mkdir core: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(coreDir, "intrinsics.sg"), []byte("pragma module, no_std;\n"), 0o644); err != nil {
+		t.Fatalf("write intrinsics: %v", err)
+	}
+
+	got := resolveStdlibRootNearExecutablePath(filepath.Join(root, "bin", "surge"))
+	want := filepath.Join(root, "share", "surge")
+	if got != want {
+		t.Fatalf("resolveStdlibRootNearExecutablePath() = %q, want %q", got, want)
+	}
+}
+
 func exportKeys(m map[string][]symbols.ExportedSymbol) []string {
 	if len(m) == 0 {
 		return nil

@@ -21,6 +21,21 @@ code --install-extension VladimirKirdan.surge-syntax-highlighting
 
 ---
 
+## 0. Установка Surge
+
+На Linux x86_64:
+
+```bash
+curl -fsSL https://surge-lang.org/install.sh | sh
+export PATH="$HOME/.surge/bin:$PATH"
+```
+
+Установщик релиза включает компилятор, `core` и `stdlib`.
+Чтобы обновить Surge, запустите ту же команду ещё раз.
+Для native/LLVM backend по-прежнему нужны системные `clang`, `llvm` и `lld`.
+
+---
+
 ## 1. Ваша первая программа
 
 Давайте начнём с самой маленькой возможной программы на Surge.
