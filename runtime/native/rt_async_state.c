@@ -1388,8 +1388,7 @@ pop_task_from_deque(rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, u
     return 0;
 }
 
-static int ready_push_with_policy(
-    rt_executor* ex, uint64_t id, int force_inject, int front, int signal_local) {
+static int ready_push_with_policy(rt_executor* ex, uint64_t id, int force_inject, int front) {
     // Caller holds ex->lock; enqueued prevents duplicate ready-queue entries.
     if (ex == NULL) {
         return 0;
@@ -1413,7 +1412,6 @@ static int ready_push_with_policy(
     if (!force_inject) {
         local = current_local_queue(ex);
     }
-    size_t local_len_before = local != NULL ? local->len : 0;
     if (local != NULL) {
         // Local queues are popped from the tail, so tail insertion is the local priority path.
         int ok = deque_push_tail(
@@ -1439,16 +1437,12 @@ static int ready_push_with_policy(
     if (ex->channel_blocked_workers > 0) {
         maybe_start_compensation_worker_locked(ex);
     }
-    int clean_local_baton = local != NULL && signal_local == 0 && local_len_before == 0 &&
-                            ex->channel_blocked_workers == 0;
-    if (!clean_local_baton) {
-        pthread_cond_signal(&ex->ready_cv);
-    }
+    pthread_cond_signal(&ex->ready_cv);
     return 1;
 }
 
 static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
-    return ready_push_with_policy(ex, id, force_inject, 0, 1);
+    return ready_push_with_policy(ex, id, force_inject, 0);
 }
 
 void ready_push(rt_executor* ex, uint64_t id) {
@@ -1574,12 +1568,8 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
     return 0;
 }
 
-static void wake_task_with_policy(rt_executor* ex,
-                                  uint64_t id,
-                                  int remove_waiter_flag,
-                                  int force_inject,
-                                  int front,
-                                  int signal_local) {
+static void wake_task_with_policy(
+    rt_executor* ex, uint64_t id, int remove_waiter_flag, int force_inject, int front) {
     // Caller holds ex->lock; wake_token handles a wake that races with park_current.
     if (ex == NULL) {
         return;
@@ -1596,7 +1586,7 @@ static void wake_task_with_policy(rt_executor* ex,
     task->park_key = waker_none();
     task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
-    if (ready_push_with_policy(ex, id, force_inject, front, signal_local)) {
+    if (ready_push_with_policy(ex, id, force_inject, front)) {
         trace_exec_inc(&trace_wake_enqueued_total);
     } else if (ex->channel_blocked_workers > 0) {
         pthread_cond_broadcast(&ex->ready_cv);
@@ -1604,13 +1594,11 @@ static void wake_task_with_policy(rt_executor* ex,
 }
 
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    wake_task_with_policy(ex, id, remove_waiter_flag, 0, 0, 1);
+    wake_task_with_policy(ex, id, remove_waiter_flag, 0, 0);
 }
 
 void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    // Suppress the signal only for a clean baton: the current worker owns an empty
-    // local queue and will usually park/yield into that continuation immediately.
-    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0, 0, 0);
+    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0, 0);
 }
 
 static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key) {
@@ -1628,7 +1616,7 @@ static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) 
     for (size_t i = 0; i < ex->waiters_len; i++) {
         waiter w = ex->waiters[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
-            wake_task_with_policy(ex, w.task_id, 0, 0, front, 1);
+            wake_task_with_policy(ex, w.task_id, 0, 0, front);
             continue;
         }
         ex->waiters[out++] = w;
