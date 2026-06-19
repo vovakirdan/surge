@@ -6,7 +6,7 @@ fixture="$root/benchmarks/native/channel_request_reply"
 report="${SURGE_CHANNEL_BENCH_REPORT:-$root/build/benchmarks/native-channel-request-reply.md}"
 modes="${SURGE_CHANNEL_BENCH_MODES:-1 2 4 8 default}"
 surge="${SURGE:-$root/surge}"
-channel_wake_policy="local-first"
+channel_wake_policy="handoff-inject"
 if [[ -n "${SURGE_CHANNEL_WAKE_INJECT:-}" && "${SURGE_CHANNEL_WAKE_INJECT:-}" != "0" ]]; then
 	channel_wake_policy="force-inject"
 fi
