@@ -47,6 +47,7 @@ fn main(port: uint) -> int {
                 }
                 err => {
                     print("connect_err=" + (err.code to string));
+                    task.cancel();
                     let _ = task.await();
                     return 1;
                 }

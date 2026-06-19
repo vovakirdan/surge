@@ -64,7 +64,7 @@ static uint64_t trace_sched_local_pops;
 static uint64_t trace_sched_inject_pops;
 static uint64_t trace_sched_steal_pops;
 static uint8_t channel_wake_force_inject;
-static volatile sig_atomic_t trace_dump_requested_flag;
+static _Atomic sig_atomic_t trace_dump_requested_flag;
 
 static int async_debug_enabled_cached = -1;
 
@@ -510,7 +510,7 @@ static void trace_exec_signal_handler(int sig) {
 #ifdef SIGUSR1
     (void)signal(SIGUSR1, trace_exec_signal_handler);
 #endif
-    trace_dump_requested_flag = 1;
+    atomic_store_explicit(&trace_dump_requested_flag, 1, memory_order_relaxed);
 }
 
 static void trace_dump_all(const char* reason) {
@@ -522,10 +522,9 @@ static void trace_dump_all(const char* reason) {
 }
 
 void rt_trace_drain_signal_dump(void) {
-    if (trace_dump_requested_flag == 0) {
+    if (atomic_exchange_explicit(&trace_dump_requested_flag, 0, memory_order_relaxed) == 0) {
         return;
     }
-    trace_dump_requested_flag = 0;
     trace_dump_all("sigusr1");
     rt_sched_trace_dump();
 }
@@ -2246,7 +2245,7 @@ static void* rt_io_main(void* arg) {
     const int poll_slice_ms = 50;
     rt_lock(ex);
     for (;;) {
-        if (trace_dump_requested_flag != 0) {
+        if (atomic_load_explicit(&trace_dump_requested_flag, memory_order_relaxed) != 0) {
             rt_unlock(ex);
             rt_trace_drain_signal_dump();
             rt_lock(ex);

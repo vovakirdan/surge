@@ -72,7 +72,7 @@ static int buf_pop(rt_channel* ch, uint64_t* out_bits) {
     return 1;
 }
 
-static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch) {
+static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch, int signal_sender) {
     if (ch == NULL || ch->capacity == 0 || ch->buf_len >= ch->capacity) {
         return;
     }
@@ -89,7 +89,11 @@ static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch) {
     }
     sender->resume_kind = RESUME_CHAN_SEND_ACK;
     sender->resume_bits = 0;
-    wake_channel_task_no_signal(ex, sender_id, 1);
+    if (signal_sender) {
+        wake_channel_task(ex, sender_id, 1);
+    } else {
+        wake_channel_task_no_signal(ex, sender_id, 1);
+    }
 }
 
 static int prepare_channel_send_yield(rt_task* task) {
@@ -250,7 +254,7 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
         if (out_bits != NULL) {
             *out_bits = val;
         }
-        refill_buffer_from_sender(ex, ch);
+        refill_buffer_from_sender(ex, ch, 0);
         rt_unlock(ex);
         return 1;
     }
@@ -322,7 +326,7 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
         if (out_bits != NULL) {
             *out_bits = val;
         }
-        refill_buffer_from_sender(ex, ch);
+        refill_buffer_from_sender(ex, ch, 1);
         rt_unlock(ex);
         return 1;
     }
@@ -356,7 +360,7 @@ uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64
         if (out_bits != NULL) {
             *out_bits = val;
         }
-        refill_buffer_from_sender(ex, ch);
+        refill_buffer_from_sender(ex, ch, 1);
         return 1;
     }
     uint64_t sender_id = 0;
