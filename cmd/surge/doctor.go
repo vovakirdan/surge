@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -103,9 +104,19 @@ func stdlibDoctorCheck(root string) doctorCheck {
 			Required: true,
 		}
 	}
+	clean := filepath.Clean(root)
+	stdlibDir := filepath.Join(clean, "stdlib")
+	info, err := os.Stat(stdlibDir)
+	if err != nil || !info.IsDir() {
+		return doctorCheck{
+			Name:     "stdlib",
+			Detail:   clean + " (missing stdlib directory; reinstall Surge)",
+			Required: true,
+		}
+	}
 	return doctorCheck{
 		Name:     "stdlib",
-		Detail:   filepath.Clean(root),
+		Detail:   clean,
 		Required: true,
 		OK:       true,
 	}
