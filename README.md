@@ -63,10 +63,12 @@ Required dependencies:
    ```bash
    curl -fsSL https://surge-lang.org/install.sh | sh
    export PATH="$HOME/.surge/bin:$PATH"
+   surge doctor
    ```
 
    The installer copies `surge`, `core`, and `stdlib` to `~/.surge`.
    Go is not required for release installs.
+   `surge doctor` checks the installed stdlib and native/LLVM backend tools.
    To update, run the same installer command again.
 
    To install a specific release:
@@ -511,6 +513,7 @@ surge parse       → show the full AST
 surge fix         → auto-apply safe fixes
 surge fmt         → format code
 surge init        → create a basic project
+surge doctor      → check stdlib and native/LLVM backend tools
 surge build       → build an LLVM backend binary (clang/llvm required) or a VM wrapper with --backend=vm
 ```
 

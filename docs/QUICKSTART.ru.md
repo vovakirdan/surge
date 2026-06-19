@@ -28,9 +28,11 @@ code --install-extension VladimirKirdan.surge-syntax-highlighting
 ```bash
 curl -fsSL https://surge-lang.org/install.sh | sh
 export PATH="$HOME/.surge/bin:$PATH"
+surge doctor
 ```
 
 Установщик релиза включает компилятор, `core` и `stdlib`.
+`surge doctor` проверяет установленную stdlib и инструменты native/LLVM backend.
 Чтобы обновить Surge, запустите ту же команду ещё раз.
 Для native/LLVM backend по-прежнему нужны системные `clang`, `llvm` и `lld`.
 

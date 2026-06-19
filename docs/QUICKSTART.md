@@ -29,9 +29,11 @@ On Linux x86_64:
 ```bash
 curl -fsSL https://surge-lang.org/install.sh | sh
 export PATH="$HOME/.surge/bin:$PATH"
+surge doctor
 ```
 
 The release installer includes the compiler, `core`, and `stdlib`.
+`surge doctor` checks the installed stdlib and native/LLVM backend tools.
 To update Surge, run the same installer command again.
 The native/LLVM backend still needs system `clang`, `llvm`, and `lld`.
 
