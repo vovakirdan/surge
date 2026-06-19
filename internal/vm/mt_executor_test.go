@@ -533,6 +533,93 @@ fn main() -> int {
 	}
 }
 
+func TestMTRecvAckHandoffCompletesSenderAfterNonYieldingReceiver(t *testing.T) {
+	requireLLVMBackend(t)
+	ensureLLVMToolchain(t)
+	if runtime.NumCPU() < 2 {
+		t.Skip("recv ack handoff test needs >=2 CPUs")
+	}
+	t.Parallel()
+
+	source := `async fn sender(ch: own Channel<nothing>) -> int {
+    ch.send(nothing);
+    return 7;
+}
+
+async fn receiver(ch: own Channel<nothing>, spins: int) -> int {
+    let value = ch.recv();
+    let ok = compare value {
+        Some(_) => true;
+        nothing => false;
+    };
+    if !ok {
+        return 2;
+    }
+
+    let mut i: int = 0;
+    let mut total: int = 0;
+    while i < spins {
+        total = total + i;
+        i = i + 1;
+    }
+    if total < 0 {
+        return 3;
+    }
+    return 5;
+}
+
+async fn run() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 4;
+    }
+    let ch = make_channel::<nothing>(0:uint);
+    let send_ch = ch;
+    let recv_ch = ch;
+    let send_task = spawn sender(send_ch);
+    checkpoint().await();
+    checkpoint().await();
+    let recv_task = spawn receiver(recv_ch, 200000);
+
+    let recv_res = recv_task.await();
+    let send_res = send_task.await();
+    let recv_ok = compare recv_res {
+        Success(v) => v == 5;
+        Cancelled() => false;
+    };
+    let send_ok = compare send_res {
+        Success(v) => v == 7;
+        Cancelled() => false;
+    };
+    if !recv_ok || !send_ok {
+        return 6;
+    }
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let res = run().await();
+    return compare res {
+        Success(v) => v;
+        Cancelled() => 1;
+    };
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
 func TestMTChannelParkUnpark(t *testing.T) {
 	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
