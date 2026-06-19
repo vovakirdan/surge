@@ -98,9 +98,11 @@ for mode in $modes; do
 		[[ "$line" == \|* ]] || continue
 		printf '| %s |%s\n' "$mode" "${line#|}" >>"$report"
 	done <<<"$output"
-	printf '| %s | %s | %s | %s |\n' \
+	printf '| %s | %s | %s | %s | %s | %s |\n' \
 		"$mode" \
 		"$(trace_value "$trace_log" TRACE_EXEC channel_blocking_wait)" \
+		"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_send)" \
+		"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_recv)" \
 		"$(trace_value "$trace_log" TRACE_EXEC compensation_started)" \
 		"$(trace_value "$trace_log" TRACE_EXEC_SNAPSHOT compensation_high_water)" >>"$trace_rows"
 	rm -f "$trace_log"
@@ -110,8 +112,8 @@ cat >>"$report" <<'EOF'
 
 ## Runtime Trace
 
-| mode | channel blocking waits | compensation started | compensation high-water |
-| --- | ---: | ---: | ---: |
+| mode | channel blocking waits | task-context blocking sends | task-context blocking recvs | compensation started | compensation high-water |
+| --- | ---: | ---: | ---: | ---: | ---: |
 EOF
 cat "$trace_rows" >>"$report"
 
