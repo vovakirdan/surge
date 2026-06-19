@@ -143,7 +143,44 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 		}
 	}
 
+	markChannelSendHandoffYields(f)
 	return sites, nil
+}
+
+func markChannelSendHandoffYields(f *Func) {
+	if f == nil {
+		return
+	}
+	// A send whose ready path immediately polls a recv is the request/reply
+	// shape. The runtime may yield after a completed handoff so the receiver
+	// gets a turn before this task parks for the reply.
+	for bi := range f.Blocks {
+		bb := &f.Blocks[bi]
+		for ii := range bb.Instrs {
+			ins := &bb.Instrs[ii]
+			if ins.Kind != InstrChanSend {
+				continue
+			}
+			ins.ChanSend.YieldAfterHandoff = readyPathStartsWithChanRecv(f, ins.ChanSend.ReadyBB)
+		}
+	}
+}
+
+func readyPathStartsWithChanRecv(f *Func, bbID BlockID) bool {
+	for steps := 0; bbID != NoBlockID && steps < len(f.Blocks); steps++ {
+		if int(bbID) < 0 || int(bbID) >= len(f.Blocks) {
+			return false
+		}
+		bb := &f.Blocks[bbID]
+		if len(bb.Instrs) > 0 {
+			return bb.Instrs[0].Kind == InstrChanRecv
+		}
+		if bb.Term.Kind != TermGoto {
+			return false
+		}
+		bbID = bb.Term.Goto.Target
+	}
+	return false
 }
 
 // collectSuspendSites scans for poll/join_all instructions in block order.

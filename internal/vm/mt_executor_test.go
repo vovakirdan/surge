@@ -765,6 +765,10 @@ fn main() -> int {
 		trace["channel_task_blocking_recv"] != 0 || trace["compensation_started"] != 0 {
 		t.Fatalf("async channel path should not pin workers, got %+v\nstderr:\n%s", trace, res.stderr)
 	}
+	if trace["channel_handoff_yield"] == 0 {
+		t.Fatalf("expected async channel handoff yields in TRACE_EXEC, got %+v\nstderr:\n%s",
+			trace, res.stderr)
+	}
 	snapshot := parseExecSnapshot(t, res.stderr)
 	if snapshot["compensation"] != 0 || snapshot["channel_blocked"] != 0 {
 		t.Fatalf("unexpected async channel snapshot %+v\nstderr:\n%s", snapshot, res.stderr)
@@ -888,6 +892,10 @@ fn main() -> int {
 	}
 	if trace["channel_task_blocking_send"] == 0 || trace["channel_task_blocking_recv"] == 0 {
 		t.Fatalf("expected task-context blocking channel helper counters in TRACE_EXEC, got %+v\nstderr:\n%s",
+			trace, res.stderr)
+	}
+	if trace["channel_handoff_yield"] != 0 {
+		t.Fatalf("sync channel helper path should not use async handoff yields, got %+v\nstderr:\n%s",
 			trace, res.stderr)
 	}
 	if trace["compensation_started"] == 0 {

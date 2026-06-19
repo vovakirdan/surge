@@ -241,6 +241,7 @@ void rt_async_debug_printf(const char* fmt, ...);
 int rt_exec_trace_enabled(void);
 void rt_trace_channel_task_blocking_send(void);
 void rt_trace_channel_task_blocking_recv(void);
+void rt_trace_channel_handoff_yield(void);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
@@ -353,6 +354,7 @@ void ready_push(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
+void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_key_all(rt_executor* ex, waker_key key);
 void park_current(rt_executor* ex, waker_key key);
 void tick_virtual(rt_executor* ex);
@@ -374,6 +376,7 @@ void task_release(rt_executor* ex, rt_task* task);
 
 void* rt_channel_new(uint64_t capacity);
 bool rt_channel_send(void* channel, uint64_t value_bits);
+bool rt_channel_send_yield(void* channel, uint64_t value_bits);
 uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);
 bool rt_channel_try_send(void* channel, uint64_t value_bits);
 bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
