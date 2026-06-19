@@ -3,6 +3,17 @@
 This changelog is curated manually.
 It currently starts with the `ret` block-values work and does not backfill older project history yet.
 
+## [0.1.12] - 2026-06-19
+
+### 🚀 Features
+
+- *(install)* Add release archive installer
+- *(cli)* Add surge doctor
+
+### 📚 Documentation
+
+- *(readme)* Use installed surge in Russian quickstart
+
 ## Unreleased
 
 ### Language
