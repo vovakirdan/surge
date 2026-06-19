@@ -9,6 +9,7 @@ It keeps the latest release notes; older sections may be replaced.
 
 - Add release archive installer
 - Add surge doctor
+- Validate stdlib tree in doctor
 
 ### Documentation
 

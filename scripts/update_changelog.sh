@@ -11,8 +11,8 @@ if [[ $# -lt 2 || $(( $# % 2 )) -ne 0 ]]; then
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-out="$(mktemp)"
-trimmed="$(mktemp)"
+out="$(mktemp "$root/.CHANGELOG.md.out.XXXXXX")"
+trimmed="$(mktemp "$root/.CHANGELOG.md.trimmed.XXXXXX")"
 trap 'rm -f "$out" "$trimmed"' EXIT
 
 section_order=(
@@ -79,7 +79,7 @@ skip_subject() {
 	local scope="$2"
 	local lower="$3"
 	[[ "$type" == "docs" && "$scope" == "changelog" ]] && return 0
-	[[ "$type" == "chore" && "$lower" =~ ^chore\((release|deps|pr|pull) ]] && return 0
+	[[ "$type" == "chore" && "$lower" =~ ^chore\((release|deps|pr|pull)\) ]] && return 0
 	return 1
 }
 
@@ -107,11 +107,15 @@ domain_for_subject() {
 		printf 'Runtime\n'
 		return
 	fi
+	if [[ "$scope" == cli || "$scope" == install || "$scope" == tooling || "$scope" == lsp || "$scope" == module || "$lower" == *"issue fixer skill"* ]]; then
+		printf 'CLI / Tooling\n'
+		return
+	fi
 	if [[ "$scope" == stdlib* || "$scope" == hash || "$scope" == random || "$scope" == entropy || "$lower" == *"stdlib"* || "$lower" == *"random"* || "$lower" == *"uuid"* || "$lower" == *"entropy"* || "$lower" == *"duration intrinsics"* ]]; then
 		printf 'Standard Library\n'
 		return
 	fi
-	if [[ "$scope" == cli || "$scope" == install || "$scope" == tooling || "$scope" == lsp || "$scope" == module || "$type" == "build" || "$type" == "ci" || "$type" == "chore" || "$lower" == *"issue fixer skill"* ]]; then
+	if [[ "$type" == "build" || "$type" == "ci" || "$type" == "chore" ]]; then
 		printf 'CLI / Tooling\n'
 		return
 	fi
