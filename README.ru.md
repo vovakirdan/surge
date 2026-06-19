@@ -101,13 +101,13 @@ Surge официально тестировался **только на Linux x8
 5. Запустим программу:
 
    ```bash
-   ./surge run hello.sg
+   surge run hello.sg
    ```
 
 6. Или скомпилируем в бинарь:
 
    ```bash
-   ./surge build hello.sg
+   surge build hello.sg
    ./target/debug/hello
    ```
 
