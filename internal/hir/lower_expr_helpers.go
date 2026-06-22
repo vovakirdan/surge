@@ -2,6 +2,7 @@ package hir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/numlit"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -291,19 +292,12 @@ func (l *lowerer) inferOwnership(ty types.TypeID) Ownership {
 	}
 }
 
-//nolint:gocritic // ifElseChain is clearer than switch for character ranges
 func parseIntLiteral(s string) int64 {
-	var result int64
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			result = result*10 + int64(c-'0')
-		} else if c == '_' {
-			continue
-		} else {
-			break
-		}
+	value, ok := numlit.ParseInt64(s)
+	if !ok {
+		return 0
 	}
-	return result
+	return value
 }
 
 //nolint:gocritic // ifElseChain is clearer than switch for character ranges

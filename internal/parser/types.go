@@ -2,12 +2,12 @@ package parser
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
+	"surge/internal/numlit"
 	"surge/internal/source"
 	"surge/internal/token"
 )
@@ -406,8 +406,8 @@ func (p *Parser) parseArraySizeLiteral(tok token.Token) (uint64, bool) {
 		return 0, false
 	}
 
-	value, err := strconv.ParseUint(body, 0, 64)
-	if err != nil {
+	value, ok := numlit.ParseUint64(body)
+	if !ok {
 		p.err(diag.SynUnexpectedToken, fmt.Sprintf("array size literal %q is out of range", tok.Text))
 		return 0, false
 	}

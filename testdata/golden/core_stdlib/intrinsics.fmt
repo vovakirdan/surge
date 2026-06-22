@@ -714,6 +714,7 @@ pub type BytesView = {
 extern<BytesView> {
     @intrinsic fn __len(self: &BytesView) -> uint;
     @intrinsic fn __index(self: &BytesView, index: int) -> uint8;
+    @intrinsic @overload fn __index(self: &BytesView, index: int64) -> uint8;
 }
 
 extern<bool> {

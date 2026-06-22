@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 
 	"surge/internal/driver"
@@ -76,6 +77,87 @@ fn main() -> int {
 	if !regexp.MustCompile(`call ptr @rt_alloc`).MatchString(ir) {
 		t.Fatalf("expected nested union construction to emit runtime allocation:\n%s", ir)
 	}
+}
+
+func TestEmitFixedWidthLiteralCastAvoidsBigIntMaterialization(t *testing.T) {
+	sourceCode := `fn loop_fixed() -> int64 {
+    let mut i: int64 = 0:int64;
+    let mut sum: int64 = 0:int64;
+    while i < 10000:int64 {
+        sum = sum + 1:int64;
+        i = i + 1:int64;
+    }
+    return sum;
+}
+
+@entrypoint
+fn main() -> int {
+    let out: int64 = loop_fixed();
+    if out == 10000:int64 {
+        return 0;
+    }
+    return 1;
+}
+`
+
+	ir := emitLLVMFromSource(t, sourceCode)
+	body := findI64FunctionBodyContaining(t, ir, "store i64 10000")
+
+	if strings.Contains(body, "rt_bigint_from_literal") || strings.Contains(body, "rt_bigint_to_i64") {
+		t.Fatalf("fixed-width literal casts should not materialize BigInt in loop_fixed:\n%s", body)
+	}
+	for _, want := range []string{"store i64 10000", "store i64 1", "add i64", "icmp slt i64"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected %q in loop_fixed IR:\n%s", want, body)
+		}
+	}
+}
+
+func TestEmitFixedWidthLiteralCastPreservesIntegerLiteralBases(t *testing.T) {
+	sourceCode := `fn base_literals() -> uint64 {
+    let hex: uint64 = 0xFF:uint64;
+    let binary: uint64 = 0b1010:uint64;
+    let octal: uint64 = 0o7:uint64;
+    let grouped: uint64 = 1_000:uint64;
+    let leading_zero: uint64 = 010:uint64;
+    return hex + binary + octal + grouped + leading_zero;
+}
+
+@entrypoint
+fn main() -> int {
+    if base_literals() == 1282:uint64 {
+        return 0;
+    }
+    return 1;
+}
+`
+
+	ir := emitLLVMFromSource(t, sourceCode)
+	body := findI64FunctionBodyContaining(t, ir, "store i64 255")
+
+	for _, forbidden := range []string{"rt_bigint_from_literal", "rt_biguint_from_literal", "rt_bigint_to_u64", "rt_biguint_to_u64"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("fixed-width literal casts should preserve supported integer bases without %s:\n%s", forbidden, body)
+		}
+	}
+	for _, want := range []string{"store i64 255", "store i64 10", "store i64 7", "store i64 1000"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected %q in base_literals IR:\n%s", want, body)
+		}
+	}
+}
+
+func findI64FunctionBodyContaining(t *testing.T, ir, needle string) string {
+	t.Helper()
+
+	re := regexp.MustCompile(`(?s)define i64 @fn\.\d+\(\) \{.*?\n\}`)
+	for _, body := range re.FindAllString(ir, -1) {
+		if strings.Contains(body, needle) && strings.Contains(body, "add i64") {
+			return body
+		}
+	}
+	t.Fatalf("no i64 function body containing %q found in IR:\n%s", needle, ir)
+	return ""
 }
 
 func emitLLVMFromSource(t *testing.T, sourceCode string) string {

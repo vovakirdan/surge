@@ -7,6 +7,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/hir"
+	"surge/internal/numlit"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -28,12 +29,11 @@ func (l *funcLowerer) lowerLiteral(ty types.TypeID, lit hir.LiteralData) Operand
 		}
 		if isUint {
 			out.Const.Kind = ConstUint
-			val, err := safecast.Conv[uint64](lit.IntValue)
-			if err != nil {
+			if val, ok := parseLiteralUint64(lit); ok {
+				out.Const.UintValue = val
+			} else {
 				out.Const.Kind = ConstInt
 				out.Const.IntValue = lit.IntValue
-			} else {
-				out.Const.UintValue = val
 			}
 		} else {
 			out.Const.Kind = ConstInt
@@ -56,6 +56,17 @@ func (l *funcLowerer) lowerLiteral(ty types.TypeID, lit hir.LiteralData) Operand
 	}
 
 	return out
+}
+
+func parseLiteralUint64(lit hir.LiteralData) (uint64, bool) {
+	if lit.Text != "" {
+		return numlit.ParseUint64(lit.Text)
+	}
+	val, err := safecast.Conv[uint64](lit.IntValue)
+	if err != nil {
+		return 0, false
+	}
+	return val, true
 }
 
 // constNothing creates a nothing constant operand.

@@ -1,4 +1,4 @@
-intrinsics.sg (span: 1:1-874:1)
+intrinsics.sg (span: 1:1-875:1)
 ├─ Item[0]: Type (span: 3:1-3:23)
 │  ├─ Name: byte
 │  ├─ Kind: Alias
@@ -2316,18 +2316,22 @@ Block (span: 694:25-698:10)
 │     ├─ Field[0]: owner: string
 │     ├─ Field[1]: ptr: *byte
 │     └─ Field[2]: len: uint
-├─ Item[125]: Extern (span: 714:1-717:2)
+├─ Item[125]: Extern (span: 714:1-718:2)
 │  ├─ Target: BytesView
 │  ├─ Members:
 │  │  ├─ Fn[0]: __len
 │  │  │  ├─ Params: (self: &BytesView)
 │  │  │  ├─ Return: uint
 │  │  │  └─ Attributes: @intrinsic
-│  │  └─ Fn[1]: __index
-│  │     ├─ Params: (self: &BytesView, index: int)
+│  │  ├─ Fn[1]: __index
+│  │  │  ├─ Params: (self: &BytesView, index: int)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[2]: __index
+│  │     ├─ Params: (self: &BytesView, index: int64)
 │  │     ├─ Return: uint8
-│  │     └─ Attributes: @intrinsic
-├─ Item[126]: Extern (span: 719:1-730:2)
+│  │     └─ Attributes: @intrinsic, @overload
+├─ Item[126]: Extern (span: 720:1-731:2)
 │  ├─ Target: bool
 │  ├─ Members:
 │  │  ├─ Fn[0]: __eq
@@ -2351,8 +2355,8 @@ Block (span: 694:25-698:10)
 │  │  │  ├─ Return: string
 │  │  │  ├─ Attributes: @overload
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 724:61-726:6)
-│  │  │     └─ Stmt[0]: Return (span: 725:9-725:34)
+│  │  │     Stmt[0]: Block (span: 725:61-727:6)
+│  │  │     └─ Stmt[0]: Return (span: 726:9-726:34)
 │  │  │        └─ Expr: expr#141: (*self) to string
 │  │  ├─ Fn[5]: __to
 │  │  │  ├─ Params: (self: bool, target: int)
@@ -2362,7 +2366,7 @@ Block (span: 694:25-698:10)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<bool, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[127]: Extern (span: 732:1-739:2)
+├─ Item[127]: Extern (span: 733:1-740:2)
 │  ├─ Target: Array<T>
 │  ├─ Members:
 │  │  ├─ Fn[0]: __add
@@ -2389,7 +2393,7 @@ Block (span: 694:25-698:10)
 │  │     ├─ Params: (self: &Array<T>)
 │  │     ├─ Return: uint
 │  │     └─ Attributes: @intrinsic
-├─ Item[128]: Extern (span: 741:1-748:2)
+├─ Item[128]: Extern (span: 742:1-749:2)
 │  ├─ Target: ArrayFixed<T, N>
 │  ├─ Members:
 │  │  ├─ Fn[0]: __add
@@ -2416,62 +2420,62 @@ Block (span: 694:25-698:10)
 │  │     ├─ Params: (self: &ArrayFixed<T, N>)
 │  │     ├─ Return: uint
 │  │     └─ Attributes: @intrinsic
-├─ Item[129]: Fn (span: 750:1-751:26)
+├─ Item[129]: Fn (span: 751:1-752:26)
 │  ├─ Name: default
 │  ├─ Generics: <T>
 │  ├─ Params: ()
 │  ├─ Return: T
 │  └─ Body: <none>
-├─ Item[130]: Fn (span: 753:1-754:29)
+├─ Item[130]: Fn (span: 754:1-755:29)
 │  ├─ Name: size_of
 │  ├─ Generics: <T>
 │  ├─ Params: ()
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[131]: Fn (span: 756:1-757:30)
+├─ Item[131]: Fn (span: 757:1-758:30)
 │  ├─ Name: align_of
 │  ├─ Generics: <T>
 │  ├─ Params: ()
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[132]: Contract (span: 759:1-762:2)
-├─ Item[133]: Fn (span: 764:1-765:44)
+├─ Item[132]: Contract (span: 760:1-763:2)
+├─ Item[133]: Fn (span: 765:1-766:44)
 │  ├─ Name: exit
 │  ├─ Generics: <E>
 │  ├─ Params: (e: E)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[134]: Fn (span: 767:1-768:54)
+├─ Item[134]: Fn (span: 768:1-769:54)
 │  ├─ Name: rt_panic
 │  ├─ Params: (ptr: *byte, length: uint)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[135]: Fn (span: 770:1-774:2)
+├─ Item[135]: Fn (span: 771:1-775:2)
 │  ├─ Name: panic
 │  ├─ Params: (msg: string)
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 770:38-774:2)
-│        ├─ Stmt[0]: Let (span: 771:5-771:35)
+│     └─ Stmt[0]: Block (span: 771:38-775:2)
+│        ├─ Stmt[0]: Let (span: 772:5-772:35)
 │        │  ├─ Name: ptr
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
 │        │  └─ Value: expr#145: rt_string_ptr(&msg)
-│        ├─ Stmt[1]: Let (span: 772:5-772:44)
+│        ├─ Stmt[1]: Let (span: 773:5-773:44)
 │        │  ├─ Name: length
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
 │        │  └─ Value: expr#149: rt_string_len_bytes(&msg)
-│        └─ Stmt[2]: Expr (span: 773:5-773:27)
+│        └─ Stmt[2]: Expr (span: 774:5-774:27)
 │           └─ Expr: expr#153: rt_panic(ptr, length)
-├─ Item[136]: Type (span: 776:1-779:3)
+├─ Item[136]: Type (span: 777:1-780:3)
 │  ├─ Name: RwLock
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  ├─ Attributes: @intrinsic
 │  └─ Struct:
 │     └─ Field[0]: __opaque: *byte
-├─ Item[137]: Extern (span: 781:1-789:2)
+├─ Item[137]: Extern (span: 782:1-790:2)
 │  ├─ Target: RwLock
 │  ├─ Members:
 │  │  ├─ Fn[0]: new
@@ -2502,97 +2506,97 @@ Block (span: 694:25-698:10)
 │  │     ├─ Params: (self: &mut RwLock)
 │  │     ├─ Return: bool
 │  │     └─ Attributes: @intrinsic
-├─ Item[138]: Fn (span: 797:1-798:38)
+├─ Item[138]: Fn (span: 798:1-799:38)
 │  ├─ Name: atomic_load
 │  ├─ Params: (ptr: &int)
 │  ├─ Return: int
 │  └─ Body: <none>
-├─ Item[139]: Fn (span: 800:1-802:40)
+├─ Item[139]: Fn (span: 801:1-803:40)
 │  ├─ Name: atomic_load
 │  ├─ Params: (ptr: &uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[140]: Fn (span: 804:1-806:40)
+├─ Item[140]: Fn (span: 805:1-807:40)
 │  ├─ Name: atomic_load
 │  ├─ Params: (ptr: &bool)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[141]: Fn (span: 809:1-810:59)
+├─ Item[141]: Fn (span: 810:1-811:59)
 │  ├─ Name: atomic_store
 │  ├─ Params: (ptr: &mut int, value: int)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[142]: Fn (span: 812:1-814:61)
+├─ Item[142]: Fn (span: 813:1-815:61)
 │  ├─ Name: atomic_store
 │  ├─ Params: (ptr: &mut uint, value: uint)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[143]: Fn (span: 816:1-818:61)
+├─ Item[143]: Fn (span: 817:1-819:61)
 │  ├─ Name: atomic_store
 │  ├─ Params: (ptr: &mut bool, value: bool)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[144]: Fn (span: 821:1-822:60)
+├─ Item[144]: Fn (span: 822:1-823:60)
 │  ├─ Name: atomic_exchange
 │  ├─ Params: (ptr: &mut int, new_val: int)
 │  ├─ Return: int
 │  └─ Body: <none>
-├─ Item[145]: Fn (span: 824:1-826:63)
+├─ Item[145]: Fn (span: 825:1-827:63)
 │  ├─ Name: atomic_exchange
 │  ├─ Params: (ptr: &mut uint, new_val: uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[146]: Fn (span: 828:1-830:63)
+├─ Item[146]: Fn (span: 829:1-831:63)
 │  ├─ Name: atomic_exchange
 │  ├─ Params: (ptr: &mut bool, new_val: bool)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[147]: Fn (span: 834:1-835:84)
+├─ Item[147]: Fn (span: 835:1-836:84)
 │  ├─ Name: atomic_compare_exchange
 │  ├─ Params: (ptr: &mut int, expected: int, desired: int)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[148]: Fn (span: 837:1-839:87)
+├─ Item[148]: Fn (span: 838:1-840:87)
 │  ├─ Name: atomic_compare_exchange
 │  ├─ Params: (ptr: &mut uint, expected: uint, desired: uint)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[149]: Fn (span: 841:1-843:87)
+├─ Item[149]: Fn (span: 842:1-844:87)
 │  ├─ Name: atomic_compare_exchange
 │  ├─ Params: (ptr: &mut bool, expected: bool, desired: bool)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[150]: Fn (span: 846:1-847:59)
+├─ Item[150]: Fn (span: 847:1-848:59)
 │  ├─ Name: atomic_fetch_add
 │  ├─ Params: (ptr: &mut int, delta: int)
 │  ├─ Return: int
 │  └─ Body: <none>
-├─ Item[151]: Fn (span: 849:1-851:62)
+├─ Item[151]: Fn (span: 850:1-852:62)
 │  ├─ Name: atomic_fetch_add
 │  ├─ Params: (ptr: &mut uint, delta: uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[152]: Fn (span: 854:1-855:59)
+├─ Item[152]: Fn (span: 855:1-856:59)
 │  ├─ Name: atomic_fetch_sub
 │  ├─ Params: (ptr: &mut int, delta: int)
 │  ├─ Return: int
 │  └─ Body: <none>
-├─ Item[153]: Fn (span: 857:1-859:62)
+├─ Item[153]: Fn (span: 858:1-860:62)
 │  ├─ Name: atomic_fetch_sub
 │  ├─ Params: (ptr: &mut uint, delta: uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[154]: Fn (span: 864:1-865:30)
+├─ Item[154]: Fn (span: 865:1-866:30)
 │  ├─ Name: rt_argv
 │  ├─ Params: ()
 │  ├─ Return: string[]
 │  └─ Body: <none>
-├─ Item[155]: Fn (span: 868:1-869:38)
+├─ Item[155]: Fn (span: 869:1-870:38)
 │  ├─ Name: rt_stdin_read_all
 │  ├─ Params: ()
 │  ├─ Return: string
 │  └─ Body: <none>
-└─ Item[156]: Fn (span: 872:1-873:38)
+└─ Item[156]: Fn (span: 873:1-874:38)
    ├─ Name: rt_exit
    ├─ Params: (code: int)
    ├─ Return: nothing

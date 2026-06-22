@@ -1,0 +1,24 @@
+fn write_line(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let slen = rt_string_len(&s);
+    rt_write_stdout(ptr, slen);
+    let newline = "\n";
+    rt_write_stdout(rt_string_ptr(&newline), 1:uint);
+}
+
+@entrypoint
+fn main() -> int {
+    let leading_zero: int64 = 010;
+    let hex: int64 = 0x10;
+    let binary: int64 = 0b1010;
+    let octal: int64 = 0o7;
+    let grouped: uint64 = 1_000;
+
+    write_line(leading_zero to string);
+    write_line(hex to string);
+    write_line(binary to string);
+    write_line(octal to string);
+    write_line(grouped to string);
+
+    return 0;
+}
