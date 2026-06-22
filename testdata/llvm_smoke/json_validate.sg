@@ -1,0 +1,45 @@
+import stdlib/json as json;
+
+fn expect_ok(input: &string, code: int) -> int {
+    compare json.validate(input) {
+        Success(_) => {
+            return 0;
+        }
+        err => {
+            let _ = err;
+            return code;
+        }
+    };
+}
+
+fn expect_err_offset(input: &string, offset: uint, code: int) -> int {
+    compare json.validate(input) {
+        Success(_) => {
+            return code;
+        }
+        err => {
+            if err.offset != offset {
+                return code + 1;
+            }
+            return 0;
+        }
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let valid: string = "{\"a\":[true,false,null],\"b\":\"x\"}";
+    let ok_code: int = expect_ok(&valid, 1);
+    if ok_code != 0 {
+        return ok_code;
+    }
+
+    let invalid_array: string = "[1,]";
+    let array_code: int = expect_err_offset(&invalid_array, 3:uint, 2);
+    if array_code != 0 {
+        return array_code;
+    }
+
+    let invalid_trailing: string = "true false";
+    return expect_err_offset(&invalid_trailing, 5:uint, 4);
+}

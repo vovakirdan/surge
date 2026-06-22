@@ -194,6 +194,9 @@ func (fe *funcEmitter) emitTagValueFromValues(typeID types.TypeID, tagIndex int,
 		return "", err
 	}
 	for i := range payloadTypes {
+		if isNothingType(fe.emitter.types, payloadTypes[i]) {
+			continue
+		}
 		off := layoutInfo.PayloadOffset + offsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
