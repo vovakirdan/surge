@@ -491,6 +491,7 @@ Main functions:
 
 - `parse(input: &string) -> Erring<JsonValue, JsonError>`
 - `parse_bytes(input: byte[]) -> Erring<JsonValue, JsonError>`
+- `validate(input: &string) -> Erring<nothing, JsonError>`
 - `stringify(value: &JsonValue) -> string`
 
 There are also `to_json()` implementations for `string`, `bool`, `int`, `uint`, and `JsonValue`.

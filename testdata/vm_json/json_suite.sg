@@ -34,6 +34,33 @@ fn parse_err_offset(input: &string, offset: uint) -> nothing {
     return nothing;
 }
 
+fn validate_ok(input: &string) -> nothing {
+    let res = json.validate(input);
+    compare res {
+        Success(_) => {}
+        err => {
+            let _ = err;
+            panic("validate failed");
+        }
+    };
+    return nothing;
+}
+
+fn validate_err_offset(input: &string, offset: uint) -> nothing {
+    let res = json.validate(input);
+    compare res {
+        Success(_) => {
+            panic("expected validate error");
+        }
+        err => {
+            if err.offset != offset {
+                panic("validate offset mismatch");
+            }
+        }
+    };
+    return nothing;
+}
+
 fn array_eq(a: JsonValue[], b: JsonValue[]) -> bool {
     if a.__len() != b.__len() {
         return false;
@@ -350,6 +377,33 @@ fn test_errors() -> nothing {
     return nothing;
 }
 
+fn test_validate() -> nothing {
+    let input1: string = "{\"a\":[true,false,null],\"b\":{\"c\":\"d\"}}";
+    validate_ok(&input1);
+
+    let input2: string = " \n\t -12.34e+5 ";
+    validate_ok(&input2);
+
+    let input3: string = "\"\\uD834\\uDD1E\"";
+    validate_ok(&input3);
+
+    let bad_trailing: string = "true false";
+    validate_err_offset(&bad_trailing, 5:uint);
+
+    let bad_array: string = "[1,]";
+    validate_err_offset(&bad_array, 3:uint);
+
+    let bad_string: string = "\"abc";
+    validate_err_offset(&bad_string, 0:uint);
+
+    let bad_number: string = "01";
+    validate_err_offset(&bad_number, 1:uint);
+
+    let bad_surrogate: string = "\"\\uD834x\"";
+    validate_err_offset(&bad_surrogate, 7:uint);
+    return nothing;
+}
+
 @entrypoint
 fn main() -> int {
     test_literals();
@@ -361,6 +415,7 @@ fn main() -> int {
     test_stringify();
     test_roundtrip();
     test_errors();
+    test_validate();
     print("ok");
     return 0;
 }

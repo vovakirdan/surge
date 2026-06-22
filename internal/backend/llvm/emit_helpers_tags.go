@@ -202,11 +202,14 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 	}
 	for i := range args {
 		arg := &args[i]
+		payloadTy := meta.PayloadTypes[i]
+		if isNothingType(fe.emitter.types, payloadTy) {
+			continue
+		}
 		val, valTy, err := fe.emitValueOperand(arg)
 		if err != nil {
 			return "", err
 		}
-		payloadTy := meta.PayloadTypes[i]
 		payloadLLVM, err := llvmValueType(fe.emitter.types, payloadTy)
 		if err != nil {
 			return "", err

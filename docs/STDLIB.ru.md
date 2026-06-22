@@ -491,6 +491,7 @@ import stdlib/json as json;
 
 - `parse(input: &string) -> Erring<JsonValue, JsonError>`
 - `parse_bytes(input: byte[]) -> Erring<JsonValue, JsonError>`
+- `validate(input: &string) -> Erring<nothing, JsonError>`
 - `stringify(value: &JsonValue) -> string`
 
 Также есть `to_json()`-реализации для `string`, `bool`, `int`, `uint` и `JsonValue`.
