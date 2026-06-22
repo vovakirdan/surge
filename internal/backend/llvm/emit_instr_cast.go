@@ -7,6 +7,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/mir"
+	"surge/internal/numlit"
 	"surge/internal/types"
 )
 
@@ -154,8 +155,8 @@ func parseIntegerLiteralText(text string) (constIntegerValue, bool) {
 	if clean == "" {
 		return constIntegerValue{}, false
 	}
-	magnitude, err := strconv.ParseUint(clean, 0, 64)
-	if err != nil {
+	magnitude, ok := numlit.ParseUint64(clean)
+	if !ok {
 		return constIntegerValue{}, false
 	}
 	return constIntegerValue{negative: negative, magnitude: magnitude}, true

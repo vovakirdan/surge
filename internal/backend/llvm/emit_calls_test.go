@@ -119,12 +119,13 @@ func TestEmitFixedWidthLiteralCastPreservesIntegerLiteralBases(t *testing.T) {
     let binary: uint64 = 0b1010:uint64;
     let octal: uint64 = 0o7:uint64;
     let grouped: uint64 = 1_000:uint64;
-    return hex + binary + octal + grouped;
+    let leading_zero: uint64 = 010:uint64;
+    return hex + binary + octal + grouped + leading_zero;
 }
 
 @entrypoint
 fn main() -> int {
-    if base_literals() == 1272:uint64 {
+    if base_literals() == 1282:uint64 {
         return 0;
     }
     return 1;

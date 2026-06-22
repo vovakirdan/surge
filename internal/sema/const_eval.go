@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
-	"strconv"
 	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/numlit"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -340,8 +340,8 @@ func (tc *typeChecker) parseConstUintLiteral(id source.StringID) (uint64, bool) 
 	if suffix != "" && !isValidIntegerSuffix(suffix) {
 		return 0, false
 	}
-	value, err := strconv.ParseUint(body, 0, 64)
-	if err != nil {
+	value, ok := numlit.ParseUint64(body)
+	if !ok {
 		return 0, false
 	}
 	return value, true
