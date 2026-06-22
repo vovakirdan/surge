@@ -9,6 +9,12 @@ type Parser = {
     length: int
 };
 
+type ViewParser = {
+    data: &BytesView,
+    cursor: int,
+    length: int
+};
+
 fn json_error(code: uint, msg: string, offset: uint) -> JsonError {
     return { message: msg, code: code, offset: offset };
 }
@@ -17,7 +23,15 @@ fn parser_init(data: &byte[]) -> Parser {
     return { data: data, cursor: 0, length: data.__len() to int };
 }
 
+fn view_parser_init(data: &BytesView) -> ViewParser {
+    return { data: data, cursor: 0, length: data.__len() to int };
+}
+
 fn parser_offset(p: &mut Parser) -> uint {
+    return p.cursor to uint;
+}
+
+fn view_parser_offset(p: &mut ViewParser) -> uint {
     return p.cursor to uint;
 }
 
@@ -25,8 +39,16 @@ fn at_end(p: &mut Parser) -> bool {
     return p.cursor >= p.length;
 }
 
+fn view_at_end(p: &mut ViewParser) -> bool {
+    return p.cursor >= p.length;
+}
+
 fn byte_at(data: &&byte[], index: int) -> uint {
     return clone((*(*data))[index]) to uint;
+}
+
+fn view_byte_at(data: &&BytesView, index: int) -> uint {
+    return (*(*data))[index] to uint;
 }
 
 fn is_ws(b: uint) -> bool {
@@ -40,6 +62,17 @@ fn is_digit(b: uint) -> bool {
 fn skip_ws(p: &mut Parser) -> nothing {
     while p.cursor < p.length {
         let b: uint = byte_at(&p.data, p.cursor);
+        if !is_ws(b) {
+            break;
+        }
+        p.cursor = p.cursor + 1;
+    }
+    return nothing;
+}
+
+fn view_skip_ws(p: &mut ViewParser) -> nothing {
+    while p.cursor < p.length {
+        let b: uint = view_byte_at(&p.data, p.cursor);
         if !is_ws(b) {
             break;
         }
@@ -90,6 +123,24 @@ fn consume_literal(p: &mut Parser, text: &string) -> bool {
     return true;
 }
 
+fn view_consume_literal(p: &mut ViewParser, text: &string) -> bool {
+    let view = text.bytes();
+    let length: int = view.__len() to int;
+    if p.cursor + length > p.length {
+        return false;
+    }
+    let mut i: int = 0;
+    while i < length {
+        let b: uint = view_byte_at(&p.data, p.cursor + i);
+        if b != (view[i] to uint) {
+            return false;
+        }
+        i = i + 1;
+    }
+    p.cursor = p.cursor + length;
+    return true;
+}
+
 fn hex_value(b: uint) -> int {
     if b >= 48:uint && b <= 57:uint {
         return (b - 48:uint) to int;
@@ -114,6 +165,25 @@ fn parse_unicode_escape(p: &mut Parser) -> JsonResult<uint> {
         let v: int = hex_value(b);
         if v < 0 {
             return json_error(JSON_ERR_PARSE, "invalid unicode escape", parser_offset(p));
+        }
+        value = value * 16:uint + (v to uint);
+        p.cursor = p.cursor + 1;
+        i = i + 1;
+    }
+    return Success(value);
+}
+
+fn view_parse_unicode_escape(p: &mut ViewParser) -> JsonResult<uint> {
+    if p.cursor + 4 > p.length {
+        return json_error(JSON_ERR_EOF, "incomplete unicode escape", view_parser_offset(p));
+    }
+    let mut value: uint = 0:uint;
+    let mut i: int = 0;
+    while i < 4 {
+        let b: uint = view_byte_at(&p.data, p.cursor);
+        let v: int = hex_value(b);
+        if v < 0 {
+            return json_error(JSON_ERR_PARSE, "invalid unicode escape", view_parser_offset(p));
         }
         value = value * 16:uint + (v to uint);
         p.cursor = p.cursor + 1;
@@ -405,14 +475,14 @@ fn parse_number_value(p: &mut Parser) -> JsonResult<string> {
     return out_res;
 }
 
-fn validate_string_value(p: &mut Parser) -> Erring<nothing, JsonError> {
-    let start_offset: uint = parser_offset(p);
+fn view_validate_string_value(p: &mut ViewParser) -> Erring<nothing, JsonError> {
+    let start_offset: uint = view_parser_offset(p);
     p.cursor = p.cursor + 1;
     while true {
         if p.cursor >= p.length {
             return json_error(JSON_ERR_EOF, "unterminated string", start_offset);
         }
-        let b: uint = byte_at(&p.data, p.cursor);
+        let b: uint = view_byte_at(&p.data, p.cursor);
         if b == 34:uint {
             p.cursor = p.cursor + 1;
             break;
@@ -420,18 +490,18 @@ fn validate_string_value(p: &mut Parser) -> Erring<nothing, JsonError> {
         if b == 92:uint {
             p.cursor = p.cursor + 1;
             if p.cursor >= p.length {
-                return json_error(JSON_ERR_EOF, "unterminated escape", parser_offset(p));
+                return json_error(JSON_ERR_EOF, "unterminated escape", view_parser_offset(p));
             }
-            let esc: uint = byte_at(&p.data, p.cursor);
+            let esc: uint = view_byte_at(&p.data, p.cursor);
             p.cursor = p.cursor + 1;
             if esc == 34:uint || esc == 92:uint || esc == 47:uint || esc == 98:uint || esc == 102:uint || esc == 110:uint || esc == 114:uint || esc == 116:uint {
                 continue;
             }
             if esc == 117:uint {
-                let first = parse_unicode_escape(p);
+                let first = view_parse_unicode_escape(p);
                 let mut cp: uint = 0:uint;
                 let mut first_ok: bool = false;
-                let mut first_err: JsonError = json_error(JSON_ERR_PARSE, "invalid unicode escape", parser_offset(p));
+                let mut first_err: JsonError = json_error(JSON_ERR_PARSE, "invalid unicode escape", view_parser_offset(p));
                 compare first {
                     Success(v) => {
                         cp = v;
@@ -447,18 +517,18 @@ fn validate_string_value(p: &mut Parser) -> Erring<nothing, JsonError> {
                 }
                 if cp >= 0xD800:uint && cp <= 0xDBFF:uint {
                     if p.cursor + 2 > p.length {
-                        return json_error(JSON_ERR_EOF, "missing low surrogate", parser_offset(p));
+                        return json_error(JSON_ERR_EOF, "missing low surrogate", view_parser_offset(p));
                     }
-                    let esc1: uint = byte_at(&p.data, p.cursor);
-                    let esc2: uint = byte_at(&p.data, p.cursor + 1);
+                    let esc1: uint = view_byte_at(&p.data, p.cursor);
+                    let esc2: uint = view_byte_at(&p.data, p.cursor + 1);
                     if esc1 != 92:uint || esc2 != 117:uint {
-                        return json_error(JSON_ERR_PARSE, "missing low surrogate", parser_offset(p));
+                        return json_error(JSON_ERR_PARSE, "missing low surrogate", view_parser_offset(p));
                     }
                     p.cursor = p.cursor + 2;
-                    let second = parse_unicode_escape(p);
+                    let second = view_parse_unicode_escape(p);
                     let mut low_sur: uint = 0:uint;
                     let mut second_ok: bool = false;
-                    let mut second_err: JsonError = json_error(JSON_ERR_PARSE, "invalid unicode escape", parser_offset(p));
+                    let mut second_err: JsonError = json_error(JSON_ERR_PARSE, "invalid unicode escape", view_parser_offset(p));
                     compare second {
                         Success(v) => {
                             low_sur = v;
@@ -473,65 +543,65 @@ fn validate_string_value(p: &mut Parser) -> Erring<nothing, JsonError> {
                         return second_err;
                     }
                     if low_sur < 0xDC00:uint || low_sur > 0xDFFF:uint {
-                        return json_error(JSON_ERR_PARSE, "invalid low surrogate", parser_offset(p));
+                        return json_error(JSON_ERR_PARSE, "invalid low surrogate", view_parser_offset(p));
                     }
                 } else if cp >= 0xDC00:uint && cp <= 0xDFFF:uint {
-                    return json_error(JSON_ERR_PARSE, "unexpected low surrogate", parser_offset(p));
+                    return json_error(JSON_ERR_PARSE, "unexpected low surrogate", view_parser_offset(p));
                 }
                 continue;
             }
-            return json_error(JSON_ERR_PARSE, "invalid escape sequence", parser_offset(p));
+            return json_error(JSON_ERR_PARSE, "invalid escape sequence", view_parser_offset(p));
         }
         if b < 32:uint {
-            return json_error(JSON_ERR_PARSE, "control character in string", parser_offset(p));
+            return json_error(JSON_ERR_PARSE, "control character in string", view_parser_offset(p));
         }
         p.cursor = p.cursor + 1;
     }
     return Success(nothing);
 }
 
-fn validate_number_value(p: &mut Parser) -> Erring<nothing, JsonError> {
-    if at_end(p) {
-        return json_error(JSON_ERR_EOF, "expected number", parser_offset(p));
+fn view_validate_number_value(p: &mut ViewParser) -> Erring<nothing, JsonError> {
+    if view_at_end(p) {
+        return json_error(JSON_ERR_EOF, "expected number", view_parser_offset(p));
     }
-    let mut b: uint = byte_at(&p.data, p.cursor);
+    let mut b: uint = view_byte_at(&p.data, p.cursor);
     if b == 45:uint {
         p.cursor = p.cursor + 1;
-        if at_end(p) {
-            return json_error(JSON_ERR_EOF, "expected digit", parser_offset(p));
+        if view_at_end(p) {
+            return json_error(JSON_ERR_EOF, "expected digit", view_parser_offset(p));
         }
-        b = byte_at(&p.data, p.cursor);
+        b = view_byte_at(&p.data, p.cursor);
     }
     if b == 48:uint {
         p.cursor = p.cursor + 1;
         if p.cursor < p.length {
-            let next: uint = byte_at(&p.data, p.cursor);
+            let next: uint = view_byte_at(&p.data, p.cursor);
             if is_digit(next) {
-                return json_error(JSON_ERR_PARSE, "leading zero in number", parser_offset(p));
+                return json_error(JSON_ERR_PARSE, "leading zero in number", view_parser_offset(p));
             }
         }
     } else if is_digit(b) {
         while p.cursor < p.length {
-            let d: uint = byte_at(&p.data, p.cursor);
+            let d: uint = view_byte_at(&p.data, p.cursor);
             if !is_digit(d) {
                 break;
             }
             p.cursor = p.cursor + 1;
         }
     } else {
-        return json_error(JSON_ERR_PARSE, "expected digit", parser_offset(p));
+        return json_error(JSON_ERR_PARSE, "expected digit", view_parser_offset(p));
     }
 
     if p.cursor < p.length {
-        let dot: uint = byte_at(&p.data, p.cursor);
+        let dot: uint = view_byte_at(&p.data, p.cursor);
         if dot == 46:uint {
             p.cursor = p.cursor + 1;
             if p.cursor >= p.length {
-                return json_error(JSON_ERR_EOF, "expected fraction digit", parser_offset(p));
+                return json_error(JSON_ERR_EOF, "expected fraction digit", view_parser_offset(p));
             }
             let mut saw_digit: bool = false;
             while p.cursor < p.length {
-                let d: uint = byte_at(&p.data, p.cursor);
+                let d: uint = view_byte_at(&p.data, p.cursor);
                 if !is_digit(d) {
                     break;
                 }
@@ -539,28 +609,28 @@ fn validate_number_value(p: &mut Parser) -> Erring<nothing, JsonError> {
                 p.cursor = p.cursor + 1;
             }
             if !saw_digit {
-                return json_error(JSON_ERR_PARSE, "expected fraction digit", parser_offset(p));
+                return json_error(JSON_ERR_PARSE, "expected fraction digit", view_parser_offset(p));
             }
         }
     }
 
     if p.cursor < p.length {
-        let expc: uint = byte_at(&p.data, p.cursor);
+        let expc: uint = view_byte_at(&p.data, p.cursor);
         if expc == 69:uint || expc == 101:uint {
             p.cursor = p.cursor + 1;
             if p.cursor >= p.length {
-                return json_error(JSON_ERR_EOF, "expected exponent digit", parser_offset(p));
+                return json_error(JSON_ERR_EOF, "expected exponent digit", view_parser_offset(p));
             }
-            let sign: uint = byte_at(&p.data, p.cursor);
+            let sign: uint = view_byte_at(&p.data, p.cursor);
             if sign == 43:uint || sign == 45:uint {
                 p.cursor = p.cursor + 1;
                 if p.cursor >= p.length {
-                    return json_error(JSON_ERR_EOF, "expected exponent digit", parser_offset(p));
+                    return json_error(JSON_ERR_EOF, "expected exponent digit", view_parser_offset(p));
                 }
             }
             let mut saw_digit: bool = false;
             while p.cursor < p.length {
-                let d: uint = byte_at(&p.data, p.cursor);
+                let d: uint = view_byte_at(&p.data, p.cursor);
                 if !is_digit(d) {
                     break;
                 }
@@ -568,26 +638,26 @@ fn validate_number_value(p: &mut Parser) -> Erring<nothing, JsonError> {
                 p.cursor = p.cursor + 1;
             }
             if !saw_digit {
-                return json_error(JSON_ERR_PARSE, "expected exponent digit", parser_offset(p));
+                return json_error(JSON_ERR_PARSE, "expected exponent digit", view_parser_offset(p));
             }
         }
     }
     return Success(nothing);
 }
 
-fn validate_array_value(p: &mut Parser) -> Erring<nothing, JsonError> {
+fn view_validate_array_value(p: &mut ViewParser) -> Erring<nothing, JsonError> {
     p.cursor = p.cursor + 1;
-    skip_ws(p);
+    view_skip_ws(p);
     if p.cursor < p.length {
-        let b: uint = byte_at(&p.data, p.cursor);
+        let b: uint = view_byte_at(&p.data, p.cursor);
         if b == 93:uint {
             p.cursor = p.cursor + 1;
             return Success(nothing);
         }
     }
     while true {
-        let val_res = validate_value(p);
-        let mut err_out: JsonError = json_error(JSON_ERR_PARSE, "invalid array value", parser_offset(p));
+        let val_res = view_validate_value(p);
+        let mut err_out: JsonError = json_error(JSON_ERR_PARSE, "invalid array value", view_parser_offset(p));
         let mut ok: bool = true;
         compare val_res {
             Success(_) => {
@@ -601,120 +671,141 @@ fn validate_array_value(p: &mut Parser) -> Erring<nothing, JsonError> {
         if !ok {
             return err_out;
         }
-        skip_ws(p);
-        if at_end(p) {
-            return json_error(JSON_ERR_EOF, "unterminated array", parser_offset(p));
+        view_skip_ws(p);
+        if view_at_end(p) {
+            return json_error(JSON_ERR_EOF, "unterminated array", view_parser_offset(p));
         }
-        let b: uint = byte_at(&p.data, p.cursor);
+        let b: uint = view_byte_at(&p.data, p.cursor);
         if b == 44:uint {
             p.cursor = p.cursor + 1;
-            skip_ws(p);
+            view_skip_ws(p);
             continue;
         }
         if b == 93:uint {
             p.cursor = p.cursor + 1;
             break;
         }
-        return json_error(JSON_ERR_PARSE, "expected ',' or ']'", parser_offset(p));
+        return json_error(JSON_ERR_PARSE, "expected ',' or ']'", view_parser_offset(p));
     }
     return Success(nothing);
 }
 
-fn validate_object_value(p: &mut Parser) -> Erring<nothing, JsonError> {
+fn view_validate_object_value(p: &mut ViewParser) -> Erring<nothing, JsonError> {
     p.cursor = p.cursor + 1;
-    skip_ws(p);
+    view_skip_ws(p);
     if p.cursor < p.length {
-        let b: uint = byte_at(&p.data, p.cursor);
+        let b: uint = view_byte_at(&p.data, p.cursor);
         if b == 125:uint {
             p.cursor = p.cursor + 1;
             return Success(nothing);
         }
     }
     while true {
-        if at_end(p) {
-            return json_error(JSON_ERR_EOF, "unterminated object", parser_offset(p));
+        if view_at_end(p) {
+            return json_error(JSON_ERR_EOF, "unterminated object", view_parser_offset(p));
         }
-        let b: uint = byte_at(&p.data, p.cursor);
+        let b: uint = view_byte_at(&p.data, p.cursor);
         if b != 34:uint {
-            return json_error(JSON_ERR_PARSE, "expected string key", parser_offset(p));
+            return json_error(JSON_ERR_PARSE, "expected string key", view_parser_offset(p));
         }
-        compare validate_string_value(p) {
+        compare view_validate_string_value(p) {
             Success(_) => {}
             err => {
                 return err;
             }
         };
-        skip_ws(p);
-        if at_end(p) {
-            return json_error(JSON_ERR_EOF, "unterminated object", parser_offset(p));
+        view_skip_ws(p);
+        if view_at_end(p) {
+            return json_error(JSON_ERR_EOF, "unterminated object", view_parser_offset(p));
         }
-        let colon: uint = byte_at(&p.data, p.cursor);
+        let colon: uint = view_byte_at(&p.data, p.cursor);
         if colon != 58:uint {
-            return json_error(JSON_ERR_PARSE, "expected ':'", parser_offset(p));
+            return json_error(JSON_ERR_PARSE, "expected ':'", view_parser_offset(p));
         }
         p.cursor = p.cursor + 1;
-        skip_ws(p);
-        compare validate_value(p) {
+        view_skip_ws(p);
+        compare view_validate_value(p) {
             Success(_) => {}
             err => {
                 return err;
             }
         };
-        skip_ws(p);
-        if at_end(p) {
-            return json_error(JSON_ERR_EOF, "unterminated object", parser_offset(p));
+        view_skip_ws(p);
+        if view_at_end(p) {
+            return json_error(JSON_ERR_EOF, "unterminated object", view_parser_offset(p));
         }
-        let next: uint = byte_at(&p.data, p.cursor);
+        let next: uint = view_byte_at(&p.data, p.cursor);
         if next == 44:uint {
             p.cursor = p.cursor + 1;
-            skip_ws(p);
+            view_skip_ws(p);
             continue;
         }
         if next == 125:uint {
             p.cursor = p.cursor + 1;
             break;
         }
-        return json_error(JSON_ERR_PARSE, "expected ',' or '}'", parser_offset(p));
+        return json_error(JSON_ERR_PARSE, "expected ',' or '}'", view_parser_offset(p));
     }
     return Success(nothing);
 }
 
-fn validate_value(p: &mut Parser) -> Erring<nothing, JsonError> {
-    if at_end(p) {
-        return json_error(JSON_ERR_EOF, "unexpected end of input", parser_offset(p));
+fn view_validate_value(p: &mut ViewParser) -> Erring<nothing, JsonError> {
+    if view_at_end(p) {
+        return json_error(JSON_ERR_EOF, "unexpected end of input", view_parser_offset(p));
     }
-    let b: uint = byte_at(&p.data, p.cursor);
+    let b: uint = view_byte_at(&p.data, p.cursor);
     if b == 110:uint {
-        if consume_literal(p, "null") {
+        if view_consume_literal(p, "null") {
             return Success(nothing);
         }
-        return json_error(JSON_ERR_PARSE, "invalid literal", parser_offset(p));
+        return json_error(JSON_ERR_PARSE, "invalid literal", view_parser_offset(p));
     }
     if b == 116:uint {
-        if consume_literal(p, "true") {
+        if view_consume_literal(p, "true") {
             return Success(nothing);
         }
-        return json_error(JSON_ERR_PARSE, "invalid literal", parser_offset(p));
+        return json_error(JSON_ERR_PARSE, "invalid literal", view_parser_offset(p));
     }
     if b == 102:uint {
-        if consume_literal(p, "false") {
+        if view_consume_literal(p, "false") {
             return Success(nothing);
         }
-        return json_error(JSON_ERR_PARSE, "invalid literal", parser_offset(p));
+        return json_error(JSON_ERR_PARSE, "invalid literal", view_parser_offset(p));
     }
     if b == 34:uint {
-        return validate_string_value(p);
+        return view_validate_string_value(p);
     }
     if b == 91:uint {
-        return validate_array_value(p);
+        return view_validate_array_value(p);
     }
     if b == 123:uint {
-        return validate_object_value(p);
+        return view_validate_object_value(p);
     }
     if b == 45:uint || is_digit(b) {
-        return validate_number_value(p);
+        return view_validate_number_value(p);
     }
-    return json_error(JSON_ERR_PARSE, "unexpected character", parser_offset(p));
+    return json_error(JSON_ERR_PARSE, "unexpected character", view_parser_offset(p));
+}
+
+fn validate_view(input: &BytesView) -> Erring<nothing, JsonError> {
+    let mut parser: ViewParser = view_parser_init(input);
+    view_skip_ws(&mut parser);
+    let res = view_validate_value(&mut parser);
+    let mut out: Erring<nothing, JsonError> = json_error(JSON_ERR_PARSE, "invalid json", view_parser_offset(&mut parser));
+    compare res {
+        Success(_) => {
+            view_skip_ws(&mut parser);
+            if !view_at_end(&mut parser) {
+                out = json_error(JSON_ERR_PARSE, "trailing data", view_parser_offset(&mut parser));
+            } else {
+                out = Success(nothing);
+            }
+        }
+        err => {
+            out = err;
+        }
+    };
+    return out;
 }
 
 fn parse_array_value(p: &mut Parser) -> JsonResult<JsonValue[]> {
@@ -968,23 +1059,6 @@ pub fn parse(input: &string) -> Erring<JsonValue, JsonError> {
 }
 
 pub fn validate(input: &string) -> Erring<nothing, JsonError> {
-    let bytes: byte[] = input.__clone() to byte[];
-    let mut parser: Parser = parser_init(&bytes);
-    skip_ws(&mut parser);
-    let res = validate_value(&mut parser);
-    let mut out: Erring<nothing, JsonError> = json_error(JSON_ERR_PARSE, "invalid json", parser_offset(&mut parser));
-    compare res {
-        Success(_) => {
-            skip_ws(&mut parser);
-            if !at_end(&mut parser) {
-                out = json_error(JSON_ERR_PARSE, "trailing data", parser_offset(&mut parser));
-            } else {
-                out = Success(nothing);
-            }
-        }
-        err => {
-            out = err;
-        }
-    };
-    return out;
+    let view = input.bytes();
+    return validate_view(&view);
 }
