@@ -113,6 +113,37 @@ fn main() -> int {
 	}
 }
 
+func TestEmitFixedWidthLiteralCastPreservesIntegerLiteralBases(t *testing.T) {
+	sourceCode := `fn base_literals() -> uint64 {
+    let hex: uint64 = 0xFF:uint64;
+    let binary: uint64 = 0b1010:uint64;
+    let octal: uint64 = 0o7:uint64;
+    let grouped: uint64 = 1_000:uint64;
+    return hex + binary + octal + grouped;
+}
+
+@entrypoint
+fn main() -> int {
+    if base_literals() == 1272:uint64 {
+        return 0;
+    }
+    return 1;
+}
+`
+
+	ir := emitLLVMFromSource(t, sourceCode)
+	body := findI64FunctionBodyContaining(t, ir, "store i64 255")
+
+	if strings.Contains(body, "rt_bigint_from_literal") || strings.Contains(body, "rt_bigint_to_u64") {
+		t.Fatalf("fixed-width literal casts should preserve supported integer bases without BigInt materialization:\n%s", body)
+	}
+	for _, want := range []string{"store i64 255", "store i64 10", "store i64 7", "store i64 1000"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected %q in base_literals IR:\n%s", want, body)
+		}
+	}
+}
+
 func findI64FunctionBodyContaining(t *testing.T, ir, needle string) string {
 	t.Helper()
 
