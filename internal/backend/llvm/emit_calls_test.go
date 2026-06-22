@@ -135,8 +135,10 @@ fn main() -> int {
 	ir := emitLLVMFromSource(t, sourceCode)
 	body := findI64FunctionBodyContaining(t, ir, "store i64 255")
 
-	if strings.Contains(body, "rt_bigint_from_literal") || strings.Contains(body, "rt_bigint_to_u64") {
-		t.Fatalf("fixed-width literal casts should preserve supported integer bases without BigInt materialization:\n%s", body)
+	for _, forbidden := range []string{"rt_bigint_from_literal", "rt_biguint_from_literal", "rt_bigint_to_u64", "rt_biguint_to_u64"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("fixed-width literal casts should preserve supported integer bases without %s:\n%s", forbidden, body)
+		}
 	}
 	for _, want := range []string{"store i64 255", "store i64 10", "store i64 7", "store i64 1000"} {
 		if !strings.Contains(body, want) {
