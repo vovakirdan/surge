@@ -2,6 +2,8 @@ package llvm
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/mir"
@@ -11,6 +13,9 @@ import (
 func (fe *funcEmitter) emitCast(c *mir.CastOp) (val, ty string, err error) {
 	if c == nil {
 		return "", "", fmt.Errorf("nil cast")
+	}
+	if constVal, constTy, ok, constErr := fe.emitConstIntegerCast(c); ok || constErr != nil {
+		return constVal, constTy, constErr
 	}
 	val, srcTy, err := fe.emitOperand(&c.Value)
 	if err != nil {
@@ -64,6 +69,127 @@ func (fe *funcEmitter) emitCast(c *mir.CastOp) (val, ty string, err error) {
 		return fe.emitNumericCast(val, srcTy, c.Value.Type, c.TargetTy)
 	}
 	return "", "", fmt.Errorf("unsupported cast to %s", dstTy)
+}
+
+type constIntegerValue struct {
+	negative  bool
+	magnitude uint64
+}
+
+func (fe *funcEmitter) emitConstIntegerCast(c *mir.CastOp) (val, ty string, ok bool, err error) {
+	if c.Value.Kind != mir.OperandConst {
+		return "", "", false, nil
+	}
+	if isBoolType(fe.emitter.types, c.TargetTy) {
+		return "", "", false, nil
+	}
+	dstInfo, dstOK := intInfo(fe.emitter.types, c.TargetTy)
+	if !dstOK {
+		return "", "", false, nil
+	}
+	lit, litOK := constIntegerLiteralValue(&c.Value.Const)
+	if !litOK {
+		return "", "", false, nil
+	}
+	imm, fits := formatConstIntegerForTarget(lit, dstInfo)
+	if !fits {
+		return "", "", false, nil
+	}
+	dstTy, err := llvmValueType(fe.emitter.types, c.TargetTy)
+	if err != nil {
+		return "", "", false, err
+	}
+	return imm, dstTy, true, nil
+}
+
+func constIntegerLiteralValue(c *mir.Const) (constIntegerValue, bool) {
+	if c == nil {
+		return constIntegerValue{}, false
+	}
+	switch c.Kind {
+	case mir.ConstInt:
+		if c.Text != "" {
+			return parseIntegerLiteralText(c.Text)
+		}
+		return integerValueFromInt64(c.IntValue)
+	case mir.ConstUint:
+		if c.Text != "" {
+			return parseIntegerLiteralText(c.Text)
+		}
+		return constIntegerValue{magnitude: c.UintValue}, true
+	default:
+		return constIntegerValue{}, false
+	}
+}
+
+func integerValueFromInt64(value int64) (constIntegerValue, bool) {
+	text := strconv.FormatInt(value, 10)
+	if strings.HasPrefix(text, "-") {
+		magnitude, err := strconv.ParseUint(strings.TrimPrefix(text, "-"), 10, 64)
+		if err != nil {
+			return constIntegerValue{}, false
+		}
+		return constIntegerValue{negative: true, magnitude: magnitude}, true
+	}
+	magnitude, err := strconv.ParseUint(text, 10, 64)
+	if err != nil {
+		return constIntegerValue{}, false
+	}
+	return constIntegerValue{magnitude: magnitude}, true
+}
+
+func parseIntegerLiteralText(text string) (constIntegerValue, bool) {
+	clean := strings.ReplaceAll(strings.TrimSpace(text), "_", "")
+	if clean == "" {
+		return constIntegerValue{}, false
+	}
+	negative := false
+	switch clean[0] {
+	case '-':
+		negative = true
+		clean = clean[1:]
+	case '+':
+		clean = clean[1:]
+	}
+	if clean == "" {
+		return constIntegerValue{}, false
+	}
+	magnitude, err := strconv.ParseUint(clean, 0, 64)
+	if err != nil {
+		return constIntegerValue{}, false
+	}
+	return constIntegerValue{negative: negative, magnitude: magnitude}, true
+}
+
+func formatConstIntegerForTarget(v constIntegerValue, info intMeta) (string, bool) {
+	if info.bits <= 0 || info.bits > 64 {
+		return "", false
+	}
+	if info.signed {
+		maxPositive := uint64(1)<<(info.bits-1) - 1
+		maxNegativeMagnitude := uint64(1) << (info.bits - 1)
+		if v.negative {
+			if v.magnitude > maxNegativeMagnitude {
+				return "", false
+			}
+			return "-" + strconv.FormatUint(v.magnitude, 10), true
+		}
+		if v.magnitude > maxPositive {
+			return "", false
+		}
+		return strconv.FormatUint(v.magnitude, 10), true
+	}
+	if v.negative {
+		return "", false
+	}
+	maxValue := ^uint64(0)
+	if info.bits < 64 {
+		maxValue = uint64(1)<<info.bits - 1
+	}
+	if v.magnitude > maxValue {
+		return "", false
+	}
+	return strconv.FormatUint(v.magnitude, 10), true
 }
 
 func (fe *funcEmitter) emitUnary(op *mir.UnaryOp) (val, ty string, err error) {
