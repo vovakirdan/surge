@@ -955,6 +955,19 @@ func requireNetTracePollCountersForReason(t *testing.T, stderr string, reason st
 	if !strings.Contains(line, "io_direct_waits=") {
 		t.Fatalf("missing direct IO wait counter in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
 	}
+	for _, field := range []string{
+		"io_waiter_scan_entries=",
+		"io_waiter_net_entries=",
+		"io_poll_rebuilds=",
+		"io_poll_allocs=",
+		"io_poll_dedup_checks=",
+		"io_waiter_complete_calls=",
+		"io_waiter_completed=",
+	} {
+		if !strings.Contains(line, field) {
+			t.Fatalf("missing %s counter in TRACE_NET\nline:\n%s\nstderr:\n%s", field, line, stderr)
+		}
+	}
 }
 
 func TestNativeNetSingleThreadBlockingChannelInAsyncServer(t *testing.T) {

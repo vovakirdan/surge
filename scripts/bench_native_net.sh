@@ -215,7 +215,7 @@ for worker_count in $threads; do
 			read -r got_requests total_us avg_us p50_us p95_us <<<"$result"
 			printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 				"$worker_count" "$mode" "$pattern" "$got_requests" "$total_us" "$avg_us" "$p50_us" "$p95_us" >>"$report"
-			printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+			printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 				"$worker_count" "$mode" "$pattern" \
 				"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_send)" \
 				"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_recv)" \
@@ -225,7 +225,14 @@ for worker_count in $threads; do
 				"$(trace_value "$trace_log" TRACE_NET io_direct_waits)" \
 				"$(trace_value "$trace_log" TRACE_NET io_poll_calls)" \
 				"$(trace_value "$trace_log" TRACE_NET io_poll_net_ready)" \
-				"$(trace_value "$trace_log" TRACE_NET io_poll_waiters_total)" >>"$trace_rows"
+				"$(trace_value "$trace_log" TRACE_NET io_poll_waiters_total)" \
+				"$(trace_value "$trace_log" TRACE_NET io_waiter_scan_entries)" \
+				"$(trace_value "$trace_log" TRACE_NET io_waiter_net_entries)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_rebuilds)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_allocs)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_dedup_checks)" \
+				"$(trace_value "$trace_log" TRACE_NET io_waiter_complete_calls)" \
+				"$(trace_value "$trace_log" TRACE_NET io_waiter_completed)" >>"$trace_rows"
 			rm -f "$server_out" "$trace_log"
 		done
 	done
@@ -235,8 +242,8 @@ cat >>"$report" <<'EOF'
 
 ## Runtime Trace
 
-| threads | mode | pattern | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water | net direct waits | net poll calls | net ready | net waiters total |
-| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| threads | mode | pattern | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water | net direct waits | net poll calls | net ready | net waiters total | waiter scan entries | net waiter entries | poll rebuilds | poll allocs | dedup checks | complete calls | completed waiters |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 EOF
 cat "$trace_rows" >>"$report"
 

@@ -321,7 +321,13 @@ Runtime tracing отделен от compiler tracing в `docs/TRACING.ru.md`.
 - `io_poll_calls`, `io_poll_timeouts`, `io_poll_timeout_max_ms`;
 - `io_poll_wake_fd`, `io_poll_net_ready`, `io_poll_errors`;
 - `io_poll_waiters_last`, `io_poll_waiters_max`, `io_poll_waiters_total`;
-- `io_direct_waits`: прямые парковки задач на network readiness.
+- `io_direct_waits`: прямые парковки задач на network readiness;
+- `io_waiter_scan_entries`, `io_waiter_net_entries`: стоимость сканирования
+  общего waiter-list для net polling;
+- `io_poll_rebuilds`, `io_poll_allocs`, `io_poll_dedup_checks`: стоимость
+  текущей пересборки poll set;
+- `io_waiter_complete_calls`, `io_waiter_completed`: wake/remove активность
+  для net readiness.
 
 Для здорового прямого async channel request/reply path ожидаются
 `channel_task_blocking_send=0`, `channel_task_blocking_recv=0` и

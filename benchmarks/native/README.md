@@ -47,6 +47,8 @@ Read the counters this way:
 - `compensation_started` and `compensation_high_water`: worker-pinning fallback.
 - `io_poll_timeouts`, `io_poll_wake_fd`, and `io_poll_net_ready`: net poll
   progress and timeout-driven tails.
+- `io_waiter_scan_entries`, `io_poll_rebuilds`, and
+  `io_poll_dedup_checks`: net waiter-list scan and poll-set rebuild cost.
 
 The fixture also prints scheduler-shape rows:
 
