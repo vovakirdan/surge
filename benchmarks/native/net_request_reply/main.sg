@@ -1,0 +1,294 @@
+import stdlib/net as net;
+
+tag Request(int, Channel<byte[]>);
+tag Stop();
+type ManagerMsg = Request(int, Channel<byte[]>) | Stop();
+
+fn append_string_bytes(out: &mut byte[], s: &string) -> nothing {
+    let view = s.bytes();
+    let length: int = view.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        out.push(view[i]);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn fixed_response() -> byte[] {
+    let mut out: byte[] = [];
+    append_string_bytes(&mut out, "VALUE {\"v\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}\n");
+    return out;
+}
+
+fn one_byte_response(value: byte) -> byte[] {
+    let mut out: byte[] = [];
+    out.push(value);
+    return out;
+}
+
+async fn write_owned(conn: &TcpConn, data: byte[]) -> bool {
+    let write_res = net.write_all(conn, data).await();
+    compare write_res {
+        Success(net_res) => {
+            compare net_res {
+                Success(_) => {
+                    return true;
+                }
+                err => {
+                    print("write_err=" + (err.code to string));
+                    return false;
+                }
+            };
+        }
+        Cancelled() => {
+            print("write_cancelled");
+            return false;
+        }
+    };
+    return false;
+}
+
+fn bool_result_ok(res: TaskResult<bool>) -> bool {
+    compare res {
+        Success(ok) => {
+            return ok;
+        }
+        Cancelled() => {
+            return false;
+        }
+    };
+    return false;
+}
+
+fn int_result_code(res: TaskResult<int>) -> int {
+    compare res {
+        Success(code) => {
+            return code;
+        }
+        Cancelled() => {
+            return 1;
+        }
+    };
+    return 1;
+}
+
+async fn manager_loop(requests: Channel<ManagerMsg>) -> nothing {
+    while true {
+        compare requests.recv() {
+            Some(msg) => {
+                compare msg {
+                    Request(_, reply) => {
+                        let resp = fixed_response();
+                        reply.send(own resp);
+                    }
+                    Stop() => {
+                        return nothing;
+                    }
+                };
+            }
+            nothing => {
+                return nothing;
+            }
+        };
+    }
+    return nothing;
+}
+
+async fn serve_echo(conn: TcpConn) -> int {
+    let mut served: int = 0;
+    while true {
+        let read_res = net.read_some(&conn, 4096:uint).await();
+        compare read_res {
+            Success(net_res) => {
+                compare net_res {
+                    Success(bytes) => {
+                        if bytes.__len() == 0:uint {
+                            let _ = net.close_conn(own conn);
+                            print("served=" + (served to string));
+                            return 0;
+                        }
+                        let length: int = bytes.__len() to int;
+                        let mut i: int = 0;
+                        while i < length {
+                            if !bool_result_ok(write_owned(&conn, one_byte_response(bytes[i])).await()) {
+                                let _ = net.close_conn(own conn);
+                                return 1;
+                            }
+                            served = served + 1;
+                            i = i + 1;
+                        }
+                    }
+                    err => {
+                        print("read_err=" + (err.code to string));
+                        let _ = net.close_conn(own conn);
+                        return 1;
+                    }
+                };
+            }
+            Cancelled() => {
+                print("read_cancelled");
+                let _ = net.close_conn(own conn);
+                return 1;
+            }
+        };
+    }
+    return 0;
+}
+
+async fn serve_direct(conn: TcpConn) -> int {
+    let mut served: int = 0;
+    while true {
+        let read_res = net.read_some(&conn, 4096:uint).await();
+        compare read_res {
+            Success(net_res) => {
+                compare net_res {
+                    Success(bytes) => {
+                        if bytes.__len() == 0:uint {
+                            let _ = net.close_conn(own conn);
+                            print("served=" + (served to string));
+                            return 0;
+                        }
+                        let length: int = bytes.__len() to int;
+                        let mut i: int = 0;
+                        while i < length {
+                            if !bool_result_ok(write_owned(&conn, fixed_response()).await()) {
+                                let _ = net.close_conn(own conn);
+                                return 1;
+                            }
+                            served = served + 1;
+                            i = i + 1;
+                        }
+                    }
+                    err => {
+                        print("read_err=" + (err.code to string));
+                        let _ = net.close_conn(own conn);
+                        return 1;
+                    }
+                };
+            }
+            Cancelled() => {
+                print("read_cancelled");
+                let _ = net.close_conn(own conn);
+                return 1;
+            }
+        };
+    }
+    return 0;
+}
+
+async fn serve_manager(conn: TcpConn) -> int {
+    let requests = make_channel::<ManagerMsg>(64:uint);
+    let reply = make_channel::<byte[]>(1:uint);
+    let manager = spawn manager_loop(requests);
+    let mut served: int = 0;
+    while true {
+        let read_res = net.read_some(&conn, 4096:uint).await();
+        compare read_res {
+            Success(net_res) => {
+                compare net_res {
+                    Success(bytes) => {
+                        if bytes.__len() == 0:uint {
+                            let stop: ManagerMsg = Stop();
+                            requests.send(own stop);
+                            let _ = manager.await();
+                            let _ = net.close_conn(own conn);
+                            print("served=" + (served to string));
+                            return 0;
+                        }
+                        let length: int = bytes.__len() to int;
+                        let mut i: int = 0;
+                        while i < length {
+                            let request: ManagerMsg = Request(i, reply);
+                            requests.send(own request);
+                            compare reply.recv() {
+                                Some(resp) => {
+                                    if !bool_result_ok(write_owned(&conn, resp).await()) {
+                                        let stop: ManagerMsg = Stop();
+                                        requests.send(own stop);
+                                        let _ = manager.await();
+                                        let _ = net.close_conn(own conn);
+                                        return 1;
+                                    }
+                                }
+                                nothing => {
+                                    print("manager_reply_closed");
+                                    let _ = manager.await();
+                                    let _ = net.close_conn(own conn);
+                                    return 1;
+                                }
+                            };
+                            served = served + 1;
+                            i = i + 1;
+                        }
+                    }
+                    err => {
+                        print("read_err=" + (err.code to string));
+                        let stop: ManagerMsg = Stop();
+                        requests.send(own stop);
+                        let _ = manager.await();
+                        let _ = net.close_conn(own conn);
+                        return 1;
+                    }
+                };
+            }
+            Cancelled() => {
+                print("read_cancelled");
+                let stop: ManagerMsg = Stop();
+                requests.send(own stop);
+                let _ = manager.await();
+                let _ = net.close_conn(own conn);
+                return 1;
+            }
+        };
+    }
+    return 0;
+}
+
+async fn serve_conn(conn: TcpConn, mode: string) -> int {
+    if mode == "echo" {
+        return int_result_code(serve_echo(conn).await());
+    }
+    if mode == "direct" {
+        return int_result_code(serve_direct(conn).await());
+    }
+    if mode == "manager" {
+        return int_result_code(serve_manager(conn).await());
+    }
+    print("unknown_mode=" + mode);
+    let _ = net.close_conn(own conn);
+    return 2;
+}
+
+@entrypoint("argv")
+fn main(port: uint, mode: string = "direct") -> int {
+    let listen_res = net.listen("127.0.0.1", port);
+    compare listen_res {
+        Success(listener) => {
+            print("ready");
+            let accept_res = net.accept(&listener).await();
+            compare accept_res {
+                Success(net_res) => {
+                    compare net_res {
+                        Success(conn) => {
+                            return int_result_code(serve_conn(conn, mode).await());
+                        }
+                        err => {
+                            print("accept_err=" + (err.code to string));
+                            return 1;
+                        }
+                    };
+                }
+                Cancelled() => {
+                    print("accept_cancelled");
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("listen_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 1;
+}
