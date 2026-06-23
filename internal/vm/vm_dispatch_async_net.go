@@ -30,7 +30,7 @@ func (vm *VM) execInstrNetWait(frame *Frame, instr *mir.Instr, writes []LocalWri
 	if vmErr != nil {
 		return res, vmErr
 	}
-	if fd <= 0 {
+	if fd < 0 {
 		res.doJump = true
 		res.jumpBB = instr.NetWait.ReadyBB
 		return res, nil

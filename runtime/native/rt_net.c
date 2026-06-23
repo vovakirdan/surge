@@ -741,9 +741,6 @@ static bool net_fd_ready_now(int fd, NetWaitKind kind) {
 }
 
 static bool net_wait_current_task(int fd, NetWaitKind kind) {
-    if (fd < 0 || net_fd_ready_now(fd, kind)) {
-        return true;
-    }
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return true;
@@ -760,7 +757,11 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
         rt_unlock(ex);
         return false;
     }
-    waker_key key = waker_none();
+    if (fd < 0 || net_fd_ready_now(fd, kind)) {
+        rt_unlock(ex);
+        return true;
+    }
+    waker_key key;
     switch (kind) {
         case NET_WAIT_ACCEPT:
             key = net_accept_key(fd);
@@ -772,7 +773,8 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
             key = net_write_key(fd);
             break;
         default:
-            break;
+            rt_unlock(ex);
+            return true;
     }
     if (!waker_valid(key)) {
         rt_unlock(ex);
