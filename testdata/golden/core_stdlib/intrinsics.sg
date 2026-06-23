@@ -129,6 +129,7 @@ extern<TcpConn> {
 @intrinsic fn rt_array_pop<T>(a: &mut Array<T>) -> Option<T>;
 @intrinsic fn rt_array_get_mut<T>(a: &mut Array<T>, index: int) -> &mut T;
 @intrinsic @overload fn rt_array_get_mut<T, const N:int>(a: &mut ArrayFixed<T, N>, index: int) -> &mut T;
+@intrinsic fn rt_array_append_raw_bytes(a: &mut byte[], ptr: *byte, length: uint64) -> nothing;
 
 // Map access intrinsics
 @intrinsic fn rt_map_new<K, V>() -> Map<K, V>;
@@ -685,17 +686,8 @@ extern<string> {
     }
     @overload
     pub fn __to(self: &string, _: byte[]) -> byte[] {
-        let view = self.bytes();
-        let length: uint = view.__len();
         let mut out: byte[] = [];
-        out.reserve(length);
-        let len_i: int = length to int;
-        let mut i: int = 0;
-        while i < len_i {
-            let b: byte = view[i];
-            out.push(b);
-            i = i + 1;
-        }
+        rt_array_append_raw_bytes(&mut out, rt_string_ptr(self), rt_string_len_bytes(self) to uint64);
         return out;
     }
     @intrinsic fn __len(self: &string) -> uint;

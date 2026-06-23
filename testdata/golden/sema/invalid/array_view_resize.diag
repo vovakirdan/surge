@@ -5,3 +5,6 @@ error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:23:16 array view
 error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:29:23 array view is not resizable; array_pop requires an owned array
 error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:35:19 array view is not resizable; array_reserve requires an owned array
 error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:41:19 array view is not resizable; rt_array_push requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:47:5 array view is not resizable; append_string requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:55:5 array view is not resizable; append_bytes_view requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:62:31 array view is not resizable; rt_array_append_raw_bytes requires an owned array

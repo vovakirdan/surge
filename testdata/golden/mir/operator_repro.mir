@@ -4,8 +4,8 @@ funcs=2
 
 fn __eq:
   locals:
-    L0: type#1489 [copy] name=self
-    L1: type#1489 [copy] name=other
+    L0: type#1493 [copy] name=self
+    L1: type#1493 [copy] name=other
     L2: uint64 [copy] name=tmp_field1
     L3: uint64 [copy] name=tmp_field2
     L4: bool [copy] name=tmp_call3
@@ -17,8 +17,8 @@ fn __eq:
 
 fn __ne:
   locals:
-    L0: type#1489 [copy] name=self
-    L1: type#1489 [copy] name=other
+    L0: type#1493 [copy] name=self
+    L1: type#1493 [copy] name=other
     L2: uint64 [copy] name=tmp_field1
     L3: uint64 [copy] name=tmp_field2
     L4: bool [copy] name=tmp_call3

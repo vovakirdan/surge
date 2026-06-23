@@ -136,6 +136,18 @@ extern<Array<T>> {
     }
 }
 
+extern<Array<byte>> {
+    pub fn append_string(self: &mut Array<byte>, text: &string) -> nothing {
+        rt_array_append_raw_bytes(self, rt_string_ptr(text), rt_string_len_bytes(text) to uint64);
+        return nothing;
+    }
+
+    pub fn append_bytes_view(self: &mut Array<byte>, view: &BytesView) -> nothing {
+        rt_array_append_raw_bytes(self, view.ptr, view.__len() to uint64);
+        return nothing;
+    }
+}
+
 // contains/find are currently specialized for primitive element types.
 extern<Array<int>> {
     pub fn contains(self: &Array<int>, value: &int) -> bool {

@@ -1,0 +1,34 @@
+fn print_from_bytes(bytes: &byte[]) -> nothing {
+    compare string.from_bytes(bytes) {
+        Success(text) => print(text);
+        _ => print("invalid");
+    };
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let value: string = "{\"v\":\"x\"}";
+    let view = value.bytes();
+
+    let mut out: byte[] = [];
+    out.append_string(&"VALUE ");
+    out.append_bytes_view(&view);
+    out.push(10:byte);
+
+    if out.__len() != 16:uint {
+        return 1;
+    }
+    if out[0] != 86:byte || out[15] != 10:byte {
+        return 2;
+    }
+
+    let copied: byte[] = "OK" to byte[];
+    if copied.__len() != 2:uint || copied[0] != 79:byte || copied[1] != 75:byte {
+        return 3;
+    }
+
+    print_from_bytes(&out);
+    print_from_bytes(&copied);
+    return 0;
+}

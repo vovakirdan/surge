@@ -1,4 +1,4 @@
-array_view_resize.sg (span: 2:1-43:1)
+array_view_resize.sg (span: 2:1-64:1)
 ├─ Item[0]: Fn (span: 2:1-6:2)
 │  ├─ Name: push_view
 │  ├─ Params: ()
@@ -113,21 +113,90 @@ array_view_resize.sg (span: 2:1-43:1)
 │        │  └─ Value: expr#81: a[[1..3]]
 │        └─ Stmt[2]: Expr (span: 35:5-35:35)
 │           └─ Expr: expr#87: array_reserve(&mut v, 8 to uint)
-└─ Item[6]: Fn (span: 38:1-42:2)
-   ├─ Name: rt_array_push_view
+├─ Item[6]: Fn (span: 38:1-42:2)
+│  ├─ Name: rt_array_push_view
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 38:36-42:2)
+│        ├─ Stmt[0]: Let (span: 39:5-39:34)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int[]
+│        │  └─ Value: expr#91: <ExprKind(8)>
+│        ├─ Stmt[1]: Let (span: 40:5-40:27)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: true
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#97: a[[1..3]]
+│        └─ Stmt[2]: Expr (span: 41:5-41:30)
+│           └─ Expr: expr#102: rt_array_push(&mut v, 6)
+├─ Item[7]: Fn (span: 44:1-48:2)
+│  ├─ Name: append_string_view
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 44:36-48:2)
+│        ├─ Stmt[0]: Let (span: 45:5-45:53)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: byte[]
+│        │  └─ Value: expr#109: <ExprKind(8)>
+│        ├─ Stmt[1]: Let (span: 46:5-46:27)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: true
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#115: a[[1..3]]
+│        └─ Stmt[2]: Expr (span: 47:5-47:27)
+│           └─ Expr: expr#120: v.append_string(&"x")
+├─ Item[8]: Fn (span: 50:1-56:2)
+│  ├─ Name: append_bytes_view_view
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 50:40-56:2)
+│        ├─ Stmt[0]: Let (span: 51:5-51:53)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: byte[]
+│        │  └─ Value: expr#127: <ExprKind(8)>
+│        ├─ Stmt[1]: Let (span: 52:5-52:27)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: true
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#133: a[[1..3]]
+│        ├─ Stmt[2]: Let (span: 53:5-53:25)
+│        │  ├─ Name: s
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#134: "x"
+│        ├─ Stmt[3]: Let (span: 54:5-54:27)
+│        │  ├─ Name: bytes
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#137: s.bytes()
+│        └─ Stmt[4]: Expr (span: 55:5-55:33)
+│           └─ Expr: expr#142: v.append_bytes_view(&bytes)
+└─ Item[9]: Fn (span: 58:1-63:2)
+   ├─ Name: rt_array_append_raw_bytes_view
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 38:36-42:2)
-         ├─ Stmt[0]: Let (span: 39:5-39:34)
+      └─ Stmt[0]: Block (span: 58:48-63:2)
+         ├─ Stmt[0]: Let (span: 59:5-59:53)
          │  ├─ Name: a
          │  ├─ Mutable: true
-         │  ├─ Type: int[]
-         │  └─ Value: expr#91: <ExprKind(8)>
-         ├─ Stmt[1]: Let (span: 40:5-40:27)
+         │  ├─ Type: byte[]
+         │  └─ Value: expr#149: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 60:5-60:27)
          │  ├─ Name: v
          │  ├─ Mutable: true
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#97: a[[1..3]]
-         └─ Stmt[2]: Expr (span: 41:5-41:30)
-            └─ Expr: expr#102: rt_array_push(&mut v, 6)
+         │  └─ Value: expr#155: a[[1..3]]
+         ├─ Stmt[2]: Let (span: 61:5-61:25)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#156: "x"
+         └─ Stmt[3]: Expr (span: 62:5-62:68)
+            └─ Expr: expr#166: rt_array_append_raw_bytes(&mut v, rt_string_ptr(&s), 1 to uint64)

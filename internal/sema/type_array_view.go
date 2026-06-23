@@ -124,7 +124,8 @@ func (tc *typeChecker) updateArrayViewBindingFromAssign(left, right ast.ExprID) 
 }
 
 func (tc *typeChecker) checkArrayViewResizeMethod(receiverExpr ast.ExprID, name string, receiverType types.TypeID, span source.Span) {
-	if name != "push" && name != "pop" && name != "reserve" {
+	if name != "push" && name != "pop" && name != "reserve" &&
+		name != "append_string" && name != "append_bytes_view" {
 		return
 	}
 	if !tc.isArrayType(tc.valueType(receiverType)) {
@@ -164,6 +165,7 @@ func (tc *typeChecker) markArrayViewMethodCall(callID ast.ExprID, name string, r
 func (tc *typeChecker) checkArrayViewResizeCall(name string, args []callArg, span source.Span) {
 	switch name {
 	case "rt_array_reserve", "rt_array_push", "rt_array_pop",
+		"rt_array_append_raw_bytes",
 		"array_reserve", "array_push", "array_pop":
 	default:
 		return

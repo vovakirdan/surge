@@ -114,6 +114,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleArrayPop(frame, call, writes)
 	case "rt_array_get_mut":
 		return vm.handleArrayGetMut(frame, call, writes)
+	case "rt_array_append_raw_bytes":
+		return vm.handleArrayAppendRawBytes(frame, call, writes)
 
 	case "rt_map_new":
 		return vm.handleMapNew(frame, call, writes)
