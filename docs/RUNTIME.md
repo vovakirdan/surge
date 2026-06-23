@@ -187,6 +187,14 @@ Default mode is `parallel`. `SURGE_SCHED=seeded` makes scheduler choices
 deterministic for the same seed and the same external event order. It does not
 control OS scheduling, socket readiness order, FFI, or blocking pool timing.
 
+Worker-local pushes are local-first but not always cross-worker wakeups. A
+single item appended to the current worker's local queue is left for that worker
+to consume on its next scheduler turn. Once the local queue contains more than
+one ready task, the runtime signals `ready_cv` so idle workers can steal the
+extra work. Global inject pushes and external wakes still signal immediately.
+Before a worker enters the sync channel compatibility wait path, its local ready
+work is moved to inject and broadcast to preserve progress.
+
 Worker count:
 
 - `SURGE_THREADS=<n>` overrides executor worker count.
@@ -311,6 +319,12 @@ Useful `TRACE_EXEC` fields:
 - `compensation_started`, `compensation_high_water`: worker-pinning fallback.
 - `waiters_*`, `tasks_*`, `local_total`, `inject_len`: scheduler shape at a
   snapshot.
+
+Useful `SCHED_TRACE` fields:
+
+- `local`, `inject`, `steal`: how many tasks were popped from worker-local
+  queues, the global inject queue, or another worker's local queue.
+- `events`: total scheduler pops covered by the summary line.
 
 Useful `TRACE_NET` fields:
 

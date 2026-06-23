@@ -36,7 +36,7 @@ Troubleshoot runtime latency with:
 ```bash
 SURGE_TRACE_EXEC=1 ./target/release/your_program 2>trace.log
 kill -USR1 <pid>
-rg 'TRACE_EXEC|TRACE_NET|TRACE_EXEC_SNAPSHOT' trace.log
+rg 'TRACE_EXEC|TRACE_NET|TRACE_EXEC_SNAPSHOT|SCHED_TRACE' trace.log
 ```
 
 Read the counters this way:
@@ -45,6 +45,9 @@ Read the counters this way:
   `channel_task_blocking_recv`: sync channel fallback from task context.
 - `channel_handoff_yield`: direct async channel handoffs.
 - `compensation_started` and `compensation_high_water`: worker-pinning fallback.
+- `SCHED_TRACE local`, `inject`, `steal`, and `events`: scheduler source mix.
+  High `steal` or high `worker_sleep`/`worker_wake` on sequential request/reply
+  paths usually means worker-pool wake churn, not net poll rebuild cost.
 - `io_poll_timeouts`, `io_poll_wake_fd`, and `io_poll_net_ready`: net poll
   progress and timeout-driven tails.
 - `io_waiter_scan_entries`, `io_poll_rebuilds`, and
@@ -62,7 +65,8 @@ show the selected scheduler shape instead of an aggregate from the whole fixture
 
 The net request/reply probe prints three layers: `echo` for minimal socket
 read/write, `direct` for socket task response writes, and `manager` for the
-same response behind a channel request/reply hop.
+same response behind a channel request/reply hop. It enables both
+`SURGE_TRACE_EXEC=1` and `SURGE_SCHED_TRACE=1` for each server run.
 
 Default channel placement keeps generic wakes local-first, while no-signal
 handoff wakes use inject placement. Use `SURGE_CHANNEL_WAKE_INJECT=1` only for

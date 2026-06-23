@@ -190,6 +190,14 @@ flowchart TD
 событий. Он не контролирует OS scheduling, порядок socket readiness, FFI или
 timing blocking pool.
 
+Worker-local push остается local-first, но не всегда будит другие worker'ы.
+Если в local queue текущего worker'а добавлен один ready task, этот worker
+заберет его на следующем обороте планировщика. Когда в local queue уже больше
+одной ready task, runtime сигналит `ready_cv`, чтобы idle workers могли украсть
+лишнюю работу. Global inject pushes и внешние wakes по-прежнему сигналят сразу.
+Перед входом worker'а в sync channel compatibility wait path его local ready
+work переносится в inject и будится broadcast'ом, чтобы сохранить progress.
+
 Количество worker'ов:
 
 - `SURGE_THREADS=<n>` переопределяет число executor workers.
@@ -315,6 +323,12 @@ Runtime tracing отделен от compiler tracing в `docs/TRACING.ru.md`.
 - `channel_handoff_yield`: direct async channel handoff yields.
 - `compensation_started`, `compensation_high_water`: fallback для pinned workers.
 - `waiters_*`, `tasks_*`, `local_total`, `inject_len`: форма scheduler snapshot.
+
+Полезные поля `SCHED_TRACE`:
+
+- `local`, `inject`, `steal`: сколько задач взято из worker-local queues,
+  global inject queue или local queue другого worker'а.
+- `events`: общее число scheduler pops в summary line.
 
 Полезные поля `TRACE_NET`:
 

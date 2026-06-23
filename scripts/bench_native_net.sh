@@ -184,7 +184,7 @@ mkdir -p "$(dirname "$report")"
 	echo "- patterns: $patterns"
 	echo "- requests: $requests"
 	echo "- pipeline depth: $pipeline_depth"
-	echo "- trace: per run SURGE_TRACE_EXEC=1"
+	echo "- trace: per run SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1"
 	echo
 	echo "## Results"
 	echo
@@ -198,7 +198,7 @@ for worker_count in $threads; do
 			port="$(pick_port)"
 			server_out="$(mktemp)"
 			trace_log="$(mktemp)"
-			SURGE_TRACE_EXEC=1 SURGE_THREADS="$worker_count" "$bench_bin" "$port" "$mode" >"$server_out" 2>"$trace_log" &
+			SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1 SURGE_THREADS="$worker_count" "$bench_bin" "$port" "$mode" >"$server_out" 2>"$trace_log" &
 			server_pid="$!"
 			if ! result="$(run_client "$port" "$mode" "$pattern")"; then
 				cat "$server_out" >&2 || true
@@ -215,13 +215,17 @@ for worker_count in $threads; do
 			read -r got_requests total_us avg_us p50_us p95_us <<<"$result"
 			printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 				"$worker_count" "$mode" "$pattern" "$got_requests" "$total_us" "$avg_us" "$p50_us" "$p95_us" >>"$report"
-			printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+			printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 				"$worker_count" "$mode" "$pattern" \
 				"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_send)" \
 				"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_recv)" \
 				"$(trace_value "$trace_log" TRACE_EXEC channel_handoff_yield)" \
 				"$(trace_value "$trace_log" TRACE_EXEC compensation_started)" \
 				"$(trace_value "$trace_log" TRACE_EXEC_SNAPSHOT compensation_high_water)" \
+				"$(trace_value "$trace_log" SCHED_TRACE local)" \
+				"$(trace_value "$trace_log" SCHED_TRACE inject)" \
+				"$(trace_value "$trace_log" SCHED_TRACE steal)" \
+				"$(trace_value "$trace_log" SCHED_TRACE events)" \
 				"$(trace_value "$trace_log" TRACE_NET io_direct_waits)" \
 				"$(trace_value "$trace_log" TRACE_NET io_poll_calls)" \
 				"$(trace_value "$trace_log" TRACE_NET io_poll_net_ready)" \
@@ -242,8 +246,8 @@ cat >>"$report" <<'EOF'
 
 ## Runtime Trace
 
-| threads | mode | pattern | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water | net direct waits | net poll calls | net ready | net waiters total | waiter scan entries | net waiter entries | poll rebuilds | poll allocs | dedup checks | complete calls | completed waiters |
-| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| threads | mode | pattern | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water | sched local | sched inject | sched steal | sched events | net direct waits | net poll calls | net ready | net waiters total | waiter scan entries | net waiter entries | poll rebuilds | poll allocs | dedup checks | complete calls | completed waiters |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 EOF
 cat "$trace_rows" >>"$report"
 
