@@ -174,6 +174,15 @@ func isRefType(typesIn *types.Interner, id types.TypeID) bool {
 	return ok && tt.Kind == types.KindReference
 }
 
+func isMutableRefType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	id = resolveAliasAndOwn(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	return ok && tt.Kind == types.KindReference && tt.Mutable
+}
+
 func isHandleValueType(typesIn *types.Interner, id types.TypeID) bool {
 	if typesIn == nil || id == types.NoTypeID {
 		return false

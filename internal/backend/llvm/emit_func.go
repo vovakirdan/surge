@@ -137,7 +137,7 @@ func (fe *funcEmitter) emitParamStores() error {
 			return err
 		}
 		value := fmt.Sprintf("%%p%d", i)
-		if boxAsyncRefs && isRefType(fe.emitter.types, local.Type) {
+		if boxAsyncRefs && isRefType(fe.emitter.types, local.Type) && !isMutableRefType(fe.emitter.types, local.Type) {
 			boxed, err := fe.emitAsyncRefParamBox(value, local.Type)
 			if err != nil {
 				return err
@@ -187,6 +187,15 @@ func (fe *funcEmitter) emitAsyncRefParamBox(paramValue string, refType types.Typ
 	}
 	box := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", box, size, align)
+	isNull := fe.nextTemp()
+	trapBB := fe.nextInlineBlock()
+	okBB := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq ptr %s, null\n", isNull, box)
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isNull, trapBB, okBB)
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", trapBB)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @llvm.trap()\n")
+	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
 	value := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", value, valueLLVM, paramValue)
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valueLLVM, value, box)

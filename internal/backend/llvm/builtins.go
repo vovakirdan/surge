@@ -12,6 +12,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_alloc", ret: "ptr", params: []string{"i64", "i64"}},
 		{name: "rt_free", ret: "void", params: []string{"ptr", "i64", "i64"}},
 		{name: "rt_realloc", ret: "ptr", params: []string{"ptr", "i64", "i64", "i64"}},
+		{name: "llvm.trap", ret: "void", params: nil},
 		{name: "rt_memcpy", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_memmove", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_array_append_raw_bytes", ret: "void", params: []string{"ptr", "ptr", "i64"}},
