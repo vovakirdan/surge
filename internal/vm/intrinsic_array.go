@@ -217,6 +217,70 @@ func (vm *VM) handleArrayGetMut(frame *Frame, call *mir.CallInstr, writes *[]Loc
 	return nil
 }
 
+func (vm *VM) handleArrayAppendRawBytes(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	_ = writes
+	if len(call.Args) != 3 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_array_append_raw_bytes requires 3 arguments")
+	}
+	arrVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(arrVal)
+	ptrVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(ptrVal)
+	lenVal, vmErr := vm.evalOperand(frame, &call.Args[2])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(lenVal)
+
+	if ptrVal.Kind != VKPtr {
+		return vm.eb.typeMismatch("*byte", ptrVal.Kind.String())
+	}
+	n, vmErr := vm.uintValueToInt(lenVal, "array append length out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	if n == 0 {
+		return nil
+	}
+	data, vmErr := vm.readBytesFromPointer(ptrVal, n)
+	if vmErr != nil {
+		return vmErr
+	}
+	arrObj, vmErr := vm.arrayOwnedFromValue(arrVal)
+	if vmErr != nil {
+		return vmErr
+	}
+
+	oldLen := len(arrObj.Arr)
+	newLen := oldLen + len(data)
+	if newLen < oldLen {
+		return vm.eb.invalidNumericConversion("array length out of range")
+	}
+	if newLen > cap(arrObj.Arr) {
+		grown := growArrayCapacity(cap(arrObj.Arr), newLen)
+		next := make([]Value, newLen, grown)
+		copy(next, arrObj.Arr)
+		arrObj.Arr = next
+	} else {
+		arrObj.Arr = arrObj.Arr[:newLen]
+	}
+
+	elemType := types.NoTypeID
+	if vm.Types != nil {
+		elemType = vm.Types.Builtins().Uint8
+	}
+	for i, b := range data {
+		arrObj.Arr[oldLen+i] = MakeInt(int64(b), elemType)
+	}
+	return nil
+}
+
 func (vm *VM) makeOptionSome(typeID types.TypeID, elem Value) (Value, *VMError) {
 	if typeID == types.NoTypeID {
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, "invalid Option<T> type")
