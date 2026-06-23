@@ -68,8 +68,13 @@ fn main() -> int {
 	}
 	body := findLLVMFuncBody(t, ir, fmt.Sprintf("fn.%d", fn.ID))
 
-	if strings.Contains(body, "call ptr @rt_alloc(i64 8, i64 8)") {
-		t.Fatalf("async mutable ref constructor must not box the caller alias:\n%s", body)
+	prologueEnd := strings.Index(body, "\n  br ")
+	if prologueEnd < 0 {
+		t.Fatalf("missing constructor prologue terminator:\n%s", body)
+	}
+	prologue := body[:prologueEnd]
+	if strings.Contains(prologue, "call ptr @rt_alloc(") {
+		t.Fatalf("async mutable ref constructor must not box the caller alias:\n%s", prologue)
 	}
 	if !strings.Contains(body, "store ptr %p0, ptr %l0") {
 		t.Fatalf("async mutable ref constructor should store original pointer alias:\n%s", body)
