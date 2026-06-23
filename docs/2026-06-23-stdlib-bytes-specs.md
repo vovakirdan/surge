@@ -271,13 +271,17 @@ Current runtime support:
 - `rt_memcpy` and `rt_memmove` exist but are not ordinary user APIs.
 - `rt_net_write_bytes` already writes a byte-array range by offset and length.
 
-Likely missing for a fast implementation:
+Required if pure loops prove too slow:
 
 - `rt_byte_array_append_range(dst: &mut byte[], src: &byte[], start: uint, len: uint)`.
-- `rt_byte_array_truncate(buf: &mut byte[], len: uint)`.
-- `rt_byte_array_clear(buf: &mut byte[], keep_capacity: bool)`.
 - `rt_byte_array_drop_prefix(buf: &mut byte[], count: uint)`.
 - Optional: `rt_byte_find(buf: &byte[], start: uint, end: uint, needle: byte)`.
+
+`clear_keep_capacity` can drop the full length with `rt_byte_array_drop_prefix`.
+`ByteBuffer.compact` can drop only the consumed prefix. `copy_range` can build
+an empty destination and use `rt_byte_array_append_range`, so a separate
+truncate/clear intrinsic should not be introduced unless a benchmark proves it
+is needed.
 
 The implementation should benchmark pure Surge loops first. If loops dominate,
 add the smallest intrinsic that removes the measured cost. Do not add a broad
@@ -295,6 +299,12 @@ Preflight notes:
 - There is no public fast path for truncating or clearing a `byte[]` while
   keeping capacity. Without a new intrinsic, `clear_keep_capacity` must pop in a
   loop.
+- Array range indexing is not safe to use as an implementation shortcut yet.
+  `data[[1..3]]` passes sema and runs on the VM, but LLVM build fails with
+  `expected integer type`. The VM handles range indexes by allocating an array
+  slice; LLVM currently has the string slice case but lowers array indexes
+  through the integer element path. Fixing LLVM array range indexing is a
+  separate compiler parity follow-up, not part of the first stdlib/bytes patch.
 
 ## Expected Performance
 
