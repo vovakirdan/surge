@@ -216,7 +216,8 @@ extern<ByteBuffer> {
     pub fn len(self: &ByteBuffer) -> uint;
     pub fn is_empty(self: &ByteBuffer) -> bool;
     pub fn range(self: &ByteBuffer) -> ByteRange;
-    pub fn clear(self: &mut ByteBuffer, keep_capacity: bool = true) -> nothing;
+    pub fn clear(self: &mut ByteBuffer) -> nothing;
+    pub fn clear_keep_capacity(self: &mut ByteBuffer) -> nothing;
     pub fn reserve(self: &mut ByteBuffer, additional: uint) -> nothing;
     pub fn append(self: &mut ByteBuffer, chunk: &byte[]) -> nothing;
     pub fn append_view(self: &mut ByteBuffer, view: &BytesView) -> nothing;
@@ -234,6 +235,10 @@ offset after the terminator.
 
 `consume` advances `start`. It should not move bytes immediately. `compact`
 moves live bytes back to offset `0` and resets `start`.
+
+This API intentionally avoids default parameters on methods. Current method
+resolution does not apply default arguments when matching method-call arity, so
+`buf.clear()` would not resolve to `clear(keep_capacity: bool = true)`.
 
 ## Byte Builder API
 
@@ -264,6 +269,7 @@ Current runtime support:
   `string` and `BytesView`.
 - `rt_string_bytes_view` gives byte access to `string`.
 - `rt_memcpy` and `rt_memmove` exist but are not ordinary user APIs.
+- `rt_net_write_bytes` already writes a byte-array range by offset and length.
 
 Likely missing for a fast implementation:
 
@@ -276,6 +282,19 @@ Likely missing for a fast implementation:
 The implementation should benchmark pure Surge loops first. If loops dominate,
 add the smallest intrinsic that removes the measured cost. Do not add a broad
 memory API just to make this module look complete.
+
+Preflight notes:
+
+- The proposed `ByteRange`, `ByteLine`, `ByteBuffer`, and `extern<Array<byte>>`
+  method shapes pass current sema, LLVM build, and VM run when they avoid method
+  default arguments.
+- Bulk append from `string` and `BytesView` is already implemented for native,
+  LLVM lowering, and VM.
+- There is no public fast path for appending a range from one `byte[]` into
+  another. Without a new intrinsic, `append_bytes_range` must copy byte by byte.
+- There is no public fast path for truncating or clearing a `byte[]` while
+  keeping capacity. Without a new intrinsic, `clear_keep_capacity` must pop in a
+  loop.
 
 ## Expected Performance
 
