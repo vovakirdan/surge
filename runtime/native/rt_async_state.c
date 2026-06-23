@@ -1408,6 +1408,7 @@ static int ready_push_with_policy(
     if (!force_inject) {
         local = current_local_queue(ex);
     }
+    int signal_ready_now = signal_ready;
     if (local != NULL) {
         // Local queues are popped from the tail, so tail insertion is the local priority path.
         int ok = deque_push_tail(
@@ -1415,6 +1416,9 @@ static int ready_push_with_policy(
         if (!ok) {
             return 0;
         }
+        // A single local continuation is usually consumed by the current worker on its
+        // next scheduler turn; waking another worker often just creates steal/sleep churn.
+        signal_ready_now = signal_ready && local->len > 1;
     } else {
         int ok = front ? deque_push_head(&ex->inject,
                                          id,
@@ -1433,7 +1437,7 @@ static int ready_push_with_policy(
     if (ex->channel_blocked_workers > 0) {
         maybe_start_compensation_worker_locked(ex);
     }
-    if (signal_ready) {
+    if (signal_ready_now) {
         pthread_cond_signal(&ex->ready_cv);
     }
     return 1;
