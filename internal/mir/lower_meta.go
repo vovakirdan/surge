@@ -213,6 +213,8 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					visitOperand(&ins.ChanSend.Value)
 				case InstrChanRecv:
 					visitOperand(&ins.ChanRecv.Channel)
+				case InstrNetWait:
+					visitOperand(&ins.NetWait.Handle)
 				case InstrTimeout:
 					visitOperand(&ins.Timeout.Task)
 					visitOperand(&ins.Timeout.Ms)

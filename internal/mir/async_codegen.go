@@ -173,6 +173,8 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 			pollInstr.ChanSend.PendBB = pendingBB
 		case InstrChanRecv:
 			pollInstr.ChanRecv.PendBB = pendingBB
+		case InstrNetWait:
+			pollInstr.NetWait.PendBB = pendingBB
 		case InstrTimeout:
 			pollInstr.Timeout.PendBB = pendingBB
 		case InstrSelect:

@@ -30,3 +30,25 @@ fn main() -> int {
 		t.Fatalf("rt_net_write_bytes received a local slot instead of an array handle:\n%s", ir)
 	}
 }
+
+func TestEmitNetWaitUsesDirectReadiness(t *testing.T) {
+	sourceCode := `import stdlib/net as net;
+
+@entrypoint
+fn main() -> int {
+    let conn: TcpConn = { __opaque: 0 };
+    let read_task = net.read_some(&conn, 1:uint);
+    let _ = read_task.await();
+    return 0;
+}
+`
+
+	ir := emitLLVMFromSource(t, sourceCode)
+
+	if !regexp.MustCompile(`call i1 @rt_net_wait_readable\(`).MatchString(ir) {
+		t.Fatalf("expected direct readable wait in IR:\n%s", ir)
+	}
+	if regexp.MustCompile(`call ptr @rt_net_wait_readable\(`).MatchString(ir) {
+		t.Fatalf("net wait must not materialize a Task handle:\n%s", ir)
+	}
+}

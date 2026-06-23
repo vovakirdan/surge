@@ -246,12 +246,6 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleNetReadBytes(frame, call, writes)
 	case "rt_net_write_bytes":
 		return vm.handleNetWriteBytes(frame, call, writes)
-	case "rt_net_wait_accept":
-		return vm.handleNetWaitAccept(frame, call, writes)
-	case "rt_net_wait_readable":
-		return vm.handleNetWaitReadable(frame, call, writes)
-	case "rt_net_wait_writable":
-		return vm.handleNetWaitWritable(frame, call, writes)
 
 	case "rt_exit":
 		return vm.handleRtExit(frame, call)

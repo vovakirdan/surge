@@ -89,12 +89,12 @@ This document lists all the intrinsics available in the Surge language, grouped 
     *   Reads data from a TCP connection.
 *   `@intrinsic fn rt_net_write(c: &TcpConn, buf: *byte, length: uint) -> NetResult<uint>`
     *   Writes data to a TCP connection.
-*   `@intrinsic fn rt_net_wait_accept(l: &TcpListener) -> Task<nothing>`
-    *   Waits asynchronously until a new connection is available to accept.
-*   `@intrinsic fn rt_net_wait_readable(c: &TcpConn) -> Task<nothing>`
-    *   Waits asynchronously until the connection is readable.
-*   `@intrinsic fn rt_net_wait_writable(c: &TcpConn) -> Task<nothing>`
-    *   Waits asynchronously until the connection is writable.
+*   `@intrinsic fn rt_net_wait_accept(l: &TcpListener) -> nothing`
+    *   Suspends the current async task until a new connection is available to accept.
+*   `@intrinsic fn rt_net_wait_readable(c: &TcpConn) -> nothing`
+    *   Suspends the current async task until the connection is readable.
+*   `@intrinsic fn rt_net_wait_writable(c: &TcpConn) -> nothing`
+    *   Suspends the current async task until the connection is writable.
 
 ### String Operations
 

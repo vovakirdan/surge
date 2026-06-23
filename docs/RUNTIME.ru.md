@@ -46,7 +46,7 @@ VM и native-бэкенды имеют общую семантику языка,
 | Async tasks | Go executor поверх MIR poll state | C executor поверх скомпилированных poll-функций |
 | Таймеры | virtual по умолчанию, есть VM real-time mode | executor time |
 | Blocking scope | отклоняется | выделенный blocking pool |
-| Network I/O | VM intrinsic tasks | native nonblocking sockets плюс poll thread |
+| Network I/O | прямые MIR net waiters | native nonblocking sockets плюс poll thread |
 | Heap debug | VM object heap и RC-проверки | native allocation counters |
 
 ---
@@ -251,14 +251,18 @@ functions.
 
 ### 3.4 Network I/O
 
-Native network wait tasks - обычные runtime tasks:
+Network readiness waits паркуют текущую async-задачу напрямую:
 
-- `rt_net_wait_accept`, `rt_net_wait_readable` и `rt_net_wait_writable` создают
-  wait tasks с ключом fd и видом readiness.
-- Poll net task сначала пробует `poll(..., timeout=0)`.
-- Если fd не готов, задача паркуется на net waker key.
+- `rt_net_wait_accept`, `rt_net_wait_readable` и `rt_net_wait_writable` — это
+  suspendable intrinsics, которые lowering превращает в ready/pending poll
+  branches.
+- Runtime сначала пробует `poll(..., timeout=0)` для fd.
+- Если fd не готов, текущая задача паркуется на net waker key.
 - I/O thread следит за зарегистрированными net waiters через `poll`.
-- Когда fd готов, он завершает matching net waiters и будит задачи.
+- Когда fd готов, он будит matching parked tasks.
+
+Эти ожидания не аллоцируют `Task<nothing>` handles и не добавляют join layer
+между socket readiness и пользовательской задачей.
 
 I/O thread сигналится, когда executor становится idle, когда регистрируются net
 waiters или когда меняется shutdown state. `TRACE_NET` counters выводятся как
@@ -316,7 +320,8 @@ Runtime tracing отделен от compiler tracing в `docs/TRACING.ru.md`.
 
 - `io_poll_calls`, `io_poll_timeouts`, `io_poll_timeout_max_ms`;
 - `io_poll_wake_fd`, `io_poll_net_ready`, `io_poll_errors`;
-- `io_poll_waiters_last`, `io_poll_waiters_max`, `io_poll_waiters_total`.
+- `io_poll_waiters_last`, `io_poll_waiters_max`, `io_poll_waiters_total`;
+- `io_direct_waits`: прямые парковки задач на network readiness.
 
 Для здорового прямого async channel request/reply path ожидаются
 `channel_task_blocking_send=0`, `channel_task_blocking_recv=0` и

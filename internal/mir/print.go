@@ -187,6 +187,13 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 			ins.ChanRecv.ReadyBB,
 			ins.ChanRecv.PendBB,
 		)
+	case InstrNetWait:
+		return fmt.Sprintf("net_wait_%s %s ? bb%d : bb%d",
+			ins.NetWait.Kind,
+			formatOperand(&ins.NetWait.Handle),
+			ins.NetWait.ReadyBB,
+			ins.NetWait.PendBB,
+		)
 	case InstrTimeout:
 		return fmt.Sprintf("%s = timeout %s, %s ? bb%d : bb%d",
 			formatPlace(ins.Timeout.Dst),

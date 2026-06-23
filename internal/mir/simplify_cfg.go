@@ -110,6 +110,9 @@ func applyRedirects(f *Func, redirects map[BlockID]BlockID) {
 			case InstrChanRecv:
 				last.ChanRecv.ReadyBB = redirect(last.ChanRecv.ReadyBB)
 				last.ChanRecv.PendBB = redirect(last.ChanRecv.PendBB)
+			case InstrNetWait:
+				last.NetWait.ReadyBB = redirect(last.NetWait.ReadyBB)
+				last.NetWait.PendBB = redirect(last.NetWait.PendBB)
 			case InstrTimeout:
 				last.Timeout.ReadyBB = redirect(last.Timeout.ReadyBB)
 				last.Timeout.PendBB = redirect(last.Timeout.PendBB)
@@ -155,6 +158,10 @@ func computeReachability(f *Func) []bool {
 			case InstrChanRecv:
 				visit(last.ChanRecv.ReadyBB)
 				visit(last.ChanRecv.PendBB)
+				return
+			case InstrNetWait:
+				visit(last.NetWait.ReadyBB)
+				visit(last.NetWait.PendBB)
 				return
 			case InstrTimeout:
 				visit(last.Timeout.ReadyBB)
@@ -256,6 +263,9 @@ func compactBlocks(f *Func, reachable []bool) {
 			case InstrChanRecv:
 				last.ChanRecv.ReadyBB = remap(last.ChanRecv.ReadyBB)
 				last.ChanRecv.PendBB = remap(last.ChanRecv.PendBB)
+			case InstrNetWait:
+				last.NetWait.ReadyBB = remap(last.NetWait.ReadyBB)
+				last.NetWait.PendBB = remap(last.NetWait.PendBB)
 			case InstrTimeout:
 				last.Timeout.ReadyBB = remap(last.Timeout.ReadyBB)
 				last.Timeout.PendBB = remap(last.Timeout.PendBB)

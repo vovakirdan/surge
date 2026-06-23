@@ -255,6 +255,13 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 			instr.ChanRecv.ReadyBB,
 			instr.ChanRecv.PendBB,
 		)
+	case mir.InstrNetWait:
+		return fmt.Sprintf("net_wait_%s %s ? bb%d : bb%d",
+			instr.NetWait.Kind,
+			t.formatOperand(&instr.NetWait.Handle),
+			instr.NetWait.ReadyBB,
+			instr.NetWait.PendBB,
+		)
 	case mir.InstrTimeout:
 		return fmt.Sprintf("%s = timeout %s, %s ? bb%d : bb%d",
 			t.formatPlace(instr.Timeout.Dst),

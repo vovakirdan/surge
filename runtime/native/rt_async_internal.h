@@ -27,10 +27,7 @@ typedef enum {
     TASK_KIND_USER = 0,
     TASK_KIND_CHECKPOINT = 1,
     TASK_KIND_SLEEP = 2,
-    TASK_KIND_NET_ACCEPT = 3,
-    TASK_KIND_NET_READ = 4,
-    TASK_KIND_NET_WRITE = 5,
-    TASK_KIND_BLOCKING = 6,
+    TASK_KIND_BLOCKING = 3,
 } task_kind;
 
 typedef enum {
@@ -123,7 +120,6 @@ typedef struct rt_task {
     uint64_t resume_bits;
     uint64_t sleep_delay;
     uint64_t sleep_deadline;
-    int net_fd;
     uint64_t scope_id;
     uint64_t parent_scope_id;
     waker_key park_key;
@@ -388,7 +384,6 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task);
-poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task);
 int poll_net_waiters(rt_executor* ex, int timeout_ms);
 void rt_net_wake_poll(void);
 void rt_net_trace_dump(const char* reason);

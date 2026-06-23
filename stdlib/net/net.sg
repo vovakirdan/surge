@@ -4,11 +4,6 @@
 const NET_ERR_WOULD_BLOCK: uint = 1;
 const NET_ERR_IO: uint = 8;
 
-type _NetAcceptTask = Task<NetResult<TcpConn>>;
-type _NetReadTask = Task<NetResult<byte[]>>;
-type _NetWriteTask = Task<NetResult<uint>>;
-type _NetWriteAllTask = Task<NetResult<nothing>>;
-
 fn net_error(code: uint, msg: string) -> NetError {
     return { message: msg, code: code };
 }
@@ -58,14 +53,7 @@ async fn accept_owned(handle: int) -> NetResult<TcpConn> {
             }
             err => {
                 if is_would_block(&err) {
-                    let wait_res = rt_net_wait_accept(&listener).await();
-                    compare wait_res {
-                        Success(_) => {}
-                        Cancelled() => {
-                            out = net_error(NET_ERR_IO, "accept cancelled");
-                            break;
-                        }
-                    };
+                    rt_net_wait_accept(&listener);
                     continue;
                 }
                 out = err;
@@ -89,13 +77,7 @@ async fn read_some_owned(handle: int, cap: uint) -> NetResult<byte[]> {
             }
             err => {
                 if is_would_block(&err) {
-                    let wait_res = rt_net_wait_readable(&conn).await();
-                    compare wait_res {
-                        Success(_) => {}
-                        Cancelled() => {
-                            return net_error(NET_ERR_IO, "read cancelled");
-                        }
-                    };
+                    rt_net_wait_readable(&conn);
                     continue;
                 } else {
                     return err;
@@ -125,13 +107,7 @@ async fn write_some_owned(handle: int, data: byte[]) -> NetResult<uint> {
             }
             err => {
                 if is_would_block(&err) {
-                    let wait_res = rt_net_wait_writable(&conn).await();
-                    compare wait_res {
-                        Success(_) => {}
-                        Cancelled() => {
-                            return net_error(NET_ERR_IO, "write cancelled");
-                        }
-                    };
+                    rt_net_wait_writable(&conn);
                     0:int;
                 } else {
                     return err;
@@ -161,13 +137,7 @@ async fn write_all_owned(handle: int, data: byte[]) -> NetResult<nothing> {
             }
             err => {
                 if is_would_block(&err) {
-                    let wait_res = rt_net_wait_writable(&conn).await();
-                    compare wait_res {
-                        Success(_) => {}
-                        Cancelled() => {
-                            return net_error(NET_ERR_IO, "write cancelled");
-                        }
-                    };
+                    rt_net_wait_writable(&conn);
                     0:int;
                 } else {
                     return err;

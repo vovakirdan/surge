@@ -305,16 +305,10 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t tasks_waiting = 0;
     uint64_t tasks_done = 0;
     uint64_t tasks_ready_user = 0;
-    uint64_t tasks_ready_net = 0;
     uint64_t tasks_waiting_user = 0;
-    uint64_t tasks_waiting_net = 0;
     uint64_t tasks_done_user = 0;
-    uint64_t tasks_done_net = 0;
     uint64_t tasks_user = 0;
     uint64_t tasks_sleep = 0;
-    uint64_t tasks_net_accept = 0;
-    uint64_t tasks_net_read = 0;
-    uint64_t tasks_net_write = 0;
     uint64_t tasks_blocking = 0;
     uint64_t tasks_other_kind = 0;
     uint64_t waiters_join = 0;
@@ -355,8 +349,6 @@ static void trace_exec_snapshot_dump(const char* reason) {
                 tasks_done++;
                 break;
         }
-        uint8_t net_task = task->kind == TASK_KIND_NET_ACCEPT || task->kind == TASK_KIND_NET_READ ||
-                           task->kind == TASK_KIND_NET_WRITE;
         if (task->kind == TASK_KIND_USER) {
             switch (status) {
                 case TASK_READY:
@@ -371,20 +363,6 @@ static void trace_exec_snapshot_dump(const char* reason) {
                 default:
                     break;
             }
-        } else if (net_task) {
-            switch (status) {
-                case TASK_READY:
-                    tasks_ready_net++;
-                    break;
-                case TASK_WAITING:
-                    tasks_waiting_net++;
-                    break;
-                case TASK_DONE:
-                    tasks_done_net++;
-                    break;
-                default:
-                    break;
-            }
         }
         switch (task->kind) {
             case TASK_KIND_USER:
@@ -392,15 +370,6 @@ static void trace_exec_snapshot_dump(const char* reason) {
                 break;
             case TASK_KIND_SLEEP:
                 tasks_sleep++;
-                break;
-            case TASK_KIND_NET_ACCEPT:
-                tasks_net_accept++;
-                break;
-            case TASK_KIND_NET_READ:
-                tasks_net_read++;
-                break;
-            case TASK_KIND_NET_WRITE:
-                tasks_net_write++;
                 break;
             case TASK_KIND_BLOCKING:
                 tasks_blocking++;
@@ -469,16 +438,10 @@ static void trace_exec_snapshot_dump(const char* reason) {
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting", tasks_waiting);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done", tasks_done);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready_user", tasks_ready_user);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready_net", tasks_ready_net);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting_user", tasks_waiting_user);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting_net", tasks_waiting_net);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done_user", tasks_done_user);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done_net", tasks_done_net);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_user", tasks_user);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_sleep", tasks_sleep);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_accept", tasks_net_accept);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_read", tasks_net_read);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_net_write", tasks_net_write);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_blocking", tasks_blocking);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_other_kind", tasks_other_kind);
     if (pos + 1 < sizeof(buf)) {
@@ -2025,9 +1988,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
             task->scope_registered = 0;
         }
     }
-    uint8_t net_task = task->kind == TASK_KIND_NET_ACCEPT || task->kind == TASK_KIND_NET_READ ||
-                       task->kind == TASK_KIND_NET_WRITE;
-    wake_key_all_with_policy(ex, join_key(task->id), net_task != 0);
+    wake_key_all_with_policy(ex, join_key(task->id), 0);
     pthread_cond_broadcast(&ex->done_cv);
     if (atomic_load_explicit(&task->handle_refs, memory_order_relaxed) == 0) {
         free_task(ex, task);

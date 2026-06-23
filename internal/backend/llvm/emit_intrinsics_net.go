@@ -205,17 +205,49 @@ func (fe *funcEmitter) emitNetWait(call *mir.CallInstr, name, kind string) error
 		return err
 	}
 	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(ptr %s)\n", tmp, name, val)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s)\n", tmp, name, val)
 	if call.HasDst {
 		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if dstTy != "i1" {
+			dstTy = "i1"
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
 	}
+	return nil
+}
+
+func netWaitRuntimeName(kind mir.NetWaitKind) (name, handleKind string, err error) {
+	switch kind {
+	case mir.NetWaitAccept:
+		return "rt_net_wait_accept", "TcpListener", nil
+	case mir.NetWaitRead:
+		return "rt_net_wait_readable", "TcpConn", nil
+	case mir.NetWaitWrite:
+		return "rt_net_wait_writable", "TcpConn", nil
+	default:
+		return "", "", fmt.Errorf("unknown net wait kind %s", kind)
+	}
+}
+
+func (fe *funcEmitter) emitInstrNetWait(ins *mir.Instr) error {
+	if ins == nil {
+		return nil
+	}
+	name, handleKind, err := netWaitRuntimeName(ins.NetWait.Kind)
+	if err != nil {
+		return err
+	}
+	val, err := fe.emitNetHandle(&ins.NetWait.Handle, handleKind)
+	if err != nil {
+		return err
+	}
+	okVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s)\n", okVal, name, val)
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb%d\n", okVal, ins.NetWait.ReadyBB, ins.NetWait.PendBB)
+	fe.blockTerminated = true
 	return nil
 }
 

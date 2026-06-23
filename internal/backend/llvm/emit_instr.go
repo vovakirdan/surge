@@ -30,6 +30,8 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 		return fe.emitInstrChanSend(ins)
 	case mir.InstrChanRecv:
 		return fe.emitInstrChanRecv(ins)
+	case mir.InstrNetWait:
+		return fe.emitInstrNetWait(ins)
 	case mir.InstrTimeout:
 		return fe.emitInstrTimeout(ins)
 	case mir.InstrSelect:

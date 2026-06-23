@@ -2,49 +2,7 @@ package vm
 
 import (
 	"golang.org/x/sys/unix"
-
-	"surge/internal/asyncrt"
 )
-
-type netWaitState struct {
-	fd int
-}
-
-func (vm *VM) pollNetWaitTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
-	if vm == nil || task == nil {
-		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing net wait task")
-	}
-	state, ok := task.State.(*netWaitState)
-	if !ok || state == nil {
-		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "net wait state missing")
-	}
-	if task.Cancelled {
-		return asyncrt.PollOutcome{Kind: asyncrt.PollDoneCancelled}, nil
-	}
-	if state.fd <= 0 {
-		return asyncrt.PollOutcome{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
-	}
-	wantWrite := task.Kind == asyncrt.TaskKindNetWrite
-	ready, err := netFdReady(state.fd, wantWrite)
-	if err != nil || ready {
-		return asyncrt.PollOutcome{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
-	}
-	var key asyncrt.WakerKey
-	switch task.Kind {
-	case asyncrt.TaskKindNetAccept:
-		key = asyncrt.NetAcceptKey(state.fd)
-	case asyncrt.TaskKindNetRead:
-		key = asyncrt.NetReadKey(state.fd)
-	case asyncrt.TaskKindNetWrite:
-		key = asyncrt.NetWriteKey(state.fd)
-	default:
-		return asyncrt.PollOutcome{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
-	}
-	if !key.IsValid() {
-		return asyncrt.PollOutcome{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
-	}
-	return asyncrt.PollOutcome{Kind: asyncrt.PollParked, ParkKey: key}, nil
-}
 
 func netFdReady(fd int, wantWrite bool) (bool, error) {
 	if fd <= 0 {

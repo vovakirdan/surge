@@ -534,7 +534,9 @@ Public API:
   - `write_some`
   - `write_all`
 
-This module provides async TCP helpers backed by runtime intrinsics.
+This module provides async TCP helpers backed by runtime intrinsics. When a
+socket returns `WouldBlock`, the helper parks the current task on direct runtime
+readiness instead of allocating a separate wait task.
 
 ---
 
