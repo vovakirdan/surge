@@ -251,15 +251,43 @@ async fn bench_channel_sync_new_reply(iterations: int) -> nothing {
     return nothing;
 }
 
-@entrypoint
-fn main() -> int {
+@entrypoint("argv")
+fn main(probe: string = "all") -> int {
     let iterations: int = 20000;
     let sync_iterations: int = iterations / 4;
-    bench_empty_loop(iterations);
-    bench_response_bytes(iterations);
-    let _ = bench_channel_ping_pong(iterations).await();
-    let _ = bench_channel_reused_reply(iterations).await();
-    let _ = bench_channel_new_reply(iterations).await();
-    let _ = bench_channel_sync_new_reply(sync_iterations).await();
-    return 0;
+    if probe == "all" {
+        bench_empty_loop(iterations);
+        bench_response_bytes(iterations);
+        let _ = bench_channel_ping_pong(iterations).await();
+        let _ = bench_channel_reused_reply(iterations).await();
+        let _ = bench_channel_new_reply(iterations).await();
+        let _ = bench_channel_sync_new_reply(sync_iterations).await();
+        return 0;
+    }
+    if probe == "empty_loop" {
+        bench_empty_loop(iterations);
+        return 0;
+    }
+    if probe == "response_bytes" {
+        bench_response_bytes(iterations);
+        return 0;
+    }
+    if probe == "channel_ping_pong" {
+        let _ = bench_channel_ping_pong(iterations).await();
+        return 0;
+    }
+    if probe == "channel_reused_reply" {
+        let _ = bench_channel_reused_reply(iterations).await();
+        return 0;
+    }
+    if probe == "channel_new_reply" {
+        let _ = bench_channel_new_reply(iterations).await();
+        return 0;
+    }
+    if probe == "channel_sync_new_reply" {
+        let _ = bench_channel_sync_new_reply(sync_iterations).await();
+        return 0;
+    }
+    print("unknown probe: " + probe);
+    return 2;
 }
