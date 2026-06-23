@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"surge/internal/mir"
+	"surge/internal/types"
 )
 
 func (e *Emitter) emitFunction(f *mir.Func) error {
@@ -128,12 +129,66 @@ func (fe *funcEmitter) emitAllocas() error {
 }
 
 func (fe *funcEmitter) emitParamStores() error {
+	boxAsyncRefs := fe.shouldBoxAsyncRefParams()
 	for i, localID := range fe.paramLocals {
-		llvmTy, err := llvmLocalValueType(fe.emitter.types, fe.f.Locals[localID])
+		local := fe.f.Locals[localID]
+		llvmTy, err := llvmLocalValueType(fe.emitter.types, local)
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %%p%d, ptr %%%s\n", llvmTy, i, fe.localAlloca[localID])
+		value := fmt.Sprintf("%%p%d", i)
+		if boxAsyncRefs && isRefType(fe.emitter.types, local.Type) {
+			boxed, err := fe.emitAsyncRefParamBox(value, local.Type)
+			if err != nil {
+				return err
+			}
+			value = boxed
+			llvmTy = "ptr"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %%%s\n", llvmTy, value, fe.localAlloca[localID])
 	}
 	return nil
+}
+
+func (fe *funcEmitter) shouldBoxAsyncRefParams() bool {
+	if fe == nil || fe.f == nil || fe.emitter == nil || fe.emitter.mod == nil {
+		return false
+	}
+	if isPollFunc(fe.f) || !isTaskType(fe.emitter.types, fe.f.Result) {
+		return false
+	}
+	pollName := fe.f.Name + "$poll"
+	for _, fn := range fe.emitter.mod.Funcs {
+		if fn != nil && fn.Name == pollName {
+			return true
+		}
+	}
+	return false
+}
+
+func (fe *funcEmitter) emitAsyncRefParamBox(paramValue string, refType types.TypeID) (string, error) {
+	valueType, ok := derefType(fe.emitter.types, refType)
+	if !ok {
+		return "", fmt.Errorf("async ref parameter has non-reference type")
+	}
+	valueLLVM, err := llvmValueType(fe.emitter.types, valueType)
+	if err != nil {
+		return "", err
+	}
+	size, align, err := llvmTypeSizeAlign(valueLLVM)
+	if err != nil {
+		return "", err
+	}
+	if size <= 0 {
+		size = 1
+	}
+	if align <= 0 {
+		align = 1
+	}
+	box := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", box, size, align)
+	value := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", value, valueLLVM, paramValue)
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valueLLVM, value, box)
+	return box, nil
 }
