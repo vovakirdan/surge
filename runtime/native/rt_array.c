@@ -21,6 +21,7 @@ static uint64_t array_grow_cap(uint64_t current, uint64_t min_cap) {
     while (current < min_cap) {
         if (current > UINT64_MAX / 2) {
             array_panic("array capacity out of range");
+            return min_cap;
         }
         current *= 2;
     }
@@ -33,14 +34,17 @@ void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t le
     }
     if (array_slot == NULL || src == NULL) {
         array_panic("array append bytes received null pointer");
+        return;
     }
 
     SurgeArrayHeader* header = *(SurgeArrayHeader**)array_slot;
     if (header == NULL) {
         array_panic("array append bytes received null array");
+        return;
     }
     if (len > UINT64_MAX - header->len) {
         array_panic("array length out of range");
+        return;
     }
 
     uint64_t old_len = header->len;
@@ -54,6 +58,7 @@ void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t le
             if (candidate < old_len) {
                 if (len > old_len - candidate) {
                     array_panic("array append bytes source range out of range");
+                    return;
                 }
                 src_offset = candidate;
             }
@@ -66,12 +71,14 @@ void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t le
             rt_realloc((uint8_t*)header->data, header->cap, new_cap, (uint64_t)alignof(uint8_t));
         if (data == NULL) {
             array_panic("array allocation failed");
+            return;
         }
         header->data = data;
         header->cap = new_cap;
     }
     if (header->data == NULL) {
         array_panic("array append bytes received null data");
+        return;
     }
 
     const uint8_t* copy_src = src;

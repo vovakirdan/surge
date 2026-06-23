@@ -40,3 +40,24 @@ fn rt_array_push_view() -> nothing {
     let mut v = a[[1..3]];
     rt_array_push(&mut v, 6);
 }
+
+fn append_string_view() -> nothing {
+    let mut a: byte[] = [65:byte, 66:byte, 67:byte];
+    let mut v = a[[1..3]];
+    v.append_string(&"x");
+}
+
+fn append_bytes_view_view() -> nothing {
+    let mut a: byte[] = [65:byte, 66:byte, 67:byte];
+    let mut v = a[[1..3]];
+    let s: string = "x";
+    let bytes = s.bytes();
+    v.append_bytes_view(&bytes);
+}
+
+fn rt_array_append_raw_bytes_view() -> nothing {
+    let mut a: byte[] = [65:byte, 66:byte, 67:byte];
+    let mut v = a[[1..3]];
+    let s: string = "x";
+    rt_array_append_raw_bytes(&mut v, rt_string_ptr(&s), 1:uint64);
+}
