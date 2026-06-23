@@ -943,11 +943,17 @@ func requireNetTracePollCountersForReason(t *testing.T, stderr string, reason st
 	if strings.Contains(line, "io_poll_waiters_max=0 ") {
 		t.Fatalf("expected non-zero io_poll_waiters_max in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
 	}
+	if strings.Contains(line, "io_direct_waits=0 ") {
+		t.Fatalf("expected non-zero io_direct_waits in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
+	}
 	if !strings.Contains(line, "io_poll_timeouts=") {
 		t.Fatalf("missing IO timeout counter in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
 	}
 	if !strings.Contains(line, "io_poll_timeout_max_ms=") {
 		t.Fatalf("missing IO timeout max counter in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
+	}
+	if !strings.Contains(line, "io_direct_waits=") {
+		t.Fatalf("missing direct IO wait counter in TRACE_NET\nline:\n%s\nstderr:\n%s", line, stderr)
 	}
 }
 

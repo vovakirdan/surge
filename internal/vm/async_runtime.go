@@ -434,8 +434,6 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 		return vm.pollSleepTask(task)
 	case asyncrt.TaskKindTimeout:
 		return vm.pollTimeoutTask(task)
-	case asyncrt.TaskKindNetAccept, asyncrt.TaskKindNetRead, asyncrt.TaskKindNetWrite:
-		return vm.pollNetWaitTask(task)
 	default:
 		outcome, vmErr := vm.pollUserTask(task)
 		if vmErr != nil {

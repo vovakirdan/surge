@@ -10,6 +10,7 @@ const (
 	suspendJoinAll
 	suspendChanSend
 	suspendChanRecv
+	suspendNetWait
 	suspendTimeout
 	suspendSelect
 )
@@ -38,13 +39,16 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 			bb := &f.Blocks[bi]
 			for i := 0; i < len(bb.Instrs); i++ {
 				ins := &bb.Instrs[i]
-				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrTimeout && ins.Kind != InstrSelect {
+				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrNetWait && ins.Kind != InstrTimeout && ins.Kind != InstrSelect {
 					continue
 				}
 				if ins.Kind == InstrChanSend && ins.ChanSend.ReadyBB != NoBlockID {
 					continue
 				}
 				if ins.Kind == InstrChanRecv && ins.ChanRecv.ReadyBB != NoBlockID {
+					continue
+				}
+				if ins.Kind == InstrNetWait && ins.NetWait.ReadyBB != NoBlockID {
 					continue
 				}
 				if ins.Kind == InstrTimeout && ins.Timeout.ReadyBB != NoBlockID {
@@ -87,6 +91,14 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 					pollInstr = Instr{Kind: InstrChanRecv, ChanRecv: ChanRecvInstr{
 						Dst:     ins.ChanRecv.Dst,
 						Channel: ins.ChanRecv.Channel,
+						ReadyBB: afterBB,
+						PendBB:  NoBlockID,
+					}}
+				case InstrNetWait:
+					kind = suspendNetWait
+					pollInstr = Instr{Kind: InstrNetWait, NetWait: NetWaitInstr{
+						Kind:    ins.NetWait.Kind,
+						Handle:  ins.NetWait.Handle,
 						ReadyBB: afterBB,
 						PendBB:  NoBlockID,
 					}}
@@ -223,6 +235,13 @@ func collectSuspendSites(f *Func) []awaitSite {
 					pollInstr: ii,
 					readyBB:   ins.ChanRecv.ReadyBB,
 				})
+			case InstrNetWait:
+				sites = append(sites, awaitSite{
+					kind:      suspendNetWait,
+					pollBB:    bbID,
+					pollInstr: ii,
+					readyBB:   ins.NetWait.ReadyBB,
+				})
 			case InstrTimeout:
 				sites = append(sites, awaitSite{
 					kind:      suspendTimeout,
@@ -286,6 +305,15 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			if includePollPending && last.ChanRecv.PendBB != NoBlockID {
 				out = append(out, last.ChanRecv.PendBB)
+			}
+			return out
+		case InstrNetWait:
+			out := []BlockID{}
+			if last.NetWait.ReadyBB != NoBlockID {
+				out = append(out, last.NetWait.ReadyBB)
+			}
+			if includePollPending && last.NetWait.PendBB != NoBlockID {
+				out = append(out, last.NetWait.PendBB)
 			}
 			return out
 		case InstrTimeout:

@@ -534,7 +534,9 @@ import stdlib/net as net;
   - `write_some`
   - `write_all`
 
-Этот модуль даёт async TCP helper-функции поверх runtime intrinsics.
+Этот модуль даёт async TCP helper-функции поверх runtime intrinsics. Когда
+socket возвращает `WouldBlock`, helper паркует текущую задачу на прямом runtime
+readiness wait, не аллоцируя отдельную wait task.
 
 ---
 

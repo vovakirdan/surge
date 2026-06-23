@@ -356,6 +356,36 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 				}})
 				return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 			}
+		case "rt_net_wait_accept":
+			if len(args) == 1 {
+				l.emit(&Instr{Kind: InstrNetWait, NetWait: NetWaitInstr{
+					Kind:    NetWaitAccept,
+					Handle:  args[0],
+					ReadyBB: NoBlockID,
+					PendBB:  NoBlockID,
+				}})
+				return l.constNothing(e.Type), nil
+			}
+		case "rt_net_wait_readable":
+			if len(args) == 1 {
+				l.emit(&Instr{Kind: InstrNetWait, NetWait: NetWaitInstr{
+					Kind:    NetWaitRead,
+					Handle:  args[0],
+					ReadyBB: NoBlockID,
+					PendBB:  NoBlockID,
+				}})
+				return l.constNothing(e.Type), nil
+			}
+		case "rt_net_wait_writable":
+			if len(args) == 1 {
+				l.emit(&Instr{Kind: InstrNetWait, NetWait: NetWaitInstr{
+					Kind:    NetWaitWrite,
+					Handle:  args[0],
+					ReadyBB: NoBlockID,
+					PendBB:  NoBlockID,
+				}})
+				return l.constNothing(e.Type), nil
+			}
 		case "timeout":
 			if len(args) == 2 && l.isTaskType(args[0].Type) {
 				task := args[0]

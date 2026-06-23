@@ -115,6 +115,8 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 			addUsesFromOperand(&ins.ChanRecv.Channel, addUse, addDef)
 			addUsesFromPlaceWrite(ins.ChanRecv.Dst, addUse)
 			addDefFromPlace(ins.ChanRecv.Dst, addDef)
+		case InstrNetWait:
+			addUsesFromOperand(&ins.NetWait.Handle, addUse, addDef)
 		case InstrTimeout:
 			addUsesFromOperand(&ins.Timeout.Task, addUse, addDef)
 			addUsesFromOperand(&ins.Timeout.Ms, addUse, addDef)

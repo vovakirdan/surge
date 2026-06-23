@@ -57,12 +57,6 @@ const (
 	TaskKindSleep
 	// TaskKindTimeout indicates a timeout task.
 	TaskKindTimeout
-	// TaskKindNetAccept indicates a network accept wait task.
-	TaskKindNetAccept
-	// TaskKindNetRead indicates a network readable wait task.
-	TaskKindNetRead
-	// TaskKindNetWrite indicates a network writable wait task.
-	TaskKindNetWrite
 )
 
 // TaskResultKind describes how a task completed.

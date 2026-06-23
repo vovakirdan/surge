@@ -198,7 +198,8 @@ Separate from compiler tracing:
 - `--runtime-trace=<file>`: Go runtime trace
 - `surge run --vm-trace`: VM execution tracing
 - `SURGE_TRACE_EXEC=1`: native/LLVM execution counters to stderr
-  (`TRACE_EXEC`, `TRACE_EXEC_SNAPSHOT`, `TRACE_NET`)
+  (`TRACE_EXEC`, `TRACE_EXEC_SNAPSHOT`, `TRACE_NET`, including direct network
+  wait counters)
 - `SURGE_SCHED_TRACE=1`: native/LLVM scheduler summary (`SCHED_TRACE`)
 - `SIGUSR1` with `SURGE_TRACE_EXEC=1`: live native runtime snapshot on
   supported platforms

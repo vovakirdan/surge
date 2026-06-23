@@ -156,6 +156,10 @@ func reachableBlocksFrom(f *Func, start BlockID) []BlockID {
 				visit(last.ChanRecv.ReadyBB)
 				visit(last.ChanRecv.PendBB)
 				return
+			case InstrNetWait:
+				visit(last.NetWait.ReadyBB)
+				visit(last.NetWait.PendBB)
+				return
 			case InstrTimeout:
 				visit(last.Timeout.ReadyBB)
 				visit(last.Timeout.PendBB)
@@ -254,6 +258,8 @@ func collectLocalsInInstr(ins *Instr, set localSet) {
 	case InstrChanRecv:
 		collectLocalsFromOperand(&ins.ChanRecv.Channel, set)
 		collectLocalsFromPlace(ins.ChanRecv.Dst, set)
+	case InstrNetWait:
+		collectLocalsFromOperand(&ins.NetWait.Handle, set)
 	case InstrTimeout:
 		collectLocalsFromOperand(&ins.Timeout.Task, set)
 		collectLocalsFromOperand(&ins.Timeout.Ms, set)

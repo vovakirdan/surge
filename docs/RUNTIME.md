@@ -47,7 +47,7 @@ same scheduler implementation.
 | Async tasks | Go executor over MIR poll state | C executor over compiled poll functions |
 | Timers | virtual by default, VM real-time mode exists | executor time |
 | Blocking scope | rejected | dedicated blocking pool |
-| Network I/O | VM intrinsic tasks | native nonblocking sockets plus poll thread |
+| Network I/O | direct MIR net waiters | native nonblocking sockets plus poll thread |
 | Heap debug | VM object heap and RC checks | native allocation counters |
 
 ---
@@ -247,14 +247,17 @@ keep channel operations directly in async code or use async helper functions.
 
 ### 3.4 Network I/O
 
-Native network wait tasks are regular runtime tasks:
+Network readiness waits park the current async task directly:
 
-- `rt_net_wait_accept`, `rt_net_wait_readable`, and `rt_net_wait_writable` create
-  wait tasks keyed by fd and readiness kind.
-- Polling a net task first tries `poll(..., timeout=0)`.
-- If the fd is not ready, the task parks on a net waker key.
+- `rt_net_wait_accept`, `rt_net_wait_readable`, and `rt_net_wait_writable` are
+  suspendable intrinsics lowered into ready/pending poll branches.
+- The runtime first tries `poll(..., timeout=0)` on the fd.
+- If the fd is not ready, the current task parks on a net waker key.
 - The I/O thread watches registered net waiters with `poll`.
-- When an fd is ready, it completes the matching net waiters and wakes tasks.
+- When an fd is ready, it wakes the matching parked tasks.
+
+These waits do not allocate `Task<nothing>` handles and do not add a join layer
+between socket readiness and the user task.
 
 The I/O thread is signaled when the executor becomes idle, when net waiters are
 registered, or when shutdown changes. `TRACE_NET` counters are emitted as part
@@ -313,7 +316,8 @@ Useful `TRACE_NET` fields:
 
 - `io_poll_calls`, `io_poll_timeouts`, `io_poll_timeout_max_ms`;
 - `io_poll_wake_fd`, `io_poll_net_ready`, `io_poll_errors`;
-- `io_poll_waiters_last`, `io_poll_waiters_max`, `io_poll_waiters_total`.
+- `io_poll_waiters_last`, `io_poll_waiters_max`, `io_poll_waiters_total`;
+- `io_direct_waits`: direct task parks for network readiness.
 
 For a healthy direct async channel request/reply path, expect
 `channel_task_blocking_send=0`, `channel_task_blocking_recv=0`, and

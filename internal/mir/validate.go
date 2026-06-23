@@ -80,7 +80,7 @@ func validateBlocksTerminated(f *Func) error {
 		if f.Blocks[i].Term.Kind == TermNone {
 			if len(f.Blocks[i].Instrs) > 0 {
 				last := f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
-				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv || last.Kind == InstrTimeout || last.Kind == InstrSelect {
+				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv || last.Kind == InstrNetWait || last.Kind == InstrTimeout || last.Kind == InstrSelect {
 					continue
 				}
 			}
@@ -130,6 +130,13 @@ func validateBlockTargets(f *Func) error {
 				}
 				if !blockExists(ins.ChanRecv.PendBB) {
 					errs = append(errs, fmt.Errorf("bb%d instr %d: chan_recv pending target bb%d does not exist", i, j, ins.ChanRecv.PendBB))
+				}
+			case InstrNetWait:
+				if !blockExists(ins.NetWait.ReadyBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: net_wait ready target bb%d does not exist", i, j, ins.NetWait.ReadyBB))
+				}
+				if !blockExists(ins.NetWait.PendBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: net_wait pending target bb%d does not exist", i, j, ins.NetWait.PendBB))
 				}
 			case InstrTimeout:
 				if !blockExists(ins.Timeout.ReadyBB) {
@@ -308,6 +315,8 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			case InstrChanRecv:
 				checkPlace(ins.ChanRecv.Dst, ctx)
 				checkOperand(ins.ChanRecv.Channel, ctx)
+			case InstrNetWait:
+				checkOperand(ins.NetWait.Handle, ctx)
 			case InstrTimeout:
 				checkPlace(ins.Timeout.Dst, ctx)
 				checkOperand(ins.Timeout.Task, ctx)

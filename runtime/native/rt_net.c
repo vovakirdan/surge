@@ -57,6 +57,12 @@ typedef struct NetPollFd {
     uint8_t want_write;
 } NetPollFd;
 
+typedef enum {
+    NET_WAIT_ACCEPT = 0,
+    NET_WAIT_READ = 1,
+    NET_WAIT_WRITE = 2,
+} NetWaitKind;
+
 typedef struct SurgeArrayHeader {
     uint64_t len;
     uint64_t cap;
@@ -75,19 +81,21 @@ static _Atomic uint64_t net_poll_timeout_max_ms;
 static _Atomic uint64_t net_poll_waiters_last;
 static _Atomic uint64_t net_poll_waiters_max;
 static _Atomic uint64_t net_poll_waiters_total;
+static _Atomic uint64_t net_direct_wait_total;
 
 #define NET_TRACE_DUMP_FORMAT                                                                      \
     "TRACE_NET reason=%s io_poll_calls=%llu io_poll_timeouts=%llu "                                \
     "io_poll_wake_fd=%llu io_poll_net_ready=%llu io_poll_errors=%llu "                             \
     "io_poll_timeout_last_ms=%llu io_poll_timeout_max_ms=%llu "                                    \
     "io_poll_waiters_last=%llu io_poll_waiters_max=%llu "                                          \
-    "io_poll_waiters_total=%llu\n"
+    "io_poll_waiters_total=%llu io_direct_waits=%llu\n"
 #define NET_TRACE_DUMP_ARGS(reason)                                                                \
     (reason), net_trace_load(&net_poll_calls_total), net_trace_load(&net_poll_timeouts_total),     \
         net_trace_load(&net_poll_wake_fd_total), net_trace_load(&net_poll_ready_total),            \
         net_trace_load(&net_poll_errors_total), net_trace_load(&net_poll_timeout_last_ms),         \
         net_trace_load(&net_poll_timeout_max_ms), net_trace_load(&net_poll_waiters_last),          \
-        net_trace_load(&net_poll_waiters_max), net_trace_load(&net_poll_waiters_total)
+        net_trace_load(&net_poll_waiters_max), net_trace_load(&net_poll_waiters_total),            \
+        net_trace_load(&net_direct_wait_total)
 
 static unsigned long long net_trace_load(const _Atomic uint64_t* counter) {
     return (unsigned long long)atomic_load_explicit(counter, memory_order_relaxed);
@@ -203,11 +211,6 @@ static void complete_net_waiters(rt_executor* ex, waker_key key) {
     while (pop_waiter(ex, key, &task_id)) {
         rt_task* task = get_task(ex, task_id);
         if (task == NULL || task_status_load(task) == TASK_DONE) {
-            continue;
-        }
-        if (task->kind == TASK_KIND_NET_ACCEPT || task->kind == TASK_KIND_NET_READ ||
-            task->kind == TASK_KIND_NET_WRITE) {
-            mark_done(ex, task, TASK_RESULT_SUCCESS, 0);
             continue;
         }
         wake_task(ex, task_id, 0);
@@ -713,80 +716,13 @@ void* rt_net_write_bytes(const void* conn, const void* bytes, uint64_t offset, u
     return net_make_success_ptr(count);
 }
 
-static void* net_spawn_wait_task(int fd, uint8_t kind) {
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return NULL;
-    }
-    rt_lock(ex);
-    uint64_t id = ex->next_id++;
-    ensure_task_cap(ex, id);
-    rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
-    if (task == NULL) {
-        rt_unlock(ex);
-        panic_msg("async: task allocation failed");
-        return NULL;
-    }
-    memset(task, 0, sizeof(rt_task));
-    task->id = id;
-    task_status_store(task, TASK_READY);
-    task->kind = kind;
-    task->net_fd = fd;
-    task_cancelled_store(task, 0);
-    task_enqueued_store(task, 0);
-    (void)task_wake_token_exchange(task, 0);
-    atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
-    ex->tasks[id] = task;
-    ready_push(ex, id);
-    rt_unlock(ex);
-    return task;
-}
-
-void* rt_net_wait_accept(const void* listener) {
-    const NetListener* l = net_listener_from_borrowed(listener);
-    int fd = -1;
-    if (l != NULL && !l->closed) {
-        fd = l->fd;
-    }
-    return net_spawn_wait_task(fd, TASK_KIND_NET_ACCEPT);
-}
-
-void* rt_net_wait_readable(const void* conn) {
-    const NetConn* c = net_conn_from_borrowed(conn);
-    int fd = -1;
-    if (c != NULL && !c->closed) {
-        fd = c->fd;
-    }
-    return net_spawn_wait_task(fd, TASK_KIND_NET_READ);
-}
-
-void* rt_net_wait_writable(const void* conn) {
-    const NetConn* c = net_conn_from_borrowed(conn);
-    int fd = -1;
-    if (c != NULL && !c->closed) {
-        fd = c->fd;
-    }
-    return net_spawn_wait_task(fd, TASK_KIND_NET_WRITE);
-}
-
-poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task) {
-    poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
-    if (ex == NULL || task == NULL) {
-        out.kind = POLL_DONE_CANCELLED;
-        return out;
-    }
-    if (task_cancelled_load(task) != 0) {
-        out.kind = POLL_DONE_CANCELLED;
-        return out;
-    }
-    int fd = task->net_fd;
+static bool net_fd_ready_now(int fd, NetWaitKind kind) {
     if (fd < 0) {
-        out.kind = POLL_DONE_SUCCESS;
-        return out;
+        return true;
     }
     short events = POLLIN;
     short ready_mask = POLLIN | POLLERR | POLLHUP;
-    if (task->kind == TASK_KIND_NET_WRITE) {
+    if (kind == NET_WAIT_WRITE) {
         events = POLLOUT;
         ready_mask = POLLOUT | POLLERR | POLLHUP;
     }
@@ -794,53 +730,86 @@ poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task) {
     memset(&pfd, 0, sizeof(pfd));
     pfd.fd = fd;
     pfd.events = events;
-    int n = poll(&pfd, 1, 0);
-    if (n < 0) {
-        if (errno == EINTR) {
-            n = 0;
-        } else {
-            out.kind = POLL_DONE_SUCCESS;
-            return out;
-        }
+    int n = -1;
+    do {
+        n = poll(&pfd, 1, 0);
+    } while (n < 0 && errno == EINTR);
+    if (n <= 0) {
+        return n < 0;
     }
-    if (n == 0) {
-        out.kind = POLL_PARKED;
-        switch (task->kind) {
-            case TASK_KIND_NET_ACCEPT:
-                out.park_key = net_accept_key(fd);
-                break;
-            case TASK_KIND_NET_READ:
-                out.park_key = net_read_key(fd);
-                break;
-            case TASK_KIND_NET_WRITE:
-                out.park_key = net_write_key(fd);
-                break;
-            default:
-                out.park_key = waker_none();
-                break;
-        }
-        return out;
+    return (pfd.revents & ready_mask) != 0;
+}
+
+static bool net_wait_current_task(int fd, NetWaitKind kind) {
+    if (fd < 0 || net_fd_ready_now(fd, kind)) {
+        return true;
     }
-    if (pfd.revents & ready_mask) {
-        out.kind = POLL_DONE_SUCCESS;
-        return out;
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return true;
     }
-    out.kind = POLL_PARKED;
-    switch (task->kind) {
-        case TASK_KIND_NET_ACCEPT:
-            out.park_key = net_accept_key(fd);
+    rt_lock(ex);
+    rt_task* task = rt_current_task();
+    if (task == NULL || rt_current_task_id() == 0) {
+        rt_unlock(ex);
+        panic_msg("async net wait outside task");
+        return true;
+    }
+    if (current_task_cancelled(ex)) {
+        pending_key = waker_none();
+        rt_unlock(ex);
+        return false;
+    }
+    waker_key key = waker_none();
+    switch (kind) {
+        case NET_WAIT_ACCEPT:
+            key = net_accept_key(fd);
             break;
-        case TASK_KIND_NET_READ:
-            out.park_key = net_read_key(fd);
+        case NET_WAIT_READ:
+            key = net_read_key(fd);
             break;
-        case TASK_KIND_NET_WRITE:
-            out.park_key = net_write_key(fd);
+        case NET_WAIT_WRITE:
+            key = net_write_key(fd);
             break;
         default:
-            out.park_key = waker_none();
             break;
     }
-    return out;
+    if (!waker_valid(key)) {
+        rt_unlock(ex);
+        return true;
+    }
+    net_trace_inc(&net_direct_wait_total);
+    prepare_park(ex, task, key, 0);
+    pending_key = key;
+    rt_unlock(ex);
+    return false;
+}
+
+bool rt_net_wait_accept(const void* listener) {
+    const NetListener* l = net_listener_from_borrowed(listener);
+    int fd = -1;
+    if (l != NULL && !l->closed) {
+        fd = l->fd;
+    }
+    return net_wait_current_task(fd, NET_WAIT_ACCEPT);
+}
+
+bool rt_net_wait_readable(const void* conn) {
+    const NetConn* c = net_conn_from_borrowed(conn);
+    int fd = -1;
+    if (c != NULL && !c->closed) {
+        fd = c->fd;
+    }
+    return net_wait_current_task(fd, NET_WAIT_READ);
+}
+
+bool rt_net_wait_writable(const void* conn) {
+    const NetConn* c = net_conn_from_borrowed(conn);
+    int fd = -1;
+    if (c != NULL && !c->closed) {
+        fd = c->fd;
+    }
+    return net_wait_current_task(fd, NET_WAIT_WRITE);
 }
 
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {

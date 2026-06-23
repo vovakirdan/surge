@@ -263,20 +263,20 @@ intrinsics.sg (span: 1:1-867:1)
 │  ├─ Params: (c: &TcpConn, data: &byte[], offset: uint, length: uint)
 │  ├─ Return: NetResult<uint>
 │  └─ Body: <none>
-├─ Item[50]: Fn (span: 101:1-101:68)
+├─ Item[50]: Fn (span: 101:1-101:62)
 │  ├─ Name: rt_net_wait_accept
 │  ├─ Params: (l: &TcpListener)
-│  ├─ Return: Task<nothing>
+│  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[51]: Fn (span: 102:1-102:66)
+├─ Item[51]: Fn (span: 102:1-102:60)
 │  ├─ Name: rt_net_wait_readable
 │  ├─ Params: (c: &TcpConn)
-│  ├─ Return: Task<nothing>
+│  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[52]: Fn (span: 103:1-103:66)
+├─ Item[52]: Fn (span: 103:1-103:60)
 │  ├─ Name: rt_net_wait_writable
 │  ├─ Params: (c: &TcpConn)
-│  ├─ Return: Task<nothing>
+│  ├─ Return: nothing
 │  └─ Body: <none>
 ├─ Item[53]: Extern (span: 105:1-109:2)
 │  ├─ Target: TcpConn

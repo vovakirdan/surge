@@ -46,8 +46,8 @@ Surge distinguishes task-level waiting from OS-thread blocking:
 In core APIs, some methods are labeled "blocking" to mean "may wait"
 (e.g., `Channel.send`/`recv`); this is task parking, not OS-blocking.
 
-All task-context waits (channels, timers, joins, select) are implemented via
-park/unpark in the runtime.
+All task-context waits (channels, timers, joins, select, network readiness) are
+implemented via park/unpark in the runtime.
 
 ---
 

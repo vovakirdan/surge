@@ -32,6 +32,8 @@ const (
 	InstrChanSend
 	// InstrChanRecv represents a channel receive instruction.
 	InstrChanRecv
+	// InstrNetWait represents a network readiness wait instruction.
+	InstrNetWait
 	// InstrTimeout represents a timeout instruction.
 	InstrTimeout
 	// InstrSelect represents a select instruction.
@@ -64,6 +66,8 @@ func (k InstrKind) String() string {
 		return "ChanSend"
 	case InstrChanRecv:
 		return "ChanRecv"
+	case InstrNetWait:
+		return "NetWait"
 	case InstrTimeout:
 		return "Timeout"
 	case InstrSelect:
@@ -90,6 +94,7 @@ type Instr struct {
 	JoinAll   JoinAllInstr
 	ChanSend  ChanSendInstr
 	ChanRecv  ChanRecvInstr
+	NetWait   NetWaitInstr
 	Timeout   TimeoutInstr
 	Select    SelectInstr
 }
@@ -195,6 +200,39 @@ type ChanSendInstr struct {
 type ChanRecvInstr struct {
 	Dst     Place
 	Channel Operand
+	ReadyBB BlockID
+	PendBB  BlockID
+}
+
+// NetWaitKind distinguishes network readiness waits.
+type NetWaitKind uint8
+
+const (
+	// NetWaitAccept waits for listener accept readiness.
+	NetWaitAccept NetWaitKind = iota
+	// NetWaitRead waits for connection read readiness.
+	NetWaitRead
+	// NetWaitWrite waits for connection write readiness.
+	NetWaitWrite
+)
+
+func (k NetWaitKind) String() string {
+	switch k {
+	case NetWaitAccept:
+		return "accept"
+	case NetWaitRead:
+		return "read"
+	case NetWaitWrite:
+		return "write"
+	default:
+		return "unknown"
+	}
+}
+
+// NetWaitInstr represents a network readiness wait instruction.
+type NetWaitInstr struct {
+	Kind    NetWaitKind
+	Handle  Operand
 	ReadyBB BlockID
 	PendBB  BlockID
 }
