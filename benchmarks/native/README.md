@@ -10,6 +10,13 @@ make build
 ./scripts/bench_native_channels.sh
 ```
 
+Run the TCP request/reply probe:
+
+```bash
+make build
+./scripts/bench_native_net.sh
+```
+
 Useful overrides:
 
 ```bash
@@ -17,6 +24,8 @@ SURGE_CHANNEL_BENCH_MODES="1 2 4 8 default" ./scripts/bench_native_channels.sh
 SURGE_CHANNEL_BENCH_REPORT=/tmp/channel.md ./scripts/bench_native_channels.sh
 SURGE_CHANNEL_TRACE_PROBES="channel_reused_reply" ./scripts/bench_native_channels.sh
 SURGE_CHANNEL_WAKE_INJECT=1 SURGE_CHANNEL_BENCH_REPORT=/tmp/channel-inject.md ./scripts/bench_native_channels.sh
+SURGE_NET_BENCH_THREADS="1 2 4 8" SURGE_NET_BENCH_REPORT=/tmp/net.md ./scripts/bench_native_net.sh
+SURGE_NET_BENCH_STDLIB=/path/to/surge ./scripts/bench_native_net.sh
 ```
 
 Compare future runtime PRs against
@@ -48,6 +57,10 @@ The fixture also prints scheduler-shape rows:
 
 `bench_native_channels.sh` runs runtime trace one probe at a time so counters
 show the selected scheduler shape instead of an aggregate from the whole fixture.
+
+The net request/reply probe prints three layers: `echo` for minimal socket
+read/write, `direct` for socket task response writes, and `manager` for the
+same response behind a channel request/reply hop.
 
 Default channel placement keeps generic wakes local-first, while no-signal
 handoff wakes use inject placement. Use `SURGE_CHANNEL_WAKE_INJECT=1` only for
