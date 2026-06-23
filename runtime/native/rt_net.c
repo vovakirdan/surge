@@ -82,20 +82,34 @@ static _Atomic uint64_t net_poll_waiters_last;
 static _Atomic uint64_t net_poll_waiters_max;
 static _Atomic uint64_t net_poll_waiters_total;
 static _Atomic uint64_t net_direct_wait_total;
+static _Atomic uint64_t net_waiter_scan_entries_total;
+static _Atomic uint64_t net_waiter_net_entries_total;
+static _Atomic uint64_t net_poll_rebuilds_total;
+static _Atomic uint64_t net_poll_allocs_total;
+static _Atomic uint64_t net_poll_dedup_checks_total;
+static _Atomic uint64_t net_waiter_complete_calls_total;
+static _Atomic uint64_t net_waiter_completed_total;
 
 #define NET_TRACE_DUMP_FORMAT                                                                      \
     "TRACE_NET reason=%s io_poll_calls=%llu io_poll_timeouts=%llu "                                \
     "io_poll_wake_fd=%llu io_poll_net_ready=%llu io_poll_errors=%llu "                             \
     "io_poll_timeout_last_ms=%llu io_poll_timeout_max_ms=%llu "                                    \
     "io_poll_waiters_last=%llu io_poll_waiters_max=%llu "                                          \
-    "io_poll_waiters_total=%llu io_direct_waits=%llu\n"
+    "io_poll_waiters_total=%llu io_direct_waits=%llu "                                             \
+    "io_waiter_scan_entries=%llu io_waiter_net_entries=%llu "                                      \
+    "io_poll_rebuilds=%llu io_poll_allocs=%llu io_poll_dedup_checks=%llu "                         \
+    "io_waiter_complete_calls=%llu io_waiter_completed=%llu\n"
 #define NET_TRACE_DUMP_ARGS(reason)                                                                \
     (reason), net_trace_load(&net_poll_calls_total), net_trace_load(&net_poll_timeouts_total),     \
         net_trace_load(&net_poll_wake_fd_total), net_trace_load(&net_poll_ready_total),            \
         net_trace_load(&net_poll_errors_total), net_trace_load(&net_poll_timeout_last_ms),         \
         net_trace_load(&net_poll_timeout_max_ms), net_trace_load(&net_poll_waiters_last),          \
         net_trace_load(&net_poll_waiters_max), net_trace_load(&net_poll_waiters_total),            \
-        net_trace_load(&net_direct_wait_total)
+        net_trace_load(&net_direct_wait_total), net_trace_load(&net_waiter_scan_entries_total),    \
+        net_trace_load(&net_waiter_net_entries_total), net_trace_load(&net_poll_rebuilds_total),   \
+        net_trace_load(&net_poll_allocs_total), net_trace_load(&net_poll_dedup_checks_total),      \
+        net_trace_load(&net_waiter_complete_calls_total),                                          \
+        net_trace_load(&net_waiter_completed_total)
 
 static unsigned long long net_trace_load(const _Atomic uint64_t* counter) {
     return (unsigned long long)atomic_load_explicit(counter, memory_order_relaxed);
@@ -207,8 +221,10 @@ static void net_poll_wake_drain(void) {
 }
 
 static void complete_net_waiters(rt_executor* ex, waker_key key) {
+    net_trace_inc(&net_waiter_complete_calls_total);
     uint64_t task_id = 0;
     while (pop_waiter(ex, key, &task_id)) {
+        net_trace_inc(&net_waiter_completed_total);
         const rt_task* task = get_task(ex, task_id);
         if (task == NULL || task_status_load(task) == TASK_DONE) {
             continue;
@@ -825,6 +841,8 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     if (fds == NULL) {
         return 0;
     }
+    net_trace_inc(&net_poll_allocs_total);
+    net_trace_add(&net_waiter_scan_entries_total, ex->waiters_len);
     size_t count = 0;
     for (size_t i = 0; i < ex->waiters_len; i++) {
         waiter w = ex->waiters[i];
@@ -832,12 +850,14 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         if (kind != WAKER_NET_ACCEPT && kind != WAKER_NET_READ && kind != WAKER_NET_WRITE) {
             continue;
         }
+        net_trace_inc(&net_waiter_net_entries_total);
         int fd = (int)w.key.id;
         if (fd <= 0) {
             continue;
         }
         size_t idx = count;
         for (size_t j = 0; j < count; j++) {
+            net_trace_inc(&net_poll_dedup_checks_total);
             if (fds[j].fd == fd) {
                 idx = j;
                 break;
@@ -870,6 +890,8 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 0;
     }
+    net_trace_inc(&net_poll_allocs_total);
+    net_trace_inc(&net_poll_rebuilds_total);
     net_trace_inc(&net_poll_calls_total);
     uint64_t requested_timeout_ms = net_trace_timeout_ms(timeout_ms);
     net_trace_store(&net_poll_timeout_last_ms, requested_timeout_ms);
