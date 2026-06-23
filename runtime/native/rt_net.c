@@ -209,7 +209,7 @@ static void net_poll_wake_drain(void) {
 static void complete_net_waiters(rt_executor* ex, waker_key key) {
     uint64_t task_id = 0;
     while (pop_waiter(ex, key, &task_id)) {
-        rt_task* task = get_task(ex, task_id);
+        const rt_task* task = get_task(ex, task_id);
         if (task == NULL || task_status_load(task) == TASK_DONE) {
             continue;
         }
