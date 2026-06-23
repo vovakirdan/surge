@@ -6,7 +6,7 @@ funcs=2
 
 fn add_borrower:
   locals:
-    L0: &mut type#1489 [refmut] name=entry
+    L0: &mut type#1493 [refmut] name=entry
     L1: &string [copy,ref] name=client_id
     L2: bool [copy] name=tmp_call1
     L3: bool [copy] name=tmp_call2
@@ -24,14 +24,14 @@ fn add_borrower:
 
 fn main:
   locals:
-    L0: type#1489 name=entry
-    L1: type#80 name=tmp_arr1
-    L2: type#1489 name=tmp_struct2
+    L0: type#1493 name=entry
+    L1: type#81 name=tmp_arr1
+    L2: type#1493 name=tmp_struct2
     L3: uint [copy] name=tmp_call3
     L4: int [copy] name=tmp_cast4
   bb0:
     L1 = array_lit []
-    L2 = struct_lit type#1489 {borrowers=move L1}
+    L2 = struct_lit type#1493 {borrowers=move L1}
     L0 = move L2
     call add_borrower(addr_of_mut L0, addr_of G0)
     call add_borrower(addr_of_mut L0, addr_of G0)

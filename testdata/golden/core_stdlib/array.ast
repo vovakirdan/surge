@@ -1,4 +1,4 @@
-array.sg (span: 1:1-285:1)
+array.sg (span: 1:1-297:1)
 ├─ Item[0]: Fn (span: 5:1-7:2)
 │  ├─ Name: array_reserve
 │  ├─ Generics: <T>
@@ -305,359 +305,380 @@ Block (span: 122:21-128:10)
 │  │        │  └─ Value: expr#213: self.__len() to string
 │  │        └─ Stmt[2]: Return (span: 135:9-135:46)
 │  │           └─ Expr: expr#218: ((("Array(len=" + length_s)) + ")")
-├─ Item[5]: Extern (span: 140:1-157:2)
+├─ Item[5]: Extern (span: 139:1-149:2)
+│  ├─ Target: Array<byte>
+│  ├─ Members:
+│  │  ├─ Fn[0]: append_string
+│  │  │  ├─ Params: (self: &mut Array<byte>, text: &string)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 140:76-143:6)
+│  │  │     ├─ Stmt[0]: Expr (span: 141:9-141:99)
+│  │  │     │  └─ Expr: expr#228: rt_array_append_raw_bytes(self, rt_string_ptr(text), rt_string_len_bytes(text) to uint64)
+│  │  │     └─ Stmt[1]: Return (span: 142:9-142:24)
+│  │  │        └─ Expr: expr#229: nothing
+│  │  └─ Fn[1]: append_bytes_view
+│  │     ├─ Params: (self: &mut Array<byte>, view: &BytesView)
+│  │     ├─ Return: nothing
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 145:83-148:6)
+│  │        ├─ Stmt[0]: Expr (span: 146:9-146:75)
+│  │        │  └─ Expr: expr#238: rt_array_append_raw_bytes(self, view.ptr, view.__len() to uint64)
+│  │        └─ Stmt[1]: Return (span: 147:9-147:24)
+│  │           └─ Expr: expr#239: nothing
+├─ Item[6]: Extern (span: 152:1-169:2)
 │  ├─ Target: Array<int>
 │  ├─ Members:
 │  │  ├─ Fn[0]: contains
 │  │  │  ├─ Params: (self: &Array<int>, value: &int)
 │  │  │  ├─ Return: bool
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 141:61-144:6)
-│  │  │     ├─ Stmt[0]: Let (span: 142:9-142:50)
+│  │  │     Stmt[0]: Block (span: 153:61-156:6)
+│  │  │     ├─ Stmt[0]: Let (span: 154:9-154:50)
 │  │  │     │  ├─ Name: res
 │  │  │     │  ├─ Mutable: false
 │  │  │     │  ├─ Type: Option<uint>
-│  │  │     │  └─ Value: expr#222: self.find(value)
-│  │  │     └─ Stmt[1]: Return (span: 143:9-143:30)
-│  │  │        └─ Expr: expr#225: res.is_some()
+│  │  │     │  └─ Value: expr#243: self.find(value)
+│  │  │     └─ Stmt[1]: Return (span: 155:9-155:30)
+│  │  │        └─ Expr: expr#246: res.is_some()
 │  │  └─ Fn[1]: find
 │  │     ├─ Params: (self: &Array<int>, value: &int)
 │  │     ├─ Return: Option<uint>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 146:65-156:6)
-│  │        ├─ Stmt[0]: Let (span: 147:9-147:47)
+│  │        Stmt[0]: Block (span: 158:65-168:6)
+│  │        ├─ Stmt[0]: Let (span: 159:9-159:47)
 │  │        │  ├─ Name: length
 │  │        │  ├─ Mutable: false
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#229: self.__len() to int
-│  │        ├─ Stmt[1]: Let (span: 148:9-148:28)
+│  │        │  └─ Value: expr#250: self.__len() to int
+│  │        ├─ Stmt[1]: Let (span: 160:9-160:28)
 │  │        │  ├─ Name: i
 │  │        │  ├─ Mutable: true
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#230: 0
-│  │        ├─ Stmt[2]: While (span: 149:9-154:10)
-│  │        │  ├─ Cond: expr#233: (i < length)
+│  │        │  └─ Value: expr#251: 0
+│  │        ├─ Stmt[2]: While (span: 161:9-166:10)
+│  │        │  ├─ Cond: expr#254: (i < length)
 │  │        │  └─ Body:
-Block (span: 149:26-154:10)
-│  │        │     ├─ Stmt[0]: If (span: 150:13-152:14)
-│  │        │     │  ├─ Cond: expr#239: (self[i] == *value)
+Block (span: 161:26-166:10)
+│  │        │     ├─ Stmt[0]: If (span: 162:13-164:14)
+│  │        │     │  ├─ Cond: expr#260: (self[i] == *value)
 │  │        │     │  ├─ Then:
-Block (span: 150:34-152:14)
-│  │        │     │  │  └─ Stmt[0]: Return (span: 151:17-151:40)
-│  │        │     │  │     └─ Expr: expr#243: Some(i to uint)
+Block (span: 162:34-164:14)
+│  │        │     │  │  └─ Stmt[0]: Return (span: 163:17-163:40)
+│  │        │     │  │     └─ Expr: expr#264: Some(i to uint)
 │  │        │     │  └─ Else: <none>
-│  │        │     └─ Stmt[1]: Expr (span: 153:13-153:23)
-│  │        │        └─ Expr: expr#248: (i = ((i + 1)))
-│  │        └─ Stmt[3]: Return (span: 155:9-155:24)
-│  │           └─ Expr: expr#249: nothing
-├─ Item[6]: Extern (span: 159:1-176:2)
+│  │        │     └─ Stmt[1]: Expr (span: 165:13-165:23)
+│  │        │        └─ Expr: expr#269: (i = ((i + 1)))
+│  │        └─ Stmt[3]: Return (span: 167:9-167:24)
+│  │           └─ Expr: expr#270: nothing
+├─ Item[7]: Extern (span: 171:1-188:2)
 │  ├─ Target: Array<uint>
 │  ├─ Members:
 │  │  ├─ Fn[0]: contains
 │  │  │  ├─ Params: (self: &Array<uint>, value: &uint)
 │  │  │  ├─ Return: bool
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 160:63-163:6)
-│  │  │     ├─ Stmt[0]: Let (span: 161:9-161:50)
+│  │  │     Stmt[0]: Block (span: 172:63-175:6)
+│  │  │     ├─ Stmt[0]: Let (span: 173:9-173:50)
 │  │  │     │  ├─ Name: res
 │  │  │     │  ├─ Mutable: false
 │  │  │     │  ├─ Type: Option<uint>
-│  │  │     │  └─ Value: expr#253: self.find(value)
-│  │  │     └─ Stmt[1]: Return (span: 162:9-162:30)
-│  │  │        └─ Expr: expr#256: res.is_some()
+│  │  │     │  └─ Value: expr#274: self.find(value)
+│  │  │     └─ Stmt[1]: Return (span: 174:9-174:30)
+│  │  │        └─ Expr: expr#277: res.is_some()
 │  │  └─ Fn[1]: find
 │  │     ├─ Params: (self: &Array<uint>, value: &uint)
 │  │     ├─ Return: Option<uint>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 165:67-175:6)
-│  │        ├─ Stmt[0]: Let (span: 166:9-166:47)
+│  │        Stmt[0]: Block (span: 177:67-187:6)
+│  │        ├─ Stmt[0]: Let (span: 178:9-178:47)
 │  │        │  ├─ Name: length
 │  │        │  ├─ Mutable: false
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#260: self.__len() to int
-│  │        ├─ Stmt[1]: Let (span: 167:9-167:28)
+│  │        │  └─ Value: expr#281: self.__len() to int
+│  │        ├─ Stmt[1]: Let (span: 179:9-179:28)
 │  │        │  ├─ Name: i
 │  │        │  ├─ Mutable: true
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#261: 0
-│  │        ├─ Stmt[2]: While (span: 168:9-173:10)
-│  │        │  ├─ Cond: expr#264: (i < length)
+│  │        │  └─ Value: expr#282: 0
+│  │        ├─ Stmt[2]: While (span: 180:9-185:10)
+│  │        │  ├─ Cond: expr#285: (i < length)
 │  │        │  └─ Body:
-Block (span: 168:26-173:10)
-│  │        │     ├─ Stmt[0]: If (span: 169:13-171:14)
-│  │        │     │  ├─ Cond: expr#270: (self[i] == *value)
+Block (span: 180:26-185:10)
+│  │        │     ├─ Stmt[0]: If (span: 181:13-183:14)
+│  │        │     │  ├─ Cond: expr#291: (self[i] == *value)
 │  │        │     │  ├─ Then:
-Block (span: 169:34-171:14)
-│  │        │     │  │  └─ Stmt[0]: Return (span: 170:17-170:40)
-│  │        │     │  │     └─ Expr: expr#274: Some(i to uint)
+Block (span: 181:34-183:14)
+│  │        │     │  │  └─ Stmt[0]: Return (span: 182:17-182:40)
+│  │        │     │  │     └─ Expr: expr#295: Some(i to uint)
 │  │        │     │  └─ Else: <none>
-│  │        │     └─ Stmt[1]: Expr (span: 172:13-172:23)
-│  │        │        └─ Expr: expr#279: (i = ((i + 1)))
-│  │        └─ Stmt[3]: Return (span: 174:9-174:24)
-│  │           └─ Expr: expr#280: nothing
-├─ Item[7]: Extern (span: 178:1-195:2)
+│  │        │     └─ Stmt[1]: Expr (span: 184:13-184:23)
+│  │        │        └─ Expr: expr#300: (i = ((i + 1)))
+│  │        └─ Stmt[3]: Return (span: 186:9-186:24)
+│  │           └─ Expr: expr#301: nothing
+├─ Item[8]: Extern (span: 190:1-207:2)
 │  ├─ Target: Array<float>
 │  ├─ Members:
 │  │  ├─ Fn[0]: contains
 │  │  │  ├─ Params: (self: &Array<float>, value: &float)
 │  │  │  ├─ Return: bool
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 179:65-182:6)
-│  │  │     ├─ Stmt[0]: Let (span: 180:9-180:50)
+│  │  │     Stmt[0]: Block (span: 191:65-194:6)
+│  │  │     ├─ Stmt[0]: Let (span: 192:9-192:50)
 │  │  │     │  ├─ Name: res
 │  │  │     │  ├─ Mutable: false
 │  │  │     │  ├─ Type: Option<uint>
-│  │  │     │  └─ Value: expr#284: self.find(value)
-│  │  │     └─ Stmt[1]: Return (span: 181:9-181:30)
-│  │  │        └─ Expr: expr#287: res.is_some()
+│  │  │     │  └─ Value: expr#305: self.find(value)
+│  │  │     └─ Stmt[1]: Return (span: 193:9-193:30)
+│  │  │        └─ Expr: expr#308: res.is_some()
 │  │  └─ Fn[1]: find
 │  │     ├─ Params: (self: &Array<float>, value: &float)
 │  │     ├─ Return: Option<uint>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 184:69-194:6)
-│  │        ├─ Stmt[0]: Let (span: 185:9-185:47)
+│  │        Stmt[0]: Block (span: 196:69-206:6)
+│  │        ├─ Stmt[0]: Let (span: 197:9-197:47)
 │  │        │  ├─ Name: length
 │  │        │  ├─ Mutable: false
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#291: self.__len() to int
-│  │        ├─ Stmt[1]: Let (span: 186:9-186:28)
+│  │        │  └─ Value: expr#312: self.__len() to int
+│  │        ├─ Stmt[1]: Let (span: 198:9-198:28)
 │  │        │  ├─ Name: i
 │  │        │  ├─ Mutable: true
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#292: 0
-│  │        ├─ Stmt[2]: While (span: 187:9-192:10)
-│  │        │  ├─ Cond: expr#295: (i < length)
+│  │        │  └─ Value: expr#313: 0
+│  │        ├─ Stmt[2]: While (span: 199:9-204:10)
+│  │        │  ├─ Cond: expr#316: (i < length)
 │  │        │  └─ Body:
-Block (span: 187:26-192:10)
-│  │        │     ├─ Stmt[0]: If (span: 188:13-190:14)
-│  │        │     │  ├─ Cond: expr#301: (self[i] == *value)
+Block (span: 199:26-204:10)
+│  │        │     ├─ Stmt[0]: If (span: 200:13-202:14)
+│  │        │     │  ├─ Cond: expr#322: (self[i] == *value)
 │  │        │     │  ├─ Then:
-Block (span: 188:34-190:14)
-│  │        │     │  │  └─ Stmt[0]: Return (span: 189:17-189:40)
-│  │        │     │  │     └─ Expr: expr#305: Some(i to uint)
+Block (span: 200:34-202:14)
+│  │        │     │  │  └─ Stmt[0]: Return (span: 201:17-201:40)
+│  │        │     │  │     └─ Expr: expr#326: Some(i to uint)
 │  │        │     │  └─ Else: <none>
-│  │        │     └─ Stmt[1]: Expr (span: 191:13-191:23)
-│  │        │        └─ Expr: expr#310: (i = ((i + 1)))
-│  │        └─ Stmt[3]: Return (span: 193:9-193:24)
-│  │           └─ Expr: expr#311: nothing
-├─ Item[8]: Extern (span: 197:1-214:2)
+│  │        │     └─ Stmt[1]: Expr (span: 203:13-203:23)
+│  │        │        └─ Expr: expr#331: (i = ((i + 1)))
+│  │        └─ Stmt[3]: Return (span: 205:9-205:24)
+│  │           └─ Expr: expr#332: nothing
+├─ Item[9]: Extern (span: 209:1-226:2)
 │  ├─ Target: Array<bool>
 │  ├─ Members:
 │  │  ├─ Fn[0]: contains
 │  │  │  ├─ Params: (self: &Array<bool>, value: &bool)
 │  │  │  ├─ Return: bool
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 198:63-201:6)
-│  │  │     ├─ Stmt[0]: Let (span: 199:9-199:50)
+│  │  │     Stmt[0]: Block (span: 210:63-213:6)
+│  │  │     ├─ Stmt[0]: Let (span: 211:9-211:50)
 │  │  │     │  ├─ Name: res
 │  │  │     │  ├─ Mutable: false
 │  │  │     │  ├─ Type: Option<uint>
-│  │  │     │  └─ Value: expr#315: self.find(value)
-│  │  │     └─ Stmt[1]: Return (span: 200:9-200:30)
-│  │  │        └─ Expr: expr#318: res.is_some()
+│  │  │     │  └─ Value: expr#336: self.find(value)
+│  │  │     └─ Stmt[1]: Return (span: 212:9-212:30)
+│  │  │        └─ Expr: expr#339: res.is_some()
 │  │  └─ Fn[1]: find
 │  │     ├─ Params: (self: &Array<bool>, value: &bool)
 │  │     ├─ Return: Option<uint>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 203:67-213:6)
-│  │        ├─ Stmt[0]: Let (span: 204:9-204:47)
+│  │        Stmt[0]: Block (span: 215:67-225:6)
+│  │        ├─ Stmt[0]: Let (span: 216:9-216:47)
 │  │        │  ├─ Name: length
 │  │        │  ├─ Mutable: false
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#322: self.__len() to int
-│  │        ├─ Stmt[1]: Let (span: 205:9-205:28)
+│  │        │  └─ Value: expr#343: self.__len() to int
+│  │        ├─ Stmt[1]: Let (span: 217:9-217:28)
 │  │        │  ├─ Name: i
 │  │        │  ├─ Mutable: true
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#323: 0
-│  │        ├─ Stmt[2]: While (span: 206:9-211:10)
-│  │        │  ├─ Cond: expr#326: (i < length)
+│  │        │  └─ Value: expr#344: 0
+│  │        ├─ Stmt[2]: While (span: 218:9-223:10)
+│  │        │  ├─ Cond: expr#347: (i < length)
 │  │        │  └─ Body:
-Block (span: 206:26-211:10)
-│  │        │     ├─ Stmt[0]: If (span: 207:13-209:14)
-│  │        │     │  ├─ Cond: expr#332: (self[i] == *value)
+Block (span: 218:26-223:10)
+│  │        │     ├─ Stmt[0]: If (span: 219:13-221:14)
+│  │        │     │  ├─ Cond: expr#353: (self[i] == *value)
 │  │        │     │  ├─ Then:
-Block (span: 207:34-209:14)
-│  │        │     │  │  └─ Stmt[0]: Return (span: 208:17-208:40)
-│  │        │     │  │     └─ Expr: expr#336: Some(i to uint)
+Block (span: 219:34-221:14)
+│  │        │     │  │  └─ Stmt[0]: Return (span: 220:17-220:40)
+│  │        │     │  │     └─ Expr: expr#357: Some(i to uint)
 │  │        │     │  └─ Else: <none>
-│  │        │     └─ Stmt[1]: Expr (span: 210:13-210:23)
-│  │        │        └─ Expr: expr#341: (i = ((i + 1)))
-│  │        └─ Stmt[3]: Return (span: 212:9-212:24)
-│  │           └─ Expr: expr#342: nothing
-├─ Item[9]: Extern (span: 216:1-233:2)
+│  │        │     └─ Stmt[1]: Expr (span: 222:13-222:23)
+│  │        │        └─ Expr: expr#362: (i = ((i + 1)))
+│  │        └─ Stmt[3]: Return (span: 224:9-224:24)
+│  │           └─ Expr: expr#363: nothing
+├─ Item[10]: Extern (span: 228:1-245:2)
 │  ├─ Target: Array<string>
 │  ├─ Members:
 │  │  ├─ Fn[0]: contains
 │  │  │  ├─ Params: (self: &Array<string>, value: &string)
 │  │  │  ├─ Return: bool
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 217:67-220:6)
-│  │  │     ├─ Stmt[0]: Let (span: 218:9-218:50)
+│  │  │     Stmt[0]: Block (span: 229:67-232:6)
+│  │  │     ├─ Stmt[0]: Let (span: 230:9-230:50)
 │  │  │     │  ├─ Name: res
 │  │  │     │  ├─ Mutable: false
 │  │  │     │  ├─ Type: Option<uint>
-│  │  │     │  └─ Value: expr#346: self.find(value)
-│  │  │     └─ Stmt[1]: Return (span: 219:9-219:30)
-│  │  │        └─ Expr: expr#349: res.is_some()
+│  │  │     │  └─ Value: expr#367: self.find(value)
+│  │  │     └─ Stmt[1]: Return (span: 231:9-231:30)
+│  │  │        └─ Expr: expr#370: res.is_some()
 │  │  └─ Fn[1]: find
 │  │     ├─ Params: (self: &Array<string>, value: &string)
 │  │     ├─ Return: Option<uint>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 222:71-232:6)
-│  │        ├─ Stmt[0]: Let (span: 223:9-223:47)
+│  │        Stmt[0]: Block (span: 234:71-244:6)
+│  │        ├─ Stmt[0]: Let (span: 235:9-235:47)
 │  │        │  ├─ Name: length
 │  │        │  ├─ Mutable: false
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#353: self.__len() to int
-│  │        ├─ Stmt[1]: Let (span: 224:9-224:28)
+│  │        │  └─ Value: expr#374: self.__len() to int
+│  │        ├─ Stmt[1]: Let (span: 236:9-236:28)
 │  │        │  ├─ Name: i
 │  │        │  ├─ Mutable: true
 │  │        │  ├─ Type: int
-│  │        │  └─ Value: expr#354: 0
-│  │        ├─ Stmt[2]: While (span: 225:9-230:10)
-│  │        │  ├─ Cond: expr#357: (i < length)
+│  │        │  └─ Value: expr#375: 0
+│  │        ├─ Stmt[2]: While (span: 237:9-242:10)
+│  │        │  ├─ Cond: expr#378: (i < length)
 │  │        │  └─ Body:
-Block (span: 225:26-230:10)
-│  │        │     ├─ Stmt[0]: If (span: 226:13-228:14)
-│  │        │     │  ├─ Cond: expr#363: (self[i] == *value)
+Block (span: 237:26-242:10)
+│  │        │     ├─ Stmt[0]: If (span: 238:13-240:14)
+│  │        │     │  ├─ Cond: expr#384: (self[i] == *value)
 │  │        │     │  ├─ Then:
-Block (span: 226:34-228:14)
-│  │        │     │  │  └─ Stmt[0]: Return (span: 227:17-227:40)
-│  │        │     │  │     └─ Expr: expr#367: Some(i to uint)
+Block (span: 238:34-240:14)
+│  │        │     │  │  └─ Stmt[0]: Return (span: 239:17-239:40)
+│  │        │     │  │     └─ Expr: expr#388: Some(i to uint)
 │  │        │     │  └─ Else: <none>
-│  │        │     └─ Stmt[1]: Expr (span: 229:13-229:23)
-│  │        │        └─ Expr: expr#372: (i = ((i + 1)))
-│  │        └─ Stmt[3]: Return (span: 231:9-231:24)
-│  │           └─ Expr: expr#373: nothing
-└─ Item[10]: Extern (span: 235:1-284:2)
+│  │        │     └─ Stmt[1]: Expr (span: 241:13-241:23)
+│  │        │        └─ Expr: expr#393: (i = ((i + 1)))
+│  │        └─ Stmt[3]: Return (span: 243:9-243:24)
+│  │           └─ Expr: expr#394: nothing
+└─ Item[11]: Extern (span: 247:1-296:2)
    ├─ Target: ArrayFixed<T, N>
    ├─ Members:
    │  ├─ Fn[0]: with_len
    │  │  ├─ Params: (length: uint)
    │  │  ├─ Return: ArrayFixed<T, N>
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 236:55-243:6)
-   │  │     ├─ Stmt[0]: Let (span: 237:9-237:67)
+   │  │     Stmt[0]: Block (span: 248:55-255:6)
+   │  │     ├─ Stmt[0]: Let (span: 249:9-249:67)
    │  │     │  ├─ Name: out
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: ArrayFixed<T, N>
-   │  │     │  └─ Value: expr#375: default()
-   │  │     ├─ Stmt[1]: Let (span: 238:9-238:42)
+   │  │     │  └─ Value: expr#396: default()
+   │  │     ├─ Stmt[1]: Let (span: 250:9-250:42)
    │  │     │  ├─ Name: expected
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: uint
-   │  │     │  └─ Value: expr#378: out.__len()
-   │  │     ├─ Stmt[2]: If (span: 239:9-241:10)
-   │  │     │  ├─ Cond: expr#381: (length != expected)
+   │  │     │  └─ Value: expr#399: out.__len()
+   │  │     ├─ Stmt[2]: If (span: 251:9-253:10)
+   │  │     │  ├─ Cond: expr#402: (length != expected)
    │  │     │  ├─ Then:
-Block (span: 239:31-241:10)
-   │  │     │  │  └─ Stmt[0]: Expr (span: 240:13-240:49)
-   │  │     │  │     └─ Expr: expr#384: panic("ArrayFixed length mismatch")
+Block (span: 251:31-253:10)
+   │  │     │  │  └─ Stmt[0]: Expr (span: 252:13-252:49)
+   │  │     │  │     └─ Expr: expr#405: panic("ArrayFixed length mismatch")
    │  │     │  └─ Else: <none>
-   │  │     └─ Stmt[3]: Return (span: 242:9-242:20)
-   │  │        └─ Expr: expr#385: out
+   │  │     └─ Stmt[3]: Return (span: 254:9-254:20)
+   │  │        └─ Expr: expr#406: out
    │  ├─ Fn[1]: get_mut
    │  │  ├─ Params: (self: &mut ArrayFixed<T, N>, index: int)
    │  │  ├─ Return: &mut T
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 245:71-247:6)
-   │  │     └─ Stmt[0]: Return (span: 246:9-246:54)
-   │  │        └─ Expr: expr#389: rt_array_get_mut(self, index)
+   │  │     Stmt[0]: Block (span: 257:71-259:6)
+   │  │     └─ Stmt[0]: Return (span: 258:9-258:54)
+   │  │        └─ Expr: expr#410: rt_array_get_mut(self, index)
    │  ├─ Fn[2]: with_len_value
    │  │  ├─ Params: (length: uint, value: T)
    │  │  ├─ Return: ArrayFixed<T, N>
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 249:71-262:6)
-   │  │     ├─ Stmt[0]: Let (span: 250:9-250:71)
+   │  │     Stmt[0]: Block (span: 261:71-274:6)
+   │  │     ├─ Stmt[0]: Let (span: 262:9-262:71)
    │  │     │  ├─ Name: out
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: ArrayFixed<T, N>
-   │  │     │  └─ Value: expr#391: default()
-   │  │     ├─ Stmt[1]: Let (span: 251:9-251:42)
+   │  │     │  └─ Value: expr#412: default()
+   │  │     ├─ Stmt[1]: Let (span: 263:9-263:42)
    │  │     │  ├─ Name: expected
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: uint
-   │  │     │  └─ Value: expr#394: out.__len()
-   │  │     ├─ Stmt[2]: If (span: 252:9-254:10)
-   │  │     │  ├─ Cond: expr#397: (length != expected)
+   │  │     │  └─ Value: expr#415: out.__len()
+   │  │     ├─ Stmt[2]: If (span: 264:9-266:10)
+   │  │     │  ├─ Cond: expr#418: (length != expected)
    │  │     │  ├─ Then:
-Block (span: 252:31-254:10)
-   │  │     │  │  └─ Stmt[0]: Expr (span: 253:13-253:49)
-   │  │     │  │     └─ Expr: expr#400: panic("ArrayFixed length mismatch")
+Block (span: 264:31-266:10)
+   │  │     │  │  └─ Stmt[0]: Expr (span: 265:13-265:49)
+   │  │     │  │     └─ Expr: expr#421: panic("ArrayFixed length mismatch")
    │  │     │  └─ Else: <none>
-   │  │     ├─ Stmt[3]: Let (span: 255:9-255:42)
+   │  │     ├─ Stmt[3]: Let (span: 267:9-267:42)
    │  │     │  ├─ Name: count
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#402: expected to int
-   │  │     ├─ Stmt[4]: Let (span: 256:9-256:28)
+   │  │     │  └─ Value: expr#423: expected to int
+   │  │     ├─ Stmt[4]: Let (span: 268:9-268:28)
    │  │     │  ├─ Name: i
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#403: 0
-   │  │     ├─ Stmt[5]: While (span: 257:9-260:10)
-   │  │     │  ├─ Cond: expr#406: (i < count)
+   │  │     │  └─ Value: expr#424: 0
+   │  │     ├─ Stmt[5]: While (span: 269:9-272:10)
+   │  │     │  ├─ Cond: expr#427: (i < count)
    │  │     │  └─ Body:
-Block (span: 257:25-260:10)
-   │  │     │     ├─ Stmt[0]: Expr (span: 258:13-258:36)
-   │  │     │     │  └─ Expr: expr#414: (out[i] = clone(&value))
-   │  │     │     └─ Stmt[1]: Expr (span: 259:13-259:23)
-   │  │     │        └─ Expr: expr#419: (i = ((i + 1)))
-   │  │     └─ Stmt[6]: Return (span: 261:9-261:20)
-   │  │        └─ Expr: expr#420: out
+Block (span: 269:25-272:10)
+   │  │     │     ├─ Stmt[0]: Expr (span: 270:13-270:36)
+   │  │     │     │  └─ Expr: expr#435: (out[i] = clone(&value))
+   │  │     │     └─ Stmt[1]: Expr (span: 271:13-271:23)
+   │  │     │        └─ Expr: expr#440: (i = ((i + 1)))
+   │  │     └─ Stmt[6]: Return (span: 273:9-273:20)
+   │  │        └─ Expr: expr#441: out
    │  ├─ Fn[3]: __to
    │  │  ├─ Params: (self: &ArrayFixed<T, N>, target: string)
    │  │  ├─ Return: string
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 264:68-268:6)
-   │  │     ├─ Stmt[0]: Let (span: 265:9-265:24)
+   │  │     Stmt[0]: Block (span: 276:68-280:6)
+   │  │     ├─ Stmt[0]: Let (span: 277:9-277:24)
    │  │     │  ├─ Name: _
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: <inferred>
-   │  │     │  └─ Value: expr#421: target
-   │  │     ├─ Stmt[1]: Let (span: 266:9-266:55)
+   │  │     │  └─ Value: expr#442: target
+   │  │     ├─ Stmt[1]: Let (span: 278:9-278:55)
    │  │     │  ├─ Name: length_s
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: string
-   │  │     │  └─ Value: expr#425: self.__len() to string
-   │  │     └─ Stmt[2]: Return (span: 267:9-267:51)
-   │  │        └─ Expr: expr#430: ((("ArrayFixed(len=" + length_s)) + ")")
+   │  │     │  └─ Value: expr#446: self.__len() to string
+   │  │     └─ Stmt[2]: Return (span: 279:9-279:51)
+   │  │        └─ Expr: expr#451: ((("ArrayFixed(len=" + length_s)) + ")")
    │  └─ Fn[4]: to_array
    │     ├─ Params: (self: &ArrayFixed<T, N>)
    │     ├─ Return: Array<T>
    │     └─ Body:
-   │        Stmt[0]: Block (span: 270:58-283:6)
-   │        ├─ Stmt[0]: Let (span: 271:9-271:47)
+   │        Stmt[0]: Block (span: 282:58-295:6)
+   │        ├─ Stmt[0]: Let (span: 283:9-283:47)
    │        │  ├─ Name: length
    │        │  ├─ Mutable: false
    │        │  ├─ Type: int
-   │        │  └─ Value: expr#434: self.__len() to int
-   │        ├─ Stmt[1]: Let (span: 272:9-272:36)
+   │        │  └─ Value: expr#455: self.__len() to int
+   │        ├─ Stmt[1]: Let (span: 284:9-284:36)
    │        │  ├─ Name: out
    │        │  ├─ Mutable: true
    │        │  ├─ Type: Array<T>
-   │        │  └─ Value: expr#435: <ExprKind(8)>
-   │        ├─ Stmt[2]: Block (span: 273:9-281:10)
-   │        │  ├─ Stmt[0]: Let (span: 274:13-274:51)
+   │        │  └─ Value: expr#456: <ExprKind(8)>
+   │        ├─ Stmt[2]: Block (span: 285:9-293:10)
+   │        │  ├─ Stmt[0]: Let (span: 286:13-286:51)
    │        │  │  ├─ Name: out_ref
    │        │  │  ├─ Mutable: false
    │        │  │  ├─ Type: &mut Array<T>
-   │        │  │  └─ Value: expr#437: &mut out
-   │        │  ├─ Stmt[1]: Expr (span: 275:13-275:43)
-   │        │  │  └─ Expr: expr#443: out_ref.reserve(self.__len())
-   │        │  ├─ Stmt[2]: Let (span: 276:13-276:32)
+   │        │  │  └─ Value: expr#458: &mut out
+   │        │  ├─ Stmt[1]: Expr (span: 287:13-287:43)
+   │        │  │  └─ Expr: expr#464: out_ref.reserve(self.__len())
+   │        │  ├─ Stmt[2]: Let (span: 288:13-288:32)
    │        │  │  ├─ Name: i
    │        │  │  ├─ Mutable: true
    │        │  │  ├─ Type: int
-   │        │  │  └─ Value: expr#444: 0
-   │        │  └─ Stmt[3]: While (span: 277:13-280:14)
-   │        │     ├─ Cond: expr#447: (i < length)
+   │        │  │  └─ Value: expr#465: 0
+   │        │  └─ Stmt[3]: While (span: 289:13-292:14)
+   │        │     ├─ Cond: expr#468: (i < length)
    │        │     └─ Body:
-Block (span: 277:30-280:14)
-   │        │        ├─ Stmt[0]: Expr (span: 278:17-278:46)
-   │        │        │  └─ Expr: expr#455: out_ref.push(clone(self[i]))
-   │        │        └─ Stmt[1]: Expr (span: 279:17-279:27)
-   │        │           └─ Expr: expr#460: (i = ((i + 1)))
-   │        └─ Stmt[3]: Return (span: 282:9-282:20)
-   │           └─ Expr: expr#461: out
+Block (span: 289:30-292:14)
+   │        │        ├─ Stmt[0]: Expr (span: 290:17-290:46)
+   │        │        │  └─ Expr: expr#476: out_ref.push(clone(self[i]))
+   │        │        └─ Stmt[1]: Expr (span: 291:17-291:27)
+   │        │           └─ Expr: expr#481: (i = ((i + 1)))
+   │        └─ Stmt[3]: Return (span: 294:9-294:20)
+   │           └─ Expr: expr#482: out

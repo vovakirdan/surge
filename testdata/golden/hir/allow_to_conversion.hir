@@ -2,18 +2,18 @@
 == HIR ==
 module 
 
-type Foo <struct> (sym=1397, type=0)
+type Foo <struct> (sym=1403, type=0)
 
-fn __to(self: type#1489, _: string) -> string (id=1, sym=1398) {
+fn __to(self: type#1493, _: string) -> string (id=1, sym=1404) {
   return "\"Foo\""
 }
 
-fn takes_string(s: string) -> int (id=2, sym=1399) {
+fn takes_string(s: string) -> int (id=2, sym=1405) {
   return 0
 }
 
-fn test_allow_to() -> int (id=3, sym=1400) {
-  let f: type#1489 =  { value = 1 }: type#1489
+fn test_allow_to() -> int (id=3, sym=1406) {
+  let f: type#1493 =  { value = 1 }: type#1493
   return takes_string(__to(f, default())): int
 }
 
