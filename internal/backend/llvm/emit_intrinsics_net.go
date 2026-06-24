@@ -166,7 +166,7 @@ func (fe *funcEmitter) emitNetWriteBytes(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	bytesVal, err := fe.emitNetByteArrayHandle(&call.Args[1])
+	bytesVal, err := fe.emitByteArrayHandle(&call.Args[1])
 	if err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ func (fe *funcEmitter) emitNetHandle(op *mir.Operand, kind string) (string, erro
 	return val, nil
 }
 
-func (fe *funcEmitter) emitNetByteArrayHandle(op *mir.Operand) (string, error) {
+func (fe *funcEmitter) emitByteArrayHandle(op *mir.Operand) (string, error) {
 	if op == nil {
 		return "", fmt.Errorf("missing byte[] handle")
 	}

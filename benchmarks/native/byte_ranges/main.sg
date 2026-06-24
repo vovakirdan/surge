@@ -1,0 +1,106 @@
+import stdlib/bytes as by;
+import stdlib/time as time;
+
+fn make_source(length: uint) -> byte[] {
+    let mut out: byte[] = [];
+    out.reserve(length);
+    let mut i: uint = 0:uint;
+    while i < length {
+        out.push((i % 251:uint) to byte);
+        i = i + 1:uint;
+    }
+    return out;
+}
+
+fn sink(data: &byte[]) -> uint64 {
+    if data.__len() == 0:uint {
+        return 0:uint64;
+    }
+    let mid: int = (data.__len() / 2:uint) to int;
+    let last: int = (data.__len() - 1:uint) to int;
+    return (data.__len() to uint64) + (clone(data[0]) to uint64) + (clone(data[mid]) to uint64) + (clone(data[last]) to uint64);
+}
+
+fn bench_push_loop(src: &byte[], start: uint64, width: uint64, rounds: uint64) -> uint64 {
+    let mut out: byte[] = [];
+    out.reserve(width to uint);
+    let mut acc: uint64 = 0:uint64;
+    let mut round: uint64 = 0:uint64;
+    while round < rounds {
+        out.clear_keep_capacity();
+        let mut i: uint64 = 0:uint64;
+        while i < width {
+            let idx: int = (start + i) to int;
+            out.push(clone(src[idx]));
+            i = i + 1:uint64;
+        }
+        acc = acc + sink(&out);
+        round = round + 1:uint64;
+    }
+    return acc;
+}
+
+fn bench_append_range(src: &byte[], r: by.ByteRange, width: uint64, rounds: uint64) -> uint64 {
+    let mut out: byte[] = [];
+    out.reserve(width to uint);
+    let mut acc: uint64 = 0:uint64;
+    let mut round: uint64 = 0:uint64;
+    while round < rounds {
+        out.clear_keep_capacity();
+        compare out.append_bytes_range(src, r) {
+            Success(_) => {}
+            err => {
+                print("append_range_error=" + (err.code to string));
+                return acc;
+            }
+        };
+        acc = acc + sink(&out);
+        round = round + 1:uint64;
+    }
+    return acc;
+}
+
+fn time_push_loop(src: &byte[], start: uint64, width: uint64, rounds: uint64) -> int64 {
+    let started: time.Duration = time.Duration.now();
+    let checksum: uint64 = bench_push_loop(src, start, width, rounds);
+    let finished: time.Duration = time.Duration.now();
+    let delta: time.Duration = finished.sub(started);
+    let elapsed: int64 = delta.as_micros();
+    print("push_loop_us=" + (elapsed to string) + " checksum=" + (checksum to string));
+    return elapsed;
+}
+
+fn time_append_range(src: &byte[], r: by.ByteRange, width: uint64, rounds: uint64) -> int64 {
+    let started: time.Duration = time.Duration.now();
+    let checksum: uint64 = bench_append_range(src, r, width, rounds);
+    let finished: time.Duration = time.Duration.now();
+    let delta: time.Duration = finished.sub(started);
+    let elapsed: int64 = delta.as_micros();
+    print("append_range_us=" + (elapsed to string) + " checksum=" + (checksum to string));
+    return elapsed;
+}
+
+@entrypoint
+fn main() -> int {
+    let rounds: uint64 = 400:uint64;
+    let width: uint64 = 1024:uint64;
+    let start: uint64 = 17:uint64;
+    let src: byte[] = make_source((width + start + 8:uint64) to uint);
+    let r: by.ByteRange = by.range(start to uint, (start + width) to uint);
+
+    if !by.is_valid_range(&src, r) {
+        print("invalid benchmark range");
+        return 1;
+    }
+
+    let copied: uint64 = rounds * width;
+    print("rounds=" + (rounds to string) + " width=" + (width to string) + " copied_bytes=" + (copied to string));
+    let push_us: int64 = time_push_loop(&src, start, width, rounds);
+    let append_us: int64 = time_append_range(&src, r, width, rounds);
+
+    if append_us <= 0:int64 || push_us <= 0:int64 {
+        print("invalid timing");
+        return 2;
+    }
+    return 0;
+}

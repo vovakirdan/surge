@@ -130,6 +130,8 @@ extern<TcpConn> {
 @intrinsic fn rt_array_get_mut<T>(a: &mut Array<T>, index: int) -> &mut T;
 @intrinsic @overload fn rt_array_get_mut<T, N>(a: &mut ArrayFixed<T, N>, index: int) -> &mut T;
 @intrinsic fn rt_array_append_raw_bytes(a: &mut byte[], ptr: *byte, length: uint64) -> nothing;
+@intrinsic fn rt_byte_array_append_range(dst: &mut byte[], src: &byte[], start: uint64, length: uint64) -> nothing;
+@intrinsic fn rt_byte_array_drop_prefix(a: &mut byte[], count: uint64) -> nothing;
 
 // Map access intrinsics
 @intrinsic fn rt_map_new<K, V>() -> Map<K, V>;

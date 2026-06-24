@@ -17,6 +17,13 @@ make build
 ./scripts/bench_native_net.sh
 ```
 
+Run the byte range copy probe:
+
+```bash
+make build
+./scripts/bench_native_bytes.sh
+```
+
 Useful overrides:
 
 ```bash
@@ -26,6 +33,7 @@ SURGE_CHANNEL_TRACE_PROBES="channel_reused_reply" ./scripts/bench_native_channel
 SURGE_CHANNEL_WAKE_INJECT=1 SURGE_CHANNEL_BENCH_REPORT=/tmp/channel-inject.md ./scripts/bench_native_channels.sh
 SURGE_NET_BENCH_THREADS="1 2 4 8" SURGE_NET_BENCH_REPORT=/tmp/net.md ./scripts/bench_native_net.sh
 SURGE_NET_BENCH_STDLIB=/path/to/surge ./scripts/bench_native_net.sh
+SURGE_BYTES_BENCH_REPEATS=9 SURGE_BYTES_BENCH_REPORT=/tmp/bytes.md ./scripts/bench_native_bytes.sh
 ```
 
 Compare future runtime PRs against
@@ -67,6 +75,11 @@ The net request/reply probe prints three layers: `echo` for minimal socket
 read/write, `direct` for socket task response writes, and `manager` for the
 same response behind a channel request/reply hop. It enables both
 `SURGE_TRACE_EXEC=1` and `SURGE_SCHED_TRACE=1` for each server run.
+
+The byte range probe compares a per-byte `push` loop against
+`stdlib/bytes.append_bytes_range` over the same reused output buffer. It is a
+local proof for the byte-array bulk-copy primitive; it is not a full protocol
+parser benchmark.
 
 Default channel placement keeps generic wakes local-first, while no-signal
 handoff wakes use inject placement. Use `SURGE_CHANNEL_WAKE_INJECT=1` only for

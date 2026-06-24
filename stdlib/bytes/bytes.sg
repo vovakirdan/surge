@@ -1,0 +1,123 @@
+// stdlib/bytes/bytes.sg
+// Byte helpers for protocol hot paths.
+
+pub const BYTES_ERR_INVALID_RANGE: uint = 1;
+
+@copy
+pub type ByteRange = {
+    start: uint,
+    end: uint,
+};
+
+pub type ByteBuffer = {
+    data: byte[],
+    start: uint,
+};
+
+fn invalid_range_bytes() -> Erring<byte[], Error> {
+    return Error { message = "bytes: invalid range", code = BYTES_ERR_INVALID_RANGE };
+}
+
+fn invalid_range_nothing() -> Erring<nothing, Error> {
+    return Error { message = "bytes: invalid range", code = BYTES_ERR_INVALID_RANGE };
+}
+
+pub fn range(start: uint, end: uint) -> ByteRange {
+    return { start = start, end = end };
+}
+
+pub fn all(data: &byte[]) -> ByteRange {
+    return { start = 0:uint, end = data.__len() };
+}
+
+pub fn range_len(r: ByteRange) -> uint {
+    if r.end < r.start {
+        return 0:uint;
+    }
+    return r.end - r.start;
+}
+
+pub fn is_valid_range(data: &byte[], r: ByteRange) -> bool {
+    return r.start <= r.end && r.end <= data.__len();
+}
+
+pub fn copy_range(data: &byte[], r: ByteRange) -> Erring<byte[], Error> {
+    if !is_valid_range(data, r) {
+        return invalid_range_bytes();
+    }
+    let length: uint = range_len(r);
+    let mut out: byte[] = [];
+    out.reserve(length);
+    rt_byte_array_append_range(&mut out, data, r.start to uint64, length to uint64);
+    return Success(out);
+}
+
+pub fn buffer() -> ByteBuffer {
+    return { data = [], start = 0:uint };
+}
+
+pub fn buffer_from(data: byte[]) -> ByteBuffer {
+    return { data = data, start = 0:uint };
+}
+
+extern<Array<byte>> {
+    pub fn append_bytes_range(self: &mut Array<byte>, data: &byte[], r: ByteRange) -> Erring<nothing, Error> {
+        if !is_valid_range(data, r) {
+            return invalid_range_nothing();
+        }
+        let length: uint = range_len(r);
+        rt_byte_array_append_range(self, data, r.start to uint64, length to uint64);
+        return Success(nothing);
+    }
+
+    pub fn clear_keep_capacity(self: &mut Array<byte>) -> nothing {
+        rt_byte_array_drop_prefix(self, self.__len() to uint64);
+        return nothing;
+    }
+}
+
+extern<ByteBuffer> {
+    pub fn len(self: &ByteBuffer) -> uint {
+        return self.data.__len() - self.start;
+    }
+
+    pub fn is_empty(self: &ByteBuffer) -> bool {
+        return self.len() == 0:uint;
+    }
+
+    pub fn range(self: &ByteBuffer) -> ByteRange {
+        return { start = self.start, end = self.data.__len() };
+    }
+
+    pub fn append_range(self: &mut ByteBuffer, data: &byte[], r: ByteRange) -> Erring<nothing, Error> {
+        return self.data.append_bytes_range(data, r);
+    }
+
+    pub fn consume(self: &mut ByteBuffer, count: uint) -> Erring<nothing, Error> {
+        if count > self.len() {
+            return invalid_range_nothing();
+        }
+        self.start = self.start + count;
+        return Success(nothing);
+    }
+
+    pub fn compact(self: &mut ByteBuffer) -> nothing {
+        if self.start != 0:uint {
+            rt_byte_array_drop_prefix(self.data, self.start to uint64);
+            self.start = 0:uint;
+        }
+        return nothing;
+    }
+
+    pub fn clear_keep_capacity(self: &mut ByteBuffer) -> nothing {
+        self.data.clear_keep_capacity();
+        self.start = 0:uint;
+        return nothing;
+    }
+
+    pub fn clear(self: &mut ByteBuffer) -> nothing {
+        self.data = [];
+        self.start = 0:uint;
+        return nothing;
+    }
+}

@@ -5,23 +5,23 @@
 ## 📊 Main code (without tests)
 
 - **Files:** 685 (Go: 654, C: 31)
-- **Lines of code:** 157685 (Go: 143166, C: 14519)
+- **Lines of code:** 157945 (Go: 143361, C: 14584)
 
 ## 📁 Directory breakdown
 
 | Directory | Files | Lines |
 |------------|--------|-------|
 | `cmd/` | 28 | 4819 |
-| `internal/` | 624 | 137784 |
-| `runtime/native/` (C code) | 31 | 14519 |
+| `internal/` | 624 | 137979 |
+| `runtime/native/` (C code) | 31 | 14584 |
 
 ## 🏆 Top 10 packages by size
 
 | # | Package | Lines |
 |---|-------|-------|
-| 1 | `internal/sema` | 28573 |
-| 2 | `internal/vm` | 23192 |
-| 3 | `internal/backend/llvm` | 12407 |
+| 1 | `internal/sema` | 28574 |
+| 2 | `internal/vm` | 23337 |
+| 3 | `internal/backend/llvm` | 12456 |
 | 4 | `internal/mir` | 10464 |
 | 5 | `internal/parser` | 8960 |
 | 6 | `internal/hir` | 7156 |
@@ -32,13 +32,13 @@
 
 ## 🧪 Test files
 
-- **Files:** 180
-- **Lines of code:** 36839
+- **Files:** 181
+- **Lines of code:** 36882
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 865
-- **Lines of code:** 194524
+- **Files:** 866
+- **Lines of code:** 194827
 
 ## 📊 Percentage breakdown
 

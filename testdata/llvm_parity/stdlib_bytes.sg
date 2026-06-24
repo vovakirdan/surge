@@ -1,0 +1,80 @@
+import stdlib/bytes as by;
+
+fn check_bytes(data: &byte[], expected: &byte[]) -> bool {
+    if data.__len() != expected.__len() {
+        return false;
+    }
+    let n: int = data.__len() to int;
+    let mut i: int = 0;
+    while i < n {
+        if data[i] != expected[i] {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+@entrypoint
+fn main() -> int {
+    let source: byte[] = "abcdef" to byte[];
+
+    let copied_res = by.copy_range(&source, by.range(1:uint, 4:uint));
+    let copied = compare copied_res {
+        Success(v) => v;
+        _ => {
+            return 1;
+        }
+    };
+    let expected_bcd: byte[] = "bcd" to byte[];
+    if !check_bytes(&copied, &expected_bcd) {
+        return 2;
+    }
+
+    let view: byte[] = source[[2..5]];
+    let mut out: byte[] = "x" to byte[];
+    compare out.append_bytes_range(&view, by.all(&view)) {
+        Success(_) => {}
+        _ => {
+            return 3;
+        }
+    };
+    let expected_xcde: byte[] = "xcde" to byte[];
+    if !check_bytes(&out, &expected_xcde) {
+        return 4;
+    }
+
+    compare out.append_bytes_range(&source, by.range(5:uint, 7:uint)) {
+        Success(_) => {
+            return 5;
+        }
+        err => {
+            if err.code != by.BYTES_ERR_INVALID_RANGE {
+                return 6;
+            }
+        }
+    };
+
+    let mut buf = by.buffer_from("012345" to byte[]);
+    compare buf.consume(2:uint) {
+        Success(_) => {}
+        _ => {
+            return 7;
+        }
+    };
+    if buf.len() != 4:uint {
+        return 8;
+    }
+    buf.compact();
+    let expected_2345: byte[] = "2345" to byte[];
+    if !check_bytes(&buf.data, &expected_2345) || buf.len() != 4:uint {
+        return 9;
+    }
+    buf.clear_keep_capacity();
+    if !buf.is_empty() || buf.data.__len() != 0:uint {
+        return 10;
+    }
+
+    print("stdlib_bytes_ok");
+    return 0;
+}

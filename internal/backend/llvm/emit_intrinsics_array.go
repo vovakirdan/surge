@@ -31,6 +31,10 @@ func (fe *funcEmitter) emitArrayIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitArrayPop(call)
 	case "rt_array_get_mut":
 		return true, fe.emitArrayGetMut(call)
+	case "rt_byte_array_append_range":
+		return true, fe.emitByteArrayAppendRange(call)
+	case "rt_byte_array_drop_prefix":
+		return true, fe.emitByteArrayDropPrefix(call)
 	default:
 		return false, nil
 	}
@@ -497,5 +501,45 @@ func (fe *funcEmitter) emitArrayGetMut(call *mir.CallInstr) error {
 		dstTy = "ptr"
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, elemPtr, ptr)
+	return nil
+}
+
+func (fe *funcEmitter) emitByteArrayAppendRange(call *mir.CallInstr) error {
+	if len(call.Args) != 4 {
+		return fmt.Errorf("rt_byte_array_append_range requires 4 arguments")
+	}
+	dstSlot, err := fe.emitHandleOperandPtr(&call.Args[0])
+	if err != nil {
+		return err
+	}
+	srcHead, err := fe.emitByteArrayHandle(&call.Args[1])
+	if err != nil {
+		return err
+	}
+	start64, err := fe.emitUintOperandToI64(&call.Args[2], "byte range start out of range")
+	if err != nil {
+		return err
+	}
+	len64, err := fe.emitUintOperandToI64(&call.Args[3], "byte range length out of range")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_byte_array_append_range(ptr %s, ptr %s, i64 %s, i64 %s)\n", dstSlot, srcHead, start64, len64)
+	return nil
+}
+
+func (fe *funcEmitter) emitByteArrayDropPrefix(call *mir.CallInstr) error {
+	if len(call.Args) != 2 {
+		return fmt.Errorf("rt_byte_array_drop_prefix requires 2 arguments")
+	}
+	slot, err := fe.emitHandleOperandPtr(&call.Args[0])
+	if err != nil {
+		return err
+	}
+	count64, err := fe.emitUintOperandToI64(&call.Args[1], "byte drop count out of range")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_byte_array_drop_prefix(ptr %s, i64 %s)\n", slot, count64)
 	return nil
 }

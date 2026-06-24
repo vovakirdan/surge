@@ -1,6 +1,7 @@
 # `stdlib/bytes` Design Spec
 
-> Status: proposed design, not shipped API.
+> Status: roadmap design; the first range/compact slice is shipped in this
+> branch.
 > Date: 2026-06-23.
 > Scope: standard-library byte helpers for protocol and binary hot paths.
 
@@ -62,11 +63,14 @@ helpers and can be benchmarked directly.
 
 ## Public Import
 
-Users import the module as:
+Users should import the module with an explicit alias:
 
 ```sg
-import stdlib/bytes as bytes;
+import stdlib/bytes as by;
 ```
+
+The bare module name `bytes` currently collides with the existing string
+`.bytes()` symbol in the global namespace.
 
 The implementation may be split internally:
 
@@ -271,11 +275,14 @@ Current runtime support:
 - `rt_memcpy` and `rt_memmove` exist but are not ordinary user APIs.
 - `rt_net_write_bytes` already writes a byte-array range by offset and length.
 
-Required if pure loops prove too slow:
+Shipped in the first runtime-backed slice:
 
 - `rt_byte_array_append_range(dst: &mut byte[], src: &byte[], start: uint, len: uint)`.
 - `rt_byte_array_drop_prefix(buf: &mut byte[], count: uint)`.
-- Optional: `rt_byte_find(buf: &byte[], start: uint, end: uint, needle: byte)`.
+
+Still optional:
+
+- `rt_byte_find(buf: &byte[], start: uint, end: uint, needle: byte)`.
 
 `clear_keep_capacity` can drop the full length with `rt_byte_array_drop_prefix`.
 `ByteBuffer.compact` can drop only the consumed prefix. `copy_range` can build
@@ -344,6 +351,17 @@ External surgekv checks may come after the standalone proof, but they are not
 the acceptance gate for the stdlib module.
 
 ## Correctness Tests
+
+The first shipped slice covers:
+
+- `copy_range`
+- `Array<byte>.append_bytes_range`
+- `Array<byte>.clear_keep_capacity`
+- `ByteBuffer.consume`
+- `ByteBuffer.compact`
+- `ByteBuffer.clear_keep_capacity`
+- VM and LLVM/native parity for valid ranges, invalid ranges, source array
+  views, and buffer compaction.
 
 The implementation PR should add focused tests for:
 
