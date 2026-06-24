@@ -454,13 +454,16 @@ func (vm *VM) handleByteParseUint64Token(frame *Frame, call *mir.CallInstr, writ
 
 	ok := false
 	var value uint64
-	next := 0
+	next, nextErr := vm.toUint64ForCast(startVal)
+	if nextErr != nil {
+		next = 0
+	}
 	start, startErr := vm.uintValueToInt(startVal, "byte parse start out of range")
 	end, endErr := vm.uintValueToInt(endVal, "byte parse end out of range")
 	if startErr != nil || endErr != nil {
 		ok = false
 	} else {
-		next = start
+		next = uint64(start) //nolint:gosec // start is non-negative after uintValueToInt.
 		if dataVal.Kind == VKRef || dataVal.Kind == VKRefMut {
 			loaded, loadErr := vm.loadLocationRaw(dataVal.Loc)
 			if loadErr != nil {
@@ -476,7 +479,7 @@ func (vm *VM) handleByteParseUint64Token(frame *Frame, call *mir.CallInstr, writ
 			return viewErr
 		}
 		if start <= end && start <= view.length && end <= view.length {
-			next = end
+			next = uint64(end) //nolint:gosec // end is non-negative after uintValueToInt.
 			i := start
 			for i < end {
 				b, convErr := vm.valueToUint8(view.baseObj.Arr[view.start+i])
@@ -489,9 +492,15 @@ func (vm *VM) handleByteParseUint64Token(frame *Frame, call *mir.CallInstr, writ
 				i++
 			}
 			if i < end {
-				value, next, ok, vmErr = vm.parseUint64DigitsInByteView(view, i, end)
+				var parsedNext int
+				value, parsedNext, ok, vmErr = vm.parseUint64DigitsInByteView(view, i, end)
 				if vmErr != nil {
 					return vmErr
+				}
+				if ok {
+					next = uint64(parsedNext) //nolint:gosec // parsedNext comes from a checked slice index.
+				} else {
+					next = uint64(start) //nolint:gosec // start is non-negative after uintValueToInt.
 				}
 			}
 		}
@@ -506,7 +515,7 @@ func (vm *VM) handleByteParseUint64Token(frame *Frame, call *mir.CallInstr, writ
 	if vmErr := vm.storeLocation(valueRef.Loc, MakeInt(asInt64(value), vm.refElemType(valueRef.TypeID))); vmErr != nil {
 		return vmErr
 	}
-	if vmErr := vm.storeLocation(nextRef.Loc, MakeInt(int64(next), vm.refElemType(nextRef.TypeID))); vmErr != nil {
+	if vmErr := vm.storeLocation(nextRef.Loc, MakeInt(asInt64(next), vm.refElemType(nextRef.TypeID))); vmErr != nil {
 		return vmErr
 	}
 	if call.HasDst {

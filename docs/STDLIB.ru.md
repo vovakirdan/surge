@@ -967,7 +967,7 @@ fn next_line(input: byte[]) -> Option<by.ByteLine> {
 
 Замечание про реальность:
 
-- Shipped slices покрывают copy/append/compact primitives, LF/CRLF line scanning, ASCII helper'ы, trimming, split, token extraction и literal compare helper'ы. Numeric parsing и более богатые protocol helper'ы остаются в design spec.
+- Shipped slices покрывают copy/append/compact primitives, LF/CRLF line scanning, ASCII helper'ы, trimming, split, token extraction, literal compare helper'ы и fused `next_uint64_ascii_token`. Отдельные/расширенные numeric helper'ы и более богатые protocol helper'ы остаются в design spec.
 
 ---
 

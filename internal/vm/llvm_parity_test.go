@@ -41,6 +41,7 @@ func TestLLVMParity(t *testing.T) {
 		{name: "exit_code", file: "exit_code.sg"},
 		{name: "panic", file: "panic.sg"},
 		{name: "string_concat", file: "string_concat.sg"},
+		{name: "from_str_fixed_width", file: "from_str_fixed_width.sg"},
 		{name: "array_range_indexing", file: "array_range_indexing.sg"},
 		{name: "byte_array_append_string", file: "byte_array_append_string.sg"},
 		{name: "stdlib_bytes", file: "stdlib_bytes.sg"},

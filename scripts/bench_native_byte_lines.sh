@@ -12,6 +12,8 @@ fail() {
 	exit 1
 }
 
+[[ "$repeats" =~ ^[1-9][0-9]*$ ]] || fail "SURGE_BYTES_LINE_BENCH_REPEATS must be a positive integer"
+
 if [[ ! -x "$surge" ]]; then
 	surge="$(command -v surge || true)"
 fi

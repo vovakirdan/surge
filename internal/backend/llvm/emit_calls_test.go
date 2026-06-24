@@ -169,12 +169,12 @@ fn main() -> int {
 	if !strings.Contains(ir, "call i1 @rt_parse_uint(") {
 		t.Fatalf("expected uint parser call in IR:\n%s", ir)
 	}
-	parseWindowRe := regexp.MustCompile(`(?s)call i1 @rt_parse_uint\(.*?(?:\n.*?){0,8}`)
-	parseWindow := parseWindowRe.FindString(ir)
-	if parseWindow == "" {
-		t.Fatalf("cannot find uint parser window in IR:\n%s", ir)
+	bodyRe := regexp.MustCompile(`(?s)define (?:ptr|i64) @fn\.\d+\([^)]*\) \{.*?rt_parse_uint.*?\n\}`)
+	body := bodyRe.FindString(ir)
+	if body == "" {
+		t.Fatalf("cannot find uint parser function body in IR:\n%s", ir)
 	}
-	if strings.Contains(parseWindow, "rt_biguint_to_u64") {
+	if strings.Contains(body, "rt_biguint_to_u64") {
 		t.Fatalf("fixed-width uint from_str must not treat raw i64 parse output as BigUint ptr:\n%s", ir)
 	}
 }

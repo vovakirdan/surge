@@ -369,6 +369,23 @@ fn main() -> int {
         }
         nothing => {}
     };
+    let mut malformed_value: uint64 = 99:uint64;
+    let mut malformed_next: uint64 = 99:uint64;
+    let malformed_number: byte[] = "  bad" to byte[];
+    if rt_byte_parse_uint64_token(&malformed_number, 0:uint64, malformed_number.__len() to uint64, &mut malformed_value, &mut malformed_next) {
+        return 79;
+    }
+    if malformed_next != 0:uint64 {
+        return 80;
+    }
+    let mut ws_value: uint64 = 99:uint64;
+    let mut ws_next: uint64 = 99:uint64;
+    if rt_byte_parse_uint64_token(&ws_number, 0:uint64, ws_number.__len() to uint64, &mut ws_value, &mut ws_next) {
+        return 81;
+    }
+    if ws_next != ws_number.__len() to uint64 {
+        return 82;
+    }
 
     let dispatch: byte[] = "get PING unknown" to byte[];
     let cmd_get: string = "get";
