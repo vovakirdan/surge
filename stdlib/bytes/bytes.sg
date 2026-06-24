@@ -9,10 +9,33 @@ pub type ByteRange = {
     end: uint,
 };
 
+@copy
+pub type ByteLine = {
+    body: ByteRange,
+    next: uint,
+};
+
+@copy
+pub type ByteSplit = {
+    head: ByteRange,
+    tail: ByteRange,
+};
+
+@copy
+pub type ByteUint64 = {
+    value: uint64,
+    tail: ByteRange,
+};
+
 pub type ByteBuffer = {
     data: byte[],
     start: uint,
 };
+
+const BYTE_TAB: byte = 9:byte;
+const BYTE_CR: byte = 13:byte;
+const BYTE_LF: byte = 10:byte;
+const BYTE_SPACE: byte = 32:byte;
 
 fn invalid_range_bytes() -> Erring<byte[], Error> {
     return Error { message = "bytes: invalid range", code = BYTES_ERR_INVALID_RANGE };
@@ -39,6 +62,237 @@ pub fn range_len(r: ByteRange) -> uint {
 
 pub fn is_valid_range(data: &byte[], r: ByteRange) -> bool {
     return r.start <= r.end && r.end <= data.__len();
+}
+
+pub fn is_ascii_ws(b: byte) -> bool {
+    return b == BYTE_SPACE || b == BYTE_TAB || b == BYTE_LF || b == BYTE_CR;
+}
+
+pub fn is_ascii_digit(b: byte) -> bool {
+    let v: uint = b to uint;
+    return v >= 48:uint && v <= 57:uint;
+}
+
+pub fn is_ascii_alpha(b: byte) -> bool {
+    let v: uint = b to uint;
+    return (v >= 65:uint && v <= 90:uint) || (v >= 97:uint && v <= 122:uint);
+}
+
+pub fn is_ascii_alnum(b: byte) -> bool {
+    return is_ascii_alpha(b) || is_ascii_digit(b);
+}
+
+pub fn is_ascii_hex_digit(b: byte) -> bool {
+    let v: uint = b to uint;
+    return is_ascii_digit(b) || (v >= 65:uint && v <= 70:uint) || (v >= 97:uint && v <= 102:uint);
+}
+
+pub fn ascii_to_lower(b: byte) -> byte {
+    let v: uint = b to uint;
+    if v >= 65:uint && v <= 90:uint {
+        return (v + 32:uint) to byte;
+    }
+    return b;
+}
+
+pub fn ascii_to_upper(b: byte) -> byte {
+    let v: uint = b to uint;
+    if v >= 97:uint && v <= 122:uint {
+        return (v - 32:uint) to byte;
+    }
+    return b;
+}
+
+pub fn ascii_hex_value(b: byte) -> int {
+    let v: uint = b to uint;
+    if v >= 48:uint && v <= 57:uint {
+        return (v - 48:uint) to int;
+    }
+    if v >= 65:uint && v <= 70:uint {
+        return (v - 65:uint + 10:uint) to int;
+    }
+    if v >= 97:uint && v <= 102:uint {
+        return (v - 97:uint + 10:uint) to int;
+    }
+    return -1;
+}
+
+pub fn find_byte(data: &byte[], r: ByteRange, needle: byte) -> Option<uint> {
+    if !is_valid_range(data, r) {
+        return nothing;
+    }
+    let mut i: int = r.start to int;
+    let end: int = r.end to int;
+    while i < end {
+        if data[i] == needle {
+            return Some(i to uint);
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+pub fn find_lf(data: &byte[], r: ByteRange) -> Option<uint> {
+    return find_byte(data, r, BYTE_LF);
+}
+
+pub fn find_crlf(data: &byte[], r: ByteRange) -> Option<uint> {
+    if !is_valid_range(data, r) || range_len(r) < 2:uint {
+        return nothing;
+    }
+    let mut i: int = r.start to int;
+    let last: int = (r.end - 1:uint) to int;
+    while i < last {
+        if data[i] == BYTE_CR && data[i + 1] == BYTE_LF {
+            return Some(i to uint);
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+pub fn trim_ascii_start(data: &byte[], r: ByteRange) -> ByteRange {
+    if !is_valid_range(data, r) {
+        return { start = 0:uint, end = 0:uint };
+    }
+    let mut start: int = r.start to int;
+    let end: int = r.end to int;
+    while start < end && is_ascii_ws(data[start]) {
+        start = start + 1;
+    }
+    return { start = start to uint, end = r.end };
+}
+
+pub fn trim_ascii_end(data: &byte[], r: ByteRange) -> ByteRange {
+    if !is_valid_range(data, r) {
+        return { start = 0:uint, end = 0:uint };
+    }
+    let start: int = r.start to int;
+    let mut end: int = r.end to int;
+    while end > start && is_ascii_ws(data[end - 1]) {
+        end = end - 1;
+    }
+    return { start = r.start, end = end to uint };
+}
+
+pub fn trim_ascii(data: &byte[], r: ByteRange) -> ByteRange {
+    let left: ByteRange = trim_ascii_start(data, r);
+    return trim_ascii_end(data, left);
+}
+
+pub fn split_once_byte(data: &byte[], r: ByteRange, sep: byte) -> Option<ByteSplit> {
+    if !is_valid_range(data, r) {
+        return nothing;
+    }
+    let found: Option<uint> = find_byte(data, r, sep);
+    return compare found {
+        Some(pos) => Some(ByteSplit {
+            head = { start = r.start, end = pos },
+            tail = { start = pos + 1:uint, end = r.end }
+        });
+        nothing => nothing;
+    };
+}
+
+pub fn next_ascii_token(data: &byte[], r: ByteRange) -> Option<ByteSplit> {
+    let trimmed: ByteRange = trim_ascii_start(data, r);
+    if range_len(trimmed) == 0:uint {
+        return nothing;
+    }
+    let mut end: int = trimmed.start to int;
+    let limit: int = trimmed.end to int;
+    while end < limit && !is_ascii_ws(data[end]) {
+        end = end + 1;
+    }
+    return Some(ByteSplit {
+        head = { start = trimmed.start, end = end to uint },
+        tail = { start = end to uint, end = trimmed.end }
+    });
+}
+
+pub fn next_uint64_ascii_token(data: &byte[], r: ByteRange) -> Option<ByteUint64> {
+    if !is_valid_range(data, r) {
+        return nothing;
+    }
+    let mut value: uint64 = 0:uint64;
+    let mut next: uint64 = 0:uint64;
+    if !rt_byte_parse_uint64_token(data, r.start to uint64, r.end to uint64, &mut value, &mut next) {
+        return nothing;
+    }
+    return Some(ByteUint64 {
+        value = value,
+        tail = { start = next to uint, end = r.end }
+    });
+}
+
+pub fn range_eq(data: &byte[], r: ByteRange, expected: &byte[]) -> bool {
+    if !is_valid_range(data, r) || range_len(r) != expected.__len() {
+        return false;
+    }
+    let start: int = r.start to int;
+    let length: int = expected.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        if data[start + i] != expected[i] {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn range_eq_view(data: &byte[], r: ByteRange, expected: &BytesView) -> bool {
+    if !is_valid_range(data, r) || range_len(r) != expected.__len() {
+        return false;
+    }
+    let start: int = r.start to int;
+    let length: int = expected.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        if data[start + i] != (expected[i] to byte) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+pub fn range_eq_ascii(data: &byte[], r: ByteRange, expected: &string) -> bool {
+    let view: BytesView = expected.bytes();
+    return range_eq_view(data, r, &view);
+}
+
+fn range_eq_view_ascii_ci(data: &byte[], r: ByteRange, expected: &BytesView) -> bool {
+    if !is_valid_range(data, r) || range_len(r) != expected.__len() {
+        return false;
+    }
+    let start: int = r.start to int;
+    let length: int = expected.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        if ascii_to_lower(data[start + i]) != ascii_to_lower(expected[i] to byte) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+pub fn range_eq_ascii_ci(data: &byte[], r: ByteRange, expected: &string) -> bool {
+    let view: BytesView = expected.bytes();
+    return range_eq_view_ascii_ci(data, r, &view);
+}
+
+pub fn starts_with_ascii(data: &byte[], r: ByteRange, expected: &string) -> bool {
+    if !is_valid_range(data, r) {
+        return false;
+    }
+    let view: BytesView = expected.bytes();
+    if view.__len() > range_len(r) {
+        return false;
+    }
+    let prefix: ByteRange = { start = r.start, end = r.start + view.__len() };
+    return range_eq_view(data, prefix, &view);
 }
 
 pub fn copy_range(data: &byte[], r: ByteRange) -> Erring<byte[], Error> {
@@ -93,6 +347,34 @@ extern<ByteBuffer> {
 
     pub fn append_range(self: &mut ByteBuffer, data: &byte[], r: ByteRange) -> Erring<nothing, Error> {
         return self.data.append_bytes_range(data, r);
+    }
+
+    pub fn peek_line_lf(self: &ByteBuffer) -> Option<ByteLine> {
+        let found: Option<uint> = find_lf(self.data, self.range());
+        return compare found {
+            Some(pos) => {
+                let mut end: uint = pos;
+                if pos > self.start && self.data[(pos - 1:uint) to int] == BYTE_CR {
+                    end = pos - 1:uint;
+                }
+                ret Some(ByteLine {
+                    body = { start = self.start, end = end },
+                    next = pos + 1:uint
+                });
+            }
+            nothing => nothing;
+        };
+    }
+
+    pub fn peek_line_crlf(self: &ByteBuffer) -> Option<ByteLine> {
+        let found: Option<uint> = find_crlf(self.data, self.range());
+        return compare found {
+            Some(pos) => Some(ByteLine {
+                body = { start = self.start, end = pos },
+                next = pos + 2:uint
+            });
+            nothing => nothing;
+        };
     }
 
     pub fn consume(self: &mut ByteBuffer, count: uint) -> Erring<nothing, Error> {

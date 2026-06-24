@@ -871,23 +871,49 @@ import stdlib/bytes as by;
 
 - `BYTES_ERR_INVALID_RANGE`
 - `type ByteRange`
+- `type ByteLine`
+- `type ByteSplit`
+- `type ByteUint64`
 - `type ByteBuffer`
 - `range(start: uint, end: uint) -> ByteRange`
 - `all(data: &byte[]) -> ByteRange`
 - `range_len(range: ByteRange) -> uint`
 - `is_valid_range(data: &byte[], range: ByteRange) -> bool`
+- `is_ascii_ws(...)`, `is_ascii_digit(...)`, `is_ascii_alpha(...)`, `is_ascii_alnum(...)`
+- `is_ascii_hex_digit(...)`, `ascii_to_lower(...)`, `ascii_to_upper(...)`, `ascii_hex_value(...)`
+- `find_byte(data: &byte[], range: ByteRange, needle: byte) -> Option<uint>`
+- `find_lf(data: &byte[], range: ByteRange) -> Option<uint>`
+- `find_crlf(data: &byte[], range: ByteRange) -> Option<uint>`
+- `trim_ascii(data: &byte[], range: ByteRange) -> ByteRange`
+- `trim_ascii_start(data: &byte[], range: ByteRange) -> ByteRange`
+- `trim_ascii_end(data: &byte[], range: ByteRange) -> ByteRange`
+- `split_once_byte(data: &byte[], range: ByteRange, sep: byte) -> Option<ByteSplit>`
+- `next_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteSplit>`
+- `next_uint64_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteUint64>`
+- `range_eq(data: &byte[], range: ByteRange, expected: &byte[]) -> bool`
+- `range_eq_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
+- `range_eq_ascii_ci(data: &byte[], range: ByteRange, expected: &string) -> bool`
+- `starts_with_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
 - `copy_range(data: &byte[], range: ByteRange) -> Erring<byte[], Error>`
 - `buffer() -> ByteBuffer`
 - `buffer_from(data: byte[]) -> ByteBuffer`
 - `Array<byte>.append_bytes_range(data: &byte[], range: ByteRange) -> Erring<nothing, Error>`
 - `Array<byte>.clear_keep_capacity() -> nothing`
 - `ByteBuffer.len()`, `is_empty()`, `range()`
+- `ByteBuffer.peek_line_lf()`, `peek_line_crlf()`
 - `ByteBuffer.append_range(...)`, `consume(...)`, `compact()`
 - `ByteBuffer.clear_keep_capacity()`, `clear()`
 
 Поведение:
 
 - `ByteRange` полуоткрытый: `[start, end)`.
+- `ByteLine.body` указывает на байты строки без терминатора; `ByteLine.next` — абсолютный offset после терминатора.
+- `ByteSplit.head` указывает на token или левую часть; `ByteSplit.tail` указывает на оставшийся range.
+- `ByteUint64.value` содержит распарсенное decimal-значение; `ByteUint64.tail` начинается на whitespace или конце range после числа.
+- Search helper'ы возвращают абсолютные byte offsets и `nothing` для невалидных диапазонов или отсутствующих delimiter'ов.
+- `trim_ascii*` возвращает пустой range для невалидного input. Whitespace — только ASCII space, tab, LF и CR.
+- `next_uint64_ascii_token` пропускает ведущий ASCII whitespace, парсит decimal `uint64`, отвергает пустой input, нецифровые байты внутри token и overflow, а для invalid ranges возвращает `nothing`.
+- Compare helper'ы возвращают `false` для невалидных ranges. Варианты `*_ascii` сравнивают с `expected.bytes()` без allocation.
 - Невалидные диапазоны возвращают `BYTES_ERR_INVALID_RANGE`; обычный malformed input не должен приводить к panic.
 - `copy_range`, `append_bytes_range` и `compact` используют runtime-backed byte-array intrinsics в VM и LLVM/native. Для типичного hot path с byte buffer они не идут через per-byte Surge loops.
 - `clear_keep_capacity` очищает содержимое массива, сохраняя capacity.
@@ -928,9 +954,20 @@ fn consume_prefix(input: byte[]) -> Erring<by.ByteBuffer, Error> {
 }
 ```
 
+Пример: peek line без преобразования input buffer в `string`
+
+```sg
+import stdlib/bytes as by;
+
+fn next_line(input: byte[]) -> Option<by.ByteLine> {
+    let buf: by.ByteBuffer = by.buffer_from(input);
+    return buf.peek_line_lf();
+}
+```
+
 Замечание про реальность:
 
-- Это первый shipped slice `stdlib/bytes`, сфокусированный на copy/append/compact primitives. Search, ASCII parsing, line scanning и более богатые protocol helper'ы остаются в design spec.
+- Shipped slices покрывают copy/append/compact primitives, LF/CRLF line scanning, ASCII helper'ы, trimming, split, token extraction, literal compare helper'ы и fused `next_uint64_ascii_token`. Отдельные/расширенные numeric helper'ы и более богатые protocol helper'ы остаются в design spec.
 
 ---
 

@@ -1,0 +1,7 @@
+[package]
+name = "byte_lines"
+root = "."
+version = "0.1.0"
+
+[run]
+main = "main.sg"

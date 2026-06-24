@@ -541,9 +541,27 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 		}
 		val := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", val, outPtr)
-		srcType := builtins.Int
+		if info.bits < 64 {
+			rangeOK := fe.nextTemp()
+			if info.signed {
+				minVal := -int64(1) << (info.bits - 1)
+				maxVal := int64(1)<<(info.bits-1) - 1
+				minOK := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sge i64 %s, %d\n", minOK, val, minVal)
+				maxOK := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sle i64 %s, %d\n", maxOK, val, maxVal)
+				fmt.Fprintf(&fe.emitter.buf, "  %s = and i1 %s, %s\n", rangeOK, minOK, maxOK)
+			} else {
+				maxVal := (uint64(1) << info.bits) - 1
+				fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ule i64 %s, %d\n", rangeOK, val, maxVal)
+			}
+			parsedAndInRange := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = and i1 %s, %s\n", parsedAndInRange, okVal, rangeOK)
+			okVal = parsedAndInRange
+		}
+		srcType := builtins.Int64
 		if !info.signed {
-			srcType = builtins.Uint
+			srcType = builtins.Uint64
 		}
 		casted, castTy, err := fe.emitNumericCast(val, "i64", srcType, dstType)
 		if err != nil {

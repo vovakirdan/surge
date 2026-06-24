@@ -93,6 +93,361 @@ fn main() -> int {
         return 13;
     }
 
+    let lines: byte[] = "zero\none\r\ntwo" to byte[];
+    compare by.find_lf(&lines, by.all(&lines)) {
+        Some(pos) => {
+            if pos != 4:uint {
+                return 14;
+            }
+        }
+        nothing => {
+            return 15;
+        }
+    };
+    compare by.find_crlf(&lines, by.all(&lines)) {
+        Some(pos) => {
+            if pos != 8:uint {
+                return 16;
+            }
+        }
+        nothing => {
+            return 17;
+        }
+    };
+    compare by.find_lf(&lines, by.range(99:uint, 100:uint)) {
+        Some(_) => {
+            return 18;
+        }
+        nothing => {}
+    };
+
+    let mut line_buf = by.buffer_from("PING" to byte[]);
+    compare line_buf.peek_line_crlf() {
+        Some(_) => {
+            return 19;
+        }
+        nothing => {}
+    };
+    let chunk2: byte[] = "\r\nGET key\n" to byte[];
+    compare line_buf.append_range(&chunk2, by.all(&chunk2)) {
+        Success(_) => {}
+        _ => {
+            return 20;
+        }
+    };
+    let first_line = compare line_buf.peek_line_crlf() {
+        Some(line) => line;
+        nothing => {
+            return 21;
+        }
+    };
+    let first_text = compare by.copy_range(&line_buf.data, first_line.body) {
+        Success(v) => v;
+        _ => {
+            return 22;
+        }
+    };
+    let expected_ping: byte[] = "PING" to byte[];
+    if first_line.next != 6:uint || !check_bytes(&first_text, &expected_ping) {
+        return 23;
+    }
+    compare line_buf.consume(first_line.next - line_buf.range().start) {
+        Success(_) => {}
+        _ => {
+            return 24;
+        }
+    };
+    let second_line = compare line_buf.peek_line_lf() {
+        Some(line) => line;
+        nothing => {
+            return 25;
+        }
+    };
+    let second_text = compare by.copy_range(&line_buf.data, second_line.body) {
+        Success(v) => v;
+        _ => {
+            return 26;
+        }
+    };
+    let expected_get: byte[] = "GET key" to byte[];
+    if second_line.next != 14:uint || !check_bytes(&second_text, &expected_get) {
+        return 27;
+    }
+
+    let crlf_trim = by.buffer_from("abc\r\n" to byte[]);
+    let trimmed = compare crlf_trim.peek_line_lf() {
+        Some(line) => line;
+        nothing => {
+            return 28;
+        }
+    };
+    let trimmed_text = compare by.copy_range(&crlf_trim.data, trimmed.body) {
+        Success(v) => v;
+        _ => {
+            return 29;
+        }
+    };
+    let expected_abc: byte[] = "abc" to byte[];
+    if trimmed.next != 5:uint || !check_bytes(&trimmed_text, &expected_abc) {
+        return 30;
+    }
+
+    if !by.is_ascii_ws(32:byte) || !by.is_ascii_ws(9:byte) || by.is_ascii_ws(65:byte) {
+        return 31;
+    }
+    if !by.is_ascii_digit(57:byte) || by.is_ascii_digit(58:byte) {
+        return 32;
+    }
+    if !by.is_ascii_alpha(65:byte) || !by.is_ascii_alpha(122:byte) || by.is_ascii_alpha(48:byte) {
+        return 33;
+    }
+    if !by.is_ascii_alnum(90:byte) || !by.is_ascii_alnum(53:byte) || by.is_ascii_alnum(45:byte) {
+        return 34;
+    }
+    if !by.is_ascii_hex_digit(70:byte) || !by.is_ascii_hex_digit(102:byte) || by.is_ascii_hex_digit(71:byte) {
+        return 35;
+    }
+    if by.ascii_to_lower(65:byte) != 97:byte || by.ascii_to_upper(122:byte) != 90:byte {
+        return 36;
+    }
+    if by.ascii_hex_value(57:byte) != 9 || by.ascii_hex_value(65:byte) != 10 || by.ascii_hex_value(102:byte) != 15 || by.ascii_hex_value(120:byte) != -1 {
+        return 37;
+    }
+
+    let spaced: byte[] = " \tGET key\r\n" to byte[];
+    let trimmed_range: by.ByteRange = by.trim_ascii(&spaced, by.all(&spaced));
+    let trimmed_bytes = compare by.copy_range(&spaced, trimmed_range) {
+        Success(v) => v;
+        _ => {
+            return 38;
+        }
+    };
+    let expected_trimmed: byte[] = "GET key" to byte[];
+    if !check_bytes(&trimmed_bytes, &expected_trimmed) {
+        return 39;
+    }
+    let invalid_trim: by.ByteRange = by.trim_ascii(&spaced, by.range(12:uint, 13:uint));
+    if by.range_len(invalid_trim) != 0:uint {
+        return 40;
+    }
+
+    let split = compare by.split_once_byte(&trimmed_bytes, by.all(&trimmed_bytes), 32:byte) {
+        Some(value) => value;
+        nothing => {
+            return 41;
+        }
+    };
+    let split_head = compare by.copy_range(&trimmed_bytes, split.head) {
+        Success(v) => v;
+        _ => {
+            return 42;
+        }
+    };
+    let split_tail = compare by.copy_range(&trimmed_bytes, split.tail) {
+        Success(v) => v;
+        _ => {
+            return 43;
+        }
+    };
+    let expected_get_head: byte[] = "GET" to byte[];
+    let expected_key_tail: byte[] = "key" to byte[];
+    if !check_bytes(&split_head, &expected_get_head) || !check_bytes(&split_tail, &expected_key_tail) {
+        return 44;
+    }
+    compare by.split_once_byte(&trimmed_bytes, by.range(99:uint, 100:uint), 32:byte) {
+        Some(_) => {
+            return 45;
+        }
+        nothing => {}
+    };
+
+    let tokens: byte[] = "  PING  key\t42 " to byte[];
+    let first_token = compare by.next_ascii_token(&tokens, by.all(&tokens)) {
+        Some(value) => value;
+        nothing => {
+            return 46;
+        }
+    };
+    let first_token_bytes = compare by.copy_range(&tokens, first_token.head) {
+        Success(v) => v;
+        _ => {
+            return 47;
+        }
+    };
+    let expected_token_ping: byte[] = "PING" to byte[];
+    if !check_bytes(&first_token_bytes, &expected_token_ping) {
+        return 48;
+    }
+    let second_token = compare by.next_ascii_token(&tokens, first_token.tail) {
+        Some(value) => value;
+        nothing => {
+            return 49;
+        }
+    };
+    let second_token_bytes = compare by.copy_range(&tokens, second_token.head) {
+        Success(v) => v;
+        _ => {
+            return 50;
+        }
+    };
+    let expected_token_key: byte[] = "key" to byte[];
+    if !check_bytes(&second_token_bytes, &expected_token_key) {
+        return 51;
+    }
+    let third_token = compare by.next_ascii_token(&tokens, second_token.tail) {
+        Some(value) => value;
+        nothing => {
+            return 52;
+        }
+    };
+    let third_token_bytes = compare by.copy_range(&tokens, third_token.head) {
+        Success(v) => v;
+        _ => {
+            return 53;
+        }
+    };
+    let expected_token_42: byte[] = "42" to byte[];
+    if !check_bytes(&third_token_bytes, &expected_token_42) {
+        return 54;
+    }
+    compare by.next_ascii_token(&tokens, third_token.tail) {
+        Some(_) => {
+            return 55;
+        }
+        nothing => {}
+    };
+
+    let numbers: byte[] = "  18446744073709551615 42 bad" to byte[];
+    let first_number = compare by.next_uint64_ascii_token(&numbers, by.all(&numbers)) {
+        Some(value) => value;
+        nothing => {
+            return 70;
+        }
+    };
+    if first_number.value != 18446744073709551615:uint64 || first_number.tail.start != 22:uint {
+        return 71;
+    }
+    let second_number = compare by.next_uint64_ascii_token(&numbers, first_number.tail) {
+        Some(value) => value;
+        nothing => {
+            return 72;
+        }
+    };
+    if second_number.value != 42:uint64 || second_number.tail.start != 25:uint {
+        return 73;
+    }
+    compare by.next_uint64_ascii_token(&numbers, second_number.tail) {
+        Some(_) => {
+            return 74;
+        }
+        nothing => {}
+    };
+    let overflow_number: byte[] = "18446744073709551616" to byte[];
+    compare by.next_uint64_ascii_token(&overflow_number, by.all(&overflow_number)) {
+        Some(_) => {
+            return 75;
+        }
+        nothing => {}
+    };
+    let bad_number: byte[] = "12x" to byte[];
+    compare by.next_uint64_ascii_token(&bad_number, by.all(&bad_number)) {
+        Some(_) => {
+            return 76;
+        }
+        nothing => {}
+    };
+    let ws_number: byte[] = " \t\r\n" to byte[];
+    compare by.next_uint64_ascii_token(&ws_number, by.all(&ws_number)) {
+        Some(_) => {
+            return 77;
+        }
+        nothing => {}
+    };
+    compare by.next_uint64_ascii_token(&numbers, by.range(99:uint, 100:uint)) {
+        Some(_) => {
+            return 78;
+        }
+        nothing => {}
+    };
+    let mut malformed_value: uint64 = 99:uint64;
+    let mut malformed_next: uint64 = 99:uint64;
+    let malformed_number: byte[] = "  bad" to byte[];
+    if rt_byte_parse_uint64_token(&malformed_number, 0:uint64, malformed_number.__len() to uint64, &mut malformed_value, &mut malformed_next) {
+        return 79;
+    }
+    if malformed_next != 0:uint64 {
+        return 80;
+    }
+    let mut ws_value: uint64 = 99:uint64;
+    let mut ws_next: uint64 = 99:uint64;
+    if rt_byte_parse_uint64_token(&ws_number, 0:uint64, ws_number.__len() to uint64, &mut ws_value, &mut ws_next) {
+        return 81;
+    }
+    if ws_next != ws_number.__len() to uint64 {
+        return 82;
+    }
+
+    let dispatch: byte[] = "get PING unknown" to byte[];
+    let cmd_get: string = "get";
+    let cmd_get_upper: string = "GET";
+    let cmd_ping: string = "PING";
+    let cmd_unknown: string = "unknown";
+    let cmd_missing: string = "SET";
+    let dispatch_first = compare by.next_ascii_token(&dispatch, by.all(&dispatch)) {
+        Some(value) => value;
+        nothing => {
+            return 56;
+        }
+    };
+    let expected_get_bytes: byte[] = "get" to byte[];
+    if !by.range_eq(&dispatch, dispatch_first.head, &expected_get_bytes) {
+        return 57;
+    }
+    if !by.range_eq_ascii(&dispatch, dispatch_first.head, &cmd_get) {
+        return 58;
+    }
+    if by.range_eq_ascii(&dispatch, dispatch_first.head, &cmd_get_upper) {
+        return 59;
+    }
+    if !by.range_eq_ascii_ci(&dispatch, dispatch_first.head, &cmd_get_upper) {
+        return 60;
+    }
+    if !by.starts_with_ascii(&dispatch, by.all(&dispatch), &cmd_get) {
+        return 61;
+    }
+    if by.starts_with_ascii(&dispatch, by.all(&dispatch), &cmd_get_upper) {
+        return 62;
+    }
+    if by.starts_with_ascii(&dispatch, by.range(99:uint, 100:uint), &cmd_get) {
+        return 63;
+    }
+
+    let dispatch_second = compare by.next_ascii_token(&dispatch, dispatch_first.tail) {
+        Some(value) => value;
+        nothing => {
+            return 64;
+        }
+    };
+    if !by.range_eq_ascii(&dispatch, dispatch_second.head, &cmd_ping) {
+        return 65;
+    }
+    if by.range_eq_ascii(&dispatch, dispatch_second.head, &cmd_missing) {
+        return 66;
+    }
+
+    let dispatch_third = compare by.next_ascii_token(&dispatch, dispatch_second.tail) {
+        Some(value) => value;
+        nothing => {
+            return 67;
+        }
+    };
+    if !by.range_eq_ascii(&dispatch, dispatch_third.head, &cmd_unknown) {
+        return 68;
+    }
+    if by.range_eq(&dispatch, by.range(20:uint, 21:uint), &expected_get_bytes) {
+        return 69;
+    }
+
     print("stdlib_bytes_ok");
     return 0;
 }

@@ -147,6 +147,38 @@ fn main() -> int {
 	}
 }
 
+func TestEmitFixedWidthUintFromStrUsesI64ParseValue(t *testing.T) {
+	sourceCode := `@entrypoint
+fn main() -> int {
+    let text: string = "42";
+    let parsed = compare uint64.from_str(&text) {
+        Success(v) => v;
+        _ => {
+            return 1;
+        }
+    };
+    if parsed == 42:uint64 {
+        return 0;
+    }
+    return 2;
+}
+`
+
+	ir := emitLLVMFromSource(t, sourceCode)
+
+	if !strings.Contains(ir, "call i1 @rt_parse_uint(") {
+		t.Fatalf("expected uint parser call in IR:\n%s", ir)
+	}
+	bodyRe := regexp.MustCompile(`(?s)define (?:ptr|i64) @fn\.\d+\([^)]*\) \{.*?rt_parse_uint.*?\n\}`)
+	body := bodyRe.FindString(ir)
+	if body == "" {
+		t.Fatalf("cannot find uint parser function body in IR:\n%s", ir)
+	}
+	if strings.Contains(body, "rt_biguint_to_u64") {
+		t.Fatalf("fixed-width uint from_str must not treat raw i64 parse output as BigUint ptr:\n%s", ir)
+	}
+}
+
 func findI64FunctionBodyContaining(t *testing.T, ir, needle string) string {
 	t.Helper()
 

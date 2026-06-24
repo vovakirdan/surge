@@ -871,23 +871,49 @@ Public API:
 
 - `BYTES_ERR_INVALID_RANGE`
 - `type ByteRange`
+- `type ByteLine`
+- `type ByteSplit`
+- `type ByteUint64`
 - `type ByteBuffer`
 - `range(start: uint, end: uint) -> ByteRange`
 - `all(data: &byte[]) -> ByteRange`
 - `range_len(range: ByteRange) -> uint`
 - `is_valid_range(data: &byte[], range: ByteRange) -> bool`
+- `is_ascii_ws(...)`, `is_ascii_digit(...)`, `is_ascii_alpha(...)`, `is_ascii_alnum(...)`
+- `is_ascii_hex_digit(...)`, `ascii_to_lower(...)`, `ascii_to_upper(...)`, `ascii_hex_value(...)`
+- `find_byte(data: &byte[], range: ByteRange, needle: byte) -> Option<uint>`
+- `find_lf(data: &byte[], range: ByteRange) -> Option<uint>`
+- `find_crlf(data: &byte[], range: ByteRange) -> Option<uint>`
+- `trim_ascii(data: &byte[], range: ByteRange) -> ByteRange`
+- `trim_ascii_start(data: &byte[], range: ByteRange) -> ByteRange`
+- `trim_ascii_end(data: &byte[], range: ByteRange) -> ByteRange`
+- `split_once_byte(data: &byte[], range: ByteRange, sep: byte) -> Option<ByteSplit>`
+- `next_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteSplit>`
+- `next_uint64_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteUint64>`
+- `range_eq(data: &byte[], range: ByteRange, expected: &byte[]) -> bool`
+- `range_eq_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
+- `range_eq_ascii_ci(data: &byte[], range: ByteRange, expected: &string) -> bool`
+- `starts_with_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
 - `copy_range(data: &byte[], range: ByteRange) -> Erring<byte[], Error>`
 - `buffer() -> ByteBuffer`
 - `buffer_from(data: byte[]) -> ByteBuffer`
 - `Array<byte>.append_bytes_range(data: &byte[], range: ByteRange) -> Erring<nothing, Error>`
 - `Array<byte>.clear_keep_capacity() -> nothing`
 - `ByteBuffer.len()`, `is_empty()`, `range()`
+- `ByteBuffer.peek_line_lf()`, `peek_line_crlf()`
 - `ByteBuffer.append_range(...)`, `consume(...)`, `compact()`
 - `ByteBuffer.clear_keep_capacity()`, `clear()`
 
 Behavior:
 
 - `ByteRange` is half-open: `[start, end)`.
+- `ByteLine.body` points at line bytes without the terminator; `ByteLine.next` is the absolute offset after the terminator.
+- `ByteSplit.head` points at the token or left side; `ByteSplit.tail` points at the remaining range.
+- `ByteUint64.value` is the parsed decimal value; `ByteUint64.tail` starts at the whitespace or range end after the number.
+- Search helpers return absolute byte offsets and `nothing` for invalid ranges or missing delimiters.
+- `trim_ascii*` returns an empty range for invalid input. It only treats ASCII space, tab, LF, and CR as whitespace.
+- `next_uint64_ascii_token` skips leading ASCII whitespace, parses decimal `uint64`, rejects empty input, non-digit token bytes, and overflow, and returns `nothing` for invalid ranges.
+- Compare helpers return `false` for invalid ranges. The `*_ascii` variants compare against `expected.bytes()` without allocating.
 - Invalid ranges return `BYTES_ERR_INVALID_RANGE`; malformed input should not panic.
 - `copy_range`, `append_bytes_range`, and `compact` use runtime-backed byte-array intrinsics on both VM and LLVM/native. They avoid per-byte Surge loops for the common byte-buffer hot path.
 - `clear_keep_capacity` drops array contents without releasing capacity.
@@ -928,9 +954,20 @@ fn consume_prefix(input: byte[]) -> Erring<by.ByteBuffer, Error> {
 }
 ```
 
+Example: peek a line without converting the input buffer to `string`
+
+```sg
+import stdlib/bytes as by;
+
+fn next_line(input: byte[]) -> Option<by.ByteLine> {
+    let buf: by.ByteBuffer = by.buffer_from(input);
+    return buf.peek_line_lf();
+}
+```
+
 Reality note:
 
-- This is the first shipped slice of `stdlib/bytes`, focused on copy/append/compact primitives. Search, ASCII parsing, line scanning, and richer protocol helpers remain planned in the design spec.
+- The shipped slices cover copy/append/compact primitives, LF/CRLF line scanning, ASCII helpers, trimming, split, token extraction, literal compare helpers, and fused `next_uint64_ascii_token` parsing. Additional standalone numeric helpers and richer protocol helpers remain planned in the design spec.
 
 ---
 

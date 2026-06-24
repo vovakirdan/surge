@@ -15,36 +15,36 @@ fn __surge_start:
 fn demo:
   locals:
     L0: bool [copy] name=flag
-    L1: type#1498 name=tmp_call1
-    L2: type#1499 name=tmp_call2
-    L3: type#1496 name=tmp_cast3
-    L4: type#1500 name=tmp_call4
-    L5: type#1496 name=tmp_cast5
+    L1: type#1500 name=tmp_call1
+    L2: type#1501 name=tmp_call2
+    L3: type#1498 name=tmp_cast3
+    L4: type#1502 name=tmp_call4
+    L5: type#1498 name=tmp_cast5
   bb0:
     if copy L0 then bb1 else bb2
   bb1:
     L1 = call Some(const "\"x\"")
     L2 = call Success(move L1)
-    L3 = cast move L2 to type#1496
+    L3 = cast move L2 to type#1498
     return move L3
   bb2:
     L4 = call Success(const nothing)
-    L5 = cast move L4 to type#1496
+    L5 = cast move L4 to type#1498
     return move L5
 
 fn main:
   locals:
-    L0: type#1496 name=v
-    L1: type#1496 name=tmp_call1
-    L2: type#1496 name=__cmp1
+    L0: type#1498 name=v
+    L1: type#1498 name=tmp_call1
+    L2: type#1498 name=__cmp1
     L3: bool [copy] name=tmp_tagtest2
-    L4: type#1495 name=tmp_payload3
+    L4: type#1497 name=tmp_payload3
     L5: bool [copy] name=tmp_tagtest4
     L6: string name=s
-    L7: type#1495 name=tmp_payload5
+    L7: type#1497 name=tmp_payload5
     L8: string name=tmp_payload6
     L9: bool [copy] name=tmp_tagtest7
-    L10: type#1495 name=tmp_payload8
+    L10: type#1497 name=tmp_payload8
     L11: bool [copy] name=tmp_tagtest9
     L12: type#48 name=err
   bb0:

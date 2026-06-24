@@ -1,5 +1,73 @@
 # Runtime Performance Notes
 
+## 2026-06-24 - `stdlib/bytes` LF line scanning
+
+Change: `stdlib/bytes` now exposes `find_byte`, `find_lf`, `find_crlf`,
+`ByteBuffer.peek_line_lf/peek_line_crlf`, ASCII trimming, `split_once_byte`,
+`next_ascii_token`, and byte-range literal compare helpers for protocol input
+buffers.
+
+Standalone native benchmark:
+
+- fixture: `benchmarks/native/byte_lines`
+- script: `scripts/bench_native_byte_lines.sh`
+- payload: 256 lines, width 32, 200 rounds
+- comparison: `string.from_bytes + string_find_from` vs `ByteBuffer.peek_line_lf`
+- token/dispatch byte paths use borrowed `&byte[]` input directly; they do not
+  clone the source buffer before scanning.
+
+| run | string line us | byte line us | speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 29722587 | 3909676 | 7.60x |
+| 2 | 29769492 | 3883913 | 7.66x |
+| 3 | 29756330 | 3899171 | 7.63x |
+
+Median line speedup: `7.63x`.
+
+| run | string token us | byte token us | speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 1928207 | 816197 | 2.36x |
+| 2 | 1922004 | 814096 | 2.36x |
+| 3 | 1910900 | 807574 | 2.37x |
+
+Median token speedup: `2.36x`.
+
+- dispatch payload: 128 repetitions of `PING GET UNKNOWN PING GET MISSING`,
+  100 rounds
+- dispatch comparison: `string.from_bytes + split + string ==` vs
+  `next_ascii_token + range_eq_ascii`
+
+| run | string dispatch us | byte dispatch us | speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 8214641 | 3380800 | 2.43x |
+| 2 | 8229399 | 3404902 | 2.42x |
+| 3 | 8205971 | 3390101 | 2.42x |
+
+Median dispatch speedup: `2.42x`.
+
+Numeric parsing follow-up:
+
+- change: add `bytes.next_uint64_ascii_token`, backed by
+  `rt_byte_parse_uint64_token`
+- comparison: `string.from_bytes + split + uint64.from_str` vs fused byte
+  token parse
+- script: `SURGE_BYTES_LINE_BENCH_REPEATS=5 ./scripts/bench_native_byte_lines.sh`
+
+| run | string number us | byte number us | speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 6739289 | 30231 | 222.93x |
+| 2 | 6705169 | 29801 | 225.00x |
+| 3 | 6717633 | 29553 | 227.31x |
+| 4 | 6725390 | 29863 | 225.21x |
+| 5 | 6698135 | 29412 | 227.73x |
+
+Median numeric speedup: `225.42x`.
+
+Conclusion: pure Surge byte scanning is enough for line, token, and small
+literal dispatch helpers. Numeric protocol parsing is the first measured case
+that needs a narrow runtime fused helper, because the string path materializes a
+string, splits it, and then parses through `uint64.from_str`.
+
 ## 2026-06-23 - Direct network readiness wait
 
 Change: `stdlib/net` no longer awaits a spawned `Task<nothing>` for socket

@@ -389,3 +389,67 @@ void rt_byte_array_drop_prefix(void* array_slot, uint64_t count) {
     rt_memmove((uint8_t*)header->data, (uint8_t*)header->data + count, new_len);
     header->len = new_len;
 }
+
+bool rt_byte_parse_uint64_token(
+    const void* array, uint64_t start, uint64_t end, uint64_t* value_out, uint64_t* next_out) {
+    if (value_out != NULL) {
+        *value_out = 0;
+    }
+    if (next_out != NULL) {
+        *next_out = start;
+    }
+    if (array == NULL || value_out == NULL || next_out == NULL) {
+        return false;
+    }
+
+    const SurgeArrayHeader* header = (const SurgeArrayHeader*)array;
+    if (start > end || end > header->len) {
+        return false;
+    }
+    if (start == end) {
+        return false;
+    }
+    if (header->data == NULL) {
+        return false;
+    }
+
+    const uint8_t* data = (const uint8_t*)header->data;
+    uint64_t i = start;
+    while (i < end) {
+        uint8_t b = data[i];
+        if (b != 32 && b != 9 && b != 10 && b != 13) {
+            break;
+        }
+        i++;
+    }
+    if (i == end) {
+        *next_out = i;
+        return false;
+    }
+
+    uint64_t value = 0;
+    bool saw_digit = false;
+    while (i < end) {
+        uint8_t b = data[i];
+        if (b >= '0' && b <= '9') {
+            uint64_t digit = (uint64_t)(b - '0');
+            if (value > UINT64_MAX / 10 || (value == UINT64_MAX / 10 && digit > UINT64_MAX % 10)) {
+                return false;
+            }
+            value = value * 10 + digit;
+            saw_digit = true;
+            i++;
+            continue;
+        }
+        if (b == 32 || b == 9 || b == 10 || b == 13) {
+            break;
+        }
+        return false;
+    }
+    if (!saw_digit) {
+        return false;
+    }
+    *value_out = value;
+    *next_out = i;
+    return true;
+}

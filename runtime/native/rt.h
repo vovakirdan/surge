@@ -25,6 +25,8 @@ void rt_byte_array_append_range(void* dst_slot,
                                 uint64_t start,
                                 uint64_t len);
 void rt_byte_array_drop_prefix(void* array_slot, uint64_t count);
+bool rt_byte_parse_uint64_token(
+    const void* array, uint64_t start, uint64_t end, uint64_t* value_out, uint64_t* next_out);
 size_t rt_tag_payload_offset(size_t payload_align);
 void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size);
 

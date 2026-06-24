@@ -1,0 +1,80 @@
+fn expect_u8_error(text: string) -> int {
+    compare uint8.from_str(&text) {
+        Success(_) => {
+            return 1;
+        }
+        _ => {}
+    };
+    return 0;
+}
+
+fn expect_i8_error(text: string) -> int {
+    compare int8.from_str(&text) {
+        Success(_) => {
+            return 1;
+        }
+        _ => {}
+    };
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let u64_ok_text: string = "18446744073709551615";
+    let u64_ok = compare uint64.from_str(&u64_ok_text) {
+        Success(v) => v;
+        _ => {
+            return 11;
+        }
+    };
+    if u64_ok != 18446744073709551615:uint64 {
+        return 12;
+    }
+
+    let u8_ok_text: string = "255";
+    let u8_ok = compare uint8.from_str(&u8_ok_text) {
+        Success(v) => v;
+        _ => {
+            return 1;
+        }
+    };
+    if u8_ok != 255:uint8 {
+        return 2;
+    }
+    if expect_u8_error("256") != 0 {
+        return 3;
+    }
+    if expect_u8_error("-1") != 0 {
+        return 4;
+    }
+
+    let i8_ok_text: string = "-128";
+    let i8_ok = compare int8.from_str(&i8_ok_text) {
+        Success(v) => v;
+        _ => {
+            return 5;
+        }
+    };
+    let i8_ok_int: int = i8_ok to int;
+    if i8_ok_int != -128 {
+        return 6;
+    }
+    let i8_max_text: string = "127";
+    let i8_max = compare int8.from_str(&i8_max_text) {
+        Success(v) => v;
+        _ => {
+            return 7;
+        }
+    };
+    let i8_max_int: int = i8_max to int;
+    if i8_max_int != 127 {
+        return 8;
+    }
+    if expect_i8_error("128") != 0 {
+        return 9;
+    }
+    if expect_i8_error("-129") != 0 {
+        return 10;
+    }
+    return 0;
+}

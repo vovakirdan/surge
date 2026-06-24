@@ -1,7 +1,7 @@
 # `stdlib/bytes` Design Spec
 
-> Status: roadmap design; the first range/compact slice is shipped in this
-> branch.
+> Status: roadmap design; range/compact, LF/CRLF line scanning, ASCII token,
+> and byte-range literal compare slices are shipped.
 > Date: 2026-06-23.
 > Scope: standard-library byte helpers for protocol and binary hot paths.
 
@@ -155,7 +155,9 @@ The return value is an absolute byte offset in `data`. `find_crlf` returns the
 offset of `\r`.
 
 `find_byte` is the first search helper that should get runtime support if pure
-Surge loops are too slow.
+Surge loops are too slow. The native benchmark does not justify that intrinsic
+yet: `ByteBuffer.peek_line_lf` is about `7.6x` faster than the string conversion
+path without `rt_byte_find`.
 
 ## Range Helpers
 
@@ -189,13 +191,31 @@ They are intended for small protocol literals such as `GET`, `PING`, and
 ## Numeric Parse Helpers
 
 ```sg
-pub fn parse_uint_ascii(data: &byte[], range: ByteRange) -> Erring<uint, Error>;
-pub fn parse_int_ascii(data: &byte[], range: ByteRange) -> Erring<int, Error>;
-pub fn parse_hex_uint_ascii(data: &byte[], range: ByteRange) -> Erring<uint, Error>;
+pub type ByteUint64 = {
+    value: uint64,
+    tail: ByteRange,
+};
+
+pub fn next_uint64_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteUint64>;
 ```
 
-These functions parse ASCII digits only. They should reject empty input,
-whitespace, signs in unsigned values, and overflow.
+The shipped numeric slice is intentionally fused: it trims leading ASCII
+whitespace, parses one decimal `uint64`, and returns the remaining range in one
+runtime-backed pass. It rejects empty input, non-digit token bytes, signs, and
+overflow by returning `nothing`.
+
+Standalone numeric parse helpers are still not shipped:
+
+```sg
+pub fn parse_uint64_ascii(data: &byte[], range: ByteRange) -> Erring<uint64, Error>;
+pub fn parse_int64_ascii(data: &byte[], range: ByteRange) -> Erring<int64, Error>;
+pub fn parse_hex_uint64_ascii(data: &byte[], range: ByteRange) -> Erring<uint64, Error>;
+```
+
+A pure Surge `parse_uint64_ascii` prototype was correct but did not beat the
+current `string.from_bytes + split + uint.from_str` benchmark after safety
+checks were added (`~0.90x` in a single-run probe). Do not ship separate parse
+helpers until a benchmark proves they add value beyond the fused token parser.
 
 ## Conversion Helpers
 
@@ -280,6 +300,26 @@ Shipped in the first runtime-backed slice:
 - `rt_byte_array_append_range(dst: &mut byte[], src: &byte[], start: uint, len: uint)`.
 - `rt_byte_array_drop_prefix(buf: &mut byte[], count: uint)`.
 
+Shipped in the line-scanning slice:
+
+- `ByteLine`.
+- `find_byte`, `find_lf`, and `find_crlf`.
+- `ByteBuffer.peek_line_lf` and `ByteBuffer.peek_line_crlf`.
+- `benchmarks/native/byte_lines` plus `scripts/bench_native_byte_lines.sh`.
+
+Shipped in the ASCII token slice:
+
+- `ByteSplit`.
+- ASCII predicates and case/hex helpers.
+- `trim_ascii`, `trim_ascii_start`, and `trim_ascii_end`.
+- `split_once_byte` and `next_ascii_token`.
+- `scripts/bench_native_byte_lines.sh` also reports token extraction timings.
+
+Shipped in the literal compare slice:
+
+- `range_eq`, `range_eq_ascii`, `range_eq_ascii_ci`, and `starts_with_ascii`.
+- `scripts/bench_native_byte_lines.sh` also reports command-dispatch timings.
+
 Still optional:
 
 - `rt_byte_find(buf: &byte[], start: uint, end: uint, needle: byte)`.
@@ -335,8 +375,8 @@ Add a standalone benchmark under this repo, not under an external project:
 
 - Current string line path vs `ByteBuffer.peek_line_lf`.
 - Current string token path vs `next_ascii_token`.
-- `range_eq_ascii` command dispatch for `PING`, `GET`, and unknown commands.
-- `parse_uint_ascii` for small and large integers.
+- Current string command dispatch vs `next_ascii_token + range_eq_ascii`.
+- Fixed-width or fused numeric parsing for small and large integers.
 - `byte[]` response builder for simple text and value responses.
 - Buffer append, consume, and compact with realistic network chunk sizes.
 
@@ -362,14 +402,23 @@ The first shipped slice covers:
 - `ByteBuffer.clear_keep_capacity`
 - VM and LLVM/native parity for valid ranges, invalid ranges, source array
   views, and buffer compaction.
+- `find_byte`, `find_lf`, `find_crlf`
+- `ByteBuffer.peek_line_lf`, `ByteBuffer.peek_line_crlf`
+- LF and CRLF line endings
+- Lines split across chunks
+- ASCII predicates and case/hex helpers
+- ASCII whitespace trimming
+- `split_once_byte`
+- `next_ascii_token`
+- `next_uint64_ascii_token`
+- `range_eq`
+- `range_eq_ascii`
+- `range_eq_ascii_ci`
+- `starts_with_ascii`
 
 The implementation PR should add focused tests for:
 
 - Empty ranges and invalid ranges.
-- LF and CRLF line endings.
-- Lines split across chunks.
-- ASCII whitespace trimming.
-- Case-sensitive and case-insensitive literal compare.
 - Integer parsing, including overflow.
 - Buffer consume and compact behavior.
 - Explicit string conversion failure on invalid UTF-8.
