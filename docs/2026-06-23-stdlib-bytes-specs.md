@@ -191,13 +191,20 @@ They are intended for small protocol literals such as `GET`, `PING`, and
 ## Numeric Parse Helpers
 
 ```sg
-pub fn parse_uint_ascii(data: &byte[], range: ByteRange) -> Erring<uint, Error>;
-pub fn parse_int_ascii(data: &byte[], range: ByteRange) -> Erring<int, Error>;
-pub fn parse_hex_uint_ascii(data: &byte[], range: ByteRange) -> Erring<uint, Error>;
+pub fn parse_uint64_ascii(data: &byte[], range: ByteRange) -> Erring<uint64, Error>;
+pub fn parse_int64_ascii(data: &byte[], range: ByteRange) -> Erring<int64, Error>;
+pub fn parse_hex_uint64_ascii(data: &byte[], range: ByteRange) -> Erring<uint64, Error>;
 ```
 
 These functions parse ASCII digits only. They should reject empty input,
 whitespace, signs in unsigned values, and overflow.
+
+Numeric parsing is not shipped yet. A pure Surge `parse_uint64_ascii` prototype
+was correct but did not beat the current `string.from_bytes + split +
+uint.from_str` benchmark after safety checks were added (`~0.90x` in a
+single-run probe). The next numeric slice should either fuse token scanning with
+numeric parsing or add a narrow runtime byte-range parse intrinsic; do not ship
+a slower range helper just to complete the surface.
 
 ## Conversion Helpers
 
@@ -358,7 +365,7 @@ Add a standalone benchmark under this repo, not under an external project:
 - Current string line path vs `ByteBuffer.peek_line_lf`.
 - Current string token path vs `next_ascii_token`.
 - Current string command dispatch vs `next_ascii_token + range_eq_ascii`.
-- `parse_uint_ascii` for small and large integers.
+- Fixed-width or fused numeric parsing for small and large integers.
 - `byte[]` response builder for simple text and value responses.
 - Buffer append, consume, and compact with realistic network chunk sizes.
 

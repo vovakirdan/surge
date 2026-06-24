@@ -143,11 +143,10 @@ fn bench_byte_tokens(src: &byte[], rounds: uint) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut round: uint = 0:uint;
     while round < rounds {
-        let data: byte[] = src[[0..src.__len() to int]];
-        let mut r: by.ByteRange = by.all(&data);
+        let mut r: by.ByteRange = by.all(src);
         let mut done: bool = false;
         while !done {
-            compare by.next_ascii_token(&data, r) {
+            compare by.next_ascii_token(src, r) {
                 Some(split) => {
                     checksum = checksum + (by.range_len(split.head) to uint64);
                     r = split.tail;
@@ -203,15 +202,14 @@ fn bench_byte_dispatch(src: &byte[], rounds: uint) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut round: uint = 0:uint;
     while round < rounds {
-        let data: byte[] = src[[0..src.__len() to int]];
-        let mut r: by.ByteRange = by.all(&data);
+        let mut r: by.ByteRange = by.all(src);
         let mut done: bool = false;
         while !done {
-            compare by.next_ascii_token(&data, r) {
+            compare by.next_ascii_token(src, r) {
                 Some(split) => {
-                    if by.range_eq_ascii(&data, split.head, &ping) {
+                    if by.range_eq_ascii(src, split.head, &ping) {
                         checksum = checksum + 1:uint64;
-                    } else if by.range_eq_ascii(&data, split.head, &get) {
+                    } else if by.range_eq_ascii(src, split.head, &get) {
                         checksum = checksum + 2:uint64;
                     } else {
                         checksum = checksum + 7:uint64;

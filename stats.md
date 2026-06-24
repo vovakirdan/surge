@@ -13,22 +13,24 @@ Standalone native benchmark:
 - script: `scripts/bench_native_byte_lines.sh`
 - payload: 256 lines, width 32, 200 rounds
 - comparison: `string.from_bytes + string_find_from` vs `ByteBuffer.peek_line_lf`
+- token/dispatch byte paths use borrowed `&byte[]` input directly; they do not
+  clone the source buffer before scanning.
 
 | run | string line us | byte line us | speedup |
 | ---: | ---: | ---: | ---: |
-| 1 | 29621981 | 3894710 | 7.61x |
-| 2 | 29734725 | 3901463 | 7.62x |
-| 3 | 29780974 | 3865089 | 7.71x |
+| 1 | 29722587 | 3909676 | 7.60x |
+| 2 | 29769492 | 3883913 | 7.66x |
+| 3 | 29756330 | 3899171 | 7.63x |
 
 Median line speedup: `7.63x`.
 
 | run | string token us | byte token us | speedup |
 | ---: | ---: | ---: | ---: |
-| 1 | 1934959 | 938871 | 2.06x |
-| 2 | 1941273 | 931750 | 2.08x |
-| 3 | 1910853 | 931912 | 2.05x |
+| 1 | 1928207 | 816197 | 2.36x |
+| 2 | 1922004 | 814096 | 2.36x |
+| 3 | 1910900 | 807574 | 2.37x |
 
-Median token speedup: `2.08x`.
+Median token speedup: `2.36x`.
 
 - dispatch payload: 128 repetitions of `PING GET UNKNOWN PING GET MISSING`,
   100 rounds
@@ -37,11 +39,11 @@ Median token speedup: `2.08x`.
 
 | run | string dispatch us | byte dispatch us | speedup |
 | ---: | ---: | ---: | ---: |
-| 1 | 9093948 | 4927065 | 1.85x |
-| 2 | 9203605 | 4983947 | 1.85x |
-| 3 | 9146101 | 4951927 | 1.85x |
+| 1 | 8214641 | 3380800 | 2.43x |
+| 2 | 8229399 | 3404902 | 2.42x |
+| 3 | 8205971 | 3390101 | 2.42x |
 
-Median dispatch speedup: `1.85x`.
+Median dispatch speedup: `2.42x`.
 
 Conclusion: pure Surge byte scanning is enough for line, token, and small
 literal dispatch helpers. Do not add `rt_byte_find` until numeric parsing,
