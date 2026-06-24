@@ -888,6 +888,10 @@ Public API:
 - `trim_ascii_end(data: &byte[], range: ByteRange) -> ByteRange`
 - `split_once_byte(data: &byte[], range: ByteRange, sep: byte) -> Option<ByteSplit>`
 - `next_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteSplit>`
+- `range_eq(data: &byte[], range: ByteRange, expected: &byte[]) -> bool`
+- `range_eq_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
+- `range_eq_ascii_ci(data: &byte[], range: ByteRange, expected: &string) -> bool`
+- `starts_with_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
 - `copy_range(data: &byte[], range: ByteRange) -> Erring<byte[], Error>`
 - `buffer() -> ByteBuffer`
 - `buffer_from(data: byte[]) -> ByteBuffer`
@@ -905,6 +909,7 @@ Behavior:
 - `ByteSplit.head` points at the token or left side; `ByteSplit.tail` points at the remaining range.
 - Search helpers return absolute byte offsets and `nothing` for invalid ranges or missing delimiters.
 - `trim_ascii*` returns an empty range for invalid input. It only treats ASCII space, tab, LF, and CR as whitespace.
+- Compare helpers return `false` for invalid ranges. The `*_ascii` variants compare against `expected.bytes()` without allocating.
 - Invalid ranges return `BYTES_ERR_INVALID_RANGE`; malformed input should not panic.
 - `copy_range`, `append_bytes_range`, and `compact` use runtime-backed byte-array intrinsics on both VM and LLVM/native. They avoid per-byte Surge loops for the common byte-buffer hot path.
 - `clear_keep_capacity` drops array contents without releasing capacity.
@@ -958,7 +963,7 @@ fn next_line(input: byte[]) -> Option<by.ByteLine> {
 
 Reality note:
 
-- The shipped slices cover copy/append/compact primitives, LF/CRLF line scanning, ASCII helpers, trimming, split, and token extraction. Numeric parsing, literal compare helpers, and richer protocol helpers remain planned in the design spec.
+- The shipped slices cover copy/append/compact primitives, LF/CRLF line scanning, ASCII helpers, trimming, split, token extraction, and literal compare helpers. Numeric parsing and richer protocol helpers remain planned in the design spec.
 
 ---
 

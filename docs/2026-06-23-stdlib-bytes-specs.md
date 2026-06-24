@@ -1,7 +1,7 @@
 # `stdlib/bytes` Design Spec
 
-> Status: roadmap design; range/compact, LF/CRLF line scanning, and ASCII
-> token slices are shipped.
+> Status: roadmap design; range/compact, LF/CRLF line scanning, ASCII token,
+> and byte-range literal compare slices are shipped.
 > Date: 2026-06-23.
 > Scope: standard-library byte helpers for protocol and binary hot paths.
 
@@ -155,9 +155,9 @@ The return value is an absolute byte offset in `data`. `find_crlf` returns the
 offset of `\r`.
 
 `find_byte` is the first search helper that should get runtime support if pure
-Surge loops are too slow. The first native line benchmark did not justify that
-intrinsic: `ByteBuffer.peek_line_lf` was about `7.67x` faster than the string
-conversion path without `rt_byte_find`.
+Surge loops are too slow. The native benchmark does not justify that intrinsic
+yet: `ByteBuffer.peek_line_lf` is about `7.6x` faster than the string conversion
+path without `rt_byte_find`.
 
 ## Range Helpers
 
@@ -297,6 +297,11 @@ Shipped in the ASCII token slice:
 - `split_once_byte` and `next_ascii_token`.
 - `scripts/bench_native_byte_lines.sh` also reports token extraction timings.
 
+Shipped in the literal compare slice:
+
+- `range_eq`, `range_eq_ascii`, `range_eq_ascii_ci`, and `starts_with_ascii`.
+- `scripts/bench_native_byte_lines.sh` also reports command-dispatch timings.
+
 Still optional:
 
 - `rt_byte_find(buf: &byte[], start: uint, end: uint, needle: byte)`.
@@ -352,7 +357,7 @@ Add a standalone benchmark under this repo, not under an external project:
 
 - Current string line path vs `ByteBuffer.peek_line_lf`.
 - Current string token path vs `next_ascii_token`.
-- `range_eq_ascii` command dispatch for `PING`, `GET`, and unknown commands.
+- Current string command dispatch vs `next_ascii_token + range_eq_ascii`.
 - `parse_uint_ascii` for small and large integers.
 - `byte[]` response builder for simple text and value responses.
 - Buffer append, consume, and compact with realistic network chunk sizes.
@@ -387,11 +392,14 @@ The first shipped slice covers:
 - ASCII whitespace trimming
 - `split_once_byte`
 - `next_ascii_token`
+- `range_eq`
+- `range_eq_ascii`
+- `range_eq_ascii_ci`
+- `starts_with_ascii`
 
 The implementation PR should add focused tests for:
 
 - Empty ranges and invalid ranges.
-- Case-sensitive and case-insensitive literal compare.
 - Integer parsing, including overflow.
 - Buffer consume and compact behavior.
 - Explicit string conversion failure on invalid UTF-8.

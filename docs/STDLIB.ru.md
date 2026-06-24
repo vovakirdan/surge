@@ -888,6 +888,10 @@ import stdlib/bytes as by;
 - `trim_ascii_end(data: &byte[], range: ByteRange) -> ByteRange`
 - `split_once_byte(data: &byte[], range: ByteRange, sep: byte) -> Option<ByteSplit>`
 - `next_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteSplit>`
+- `range_eq(data: &byte[], range: ByteRange, expected: &byte[]) -> bool`
+- `range_eq_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
+- `range_eq_ascii_ci(data: &byte[], range: ByteRange, expected: &string) -> bool`
+- `starts_with_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
 - `copy_range(data: &byte[], range: ByteRange) -> Erring<byte[], Error>`
 - `buffer() -> ByteBuffer`
 - `buffer_from(data: byte[]) -> ByteBuffer`
@@ -905,6 +909,7 @@ import stdlib/bytes as by;
 - `ByteSplit.head` указывает на token или левую часть; `ByteSplit.tail` указывает на оставшийся range.
 - Search helper'ы возвращают абсолютные byte offsets и `nothing` для невалидных диапазонов или отсутствующих delimiter'ов.
 - `trim_ascii*` возвращает пустой range для невалидного input. Whitespace — только ASCII space, tab, LF и CR.
+- Compare helper'ы возвращают `false` для невалидных ranges. Варианты `*_ascii` сравнивают с `expected.bytes()` без allocation.
 - Невалидные диапазоны возвращают `BYTES_ERR_INVALID_RANGE`; обычный malformed input не должен приводить к panic.
 - `copy_range`, `append_bytes_range` и `compact` используют runtime-backed byte-array intrinsics в VM и LLVM/native. Для типичного hot path с byte buffer они не идут через per-byte Surge loops.
 - `clear_keep_capacity` очищает содержимое массива, сохраняя capacity.
@@ -958,7 +963,7 @@ fn next_line(input: byte[]) -> Option<by.ByteLine> {
 
 Замечание про реальность:
 
-- Shipped slices покрывают copy/append/compact primitives, LF/CRLF line scanning, ASCII helper'ы, trimming, split и token extraction. Numeric parsing, literal compare helper'ы и более богатые protocol helper'ы остаются в design spec.
+- Shipped slices покрывают copy/append/compact primitives, LF/CRLF line scanning, ASCII helper'ы, trimming, split, token extraction и literal compare helper'ы. Numeric parsing и более богатые protocol helper'ы остаются в design spec.
 
 ---
 

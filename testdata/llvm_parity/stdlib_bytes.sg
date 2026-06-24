@@ -317,6 +317,67 @@ fn main() -> int {
         nothing => {}
     };
 
+    let dispatch: byte[] = "get PING unknown" to byte[];
+    let cmd_get: string = "get";
+    let cmd_get_upper: string = "GET";
+    let cmd_ping: string = "PING";
+    let cmd_unknown: string = "unknown";
+    let cmd_missing: string = "SET";
+    let dispatch_first = compare by.next_ascii_token(&dispatch, by.all(&dispatch)) {
+        Some(value) => value;
+        nothing => {
+            return 56;
+        }
+    };
+    let expected_get_bytes: byte[] = "get" to byte[];
+    if !by.range_eq(&dispatch, dispatch_first.head, &expected_get_bytes) {
+        return 57;
+    }
+    if !by.range_eq_ascii(&dispatch, dispatch_first.head, &cmd_get) {
+        return 58;
+    }
+    if by.range_eq_ascii(&dispatch, dispatch_first.head, &cmd_get_upper) {
+        return 59;
+    }
+    if !by.range_eq_ascii_ci(&dispatch, dispatch_first.head, &cmd_get_upper) {
+        return 60;
+    }
+    if !by.starts_with_ascii(&dispatch, by.all(&dispatch), &cmd_get) {
+        return 61;
+    }
+    if by.starts_with_ascii(&dispatch, by.all(&dispatch), &cmd_get_upper) {
+        return 62;
+    }
+    if by.starts_with_ascii(&dispatch, by.range(99:uint, 100:uint), &cmd_get) {
+        return 63;
+    }
+
+    let dispatch_second = compare by.next_ascii_token(&dispatch, dispatch_first.tail) {
+        Some(value) => value;
+        nothing => {
+            return 64;
+        }
+    };
+    if !by.range_eq_ascii(&dispatch, dispatch_second.head, &cmd_ping) {
+        return 65;
+    }
+    if by.range_eq_ascii(&dispatch, dispatch_second.head, &cmd_missing) {
+        return 66;
+    }
+
+    let dispatch_third = compare by.next_ascii_token(&dispatch, dispatch_second.tail) {
+        Some(value) => value;
+        nothing => {
+            return 67;
+        }
+    };
+    if !by.range_eq_ascii(&dispatch, dispatch_third.head, &cmd_unknown) {
+        return 68;
+    }
+    if by.range_eq(&dispatch, by.range(20:uint, 21:uint), &expected_get_bytes) {
+        return 69;
+    }
+
     print("stdlib_bytes_ok");
     return 0;
 }
