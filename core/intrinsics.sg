@@ -132,6 +132,7 @@ extern<TcpConn> {
 @intrinsic fn rt_array_append_raw_bytes(a: &mut byte[], ptr: *byte, length: uint64) -> nothing;
 @intrinsic fn rt_byte_array_append_range(dst: &mut byte[], src: &byte[], start: uint64, length: uint64) -> nothing;
 @intrinsic fn rt_byte_array_drop_prefix(a: &mut byte[], count: uint64) -> nothing;
+@intrinsic fn rt_byte_parse_uint64_token(data: &byte[], start: uint64, end: uint64, value: &mut uint64, next: &mut uint64) -> bool;
 
 // Map access intrinsics
 @intrinsic fn rt_map_new<K, V>() -> Map<K, V>;

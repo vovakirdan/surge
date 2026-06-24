@@ -422,6 +422,151 @@ func (vm *VM) handleByteArrayDropPrefix(frame *Frame, call *mir.CallInstr, write
 	return nil
 }
 
+func (vm *VM) handleByteParseUint64Token(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if len(call.Args) != 5 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_byte_parse_uint64_token requires 5 arguments")
+	}
+	dataVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(dataVal)
+	startVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(startVal)
+	endVal, vmErr := vm.evalOperand(frame, &call.Args[2])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(endVal)
+	valueRef, vmErr := vm.evalOperand(frame, &call.Args[3])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(valueRef)
+	nextRef, vmErr := vm.evalOperand(frame, &call.Args[4])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(nextRef)
+
+	ok := false
+	var value uint64
+	next := 0
+	start, startErr := vm.uintValueToInt(startVal, "byte parse start out of range")
+	end, endErr := vm.uintValueToInt(endVal, "byte parse end out of range")
+	if startErr != nil || endErr != nil {
+		ok = false
+	} else {
+		next = start
+		if dataVal.Kind == VKRef || dataVal.Kind == VKRefMut {
+			loaded, loadErr := vm.loadLocationRaw(dataVal.Loc)
+			if loadErr != nil {
+				return loadErr
+			}
+			dataVal = loaded
+		}
+		if dataVal.Kind != VKHandleArray {
+			return vm.eb.typeMismatch("byte[]", dataVal.Kind.String())
+		}
+		view, viewErr := vm.arrayViewFromHandle(dataVal.H)
+		if viewErr != nil {
+			return viewErr
+		}
+		if start <= end && start <= view.length && end <= view.length {
+			next = end
+			i := start
+			for i < end {
+				b, convErr := vm.valueToUint8(view.baseObj.Arr[view.start+i])
+				if convErr != nil {
+					return convErr
+				}
+				if b != 32 && b != 9 && b != 10 && b != 13 {
+					break
+				}
+				i++
+			}
+			if i < end {
+				value, next, ok, vmErr = vm.parseUint64DigitsInByteView(view, i, end)
+				if vmErr != nil {
+					return vmErr
+				}
+			}
+		}
+	}
+
+	if valueRef.Kind != VKRefMut {
+		return vm.eb.typeMismatch("&mut uint64", valueRef.Kind.String())
+	}
+	if nextRef.Kind != VKRefMut {
+		return vm.eb.typeMismatch("&mut uint64", nextRef.Kind.String())
+	}
+	if vmErr := vm.storeLocation(valueRef.Loc, MakeInt(asInt64(value), vm.refElemType(valueRef.TypeID))); vmErr != nil {
+		return vmErr
+	}
+	if vmErr := vm.storeLocation(nextRef.Loc, MakeInt(int64(next), vm.refElemType(nextRef.TypeID))); vmErr != nil {
+		return vmErr
+	}
+	if call.HasDst {
+		dstLocal := call.Dst.Local
+		res := MakeBool(ok, frame.Locals[dstLocal].TypeID)
+		if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+			return vmErr
+		}
+		if writes != nil {
+			*writes = append(*writes, LocalWrite{
+				LocalID: dstLocal,
+				Name:    frame.Locals[dstLocal].Name,
+				Value:   res,
+			})
+		}
+	}
+	return nil
+}
+
+func (vm *VM) parseUint64DigitsInByteView(view arrayView, start, end int) (value uint64, next int, ok bool, vmErr *VMError) {
+	const maxUint64 = ^uint64(0)
+	sawDigit := false
+	i := start
+	for i < end {
+		b, vmErr := vm.valueToUint8(view.baseObj.Arr[view.start+i])
+		if vmErr != nil {
+			return 0, start, false, vmErr
+		}
+		if b >= '0' && b <= '9' {
+			digit := uint64(b - '0')
+			if value > maxUint64/10 || (value == maxUint64/10 && digit > maxUint64%10) {
+				return 0, start, false, nil
+			}
+			value = value*10 + digit
+			sawDigit = true
+			i++
+			continue
+		}
+		if b == 32 || b == 9 || b == 10 || b == 13 {
+			break
+		}
+		return 0, start, false, nil
+	}
+	if !sawDigit {
+		return 0, start, false, nil
+	}
+	return value, i, true, nil
+}
+
+func (vm *VM) refElemType(typeID types.TypeID) types.TypeID {
+	if vm == nil || vm.Types == nil || typeID == types.NoTypeID {
+		return types.NoTypeID
+	}
+	tt, ok := vm.Types.Lookup(vm.valueType(typeID))
+	if !ok || tt.Kind != types.KindReference {
+		return types.NoTypeID
+	}
+	return tt.Elem
+}
+
 func (vm *VM) makeOptionSome(typeID types.TypeID, elem Value) (Value, *VMError) {
 	if typeID == types.NoTypeID {
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, "invalid Option<T> type")

@@ -873,6 +873,7 @@ Public API:
 - `type ByteRange`
 - `type ByteLine`
 - `type ByteSplit`
+- `type ByteUint64`
 - `type ByteBuffer`
 - `range(start: uint, end: uint) -> ByteRange`
 - `all(data: &byte[]) -> ByteRange`
@@ -888,6 +889,7 @@ Public API:
 - `trim_ascii_end(data: &byte[], range: ByteRange) -> ByteRange`
 - `split_once_byte(data: &byte[], range: ByteRange, sep: byte) -> Option<ByteSplit>`
 - `next_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteSplit>`
+- `next_uint64_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteUint64>`
 - `range_eq(data: &byte[], range: ByteRange, expected: &byte[]) -> bool`
 - `range_eq_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
 - `range_eq_ascii_ci(data: &byte[], range: ByteRange, expected: &string) -> bool`
@@ -907,8 +909,10 @@ Behavior:
 - `ByteRange` is half-open: `[start, end)`.
 - `ByteLine.body` points at line bytes without the terminator; `ByteLine.next` is the absolute offset after the terminator.
 - `ByteSplit.head` points at the token or left side; `ByteSplit.tail` points at the remaining range.
+- `ByteUint64.value` is the parsed decimal value; `ByteUint64.tail` starts at the whitespace or range end after the number.
 - Search helpers return absolute byte offsets and `nothing` for invalid ranges or missing delimiters.
 - `trim_ascii*` returns an empty range for invalid input. It only treats ASCII space, tab, LF, and CR as whitespace.
+- `next_uint64_ascii_token` skips leading ASCII whitespace, parses decimal `uint64`, rejects empty input, non-digit token bytes, and overflow, and returns `nothing` for invalid ranges.
 - Compare helpers return `false` for invalid ranges. The `*_ascii` variants compare against `expected.bytes()` without allocating.
 - Invalid ranges return `BYTES_ERR_INVALID_RANGE`; malformed input should not panic.
 - `copy_range`, `append_bytes_range`, and `compact` use runtime-backed byte-array intrinsics on both VM and LLVM/native. They avoid per-byte Surge loops for the common byte-buffer hot path.

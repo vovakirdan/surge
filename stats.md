@@ -45,9 +45,28 @@ Median token speedup: `2.36x`.
 
 Median dispatch speedup: `2.42x`.
 
+Numeric parsing follow-up:
+
+- change: add `bytes.next_uint64_ascii_token`, backed by
+  `rt_byte_parse_uint64_token`
+- comparison: `string.from_bytes + split + uint64.from_str` vs fused byte
+  token parse
+- script: `SURGE_BYTES_LINE_BENCH_REPEATS=5 ./scripts/bench_native_byte_lines.sh`
+
+| run | string number us | byte number us | speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 6739289 | 30231 | 222.93x |
+| 2 | 6705169 | 29801 | 225.00x |
+| 3 | 6717633 | 29553 | 227.31x |
+| 4 | 6725390 | 29863 | 225.21x |
+| 5 | 6698135 | 29412 | 227.73x |
+
+Median numeric speedup: `225.42x`.
+
 Conclusion: pure Surge byte scanning is enough for line, token, and small
-literal dispatch helpers. Do not add `rt_byte_find` until numeric parsing,
-response building, or larger parser benchmarks show a specific gap.
+literal dispatch helpers. Numeric protocol parsing is the first measured case
+that needs a narrow runtime fused helper, because the string path materializes a
+string, splits it, and then parses through `uint64.from_str`.
 
 ## 2026-06-23 - Direct network readiness wait
 

@@ -317,6 +317,59 @@ fn main() -> int {
         nothing => {}
     };
 
+    let numbers: byte[] = "  18446744073709551615 42 bad" to byte[];
+    let first_number = compare by.next_uint64_ascii_token(&numbers, by.all(&numbers)) {
+        Some(value) => value;
+        nothing => {
+            return 70;
+        }
+    };
+    if first_number.value != 18446744073709551615:uint64 || first_number.tail.start != 22:uint {
+        return 71;
+    }
+    let second_number = compare by.next_uint64_ascii_token(&numbers, first_number.tail) {
+        Some(value) => value;
+        nothing => {
+            return 72;
+        }
+    };
+    if second_number.value != 42:uint64 || second_number.tail.start != 25:uint {
+        return 73;
+    }
+    compare by.next_uint64_ascii_token(&numbers, second_number.tail) {
+        Some(_) => {
+            return 74;
+        }
+        nothing => {}
+    };
+    let overflow_number: byte[] = "18446744073709551616" to byte[];
+    compare by.next_uint64_ascii_token(&overflow_number, by.all(&overflow_number)) {
+        Some(_) => {
+            return 75;
+        }
+        nothing => {}
+    };
+    let bad_number: byte[] = "12x" to byte[];
+    compare by.next_uint64_ascii_token(&bad_number, by.all(&bad_number)) {
+        Some(_) => {
+            return 76;
+        }
+        nothing => {}
+    };
+    let ws_number: byte[] = " \t\r\n" to byte[];
+    compare by.next_uint64_ascii_token(&ws_number, by.all(&ws_number)) {
+        Some(_) => {
+            return 77;
+        }
+        nothing => {}
+    };
+    compare by.next_uint64_ascii_token(&numbers, by.range(99:uint, 100:uint)) {
+        Some(_) => {
+            return 78;
+        }
+        nothing => {}
+    };
+
     let dispatch: byte[] = "get PING unknown" to byte[];
     let cmd_get: string = "get";
     let cmd_get_upper: string = "GET";

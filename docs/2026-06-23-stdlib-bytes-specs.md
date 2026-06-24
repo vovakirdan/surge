@@ -191,20 +191,31 @@ They are intended for small protocol literals such as `GET`, `PING`, and
 ## Numeric Parse Helpers
 
 ```sg
+pub type ByteUint64 = {
+    value: uint64,
+    tail: ByteRange,
+};
+
+pub fn next_uint64_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteUint64>;
+```
+
+The shipped numeric slice is intentionally fused: it trims leading ASCII
+whitespace, parses one decimal `uint64`, and returns the remaining range in one
+runtime-backed pass. It rejects empty input, non-digit token bytes, signs, and
+overflow by returning `nothing`.
+
+Standalone numeric parse helpers are still not shipped:
+
+```sg
 pub fn parse_uint64_ascii(data: &byte[], range: ByteRange) -> Erring<uint64, Error>;
 pub fn parse_int64_ascii(data: &byte[], range: ByteRange) -> Erring<int64, Error>;
 pub fn parse_hex_uint64_ascii(data: &byte[], range: ByteRange) -> Erring<uint64, Error>;
 ```
 
-These functions parse ASCII digits only. They should reject empty input,
-whitespace, signs in unsigned values, and overflow.
-
-Numeric parsing is not shipped yet. A pure Surge `parse_uint64_ascii` prototype
-was correct but did not beat the current `string.from_bytes + split +
-uint.from_str` benchmark after safety checks were added (`~0.90x` in a
-single-run probe). The next numeric slice should either fuse token scanning with
-numeric parsing or add a narrow runtime byte-range parse intrinsic; do not ship
-a slower range helper just to complete the surface.
+A pure Surge `parse_uint64_ascii` prototype was correct but did not beat the
+current `string.from_bytes + split + uint.from_str` benchmark after safety
+checks were added (`~0.90x` in a single-run probe). Do not ship separate parse
+helpers until a benchmark proves they add value beyond the fused token parser.
 
 ## Conversion Helpers
 
@@ -399,6 +410,7 @@ The first shipped slice covers:
 - ASCII whitespace trimming
 - `split_once_byte`
 - `next_ascii_token`
+- `next_uint64_ascii_token`
 - `range_eq`
 - `range_eq_ascii`
 - `range_eq_ascii_ci`

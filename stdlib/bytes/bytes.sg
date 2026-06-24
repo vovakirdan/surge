@@ -21,6 +21,12 @@ pub type ByteSplit = {
     tail: ByteRange,
 };
 
+@copy
+pub type ByteUint64 = {
+    value: uint64,
+    tail: ByteRange,
+};
+
 pub type ByteBuffer = {
     data: byte[],
     start: uint,
@@ -201,6 +207,21 @@ pub fn next_ascii_token(data: &byte[], r: ByteRange) -> Option<ByteSplit> {
     return Some(ByteSplit {
         head = { start = trimmed.start, end = end to uint },
         tail = { start = end to uint, end = trimmed.end }
+    });
+}
+
+pub fn next_uint64_ascii_token(data: &byte[], r: ByteRange) -> Option<ByteUint64> {
+    if !is_valid_range(data, r) {
+        return nothing;
+    }
+    let mut value: uint64 = 0:uint64;
+    let mut next: uint64 = 0:uint64;
+    if !rt_byte_parse_uint64_token(data, r.start to uint64, r.end to uint64, &mut value, &mut next) {
+        return nothing;
+    }
+    return Some(ByteUint64 {
+        value = value,
+        tail = { start = next to uint, end = r.end }
     });
 }
 

@@ -873,6 +873,7 @@ import stdlib/bytes as by;
 - `type ByteRange`
 - `type ByteLine`
 - `type ByteSplit`
+- `type ByteUint64`
 - `type ByteBuffer`
 - `range(start: uint, end: uint) -> ByteRange`
 - `all(data: &byte[]) -> ByteRange`
@@ -888,6 +889,7 @@ import stdlib/bytes as by;
 - `trim_ascii_end(data: &byte[], range: ByteRange) -> ByteRange`
 - `split_once_byte(data: &byte[], range: ByteRange, sep: byte) -> Option<ByteSplit>`
 - `next_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteSplit>`
+- `next_uint64_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteUint64>`
 - `range_eq(data: &byte[], range: ByteRange, expected: &byte[]) -> bool`
 - `range_eq_ascii(data: &byte[], range: ByteRange, expected: &string) -> bool`
 - `range_eq_ascii_ci(data: &byte[], range: ByteRange, expected: &string) -> bool`
@@ -907,8 +909,10 @@ import stdlib/bytes as by;
 - `ByteRange` полуоткрытый: `[start, end)`.
 - `ByteLine.body` указывает на байты строки без терминатора; `ByteLine.next` — абсолютный offset после терминатора.
 - `ByteSplit.head` указывает на token или левую часть; `ByteSplit.tail` указывает на оставшийся range.
+- `ByteUint64.value` содержит распарсенное decimal-значение; `ByteUint64.tail` начинается на whitespace или конце range после числа.
 - Search helper'ы возвращают абсолютные byte offsets и `nothing` для невалидных диапазонов или отсутствующих delimiter'ов.
 - `trim_ascii*` возвращает пустой range для невалидного input. Whitespace — только ASCII space, tab, LF и CR.
+- `next_uint64_ascii_token` пропускает ведущий ASCII whitespace, парсит decimal `uint64`, отвергает пустой input, нецифровые байты внутри token и overflow, а для invalid ranges возвращает `nothing`.
 - Compare helper'ы возвращают `false` для невалидных ranges. Варианты `*_ascii` сравнивают с `expected.bytes()` без allocation.
 - Невалидные диапазоны возвращают `BYTES_ERR_INVALID_RANGE`; обычный malformed input не должен приводить к panic.
 - `copy_range`, `append_bytes_range` и `compact` используют runtime-backed byte-array intrinsics в VM и LLVM/native. Для типичного hot path с byte buffer они не идут через per-byte Surge loops.

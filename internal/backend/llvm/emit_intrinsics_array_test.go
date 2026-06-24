@@ -19,12 +19,19 @@ func TestEmitByteArrayAppendRangePassesSourceArrayHandle(t *testing.T) {
     return nothing;
 }
 
+fn parse_token(src: &byte[]) -> bool {
+    let mut value: uint64 = 0:uint64;
+    let mut next: uint64 = 0:uint64;
+    return rt_byte_parse_uint64_token(src, 0:uint64, src.__len() to uint64, &mut value, &mut next);
+}
+
 @entrypoint
 fn main() -> int {
     let source: byte[] = "abcd" to byte[];
     let mut out: byte[] = [];
     append_range(&mut out, &source);
     rt_byte_array_drop_prefix(&mut out, 1:uint64);
+    let _ = parse_token(&source);
     return out.__len() to int;
 }
 `
@@ -47,5 +54,16 @@ fn main() -> int {
 	}
 	if !regexp.MustCompile(`call void @rt_byte_array_drop_prefix\(`).MatchString(ir) {
 		t.Fatalf("expected byte drop-prefix intrinsic in IR:\n%s", ir)
+	}
+	if !regexp.MustCompile(`call i1 @rt_byte_parse_uint64_token\(`).MatchString(ir) {
+		t.Fatalf("expected byte uint64 token parse intrinsic in IR:\n%s", ir)
+	}
+	parseRe := regexp.MustCompile(`call i1 @rt_byte_parse_uint64_token\(ptr (%t\d+),`)
+	parseMatches := parseRe.FindStringSubmatch(ir)
+	if len(parseMatches) != 2 {
+		t.Fatalf("expected byte uint64 token parser source to be a loaded temp:\n%s", ir)
+	}
+	if !strings.Contains(ir, parseMatches[1]+" = load ptr, ptr ") {
+		t.Fatalf("rt_byte_parse_uint64_token source was not loaded as an array handle:\n%s", ir)
 	}
 }
