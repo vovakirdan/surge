@@ -329,3 +329,63 @@ void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t le
     rt_memmove((uint8_t*)header->data + old_len, copy_src, len);
     header->len = new_len;
 }
+
+void rt_byte_array_append_range(void* dst_slot,
+                                const void* src_array,
+                                uint64_t start,
+                                uint64_t len) {
+    if (dst_slot == NULL || src_array == NULL) {
+        array_panic("byte array append range received null pointer");
+        return;
+    }
+
+    const SurgeArrayHeader* src = (const SurgeArrayHeader*)src_array;
+    if (start > src->len || len > src->len - start) {
+        array_panic("byte array append range out of range");
+        return;
+    }
+    if (len == 0) {
+        return;
+    }
+    if (src->data == NULL) {
+        array_panic("byte array append range received null data");
+        return;
+    }
+    rt_array_append_raw_bytes(dst_slot, (const uint8_t*)src->data + start, len);
+}
+
+void rt_byte_array_drop_prefix(void* array_slot, uint64_t count) {
+    if (count == 0) {
+        return;
+    }
+    if (array_slot == NULL) {
+        array_panic("byte array drop prefix received null pointer");
+        return;
+    }
+
+    SurgeArrayHeader* header = *(SurgeArrayHeader**)array_slot;
+    if (header == NULL) {
+        array_panic("byte array drop prefix received null array");
+        return;
+    }
+    if (array_is_view(header)) {
+        array_panic("array view is not resizable");
+        return;
+    }
+    if (count > header->len) {
+        array_panic("byte array drop prefix out of range");
+        return;
+    }
+    if (count == header->len) {
+        header->len = 0;
+        return;
+    }
+    if (header->data == NULL) {
+        array_panic("byte array drop prefix received null data");
+        return;
+    }
+
+    uint64_t new_len = header->len - count;
+    rt_memmove((uint8_t*)header->data, (uint8_t*)header->data + count, new_len);
+    header->len = new_len;
+}

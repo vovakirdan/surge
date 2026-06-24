@@ -281,6 +281,147 @@ func (vm *VM) handleArrayAppendRawBytes(frame *Frame, call *mir.CallInstr, write
 	return nil
 }
 
+func (vm *VM) handleByteArrayAppendRange(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	_ = writes
+	if len(call.Args) != 4 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_byte_array_append_range requires 4 arguments")
+	}
+	dstVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(dstVal)
+	srcVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(srcVal)
+	startVal, vmErr := vm.evalOperand(frame, &call.Args[2])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(startVal)
+	lenVal, vmErr := vm.evalOperand(frame, &call.Args[3])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(lenVal)
+
+	start, vmErr := vm.uintValueToInt(startVal, "byte array append start out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	length, vmErr := vm.uintValueToInt(lenVal, "byte array append length out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	if srcVal.Kind == VKRef || srcVal.Kind == VKRefMut {
+		loaded, loadErr := vm.loadLocationRaw(srcVal.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		srcVal = loaded
+	}
+	if srcVal.Kind != VKHandleArray {
+		return vm.eb.typeMismatch("byte[]", srcVal.Kind.String())
+	}
+	srcView, vmErr := vm.arrayViewFromHandle(srcVal.H)
+	if vmErr != nil {
+		return vmErr
+	}
+	if start > srcView.length || length > srcView.length-start {
+		return vm.eb.outOfBounds(start+length, srcView.length)
+	}
+	if length == 0 {
+		return nil
+	}
+
+	data := make([]byte, length)
+	for i := range length {
+		b, convErr := vm.valueToUint8(srcView.baseObj.Arr[srcView.start+start+i])
+		if convErr != nil {
+			return convErr
+		}
+		data[i] = b
+	}
+
+	dstObj, vmErr := vm.arrayOwnedFromValue(dstVal)
+	if vmErr != nil {
+		return vmErr
+	}
+	oldLen := len(dstObj.Arr)
+	newLen := oldLen + length
+	if newLen < oldLen {
+		return vm.eb.invalidNumericConversion("array length out of range")
+	}
+	if newLen > cap(dstObj.Arr) {
+		grown := growArrayCapacity(cap(dstObj.Arr), newLen)
+		next := make([]Value, newLen, grown)
+		copy(next, dstObj.Arr)
+		dstObj.Arr = next
+	} else {
+		dstObj.Arr = dstObj.Arr[:newLen]
+	}
+
+	elemType := types.NoTypeID
+	if vm.Types != nil {
+		elemType = vm.Types.Builtins().Uint8
+	}
+	for i, b := range data {
+		dstObj.Arr[oldLen+i] = MakeInt(int64(b), elemType)
+	}
+	return nil
+}
+
+func (vm *VM) handleByteArrayDropPrefix(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	_ = writes
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_byte_array_drop_prefix requires 2 arguments")
+	}
+	arrVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(arrVal)
+	countVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(countVal)
+
+	count, vmErr := vm.uintValueToInt(countVal, "byte array drop prefix count out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	if count == 0 {
+		return nil
+	}
+	arrObj, vmErr := vm.arrayOwnedFromValue(arrVal)
+	if vmErr != nil {
+		return vmErr
+	}
+	if count > len(arrObj.Arr) {
+		return vm.eb.outOfBounds(count, len(arrObj.Arr))
+	}
+	for i := range count {
+		vm.dropValue(arrObj.Arr[i])
+		arrObj.Arr[i] = Value{}
+	}
+	if count == len(arrObj.Arr) {
+		arrObj.Arr = arrObj.Arr[:0]
+		return nil
+	}
+	newLen := len(arrObj.Arr) - count
+	for i := range newLen {
+		arrObj.Arr[i] = arrObj.Arr[count+i]
+	}
+	for i := newLen; i < len(arrObj.Arr); i++ {
+		arrObj.Arr[i] = Value{}
+	}
+	arrObj.Arr = arrObj.Arr[:newLen]
+	return nil
+}
+
 func (vm *VM) makeOptionSome(typeID types.TypeID, elem Value) (Value, *VMError) {
 	if typeID == types.NoTypeID {
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, "invalid Option<T> type")

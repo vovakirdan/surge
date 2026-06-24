@@ -44,6 +44,7 @@ Important notes:
 | `stdlib/fs` | Filesystem IO | read/write files, walk directories |
 | `stdlib/path` | Pure path helpers | join, normalize, basename |
 | `stdlib/strings` | Small string helpers | `ord`, `chr`, `is_int` |
+| `stdlib/bytes` | Byte range and buffer helpers | protocol hot paths |
 | `stdlib/time` | Monotonic durations | elapsed time measurement |
 | `stdlib/json` | JSON value model, parse, stringify | config, payloads |
 | `stdlib/net` | Async TCP helpers | sockets, custom protocols |
@@ -854,7 +855,86 @@ fn to_u8(x: int) -> uint8 {
 
 ---
 
-## 17. Practical Combinations
+## 17. `stdlib/bytes`
+
+Import:
+
+```sg
+import stdlib/bytes as by;
+```
+
+Current import caveat:
+
+- Use an explicit alias such as `by`. The bare module name `bytes` currently collides with the existing string `.bytes()` symbol in the global namespace.
+
+Public API:
+
+- `BYTES_ERR_INVALID_RANGE`
+- `type ByteRange`
+- `type ByteBuffer`
+- `range(start: uint, end: uint) -> ByteRange`
+- `all(data: &byte[]) -> ByteRange`
+- `range_len(range: ByteRange) -> uint`
+- `is_valid_range(data: &byte[], range: ByteRange) -> bool`
+- `copy_range(data: &byte[], range: ByteRange) -> Erring<byte[], Error>`
+- `buffer() -> ByteBuffer`
+- `buffer_from(data: byte[]) -> ByteBuffer`
+- `Array<byte>.append_bytes_range(data: &byte[], range: ByteRange) -> Erring<nothing, Error>`
+- `Array<byte>.clear_keep_capacity() -> nothing`
+- `ByteBuffer.len()`, `is_empty()`, `range()`
+- `ByteBuffer.append_range(...)`, `consume(...)`, `compact()`
+- `ByteBuffer.clear_keep_capacity()`, `clear()`
+
+Behavior:
+
+- `ByteRange` is half-open: `[start, end)`.
+- Invalid ranges return `BYTES_ERR_INVALID_RANGE`; malformed input should not panic.
+- `copy_range`, `append_bytes_range`, and `compact` use runtime-backed byte-array intrinsics on both VM and LLVM/native. They avoid per-byte Surge loops for the common byte-buffer hot path.
+- `clear_keep_capacity` drops array contents without releasing capacity.
+- `clear` replaces the backing array with a fresh empty array.
+
+Example: append a byte range without converting to `string`
+
+```sg
+import stdlib/bytes as by;
+
+fn frame_prefix(src: &byte[]) -> Erring<byte[], Error> {
+    let mut out: byte[] = [];
+    compare out.append_bytes_range(src, by.range(0:uint, 4:uint)) {
+        Success(_) => {}
+        err => {
+            return err;
+        }
+    };
+    return Success(out);
+}
+```
+
+Example: consume and compact a protocol buffer
+
+```sg
+import stdlib/bytes as by;
+
+fn consume_prefix(input: byte[]) -> Erring<by.ByteBuffer, Error> {
+    let mut buf: by.ByteBuffer = by.buffer_from(input);
+    compare buf.consume(4:uint) {
+        Success(_) => {}
+        err => {
+            return err;
+        }
+    };
+    buf.compact();
+    return Success(buf);
+}
+```
+
+Reality note:
+
+- This is the first shipped slice of `stdlib/bytes`, focused on copy/append/compact primitives. Search, ASCII parsing, line scanning, and richer protocol helpers remain planned in the design spec.
+
+---
+
+## 18. Practical Combinations
 
 ### Generate a secure UUID and serialize it
 

@@ -1,3 +1,5 @@
+import stdlib/bytes as by;
+
 // Array views are not resizable: push/pop/reserve are rejected.
 fn push_view() -> nothing {
     let mut a: int[] = [1, 2, 3];
@@ -60,4 +62,17 @@ fn rt_array_append_raw_bytes_view() -> nothing {
     let mut v = a[[1..3]];
     let s: string = "x";
     rt_array_append_raw_bytes(&mut v, rt_string_ptr(&s), 1:uint64);
+}
+
+fn append_bytes_range_view() -> nothing {
+    let mut a: byte[] = [65:byte, 66:byte, 67:byte];
+    let mut v = a[[1..3]];
+    let src: byte[] = [88:byte];
+    let _ = v.append_bytes_range(&src, by.all(&src));
+}
+
+fn clear_keep_capacity_view() -> nothing {
+    let mut a: byte[] = [65:byte, 66:byte, 67:byte];
+    let mut v = a[[1..3]];
+    v.clear_keep_capacity();
 }

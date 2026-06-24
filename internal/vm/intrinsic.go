@@ -116,6 +116,10 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleArrayGetMut(frame, call, writes)
 	case "rt_array_append_raw_bytes":
 		return vm.handleArrayAppendRawBytes(frame, call, writes)
+	case "rt_byte_array_append_range":
+		return vm.handleByteArrayAppendRange(frame, call, writes)
+	case "rt_byte_array_drop_prefix":
+		return vm.handleByteArrayDropPrefix(frame, call, writes)
 
 	case "rt_map_new":
 		return vm.handleMapNew(frame, call, writes)

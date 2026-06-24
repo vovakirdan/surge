@@ -20,6 +20,11 @@ void* rt_array_slice(void* array_slot, void* r, uint64_t elem_stride);
 void* rt_array_slice_fixed(void* data_slot, void* r, uint64_t length, uint64_t elem_stride);
 void rt_array_sync_views(void* array_header);
 void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t len);
+void rt_byte_array_append_range(void* dst_slot,
+                                const void* src_array,
+                                uint64_t start,
+                                uint64_t len);
+void rt_byte_array_drop_prefix(void* array_slot, uint64_t count);
 size_t rt_tag_payload_offset(size_t payload_align);
 void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size);
 

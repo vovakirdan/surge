@@ -20,6 +20,8 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_array_slice_fixed", ret: "ptr", params: []string{"ptr", "ptr", "i64", "i64"}},
 		{name: "rt_array_sync_views", ret: "void", params: []string{"ptr"}},
 		{name: "rt_array_append_raw_bytes", ret: "void", params: []string{"ptr", "ptr", "i64"}},
+		{name: "rt_byte_array_append_range", ret: "void", params: []string{"ptr", "ptr", "i64", "i64"}},
+		{name: "rt_byte_array_drop_prefix", ret: "void", params: []string{"ptr", "i64"}},
 		{name: "rt_write_stdout", ret: "i64", params: []string{"ptr", "i64"}},
 		{name: "rt_write_stderr", ret: "i64", params: []string{"ptr", "i64"}},
 		{name: "rt_entropy_bytes", ret: "ptr", params: []string{"i64"}},

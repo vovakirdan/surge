@@ -2,11 +2,11 @@
 == HIR ==
 module 
 
-fn add(a: int [copy], b: int [copy]) -> int (id=1, sym=1403) {
+fn add(a: int [copy], b: int [copy]) -> int (id=1, sym=1407) {
   return __add(a, b): int
 }
 
-fn main() -> nothing (id=2, sym=1404) {
+fn main() -> nothing (id=2, sym=1408) {
   let x: int [copy] = add(1, 2): int
   let y: int [copy] = __add(x, 3): int
   return
