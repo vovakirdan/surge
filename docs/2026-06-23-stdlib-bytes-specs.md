@@ -299,12 +299,10 @@ Preflight notes:
 - There is no public fast path for truncating or clearing a `byte[]` while
   keeping capacity. Without a new intrinsic, `clear_keep_capacity` must pop in a
   loop.
-- Array range indexing is not safe to use as an implementation shortcut yet.
-  `data[[1..3]]` passes sema and runs on the VM, but LLVM build fails with
-  `expected integer type`. The VM handles range indexes by allocating an array
-  slice; LLVM currently has the string slice case but lowers array indexes
-  through the integer element path. Fixing LLVM array range indexing is a
-  separate compiler parity follow-up, not part of the first stdlib/bytes patch.
+- Array range indexing was checked after issue #159 landed in `origin/main`:
+  `data[[1..3]]` now passes sema, VM, LLVM build, and native run. This restores
+  VM/native parity, but it still is not a bulk-copy primitive, so
+  `append_bytes_range` still needs either a loop or a narrow runtime intrinsic.
 
 ## Expected Performance
 
