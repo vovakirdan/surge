@@ -169,6 +169,7 @@ typedef struct {
     uint32_t worker_count;
     uint32_t running_count;
     uint32_t channel_blocked_workers;
+    uint8_t worker_net_polling;
     uint32_t compensation_count;
     uint32_t compensation_high_water;
     uint8_t sched_mode;
@@ -192,7 +193,8 @@ typedef struct {
 
 // Executor invariants:
 // - ex->lock owns tasks[], scopes[], waiters, inject/local queues, running_count,
-//   channel_blocked_workers, compensation_count/high-water, timer state, and shutdown flags.
+//   worker_net_polling, channel_blocked_workers, compensation_count/high-water, timer state, and
+//   shutdown flags.
 // - task status is atomic so external helpers can observe it, but transitions that
 //   touch queues or waiters still happen under ex->lock.
 // - waiters is a FIFO-by-key registration list. prepare_park may pre-register a
@@ -207,7 +209,7 @@ typedef struct {
 //   fallback for that path, not a normal async parking mechanism.
 // - The I/O thread is signaled when the executor becomes idle, when net waiters are
 //   registered, or when shutdown changes. Workers sleep on ready_cv only after they
-//   fail to find local, injected, or stealable ready work.
+//   fail to find local, injected, stealable, or immediately pollable net work.
 
 typedef struct rt_channel rt_channel;
 
@@ -347,6 +349,7 @@ uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64
 uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits);
 void clear_select_timers(rt_executor* ex, rt_task* task);
 void ready_push(rt_executor* ex, uint64_t id);
+int ready_take_current_local_tail(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
@@ -381,6 +384,7 @@ void rt_channel_close(void* channel);
 int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);
+void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome);
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task);

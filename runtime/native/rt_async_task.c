@@ -5,6 +5,7 @@
 static rt_task* spawn_checkpoint_task_locked(rt_executor* ex);
 static rt_task* spawn_sleep_task_locked(rt_executor* ex, uint64_t delay);
 static void ensure_select_timers_cap(rt_task* task, size_t want);
+static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* target);
 
 enum {
     SELECT_TASK = 0,
@@ -113,7 +114,11 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         rt_unlock(ex);
         return 0;
     }
-    if (task_status_load(target) != TASK_WAITING) {
+    if (target->kind == TASK_KIND_USER && task_status_load(target) == TASK_READY &&
+        task_enqueued_load(target) != 0 && ready_take_current_local_tail(ex, target->id)) {
+        poll_ready_child_inline(ex, current, target);
+    }
+    if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
         wake_task(ex, target->id, 1);
     }
     if (task_status_load(target) == TASK_DONE) {
@@ -132,6 +137,29 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     }
     rt_unlock(ex);
     return 0;
+}
+
+static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* target) {
+    if (ex == NULL || current == NULL || target == NULL) {
+        return;
+    }
+    task_enqueued_store(target, 0);
+    task_status_store(target, TASK_RUNNING);
+    (void)task_wake_token_exchange(target, 0);
+    ex->running_count++;
+    rt_set_current_task(target);
+    rt_unlock(ex);
+
+    task_polling_enter(target);
+    poll_outcome outcome = poll_task(ex, target);
+    task_polling_exit(target);
+
+    rt_lock(ex);
+    if (ex->running_count > 0) {
+        ex->running_count--;
+    }
+    apply_poll_outcome(ex, target, outcome);
+    rt_set_current_task(current);
 }
 
 void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
