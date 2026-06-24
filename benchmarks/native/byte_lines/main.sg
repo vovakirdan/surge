@@ -17,6 +17,29 @@ fn make_payload(lines: uint, width: uint) -> byte[] {
     return out;
 }
 
+fn append_bytes(out: &mut byte[], src: &byte[]) -> nothing {
+    let mut i: int = 0;
+    let end: int = src.__len() to int;
+    while i < end {
+        let b: byte = clone(src[i]);
+        out.push(b);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn make_token_payload(records: uint) -> byte[] {
+    let pattern: byte[] = "PING key 42 " to byte[];
+    let mut out: byte[] = [];
+    out.reserve(records * pattern.__len());
+    let mut i: uint = 0:uint;
+    while i < records {
+        append_bytes(&mut out, &pattern);
+        i = i + 1:uint;
+    }
+    return out;
+}
+
 fn elapsed_us(start: time.Duration) -> int64 {
     let now: time.Duration = time.Duration.now();
     let delta: time.Duration = now.sub(start);
@@ -79,6 +102,56 @@ fn bench_byte_lines(src: &byte[], rounds: uint) -> uint64 {
     return checksum;
 }
 
+fn bench_string_tokens(src: &byte[], rounds: uint) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut round: uint = 0:uint;
+    while round < rounds {
+        let text = compare string.from_bytes(src) {
+            Success(v) => v;
+            _ => {
+                return checksum;
+            }
+        };
+        let parts = text.split(" ");
+        let count: int = parts.__len() to int;
+        let mut i: int = 0;
+        while i < count {
+            let token: string = clone(parts[i]);
+            if token.__len() != 0:uint {
+                checksum = checksum + (token.__len() to uint64);
+            }
+            i = i + 1;
+        }
+        round = round + 1:uint;
+    }
+    return checksum;
+}
+
+fn bench_byte_tokens(src: &byte[], rounds: uint) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut round: uint = 0:uint;
+    while round < rounds {
+        let data: byte[] = src[[0..src.__len() to int]];
+        let mut r: by.ByteRange = by.all(&data);
+        let mut done: bool = false;
+        while !done {
+            compare by.next_ascii_token(&data, r) {
+                Some(split) => {
+                    checksum = checksum + (by.range_len(split.head) to uint64);
+                    r = split.tail;
+                    0:int;
+                }
+                nothing => {
+                    done = true;
+                    0:int;
+                }
+            };
+        }
+        round = round + 1:uint;
+    }
+    return checksum;
+}
+
 fn time_string_lines(src: &byte[], rounds: uint) -> int64 {
     let started: time.Duration = time.Duration.now();
     let checksum: uint64 = bench_string_lines(src, rounds);
@@ -95,16 +168,37 @@ fn time_byte_lines(src: &byte[], rounds: uint) -> int64 {
     return total;
 }
 
+fn time_string_tokens(src: &byte[], rounds: uint) -> int64 {
+    let started: time.Duration = time.Duration.now();
+    let checksum: uint64 = bench_string_tokens(src, rounds);
+    let total: int64 = elapsed_us(started);
+    print("token_string_us=" + (total to string) + " checksum=" + (checksum to string));
+    return total;
+}
+
+fn time_byte_tokens(src: &byte[], rounds: uint) -> int64 {
+    let started: time.Duration = time.Duration.now();
+    let checksum: uint64 = bench_byte_tokens(src, rounds);
+    let total: int64 = elapsed_us(started);
+    print("token_byte_us=" + (total to string) + " checksum=" + (checksum to string));
+    return total;
+}
+
 @entrypoint
 fn main() -> int {
     let rounds: uint = 200:uint;
+    let token_rounds: uint = 100:uint;
     let lines: uint = 256:uint;
     let width: uint = 32:uint;
     let payload: byte[] = make_payload(lines, width);
+    let token_payload: byte[] = make_token_payload(128:uint);
     print("rounds=" + (rounds to string) + " lines=" + (lines to string) + " width=" + (width to string) + " bytes=" + (payload.__len() to string));
     let string_us: int64 = time_string_lines(&payload, rounds);
     let byte_us: int64 = time_byte_lines(&payload, rounds);
-    if string_us <= 0:int64 || byte_us <= 0:int64 {
+    print("token_rounds=" + (token_rounds to string) + " token_bytes=" + (token_payload.__len() to string));
+    let token_string_us: int64 = time_string_tokens(&token_payload, token_rounds);
+    let token_byte_us: int64 = time_byte_tokens(&token_payload, token_rounds);
+    if string_us <= 0:int64 || byte_us <= 0:int64 || token_string_us <= 0:int64 || token_byte_us <= 0:int64 {
         return 1;
     }
     return 0;

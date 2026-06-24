@@ -1,7 +1,7 @@
 # `stdlib/bytes` Design Spec
 
-> Status: roadmap design; range/compact and LF/CRLF line scanning slices are
-> shipped.
+> Status: roadmap design; range/compact, LF/CRLF line scanning, and ASCII
+> token slices are shipped.
 > Date: 2026-06-23.
 > Scope: standard-library byte helpers for protocol and binary hot paths.
 
@@ -289,6 +289,14 @@ Shipped in the line-scanning slice:
 - `ByteBuffer.peek_line_lf` and `ByteBuffer.peek_line_crlf`.
 - `benchmarks/native/byte_lines` plus `scripts/bench_native_byte_lines.sh`.
 
+Shipped in the ASCII token slice:
+
+- `ByteSplit`.
+- ASCII predicates and case/hex helpers.
+- `trim_ascii`, `trim_ascii_start`, and `trim_ascii_end`.
+- `split_once_byte` and `next_ascii_token`.
+- `scripts/bench_native_byte_lines.sh` also reports token extraction timings.
+
 Still optional:
 
 - `rt_byte_find(buf: &byte[], start: uint, end: uint, needle: byte)`.
@@ -375,11 +383,14 @@ The first shipped slice covers:
 - `ByteBuffer.peek_line_lf`, `ByteBuffer.peek_line_crlf`
 - LF and CRLF line endings
 - Lines split across chunks
+- ASCII predicates and case/hex helpers
+- ASCII whitespace trimming
+- `split_once_byte`
+- `next_ascii_token`
 
 The implementation PR should add focused tests for:
 
 - Empty ranges and invalid ranges.
-- ASCII whitespace trimming.
 - Case-sensitive and case-insensitive literal compare.
 - Integer parsing, including overflow.
 - Buffer consume and compact behavior.

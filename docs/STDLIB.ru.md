@@ -872,14 +872,22 @@ import stdlib/bytes as by;
 - `BYTES_ERR_INVALID_RANGE`
 - `type ByteRange`
 - `type ByteLine`
+- `type ByteSplit`
 - `type ByteBuffer`
 - `range(start: uint, end: uint) -> ByteRange`
 - `all(data: &byte[]) -> ByteRange`
 - `range_len(range: ByteRange) -> uint`
 - `is_valid_range(data: &byte[], range: ByteRange) -> bool`
+- `is_ascii_ws(...)`, `is_ascii_digit(...)`, `is_ascii_alpha(...)`, `is_ascii_alnum(...)`
+- `is_ascii_hex_digit(...)`, `ascii_to_lower(...)`, `ascii_to_upper(...)`, `ascii_hex_value(...)`
 - `find_byte(data: &byte[], range: ByteRange, needle: byte) -> Option<uint>`
 - `find_lf(data: &byte[], range: ByteRange) -> Option<uint>`
 - `find_crlf(data: &byte[], range: ByteRange) -> Option<uint>`
+- `trim_ascii(data: &byte[], range: ByteRange) -> ByteRange`
+- `trim_ascii_start(data: &byte[], range: ByteRange) -> ByteRange`
+- `trim_ascii_end(data: &byte[], range: ByteRange) -> ByteRange`
+- `split_once_byte(data: &byte[], range: ByteRange, sep: byte) -> Option<ByteSplit>`
+- `next_ascii_token(data: &byte[], range: ByteRange) -> Option<ByteSplit>`
 - `copy_range(data: &byte[], range: ByteRange) -> Erring<byte[], Error>`
 - `buffer() -> ByteBuffer`
 - `buffer_from(data: byte[]) -> ByteBuffer`
@@ -894,7 +902,9 @@ import stdlib/bytes as by;
 
 - `ByteRange` полуоткрытый: `[start, end)`.
 - `ByteLine.body` указывает на байты строки без терминатора; `ByteLine.next` — абсолютный offset после терминатора.
+- `ByteSplit.head` указывает на token или левую часть; `ByteSplit.tail` указывает на оставшийся range.
 - Search helper'ы возвращают абсолютные byte offsets и `nothing` для невалидных диапазонов или отсутствующих delimiter'ов.
+- `trim_ascii*` возвращает пустой range для невалидного input. Whitespace — только ASCII space, tab, LF и CR.
 - Невалидные диапазоны возвращают `BYTES_ERR_INVALID_RANGE`; обычный malformed input не должен приводить к panic.
 - `copy_range`, `append_bytes_range` и `compact` используют runtime-backed byte-array intrinsics в VM и LLVM/native. Для типичного hot path с byte buffer они не идут через per-byte Surge loops.
 - `clear_keep_capacity` очищает содержимое массива, сохраняя capacity.
@@ -948,7 +958,7 @@ fn next_line(input: byte[]) -> Option<by.ByteLine> {
 
 Замечание про реальность:
 
-- Shipped slices покрывают copy/append/compact primitives и LF/CRLF line scanning. ASCII trimming, token extraction, numeric parsing, literal compare helper'ы и более богатые protocol helper'ы остаются в design spec.
+- Shipped slices покрывают copy/append/compact primitives, LF/CRLF line scanning, ASCII helper'ы, trimming, split и token extraction. Numeric parsing, literal compare helper'ы и более богатые protocol helper'ы остаются в design spec.
 
 ---
 

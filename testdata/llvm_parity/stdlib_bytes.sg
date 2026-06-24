@@ -192,6 +192,131 @@ fn main() -> int {
         return 30;
     }
 
+    if !by.is_ascii_ws(32:byte) || !by.is_ascii_ws(9:byte) || by.is_ascii_ws(65:byte) {
+        return 31;
+    }
+    if !by.is_ascii_digit(57:byte) || by.is_ascii_digit(58:byte) {
+        return 32;
+    }
+    if !by.is_ascii_alpha(65:byte) || !by.is_ascii_alpha(122:byte) || by.is_ascii_alpha(48:byte) {
+        return 33;
+    }
+    if !by.is_ascii_alnum(90:byte) || !by.is_ascii_alnum(53:byte) || by.is_ascii_alnum(45:byte) {
+        return 34;
+    }
+    if !by.is_ascii_hex_digit(70:byte) || !by.is_ascii_hex_digit(102:byte) || by.is_ascii_hex_digit(71:byte) {
+        return 35;
+    }
+    if by.ascii_to_lower(65:byte) != 97:byte || by.ascii_to_upper(122:byte) != 90:byte {
+        return 36;
+    }
+    if by.ascii_hex_value(57:byte) != 9 || by.ascii_hex_value(65:byte) != 10 || by.ascii_hex_value(102:byte) != 15 || by.ascii_hex_value(120:byte) != -1 {
+        return 37;
+    }
+
+    let spaced: byte[] = " \tGET key\r\n" to byte[];
+    let trimmed_range: by.ByteRange = by.trim_ascii(&spaced, by.all(&spaced));
+    let trimmed_bytes = compare by.copy_range(&spaced, trimmed_range) {
+        Success(v) => v;
+        _ => {
+            return 38;
+        }
+    };
+    let expected_trimmed: byte[] = "GET key" to byte[];
+    if !check_bytes(&trimmed_bytes, &expected_trimmed) {
+        return 39;
+    }
+    let invalid_trim: by.ByteRange = by.trim_ascii(&spaced, by.range(12:uint, 13:uint));
+    if by.range_len(invalid_trim) != 0:uint {
+        return 40;
+    }
+
+    let split = compare by.split_once_byte(&trimmed_bytes, by.all(&trimmed_bytes), 32:byte) {
+        Some(value) => value;
+        nothing => {
+            return 41;
+        }
+    };
+    let split_head = compare by.copy_range(&trimmed_bytes, split.head) {
+        Success(v) => v;
+        _ => {
+            return 42;
+        }
+    };
+    let split_tail = compare by.copy_range(&trimmed_bytes, split.tail) {
+        Success(v) => v;
+        _ => {
+            return 43;
+        }
+    };
+    let expected_get_head: byte[] = "GET" to byte[];
+    let expected_key_tail: byte[] = "key" to byte[];
+    if !check_bytes(&split_head, &expected_get_head) || !check_bytes(&split_tail, &expected_key_tail) {
+        return 44;
+    }
+    compare by.split_once_byte(&trimmed_bytes, by.range(99:uint, 100:uint), 32:byte) {
+        Some(_) => {
+            return 45;
+        }
+        nothing => {}
+    };
+
+    let tokens: byte[] = "  PING  key\t42 " to byte[];
+    let first_token = compare by.next_ascii_token(&tokens, by.all(&tokens)) {
+        Some(value) => value;
+        nothing => {
+            return 46;
+        }
+    };
+    let first_token_bytes = compare by.copy_range(&tokens, first_token.head) {
+        Success(v) => v;
+        _ => {
+            return 47;
+        }
+    };
+    let expected_token_ping: byte[] = "PING" to byte[];
+    if !check_bytes(&first_token_bytes, &expected_token_ping) {
+        return 48;
+    }
+    let second_token = compare by.next_ascii_token(&tokens, first_token.tail) {
+        Some(value) => value;
+        nothing => {
+            return 49;
+        }
+    };
+    let second_token_bytes = compare by.copy_range(&tokens, second_token.head) {
+        Success(v) => v;
+        _ => {
+            return 50;
+        }
+    };
+    let expected_token_key: byte[] = "key" to byte[];
+    if !check_bytes(&second_token_bytes, &expected_token_key) {
+        return 51;
+    }
+    let third_token = compare by.next_ascii_token(&tokens, second_token.tail) {
+        Some(value) => value;
+        nothing => {
+            return 52;
+        }
+    };
+    let third_token_bytes = compare by.copy_range(&tokens, third_token.head) {
+        Success(v) => v;
+        _ => {
+            return 53;
+        }
+    };
+    let expected_token_42: byte[] = "42" to byte[];
+    if !check_bytes(&third_token_bytes, &expected_token_42) {
+        return 54;
+    }
+    compare by.next_ascii_token(&tokens, third_token.tail) {
+        Some(_) => {
+            return 55;
+        }
+        nothing => {}
+    };
+
     print("stdlib_bytes_ok");
     return 0;
 }

@@ -2,8 +2,9 @@
 
 ## 2026-06-24 - `stdlib/bytes` LF line scanning
 
-Change: `stdlib/bytes` now exposes `find_byte`, `find_lf`, `find_crlf`, and
-`ByteBuffer.peek_line_lf/peek_line_crlf` for protocol input buffers.
+Change: `stdlib/bytes` now exposes `find_byte`, `find_lf`, `find_crlf`,
+`ByteBuffer.peek_line_lf/peek_line_crlf`, ASCII trimming, `split_once_byte`,
+and `next_ascii_token` for protocol input buffers.
 
 Standalone native benchmark:
 
@@ -14,14 +15,23 @@ Standalone native benchmark:
 
 | run | string line us | byte line us | speedup |
 | ---: | ---: | ---: | ---: |
-| 1 | 29891498 | 3900029 | 7.66x |
-| 2 | 29921010 | 3902029 | 7.67x |
-| 3 | 29922786 | 3894605 | 7.68x |
+| 1 | 29832954 | 3789231 | 7.87x |
+| 2 | 29810199 | 3801625 | 7.84x |
+| 3 | 29863476 | 3802133 | 7.85x |
 
-Median speedup: `7.67x`.
+Median line speedup: `7.85x`.
 
-Conclusion: pure Surge byte scanning is already enough for this slice. Do not
-add `rt_byte_find` until token/dispatch benchmarks show a specific gap.
+| run | string token us | byte token us | speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 1914966 | 923478 | 2.07x |
+| 2 | 1912159 | 924952 | 2.07x |
+| 3 | 1927346 | 925550 | 2.08x |
+
+Median token speedup: `2.07x`.
+
+Conclusion: pure Surge byte scanning is enough for line and token helpers. Do
+not add `rt_byte_find` until literal dispatch or parser benchmarks show a
+specific gap.
 
 ## 2026-06-23 - Direct network readiness wait
 
