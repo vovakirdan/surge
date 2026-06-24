@@ -541,9 +541,9 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 		}
 		val := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", val, outPtr)
-		srcType := builtins.Int
+		srcType := builtins.Int64
 		if !info.signed {
-			srcType = builtins.Uint
+			srcType = builtins.Uint64
 		}
 		casted, castTy, err := fe.emitNumericCast(val, "i64", srcType, dstType)
 		if err != nil {
