@@ -48,8 +48,8 @@ bool rt_array_is_view(const void* header) {
     return array_is_view((const SurgeArrayHeader*)header);
 }
 
-static SurgeArrayViewLink* array_find_view(const SurgeArrayHeader* header) {
-    for (SurgeArrayViewLink* link = array_views; link != NULL; link = link->next) {
+static const SurgeArrayViewLink* array_find_view(const SurgeArrayHeader* header) {
+    for (const SurgeArrayViewLink* link = array_views; link != NULL; link = link->next) {
         if (link->view == header) {
             return link;
         }
@@ -59,7 +59,7 @@ static SurgeArrayViewLink* array_find_view(const SurgeArrayHeader* header) {
 
 static SurgeArrayHeader* array_base_for_slice(SurgeArrayHeader* header, uint64_t* base_offset) {
     *base_offset = 0;
-    SurgeArrayViewLink* link = array_find_view(header);
+    const SurgeArrayViewLink* link = array_find_view(header);
     if (link == NULL) {
         return header;
     }
@@ -82,12 +82,31 @@ array_register_view(SurgeArrayHeader* base, SurgeArrayHeader* view, uint64_t byt
     array_views = link;
 }
 
+void rt_array_forget_allocation(const void* ptr) {
+    if (ptr == NULL) {
+        return;
+    }
+    const SurgeArrayHeader* header = (const SurgeArrayHeader*)ptr;
+    SurgeArrayViewLink** cursor = &array_views;
+    while (*cursor != NULL) {
+        SurgeArrayViewLink* link = *cursor;
+        if (link->view == header || link->base == header) {
+            *cursor = link->next;
+            rt_free((uint8_t*)link,
+                    (uint64_t)sizeof(SurgeArrayViewLink),
+                    (uint64_t)alignof(SurgeArrayViewLink));
+            continue;
+        }
+        cursor = &link->next;
+    }
+}
+
 void rt_array_sync_views(void* array_header) {
     SurgeArrayHeader* base = (SurgeArrayHeader*)array_header;
     if (base == NULL) {
         return;
     }
-    for (SurgeArrayViewLink* link = array_views; link != NULL; link = link->next) {
+    for (const SurgeArrayViewLink* link = array_views; link != NULL; link = link->next) {
         if (link->base == base && link->view != NULL) {
             link->view->data = base->data == NULL ? NULL : (uint8_t*)base->data + link->byte_offset;
         }

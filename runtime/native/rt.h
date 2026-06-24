@@ -14,6 +14,7 @@ void rt_free(uint8_t* ptr, uint64_t size, uint64_t align);
 void* rt_realloc(uint8_t* ptr, uint64_t old_size, uint64_t new_size, uint64_t align);
 void rt_memcpy(uint8_t* dst, const uint8_t* src, uint64_t n);
 void rt_memmove(uint8_t* dst, const uint8_t* src, uint64_t n);
+void rt_array_forget_allocation(const void* ptr);
 bool rt_array_is_view(const void* header);
 void* rt_array_slice(void* array_slot, void* r, uint64_t elem_stride);
 void* rt_array_slice_fixed(void* data_slot, void* r, uint64_t length, uint64_t elem_stride);
