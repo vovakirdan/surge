@@ -3,6 +3,7 @@ package llvm
 import (
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -32,6 +33,14 @@ fn main() -> int {
 
 	if !regexp.MustCompile(`call void @rt_byte_array_append_range\(`).MatchString(ir) {
 		t.Fatalf("expected byte range append intrinsic in IR:\n%s", ir)
+	}
+	callRe := regexp.MustCompile(`call void @rt_byte_array_append_range\(ptr [^,]+, ptr (%t\d+),`)
+	matches := callRe.FindStringSubmatch(ir)
+	if len(matches) != 2 {
+		t.Fatalf("expected byte range append source to be a loaded temp:\n%s", ir)
+	}
+	if !strings.Contains(ir, matches[1]+" = load ptr, ptr ") {
+		t.Fatalf("rt_byte_array_append_range source was not loaded as an array handle:\n%s", ir)
 	}
 	if regexp.MustCompile(`call void @rt_byte_array_append_range\([^,]+, ptr %l\d+,`).MatchString(ir) {
 		t.Fatalf("rt_byte_array_append_range received a local slot instead of an array handle:\n%s", ir)

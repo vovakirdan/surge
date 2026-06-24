@@ -72,7 +72,7 @@ copied = rows[-1][1] if rows else 0
 
 with open(report_path, "w", encoding="utf-8") as f:
     f.write("# Native byte range benchmark\n\n")
-    generated = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    generated = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     f.write(f"Generated: {generated}\n\n")
     f.write("## Environment\n\n")
     f.write(f"- surge: {surge_version}\n")

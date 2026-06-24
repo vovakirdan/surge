@@ -75,6 +75,24 @@ fn main() -> int {
         return 10;
     }
 
+    let view_for_buffer: byte[] = source[[1..5]];
+    let mut view_buf = by.buffer_from(view_for_buffer);
+    compare view_buf.consume(1:uint) {
+        Success(_) => {}
+        _ => {
+            return 11;
+        }
+    };
+    view_buf.compact();
+    let expected_cde: byte[] = "cde" to byte[];
+    if !check_bytes(&view_buf.data, &expected_cde) {
+        return 12;
+    }
+    view_buf.clear_keep_capacity();
+    if !view_buf.is_empty() {
+        return 13;
+    }
+
     print("stdlib_bytes_ok");
     return 0;
 }

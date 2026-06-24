@@ -57,7 +57,9 @@ pub fn buffer() -> ByteBuffer {
 }
 
 pub fn buffer_from(data: byte[]) -> ByteBuffer {
-    return { data = data, start = 0:uint };
+    let mut owned: byte[] = [];
+    rt_byte_array_append_range(&mut owned, &data, 0:uint64, data.__len() to uint64);
+    return { data = owned, start = 0:uint };
 }
 
 extern<Array<byte>> {
