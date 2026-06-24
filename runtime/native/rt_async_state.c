@@ -2179,6 +2179,9 @@ static void* rt_worker_main(void* arg) {
                 if (woke_net) {
                     continue;
                 }
+                if (ex->shutdown || worker_next_ready(ex, worker_id, &id)) {
+                    break;
+                }
             }
             // Sleep only after local, inject, and steal queues have been checked under ex->lock.
             trace_exec_inc(&trace_worker_sleep_total);
