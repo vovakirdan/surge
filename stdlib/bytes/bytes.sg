@@ -9,10 +9,19 @@ pub type ByteRange = {
     end: uint,
 };
 
+@copy
+pub type ByteLine = {
+    body: ByteRange,
+    next: uint,
+};
+
 pub type ByteBuffer = {
     data: byte[],
     start: uint,
 };
+
+const BYTE_CR: byte = 13:byte;
+const BYTE_LF: byte = 10:byte;
 
 fn invalid_range_bytes() -> Erring<byte[], Error> {
     return Error { message = "bytes: invalid range", code = BYTES_ERR_INVALID_RANGE };
@@ -39,6 +48,40 @@ pub fn range_len(r: ByteRange) -> uint {
 
 pub fn is_valid_range(data: &byte[], r: ByteRange) -> bool {
     return r.start <= r.end && r.end <= data.__len();
+}
+
+pub fn find_byte(data: &byte[], r: ByteRange, needle: byte) -> Option<uint> {
+    if !is_valid_range(data, r) {
+        return nothing;
+    }
+    let mut i: int = r.start to int;
+    let end: int = r.end to int;
+    while i < end {
+        if data[i] == needle {
+            return Some(i to uint);
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+pub fn find_lf(data: &byte[], r: ByteRange) -> Option<uint> {
+    return find_byte(data, r, BYTE_LF);
+}
+
+pub fn find_crlf(data: &byte[], r: ByteRange) -> Option<uint> {
+    if !is_valid_range(data, r) || range_len(r) < 2:uint {
+        return nothing;
+    }
+    let mut i: int = r.start to int;
+    let last: int = (r.end - 1:uint) to int;
+    while i < last {
+        if data[i] == BYTE_CR && data[i + 1] == BYTE_LF {
+            return Some(i to uint);
+        }
+        i = i + 1;
+    }
+    return nothing;
 }
 
 pub fn copy_range(data: &byte[], r: ByteRange) -> Erring<byte[], Error> {
@@ -93,6 +136,34 @@ extern<ByteBuffer> {
 
     pub fn append_range(self: &mut ByteBuffer, data: &byte[], r: ByteRange) -> Erring<nothing, Error> {
         return self.data.append_bytes_range(data, r);
+    }
+
+    pub fn peek_line_lf(self: &ByteBuffer) -> Option<ByteLine> {
+        let found: Option<uint> = find_lf(self.data, self.range());
+        return compare found {
+            Some(pos) => {
+                let mut end: uint = pos;
+                if pos > self.start && self.data[(pos - 1:uint) to int] == BYTE_CR {
+                    end = pos - 1:uint;
+                }
+                ret Some(ByteLine {
+                    body = { start = self.start, end = end },
+                    next = pos + 1:uint
+                });
+            }
+            nothing => nothing;
+        };
+    }
+
+    pub fn peek_line_crlf(self: &ByteBuffer) -> Option<ByteLine> {
+        let found: Option<uint> = find_crlf(self.data, self.range());
+        return compare found {
+            Some(pos) => Some(ByteLine {
+                body = { start = self.start, end = pos },
+                next = pos + 2:uint
+            });
+            nothing => nothing;
+        };
     }
 
     pub fn consume(self: &mut ByteBuffer, count: uint) -> Erring<nothing, Error> {

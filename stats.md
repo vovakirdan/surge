@@ -1,5 +1,28 @@
 # Runtime Performance Notes
 
+## 2026-06-24 - `stdlib/bytes` LF line scanning
+
+Change: `stdlib/bytes` now exposes `find_byte`, `find_lf`, `find_crlf`, and
+`ByteBuffer.peek_line_lf/peek_line_crlf` for protocol input buffers.
+
+Standalone native benchmark:
+
+- fixture: `benchmarks/native/byte_lines`
+- script: `scripts/bench_native_byte_lines.sh`
+- payload: 256 lines, width 32, 200 rounds
+- comparison: `string.from_bytes + string_find_from` vs `ByteBuffer.peek_line_lf`
+
+| run | string line us | byte line us | speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 29891498 | 3900029 | 7.66x |
+| 2 | 29921010 | 3902029 | 7.67x |
+| 3 | 29922786 | 3894605 | 7.68x |
+
+Median speedup: `7.67x`.
+
+Conclusion: pure Surge byte scanning is already enough for this slice. Do not
+add `rt_byte_find` until token/dispatch benchmarks show a specific gap.
+
 ## 2026-06-23 - Direct network readiness wait
 
 Change: `stdlib/net` no longer awaits a spawned `Task<nothing>` for socket

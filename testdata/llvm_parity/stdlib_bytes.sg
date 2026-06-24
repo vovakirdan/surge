@@ -93,6 +93,105 @@ fn main() -> int {
         return 13;
     }
 
+    let lines: byte[] = "zero\none\r\ntwo" to byte[];
+    compare by.find_lf(&lines, by.all(&lines)) {
+        Some(pos) => {
+            if pos != 4:uint {
+                return 14;
+            }
+        }
+        nothing => {
+            return 15;
+        }
+    };
+    compare by.find_crlf(&lines, by.all(&lines)) {
+        Some(pos) => {
+            if pos != 8:uint {
+                return 16;
+            }
+        }
+        nothing => {
+            return 17;
+        }
+    };
+    compare by.find_lf(&lines, by.range(99:uint, 100:uint)) {
+        Some(_) => {
+            return 18;
+        }
+        nothing => {}
+    };
+
+    let mut line_buf = by.buffer_from("PING" to byte[]);
+    compare line_buf.peek_line_crlf() {
+        Some(_) => {
+            return 19;
+        }
+        nothing => {}
+    };
+    let chunk2: byte[] = "\r\nGET key\n" to byte[];
+    compare line_buf.append_range(&chunk2, by.all(&chunk2)) {
+        Success(_) => {}
+        _ => {
+            return 20;
+        }
+    };
+    let first_line = compare line_buf.peek_line_crlf() {
+        Some(line) => line;
+        nothing => {
+            return 21;
+        }
+    };
+    let first_text = compare by.copy_range(&line_buf.data, first_line.body) {
+        Success(v) => v;
+        _ => {
+            return 22;
+        }
+    };
+    let expected_ping: byte[] = "PING" to byte[];
+    if first_line.next != 6:uint || !check_bytes(&first_text, &expected_ping) {
+        return 23;
+    }
+    compare line_buf.consume(first_line.next - line_buf.range().start) {
+        Success(_) => {}
+        _ => {
+            return 24;
+        }
+    };
+    let second_line = compare line_buf.peek_line_lf() {
+        Some(line) => line;
+        nothing => {
+            return 25;
+        }
+    };
+    let second_text = compare by.copy_range(&line_buf.data, second_line.body) {
+        Success(v) => v;
+        _ => {
+            return 26;
+        }
+    };
+    let expected_get: byte[] = "GET key" to byte[];
+    if second_line.next != 14:uint || !check_bytes(&second_text, &expected_get) {
+        return 27;
+    }
+
+    let crlf_trim = by.buffer_from("abc\r\n" to byte[]);
+    let trimmed = compare crlf_trim.peek_line_lf() {
+        Some(line) => line;
+        nothing => {
+            return 28;
+        }
+    };
+    let trimmed_text = compare by.copy_range(&crlf_trim.data, trimmed.body) {
+        Success(v) => v;
+        _ => {
+            return 29;
+        }
+    };
+    let expected_abc: byte[] = "abc" to byte[];
+    if trimmed.next != 5:uint || !check_bytes(&trimmed_text, &expected_abc) {
+        return 30;
+    }
+
     print("stdlib_bytes_ok");
     return 0;
 }

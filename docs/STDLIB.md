@@ -871,23 +871,30 @@ Public API:
 
 - `BYTES_ERR_INVALID_RANGE`
 - `type ByteRange`
+- `type ByteLine`
 - `type ByteBuffer`
 - `range(start: uint, end: uint) -> ByteRange`
 - `all(data: &byte[]) -> ByteRange`
 - `range_len(range: ByteRange) -> uint`
 - `is_valid_range(data: &byte[], range: ByteRange) -> bool`
+- `find_byte(data: &byte[], range: ByteRange, needle: byte) -> Option<uint>`
+- `find_lf(data: &byte[], range: ByteRange) -> Option<uint>`
+- `find_crlf(data: &byte[], range: ByteRange) -> Option<uint>`
 - `copy_range(data: &byte[], range: ByteRange) -> Erring<byte[], Error>`
 - `buffer() -> ByteBuffer`
 - `buffer_from(data: byte[]) -> ByteBuffer`
 - `Array<byte>.append_bytes_range(data: &byte[], range: ByteRange) -> Erring<nothing, Error>`
 - `Array<byte>.clear_keep_capacity() -> nothing`
 - `ByteBuffer.len()`, `is_empty()`, `range()`
+- `ByteBuffer.peek_line_lf()`, `peek_line_crlf()`
 - `ByteBuffer.append_range(...)`, `consume(...)`, `compact()`
 - `ByteBuffer.clear_keep_capacity()`, `clear()`
 
 Behavior:
 
 - `ByteRange` is half-open: `[start, end)`.
+- `ByteLine.body` points at line bytes without the terminator; `ByteLine.next` is the absolute offset after the terminator.
+- Search helpers return absolute byte offsets and `nothing` for invalid ranges or missing delimiters.
 - Invalid ranges return `BYTES_ERR_INVALID_RANGE`; malformed input should not panic.
 - `copy_range`, `append_bytes_range`, and `compact` use runtime-backed byte-array intrinsics on both VM and LLVM/native. They avoid per-byte Surge loops for the common byte-buffer hot path.
 - `clear_keep_capacity` drops array contents without releasing capacity.
@@ -928,9 +935,20 @@ fn consume_prefix(input: byte[]) -> Erring<by.ByteBuffer, Error> {
 }
 ```
 
+Example: peek a line without converting the input buffer to `string`
+
+```sg
+import stdlib/bytes as by;
+
+fn next_line(input: byte[]) -> Option<by.ByteLine> {
+    let buf: by.ByteBuffer = by.buffer_from(input);
+    return buf.peek_line_lf();
+}
+```
+
 Reality note:
 
-- This is the first shipped slice of `stdlib/bytes`, focused on copy/append/compact primitives. Search, ASCII parsing, line scanning, and richer protocol helpers remain planned in the design spec.
+- The shipped slices cover copy/append/compact primitives and LF/CRLF line scanning. ASCII trimming, token extraction, numeric parsing, literal compare helpers, and richer protocol helpers remain planned in the design spec.
 
 ---
 

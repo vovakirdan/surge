@@ -871,23 +871,30 @@ import stdlib/bytes as by;
 
 - `BYTES_ERR_INVALID_RANGE`
 - `type ByteRange`
+- `type ByteLine`
 - `type ByteBuffer`
 - `range(start: uint, end: uint) -> ByteRange`
 - `all(data: &byte[]) -> ByteRange`
 - `range_len(range: ByteRange) -> uint`
 - `is_valid_range(data: &byte[], range: ByteRange) -> bool`
+- `find_byte(data: &byte[], range: ByteRange, needle: byte) -> Option<uint>`
+- `find_lf(data: &byte[], range: ByteRange) -> Option<uint>`
+- `find_crlf(data: &byte[], range: ByteRange) -> Option<uint>`
 - `copy_range(data: &byte[], range: ByteRange) -> Erring<byte[], Error>`
 - `buffer() -> ByteBuffer`
 - `buffer_from(data: byte[]) -> ByteBuffer`
 - `Array<byte>.append_bytes_range(data: &byte[], range: ByteRange) -> Erring<nothing, Error>`
 - `Array<byte>.clear_keep_capacity() -> nothing`
 - `ByteBuffer.len()`, `is_empty()`, `range()`
+- `ByteBuffer.peek_line_lf()`, `peek_line_crlf()`
 - `ByteBuffer.append_range(...)`, `consume(...)`, `compact()`
 - `ByteBuffer.clear_keep_capacity()`, `clear()`
 
 Поведение:
 
 - `ByteRange` полуоткрытый: `[start, end)`.
+- `ByteLine.body` указывает на байты строки без терминатора; `ByteLine.next` — абсолютный offset после терминатора.
+- Search helper'ы возвращают абсолютные byte offsets и `nothing` для невалидных диапазонов или отсутствующих delimiter'ов.
 - Невалидные диапазоны возвращают `BYTES_ERR_INVALID_RANGE`; обычный malformed input не должен приводить к panic.
 - `copy_range`, `append_bytes_range` и `compact` используют runtime-backed byte-array intrinsics в VM и LLVM/native. Для типичного hot path с byte buffer они не идут через per-byte Surge loops.
 - `clear_keep_capacity` очищает содержимое массива, сохраняя capacity.
@@ -928,9 +935,20 @@ fn consume_prefix(input: byte[]) -> Erring<by.ByteBuffer, Error> {
 }
 ```
 
+Пример: peek line без преобразования input buffer в `string`
+
+```sg
+import stdlib/bytes as by;
+
+fn next_line(input: byte[]) -> Option<by.ByteLine> {
+    let buf: by.ByteBuffer = by.buffer_from(input);
+    return buf.peek_line_lf();
+}
+```
+
 Замечание про реальность:
 
-- Это первый shipped slice `stdlib/bytes`, сфокусированный на copy/append/compact primitives. Search, ASCII parsing, line scanning и более богатые protocol helper'ы остаются в design spec.
+- Shipped slices покрывают copy/append/compact primitives и LF/CRLF line scanning. ASCII trimming, token extraction, numeric parsing, literal compare helper'ы и более богатые protocol helper'ы остаются в design spec.
 
 ---
 

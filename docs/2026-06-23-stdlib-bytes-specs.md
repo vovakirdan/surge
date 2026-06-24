@@ -1,7 +1,7 @@
 # `stdlib/bytes` Design Spec
 
-> Status: roadmap design; the first range/compact slice is shipped in this
-> branch.
+> Status: roadmap design; range/compact and LF/CRLF line scanning slices are
+> shipped.
 > Date: 2026-06-23.
 > Scope: standard-library byte helpers for protocol and binary hot paths.
 
@@ -155,7 +155,9 @@ The return value is an absolute byte offset in `data`. `find_crlf` returns the
 offset of `\r`.
 
 `find_byte` is the first search helper that should get runtime support if pure
-Surge loops are too slow.
+Surge loops are too slow. The first native line benchmark did not justify that
+intrinsic: `ByteBuffer.peek_line_lf` was about `7.67x` faster than the string
+conversion path without `rt_byte_find`.
 
 ## Range Helpers
 
@@ -280,6 +282,13 @@ Shipped in the first runtime-backed slice:
 - `rt_byte_array_append_range(dst: &mut byte[], src: &byte[], start: uint, len: uint)`.
 - `rt_byte_array_drop_prefix(buf: &mut byte[], count: uint)`.
 
+Shipped in the line-scanning slice:
+
+- `ByteLine`.
+- `find_byte`, `find_lf`, and `find_crlf`.
+- `ByteBuffer.peek_line_lf` and `ByteBuffer.peek_line_crlf`.
+- `benchmarks/native/byte_lines` plus `scripts/bench_native_byte_lines.sh`.
+
 Still optional:
 
 - `rt_byte_find(buf: &byte[], start: uint, end: uint, needle: byte)`.
@@ -362,12 +371,14 @@ The first shipped slice covers:
 - `ByteBuffer.clear_keep_capacity`
 - VM and LLVM/native parity for valid ranges, invalid ranges, source array
   views, and buffer compaction.
+- `find_byte`, `find_lf`, `find_crlf`
+- `ByteBuffer.peek_line_lf`, `ByteBuffer.peek_line_crlf`
+- LF and CRLF line endings
+- Lines split across chunks
 
 The implementation PR should add focused tests for:
 
 - Empty ranges and invalid ranges.
-- LF and CRLF line endings.
-- Lines split across chunks.
 - ASCII whitespace trimming.
 - Case-sensitive and case-insensitive literal compare.
 - Integer parsing, including overflow.
