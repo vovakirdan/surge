@@ -699,7 +699,6 @@ static uint32_t rt_default_blocking_count(uint32_t workers) {
 static void rt_start_workers(rt_executor* ex);
 static void* rt_worker_main(void* arg);
 static void* rt_io_main(void* arg);
-static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome);
 static int runnable_is_empty(const rt_executor* ex);
 static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_id);
 static void maybe_start_compensation_worker_locked(rt_executor* ex);
@@ -1452,6 +1451,24 @@ void ready_push(rt_executor* ex, uint64_t id) {
     (void)ready_push_inner(ex, id, 0);
 }
 
+int ready_take_current_local_tail(rt_executor* ex, uint64_t id) {
+    // Caller holds ex->lock. This is intentionally narrow: it only removes the
+    // fresh child task that __task_create just pushed onto the current worker.
+    rt_deque* local = current_local_queue(ex);
+    if (local == NULL || local->len == 0 || local->buf == NULL) {
+        return 0;
+    }
+    size_t idx = local->head + local->len - 1;
+    if (local->buf[idx] != id) {
+        return 0;
+    }
+    local->len--;
+    if (local->len == 0) {
+        local->head = 0;
+    }
+    return 1;
+}
+
 static int ready_push_yielded_task(rt_executor* ex, uint64_t id) {
     // A yielding worker immediately re-enters the scheduler loop, so waking another
     // worker here mostly creates condvar churn for task-to-task handoffs.
@@ -1999,7 +2016,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     }
 }
 
-static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
+void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
     if (ex == NULL || task == NULL) {
         return;
     }
@@ -2139,6 +2156,7 @@ static void* rt_worker_main(void* arg) {
     rt_worker_ctx* ctx = (rt_worker_ctx*)arg;
     rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
     uint32_t worker_id = ctx != NULL ? ctx->worker_id : 0;
+    const int worker_net_poll_slice_ms = 1;
     if (ex == NULL) {
         return NULL;
     }
@@ -2149,6 +2167,22 @@ static void* rt_worker_main(void* arg) {
         rt_lock(ex);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ex, worker_id, &id)) {
+            if (has_net_waiters(ex) && !ex->worker_net_polling) {
+                // Avoid routing every idle-worker socket wake through the I/O thread
+                // and ready_cv. A short worker-side poll keeps single-client TCP
+                // latency low while still letting the dedicated I/O thread cover
+                // longer idle periods.
+                ex->worker_net_polling = 1;
+                int woke_net = poll_net_waiters(ex, worker_net_poll_slice_ms);
+                ex->worker_net_polling = 0;
+                pthread_cond_signal(&ex->io_cv);
+                if (woke_net) {
+                    continue;
+                }
+                if (ex->shutdown || worker_next_ready(ex, worker_id, &id)) {
+                    break;
+                }
+            }
             // Sleep only after local, inject, and steal queues have been checked under ex->lock.
             trace_exec_inc(&trace_worker_sleep_total);
             pthread_cond_wait(&ex->ready_cv, &ex->lock);

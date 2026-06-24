@@ -32,3 +32,47 @@ Reports:
 
 Conclusion: direct readiness wait removes measurable single-client GET overhead,
 but it does not solve the broader `SURGE_THREADS=8` latency gap by itself.
+
+## 2026-06-24 - Worker-side net polling before sleep
+
+Change: multi-worker runtime workers now try a short `poll_net_waiters(1ms)`
+pass before sleeping on `ready_cv`. This avoids routing every idle-worker socket
+wake through the dedicated I/O thread and a condition-variable handoff.
+
+The same change also keeps the narrower inline-await optimization for freshly
+created child tasks that are still at the current worker local queue tail.
+
+Focused downstream benchmark:
+
+- downstream repo: `surgekv`, branch `codex/append-string-response-bytes`
+- topology: `SURGEKV_BENCH_WORKERS=1`, `SURGEKV_BENCH_SHARDS=1`
+- command shape: release build, `SURGEKV_BENCH_OPS="ping get"`,
+  `SURGEKV_BENCH_CLIENTS=1`, `SURGEKV_BENCH_REQUESTS=5000`
+
+| SURGE_THREADS | op | before worker poll avg us | worker poll avg us | delta |
+| ---: | --- | ---: | ---: | ---: |
+| 2 | ping | 225 | 150 | -33.3% |
+| 2 | get | 411 | 281 | -31.6% |
+
+Default downstream topology (`workers=8`, `shards=8`, `SURGE_THREADS=8`) also
+improves the single-client rows:
+
+| op | previous avg us | worker poll avg us | delta |
+| --- | ---: | ---: | ---: |
+| ping | 232-239 | 157 | ~-33% |
+| get | 473-485 | 337 | ~-30% |
+
+Native net fixture, `SURGE_THREADS=8`, remains below the original main baseline
+for direct request/reply, but the short worker poll is not a complete win for
+all synthetic rows:
+
+| mode | original main avg us | inline-only avg us | worker poll avg us |
+| --- | ---: | ---: | ---: |
+| echo seq | 207 | 95 | 101 |
+| direct seq | 193 | 137 | 150 |
+| manager seq | 218 | 201 | 211 |
+
+Conclusion: the remaining `SURGE_THREADS>1` TCP gap is primarily the worker/IO
+handoff model. Worker-side net polling is the first Surge-side change in this
+series that materially improves the live `surgekv` TCP hot path; multi-client
+GET still needs separate downstream/channel-topology work.
