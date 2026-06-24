@@ -20,6 +20,17 @@ fn expect_i8_error(text: string) -> int {
 
 @entrypoint
 fn main() -> int {
+    let u64_ok_text: string = "18446744073709551615";
+    let u64_ok = compare uint64.from_str(&u64_ok_text) {
+        Success(v) => v;
+        _ => {
+            return 11;
+        }
+    };
+    if u64_ok != 18446744073709551615:uint64 {
+        return 12;
+    }
+
     let u8_ok_text: string = "255";
     let u8_ok = compare uint8.from_str(&u8_ok_text) {
         Success(v) => v;
