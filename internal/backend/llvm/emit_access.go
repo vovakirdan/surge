@@ -77,6 +77,17 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if errEmit != nil {
 			return "", "", errEmit
 		}
+		if isRangeType(fe.emitter.types, idx.Index.Type) {
+			rangeVal, _, err := fe.emitOperand(&idx.Index)
+			if err != nil {
+				return "", "", err
+			}
+			tmp, err := fe.emitArrayFixedSlice(objAddr, rangeVal, elemType, length)
+			if err != nil {
+				return "", "", err
+			}
+			return tmp, "ptr", nil
+		}
 		idxVal, idxTy, errEmit = fe.emitValueOperand(&idx.Index)
 		if errEmit != nil {
 			return "", "", errEmit
@@ -144,6 +155,21 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if !ok {
 			return "", "", fmt.Errorf("unsupported index target")
 		}
+		if isRangeType(fe.emitter.types, idx.Index.Type) {
+			rangeVal, _, err := fe.emitOperand(&idx.Index)
+			if err != nil {
+				return "", "", err
+			}
+			handlePtr, err := fe.emitHandleOperandPtr(&idx.Object)
+			if err != nil {
+				return "", "", err
+			}
+			tmp, err := fe.emitArraySlice(handlePtr, rangeVal, elemType)
+			if err != nil {
+				return "", "", err
+			}
+			return tmp, "ptr", nil
+		}
 		idxVal, idxTy, err := fe.emitValueOperand(&idx.Index)
 		if err != nil {
 			return "", "", err
@@ -162,6 +188,41 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 	default:
 		return "", "", fmt.Errorf("unsupported index target")
 	}
+}
+
+func (fe *funcEmitter) arrayElemStride(elemType types.TypeID) (int, error) {
+	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	if err != nil {
+		return 0, err
+	}
+	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	if err != nil {
+		return 0, err
+	}
+	if elemAlign <= 0 {
+		elemAlign = 1
+	}
+	return roundUpInt(elemSize, elemAlign), nil
+}
+
+func (fe *funcEmitter) emitArraySlice(handlePtr, rangeVal string, elemType types.TypeID) (string, error) {
+	stride, err := fe.arrayElemStride(elemType)
+	if err != nil {
+		return "", err
+	}
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_array_slice(ptr %s, ptr %s, i64 %d)\n", tmp, handlePtr, rangeVal, stride)
+	return tmp, nil
+}
+
+func (fe *funcEmitter) emitArrayFixedSlice(handlePtr, rangeVal string, elemType types.TypeID, length uint32) (string, error) {
+	stride, err := fe.arrayElemStride(elemType)
+	if err != nil {
+		return "", err
+	}
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_array_slice_fixed(ptr %s, ptr %s, i64 %d, i64 %d)\n", tmp, handlePtr, rangeVal, length, stride)
+	return tmp, nil
 }
 
 func (fe *funcEmitter) emitHandleAddr(val string) string {

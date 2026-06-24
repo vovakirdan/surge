@@ -76,6 +76,7 @@ void* rt_alloc(uint64_t size, uint64_t align) {
 void rt_free(uint8_t* ptr, uint64_t size, uint64_t align) {
     (void)align;
     if (ptr != NULL) {
+        rt_array_forget_allocation(ptr);
         record_free(size);
     }
     free(ptr);
