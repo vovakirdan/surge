@@ -294,6 +294,26 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
+		indexType := operandValueType(fe.emitter.types, &call.Args[1])
+		if isRangeType(fe.emitter.types, indexType) {
+			rangeVal, _, rangeErr := fe.emitOperand(&call.Args[1])
+			if rangeErr != nil {
+				return rangeErr
+			}
+			tmp, sliceErr := fe.emitArrayFixedSlice(arrArg, rangeVal, fixedElemType, fixedLen)
+			if sliceErr != nil {
+				return sliceErr
+			}
+			ptr, dstTy, placeErr := fe.emitPlacePtr(call.Dst)
+			if placeErr != nil {
+				return placeErr
+			}
+			if dstTy != "ptr" {
+				dstTy = "ptr"
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+			return nil
+		}
 		idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
 		if err != nil {
 			return err

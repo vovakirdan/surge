@@ -33,6 +33,16 @@ fn main() -> int {
         return 5;
     }
 
+    let mut fixed: int[4] = [5, 6, 7, 8];
+    let mut fixed_sub: int[] = fixed[[1..3]];
+    if fixed_sub.__len() != 2:uint || sum(&fixed_sub) != 13 {
+        return 6;
+    }
+    fixed_sub[0] = 66;
+    if fixed[1] != 66 {
+        return 7;
+    }
+
     print(sum(&sub) to string);
     return 0;
 }

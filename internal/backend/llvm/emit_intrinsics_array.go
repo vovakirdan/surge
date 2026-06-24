@@ -108,9 +108,9 @@ func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) string {
 	return result
 }
 
-func (fe *funcEmitter) emitArrayViewResizeGuard(capVal string) error {
+func (fe *funcEmitter) emitArrayViewResizeGuard(head string) error {
 	isView := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, -1\n", isView, capVal)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_array_is_view(ptr %s)\n", isView, head)
 	fail := fe.nextInlineBlock()
 	cont := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isView, fail, cont)
@@ -219,7 +219,7 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, head, arrayCapOffset)
 	curCap := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", curCap, capPtr)
-	if err := fe.emitArrayViewResizeGuard(curCap); err != nil {
+	if err := fe.emitArrayViewResizeGuard(head); err != nil {
 		return err
 	}
 
@@ -247,6 +247,7 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	newData := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_realloc(ptr %s, i64 %s, i64 %s, i64 %d)\n", newData, dataPtr, oldSize, newSize, elemAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", newData, dataPtrPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_array_sync_views(ptr %s)\n", head)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", grown, capPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", done)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", done)
@@ -300,7 +301,7 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, head, arrayCapOffset)
 	curCap := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", curCap, capPtr)
-	if err := fe.emitArrayViewResizeGuard(curCap); err != nil {
+	if err := fe.emitArrayViewResizeGuard(head); err != nil {
 		return err
 	}
 
@@ -324,6 +325,7 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	newData := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_realloc(ptr %s, i64 %s, i64 %s, i64 %d)\n", newData, dataPtr, oldSize, newSize, elemAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", newData, dataPtrPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_array_sync_views(ptr %s)\n", head)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", grown, capPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", cont)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
@@ -369,7 +371,7 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, head, arrayCapOffset)
 	curCap := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", curCap, capPtr)
-	if err := fe.emitArrayViewResizeGuard(curCap); err != nil {
+	if err := fe.emitArrayViewResizeGuard(head); err != nil {
 		return err
 	}
 

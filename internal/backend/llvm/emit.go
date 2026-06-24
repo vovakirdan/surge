@@ -95,6 +95,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("float overflow")
 	e.ensureStringConst("cannot convert negative int to uint")
 	e.ensureStringConst("array capacity out of range")
+	e.ensureStringConst("array view is not resizable")
 	e.ensureStringConst("exit code out of range")
 	e.ensureStringConst("bytes view length out of range")
 	e.ensureStringConst("string repeat count out of range")
