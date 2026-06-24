@@ -1,0 +1,38 @@
+fn sum(data: &int[]) -> int {
+    let n: int = data.__len() to int;
+    let mut out: int = 0;
+    for i: int in 0..n {
+        out = out + data[i];
+    }
+    return out;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut data: int[] = [1, 2, 3, 4];
+    let mut sub: int[] = data[[1..3]];
+    if sub.__len() != 2:uint {
+        return 1;
+    }
+    if sum(&sub) != 5 {
+        return 2;
+    }
+
+    sub[0] = 77;
+    if data[1] != 77 {
+        return 3;
+    }
+
+    let tail: int[] = data[[-2..]];
+    if tail.__len() != 2:uint || tail[0] != 3 || tail[1] != 4 {
+        return 4;
+    }
+
+    let empty: int[] = data[[3..1]];
+    if empty.__len() != 0:uint {
+        return 5;
+    }
+
+    print(sum(&sub) to string);
+    return 0;
+}

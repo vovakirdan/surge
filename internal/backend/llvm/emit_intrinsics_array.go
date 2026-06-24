@@ -108,6 +108,20 @@ func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) string {
 	return result
 }
 
+func (fe *funcEmitter) emitArrayViewResizeGuard(capVal string) error {
+	isView := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, -1\n", isView, capVal)
+	fail := fe.nextInlineBlock()
+	cont := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isView, fail, cont)
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+	if err := fe.emitPanicNumeric("array view is not resizable"); err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+	return nil
+}
+
 func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	if call == nil {
 		return nil
@@ -205,6 +219,9 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, head, arrayCapOffset)
 	curCap := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", curCap, capPtr)
+	if err := fe.emitArrayViewResizeGuard(curCap); err != nil {
+		return err
+	}
 
 	noGrow := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sle i64 %s, %s\n", noGrow, newCap, curCap)
@@ -283,6 +300,9 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, head, arrayCapOffset)
 	curCap := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", curCap, capPtr)
+	if err := fe.emitArrayViewResizeGuard(curCap); err != nil {
+		return err
+	}
 
 	needGrow := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, %s\n", needGrow, lenVal, curCap)
@@ -345,6 +365,13 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, head, arrayLenOffset)
 	lenVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", lenVal, lenPtr)
+	capPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, head, arrayCapOffset)
+	curCap := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", curCap, capPtr)
+	if err := fe.emitArrayViewResizeGuard(curCap); err != nil {
+		return err
+	}
 
 	isEmpty := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, 0\n", isEmpty, lenVal)

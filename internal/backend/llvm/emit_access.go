@@ -144,6 +144,21 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if !ok {
 			return "", "", fmt.Errorf("unsupported index target")
 		}
+		if isRangeType(fe.emitter.types, idx.Index.Type) {
+			rangeVal, _, err := fe.emitOperand(&idx.Index)
+			if err != nil {
+				return "", "", err
+			}
+			handlePtr, err := fe.emitHandleOperandPtr(&idx.Object)
+			if err != nil {
+				return "", "", err
+			}
+			tmp, err := fe.emitArraySlice(handlePtr, rangeVal, elemType)
+			if err != nil {
+				return "", "", err
+			}
+			return tmp, "ptr", nil
+		}
 		idxVal, idxTy, err := fe.emitValueOperand(&idx.Index)
 		if err != nil {
 			return "", "", err
@@ -162,6 +177,24 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 	default:
 		return "", "", fmt.Errorf("unsupported index target")
 	}
+}
+
+func (fe *funcEmitter) emitArraySlice(handlePtr, rangeVal string, elemType types.TypeID) (string, error) {
+	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	if err != nil {
+		return "", err
+	}
+	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	if err != nil {
+		return "", err
+	}
+	if elemAlign <= 0 {
+		elemAlign = 1
+	}
+	stride := roundUpInt(elemSize, elemAlign)
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_array_slice(ptr %s, ptr %s, i64 %d)\n", tmp, handlePtr, rangeVal, stride)
+	return tmp, nil
 }
 
 func (fe *funcEmitter) emitHandleAddr(val string) string {
