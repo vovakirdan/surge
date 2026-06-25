@@ -4,7 +4,6 @@ set -eu
 repo="${SURGE_REPO:-vovakirdan/surge}"
 version="${SURGE_VERSION:-latest}"
 install_dir="${SURGE_INSTALL_DIR:-$HOME/.surge}"
-asset="surge-linux-x86_64.tar.gz"
 
 say() {
 	printf '%s\n' "$*"
@@ -21,27 +20,32 @@ download() {
 	url="$1"
 	out="$2"
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL "$url" -o "$out"
+		curl -fL --retry 5 --retry-delay 2 --retry-connrefused \
+			--connect-timeout 20 --speed-limit 1024 --speed-time 180 \
+			"$url" -o "$out"
 	elif command -v wget >/dev/null 2>&1; then
-		wget -qO "$out" "$url"
+		wget -O "$out" "$url"
 	else
 		say "error: curl or wget is required" >&2
 		exit 1
 	fi
 }
 
-case "$(uname -s)" in
-	Linux) ;;
-	*)
-		say "error: Surge release installer currently supports Linux x86_64 only" >&2
-		exit 1
+os="$(uname -s)"
+arch="$(uname -m)"
+case "$os:$arch" in
+	Linux:x86_64|Linux:amd64)
+		asset="surge-linux-x86_64.tar.gz"
 		;;
-esac
-
-case "$(uname -m)" in
-	x86_64|amd64) ;;
+	Darwin:x86_64|Darwin:amd64)
+		asset="surge-darwin-x86_64.tar.gz"
+		;;
+	Darwin:arm64|Darwin:aarch64)
+		asset="surge-darwin-arm64.tar.gz"
+		;;
 	*)
-		say "error: Surge release installer currently supports Linux x86_64 only" >&2
+		say "error: unsupported platform: $os $arch" >&2
+		say "supported release installers: Linux x86_64, macOS x86_64, macOS arm64" >&2
 		exit 1
 		;;
 esac

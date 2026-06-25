@@ -38,7 +38,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Generate release changelog
+      - name: Update CHANGELOG.md
+        run: |
+          set -euo pipefail
+          version="${{ inputs.version }}"
+          previous_tag="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+          if [[ -n "$previous_tag" ]]; then
+            range="$previous_tag..HEAD"
+          else
+            range="HEAD"
+          fi
+          ./scripts/update_changelog.sh "$version" "$range"
+          if ! git diff --quiet -- CHANGELOG.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "docs(changelog): update for v${version#v}"
+            git push origin HEAD:main
+          fi
+      - name: Generate release notes
         id: git-cliff
         uses: orhun/git-cliff-action@v4.6.0
         with:
@@ -51,28 +69,37 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Build surge (linux/x86_64)
+      - name: Build and package release assets
         run: |
           set -euo pipefail
           LDFLAGS=$(./scripts/ldflags.sh --base-version "${{ inputs.version }}")
           mkdir -p build
-          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o build/surge ./cmd/surge
-      - name: Package surge (linux/x86_64)
-        run: |
-          set -euo pipefail
-          asset="surge-linux-x86_64.tar.gz"
-          pkg="build/package"
-          rm -rf "$pkg"
-          mkdir -p "$pkg/bin" "$pkg/share/surge"
-          cp build/surge "$pkg/bin/surge"
-          cp -R core "$pkg/share/surge/core"
-          cp -R stdlib "$pkg/share/surge/stdlib"
-          cp README.md README.ru.md CHANGELOG.md "$pkg/"
-          tar -C "$pkg" -czf "build/$asset" .
-          (cd build && sha256sum "$asset" > SHA256SUMS)
+          for target in \
+            linux/amd64/surge-linux-x86_64 \
+            darwin/amd64/surge-darwin-x86_64 \
+            darwin/arm64/surge-darwin-arm64
+          do
+            goos="${target%%/*}"
+            rest="${target#*/}"
+            goarch="${rest%%/*}"
+            name="${rest#*/}"
+            asset="$name.tar.gz"
+            pkg="build/package-$goos-$goarch"
+
+            mkdir -p "build/$name"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -ldflags "$LDFLAGS" -o "build/$name/surge" ./cmd/surge
+            rm -rf "$pkg"
+            mkdir -p "$pkg/bin" "$pkg/share/surge"
+            cp "build/$name/surge" "$pkg/bin/surge"
+            cp -R core "$pkg/share/surge/core"
+            cp -R stdlib "$pkg/share/surge/stdlib"
+            cp README.md README.ru.md CHANGELOG.md "$pkg/"
+            tar -C "$pkg" -czf "build/$asset" .
+          done
+          (cd build && sha256sum surge-*.tar.gz > SHA256SUMS)
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="v${{ inputs.version }}"
-          gh release create "$tag" build/surge-linux-x86_64.tar.gz build/SHA256SUMS --title "surge ${{ inputs.version }}" --notes-file "${{ steps.git-cliff.outputs.changelog }}"
+          gh release create "$tag" build/surge-*.tar.gz build/SHA256SUMS --title "surge ${{ inputs.version }}" --notes-file "${{ steps.git-cliff.outputs.changelog }}"

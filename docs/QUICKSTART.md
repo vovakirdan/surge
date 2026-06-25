@@ -24,10 +24,10 @@ Also the tree-sitter syntax highlighting available: https://github.com/vovakirda
 
 ## 0. Install Surge
 
-On Linux x86_64:
+On Linux x86_64, or experimental macOS x86_64/arm64:
 
 ```bash
-curl -fsSL https://surge-lang.org/install.sh | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://surge-lang.org/install.sh | sh
 export PATH="$HOME/.surge/bin:$PATH"
 surge doctor
 ```
@@ -36,6 +36,7 @@ The release installer includes the compiler, `core`, and `stdlib`.
 `surge doctor` checks the installed stdlib and native/LLVM backend tools.
 To update Surge, run the same installer command again.
 The native/LLVM backend still needs system `clang`, `llvm`, and `lld`.
+On macOS, LLVM/native builds are experimental.
 
 ---
 

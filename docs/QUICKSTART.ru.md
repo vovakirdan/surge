@@ -23,10 +23,10 @@ code --install-extension VladimirKirdan.surge-syntax-highlighting
 
 ## 0. Установка Surge
 
-На Linux x86_64:
+На Linux x86_64 или экспериментально на macOS x86_64/arm64:
 
 ```bash
-curl -fsSL https://surge-lang.org/install.sh | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://surge-lang.org/install.sh | sh
 export PATH="$HOME/.surge/bin:$PATH"
 surge doctor
 ```
@@ -35,6 +35,7 @@ surge doctor
 `surge doctor` проверяет установленную stdlib и инструменты native/LLVM backend.
 Чтобы обновить Surge, запустите ту же команду ещё раз.
 Для native/LLVM backend по-прежнему нужны системные `clang`, `llvm` и `lld`.
+На macOS LLVM/native сборки экспериментальны.
 
 ---
 

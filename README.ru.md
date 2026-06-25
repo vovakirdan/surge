@@ -24,7 +24,7 @@
 > Surge сейчас находится в стадии *developers-only*.
 > Будьте готовы к тому, что:
 >
-> * установщик намеренно маленький и поддерживает только Linux x86_64,
+> * установщик намеренно маленький и поддерживает Linux x86_64, а также экспериментальные macOS x86_64/arm64,
 > * `hello world` может не заработать с первого раза,
 > * нужной вам функции может ещё не быть.
 >
@@ -38,8 +38,9 @@
 
 > Если вы скачали готовый релиз со страницы релизов, Go вам **не нужен**.
 
-Surge официально тестировался **только на Linux x86_64**.
-На Apple Silicon (ARM64) есть известные проблемы с ABI (layout) LLVM.
+Установка релиза Surge поддерживается на **Linux x86_64** и экспериментально на **macOS x86_64/arm64**.
+Native/LLVM backend всё ещё в первую очередь тестируется на Linux x86_64.
+На Apple Silicon (ARM64) есть известные проблемы с ABI (layout) в LLVM-сборках.
 Запуск на других Unix-системах возможен, но не гарантирован.
 Работа на Windows не поддерживается. Но вы можете попробовать WSL2 для запуска Surge на Windows. Мы так и делаем.
 
@@ -57,7 +58,7 @@ Surge официально тестировался **только на Linux x8
 1. Установите Surge:
 
    ```bash
-   curl -fsSL https://surge-lang.org/install.sh | sh
+   curl --proto '=https' --tlsv1.2 -fsSL https://surge-lang.org/install.sh | sh
    export PATH="$HOME/.surge/bin:$PATH"
    surge doctor
    ```
@@ -70,7 +71,7 @@ Surge официально тестировался **только на Linux x8
    Чтобы установить конкретный релиз:
 
    ```bash
-   curl -fsSL https://surge-lang.org/install.sh | SURGE_VERSION=0.1.0 sh
+   curl --proto '=https' --tlsv1.2 -fsSL https://surge-lang.org/install.sh | SURGE_VERSION=0.1.0 sh
    ```
 
 2. Или соберите Surge из исходников:
