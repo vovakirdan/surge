@@ -358,6 +358,20 @@ same class as `limit=8`. `limit=32` does not clearly improve 32-client tail
 latency and regresses pipelined rows in this run, so it is not a better default
 candidate.
 
+Three repeated probes of `limit=8` and `limit=16` confirmed `16` as the better
+default candidate:
+
+| limit | op | clients | avg rps | avg p95 us | avg p99 us |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 8 | ping | 32 | 17667 | 6302 | 8043 |
+| 16 | ping | 32 | 18619 | 5906 | 7621 |
+| 8 | get | 32 | 15970 | 6695 | 8540 |
+| 16 | get | 32 | 17199 | 6234 | 7948 |
+
+Single-client latency stayed in the same class, and `get_pipe 32` stayed flat.
+`ping_pipe 32` was lower at `16` in this sample, but it remained in the same
+sub-millisecond latency class and is not the current bottleneck.
+
 ## Next runtime hypothesis
 
 The next fix should refine batching without letting the I/O thread become a
@@ -369,8 +383,6 @@ Candidate designs:
 
 - Tune the drain boundary with the smallest surface: drain only inject tasks,
   keep the limit fixed and low, and do not steal from worker local queues.
-- Confirm `limit=16` with repeated probes before changing the committed default
-  from `8`.
 - If the fixed limit is fragile, add one internal constant or env knob for
   runtime benchmarking only; do not expose public API yet.
 - Keep channel-local waiter queues separate; the current tiny TCP collapse still
@@ -393,15 +405,16 @@ draining after net readiness:
 - runtime-wide net poll ownership;
 - reusable poll buffers;
 - one-pass net waiter completion.
-- drain up to 8 ready inject tasks after an I/O-thread net poll wakes waiters.
+- drain up to 16 ready inject tasks after an I/O-thread net poll wakes waiters.
 
 The larger failed experiments were reverted from code and kept only as notes in
-this document. The latest probe for the current branch:
+this document. The repeated probe average for the current branch:
 
-- `SURGE_THREADS=8 ping 32 = 17801 rps`, p95 `6163 us`, p99 `7719 us`;
-- `SURGE_THREADS=8 get 32 = 16448 rps`, p95 `6793 us`, p99 `8597 us`;
-- `io_poll_allocs=4`, `io_poll_calls=17850`,
-  `io_poll_wake_fd=9347`, `io_waiter_scan_entries=146950`.
+- `SURGE_THREADS=8 ping 32 = 18619 rps`, p95 `5906 us`, p99 `7621 us`;
+- `SURGE_THREADS=8 get 32 = 17199 rps`, p95 `6234 us`, p99 `7948 us`;
+- trace counters stayed in the same class: about `io_poll_allocs=6`,
+  `io_poll_calls=16876`, `io_poll_wake_fd=8740`, and
+  `io_waiter_scan_entries=131701`.
 
 ## Success criteria
 

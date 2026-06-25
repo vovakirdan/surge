@@ -2319,7 +2319,7 @@ static void* rt_io_main(void* arg) {
         return NULL;
     }
     const int poll_slice_ms = 50;
-    const int net_ready_drain_limit = 8;
+    const int net_ready_drain_limit = 16;
     rt_lock(ex);
     for (;;) {
         if (atomic_load_explicit(&trace_dump_requested_flag, memory_order_relaxed) != 0) {
