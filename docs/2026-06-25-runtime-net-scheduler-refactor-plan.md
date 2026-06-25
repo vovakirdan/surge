@@ -296,22 +296,37 @@ The bad surgekv 8-thread run moved `io_poll_allocs` from `41992` to `2`, yet
   full Redis/Valkey gap, but it is not the first scheduling bottleneck shown by
   this probe.
 
+## Confirmed finding
+
+Bounded I/O-thread draining after net readiness moves the bad rows materially.
+After `poll_net_waiters()` wakes tasks, the I/O thread drains up to 8 ready
+continuations from the inject queue without waiting on the generic scheduler.
+
+Latest probe:
+
+- `SURGE_THREADS=8 ping 32 = 17801 rps`, p95 `6163 us`, p99 `7719 us`;
+- `SURGE_THREADS=8 get 32 = 16448 rps`, p95 `6793 us`, p99 `8597 us`;
+- `io_poll_calls=17850`, `io_poll_wake_fd=9347`,
+  `io_waiter_scan_entries=146950`.
+
+This is still short of the success target, but it is the first patch that moves
+throughput and tail latency together.
+
 ## Next runtime hypothesis
 
-The next fix should target how often the runtime bounces through the generic
-scheduler after socket readiness. Allocation cleanup, wake coalescing, net-only
-registry, queue priority, and simple worker affinity all failed to move
-throughput. Worker-only polling also showed that merely moving work from inject
-to local queues makes idle/wake churn worse.
+The next fix should refine batching without letting the I/O thread become a
+second full worker. Allocation cleanup, wake coalescing, net-only registry,
+queue priority, simple worker affinity, and worker-only polling failed; bounded
+post-poll draining succeeded.
 
 Candidate designs:
 
-- Test a narrow network model where the poll owner drains multiple ready socket
-  tasks per poll cycle before yielding back to the generic scheduler.
-- Prefer batching at the net wait/completion boundary over changing generic
-  queue priority again; priority and affinity alone already failed.
-- Alternatively, split the net path so readiness and task continuation stay on
-  one runtime lane instead of waking a generic task for every socket wait.
+- Tune the drain boundary with the smallest surface: drain only inject tasks,
+  keep the limit fixed and low, and do not steal from worker local queues.
+- Measure whether a smaller or larger fixed limit improves 1-client rows without
+  losing the 32-client win.
+- If the fixed limit is fragile, add one internal constant or env knob for
+  runtime benchmarking only; do not expose public API yet.
 - Keep channel-local waiter queues separate; the current tiny TCP collapse still
   reproduces without the surgekv manager hop.
 
@@ -325,21 +340,22 @@ Expected shape:
 
 ## Current branch status
 
-The current code keeps only the small runtime cleanup patch:
+The current code keeps the small runtime cleanup patch plus bounded I/O-thread
+draining after net readiness:
 
 - counted net waiters;
 - runtime-wide net poll ownership;
 - reusable poll buffers;
 - one-pass net waiter completion.
+- drain up to 8 ready inject tasks after an I/O-thread net poll wakes waiters.
 
 The larger failed experiments were reverted from code and kept only as notes in
-this document. The latest probe for the current branch shows the cleanup is not
-the throughput fix:
+this document. The latest probe for the current branch:
 
-- `SURGE_THREADS=8 ping 32 = 9956 rps`, p95 `12897 us`, p99 `14845 us`;
-- `SURGE_THREADS=8 get 32 = 7910 rps`, p95 `15087 us`, p99 `17455 us`;
-- `io_poll_allocs=2`, but `io_poll_calls=25811`,
-  `io_poll_wake_fd=12917`, `io_waiter_scan_entries=323515`.
+- `SURGE_THREADS=8 ping 32 = 17801 rps`, p95 `6163 us`, p99 `7719 us`;
+- `SURGE_THREADS=8 get 32 = 16448 rps`, p95 `6793 us`, p99 `8597 us`;
+- `io_poll_allocs=4`, `io_poll_calls=17850`,
+  `io_poll_wake_fd=9347`, `io_waiter_scan_entries=146950`.
 
 ## Success criteria
 

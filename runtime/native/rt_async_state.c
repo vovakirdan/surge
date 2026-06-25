@@ -2267,12 +2267,59 @@ static void* rt_worker_main(void* arg) {
     return NULL;
 }
 
+static int run_ready_one_nowait_locked(rt_executor* ex) {
+    if (ex == NULL) {
+        return 0;
+    }
+    uint64_t id = 0;
+    if (!ready_pop(ex, &id)) {
+        return 0;
+    }
+    rt_task* task = get_task(ex, id);
+    if (task == NULL || task_status_load(task) == TASK_DONE) {
+        return 1;
+    }
+    task_status_store(task, TASK_RUNNING);
+    (void)task_wake_token_exchange(task, 0);
+    ex->running_count++;
+    rt_set_current_task(task);
+
+    uint8_t kind = task->kind;
+    if (kind != TASK_KIND_USER) {
+        task_polling_enter(task);
+        poll_outcome outcome = poll_task(ex, task);
+        task_polling_exit(task);
+        ex->running_count--;
+        apply_poll_outcome(ex, task, outcome);
+        rt_set_current_task(NULL);
+        if (ex->running_count == 0 && runnable_is_empty(ex)) {
+            pthread_cond_signal(&ex->io_cv);
+        }
+        return 1;
+    }
+
+    rt_unlock(ex);
+    task_polling_enter(task);
+    poll_outcome outcome = poll_task(ex, task);
+    task_polling_exit(task);
+    rt_lock(ex);
+
+    ex->running_count--;
+    apply_poll_outcome(ex, task, outcome);
+    rt_set_current_task(NULL);
+    if (ex->running_count == 0 && runnable_is_empty(ex)) {
+        pthread_cond_signal(&ex->io_cv);
+    }
+    return 1;
+}
+
 static void* rt_io_main(void* arg) {
     rt_executor* ex = (rt_executor*)arg;
     if (ex == NULL) {
         return NULL;
     }
     const int poll_slice_ms = 50;
+    const int net_ready_drain_limit = 8;
     rt_lock(ex);
     for (;;) {
         if (atomic_load_explicit(&trace_dump_requested_flag, memory_order_relaxed) != 0) {
@@ -2318,6 +2365,11 @@ static void* rt_io_main(void* arg) {
             continue;
         }
         if (poll_net_waiters_owned(ex, timeout_ms)) {
+            for (int i = 0; i < net_ready_drain_limit; i++) {
+                if (!run_ready_one_nowait_locked(ex)) {
+                    break;
+                }
+            }
             continue;
         }
         if (idle && have_timer) {
