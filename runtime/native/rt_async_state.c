@@ -570,6 +570,28 @@ waker_key net_write_key(int fd) {
     return key;
 }
 
+static int waker_is_net(waker_key key) {
+    waker_kind kind = (waker_kind)key.kind;
+    return kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ || kind == WAKER_NET_WRITE;
+}
+
+static void net_waiter_added(rt_executor* ex, waker_key key) {
+    if (ex != NULL && waker_is_net(key)) {
+        ex->net_waiters_len++;
+    }
+}
+
+static void net_waiters_removed(rt_executor* ex, waker_key key, size_t count) {
+    if (ex == NULL || count == 0 || !waker_is_net(key)) {
+        return;
+    }
+    if (count >= ex->net_waiters_len) {
+        ex->net_waiters_len = 0;
+        return;
+    }
+    ex->net_waiters_len -= count;
+}
+
 uint64_t rt_current_task_id(void) {
     if (tls_current_task != NULL) {
         return tls_current_task->id;
@@ -1226,14 +1248,17 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
         return;
     }
     size_t out = 0;
+    size_t removed = 0;
     for (size_t i = 0; i < ex->waiters_len; i++) {
         waiter w = ex->waiters[i];
         if (w.task_id == task_id && w.key.kind == key.kind && w.key.id == key.id) {
+            removed++;
             continue;
         }
         ex->waiters[out++] = w;
     }
     ex->waiters_len = out;
+    net_waiters_removed(ex, key, removed);
 }
 
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
@@ -1243,6 +1268,7 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     ensure_waiter_cap(ex);
     ex->waiters[ex->waiters_len++] = (waiter){key, task_id};
+    net_waiter_added(ex, key);
 }
 
 void clear_wait_keys(rt_executor* ex, rt_task* task) {
@@ -1312,6 +1338,7 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
         return 0;
     }
     size_t out = 0;
+    size_t removed = 0;
     int found = 0;
     uint64_t found_id = 0;
     for (size_t i = 0; i < ex->waiters_len; i++) {
@@ -1320,17 +1347,20 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
             const rt_task* task = get_task(ex, w.task_id);
             if (task == NULL || task_status_load(task) == TASK_DONE ||
                 task_cancelled_load(task) != 0) {
+                removed++;
                 continue;
             }
             if (!found) {
                 found = 1;
                 found_id = w.task_id;
+                removed++;
                 continue;
             }
         }
         ex->waiters[out++] = w;
     }
     ex->waiters_len = out;
+    net_waiters_removed(ex, key, removed);
     if (found && out_id != NULL) {
         *out_id = found_id;
     }
@@ -1650,15 +1680,18 @@ static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) 
         return;
     }
     size_t out = 0;
+    size_t removed = 0;
     for (size_t i = 0; i < ex->waiters_len; i++) {
         waiter w = ex->waiters[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
+            removed++;
             wake_task_with_policy(ex, w.task_id, 0, 0, front, 1);
             continue;
         }
         ex->waiters[out++] = w;
     }
     ex->waiters_len = out;
+    net_waiters_removed(ex, key, removed);
 }
 
 void wake_key_all(rt_executor* ex, waker_key key) {
@@ -1695,8 +1728,7 @@ void park_current(rt_executor* ex, waker_key key) {
         return;
     }
     trace_exec_inc(&trace_park_committed_total);
-    waker_kind kind = (waker_kind)key.kind;
-    if (kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ || kind == WAKER_NET_WRITE) {
+    if (waker_is_net(key)) {
         rt_net_wake_poll();
     }
     pthread_cond_signal(&ex->io_cv);
@@ -1723,16 +1755,22 @@ void tick_virtual(rt_executor* ex) {
 }
 
 static int has_net_waiters(const rt_executor* ex) {
-    if (ex == NULL || ex->waiters_len == 0) {
+    return ex != NULL && ex->net_waiters_len > 0;
+}
+
+static int begin_net_poll(rt_executor* ex) {
+    if (ex == NULL || ex->net_polling || !has_net_waiters(ex)) {
         return 0;
     }
-    for (size_t i = 0; i < ex->waiters_len; i++) {
-        waker_kind kind = (waker_kind)ex->waiters[i].key.kind;
-        if (kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ || kind == WAKER_NET_WRITE) {
-            return 1;
-        }
-    }
-    return 0;
+    ex->net_polling = 1;
+    return 1;
+}
+
+static int poll_net_waiters_owned(rt_executor* ex, int timeout_ms) {
+    int woke = poll_net_waiters(ex, timeout_ms);
+    ex->net_polling = 0;
+    pthread_cond_signal(&ex->io_cv);
+    return woke;
 }
 
 static int next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline) {
@@ -1786,7 +1824,7 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
         return 0;
     }
     while (!ready_pop(ex, out_id)) {
-        if (poll_net_waiters(ex, 0)) {
+        if (begin_net_poll(ex) && poll_net_waiters_owned(ex, 0)) {
             continue;
         }
         uint64_t next_deadline = 0;
@@ -1797,7 +1835,7 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
                 uint64_t diff = next_deadline > now ? next_deadline - now : 0;
                 int timeout_ms = diff > (uint64_t)INT_MAX ? INT_MAX : (int)diff;
                 if (timeout_ms > 0) {
-                    if (poll_net_waiters(ex, timeout_ms)) {
+                    if (begin_net_poll(ex) && poll_net_waiters_owned(ex, timeout_ms)) {
                         continue;
                     }
                 }
@@ -1808,7 +1846,7 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
                 continue;
             }
         } else {
-            if (poll_net_waiters(ex, -1)) {
+            if (begin_net_poll(ex) && poll_net_waiters_owned(ex, -1)) {
                 continue;
             }
             return 0;
@@ -2167,15 +2205,8 @@ static void* rt_worker_main(void* arg) {
         rt_lock(ex);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ex, worker_id, &id)) {
-            if (has_net_waiters(ex) && !ex->worker_net_polling) {
-                // Avoid routing every idle-worker socket wake through the I/O thread
-                // and ready_cv. A short worker-side poll keeps single-client TCP
-                // latency low while still letting the dedicated I/O thread cover
-                // longer idle periods.
-                ex->worker_net_polling = 1;
-                int woke_net = poll_net_waiters(ex, worker_net_poll_slice_ms);
-                ex->worker_net_polling = 0;
-                pthread_cond_signal(&ex->io_cv);
+            if (begin_net_poll(ex)) {
+                int woke_net = poll_net_waiters_owned(ex, worker_net_poll_slice_ms);
                 if (woke_net) {
                     continue;
                 }
@@ -2282,7 +2313,11 @@ static void* rt_io_main(void* arg) {
         if (timeout_ms < 0) {
             timeout_ms = poll_slice_ms;
         }
-        if (poll_net_waiters(ex, timeout_ms)) {
+        if (!begin_net_poll(ex)) {
+            pthread_cond_wait(&ex->io_cv, &ex->lock);
+            continue;
+        }
+        if (poll_net_waiters_owned(ex, timeout_ms)) {
             continue;
         }
         if (idle && have_timer) {

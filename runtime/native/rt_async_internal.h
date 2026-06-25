@@ -160,6 +160,11 @@ typedef struct {
     waiter* waiters;
     size_t waiters_len;
     size_t waiters_cap;
+    size_t net_waiters_len;
+    void* net_poll_fds;
+    size_t net_poll_fds_cap;
+    void* net_poll_pfds;
+    size_t net_poll_pfds_cap;
     pthread_mutex_t lock;
     pthread_cond_t ready_cv;
     pthread_cond_t io_cv;
@@ -169,7 +174,7 @@ typedef struct {
     uint32_t worker_count;
     uint32_t running_count;
     uint32_t channel_blocked_workers;
-    uint8_t worker_net_polling;
+    uint8_t net_polling;
     uint32_t compensation_count;
     uint32_t compensation_high_water;
     uint8_t sched_mode;
@@ -192,9 +197,9 @@ typedef struct {
 } rt_executor;
 
 // Executor invariants:
-// - ex->lock owns tasks[], scopes[], waiters, inject/local queues, running_count,
-//   worker_net_polling, channel_blocked_workers, compensation_count/high-water, timer state, and
-//   shutdown flags.
+// - ex->lock owns tasks[], scopes[], waiters, net waiter/poll scratch state,
+//   inject/local queues, running_count, net_polling, channel_blocked_workers,
+//   compensation_count/high-water, timer state, and shutdown flags.
 // - task status is atomic so external helpers can observe it, but transitions that
 //   touch queues or waiters still happen under ex->lock.
 // - waiters is a FIFO-by-key registration list. prepare_park may pre-register a

@@ -161,6 +161,17 @@ static void net_trace_max(_Atomic uint64_t* counter, uint64_t value) {
     }
 }
 
+static size_t net_next_cap(size_t current, size_t want) {
+    size_t next = current == 0 ? 8 : current;
+    while (next < want) {
+        if (next > SIZE_MAX / 2U) {
+            return want;
+        }
+        next *= 2U;
+    }
+    return next;
+}
+
 static int net_set_nonblocking_cloexec(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
@@ -222,15 +233,75 @@ static void net_poll_wake_drain(void) {
 
 static void complete_net_waiters(rt_executor* ex, waker_key key) {
     net_trace_inc(&net_waiter_complete_calls_total);
-    uint64_t task_id = 0;
-    while (pop_waiter(ex, key, &task_id)) {
-        net_trace_inc(&net_waiter_completed_total);
-        const rt_task* task = get_task(ex, task_id);
-        if (task == NULL || task_status_load(task) == TASK_DONE) {
+    if (ex == NULL || ex->waiters_len == 0) {
+        return;
+    }
+    size_t out = 0;
+    size_t removed = 0;
+    for (size_t i = 0; i < ex->waiters_len; i++) {
+        waiter w = ex->waiters[i];
+        if (w.key.kind != key.kind || w.key.id != key.id) {
+            ex->waiters[out++] = w;
             continue;
         }
-        wake_task(ex, task_id, 0);
+        removed++;
+        const rt_task* task = get_task(ex, w.task_id);
+        if (task == NULL || task_status_load(task) == TASK_DONE || task_cancelled_load(task) != 0) {
+            continue;
+        }
+        net_trace_inc(&net_waiter_completed_total);
+        wake_task(ex, w.task_id, 0);
     }
+    ex->waiters_len = out;
+    if (removed >= ex->net_waiters_len) {
+        ex->net_waiters_len = 0;
+    } else {
+        ex->net_waiters_len -= removed;
+    }
+}
+
+static int ensure_net_poll_fds(rt_executor* ex, size_t want, NetPollFd** out) {
+    if (ex == NULL || out == NULL) {
+        return 0;
+    }
+    if (ex->net_poll_fds_cap < want) {
+        size_t next_cap = net_next_cap(ex->net_poll_fds_cap, want);
+        NetPollFd* next =
+            (NetPollFd*)rt_realloc((uint8_t*)ex->net_poll_fds,
+                                   (uint64_t)ex->net_poll_fds_cap * (uint64_t)sizeof(NetPollFd),
+                                   (uint64_t)next_cap * (uint64_t)sizeof(NetPollFd),
+                                   _Alignof(NetPollFd));
+        if (next == NULL) {
+            return 0;
+        }
+        ex->net_poll_fds = next;
+        ex->net_poll_fds_cap = next_cap;
+        net_trace_inc(&net_poll_allocs_total);
+    }
+    *out = (NetPollFd*)ex->net_poll_fds;
+    return 1;
+}
+
+static int ensure_net_poll_pfds(rt_executor* ex, size_t want, struct pollfd** out) {
+    if (ex == NULL || out == NULL) {
+        return 0;
+    }
+    if (ex->net_poll_pfds_cap < want) {
+        size_t next_cap = net_next_cap(ex->net_poll_pfds_cap, want);
+        struct pollfd* next = (struct pollfd*)rt_realloc(
+            (uint8_t*)ex->net_poll_pfds,
+            (uint64_t)ex->net_poll_pfds_cap * (uint64_t)sizeof(struct pollfd),
+            (uint64_t)next_cap * (uint64_t)sizeof(struct pollfd),
+            _Alignof(struct pollfd));
+        if (next == NULL) {
+            return 0;
+        }
+        ex->net_poll_pfds = next;
+        ex->net_poll_pfds_cap = next_cap;
+        net_trace_inc(&net_poll_allocs_total);
+    }
+    *out = (struct pollfd*)ex->net_poll_pfds;
+    return 1;
 }
 
 static const char* net_error_message(uint64_t code) {
@@ -832,16 +903,14 @@ bool rt_net_wait_writable(const void* conn) {
 
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     // Caller must hold ex->lock; this function releases it while polling.
-    if (ex == NULL || ex->waiters_len == 0) {
+    if (ex == NULL || ex->net_waiters_len == 0) {
         return 0;
     }
-    size_t cap = ex->waiters_len;
-    NetPollFd* fds =
-        (NetPollFd*)rt_alloc((uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
-    if (fds == NULL) {
+    size_t cap = ex->net_waiters_len;
+    NetPollFd* fds = NULL;
+    if (!ensure_net_poll_fds(ex, cap, &fds)) {
         return 0;
     }
-    net_trace_inc(&net_poll_allocs_total);
     net_trace_add(&net_waiter_scan_entries_total, ex->waiters_len);
     size_t count = 0;
     for (size_t i = 0; i < ex->waiters_len; i++) {
@@ -874,23 +943,18 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         }
     }
     if (count == 0) {
-        rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 0;
     }
     int wake_fd = net_poll_wake_init() ? net_poll_wake_read_fd : -1;
     size_t wake_count = wake_fd >= 0 ? 1U : 0U;
     size_t poll_count = count + wake_count;
     if (poll_count < count || poll_count > (size_t)((nfds_t)-1)) {
-        rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 0;
     }
-    struct pollfd* pfds = (struct pollfd*)rt_alloc(
-        (uint64_t)poll_count * (uint64_t)sizeof(struct pollfd), _Alignof(struct pollfd));
-    if (pfds == NULL) {
-        rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
+    struct pollfd* pfds = NULL;
+    if (!ensure_net_poll_pfds(ex, poll_count, &pfds)) {
         return 0;
     }
-    net_trace_inc(&net_poll_allocs_total);
     net_trace_inc(&net_poll_rebuilds_total);
     net_trace_inc(&net_poll_calls_total);
     uint64_t requested_timeout_ms = net_trace_timeout_ms(timeout_ms);
@@ -938,18 +1002,10 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
                 complete_net_waiters(ex, net_write_key(fds[i].fd));
             }
         }
-        rt_free((uint8_t*)pfds,
-                (uint64_t)poll_count * (uint64_t)sizeof(struct pollfd),
-                _Alignof(struct pollfd));
-        rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 1;
     }
     if (n == 0) {
         net_trace_inc(&net_poll_timeouts_total);
-        rt_free((uint8_t*)pfds,
-                (uint64_t)poll_count * (uint64_t)sizeof(struct pollfd),
-                _Alignof(struct pollfd));
-        rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
         return 0;
     }
 
@@ -979,9 +1035,5 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         }
     }
 
-    rt_free((uint8_t*)pfds,
-            (uint64_t)poll_count * (uint64_t)sizeof(struct pollfd),
-            _Alignof(struct pollfd));
-    rt_free((uint8_t*)fds, (uint64_t)cap * (uint64_t)sizeof(NetPollFd), _Alignof(NetPollFd));
     return woke;
 }
