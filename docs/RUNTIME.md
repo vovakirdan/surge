@@ -8,6 +8,9 @@ about the VM and native/LLVM implementation surfaces.
 See also: `docs/IR.md`, `docs/CONCURRENCY.md`, `docs/TRACING.md`,
 `docs/ABI_LAYOUT.md`.
 
+For the target native runtime direction, see `docs/RUNTIME_V2.md`. That file is
+a design target, not a description of the current implementation.
+
 ---
 
 ## 1. Runtime map
