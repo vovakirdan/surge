@@ -312,6 +312,52 @@ Latest probe:
 This is still short of the success target, but it is the first patch that moves
 throughput and tail latency together.
 
+### Drain-limit matrix
+
+The post-poll drain limit was tested with the same runtime probe under
+`SURGE_THREADS=8`. Each row is one build/probe pass.
+
+| limit | op | clients | rps | p95 us | p99 us |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 0 | ping | 1 | 4800 | 315 | 361 |
+| 0 | ping | 8 | 10647 | 1595 | 2041 |
+| 0 | ping | 32 | 10342 | 13022 | 15016 |
+| 0 | get | 1 | 2519 | 535 | 595 |
+| 0 | get | 8 | 8030 | 2194 | 2919 |
+| 0 | get | 32 | 8080 | 15254 | 17410 |
+| 4 | ping | 1 | 4287 | 384 | 461 |
+| 4 | ping | 8 | 11585 | 1514 | 2103 |
+| 4 | ping | 32 | 15624 | 7717 | 10174 |
+| 4 | get | 1 | 2771 | 695 | 784 |
+| 4 | get | 8 | 8788 | 2022 | 2743 |
+| 4 | get | 32 | 14077 | 7563 | 10330 |
+| 8 | ping | 1 | 4370 | 384 | 469 |
+| 8 | ping | 8 | 12266 | 1439 | 1911 |
+| 8 | ping | 32 | 17492 | 6195 | 7842 |
+| 8 | get | 1 | 2774 | 688 | 808 |
+| 8 | get | 8 | 9846 | 1836 | 2521 |
+| 8 | get | 32 | 15995 | 6709 | 8264 |
+| 16 | ping | 1 | 4344 | 377 | 477 |
+| 16 | ping | 8 | 12485 | 1404 | 1941 |
+| 16 | ping | 32 | 18676 | 6027 | 7620 |
+| 16 | get | 1 | 2792 | 683 | 765 |
+| 16 | get | 8 | 10694 | 1761 | 2483 |
+| 16 | get | 32 | 18217 | 5886 | 7281 |
+| 32 | ping | 1 | 4416 | 387 | 462 |
+| 32 | ping | 8 | 12982 | 1351 | 1929 |
+| 32 | ping | 32 | 18418 | 6438 | 8220 |
+| 32 | get | 1 | 2723 | 678 | 778 |
+| 32 | get | 8 | 11330 | 1640 | 2318 |
+| 32 | get | 32 | 16307 | 6758 | 9446 |
+
+`limit=0` matches the old bad class, so the win is not noise from unrelated
+runtime cleanup. `limit=16` is the best single-run candidate for the
+non-pipelined tiny TCP rows: it improves `ping 32` from `10342` to `18676 rps`
+and `get 32` from `8080` to `18217 rps`, while keeping 1-client latency in the
+same class as `limit=8`. `limit=32` does not clearly improve 32-client tail
+latency and regresses pipelined rows in this run, so it is not a better default
+candidate.
+
 ## Next runtime hypothesis
 
 The next fix should refine batching without letting the I/O thread become a
@@ -323,8 +369,8 @@ Candidate designs:
 
 - Tune the drain boundary with the smallest surface: drain only inject tasks,
   keep the limit fixed and low, and do not steal from worker local queues.
-- Measure whether a smaller or larger fixed limit improves 1-client rows without
-  losing the 32-client win.
+- Confirm `limit=16` with repeated probes before changing the committed default
+  from `8`.
 - If the fixed limit is fragile, add one internal constant or env knob for
   runtime benchmarking only; do not expose public API yet.
 - Keep channel-local waiter queues separate; the current tiny TCP collapse still
