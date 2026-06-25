@@ -279,6 +279,17 @@ The bad surgekv 8-thread run moved `io_poll_allocs` from `41992` to `2`, yet
   better in the 32-client rows, but throughput stayed bad or worsened:
   `ping 32 = 9750 rps`, `get 32 = 7780 rps`, and p99 remained high. Queue
   priority alone is not the missing mechanism.
+- Last-worker affinity for net-ready tasks is not enough. A patch that tracked
+  the last worker per task and pushed net wakeups back to that worker's local
+  queue kept the same bad throughput class: `ping 32 = 10036 rps`,
+  `get 32 = 8292 rps`. `SCHED_TRACE` also stayed close to the current shape
+  (`local=14184`, `inject=13248`, `steal=444`), so simple affinity does not
+  remove the handoff churn.
+- Worker-only net polling is worse. Disabling I/O-thread net polls pushed almost
+  everything through worker local queues (`local=23922`, `inject=1`), but
+  throughput dropped (`ping 32 = 8858 rps`, `get 32 = 7761 rps`) and worker
+  sleep/wake churn jumped to about `23.6k`. This disproves "global inject is the
+  main cause" as a standalone hypothesis.
 - The current collapse is not explained by surgekv string/bytes parsing alone.
   The tiny TCP probe reproduces the bad `SURGE_THREADS=8` behavior without the
   surgekv store, parser, and manager. String/bytes work can still matter for the
@@ -287,19 +298,20 @@ The bad surgekv 8-thread run moved `io_poll_allocs` from `41992` to `2`, yet
 
 ## Next runtime hypothesis
 
-The next fix should target the handoff after socket readiness, not poll-set
-construction. After allocation cleanup, wake coalescing, and net-only registry
-experiments, the bad run still has about one wake-pipe event per direct network
-wait and about half of ready scheduling goes through the global inject queue.
+The next fix should target how often the runtime bounces through the generic
+scheduler after socket readiness. Allocation cleanup, wake coalescing, net-only
+registry, queue priority, and simple worker affinity all failed to move
+throughput. Worker-only polling also showed that merely moving work from inject
+to local queues makes idle/wake churn worse.
 
 Candidate designs:
 
-- Isolate worker affinity explicitly: track the last worker that ran a task and
-  let net readiness enqueue back to that worker's local queue instead of the
-  global inject queue.
-- If affinity fails, test a more invasive network model where the poll owner
-  drains multiple ready socket tasks per poll cycle before yielding back to the
-  generic scheduler.
+- Test a narrow network model where the poll owner drains multiple ready socket
+  tasks per poll cycle before yielding back to the generic scheduler.
+- Prefer batching at the net wait/completion boundary over changing generic
+  queue priority again; priority and affinity alone already failed.
+- Alternatively, split the net path so readiness and task continuation stay on
+  one runtime lane instead of waking a generic task for every socket wait.
 - Keep channel-local waiter queues separate; the current tiny TCP collapse still
   reproduces without the surgekv manager hop.
 
