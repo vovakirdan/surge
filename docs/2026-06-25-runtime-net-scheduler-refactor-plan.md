@@ -290,6 +290,13 @@ The bad surgekv 8-thread run moved `io_poll_allocs` from `41992` to `2`, yet
   throughput dropped (`ping 32 = 8858 rps`, `get 32 = 7761 rps`) and worker
   sleep/wake churn jumped to about `23.6k`. This disproves "global inject is the
   main cause" as a standalone hypothesis.
+- Requeueing every user task from the I/O-thread drain is not an acceptable
+  fix. It avoids polling user tasks on the I/O thread, but returns the probe to
+  the old bad class: `ping 32 = 10282 rps`, `get 32 = 7963 rps`,
+  `io_poll_calls=25559`, and `io_waiter_scan_entries=314874`. The existing
+  non-worker user-task polling shape is shared with the main scheduler; with
+  `tls_worker_id < 0`, worker-only channel blocking falls back to checkpoint
+  scheduling instead of parking the I/O thread.
 - The current collapse is not explained by surgekv string/bytes parsing alone.
   The tiny TCP probe reproduces the bad `SURGE_THREADS=8` behavior without the
   surgekv store, parser, and manager. String/bytes work can still matter for the
@@ -406,6 +413,9 @@ draining after net readiness:
 - reusable poll buffers;
 - one-pass net waiter completion.
 - drain up to 16 ready inject tasks after an I/O-thread net poll wakes waiters.
+- wait instead of reporting no progress when another thread already owns a net
+  poll.
+- stop the I/O-thread drain immediately if shutdown is observed.
 
 The larger failed experiments were reverted from code and kept only as notes in
 this document. The repeated probe average for the current branch:
@@ -415,6 +425,13 @@ this document. The repeated probe average for the current branch:
 - trace counters stayed in the same class: about `io_poll_allocs=6`,
   `io_poll_calls=16876`, `io_poll_wake_fd=8740`, and
   `io_waiter_scan_entries=131701`.
+
+Latest review-fix probe:
+
+- `SURGE_THREADS=8 ping 32 = 18353 rps`, p95 `6146 us`, p99 `7858 us`;
+- `SURGE_THREADS=8 get 32 = 18067 rps`, p95 `6200 us`, p99 `7793 us`;
+- `io_poll_allocs=6`, `io_poll_calls=16815`, `io_poll_wake_fd=8717`,
+  `io_waiter_scan_entries=133605`.
 
 ## Success criteria
 

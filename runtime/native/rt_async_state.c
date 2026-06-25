@@ -1838,6 +1838,10 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
                     if (begin_net_poll(ex) && poll_net_waiters_owned(ex, timeout_ms)) {
                         continue;
                     }
+                    if (ex->net_polling && !ex->shutdown) {
+                        pthread_cond_wait(&ex->io_cv, &ex->lock);
+                        continue;
+                    }
                 }
                 if (advance_time_to_next_timer(ex)) {
                     continue;
@@ -1847,6 +1851,10 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
             }
         } else {
             if (begin_net_poll(ex) && poll_net_waiters_owned(ex, -1)) {
+                continue;
+            }
+            if (ex->net_polling && has_net_waiters(ex) && !ex->shutdown) {
+                pthread_cond_wait(&ex->io_cv, &ex->lock);
                 continue;
             }
             return 0;
@@ -2365,7 +2373,7 @@ static void* rt_io_main(void* arg) {
             continue;
         }
         if (poll_net_waiters_owned(ex, timeout_ms)) {
-            for (int i = 0; i < net_ready_drain_limit; i++) {
+            for (int i = 0; i < net_ready_drain_limit && !ex->shutdown; i++) {
                 if (!run_ready_one_nowait_locked(ex)) {
                     break;
                 }
