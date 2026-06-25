@@ -433,6 +433,38 @@ Latest review-fix probe:
 - `io_poll_allocs=6`, `io_poll_calls=16815`, `io_poll_wake_fd=8717`,
   `io_waiter_scan_entries=133605`.
 
+## Mixed CPU/TCP probe
+
+For this experiment, the local surgekv runtime probe was extended with a
+`tcp_mixed` mode. It runs the same tiny TCP server while background CPU tasks
+repeatedly execute a compute chunk and then `checkpoint().await()`. This is
+intentionally a scheduler stress test, not a surgekv workload model.
+
+Focused single-run matrix, `SURGE_THREADS=8`, 32 TCP clients, 5000 requests per
+row:
+
+| drain limit | CPU tasks | op | rps | p95 us | p99 us |
+| ---: | ---: | --- | ---: | ---: | ---: |
+| 0 | 0 | ping | 17428 | 6409 | 8543 |
+| 16 | 0 | ping | 20048 | 5575 | 6776 |
+| 0 | 0 | get | 17427 | 6293 | 8529 |
+| 16 | 0 | get | 19421 | 5732 | 7681 |
+| 0 | 2 | ping | 16464 | 7277 | 8816 |
+| 16 | 2 | ping | 15723 | 7430 | 8792 |
+| 0 | 2 | get | 16407 | 7032 | 8310 |
+| 16 | 2 | get | 16810 | 6892 | 8220 |
+| 0 | 4 | ping | 12950 | 9139 | 10826 |
+| 16 | 4 | ping | 12931 | 9593 | 11444 |
+| 0 | 4 | get | 13484 | 8117 | 9700 |
+| 16 | 4 | get | 12777 | 8922 | 10617 |
+
+Preliminary read: CPU contention is real and materially hurts TCP tails, but
+`drain=16` is not uniquely catastrophic in this synthetic mixed case. At
+`4` CPU tasks it is roughly in the same class as no drain, with somewhat worse
+tails on these rows. The risk remains architectural: the I/O-thread drain pulls
+from the general inject queue, so it can pick work that is not directly
+net-woken.
+
 ## Success criteria
 
 Primary success:
