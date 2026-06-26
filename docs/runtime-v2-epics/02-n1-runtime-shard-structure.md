@@ -13,6 +13,10 @@ is still the same runtime from the program's point of view.
 
 **Status:** draft.
 
+**Task documents:** detailed tasks live under `02-tasks/`. Each runtime-code
+task has a separate testing task where a meaningful test can be written before
+or beside the implementation.
+
 ## Inputs
 
 - `docs/RUNTIME_V2.md`
@@ -20,6 +24,7 @@ is still the same runtime from the program's point of view.
 - `docs/runtime-v2-epics/RULES.md`
 - `docs/runtime-v2-epics/SENTRUX_POLICY.md`
 - `docs/runtime-v2-epics/EVIDENCE_TEMPLATE.md`
+- `docs/runtime-v2-epics/02-evidence.md`
 - `docs/runtime-v2-epics/01-baseline-evidence.md`
 - `docs/runtime-v2-epics/LIVENESS_PROBES.md`
 - `docs/runtime-v2-epics/OPEN_DECISIONS_BEFORE_EPIC_2.md`
@@ -57,6 +62,7 @@ Included:
 - keep current direct channel, net, timer, cancellation, shutdown, and blocking
   fallback behavior unchanged;
 - record Sentrux root/runtime scans and missing-rules status on every task;
+- add stable Runtime V2 tests to CI before closing the epic;
 - keep notes and evidence current after each task.
 
 Not included:
@@ -140,108 +146,22 @@ Minimum liveness evidence for this epic:
 
 ## Brief Task List
 
-### Task 1: Epic 2 Kickoff Evidence
-
-Record the current commit, worktree status, Sentrux root/runtime scans, accepted
-focused VM debt, and the exact Sentrux rule-file decision for this epic. This is
-a docs/evidence task. It updates `NOTES.md` and an Epic 2 evidence section.
-
-Done means:
-
-- accepted VM debt is named and not treated as an Epic 2 start blocker;
-- missing Sentrux rules are either resolved or explicitly deferred for the first
-  structural task;
-- the first structural task has a clean baseline and knows which probes it must
-  run.
-
-### Task 2: Field Ownership Map
-
-Inventory `rt_executor` fields and classify each as runtime-level, shard-local,
-blocking-pool compatibility, trace/debug, or later-epic state. The map must say
-which fields are safe to move in Epic 2 and which must wait for waiters, fd
-registry, allocator, or multi-shard epics.
-
-Done means:
-
-- each field group has an owner and preserved behavior statement;
-- over-limit file risks are recorded;
-- the first code task has an exact field group, not a broad rewrite.
-
-### Task 3: Introduce N=1 Runtime/Shard Skeleton
-
-Add internal V2-shaped structures and initialization helpers without moving hot
-behavior yet. Prefer small new internal files or tightly scoped header changes.
-The existing runtime should still behave as a single executor with one shard.
-
-Done means:
-
-- the public native ABI is unchanged;
-- new helpers use explicit status codes for recoverable failures;
-- initialization and shutdown still pass the existing default gates;
-- line-count notes are recorded for every touched C file.
-
-### Task 4: Move Scheduler Container Shape
-
-Move or wrap ready-queue, worker, running-count, timer-clock, and trace-facing
-scheduler fields into the `N=1` shard shape while preserving current scheduling
-behavior. Do not remove current global synchronization as part of this task.
-
-Done means:
-
-- no observable scheduler semantics change;
-- direct channel and net smoke/liveness probes relevant to moved fields pass or
-  have recorded accepted blockers;
-- trace counters remain readable and comparable to the baseline.
-
-### Task 5: Move Net Poll Scratch Shape Without FD Registry Rewrite
-
-Move or wrap current net poll scratch buffers and net waiter counters behind the
-single shard. Keep the existing poll-set rebuild and global waiter scan.
-
-Done means:
-
-- native net benchmark still runs against a current-checkout binary;
-- net wakeup/SIGUSR1 trace evidence is recorded;
-- no persistent fd registry behavior appears in this epic.
-
-### Task 6: Move Channel/Blocking Compatibility Shape
-
-Move or wrap channel-blocked worker counters, compensation counters, and blocking
-fallback integration into the runtime/shard shape without changing direct async
-channel semantics or sync helper fallback behavior.
-
-Done means:
-
-- direct async channel wakeup tests stay equivalent;
-- sync fallback compensation evidence stays explainable;
-- this task does not turn sync fallback into the target hot path.
-
-### Task 7: Consolidate Accessors And Remove Ambiguous Ownership
-
-Replace ad hoc field access introduced during migration with owner-named helpers
-or local variables. This is cleanup, not a second refactor. Do not add new
-abstractions unless they remove actual ambiguity created by Tasks 3-6.
-
-Done means:
-
-- ownership reads as runtime-level or shard-level at call sites;
-- no touched file grows without a recorded reason;
-- Sentrux scoped quality does not drop without an accepted recovery task.
-
-### Task 8: Epic 2 Closeout
-
-Consolidate evidence, update `NOTES.md`, update this epic with actual results,
-and decide whether Epic 3 can start with owner-local waiters. Do not close Epic
-2 with hidden blockers.
-
-Done means:
-
-- every task has an evidence entry;
-- Sentrux root/runtime results are recorded;
-- current benchmark rows are linked;
-- accepted VM test debt is still named and remains assigned to the later
-  test/backend epic;
-- Epic 3 starts from a clear field ownership map and liveness checklist.
+| Task | Document | Purpose |
+| --- | --- | --- |
+| 1 | `02-tasks/01-kickoff-evidence.md` | Record current baseline, accepted VM debt, and Sentrux state. |
+| 2 | `02-tasks/02-field-ownership-map.md` | Classify `rt_executor` fields and pick safe Epic 2 moves. |
+| 3 | `02-tasks/03-runtime-v2-ci-test-contract.md` | Define stable Runtime V2 test and CI policy before code work. |
+| 4 | `02-tasks/04-runtime-shard-skeleton-tests.md` | Add or select tests/static checks for the skeleton. |
+| 5 | `02-tasks/05-runtime-shard-skeleton.md` | Introduce `N=1` `rt_runtime` and `rt_shard`. |
+| 6 | `02-tasks/06-scheduler-shape-tests.md` | Add or select scheduler behavior tests before moving scheduler fields. |
+| 7 | `02-tasks/07-scheduler-shape-migration.md` | Move scheduler container shape without semantic changes. |
+| 8 | `02-tasks/08-net-poll-scratch-tests.md` | Add or select net scratch/readiness tests before moving net state. |
+| 9 | `02-tasks/09-net-poll-scratch-migration.md` | Move net poll scratch shape without fd-registry rewrite. |
+| 10 | `02-tasks/10-channel-blocking-compat-tests.md` | Add or select channel and blocking fallback tests. |
+| 11 | `02-tasks/11-channel-blocking-compat-migration.md` | Move channel/blocking compatibility shape. |
+| 12 | `02-tasks/12-ci-runtime-v2-gates.md` | Add stable Runtime V2 liveness gates to CI. |
+| 13 | `02-tasks/13-accessor-cleanup-and-static-gates.md` | Clean ambiguous ownership accessors and run static gates. |
+| 14 | `02-tasks/14-epic-closeout.md` | Consolidate evidence and hand off to Epic 3. |
 
 ## Acceptance Gates
 
@@ -257,6 +177,9 @@ Epic 2 is complete when:
 - Sentrux root and runtime scans are recorded before and after code changes;
 - missing Sentrux rules are resolved or explicitly deferred without claiming
   rule compliance;
+- stable Runtime V2 tests are added to CI through a named target or job;
+- CI does not require the broad accepted-debt focused VM command as a green
+  gate;
 - `make check`, `make c-check`, and `make cppcheck` pass or have recorded
   blockers unrelated to Epic 2 changes;
 - native net and channel benchmark reports are regenerated with a

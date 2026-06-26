@@ -23,6 +23,10 @@ task, then move durable decisions into the owning epic document before closeout.
   `N=1` `rt_runtime`/`rt_shard` structure only; owner-local waiters, persistent
   fd registry, `N>1`, crossing syntax, and the VM/native/LLVM test-matrix
   rewrite are later epics.
+- Epic 2 task files live in `02-tasks/`. Runtime-code tasks are paired with
+  test-writing tasks where meaningful tests can be written, and stable Runtime
+  V2 liveness tests must be added to CI before Epic 2 closes.
+- Epic 2 task evidence is recorded in `02-evidence.md`.
 - Epic 2 drafting checks passed: `git diff --check`, stale phase/epic wording
   grep, Sentrux repository scan, and Sentrux runtime scan. Sentrux rules are
   still missing at both scan roots and must not be reported as rule compliance.

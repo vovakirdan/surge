@@ -23,9 +23,10 @@ must not weaken the global rules.
 ## Current Status
 
 Epic 1 is complete. Epic 2 is drafted in
-`02-n1-runtime-shard-structure.md`.
+`02-n1-runtime-shard-structure.md`, with separate task files under
+`02-tasks/`.
 
-## Current Epic 1 Artifacts
+## Current Runtime V2 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.
 - `SENTRUX_POLICY.md`: repository and scoped Sentrux policy, current baseline
@@ -38,6 +39,7 @@ Epic 1 is complete. Epic 2 is drafted in
   structural `N=1` work.
 - `NOTES.md`: live handoff log; durable decisions must move into the owning
   document before an epic closes.
+- `02-evidence.md`: pending Epic 2 task evidence ledger.
 
 Known backend-test debt is accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is not an
@@ -80,13 +82,19 @@ Every epic must say which of these gates apply and record the exact evidence:
 - `make check`
 - `make c-check`
 - `make cppcheck` for native C changes
-- focused Go tests, usually `go test ./internal/vm -run 'MT|Async|Net|LLVM'`
+- exact focused Go tests chosen from `LIVENESS_PROBES.md` or the epic's CI
+  contract
 - native benchmarks, usually `./scripts/bench_native_net.sh` and
   `./scripts/bench_native_channels.sh`
 - live runtime trace or timeout-based liveness proof for scheduler, wakeup, or
   cancellation changes
+- CI coverage for stable Runtime V2 liveness tests before an epic closes
 - a doc update that states which Runtime V2 contract was preserved, changed, or
   deliberately deferred
 
 Until Sentrux rule files exist, tasks may record scan and health evidence but
 must not claim rule compliance from a missing-rules `check_rules` result.
+
+Do not use the broad focused VM command
+`go test ./internal/vm -run 'MT|Async|Net|LLVM'` as a required green gate until
+the later test/backend matrix epic fixes or replaces that accepted debt.
