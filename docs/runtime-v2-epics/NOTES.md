@@ -27,6 +27,13 @@ task, then move durable decisions into the owning epic document before closeout.
   Runtime V2 seed with `SURGE_SKIP_TIMEOUT_TESTS=0`; the separate CI job
   installs `clang`, `llvm`, `lld`, and `binutils`, sets
   `SURGE_MT_TIMEOUT_SCALE=3`, and runs that target.
+- Task 13 accessor cleanup is recorded as audit-only. The migrated scheduler,
+  net poll scratch, channel compat, and runtime/shard skeleton surfaces are
+  clean in current `runtime/native`; no runtime code change was justified.
+  `make c-check`, `make cppcheck`, `make runtime-v2-check`, `make check`, and
+  `git diff --check` passed for the Task 13 docs-only closeout. Main-session
+  Sentrux scans recorded root `6207`, runtime `5209`, and runtime/native
+  `5172`; missing rules remain debt, not compliance.
 - Task 9 implementation evidence is recorded. Main-session Sentrux runtime/native
   `session_end` passed for this task: `5132 -> 5146`, `signal_delta=14`, no
   violations.
@@ -670,6 +677,42 @@ task, then move durable decisions into the owning epic document before closeout.
   heavier known-debt channel/blocking stress probes.
 - Review risk: repository branch protection may need to require the new
   `Runtime V2 liveness (llvm)` job name separately.
+
+## Task 13 Handoff
+
+- Scope completed: audited the migrated Epic 2 accessor surfaces from Tasks 05,
+  07, 09, and 11, then recorded static gate evidence.
+- Result: audit-only. No `runtime/native` code change was justified.
+- Runtime files inspected: `runtime/native/rt_async_internal.h`,
+  `runtime/native/rt_runtime.c`, `runtime/native/rt_async_state.c`,
+  `runtime/native/rt_async_task.c`, and `runtime/native/rt_net.c`.
+- Docs changed: `docs/runtime-v2-epics/02-evidence.md`, this file, and
+  `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md`.
+- Static audit results:
+  - No old scheduler fields remain as `ex->inject`, `ex->local_queues`,
+    `ex->worker_ctxs`, `ex->worker_count`, `ex->running_count`,
+    `ex->sched_mode`, `ex->sched_seed`, or matching `exec_state.*` access.
+  - Scheduler users resolve through `rt_executor_scheduler*()` or
+    `rt_shard_scheduler*()` before using local `scheduler->...` fields.
+  - No old net poll scratch fields remain as `ex->net_poll_*` or
+    `exec_state.net_poll_*` access. `poll_net_waiters()` resolves scratch via
+    `rt_executor_net_poll_scratch(ex)`.
+  - No old channel/blocking compatibility counters remain as
+    `ex->channel_blocked_workers`, `ex->compensation_count`,
+    `ex->compensation_high_water`, or matching `exec_state.*` access.
+  - Direct runtime/shard container access is confined to `rt_runtime.c`, the
+    owner/accessor implementation.
+  - `rt_runtime_shard_count` was retained. It is used by
+    `TestRuntimeV2SkeletonStaticShape` under `runtime_v2_pending`, so it is an
+    intentional skeleton surface rather than an unused helper.
+- Gates passed locally: `make c-check`, `make cppcheck`,
+  `make runtime-v2-check`, `make check`, and `git diff --check`.
+- Sentrux evidence: main-session scans recorded root `6207`, runtime `5209`,
+  and runtime/native `5172`. All three `check_rules` calls still report missing
+  `.sentrux/rules.toml`; this remains debt, not compliance.
+- Strictly untouched: runtime/native code, Go tests, scripts, `Makefile`, CI,
+  Sentrux rules, STATS, public ABI, scheduler/net/channel/blocking semantics,
+  owner-local waiters, persistent fd registry, `N>1`, and crossing syntax.
 
 ## Liveness Requirements
 

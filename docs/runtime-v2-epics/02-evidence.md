@@ -8,10 +8,11 @@ Do not use this file to hide known debt. The broad focused VM command
 until the later test/backend matrix epic fixes or replaces it. Epic 2 evidence
 must separate that debt from new runtime regressions.
 
-Current status: Task 12 wiring is implemented. The `runtime-v2-check` target
-and separate CI job now run the stable Runtime V2 liveness seed with
-timeout-sensitive tests enabled. The broad VM/backend regex remains accepted
-debt and is not a green gate.
+Current status: Task 13 is complete as audit-only closeout evidence. The
+`runtime-v2-check` target and separate CI job run the stable Runtime V2
+liveness seed with timeout-sensitive tests enabled. The migrated Runtime V2
+accessor surfaces are clean in current `runtime/native`; the broad VM/backend
+regex remains accepted debt and is not a green gate.
 
 ## Task Evidence Index
 
@@ -29,7 +30,7 @@ debt and is not a green gate.
 | 10. Channel/Blocking Compatibility Tests | Complete with known debt | Stable direct/fallback seed tests and native channel benchmark baseline recorded; heavier local-only stress timeouts documented. |
 | 11. Channel/Blocking Compatibility Migration | Complete | Counter ownership moved under `rt_shard.channel_blocking_compat`; direct/fallback gates, benchmark, static audits, and scan-only Sentrux snapshots recorded. |
 | 12. CI Runtime V2 Gates | Complete | `runtime-v2-check` target and separate CI job added; local `make runtime-v2-check` and `make check` passed. |
-| 13. Accessor Cleanup And Static Gates | Pending | Record static checks and quality deltas. |
+| 13. Accessor Cleanup And Static Gates | Complete | Audit-only closeout; migrated accessors are clean, no runtime code change was justified, and static gates passed. |
 | 14. Epic Closeout | Pending | Record final gates and handoff to Epic 3. |
 
 ## Task 1: Kickoff Evidence
@@ -1715,3 +1716,76 @@ remain unchanged.
 | CI required-check configuration | No for this repo change. | Repository settings or branch protection owner. | The workflow job exists, but branch protection may need to require the new job name. |
 | Broad VM/backend regex debt | No. | Later test/backend matrix epic. | It remains excluded from required green gates. |
 | Missing Sentrux rules | No for this CI/docs task; yes for claiming rule compliance. | Dedicated Sentrux rules task or later closeout. | Root/runtime scans were recorded; both scan roots still lack rules files. |
+
+## Task 13: Accessor Cleanup And Static Gates
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 13, Accessor Cleanup And Static Gates.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: audit the ownership/accessor surfaces migrated by Tasks 05, 07, 09,
+  and 11, then run static gates before closeout.
+- Result: audit-only. No runtime code change was justified.
+- Out of scope and unchanged: scheduler behavior, net behavior, channel
+  behavior, blocking behavior, tests, CI, `Makefile`, scripts, public ABI,
+  owner-local waiters, persistent fd registry, `N>1`, crossing syntax, and
+  `STATS.md`.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 13 complete and added this evidence section. | Record accessor audits, static gates, and Sentrux handoff. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added Task 13 handoff. | Make Task 14 startable without chat context. | Documentation only. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Updated status wording from Tasks 1-12 to Tasks 1-13. | Keep the epic overview aligned with recorded evidence. | Documentation only. |
+
+### Accessor Audits
+
+The Task 13 audit used broad search only as orientation. The recorded checks
+target the migrated Epic 2 field groups.
+
+| Surface | Command | Actual result | Exit/status | Decision |
+| --- | --- | --- | --- | --- |
+| Scheduler old executor fields | `rg -n -- 'ex->(inject\|local_queues\|worker_ctxs\|worker_count\|running_count\|sched_mode\|sched_seed)\b\|&ex->(inject\|local_queues\|worker_ctxs)\|\bexec_state\.(inject\|local_queues\|worker_ctxs\|worker_count\|running_count\|sched_mode\|sched_seed)\b' runtime/native` | no output | `1` | Old scheduler fields are not accessed through `rt_executor` or `exec_state`. |
+| Scheduler accessor surface | `rg -n -- 'rt_(executor\|shard)_scheduler(_const)?\b\|rt_scheduler\b\|scheduler->(inject\|local_queues\|worker_ctxs\|worker_count\|running_count\|sched_mode\|sched_seed)\b' runtime/native` | declarations and accessor bodies in `rt_async_internal.h` and `rt_runtime.c`; users in `rt_async_state.c` and `rt_async_task.c` | `0` | Call sites resolve scheduler state through the migrated scheduler accessors, then use local `scheduler->...` fields. |
+| Net poll scratch old executor fields | `rg -n -- 'ex->net_poll_(fds\|fds_cap\|pfds\|pfds_cap)\b\|\bexec_state\.net_poll_(fds\|fds_cap\|pfds\|pfds_cap)\b\|\bnet_poll_(fds\|fds_cap\|pfds\|pfds_cap)\b' runtime/native` | no output | `1` | Old scratch owner fields are gone from executor access. |
+| Net poll scratch accessor surface | `rg -n -- 'rt_(executor\|shard)_net_poll_scratch\b\|rt_net_poll_scratch\b\|scratch->(fds\|fds_cap\|pfds\|pfds_cap)\b' runtime/native` | declarations and accessor bodies in `rt_async_internal.h` and `rt_runtime.c`; scratch allocation users in `rt_net.c`; `poll_net_waiters()` calls `rt_executor_net_poll_scratch(ex)` | `0` | Scratch ownership is explicit under `rt_shard.net_poll_scratch`; no fd registry or net semantic change is present. |
+| Channel compat old executor fields | `rg -n -- 'ex->(channel_blocked_workers\|compensation_count\|compensation_high_water)\b\|\bexec_state\.(channel_blocked_workers\|compensation_count\|compensation_high_water)\b' runtime/native` | no output | `1` | Old channel/blocking counters are not accessed through `rt_executor` or `exec_state`. |
+| Channel compat accessor surface | `rg -n -- 'rt_(executor\|shard)_channel_blocking_compat(_const)?\b\|rt_channel_blocking_compat\b\|compat->(channel_blocked_workers\|compensation_count\|compensation_high_water)\b' runtime/native` | declarations and accessor bodies in `rt_async_internal.h` and `rt_runtime.c`; users in `rt_async_state.c` | `0` | Counter reads/writes go through `rt_executor_channel_blocking_compat*()` and local `compat->...` fields. |
+| Runtime/shard skeleton ownership | `rg -n -- 'ex->runtime\b\|exec_state\.runtime\b\|runtime->(shard_count\|shards)\b\|&runtime->shards\|&ex->runtime->shards\|shard->(runtime\|executor\|scheduler\|net_poll_scratch\|channel_blocking_compat\|shard_id)\b' runtime/native` | only `runtime/native/rt_runtime.c` matched | `0` | Direct runtime/shard container access is confined to the owner/accessor implementation. |
+| Helper usage | `rg -o -- 'rt_runtime_init_global_n1\|rt_executor_runtime\|rt_runtime_shard0\|rt_runtime_shard_count\|rt_shard_scheduler_const\|rt_shard_scheduler\|rt_executor_scheduler_const\|rt_executor_scheduler\|rt_shard_net_poll_scratch\|rt_executor_net_poll_scratch\|rt_shard_channel_blocking_compat_const\|rt_shard_channel_blocking_compat\|rt_executor_channel_blocking_compat_const\|rt_executor_channel_blocking_compat' runtime/native \| sed 's/^.*://' \| sort \| uniq -c` | all migrated helpers have definitions/declarations and current runtime users except `rt_runtime_shard_count`, which has only the internal runtime declaration/definition in this scoped command | `0` | No helper was removed. Whole-repo audit shows `rt_runtime_shard_count` is part of the existing `runtime_v2_pending` static shape check, so it is intentional skeleton surface rather than unused cleanup. |
+| `rt_runtime_shard_count` contract check | `rg -n -- 'rt_runtime_shard_count\|TestRuntimeV2SkeletonStaticShape\|runtime_v2_pending' .` | `internal/vm/runtime_v2_skeleton_static_test.go` calls `rt_runtime_shard_count(runtime)`; docs record the same Task 4/5 contract | `0` | Keep `rt_runtime_shard_count`; removing it would break the recorded skeleton check. |
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `git status --short --branch` before audits | branch known; no dirty files | `## codex/runtime-net-scheduler-refactor...origin/codex/runtime-net-scheduler-refactor [ahead 20]` | `0` | Started without listed file changes. |
+| Accessor audits above | no ambiguous old-owner access; no justified runtime cleanup | passed | mixed `0`/`1` as shown above | `rg` exit `1` means the expected no-match result for old direct fields. |
+| `make c-check` | pass | C formatting OK; strict warning compile OK; all C runtime checks passed | `0` | Static C gate. |
+| `make cppcheck` | pass | checked 29 C files and printed `>> cppcheck OK` | `0` | No C/static finding to triage. |
+| `make runtime-v2-check` | pass | all four exact Runtime V2 seed tests ran and passed; package time `7.928s` | `0` | Main-session final run with LLVM backend, timeout tests enabled, `SURGE_MT_TIMEOUT_SCALE=3`, `-count=1`, `-parallel=1`, and `-p=1`. |
+| `make check` | pass | passed; ran `SURGE_SKIP_TIMEOUT_TESTS=1 go test ./... --timeout 90s`, `golangci-lint` with `0 issues`, nested `make c-check`, and `check_file_sizes.sh` with no applicable unstaged files | `0` | Default repository gate remains skipped-timeout by design. |
+| `git diff --check` | pass | pass after docs edits | `0` | Final whitespace gate for the docs-only diff. |
+
+### Sentrux Evidence
+
+Main-session Sentrux scans were run after the audit-only docs update. Missing
+rules remain debt, not compliance.
+
+| Scan | Path | quality_signal | Root cause or bottleneck | Rules result |
+| --- | --- | --- | --- | --- |
+| Root | `/home/zov/projects/surge/surge` | `6207` | bottleneck `modularity`; root causes: acyclicity `10000`, depth `6667`, equality `4685`, modularity `3438`, redundancy `8576`; files `4744`; import edges `1888`; lines `373762` | missing `/home/zov/projects/surge/surge/.sentrux/rules.toml`; debt, not compliance. |
+| Runtime | `/home/zov/projects/surge/surge/runtime` | `5209` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4783`, modularity `3333`, redundancy `2705`; files `33`; import edges `31`; lines `15125` | missing `/home/zov/projects/surge/surge/runtime/.sentrux/rules.toml`; debt, not compliance. |
+| Runtime/native | `/home/zov/projects/surge/surge/runtime/native` | `5172` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4781`, modularity `3215`, redundancy `2708`; files `32`; import edges `31`; lines `15110` | missing `/home/zov/projects/surge/surge/runtime/native/.sentrux/rules.toml`; debt, not compliance. |
+
+### Follow-Ups And Blockers
+
+| Item | Blocks Task 14? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Missing Sentrux rules | No for this audit-only task; yes for claiming rule compliance. | Dedicated Sentrux rules task or later closeout deferral. | Root/runtime/runtime-native scans were recorded, but all scanned roots still lack rules files. |
+| Broad VM/backend regex debt | No. | Later test/backend matrix epic. | It remains excluded from required green gates. |
+| Runtime/native cleanup | No. | None for Task 13. | The exact migrated-surface audits found no ambiguous direct old-owner access and no justified code cleanup. |
