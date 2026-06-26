@@ -413,6 +413,57 @@ task, then move durable decisions into the owning epic document before closeout.
   timeout, and keep persistent fd registry behavior out of scope. Task 9 should
   not start until Task 8 evidence exists.
 
+## Epic 2 Task 8 Net Poll Scratch Tests Handoff
+
+- Scope completed: recorded net wake and native net benchmark before-evidence.
+  No runtime C, Go test, script, `Makefile`, CI workflow, Sentrux rule, STATS,
+  task-doc, staging, or commit changes were made.
+- Temp compiler was built outside the repository at
+  `/tmp/surge-task08.zkEoYd/surge`. Its `version --full --format json`
+  `git_commit` matched current `HEAD`: `49b3aa34ec26`.
+- Version line recorded:
+
+  ```text
+  surge 0.1.13-dev — "forge storms before they land"
+  commit: 49b3aa34ec26
+  message: refactor(runtime): move scheduler state under shard
+  built:  2026-06-26T12:41:59Z
+  ```
+
+- Net wake probe passed:
+
+  ```bash
+  SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+    -run '^TestMTNetWaiterWakeupLatency$' -v --timeout 90s
+  ```
+
+  The test ran and passed in package time `2.647s`. It did not print trace rows
+  on success; it asserted the `TRACE_NET` and `TRACE_EXEC_SNAPSHOT` rows
+  internally from child stderr.
+- Native net benchmark passed with an outer timeout:
+
+  ```bash
+  tmpdir=/tmp/surge-task08.zkEoYd
+  SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task08-native-net-before.md" \
+    timeout 120s env SURGE="$tmpdir/surge" ./scripts/bench_native_net.sh
+  ```
+
+  Report path:
+  `/home/zov/projects/surge/surge/build/benchmarks/runtime-v2-task08-native-net-before.md`.
+- Key benchmark invariants from the full 24-row report: task-context blocking
+  sends, task-context blocking recvs, compensation started, and compensation
+  high-water stayed `0`; `poll allocs` stayed `2`; `dedup checks` stayed `0`.
+- Test decision: no new semantic test is needed for Task 9 if it only moves
+  `net_poll_fds`, `net_poll_fds_cap`, `net_poll_pfds`, and
+  `net_poll_pfds_cap` behind the `N=1` shard/container and preserves
+  rebuild-from-waiters semantics.
+- Task 9 must stop for a revised plan if it changes waiter ownership,
+  persistent fd registration, readiness lifetime, accept ownership, poll
+  ownership, or net wake placement.
+- CI ownership: `TestMTNetWaiterWakeupLatency` remains local-only Task 8/9
+  evidence unless Task 12 re-proves CI stability. The native net benchmark
+  remains manual before/after evidence and should not join CI.
+
 ## Liveness Requirements
 
 - Runtime-code tasks cannot close with "watch for hangs" as evidence.

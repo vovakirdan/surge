@@ -19,7 +19,7 @@ must separate that debt from new runtime regressions.
 | 5. Runtime/Shard Skeleton | Complete | Internal `N=1` runtime/shard skeleton added; checks and Sentrux deltas recorded. |
 | 6. Scheduler Shape Tests | Complete | Scheduler trace evidence selected; parked-with-work remains an explicit missing invariant. |
 | 7. Scheduler Shape Migration | Complete | Scheduler container fields moved under `rt_shard.scheduler`; behavior gates and Sentrux status recorded. |
-| 8. Net Poll Scratch Tests | Pending | Record net wake and benchmark baseline. |
+| 8. Net Poll Scratch Tests | Complete | Net wake probe and current-checkout native net benchmark baseline recorded. |
 | 9. Net Poll Scratch Migration | Pending | Record net migration checks and benchmark rows. |
 | 10. Channel/Blocking Compatibility Tests | Pending | Record channel and fallback checks. |
 | 11. Channel/Blocking Compatibility Migration | Pending | Record migration checks and trace rows. |
@@ -871,3 +871,207 @@ None known.
 | Persistent fd registry | No for Task 8/9 if scratch migration preserves rebuild-from-waiters semantics. | Local fd-registry epic. | Task 9 must not introduce persistent readiness registration. |
 | `TestMTWorkStealing` CI promotion | No. | Later Tier 2 CPU-pool work, if promoted. | It remains local-only/current-runtime evidence. |
 | CI target and workflow wiring | No for Task 8/9; yes before Epic 2 closeout. | Epic 2 Task 12. | Runtime V2 automation remains a later task. |
+
+## Task 8: Net Poll Scratch Tests
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 8, Net Poll Scratch Tests.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: record net wake and native net benchmark before-evidence before Task 9
+  moves net poll scratch storage.
+- Out of scope: runtime/native edits, Go test edits, benchmark script edits,
+  `Makefile`, CI, Sentrux rules, fd registry, accept ownership, net semantic
+  changes, STATS, staging, and commit.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 8 complete and added this evidence section. | Preserve net wake and benchmark before-evidence for Task 9. | Documentation. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 8 handoff. | Preserve Task 9 start context and boundaries. | Documentation. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Updated status wording from Tasks 1-7 to Tasks 1-8. | Reflect recorded Task 8 evidence. | Documentation. |
+
+No runtime C, Go test, script, `Makefile`, CI workflow, Sentrux rule, STATS,
+task-doc, staging, or commit changes were made. `02-ci-test-contract.md` already
+records `TestMTNetWaiterWakeupLatency` as local-only until re-proven by Task 12,
+so this task did not edit the CI contract.
+
+### Current-Checkout Compiler Pin
+
+The benchmark used a temporary compiler binary built outside the repository:
+
+```bash
+current_commit="$(git rev-parse --short=12 HEAD)"
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/surge-task08.XXXXXX")"
+go build -ldflags "$(./scripts/ldflags.sh --local)" -o "$tmpdir/surge" ./cmd/surge/
+reported_commit="$($tmpdir/surge version --full --format json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("git_commit", ""))')"
+printf 'tmpdir=%s\n' "$tmpdir"
+printf 'surge=%s\n' "$tmpdir/surge"
+printf 'current_commit=%s\n' "$current_commit"
+printf 'reported_commit=%s\n' "$reported_commit"
+test "$reported_commit" = "$current_commit"
+$tmpdir/surge version --full
+```
+
+Output summary:
+
+```text
+tmpdir=/tmp/surge-task08.zkEoYd
+surge=/tmp/surge-task08.zkEoYd/surge
+current_commit=49b3aa34ec26
+reported_commit=49b3aa34ec26
+surge 0.1.13-dev — "forge storms before they land"
+commit: 49b3aa34ec26
+message: refactor(runtime): move scheduler state under shard
+built:  2026-06-26T12:41:59Z
+```
+
+The reported commit matched current `HEAD`, so the benchmark evidence came from
+the current checkout binary, not an installed or stale `surge`.
+
+### Net Wake Probe
+
+`TestMTNetWaiterWakeupLatency` passed:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+  go test ./internal/vm \
+    -run '^TestMTNetWaiterWakeupLatency$' \
+    -v --timeout 90s
+```
+
+Output:
+
+```text
+=== RUN   TestMTNetWaiterWakeupLatency
+--- PASS: TestMTNetWaiterWakeupLatency (2.64s)
+PASS
+ok  	surge/internal/vm	2.647s
+```
+
+The test did not print trace rows on success. It asserted them internally from
+the child process stderr: a generic `TRACE_NET` row, a
+`TRACE_NET reason=sigusr1` row, and `TRACE_EXEC_SNAPSHOT reason=sigusr1`. The
+asserted net fields include `io_poll_calls`, `io_poll_net_ready`,
+`io_poll_waiters_last`, `io_poll_waiters_max`, `io_direct_waits`,
+`io_waiter_scan_entries`, `io_waiter_net_entries`, `io_poll_rebuilds`,
+`io_poll_allocs`, `io_poll_dedup_checks`, `io_waiter_complete_calls`, and
+`io_waiter_completed`.
+
+### Native Net Benchmark
+
+Command:
+
+```bash
+tmpdir=/tmp/surge-task08.zkEoYd
+SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task08-native-net-before.md" \
+  timeout 120s env SURGE="$tmpdir/surge" ./scripts/bench_native_net.sh
+```
+
+Result: passed in `8.88s`.
+
+Report:
+
+```text
+/home/zov/projects/surge/surge/build/benchmarks/runtime-v2-task08-native-net-before.md
+```
+
+Report environment:
+
+- generated: `2026-06-26T12:42:15Z`;
+- surge commit: `49b3aa34ec26`;
+- fixture: `benchmarks/native/net_request_reply`;
+- threads: `1 2 4 8`;
+- modes: `echo direct manager`;
+- patterns: `seq pipe`;
+- requests: `2000`;
+- pipeline depth: `64`;
+- trace: per run `SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1`.
+
+Selected `## Results` rows for Task 9 before comparison:
+
+| threads | mode | pattern | requests | total us | avg us/op | p50 us | p95 us |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | echo | seq | 2000 | 135956 | 66.14 | 56.33 | 119.26 |
+| 1 | echo | pipe | 2000 | 46926 | 22.53 | 22.53 | 25.38 |
+| 1 | manager | seq | 2000 | 220693 | 108.54 | 98.95 | 170.56 |
+| 2 | echo | seq | 2000 | 183910 | 90.17 | 58.92 | 250.77 |
+| 2 | manager | seq | 2000 | 356900 | 176.50 | 144.23 | 354.38 |
+| 4 | direct | seq | 2000 | 235650 | 116.08 | 87.06 | 285.76 |
+| 4 | manager | pipe | 2000 | 211813 | 104.96 | 105.14 | 112.64 |
+| 8 | echo | pipe | 2000 | 79665 | 38.92 | 38.60 | 43.54 |
+| 8 | manager | seq | 2000 | 358790 | 177.40 | 147.43 | 338.45 |
+| 8 | manager | pipe | 2000 | 212421 | 105.26 | 106.37 | 112.20 |
+
+Selected `## Runtime Trace` rows for Task 9 before comparison:
+
+| threads | mode | pattern | handoff yields | sched inject | sched steal | net direct waits | net poll calls | net ready | net waiters total | waiter scan entries | net waiter entries | poll rebuilds | poll allocs | dedup checks | complete calls | completed waiters |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | echo | seq | 0 | 13843 | 0 | 1837 | 4798 | 1837 | 4798 | 14390 | 4798 | 4798 | 2 | 0 | 3674 | 1837 |
+| 1 | echo | pipe | 0 | 8101 | 0 | 31 | 91 | 31 | 91 | 269 | 91 | 91 | 2 | 0 | 62 | 31 |
+| 1 | manager | seq | 2000 | 17793 | 0 | 1784 | 4363 | 1784 | 4363 | 17446 | 4363 | 4363 | 2 | 0 | 3568 | 1784 |
+| 2 | echo | seq | 0 | 821 | 6 | 430 | 463 | 430 | 463 | 1385 | 463 | 463 | 2 | 0 | 860 | 430 |
+| 2 | manager | seq | 1999 | 5056 | 4 | 629 | 730 | 629 | 730 | 2914 | 730 | 730 | 2 | 0 | 1258 | 629 |
+| 4 | direct | seq | 0 | 539 | 0 | 350 | 405 | 350 | 405 | 1210 | 405 | 405 | 2 | 0 | 700 | 350 |
+| 4 | manager | pipe | 1999 | 4018 | 1 | 30 | 36 | 30 | 36 | 138 | 36 | 36 | 2 | 0 | 60 | 30 |
+| 8 | echo | pipe | 0 | 25 | 0 | 30 | 35 | 30 | 35 | 101 | 35 | 35 | 2 | 0 | 60 | 30 |
+| 8 | manager | seq | 1999 | 4852 | 4 | 589 | 659 | 589 | 659 | 2630 | 659 | 659 | 2 | 0 | 1178 | 589 |
+| 8 | manager | pipe | 1999 | 4017 | 0 | 31 | 35 | 31 | 35 | 134 | 35 | 35 | 2 | 0 | 62 | 31 |
+
+Across the full 24-row report, task-context blocking sends, task-context
+blocking recvs, compensation started, and compensation high-water stayed `0`;
+`poll allocs` stayed `2`; and `dedup checks` stayed `0`.
+
+### Test Decision
+
+No new semantic test is needed for Task 9 if it only moves
+`net_poll_fds`, `net_poll_fds_cap`, `net_poll_pfds`, and
+`net_poll_pfds_cap` behind the `N=1` shard/container and preserves
+rebuild-from-waiters semantics.
+
+Scratch contents are not persistent readiness state. The current contract is
+that each poll rebuilds temporary arrays from the current waiter list, polls
+those descriptors, and completes matching waiters. The existing wake probe and
+native benchmark cover that boundary. A new test becomes necessary only if Task
+9 changes waiter ownership, persistent fd registration, dedup semantics,
+readiness lifetime, accept ownership, poll ownership, or net wake placement.
+
+### CI Ownership
+
+`TestMTNetWaiterWakeupLatency` remains local-only Task 8/9 evidence. It should
+join `runtime-v2-check` only if Task 12 re-proves its stability in CI with
+`SURGE_BACKEND=llvm`, `SURGE_SKIP_TIMEOUT_TESTS=0`, toolchain preflight, and a
+clear timeout.
+
+`scripts/bench_native_net.sh` remains manual before/after evidence. Do not wire
+the native net benchmark into CI.
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `git status --short` | clean or known dirty state recorded | no output | `0` | Worktree started clean. |
+| `command -v clang` | tool exists | `/usr/bin/clang` | `0` | Required LLVM test preflight. |
+| `command -v ar` | tool exists | `/usr/bin/ar` | `0` | Required LLVM test preflight. |
+| Temp compiler build and commit verification block above | reported commit matches current `HEAD` | `current_commit=49b3aa34ec26`, `reported_commit=49b3aa34ec26` | `0` | `SURGE=/tmp/surge-task08.zkEoYd/surge` used for benchmark. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -v --timeout 90s` | pass | `TestMTNetWaiterWakeupLatency` ran and passed; package time `2.647s` | `0` | Trace rows asserted internally, not printed on success. |
+| `tmpdir=/tmp/surge-task08.zkEoYd; SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task08-native-net-before.md" timeout 120s env SURGE="$tmpdir/surge" ./scripts/bench_native_net.sh` | pass and write report | passed; report path printed | `0` | Manual benchmark evidence with current-checkout compiler. |
+| `git diff --check` | no whitespace errors | passed with no output after docs edits | `0` | Final whitespace gate. |
+
+Skipped by scope: broad focused VM regex, `make check`, `make c-check`,
+`make cppcheck`, Sentrux scans, runtime C edits, Go test edits, script edits,
+`Makefile` edits, GitHub Actions edits, STATS edits, task-doc edits, staging,
+and commit.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Net poll scratch migration | No, if Task 9 preserves rebuild-from-waiters semantics and only moves scratch buffers. | Epic 2 Task 9. | Task 8 before-evidence exists. |
+| Persistent fd registry | Yes, if attempted in Task 9. | Later local fd-registry epic. | Current evidence does not prove readiness persistence, close lifecycle, or registry dedup. |
+| Accept ownership changes | Yes, if attempted in Task 9. | Later accept-ownership/local fd-registry work. | Task 8 only proves current accept/read/write waiter wake behavior. |
+| Net semantic changes | Yes, if attempted in Task 9. | Separate approved plan and probes. | Task 8 is evidence-only and does not authorize semantic movement. |
+| CI promotion for net latency probe | No for Task 9; yes before adding to automation. | Epic 2 Task 12. | The probe remains local-only until re-proven in CI. |

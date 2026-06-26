@@ -11,7 +11,7 @@ cross-shard messaging, compiler crossing syntax, or public ABI changes. Every
 code task must name the old behavior it preserves and prove that the new shape
 is still the same runtime from the program's point of view.
 
-**Status:** draft; Tasks 1-7 evidence is recorded in `02-evidence.md`.
+**Status:** draft; Tasks 1-8 evidence is recorded in `02-evidence.md`.
 
 **Task documents:** detailed tasks live under `02-tasks/`. Each runtime-code
 task has a separate testing task where a meaningful test can be written before
