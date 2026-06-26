@@ -11,7 +11,7 @@ cross-shard messaging, compiler crossing syntax, or public ABI changes. Every
 code task must name the old behavior it preserves and prove that the new shape
 is still the same runtime from the program's point of view.
 
-**Status:** draft; Task 1 kickoff evidence is recorded in `02-evidence.md`.
+**Status:** draft; Tasks 1-2 evidence is recorded in `02-evidence.md`.
 
 **Task documents:** detailed tasks live under `02-tasks/`. Each runtime-code
 task has a separate testing task where a meaningful test can be written before
@@ -25,6 +25,7 @@ or beside the implementation.
 - `docs/runtime-v2-epics/SENTRUX_POLICY.md`
 - `docs/runtime-v2-epics/EVIDENCE_TEMPLATE.md`
 - `docs/runtime-v2-epics/02-evidence.md`
+- `docs/runtime-v2-epics/02-field-ownership-map.md`
 - `docs/runtime-v2-epics/01-baseline-evidence.md`
 - `docs/runtime-v2-epics/LIVENESS_PROBES.md`
 - `docs/runtime-v2-epics/OPEN_DECISIONS_BEFORE_EPIC_2.md`
@@ -149,7 +150,7 @@ Minimum liveness evidence for this epic:
 | Task | Document | Purpose |
 | --- | --- | --- |
 | 1 | `02-tasks/01-kickoff-evidence.md` | Record current baseline, accepted VM debt, and Sentrux state. |
-| 2 | `02-tasks/02-field-ownership-map.md` | Classify `rt_executor` fields and pick safe Epic 2 moves. |
+| 2 | `02-tasks/02-field-ownership-map.md` | Classify `rt_executor` fields and pick safe Epic 2 moves. Output: `02-field-ownership-map.md`. |
 | 3 | `02-tasks/03-runtime-v2-ci-test-contract.md` | Define stable Runtime V2 test and CI policy before code work. |
 | 4 | `02-tasks/04-runtime-shard-skeleton-tests.md` | Add or select tests/static checks for the skeleton. |
 | 5 | `02-tasks/05-runtime-shard-skeleton.md` | Introduce `N=1` `rt_runtime` and `rt_shard`. |

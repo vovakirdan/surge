@@ -37,6 +37,9 @@ task, then move durable decisions into the owning epic document before closeout.
   baseline commit `e7d9563d5c78a90409e4d6a92bd47d49b30ae830`, clean starting
   status on `codex/runtime-net-scheduler-refactor`, accepted VM/backend-test
   debt, root/runtime Sentrux scans, and the missing-rules deferral.
+- Epic 2 Task 2 field ownership map is recorded in
+  `02-field-ownership-map.md`. It classifies every current `rt_executor` field
+  before runtime field movement and names the first code-task field boundary.
 
 ## Epic 1 Artifacts
 
@@ -142,6 +145,39 @@ task, then move durable decisions into the owning epic document before closeout.
   `make c-check`, and `check_file_sizes.sh`.
 - Next owner: Epic 2 Task 2, Field Ownership Map. It should classify current
   `rt_executor` state before any runtime field movement.
+
+## Epic 2 Task 2 Field Ownership Handoff
+
+- Task: `02-tasks/02-field-ownership-map.md`.
+- Scope completed: documentation-only ownership classification. No runtime,
+  compiler, ABI, benchmark, CI, Sentrux rule-file, staging, or commit changes
+  were made.
+- Output: `02-field-ownership-map.md` classifies every `rt_executor` field into
+  runtime lifecycle/control plane, `N=1` shard-local hot state,
+  compatibility/offload state, trace/debug-facing state, or later-epic state.
+- Direct usage searches covered scheduler queues, waiter storage, net poll
+  scratch, task/scope registries, lifecycle flags, channel compensation, and
+  blocking pool state under `runtime/native`.
+- Safe Epic 2 move candidates are runtime lifecycle shell, task/scope registry,
+  scheduler queue shape, net poll scratch, and channel/blocking compatibility
+  state. Each remains behavior-preserving and must use the matching
+  `LIVENESS_PROBES.md` evidence when code moves fields.
+- Deferred owners: local-waiter epic for owner-local waiter queues, local
+  fd-registry epic for persistent readiness, multi-shard runtime epic for owner
+  placement and distributed scope semantics, allocator/pools epic for heap
+  counters and hot object pools, and later IO/backend work for backend choice.
+- First code-task boundary: introduce the runtime/shard shell around `lock`,
+  `ready_cv`, `io_cv`, `done_cv`, `workers`, `worker_ctxs`, `worker_count`,
+  `initialized`, `io_started`, `shutdown`, `sched_mode`, and `sched_seed` only.
+  Do not move waiters, fd readiness semantics, channel handoff semantics,
+  blocking pool queue, or task/scope ownership unless the approved task plan
+  expands the field group and evidence.
+- File-size risk remains active for `rt_async_state.c`, `rt_net.c`, and
+  `rt_async_channel.c`; later runtime-code tasks must avoid growing them or
+  record a split/follow-up.
+- Approved checks for Task 2: `git diff --check` and the map placeholder sanity
+  grep. Runtime tests, benchmarks, liveness probes, and Sentrux scans are
+  intentionally skipped for this docs-only task.
 
 ## Liveness Requirements
 

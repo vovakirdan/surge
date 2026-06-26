@@ -13,7 +13,7 @@ must separate that debt from new runtime regressions.
 | Task | Evidence status | Notes |
 | --- | --- | --- |
 | 1. Kickoff Evidence | Complete | Baseline, accepted VM debt, and Sentrux missing-rules deferral recorded. |
-| 2. Field Ownership Map | Pending | Link the ownership map and deferred field groups. |
+| 2. Field Ownership Map | Complete | Ownership map linked; movable and deferred field groups recorded. |
 | 3. Runtime V2 Test And CI Contract | Pending | Define stable local and CI probes. |
 | 4. Runtime/Shard Skeleton Tests | Pending | Record failing or selected skeleton checks. |
 | 5. Runtime/Shard Skeleton | Pending | Record implementation checks and Sentrux deltas. |
@@ -154,3 +154,131 @@ None known. Runtime code was not changed.
 - [x] Skipped checks record the exact reason and blocker status.
 - [x] Dead ends are recorded so future tasks do not retry them.
 - [x] Follow-ups and blockers have an owner, target document, or next task.
+
+## Task 2: Field Ownership Map
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 2, Field Ownership Map.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: inspect current `rt_executor` state, classify every field group before
+  field movement, name safe Epic 2 move groups, name deferred later-epic owners,
+  and link the map from the epic notes and evidence.
+- Out of scope: runtime implementation edits, tests, benchmarks, liveness
+  probes, Sentrux scans, Sentrux rule-file creation, staging, and commit.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/02-field-ownership-map.md` | Created the ownership map. | Classify every current `rt_executor` field before code movement. | Documentation only. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Linked the map and updated Task 2 status wording. | Make the map discoverable from the Epic 2 overview. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 2 handoff. | Preserve context for the first code task. | Documentation only. |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 2 complete and added this evidence section. | Keep Epic 2 evidence current. | Documentation only. |
+
+### Runtime Files Inspected
+
+| Path | Reason |
+| --- | --- |
+| `runtime/native/rt_async_internal.h` | Source of `rt_executor` fields and current executor invariants. |
+| `runtime/native/rt_async_state.c` | Scheduler, waiter, timer, trace, lifecycle, and I/O loop field users. |
+| `runtime/native/rt_net.c` | Net waiter accounting and net poll scratch field users. |
+| `runtime/native/rt_async_channel.c` | Direct async channel and sync helper compatibility users. |
+| `runtime/native/rt_async_task.c` | Task id/table, join, select, timer, and worker-count users found by `rg`. |
+| `runtime/native/rt_async_poll.c` | Sleep, timeout, and run-until-done users found by `rg`. |
+| `runtime/native/rt_async_scope.c` | Scope id/table and structured-concurrency users found by `rg`. |
+| `runtime/native/rt_async_blocking.c` | Blocking pool queue, counters, and completion wake users found by `rg`. |
+
+### Field Classification Summary
+
+| Category | Field groups |
+| --- | --- |
+| Runtime lifecycle/control plane | `lock`, `ready_cv`, `io_cv`, `done_cv`, `workers`, `worker_ctxs`, `worker_count`, `initialized`, `io_started`, `shutdown`, `sched_mode`, `sched_seed` when used for startup and runtime configuration. |
+| `N=1` shard-local hot state | Task id/table, scope id/table, `now_ms`, scheduler queues/counters, and net poll scratch buffers. |
+| Compatibility/offload state | Sync-channel fallback counters, compensation counters, blocking pool lifecycle, blocking queue, and blocking pool counters. |
+| Trace/debug-facing state | Blocking counters read by trace dumps, scheduler source fields, queue lengths, waiter counts, compensation counts, and net poll scratch counters when reported by existing traces. |
+| Later-epic state | Owner-local waiters, persistent fd registry, multi-shard owner placement, distributed cancellation/scopes, allocator counters/pools, and IO backend choice. |
+
+Every current `rt_executor` field is covered by the map in
+`02-field-ownership-map.md`.
+
+### First Code-Task Boundary
+
+The first runtime-code task should introduce only the runtime/shard shell around
+these lifecycle fields:
+
+```text
+lock, ready_cv, io_cv, done_cv, workers, worker_ctxs, worker_count,
+initialized, io_started, shutdown, sched_mode, sched_seed
+```
+
+It should not move waiters, fd readiness semantics, channel handoff semantics,
+blocking pool queue, or task/scope ownership unless its approved task plan
+expands the field group and names matching evidence.
+
+### Usage Search Commands
+
+| Command | Purpose | Result |
+| --- | --- | --- |
+| `rg -n -- '->(inject|local_queues|worker_ctxs|worker_count|running_count|ready_cv|sched_mode|sched_seed)\b' runtime/native` | Scheduler and ready queue usage. | Found scheduler uses in `rt_async_state.c` and `rt_async_task.c`. |
+| `rg -n -- '->(waiters|waiters_len|waiters_cap|net_waiters_len)\b|\b(add_waiter|remove_waiter|pop_waiter|prepare_park|wake_key_all)\b' runtime/native` | Shared waiter usage. | Found channel, task, poll, scope, blocking, net, and state users. |
+| `rg -n -- '->(net_poll_fds|net_poll_fds_cap|net_poll_pfds|net_poll_pfds_cap|net_polling|io_cv)\b|\b(poll_net_waiters|complete_net_waiters|ensure_net_poll_)\b' runtime/native` | Net poll scratch and I/O wait usage. | Found net scratch users in `rt_net.c` and poll ownership/I/O cv users in `rt_async_state.c`. |
+| `rg -n -- '->(next_id|next_scope_id|now_ms|tasks|tasks_cap|scopes|scopes_cap)\b|\b(tick_virtual|advance_time_to_next_timer|get_task|get_scope)\b' runtime/native` | Task, scope, and timer usage. | Found task/scope users across task, scope, poll, channel, blocking, net, and state modules. |
+| `rg -n -- '->(channel_blocked_workers|compensation_count|compensation_high_water|blocking_.*)\b|\b(rt_blocking_|maybe_start_compensation|rt_wait_current_worker_wakeup)\b' runtime/native` | Channel fallback, compensation, and blocking pool usage. | Found sync-channel compatibility users in `rt_async_state.c`/`rt_async_channel.c` and blocking users in `rt_async_blocking.c`. |
+| `rg -n -- '->(lock|done_cv|workers|initialized|io_started|shutdown)\b|\b(ensure_exec|exec_init_once|rt_start_workers|run_until_done|worker_main|io_thread_main)\b' runtime/native` | Lifecycle and lock usage. | Found runtime init, worker startup, condition-variable waits, shutdown checks, and ABI entry users. |
+| `rg --no-filename -o -- '->(next_id|next_scope_id|now_ms|tasks|tasks_cap|inject|local_queues|scopes|scopes_cap|waiters|waiters_len|waiters_cap|net_waiters_len|net_poll_fds|net_poll_fds_cap|net_poll_pfds|net_poll_pfds_cap|lock|ready_cv|io_cv|done_cv|workers|worker_ctxs|worker_count|running_count|channel_blocked_workers|net_polling|compensation_count|compensation_high_water|sched_mode|initialized|io_started|shutdown|sched_seed|blocking_lock|blocking_cv|blocking_workers|blocking_count|blocking_started|blocking_shutdown|blocking_running|blocking_submitted|blocking_completed|blocking_cancel_requested|blocking_head|blocking_tail)\b|exec_state\.(blocking_submitted|blocking_running|blocking_completed|blocking_cancel_requested|initialized|sched_seed|sched_mode)' runtime/native | sort | uniq -c` | Compact usage count for every executor field. | Confirmed every executor field appears in direct usage or trace-facing `exec_state` reads. |
+
+### File Size Risk Record
+
+| File | Current lines | Status |
+| --- | --- | --- |
+| `runtime/native/rt_async_internal.h` | `404` | Under 500 lines. |
+| `runtime/native/rt_async_state.c` | `2391` | Over limit; later code tasks must avoid growth or record a split/follow-up. |
+| `runtime/native/rt_net.c` | `1039` | Over limit; net scratch work must stay narrow. |
+| `runtime/native/rt_async_channel.c` | `549` | Over limit; channel/blocking compatibility work must stay narrow. |
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `git diff --check` | no whitespace errors | pass after docs edits | `0` | Docs-only whitespace gate. |
+| `git diff --no-index --check /dev/null docs/runtime-v2-epics/02-field-ownership-map.md` | no whitespace errors in the new untracked map | pass after docs edits | `1` | `git diff --no-index` returns `1` because the files differ; no diagnostics means the check passed. |
+| `rg -n 'TBD|TODO|unclassified|unknown' docs/runtime-v2-epics/02-field-ownership-map.md` | no placeholder matches | no matches after docs edits | `1` | `rg` returns `1` when no lines match; this is the expected sanity result. |
+
+Skipped by explicit Task 2 scope: runtime tests, `make check`, `make c-check`,
+`make cppcheck`, benchmarks, liveness probes, Sentrux scans, staging, and
+commit.
+
+### Map Risks
+
+- Current shared waiter FIFO behavior is an implementation artifact. Future
+  work must not promote global FIFO across waiter kinds into a Runtime V2
+  contract.
+- Current I/O assist can run ready work after net readiness. Future runtime
+  code must separate net-woken work from unrelated general inject work before
+  treating that path as architecture.
+- `worker_count` remains a runtime setting in Epic 2, even though later V2
+  shards may map more directly to owner threads.
+- Trace-facing fields need equivalent trace names or explicit evidence notes
+  when moved.
+
+### Rollback/Recovery Notes
+
+- Files or changes to revert: `02-field-ownership-map.md`, the Task 2 index and
+  section in this file, the map link/status in `02-n1-runtime-shard-structure.md`,
+  and the Task 2 handoff in `NOTES.md`.
+- Generated artifacts to remove: none.
+- Runtime processes, sockets, or temporary state to clean up: none.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next code task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Runtime/shard skeleton tests | Yes. | Epic 2 Tasks 3-4. | Code movement needs a stable test/CI contract and skeleton checks first. |
+| Runtime/shard skeleton implementation | Yes for field movement. | Epic 2 Task 5. | First code task should use the lifecycle-shell field boundary named above. |
+| Owner-local waiters | No for skeleton; yes for waiter rewrite. | Local waiter epic. | Requires owner cleanup and stale-wake probes. |
+| Persistent fd registry | No for net scratch; yes for fd registry semantics. | Local fd registry epic. | Requires readiness persistence and close/cancel lifecycle tests. |
+| Missing Sentrux rules | No for this docs-only task; yes for claiming code-task rule compliance. | First runtime-code Epic 2 task or dedicated Sentrux rules task. | Task 1 deferral remains active but is not a passing rules gate. |
