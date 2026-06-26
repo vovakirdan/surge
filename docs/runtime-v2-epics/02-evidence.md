@@ -18,7 +18,7 @@ must separate that debt from new runtime regressions.
 | 4. Runtime/Shard Skeleton Tests | Complete | Added local-only pending static shape check; pre-Task-05 failure recorded. |
 | 5. Runtime/Shard Skeleton | Complete | Internal `N=1` runtime/shard skeleton added; checks and Sentrux deltas recorded. |
 | 6. Scheduler Shape Tests | Complete | Scheduler trace evidence selected; parked-with-work remains an explicit missing invariant. |
-| 7. Scheduler Shape Migration | Pending | Record scheduler migration checks and traces. |
+| 7. Scheduler Shape Migration | Complete | Scheduler container fields moved under `rt_shard.scheduler`; behavior gates and Sentrux status recorded. |
 | 8. Net Poll Scratch Tests | Pending | Record net wake and benchmark baseline. |
 | 9. Net Poll Scratch Migration | Pending | Record net migration checks and benchmark rows. |
 | 10. Channel/Blocking Compatibility Tests | Pending | Record channel and fallback checks. |
@@ -709,3 +709,165 @@ None known. Task 6 changed documentation only.
 | Parked-with-work invariant | Conditional. Blocks Task 7 if it changes wake elision, worker sleep rules, or shard park state. | Epic 2 Task 7 if it crosses that boundary; otherwise later cross-shard wake/park owner. | The invariant is still missing and was not faked by a nondeterministic test. |
 | `TestMTWorkStealing` CI promotion | No. | Later Tier 2 CPU-pool work, if promoted. | Tier 1 stealing is a current implementation artifact, not a Runtime V2 hot-path contract. |
 | CI target and workflow wiring | No for Task 7; yes before Epic 2 closeout. | Epic 2 Task 12. | Task 6 records evidence; Task 12 wires automation. |
+
+## Task 7: Scheduler Shape Migration
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 7, Scheduler Shape Migration.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: move the current scheduler container fields behind the existing
+  single-shard shape without changing scheduling behavior.
+- Out of scope: `runtime/native/rt.h`, `Makefile`, CI, Go tests, benchmarks,
+  Sentrux rules, net scratch migration, waiter ownership, channel/blocking
+  migration, parked-with-work invariant, shard park state, `N>1`, staging, and
+  commit.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `runtime/native/rt_async_internal.h` | Added `rt_scheduler`, placed it under `rt_shard`, moved `inject`, `local_queues`, `worker_ctxs`, `worker_count`, `running_count`, `sched_mode`, and `sched_seed` out of `rt_executor`, and declared scheduler accessors/init. | Make the scheduler owner shape explicit under the single shard. | `446` lines, up from `432`; still below 500. |
+| `runtime/native/rt_runtime.c` | Added scheduler accessors and `rt_shard_scheduler_init()`. | Keep runtime/shard helper bodies outside the large state file. | `109` lines, up from `64`. |
+| `runtime/native/rt_async_state.c` | Routed scheduler queue, worker-count, running-count, seeded trace, worker-context, and compensation reads/writes through `rt_shard.scheduler`. | Preserve existing ready queue and worker behavior while changing ownership shape. | `2409` lines, up from `2368`; already over limit. No split in this task. |
+| `runtime/native/rt_async_task.c` | Routed inline child polling and task await worker-count checks through the scheduler accessor. | Keep task-side scheduler accounting on the moved owner. | `768` lines, up from `763`; already over limit. No split in this task. |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 7 complete and added this evidence section. | Record behavior proof, Sentrux status, and handoff. | Documentation. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 7 handoff. | Preserve Task 8/9 start context. | Documentation. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Updated status wording from Tasks 1-6 to Tasks 1-7. | Reflect recorded Task 7 evidence. | Documentation. |
+
+No public ABI, net/channel/waiter/task ownership, benchmark, CI, `Makefile`,
+Sentrux rule, staging, or commit changes were made.
+
+### Scheduler Shape Boundary
+
+Task 7 moved only the approved scheduler field group:
+
+- `inject`
+- `local_queues`
+- `worker_ctxs`
+- `worker_count`
+- `running_count`
+- `sched_mode`
+- `sched_seed`
+
+The owner is now `rt_shard.scheduler`. The process-lifetime allocation model did
+not change: local queues are still allocated during `exec_init_once()`, now via
+`rt_shard_scheduler_init()`, and worker contexts are still allocated when workers
+start. The local queue allocation failure path still reaches the legacy init
+panic boundary with `async: local queue allocation failed`.
+
+The following state stayed on `rt_executor`: `workers`, `ready_cv`, `io_cv`,
+`done_cv`, `lock`, `shutdown`, `net_polling`, `initialized`, `io_started`,
+`channel_blocked_workers`, `compensation_count`, `compensation_high_water`, and
+all blocking-pool fields.
+
+The change preserved local LIFO, inject FIFO, steal order, seeded RNG formulas,
+`SCHED_TRACE` output names and meanings, wake-token flow, wake elision,
+`ready_cv` signal/broadcast sites, `running_count` under `ex->lock`, `io_cv`
+idle signaling, and `rt_worker_count()` value.
+
+### Missing Invariant Status
+
+The parked-with-work invariant remains missing. Task 7 did not add parked state,
+wake-fd elision, or a shard park invariant.
+
+This task did not change wake elision, worker sleep rules, or shard park state.
+The Task 6 condition is therefore still satisfied. Any later task that changes
+those rules must stop and add a real parked-with-work invariant first.
+
+### Direct Access Audit
+
+The required direct-access audit has no remaining matches:
+
+```bash
+rg -n -- 'ex->(inject|local_queues|worker_ctxs|worker_count|running_count|sched_mode|sched_seed)\b|exec_state\.(sched_seed|sched_mode)' runtime/native
+```
+
+`rg` returned no output and exit status `1`, which is the expected no-match
+status. The moved fields remain visible only through `rt_shard.scheduler` and
+the scheduler helpers.
+
+### Sentrux
+
+Main-agent baseline supplied before implementation:
+
+- Repository: `/home/zov/projects/surge/surge`, `quality_signal=6207`, rules
+  missing.
+- Runtime: `/home/zov/projects/surge/surge/runtime`, `quality_signal=5125`,
+  rules missing.
+- Runtime `session_start`: saved at `quality_signal=5125`.
+
+Main-agent runtime `session_end` after the Task 7 changes reported `pass=true`,
+`signal_before=5125`, `signal_after=5168`, `signal_delta=43`, summary
+`Quality stable or improved`, and no violations. A worker-context `session_end`
+attempt could not reuse that baseline, so the main-agent result is the recorded
+session evidence.
+
+Post-change Sentrux checks:
+
+| Scan | Path | When | quality_signal | Root cause or bottleneck | Rules/session result |
+| --- | --- | --- | --- | --- | --- |
+| Repository | `/home/zov/projects/surge/surge` | After code changes | `6207` | bottleneck `modularity`; root causes: acyclicity `10000`, depth `6667`, equality `4689`, modularity `3438`, redundancy `8573`; cross-module edges `1820`; files `4744`; import edges `1888`; lines `372216` | `check_rules`: no rules file at `/home/zov/projects/surge/surge/.sentrux/rules.toml`; blocker/temporary deferral, not compliance. |
+| Runtime | `/home/zov/projects/surge/surge/runtime` | After code changes | `5168` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4764`, modularity `3333`, redundancy `2612`; cross-module edges `0`; files `33`; import edges `31`; lines `15057` | `check_rules`: no rules file at `/home/zov/projects/surge/surge/runtime/.sentrux/rules.toml`; blocker/temporary deferral, not compliance. |
+
+Compared with the supplied baseline, the repository signal stayed flat at
+`6207`; the runtime session increased from `5125` to `5168` and passed with no
+violations. Missing Sentrux rules remain a blocker to claiming rule compliance,
+not a blocker to this narrow shape migration.
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `command -v clang` | tool exists | `/usr/bin/clang` | `0` | Required LLVM test preflight. |
+| `command -v ar` | tool exists | `/usr/bin/ar` | `0` | Required LLVM test preflight. |
+| `rg -n -- 'ex->(inject\|local_queues\|worker_ctxs\|worker_count\|running_count\|sched_mode\|sched_seed)\b\|exec_state\.(sched_seed\|sched_mode)' runtime/native` | no direct moved-field executor hits | no output | `1` | `rg` no-match status; expected. |
+| `go clean -testcache` | clear cached Go test results | completed with no output | `0` | Used once so the exact Go probes below ran fresh after final C edits. |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SkeletonStaticShape$' -v --timeout 30s` | pass | `TestRuntimeV2SkeletonStaticShape` ran and passed; package time `0.036s` | `0` | Static Runtime V2 shape check. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(WorkStealing\|SeededScheduler)$' -v --timeout 90s` | pass | `TestMTWorkStealing` and `TestMTSeededScheduler` ran and passed; package time `2.546s` | `0` | Scheduler source trace proof. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(WakeupsAndCancellation\|ChannelParkUnpark\|BlockingChannelHelpersAllowTimersToAdvance\|SeededScheduler)$' -v --timeout 120s` | pass | all four exact tests ran and passed; package time `4.490s` | `0` | CI-shaped Runtime V2 behavior proof. |
+| `make c-check` | pass | formatting and strict C warning compile passed; `All C runtime checks passed` | `0` | Standalone final run. |
+| `make cppcheck` | pass | scanned 29 native C files; `cppcheck OK` | `0` | A first run flagged const-pointer style issues; fixed before this final pass. |
+| `make check` | pass | `go test ./...` with `SURGE_SKIP_TIMEOUT_TESTS=1` passed; `golangci-lint` reported `0 issues`; `make c-check` passed; file-size script found no applicable unstaged files | `0` | Default repository gate. |
+| `git diff --check` | no whitespace errors | passed with no output after docs edits | `0` | Final whitespace gate. |
+
+### Trace/Liveness Interpretation
+
+The scheduler trace proof still comes from test assertions:
+
+- `TestMTWorkStealing` fails unless the current scheduler reports
+  `SCHED_TRACE steal>0`.
+- `TestMTSeededScheduler` fails unless seeded mode reports the expected seed and
+  repeatable `hash`/`events`.
+
+Task 7 did not promote work stealing to a future Runtime V2 Tier 1 contract. It
+also did not prove parked-with-work, wake-fd elision, owner-local waiters, fd
+registry lifecycle, or cross-shard behavior.
+
+### Known Regressions
+
+None known.
+
+### Rollback/Recovery Notes
+
+- Code rollback: revert the `rt_scheduler` field move and helper/accessor use in
+  `runtime/native/rt_async_internal.h`, `runtime/native/rt_runtime.c`,
+  `runtime/native/rt_async_state.c`, and `runtime/native/rt_async_task.c`.
+- Documentation rollback: revert this Task 7 evidence section, the Task 7 index
+  status, the Task 7 notes handoff, and the Epic 2 status wording.
+- Generated artifacts to remove: none.
+- Runtime processes, sockets, or temporary state to clean up: none.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Net poll scratch tests | Yes for Task 9; no for Task 8. | Epic 2 Task 8. | Task 8 must record current net wake and benchmark evidence before scratch fields move. |
+| Net poll scratch migration | No, after Task 8 evidence exists. | Epic 2 Task 9. | Scheduler shape migration does not touch net waiters or scratch buffers. |
+| Parked-with-work invariant | No for Task 8/9 if they preserve worker sleep/wake and shard park state. | Later scheduler/wake-fd owner if those rules change. | Still missing; Task 7 did not cross the Task 6 boundary. |
+| Persistent fd registry | No for Task 8/9 if scratch migration preserves rebuild-from-waiters semantics. | Local fd-registry epic. | Task 9 must not introduce persistent readiness registration. |
+| `TestMTWorkStealing` CI promotion | No. | Later Tier 2 CPU-pool work, if promoted. | It remains local-only/current-runtime evidence. |
+| CI target and workflow wiring | No for Task 8/9; yes before Epic 2 closeout. | Epic 2 Task 12. | Runtime V2 automation remains a later task. |

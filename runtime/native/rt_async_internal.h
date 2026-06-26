@@ -99,6 +99,7 @@ typedef _Atomic uint32_t atomic_u32;
 typedef enum {
     RT_RUNTIME_STATUS_OK = 0,
     RT_RUNTIME_STATUS_INVALID_ARGUMENT = 1,
+    RT_RUNTIME_STATUS_ALLOCATION_FAILED = 2,
 } rt_runtime_status;
 
 typedef struct rt_executor rt_executor;
@@ -108,9 +109,20 @@ typedef struct rt_worker_ctx rt_worker_ctx;
 
 #define RT_RUNTIME_SHARD_COUNT 1U
 
+typedef struct {
+    rt_deque inject;
+    rt_deque* local_queues;
+    rt_worker_ctx* worker_ctxs;
+    uint32_t worker_count;
+    uint32_t running_count;
+    uint8_t sched_mode;
+    uint64_t sched_seed;
+} rt_scheduler;
+
 struct rt_shard {
     rt_runtime* runtime;
     rt_executor* executor;
+    rt_scheduler scheduler;
     uint32_t shard_id;
 };
 
@@ -175,8 +187,6 @@ struct rt_executor {
     rt_runtime* runtime;
     rt_task** tasks;
     size_t tasks_cap;
-    rt_deque inject;
-    rt_deque* local_queues;
     rt_scope** scopes;
     size_t scopes_cap;
     waiter* waiters;
@@ -192,18 +202,13 @@ struct rt_executor {
     pthread_cond_t io_cv;
     pthread_cond_t done_cv;
     pthread_t* workers;
-    rt_worker_ctx* worker_ctxs;
-    uint32_t worker_count;
-    uint32_t running_count;
     uint32_t channel_blocked_workers;
     uint8_t net_polling;
     uint32_t compensation_count;
     uint32_t compensation_high_water;
-    uint8_t sched_mode;
     uint8_t initialized;
     uint8_t io_started;
     uint8_t shutdown;
-    uint64_t sched_seed;
     pthread_mutex_t blocking_lock;
     pthread_cond_t blocking_cv;
     pthread_t* blocking_workers;
@@ -220,8 +225,9 @@ struct rt_executor {
 
 // Executor invariants:
 // - ex->lock owns tasks[], scopes[], waiters, net waiter/poll scratch state,
-//   inject/local queues, running_count, net_polling, channel_blocked_workers,
-//   compensation_count/high-water, timer state, and shutdown flags.
+//   the single shard scheduler queues/counters, net_polling,
+//   channel_blocked_workers, compensation_count/high-water, timer state, and
+//   shutdown flags.
 // - task status is atomic so external helpers can observe it, but transitions that
 //   touch queues or waiters still happen under ex->lock.
 // - waiters is a FIFO-by-key registration list. prepare_park may pre-register a
@@ -354,6 +360,14 @@ rt_runtime_status rt_runtime_init_global_n1(rt_executor* ex);
 rt_runtime* rt_executor_runtime(rt_executor* ex);
 rt_shard* rt_runtime_shard0(rt_runtime* runtime);
 size_t rt_runtime_shard_count(const rt_runtime* runtime);
+rt_scheduler* rt_shard_scheduler(rt_shard* shard);
+const rt_scheduler* rt_shard_scheduler_const(const rt_shard* shard);
+rt_scheduler* rt_executor_scheduler(rt_executor* ex);
+const rt_scheduler* rt_executor_scheduler_const(const rt_executor* ex);
+rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
+                                          uint32_t worker_count,
+                                          uint8_t sched_mode_value,
+                                          uint64_t sched_seed);
 uint32_t rt_runtime_default_worker_count(void);
 uint32_t rt_runtime_default_blocking_count(uint32_t workers);
 uint64_t rt_current_task_id(void);

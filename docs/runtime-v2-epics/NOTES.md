@@ -48,11 +48,13 @@ task, then move durable decisions into the owning epic document before closeout.
   `runtime_v2_pending` build tag and intentionally fails before Task 5 because
   `rt_runtime`, `rt_shard`, the `N=1` count macro, and skeleton accessors do not
   exist yet. The check is local-only until Task 12.
-- Epic 2 Task 6 scheduler-shape evidence is recorded in `02-evidence.md`.
-  Current scheduler trace proof uses `TestMTWorkStealing` and
-  `TestMTSeededScheduler`. `TestMTSeededScheduler` remains in the future CI
-  seed; `TestMTWorkStealing` stays local-only/current-runtime evidence because
-  Tier 1 stealing is not a Runtime V2 hot-path contract.
+- Epic 2 Task 7 scheduler-shape migration evidence is recorded in
+  `02-evidence.md`. Scheduler container fields now live under
+  `rt_shard.scheduler`. Current scheduler trace proof uses
+  `TestMTWorkStealing` and `TestMTSeededScheduler`. `TestMTSeededScheduler`
+  remains in the future CI seed; `TestMTWorkStealing` stays
+  local-only/current-runtime evidence because Tier 1 stealing is not a Runtime
+  V2 hot-path contract.
 
 ## Epic 1 Artifacts
 
@@ -353,6 +355,64 @@ task, then move durable decisions into the owning epic document before closeout.
   test name under `target/debug/.tests/`, so parallel runs can collide while
   writing artifacts and create a false failure unrelated to runtime behavior.
 
+## Epic 2 Task 7 Scheduler Shape Migration Handoff
+
+- Task: `02-tasks/07-scheduler-shape-migration.md`.
+- Scope completed: moved only scheduler container fields behind the existing
+  `N=1` `rt_shard.scheduler`: `inject`, `local_queues`, `worker_ctxs`,
+  `worker_count`, `running_count`, `sched_mode`, and `sched_seed`.
+- Preserved executor/global lifecycle state on `rt_executor`: `workers`,
+  `ready_cv`, `io_cv`, `done_cv`, `lock`, `shutdown`, `net_polling`,
+  `initialized`, `io_started`, `channel_blocked_workers`,
+  `compensation_count`, `compensation_high_water`, and blocking-pool fields.
+- No `runtime/native/rt.h`, `Makefile`, CI, Go test, benchmark script,
+  Sentrux rule, net/channel/waiter/task ownership semantic, public ABI,
+  staging, or commit changes were made.
+- Direct moved-field audit passed with no matches:
+
+  ```bash
+  rg -n -- 'ex->(inject|local_queues|worker_ctxs|worker_count|running_count|sched_mode|sched_seed)\b|exec_state\.(sched_seed|sched_mode)' runtime/native
+  ```
+
+  `rg` returned exit `1`, the expected no-match status.
+- Tool preflight passed: `command -v clang` returned `/usr/bin/clang`, and
+  `command -v ar` returned `/usr/bin/ar`.
+- Final checks passed:
+
+  ```bash
+  go test -tags runtime_v2_pending ./internal/vm \
+    -run '^TestRuntimeV2SkeletonStaticShape$' -v --timeout 30s
+  SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+    -run '^TestMT(WorkStealing|SeededScheduler)$' -v --timeout 90s
+  SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+    -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
+    -v --timeout 120s
+  make c-check
+  make cppcheck
+  make check
+  ```
+
+- A first `make cppcheck` run found const-pointer style warnings in
+  `rt_async_state.c`; the declarations were narrowed and the final standalone
+  `make cppcheck` passed.
+- Sentrux post-change root scan: `/home/zov/projects/surge/surge`,
+  `quality_signal=6207`, bottleneck `modularity`, rules file missing.
+- Sentrux post-change runtime scan: `/home/zov/projects/surge/surge/runtime`,
+  `quality_signal=5168`, bottleneck `redundancy`, rules file missing.
+  Supplied runtime baseline was `5125`, so the scoped signal increased by `43`.
+- Main-agent Sentrux runtime `session_end` passed against the pre-task baseline:
+  `5125 -> 5168`, delta `+43`, summary `Quality stable or improved`, and no
+  violations. Missing rules remain a blocker to claiming rule compliance, not a
+  blocker to this narrow shape migration.
+- Parked-with-work remains a missing invariant. Task 7 did not change wake
+  elision, worker sleep rules, or shard park state, so it did not cross the
+  Task 6 boundary.
+- Next task: Task 8 must record net poll scratch before-evidence. Run
+  `TestMTNetWaiterWakeupLatency` with `SURGE_SKIP_TIMEOUT_TESTS=0`, run the
+  native net benchmark with a current-checkout `SURGE` binary and an outer
+  timeout, and keep persistent fd registry behavior out of scope. Task 9 should
+  not start until Task 8 evidence exists.
+
 ## Liveness Requirements
 
 - Runtime-code tasks cannot close with "watch for hangs" as evidence.
@@ -371,6 +431,7 @@ touched:
 - `runtime/native/rt_async_state.c`
 - `runtime/native/rt_net.c`
 - `runtime/native/rt_async_channel.c`
+- `runtime/native/rt_async_task.c`
 - `internal/vm/mt_executor_test.go`
 - `internal/vm/mt_correctness_test.go`
 

@@ -319,9 +319,10 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t waiters_other = 0;
 
     rt_lock(ex);
-    if (ex->local_queues != NULL) {
-        for (uint32_t i = 0; i < ex->worker_count; i++) {
-            uint64_t len = (uint64_t)ex->local_queues[i].len;
+    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+    if (scheduler != NULL && scheduler->local_queues != NULL) {
+        for (uint32_t i = 0; i < scheduler->worker_count; i++) {
+            uint64_t len = (uint64_t)scheduler->local_queues[i].len;
             local_total += len;
             if (len > local_max) {
                 local_max = len;
@@ -415,15 +416,18 @@ static void trace_exec_snapshot_dump(const char* reason) {
         pos = trace_exec_append_literal(buf, pos, sizeof(buf), " reason=");
         pos = trace_exec_append_literal(buf, pos, sizeof(buf), reason);
     }
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "worker_count", (uint64_t)ex->worker_count);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "running", (uint64_t)ex->running_count);
+    trace_exec_append_kv_u64(
+        buf, &pos, sizeof(buf), "worker_count", scheduler != NULL ? scheduler->worker_count : 0);
+    trace_exec_append_kv_u64(
+        buf, &pos, sizeof(buf), "running", scheduler != NULL ? scheduler->running_count : 0);
     trace_exec_append_kv_u64(
         buf, &pos, sizeof(buf), "channel_blocked", (uint64_t)ex->channel_blocked_workers);
     trace_exec_append_kv_u64(
         buf, &pos, sizeof(buf), "compensation", (uint64_t)ex->compensation_count);
     trace_exec_append_kv_u64(
         buf, &pos, sizeof(buf), "compensation_high_water", (uint64_t)ex->compensation_high_water);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "inject_len", (uint64_t)ex->inject.len);
+    trace_exec_append_kv_u64(
+        buf, &pos, sizeof(buf), "inject_len", scheduler != NULL ? scheduler->inject.len : 0);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_max", local_max);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters", (uint64_t)ex->waiters_len);
@@ -719,25 +723,24 @@ static void exec_init_once(void) {
     if (threads == 0) {
         threads = rt_runtime_default_worker_count();
     }
-    ex->worker_count = threads;
-    ex->sched_mode = rt_env_sched_mode();
-    ex->sched_seed = rt_env_sched_seed();
+    rt_runtime_status scheduler_status =
+        rt_shard_scheduler_init(rt_runtime_shard0(rt_executor_runtime(ex)),
+                                threads,
+                                rt_env_sched_mode(),
+                                rt_env_sched_seed());
+    if (scheduler_status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
+        panic_msg("async: local queue allocation failed");
+    }
+    if (scheduler_status != RT_RUNTIME_STATUS_OK) {
+        panic_msg("async: scheduler initialization failed");
+    }
     channel_wake_force_inject = rt_env_channel_wake_force_inject();
     uint32_t blocking_threads = rt_env_blocking_count();
     if (blocking_threads == 0) {
-        blocking_threads = rt_runtime_default_blocking_count(ex->worker_count);
+        blocking_threads = rt_runtime_default_blocking_count(threads);
     }
     ex->blocking_count = blocking_threads;
-    if (ex->worker_count > 0) {
-        ex->local_queues = (rt_deque*)rt_alloc(
-            (uint64_t)ex->worker_count * (uint64_t)sizeof(rt_deque), _Alignof(rt_deque));
-        if (ex->local_queues == NULL) {
-            panic_msg("async: local queue allocation failed");
-        } else {
-            memset(ex->local_queues, 0, ex->worker_count * sizeof(rt_deque));
-        }
-    }
-    if (ex->worker_count > 1) {
+    if (threads > 1) {
         rt_start_workers(ex);
     }
     rt_blocking_init(ex);
@@ -751,21 +754,26 @@ rt_executor* ensure_exec(void) {
 
 uint64_t rt_worker_count(void) {
     const rt_executor* ex = ensure_exec();
-    return (uint64_t)ex->worker_count;
+    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+    return scheduler != NULL ? (uint64_t)scheduler->worker_count : 0;
 }
 
 static int runnable_is_empty(const rt_executor* ex) {
     if (ex == NULL) {
         return 1;
     }
-    if (ex->inject.len > 0) {
-        return 0;
-    }
-    if (ex->local_queues == NULL || ex->worker_count == 0) {
+    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+    if (scheduler == NULL) {
         return 1;
     }
-    for (uint32_t i = 0; i < ex->worker_count; i++) {
-        if (ex->local_queues[i].len > 0) {
+    if (scheduler->inject.len > 0) {
+        return 0;
+    }
+    if (scheduler->local_queues == NULL || scheduler->worker_count == 0) {
+        return 1;
+    }
+    for (uint32_t i = 0; i < scheduler->worker_count; i++) {
+        if (scheduler->local_queues[i].len > 0) {
             return 0;
         }
     }
@@ -791,13 +799,14 @@ void rt_sched_trace_dump(void) {
         return;
     }
     rt_lock(&exec_state);
+    const rt_scheduler* scheduler = rt_executor_scheduler_const(&exec_state);
     uint64_t local = trace_sched_local_pops;
     uint64_t inject = trace_sched_inject_pops;
     uint64_t steal = trace_sched_steal_pops;
     uint64_t events = trace_sched_events;
     uint64_t hash = trace_sched_hash;
-    uint64_t seed = exec_state.sched_seed;
-    uint8_t mode = exec_state.sched_mode;
+    uint64_t seed = scheduler != NULL ? scheduler->sched_seed : 0;
+    uint8_t mode = scheduler != NULL ? scheduler->sched_mode : SCHED_PARALLEL;
     rt_unlock(&exec_state);
 
     char buf[256];
@@ -834,10 +843,11 @@ static uint64_t sched_next_u64(rt_worker_ctx* ctx) {
 }
 
 static void rt_start_workers(rt_executor* ex) {
-    if (ex == NULL || ex->worker_count <= 1) {
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (ex == NULL || scheduler == NULL || scheduler->worker_count <= 1) {
         return;
     }
-    uint32_t count = ex->worker_count;
+    uint32_t count = scheduler->worker_count;
     size_t total = (size_t)count + 1;
     pthread_t* threads =
         (pthread_t*)rt_alloc((uint64_t)total * (uint64_t)sizeof(pthread_t), _Alignof(pthread_t));
@@ -853,7 +863,7 @@ static void rt_start_workers(rt_executor* ex) {
     }
     memset(ctxs, 0, count * sizeof(rt_worker_ctx));
     ex->workers = threads;
-    ex->worker_ctxs = ctxs;
+    scheduler->worker_ctxs = ctxs;
     if (pthread_create(&threads[0], NULL, rt_io_main, ex) != 0) {
         panic_msg("async: io worker start failed");
         return;
@@ -863,7 +873,8 @@ static void rt_start_workers(rt_executor* ex) {
     for (uint32_t i = 0; i < count; i++) {
         ctxs[i].ex = ex;
         ctxs[i].worker_id = i;
-        ctxs[i].sched_rng = ex->sched_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(i + 1);
+        ctxs[i].sched_rng =
+            scheduler->sched_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(i + 1);
         if (pthread_create(&threads[i + 1], NULL, rt_worker_main, &ctxs[i]) != 0) {
             panic_msg("async: worker start failed");
             return;
@@ -1345,13 +1356,14 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
 }
 
 static rt_deque* current_local_queue(rt_executor* ex) {
-    if (ex == NULL || ex->local_queues == NULL || ex->worker_count == 0) {
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (scheduler == NULL || scheduler->local_queues == NULL || scheduler->worker_count == 0) {
         return NULL;
     }
-    if (tls_worker_id < 0 || (uint32_t)tls_worker_id >= ex->worker_count) {
+    if (tls_worker_id < 0 || (uint32_t)tls_worker_id >= scheduler->worker_count) {
         return NULL;
     }
-    return &ex->local_queues[(uint32_t)tls_worker_id];
+    return &scheduler->local_queues[(uint32_t)tls_worker_id];
 }
 
 static int
@@ -1395,6 +1407,10 @@ static int ready_push_with_policy(
     if (ex == NULL) {
         return 0;
     }
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (scheduler == NULL) {
+        return 0;
+    }
     rt_task* task = get_task(ex, id);
     uint8_t status = task_status_load(task);
     if (task == NULL || status == TASK_DONE) {
@@ -1426,11 +1442,11 @@ static int ready_push_with_policy(
         // next scheduler turn; waking another worker often just creates steal/sleep churn.
         signal_ready_now = signal_ready && local->len > 1;
     } else {
-        int ok = front ? deque_push_head(&ex->inject,
+        int ok = front ? deque_push_head(&scheduler->inject,
                                          id,
                                          "async: inject queue overflow",
                                          "async: inject queue allocation failed")
-                       : deque_push_tail(&ex->inject,
+                       : deque_push_tail(&scheduler->inject,
                                          id,
                                          "async: inject queue overflow",
                                          "async: inject queue allocation failed");
@@ -1484,29 +1500,33 @@ static int ready_push_yielded_task(rt_executor* ex, uint64_t id) {
 
 int ready_pop(rt_executor* ex, uint64_t* out_id) {
     // Caller holds ex->lock; worker_next_ready adds local and steal paths.
-    return pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT);
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    return scheduler != NULL
+               ? pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)
+               : 0;
 }
 
 static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_id) {
-    if (ex == NULL) {
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (ex == NULL || scheduler == NULL) {
         return 0;
     }
-    if (ex->sched_mode == SCHED_SEEDED) {
-        rt_worker_ctx* ctx = ex->worker_ctxs != NULL && worker_id < ex->worker_count
-                                 ? &ex->worker_ctxs[worker_id]
+    if (scheduler->sched_mode == SCHED_SEEDED) {
+        rt_worker_ctx* ctx = scheduler->worker_ctxs != NULL && worker_id < scheduler->worker_count
+                                 ? &scheduler->worker_ctxs[worker_id]
                                  : NULL;
-        rt_deque* local = ex->local_queues != NULL && worker_id < ex->worker_count
-                              ? &ex->local_queues[worker_id]
+        rt_deque* local = scheduler->local_queues != NULL && worker_id < scheduler->worker_count
+                              ? &scheduler->local_queues[worker_id]
                               : NULL;
         int local_has = local != NULL && local->len > 0;
-        int inject_has = ex->inject.len > 0;
+        int inject_has = scheduler->inject.len > 0;
         int others_have = 0;
-        if (ex->local_queues != NULL && ex->worker_count > 1) {
-            for (uint32_t i = 0; i < ex->worker_count; i++) {
+        if (scheduler->local_queues != NULL && scheduler->worker_count > 1) {
+            for (uint32_t i = 0; i < scheduler->worker_count; i++) {
                 if (i == worker_id) {
                     continue;
                 }
-                if (ex->local_queues[i].len > 0) {
+                if (scheduler->local_queues[i].len > 0) {
                     others_have = 1;
                     break;
                 }
@@ -1517,11 +1537,11 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
                 if (pop_task_from_deque(ex, local, 1, out_id, SCHED_SRC_LOCAL)) {
                     return 1;
                 }
-                if (pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT)) {
+                if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)) {
                     return 1;
                 }
             } else {
-                if (pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT)) {
+                if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)) {
                     return 1;
                 }
                 if (pop_task_from_deque(ex, local, 1, out_id, SCHED_SRC_LOCAL)) {
@@ -1534,66 +1554,68 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
             }
         } else if (inject_has) {
             if (others_have && (sched_next_u64(ctx) & 1U) != 0U) {
-                if (ex->worker_count > 1) {
-                    uint32_t span = ex->worker_count - 1;
-                    uint32_t start =
-                        (worker_id + 1 + (uint32_t)(sched_next_u64(ctx) % span)) % ex->worker_count;
+                if (scheduler->worker_count > 1) {
+                    uint32_t span = scheduler->worker_count - 1;
+                    uint32_t start = (worker_id + 1 + (uint32_t)(sched_next_u64(ctx) % span)) %
+                                     scheduler->worker_count;
                     for (uint32_t offset = 0; offset < span; offset++) {
                         uint32_t victim = start + offset;
-                        if (victim >= ex->worker_count) {
-                            victim -= ex->worker_count;
+                        if (victim >= scheduler->worker_count) {
+                            victim -= scheduler->worker_count;
                         }
                         if (victim == worker_id) {
                             continue;
                         }
                         if (pop_task_from_deque(
-                                ex, &ex->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+                                ex, &scheduler->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
                             return 1;
                         }
                     }
                 }
             }
-            if (pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT)) {
+            if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)) {
                 return 1;
             }
         }
-        if (ex->local_queues == NULL || ex->worker_count <= 1) {
+        if (scheduler->local_queues == NULL || scheduler->worker_count <= 1) {
             return 0;
         }
-        uint32_t span = ex->worker_count - 1;
+        uint32_t span = scheduler->worker_count - 1;
         uint32_t start =
-            (worker_id + 1 + (uint32_t)(sched_next_u64(ctx) % span)) % ex->worker_count;
+            (worker_id + 1 + (uint32_t)(sched_next_u64(ctx) % span)) % scheduler->worker_count;
         for (uint32_t offset = 0; offset < span; offset++) {
             uint32_t victim = start + offset;
-            if (victim >= ex->worker_count) {
-                victim -= ex->worker_count;
+            if (victim >= scheduler->worker_count) {
+                victim -= scheduler->worker_count;
             }
             if (victim == worker_id) {
                 continue;
             }
-            if (pop_task_from_deque(ex, &ex->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+            if (pop_task_from_deque(
+                    ex, &scheduler->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
                 return 1;
             }
         }
         return 0;
     }
-    if (ex->local_queues != NULL && worker_id < ex->worker_count) {
-        if (pop_task_from_deque(ex, &ex->local_queues[worker_id], 1, out_id, SCHED_SRC_LOCAL)) {
+    if (scheduler->local_queues != NULL && worker_id < scheduler->worker_count) {
+        if (pop_task_from_deque(
+                ex, &scheduler->local_queues[worker_id], 1, out_id, SCHED_SRC_LOCAL)) {
             return 1;
         }
     }
-    if (pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT)) {
+    if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)) {
         return 1;
     }
-    if (ex->local_queues == NULL || ex->worker_count <= 1) {
+    if (scheduler->local_queues == NULL || scheduler->worker_count <= 1) {
         return 0;
     }
-    for (uint32_t offset = 1; offset < ex->worker_count; offset++) {
-        uint32_t victim = (worker_id + offset) % ex->worker_count;
+    for (uint32_t offset = 1; offset < scheduler->worker_count; offset++) {
+        uint32_t victim = (worker_id + offset) % scheduler->worker_count;
         if (victim == worker_id) {
             continue;
         }
-        if (pop_task_from_deque(ex, &ex->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+        if (pop_task_from_deque(ex, &scheduler->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
             return 1;
         }
     }
@@ -2083,15 +2105,17 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
 }
 
 static void maybe_start_compensation_worker_locked(rt_executor* ex) {
-    if (ex == NULL || ex->worker_count <= 1) {
+    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+    if (ex == NULL || scheduler == NULL || scheduler->worker_count <= 1) {
         return;
     }
-    uint32_t total_workers = ex->worker_count + ex->compensation_count;
+    uint32_t total_workers = scheduler->worker_count + ex->compensation_count;
     if (ex->channel_blocked_workers < total_workers) {
         return;
     }
     // Stateful channel fanout can park many workers behind sync request/reply chains.
-    uint32_t limit = ex->worker_count > UINT32_MAX / 32U ? UINT32_MAX : ex->worker_count * 32U;
+    uint32_t limit =
+        scheduler->worker_count > UINT32_MAX / 32U ? UINT32_MAX : scheduler->worker_count * 32U;
     if (ex->compensation_count >= limit) {
         return;
     }
@@ -2103,10 +2127,10 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     }
     memset(ctx, 0, sizeof(rt_worker_ctx));
     ctx->ex = ex;
-    ctx->worker_id = ex->compensation_count % ex->worker_count;
-    ctx->sched_rng =
-        ex->sched_seed +
-        UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(ex->worker_count + ex->compensation_count + 1U);
+    ctx->worker_id = ex->compensation_count % scheduler->worker_count;
+    ctx->sched_rng = scheduler->sched_seed +
+                     UINT64_C(0x9e3779b97f4a7c15) *
+                         (uint64_t)(scheduler->worker_count + ex->compensation_count + 1U);
 
     pthread_t thread;
     if (pthread_create(&thread, NULL, rt_worker_main, ctx) != 0) {
@@ -2123,15 +2147,16 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
 }
 
 static void move_current_local_to_inject_locked(rt_executor* ex) {
-    if (ex == NULL || tls_worker_id < 0 || (uint32_t)tls_worker_id >= ex->worker_count ||
-        ex->local_queues == NULL) {
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (scheduler == NULL || tls_worker_id < 0 ||
+        (uint32_t)tls_worker_id >= scheduler->worker_count || scheduler->local_queues == NULL) {
         return;
     }
-    rt_deque* local = &ex->local_queues[(uint32_t)tls_worker_id];
+    rt_deque* local = &scheduler->local_queues[(uint32_t)tls_worker_id];
     uint64_t id = 0;
     int moved = 0;
     while (deque_pop_head(local, &id)) {
-        if (deque_push_tail(&ex->inject,
+        if (deque_push_tail(&scheduler->inject,
                             id,
                             "async: inject queue overflow",
                             "async: inject queue allocation failed")) {
@@ -2147,16 +2172,20 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL || tls_worker_id < 0) {
         return 0;
     }
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (scheduler == NULL) {
+        return 0;
+    }
     trace_exec_inc(&trace_channel_blocking_wait_total);
     rt_lock(ex);
     move_current_local_to_inject_locked(ex);
     // This sync helper parks the OS worker, so it stops contributing to scheduler progress.
     ex->channel_blocked_workers++;
     int dropped_running = 0;
-    if (ex->running_count > 0) {
-        ex->running_count--;
+    if (scheduler->running_count > 0) {
+        scheduler->running_count--;
         dropped_running = 1;
-        if (ex->running_count == 0 && runnable_is_empty(ex)) {
+        if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
             pthread_cond_signal(&ex->io_cv);
         }
     }
@@ -2166,7 +2195,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
         pthread_cond_wait(&ex->ready_cv, &ex->lock);
     }
     if (dropped_running) {
-        ex->running_count++;
+        scheduler->running_count++;
     }
     if (ex->channel_blocked_workers > 0) {
         ex->channel_blocked_workers--;
@@ -2181,6 +2210,10 @@ static void* rt_worker_main(void* arg) {
     uint32_t worker_id = ctx != NULL ? ctx->worker_id : 0;
     const int worker_net_poll_slice_ms = 1;
     if (ex == NULL) {
+        return NULL;
+    }
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (scheduler == NULL) {
         return NULL;
     }
     tls_worker_id = (int)worker_id;
@@ -2216,7 +2249,7 @@ static void* rt_worker_main(void* arg) {
         task_status_store(task, TASK_RUNNING);
         (void)task_wake_token_exchange(task, 0);
         // running_count is changed only while holding ex->lock.
-        ex->running_count++;
+        scheduler->running_count++;
         rt_set_current_task(task);
 
         uint8_t kind = task->kind;
@@ -2224,10 +2257,10 @@ static void* rt_worker_main(void* arg) {
             task_polling_enter(task);
             poll_outcome outcome = poll_task(ex, task);
             task_polling_exit(task);
-            ex->running_count--;
+            scheduler->running_count--;
             apply_poll_outcome(ex, task, outcome);
             rt_set_current_task(NULL);
-            if (ex->running_count == 0 && runnable_is_empty(ex)) {
+            if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
                 pthread_cond_signal(&ex->io_cv);
             }
             rt_unlock(ex);
@@ -2240,10 +2273,10 @@ static void* rt_worker_main(void* arg) {
         task_polling_exit(task);
 
         rt_lock(ex);
-        ex->running_count--;
+        scheduler->running_count--;
         apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
-        if (ex->running_count == 0 && runnable_is_empty(ex)) {
+        if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
             pthread_cond_signal(&ex->io_cv);
         }
         rt_unlock(ex);
@@ -2256,6 +2289,10 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
     if (ex == NULL) {
         return 0;
     }
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (scheduler == NULL) {
+        return 0;
+    }
     uint64_t id = 0;
     if (!ready_pop(ex, &id)) {
         return 0;
@@ -2266,7 +2303,7 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
     }
     task_status_store(task, TASK_RUNNING);
     (void)task_wake_token_exchange(task, 0);
-    ex->running_count++;
+    scheduler->running_count++;
     rt_set_current_task(task);
 
     uint8_t kind = task->kind;
@@ -2274,10 +2311,10 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
         task_polling_enter(task);
         poll_outcome outcome = poll_task(ex, task);
         task_polling_exit(task);
-        ex->running_count--;
+        scheduler->running_count--;
         apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
-        if (ex->running_count == 0 && runnable_is_empty(ex)) {
+        if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
             pthread_cond_signal(&ex->io_cv);
         }
         return 1;
@@ -2289,10 +2326,10 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
     task_polling_exit(task);
     rt_lock(ex);
 
-    ex->running_count--;
+    scheduler->running_count--;
     apply_poll_outcome(ex, task, outcome);
     rt_set_current_task(NULL);
-    if (ex->running_count == 0 && runnable_is_empty(ex)) {
+    if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
         pthread_cond_signal(&ex->io_cv);
     }
     return 1;
@@ -2301,6 +2338,10 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
 static void* rt_io_main(void* arg) {
     rt_executor* ex = (rt_executor*)arg;
     if (ex == NULL) {
+        return NULL;
+    }
+    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+    if (scheduler == NULL) {
         return NULL;
     }
     const int poll_slice_ms = 50;
@@ -2318,7 +2359,7 @@ static void* rt_io_main(void* arg) {
         uint64_t deadline = 0;
         int have_timer = next_sleep_deadline(ex, &deadline);
         int have_net = has_net_waiters(ex);
-        int idle = ex->running_count == 0 && runnable_is_empty(ex);
+        int idle = scheduler->running_count == 0 && runnable_is_empty(ex);
 
         if (!have_net && (!have_timer || !idle)) {
             pthread_cond_wait(&ex->io_cv, &ex->lock);

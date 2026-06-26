@@ -143,10 +143,14 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     if (ex == NULL || current == NULL || target == NULL) {
         return;
     }
+    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    if (scheduler == NULL) {
+        return;
+    }
     task_enqueued_store(target, 0);
     task_status_store(target, TASK_RUNNING);
     (void)task_wake_token_exchange(target, 0);
-    ex->running_count++;
+    scheduler->running_count++;
     rt_set_current_task(target);
     rt_unlock(ex);
 
@@ -155,8 +159,8 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     task_polling_exit(target);
 
     rt_lock(ex);
-    if (ex->running_count > 0) {
-        ex->running_count--;
+    if (scheduler->running_count > 0) {
+        scheduler->running_count--;
     }
     apply_poll_outcome(ex, target, outcome);
     rt_set_current_task(current);
@@ -171,7 +175,8 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
     if (target == NULL) {
         return;
     }
-    if (ex->worker_count > 1) {
+    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+    if (scheduler != NULL && scheduler->worker_count > 1) {
         rt_lock(ex);
         if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
             wake_task(ex, target->id, 1);
