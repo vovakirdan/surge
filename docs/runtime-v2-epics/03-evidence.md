@@ -531,6 +531,279 @@ Skipped or failed known-debt probes:
 
 - None in the Task 08 required gate set.
 
+## Task 09: Channel Waiter Tests
+
+Status: complete.
+
+Output:
+
+- Added `TestRuntimeV2ChannelCloseWakesSendWaiters` to
+  `internal/vm/runtime_v2_waiter_contract_test.go` under
+  `runtime_v2_pending`.
+
+Covered channel contracts:
+
+- Cancelled recv waiter does not consume the next channel wake.
+- Cancelled send waiter does not consume the next receiver wake.
+- Channel close wakes recv waiters with `nothing`.
+- Channel close wakes blocked send waiters into the current
+  `send on closed channel` panic.
+- Select timeout cleanup does not leave a stale channel waiter.
+
+Pending channel proof:
+
+```bash
+SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2(CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv|ChannelCloseWakesRecvWaiters|ChannelCloseWakesSendWaiters|SelectTimeoutCleansLosingChannelWaiter)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 180s
+```
+
+Result: passed as part of the full pending waiter contract set.
+
+Native channel probes:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMT(RecvAckHandoffCompletesSenderAfterNonYieldingReceiver|BufferedRecvRefillCompletesSenderAfterNonYieldingReceiver|BufferedBlockingRecvRefillWakesSender|ChannelParkUnpark)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 120s
+
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMTCorrectnessChannels$' -count=1 -parallel=1 -p=1 -v --timeout 90s
+```
+
+Result: passed.
+
+## Task 10: Channel Waiter Migration
+
+Status: complete as a no-op runtime migration.
+
+Reason:
+
+- Task 08 already moved the storage used by channel waiters to
+  `rt_shard.waiter_store`.
+- `rt_async_channel.c` uses the compatibility helper surface:
+  `pop_waiter`, `prepare_park`, `channel_send_key`, and `channel_recv_key`.
+- Those helpers now route through `rt_executor_waiter_store()` to the single
+  shard owner.
+- No `runtime/native` channel code change was needed for this task.
+
+Audit:
+
+```bash
+rg -n -- '->(waiters|waiters_len|waiters_cap|net_waiters_len)\b' runtime/native internal/vm || true
+rg -n -- 'waiter_store|->waiters|->waiters_len|->waiters_cap|->net_waiters_len' runtime/native/rt_async_channel.c
+rg -n -- 'pop_waiter|prepare_park|channel_(send|recv)_key' runtime/native/rt_async_channel.c
+```
+
+Result:
+
+- Direct legacy waiter-field audit produced no output.
+- `rt_async_channel.c` has no direct waiter-store access and no legacy
+  `rt_executor` waiter field access.
+- Channel users are routed through the shared waiter helpers.
+
+Skipped:
+
+- Native channel benchmark was skipped because no behavior-affecting runtime
+  code changed in Task 10.
+
+Known debt:
+
+- `TestMTNonYieldingTrySendHandoffWakesReceiver` remains prior direct-handoff
+  timing debt and is not part of this owner-local storage migration gate.
+
+## Task 11: Task, Scope, And Blocking Waiter Tests
+
+Status: complete.
+
+Output:
+
+- Added `internal/vm/runtime_v2_task_scope_blocking_waiter_contract_test.go`
+  under the `runtime_v2_pending` build tag.
+
+Covered contracts:
+
+- A cancelled join waiter does not consume the target task completion wake.
+- Failfast scope cancellation wakes the owner and cancels the remaining child.
+- Blocking job completion wakes an awaiter.
+- A cancelled blocking waiter does not consume the blocking task completion
+  wake.
+
+Pending task/scope/blocking proof:
+
+```bash
+SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2(CancelledJoinWaiterDoesNotConsumeTaskCompletionWake|FailfastScopeCancellationWakesOwner|BlockingCompletionWakesAwaiter|CancelledBlockingWaiterDoesNotConsumeCompletionWake)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 180s
+```
+
+Result: passed as part of the full pending waiter contract set.
+
+Native task/scope/blocking probes:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMT(WakeupsAndCancellation|CorrectnessWakeups|StructuredConcurrency|BlockingPool)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 120s
+```
+
+Result: passed.
+
+Blocking-channel helper probe:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=3 go test ./internal/vm \
+  -run '^TestMTBlockingChannelHelpers(DoNotParkWorkers|AllowTimersToAdvance|DrainReadyWorkAtCompensationLimit)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 120s
+```
+
+Result: failed. `TestMTBlockingChannelHelpersAllowTimersToAdvance` passed, but
+`TestMTBlockingChannelHelpersDoNotParkWorkers` and
+`TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` timed out after
+30s. Isolated reruns of both failing tests also timed out after 30s.
+
+Classification:
+
+- The two timed-out helper/compensation probes are recorded as existing
+  blocking-channel liveness debt.
+- They are not used as the Task 11 owner-local waiter-storage completion gate.
+- The targeted blocking waiter contracts and `TestMTBlockingPool` passed.
+
+## Task 12: Task, Scope, And Blocking Waiter Migration
+
+Status: complete as a no-op runtime migration.
+
+Reason:
+
+- Task 08 already moved the storage used by task, scope, and blocking waiters
+  to `rt_shard.waiter_store`.
+- `rt_async_task.c` uses `join_key`, `prepare_park`, and `add_wait_key`.
+- `rt_async_scope.c` uses `scope_key` and `prepare_park`.
+- `rt_async_blocking.c` uses `blocking_key`, `prepare_park`, and
+  `wake_key_all`.
+- These helper paths now route through `rt_executor_waiter_store()` or the
+  owner-local store-backed waiter helper module.
+- No `runtime/native` task/scope/blocking code change was needed for this task.
+
+Audit:
+
+```bash
+rg -n -- '->(waiters|waiters_len|waiters_cap|net_waiters_len)\b' runtime/native internal/vm || true
+rg -n -- 'join_key|scope_key|blocking_key|prepare_park|add_wait_key|wake_key_all' \
+  runtime/native/rt_async_task.c runtime/native/rt_async_scope.c runtime/native/rt_async_blocking.c runtime/native/rt_async_waiter.c
+```
+
+Result:
+
+- Direct legacy waiter-field audit produced no output.
+- Task, scope, and blocking users are routed through owner-local waiter helpers.
+
+Known debt:
+
+- The blocking-channel helper/compensation timeouts from Task 11 remain outside
+  this migration boundary.
+
+## Task 13: Timer, Select, And Cancellation Tests
+
+Status: complete.
+
+Output:
+
+- Added `TestRuntimeV2CancelledSelectCleansWaitKeysAndTimers` to
+  `internal/vm/runtime_v2_waiter_contract_test.go` under
+  `runtime_v2_pending`.
+
+Covered contracts:
+
+- Select timeout cleanup does not leave a stale losing channel waiter.
+- Cancelling a task parked on a select with a channel branch and a timer branch
+  cleans multi-key waiters and timer state well enough for a fresh receiver to
+  get the next send after the timer would have fired.
+- Existing cancellation contracts cover stale cancelled recv/send waiters.
+
+Pending timer/select/cancellation proof:
+
+```bash
+SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2(SelectTimeoutCleansLosingChannelWaiter|CancelledSelectCleansWaitKeysAndTimers|CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 180s
+```
+
+Result: passed as part of the full pending waiter contract set.
+
+Supporting native probes:
+
+- `TestMTStructuredConcurrency`: passed in the Task 11 native probe set and
+  covers timeout cancellation/success behavior.
+- `TestMTWakeupsAndCancellation`: passed in the Task 11 native probe set.
+- `TestMTChannelParkUnpark`: passed in the Task 09 native probe set.
+- `TestMTBlockingChannelHelpersAllowTimersToAdvance`: passed in the
+  blocking-channel helper probe.
+
+## Task 14: Timer, Select, And Cancellation Migration
+
+Status: complete as a no-op runtime migration.
+
+Reason:
+
+- Task 08 already moved the storage used by timer, select, and cancellation
+  cleanup paths to `rt_shard.waiter_store`.
+- Multi-key wait cleanup uses `clear_wait_keys()` and `remove_waiter()`.
+- Select timer cleanup uses `clear_select_timers()` for timer task cancellation
+  and the waiter helpers for registered wait keys.
+- Select channel/task/timer arms use `add_wait_key()`, `prepare_park()`,
+  `join_key()`, and `channel_*_key()`; these helper paths now route through
+  owner-local waiter storage.
+- No `runtime/native` timer/select/cancellation code change was needed for this
+  task.
+
+Audit:
+
+```bash
+rg -n -- '->(waiters|waiters_len|waiters_cap|net_waiters_len)\b' runtime/native internal/vm || true
+rg -n -- 'add_wait_key|clear_wait_keys|clear_select_timers|remove_waiter|prepare_park' \
+  runtime/native/rt_async_task.c runtime/native/rt_async_state.c runtime/native/rt_async_waiter.c
+```
+
+Result:
+
+- Direct legacy waiter-field audit produced no output.
+- Timer, select, and cancellation paths are routed through owner-local waiter
+  helpers.
+
+Line counts for new tests:
+
+- `internal/vm/runtime_v2_waiter_contract_test.go`: 233 -> 345 lines.
+- `internal/vm/runtime_v2_task_scope_blocking_waiter_contract_test.go`: new,
+  242 lines.
+
+Batch closeout gates for Tasks 09-14:
+
+```bash
+go test ./internal/vm -run '^TestRuntimeV2WaiterHelperStaticBoundary$' -count=1 -v --timeout 30s
+SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2(CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv|ChannelCloseWakesRecvWaiters|ChannelCloseWakesSendWaiters|SelectTimeoutCleansLosingChannelWaiter|CancelledSelectCleansWaitKeysAndTimers|CancelledJoinWaiterDoesNotConsumeTaskCompletionWake|FailfastScopeCancellationWakesOwner|BlockingCompletionWakesAwaiter|CancelledBlockingWaiterDoesNotConsumeCompletionWake|OwnerLocalWaiterSkeletonStaticShape)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 180s
+make c-check
+make cppcheck
+make runtime-v2-check
+make check
+git diff --check
+```
+
+Result: passed.
+
+Sentrux evidence for Tasks 09-14:
+
+- Root scan `/home/zov/projects/surge/surge`: `quality_signal=6206`,
+  bottleneck `modularity`.
+- Runtime scan `/home/zov/projects/surge/surge/runtime`:
+  `quality_signal=5220`, bottleneck `redundancy`.
+- Runtime/native scan `/home/zov/projects/surge/surge/runtime/native`:
+  `quality_signal=5184`, bottleneck `redundancy`.
+- Root, runtime, and runtime/native `check_rules` calls all report missing
+  `.sentrux/rules.toml`. This remains debt, not rule compliance.
+
 ## Draft Creation Evidence
 
 - Docs created for Epic 3 scope and brief task list.

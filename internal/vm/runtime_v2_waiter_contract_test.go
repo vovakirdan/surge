@@ -3,6 +3,7 @@
 package vm_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -180,6 +181,48 @@ fn main() -> int {
 	runMTSource(t, source, 10*time.Second)
 }
 
+func TestRuntimeV2ChannelCloseWakesSendWaiters(t *testing.T) {
+	ensureLLVMToolchain(t)
+
+	source := `async fn wait_send(ch: own Channel<int>) -> int {
+    ch.send(42);
+    return 42;
+}
+
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let ch = make_channel::<int>(0);
+        let send_ch = ch;
+        let sender = spawn wait_send(send_ch);
+        checkpoint().await();
+        checkpoint().await();
+
+        ch.close();
+
+        let _ = sender.await();
+        return 1;
+    }).await();
+
+    return compare r {
+        Success(v) => v;
+        Cancelled() => 99;
+    };
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	dur, res := runBinaryWithTimeout(t, outputPath, mtEnv(t), 10*time.Second)
+	if res.exitCode == 0 {
+		t.Fatalf("expected send-on-closed panic, got success after %s\nstdout:\n%s\nstderr:\n%s",
+			dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stderr, "send on closed channel") {
+		t.Fatalf("expected send-on-closed panic after %s, got exit=%d\nstdout:\n%s\nstderr:\n%s",
+			dur, res.exitCode, res.stdout, res.stderr)
+	}
+}
+
 func TestRuntimeV2SelectTimeoutCleansLosingChannelWaiter(t *testing.T) {
 	ensureLLVMToolchain(t)
 
@@ -216,6 +259,75 @@ fn main() -> int {
         };
         if !ok {
             return 1;
+        }
+
+        print("ok", "\n");
+        return 0;
+    }).await();
+
+    return compare r {
+        Success(v) => v;
+        Cancelled() => 99;
+    };
+}
+`
+
+	runMTSource(t, source, 10*time.Second)
+}
+
+func TestRuntimeV2CancelledSelectCleansWaitKeysAndTimers(t *testing.T) {
+	ensureLLVMToolchain(t)
+
+	source := `async fn select_recv_or_sleep(ch: own Channel<int>) -> int {
+    let selected = select {
+        ch.recv() => 1;
+        sleep(100).await() => 2;
+    };
+    return selected;
+}
+
+async fn recv_once(ch: own Channel<int>) -> int {
+    let got = ch.recv();
+    return compare got {
+        Some(v) => v;
+        nothing => -1;
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let ch = make_channel::<int>(0);
+        let select_ch = ch;
+        let waiter = spawn select_recv_or_sleep(select_ch);
+        checkpoint().await();
+        checkpoint().await();
+
+        waiter.cancel();
+        let cancelled_res = waiter.await();
+        let cancelled_ok = compare cancelled_res {
+            Cancelled() => true;
+            Success(_) => false;
+        };
+        if !cancelled_ok {
+            return 1;
+        }
+
+        sleep(150).await();
+
+        let recv_ch = ch;
+        let receiver = spawn recv_once(recv_ch);
+        checkpoint().await();
+        checkpoint().await();
+        ch.send(42);
+
+        let recv_res = receiver.await();
+        let recv_ok = compare recv_res {
+            Success(v) => v == 42;
+            Cancelled() => false;
+        };
+        if !recv_ok {
+            return 2;
         }
 
         print("ok", "\n");

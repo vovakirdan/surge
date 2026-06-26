@@ -998,3 +998,38 @@ flat, or creates a follow-up split task.
   `rt_async_waiter.c` 252, `rt_async_state.c` 2221, `rt_net.c` 1042,
   `runtime_v2_waiter_static_test.go` 82, and
   `runtime_v2_owner_local_waiter_static_test.go` 53.
+
+## Epic 3 Tasks 09-14 Handoff
+
+- Scope completed: proved channel, task, scope, blocking, timer, select, and
+  cancellation waiter users after the owner-local waiter-store move.
+- Added pending channel/timer contracts in
+  `internal/vm/runtime_v2_waiter_contract_test.go`:
+  `TestRuntimeV2ChannelCloseWakesSendWaiters` and
+  `TestRuntimeV2CancelledSelectCleansWaitKeysAndTimers`.
+- Added pending task/scope/blocking contracts in
+  `internal/vm/runtime_v2_task_scope_blocking_waiter_contract_test.go`:
+  cancelled join waiter cleanup, failfast scope owner wake, blocking completion
+  wake, and cancelled blocking waiter cleanup.
+- Tasks 10, 12, and 14 closed as no-op runtime migrations. Task 08 had already
+  moved waiter storage to `rt_shard.waiter_store`; the affected users call
+  compatibility helpers that now route through `rt_executor_waiter_store()`.
+- Direct legacy waiter-field audit remains clean: no `->waiters`,
+  `->waiters_len`, `->waiters_cap`, or `->net_waiters_len` uses in
+  `runtime/native` or `internal/vm`.
+- Passing probes recorded in `03-evidence.md`: full pending waiter contract set,
+  channel MT probes, `TestMTCorrectnessChannels`, wakeup/structured/blocking MT
+  probes, default waiter static proof, and owner-local pending static proof.
+- Known debt recorded: `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` timeout after
+  30s, including isolated reruns. `TestMTBlockingChannelHelpersAllowTimersToAdvance`
+  passed and remains the stable Runtime V2 gate member.
+- No runtime/native files changed in Tasks 09-14. New tests are pending local
+  proofs until Task 18 decides what to promote into CI.
+- Closeout gates passed for Tasks 09-14: default waiter static proof, full
+  pending waiter contract set, channel MT probes, task/scope/blocking MT probes,
+  `make c-check`, `make cppcheck`, `make runtime-v2-check`, `make check`, and
+  `git diff --check`.
+- Sentrux batch scans: root `6206`, runtime `5220`, runtime/native `5184`.
+  Root, runtime, and runtime/native `check_rules` still report missing
+  `.sentrux/rules.toml`; this remains debt, not compliance.
