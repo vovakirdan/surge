@@ -910,3 +910,38 @@ flat, or creates a follow-up split task.
   `make cppcheck`, and `git diff --check`.
 - Sentrux was not run for Task 05, and no missing-rules status is reported as
   compliance.
+
+## Epic 3 Task 06 Handoff
+
+- Scope completed: extracted the legacy waiter key/list helper tranche into
+  `runtime/native/rt_async_waiter.c` while preserving executor-global waiter
+  storage and task-local wait-key storage.
+- Moved helpers: waker key constructors/classification, private net waiter
+  accounting for add/remove/pop paths, waiter capacity, wait-key capacity,
+  add/remove/clear waiters, wait-key registration, `prepare_park`, and
+  `pop_waiter`.
+- Kept in `rt_async_state.c`: `park_current`, `wake_task_with_policy`,
+  `wake_key_all_with_policy`, `clear_select_timers`, net polling, channel
+  handoff, task/select ABI, and all storage fields.
+- Header change was limited to `waker_is_net()` because `park_current()` still
+  needs net-key classification after the extraction.
+- `wake_key_all_with_policy()` retains the same `net_waiters_len` decrement
+  inline so `net_waiters_removed()` can stay private to the waiter module.
+- Line counts after closeout: `rt_async_state.c` 2431 -> 2212,
+  `rt_async_waiter.c` new at 226, `rt_async_internal.h` 460 -> 461,
+  `03-evidence.md` 270 -> 381, `NOTES.md` 912 -> 947, and
+  `03-tasks/README.md` 41 -> 41.
+- Checks passed: `clang-format -i runtime/native/rt_async_waiter.c`,
+  `git diff --check`, `make c-check`, `make cppcheck`, rerun
+  `make runtime-v2-check`, `make check`, cancellation/join/timeout smoke,
+  `TestMTCorrectnessChannels`, and `TestMTNetWaiterWakeupLatency`.
+- `make runtime-v2-check` first timed out once in
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance`; an isolated rerun passed,
+  then the full target passed.
+- Direct channel LLVM probe kept known debt visible:
+  `TestMTNonYieldingTrySendHandoffWakesReceiver` timed out after 10s; the other
+  four listed direct-channel tests passed. The default-backend command passed
+  only because all five MT tests skipped under VM.
+- Sentrux post-change scans: root `6215`, runtime `5264`, runtime/native
+  `5227`. Root, runtime, and runtime/native `check_rules` still report missing
+  `.sentrux/rules.toml`; this remains debt, not compliance.

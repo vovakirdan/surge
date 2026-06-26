@@ -259,6 +259,117 @@ Skipped by design:
 - No Sentrux scan or rules compliance is claimed for this non-runtime-code
   static-check task.
 
+## Task 06: Extract Waiter Key/List Helpers
+
+Status: complete.
+
+Output:
+
+- Created `runtime/native/rt_async_waiter.c`.
+- Moved only the waiter key/list tranche from `rt_async_state.c`:
+  `waker_none`, `waker_valid`, key constructors, net-key classification and
+  waiter accounting helpers, `ensure_waiter_cap`, wait-key capacity,
+  `remove_waiter`, `add_waiter`, `clear_wait_keys`, `add_wait_key`,
+  `prepare_park`, and `pop_waiter`.
+- Kept waiter storage in `rt_executor` and task wait-key storage in `rt_task`.
+- Kept `park_current`, `wake_task_with_policy`, `wake_key_all_with_policy`,
+  `clear_select_timers`, net polling, channel handoff, and task/select ABI in
+  place.
+- Added only one internal declaration: `waker_is_net()`, needed by the retained
+  `park_current()` and wake-key-all policy.
+
+Implementation note:
+
+- `wake_key_all_with_policy()` remains in `rt_async_state.c`. Because
+  `net_waiters_removed()` is now private to the waiter module, the existing
+  `net_waiters_len` decrement was preserved inline there instead of adding a
+  second internal helper declaration.
+
+Line counts:
+
+- `runtime/native/rt_async_state.c`: 2431 -> 2212 lines.
+- `runtime/native/rt_async_waiter.c`: new, 226 lines.
+- `runtime/native/rt_async_internal.h`: 460 -> 461 lines.
+- `docs/runtime-v2-epics/03-evidence.md`: 270 -> 381 lines.
+- `docs/runtime-v2-epics/NOTES.md`: 912 -> 947 lines.
+- `docs/runtime-v2-epics/03-tasks/README.md`: 41 -> 41 lines.
+
+Checks:
+
+```bash
+clang-format -i runtime/native/rt_async_waiter.c
+git diff --check
+make c-check
+make cppcheck
+make runtime-v2-check
+make check
+```
+
+Results:
+
+- `git diff --check`: passed before and after docs update.
+- `make c-check`: passed.
+- `make cppcheck`: passed.
+- First `make runtime-v2-check`: failed once in
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance` with `program timeout
+  after 30s`; `TestMTWakeupsAndCancellation`, `TestMTSeededScheduler`, and
+  `TestMTChannelParkUnpark` passed in that run.
+- Isolated rerun of
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=3 go test ./internal/vm -run '^TestMTBlockingChannelHelpersAllowTimersToAdvance$' -count=1 -parallel=1 -p=1 -v --timeout 120s`:
+  passed.
+- Second `make runtime-v2-check`: passed.
+- `make check`: passed.
+
+Focused probes:
+
+```bash
+SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMT(NonYieldingTrySendHandoffWakesReceiver|RecvAckHandoffCompletesSenderAfterNonYieldingReceiver|BufferedRecvRefillCompletesSenderAfterNonYieldingReceiver|BufferedBlockingRecvRefillWakesSender|ChannelParkUnpark)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 120s
+```
+
+Result: passed with all five tests skipped under the default VM backend. The
+same probe was rerun with `SURGE_BACKEND=llvm` for real native coverage:
+`TestMTNonYieldingTrySendHandoffWakesReceiver` timed out after 10s, matching
+known direct-handoff debt; the other four tests passed.
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMT(WakeupsAndCancellation|CorrectnessWakeups|StructuredConcurrency|BlockingPool)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 120s
+```
+
+Result: passed.
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMTCorrectnessChannels$' -count=1 -parallel=1 -p=1 -v --timeout 90s
+```
+
+Result: passed.
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMTNetWaiterWakeupLatency$' -count=1 -parallel=1 -p=1 -v --timeout 90s
+```
+
+Result: passed.
+
+Sentrux evidence:
+
+- Root scan `/home/zov/projects/surge/surge`: `quality_signal=6215`,
+  bottleneck `modularity`.
+- Runtime scan `/home/zov/projects/surge/surge/runtime`:
+  `quality_signal=5264`, bottleneck `redundancy`.
+- Runtime/native scan `/home/zov/projects/surge/surge/runtime/native`:
+  `quality_signal=5227`, bottleneck `redundancy`.
+- All three `check_rules` calls still report missing `.sentrux/rules.toml`.
+  This remains debt, not rule compliance.
+
+Skipped:
+
+- `gofmt`: no Go files changed.
+
 ## Draft Creation Evidence
 
 - Docs created for Epic 3 scope and brief task list.

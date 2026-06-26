@@ -361,6 +361,7 @@ waker_key channel_recv_key(const rt_channel* ch);
 waker_key net_accept_key(int fd);
 waker_key net_read_key(int fd);
 waker_key net_write_key(int fd);
+int waker_is_net(waker_key key);
 waker_key blocking_key(uint64_t id);
 
 rt_executor* ensure_exec(void);
