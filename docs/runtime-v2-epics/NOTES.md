@@ -261,6 +261,53 @@ task, then move durable decisions into the owning epic document before closeout.
   or record a blocker unrelated to Task 5 code. Task 12 owns deciding whether
   this exact tagged check or a non-pending successor joins `runtime-v2-check`.
 
+## Epic 2 Task 5 Runtime/Shard Skeleton Handoff
+
+- Task: `02-tasks/05-runtime-shard-skeleton.md`.
+- Scope completed: added the internal `N=1` `rt_runtime`/`rt_shard` skeleton
+  and accessors required by Task 4. No public ABI, `N>1`, waiter, fd registry,
+  scheduler, net poll, channel/blocking, compiler, benchmark, CI, Sentrux rule,
+  staging, or commit changes were made.
+- Runtime shape: `RT_RUNTIME_SHARD_COUNT == 1`; `rt_runtime` owns
+  `shards[RT_RUNTIME_SHARD_COUNT]`; `rt_shard` links to the runtime and current
+  executor; `rt_executor` gained only `rt_runtime* runtime`.
+- Required accessors now exist: `rt_executor_runtime`, `rt_runtime_shard0`, and
+  `rt_runtime_shard_count`.
+- New skeleton init uses `rt_runtime_status`. `exec_init_once()` still preserves
+  the legacy `pthread_once`/`panic_msg` boundary because it cannot return an
+  init status to callers.
+- File-size result: `rt_async_internal.h` is `432` lines, new
+  `rt_runtime.c` is `64` lines, and over-limit `rt_async_state.c` was reduced
+  from `2391` to `2368` lines by moving cold default worker-count helpers.
+- Checks passed:
+
+  ```bash
+  git diff --check
+  command -v clang
+  command -v ar
+  go test -tags runtime_v2_pending ./internal/vm \
+    -run '^TestRuntimeV2SkeletonStaticShape$' -v --timeout 30s
+  make c-check
+  make cppcheck
+  SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+    -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
+    -v --timeout 120s
+  make check
+  ```
+
+- One local failure happened and was fixed inside Task 5: the first
+  `make c-check` run showed `rt_async_state.c` still needed `<unistd.h>` for
+  existing trace `write()` calls after CPU-count detection moved.
+- Main-agent Sentrux runtime `session_end` passed against the pre-task baseline:
+  `5147 -> 5144`, delta `-2`, summary `Quality stable or improved`, and no
+  violations. A worker-context `session_end` could not reuse that baseline.
+- Post-change root Sentrux: `/home/zov/projects/surge/surge`,
+  `quality_signal=6209`, bottleneck `modularity`, rules file missing.
+- Post-change runtime Sentrux: `/home/zov/projects/surge/surge/runtime`,
+  `quality_signal=5144`, bottleneck `redundancy`, rules file missing.
+- Missing Sentrux rules remain a blocker to claiming rule compliance, not a
+  blocker to this narrow skeleton implementation.
+
 ## Liveness Requirements
 
 - Runtime-code tasks cannot close with "watch for hangs" as evidence.

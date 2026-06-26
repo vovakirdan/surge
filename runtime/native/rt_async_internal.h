@@ -96,7 +96,28 @@ typedef struct {
 typedef _Atomic uint8_t atomic_u8;
 typedef _Atomic uint32_t atomic_u32;
 
+typedef enum {
+    RT_RUNTIME_STATUS_OK = 0,
+    RT_RUNTIME_STATUS_INVALID_ARGUMENT = 1,
+} rt_runtime_status;
+
+typedef struct rt_executor rt_executor;
+typedef struct rt_runtime rt_runtime;
+typedef struct rt_shard rt_shard;
 typedef struct rt_worker_ctx rt_worker_ctx;
+
+#define RT_RUNTIME_SHARD_COUNT 1U
+
+struct rt_shard {
+    rt_runtime* runtime;
+    rt_executor* executor;
+    uint32_t shard_id;
+};
+
+struct rt_runtime {
+    size_t shard_count;
+    rt_shard shards[RT_RUNTIME_SHARD_COUNT];
+};
 
 typedef struct rt_task {
     uint64_t id;
@@ -147,10 +168,11 @@ typedef struct {
     size_t children_cap;
 } rt_scope;
 
-typedef struct {
+struct rt_executor {
     uint64_t next_id;
     uint64_t next_scope_id;
     uint64_t now_ms;
+    rt_runtime* runtime;
     rt_task** tasks;
     size_t tasks_cap;
     rt_deque inject;
@@ -194,7 +216,7 @@ typedef struct {
     atomic_u32 blocking_cancel_requested;
     struct rt_blocking_job* blocking_head;
     struct rt_blocking_job* blocking_tail;
-} rt_executor;
+};
 
 // Executor invariants:
 // - ex->lock owns tasks[], scopes[], waiters, net waiter/poll scratch state,
@@ -328,6 +350,12 @@ waker_key net_write_key(int fd);
 waker_key blocking_key(uint64_t id);
 
 rt_executor* ensure_exec(void);
+rt_runtime_status rt_runtime_init_global_n1(rt_executor* ex);
+rt_runtime* rt_executor_runtime(rt_executor* ex);
+rt_shard* rt_runtime_shard0(rt_runtime* runtime);
+size_t rt_runtime_shard_count(const rt_runtime* runtime);
+uint32_t rt_runtime_default_worker_count(void);
+uint32_t rt_runtime_default_blocking_count(uint32_t workers);
 uint64_t rt_current_task_id(void);
 rt_task* rt_current_task(void);
 void rt_set_current_task(rt_task* task);

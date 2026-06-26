@@ -16,7 +16,7 @@ must separate that debt from new runtime regressions.
 | 2. Field Ownership Map | Complete | Ownership map linked; movable and deferred field groups recorded. |
 | 3. Runtime V2 Test And CI Contract | Complete | CI contract created; exact seed tests and excluded accepted-debt command recorded. |
 | 4. Runtime/Shard Skeleton Tests | Complete | Added local-only pending static shape check; pre-Task-05 failure recorded. |
-| 5. Runtime/Shard Skeleton | Pending | Record implementation checks and Sentrux deltas. |
+| 5. Runtime/Shard Skeleton | Complete | Internal `N=1` runtime/shard skeleton added; checks and Sentrux deltas recorded. |
 | 6. Scheduler Shape Tests | Pending | Record selected scheduler liveness checks. |
 | 7. Scheduler Shape Migration | Pending | Record scheduler migration checks and traces. |
 | 8. Net Poll Scratch Tests | Pending | Record net wake and benchmark baseline. |
@@ -473,3 +473,121 @@ with the same contract, joins `make runtime-v2-check`.
 | Pending static check pass | Yes for Task 5 closeout. | Epic 2 Task 5. | Task 5 should make `TestRuntimeV2SkeletonStaticShape` pass or record a blocker. |
 | CI inclusion | No for Task 5 start; yes before Epic 2 closeout. | Epic 2 Task 12. | This check is local-only until the Runtime V2 target/job exists. |
 | Broad focused VM command debt | No for Epic 2. | Later test/backend matrix epic. | It remains excluded from required green gates. |
+
+## Task 5: Runtime/Shard Skeleton
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 5, Runtime/Shard Skeleton.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: add the smallest internal `rt_runtime` and `rt_shard` skeleton with
+  exactly one shard, make the Task 4 static shape check pass, and preserve the
+  existing executor behavior boundary.
+- Out of scope: public ABI changes, `N>1`, waiter ownership changes, fd
+  registry changes, scheduler migration, net poll migration, channel/blocking
+  changes, compiler changes, benchmarks, CI wiring, Sentrux rule-file creation,
+  staging, and commit.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `runtime/native/rt_async_internal.h` | Added `RT_RUNTIME_SHARD_COUNT`, complete internal `rt_runtime` and `rt_shard` types, runtime status codes, `rt_executor.runtime`, and the Task 4 accessors. | Expose the internal static shape required before later field movement. | `432` lines; still below 500. |
+| `runtime/native/rt_runtime.c` | Added N=1 skeleton initialization, accessors, and moved cold default worker-count helpers. | Keep skeleton helper bodies out of the over-limit state file. | New file is `64` lines. |
+| `runtime/native/rt_async_state.c` | Wired `exec_init_once()` to initialize the global N=1 runtime and renamed default-count calls. | Preserve the old `pthread_once`/panic boundary while creating the internal skeleton. | Reduced from `2391` to `2368` lines. |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 5 complete and added this evidence section. | Keep Epic 2 evidence current. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 5 handoff. | Preserve next-task context. | Documentation only. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Updated status wording from Tasks 1-4 to Tasks 1-5. | Reflect recorded Task 5 evidence. | Documentation only. |
+
+`runtime/native/rt.h` was not changed.
+
+### Runtime Shape
+
+The internal skeleton is explicit `N=1` only:
+
+- `RT_RUNTIME_SHARD_COUNT` is `1`.
+- `rt_runtime` owns `shards[RT_RUNTIME_SHARD_COUNT]`.
+- `rt_shard` links back to its `rt_runtime` and current `rt_executor`.
+- `rt_executor` gained only the `rt_runtime* runtime` link pointer.
+- `rt_runtime_shard0` is the only shard accessor; no index-based lookup or
+  multi-shard policy was added.
+
+No task table, scope table, waiter list, fd scratch state, scheduler queue,
+channel state, or blocking state moved in this task.
+
+### Error/Status Boundary
+
+New skeleton initialization uses explicit `rt_runtime_status` values. The only
+recoverable validation currently possible is `RT_RUNTIME_STATUS_INVALID_ARGUMENT`
+for null init arguments.
+
+`exec_init_once()` still cannot return a status because it is called through
+`pthread_once`, so it maps a non-OK skeleton init result to the existing legacy
+`panic_msg("async: runtime skeleton initialization failed")` boundary. With the
+current call path, this is not expected because `exec_state` is always passed.
+
+### Sentrux Root/Scoped Signals
+
+Main-agent baseline supplied before this task:
+
+- Repository: `/home/zov/projects/surge/surge`, `quality_signal=6210`, rules
+  file missing.
+- Runtime: `/home/zov/projects/surge/surge/runtime`, `quality_signal=5147`,
+  rules file missing.
+- Runtime `session_start`: saved at `quality_signal=5147`.
+
+Main-agent runtime `session_end` after the Task 5 changes reported `pass=true`,
+`signal_before=5147`, `signal_after=5144`, `signal_delta=-2`, summary
+`Quality stable or improved`, and no violations. A worker-context `session_end`
+attempt could not reuse that baseline, so the main-agent result is the recorded
+session evidence.
+
+| Scan | Path | When | quality_signal | Root cause or bottleneck | Rules/session result |
+| --- | --- | --- | --- | --- | --- |
+| Repository | `/home/zov/projects/surge/surge` | After code changes | `6209` | bottleneck `modularity`; root causes: acyclicity `10000`, depth `6667`, equality `4695`, modularity `3435`, redundancy `8584`; cross-module edges `1820`; files `4743`; import edges `1887`; lines `371719` | `check_rules`: no rules file at `/home/zov/projects/surge/surge/.sentrux/rules.toml`; blocker/temporary deferral, not compliance. |
+| Scoped | `/home/zov/projects/surge/surge/runtime` | After code changes | `5144` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4740`, modularity `3333`, redundancy `2565`; cross-module edges `0`; files `32`; import edges `30`; lines `14888` | `check_rules`: no rules file at `/home/zov/projects/surge/surge/runtime/.sentrux/rules.toml`; blocker/temporary deferral, not compliance. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SkeletonStaticShape$' -v --timeout 30s` | pass after Task 5 | passed; `TestRuntimeV2SkeletonStaticShape` ran and passed | `0` | Task 4 pending check flipped from expected failure to pass. |
+| `command -v clang` | tool exists | `/usr/bin/clang` | `0` | Required preflight. |
+| `command -v ar` | tool exists | `/usr/bin/ar` | `0` | Required preflight. |
+| `git diff --check` | no whitespace errors | passed after final docs update | `0` | Final whitespace gate. |
+| `make c-check` | pass | first run failed after moving CPU detection because `rt_async_state.c` still needed `<unistd.h>` for existing trace `write()` calls; after restoring the include, passed with formatting OK and strict C warnings OK | `0` final | The failure was introduced and fixed inside this task. |
+| `make cppcheck` | pass | passed; checked `29/29` C files including `rt_runtime.c` | `0` | Static analysis gate. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(WakeupsAndCancellation\|ChannelParkUnpark\|BlockingChannelHelpersAllowTimersToAdvance\|SeededScheduler)$' -v --timeout 120s` | pass | passed; all four exact tests ran and passed | `0` | Runtime V2 seed liveness evidence. |
+| `make check` | pass | passed; ran `SURGE_SKIP_TIMEOUT_TESTS=1 go test ./... --timeout 90s`, `golangci-lint`, `make c-check`, and `check_file_sizes.sh` | `0` | Default broad gate still uses skipped timeout-sensitive tests. |
+| `mcp__sentrux.session_end` | compare against pre-task runtime session if active | `pass=true`; `signal_before=5147`; `signal_after=5144`; `signal_delta=-2`; no violations | pass | Main-agent runtime session result. |
+| `mcp__sentrux.scan` root + `health` + `check_rules` | post-change root signal | `quality_signal=6209`; rules missing | scan/health pass; rules blocker | Missing rules are not compliance. |
+| `mcp__sentrux.scan` runtime + `health` + `check_rules` | post-change runtime signal | `quality_signal=5144`; rules missing | scan/health pass; rules blocker | Required runtime post-change check. |
+
+Skipped by scope: benchmarks, `make runtime-v2-check` target wiring, Sentrux
+rule-file creation, CI workflow edits, staging, and commit.
+
+### Known Regressions
+
+None known. The implementation changes only internal skeleton shape and cold
+initialization links.
+
+### Rollback/Recovery Notes
+
+- Files or changes to revert: `runtime/native/rt_runtime.c`, the skeleton
+  additions in `rt_async_internal.h`, the `exec_init_once()` runtime init call
+  and default-count renames in `rt_async_state.c`, this Task 5 evidence
+  section, the Task 5 notes entry, and the Epic 2 status wording.
+- Generated artifacts to remove: none.
+- Runtime processes, sockets, or temporary state to clean up: none.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Missing Sentrux rules | No for this task's implementation; yes for claiming rule compliance. | Dedicated Sentrux rules task or later Epic 2 closeout. | Both active scan paths still lack `.sentrux/rules.toml`. |
+| Scheduler field movement | Yes for scheduler migration. | Epic 2 Tasks 6-7. | This task did not move ready queues, worker placement, or scheduler semantics. |
+| Waiter and fd ownership | No for skeleton; yes for later owner work. | Local waiter and fd-registry epics. | This task intentionally kept waiters and fd readiness semantics unchanged. |
+| CI inclusion of skeleton check | No for Task 5; yes before Epic 2 closeout if desired. | Epic 2 Task 12. | The shape test remains behind `runtime_v2_pending`. |

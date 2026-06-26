@@ -692,32 +692,6 @@ static uint8_t rt_env_channel_wake_force_inject(void) {
     return 1;
 }
 
-static uint32_t rt_detect_cpu_count(void) {
-    long cpus = sysconf(_SC_NPROCESSORS_ONLN);
-    if (cpus <= 0) {
-        return 1;
-    }
-    if (cpus > (long)UINT32_MAX) { // NOLINT(runtime/int)
-        return UINT32_MAX;
-    }
-    return (uint32_t)cpus;
-}
-
-static uint32_t rt_default_worker_count(void) {
-    uint32_t cpus = rt_detect_cpu_count();
-    if (cpus < 2) {
-        return 2;
-    }
-    return cpus;
-}
-
-static uint32_t rt_default_blocking_count(uint32_t workers) {
-    if (workers < 1) {
-        workers = 1;
-    }
-    return workers;
-}
-
 static void rt_start_workers(rt_executor* ex);
 static void* rt_worker_main(void* arg);
 static void* rt_io_main(void* arg);
@@ -730,6 +704,9 @@ static void trace_exec_init(void);
 static void exec_init_once(void) {
     rt_executor* ex = &exec_state;
     memset(ex, 0, sizeof(*ex));
+    if (rt_runtime_init_global_n1(ex) != RT_RUNTIME_STATUS_OK) {
+        panic_msg("async: runtime skeleton initialization failed");
+    }
     ex->next_id = 1;
     ex->next_scope_id = 1;
     pthread_mutex_init(&ex->lock, NULL);
@@ -740,7 +717,7 @@ static void exec_init_once(void) {
     trace_sched_init();
     uint32_t threads = rt_env_worker_count();
     if (threads == 0) {
-        threads = rt_default_worker_count();
+        threads = rt_runtime_default_worker_count();
     }
     ex->worker_count = threads;
     ex->sched_mode = rt_env_sched_mode();
@@ -748,7 +725,7 @@ static void exec_init_once(void) {
     channel_wake_force_inject = rt_env_channel_wake_force_inject();
     uint32_t blocking_threads = rt_env_blocking_count();
     if (blocking_threads == 0) {
-        blocking_threads = rt_default_blocking_count(ex->worker_count);
+        blocking_threads = rt_runtime_default_blocking_count(ex->worker_count);
     }
     ex->blocking_count = blocking_threads;
     if (ex->worker_count > 0) {
