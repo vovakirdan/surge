@@ -8,11 +8,15 @@ Do not use this file to hide known debt. The broad focused VM command
 until the later test/backend matrix epic fixes or replaces it. Epic 2 evidence
 must separate that debt from new runtime regressions.
 
-Current status: Task 13 is complete as audit-only closeout evidence. The
-`runtime-v2-check` target and separate CI job run the stable Runtime V2
-liveness seed with timeout-sensitive tests enabled. The migrated Runtime V2
-accessor surfaces are clean in current `runtime/native`; the broad VM/backend
-regex remains accepted debt and is not a green gate.
+Current status: Task 14 closeout is recorded and all approved local gates
+passed after the docs edits. The `runtime-v2-check` target and separate CI job
+run the stable Runtime V2 liveness seed with timeout-sensitive tests enabled.
+The migrated Runtime V2 accessor surfaces are clean in current `runtime/native`;
+no owner-local waiter, persistent fd registry, `N>1`, or crossing-syntax
+implementation is claimed. The broad VM/backend regex remains accepted debt and
+is not a green gate. Missing Sentrux rule files remain debt, not compliance;
+final closeout scans recorded root `6207`, runtime `5209`, and runtime/native
+`5172`.
 
 ## Task Evidence Index
 
@@ -31,7 +35,7 @@ regex remains accepted debt and is not a green gate.
 | 11. Channel/Blocking Compatibility Migration | Complete | Counter ownership moved under `rt_shard.channel_blocking_compat`; direct/fallback gates, benchmark, static audits, and scan-only Sentrux snapshots recorded. |
 | 12. CI Runtime V2 Gates | Complete | `runtime-v2-check` target and separate CI job added; local `make runtime-v2-check` and `make check` passed. |
 | 13. Accessor Cleanup And Static Gates | Complete | Audit-only closeout; migrated accessors are clean, no runtime code change was justified, and static gates passed. |
-| 14. Epic Closeout | Pending | Record final gates and handoff to Epic 3. |
+| 14. Epic Closeout | Complete | Final local gates and Sentrux closeout scans recorded. |
 
 ## Task 1: Kickoff Evidence
 
@@ -1789,3 +1793,112 @@ rules remain debt, not compliance.
 | Missing Sentrux rules | No for this audit-only task; yes for claiming rule compliance. | Dedicated Sentrux rules task or later closeout deferral. | Root/runtime/runtime-native scans were recorded, but all scanned roots still lack rules files. |
 | Broad VM/backend regex debt | No. | Later test/backend matrix epic. | It remains excluded from required green gates. |
 | Runtime/native cleanup | No. | None for Task 13. | The exact migrated-surface audits found no ambiguous direct old-owner access and no justified code cleanup. |
+
+## Task 14: Epic Closeout
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 14, Epic Closeout.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: close the Epic 2 documentation, record final local gates, confirm
+  durable evidence coverage, and hand off the next owner-local waiter work.
+- Out of scope and unchanged: runtime/native code, Go tests, `Makefile`, CI,
+  scripts, Sentrux rule files, `STATS.md`, broad accepted-debt VM regex as a
+  green gate, owner-local waiter implementation, persistent fd registry, `N>1`,
+  and crossing syntax.
+- Proving spike: `no`.
+- Staging/commit: the executor did not stage or commit; the main session owns
+  the reviewed closeout commit.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Marked Epic 2 complete for its scoped result and restated non-goals. | Close the epic without claiming later runtime work. | Documentation only. |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 14 complete for docs/local gates and added this closeout section. | Keep durable evidence current. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 14 handoff and Epic 3 starting point. | Make the next epic startable without chat context. | Documentation only. |
+| `docs/runtime-v2-epics/README.md` | Updated directory status and roadmap row for Epic 2. | Keep the top-level Runtime V2 index current. | Documentation only. |
+
+### Evidence Coverage Audit
+
+`git log --oneline -25` shows durable commits for Tasks 1-13. Task 14 is this
+docs-only closeout; the executor did not stage or commit it, and the main
+session owns the final reviewed closeout commit.
+
+| Task | Durable evidence or explicit note |
+| --- | --- |
+| 1. Kickoff Evidence | Evidence section plus commit `c579c03c`; accepted VM debt and Sentrux missing-rules deferral recorded. |
+| 2. Field Ownership Map | Evidence section plus commit `1298bc63`; `02-field-ownership-map.md` classifies every current `rt_executor` field group. |
+| 3. Runtime V2 Test And CI Contract | Evidence section plus commit `06d085c`; `02-ci-test-contract.md` records the stable seed and excluded broad VM regex. |
+| 4. Runtime/Shard Skeleton Tests | Evidence section plus commit `364a02c`; local-only pending static shape check recorded. |
+| 5. Runtime/Shard Skeleton | Evidence section plus commit `87e961d`; internal `N=1` skeleton and accessors recorded. |
+| 6. Scheduler Shape Tests | Evidence section plus commit `8649378a`; scheduler liveness proofs and parked-with-work gap recorded. |
+| 7. Scheduler Shape Migration | Evidence section plus commit `49b3aa34`; scheduler container migration recorded. |
+| 8. Net Poll Scratch Tests | Evidence section plus commit `9ec78384`; net wake and native net before-evidence recorded. |
+| 9. Net Poll Scratch Migration | Evidence section plus commits `b48f58ec` and `8ef946f6`; shard scratch migration and after-evidence recorded. |
+| 10. Channel/Blocking Compatibility Tests | Evidence section plus commit `63bf13b7`; direct/fallback seed tests, benchmark baseline, and known heavier-test debt recorded. |
+| 11. Channel/Blocking Compatibility Migration | Evidence section plus commits `ec640a47` and `94c73e34`; compatibility counters moved under the shard and after-evidence recorded. |
+| 12. CI Runtime V2 Gates | Evidence section plus commit `7318e844`; `runtime-v2-check` target and separate CI job recorded. |
+| 13. Accessor Cleanup And Static Gates | Evidence section plus commit `f3ead40e`; migrated accessor surfaces audited clean and static gates recorded. |
+| 14. Epic Closeout | This section records closeout audits, local gates, and the Epic 3 handoff; no staging or commit was performed by this executor. |
+
+### Closeout Audits
+
+| Audit | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `git status --short --branch` before edits | branch known; no dirty files | `## codex/runtime-net-scheduler-refactor...origin/codex/runtime-net-scheduler-refactor [ahead 21]` | `0` | Started without listed file changes. |
+| `git diff --name-only e7d9563d5c78a90409e4d6a92bd47d49b30ae830..HEAD` | Epic 2 changed only expected committed surfaces | listed `.github/workflows/ci.yml`, `Makefile`, `STATS.md`, Runtime V2 docs, one `internal/vm` pending static test, and scoped `runtime/native` files | `0` | Task 14 did not edit forbidden surfaces; `STATS.md` is historical committed Epic 2 state, not a Task 14 edit. |
+| `rg -n -- 'owner[-_ ]local\|persistent fd\|fd registry\|cross-shard\|crossing syntax\|\bsubmit_to\b\|\bcrosses\b\|\bfar\b\|N>1\|multi-shard\|multiple shards' runtime/native internal cmd pkg compiler 2>/dev/null \|\| true` | no owner-local waiter, fd registry, `N>1`, or crossing syntax implementation | one unrelated `cmd/surge/philosophy.go` text hit for `crosses`; no runtime/native or implementation hit | `0` | No later-epic implementation slipped into Epic 2. |
+| `rg -n -- 'RT_RUNTIME_SHARD_COUNT\|rt_runtime_shard_count\|rt_runtime_shard0\|shard_count\|shards\[' runtime/native internal/vm/runtime_v2_skeleton_static_test.go` | exactly-one-shard skeleton remains visible | `RT_RUNTIME_SHARD_COUNT 1U`; runtime initializes `shards[0]`; pending static test asserts count `1` | `0` | Confirms `N=1`, not multi-shard runtime behavior. |
+| Debt/compliance grep across Runtime V2 docs | broad VM regex stays debt; missing Sentrux rules stay debt | docs consistently say the broad regex is not a green gate and missing rules are not compliance | `0` | Closeout does not convert debt into passing evidence. |
+
+### CI And Test Contract Status
+
+- `make runtime-v2-check` is the stable local Runtime V2 liveness gate. It
+  preflights `clang` and `ar`, sets `SURGE_BACKEND=llvm`,
+  `SURGE_SKIP_TIMEOUT_TESTS=0`, and `SURGE_MT_TIMEOUT_SCALE=3`, then runs the
+  four exact seed tests serialized.
+- `.github/workflows/ci.yml` has a separate `runtime-v2-check` job that
+  installs `clang`, `llvm`, `lld`, and `binutils` before running the target.
+- Default `make check` remains the broad repository gate with
+  `SURGE_SKIP_TIMEOUT_TESTS=1`. It does not prove the timeout-sensitive
+  VM/LLVM tests that the broad accepted-debt regex reaches.
+- The command `go test ./internal/vm -run 'MT|Async|Net|LLVM'` remains later
+  test/backend matrix debt and is not an Epic 2 green gate.
+
+### Final Local Gates
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `make runtime-v2-check` | pass | all four exact Runtime V2 seed tests ran and passed; package time `7.615s` | `0` | Main-session final run with LLVM backend, timeout-sensitive tests enabled, `SURGE_MT_TIMEOUT_SCALE=3`, `-count=1`, `-parallel=1`, and `-p=1`. |
+| `make check` | pass | passed; ran `SURGE_SKIP_TIMEOUT_TESTS=1 go test ./... --timeout 90s`, `golangci-lint` with `0 issues`, nested `make c-check`, and `check_file_sizes.sh` with no applicable unstaged files | `0` | Default repository gate remains skipped-timeout by design. |
+| `make c-check` | pass | C formatting OK; strict warning compile OK; all C runtime checks passed | `0` | Standalone C gate run after `make check`. |
+| `make cppcheck` | pass | checked 29 C files and printed `>> cppcheck OK` | `0` | Static C analysis gate. |
+| `git diff --check` | pass | no output | `0` | Final whitespace gate for the docs-only diff. |
+
+### Sentrux Status
+
+Main-session Sentrux closeout scans were run after the Task 14 docs edits.
+Missing rules remain debt, not compliance.
+
+| Scan | Path | quality_signal | Root cause or bottleneck | Rules result |
+| --- | --- | --- | --- | --- |
+| Root | `/home/zov/projects/surge/surge` | `6207` | bottleneck `modularity`; root causes: acyclicity `10000`, depth `6667`, equality `4685`, modularity `3438`, redundancy `8576`; files `4744`; import edges `1888`; root line count is not pinned because this docs-only closeout edits the evidence file itself | missing `/home/zov/projects/surge/surge/.sentrux/rules.toml`; debt, not compliance. |
+| Runtime | `/home/zov/projects/surge/surge/runtime` | `5209` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4783`, modularity `3333`, redundancy `2705`; files `33`; import edges `31`; lines `15125` | missing `/home/zov/projects/surge/surge/runtime/.sentrux/rules.toml`; debt, not compliance. |
+| Runtime/native | `/home/zov/projects/surge/surge/runtime/native` | `5172` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4781`, modularity `3215`, redundancy `2708`; files `32`; import edges `31`; lines `15110` | missing `/home/zov/projects/surge/surge/runtime/native/.sentrux/rules.toml`; debt, not compliance. |
+
+### Closeout Result And Handoff
+
+Epic 2 closes only the `N=1` structure slice. It delivered the internal
+runtime/shard skeleton, owner-oriented accessors for the migrated scheduler,
+net scratch, and channel/blocking compatibility surfaces, and the stable
+Runtime V2 liveness gate. It did not deliver owner-local waiters, persistent fd
+registry semantics, multi-shard placement, or crossing syntax.
+
+Epic 3 should start from the current global waiter implementation and write a
+waiter ownership map before code movement. The first Epic 3 proof should cover
+owner cleanup, stale wake prevention, cancellation/timeout interaction, and the
+existing global FIFO behavior that must either be preserved intentionally or
+demoted from contract to implementation detail.

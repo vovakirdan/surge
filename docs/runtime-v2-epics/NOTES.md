@@ -27,6 +27,13 @@ task, then move durable decisions into the owning epic document before closeout.
   Runtime V2 seed with `SURGE_SKIP_TIMEOUT_TESTS=0`; the separate CI job
   installs `clang`, `llvm`, `lld`, and `binutils`, sets
   `SURGE_MT_TIMEOUT_SCALE=3`, and runs that target.
+- Task 14 Epic 2 closeout is recorded and approved local gates passed after the
+  docs edits. Epic 2 is complete for the `N=1` runtime/shard structure slice:
+  no owner-local waiter, persistent fd registry, `N>1`, or crossing-syntax
+  implementation is claimed. The broad VM/backend regex remains later
+  test/backend debt, and missing Sentrux rules remain debt rather than
+  compliance. Main-session Task 14 Sentrux closeout scans recorded root `6207`,
+  runtime `5209`, and runtime/native `5172`.
 - Task 13 accessor cleanup is recorded as audit-only. The migrated scheduler,
   net poll scratch, channel compat, and runtime/shard skeleton surfaces are
   clean in current `runtime/native`; no runtime code change was justified.
@@ -41,13 +48,14 @@ task, then move durable decisions into the owning epic document before closeout.
   focused net wake probe, native net benchmark, `git diff --check`, Sentrux
   repository scan, and Sentrux runtime scan. Both Sentrux `check_rules` calls
   still report missing rules files, which remains recorded baseline debt.
-- Epic 2 is drafted in `02-n1-runtime-shard-structure.md`. It is scoped to
-  `N=1` `rt_runtime`/`rt_shard` structure only; owner-local waiters, persistent
-  fd registry, `N>1`, crossing syntax, and the VM/native/LLVM test-matrix
-  rewrite are later epics.
+- Epic 2 is complete in `02-n1-runtime-shard-structure.md` for the `N=1`
+  `rt_runtime`/`rt_shard` structure slice; owner-local waiters, persistent fd
+  registry, `N>1`, crossing syntax, and the VM/native/LLVM test-matrix rewrite
+  are later epics.
 - Epic 2 task files live in `02-tasks/`. Runtime-code tasks are paired with
-  test-writing tasks where meaningful tests can be written, and stable Runtime
-  V2 liveness tests must be added to CI before Epic 2 closes.
+  test-writing tasks where meaningful tests can be written, and the stable
+  Runtime V2 liveness seed is now covered by `make runtime-v2-check` and the
+  separate CI job.
 - Epic 2 task evidence is recorded in `02-evidence.md`.
 - Subagents now use a plan gate: they must return a plan for approval before
   implementation, test-writing, or review work starts. If no real plan mode is
@@ -713,6 +721,44 @@ task, then move durable decisions into the owning epic document before closeout.
 - Strictly untouched: runtime/native code, Go tests, scripts, `Makefile`, CI,
   Sentrux rules, STATS, public ABI, scheduler/net/channel/blocking semantics,
   owner-local waiters, persistent fd registry, `N>1`, and crossing syntax.
+
+## Task 14 Closeout Handoff
+
+- Scope completed: closed Epic 2 documentation for the `N=1`
+  runtime/shard-structure slice and recorded final local gates.
+- Docs changed: `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md`,
+  `02-evidence.md`, this file, and `README.md`.
+- No runtime/native code, Go tests, `Makefile`, CI, scripts, Sentrux rules,
+  `STATS.md`, staging, or commit changes were made by this executor.
+- Closeout audit found no owner-local waiter, persistent fd registry, `N>1`,
+  or crossing-syntax implementation in the Epic 2 runtime/compiler surfaces.
+- CI status: `make runtime-v2-check` is the stable local target, and the
+  separate GitHub Actions job runs the same seed with timeout-sensitive tests
+  enabled. Default `make check` still uses `SURGE_SKIP_TIMEOUT_TESTS=1` and is
+  not proof for the broad timeout-sensitive VM/LLVM matrix.
+- Sentrux status: main-session closeout scans recorded root `6207`, runtime
+  `5209`, and runtime/native `5172`. All three `check_rules` calls still report
+  missing `.sentrux/rules.toml`; this remains debt, not compliance.
+- Final local gates passed: `make runtime-v2-check`, `make check`,
+  `make c-check`, `make cppcheck`, and `git diff --check`.
+
+## Epic 3 Starting Point
+
+- Start with owner-local waiter design, still under `N=1`. Do not combine it
+  with persistent fd registry work, `N>1`, accept ownership, or crossing syntax.
+- First docs task: map every current waiter user from
+  `runtime/native/rt_async_internal.h`, `rt_async_state.c`,
+  `rt_async_channel.c`, `rt_async_task.c`, `rt_async_poll.c`,
+  `rt_async_scope.c`, `rt_net.c`, and `rt_async_blocking.c`.
+- First proof target: owner cleanup, stale wake prevention, cancellation and
+  timeout interaction, waiter lifetime/generation, and the current global FIFO
+  behavior that must either remain intentional or be demoted from contract to
+  implementation detail.
+- Gate shape: keep `make runtime-v2-check`, `make check`, `make c-check`,
+  `make cppcheck`, and focused `LIVENESS_PROBES.md` commands. Do not promote
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'` to a green gate until the
+  later test/backend matrix epic replaces that debt.
+- Sentrux: record scans honestly. Missing rules are not compliance.
 
 ## Liveness Requirements
 
