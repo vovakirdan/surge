@@ -21,7 +21,7 @@ must separate that debt from new runtime regressions.
 | 7. Scheduler Shape Migration | Complete | Scheduler container fields moved under `rt_shard.scheduler`; behavior gates and Sentrux status recorded. |
 | 8. Net Poll Scratch Tests | Complete | Net wake probe and current-checkout native net benchmark baseline recorded. |
 | 9. Net Poll Scratch Migration | Complete | Scratch buffers moved under `rt_shard`; local gates and Sentrux quality evidence recorded. |
-| 10. Channel/Blocking Compatibility Tests | Pending | Record channel and fallback checks. |
+| 10. Channel/Blocking Compatibility Tests | Complete with known debt | Stable direct/fallback seed tests and native channel benchmark baseline recorded; heavier local-only stress timeouts documented. |
 | 11. Channel/Blocking Compatibility Migration | Pending | Record migration checks and trace rows. |
 | 12. CI Runtime V2 Gates | Pending | Record new CI target/job and local result. |
 | 13. Accessor Cleanup And Static Gates | Pending | Record static checks and quality deltas. |
@@ -1277,3 +1277,214 @@ creation.
 | Persistent fd registry | Yes, if attempted in Task 9 follow-up. | Later local fd-registry epic. | Task 9 preserved rebuild-from-waiters semantics. |
 | Accept ownership changes | Yes, if attempted in Task 9 follow-up. | Later accept-ownership/local fd-registry work. | Task 9 did not change accept ownership. |
 | `rt_net.c` file size | No for this task. | Later runtime split/refactor task. | The file was already over the Runtime V2 size limit; this task kept the diff narrow. |
+
+## Task 10: Channel/Blocking Compatibility Tests
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 10, Channel/Blocking Compatibility Tests.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Scope: record channel park/unpark, sync-helper fallback, and native channel
+  benchmark evidence before Task 11 moves or wraps channel/blocking
+  compatibility counters.
+- Runtime files changed: none.
+- Test files changed: none.
+- Docs changed: `docs/runtime-v2-epics/02-evidence.md`,
+  `docs/runtime-v2-epics/NOTES.md`,
+  `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md`.
+- Out of scope and unchanged by design: runtime/native code, Go tests, scripts,
+  `Makefile`, CI, Sentrux rules, STATS, public ABI, compiler behavior, staging,
+  and commits.
+
+### Completion Boundary
+
+Task 10 is complete with known debt for the narrow Task 11 scope only. Task 11
+may move or wrap field ownership for `channel_blocked_workers`,
+`compensation_count`, and `compensation_high_water`, and may preserve their
+trace-facing accessors.
+
+Task 11 must not change compensation semantics, sync helper behavior, direct
+`try_send` or handoff behavior, ready-work draining at the compensation limit,
+channel waiter semantics, or channel close/cancellation behavior.
+
+### Go Test Evidence
+
+Stable direct channel evidence passed through the narrowed uncached serial
+subset and the CI-contract pair. The CI-contract pair also proved
+`TestMTBlockingChannelHelpersAllowTimersToAdvance`.
+
+Direct channel subset:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(RecvAckHandoffCompletesSenderAfterNonYieldingReceiver|BufferedRecvRefillCompletesSenderAfterNonYieldingReceiver|BufferedBlockingRecvRefillWakesSender|ChannelParkUnpark)$' -v --timeout 120s -count=1 -parallel=1 -p=1
+```
+
+Result: passed. Package time was `7.882s`; all four exact tests ran and passed.
+
+CI-contract channel/blocking pair:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance)$' -v --timeout 120s -count=1 -parallel=1 -p=1
+```
+
+Result: passed. Package time was `4.390s`; both exact tests ran and passed.
+
+Broader sync fallback local-only probe:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTBlockingChannelHelpers(DoNotParkWorkers|AllowTimersToAdvance|DrainReadyWorkAtCompensationLimit)$' -v --timeout 120s -count=1 -parallel=1 -p=1
+```
+
+Result: failed. `TestMTBlockingChannelHelpersAllowTimersToAdvance` passed, but
+`TestMTBlockingChannelHelpersDoNotParkWorkers` and
+`TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` timed out at
+their internal 10-second program timeout. These failures are recorded as known
+debt below and are not a green gate for the narrow Task 11 counter-field move.
+
+### Native Channel Benchmark Evidence
+
+Temporary compiler build and commit verification:
+
+```bash
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/surge-task10.XXXXXX")"
+current_commit="$(git rev-parse --short=12 HEAD)"
+go build -ldflags "$(./scripts/ldflags.sh --local)" -o "$tmpdir/surge" ./cmd/surge/
+reported_commit="$("$tmpdir/surge" version --full --format json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("git_commit", ""))')"
+test "$reported_commit" = "$current_commit"
+```
+
+Result:
+
+```text
+tmpdir=/tmp/surge-task10.nOjRbh
+surge=/tmp/surge-task10.nOjRbh/surge
+current_commit=8ef946f6cc9e
+reported_commit=8ef946f6cc9e
+```
+
+Native channel before-benchmark:
+
+```bash
+SURGE_CHANNEL_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task10-native-channel-before.md" \
+  timeout 120s env SURGE="/tmp/surge-task10.nOjRbh/surge" ./scripts/bench_native_channels.sh
+```
+
+Result: passed. Report path:
+`/home/zov/projects/surge/surge/build/benchmarks/runtime-v2-task10-native-channel-before.md`.
+The report is a local ignored artifact under `build/`; the durable evidence is
+the selected rows copied below.
+
+Trace-field inspection:
+
+```bash
+awk '
+  /^## Runtime Trace/ { in_trace=1; next }
+  /^## Notes/ { in_trace=0 }
+  in_trace && /^\| (1|2|4|8|default) \| channel_/ {
+    rows++
+    if ($0 ~ /n\/a/) bad++
+    if ($0 !~ /\| [0-9]+ \| [0-9]+ \| [0-9]+ \| [0-9]+ \| [0-9]+ \| [0-9]+ \|$/) malformed++
+  }
+  END {
+    printf "runtime_trace_rows=%d\nbad_n_a=%d\nmalformed_rows=%d\n", rows, bad+0, malformed+0
+    exit ((rows == 20 && bad == 0 && malformed == 0) ? 0 : 1)
+  }
+' build/benchmarks/runtime-v2-task10-native-channel-before.md
+```
+
+Result:
+
+```text
+runtime_trace_rows=20
+bad_n_a=0
+malformed_rows=0
+```
+
+Selected `## Results` rows:
+
+| mode | probe | iterations | total us | ns/op |
+| --- | --- | ---: | ---: | ---: |
+| 1 | channel_ping_pong | 20000 | 91748 | 4587 |
+| 1 | channel_reused_reply | 20000 | 73368 | 3668 |
+| 1 | channel_new_reply | 20000 | 81706 | 4085 |
+| 1 | channel_sync_new_reply | 5000 | 46354 | 9270 |
+| 2 | channel_reused_reply | 20000 | 192601 | 9630 |
+| 2 | channel_sync_new_reply | 5000 | 404783 | 80956 |
+| 4 | channel_reused_reply | 20000 | 186883 | 9344 |
+| 4 | channel_sync_new_reply | 5000 | 660429 | 132085 |
+| 8 | channel_reused_reply | 20000 | 189834 | 9491 |
+| 8 | channel_sync_new_reply | 5000 | 1136165 | 227233 |
+| default | channel_ping_pong | 20000 | 218049 | 10902 |
+| default | channel_reused_reply | 20000 | 198665 | 9933 |
+| default | channel_new_reply | 20000 | 226221 | 11311 |
+| default | channel_sync_new_reply | 5000 | 3724836 | 744967 |
+
+Selected `## Runtime Trace` rows:
+
+| mode | probe | channel blocking waits | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | channel_ping_pong | 0 | 0 | 0 | 0 | 0 | 0 |
+| 1 | channel_reused_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 1 | channel_new_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 1 | channel_sync_new_reply | 0 | 5000 | 5000 | 0 | 0 | 0 |
+| 2 | channel_ping_pong | 0 | 0 | 0 | 0 | 0 | 0 |
+| 2 | channel_reused_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 2 | channel_new_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 2 | channel_sync_new_reply | 8982 | 5000 | 5000 | 0 | 0 | 0 |
+| 4 | channel_ping_pong | 0 | 0 | 0 | 1 | 0 | 0 |
+| 4 | channel_reused_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 4 | channel_new_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 4 | channel_sync_new_reply | 9083 | 5000 | 5000 | 0 | 0 | 0 |
+| 8 | channel_ping_pong | 0 | 0 | 0 | 1 | 0 | 0 |
+| 8 | channel_reused_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 8 | channel_new_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 8 | channel_sync_new_reply | 9667 | 5000 | 5000 | 0 | 0 | 0 |
+| default | channel_ping_pong | 0 | 0 | 0 | 1 | 0 | 0 |
+| default | channel_reused_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| default | channel_new_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| default | channel_sync_new_reply | 9521 | 5000 | 5000 | 0 | 0 | 0 |
+
+Across the full 20-row Runtime Trace table, all required channel/fallback fields
+were present and non-`n/a`. `channel_reused_reply` and `channel_new_reply`
+kept task-context blocking sends, task-context blocking recvs, channel blocking
+waits, compensation started, and compensation high-water at `0`, while handoff
+yields stayed `19999`. `channel_sync_new_reply` recorded `5000`
+task-context blocking sends and `5000` task-context blocking recvs in every
+mode; channel blocking waits were `0` for mode `1` and nonzero for multi-worker
+or default modes. Compensation started and compensation high-water stayed `0`
+for every benchmark row.
+
+### Known Evidence Debt
+
+| Item | Blocks Task 11? | Future owner | Reason |
+| --- | --- | --- | --- |
+| `TestMTNonYieldingTrySendHandoffWakesReceiver` times out when run alone at `SURGE_MT_TIMEOUT_SCALE=1` and `3`. | Only if Task 11 changes direct `try_send`, handoff placement, or wake-before-park behavior. | Future direct channel handoff / `try_send` semantics task. | Task 10 did not debug this failure and did not make it a green gate. |
+| `TestMTBlockingChannelHelpersDoNotParkWorkers` times out when run alone at `SURGE_MT_TIMEOUT_SCALE=1` and `3`. | Only if Task 11 changes sync helper wait semantics or compensation start policy. | Future sync-helper compensation/liveness task. | The narrower timer-progress fallback test passed, and the benchmark recorded fallback counters. |
+| `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` times out when run alone at `SURGE_MT_TIMEOUT_SCALE=1` and `3`. | Only if Task 11 changes ready queue draining, compensation limits, or worker progress rules. | Future compensation-limit and ready-drain task. | Task 10 records this as stress-test debt, not as authorization for semantic movement. |
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `git status --short --branch` before benchmark/docs | known branch and no unrelated dirty files | `## codex/runtime-net-scheduler-refactor...origin/codex/runtime-net-scheduler-refactor [ahead 16]` | `0` | Started without listed file changes. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(RecvAckHandoffCompletesSenderAfterNonYieldingReceiver\|BufferedRecvRefillCompletesSenderAfterNonYieldingReceiver\|BufferedBlockingRecvRefillWakesSender\|ChannelParkUnpark)$' -v --timeout 120s -count=1 -parallel=1 -p=1` | pass | passed; package time `7.882s` | `0` | Stable direct channel subset. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(ChannelParkUnpark\|BlockingChannelHelpersAllowTimersToAdvance)$' -v --timeout 120s -count=1 -parallel=1 -p=1` | pass | passed; package time `4.390s` | `0` | CI-contract channel/blocking pair. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTBlockingChannelHelpers(DoNotParkWorkers\|AllowTimersToAdvance\|DrainReadyWorkAtCompensationLimit)$' -v --timeout 120s -count=1 -parallel=1 -p=1` | record broader fallback status | failed; `AllowTimersToAdvance` passed, the two stress tests timed out internally | `1` | Known debt for future semantic owners. |
+| Temporary compiler build and commit verification block above | reported commit matches current `HEAD` | `current_commit=8ef946f6cc9e`, `reported_commit=8ef946f6cc9e` | `0` | Benchmark used `/tmp/surge-task10.nOjRbh/surge`. |
+| `SURGE_CHANNEL_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task10-native-channel-before.md" timeout 120s env SURGE="/tmp/surge-task10.nOjRbh/surge" ./scripts/bench_native_channels.sh` | pass and write report | passed; report path printed | `0` | Manual benchmark evidence with current-checkout compiler. |
+| Runtime Trace field inspection | 20 runtime trace rows, no `n/a`, no malformed rows | `runtime_trace_rows=20`, `bad_n_a=0`, `malformed_rows=0` | `0` | Required channel/fallback trace fields were present. |
+
+Skipped by instruction: staging, commit, runtime/native edits, Go test edits,
+scripts, `Makefile`, CI, Sentrux rules, STATS, public ABI, compiler edits, and
+new tests.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Narrow Task 11 counter-field migration | No, if Task 11 only moves or wraps `channel_blocked_workers`, `compensation_count`, and `compensation_high_water`. | Epic 2 Task 11. | Current direct subset, CI-contract pair, and benchmark trace baseline exist. |
+| Direct `try_send` or handoff semantic changes | Yes. | Future direct channel handoff / `try_send` task. | `TestMTNonYieldingTrySendHandoffWakesReceiver` is known failing debt. |
+| Sync helper semantics or compensation start policy changes | Yes. | Future sync-helper compensation/liveness task. | `TestMTBlockingChannelHelpersDoNotParkWorkers` is known failing debt. |
+| Compensation-limit ready-work draining changes | Yes. | Future compensation-limit and ready-drain task. | `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` is known failing debt. |
+| Channel waiter ownership, close/cancellation races, or waiter cleanup | Yes. | Later local channel-waiter epic. | Task 10 does not add or prove the missing race matrix. |
+| CI promotion for local-only channel probes | No for Task 11; yes before CI wiring. | Epic 2 Task 12 if promoted. | Task 10 keeps the heavier probes local-only/debt-bound. |

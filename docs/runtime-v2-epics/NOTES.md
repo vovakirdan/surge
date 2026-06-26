@@ -15,6 +15,11 @@ task, then move durable decisions into the owning epic document before closeout.
   `docs(runtime): add Runtime V2 epic planning baseline`.
 - Tasks 6-7 were committed as `8ae616a1`:
   `docs(runtime): define Runtime V2 liveness gates`.
+- Task 10 evidence is recorded as complete with known debt for the narrow Task
+  11 counter-field migration boundary. Task 11 may move or wrap
+  `channel_blocked_workers`, `compensation_count`, and
+  `compensation_high_water` only if it does not change direct handoff,
+  `try_send`, sync helper, compensation, ready-drain, or waiter semantics.
 - Task 9 implementation evidence is recorded. Main-session Sentrux runtime/native
   `session_end` passed for this task: `5132 -> 5146`, `signal_delta=14`, no
   violations.
@@ -58,6 +63,13 @@ task, then move durable decisions into the owning epic document before closeout.
   remains in the future CI seed; `TestMTWorkStealing` stays
   local-only/current-runtime evidence because Tier 1 stealing is not a Runtime
   V2 hot-path contract.
+- Epic 2 Task 10 channel/blocking compatibility evidence is recorded in
+  `02-evidence.md`. Stable direct channel subset and the CI-contract
+  channel/blocking pair passed. Native channel before-benchmark passed with
+  current-checkout compiler `/tmp/surge-task10.nOjRbh/surge` and wrote
+  `build/benchmarks/runtime-v2-task10-native-channel-before.md`. The report is
+  ignored under `build/`; selected durable rows were copied into
+  `02-evidence.md`.
 
 ## Epic 1 Artifacts
 
@@ -513,6 +525,56 @@ task, then move durable decisions into the owning epic document before closeout.
   `5182`; runtime/native scan ended at `5146`.
 - Missing root and runtime Sentrux rules remain baseline debt. This is not a
   passing rules gate.
+
+## Task 10 Handoff
+
+- Scope completed: evidence/docs only. No runtime/native code, Go tests,
+  scripts, `Makefile`, CI, Sentrux rules, STATS, public ABI, compiler code,
+  staging, or commits were changed.
+- Completion state: complete with known debt for the narrow Task 11
+  counter-field migration boundary only.
+- Task 11 allowed boundary: move or wrap field ownership for
+  `channel_blocked_workers`, `compensation_count`, and
+  `compensation_high_water`, and preserve their trace-facing accessors.
+- Task 11 must stop for a revised plan before changing compensation semantics,
+  sync helper behavior, direct `try_send` or handoff behavior, ready-work
+  draining at the compensation limit, channel waiter semantics, or channel
+  close/cancellation behavior.
+- Stable direct channel subset passed:
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMT(RecvAckHandoffCompletesSenderAfterNonYieldingReceiver|BufferedRecvRefillCompletesSenderAfterNonYieldingReceiver|BufferedBlockingRecvRefillWakesSender|ChannelParkUnpark)$'
+  -v --timeout 120s -count=1 -parallel=1 -p=1`.
+- CI-contract channel/blocking pair passed:
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMT(ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance)$' -v
+  --timeout 120s -count=1 -parallel=1 -p=1`.
+- Broader sync fallback local-only probe did not pass:
+  `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` timed out at
+  their internal 10-second program timeout; `AllowTimersToAdvance` passed.
+- Known direct handoff debt: `TestMTNonYieldingTrySendHandoffWakesReceiver`
+  times out when run alone at `SURGE_MT_TIMEOUT_SCALE=1` and `3`. This blocks
+  Task 11 only if Task 11 changes direct `try_send`, handoff placement, or
+  wake-before-park behavior.
+- Current-checkout compiler pin passed for temporary binary
+  `/tmp/surge-task10.nOjRbh/surge`; both current and reported commits were
+  `8ef946f6cc9e`.
+- Native channel before-benchmark passed and wrote
+  `build/benchmarks/runtime-v2-task10-native-channel-before.md`. The report is
+  ignored under `build/`; selected durable rows are copied into
+  `02-evidence.md`.
+- Benchmark trace baseline: all 20 Runtime Trace rows had required
+  channel/fallback fields and no `n/a` values. `channel_reused_reply` and
+  `channel_new_reply` kept blocking and compensation counters at `0` with
+  `handoff yields=19999`. `channel_sync_new_reply` recorded `5000`
+  task-context blocking sends and `5000` task-context blocking recvs in every
+  mode; channel blocking waits were `0` in mode `1` and nonzero in multi-worker
+  or default modes. Compensation stayed `0` for every benchmark row.
+- Future owners: direct channel handoff / `try_send` task for the non-yielding
+  handoff timeout, sync-helper compensation/liveness task for
+  `DoNotParkWorkers`, compensation-limit and ready-drain task for
+  `DrainReadyWorkAtCompensationLimit`, and the later local channel-waiter epic
+  for close/cancellation and waiter cleanup matrices.
 
 ## Liveness Requirements
 
