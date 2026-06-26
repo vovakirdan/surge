@@ -24,8 +24,8 @@ More precisely:
   on the owning shard.
 - Work stealing does not run on the connection hot path. It belongs to the CPU
   Tier 2 destination and, if needed, emergency or control-plane paths.
-- Shard boundaries are move-only: only `own T` values may cross shards. Borrows
-  stay on the source shard.
+- Shard boundaries are move-only and shard-movable-only: only `own` values whose
+  type is not shard-pinned may cross shards. Borrows stay on the source shard.
 - Cross-shard operations are syntactically explicit. A value or call that
   crosses a shard boundary is written differently from its same-shard form and
   is visible at the call site. Same-shard cost and cross-shard cost are never
@@ -66,8 +66,8 @@ the first performance lever.
 
 The Surge-specific lever is ownership. Seastar needs library-level wrappers such
 as `foreign_ptr<>` to describe memory owned by another shard. Surge can make the
-same rule a language property: `own T` may move across shards, while `&T` and
-`&mut T` may not.
+same rule a language property: `own` shard-movable values may move across
+shards, while borrows and shard-pinned resources may not.
 
 The crossing itself is also explicit. Seastar's `submit_to` is explicit by
 convention and `foreign_ptr` is an unchecked wrapper. Surge checks both: the
@@ -155,6 +155,11 @@ each shard can own an accept socket and receive connections directly. The
 fallback can be a single acceptor plus explicit handoff, but that fallback is
 not the ideal hot path.
 
+Types that own shard-registered resources are shard-pinned. A local `File`,
+socket, timer, or any value that transitively owns one may not cross a shard by
+ordinary value move, even if the outer value is `own T`. Moving the registration
+is migration, not message passing.
+
 ### 3. No Hot-Path Stealing
 
 Connection tasks are shard-local. A shard may not steal another shard's
@@ -167,6 +172,12 @@ as migration:
 4. update fd and timer ownership.
 
 Migration is a control-plane feature, not a request-path primitive.
+
+Migration is also the only way to transfer a shard-registered resource. It
+re-registers the fd, timer, or equivalent resource on the destination shard and
+returns a local handle there. Code that wants to reference such a resource from
+another shard uses a `far` handle; it does not send the local resource value
+through a channel.
 
 ### 4. Local Waiters
 
@@ -185,16 +196,24 @@ registrations made by that task, not to total system waiters.
 
 ### 5. Cross-Shard Ownership Boundary
 
-The shard boundary is move-only.
+The shard boundary is move-only, but move-only is not sufficient by itself.
 
-- `own T` may cross a shard boundary by move.
+- `own T` may cross a shard boundary by move only if `T` is shard-movable.
 - `&T` and `&mut T` may not cross a shard boundary.
 - Copyable small values may cross by value.
+- shard-pinned values may not cross by ordinary value move.
 
 A borrow across shards would make the source shard's lifetime depend on another
 core. That creates cross-shard lifetime tracking, cancellation, and wakeup work.
 Runtime V2 avoids that class of dependency by rejecting borrowed cross-shard
 payloads in semantic analysis or async lowering.
+
+Shard-movable excludes types that transitively own shard-registered resources:
+fds, sockets, timers, registered buffers, and runtime handles tied to a shard's
+poll set. For example, `own File` is not enough to cross shards if `File` owns an
+fd registered on shard A. Sending it to shard B would leave readiness on A and
+logic on B. The compiler rejects that value move. The program must either keep a
+`far File` handle or invoke explicit migration, which re-registers the fd on B.
 
 Owned payloads have two runtime representations:
 
@@ -210,10 +229,10 @@ the legal cross-shard ownership transfer.
 
 ### 6. Explicit Crossing
 
-Move-only typing decides what may cross a shard boundary. It does not make where
-a crossing happens visible. A same-shard channel send and a cross-shard channel
-send must not be spelled the same way: identical syntax with different cost is a
-hidden cliff, which is exactly what the cost model forbids.
+Move-only and shard-movable typing decide what may cross a shard boundary. They
+do not make where a crossing happens visible. A same-shard channel send and a
+cross-shard channel send must not be spelled the same way: identical syntax with
+different cost is a hidden cliff, which is exactly what the cost model forbids.
 
 Runtime V2 therefore makes crossing a distinct, visible construct.
 
@@ -225,7 +244,8 @@ operations on a `far` handle do not type-check, for the same reason a borrow
 cannot cross: the operation would imply cross-shard lifetime or wakeup work.
 
 **The crossing construct.** The only legal way to act through a `far` handle,
-move an `own T` to another shard, or offload to Tier 2 is the explicit form:
+move an `own` shard-movable value to another shard, or offload to Tier 2 is the
+explicit form:
 
 ```text
 submit_to(dst) { work }      // working name; sibling of blocking { }
@@ -234,8 +254,8 @@ submit_to(dst) { work }      // working name; sibling of blocking { }
 `dst` is a specific shard, a Tier 2 destination such as `pool` or `blocking`, or
 `distributed` for any shard. The construct:
 
-- admits only `own T` or copyable captures into `work`; borrowed captures do not
-  type-check;
+- admits only `own` shard-movable values or copyable captures into `work`;
+  borrowed captures and shard-pinned captures do not type-check;
 - suspends the calling task and resumes it from a cross-shard completion
   message, not a local waiter or fd readiness;
 - lowers to a distinct cross-shard resume kind, analogous to the existing
@@ -269,8 +289,8 @@ Same-shard send/recv uses local queues:
 Cross-shard send/recv sends a message to the owning shard. The owning shard
 performs the queue operation and returns a completion message if needed.
 
-Only `own T` or copyable payloads may cross this boundary. Borrowed payloads
-stay local.
+Only `own` shard-movable values or copyable payloads may cross this boundary.
+Borrowed and shard-pinned payloads stay local.
 
 Bounded cross-shard send is a request/ack protocol, not a one-way enqueue:
 
@@ -336,10 +356,10 @@ invariant: no `PARKED` shard may have a non-empty inbound queue at a safepoint.
 
 The inbound transport queue is bounded. Data messages consume target-shard
 credits before enqueue; if no credit is available, the sender task parks on its
-own shard until the target returns credit. Control messages, such as
-credit-return, cancellation, and completion, use a reserved control lane and may
-be coalesced. Backpressure must not block the messages that release
-backpressure.
+own shard until the target returns credit. Credit-return, cancellation, and
+completion messages use a reserved control lane. Credit returns may be coalesced;
+cancellation and completion messages remain distinct and generation-checked.
+Backpressure must not block the messages that release backpressure.
 
 ### 9. Structured Concurrency
 
@@ -360,10 +380,12 @@ low-fanout distributed work, but it must not be the default per-request shape.
 **Distributed spawn is an explicit crossing.** A local spawn may capture borrows
 of the parent; parent and child share a shard, so the borrows stay valid. A
 distributed spawn is written `submit_to(distributed) { ... }` and is checked
-move-only: it may capture `own T` or copyable values, never `&T` or `&mut T` of
-the parent. The construct that makes the crossing visible is also the point
-where the no-borrow-across-shards rule is enforced. Joining a distributed child
-returns through a `far Task<T>`, so the join is itself a visible crossing.
+move-only plus shard-movable: it may capture `own` shard-movable values or
+copyable values, never `&T`, `&mut T`, or shard-pinned resources of the parent.
+The construct that makes the crossing visible is also the point where the
+no-borrow-across-shards and no-implicit-resource-migration rules are enforced.
+Joining a distributed child returns through a `far Task<T>`, so the join is
+itself a visible crossing.
 
 Cross-shard cancellation uses generation tokens. A distributed child, scope
 subscription, cancellation request, and completion message carry the generation
@@ -401,9 +423,9 @@ two levers, not zero - Tier 2 for CPU, migration for I/O.
 
 Entry to Tier 2 is the crossing construct with a Tier 2 destination:
 `submit_to(pool) { ... }` or `submit_to(blocking) { ... }`. It obeys the same
-move-only capture rule as a shard boundary, checked in semantic analysis. One
-construct serves every crossing - specific shard, Tier 2 pool, blocking pool,
-and distributed - and one move-only rule governs all of them.
+move-only and shard-movable capture rule as a shard boundary, checked in
+semantic analysis. One construct serves every crossing - specific shard, Tier 2
+pool, blocking pool, and distributed - and one rule governs all captures.
 
 Tier 2 completion returns to the caller's shard through the same cross-shard
 completion path as shard-to-shard work. Tier 2 code cannot hold borrows into
@@ -523,7 +545,7 @@ criterion for the refactor.
 | --- | --- | --- | --- | --- |
 | Same-shard fd readiness | ✓ | ✓ | ✓ | FD owner resumes the task locally. |
 | Same-shard channel send | ✓ | ✓ | ✓ | Channel owner and task owner are the same shard. |
-| Cross-shard send (`own T`, unbounded)¹ | ~ | ✓ | ✓ | `submit_to` sends an owned payload to the channel owner. |
+| Cross-shard send (`own` shard-movable value, unbounded)¹ | ~ | ✓ | ✓ | `submit_to` sends an owned payload to the channel owner. |
 | Cross-shard bounded send | ~ | ~ | ✓ | Receiver-owned request/ack models capacity and backpressure. |
 | Remote `select` over `far` arms | ~ | ~ | ~² | Slow coordinator uses generation tokens and stale completion rejection. |
 | Local spawn / `join_all` request tree | ✓ | ✓ | ✓ | Spawn is shard-local by default. |
@@ -531,7 +553,8 @@ criterion for the refactor.
 | `blocking {}` syscall offload | ~ | ✓ | ✓ | `submit_to(blocking)`, completion to owner. |
 | CPU skew, hot shard | ~ | ✓ | ✓ | `submit_to(pool)`; Tier 2 steals internally. |
 | I/O skew, fat connection | ~ | ~ | ~ | Migration control plane; trigger heuristic open. |
-| Cross-shard free, `own T` dropped remotely | ✓ | ✓ | ✓ | Allocator routes free to owner; move makes it visible. |
+| Shard-pinned resource transfer | ~ | ~ | ✓ | Explicit migration re-registers the fd, timer, or equivalent resource on the destination shard. |
+| Cross-shard free, `own` shard-movable value dropped remotely | ✓ | ✓ | ✓ | Allocator routes free to owner; move makes it visible. |
 
 Every row is Present: no operation is unsupported. The columns rank cost, not
 availability.
@@ -556,7 +579,8 @@ cancellation traffic.
 | I/O thread as partial worker | The current patch drains ready inject tasks after net readiness. | A shard runs its own net-ready continuations or drains a net-woken queue only. |
 | Expensive channel handoff | Channel send/recv uses global lock plus shared waiters. | Same-shard channel handoff is local; cross-shard handoff is explicit messaging. |
 | Global allocation counters | `rt_alloc` touches shared atomics on every alloc/free. | Per-shard heap stats and shard-local hot object pools. |
-| Cross-shard value lifetime | A value can be used and dropped away from its allocation owner. | Only `own T` crosses shards; the allocator routes non-owner frees to the owning shard. |
+| Cross-shard value lifetime | A value can be used and dropped away from its allocation owner. | Only `own` shard-movable values cross shards; the allocator routes non-owner frees to the owning shard. |
+| Shard-pinned resource move | `own File` could move to another shard while its fd remains registered on the old shard. | Types that transitively own shard-registered resources are shard-pinned; ordinary sends are rejected and explicit migration re-registers the resource. |
 | Invisible cross-shard cost | A remote operation could be spelled like a local one. | Crossing is a distinct typed construct (`far` + `submit_to`); cost is legible before compile. |
 | Lost cross-shard wakeup | A producer can enqueue, see the target as running, skip the wake, and race with target parking. | Wake elision uses the seq-cst park protocol: `PARKED` store, queue re-check, and debug invariant. |
 | Unbounded inbound transport | Cross-shard messages can grow memory without backpressure. | Inbound transport is bounded by target credits with a reserved control lane for release messages. |
@@ -599,10 +623,13 @@ in async lowering. Neither half is complete without the other.
 ### Phase 0: Contract And Structure
 
 - Define scheduler semantics that are part of the language contract.
-- Define the shard boundary rule: `own T` may cross shards; borrows may not.
+- Define the shard boundary rule: only `own` shard-movable values may cross
+  shards; borrows and shard-pinned resources may not.
 - Define the crossing surface as a language contract: the `far` handle type, the
   `submit_to` construct, and the move-only capture rule. This requires a spec
   draft update, not only a runtime change.
+- Define shard-movable versus shard-pinned types. Types that transitively own
+  shard-registered resources require `far` handles or explicit migration.
 - Add V2-shaped shard structs with `N=1`.
 - Move fields from `rt_executor` into `rt_runtime` and `rt_shard` without
   changing behavior.
@@ -638,17 +665,17 @@ in async lowering. Neither half is complete without the other.
 - Keep accepted connections on the accepting shard.
 - Disable work stealing for connection tasks.
 
-### Phase 4: Cross-Shard Messaging And Move-Only Values
+### Phase 4: Cross-Shard Messaging And Shard-Movable Values
 
 - Add per-shard inbound queues and wake fds.
-- Signal a target shard only when it sleeps or its inbound queue transitions
-  from empty to non-empty.
+- Signal a target shard according to the PARKED-state wake protocol, not by a
+  relaxed empty-to-non-empty queue check.
 - Add explicit messages for cross-shard channel operations, cancellation,
   distributed scopes, and controlled migration.
-- Enforce move-only shard boundaries for payloads.
+- Enforce move-only and shard-movable boundaries for payloads.
 - Enforce the crossing surface in the compiler: semantic analysis rejects
-  crossings outside `submit_to` and rejects borrowed captures; async lowering
-  emits the cross-shard resume kind for `submit_to`.
+  crossings outside `submit_to` and rejects borrowed or shard-pinned captures;
+  async lowering emits the cross-shard resume kind for `submit_to`.
 - Split Tier 2 destinations into `submit_to(blocking)` for syscall-blocking
   work and `submit_to(pool)` for CPU-bound work with internal stealing.
 - Implement the wake-elision park protocol with sequentially consistent
