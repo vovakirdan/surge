@@ -1,10 +1,11 @@
-.PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
 # ===== Variables =====
 GO ?= go
 SURGE_SKIP_TIMEOUT_TESTS ?= 1
+SURGE_MT_TIMEOUT_SCALE ?= 3
 
 GOBIN := $(shell $(GO) env GOBIN)
 ifeq ($(GOBIN),)
@@ -81,6 +82,19 @@ sec:
 test:
 	@echo ">> Running tests"
 	SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 90s
+
+runtime-v2-check:
+	@echo ">> Checking Runtime V2 LLVM toolchain"
+	@if ! command -v clang >/dev/null 2>&1; then \
+		echo "Error: clang not found. Install with: sudo apt-get install -y clang llvm lld binutils"; \
+		exit 1; \
+	fi
+	@if ! command -v ar >/dev/null 2>&1; then \
+		echo "Error: ar not found. Install with: sudo apt-get install -y binutils"; \
+		exit 1; \
+	fi
+	@echo ">> Running Runtime V2 liveness gate"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=$(SURGE_MT_TIMEOUT_SCALE) $(GO) test ./internal/vm -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 
 # ===== Format =====
 format: fmt

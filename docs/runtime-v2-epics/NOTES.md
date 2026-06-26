@@ -23,6 +23,10 @@ task, then move durable decisions into the owning epic document before closeout.
 - Task 11 implementation is recorded. Channel/blocking compatibility counters
   now live under `rt_shard.channel_blocking_compat`; main-session
   runtime/native `session_end` passed: `5146 -> 5172`, no violations.
+- Task 12 CI wiring is recorded. `make runtime-v2-check` now runs the stable
+  Runtime V2 seed with `SURGE_SKIP_TIMEOUT_TESTS=0`; the separate CI job
+  installs `clang`, `llvm`, `lld`, and `binutils`, sets
+  `SURGE_MT_TIMEOUT_SCALE=3`, and runs that target.
 - Task 9 implementation evidence is recorded. Main-session Sentrux runtime/native
   `session_end` passed for this task: `5132 -> 5146`, `signal_delta=14`, no
   violations.
@@ -629,6 +633,43 @@ task, then move durable decisions into the owning epic document before closeout.
   `5172`, and main-session runtime/native `session_end` passed
   `5146 -> 5172` with no violations. All three `check_rules` calls still
   report missing `.sentrux/rules.toml`; this remains debt, not compliance.
+
+## Task 12 Handoff
+
+- Scope completed: added an explicit Runtime V2 liveness gate in `Makefile` and
+  a separate GitHub Actions job outside the existing Go matrix.
+- Files changed: `Makefile`, `.github/workflows/ci.yml`,
+  `docs/runtime-v2-epics/02-ci-test-contract.md`, `02-evidence.md`, and this
+  file; `02-n1-runtime-shard-structure.md` received the matching status update.
+- `make runtime-v2-check` preflights `clang` and `ar`, then runs:
+
+  ```bash
+  SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=3 go test ./internal/vm \
+    -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
+    -count=1 -parallel=1 -p=1 -v --timeout 120s
+  ```
+
+- CI job details: installs `clang`, `llvm`, `lld`, and `binutils`; sets
+  `SURGE_MT_TIMEOUT_SCALE=3`; runs `make runtime-v2-check`.
+- Local checks passed:
+  - `make runtime-v2-check`: all four exact seed tests ran and passed; package
+    time `7.427s`.
+  - `make check`: passed; default path still used `SURGE_SKIP_TIMEOUT_TESTS=1`,
+    then `golangci-lint`, nested `make c-check`, and the file-size check.
+- Main-session verification caught and fixed the first target shape before
+  commit: without explicit scale/serialization, `TestMTBlockingChannelHelpersAllowTimersToAdvance`
+  hit its internal `program timeout after 10s`.
+- Sentrux evidence: root scan `6207`, runtime scan `5209`; both `check_rules`
+  calls still report missing `.sentrux/rules.toml`, which remains debt rather
+  than compliance.
+- Default `make check` was not changed.
+- The broad accepted-debt command
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'` was not added as a green gate.
+- Not promoted to CI in Task 12: `TestMTWorkStealing`,
+  `TestMTNetWaiterWakeupLatency`, `TestRuntimeV2SkeletonStaticShape`, and the
+  heavier known-debt channel/blocking stress probes.
+- Review risk: repository branch protection may need to require the new
+  `Runtime V2 liveness (llvm)` job name separately.
 
 ## Liveness Requirements
 

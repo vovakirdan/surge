@@ -45,6 +45,23 @@ jobs:
           SURGE_MT_TIMEOUT_SCALE: "3"
         run: go test ./...
 
+  runtime-v2-check:
+    name: Runtime V2 liveness (llvm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SURGE_MT_TIMEOUT_SCALE: "3"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld binutils
+      - name: Run Runtime V2 liveness gate
+        run: make runtime-v2-check
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

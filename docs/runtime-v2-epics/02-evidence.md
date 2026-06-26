@@ -8,10 +8,10 @@ Do not use this file to hide known debt. The broad focused VM command
 until the later test/backend matrix epic fixes or replaces it. Epic 2 evidence
 must separate that debt from new runtime regressions.
 
-Current status: Task 11 code is committed as `ec640a47`. Channel/blocking
-compatibility counters now live under the single shard; direct channel protocol,
-sync-helper semantics, blocking-pool code, tests, scripts, CI, Sentrux rules,
-STATS, public ABI, and compiler code were not changed.
+Current status: Task 12 wiring is implemented. The `runtime-v2-check` target
+and separate CI job now run the stable Runtime V2 liveness seed with
+timeout-sensitive tests enabled. The broad VM/backend regex remains accepted
+debt and is not a green gate.
 
 ## Task Evidence Index
 
@@ -28,7 +28,7 @@ STATS, public ABI, and compiler code were not changed.
 | 9. Net Poll Scratch Migration | Complete | Scratch buffers moved under `rt_shard`; local gates and Sentrux quality evidence recorded. |
 | 10. Channel/Blocking Compatibility Tests | Complete with known debt | Stable direct/fallback seed tests and native channel benchmark baseline recorded; heavier local-only stress timeouts documented. |
 | 11. Channel/Blocking Compatibility Migration | Complete | Counter ownership moved under `rt_shard.channel_blocking_compat`; direct/fallback gates, benchmark, static audits, and scan-only Sentrux snapshots recorded. |
-| 12. CI Runtime V2 Gates | Pending | Record new CI target/job and local result. |
+| 12. CI Runtime V2 Gates | Complete | `runtime-v2-check` target and separate CI job added; local `make runtime-v2-check` and `make check` passed. |
 | 13. Accessor Cleanup And Static Gates | Pending | Record static checks and quality deltas. |
 | 14. Epic Closeout | Pending | Record final gates and handoff to Epic 3. |
 
@@ -1627,3 +1627,91 @@ summary `Quality stable or improved`.
 | Known sync-helper compensation/liveness timeout | No. | Future sync-helper compensation/liveness task. | Task 11 did not alter sync-helper wait semantics or compensation start policy. |
 | Known compensation-limit ready-drain timeout | No. | Future compensation-limit and ready-drain task. | Task 11 did not alter compensation limits or ready-work draining. |
 | Missing Sentrux rules | No for this implementation; yes for claiming rule compliance. | Dedicated Sentrux rules task or later closeout. | All scanned paths still lack `.sentrux/rules.toml`. |
+
+## Task 12: CI Runtime V2 Gates
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 12, CI Runtime V2 Gates.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: add an explicit Runtime V2 liveness gate to `Makefile` and GitHub
+  Actions so timeout-sensitive seed tests run with `SURGE_SKIP_TIMEOUT_TESTS=0`.
+- Out of scope and unchanged by design: runtime/native code, Go tests,
+  compiler/backend code, scripts, STATS, the default `make check` path, and the
+  broad accepted-debt VM/backend regex.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `Makefile` | Added `.PHONY` entry, `SURGE_MT_TIMEOUT_SCALE ?= 3`, and `runtime-v2-check` target with `clang`/`ar` preflight and the exact Runtime V2 seed command. | Provide a stable local and CI entrypoint for timeout-sensitive liveness tests. | Existing file; default `check` target unchanged. |
+| `.github/workflows/ci.yml` | Added separate `runtime-v2-check` job outside the Go matrix; installs `clang`, `llvm`, `lld`, and `binutils`; sets `SURGE_MT_TIMEOUT_SCALE=3`; runs `make runtime-v2-check`. | Make Runtime V2 liveness visible in CI without changing the skipped-timeout Go matrix. | Workflow only. |
+| `docs/runtime-v2-epics/02-ci-test-contract.md` | Updated status and CI package list to match Task 12 implementation. | Keep the contract aligned with the actual gate. | Documentation only. |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 12 complete and added this evidence section. | Record the target, job, local checks, and exclusions. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added Task 12 handoff. | Make Task 13 startable without chat context. | Documentation only. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Updated status wording from Tasks 1-11 to Tasks 1-12. | Keep the epic overview aligned with recorded evidence. | Documentation only. |
+
+### Gate Shape
+
+`make runtime-v2-check` fails before `go test` if either required tool is
+missing:
+
+```bash
+command -v clang
+command -v ar
+```
+
+The target then runs the stable seed with timeout-sensitive tests enabled:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=3 \
+  go test ./internal/vm \
+    -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
+    -count=1 -parallel=1 -p=1 -v --timeout 120s
+```
+
+The target defaults `SURGE_MT_TIMEOUT_SCALE` to `3`, and the GitHub Actions job
+also keeps `SURGE_MT_TIMEOUT_SCALE=3` scoped to the Runtime V2 gate. The default
+`make check` path remains unchanged and still runs the broad repository tests
+with `SURGE_SKIP_TIMEOUT_TESTS=1`.
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `command -v clang` | tool exists | `/usr/bin/clang` | `0` | Local preflight tool. |
+| `command -v ar` | tool exists | `/usr/bin/ar` | `0` | Local preflight tool; CI installs `binutils`. |
+| Initial main-session `make runtime-v2-check` verification before scale/serialization tightening | reveal local gate risk | failed in `TestMTBlockingChannelHelpersAllowTimersToAdvance` with its internal `program timeout after 10s` while the other three seed tests passed | `2` | The first target version relied on the caller/CI environment for timeout scale and did not serialize the seed. The target was tightened before commit. |
+| `make runtime-v2-check` | pass | all four exact tests ran and passed; package time `7.427s` | `0` | Ran with `SURGE_BACKEND=llvm`, `SURGE_SKIP_TIMEOUT_TESTS=0`, `SURGE_MT_TIMEOUT_SCALE=3`, `-count=1`, `-parallel=1`, and `-p=1`; tests: `TestMTWakeupsAndCancellation`, `TestMTChannelParkUnpark`, `TestMTBlockingChannelHelpersAllowTimersToAdvance`, `TestMTSeededScheduler`. |
+| `make check` | pass | passed; ran `SURGE_SKIP_TIMEOUT_TESTS=1 go test ./... --timeout 90s`, `golangci-lint` with `0 issues`, nested `make c-check`, and `check_file_sizes.sh` with no applicable unstaged files | `0` | Default repository gate remains skipped-timeout by design. |
+
+### Explicit Exclusions
+
+The broad focused VM command remains accepted backend-test debt and was not
+added as a CI or Makefile green gate:
+
+```bash
+go test ./internal/vm -run 'MT|Async|Net|LLVM'
+```
+
+Task 12 did not promote `TestMTWorkStealing`,
+`TestMTNetWaiterWakeupLatency`, `TestRuntimeV2SkeletonStaticShape`, or the
+known heavier channel/blocking stress probes. Their existing owner/debt records
+remain unchanged.
+
+### Sentrux Evidence
+
+| Scan | Path | quality_signal | Root cause or bottleneck | Rules result |
+| --- | --- | --- | --- | --- |
+| Root | `/home/zov/projects/surge/surge` | `6207` | bottleneck `modularity`; root causes: acyclicity `10000`, depth `6667`, equality `4685`, modularity `3438`, redundancy `8576`; files `4744`; import edges `1888`; lines `373627` | missing `/home/zov/projects/surge/surge/.sentrux/rules.toml`; debt, not compliance. |
+| Runtime | `/home/zov/projects/surge/surge/runtime` | `5209` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4783`, modularity `3333`, redundancy `2705`; files `33`; import edges `31`; lines `15125` | missing `/home/zov/projects/surge/surge/runtime/.sentrux/rules.toml`; debt, not compliance. |
+
+### Follow-Ups And Blockers
+
+| Item | Blocks Task 13? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| CI required-check configuration | No for this repo change. | Repository settings or branch protection owner. | The workflow job exists, but branch protection may need to require the new job name. |
+| Broad VM/backend regex debt | No. | Later test/backend matrix epic. | It remains excluded from required green gates. |
+| Missing Sentrux rules | No for this CI/docs task; yes for claiming rule compliance. | Dedicated Sentrux rules task or later closeout. | Root/runtime scans were recorded; both scan roots still lack rules files. |

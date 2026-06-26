@@ -1,7 +1,7 @@
 # Epic 2 Runtime V2 CI Test Contract
 
-Status: Task 03 contract. This file defines the gate shape only. Task 12 owns
-the `Makefile` target and GitHub Actions wiring.
+Status: Task 12 implements this contract with `make runtime-v2-check` and a
+separate GitHub Actions job. The broad VM/backend regex remains accepted debt.
 
 ## Goal
 
@@ -26,13 +26,15 @@ backend-test debt until the later test/backend matrix epic fixes or replaces it.
 
 ## Proposed CI Seed
 
-Task 12 should add a `runtime-v2-check` target equivalent to this command:
+Task 12 implements a `runtime-v2-check` target equivalent to this command, with
+the timeout scale defaulted to `3` and the seed serialized to avoid local/CI
+load-dependent timing:
 
 ```bash
-SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=3 \
   go test ./internal/vm \
     -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
-    -v --timeout 120s
+    -count=1 -parallel=1 -p=1 -v --timeout 120s
 ```
 
 Before running it, the target or CI job should fail fast if either tool is
@@ -43,8 +45,8 @@ command -v clang
 command -v ar
 ```
 
-The GitHub Actions job should install `clang`, `llvm`, and `lld`, set
-`SURGE_MT_TIMEOUT_SCALE=3`, then run `make runtime-v2-check`. The job should be
+The GitHub Actions job installs `clang`, `llvm`, `lld`, and `binutils`, sets
+`SURGE_MT_TIMEOUT_SCALE=3`, then runs `make runtime-v2-check`. The job stays
 separate from the existing Go test matrix so the normal skipped-timeout path and
 the Runtime V2 liveness gate stay easy to distinguish.
 
