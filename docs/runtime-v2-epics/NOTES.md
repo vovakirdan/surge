@@ -48,6 +48,11 @@ task, then move durable decisions into the owning epic document before closeout.
   `runtime_v2_pending` build tag and intentionally fails before Task 5 because
   `rt_runtime`, `rt_shard`, the `N=1` count macro, and skeleton accessors do not
   exist yet. The check is local-only until Task 12.
+- Epic 2 Task 6 scheduler-shape evidence is recorded in `02-evidence.md`.
+  Current scheduler trace proof uses `TestMTWorkStealing` and
+  `TestMTSeededScheduler`. `TestMTSeededScheduler` remains in the future CI
+  seed; `TestMTWorkStealing` stays local-only/current-runtime evidence because
+  Tier 1 stealing is not a Runtime V2 hot-path contract.
 
 ## Epic 1 Artifacts
 
@@ -307,6 +312,46 @@ task, then move durable decisions into the owning epic document before closeout.
   `quality_signal=5144`, bottleneck `redundancy`, rules file missing.
 - Missing Sentrux rules remain a blocker to claiming rule compliance, not a
   blocker to this narrow skeleton implementation.
+
+## Epic 2 Task 6 Scheduler Shape Tests Handoff
+
+- Task: `02-tasks/06-scheduler-shape-tests.md`.
+- Scope completed: selected and ran existing scheduler and CI-shaped liveness
+  proofs before scheduler field movement. No runtime C, Go test, `Makefile`,
+  GitHub Actions, STATS, benchmark, task-doc, Sentrux, staging, or commit
+  changes were made.
+- Scheduler trace proof command passed:
+
+  ```bash
+  SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+    -run '^TestMT(WorkStealing|SeededScheduler)$' -v --timeout 90s
+  ```
+
+  Both `TestMTWorkStealing` and `TestMTSeededScheduler` ran and passed.
+- CI-shaped Runtime V2 seed command passed:
+
+  ```bash
+  SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+    -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
+    -v --timeout 120s
+  ```
+
+  All four exact tests ran and passed.
+- Tool preflight passed: `command -v clang` returned `/usr/bin/clang`, and
+  `command -v ar` returned `/usr/bin/ar`.
+- CI ownership: `TestMTSeededScheduler` remains in the future Runtime V2 seed.
+  `TestMTWorkStealing` remains local-only/current-runtime evidence and must not
+  join the seed unless a later Tier 2 CPU-pool decision promotes stealing.
+- Parked-with-work remains a missing invariant. Task 6 did not add a weak
+  nondeterministic test.
+- Task 7 may proceed only if it preserves current wake elision, worker sleep
+  rules, and shard park state. If Task 7 needs to change any of those, it must
+  stop and add a real parked-with-work invariant first.
+- `git diff --check` passed after the documentation updates.
+- Verification note: do not run overlapping `go test ./internal/vm` commands
+  that include the same MT test names. The test artifact directory is keyed by
+  test name under `target/debug/.tests/`, so parallel runs can collide while
+  writing artifacts and create a false failure unrelated to runtime behavior.
 
 ## Liveness Requirements
 

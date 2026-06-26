@@ -17,7 +17,7 @@ must separate that debt from new runtime regressions.
 | 3. Runtime V2 Test And CI Contract | Complete | CI contract created; exact seed tests and excluded accepted-debt command recorded. |
 | 4. Runtime/Shard Skeleton Tests | Complete | Added local-only pending static shape check; pre-Task-05 failure recorded. |
 | 5. Runtime/Shard Skeleton | Complete | Internal `N=1` runtime/shard skeleton added; checks and Sentrux deltas recorded. |
-| 6. Scheduler Shape Tests | Pending | Record selected scheduler liveness checks. |
+| 6. Scheduler Shape Tests | Complete | Scheduler trace evidence selected; parked-with-work remains an explicit missing invariant. |
 | 7. Scheduler Shape Migration | Pending | Record scheduler migration checks and traces. |
 | 8. Net Poll Scratch Tests | Pending | Record net wake and benchmark baseline. |
 | 9. Net Poll Scratch Migration | Pending | Record net migration checks and benchmark rows. |
@@ -591,3 +591,121 @@ initialization links.
 | Scheduler field movement | Yes for scheduler migration. | Epic 2 Tasks 6-7. | This task did not move ready queues, worker placement, or scheduler semantics. |
 | Waiter and fd ownership | No for skeleton; yes for later owner work. | Local waiter and fd-registry epics. | This task intentionally kept waiters and fd readiness semantics unchanged. |
 | CI inclusion of skeleton check | No for Task 5; yes before Epic 2 closeout if desired. | Epic 2 Task 12. | The shape test remains behind `runtime_v2_pending`. |
+
+## Task 6: Scheduler Shape Tests
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 6, Scheduler Shape Tests.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: select and run existing scheduler behavior proofs before scheduler
+  field movement, record CI ownership, and name the missing scheduler invariant
+  without adding a weak nondeterministic test.
+- Out of scope: runtime C edits, Go test edits, scheduler migration,
+  `Makefile` edits, GitHub Actions edits, STATS updates, benchmarks, Sentrux
+  scans, staging, and commit.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 6 complete and added this evidence section. | Keep scheduler proof and blocker status durable before Task 7. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 6 handoff. | Preserve Task 7 start context and the parked-with-work condition. | Documentation only. |
+| `docs/runtime-v2-epics/02-ci-test-contract.md` | Clarified `TestMTWorkStealing` local-only status after Task 6 evidence. | Keep CI ownership explicit: seeded scheduler stays in the seed; work stealing does not. | Documentation only. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Updated status wording from Tasks 1-5 to Tasks 1-6. | Reflect recorded Task 6 evidence. | Documentation only. |
+
+No runtime C, Go test, `Makefile`, GitHub Actions, STATS, benchmark, task-doc,
+or generated-report files were changed.
+
+### Selected Scheduler Proofs
+
+Task 6 uses existing tests instead of adding new tests:
+
+- `TestMTWorkStealing`: current-runtime scheduler source trace proof. The test
+  requires `SCHED_TRACE steal>0`, so it proves the existing Tier 1 scheduler can
+  still steal ready work. This is legacy/current-runtime evidence only. Runtime
+  V2 does not treat Tier 1 stealing as a future hot-path contract.
+- `TestMTSeededScheduler`: seeded scheduler trace proof. The test runs the same
+  program twice with `SURGE_SCHED=seeded`, `SURGE_SCHED_SEED=424242`, and
+  `SURGE_SCHED_TRACE=1`; it requires `mode=seeded`, `seed=424242`, and matching
+  trace `hash`/`events`. This remains part of the future Runtime V2 CI seed set.
+- Stable Runtime V2 seed command: existing CI-shaped behavior proof for
+  wakeups/cancellation, direct async channel wakeups, sync-helper timer
+  progress, and seeded scheduler trace determinism.
+
+### Missing Invariant Status
+
+The parked-with-work invariant remains missing. Task 6 did not add a weak
+snapshot/stress test because it would not provide deterministic proof.
+
+Task 7 may proceed only while it preserves the current worker sleep and wake
+rules: it may move scheduler containers behind `N=1` accessors, but it must not
+change wake elision, worker sleep rules, or shard park state. If Task 7 needs
+any of those semantic changes, it must stop and first add a real parked-with-work
+invariant or re-scope the work.
+
+No-double-poll remains an indirect behavior requirement for Task 7. Existing
+tests cover task completion and scheduler trace shape, but they do not expose a
+dedicated no-double-poll counter. Task 7 must preserve the current single-poll
+discipline while moving fields.
+
+### CI Ownership
+
+`TestMTSeededScheduler` stays in the proposed Runtime V2 CI seed. Task 12 owns
+the `runtime-v2-check` target and GitHub Actions wiring.
+
+`TestMTWorkStealing` must stay local-only/current-runtime evidence unless a
+later decision explicitly promotes stealing to a Runtime V2 Tier 2 CPU-pool
+contract. Do not add it to the Runtime V2 CI seed as a Tier 1 scheduler
+requirement.
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `command -v clang` | tool exists | `/usr/bin/clang` | `0` | Required LLVM test preflight. |
+| `command -v ar` | tool exists | `/usr/bin/ar` | `0` | Required LLVM test preflight. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(WorkStealing\|SeededScheduler)$' -v --timeout 90s` | pass | passed; both `TestMTWorkStealing` and `TestMTSeededScheduler` ran and passed | `0` | Scheduler source trace proof; terminal output only, no artifact file written. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(WakeupsAndCancellation\|ChannelParkUnpark\|BlockingChannelHelpersAllowTimersToAdvance\|SeededScheduler)$' -v --timeout 120s` | pass | passed; all four exact tests ran and passed | `0` | CI-shaped Runtime V2 behavior proof; terminal output only, no artifact file written. |
+| `git diff --check` | no whitespace errors | passed after docs edits | `0` | Final whitespace gate. |
+
+Skipped by scope: broad focused VM regex, `make check`, `make c-check`,
+`make cppcheck`, benchmarks, Sentrux scans, `Makefile` edits, GitHub Actions
+edits, runtime C edits, Go test edits, staging, and commit.
+
+### Trace/Liveness Interpretation
+
+The focused scheduler command proves current scheduler trace shape through test
+assertions, not through manually copied trace rows:
+
+- `TestMTWorkStealing` fails unless the current scheduler reports
+  `SCHED_TRACE steal>0`.
+- `TestMTSeededScheduler` fails unless seeded mode reports the expected seed and
+  repeatable `hash`/`events`.
+
+The command does not prove parked-with-work, wake-fd elision, owner-local
+waiters, fd registry lifecycle, or cross-shard behavior.
+
+### Known Regressions
+
+None known. Task 6 changed documentation only.
+
+### Rollback/Recovery Notes
+
+- Files or changes to revert: this Task 6 evidence section, the Task 6 index
+  status, the Task 6 notes handoff, the CI contract wording for work-stealing
+  local-only status, and the Epic 2 status wording.
+- Generated artifacts to remove: none.
+- Runtime processes, sockets, or temporary state to clean up: none.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Scheduler field movement | No, if Task 7 is a behavior-preserving container/accessor move only. | Epic 2 Task 7. | Current scheduler source trace and CI-shaped behavior proof passed. |
+| Parked-with-work invariant | Conditional. Blocks Task 7 if it changes wake elision, worker sleep rules, or shard park state. | Epic 2 Task 7 if it crosses that boundary; otherwise later cross-shard wake/park owner. | The invariant is still missing and was not faked by a nondeterministic test. |
+| `TestMTWorkStealing` CI promotion | No. | Later Tier 2 CPU-pool work, if promoted. | Tier 1 stealing is a current implementation artifact, not a Runtime V2 hot-path contract. |
+| CI target and workflow wiring | No for Task 7; yes before Epic 2 closeout. | Epic 2 Task 12. | Task 6 records evidence; Task 12 wires automation. |
