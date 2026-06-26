@@ -987,6 +987,94 @@ Known debt:
 - Task 18 still owns deciding which pending net waiter proof is stable enough
   for CI.
 
+## Task 17: Large-File Refactor Tranche
+
+Status: complete.
+
+Chosen tranche:
+
+- Extracted trace and signal-dump responsibility from
+  `runtime/native/rt_async_state.c` into new
+  `runtime/native/rt_async_trace.c`.
+- The extracted cluster covers `TRACE_EXEC`, `TRACE_EXEC_SNAPSHOT`,
+  `SCHED_TRACE`, SIGUSR1 dump request handling, trace init/dump, trace buffers,
+  and trace counters.
+- Scheduler, waiter, timer, channel, and net semantics were not changed.
+- No dead-code deletion was attempted.
+
+Scope correction:
+
+- Task 03 named trace as one of the `rt_async_state.c` responsibility
+  pressures, but the initial Task 17 file did not name the new trace file. The
+  task file now explicitly allows creating `runtime/native/rt_async_trace.c`
+  for this responsibility split.
+
+Line counts:
+
+- `runtime/native/rt_async_state.c`: 2221 -> 1731 lines.
+- `runtime/native/rt_async_trace.c`: new, 497 lines.
+- `runtime/native/rt_async_internal.h`: 483 -> 499 lines.
+- `runtime/native/rt_net.c`: unchanged at 1024 lines.
+
+Behavior proof before and after:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMT(ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 120s
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMTNetWaiterWakeupLatency$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 90s
+go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2NetWaiterTraceContract$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 90s
+```
+
+Result: passed before edits on `0d531b84`, and passed again after the trace
+extraction.
+
+Static, formatting, and full gates:
+
+```bash
+git diff --check
+make c-check
+make cppcheck
+make runtime-v2-check
+make check
+```
+
+Result: passed.
+
+Review:
+
+- Read-only review subagent found no P0/P1/P2 blockers.
+- Advisory: include the new `runtime/native/rt_async_trace.c` in the commit.
+  This commit scope closes the advisory.
+
+Sentrux evidence:
+
+- Native session baseline before Task 17 code integration:
+  `quality_signal=5178`, bottleneck `redundancy`.
+- Native session end after Task 17 code integration: `pass=true`,
+  `signal_after=5218`, `signal_before=5178`, `signal_delta=41`, summary
+  `Quality stable or improved`, no violations.
+- Root scan `/home/zov/projects/surge/surge`: `quality_signal=6208`.
+- Runtime scan `/home/zov/projects/surge/surge/runtime`:
+  `quality_signal=5255`.
+- Runtime/native scan `/home/zov/projects/surge/surge/runtime/native`:
+  `quality_signal=5218`.
+- `check_rules` still reports missing `.sentrux/rules.toml`. This remains
+  debt, not rule compliance.
+
+Known debt:
+
+- `runtime/native/rt_async_state.c` remains over the 500 LOC target at 1731
+  lines.
+- `runtime/native/rt_net.c` remains over the 500 LOC target at 1024 lines.
+- `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` remain known
+  timeout debt and were not Task 17 green gates.
+
 ## Draft Creation Evidence
 
 - Docs created for Epic 3 scope and brief task list.

@@ -2,11 +2,9 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 // Async runtime state, queues, and memory helpers.
 //
@@ -38,33 +36,7 @@ struct rt_worker_ctx {
     uint64_t sched_rng;
 };
 
-enum {
-    SCHED_SRC_LOCAL = 0,
-    SCHED_SRC_INJECT = 1,
-    SCHED_SRC_STEAL = 2,
-};
-
-static volatile sig_atomic_t trace_exec_enabled_flag = 0;
-static volatile sig_atomic_t trace_sched_enabled_flag = 0;
-static _Atomic uint64_t trace_wake_called_total;
-static _Atomic uint64_t trace_wake_enqueued_total;
-static _Atomic uint64_t trace_wake_ignored_completed_total;
-static _Atomic uint64_t trace_park_attempt_total;
-static _Atomic uint64_t trace_park_committed_total;
-static _Atomic uint64_t trace_worker_sleep_total;
-static _Atomic uint64_t trace_worker_wake_total;
-static _Atomic uint64_t trace_channel_blocking_wait_total;
-static _Atomic uint64_t trace_channel_task_blocking_send_total;
-static _Atomic uint64_t trace_channel_task_blocking_recv_total;
-static _Atomic uint64_t trace_channel_handoff_yield_total;
-static _Atomic uint64_t trace_compensation_started_total;
-static uint64_t trace_sched_hash;
-static uint64_t trace_sched_events;
-static uint64_t trace_sched_local_pops;
-static uint64_t trace_sched_inject_pops;
-static uint64_t trace_sched_steal_pops;
 static uint8_t channel_wake_force_inject;
-static _Atomic sig_atomic_t trace_dump_requested_flag;
 
 static int async_debug_enabled_cached = -1;
 
@@ -110,421 +82,6 @@ void rt_async_debug_printf(const char* fmt, ...) {
         len = (uint64_t)(sizeof(buf) - 1);
     }
     rt_write_stderr((const uint8_t*)buf, len);
-}
-
-int rt_exec_trace_enabled(void) {
-    return trace_exec_enabled_flag != 0;
-}
-
-static int trace_sched_enabled(void) {
-    return trace_sched_enabled_flag != 0;
-}
-
-static void trace_exec_inc(_Atomic uint64_t* counter) {
-    if (!rt_exec_trace_enabled() || counter == NULL) {
-        return;
-    }
-    (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
-}
-
-void rt_trace_channel_task_blocking_send(void) {
-    trace_exec_inc(&trace_channel_task_blocking_send_total);
-}
-
-void rt_trace_channel_task_blocking_recv(void) {
-    trace_exec_inc(&trace_channel_task_blocking_recv_total);
-}
-
-void rt_trace_channel_handoff_yield(void) {
-    trace_exec_inc(&trace_channel_handoff_yield_total);
-}
-
-static void
-trace_exec_append_kv_u64(char* buf, size_t* pos, size_t cap, const char* name, uint64_t value);
-
-static size_t trace_exec_append_literal(char* buf, size_t pos, size_t cap, const char* lit) {
-    if (buf == NULL || lit == NULL) {
-        return pos;
-    }
-    for (size_t i = 0; lit[i] != '\0' && pos + 1 < cap; i++) {
-        buf[pos++] = lit[i];
-    }
-    return pos;
-}
-
-static size_t trace_exec_append_u64(char* buf, size_t pos, size_t cap, uint64_t value) {
-    char tmp[32];
-    size_t len = 0;
-    do {
-        tmp[len++] = (char)('0' + (value % 10));
-        value /= 10;
-    } while (value > 0 && len < sizeof(tmp));
-    for (size_t i = 0; i < len && pos + 1 < cap; i++) {
-        buf[pos++] = tmp[len - 1 - i];
-    }
-    return pos;
-}
-
-static void trace_exec_dump(const char* reason) {
-    if (!rt_exec_trace_enabled()) {
-        return;
-    }
-    char buf[768];
-    size_t pos = 0;
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC ");
-    if (reason != NULL) {
-        pos = trace_exec_append_literal(buf, pos, sizeof(buf), "reason=");
-        pos = trace_exec_append_literal(buf, pos, sizeof(buf), reason);
-        pos = trace_exec_append_literal(buf, pos, sizeof(buf), " ");
-    }
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), "wake_called=");
-    pos =
-        trace_exec_append_u64(buf,
-                              pos,
-                              sizeof(buf),
-                              atomic_load_explicit(&trace_wake_called_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " wake_enqueued=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_wake_enqueued_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " wake_ignored_completed=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_wake_ignored_completed_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " park_attempt=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_park_attempt_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " park_committed=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_park_committed_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " worker_sleep=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_worker_sleep_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " worker_wake=");
-    pos =
-        trace_exec_append_u64(buf,
-                              pos,
-                              sizeof(buf),
-                              atomic_load_explicit(&trace_worker_wake_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_blocking_wait=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_channel_blocking_wait_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_task_blocking_send=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_channel_task_blocking_send_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_task_blocking_recv=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_channel_task_blocking_recv_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " channel_handoff_yield=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_channel_handoff_yield_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " compensation_started=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_compensation_started_total, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_submitted=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&exec_state.blocking_submitted, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_running=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&exec_state.blocking_running, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_completed=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&exec_state.blocking_completed, memory_order_relaxed));
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_cancel_requested=");
-    pos = trace_exec_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&exec_state.blocking_cancel_requested, memory_order_relaxed));
-    if (pos + 1 < sizeof(buf)) {
-        buf[pos++] = '\n';
-    }
-    (void)write(STDERR_FILENO, buf, pos);
-}
-
-static void
-trace_exec_append_kv_u64(char* buf, size_t* pos, size_t cap, const char* name, uint64_t value) {
-    if (buf == NULL || pos == NULL || name == NULL) {
-        return;
-    }
-    *pos = trace_exec_append_literal(buf, *pos, cap, " ");
-    *pos = trace_exec_append_literal(buf, *pos, cap, name);
-    *pos = trace_exec_append_literal(buf, *pos, cap, "=");
-    *pos = trace_exec_append_u64(buf, *pos, cap, value);
-}
-
-static void trace_exec_snapshot_dump(const char* reason) {
-    if (!rt_exec_trace_enabled()) {
-        return;
-    }
-    rt_executor* ex = &exec_state;
-    if (!ex->initialized) {
-        return;
-    }
-    uint64_t local_total = 0;
-    uint64_t local_max = 0;
-    uint64_t tasks_ready = 0;
-    uint64_t tasks_running = 0;
-    uint64_t tasks_waiting = 0;
-    uint64_t tasks_done = 0;
-    uint64_t tasks_ready_user = 0;
-    uint64_t tasks_waiting_user = 0;
-    uint64_t tasks_done_user = 0;
-    uint64_t tasks_user = 0;
-    uint64_t tasks_sleep = 0;
-    uint64_t tasks_blocking = 0;
-    uint64_t tasks_other_kind = 0;
-    uint64_t waiters_join = 0;
-    uint64_t waiters_timer = 0;
-    uint64_t waiters_chan_send = 0;
-    uint64_t waiters_chan_recv = 0;
-    uint64_t waiters_net = 0;
-    uint64_t waiters_other = 0;
-
-    rt_lock(ex);
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
-    const rt_waiter_store* waiter_store = rt_executor_waiter_store_const(ex);
-    if (scheduler != NULL && scheduler->local_queues != NULL) {
-        for (uint32_t i = 0; i < scheduler->worker_count; i++) {
-            uint64_t len = (uint64_t)scheduler->local_queues[i].len;
-            local_total += len;
-            if (len > local_max) {
-                local_max = len;
-            }
-        }
-    }
-    for (size_t i = 1; i < ex->tasks_cap; i++) {
-        const rt_task* task = ex->tasks[i];
-        if (task == NULL) {
-            continue;
-        }
-        uint8_t status = task_status_load(task);
-        switch (status) {
-            case TASK_READY:
-                tasks_ready++;
-                break;
-            case TASK_RUNNING:
-                tasks_running++;
-                break;
-            case TASK_WAITING:
-                tasks_waiting++;
-                break;
-            case TASK_DONE:
-            default:
-                tasks_done++;
-                break;
-        }
-        if (task->kind == TASK_KIND_USER) {
-            switch (status) {
-                case TASK_READY:
-                    tasks_ready_user++;
-                    break;
-                case TASK_WAITING:
-                    tasks_waiting_user++;
-                    break;
-                case TASK_DONE:
-                    tasks_done_user++;
-                    break;
-                default:
-                    break;
-            }
-        }
-        switch (task->kind) {
-            case TASK_KIND_USER:
-                tasks_user++;
-                break;
-            case TASK_KIND_SLEEP:
-                tasks_sleep++;
-                break;
-            case TASK_KIND_BLOCKING:
-                tasks_blocking++;
-                break;
-            case TASK_KIND_CHECKPOINT:
-            default:
-                tasks_other_kind++;
-                break;
-        }
-    }
-    if (waiter_store != NULL) {
-        for (size_t i = 0; i < waiter_store->len; i++) {
-            switch ((waker_kind)waiter_store->entries[i].key.kind) {
-                case WAKER_JOIN:
-                case WAKER_SCOPE:
-                case WAKER_BLOCKING:
-                    waiters_join++;
-                    break;
-                case WAKER_TIMER:
-                    waiters_timer++;
-                    break;
-                case WAKER_CHAN_SEND:
-                    waiters_chan_send++;
-                    break;
-                case WAKER_CHAN_RECV:
-                    waiters_chan_recv++;
-                    break;
-                case WAKER_NET_ACCEPT:
-                case WAKER_NET_READ:
-                case WAKER_NET_WRITE:
-                    waiters_net++;
-                    break;
-                case WAKER_NONE:
-                default:
-                    waiters_other++;
-                    break;
-            }
-        }
-    }
-
-    char buf[1800];
-    size_t pos = 0;
-    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC_SNAPSHOT");
-    if (reason != NULL) {
-        pos = trace_exec_append_literal(buf, pos, sizeof(buf), " reason=");
-        pos = trace_exec_append_literal(buf, pos, sizeof(buf), reason);
-    }
-    trace_exec_append_kv_u64(
-        buf, &pos, sizeof(buf), "worker_count", scheduler != NULL ? scheduler->worker_count : 0);
-    trace_exec_append_kv_u64(
-        buf, &pos, sizeof(buf), "running", scheduler != NULL ? scheduler->running_count : 0);
-    trace_exec_append_kv_u64(buf,
-                             &pos,
-                             sizeof(buf),
-                             "channel_blocked",
-                             compat != NULL ? (uint64_t)compat->channel_blocked_workers : 0);
-    trace_exec_append_kv_u64(buf,
-                             &pos,
-                             sizeof(buf),
-                             "compensation",
-                             compat != NULL ? (uint64_t)compat->compensation_count : 0);
-    trace_exec_append_kv_u64(buf,
-                             &pos,
-                             sizeof(buf),
-                             "compensation_high_water",
-                             compat != NULL ? (uint64_t)compat->compensation_high_water : 0);
-    trace_exec_append_kv_u64(
-        buf, &pos, sizeof(buf), "inject_len", scheduler != NULL ? scheduler->inject.len : 0);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_max", local_max);
-    trace_exec_append_kv_u64(
-        buf, &pos, sizeof(buf), "waiters", waiter_store != NULL ? (uint64_t)waiter_store->len : 0);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_join", waiters_join);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_timer", waiters_timer);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_send", waiters_chan_send);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_recv", waiters_chan_recv);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_net", waiters_net);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_other", waiters_other);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready", tasks_ready);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_running", tasks_running);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting", tasks_waiting);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done", tasks_done);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready_user", tasks_ready_user);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting_user", tasks_waiting_user);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_done_user", tasks_done_user);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_user", tasks_user);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_sleep", tasks_sleep);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_blocking", tasks_blocking);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "tasks_other_kind", tasks_other_kind);
-    if (pos + 1 < sizeof(buf)) {
-        buf[pos++] = '\n';
-    }
-    rt_unlock(ex);
-    (void)write(STDERR_FILENO, buf, pos);
-}
-
-static void trace_sched_record(uint8_t source, uint64_t id) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    trace_sched_events++;
-    if (source == 0) {
-        trace_sched_local_pops++;
-    } else if (source == 1) {
-        trace_sched_inject_pops++;
-    } else if (source == 2) {
-        trace_sched_steal_pops++;
-    }
-    uint64_t mix = id ^ ((uint64_t)source << 56);
-    trace_sched_hash ^= mix;
-    trace_sched_hash *= UINT64_C(1099511628211);
-}
-
-static void trace_exec_signal_handler(int sig) {
-    (void)sig;
-#ifdef SIGUSR1
-    (void)signal(SIGUSR1, trace_exec_signal_handler);
-#endif
-    atomic_store_explicit(&trace_dump_requested_flag, 1, memory_order_relaxed);
-}
-
-static void trace_dump_all(const char* reason) {
-    trace_exec_dump(reason);
-    if (rt_exec_trace_enabled()) {
-        rt_net_trace_dump(reason);
-    }
-    trace_exec_snapshot_dump(reason);
-}
-
-void rt_trace_drain_signal_dump(void) {
-    if (atomic_exchange_explicit(&trace_dump_requested_flag, 0, memory_order_relaxed) == 0) {
-        return;
-    }
-    trace_dump_all("sigusr1");
-    rt_sched_trace_dump();
-}
-
-void rt_exec_trace_dump(void) {
-    trace_dump_all("exit");
-}
-
-static void trace_sched_init(void) {
-    const char* value = getenv("SURGE_SCHED_TRACE");
-    if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
-        return;
-    }
-    trace_sched_enabled_flag = 1;
-    trace_sched_hash = UINT64_C(1469598103934665603);
-    trace_sched_events = 0;
-    trace_sched_local_pops = 0;
-    trace_sched_inject_pops = 0;
-    trace_sched_steal_pops = 0;
 }
 
 void panic_msg(const char* msg) {
@@ -641,7 +198,6 @@ static int runnable_is_empty(const rt_executor* ex);
 static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_id);
 static void maybe_start_compensation_worker_locked(rt_executor* ex);
 static void move_current_local_to_inject_locked(rt_executor* ex);
-static void trace_exec_init(void);
 
 static void exec_init_once(void) {
     rt_executor* ex = &exec_state;
@@ -655,8 +211,8 @@ static void exec_init_once(void) {
     pthread_cond_init(&ex->ready_cv, NULL);
     pthread_cond_init(&ex->io_cv, NULL);
     pthread_cond_init(&ex->done_cv, NULL);
-    trace_exec_init();
-    trace_sched_init();
+    rt_exec_trace_init();
+    rt_sched_trace_init();
     uint32_t threads = rt_env_worker_count();
     if (threads == 0) {
         threads = rt_runtime_default_worker_count();
@@ -716,58 +272,6 @@ static int runnable_is_empty(const rt_executor* ex) {
         }
     }
     return 1;
-}
-
-static void trace_exec_init(void) {
-    const char* value = getenv("SURGE_TRACE_EXEC");
-    if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
-        return;
-    }
-    trace_exec_enabled_flag = 1;
-#ifdef SIGUSR1
-    (void)signal(SIGUSR1, trace_exec_signal_handler);
-#endif
-}
-
-void rt_sched_trace_dump(void) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    if (!exec_state.initialized) {
-        return;
-    }
-    rt_lock(&exec_state);
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(&exec_state);
-    uint64_t local = trace_sched_local_pops;
-    uint64_t inject = trace_sched_inject_pops;
-    uint64_t steal = trace_sched_steal_pops;
-    uint64_t events = trace_sched_events;
-    uint64_t hash = trace_sched_hash;
-    uint64_t seed = scheduler != NULL ? scheduler->sched_seed : 0;
-    uint8_t mode = scheduler != NULL ? scheduler->sched_mode : SCHED_PARALLEL;
-    rt_unlock(&exec_state);
-
-    char buf[256];
-    size_t pos = 0;
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), "SCHED_TRACE mode=");
-    pos = trace_exec_append_literal(
-        buf, pos, sizeof(buf), mode == SCHED_SEEDED ? "seeded" : "parallel");
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " seed=");
-    pos = trace_exec_append_u64(buf, pos, sizeof(buf), seed);
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " local=");
-    pos = trace_exec_append_u64(buf, pos, sizeof(buf), local);
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " inject=");
-    pos = trace_exec_append_u64(buf, pos, sizeof(buf), inject);
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " steal=");
-    pos = trace_exec_append_u64(buf, pos, sizeof(buf), steal);
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " events=");
-    pos = trace_exec_append_u64(buf, pos, sizeof(buf), events);
-    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " hash=");
-    pos = trace_exec_append_u64(buf, pos, sizeof(buf), hash);
-    if (pos + 1 < sizeof(buf)) {
-        buf[pos++] = '\n';
-    }
-    (void)write(STDERR_FILENO, buf, pos);
 }
 
 static uint64_t sched_next_u64(rt_worker_ctx* ctx) {
@@ -1155,8 +659,8 @@ static rt_deque* current_local_queue(rt_executor* ex) {
     return &scheduler->local_queues[(uint32_t)tls_worker_id];
 }
 
-static int
-pop_task_from_deque(rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, uint8_t source) {
+static int pop_task_from_deque(
+    rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, rt_trace_sched_source source) {
     if (ex == NULL || dq == NULL) {
         return 0;
     }
@@ -1181,7 +685,7 @@ pop_task_from_deque(rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, u
             continue;
         }
         task_enqueued_store(task, 0);
-        trace_sched_record(source, id);
+        rt_trace_sched_record(source, id);
         if (out_id != NULL) {
             *out_id = id;
         }
@@ -1292,7 +796,7 @@ int ready_pop(rt_executor* ex, uint64_t* out_id) {
     // Caller holds ex->lock; worker_next_ready adds local and steal paths.
     rt_scheduler* scheduler = rt_executor_scheduler(ex);
     return scheduler != NULL
-               ? pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)
+               ? pop_task_from_deque(ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)
                : 0;
 }
 
@@ -1324,22 +828,24 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
         }
         if (local_has && inject_has) {
             if ((sched_next_u64(ctx) & 1U) == 0U) {
-                if (pop_task_from_deque(ex, local, 1, out_id, SCHED_SRC_LOCAL)) {
+                if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL)) {
                     return 1;
                 }
-                if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)) {
+                if (pop_task_from_deque(
+                        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)) {
                     return 1;
                 }
             } else {
-                if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)) {
+                if (pop_task_from_deque(
+                        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)) {
                     return 1;
                 }
-                if (pop_task_from_deque(ex, local, 1, out_id, SCHED_SRC_LOCAL)) {
+                if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL)) {
                     return 1;
                 }
             }
         } else if (local_has) {
-            if (pop_task_from_deque(ex, local, 1, out_id, SCHED_SRC_LOCAL)) {
+            if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL)) {
                 return 1;
             }
         } else if (inject_has) {
@@ -1356,14 +862,17 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
                         if (victim == worker_id) {
                             continue;
                         }
-                        if (pop_task_from_deque(
-                                ex, &scheduler->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+                        if (pop_task_from_deque(ex,
+                                                &scheduler->local_queues[victim],
+                                                0,
+                                                out_id,
+                                                RT_TRACE_SCHED_SRC_STEAL)) {
                             return 1;
                         }
                     }
                 }
             }
-            if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)) {
+            if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)) {
                 return 1;
             }
         }
@@ -1382,7 +891,7 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
                 continue;
             }
             if (pop_task_from_deque(
-                    ex, &scheduler->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+                    ex, &scheduler->local_queues[victim], 0, out_id, RT_TRACE_SCHED_SRC_STEAL)) {
                 return 1;
             }
         }
@@ -1390,11 +899,11 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
     }
     if (scheduler->local_queues != NULL && worker_id < scheduler->worker_count) {
         if (pop_task_from_deque(
-                ex, &scheduler->local_queues[worker_id], 1, out_id, SCHED_SRC_LOCAL)) {
+                ex, &scheduler->local_queues[worker_id], 1, out_id, RT_TRACE_SCHED_SRC_LOCAL)) {
             return 1;
         }
     }
-    if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, SCHED_SRC_INJECT)) {
+    if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)) {
         return 1;
     }
     if (scheduler->local_queues == NULL || scheduler->worker_count <= 1) {
@@ -1405,7 +914,8 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
         if (victim == worker_id) {
             continue;
         }
-        if (pop_task_from_deque(ex, &scheduler->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+        if (pop_task_from_deque(
+                ex, &scheduler->local_queues[victim], 0, out_id, RT_TRACE_SCHED_SRC_STEAL)) {
             return 1;
         }
     }
@@ -1422,10 +932,10 @@ static void wake_task_with_policy(rt_executor* ex,
     if (ex == NULL) {
         return;
     }
-    trace_exec_inc(&trace_wake_called_total);
+    rt_trace_wake_called();
     rt_task* task = get_task(ex, id);
     if (task == NULL || task_status_load(task) == TASK_DONE) {
-        trace_exec_inc(&trace_wake_ignored_completed_total);
+        rt_trace_wake_ignored_completed();
         return;
     }
     if (remove_waiter_flag && waker_valid(task->park_key)) {
@@ -1435,7 +945,7 @@ static void wake_task_with_policy(rt_executor* ex,
     task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
     if (ready_push_with_policy(ex, id, force_inject, front, signal_ready)) {
-        trace_exec_inc(&trace_wake_enqueued_total);
+        rt_trace_wake_enqueued();
     } else {
         const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
         if (compat != NULL && compat->channel_blocked_workers > 0) {
@@ -1508,7 +1018,7 @@ void park_current(rt_executor* ex, waker_key key) {
     if (task == NULL || task_status_load(task) == TASK_DONE) {
         return;
     }
-    trace_exec_inc(&trace_park_attempt_total);
+    rt_trace_park_attempt();
     if (task_wake_token_exchange(task, 0) != 0) {
         task->park_prepared = 0;
         task->park_key = waker_none();
@@ -1529,7 +1039,7 @@ void park_current(rt_executor* ex, waker_key key) {
         ready_push_for_waker_key(ex, task->id, key);
         return;
     }
-    trace_exec_inc(&trace_park_committed_total);
+    rt_trace_park_committed();
     if (waker_is_net(key)) {
         rt_net_wake_poll();
     }
@@ -1947,7 +1457,7 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
         return;
     }
     (void)pthread_detach(thread);
-    trace_exec_inc(&trace_compensation_started_total);
+    rt_trace_compensation_started();
     compat->compensation_count++;
     if (compat->compensation_count > compat->compensation_high_water) {
         compat->compensation_high_water = compat->compensation_count;
@@ -1988,7 +1498,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (compat == NULL) {
         return 0;
     }
-    trace_exec_inc(&trace_channel_blocking_wait_total);
+    rt_trace_channel_blocking_wait();
     rt_lock(ex);
     move_current_local_to_inject_locked(ex);
     // This sync helper parks the OS worker, so it stops contributing to scheduler progress.
@@ -2045,9 +1555,9 @@ static void* rt_worker_main(void* arg) {
                 }
             }
             // Sleep only after local, inject, and steal queues have been checked under ex->lock.
-            trace_exec_inc(&trace_worker_sleep_total);
+            rt_trace_worker_sleep();
             pthread_cond_wait(&ex->ready_cv, &ex->lock);
-            trace_exec_inc(&trace_worker_wake_total);
+            rt_trace_worker_wake();
         }
         if (ex->shutdown) {
             rt_unlock(ex);
@@ -2160,7 +1670,7 @@ static void* rt_io_main(void* arg) {
     const int net_ready_drain_limit = 16;
     rt_lock(ex);
     for (;;) {
-        if (atomic_load_explicit(&trace_dump_requested_flag, memory_order_relaxed) != 0) {
+        if (rt_trace_dump_requested()) {
             rt_unlock(ex);
             rt_trace_drain_signal_dump();
             rt_lock(ex);

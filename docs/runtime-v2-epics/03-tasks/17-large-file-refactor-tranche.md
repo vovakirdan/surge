@@ -9,14 +9,20 @@ behavior-preserving refactor, not a feature task.
 **Skills:** `code-refactoring`, `static-analysis`,
 `writing-clearly-and-concisely`
 
-**Tech Details:** `runtime/native/rt_async_state.c`, `runtime/native/rt_net.c`,
+**Tech Details:** `runtime/native/rt_async_state.c`,
+`runtime/native/rt_async_trace.c`, `runtime/native/rt_net.c`,
 `runtime/native/rt_async_task.c`, `runtime/native/rt_async_channel.c`
 
 ---
 
 ## Files
 
-- Modify: only files named by `03-refactor-audit.md`.
+- Modify: files named by `03-refactor-audit.md`.
+- Create: `runtime/native/rt_async_trace.c` if the chosen tranche extracts the
+  trace responsibility from `runtime/native/rt_async_state.c`. Task 03 named
+  trace as one of the `rt_async_state.c` responsibility pressures; this task may
+  split that cluster without changing scheduler, waiter, timer, or net
+  semantics.
 - Modify: `docs/runtime-v2-epics/03-evidence.md`
 - Modify: `docs/runtime-v2-epics/NOTES.md`
 

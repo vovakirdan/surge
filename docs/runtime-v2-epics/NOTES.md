@@ -34,6 +34,12 @@ task, then move durable decisions into the owning epic document before closeout.
   test/backend debt, and missing Sentrux rules remain debt rather than
   compliance. Main-session Task 14 Sentrux closeout scans recorded root `6207`,
   runtime `5209`, and runtime/native `5172`.
+- Epic 3 Task 17 extracted trace and SIGUSR1 dump responsibility from
+  `runtime/native/rt_async_state.c` into
+  `runtime/native/rt_async_trace.c`. The refactor did not change scheduler,
+  waiter, timer, channel, or net semantics. Post-refactor line counts:
+  `rt_async_state.c` 1731, `rt_async_trace.c` 497,
+  `rt_async_internal.h` 499, and `rt_net.c` 1024.
 - Task 13 accessor cleanup is recorded as audit-only. The migrated scheduler,
   net poll scratch, channel compat, and runtime/shard skeleton surfaces are
   clean in current `runtime/native`; no runtime code change was justified.
@@ -146,13 +152,14 @@ task, then move durable decisions into the owning epic document before closeout.
 
 ## Current Sentrux Baselines
 
-- Repository scan: `/home/zov/projects/surge/surge`, `quality_signal=6210`,
-  bottleneck `modularity`.
+- Repository scan: `/home/zov/projects/surge/surge`, `quality_signal=6208`.
 - Runtime scan: `/home/zov/projects/surge/surge/runtime`,
-  `quality_signal=5147`, bottleneck `redundancy`.
-- `check_rules` reports no `.sentrux/rules.toml` for both scan paths. This is
-  not a passing rule check. Runtime-code tasks after Epic 1 must add real rules
-  or record an explicit temporary deferral without claiming rule compliance.
+  `quality_signal=5255`.
+- Runtime/native scan: `/home/zov/projects/surge/surge/runtime/native`,
+  `quality_signal=5218`.
+- `check_rules` reports no `.sentrux/rules.toml` for the scanned paths. This is
+  not a passing rule check. Runtime-code tasks must add real rules or record an
+  explicit temporary deferral without claiming rule compliance.
 
 ## Current Baseline Debt
 
@@ -1083,3 +1090,27 @@ flat, or creates a follow-up split task.
 - Known future work: net close/cancel/fd-registry lifecycle proof remains out of
   scope until the fd registry epic. Task 18 owns CI promotion for pending net
   proofs.
+
+## Epic 3 Task 17 Handoff
+
+- Scope completed: extracted trace and SIGUSR1 dump responsibility from
+  `runtime/native/rt_async_state.c` into
+  `runtime/native/rt_async_trace.c`.
+- The new module owns `TRACE_EXEC`, `TRACE_EXEC_SNAPSHOT`, `SCHED_TRACE`, trace
+  buffers, trace init/dump, signal-dump request handling, and trace counters.
+- Scheduler trace source mapping now uses the explicit
+  `rt_trace_sched_source` enum instead of raw `0`/`1`/`2` values.
+- No scheduler, waiter, timer, channel, or net behavior was changed. No dead
+  code was deleted.
+- Line counts after Task 17: `rt_async_state.c` 1731,
+  `rt_async_trace.c` 497, `rt_async_internal.h` 499, and `rt_net.c` 1024.
+- Checks passed after the refactor: stable MT trace subset,
+  `TestMTNetWaiterWakeupLatency`, pending
+  `TestRuntimeV2NetWaiterTraceContract`, `git diff --check`, `make c-check`,
+  `make cppcheck`, `make runtime-v2-check`, and `make check`.
+- Read-only review subagent found no blockers. Its only advisory was to include
+  the new `rt_async_trace.c` file in the commit.
+- Sentrux native session: 5178 -> 5218, `pass=true`, no violations. Post scans:
+  root `6208`, runtime `5255`, runtime/native `5218`.
+- `check_rules` still reports missing `.sentrux/rules.toml`; this remains debt,
+  not rule compliance.

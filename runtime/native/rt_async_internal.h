@@ -64,12 +64,15 @@ typedef enum {
     WAKER_SCOPE = 8,
     WAKER_BLOCKING = 9,
 } waker_kind;
-
 typedef enum {
     SCHED_PARALLEL = 0,
     SCHED_SEEDED = 1,
 } sched_mode;
-
+typedef enum {
+    RT_TRACE_SCHED_SRC_LOCAL = 0,
+    RT_TRACE_SCHED_SRC_INJECT = 1,
+    RT_TRACE_SCHED_SRC_STEAL = 2,
+} rt_trace_sched_source;
 typedef struct {
     uint8_t kind;
     uint64_t id;
@@ -290,9 +293,22 @@ void panic_msg(const char* msg);
 int rt_async_debug_enabled(void);
 void rt_async_debug_printf(const char* fmt, ...);
 int rt_exec_trace_enabled(void);
+void rt_exec_trace_init(void);
+void rt_sched_trace_init(void);
+int rt_trace_dump_requested(void);
+void rt_trace_sched_record(rt_trace_sched_source source, uint64_t id);
+void rt_trace_wake_called(void);
+void rt_trace_wake_enqueued(void);
+void rt_trace_wake_ignored_completed(void);
+void rt_trace_park_attempt(void);
+void rt_trace_park_committed(void);
+void rt_trace_worker_sleep(void);
+void rt_trace_worker_wake(void);
+void rt_trace_channel_blocking_wait(void);
 void rt_trace_channel_task_blocking_send(void);
 void rt_trace_channel_task_blocking_recv(void);
 void rt_trace_channel_handoff_yield(void);
+void rt_trace_compensation_started(void);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
