@@ -833,3 +833,25 @@ flat, or creates a follow-up split task.
   runtime scan `/home/zov/projects/surge/surge/runtime` reported
   `quality_signal=5209`. Both `check_rules` calls still report missing
   `.sentrux/rules.toml`, which remains debt rather than compliance.
+
+## Epic 3 Task 01 Handoff
+
+- Scope completed: kickoff baseline and Sentrux state before implementation.
+- Start commit: `f4f83c4d docs(runtime): draft Runtime V2 waiter epic`.
+- Working tree was clean at task start.
+- Runtime/native line-count pressure at start:
+  `rt_async_state.c` 2431, `rt_term.c` 1091, `rt_net.c` 1040,
+  `rt_fs.c` 978, `rt_async_task.c` 768, `rt_string.c` 762,
+  `rt_async_channel.c` 549, and `rt_async_internal.h` 460.
+- Startup gates passed: `make runtime-v2-check`, `make c-check`,
+  `make cppcheck`, and `make check`.
+- Sentrux baseline:
+  - root `/home/zov/projects/surge/surge`: `quality_signal=6207`;
+  - runtime `/home/zov/projects/surge/surge/runtime`: `quality_signal=5209`;
+  - native `/home/zov/projects/surge/surge/runtime/native`:
+    `quality_signal=5172`;
+  - `session_start` saved the native scan baseline.
+- `check_rules` still reports missing `.sentrux/rules.toml` for root, runtime,
+  and runtime/native. This is debt, not compliance.
+- Accepted backend-test debt remains unchanged: do not promote
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'` to a green gate.
