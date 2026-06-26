@@ -171,7 +171,7 @@ If this is a proving spike, fill these fields before implementation:
   | `git diff --check` | no output | no output | `0` | whitespace gate |
   | `make c-check` | pass | pass | `0` | native C checks |
   | `make cppcheck` | pass | pass | `0` | static checks |
-  | `go test ./internal/vm -run 'MT|Async|Net|LLVM'` | pass | pass | `0` | scheduler parity checks |
+  | `go test ./internal/vm -run 'MT|Async|Net|LLVM'` | accepted baseline debt unless this task owns the test-matrix rewrite | fails only with recorded debt classes, or passes after debt is fixed | `0` or recorded nonzero | link `01-baseline-evidence.md`; separate any new failure class |
   | `make check` | pass | pass | `0` | full project gate |
 
 - Benchmarks/reports:

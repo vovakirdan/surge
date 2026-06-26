@@ -38,7 +38,7 @@ it from the shared epic documents and notes after review.
 | `git diff --check` | Passed with empty output. | <1s | Does not block. |
 | `make c-check` | Passed. `clang-format --dry-run --Werror` passed, strict C warning compile passed, and `All C runtime checks passed`. | 2.87s | Does not block. |
 | `make cppcheck` | Passed. `cppcheck` scanned 28 native C files and ended with `cppcheck OK`. | 11.90s | Does not block. |
-| `go test ./internal/vm -run 'MT\|Async\|Net\|LLVM'` | Failed. Package output ended with `FAIL surge/internal/vm 110.761s`. | 110.76s package time | Blocks Epic 2 unless this failure is explicitly accepted as pre-existing baseline debt. |
+| `go test ./internal/vm -run 'MT\|Async\|Net\|LLVM'` | Failed. Package output ended with `FAIL surge/internal/vm 110.761s`. | 110.76s package time | Accepted backend-test debt for a future test-matrix epic; does not block Epic 2 start. |
 | `make check` | Passed. It ran `go test ./... --timeout 90s` with `SURGE_SKIP_TIMEOUT_TESTS=1`, `golangci-lint`, `make c-check`, and `check_file_sizes.sh`. | 13.26s | Does not block. |
 
 Post-review differentiator checks:
@@ -191,16 +191,21 @@ Key trace counters:
 - `compensation started` and `compensation high-water` stayed `0` for all
   channel rows.
 
-## Epic 2 Blocker Status
+## Known Debt And Epic 2 Gate Status
 
-Current evidence blocks Epic 2 as a gate, not as a failure to capture the
-baseline.
+Current evidence records accepted backend-test debt and the remaining Runtime V2
+gate.
 
-Blocking items:
+Accepted debt:
 
 - The required focused VM command
   `go test ./internal/vm -run 'MT|Async|Net|LLVM'` fails in the current
-  checkout.
+  checkout. This is accepted as backend-test debt because the VM/native/LLVM
+  test matrix will be rewritten in a later epic after Runtime V2 contracts are
+  more stable.
+
+Blocking items:
+
 - Sentrux `check_rules` cannot pass for either the repository root or
   `runtime/` because no `.sentrux/rules.toml` exists at either scan path.
 

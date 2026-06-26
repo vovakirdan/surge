@@ -19,6 +19,13 @@ task, then move durable decisions into the owning epic document before closeout.
 - Final closeout checks already passed: `git diff --check`, `make check`,
   Sentrux repository scan, and Sentrux runtime scan. Both Sentrux `check_rules`
   calls still report missing rules files, which remains recorded baseline debt.
+- Epic 2 is drafted in `02-n1-runtime-shard-structure.md`. It is scoped to
+  `N=1` `rt_runtime`/`rt_shard` structure only; owner-local waiters, persistent
+  fd registry, `N>1`, crossing syntax, and the VM/native/LLVM test-matrix
+  rewrite are later epics.
+- Epic 2 drafting checks passed: `git diff --check`, stale phase/epic wording
+  grep, Sentrux repository scan, and Sentrux runtime scan. Sentrux rules are
+  still missing at both scan roots and must not be reported as rule compliance.
 
 ## Epic 1 Artifacts
 
@@ -29,8 +36,8 @@ task, then move durable decisions into the owning epic document before closeout.
 - `01-baseline-evidence.md`: current checkout checks, benchmark reports,
   counters, and blockers.
 - `LIVENESS_PROBES.md`: liveness probes by changed runtime surface.
-- `OPEN_DECISIONS_BEFORE_EPIC_2.md`: blockers and deferrals before structural
-  `N=1` work.
+- `OPEN_DECISIONS_BEFORE_EPIC_2.md`: accepted debt, blockers, and deferrals
+  before structural `N=1` work.
 - `01-contract-rules-harness.md`: durable Epic 1 summary and Epic 2 start
   criteria.
 
@@ -73,18 +80,21 @@ task, then move durable decisions into the owning epic document before closeout.
   timeout-sensitive tests are not skipped.
 - Default `make check` passes because `SURGE_SKIP_TIMEOUT_TESTS=1` skips those
   timeout-sensitive VM/LLVM tests through `skipTimeoutTests`.
+- The focused VM failure is accepted backend-test debt. A later test/backend
+  epic will rewrite the VM/native/LLVM test matrix around stable Runtime V2
+  contracts.
 - Native net and channel benchmark reports in `build/benchmarks/` were
   regenerated with a temporary current-checkout compiler after a stale `./surge`
   binary was detected.
 
 ## Epic 2 Start Blockers
 
-- Focused VM baseline failure must be fixed or explicitly accepted as
-  pre-existing debt for the first structural task.
 - Sentrux missing-rules status must be resolved or explicitly deferred for the
   first structural task without claiming rule compliance.
 - The first `N=1` task must name the exact behavior equivalence boundary from
   `01-contract-rules-harness.md` and `OPEN_DECISIONS_BEFORE_EPIC_2.md`.
+- Epic 2 evidence must keep the focused VM debt named and must not attribute new
+  runtime regressions to that debt without proof.
 
 ## Liveness Requirements
 
@@ -121,3 +131,5 @@ flat, or creates a follow-up split task.
 - Do not treat missing Sentrux rules as a passing rules gate.
 - Do not treat default `make check` as proof that timeout-sensitive VM/LLVM
   liveness and parity tests pass.
+- Do not spend Epic 2 capacity rewriting the semi-broken backend test matrix;
+  that belongs to a later dedicated test/backend epic.

@@ -22,8 +22,8 @@ must not weaken the global rules.
 
 ## Current Status
 
-Epic 1 is complete. Its closeout evidence and Epic 2 start blockers live in
-`01-contract-rules-harness.md`.
+Epic 1 is complete. Epic 2 is drafted in
+`02-n1-runtime-shard-structure.md`.
 
 ## Current Epic 1 Artifacts
 
@@ -38,6 +38,12 @@ Epic 1 is complete. Its closeout evidence and Epic 2 start blockers live in
   structural `N=1` work.
 - `NOTES.md`: live handoff log; durable decisions must move into the owning
   document before an epic closes.
+
+Known backend-test debt is accepted for now: the focused
+`go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is not an
+Epic 2 start blocker. A later test/backend epic will rewrite the VM/native/LLVM
+test matrix around the Runtime V2 contracts. Until then, runtime tasks must keep
+that debt named and must not attribute new regressions to it without evidence.
 
 ## Standing Migration Goals
 
@@ -56,7 +62,7 @@ Every epic should move the runtime toward these goals:
 | Epic | Document | Purpose |
 | --- | --- | --- |
 | 1 | `01-contract-rules-harness.md` (`01-contract-rules-harness-tasks.md`) | Complete. Defines the contracts, strict development rules, baseline probes, and quality gates that every later epic must satisfy. |
-| 2 | TBD | Introduce V2-shaped `rt_runtime` / `rt_shard` structures with `N=1` and unchanged behavior. |
+| 2 | `02-n1-runtime-shard-structure.md` | Draft. Introduce V2-shaped `rt_runtime` / `rt_shard` structures with `N=1` and unchanged behavior. |
 | 3 | TBD | Move waiters to owner-local structures while keeping `N=1`. |
 | 4 | TBD | Replace poll-set rebuilds with a shard-local persistent fd registry. |
 | 5 | TBD | Move hot heap counters to per-shard accounting before real `N>1` benchmarking. |
@@ -65,6 +71,7 @@ Every epic should move the runtime toward these goals:
 | 8 | TBD | Add cross-shard runtime transport, remote operations, Tier 2 destinations, and generation-checked distributed flows. |
 | 9 | TBD | Add remote-free routing and shard-local hot pools. |
 | 10 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |
+| 11 | TBD | Rewrite the VM/native/LLVM test matrix around the stable Runtime V2 contracts and remove accepted backend-test debt. |
 
 ## Standing Gates
 

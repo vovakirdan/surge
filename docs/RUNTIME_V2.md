@@ -523,7 +523,8 @@ Open decision: whether crossing propagates into function signatures. The
 `submit_to` construct makes a crossing visible where it occurs. Surfacing it at
 the call site of any function that crosses requires a `crosses` effect, which is
 a second color over async. Candidate: a checked function-level `crosses` marker,
-like `unsafe`, not full effect inference. Resolve before Phase 4 lowering.
+like `unsafe`, not full effect inference. Resolve before the cross-shard
+lowering epic.
 
 ## Cost Model And Levers
 
@@ -621,6 +622,13 @@ messaging and remote-free; the compiler gains the `far` qualifier, the
 in async lowering. Neither half is complete without the other.
 
 ### Phase 0: Contract And Structure
+
+Implementation note, 2026-06-26: this design phase is broader than the first
+implementation epic. Epic 1 records the contracts, rules, evidence shape, and
+known debt. Epic 2 implements only the `N=1` `rt_runtime`/`rt_shard`
+structure. The `far` handle type, `submit_to`, shard-movable enforcement, and
+cross-shard lowering remain later epics and must not be pulled into the `N=1`
+structure pass.
 
 - Define scheduler semantics that are part of the language contract.
 - Define the shard boundary rule: only `own` shard-movable values may cross

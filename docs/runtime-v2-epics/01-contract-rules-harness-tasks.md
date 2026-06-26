@@ -27,7 +27,7 @@ policy, sentrux MCP for quality gates.
 | 2. Scheduler semantic classification | Done | Contract/artifact table |
 | 3. Sentrux rule policy | Done | `SENTRUX_POLICY.md`; missing rules recorded as blocker |
 | 4. Evidence template | Done | `EVIDENCE_TEMPLATE.md` |
-| 5. Baseline evidence refresh | Done | `01-baseline-evidence.md`; focused VM blocker recorded |
+| 5. Baseline evidence refresh | Done | `01-baseline-evidence.md`; focused VM debt recorded |
 | 6. Liveness probe plan | Done | `LIVENESS_PROBES.md` |
 | 7. Open decisions before Epic 2 | Done | `OPEN_DECISIONS_BEFORE_EPIC_2.md` |
 | 8. Epic closeout consolidation | Done | Epic status complete; notes condensed for Epic 2 handoff |

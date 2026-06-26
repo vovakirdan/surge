@@ -138,10 +138,11 @@ success criteria, failure criteria, and rollback before implementation.
 Current checkout evidence is recorded in
 `docs/runtime-v2-epics/01-baseline-evidence.md`.
 
-Important baseline blockers before Epic 2:
+Important baseline debt and gates before Epic 2:
 
 - `go test ./internal/vm -run 'MT|Async|Net|LLVM'` fails in the current checkout
-  when timeout-sensitive tests are not skipped;
+  when timeout-sensitive tests are not skipped; this is accepted backend-test
+  debt for a later test-matrix epic, not an Epic 2 start blocker;
 - default `make check` passes because `SURGE_SKIP_TIMEOUT_TESTS=1` skips those
   timeout-sensitive VM/LLVM tests;
 - Sentrux `check_rules` cannot pass as a rule gate until root and/or scoped
@@ -175,15 +176,19 @@ Known liveness blockers:
 - channel benchmark per-probe timeout support is still missing, so outer
   `timeout` wrappers remain required evidence.
 
-## Open Decisions Before Epic 2
+## Accepted Debt And Runtime-Code Gates
 
 The decision register lives in
 `docs/runtime-v2-epics/OPEN_DECISIONS_BEFORE_EPIC_2.md`.
 
-Epic 2 is blocked until:
+Epic 2 may start with this recorded debt:
 
-- the focused VM baseline failure is either fixed or explicitly accepted as
-  pre-existing debt for the first structural task;
+- the focused VM baseline failure is accepted as backend-test debt. New
+  runtime-code tasks must not claim it as a regression unless their evidence
+  shows a new failure class;
+
+Runtime-code completion in Epic 2 still requires:
+
 - Sentrux missing-rules status is either resolved or explicitly deferred for
   the first structural task without claiming rule compliance;
 - the first `N=1` task states the behavior equivalence boundary using this epic:
@@ -292,15 +297,17 @@ Recorded baseline checks:
 - `make check`: passed in `01-baseline-evidence.md` and in pre-commit hooks
   for both Epic 1 commits.
 - `go test ./internal/vm -run 'MT|Async|Net|LLVM'`: fails in the current
-  checkout without timeout-test skipping; this is recorded baseline debt.
+  checkout without timeout-test skipping; this is accepted backend-test debt for
+  a later test-matrix epic.
 - `./scripts/bench_native_net.sh`: passed against a current-checkout temporary
   compiler binary.
 - `./scripts/bench_native_channels.sh`: passed against a current-checkout
   temporary compiler binary.
 
-Epic 2 start blockers are explicit, not hidden:
+Epic 2 start blockers and accepted debt are explicit, not hidden:
 
-- focused VM baseline failure must be fixed or accepted as pre-existing debt;
+- focused VM baseline failure is accepted as backend-test debt and must stay
+  named in Epic 2 evidence, but it does not block Epic 2 start;
 - Sentrux missing-rules status must be resolved or explicitly deferred without
   claiming rule compliance;
 - first structural `N=1` work must state its preserved behavior boundary and
@@ -368,8 +375,8 @@ Epic 2 may start only when:
 - the development rules are committed or explicitly accepted as the active
   working rules;
 - baseline evidence exists for the current checkout;
-- the focused VM baseline failure is either fixed or explicitly accepted as
-  pre-existing debt for the first structural task;
+- the focused VM baseline failure is explicitly accepted as backend-test debt
+  for a later test-matrix epic and remains named in Epic 2 evidence;
 - Sentrux missing-rules status is either resolved or explicitly deferred for
   the first structural task without claiming rule compliance;
 - the contract/artifact split is clear enough to move `rt_executor` fields

@@ -4,23 +4,25 @@ This register records which Runtime V2 decisions must be resolved before Epic 2
 starts and which decisions can wait for the epic that first crosses that
 boundary. It is documentation-only and does not change runtime behavior.
 
-## Blocks Epic 2
+## Accepted Debt Before Epic 2
 
 ### Focused VM baseline failure
 
-- Decision: Epic 2 may start only after the focused VM failure is either fixed
-  or explicitly accepted as pre-existing baseline debt for the first structural
-  task. If accepted as debt, that task must keep the debt named in its evidence
-  and must not attribute the known failures to the Runtime V2 change.
+- Decision: accept the focused VM failure as backend-test debt. Epic 2 may start
+  without fixing it. Runtime-code tasks must still name the debt in evidence and
+  must not attribute new failures to this baseline without showing the failure
+  matches the recorded debt.
 - Evidence/source: `01-baseline-evidence.md` sections "Required Commands",
-  "Focused VM failure summary", and "Epic 2 Blocker Status";
+  "Focused VM failure summary", and "Known Debt And Epic 2 Gate Status";
   `01-contract-rules-harness.md` sections "Closeout Evidence" and "Exit
   Criteria For Starting Epic 2"; `NOTES.md` section "Current Baseline Debt".
-- Why this category: without a fix or an explicit debt decision, Epic 2 cannot
-  separate pre-existing VM/LLVM failures from regressions caused by `N=1`
-  structure work.
-- Next owner/document: Epic 1 closeout in
-  `01-contract-rules-harness.md`; first Epic 2 evidence section.
+- Why this category: the backend and test matrix are in a transitional state.
+  A later test/backend epic will rewrite the VM/native/LLVM parity and liveness
+  tests around stable Runtime V2 contracts.
+- Next owner/document: future test/backend matrix epic. Epic 2 evidence must
+  keep this debt named while making its own runtime regressions separable.
+
+## Blocks Epic 2 Runtime-Code Completion
 
 ### Sentrux rules gate
 
@@ -31,7 +33,7 @@ boundary. It is documentation-only and does not change runtime behavior.
 - Evidence/source: `SENTRUX_POLICY.md` sections "Rule File Decision",
   "Required Policy For Future Tasks", and "Open Decisions And Blockers";
   `01-baseline-evidence.md` sections "Sentrux Baseline" and
-  "Epic 2 Blocker Status"; `01-contract-rules-harness.md` sections "Sentrux
+  "Known Debt And Epic 2 Gate Status"; `01-contract-rules-harness.md` sections "Sentrux
   Policy", "Closeout Evidence", and "Exit Criteria For Starting Epic 2".
 - Why this category: the current checkout has scan baselines, but no rule files.
   That is acceptable for docs-only Epic 1 work and blocks Runtime V2 rule
@@ -81,8 +83,8 @@ boundary. It is documentation-only and does not change runtime behavior.
 
 - Decision: do not add or require a `crosses` function marker for Epic 2 `N=1`
   structural work. The marker remains a candidate checked function-level effect,
-  similar to `unsafe`, and must be resolved before Phase 4 cross-shard lowering if
-  the team wants crossings to propagate into function signatures.
+  similar to `unsafe`, and must be resolved before the cross-shard lowering epic
+  if the team wants crossings to propagate into function signatures.
 - Evidence/source: `docs/RUNTIME_V2.md` explicit crossing section,
   `01-contract-rules-harness.md` sections "Contract Questions To Freeze" and
   "Open Decisions Before Epic 2", and
