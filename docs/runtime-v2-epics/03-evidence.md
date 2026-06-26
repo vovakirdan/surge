@@ -133,6 +133,77 @@ Key findings:
 - `rt_select_poll_tasks` remains suspect-only because it has native, public ABI,
   and LLVM builtin references.
 
+## Task 04: Waiter Behavior Contract Tests
+
+Status: complete as a pending red proof.
+
+Output:
+
+- Added `internal/vm/runtime_v2_waiter_contract_test.go` under the
+  `runtime_v2_pending` build tag.
+
+Covered contracts:
+
+- A cancelled recv waiter must not consume the next channel wake.
+- A cancelled send waiter must not consume the next receiver wake.
+- Channel close must wake all recv waiters with `nothing`.
+- A select timeout must clean the losing channel waiter before the next recv.
+
+Default-gate safety:
+
+```bash
+go test ./internal/vm \
+  -run '^TestRuntimeV2(CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv|ChannelCloseWakesRecvWaiters|SelectTimeoutCleansLosingChannelWaiter)$' \
+  -count=1 -parallel=1 -p=1 --timeout 30s
+```
+
+Result: passed with no tests selected because `runtime_v2_pending` is off by
+default.
+
+Pending proof:
+
+```bash
+SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2(CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv|ChannelCloseWakesRecvWaiters|SelectTimeoutCleansLosingChannelWaiter)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 60s
+```
+
+Result: failed. All four generated programs print `ok` and then exit with
+`exit=-1`. This means the user-visible waiter scenario reaches the expected
+result, then runtime cleanup or stale wake/re-poll behavior crashes afterward.
+
+Focused crash evidence for
+`TestRuntimeV2CancelledRecvWaiterDoesNotConsumeNextWake`:
+
+```bash
+SURGE_STDLIB=/home/zov/projects/surge/surge go run ./cmd/surge build \
+  target/debug/.tests/TestRuntimeV2CancelledRecvWaiterDoesNotConsumeNextWake/TestRuntimeV2CancelledRecvWaiterDoesNotConsumeNextWake.sg \
+  --emit-mir --emit-llvm --keep-tmp
+gdb -q -batch -ex 'set env SURGE_THREADS 2' -ex 'run' -ex 'bt' \
+  --args ./target/debug/TestRuntimeV2CancelledRecvWaiterDoesNotConsumeNextWake
+```
+
+Backtrace root:
+
+```text
+Thread 3 "TestRuntimeV2Ca" received signal SIGSEGV, Segmentation fault.
+#0  rt_string_len_bytes ()
+#1  fn ()
+#2  fn ()
+#3  __surge_poll_call ()
+#4  poll_user_task ()
+#5  poll_task ()
+#6  rt_worker_main ()
+```
+
+Debt carried forward:
+
+- These tests are not a default CI gate yet.
+- The implementation tasks must make the pending waiter contract pass before
+  promotion into `runtime-v2-check`.
+- Net waiter close/cancel/readiness behavior and shutdown liveness still need
+  their own tests in Tasks 15-16.
+
 ## Draft Creation Evidence
 
 - Docs created for Epic 3 scope and brief task list.

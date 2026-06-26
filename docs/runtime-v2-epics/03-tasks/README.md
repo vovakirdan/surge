@@ -8,10 +8,10 @@ the epic document is updated first.
 
 | Task | File | Status | Kind |
 | --- | --- | --- | --- |
-| 1 | `01-kickoff-baseline-and-sentrux.md` | Draft | evidence |
+| 1 | `01-kickoff-baseline-and-sentrux.md` | Complete | evidence |
 | 2 | `02-waiter-dependency-map.md` | Complete | design map |
 | 3 | `03-refactor-dependency-and-dead-code-audit.md` | Complete | refactor audit |
-| 4 | `04-waiter-behavior-contract-tests.md` | Draft | test writing |
+| 4 | `04-waiter-behavior-contract-tests.md` | Complete | test writing |
 | 5 | `05-waiter-module-extraction-tests.md` | Draft | test/static checks |
 | 6 | `06-extract-waiter-key-list-helpers.md` | Draft | refactor code |
 | 7 | `07-owner-local-waiter-skeleton-tests.md` | Draft | test writing |

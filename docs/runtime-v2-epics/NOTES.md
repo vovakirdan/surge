@@ -57,6 +57,14 @@ task, then move durable decisions into the owning epic document before closeout.
   Runtime V2 liveness seed is now covered by `make runtime-v2-check` and the
   separate CI job.
 - Epic 2 task evidence is recorded in `02-evidence.md`.
+- Epic 3 Task 04 added pending waiter behavior contract tests in
+  `internal/vm/runtime_v2_waiter_contract_test.go`. The default tag-off gate
+  passes with no tests selected. The tagged
+  `go test -tags runtime_v2_pending` proof is intentionally red today: all four
+  generated programs print `ok`, then crash with `exit=-1`; a focused gdb run
+  lands in `rt_string_len_bytes` via `poll_user_task` on a worker thread. Treat
+  this as the current waiter cleanup/stale-wake proof to fix before CI
+  promotion.
 - Subagents now use a plan gate: they must return a plan for approval before
   implementation, test-writing, or review work starts. If no real plan mode is
   available, use a no-edit plan-only prompt and approve the plan explicitly.
