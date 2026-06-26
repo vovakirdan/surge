@@ -945,3 +945,23 @@ flat, or creates a follow-up split task.
 - Sentrux post-change scans: root `6215`, runtime `5264`, runtime/native
   `5227`. Root, runtime, and runtime/native `check_rules` still report missing
   `.sentrux/rules.toml`; this remains debt, not compliance.
+
+## Epic 3 Task 07 Handoff
+
+- Scope completed: added a pending owner-local waiter skeleton static check.
+- Created `internal/vm/runtime_v2_owner_local_waiter_static_test.go` behind
+  `runtime_v2_pending`.
+- The pending C shape probe expects `rt_waiter_store` with `entries`, `len`,
+  `cap`, and `net_len`; `rt_shard.waiter_store`; and the approved
+  `rt_shard_waiter_store*` / `rt_executor_waiter_store*` accessor surface.
+- The check fails before Task 08 with unknown `rt_waiter_store`, missing waiter
+  store accessors, and no `rt_shard.waiter_store` member.
+- The default waiter static test was intentionally not changed; it still checks
+  current executor-global waiter storage until Task 08 moves the shape.
+- No `runtime/native` files changed.
+- Task 07 checks run: expected failing pending proof and passing default static
+  safety check. `git diff --check` and `make check` are recorded in
+  `03-evidence.md`.
+- Task 08 must add the owner-local waiter store under the single shard, keep
+  compatibility wrappers, and then update or promote the default static shape
+  check.

@@ -370,6 +370,75 @@ Skipped:
 
 - `gofmt`: no Go files changed.
 
+## Task 07: Owner-Local Waiter Skeleton Tests
+
+Status: complete.
+
+Output:
+
+- Added `internal/vm/runtime_v2_owner_local_waiter_static_test.go` behind the
+  `runtime_v2_pending` build tag.
+- Left the default-tag `internal/vm/runtime_v2_waiter_static_test.go`
+  unchanged so current `make check` still asserts the legacy pre-Task-08
+  executor waiter storage.
+
+Pending static contract:
+
+- `rt_waiter_store` exists and is complete.
+- `rt_waiter_store` owns `entries`, `len`, `cap`, and `net_len`.
+- `rt_shard` owns `rt_waiter_store waiter_store`.
+- The owner-local waiter accessors have the approved pointer types:
+  `rt_shard_waiter_store`, `rt_shard_waiter_store_const`,
+  `rt_executor_waiter_store`, and `rt_executor_waiter_store_const`.
+
+Expected pre-Task-08 failure:
+
+```bash
+go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2OwnerLocalWaiterSkeletonStaticShape$' \
+  -count=1 -v --timeout 30s
+```
+
+Result: failed as expected. The C probe reports unknown type
+`rt_waiter_store`, undeclared owner-local waiter accessors, and no
+`rt_shard.waiter_store` member. This is the intended proof target for Task 08,
+not a default gate.
+
+Default safety check:
+
+```bash
+go test ./internal/vm -run '^TestRuntimeV2WaiterHelperStaticBoundary$' \
+  -count=1 -v --timeout 30s
+```
+
+Result: passed.
+
+Hygiene and default gate:
+
+```bash
+git diff --check -- docs/runtime-v2-epics/03-evidence.md docs/runtime-v2-epics/NOTES.md docs/runtime-v2-epics/03-tasks/README.md
+out=$(git diff --check --no-index /dev/null internal/vm/runtime_v2_owner_local_waiter_static_test.go 2>&1 || true); test -z "$out"
+make check
+```
+
+Result: passed. The no-index whitespace probe produced no output for the new
+untracked test file. `make check` ran default Go tests, `golangci-lint`,
+`c-check`, and file-size checks.
+
+Line counts:
+
+- `internal/vm/runtime_v2_owner_local_waiter_static_test.go`: new, 53 lines.
+- No `runtime/native` files changed.
+
+Task 08 handoff:
+
+- Add the `rt_waiter_store` container under the single `rt_shard`.
+- Add the shard and executor waiter-store accessors named above.
+- Move the four legacy waiter-storage values behind the owner-local container
+  while preserving compatibility wrappers and current behavior.
+- Update or promote the default static boundary test after the runtime shape
+  actually moves.
+
 ## Draft Creation Evidence
 
 - Docs created for Epic 3 scope and brief task list.
