@@ -32,5 +32,8 @@ epic document is updated first.
   `go test ./internal/vm -run 'MT|Async|Net|LLVM'` as a required green gate.
 - CI may add only named, proven Runtime V2 liveness subsets or a new dedicated
   target whose local command is recorded in task evidence.
+- Any subagent assigned to implement, test, or review a task must first return a
+  plan and wait for main-agent approval. If the tool has no real plan mode,
+  emulate it with a no-edit plan-only prompt.
 - Every successfully closed task gets its own commit unless two docs-only tasks
   are explicitly merged in `NOTES.md`.

@@ -27,6 +27,9 @@ task, then move durable decisions into the owning epic document before closeout.
   test-writing tasks where meaningful tests can be written, and stable Runtime
   V2 liveness tests must be added to CI before Epic 2 closes.
 - Epic 2 task evidence is recorded in `02-evidence.md`.
+- Subagents now use a plan gate: they must return a plan for approval before
+  implementation, test-writing, or review work starts. If no real plan mode is
+  available, use a no-edit plan-only prompt and approve the plan explicitly.
 - Epic 2 drafting checks passed: `git diff --check`, stale phase/epic wording
   grep, Sentrux repository scan, and Sentrux runtime scan. Sentrux rules are
   still missing at both scan roots and must not be reported as rule compliance.
@@ -49,6 +52,7 @@ task, then move durable decisions into the owning epic document before closeout.
 
 - Work proceeds epic-by-epic. Later epics stay as a short roadmap until earlier
   evidence shapes the next slice.
+- Subagents must plan first and wait for approval before edits or review work.
 - `MUST` rules block completion, except for documented proving spikes with
   hypothesis, allowed files/surfaces, non-final behavior, proof command,
   success/failure criteria, and rollback.

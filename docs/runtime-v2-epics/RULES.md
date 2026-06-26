@@ -111,9 +111,14 @@ must include:
 git diff --check
 make c-check
 make cppcheck
-go test ./internal/vm -run 'MT|Async|Net|LLVM'
 make check
 ```
+
+Runtime and VM liveness checks must use exact focused probes from
+`LIVENESS_PROBES.md` or the active epic's CI contract. Do not use the broad
+focused VM command `go test ./internal/vm -run 'MT|Async|Net|LLVM'` as a
+required green gate until the later test/backend matrix epic fixes or replaces
+that accepted debt.
 
 Scheduler, wakeup, cancellation, channel, timer, and shutdown changes also need
 a liveness proof. Performance-sensitive changes also need benchmark and trace
@@ -165,7 +170,26 @@ Implementation-level synchronization rules belong in the epic or task that
 introduces a concrete primitive. Global rules define the development contract,
 not the lock strategy.
 
-## Global Rule 9: Keep Working Notes Current
+## Global Rule 9: Subagent Plan Gate
+
+Subagents that implement, test, or review Runtime V2 work must start with a
+plan-only pass. The subagent must state:
+
+- the exact task and files it will touch or inspect;
+- the tests, static checks, sentrux scans, and evidence it expects to run;
+- the non-goals and out-of-scope surfaces;
+- the commit boundary, if the task can close independently;
+- the risks or open questions that could change the plan.
+
+The main agent must approve or revise that plan before the subagent edits files
+or runs destructive or long-running work. If the tool cannot start a real plan
+mode, emulate it by instructing the subagent: no edits and no implementation
+until the plan is approved.
+
+Review subagents follow the same gate: they first propose the review surface and
+checks, then start the review after approval.
+
+## Global Rule 10: Keep Working Notes Current
 
 Runtime V2 work must keep a live notes file. The notes file is
 `docs/runtime-v2-epics/NOTES.md` unless an epic names a more specific notes
