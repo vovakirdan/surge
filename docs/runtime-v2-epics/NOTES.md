@@ -798,3 +798,38 @@ flat, or creates a follow-up split task.
   liveness and parity tests pass.
 - Do not spend Epic 2 capacity rewriting the semi-broken backend test matrix;
   that belongs to a later dedicated test/backend epic.
+
+## Epic 3 Draft Handoff
+
+- Drafted Epic 3 as
+  `docs/runtime-v2-epics/03-owner-local-waiters-and-runtime-refactor.md`.
+- Added `docs/runtime-v2-epics/03-evidence.md` and brief task scopes under
+  `docs/runtime-v2-epics/03-tasks/`.
+- Epic 3 scope: owner-local waiter storage under `N=1`, with no persistent fd
+  registry, no `N>1`, no accept ownership, and no crossing syntax.
+- Refactoring is now a first-class Epic 3 track. It must be dependency-aware:
+  behavior proof first, dependency cluster recorded before extraction, no
+  mixed refactor/behavior commits, and no dead-code deletion without reference,
+  build, test, and Sentrux evidence.
+- Current line-count pressure recorded in the epic:
+  `rt_async_state.c` 2431 lines, `rt_net.c` 1040,
+  `rt_async_task.c` 768, `rt_async_channel.c` 549, and
+  `rt_async_internal.h` 460.
+- First Epic 3 implementation task remains Task 01, the kickoff baseline and
+  Sentrux evidence. No runtime code has been changed by the draft.
+- Subagent plan gate remains required. A read-only explorer plan for waiter and
+  refactor analysis was approved and completed with no file edits.
+- Subagent confirmed Runtime V2-relevant pressure in `rt_async_state.c`,
+  `rt_net.c`, `rt_async_task.c`, `rt_async_channel.c`, and
+  `rt_async_internal.h`. It also noted larger non-waiter files such as
+  `rt_term.c` and `rt_fs.c`; keep those out of Epic 3 unless touched by waiter
+  work.
+- Dead-code seed for Task 03: `rt_select_poll_tasks` is suspect only. It has
+  native, ABI, and LLVM builtin references, while current select emission
+  appears to use `rt_select_poll`. Do not delete it without generated-IR search,
+  ABI review, focused tests, and Sentrux evidence.
+- Draft verification: `git diff --check` passed. Sentrux root scan
+  `/home/zov/projects/surge/surge` reported `quality_signal=6207`; scoped
+  runtime scan `/home/zov/projects/surge/surge/runtime` reported
+  `quality_signal=5209`. Both `check_rules` calls still report missing
+  `.sentrux/rules.toml`, which remains debt rather than compliance.

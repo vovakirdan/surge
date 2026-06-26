@@ -24,8 +24,9 @@ must not weaken the global rules.
 
 Epic 1 is complete. Epic 2 is complete for its `N=1`
 runtime/shard-structure scope in `02-n1-runtime-shard-structure.md`, with
-task evidence in `02-evidence.md`. Epic 3 starts with owner-local waiter design
-under the same `N=1` boundary.
+task evidence in `02-evidence.md`. Epic 3 is drafted in
+`03-owner-local-waiters-and-runtime-refactor.md` and starts with owner-local
+waiter design plus dependency-aware refactoring under the same `N=1` boundary.
 
 ## Current Runtime V2 Artifacts
 
@@ -41,6 +42,9 @@ under the same `N=1` boundary.
 - `NOTES.md`: live handoff log; durable decisions must move into the owning
   document before an epic closes.
 - `02-evidence.md`: Epic 2 task evidence ledger.
+- `03-owner-local-waiters-and-runtime-refactor.md`: Epic 3 scope, task list,
+  refactor safety contract, and acceptance gates.
+- `03-evidence.md`: Epic 3 task evidence ledger.
 
 Known backend-test debt is accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is not an
@@ -66,7 +70,7 @@ Every epic should move the runtime toward these goals:
 | --- | --- | --- |
 | 1 | `01-contract-rules-harness.md` (`01-contract-rules-harness-tasks.md`) | Complete. Defines the contracts, strict development rules, baseline probes, and quality gates that every later epic must satisfy. |
 | 2 | `02-n1-runtime-shard-structure.md` | Complete. Introduced V2-shaped `rt_runtime` / `rt_shard` structures with `N=1`, migrated selected owner surfaces, and added the stable Runtime V2 liveness gate without changing behavior. |
-| 3 | TBD | Move waiters to owner-local structures while keeping `N=1`. |
+| 3 | `03-owner-local-waiters-and-runtime-refactor.md` | Draft. Move waiters to owner-local structures while keeping `N=1`, and run dependency-aware runtime refactoring before large files become harder to reason about. |
 | 4 | TBD | Replace poll-set rebuilds with a shard-local persistent fd registry. |
 | 5 | TBD | Move hot heap counters to per-shard accounting before real `N>1` benchmarking. |
 | 6 | TBD | Enable multi-shard accept ownership and remove hot-path stealing for connection tasks. |
