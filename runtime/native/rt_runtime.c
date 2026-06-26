@@ -69,6 +69,16 @@ const rt_scheduler* rt_executor_scheduler_const(const rt_executor* ex) {
     return rt_shard_scheduler_const(&ex->runtime->shards[0]);
 }
 
+rt_net_poll_scratch* rt_shard_net_poll_scratch(rt_shard* shard) {
+    return shard != NULL ? &shard->net_poll_scratch : NULL;
+}
+
+rt_net_poll_scratch* rt_executor_net_poll_scratch(rt_executor* ex) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    rt_shard* shard = rt_runtime_shard0(runtime);
+    return rt_shard_net_poll_scratch(shard);
+}
+
 rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
                                           uint32_t worker_count,
                                           uint8_t sched_mode_value,

@@ -260,47 +260,47 @@ static void complete_net_waiters(rt_executor* ex, waker_key key) {
     }
 }
 
-static int ensure_net_poll_fds(rt_executor* ex, size_t want, NetPollFd** out) {
-    if (ex == NULL || out == NULL) {
+static int ensure_net_poll_fds(rt_net_poll_scratch* scratch, size_t want, NetPollFd** out) {
+    if (scratch == NULL || out == NULL) {
         return 0;
     }
-    if (ex->net_poll_fds_cap < want) {
-        size_t next_cap = net_next_cap(ex->net_poll_fds_cap, want);
+    if (scratch->fds_cap < want) {
+        size_t next_cap = net_next_cap(scratch->fds_cap, want);
         NetPollFd* next =
-            (NetPollFd*)rt_realloc((uint8_t*)ex->net_poll_fds,
-                                   (uint64_t)ex->net_poll_fds_cap * (uint64_t)sizeof(NetPollFd),
+            (NetPollFd*)rt_realloc((uint8_t*)scratch->fds,
+                                   (uint64_t)scratch->fds_cap * (uint64_t)sizeof(NetPollFd),
                                    (uint64_t)next_cap * (uint64_t)sizeof(NetPollFd),
                                    _Alignof(NetPollFd));
         if (next == NULL) {
             return 0;
         }
-        ex->net_poll_fds = next;
-        ex->net_poll_fds_cap = next_cap;
+        scratch->fds = next;
+        scratch->fds_cap = next_cap;
         net_trace_inc(&net_poll_allocs_total);
     }
-    *out = (NetPollFd*)ex->net_poll_fds;
+    *out = (NetPollFd*)scratch->fds;
     return 1;
 }
 
-static int ensure_net_poll_pfds(rt_executor* ex, size_t want, struct pollfd** out) {
-    if (ex == NULL || out == NULL) {
+static int ensure_net_poll_pfds(rt_net_poll_scratch* scratch, size_t want, struct pollfd** out) {
+    if (scratch == NULL || out == NULL) {
         return 0;
     }
-    if (ex->net_poll_pfds_cap < want) {
-        size_t next_cap = net_next_cap(ex->net_poll_pfds_cap, want);
+    if (scratch->pfds_cap < want) {
+        size_t next_cap = net_next_cap(scratch->pfds_cap, want);
         struct pollfd* next = (struct pollfd*)rt_realloc(
-            (uint8_t*)ex->net_poll_pfds,
-            (uint64_t)ex->net_poll_pfds_cap * (uint64_t)sizeof(struct pollfd),
+            (uint8_t*)scratch->pfds,
+            (uint64_t)scratch->pfds_cap * (uint64_t)sizeof(struct pollfd),
             (uint64_t)next_cap * (uint64_t)sizeof(struct pollfd),
             _Alignof(struct pollfd));
         if (next == NULL) {
             return 0;
         }
-        ex->net_poll_pfds = next;
-        ex->net_poll_pfds_cap = next_cap;
+        scratch->pfds = next;
+        scratch->pfds_cap = next_cap;
         net_trace_inc(&net_poll_allocs_total);
     }
-    *out = (struct pollfd*)ex->net_poll_pfds;
+    *out = (struct pollfd*)scratch->pfds;
     return 1;
 }
 
@@ -906,9 +906,10 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     if (ex == NULL || ex->net_waiters_len == 0) {
         return 0;
     }
+    rt_net_poll_scratch* scratch = rt_executor_net_poll_scratch(ex);
     size_t cap = ex->net_waiters_len;
     NetPollFd* fds = NULL;
-    if (!ensure_net_poll_fds(ex, cap, &fds)) {
+    if (!ensure_net_poll_fds(scratch, cap, &fds)) {
         return 0;
     }
     net_trace_add(&net_waiter_scan_entries_total, ex->waiters_len);
@@ -952,7 +953,7 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         return 0;
     }
     struct pollfd* pfds = NULL;
-    if (!ensure_net_poll_pfds(ex, poll_count, &pfds)) {
+    if (!ensure_net_poll_pfds(scratch, poll_count, &pfds)) {
         return 0;
     }
     net_trace_inc(&net_poll_rebuilds_total);

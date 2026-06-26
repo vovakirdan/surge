@@ -119,10 +119,18 @@ typedef struct {
     uint64_t sched_seed;
 } rt_scheduler;
 
+typedef struct {
+    void* fds;
+    size_t fds_cap;
+    void* pfds;
+    size_t pfds_cap;
+} rt_net_poll_scratch;
+
 struct rt_shard {
     rt_runtime* runtime;
     rt_executor* executor;
     rt_scheduler scheduler;
+    rt_net_poll_scratch net_poll_scratch;
     uint32_t shard_id;
 };
 
@@ -193,10 +201,6 @@ struct rt_executor {
     size_t waiters_len;
     size_t waiters_cap;
     size_t net_waiters_len;
-    void* net_poll_fds;
-    size_t net_poll_fds_cap;
-    void* net_poll_pfds;
-    size_t net_poll_pfds_cap;
     pthread_mutex_t lock;
     pthread_cond_t ready_cv;
     pthread_cond_t io_cv;
@@ -364,6 +368,8 @@ rt_scheduler* rt_shard_scheduler(rt_shard* shard);
 const rt_scheduler* rt_shard_scheduler_const(const rt_shard* shard);
 rt_scheduler* rt_executor_scheduler(rt_executor* ex);
 const rt_scheduler* rt_executor_scheduler_const(const rt_executor* ex);
+rt_net_poll_scratch* rt_shard_net_poll_scratch(rt_shard* shard);
+rt_net_poll_scratch* rt_executor_net_poll_scratch(rt_executor* ex);
 rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
                                           uint32_t worker_count,
                                           uint8_t sched_mode_value,
