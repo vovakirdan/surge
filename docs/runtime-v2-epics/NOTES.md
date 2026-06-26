@@ -43,6 +43,11 @@ task, then move durable decisions into the owning epic document before closeout.
 - Epic 2 Task 3 CI/test contract is recorded in `02-ci-test-contract.md`. It
   defines the future exact-name Runtime V2 gate and keeps the broad focused
   VM/backend debt out of required green gates.
+- Epic 2 Task 4 skeleton-test proof is recorded in
+  `internal/vm/runtime_v2_skeleton_static_test.go`. It uses the
+  `runtime_v2_pending` build tag and intentionally fails before Task 5 because
+  `rt_runtime`, `rt_shard`, the `N=1` count macro, and skeleton accessors do not
+  exist yet. The check is local-only until Task 12.
 
 ## Epic 1 Artifacts
 
@@ -221,6 +226,40 @@ task, then move durable decisions into the owning epic document before closeout.
   `git diff --no-index --check` on the new contract file. Runtime tests,
   `make check`, `make c-check`, `make cppcheck`, benchmarks, and Sentrux scans
   are intentionally skipped for this docs-only task.
+
+## Epic 2 Task 4 Runtime/Shard Skeleton Tests Handoff
+
+- Task: `02-tasks/04-runtime-shard-skeleton-tests.md`.
+- Scope completed: added a local-only pending static check for the Task 5
+  runtime/shard skeleton. No runtime implementation, `Makefile`, CI workflow,
+  benchmark, Sentrux, staging, or commit changes were made.
+- New test: `TestRuntimeV2SkeletonStaticShape` in
+  `internal/vm/runtime_v2_skeleton_static_test.go`.
+- The test is hidden behind `//go:build runtime_v2_pending`; default test runs
+  do not see it.
+- The test compiles a C snippet with `clang -std=c11 -fsyntax-only` and requires
+  `RT_RUNTIME_SHARD_COUNT == 1`, complete `rt_runtime` and `rt_shard` types,
+  and the accessors `rt_executor_runtime`, `rt_runtime_shard0`, and
+  `rt_runtime_shard_count`.
+- Preflight tools exist: `command -v clang` returned `/usr/bin/clang`, and
+  `command -v ar` returned `/usr/bin/ar`.
+- Expected pre-Task-05 failure was recorded with:
+
+  ```bash
+  go test -tags runtime_v2_pending ./internal/vm \
+    -run '^TestRuntimeV2SkeletonStaticShape$' -v --timeout 30s
+  ```
+
+  It failed with missing `RT_RUNTIME_SHARD_COUNT`, undeclared `rt_runtime` and
+  `rt_shard`, and undeclared skeleton accessors. This is the desired proof that
+  Task 5 has not been implemented yet.
+- Default safety check passed:
+  `go test ./internal/vm -run '^$' --timeout 30s` returned
+  `ok surge/internal/vm (cached) [no tests to run]`.
+- `git diff --check` passed after the test and docs edits.
+- Task 5 should make this pending check pass as part of skeleton implementation
+  or record a blocker unrelated to Task 5 code. Task 12 owns deciding whether
+  this exact tagged check or a non-pending successor joins `runtime-v2-check`.
 
 ## Liveness Requirements
 

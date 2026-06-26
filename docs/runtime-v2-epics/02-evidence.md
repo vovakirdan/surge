@@ -15,7 +15,7 @@ must separate that debt from new runtime regressions.
 | 1. Kickoff Evidence | Complete | Baseline, accepted VM debt, and Sentrux missing-rules deferral recorded. |
 | 2. Field Ownership Map | Complete | Ownership map linked; movable and deferred field groups recorded. |
 | 3. Runtime V2 Test And CI Contract | Complete | CI contract created; exact seed tests and excluded accepted-debt command recorded. |
-| 4. Runtime/Shard Skeleton Tests | Pending | Record failing or selected skeleton checks. |
+| 4. Runtime/Shard Skeleton Tests | Complete | Added local-only pending static shape check; pre-Task-05 failure recorded. |
 | 5. Runtime/Shard Skeleton | Pending | Record implementation checks and Sentrux deltas. |
 | 6. Scheduler Shape Tests | Pending | Record selected scheduler liveness checks. |
 | 7. Scheduler Shape Migration | Pending | Record scheduler migration checks and traces. |
@@ -392,4 +392,84 @@ stealing.
 | Runtime/shard skeleton tests | Yes. | Epic 2 Task 4. | Structural code needs skeleton checks before Task 5. |
 | CI target and workflow wiring | No for Task 4; yes before Epic 2 closeout. | Epic 2 Task 12. | Task 03 defines the contract only. |
 | Candidate seed command current pass | No for this docs-only task; yes before Task 12 closes. | Epic 2 Task 12. | The command is proposed, not freshly proven here. |
+| Broad focused VM command debt | No for Epic 2. | Later test/backend matrix epic. | It remains excluded from required green gates. |
+
+## Task 4: Runtime/Shard Skeleton Tests
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 4, Runtime/Shard Skeleton Tests.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: add a local-only pending static check that proves Task 5 must create
+  the `N=1` `rt_runtime`/`rt_shard` skeleton before later field movement.
+- Out of scope: runtime skeleton implementation, `Makefile` edits, GitHub
+  Actions edits, public ABI changes, field movement, Sentrux scans, benchmarks,
+  staging, and commit.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `internal/vm/runtime_v2_skeleton_static_test.go` | Added a `runtime_v2_pending` build-tagged Go test that compiles a C shape probe with `clang -fsyntax-only`. | Provide a failing pre-Task-05 proof for the missing Runtime V2 skeleton. | New file is 61 lines. |
+| `docs/runtime-v2-epics/02-ci-test-contract.md` | Added the pending skeleton check to the local-only list. | Keep CI ownership explicit: Task 12 decides when it joins `runtime-v2-check`. | Documentation only. |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 4 complete and added this evidence section. | Keep Epic 2 evidence current before Task 5. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 4 handoff. | Preserve Task 5 start context. | Documentation only. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Updated status wording from Tasks 1-3 to Tasks 1-4. | Reflect recorded Task 4 evidence. | Documentation only. |
+
+### Static Check Contract
+
+`TestRuntimeV2SkeletonStaticShape` is hidden unless the caller passes
+`-tags runtime_v2_pending`. The test feeds a small C snippet to `clang` with
+`-std=c11 -fsyntax-only -Iruntime/native` and requires:
+
+- `RT_RUNTIME_SHARD_COUNT` exists;
+- `RT_RUNTIME_SHARD_COUNT == 1`;
+- complete internal `rt_runtime` and `rt_shard` types exist;
+- `rt_executor_runtime`, `rt_runtime_shard0`, and
+  `rt_runtime_shard_count` are declared.
+
+The check intentionally fails before Task 5 because the skeleton does not exist
+yet. It is local-only until Task 12 wires the final Runtime V2 gate.
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `command -v clang` | tool exists | `/usr/bin/clang` | `0` | Static C shape probe preflight. |
+| `command -v ar` | tool exists | `/usr/bin/ar` | `0` | Matches the Runtime V2 CI contract preflight. |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SkeletonStaticShape$' -v --timeout 30s` | fail before Task 5 | failed with `RT_RUNTIME_SHARD_COUNT` missing, `rt_runtime` undeclared, `rt_shard` undeclared, and missing `rt_executor_runtime`, `rt_runtime_shard0`, and `rt_runtime_shard_count` declarations | `1` | Desired pre-implementation proof. |
+| `go test ./internal/vm -run '^$' --timeout 30s` | default tag-off safety pass | `ok surge/internal/vm (cached) [no tests to run]` | `0` | Proves the pending file does not affect normal Go test discovery. |
+| `git diff --check` | no whitespace errors | pass after docs/test edits | `0` | Final whitespace gate. |
+
+Skipped by explicit Task 4 scope: skeleton implementation, runtime behavior
+tests, `make check`, `make c-check`, `make cppcheck`, benchmarks, Sentrux
+scans, `Makefile` edits, CI workflow edits, staging, and commit.
+
+### CI Ownership
+
+The pending static check is not part of default `make check`, the proposed
+Runtime V2 seed command, or GitHub Actions. Task 5 should run it while
+implementing the skeleton and record the transition from expected failure to
+pass. Task 12 owns deciding whether this exact check, or a non-pending successor
+with the same contract, joins `make runtime-v2-check`.
+
+### Rollback/Recovery Notes
+
+- Files or changes to revert: `internal/vm/runtime_v2_skeleton_static_test.go`,
+  the Task 4 index and section in this file, the local-only row in
+  `02-ci-test-contract.md`, the Task 4 handoff in `NOTES.md`, and the Epic 2
+  status wording.
+- Generated artifacts to remove: none.
+- Runtime processes, sockets, or temporary state to clean up: none.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next code task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Runtime/shard skeleton implementation | Yes. | Epic 2 Task 5. | The pending static check now proves the skeleton is absent. |
+| Pending static check pass | Yes for Task 5 closeout. | Epic 2 Task 5. | Task 5 should make `TestRuntimeV2SkeletonStaticShape` pass or record a blocker. |
+| CI inclusion | No for Task 5 start; yes before Epic 2 closeout. | Epic 2 Task 12. | This check is local-only until the Runtime V2 target/job exists. |
 | Broad focused VM command debt | No for Epic 2. | Later test/backend matrix epic. | It remains excluded from required green gates. |

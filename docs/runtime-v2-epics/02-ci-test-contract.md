@@ -73,6 +73,7 @@ the tests ran, not only that they skipped due to missing backend/toolchain.
 | `TestMTBlockingChannelHelpersDoNotParkWorkers` | Strong trace assertion but heavier sync-helper workload than the seed. | Channel/blocking compatibility tasks. |
 | `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` | Compensation-limit stress belongs in local evidence first. | Channel/blocking compatibility tasks. |
 | `TestMTWorkStealing` | Asserts current Tier 1 stealing, which Runtime V2 treats as an implementation artifact unless later promoted. | Scheduler-shape tasks or later Tier 2 work. |
+| `TestRuntimeV2SkeletonStaticShape` with `-tags runtime_v2_pending` | This is a pre-Task-05 failing proof for the internal `N=1` skeleton shape, not a default behavior test. Keep it local-only until Task 12 decides whether this exact pending check or a non-pending successor joins `runtime-v2-check`. | Runtime/shard skeleton Task 5 and CI wiring Task 12. |
 
 ## How A Test Joins The Gate
 
