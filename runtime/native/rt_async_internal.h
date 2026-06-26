@@ -126,11 +126,18 @@ typedef struct {
     size_t pfds_cap;
 } rt_net_poll_scratch;
 
+typedef struct {
+    uint32_t channel_blocked_workers;
+    uint32_t compensation_count;
+    uint32_t compensation_high_water;
+} rt_channel_blocking_compat;
+
 struct rt_shard {
     rt_runtime* runtime;
     rt_executor* executor;
     rt_scheduler scheduler;
     rt_net_poll_scratch net_poll_scratch;
+    rt_channel_blocking_compat channel_blocking_compat;
     uint32_t shard_id;
 };
 
@@ -206,10 +213,7 @@ struct rt_executor {
     pthread_cond_t io_cv;
     pthread_cond_t done_cv;
     pthread_t* workers;
-    uint32_t channel_blocked_workers;
     uint8_t net_polling;
-    uint32_t compensation_count;
-    uint32_t compensation_high_water;
     uint8_t initialized;
     uint8_t io_started;
     uint8_t shutdown;
@@ -229,9 +233,8 @@ struct rt_executor {
 
 // Executor invariants:
 // - ex->lock owns tasks[], scopes[], waiters, net waiter/poll scratch state,
-//   the single shard scheduler queues/counters, net_polling,
-//   channel_blocked_workers, compensation_count/high-water, timer state, and
-//   shutdown flags.
+//   the single shard scheduler queues/counters, channel/blocking compatibility
+//   counters, net_polling, timer state, and shutdown flags.
 // - task status is atomic so external helpers can observe it, but transitions that
 //   touch queues or waiters still happen under ex->lock.
 // - waiters is a FIFO-by-key registration list. prepare_park may pre-register a
@@ -241,9 +244,10 @@ struct rt_executor {
 //   queues first, then inject, then steal; non-worker threads inject globally.
 // - running_count counts tasks currently being polled. User tasks may poll without
 //   ex->lock, but the increment/decrement around that poll is protected by ex->lock.
-// - channel_blocked_workers counts executor workers parked inside sync channel
-//   helpers after temporarily leaving running_count. Compensation workers are a
-//   fallback for that path, not a normal async parking mechanism.
+// - channel_blocking_compat.channel_blocked_workers counts executor workers parked
+//   inside sync channel helpers after temporarily leaving running_count.
+//   Compensation workers are a fallback for that path, not a normal async
+//   parking mechanism.
 // - The I/O thread is signaled when the executor becomes idle, when net waiters are
 //   registered, or when shutdown changes. Workers sleep on ready_cv only after they
 //   fail to find local, injected, stealable, or immediately pollable net work.
@@ -370,6 +374,10 @@ rt_scheduler* rt_executor_scheduler(rt_executor* ex);
 const rt_scheduler* rt_executor_scheduler_const(const rt_executor* ex);
 rt_net_poll_scratch* rt_shard_net_poll_scratch(rt_shard* shard);
 rt_net_poll_scratch* rt_executor_net_poll_scratch(rt_executor* ex);
+rt_channel_blocking_compat* rt_shard_channel_blocking_compat(rt_shard* shard);
+const rt_channel_blocking_compat* rt_shard_channel_blocking_compat_const(const rt_shard* shard);
+rt_channel_blocking_compat* rt_executor_channel_blocking_compat(rt_executor* ex);
+const rt_channel_blocking_compat* rt_executor_channel_blocking_compat_const(const rt_executor* ex);
 rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
                                           uint32_t worker_count,
                                           uint8_t sched_mode_value,

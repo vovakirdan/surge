@@ -411,6 +411,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
 
     char buf[1800];
     size_t pos = 0;
+    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC_SNAPSHOT");
     if (reason != NULL) {
         pos = trace_exec_append_literal(buf, pos, sizeof(buf), " reason=");
@@ -420,12 +421,21 @@ static void trace_exec_snapshot_dump(const char* reason) {
         buf, &pos, sizeof(buf), "worker_count", scheduler != NULL ? scheduler->worker_count : 0);
     trace_exec_append_kv_u64(
         buf, &pos, sizeof(buf), "running", scheduler != NULL ? scheduler->running_count : 0);
-    trace_exec_append_kv_u64(
-        buf, &pos, sizeof(buf), "channel_blocked", (uint64_t)ex->channel_blocked_workers);
-    trace_exec_append_kv_u64(
-        buf, &pos, sizeof(buf), "compensation", (uint64_t)ex->compensation_count);
-    trace_exec_append_kv_u64(
-        buf, &pos, sizeof(buf), "compensation_high_water", (uint64_t)ex->compensation_high_water);
+    trace_exec_append_kv_u64(buf,
+                             &pos,
+                             sizeof(buf),
+                             "channel_blocked",
+                             compat != NULL ? (uint64_t)compat->channel_blocked_workers : 0);
+    trace_exec_append_kv_u64(buf,
+                             &pos,
+                             sizeof(buf),
+                             "compensation",
+                             compat != NULL ? (uint64_t)compat->compensation_count : 0);
+    trace_exec_append_kv_u64(buf,
+                             &pos,
+                             sizeof(buf),
+                             "compensation_high_water",
+                             compat != NULL ? (uint64_t)compat->compensation_high_water : 0);
     trace_exec_append_kv_u64(
         buf, &pos, sizeof(buf), "inject_len", scheduler != NULL ? scheduler->inject.len : 0);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
@@ -1456,7 +1466,8 @@ static int ready_push_with_policy(
     }
     task_enqueued_store(task, 1);
     task_status_store(task, TASK_READY);
-    if (ex->channel_blocked_workers > 0) {
+    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
+    if (compat != NULL && compat->channel_blocked_workers > 0) {
         maybe_start_compensation_worker_locked(ex);
     }
     if (signal_ready_now) {
@@ -1646,8 +1657,11 @@ static void wake_task_with_policy(rt_executor* ex,
     (void)task_wake_token_exchange(task, 1);
     if (ready_push_with_policy(ex, id, force_inject, front, signal_ready)) {
         trace_exec_inc(&trace_wake_enqueued_total);
-    } else if (ex->channel_blocked_workers > 0) {
-        pthread_cond_broadcast(&ex->ready_cv);
+    } else {
+        const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
+        if (compat != NULL && compat->channel_blocked_workers > 0) {
+            pthread_cond_broadcast(&ex->ready_cv);
+        }
     }
 }
 
@@ -2109,14 +2123,18 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     if (ex == NULL || scheduler == NULL || scheduler->worker_count <= 1) {
         return;
     }
-    uint32_t total_workers = scheduler->worker_count + ex->compensation_count;
-    if (ex->channel_blocked_workers < total_workers) {
+    rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat(ex);
+    if (compat == NULL) {
+        return;
+    }
+    uint32_t total_workers = scheduler->worker_count + compat->compensation_count;
+    if (compat->channel_blocked_workers < total_workers) {
         return;
     }
     // Stateful channel fanout can park many workers behind sync request/reply chains.
     uint32_t limit =
         scheduler->worker_count > UINT32_MAX / 32U ? UINT32_MAX : scheduler->worker_count * 32U;
-    if (ex->compensation_count >= limit) {
+    if (compat->compensation_count >= limit) {
         return;
     }
     // Compensation workers live until executor shutdown; their context is process-lifetime.
@@ -2127,10 +2145,10 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     }
     memset(ctx, 0, sizeof(rt_worker_ctx));
     ctx->ex = ex;
-    ctx->worker_id = ex->compensation_count % scheduler->worker_count;
+    ctx->worker_id = compat->compensation_count % scheduler->worker_count;
     ctx->sched_rng = scheduler->sched_seed +
                      UINT64_C(0x9e3779b97f4a7c15) *
-                         (uint64_t)(scheduler->worker_count + ex->compensation_count + 1U);
+                         (uint64_t)(scheduler->worker_count + compat->compensation_count + 1U);
 
     pthread_t thread;
     if (pthread_create(&thread, NULL, rt_worker_main, ctx) != 0) {
@@ -2140,9 +2158,9 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     }
     (void)pthread_detach(thread);
     trace_exec_inc(&trace_compensation_started_total);
-    ex->compensation_count++;
-    if (ex->compensation_count > ex->compensation_high_water) {
-        ex->compensation_high_water = ex->compensation_count;
+    compat->compensation_count++;
+    if (compat->compensation_count > compat->compensation_high_water) {
+        compat->compensation_high_water = compat->compensation_count;
     }
 }
 
@@ -2176,11 +2194,15 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (scheduler == NULL) {
         return 0;
     }
+    rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat(ex);
+    if (compat == NULL) {
+        return 0;
+    }
     trace_exec_inc(&trace_channel_blocking_wait_total);
     rt_lock(ex);
     move_current_local_to_inject_locked(ex);
     // This sync helper parks the OS worker, so it stops contributing to scheduler progress.
-    ex->channel_blocked_workers++;
+    compat->channel_blocked_workers++;
     int dropped_running = 0;
     if (scheduler->running_count > 0) {
         scheduler->running_count--;
@@ -2197,8 +2219,8 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (dropped_running) {
         scheduler->running_count++;
     }
-    if (ex->channel_blocked_workers > 0) {
-        ex->channel_blocked_workers--;
+    if (compat->channel_blocked_workers > 0) {
+        compat->channel_blocked_workers--;
     }
     rt_unlock(ex);
     return 1;

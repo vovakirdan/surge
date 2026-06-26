@@ -79,6 +79,27 @@ rt_net_poll_scratch* rt_executor_net_poll_scratch(rt_executor* ex) {
     return rt_shard_net_poll_scratch(shard);
 }
 
+rt_channel_blocking_compat* rt_shard_channel_blocking_compat(rt_shard* shard) {
+    return shard != NULL ? &shard->channel_blocking_compat : NULL;
+}
+
+const rt_channel_blocking_compat* rt_shard_channel_blocking_compat_const(const rt_shard* shard) {
+    return shard != NULL ? &shard->channel_blocking_compat : NULL;
+}
+
+rt_channel_blocking_compat* rt_executor_channel_blocking_compat(rt_executor* ex) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    rt_shard* shard = rt_runtime_shard0(runtime);
+    return rt_shard_channel_blocking_compat(shard);
+}
+
+const rt_channel_blocking_compat* rt_executor_channel_blocking_compat_const(const rt_executor* ex) {
+    if (ex == NULL || ex->runtime == NULL || ex->runtime->shard_count != RT_RUNTIME_SHARD_COUNT) {
+        return NULL;
+    }
+    return rt_shard_channel_blocking_compat_const(&ex->runtime->shards[0]);
+}
+
 rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
                                           uint32_t worker_count,
                                           uint8_t sched_mode_value,
