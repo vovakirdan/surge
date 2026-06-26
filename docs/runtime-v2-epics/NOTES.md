@@ -33,6 +33,10 @@ task, then move durable decisions into the owning epic document before closeout.
 - Epic 2 drafting checks passed: `git diff --check`, stale phase/epic wording
   grep, Sentrux repository scan, and Sentrux runtime scan. Sentrux rules are
   still missing at both scan roots and must not be reported as rule compliance.
+- Epic 2 Task 1 kickoff evidence is recorded in `02-evidence.md`. It captured
+  baseline commit `e7d9563d5c78a90409e4d6a92bd47d49b30ae830`, clean starting
+  status on `codex/runtime-net-scheduler-refactor`, accepted VM/backend-test
+  debt, root/runtime Sentrux scans, and the missing-rules deferral.
 
 ## Epic 1 Artifacts
 
@@ -97,12 +101,47 @@ task, then move durable decisions into the owning epic document before closeout.
 
 ## Epic 2 Start Blockers
 
-- Sentrux missing-rules status must be resolved or explicitly deferred for the
-  first structural task without claiming rule compliance.
+- Sentrux missing-rules status was explicitly deferred by Epic 2 Task 1 without
+  claiming rule compliance. Runtime-code tasks still must add real rules or
+  record a fresh temporary deferral for the active scan path.
 - The first `N=1` task must name the exact behavior equivalence boundary from
   `01-contract-rules-harness.md` and `OPEN_DECISIONS_BEFORE_EPIC_2.md`.
 - Epic 2 evidence must keep the focused VM debt named and must not attribute new
   runtime regressions to that debt without proof.
+
+## Epic 2 Task 1 Kickoff Handoff
+
+- Task: `02-tasks/01-kickoff-evidence.md`.
+- Scope completed: documentation-only baseline evidence. No runtime,
+  compiler, ABI, benchmark, CI, or Sentrux rule-file changes were made.
+- Start state: baseline commit
+  `e7d9563d5c78a90409e4d6a92bd47d49b30ae830`; branch
+  `codex/runtime-net-scheduler-refactor`; `git status --short` was empty before
+  the task.
+- Sentrux root scan for `/home/zov/projects/surge/surge` returned
+  `quality_signal=6210`, `files=4740`, `import_edges=1887`, and
+  `lines=370800`; health bottleneck remains `modularity`; `check_rules` still
+  reports missing `/home/zov/projects/surge/surge/.sentrux/rules.toml`.
+- Sentrux runtime scan for `/home/zov/projects/surge/surge/runtime` returned
+  `quality_signal=5147`, `files=32`, `import_edges=30`, and `lines=14883`;
+  health bottleneck remains `redundancy`; `check_rules` still reports missing
+  `/home/zov/projects/surge/surge/runtime/.sentrux/rules.toml`.
+- Missing Sentrux rules remain a blocker to claiming rule compliance. Task 1
+  records a temporary deferral only; the first runtime-code task must either add
+  real rules or record a fresh deferral for the active scan path.
+- Accepted VM debt remains unchanged:
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'` is not an Epic 2 kickoff
+  gate and was not run in Task 1. New runtime failures must not be assigned to
+  this debt without matching `01-baseline-evidence.md`.
+- Approved checks for Task 1: `git diff --check` and `make check`; broad
+  focused VM regex, benchmarks, and extra liveness probes are intentionally
+  skipped.
+- Task 1 checks passed: `git diff --check` produced empty output, and
+  `make check` passed in 14.31s. `make check` ran
+  `SURGE_SKIP_TIMEOUT_TESTS=1 go test ./... --timeout 90s`, `golangci-lint`,
+  `make c-check`, and `check_file_sizes.sh`.
+- Next owner: Epic 2 Task 2, Field Ownership Map. It should classify current
+  `rt_executor` state before any runtime field movement.
 
 ## Liveness Requirements
 
