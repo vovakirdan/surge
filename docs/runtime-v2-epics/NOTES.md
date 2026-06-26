@@ -27,6 +27,14 @@ task, then move durable decisions into the owning epic document before closeout.
   Runtime V2 seed with `SURGE_SKIP_TIMEOUT_TESTS=0`; the separate CI job
   installs `clang`, `llvm`, `lld`, and `binutils`, sets
   `SURGE_MT_TIMEOUT_SCALE=3`, and runs that target.
+- Epic 3 Task 19 structural closeout is recorded. Epic 3 is complete for
+  owner-local waiters and dependency-aware runtime refactoring under `N=1`.
+  Main-session closeout gates and benchmark/smoke evidence are copied into
+  `03-evidence.md`. Post-doc Sentrux closeout scans recorded root `6198`,
+  runtime `5195`, and runtime/native `5159`; missing rules remain debt, not
+  compliance.
+- Epic 4 starts with persistent fd registry and net lifecycle proof. Do not
+  start from `N>1`, crossing syntax, or cross-shard wake protocol work.
 - Task 14 Epic 2 closeout is recorded and approved local gates passed after the
   docs edits. Epic 2 is complete for the `N=1` runtime/shard structure slice:
   no owner-local waiter, persistent fd registry, `N>1`, or crossing-syntax
@@ -1138,3 +1146,42 @@ flat, or creates a follow-up split task.
   root `6198`, runtime `5195`, runtime/native `5159`.
 - `check_rules` still reports missing `.sentrux/rules.toml`; this remains debt,
   not rule compliance.
+
+## Epic 3 Task 19 Handoff
+
+- Scope completed: structural closeout for Epic 3. The durable epic document,
+  Runtime V2 epic README, task index, notes, and evidence ledger now mark Epic
+  3 complete and preserve the handoff to Epic 4.
+- Current closeout claim is local and bounded. Do not state CI green unless a
+  fresh CI run is recorded. The existing CI workflow reaches
+  `make runtime-v2-check`, and Task 18 made that target run the stable waiter
+  liveness gate.
+- Main-session closeout gates passed: `make runtime-v2-check`, `make cppcheck`,
+  `git diff --check`, `make c-check`, and `make check`.
+- `make runtime-v2-check` ran the existing MT seed and
+  `runtime-v2-waiter-check`; the waiter set included
+  `TestRuntimeV2WaiterHelperStaticBoundary` and all promoted
+  `runtime_v2_pending` waiter proofs, including
+  `TestRuntimeV2NetWaiterTraceContract`.
+- Fresh net and channel benchmarks passed with
+  `/tmp/surge-epic3-closeout.Oo0179/surge`, built from `c9fb2f8e`. The reports
+  were written under ignored `build/benchmarks/` paths and must not be added.
+- Net first row: `1 echo seq`, `60.08 us/op`, `net direct waits=1787`,
+  `net poll calls=4028`, `net ready=1787`, `waiter scan entries=12080`,
+  `net waiter entries=4028`, `poll rebuilds=4028`, `poll allocs=2`,
+  `complete calls=3574`, `completed waiters=1787`.
+- Channel key rows: `1 channel_reused_reply` at `3289 ns/op` with handoff
+  yields `19999` and fallback fields `0`; `1 channel_sync_new_reply` at
+  `9150 ns/op` with task-context blocking sends `5000` and recvs `5000`.
+- Post-doc Sentrux closeout scans: root `6198`, runtime `5195`,
+  runtime/native `5159`. `check_rules` still reports missing
+  `.sentrux/rules.toml` for all three paths; this remains debt, not rule
+  compliance.
+- Remaining debt to keep named: broad focused VM regex, missing Sentrux rules,
+  timeout-sensitive tests `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit`,
+  over-500-line `rt_async_state.c` and `rt_net.c`, and no persistent fd registry
+  in Epic 3.
+- Epic 4 should start with persistent fd registry and net lifecycle proof:
+  registration, readiness lifetime, close/cancel cleanup, wake-fd ownership,
+  and shutdown behavior. Do not start Epic 4 with `N>1` or crossing syntax.

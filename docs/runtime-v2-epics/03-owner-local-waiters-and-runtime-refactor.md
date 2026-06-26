@@ -10,8 +10,10 @@ or wrap waiter storage behind owner-named APIs. Refactoring is part of the epic,
 not cleanup after it: every extraction must start from a dependency map and a
 behavior proof.
 
-**Status:** draft. Epic 2 is complete for the `N=1` runtime/shard skeleton. Epic
-3 has not started implementation.
+**Status:** complete. Epic 3 closed the owner-local waiter and
+dependency-aware refactor slice under the existing `N=1` runtime/shard
+boundary. Epic 4 starts from persistent fd registry and net lifecycle proof,
+not from `N>1` scheduling or crossing syntax.
 
 **Task documents:** brief task scopes live under `03-tasks/`. Expand only the
 next task before execution.
@@ -68,6 +70,15 @@ only with a recorded line-count outcome: reduced, flat, or justified follow-up.
 Non-waiter large files such as `rt_term.c` and `rt_fs.c` are not Epic 3
 refactor targets unless waiter work touches them.
 
+Final Epic 3 line-count outcome:
+
+- `runtime/native/rt_async_state.c`: 2431 -> 1731 lines, still over the
+  500-line target;
+- `runtime/native/rt_net.c`: 1040 -> 1024 lines, still over the 500-line
+  target;
+- `runtime/native/rt_async_trace.c`: new trace split, 497 lines;
+- `runtime/native/rt_async_internal.h`: 460 -> 499 lines.
+
 ## Accepted Baseline Debt
 
 The broad focused VM command
@@ -81,6 +92,18 @@ rules as a passing rule gate.
 Existing large runtime files are debt. They do not block Epic 3, but Epic 3 must
 stop growing them by default and must create real refactoring tasks where the
 waiter work exposes cohesive module boundaries.
+
+Final Epic 3 debt carried forward:
+
+- the broad focused VM command remains accepted backend-test debt;
+- missing Sentrux rule files remain debt for root, `runtime/`, and
+  `runtime/native/`;
+- `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` remain known
+  timeout-sensitive test debt outside the Epic 3 green gate;
+- `runtime/native/rt_async_state.c` and `runtime/native/rt_net.c` remain over
+  500 lines;
+- persistent fd registry and net lifecycle proof remain Epic 4 work.
 
 ## Scope
 
@@ -247,3 +270,36 @@ Epic 3 is complete when:
 - Do not treat a code move as safe unless the behavior proof ran before and
   after the move.
 - Do not claim Sentrux rule compliance from missing rules.
+
+## Closeout Summary
+
+Epic 3 moved waiter storage behind owner-local Runtime V2 structures for the
+included `N=1` surfaces and kept the public native ABI stable. Channel, task,
+scope, blocking, timer/select, and net waiter users were covered by focused
+probes before or during migration. Task 18 promoted the stable waiter liveness
+set into the local Runtime V2 gate path, and the existing CI workflow reaches
+that set through `make runtime-v2-check`.
+
+The epic also landed two dependency-aware refactor tranches. Waiter key/list
+operations moved out of the legacy state file, and trace/SIGUSR1 dump
+responsibility moved into `rt_async_trace.c`. These moves reduced
+`rt_async_state.c` and slightly reduced `rt_net.c`, but both files remain
+accepted large-file debt.
+
+Epic 3 did not implement a persistent fd registry, accept ownership changes,
+`N>1` shard scheduling, crossing syntax, `eventfd`, `epoll`, `kqueue`,
+`io_uring`, heap-counter work, or backend test-matrix cleanup.
+
+Local closeout evidence belongs in `03-evidence.md`. Do not describe this epic
+as CI-green unless a fresh CI run is recorded. The durable claim is narrower:
+local gates passed where recorded, and the CI workflow reaches
+`make runtime-v2-check`.
+
+## Epic 4 Handoff
+
+Epic 4 should start with a shard-local persistent fd registry and net lifecycle
+proof. The first proof should define fd registration, readiness lifetime,
+close/cancel cleanup, wake-fd ownership, and shutdown behavior before changing
+the poll backend. Do not start Epic 4 with `N>1`, crossing syntax, or
+cross-shard wake protocol work; those depend on stable fd ownership and net
+lifecycle semantics.

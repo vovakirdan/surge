@@ -31,6 +31,16 @@ Add one section per closed task. Use `EVIDENCE_TEMPLATE.md` for runtime-code
 tasks and record exact commands, Sentrux paths, line-count changes, and known
 debt.
 
+## Draft Creation Evidence
+
+- Docs created for Epic 3 scope and brief task list.
+- `git diff --check`: passed.
+- Sentrux root scan: `/home/zov/projects/surge/surge`, `quality_signal=6207`.
+- Sentrux runtime scan: `/home/zov/projects/surge/surge/runtime`,
+  `quality_signal=5209`.
+- `check_rules`: missing `.sentrux/rules.toml` for both scanned paths. This is
+  debt, not rule compliance.
+
 ## Task 01: Kickoff Baseline And Sentrux
 
 Status: complete.
@@ -1145,12 +1155,103 @@ Excluded from the green gate:
 - Known timeout debts `TestMTBlockingChannelHelpersDoNotParkWorkers` and
   `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit`.
 
-## Draft Creation Evidence
+## Task 19: Epic Closeout And Static Gates
 
-- Docs created for Epic 3 scope and brief task list.
-- `git diff --check`: passed.
-- Sentrux root scan: `/home/zov/projects/surge/surge`, `quality_signal=6207`.
-- Sentrux runtime scan: `/home/zov/projects/surge/surge/runtime`,
-  `quality_signal=5209`.
-- `check_rules`: missing `.sentrux/rules.toml` for both scanned paths. This is
-  debt, not rule compliance.
+Status: complete.
+
+Closeout scope:
+
+- Marked Epic 3 complete in the durable epic document and task index.
+- Consolidated the owner-local waiter, stable waiter liveness, and
+  dependency-aware refactor outcomes.
+- Preserved accepted backend-test, Sentrux missing-rules, timeout-test,
+  large-file, and fd-registry debt.
+- Stated the Epic 4 starting point as persistent fd registry and net lifecycle
+  proof, not `N>1` scheduling or crossing syntax.
+
+Current checkout:
+
+- HEAD after Task 18: `c9fb2f8e test(runtime): add waiter liveness CI gate`.
+- Working tree was clean before Task 19 docs edits.
+
+Local closeout gates:
+
+```bash
+make runtime-v2-check
+make cppcheck
+git diff --check
+make c-check
+make check
+```
+
+Result: passed.
+
+`make runtime-v2-check` ran the existing MT seed and the new
+`runtime-v2-waiter-check` target. The waiter set included
+`TestRuntimeV2WaiterHelperStaticBoundary` and all promoted
+`runtime_v2_pending` waiter proofs, including
+`TestRuntimeV2NetWaiterTraceContract`.
+
+Sentrux closeout:
+
+- Root scan `/home/zov/projects/surge/surge`: `quality_signal=6198`.
+- Runtime scan `/home/zov/projects/surge/surge/runtime`:
+  `quality_signal=5195`.
+- Runtime/native scan `/home/zov/projects/surge/surge/runtime/native`:
+  `quality_signal=5159`.
+- `check_rules` reports missing `.sentrux/rules.toml` for root, `runtime/`,
+  and `runtime/native/`. This remains debt, not rule compliance.
+
+Benchmark and smoke closeout:
+
+- Fresh closeout benchmarks used
+  `/tmp/surge-epic3-closeout.Oo0179/surge`, built from `c9fb2f8e`.
+- Net benchmark command:
+  `SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-epic3-closeout-native-net.md" timeout 120s env SURGE="/tmp/surge-epic3-closeout.Oo0179/surge" ./scripts/bench_native_net.sh`.
+- Channel benchmark command:
+  `SURGE_CHANNEL_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-epic3-closeout-native-channel.md" timeout 120s env SURGE="/tmp/surge-epic3-closeout.Oo0179/surge" ./scripts/bench_native_channels.sh`.
+- Both passed and printed their report paths.
+- Reports live under ignored `build/` paths and are not part of the commit.
+- Do not rerun or require the broad accepted-debt regex
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'`.
+
+Net benchmark key first row:
+
+- `1 echo seq`: average `60.08 us/op`;
+- trace: `net direct waits=1787`, `net poll calls=4028`,
+  `net ready=1787`, `waiter scan entries=12080`,
+  `net waiter entries=4028`, `poll rebuilds=4028`, `poll allocs=2`,
+  `complete calls=3574`, `completed waiters=1787`.
+
+Channel benchmark key rows:
+
+- `1 channel_reused_reply`: `3289 ns/op`, handoff yields `19999`,
+  blocking/counter fallback fields `0`.
+- `1 channel_sync_new_reply`: `9150 ns/op`, task-context blocking sends
+  `5000`, task-context blocking recvs `5000`.
+
+Final line-count outcome:
+
+- `runtime/native/rt_async_state.c`: 2431 -> 1731 lines, still over 500.
+- `runtime/native/rt_net.c`: 1040 -> 1024 lines, still over 500.
+- `runtime/native/rt_async_trace.c`: new file, 497 lines.
+- `runtime/native/rt_async_internal.h`: 460 -> 499 lines.
+
+Remaining debt:
+
+- Broad focused VM regex remains accepted backend-test debt.
+- Missing Sentrux rule files remain debt for root, `runtime/`, and
+  `runtime/native`.
+- `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` remain
+  known timeout-sensitive test debt and are excluded from the Epic 3 green
+  gate.
+- `rt_async_state.c` and `rt_net.c` remain over the 500-line target.
+- Persistent fd registry and net lifecycle ownership proof are deferred to
+  Epic 4.
+
+CI statement:
+
+- Do not claim CI green from this closeout.
+- The durable CI claim is that the existing Runtime V2 workflow reaches
+  `make runtime-v2-check`, which now includes the stable waiter liveness gate.
