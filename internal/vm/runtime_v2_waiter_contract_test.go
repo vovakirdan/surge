@@ -51,7 +51,7 @@ fn main() -> int {
             return 2;
         }
 
-        print("ok");
+        print("ok", "\n");
         return 0;
     }).await();
 
@@ -114,7 +114,7 @@ fn main() -> int {
             return 3;
         }
 
-        print("ok");
+        print("ok", "\n");
         return 0;
     }).await();
 
@@ -166,7 +166,7 @@ fn main() -> int {
             return 1;
         }
 
-        print("ok");
+        print("ok", "\n");
         return 0;
     }).await();
 
@@ -218,7 +218,7 @@ fn main() -> int {
             return 1;
         }
 
-        print("ok");
+        print("ok", "\n");
         return 0;
     }).await();
 

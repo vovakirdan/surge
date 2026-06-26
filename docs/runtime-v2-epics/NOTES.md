@@ -60,11 +60,16 @@ task, then move durable decisions into the owning epic document before closeout.
 - Epic 3 Task 04 added pending waiter behavior contract tests in
   `internal/vm/runtime_v2_waiter_contract_test.go`. The default tag-off gate
   passes with no tests selected. The tagged
-  `go test -tags runtime_v2_pending` proof is intentionally red today: all four
-  generated programs print `ok`, then crash with `exit=-1`; a focused gdb run
-  lands in `rt_string_len_bytes` via `poll_user_task` on a worker thread. Treat
-  this as the current waiter cleanup/stale-wake proof to fix before CI
-  promotion.
+  `go test -tags runtime_v2_pending` waiter proof now passes after making the
+  `print` default argument explicit in the `.sg` snippets. The earlier
+  `rt_string_len_bytes` crash was reclassified as LLVM/default-argument lowering
+  debt, not waiter cleanup/stale-wake evidence.
+- Epic 3 Task 05 added the default-tag static boundary check
+  `internal/vm/runtime_v2_waiter_static_test.go`. It compiles the current
+  waiter key/list helper declarations and the legacy executor/task waiter
+  storage shape with `clang -fsyntax-only`. It does not execute runtime/native
+  code, does not depend on `runtime_v2_pending` behavior tests, and does
+  not claim Sentrux rule compliance.
 - Subagents now use a plan gate: they must return a plan for approval before
   implementation, test-writing, or review work starts. If no real plan mode is
   available, use a no-edit plan-only prompt and approve the plan explicitly.
@@ -889,3 +894,19 @@ flat, or creates a follow-up split task.
   - `rt_select_poll_tasks` remains suspect-only and must stay until generated
     IR search, ABI review, focused select tests, static gates, and Sentrux
     evidence prove deletion is safe.
+
+## Epic 3 Task 05 Handoff
+
+- Scope completed: added a default-tag static boundary check for the pre-Task 06
+  waiter helper extraction seam.
+- Created `internal/vm/runtime_v2_waiter_static_test.go`.
+- The test asserts the current `rt_executor` waiter storage fields, `rt_task`
+  prepared-waiter cleanup fields, `waker_key`/`waiter` storage shape, and helper
+  declarations that Task 06 may move into a cohesive waiter module.
+- No `runtime/native` files changed.
+- The `runtime_v2_pending` waiter behavior tests belong to Task 04 evidence and
+  were not used as a Task 05 gate.
+- Task 05 checks passed: focused static Go test, `make c-check`,
+  `make cppcheck`, and `git diff --check`.
+- Sentrux was not run for Task 05, and no missing-rules status is reported as
+  compliance.

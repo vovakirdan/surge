@@ -135,7 +135,7 @@ Key findings:
 
 ## Task 04: Waiter Behavior Contract Tests
 
-Status: complete as a pending red proof.
+Status: complete as a pending local proof.
 
 Output:
 
@@ -168,12 +168,21 @@ SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm \
   -count=1 -parallel=1 -p=1 -v --timeout 60s
 ```
 
-Result: failed. All four generated programs print `ok` and then exit with
-`exit=-1`. This means the user-visible waiter scenario reaches the expected
-result, then runtime cleanup or stale wake/re-poll behavior crashes afterward.
+Result after correcting the test sources to call `print("ok", "\n")`
+explicitly: passed.
 
-Focused crash evidence for
-`TestRuntimeV2CancelledRecvWaiterDoesNotConsumeNextWake`:
+Correction note:
+
+- The first Task 04 run used one-argument `print("ok")` in all four `.sg`
+  snippets and failed after printing `ok`.
+- A read-only explorer found this was not waiter cleanup evidence. The generated
+  LLVM called the two-argument `print` function with one argument, so the second
+  `rt_string_len_bytes` read a garbage/missing pointer.
+- The smallest confirming fix was to make the default argument explicit in the
+  test sources. With that change, all four waiter contracts pass under
+  `runtime_v2_pending`.
+
+Former crash evidence that is now classified as backend/default-argument debt:
 
 ```bash
 SURGE_STDLIB=/home/zov/projects/surge/surge go run ./cmd/surge build \
@@ -199,10 +208,56 @@ Thread 3 "TestRuntimeV2Ca" received signal SIGSEGV, Segmentation fault.
 Debt carried forward:
 
 - These tests are not a default CI gate yet.
-- The implementation tasks must make the pending waiter contract pass before
+- The implementation tasks must keep the pending waiter contract passing before
   promotion into `runtime-v2-check`.
+- LLVM/default-argument lowering has a separate debt: one-argument calls to
+  functions with defaulted parameters can emit a too-short call. That is not an
+  Epic 3 waiter defect.
 - Net waiter close/cancel/readiness behavior and shutdown liveness still need
   their own tests in Tasks 15-16.
+
+## Task 05: Waiter Module Extraction Tests
+
+Status: complete.
+
+Output:
+
+- Added `internal/vm/runtime_v2_waiter_static_test.go` as a default-tag static
+  boundary check.
+
+Covered static contracts:
+
+- `rt_executor` still owns legacy waiter storage fields: `waiters`,
+  `waiters_len`, `waiters_cap`, and `net_waiters_len`.
+- `rt_task` still owns prepared waiter cleanup fields: `wait_keys`,
+  `wait_keys_len`, `wait_keys_cap`, `park_key`, and `park_prepared`.
+- `waker_key` and `waiter` retain the expected key/task-id storage shape.
+- The pre-Task 06 helper boundary compiles with the current declarations for
+  key constructors, waiter list helpers, wait-key cleanup, prepare-park, and
+  pop-waiter helpers.
+
+Checks:
+
+```bash
+go test ./internal/vm -run '^TestRuntimeV2WaiterHelperStaticBoundary$' -count=1
+make c-check
+make cppcheck
+git diff --check -- internal/vm/runtime_v2_waiter_static_test.go docs/runtime-v2-epics/03-evidence.md docs/runtime-v2-epics/NOTES.md docs/runtime-v2-epics/03-tasks/README.md
+```
+
+Result: passed.
+
+Line counts:
+
+- `internal/vm/runtime_v2_waiter_static_test.go`: 75 lines.
+- No `runtime/native` files changed.
+
+Skipped by design:
+
+- The `runtime_v2_pending` waiter behavior tests are Task 04 evidence, not a
+  Task 05 gate.
+- No Sentrux scan or rules compliance is claimed for this non-runtime-code
+  static-check task.
 
 ## Draft Creation Evidence
 
