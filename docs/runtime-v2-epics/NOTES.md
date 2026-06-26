@@ -27,6 +27,12 @@ closes.
 - Task 5 produced `01-baseline-evidence.md`.
 - Shared integration updated `README.md`,
   `01-contract-rules-harness.md`, this notes file, and the task status table.
+- Tasks 1-5 were committed as `b865472a`:
+  `docs(runtime): add Runtime V2 epic planning baseline`.
+- Epic 1 Tasks 6 and 7 are complete after parallel implementer subagents,
+  separate reviewer subagents, and parent integration.
+- Task 6 produced `LIVENESS_PROBES.md`.
+- Task 7 produced `OPEN_DECISIONS_BEFORE_EPIC_2.md`.
 
 ## Decisions Made
 
@@ -182,3 +188,30 @@ flat, or creates a follow-up split task.
   native probe before moving shutdown state.
 - Before Epic 2 starts, decide whether the current focused VM failure is fixed
   first or accepted as pre-existing debt for a narrowly scoped structural task.
+
+## Task 6/7 Start Context
+
+- Task 6 intended proof: inventory existing liveness tests and runtime trace
+  hooks, then define required probes for net wakeups, channel wakeups,
+  cancellation races, timeout/shutdown, parked-with-work invariants, SIGUSR1
+  live snapshots, and benchmark timeout wrappers.
+- Task 7 intended proof: classify all remaining open decisions into blocks
+  Epic 2, can wait until explicit crossing, can wait until multi-shard runtime,
+  and can wait until allocator/pools. The output must state the status of
+  `crosses`, Sentrux rules, VM/native parity, and `N=1` behavior preservation.
+
+## Task 6/7 Completion Notes
+
+- `LIVENESS_PROBES.md` inventories existing probes and missing mandatory probes
+  for scheduler, wakeup, waiter, channel, timer, cancellation, shutdown, net,
+  SIGUSR1 snapshots, and benchmark timeout wrappers.
+- `OPEN_DECISIONS_BEFORE_EPIC_2.md` splits decisions into Epic 2 blockers,
+  explicit-crossing deferrals, multi-shard deferrals, allocator/pools deferrals,
+  and later IO/backend deferrals.
+- Task 6 review accepted the liveness content after parent fixed GFM table
+  pipes in inline regex commands and linked the plan from shared docs.
+- Task 7 review found no blocking issues. Its decision register is linked from
+  shared docs.
+- Remaining Epic 2 start blockers are explicit: focused VM baseline failure
+  must be fixed or accepted as debt, and Sentrux missing-rules status must be
+  resolved or explicitly deferred without claiming rule compliance.

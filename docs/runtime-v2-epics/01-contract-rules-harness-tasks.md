@@ -28,8 +28,8 @@ policy, sentrux MCP for quality gates.
 | 3. Sentrux rule policy | Done | `SENTRUX_POLICY.md`; missing rules recorded as blocker |
 | 4. Evidence template | Done | `EVIDENCE_TEMPLATE.md` |
 | 5. Baseline evidence refresh | Done | `01-baseline-evidence.md`; focused VM blocker recorded |
-| 6. Liveness probe plan | Pending | Required liveness probes and missing tests |
-| 7. Open decisions before Epic 2 | Pending | Explicit blockers/deferred decisions |
+| 6. Liveness probe plan | Done | `LIVENESS_PROBES.md` |
+| 7. Open decisions before Epic 2 | Done | `OPEN_DECISIONS_BEFORE_EPIC_2.md` |
 | 8. Epic closeout consolidation | Pending | Durable docs updated from notes |
 
 ## Standing Step For Every Task
@@ -223,12 +223,14 @@ structure.
 
 ## Task 6: Liveness Probe Plan
 
+**Status:** Done.
+
 **Goal:** define which liveness checks are mandatory before runtime scheduler,
 wakeup, waiter, channel, timer, cancellation, or shutdown changes are accepted.
 
 **Files:**
 
-- Create or modify: `docs/runtime-v2-epics/LIVENESS_PROBES.md`
+- Created: `docs/runtime-v2-epics/LIVENESS_PROBES.md`
 - Read: `internal/vm/mt_executor_test.go`
 - Read: `internal/vm/mt_correctness_test.go`
 - Read: `runtime/native/rt_async_state.c`
@@ -254,10 +256,13 @@ not a vague "watch for hangs" instruction.
 
 ## Task 7: Open Decisions Before Epic 2
 
+**Status:** Done.
+
 **Goal:** make sure Epic 2 can start without unresolved global-policy questions.
 
 **Files:**
 
+- Created: `docs/runtime-v2-epics/OPEN_DECISIONS_BEFORE_EPIC_2.md`
 - Modify: `docs/runtime-v2-epics/01-contract-rules-harness.md`
 - Modify: `docs/runtime-v2-epics/NOTES.md`
 - Modify: `docs/runtime-v2-epics/README.md` if roadmap wording changes

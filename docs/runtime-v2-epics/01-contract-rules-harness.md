@@ -20,6 +20,8 @@ showing whether performance moved for the right reason.
 - `docs/runtime-v2-epics/SENTRUX_POLICY.md`
 - `docs/runtime-v2-epics/EVIDENCE_TEMPLATE.md`
 - `docs/runtime-v2-epics/01-baseline-evidence.md`
+- `docs/runtime-v2-epics/LIVENESS_PROBES.md`
+- `docs/runtime-v2-epics/OPEN_DECISIONS_BEFORE_EPIC_2.md`
 - `docs/RUNTIME_V2.md`
 - `docs/2026-06-25-runtime-net-scheduler-refactor-plan.md`
 - `docs/RUNTIME.md`
@@ -145,6 +147,62 @@ Important baseline blockers before Epic 2:
 - Sentrux `check_rules` cannot pass as a rule gate until root and/or scoped
   rules files exist.
 
+## Liveness Probe Plan
+
+Mandatory liveness probes are recorded in
+`docs/runtime-v2-epics/LIVENESS_PROBES.md`.
+
+Runtime-code tasks cannot close with "watch for hangs" as evidence. They must
+name the probe, command, expected counter or invariant, actual result, blocker
+status, and owner for missing implementation.
+
+The plan separates existing usable probes from missing mandatory probes. It
+covers net wakeups, channel wakeups, cancellation races, timeout/shutdown,
+parked-with-work invariants, SIGUSR1 live snapshots, and benchmark timeout
+wrappers.
+
+Known liveness blockers:
+
+- a parked-with-work invariant is still missing for wake elision and shard park
+  state changes;
+- owner-local waiter cleanup tests are missing for the V2 waiter rewrite;
+- a persistent fd-registry lifecycle test is missing before fd registry work;
+- channel close/cancellation race matrix coverage is missing;
+- native shutdown liveness evidence is thin and must be added before shutdown
+  state moves;
+- cross-shard wake-fd and cancellation generation probes belong to later
+  multi-shard work;
+- channel benchmark per-probe timeout support is still missing, so outer
+  `timeout` wrappers remain required evidence.
+
+## Open Decisions Before Epic 2
+
+The decision register lives in
+`docs/runtime-v2-epics/OPEN_DECISIONS_BEFORE_EPIC_2.md`.
+
+Epic 2 is blocked until:
+
+- the focused VM baseline failure is either fixed or explicitly accepted as
+  pre-existing debt for the first structural task;
+- Sentrux missing-rules status is either resolved or explicitly deferred for
+  the first structural task without claiming rule compliance;
+- the first `N=1` task states the behavior equivalence boundary using this epic:
+  source-visible async outcomes, channel FIFO, task parking, cancellation and
+  timeout outcomes, structured join/failfast, `@local spawn` sendability,
+  single-worker deterministic expectations, shutdown halt/drop behavior,
+  public native ABI, and debug-facing heap-stat behavior where touched.
+
+Deferred decisions:
+
+- `crosses`, `far`, `submit_to`, and remote operation cost surfaces wait until
+  the explicit crossing language-surface epic;
+- multi-shard owner placement, cross-shard messaging, distributed cancellation,
+  and distributed structured concurrency wait until multi-shard runtime work;
+- per-shard heap counters, hot runtime object pools, and Tier 2 pool split wait
+  until allocator/pools work unless the touched surface requires them;
+- timer wording, native shutdown probes, and the `Io`/backend boundary wait
+  until the first task that touches those surfaces.
+
 ## Strict Runtime V2 Development Rules
 
 Global rules live in `docs/runtime-v2-epics/RULES.md`. The list below is the
@@ -240,13 +298,15 @@ match the Runtime V2 hypothesis about global scheduler state.
 
 List required liveness probes for later work: SIGUSR1 live trace snapshots,
 timeout-wrapped MT tests, lost-wakeup invariants, cancellation races, shutdown
-drain, and any missing test that should be written before moving waiters.
+drain, and any missing test that should be written before moving waiters. The
+plan lives in `LIVENESS_PROBES.md`.
 
 ### Task 7: Record Open Decisions Before Epic 2
 
 Write down which decisions must be resolved before structural `N=1` work and
 which can wait until explicit crossing work. The `crosses` function marker can
-wait until the language-surface epic unless it blocks the contract table.
+wait until the language-surface epic unless it blocks the contract table. The
+decision register lives in `OPEN_DECISIONS_BEFORE_EPIC_2.md`.
 
 ### Task 8: Maintain Working Notes And Close The Epic
 

@@ -28,6 +28,9 @@ must not weaken the global rules.
 - `EVIDENCE_TEMPLATE.md`: required evidence format for later tasks and epics.
 - `01-baseline-evidence.md`: current checkout checks, benchmark reports,
   counters, and blockers before Epic 2.
+- `LIVENESS_PROBES.md`: required liveness probes by changed runtime surface.
+- `OPEN_DECISIONS_BEFORE_EPIC_2.md`: explicit blockers and deferrals before
+  structural `N=1` work.
 - `NOTES.md`: live handoff log; durable decisions must move into the owning
   document before an epic closes.
 
