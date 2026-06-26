@@ -855,3 +855,29 @@ flat, or creates a follow-up split task.
   and runtime/native. This is debt, not compliance.
 - Accepted backend-test debt remains unchanged: do not promote
   `go test ./internal/vm -run 'MT|Async|Net|LLVM'` to a green gate.
+
+## Epic 3 Tasks 02-03 Handoff
+
+- Scope completed: read-only waiter dependency map and refactor/dead-code audit.
+- Created `docs/runtime-v2-epics/03-waiter-dependency-map.md`.
+- Created `docs/runtime-v2-epics/03-refactor-audit.md`.
+- Updated `docs/runtime-v2-epics/03-tasks/README.md` to mark Tasks 02 and 03
+  complete.
+- No runtime/native code changed.
+- Key waiter map facts:
+  - current waiter storage is executor-global under `ex->lock`;
+  - `wake_token` guards wake-before-park;
+  - `net_waiters_len` is a polling hint, not owner-local storage and not an fd
+    registry;
+  - shutdown-adjacent waiter cleanup has no scoped contract yet;
+  - FIFO-by-key remains an open decision before owner-local storage changes.
+- Refactor audit result:
+  - first safe tranche is waiter key/list extraction into a cohesive waiter
+    module, with storage still executor-global;
+  - do not move `wake_task_with_policy`, `wake_key_all_with_policy`,
+    `park_current`, `clear_select_timers`, net polling, channel handoff, or
+    task/select ABI in the first extraction;
+  - no proven-dead code was found;
+  - `rt_select_poll_tasks` remains suspect-only and must stay until generated
+    IR search, ABI review, focused select tests, static gates, and Sentrux
+    evidence prove deletion is safe.

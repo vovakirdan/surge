@@ -84,6 +84,55 @@ Accepted debt confirmed:
 - Missing Sentrux rules are recorded honestly and cannot be treated as a
   passing rule gate.
 
+## Task 02: Waiter Dependency Map
+
+Status: complete.
+
+Output:
+
+- Created `docs/runtime-v2-epics/03-waiter-dependency-map.md`.
+
+Scope:
+
+- Read-only map of current waiter keys, storage, call graph, cleanup paths,
+  contract/detail/open-decision split, and later probes.
+- No runtime/native code changed.
+- No tests were required for this read-only mapping task.
+
+Key findings:
+
+- Current waiter storage is executor-global under `ex->lock`.
+- `wake_token` is the current wake-before-park guard.
+- `net_waiters_len` is a polling hint and must not become a hidden fd registry.
+- Shutdown-adjacent waiter cleanup lacks a scoped contract.
+- FIFO-by-key must be decided before owner-local storage changes.
+
+## Task 03: Refactor Dependency And Dead-Code Audit
+
+Status: complete.
+
+Output:
+
+- Created `docs/runtime-v2-epics/03-refactor-audit.md`.
+
+Scope:
+
+- Read-only audit of runtime file pressure, waiter-related dependency clusters,
+  first safe extraction tranche, tranche order, and dead-code suspects.
+- No runtime/native code changed.
+- No code deletion was authorized.
+
+Key findings:
+
+- First safe refactor tranche is legacy waiter key/list extraction into a
+  cohesive waiter module, with storage still executor-global.
+- `wake_task_with_policy`, `wake_key_all_with_policy`, `park_current`,
+  `clear_select_timers`, net polling, channel handoff, and task/select ABI must
+  stay in place for the first extraction.
+- No proven-dead code was found.
+- `rt_select_poll_tasks` remains suspect-only because it has native, public ABI,
+  and LLVM builtin references.
+
 ## Draft Creation Evidence
 
 - Docs created for Epic 3 scope and brief task list.
