@@ -80,6 +80,13 @@ typedef struct {
     uint64_t task_id;
 } waiter;
 
+typedef void (*rt_waiter_key_visitor)(waker_key key, void* context);
+
+typedef struct {
+    size_t removed;
+    size_t woken;
+} rt_waiter_completion;
+
 typedef struct {
     waiter* entries;
     size_t len;
@@ -407,6 +414,11 @@ rt_scope* get_scope(rt_executor* ex, uint64_t id);
 void ensure_task_cap(rt_executor* ex, uint64_t id);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
+size_t rt_executor_waiter_len(const rt_executor* ex);
+size_t rt_executor_net_waiter_len(const rt_executor* ex);
+size_t
+rt_executor_visit_net_waiters(const rt_executor* ex, rt_waiter_key_visitor visitor, void* context);
+rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key);
 void ensure_waiter_cap(rt_executor* ex);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);

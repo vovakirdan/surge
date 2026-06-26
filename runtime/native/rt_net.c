@@ -233,32 +233,8 @@ static void net_poll_wake_drain(void) {
 
 static void complete_net_waiters(rt_executor* ex, waker_key key) {
     net_trace_inc(&net_waiter_complete_calls_total);
-    rt_waiter_store* store = rt_executor_waiter_store(ex);
-    if (store == NULL || store->len == 0) {
-        return;
-    }
-    size_t out = 0;
-    size_t removed = 0;
-    for (size_t i = 0; i < store->len; i++) {
-        waiter w = store->entries[i];
-        if (w.key.kind != key.kind || w.key.id != key.id) {
-            store->entries[out++] = w;
-            continue;
-        }
-        removed++;
-        const rt_task* task = get_task(ex, w.task_id);
-        if (task == NULL || task_status_load(task) == TASK_DONE || task_cancelled_load(task) != 0) {
-            continue;
-        }
-        net_trace_inc(&net_waiter_completed_total);
-        wake_task(ex, w.task_id, 0);
-    }
-    store->len = out;
-    if (removed >= store->net_len) {
-        store->net_len = 0;
-    } else {
-        store->net_len -= removed;
-    }
+    rt_waiter_completion completion = rt_executor_wake_net_waiters_for_key(ex, key);
+    net_trace_add(&net_waiter_completed_total, (uint64_t)completion.woken);
 }
 
 static int ensure_net_poll_fds(rt_net_poll_scratch* scratch, size_t want, NetPollFd** out) {
@@ -303,6 +279,40 @@ static int ensure_net_poll_pfds(rt_net_poll_scratch* scratch, size_t want, struc
     }
     *out = (struct pollfd*)scratch->pfds;
     return 1;
+}
+
+typedef struct NetPollBuildContext {
+    NetPollFd* fds;
+    size_t count;
+} NetPollBuildContext;
+
+static void collect_net_poll_fd(waker_key key, void* context) {
+    NetPollBuildContext* build = (NetPollBuildContext*)context;
+    if (build == NULL || build->fds == NULL) {
+        return;
+    }
+    net_trace_inc(&net_waiter_net_entries_total);
+    int fd = (int)key.id;
+    if (fd <= 0) {
+        return;
+    }
+    size_t idx = build->count;
+    for (size_t j = 0; j < build->count; j++) {
+        net_trace_inc(&net_poll_dedup_checks_total);
+        if (build->fds[j].fd == fd) {
+            idx = j;
+            break;
+        }
+    }
+    if (idx == build->count) {
+        build->fds[idx] = (NetPollFd){fd, 0, 0};
+        build->count++;
+    }
+    if (key.kind == WAKER_NET_WRITE) {
+        build->fds[idx].want_write = 1;
+    } else {
+        build->fds[idx].want_read = 1;
+    }
 }
 
 static const char* net_error_message(uint64_t code) {
@@ -904,47 +914,19 @@ bool rt_net_wait_writable(const void* conn) {
 
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     // Caller must hold ex->lock; this function releases it while polling.
-    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
-    if (store == NULL || store->net_len == 0) {
+    size_t cap = rt_executor_net_waiter_len(ex);
+    if (cap == 0) {
         return 0;
     }
     rt_net_poll_scratch* scratch = rt_executor_net_poll_scratch(ex);
-    size_t cap = store->net_len;
     NetPollFd* fds = NULL;
     if (!ensure_net_poll_fds(scratch, cap, &fds)) {
         return 0;
     }
-    net_trace_add(&net_waiter_scan_entries_total, store->len);
-    size_t count = 0;
-    for (size_t i = 0; i < store->len; i++) {
-        waiter w = store->entries[i];
-        uint8_t kind = w.key.kind;
-        if (kind != WAKER_NET_ACCEPT && kind != WAKER_NET_READ && kind != WAKER_NET_WRITE) {
-            continue;
-        }
-        net_trace_inc(&net_waiter_net_entries_total);
-        int fd = (int)w.key.id;
-        if (fd <= 0) {
-            continue;
-        }
-        size_t idx = count;
-        for (size_t j = 0; j < count; j++) {
-            net_trace_inc(&net_poll_dedup_checks_total);
-            if (fds[j].fd == fd) {
-                idx = j;
-                break;
-            }
-        }
-        if (idx == count) {
-            fds[idx] = (NetPollFd){fd, 0, 0};
-            count++;
-        }
-        if (kind == WAKER_NET_WRITE) {
-            fds[idx].want_write = 1;
-        } else {
-            fds[idx].want_read = 1;
-        }
-    }
+    net_trace_add(&net_waiter_scan_entries_total, rt_executor_waiter_len(ex));
+    NetPollBuildContext build = {fds, 0};
+    (void)rt_executor_visit_net_waiters(ex, collect_net_poll_fd, &build);
+    size_t count = build.count;
     if (count == 0) {
         return 0;
     }

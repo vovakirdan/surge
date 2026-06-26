@@ -804,6 +804,189 @@ Sentrux evidence for Tasks 09-14:
 - Root, runtime, and runtime/native `check_rules` calls all report missing
   `.sentrux/rules.toml`. This remains debt, not rule compliance.
 
+## Task 15: Net Waiter Tests And Trace Contract
+
+Status: complete.
+
+Output:
+
+- Added `internal/vm/runtime_v2_net_waiter_contract_test.go` under
+  `runtime_v2_pending`.
+- The test builds an LLVM Surge net server, drives repeated TCP request/reply
+  traffic, sends `SIGUSR1` while the process is live, and checks both live and
+  exit `TRACE_NET` lines.
+- The trace contract now requires these fields to exist:
+  `io_poll_calls`, `io_poll_timeouts`, `io_poll_wake_fd`,
+  `io_poll_net_ready`, `io_poll_errors`, `io_poll_timeout_last_ms`,
+  `io_poll_timeout_max_ms`, `io_poll_waiters_last`,
+  `io_poll_waiters_max`, `io_poll_waiters_total`, `io_direct_waits`,
+  `io_waiter_scan_entries`, `io_waiter_net_entries`,
+  `io_poll_rebuilds`, `io_poll_allocs`, `io_poll_dedup_checks`,
+  `io_waiter_complete_calls`, and `io_waiter_completed`.
+- The contract also asserts nonzero poll/readiness/direct-wait/rebuild/complete
+  counters, `io_poll_rebuilds == io_poll_calls`, and
+  `io_waiter_net_entries <= io_waiter_scan_entries`.
+
+Focused proof:
+
+```bash
+go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2NetWaiterTraceContract$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 90s
+
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMTNetWaiterWakeupLatency$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 90s
+
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestNativeNetSingleThreadBlockingChannelInAsyncServer$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 90s
+```
+
+Result: all passed.
+
+Supporting static proof:
+
+```bash
+go test ./internal/vm -run '^TestRuntimeV2WaiterHelperStaticBoundary$' \
+  -count=1 -v --timeout 30s
+```
+
+Result: passed after the net waiter helper API was added to the static
+boundary check.
+
+Known debt:
+
+- This proof remains pending/local-only until Task 18 chooses the stable CI
+  waiter set.
+- The persistent fd registry lifecycle test from `LIVENESS_PROBES.md` remains
+  future work. Task 15 intentionally preserved the current poll-set rebuild
+  model.
+
+## Task 16: Net Waiter Migration
+
+Status: complete.
+
+Output:
+
+- Moved net waiter traversal and net waiter completion out of `rt_net.c` into
+  owner-local waiter helper APIs in `runtime/native/rt_async_waiter.c`.
+- Added:
+  - `rt_executor_waiter_len()`;
+  - `rt_executor_net_waiter_len()`;
+  - `rt_executor_visit_net_waiters()`;
+  - `rt_executor_wake_net_waiters_for_key()`.
+- `rt_executor_wake_net_waiters_for_key()` is net-specific and rejects non-net
+  keys. This keeps channel/task/scope wake policy out of the net migration.
+- `rt_net.c` still owns fd dedupe, `poll()` setup, wake-fd drain, trace
+  counters, and readiness-to-key mapping.
+- No persistent fd registry, accept ownership change, wake-fd relocation,
+  scheduler change, `epoll`/`kqueue`/`io_uring`, `eventfd`, or `N>1` work was
+  introduced.
+
+Line counts:
+
+- `runtime/native/rt_net.c`: 1042 -> 1024 lines.
+- `runtime/native/rt_async_waiter.c`: 252 -> 309 lines.
+- `runtime/native/rt_async_internal.h`: 471 -> 483 lines.
+- `internal/vm/runtime_v2_net_waiter_contract_test.go`: new, 249 lines.
+- `internal/vm/runtime_v2_waiter_static_test.go`: 82 -> 90 lines.
+
+Direct audit:
+
+```bash
+rg -n -- '->(waiters|waiters_len|waiters_cap|net_waiters_len)\b' \
+  runtime/native internal/vm || true
+rg -n 'rt_executor_wake_waiters_for_key|rt_executor_wake_net_waiters_for_key' \
+  runtime/native internal/vm
+```
+
+Result:
+
+- Direct legacy waiter-field audit produced no output.
+- Only the explicit net helper name remains:
+  `rt_executor_wake_net_waiters_for_key`.
+
+Runtime and static gates:
+
+```bash
+go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2NetWaiterTraceContract$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 90s
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestMTNetWaiterWakeupLatency$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 90s
+go test ./internal/vm -run '^TestRuntimeV2WaiterHelperStaticBoundary$' \
+  -count=1 -v --timeout 30s
+make c-check
+make cppcheck
+make runtime-v2-check
+make check
+git diff --check
+```
+
+Result: passed.
+
+Read-only review subagent result: no P0/P1 blockers. The only P2 was that the
+new pending test file was still untracked before staging; this is closed by the
+Task 15-16 commit scope.
+
+Native net benchmark:
+
+```bash
+tmpdir=$(mktemp -d /tmp/surge-epic3-net-before.XXXXXX)
+go build -ldflags "$(./scripts/ldflags.sh --local)" -o "$tmpdir/surge" ./cmd/surge/
+SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-epic3-task16-native-net-before.md" \
+  timeout 120s env SURGE="$tmpdir/surge" ./scripts/bench_native_net.sh
+
+tmpdir=$(mktemp -d /tmp/surge-epic3-net-after.XXXXXX)
+go build -ldflags "$(./scripts/ldflags.sh --local)" -o "$tmpdir/surge" ./cmd/surge/
+SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-epic3-task16-native-net-after.md" \
+  timeout 120s env SURGE="$tmpdir/surge" ./scripts/bench_native_net.sh
+```
+
+Result: both passed and wrote ignored reports under `build/benchmarks/`.
+
+Trace comparison:
+
+- Before first row, `1 echo seq`: `net direct waits=1857`,
+  `net poll calls=4673`, `net ready=1857`, `waiter scan entries=14015`,
+  `net waiter entries=4673`, `poll rebuilds=4673`, `poll allocs=2`,
+  `complete calls=3714`, `completed waiters=1857`.
+- After first row, `1 echo seq`: `net direct waits=1798`,
+  `net poll calls=4421`, `net ready=1798`, `waiter scan entries=13259`,
+  `net waiter entries=4421`, `poll rebuilds=4421`, `poll allocs=2`,
+  `complete calls=3596`, `completed waiters=1798`.
+- The trace shape stayed comparable: rebuilds equal poll calls, net entries
+  are nonzero, and allocation count did not grow. Latency rows are manual
+  benchmark data and were not treated as a performance claim for this
+  behavior-preserving refactor.
+
+Sentrux evidence:
+
+- Native session baseline before Task 16 code integration:
+  `quality_signal=5184`, bottleneck `redundancy`.
+- Native session end after Task 16 code integration: `pass=true`,
+  `signal_after=5178`, `signal_before=5184`, `signal_delta=-6`, summary
+  `Quality stable or improved`, no violations.
+- Root scan `/home/zov/projects/surge/surge`: `quality_signal=6203`,
+  bottleneck `modularity`.
+- Runtime scan `/home/zov/projects/surge/surge/runtime`:
+  `quality_signal=5214`, bottleneck `redundancy`.
+- Runtime/native scan `/home/zov/projects/surge/surge/runtime/native`:
+  `quality_signal=5178`, bottleneck `redundancy`.
+- Root, runtime, and runtime/native `check_rules` calls all report missing
+  `.sentrux/rules.toml`. This remains debt, not rule compliance.
+
+Known debt:
+
+- `rt_net.c` remains over the 500 LOC target at 1024 lines. This task reduced
+  it and did not grow it. Task 17 owns the next large-file refactor tranche.
+- Net close/cancel/fd-registry lifecycle remains future work. This task
+  explicitly avoided introducing a persistent fd registry.
+- Task 18 still owns deciding which pending net waiter proof is stable enough
+  for CI.
+
 ## Draft Creation Evidence
 
 - Docs created for Epic 3 scope and brief task list.

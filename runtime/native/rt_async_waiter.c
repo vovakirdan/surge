@@ -105,6 +105,63 @@ rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store) {
     return RT_RUNTIME_STATUS_OK;
 }
 
+size_t rt_executor_waiter_len(const rt_executor* ex) {
+    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
+    return store != NULL ? store->len : 0;
+}
+
+size_t rt_executor_net_waiter_len(const rt_executor* ex) {
+    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
+    return store != NULL ? store->net_len : 0;
+}
+
+size_t
+rt_executor_visit_net_waiters(const rt_executor* ex, rt_waiter_key_visitor visitor, void* context) {
+    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
+    if (store == NULL || visitor == NULL || store->len == 0) {
+        return 0;
+    }
+    size_t visited = 0;
+    for (size_t i = 0; i < store->len; i++) {
+        waker_key key = store->entries[i].key;
+        if (!waker_is_net(key)) {
+            continue;
+        }
+        visited++;
+        visitor(key, context);
+    }
+    return visited;
+}
+
+rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
+    rt_waiter_completion result = {0, 0};
+    if (ex == NULL || !waker_valid(key) || !waker_is_net(key)) {
+        return result;
+    }
+    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    if (store == NULL || store->len == 0) {
+        return result;
+    }
+    size_t out = 0;
+    for (size_t i = 0; i < store->len; i++) {
+        waiter w = store->entries[i];
+        if (w.key.kind != key.kind || w.key.id != key.id) {
+            store->entries[out++] = w;
+            continue;
+        }
+        result.removed++;
+        const rt_task* task = get_task(ex, w.task_id);
+        if (task == NULL || task_status_load(task) == TASK_DONE || task_cancelled_load(task) != 0) {
+            continue;
+        }
+        result.woken++;
+        wake_task(ex, w.task_id, 0);
+    }
+    store->len = out;
+    net_waiters_removed(store, key, result.removed);
+    return result;
+}
+
 void ensure_waiter_cap(rt_executor* ex) {
     rt_runtime_status status = rt_waiter_store_ensure_cap(rt_executor_waiter_store(ex));
     if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {

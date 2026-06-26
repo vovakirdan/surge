@@ -30,6 +30,12 @@ waker_key (*runtime_v2_check_net_write_key)(int) = net_write_key;
 waker_key (*runtime_v2_check_blocking_key)(uint64_t) = blocking_key;
 
 rt_runtime_status (*runtime_v2_check_waiter_store_ensure_cap)(rt_waiter_store*) = rt_waiter_store_ensure_cap;
+size_t (*runtime_v2_check_executor_waiter_len)(const rt_executor*) = rt_executor_waiter_len;
+size_t (*runtime_v2_check_executor_net_waiter_len)(const rt_executor*) = rt_executor_net_waiter_len;
+size_t (*runtime_v2_check_executor_visit_net_waiters)(
+    const rt_executor*, rt_waiter_key_visitor, void*) = rt_executor_visit_net_waiters;
+rt_waiter_completion (*runtime_v2_check_executor_wake_net_waiters_for_key)(
+    rt_executor*, waker_key) = rt_executor_wake_net_waiters_for_key;
 void (*runtime_v2_check_ensure_waiter_cap)(rt_executor*) = ensure_waiter_cap;
 void (*runtime_v2_check_remove_waiter)(rt_executor*, waker_key, uint64_t) = remove_waiter;
 void (*runtime_v2_check_add_waiter)(rt_executor*, waker_key, uint64_t) = add_waiter;
@@ -53,6 +59,8 @@ _Static_assert(sizeof(((rt_waiter_store*)0)->len) == sizeof(size_t), "rt_waiter_
 _Static_assert(sizeof(((rt_waiter_store*)0)->cap) == sizeof(size_t), "rt_waiter_store.cap must stay size_t");
 _Static_assert(sizeof(((rt_waiter_store*)0)->net_len) == sizeof(size_t), "rt_waiter_store.net_len must stay size_t");
 _Static_assert(sizeof(((rt_shard*)0)->waiter_store) == sizeof(rt_waiter_store), "rt_shard.waiter_store must own waiter storage");
+_Static_assert(sizeof(((rt_waiter_completion*)0)->removed) == sizeof(size_t), "rt_waiter_completion.removed must stay size_t");
+_Static_assert(sizeof(((rt_waiter_completion*)0)->woken) == sizeof(size_t), "rt_waiter_completion.woken must stay size_t");
 
 _Static_assert(sizeof(((rt_task*)0)->wait_keys) == sizeof(waker_key*), "rt_task.wait_keys must track prepared keys");
 _Static_assert(sizeof(((rt_task*)0)->wait_keys_len) == sizeof(size_t), "rt_task.wait_keys_len must stay size_t");

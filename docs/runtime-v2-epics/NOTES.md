@@ -1033,3 +1033,53 @@ flat, or creates a follow-up split task.
 - Sentrux batch scans: root `6206`, runtime `5220`, runtime/native `5184`.
   Root, runtime, and runtime/native `check_rules` still report missing
   `.sentrux/rules.toml`; this remains debt, not compliance.
+
+## Epic 3 Tasks 15-16 Handoff
+
+- Scope completed: proved the current net waiter trace contract and migrated
+  net waiter traversal/completion behind owner-local waiter helper APIs.
+- Added pending proof
+  `internal/vm/runtime_v2_net_waiter_contract_test.go`:
+  `TestRuntimeV2NetWaiterTraceContract`.
+- The pending proof runs a small LLVM net server, drives repeated TCP
+  request/reply traffic, sends `SIGUSR1`, and validates live plus exit
+  `TRACE_NET` lines.
+- Trace contract now checks field presence, nonzero net poll/readiness/direct
+  wait/rebuild/complete counters, `io_poll_rebuilds == io_poll_calls`, and
+  `io_waiter_net_entries <= io_waiter_scan_entries`.
+- Added owner-local helper API:
+  `rt_executor_waiter_len`, `rt_executor_net_waiter_len`,
+  `rt_executor_visit_net_waiters`, and
+  `rt_executor_wake_net_waiters_for_key`.
+- The wake helper is explicitly net-only and rejects non-net keys. Generic
+  channel/task/scope wake policy remains outside this task.
+- `rt_net.c` still owns fd dedupe, `poll()`, wake-fd drain, and trace counters.
+  The task did not introduce a persistent fd registry, accept ownership,
+  wake-fd relocation, scheduler changes, `N>1`, `eventfd`, `epoll`, `kqueue`,
+  or `io_uring`.
+- Line counts after Task 16: `rt_net.c` 1024, `rt_async_waiter.c` 309,
+  `rt_async_internal.h` 483, `runtime_v2_net_waiter_contract_test.go` 249,
+  and `runtime_v2_waiter_static_test.go` 90.
+- Checks passed: pending net trace contract, `TestMTNetWaiterWakeupLatency`,
+  `TestNativeNetSingleThreadBlockingChannelInAsyncServer`, default waiter
+  static boundary, `make c-check`, `make cppcheck`, `make runtime-v2-check`,
+  `make check`, and `git diff --check`.
+- Read-only review subagent found no P0/P1 blockers. The only P2 was that the
+  new pending test file was untracked before staging; close this in the
+  Task 15-16 commit scope.
+- Native net benchmark before/after ran with freshly built current-checkout
+  binaries and wrote ignored reports:
+  `build/benchmarks/runtime-v2-epic3-task16-native-net-before.md` and
+  `build/benchmarks/runtime-v2-epic3-task16-native-net-after.md`.
+- Benchmark trace rows stayed comparable. For the first `1 echo seq` row,
+  before had `poll calls=4673`, `poll rebuilds=4673`, `poll allocs=2`; after
+  had `poll calls=4421`, `poll rebuilds=4421`, `poll allocs=2`.
+- Sentrux native session: 5184 -> 5178, `pass=true`, no violations. Post scans:
+  root `6203`, runtime `5214`, runtime/native `5178`.
+- Root, runtime, and runtime/native `check_rules` still report missing
+  `.sentrux/rules.toml`; this remains debt, not compliance.
+- Known debt: `rt_net.c` remains over the 500 LOC target at 1024 lines. Task 17
+  owns the next large-file refactor tranche.
+- Known future work: net close/cancel/fd-registry lifecycle proof remains out of
+  scope until the fd registry epic. Task 18 owns CI promotion for pending net
+  proofs.

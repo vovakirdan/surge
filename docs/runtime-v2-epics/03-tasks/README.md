@@ -22,8 +22,8 @@ the epic document is updated first.
 | 12 | `12-task-scope-blocking-waiter-migration.md` | Complete | runtime code |
 | 13 | `13-timer-select-cancellation-tests.md` | Complete | test writing |
 | 14 | `14-timer-select-cancellation-migration.md` | Complete | runtime code |
-| 15 | `15-net-waiter-tests-and-trace-contract.md` | Draft | test/trace writing |
-| 16 | `16-net-waiter-migration.md` | Draft | runtime code |
+| 15 | `15-net-waiter-tests-and-trace-contract.md` | Complete | test/trace writing |
+| 16 | `16-net-waiter-migration.md` | Complete | runtime code |
 | 17 | `17-large-file-refactor-tranche.md` | Draft | refactor code |
 | 18 | `18-runtime-v2-waiter-ci-gates.md` | Draft | CI |
 | 19 | `19-epic-closeout-and-static-gates.md` | Draft | closeout |
