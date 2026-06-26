@@ -1075,6 +1075,76 @@ Known debt:
   `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` remain known
   timeout debt and were not Task 17 green gates.
 
+## Task 18: Runtime V2 Waiter CI Gates
+
+Status: complete.
+
+Gate shape:
+
+- Added `runtime-v2-waiter-check` as a named local companion target.
+- `make runtime-v2-check` still owns the CI entrypoint. It keeps the existing
+  LLVM MT seed and then runs `make runtime-v2-waiter-check`.
+- `.github/workflows/ci.yml` did not need changes because the existing
+  `Runtime V2 liveness (llvm)` job already installs LLVM and runs
+  `make runtime-v2-check`.
+
+Promoted waiter checks:
+
+```bash
+go test ./internal/vm \
+  -run '^TestRuntimeV2WaiterHelperStaticBoundary$' \
+  -count=1 -v --timeout 30s
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2(CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv|ChannelCloseWakesRecvWaiters|ChannelCloseWakesSendWaiters|SelectTimeoutCleansLosingChannelWaiter|CancelledSelectCleansWaitKeysAndTimers|CancelledJoinWaiterDoesNotConsumeTaskCompletionWake|FailfastScopeCancellationWakesOwner|BlockingCompletionWakesAwaiter|CancelledBlockingWaiterDoesNotConsumeCompletionWake|OwnerLocalWaiterSkeletonStaticShape|NetWaiterTraceContract)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 120s
+```
+
+Result: passed.
+
+Full Runtime V2 gate:
+
+```bash
+make runtime-v2-check
+```
+
+Result: passed.
+
+Full default gate:
+
+```bash
+make check
+```
+
+Result: passed.
+
+Hygiene:
+
+```bash
+git diff --check
+```
+
+Result: passed.
+
+Sentrux evidence:
+
+- Root session baseline before Task 18: `quality_signal=6198`.
+- Root session end after Task 18: `pass=true`, `signal_after=6198`,
+  `signal_before=6198`, `signal_delta=0`, summary
+  `Quality stable or improved`, no violations.
+- Root scan `/home/zov/projects/surge/surge`: `quality_signal=6198`.
+- Runtime scan `/home/zov/projects/surge/surge/runtime`:
+  `quality_signal=5195`.
+- Runtime/native scan `/home/zov/projects/surge/surge/runtime/native`:
+  `quality_signal=5159`.
+- `check_rules` still reports missing `.sentrux/rules.toml`. This remains
+  debt, not rule compliance.
+
+Excluded from the green gate:
+
+- Broad accepted-debt regex `go test ./internal/vm -run 'MT|Async|Net|LLVM'`.
+- Known timeout debts `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit`.
+
 ## Draft Creation Evidence
 
 - Docs created for Epic 3 scope and brief task list.

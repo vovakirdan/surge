@@ -25,7 +25,7 @@ the epic document is updated first.
 | 15 | `15-net-waiter-tests-and-trace-contract.md` | Complete | test/trace writing |
 | 16 | `16-net-waiter-migration.md` | Complete | runtime code |
 | 17 | `17-large-file-refactor-tranche.md` | Complete | refactor code |
-| 18 | `18-runtime-v2-waiter-ci-gates.md` | Draft | CI |
+| 18 | `18-runtime-v2-waiter-ci-gates.md` | Complete | CI |
 | 19 | `19-epic-closeout-and-static-gates.md` | Draft | closeout |
 
 ## Rules

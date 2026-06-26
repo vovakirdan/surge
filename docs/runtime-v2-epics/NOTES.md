@@ -152,11 +152,11 @@ task, then move durable decisions into the owning epic document before closeout.
 
 ## Current Sentrux Baselines
 
-- Repository scan: `/home/zov/projects/surge/surge`, `quality_signal=6208`.
+- Repository scan: `/home/zov/projects/surge/surge`, `quality_signal=6198`.
 - Runtime scan: `/home/zov/projects/surge/surge/runtime`,
-  `quality_signal=5255`.
+  `quality_signal=5195`.
 - Runtime/native scan: `/home/zov/projects/surge/surge/runtime/native`,
-  `quality_signal=5218`.
+  `quality_signal=5159`.
 - `check_rules` reports no `.sentrux/rules.toml` for the scanned paths. This is
   not a passing rule check. Runtime-code tasks must add real rules or record an
   explicit temporary deferral without claiming rule compliance.
@@ -1112,5 +1112,29 @@ flat, or creates a follow-up split task.
   the new `rt_async_trace.c` file in the commit.
 - Sentrux native session: 5178 -> 5218, `pass=true`, no violations. Post scans:
   root `6208`, runtime `5255`, runtime/native `5218`.
+- `check_rules` still reports missing `.sentrux/rules.toml`; this remains debt,
+  not rule compliance.
+
+## Epic 3 Task 18 Handoff
+
+- Scope completed: added stable waiter liveness checks to the Runtime V2 local
+  and CI gate path.
+- Added `runtime-v2-waiter-check` as a companion Makefile target. It runs the
+  default-tag `TestRuntimeV2WaiterHelperStaticBoundary` proof and the exact
+  `runtime_v2_pending` waiter proof set promoted from Tasks 04, 07, 09, 11, 13,
+  and 15.
+- `make runtime-v2-check` still runs the existing LLVM MT seed first, then calls
+  `make runtime-v2-waiter-check`.
+- `.github/workflows/ci.yml` was unchanged. The `Runtime V2 liveness (llvm)` job
+  already installs LLVM and invokes `make runtime-v2-check`, so CI now reaches
+  the waiter gate through the same entrypoint.
+- Excluded from the green gate: broad accepted-debt regex
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'`,
+  `TestMTBlockingChannelHelpersDoNotParkWorkers`, and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit`.
+- Checks passed: `make runtime-v2-waiter-check`, `make runtime-v2-check`,
+  `make check`, and `git diff --check`.
+- Sentrux root session: 6198 -> 6198, `pass=true`, no violations. Post scans:
+  root `6198`, runtime `5195`, runtime/native `5159`.
 - `check_rules` still reports missing `.sentrux/rules.toml`; this remains debt,
   not rule compliance.
