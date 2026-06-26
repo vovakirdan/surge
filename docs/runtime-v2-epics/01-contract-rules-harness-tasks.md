@@ -30,7 +30,7 @@ policy, sentrux MCP for quality gates.
 | 5. Baseline evidence refresh | Done | `01-baseline-evidence.md`; focused VM blocker recorded |
 | 6. Liveness probe plan | Done | `LIVENESS_PROBES.md` |
 | 7. Open decisions before Epic 2 | Done | `OPEN_DECISIONS_BEFORE_EPIC_2.md` |
-| 8. Epic closeout consolidation | Pending | Durable docs updated from notes |
+| 8. Epic closeout consolidation | Done | Epic status complete; notes condensed for Epic 2 handoff |
 
 ## Standing Step For Every Task
 
@@ -283,6 +283,8 @@ not a vague "watch for hangs" instruction.
 blockers.
 
 ## Task 8: Epic Closeout Consolidation
+
+**Status:** Done.
 
 **Goal:** close Epic 1 by moving durable information out of working notes and
 into the documents future work will read first.

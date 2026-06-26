@@ -20,6 +20,11 @@ epic before the earlier runtime facts are known.
 Global working rules live in `RULES.md`. An epic may add local rules, but it
 must not weaken the global rules.
 
+## Current Status
+
+Epic 1 is complete. Its closeout evidence and Epic 2 start blockers live in
+`01-contract-rules-harness.md`.
+
 ## Current Epic 1 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.
@@ -50,7 +55,7 @@ Every epic should move the runtime toward these goals:
 
 | Epic | Document | Purpose |
 | --- | --- | --- |
-| 1 | `01-contract-rules-harness.md` (`01-contract-rules-harness-tasks.md`) | Define the contracts, strict development rules, baseline probes, and quality gates that every later epic must satisfy. |
+| 1 | `01-contract-rules-harness.md` (`01-contract-rules-harness-tasks.md`) | Complete. Defines the contracts, strict development rules, baseline probes, and quality gates that every later epic must satisfy. |
 | 2 | TBD | Introduce V2-shaped `rt_runtime` / `rt_shard` structures with `N=1` and unchanged behavior. |
 | 3 | TBD | Move waiters to owner-local structures while keeping `N=1`. |
 | 4 | TBD | Replace poll-set rebuilds with a shard-local persistent fd registry. |

@@ -117,7 +117,9 @@ Completion is blocked when any of these is true:
 - Define the minimal architecture-level constraints that belong in Sentrux
   rules. They should describe stable boundaries, not implementation-level locks,
   queues, or shard internals.
-- Decide whether missing rules block Epic 1 closeout or only block Epic 2
-  runtime-code completion. This policy treats them as an Epic 1 open blocker and
-  an Epic 2 code-completion blocker.
+- Decide whether root, runtime-scoped, or both rule files are required before
+  the first Epic 2 runtime-code task completes. Missing rules do not block
+  docs-only Epic 1 closeout, but they do block claiming Runtime V2 rule
+  compliance until real rules exist or an explicit temporary deferral is
+  recorded.
 - Confirm the Sentrux rules schema before creating either rules file.

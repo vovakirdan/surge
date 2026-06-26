@@ -10,7 +10,7 @@ compiler epics must use. The result should make it hard to merge a Runtime V2
 change without proving liveness, preserving intentional language contracts, and
 showing whether performance moved for the right reason.
 
-**Status:** draft.
+**Status:** complete.
 
 **Task breakdown:** `docs/runtime-v2-epics/01-contract-rules-harness-tasks.md`.
 
@@ -260,6 +260,52 @@ go test ./internal/vm -run 'MT|Async|Net|LLVM'
 For long-running or environment-sensitive checks, record the exact reason if a
 command is skipped.
 
+## Closeout Evidence
+
+Epic 1 completed as documentation, policy, and evidence work. It changed no
+runtime behavior.
+
+Commits:
+
+- `b865472a`:
+  `docs(runtime): add Runtime V2 epic planning baseline`
+- `8ae616a1`:
+  `docs(runtime): define Runtime V2 liveness gates`
+
+Final closeout checks:
+
+- `git diff --check`: passed with empty output.
+- `make check`: passed. It ran `go test ./... --timeout 90s` with
+  `SURGE_SKIP_TIMEOUT_TESTS=1`, `golangci-lint`, `make c-check`, and
+  `check_file_sizes.sh`.
+- Sentrux repository scan:
+  `/home/zov/projects/surge/surge`, `quality_signal=6210`, bottleneck
+  `modularity`; `check_rules` still reports no root `.sentrux/rules.toml`.
+- Sentrux runtime scan:
+  `/home/zov/projects/surge/surge/runtime`, `quality_signal=5147`, bottleneck
+  `redundancy`; `check_rules` still reports no `runtime/.sentrux/rules.toml`.
+
+Recorded baseline checks:
+
+- `make c-check`: passed in `01-baseline-evidence.md`.
+- `make cppcheck`: passed in `01-baseline-evidence.md`.
+- `make check`: passed in `01-baseline-evidence.md` and in pre-commit hooks
+  for both Epic 1 commits.
+- `go test ./internal/vm -run 'MT|Async|Net|LLVM'`: fails in the current
+  checkout without timeout-test skipping; this is recorded baseline debt.
+- `./scripts/bench_native_net.sh`: passed against a current-checkout temporary
+  compiler binary.
+- `./scripts/bench_native_channels.sh`: passed against a current-checkout
+  temporary compiler binary.
+
+Epic 2 start blockers are explicit, not hidden:
+
+- focused VM baseline failure must be fixed or accepted as pre-existing debt;
+- Sentrux missing-rules status must be resolved or explicitly deferred without
+  claiming rule compliance;
+- first structural `N=1` work must state its preserved behavior boundary and
+  liveness probes before implementation.
+
 ## Brief Task List
 
 ### Task 1: Write Runtime V2 Development Rules
@@ -312,7 +358,8 @@ decision register lives in `OPEN_DECISIONS_BEFORE_EPIC_2.md`.
 
 Keep `docs/runtime-v2-epics/NOTES.md` current during the epic. At close, move
 durable decisions and evidence from notes into the epic document and linked
-docs, leaving notes as a handoff summary for the next task.
+docs, leaving notes as a handoff summary for the next task. Task 8 closeout
+kept the target architecture unchanged, so `docs/RUNTIME_V2.md` was not edited.
 
 ## Exit Criteria For Starting Epic 2
 

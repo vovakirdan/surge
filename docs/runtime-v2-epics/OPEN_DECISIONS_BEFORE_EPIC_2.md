@@ -12,10 +12,10 @@ boundary. It is documentation-only and does not change runtime behavior.
   or explicitly accepted as pre-existing baseline debt for the first structural
   task. If accepted as debt, that task must keep the debt named in its evidence
   and must not attribute the known failures to the Runtime V2 change.
-- Evidence/source: `01-baseline-evidence.md:41`,
-  `01-baseline-evidence.md:51-78`,
-  `01-baseline-evidence.md:194-205`,
-  `01-contract-rules-harness.md:263-265`, and `NOTES.md:80-84`.
+- Evidence/source: `01-baseline-evidence.md` sections "Required Commands",
+  "Focused VM failure summary", and "Epic 2 Blocker Status";
+  `01-contract-rules-harness.md` sections "Closeout Evidence" and "Exit
+  Criteria For Starting Epic 2"; `NOTES.md` section "Current Baseline Debt".
 - Why this category: without a fix or an explicit debt decision, Epic 2 cannot
   separate pre-existing VM/LLVM failures from regressions caused by `N=1`
   structure work.
@@ -28,10 +28,11 @@ boundary. It is documentation-only and does not change runtime behavior.
   are not passing rule checks. Epic 2 runtime-code completion must either add
   real rules for the active scan path or record an explicit temporary deferral
   without claiming Sentrux rule compliance.
-- Evidence/source: `SENTRUX_POLICY.md:58-74`,
-  `SENTRUX_POLICY.md:98-123`, `01-baseline-evidence.md:23-32`,
-  `01-baseline-evidence.md:201-205`, and
-  `01-contract-rules-harness.md:266-267`.
+- Evidence/source: `SENTRUX_POLICY.md` sections "Rule File Decision",
+  "Required Policy For Future Tasks", and "Open Decisions And Blockers";
+  `01-baseline-evidence.md` sections "Sentrux Baseline" and
+  "Epic 2 Blocker Status"; `01-contract-rules-harness.md` sections "Sentrux
+  Policy", "Closeout Evidence", and "Exit Criteria For Starting Epic 2".
 - Why this category: the current checkout has scan baselines, but no rule files.
   That is acceptable for docs-only Epic 1 work and blocks Runtime V2 rule
   compliance for code work unless explicitly deferred.
@@ -43,9 +44,10 @@ boundary. It is documentation-only and does not change runtime behavior.
 - Decision: preserve semantic VM/native parity, not identical scheduler
   interleavings. Parity evidence compares backend semantics with native
   `threads=1`; MT behavior stays in separate multi-worker evidence.
-- Evidence/source: `docs/RUNTIME.md:43-54`,
-  `docs/CONCURRENCY.md:351-354`,
-  `01-contract-rules-harness.md:90-101`, and `NOTES.md:70-71`.
+- Evidence/source: `docs/RUNTIME.md` backend/VM parity notes,
+  `docs/CONCURRENCY.md` native runtime contract notes,
+  `01-contract-rules-harness.md` scheduler contract/artifact table, and
+  `NOTES.md` section "Durable Decisions".
 - Why this category: Epic 2 structural changes must know whether a changed test
   is a semantic regression or only an implementation-artifact change. Native
   global FIFO, worker placement, and stealing must not become hidden parity
@@ -62,12 +64,12 @@ boundary. It is documentation-only and does not change runtime behavior.
   single-worker deterministic test expectations, shutdown halt/drop behavior,
   debug-facing native heap-stat behavior where touched, and the public native ABI
   unless an epic explicitly says otherwise.
-- Evidence/source: `01-contract-rules-harness.md:83-91`,
-  `01-contract-rules-harness.md:95-101`,
-  `01-contract-rules-harness.md:153-167`,
-  `01-contract-rules-harness.md:268-271`,
-  `docs/RUNTIME_V2.md:602-614`, `docs/RUNTIME.md:80-94`,
-  `docs/RUNTIME.md:207-297`, and `docs/CONCURRENCY.md:430-446`.
+- Evidence/source: `01-contract-rules-harness.md` sections "Scheduler
+  Contract/Artifact Classification", "Strict Runtime V2 Development Rules",
+  "Open Decisions Before Epic 2", and "Exit Criteria For Starting Epic 2";
+  `docs/RUNTIME_V2.md` local-first execution and migration plan; `docs/RUNTIME.md`
+  async scheduler/runtime notes; `docs/CONCURRENCY.md` current native runtime
+  contract notes.
 - Why this category: Epic 2 is allowed to change structure before changing
   concurrency. It therefore needs a precise equivalence statement before any
   field or owner movement.
@@ -81,10 +83,10 @@ boundary. It is documentation-only and does not change runtime behavior.
   structural work. The marker remains a candidate checked function-level effect,
   similar to `unsafe`, and must be resolved before Phase 4 cross-shard lowering if
   the team wants crossings to propagate into function signatures.
-- Evidence/source: `docs/RUNTIME_V2.md:520-527`,
-  `01-contract-rules-harness.md:47-50`,
-  `01-contract-rules-harness.md:245-249`,
-  `01-contract-rules-harness-tasks.md:267-273`, and `NOTES.md:178-182`.
+- Evidence/source: `docs/RUNTIME_V2.md` explicit crossing section,
+  `01-contract-rules-harness.md` sections "Contract Questions To Freeze" and
+  "Open Decisions Before Epic 2", and
+  `01-contract-rules-harness-tasks.md` Task 7.
 - Why this category: `submit_to` makes the crossing visible at the crossing site.
   Whether callers also see a function-level effect does not block single-shard
   structural work.
@@ -127,9 +129,10 @@ boundary. It is documentation-only and does not change runtime behavior.
   property and that parallel mode does not promise global FIFO or fairness. Before
   enabling `N>1`, decide the owner-placement policy and move any legacy Tier 1
   stealing assertion out of the connection hot-path contract.
-- Evidence/source: `01-contract-rules-harness.md:84-85`,
-  `docs/CONCURRENCY.md:303-354`, `docs/CONCURRENCY.md:356-376`,
-  `docs/CONCURRENCY.md:440-446`, and `docs/RUNTIME_V2.md:661-667`.
+- Evidence/source: `01-contract-rules-harness.md` scheduler
+  contract/artifact table; `docs/CONCURRENCY.md` native runtime sections on
+  worker count, scheduling, and parallelism; `docs/RUNTIME_V2.md` migration plan
+  notes for owner placement and hot-path stealing.
 - Why this category: with one shard, ownership policy can be represented without
   cross-shard execution. The decision becomes observable when multiple shards can
   accept and run connection work.
@@ -142,8 +145,9 @@ boundary. It is documentation-only and does not change runtime behavior.
   mechanics until the multi-shard runtime/crossing epic. Keep the policy-level
   requirement that the later design must expose owner, wakeup, cancellation,
   lifetime/generation, and backpressure evidence.
-- Evidence/source: `RULES.md:36-47`, `docs/RUNTIME_V2.md:668-690`,
-  `docs/RUNTIME_V2.md:570-591`, and `docs/RUNTIME_V2.md:719-722`.
+- Evidence/source: `RULES.md` explainability rule and
+  `docs/RUNTIME_V2.md` sections on remote operations, distributed structured
+  concurrency, and migration risk.
 - Why this category: these decisions have no effect with `N=1`, but they become
   mandatory once messages can cross shard boundaries.
 - Next owner/document: multi-shard runtime epic, crossing epic, and the liveness
@@ -154,8 +158,9 @@ boundary. It is documentation-only and does not change runtime behavior.
 - Decision: keep normal `spawn` shard-local by default in Runtime V2. Distributed
   spawn, distributed join, and cross-shard cancellation remain explicit work for
   the multi-shard runtime and crossing surface.
-- Evidence/source: `docs/RUNTIME_V2.md:364-395`,
-  `docs/RUNTIME_V2.md:668-690`, and `docs/CONCURRENCY.md:129-169`.
+- Evidence/source: `docs/RUNTIME_V2.md` sections on normal spawn,
+  distributed spawn, and distributed structured concurrency; `docs/CONCURRENCY.md`
+  structured concurrency and task handle sections.
 - Why this category: local structured-concurrency outcomes must be preserved in
   `N=1`; distributed scope ownership only matters once children can run on other
   shards.
@@ -170,8 +175,9 @@ boundary. It is documentation-only and does not change runtime behavior.
   structure task unless that task touches heap-stat behavior. The planned
   allocator milestone is to move native heap counters to shard-local storage and
   aggregate them on `rt_heap_stats()` reads before or with `N>1` benchmarking.
-- Evidence/source: `docs/RUNTIME.md:290-297`,
-  `docs/RUNTIME_V2.md:434-455`, and `docs/RUNTIME_V2.md:652-659`.
+- Evidence/source: `docs/RUNTIME.md` heap stats notes and
+  `docs/RUNTIME_V2.md` sections on per-shard memory ownership and allocator
+  migration.
 - Why this category: global allocation counters can distort later multi-shard
   measurement, but they are an allocator/pools milestone rather than a global
   Epic 2 start condition.
@@ -183,8 +189,8 @@ boundary. It is documentation-only and does not change runtime behavior.
   buffers, and parser scratch memory out of the first structural work unless an
   epic explicitly names them. The first allocator step is counter ownership; slab
   or bump pools come after the scheduler result is measurable.
-- Evidence/source: `docs/RUNTIME_V2.md:453-455` and
-  `docs/RUNTIME_V2.md:692-698`.
+- Evidence/source: `docs/RUNTIME_V2.md` sections on shard-local pools and
+  post-ownership allocation optimizations.
 - Why this category: object pools are a performance lever after ownership and
   counter behavior are understood, not a prerequisite for `N=1` structure.
 - Next owner/document: allocator/pools epic and performance evidence.
@@ -195,8 +201,9 @@ boundary. It is documentation-only and does not change runtime behavior.
   until allocator/pools and explicit crossing work. Preserve the current rule
   that OS-blocking work belongs in `blocking { ... }` on native/LLVM and not on
   executor workers.
-- Evidence/source: `docs/CONCURRENCY.md:380-396`,
-  `docs/RUNTIME.md:277-288`, and `docs/RUNTIME_V2.md:397-428`.
+- Evidence/source: `docs/CONCURRENCY.md` blocking-work section,
+  `docs/RUNTIME.md` blocking pool notes, and `docs/RUNTIME_V2.md` Tier 2
+  destination/pool split.
 - Why this category: the existing blocking pool behavior is already documented.
   The V2 Tier 2 split needs the crossing construct and pool evidence, not the
   first single-shard structure change.
@@ -211,9 +218,9 @@ boundary. It is documentation-only and does not change runtime behavior.
   structure work, but it must be resolved before timer implementation or timer
   evidence changes. Until then, preserve existing sleep, timeout, cancellation,
   and VM/native semantic outcomes.
-- Evidence/source: `01-contract-rules-harness.md:89`,
-  `NOTES.md:185-186`, `docs/RUNTIME.md:51`, and
-  `docs/CONCURRENCY.md:220-230`.
+- Evidence/source: `01-contract-rules-harness.md` scheduler
+  contract/artifact table, `NOTES.md` current baseline debt/handoff notes,
+  `docs/RUNTIME.md` backend notes, and `docs/CONCURRENCY.md` timer sections.
 - Why this category: the open question concerns timer/backend semantics, not the
   initial runtime-state split.
 - Next owner/document: timer/backend task, `docs/CONCURRENCY.md`, and
@@ -225,9 +232,10 @@ boundary. It is documentation-only and does not change runtime behavior.
   shutdown liveness/parity probe before any task moves shutdown state or changes
   shutdown signaling. This probe is not required for unrelated docs-only or
   non-shutdown structure work.
-- Evidence/source: `01-contract-rules-harness.md:90`,
-  `NOTES.md:187-188`, `docs/RUNTIME.md:150-160`, and
-  `docs/RUNTIME.md:273-275`.
+- Evidence/source: `01-contract-rules-harness.md` scheduler
+  contract/artifact table, `NOTES.md` liveness requirements, `docs/RUNTIME.md`
+  shutdown and runtime-state notes, and `LIVENESS_PROBES.md` missing shutdown
+  probe.
 - Why this category: shutdown is observable backend behavior and needs liveness
   evidence when touched, but it is not a global policy blocker for every
   single-shard structural step.
@@ -241,9 +249,9 @@ boundary. It is documentation-only and does not change runtime behavior.
   shard-local `poll`/`epoll` backend is enough to prove ownership first; `io_uring`
   belongs after ownership, lifetime, cancellation, and allocation contracts are
   stable.
-- Evidence/source: `docs/RUNTIME_V2.md:33-34`,
-  `docs/RUNTIME_V2.md:457-490`, `docs/RUNTIME_V2.md:700-703`, and
-  `01-contract-rules-harness.md:166-167`.
+- Evidence/source: `docs/RUNTIME_V2.md` `Io`/`Runtime` boundary and backend
+  notes, plus `01-contract-rules-harness.md` strict rule that `io_uring` is a
+  later lever, not a first fix.
 - Why this category: backend selection is a later I/O lever. It does not answer
   whether the current runtime can be reorganized safely with `N=1`.
 - Next owner/document: later IO/backend epic and `docs/RUNTIME_V2.md`.
