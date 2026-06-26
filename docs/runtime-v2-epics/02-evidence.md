@@ -20,7 +20,7 @@ must separate that debt from new runtime regressions.
 | 6. Scheduler Shape Tests | Complete | Scheduler trace evidence selected; parked-with-work remains an explicit missing invariant. |
 | 7. Scheduler Shape Migration | Complete | Scheduler container fields moved under `rt_shard.scheduler`; behavior gates and Sentrux status recorded. |
 | 8. Net Poll Scratch Tests | Complete | Net wake probe and current-checkout native net benchmark baseline recorded. |
-| 9. Net Poll Scratch Migration | Pending | Record net migration checks and benchmark rows. |
+| 9. Net Poll Scratch Migration | Complete | Scratch buffers moved under `rt_shard`; local gates and Sentrux quality evidence recorded. |
 | 10. Channel/Blocking Compatibility Tests | Pending | Record channel and fallback checks. |
 | 11. Channel/Blocking Compatibility Migration | Pending | Record migration checks and trace rows. |
 | 12. CI Runtime V2 Gates | Pending | Record new CI target/job and local result. |
@@ -1075,3 +1075,205 @@ and commit.
 | Accept ownership changes | Yes, if attempted in Task 9. | Later accept-ownership/local fd-registry work. | Task 8 only proves current accept/read/write waiter wake behavior. |
 | Net semantic changes | Yes, if attempted in Task 9. | Separate approved plan and probes. | Task 8 is evidence-only and does not authorize semantic movement. |
 | CI promotion for net latency probe | No for Task 9; yes before adding to automation. | Epic 2 Task 12. | The probe remains local-only until re-proven in CI. |
+
+## Task 9: Net Poll Scratch Migration
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 9, Net Poll Scratch Migration.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Scope: move only the existing net poll scratch arrays/caps behind the
+  `N=1` shard shape.
+- Runtime files changed: `runtime/native/rt_async_internal.h`,
+  `runtime/native/rt_runtime.c`, `runtime/native/rt_net.c`.
+- Docs changed: `docs/runtime-v2-epics/02-evidence.md`,
+  `docs/runtime-v2-epics/NOTES.md`,
+  `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md`.
+- Out of scope and unchanged by design: `net_waiters_len`, `net_polling`,
+  `io_cv`, waiter ownership, wake fd placement, accept ownership, fd registry,
+  readiness lifetime, dedup semantics, public ABI, compiler behavior, benchmark
+  scripts, `Makefile`, CI, Sentrux rules, STATS, and test files.
+
+### Changed Files
+
+| File | Change | Why |
+| --- | --- | --- |
+| `runtime/native/rt_async_internal.h` | Added `rt_net_poll_scratch`, placed it under `rt_shard`, removed the four scratch fields from `rt_executor`, and declared scratch accessors. | Put scratch storage behind the `N=1` shard container without changing public ABI. |
+| `runtime/native/rt_runtime.c` | Added `rt_shard_net_poll_scratch()` and `rt_executor_net_poll_scratch()`. | Mirror the scheduler accessor shape and keep callers N=1-compatible. |
+| `runtime/native/rt_net.c` | Changed `ensure_net_poll_fds()` and `ensure_net_poll_pfds()` to use shard scratch. | Preserve allocation behavior while moving storage ownership. |
+| `docs/runtime-v2-epics/02-evidence.md` | Added this Task 9 evidence section. | Record local gates and the Sentrux handoff. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 9 handoff. | Keep the working notes current before closeout. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Updated the status line. | Reflect Task 9 local evidence. |
+
+### Implementation Shape
+
+Task 9 added:
+
+```c
+typedef struct {
+    void* fds;
+    size_t fds_cap;
+    void* pfds;
+    size_t pfds_cap;
+} rt_net_poll_scratch;
+```
+
+`struct rt_shard` now owns `rt_net_poll_scratch net_poll_scratch`. The executor
+keeps its runtime pointer, and `rt_executor_net_poll_scratch(ex)` resolves the
+single shard through `rt_runtime_shard0(rt_executor_runtime(ex))`.
+
+This remains `N=1`-compatible because there is still exactly one
+`RT_RUNTIME_SHARD_COUNT` shard. No caller can select another shard, and the
+global executor lock still protects the scratch arrays while `poll_net_waiters()`
+rebuilds the temporary poll set.
+
+`poll_net_waiters()` still:
+
+- exits on `ex == NULL` or `ex->net_waiters_len == 0`;
+- sizes the temporary fd array from `ex->net_waiters_len`;
+- scans `ex->waiters` and keeps the existing fd dedup loop;
+- initializes and includes the same net poll wake fd;
+- releases `ex->lock` only around `poll()`;
+- completes the same read, accept, and write waiter keys after readiness.
+
+### Static Audits
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `sed -n '/struct rt_executor {/,/^};/p' runtime/native/rt_async_internal.h \| rg -n 'net_poll_fds\|net_poll_pfds' \|\| true` | no output | no output | `0` | Old scratch fields are gone from `rt_executor`. |
+| `sed -n '/struct rt_shard {/,/^};/p' runtime/native/rt_async_internal.h \| rg -n 'rt_net_poll_scratch net_poll_scratch' \|\| true` | one shard owner line | `5:    rt_net_poll_scratch net_poll_scratch;` | `0` | Scratch lives under the single shard. |
+| `rg -n -- '->(net_poll_fds\|net_poll_fds_cap\|net_poll_pfds\|net_poll_pfds_cap)\b' runtime/native \|\| true` | no output | no output | `0` | No direct old executor-field usage remains. |
+| `rg -n -- 'rt_executor_net_poll_scratch\|rt_shard_net_poll_scratch\|rt_net_poll_scratch' runtime/native` | header, runtime accessor, and `rt_net.c` users only | found `rt_async_internal.h`, `rt_runtime.c`, and `rt_net.c` only | `0` | New owner/accessor surface is narrow. |
+| `git diff -U0 -- runtime/native \| rg -n '^[+-].*(net_waiters_len\|net_polling\|io_cv\|waiters\|net_poll_wake\|epoll\|kqueue\|io_uring\|eventfd\|registry\|accept)' \|\| true` | no output | no output | `0` | No changed runtime lines touched forbidden net semantics. |
+
+### Test And Benchmark Evidence
+
+Temporary compiler build and commit verification:
+
+```bash
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/surge-task09.XXXXXX")"
+current_commit="$(git rev-parse --short=12 HEAD)"
+go build -ldflags "$(./scripts/ldflags.sh --local)" -o "$tmpdir/surge" ./cmd/surge/
+reported_commit="$($tmpdir/surge version --full --format json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("git_commit", ""))')"
+test "$reported_commit" = "$current_commit"
+```
+
+Result:
+
+```text
+tmpdir=/tmp/surge-task09-final.aqFZBL
+surge=/tmp/surge-task09-final.aqFZBL/surge
+current_commit=b48f58ec84e0
+reported_commit=b48f58ec84e0
+```
+
+Focused net wake probe:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -v --timeout 90s
+```
+
+Result: passed. `TestMTNetWaiterWakeupLatency` ran and passed in `2.61s`;
+package time was `2.610s`.
+
+Native net after-benchmark:
+
+```bash
+SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task09-native-net-after.md" \
+  timeout 120s env SURGE="/tmp/surge-task09-final.aqFZBL/surge" ./scripts/bench_native_net.sh
+```
+
+Result: passed. Report path:
+`/home/zov/projects/surge/surge/build/benchmarks/runtime-v2-task09-native-net-after.md`.
+The report is a local ignored artifact under `build/`; the durable evidence is
+the copied selected rows below.
+
+Selected `## Results` rows:
+
+| threads | mode | pattern | requests | total us | avg us/op | p50 us | p95 us |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | echo | seq | 2000 | 150152 | 73.33 | 60.59 | 129.42 |
+| 1 | echo | pipe | 2000 | 47976 | 23.09 | 23.23 | 26.70 |
+| 1 | manager | seq | 2000 | 253520 | 124.78 | 113.03 | 207.59 |
+| 2 | echo | seq | 2000 | 178299 | 87.36 | 58.12 | 241.91 |
+| 2 | manager | seq | 2000 | 390944 | 193.33 | 158.72 | 378.61 |
+| 4 | direct | seq | 2000 | 265964 | 131.03 | 96.78 | 303.52 |
+| 4 | manager | pipe | 2000 | 219484 | 108.77 | 107.46 | 116.60 |
+| 8 | echo | pipe | 2000 | 77429 | 37.82 | 37.51 | 44.82 |
+| 8 | manager | seq | 2000 | 361986 | 179.00 | 149.08 | 347.00 |
+| 8 | manager | pipe | 2000 | 226236 | 112.10 | 110.69 | 129.73 |
+
+Selected `## Runtime Trace` rows:
+
+| threads | mode | pattern | handoff yields | sched inject | sched steal | net direct waits | net poll calls | net ready | net waiters total | waiter scan entries | net waiter entries | poll rebuilds | poll allocs | dedup checks | complete calls | completed waiters |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | echo | seq | 0 | 13829 | 0 | 1823 | 5051 | 1823 | 5051 | 15149 | 5051 | 5051 | 2 | 0 | 3646 | 1823 |
+| 1 | echo | pipe | 0 | 8101 | 0 | 31 | 86 | 31 | 86 | 254 | 86 | 86 | 2 | 0 | 62 | 31 |
+| 1 | manager | seq | 2000 | 17814 | 0 | 1805 | 4732 | 1805 | 4732 | 18922 | 4732 | 4732 | 2 | 0 | 3610 | 1805 |
+| 2 | echo | seq | 0 | 653 | 3 | 417 | 480 | 417 | 480 | 1434 | 480 | 480 | 2 | 0 | 834 | 417 |
+| 2 | manager | seq | 2000 | 5389 | 11 | 795 | 905 | 795 | 905 | 3613 | 905 | 905 | 2 | 0 | 1590 | 795 |
+| 4 | direct | seq | 0 | 877 | 2 | 532 | 584 | 532 | 584 | 1748 | 584 | 584 | 2 | 0 | 1064 | 532 |
+| 4 | manager | pipe | 1999 | 4015 | 0 | 29 | 34 | 29 | 34 | 129 | 34 | 34 | 2 | 0 | 58 | 29 |
+| 8 | echo | pipe | 0 | 10 | 0 | 26 | 28 | 26 | 28 | 79 | 28 | 28 | 2 | 0 | 52 | 26 |
+| 8 | manager | seq | 1999 | 4841 | 3 | 666 | 754 | 666 | 754 | 3009 | 754 | 754 | 2 | 0 | 1332 | 666 |
+| 8 | manager | pipe | 1999 | 4066 | 0 | 30 | 35 | 30 | 35 | 134 | 35 | 35 | 2 | 0 | 60 | 30 |
+
+Across the full 24-row report, task-context blocking sends, task-context
+blocking recvs, compensation started, and compensation high-water stayed `0`;
+`poll allocs` stayed `2`; and `dedup checks` stayed `0`.
+
+### Sentrux Evidence
+
+Main-session Sentrux checks were run after the worker completed local code and
+test gates:
+
+- Root scan before Task 9 runtime edits: `quality_signal=6207`.
+- Runtime/native scoped scan before Task 9 runtime edits:
+  `/home/zov/projects/surge/surge/runtime/native`, `quality_signal=5132`.
+- Runtime/native `session_end` after Task 9 runtime edits: `pass=true`,
+  `signal_before=5132`, `signal_after=5146`, `signal_delta=14`, no
+  violations, summary `Quality stable or improved`.
+- Root scan after Task 9 runtime edits: `quality_signal=6207`.
+- Runtime policy scoped scan after Task 9 runtime edits:
+  `/home/zov/projects/surge/surge/runtime`, `quality_signal=5182`.
+- Runtime/native scoped scan after Task 9 runtime edits: `quality_signal=5146`.
+- Root `check_rules`: missing `/home/zov/projects/surge/surge/.sentrux/rules.toml`.
+- Runtime policy `check_rules`: missing
+  `/home/zov/projects/surge/surge/runtime/.sentrux/rules.toml`.
+- Runtime/native `check_rules`: missing
+  `/home/zov/projects/surge/surge/runtime/native/.sentrux/rules.toml`.
+
+The quality gate passed and improved for the runtime/native scope, and the
+required runtime policy scan was recorded. Missing Sentrux rule
+files remain accepted/deferred rule-compliance debt and must not be reported as
+a passing rules check.
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `git status --short --branch` before edits | known branch and no unrelated dirty files | `## codex/runtime-net-scheduler-refactor...origin/codex/runtime-net-scheduler-refactor [ahead 14]` | `0` | Started without listed file changes. |
+| Static audits above | pass | passed | `0` | Proved scratch fields moved and forbidden net semantics unchanged. |
+| Temporary compiler build and commit verification block above | reported commit matches current `HEAD` | `current_commit=b48f58ec84e0`, `reported_commit=b48f58ec84e0` | `0` | Benchmark used `/tmp/surge-task09-final.aqFZBL/surge`. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -v --timeout 90s` | pass | passed; package time `2.610s` | `0` | Focused Task 8/9 net wake probe on code commit `b48f58ec84e0`. |
+| `SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task09-native-net-after.md" timeout 120s env SURGE="/tmp/surge-task09-final.aqFZBL/surge" ./scripts/bench_native_net.sh` | pass and write report | passed; report path printed | `0` | Manual benchmark evidence with current-checkout compiler. |
+| `make c-check` | pass | passed; C formatting and strict runtime compile OK | `0` | Native C gate. |
+| `make cppcheck` | pass | passed; `cppcheck OK` | `0` | Static analysis gate. |
+| `make check` | pass | passed; Go tests, lint, nested `make c-check`, and file-size check passed | `0` | Full local gate. |
+| `mcp__sentrux.session_end` after main-session runtime/native baseline | pass or no quality regression | `pass=true`; `signal_before=5132`; `signal_after=5146`; `signal_delta=14`; no violations | pass | Scoped runtime/native quality delta. |
+| Root, runtime, and runtime/native `mcp__sentrux.scan` | record current quality signals | root `6207`; runtime `5182`; runtime/native `5146` | pass | Post-task quality snapshots. |
+| Root, runtime, and runtime/native `mcp__sentrux.check_rules` | rules result recorded honestly | all three rule files missing | debt | Missing rules are not compliance. |
+| `git diff --check` | pass | passed with no output | `0` | Final whitespace gate after docs edits. |
+
+Skipped by instruction: staging, commit, `Makefile`, CI, scripts, Sentrux rule
+files, STATS, public ABI, test-file edits, compiler edits, and Sentrux rule
+creation.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Missing Sentrux rules | No for Task 9 implementation; yes for claiming rule compliance. | Dedicated Sentrux rules task or later Epic 2 closeout deferral. | Root and runtime `check_rules` still report missing rule files. |
+| Persistent fd registry | Yes, if attempted in Task 9 follow-up. | Later local fd-registry epic. | Task 9 preserved rebuild-from-waiters semantics. |
+| Accept ownership changes | Yes, if attempted in Task 9 follow-up. | Later accept-ownership/local fd-registry work. | Task 9 did not change accept ownership. |
+| `rt_net.c` file size | No for this task. | Later runtime split/refactor task. | The file was already over the Runtime V2 size limit; this task kept the diff narrow. |

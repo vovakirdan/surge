@@ -15,10 +15,13 @@ task, then move durable decisions into the owning epic document before closeout.
   `docs(runtime): add Runtime V2 epic planning baseline`.
 - Tasks 6-7 were committed as `8ae616a1`:
   `docs(runtime): define Runtime V2 liveness gates`.
-- Task 8 closeout is complete.
-- Final closeout checks already passed: `git diff --check`, `make check`,
-  Sentrux repository scan, and Sentrux runtime scan. Both Sentrux `check_rules`
-  calls still report missing rules files, which remains recorded baseline debt.
+- Task 9 implementation evidence is recorded. Main-session Sentrux runtime/native
+  `session_end` passed for this task: `5132 -> 5146`, `signal_delta=14`, no
+  violations.
+- Latest Task 9 checks passed: `make c-check`, `make cppcheck`, `make check`,
+  focused net wake probe, native net benchmark, `git diff --check`, Sentrux
+  repository scan, and Sentrux runtime scan. Both Sentrux `check_rules` calls
+  still report missing rules files, which remains recorded baseline debt.
 - Epic 2 is drafted in `02-n1-runtime-shard-structure.md`. It is scoped to
   `N=1` `rt_runtime`/`rt_shard` structure only; owner-local waiters, persistent
   fd registry, `N>1`, crossing syntax, and the VM/native/LLVM test-matrix
@@ -463,6 +466,53 @@ task, then move durable decisions into the owning epic document before closeout.
 - CI ownership: `TestMTNetWaiterWakeupLatency` remains local-only Task 8/9
   evidence unless Task 12 re-proves CI stability. The native net benchmark
   remains manual before/after evidence and should not join CI.
+
+## Task 9 Handoff
+
+- Scope completed: moved only `net_poll_fds`, `net_poll_fds_cap`,
+  `net_poll_pfds`, and `net_poll_pfds_cap` out of `rt_executor` and into
+  `rt_shard.net_poll_scratch`.
+- Implementation shape: added `rt_net_poll_scratch`, added
+  `rt_shard_net_poll_scratch()` / `rt_executor_net_poll_scratch()`, and changed
+  `ensure_net_poll_fds()` / `ensure_net_poll_pfds()` to grow the shard scratch
+  buffers.
+- Preserved behavior: `poll_net_waiters()` still derives capacity from
+  `ex->net_waiters_len`, scans `ex->waiters`, deduplicates fds in the existing
+  nested loop, calls `poll()`, and completes read/accept/write waiters through
+  the same keys.
+- Explicitly not moved or changed: `net_waiters_len`, `net_polling`, `io_cv`,
+  waiter ownership, accept ownership, wake fd placement, fd registry/readiness
+  lifetime, public ABI, compiler code, benchmark scripts, Makefile, CI, Sentrux
+  rules, and STATS.
+- Static audit results:
+  - No `net_poll_fds` / `net_poll_pfds` fields remain inside `struct
+    rt_executor`.
+  - `struct rt_shard` now owns `rt_net_poll_scratch net_poll_scratch`.
+  - No direct `->net_poll_fds`, `->net_poll_fds_cap`, `->net_poll_pfds`, or
+    `->net_poll_pfds_cap` usage remains under `runtime/native`.
+  - Zero-context runtime diff has no changed lines mentioning `net_waiters_len`,
+    `net_polling`, `io_cv`, waiters, net wake fd placement, fd registry,
+    `epoll`, `kqueue`, `io_uring`, `eventfd`, or accept ownership.
+- Focused net wake probe passed:
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMTNetWaiterWakeupLatency$' -v --timeout 90s`.
+- Current-checkout compiler pin passed with temporary binary
+  `/tmp/surge-task09-final.aqFZBL/surge`; both current and reported commits
+  were `b48f58ec84e0`.
+- Native net after-benchmark passed and wrote
+  `build/benchmarks/runtime-v2-task09-native-net-after.md`. The report is
+  ignored under `build/`; selected durable rows are copied into
+  `02-evidence.md`.
+- Benchmark invariants from the full 24-row report: task-context blocking sends,
+  task-context blocking recvs, compensation started, and compensation high-water
+  stayed `0`; `poll allocs` stayed `2`; `dedup checks` stayed `0`.
+- Gates passed locally: `make c-check`, `make cppcheck`, and `make check`.
+- Main-session Sentrux runtime/native `session_end` passed against the pre-task
+  baseline: `signal_before=5132`, `signal_after=5146`, `signal_delta=14`, no
+  violations. Root scan stayed `6207`; required runtime policy scan ended at
+  `5182`; runtime/native scan ended at `5146`.
+- Missing root and runtime Sentrux rules remain baseline debt. This is not a
+  passing rules gate.
 
 ## Liveness Requirements
 
