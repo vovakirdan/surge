@@ -40,6 +40,9 @@ task, then move durable decisions into the owning epic document before closeout.
 - Epic 2 Task 2 field ownership map is recorded in
   `02-field-ownership-map.md`. It classifies every current `rt_executor` field
   before runtime field movement and names the first code-task field boundary.
+- Epic 2 Task 3 CI/test contract is recorded in `02-ci-test-contract.md`. It
+  defines the future exact-name Runtime V2 gate and keeps the broad focused
+  VM/backend debt out of required green gates.
 
 ## Epic 1 Artifacts
 
@@ -178,6 +181,46 @@ task, then move durable decisions into the owning epic document before closeout.
 - Approved checks for Task 2: `git diff --check` and the map placeholder sanity
   grep. Runtime tests, benchmarks, liveness probes, and Sentrux scans are
   intentionally skipped for this docs-only task.
+
+## Epic 2 Task 3 CI/Test Contract Handoff
+
+- Task: `02-tasks/03-runtime-v2-ci-test-contract.md`.
+- Scope completed: documentation-only CI/test contract. No `Makefile`, GitHub
+  Actions, runtime, compiler, benchmark, Sentrux, staging, or commit changes
+  were made.
+- Output: `02-ci-test-contract.md` defines a future `runtime-v2-check` shape
+  that runs exact named tests with `SURGE_BACKEND=llvm` and
+  `SURGE_SKIP_TIMEOUT_TESTS=0`.
+- Proposed seed tests:
+  `TestMTWakeupsAndCancellation`, `TestMTChannelParkUnpark`,
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance`, and
+  `TestMTSeededScheduler`.
+- Proposed Task 12 command:
+
+  ```bash
+  SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+    go test ./internal/vm \
+      -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
+      -v --timeout 120s
+  ```
+
+- Required future CI setup: install `clang`, `llvm`, and `lld`; preflight
+  `clang` and `ar`; set `SURGE_MT_TIMEOUT_SCALE=3`; keep the Runtime V2 job
+  separate from the default skipped-timeout Go matrix.
+- Excluded required gate:
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'`. It remains accepted
+  backend-test debt and may be used only as a diagnostic until the later
+  test/backend matrix epic fixes or replaces it.
+- Local-only until re-proven: net latency, one-worker net/channel
+  compatibility, broader channel correctness, structured concurrency, blocking
+  pool, heavier sync-helper compensation, compensation-limit stress, and
+  current Tier 1 work-stealing probes.
+- Candidate Runtime V2 seed and net commands were not run in Task 3. Do not
+  report them as fresh passes without Task 12 or task-specific evidence.
+- Approved checks for Task 3: `git diff --check` and direct
+  `git diff --no-index --check` on the new contract file. Runtime tests,
+  `make check`, `make c-check`, `make cppcheck`, benchmarks, and Sentrux scans
+  are intentionally skipped for this docs-only task.
 
 ## Liveness Requirements
 

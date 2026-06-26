@@ -11,7 +11,7 @@ cross-shard messaging, compiler crossing syntax, or public ABI changes. Every
 code task must name the old behavior it preserves and prove that the new shape
 is still the same runtime from the program's point of view.
 
-**Status:** draft; Tasks 1-2 evidence is recorded in `02-evidence.md`.
+**Status:** draft; Tasks 1-3 evidence is recorded in `02-evidence.md`.
 
 **Task documents:** detailed tasks live under `02-tasks/`. Each runtime-code
 task has a separate testing task where a meaningful test can be written before
@@ -26,6 +26,7 @@ or beside the implementation.
 - `docs/runtime-v2-epics/EVIDENCE_TEMPLATE.md`
 - `docs/runtime-v2-epics/02-evidence.md`
 - `docs/runtime-v2-epics/02-field-ownership-map.md`
+- `docs/runtime-v2-epics/02-ci-test-contract.md`
 - `docs/runtime-v2-epics/01-baseline-evidence.md`
 - `docs/runtime-v2-epics/LIVENESS_PROBES.md`
 - `docs/runtime-v2-epics/OPEN_DECISIONS_BEFORE_EPIC_2.md`
@@ -145,13 +146,17 @@ Minimum liveness evidence for this epic:
 - performance-sensitive moves: native net/channel benchmark rows with a
   current-checkout `SURGE` binary.
 
+CI liveness coverage is defined in `02-ci-test-contract.md`. Task 12 wires the
+target and workflow job; Task 03 only records the required gate shape and
+candidate exact tests.
+
 ## Brief Task List
 
 | Task | Document | Purpose |
 | --- | --- | --- |
 | 1 | `02-tasks/01-kickoff-evidence.md` | Record current baseline, accepted VM debt, and Sentrux state. |
 | 2 | `02-tasks/02-field-ownership-map.md` | Classify `rt_executor` fields and pick safe Epic 2 moves. Output: `02-field-ownership-map.md`. |
-| 3 | `02-tasks/03-runtime-v2-ci-test-contract.md` | Define stable Runtime V2 test and CI policy before code work. |
+| 3 | `02-tasks/03-runtime-v2-ci-test-contract.md` | Define stable Runtime V2 test and CI policy before code work. Output: `02-ci-test-contract.md`. |
 | 4 | `02-tasks/04-runtime-shard-skeleton-tests.md` | Add or select tests/static checks for the skeleton. |
 | 5 | `02-tasks/05-runtime-shard-skeleton.md` | Introduce `N=1` `rt_runtime` and `rt_shard`. |
 | 6 | `02-tasks/06-scheduler-shape-tests.md` | Add or select scheduler behavior tests before moving scheduler fields. |
@@ -178,7 +183,8 @@ Epic 2 is complete when:
 - Sentrux root and runtime scans are recorded before and after code changes;
 - missing Sentrux rules are resolved or explicitly deferred without claiming
   rule compliance;
-- stable Runtime V2 tests are added to CI through a named target or job;
+- stable Runtime V2 tests are added to CI through the named target or job
+  defined by `02-ci-test-contract.md`;
 - CI does not require the broad accepted-debt focused VM command as a green
   gate;
 - `make check`, `make c-check`, and `make cppcheck` pass or have recorded

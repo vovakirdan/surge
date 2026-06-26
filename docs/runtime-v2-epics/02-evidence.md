@@ -14,7 +14,7 @@ must separate that debt from new runtime regressions.
 | --- | --- | --- |
 | 1. Kickoff Evidence | Complete | Baseline, accepted VM debt, and Sentrux missing-rules deferral recorded. |
 | 2. Field Ownership Map | Complete | Ownership map linked; movable and deferred field groups recorded. |
-| 3. Runtime V2 Test And CI Contract | Pending | Define stable local and CI probes. |
+| 3. Runtime V2 Test And CI Contract | Complete | CI contract created; exact seed tests and excluded accepted-debt command recorded. |
 | 4. Runtime/Shard Skeleton Tests | Pending | Record failing or selected skeleton checks. |
 | 5. Runtime/Shard Skeleton | Pending | Record implementation checks and Sentrux deltas. |
 | 6. Scheduler Shape Tests | Pending | Record selected scheduler liveness checks. |
@@ -282,3 +282,114 @@ commit.
 | Owner-local waiters | No for skeleton; yes for waiter rewrite. | Local waiter epic. | Requires owner cleanup and stale-wake probes. |
 | Persistent fd registry | No for net scratch; yes for fd registry semantics. | Local fd registry epic. | Requires readiness persistence and close/cancel lifecycle tests. |
 | Missing Sentrux rules | No for this docs-only task; yes for claiming code-task rule compliance. | First runtime-code Epic 2 task or dedicated Sentrux rules task. | Task 1 deferral remains active but is not a passing rules gate. |
+
+## Task 3: Runtime V2 Test And CI Contract
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 3, Runtime V2 Test And CI Contract.
+- Epic: Epic 2, Runtime V2 `N=1` Structure.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: define the docs-only Runtime V2 CI gate contract, choose candidate
+  exact seed tests, exclude broad accepted backend-test debt from required
+  green gates, and update the epic handoff docs.
+- Out of scope: `Makefile` edits, GitHub Actions edits, runtime implementation
+  edits, test rewrites, benchmarks, Sentrux scans, staging, and commit.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/02-ci-test-contract.md` | Created the CI/test contract. | Record the exact Runtime V2 gate shape before CI wiring. | Documentation only. |
+| `docs/runtime-v2-epics/02-n1-runtime-shard-structure.md` | Linked the contract and clarified the Task 03/Task 12 boundary. | Keep the epic overview current. | Documentation only. |
+| `docs/runtime-v2-epics/02-evidence.md` | Marked Task 3 complete and added this evidence section. | Keep Epic 2 evidence current. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added the Task 3 handoff. | Preserve context for Task 4 and Task 12. | Documentation only. |
+
+### CI/Test Files Inspected
+
+| Path | Reason |
+| --- | --- |
+| `.github/workflows/ci.yml` | Current CI uses `SURGE_SKIP_TIMEOUT_TESTS=1` in the Go matrix and installs LLVM only for the existing LLVM backend leg. |
+| `Makefile` | Current `test` target defaults `SURGE_SKIP_TIMEOUT_TESTS ?= 1`; no `runtime-v2-check` target exists yet. |
+| `internal/vm/test_helpers_test.go` | `skipTimeoutTests`, backend selection, and LLVM toolchain skip behavior define how the future gate must avoid false green skips. |
+| `internal/vm/mt_executor_test.go` | Source for the candidate scheduler, channel, timer, and cancellation tests. |
+| `internal/vm/mt_correctness_test.go` | Source for net and broader correctness probes kept local-only until re-proven. |
+| `internal/vm/llvm_smoke_test.go` and related LLVM tests | Confirmed why broad `LLVM` regex coverage would pull in unrelated backend matrix debt. |
+| `docs/runtime-v2-epics/LIVENESS_PROBES.md` | Source of existing usable probes and missing-probe ownership. |
+
+### Contract Summary
+
+- Required future gate: exact test names only, run with `SURGE_BACKEND=llvm`
+  and `SURGE_SKIP_TIMEOUT_TESTS=0`.
+- Proposed Task 12 target: `make runtime-v2-check`, backed by the anchored
+  exact-name regex in `02-ci-test-contract.md`.
+- Proposed seed tests:
+  `TestMTWakeupsAndCancellation`, `TestMTChannelParkUnpark`,
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance`, and
+  `TestMTSeededScheduler`.
+- Required CI setup: install `clang`, `llvm`, and `lld`; preflight `clang` and
+  `ar`; set `SURGE_MT_TIMEOUT_SCALE=3`; keep the Runtime V2 job separate from
+  the default Go matrix.
+- Excluded required gate:
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'`. It remains accepted
+  backend-test debt and may be used only as a diagnostic until the later
+  test/backend matrix epic replaces or fixes it.
+
+### Proposed Local Commands
+
+These commands are recorded for Task 12 or targeted task evidence. They were
+not run in Task 03 and must not be reported as fresh passes from this task.
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+  go test ./internal/vm \
+    -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$' \
+    -v --timeout 120s
+
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+  go test ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -v --timeout 90s
+
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+  go test ./internal/vm \
+    -run '^TestNativeNetSingleThreadBlockingChannelInAsyncServer$' \
+    -v --timeout 90s
+```
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `git diff --check` | no whitespace errors | pass after docs edits | `0` | Docs-only whitespace gate. |
+| `git diff --no-index --check /dev/null docs/runtime-v2-epics/02-ci-test-contract.md` | no whitespace errors in the new untracked contract | pass after docs edits | `1` | `git diff --no-index` returns `1` because the files differ; no diagnostics means the check passed. |
+| Candidate Runtime V2 seed command from `02-ci-test-contract.md` | proposed only | not run | N/A | Avoided claiming fresh liveness pass from a docs-only task. |
+
+Skipped by explicit Task 3 scope: runtime tests, `make check`, `make c-check`,
+`make cppcheck`, benchmarks, Sentrux scans, `Makefile` edits, CI workflow edits,
+staging, and commit.
+
+### Local-Only Probe Boundary
+
+Task 03 keeps these probes out of the seed gate until their owning task records
+current-checkout stability: net latency, one-worker net/channel compatibility,
+broader channel correctness, structured concurrency, blocking pool, heavier
+sync-helper compensation, compensation-limit stress, and current Tier 1 work
+stealing.
+
+### Rollback/Recovery Notes
+
+- Files or changes to revert: `02-ci-test-contract.md`, the Task 3 index and
+  section in this file, the contract link/status in
+  `02-n1-runtime-shard-structure.md`, and the Task 3 handoff in `NOTES.md`.
+- Generated artifacts to remove: none.
+- Runtime processes, sockets, or temporary state to clean up: none.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks next code task? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Runtime/shard skeleton tests | Yes. | Epic 2 Task 4. | Structural code needs skeleton checks before Task 5. |
+| CI target and workflow wiring | No for Task 4; yes before Epic 2 closeout. | Epic 2 Task 12. | Task 03 defines the contract only. |
+| Candidate seed command current pass | No for this docs-only task; yes before Task 12 closes. | Epic 2 Task 12. | The command is proposed, not freshly proven here. |
+| Broad focused VM command debt | No for Epic 2. | Later test/backend matrix epic. | It remains excluded from required green gates. |
