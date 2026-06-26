@@ -233,15 +233,16 @@ static void net_poll_wake_drain(void) {
 
 static void complete_net_waiters(rt_executor* ex, waker_key key) {
     net_trace_inc(&net_waiter_complete_calls_total);
-    if (ex == NULL || ex->waiters_len == 0) {
+    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    if (store == NULL || store->len == 0) {
         return;
     }
     size_t out = 0;
     size_t removed = 0;
-    for (size_t i = 0; i < ex->waiters_len; i++) {
-        waiter w = ex->waiters[i];
+    for (size_t i = 0; i < store->len; i++) {
+        waiter w = store->entries[i];
         if (w.key.kind != key.kind || w.key.id != key.id) {
-            ex->waiters[out++] = w;
+            store->entries[out++] = w;
             continue;
         }
         removed++;
@@ -252,11 +253,11 @@ static void complete_net_waiters(rt_executor* ex, waker_key key) {
         net_trace_inc(&net_waiter_completed_total);
         wake_task(ex, w.task_id, 0);
     }
-    ex->waiters_len = out;
-    if (removed >= ex->net_waiters_len) {
-        ex->net_waiters_len = 0;
+    store->len = out;
+    if (removed >= store->net_len) {
+        store->net_len = 0;
     } else {
-        ex->net_waiters_len -= removed;
+        store->net_len -= removed;
     }
 }
 
@@ -903,19 +904,20 @@ bool rt_net_wait_writable(const void* conn) {
 
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     // Caller must hold ex->lock; this function releases it while polling.
-    if (ex == NULL || ex->net_waiters_len == 0) {
+    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
+    if (store == NULL || store->net_len == 0) {
         return 0;
     }
     rt_net_poll_scratch* scratch = rt_executor_net_poll_scratch(ex);
-    size_t cap = ex->net_waiters_len;
+    size_t cap = store->net_len;
     NetPollFd* fds = NULL;
     if (!ensure_net_poll_fds(scratch, cap, &fds)) {
         return 0;
     }
-    net_trace_add(&net_waiter_scan_entries_total, ex->waiters_len);
+    net_trace_add(&net_waiter_scan_entries_total, store->len);
     size_t count = 0;
-    for (size_t i = 0; i < ex->waiters_len; i++) {
-        waiter w = ex->waiters[i];
+    for (size_t i = 0; i < store->len; i++) {
+        waiter w = store->entries[i];
         uint8_t kind = w.key.kind;
         if (kind != WAKER_NET_ACCEPT && kind != WAKER_NET_READ && kind != WAKER_NET_WRITE) {
             continue;

@@ -80,6 +80,13 @@ typedef struct {
     uint64_t task_id;
 } waiter;
 
+typedef struct {
+    waiter* entries;
+    size_t len;
+    size_t cap;
+    size_t net_len;
+} rt_waiter_store;
+
 typedef enum {
     BLOCKING_JOB_PENDING = 0,
     BLOCKING_JOB_DONE = 1,
@@ -138,6 +145,7 @@ struct rt_shard {
     rt_scheduler scheduler;
     rt_net_poll_scratch net_poll_scratch;
     rt_channel_blocking_compat channel_blocking_compat;
+    rt_waiter_store waiter_store;
     uint32_t shard_id;
 };
 
@@ -204,10 +212,6 @@ struct rt_executor {
     size_t tasks_cap;
     rt_scope** scopes;
     size_t scopes_cap;
-    waiter* waiters;
-    size_t waiters_len;
-    size_t waiters_cap;
-    size_t net_waiters_len;
     pthread_mutex_t lock;
     pthread_cond_t ready_cv;
     pthread_cond_t io_cv;
@@ -232,14 +236,15 @@ struct rt_executor {
 };
 
 // Executor invariants:
-// - ex->lock owns tasks[], scopes[], waiters, net waiter/poll scratch state,
-//   the single shard scheduler queues/counters, channel/blocking compatibility
-//   counters, net_polling, timer state, and shutdown flags.
+// - ex->lock owns tasks[], scopes[], the single shard waiter store,
+//   net waiter/poll scratch state, scheduler queues/counters,
+//   channel/blocking compatibility counters, net_polling, timer state, and
+//   shutdown flags.
 // - task status is atomic so external helpers can observe it, but transitions that
 //   touch queues or waiters still happen under ex->lock.
-// - waiters is a FIFO-by-key registration list. prepare_park may pre-register a
-//   waiter before the task stores TASK_WAITING; wake_task uses wake_token to close
-//   wake-before-park races.
+// - waiter_store is a FIFO-by-key registration list. prepare_park may
+//   pre-register a waiter before the task stores TASK_WAITING; wake_task uses
+//   wake_token to close wake-before-park races.
 // - ready queues hold task ids whose enqueued flag is set. Worker threads pop local
 //   queues first, then inject, then steal; non-worker threads inject globally.
 // - running_count counts tasks currently being polled. User tasks may poll without
@@ -379,6 +384,10 @@ rt_channel_blocking_compat* rt_shard_channel_blocking_compat(rt_shard* shard);
 const rt_channel_blocking_compat* rt_shard_channel_blocking_compat_const(const rt_shard* shard);
 rt_channel_blocking_compat* rt_executor_channel_blocking_compat(rt_executor* ex);
 const rt_channel_blocking_compat* rt_executor_channel_blocking_compat_const(const rt_executor* ex);
+rt_waiter_store* rt_shard_waiter_store(rt_shard* shard);
+const rt_waiter_store* rt_shard_waiter_store_const(const rt_shard* shard);
+rt_waiter_store* rt_executor_waiter_store(rt_executor* ex);
+const rt_waiter_store* rt_executor_waiter_store_const(const rt_executor* ex);
 rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
                                           uint32_t worker_count,
                                           uint8_t sched_mode_value,
@@ -397,6 +406,7 @@ rt_scope* get_scope(rt_executor* ex, uint64_t id);
 
 void ensure_task_cap(rt_executor* ex, uint64_t id);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
+rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
 void ensure_waiter_cap(rt_executor* ex);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);

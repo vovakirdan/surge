@@ -320,6 +320,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
 
     rt_lock(ex);
     const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+    const rt_waiter_store* waiter_store = rt_executor_waiter_store_const(ex);
     if (scheduler != NULL && scheduler->local_queues != NULL) {
         for (uint32_t i = 0; i < scheduler->worker_count; i++) {
             uint64_t len = (uint64_t)scheduler->local_queues[i].len;
@@ -381,31 +382,33 @@ static void trace_exec_snapshot_dump(const char* reason) {
                 break;
         }
     }
-    for (size_t i = 0; i < ex->waiters_len; i++) {
-        switch ((waker_kind)ex->waiters[i].key.kind) {
-            case WAKER_JOIN:
-            case WAKER_SCOPE:
-            case WAKER_BLOCKING:
-                waiters_join++;
-                break;
-            case WAKER_TIMER:
-                waiters_timer++;
-                break;
-            case WAKER_CHAN_SEND:
-                waiters_chan_send++;
-                break;
-            case WAKER_CHAN_RECV:
-                waiters_chan_recv++;
-                break;
-            case WAKER_NET_ACCEPT:
-            case WAKER_NET_READ:
-            case WAKER_NET_WRITE:
-                waiters_net++;
-                break;
-            case WAKER_NONE:
-            default:
-                waiters_other++;
-                break;
+    if (waiter_store != NULL) {
+        for (size_t i = 0; i < waiter_store->len; i++) {
+            switch ((waker_kind)waiter_store->entries[i].key.kind) {
+                case WAKER_JOIN:
+                case WAKER_SCOPE:
+                case WAKER_BLOCKING:
+                    waiters_join++;
+                    break;
+                case WAKER_TIMER:
+                    waiters_timer++;
+                    break;
+                case WAKER_CHAN_SEND:
+                    waiters_chan_send++;
+                    break;
+                case WAKER_CHAN_RECV:
+                    waiters_chan_recv++;
+                    break;
+                case WAKER_NET_ACCEPT:
+                case WAKER_NET_READ:
+                case WAKER_NET_WRITE:
+                    waiters_net++;
+                    break;
+                case WAKER_NONE:
+                default:
+                    waiters_other++;
+                    break;
+            }
         }
     }
 
@@ -440,7 +443,8 @@ static void trace_exec_snapshot_dump(const char* reason) {
         buf, &pos, sizeof(buf), "inject_len", scheduler != NULL ? scheduler->inject.len : 0);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "local_max", local_max);
-    trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters", (uint64_t)ex->waiters_len);
+    trace_exec_append_kv_u64(
+        buf, &pos, sizeof(buf), "waiters", waiter_store != NULL ? (uint64_t)waiter_store->len : 0);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_join", waiters_join);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_timer", waiters_timer);
     trace_exec_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_send", waiters_chan_send);
@@ -1467,23 +1471,27 @@ static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) 
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
+    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    if (store == NULL || store->len == 0) {
+        return;
+    }
     size_t out = 0;
     size_t removed = 0;
-    for (size_t i = 0; i < ex->waiters_len; i++) {
-        waiter w = ex->waiters[i];
+    for (size_t i = 0; i < store->len; i++) {
+        waiter w = store->entries[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
             removed++;
             wake_task_with_policy(ex, w.task_id, 0, 0, front, 1);
             continue;
         }
-        ex->waiters[out++] = w;
+        store->entries[out++] = w;
     }
-    ex->waiters_len = out;
+    store->len = out;
     if (removed > 0 && waker_is_net(key)) {
-        if (removed >= ex->net_waiters_len) {
-            ex->net_waiters_len = 0;
+        if (removed >= store->net_len) {
+            store->net_len = 0;
         } else {
-            ex->net_waiters_len -= removed;
+            store->net_len -= removed;
         }
     }
 }
@@ -1549,7 +1557,8 @@ void tick_virtual(rt_executor* ex) {
 }
 
 static int has_net_waiters(const rt_executor* ex) {
-    return ex != NULL && ex->net_waiters_len > 0;
+    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
+    return store != NULL && store->net_len > 0;
 }
 
 static int begin_net_poll(rt_executor* ex) {

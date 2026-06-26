@@ -965,3 +965,36 @@ flat, or creates a follow-up split task.
 - Task 08 must add the owner-local waiter store under the single shard, keep
   compatibility wrappers, and then update or promote the default static shape
   check.
+
+## Epic 3 Task 08 Handoff
+
+- Scope completed: moved waiter storage behind `rt_shard.waiter_store` under
+  the existing `N=1` runtime shape.
+- Added `rt_waiter_store` with `entries`, `len`, `cap`, and `net_len`; added
+  the shard/executor waiter-store accessors approved in Task 07; removed direct
+  waiter storage fields from `rt_executor`.
+- Kept compatibility helpers: `add_waiter`, `remove_waiter`, `pop_waiter`,
+  `prepare_park`, `clear_wait_keys`, `add_wait_key`, and `ensure_waiter_cap`
+  remain the caller-facing helper surface.
+- Added `rt_waiter_store_ensure_cap()` with explicit `rt_runtime_status`
+  results. The compatibility wrapper keeps the old panic-on-allocation-failure
+  behavior.
+- Routed remaining direct users in `rt_async_state.c` and `rt_net.c` through the
+  store. Net polling still rebuilds scratch from the current waiter list, and
+  `net_len` remains a hint, not an fd registry.
+- No `N>1`, fd registry, crossing syntax, channel semantic, net semantic, or
+  public ABI change was added.
+- Updated the default waiter static proof to the owner-local shape. The Task 07
+  pending owner-local proof now passes.
+- Direct-field audit passed: no `->waiters`, `->waiters_len`, `->waiters_cap`,
+  or `->net_waiters_len` uses remain in `runtime/native` or `internal/vm`.
+- Checks passed: owner-local pending static proof, default waiter static proof,
+  pending waiter behavior proof, `make c-check`, `make cppcheck`,
+  `make runtime-v2-check`, and `make check`.
+- Sentrux post-change scans: root `6206`, runtime `5220`, runtime/native
+  `5184`. Root, runtime, and runtime/native `check_rules` still report missing
+  `.sentrux/rules.toml`; this remains debt, not compliance.
+- Line counts after closeout: `rt_async_internal.h` 471, `rt_runtime.c` 161,
+  `rt_async_waiter.c` 252, `rt_async_state.c` 2221, `rt_net.c` 1042,
+  `runtime_v2_waiter_static_test.go` 82, and
+  `runtime_v2_owner_local_waiter_static_test.go` 53.

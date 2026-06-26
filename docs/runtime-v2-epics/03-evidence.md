@@ -303,6 +303,7 @@ make c-check
 make cppcheck
 make runtime-v2-check
 make check
+git diff --check
 ```
 
 Results:
@@ -438,6 +439,97 @@ Task 08 handoff:
   while preserving compatibility wrappers and current behavior.
 - Update or promote the default static boundary test after the runtime shape
   actually moves.
+
+## Task 08: Owner-Local Waiter Skeleton
+
+Status: complete.
+
+Output:
+
+- Added `rt_waiter_store` with `entries`, `len`, `cap`, and `net_len`.
+- Added `rt_shard.waiter_store` and removed direct waiter storage from
+  `rt_executor`.
+- Added `rt_shard_waiter_store`, `rt_shard_waiter_store_const`,
+  `rt_executor_waiter_store`, and `rt_executor_waiter_store_const`.
+- Added `rt_waiter_store_ensure_cap()` as the status-coded store capacity
+  helper. The legacy `ensure_waiter_cap()` wrapper still panics on recoverable
+  allocation failure, matching the old compatibility behavior.
+- Routed `rt_async_waiter.c`, `rt_async_state.c`, and `rt_net.c` through the
+  store while preserving the single FIFO-by-key waiter list.
+- Updated the default waiter static boundary test to assert the owner-local
+  shape.
+
+Preserved behavior:
+
+- Waiters remain one shared FIFO-by-key array under `ex->lock`.
+- `net_len` remains a polling hint paired with the waiter array. It is not a
+  persistent fd registry.
+- `poll_net_waiters()` still rebuilds poll scratch from the current waiter list.
+- No `N>1`, crossing syntax, fd registry, channel semantic, or net semantic
+  change was added.
+
+Static and direct-field audit:
+
+```bash
+rg -n -- '->(waiters|waiters_len|waiters_cap|net_waiters_len)\b' runtime/native internal/vm || true
+```
+
+Result: no output. Direct waiter storage is no longer on `rt_executor` or used
+from runtime/native code.
+
+Checks:
+
+```bash
+clang-format -i runtime/native/rt_async_internal.h runtime/native/rt_runtime.c runtime/native/rt_async_waiter.c runtime/native/rt_async_state.c runtime/native/rt_net.c
+gofmt -w internal/vm/runtime_v2_waiter_static_test.go
+go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2OwnerLocalWaiterSkeletonStaticShape$' -count=1 -v --timeout 30s
+go test ./internal/vm -run '^TestRuntimeV2WaiterHelperStaticBoundary$' -count=1 -v --timeout 30s
+go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv|ChannelCloseWakesRecvWaiters|SelectTimeoutCleansLosingChannelWaiter)$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+make c-check
+make cppcheck
+make runtime-v2-check
+make check
+```
+
+Results:
+
+- Owner-local pending static proof: passed.
+- Default waiter static proof: passed.
+- Pending waiter behavior proof: passed for cancelled recv, cancelled send,
+  channel close, and select-timeout cleanup.
+- `make c-check`: passed.
+- `make cppcheck`: passed.
+- `make runtime-v2-check`: passed.
+- `make check`: passed. The file-size gate reported no applicable uncommitted
+  files after filtering.
+- `git diff --check`: passed.
+
+Sentrux evidence:
+
+- Root scan `/home/zov/projects/surge/surge`: `quality_signal=6206`,
+  bottleneck `modularity`.
+- Runtime scan `/home/zov/projects/surge/surge/runtime`:
+  `quality_signal=5220`, bottleneck `redundancy`.
+- Runtime/native scan `/home/zov/projects/surge/surge/runtime/native`:
+  `quality_signal=5184`, bottleneck `redundancy`.
+- Root, runtime, and runtime/native `check_rules` calls all report missing
+  `.sentrux/rules.toml`. This remains debt, not rule compliance.
+
+Line counts:
+
+- `runtime/native/rt_async_internal.h`: 461 -> 471 lines.
+- `runtime/native/rt_runtime.c`: 140 -> 161 lines.
+- `runtime/native/rt_async_waiter.c`: 226 -> 252 lines.
+- `runtime/native/rt_async_state.c`: 2212 -> 2221 lines. Existing large-file
+  debt; this task kept the edit mechanical.
+- `runtime/native/rt_net.c`: 1040 -> 1042 lines. Existing large-file debt.
+- `internal/vm/runtime_v2_waiter_static_test.go`: 75 -> 82 lines.
+- `internal/vm/runtime_v2_owner_local_waiter_static_test.go`: 53 lines,
+  unchanged.
+
+Skipped or failed known-debt probes:
+
+- None in the Task 08 required gate set.
 
 ## Draft Creation Evidence
 

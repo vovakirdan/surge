@@ -59,41 +59,57 @@ int waker_is_net(waker_key key) {
     return kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ || kind == WAKER_NET_WRITE;
 }
 
-static void net_waiter_added(rt_executor* ex, waker_key key) {
-    if (ex != NULL && waker_is_net(key)) {
-        ex->net_waiters_len++;
+static void net_waiter_added(rt_waiter_store* store, waker_key key) {
+    if (store != NULL && waker_is_net(key)) {
+        store->net_len++;
     }
 }
 
-static void net_waiters_removed(rt_executor* ex, waker_key key, size_t count) {
-    if (ex == NULL || count == 0 || !waker_is_net(key)) {
+static void net_waiters_removed(rt_waiter_store* store, waker_key key, size_t count) {
+    if (store == NULL || count == 0 || !waker_is_net(key)) {
         return;
     }
-    if (count >= ex->net_waiters_len) {
-        ex->net_waiters_len = 0;
+    if (count >= store->net_len) {
+        store->net_len = 0;
         return;
     }
-    ex->net_waiters_len -= count;
+    store->net_len -= count;
+}
+
+rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store) {
+    if (store == NULL) {
+        return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
+    }
+    if (store->len < store->cap) {
+        return RT_RUNTIME_STATUS_OK;
+    }
+    size_t next_cap = 16;
+    if (store->cap != 0) {
+        if (store->cap > SIZE_MAX / 2U) {
+            return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+        }
+        next_cap = store->cap * 2U;
+    }
+    if (store->cap > SIZE_MAX / sizeof(waiter) || next_cap > SIZE_MAX / sizeof(waiter)) {
+        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+    }
+    size_t old_size = store->cap * sizeof(waiter);
+    size_t new_size = next_cap * sizeof(waiter);
+    waiter* next = (waiter*)rt_realloc(
+        (uint8_t*)store->entries, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waiter));
+    if (next == NULL) {
+        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+    }
+    store->entries = next;
+    store->cap = next_cap;
+    return RT_RUNTIME_STATUS_OK;
 }
 
 void ensure_waiter_cap(rt_executor* ex) {
-    if (ex == NULL) {
-        return;
-    }
-    if (ex->waiters_len < ex->waiters_cap) {
-        return;
-    }
-    size_t next_cap = ex->waiters_cap == 0 ? 16 : ex->waiters_cap * 2;
-    size_t old_size = ex->waiters_cap * sizeof(waiter);
-    size_t new_size = next_cap * sizeof(waiter);
-    waiter* next = (waiter*)rt_realloc(
-        (uint8_t*)ex->waiters, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waiter));
-    if (next == NULL) {
+    rt_runtime_status status = rt_waiter_store_ensure_cap(rt_executor_waiter_store(ex));
+    if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
         panic_msg("async: waiter allocation failed");
-        return;
     }
-    ex->waiters = next;
-    ex->waiters_cap = next_cap;
 }
 
 static void ensure_wait_keys_cap(rt_task* task, size_t want) {
@@ -121,21 +137,22 @@ static void ensure_wait_keys_cap(rt_task* task, size_t want) {
 
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     // Caller holds ex->lock; compaction preserves relative order of other waiters.
-    if (ex == NULL || ex->waiters_len == 0) {
+    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    if (store == NULL || store->len == 0) {
         return;
     }
     size_t out = 0;
     size_t removed = 0;
-    for (size_t i = 0; i < ex->waiters_len; i++) {
-        waiter w = ex->waiters[i];
+    for (size_t i = 0; i < store->len; i++) {
+        waiter w = store->entries[i];
         if (w.task_id == task_id && w.key.kind == key.kind && w.key.id == key.id) {
             removed++;
             continue;
         }
-        ex->waiters[out++] = w;
+        store->entries[out++] = w;
     }
-    ex->waiters_len = out;
-    net_waiters_removed(ex, key, removed);
+    store->len = out;
+    net_waiters_removed(store, key, removed);
 }
 
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
@@ -143,9 +160,17 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
-    ensure_waiter_cap(ex);
-    ex->waiters[ex->waiters_len++] = (waiter){key, task_id};
-    net_waiter_added(ex, key);
+    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    rt_runtime_status status = rt_waiter_store_ensure_cap(store);
+    if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
+        panic_msg("async: waiter allocation failed");
+        return;
+    }
+    if (status != RT_RUNTIME_STATUS_OK) {
+        return;
+    }
+    store->entries[store->len++] = (waiter){key, task_id};
+    net_waiter_added(store, key);
 }
 
 void clear_wait_keys(rt_executor* ex, rt_task* task) {
@@ -192,15 +217,16 @@ void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_add
 
 int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     // Caller holds ex->lock; stale/done/cancelled waiters are dropped while scanning.
-    if (ex == NULL || !waker_valid(key) || ex->waiters_len == 0) {
+    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    if (store == NULL || !waker_valid(key) || store->len == 0) {
         return 0;
     }
     size_t out = 0;
     size_t removed = 0;
     int found = 0;
     uint64_t found_id = 0;
-    for (size_t i = 0; i < ex->waiters_len; i++) {
-        waiter w = ex->waiters[i];
+    for (size_t i = 0; i < store->len; i++) {
+        waiter w = store->entries[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
             const rt_task* task = get_task(ex, w.task_id);
             if (task == NULL || task_status_load(task) == TASK_DONE ||
@@ -215,10 +241,10 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
                 continue;
             }
         }
-        ex->waiters[out++] = w;
+        store->entries[out++] = w;
     }
-    ex->waiters_len = out;
-    net_waiters_removed(ex, key, removed);
+    store->len = out;
+    net_waiters_removed(store, key, removed);
     if (found && out_id != NULL) {
         *out_id = found_id;
     }

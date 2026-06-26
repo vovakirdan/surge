@@ -100,6 +100,27 @@ const rt_channel_blocking_compat* rt_executor_channel_blocking_compat_const(cons
     return rt_shard_channel_blocking_compat_const(&ex->runtime->shards[0]);
 }
 
+rt_waiter_store* rt_shard_waiter_store(rt_shard* shard) {
+    return shard != NULL ? &shard->waiter_store : NULL;
+}
+
+const rt_waiter_store* rt_shard_waiter_store_const(const rt_shard* shard) {
+    return shard != NULL ? &shard->waiter_store : NULL;
+}
+
+rt_waiter_store* rt_executor_waiter_store(rt_executor* ex) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    rt_shard* shard = rt_runtime_shard0(runtime);
+    return rt_shard_waiter_store(shard);
+}
+
+const rt_waiter_store* rt_executor_waiter_store_const(const rt_executor* ex) {
+    if (ex == NULL || ex->runtime == NULL || ex->runtime->shard_count != RT_RUNTIME_SHARD_COUNT) {
+        return NULL;
+    }
+    return rt_shard_waiter_store_const(&ex->runtime->shards[0]);
+}
+
 rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
                                           uint32_t worker_count,
                                           uint8_t sched_mode_value,
