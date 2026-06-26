@@ -8,6 +8,11 @@ Do not use this file to hide known debt. The broad focused VM command
 until the later test/backend matrix epic fixes or replaces it. Epic 2 evidence
 must separate that debt from new runtime regressions.
 
+Current status: Task 11 code is committed as `ec640a47`. Channel/blocking
+compatibility counters now live under the single shard; direct channel protocol,
+sync-helper semantics, blocking-pool code, tests, scripts, CI, Sentrux rules,
+STATS, public ABI, and compiler code were not changed.
+
 ## Task Evidence Index
 
 | Task | Evidence status | Notes |
@@ -22,7 +27,7 @@ must separate that debt from new runtime regressions.
 | 8. Net Poll Scratch Tests | Complete | Net wake probe and current-checkout native net benchmark baseline recorded. |
 | 9. Net Poll Scratch Migration | Complete | Scratch buffers moved under `rt_shard`; local gates and Sentrux quality evidence recorded. |
 | 10. Channel/Blocking Compatibility Tests | Complete with known debt | Stable direct/fallback seed tests and native channel benchmark baseline recorded; heavier local-only stress timeouts documented. |
-| 11. Channel/Blocking Compatibility Migration | Pending | Record migration checks and trace rows. |
+| 11. Channel/Blocking Compatibility Migration | Complete | Counter ownership moved under `rt_shard.channel_blocking_compat`; direct/fallback gates, benchmark, static audits, and scan-only Sentrux snapshots recorded. |
 | 12. CI Runtime V2 Gates | Pending | Record new CI target/job and local result. |
 | 13. Accessor Cleanup And Static Gates | Pending | Record static checks and quality deltas. |
 | 14. Epic Closeout | Pending | Record final gates and handoff to Epic 3. |
@@ -1488,3 +1493,137 @@ new tests.
 | Compensation-limit ready-work draining changes | Yes. | Future compensation-limit and ready-drain task. | `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` is known failing debt. |
 | Channel waiter ownership, close/cancellation races, or waiter cleanup | Yes. | Later local channel-waiter epic. | Task 10 does not add or prove the missing race matrix. |
 | CI promotion for local-only channel probes | No for Task 11; yes before CI wiring. | Epic 2 Task 12 if promoted. | Task 10 keeps the heavier probes local-only/debt-bound. |
+
+## Task 11: Channel/Blocking Compatibility Migration
+
+### Task Identity And Scope
+
+- Task: Epic 2 Task 11, Channel/Blocking Compatibility Migration.
+- Date: 2026-06-26.
+- Author/session: Codex.
+- Scope: move ownership of `channel_blocked_workers`,
+  `compensation_count`, and `compensation_high_water` under the single shard
+  while preserving trace-facing reads and existing counter arithmetic.
+- Out of scope and unchanged by design: direct async channel protocol,
+  `try_send`, handoff placement, sync-helper wait behavior, compensation
+  policy, ready-work draining at the compensation limit, channel waiter
+  semantics, channel close/cancellation behavior, blocking-pool
+  queue/lifecycle, public ABI, Go tests, scripts, `Makefile`, CI, Sentrux
+  rules, STATS, and compiler code.
+- Proving spike: `no`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `runtime/native/rt_async_internal.h` | Added `rt_channel_blocking_compat`, placed it under `rt_shard`, removed the three old fields from `rt_executor`, and declared shard/executor accessors. | Make compatibility counter ownership explicit under the `N=1` shard. | `460` lines after change; still below 500. |
+| `runtime/native/rt_runtime.c` | Added `rt_shard_channel_blocking_compat*` and `rt_executor_channel_blocking_compat*` accessors. | Mirror the scheduler and net scratch accessor shape. | `140` lines after change. |
+| `runtime/native/rt_async_state.c` | Replaced direct counter reads/writes with compatibility accessor reads/writes in trace snapshot, ready wake compensation checks, compensation startup, and sync-helper worker parking. | Preserve the old operations while changing the owner. | `2431` lines after change; already over limit. No split in this task. |
+| `docs/runtime-v2-epics/02-evidence.md` | Added this evidence section and marked Task 11 complete in the index. | Keep Task 11 evidence current. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | Added Task 11 handoff. | Make the next task startable without chat context. | Documentation only. |
+
+`runtime/native/rt_async_channel.c` was not edited.
+
+### Implementation Notes
+
+The new owner is:
+
+```c
+typedef struct {
+    uint32_t channel_blocked_workers;
+    uint32_t compensation_count;
+    uint32_t compensation_high_water;
+} rt_channel_blocking_compat;
+```
+
+`struct rt_shard` owns it as `channel_blocking_compat`. Callers use
+`rt_executor_channel_blocking_compat()` or
+`rt_executor_channel_blocking_compat_const()` in the same style as existing
+scheduler and net scratch accessors. The migration does not add semantic
+wrapper helpers: increments, decrements, limits, high-water updates, and trace
+snapshot fields remain visible at the old call sites.
+
+### Static Audits
+
+| Audit | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `sed -n '/struct rt_executor {/,/^};/p' runtime/native/rt_async_internal.h \| rg -n 'channel_blocked_workers\|compensation_count\|compensation_high_water' \|\| true` | no old executor fields | no output | `0` | Old executor ownership is gone. |
+| `sed -n '/struct rt_shard {/,/^};/p' runtime/native/rt_async_internal.h \| rg -n 'rt_channel_blocking_compat channel_blocking_compat' \|\| true` | one shard owner line | `6:    rt_channel_blocking_compat channel_blocking_compat;` | `0` | Compatibility counters live under the single shard. |
+| `rg -n -- 'ex->(channel_blocked_workers\|compensation_count\|compensation_high_water)\b\|exec_state\.(channel_blocked_workers\|compensation_count\|compensation_high_water)\b' runtime/native \|\| true` | no direct old executor usage | no output | `0` | Direct old field users are gone. |
+| `rg -n -- 'rt_(executor\|shard)_channel_blocking_compat\|rt_channel_blocking_compat' runtime/native` | header, runtime accessors, and `rt_async_state.c` users only | found `rt_async_internal.h`, `rt_runtime.c`, and `rt_async_state.c` only | `0` | New access surface is narrow. |
+| `git diff -- runtime/native/rt_async_channel.c runtime/native/rt_async_blocking.c runtime/native/rt.h internal/vm scripts Makefile .github STATS.md` | no forbidden-surface diff | no output | `0` | Channel protocol, blocking pool, ABI, tests, scripts, CI, STATS, and compiler surfaces stayed untouched. |
+| `git diff --check` | no whitespace errors | no output | `0` | Diff hygiene passed. |
+
+### Commands/Checks
+
+| Command | Expected result | Actual result | Exit/status | Note |
+| --- | --- | --- | --- | --- |
+| `make c-check` | pass | first run failed formatting only in the three edited runtime files | `2` | Fixed with `clang-format -i runtime/native/rt_async_internal.h runtime/native/rt_runtime.c runtime/native/rt_async_state.c`. |
+| `make c-check` | pass | C formatting OK; strict C runtime compilation OK | `0` | Rerun after formatting and after cppcheck const cleanup. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(RecvAckHandoffCompletesSenderAfterNonYieldingReceiver\|BufferedRecvRefillCompletesSenderAfterNonYieldingReceiver\|BufferedBlockingRecvRefillWakesSender\|ChannelParkUnpark)$' -v --timeout 120s -count=1 -parallel=1 -p=1` | pass | passed; package time `8.377s` | `0` | Stable direct channel subset. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMT(ChannelParkUnpark\|BlockingChannelHelpersAllowTimersToAdvance)$' -v --timeout 120s -count=1 -parallel=1 -p=1` | pass | passed after code commit; package time `4.766s` | `0` | CI-contract channel/blocking pair. |
+| Temporary compiler build and commit verification block | reported commit matches current `HEAD` | `current_commit=ec640a47b449`, `reported_commit=ec640a47b449`; binary `/tmp/surge-task11-final.86ZWJ8/surge` | `0` | Benchmark used the committed Task 11 code. |
+| `SURGE_CHANNEL_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task11-native-channel-after.md" timeout 120s env SURGE="/tmp/surge-task11-final.86ZWJ8/surge" ./scripts/bench_native_channels.sh` | pass and write report | passed; report path printed | `0` | Manual benchmark evidence with current-checkout compiler. |
+| Runtime Trace field inspection | 20 runtime trace rows and no `n/a` | `runtime_trace_rows=20`, `contains_na=0` | `0` | Required channel/fallback trace fields were present. |
+| `make cppcheck` | pass | first run reported two `constVariablePointer` style findings in new read-only compat pointers | `2` | Fixed by switching those reads to the const accessor. |
+| `make cppcheck` | pass | `cppcheck OK` | `0` | Rerun after const cleanup. |
+| `make check` | pass | passed; ran `SURGE_SKIP_TIMEOUT_TESTS=1 go test ./... --timeout 90s`, `golangci-lint`, `make c-check`, and `check_file_sizes.sh` | `0` | Full local gate. |
+
+Known-debt tests deliberately not run for Task 11:
+
+- `TestMTNonYieldingTrySendHandoffWakesReceiver`.
+- `TestMTBlockingChannelHelpersDoNotParkWorkers`.
+- `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit`.
+
+These remain future-owner debt because this task did not change direct
+`try_send`/handoff behavior, sync-helper semantics, compensation start policy,
+or compensation-limit ready-drain behavior.
+
+### Native Channel Benchmark
+
+Report:
+`/home/zov/projects/surge/surge/build/benchmarks/runtime-v2-task11-native-channel-after.md`.
+
+Selected `## Runtime Trace` rows:
+
+| mode | probe | channel blocking waits | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | channel_reused_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 1 | channel_new_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 1 | channel_sync_new_reply | 0 | 5000 | 5000 | 0 | 0 | 0 |
+| 2 | channel_reused_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 2 | channel_new_reply | 0 | 0 | 0 | 19999 | 0 | 0 |
+| 2 | channel_sync_new_reply | 9160 | 5000 | 5000 | 0 | 0 | 0 |
+| 4 | channel_sync_new_reply | 9010 | 5000 | 5000 | 0 | 0 | 0 |
+| 8 | channel_sync_new_reply | 9651 | 5000 | 5000 | 0 | 0 | 0 |
+| default | channel_sync_new_reply | 9526 | 5000 | 5000 | 0 | 0 | 0 |
+
+Across the full 20-row Runtime Trace table, all required channel/fallback
+fields were present and non-`n/a`. `channel_reused_reply` and
+`channel_new_reply` kept task-context blocking sends, task-context blocking
+recvs, channel blocking waits, compensation started, and compensation
+high-water at `0`, while handoff yields stayed `19999`. `channel_sync_new_reply`
+recorded `5000` task-context blocking sends and `5000` task-context blocking
+recvs in every mode. Compensation started and compensation high-water stayed
+`0` for every benchmark row.
+
+### Sentrux Evidence
+
+Main-session runtime/native `session_end` passed against the pre-task baseline:
+`signal_before=5146`, `signal_after=5172`, `signal_delta=26`, no violations,
+summary `Quality stable or improved`.
+
+| Scan | Path | quality_signal | Root cause or bottleneck | Rules result |
+| --- | --- | --- | --- | --- |
+| Root | `/home/zov/projects/surge/surge` | `6207` | bottleneck `modularity`; root causes: acyclicity `10000`, depth `6667`, equality `4685`, modularity `3438`, redundancy `8576`; files `4744`; import edges `1888`; lines `373289` | missing `/home/zov/projects/surge/surge/.sentrux/rules.toml`; debt, not compliance. |
+| Runtime | `/home/zov/projects/surge/surge/runtime` | `5209` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4783`, modularity `3333`, redundancy `2705`; files `33`; import edges `31`; lines `15125` | missing `/home/zov/projects/surge/surge/runtime/.sentrux/rules.toml`; debt, not compliance. |
+| Runtime/native | `/home/zov/projects/surge/surge/runtime/native` | `5172` | bottleneck `redundancy`; root causes: acyclicity `10000`, depth `8889`, equality `4781`, modularity `3215`, redundancy `2708`; files `32`; import edges `31`; lines `15110` | missing `/home/zov/projects/surge/surge/runtime/native/.sentrux/rules.toml`; debt, not compliance. |
+
+### Follow-Ups And Blockers
+
+| Item | Blocks Task 12? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Known direct non-yielding `try_send` handoff timeout | No. | Future direct channel handoff / `try_send` task. | Task 11 did not touch direct channel handoff or `try_send`. |
+| Known sync-helper compensation/liveness timeout | No. | Future sync-helper compensation/liveness task. | Task 11 did not alter sync-helper wait semantics or compensation start policy. |
+| Known compensation-limit ready-drain timeout | No. | Future compensation-limit and ready-drain task. | Task 11 did not alter compensation limits or ready-work draining. |
+| Missing Sentrux rules | No for this implementation; yes for claiming rule compliance. | Dedicated Sentrux rules task or later closeout. | All scanned paths still lack `.sentrux/rules.toml`. |

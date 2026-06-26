@@ -11,9 +11,9 @@ cross-shard messaging, compiler crossing syntax, or public ABI changes. Every
 code task must name the old behavior it preserves and prove that the new shape
 is still the same runtime from the program's point of view.
 
-**Status:** draft; Tasks 1-10 evidence is recorded in `02-evidence.md`. Task
-10 is complete with known debt for the narrow Task 11 counter-field migration
-boundary.
+**Status:** draft; Tasks 1-11 evidence is recorded in `02-evidence.md`. Task
+10 remains complete with known debt; Task 11 stayed within the approved
+counter-field migration boundary.
 
 **Task documents:** detailed tasks live under `02-tasks/`. Each runtime-code
 task has a separate testing task where a meaningful test can be written before

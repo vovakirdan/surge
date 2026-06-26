@@ -20,6 +20,9 @@ task, then move durable decisions into the owning epic document before closeout.
   `channel_blocked_workers`, `compensation_count`, and
   `compensation_high_water` only if it does not change direct handoff,
   `try_send`, sync helper, compensation, ready-drain, or waiter semantics.
+- Task 11 implementation is recorded. Channel/blocking compatibility counters
+  now live under `rt_shard.channel_blocking_compat`; main-session
+  runtime/native `session_end` passed: `5146 -> 5172`, no violations.
 - Task 9 implementation evidence is recorded. Main-session Sentrux runtime/native
   `session_end` passed for this task: `5132 -> 5146`, `signal_delta=14`, no
   violations.
@@ -575,6 +578,57 @@ task, then move durable decisions into the owning epic document before closeout.
   `DoNotParkWorkers`, compensation-limit and ready-drain task for
   `DrainReadyWorkAtCompensationLimit`, and the later local channel-waiter epic
   for close/cancellation and waiter cleanup matrices.
+
+## Task 11 Handoff
+
+- Scope completed: moved `channel_blocked_workers`, `compensation_count`, and
+  `compensation_high_water` out of `rt_executor` and under
+  `rt_shard.channel_blocking_compat`. Added shard/executor compatibility
+  accessors mirroring the scheduler and net scratch accessor shape.
+- Runtime files changed: `runtime/native/rt_async_internal.h`,
+  `runtime/native/rt_runtime.c`, and `runtime/native/rt_async_state.c`.
+- Docs changed: `docs/runtime-v2-epics/02-evidence.md` and this file.
+- Strictly untouched: `runtime/native/rt_async_channel.c`,
+  `runtime/native/rt_async_blocking.c`, `runtime/native/rt.h`, Go tests,
+  scripts, `Makefile`, CI, Sentrux rules, STATS, public ABI, and compiler code.
+- Behavior boundary: no direct `try_send` or handoff changes, no sync-helper
+  behavior changes, no compensation semantic changes, no ready-work draining at
+  the compensation limit, no channel waiter semantics changes, and no channel
+  close/cancellation changes.
+- Static audit results:
+  - No `channel_blocked_workers`, `compensation_count`, or
+    `compensation_high_water` fields remain inside `struct rt_executor`.
+  - `struct rt_shard` now owns
+    `rt_channel_blocking_compat channel_blocking_compat`.
+  - No direct `ex->channel_blocked_workers`, `ex->compensation_count`,
+    `ex->compensation_high_water`, or matching `exec_state.*` usage remains
+    under `runtime/native`.
+  - Forbidden-surface diff for channel protocol, blocking pool, ABI, tests,
+    scripts, `Makefile`, CI, STATS, and compiler paths was empty.
+- Gates passed locally: stable direct channel subset, CI-contract
+  channel/blocking pair, current-checkout native channel benchmark,
+  `make c-check`, `make cppcheck`, `make check`, and `git diff --check`.
+- Current-checkout compiler pin passed for temporary binary
+  `/tmp/surge-task11-final.86ZWJ8/surge`; both current and reported commits
+  were `ec640a47b449`.
+- Native channel after-benchmark passed and wrote
+  `build/benchmarks/runtime-v2-task11-native-channel-after.md`. The report is
+  ignored under `build/`; selected durable rows are copied into
+  `02-evidence.md`.
+- Benchmark trace evidence: all 20 Runtime Trace rows had required
+  channel/fallback fields and no `n/a` values. Async request/reply probes kept
+  blocking and compensation counters at `0`; `channel_sync_new_reply` recorded
+  `5000` task-context blocking sends and `5000` task-context blocking recvs in
+  every mode. Compensation started and compensation high-water stayed `0` for
+  every benchmark row.
+- Known-debt tests intentionally not run in Task 11:
+  `TestMTNonYieldingTrySendHandoffWakesReceiver`,
+  `TestMTBlockingChannelHelpersDoNotParkWorkers`, and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit`.
+- Sentrux evidence: root scan `6207`, runtime scan `5209`, runtime/native scan
+  `5172`, and main-session runtime/native `session_end` passed
+  `5146 -> 5172` with no violations. All three `check_rules` calls still
+  report missing `.sentrux/rules.toml`; this remains debt, not compliance.
 
 ## Liveness Requirements
 
