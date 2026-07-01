@@ -35,6 +35,21 @@ task, then move durable decisions into the owning epic document before closeout.
   compliance.
 - Epic 4 starts with persistent fd registry and net lifecycle proof. Do not
   start from `N>1`, crossing syntax, or cross-shard wake protocol work.
+- Epic 4 draft now lives in
+  `04-persistent-fd-registry-and-net-lifecycle.md`, with task documents under
+  `04-tasks/` and evidence in `04-evidence.md`. The first task is
+  `04-tasks/01-kickoff-baseline-and-sentrux.md`.
+- Epic 4 keeps the current `poll()` backend first. `epoll`, `kqueue`,
+  `io_uring`, accept distribution, `N>1`, crossing syntax, heap counters, and
+  the broad VM/native/LLVM test-matrix rewrite remain out of scope.
+- Epic 4 implementation tasks must prove fd registration, duplicate readiness
+  interest, cancellation, close, stale wake, numeric fd reuse or equivalent
+  generation safety, wake-fd notification, shutdown drain behavior, and bounded
+  registry-derived polling before closeout.
+- Epic 4 draft creation evidence is recorded in `04-evidence.md`.
+  `git diff --check` passed. Sentrux draft scans recorded root `6198`,
+  runtime `5195`, and runtime/native `5159`; missing rules remain debt, not
+  compliance.
 - Task 14 Epic 2 closeout is recorded and approved local gates passed after the
   docs edits. Epic 2 is complete for the `N=1` runtime/shard structure slice:
   no owner-local waiter, persistent fd registry, `N>1`, or crossing-syntax
