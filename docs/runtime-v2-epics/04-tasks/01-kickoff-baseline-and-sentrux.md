@@ -11,7 +11,7 @@ Record the exact Epic 4 starting state before fd-registry work begins.
 
 - Capture branch, commit, and `git status --short`.
 - Capture line counts for touched runtime/native files.
-- Record accepted backend-test debt and Sentrux missing-rules debt.
+- Record accepted backend-test debt and current Sentrux rule status.
 - Run root, `runtime/`, and `runtime/native/` Sentrux scans.
 - Define the concrete gates for Tasks 2-7.
 
@@ -31,5 +31,5 @@ Record the exact Epic 4 starting state before fd-registry work begins.
 ## Done
 
 - Starting evidence is recorded.
-- Missing-rule status is named as debt, not compliance.
+- Sentrux rule status is recorded as pass/fail evidence.
 - Next task has enough context to map fd dependencies without rediscovery.

@@ -19,7 +19,8 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 - The broad focused VM command
   `go test ./internal/vm -run 'MT|Async|Net|LLVM'` remains accepted
   backend-test debt and is not an Epic 4 green gate.
-- Missing Sentrux rule files remain debt, not compliance.
+- Sentrux rule files were added during pre-Epic 4 quality hardening for root,
+  `runtime/`, and `runtime/native`.
 
 ## Task Evidence Ledger
 
@@ -48,15 +49,13 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 - Sentrux repository scan for `/home/zov/projects/surge/surge` returned
   `quality_signal=6198`, `files=4775`, `import_edges=1890`, and
   `lines=377913`.
-- Sentrux `check_rules` for `/home/zov/projects/surge/surge` still reports
-  missing `.sentrux/rules.toml`; this is debt, not compliance.
+- Sentrux rules were added after draft creation. Root `sentrux check .` passes
+  with quality `6198`.
 - Sentrux runtime scan for `/home/zov/projects/surge/surge/runtime` returned
   `quality_signal=5195`, `files=35`, `import_edges=33`, and `lines=15275`.
-- Sentrux `check_rules` for `/home/zov/projects/surge/surge/runtime` still
-  reports missing `runtime/.sentrux/rules.toml`; this is debt, not compliance.
+- Runtime `sentrux check runtime` passes with quality `5195`.
 - Sentrux runtime/native scan for
   `/home/zov/projects/surge/surge/runtime/native` returned
   `quality_signal=5159`, `files=34`, `import_edges=33`, and `lines=15260`.
-- Sentrux `check_rules` for `/home/zov/projects/surge/surge/runtime/native`
-  still reports missing `runtime/native/.sentrux/rules.toml`; this is debt, not
-  compliance.
+- Runtime/native `sentrux check runtime/native` passes with quality `5159`.
+- MCP `check_rules` also passes for root, `runtime/`, and `runtime/native`.

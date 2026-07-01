@@ -31,8 +31,8 @@ task, then move durable decisions into the owning epic document before closeout.
   owner-local waiters and dependency-aware runtime refactoring under `N=1`.
   Main-session closeout gates and benchmark/smoke evidence are copied into
   `03-evidence.md`. Post-doc Sentrux closeout scans recorded root `6198`,
-  runtime `5195`, and runtime/native `5159`; missing rules remain debt, not
-  compliance.
+  runtime `5195`, and runtime/native `5159`; missing rules were debt at that
+  time and are closed by the pre-Epic 4 quality hardening.
 - Epic 4 starts with persistent fd registry and net lifecycle proof. Do not
   start from `N>1`, crossing syntax, or cross-shard wake protocol work.
 - Epic 4 draft now lives in
@@ -48,15 +48,20 @@ task, then move durable decisions into the owning epic document before closeout.
   registry-derived polling before closeout.
 - Epic 4 draft creation evidence is recorded in `04-evidence.md`.
   `git diff --check` passed. Sentrux draft scans recorded root `6198`,
-  runtime `5195`, and runtime/native `5159`; missing rules remain debt, not
-  compliance.
+  runtime `5195`, and runtime/native `5159`; Sentrux rules now exist and pass
+  for all three mandatory scan roots.
+- Pre-Epic 4 quality hardening is recorded: Sentrux rules now exist for root,
+  `runtime/`, and `runtime/native`; CLI and MCP rule checks pass for all three
+  paths. `check_file_sizes.sh` now checks `go,c,h` by default, prunes generated
+  dirs, and enforces `.loc-legacy-allowlist` for existing native runtime files
+  over the hard gate. Durable debt is tracked in `DEBT.md`.
 - Task 14 Epic 2 closeout is recorded and approved local gates passed after the
   docs edits. Epic 2 is complete for the `N=1` runtime/shard structure slice:
   no owner-local waiter, persistent fd registry, `N>1`, or crossing-syntax
   implementation is claimed. The broad VM/backend regex remains later
-  test/backend debt, and missing Sentrux rules remain debt rather than
-  compliance. Main-session Task 14 Sentrux closeout scans recorded root `6207`,
-  runtime `5209`, and runtime/native `5172`.
+  test/backend debt. Main-session Task 14 Sentrux closeout scans recorded root
+  `6207`, runtime `5209`, and runtime/native `5172`; missing Sentrux rules were
+  debt at that time and are closed by the pre-Epic 4 quality hardening.
 - Epic 3 Task 17 extracted trace and SIGUSR1 dump responsibility from
   `runtime/native/rt_async_state.c` into
   `runtime/native/rt_async_trace.c`. The refactor did not change scheduler,
@@ -69,14 +74,16 @@ task, then move durable decisions into the owning epic document before closeout.
   `make c-check`, `make cppcheck`, `make runtime-v2-check`, `make check`, and
   `git diff --check` passed for the Task 13 docs-only closeout. Main-session
   Sentrux scans recorded root `6207`, runtime `5209`, and runtime/native
-  `5172`; missing rules remain debt, not compliance.
+  `5172`; missing rules were debt at that time and are closed by the
+  pre-Epic 4 quality hardening.
 - Task 9 implementation evidence is recorded. Main-session Sentrux runtime/native
   `session_end` passed for this task: `5132 -> 5146`, `signal_delta=14`, no
   violations.
 - Latest Task 9 checks passed: `make c-check`, `make cppcheck`, `make check`,
   focused net wake probe, native net benchmark, `git diff --check`, Sentrux
   repository scan, and Sentrux runtime scan. Both Sentrux `check_rules` calls
-  still report missing rules files, which remains recorded baseline debt.
+  reported missing rules files at that time; this is now closed by the
+  pre-Epic 4 quality hardening.
 - Epic 2 is complete in `02-n1-runtime-shard-structure.md` for the `N=1`
   `rt_runtime`/`rt_shard` structure slice; owner-local waiters, persistent fd
   registry, `N>1`, crossing syntax, and the VM/native/LLVM test-matrix rewrite
@@ -138,8 +145,8 @@ task, then move durable decisions into the owning epic document before closeout.
 ## Epic 1 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.
-- `SENTRUX_POLICY.md`: Sentrux scan/rule policy and current missing-rules
-  blocker.
+- `SENTRUX_POLICY.md`: Sentrux scan/rule policy and current rule-check
+  requirements.
 - `EVIDENCE_TEMPLATE.md`: required evidence format for future tasks.
 - `01-baseline-evidence.md`: current checkout checks, benchmark reports,
   counters, and blockers.

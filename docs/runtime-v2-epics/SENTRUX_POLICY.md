@@ -3,6 +3,26 @@
 This policy records the current Sentrux behavior for Runtime V2 work and
 defines how later Runtime V2 tasks must use repository and scoped scans.
 
+## Pre-Epic 4 Update
+
+Sentrux rule files now exist for every mandatory Runtime V2 scan root:
+
+- `.sentrux/rules.toml`
+- `runtime/.sentrux/rules.toml`
+- `runtime/native/.sentrux/rules.toml`
+
+The files follow the public Sentrux examples: a `[constraints]` table plus
+optional `[[layers]]` and `[[boundaries]]` entries. The initial thresholds are
+baseline-preserving, not ideal-state targets. Tightening them is tracked in
+`DEBT.md`.
+
+Current local validation:
+
+- `sentrux check .`: passed, quality `6198`.
+- `sentrux check runtime`: passed, quality `5195`.
+- `sentrux check runtime/native`: passed, quality `5159`.
+- MCP `check_rules`: passed for root, `runtime/`, and `runtime/native`.
+
 ## Current Observed Behavior
 
 Sentrux stores an active scan context. `health` and `check_rules` report on the
@@ -57,21 +77,22 @@ and no `runtime/.sentrux/` directory in this checkout.
 
 ## Rule File Decision
 
-Epic 1 Task 3 should create neither `.sentrux/rules.toml` nor
-`runtime/.sentrux/rules.toml` yet.
+Pre-Epic 4 quality hardening closed the missing-rules blocker. Missing Sentrux
+rules are no longer an accepted Runtime V2 state for the repository root,
+`runtime/`, or `runtime/native/`.
 
-The evidence currently proves only that Sentrux can scan both paths and that
-`check_rules` has no configured rules for either active context. It does not
-prove the correct rule schema or the exact architecture-level constraints to
-encode. Creating a rules file now would risk turning draft Runtime V2 design
-notes into machine-enforced internals before the owner, wakeup, cancellation,
-and liveness policies are fully frozen.
+The initial rules are deliberately conservative:
 
-Missing rules are therefore not a successful rule check. They are a recorded
-open blocker for Runtime V2 rule enforcement. Docs-only Epic 1 tasks may
-complete while recording this blocker. Runtime-code tasks after Epic 1 must not
-claim Sentrux rule compliance until the relevant rules file exists or the epic
-explicitly accepts a temporary deferral.
+- quality floors are just below the current baseline;
+- complexity and function-length ceilings match current legacy reality rather
+  than the ideal Runtime V2 target;
+- root layers encode broad direction only;
+- root boundaries prevent native runtime code from depending on Go compiler,
+  VM, or CLI internals.
+
+Future tasks should tighten these rules only with evidence. Do not encode
+implementation details such as lock ordering or transient queue internals in
+Sentrux rules.
 
 ## Required Policy For Future Tasks
 
@@ -110,16 +131,7 @@ Completion is blocked when any of these is true:
 
 ## Open Decisions And Blockers
 
-- Decide the first machine-enforced Sentrux rule file location. Root rules would
-  govern whole-repository scans. Runtime-scoped rules would govern
-  `/home/zov/projects/surge/surge/runtime` scans. If both scans are mandatory
-  rule gates, both active contexts eventually need rules.
-- Define the minimal architecture-level constraints that belong in Sentrux
-  rules. They should describe stable boundaries, not implementation-level locks,
-  queues, or shard internals.
-- Decide whether root, runtime-scoped, or both rule files are required before
-  the first Epic 2 runtime-code task completes. Missing rules do not block
-  docs-only Epic 1 closeout, but they do block claiming Runtime V2 rule
-  compliance until real rules exist or an explicit temporary deferral is
-  recorded.
-- Confirm the Sentrux rules schema before creating either rules file.
+- Tighten `max_cc`, `max_fn_lines`, and quality floors after large-file
+  refactors remove the current legacy ceiling pressure.
+- Add more architecture-level boundaries only after the affected ownership
+  contract is stable in `docs/RUNTIME_V2.md`.

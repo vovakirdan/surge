@@ -13,14 +13,48 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Настройки по умолчанию
-EXTENSIONS="go"
+EXTENSIONS="go,c,h"
 EXCLUDE_TESTS=true
 CHECK_ALL_FILES=false  # Если true, проверяет все файлы, иначе только незакоммиченные
+LEGACY_ALLOWLIST_FILE=".loc-legacy-allowlist"
+
+normalize_path() {
+    local file=$1
+    file="${file#./}"
+    echo "$file"
+}
+
+get_legacy_line_limit() {
+    local file
+    file=$(normalize_path "$1")
+
+    if [ ! -f "$LEGACY_ALLOWLIST_FILE" ]; then
+        return 1
+    fi
+
+    awk -v target="$file" '
+        /^[[:space:]]*$/ {next}
+        /^[[:space:]]*#/ {next}
+        $1 == target {print $2; found=1; exit}
+        END {if (!found) exit 1}
+    ' "$LEGACY_ALLOWLIST_FILE" 2>/dev/null
+}
 
 # get_file_rating outputs a colored rating for a file based on its line count: "OK" for 575 lines or fewer, "ACCEPTABLE" for 576–675 lines, and "BAD - need refactoring" for more than 675 lines.
 get_file_rating() {
     local lines=$1
     local filename=$2
+    local legacy_limit
+    legacy_limit=$(get_legacy_line_limit "$filename" || true)
+
+    if [ -n "$legacy_limit" ]; then
+        if [ "$lines" -le "$legacy_limit" ]; then
+            echo -e "${YELLOW}LEGACY OK ≤$legacy_limit${NC}"
+        else
+            echo -e "${RED}BAD - legacy grew >$legacy_limit${NC}"
+        fi
+        return
+    fi
     
     if [ $lines -le 575 ]; then
         echo -e "${GREEN}OK${NC}"
@@ -154,6 +188,7 @@ check_directory() {
     local total_files=0
     local ok_files=0
     local acceptable_files=0
+    local legacy_files=0
     local bad_files=0
     
     # Определяем режим работы и заголовок
@@ -163,8 +198,17 @@ check_directory() {
     if [ "$CHECK_ALL_FILES" = true ]; then
         # Режим проверки всех файлов
         header_text="Проверка размера всех файлов в директории: $dir"
-        # Получаем все файлы через find
-        files_to_check=$(find "$dir" -type f -print0 2>/dev/null | tr '\0' '\n')
+        # Получаем все файлы через find, исключая generated/build/cache dirs.
+        files_to_check=$(
+            find "$dir" \
+                \( -path '*/.git' \
+                -o -path '*/target' \
+                -o -path '*/build' \
+                -o -path '*/dist' \
+                -o -path '*/coverage' \
+                -o -path '*/node_modules' \) -prune \
+                -o -type f -print0 2>/dev/null | tr '\0' '\n'
+        )
     else
         # Режим проверки только незакоммиченных файлов
         # Проверяем, что мы в git репозитории
@@ -222,7 +266,15 @@ check_directory() {
                     
                     total_files=$((total_files + 1))
                     
-                    if [ $lines -le 575 ]; then
+                    local legacy_limit
+                    legacy_limit=$(get_legacy_line_limit "$file" || true)
+                    if [ -n "$legacy_limit" ]; then
+                        if [ "$lines" -le "$legacy_limit" ]; then
+                            legacy_files=$((legacy_files + 1))
+                        else
+                            bad_files=$((bad_files + 1))
+                        fi
+                    elif [ $lines -le 575 ]; then
                         ok_files=$((ok_files + 1))
                     elif [ $lines -le 675 ]; then
                         acceptable_files=$((acceptable_files + 1))
@@ -239,6 +291,7 @@ check_directory() {
     echo "Всего проверено файлов: $total_files"
     echo -e "(≤575 строк): ${GREEN}$ok_files${NC}"
     echo -e "(576-675 строк): ${YELLOW}$acceptable_files${NC}"
+    echo -e "(legacy ceilings): ${YELLOW}$legacy_files${NC}"
     echo -e "(>675 строк): ${RED}$bad_files${NC}"
 
     if [ $total_files -eq 0 ]; then
@@ -249,7 +302,7 @@ check_directory() {
     fi
     
     # Рассчитываем процент "хороших" файлов (OK + ACCEPTABLE)
-    local good_files=$((ok_files + acceptable_files))
+    local good_files=$((ok_files + acceptable_files + legacy_files))
     local percentage=0
     percentage=$((good_files * 100 / total_files))
     
@@ -297,16 +350,17 @@ show_help() {
     echo ""
     echo "Проверяет размер файлов в указанной директории."
     echo "По умолчанию проверяет только незакоммиченные файлы в git репозитории."
-    echo "Проверяются только файлы с расширением .go (по умолчанию)."
+    echo "Проверяются только файлы с расширениями .go, .c, .h (по умолчанию)."
     echo ""
     echo "Критерии оценки:"
     echo "  ≤575 строк    - OK (зеленый)"
     echo "  576-675 строк - ACCEPTABLE (желтый)"
     echo "  >675 строк    - BAD - need refactoring (красный)"
+    echo "  legacy ceiling - OK только если файл не вырос относительно .loc-legacy-allowlist"
     echo ""
     echo "Опции:"
     echo "  -h, --help              - показать эту справку"
-    echo "  -e, --extensions EXT    - расширения файлов (по умолчанию: go)"
+    echo "  -e, --extensions EXT    - расширения файлов (по умолчанию: go,c,h)"
     echo "                           пример: -e 'go,js,ts' или -e 'go'"
     echo "  -t, --include-tests     - включить тестовые файлы (по умолчанию исключены)"
     echo "  -a, --all               - проверить все файлы в директории (полная проверка)"
@@ -319,10 +373,10 @@ show_help() {
     echo "  <60% хороших файлов     - ТРЕБУЕТ УЛУЧШЕНИЯ (красный)"
     echo ""
     echo "Примеры:"
-    echo "  $0                                    # проверить незакоммиченные .go файлы (тесты исключены)"
-    echo "  $0 -t                                 # проверить незакоммиченные .go файлы, включив тесты"
-    echo "  $0 -a                                 # проверить все .go файлы в текущей директории"
-    echo "  $0 -a -t                              # проверить все .go файлы, включив тесты"
+    echo "  $0                                    # проверить незакоммиченные .go/.c/.h файлы (тесты исключены)"
+    echo "  $0 -t                                 # проверить незакоммиченные .go/.c/.h файлы, включив тесты"
+    echo "  $0 -a                                 # проверить все .go/.c/.h файлы в текущей директории"
+    echo "  $0 -a -t                              # проверить все .go/.c/.h файлы, включив тесты"
     echo "  $0 -e 'go,js,ts'                     # проверить незакоммиченные .go, .js, .ts файлы"
     echo "  $0 -a /path/to/project                # проверить все .go файлы в /path/to/project"
 }

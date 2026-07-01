@@ -1,0 +1,16 @@
+# Runtime-scoped architectural guardrails.
+# Current baseline at creation: quality_signal=5195.
+
+[constraints]
+min_quality = 0.50
+min_modularity = 0.30
+min_acyclicity = 1.0
+min_equality = 0.45
+min_redundancy = 0.25
+max_cc = 70
+max_fn_lines = 300
+
+[[layers]]
+name = "native"
+paths = ["native/**"]
+order = 0

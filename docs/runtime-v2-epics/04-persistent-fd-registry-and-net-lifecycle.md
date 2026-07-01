@@ -71,9 +71,9 @@ The broad focused VM command
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` remains accepted backend-test
 debt. Do not add it as a required green gate in this epic.
 
-Missing Sentrux rule files remain debt, not compliance. Every implementation
-task must record root and scoped scans honestly and must not treat missing
-rules as a passing rule gate.
+Sentrux rule files exist for root, `runtime/`, and `runtime/native`. Every
+implementation task must record root and scoped scans honestly. A missing-rules
+result is now a blocker, not an accepted Runtime V2 state.
 
 Timeout-sensitive VM/native/LLVM tests remain outside this epic's green gate
 unless a task explicitly changes that path and adds a focused proof.
@@ -159,7 +159,7 @@ Every runtime-code task must run:
 - `make runtime-v2-check`;
 - `make check`, unless the task document records a narrower approved gate;
 - `git diff --check`;
-- root and scoped Sentrux scans, with missing rules recorded as debt.
+- root and scoped Sentrux scans plus rule checks.
 
 Every net-lifecycle task must also run the exact focused net probes named in
 the task, selected from `LIVENESS_PROBES.md` or introduced by this epic.
@@ -230,8 +230,8 @@ Epic 4 is complete only when:
   regression;
 - touched over-limit files have recorded line-count outcomes and at least one
   cohesive refactor tranche has been attempted;
-- Sentrux root, `runtime/`, and `runtime/native/` scans are recorded, with
-  missing rules named as debt if still unresolved;
+- Sentrux root, `runtime/`, and `runtime/native/` scans and rule checks are
+  recorded as pass/fail evidence;
 - `04-evidence.md`, `NOTES.md`, this document, and `README.md` are updated with
   the final state and the exact next epic handoff.
 

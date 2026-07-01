@@ -1,0 +1,36 @@
+# Repository-wide architectural guardrails.
+# Current baseline at creation: quality_signal=6198.
+
+[constraints]
+min_quality = 0.60
+min_modularity = 0.30
+min_acyclicity = 1.0
+min_equality = 0.45
+min_redundancy = 0.80
+max_cc = 150
+max_fn_lines = 600
+
+[[layers]]
+name = "cli"
+paths = ["cmd/**"]
+order = 0
+
+[[layers]]
+name = "compiler_vm"
+paths = ["internal/**"]
+order = 1
+
+[[layers]]
+name = "runtime"
+paths = ["runtime/**"]
+order = 2
+
+[[boundaries]]
+from = "runtime/**"
+to = "internal/**"
+reason = "Native runtime must not depend on Go compiler or VM internals."
+
+[[boundaries]]
+from = "runtime/**"
+to = "cmd/**"
+reason = "Native runtime must stay below command-line entrypoints."

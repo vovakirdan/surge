@@ -32,7 +32,8 @@ is drafted for persistent fd registry and net lifecycle proof.
 
 - `RULES.md`: global Runtime V2 development rules.
 - `SENTRUX_POLICY.md`: repository and scoped Sentrux policy, current baseline
-  signals, and missing-rules blocker.
+  signals, and rule-check requirements.
+- `DEBT.md`: durable Runtime V2 debt ledger with owners and close conditions.
 - `EVIDENCE_TEMPLATE.md`: required evidence format for later tasks and epics.
 - `01-baseline-evidence.md`: current checkout checks, benchmark reports,
   counters, and blockers before Epic 2.
@@ -53,7 +54,8 @@ Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside the
 Epic 3 green gate. A later test/backend epic will rewrite the VM/native/LLVM
 test matrix around the Runtime V2 contracts. Until then, runtime tasks must keep
-that debt named and must not attribute new regressions to it without evidence.
+that debt named in `DEBT.md` and must not attribute new regressions to it
+without evidence.
 
 ## Standing Migration Goals
 
@@ -100,8 +102,10 @@ Every epic must say which of these gates apply and record the exact evidence:
 - a doc update that states which Runtime V2 contract was preserved, changed, or
   deliberately deferred
 
-Until Sentrux rule files exist, tasks may record scan and health evidence but
-must not claim rule compliance from a missing-rules `check_rules` result.
+Sentrux rule files exist for the repository root, `runtime/`, and
+`runtime/native/`. Runtime tasks must record root and scoped `check_rules`
+results as pass/fail evidence; a missing-rules result is now a blocker, not an
+accepted Runtime V2 state.
 
 Do not use the broad focused VM command
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` as a required green gate until
