@@ -226,6 +226,14 @@ func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string
 		t.Fatalf("poll rebuilds must stay comparable to poll calls in TRACE_NET %s line:\n%s",
 			reason, line)
 	}
+	if values["io_poll_waiters_total"] < values["io_poll_calls"] {
+		t.Fatalf("poll waiter total must cover at least one registry row per poll call "+
+			"in TRACE_NET %s line:\n%s", reason, line)
+	}
+	if values["io_poll_waiters_max"] < values["io_poll_waiters_last"] {
+		t.Fatalf("poll waiter max must be at least the last registry-row snapshot size "+
+			"in TRACE_NET %s line:\n%s", reason, line)
+	}
 }
 
 func runtimeV2NetTraceValues(t *testing.T, stderr string, reason string) (map[string]uint64, string) {

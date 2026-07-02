@@ -1044,6 +1044,103 @@ Checks:
 - Sentrux gates passed without degradation: root `6198 -> 6194`,
   `runtime` `5195 -> 5239`, and `runtime/native` `5159 -> 5184`.
 
+## Task 12 Evidence: Trace Counters And Benchmark Contract
+
+Date: 2026-07-02. Trace/benchmark visibility task; no runtime C, Makefile, CI,
+`STATS.md`, or `DEBT.md` changes.
+
+Files changed:
+
+- `scripts/bench_native_net.sh`: benchmark `Runtime Trace` table now copies
+  the existing `TRACE_NET` fields that were missing from the report:
+  `io_poll_timeouts`, `io_poll_wake_fd`, `io_poll_errors`,
+  `io_poll_timeout_last_ms`, `io_poll_timeout_max_ms`,
+  `io_poll_waiters_last`, and `io_poll_waiters_max`.
+- `internal/vm/runtime_v2_net_waiter_contract_test.go`: trace contract keeps
+  zero legacy poll-build assertions and adds only stable bounded invariants:
+  `io_poll_rebuilds == io_poll_calls`,
+  `io_poll_waiters_total >= io_poll_calls`, and
+  `io_poll_waiters_max >= io_poll_waiters_last`.
+- `docs/runtime-v2-epics/04-tasks/12-trace-counters-and-benchmark-contract.md`
+  and task index: status and scope updated.
+
+Counter decision:
+
+- No new runtime counters were added. Existing `TRACE_NET` fields are enough
+  to prove registry-derived poll input and completion behavior without making
+  unstable migration telemetry look like public ABI.
+- `TRACE_NET` field names remain migration/debug evidence, not a public ABI.
+- Registration/update/close/cancellation/stale-completion behavior remains
+  covered by focused Task 8-11 tests instead of new counters.
+
+Checks:
+
+- `gofmt -l internal/vm/runtime_v2_net_waiter_contract_test.go`: clean.
+- `bash -n scripts/bench_native_net.sh`: clean.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2NetWaiterTraceContract$' -count=1 -parallel=1 -p=1 -v
+  --timeout 90s`: passed, `TestRuntimeV2NetWaiterTraceContract` `2.29s`,
+  package time `2.297s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistry(WakeFDObservedForInterestAddedDuringPoll|CancelledInterestWakesPoller)$'
+  -count=1 -parallel=1 -p=1 -v --timeout 120s`: passed,
+  `WakeFDObservedForInterestAddedDuringPoll` `3.10s`,
+  `CancelledInterestWakesPoller` `2.50s`, package time `5.603s`.
+
+Benchmark:
+
+- Fresh compiler build command:
+  `go build -o /tmp/surge-task12.W4nKOP/surge -ldflags "$(./scripts/ldflags.sh --local)" ./cmd/surge/`.
+- Version pin: `/tmp/surge-task12.W4nKOP/surge version --full` reported
+  commit `fd82d34686e9`, matching `git rev-parse --short=12 HEAD`.
+- Benchmark command:
+  `SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task12-native-net.md" timeout 120s env SURGE="/tmp/surge-task12.W4nKOP/surge" ./scripts/bench_native_net.sh`.
+- Result: passed and wrote
+  `build/benchmarks/runtime-v2-task12-native-net.md` with 24 runtime trace
+  rows.
+
+Echo latency slice from the report:
+
+| row | avg us/op |
+| --- | ---: |
+| 1/echo/seq | 59.73 |
+| 1/echo/pipe | 22.44 |
+| 2/echo/seq | 90.55 |
+| 2/echo/pipe | 40.29 |
+| 4/echo/seq | 83.62 |
+| 4/echo/pipe | 40.46 |
+| 8/echo/seq | 74.01 |
+| 8/echo/pipe | 40.00 |
+
+Trace exemplar, `1/echo/seq`:
+
+- `io_direct_waits=1783`, `io_poll_calls=4187`,
+  `io_poll_timeouts=1035`, `io_poll_wake_fd=1782`,
+  `io_poll_net_ready=1783`, `io_poll_errors=0`,
+  `io_poll_timeout_last_ms=0`, `io_poll_timeout_max_ms=0`,
+  `io_poll_waiters_last=1`, `io_poll_waiters_max=1`,
+  `io_poll_waiters_total=4187`, `io_waiter_scan_entries=0`,
+  `io_waiter_net_entries=0`, `io_poll_rebuilds=4187`,
+  `io_poll_allocs=2`, `io_poll_dedup_checks=0`,
+  `io_waiter_complete_calls=1783`, `io_waiter_completed=1783`.
+
+Report validation:
+
+- Parsed 24 `Runtime Trace` rows.
+- The `Runtime Trace` header and all 24 body rows have 30 columns.
+- Missing values for the seven newly reported fields: `0`.
+- Violations of zero legacy poll-build counters or
+  `poll rebuilds == net poll calls`: `0`.
+
+Main-session gates:
+
+- `make runtime-v2-check`: passed.
+- `make check`: passed.
+- Sentrux gates passed without degradation: root `6198 -> 6194`,
+  `runtime` `5195 -> 5230`, and `runtime/native` `5159 -> 5175`.
+
 ## Draft Creation Evidence
 
 - `git diff --check`: passed with empty output after creating the Epic 4

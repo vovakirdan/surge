@@ -1576,3 +1576,35 @@ flat, or creates a follow-up split task.
 - Review subagent returned APPROVE with no P0/P1/P2 findings. Residual
   boundary: `rt_executor_request_shutdown` is not wired into normal lifecycle
   yet, and blocking-worker shutdown behavior is not behavior-tested in Task 11.
+
+## Epic 4 Task 12 Handoff
+
+- Scope completed: trace/benchmark visibility only. No runtime C, Makefile,
+  CI, `STATS.md`, or `DEBT.md` changes.
+- No new runtime counters were added. Existing `TRACE_NET` fields already
+  prove registry-derived poll input: the legacy poll-build counters stay zero,
+  `io_poll_rebuilds == io_poll_calls`, and waiter totals/max/last expose
+  registry-row snapshot sizes. Treat these names as migration/debug evidence,
+  not public ABI.
+- `scripts/bench_native_net.sh` now includes the missing existing net fields
+  in the report trace table: poll timeouts, wake-fd count, poll errors,
+  timeout last/max, and waiters last/max.
+- `TestRuntimeV2NetWaiterTraceContract` now also asserts
+  `io_poll_waiters_total >= io_poll_calls` and
+  `io_poll_waiters_max >= io_poll_waiters_last`. It still avoids exact counter
+  values.
+- Focused checks passed: `gofmt -l`, `bash -n scripts/bench_native_net.sh`,
+  `TestRuntimeV2NetWaiterTraceContract`, and the wake/cancel fd-registry
+  regression command.
+- Native net benchmark was run with a fresh `/tmp` compiler binary built from
+  `./cmd/surge/`; version commit `fd82d34686e9` matched HEAD. Report:
+  `build/benchmarks/runtime-v2-task12-native-net.md`.
+- Benchmark report has 24 runtime trace rows. The seven newly reported fields
+  are present in every row; zero legacy poll-build counters and
+  `poll rebuilds == net poll calls` held for every row.
+- Main-session heavy gates passed after the focused slice: `make
+  runtime-v2-check`, `make check`, and Sentrux root/runtime/runtime-native
+  gates (`6198 -> 6194`, `5195 -> 5230`, `5159 -> 5175`).
+- Review subagent returned APPROVE. Residual boundary: benchmark numbers are
+  evidence, not a strict performance gate; `TRACE_NET` fields remain
+  migration/debug evidence, not public ABI.

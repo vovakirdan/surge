@@ -215,7 +215,7 @@ for worker_count in $threads; do
 			read -r got_requests total_us avg_us p50_us p95_us <<<"$result"
 			printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 				"$worker_count" "$mode" "$pattern" "$got_requests" "$total_us" "$avg_us" "$p50_us" "$p95_us" >>"$report"
-			printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+			printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 				"$worker_count" "$mode" "$pattern" \
 				"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_send)" \
 				"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_recv)" \
@@ -228,7 +228,14 @@ for worker_count in $threads; do
 				"$(trace_value "$trace_log" SCHED_TRACE events)" \
 				"$(trace_value "$trace_log" TRACE_NET io_direct_waits)" \
 				"$(trace_value "$trace_log" TRACE_NET io_poll_calls)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_timeouts)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_wake_fd)" \
 				"$(trace_value "$trace_log" TRACE_NET io_poll_net_ready)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_errors)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_timeout_last_ms)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_timeout_max_ms)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_waiters_last)" \
+				"$(trace_value "$trace_log" TRACE_NET io_poll_waiters_max)" \
 				"$(trace_value "$trace_log" TRACE_NET io_poll_waiters_total)" \
 				"$(trace_value "$trace_log" TRACE_NET io_waiter_scan_entries)" \
 				"$(trace_value "$trace_log" TRACE_NET io_waiter_net_entries)" \
@@ -246,8 +253,8 @@ cat >>"$report" <<'EOF'
 
 ## Runtime Trace
 
-| threads | mode | pattern | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water | sched local | sched inject | sched steal | sched events | net direct waits | net poll calls | net ready | net waiters total | waiter scan entries | net waiter entries | poll rebuilds | poll allocs | dedup checks | complete calls | completed waiters |
-| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| threads | mode | pattern | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water | sched local | sched inject | sched steal | sched events | net direct waits | net poll calls | net poll timeouts | net poll wake fd | net ready | net poll errors | net timeout last ms | net timeout max ms | net waiters last | net waiters max | net waiters total | waiter scan entries | net waiter entries | poll rebuilds | poll allocs | dedup checks | complete calls | completed waiters |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 EOF
 cat "$trace_rows" >>"$report"
 
