@@ -30,7 +30,7 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 2 | Complete | FD registry dependency map recorded below. |
 | 3 | Complete | FD lifecycle behavior contract tests recorded below. |
 | 4 | Complete | Registry static shape tests recorded below. |
-| 5 | Pending | Registry container skeleton. |
+| 5 | Complete | Registry container skeleton recorded below. |
 | 6 | Pending | Net wait registration migration. |
 | 7 | Pending | Poll-from-registry migration. |
 | 8 | Pending | Close/cancel/re-register behavior tests. |
@@ -243,6 +243,80 @@ Makefile, or CI changes.
 - Skipped per Rule 6 with reason: `make c-check`/`make cppcheck`/benchmarks
   (no native C changes in Tasks 2-4); Sentrux scans stay owned by the main
   session per task boundaries.
+
+## Task 5 Evidence: Registry Container Skeleton
+
+Date: 2026-07-02. Runtime C skeleton; subagent-executed after an approved
+plan-only pass (Global Rule 9). Working tree intentionally left uncommitted:
+the main session owns the commit and the Sentrux gates.
+
+Files and line-count outcomes (Global Rule 4):
+
+- NEW `runtime/native/rt_fd_registry.h`: 54 lines. Registry types
+  (`rt_fd_close_state`, `rt_fd_entry`, `rt_fd_registry`), the four accessor
+  declarations, the five lifecycle/query declarations, and one ownership
+  comment block (shard-owned by value; ex->lock-guarded once Tasks 6-9 route
+  behavior; `generation`/`close_state` reserved for Task 9 behavior; free has
+  no caller until Tasks 10-11 create a shutdown path).
+- NEW `runtime/native/rt_fd_registry.c`: 72 lines. `init` zeroes; `free`
+  releases entries via `rt_free` and re-zeroes; `ensure_cap` mirrors
+  `rt_waiter_store_ensure_cap` (start cap 16, doubling, `SIZE_MAX / 2U` and
+  `SIZE_MAX / sizeof(rt_fd_entry)` overflow guards, `rt_realloc`); `len` and
+  `find_const` are read-only queries. Explicit `rt_runtime_status`; no
+  `panic_msg`; no plain `bool`.
+- `runtime/native/rt_async_internal.h`: 499 -> 499, not grown. Budget: +1
+  `#include "rt_fd_registry.h"` directly after the `rt_shard`/`rt_executor`
+  forward typedefs (the include point needs `rt_runtime_status` and those
+  typedefs, and must precede `struct rt_shard`); +1 by-value
+  `rt_fd_registry fd_registry;` field beside `net_poll_scratch`; -2 blank
+  separator lines (before `rt_channel_blocking_compat` and before
+  `struct rt_shard`, matching the compact enum-run style already in the
+  file).
+- `runtime/native/rt_runtime.c`: 161 -> 184. Four accessors after the
+  waiter-store block, copying its exact pattern (null-safe shard accessors,
+  shard0-routing executor adapters, `shard_count` guard in the const
+  adapter). `rt_runtime_init_n1` now returns
+  `rt_fd_registry_init(rt_shard_fd_registry(&runtime->shards[0]))`:
+  redundant with the surrounding `memset` today, kept explicit so the
+  init/free lifecycle pairing exists and failure status propagates through
+  the existing `exec_init_once` panic boundary without adding `panic_msg`
+  to the new API or touching over-limit `rt_async_state.c`.
+- Untouched: `rt_net.c` (1024), `rt_async_state.c` (1731),
+  `rt_async_waiter.c`, Makefile, CI. Zero runtime readers/writers of the
+  registry exist; the poll rebuild path is unchanged. Build pickup is
+  automatic: `Makefile` `C_SOURCES` uses `find`, and
+  `runtime/native_embed.go` embeds `native/*.c native/*.h`.
+
+Checks (all run by the executor, in order):
+
+- `make c-check`: passed (formatting + strict warnings incl. new files).
+- `make cppcheck`: passed, 32/32 files, no suppressions added.
+- `make runtime-v2-check`: passed (MT seed set plus waiter gate, 12/12
+  tagged waiter proofs).
+- `make check`: passed; `check_file_sizes.sh` green for all four touched
+  C files.
+- Shape gate flip: `go test -tags runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistryStaticShape$' -count=1 -v --timeout 90s` ->
+  PASS (1.07s; expected-red in Task 4, now green with zero test edits).
+- Boundary gate: same command with `StaticBoundary` -> PASS (0.04s).
+- Task 3 tagged contract 4-pack, verbatim Task 3 command -> 4/4 PASS
+  (15.9s).
+- Focused net probe: `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test
+  ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -v --timeout 90s` ->
+  PASS (2.37s).
+- `clang-format --dry-run --Werror` on all four touched C files: clean.
+- `git diff --check`: clean.
+- Skipped per approved plan: Sentrux scans (main session owns the epic
+  Sentrux CLI check/gate) and the commit (main session owns commits).
+
+Main-session Sentrux results after the Task 5 implementation:
+
+- `sentrux check .`: passed, quality `6198` (stable);
+- `sentrux check runtime`: passed, quality `5200` (baseline `5195`, +5);
+- `sentrux check runtime/native`: passed, quality `5164` (baseline `5159`,
+  +5);
+- `sentrux gate runtime/native`: `5159 -> 5164`, coupling `0.00 -> 0.00`,
+  cycles `0 -> 0`, god files `0 -> 0`, `No degradation detected`.
 
 ## Draft Creation Evidence
 

@@ -26,7 +26,9 @@ static rt_runtime_status rt_runtime_init_n1(rt_runtime* runtime, rt_executor* ex
     runtime->shards[0].executor = ex;
     runtime->shards[0].shard_id = 0;
     ex->runtime = runtime;
-    return RT_RUNTIME_STATUS_OK;
+    // Redundant with the memset today, but the registry lifecycle must stay
+    // explicit: init pairs with rt_fd_registry_free once shutdown exists.
+    return rt_fd_registry_init(rt_shard_fd_registry(&runtime->shards[0]));
 }
 
 rt_runtime_status rt_runtime_init_global_n1(rt_executor* ex) {
@@ -119,6 +121,27 @@ const rt_waiter_store* rt_executor_waiter_store_const(const rt_executor* ex) {
         return NULL;
     }
     return rt_shard_waiter_store_const(&ex->runtime->shards[0]);
+}
+
+rt_fd_registry* rt_shard_fd_registry(rt_shard* shard) {
+    return shard != NULL ? &shard->fd_registry : NULL;
+}
+
+const rt_fd_registry* rt_shard_fd_registry_const(const rt_shard* shard) {
+    return shard != NULL ? &shard->fd_registry : NULL;
+}
+
+rt_fd_registry* rt_executor_fd_registry(rt_executor* ex) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    rt_shard* shard = rt_runtime_shard0(runtime);
+    return rt_shard_fd_registry(shard);
+}
+
+const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
+    if (ex == NULL || ex->runtime == NULL || ex->runtime->shard_count != RT_RUNTIME_SHARD_COUNT) {
+        return NULL;
+    }
+    return rt_shard_fd_registry_const(&ex->runtime->shards[0]);
 }
 
 rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,

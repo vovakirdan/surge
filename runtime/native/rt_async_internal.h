@@ -123,6 +123,7 @@ typedef struct rt_executor rt_executor;
 typedef struct rt_runtime rt_runtime;
 typedef struct rt_shard rt_shard;
 typedef struct rt_worker_ctx rt_worker_ctx;
+#include "rt_fd_registry.h"
 
 #define RT_RUNTIME_SHARD_COUNT 1U
 
@@ -142,18 +143,17 @@ typedef struct {
     void* pfds;
     size_t pfds_cap;
 } rt_net_poll_scratch;
-
 typedef struct {
     uint32_t channel_blocked_workers;
     uint32_t compensation_count;
     uint32_t compensation_high_water;
 } rt_channel_blocking_compat;
-
 struct rt_shard {
     rt_runtime* runtime;
     rt_executor* executor;
     rt_scheduler scheduler;
     rt_net_poll_scratch net_poll_scratch;
+    rt_fd_registry fd_registry;
     rt_channel_blocking_compat channel_blocking_compat;
     rt_waiter_store waiter_store;
     uint32_t shard_id;

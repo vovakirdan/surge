@@ -210,6 +210,44 @@ task, then move durable decisions into the owning epic document before closeout.
 - CI note: the new fd contract tests are Task 13 promotion candidates by
   extending the `runtime_v2_pending` run filter in `runtime-v2-waiter-check`.
 
+## Epic 4 Task 05 Handoff
+
+- Scope completed: registry container skeleton (Task 5) as a plan-gated
+  subagent. Working tree intentionally left uncommitted; the main session
+  owns the commit and the Sentrux CLI check/gate evidence.
+- What exists now: `runtime/native/rt_fd_registry.h` (54 lines; types,
+  accessor and lifecycle declarations, one ownership comment block) included
+  from `rt_async_internal.h` directly after the `rt_shard`/`rt_executor`
+  forward typedefs; `runtime/native/rt_fd_registry.c` (72 lines;
+  `init`/`free`/`ensure_cap`/`len`/`find_const`); by-value
+  `rt_shard.fd_registry` beside `net_poll_scratch`; shard-first accessors
+  plus shard0 executor adapters in `rt_runtime.c`; init wired into
+  `rt_runtime_init_n1` so the registry initializes with the owning shard and
+  status flows through the existing `exec_init_once` failure boundary.
+- Line budget resolution: `rt_async_internal.h` stayed at 499 lines
+  (+include, +field, -2 blank separator lines). All future fd-registry API
+  growth (Tasks 6/7/9 mutators) must land in `rt_fd_registry.h`, which costs
+  `rt_async_internal.h` nothing.
+- Zero-reader guarantee held: nothing in `rt_net.c`, `rt_async_state.c`, or
+  `rt_async_waiter.c` references the registry; the poll rebuild path is
+  unchanged. No net behavior change is claimed or possible.
+- `rt_fd_registry_free` has no caller by design: `ex->shutdown` still has no
+  writer, so no teardown path exists to hook. Tasks 10-11 create the
+  shutdown path and wire the free. Do not "fix" the unused free earlier.
+- Growth contract (mirrors `rt_waiter_store_ensure_cap`): lazy allocation,
+  start cap 16, doubling, `SIZE_MAX` overflow guards, `rt_realloc`, explicit
+  `RT_RUNTIME_STATUS_*` codes, no `panic_msg` in the new API.
+- Tested: Shape static gate flipped red->green with zero test edits;
+  Boundary static gate green; Task 3 contract 4-pack green (15.9s); `make
+  c-check`/`cppcheck`/`runtime-v2-check`/`check` green;
+  `TestMTNetWaiterWakeupLatency` green (2.37s); `git diff --check` clean.
+- Not tested: the registry has no behavior yet, so no liveness/behavior
+  proof covers it; `ensure_cap`/`find_const` get their first behavior proof
+  when Task 6 registration writes land and extend the Shape gate.
+- Next decision before Task 6: mutation API shape for registration-side
+  interest writes under `ex->lock` alongside `prepare_park`, plus the Shape
+  static gate extension for those mutators.
+
 ## Epic 1 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.
