@@ -1634,3 +1634,43 @@ flat, or creates a follow-up split task.
 - Review subagent approved after one P2 doc issue was fixed: the fd-registry
   liveness row now says the global waiter poll scan is pre-Epic-4 baseline and
   the current runtime polls fd-registry snapshots.
+
+## Epic 4 Task 14 Handoff
+
+- Scope completed: `TRACE_NET` counters and dump helpers
+  moved from `runtime/native/rt_net.c` into new `runtime/native/rt_net_trace.c`
+  plus `runtime/native/rt_net_trace.h`.
+- `rt_net.c` still owns wake-fd init/write/drain, poll construction,
+  registry snapshots, `poll()`, and close lifecycle. No wake-fd or fd-registry
+  behavior was moved in this slice.
+- `rt_net_trace_dump(const char*)` remains externally visible and keeps the
+  same `TRACE_NET` field names/order. Counters are private `static` atomics in
+  the new `.c` file. Header helpers avoid fd-registry types; waiter completion
+  passes `calls` and `woken`.
+- LOC result: `rt_net.c` `1002 -> 904`; new `rt_net_trace.c` `128`; new
+  `rt_net_trace.h` `73`; `rt_async_internal.h` stayed `495`.
+  `.loc-legacy-allowlist` lowered the `rt_net.c` ceiling to exact count `904`.
+- Focused checks passed: `clang-format -i` on changed C/H files,
+  `make c-check`, `make cppcheck`, `make runtime-v2-fd-registry-check`
+  (10 selected tests, package time `15.853s` in the final gate rerun),
+  `git diff --check`, new-file
+  `git diff --no-index --check`, and `./check_file_sizes.sh`.
+- Fix note: first `make c-check` failed because `clang-format` reordered local
+  includes, so `rt_net_trace.h` could not rely on `rt_async_internal.h` being
+  included first. The header now declares `rt_exec_trace_enabled()` itself.
+- Main-session gates passed: `make runtime-v2-check`, `make check`, and
+  `TestMTNetWaiterWakeupLatency`.
+- Native net benchmark passed with current working-tree binary and wrote
+  ignored report `build/benchmarks/runtime-v2-task14-native-net.md`. The
+  report had 24 runtime trace rows, 30 columns, all required trace columns,
+  zero legacy poll-build counter violations, and
+  `poll rebuilds == net poll calls` in every row.
+- Review subagent approved after one P2 debt-doc issue was fixed.
+  RV2-DEBT-004 now records Task 14 as partial progress and leaves remaining
+  `rt_net.c` LOC debt open for a future net wake-fd, poll-construction, or
+  net-handle lifecycle split.
+- Sentrux root/runtime/runtime-native gates are recorded in `04-evidence.md`
+  after final documentation updates. Root improved `6194 -> 6196`; scoped
+  runtime/native rules passed but quality signals decreased
+  `5230 -> 5214` and `5175 -> 5158`, recorded as an accepted split tradeoff
+  while RV2-DEBT-004 remains open.

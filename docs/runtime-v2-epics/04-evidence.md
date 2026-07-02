@@ -39,7 +39,7 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 11 | Complete | Wake-fd and shutdown migration recorded below. |
 | 12 | Complete | Trace counters and benchmark contract recorded below. |
 | 13 | Complete | FD registry CI gate wiring recorded below. |
-| 14 | Pending | Large-file refactor tranche. |
+| 14 | Complete | TRACE_NET extraction and closeout checks recorded below. |
 | 15 | Pending | Closeout gates and handoff. |
 
 ## Task 1 Evidence: Kickoff Baseline And Sentrux
@@ -1201,6 +1201,126 @@ Checks:
   all three paths.
 - Review subagent approved after the `LIVENESS_PROBES.md` stale pre-Epic-4
   poll-scan wording was corrected to the current registry snapshot path.
+
+## Task 14 Evidence: Large-File Refactor Tranche
+
+Date: 2026-07-02. Behavior-preserving refactor; no wake-fd movement, no poll
+construction movement, no registry snapshot movement, and no close lifecycle
+movement.
+
+Boundary:
+
+- Chosen boundary: `TRACE_NET` trace counters and dump helpers moved from
+  `runtime/native/rt_net.c` into new `runtime/native/rt_net_trace.c` with
+  declarations and inline guard wrappers in `runtime/native/rt_net_trace.h`.
+- Rejected boundary: wake-fd extraction, because `net_poll_wake_init`,
+  `net_poll_wake_drain`, `rt_net_wake_poll`, and poll slot `pfds[0]` are
+  correctness-sensitive and belong in a separate wake-fd task if needed.
+- Rejected boundary: poll construction extraction, because it couples scratch
+  allocation, registry snapshots, `poll()`, wake slot layout, and completion
+  routing.
+
+Files changed:
+
+- `runtime/native/rt_net.c`: replaced direct trace counter operations with
+  trace helper calls; wake-fd, `poll()`, registry snapshots, and close
+  lifecycle stayed in place.
+- `runtime/native/rt_net_trace.h`: new internal trace helper header. It avoids
+  fd-registry types; waiter completion is passed as `calls`/`woken`.
+- `runtime/native/rt_net_trace.c`: new trace implementation. All `TRACE_NET`
+  counters are private `static` atomics here.
+- `.loc-legacy-allowlist`: lowered `runtime/native/rt_net.c` ceiling from
+  `1002` to exact post-refactor count `904`.
+- `docs/runtime-v2-epics/DEBT.md`: RV2-DEBT-004 updated to record Task 14 as
+  partial progress, with remaining `rt_net.c` LOC debt still open.
+
+Line counts:
+
+| file | before | after |
+| --- | ---: | ---: |
+| `runtime/native/rt_net.c` | 1002 | 904 |
+| `runtime/native/rt_net_trace.c` | 0 | 128 |
+| `runtime/native/rt_net_trace.h` | 0 | 73 |
+| `runtime/native/rt_async_internal.h` | 495 | 495 |
+
+Preserved behavior contract:
+
+- `rt_net_trace_dump(const char*)` remains externally visible through the
+  existing `rt_async_internal.h` declaration.
+- `TRACE_NET` field names and order are unchanged.
+- Disabled tracing still checks `rt_exec_trace_enabled()` before atomic trace
+  updates in the `rt_net_trace.h` inline wrappers.
+- `io_waiter_scan_entries`, `io_waiter_net_entries`, and
+  `io_poll_dedup_checks` remain present as zero-valued legacy-poll evidence
+  counters.
+
+Focused checks:
+
+- `clang-format -i runtime/native/rt_net.c runtime/native/rt_net_trace.c runtime/native/rt_net_trace.h`: passed.
+- `wc -l runtime/native/rt_net.c runtime/native/rt_net_trace.c runtime/native/rt_net_trace.h runtime/native/rt_async_internal.h`:
+  `904`, `128`, `73`, `495`.
+- `make c-check`: passed after fixing the new header to declare
+  `rt_exec_trace_enabled()` itself; the first run exposed that
+  `clang-format` can reorder local includes.
+- `make cppcheck`: passed.
+- `make runtime-v2-fd-registry-check`: passed; all 10 selected tests passed,
+  package time `15.853s` in the final `make runtime-v2-check` rerun.
+- `make runtime-v2-check`: passed. The MT seed gate passed, waiter liveness
+  gate passed including `TestRuntimeV2NetWaiterTraceContract`, and the
+  fd-registry gate passed with package time `15.853s`.
+- `make check`: passed; `go test ./...`, `golangci-lint`, `make c-check`,
+  and `check_file_sizes.sh` all passed. The LOC gate reported `rt_net.c`
+  `LEGACY OK <=904`, `rt_net_trace.c` `128` OK, and `rt_net_trace.h` `73` OK.
+- `SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMTNetWaiterWakeupLatency$' -count=1 -parallel=1 -p=1 -v --timeout
+  90s`: passed, package time `2.339s`.
+- `git diff --check`: passed with empty output after documentation updates.
+- `git diff --no-index --check /dev/null runtime/native/rt_net_trace.c` and
+  `git diff --no-index --check /dev/null runtime/native/rt_net_trace.h`:
+  passed with empty output for the untracked new files.
+- `./check_file_sizes.sh`: passed; checked `rt_net.c` as
+  `LEGACY OK <=904`, `rt_net_trace.c` `128` as `OK`, and
+  `rt_net_trace.h` `73` as `OK`.
+
+Native net benchmark:
+
+- Build command:
+  `go build -o /tmp/surge-task14.*/surge -ldflags "$(./scripts/ldflags.sh --local)" ./cmd/surge/`.
+- Version output reports HEAD commit `03ca4b5e0d32`; the binary was built from
+  the working tree with the uncommitted Task 14 trace refactor.
+- Benchmark command:
+  `SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task14-native-net.md" timeout 120s env SURGE="/tmp/surge-task14.*/surge" ./scripts/bench_native_net.sh`.
+- Report: `build/benchmarks/runtime-v2-task14-native-net.md`, ignored by
+  `.gitignore`.
+- Validation: 24 runtime trace rows, 30 columns, all required trace columns
+  present, zero legacy poll-build counter violations, and
+  `poll rebuilds == net poll calls` in every row.
+
+Echo latency slice from the report:
+
+| row | avg us/op |
+| --- | ---: |
+| 1/echo/seq | 61.32 |
+| 1/echo/pipe | 24.15 |
+| 2/echo/seq | 78.82 |
+| 2/echo/pipe | 40.23 |
+| 4/echo/seq | 74.69 |
+| 4/echo/pipe | 39.51 |
+| 8/echo/seq | 78.41 |
+| 8/echo/pipe | 39.31 |
+
+Sentrux/review:
+
+- Sentrux root baseline before Task 14: `6194`.
+- Final Sentrux root session passed and improved `6194 -> 6196`, with zero
+  violations and root rules passed.
+- Final Sentrux scoped scans passed rules but recorded a quality tradeoff:
+  `runtime` quality `5230 -> 5214` and `runtime/native` quality
+  `5175 -> 5158`. This is accepted as a transparent split tradeoff for the new
+  cohesive trace module because root quality improved, no rules failed, and
+  RV2-DEBT-004 remains open until `rt_net.c` is split below the target.
+- Review subagent approved code after the RV2-DEBT-004 stale-owner finding was
+  fixed.
 
 ## Draft Creation Evidence
 

@@ -3,6 +3,7 @@
 #endif
 
 #include "rt_async_internal.h"
+#include "rt_net_trace.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -65,95 +66,6 @@ typedef struct SurgeArrayHeader {
 
 static int net_poll_wake_read_fd = -1;
 static int net_poll_wake_write_fd = -1;
-static _Atomic uint64_t net_poll_calls_total;
-static _Atomic uint64_t net_poll_timeouts_total;
-static _Atomic uint64_t net_poll_wake_fd_total;
-static _Atomic uint64_t net_poll_ready_total;
-static _Atomic uint64_t net_poll_errors_total;
-static _Atomic uint64_t net_poll_timeout_last_ms;
-static _Atomic uint64_t net_poll_timeout_max_ms;
-static _Atomic uint64_t net_poll_waiters_last;
-static _Atomic uint64_t net_poll_waiters_max;
-static _Atomic uint64_t net_poll_waiters_total;
-static _Atomic uint64_t net_direct_wait_total;
-static _Atomic uint64_t net_waiter_scan_entries_total;
-static _Atomic uint64_t net_waiter_net_entries_total;
-static _Atomic uint64_t net_poll_rebuilds_total;
-static _Atomic uint64_t net_poll_allocs_total;
-static _Atomic uint64_t net_poll_dedup_checks_total;
-static _Atomic uint64_t net_waiter_complete_calls_total;
-static _Atomic uint64_t net_waiter_completed_total;
-
-#define NET_TRACE_DUMP_FORMAT                                                                      \
-    "TRACE_NET reason=%s io_poll_calls=%llu io_poll_timeouts=%llu "                                \
-    "io_poll_wake_fd=%llu io_poll_net_ready=%llu io_poll_errors=%llu "                             \
-    "io_poll_timeout_last_ms=%llu io_poll_timeout_max_ms=%llu "                                    \
-    "io_poll_waiters_last=%llu io_poll_waiters_max=%llu "                                          \
-    "io_poll_waiters_total=%llu io_direct_waits=%llu "                                             \
-    "io_waiter_scan_entries=%llu io_waiter_net_entries=%llu "                                      \
-    "io_poll_rebuilds=%llu io_poll_allocs=%llu io_poll_dedup_checks=%llu "                         \
-    "io_waiter_complete_calls=%llu io_waiter_completed=%llu\n"
-#define NET_TRACE_DUMP_ARGS(reason)                                                                \
-    (reason), net_trace_load(&net_poll_calls_total), net_trace_load(&net_poll_timeouts_total),     \
-        net_trace_load(&net_poll_wake_fd_total), net_trace_load(&net_poll_ready_total),            \
-        net_trace_load(&net_poll_errors_total), net_trace_load(&net_poll_timeout_last_ms),         \
-        net_trace_load(&net_poll_timeout_max_ms), net_trace_load(&net_poll_waiters_last),          \
-        net_trace_load(&net_poll_waiters_max), net_trace_load(&net_poll_waiters_total),            \
-        net_trace_load(&net_direct_wait_total), net_trace_load(&net_waiter_scan_entries_total),    \
-        net_trace_load(&net_waiter_net_entries_total), net_trace_load(&net_poll_rebuilds_total),   \
-        net_trace_load(&net_poll_allocs_total), net_trace_load(&net_poll_dedup_checks_total),      \
-        net_trace_load(&net_waiter_complete_calls_total),                                          \
-        net_trace_load(&net_waiter_completed_total)
-
-static unsigned long long net_trace_load(const _Atomic uint64_t* counter) {
-    return (unsigned long long)atomic_load_explicit(counter, memory_order_relaxed);
-}
-
-static void net_trace_inc(_Atomic uint64_t* counter) {
-    if (!rt_exec_trace_enabled()) {
-        return;
-    }
-    (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
-}
-
-static void net_trace_add(_Atomic uint64_t* counter, uint64_t value) {
-    if (!rt_exec_trace_enabled()) {
-        return;
-    }
-    (void)atomic_fetch_add_explicit(counter, value, memory_order_relaxed);
-}
-
-static void net_trace_store(_Atomic uint64_t* counter, uint64_t value) {
-    if (!rt_exec_trace_enabled()) {
-        return;
-    }
-    atomic_store_explicit(counter, value, memory_order_relaxed);
-}
-
-void rt_net_trace_dump(const char* reason) {
-    if (reason == NULL || reason[0] == '\0') {
-        reason = "unknown";
-    }
-    (void)dprintf(STDERR_FILENO, NET_TRACE_DUMP_FORMAT, NET_TRACE_DUMP_ARGS(reason));
-}
-
-static uint64_t net_trace_timeout_ms(int timeout_ms) {
-    if (timeout_ms <= 0) {
-        return 0;
-    }
-    return (uint64_t)timeout_ms;
-}
-
-static void net_trace_max(_Atomic uint64_t* counter, uint64_t value) {
-    if (!rt_exec_trace_enabled()) {
-        return;
-    }
-    uint64_t current = atomic_load_explicit(counter, memory_order_relaxed);
-    while (current < value &&
-           !atomic_compare_exchange_weak_explicit(
-               counter, &current, value, memory_order_relaxed, memory_order_relaxed)) {
-    }
-}
 
 static size_t net_next_cap(size_t current, size_t want) {
     size_t next = current == 0 ? 8 : current;
@@ -225,11 +137,6 @@ static void net_poll_wake_drain(void) {
     }
 }
 
-static void net_trace_waiter_completion(rt_fd_completion_summary summary) {
-    net_trace_add(&net_waiter_complete_calls_total, summary.calls);
-    net_trace_add(&net_waiter_completed_total, summary.woken);
-}
-
 static int
 ensure_net_poll_fds(rt_net_poll_scratch* scratch, size_t want, rt_fd_poll_interest** out) {
     if (scratch == NULL || out == NULL) {
@@ -247,7 +154,7 @@ ensure_net_poll_fds(rt_net_poll_scratch* scratch, size_t want, rt_fd_poll_intere
         }
         scratch->fds = next;
         scratch->fds_cap = next_cap;
-        net_trace_inc(&net_poll_allocs_total);
+        rt_net_trace_poll_alloc();
     }
     *out = (rt_fd_poll_interest*)scratch->fds;
     return 1;
@@ -269,7 +176,7 @@ static int ensure_net_poll_pfds(rt_net_poll_scratch* scratch, size_t want, struc
         }
         scratch->pfds = next;
         scratch->pfds_cap = next_cap;
-        net_trace_inc(&net_poll_allocs_total);
+        rt_net_trace_poll_alloc();
     }
     *out = (struct pollfd*)scratch->pfds;
     return 1;
@@ -636,7 +543,8 @@ static void* close_net_fd_slot(int* fd_slot, bool* closed_slot) {
     if (close(fd) != 0) {
         close_errno = errno;
     }
-    net_trace_waiter_completion(rt_fd_registry_wake_closed_net_waiters(ex, &snapshot));
+    rt_fd_completion_summary summary = rt_fd_registry_wake_closed_net_waiters(ex, &snapshot);
+    rt_net_trace_waiter_completion(summary.calls, summary.woken);
     if (close_errno != 0) {
         return net_make_error(net_error_code_from_errno(close_errno));
     }
@@ -852,7 +760,7 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
         rt_unlock(ex);
         return true;
     }
-    net_trace_inc(&net_direct_wait_total);
+    rt_net_trace_direct_wait();
     prepare_park(ex, task, key, 0);
     if (!rt_fd_registry_net_interest_present(rt_executor_fd_registry_const(ex), key)) {
         // Attach failed or closed the row: undo the park so the rowless waiter
@@ -923,14 +831,7 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     if (!ensure_net_poll_pfds(scratch, poll_count, &pfds)) {
         return 0;
     }
-    net_trace_inc(&net_poll_rebuilds_total);
-    net_trace_inc(&net_poll_calls_total);
-    uint64_t requested_timeout_ms = net_trace_timeout_ms(timeout_ms);
-    net_trace_store(&net_poll_timeout_last_ms, requested_timeout_ms);
-    net_trace_max(&net_poll_timeout_max_ms, requested_timeout_ms);
-    net_trace_store(&net_poll_waiters_last, (uint64_t)count);
-    net_trace_max(&net_poll_waiters_max, (uint64_t)count);
-    net_trace_add(&net_poll_waiters_total, (uint64_t)count);
+    rt_net_trace_poll_start(timeout_ms, (uint64_t)count);
 
     size_t offset = 0;
     if (wake_fd >= 0) {
@@ -960,22 +861,23 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     } while (n < 0 && errno == EINTR);
     rt_lock(ex);
     if (n < 0) {
-        net_trace_inc(&net_poll_errors_total);
+        rt_net_trace_poll_error();
         for (size_t i = 0; i < count; i++) {
-            net_trace_waiter_completion(
-                rt_fd_registry_complete_ready_net_waiters(ex, &fds[i], 1, 1));
+            rt_fd_completion_summary summary =
+                rt_fd_registry_complete_ready_net_waiters(ex, &fds[i], 1, 1);
+            rt_net_trace_waiter_completion(summary.calls, summary.woken);
         }
         return 1;
     }
     if (n == 0) {
-        net_trace_inc(&net_poll_timeouts_total);
+        rt_net_trace_poll_timeout();
         return 0;
     }
 
     int woke = 0;
     if (wake_fd >= 0 && pfds[0].revents != 0) {
         net_poll_wake_drain();
-        net_trace_inc(&net_poll_wake_fd_total);
+        rt_net_trace_poll_wake_fd();
         woke = 1;
     }
     for (size_t i = 0; i < count; i++) {
@@ -988,14 +890,14 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         rt_fd_completion_summary completion =
             rt_fd_registry_complete_ready_net_waiters(ex, &fds[i], read_ready, write_ready);
         if (read_ready) {
-            net_trace_inc(&net_poll_ready_total);
+            rt_net_trace_poll_ready();
             woke = 1;
         }
         if (write_ready) {
-            net_trace_inc(&net_poll_ready_total);
+            rt_net_trace_poll_ready();
             woke = 1;
         }
-        net_trace_waiter_completion(completion);
+        rt_net_trace_waiter_completion(completion.calls, completion.woken);
     }
 
     return woke;

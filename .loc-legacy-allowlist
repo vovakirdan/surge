@@ -7,7 +7,7 @@
 
 runtime/native/rt_async_state.c 1727 Runtime V2 split in progress; must not grow before further refactor.
 runtime/native/rt_term.c 1091 Existing terminal runtime debt outside Runtime V2 Epic 4 scope.
-runtime/native/rt_net.c 1002 Runtime V2 fd-registry work will split this by dependency boundary.
+runtime/native/rt_net.c 904 Runtime V2 fd-registry work will continue splitting by dependency boundary.
 runtime/native/rt_fs.c 978 Existing filesystem runtime debt outside Runtime V2 Epic 4 scope.
 runtime/native/rt_async_task.c 768 Existing async task runtime debt; split when task ownership changes.
 runtime/native/rt_string.c 762 Existing string runtime debt outside Runtime V2 Epic 4 scope.
