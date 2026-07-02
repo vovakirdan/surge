@@ -236,6 +236,12 @@ different cost is a hidden cliff, which is exactly what the cost model forbids.
 
 Runtime V2 therefore makes crossing a distinct, visible construct.
 
+The concrete names in this section are working names. Before any compiler,
+parser, semantic-analysis, or public syntax work starts, run a separate syntax
+review and choose the final keywords/operators for brevity and readability.
+`far`, `submit_to`, and related spellings below describe the contract shape, not
+the final language surface.
+
 **Far handles.** A capability that targets another shard has a distinct type,
 written `far T` as a working name. `far Chan<T>` is a channel endpoint owned by
 another shard; `far Task<T>` is a handle to a task running on another shard. A
@@ -681,6 +687,9 @@ structure pass.
 - Add explicit messages for cross-shard channel operations, cancellation,
   distributed scopes, and controlled migration.
 - Enforce move-only and shard-movable boundaries for payloads.
+- Stop before parser, compiler, or public syntax changes and run a dedicated
+  syntax review. The names in this document are placeholders until that review
+  chooses the final concise surface.
 - Enforce the crossing surface in the compiler: semantic analysis rejects
   crossings outside `submit_to` and rejects borrowed or shard-pinned captures;
   async lowering emits the cross-shard resume kind for `submit_to`.

@@ -1693,3 +1693,36 @@ flat, or creates a follow-up split task.
 - Next epic: heap and hot accounting ownership. Keep `N>1` accept
   distribution, crossing syntax, backend I/O migration, and VM/native/LLVM
   test-matrix rewrite out until their owning epics.
+
+## Epic 5 Draft Handoff
+
+- Created `docs/runtime-v2-epics/05-per-shard-heap-accounting.md` as the next
+  standalone epic document.
+- Created brief task documents under `docs/runtime-v2-epics/05-tasks/` and the
+  initial `05-evidence.md` ledger.
+- Scope: remove the four global heap counter cache lines from the hot
+  `rt_alloc`/`rt_free`/`rt_realloc` path while keeping `malloc/free`, public
+  allocation ABI, `HeapStats` layout, and current `rt_heap_stats()` snapshot
+  behavior.
+- Important boundary: current `N=1` still has multiple worker threads, so
+  "per-shard" accounting must not become one contended shard counter block. The
+  epic allows shard-owned per-worker or per-thread accounting cells, aggregated
+  by `rt_heap_stats()` on read.
+- Excluded: slab/bump pools, owner-shard page or span metadata, remote-free
+  queues, cross-shard frees, `N>1` accept ownership, compiler crossing syntax,
+  backend I/O migration, broad VM/native/LLVM test-matrix rewrite, and unrelated
+  LOC cleanup.
+- Debt policy: only debt created by or brought into Epic 5 scope can block Epic
+  5. New allocator/accounting debt cannot stay hidden in notes; it must be
+  closed or added to `DEBT.md` with an owner and close condition before closeout.
+
+## Future Language Syntax Gate
+
+- Before Epic 7 or any earlier task touches Surge syntax, parser rules, semantic
+  checks for new syntax, public examples, or keywords, stop and run a dedicated
+  syntax discussion with the user.
+- Current names in `docs/RUNTIME_V2.md`, including `far`, `submit_to`, and
+  `shard-movable`, are contract placeholders. They are not final language
+  keyword choices.
+- The syntax review must consider keyword count, readability, and concise source
+  spelling before implementation starts.

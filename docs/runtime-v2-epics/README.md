@@ -29,6 +29,9 @@ and dependency-aware runtime refactoring under the same `N=1` boundary. Epic 4
 is complete for persistent fd registry and net lifecycle proof, with accepted
 debt recorded in `DEBT.md`.
 
+Epic 5 is planned in `05-per-shard-heap-accounting.md`. Its task documents live
+under `05-tasks/`; implementation has not started.
+
 ## Current Runtime V2 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.
@@ -50,6 +53,9 @@ debt recorded in `DEBT.md`.
 - `04-persistent-fd-registry-and-net-lifecycle.md`: Epic 4 scope, task list,
   acceptance gates, closeout, and Epic 5 handoff.
 - `04-evidence.md`: Epic 4 task evidence ledger.
+- `05-per-shard-heap-accounting.md`: Epic 5 scope, task list, and acceptance
+  gates for shard-owned heap accounting.
+- `05-evidence.md`: Epic 5 task evidence ledger.
 
 Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside
@@ -77,13 +83,20 @@ Every epic should move the runtime toward these goals:
 | 2 | `02-n1-runtime-shard-structure.md` | Complete. Introduced V2-shaped `rt_runtime` / `rt_shard` structures with `N=1`, migrated selected owner surfaces, and added the stable Runtime V2 liveness gate without changing behavior. |
 | 3 | `03-owner-local-waiters-and-runtime-refactor.md` | Complete. Moved included waiter surfaces to owner-local structures under `N=1`, added stable waiter liveness gates, and landed dependency-aware runtime refactoring. |
 | 4 | `04-persistent-fd-registry-and-net-lifecycle.md` | Complete. Replaced poll-set rebuilds with a shard-local persistent fd registry and proved net lifecycle ownership with accepted debt. |
-| 5 | TBD | Next. Move hot heap counters to per-shard accounting before real `N>1` benchmarking. |
+| 5 | `05-per-shard-heap-accounting.md` | Planned. Move hot heap counters to shard-owned accounting before real `N>1` benchmarking. |
 | 6 | TBD | Enable multi-shard accept ownership and remove hot-path stealing for connection tasks. |
-| 7 | TBD | Add the explicit crossing language surface: `far`, `submit_to`, and shard-movable checks. |
+| 7 | TBD | Add the explicit crossing language surface. Must start with a dedicated syntax review; current names such as `far`, `submit_to`, and `shard-movable` are placeholders. |
 | 8 | TBD | Add cross-shard runtime transport, remote operations, Tier 2 destinations, and generation-checked distributed flows. |
 | 9 | TBD | Add remote-free routing and shard-local hot pools. |
 | 10 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |
 | 11 | TBD | Rewrite the VM/native/LLVM test matrix around the stable Runtime V2 contracts and remove accepted backend-test debt. |
+
+## Language Syntax Gate
+
+Before any epic or task changes Surge syntax, keywords, parser rules, semantic
+checks for new syntax, or public examples, stop and review the language surface
+with the user. The `RUNTIME_V2.md` names for crossing, far handles, and shard
+movability describe semantics only. They are not final keyword choices.
 
 ## Standing Gates
 
