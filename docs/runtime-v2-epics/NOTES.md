@@ -169,6 +169,47 @@ task, then move durable decisions into the owning epic document before closeout.
   `internal/vm/runtime_v2_fd_registry_static_test.go`. The main session owns
   `04-evidence.md` and `NOTES.md` updates to avoid write conflicts.
 
+## Epic 4 Tasks 02-04 Handoff
+
+- Scope completed: dependency map (Task 2), fd lifecycle contract tests
+  (Task 3), and registry static shape tests (Task 4). All three ran as
+  plan-gated subagents with approved plans and disjoint write sets; the main
+  session recorded evidence and owns the commits.
+- New artifacts: `04-fd-registry-dependency-map.md` (390 lines),
+  `internal/vm/runtime_v2_fd_registry_contract_test.go` (499 lines,
+  `runtime_v2_pending`, 4/4 green twice),
+  `internal/vm/runtime_v2_fd_registry_static_test.go` (175 lines,
+  `runtime_v2_pending`, Boundary green, Shape expected-red until Task 5).
+- Load-bearing map facts: close never wakes parked net waiters and never
+  kicks the poller; numeric fd reuse can wake old-lifetime waiters;
+  `ex->shutdown` has no writer anywhere in `runtime/native` (no graceful
+  shutdown contract exists today); the wake pipe is process-global and
+  written only from `park_current` for net keys.
+- Approved Task 5 shape contract is pinned by the static Shape test:
+  `rt_fd_entry {fd, generation, close_state, want_accept, want_read,
+  want_write}`, `rt_fd_registry {entries, len, cap}`, by-value
+  `rt_shard.fd_registry`, shard/executor accessors, and
+  `rt_fd_registry_init/free/ensure_cap/len/find_const` returning
+  `rt_runtime_status` for recoverable failures. Declarations go into a new
+  `runtime/native/rt_fd_registry.h` included from `rt_async_internal.h`
+  (that header is at 499/500 lines and must not grow past the limit).
+- Contract-test assertion durability rule (do not violate in later tasks):
+  the four fd contract tests assert only migration-durable counters
+  (`io_poll_waiters_max`, `io_poll_calls`, `io_poll_net_ready`,
+  `io_direct_waits`, `io_waiter_completed`). Tasks 7 and 12 must keep the
+  meaning of `io_poll_waiters_max` as max distinct fd rows per poll build.
+- Known behavior fact recorded during Task 3: Surge handle copies
+  (`{ __opaque: handle }`) clone the `NetConn` view; after `close`, ops
+  through a copy hit `EBADF` and map to `NET_ERR_IO` (8), not
+  `NotConnected` (5). This is a live fd-reuse hazard input for Tasks 8-9.
+- Caution recorded, outside Epic 4 scope: a scratch LLVM program printing a
+  pointer-valued int handle (`conn.__opaque to string` concatenation)
+  segfaulted reproducibly while uint error codes print fine. Candidate
+  compiler/runtime bug for a later backend task; repro kept in the session
+  scratchpad, not in the repo.
+- CI note: the new fd contract tests are Task 13 promotion candidates by
+  extending the `runtime_v2_pending` run filter in `runtime-v2-waiter-check`.
+
 ## Epic 1 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.
