@@ -1498,3 +1498,44 @@ flat, or creates a follow-up split task.
   `make c-check`, `make cppcheck`, `make runtime-v2-check` after one isolated
   `TestMTChannelParkUnpark` timeout/rerun, `make check`, and
   `git diff --check`.
+
+## Epic 4 Task 10 Handoff
+
+- Scope completed: wake-fd and shutdown tests only. No runtime C, Makefile,
+  CI, `STATS.md`, or `DEBT.md` changes.
+- LOC discipline: new Task 10 tests live in separate opt-in files
+  `runtime_v2_fd_registry_wake_test.go` (`446` lines) and
+  `runtime_v2_fd_registry_shutdown_static_test.go` (`133` lines); existing
+  contract/static files remain `499` and `426` lines.
+- Green runtime trace proof:
+  `TestRuntimeV2FDRegistryWakeFDObservedForInterestAddedDuringPoll` asserts
+  `io_poll_wake_fd>=1`, `io_poll_waiters_max>=2`, and zero legacy poll-build
+  counters on live `SIGUSR1` and exit traces.
+- Green close proof:
+  `TestRuntimeV2FDRegistryCloseWakePollNotificationProof` is a deterministic C
+  behavior check around `rt_fd_registry_wake_closed_net_waiters`; it proves
+  current Task 9 code calls both `rt_net_wake_poll()` and
+  `pthread_cond_broadcast(&ex->io_cv)` when a close snapshot wakes waiters.
+  Close wake-fd behavior is not expected-red anymore.
+- Expected-red for Task 11:
+  `TestRuntimeV2FDRegistryCancelledInterestWakesPoller` fails only because
+  `io_poll_wake_fd` stays `2 -> 2` after cancellation-side interest removal.
+  The test uses a dedicated stderr pipe/scanner and waits for the
+  `reason=sigusr1` baseline before releasing the gate; the baseline already
+  has two parked fd rows and the legacy scan counters are zero.
+- Expected-red for Task 11:
+  `TestRuntimeV2FDRegistryShutdownDrainStaticContract` fails only because
+  `rt_executor_request_shutdown` and
+  `rt_executor_drain_shutdown_net_waiters` are not declared. The names are the
+  current explicit-status shutdown contract proposal, following the
+  owner-first `rt_executor_*` helper style.
+- Important testing note: a runtime close `SIGUSR1` delta test was rejected
+  during implementation because `reason=sigusr1` dumps are drained
+  asynchronously and can be emitted after the gate release. Keep close wake
+  coverage as the direct C behavior proof unless Task 11 adds a synchronous
+  trace hook.
+- Checks run: green wake/close proof command passed; cancellation expected-red
+  command failed with the intended `io_poll_wake_fd` delta assertion; shutdown
+  static command failed with the intended two undeclared identifiers;
+  `TestMTNetWaiterWakeupLatency` passed; `gofmt -l` and `git diff --check`
+  were clean.

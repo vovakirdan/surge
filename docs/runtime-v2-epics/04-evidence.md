@@ -34,8 +34,8 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 6 | Complete | Net wait registration through registry recorded below. |
 | 7 | Complete | Poll-from-registry migration recorded below. |
 | 8 | Complete | Close/cancel/re-register behavior tests recorded below. |
-| 9 | Pending | Close/cancel/re-register migration. |
-| 10 | Pending | Wake-fd and shutdown behavior tests. |
+| 9 | Complete | Close/cancel/re-register migration recorded below. |
+| 10 | Complete | Wake-fd and shutdown behavior tests recorded below. |
 | 11 | Pending | Wake-fd and shutdown migration. |
 | 12 | Pending | Trace counters and benchmark contract. |
 | 13 | Pending | CI gate wiring. |
@@ -868,6 +868,98 @@ Checks:
   boundaries are RV2-DEBT-010 and the already tracked Task 12 trace cleanup.
 - Main-session Sentrux gates passed without degradation: root `6198 -> 6195`,
   `runtime` `5195 -> 5243`, and `runtime/native` `5159 -> 5188`.
+
+## Task 10 Evidence: Wake-FD And Shutdown Tests
+
+Date: 2026-07-02. Test-writing and docs only; no runtime/native, Makefile,
+CI, `STATS.md`, or debt-ledger changes. Touched proof files:
+`internal/vm/runtime_v2_fd_registry_wake_test.go` and
+`internal/vm/runtime_v2_fd_registry_shutdown_static_test.go`. Existing
+contract/static files stayed below the Runtime V2 line target:
+`runtime_v2_fd_registry_contract_test.go` is `499` lines and
+`runtime_v2_fd_registry_static_test.go` is `426` lines. New Task 10 files
+are `446` and `133` lines.
+
+Green proofs added:
+
+- `TestRuntimeV2FDRegistryWakeFDObservedForInterestAddedDuringPoll` starts a
+  two-listener LLVM fixture. The first accept waiter lets the poll path
+  initialize the wake fd, the second accept interest is registered later, and
+  the test drives both listeners after a live `SIGUSR1` trace. It asserts
+  `io_poll_wake_fd>=1`, `io_poll_waiters_max>=2`, and zero legacy poll-build
+  counters (`io_waiter_scan_entries`, `io_waiter_net_entries`,
+  `io_poll_dedup_checks`) on both `reason=sigusr1` and `reason=exit`.
+- `TestRuntimeV2FDRegistryCloseWakePollNotificationProof` is a deterministic
+  C behavior proof around `rt_fd_registry_wake_closed_net_waiters`. It stubs
+  `rt_net_wake_poll`, `pthread_cond_broadcast`, and net waiter completion, then
+  proves a closed read snapshot with a real completion calls both wake
+  notification paths exactly once. This records the current Task 9 behavior:
+  close wake-fd notification is green now, not expected-red.
+
+Expected-red Task 11 proofs added:
+
+- `TestRuntimeV2FDRegistryCancelledInterestWakesPoller` uses a data listener
+  plus a gate listener. A dedicated stderr pipe/scanner waits for the
+  `TRACE_NET reason=sigusr1` baseline before the gate is released, avoiding
+  the asynchronous-signal race rejected for close-delta testing. The baseline
+  already has two parked fd rows and zero legacy counters; after gate release,
+  cancellation completes the waiter but `io_poll_wake_fd` does not increase.
+  Recorded failure: `before=2 after=2`. Task 11 must make cancellation-side
+  interest removal wake the poller when needed.
+- `TestRuntimeV2FDRegistryShutdownDrainStaticContract` is a deterministic
+  compile contract, not a timeout-only runtime test. It requires explicit
+  status-returning APIs visible from `rt_async_internal.h`:
+  `rt_executor_request_shutdown(rt_executor*)` and
+  `rt_executor_drain_shutdown_net_waiters(rt_executor*)`. Names follow the
+  existing owner-first `rt_executor_*` helper style and keep shutdown ownership
+  out of `rt_net.c` call sites. Current expected-red failure is exactly two
+  undeclared identifiers; no graceful executor shutdown API exists yet.
+
+Checks:
+
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistry(WakeFDObservedForInterestAddedDuringPoll|CloseWakePollNotificationProof)$'
+  -count=1 -parallel=1 -p=1 -v --timeout 120s`: passed, package time
+  `3.237s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistryWakeFDObservedForInterestAddedDuringPoll$'
+  -count=3 -parallel=1 -p=1 -v --timeout 180s`: passed, package time
+  `8.117s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistryCancelledInterestWakesPoller$' -count=1
+  -parallel=1 -p=1 -v --timeout 120s`: expected-red, build clean, failed only
+  on the Task 11 contract assertion
+  `expected io_poll_wake_fd to increase after cancellation, before=2 after=2`;
+  baseline and exit traces both kept the three legacy poll-build counters at
+  zero.
+- `go test -tags runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistryShutdownDrainStaticContract$' -count=1 -v
+  --timeout 60s`: expected-red, compile failure only:
+  undeclared `rt_executor_request_shutdown` and
+  `rt_executor_drain_shutdown_net_waiters`.
+- `SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMTNetWaiterWakeupLatency$' -count=1 -parallel=1 -p=1 -v --timeout
+  90s`: passed, package time `2.311s`.
+- `gofmt -l internal/vm/runtime_v2_fd_registry_contract_test.go
+  internal/vm/runtime_v2_fd_registry_static_test.go
+  internal/vm/runtime_v2_fd_registry_wake_test.go
+  internal/vm/runtime_v2_fd_registry_shutdown_static_test.go`: clean.
+- `git diff --check`: clean.
+- Read-only review subagent initially flagged the cancellation expected-red
+  SIGUSR1 baseline as race-prone. The test was changed to wait on a dedicated
+  stderr pipe/scanner before releasing the gate; re-review returned APPROVE
+  with no remaining P0/P1/P2/P3 findings.
+
+Risk note:
+
+- A runtime close-delta test was deliberately not kept: live `SIGUSR1` dumps
+  are drained asynchronously by the runtime, so a `reason=sigusr1` line can be
+  emitted after a gate release. The deterministic C proof pins the actual
+  close helper behavior without timing ambiguity. The runtime wake-fd trace
+  proof remains covered by the new-interest fixture.
 
 ## Draft Creation Evidence
 
