@@ -79,9 +79,11 @@ static void net_waiters_removed(rt_waiter_store* store, waker_key key, size_t co
 // Task 6 fd-registry-waiter-bridge: registry interest mirrors waiter-store
 // membership exactly. Attach runs after a successful append so interest never
 // exists without a waiter; detach runs only when the caller's same-pass scan
-// proved the last waiter for the key left the store. Poll input stays
-// waiter-derived until Task 7, so a failed attach (fd-registry-attach-miss
-// bridge) preserves behavior: the waiter parks without a registry row.
+// proved the last waiter for the key left the store. Since Task 7 the
+// registry is the only poll input, so a failed attach may not strand a
+// parked waiter: net_wait_current_task re-verifies the row after
+// prepare_park and undoes the park on a miss (fd-registry-attach-miss
+// resolution); the debug print below records the miss itself.
 static void fd_registry_bridge_net_attach(rt_executor* ex, waker_key key) {
     if (!waker_is_net(key)) {
         return;
@@ -116,14 +118,7 @@ static void fd_registry_bridge_net_detach_if_last(rt_executor* ex,
                 recount++;
             }
         }
-        const rt_fd_entry* entry =
-            rt_fd_registry_find_const(rt_executor_fd_registry_const(ex), (int)key.id);
-        int interest = 0;
-        if (entry != NULL) {
-            interest = (key.kind == WAKER_NET_ACCEPT && entry->want_accept != 0) ||
-                       (key.kind == WAKER_NET_READ && entry->want_read != 0) ||
-                       (key.kind == WAKER_NET_WRITE && entry->want_write != 0);
-        }
+        int interest = rt_fd_registry_net_interest_present(rt_executor_fd_registry_const(ex), key);
         if (recount != remaining_same_key || (recount == 0 && interest)) {
             rt_async_debug_printf(
                 "fd-registry-bridge mismatch kind=%u fd=%llu remaining=%zu recount=%zu "
@@ -164,34 +159,6 @@ rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store) {
     store->entries = next;
     store->cap = next_cap;
     return RT_RUNTIME_STATUS_OK;
-}
-
-size_t rt_executor_waiter_len(const rt_executor* ex) {
-    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
-    return store != NULL ? store->len : 0;
-}
-
-size_t rt_executor_net_waiter_len(const rt_executor* ex) {
-    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
-    return store != NULL ? store->net_len : 0;
-}
-
-size_t
-rt_executor_visit_net_waiters(const rt_executor* ex, rt_waiter_key_visitor visitor, void* context) {
-    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
-    if (store == NULL || visitor == NULL || store->len == 0) {
-        return 0;
-    }
-    size_t visited = 0;
-    for (size_t i = 0; i < store->len; i++) {
-        waker_key key = store->entries[i].key;
-        if (!waker_is_net(key)) {
-            continue;
-        }
-        visited++;
-        visitor(key, context);
-    }
-    return visited;
 }
 
 rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {

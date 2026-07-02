@@ -9,13 +9,16 @@
 // - Each rt_shard owns one rt_fd_registry by value; it is initialized with the
 //   owning shard in rt_runtime_init_n1 and, like the waiter store and poll
 //   scratch, guarded by ex->lock. Task 6 routes registration-side interest
-//   writes through the waiter-store bridge in rt_async_waiter.c; no runtime
-//   path reads entries yet (poll input stays waiter-derived until Task 7).
+//   writes through the waiter-store bridge in rt_async_waiter.c; Task 7 makes
+//   the registry the only poll input: poll_net_waiters snapshots rows into the
+//   shard poll scratch under ex->lock and never scans the waiter store.
 // - A row exists iff at least one net-key waiter for that fd is parked in the
-//   waiter store (modulo the fd-registry-attach-miss bridge: on allocation
-//   failure the waiter parks without a row; Task 7 resolves that bridge).
-//   Detaching the last interest flag swap-removes the row; row order is not
-//   meaningful and find is a linear scan.
+//   waiter store. The fd-registry-attach-miss bridge is resolved in Task 7:
+//   after prepare_park, net_wait_current_task verifies its interest row exists
+//   (rt_fd_registry_net_interest_present) and otherwise undoes the park and
+//   reports spurious readiness, so a parked net waiter always has a row and
+//   every parked fd is polled. Detaching the last interest flag swap-removes
+//   the row; row order is not meaningful and find is a linear scan.
 // - generation guards fd-reuse stale wakes; close_state guards post-close
 //   interest. Behavior lands in Task 9; the fields exist so the row shape is
 //   fixed now. Remove-plus-recreate resets generation to 0; Task 9 owns
@@ -47,6 +50,16 @@ typedef struct {
     size_t cap;
 } rt_fd_registry;
 
+// Poll-interest snapshot row copied into the shard poll scratch under
+// ex->lock. want_read is readable-class interest (want_read || want_accept)
+// because accept readiness is readable-class readiness at the poll layer;
+// completion fan-out to the separate read/accept waker keys stays in rt_net.c.
+typedef struct {
+    int fd;
+    uint8_t want_read;
+    uint8_t want_write;
+} rt_fd_poll_interest;
+
 rt_fd_registry* rt_shard_fd_registry(rt_shard* shard);
 const rt_fd_registry* rt_shard_fd_registry_const(const rt_shard* shard);
 rt_fd_registry* rt_executor_fd_registry(rt_executor* ex);
@@ -59,5 +72,9 @@ size_t rt_fd_registry_len(const rt_fd_registry* registry);
 const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd);
 rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
 void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);
+int rt_fd_registry_net_interest_present(const rt_fd_registry* registry, waker_key key);
+size_t rt_fd_registry_snapshot_poll_interest(const rt_fd_registry* registry,
+                                             rt_fd_poll_interest* out,
+                                             size_t out_cap);
 
 #endif

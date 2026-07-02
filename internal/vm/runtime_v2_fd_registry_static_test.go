@@ -79,8 +79,16 @@ func runFDRegistryStaticCheck(t *testing.T, label, source string) {
 //	rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
 //	void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);
 //
-// Remaining mutation surfaces (poll-build, close/generation) are deliberately
-// not pinned here; Tasks 7/9 extend this guard when they implement them.
+// Task 7 extended the guard with the poll-input reads (the registry is the
+// only poll-set source; the snapshot row is the ex->lock-held copy that
+// poll() and completion run against):
+//
+//	int rt_fd_registry_net_interest_present(const rt_fd_registry* registry, waker_key key);
+//	size_t rt_fd_registry_snapshot_poll_interest(const rt_fd_registry* registry,
+//	                                             rt_fd_poll_interest* out, size_t out_cap);
+//
+// The remaining mutation surface (close/generation) is deliberately not
+// pinned here; Task 9 extends this guard when it implements it.
 func TestRuntimeV2FDRegistryStaticShape(t *testing.T) {
 	source := `
 #include "rt_async_internal.h"
@@ -106,6 +114,19 @@ const rt_fd_entry* (*runtime_v2_check_fd_registry_find_const)(const rt_fd_regist
 // last-waiter path and cannot fail in a way callers act on.
 rt_runtime_status (*runtime_v2_check_fd_registry_attach_net_interest)(rt_fd_registry*, waker_key) = rt_fd_registry_attach_net_interest;
 void (*runtime_v2_check_fd_registry_detach_net_interest)(rt_fd_registry*, waker_key) = rt_fd_registry_detach_net_interest;
+
+// Task 7 poll-input reads: interest-present resolves the attach-miss bridge
+// after prepare_park; the snapshot copies rows into the shard poll scratch
+// under ex->lock as the only poll-set source (no waiter-store scan).
+int (*runtime_v2_check_fd_registry_net_interest_present)(const rt_fd_registry*, waker_key) = rt_fd_registry_net_interest_present;
+size_t (*runtime_v2_check_fd_registry_snapshot_poll_interest)(
+    const rt_fd_registry*, rt_fd_poll_interest*, size_t) = rt_fd_registry_snapshot_poll_interest;
+
+// Poll snapshot row: fd plus readable-class (read|accept folded) and write
+// interest. Completion fan-out to separate read/accept keys stays in rt_net.c.
+_Static_assert(sizeof(((rt_fd_poll_interest*)0)->fd) == sizeof(int), "rt_fd_poll_interest.fd must stay int");
+_Static_assert(sizeof(((rt_fd_poll_interest*)0)->want_read) == sizeof(uint8_t), "rt_fd_poll_interest.want_read must stay byte-sized");
+_Static_assert(sizeof(((rt_fd_poll_interest*)0)->want_write) == sizeof(uint8_t), "rt_fd_poll_interest.want_write must stay byte-sized");
 
 // One durable entry per live fd: fd number, generation stale-wake guard,
 // close state, and accept/read/write interest bytes. Accept stays distinct

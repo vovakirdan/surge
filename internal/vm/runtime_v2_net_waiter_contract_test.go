@@ -200,8 +200,6 @@ func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string
 		"io_poll_waiters_max",
 		"io_poll_waiters_total",
 		"io_direct_waits",
-		"io_waiter_scan_entries",
-		"io_waiter_net_entries",
 		"io_poll_rebuilds",
 		"io_waiter_complete_calls",
 		"io_waiter_completed",
@@ -210,12 +208,22 @@ func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string
 			t.Fatalf("expected non-zero %s in TRACE_NET %s line:\n%s", field, reason, line)
 		}
 	}
+	// Epic 4 Task 7 contract update: the poll set derives from persistent fd
+	// registry rows, so the legacy waiter-derived rebuild path (full waiter
+	// store scan plus O(n^2) fd dedup) must never run. These counters staying
+	// zero is the machine-checkable acceptance evidence for that.
+	for _, field := range []string{
+		"io_waiter_scan_entries",
+		"io_waiter_net_entries",
+		"io_poll_dedup_checks",
+	} {
+		if values[field] != 0 {
+			t.Fatalf("expected zero %s (legacy waiter-derived poll rebuild must be unused) "+
+				"in TRACE_NET %s line:\n%s", field, reason, line)
+		}
+	}
 	if values["io_poll_rebuilds"] != values["io_poll_calls"] {
 		t.Fatalf("poll rebuilds must stay comparable to poll calls in TRACE_NET %s line:\n%s",
-			reason, line)
-	}
-	if values["io_waiter_net_entries"] > values["io_waiter_scan_entries"] {
-		t.Fatalf("net waiter entries cannot exceed scanned waiter entries in TRACE_NET %s line:\n%s",
 			reason, line)
 	}
 }

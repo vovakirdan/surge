@@ -32,7 +32,7 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 4 | Complete | Registry static shape tests recorded below. |
 | 5 | Complete | Registry container skeleton recorded below. |
 | 6 | Complete | Net wait registration through registry recorded below. |
-| 7 | Pending | Poll-from-registry migration. |
+| 7 | Complete | Poll-from-registry migration recorded below. |
 | 8 | Pending | Close/cancel/re-register behavior tests. |
 | 9 | Pending | Close/cancel/re-register migration. |
 | 10 | Pending | Wake-fd and shutdown behavior tests. |
@@ -449,6 +449,251 @@ Main-session Sentrux results after the Task 6 implementation:
   +1);
 - `sentrux gate runtime/native`: `5159 -> 5160`, coupling `0.00 -> 0.03`,
   cycles `0 -> 0`, god files `0 -> 0`, `No degradation detected`.
+
+## Task 7 Evidence: Poll From Registry
+
+Date: 2026-07-02. Runtime C; subagent-executed after an approved plan-only
+pass (Global Rule 9). Working tree intentionally left uncommitted: the main
+session owns the commit and the Sentrux gates. Start commit `617f8cfa5881`
+(`feat(runtime): route net wait interest through fd registry`), clean tree.
+
+Files and line-count outcomes (Global Rule 4; both over-limit files shrink):
+
+- `runtime/native/rt_net.c`: 1024 -> 1002. Deleted `NetPollFd`,
+  `NetPollBuildContext`, and `collect_net_poll_fd` (the waiter-visit poll
+  build with O(n^2) fd dedup); `poll_net_waiters` now derives capacity from
+  `rt_fd_registry_len` and fills the scratch through
+  `rt_fd_registry_snapshot_poll_interest`; `ensure_net_poll_fds` re-typed to
+  `rt_fd_poll_interest`; `net_wait_current_task` gained the attach-miss
+  resolution (below). Allowlist ceiling 1024 untouched; reduction recorded.
+- `runtime/native/rt_fd_registry.h`: 63 -> 80. `rt_fd_poll_interest` snapshot
+  row type, `rt_fd_registry_net_interest_present` and
+  `rt_fd_registry_snapshot_poll_interest` declarations, ownership comments
+  updated to the Task 7 state (registry is the only poll input; attach-miss
+  resolved).
+- `runtime/native/rt_fd_registry.c`: 154 -> 213. `fd_entry_interest_value`
+  (read-only twin of the mutable slot map), `net_interest_present`, and
+  `snapshot_poll_interest` (one linear pass, rows unique per fd, want_accept
+  folds into readable-class want_read; zero-interest skip is defensive only).
+- `runtime/native/rt_async_waiter.c`: 381 -> 348. Deleted dead
+  `rt_executor_waiter_len`, `rt_executor_net_waiter_len`, and
+  `rt_executor_visit_net_waiters`; the Task 6 debug recount now calls
+  `rt_fd_registry_net_interest_present` instead of open-coding the kind->flag
+  map (Rule 5 dedup); bridge comment updated to the resolved state.
+- `runtime/native/rt_async_internal.h`: 499 -> 493. Deleted the
+  `rt_waiter_key_visitor` typedef and the three dead declarations.
+- `runtime/native/rt_async_state.c`: 1731 -> 1727. Deleted the dead net-key
+  `net_len` adjustment in `wake_key_all_with_policy` (dependency-map row
+  "registry-owned dead-path cleanup, migrates in T7").
+- `internal/vm/runtime_v2_waiter_static_test.go`: 90 -> 86 (pins removed,
+  below). `internal/vm/runtime_v2_fd_registry_static_test.go`: 185 -> 206
+  (Task 7 pins added). `internal/vm/runtime_v2_net_waiter_contract_test.go`:
+  249 -> 257 (contract update, below).
+- Untouched by the implementation pass: `Makefile`/CI (gate test names
+  unchanged), `rt_async_trace.c` (no new counters), `rt_runtime.c`, and the
+  four fd contract tests. The main-session closeout later lowered
+  `.loc-legacy-allowlist` ceilings to the new actual line counts.
+
+Design record (Global Rule 2 answers):
+
+- Snapshot semantics preserved: the poll set is copied from registry rows
+  into the shard scratch under `ex->lock` before the unlock;
+  `poll()` and completion after relock read only that copy, so rows
+  attached/detached/swap-removed by other workers during an in-flight poll
+  cannot change the cycle. Stale snapshot completions are benign no-ops:
+  `rt_executor_wake_net_waiters_for_key` on a key with no waiters returns
+  `{0,0}` and `fd_registry_bridge_net_detach_if_last` early-returns on
+  `removed==0`. New mid-poll interest still wakes the poller through the
+  unchanged `park_current` wake-pipe kick. Completion fan-out is unchanged:
+  read-ready completes `net_read_key(fd)` + `net_accept_key(fd)`,
+  write-ready completes `net_write_key(fd)`; the poll-error path still
+  completes every snapshot key.
+- fd-registry-attach-miss RESOLVED (named bridge from Task 6): after
+  `prepare_park`, `net_wait_current_task` verifies
+  `rt_fd_registry_net_interest_present`; on a miss (attach allocation
+  failure) it undoes the park under the same `ex->lock` hold
+  (`remove_waiter`, clear `park_prepared`/`park_key`/`pending_key`) and
+  returns spurious readiness — the nonblocking net op returns WouldBlock and
+  the caller re-waits. Coverage is total: net keys reach `pending_key` only
+  from `net_wait_current_task` (grep-verified), and any pre-park removal of
+  the verified waiter sets the wake token, so `park_current` refuses to park.
+  A parked net waiter therefore always has a registry row. Under persistent
+  OOM this degrades to a retry loop, strictly better than the adjacent
+  legacy `panic_msg` boundary in `ensure_waiter_cap`.
+- Why the unresolved bridge would have been a live defect (poll-caller
+  trace with `net_len>0` and zero rows): `next_ready` would return 0 without
+  sleeping (`net_polling` already cleared) -> spurious `"async deadlock"`
+  panic in `run_until_done`; `rt_worker_main` would fall to
+  `pthread_cond_wait(ready_cv)` with the fd never polled (lost wakeup);
+  `rt_io_main` would loop begin/instant-0/continue forever (busy spin). The
+  resolution makes the state unreachable, so no new spin or missed sleep is
+  introduced.
+- Capacity and gating invariant: poll capacity comes from
+  `rt_fd_registry_len`; `begin_net_poll`/`has_net_waiters` stay
+  waiter-derived (`store->net_len`). Invariant relied on: a row exists iff a
+  parked net waiter for that fd exists (Task 6 row lifetime + this task's
+  attach-miss resolution), so `net_len>0` implies rows exist. The
+  `SURGE_ASYNC_DEBUG` bridge recount continues to police stale interest,
+  which after this task would be the only route to a level-triggered io-loop
+  spin (recorded as a Task 8 fixture target in NOTES).
+
+Deletion evidence (RULES: references, build, tests, static pins):
+
+- Pre-deletion `rg -n` inventories recorded for
+  `rt_executor_visit_net_waiters` (4 hits: impl, decl, sole caller
+  `rt_net.c:928`, static pin), `rt_waiter_key_visitor` (4),
+  `rt_executor_net_waiter_len` (4: impl, decl, sole caller `rt_net.c:917`,
+  static pin), `rt_executor_waiter_len` (4: impl, decl, sole caller
+  `rt_net.c:926` scan-entries increment, static pin), `collect_net_poll_fd`
+  (2), `NetPollBuildContext` (4), `NetPollFd` (12).
+- Zero-net-producer greps re-run immediately before deleting the
+  `wake_key_all_with_policy` net branch: `rg -n 'wake_key_all'
+  runtime/native` -> producers `blocking_key` (`rt_async_blocking.c:110`),
+  `scope_key` (`rt_async_state.c:1248`), `join_key`
+  (`rt_async_state.c:1371`); `rg -n 'add_wait_key\(' runtime/native` -> all
+  producers in `rt_async_task.c` build join/timer/channel keys only.
+- Post-deletion `rg -n` over `*.c *.h *.go`: zero hits for all seven
+  symbols. Build and tests green (checks below).
+- `runtime_v2_waiter_static_test.go` pin list before: ensure_cap,
+  `rt_executor_waiter_len`, `rt_executor_net_waiter_len`,
+  `rt_executor_visit_net_waiters`, wake_net_waiters_for_key,
+  ensure_waiter_cap, remove/add_waiter, clear_wait_keys, add_wait_key,
+  prepare_park, pop_waiter, 4 store accessors, 11 key constructors. After:
+  identical minus the three deleted-symbol pins. Recorded as a deliberate
+  default-tag gate contract change (main-agent approved).
+
+CI-gate contract update (`TestRuntimeV2NetWaiterTraceContract`, runs inside
+`make runtime-v2-check`; main-agent approved):
+
+- All 18 `TRACE_NET` fields keep presence assertions (dump format unchanged;
+  Task 12 owns counter naming — nothing renamed, only increment sites of
+  `io_waiter_scan_entries`, `io_waiter_net_entries`, and
+  `io_poll_dedup_checks` were deleted with the legacy build).
+- `io_waiter_scan_entries` and `io_waiter_net_entries` moved out of the
+  non-zero list; the test now asserts `io_waiter_scan_entries==0`,
+  `io_waiter_net_entries==0`, and `io_poll_dedup_checks==0`. These zeros are
+  the machine-checkable "legacy waiter-derived rebuild path unused"
+  acceptance evidence for the epic. The `net_entries <= scan_entries`
+  relation is superseded by the zero assertions;
+  `io_poll_rebuilds == io_poll_calls` stays.
+- The four fd contract tests are byte-identical and 4/4 green;
+  `io_poll_waiters_max` keeps its meaning (max distinct fd rows per poll
+  build: old deduped-fd count == new registry-row count).
+
+Checks (all run by the executor, in order):
+
+- BEFORE benchmark as the first action, pre-edit: scratch compiler
+  `go build -ldflags "$(./scripts/ldflags.sh --local)"` in the session
+  scratchpad; `version --full` pin `617f8cfa5881` == `git rev-parse
+  --short=12 HEAD`; `timeout 120s env SURGE=<scratch>/surge
+  ./scripts/bench_native_net.sh` ->
+  `build/benchmarks/runtime-v2-task07-native-net-before.md` (24 rows);
+  leftover-process `ps` check clean.
+- Pre-deletion inventories and producer greps (above).
+- Post-edit: `clang-format --dry-run --Werror` on all six touched C/H files
+  clean (one violation found and fixed in `rt_async_waiter.c`);
+  `gofmt -l internal/vm` clean; `go vet -tags runtime_v2_pending
+  ./internal/vm` clean; post-deletion no-hit greps.
+- `make c-check`: passed. `make cppcheck`: passed, 32/32 files, no
+  suppressions.
+- Static gates: `TestRuntimeV2FDRegistryStaticShape` PASS (0.10s, now
+  pinning `rt_fd_poll_interest` + the two Task 7 reads);
+  `TestRuntimeV2FDRegistryStaticBoundary` PASS (0.03s, zero edits);
+  `TestRuntimeV2WaiterHelperStaticBoundary` PASS (0.03s, post pin removal).
+- `make runtime-v2-check`: passed (MT seed green this run, no flake; tagged
+  waiter gate 12/12 including the updated
+  `TestRuntimeV2NetWaiterTraceContract` PASS 2.45s).
+- `make check`: `exit=0` including `check_file_sizes.sh` (`rt_net.c` 1002
+  LEGACY OK <=1024).
+- Task 3 tagged contract 4-pack, verbatim Task 3 command -> 4/4 PASS
+  (16.0s).
+- Focused probes: `TestMTNetWaiterWakeupLatency` PASS (2.31s);
+  `TestNativeNetSingleThreadBlockingChannelInAsyncServer` PASS (4.34s).
+- Debug-path proof: `SURGE_ASYNC_DEBUG=1` rerun of
+  `RepeatedReadinessSingleFD` + `DuplicateReadWaitersBothComplete` -> 2/2
+  PASS with the registry live as the sole poll input.
+- Default-tag proof: `go test ./internal/vm -run '^TestRuntimeV2' -count=1`
+  -> ok (only the default-tag static boundary runs).
+- AFTER benchmark: rebuilt scratch compiler from the modified tree (version
+  pin `617f8cfa5881` recorded together with `git diff --stat`, 9 files
+  +163/-127, per the dirty-tree evidence rule) ->
+  `build/benchmarks/runtime-v2-task07-native-net-after.md` (24 rows);
+  leftover-process `ps` checks clean after both runs.
+- `git diff --check`: clean.
+- Skipped per approved plan: Sentrux scans and the commit (main session owns
+  both).
+
+Benchmark before/after (echo rows, us/op avg; full 24-row reports under
+ignored `build/benchmarks/`):
+
+| row | before | after |
+| --- | ---: | ---: |
+| 1/echo/seq | 65.38 | 62.14 |
+| 1/echo/pipe | 25.66 | 23.61 |
+| 2/echo/seq | 88.32 | 78.98 |
+| 2/echo/pipe | 39.76 | 39.51 |
+| 4/echo/seq | 85.99 | 85.71 |
+| 4/echo/pipe | 39.52 | 37.27 |
+| 8/echo/seq | 83.63 | 82.00 |
+| 8/echo/pipe | 39.63 | 37.33 |
+
+Trace counters (1/echo/seq exemplar; pattern holds across all 24 rows):
+`io_waiter_scan_entries` 13094 -> 0, `io_waiter_net_entries` 4366 -> 0,
+`io_poll_dedup_checks` 0 -> 0, `io_poll_rebuilds` == `io_poll_calls` on both
+sides (4366/4366 -> 4164/4164), `io_poll_allocs` 2 -> 2 (flat),
+`io_direct_waits`/`io_waiter_completed` equivalent (1775 -> 1799, workload
+noise). Expected movements all confirmed; latency flat or better on every
+echo row.
+
+Variance note (recorded, not a regression): the AFTER report shows
+`1/manager/seq` 129.62 vs 109.11 before. A same-binary variance re-run
+(`SURGE_NET_BENCH_THREADS="1 2" SURGE_NET_BENCH_MODES=manager`, scratch
+report) reproduced 110.86 us/op for that row and 173.41 for `2/manager/seq`
+(before 170.31), with poll counters flat — run-to-run scheduling variance of
+the channel-hop mode, not a poll-path change. No unexplained regression
+remains.
+
+Main-session closeout evidence:
+
+- Sentrux MCP scans and rule checks passed for all mandatory roots:
+  repository root `quality_signal=6198`, runtime `5228`, and runtime/native
+  `5172`.
+- `sentrux gate .`: passed, `6198 -> 6198`, no degradation.
+- `sentrux gate runtime`: passed, `5195 -> 5228`, no degradation.
+- `sentrux gate runtime/native`: passed, `5159 -> 5172`, no degradation.
+- `git diff --check`: clean.
+- `make c-check`: passed.
+- `make cppcheck`: passed, 32/32 files.
+- `make runtime-v2-check`: passed.
+- `make check`: passed; `check_file_sizes.sh` checked the six dirty C/H files
+  and reported 4 OK plus 2 legacy-ceiling files.
+- Static gates passed:
+  `TestRuntimeV2FDRegistryStaticShape`,
+  `TestRuntimeV2FDRegistryStaticBoundary`, and
+  `TestRuntimeV2WaiterHelperStaticBoundary`.
+- Task 3 fd-registry contract 4-pack passed under
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0`.
+- `TestRuntimeV2NetWaiterTraceContract` passed and asserts
+  `io_waiter_scan_entries==0`, `io_waiter_net_entries==0`, and
+  `io_poll_dedup_checks==0`.
+- Focused net probes passed: `TestMTNetWaiterWakeupLatency` and
+  `TestNativeNetSingleThreadBlockingChannelInAsyncServer`.
+- Debug-path proof passed with `SURGE_ASYNC_DEBUG=1` for
+  `RepeatedReadinessSingleFD` and `DuplicateReadWaitersBothComplete`.
+- Fresh closeout native net benchmark passed with report
+  `build/benchmarks/runtime-v2-task07-closeout-native-net.md`; exemplar
+  `1/echo/seq` row was `64.66 us/op` with `waiter scan entries=0`,
+  `net waiter entries=0`, `dedup checks=0`, `poll rebuilds=4431`,
+  `net poll calls=4431`, and `poll allocs=2`.
+- Clean leftover-process check:
+  `pgrep -af '[b]ench_native_net|[n]et_request_reply' || true` printed no
+  benchmark process.
+- Sentrux gate baselines
+  `.sentrux/baseline.json`, `runtime/.sentrux/baseline.json`, and
+  `runtime/native/.sentrux/baseline.json` are committed with this task so
+  future `sentrux gate` checks are reproducible in a clean checkout.
+- `.loc-legacy-allowlist` ceilings were lowered to the new actual line counts:
+  `rt_async_state.c` `1731 -> 1727` and `rt_net.c` `1024 -> 1002`.
 
 ## Draft Creation Evidence
 

@@ -996,14 +996,10 @@ static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) 
         }
         store->entries[out++] = w;
     }
+    // No net-key producer exists for this path (scope/join/blocking keys
+    // only); net_len and fd-registry bookkeeping stay owned by the
+    // rt_async_waiter.c removal paths.
     store->len = out;
-    if (removed > 0 && waker_is_net(key)) {
-        if (removed >= store->net_len) {
-            store->net_len = 0;
-        } else {
-            store->net_len -= removed;
-        }
-    }
 }
 
 void wake_key_all(rt_executor* ex, waker_key key) {

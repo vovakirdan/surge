@@ -51,12 +51,6 @@ typedef struct NetConn {
     bool closed;
 } NetConn;
 
-typedef struct NetPollFd {
-    int fd;
-    uint8_t want_read;
-    uint8_t want_write;
-} NetPollFd;
-
 typedef enum {
     NET_WAIT_ACCEPT = 0,
     NET_WAIT_READ = 1,
@@ -237,17 +231,18 @@ static void complete_net_waiters(rt_executor* ex, waker_key key) {
     net_trace_add(&net_waiter_completed_total, (uint64_t)completion.woken);
 }
 
-static int ensure_net_poll_fds(rt_net_poll_scratch* scratch, size_t want, NetPollFd** out) {
+static int
+ensure_net_poll_fds(rt_net_poll_scratch* scratch, size_t want, rt_fd_poll_interest** out) {
     if (scratch == NULL || out == NULL) {
         return 0;
     }
     if (scratch->fds_cap < want) {
         size_t next_cap = net_next_cap(scratch->fds_cap, want);
-        NetPollFd* next =
-            (NetPollFd*)rt_realloc((uint8_t*)scratch->fds,
-                                   (uint64_t)scratch->fds_cap * (uint64_t)sizeof(NetPollFd),
-                                   (uint64_t)next_cap * (uint64_t)sizeof(NetPollFd),
-                                   _Alignof(NetPollFd));
+        rt_fd_poll_interest* next = (rt_fd_poll_interest*)rt_realloc(
+            (uint8_t*)scratch->fds,
+            (uint64_t)scratch->fds_cap * (uint64_t)sizeof(rt_fd_poll_interest),
+            (uint64_t)next_cap * (uint64_t)sizeof(rt_fd_poll_interest),
+            _Alignof(rt_fd_poll_interest));
         if (next == NULL) {
             return 0;
         }
@@ -255,7 +250,7 @@ static int ensure_net_poll_fds(rt_net_poll_scratch* scratch, size_t want, NetPol
         scratch->fds_cap = next_cap;
         net_trace_inc(&net_poll_allocs_total);
     }
-    *out = (NetPollFd*)scratch->fds;
+    *out = (rt_fd_poll_interest*)scratch->fds;
     return 1;
 }
 
@@ -279,40 +274,6 @@ static int ensure_net_poll_pfds(rt_net_poll_scratch* scratch, size_t want, struc
     }
     *out = (struct pollfd*)scratch->pfds;
     return 1;
-}
-
-typedef struct NetPollBuildContext {
-    NetPollFd* fds;
-    size_t count;
-} NetPollBuildContext;
-
-static void collect_net_poll_fd(waker_key key, void* context) {
-    NetPollBuildContext* build = (NetPollBuildContext*)context;
-    if (build == NULL || build->fds == NULL) {
-        return;
-    }
-    net_trace_inc(&net_waiter_net_entries_total);
-    int fd = (int)key.id;
-    if (fd <= 0) {
-        return;
-    }
-    size_t idx = build->count;
-    for (size_t j = 0; j < build->count; j++) {
-        net_trace_inc(&net_poll_dedup_checks_total);
-        if (build->fds[j].fd == fd) {
-            idx = j;
-            break;
-        }
-    }
-    if (idx == build->count) {
-        build->fds[idx] = (NetPollFd){fd, 0, 0};
-        build->count++;
-    }
-    if (key.kind == WAKER_NET_WRITE) {
-        build->fds[idx].want_write = 1;
-    } else {
-        build->fds[idx].want_read = 1;
-    }
 }
 
 static const char* net_error_message(uint64_t code) {
@@ -880,6 +841,19 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
     }
     net_trace_inc(&net_direct_wait_total);
     prepare_park(ex, task, key, 0);
+    if (!rt_fd_registry_net_interest_present(rt_executor_fd_registry_const(ex), key)) {
+        // fd-registry-attach-miss resolution: attach allocation failure left
+        // this waiter without a registry row, and a rowless waiter would never
+        // be polled (lost wakeup). Undo the park preparation under the same
+        // ex->lock hold and report spurious readiness: the net op is
+        // nonblocking, returns WouldBlock, and the caller re-waits.
+        remove_waiter(ex, key, task->id);
+        task->park_prepared = 0;
+        task->park_key = waker_none();
+        pending_key = waker_none();
+        rt_unlock(ex);
+        return true;
+    }
     pending_key = key;
     rt_unlock(ex);
     return false;
@@ -914,19 +888,23 @@ bool rt_net_wait_writable(const void* conn) {
 
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     // Caller must hold ex->lock; this function releases it while polling.
-    size_t cap = rt_executor_net_waiter_len(ex);
+    // The poll set derives from registry rows only, never from a waiter-store
+    // scan: the snapshot copied into the shard scratch under ex->lock is the
+    // sole input for poll() and for completion after relock, so registry rows
+    // mutated while the lock is released cannot change an in-flight cycle.
+    // Stale snapshot completions are benign no-ops (a completed key with no
+    // waiters wakes nothing).
+    const rt_fd_registry* registry = rt_executor_fd_registry_const(ex);
+    size_t cap = rt_fd_registry_len(registry);
     if (cap == 0) {
         return 0;
     }
     rt_net_poll_scratch* scratch = rt_executor_net_poll_scratch(ex);
-    NetPollFd* fds = NULL;
+    rt_fd_poll_interest* fds = NULL;
     if (!ensure_net_poll_fds(scratch, cap, &fds)) {
         return 0;
     }
-    net_trace_add(&net_waiter_scan_entries_total, rt_executor_waiter_len(ex));
-    NetPollBuildContext build = {fds, 0};
-    (void)rt_executor_visit_net_waiters(ex, collect_net_poll_fd, &build);
-    size_t count = build.count;
+    size_t count = rt_fd_registry_snapshot_poll_interest(registry, fds, cap);
     if (count == 0) {
         return 0;
     }

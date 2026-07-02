@@ -301,6 +301,80 @@ task, then move durable decisions into the owning epic document before closeout.
   resolution (fail the wait vs. fallback), replace the `net_len` capacity
   hint, and delete/unify the dead `wake_key_all_with_policy` net bookkeeping.
 
+## Epic 4 Task 07 Handoff
+
+- Scope completed: poll-from-registry migration (Task 7) as a plan-gated
+  subagent. Working tree intentionally left uncommitted; the main session
+  owns the commit and the Sentrux CLI check/gate evidence.
+- What exists now: `poll_net_waiters` builds its poll set ONLY from registry
+  rows — capacity from `rt_fd_registry_len`, scratch filled by
+  `rt_fd_registry_snapshot_poll_interest` (one linear pass, rows unique per
+  fd, `want_accept` folded into readable-class `want_read`), completion and
+  poll-error paths unchanged and running against the ex->lock-held snapshot
+  copy. The waiter-scan build (`rt_executor_visit_net_waiters`,
+  `collect_net_poll_fd`, `NetPollBuildContext`, `NetPollFd`) is deleted, as
+  are dead `rt_executor_waiter_len`, `rt_executor_net_waiter_len`,
+  `rt_waiter_key_visitor`, and the `wake_key_all_with_policy` net branch.
+  Line counts: `rt_net.c` 1002, `rt_async_waiter.c` 348,
+  `rt_async_internal.h` 493, `rt_fd_registry.h` 80, `rt_fd_registry.c` 213,
+  `rt_async_state.c` 1727.
+- fd-registry-attach-miss bridge is RESOLVED: `net_wait_current_task`
+  verifies `rt_fd_registry_net_interest_present` after `prepare_park` and on
+  a miss undoes the park (remove_waiter + clear park_prepared/park_key/
+  pending_key) under the same lock hold, returning spurious readiness (net
+  ops are nonblocking and re-wait). Invariant now load-bearing: a parked net
+  waiter ALWAYS has a registry row, so `has_net_waiters` (still
+  waiter-derived `net_len`) gating `begin_net_poll` cannot admit a
+  zero-row poll cycle (which would busy-spin `rt_io_main` and strand
+  `rt_worker_main`/`next_ready`).
+- Task 8 fixture target (record from main-agent review): stale registry
+  interest (flag set, zero same-key waiters) is now the only route to a
+  level-triggered io-loop spin, because a stale row keeps its fd in every
+  poll set while completions are no-ops. The `SURGE_ASYNC_DEBUG` bridge
+  recount polices it; Task 8 fixtures should hammer duplicate-waiter
+  cancel/close orderings to prove the invariant adversarially.
+- CI-gate contract updates (main-agent approved, recorded in
+  `04-evidence.md`): `TestRuntimeV2NetWaiterTraceContract` now asserts
+  `io_waiter_scan_entries==0`, `io_waiter_net_entries==0`,
+  `io_poll_dedup_checks==0` (machine-checkable "legacy rebuild path unused"
+  evidence) and keeps `io_poll_rebuilds==io_poll_calls`;
+  `runtime_v2_waiter_static_test.go` dropped the three deleted-symbol pins.
+  Counter NAMES are untouched (Task 12 owns naming); only increment sites
+  died with the legacy build. `io_poll_waiters_max` keeps its
+  distinct-fd-rows-per-build meaning; fd contract 4-pack byte-identical and
+  green.
+- Tested: c-check/cppcheck/runtime-v2-check/check green; Shape gate extended
+  with `rt_fd_poll_interest` + both Task 7 read APIs; Boundary green with
+  zero edits; Task 3 4-pack 4/4 (16.0s); `TestMTNetWaiterWakeupLatency` PASS
+  (2.31s); `TestNativeNetSingleThreadBlockingChannelInAsyncServer` PASS
+  (4.34s); debug-gated contract pair PASS. Before/after
+  `bench_native_net.sh` with pinned scratch compilers (`617f8cfa5881`):
+  echo rows flat or better (e.g. 1/echo/seq 65.38 -> 62.14 us/op), scan/net
+  entries -> 0 across all 24 rows, allocs flat at 2, rebuilds == calls; the
+  `1/manager/seq` outlier in the AFTER report (129.62) was re-run same-binary
+  to 110.86 — channel-hop run variance, not a poll regression. No leftover
+  benchmark processes after either run (`ps` checks recorded).
+- Not tested: attach-miss undo path has no fault-injection proof (allocation
+  failure is not reachable from a fixture without an alloc shim); it is
+  compile-proven, static-pinned, and its invariant is debug-checked. Close/
+  cancel/re-register behavior is Tasks 8-9; generation/close_state still have
+  no behavior.
+- Main-session Task 7 closeout: Sentrux MCP checks passed for root `6198`,
+  runtime `5228`, and runtime/native `5172`; `sentrux gate` passed for all
+  three roots (`6198 -> 6198`, `5195 -> 5228`, `5159 -> 5172`). Re-run gates
+  passed: `git diff --check`, `make c-check`, `make cppcheck`,
+  `make runtime-v2-check`, `make check`, fd static gates, fd contract 4-pack,
+  net trace contract, focused net wake probe, single-thread net/channel probe,
+  debug-path proof, and native net closeout benchmark
+  `build/benchmarks/runtime-v2-task07-closeout-native-net.md`. Sentrux
+  baseline files are committed so future `sentrux gate` checks are
+  reproducible. `.loc-legacy-allowlist` ceilings were lowered to current
+  `rt_async_state.c` 1727 and `rt_net.c` 1002.
+- Next decision before Task 8/9: fixtures must cover close-with-parked-waiter
+  and fd-reuse stale wake (dependency map hazards 1-2) now that rows are poll
+  input; Task 9 re-decides row lifetime (remove-plus-recreate resets
+  generation to 0) when close/generation semantics land.
+
 ## Epic 1 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.

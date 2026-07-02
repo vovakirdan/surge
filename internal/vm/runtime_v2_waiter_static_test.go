@@ -30,10 +30,6 @@ waker_key (*runtime_v2_check_net_write_key)(int) = net_write_key;
 waker_key (*runtime_v2_check_blocking_key)(uint64_t) = blocking_key;
 
 rt_runtime_status (*runtime_v2_check_waiter_store_ensure_cap)(rt_waiter_store*) = rt_waiter_store_ensure_cap;
-size_t (*runtime_v2_check_executor_waiter_len)(const rt_executor*) = rt_executor_waiter_len;
-size_t (*runtime_v2_check_executor_net_waiter_len)(const rt_executor*) = rt_executor_net_waiter_len;
-size_t (*runtime_v2_check_executor_visit_net_waiters)(
-    const rt_executor*, rt_waiter_key_visitor, void*) = rt_executor_visit_net_waiters;
 rt_waiter_completion (*runtime_v2_check_executor_wake_net_waiters_for_key)(
     rt_executor*, waker_key) = rt_executor_wake_net_waiters_for_key;
 void (*runtime_v2_check_ensure_waiter_cap)(rt_executor*) = ensure_waiter_cap;

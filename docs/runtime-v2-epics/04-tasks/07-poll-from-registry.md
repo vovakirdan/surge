@@ -1,6 +1,6 @@
 # Task 7: Poll From Registry
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 
 ## Goal
