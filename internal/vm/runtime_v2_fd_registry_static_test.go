@@ -42,6 +42,41 @@ func runFDRegistryStaticCheck(t *testing.T, label, source string) {
 	}
 }
 
+func runFDRegistryBehaviorCheck(t *testing.T, label, source string) {
+	t.Helper()
+	root := repoRoot(t)
+	clang, err := exec.LookPath("clang")
+	if err != nil {
+		t.Fatalf("clang is required for Runtime V2 pending behavior check: %v", err)
+	}
+	exe := filepath.Join(t.TempDir(), "fd-registry-behavior")
+	cmd := exec.Command(
+		clang,
+		"-std=c11",
+		"-Wall",
+		"-Wextra",
+		"-Werror",
+		"-I"+filepath.Join(root, "runtime", "native"),
+		"-x",
+		"c",
+		"-",
+		"-o",
+		exe,
+	)
+	cmd.Dir = root
+	cmd.Stdin = strings.NewReader(source)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s compile failed:\n%s", label, output)
+	}
+
+	runCmd := exec.Command(exe)
+	runOutput, err := runCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s run failed:\n%s", label, runOutput)
+	}
+}
+
 // TestRuntimeV2FDRegistryStaticShape guards the Epic 4 Task 5 fd registry
 // skeleton contract. It is EXPECTED RED until Task 5 lands exactly this shape,
 // reachable from rt_async_internal.h:
@@ -87,8 +122,16 @@ func runFDRegistryStaticCheck(t *testing.T, label, source string) {
 //	size_t rt_fd_registry_snapshot_poll_interest(const rt_fd_registry* registry,
 //	                                             rt_fd_poll_interest* out, size_t out_cap);
 //
-// The remaining mutation surface (close/generation) is deliberately not
-// pinned here; Task 9 extends this guard when it implements it.
+// Task 9 extended the guard with close/generation lifecycle APIs:
+//
+//	rt_runtime_status rt_fd_registry_mark_closed(
+//	    rt_fd_registry* registry, int fd, rt_fd_lifecycle_snapshot* out);
+//	rt_fd_completion_state rt_fd_registry_completion_state(
+//	    const rt_fd_registry* registry, const rt_fd_poll_interest* snapshot, waker_key key);
+//	rt_fd_completion_summary rt_fd_registry_complete_ready_net_waiters(
+//	    rt_executor* ex, const rt_fd_poll_interest* snapshot, int read_ready, int write_ready);
+//	rt_fd_completion_summary rt_fd_registry_wake_closed_net_waiters(
+//	    rt_executor* ex, const rt_fd_lifecycle_snapshot* snapshot);
 func TestRuntimeV2FDRegistryStaticShape(t *testing.T) {
 	source := `
 #include "rt_async_internal.h"
@@ -122,11 +165,40 @@ int (*runtime_v2_check_fd_registry_net_interest_present)(const rt_fd_registry*, 
 size_t (*runtime_v2_check_fd_registry_snapshot_poll_interest)(
     const rt_fd_registry*, rt_fd_poll_interest*, size_t) = rt_fd_registry_snapshot_poll_interest;
 
-// Poll snapshot row: fd plus readable-class (read|accept folded) and write
-// interest. Completion fan-out to separate read/accept keys stays in rt_net.c.
+// Task 9 close/generation lifecycle: close records exact per-kind wake
+// interests without allocation, and poll completion validates fd+generation,
+// open state, and current interest before waking a raw-fd key.
+rt_runtime_status (*runtime_v2_check_fd_registry_mark_closed)(
+    rt_fd_registry*, int, rt_fd_lifecycle_snapshot*) = rt_fd_registry_mark_closed;
+rt_fd_completion_state (*runtime_v2_check_fd_registry_completion_state)(
+    const rt_fd_registry*, const rt_fd_poll_interest*, waker_key) = rt_fd_registry_completion_state;
+rt_fd_completion_summary (*runtime_v2_check_fd_registry_complete_ready_net_waiters)(
+    rt_executor*, const rt_fd_poll_interest*, int, int) = rt_fd_registry_complete_ready_net_waiters;
+rt_fd_completion_summary (*runtime_v2_check_fd_registry_wake_closed_net_waiters)(
+    rt_executor*, const rt_fd_lifecycle_snapshot*) = rt_fd_registry_wake_closed_net_waiters;
+
+// Poll snapshot row: fd, fd-lifetime generation, and exact read/accept/write
+// interests. The poll layer folds read|accept into readable readiness, but
+// completion fan-out remains exact.
 _Static_assert(sizeof(((rt_fd_poll_interest*)0)->fd) == sizeof(int), "rt_fd_poll_interest.fd must stay int");
+_Static_assert(sizeof(((rt_fd_poll_interest*)0)->generation) == sizeof(uint64_t), "rt_fd_poll_interest.generation must stay uint64_t");
+_Static_assert(sizeof(((rt_fd_poll_interest*)0)->want_accept) == sizeof(uint8_t), "rt_fd_poll_interest.want_accept must stay byte-sized");
 _Static_assert(sizeof(((rt_fd_poll_interest*)0)->want_read) == sizeof(uint8_t), "rt_fd_poll_interest.want_read must stay byte-sized");
 _Static_assert(sizeof(((rt_fd_poll_interest*)0)->want_write) == sizeof(uint8_t), "rt_fd_poll_interest.want_write must stay byte-sized");
+
+// Close lifecycle snapshot: fd, generation, and exact wait kinds to wake after
+// raw close. It deliberately omits close_state; the close transition has
+// already happened before the snapshot is consumed.
+_Static_assert(sizeof(((rt_fd_lifecycle_snapshot*)0)->fd) == sizeof(int), "rt_fd_lifecycle_snapshot.fd must stay int");
+_Static_assert(sizeof(((rt_fd_lifecycle_snapshot*)0)->generation) == sizeof(uint64_t), "rt_fd_lifecycle_snapshot.generation must stay uint64_t");
+_Static_assert(sizeof(((rt_fd_lifecycle_snapshot*)0)->want_accept) == sizeof(uint8_t), "rt_fd_lifecycle_snapshot.want_accept must stay byte-sized");
+_Static_assert(sizeof(((rt_fd_lifecycle_snapshot*)0)->want_read) == sizeof(uint8_t), "rt_fd_lifecycle_snapshot.want_read must stay byte-sized");
+_Static_assert(sizeof(((rt_fd_lifecycle_snapshot*)0)->want_write) == sizeof(uint8_t), "rt_fd_lifecycle_snapshot.want_write must stay byte-sized");
+
+// Completion summary lets rt_net keep trace accounting while the registry owns
+// the guarded wake fan-out.
+_Static_assert(sizeof(((rt_fd_completion_summary*)0)->calls) == sizeof(uint64_t), "rt_fd_completion_summary.calls must stay uint64_t");
+_Static_assert(sizeof(((rt_fd_completion_summary*)0)->woken) == sizeof(uint64_t), "rt_fd_completion_summary.woken must stay uint64_t");
 
 // One durable entry per live fd: fd number, generation stale-wake guard,
 // close state, and accept/read/write interest bytes. Accept stays distinct
@@ -145,16 +217,164 @@ _Static_assert(sizeof(rt_fd_registry) > 0, "rt_fd_registry must be complete");
 _Static_assert(sizeof(((rt_fd_registry*)0)->entries) == sizeof(rt_fd_entry*), "rt_fd_registry.entries must store rt_fd_entry rows");
 _Static_assert(sizeof(((rt_fd_registry*)0)->len) == sizeof(size_t), "rt_fd_registry.len must stay size_t");
 _Static_assert(sizeof(((rt_fd_registry*)0)->cap) == sizeof(size_t), "rt_fd_registry.cap must stay size_t");
+_Static_assert(sizeof(((rt_fd_registry*)0)->next_generation) == sizeof(uint64_t), "rt_fd_registry.next_generation must stay uint64_t");
 _Static_assert(sizeof(((rt_shard*)0)->fd_registry) == sizeof(rt_fd_registry), "rt_shard.fd_registry must own registry storage by value");
 
 // Close-state codes stay explicit; the implementation may add states (e.g.
 // CLOSING) without breaking this guard.
 _Static_assert(RT_FD_CLOSE_STATE_OPEN == 0, "rt_fd_close_state OPEN must stay 0");
 _Static_assert(RT_FD_CLOSE_STATE_CLOSED != RT_FD_CLOSE_STATE_OPEN, "rt_fd_close_state CLOSED must stay distinct from OPEN");
+_Static_assert(RT_FD_COMPLETION_STALE == 0, "stale completion state must stay 0");
+_Static_assert(RT_FD_COMPLETION_CURRENT != RT_FD_COMPLETION_STALE, "current completion state must stay distinct");
 _Static_assert(RT_RUNTIME_STATUS_OK == 0, "rt_runtime_status OK must stay 0");
 `
 
 	runFDRegistryStaticCheck(t, "Runtime V2 fd registry static shape check", source)
+}
+
+func TestRuntimeV2FDRegistryGenerationStaleSnapshotProof(t *testing.T) {
+	source := `
+#include <stdint.h>
+#include <stdlib.h>
+
+#include "rt_async_internal.h"
+
+void* rt_alloc(uint64_t size, uint64_t align) {
+    (void)align;
+    return malloc((size_t)size);
+}
+
+void rt_free(uint8_t* ptr, uint64_t size, uint64_t align) {
+    (void)size;
+    (void)align;
+    free(ptr);
+}
+
+void* rt_realloc(uint8_t* ptr, uint64_t old_size, uint64_t new_size, uint64_t align) {
+    (void)old_size;
+    (void)align;
+    return realloc(ptr, (size_t)new_size);
+}
+
+int waker_valid(waker_key key) {
+    return key.kind != WAKER_NONE && key.id != 0;
+}
+
+int waker_is_net(waker_key key) {
+    return key.kind == WAKER_NET_ACCEPT || key.kind == WAKER_NET_READ ||
+           key.kind == WAKER_NET_WRITE;
+}
+
+waker_key net_accept_key(int fd) {
+    return (waker_key){WAKER_NET_ACCEPT, (uint64_t)fd};
+}
+
+waker_key net_read_key(int fd) {
+    return (waker_key){WAKER_NET_READ, (uint64_t)fd};
+}
+
+waker_key net_write_key(int fd) {
+    return (waker_key){WAKER_NET_WRITE, (uint64_t)fd};
+}
+
+const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
+    (void)ex;
+    return NULL;
+}
+
+rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
+    (void)ex;
+    (void)key;
+    return (rt_waiter_completion){0, 0};
+}
+
+void rt_lock(rt_executor* ex) {
+    (void)ex;
+}
+
+void rt_unlock(rt_executor* ex) {
+    (void)ex;
+}
+
+void rt_net_wake_poll(void) {
+}
+
+#include "rt_fd_registry.c"
+
+static int require_int(int condition, int code) {
+    return condition ? 0 : code;
+}
+
+int main(void) {
+    rt_fd_registry registry;
+    rt_fd_poll_interest first[1];
+    rt_fd_poll_interest second[1];
+    rt_fd_lifecycle_snapshot closed;
+    waker_key read_key = {WAKER_NET_READ, 42};
+
+    int err = require_int(rt_fd_registry_init(&registry) == RT_RUNTIME_STATUS_OK, 1);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_attach_net_interest(&registry, read_key) ==
+                          RT_RUNTIME_STATUS_OK,
+                      2);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, first, 1) == 1, 3);
+    if (err != 0) return err;
+    err = require_int(first[0].fd == 42 && first[0].generation == 1 &&
+                          first[0].want_read == 1,
+                      4);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_completion_state(&registry, &first[0], read_key) ==
+                          RT_FD_COMPLETION_CURRENT,
+                      5);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_mark_closed(&registry, 42, &closed) ==
+                          RT_RUNTIME_STATUS_OK,
+                      6);
+    if (err != 0) return err;
+    err = require_int(closed.fd == 42 && closed.generation == 1 && closed.want_read == 1, 7);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_completion_state(&registry, &first[0], read_key) ==
+                          RT_FD_COMPLETION_STALE,
+                      8);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 0, 9);
+    if (err != 0) return err;
+
+    rt_fd_registry_detach_net_interest(&registry, read_key);
+    err = require_int(rt_fd_registry_len(&registry) == 0, 10);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_attach_net_interest(&registry, read_key) ==
+                          RT_RUNTIME_STATUS_OK,
+                      11);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 1, 12);
+    if (err != 0) return err;
+    err = require_int(second[0].fd == 42 && second[0].generation == 2 &&
+                          second[0].want_read == 1,
+                      13);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_completion_state(&registry, &first[0], read_key) ==
+                          RT_FD_COMPLETION_STALE,
+                      14);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_completion_state(&registry, &second[0], read_key) ==
+                          RT_FD_COMPLETION_CURRENT,
+                      15);
+    if (err != 0) return err;
+
+    rt_fd_registry_detach_net_interest(&registry, read_key);
+    registry.next_generation = UINT64_MAX;
+    err = require_int(rt_fd_registry_attach_net_interest(&registry, read_key) ==
+                          RT_RUNTIME_STATUS_ALLOCATION_FAILED,
+                      16);
+    if (err != 0) return err;
+    rt_fd_registry_free(&registry);
+    return 0;
+}
+`
+
+	runFDRegistryBehaviorCheck(t, "Runtime V2 fd registry stale snapshot behavior check", source)
 }
 
 // TestRuntimeV2FDRegistryStaticBoundary proves the current approved

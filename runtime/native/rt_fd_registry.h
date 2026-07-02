@@ -12,17 +12,17 @@
 //   writes through the waiter-store bridge in rt_async_waiter.c; Task 7 makes
 //   the registry the only poll input: poll_net_waiters snapshots rows into the
 //   shard poll scratch under ex->lock and never scans the waiter store.
-// - A row exists iff at least one net-key waiter for that fd is parked in the
-//   waiter store. The fd-registry-attach-miss bridge is resolved in Task 7:
-//   after prepare_park, net_wait_current_task verifies its interest row exists
+// - A row exists iff at least one open net-key waiter for that fd is parked in
+//   the waiter store, or a close transition is draining the row's last waiters.
+//   The fd-registry-attach-miss bridge is resolved in Task 7: after
+//   prepare_park, net_wait_current_task verifies its interest row exists
 //   (rt_fd_registry_net_interest_present) and otherwise undoes the park and
-//   reports spurious readiness, so a parked net waiter always has a row and
-//   every parked fd is polled. Detaching the last interest flag swap-removes
-//   the row; row order is not meaningful and find is a linear scan.
+//   reports spurious readiness, so a parked open net waiter always has a row
+//   and every parked open fd is polled. Detaching the last interest flag
+//   swap-removes the row; row order is not meaningful and find is a linear scan.
 // - generation guards fd-reuse stale wakes; close_state guards post-close
-//   interest. Behavior lands in Task 9; the fields exist so the row shape is
-//   fixed now. Remove-plus-recreate resets generation to 0; Task 9 owns
-//   re-deciding row lifetime when it adds generation/close semantics.
+//   interest. Remove-plus-recreate preserves stale-wake safety because new rows
+//   take a monotonic generation from next_generation instead of resetting to 0.
 // - rt_fd_registry_free releases entry storage. No caller exists today because
 //   the process has no executor shutdown path (see the Epic 4 dependency map);
 //   Tasks 10-11 create that path and wire the free.
@@ -48,17 +48,39 @@ typedef struct {
     rt_fd_entry* entries;
     size_t len;
     size_t cap;
+    uint64_t next_generation;
 } rt_fd_registry;
 
 // Poll-interest snapshot row copied into the shard poll scratch under
-// ex->lock. want_read is readable-class interest (want_read || want_accept)
-// because accept readiness is readable-class readiness at the poll layer;
-// completion fan-out to the separate read/accept waker keys stays in rt_net.c.
+// ex->lock. The generation is the fd-lifetime stale-wake guard; accept and
+// read remain separate so completion after poll can wake only the interests
+// present in the snapshot, while the poll layer still folds them into readable
+// readiness.
 typedef struct {
     int fd;
+    uint64_t generation;
+    uint8_t want_accept;
     uint8_t want_read;
     uint8_t want_write;
 } rt_fd_poll_interest;
+
+typedef struct {
+    int fd;
+    uint64_t generation;
+    uint8_t want_accept;
+    uint8_t want_read;
+    uint8_t want_write;
+} rt_fd_lifecycle_snapshot;
+
+typedef enum {
+    RT_FD_COMPLETION_STALE = 0,
+    RT_FD_COMPLETION_CURRENT = 1,
+} rt_fd_completion_state;
+
+typedef struct {
+    uint64_t calls;
+    uint64_t woken;
+} rt_fd_completion_summary;
 
 rt_fd_registry* rt_shard_fd_registry(rt_shard* shard);
 const rt_fd_registry* rt_shard_fd_registry_const(const rt_shard* shard);
@@ -73,6 +95,15 @@ const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int
 rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
 void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);
 int rt_fd_registry_net_interest_present(const rt_fd_registry* registry, waker_key key);
+rt_runtime_status
+rt_fd_registry_mark_closed(rt_fd_registry* registry, int fd, rt_fd_lifecycle_snapshot* out);
+rt_fd_completion_state rt_fd_registry_completion_state(const rt_fd_registry* registry,
+                                                       const rt_fd_poll_interest* snapshot,
+                                                       waker_key key);
+rt_fd_completion_summary rt_fd_registry_complete_ready_net_waiters(
+    rt_executor* ex, const rt_fd_poll_interest* snapshot, int read_ready, int write_ready);
+rt_fd_completion_summary
+rt_fd_registry_wake_closed_net_waiters(rt_executor* ex, const rt_fd_lifecycle_snapshot* snapshot);
 size_t rt_fd_registry_snapshot_poll_interest(const rt_fd_registry* registry,
                                              rt_fd_poll_interest* out,
                                              size_t out_cap);

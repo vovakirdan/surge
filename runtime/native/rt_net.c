@@ -225,10 +225,9 @@ static void net_poll_wake_drain(void) {
     }
 }
 
-static void complete_net_waiters(rt_executor* ex, waker_key key) {
-    net_trace_inc(&net_waiter_complete_calls_total);
-    rt_waiter_completion completion = rt_executor_wake_net_waiters_for_key(ex, key);
-    net_trace_add(&net_waiter_completed_total, (uint64_t)completion.woken);
+static void net_trace_waiter_completion(rt_fd_completion_summary summary) {
+    net_trace_add(&net_waiter_complete_calls_total, summary.calls);
+    net_trace_add(&net_waiter_completed_total, summary.woken);
 }
 
 static int
@@ -614,32 +613,46 @@ void* rt_net_connect(void* addr, uint64_t port) {
     return net_make_success_ptr(conn);
 }
 
-void* rt_net_close_listener(void* listener) {
-    NetListener* l = net_listener_from_value(listener);
-    if (l == NULL || l->closed) {
+static void* close_net_fd_slot(int* fd_slot, bool* closed_slot) {
+    if (fd_slot == NULL || closed_slot == NULL || *closed_slot) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
-    l->closed = true;
-    int fd = l->fd;
-    l->fd = -1;
+    int fd = *fd_slot;
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return net_make_error(NET_ERR_IO);
+    }
+    rt_fd_lifecycle_snapshot snapshot;
+    rt_lock(ex);
+    rt_runtime_status status =
+        rt_fd_registry_mark_closed(rt_executor_fd_registry(ex), fd, &snapshot);
+    rt_unlock(ex);
+    if (status != RT_RUNTIME_STATUS_OK) {
+        return net_make_error(NET_ERR_IO);
+    }
+    *closed_slot = true;
+    *fd_slot = -1;
+    int close_errno = 0;
     if (close(fd) != 0) {
-        return net_make_error(net_error_code_from_errno(errno));
+        close_errno = errno;
+    }
+    net_trace_waiter_completion(rt_fd_registry_wake_closed_net_waiters(ex, &snapshot));
+    if (close_errno != 0) {
+        return net_make_error(net_error_code_from_errno(close_errno));
     }
     return net_make_success_nothing();
 }
 
+void* rt_net_close_listener(void* listener) {
+    NetListener* l = net_listener_from_value(listener);
+    return l == NULL ? net_make_error(NET_ERR_NOT_CONNECTED)
+                     : close_net_fd_slot(&l->fd, &l->closed);
+}
+
 void* rt_net_close_conn(void* conn) {
     NetConn* c = net_conn_from_value(conn);
-    if (c == NULL || c->closed) {
-        return net_make_error(NET_ERR_NOT_CONNECTED);
-    }
-    c->closed = true;
-    int fd = c->fd;
-    c->fd = -1;
-    if (close(fd) != 0) {
-        return net_make_error(net_error_code_from_errno(errno));
-    }
-    return net_make_success_nothing();
+    return c == NULL ? net_make_error(NET_ERR_NOT_CONNECTED)
+                     : close_net_fd_slot(&c->fd, &c->closed);
 }
 
 void* rt_net_accept(const void* listener) {
@@ -780,10 +793,10 @@ static bool net_fd_ready_now(int fd, NetWaitKind kind) {
         return true;
     }
     short events = POLLIN;
-    short ready_mask = POLLIN | POLLERR | POLLHUP;
+    short ready_mask = POLLIN | POLLERR | POLLHUP | POLLNVAL;
     if (kind == NET_WAIT_WRITE) {
         events = POLLOUT;
-        ready_mask = POLLOUT | POLLERR | POLLHUP;
+        ready_mask = POLLOUT | POLLERR | POLLHUP | POLLNVAL;
     }
     struct pollfd pfd;
     memset(&pfd, 0, sizeof(pfd));
@@ -842,11 +855,8 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
     net_trace_inc(&net_direct_wait_total);
     prepare_park(ex, task, key, 0);
     if (!rt_fd_registry_net_interest_present(rt_executor_fd_registry_const(ex), key)) {
-        // fd-registry-attach-miss resolution: attach allocation failure left
-        // this waiter without a registry row, and a rowless waiter would never
-        // be polled (lost wakeup). Undo the park preparation under the same
-        // ex->lock hold and report spurious readiness: the net op is
-        // nonblocking, returns WouldBlock, and the caller re-waits.
+        // Attach failed or closed the row: undo the park so the rowless waiter
+        // cannot be lost now that poll input is registry-only.
         remove_waiter(ex, key, task->id);
         task->park_prepared = 0;
         task->park_key = waker_none();
@@ -888,12 +898,7 @@ bool rt_net_wait_writable(const void* conn) {
 
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     // Caller must hold ex->lock; this function releases it while polling.
-    // The poll set derives from registry rows only, never from a waiter-store
-    // scan: the snapshot copied into the shard scratch under ex->lock is the
-    // sole input for poll() and for completion after relock, so registry rows
-    // mutated while the lock is released cannot change an in-flight cycle.
-    // Stale snapshot completions are benign no-ops (a completed key with no
-    // waiters wakes nothing).
+    // The registry snapshot copied under ex->lock is the only guarded poll input.
     const rt_fd_registry* registry = rt_executor_fd_registry_const(ex);
     size_t cap = rt_fd_registry_len(registry);
     if (cap == 0) {
@@ -939,7 +944,7 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         pfds[poll_idx].fd = fds[i].fd;
         pfds[poll_idx].events = 0;
         pfds[poll_idx].revents = 0;
-        if (fds[i].want_read) {
+        if (fds[i].want_accept || fds[i].want_read) {
             pfds[poll_idx].events |= POLLIN;
         }
         if (fds[i].want_write) {
@@ -957,13 +962,8 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     if (n < 0) {
         net_trace_inc(&net_poll_errors_total);
         for (size_t i = 0; i < count; i++) {
-            if (fds[i].want_read) {
-                complete_net_waiters(ex, net_read_key(fds[i].fd));
-                complete_net_waiters(ex, net_accept_key(fds[i].fd));
-            }
-            if (fds[i].want_write) {
-                complete_net_waiters(ex, net_write_key(fds[i].fd));
-            }
+            net_trace_waiter_completion(
+                rt_fd_registry_complete_ready_net_waiters(ex, &fds[i], 1, 1));
         }
         return 1;
     }
@@ -983,19 +983,19 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         if (pfds[poll_idx].revents == 0) {
             continue;
         }
-        bool read_ready = (pfds[poll_idx].revents & (POLLIN | POLLERR | POLLHUP)) != 0;
-        bool write_ready = (pfds[poll_idx].revents & (POLLOUT | POLLERR | POLLHUP)) != 0;
+        bool read_ready = (pfds[poll_idx].revents & (POLLIN | POLLERR | POLLHUP | POLLNVAL)) != 0;
+        bool write_ready = (pfds[poll_idx].revents & (POLLOUT | POLLERR | POLLHUP | POLLNVAL)) != 0;
+        rt_fd_completion_summary completion =
+            rt_fd_registry_complete_ready_net_waiters(ex, &fds[i], read_ready, write_ready);
         if (read_ready) {
             net_trace_inc(&net_poll_ready_total);
-            complete_net_waiters(ex, net_read_key(fds[i].fd));
-            complete_net_waiters(ex, net_accept_key(fds[i].fd));
             woke = 1;
         }
         if (write_ready) {
             net_trace_inc(&net_poll_ready_total);
-            complete_net_waiters(ex, net_write_key(fds[i].fd));
             woke = 1;
         }
+        net_trace_waiter_completion(completion);
     }
 
     return woke;

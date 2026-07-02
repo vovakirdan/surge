@@ -772,6 +772,103 @@ Checks:
 - `sentrux gate runtime/native`: passed, `5159 -> 5172`, no degradation.
 - `git diff --check`: passed.
 
+## Task 9 Evidence: Close, Cancel, And Re-register Migration
+
+Date: 2026-07-02. Runtime migration completed in the fd registry/net paths and
+static behavior proof extended. Touched runtime files:
+`runtime/native/rt_fd_registry.h`, `runtime/native/rt_fd_registry.c`, and
+`runtime/native/rt_net.c`; touched proof file:
+`internal/vm/runtime_v2_fd_registry_static_test.go`.
+
+Behavior implemented:
+
+- fd registry rows now use a durable monotonic `next_generation`; row
+  remove/recreate does not reset generation, and generation exhaustion returns
+  `RT_RUNTIME_STATUS_ALLOCATION_FAILED`.
+- `rt_fd_registry_mark_closed` records a compact close lifecycle snapshot
+  (`fd`, `generation`, `want_accept`, `want_read`, `want_write`) without
+  allocation and marks the row closed. Missing rows return OK with an empty
+  snapshot; invalid arguments return an explicit status.
+- Closed rows are excluded from poll snapshots and from
+  `rt_fd_registry_net_interest_present`.
+- Poll snapshots carry generation and exact accept/read/write interests.
+  Completion fan-out now goes through registry helpers that use
+  `rt_fd_registry_completion_state`, so stale fd/generation/open-state/current
+  interest mismatches do not wake waiters.
+- close paths validate the handle, capture fd, mark the registry closed under
+  `ex->lock`, raw-close the fd outside the executor lock, then wake only the
+  close snapshot keys and signal the net poll/`io_cv` sleepers.
+- `POLLNVAL` is treated as readiness/error in both immediate readiness probes
+  and poll completion, which makes resumed close waiters observe a net error
+  instead of parking again on the closed fd.
+
+Task 8 expected-red close tests are now green:
+
+- `TestRuntimeV2FDRegistryCloseWakesParkedAcceptWaiter`: passed after Task 9;
+  the prior expected-red stdout was `accept_close_timeout`.
+- `TestRuntimeV2FDRegistryCloseWakesParkedReadWaiter`: passed after Task 9;
+  the prior expected-red stdout was `read_close_timeout`.
+- Existing green cancellation/re-register tests also stayed green:
+  `CancelledDuplicateReadWaiterPreservesLiveAndReregister` and
+  `CancelledReadInterestPreservesWriteInterest`.
+
+Deterministic stale poll snapshot proof:
+
+- `TestRuntimeV2FDRegistryGenerationStaleSnapshotProof` compiles and runs a
+  tiny C program against `rt_fd_registry.c` with local stubs. It proves fd `42`
+  snapshot generation `1` becomes stale after mark-closed plus detach, and a
+  recreated fd `42` row gets generation `2` while the old snapshot remains
+  stale. The same proof checks explicit generation-overflow status.
+- This proof does not rely on OS fd allocation or numeric fd reuse luck.
+- Boundary: Task 9 protects stale poll snapshots and registry-routed waiter
+  completions. It does not make copied `TcpConn`/`TcpListener` handles
+  generation-aware; that remaining fd-reuse hazard is tracked as
+  RV2-DEBT-010.
+
+Trace contract:
+
+- `TestRuntimeV2NetWaiterTraceContract` passed with the `runtime_v2_pending`
+  tag and continues to assert
+  `io_waiter_scan_entries==0`, `io_waiter_net_entries==0`, and
+  `io_poll_dedup_checks==0`.
+- Poll input remains fd-registry snapshots only; no waiter-store scan was
+  reintroduced.
+
+Checks:
+
+- `gofmt -w internal/vm/runtime_v2_fd_registry_static_test.go`: passed.
+- `go test -tags runtime_v2_pending ./internal/vm -run
+  'TestRuntimeV2FDRegistry(StaticShape|GenerationStaleSnapshotProof)$'
+  -count=1 -v --timeout 60s`: passed, package time `0.165s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  'TestRuntimeV2FDRegistry(CancelledDuplicateReadWaiterPreservesLiveAndReregister|CancelledReadInterestPreservesWriteInterest|CloseWakesParkedAcceptWaiter|CloseWakesParkedReadWaiter)$'
+  -count=1 -v --timeout 90s`: passed, package time `16.013s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2NetWaiterTraceContract$' -count=1 -v --timeout 90s`:
+  passed, package time `2.539s`.
+- `SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMTNetWaiterWakeupLatency$' -count=1 -v --timeout 90s`: passed,
+  package time `2.541s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestNativeNetSingleThreadBlockingChannelInAsyncServer$' -count=1 -v
+  --timeout 90s`: passed, package time `4.453s`.
+- `make c-check`: passed.
+- `make cppcheck`: passed.
+- `make runtime-v2-check`: first run failed once on
+  `TestMTChannelParkUnpark` timeout; isolated
+  `TestMTChannelParkUnpark` rerun passed, and full `make runtime-v2-check`
+  rerun passed.
+- `make check`: passed; file-size gate reports `rt_net.c` as
+  `LEGACY OK <=1002`, with `rt_fd_registry.c` `366` lines and
+  `rt_fd_registry.h` `111` lines.
+- `git diff --check`: passed.
+- Main-session review subagent found no P0/P1/P2/P3 blockers. Residual
+  boundaries are RV2-DEBT-010 and the already tracked Task 12 trace cleanup.
+- Main-session Sentrux gates passed without degradation: root `6198 -> 6195`,
+  `runtime` `5195 -> 5243`, and `runtime/native` `5159 -> 5188`.
+
 ## Draft Creation Evidence
 
 - `git diff --check`: passed with empty output after creating the Epic 4

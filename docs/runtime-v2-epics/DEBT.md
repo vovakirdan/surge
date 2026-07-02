@@ -26,6 +26,7 @@ document.
 | RV2-DEBT-005 | Non-Epic-4 native runtime files remain over the hard LOC gate: `rt_term.c`, `rt_fs.c`, `rt_async_task.c`, `rt_string.c`, `rt_bignum_int.c`, and `rt_bignum_uint_div.c`. | Open | Later runtime cleanup or owning feature epics | Each file is split by responsibility and removed from `.loc-legacy-allowlist`. |
 | RV2-DEBT-006 | Channel benchmark script still relies on outer timeout wrappers instead of per-probe timeout ownership. | Open | Benchmark tooling task before the next performance-sensitive channel epic | `scripts/bench_native_channels.sh` owns per-probe timeout handling and reports probe/mode on timeout. |
 | RV2-DEBT-007 | Sentrux complexity/function-length thresholds are calibrated to current legacy ceilings, not ideal Runtime V2 targets. | Open | Later quality-hardening pass after large-file refactors | `max_cc` and `max_fn_lines` are lowered without causing baseline violations. |
+| RV2-DEBT-010 | Copied net handles still carry only the raw native fd view. Task 9 protects stale poll snapshots and waiter completions from numeric fd reuse, but a stale copied `TcpConn`/`TcpListener` handle is not yet generation-aware. | Open | Future net handle ABI/lifecycle task after fd registry ownership stabilizes | Public net handle operations validate a registry generation or stable handle id before issuing direct fd operations, and stale copied handles cannot act on a reused OS fd. |
 
 ## Closed Debt
 

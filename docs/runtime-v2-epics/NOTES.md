@@ -1473,3 +1473,28 @@ flat, or creates a follow-up split task.
 - Epic 4 should start with persistent fd registry and net lifecycle proof:
   registration, readiness lifetime, close/cancel cleanup, wake-fd ownership,
   and shutdown behavior. Do not start Epic 4 with `N>1` or crossing syntax.
+
+## Epic 4 Task 9 Handoff
+
+- Scope completed: close, cancellation/re-register stale completion, and
+  stale poll snapshot protection are now fd-registry lifecycle concerns.
+- fd rows use registry-owned monotonic generations; close snapshots carry
+  fd/generation plus exact accept/read/write interests.
+- close marks rows closed under `ex->lock`, raw-closes outside the executor
+  lock, then wakes only the snapshot keys and signals net poll/`io_cv`.
+- poll snapshots exclude closed rows and carry generation; poll-error and
+  readiness completion go through registry guarded completion helpers.
+- Task 8 close tests are no longer expected-red:
+  `CloseWakesParkedAcceptWaiter` and `CloseWakesParkedReadWaiter` both pass.
+- Deterministic stale proof uses fd `42` in a tiny C registry test; no OS fd
+  allocation luck is involved.
+- Boundary recorded as RV2-DEBT-010: copied public net handles still carry the
+  raw fd view and are not generation-aware yet.
+- Trace zero contract stays intact: `io_waiter_scan_entries`,
+  `io_waiter_net_entries`, and `io_poll_dedup_checks` remain asserted zero by
+  `TestRuntimeV2NetWaiterTraceContract`.
+- Checks passed: static fd-registry proof, focused Task 8 lifecycle quartet,
+  `TestRuntimeV2NetWaiterTraceContract`, `TestMTNetWaiterWakeupLatency`,
+  `make c-check`, `make cppcheck`, `make runtime-v2-check` after one isolated
+  `TestMTChannelParkUnpark` timeout/rerun, `make check`, and
+  `git diff --check`.
