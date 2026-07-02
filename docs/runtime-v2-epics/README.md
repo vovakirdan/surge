@@ -26,7 +26,8 @@ Epic 1 is complete. Epic 2 is complete for its `N=1`
 runtime/shard-structure scope in `02-n1-runtime-shard-structure.md`, with
 task evidence in `02-evidence.md`. Epic 3 is complete for owner-local waiters
 and dependency-aware runtime refactoring under the same `N=1` boundary. Epic 4
-is drafted for persistent fd registry and net lifecycle proof.
+is complete for persistent fd registry and net lifecycle proof, with accepted
+debt recorded in `DEBT.md`.
 
 ## Current Runtime V2 Artifacts
 
@@ -47,15 +48,14 @@ is drafted for persistent fd registry and net lifecycle proof.
   remaining debt, and Epic 4 handoff.
 - `03-evidence.md`: Epic 3 task evidence ledger.
 - `04-persistent-fd-registry-and-net-lifecycle.md`: Epic 4 scope, task list,
-  acceptance gates, and Epic 5 handoff candidate.
+  acceptance gates, closeout, and Epic 5 handoff.
 - `04-evidence.md`: Epic 4 task evidence ledger.
 
 Known backend-test debt remains accepted for now: the focused
-`go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside the
-Epic 3 green gate. A later test/backend epic will rewrite the VM/native/LLVM
-test matrix around the Runtime V2 contracts. Until then, runtime tasks must keep
-that debt named in `DEBT.md` and must not attribute new regressions to it
-without evidence.
+`go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside
+the Runtime V2 green gates. Epic 11 owns the VM/native/LLVM test-matrix
+rewrite. Until then, runtime tasks must keep that debt named in `DEBT.md` and
+must not attribute new regressions to it without evidence.
 
 ## Standing Migration Goals
 
@@ -76,8 +76,8 @@ Every epic should move the runtime toward these goals:
 | 1 | `01-contract-rules-harness.md` (`01-contract-rules-harness-tasks.md`) | Complete. Defines the contracts, strict development rules, baseline probes, and quality gates that every later epic must satisfy. |
 | 2 | `02-n1-runtime-shard-structure.md` | Complete. Introduced V2-shaped `rt_runtime` / `rt_shard` structures with `N=1`, migrated selected owner surfaces, and added the stable Runtime V2 liveness gate without changing behavior. |
 | 3 | `03-owner-local-waiters-and-runtime-refactor.md` | Complete. Moved included waiter surfaces to owner-local structures under `N=1`, added stable waiter liveness gates, and landed dependency-aware runtime refactoring. |
-| 4 | `04-persistent-fd-registry-and-net-lifecycle.md` | Draft. Replace poll-set rebuilds with a shard-local persistent fd registry and prove net lifecycle ownership. |
-| 5 | TBD | Move hot heap counters to per-shard accounting before real `N>1` benchmarking. |
+| 4 | `04-persistent-fd-registry-and-net-lifecycle.md` | Complete. Replaced poll-set rebuilds with a shard-local persistent fd registry and proved net lifecycle ownership with accepted debt. |
+| 5 | TBD | Next. Move hot heap counters to per-shard accounting before real `N>1` benchmarking. |
 | 6 | TBD | Enable multi-shard accept ownership and remove hot-path stealing for connection tasks. |
 | 7 | TBD | Add the explicit crossing language surface: `far`, `submit_to`, and shard-movable checks. |
 | 8 | TBD | Add cross-shard runtime transport, remote operations, Tier 2 destinations, and generation-checked distributed flows. |

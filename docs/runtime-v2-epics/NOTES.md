@@ -33,23 +33,15 @@ task, then move durable decisions into the owning epic document before closeout.
   `03-evidence.md`. Post-doc Sentrux closeout scans recorded root `6198`,
   runtime `5195`, and runtime/native `5159`; missing rules were debt at that
   time and are closed by the pre-Epic 4 quality hardening.
-- Epic 4 starts with persistent fd registry and net lifecycle proof. Do not
-  start from `N>1`, crossing syntax, or cross-shard wake protocol work.
-- Epic 4 draft now lives in
-  `04-persistent-fd-registry-and-net-lifecycle.md`, with task documents under
-  `04-tasks/` and evidence in `04-evidence.md`. The first task is
-  `04-tasks/01-kickoff-baseline-and-sentrux.md`.
-- Epic 4 keeps the current `poll()` backend first. `epoll`, `kqueue`,
-  `io_uring`, accept distribution, `N>1`, crossing syntax, heap counters, and
-  the broad VM/native/LLVM test-matrix rewrite remain out of scope.
-- Epic 4 implementation tasks must prove fd registration, duplicate readiness
-  interest, cancellation, close, stale wake, numeric fd reuse or equivalent
-  generation safety, wake-fd notification, shutdown drain behavior, and bounded
-  registry-derived polling before closeout.
-- Epic 4 draft creation evidence is recorded in `04-evidence.md`.
-  `git diff --check` passed. Sentrux draft scans recorded root `6198`,
-  runtime `5195`, and runtime/native `5159`; Sentrux rules now exist and pass
-  for all three mandatory scan roots.
+- Epic 4 is complete with accepted debt for persistent fd registry and net
+  lifecycle proof. Closeout lives in
+  `04-persistent-fd-registry-and-net-lifecycle.md`; task evidence lives in
+  `04-evidence.md`.
+- Epic 4 keeps the current `poll()` backend. `epoll`, `kqueue`, `io_uring`,
+  accept distribution, `N>1`, crossing syntax, heap counters, and the broad
+  VM/native/LLVM test-matrix rewrite remain out of scope.
+- Epic 5 should start from heap and hot accounting ownership. Do not start
+  from `N>1`, crossing syntax, or cross-shard wake protocol work.
 - Pre-Epic 4 quality hardening is recorded: Sentrux rules now exist for root,
   `runtime/`, and `runtime/native`; CLI and MCP rule checks pass for all three
   paths. `check_file_sizes.sh` now checks `go,c,h` by default, prunes generated
@@ -1674,3 +1666,30 @@ flat, or creates a follow-up split task.
   runtime/native rules passed but quality signals decreased
   `5230 -> 5214` and `5175 -> 5158`, recorded as an accepted split tradeoff
   while RV2-DEBT-004 remains open.
+
+## Epic 4 Closeout Handoff
+
+- Scope completed: persistent fd registry and net lifecycle ownership under
+  the existing `N=1` boundary.
+- Polling now uses fd-registry snapshots instead of rebuilding fd rows from the
+  full waiter store. Closeout trace validation recorded 24 runtime trace rows,
+  30 columns, no missing required fields, and zero violations.
+- Stable fd-registry proofs run through `make runtime-v2-check` via
+  `runtime-v2-fd-registry-check`. Timing-heavy fd-registry probes remain
+  local-only and are not CI green gates.
+- Fresh closeout gates passed: `make c-check`, `make cppcheck`,
+  `make runtime-v2-fd-registry-check`, `make runtime-v2-check`,
+  `TestMTNetWaiterWakeupLatency`, `make check`, and `git diff --check`.
+- Fresh closeout Sentrux scans passed rules with zero violations: root quality
+  `6191`, `runtime/` quality `5240`, and `runtime/native` quality `5244`.
+  Root quality ended below kickoff (`6198 -> 6191`), while the scoped runtime
+  signals improved (`5195 -> 5240`, `5159 -> 5244`).
+- Final line counts: `rt_async_state.c` 1727, `rt_net.c` 904,
+  `rt_net_trace.c` 128, `rt_net_trace.h` 73, `rt_fd_registry.c` 409,
+  `rt_fd_registry.h` 113, and `rt_async_internal.h` 495.
+- Remaining non-green debt: RV2-DEBT-001, RV2-DEBT-002, RV2-DEBT-003,
+  RV2-DEBT-004, RV2-DEBT-010, local-only timing-heavy fd-registry probes, and
+  normal lifecycle wiring for `rt_executor_request_shutdown`.
+- Next epic: heap and hot accounting ownership. Keep `N>1` accept
+  distribution, crossing syntax, backend I/O migration, and VM/native/LLVM
+  test-matrix rewrite out until their owning epics.

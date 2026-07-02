@@ -40,7 +40,7 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 12 | Complete | Trace counters and benchmark contract recorded below. |
 | 13 | Complete | FD registry CI gate wiring recorded below. |
 | 14 | Complete | TRACE_NET extraction and closeout checks recorded below. |
-| 15 | Pending | Closeout gates and handoff. |
+| 15 | Complete | Closeout gates and handoff recorded below. |
 
 ## Task 1 Evidence: Kickoff Baseline And Sentrux
 
@@ -1321,6 +1321,99 @@ Sentrux/review:
   RV2-DEBT-004 remains open until `rt_net.c` is split below the target.
 - Review subagent approved code after the RV2-DEBT-004 stale-owner finding was
   fixed.
+
+## Task 15 Evidence: Epic Closeout And Static Gates
+
+Date: 2026-07-02. Docs-only closeout; no runtime code, Makefile, CI workflow,
+benchmark script, Sentrux rule, or committed benchmark artifact changes.
+
+Checkout:
+
+- Branch: `codex/runtime-net-scheduler-refactor`.
+- HEAD: `a137c0f2 refactor(runtime): split net trace helpers`.
+- The working tree was clean before Task 15 edits.
+
+Final Runtime V2 native line counts:
+
+| file | lines | status |
+| --- | ---: | --- |
+| `runtime/native/rt_async_state.c` | 1727 | over target; RV2-DEBT-003 remains open |
+| `runtime/native/rt_net.c` | 904 | over target; RV2-DEBT-004 remains open |
+| `runtime/native/rt_net_trace.c` | 128 | under target |
+| `runtime/native/rt_net_trace.h` | 73 | under target |
+| `runtime/native/rt_fd_registry.c` | 409 | under target |
+| `runtime/native/rt_fd_registry.h` | 113 | under target |
+| `runtime/native/rt_async_internal.h` | 495 | under target |
+
+Fresh closeout gates:
+
+- `make c-check`: passed.
+- `make cppcheck`: passed, 34/34 native C files.
+- `make runtime-v2-fd-registry-check`: passed; 10 selected tests, package
+  time `16.075s`.
+- `make runtime-v2-check`: passed; waiter set package time `20.128s`,
+  fd-registry gate package time `16.137s`.
+- `SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMTNetWaiterWakeupLatency$' -count=1 -parallel=1 -p=1 -v --timeout
+  90s`: passed, package time `2.346s`.
+- `make check`: passed.
+- `git diff --check`: passed on the fresh closeout state and after Task 15
+  documentation edits.
+
+Fresh closeout native net benchmark:
+
+- Binary version commit: `a137c0f29591`; message:
+  `refactor(runtime): split net trace helpers`.
+- Report: `build/benchmarks/runtime-v2-epic4-closeout-native-net.md`
+  (ignored under `build/`).
+- Validation: 24 runtime trace rows, 30 columns, missing required fields `[]`,
+  violations count `0`.
+- First trace row summary: `1/echo/seq`, `net direct waits=1797`,
+  `net poll calls=4099`, `waiter scan entries=0`,
+  `net waiter entries=0`, `poll rebuilds=4099`, `poll allocs=2`,
+  `dedup checks=0`, `complete calls=1797`, `completed waiters=1797`.
+- Echo average latency rows:
+  - `1/echo/seq`: `64.61` us/op;
+  - `1/echo/pipe`: `24.08` us/op;
+  - `2/echo/seq`: `72.88` us/op;
+  - `2/echo/pipe`: `36.73` us/op;
+  - `4/echo/seq`: `74.99` us/op;
+  - `4/echo/pipe`: `38.88` us/op;
+  - `8/echo/seq`: `76.31` us/op;
+  - `8/echo/pipe`: `38.76` us/op.
+
+Fresh closeout Sentrux scans from the committed state:
+
+- Root `/home/zov/projects/surge/surge`: quality `6191`, rules pass,
+  8 rules checked, 0 violations.
+- `runtime/`: quality `5240`, rules pass, 7 rules checked, 0 violations.
+- `runtime/native`: quality `5244`, rules pass, 7 rules checked,
+  0 violations.
+- Compared with the Epic 4 kickoff baseline, root quality ended lower
+  (`6198 -> 6191`), while scoped runtime quality improved
+  (`5195 -> 5240`) and scoped native quality improved (`5159 -> 5244`).
+  The closeout accepts this repo-level tradeoff because all Sentrux rules pass
+  and the runtime-owned scopes improved.
+
+Accepted debt that remains non-green:
+
+- RV2-DEBT-001: broad VM/backend command remains Epic 11 debt.
+- RV2-DEBT-002: timeout-sensitive tests remain excluded from green gates.
+- RV2-DEBT-003: `runtime/native/rt_async_state.c` remains over the line target.
+- RV2-DEBT-004: `runtime/native/rt_net.c` remains over the line target despite
+  Task 14 partial progress.
+- RV2-DEBT-010: copied net handles still carry raw-fd, generation-unaware
+  views.
+- Timing-heavy fd-registry probes remain local-only, not CI green gates.
+- `rt_executor_request_shutdown` exists, but normal lifecycle wiring is not
+  claimed complete.
+
+Closeout result:
+
+- Epic 4 is complete with accepted debt.
+- The next epic should start from heap and hot accounting ownership.
+- `N>1` accept distribution, crossing syntax, backend I/O migration, and the
+  broad VM/native/LLVM test-matrix rewrite remain later work.
 
 ## Draft Creation Evidence
 

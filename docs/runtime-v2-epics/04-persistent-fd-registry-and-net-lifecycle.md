@@ -11,7 +11,8 @@ registry must make fd lifetime explicit and testable; `epoll`, `kqueue`,
 `io_uring`, multi-shard accept ownership, and crossing language work stay out
 until the lifecycle contract is stable.
 
-**Status:** draft. Expand only the next task before execution.
+**Status:** complete with accepted debt. Closeout evidence is recorded in
+`04-evidence.md`.
 
 **Task documents:** brief task scopes live under `04-tasks/`.
 
@@ -235,8 +236,25 @@ Epic 4 is complete only when:
 - `04-evidence.md`, `NOTES.md`, this document, and `README.md` are updated with
   the final state and the exact next epic handoff.
 
-## Epic 5 Handoff Candidate
+## Acceptance Matrix
 
-If Epic 4 closes cleanly, Epic 5 should start from heap and hot accounting
-ownership. It should not start `N>1` accept distribution until fd lifecycle and
-per-shard net registry evidence are stable.
+| Contract | Status | Evidence |
+| --- | --- | --- |
+| Poll source | Complete | `poll()` input now comes from fd-registry snapshots, not a full waiter-store fd rebuild. Closeout trace validation reports `waiter scan entries=0`, `net waiter entries=0`, and `dedup checks=0` on covered native net probes. |
+| FD lifecycle | Complete | Focused tests cover registration, duplicate interest, cancellation, close, stale snapshot protection, re-registration, wake-fd behavior, and shutdown drain behavior. |
+| Runtime V2 CI | Complete | `make runtime-v2-check` calls `runtime-v2-fd-registry-check`; the Runtime V2 GitHub Actions job already runs that Makefile target. |
+| Trace and benchmark evidence | Complete | `TRACE_NET` fields remain machine-checkable, the closeout benchmark has 24 runtime trace rows with zero validation violations, and the native echo latency slice is recorded for comparison. |
+| Refactor tranche | Complete with remaining LOC debt | Task 14 extracted `TRACE_NET` into `rt_net_trace.c/h` and reduced `rt_net.c` from 1002 to 904 lines. `rt_net.c` and `rt_async_state.c` remain over the 500-line target. |
+| Sentrux gates | Complete with recorded quality signals | Closeout scans passed root, `runtime/`, and `runtime/native` rules with zero violations. |
+| Documentation handoff | Complete | `04-evidence.md`, `NOTES.md`, this document, and `README.md` record the final state and Epic 5 handoff. |
+
+Accepted debt is not green: RV2-DEBT-001, RV2-DEBT-002, RV2-DEBT-003,
+RV2-DEBT-004, and RV2-DEBT-010 remain open. Local-only timing-heavy
+fd-registry probes are not CI gates. `rt_executor_request_shutdown` exists, but
+normal lifecycle wiring is not claimed complete.
+
+## Epic 5 Handoff
+
+Epic 5 should start from heap and hot accounting ownership. It should not start
+`N>1` accept distribution, crossing syntax, or backend I/O migration until the
+per-shard fd registry evidence remains stable under the next accounting work.

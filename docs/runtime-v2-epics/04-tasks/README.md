@@ -8,12 +8,12 @@ the epic document is updated first.
 
 | Task | File | Status | Kind |
 | --- | --- | --- | --- |
-| 1 | `01-kickoff-baseline-and-sentrux.md` | Draft | evidence |
-| 2 | `02-fd-registry-dependency-map.md` | Draft | design map |
-| 3 | `03-fd-lifecycle-contract-tests.md` | Draft | test writing |
-| 4 | `04-registry-static-shape-tests.md` | Draft | test/static checks |
-| 5 | `05-registry-container-skeleton.md` | Draft | runtime code |
-| 6 | `06-net-wait-registration.md` | Draft | runtime code |
+| 1 | `01-kickoff-baseline-and-sentrux.md` | Complete | evidence |
+| 2 | `02-fd-registry-dependency-map.md` | Complete | design map |
+| 3 | `03-fd-lifecycle-contract-tests.md` | Complete | test writing |
+| 4 | `04-registry-static-shape-tests.md` | Complete | test/static checks |
+| 5 | `05-registry-container-skeleton.md` | Complete | runtime code |
+| 6 | `06-net-wait-registration.md` | Complete | runtime code |
 | 7 | `07-poll-from-registry.md` | Complete | runtime code |
 | 8 | `08-close-cancel-and-reregister-tests.md` | Complete | test writing |
 | 9 | `09-close-cancel-and-reregister-migration.md` | Complete | runtime code |
@@ -22,7 +22,7 @@ the epic document is updated first.
 | 12 | `12-trace-counters-and-benchmark-contract.md` | Complete | trace/benchmark |
 | 13 | `13-runtime-v2-fd-registry-ci-gates.md` | Complete | CI |
 | 14 | `14-large-file-refactor-tranche.md` | Complete | refactor code |
-| 15 | `15-epic-closeout-and-static-gates.md` | Draft | closeout |
+| 15 | `15-epic-closeout-and-static-gates.md` | Complete | closeout |
 
 ## Rules
 
