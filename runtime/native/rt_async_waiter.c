@@ -76,6 +76,67 @@ static void net_waiters_removed(rt_waiter_store* store, waker_key key, size_t co
     store->net_len -= count;
 }
 
+// Task 6 fd-registry-waiter-bridge: registry interest mirrors waiter-store
+// membership exactly. Attach runs after a successful append so interest never
+// exists without a waiter; detach runs only when the caller's same-pass scan
+// proved the last waiter for the key left the store. Poll input stays
+// waiter-derived until Task 7, so a failed attach (fd-registry-attach-miss
+// bridge) preserves behavior: the waiter parks without a registry row.
+static void fd_registry_bridge_net_attach(rt_executor* ex, waker_key key) {
+    if (!waker_is_net(key)) {
+        return;
+    }
+    rt_runtime_status status = rt_fd_registry_attach_net_interest(rt_executor_fd_registry(ex), key);
+    if (status != RT_RUNTIME_STATUS_OK && rt_async_debug_enabled()) {
+        rt_async_debug_printf("fd-registry-attach-miss kind=%u fd=%llu status=%d\n",
+                              (unsigned)key.kind,
+                              (unsigned long long)key.id,
+                              (int)status);
+    }
+}
+
+static void fd_registry_bridge_net_detach_if_last(rt_executor* ex,
+                                                  waker_key key,
+                                                  size_t removed,
+                                                  size_t remaining_same_key) {
+    if (removed == 0 || !waker_is_net(key)) {
+        return;
+    }
+    if (remaining_same_key == 0) {
+        rt_fd_registry_detach_net_interest(rt_executor_fd_registry(ex), key);
+    }
+    if (rt_async_debug_enabled()) {
+        // Debug consistency check: recount same-key waiters independently and
+        // require stale interest (flag set with zero waiters) to be impossible.
+        const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
+        size_t recount = 0;
+        for (size_t i = 0; store != NULL && i < store->len; i++) {
+            waker_key k = store->entries[i].key;
+            if (k.kind == key.kind && k.id == key.id) {
+                recount++;
+            }
+        }
+        const rt_fd_entry* entry =
+            rt_fd_registry_find_const(rt_executor_fd_registry_const(ex), (int)key.id);
+        int interest = 0;
+        if (entry != NULL) {
+            interest = (key.kind == WAKER_NET_ACCEPT && entry->want_accept != 0) ||
+                       (key.kind == WAKER_NET_READ && entry->want_read != 0) ||
+                       (key.kind == WAKER_NET_WRITE && entry->want_write != 0);
+        }
+        if (recount != remaining_same_key || (recount == 0 && interest)) {
+            rt_async_debug_printf(
+                "fd-registry-bridge mismatch kind=%u fd=%llu remaining=%zu recount=%zu "
+                "interest=%d\n",
+                (unsigned)key.kind,
+                (unsigned long long)key.id,
+                remaining_same_key,
+                recount,
+                interest);
+        }
+    }
+}
+
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store) {
     if (store == NULL) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
@@ -159,6 +220,8 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker
     }
     store->len = out;
     net_waiters_removed(store, key, result.removed);
+    // Completion removed every waiter of this key, so no same-key entry remains.
+    fd_registry_bridge_net_detach_if_last(ex, key, result.removed, 0);
     return result;
 }
 
@@ -200,16 +263,21 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     size_t out = 0;
     size_t removed = 0;
+    size_t kept_same_key = 0;
     for (size_t i = 0; i < store->len; i++) {
         waiter w = store->entries[i];
         if (w.task_id == task_id && w.key.kind == key.kind && w.key.id == key.id) {
             removed++;
             continue;
         }
+        if (w.key.kind == key.kind && w.key.id == key.id) {
+            kept_same_key++;
+        }
         store->entries[out++] = w;
     }
     store->len = out;
     net_waiters_removed(store, key, removed);
+    fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key);
 }
 
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
@@ -228,6 +296,7 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     store->entries[store->len++] = (waiter){key, task_id};
     net_waiter_added(store, key);
+    fd_registry_bridge_net_attach(ex, key);
 }
 
 void clear_wait_keys(rt_executor* ex, rt_task* task) {
@@ -280,6 +349,7 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     }
     size_t out = 0;
     size_t removed = 0;
+    size_t kept_same_key = 0;
     int found = 0;
     uint64_t found_id = 0;
     for (size_t i = 0; i < store->len; i++) {
@@ -297,11 +367,13 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
                 removed++;
                 continue;
             }
+            kept_same_key++;
         }
         store->entries[out++] = w;
     }
     store->len = out;
     net_waiters_removed(store, key, removed);
+    fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key);
     if (found && out_id != NULL) {
         *out_id = found_id;
     }

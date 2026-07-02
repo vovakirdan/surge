@@ -248,6 +248,59 @@ task, then move durable decisions into the owning epic document before closeout.
   interest writes under `ex->lock` alongside `prepare_park`, plus the Shape
   static gate extension for those mutators.
 
+## Epic 4 Task 06 Handoff
+
+- Scope completed: net wait registration through registry-owned fd entries
+  (Task 6) as a plan-gated subagent. Working tree intentionally left
+  uncommitted; the main session owns the commit and the Sentrux CLI
+  check/gate evidence.
+- What exists now: `rt_fd_registry_attach_net_interest` /
+  `rt_fd_registry_detach_net_interest` in `rt_fd_registry.h/.c` (63/154
+  lines), driven by the `fd-registry-waiter-bridge` statics in
+  `rt_async_waiter.c` (381 lines) at the four waiter-store mutation sites:
+  attach in `add_waiter`, detach-if-last in `remove_waiter` / `pop_waiter`
+  (same-pass `kept_same_key` counting) and in
+  `rt_executor_wake_net_waiters_for_key` (remaining 0 by construction). The
+  hook placement covers every net park/wake/cancel/rollback path with zero
+  changes to `rt_net.c` (1024, flat) and `rt_async_state.c` (1731, flat);
+  `rt_async_internal.h` stayed 499 (invariant block edited in place: ex->lock
+  now lists fd registry rows).
+- The registry has writers but ZERO readers: poll input is still 100%
+  waiter-derived (`poll_net_waiters` byte-identical), so net behavior is
+  preserved by construction. No new wake was added; `park_current` still owns
+  the net wake-pipe kick and `io_cv` signal.
+- Row lifetime invariant: a row exists iff at least one net-key waiter for
+  that fd is parked. Clearing the last interest flag swap-removes the row.
+  Consequence Task 9 MUST NOT miss: remove-plus-recreate resets `generation`
+  to 0, so today's rows carry no cross-lifetime generation protection —
+  Task 9 owns re-deciding row lifetime when it adds generation/close
+  semantics (no generation bumps or close marking exist yet).
+- Named bridges for later removal/validation:
+  `fd-registry-waiter-bridge` (interest mirrors waiter-store membership;
+  re-validate or replace at Tasks 7/9) and `fd-registry-attach-miss`
+  (allocation failure -> waiter parks without a row, behavior unchanged;
+  Task 7 must resolve it when poll input becomes registry-derived).
+- Interest flags stay 0/1 flags per the pinned shape, not counts; the
+  last-waiter decision comes from waiter-store scans. Duplicate same-key
+  waiters keep interest alive (contract test 3 green).
+- `wake_key_all_with_policy` net branch intentionally not hooked: grep
+  re-verified zero net-key producers (scope/join/blocking only); stays
+  Task 7 dead-path cleanup debt per the dependency map.
+- Tested: c-check/cppcheck/runtime-v2-check/check green; extended Shape gate
+  green with the new mutator pins; Boundary green with zero edits; Task 3
+  contract 4-pack 4/4 (15.7s); `TestMTNetWaiterWakeupLatency` PASS (2.46s);
+  `TestNativeNetSingleThreadBlockingChannelInAsyncServer` PASS (4.47s);
+  manual debug-gated fixture run (`SURGE_ASYNC_DEBUG=1`) exited 0 with zero
+  bridge mismatch/attach-miss lines while parking and completing net waiters.
+- Not tested: registry contents are not yet observable by any behavior test
+  (no reader exists); the debug recount check ran clean but only anomalies
+  print, so its first adversarial proof arrives with the Task 8 fixtures.
+  Native net benchmark deferred to Task 7 per the gate plan.
+- Next decision before Task 7: poll-set construction from registry rows must
+  replace `rt_executor_visit_net_waiters`, decide the `fd-registry-attach-miss`
+  resolution (fail the wait vs. fallback), replace the `net_len` capacity
+  hint, and delete/unify the dead `wake_key_all_with_policy` net bookkeeping.
+
 ## Epic 1 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.

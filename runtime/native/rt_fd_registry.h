@@ -8,17 +8,24 @@
 // Ownership and lifecycle:
 // - Each rt_shard owns one rt_fd_registry by value; it is initialized with the
 //   owning shard in rt_runtime_init_n1 and, like the waiter store and poll
-//   scratch, guarded by ex->lock once Tasks 6-9 route net behavior through it.
-//   Task 5 wires init only: no runtime path reads or writes entries yet.
+//   scratch, guarded by ex->lock. Task 6 routes registration-side interest
+//   writes through the waiter-store bridge in rt_async_waiter.c; no runtime
+//   path reads entries yet (poll input stays waiter-derived until Task 7).
+// - A row exists iff at least one net-key waiter for that fd is parked in the
+//   waiter store (modulo the fd-registry-attach-miss bridge: on allocation
+//   failure the waiter parks without a row; Task 7 resolves that bridge).
+//   Detaching the last interest flag swap-removes the row; row order is not
+//   meaningful and find is a linear scan.
 // - generation guards fd-reuse stale wakes; close_state guards post-close
 //   interest. Behavior lands in Task 9; the fields exist so the row shape is
-//   fixed now.
+//   fixed now. Remove-plus-recreate resets generation to 0; Task 9 owns
+//   re-deciding row lifetime when it adds generation/close semantics.
 // - rt_fd_registry_free releases entry storage. No caller exists today because
 //   the process has no executor shutdown path (see the Epic 4 dependency map);
 //   Tasks 10-11 create that path and wire the free.
-// This header is included from rt_async_internal.h after rt_runtime_status and
-// the rt_shard/rt_executor forward typedefs; translation units include
-// rt_async_internal.h, not this header directly.
+// This header is included from rt_async_internal.h after rt_runtime_status,
+// waker_key, and the rt_shard/rt_executor forward typedefs; translation units
+// include rt_async_internal.h, not this header directly.
 
 typedef enum {
     RT_FD_CLOSE_STATE_OPEN = 0,
@@ -50,5 +57,7 @@ void rt_fd_registry_free(rt_fd_registry* registry);
 rt_runtime_status rt_fd_registry_ensure_cap(rt_fd_registry* registry);
 size_t rt_fd_registry_len(const rt_fd_registry* registry);
 const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd);
+rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
+void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);
 
 #endif

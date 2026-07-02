@@ -74,10 +74,13 @@ func runFDRegistryStaticCheck(t *testing.T, label, source string) {
 //	size_t rt_fd_registry_len(const rt_fd_registry* registry);
 //	const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd);
 //
-// Mutation APIs (add/remove interest, close, poll-build) are deliberately not
-// pinned here; Tasks 6/7/9 extend this guard when they implement them, so the
-// gate stays exactly equal to the Task 5 skeleton surface and flips green when
-// Task 5 lands.
+// Task 6 extended the guard with the registration-side interest mutators:
+//
+//	rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
+//	void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);
+//
+// Remaining mutation surfaces (poll-build, close/generation) are deliberately
+// not pinned here; Tasks 7/9 extend this guard when they implement them.
 func TestRuntimeV2FDRegistryStaticShape(t *testing.T) {
 	source := `
 #include "rt_async_internal.h"
@@ -96,6 +99,13 @@ void (*runtime_v2_check_fd_registry_free)(rt_fd_registry*) = rt_fd_registry_free
 rt_runtime_status (*runtime_v2_check_fd_registry_ensure_cap)(rt_fd_registry*) = rt_fd_registry_ensure_cap;
 size_t (*runtime_v2_check_fd_registry_len)(const rt_fd_registry*) = rt_fd_registry_len;
 const rt_fd_entry* (*runtime_v2_check_fd_registry_find_const)(const rt_fd_registry*, int) = rt_fd_registry_find_const;
+
+// Task 6 registration-side interest mutators, driven by the waiter-store
+// bridge in rt_async_waiter.c under ex->lock. Attach returns explicit status
+// (allocation can fail on row creation); detach is the caller-proved
+// last-waiter path and cannot fail in a way callers act on.
+rt_runtime_status (*runtime_v2_check_fd_registry_attach_net_interest)(rt_fd_registry*, waker_key) = rt_fd_registry_attach_net_interest;
+void (*runtime_v2_check_fd_registry_detach_net_interest)(rt_fd_registry*, waker_key) = rt_fd_registry_detach_net_interest;
 
 // One durable entry per live fd: fd number, generation stale-wake guard,
 // close state, and accept/read/write interest bytes. Accept stays distinct

@@ -31,7 +31,7 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 3 | Complete | FD lifecycle behavior contract tests recorded below. |
 | 4 | Complete | Registry static shape tests recorded below. |
 | 5 | Complete | Registry container skeleton recorded below. |
-| 6 | Pending | Net wait registration migration. |
+| 6 | Complete | Net wait registration through registry recorded below. |
 | 7 | Pending | Poll-from-registry migration. |
 | 8 | Pending | Close/cancel/re-register behavior tests. |
 | 9 | Pending | Close/cancel/re-register migration. |
@@ -316,6 +316,138 @@ Main-session Sentrux results after the Task 5 implementation:
 - `sentrux check runtime/native`: passed, quality `5164` (baseline `5159`,
   +5);
 - `sentrux gate runtime/native`: `5159 -> 5164`, coupling `0.00 -> 0.00`,
+  cycles `0 -> 0`, god files `0 -> 0`, `No degradation detected`.
+
+## Task 6 Evidence: Net Wait Registration Through Registry
+
+Date: 2026-07-02. Runtime C; subagent-executed after an approved plan-only
+pass (Global Rule 9). Working tree intentionally left uncommitted: the main
+session owns the commit and the Sentrux gates.
+
+Files and line-count outcomes (Global Rule 4):
+
+- `runtime/native/rt_fd_registry.h`: 54 -> 63. Two new declarations
+  (`rt_fd_registry_attach_net_interest` returning `rt_runtime_status`,
+  `rt_fd_registry_detach_net_interest` returning void) plus ownership-comment
+  updates for the Task 6 write path, the row-lifetime invariant, and the
+  generation-reset consequence.
+- `runtime/native/rt_fd_registry.c`: 72 -> 154. Static `fd_registry_find_mut`
+  and the `key.kind -> want_*` slot switch; attach (find-or-create under
+  `ensure_cap`, idempotent flag set, explicit status, allocation can fail only
+  on row creation); detach (missing row is a legal no-op; clearing the last
+  flag swap-removes the row).
+- `runtime/native/rt_async_waiter.c`: 309 -> 381. Bridge statics
+  `fd_registry_bridge_net_attach` / `fd_registry_bridge_net_detach_if_last`
+  plus four hook sites: `add_waiter` (attach after successful append),
+  `remove_waiter` and `pop_waiter` (same-pass `kept_same_key` counting,
+  detach only when the last same-key waiter left), and
+  `rt_executor_wake_net_waiters_for_key` (all same-key waiters removed by
+  construction, detach with remaining 0).
+- `runtime/native/rt_async_internal.h`: 499 -> 499, not grown. One line
+  edited in place: the executor invariant block now lists `fd registry rows`
+  under `ex->lock` ownership.
+- Untouched: `rt_net.c` (1024, over-limit file stays flat; zero changes,
+  `poll_net_waiters` byte-identical) and `rt_async_state.c` (1731; the
+  `park_current` net wake-pipe kick and `io_cv` signal are unchanged).
+- `internal/vm/runtime_v2_fd_registry_static_test.go`: 175 -> 185. Shape
+  guard extended with function-pointer pins for the two mutators; the
+  "deliberately not pinned" comment now scopes to Tasks 7/9.
+
+Design record (Global Rule 2 answers):
+
+- The registry has writers but zero readers in Task 6: poll input remains
+  100% waiter-derived, so net poll behavior is preserved by construction.
+- Interest lifecycle is exact, not monotonic: interest flags stay `uint8_t`
+  0/1 flags (pinned shape, not counts); the "last waiter for key gone"
+  decision is made by the waiter store's existing full-store scans in the
+  same pass. Duplicate same-key waiters keep interest alive via
+  `kept_same_key`.
+- Entry removal policy: a row exists iff at least one net-key waiter for that
+  fd is parked (modulo attach-miss below). Clearing the last interest flag
+  swap-removes the row. Recorded consequence for Task 9: remove-plus-recreate
+  resets `generation` to 0; Task 9 owns re-deciding row lifetime when it adds
+  generation/close semantics. No generation bumps and no close marking were
+  implemented in Task 6.
+- Named bridges: `fd-registry-waiter-bridge` (interest mirrors waiter-store
+  membership; re-validated or replaced when Task 7 flips poll input and
+  Task 9 moves close/cancel ownership) and `fd-registry-attach-miss`
+  (allocation failure during attach: status checked inside
+  `fd_registry_bridge_net_attach`; the waiter parks on the store without a
+  registry row and behavior is unchanged because nothing reads the registry;
+  resolver: Task 7).
+- No new wake is needed for interest changes: attach happens under `ex->lock`
+  inside `add_waiter`, every net park still commits through `park_current`,
+  which already writes the wake pipe for net keys and signals `io_cv`
+  (`rt_async_state.c:1043-1046`, untouched). Detach never needs a wake in
+  Task 6 because registry state is not poll input.
+- `wake_key_all_with_policy` net branch intentionally not hooked: grep re-run
+  during implementation confirms zero net-key producers. Verbatim commands:
+  `rg -n 'wake_key_all' runtime/native` -> producers are
+  `scope_key` (`rt_async_state.c:1248`), `join_key`
+  (`rt_async_state.c:1371`), and `blocking_key`
+  (`rt_async_blocking.c:110`); `rg -n 'add_wait_key\(' runtime/native` ->
+  all producers in `rt_async_task.c` build `join_key` /
+  `channel_recv_key` / `channel_send_key` only (inspected at
+  `:321/:325/:402/:406/:585-656`). The dead net branch remains Task 7
+  cleanup debt per the dependency map.
+- Debug consistency check: inside `fd_registry_bridge_net_detach_if_last`,
+  gated by `rt_async_debug_enabled()` (`SURGE_ASYNC_DEBUG`): independent
+  same-key recount cross-checked against the caller's count, plus a
+  stale-interest check (flag set with zero waiters). Zero-cost branch when
+  debug is off.
+
+Checks (all run by the executor, in order):
+
+- Producer greps above (recorded before edits).
+- `clang-format --dry-run --Werror` on all four touched C files: clean;
+  `gofmt -l internal/vm`: clean;
+  `go vet -tags runtime_v2_pending ./internal/vm`: clean.
+- `make c-check`: passed (formatting + strict warnings).
+- `make cppcheck`: passed, 32/32 files, no suppressions added.
+- `make runtime-v2-check`: passed (MT seed set plus the tagged waiter gate,
+  12/12 waiter proofs alongside the fd static gates).
+- `make check`: `exit=0`, including `check_file_sizes.sh` (four checked
+  files all OK; `rt_net.c` untouched at its 1024 allowlist ceiling).
+- Extended static gates: `go test -tags runtime_v2_pending ./internal/vm
+  -run '^TestRuntimeV2FDRegistryStatic(Shape|Boundary)$' -count=1 -v
+  --timeout 90s` -> Shape PASS (0.11s, now pinning the Task 6 mutators),
+  Boundary PASS (0.03s, zero edits).
+- Tag-off proof: `go test ./internal/vm -run '^TestRuntimeV2FDRegistry'
+  -count=1 --timeout 60s` -> `ok ... [no tests to run]`.
+- Task 3 tagged contract 4-pack, verbatim Task 3 command -> 4/4 PASS
+  (15.7s; duplicate-waiter test green proves detach does not fire while a
+  same-key waiter remains).
+- Focused net probe: `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test
+  ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -v --timeout 90s` ->
+  PASS (2.46s).
+- Single-thread net + sync channel probe: `SURGE_SKIP_TIMEOUT_TESTS=0
+  go test ./internal/vm -run
+  'TestNativeNetSingleThreadBlockingChannelInAsyncServer' -v --timeout 90s`
+  -> PASS (4.47s).
+- Debug-path proof: the Task 3 ping fixture was extracted and compiled with
+  a current-checkout scratch compiler (`go build ./cmd/surge`); a manual run
+  with `SURGE_ASYNC_DEBUG=1 SURGE_TRACE_EXEC=1` over 3 ping/pong rounds with
+  a 300ms idle re-park gap exited 0 with zero `fd-registry-bridge mismatch`
+  and zero `fd-registry-attach-miss` stderr lines, while the bridge was
+  exercised (`io_direct_waits=2`, `io_waiter_completed=2`,
+  `io_poll_waiters_max=1`). The gate mechanism was proven live by a separate
+  channel fixture emitting `async chan new` under the same env var. The
+  `RepeatedReadinessSingleFD` and `DuplicateReadWaitersBothComplete`
+  contract tests also PASS with `SURGE_ASYNC_DEBUG=1`.
+- `git diff --check`: clean.
+- Skipped per approved plan: Sentrux scans and the commit (main session owns
+  both); native net benchmark (Task 7 owns the performance-sensitive
+  evidence).
+
+Main-session Sentrux results after the Task 6 implementation:
+
+- `sentrux check .`: passed, quality `6196` (Task 1 baseline `6198`, -2;
+  root rules still pass, scoped signals govern completion per
+  `SENTRUX_POLICY.md`);
+- `sentrux check runtime`: passed, quality `5215` (baseline `5195`, +20);
+- `sentrux check runtime/native`: passed, quality `5160` (baseline `5159`,
+  +1);
+- `sentrux gate runtime/native`: `5159 -> 5160`, coupling `0.00 -> 0.03`,
   cycles `0 -> 0`, god files `0 -> 0`, `No degradation detected`.
 
 ## Draft Creation Evidence

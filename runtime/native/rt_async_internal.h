@@ -247,7 +247,7 @@ struct rt_executor {
 
 // Executor invariants:
 // - ex->lock owns tasks[], scopes[], the single shard waiter store,
-//   net waiter/poll scratch state, scheduler queues/counters,
+//   fd registry rows, net waiter/poll scratch state, scheduler queues/counters,
 //   channel/blocking compatibility counters, net_polling, timer state, and
 //   shutdown flags.
 // - task status is atomic so external helpers can observe it, but transitions that
