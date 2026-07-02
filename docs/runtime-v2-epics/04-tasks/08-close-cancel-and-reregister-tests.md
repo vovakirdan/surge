@@ -1,6 +1,6 @@
 # Task 8: Close, Cancel, And Re-register Tests
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** test writing
 
 ## Goal
@@ -18,9 +18,7 @@ is migrated.
 
 ## Files
 
-- `internal/vm/runtime_v2_fd_registry_contract_test.go`
-- optional native C static/behavior helper if the Go surface cannot prove fd
-  reuse deterministically
+- `internal/vm/runtime_v2_fd_registry_lifecycle_test.go`
 - `docs/runtime-v2-epics/04-evidence.md`
 - `docs/runtime-v2-epics/NOTES.md`
 
@@ -29,6 +27,19 @@ is migrated.
 - focused new tests in approved tag mode
 - existing focused net wake probe from `LIVENESS_PROBES.md`
 - `git diff --check`
+
+## Result
+
+- Added two green cancel/re-register proofs:
+  `TestRuntimeV2FDRegistryCancelledDuplicateReadWaiterPreservesLiveAndReregister`
+  and `TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest`.
+- Added two expected-red close proofs:
+  `TestRuntimeV2FDRegistryCloseWakesParkedAcceptWaiter` and
+  `TestRuntimeV2FDRegistryCloseWakesParkedReadWaiter`.
+- Did not add a numeric fd reuse test: the allowed Go surface cannot force fd
+  reuse deterministically without a native helper or runtime fault hook, so
+  Task 9 owns the generation/closed-state proof instead of inheriting a flaky
+  fixture.
 
 ## Done
 

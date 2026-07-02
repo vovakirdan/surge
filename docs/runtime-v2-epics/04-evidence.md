@@ -33,7 +33,7 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 5 | Complete | Registry container skeleton recorded below. |
 | 6 | Complete | Net wait registration through registry recorded below. |
 | 7 | Complete | Poll-from-registry migration recorded below. |
-| 8 | Pending | Close/cancel/re-register behavior tests. |
+| 8 | Complete | Close/cancel/re-register behavior tests recorded below. |
 | 9 | Pending | Close/cancel/re-register migration. |
 | 10 | Pending | Wake-fd and shutdown behavior tests. |
 | 11 | Pending | Wake-fd and shutdown migration. |
@@ -694,6 +694,83 @@ Main-session closeout evidence:
   future `sentrux gate` checks are reproducible in a clean checkout.
 - `.loc-legacy-allowlist` ceilings were lowered to the new actual line counts:
   `rt_async_state.c` `1731 -> 1727` and `rt_net.c` `1024 -> 1002`.
+
+## Task 8 Evidence: Close, Cancel, And Re-register Tests
+
+Date: 2026-07-02. Test-writing and docs only; no runtime/native, Makefile, CI,
+or existing Task 7 code changes. New file:
+`internal/vm/runtime_v2_fd_registry_lifecycle_test.go` (297 lines,
+`//go:build runtime_v2_pending`, package `vm_test`). The existing 499-line fd
+contract file was left unchanged.
+
+Green cancel/re-register proofs added:
+
+- `TestRuntimeV2FDRegistryCancelledDuplicateReadWaiterPreservesLiveAndReregister`
+  parks duplicate read waiters on one fd, cancels one, proves the remaining
+  read waiter completes, then parks and completes a new read waiter on the same
+  fd.
+- `TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest` parks a
+  read waiter and a bulk write waiter on the same fd, cancels the read waiter,
+  and proves the write interest still drains to completion.
+
+Expected-red close proofs added for Task 9:
+
+- `TestRuntimeV2FDRegistryCloseWakesParkedAcceptWaiter` parks an accept waiter,
+  closes the listener, and expects the waiter to complete with a synchronous
+  net error. Current behavior: exit status `3`, stdout
+  `accept_close_timeout`; trace keeps `io_direct_waits=1`,
+  `io_waiter_completed=0`,
+  `io_waiter_scan_entries=0`, `io_waiter_net_entries=0`,
+  `io_poll_dedup_checks=0`.
+- `TestRuntimeV2FDRegistryCloseWakesParkedReadWaiter` parks a read waiter,
+  closes the connection while the peer stays open, and expects the waiter to
+  complete with a synchronous net error. Current behavior: exit status `3`,
+  stdout `read_close_timeout`; trace keeps `io_direct_waits=2`,
+  `io_waiter_completed=1`,
+  `io_waiter_scan_entries=0`, `io_waiter_net_entries=0`,
+  `io_poll_dedup_checks=0`.
+
+Numeric fd reuse was not added as a Go-only fixture. The allowed Task 8 write
+set excludes a native helper, and the Go/socket surface cannot force numeric fd
+reuse deterministically enough for CI. Task 9 must supply generation or
+closed-state stale-wake proof, or expand scope for a deterministic helper.
+
+Checks:
+
+- `gofmt -l internal/vm/runtime_v2_fd_registry_lifecycle_test.go`: clean;
+  `wc -l` reported `297`.
+- `go vet -tags runtime_v2_pending ./internal/vm`: passed.
+- `go test ./internal/vm -run '^TestRuntimeV2FDRegistry' -count=1 --timeout
+  60s`: passed with `[no tests to run]`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistry(CancelledDuplicateReadWaiterPreservesLiveAndReregister|CancelledReadInterestPreservesWriteInterest)$'
+  -count=1 -parallel=1 -p=1 -v --timeout 120s`: passed, 2/2 tests,
+  package time `12.464s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistry(CloseWakesParkedAcceptWaiter|CloseWakesParkedReadWaiter)$'
+  -count=1 -parallel=1 -p=1 -v --timeout 120s`: expected-red, build clean,
+  failed only through current runtime behavior (`accept_close_timeout` and
+  `read_close_timeout`).
+- Main-session reproduction of the same expected-red command also failed only
+  through those two runtime timeouts; poll call counts varied by run, while the
+  legacy waiter-scan counters stayed zero.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMTNetWaiterWakeupLatency$' -count=1 -parallel=1 -p=1 -v --timeout
+  90s`: passed, `TestMTNetWaiterWakeupLatency` `2.49s`, package time
+  `2.499s`.
+- `make runtime-v2-check`: passed; the stable Runtime V2 gate does not include
+  the expected-red close fixtures yet.
+- New-file whitespace check with `git diff --no-index --check`: clean for
+  `internal/vm/runtime_v2_fd_registry_lifecycle_test.go` before staging.
+- `check_file_sizes.sh`: passed with no applicable changed C/H files.
+- Review subagent found no P0/P1 blockers; residual risks were the documented
+  numeric-fd-reuse gap and short park-window sleeps matching nearby tests.
+- `sentrux gate .`: passed, `6198 -> 6198`, no degradation.
+- `sentrux gate runtime`: passed, `5195 -> 5228`, no degradation.
+- `sentrux gate runtime/native`: passed, `5159 -> 5172`, no degradation.
+- `git diff --check`: passed.
 
 ## Draft Creation Evidence
 

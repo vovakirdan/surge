@@ -375,6 +375,39 @@ task, then move durable decisions into the owning epic document before closeout.
   input; Task 9 re-decides row lifetime (remove-plus-recreate resets
   generation to 0) when close/generation semantics land.
 
+## Epic 4 Task 08 Handoff
+
+- Scope completed: close/cancel/re-register behavior tests. Only
+  `internal/vm/runtime_v2_fd_registry_lifecycle_test.go`, Task 8 docs, the
+  task index, evidence, and this notes file changed. Runtime/native, Makefile,
+  CI, Task 7 code, and existing fd contract tests were not edited.
+- New file: `runtime_v2_fd_registry_lifecycle_test.go` (297 lines,
+  `runtime_v2_pending`, package `vm_test`) reuses the Task 3/7 helpers for
+  LLVM fixture build/run, trace parsing, port allocation, and fd-registry trace
+  assertions. The existing 499-line fd contract file stayed unchanged.
+- Green now: cancelling one duplicate read waiter preserves the other read
+  waiter and permits a later same-fd read re-registration; cancelling read
+  interest while a write waiter remains active preserves the write interest.
+  Final focused command passed both tests in package time `12.464s`.
+- Task 9 expected-red now exists and is precise: closing a listener with a
+  parked accept waiter exits `3` with `accept_close_timeout`; closing a
+  connection with a parked read waiter while the peer stays open exits `3` with
+  `read_close_timeout`. Both fixtures build cleanly and fail through runtime
+  behavior only. Their TRACE_NET rows kept `io_waiter_scan_entries=0`,
+  `io_waiter_net_entries=0`, and `io_poll_dedup_checks=0`.
+- Numeric fd reuse was not added as a Go-only fixture. The Task 8 allowed write
+  set excludes a native helper, and the Go/socket surface cannot force numeric
+  reuse deterministically enough for CI. Task 9 must prove generation or
+  closed-state stale-wake handling, or explicitly expand scope for a
+  deterministic helper.
+- Checks passed: `gofmt -l`, `go vet -tags runtime_v2_pending ./internal/vm`,
+  tag-off fd-registry proof, focused green cancel/re-register tests,
+  `TestMTNetWaiterWakeupLatency`, `make runtime-v2-check`, new-file
+  whitespace check, `check_file_sizes.sh`, root, runtime, and
+  runtime/native Sentrux gates, and `git diff --check`. Review subagent found
+  no P0/P1 blockers. The close command is intentionally expected-red until
+  Task 9 implements close-owned registry lifecycle.
+
 ## Epic 1 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.
