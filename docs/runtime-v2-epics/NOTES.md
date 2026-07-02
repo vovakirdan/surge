@@ -1608,3 +1608,29 @@ flat, or creates a follow-up split task.
 - Review subagent returned APPROVE. Residual boundary: benchmark numbers are
   evidence, not a strict performance gate; `TRACE_NET` fields remain
   migration/debug evidence, not public ABI.
+
+## Epic 4 Task 13 Handoff
+
+- Scope completed: stable fd-registry liveness promotion into the Runtime V2
+  CI path. No runtime C, Go tests, benchmark scripts, Sentrux rules, `STATS.md`,
+  or `DEBT.md` changes.
+- `Makefile` now has `runtime-v2-fd-registry-check`, called by
+  `runtime-v2-check` after the waiter gate. `.github/workflows/ci.yml` was not
+  edited because the Runtime V2 CI job already installs LLVM tools and runs
+  `make runtime-v2-check`.
+- Promoted stable command:
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(RepeatedReadinessSingleFD|ReadWriteInterestSharesFDRow|DuplicateReadWaitersBothComplete|ClosedFDFailsFast|StaticShape|StaticBoundary|GenerationStaleSnapshotProof|CloseWakePollNotificationProof|ShutdownDrainStaticContract|ShutdownDrainBehavior)$' -count=1 -parallel=1 -p=1 -v --timeout 180s`.
+- CI includes the stable behavior contract quartet and deterministic C
+  compile/run checks. It intentionally excludes live `SIGUSR1` probes, short
+  timeout-window close proofs, and heavier cancellation/payload lifecycle
+  proofs until those are separately stabilized for required CI.
+- Main-session checks passed: `make runtime-v2-fd-registry-check` (10/10
+  selected tests, package time `15.734s`), `make runtime-v2-check` (new
+  fd-registry gate reached and passed, package time `16.185s`), `make check`,
+  and `git diff --check`.
+- Sentrux root session stayed stable at `6194 -> 6194`; `runtime` quality
+  `5230` and `runtime/native` quality `5175`; rules passed for all three
+  paths.
+- Review subagent approved after one P2 doc issue was fixed: the fd-registry
+  liveness row now says the global waiter poll scan is pre-Epic-4 baseline and
+  the current runtime polls fd-registry snapshots.

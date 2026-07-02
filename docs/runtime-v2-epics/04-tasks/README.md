@@ -20,7 +20,7 @@ the epic document is updated first.
 | 10 | `10-wake-fd-and-shutdown-tests.md` | Complete | test writing |
 | 11 | `11-wake-fd-and-shutdown-migration.md` | Complete | runtime code |
 | 12 | `12-trace-counters-and-benchmark-contract.md` | Complete | trace/benchmark |
-| 13 | `13-runtime-v2-fd-registry-ci-gates.md` | Draft | CI |
+| 13 | `13-runtime-v2-fd-registry-ci-gates.md` | Complete | CI |
 | 14 | `14-large-file-refactor-tranche.md` | Draft | refactor code |
 | 15 | `15-epic-closeout-and-static-gates.md` | Draft | closeout |
 

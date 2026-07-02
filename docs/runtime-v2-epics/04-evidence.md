@@ -37,8 +37,8 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 9 | Complete | Close/cancel/re-register migration recorded below. |
 | 10 | Complete | Wake-fd and shutdown behavior tests recorded below. |
 | 11 | Complete | Wake-fd and shutdown migration recorded below. |
-| 12 | Pending | Trace counters and benchmark contract. |
-| 13 | Pending | CI gate wiring. |
+| 12 | Complete | Trace counters and benchmark contract recorded below. |
+| 13 | Complete | FD registry CI gate wiring recorded below. |
 | 14 | Pending | Large-file refactor tranche. |
 | 15 | Pending | Closeout gates and handoff. |
 
@@ -1140,6 +1140,67 @@ Main-session gates:
 - `make check`: passed.
 - Sentrux gates passed without degradation: root `6198 -> 6194`,
   `runtime` `5195 -> 5230`, and `runtime/native` `5159 -> 5175`.
+
+## Task 13 Evidence: Runtime V2 FD Registry CI Gates
+
+Date: 2026-07-02. CI-gate wiring and documentation only; no runtime C, Go
+test, script, benchmark, Sentrux rule, `STATS.md`, or `DEBT.md` changes.
+`.github/workflows/ci.yml` was inspected and left unchanged because the Runtime
+V2 CI job already installs the LLVM toolchain and runs `make runtime-v2-check`.
+
+Files changed:
+
+- `Makefile`: added `.PHONY` target `runtime-v2-fd-registry-check` and calls
+  it from `runtime-v2-check` after `runtime-v2-waiter-check`.
+- `docs/runtime-v2-epics/04-tasks/13-runtime-v2-fd-registry-ci-gates.md` and
+  task index: Task 13 marked complete and the promoted command/rationale
+  recorded.
+- `docs/runtime-v2-epics/LIVENESS_PROBES.md`: stable fd-registry CI subset
+  recorded separately from local-only timing-sensitive lifecycle probes.
+- `docs/runtime-v2-epics/NOTES.md`: handoff updated for future task context.
+
+Promoted CI command:
+
+```bash
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(RepeatedReadinessSingleFD|ReadWriteInterestSharesFDRow|DuplicateReadWaitersBothComplete|ClosedFDFailsFast|StaticShape|StaticBoundary|GenerationStaleSnapshotProof|CloseWakePollNotificationProof|ShutdownDrainStaticContract|ShutdownDrainBehavior)$' -count=1 -parallel=1 -p=1 -v --timeout 180s
+```
+
+Included in CI:
+
+- stable behavior contract tests:
+  `RepeatedReadinessSingleFD`, `ReadWriteInterestSharesFDRow`,
+  `DuplicateReadWaitersBothComplete`, and `ClosedFDFailsFast`;
+- deterministic C compile/run checks:
+  `StaticShape`, `StaticBoundary`, `GenerationStaleSnapshotProof`,
+  `CloseWakePollNotificationProof`, `ShutdownDrainStaticContract`, and
+  `ShutdownDrainBehavior`.
+
+Excluded from CI for now:
+
+- live trace and wake-fd timing probes:
+  `WakeFDObservedForInterestAddedDuringPoll` and
+  `CancelledInterestWakesPoller`;
+- short timeout-window close proofs:
+  `CloseWakesParkedAcceptWaiter` and `CloseWakesParkedReadWaiter`;
+- heavier cancellation/payload lifecycle proofs:
+  `CancelledDuplicateReadWaiterPreservesLiveAndReregister` and
+  `CancelledReadInterestPreservesWriteInterest`.
+
+Checks:
+
+- `make runtime-v2-fd-registry-check`: passed; all 10 selected tests passed,
+  package time `15.734s`.
+- `make runtime-v2-check`: passed; the existing MT seed and waiter gate passed,
+  then the new fd-registry gate passed all 10 selected tests with package time
+  `16.185s`.
+- `make check`: passed; `go test ./...`, `golangci-lint`, `make c-check`,
+  and `check_file_sizes.sh` all passed.
+- `git diff --check`: passed.
+- Sentrux root session stayed stable at `6194 -> 6194`; `runtime` quality
+  `5230` and `runtime/native` quality `5175`; all configured rules passed for
+  all three paths.
+- Review subagent approved after the `LIVENESS_PROBES.md` stale pre-Epic-4
+  poll-scan wording was corrected to the current registry snapshot path.
 
 ## Draft Creation Evidence
 
