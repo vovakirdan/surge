@@ -302,6 +302,49 @@ rt_fd_completion_summary rt_fd_registry_complete_ready_net_waiters(
     return summary;
 }
 
+static void fd_registry_remove_matching_lifetime(rt_fd_registry* registry,
+                                                 const rt_fd_entry* snapshot) {
+    if (registry == NULL || snapshot == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < registry->len; i++) {
+        rt_fd_entry* entry = &registry->entries[i];
+        if (entry->fd == snapshot->fd && entry->generation == snapshot->generation) {
+            *entry = registry->entries[registry->len - 1];
+            registry->len--;
+            return;
+        }
+    }
+}
+
+rt_fd_completion_summary
+rt_fd_registry_drain_shutdown_net_waiters_locked(rt_executor* ex, rt_fd_registry* registry) {
+    rt_fd_completion_summary summary = {0, 0};
+    if (ex == NULL || registry == NULL) {
+        return summary;
+    }
+    // Caller holds ex->lock. Snapshot each row before waking because wake
+    // fan-out removes waiter-store entries and may detach the same registry row.
+    while (registry->len > 0) {
+        rt_fd_entry entry = registry->entries[registry->len - 1];
+        if (entry.want_read != 0) {
+            fd_complete_net_key(ex, net_read_key(entry.fd), &summary);
+        }
+        if (entry.want_accept != 0) {
+            fd_complete_net_key(ex, net_accept_key(entry.fd), &summary);
+        }
+        if (entry.want_write != 0) {
+            fd_complete_net_key(ex, net_write_key(entry.fd), &summary);
+        }
+        fd_registry_remove_matching_lifetime(registry, &entry);
+    }
+    if (summary.calls != 0) {
+        rt_net_wake_poll();
+        pthread_cond_broadcast(&ex->io_cv);
+    }
+    return summary;
+}
+
 static int fd_lifecycle_snapshot_has_interest(const rt_fd_lifecycle_snapshot* snapshot) {
     return snapshot != NULL &&
            (snapshot->want_accept != 0 || snapshot->want_read != 0 || snapshot->want_write != 0);

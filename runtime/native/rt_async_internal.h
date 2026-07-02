@@ -479,6 +479,8 @@ int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);
 void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome);
+rt_runtime_status rt_executor_request_shutdown(rt_executor* ex);
+rt_runtime_status rt_executor_drain_shutdown_net_waiters(rt_executor* ex);
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task);

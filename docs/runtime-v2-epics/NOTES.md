@@ -1539,3 +1539,40 @@ flat, or creates a follow-up split task.
   static command failed with the intended two undeclared identifiers;
   `TestMTNetWaiterWakeupLatency` passed; `gofmt -l` and `git diff --check`
   were clean.
+
+## Epic 4 Task 11 Handoff
+
+- Scope completed: wake-fd and shutdown migration focused checks, heavy gates,
+  Sentrux, and read-only review subagent passed.
+- Cancellation-side net waiter removal now notifies the poller only after the
+  last same-key open net interest is detached from the fd registry. This is
+  the explicit "in-flight poll snapshot may be stale" signal. Readiness
+  completion and `pop_waiter` do not write extra wake bytes.
+- Shutdown drain behavior is registry-owned:
+  `rt_fd_registry_drain_shutdown_net_waiters_locked` snapshots registry rows,
+  wakes exact accept/read/write keys through
+  `rt_executor_wake_net_waiters_for_key`, clears matching fd-lifetime rows,
+  and wakes poll/`io_cv` only when it drained interests.
+- Public owner/control-plane wrappers live in new
+  `runtime/native/rt_shutdown.c`: `rt_executor_drain_shutdown_net_waiters`
+  and `rt_executor_request_shutdown`. The request API is not wired into normal
+  program lifecycle in Task 11.
+- LOC discipline: `rt_async_state.c` was not modified and stayed `1727`
+  lines; `rt_async_internal.h` stayed below limit at `495` lines; new
+  `rt_shutdown.c` is `33` lines.
+- Added deterministic proof
+  `TestRuntimeV2FDRegistryShutdownDrainBehavior`: public drain wrapper wakes
+  registered net keys, clears registry rows/interests, notifies wake-poll/io-cv
+  on non-empty drain, and leaves empty drain as OK no-op.
+- Former expected-red Task 10 checks are now green:
+  `TestRuntimeV2FDRegistryCancelledInterestWakesPoller` and
+  `TestRuntimeV2FDRegistryShutdownDrainStaticContract`.
+- Focused checks passed: shutdown static+behavior tests, cancellation
+  wake-fd test, Task 10 wake/close green tests, `TestMTNetWaiterWakeupLatency`,
+  `gofmt -l`, `git diff --check`, `make c-check`, and `make cppcheck`.
+- Heavy gates passed: `make runtime-v2-check`, `make check`, and Sentrux
+  root/runtime/runtime-native gates (`6198 -> 6194`, `5195 -> 5239`,
+  `5159 -> 5184`).
+- Review subagent returned APPROVE with no P0/P1/P2 findings. Residual
+  boundary: `rt_executor_request_shutdown` is not wired into normal lifecycle
+  yet, and blocking-worker shutdown behavior is not behavior-tested in Task 11.

@@ -36,7 +36,7 @@ net lifecycle ownership. Keep entries short, exact, and command-backed.
 | 8 | Complete | Close/cancel/re-register behavior tests recorded below. |
 | 9 | Complete | Close/cancel/re-register migration recorded below. |
 | 10 | Complete | Wake-fd and shutdown behavior tests recorded below. |
-| 11 | Pending | Wake-fd and shutdown migration. |
+| 11 | Complete | Wake-fd and shutdown migration recorded below. |
 | 12 | Pending | Trace counters and benchmark contract. |
 | 13 | Pending | CI gate wiring. |
 | 14 | Pending | Large-file refactor tranche. |
@@ -960,6 +960,89 @@ Risk note:
   emitted after a gate release. The deterministic C proof pins the actual
   close helper behavior without timing ambiguity. The runtime wake-fd trace
   proof remains covered by the new-interest fixture.
+
+## Task 11 Evidence: Wake-FD And Shutdown Migration
+
+Date: 2026-07-02. Runtime-code implementation with focused tests; no
+Makefile, CI, `STATS.md`, or `DEBT.md` changes.
+
+Files changed:
+
+- `runtime/native/rt_async_waiter.c`: remove-side fd-registry detach now
+  returns whether an open net interest was removed. `remove_waiter` uses that
+  signal to call `rt_net_wake_poll()` and `pthread_cond_signal(&ex->io_cv)`
+  after the last same-key net waiter is removed. Readiness-completion and
+  `pop_waiter` paths deliberately ignore the signal and do not write an extra
+  wake byte.
+- `runtime/native/rt_fd_registry.c` / `.h`: added
+  `rt_fd_registry_drain_shutdown_net_waiters_locked`, a registry-owned drain
+  helper. The caller holds `ex->lock`; the helper snapshots each row before
+  wake fan-out, wakes exact accept/read/write keys through
+  `rt_executor_wake_net_waiters_for_key`, force-clears matching fd-lifetime
+  rows, and notifies wake-fd/io-cv only when it drained at least one interest.
+- `runtime/native/rt_shutdown.c`: new small owner/control-plane file for
+  `rt_executor_drain_shutdown_net_waiters` and
+  `rt_executor_request_shutdown`. `rt_executor_request_shutdown` is not wired
+  into normal program lifecycle in this task.
+- `runtime/native/rt_async_internal.h`: added only the two Task 10 public
+  shutdown declarations; the file remains below the 500-line target.
+- `internal/vm/runtime_v2_fd_registry_shutdown_static_test.go`: extended with
+  `TestRuntimeV2FDRegistryShutdownDrainBehavior`, a deterministic C behavior
+  proof for the public drain wrapper plus registry-owned drain helper.
+
+LOC discipline:
+
+- `runtime/native/rt_async_state.c` was not modified and stayed `1727` lines.
+- `runtime/native/rt_async_internal.h` is `495` lines.
+- New `runtime/native/rt_shutdown.c` is `33` lines.
+- `runtime/native/rt_fd_registry.c` is `409` lines and
+  `runtime/native/rt_fd_registry.h` is `113` lines.
+- `internal/vm/runtime_v2_fd_registry_shutdown_static_test.go` is `303`
+  lines.
+
+Behavior proof added:
+
+- `TestRuntimeV2FDRegistryShutdownDrainBehavior` compiles and runs a small C
+  fixture against `rt_fd_registry.c` and `rt_shutdown.c`. It registers
+  read+accept interests on fd `10` and write interest on fd `11`, calls
+  `rt_executor_drain_shutdown_net_waiters`, and proves:
+  - all three net waiter keys are routed through
+    `rt_executor_wake_net_waiters_for_key`;
+  - the fd registry length becomes zero and the drained interests are no
+    longer present;
+  - wake-poll and `io_cv` broadcast happen exactly once for the non-empty
+    drain;
+  - a second empty drain returns `RT_RUNTIME_STATUS_OK` without additional
+    net wake fan-out or wake-poll/io-cv notification.
+
+Checks:
+
+- `go test -tags runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistryShutdownDrain(StaticContract|Behavior)$'
+  -count=1 -v --timeout 60s`: passed, package time `0.170s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistryCancelledInterestWakesPoller$' -count=1
+  -parallel=1 -p=1 -v --timeout 120s`: passed, package time `3.348s`.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2FDRegistry(WakeFDObservedForInterestAddedDuringPoll|CloseWakePollNotificationProof)$'
+  -count=1 -parallel=1 -p=1 -v --timeout 120s`: passed, package time
+  `3.467s`.
+- `SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+  '^TestMTNetWaiterWakeupLatency$' -count=1 -parallel=1 -p=1 -v --timeout
+  90s`: passed, package time `2.547s`.
+- `gofmt -l internal/vm/runtime_v2_fd_registry_shutdown_static_test.go`:
+  clean.
+- `git diff --check`: clean.
+- `make c-check`: first run found clang-format wrapping in
+  `rt_fd_registry.h`; after `clang-format -i` on changed C/H files, rerun
+  passed strict C formatting and warning compilation.
+- `make cppcheck`: passed, 33/33 native C files.
+- `make runtime-v2-check`: passed.
+- `make check`: passed.
+- Sentrux gates passed without degradation: root `6198 -> 6194`,
+  `runtime` `5195 -> 5239`, and `runtime/native` `5159 -> 5184`.
 
 ## Draft Creation Evidence
 

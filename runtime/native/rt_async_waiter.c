@@ -97,14 +97,17 @@ static void fd_registry_bridge_net_attach(rt_executor* ex, waker_key key) {
     }
 }
 
-static void fd_registry_bridge_net_detach_if_last(rt_executor* ex,
-                                                  waker_key key,
-                                                  size_t removed,
-                                                  size_t remaining_same_key) {
+static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
+                                                 waker_key key,
+                                                 size_t removed,
+                                                 size_t remaining_same_key) {
     if (removed == 0 || !waker_is_net(key)) {
-        return;
+        return 0;
     }
+    int removed_open_interest = 0;
     if (remaining_same_key == 0) {
+        removed_open_interest =
+            rt_fd_registry_net_interest_present(rt_executor_fd_registry_const(ex), key);
         rt_fd_registry_detach_net_interest(rt_executor_fd_registry(ex), key);
     }
     if (rt_async_debug_enabled()) {
@@ -130,6 +133,20 @@ static void fd_registry_bridge_net_detach_if_last(rt_executor* ex,
                 interest);
         }
     }
+    return removed_open_interest;
+}
+
+static void fd_registry_bridge_notify_removed_interest(rt_executor* ex,
+                                                       waker_key key,
+                                                       int removed_open_interest) {
+    if (ex == NULL || !removed_open_interest || !waker_is_net(key)) {
+        return;
+    }
+    // Remove-side only: the current poll snapshot may still contain this key.
+    // Readiness completion already comes from the poller path and must not
+    // write an extra wake byte.
+    rt_net_wake_poll();
+    pthread_cond_signal(&ex->io_cv);
 }
 
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store) {
@@ -188,7 +205,7 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker
     store->len = out;
     net_waiters_removed(store, key, result.removed);
     // Completion removed every waiter of this key, so no same-key entry remains.
-    fd_registry_bridge_net_detach_if_last(ex, key, result.removed, 0);
+    (void)fd_registry_bridge_net_detach_if_last(ex, key, result.removed, 0);
     return result;
 }
 
@@ -244,7 +261,9 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     store->len = out;
     net_waiters_removed(store, key, removed);
-    fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key);
+    int removed_open_interest =
+        fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key);
+    fd_registry_bridge_notify_removed_interest(ex, key, removed_open_interest);
 }
 
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
@@ -340,7 +359,7 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     }
     store->len = out;
     net_waiters_removed(store, key, removed);
-    fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key);
+    (void)fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key);
     if (found && out_id != NULL) {
         *out_id = found_id;
     }

@@ -102,6 +102,8 @@ rt_fd_completion_state rt_fd_registry_completion_state(const rt_fd_registry* reg
                                                        waker_key key);
 rt_fd_completion_summary rt_fd_registry_complete_ready_net_waiters(
     rt_executor* ex, const rt_fd_poll_interest* snapshot, int read_ready, int write_ready);
+rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked(rt_executor* ex,
+                                                                          rt_fd_registry* registry);
 rt_fd_completion_summary
 rt_fd_registry_wake_closed_net_waiters(rt_executor* ex, const rt_fd_lifecycle_snapshot* snapshot);
 size_t rt_fd_registry_snapshot_poll_interest(const rt_fd_registry* registry,

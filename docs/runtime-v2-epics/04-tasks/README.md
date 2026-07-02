@@ -18,7 +18,7 @@ the epic document is updated first.
 | 8 | `08-close-cancel-and-reregister-tests.md` | Complete | test writing |
 | 9 | `09-close-cancel-and-reregister-migration.md` | Complete | runtime code |
 | 10 | `10-wake-fd-and-shutdown-tests.md` | Complete | test writing |
-| 11 | `11-wake-fd-and-shutdown-migration.md` | Draft | runtime code |
+| 11 | `11-wake-fd-and-shutdown-migration.md` | Complete | runtime code |
 | 12 | `12-trace-counters-and-benchmark-contract.md` | Draft | trace/benchmark |
 | 13 | `13-runtime-v2-fd-registry-ci-gates.md` | Draft | CI |
 | 14 | `14-large-file-refactor-tranche.md` | Draft | refactor code |
