@@ -142,6 +142,33 @@ task, then move durable decisions into the owning epic document before closeout.
   ignored under `build/`; selected durable rows were copied into
   `02-evidence.md`.
 
+## Epic 4 Task 01 Handoff
+
+- Scope completed: kickoff baseline and Sentrux state before fd-registry work.
+  Docs-only; no runtime, test, Makefile, CI, or Sentrux rule changes.
+- Start commit: `05ceb7c2 chore(runtime): enforce Runtime V2 quality gates`;
+  branch `codex/runtime-net-scheduler-refactor`; clean tree at start.
+- Line counts at kickoff: `rt_net.c` 1024, `rt_async_state.c` 1731,
+  `rt_async_trace.c` 497, `rt_async_internal.h` 499, `rt_async_waiter.c` 309,
+  `rt_runtime.c` 161.
+- Sentrux CLI checks passed for all three roots: root `6198` (10 rules),
+  runtime `5195` (7 rules), runtime/native `5159` (7 rules).
+  `sentrux gate --save` stored the three baselines. The Sentrux MCP server is
+  not connected in this session; CLI `check`/`gate` evidence replaces the MCP
+  `session_start`/`session_end` flow for Epic 4 and this is recorded honestly
+  in `04-evidence.md`.
+- Startup gates: `make c-check` pass, `make cppcheck` pass, `make check`
+  pass. `make runtime-v2-check` failed once in the MT seed (known Epic 3
+  flake class, `AllowTimersToAdvance` program timeout under load); the full
+  isolated rerun passed `exit=0`. Pre-existing flake debt, not an Epic 4
+  regression.
+- Gate plan for Tasks 2-7 is recorded in `04-evidence.md`.
+- Next: Tasks 2-4 may run in parallel with separate write sets. Task 2 edits
+  only the map doc; Task 3 edits only
+  `internal/vm/runtime_v2_fd_registry_contract_test.go`; Task 4 edits only
+  `internal/vm/runtime_v2_fd_registry_static_test.go`. The main session owns
+  `04-evidence.md` and `NOTES.md` updates to avoid write conflicts.
+
 ## Epic 1 Artifacts
 
 - `RULES.md`: global Runtime V2 development rules.
