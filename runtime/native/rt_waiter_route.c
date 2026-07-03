@@ -24,6 +24,12 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
             return rt_shard_waiter_store(rt_task_owner_shard(ex, get_task(ex, key.id)));
         case WAKER_SCOPE:
             return &ex->control_waiters;
+        case WAKER_CHAN_SEND:
+        case WAKER_CHAN_RECV:
+            // Channel keys embed the channel pointer; channels are never
+            // freed and their owner never changes, so resolution is stable.
+            return rt_executor_waiter_store_for_shard(
+                ex, rt_channel_owner_shard_id((const rt_channel*)(uintptr_t)key.id));
         default:
             return rt_executor_waiter_store(ex);
     }

@@ -455,3 +455,19 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
 - LOC: `rt_async_sleep.c` 127; state.c 1565/1722; internal.h 460;
   poll.c 308.
 - Regressions: none.
+
+## Task 10: Channel Owner-Shard Migration
+
+- Task: Epic 7 Task 10. Proving spike: no. Date: 2026-07-04. Main session.
+- Scope per `10-channel-owner-shard-migration.md`: `rt_channel` gained
+  `owner_shard_id` (creation-fixed, creating task's shard, 0 outside
+  tasks); `rt_channel_owner_shard_id` accessor; the waiter resolver routes
+  channel keys to the owner store (shard-0 compat arm gone); owner-local
+  stub harness gained the accessor stub. Channel ops stay control-laned
+  until the peel — flip-plan correction recorded in the Task 5 doc:
+  task-state guardians switch atomically at Task 11, so all "no control
+  lane" gates flip together.
+- Checks: c-check/cppcheck pass; channel behavior modes green;
+  `runtime-v2-check` pass twice; `make check` pre-commit; `git diff
+  --check` clean.
+- Regressions: none.

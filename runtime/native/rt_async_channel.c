@@ -4,11 +4,19 @@
 
 struct rt_channel {
     uint64_t capacity;
+    // Owner shard (D5 channel slice): fixed at creation to the creating
+    // task's shard (shard 0 outside tasks); channel waiter keys live in the
+    // owner's store and never move.
+    uint32_t owner_shard_id;
     uint8_t closed;
     uint64_t* buf;
     size_t buf_len;
     size_t buf_head;
 };
+
+uint32_t rt_channel_owner_shard_id(const rt_channel* ch) {
+    return ch != NULL ? ch->owner_shard_id : 0;
+}
 
 static uint64_t channel_align_up(uint64_t size, uint64_t align) {
     if (align == 0) {
@@ -119,6 +127,9 @@ void* rt_channel_new(uint64_t capacity) {
     }
     memset(ch, 0, sizeof(rt_channel));
     ch->capacity = capacity;
+    const rt_task* creator = rt_current_task();
+    ch->owner_shard_id =
+        creator != NULL && creator->owner_shard_valid != 0 ? creator->owner_shard_id : 0;
     if (capacity > 0) {
         ch->buf = (uint64_t*)((uint8_t*)ch + channel_buffer_offset());
     }

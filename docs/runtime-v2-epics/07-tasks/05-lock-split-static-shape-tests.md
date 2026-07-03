@@ -34,12 +34,13 @@ ignores `runtime_v2_pending` files, and `runtime-v2-check` runs explicit
 test lists that do not include them. Task 13 wires them into
 `runtime-v2-lock-check` once Tasks 6-11 turn them green. The migration tasks
 flip them in this expected order: Task 6 turns the shard-sync and lane-API
-gates green; Task 9 the sleep-scan and clock gates; Task 10 the channel
-gate; Task 11 (the peel) the worker-loop, no-ambiguous-lock, and
-condvar-retirement gates. Task 7 replaces the global `ready_cv` with
-per-shard worker condvars but keeps the worker turn on the control lane
-under the sanctioned nested shape, so the worker-loop gate stays red until
-the peel.
+gates green; Task 9 the sleep-scan and clock gates; Task 11 (the peel) the
+worker-loop, channel, no-ambiguous-lock, and condvar-retirement gates.
+Task 7 replaces the global `ready_cv` with per-shard worker condvars and
+Task 10 adds channel owner metadata and key routing, but both keep their
+paths on the control lane under the sanctioned nested shape: task-state
+fields must switch guardians atomically across all their accessors, so
+every "no control lane here" gate flips together at the peel.
 
 ## Out Of Scope
 

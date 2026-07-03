@@ -222,6 +222,11 @@ void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_c
     task->placement_class = placement_class;
 }
 
+uint32_t rt_channel_owner_shard_id(const rt_channel* ch) {
+    (void)ch;
+    return 0;
+}
+
 rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task) {
     rt_runtime* runtime = rt_executor_runtime(ex);
     if (runtime != NULL && task != NULL && task->owner_shard_valid != 0) {

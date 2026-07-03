@@ -2933,3 +2933,17 @@ pass, before any task execution began:
   `rt_shard_init`.
 - Next: Task 10 channel owner shard (channel keys to owner store,
   same-shard fast path), then Task 11 the peel.
+
+## Epic 7 Task 10 Handoff
+
+- Channel owner metadata + key routing landed (owner fixed at creation,
+  channels never freed, resolution stable). Channel OPS stay control-laned:
+  flip-plan corrected — task-state fields must switch guardians atomically
+  across all accessors, so worker-loop/channel/ambiguous-lock/condvar gates
+  all flip at the Task 11 peel together.
+- Gates: channel behavior modes green, `runtime-v2-check` x2 green,
+  c-check/cppcheck green. Stub harness gained `rt_channel_owner_shard_id`.
+- Next: Task 11 — the peel. Blocking/await/shutdown lanes (the original
+  Task 11 scope) merge INTO the peel since done_cv gating and the
+  control-epilogue split are inseparable from removing the control lock
+  from mark_done and the worker turn.
