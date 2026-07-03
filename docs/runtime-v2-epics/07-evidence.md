@@ -257,3 +257,76 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
 - Regressions: none. Dead ends: the rejected-alternatives list.
 - Follow-ups: Tasks 4-5 encode D1-D16 as behavior and static contracts;
   Tasks 6-11 implement them; any deviation updates the spike doc first.
+
+## Task 4: Lock-Split Behavior Contract Tests
+
+- Task: Epic 7 Task 4. Proving spike: no. Date: 2026-07-04. Main session.
+- Scope: added the lock-split behavior harness and Go driver
+  (`internal/vm/runtime_v2_lock_split_harness_test.go`, 605 physical lines;
+  `internal/vm/runtime_v2_lock_split_behavior_test.go`, 98 lines), nine
+  modes x two shard configs per `04-lock-split-behavior-contract-tests.md`.
+  The harness file exceeds the 500-line test-file SHOULD because the
+  embedded C program is one cohesive harness; splitting the string constant
+  would not improve reviewability. Recorded as the task's accepted
+  deviation.
+- **Discovered defect (pre-existing, multi-shard):** the cross-channel FIFO
+  mode hung at `SURGE_SHARDS=3` (8/9 modes passed; `shards-1` all passed).
+  Root cause: `wake_channel_task_no_signal` pushes the woken task into its
+  owner scheduler's inject queue without signaling; when the owner is
+  another shard whose only worker is asleep, nobody drains the queue — the
+  no-signal handoff contract only holds for the current worker's own
+  scheduler. Any cross-shard bounded-channel producer/consumer could
+  deadlock under `SURGE_SHARDS>1`. The parked-with-work assertion cannot
+  catch it because the queue becomes non-empty after the worker commits to
+  sleep.
+- Fix (test-first, in this task's commit series):
+  - `711d41f3 refactor(runtime): extract ready-queue deque helpers from
+    rt_async_state` — pure move of the six deque helpers into
+    `rt_async_deque.c` (141 effective LOC) because `rt_async_state.c` sat
+    exactly at its 1722 ceiling; state.c dropped to 1580, header 482.
+    Full `runtime-v2-check` green after the move.
+  - `d78c8d1f fix(runtime): signal cross-scheduler channel handoff wakes` —
+    `wake_channel_task_no_signal` now signals when the woken task's
+    scheduler is not the current worker's scheduler (state.c 1582/1722).
+- Checks: `make c-check` pass; `make cppcheck` pass (after a
+  const-qualification style fix it flagged); focused lock-split suite
+  9/9 x 2 configs pass post-fix (`go test -tags runtime_v2_pending
+  ./internal/vm -run '^TestRuntimeV2LockSplit' ...` 17.7s);
+  `timeout 600s make runtime-v2-check` pass twice (58 PASS lines, exit 0);
+  `make check` green in both pre-commit runs; `git diff --check` clean.
+- Sentrux (CLI): root 6181 (was 6182), `runtime` 5326 (was 5340),
+  `runtime/native` 5450 (was 5467); all rules pass on all three paths. The
+  small signal drop tracks the file split (one file became two) and the new
+  test files; floors hold. Recovery owner: Task 14 re-evaluates after the
+  full split and must restore or explain the delta at closeout.
+- Contracts: cross-shard join/cancel/channel FIFO+close/blocking/sleep/
+  select/timeout/shutdown liveness pinned at `SURGE_SHARDS=1` and `=3`;
+  channel FIFO and close-after-drain semantics preserved by the fix (close
+  only completes receivers after handoff/buffer drain, per mode
+  `cross-channel`).
+- Regressions: none; the fixed defect predates the epic.
+- Dead ends: none new.
+- Follow-ups: Task 12 should count cross-scheduler channel signal wakes;
+  the Task 10 channel migration keeps these nine modes green.
+
+## Task 5: Lock-Split Static Shape Tests
+
+- Task: Epic 7 Task 5. Proving spike: no. Date: 2026-07-04. Main session.
+- Scope: added `internal/vm/runtime_v2_lock_split_static_test.go` (292
+  lines, tagged `runtime_v2_pending`) with eight gates pinning D1-D16
+  structural shape per `05-lock-split-static-shape-tests.md`, plus a
+  definition-aware C function-body finder (the shared `cFunctionBody`
+  matches forward declarations, e.g. `rt_worker_main`'s prototype).
+- Expected-red proof: all eight gates fail at this commit with actionable
+  messages (missing `rt_shard.lock`/cvs/`owner_hint`; missing lane API;
+  non-atomic `now_ms`/missing sleep store; 187 ambiguous `rt_lock`/
+  `rt_unlock` call-site hits; `rt_worker_main` on the global lock;
+  `tick_virtual`/`advance_time_to_next_timer` still scanning `tasks_cap`;
+  channel without owner; `ready_cv`/`io_cv` still referenced). No Makefile
+  gate runs them until Task 13 wires the green set.
+- Checks: `gofmt -l` clean; `go vet -tags runtime_v2_pending` clean;
+  `git diff --check` clean. Docs-plus-tests only; no C changed in this
+  slice.
+- Flip plan recorded in the task doc: Task 6 greens the shape/lane gates,
+  Task 7 the worker-loop gate, Task 9 the clock/sleep gates, Task 10 the
+  channel gate, Task 11 the ambiguous-lock and condvar-retirement gates.

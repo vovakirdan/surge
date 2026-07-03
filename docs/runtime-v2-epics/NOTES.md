@@ -2831,3 +2831,42 @@ pass, before any task execution began:
   under store locks; per-shard virtual clocks.
 - Next: Task 4 behavior contract tests and Task 5 static shape tests encode
   D1-D16; they may run in parallel with disjoint files.
+
+## Epic 7 Task 4 Handoff
+
+- Nine behavior modes landed (`runtime_v2_lock_split_harness_test.go` +
+  `runtime_v2_lock_split_behavior_test.go`), each at `SURGE_SHARDS=1` and
+  `SURGE_SHARDS=3`: cross-join, cross-cancel, cross-channel FIFO+close,
+  close-wakes, blocking-completion, sleep-idle-advance,
+  select-across-owners, timeout-across-owners, shutdown-liveness. All
+  bounded-wait; a lost wakeup fails in seconds.
+- The suite immediately caught a real pre-existing multi-shard deadlock:
+  `wake_channel_task_no_signal` injected into another shard's queue without
+  signaling, so a sleeping owner-shard worker never drained the handoff
+  (cross-channel mode hung at shards-3, 8/9 modes green). Fixed test-first:
+  `711d41f3` (pure deque extraction to make LOC room; state.c 1722 -> 1580)
+  then `d78c8d1f` (signal when the woken task's scheduler is not the
+  current worker's). 9/9 x 2 configs green after; `runtime-v2-check` green
+  twice; cppcheck/c-check green.
+- Sentrux after the fix: 6181/5326/5450 (root/runtime/native), all rules
+  pass; small drop vs 6182/5340/5467 baseline attributed to the file split
+  and new tests; Task 14 owns restoring or explaining the delta.
+- Do not retry: relying on `rt_debug_assert_no_parked_with_work` to catch
+  cross-scheduler no-signal handoffs — the queue fills after the worker
+  commits to sleep, so only the signal fix closes it.
+
+## Epic 7 Task 5 Handoff
+
+- Eight static gates landed in `runtime_v2_lock_split_static_test.go`,
+  pinning the D1-D16 shape: shard lock/cvs + waiter owner_hint; lane API
+  (`rt_control_lock/unlock`, `rt_shard_lock/unlock`,
+  `rt_lane_debug_enabled`); atomic `now_ms` + `sleep_store`; zero
+  `rt_lock(`/`rt_unlock(` call sites; `rt_worker_main` on the shard lane;
+  no `tasks_cap` sleep scans; channel `owner_shard_id` + owner-lane send;
+  `ready_cv`/`io_cv` retirement.
+- All eight are red at this commit by design (187 ambiguous lock call sites
+  counted). No gate runs them; Task 13 wires the green set. Flip order:
+  Task 6 -> shape/lane gates; Task 7 -> worker loop; Task 9 -> clock/sleep;
+  Task 10 -> channel; Task 11 -> ambiguous-lock + condvar retirement.
+- Helper note: use `lockSplitFunctionDefinitionBody` (definition-aware) for
+  body gates; the shared `cFunctionBody` matches forward declarations.

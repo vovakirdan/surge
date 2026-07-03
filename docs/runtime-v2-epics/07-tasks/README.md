@@ -19,8 +19,8 @@ documents quote the parts they need and point back to it for the rest.
 | 1 | `01-kickoff-baseline-and-sentrux.md` | Complete | evidence | none |
 | 2 | `02-executor-lock-dependency-map.md` | Complete | design map | 1 |
 | 3 | `03-locking-model-proving-spike.md` | Complete | proving spike | 1, 2 |
-| 4 | `04-lock-split-behavior-contract-tests.md` | Pending | test writing | 1, 2, 3 |
-| 5 | `05-lock-split-static-shape-tests.md` | Pending | test/static checks | 1, 2, 3 |
+| 4 | `04-lock-split-behavior-contract-tests.md` | Complete | test writing | 1, 2, 3 |
+| 5 | `05-lock-split-static-shape-tests.md` | Complete | test/static checks | 1, 2, 3 |
 | 6 | `06-shard-lock-structure-landing.md` | Pending | runtime code | 3, 5 |
 | 7 | `07-scheduler-ready-and-park-wake-migration.md` | Pending | runtime code | 4, 6 |
 | 8 | `08-waiter-store-key-ownership-migration.md` | Pending | runtime code | 7 |
