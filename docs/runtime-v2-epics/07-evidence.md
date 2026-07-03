@@ -225,3 +225,35 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
 - Regressions: none. Dead ends: none new.
 - Follow-ups: Task 3 must answer every *(spike)* mark or record why it moved
   to a later task.
+
+## Task 3: Locking-Model Proving Spike
+
+- Task: Epic 7 Task 3, locking-model proving spike. Proving spike: yes; the
+  Global Rule 1 record lives in `07-locking-model-proving-spike.md`.
+- Date: 2026-07-03. Author/session: main session.
+- Scope: fixed the locking model as decisions D1-D16 (per-shard lock +
+  `worker_cv` + `poller_cv`; lock order control -> at most one shard lock
+  with a TLS debug assertion; task deref/free/owner-stability rules;
+  control-lane accept re-placement; owner-hinted waiter entries with
+  same-shard fast wake and control-arbitrated collect-then-wake; atomic
+  virtual clock + per-shard sleep stores + last-idle-worker advance;
+  control-lane scope keys, blocking completion, select/timeout multi-key
+  registration; `mark_done` shard-phase/control-epilogue split; gated
+  `done_cv`; sync-compat on shard `worker_cv`; io thread N=1 on shard 0
+  `poller_cv`, N>1 coarse backstop with a must-stay-zero counter).
+- Proof: standalone C model (source inlined in the spike doc), 4 shards, 32
+  tasks x 20000 cycles, 3 cross-shard wake threads. Runs: 4x
+  `clang -O1 -g -fsanitize=thread` PASS with zero TSan reports (~13-15s
+  each), 2x `clang -O2 -DNDEBUG` PASS. `total_wakes=639968` equals the exact
+  number of parks performed, so every registered waiter was woken exactly
+  once (no lost wakeups, no double consumption); `slow_wakes=480281`
+  (foreign-hint collect-then-wake path exercised heavily);
+  spurious parks 273-538 per run (0.04-0.08% of wakes), bounded.
+- Rejected alternatives recorded in the spike doc: single cv per shard;
+  free under owner lock alone; owner chasing under shard locks;
+  foreign-entry deref under store locks; per-shard virtual clocks.
+- Commands: prototype builds/runs above; `git diff --check` clean. No
+  repository code changed, so no C gates required.
+- Regressions: none. Dead ends: the rejected-alternatives list.
+- Follow-ups: Tasks 4-5 encode D1-D16 as behavior and static contracts;
+  Tasks 6-11 implement them; any deviation updates the spike doc first.

@@ -2808,3 +2808,26 @@ pass, before any task execution began:
   protocol, task lifetime rule, scope-key store, re-placement transition,
   condvar fates, non-user polls under shard lock, accept-winner cleanup
   shape. Task 3 must answer each mark.
+
+## Epic 7 Task 3 Handoff
+
+- `07-locking-model-proving-spike.md` fixes the model as decisions D1-D16;
+  every *(spike)* mark in the dependency map is answered. Core rules:
+  per-shard `lock` + `worker_cv` + `poller_cv`; order control -> at most one
+  shard lock (TLS debug assertion); waiter entries carry `owner_hint`;
+  same-shard hints wake inline under the held store/shard lock, foreign
+  hints go through control (collect-then-wake); `owner_shard_id` writes only
+  under control with the accept transition as the single post-spawn writer;
+  free requires control + owner (control first); `mark_done` = shard phase +
+  optional control epilogue; atomic `now_ms` + per-shard sleep stores +
+  last-idle-worker advance; select/timeout are control-serialized slow
+  lanes; join/channel/net/sleep/blocking steady paths never touch control.
+- Proof ran 5/5 green: TSan x4 + O2 x2 on a 4-shard/32-task/20k-cycle model
+  with 3 cross-shard wakers; total_wakes exactly equals parks performed
+  (nothing lost, nothing double-consumed); spurious parks 0.04-0.08%.
+  Prototype source is inlined verbatim in the spike doc.
+- Dead ends recorded (do not retry): one cv per shard; free under owner lock
+  alone; owner chasing under shard locks; deref of foreign-hint entries
+  under store locks; per-shard virtual clocks.
+- Next: Task 4 behavior contract tests and Task 5 static shape tests encode
+  D1-D16; they may run in parallel with disjoint files.

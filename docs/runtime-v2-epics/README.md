@@ -71,6 +71,9 @@ to shard-owned state.
 - `07-executor-lock-split-and-shard-runtime-state.md`: Epic 7 scope, boundary
   decisions, lock ownership contract, and task list (in progress).
 - `07-evidence.md`: Epic 7 task evidence ledger (created by Epic 7 Task 1).
+- `07-executor-lock-dependency-map.md`: Epic 7 field/path/lock-lane map.
+- `07-locking-model-proving-spike.md`: Epic 7 locking model decisions
+  D1-D16 and the park/wake protocol proof.
 - `07-tasks/`: Epic 7 task index and expanded task documents.
 
 Known backend-test debt remains accepted for now: the focused
