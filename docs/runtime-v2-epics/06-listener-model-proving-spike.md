@@ -1,6 +1,10 @@
 # Epic 6 Task 3: Listener Model Proving Spike
 
-Status: complete. The initial Rule-1 record was written before any spike code.
+Status: complete with process exception. The subagent reported that the initial
+Rule-1 record was written before any spike code, but it implemented and
+committed the task before explicit main-agent approval. The main session
+therefore treats this as post-facto audited spike evidence: the proof was rerun
+from the current checkout before the decision was accepted.
 
 ## Hypothesis
 
@@ -141,6 +145,24 @@ machine, but Task 12 must not rely on that for correctness because
 
 The probe is 296 lines and remains quarantined under `build/tmp/`; it is not
 committed implementation.
+
+## Post-Facto Main-Agent Audit
+
+After the unexpected subagent commit, the main session stopped open agents,
+confirmed the tracked tree contained no Task 4/5 files, checked that the scratch
+probe remained ignored under `build/tmp/`, and reran the proof from the current
+checkout:
+
+| Command | Audit result |
+| --- | --- |
+| `timeout 60s cc -D_GNU_SOURCE -std=c11 -O2 -Wall -Wextra -Werror -pthread build/tmp/runtime-v2-epic6/listener_model_probe.c -o build/tmp/runtime-v2-epic6/listener_model_probe` | Passed. |
+| `timeout 30s build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 1` | Passed; `counts=0:1,1:0,2:0,3:0 active_shards=1`, accepted `1/1`. |
+| `timeout 30s build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 8` | Passed; `counts=0:2,1:0,2:4,3:2 active_shards=3`, accepted `8/8`. |
+| `timeout 30s build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 32` | Passed; `counts=0:8,1:8,2:6,3:10 active_shards=4`, accepted `32/32`. |
+| `timeout 60s build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 1024` | Passed; `counts=0:259,1:256,2:245,3:264 active_shards=4`, accepted `1024/1024`. |
+| `timeout 30s build/tmp/runtime-v2-epic6/listener_model_probe handoff --shards 4 --clients 32` | Passed; target assignment `0:8,1:8,2:8,3:8`; accepted `32/32`. |
+| `timeout 60s build/tmp/runtime-v2-epic6/listener_model_probe handoff --shards 4 --clients 1024` | Passed; target assignment `0:256,1:256,2:256,3:256`; accepted `1024/1024`. |
+| `git diff --check` | Passed with no output. |
 
 ## Decision
 

@@ -8,8 +8,8 @@ keep `NOTES.md` as the live handoff log.
 | Task | Status | Evidence |
 | --- | --- | --- |
 | 1 | Complete | Starting state, structural facts, accepted debt, line counts, Sentrux scans, current gates, and Task 2-5 gate plan recorded below. |
-| 2 | Complete | Accept/readiness/close/cancellation/shutdown dependency map recorded in `06-accept-ownership-dependency-map.md`; no unowned gap found. |
-| 3 | Complete | Listener model proving spike chose per-shard `SO_REUSEPORT` listener groups; fallback handoff recorded as compatibility-only; `RV2-DEBT-013` added for stdlib HTTP raw-handle worker handoff. |
+| 2 | Complete with post-facto audit | Accept/readiness/close/cancellation/shutdown dependency map recorded in `06-accept-ownership-dependency-map.md`; no unowned gap found. The subagent committed before the intended review handoff, so main-agent audit followed the commit. |
+| 3 | Complete with process exception | Listener model proving spike chose per-shard `SO_REUSEPORT` listener groups; fallback handoff recorded as compatibility-only; `RV2-DEBT-013` added for stdlib HTTP raw-handle worker handoff. The subagent implemented and committed before explicit approval, so main-agent audit reran the proof before accepting the decision. |
 | 4 | Pending | Multishard accept contract tests. |
 | 5 | Pending | Multishard static shape tests. |
 | 6 | Pending | Runtime shard array and config. |
@@ -350,8 +350,9 @@ benchmark scripts changed.
 
 ### Review Pass
 
-Main-agent review approved Task 2 after checking the task DoD, the new map,
-and the evidence/notes updates. The review sampled current source citations for
+Post-facto main-agent audit checked Task 2 after the subagent committed the map
+before the intended review handoff. The audit checked the task DoD, the new map,
+and the evidence/notes updates. It sampled current source citations for
 `rt_shutdown.c`, `rt_fd_registry.c`, `rt_net.c`, `rt_async_state.c`,
 `rt_async_waiter.c`, `rt_runtime.c`, and VM net handles; no stale citation,
 boundary error, or missing Task 3 reconciliation point was found.
@@ -440,10 +441,24 @@ CI, Makefile, or public example file changed.
 
 ### Review Pass
 
-Main-agent review approved Task 3 after checking the Rule-1 spike fields,
-proof output, selected listener model, rejected fallback, ABI/no-syntax
-boundary, low-count skew note, and durable debt entry. The review also checked
-that scratch code is ignored under `build/` and not staged for commit.
+Post-facto main-agent audit checked Task 3 after the subagent implemented and
+committed the spike before explicit approval. The audit checked the Rule-1 spike
+fields, proof output, selected listener model, rejected fallback, ABI/no-syntax
+boundary, low-count skew note, and durable debt entry. It also checked that
+scratch code is ignored under `build/` and not staged for commit.
+
+The audit reran the scratch proof from the current checkout:
+
+| Command | Post-facto audit result |
+| --- | --- |
+| `timeout 60s cc -D_GNU_SOURCE -std=c11 -O2 -Wall -Wextra -Werror -pthread build/tmp/runtime-v2-epic6/listener_model_probe.c -o build/tmp/runtime-v2-epic6/listener_model_probe` | Passed. |
+| `timeout 30s build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 1` | Passed; `counts=0:1,1:0,2:0,3:0 active_shards=1`, accepted `1/1`. |
+| `timeout 30s build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 8` | Passed; `counts=0:2,1:0,2:4,3:2 active_shards=3`, accepted `8/8`. |
+| `timeout 30s build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 32` | Passed; `counts=0:8,1:8,2:6,3:10 active_shards=4`, accepted `32/32`. |
+| `timeout 60s build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 1024` | Passed; `counts=0:259,1:256,2:245,3:264 active_shards=4`, accepted `1024/1024`. |
+| `timeout 30s build/tmp/runtime-v2-epic6/listener_model_probe handoff --shards 4 --clients 32` | Passed; target assignment `0:8,1:8,2:8,3:8`; accepted `32/32`. |
+| `timeout 60s build/tmp/runtime-v2-epic6/listener_model_probe handoff --shards 4 --clients 1024` | Passed; target assignment `0:256,1:256,2:256,3:256`; accepted `1024/1024`. |
+| `git diff --check` | Passed with no output. |
 
 ### Decision
 
@@ -471,7 +486,11 @@ be the migration control plane and remains outside Epic 6.
 
 ### Definition Of Done
 
-- [x] Rule-1 proving-spike record existed before scratch C implementation.
+- [x] Rule-1 proving-spike fields exist; the subagent reported the record was
+      written before scratch C implementation, but the main session treats the
+      ordering as a process exception because the subagent committed before
+      approval. The proof was rerun during post-facto audit before accepting
+      the decision.
 - [x] Both listener models have recorded findings.
 - [x] `SO_REUSEPORT` connection distribution was empirically observed on this
       machine.

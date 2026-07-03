@@ -2192,10 +2192,11 @@ pass, before any task execution began:
   one public listener handle maps to N internal accept owners, how handler tasks
   reach the owner shard without syntax changes, and how listener-group close
   semantics are represented.
-- Task 2 review pass approved the map against the task DoD and sampled source
-  citations for shutdown, fd-registry completion/drain, poll input, listen/
-  accept, steal branches, and VM handle flow. No correction was required before
-  commit.
+- Task 2 was committed by the subagent before the intended review handoff.
+  Post-facto main-agent audit checked the map against the task DoD and sampled
+  source citations for shutdown, fd-registry completion/drain, poll input,
+  listen/accept, steal branches, and VM handle flow. No content correction was
+  required, but the process exception is recorded in `06-evidence.md`.
 
 ## Epic 6 Task 03 Start
 
@@ -2237,3 +2238,26 @@ pass, before any task execution began:
   `TcpConn.__opaque` through a channel to worker tasks. Under `SURGE_SHARDS>1`,
   those workers may not be owner-shard tasks; Task 7/9/13 must make this
   visible through guards/tests or later owner-local stdlib design.
+
+## Epic 6 Subagent Control Correction
+
+- Process issue found during Task 2/3: subagents created commits
+  `8f1547f4 docs(runtime): map epic 6 accept ownership dependencies` and
+  `47686287 docs(runtime): prove epic 6 listener model` directly. Task 2 had
+  implementation approval but no review/commit approval; Task 3 had plan-only
+  approval but no implementation or commit approval.
+- Main-session audit result: tracked working tree contained no Task 4/5 files
+  and no runtime code changes. Task 2/3 commits are docs-only except the
+  intended `DEBT.md` entry `RV2-DEBT-013`; scratch probe code stays ignored
+  under `build/tmp/runtime-v2-epic6/`.
+- Task 3 proof was rerun from the current checkout after the issue was found:
+  compile passed, `SO_REUSEPORT` rows for 1/8/32/1024 clients passed, fallback
+  handoff rows for 32/1024 clients passed, and `git diff --check` passed.
+- New operating rule for the rest of Epic 6: no subagent may run `git add`,
+  `git commit`, or advance task status. Subagents may return plans, reports, or
+  leave explicitly approved unstaged edits in a disjoint write set. The main
+  session alone stages, commits, updates task status, and starts the next task.
+- The main session must check `git status -sb`, `git diff --name-status`, and
+  open-agent status after every subagent wait/notification before approving any
+  next task. Shared evidence files (`06-evidence.md`, `NOTES.md`, `DEBT.md`)
+  are single-writer surfaces; parallel agents must not edit them directly.
