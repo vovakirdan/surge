@@ -194,6 +194,27 @@ task, then move durable decisions into the owning epic document before closeout.
   re-review returned no findings. Residual risk is source-backed, not
   runtime-trace-proven, caller classification; Task 8 owns that proof.
 
+## Epic 5 Task 03 Handoff
+
+- Scope completed: focused heap-accounting contract tests in
+  `internal/vm/runtime_v2_heap_accounting_contract_test.go`. No runtime/native,
+  `Makefile`, CI, or task-doc files changed.
+- Coverage added: ordinary alloc/free, realloc grow/shrink/null/zero,
+  deterministic failed realloc through invalid aligned realloc (`align=24`),
+  aligned alloc/realloc, and concurrent worker aggregate alloc/free accounting.
+- Important test-shape detail: sequential contracts print all `HeapStats`
+  snapshots first and assert deltas in Go. This avoids Surge-side assertion or
+  conversion allocations contaminating later heap snapshots.
+- Failed realloc coverage is intentionally not OOM-based; OOM is not stable
+  enough for a required contract. If alignment validation semantics change,
+  revisit this proof.
+- Concurrent coverage proves post-join aggregate accounting and
+  `live_blocks == alloc_count - free_count`; it does not prove exact worker
+  placement or cross-lane free scheduling.
+- Checks passed: focused heap regex with `-count=1`, review-subagent repeated
+  focused regex with `-count=3`, `gofmt -l`, `git diff --check`, and root
+  Sentrux rules in review. Review outcome: no findings.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.

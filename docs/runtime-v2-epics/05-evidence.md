@@ -9,7 +9,7 @@ keep `NOTES.md` as the handoff log.
 | --- | --- | --- |
 | 1 | Complete | Starting state, debt scope, Sentrux scans, heap smoke, current Runtime V2 gates, and Task 2-7 gate plan recorded below. |
 | 2 | Complete | Dependency map artifact, selected event-delta cell model, caller-context corrections, checks, and review outcome recorded below. |
-| 3 | Draft | Heap stats contract tests not started. |
+| 3 | Complete | Heap stats contract tests for alloc/free, realloc, aligned paths, failed realloc, and concurrent workers recorded below. |
 | 4 | Draft | Static shape tests not started. |
 | 5 | Draft | Accounting cell skeleton not started. |
 | 6 | Draft | Alloc/free/realloc accounting migration not started. |
@@ -248,3 +248,63 @@ owns runtime proof.
   matching `NOTES.md` handoff if Task 2 must be removed.
 - No runtime artifacts, generated binaries, sockets, or benchmark reports were
   created by Task 2.
+
+## Task 3: Heap Stats Contract Tests
+
+### Task Identity And Scope
+
+- Task: `05-tasks/03-heap-stats-contract-tests.md`.
+- Date: 2026-07-03.
+- Scope: focused VM/LLVM behavior tests before moving heap-counter storage.
+- Out of scope: runtime/native code, `Makefile`, CI, broad VM backend regex,
+  and heap-accounting implementation.
+
+### Result
+
+Task 3 added `internal/vm/runtime_v2_heap_accounting_contract_test.go` with:
+
+- sequential contracts for ordinary `rt_alloc`/`rt_free`;
+- `rt_realloc` grow, shrink, null-pointer, and zero-size-free cases;
+- aligned allocation and aligned reallocation grow/shrink/free cases;
+- deterministic failed realloc coverage using invalid aligned realloc
+  (`align=24`), proving the current path returns before counter updates and
+  leaves the original pointer freeable;
+- concurrent worker allocation/free aggregate accounting after join, without
+  exact scheduling assumptions.
+
+The tests collect all `HeapStats` snapshots before Go-side assertions. This
+avoids contaminating later snapshots with in-program assertion or conversion
+allocations.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `internal/vm/runtime_v2_heap_accounting_contract_test.go` | created | Focused heap-accounting behavior contracts. | 275 lines, under 500-line target. |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 3 durable evidence. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 3 handoff. | Documentation only. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `go test ./internal/vm -run '^TestLLVMNative.*Heap.*\|^TestRuntimeV2HeapAccounting' -count=1 -parallel=1 -p=1 -v --timeout 180s` | pass | `TestLLVMNativeHeapStats`, `TestRuntimeV2HeapAccountingSequentialContracts`, and `TestRuntimeV2HeapAccountingConcurrentWorkersContract` passed; package `ok surge/internal/vm 5.686s` in main-session rerun | `0` | focused behavior gate. |
+| `gofmt -l internal/vm/runtime_v2_heap_accounting_contract_test.go internal/vm/runtime_v2_heap_accounting_static_test.go` | no output | no output | `0` | formatting gate shared with Task 4 workspace file. |
+| `git diff --check` | no whitespace errors | no output | `0` | main-session post-review whitespace gate. |
+| `wc -l internal/vm/runtime_v2_heap_accounting_contract_test.go` | under 500-line target | `275` | `0` | new test file is under limit. |
+| Review subagent stability check | pass | focused regex passed with `-count=1` and `-count=3`; Sentrux root scan quality `6191`, rules pass | pass | review-only evidence. |
+
+### Review Outcome
+
+Review subagent returned no findings. Residual risks:
+
+- failed realloc proof covers deterministic invalid-alignment failure, not OOM;
+- concurrent coverage proves aggregate accounting after join, not exact worker
+  placement or free-on-different-lane scheduling.
+
+### Rollback/Recovery Notes
+
+- Revert the new contract test file, this Task 3 section/status row, and the
+  matching `NOTES.md` handoff if Task 3 must be removed.
+- No runtime artifacts, generated binaries, sockets, or benchmark reports were
+  created by Task 3.
