@@ -5,11 +5,11 @@
 # Raising a ceiling is a deliberate debt decision and must be documented in
 # docs/runtime-v2-epics/DEBT.md or the owning task evidence.
 
-runtime/native/rt_async_state.c 1727 Runtime V2 split in progress; must not grow before further refactor.
+runtime/native/rt_async_state.c 1722 Runtime V2 split in progress; must not grow before further refactor.
 runtime/native/rt_term.c 1091 Existing terminal runtime debt outside Runtime V2 Epic 4 scope.
-runtime/native/rt_net.c 904 Runtime V2 fd-registry work will continue splitting by dependency boundary.
+runtime/native/rt_net.c 818 Runtime V2 net work will continue splitting by dependency boundary.
 runtime/native/rt_fs.c 978 Existing filesystem runtime debt outside Runtime V2 Epic 4 scope.
-runtime/native/rt_async_task.c 768 Existing async task runtime debt; split when task ownership changes.
+runtime/native/rt_async_task.c 731 Existing async task runtime debt; split when task ownership changes.
 runtime/native/rt_string.c 762 Existing string runtime debt outside Runtime V2 Epic 4 scope.
 runtime/native/rt_bignum_int.c 744 Existing bignum runtime debt outside Runtime V2 Epic 4 scope.
 runtime/native/rt_bignum_uint_div.c 718 Existing bignum division debt outside Runtime V2 Epic 4 scope.

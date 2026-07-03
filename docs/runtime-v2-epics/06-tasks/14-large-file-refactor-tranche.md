@@ -1,6 +1,6 @@
 # Task 14: Large File Refactor Tranche
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** refactor code
 **Depends on:** Task 11, Task 12, Task 13
 
@@ -38,9 +38,10 @@ this epic after the behavior proof exists."*
 ## Goal
 
 Split cohesive scheduler/net responsibilities out of the over-limit files
-this epic touched, reducing or at least not worsening their line counts,
-following the same dependency-boundary discipline Epic 4 Task 14 used to
-extract `rt_net_trace.c`/`.h` from `rt_net.c`.
+this epic touched when a real dependency boundary remains, reducing or at
+least not worsening their line counts. If Epic 6 implementation already
+performed the cohesive extractions, close the tranche with evidence and
+tighten the legacy ceilings instead of manufacturing a split.
 
 ## Why This Task Exists
 
@@ -90,6 +91,50 @@ default.
 - Refactoring files this epic did not touch (e.g. `rt_term.c`, `rt_fs.c` —
   `RV2-DEBT-005` remains someone else's scope).
 
+## Implementation
+
+Task 14 closed as an audit and allowlist-tightening tranche, not as a new code
+move.
+
+Reason: Tasks 6-12 already extracted the cohesive Epic 6 responsibilities into
+focused files:
+
+- `rt_scheduler_placement.c` owns owner-shard placement/no-steal helpers.
+- `rt_net_poller.c` owns per-shard poller wake helpers.
+- `rt_net_accept_group.c` owns listener-group member bookkeeping.
+- `rt_net_handles.c` owns listener/connection handle shapes and owner
+  metadata.
+- `rt_net_lifecycle.c` owns owner-shard close/registry lifecycle helpers.
+- `rt_net_listener_socket.c` owns listener socket construction.
+- `rt_net_trace.c`/`.h` own aggregate and per-shard net trace fields.
+
+Final effective LOC is below the Epic 6 starting ceiling for every over-limit
+file this tranche targeted, so a new extraction would have increased risk
+without reducing an observed regression:
+
+- `rt_net.c`: `904 -> 818` effective LOC.
+- `rt_async_state.c`: `1727 -> 1722` effective LOC.
+- `rt_async_task.c`: `768 -> 731` effective LOC.
+- `rt_async_internal.h`: `499 -> 478` effective LOC and no longer needs a
+  legacy allowlist entry.
+
+`.loc-legacy-allowlist` was tightened to the exact final effective counts for
+the remaining relevant legacy files.
+
+## Rejected Extraction Paths
+
+- `rt_net.c` poll construction: still a plausible future split, but Epic 6
+  already moved wake helpers and owner lifecycle out. Pulling the remaining
+  `poll_net_waiters_on_shard` loop now would split direct wait-key semantics
+  from the socket wait API without a current growth regression.
+- `rt_async_state.c` scheduler loop: placement/no-steal code already lives in
+  `rt_scheduler_placement.c`. The remaining ready/wake/timer/executor loop is
+  tightly coupled under the preserved global `ex->lock`; lock splitting is the
+  correct future boundary, not a Task 14 mechanical move.
+- `rt_async_internal.h` header split: effective LOC is under the 500-line
+  target, and the remaining declarations are still the shared internal runtime
+  surface while the executor lock remains global.
+
 ## Approach / Steps
 
 1. Re-run `wc -l` on every file Tasks 6-11 touched; diff against Task 1's
@@ -97,8 +142,8 @@ default.
 2. For each file materially larger than baseline, record the dependency
    cluster and owning module before extraction (Refactor Safety Contract:
    "record the dependency cluster and owning module before extraction").
-3. Move one responsibility at a time; run the full check suite after each
-   move, not only at the end of the whole tranche.
+3. Move one responsibility at a time if, and only if, a materially larger file
+   still has a cohesive extraction boundary.
 4. Update `.loc-legacy-allowlist` for files whose ceiling is met or lowered.
 5. Record rejected extraction paths in `NOTES.md` so they are not
    rediscovered later (Refactor Safety Contract's final bullet).
@@ -106,14 +151,22 @@ default.
 
 ## Files
 
-Touch (candidates; finalize based on actual Task 6-11 diffs):
+Touched:
 
-- `runtime/native/rt_net.c` and a new extracted sibling file
-- `runtime/native/rt_async_state.c` and a new extracted sibling file, if
-  warranted
-- `runtime/native/rt_async_internal.h` and a new focused header, if
-  warranted
 - `.loc-legacy-allowlist`
+- `docs/runtime-v2-epics/DEBT.md`
+- `docs/runtime-v2-epics/06-evidence.md`
+- `docs/runtime-v2-epics/NOTES.md`
+- `docs/runtime-v2-epics/06-tasks/README.md`
+- `docs/runtime-v2-epics/06-tasks/14-large-file-refactor-tranche.md`
+
+Audited, not edited:
+
+- `runtime/native/rt_net.c`
+- `runtime/native/rt_async_state.c`
+- `runtime/native/rt_async_task.c`
+- `runtime/native/rt_async_internal.h`
+- focused Epic 6 owner files listed in the Implementation section
 
 Read:
 
@@ -138,23 +191,25 @@ Read:
 
 - `make c-check`
 - `make cppcheck`
-- `make runtime-v2-check` (before and after each extraction)
-- `make check`
+- `timeout 600s make runtime-v2-check`
+- `timeout 600s make check`
+- `./check_file_sizes.sh --self-test`
+- `./check_file_sizes.sh -a`
 - `git diff --check`
-- Sentrux root and scoped scans (before and after)
+- Sentrux root and scoped scans
 - `wc -l` before/after for every touched file
 
 ## Definition Of Done
 
-- [ ] Every file Tasks 6-11 touched has a recorded before/after line count
+- [x] Every file Tasks 6-11 touched has a recorded before/after line count
       against the Task 1 baseline.
-- [ ] Each materially-grown file either has a cohesive extraction reducing
+- [x] Each materially-grown file either has a cohesive extraction reducing
       it, or an explicit recorded reason it could not be reduced this epic.
-- [ ] No catch-all file was created.
-- [ ] Behavior is proven unchanged before and after every move via the full
-      check suite.
-- [ ] `.loc-legacy-allowlist` reflects the final state accurately.
-- [ ] Rejected extraction paths are recorded in `NOTES.md`.
+- [x] No catch-all file was created.
+- [x] Behavior is proven unchanged; no runtime code move was made, and the full
+      check suite passed.
+- [x] `.loc-legacy-allowlist` reflects the final state accurately.
+- [x] Rejected extraction paths are recorded in `NOTES.md`.
 
 ## Evidence To Record
 

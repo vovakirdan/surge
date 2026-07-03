@@ -20,7 +20,7 @@ keep `NOTES.md` as the live handoff log.
 | 11 | Complete | Multishard net lifecycle migration recorded below. |
 | 12 | Complete | Trace counters, liveness fix, and benchmark evidence recorded below. |
 | 13 | Complete | Runtime V2 accept CI gates recorded below; independent review, standalone gate, full-chain stability passes, and `make check` passed. |
-| 14 | Pending | Large-file refactor tranche. |
+| 14 | Complete | Large-file refactor tranche recorded below; no new code extraction was needed, legacy ceilings were tightened, and full gates passed. |
 | 15 | Pending | Epic closeout and static gates. |
 
 ## Task 1: Kickoff Baseline And Sentrux
@@ -1766,3 +1766,105 @@ Interpretation:
 - [x] Broad regex debt is not silently required by the new gate.
 - [x] The selected subset is stable across three consecutive full-chain local
       runs.
+
+## Task 14: Large-File Refactor Tranche
+
+### Task Identity And Scope
+
+- Task: `06-tasks/14-large-file-refactor-tranche.md`.
+- Kind: refactor code.
+- Commit boundary: Task 14 closeout commit.
+- Scope: large-file audit for Epic 6 runtime files, dependency-boundary
+  decision, `.loc-legacy-allowlist` tightening, debt/evidence/task docs.
+- Out of scope: runtime behavior changes, speculative code movement, lock
+  splitting, cross-shard messaging, and non-Epic-6 legacy runtime files.
+
+### Decision
+
+No new runtime-code extraction was performed.
+
+Tasks 6-12 already moved the cohesive Epic 6 responsibilities out of the
+large files:
+
+| Responsibility | Owning file after Epic 6 |
+| --- | --- |
+| Owner-shard placement and no-steal helpers | `runtime/native/rt_scheduler_placement.c` |
+| Per-shard poller wake helpers | `runtime/native/rt_net_poller.c` |
+| Listener-group member bookkeeping | `runtime/native/rt_net_accept_group.c` |
+| Listener/connection handle shapes and owner metadata | `runtime/native/rt_net_handles.c` |
+| Owner-shard close and fd-registry lifecycle helpers | `runtime/native/rt_net_lifecycle.c` |
+| Listener socket construction and `SO_REUSEPORT` setup | `runtime/native/rt_net_listener_socket.c` |
+| Aggregate and per-shard net trace counters | `runtime/native/rt_net_trace.c`, `runtime/native/rt_net_trace.h` |
+
+The remaining large files are all flat or reduced against the Task 1 baseline
+by effective LOC, so another split would add churn without an observed
+large-file regression.
+
+### Line Counts
+
+| Path | Task 1 baseline | Final physical LOC | Final effective LOC | Outcome |
+| --- | ---: | ---: | ---: | --- |
+| `runtime/native/rt_net.c` | 904 | 868 | 818 | Reduced; legacy ceiling lowered `904 -> 818`. |
+| `runtime/native/rt_async_state.c` | 1727 | 1850 | 1722 | Reduced by effective LOC; legacy ceiling lowered `1727 -> 1722`. |
+| `runtime/native/rt_async_task.c` | 768 | 770 | 731 | Reduced by effective LOC; legacy ceiling lowered `768 -> 731`. |
+| `runtime/native/rt_async_internal.h` | 499 | 542 | 478 | Under effective 500-line target; no allowlist entry needed. |
+| `runtime/native/rt_runtime.c` | 202 | 328 | 281 | Under target. |
+| `runtime/native/rt_fd_registry.c` | 409 | 463 | 401 | Under target. |
+| `runtime/native/rt_fd_registry.h` | 113 | 119 | 78 | Under target. |
+| `runtime/native/rt_async_waiter.c` | n/a | 546 | 488 | Under target. |
+| `runtime/native/rt_async_trace.c` | n/a | 558 | 518 | Under 575 OK band. |
+| `runtime/native/rt_net_poller.c` | n/a | 170 | 158 | Under target. |
+| `runtime/native/rt_net_accept_group.c` | n/a | 260 | 246 | Under target. |
+| `runtime/native/rt_net_handles.c` | n/a | 260 | 243 | Under target. |
+| `runtime/native/rt_net_lifecycle.c` | n/a | 94 | 89 | Under target. |
+| `runtime/native/rt_net_listener_socket.c` | n/a | 110 | 103 | Under target. |
+| `runtime/native/rt_scheduler_placement.c` | n/a | 99 | 91 | Under target. |
+
+### Rejected Extraction Paths
+
+- `rt_net.c` poll construction: plausible future work, but Epic 6 already
+  extracted wake helpers, handles, listener-group state, listener socket
+  construction, lifecycle helpers, and trace counters. Moving the remaining
+  `poll_net_waiters_on_shard` loop now would split direct wait-key semantics
+  from the socket wait API without a current LOC regression.
+- `rt_async_state.c` scheduler loop: placement/no-steal helpers already live in
+  `rt_scheduler_placement.c`. The remaining ready/wake/timer/executor loop is
+  still intentionally global under `ex->lock`; lock splitting is the future
+  boundary, not this tranche.
+- `rt_async_internal.h`: effective LOC is below target, and the declarations
+  remain the shared internal runtime surface while the executor lock is global.
+
+### Debt And Allowlist Updates
+
+- `.loc-legacy-allowlist` lowered `rt_net.c` from `904` to `818`.
+- `.loc-legacy-allowlist` lowered `rt_async_state.c` from `1727` to `1722`.
+- `.loc-legacy-allowlist` lowered `rt_async_task.c` from `768` to `731`.
+- `RV2-DEBT-003`, `RV2-DEBT-004`, and `RV2-DEBT-005` remain open because those
+  files are still over the 500-line target, but their ceilings are now stricter
+  and match the current effective counts.
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| `./check_file_sizes.sh -a` | Passed before docs update; relevant effective LOC listed above. |
+| `wc -l ...runtime/native...` | Passed; physical LOC listed above for context. |
+| `git diff --check` | Passed. |
+| `./check_file_sizes.sh --self-test` | Passed. |
+| `./check_file_sizes.sh -a` after allowlist tightening | Passed; 708 files checked, 0 bad, and tightened entries reported `rt_net.c <=818`, `rt_async_state.c <=1722`, `rt_async_task.c <=731`. |
+| `make c-check` | Passed. |
+| `make cppcheck` | Passed. |
+| `timeout 600s make runtime-v2-check` | Passed, including the Task 13 accept CI gate. |
+| `timeout 600s make check` | Passed, including Go tests, lint, C checks, and the effective LOC gate. |
+| `sentrux check .` | Passed, quality 6182. |
+| `sentrux check runtime` | Passed, quality 5340. |
+| `sentrux check runtime/native` | Passed, quality 5467. |
+
+### Definition Of Done
+
+- [x] Every file Tasks 6-11 touched has a recorded before/final line count.
+- [x] No new catch-all file was created.
+- [x] No runtime code was changed for this task.
+- [x] Each remaining large file has a recorded rejected extraction reason or an
+      existing focused owner module.
+- [x] `.loc-legacy-allowlist` reflects the final effective LOC ceilings.

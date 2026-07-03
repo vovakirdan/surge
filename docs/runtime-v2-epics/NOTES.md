@@ -2662,3 +2662,31 @@ pass, before any task execution began:
   independent review/test subagent with no findings plus its own `timeout 300s
   make runtime-v2-accept-check`; three consecutive main-session `timeout 600s
   make runtime-v2-check` passes; and `timeout 600s make check`.
+
+## Epic 6 Task 14 Handoff
+
+- Scope completed as audit/allowlist tightening, not a new runtime-code move.
+  Subagent planning could not proceed because the subagent quota was exhausted,
+  so the main session performed the Task 14 plan and implementation locally.
+- Decision: no new code extraction. Epic 6 already extracted the cohesive
+  responsibilities into `rt_scheduler_placement.c`, `rt_net_poller.c`,
+  `rt_net_accept_group.c`, `rt_net_handles.c`, `rt_net_lifecycle.c`,
+  `rt_net_listener_socket.c`, and `rt_net_trace.c/h`.
+- Effective LOC outcomes versus Task 1 baseline: `rt_net.c` `904 -> 818`,
+  `rt_async_state.c` `1727 -> 1722`, `rt_async_task.c` `768 -> 731`, and
+  `rt_async_internal.h` `499 -> 478`. Physical LOC is recorded in
+  `06-evidence.md` for context.
+- `.loc-legacy-allowlist` was tightened to the exact final effective counts for
+  `rt_net.c`, `rt_async_state.c`, and `rt_async_task.c`.
+- Rejected extraction paths: remaining `rt_net.c` poll construction should wait
+  for a future poll/read-write split; remaining `rt_async_state.c`
+  ready/wake/timer loop should wait for the lock-splitting boundary;
+  `rt_async_internal.h` is under the effective target and should not be split
+  now.
+- Debt status: `RV2-DEBT-003`, `RV2-DEBT-004`, and `RV2-DEBT-005` remain open
+  because the files are still over the 500-line target, but their ceilings are
+  stricter after Task 14.
+- Validation passed: `git diff --check`, `./check_file_sizes.sh --self-test`,
+  `./check_file_sizes.sh -a`, `make c-check`, `make cppcheck`, `timeout 600s
+  make runtime-v2-check`, `timeout 600s make check`, and Sentrux
+  root/runtime/native scans (`6182`, `5340`, `5467`).
