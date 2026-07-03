@@ -14,7 +14,7 @@ keep `NOTES.md` as the handoff log.
 | 5 | Complete | Runtime/shard-owned accounting skeleton, cold cell, lane wiring, static gate split, checks, Sentrux, and review outcome recorded below. |
 | 6 | Complete | Alloc/free/realloc writes now route through accounting cells; old global source-of-truth counters are gone; checks, Sentrux, and review outcome recorded below. |
 | 7 | Complete | Aggregation audit, focused heap evidence, active static predicate, Sentrux scans, and docs closeout recorded below. |
-| 8 | Draft | Concurrency and performance evidence not started. |
+| 8 | Complete | Repeated concurrent heap tests, SURGE_THREADS stress, manual heap benchmark script/report, review outcome, and benchmark stress debt recorded below. |
 | 9 | Draft | Runtime V2 heap CI gate not started. |
 | 10 | Draft | Epic closeout not started. |
 
@@ -696,3 +696,137 @@ Runtime/test files were audited but not changed:
 - Revert this Task 7 docs section, status row, task status wording, and the
   matching `NOTES.md` handoff if the Task 7 closeout must be removed.
 - Test artifacts under `target/debug/.tests/` are disposable.
+
+## Task 8: Concurrency And Performance Evidence
+
+### Task Identity And Scope
+
+- Task: `05-tasks/08-concurrency-and-performance-evidence.md`.
+- Date: 2026-07-03.
+- Scope: collect concurrency and manual performance evidence for the new
+  cell-based heap accounting model before CI gate wiring.
+- Runtime changes: none.
+- Test changes: none.
+- Tooling change: added a manual heap-accounting benchmark script.
+
+### Result
+
+Task 8 proved the focused heap accounting contracts under repeated runs and
+explicit worker counts, then added a manual Surge-level heap benchmark:
+
+- repeated `TestRuntimeV2HeapAccounting` contracts passed with `-count=3`;
+- `TestRuntimeV2HeapAccountingConcurrentWorkersContract` passed with
+  `SURGE_THREADS=2`, `4`, and `8`, each with `-count=3`;
+- `make runtime-v2-check` still passed after the heap-accounting migration;
+- `scripts/bench_native_heap_accounting.sh` now generates a temporary Surge
+  benchmark fixture and writes an ignored Markdown report under
+  `build/benchmarks/`;
+- the benchmark is intentionally manual evidence and is not a CI gate;
+- the benchmark validates numeric env overrides, validates probe names, owns a
+  per-probe timeout, and reports `threads`, `probe`, status, and timeout on
+  failure.
+
+Final current-checkout report:
+
+- `build/benchmarks/runtime-v2-task08-native-heap-current.md`;
+- generated with current `surge` binary at `f3bc1df8`;
+- modes: `SURGE_THREADS=1 2 4 8`;
+- probes: `empty_loop`, `serial_alloc_free`, `serial_realloc`,
+  `heap_stats_poll`, `concurrent_alloc_free`.
+
+Selected rows from the final current report:
+
+| Threads | Probe | Iterations | ns/op | Note |
+| ---: | --- | ---: | ---: | --- |
+| 1 | `serial_alloc_free` | 100000 | 1650 | successful default serial alloc/free run. |
+| 2 | `serial_alloc_free` | 100000 | 1564 | stable under 2 worker mode. |
+| 4 | `serial_alloc_free` | 100000 | 1607 | stable under 4 worker mode. |
+| 8 | `serial_alloc_free` | 100000 | 1571 | stable under 8 worker mode. |
+| 1 | `serial_realloc` | 50000 | 2549 | ordinary realloc event shape. |
+| 8 | `serial_realloc` | 50000 | 2548 | stable under 8 worker mode. |
+| 1 | `heap_stats_poll` | 10000 | 699 | aggregate-on-read plus public result allocation. |
+| 8 | `heap_stats_poll` | 10000 | 703 | stable under 8 worker mode. |
+| 1 | `concurrent_alloc_free` | 5000 | 18972 | one runtime worker. |
+| 2 | `concurrent_alloc_free` | 10000 | 95250 | two runtime workers. |
+| 4 | `concurrent_alloc_free` | 20000 | 120946 | four runtime workers. |
+| 8 | `concurrent_alloc_free` | 40000 | 183527 | eight runtime workers. |
+
+This benchmark is not a pure C allocator microbenchmark. The generated Surge
+fixture and public `HeapStats` operations add runtime/language allocation noise;
+the report's `empty_loop` rows make that floor visible. Task 8 therefore uses
+the report as current manual pressure evidence, not as a CI threshold.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `scripts/bench_native_heap_accounting.sh` | created | Manual heap-accounting benchmark for current-checkout pressure evidence. | 330 lines, executable, under 500-line target. |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 8 durable evidence. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 8 handoff. | Documentation only. |
+| `docs/runtime-v2-epics/05-tasks/08-concurrency-and-performance-evidence.md` | updated | Mark task complete. | Documentation only. |
+| `docs/runtime-v2-epics/DEBT.md` | updated | Record high-pressure benchmark crash debt. | Documentation only. |
+
+Ignored generated files:
+
+- `build/benchmarks/runtime-v2-task08-native-heap-current.md`;
+- `build/benchmarks/runtime-v2-task08-native-heap-smoke.md`;
+- `build/benchmarks/runtime-v2-task08-native-heap-serial200k-probe.md`.
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `go test ./internal/vm -run '^TestRuntimeV2HeapAccounting' -count=3 -parallel=1 -p=1 -v --timeout 240s` | pass | package `ok surge/internal/vm 11.791s` | `0` | repeated heap contracts. |
+| `SURGE_THREADS=2 go test ./internal/vm -run '^TestRuntimeV2HeapAccountingConcurrentWorkersContract$' -count=3 -parallel=1 -p=1 -v --timeout 240s` | pass | package `ok surge/internal/vm 6.004s` | `0` | explicit 2-worker pressure. |
+| `SURGE_THREADS=4 go test ./internal/vm -run '^TestRuntimeV2HeapAccountingConcurrentWorkersContract$' -count=3 -parallel=1 -p=1 -v --timeout 240s` | pass | package `ok surge/internal/vm 5.984s` | `0` | explicit 4-worker pressure. |
+| `SURGE_THREADS=8 go test ./internal/vm -run '^TestRuntimeV2HeapAccountingConcurrentWorkersContract$' -count=3 -parallel=1 -p=1 -v --timeout 240s` | pass | package `ok surge/internal/vm 5.996s` | `0` | explicit 8-worker pressure. |
+| `make build` | pass | current `surge` binary built successfully | `0` | benchmark runner input. |
+| `SURGE_HEAP_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task08-native-heap-current.md" timeout 120s env SURGE="$PWD/surge" ./scripts/bench_native_heap_accounting.sh` | pass | wrote ignored report `build/benchmarks/runtime-v2-task08-native-heap-current.md` | `0` | final manual benchmark run after review fixes. |
+| `bash -n scripts/bench_native_heap_accounting.sh` | pass | no output | `0` | script syntax gate. |
+| smoke benchmark with tiny env overrides | pass | wrote ignored report `build/benchmarks/runtime-v2-task08-native-heap-smoke.md` | `0` | validates env override and final script path without repeating heavy benchmark. |
+| `SURGE_HEAP_BENCH_THREADS="1" SURGE_HEAP_BENCH_PROBES="serial_alloc_free" SURGE_HEAP_BENCH_SERIAL_ITERATIONS=200000 ... ./scripts/bench_native_heap_accounting.sh` | diagnostic | reproduced `status=139` for `threads=1 probe=serial_alloc_free`; outer `timeout` reported a dumped core | `1` from script | recorded as `RV2-DEBT-012`, not hidden. |
+| `make runtime-v2-check` | pass | Runtime V2 liveness, waiter, pending waiter, and fd-registry gates passed | `0` | broad Runtime V2 gate after stress/bench work. |
+| `git diff --check` | no whitespace errors | no output | `0` | whitespace gate. |
+| Sentrux root scan/rules | pass | root quality `6190`; rules pass with 0 violations | pass | whole-repo architectural scan after script/docs/debt updates. |
+| Sentrux `runtime/` scan/rules | pass | runtime quality `5279`; rules pass with 0 violations | pass | scoped runtime scan; no runtime code changed in Task 8. |
+| Sentrux `runtime/native` scan/rules | pass | runtime/native quality `5318`; rules pass with 0 violations | pass | scoped native scan; no native code changed in Task 8. |
+
+### Review Outcome
+
+Review subagent initially found:
+
+- one P2 issue: per-probe benchmark runs had no owned timeout or contextual
+  failure message;
+- one P2 issue: env override values were spliced into generated Surge source
+  before validation;
+- one P3 issue: benchmark wording overstated isolation as a pure allocator
+  microbench.
+
+All were fixed. Focused re-review returned no findings. `shellcheck` was not
+available in the review environment; `bash -n` passed.
+
+### Debt
+
+- `RV2-DEBT-012` added for the heavier generated Surge-level heap benchmark
+  crash at `serial_alloc_free` `200000` iterations. This does not block Task 8's
+  stable default evidence, but it blocks promoting this benchmark beyond manual
+  current-checkout evidence until minimized, fixed, or explicitly bounded.
+
+### Residual Risks
+
+- The benchmark is Surge-level and includes generated fixture/runtime
+  allocations; it should not be used as a pure C allocator or cache-line
+  microbench.
+- No before/after baseline worktree benchmark was run. Current evidence compares
+  to the Epic 5 kickoff by behavior gates and records current manual timing
+  rows only.
+- `RV2-DEBT-011` remains active; Task 8 VM commands were run sequentially with
+  `-parallel=1 -p=1`.
+
+### Rollback/Recovery Notes
+
+- Revert the benchmark script, this Task 8 section/status row, task status
+  wording, `RV2-DEBT-012`, and the matching `NOTES.md` handoff if Task 8 must
+  be removed.
+- Generated benchmark reports under `build/benchmarks/` and temporary fixture
+  directories under `build/tmp/` are disposable ignored artifacts.

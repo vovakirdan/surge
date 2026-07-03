@@ -339,6 +339,37 @@ task, then move durable decisions into the owning epic document before closeout.
   broader concurrency and performance evidence. Continue running overlapping VM
   heap gates sequentially because of `RV2-DEBT-011`.
 
+## Epic 5 Task 08 Handoff
+
+- Scope completed: concurrency and manual performance evidence for heap
+  accounting. No runtime or VM test files changed.
+- Added `scripts/bench_native_heap_accounting.sh` as a manual benchmark script.
+  It generates a temporary Surge fixture, validates numeric/probe env overrides,
+  owns per-probe timeouts, writes reports under ignored `build/benchmarks/`, and
+  stays under the 500-line target.
+- Repeated heap correctness passed: `TestRuntimeV2HeapAccounting` with
+  `-count=3`, plus `TestRuntimeV2HeapAccountingConcurrentWorkersContract` with
+  `SURGE_THREADS=2`, `4`, and `8`, each with `-count=3`. VM gates were run
+  sequentially to avoid `RV2-DEBT-011`.
+- Final manual benchmark report:
+  `build/benchmarks/runtime-v2-task08-native-heap-current.md`. Selected stable
+  rows: `serial_alloc_free` about `1564-1650 ns/op`, `serial_realloc` about
+  `2538-2594 ns/op`, `heap_stats_poll` about `699-758 ns/op`, and
+  `concurrent_alloc_free` scaling from `18972 ns/op` at 1 thread to
+  `183527 ns/op` at 8 threads.
+- Important limitation: this is a Surge-level generated fixture benchmark, not
+  a pure C allocator/cache-line microbench. The `empty_loop` rows also move heap
+  counters, so deltas include language/runtime allocation noise.
+- New debt: `RV2-DEBT-012`. The stable default benchmark passes, but
+  `serial_alloc_free` with `SURGE_HEAP_BENCH_SERIAL_ITERATIONS=200000`
+  reproduced a `status=139` crash. Do not promote this benchmark beyond manual
+  evidence until that stress path is minimized, fixed, or bounded deliberately.
+- Review outcome: initial P2/P2/P3 benchmark-tooling findings were fixed;
+  focused re-review returned no findings. `bash -n` passed; `shellcheck` was
+  not installed.
+- Final Task 8 Sentrux scans/rules passed: root `6190`, runtime `5279`,
+  runtime/native `5318`.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.
