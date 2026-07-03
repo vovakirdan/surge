@@ -13,6 +13,7 @@
 typedef struct rt_executor rt_executor;
 typedef struct rt_task rt_task;
 typedef struct rt_channel rt_channel;
+typedef struct rt_shard rt_shard;
 
 typedef enum {
     WAKER_NONE = 0,
@@ -78,6 +79,7 @@ uint32_t rt_channel_owner_shard_id(const rt_channel* ch);
 
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
 rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key);
+rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key);
 void rt_waiter_migrate_join_waiters(rt_executor* ex,
                                     uint64_t task_id,
                                     uint32_t from_shard_id,

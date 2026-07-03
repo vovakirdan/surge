@@ -619,9 +619,67 @@ static int pop_task_from_deque(rt_executor* ex,
     return 0;
 }
 
+// Leaf enqueue: caller holds the owner shard's lock and has already
+// validated the task (owner == shard, not DONE/RUNNING, not enqueued). The
+// wake token for the shard's worker_cv is bumped and signaled under the
+// same lock hold, so a sleeping worker cannot miss the push.
+int ready_push_task_locked(const rt_executor* ex,
+                           rt_shard* owner_shard,
+                           rt_task* task,
+                           int force_inject,
+                           int front,
+                           int signal_ready) {
+    rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
+    if (ex == NULL || task == NULL || scheduler == NULL) {
+        return 0;
+    }
+    // Injection policy:
+    // - Worker thread: enqueue locally (LIFO pop) to keep cache locality.
+    // - Non-worker thread (main/I/O/external): enqueue on the global injection queue.
+    // No last-worker affinity is tracked; wake/spawn follows the current thread.
+    rt_deque* local = NULL;
+    if (!force_inject) {
+        local = current_local_queue(ex, scheduler);
+    }
+    int signal_ready_now = signal_ready;
+    if (local != NULL) {
+        // Local queues are popped from the tail, so tail insertion is the local priority path.
+        int ok = deque_push_tail(
+            local, task->id, "async: local queue overflow", "async: local queue allocation failed");
+        if (!ok) {
+            return 0;
+        }
+        // A single local continuation is usually consumed by the current worker on its
+        // next scheduler turn; waking another worker often just creates steal/sleep churn.
+        signal_ready_now = signal_ready && local->len > 1;
+    } else {
+        int ok = front ? deque_push_head(&scheduler->inject,
+                                         task->id,
+                                         "async: inject queue overflow",
+                                         "async: inject queue allocation failed")
+                       : deque_push_tail(&scheduler->inject,
+                                         task->id,
+                                         "async: inject queue overflow",
+                                         "async: inject queue allocation failed");
+        if (!ok) {
+            return 0;
+        }
+    }
+    task_enqueued_store(task, 1);
+    task_status_store(task, TASK_READY);
+    if (signal_ready_now) {
+        if (scheduler->wake_pending < UINT32_MAX) {
+            scheduler->wake_pending++;
+        }
+        pthread_cond_signal(&owner_shard->worker_cv);
+    }
+    return 1;
+}
+
 static int ready_push_with_policy(
     rt_executor* ex, uint64_t id, int force_inject, int front, int signal_ready) {
-    // Caller holds ex->lock; enqueued prevents duplicate ready-queue entries.
+    // Caller holds the control lock and no shard lock; the owner shard lock
+    // nests here around the queue mutation (D2 order).
     if (ex == NULL) {
         return 0;
     }
@@ -637,50 +695,18 @@ static int ready_push_with_policy(
         return 0;
     }
     rt_shard* owner_shard = rt_task_owner_shard(ex, task);
-    rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
-    if (scheduler == NULL) {
+    if (owner_shard == NULL) {
         return 0;
     }
-    // Injection policy:
-    // - Worker thread: enqueue locally (LIFO pop) to keep cache locality.
-    // - Non-worker thread (main/I/O/external): enqueue on the global injection queue.
-    // No last-worker affinity is tracked; wake/spawn follows the current thread.
-    rt_deque* local = NULL;
-    if (!force_inject) {
-        local = current_local_queue(ex, scheduler);
+    rt_shard_lock(owner_shard);
+    int pushed = ready_push_task_locked(ex, owner_shard, task, force_inject, front, signal_ready);
+    rt_shard_unlock(owner_shard);
+    if (!pushed) {
+        return 0;
     }
-    int signal_ready_now = signal_ready;
-    if (local != NULL) {
-        // Local queues are popped from the tail, so tail insertion is the local priority path.
-        int ok = deque_push_tail(
-            local, id, "async: local queue overflow", "async: local queue allocation failed");
-        if (!ok) {
-            return 0;
-        }
-        // A single local continuation is usually consumed by the current worker on its
-        // next scheduler turn; waking another worker often just creates steal/sleep churn.
-        signal_ready_now = signal_ready && local->len > 1;
-    } else {
-        int ok = front ? deque_push_head(&scheduler->inject,
-                                         id,
-                                         "async: inject queue overflow",
-                                         "async: inject queue allocation failed")
-                       : deque_push_tail(&scheduler->inject,
-                                         id,
-                                         "async: inject queue overflow",
-                                         "async: inject queue allocation failed");
-        if (!ok) {
-            return 0;
-        }
-    }
-    task_enqueued_store(task, 1);
-    task_status_store(task, TASK_READY);
     const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
     if (compat != NULL && compat->channel_blocked_workers > 0) {
         maybe_start_compensation_worker_locked(ex);
-    }
-    if (signal_ready_now) {
-        rt_sched_wake_signal_shard_n(owner_shard, 1);
     }
     return 1;
 }
@@ -864,13 +890,45 @@ static int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id) {
     return 0;
 }
 
+// Leaf wake: caller holds the owner shard's lock. Clears the park fields,
+// sets the token, and enqueues; returns the parked-on key so the caller can
+// remove the stale store registration after releasing this lock (D5: never
+// hold two shard locks; a concurrent pop of that stale entry produces at
+// most one absorbed spurious wake).
+int wake_task_on_shard_locked(const rt_executor* ex,
+                              rt_shard* owner_shard,
+                              rt_task* task,
+                              int force_inject,
+                              int front,
+                              int signal_ready,
+                              waker_key* out_stale_key) {
+    if (out_stale_key != NULL) {
+        *out_stale_key = waker_none();
+    }
+    if (ex == NULL || task == NULL) {
+        return 0;
+    }
+    if (out_stale_key != NULL && waker_valid(task->park_key)) {
+        *out_stale_key = task->park_key;
+    }
+    task->park_key = waker_none();
+    task->park_prepared = 0;
+    (void)task_wake_token_exchange(task, 1);
+    uint8_t status = task_status_load(task);
+    if (status == TASK_DONE || status == TASK_RUNNING || task_enqueued_load(task) != 0) {
+        return 0;
+    }
+    return ready_push_task_locked(ex, owner_shard, task, force_inject, front, signal_ready);
+}
+
 static void wake_task_with_policy(rt_executor* ex,
                                   uint64_t id,
                                   int remove_waiter_flag,
                                   int force_inject,
                                   int front,
                                   int signal_ready) {
-    // Caller holds ex->lock; wake_token handles a wake that races with park_current.
+    // Caller holds the control lock and no shard lock; wake_token handles a
+    // wake that races with park_current.
     if (ex == NULL) {
         return;
     }
@@ -880,14 +938,24 @@ static void wake_task_with_policy(rt_executor* ex,
         rt_trace_wake_ignored_completed();
         return;
     }
-    if (remove_waiter_flag && waker_valid(task->park_key)) {
-        remove_waiter(ex, task->park_key, id);
+    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
+    if (owner_shard == NULL) {
+        return;
     }
-    task->park_key = waker_none();
-    task->park_prepared = 0;
-    (void)task_wake_token_exchange(task, 1);
-    if (ready_push_with_policy(ex, id, force_inject, front, signal_ready)) {
+    waker_key stale_key = waker_none();
+    rt_shard_lock(owner_shard);
+    int pushed = wake_task_on_shard_locked(
+        ex, owner_shard, task, force_inject, front, signal_ready, &stale_key);
+    rt_shard_unlock(owner_shard);
+    if (remove_waiter_flag && waker_valid(stale_key)) {
+        remove_waiter(ex, stale_key, id);
+    }
+    if (pushed) {
         rt_trace_wake_enqueued();
+        const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
+        if (compat != NULL && compat->channel_blocked_workers > 0) {
+            maybe_start_compensation_worker_locked(ex);
+        }
     } else {
         // The woken task is RUNNING inside a sync-channel compat wait: the
         // OS worker sleeps on compat_cv under the control lock, so this
@@ -920,34 +988,76 @@ void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter
     wake_task_with_policy(ex, id, remove_waiter_flag, 1, 0, same_scheduler ? 0 : 1);
 }
 
-static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key) {
+// Abort/self-requeue after a park lost to the wake token: caller holds the
+// owner shard lock.
+static void
+park_requeue_locked(const rt_executor* ex, rt_shard* owner_shard, rt_task* task, waker_key key) {
     waker_kind kind = (waker_kind)key.kind;
     int force_inject =
         channel_wake_force_inject != 0 && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV);
-    (void)ready_push_inner(ex, id, force_inject);
+    task->park_key = waker_none();
+    task->park_prepared = 0;
+    task_status_store(task, TASK_READY);
+    (void)ready_push_task_locked(ex, owner_shard, task, force_inject, 0, 1);
 }
 
 static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) {
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
+    // Collect-then-wake (D5): pop matches under the store's lane, release,
+    // then wake each task under its owner's lock. Waking under a held store
+    // lock would self-deadlock the same-shard case (same mutex).
+    uint64_t inline_batch[16];
+    uint64_t* batch = inline_batch;
+    size_t batch_cap = sizeof(inline_batch) / sizeof(inline_batch[0]);
+    size_t batch_len = 0;
+    rt_shard* store_shard = rt_waiter_key_shard(ex, key);
+    if (store_shard != NULL) {
+        rt_shard_lock(store_shard);
+    }
     rt_waiter_store* store = rt_waiter_store_for_key(ex, key);
-    if (store == NULL || store->len == 0) {
-        return;
-    }
-    size_t out = 0;
-    for (size_t i = 0; i < store->len; i++) {
-        waiter w = store->entries[i];
-        if (w.key.kind == key.kind && w.key.id == key.id) {
-            wake_task_with_policy(ex, w.task_id, 0, 0, front, 1);
-            continue;
+    if (store != NULL && store->len > 0) {
+        size_t out = 0;
+        for (size_t i = 0; i < store->len; i++) {
+            waiter w = store->entries[i];
+            if (w.key.kind == key.kind && w.key.id == key.id) {
+                if (batch_len == batch_cap) {
+                    size_t next_cap = batch_cap * 2;
+                    uint64_t* next = (uint64_t*)rt_alloc((uint64_t)(next_cap * sizeof(uint64_t)),
+                                                         _Alignof(uint64_t));
+                    if (next == NULL) {
+                        panic_msg("async: wake batch allocation failed");
+                        break;
+                    }
+                    memcpy(next, batch, batch_len * sizeof(uint64_t));
+                    if (batch != inline_batch) {
+                        rt_free((uint8_t*)batch,
+                                (uint64_t)(batch_cap * sizeof(uint64_t)),
+                                _Alignof(uint64_t));
+                    }
+                    batch = next;
+                    batch_cap = next_cap;
+                }
+                batch[batch_len++] = w.task_id;
+                continue;
+            }
+            store->entries[out++] = w;
         }
-        store->entries[out++] = w;
+        // No net-key producer exists for this path (scope/join/blocking keys
+        // only); net_len and fd-registry bookkeeping stay owned by the
+        // rt_async_waiter.c removal paths.
+        store->len = out;
     }
-    // No net-key producer exists for this path (scope/join/blocking keys
-    // only); net_len and fd-registry bookkeeping stay owned by the
-    // rt_async_waiter.c removal paths.
-    store->len = out;
+    if (store_shard != NULL) {
+        rt_shard_unlock(store_shard);
+    }
+    for (size_t i = 0; i < batch_len; i++) {
+        wake_task_with_policy(ex, batch[i], 0, 0, front, 1);
+    }
+    if (batch != inline_batch) {
+        rt_free((uint8_t*)batch, (uint64_t)(batch_cap * sizeof(uint64_t)), _Alignof(uint64_t));
+    }
 }
 
 void wake_key_all(rt_executor* ex, waker_key key) {
@@ -963,26 +1073,33 @@ void park_current(rt_executor* ex, waker_key key) {
         return;
     }
     rt_trace_park_attempt();
+    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
     if (task_wake_token_exchange(task, 0) != 0) {
-        task->park_prepared = 0;
-        task->park_key = waker_none();
-        task_status_store(task, TASK_READY);
-        ready_push_for_waker_key(ex, task->id, key);
+        rt_shard_lock(owner_shard);
+        park_requeue_locked(ex, owner_shard, task, key);
+        rt_shard_unlock(owner_shard);
         return;
     }
-    task_status_store(task, TASK_WAITING);
+    // Register-then-commit (D5): the registration may fire from here on; the
+    // token double-check under the owner lock closes the window. park_key is
+    // thread-own while the task is RUNNING on this poller.
     if (!(task->park_prepared && task->park_key.kind == key.kind && task->park_key.id == key.id)) {
         task->park_key = key;
         add_waiter(ex, key, task->id);
     }
     task->park_prepared = 0;
+    rt_shard_lock(owner_shard);
+    task_status_store(task, TASK_WAITING);
     if (task_wake_token_exchange(task, 0) != 0) {
+        park_requeue_locked(ex, owner_shard, task, key);
+        rt_shard_unlock(owner_shard);
+        // Abort removal happens after the owner lock is released (never two
+        // shard locks); a concurrent pop of this entry is absorbed as one
+        // spurious wake by the token it re-sets.
         remove_waiter(ex, key, task->id);
-        task->park_key = waker_none();
-        task_status_store(task, TASK_READY);
-        ready_push_for_waker_key(ex, task->id, key);
         return;
     }
+    rt_shard_unlock(owner_shard);
     rt_trace_park_committed();
     if (waker_is_net(key)) {
         (void)rt_net_wake_poll_for_task_wait_keys(ex, task, key);
@@ -1273,7 +1390,10 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     if (task->kind == TASK_KIND_SLEEP && task->sleep_armed) {
         // Cancelled sleepers leave the deadline index here; fired sleepers
         // were already popped, so the remove is a no-op for them.
-        (void)rt_sleep_store_remove(&rt_task_owner_shard(ex, task)->sleep_store, task->id);
+        rt_shard* sleep_shard = rt_task_owner_shard(ex, task);
+        rt_shard_lock(sleep_shard);
+        (void)rt_sleep_store_remove(&sleep_shard->sleep_store, task->id);
+        rt_shard_unlock(sleep_shard);
         task->sleep_armed = 0;
     }
     task_status_store(task, TASK_DONE);

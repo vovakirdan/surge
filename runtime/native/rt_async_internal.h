@@ -441,6 +441,19 @@ uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64
 uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits);
 void clear_select_timers(rt_executor* ex, rt_task* task);
 void ready_push(rt_executor* ex, uint64_t id);
+int ready_push_task_locked(const rt_executor* ex,
+                           rt_shard* owner_shard,
+                           rt_task* task,
+                           int force_inject,
+                           int front,
+                           int signal_ready);
+int wake_task_on_shard_locked(const rt_executor* ex,
+                              rt_shard* owner_shard,
+                              rt_task* task,
+                              int force_inject,
+                              int front,
+                              int signal_ready,
+                              waker_key* out_stale_key);
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);

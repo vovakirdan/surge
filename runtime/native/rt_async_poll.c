@@ -36,9 +36,12 @@ static poll_outcome poll_sleep_task(rt_executor* ex, rt_task* task) {
         task->sleep_armed = 1;
         // Arm once: the owner shard's sleep store is the deadline index the
         // tick/advance paths pop; the timer-key waiter entry is the park.
-        if (rt_sleep_store_add(&rt_task_owner_shard(ex, task)->sleep_store,
-                               task->sleep_deadline,
-                               task->id) != RT_RUNTIME_STATUS_OK) {
+        rt_shard* owner_shard = rt_task_owner_shard(ex, task);
+        rt_shard_lock(owner_shard);
+        rt_runtime_status status =
+            rt_sleep_store_add(&owner_shard->sleep_store, task->sleep_deadline, task->id);
+        rt_shard_unlock(owner_shard);
+        if (status != RT_RUNTIME_STATUS_OK) {
             panic_msg("async: sleep store allocation failed");
         }
         out.kind = POLL_PARKED;

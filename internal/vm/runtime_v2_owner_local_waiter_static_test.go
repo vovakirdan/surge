@@ -257,6 +257,18 @@ void rt_control_unlock(rt_executor* ex) {
     (void)ex;
 }
 
+void rt_shard_lock(rt_shard* shard) {
+    (void)shard;
+}
+
+void rt_shard_unlock(rt_shard* shard) {
+    (void)shard;
+}
+
+rt_shard* rt_runtime_shard0(rt_runtime* runtime) {
+    return rt_runtime_shard(runtime, 0);
+}
+
 uint64_t rt_net_wake_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id) {
     (void)ex;
     if (owner_shard_id < 2) {

@@ -3018,3 +3018,24 @@ pass, before any task execution began:
   owner + intra-shard-only steal + accept re-place only while parked);
   free only under control + owner (mark_done epilogue re-lock;
   task_release takes control then owner).
+- B1a LANDED (this commit): primitives lock internally, all callers still
+  hold control. `ready_push_task_locked` + `wake_task_on_shard_locked`
+  leaves (const-ex); `wake_task_with_policy` = owner lock + leaf + deferred
+  stale-key removal; `park_current` = register-then-commit with owner-lock
+  token dance and post-unlock abort removal (`park_requeue_locked`);
+  `wake_key_all` and net completion = collect-then-wake batches (16 inline,
+  heap growth); `add/remove/pop_waiter` lock their store's shard internally
+  (`rt_waiter_key_shard`, NULL = control store); join migration extracts
+  under source lock then appends under destination lock in 16-entry loops;
+  sleep fire drains 32-entry batches under the shard lock and wakes
+  outside; sleep arm/remove sites lock the owner shard. Owner-local waiter
+  stub harness gained `rt_shard_lock/unlock` + `rt_runtime_shard0` no-op
+  stubs. Gates: behavior 9/9 x2 configs, `runtime-v2-check` x2, c-check,
+  cppcheck all green.
+- B1b NEXT (not started): worker turn drops control per the recorded plan
+  (shard-locked turn in a new `rt_worker_turn.c`, accept deferral to
+  control, tick foreign-due mask, apply stage split, mark_done
+  shard-phase/control-epilogue, worker sleep as plain locked cond_wait,
+  remaining accessors of queues/running_count get shard locks as control
+  drops). Then B2 channels, B4 io/runner + io_cv retirement + done_cv
+  gating.

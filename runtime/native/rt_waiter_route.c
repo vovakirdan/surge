@@ -35,6 +35,32 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
     }
 }
 
+// Lock owner for a key's store: the shard whose lock guards it, or NULL for
+// the control-lane store (scope keys), which the control lock guards.
+rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
+    if (ex == NULL || !waker_valid(key)) {
+        return NULL;
+    }
+    if (waker_is_net(key)) {
+        return rt_runtime_shard(rt_executor_runtime(ex), rt_net_owner_shard_for_key(ex, key, 0));
+    }
+    switch ((waker_kind)key.kind) {
+        case WAKER_JOIN:
+        case WAKER_TIMER:
+        case WAKER_BLOCKING:
+            return rt_task_owner_shard(ex, get_task(ex, key.id));
+        case WAKER_SCOPE:
+            return NULL;
+        case WAKER_CHAN_SEND:
+        case WAKER_CHAN_RECV:
+            return rt_runtime_shard(
+                rt_executor_runtime(ex),
+                rt_channel_owner_shard_id((const rt_channel*)(uintptr_t)key.id));
+        default:
+            return rt_runtime_shard0(rt_executor_runtime(ex));
+    }
+}
+
 void rt_waiter_migrate_join_waiters(rt_executor* ex,
                                     uint64_t task_id,
                                     uint32_t from_shard_id,
@@ -42,24 +68,56 @@ void rt_waiter_migrate_join_waiters(rt_executor* ex,
     if (ex == NULL || from_shard_id == to_shard_id) {
         return;
     }
+    rt_shard* from_shard = rt_runtime_shard(rt_executor_runtime(ex), from_shard_id);
+    rt_shard* to_shard = rt_runtime_shard(rt_executor_runtime(ex), to_shard_id);
     rt_waiter_store* from = rt_executor_waiter_store_for_shard(ex, from_shard_id);
     rt_waiter_store* to = rt_executor_waiter_store_for_shard(ex, to_shard_id);
     if (from == NULL || to == NULL || from == to || from->len == 0) {
         return;
     }
+    // Extract under the source lock, append under the destination lock:
+    // never two shard locks at once. The caller holds the control lock, so
+    // no same-key registration can interleave between the two holds. Batches
+    // repeat until the source has no matching entry left.
     waker_key key = join_key(task_id);
-    size_t out = 0;
-    for (size_t i = 0; i < from->len; i++) {
-        waiter w = from->entries[i];
-        if (w.key.kind == key.kind && w.key.id == key.id) {
+    for (;;) {
+        waiter moved[16];
+        size_t moved_len = 0;
+        if (from_shard != NULL) {
+            rt_shard_lock(from_shard);
+        }
+        size_t out = 0;
+        for (size_t i = 0; i < from->len; i++) {
+            waiter w = from->entries[i];
+            if (w.key.kind == key.kind && w.key.id == key.id &&
+                moved_len < sizeof(moved) / sizeof(moved[0])) {
+                moved[moved_len++] = w;
+                continue;
+            }
+            from->entries[out++] = w;
+        }
+        from->len = out;
+        if (from_shard != NULL) {
+            rt_shard_unlock(from_shard);
+        }
+        if (moved_len == 0) {
+            return;
+        }
+        if (to_shard != NULL) {
+            rt_shard_lock(to_shard);
+        }
+        for (size_t i = 0; i < moved_len; i++) {
             if (rt_waiter_store_ensure_cap(to) != RT_RUNTIME_STATUS_OK) {
                 panic_msg("async: waiter allocation failed");
-                return;
+                break;
             }
-            to->entries[to->len++] = w;
-            continue;
+            to->entries[to->len++] = moved[i];
         }
-        from->entries[out++] = w;
+        if (to_shard != NULL) {
+            rt_shard_unlock(to_shard);
+        }
+        if (moved_len < sizeof(moved) / sizeof(moved[0])) {
+            return;
+        }
     }
-    from->len = out;
 }

@@ -139,15 +139,32 @@ int rt_clock_advance_to(rt_executor* ex, uint64_t target) {
     return 0;
 }
 
-// Wake every due sleeper in the shard's store; caller holds the store's
-// owning lane. Returns the number of sleepers woken.
+// Wake every due sleeper in the shard's store. Drains the due batch under
+// the shard's lock, then wakes outside it (D5 collect-then-wake: wake_task
+// takes the sleeper's owner lock, which is this same shard). Callers hold
+// the control lock and no shard lock. Returns the number of sleepers woken.
 size_t rt_sleep_fire_due_on_shard(rt_executor* ex, rt_shard* shard, uint64_t now) {
     rt_sleep_store* store = shard != NULL ? &shard->sleep_store : NULL;
-    size_t woken = 0;
-    uint64_t task_id = 0;
-    while (rt_sleep_store_pop_due(store, now, &task_id)) {
-        wake_task(ex, task_id, 1);
-        woken++;
+    if (store == NULL || rt_sleep_store_min(store) > now) {
+        return 0;
     }
-    return woken;
+    uint64_t batch[32];
+    size_t woken = 0;
+    for (;;) {
+        size_t batch_len = 0;
+        rt_shard_lock(shard);
+        uint64_t task_id = 0;
+        while (batch_len < sizeof(batch) / sizeof(batch[0]) &&
+               rt_sleep_store_pop_due(store, now, &task_id)) {
+            batch[batch_len++] = task_id;
+        }
+        rt_shard_unlock(shard);
+        if (batch_len == 0) {
+            return woken;
+        }
+        for (size_t i = 0; i < batch_len; i++) {
+            wake_task(ex, batch[i], 1);
+            woken++;
+        }
+    }
 }

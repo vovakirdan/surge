@@ -326,10 +326,20 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
     if (ex == NULL || !waker_valid(key) || !waker_is_net(key)) {
         return result;
     }
+    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
     rt_waiter_store* store = rt_executor_waiter_store_for_shard(ex, owner_shard_id);
-    if (store == NULL || store->len == 0) {
+    if (owner_shard == NULL || store == NULL || store->len == 0) {
         return result;
     }
+    // Collect-then-wake (D5): pop every matching entry and detach the fd
+    // interest under the store owner's lock, then validate and wake outside
+    // it. Waking under the held store lock would self-deadlock the
+    // same-shard fast case (owner lock is the store lock).
+    uint64_t inline_batch[16];
+    uint64_t* batch = inline_batch;
+    size_t batch_cap = sizeof(inline_batch) / sizeof(inline_batch[0]);
+    size_t batch_len = 0;
+    rt_shard_lock(owner_shard);
     size_t out = 0;
     for (size_t i = 0; i < store->len; i++) {
         waiter w = store->entries[i];
@@ -338,33 +348,53 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
             continue;
         }
         result.removed++;
-        const rt_task* task = get_task(ex, w.task_id);
-        if (task == NULL || task_status_load(task) == TASK_DONE || task_cancelled_load(task) != 0) {
-            continue;
-        }
-        if (key.kind == WAKER_NET_ACCEPT) {
-            rt_task* mutable_task = get_task(ex, w.task_id);
-            if (mutable_task != NULL) {
-                if (rt_async_debug_enabled()) {
-                    rt_async_debug_printf("net-accept-ready task=%llu fd=%llu owner=%u\n",
-                                          (unsigned long long)w.task_id,
-                                          (unsigned long long)key.id,
-                                          owner_shard_id);
-                }
-                mutable_task->net_ready_accept_valid = 1;
-                mutable_task->net_ready_accept_fd = (int)key.id;
-                mutable_task->net_ready_accept_owner_shard = owner_shard_id;
-                rt_task_replace_owner(ex, mutable_task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
+        if (batch_len == batch_cap) {
+            size_t next_cap = batch_cap * 2;
+            uint64_t* next =
+                (uint64_t*)rt_alloc((uint64_t)(next_cap * sizeof(uint64_t)), _Alignof(uint64_t));
+            if (next == NULL) {
+                panic_msg("async: net wake batch allocation failed");
+                break;
             }
+            memcpy(next, batch, batch_len * sizeof(uint64_t));
+            if (batch != inline_batch) {
+                rt_free(
+                    (uint8_t*)batch, (uint64_t)(batch_cap * sizeof(uint64_t)), _Alignof(uint64_t));
+            }
+            batch = next;
+            batch_cap = next_cap;
         }
-        result.woken++;
-        wake_task(ex, w.task_id, 0);
+        batch[batch_len++] = w.task_id;
     }
     store->len = out;
     net_waiters_removed(store, key, result.removed);
     // Completion removed every waiter of this key, so no same-key entry remains.
     (void)fd_registry_bridge_net_detach_if_last_on_owner(
         ex, key, owner_shard_id, result.removed, 0);
+    rt_shard_unlock(owner_shard);
+    for (size_t i = 0; i < batch_len; i++) {
+        rt_task* task = get_task(ex, batch[i]);
+        if (task == NULL || task_status_load(task) == TASK_DONE || task_cancelled_load(task) != 0) {
+            continue;
+        }
+        if (key.kind == WAKER_NET_ACCEPT) {
+            if (rt_async_debug_enabled()) {
+                rt_async_debug_printf("net-accept-ready task=%llu fd=%llu owner=%u\n",
+                                      (unsigned long long)batch[i],
+                                      (unsigned long long)key.id,
+                                      owner_shard_id);
+            }
+            task->net_ready_accept_valid = 1;
+            task->net_ready_accept_fd = (int)key.id;
+            task->net_ready_accept_owner_shard = owner_shard_id;
+            rt_task_replace_owner(ex, task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
+        }
+        result.woken++;
+        wake_task(ex, batch[i], 0);
+    }
+    if (batch != inline_batch) {
+        rt_free((uint8_t*)batch, (uint64_t)(batch_cap * sizeof(uint64_t)), _Alignof(uint64_t));
+    }
     clear_accept_winner_wait_keys(ex, key, owner_shard_id);
     return result;
 }
@@ -412,8 +442,15 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     int net_key = waker_is_net(key);
     if (!net_key) {
         size_t kept_same_key = 0;
+        rt_shard* store_shard = rt_waiter_key_shard(ex, key);
+        if (store_shard != NULL) {
+            rt_shard_lock(store_shard);
+        }
         (void)remove_waiter_from_store(
             rt_waiter_store_for_key(ex, key), key, task_id, &kept_same_key);
+        if (store_shard != NULL) {
+            rt_shard_unlock(store_shard);
+        }
         return;
     }
     uint32_t owner_shard_id = 0;
@@ -422,42 +459,63 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     size_t owner_removed = 0;
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
+        rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), i);
         rt_waiter_store* shard_store = rt_executor_waiter_store_for_shard(ex, i);
         size_t kept_on_shard = 0;
+        if (shard != NULL) {
+            rt_shard_lock(shard);
+        }
         size_t removed_on_shard =
             remove_waiter_from_store(shard_store, key, task_id, &kept_on_shard);
         if (shard_store == owner_store) {
             owner_removed = removed_on_shard;
             owner_kept_same_key = kept_on_shard;
         }
+        if (shard != NULL) {
+            rt_shard_unlock(shard);
+        }
+    }
+    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
+    if (owner_shard != NULL) {
+        rt_shard_lock(owner_shard);
     }
     int removed_open_interest = fd_registry_bridge_net_detach_if_last_on_owner(
         ex, key, owner_shard_id, owner_removed, owner_kept_same_key);
+    if (owner_shard != NULL) {
+        rt_shard_unlock(owner_shard);
+    }
     fd_registry_bridge_notify_removed_interest(ex, key, removed_open_interest, owner_shard_id);
 }
 
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
-    // Caller holds ex->lock; waiters are consumed FIFO per key by pop_waiter.
+    // Caller holds the control lock and no shard lock; the store's shard
+    // lock nests here around the append (D2 order). FIFO per key is
+    // consumed by pop_waiter.
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
     uint32_t owner_shard_id = 0;
     rt_waiter_store* store = waker_is_net(key) ? net_waiter_store_for_key(ex, key, &owner_shard_id)
                                                : rt_waiter_store_for_key(ex, key);
-    rt_runtime_status status = rt_waiter_store_ensure_cap(store);
-    if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
-        panic_msg("async: waiter allocation failed");
-        return;
-    }
-    if (status != RT_RUNTIME_STATUS_OK) {
-        return;
-    }
     const rt_task* task = get_task(ex, task_id);
     uint32_t owner_hint = task != NULL && task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
-    store->entries[store->len++] = (waiter){key, task_id, owner_hint};
-    net_waiter_added(store, key);
-    if (fd_registry_bridge_net_attach(ex, key, &owner_shard_id)) {
-        (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
+    rt_shard* store_shard = rt_waiter_key_shard(ex, key);
+    if (store_shard != NULL) {
+        rt_shard_lock(store_shard);
+    }
+    rt_runtime_status status = rt_waiter_store_ensure_cap(store);
+    if (status == RT_RUNTIME_STATUS_OK) {
+        store->entries[store->len++] = (waiter){key, task_id, owner_hint};
+        net_waiter_added(store, key);
+        if (fd_registry_bridge_net_attach(ex, key, &owner_shard_id)) {
+            (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
+        }
+    }
+    if (store_shard != NULL) {
+        rt_shard_unlock(store_shard);
+    }
+    if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
+        panic_msg("async: waiter allocation failed");
     }
 }
 
@@ -512,6 +570,10 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     if (store == NULL || !waker_valid(key) || store->len == 0) {
         return 0;
     }
+    rt_shard* store_shard = rt_waiter_key_shard(ex, key);
+    if (store_shard != NULL) {
+        rt_shard_lock(store_shard);
+    }
     size_t out = 0;
     size_t removed = 0;
     size_t kept_same_key = 0;
@@ -520,6 +582,9 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     for (size_t i = 0; i < store->len; i++) {
         waiter w = store->entries[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
+            // Stale-skip deref: legal while every pop_waiter caller holds the
+            // control lock; the channel peel (B2) must switch its callers to
+            // the candidate/validate pattern before dropping control.
             const rt_task* task = get_task(ex, w.task_id);
             if (task == NULL || task_status_load(task) == TASK_DONE ||
                 task_cancelled_load(task) != 0) {
@@ -541,6 +606,9 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     if (net_key) {
         (void)fd_registry_bridge_net_detach_if_last_on_owner(
             ex, key, owner_shard_id, removed, kept_same_key);
+    }
+    if (store_shard != NULL) {
+        rt_shard_unlock(store_shard);
     }
     if (found && out_id != NULL) {
         *out_id = found_id;
