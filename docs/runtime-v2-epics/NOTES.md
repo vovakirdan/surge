@@ -2947,3 +2947,74 @@ pass, before any task execution began:
   Task 11 scope) merge INTO the peel since done_cv gating and the
   control-epilogue split are inseparable from removing the control lock
   from mark_done and the worker turn.
+
+## Epic 7 Task 11 In Progress — Peel Plan And State
+
+- DONE: alias kill commit `9db7e56e` — `rt_lock`/`rt_unlock` deleted;
+  every site names `rt_control_lock/unlock`; harnesses updated; gate
+  `NoAmbiguousGlobalLock` green. Remaining red gates: `WorkerLoopShardLane`
+  (B1b), `ChannelOwnerShape` (B2), `GlobalCondvarRetirement` (B4, io_cv).
+- Step B1a (next): primitives get internal locks; every caller still holds
+  control; nothing holds a shard lock when calling them. Exact design:
+  - `ready_push_with_policy` splits into a no-lock leaf
+    (`ready_push_task_locked(ex, shard, task, force_inject, front,
+    signal)`) + a locking wrapper; the wake-token bump and `worker_cv`
+    signal fold into the same owner-lock hold (drop the separate
+    `rt_sched_wake_signal_shard_n` cycle there).
+  - `wake_task_with_policy`: lock owner; token + park-key snapshot + clear
+    + status + leaf push; unlock; THEN value-based stale-entry removal from
+    the snapshotted key's store (store lock inside `remove_waiter`).
+    Absorbed-spurious rule per D5.
+  - `park_current`: `add_waiter` (store-locks internally) then owner-lock
+    token/commit dance; abort removes the entry after releasing the owner
+    lock.
+  - `add/remove/pop_waiter`, `wake_key_all`, join migration, and the net
+    completion take their store's shard lock internally;
+    `wake_key_all`/net-completion switch to collect-then-wake (pop matches
+    under store lock into a batch, unlock, wake each via owner-lock wake) —
+    never wake under a held store lock, even same-shard (same mutex would
+    self-deadlock).
+  - `rt_sleep_fire_due_on_shard` manages its own locking (drain due batch
+    under shard lock, unlock, wake batch); callers stop wrapping.
+    `poll_sleep_task` locks the owner shard around the store add;
+    `mark_done` locks around the cancelled-sleeper remove.
+  - `pop_waiter`'s stale-skip deref of foreign tasks stays legal in B1a
+    (every caller holds control); B2 must restructure channel usage to the
+    candidate/validate pattern before channels drop control.
+  - Field-guard note: `prepare_park`/`park_prepared`/`park_key` writes on
+    the CURRENT task need no owner lock even post-peel — a RUNNING task's
+    park prep is single-writer (its poller thread); wake reads `park_key`
+    only when status==WAITING, and the parker's WAITING store under the
+    owner lock happens-before.
+- Step B1b: worker turn drops control; new file `rt_worker_turn.c` with the
+  shard-locked turn: pop own queue (deref legal: own-queue entry implies
+  owner), inline `wake_task_on_shard_locked` leaf for own-shard wakes
+  (sleep fire, net r/w completion), net poll under own lock with the
+  syscall unlocked, accept-ready keys DEFERRED (release shard -> control ->
+  existing accept completion -> release -> relock shard), `tick_virtual`
+  under the held lock returns a foreign-due shard MASK (uint64, shards<=64)
+  and the caller signals after unlock, apply_poll_outcome splits: stage 1
+  under own lock (task state, own-store ops, collect foreign
+  removals/wakes/epilogue flags), stage 2 after unlock (foreign stores,
+  control epilogue: scope bookkeeping, gated done_cv, free under
+  control+owner re-lock). Worker sleep simplifies to a plain locked
+  cond_wait on `worker_cv` (already holding the shard lock).
+  Control callers (spawn, cancel, select/timeout, scopes, N=1 runner,
+  blocking completion, sync-compat, accept transition) KEEP control and use
+  the internally-locking primitives (control -> one nested shard lock is
+  legal); `run_ready_one`/`poll_ready_child_inline` keep the control-held
+  apply variant.
+- Step B2: channel ops drop control: owner-shard lock around buffer +
+  candidate pop; validate/deliver resume under the PEER's owner lock via
+  control when foreign (collect-then-wake); undeliverable peer -> relock
+  store, next candidate (value never lost — the waiter-check contracts are
+  the proof).
+- Step B4: io thread waits on shard 0's `poller_cv` for N=1 duty; N>1
+  idle-advance backstop via coarse control-lane timedwait plus the
+  last-idle-worker advance; N=1 runner (`next_ready`) keeps control with
+  nested shard-0 locks; `io_cv` retires (gate flips); `done_cv` gating via
+  an atomic await-waiter count.
+- Deref audit anchors for B1b: own-queue pop implies ownership (universal
+  owner + intra-shard-only steal + accept re-place only while parked);
+  free only under control + owner (mark_done epilogue re-lock;
+  task_release takes control then owner).
