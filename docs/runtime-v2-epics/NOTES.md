@@ -134,6 +134,40 @@ task, then move durable decisions into the owning epic document before closeout.
   ignored under `build/`; selected durable rows were copied into
   `02-evidence.md`.
 
+## Epic 5 Task 01 Handoff
+
+- Scope completed: kickoff baseline before heap-accounting work. Docs-only; no
+  runtime code, tests, `Makefile`, CI, or Sentrux rule files changed.
+- Start commit: `5e04a975 docs(runtime): plan epic 5 heap accounting`; branch
+  `codex/runtime-net-scheduler-refactor`; clean tree at start.
+- Line counts at kickoff: `rt_alloc.c` 144, `rt_runtime.c` 184,
+  `rt_async_internal.h` 495, `rt_async_state.c` 1727, and
+  `internal/vm/llvm_native_heap_stats_test.go` 69.
+- Sentrux MCP scans and rule checks passed for all three required paths:
+  repository root `6191`, `runtime/` `5240`, and `runtime/native/` `5244`.
+  Task 1 did not call `session_start` or `session_end`; runtime-code Tasks 5-7
+  must start the scoped session on the path used for final delta evidence.
+- Baseline gates passed: heap-stat smoke
+  `go test ./internal/vm -run '^TestLLVMNative(HeapStats|BufferedChannelAllocatesSingleBlock)$'`
+  passed in package time `4.817s`; `make runtime-v2-check` passed with package
+  times `8.007s`, `0.031s`, `19.650s`, and `15.940s`; `git diff --check`
+  printed no output.
+- Accepted debt remains outside Epic 5 close conditions unless a later task
+  touches the related surface: `RV2-DEBT-001` through `RV2-DEBT-007`, plus
+  `RV2-DEBT-010`. Any new allocator or heap-accounting debt must be closed or
+  recorded in `DEBT.md` before Epic 5 closeout.
+- Gate plan for Tasks 2-7 is recorded in `05-evidence.md`. Runtime-code Tasks
+  5-7 require focused heap/static tests, `make c-check`, `make cppcheck`,
+  `make runtime-v2-check`, `make check` unless a narrower gate is explicitly
+  approved in task evidence, `git diff --check`, root/runtime/native Sentrux
+  scans and rule checks, scoped Sentrux session delta evidence, and touched
+  line counts.
+- Next: Task 2 owns `05-heap-accounting-dependency-map.md` and should map
+  `rt_alloc`, `rt_free`, `rt_realloc`, `rt_heap_stats`, accounting helper
+  paths, consumers, and thread contexts before choosing the accounting cell
+  model. The main session continues to own `05-evidence.md` and `NOTES.md`
+  updates to avoid write conflicts.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.
