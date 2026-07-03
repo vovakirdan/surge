@@ -44,10 +44,16 @@ task, then move durable decisions into the owning epic document before closeout.
   from `N>1`, crossing syntax, or cross-shard wake protocol work.
 - Epic 6 draft is recorded in
   `06-n2-accept-ownership-and-tier1-scheduler.md`. It starts from `N>1` accept
-  ownership and the Tier 1 no-steal scheduler boundary. It must not change
-  Surge syntax, parser rules, semantic checks, async lowering, standard-library
+  ownership and the Tier 1 no-steal scheduler boundary under the preserved
+  global executor lock. With `SURGE_SHARDS>1`, Tier 1 uses one worker per shard;
+  `SURGE_THREADS` remains a `SURGE_SHARDS=1` compatibility control. Epic 6 owns
+  per-shard net poller/wake ownership but not Phase 4 inbound messaging,
+  eventfd, credits, or the seq-cst PARKED protocol. It must not change Surge
+  syntax, parser rules, semantic checks, async lowering, standard-library
   signatures, or public examples for `far`, `submit_to`, `crosses`, or
-  shard-movable markers without a dedicated user syntax review first.
+  shard-movable markers without a dedicated user syntax review first. Epic 7
+  should be the global-lock/global-primitive ownership split, not the syntax
+  epic.
 - Pre-Epic 4 quality hardening is recorded: Sentrux rules now exist for root,
   `runtime/`, and `runtime/native`; CLI and MCP rule checks pass for all three
   paths. `check_file_sizes.sh` now checks `go,c,h` by default, prunes generated

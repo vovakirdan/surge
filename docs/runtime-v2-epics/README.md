@@ -28,8 +28,9 @@ task evidence in `02-evidence.md`. Epic 3 is complete for owner-local waiters
 and dependency-aware runtime refactoring under the same `N=1` boundary. Epic 4
 is complete for persistent fd registry and net lifecycle proof, with accepted
 debt recorded in `DEBT.md`. Epic 5 is complete for per-shard heap accounting
-and stable heap-accounting CI gates. Epic 6 is drafted for `N>1` accept
-ownership and the Tier 1 no-steal scheduler boundary.
+and stable heap-accounting CI gates. Epic 6 is drafted for structural `N>1`
+accept ownership under the preserved global executor lock and the Tier 1
+no-steal scheduler boundary.
 
 ## Current Runtime V2 Artifacts
 
@@ -85,9 +86,9 @@ Every epic should move the runtime toward these goals:
 | 3 | `03-owner-local-waiters-and-runtime-refactor.md` | Complete. Moved included waiter surfaces to owner-local structures under `N=1`, added stable waiter liveness gates, and landed dependency-aware runtime refactoring. |
 | 4 | `04-persistent-fd-registry-and-net-lifecycle.md` | Complete. Replaced poll-set rebuilds with a shard-local persistent fd registry and proved net lifecycle ownership with accepted debt. |
 | 5 | `05-per-shard-heap-accounting.md` | Complete. Moved heap accounting from global hot counters to runtime/shard-owned cells, preserved public allocation behavior, and added stable heap-accounting gates to Runtime V2 CI coverage. |
-| 6 | `06-n2-accept-ownership-and-tier1-scheduler.md` | Draft. Enable multi-shard accept ownership and remove hot-path stealing for connection tasks, starting from the completed heap-accounting cell model. |
-| 7 | TBD | Add the explicit crossing language surface. Must start with a dedicated syntax review; current names such as `far`, `submit_to`, and `shard-movable` are placeholders. |
-| 8 | TBD | Add cross-shard runtime transport, remote operations, Tier 2 destinations, and generation-checked distributed flows. |
+| 6 | `06-n2-accept-ownership-and-tier1-scheduler.md` | Draft. Enable structural multi-shard accept ownership under the preserved global lock and remove hot-path stealing for connection tasks, starting from the completed heap-accounting cell model. |
+| 7 | TBD | Split the preserved global executor lock and move remaining global compatibility primitives toward shard-owned runtime state under `N>1`. |
+| 8 | TBD | Add the explicit crossing language surface and Phase 4 runtime transport. Must start with a dedicated syntax review; current names such as `far`, `submit_to`, and `shard-movable` are placeholders. |
 | 9 | TBD | Add remote-free routing and shard-local hot pools. |
 | 10 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |
 | 11 | TBD | Rewrite the VM/native/LLVM test matrix around the stable Runtime V2 contracts and remove accepted backend-test debt. |
