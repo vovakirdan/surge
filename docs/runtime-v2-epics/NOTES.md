@@ -2261,3 +2261,38 @@ pass, before any task execution began:
   open-agent status after every subagent wait/notification before approving any
   next task. Shared evidence files (`06-evidence.md`, `NOTES.md`, `DEBT.md`)
   are single-writer surfaces; parallel agents must not edit them directly.
+
+## Epic 6 Task 04 Handoff
+
+- Scope completed: behavior contracts for multishard accept ownership. Runtime
+  implementation is unchanged. `STATS.md` was updated by the commit hook after
+  adding the new test files.
+- Added default-green compatibility test
+  `TestRuntimeV2AcceptShardOneNativeNetCompatibility` in
+  `runtime_v2_accept_compat_test.go`. It builds a native LLVM echo fixture,
+  runs with `SURGE_SHARDS=1`, accepts one TCP client, reads four pings, writes
+  four `PONG\n` responses, closes the connection, and exits zero.
+- Added pending accept contract tests in
+  `runtime_v2_accept_contract_test.go` for `SURGE_SHARDS` initialization,
+  invalid shard config diagnostics, `SURGE_SHARDS`/`SURGE_THREADS` conflict,
+  accept owner distribution, owner-shard registry/close/cancel/shutdown trace
+  proof, non-owner connection visibility, and listener-group close proof.
+- Independent checks:
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestRuntimeV2AcceptShardOneNativeNetCompatibility$' -count=1 -parallel=1 -p=1 -v --timeout 90s`
+  passed; `go test ./internal/vm -run '^TestRuntimeV2Accept' -count=1
+  -parallel=1 -p=1 -v --timeout 90s` passed; `SURGE_SKIP_TIMEOUT_TESTS=0 go
+  test ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -count=1
+  -parallel=1 -p=1 -v --timeout 90s` passed; `go build ./...` passed;
+  `git diff --check` passed.
+- Expected-red contract check:
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Accept' -count=1
+  -parallel=1 -p=1 -v --timeout 180s` failed in the intended shape: missing
+  `runtime_shards`, invalid/conflicting env values not rejected, missing
+  accept-owner `TRACE_NET` fields, existing net-owned shard-0 accessors, and
+  missing `RT_RUNTIME_MAX_SHARDS`. No crash or hang was observed.
+- Handoff: Tasks 6/7 must make config and worker/shard placement meaningful;
+  Tasks 8/9/10/11 must make owner metadata, accept distribution, poller wake,
+  and lifecycle ownership real; Task 12 must expose the trace fields used by
+  the pending contract; Task 13 should promote the tagged gate only after the
+  owner implementation is green.

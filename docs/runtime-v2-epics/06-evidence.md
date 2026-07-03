@@ -500,3 +500,78 @@ be the migration control plane and remains outside Epic 6.
 - [x] Low-connection skew expectation is recorded.
 - [x] Scratch code is quarantined under `build/tmp/` and not committed.
 - [x] Task 4, Task 5, and Task 6 have a decided listener model.
+
+## Task 4: Multishard Accept Contract Tests
+
+### Task Identity And Scope
+
+- Task: `06-tasks/04-multishard-accept-contract-tests.md`.
+- Date: 2026-07-03.
+- Scope: behavior tests for the Epic 6 accept ownership contract before the
+  runtime implementation.
+- Created: `internal/vm/runtime_v2_accept_compat_test.go` and
+  `internal/vm/runtime_v2_accept_contract_test.go`.
+- Updated: this evidence file and `NOTES.md`.
+- Out of scope: runtime/native implementation, static shape gates, Makefile,
+  CI, trace-counter implementation, Sentrux rules, parser/sema/lowering,
+  public syntax, stdlib signatures, and benchmark changes.
+
+### Files Touched
+
+| Path | Change | Reason |
+| --- | --- | --- |
+| `internal/vm/runtime_v2_accept_compat_test.go` | created | Default-green `SURGE_SHARDS=1` native net compatibility floor. |
+| `internal/vm/runtime_v2_accept_contract_test.go` | created | `runtime_v2_pending` contract tests for future multishard accept ownership behavior. |
+| `STATS.md` | updated by pre-commit | Repository test-file/code-volume counters changed after adding the new test files. |
+| `docs/runtime-v2-epics/06-evidence.md` | updated | Record Task 4 checks, expected-red pending shape, and review result. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 4 handoff for Tasks 6-13. |
+
+No runtime/native code, VM implementation code, task documents, `Makefile`, CI
+files, Sentrux rules, parser/sema/lowering, stdlib signatures, or public
+examples changed. `STATS.md` changed only as generated repository statistics
+from the commit hook.
+
+### Contracts Touched
+
+| Contract bullet | Test coverage |
+| --- | --- |
+| `SURGE_SHARDS=1` preserves observable native net behavior. | `TestRuntimeV2AcceptShardOneNativeNetCompatibility`, default test. |
+| `SURGE_SHARDS=N` initializes exactly `N` shards and exposes proof. | `TestRuntimeV2AcceptShardConfigInitializesRequestedShardCount`, pending on Tasks 6 and 12. |
+| Invalid `SURGE_SHARDS` fails explicitly. | `TestRuntimeV2AcceptRejectsInvalidShardConfig`, pending on Task 6. |
+| `SURGE_SHARDS>1` rejects conflicting `SURGE_THREADS`. | `TestRuntimeV2AcceptRejectsConflictingThreadCount`, pending on Tasks 6/7. |
+| Accepted connections distribute across owner shards. | `TestRuntimeV2AcceptDistributionAcrossOwnerShards`, pending on Tasks 9/12. |
+| Readiness, close, cancellation, shutdown, non-owner use, and listener-group close are owner-shard-visible. | `TestRuntimeV2AcceptOwnerShardLifecycleTraceContract`, pending on Tasks 7/8/9/10/11/12. |
+
+### Commands/Checks
+
+| Command | Purpose | Result |
+| --- | --- | --- |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestRuntimeV2AcceptShardOneNativeNetCompatibility$' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Default `SURGE_SHARDS=1` compatibility floor. | Passed in 2.33s. |
+| `go test ./internal/vm -run '^TestRuntimeV2Accept' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Default untagged accept subset. | Passed in 2.34s; only the compatibility test runs without `runtime_v2_pending`. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Accept' -count=1 -parallel=1 -p=1 -v --timeout 180s` | Future accept ownership contract. | Expected-red in 13.88s: missing `runtime_shards`; invalid/conflicting env values not rejected; missing accept-owner `TRACE_NET` fields; net-owned shard-0 static gate still failing; missing `RT_RUNTIME_MAX_SHARDS`. No crash or hang. |
+| `SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Existing net liveness probe selected for this test-writing task. | Passed in 2.26s. |
+| `go build ./...` | Default build after adding the untagged compatibility test. | Passed. |
+| `git diff --check` | Whitespace gate. | Passed with no output. |
+| `wc -l internal/vm/runtime_v2_accept_compat_test.go internal/vm/runtime_v2_accept_contract_test.go` | LOC check for new files. | 189 and 306 lines, both under the 500-line limit. |
+
+### Review Pass
+
+Main-session review checked the subagent-created Task 4 files against the task
+spec, Task 2/3 contracts, build tags, no-hang behavior, expected-red failure
+shape, and liveness coverage. No P0/P1 blocker was found for the Task 4
+behavior tests. The tagged command also ran Task 5's pending accept static tests;
+those failures are recorded as expected Task 5/6/7/9/10/11/12 contract gaps,
+not Task 4 implementation bugs.
+
+### Definition Of Done
+
+- [x] Every testable Accept Ownership Contract bullet has a behavior test or a
+      named trace-contract row.
+- [x] The `SURGE_SHARDS=1` regression floor passes today without runtime code
+      changes.
+- [x] `runtime_v2_pending` tests name the later task(s) expected to make each
+      contract pass.
+- [x] Pending failures are "not implemented yet" contract failures, not crashes
+      or hangs.
+- [x] Evidence and notes record the green subset, expected-red subset, and
+      liveness probe.
