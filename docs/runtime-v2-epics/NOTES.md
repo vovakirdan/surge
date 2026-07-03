@@ -168,6 +168,32 @@ task, then move durable decisions into the owning epic document before closeout.
   model. The main session continues to own `05-evidence.md` and `NOTES.md`
   updates to avoid write conflicts.
 
+## Epic 5 Task 02 Handoff
+
+- Scope completed: docs-only heap accounting dependency map in
+  `05-heap-accounting-dependency-map.md`. No runtime code, tests, `Makefile`,
+  CI, or Sentrux rule files changed.
+- Selected direction for Tasks 5-7: runtime/shard-owned heap-accounting state
+  with lane-local write cells, explicit cold/external cell, event totals
+  (`alloc/free events`, `allocated/freed bytes`), and aggregate-on-read
+  `rt_heap_stats()` deriving live blocks/bytes.
+- Do not implement unsigned per-cell live counters: cross-lane frees are real,
+  and live totals should be derived from aggregate alloc/free event and byte
+  totals or an equivalent proven model.
+- `rt_alloc.c` must stay behind a narrow accounting API. It must not call
+  `ensure_exec()` or depend on scheduler queues, waiter stores, fd registry
+  internals, or executor initialization.
+- Caller lanes to account for: cold/pre-runtime, main/synchronous runner
+  (`rt_task_await -> run_until_done -> run_ready_one`), executor workers, I/O
+  thread, blocking workers, and runtime-internal helpers under executor locks.
+- Boundary: direct libc temporary allocations in `rt_bignum_format.c`,
+  `rt_io.c`, `rt_fs.c`, and `rt_net.c` are outside the current
+  `rt_heap_stats()` contract. Epic 5 moves existing heap-accounted producer
+  state; it does not make every libc temporary visible.
+- Review outcome: initial P1/P2/P3 findings were fixed; final focused
+  re-review returned no findings. Residual risk is source-backed, not
+  runtime-trace-proven, caller classification; Task 8 owns that proof.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.

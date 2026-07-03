@@ -8,7 +8,7 @@ keep `NOTES.md` as the handoff log.
 | Task | Status | Evidence |
 | --- | --- | --- |
 | 1 | Complete | Starting state, debt scope, Sentrux scans, heap smoke, current Runtime V2 gates, and Task 2-7 gate plan recorded below. |
-| 2 | Draft | Heap accounting dependency map not started. |
+| 2 | Complete | Dependency map artifact, selected event-delta cell model, caller-context corrections, checks, and review outcome recorded below. |
 | 3 | Draft | Heap stats contract tests not started. |
 | 4 | Draft | Static shape tests not started. |
 | 5 | Draft | Accounting cell skeleton not started. |
@@ -172,3 +172,79 @@ outside the required green gate unless a task explicitly changes their path.
   `NOTES.md` handoff if Task 1 evidence must be removed.
 - No generated artifacts, runtime processes, sockets, or temporary benchmark
   state were created by Task 1.
+
+## Task 2: Heap Accounting Dependency Map
+
+### Task Identity And Scope
+
+- Task: `05-tasks/02-heap-accounting-dependency-map.md`.
+- Date: 2026-07-03.
+- Scope: docs-only dependency map before runtime-code changes.
+- Artifact: `05-heap-accounting-dependency-map.md` (242 lines).
+- Out of scope: runtime code, VM tests, `Makefile`, CI, and Sentrux rule files.
+
+### Result
+
+Task 2 mapped current `rt_alloc`, `rt_free`, `rt_realloc`, `record_alloc`,
+`record_free`, `record_realloc`, and `rt_heap_stats()` producers; mapped direct
+consumers in native ABI, LLVM builtins/lowering, VM debug intrinsics, docs, and
+current/parallel tests; and classified caller contexts for cold/main startup,
+synchronous runner, executor workers, I/O thread, blocking workers, and
+runtime-internal helpers under executor lock.
+
+Selected Task 5 direction:
+
+- runtime or shard-owned heap-accounting state;
+- lane-local write cells for executor workers, I/O, blocking workers, and the
+  main/synchronous runner path, or an explicit recorded decision to route the
+  synchronous runner through the cold/external cell;
+- explicit cold/external cell for pre-runtime and unregistered contexts;
+- event totals per cell: allocation events, free events, allocated bytes, and
+  freed bytes;
+- aggregate-on-read `rt_heap_stats()` deriving live blocks and bytes from
+  totals, avoiding unsigned per-cell live-counter underflow;
+- no `ensure_exec()` or scheduler-internal dependency from `rt_alloc.c`.
+
+Important boundary fixed during review: the map now distinguishes heap-accounted
+`rt_alloc`/`rt_free`/`rt_realloc` paths from direct libc temporary allocations
+in native helper files such as `rt_bignum_format.c`, `rt_io.c`, `rt_fs.c`, and
+`rt_net.c`. Those direct libc temporaries are outside the current
+`rt_heap_stats()` contract and are not Epic 5 scope.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/05-heap-accounting-dependency-map.md` | created | Source-backed heap-accounting dependency map and Task 5 handoff. | Documentation only; 242 lines. |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 2 durable evidence. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 2 handoff. | Documentation only. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `rg -n 'heap_alloc_count\|heap_free_count\|heap_live_blocks\|heap_live_bytes\|rt_heap_stats\|rt_alloc\(\|rt_free\(\|rt_realloc\(' runtime internal docs` | producer/consumer matches | matched current producers and consumers | `0` | dependency-map input. |
+| `rg -n 'record_alloc\|record_free\|record_realloc\|rt_array_forget_allocation\|SurgeHeapStats\|HeapStats\|heap_stats' runtime internal docs` | helper and consumer matches | matched helper paths and HeapStats consumers | `0` | dependency-map input. |
+| `git diff --check` | no whitespace errors | no output | `0` | main-session post-fix whitespace gate. |
+| `wc -l docs/runtime-v2-epics/05-heap-accounting-dependency-map.md` | under 500-line target | `242` | `0` | documentation artifact is reviewable. |
+| Sentrux root check from Task 2 worker | no quality/rules regression | root session stayed `6191 -> 6191`; rules passed | pass | docs-only task; no runtime-code delta. |
+
+### Review Outcome
+
+Review subagent initially found:
+
+- one P1 overclaim that every native allocation/free is heap-accounted;
+- one P2 missing main/synchronous-runner runtime lane;
+- one P3 missing `docs/RUNTIME.ru.md`;
+- one P3 missing `rt_async_task.c` and `rt_async_poll.c` in the source audit.
+
+All were fixed. Final focused re-review returned no findings. Residual risk:
+caller-context classification is source-backed, not runtime-trace-proven; Task 8
+owns runtime proof.
+
+### Rollback/Recovery Notes
+
+- Revert the dependency-map artifact, this Task 2 section/status row, and the
+  matching `NOTES.md` handoff if Task 2 must be removed.
+- No runtime artifacts, generated binaries, sockets, or benchmark reports were
+  created by Task 2.
