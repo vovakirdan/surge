@@ -14,8 +14,9 @@ distribution, no-steal connection scheduling, per-shard net poller ownership,
 trace counters, benchmarks, and CI gates. Keep `SURGE_SHARDS=1` behavior
 compatible throughout the epic.
 
-**Status:** approved. All 15 tasks are expanded into full task documents under
-`06-tasks/`; execution has not started.
+**Status:** complete. All 15 tasks are closed with evidence in
+`06-evidence.md`; the stable accept gate is wired into `runtime-v2-check`, and
+the remaining work is explicitly recorded as Epic 7 or later debt.
 
 **Task documents:** `06-tasks/01-kickoff-baseline-and-sentrux.md` through
 `06-tasks/15-epic-closeout-and-static-gates.md`, indexed in
@@ -439,6 +440,69 @@ Epic 6 is complete only when:
   close condition;
 - `06-evidence.md`, `NOTES.md`, this document, `README.md`, and any changed
   Runtime V2 docs are updated with the final state.
+
+## Closeout
+
+Epic 6 implemented the first structural `N>1` Runtime V2 slice for native TCP
+accept ownership. The runtime now has a bounded runtime shard count
+(`RT_RUNTIME_MAX_SHARDS` plus `shard_count`), `SURGE_SHARDS` configuration,
+one Tier 1 worker per shard in multi-shard mode, explicit `SURGE_THREADS`
+conflict rejection, owner metadata for listeners and connections, per-shard
+listener groups, owner-shard fd registry/waiter/poller paths, per-shard wake
+pipes for net polling, and no non-owner stealing for Tier 1 connection tasks.
+
+The closeout keeps the global-lock boundary explicit. `rt_executor.lock` still
+owns the remaining compatibility state: generic task and scope state, global
+scheduler coordination, non-net waiter compatibility paths, channel semantics,
+task join, scope wake, cancellation state, blocking completions, timers,
+`now_ms`, and generic ready work. Epic 6 proves ownership and locality for the
+net accept/readiness path; it does not claim lock-level throughput scaling.
+
+The listener model is the per-shard `SO_REUSEPORT` listener group chosen in
+Task 3. One public listener handle closes all group member fds. Linux may drop
+connections already queued on a closed member socket; that is recorded as
+expected OS behavior, not a Runtime V2 guarantee.
+
+The stable CI surface is `runtime-v2-accept-check`, called by
+`runtime-v2-check`. It covers `SURGE_SHARDS=1` compatibility, shard-count and
+thread-count config, listener/connection metadata, net ownership static
+contracts, per-shard poller wake behavior, accept trace contracts, and
+scheduler no-steal placement contracts. Heavy benchmark rows, live signal
+probes, and copied/raw handle generation guards stay outside that narrow CI
+gate.
+
+Benchmark evidence uses a freshly built current-checkout binary and records
+single-shard and eight-shard direct/seq rows at 1, 8, 32, and 1024
+connections. The 1024-connection eight-shard row used all owner shards with
+`global_path_fallbacks=0` and `sched steal=0`. Throughput was worse than the
+single-shard row, which is acceptable under the preserved global executor
+lock; the evidence proves owner placement, shard distribution at high load,
+and absence of shard-0 net fallback.
+
+Large-file cleanup closed as an audit and allowlist tightening. Epic 6 already
+extracted the cohesive responsibilities into focused owner files:
+`rt_scheduler_placement.c`, `rt_net_poller.c`, `rt_net_accept_group.c`,
+`rt_net_handles.c`, `rt_net_lifecycle.c`, `rt_net_listener_socket.c`, and
+`rt_net_trace.c/h`. The remaining large files stayed flat or decreased by
+effective LOC, and `.loc-legacy-allowlist` now pins the lower ceilings for
+`rt_net.c`, `rt_async_state.c`, and `rt_async_task.c`.
+
+Done with recorded debt:
+
+- `RV2-DEBT-001`, `RV2-DEBT-002`, and `RV2-DEBT-011` remain the accepted
+  backend/VM test-matrix debt owned by Epic 11.
+- `RV2-DEBT-003`, `RV2-DEBT-004`, and `RV2-DEBT-005` remain open for legacy
+  large files, with stricter ceilings after Task 14.
+- `RV2-DEBT-010` remains open for copied raw net-handle generation safety.
+- `RV2-DEBT-013` remains open for non-owner raw `TcpConn` use in
+  `stdlib/http/server.sg`; future public multi-shard HTTP support must either
+  prove owner-local handlers or reject/redesign that path.
+
+Epic 7 should split the preserved global executor lock without redoing the
+Epic 6 net ownership result. It should start from the current shape: shards own
+their scheduler state, waiter store, fd registry, net poll scratch, heap
+accounting cells, trace counters, and net poll wake pipe; the executor still
+coordinates global compatibility state under one lock.
 
 ## Next Runtime Handoff And Syntax Gate
 

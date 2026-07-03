@@ -28,10 +28,12 @@ task evidence in `02-evidence.md`. Epic 3 is complete for owner-local waiters
 and dependency-aware runtime refactoring under the same `N=1` boundary. Epic 4
 is complete for persistent fd registry and net lifecycle proof, with accepted
 debt recorded in `DEBT.md`. Epic 5 is complete for per-shard heap accounting
-and stable heap-accounting CI gates. Epic 6 is scoped and fully task-cut for
-structural `N>1` accept ownership under the preserved global executor lock
-and the Tier 1 no-steal scheduler boundary; all 15 tasks are documented under
-`06-tasks/`, and execution has not started.
+and stable heap-accounting CI gates. Epic 6 is complete for structural `N>1`
+native TCP accept ownership under the preserved global executor lock and the
+Tier 1 no-steal scheduler boundary. It added the stable
+`runtime-v2-accept-check` gate, final benchmark evidence, and an explicit Epic
+7 lock-splitting handoff. Remaining copied/raw net-handle owner guards and
+legacy large-file cleanup stay recorded in `DEBT.md`.
 
 ## Current Runtime V2 Artifacts
 
@@ -58,7 +60,9 @@ and the Tier 1 no-steal scheduler boundary; all 15 tasks are documented under
   and Epic 6 handoff for shard-owned heap accounting.
 - `05-evidence.md`: Epic 5 task evidence ledger.
 - `06-n2-accept-ownership-and-tier1-scheduler.md`: Epic 6 scope, acceptance
-  contract, brief task list, and Epic 7 syntax handoff.
+  contract, closeout, and Epic 7 handoff.
+- `06-evidence.md`: Epic 6 task evidence, benchmark rows, final gates, and
+  closeout accounting.
 - `06-tasks/`: Epic 6's 15 expanded task documents and task index.
 
 Known backend-test debt remains accepted for now: the focused
@@ -88,8 +92,8 @@ Every epic should move the runtime toward these goals:
 | 3 | `03-owner-local-waiters-and-runtime-refactor.md` | Complete. Moved included waiter surfaces to owner-local structures under `N=1`, added stable waiter liveness gates, and landed dependency-aware runtime refactoring. |
 | 4 | `04-persistent-fd-registry-and-net-lifecycle.md` | Complete. Replaced poll-set rebuilds with a shard-local persistent fd registry and proved net lifecycle ownership with accepted debt. |
 | 5 | `05-per-shard-heap-accounting.md` | Complete. Moved heap accounting from global hot counters to runtime/shard-owned cells, preserved public allocation behavior, and added stable heap-accounting gates to Runtime V2 CI coverage. |
-| 6 | `06-n2-accept-ownership-and-tier1-scheduler.md` | Draft. Enable structural multi-shard accept ownership under the preserved global lock and remove hot-path stealing for connection tasks, starting from the completed heap-accounting cell model. |
-| 7 | TBD | Split the preserved global executor lock and move remaining global compatibility primitives toward shard-owned runtime state under `N>1`. |
+| 6 | `06-n2-accept-ownership-and-tier1-scheduler.md` | Complete. Enabled structural multi-shard native TCP accept ownership under the preserved global lock, added per-shard net poller/wake ownership, removed non-owner stealing for Tier 1 connection tasks, and promoted the stable accept gate. |
+| 7 | TBD | Split the preserved global executor lock and move remaining global compatibility primitives toward shard-owned runtime state under `N>1`, starting from Epic 6's owner-local net path. |
 | 8 | TBD | Add the explicit crossing language surface and Phase 4 runtime transport. Must start with a dedicated syntax review; current names such as `far`, `submit_to`, and `shard-movable` are placeholders. |
 | 9 | TBD | Add remote-free routing and shard-local hot pools. |
 | 10 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |

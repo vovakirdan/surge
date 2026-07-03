@@ -679,10 +679,23 @@ structure pass.
 
 ### Phase 3: N>1 Accept Ownership
 
-- Enable multiple shards.
-- Use `SO_REUSEPORT` on Linux where available.
-- Keep accepted connections on the accepting shard.
-- Disable work stealing for connection tasks.
+- Completed by Epic 6 for the native TCP accept/readiness path under the
+  preserved global executor lock.
+- Multiple runtime shards are enabled through bounded runtime configuration:
+  `RT_RUNTIME_MAX_SHARDS` plus runtime `shard_count`.
+- Linux uses per-shard `SO_REUSEPORT` listener groups where available.
+- Accepted connections stay on the accepting shard, and their fd registry,
+  waiters, readiness polling, close, cancellation cleanup, and shutdown wake
+  use the owner shard's net state.
+- Tier 1 connection tasks are placed on the owner shard and are not stolen by
+  non-owner shards.
+- Phase 3 does not claim lock-level throughput scaling: `rt_executor.lock`
+  still protects the remaining global executor state.
+- Channels, task join, scope wake, cancellation state, blocking completions,
+  timers, `now_ms`, and generic ready work remain global compatibility paths
+  until the next runtime ownership epic splits the executor lock.
+- Cross-shard messaging, explicit crossing syntax, remote-free routing, and
+  alternate I/O backends remain later phases.
 
 ### Phase 4: Cross-Shard Messaging And Shard-Movable Values
 

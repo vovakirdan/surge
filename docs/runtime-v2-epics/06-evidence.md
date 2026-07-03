@@ -21,7 +21,7 @@ keep `NOTES.md` as the live handoff log.
 | 12 | Complete | Trace counters, liveness fix, and benchmark evidence recorded below. |
 | 13 | Complete | Runtime V2 accept CI gates recorded below; independent review, standalone gate, full-chain stability passes, and `make check` passed. |
 | 14 | Complete | Large-file refactor tranche recorded below; no new code extraction was needed, legacy ceilings were tightened, and full gates passed. |
-| 15 | Pending | Epic closeout and static gates. |
+| 15 | Complete | Epic closeout, final gates, contract accounting, benchmark confirmation, Sentrux signals, and Epic 7 handoff recorded below. |
 
 ## Task 1: Kickoff Baseline And Sentrux
 
@@ -1868,3 +1868,196 @@ large-file regression.
 - [x] Each remaining large file has a recorded rejected extraction reason or an
       existing focused owner module.
 - [x] `.loc-legacy-allowlist` reflects the final effective LOC ceilings.
+
+## Task 15: Epic Closeout And Static Gates
+
+### Task Identity And Scope
+
+- Task: `06-tasks/15-epic-closeout-and-static-gates.md`.
+- Kind: closeout.
+- Commit boundary: Epic 6 closeout commit.
+- Scope: final standing gates, final benchmark confirmation, Sentrux signals,
+  contract accounting, durable docs, debt ownership, and Epic 7 handoff.
+- Out of scope: new runtime implementation work.
+
+### Closeout State
+
+- Closeout started from clean commit `01a4f7e5`.
+- No runtime C, Go, stdlib, parser, semantic, lowering, or public syntax files
+  were changed in Task 15.
+- `docs/RUNTIME_V2.md` Phase 3 now records the Epic 6 completion boundary.
+- `README.md`, this epic document, `06-tasks/README.md`, `DEBT.md`,
+  `NOTES.md`, and this evidence file now reflect the final Epic 6 state.
+
+### Accept Ownership Contract Accounting
+
+| Contract bullet | Status | Evidence |
+| --- | --- | --- |
+| `SURGE_SHARDS=1` preserves current observable native net behavior. | Done | `TestRuntimeV2AcceptShardOneNativeNetCompatibility` passed in `runtime-v2-accept-check`. |
+| `SURGE_SHARDS=N`, `N>1`, initializes exactly `N` shards or fails explicitly. | Done | `TestRuntimeV2AcceptShardConfigInitializesRequestedShardCount` and invalid config tests passed. |
+| Multi-shard mode uses one Tier 1 worker per shard and rejects conflicting `SURGE_THREADS`. | Done | `TestRuntimeV2SchedulerPlacementWorkerShape` and `TestRuntimeV2AcceptRejectsConflictingThreadCount` passed. |
+| `rt_executor.lock` remains the single state lock; no lock-level scalability claim. | Done | Epic document and `docs/RUNTIME_V2.md` closeout state this boundary; performance interpretation is calibrated to it. |
+| Each shard owns scheduler state, waiter store, fd registry, net poll scratch, heap accounting cells, and trace counters. | Done | Tasks 6-12 implementation evidence plus `runtime-v2-check` gates passed. |
+| Listener object records single-fd, per-shard group, or fallback form. | Done | Task 8 metadata/static tests and `TestRuntimeV2NetMetadataMultiShardListenClose` passed. |
+| Per-shard listener group closes as one logical handle and records Linux queued-accept behavior. | Done | Task 8/12 evidence and epic closeout document record group-close semantics and OS drop caveat. |
+| Each accepted connection has one owner shard at creation. | Done | `TestRuntimeV2AcceptDistributionAcrossOwnerShards` and trace fields passed. |
+| Accepted connection fd is registered in the owning shard's fd registry. | Done | Owner-local net waiter behavior and accept lifecycle trace contracts passed. |
+| Read, write, close, cancellation, and shutdown use owner shard registry/waiter state. | Done | Task 11 owner-local lifecycle tests and Task 12 trace contracts passed. |
+| Local spawn from a request task inherits the current shard. | Done | Scheduler placement worker-path tests passed. |
+| Task acting on a `TcpConn`/`TcpListener` must be owner-local unless future migration exists. | Done with debt | Owner-local accept flow is enforced for Epic 6 runtime-generated connection tasks; copied/raw public handle cases stay open under `RV2-DEBT-010` and `RV2-DEBT-013`. |
+| Non-owner task must not silently operate through shard 0 or implicit fallback. | Done with debt | Runtime trace gates require `global_path_fallbacks=0`; raw copied handle rejection remains `RV2-DEBT-010`/`RV2-DEBT-013`. |
+| Tier 1 connection tasks are not stolen by non-owner shards. | Done | `SCHED_TRACE steal=0`, denied steal counters, and scheduler no-steal tests passed. |
+| CPU-bound non-connection work may keep compatibility scheduler. | Done | Static shape tests allow legitimate global compatibility paths and only ban net ownership shard-0 shortcuts. |
+| One-user-accept-loop API conflict is resolved before implementation. | Done | Task 3 chose per-shard `SO_REUSEPORT` listener groups and internal owner-local accept/request placement without public syntax changes. |
+| Any accept handoff fallback is visible and not called the ideal path. | Done | No fallback path was used in Epic 6 benchmark rows; trace keeps `global_path_fallbacks=0`. |
+| Each net-owning shard has a poller owner and wake mechanism. | Done | Task 10 per-shard pipe wake/poller behavior tests passed. |
+| Per-shard wake is not Phase 4 cross-shard transport. | Done | No eventfd/inbound queues/credits/seq-cst `PARKED` protocol were added. |
+| Close/cancellation does not complete stale waiters on another shard. | Done | Task 11 stale fd-reuse owner-local cleanup proof passed. |
+| Shutdown wakes every shard poller and worker without stranded net waiters. | Done | `TestRuntimeV2NetPollerShutdownWakesEveryShard` and lifecycle trace fields passed. |
+| New V2 primitives use owner-first arguments and explicit status codes. | Done | Task implementation/review evidence records owner-first helpers and recoverable status paths for config/listener/poller work. |
+
+### Performance Contract Accounting
+
+| Contract bullet | Status | Evidence |
+| --- | --- | --- |
+| Build and use current checkout `surge` binary for every benchmark row. | Done | Built `/tmp/surge-epic6-closeout` from checkout commit `01a4f7e5`; report records the same commit. |
+| Compare single-shard and multi-shard native TCP rows. | Done | Report has 1-shard and 8-shard rows. |
+| Include 1, 8, and 32 connection rows. | Done | Report includes 1, 8, and 32 connections for 1 and 8 shards. |
+| Include at least one higher-load row near 1k, 10k if safe. | Done | Report includes 1024 connections; 10k remains skipped by the script's safety default. |
+| Record accept, fallback, steal, fd-readiness, and imbalance trace counters. | Done | Report includes runtime trace table with per-shard accepts, `global fallbacks`, `sched steal`, fd batches, and imbalance. |
+| Explain small-load regression and throughput result. | Done | Closeout notes state low-count skew is expected and 8-shard throughput is worse under the preserved global lock. |
+| Judge distribution from high-load row, not small skew. | Done | 8-shard/1024 row used all 8 accept shards; low-count skew is non-failure. |
+
+### Epic Acceptance Accounting
+
+| Acceptance item | Status | Evidence |
+| --- | --- | --- |
+| `SURGE_SHARDS=1` preserves stable Runtime V2 behavior. | Done | Single-shard compatibility accept test passed. |
+| `SURGE_SHARDS>1` initializes bounded shards and rejects invalid config. | Done | Shard config and invalid-config tests passed. |
+| Multi-shard mode uses one Tier 1 worker per shard and handles `SURGE_THREADS` conflicts. | Done | Worker-shape and conflicting-thread tests passed. |
+| Global-lock boundary is stated and preserved. | Done | Epic and `RUNTIME_V2.md` closeout sections state the boundary. |
+| Listener, connection, fd registry, and connection-task placement ownership is visible. | Done | Metadata tests and trace fields passed. |
+| Per-shard poller/wake exists without Phase 4 transport. | Done | Per-shard poller tests passed; no Phase 4 transport was introduced. |
+| Accepted connection fds register on owner shard. | Done | Owner-local waiter/fd registry tests passed. |
+| Tier 1 connection tasks are not stolen by non-owner shards. | Done | Scheduler no-steal tests and benchmark `sched steal=0` passed. |
+| Parked-with-local-work or equivalent no-sleep proof exists. | Done | Scheduler placement liveness/static tests passed; broader parked-with-work probes remain outside the narrow accept CI gate. |
+| Close, cancellation, readiness, and shutdown tests cover multi-shard path. | Done | Task 10/11/12 tests passed in `runtime-v2-check`. |
+| Stable multi-shard accept tests run in `runtime-v2-check` and CI. | Done | `runtime-v2-accept-check` passed standalone and through `runtime-v2-check`. |
+| Benchmarks compare single/multi-shard rows and explain global-lock result. | Done | Closeout benchmark report and interpretation recorded. |
+| `make c-check`, `make cppcheck`, `make runtime-v2-check`, `make check`, `git diff --check` pass or have unrelated blockers recorded. | Done with debt | `c-check`, `cppcheck`, `make check`, and final `runtime-v2-check` rerun passed. The first `runtime-v2-check` attempt hit known `RV2-DEBT-002` timeout class. |
+| Root, `runtime`, and `runtime/native` Sentrux scans are recorded. | Done | Final scans passed: root `6182`, runtime `5340`, runtime/native `5467`. |
+| Touched over-limit files have final line-count outcomes. | Done | Task 14 and closeout record final effective LOC and tightened ceilings. |
+| Every Epic 6 debt is closed or recorded with owner and close condition. | Done | `RV2-DEBT-010` and `RV2-DEBT-013` owners were updated; large-file debts remain open with tightened ceilings. |
+| Durable docs are updated with final state. | Done | Epic document, README, task index, debt ledger, notes, evidence, and `RUNTIME_V2.md` were updated. |
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| `git status -sb` | Clean before Task 15 edits; branch ahead of origin by 20 commits. |
+| `git diff --check` | Passed before closeout docs edit and after closeout docs edit. |
+| `./check_file_sizes.sh -a` | Passed; 708 files checked, 0 bad, 8 legacy ceilings. |
+| `make c-check` | Passed. |
+| `make cppcheck` | Passed. |
+| `timeout 600s make runtime-v2-accept-check` | Passed standalone. |
+| `timeout 600s make runtime-v2-check` | First attempt failed in `TestMTBlockingChannelHelpersAllowTimersToAdvance` with `program timeout after 30s`; this matches the accepted baseline `RV2-DEBT-002` timeout class. Immediate rerun passed the full Runtime V2 chain, including the accept gate. |
+| `timeout 900s make check` | Passed. |
+| `go build -ldflags "$(./scripts/ldflags.sh --local)" -o /tmp/surge-epic6-closeout ./cmd/surge` | Passed. |
+| `timeout 300s env SURGE=/tmp/surge-epic6-closeout SURGE_NET_BENCH_SHARDS="1 8" SURGE_NET_BENCH_CONNECTIONS="1 8 32 1024" SURGE_NET_BENCH_REQUESTS=8 SURGE_NET_BENCH_MODES=direct SURGE_NET_BENCH_PATTERNS=seq SURGE_NET_BENCH_REPORT=build/benchmarks/runtime-v2-epic6-closeout-native-net.md ./scripts/bench_native_net.sh` | Passed; report generated under ignored `build/benchmarks/`. |
+| `sentrux check .` | Passed, quality `6182`. |
+| `sentrux check runtime` | Passed, quality `5340`. |
+| `sentrux check runtime/native` | Passed, quality `5467`. |
+
+### Final Benchmark Confirmation
+
+Report: `build/benchmarks/runtime-v2-epic6-closeout-native-net.md`.
+
+| Row | avg us/op | Key trace evidence |
+| --- | ---: | --- |
+| 1 shard, 1024 connections | 22417.86 | `accept_0=1024`, `global fallbacks=0`, `sched steal=0`. |
+| 8 shards, 1024 connections | 31268.16 | all 8 accept shards active; `accept_0=152 accept_1=136 accept_2=120 accept_3=115 accept_4=141 accept_5=127 accept_6=126 accept_7=107`; `global fallbacks=0`, `sched steal=0`. |
+
+The eight-shard row is slower than the single-shard row in this direct/seq
+benchmark. This is accepted for Epic 6 because the global executor lock is
+still preserved. The row proves high-load owner distribution, no shard-0 net
+fallback, and no connection-task steal; it does not prove lock-level
+throughput scaling.
+
+### Sentrux Final Signals
+
+| Scope | Task 1 baseline | Final | Outcome |
+| --- | ---: | ---: | --- |
+| Repository root | 6190 | 6182 | Held with recorded closeout exception: all rules pass, affected runtime scopes improved, and the small root dip is not treated as a runtime-quality regression. |
+| `runtime` | 5279 | 5340 | Improved. |
+| `runtime/native` | 5318 | 5467 | Improved. |
+
+### Final Line Counts And Allowlist
+
+| Path | Final effective LOC | Allowlist state |
+| --- | ---: | --- |
+| `runtime/native/rt_net.c` | 818 | Legacy ceiling `818`. |
+| `runtime/native/rt_async_state.c` | 1722 | Legacy ceiling `1722`. |
+| `runtime/native/rt_async_task.c` | 731 | Legacy ceiling `731`. |
+| `runtime/native/rt_async_internal.h` | 478 | Under 500; no allowlist entry. |
+| `runtime/native/rt_runtime.c` | 281 | Under 500. |
+| `runtime/native/rt_fd_registry.c` | 401 | Under 500. |
+| `runtime/native/rt_async_waiter.c` | 488 | Under 500. |
+| `runtime/native/rt_net_poller.c` | 158 | Under 500. |
+| `runtime/native/rt_net_accept_group.c` | 246 | Under 500. |
+| `runtime/native/rt_net_handles.c` | 243 | Under 500. |
+| `runtime/native/rt_net_lifecycle.c` | 89 | Under 500. |
+| `runtime/native/rt_net_listener_socket.c` | 103 | Under 500. |
+| `runtime/native/rt_scheduler_placement.c` | 91 | Under 500. |
+
+### Debt State
+
+- No new durable debt was opened by Task 15.
+- `RV2-DEBT-010` remains open for copied raw net-handle generation safety and
+  now points to a future net handle ABI/lifecycle task.
+- `RV2-DEBT-013` remains open for stdlib HTTP raw `TcpConn` worker handoff and
+  now points to a future net handle ABI/lifecycle task or stdlib owner-local
+  server redesign before public multi-shard HTTP support.
+- `RV2-DEBT-003`, `RV2-DEBT-004`, and `RV2-DEBT-005` remain open with stricter
+  `.loc-legacy-allowlist` ceilings.
+- `RV2-DEBT-001`, `RV2-DEBT-002`, and `RV2-DEBT-011` remain Epic 11
+  test/backend matrix debt. Task 15 observed the `RV2-DEBT-002` timeout class
+  once and then passed the immediate rerun.
+
+### Epic 7 Handoff
+
+Epic 7 should split the global executor lock and move remaining global
+compatibility primitives toward shard-owned state. Start from this Epic 6
+shape:
+
+- shards own scheduler state, waiter stores, fd registries, net poll scratch,
+  heap accounting cells, trace counters, listener-group member state, and net
+  poll wake pipes;
+- accepted TCP connections remain owner-shard-local for registry, readiness,
+  close, cancellation cleanup, shutdown wake, and Tier 1 task placement;
+- `rt_executor.lock` still owns generic task/scope state, global scheduler
+  coordination, non-net waiter compatibility paths, channels, join, scope wake,
+  cancellation state, blocking completions, timers, `now_ms`, and generic ready
+  work.
+
+Do not fold Phase 4 into Epic 7. Cross-shard messaging, inbound queues,
+eventfd/credit protocols, remote select, distributed scopes, remote-free, and
+public crossing syntax remain later epics.
+
+### Syntax Gate
+
+No Surge syntax, keyword, parser, semantic-analysis, lowering, stdlib API, or
+public example surface changed in Epic 6 closeout. Any later epic that changes
+the crossing surface must stop first for a dedicated language discussion with
+the user. Names such as `far`, `submit_to`, `crosses`, and `shard-movable`
+remain semantic placeholders, not accepted syntax.
+
+## Result
+
+Epic 6 is closed. The native Runtime V2 net path now supports structural
+multi-shard accept ownership under the preserved global executor lock, with
+owner-local fd registry/waiter/poller behavior, per-shard wake, Tier 1
+connection-task no-steal placement, stable accept CI coverage, benchmark
+evidence, tightened LOC ceilings, and an explicit Epic 7 handoff. The remaining
+work is not hidden: copied/raw net-handle generation safety, stdlib HTTP
+owner-local handler design, legacy large-file cleanup, and the VM/native/LLVM
+test-matrix rewrite stay in `DEBT.md` with owners.

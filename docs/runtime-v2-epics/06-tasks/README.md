@@ -30,7 +30,7 @@ parts they need and point back to it for the rest.
 | 12 | `12-trace-counters-and-benchmark-evidence.md` | Complete | trace/benchmark | 9, 10, 11 |
 | 13 | `13-runtime-v2-accept-ci-gates.md` | Complete | CI | 4, 5, 12 |
 | 14 | `14-large-file-refactor-tranche.md` | Complete | refactor code | 11, 12, 13 |
-| 15 | `15-epic-closeout-and-static-gates.md` | Draft | closeout | all |
+| 15 | `15-epic-closeout-and-static-gates.md` | Complete | closeout | all |
 
 ## Rules
 

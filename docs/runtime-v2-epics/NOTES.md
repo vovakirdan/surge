@@ -2690,3 +2690,42 @@ pass, before any task execution began:
   `./check_file_sizes.sh -a`, `make c-check`, `make cppcheck`, `timeout 600s
   make runtime-v2-check`, `timeout 600s make check`, and Sentrux
   root/runtime/native scans (`6182`, `5340`, `5467`).
+
+## Epic 6 Task 15 Handoff
+
+- Epic 6 is closed. Task 15 was docs/closeout only; no runtime C, Go, stdlib,
+  parser, semantic, lowering, or public syntax files changed.
+- Implemented Runtime V2 contract: structural `N>1` native TCP accept
+  ownership under the preserved global executor lock; per-shard listener
+  groups; owner-shard fd registry/waiters/poller/wake for net readiness,
+  close, cancellation cleanup, and shutdown; one Tier 1 worker per shard in
+  multi-shard mode; no non-owner steal for connection tasks.
+- Deferred to Epic 7: splitting `rt_executor.lock` and moving remaining global
+  compatibility primitives toward shard-owned state. This includes generic
+  task/scope state, global scheduler coordination, non-net waiters, channels,
+  join, scope wake, cancellation state, blocking completions, timers,
+  `now_ms`, and generic ready work.
+- Deferred to later Phase 4+ epics: cross-shard messaging, inbound queues,
+  eventfd/credit protocols, remote select, distributed scopes, remote-free,
+  public crossing syntax, and alternate I/O backends.
+- Syntax gate remains active: before changing keywords, parser, semantic
+  checks, async lowering, stdlib public API, or public examples for crossing,
+  stop and discuss the language surface with the user. Current names such as
+  `far`, `submit_to`, `crosses`, and `shard-movable` are placeholders.
+- Debt state: no new Task 15 debt. `RV2-DEBT-010` and `RV2-DEBT-013` remain
+  open and now point to future net handle ABI/lifecycle or owner-local stdlib
+  server design. `RV2-DEBT-003`, `RV2-DEBT-004`, and `RV2-DEBT-005` remain
+  open with stricter LOC ceilings. `RV2-DEBT-001`, `RV2-DEBT-002`, and
+  `RV2-DEBT-011` remain Epic 11 test/backend matrix debt.
+- Final benchmark report:
+  `build/benchmarks/runtime-v2-epic6-closeout-native-net.md` (ignored build
+  artifact). The 8-shard/1024 row used all 8 accept shards with
+  `global fallbacks=0` and `sched steal=0`, but throughput was worse than the
+  1-shard row under the preserved global lock.
+- Final checks: `git diff --check`, `./check_file_sizes.sh -a`, `make c-check`,
+  `make cppcheck`, `timeout 600s make runtime-v2-accept-check`,
+  `timeout 900s make check`, final benchmark build/run, and Sentrux
+  root/runtime/native scans passed. First `timeout 600s make runtime-v2-check`
+  attempt hit the known `RV2-DEBT-002` timeout class in
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance`; the immediate rerun
+  passed the full Runtime V2 chain including the accept gate.

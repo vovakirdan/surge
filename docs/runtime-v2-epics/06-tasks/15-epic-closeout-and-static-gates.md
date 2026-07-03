@@ -1,6 +1,6 @@
 # Task 15: Epic Closeout And Static Gates
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** closeout
 **Depends on:** all prior Epic 6 tasks
 
@@ -136,26 +136,38 @@ Touch:
 
 ## Definition Of Done
 
-- [ ] Every Accept Ownership Contract, Performance Contract, and Epic
+- [x] Every Accept Ownership Contract, Performance Contract, and Epic
       Acceptance bullet is marked Done, Done-with-debt, or Blocked with
       evidence.
-- [ ] `NOTES.md`'s durable content is consolidated into the owning documents;
+- [x] `NOTES.md`'s durable content is consolidated into the owning documents;
       `NOTES.md` itself is left as a live working log, not the sole record of
       any final decision.
-- [ ] Final line counts and Sentrux signals are recorded against the Task 1
+- [x] Final line counts and Sentrux signals are recorded against the Task 1
       baseline.
-- [ ] The implemented-vs-deferred `RUNTIME_V2.md` contract accounting is
+- [x] The implemented-vs-deferred `RUNTIME_V2.md` contract accounting is
       explicit and does not overstate completion.
-- [ ] The Epic 7 handoff names the preserved global-lock boundary and every
+- [x] The Epic 7 handoff names the preserved global-lock boundary and every
       open question flagged by Tasks 6-14.
-- [ ] The syntax gate is restated plainly.
-- [ ] `06-tasks/README.md` and `README.md` reflect the final epic status.
+- [x] The syntax gate is restated plainly.
+- [x] `06-tasks/README.md` and `README.md` reflect the final epic status.
 
 ## Result
 
-(Fill in after closeout runs — do not pre-write this section; it must
-reflect what actually happened, following the pattern of Epic 4 Task 15's
-`## Result` section.)
+Epic 6 closed. The full accounting is in `06-evidence.md`: accept ownership,
+per-shard net poller/wake ownership, owner-local fd registry/waiters,
+connection-task no-steal placement, stable accept CI coverage, final benchmark
+evidence, Sentrux signals, and line counts are recorded there.
+
+The first closeout `runtime-v2-check` attempt hit the pre-existing
+`TestMTBlockingChannelHelpersAllowTimersToAdvance` timeout class already
+tracked by `RV2-DEBT-002`. The immediate rerun passed the full Runtime V2
+chain, including the new accept gate. `make check`, `make c-check`,
+`make cppcheck`, `runtime-v2-accept-check`, LOC-all, final benchmark smoke,
+and Sentrux root/`runtime`/`runtime/native` scans passed.
+
+No new implementation work was added in this task. `docs/RUNTIME_V2.md`,
+the epic document, the task index, `README.md`, `DEBT.md`, `NOTES.md`, and
+`06-evidence.md` now describe the final state and the Epic 7 handoff.
 
 ## Evidence To Record
 
