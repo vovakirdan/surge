@@ -938,7 +938,12 @@ void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter
     // active and can drain the injected continuation after the current poll yields,
     // parks, or completes. Generic external/net/timer wakes must signal sleepers.
     // Force inject keeps handoff order predictable and avoids local LIFO ping-pong.
-    wake_task_with_policy(ex, id, remove_waiter_flag, 1, 0, 0);
+    // The no-signal contract only covers the current worker's own scheduler: a
+    // task owned by another shard lands in a queue this worker never drains, so
+    // cross-scheduler handoffs must signal or the owner shard sleeps through it.
+    const rt_task* task = get_task(ex, id);
+    int same_scheduler = rt_task_scheduler(ex, task) == current_worker_scheduler(ex);
+    wake_task_with_policy(ex, id, remove_waiter_flag, 1, 0, same_scheduler ? 0 : 1);
 }
 
 static void ready_push_for_waker_key(rt_executor* ex, uint64_t id, waker_key key) {
