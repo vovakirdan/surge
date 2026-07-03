@@ -42,6 +42,12 @@ task, then move durable decisions into the owning epic document before closeout.
   VM/native/LLVM test-matrix rewrite remain out of scope.
 - Epic 5 should start from heap and hot accounting ownership. Do not start
   from `N>1`, crossing syntax, or cross-shard wake protocol work.
+- Epic 6 draft is recorded in
+  `06-n2-accept-ownership-and-tier1-scheduler.md`. It starts from `N>1` accept
+  ownership and the Tier 1 no-steal scheduler boundary. It must not change
+  Surge syntax, parser rules, semantic checks, async lowering, standard-library
+  signatures, or public examples for `far`, `submit_to`, `crosses`, or
+  shard-movable markers without a dedicated user syntax review first.
 - Pre-Epic 4 quality hardening is recorded: Sentrux rules now exist for root,
   `runtime/`, and `runtime/native`; CLI and MCP rule checks pass for all three
   paths. `check_file_sizes.sh` now checks `go,c,h` by default, prunes generated
