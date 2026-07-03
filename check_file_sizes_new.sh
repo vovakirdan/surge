@@ -17,10 +17,74 @@ BASE_THRESHOLD=675        # Минимальный порог строк
 DEVIATION_THRESHOLD=10    # Допустимое отклонение в %
 MIN_LINES_FOR_AVG=100     # Минимум строк для включения в расчёт среднего
 
-# count_code_lines подсчитывает строки кода в файле, исключая однострочные комментарии (//) и пустые строки
+# count_code_lines подсчитывает effective source LOC для Go: комментарии
+# удаляются перед подсчетом, и строка считается только если после этого
+# остается код. Строка с кодом и trailing comment считается одной строкой кода.
 count_code_lines() {
     local file=$1
-    grep -v '^\s*//' "$file" 2>/dev/null | grep -v '^\s*$' | wc -l
+
+    awk '
+        function has_code(line,    i, ch, next_ch, out) {
+            out = ""
+            for (i = 1; i <= length(line); i++) {
+                ch = substr(line, i, 1)
+                next_ch = substr(line, i + 1, 1)
+
+                if (in_block_comment) {
+                    if (ch == "*" && next_ch == "/") {
+                        in_block_comment = 0
+                        i++
+                    }
+                    continue
+                }
+
+                if (quote != "") {
+                    out = out ch
+                    if (quote == "`") {
+                        if (ch == "`") {
+                            quote = ""
+                        }
+                    } else if (escaped) {
+                        escaped = 0
+                    } else if (ch == "\\") {
+                        escaped = 1
+                    } else if (ch == quote) {
+                        quote = ""
+                    }
+                    continue
+                }
+
+                if (ch == "\"" || ch == "\047" || ch == "`") {
+                    out = out ch
+                    quote = ch
+                    escaped = 0
+                    continue
+                }
+
+                if (ch == "/" && next_ch == "/") {
+                    break
+                }
+
+                if (ch == "/" && next_ch == "*") {
+                    in_block_comment = 1
+                    i++
+                    continue
+                }
+
+                out = out ch
+            }
+
+            if (quote != "`") {
+                quote = ""
+                escaped = 0
+            }
+
+            return out ~ /[^[:space:]]/
+        }
+
+        has_code($0) { c++ }
+        END { print c + 0 }
+    ' "$file" 2>/dev/null
 }
 
 # is_test_file проверяет, является ли файл тестовым

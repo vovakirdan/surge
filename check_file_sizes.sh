@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Скрипт для проверки размера файлов в git репозитории
-# Оценка по effective source LOC: пустые строки и comment-only строки не
-# считаются для поддерживаемых исходников (.go/.c/.h).
+# Оценка по effective source LOC: комментарии удаляются перед подсчетом, и
+# строка считается только если после этого в ней остается код. Поддерживаемые
+# исходники: .go/.c/.h.
 # <=525 +- 50 OK green
 # 575 - 675 Yellow acceptable  
 # 675+ BAD need refactoring
@@ -225,9 +226,9 @@ count_source_lines() {
     ' "$file" 2>/dev/null
 }
 
-# count_effective_lines counts source LOC for supported source formats. A line
-# counts only if it contains code after removing comments; code-bearing lines
-# with trailing comments still count.
+# count_effective_lines counts source LOC for supported source formats.
+# Comments are stripped first; a line counts only when code remains. A line
+# that contains code plus a trailing comment still counts as one source line.
 count_effective_lines() {
     local file=$1
     local ext="${file##*.}"
