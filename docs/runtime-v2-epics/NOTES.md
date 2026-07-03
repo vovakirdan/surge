@@ -2388,3 +2388,40 @@ pass, before any task execution began:
   `close_owner_wakeups`, `cancel_owner_cleanup`,
   `shutdown_poller_wakeups`, `non_owner_conn_denied`, and
   `listener_group_members_closed`.
+
+## Epic 6 Task 07 Handoff
+
+- Scope completed: per-shard scheduler placement. `rt_start_workers` now
+  allocates worker contexts and starts Tier 1 workers per configured shard;
+  `SURGE_SHARDS>1` uses one worker per shard, while `SURGE_SHARDS=1` preserves
+  existing MT stealing/seeded compatibility.
+- Task placement metadata lives on `rt_task`: `placement_class`,
+  `owner_shard_valid`, and `owner_shard_id`. `TASK_PLACEMENT_CONNECTION`
+  marks Tier 1 connection-owned tasks; generic/unowned tasks keep compatibility
+  scheduling.
+- Task 8/9 must use `rt_task_set_placement(..., owner_shard,
+  TASK_PLACEMENT_CONNECTION)` or a narrow wrapper when attaching accepted
+  connection handler tasks to owner shards.
+- Invalid owner shard placement now fails closed with
+  `async: invalid task owner shard`; do not reintroduce shard-0 fallback for
+  owner-marked work.
+- No-steal proof: `TestRuntimeV2SchedulerPlacementNoStealWorkerPath` keeps
+  shard 1's worker busy, enqueues a connection-owned target task on shard 1,
+  verifies shard 0 does not run it while idle, then releases shard 1 and checks
+  `SCHED_TRACE steal=0`.
+- Parked-with-work proof closed for the scheduler-ready-queue form only: the
+  worker sleep path asserts `rt_debug_assert_no_parked_with_work(ex,
+  ctx->shard_id)` before `pthread_cond_wait`, and the harness deliberately
+  panics on queued shard-local work. Per-shard poller/fd-ready wake proof
+  remains Task 10 scope.
+- Trace snapshot fields `worker_count`, `running`, `inject_len`,
+  `local_total`, and `local_max` now aggregate across shards.
+- Independent review initially found missing adversarial no-steal proof,
+  invalid-owner shard0 fallback, and narrow parked-with-work coverage. All
+  findings were fixed and then closed by re-review.
+- Final gates passed: `make c-check`, `make cppcheck`, focused MT
+  steal/seeded tests, focused scheduler-placement tests, Task 5 static gates,
+  `make runtime-v2-check`, `make check`, `git diff --check`,
+  `./check_file_sizes.sh --self-test`, `./check_file_sizes.sh`,
+  `sentrux check .` quality 6185, `sentrux check runtime` quality 5332, and
+  `sentrux check runtime/native` quality 5353.

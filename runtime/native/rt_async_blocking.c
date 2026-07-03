@@ -257,6 +257,7 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
     rt_task* parent = rt_current_task();
     if (parent != NULL) {
         task_add_child(parent, id);
+        rt_task_inherit_placement(task, parent);
     }
 
     rt_blocking_job* job =

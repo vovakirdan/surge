@@ -13,6 +13,7 @@ static _Atomic uint64_t trace_park_attempt_total;
 static _Atomic uint64_t trace_park_committed_total;
 static _Atomic uint64_t trace_worker_sleep_total;
 static _Atomic uint64_t trace_worker_wake_total;
+static _Atomic uint64_t trace_parked_with_work_total;
 static _Atomic uint64_t trace_channel_blocking_wait_total;
 static _Atomic uint64_t trace_channel_task_blocking_send_total;
 static _Atomic uint64_t trace_channel_task_blocking_recv_total;
@@ -66,6 +67,10 @@ void rt_trace_worker_sleep(void) {
 
 void rt_trace_worker_wake(void) {
     trace_inc_atomic(&trace_worker_wake_total);
+}
+
+void rt_trace_parked_with_work(void) {
+    trace_inc_atomic(&trace_parked_with_work_total);
 }
 
 void rt_trace_channel_blocking_wait(void) {
@@ -122,6 +127,37 @@ trace_append_kv_u64(char* buf, size_t* pos, size_t cap, const char* name, uint64
     *pos = trace_append_u64(buf, *pos, cap, value);
 }
 
+static void trace_collect_scheduler_snapshot(const rt_runtime* runtime,
+                                             uint64_t* worker_count,
+                                             uint64_t* running,
+                                             uint64_t* inject_len,
+                                             uint64_t* local_total,
+                                             uint64_t* local_max) {
+    if (runtime == NULL || runtime->shard_count < 1 ||
+        runtime->shard_count > RT_RUNTIME_MAX_SHARDS) {
+        return;
+    }
+    for (size_t i = 0; i < runtime->shard_count; i++) {
+        const rt_scheduler* scheduler = rt_shard_scheduler_const(&runtime->shards[i]);
+        if (scheduler == NULL) {
+            continue;
+        }
+        *worker_count += scheduler->worker_count;
+        *running += scheduler->running_count;
+        *inject_len += scheduler->inject.len;
+        if (scheduler->local_queues == NULL) {
+            continue;
+        }
+        for (uint32_t worker = 0; worker < scheduler->worker_count; worker++) {
+            uint64_t len = (uint64_t)scheduler->local_queues[worker].len;
+            *local_total += len;
+            if (len > *local_max) {
+                *local_max = len;
+            }
+        }
+    }
+}
+
 static void trace_exec_dump(const char* reason) {
     if (!rt_exec_trace_enabled()) {
         return;
@@ -173,6 +209,12 @@ static void trace_exec_dump(const char* reason) {
                            pos,
                            sizeof(buf),
                            atomic_load_explicit(&trace_worker_wake_total, memory_order_relaxed));
+    pos = trace_append_literal(buf, pos, sizeof(buf), " parked_with_work=");
+    pos =
+        trace_append_u64(buf,
+                         pos,
+                         sizeof(buf),
+                         atomic_load_explicit(&trace_parked_with_work_total, memory_order_relaxed));
     pos = trace_append_literal(buf, pos, sizeof(buf), " channel_blocking_wait=");
     pos = trace_append_u64(
         buf,
@@ -241,6 +283,9 @@ static void trace_exec_snapshot_dump(const char* reason) {
     if (!ex->initialized) {
         return;
     }
+    uint64_t worker_count = 0;
+    uint64_t running = 0;
+    uint64_t inject_len = 0;
     uint64_t local_total = 0;
     uint64_t local_max = 0;
     uint64_t tasks_ready = 0;
@@ -262,17 +307,9 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t waiters_other = 0;
 
     rt_lock(ex);
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
     const rt_waiter_store* waiter_store = rt_executor_waiter_store_const(ex);
-    if (scheduler != NULL && scheduler->local_queues != NULL) {
-        for (uint32_t i = 0; i < scheduler->worker_count; i++) {
-            uint64_t len = (uint64_t)scheduler->local_queues[i].len;
-            local_total += len;
-            if (len > local_max) {
-                local_max = len;
-            }
-        }
-    }
+    trace_collect_scheduler_snapshot(
+        ex->runtime, &worker_count, &running, &inject_len, &local_total, &local_max);
     for (size_t i = 1; i < ex->tasks_cap; i++) {
         const rt_task* task = ex->tasks[i];
         if (task == NULL) {
@@ -340,10 +377,8 @@ static void trace_exec_snapshot_dump(const char* reason) {
         pos = trace_append_literal(buf, pos, sizeof(buf), " reason=");
         pos = trace_append_literal(buf, pos, sizeof(buf), reason);
     }
-    trace_append_kv_u64(
-        buf, &pos, sizeof(buf), "worker_count", scheduler != NULL ? scheduler->worker_count : 0);
-    trace_append_kv_u64(
-        buf, &pos, sizeof(buf), "running", scheduler != NULL ? scheduler->running_count : 0);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "worker_count", worker_count);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "running", running);
     trace_append_kv_u64(buf,
                         &pos,
                         sizeof(buf),
@@ -356,8 +391,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
                         sizeof(buf),
                         "compensation_high_water",
                         compat != NULL ? compat->compensation_high_water : 0);
-    trace_append_kv_u64(
-        buf, &pos, sizeof(buf), "inject_len", scheduler != NULL ? scheduler->inject.len : 0);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "inject_len", inject_len);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "local_max", local_max);
     trace_append_kv_u64(

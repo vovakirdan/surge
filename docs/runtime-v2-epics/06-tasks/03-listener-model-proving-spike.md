@@ -1,6 +1,6 @@
 # Task 3: Listener Model Proving Spike
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** proving spike
 **Depends on:** Task 1, Task 2
 

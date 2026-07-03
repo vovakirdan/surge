@@ -10,10 +10,10 @@ keep `NOTES.md` as the live handoff log.
 | 1 | Complete | Starting state, structural facts, accepted debt, line counts, Sentrux scans, current gates, and Task 2-5 gate plan recorded below. |
 | 2 | Complete with post-facto audit | Accept/readiness/close/cancellation/shutdown dependency map recorded in `06-accept-ownership-dependency-map.md`; no unowned gap found. The subagent committed before the intended review handoff, so main-agent audit followed the commit. |
 | 3 | Complete with process exception | Listener model proving spike chose per-shard `SO_REUSEPORT` listener groups; fallback handoff recorded as compatibility-only; `RV2-DEBT-013` added for stdlib HTTP raw-handle worker handoff. The subagent implemented and committed before explicit approval, so main-agent audit reran the proof before accepting the decision. |
-| 4 | Pending | Multishard accept contract tests. |
-| 5 | Pending | Multishard static shape tests. |
-| 6 | Pending | Runtime shard array and config. |
-| 7 | Pending | Per-shard scheduler placement. |
+| 4 | Complete | Multishard accept contract tests recorded below. |
+| 5 | Complete | Multishard static shape tests recorded below. |
+| 6 | Complete | Runtime shard array and config recorded below. |
+| 7 | Complete | Per-shard scheduler placement recorded below. |
 | 8 | Pending | Listener and connection owner metadata. |
 | 9 | Pending | Accept distribution implementation. |
 | 10 | Pending | Per-shard poller and wake ownership. |
@@ -815,3 +815,142 @@ gates passed.
 - [x] Line-count impact is recorded; all new/heavily rewritten code files stay
       under the 500-line target, and legacy over-limit files did not grow past
       their allowlist ceilings.
+
+## Task 7: Per-Shard Scheduler Placement
+
+Status: complete on 2026-07-03.
+
+### Scope Completed
+
+- Made `rt_start_workers` shard-aware. Under `SURGE_SHARDS>1`, each configured
+  shard gets its own `scheduler.worker_ctxs` and real worker thread(s) using
+  that shard's scheduler; under `SURGE_SHARDS=1`, the compatibility worker
+  model is preserved.
+- Added scheduler placement metadata to `rt_task`:
+  `placement_class`, `owner_shard_valid`, and `owner_shard_id`.
+- Added `TASK_PLACEMENT_CONNECTION` as the Tier 1 owner-local class. Generic
+  tasks remain compatible with existing scheduling and stealing behavior.
+- Added placement helpers in `runtime/native/rt_scheduler_placement.c`,
+  including `rt_task_scheduler`, `rt_task_set_placement`,
+  `rt_task_inherit_placement`, `rt_task_can_steal_from_shard`, and
+  `rt_debug_assert_no_parked_with_work`.
+- Routed ready placement through the task owner when present; unowned work keeps
+  current-worker/shard-0 compatibility behavior.
+- Modified steal pops so connection-owned tasks cannot be stolen by a
+  non-owner shard. Denied steals restore the deque entry and return before
+  `SCHED_TRACE` records a steal.
+- Made invalid owner-shard placement fail closed with
+  `async: invalid task owner shard` instead of silently falling back to shard 0.
+- Aggregated scheduler snapshot trace fields across shards:
+  `worker_count`, `running`, `inject_len`, `local_total`, and `local_max`.
+- Added `parked_with_work` trace accounting and a scheduler-queue
+  parked-with-work assertion on the actual worker sleep path before
+  `pthread_cond_wait`.
+
+### Placement And Boundary Decisions
+
+Task owner metadata lives directly on `rt_task`. This is intentionally earlier
+than listener/connection metadata because Task 8 has not yet added connection
+objects with owner-shard fields. Task 8/9 should attach accepted connection
+handlers by calling `rt_task_set_placement(task, owner_shard,
+TASK_PLACEMENT_CONNECTION)` or an equivalent internal wrapper.
+
+The no-steal rule is class-aware: only `TASK_PLACEMENT_CONNECTION` with a valid
+owner shard is protected. Generic/unowned tasks retain the current compatibility
+scheduler, including intra-shard stealing for `SURGE_SHARDS=1` and for any
+future per-shard worker count greater than one.
+
+The parked-with-work invariant closed in Task 7 is the scheduler-ready-queue
+form: a worker may not sleep while its own shard scheduler has inject/local
+ready work. Local fd-ready batches, per-shard wake fds, and poller sleep/wake
+ownership remain Task 10 scope, not Task 7 scope.
+
+### Files Touched
+
+| Path | Physical LOC | Effective LOC | Notes |
+| --- | ---: | ---: | --- |
+| `runtime/native/rt_async_internal.h` | 501 | 440 | Under effective target; adds placement fields/prototypes. |
+| `runtime/native/rt_async_state.c` | 1857 | 1726 | Legacy-ok under `.loc-legacy-allowlist` ceiling 1727; worker placement now shard-aware. |
+| `runtime/native/rt_async_task.c` | 770 | 731 | Legacy-ok under ceiling 768 effective LOC; child/checkpoint/sleep tasks inherit placement. |
+| `runtime/native/rt_async_blocking.c` | 294 | 278 | Blocking tasks inherit parent placement. |
+| `runtime/native/rt_async_trace.c` | 534 | 498 | Under effective target; aggregates scheduler snapshot fields across shards. |
+| `runtime/native/rt_scheduler_placement.c` | 85 | 78 | New placement/no-steal/invariant helper module. |
+| `internal/vm/runtime_v2_scheduler_placement_test.go` | 455 | n/a | New pending harness tests for worker shape, no-steal, invalid owner, and invariant panic. |
+| `internal/vm/runtime_v2_scheduler_placement_source_test.go` | 76 | n/a | New pending source gates for steal validation and worker sleep assertion placement. |
+
+### Contracts Proven
+
+- `SURGE_SHARDS=4` with `SURGE_THREADS=4` and with `SURGE_THREADS` unset
+  creates four Tier 1 workers, one per shard, with matching heap worker cells.
+- `rt_worker_count()` reports total Tier 1 workers under `SURGE_SHARDS>1`.
+- `SURGE_SHARDS=1` keeps existing `TestMTWorkStealing` and
+  `TestMTSeededScheduler` behavior green.
+- Connection-owned tasks are not stolen by a non-owner shard. The adversarial
+  harness pins a gate and target task to shard 1, keeps shard 1's worker busy,
+  verifies the target does not run while shard 0 is idle, releases shard 1, and
+  verifies `SCHED_TRACE steal=0`.
+- Generic/unowned tasks remain stealable by the compatibility policy.
+- Invalid owner-shard placement fails closed.
+- The worker sleep path calls the shard-local parked-with-work assertion before
+  sleeping, and a deliberate queued-work violation panics with
+  `parked-with-work invariant violated`.
+- Task 5 static gates still pass: net-owned shard-0 shortcuts remain blocked,
+  and the dynamic shard array shape stays valid.
+
+### Review Pass
+
+Independent review initially found three issues:
+
+- P1: no real worker-path no-steal proof. Fixed with
+  `TestRuntimeV2SchedulerPlacementNoStealWorkerPath`.
+- P2: invalid owner shard fell back to shard 0. Fixed by failing closed in
+  `rt_task_scheduler` plus
+  `TestRuntimeV2SchedulerPlacementInvalidOwnerFailsClosed`.
+- P2: parked-with-work coverage was too narrow. Fixed with
+  `TestRuntimeV2SchedulerPlacementParkedWithWorkSourceGate`, proving the
+  assertion is on the actual worker sleep path, while keeping fd-ready/poller
+  wake ownership in Task 10 scope.
+
+The reviewer re-ran the focused placement tests and confirmed all previous
+findings closed. No remaining Task 7 finding is open.
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| `make c-check` | Passed. |
+| `make cppcheck` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run 'TestMT(WorkStealing\|SeededScheduler)' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SchedulerPlacement' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut\|TestRuntimeV2AcceptDynamicShardArrayShape\|TestRuntimeV2Skeleton\|TestRuntimeV2FDRegistryStatic' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `make runtime-v2-check` | Passed. |
+| `make check` | Passed. |
+| `./check_file_sizes.sh --self-test` | Passed. |
+| `./check_file_sizes.sh` | Passed; touched runtime files are OK or legacy-ok under effective LOC. |
+| `git diff --check` | Passed. |
+| `sentrux check .` | Passed, quality 6185. |
+| `sentrux check runtime` | Passed, quality 5332. |
+| `sentrux check runtime/native` | Passed, quality 5353. |
+
+### Remaining Work
+
+- Task 8 must add listener/connection owner metadata and connect it to the
+  task-placement mechanism introduced here.
+- Task 9 must place accepted handler tasks on the accepting shard.
+- Task 10 owns per-shard poller/wake-fd ownership and the fd-ready/poller form
+  of parked-with-work/lost-wakeup proof.
+
+### Definition Of Done
+
+- [x] `rt_start_workers` is shard-aware and preserves `SURGE_SHARDS=1`
+      compatibility.
+- [x] Owner-shard metadata exists on `rt_task` and can be used for connection
+      tasks.
+- [x] A non-owner shard cannot steal a marked connection task; proven by an
+      adversarial worker-path test and `SCHED_TRACE steal=0`.
+- [x] Existing `TestMTWorkStealing`/`TestMTSeededScheduler` stay green under
+      the compatibility path.
+- [x] CPU-bound/generic tasks are unaffected by the connection-only steal rule.
+- [x] Scheduler queued-work parked-with-work invariant is implemented and
+      proven on the worker sleep path with a deliberate violation test.
+- [x] Relevant Task 5 static gates remain green.

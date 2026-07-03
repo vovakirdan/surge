@@ -45,6 +45,7 @@ void* __task_create(
     rt_task* parent = rt_current_task();
     if (parent != NULL) {
         task_add_child(parent, id);
+        rt_task_inherit_placement(task, parent);
     }
     ready_push(ex, id);
     rt_unlock(ex);
@@ -143,7 +144,7 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     if (ex == NULL || current == NULL || target == NULL) {
         return;
     }
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    rt_scheduler* scheduler = rt_task_scheduler(ex, target);
     if (scheduler == NULL) {
         return;
     }
@@ -175,8 +176,7 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
     if (target == NULL) {
         return;
     }
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
-    if (scheduler != NULL && scheduler->worker_count > 1) {
+    if (rt_worker_count() > 1) {
         rt_lock(ex);
         if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
             wake_task(ex, target->id, 1);
@@ -692,6 +692,7 @@ static rt_task* spawn_checkpoint_task_locked(rt_executor* ex) {
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
+    rt_task_inherit_placement(task, rt_current_task());
     ex->tasks[id] = task;
     ready_push(ex, id);
     return task;
@@ -717,6 +718,7 @@ static rt_task* spawn_sleep_task_locked(rt_executor* ex, uint64_t delay) {
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
+    rt_task_inherit_placement(task, rt_current_task());
     ex->tasks[id] = task;
     ready_push(ex, id);
     return task;

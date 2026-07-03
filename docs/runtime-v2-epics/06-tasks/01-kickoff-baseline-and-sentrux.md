@@ -1,6 +1,6 @@
 # Task 1: Kickoff Baseline And Sentrux
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** evidence
 **Depends on:** none
 

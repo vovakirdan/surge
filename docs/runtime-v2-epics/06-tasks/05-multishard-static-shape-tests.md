@@ -1,6 +1,6 @@
 # Task 5: Multishard Static Shape Tests
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** test/static checks
 **Depends on:** Task 1, Task 2, Task 3
 

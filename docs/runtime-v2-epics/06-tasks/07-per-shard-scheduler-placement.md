@@ -1,6 +1,6 @@
 # Task 7: Per-Shard Scheduler Placement
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 **Depends on:** Task 6
 

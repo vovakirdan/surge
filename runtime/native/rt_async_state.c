@@ -13,11 +13,16 @@ _Thread_local waker_key pending_key;
 _Thread_local uint64_t tls_current_id;
 _Thread_local rt_task* tls_current_task;
 _Thread_local int tls_worker_id = -1;
+static _Thread_local rt_worker_ctx* tls_worker_ctx;
 static pthread_once_t exec_once = PTHREAD_ONCE_INIT;
 struct rt_worker_ctx {
     rt_executor* ex;
+    rt_shard* shard;
+    rt_scheduler* scheduler;
     rt_heap_accounting_cell* heap_cell;
+    uint32_t shard_id;
     uint32_t worker_id;
+    uint32_t worker_index;
     uint64_t sched_rng;
 };
 
@@ -147,10 +152,27 @@ static uint8_t rt_env_channel_wake_force_inject(void) {
 static void rt_start_workers(rt_executor* ex);
 static void* rt_worker_main(void* arg);
 static void* rt_io_main(void* arg);
+static int scheduler_runnable_is_empty(const rt_scheduler* scheduler);
 static int runnable_is_empty(const rt_executor* ex);
-static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_id);
+static uint32_t runtime_running_count(const rt_executor* ex);
+static int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id);
 static void maybe_start_compensation_worker_locked(rt_executor* ex);
 static void move_current_local_to_inject_locked(rt_executor* ex);
+
+static uint32_t rt_config_total_worker_threads(const rt_runtime_start_config* config) {
+    if (config == NULL) {
+        return 0;
+    }
+    if (config->shard_count <= 1) {
+        return config->legacy_worker_threads;
+    }
+    if (config->shard_worker_count == 0 ||
+        config->shard_count > (size_t)(UINT32_MAX / config->shard_worker_count)) {
+        panic_msg("async: worker count overflow");
+        return 0;
+    }
+    return (uint32_t)config->shard_count * config->shard_worker_count;
+}
 
 static void exec_init_once(void) {
     rt_executor* ex = &exec_state;
@@ -172,10 +194,11 @@ static void exec_init_once(void) {
     rt_exec_trace_init();
     rt_sched_trace_init();
     uint32_t threads = config.legacy_worker_threads;
+    uint32_t total_worker_threads = rt_config_total_worker_threads(&config);
     uint32_t blocking_threads = config.blocking_threads;
     ex->blocking_count = blocking_threads;
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
-    if (rt_heap_accounting_prepare_cells(accounting, threads, blocking_threads) !=
+    if (rt_heap_accounting_prepare_cells(accounting, total_worker_threads, blocking_threads) !=
         RT_HEAP_ACCOUNTING_OK) {
         rt_runtime_destroy_global();
         panic_msg("async: heap accounting cell allocation failed");
@@ -194,7 +217,7 @@ static void exec_init_once(void) {
         panic_msg("async: scheduler initialization failed");
     }
     channel_wake_force_inject = rt_env_channel_wake_force_inject();
-    if (threads > 1) {
+    if (threads > 1 || rt_runtime_shard_count(rt_executor_runtime(ex)) > 1) {
         rt_start_workers(ex);
     }
     rt_blocking_init(ex);
@@ -208,15 +231,11 @@ rt_executor* ensure_exec(void) {
 
 uint64_t rt_worker_count(void) {
     const rt_executor* ex = ensure_exec();
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
-    return scheduler != NULL ? (uint64_t)scheduler->worker_count : 0;
+    const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
+    return rt_runtime_total_worker_count(runtime);
 }
 
-static int runnable_is_empty(const rt_executor* ex) {
-    if (ex == NULL) {
-        return 1;
-    }
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+static int scheduler_runnable_is_empty(const rt_scheduler* scheduler) {
     if (scheduler == NULL) {
         return 1;
     }
@@ -234,6 +253,37 @@ static int runnable_is_empty(const rt_executor* ex) {
     return 1;
 }
 
+static int runnable_is_empty(const rt_executor* ex) {
+    const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
+    if (runtime == NULL || runtime->shard_count < 1 ||
+        runtime->shard_count > RT_RUNTIME_MAX_SHARDS) {
+        return 1;
+    }
+    for (size_t i = 0; i < runtime->shard_count; i++) {
+        const rt_scheduler* scheduler = rt_shard_scheduler_const(&runtime->shards[i]);
+        if (!scheduler_runnable_is_empty(scheduler)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static uint32_t runtime_running_count(const rt_executor* ex) {
+    const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
+    if (runtime == NULL || runtime->shard_count < 1 ||
+        runtime->shard_count > RT_RUNTIME_MAX_SHARDS) {
+        return 0;
+    }
+    uint32_t total = 0;
+    for (size_t i = 0; i < runtime->shard_count; i++) {
+        const rt_scheduler* scheduler = rt_shard_scheduler_const(&runtime->shards[i]);
+        if (scheduler != NULL) {
+            total += scheduler->running_count;
+        }
+    }
+    return total;
+}
+
 static uint64_t sched_next_u64(rt_worker_ctx* ctx) {
     if (ctx == NULL) {
         return 0;
@@ -245,27 +295,28 @@ static uint64_t sched_next_u64(rt_worker_ctx* ctx) {
 }
 
 static void rt_start_workers(rt_executor* ex) {
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
-    if (ex == NULL || scheduler == NULL || scheduler->worker_count <= 1) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    if (ex == NULL || runtime == NULL || runtime->shard_count < 1 ||
+        runtime->shard_count > RT_RUNTIME_MAX_SHARDS) {
         return;
     }
-    uint32_t count = scheduler->worker_count;
-    size_t total = (size_t)count + 1;
-    pthread_t* threads =
-        (pthread_t*)rt_alloc((uint64_t)total * (uint64_t)sizeof(pthread_t), _Alignof(pthread_t));
+    uint64_t total_workers64 = rt_runtime_total_worker_count(runtime);
+    if (runtime->shard_count <= 1 && total_workers64 <= 1) {
+        return;
+    }
+    if (total_workers64 == 0 || total_workers64 > UINT32_MAX) {
+        panic_msg("async: worker count overflow");
+        return;
+    }
+    uint32_t total_workers = (uint32_t)total_workers64;
+    size_t thread_count = (size_t)total_workers + 1;
+    pthread_t* threads = (pthread_t*)rt_alloc((uint64_t)thread_count * (uint64_t)sizeof(pthread_t),
+                                              _Alignof(pthread_t));
     if (threads == NULL) {
         panic_msg("async: worker allocation failed");
         return;
     }
-    rt_worker_ctx* ctxs = (rt_worker_ctx*)rt_alloc(
-        (uint64_t)count * (uint64_t)sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
-    if (ctxs == NULL) {
-        panic_msg("async: worker context allocation failed");
-        return;
-    }
-    memset(ctxs, 0, count * sizeof(rt_worker_ctx));
     ex->workers = threads;
-    scheduler->worker_ctxs = ctxs;
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
     if (pthread_create(&threads[0], NULL, rt_io_main, ex) != 0) {
         panic_msg("async: io worker start failed");
@@ -273,18 +324,63 @@ static void rt_start_workers(rt_executor* ex) {
     }
     (void)pthread_detach(threads[0]);
     ex->io_started = 1;
-    for (uint32_t i = 0; i < count; i++) {
-        ctxs[i].ex = ex;
-        ctxs[i].heap_cell = rt_heap_accounting_worker_cell(accounting, i);
-        ctxs[i].worker_id = i;
-        ctxs[i].sched_rng =
-            scheduler->sched_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(i + 1);
-        if (pthread_create(&threads[i + 1], NULL, rt_worker_main, &ctxs[i]) != 0) {
-            panic_msg("async: worker start failed");
+    uint32_t flat_index = 0;
+    for (size_t shard_index = 0; shard_index < runtime->shard_count; shard_index++) {
+        rt_shard* shard = rt_runtime_shard(runtime, shard_index);
+        rt_scheduler* scheduler = rt_shard_scheduler(shard);
+        if (shard == NULL || scheduler == NULL || scheduler->worker_count == 0) {
+            continue;
+        }
+        uint32_t count = scheduler->worker_count;
+        rt_worker_ctx* ctxs = (rt_worker_ctx*)rt_alloc(
+            (uint64_t)count * (uint64_t)sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
+        if (ctxs == NULL) {
+            panic_msg("async: worker context allocation failed");
             return;
         }
-        (void)pthread_detach(threads[i + 1]);
+        memset(ctxs, 0, (size_t)count * sizeof(rt_worker_ctx));
+        scheduler->worker_ctxs = ctxs;
+        for (uint32_t i = 0; i < count; i++) {
+            ctxs[i].ex = ex;
+            ctxs[i].shard = shard;
+            ctxs[i].scheduler = scheduler;
+            ctxs[i].heap_cell = rt_heap_accounting_worker_cell(accounting, flat_index);
+            ctxs[i].shard_id = shard->shard_id;
+            ctxs[i].worker_id = i;
+            ctxs[i].worker_index = flat_index;
+            ctxs[i].sched_rng =
+                scheduler->sched_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(flat_index + 1U);
+            if (pthread_create(&threads[(size_t)flat_index + 1], NULL, rt_worker_main, &ctxs[i]) !=
+                0) {
+                panic_msg("async: worker start failed");
+                return;
+            }
+            (void)pthread_detach(threads[(size_t)flat_index + 1]);
+            flat_index++;
+        }
     }
+}
+
+int rt_debug_validate_worker_ctx(rt_executor* ex,
+                                 uint32_t shard_id,
+                                 uint32_t worker_id,
+                                 uint32_t worker_index) {
+    rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), shard_id);
+    rt_scheduler* scheduler = rt_shard_scheduler(shard);
+    if (shard == NULL || scheduler == NULL || scheduler->worker_ctxs == NULL ||
+        worker_id >= scheduler->worker_count) {
+        return 0;
+    }
+    rt_worker_ctx* ctx = &scheduler->worker_ctxs[worker_id];
+    rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
+    return ctx->ex == ex && ctx->shard == shard && ctx->scheduler == scheduler &&
+           ctx->shard_id == shard_id && ctx->worker_id == worker_id &&
+           ctx->worker_index == worker_index &&
+           ctx->heap_cell == rt_heap_accounting_worker_cell(accounting, worker_index);
+}
+
+uint32_t rt_debug_current_worker_shard_id(void) {
+    return tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : UINT32_MAX;
 }
 
 rt_task* get_task(rt_executor* ex, uint64_t id) {
@@ -610,19 +706,48 @@ void clear_select_timers(rt_executor* ex, rt_task* task) {
     task->select_timers_len = 0;
 }
 
-static rt_deque* current_local_queue(rt_executor* ex) {
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+static rt_scheduler* current_worker_scheduler(const rt_executor* ex) {
+    if (tls_worker_ctx == NULL || tls_worker_ctx->ex != ex) {
+        return NULL;
+    }
+    return tls_worker_ctx->scheduler;
+}
+
+static rt_scheduler* ready_scheduler_for_task(rt_executor* ex, const rt_task* task) {
+    if (task != NULL && task->owner_shard_valid != 0) {
+        return rt_task_scheduler(ex, task);
+    }
+    rt_scheduler* scheduler = current_worker_scheduler(ex);
+    return scheduler != NULL ? scheduler : rt_executor_scheduler(ex);
+}
+
+static rt_deque* current_local_queue(const rt_executor* ex, rt_scheduler* scheduler) {
     if (scheduler == NULL || scheduler->local_queues == NULL || scheduler->worker_count == 0) {
         return NULL;
     }
-    if (tls_worker_id < 0 || (uint32_t)tls_worker_id >= scheduler->worker_count) {
+    if (current_worker_scheduler(ex) != scheduler || tls_worker_ctx == NULL) {
         return NULL;
     }
-    return &scheduler->local_queues[(uint32_t)tls_worker_id];
+    if (tls_worker_ctx->worker_id >= scheduler->worker_count) {
+        return NULL;
+    }
+    return &scheduler->local_queues[tls_worker_ctx->worker_id];
 }
 
-static int pop_task_from_deque(
-    rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, rt_trace_sched_source source) {
+static void signal_ready_workers(rt_executor* ex) {
+    if (rt_runtime_shard_count(rt_executor_runtime(ex)) > 1) {
+        pthread_cond_broadcast(&ex->ready_cv);
+        return;
+    }
+    pthread_cond_signal(&ex->ready_cv);
+}
+
+static int pop_task_from_deque(rt_executor* ex,
+                               rt_deque* dq,
+                               int lifo,
+                               uint64_t* out_id,
+                               rt_trace_sched_source source,
+                               uint32_t stealer_shard_id) {
     if (ex == NULL || dq == NULL) {
         return 0;
     }
@@ -646,6 +771,19 @@ static int pop_task_from_deque(
             }
             continue;
         }
+        if (source == RT_TRACE_SCHED_SRC_STEAL &&
+            !rt_task_can_steal_from_shard(task, stealer_shard_id)) {
+            int ok = lifo ? deque_push_tail(dq,
+                                            id,
+                                            "async: local queue overflow",
+                                            "async: local queue allocation failed")
+                          : deque_push_head(dq,
+                                            id,
+                                            "async: local queue overflow",
+                                            "async: local queue allocation failed");
+            (void)ok;
+            return 0;
+        }
         task_enqueued_store(task, 0);
         rt_trace_sched_record(source, id);
         if (out_id != NULL) {
@@ -662,10 +800,6 @@ static int ready_push_with_policy(
     if (ex == NULL) {
         return 0;
     }
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
-    if (scheduler == NULL) {
-        return 0;
-    }
     rt_task* task = get_task(ex, id);
     uint8_t status = task_status_load(task);
     if (task == NULL || status == TASK_DONE) {
@@ -677,13 +811,17 @@ static int ready_push_with_policy(
     if (task_enqueued_load(task) != 0) {
         return 0;
     }
+    rt_scheduler* scheduler = ready_scheduler_for_task(ex, task);
+    if (scheduler == NULL) {
+        return 0;
+    }
     // Injection policy:
     // - Worker thread: enqueue locally (LIFO pop) to keep cache locality.
     // - Non-worker thread (main/I/O/external): enqueue on the global injection queue.
     // No last-worker affinity is tracked; wake/spawn follows the current thread.
     rt_deque* local = NULL;
     if (!force_inject) {
-        local = current_local_queue(ex);
+        local = current_local_queue(ex, scheduler);
     }
     int signal_ready_now = signal_ready;
     if (local != NULL) {
@@ -716,7 +854,7 @@ static int ready_push_with_policy(
         maybe_start_compensation_worker_locked(ex);
     }
     if (signal_ready_now) {
-        pthread_cond_signal(&ex->ready_cv);
+        signal_ready_workers(ex);
     }
     return 1;
 }
@@ -733,7 +871,8 @@ void ready_push(rt_executor* ex, uint64_t id) {
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id) {
     // Caller holds ex->lock. This is intentionally narrow: it only removes the
     // fresh child task that __task_create just pushed onto the current worker.
-    rt_deque* local = current_local_queue(ex);
+    rt_scheduler* scheduler = ready_scheduler_for_task(ex, get_task(ex, id));
+    rt_deque* local = current_local_queue(ex, scheduler);
     if (local == NULL || local->len == 0 || local->buf == NULL) {
         return 0;
     }
@@ -757,20 +896,20 @@ static int ready_push_yielded_task(rt_executor* ex, uint64_t id) {
 int ready_pop(rt_executor* ex, uint64_t* out_id) {
     // Caller holds ex->lock; worker_next_ready adds local and steal paths.
     rt_scheduler* scheduler = rt_executor_scheduler(ex);
-    return scheduler != NULL
-               ? pop_task_from_deque(ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)
-               : 0;
+    return scheduler != NULL ? pop_task_from_deque(
+                                   ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, 0)
+                             : 0;
 }
 
-static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_id) {
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+static int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id) {
+    rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
+    rt_scheduler* scheduler = ctx != NULL ? ctx->scheduler : NULL;
+    uint32_t worker_id = ctx != NULL ? ctx->worker_id : 0;
+    uint32_t shard_id = ctx != NULL ? ctx->shard_id : 0;
     if (ex == NULL || scheduler == NULL) {
         return 0;
     }
     if (scheduler->sched_mode == SCHED_SEEDED) {
-        rt_worker_ctx* ctx = scheduler->worker_ctxs != NULL && worker_id < scheduler->worker_count
-                                 ? &scheduler->worker_ctxs[worker_id]
-                                 : NULL;
         rt_deque* local = scheduler->local_queues != NULL && worker_id < scheduler->worker_count
                               ? &scheduler->local_queues[worker_id]
                               : NULL;
@@ -790,24 +929,24 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
         }
         if (local_has && inject_has) {
             if ((sched_next_u64(ctx) & 1U) == 0U) {
-                if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL)) {
+                if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL, shard_id)) {
                     return 1;
                 }
                 if (pop_task_from_deque(
-                        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)) {
+                        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
                     return 1;
                 }
             } else {
                 if (pop_task_from_deque(
-                        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)) {
+                        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
                     return 1;
                 }
-                if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL)) {
+                if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL, shard_id)) {
                     return 1;
                 }
             }
         } else if (local_has) {
-            if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL)) {
+            if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL, shard_id)) {
                 return 1;
             }
         } else if (inject_has) {
@@ -828,13 +967,15 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
                                                 &scheduler->local_queues[victim],
                                                 0,
                                                 out_id,
-                                                RT_TRACE_SCHED_SRC_STEAL)) {
+                                                RT_TRACE_SCHED_SRC_STEAL,
+                                                shard_id)) {
                             return 1;
                         }
                     }
                 }
             }
-            if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)) {
+            if (pop_task_from_deque(
+                    ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
                 return 1;
             }
         }
@@ -852,20 +993,29 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
             if (victim == worker_id) {
                 continue;
             }
-            if (pop_task_from_deque(
-                    ex, &scheduler->local_queues[victim], 0, out_id, RT_TRACE_SCHED_SRC_STEAL)) {
+            if (pop_task_from_deque(ex,
+                                    &scheduler->local_queues[victim],
+                                    0,
+                                    out_id,
+                                    RT_TRACE_SCHED_SRC_STEAL,
+                                    shard_id)) {
                 return 1;
             }
         }
         return 0;
     }
     if (scheduler->local_queues != NULL && worker_id < scheduler->worker_count) {
-        if (pop_task_from_deque(
-                ex, &scheduler->local_queues[worker_id], 1, out_id, RT_TRACE_SCHED_SRC_LOCAL)) {
+        if (pop_task_from_deque(ex,
+                                &scheduler->local_queues[worker_id],
+                                1,
+                                out_id,
+                                RT_TRACE_SCHED_SRC_LOCAL,
+                                shard_id)) {
             return 1;
         }
     }
-    if (pop_task_from_deque(ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT)) {
+    if (pop_task_from_deque(
+            ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
         return 1;
     }
     if (scheduler->local_queues == NULL || scheduler->worker_count <= 1) {
@@ -876,8 +1026,12 @@ static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_
         if (victim == worker_id) {
             continue;
         }
-        if (pop_task_from_deque(
-                ex, &scheduler->local_queues[victim], 0, out_id, RT_TRACE_SCHED_SRC_STEAL)) {
+        if (pop_task_from_deque(ex,
+                                &scheduler->local_queues[victim],
+                                0,
+                                out_id,
+                                RT_TRACE_SCHED_SRC_STEAL,
+                                shard_id)) {
             return 1;
         }
     }
@@ -948,11 +1102,9 @@ static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) 
         return;
     }
     size_t out = 0;
-    size_t removed = 0;
     for (size_t i = 0; i < store->len; i++) {
         waiter w = store->entries[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
-            removed++;
             wake_task_with_policy(ex, w.task_id, 0, 0, front, 1);
             continue;
         }
@@ -1377,7 +1529,10 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
 }
 
 static void maybe_start_compensation_worker_locked(rt_executor* ex) {
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
+    rt_scheduler* scheduler = current_worker_scheduler(ex);
+    if (scheduler == NULL) {
+        scheduler = rt_executor_scheduler(ex);
+    }
     if (ex == NULL || scheduler == NULL || scheduler->worker_count <= 1) {
         return;
     }
@@ -1403,9 +1558,15 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     }
     memset(ctx, 0, sizeof(rt_worker_ctx));
     ctx->ex = ex;
+    ctx->shard = tls_worker_ctx != NULL && tls_worker_ctx->ex == ex
+                     ? tls_worker_ctx->shard
+                     : rt_runtime_shard0(ex->runtime);
+    ctx->scheduler = scheduler;
     ctx->heap_cell = rt_heap_accounting_compensation_cell(rt_executor_heap_accounting(ex),
                                                           compat->compensation_count);
+    ctx->shard_id = ctx->shard != NULL ? ctx->shard->shard_id : 0;
     ctx->worker_id = compat->compensation_count % scheduler->worker_count;
+    ctx->worker_index = UINT32_MAX;
     ctx->sched_rng = scheduler->sched_seed +
                      UINT64_C(0x9e3779b97f4a7c15) *
                          (uint64_t)(scheduler->worker_count + compat->compensation_count + 1U);
@@ -1425,12 +1586,12 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
 }
 
 static void move_current_local_to_inject_locked(rt_executor* ex) {
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
-    if (scheduler == NULL || tls_worker_id < 0 ||
-        (uint32_t)tls_worker_id >= scheduler->worker_count || scheduler->local_queues == NULL) {
+    rt_scheduler* scheduler = current_worker_scheduler(ex);
+    if (scheduler == NULL || tls_worker_ctx == NULL ||
+        tls_worker_ctx->worker_id >= scheduler->worker_count || scheduler->local_queues == NULL) {
         return;
     }
-    rt_deque* local = &scheduler->local_queues[(uint32_t)tls_worker_id];
+    rt_deque* local = &scheduler->local_queues[tls_worker_ctx->worker_id];
     uint64_t id = 0;
     int moved = 0;
     while (deque_pop_head(local, &id)) {
@@ -1450,7 +1611,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL || tls_worker_id < 0) {
         return 0;
     }
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    rt_scheduler* scheduler = current_worker_scheduler(ex);
     if (scheduler == NULL) {
         return 0;
     }
@@ -1467,7 +1628,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (scheduler->running_count > 0) {
         scheduler->running_count--;
         dropped_running = 1;
-        if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
+        if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
             pthread_cond_signal(&ex->io_cv);
         }
     }
@@ -1494,28 +1655,30 @@ static void* rt_worker_main(void* arg) {
     if (ex == NULL) {
         return NULL;
     }
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
+    rt_scheduler* scheduler = ctx != NULL ? ctx->scheduler : NULL;
     if (scheduler == NULL) {
         return NULL;
     }
     rt_heap_accounting_set_current_cell(ctx->heap_cell);
-    tls_worker_id = (int)worker_id;
+    tls_worker_ctx = ctx;
+    tls_worker_id = worker_id <= (uint32_t)INT_MAX ? (int)worker_id : -1;
     rt_set_current_task(NULL);
     for (;;) {
         rt_trace_drain_signal_dump();
         rt_lock(ex);
         uint64_t id = 0;
-        while (!ex->shutdown && !worker_next_ready(ex, worker_id, &id)) {
+        while (!ex->shutdown && !worker_next_ready(ctx, &id)) {
             if (begin_net_poll(ex)) {
                 int woke_net = poll_net_waiters_owned(ex, worker_net_poll_slice_ms);
                 if (woke_net) {
                     continue;
                 }
-                if (ex->shutdown || worker_next_ready(ex, worker_id, &id)) {
+                if (ex->shutdown || worker_next_ready(ctx, &id)) {
                     break;
                 }
             }
             // Sleep only after local, inject, and steal queues have been checked under ex->lock.
+            rt_debug_assert_no_parked_with_work(ex, ctx->shard_id);
             rt_trace_worker_sleep();
             pthread_cond_wait(&ex->ready_cv, &ex->lock);
             rt_trace_worker_wake();
@@ -1543,7 +1706,7 @@ static void* rt_worker_main(void* arg) {
             scheduler->running_count--;
             apply_poll_outcome(ex, task, outcome);
             rt_set_current_task(NULL);
-            if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
+            if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
                 pthread_cond_signal(&ex->io_cv);
             }
             rt_unlock(ex);
@@ -1559,12 +1722,14 @@ static void* rt_worker_main(void* arg) {
         scheduler->running_count--;
         apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
-        if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
+        if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
             pthread_cond_signal(&ex->io_cv);
         }
         rt_unlock(ex);
     }
     rt_set_current_task(NULL);
+    tls_worker_ctx = NULL;
+    tls_worker_id = -1;
     rt_heap_accounting_set_current_cell(NULL);
     return NULL;
 }
@@ -1573,16 +1738,16 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
     if (ex == NULL) {
         return 0;
     }
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
-    if (scheduler == NULL) {
-        return 0;
-    }
     uint64_t id = 0;
     if (!ready_pop(ex, &id)) {
         return 0;
     }
     rt_task* task = get_task(ex, id);
     if (task == NULL || task_status_load(task) == TASK_DONE) {
+        return 1;
+    }
+    rt_scheduler* scheduler = rt_task_scheduler(ex, task);
+    if (scheduler == NULL) {
         return 1;
     }
     task_status_store(task, TASK_RUNNING);
@@ -1598,7 +1763,7 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
         scheduler->running_count--;
         apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
-        if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
+        if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
             pthread_cond_signal(&ex->io_cv);
         }
         return 1;
@@ -1613,7 +1778,7 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
     scheduler->running_count--;
     apply_poll_outcome(ex, task, outcome);
     rt_set_current_task(NULL);
-    if (scheduler->running_count == 0 && runnable_is_empty(ex)) {
+    if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
         pthread_cond_signal(&ex->io_cv);
     }
     return 1;
@@ -1622,10 +1787,6 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
 static void* rt_io_main(void* arg) {
     rt_executor* ex = (rt_executor*)arg;
     if (ex == NULL) {
-        return NULL;
-    }
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(ex);
-    if (scheduler == NULL) {
         return NULL;
     }
     rt_heap_accounting_set_current_cell(
@@ -1645,7 +1806,7 @@ static void* rt_io_main(void* arg) {
         uint64_t deadline = 0;
         int have_timer = next_sleep_deadline(ex, &deadline);
         int have_net = has_net_waiters(ex);
-        int idle = scheduler->running_count == 0 && runnable_is_empty(ex);
+        int idle = runtime_running_count(ex) == 0 && runnable_is_empty(ex);
 
         if (!have_net && (!have_timer || !idle)) {
             pthread_cond_wait(&ex->io_cv, &ex->lock);

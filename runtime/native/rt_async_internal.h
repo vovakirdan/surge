@@ -1,19 +1,15 @@
 #ifndef SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
 #define SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
-
 #include "rt.h"
 #include "rt_heap_accounting.h"
 #include "rt_runtime_config.h"
-
 #include <pthread.h>
 #include <setjmp.h>
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
 // Async runtime internals shared across modules.
-
 typedef enum {
     // READY tasks must be in exactly one ready queue or about to be queued.
     TASK_READY = 0,
@@ -31,13 +27,12 @@ typedef enum {
     TASK_KIND_SLEEP = 2,
     TASK_KIND_BLOCKING = 3,
 } task_kind;
-
+typedef enum { TASK_PLACEMENT_GENERIC = 0, TASK_PLACEMENT_CONNECTION = 1 } task_placement_class;
 typedef enum {
     TASK_RESULT_NONE = 0,
     TASK_RESULT_SUCCESS = 1,
     TASK_RESULT_CANCELLED = 2,
 } task_result_kind;
-
 typedef enum {
     RESUME_NONE = 0,
     RESUME_CHAN_RECV_VALUE = 1,
@@ -45,7 +40,6 @@ typedef enum {
     RESUME_CHAN_SEND_ACK = 3,
     RESUME_CHAN_SEND_CLOSED = 4,
 } resume_kind;
-
 typedef enum {
     POLL_NONE = 0,
     POLL_DONE_SUCCESS = 1,
@@ -166,6 +160,9 @@ typedef struct rt_task {
     atomic_u8 status;
     uint8_t kind;
     uint8_t resume_kind;
+    uint8_t placement_class;
+    uint8_t owner_shard_valid;
+    uint32_t owner_shard_id;
     atomic_u8 cancelled;
     atomic_u8 enqueued;
     atomic_u8 wake_token;
@@ -295,6 +292,7 @@ void rt_trace_channel_task_blocking_send(void);
 void rt_trace_channel_task_blocking_recv(void);
 void rt_trace_channel_handoff_yield(void);
 void rt_trace_compensation_started(void);
+void rt_trace_parked_with_work(void);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
@@ -390,11 +388,13 @@ rt_shard* rt_runtime_shard(rt_runtime* runtime, size_t index);
 const rt_shard* rt_runtime_shard_const(const rt_runtime* runtime, size_t index);
 rt_shard* rt_runtime_shard0(rt_runtime* runtime);
 size_t rt_runtime_shard_count(const rt_runtime* runtime);
+uint64_t rt_runtime_total_worker_count(const rt_runtime* runtime);
 rt_heap_accounting* rt_executor_heap_accounting(rt_executor* ex);
 rt_scheduler* rt_shard_scheduler(rt_shard* shard);
 const rt_scheduler* rt_shard_scheduler_const(const rt_shard* shard);
 rt_scheduler* rt_executor_scheduler(rt_executor* ex);
 const rt_scheduler* rt_executor_scheduler_const(const rt_executor* ex);
+rt_scheduler* rt_task_scheduler(rt_executor* ex, const rt_task* task);
 rt_net_poll_scratch* rt_shard_net_poll_scratch(rt_shard* shard);
 rt_net_poll_scratch* rt_executor_net_poll_scratch_for_shard(rt_executor* ex, size_t shard_index);
 rt_net_poll_scratch* rt_executor_net_poll_scratch(rt_executor* ex);
@@ -453,6 +453,15 @@ int next_ready(rt_executor* ex, uint64_t* out_id);
 
 rt_task* task_from_handle(void* handle);
 uint64_t task_id_from_handle(void* handle);
+void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_class);
+void rt_task_inherit_placement(rt_task* task, const rt_task* parent);
+int rt_task_can_steal_from_shard(const rt_task* task, uint32_t shard_id);
+void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id);
+int rt_debug_validate_worker_ctx(rt_executor* ex,
+                                 uint32_t shard_id,
+                                 uint32_t worker_id,
+                                 uint32_t worker_index);
+uint32_t rt_debug_current_worker_shard_id(void);
 
 void task_add_child(rt_task* parent, uint64_t child_id);
 void scope_add_child(rt_scope* scope, uint64_t child_id);

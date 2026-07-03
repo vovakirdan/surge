@@ -1,6 +1,6 @@
 # Task 4: Multishard Accept Contract Tests
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** test writing
 **Depends on:** Task 1, Task 2, Task 3
 

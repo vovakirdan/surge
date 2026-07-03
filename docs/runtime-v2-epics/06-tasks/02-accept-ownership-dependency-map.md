@@ -1,6 +1,6 @@
 # Task 2: Accept Ownership Dependency Map
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** design map
 **Depends on:** Task 1
 
