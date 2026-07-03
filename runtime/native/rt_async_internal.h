@@ -447,6 +447,10 @@ rt_task* get_task(rt_executor* ex, uint64_t id);
 rt_scope* get_scope(rt_executor* ex, uint64_t id);
 uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id);
 
+int deque_push_tail(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg);
+int deque_push_head(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg);
+int deque_pop_head(rt_deque* dq, uint64_t* out_id);
+int deque_pop_tail(rt_deque* dq, uint64_t* out_id);
 void ensure_task_cap(rt_executor* ex, uint64_t id);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
