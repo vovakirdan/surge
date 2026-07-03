@@ -2790,3 +2790,21 @@ pass, before any task execution began:
 - Benchmark parameter dead end recorded: 1024-conn rows with default
   `REQUESTS=2000`/`RUN_TIMEOUT=30s` kill the server mid-row; use the Epic 6
   matrix or `REQUESTS=100`/`RUN_TIMEOUT=120s`.
+
+## Epic 7 Task 2 Handoff
+
+- `07-executor-lock-dependency-map.md` written: 187 `rt_lock`/`rt_unlock`
+  sites in 12 files inventoried; every
+  `rt_executor`/`rt_shard`/`rt_task`/`rt_scope`
+  field assigned a target lane (control / shard / atomic / immutable / tls /
+  blocking); waiter-key ownership decided per kind (join/timer/blocking ->
+  task owner shard, channel -> channel owner shard, net -> fd owner shard,
+  scope -> spike); path table covers every locking caller.
+- Hazards pinned for the spike and implementation: wake-vs-park token window,
+  stale `park_key` reads, duplicate enqueue guard, accept-winner whole-table
+  cleanup, channel value loss on cancelled peers, `poll_ready_child_inline`
+  relock, compensation workers, init ordering.
+- Everything unresolved is explicitly marked *(spike)* in the map: clock
+  protocol, task lifetime rule, scope-key store, re-placement transition,
+  condvar fates, non-user polls under shard lock, accept-winner cleanup
+  shape. Task 3 must answer each mark.

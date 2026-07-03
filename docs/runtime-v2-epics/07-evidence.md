@@ -199,3 +199,29 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
 - [x] Skipped checks: none skipped.
 - [x] Dead ends recorded (benchmark row parameters).
 - [x] Follow-ups have owners.
+
+## Task 2: Executor Lock Dependency Map
+
+- Task: Epic 7 Task 2, dependency map. Docs-only; proving spike: no.
+- Date: 2026-07-03. Author/session: main session.
+- Scope: created `07-executor-lock-dependency-map.md` (lock-site inventory,
+  field lane tables for `rt_executor`/`rt_shard`/`rt_task`/`rt_scope`,
+  waiter-key ownership table, path-by-path target lanes, hazard list,
+  already-safe list) and the Task 2 task document. No code changed.
+- Baseline: anchors cite commit `ae752f44` (code identical to `77475384`).
+- Key facts the map pins: 187 `rt_lock`/`rt_unlock` sites across 12 files;
+  the `poll()`
+  syscall already runs unlocked (`rt_net.c:817-823`); non-net waiter kinds
+  all live in shard 0's store today (`rt_async_waiter.c:438-459`,
+  `rt_runtime.c:245-251`); sleep timers scan the whole task table per yield
+  (`rt_async_state.c:1162-1226`); `mark_done` broadcasts the global
+  `done_cv` on every completion (`rt_async_state.c:1470`).
+- Open decisions delegated to Task 3, marked *(spike)* in the map: virtual
+  clock read/advance protocol; task lifetime/lookup rule (slot atomicity +
+  owner-locked deref); scope-key store owner; accept re-placement transition;
+  fate of `ready_cv`/`io_cv`/`done_cv`; whether non-user task polls stay
+  under the shard lock; accept-winner cleanup shape.
+- Commands: `git diff --check` clean; docs-only, no other gates required.
+- Regressions: none. Dead ends: none new.
+- Follow-ups: Task 3 must answer every *(spike)* mark or record why it moved
+  to a later task.
