@@ -16,7 +16,7 @@ documents quote the parts they need and point back to it for the rest.
 
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
-| 1 | `01-kickoff-baseline-and-sentrux.md` | Pending | evidence | none |
+| 1 | `01-kickoff-baseline-and-sentrux.md` | Complete | evidence | none |
 | 2 | `02-executor-lock-dependency-map.md` | Pending | design map | 1 |
 | 3 | `03-locking-model-proving-spike.md` | Pending | proving spike | 1, 2 |
 | 4 | `04-lock-split-behavior-contract-tests.md` | Pending | test writing | 1, 2, 3 |

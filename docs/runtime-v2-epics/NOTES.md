@@ -2764,3 +2764,29 @@ pass, before any task execution began:
   gate. Performance contract: the 8-shard/1024-conn row must improve on the
   Epic 6 closeout baseline or the closeout must name the next serialization
   point with evidence.
+
+## Epic 7 Task 1 Handoff
+
+- Baseline commit `77475384` (epic-open docs commit). All gates green on
+  first run: `make check` (via pre-commit), `make cppcheck`,
+  `timeout 600s make runtime-v2-check`, `./check_file_sizes.sh -a`,
+  `git diff --check`. Sentrux CLI baselines equal Epic 6 closeout:
+  root `6182`, `runtime` `5340`, `runtime/native` `5467`. Sentrux MCP tools
+  are not exposed in this session; the CLI is the recorded mechanism.
+- Effective LOC headroom that constrains implementation tasks:
+  `rt_async_state.c` 1722/1722 (at ceiling), `rt_net.c` 818/818,
+  `rt_async_waiter.c` 488/500, `rt_async_internal.h` 478/500,
+  `rt_async_task.c` 707/731. New lane code must go to new files.
+- Fresh pre-split benchmark baselines (current-checkout binary, reports under
+  `build/benchmarks/runtime-v2-epic7-task1-*`): Epic 6 matrix (8 req/conn)
+  8-shard/1024 is 1.64x slower than 1-shard; steady 32-conn x 2000-req
+  8-shard is 2.75x slower with 5x worse p95; channel ping-pong 4.4us at 1
+  worker vs 17.7us at 2+; sync channel 9.3us -> 93.6us.
+- Reproducible baseline liveness deficiency adopted as an Epic 7 target
+  probe: 8-shard/1024-conn/100-req steady row fails 3/3 with a client
+  `TimeoutError` (>10s single-connection stall; 965/1024 connections finish;
+  server exits cleanly, owner counters clean). 1-shard row passes. Post-split
+  this row must pass or closeout is blocked.
+- Benchmark parameter dead end recorded: 1024-conn rows with default
+  `REQUESTS=2000`/`RUN_TIMEOUT=30s` kill the server mid-row; use the Epic 6
+  matrix or `REQUESTS=100`/`RUN_TIMEOUT=120s`.
