@@ -2547,3 +2547,48 @@ pass, before any task execution began:
   `make c-check`, `make cppcheck`, `./check_file_sizes.sh`,
   `git diff --check`, `make runtime-v2-check`, `make check`, and Sentrux
   root/runtime/native scans (`6185`, `5326`, `5465`).
+
+## Epic 6 Task 11 Handoff
+
+- Scope completed: multishard net lifecycle now resolves net waiter rows
+  through owner shard waiter stores. Non-net waiters still use the global
+  shard-0 compatibility store under `ex->lock`.
+- Added `rt_executor_waiter_store_for_shard` and const twin. The old
+  `rt_executor_waiter_store` remains explicit compatibility for non-net
+  channel/join/scope/timer/blocking paths.
+- Net `add_waiter`, `pop_waiter`, and
+  `rt_executor_wake_net_waiters_for_key_on_owner` use the fd owner shard store.
+  Net `remove_waiter` scans all shard stores for stale cleanup, but only
+  detaches registry interest from the current owner shard when the removed row
+  came from that owner store.
+- Removed the hardcoded owner-0 shutdown drain wrapper. Only
+  `rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner` remains.
+- Added `runtime/native/rt_async_trace_waiters.c`; `TRACE_EXEC_SNAPSHOT`
+  waiter counters now aggregate all shard waiter stores, so `waiters_net` does
+  not silently become shard-0-only after owner-local migration.
+- Added owner-local behavior proof in
+  `TestRuntimeV2OwnerLocalNetWaiterBehavior`. The C harness includes
+  production `rt_fd_registry.c` and `rt_async_waiter.c`, proves net add/remove,
+  close wake, shutdown drain, non-net join staying global, and the fd-reuse
+  regression where stale shard-1 cleanup must not clear a newly registered
+  shard-0 fd interest.
+- `runtime-v2-waiter-check` now carries the owner-local net waiter behavior
+  and trace aggregation tests, so `make runtime-v2-check` covers this path.
+- Independent review initially found a P1 fd-reuse stale cleanup/detach hole
+  plus P2 gate/trace gaps. All were fixed. Targeted re-review found no
+  blockers; operational note was to include the new
+  `rt_async_trace_waiters.c` file in the commit.
+- `RV2-DEBT-002` remains open and unchanged. The known-red
+  `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` timeouts
+  reproduced at clean Task 10 commit `0d206ed2`; `AllowTimersToAdvance` passed
+  standalone and in `make runtime-v2-check`.
+- Native net benchmark smoke passed with a freshly built `/tmp` Surge binary:
+  64 direct/seq requests, avg 186.62 us/op, p50 147.26 us, p95 350.56 us.
+  Full performance evidence and scaling explanation remain Task 12.
+- Final gates passed: focused owner-local/accept static tests,
+  `make runtime-v2-waiter-check`, `make runtime-v2-check`, `make c-check`,
+  `make cppcheck`, `git diff --check`, `./check_file_sizes.sh`,
+  `./check_file_sizes.sh --self-test`, `make check`, Sentrux
+  root/runtime/native scans (`6184`, `5329`, `5466`), and targeted net/non-net
+  liveness probes listed in `06-evidence.md`.

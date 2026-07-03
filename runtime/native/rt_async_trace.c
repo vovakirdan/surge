@@ -299,15 +299,9 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t tasks_sleep = 0;
     uint64_t tasks_blocking = 0;
     uint64_t tasks_other_kind = 0;
-    uint64_t waiters_join = 0;
-    uint64_t waiters_timer = 0;
-    uint64_t waiters_chan_send = 0;
-    uint64_t waiters_chan_recv = 0;
-    uint64_t waiters_net = 0;
-    uint64_t waiters_other = 0;
+    rt_waiter_trace_counts waiters = {0};
 
     rt_lock(ex);
-    const rt_waiter_store* waiter_store = rt_executor_waiter_store_const(ex);
     trace_collect_scheduler_snapshot(
         ex->runtime, &worker_count, &running, &inject_len, &local_total, &local_max);
     for (size_t i = 1; i < ex->tasks_cap; i++) {
@@ -349,25 +343,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
                 break;
         }
     }
-    if (waiter_store != NULL) {
-        for (size_t i = 0; i < waiter_store->len; i++) {
-            waker_kind kind = (waker_kind)waiter_store->entries[i].key.kind;
-            if (kind == WAKER_JOIN || kind == WAKER_SCOPE || kind == WAKER_BLOCKING) {
-                waiters_join++;
-            } else if (kind == WAKER_TIMER) {
-                waiters_timer++;
-            } else if (kind == WAKER_CHAN_SEND) {
-                waiters_chan_send++;
-            } else if (kind == WAKER_CHAN_RECV) {
-                waiters_chan_recv++;
-            } else if (kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ ||
-                       kind == WAKER_NET_WRITE) {
-                waiters_net++;
-            } else {
-                waiters_other++;
-            }
-        }
-    }
+    rt_trace_collect_waiter_counts(ex, &waiters);
 
     char buf[1800];
     size_t pos = 0;
@@ -394,14 +370,13 @@ static void trace_exec_snapshot_dump(const char* reason) {
     trace_append_kv_u64(buf, &pos, sizeof(buf), "inject_len", inject_len);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "local_max", local_max);
-    trace_append_kv_u64(
-        buf, &pos, sizeof(buf), "waiters", waiter_store != NULL ? (uint64_t)waiter_store->len : 0);
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_join", waiters_join);
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_timer", waiters_timer);
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_send", waiters_chan_send);
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_recv", waiters_chan_recv);
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_net", waiters_net);
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_other", waiters_other);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters", waiters.total);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_join", waiters.join);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_timer", waiters.timer);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_send", waiters.chan_send);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_chan_recv", waiters.chan_recv);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_net", waiters.net);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "waiters_other", waiters.other);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "tasks_ready", tasks_ready);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "tasks_running", tasks_running);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "tasks_waiting", tasks_waiting);

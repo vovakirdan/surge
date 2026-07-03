@@ -85,7 +85,7 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 			path: "runtime/native/rt_fd_registry.c",
 			names: []string{
 				"rt_fd_registry_complete_ready_net_waiters",
-				"rt_fd_registry_drain_shutdown_net_waiters_locked",
+				"rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner",
 			},
 		},
 		{
@@ -99,7 +99,7 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 			path: "runtime/native/rt_async_waiter.c",
 			names: []string{
 				"fd_registry_bridge_net_attach",
-				"fd_registry_bridge_net_detach_if_last",
+				"fd_registry_bridge_net_detach_if_last_on_owner",
 			},
 		},
 		{

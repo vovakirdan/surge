@@ -243,13 +243,22 @@ const rt_waiter_store* rt_shard_waiter_store_const(const rt_shard* shard) {
 }
 
 rt_waiter_store* rt_executor_waiter_store(rt_executor* ex) {
-    rt_runtime* runtime = rt_executor_runtime(ex);
-    rt_shard* shard = rt_runtime_shard0(runtime);
-    return rt_shard_waiter_store(shard);
+    return rt_executor_waiter_store_for_shard(ex, 0);
 }
 
 const rt_waiter_store* rt_executor_waiter_store_const(const rt_executor* ex) {
-    return rt_shard_waiter_store_const(rt_runtime_shard_const(ex != NULL ? ex->runtime : NULL, 0));
+    return rt_executor_waiter_store_const_for_shard(ex, 0);
+}
+
+rt_waiter_store* rt_executor_waiter_store_for_shard(rt_executor* ex, size_t shard_index) {
+    rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), shard_index);
+    return rt_shard_waiter_store(shard);
+}
+
+const rt_waiter_store* rt_executor_waiter_store_const_for_shard(const rt_executor* ex,
+                                                                size_t shard_index) {
+    return rt_shard_waiter_store_const(
+        rt_runtime_shard_const(ex != NULL ? ex->runtime : NULL, shard_index));
 }
 
 rt_fd_registry* rt_shard_fd_registry(rt_shard* shard) {

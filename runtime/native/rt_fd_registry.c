@@ -398,11 +398,6 @@ rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked_on_own
     return summary;
 }
 
-rt_fd_completion_summary
-rt_fd_registry_drain_shutdown_net_waiters_locked(rt_executor* ex, rt_fd_registry* registry) {
-    return rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(ex, registry, 0);
-}
-
 static int fd_lifecycle_snapshot_has_interest(const rt_fd_lifecycle_snapshot* snapshot) {
     return snapshot != NULL &&
            (snapshot->want_accept != 0 || snapshot->want_read != 0 || snapshot->want_write != 0);

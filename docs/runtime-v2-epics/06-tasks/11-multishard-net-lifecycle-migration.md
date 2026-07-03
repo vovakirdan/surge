@@ -1,6 +1,6 @@
 # Task 11: Multishard Net Lifecycle Migration
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 **Depends on:** Task 4, Task 8, Task 9, Task 10
 
@@ -175,17 +175,17 @@ Read:
 
 ## Definition Of Done
 
-- [ ] Every net-owned fd-registry entry point resolves the connection's
+- [x] Every net-owned fd-registry entry point resolves the connection's
       actual owner shard, not shard 0, under `SURGE_SHARDS>1`.
-- [ ] Close, cancellation, and shutdown for a connection only touch its
+- [x] Close, cancellation, and shutdown for a connection only touch its
       owner shard's registry and waiter state.
-- [ ] Shutdown drains every shard's net waiters, not just shard 0's.
-- [ ] Every non-net waiter liveness probe (channel, join, scope, timer,
+- [x] Shutdown drains every shard's net waiters, not just shard 0's.
+- [x] Every non-net waiter liveness probe (channel, join, scope, timer,
       blocking) is unaffected — proven by re-running the full suite, not
       assumed.
-- [ ] Remaining relevant Task 4 pending tests pass or are corrected with an
+- [x] Remaining relevant Task 4 pending tests pass or are corrected with an
       explicit note.
-- [ ] Line-count impact on `rt_fd_registry.c` and `rt_net.c` is recorded.
+- [x] Line-count impact on `rt_fd_registry.c` and `rt_net.c` is recorded.
 
 ## Evidence To Record
 

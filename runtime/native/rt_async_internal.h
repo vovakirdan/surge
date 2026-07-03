@@ -91,6 +91,16 @@ typedef struct {
     size_t net_len;
 } rt_waiter_store;
 
+typedef struct {
+    uint64_t total;
+    uint64_t join;
+    uint64_t timer;
+    uint64_t chan_send;
+    uint64_t chan_recv;
+    uint64_t net;
+    uint64_t other;
+} rt_waiter_trace_counts;
+
 typedef enum {
     BLOCKING_JOB_PENDING = 0,
     BLOCKING_JOB_DONE = 1,
@@ -303,6 +313,7 @@ void rt_trace_channel_task_blocking_recv(void);
 void rt_trace_channel_handoff_yield(void);
 void rt_trace_compensation_started(void);
 void rt_trace_parked_with_work(void);
+void rt_trace_collect_waiter_counts(const rt_executor* ex, rt_waiter_trace_counts* out);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
@@ -414,6 +425,9 @@ rt_channel_blocking_compat* rt_executor_channel_blocking_compat(rt_executor* ex)
 const rt_channel_blocking_compat* rt_executor_channel_blocking_compat_const(const rt_executor* ex);
 rt_waiter_store* rt_shard_waiter_store(rt_shard* shard);
 const rt_waiter_store* rt_shard_waiter_store_const(const rt_shard* shard);
+rt_waiter_store* rt_executor_waiter_store_for_shard(rt_executor* ex, size_t shard_index);
+const rt_waiter_store* rt_executor_waiter_store_const_for_shard(const rt_executor* ex,
+                                                                size_t shard_index);
 rt_waiter_store* rt_executor_waiter_store(rt_executor* ex);
 const rt_waiter_store* rt_executor_waiter_store_const(const rt_executor* ex);
 rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,

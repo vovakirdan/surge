@@ -26,7 +26,7 @@ parts they need and point back to it for the rest.
 | 8 | `08-listener-and-connection-owner-metadata.md` | Complete | runtime code | 6 |
 | 9 | `09-accept-distribution-implementation.md` | Complete | runtime code | 3, 6, 7, 8 |
 | 10 | `10-per-shard-poller-and-wake-ownership.md` | Complete | runtime code | 6, 7 |
-| 11 | `11-multishard-net-lifecycle-migration.md` | Draft | runtime code | 4, 8, 9, 10 |
+| 11 | `11-multishard-net-lifecycle-migration.md` | Complete | runtime code | 4, 8, 9, 10 |
 | 12 | `12-trace-counters-and-benchmark-evidence.md` | Draft | trace/benchmark | 9, 10, 11 |
 | 13 | `13-runtime-v2-accept-ci-gates.md` | Draft | CI | 4, 5, 12 |
 | 14 | `14-large-file-refactor-tranche.md` | Draft | refactor code | 11, 12, 13 |

@@ -78,6 +78,86 @@ static void net_waiters_removed(rt_waiter_store* store, waker_key key, size_t co
     store->net_len -= count;
 }
 
+static rt_waiter_store*
+net_waiter_store_for_key(rt_executor* ex, waker_key key, uint32_t* out_owner_shard_id) {
+    if (ex == NULL || !waker_is_net(key) || key.id > (uint64_t)INT_MAX) {
+        return NULL;
+    }
+    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+    for (size_t i = 0; i < shard_count; i++) {
+        const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
+        const rt_fd_entry* entry = rt_fd_registry_find_const(registry, (int)key.id);
+        if (entry != NULL && entry->close_state == RT_FD_CLOSE_STATE_OPEN) {
+            if (out_owner_shard_id != NULL) {
+                *out_owner_shard_id = (uint32_t)i;
+            }
+            return rt_executor_waiter_store_for_shard(ex, i);
+        }
+    }
+    if (shard_count == 1) {
+        if (out_owner_shard_id != NULL) {
+            *out_owner_shard_id = 0;
+        }
+        return rt_executor_waiter_store_for_shard(ex, 0);
+    }
+    return NULL;
+}
+
+static size_t waiter_store_count_key(const rt_waiter_store* store, waker_key key) {
+    size_t count = 0;
+    for (size_t i = 0; store != NULL && i < store->len; i++) {
+        waker_key k = store->entries[i].key;
+        if (k.kind == key.kind && k.id == key.id) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static size_t count_net_waiters_for_key_all_shards(rt_executor* ex, waker_key key) {
+    if (ex == NULL || !waker_is_net(key)) {
+        return 0;
+    }
+    size_t count = 0;
+    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+    for (size_t i = 0; i < shard_count; i++) {
+        count += waiter_store_count_key(rt_executor_waiter_store_const_for_shard(ex, i), key);
+    }
+    return count;
+}
+
+static size_t remove_waiter_from_store(rt_waiter_store* store,
+                                       waker_key key,
+                                       uint64_t task_id,
+                                       size_t* out_kept_same_key) {
+    if (out_kept_same_key != NULL) {
+        *out_kept_same_key = 0;
+    }
+    if (store == NULL || store->len == 0) {
+        return 0;
+    }
+    size_t out = 0;
+    size_t removed = 0;
+    size_t kept_same_key = 0;
+    for (size_t i = 0; i < store->len; i++) {
+        waiter w = store->entries[i];
+        if (w.task_id == task_id && w.key.kind == key.kind && w.key.id == key.id) {
+            removed++;
+            continue;
+        }
+        if (w.key.kind == key.kind && w.key.id == key.id) {
+            kept_same_key++;
+        }
+        store->entries[out++] = w;
+    }
+    store->len = out;
+    net_waiters_removed(store, key, removed);
+    if (out_kept_same_key != NULL) {
+        *out_kept_same_key = kept_same_key;
+    }
+    return removed;
+}
+
 // Task 6 fd-registry-waiter-bridge: registry interest mirrors waiter-store
 // membership exactly. Attach runs after a successful append so interest never
 // exists without a waiter; detach runs only when the caller's same-pass scan
@@ -138,50 +218,31 @@ static int fd_registry_bridge_net_attach(rt_executor* ex, waker_key key, uint32_
     return 0;
 }
 
-static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
-                                                 waker_key key,
-                                                 size_t removed,
-                                                 size_t remaining_same_key,
-                                                 uint32_t* out_owner) {
+static int fd_registry_bridge_net_detach_if_last_on_owner(rt_executor* ex,
+                                                          waker_key key,
+                                                          uint32_t owner_shard_id,
+                                                          size_t removed,
+                                                          size_t remaining_same_key) {
     if (removed == 0 || !waker_is_net(key)) {
         return 0;
     }
     int removed_open_interest = 0;
     if (remaining_same_key == 0) {
-        size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
-        for (size_t i = 0; i < shard_count; i++) {
-            rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, i);
-            if (rt_fd_registry_find_const(registry, (int)key.id) == NULL) {
-                continue;
-            }
+        rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
+        if (rt_fd_registry_find_const(registry, (int)key.id) != NULL) {
             removed_open_interest = rt_fd_registry_net_interest_present(registry, key);
             rt_fd_registry_detach_net_interest(registry, key);
-            if (out_owner != NULL) {
-                *out_owner = (uint32_t)i;
-            }
-            break;
         }
     }
     if (rt_async_debug_enabled()) {
         // Debug consistency check: recount same-key waiters independently and
         // require stale interest (flag set with zero waiters) to be impossible.
-        const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
-        size_t recount = 0;
-        for (size_t i = 0; store != NULL && i < store->len; i++) {
-            waker_key k = store->entries[i].key;
-            if (k.kind == key.kind && k.id == key.id) {
-                recount++;
-            }
-        }
+        size_t recount = count_net_waiters_for_key_all_shards(ex, key);
         int interest = 0;
-        size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
-        for (size_t i = 0; i < shard_count; i++) {
-            const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
-            if (rt_fd_registry_find_const(registry, (int)key.id) == NULL) {
-                continue;
-            }
+        const rt_fd_registry* registry =
+            rt_executor_fd_registry_const_for_shard(ex, owner_shard_id);
+        if (rt_fd_registry_find_const(registry, (int)key.id) != NULL) {
             interest = rt_fd_registry_net_interest_present(registry, key);
-            break;
         }
         if (recount != remaining_same_key || (recount == 0 && interest)) {
             rt_async_debug_printf(
@@ -265,7 +326,7 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
     if (ex == NULL || !waker_valid(key) || !waker_is_net(key)) {
         return result;
     }
-    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    rt_waiter_store* store = rt_executor_waiter_store_for_shard(ex, owner_shard_id);
     if (store == NULL || store->len == 0) {
         return result;
     }
@@ -302,13 +363,15 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
     store->len = out;
     net_waiters_removed(store, key, result.removed);
     // Completion removed every waiter of this key, so no same-key entry remains.
-    (void)fd_registry_bridge_net_detach_if_last(ex, key, result.removed, 0, NULL);
+    (void)fd_registry_bridge_net_detach_if_last_on_owner(
+        ex, key, owner_shard_id, result.removed, 0);
     clear_accept_winner_wait_keys(ex, key, owner_shard_id);
     return result;
 }
 
 rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
-    return rt_executor_wake_net_waiters_for_key_on_owner(ex, key, 0);
+    return rt_executor_wake_net_waiters_for_key_on_owner(
+        ex, key, rt_net_owner_shard_for_key(ex, key, 0));
 }
 
 void ensure_waiter_cap(rt_executor* ex) {
@@ -343,29 +406,32 @@ static void ensure_wait_keys_cap(rt_task* task, size_t want) {
 
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     // Caller holds ex->lock; compaction preserves relative order of other waiters.
-    rt_waiter_store* store = rt_executor_waiter_store(ex);
-    if (store == NULL || store->len == 0) {
+    if (ex == NULL || !waker_valid(key)) {
         return;
     }
-    size_t out = 0;
-    size_t removed = 0;
-    size_t kept_same_key = 0;
-    for (size_t i = 0; i < store->len; i++) {
-        waiter w = store->entries[i];
-        if (w.task_id == task_id && w.key.kind == key.kind && w.key.id == key.id) {
-            removed++;
-            continue;
-        }
-        if (w.key.kind == key.kind && w.key.id == key.id) {
-            kept_same_key++;
-        }
-        store->entries[out++] = w;
+    int net_key = waker_is_net(key);
+    if (!net_key) {
+        size_t kept_same_key = 0;
+        (void)remove_waiter_from_store(rt_executor_waiter_store(ex), key, task_id, &kept_same_key);
+        return;
     }
-    store->len = out;
-    net_waiters_removed(store, key, removed);
     uint32_t owner_shard_id = 0;
-    int removed_open_interest =
-        fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key, &owner_shard_id);
+    rt_waiter_store* owner_store = net_waiter_store_for_key(ex, key, &owner_shard_id);
+    size_t owner_kept_same_key = 0;
+    size_t owner_removed = 0;
+    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+    for (size_t i = 0; i < shard_count; i++) {
+        rt_waiter_store* shard_store = rt_executor_waiter_store_for_shard(ex, i);
+        size_t kept_on_shard = 0;
+        size_t removed_on_shard =
+            remove_waiter_from_store(shard_store, key, task_id, &kept_on_shard);
+        if (shard_store == owner_store) {
+            owner_removed = removed_on_shard;
+            owner_kept_same_key = kept_on_shard;
+        }
+    }
+    int removed_open_interest = fd_registry_bridge_net_detach_if_last_on_owner(
+        ex, key, owner_shard_id, owner_removed, owner_kept_same_key);
     fd_registry_bridge_notify_removed_interest(ex, key, removed_open_interest, owner_shard_id);
 }
 
@@ -374,7 +440,9 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
-    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    uint32_t owner_shard_id = 0;
+    rt_waiter_store* store = waker_is_net(key) ? net_waiter_store_for_key(ex, key, &owner_shard_id)
+                                               : rt_executor_waiter_store(ex);
     rt_runtime_status status = rt_waiter_store_ensure_cap(store);
     if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
         panic_msg("async: waiter allocation failed");
@@ -385,7 +453,6 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     store->entries[store->len++] = (waiter){key, task_id};
     net_waiter_added(store, key);
-    uint32_t owner_shard_id = 0;
     if (fd_registry_bridge_net_attach(ex, key, &owner_shard_id)) {
         (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
     }
@@ -435,7 +502,10 @@ void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_add
 
 int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     // Caller holds ex->lock; stale/done/cancelled waiters are dropped while scanning.
-    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    uint32_t owner_shard_id = 0;
+    int net_key = waker_is_net(key);
+    rt_waiter_store* store =
+        net_key ? net_waiter_store_for_key(ex, key, &owner_shard_id) : rt_executor_waiter_store(ex);
     if (store == NULL || !waker_valid(key) || store->len == 0) {
         return 0;
     }
@@ -465,7 +535,10 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     }
     store->len = out;
     net_waiters_removed(store, key, removed);
-    (void)fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key, NULL);
+    if (net_key) {
+        (void)fd_registry_bridge_net_detach_if_last_on_owner(
+            ex, key, owner_shard_id, removed, kept_same_key);
+    }
     if (found && out_id != NULL) {
         *out_id = found_id;
     }

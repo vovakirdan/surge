@@ -1374,3 +1374,142 @@ note was operational: include the new untracked files in the Task 10 commit.
 - [x] Shutdown wakes all shard pollers and traces the actual effective wake
       count.
 - [x] No Phase 4 primitive was implemented or pre-decided.
+
+## Task 11: Multishard Net Lifecycle Migration
+
+### Task Identity And Scope
+
+- Task: `06-tasks/11-multishard-net-lifecycle-migration.md`.
+- Kind: runtime code.
+- Commit boundary: pending at evidence-write time.
+- Scope: owner-shard net waiter storage and lifecycle completion for
+  read/write/accept readiness, close, cancellation cleanup, and shutdown.
+- Out of scope: public syntax, cross-shard messaging, lock sharding, moving
+  non-net waiter kinds off global/shard-0 compatibility, and stable public net
+  handle generation guards (`RV2-DEBT-010`).
+
+### Implementation
+
+- Added explicit waiter-store accessors:
+  `rt_executor_waiter_store_for_shard` and
+  `rt_executor_waiter_store_const_for_shard`.
+- Kept `rt_executor_waiter_store` and its const twin as explicit shard-0
+  compatibility accessors for non-net waiters.
+- Net-key add/remove/pop/wake in `rt_async_waiter.c` now resolves through the
+  fd owner shard's waiter store:
+  - `add_waiter` stores net waiters in the owner shard's waiter store.
+  - `rt_executor_wake_net_waiters_for_key_on_owner` consumes only the owner
+    shard's waiter rows and places accepted connection continuations on that
+    owner shard.
+  - `remove_waiter` scans all shard waiter stores for net-key stale cleanup,
+    but detaches fd-registry interest only on the current owner shard when the
+    removed row came from that owner store.
+  - `pop_waiter` keeps non-net FIFO behavior on the global compatibility store
+    while net keys resolve through the owner store.
+- Removed the hardcoded owner-0 shutdown wrapper
+  `rt_fd_registry_drain_shutdown_net_waiters_locked`; only the owner-explicit
+  `_on_owner` surface remains.
+- Added `rt_async_trace_waiters.c` and `rt_waiter_trace_counts` so
+  `TRACE_EXEC_SNAPSHOT waiters*` aggregates all shard waiter stores. This keeps
+  trace snapshots honest after net waiters move off shard 0.
+- Updated `runtime-v2-waiter-check` to include owner-local net waiter behavior
+  and trace aggregation tests.
+
+### Review Pass
+
+The first independent review found a P1 fd-reuse lifecycle hole:
+
+- If fd `N` was closed on shard 1, then reused/registered on shard 0 before
+  delayed cleanup, the initial implementation could resolve cleanup through
+  the new shard-0 row and leave the old shard-1 waiter stranded.
+- The same fd-only detach path could remove interest from the new fd lifetime
+  on another shard.
+
+Fix:
+
+- Net removal now scans all shard waiter stores for stale cleanup, but
+  fd-registry detach is owner-explicit through
+  `fd_registry_bridge_net_detach_if_last_on_owner`.
+- The owner-local C behavior harness now covers this cross-owner fd-reuse case:
+  stale shard-1 waiter cleanup must not clear the newly registered shard-0 fd
+  interest.
+
+The same review also found two P2 issues:
+
+- `TestRuntimeV2OwnerLocalNetWaiterBehavior` was not in the Runtime V2 gate.
+  It is now part of `make runtime-v2-waiter-check`.
+- `TRACE_EXEC_SNAPSHOT` counted only shard-0 waiters. It now uses
+  `rt_trace_collect_waiter_counts` to aggregate all configured shard stores.
+
+Targeted re-review found no remaining blockers. The only operational note was
+to include the new `runtime/native/rt_async_trace_waiters.c` file in the
+commit.
+
+### Baseline Debt Checked
+
+The sync-helper fallback probe remains partly red in the current baseline and
+is tracked by `RV2-DEBT-002`:
+
+- On Task 11 worktree, `TestMTBlockingChannelHelpersDoNotParkWorkers` and
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` timed out
+  after their 10s program timeout.
+- The same two tests also timed out at clean Task 10 commit `0d206ed2` in a
+  detached worktree at `/tmp/surge-task10-baseline-task11`.
+- `TestMTBlockingChannelHelpersAllowTimersToAdvance` passed when run alone on
+  the Task 11 worktree and is also covered by `make runtime-v2-check`.
+
+This is not classified as a Task 11 regression. It stays open under
+`RV2-DEBT-002`.
+
+### Files Touched
+
+| Path | Effective LOC | Notes |
+| --- | ---: | --- |
+| `runtime/native/rt_async_waiter.c` | 488 | Net waiters resolve through owner shard stores; stale cleanup scans all shard stores; detach is owner-explicit. |
+| `runtime/native/rt_async_trace.c` | 473 | Snapshot uses aggregated waiter trace counts. |
+| `runtime/native/rt_async_trace_waiters.c` | 30 | New read-only trace aggregation helper. |
+| `runtime/native/rt_async_internal.h` | 472 | Adds shard waiter-store accessors and waiter trace count struct. |
+| `runtime/native/rt_runtime.c` | 281 | Implements shard-indexed waiter-store accessors. |
+| `runtime/native/rt_fd_registry.c` | 401 | Removes owner-0 shutdown drain wrapper; owner-explicit drain remains. |
+| `runtime/native/rt_fd_registry.h` | 78 | Removes owner-0 shutdown drain declaration. |
+| `runtime/native/rt_net.c` | 815 | Not touched by Task 11; still legacy-ok under ceiling 904. |
+| `internal/vm/runtime_v2_owner_local_waiter_static_test.go` | n/a | Adds owner-local behavior harness, fd-reuse regression, and trace aggregation static proof. |
+| `internal/vm/runtime_v2_accept_static_test.go` | n/a | Static gate now pins owner-explicit detach helper name. |
+| `Makefile` | n/a | `runtime-v2-waiter-check` now includes owner-local net waiter and trace aggregation tests. |
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2OwnerLocalNetWaiterBehavior$' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut\|TestRuntimeV2OwnerLocal(WaiterSkeletonStaticShape\|TraceAggregatesShardWaiters\|NetWaiterBehavior)' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `make runtime-v2-waiter-check` | Passed; includes owner-local net waiter behavior, fd-reuse regression, trace aggregation, and non-net waiter contracts. |
+| `make runtime-v2-check` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run 'TestMT(WakeupsAndCancellation\|CorrectnessWakeups\|StructuredConcurrency\|BlockingPool)' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run 'TestMTCorrectnessChannels' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTBlockingChannelHelpersAllowTimersToAdvance$' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTBlockingChannelHelpers(DoNotParkWorkers\|DrainReadyWorkAtCompensationLimit)$' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Expected-red baseline debt; both timed out and reproduced at Task 10 commit `0d206ed2`. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestMTNetWaiterWakeupLatency$' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Passed. |
+| `go build -o /tmp/surge-task11-bench ./cmd/surge && timeout 120s env SURGE=/tmp/surge-task11-bench SURGE_NET_BENCH_THREADS=1 SURGE_NET_BENCH_MODES=direct SURGE_NET_BENCH_PATTERNS=seq SURGE_NET_BENCH_REQUESTS=64 SURGE_NET_BENCH_REPORT=/tmp/surge-task11-native-net-smoke.md ./scripts/bench_native_net.sh` | Passed; smoke row: 64 requests, total 14686 us, avg 186.62 us/op, p50 147.26 us, p95 350.56 us; full benchmark evidence remains Task 12. |
+| `make c-check` | Passed. |
+| `make cppcheck` | Passed. |
+| `git diff --check` | Passed. |
+| `./check_file_sizes.sh` | Passed; all touched runtime files are under the effective LOC gate. |
+| `./check_file_sizes.sh --self-test` | Passed. |
+| `make check` | Passed. |
+| `sentrux check .` | Passed, quality 6184. |
+| `sentrux check runtime` | Passed, quality 5329. |
+| `sentrux check runtime/native` | Passed, quality 5466. |
+
+### Definition Of Done
+
+- [x] Every net-owned fd-registry entry point resolves the connection's actual
+      owner shard, not shard 0, under `SURGE_SHARDS>1`.
+- [x] Close, cancellation, readiness completion, and shutdown for a connection
+      use the owner shard's fd registry and waiter store.
+- [x] Shutdown drains every shard's net waiters through owner-explicit drain
+      calls.
+- [x] Non-net waiter compatibility is preserved and re-verified with
+      cancellation/join/timeout/channel/blocking probes.
+- [x] Remaining relevant Task 4/static accept gates pass.
+- [x] Line-count impact is recorded; `rt_net.c` did not grow.
