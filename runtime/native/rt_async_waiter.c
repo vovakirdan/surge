@@ -354,7 +354,7 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
                 mutable_task->net_ready_accept_valid = 1;
                 mutable_task->net_ready_accept_fd = (int)key.id;
                 mutable_task->net_ready_accept_owner_shard = owner_shard_id;
-                rt_task_set_placement(mutable_task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
+                rt_task_replace_owner(ex, mutable_task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
             }
         }
         result.woken++;
@@ -412,7 +412,8 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     int net_key = waker_is_net(key);
     if (!net_key) {
         size_t kept_same_key = 0;
-        (void)remove_waiter_from_store(rt_executor_waiter_store(ex), key, task_id, &kept_same_key);
+        (void)remove_waiter_from_store(
+            rt_waiter_store_for_key(ex, key), key, task_id, &kept_same_key);
         return;
     }
     uint32_t owner_shard_id = 0;
@@ -442,7 +443,7 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     uint32_t owner_shard_id = 0;
     rt_waiter_store* store = waker_is_net(key) ? net_waiter_store_for_key(ex, key, &owner_shard_id)
-                                               : rt_executor_waiter_store(ex);
+                                               : rt_waiter_store_for_key(ex, key);
     rt_runtime_status status = rt_waiter_store_ensure_cap(store);
     if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
         panic_msg("async: waiter allocation failed");
@@ -506,8 +507,8 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     // Caller holds ex->lock; stale/done/cancelled waiters are dropped while scanning.
     uint32_t owner_shard_id = 0;
     int net_key = waker_is_net(key);
-    rt_waiter_store* store =
-        net_key ? net_waiter_store_for_key(ex, key, &owner_shard_id) : rt_executor_waiter_store(ex);
+    rt_waiter_store* store = net_key ? net_waiter_store_for_key(ex, key, &owner_shard_id)
+                                     : rt_waiter_store_for_key(ex, key);
     if (store == NULL || !waker_valid(key) || store->len == 0) {
         return 0;
     }

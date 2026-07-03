@@ -77,6 +77,23 @@ void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_c
     }
 }
 
+void rt_task_replace_owner(rt_executor* ex,
+                           rt_task* task,
+                           uint32_t shard_id,
+                           uint8_t placement_class) {
+    if (task == NULL) {
+        return;
+    }
+    // The accept transition is the only post-spawn owner change (D3/D4).
+    // Join waiters live in the owned task's store, so they move with it or
+    // the completion wake would scan the wrong shard.
+    uint32_t old_shard_id = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+    if (old_shard_id != shard_id) {
+        rt_waiter_migrate_join_waiters(ex, task->id, old_shard_id, shard_id);
+    }
+    rt_task_set_placement(task, shard_id, placement_class);
+}
+
 void rt_task_inherit_placement(rt_task* task, const rt_task* parent) {
     if (task == NULL || parent == NULL || parent->owner_shard_valid == 0) {
         return;

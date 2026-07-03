@@ -400,3 +400,30 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
 - Sentrux: root 6177, `runtime/native` 5428, all rules pass (drift within
   the epic-recorded band; Task 14 owns reconciliation).
 - Regressions: none observed across two full gate runs.
+
+## Task 8: Waiter-Store Key Ownership Migration
+
+- Task: Epic 7 Task 8. Proving spike: no. Date: 2026-07-04. Main session.
+- Commits: `f02deef1 refactor(runtime): extract waiter types into
+  rt_waiter.h` (pure move; internal.h 499 -> 434 effective) and the routing
+  commit (this one).
+- Scope per `08-waiter-store-key-ownership-migration.md`: per-key store
+  resolution (`rt_waiter_route.c`, 47 effective LOC): join/timer/blocking ->
+  task owner store, scope -> new `ex->control_waiters`, channel -> shard-0
+  compat until Task 10, net unchanged; `add/remove/pop_waiter` and
+  `wake_key_all_with_policy` route through it; waiter trace aggregation
+  scans the control store; `rt_task_replace_owner` migrates `join_key`
+  entries at all three accept-transition sites so completion wakes never
+  scan a stale shard.
+- Stub-harness update: owner-local waiter harness gained
+  `rt_task_owner_shard`/`rt_task_replace_owner` stubs and includes
+  `rt_waiter_route.c`. `ensure_waiter_cap` kept (pinned by
+  `runtime_v2_waiter_static_test.go`).
+- Checks: c-check/cppcheck pass; Task 4 suite 9/9 x 2; `runtime-v2-check`
+  pass twice; `make check` pre-commit; `git diff --check` clean.
+- LOC: `rt_async_waiter.c` 491/500 (back under after the route extraction),
+  `rt_waiter.h` 80, `rt_waiter_route.c` 47, internal.h 439,
+  `rt_scheduler_placement.c` 116, `rt_net_accept_group.c` 247.
+- Sentrux: `runtime/native` 5419, rules pass.
+- Regressions: none. Follow-up: Task 10 moves channel keys to the channel
+  owner store.

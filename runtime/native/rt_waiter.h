@@ -76,6 +76,11 @@ int waker_is_net(waker_key key);
 waker_key blocking_key(uint64_t id);
 
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
+rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key);
+void rt_waiter_migrate_join_waiters(rt_executor* ex,
+                                    uint64_t task_id,
+                                    uint32_t from_shard_id,
+                                    uint32_t to_shard_id);
 rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key);
 rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
                                                                    waker_key key,

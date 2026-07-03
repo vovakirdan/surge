@@ -222,6 +222,28 @@ void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_c
     task->placement_class = placement_class;
 }
 
+rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    if (runtime != NULL && task != NULL && task->owner_shard_valid != 0) {
+        return rt_runtime_shard(runtime, task->owner_shard_id);
+    }
+    return rt_runtime_shard(runtime, 0);
+}
+
+void rt_task_replace_owner(rt_executor* ex,
+                           rt_task* task,
+                           uint32_t shard_id,
+                           uint8_t placement_class) {
+    if (task == NULL) {
+        return;
+    }
+    uint32_t old_shard_id = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+    if (old_shard_id != shard_id) {
+        rt_waiter_migrate_join_waiters(ex, task->id, old_shard_id, shard_id);
+    }
+    rt_task_set_placement(task, shard_id, placement_class);
+}
+
 void rt_lock(rt_executor* ex) {
     (void)ex;
 }
@@ -251,6 +273,7 @@ int pthread_cond_broadcast(pthread_cond_t* cond) {
 
 #include "rt_fd_registry.c"
 #include "rt_async_waiter.c"
+#include "rt_waiter_route.c"
 
 static int require_int(int condition, int code) {
     return condition ? 0 : code;

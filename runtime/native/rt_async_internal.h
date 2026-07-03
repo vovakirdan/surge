@@ -225,6 +225,9 @@ struct rt_executor {
     atomic_u32 blocking_cancel_requested;
     struct rt_blocking_job* blocking_head;
     struct rt_blocking_job* blocking_tail;
+    // Control-lane waiter store: scope keys only (D8). Everything else is
+    // owner-resolved by rt_waiter_store_for_key.
+    rt_waiter_store control_waiters;
 };
 
 // Executor invariants:
@@ -437,6 +440,10 @@ int next_ready(rt_executor* ex, uint64_t* out_id);
 rt_task* task_from_handle(void* handle);
 uint64_t task_id_from_handle(void* handle);
 void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_class);
+void rt_task_replace_owner(rt_executor* ex,
+                           rt_task* task,
+                           uint32_t shard_id,
+                           uint8_t placement_class);
 void rt_task_inherit_placement(rt_task* task, const rt_task* parent);
 void rt_task_assign_spawn_owner(rt_task* task);
 rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task);

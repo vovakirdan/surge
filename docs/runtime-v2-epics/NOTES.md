@@ -2903,3 +2903,19 @@ pass, before any task execution began:
 - Next: Task 8 waiter-store key ownership (join/timer/blocking keys to the
   task owner's store, per-key store locks under the nested shape,
   collect-then-wake for foreign hints).
+
+## Epic 7 Task 8 Handoff
+
+- Per-key waiter-store ownership landed (`rt_waiter_route.c` resolver +
+  `ex->control_waiters` for scope keys + join-waiter migration inside
+  `rt_task_replace_owner` at the three accept-transition sites). Header
+  pressure solved by extracting `rt_waiter.h` (internal.h 434). All under
+  the control lock still; the peel adds shard locks.
+- Key invariant recorded: store resolution is stable because the accept
+  transition is the only post-spawn owner change and it migrates
+  `join_key(task)` entries; `get_task==NULL` fallback is safe because
+  `mark_done` drains join entries before free.
+- Gates: Task 4 suite 9/9 x2, `runtime-v2-check` x2, c-check/cppcheck,
+  LOC all under targets (waiter.c 491/500). Channel keys stay shard-0 until
+  Task 10 (comment + resolver default arm).
+- Next: Task 9 sleep/timer store + atomic clock.

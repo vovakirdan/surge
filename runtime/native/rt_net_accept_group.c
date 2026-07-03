@@ -76,14 +76,15 @@ bool rt_net_fd_ready_now(int fd, RtNetWaitKind kind) {
     return (pfd.revents & ready_mask) != 0;
 }
 
-static void net_task_set_ready_accept(rt_task* task, int fd, uint32_t owner_shard_id) {
+static void
+net_task_set_ready_accept(rt_executor* ex, rt_task* task, int fd, uint32_t owner_shard_id) {
     if (task == NULL || fd < 0) {
         return;
     }
     task->net_ready_accept_valid = 1;
     task->net_ready_accept_fd = fd;
     task->net_ready_accept_owner_shard = owner_shard_id;
-    rt_task_set_placement(task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
+    rt_task_replace_owner(ex, task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
 }
 
 void rt_net_place_current_task_on_owner(rt_executor* ex, uint32_t owner_shard_id) {
@@ -93,7 +94,7 @@ void rt_net_place_current_task_on_owner(rt_executor* ex, uint32_t owner_shard_id
     rt_lock(ex);
     rt_task* task = rt_current_task();
     if (task != NULL) {
-        rt_task_set_placement(task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
+        rt_task_replace_owner(ex, task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
     }
     rt_unlock(ex);
 }
@@ -215,7 +216,7 @@ bool rt_net_wait_accept(const void* listener) {
                                       member->fd,
                                       member->owner_shard_id);
             }
-            net_task_set_ready_accept(task, member->fd, member->owner_shard_id);
+            net_task_set_ready_accept(ex, task, member->fd, member->owner_shard_id);
             rt_unlock(ex);
             return true;
         }

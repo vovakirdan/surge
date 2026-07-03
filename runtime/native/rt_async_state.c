@@ -942,7 +942,7 @@ static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) 
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
-    rt_waiter_store* store = rt_executor_waiter_store(ex);
+    rt_waiter_store* store = rt_waiter_store_for_key(ex, key);
     if (store == NULL || store->len == 0) {
         return;
     }

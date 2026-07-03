@@ -7,8 +7,11 @@ void rt_trace_collect_waiter_counts(const rt_executor* ex, rt_waiter_trace_count
     memset(out, 0, sizeof(*out));
     const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
     size_t shard_count = rt_runtime_shard_count(runtime);
-    for (size_t shard_index = 0; shard_index < shard_count; shard_index++) {
-        const rt_waiter_store* store = rt_executor_waiter_store_const_for_shard(ex, shard_index);
+    // Index shard_count aggregates the control-lane store (scope keys).
+    for (size_t shard_index = 0; shard_index <= shard_count; shard_index++) {
+        const rt_waiter_store* store =
+            shard_index == shard_count ? (ex != NULL ? &ex->control_waiters : NULL)
+                                       : rt_executor_waiter_store_const_for_shard(ex, shard_index);
         for (size_t i = 0; store != NULL && i < store->len; i++) {
             waker_kind kind = (waker_kind)store->entries[i].key.kind;
             out->total++;
