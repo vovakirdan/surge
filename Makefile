@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-waiter-check runtime-v2-fd-registry-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -95,8 +95,15 @@ runtime-v2-check:
 	fi
 	@echo ">> Running Runtime V2 liveness gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=$(SURGE_MT_TIMEOUT_SCALE) $(GO) test ./internal/vm -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	$(MAKE) runtime-v2-heap-check
 	$(MAKE) runtime-v2-waiter-check
 	$(MAKE) runtime-v2-fd-registry-check
+
+runtime-v2-heap-check:
+	@echo ">> Running Runtime V2 heap accounting gate"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestLLVMNative(HeapStats|BufferedChannelAllocatesSingleBlock)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2HeapAccounting(SequentialContracts|ConcurrentWorkersContract)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic(PublicABI|Task5SkeletonShape|Task6RecordMigrationShape|Task7SnapshotAggregationShape)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
 
 runtime-v2-waiter-check:
 	@echo ">> Running Runtime V2 waiter liveness gate"

@@ -370,6 +370,27 @@ task, then move durable decisions into the owning epic document before closeout.
 - Final Task 8 Sentrux scans/rules passed: root `6190`, runtime `5279`,
   runtime/native `5318`.
 
+## Epic 5 Task 09 Handoff
+
+- Scope completed: stable heap-accounting tests are now part of local
+  `make runtime-v2-check` and therefore the existing Runtime V2 CI job.
+- Added `runtime-v2-heap-check` to `Makefile`, added it to `.PHONY`, and wired
+  it into `runtime-v2-check` after the initial MT liveness seed and before
+  waiter/fd-registry gates.
+- The heap gate runs only stable tests: native heap smoke, buffered channel heap
+  smoke, sequential/concurrent heap accounting contracts, and Task 5/6/7 static
+  predicates. Task 8 stress runs and the manual heap benchmark stay out of CI.
+- All heap gate commands force `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0`
+  and use `-parallel=1 -p=1`.
+- `.github/workflows/ci.yml` did not need an edit: the Runtime V2 job already
+  installs LLVM and runs `make runtime-v2-check`.
+- Checks passed after review fix: `make runtime-v2-heap-check`,
+  `make runtime-v2-check`, `make check`, and `git diff --check`.
+- Final Task 9 Sentrux scans/rules passed: root `6190`, runtime `5279`,
+  runtime/native `5318`.
+- Review outcome: one P2 env-inheritance issue was fixed; focused re-review
+  returned no findings. No new debt was added by Task 9.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.

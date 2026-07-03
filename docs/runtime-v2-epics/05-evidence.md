@@ -15,7 +15,7 @@ keep `NOTES.md` as the handoff log.
 | 6 | Complete | Alloc/free/realloc writes now route through accounting cells; old global source-of-truth counters are gone; checks, Sentrux, and review outcome recorded below. |
 | 7 | Complete | Aggregation audit, focused heap evidence, active static predicate, Sentrux scans, and docs closeout recorded below. |
 | 8 | Complete | Repeated concurrent heap tests, SURGE_THREADS stress, manual heap benchmark script/report, review outcome, and benchmark stress debt recorded below. |
-| 9 | Draft | Runtime V2 heap CI gate not started. |
+| 9 | Complete | `runtime-v2-heap-check` added, wired into `runtime-v2-check`, CI inheritance confirmed, checks and review outcome recorded below. |
 | 10 | Draft | Epic closeout not started. |
 
 ## Open Evidence Questions
@@ -830,3 +830,91 @@ available in the review environment; `bash -n` passed.
   be removed.
 - Generated benchmark reports under `build/benchmarks/` and temporary fixture
   directories under `build/tmp/` are disposable ignored artifacts.
+
+## Task 9: Runtime V2 Heap CI Gates
+
+### Task Identity And Scope
+
+- Task: `05-tasks/09-runtime-v2-heap-ci-gates.md`.
+- Date: 2026-07-03.
+- Scope: add a stable heap-accounting gate to local Runtime V2 checks and CI.
+- Runtime/test changes: none.
+- CI workflow changes: none required; `.github/workflows/ci.yml` already runs
+  `make runtime-v2-check`.
+
+### Result
+
+Task 9 added `runtime-v2-heap-check` to `Makefile` and wired it into
+`runtime-v2-check` after the initial Runtime V2 MT liveness seed and before the
+waiter/fd-registry gates.
+
+The new heap gate runs only stable Task 3-7 heap tests:
+
+- `TestLLVMNativeHeapStats`;
+- `TestLLVMNativeBufferedChannelAllocatesSingleBlock`;
+- `TestRuntimeV2HeapAccountingSequentialContracts`;
+- `TestRuntimeV2HeapAccountingConcurrentWorkersContract`;
+- `TestRuntimeV2HeapAccountingStaticPublicABI`;
+- `TestRuntimeV2HeapAccountingStaticTask5SkeletonShape`;
+- `TestRuntimeV2HeapAccountingStaticTask6RecordMigrationShape`;
+- `TestRuntimeV2HeapAccountingStaticTask7SnapshotAggregationShape`.
+
+All heap gate commands use `-parallel=1 -p=1` and explicitly set
+`SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0`, so the gate cannot inherit a
+skipped timeout-test environment from the caller. Task 8 stress loops and
+manual benchmark script remain local-only and are not wired into CI.
+
+CI inheritance: the existing GitHub Actions Runtime V2 job installs the LLVM
+toolchain and runs `make runtime-v2-check`, so it now inherits the heap gate
+through the Makefile without workflow edits.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `Makefile` | updated | Add `runtime-v2-heap-check`, add it to `.PHONY`, and invoke it from `runtime-v2-check`. | Existing build file. |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 9 durable evidence. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 9 handoff. | Documentation only. |
+| `docs/runtime-v2-epics/05-tasks/09-runtime-v2-heap-ci-gates.md` | updated | Mark task complete. | Documentation only. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `make runtime-v2-heap-check` | pass | native heap smoke `ok surge/internal/vm 4.261s`; heap contracts `ok surge/internal/vm 4.367s`; static heap gate `ok surge/internal/vm 0.047s` | `0` | new local heap gate after review fix. |
+| `make runtime-v2-check` | pass | MT liveness, nested heap gate, waiter gate, and fd-registry gate passed; fd-registry package `ok surge/internal/vm 15.928s` | `0` | proves CI-inherited aggregate gate. |
+| `make check` | pass | Go suite, golangci-lint, C gate, and file-size gate passed | `0` | broad local check after Makefile fix. |
+| `git diff --check` | no whitespace errors | no output | `0` | whitespace gate. |
+| `rg -n 'runtime-v2-check' .github/workflows/ci.yml` | confirm CI inheritance | Runtime V2 job runs `make runtime-v2-check` after installing LLVM toolchain | `0` | no workflow edit required. |
+| Sentrux root scan/rules | pass | root quality `6190`; rules pass with 0 violations | pass | whole-repo architectural scan after Makefile/docs updates. |
+| Sentrux `runtime/` scan/rules | pass | runtime quality `5279`; rules pass with 0 violations | pass | scoped runtime scan; no runtime code changed in Task 9. |
+| Sentrux `runtime/native` scan/rules | pass | runtime/native quality `5318`; rules pass with 0 violations | pass | scoped native scan; no native code changed in Task 9. |
+
+### Review Outcome
+
+Review subagent found one P2 issue: the new heap target originally did not force
+`SURGE_SKIP_TIMEOUT_TESTS=0`, so a caller environment could have skipped the
+native heap smoke tests. Fixed by adding
+`SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0` to all three heap gate commands.
+Focused re-review returned no remaining findings.
+
+The same review also confirmed:
+
+- Makefile-only diff;
+- anchored regexes select only stable heap tests;
+- `-parallel=1 -p=1` mitigates VM artifact collisions;
+- Task 8 benchmark/stress evidence is not referenced by Makefile or CI;
+- CI inherits the heap gate through the existing `make runtime-v2-check` job.
+
+### Debt
+
+- No new debt was added by Task 9.
+- `RV2-DEBT-011` still applies to overlapping external VM commands; the new
+  target itself runs selected heap tests sequentially.
+- `RV2-DEBT-012` remains local-only benchmark tooling/perf debt and is not wired
+  into CI.
+
+### Rollback/Recovery Notes
+
+- Revert the Makefile target/wiring, this Task 9 section/status row, task status
+  wording, and matching `NOTES.md` handoff if Task 9 must be removed.
