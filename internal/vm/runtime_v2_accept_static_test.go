@@ -19,23 +19,93 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 	}
 
 	source := string(sourceBytes)
-	netOwned := []string{
+	netOwnedAccessors := []string{
 		"rt_executor_net_poll_scratch",
 		"rt_executor_fd_registry",
 		"rt_executor_fd_registry_const",
 	}
 	var offenders []string
-	for _, name := range netOwned {
+	for _, name := range netOwnedAccessors {
 		body, ok := cFunctionBody(source, name)
 		if !ok {
 			t.Fatalf("net-owned accessor %s not found in rt_runtime.c", name)
 		}
-		if strings.Contains(body, "rt_runtime_shard0(") || strings.Contains(body, "shards[0]") {
-			offenders = append(offenders, name)
+		if cBodyHasShard0Shortcut(body) {
+			offenders = append(offenders, "runtime/native/rt_runtime.c:"+name)
+		}
+	}
+
+	netOwnedSources := []struct {
+		path  string
+		names []string
+	}{
+		{
+			path: "runtime/native/rt_net.c",
+			names: []string{
+				"net_poll_wake_init",
+				"rt_net_wake_poll",
+				"net_poll_wake_drain",
+				"rt_net_listen",
+				"rt_net_connect",
+				"close_net_fd_slot",
+				"rt_net_close_listener",
+				"rt_net_close_conn",
+				"rt_net_accept",
+				"net_wait_current_task",
+				"rt_net_wait_accept",
+				"rt_net_wait_readable",
+				"rt_net_wait_writable",
+				"poll_net_waiters",
+			},
+		},
+		{
+			path: "runtime/native/rt_fd_registry.c",
+			names: []string{
+				"rt_fd_registry_complete_ready_net_waiters",
+				"rt_fd_registry_drain_shutdown_net_waiters_locked",
+			},
+		},
+		{
+			path: "runtime/native/rt_shutdown.c",
+			names: []string{
+				"rt_executor_drain_shutdown_net_waiters",
+				"rt_executor_request_shutdown",
+			},
+		},
+		{
+			path: "runtime/native/rt_async_waiter.c",
+			names: []string{
+				"fd_registry_bridge_net_attach",
+				"fd_registry_bridge_net_detach_if_last",
+			},
+		},
+		{
+			path: "runtime/native/rt_async_state.c",
+			names: []string{
+				"has_net_waiters",
+				"begin_net_poll",
+				"poll_net_waiters_owned",
+			},
+		},
+	}
+	for _, target := range netOwnedSources {
+		targetBytes, err := os.ReadFile(filepath.Join(root, target.path))
+		if err != nil {
+			t.Fatalf("read %s: %v", target.path, err)
+		}
+		targetSource := string(targetBytes)
+		for _, name := range target.names {
+			body, ok := cFunctionBody(targetSource, name)
+			if !ok {
+				t.Fatalf("net-owned function %s:%s not found", target.path, name)
+			}
+			if cBodyHasShard0Shortcut(body) {
+				offenders = append(offenders, target.path+":"+name)
+			}
 		}
 	}
 	if len(offenders) > 0 {
-		t.Fatalf("net-owned accessors still route through shard 0: %s; pass explicit owner shards before completing Epic 6", strings.Join(offenders, ", "))
+		t.Fatalf("net-owned paths still route through shard 0: %s; pass explicit owner shards before completing Epic 6", strings.Join(offenders, ", "))
 	}
 
 	// Stays-global compatibility exemptions from Task 2:
@@ -74,15 +144,16 @@ func TestRuntimeV2AcceptDynamicShardArrayShape(t *testing.T) {
 #error "RT_RUNTIME_MAX_SHARDS must be positive"
 #endif
 
-static void runtime_v2_accept_dynamic_shape(rt_runtime* runtime) {
-    _Static_assert(RT_RUNTIME_MAX_SHARDS >= 1, "RT_RUNTIME_MAX_SHARDS must be positive");
-    _Static_assert(sizeof(runtime->shards) / sizeof(runtime->shards[0]) == RT_RUNTIME_MAX_SHARDS,
-                   "rt_runtime.shards must be sized by RT_RUNTIME_MAX_SHARDS");
+_Static_assert(RT_RUNTIME_MAX_SHARDS >= 1, "RT_RUNTIME_MAX_SHARDS must be positive");
+_Static_assert(sizeof(((rt_runtime*)0)->shards) / sizeof(((rt_runtime*)0)->shards[0]) == RT_RUNTIME_MAX_SHARDS,
+               "rt_runtime.shards must be sized by RT_RUNTIME_MAX_SHARDS");
 
+int runtime_v2_accept_dynamic_shape(const rt_runtime* runtime) {
     if (rt_runtime_shard_count(runtime) < 1 ||
         rt_runtime_shard_count(runtime) > RT_RUNTIME_MAX_SHARDS) {
-        __builtin_trap();
+        return 0;
     }
+    return 1;
 }
 #endif
 `
@@ -130,4 +201,8 @@ func cFunctionBody(source, name string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func cBodyHasShard0Shortcut(body string) bool {
+	return strings.Contains(body, "rt_runtime_shard0(") || strings.Contains(body, "shards[0]")
 }

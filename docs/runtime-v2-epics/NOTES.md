@@ -2307,11 +2307,13 @@ pass, before any task execution began:
   `RT_RUNTIME_MAX_SHARDS` name or the current `RT_RUNTIME_SHARD_COUNT` fallback
   and assert the static storage limit is positive.
 - Added `runtime_v2_accept_static_test.go` under `runtime_v2_pending`.
-  `TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut` mechanically scans
-  `rt_runtime.c` and fails if net-owned accessors route through
-  `rt_runtime_shard0()`/`shards[0]`. The documented global-compat exemptions
-  are scheduler, channel blocking compat, and generic waiter-store accessors.
-  `TestRuntimeV2AcceptDynamicShardArrayShape` pins the future
+  `TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut` mechanically scans the
+  current net-owned accessor bodies plus named net-owned functions in
+  `rt_net.c`, `rt_fd_registry.c`, `rt_shutdown.c`, `rt_async_waiter.c`, and
+  net-poller functions in `rt_async_state.c`. It fails if any of those paths
+  route through `rt_runtime_shard0()`/`shards[0]`. The documented global-compat
+  exemptions are scheduler, channel blocking compat, and generic waiter-store
+  accessors. `TestRuntimeV2AcceptDynamicShardArrayShape` pins the future
   `RT_RUNTIME_MAX_SHARDS` plus bounded runtime `shard_count` contract.
 - Independent checks:
   `go build ./...` passed; `go test -tags runtime_v2_pending ./internal/vm
@@ -2328,3 +2330,7 @@ pass, before any task execution began:
   commands for already tagged static files. That produced `no tests to run`;
   the task doc now records the correct tagged commands so Task 6/13 do not
   inherit a false green.
+- Independent review follow-up: the first static gate was too narrow because
+  it only inspected the three `rt_runtime.c` accessors. The committed follow-up
+  broadened the gate before Task 6 continued and also removed a future
+  `-Wall -Wextra -Werror` false-red from the dynamic-shape C snippet.
