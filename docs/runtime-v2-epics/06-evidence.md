@@ -19,7 +19,7 @@ keep `NOTES.md` as the live handoff log.
 | 10 | Complete | Per-shard poller and wake ownership recorded below. |
 | 11 | Complete | Multishard net lifecycle migration recorded below. |
 | 12 | Complete | Trace counters, liveness fix, and benchmark evidence recorded below. |
-| 13 | Pending | Runtime V2 accept CI gates. |
+| 13 | Complete | Runtime V2 accept CI gates recorded below; independent review, standalone gate, full-chain stability passes, and `make check` passed. |
 | 14 | Pending | Large-file refactor tranche. |
 | 15 | Pending | Epic closeout and static gates. |
 
@@ -1696,3 +1696,73 @@ Interpretation:
 - [x] `global_path_fallbacks=0` for net-owned multishard rows.
 - [x] Sentrux root, `runtime`, and `runtime/native` scans pass and are
       recorded.
+
+## Task 13: Runtime V2 Accept CI Gates
+
+### Task Identity And Scope
+
+- Task: `06-tasks/13-runtime-v2-accept-ci-gates.md`.
+- Kind: CI.
+- Commit boundary: Task 13 closeout commit.
+- Scope: Makefile test selection plus docs for the stable accept CI gate.
+- Out of scope: runtime C changes, Go test behavior changes, broad VM regex
+  stabilization, benchmark promotion, and copied/raw net-handle owner guards.
+
+### Implementation
+
+- `runtime-v2-accept-check` already existed and was already called by
+  `runtime-v2-check`; Task 13 refined the target rather than creating it from
+  scratch.
+- The target now runs sequential focused commands, each with
+  `SURGE_BACKEND=llvm`, `SURGE_SKIP_TIMEOUT_TESTS=0`, `-count=1`,
+  `-parallel=1`, `-p=1`, and an explicit Go timeout.
+- Tagged contracts still run with `-tags runtime_v2_pending`. The untagged
+  `SURGE_SHARDS=1` compatibility floor runs without the pending tag.
+- `LIVENESS_PROBES.md` now records the accept CI liveness gate and the Task 12
+  shard-aware trace fields.
+
+### Selected Test Subset
+
+| Group | Tests | Rationale |
+| --- | --- | --- |
+| Single-shard compatibility | `TestRuntimeV2AcceptShardOneNativeNetCompatibility` | Proves Epic 6 did not break observable native net behavior under `SURGE_SHARDS=1`. |
+| Accept config and metadata | `TestRuntimeV2AcceptShardConfigInitializesRequestedShardCount`, `TestRuntimeV2AcceptRejectsInvalidShardConfig`, `TestRuntimeV2AcceptRejectsConflictingThreadCount`, `TestRuntimeV2NetMetadataStaticShape`, `TestRuntimeV2NetMetadataMultiShardListenClose` | Proves requested shard count, invalid config rejection, thread-count conflict rejection, and stable listener/connection owner metadata. |
+| Accept owner/static contracts | `TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut`, `TestRuntimeV2AcceptDynamicShardArrayShape`, `TestRuntimeV2AcceptReadinessClearsSiblingWaitKeys`, `TestRuntimeV2AcceptListenerRegistryGrowsUnderLock` | Keeps the static no-shard-0 shortcut gate plus the deterministic accept-readiness and listener-registry fixes. |
+| Task 12 accept trace contracts | `TestRuntimeV2AcceptDistributionAcrossOwnerShards`, `TestRuntimeV2AcceptOwnerShardLifecycleTraceContract` | Proves per-shard accept distribution, `global_path_fallbacks=0`, owner registry/readiness/close/cancel/shutdown trace fields, and listener-group close accounting. |
+| Per-shard net poller | `TestRuntimeV2NetPollerPerShardWakeShape`, `TestRuntimeV2NetPollerPerShardWakeBehavior`, `TestRuntimeV2NetPollerShardLocalPollInput`, `TestRuntimeV2NetPollerGlobalIOThreadDoesNotOwnMultiShardNetPolling`, `TestRuntimeV2NetPollerShutdownWakesEveryShard` | Proves owner-shard wake, shard-local poll input, global I/O exclusion for multishard net polling, and shutdown wake across shards. |
+| Scheduler placement/no-steal | `TestRuntimeV2SchedulerPlacementWorkerShape`, `TestRuntimeV2SchedulerPlacementNoStealPolicy`, `TestRuntimeV2SchedulerPlacementNoStealWorkerPath`, `TestRuntimeV2SchedulerPlacementStealPathSourceGate` | Proves one worker per shard, helper-level no-steal policy, real worker-path no-steal behavior, and source ordering before `SCHED_TRACE` records a steal. |
+
+### Exclusions
+
+- The broad accepted-debt command
+  `go test ./internal/vm -run 'MT|Async|Net|LLVM'` remains excluded under
+  `RV2-DEBT-001`.
+- Timing-sensitive live `SIGUSR1` probes, benchmark rows, 10k stress, and
+  heavy/manual load evidence stay local-only.
+- `TestRuntimeV2SchedulerPlacementInvalidOwnerFailsClosed` remains useful but
+  is outside the narrow accept CI minimum.
+- `TestRuntimeV2SchedulerPlacementParkedWithWorkInvariant` and
+  `TestRuntimeV2SchedulerPlacementParkedWithWorkSourceGate` remain broader
+  scheduler liveness checks, not accept-ownership CI checks.
+- `RV2-DEBT-013` stays open and was not edited. Task 13 does not close copied
+  or raw net-handle owner-generation guard debt.
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| Independent review/test subagent | Passed with no findings. The reviewer verified the Makefile target shape, docs alignment, declared exclusions, `make -n runtime-v2-accept-check`, and `timeout 300s make runtime-v2-accept-check`. |
+| `timeout 300s make runtime-v2-accept-check` | Passed in implementation and independent review. Reviewer run groups passed as untagged compatibility (`ok surge/internal/vm 3.318s`), tagged accept/metadata/static contracts (`ok surge/internal/vm 18.311s`), tagged net-poller contracts (`ok surge/internal/vm 0.176s`), and tagged scheduler placement/no-steal contracts (`ok surge/internal/vm 5.932s`). |
+| `timeout 600s make runtime-v2-check` x3 | Passed three consecutive main-session runs. Each run included the new accept CI gate through the top-level chain. |
+| `timeout 600s make check` | Passed, including Go tests, lint, C checks, and the effective LOC gate. |
+
+### Definition Of Done
+
+- [x] `runtime-v2-accept-check` exists in `Makefile`.
+- [x] It remains wired into `runtime-v2-check`.
+- [x] The target promotes the current stable Task 4/5/12 accept contracts and
+      scheduler placement/no-steal contracts.
+- [x] `LIVENESS_PROBES.md` records the new gate.
+- [x] Broad regex debt is not silently required by the new gate.
+- [x] The selected subset is stable across three consecutive full-chain local
+      runs.

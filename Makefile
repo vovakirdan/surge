@@ -116,8 +116,11 @@ runtime-v2-fd-registry-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(RepeatedReadinessSingleFD|ReadWriteInterestSharesFDRow|DuplicateReadWaitersBothComplete|ClosedFDFailsFast|StaticShape|StaticBoundary|GenerationStaleSnapshotProof|CloseWakePollNotificationProof|ShutdownDrainStaticContract|ShutdownDrainBehavior)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-accept-check:
-	@echo ">> Running Runtime V2 accept metadata gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(NetMetadata(StaticShape|MultiShardListenClose)|Accept(NetOwnershipNoShard0Shortcut|DynamicShardArrayShape)|NetPoller(PerShardWakeShape|PerShardWakeBehavior|ShardLocalPollInput|GlobalIOThreadDoesNotOwnMultiShardNetPolling|ShutdownWakesEveryShard))$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	@echo ">> Running Runtime V2 accept CI gate"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2AcceptShardOneNativeNetCompatibility$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(NetMetadata(StaticShape|MultiShardListenClose)|Accept(ShardConfigInitializesRequestedShardCount|RejectsInvalidShardConfig|RejectsConflictingThreadCount|DistributionAcrossOwnerShards|OwnerShardLifecycleTraceContract|NetOwnershipNoShard0Shortcut|DynamicShardArrayShape|ReadinessClearsSiblingWaitKeys|ListenerRegistryGrowsUnderLock))$$' -count=1 -parallel=1 -p=1 -v --timeout 240s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetPoller(PerShardWakeShape|PerShardWakeBehavior|ShardLocalPollInput|GlobalIOThreadDoesNotOwnMultiShardNetPolling|ShutdownWakesEveryShard)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SchedulerPlacement(WorkerShape|NoStealPolicy|NoStealWorkerPath|StealPathSourceGate)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 # ===== Format =====
 format: fmt

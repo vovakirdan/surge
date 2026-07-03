@@ -2636,3 +2636,29 @@ pass, before any task execution began:
   `timeout 300s make runtime-v2-check`, `timeout 300s make check`, Task 12
   benchmark evidence, and Sentrux root/runtime/native scans (`6182`, `5340`,
   `5467`).
+
+## Epic 6 Task 13 Handoff
+
+- Scope completed: `runtime-v2-accept-check` stayed wired into
+  `runtime-v2-check` and was refined from an earlier metadata/static gate into
+  the stable Epic 6 accept CI gate.
+- The target now runs four sequential focused commands: untagged
+  `SURGE_SHARDS=1` accept compatibility; tagged accept config/metadata/static
+  and Task 12 accept trace contracts; tagged per-shard net-poller contracts;
+  tagged scheduler placement/no-steal contracts.
+- Every command keeps the sibling gate shape:
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0`, `-count=1`, `-parallel=1`,
+  `-p=1`, and an explicit Go timeout. Tagged contracts keep
+  `-tags runtime_v2_pending`.
+- Excluded from this narrow gate: broad `MT|Async|Net|LLVM` VM regex debt,
+  live `SIGUSR1` probes, benchmark rows, 10k stress, invalid-owner panic
+  checks, and parked-with-work scheduler liveness checks.
+- `RV2-DEBT-013` stays open and `DEBT.md` was not edited. Copied/raw net-handle
+  owner-generation guards remain a later net-handle or stdlib owner-local
+  design task.
+- `LIVENESS_PROBES.md` now has the Runtime V2 accept CI liveness gate row and
+  the Task 12 `TRACE_NET`, `TRACE_NET_SHARDS`, and `SCHED_TRACE` fields.
+- Validation passed: implementation `timeout 300s make runtime-v2-accept-check`;
+  independent review/test subagent with no findings plus its own `timeout 300s
+  make runtime-v2-accept-check`; three consecutive main-session `timeout 600s
+  make runtime-v2-check` passes; and `timeout 600s make check`.
