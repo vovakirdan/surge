@@ -171,6 +171,7 @@ func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string
 	t.Helper()
 	values, line := runtimeV2NetTraceValues(t, stderr, reason)
 	for _, field := range []string{
+		"runtime_shards",
 		"io_poll_calls",
 		"io_poll_timeouts",
 		"io_poll_wake_fd",
@@ -189,6 +190,15 @@ func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string
 		"io_poll_dedup_checks",
 		"io_waiter_complete_calls",
 		"io_waiter_completed",
+		"accept_owner_total",
+		"accept_owner_active_shards",
+		"accept_owner_min",
+		"accept_owner_max",
+		"accept_owner_imbalance",
+		"global_path_fallbacks",
+		"fd_ready_batches",
+		"fd_ready_batch_fds_total",
+		"fd_ready_batch_fds_max",
 	} {
 		if _, ok := values[field]; !ok {
 			t.Fatalf("missing %s in TRACE_NET %s line:\n%s", field, reason, line)
@@ -238,7 +248,17 @@ func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string
 
 func runtimeV2NetTraceValues(t *testing.T, stderr string, reason string) (map[string]uint64, string) {
 	t.Helper()
-	prefix := "TRACE_NET "
+	return runtimeV2TraceValuesWithPrefix(t, stderr, "TRACE_NET", reason)
+}
+
+func runtimeV2NetShardTraceValues(t *testing.T, stderr string, reason string) (map[string]uint64, string) {
+	t.Helper()
+	return runtimeV2TraceValuesWithPrefix(t, stderr, "TRACE_NET_SHARDS", reason)
+}
+
+func runtimeV2TraceValuesWithPrefix(t *testing.T, stderr string, record string, reason string) (map[string]uint64, string) {
+	t.Helper()
+	prefix := record + " "
 	if reason != "" {
 		prefix += "reason=" + reason + " "
 	}
@@ -254,12 +274,12 @@ func runtimeV2NetTraceValues(t *testing.T, stderr string, reason string) (map[st
 			}
 			value, err := strconv.ParseUint(raw, 10, 64)
 			if err != nil {
-				t.Fatalf("parse TRACE_NET field %q in line:\n%s", field, line)
+				t.Fatalf("parse %s field %q in line:\n%s", record, field, line)
 			}
 			values[name] = value
 		}
 		return values, line
 	}
-	t.Fatalf("missing TRACE_NET reason=%s in stderr:\n%s", reason, stderr)
+	t.Fatalf("missing %s reason=%s in stderr:\n%s", record, reason, stderr)
 	return nil, ""
 }

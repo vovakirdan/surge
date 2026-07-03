@@ -14,6 +14,9 @@ void rt_net_trace_poll_wake_fd_enabled(void);
 void rt_net_trace_poll_ready_enabled(void);
 void rt_net_trace_waiter_completion_enabled(uint64_t calls, uint64_t woken);
 void rt_net_trace_accept_owner_enabled(uint32_t owner_shard_id);
+void rt_net_trace_runtime_shards_enabled(uint64_t count);
+void rt_net_trace_global_path_fallback_enabled(void);
+void rt_net_trace_fd_ready_batch_enabled(uint32_t owner_shard_id, uint64_t fd_count);
 void rt_net_trace_fd_owner_registry_row_enabled(void);
 void rt_net_trace_close_owner_wakeup_enabled(void);
 void rt_net_trace_shutdown_poller_wakeups_enabled(uint64_t count);
@@ -81,6 +84,27 @@ static inline void rt_net_trace_accept_owner(uint32_t owner_shard_id) {
         return;
     }
     rt_net_trace_accept_owner_enabled(owner_shard_id);
+}
+
+static inline void rt_net_trace_runtime_shards(uint64_t count) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_runtime_shards_enabled(count);
+}
+
+static inline void rt_net_trace_global_path_fallback(void) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_global_path_fallback_enabled();
+}
+
+static inline void rt_net_trace_fd_ready_batch(uint32_t owner_shard_id, uint64_t fd_count) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_fd_ready_batch_enabled(owner_shard_id, fd_count);
 }
 
 static inline void rt_net_trace_fd_owner_registry_row(void) {

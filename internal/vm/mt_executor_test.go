@@ -67,13 +67,17 @@ func overrideEnvVar(base []string, key, value string) []string {
 }
 
 type schedTrace struct {
-	mode   string
-	seed   uint64
-	local  uint64
-	inject uint64
-	steal  uint64
-	events uint64
-	hash   uint64
+	mode              string
+	seed              uint64
+	local             uint64
+	inject            uint64
+	steal             uint64
+	tier1StealDenied  uint64
+	connOwnerPlaced   uint64
+	connOwnerLocal    uint64
+	connOwnerMismatch uint64
+	events            uint64
+	hash              uint64
 }
 
 type execTrace map[string]uint64
@@ -168,6 +172,30 @@ func parseSchedTrace(t *testing.T, stderr string) schedTrace {
 					t.Fatalf("parse steal: %v", err)
 				}
 				out.steal = v
+			case "tier1_steal_denied":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse tier1_steal_denied: %v", err)
+				}
+				out.tier1StealDenied = v
+			case "conn_owner_placed":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse conn_owner_placed: %v", err)
+				}
+				out.connOwnerPlaced = v
+			case "conn_owner_local":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse conn_owner_local: %v", err)
+				}
+				out.connOwnerLocal = v
+			case "conn_owner_mismatch":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse conn_owner_mismatch: %v", err)
+				}
+				out.connOwnerMismatch = v
 			case "events":
 				v, err := strconv.ParseUint(kv[1], 10, 64)
 				if err != nil {

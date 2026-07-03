@@ -836,6 +836,7 @@ int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int time
     }
 
     int woke = 0;
+    uint64_t ready_fds = 0;
     if (wake_fd >= 0 && pfds[0].revents != 0) {
         rt_net_poll_wake_drain(shard);
         rt_net_trace_poll_wake_fd();
@@ -846,6 +847,7 @@ int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int time
         if (pfds[poll_idx].revents == 0) {
             continue;
         }
+        ready_fds++;
         bool read_ready = (pfds[poll_idx].revents & (POLLIN | POLLERR | POLLHUP | POLLNVAL)) != 0;
         bool write_ready = (pfds[poll_idx].revents & (POLLOUT | POLLERR | POLLHUP | POLLNVAL)) != 0;
         rt_fd_completion_summary completion =
@@ -860,6 +862,7 @@ int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int time
         }
         rt_net_trace_waiter_completion(completion.calls, completion.woken);
     }
+    rt_net_trace_fd_ready_batch(owner_shard_id, ready_fds);
 
     return woke;
 }

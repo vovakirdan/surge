@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_net_trace.h"
 
 #include <signal.h>
 #include <stdlib.h>
@@ -24,6 +25,10 @@ static uint64_t trace_sched_events;
 static uint64_t trace_sched_local_pops;
 static uint64_t trace_sched_inject_pops;
 static uint64_t trace_sched_steal_pops;
+static _Atomic uint64_t trace_sched_tier1_steal_denied_total;
+static _Atomic uint64_t trace_sched_conn_owner_placed_total;
+static _Atomic uint64_t trace_sched_conn_owner_local_total;
+static _Atomic uint64_t trace_sched_conn_owner_mismatch_total;
 static _Atomic sig_atomic_t trace_dump_requested_flag;
 
 int rt_exec_trace_enabled(void) {
@@ -412,6 +417,29 @@ void rt_trace_sched_record(rt_trace_sched_source source, uint64_t id) {
     trace_sched_hash *= UINT64_C(1099511628211);
 }
 
+static void trace_sched_inc_atomic(_Atomic uint64_t* counter) {
+    if (!trace_sched_enabled() || counter == NULL) {
+        return;
+    }
+    (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
+}
+
+void rt_trace_sched_tier1_steal_denied(void) {
+    trace_sched_inc_atomic(&trace_sched_tier1_steal_denied_total);
+}
+
+void rt_trace_sched_connection_owner_placed(void) {
+    trace_sched_inc_atomic(&trace_sched_conn_owner_placed_total);
+}
+
+void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worker_shard_id) {
+    if (owner_shard_id == worker_shard_id) {
+        trace_sched_inc_atomic(&trace_sched_conn_owner_local_total);
+        return;
+    }
+    trace_sched_inc_atomic(&trace_sched_conn_owner_mismatch_total);
+}
+
 static void trace_exec_signal_handler(int sig) {
     (void)sig;
 #ifdef SIGUSR1
@@ -423,6 +451,7 @@ static void trace_exec_signal_handler(int sig) {
 static void trace_dump_all(const char* reason) {
     trace_exec_dump(reason);
     if (rt_exec_trace_enabled()) {
+        rt_net_trace_runtime_shards(rt_runtime_shard_count(exec_state.runtime));
         rt_net_trace_dump(reason);
     }
     trace_exec_snapshot_dump(reason);
@@ -451,6 +480,10 @@ void rt_sched_trace_init(void) {
     trace_sched_local_pops = 0;
     trace_sched_inject_pops = 0;
     trace_sched_steal_pops = 0;
+    atomic_store_explicit(&trace_sched_tier1_steal_denied_total, 0, memory_order_relaxed);
+    atomic_store_explicit(&trace_sched_conn_owner_placed_total, 0, memory_order_relaxed);
+    atomic_store_explicit(&trace_sched_conn_owner_local_total, 0, memory_order_relaxed);
+    atomic_store_explicit(&trace_sched_conn_owner_mismatch_total, 0, memory_order_relaxed);
 }
 
 void rt_exec_trace_init(void) {
@@ -482,11 +515,19 @@ void rt_sched_trace_dump(void) {
     uint64_t steal = trace_sched_steal_pops;
     uint64_t events = trace_sched_events;
     uint64_t hash = trace_sched_hash;
+    uint64_t tier1_steal_denied =
+        atomic_load_explicit(&trace_sched_tier1_steal_denied_total, memory_order_relaxed);
+    uint64_t conn_owner_placed =
+        atomic_load_explicit(&trace_sched_conn_owner_placed_total, memory_order_relaxed);
+    uint64_t conn_owner_local =
+        atomic_load_explicit(&trace_sched_conn_owner_local_total, memory_order_relaxed);
+    uint64_t conn_owner_mismatch =
+        atomic_load_explicit(&trace_sched_conn_owner_mismatch_total, memory_order_relaxed);
     uint64_t seed = scheduler != NULL ? scheduler->sched_seed : 0;
     uint8_t mode = scheduler != NULL ? scheduler->sched_mode : SCHED_PARALLEL;
     rt_unlock(&exec_state);
 
-    char buf[256];
+    char buf[512];
     size_t pos = 0;
     pos = trace_append_literal(buf, pos, sizeof(buf), "SCHED_TRACE mode=");
     pos = trace_append_literal(buf, pos, sizeof(buf), mode == SCHED_SEEDED ? "seeded" : "parallel");
@@ -498,6 +539,14 @@ void rt_sched_trace_dump(void) {
     pos = trace_append_u64(buf, pos, sizeof(buf), inject);
     pos = trace_append_literal(buf, pos, sizeof(buf), " steal=");
     pos = trace_append_u64(buf, pos, sizeof(buf), steal);
+    pos = trace_append_literal(buf, pos, sizeof(buf), " tier1_steal_denied=");
+    pos = trace_append_u64(buf, pos, sizeof(buf), tier1_steal_denied);
+    pos = trace_append_literal(buf, pos, sizeof(buf), " conn_owner_placed=");
+    pos = trace_append_u64(buf, pos, sizeof(buf), conn_owner_placed);
+    pos = trace_append_literal(buf, pos, sizeof(buf), " conn_owner_local=");
+    pos = trace_append_u64(buf, pos, sizeof(buf), conn_owner_local);
+    pos = trace_append_literal(buf, pos, sizeof(buf), " conn_owner_mismatch=");
+    pos = trace_append_u64(buf, pos, sizeof(buf), conn_owner_mismatch);
     pos = trace_append_literal(buf, pos, sizeof(buf), " events=");
     pos = trace_append_u64(buf, pos, sizeof(buf), events);
     pos = trace_append_literal(buf, pos, sizeof(buf), " hash=");

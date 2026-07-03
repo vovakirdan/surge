@@ -144,6 +144,22 @@ int pthread_cond_signal(pthread_cond_t* cond) {
     return 0;
 }
 
+int waker_is_net(waker_key key) {
+    return key.kind == WAKER_NET_ACCEPT || key.kind == WAKER_NET_READ ||
+           key.kind == WAKER_NET_WRITE;
+}
+
+uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id) {
+    (void)ex;
+    if (key.id == 10) {
+        return 0;
+    }
+    if (key.id == 11) {
+        return 1;
+    }
+    return fallback_shard_id;
+}
+
 #include "rt_net_poller.c"
 
 static int require_int(int condition, int code) {
@@ -215,6 +231,21 @@ int main(void) {
     err = require_int(read_one(runtime.shards[0].net_poll_wake.read_fd) == 1, 14);
     if (err != 0) return err;
     err = require_int(read_one(runtime.shards[1].net_poll_wake.read_fd) == 1, 15);
+    if (err != 0) return err;
+
+    waker_key wait_keys[2] = {
+        {WAKER_NET_ACCEPT, 10},
+        {WAKER_NET_ACCEPT, 11},
+    };
+    rt_task task;
+    memset(&task, 0, sizeof(task));
+    task.wait_keys = wait_keys;
+    task.wait_keys_len = 2;
+    err = require_int(rt_net_wake_poll_for_task_wait_keys(&ex, &task, wait_keys[0]) == 2, 16);
+    if (err != 0) return err;
+    err = require_int(read_one(runtime.shards[0].net_poll_wake.read_fd) == 1, 17);
+    if (err != 0) return err;
+    err = require_int(read_one(runtime.shards[1].net_poll_wake.read_fd) == 1, 18);
     if (err != 0) return err;
 
     rt_net_poll_wake_close(&runtime.shards[0].net_poll_wake);

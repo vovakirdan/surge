@@ -1,6 +1,6 @@
 # Task 12: Trace Counters And Benchmark Evidence
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** trace/benchmark
 **Depends on:** Task 9, Task 10, Task 11
 
@@ -167,20 +167,20 @@ Read:
 
 ## Definition Of Done
 
-- [ ] Shard-aware trace counters exist for: shard count, accepted
+- [x] Shard-aware trace counters exist for: shard count, accepted
       connections by shard, connection-task owner placement, denied/avoided
       Tier 1 steals, global-path fallback usage, fd readiness batches, shard
       imbalance.
-- [ ] Benchmark rows exist for single-shard and multi-shard at 1, 8, 32
+- [x] Benchmark rows exist for single-shard and multi-shard at 1, 8, 32
       connections and at least one row near 1k (10k if safe, with an
       explicit skip reason if not).
-- [ ] Every row uses a verified current-checkout binary.
-- [ ] Every notable result (regression, flat throughput, skew) has an
+- [x] Every row uses a verified current-checkout binary.
+- [x] Every notable result (regression, flat throughput, skew) has an
       explanation grounded in the preserved global-lock boundary or
       `SO_REUSEPORT` skew expectations, not left as an unexplained number.
-- [ ] Global-path/shard-0-fallback counter reads zero for net-owned paths
+- [x] Global-path/shard-0-fallback counter reads zero for net-owned paths
       under `SURGE_SHARDS>1`, matching Task 5's static gate.
-- [ ] Sentrux root, `runtime/`, and `runtime/native/` scans are recorded
+- [x] Sentrux root, `runtime/`, and `runtime/native/` scans are recorded
       pass/fail with `quality_signal`, following `SENTRUX_POLICY.md`'s
       required call order; a dropped scoped `quality_signal` is either
       explained as an accepted proving-spike exception or blocks closing this

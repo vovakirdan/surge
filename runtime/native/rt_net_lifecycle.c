@@ -13,6 +13,9 @@ uint32_t rt_net_owner_shard_or_compat(rt_executor* ex, uint32_t requested) {
     if (requested < shard_count) {
         return requested;
     }
+    if (shard_count > 1) {
+        rt_net_trace_global_path_fallback();
+    }
     return 0;
 }
 

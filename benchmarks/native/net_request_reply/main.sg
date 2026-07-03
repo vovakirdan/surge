@@ -260,30 +260,53 @@ async fn serve_conn(conn: TcpConn, mode: string) -> int {
     return 2;
 }
 
+async fn serve_many(listener: TcpListener, mode: string, connections: uint) -> int {
+    let mut tasks: Task<int>[] = [];
+    let mut accepted: uint = 0:uint;
+    while accepted < connections {
+        let accept_res = net.accept(&listener).await();
+        compare accept_res {
+            Success(net_res) => {
+                compare net_res {
+                    Success(conn) => {
+                        let task: Task<int> = @local spawn serve_conn(conn, mode);
+                        tasks.push(task);
+                    }
+                    err => {
+                        print("accept_err=" + (err.code to string));
+                        let _ = net.close_listener(own listener);
+                        return 1;
+                    }
+                };
+            }
+            Cancelled() => {
+                print("accept_cancelled");
+                let _ = net.close_listener(own listener);
+                return 1;
+            }
+        };
+        accepted = accepted + 1:uint;
+    }
+
+    let mut result: int = 0;
+    while tasks.__len() != 0:uint {
+        let task = tasks.pop().safe();
+        let code = int_result_code(task.await());
+        if code != 0 && result == 0 {
+            result = code;
+        }
+    }
+    let _ = net.close_listener(own listener);
+    return result;
+}
+
 @entrypoint("argv")
-fn main(port: uint, mode: string = "direct") -> int {
+fn main(port: uint, mode: string = "direct", connections: uint = 1:uint) -> int {
     let listen_res = net.listen("127.0.0.1", port);
     compare listen_res {
         Success(listener) => {
             print("ready");
-            let accept_res = net.accept(&listener).await();
-            compare accept_res {
-                Success(net_res) => {
-                    compare net_res {
-                        Success(conn) => {
-                            return int_result_code(serve_conn(conn, mode).await());
-                        }
-                        err => {
-                            print("accept_err=" + (err.code to string));
-                            return 1;
-                        }
-                    };
-                }
-                Cancelled() => {
-                    print("accept_cancelled");
-                    return 1;
-                }
-            };
+            return int_result_code(serve_many(listener, mode, connections).await());
         }
         err => {
             print("listen_err=" + (err.code to string));

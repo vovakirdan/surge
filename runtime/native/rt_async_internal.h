@@ -484,6 +484,7 @@ uint64_t task_id_from_handle(void* handle);
 void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_class);
 void rt_task_inherit_placement(rt_task* task, const rt_task* parent);
 int rt_task_can_steal_from_shard(const rt_task* task, uint32_t shard_id);
+int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t shard_id);
 void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id);
 int rt_debug_validate_worker_ctx(rt_executor* ex,
                                  uint32_t shard_id,
@@ -527,7 +528,12 @@ int rt_net_poll_waiters_owned_on_shard(rt_executor* ex, uint32_t owner_shard_id,
 int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms);
 uint64_t rt_net_wake_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id);
 uint64_t rt_net_wake_poll_all_shards(rt_executor* ex);
+uint64_t
+rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_key fallback_key);
 void rt_net_trace_dump(const char* reason);
+void rt_trace_sched_tier1_steal_denied(void);
+void rt_trace_sched_connection_owner_placed(void);
+void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worker_shard_id);
 void rt_trace_drain_signal_dump(void);
 int run_ready_one(rt_executor* ex);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);

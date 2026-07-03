@@ -35,37 +35,15 @@ fn pong() -> byte[] {
 }
 
 async fn serve_many(listener: TcpListener, total: uint) -> int {
+    let mut tasks: Task<int>[] = [];
     let mut accepted: uint = 0:uint;
     while accepted < total {
         let accept_task = net.accept(&listener).await();
         let code: int = compare accept_task {
             Success(conn_res) => compare conn_res {
                 Success(conn) => {
-                    let read_task = net.read_some(&conn, 16:uint).await();
-                    let read_ok: bool = compare read_task {
-                        Success(read_res) => compare read_res {
-                            Success(bytes) => bytes.__len() != 0:uint;
-                            _ => false;
-                        };
-                        Cancelled() => false;
-                    };
-                    if !read_ok {
-                        let _ = net.close_conn(own conn);
-                        return 2;
-                    }
-                    let write_task = net.write_all(&conn, pong()).await();
-                    let write_ok: bool = compare write_task {
-                        Success(write_res) => compare write_res {
-                            Success(_) => true;
-                            _ => false;
-                        };
-                        Cancelled() => false;
-                    };
-                    if !write_ok {
-                        let _ = net.close_conn(own conn);
-                        return 3;
-                    }
-                    let _ = net.close_conn(own conn);
+                    let task: Task<int> = @local spawn serve_one(conn);
+                    tasks.push(task);
                     0;
                 };
                 _ => 1;
@@ -77,7 +55,47 @@ async fn serve_many(listener: TcpListener, total: uint) -> int {
         }
         accepted = accepted + 1:uint;
     }
+    let mut result: int = 0;
+    while tasks.__len() != 0:uint {
+        let task = tasks.pop().safe();
+        let code = compare task.await() {
+            Success(value) => value;
+            Cancelled() => 99;
+        };
+        if code != 0 && result == 0 {
+            result = code;
+        }
+    }
     let _ = net.close_listener(own listener);
+    return result;
+}
+
+async fn serve_one(conn: TcpConn) -> int {
+    let read_task = net.read_some(&conn, 16:uint).await();
+    let read_ok: bool = compare read_task {
+        Success(read_res) => compare read_res {
+            Success(bytes) => bytes.__len() != 0:uint;
+            _ => false;
+        };
+        Cancelled() => false;
+    };
+    if !read_ok {
+        let _ = net.close_conn(own conn);
+        return 2;
+    }
+    let write_task = net.write_all(&conn, pong()).await();
+    let write_ok: bool = compare write_task {
+        Success(write_res) => compare write_res {
+            Success(_) => true;
+            _ => false;
+        };
+        Cancelled() => false;
+    };
+    if !write_ok {
+        let _ = net.close_conn(own conn);
+        return 3;
+    }
+    let _ = net.close_conn(own conn);
     return 0;
 }
 
@@ -179,6 +197,26 @@ func requireRuntimeV2AcceptNetFieldAtLeast(
 	}
 }
 
+func requireRuntimeV2AcceptNetFieldEqual(
+	t *testing.T,
+	values map[string]uint64,
+	line string,
+	field string,
+	want uint64,
+	owner string,
+) {
+	t.Helper()
+	got, ok := values[field]
+	if !ok {
+		t.Fatalf("missing %s in TRACE_NET exit line; %s must add this accept-ownership proof field:\n%s",
+			field, owner, line)
+	}
+	if got != want {
+		t.Fatalf("expected %s=%d, got %d; %s owns this accept-ownership contract:\n%s",
+			field, want, got, owner, line)
+	}
+}
+
 func TestRuntimeV2AcceptShardConfigInitializesRequestedShardCount(t *testing.T) {
 	ensureLLVMToolchain(t)
 
@@ -199,6 +237,8 @@ func TestRuntimeV2AcceptShardConfigInitializesRequestedShardCount(t *testing.T) 
 	if got != 4 {
 		t.Fatalf("expected runtime_shards=4, got %d\nstderr:\n%s", got, res.stderr)
 	}
+	netValues, netLine := runtimeV2NetTraceValues(t, res.stderr, "exit")
+	requireRuntimeV2AcceptNetFieldEqual(t, netValues, netLine, "runtime_shards", 4, "Task 12")
 }
 
 func TestRuntimeV2AcceptRejectsInvalidShardConfig(t *testing.T) {
@@ -239,16 +279,45 @@ func TestRuntimeV2AcceptRejectsConflictingThreadCount(t *testing.T) {
 func TestRuntimeV2AcceptDistributionAcrossOwnerShards(t *testing.T) {
 	ensureLLVMToolchain(t)
 
-	stderr := runRuntimeV2AcceptBurst(t, 4, 64)
+	const shards = 4
+	const clients = 64
+	stderr := runRuntimeV2AcceptBurst(t, shards, clients)
 	values, line := runtimeV2NetTraceValues(t, stderr, "exit")
-	requireRuntimeV2AcceptNetFieldAtLeast(
-		t,
-		values,
-		line,
-		"accept_owner_active_shards",
-		2,
-		"Task 9/12",
-	)
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "runtime_shards", shards, "Task 12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_total", clients, "Task 9/12")
+	shardValues, shardLine := runtimeV2NetShardTraceValues(t, stderr, "exit")
+	requireRuntimeV2AcceptNetFieldEqual(t, shardValues, shardLine, "runtime_shards", shards, "Task 12")
+
+	var total uint64
+	var active uint64
+	var min uint64
+	var max uint64
+	for i := 0; i < shards; i++ {
+		field := fmt.Sprintf("accept_%d", i)
+		got, ok := shardValues[field]
+		if !ok {
+			t.Fatalf("missing %s in TRACE_NET_SHARDS exit line:\n%s", field, shardLine)
+		}
+		total += got
+		if got != 0 {
+			active++
+		}
+		if i == 0 || got < min {
+			min = got
+		}
+		if got > max {
+			max = got
+		}
+	}
+	if total != clients {
+		t.Fatalf("per-shard accept total mismatch: got %d want %d\nTRACE_NET:\n%s\nTRACE_NET_SHARDS:\n%s",
+			total, clients, line, shardLine)
+	}
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_active_shards", active, "Task 12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_min", min, "Task 12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_max", max, "Task 12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_imbalance", max-min, "Task 12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "global_path_fallbacks", 0, "Task 5/12")
 }
 
 func TestRuntimeV2AcceptOwnerShardLifecycleTraceContract(t *testing.T) {
@@ -262,6 +331,42 @@ func TestRuntimeV2AcceptOwnerShardLifecycleTraceContract(t *testing.T) {
 		min   uint64
 		owner string
 	}{
+		{
+			name:  "accept owner total is counted",
+			field: "accept_owner_total",
+			min:   8,
+			owner: "Task 9/12",
+		},
+		{
+			name:  "accept owner imbalance is present",
+			field: "accept_owner_imbalance",
+			min:   0,
+			owner: "Task 12",
+		},
+		{
+			name:  "global-path fallback counter is present",
+			field: "global_path_fallbacks",
+			min:   0,
+			owner: "Task 5/12",
+		},
+		{
+			name:  "fd readiness batches are counted",
+			field: "fd_ready_batches",
+			min:   1,
+			owner: "Task 10/12",
+		},
+		{
+			name:  "fd readiness batch fds are counted",
+			field: "fd_ready_batch_fds_total",
+			min:   1,
+			owner: "Task 10/12",
+		},
+		{
+			name:  "fd readiness batch max is counted",
+			field: "fd_ready_batch_fds_max",
+			min:   1,
+			owner: "Task 10/12",
+		},
 		{
 			name:  "readiness uses owner shard registry",
 			field: "fd_owner_registry_rows",
@@ -304,4 +409,7 @@ func TestRuntimeV2AcceptOwnerShardLifecycleTraceContract(t *testing.T) {
 			requireRuntimeV2AcceptNetFieldAtLeast(t, values, line, tc.field, tc.min, tc.owner)
 		})
 	}
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "runtime_shards", 4, "Task 12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_total", 8, "Task 9/12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "global_path_fallbacks", 0, "Task 5/12")
 }

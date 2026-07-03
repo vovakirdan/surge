@@ -39,10 +39,19 @@ func TestRuntimeV2SchedulerPlacementWorkerShape(t *testing.T) {
 
 func TestRuntimeV2SchedulerPlacementNoStealPolicy(t *testing.T) {
 	binPath := buildRuntimeV2SchedulerPlacementHarness(t)
-	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "no-steal", os.Environ())
+	env := schedulerPlacementEnv("SURGE_SCHED_TRACE=1")
+	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "no-steal", env)
 	if exitCode != 0 {
 		t.Fatalf("no-steal harness failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
 			exitCode, stdout, stderr)
+	}
+	trace := parseSchedTrace(t, stderr)
+	if trace.steal != 0 {
+		t.Fatalf("denied no-steal decision must not be reported as a successful steal; steal=%d\nstderr:\n%s",
+			trace.steal, stderr)
+	}
+	if trace.tier1StealDenied == 0 {
+		t.Fatalf("expected denied Tier 1 steal evidence in SCHED_TRACE\nstderr:\n%s", stderr)
 	}
 }
 
@@ -63,6 +72,13 @@ func TestRuntimeV2SchedulerPlacementNoStealWorkerPath(t *testing.T) {
 	if trace.steal != 0 {
 		t.Fatalf("connection-owned shard task was stolen across shard boundary; SCHED_TRACE steal=%d\nstderr:\n%s",
 			trace.steal, stderr)
+	}
+	if trace.connOwnerLocal == 0 {
+		t.Fatalf("expected connection-owned task to run on its owner shard in SCHED_TRACE\nstderr:\n%s", stderr)
+	}
+	if trace.connOwnerMismatch != 0 {
+		t.Fatalf("connection-owned task ran on a non-owner shard; conn_owner_mismatch=%d\nstderr:\n%s",
+			trace.connOwnerMismatch, stderr)
 	}
 }
 
@@ -305,6 +321,10 @@ static int worker_shape(void) {
 }
 
 static int no_steal(void) {
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return fail("missing executor");
+    }
     rt_task task;
     memset(&task, 0, sizeof(task));
     task.kind = TASK_KIND_USER;
@@ -312,7 +332,7 @@ static int no_steal(void) {
         return fail("generic unowned task should be stealable");
     }
     rt_task_set_placement(&task, 1, TASK_PLACEMENT_CONNECTION);
-    if (rt_task_can_steal_from_shard(&task, 0)) {
+    if (rt_task_can_steal_from_shard_or_trace_denied(&task, 0)) {
         return fail("connection-owned task escaped owner shard");
     }
     if (!rt_task_can_steal_from_shard(&task, 1)) {
@@ -322,8 +342,10 @@ static int no_steal(void) {
     if (!rt_task_can_steal_from_shard(&task, 0)) {
         return fail("generic owned task should preserve compatibility stealing");
     }
-	    return 0;
-	}
+    rt_sched_trace_dump();
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
 
 	static int no_steal_worker_path(void) {
 	    rt_executor* ex = ensure_exec();

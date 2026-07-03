@@ -15,7 +15,7 @@ func TestRuntimeV2SchedulerPlacementStealPathSourceGate(t *testing.T) {
 	if !ok {
 		t.Fatal("pop_task_from_deque not found")
 	}
-	guardIndex := strings.Index(body, "rt_task_can_steal_from_shard(task, stealer_shard_id)")
+	guardIndex := strings.Index(body, "rt_task_can_steal_from_shard_or_trace_denied(task, stealer_shard_id)")
 	traceIndex := strings.Index(body, "rt_trace_sched_record(source, id)")
 	if guardIndex < 0 || traceIndex < 0 || guardIndex > traceIndex {
 		t.Fatal("steal path must validate owner shard before tracing a pop")
@@ -27,6 +27,16 @@ func TestRuntimeV2SchedulerPlacementStealPathSourceGate(t *testing.T) {
 	deniedSegment := body[conditionIndex:traceIndex]
 	if !strings.Contains(deniedSegment, "deque_push_") || !strings.Contains(deniedSegment, "return 0;") {
 		t.Fatalf("steal denial branch must restore the task and return before tracing:\n%s", deniedSegment)
+	}
+	placementSource := readRuntimeV2SchedulerPlacementSource(t)
+	helperBody, ok := cFunctionBody(placementSource, "rt_task_can_steal_from_shard_or_trace_denied")
+	if !ok {
+		t.Fatal("rt_task_can_steal_from_shard_or_trace_denied not found")
+	}
+	if !strings.Contains(helperBody, "rt_task_can_steal_from_shard(task, shard_id)") ||
+		!strings.Contains(helperBody, "rt_trace_sched_tier1_steal_denied()") {
+		t.Fatalf("steal denial helper must preserve the no-steal check and expose Task 12 evidence:\n%s",
+			helperBody)
 	}
 	for offset := 0; ; {
 		relative := strings.Index(source[offset:], "RT_TRACE_SCHED_SRC_STEAL")
@@ -71,6 +81,15 @@ func readRuntimeV2SchedulerStateSource(t *testing.T) string {
 	sourceBytes, err := os.ReadFile(filepath.Join(repoRoot(t), "runtime", "native", "rt_async_state.c"))
 	if err != nil {
 		t.Fatalf("read rt_async_state.c: %v", err)
+	}
+	return string(sourceBytes)
+}
+
+func readRuntimeV2SchedulerPlacementSource(t *testing.T) string {
+	t.Helper()
+	sourceBytes, err := os.ReadFile(filepath.Join(repoRoot(t), "runtime", "native", "rt_scheduler_placement.c"))
+	if err != nil {
+		t.Fatalf("read rt_scheduler_placement.c: %v", err)
 	}
 	return string(sourceBytes)
 }

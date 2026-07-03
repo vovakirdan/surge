@@ -772,7 +772,7 @@ static int pop_task_from_deque(rt_executor* ex,
             continue;
         }
         if (source == RT_TRACE_SCHED_SRC_STEAL &&
-            !rt_task_can_steal_from_shard(task, stealer_shard_id)) {
+            !rt_task_can_steal_from_shard_or_trace_denied(task, stealer_shard_id)) {
             int ok = lifo ? deque_push_tail(dq,
                                             id,
                                             "async: local queue overflow",
@@ -785,6 +785,9 @@ static int pop_task_from_deque(rt_executor* ex,
             return 0;
         }
         task_enqueued_store(task, 0);
+        if (task->owner_shard_valid != 0 && task->placement_class == TASK_PLACEMENT_CONNECTION) {
+            rt_trace_sched_connection_owner_run(task->owner_shard_id, stealer_shard_id);
+        }
         rt_trace_sched_record(source, id);
         if (out_id != NULL) {
             *out_id = id;
@@ -1151,8 +1154,7 @@ void park_current(rt_executor* ex, waker_key key) {
     }
     rt_trace_park_committed();
     if (waker_is_net(key)) {
-        uint32_t owner_shard_id = rt_net_owner_shard_for_key(ex, key, 0);
-        (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
+        (void)rt_net_wake_poll_for_task_wait_keys(ex, task, key);
     }
     pthread_cond_signal(&ex->io_cv);
 }
@@ -1662,6 +1664,9 @@ static void* rt_worker_main(void* arg) {
                 }
                 if (ex->shutdown || worker_next_ready(ctx, &id)) {
                     break;
+                }
+                if (rt_net_has_waiters_on_shard(ex, ctx->shard_id)) {
+                    continue;
                 }
             }
             // Sleep only after local, inject, and steal queues have been checked under ex->lock.

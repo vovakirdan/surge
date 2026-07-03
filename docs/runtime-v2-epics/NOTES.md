@@ -2592,3 +2592,47 @@ pass, before any task execution began:
   `./check_file_sizes.sh --self-test`, `make check`, Sentrux
   root/runtime/native scans (`6184`, `5329`, `5466`), and targeted net/non-net
   liveness probes listed in `06-evidence.md`.
+
+## Epic 6 Task 12 Handoff
+
+- Scope completed: shard-aware trace counters and native net benchmark
+  evidence. `TRACE_NET` now reports runtime shard count, accept totals,
+  active owner shards, min/max/imbalance, global fallback count, and fd-ready
+  batch aggregates. `TRACE_NET_SHARDS` reports per-shard accept and fd-ready
+  counts. `SCHED_TRACE` reports denied Tier 1 steals and connection-owner
+  placement/locality counters.
+- Task 12 validation found and fixed an existing multishard accept liveness
+  bug. A single accept task can register waiters for all listener-group fds;
+  park previously woke only one owner poller, and shard workers could sleep
+  after one short poll timeout even while their shard still had net waiters.
+  The issue reproduced at clean Task 11 commit `74ad7b46`, so it was not a
+  trace-counter regression.
+- Fix details: `rt_net_wake_poll_for_task_wait_keys` wakes every net owner
+  shard represented by the task's wait keys, and multishard worker polling
+  keeps cycling while `rt_net_has_waiters_on_shard` remains true. The
+  per-shard wake behavior harness now covers the multi-key helper.
+- `scripts/bench_native_net.sh` supports explicit shard and connection
+  matrices and reports the new counters. Its default path preserves the old
+  single-connection benchmark matrix; Task 12 evidence rows are requested by
+  env.
+- Benchmark report:
+  `build/benchmarks/runtime-v2-task12-native-net.md`. Rows covered 1 and 8
+  shards at 1, 8, 32, and 1024 connections; 10k rows were skipped by the
+  script's safety default. The 8-shard/1024 row used all owner shards
+  (`accept_0=133 accept_1=136 accept_2=136 accept_3=126 accept_4=108
+  accept_5=133 accept_6=144 accept_7=108`) with `global_path_fallbacks=0` and
+  `sched steal=0`.
+- Performance interpretation: 8-shard throughput was worse than 1-shard in the
+  Task 12 direct/seq benchmark. This is accepted for Epic 6 because the global
+  executor lock is still preserved; Task 12 proves ownership/locality
+  visibility and absence of shard-0 fallback, not line-rate scaling. Low-count
+  `SO_REUSEPORT` skew at 1/8/32 connections is explicitly non-failure.
+- Independent review/test subagent approved the final patch after bounded
+  checks and a short benchmark smoke. No new durable debt was opened.
+- Final gates passed: `bash -n scripts/bench_native_net.sh`,
+  `git diff --check`, `./check_file_sizes.sh --self-test`,
+  `./check_file_sizes.sh`, `make c-check`, `make cppcheck`, focused
+  accept/scheduler trace tests, `TestRuntimeV2NetPollerPerShardWakeBehavior`,
+  `timeout 300s make runtime-v2-check`, `timeout 300s make check`, Task 12
+  benchmark evidence, and Sentrux root/runtime/native scans (`6182`, `5340`,
+  `5467`).

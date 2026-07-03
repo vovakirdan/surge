@@ -54,6 +54,9 @@ void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_c
     task->owner_shard_id = shard_id;
     task->owner_shard_valid = 1;
     task->placement_class = placement_class;
+    if (placement_class == TASK_PLACEMENT_CONNECTION) {
+        rt_trace_sched_connection_owner_placed();
+    }
 }
 
 void rt_task_inherit_placement(rt_task* task, const rt_task* parent) {
@@ -71,6 +74,17 @@ int rt_task_can_steal_from_shard(const rt_task* task, uint32_t shard_id) {
         return 1;
     }
     return task->owner_shard_id == shard_id;
+}
+
+int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t shard_id) {
+    if (task == NULL) {
+        return 0;
+    }
+    if (rt_task_can_steal_from_shard(task, shard_id)) {
+        return 1;
+    }
+    rt_trace_sched_tier1_steal_denied();
+    return 0;
 }
 
 void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id) {

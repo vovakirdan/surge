@@ -17,8 +17,8 @@ keep `NOTES.md` as the live handoff log.
 | 8 | Complete | Listener and connection owner metadata recorded below. |
 | 9 | Complete | Accept distribution implementation recorded below. |
 | 10 | Complete | Per-shard poller and wake ownership recorded below. |
-| 11 | Pending | Multishard net lifecycle migration. |
-| 12 | Pending | Trace counters and benchmark evidence. |
+| 11 | Complete | Multishard net lifecycle migration recorded below. |
+| 12 | Complete | Trace counters, liveness fix, and benchmark evidence recorded below. |
 | 13 | Pending | Runtime V2 accept CI gates. |
 | 14 | Pending | Large-file refactor tranche. |
 | 15 | Pending | Epic closeout and static gates. |
@@ -1513,3 +1513,186 @@ This is not classified as a Task 11 regression. It stays open under
       cancellation/join/timeout/channel/blocking probes.
 - [x] Remaining relevant Task 4/static accept gates pass.
 - [x] Line-count impact is recorded; `rt_net.c` did not grow.
+
+## Task 12: Trace Counters And Benchmark Evidence
+
+### Task Identity And Scope
+
+- Task: `06-tasks/12-trace-counters-and-benchmark-evidence.md`.
+- Kind: trace/benchmark.
+- Commit boundary: pending at evidence-write time.
+- Scope: shard-aware trace counters, multishard native net benchmark rows, and
+  the liveness fix required to make the Task 12 accept evidence observable.
+- Out of scope: CI wiring (Task 13), lock sharding, Phase 4 messaging, public
+  syntax/API changes, and 10k connection stress promotion.
+
+### Implementation
+
+- `TRACE_NET` now includes aggregate shard-aware fields:
+  `runtime_shards`, `accept_owner_total`, `accept_owner_min`,
+  `accept_owner_max`, `accept_owner_imbalance`,
+  `global_path_fallbacks`, `fd_ready_batches`,
+  `fd_ready_batch_fds_total`, and `fd_ready_batch_fds_max`.
+- A stable `TRACE_NET_SHARDS` line records per-shard `accept_N`,
+  `fd_ready_batches_N`, and `fd_ready_fds_N` fields. This avoids adding 64
+  fields to the primary `TRACE_NET` row while preserving key/value parsing.
+- `SCHED_TRACE` now includes `tier1_steal_denied`,
+  `conn_owner_placed`, `conn_owner_local`, and `conn_owner_mismatch`.
+- The no-steal counter increments at the same branch that restores a
+  connection-owned task to the victim queue before returning without a
+  successful steal.
+- `scripts/bench_native_net.sh` now supports explicit
+  `SURGE_NET_BENCH_SHARDS` and `SURGE_NET_BENCH_CONNECTIONS`, records both
+  `SURGE_SHARDS` and `SURGE_THREADS` in rows, verifies the supplied Surge
+  binary commit against the checkout, and reports the new counters. Its
+  default path preserves the old single-connection benchmark matrix; Task 12
+  multishard evidence is requested explicitly by env.
+- `benchmarks/native/net_request_reply/main.sg` now accepts N connections and
+  handles each accepted connection through `@local spawn`, so benchmark rows
+  can exercise owner-local connection tasks without adding language syntax.
+
+### Liveness Bug Found And Fixed
+
+Task 12 validation exposed an existing multishard accept liveness gap:
+
+- A single accept task registers waiters for every listener-group fd. `park`
+  previously woke only the first net key's owner poller.
+- Worker-owned multishard net polling used a short poll slice and then could
+  park on `ready_cv` even while its own shard still had net waiters. Since no
+  later ready signal is guaranteed for pure socket readiness, accept waiters
+  could remain registered without ever reaching `net-accept-ready`.
+- The failure reproduced at clean Task 11 commit `74ad7b46` in detached
+  worktree `/tmp/surge-task12-baseline`, so it was not introduced by the
+  Task 12 trace counters.
+
+Fix:
+
+- `rt_net_wake_poll_for_task_wait_keys` wakes every owner shard represented
+  in the current task's net wait-key list, with a fallback to the parked key.
+- Multishard worker polling now continues polling while
+  `rt_net_has_waiters_on_shard(ex, ctx->shard_id)` remains true instead of
+  sleeping on `ready_cv` after a single timeout slice.
+- `TestRuntimeV2NetPollerPerShardWakeBehavior` now covers the multi-key wake
+  helper in its C harness.
+
+### Benchmark Evidence
+
+Report path:
+`build/benchmarks/runtime-v2-task12-native-net.md`.
+
+Command:
+
+```bash
+go build -ldflags "$(./scripts/ldflags.sh --local)" -o /tmp/surge-task12-bench ./cmd/surge
+timeout 300s env \
+  SURGE=/tmp/surge-task12-bench \
+  SURGE_NET_BENCH_SHARDS="1 8" \
+  SURGE_NET_BENCH_CONNECTIONS="1 8 32 1024 10000" \
+  SURGE_NET_BENCH_REQUESTS=8 \
+  SURGE_NET_BENCH_MODES=direct \
+  SURGE_NET_BENCH_PATTERNS=seq \
+  SURGE_NET_BENCH_CLIENT_PARALLEL=128 \
+  SURGE_NET_BENCH_RUN_TIMEOUT=60s \
+  SURGE_NET_BENCH_REPORT="$PWD/build/benchmarks/runtime-v2-task12-native-net.md" \
+  ./scripts/bench_native_net.sh
+```
+
+Selected rows:
+
+| shards | threads | connections | total requests | total us | avg us/op | p50 us | p95 us |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1 | 1 | 8 | 3536 | 182.34 | 140.35 | 267.30 |
+| 1 | 1 | 8 | 64 | 15553 | 1077.84 | 938.22 | 2293.13 |
+| 1 | 1 | 32 | 256 | 55870 | 2790.74 | 2681.44 | 5026.52 |
+| 1 | 1 | 1024 | 8192 | 1516521 | 22292.61 | 20245.62 | 35968.24 |
+| 8 | 8 | 1 | 8 | 3834 | 201.52 | 147.99 | 301.14 |
+| 8 | 8 | 8 | 64 | 18489 | 1120.44 | 444.96 | 3542.41 |
+| 8 | 8 | 32 | 256 | 55465 | 4586.95 | 3594.86 | 14059.59 |
+| 8 | 8 | 1024 | 8192 | 2371469 | 31224.46 | 1161.00 | 76692.39 |
+
+Trace proof highlights:
+
+| shards | connections | runtime shards | sched steal | denied steals | accept total | active accept shards | imbalance | global fallbacks |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1024 | 1 | 0 | 0 | 1024 | 1 | 0 | 0 |
+| 8 | 1 | 8 | 0 | 0 | 1 | 1 | 1 | 0 |
+| 8 | 8 | 8 | 0 | 0 | 8 | 4 | 3 | 0 |
+| 8 | 32 | 8 | 0 | 0 | 32 | 8 | 4 | 0 |
+| 8 | 1024 | 8 | 0 | 0 | 1024 | 8 | 36 | 0 |
+
+High-load distribution row:
+
+```text
+accept_0=133 accept_1=136 accept_2=136 accept_3=126 accept_4=108 accept_5=133 accept_6=144 accept_7=108
+```
+
+Interpretation:
+
+- Low connection counts show expected `SO_REUSEPORT` skew and are not judged
+  as distribution failures.
+- The 1024-connection row exercises every accept owner shard with moderate
+  imbalance (`max-min=36`).
+- 8-shard throughput is worse than the 1-shard row in this benchmark. That is
+  acceptable under the Epic 6 boundary because the global executor lock is
+  still preserved; the Task 12 proof is locality/ownership visibility and no
+  shard-0 fallback, not line-rate scaling.
+- 10k rows were skipped by the script's safety default:
+  `10k row disabled by default; set SURGE_NET_BENCH_TRY_10K=1 after fd-limit
+  and timeout checks`.
+
+### Files Touched
+
+| Path | Effective LOC | Notes |
+| --- | ---: | --- |
+| `runtime/native/rt_net_trace.c` | 276 | New aggregate and per-shard net trace counters. |
+| `runtime/native/rt_net_trace.h` | 125 | Inline trace hooks for runtime shards, fallback, and fd-ready batches. |
+| `runtime/native/rt_async_trace.c` | 518 | New `SCHED_TRACE` counters. |
+| `runtime/native/rt_async_state.c` | 1722 | Legacy-ok under ceiling 1727; no-steal trace hook and net-poller liveness loop. |
+| `runtime/native/rt_net_poller.c` | 158 | Multi-key net poller wake helper and per-shard wake behavior proof surface. |
+| `runtime/native/rt_net.c` | 818 | FD readiness batch trace hook in shard-local poller. |
+| `runtime/native/rt_scheduler_placement.c` | 91 | No-steal denied trace helper and connection placement counter. |
+| `scripts/bench_native_net.sh` | n/a | Explicit shard/connection matrix, stale-binary guard, trace columns, 10k skip. |
+| `benchmarks/native/net_request_reply/main.sg` | n/a | N-connection benchmark fixture with `@local spawn` handlers. |
+| `internal/vm/*runtime_v2*` | n/a | Trace assertions and liveness/static harness updates. |
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| `bash -n scripts/bench_native_net.sh` | Passed. |
+| `git diff --check` | Passed. |
+| `./check_file_sizes.sh --self-test` | Passed. |
+| `./check_file_sizes.sh` | Passed; all touched runtime files under effective LOC gate or legacy ceiling. |
+| `make c-check` | Passed. |
+| `make cppcheck` | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^(TestRuntimeV2Accept(ShardConfigInitializesRequestedShardCount\|DistributionAcrossOwnerShards\|OwnerShardLifecycleTraceContract)\|TestRuntimeV2SchedulerPlacement(NoStealPolicy\|NoStealWorkerPath\|StealPathSourceGate))$' -count=1 -parallel=1 -p=1 -v --timeout 240s` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetPollerPerShardWakeBehavior$' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed after static harness update. |
+| `go build -ldflags "$(./scripts/ldflags.sh --local)" -o /tmp/surge-task12-bench ./cmd/surge && timeout 180s env SURGE=/tmp/surge-task12-bench SURGE_NET_BENCH_SHARDS="1 4" SURGE_NET_BENCH_CONNECTIONS="1 8" SURGE_NET_BENCH_REQUESTS=8 SURGE_NET_BENCH_MODES=direct SURGE_NET_BENCH_PATTERNS=seq SURGE_NET_BENCH_REPORT=/tmp/surge-task12-smoke.md ./scripts/bench_native_net.sh` | Passed. |
+| `timeout 300s make runtime-v2-check` | Passed on final rerun. First attempt failed in `TestRuntimeV2NetPollerPerShardWakeBehavior` because the isolated C harness lacked stubs for the new helper's dependencies; harness was fixed and the full rerun passed. |
+| `timeout 300s make check` | Passed. |
+| `timeout 300s env SURGE=/tmp/surge-task12-bench ... ./scripts/bench_native_net.sh` | Passed; report written to `build/benchmarks/runtime-v2-task12-native-net.md`. |
+| `sentrux check .` | Passed, quality 6182. |
+| `sentrux check runtime` | Passed, quality 5340. |
+| `sentrux check runtime/native` | Passed, quality 5467. |
+
+### Review Pass
+
+- Implementer subagent produced a plan, then implementation; main-agent
+  validation found the multishard accept liveness bug and fixed it.
+- Independent review/test subagent found no blockers after the fix. Its bounded
+  command set passed, including C checks, cppcheck, focused Go tests, LOC
+  checker, and a short benchmark smoke at 1/4 shards and 1/8 connections.
+
+### Definition Of Done
+
+- [x] Shard-aware trace counters exist for shard count, accepted connections
+      by shard, connection-task placement, denied Tier 1 steals, global
+      fallback usage, fd readiness batches, and imbalance.
+- [x] Benchmark rows exist for 1, 8, 32, and 1024 connections on 1 and 8
+      shards; 10k rows are explicitly skipped with a safety reason.
+- [x] Rows use a freshly built current-checkout Surge binary.
+- [x] Throughput and skew are interpreted against the preserved global-lock
+      boundary and `SO_REUSEPORT` low-count skew.
+- [x] `global_path_fallbacks=0` for net-owned multishard rows.
+- [x] Sentrux root, `runtime`, and `runtime/native` scans pass and are
+      recorded.

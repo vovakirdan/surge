@@ -92,6 +92,32 @@ uint64_t rt_net_wake_poll_all_shards(rt_executor* ex) {
     return woken;
 }
 
+uint64_t
+rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_key fallback_key) {
+    if (ex == NULL) {
+        return 0;
+    }
+    uint64_t woken = 0;
+    if (task != NULL) {
+        for (size_t i = 0; i < task->wait_keys_len; i++) {
+            waker_key key = task->wait_keys[i];
+            if (!waker_is_net(key)) {
+                continue;
+            }
+            uint32_t owner_shard_id = rt_net_owner_shard_for_key(ex, key, 0);
+            woken += rt_net_wake_poll_on_shard(ex, owner_shard_id);
+        }
+    }
+    if (woken == 0 && waker_is_net(fallback_key)) {
+        uint32_t owner_shard_id = rt_net_owner_shard_for_key(ex, fallback_key, 0);
+        woken += rt_net_wake_poll_on_shard(ex, owner_shard_id);
+    }
+    if (woken > 0 && rt_runtime_shard_count(rt_executor_runtime(ex)) > 1) {
+        pthread_cond_broadcast(&ex->ready_cv);
+    }
+    return woken;
+}
+
 void rt_net_poll_wake_drain(rt_shard* shard) {
     if (shard == NULL || shard->net_poll_wake.read_fd < 0) {
         return;
