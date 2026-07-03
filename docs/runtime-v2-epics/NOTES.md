@@ -2158,3 +2158,41 @@ pass, before any task execution began:
   accept/readiness/close/cancellation/shutdown paths from the frozen Task 1
   starting facts. It should not re-litigate the listener model; Task 3 owns the
   proving spike, and both tasks must reconcile before Tasks 4/5 finalize tests.
+
+## Epic 6 Task 02 Handoff
+
+- Scope completed: docs-only accept ownership dependency map in
+  `06-accept-ownership-dependency-map.md`. No runtime code, tests, task docs,
+  `Makefile`, CI, Sentrux rules, or benchmark scripts changed.
+- Classification boundary is now explicit: net accept/readiness/close/shutdown
+  ownership moves to the owning shard in Epic 6; non-net waiters and primitives
+  remain global compatibility under `ex->lock`; lock sharding remains Epic 7;
+  Phase 4 inbound messaging/eventfd/credits/PARKED and syntax are later.
+- Current net-owned migration surfaces: native `NetListener`/`NetConn` metadata,
+  `rt_executor_fd_registry(_const)` callers in net wait/close/poll/completion/
+  shutdown paths, `rt_executor_net_poll_scratch`, process-global wake pipe,
+  `begin_net_poll`/`net_polling`, and shutdown drain/wake in
+  `runtime/native/rt_shutdown.c`.
+- `runtime/native/rt_shutdown.c` exists in this checkout. Its
+  `rt_executor_drain_shutdown_net_waiters` and `rt_executor_request_shutdown`
+  paths currently drain `rt_executor_fd_registry(ex)` and request wake through
+  the process-global `rt_net_wake_poll`; Tasks 10/11 must iterate/wake every
+  shard-owned net registry/poller.
+- No new unowned Epic 6 gap was found. Open reconciliation points are assigned:
+  Task 3 decides listener model and handler placement; Task 6 does structural
+  shard array/config; Task 7 handles connection-task placement/no-steal; Task 8
+  attaches owner metadata; Tasks 10/11 migrate poller/wake and net lifecycle.
+- First safe implementation boundary chosen: Task 6 can add
+  `RT_RUNTIME_MAX_SHARDS` plus runtime `shard_count`, `SURGE_SHARDS` parsing
+  and conflict validation, and per-shard container initialization under the
+  preserved global lock. It should not silently make `rt_start_workers`
+  shard-aware unless its approved task scope is expanded; placement belongs to
+  Task 7/10.
+- Task 3 must not use this map as a listener-model decision. It must answer how
+  one public listener handle maps to N internal accept owners, how handler tasks
+  reach the owner shard without syntax changes, and how listener-group close
+  semantics are represented.
+- Task 2 review pass approved the map against the task DoD and sampled source
+  citations for shutdown, fd-registry completion/drain, poll input, listen/
+  accept, steal branches, and VM handle flow. No correction was required before
+  commit.

@@ -8,7 +8,7 @@ keep `NOTES.md` as the live handoff log.
 | Task | Status | Evidence |
 | --- | --- | --- |
 | 1 | Complete | Starting state, structural facts, accepted debt, line counts, Sentrux scans, current gates, and Task 2-5 gate plan recorded below. |
-| 2 | Pending | Accept ownership dependency map. |
+| 2 | Complete | Accept/readiness/close/cancellation/shutdown dependency map recorded in `06-accept-ownership-dependency-map.md`; no unowned gap found. |
 | 3 | Pending | Listener model proving spike. |
 | 4 | Pending | Multishard accept contract tests. |
 | 5 | Pending | Multishard static shape tests. |
@@ -307,3 +307,89 @@ Epic 11 unless this epic changes that path.
 - [x] Skipped checks record the exact reason and blocker status.
 - [x] Dead ends are recorded so future tasks do not retry them.
 - [x] Follow-ups and blockers have an owner, target document, or next task.
+
+## Task 2: Accept Ownership Dependency Map
+
+### Task Identity And Scope
+
+- Task: `06-tasks/02-accept-ownership-dependency-map.md`.
+- Date: 2026-07-03.
+- Scope: docs-only dependency map for accept/readiness/close/cancellation/
+  shutdown ownership before any Epic 6 runtime implementation.
+- Created: `docs/runtime-v2-epics/06-accept-ownership-dependency-map.md`.
+- Updated: this evidence file and `NOTES.md`.
+- Out of scope: runtime code, tests, task docs, Makefile, CI, listener-model
+  decision, benchmark changes, and commits.
+
+### Files Touched
+
+| Path | Change | Reason |
+| --- | --- | --- |
+| `docs/runtime-v2-epics/06-accept-ownership-dependency-map.md` | created | Source-backed map of net-shard-owned, stays-global-compat, and later-epic dependencies. |
+| `docs/runtime-v2-epics/06-evidence.md` | updated | Mark Task 2 complete and record commands/gaps. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 2 handoff for Task 3/6/7/8/10/11. |
+
+No runtime code, tests, task documents, `Makefile`, CI files, Sentrux rules, or
+benchmark scripts changed.
+
+### Commands/Checks
+
+| Command | Purpose | Result |
+| --- | --- | --- |
+| `rg -n 'rt_runtime_shard0|rt_executor_(scheduler|net_poll_scratch|channel_blocking_compat|waiter_store|fd_registry)' runtime/native internal/vm` | Enumerate shard-0 compatibility accessors and current callers. | Completed; map records net-owned vs global-compat callers. |
+| `rg -n 'rt_fd_registry_(attach_net_interest|detach_net_interest|net_interest_present|snapshot_poll_interest|complete_ready_net_waiters|drain_shutdown_net_waiters_locked|wake_closed_net_waiters|mark_closed)' runtime/native internal/vm` | Enumerate fd-registry lifecycle and net completion paths. | Completed; map marks registry paths `net-shard-owned`. |
+| `rg -n 'net_poll_wake_(init|drain)|rt_net_wake_poll|net_poll_wake_read_fd|net_poll_wake_write_fd|poll_net_waiters|poll_net_waiters_owned|begin_net_poll|has_net_waiters' runtime/native` | Enumerate current wake-pipe and poller ownership. | Completed; map marks process-global wake pipe as Task 10 migration point. |
+| `rg -n 'rt_net_(listen|accept|close_listener|close_conn|read|write|read_bytes|write_bytes|wait_accept|wait_readable|wait_writable)|NetListener|NetConn|net_listener_from|net_conn_from' runtime/native internal/vm` | Trace native and VM-visible net handle flow. | Completed; map records native metadata and public ABI boundary. |
+| `rg -n 'net_(accept|read|write)_key|waker_is_net|prepare_park|park_current|wake_task|wake_task_with_policy|mark_done|cancel_task|pop_waiter|add_waiter|net_waiter' runtime/native` | Trace waiter keys, park/wake, cancellation, and cleanup. | Completed; map classifies net-key cleanup separately from global cancellation. |
+| `rg -n 'SURGE_THREADS|rt_env_worker_count|exec_init_once|rt_shard_scheduler_init|worker_ctx|worker_next_ready|steal|SCHED_TRACE|trace_sched_steal' runtime/native internal/vm docs/runtime-v2-epics/LIVENESS_PROBES.md` | Trace config, worker model, steal path, and trace evidence. | Completed; map names Task 6/7 boundaries. |
+| `rg -n 'shutdown|blocking_shutdown|rt_executor_request_shutdown|rt_executor_drain_shutdown_net_waiters' runtime/native internal/vm docs/runtime-v2-epics` | Trace shutdown state and drain/wake paths. | Completed; `runtime/native/rt_shutdown.c` exists and is mapped as Task 10/11 migration surface. |
+| `rg -n 'RT_RUNTIME_SHARD_COUNT|RT_RUNTIME_MAX_SHARDS|shard_count|#error' runtime/native internal/vm/runtime_v2_*_test.go` | Enumerate fixed `N=1` runtime shape and static pins. | Completed; map points Task 5/6 at fixed-shard contract update. |
+| `rg -n 'SO_REUSEPORT|SO_REUSEADDR' runtime/native/rt_net.c` | Check listener socket options. | Completed; only `SO_REUSEADDR` matched. |
+| `git diff --check` | Whitespace gate for tracked docs diff. | Passed with no output. |
+| `git diff --no-index --check /dev/null docs/runtime-v2-epics/06-accept-ownership-dependency-map.md` | Whitespace gate for new untracked map file. | Passed with no output; exit `1` is expected for a `/dev/null` diff. |
+
+### Review Pass
+
+Main-agent review approved Task 2 after checking the task DoD, the new map,
+and the evidence/notes updates. The review sampled current source citations for
+`rt_shutdown.c`, `rt_fd_registry.c`, `rt_net.c`, `rt_async_state.c`,
+`rt_async_waiter.c`, `rt_runtime.c`, and VM net handles; no stale citation,
+boundary error, or missing Task 3 reconciliation point was found.
+
+### Contracts Touched
+
+| Contract | Status | Evidence |
+| --- | --- | --- |
+| Runtime behavior | N/A | Docs-only map; no code changed. |
+| Public Surge syntax/API | Preserved | Map explicitly defers syntax/keywords and keeps public net ABI stable. |
+| Epic 6 ownership boundary | Clarified | Net accept/readiness/close/shutdown ownership moves; non-net primitives stay global compatibility under `ex->lock`; lock sharding remains Epic 7; Phase 4 messaging remains later. |
+| Listener model | Not resolved | Task 3 reconciliation points recorded for `SO_REUSEPORT` group vs fallback handoff. |
+
+### Gaps / Follow-Ups
+
+No new unowned Epic 6 gap was found.
+
+Task 3 must reconcile the listener model before Tasks 4/5 finalize behavior and
+static tests: internal accept task placement, one public listener handle vs N
+internal fds, handler-task owner placement without syntax changes, listener
+group close semantics, fallback-handoff trace counters, and low-connection
+`SO_REUSEPORT` skew.
+
+Task 6's first safe implementation boundary is structural:
+`RT_RUNTIME_MAX_SHARDS` plus runtime `shard_count`, `SURGE_SHARDS` parsing, and
+per-shard container initialization under the preserved global lock. Task 7/10
+own worker placement, no-steal connection scheduling, and per-shard poller/wake
+ownership.
+
+### Definition Of Done
+
+- [x] Accept, readiness, close, cancellation, and shutdown paths are mapped with
+      `file:line` citations.
+- [x] Current shard-0 accessor callers are enumerated and classified.
+- [x] `SURGE_THREADS`/`SURGE_SHARDS` implementation path is named for Task 6.
+- [x] `NetListener`/`NetConn` native and VM-visible handle flow is mapped for
+      Task 8.
+- [x] No dependency outside Tasks 6-11 or the Not Included boundary was silently
+      absorbed.
+- [x] Task 3 reconciliation points are explicit.
+- [x] `git diff --check` final whitespace gate.
