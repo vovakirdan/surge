@@ -98,6 +98,7 @@ rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_
         return 0;
     }
     uint64_t woken = 0;
+    int multi_shard = rt_runtime_shard_count(rt_executor_runtime(ex)) > 1;
     if (task != NULL) {
         for (size_t i = 0; i < task->wait_keys_len; i++) {
             waker_key key = task->wait_keys[i];
@@ -105,15 +106,22 @@ rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_
                 continue;
             }
             uint32_t owner_shard_id = rt_net_owner_shard_for_key(ex, key, 0);
-            woken += rt_net_wake_poll_on_shard(ex, owner_shard_id);
+            uint64_t wrote = rt_net_wake_poll_on_shard(ex, owner_shard_id);
+            woken += wrote;
+            if (wrote > 0 && multi_shard) {
+                rt_sched_wake_signal_shard_n(
+                    rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id), 1);
+            }
         }
     }
     if (woken == 0 && waker_is_net(fallback_key)) {
         uint32_t owner_shard_id = rt_net_owner_shard_for_key(ex, fallback_key, 0);
-        woken += rt_net_wake_poll_on_shard(ex, owner_shard_id);
-    }
-    if (woken > 0 && rt_runtime_shard_count(rt_executor_runtime(ex)) > 1) {
-        pthread_cond_broadcast(&ex->ready_cv);
+        uint64_t wrote = rt_net_wake_poll_on_shard(ex, owner_shard_id);
+        woken += wrote;
+        if (wrote > 0 && multi_shard) {
+            rt_sched_wake_signal_shard_n(rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id),
+                                         1);
+        }
     }
     return woken;
 }

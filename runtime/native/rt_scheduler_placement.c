@@ -33,18 +33,36 @@ uint64_t rt_runtime_total_worker_count(const rt_runtime* runtime) {
     return total;
 }
 
-rt_scheduler* rt_task_scheduler(rt_executor* ex, const rt_task* task) {
+rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task) {
     rt_runtime* runtime = rt_executor_runtime(ex);
     if (runtime != NULL && task != NULL && task->owner_shard_valid != 0) {
         rt_shard* shard = rt_runtime_shard(runtime, task->owner_shard_id);
-        rt_scheduler* scheduler = rt_shard_scheduler(shard);
-        if (scheduler != NULL) {
-            return scheduler;
+        if (shard != NULL) {
+            return shard;
         }
         panic_msg("async: invalid task owner shard");
         return NULL;
     }
-    return rt_executor_scheduler(ex);
+    // Tasks without placement are a pre-Task-7 compatibility case; they
+    // belong to shard 0, matching the old rt_executor_scheduler fallback.
+    return rt_runtime_shard0(runtime);
+}
+
+rt_scheduler* rt_task_scheduler(rt_executor* ex, const rt_task* task) {
+    return rt_shard_scheduler(rt_task_owner_shard(ex, task));
+}
+
+void rt_task_assign_spawn_owner(rt_task* task) {
+    if (task == NULL || task->owner_shard_valid != 0) {
+        return;
+    }
+    // D3 universal assignment: a spawn without inherited placement belongs
+    // to the spawning worker's shard; non-worker threads spawn onto shard 0.
+    uint32_t shard_id = rt_debug_current_worker_shard_id();
+    if (shard_id == UINT32_MAX) {
+        shard_id = 0;
+    }
+    rt_task_set_placement(task, shard_id, TASK_PLACEMENT_GENERIC);
 }
 
 void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_class) {

@@ -160,6 +160,17 @@ uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fal
     return fallback_shard_id;
 }
 
+static uint32_t sched_wake_signal_calls;
+static uint32_t sched_wake_signal_by_shard[RT_RUNTIME_MAX_SHARDS];
+
+void rt_sched_wake_signal_shard_n(rt_shard* shard, uint32_t tokens) {
+    if (shard == NULL || tokens == 0) {
+        return;
+    }
+    sched_wake_signal_calls++;
+    sched_wake_signal_by_shard[shard->shard_id]++;
+}
+
 #include "rt_net_poller.c"
 
 static int require_int(int condition, int code) {
@@ -282,9 +293,13 @@ func TestRuntimeV2NetPollerShutdownWakesEveryShard(t *testing.T) {
 	if !ok {
 		t.Fatal("rt_executor_request_shutdown not found")
 	}
+	// Since Epic 7 Task 7 worker sleep is per-shard: shutdown must sweep every
+	// shard's worker_cv (rt_sched_wake_broadcast_all) and the control-lane
+	// compat_cv instead of the retired global ready_cv.
 	for _, required := range []string{
 		"rt_net_wake_poll_all_shards(ex)",
-		"pthread_cond_broadcast(&ex->ready_cv)",
+		"rt_sched_wake_broadcast_all(ex)",
+		"pthread_cond_broadcast(&ex->compat_cv)",
 		"pthread_cond_broadcast(&ex->io_cv)",
 	} {
 		if !strings.Contains(requestBody, required) {

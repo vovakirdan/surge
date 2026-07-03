@@ -2884,3 +2884,22 @@ pass, before any task execution began:
   the shard lane using the sanctioned nested shape (control -> shard), with
   a per-shard wake-pending counter so the worker can release the control
   lock before waiting on its shard cv.
+
+## Epic 7 Task 7 Handoff
+
+- `ready_cv` is gone: worker sleep = `rt_sched_worker_sleep` (release
+  control -> shard `worker_cv` wait consuming `wake_pending` -> reacquire);
+  wakes signal only the owner shard; sync-channel compat waiters moved to a
+  control-lane `compat_cv` (their tasks are RUNNING during the wait, so the
+  ready-push-failed fallback broadcast is their only wake). Universal owner
+  assignment landed (`rt_task_assign_spawn_owner`); `ex->shutdown` is
+  atomic. Two stub-harness contract tests updated for the new shutdown
+  sweep (`rt_sched_wake_broadcast_all` + `compat_cv`).
+- Behavior stayed green: Task 4 suite 9/9 x2, `runtime-v2-check` x2,
+  cppcheck/c-check. LOC: state.c 1563/1722; header 499/500 — Task 8 must
+  extract decls before adding any.
+- Worker turn itself still holds the control lock (peel is Task 11);
+  `wake_pending` leftover tokens cost one extra rescan by design.
+- Next: Task 8 waiter-store key ownership (join/timer/blocking keys to the
+  task owner's store, per-key store locks under the nested shape,
+  collect-then-wake for foreign hints).

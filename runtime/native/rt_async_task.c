@@ -47,6 +47,7 @@ void* __task_create(
         task_add_child(parent, id);
         rt_task_inherit_placement(task, parent);
     }
+    rt_task_assign_spawn_owner(task);
     ready_push(ex, id);
     rt_unlock(ex);
     return task;
@@ -673,7 +674,7 @@ int64_t rt_select_poll(uint64_t count,
     return -1;
 }
 
-static rt_task* spawn_checkpoint_task_locked(rt_executor* ex) {
+static rt_task* spawn_internal_task_locked(rt_executor* ex, uint8_t kind, uint64_t sleep_delay) {
     if (ex == NULL) {
         return NULL;
     }
@@ -687,41 +688,25 @@ static rt_task* spawn_checkpoint_task_locked(rt_executor* ex) {
     memset(task, 0, sizeof(rt_task));
     task->id = id;
     task_status_store(task, TASK_READY);
-    task->kind = TASK_KIND_CHECKPOINT;
+    task->kind = kind;
+    task->sleep_delay = sleep_delay;
     task_cancelled_store(task, 0);
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
     rt_task_inherit_placement(task, rt_current_task());
+    rt_task_assign_spawn_owner(task);
     ex->tasks[id] = task;
     ready_push(ex, id);
     return task;
 }
 
+static rt_task* spawn_checkpoint_task_locked(rt_executor* ex) {
+    return spawn_internal_task_locked(ex, TASK_KIND_CHECKPOINT, 0);
+}
+
 static rt_task* spawn_sleep_task_locked(rt_executor* ex, uint64_t delay) {
-    if (ex == NULL) {
-        return NULL;
-    }
-    uint64_t id = ex->next_id++;
-    ensure_task_cap(ex, id);
-    rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
-    if (task == NULL) {
-        panic_msg("async: task allocation failed");
-        return NULL;
-    }
-    memset(task, 0, sizeof(rt_task));
-    task->id = id;
-    task_status_store(task, TASK_READY);
-    task->kind = TASK_KIND_SLEEP;
-    task->sleep_delay = delay;
-    task_cancelled_store(task, 0);
-    task_enqueued_store(task, 0);
-    (void)task_wake_token_exchange(task, 0);
-    atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
-    rt_task_inherit_placement(task, rt_current_task());
-    ex->tasks[id] = task;
-    ready_push(ex, id);
-    return task;
+    return spawn_internal_task_locked(ex, TASK_KIND_SLEEP, delay);
 }
 
 static void ensure_select_timers_cap(rt_task* task, size_t want) {

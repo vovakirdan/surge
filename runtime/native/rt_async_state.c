@@ -154,7 +154,7 @@ static int runnable_is_empty(const rt_executor* ex);
 static uint32_t runtime_running_count(const rt_executor* ex);
 static int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id);
 static void maybe_start_compensation_worker_locked(rt_executor* ex);
-static void move_current_local_to_inject_locked(rt_executor* ex);
+static void move_current_local_to_inject_locked(const rt_executor* ex);
 
 static uint32_t rt_config_total_worker_threads(const rt_runtime_start_config* config) {
     if (config == NULL) {
@@ -185,7 +185,7 @@ static void exec_init_once(void) {
     ex->next_id = 1;
     ex->next_scope_id = 1;
     pthread_mutex_init(&ex->lock, NULL);
-    pthread_cond_init(&ex->ready_cv, NULL);
+    pthread_cond_init(&ex->compat_cv, NULL);
     pthread_cond_init(&ex->io_cv, NULL);
     pthread_cond_init(&ex->done_cv, NULL);
     rt_exec_trace_init();
@@ -562,14 +562,6 @@ static rt_scheduler* current_worker_scheduler(const rt_executor* ex) {
     return tls_worker_ctx->scheduler;
 }
 
-static rt_scheduler* ready_scheduler_for_task(rt_executor* ex, const rt_task* task) {
-    if (task != NULL && task->owner_shard_valid != 0) {
-        return rt_task_scheduler(ex, task);
-    }
-    rt_scheduler* scheduler = current_worker_scheduler(ex);
-    return scheduler != NULL ? scheduler : rt_executor_scheduler(ex);
-}
-
 static rt_deque* current_local_queue(const rt_executor* ex, rt_scheduler* scheduler) {
     if (scheduler == NULL || scheduler->local_queues == NULL || scheduler->worker_count == 0) {
         return NULL;
@@ -581,14 +573,6 @@ static rt_deque* current_local_queue(const rt_executor* ex, rt_scheduler* schedu
         return NULL;
     }
     return &scheduler->local_queues[tls_worker_ctx->worker_id];
-}
-
-static void signal_ready_workers(rt_executor* ex) {
-    if (rt_runtime_shard_count(rt_executor_runtime(ex)) > 1) {
-        pthread_cond_broadcast(&ex->ready_cv);
-        return;
-    }
-    pthread_cond_signal(&ex->ready_cv);
 }
 
 static int pop_task_from_deque(rt_executor* ex,
@@ -663,7 +647,8 @@ static int ready_push_with_policy(
     if (task_enqueued_load(task) != 0) {
         return 0;
     }
-    rt_scheduler* scheduler = ready_scheduler_for_task(ex, task);
+    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
+    rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
     if (scheduler == NULL) {
         return 0;
     }
@@ -706,7 +691,7 @@ static int ready_push_with_policy(
         maybe_start_compensation_worker_locked(ex);
     }
     if (signal_ready_now) {
-        signal_ready_workers(ex);
+        rt_sched_wake_signal_shard_n(owner_shard, 1);
     }
     return 1;
 }
@@ -723,7 +708,7 @@ void ready_push(rt_executor* ex, uint64_t id) {
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id) {
     // Caller holds ex->lock. This is intentionally narrow: it only removes the
     // fresh child task that __task_create just pushed onto the current worker.
-    rt_scheduler* scheduler = ready_scheduler_for_task(ex, get_task(ex, id));
+    rt_scheduler* scheduler = rt_task_scheduler(ex, get_task(ex, id));
     rt_deque* local = current_local_queue(ex, scheduler);
     if (local == NULL || local->len == 0 || local->buf == NULL) {
         return 0;
@@ -915,9 +900,12 @@ static void wake_task_with_policy(rt_executor* ex,
     if (ready_push_with_policy(ex, id, force_inject, front, signal_ready)) {
         rt_trace_wake_enqueued();
     } else {
+        // The woken task is RUNNING inside a sync-channel compat wait: the
+        // OS worker sleeps on compat_cv under the control lock, so this
+        // broadcast is its only wake path (the wake_token is already set).
         const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
         if (compat != NULL && compat->channel_blocked_workers > 0) {
-            pthread_cond_broadcast(&ex->ready_cv);
+            pthread_cond_broadcast(&ex->compat_cv);
         }
     }
 }
@@ -1427,7 +1415,7 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     }
 }
 
-static void move_current_local_to_inject_locked(rt_executor* ex) {
+static void move_current_local_to_inject_locked(const rt_executor* ex) {
     rt_scheduler* scheduler = current_worker_scheduler(ex);
     if (scheduler == NULL || tls_worker_ctx == NULL ||
         tls_worker_ctx->worker_id >= scheduler->worker_count || scheduler->local_queues == NULL) {
@@ -1435,17 +1423,17 @@ static void move_current_local_to_inject_locked(rt_executor* ex) {
     }
     rt_deque* local = &scheduler->local_queues[tls_worker_ctx->worker_id];
     uint64_t id = 0;
-    int moved = 0;
+    uint32_t moved = 0;
     while (deque_pop_head(local, &id)) {
         if (deque_push_tail(&scheduler->inject,
                             id,
                             "async: inject queue overflow",
                             "async: inject queue allocation failed")) {
-            moved = 1;
+            moved++;
         }
     }
-    if (moved) {
-        pthread_cond_broadcast(&ex->ready_cv);
+    if (moved > 0) {
+        rt_sched_wake_signal_shard_n(tls_worker_ctx->shard, moved);
     }
 }
 
@@ -1477,7 +1465,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     maybe_start_compensation_worker_locked(ex);
     while (!ex->shutdown && task->resume_kind == RESUME_NONE &&
            task_wake_token_exchange(task, 0) == 0) {
-        pthread_cond_wait(&ex->ready_cv, &ex->lock);
+        pthread_cond_wait(&ex->compat_cv, &ex->lock);
     }
     if (dropped_running) {
         scheduler->running_count++;
@@ -1526,7 +1514,7 @@ static void* rt_worker_main(void* arg) {
             // Sleep only after local, inject, and steal queues have been checked under ex->lock.
             rt_debug_assert_no_parked_with_work(ex, ctx->shard_id);
             rt_trace_worker_sleep();
-            pthread_cond_wait(&ex->ready_cv, &ex->lock);
+            rt_sched_worker_sleep(ex, ctx->shard);
             rt_trace_worker_wake();
         }
         if (ex->shutdown) {

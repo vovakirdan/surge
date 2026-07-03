@@ -318,6 +318,13 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
     return 0;
 }
 
+static uint32_t sched_broadcast_calls;
+
+void rt_sched_wake_broadcast_all(rt_executor* ex) {
+    (void)ex;
+    sched_broadcast_calls++;
+}
+
 #include "rt_fd_registry.c"
 #include "rt_shutdown.c"
 
@@ -394,6 +401,8 @@ int main(void) {
                       19);
     if (err != 0) return err;
     err = require_int(trace_shutdown_wakeups == 3, 20);
+    if (err != 0) return err;
+    err = require_int(sched_broadcast_calls == 1, 21);
     if (err != 0) return err;
 
     rt_fd_registry_free(&registries[0]);

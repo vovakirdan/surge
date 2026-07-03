@@ -22,7 +22,7 @@ documents quote the parts they need and point back to it for the rest.
 | 4 | `04-lock-split-behavior-contract-tests.md` | Complete | test writing | 1, 2, 3 |
 | 5 | `05-lock-split-static-shape-tests.md` | Complete | test/static checks | 1, 2, 3 |
 | 6 | `06-shard-lock-structure-landing.md` | Complete | runtime code | 3, 5 |
-| 7 | `07-scheduler-ready-and-park-wake-migration.md` | Pending | runtime code | 4, 6 |
+| 7 | `07-scheduler-ready-and-park-wake-migration.md` | Complete | runtime code | 4, 6 |
 | 8 | `08-waiter-store-key-ownership-migration.md` | Pending | runtime code | 7 |
 | 9 | `09-sleep-timer-store-and-virtual-clock.md` | Pending | runtime code | 7, 8 |
 | 10 | `10-channel-owner-shard-migration.md` | Pending | runtime code | 8 |

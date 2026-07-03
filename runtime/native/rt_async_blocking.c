@@ -259,6 +259,7 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
         task_add_child(parent, id);
         rt_task_inherit_placement(task, parent);
     }
+    rt_task_assign_spawn_owner(task);
 
     rt_blocking_job* job =
         (rt_blocking_job*)rt_alloc(sizeof(rt_blocking_job), _Alignof(rt_blocking_job));

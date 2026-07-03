@@ -359,3 +359,44 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
   from Task 4's 5326/5450).
 - Regressions: none. Follow-ups: header and waiter files near the hard
   gate.
+
+## Task 7: Scheduler Ready And Park/Wake Migration
+
+- Task: Epic 7 Task 7. Proving spike: no. Date: 2026-07-04. Main session.
+- Scope per `07-scheduler-ready-and-park-wake-migration.md`:
+  - Universal owner assignment (D3): `rt_task_assign_spawn_owner` in
+    `rt_scheduler_placement.c`, called by `__task_create`,
+    checkpoint/sleep spawns, and `rt_blocking_submit`; non-worker spawns get
+    shard 0. `rt_task_owner_shard` added; `rt_task_scheduler` now routes
+    through it; `ready_scheduler_for_task`'s current-worker fallback deleted
+    (ownerless tasks are a pre-Task-7 compatibility case pinned to shard 0).
+  - New `rt_sched_wake.c` (47 effective LOC): `rt_sched_wake_signal_shard_n`
+    (bump `wake_pending` under the shard lock, then signal/broadcast),
+    `rt_sched_wake_broadcast_all` (shutdown/compat sweep with one token per
+    potential sleeper), `rt_sched_worker_sleep` (release control, wait on
+    `worker_cv` consuming `wake_pending`, reacquire control).
+  - `ready_cv` deleted. Worker sleep uses the shard `worker_cv`;
+    `ready_push` signals only the owner shard; local-to-inject moves signal
+    the own shard with one token per moved task; the sync-channel compat
+    wait and its fallback broadcast moved to a new control-lane `compat_cv`
+    (compat tasks are RUNNING during the wait, so the fallback broadcast is
+    their only wake path — recorded rationale in code);
+    `rt_net_wake_poll_for_task_wait_keys` signals the owner shards instead
+    of broadcasting to every worker; shutdown sweeps all shard cvs +
+    `compat_cv`. `ex->shutdown` became `_Atomic uint8_t` for shard-side
+    predicates.
+- Contract-test updates forced by the shape change (Epic 6 pattern):
+  `runtime_v2_net_poller_static_test.go` stubs
+  `rt_sched_wake_signal_shard_n` and the shutdown source gate now requires
+  `rt_sched_wake_broadcast_all` + `compat_cv` instead of `ready_cv`;
+  `runtime_v2_fd_registry_shutdown_static_test.go` stubs and asserts one
+  `rt_sched_wake_broadcast_all` call per shutdown request.
+- Checks: `make c-check` and `make cppcheck` pass; Task 4 behavior suite
+  9/9 x 2 configs pass; `timeout 600s make runtime-v2-check` pass twice;
+  `make check` green in pre-commit; `git diff --check` clean.
+- LOC: `rt_sched_wake.c` 47; `rt_async_state.c` 1563/1722 (down);
+  `rt_async_internal.h` 499/500 (Task 8 must extract before adding decls);
+  `rt_scheduler_placement.c` 103; `rt_net_poller.c` 166; `rt_shutdown.c` 41.
+- Sentrux: root 6177, `runtime/native` 5428, all rules pass (drift within
+  the epic-recorded band; Task 14 owns reconciliation).
+- Regressions: none observed across two full gate runs.

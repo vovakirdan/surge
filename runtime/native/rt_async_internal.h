@@ -132,6 +132,10 @@ typedef struct {
     rt_worker_ctx* worker_ctxs;
     uint32_t worker_count;
     uint32_t running_count;
+    // Wake tokens for the shard worker_cv (shard-lock-guarded): producers
+    // bump before signaling, sleepers consume before waiting, so wakes that
+    // race the control-to-shard sleep transition are never lost.
+    uint32_t wake_pending;
     uint8_t sched_mode;
     uint64_t sched_seed;
 } rt_scheduler;
@@ -244,13 +248,16 @@ struct rt_executor {
     rt_scope** scopes;
     size_t scopes_cap;
     pthread_mutex_t lock;
-    pthread_cond_t ready_cv;
+    // compat_cv sleeps sync-channel compatibility waiters under the control
+    // lock; worker sleep lives on each shard's worker_cv since Task 7.
+    pthread_cond_t compat_cv;
     pthread_cond_t io_cv;
     pthread_cond_t done_cv;
     pthread_t* workers;
     uint8_t initialized;
     uint8_t io_started;
-    uint8_t shutdown;
+    // Written on the control lane; read by shard-side wait predicates.
+    _Atomic uint8_t shutdown;
     pthread_mutex_t blocking_lock;
     pthread_cond_t blocking_cv;
     pthread_t* blocking_workers;
@@ -504,6 +511,11 @@ rt_task* task_from_handle(void* handle);
 uint64_t task_id_from_handle(void* handle);
 void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_class);
 void rt_task_inherit_placement(rt_task* task, const rt_task* parent);
+void rt_task_assign_spawn_owner(rt_task* task);
+rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task);
+void rt_sched_wake_signal_shard_n(rt_shard* shard, uint32_t tokens);
+void rt_sched_wake_broadcast_all(rt_executor* ex);
+void rt_sched_worker_sleep(rt_executor* ex, rt_shard* shard);
 int rt_task_can_steal_from_shard(const rt_task* task, uint32_t shard_id);
 int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t shard_id);
 void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id);

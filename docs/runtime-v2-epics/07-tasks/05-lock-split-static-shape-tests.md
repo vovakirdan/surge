@@ -33,10 +33,13 @@ post-split shape. They are not wired into any Makefile target; `make check`
 ignores `runtime_v2_pending` files, and `runtime-v2-check` runs explicit
 test lists that do not include them. Task 13 wires them into
 `runtime-v2-lock-check` once Tasks 6-11 turn them green. The migration tasks
-flip them in this expected order: Task 6 turns the two clang shape gates and
-the lane-API gate green; Task 7 turns the worker-loop gate green; Task 9 the
-sleep-scan and clock gates; Task 10 the channel gate; Task 11 the
-no-ambiguous-lock and condvar-retirement gates.
+flip them in this expected order: Task 6 turns the shard-sync and lane-API
+gates green; Task 9 the sleep-scan and clock gates; Task 10 the channel
+gate; Task 11 (the peel) the worker-loop, no-ambiguous-lock, and
+condvar-retirement gates. Task 7 replaces the global `ready_cv` with
+per-shard worker condvars but keeps the worker turn on the control lane
+under the sanctioned nested shape, so the worker-loop gate stays red until
+the peel.
 
 ## Out Of Scope
 
