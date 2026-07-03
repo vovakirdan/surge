@@ -55,6 +55,7 @@ static void rt_shard_destroy(rt_shard* shard) {
     rt_net_poll_wake_close(&shard->net_poll_wake);
     rt_fd_registry_free(rt_shard_fd_registry(shard));
     rt_heap_accounting_destroy(&shard->heap_accounting);
+    rt_shard_sync_destroy(shard);
     memset(shard, 0, sizeof(*shard));
 }
 
@@ -96,14 +97,24 @@ rt_shard_init(rt_runtime* runtime, rt_executor* ex, rt_shard* shard, size_t shar
     shard->shard_id = (uint32_t)shard_index;
     shard->net_poll_wake.read_fd = -1;
     shard->net_poll_wake.write_fd = -1;
-    rt_runtime_status status =
-        rt_heap_status_to_runtime_status(rt_heap_accounting_init(&shard->heap_accounting));
+    rt_runtime_status status = rt_shard_sync_init(shard);
     if (status != RT_RUNTIME_STATUS_OK) {
+        return status;
+    }
+    status = rt_heap_status_to_runtime_status(rt_heap_accounting_init(&shard->heap_accounting));
+    if (status != RT_RUNTIME_STATUS_OK) {
+        rt_shard_sync_destroy(shard);
         return status;
     }
     // Redundant with the memset today, but the registry lifecycle must stay
     // explicit: init pairs with rt_fd_registry_free once shutdown exists.
-    return rt_fd_registry_init(rt_shard_fd_registry(shard));
+    status = rt_fd_registry_init(rt_shard_fd_registry(shard));
+    if (status != RT_RUNTIME_STATUS_OK) {
+        rt_heap_accounting_destroy(&shard->heap_accounting);
+        rt_shard_sync_destroy(shard);
+        return status;
+    }
+    return RT_RUNTIME_STATUS_OK;
 }
 
 rt_runtime_status rt_runtime_init_global(rt_executor* ex, size_t shard_count) {

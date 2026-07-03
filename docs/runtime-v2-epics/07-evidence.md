@@ -330,3 +330,32 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
 - Flip plan recorded in the task doc: Task 6 greens the shape/lane gates,
   Task 7 the worker-loop gate, Task 9 the clock/sleep gates, Task 10 the
   channel gate, Task 11 the ambiguous-lock and condvar-retirement gates.
+
+## Task 6: Shard Lock Structure Landing
+
+- Task: Epic 7 Task 6. Proving spike: no. Date: 2026-07-04. Main session.
+- Scope per `06-shard-lock-structure-landing.md`: new
+  `runtime/native/rt_lane.c` (86 effective LOC: lane API, always-on TLS
+  order tracking with panics per D2, `rt_lane_debug_enabled`,
+  `rt_shard_sync_init/destroy` with status codes and partial-init unwind);
+  `rt_shard` gained `lock`/`worker_cv`/`poller_cv`; `waiter` gained
+  `owner_hint` (populated in `add_waiter` from the task's owner shard, 0
+  until universal assignment); `rt_shard_init` inits shard sync first and
+  unwinds on later failures; `rt_lock`/`rt_unlock` are now one-line
+  delegates to `rt_control_lock`/`rt_control_unlock` so lane tracking is
+  consistent from this commit (they die in Task 11).
+- Behavior identical: no path takes a shard lock yet.
+- Checks: `make c-check` pass (after clang-format), `make cppcheck` pass,
+  Task 4 behavior suite 9/9 x 2 configs pass (18.2s),
+  `timeout 600s make runtime-v2-check` exit 0, `git diff --check` clean,
+  `make check` green in pre-commit. Static gates: `ShardSyncShape` and
+  `LaneAPIShape` flipped green (the lane/clock snippets needed non-static
+  functions to survive `-Werror` unused-function); `ClockAndSleepStoreShape`
+  and the rest stay red by design.
+- LOC: `rt_lane.c` 86; `rt_async_internal.h` 493/500 and
+  `rt_async_waiter.c` 490/500 are now tight — Tasks 8-9 must extract before
+  growing either; `rt_async_state.c` 1576/1722; `rt_runtime.c` 292.
+- Sentrux (CLI): 6181/5334/5458, all rules pass (runtime/native slightly up
+  from Task 4's 5326/5450).
+- Regressions: none. Follow-ups: header and waiter files near the hard
+  gate.

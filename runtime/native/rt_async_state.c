@@ -97,18 +97,15 @@ void rt_set_current_task(rt_task* task) {
     tls_current_id = task != NULL ? task->id : 0;
 }
 
+// Legacy control-lane aliases: every remaining caller is an unmigrated
+// global-compatibility path. They delegate so lane-order tracking sees the
+// control lock from Task 6 on; Task 11 deletes them with the last callers.
 void rt_lock(rt_executor* ex) {
-    if (ex == NULL) {
-        return;
-    }
-    pthread_mutex_lock(&ex->lock);
+    rt_control_lock(ex);
 }
 
 void rt_unlock(rt_executor* ex) {
-    if (ex == NULL) {
-        return;
-    }
-    pthread_mutex_unlock(&ex->lock);
+    rt_control_unlock(ex);
 }
 
 // Seeded scheduler mode provides deterministic scheduler choices given the same seed and the same

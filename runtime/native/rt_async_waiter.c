@@ -451,7 +451,9 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     if (status != RT_RUNTIME_STATUS_OK) {
         return;
     }
-    store->entries[store->len++] = (waiter){key, task_id};
+    const rt_task* task = get_task(ex, task_id);
+    uint32_t owner_hint = task != NULL && task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+    store->entries[store->len++] = (waiter){key, task_id, owner_hint};
     net_waiter_added(store, key);
     if (fd_registry_bridge_net_attach(ex, key, &owner_shard_id)) {
         (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);

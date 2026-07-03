@@ -77,6 +77,9 @@ typedef struct {
 typedef struct {
     waker_key key;
     uint64_t task_id;
+    // Owner shard of task_id at registration time (D3/D5): stable for
+    // non-accept keys, refreshed by the control-lane accept transition.
+    uint32_t owner_hint;
 } waiter;
 
 typedef struct {
@@ -153,6 +156,13 @@ typedef struct {
 struct rt_shard {
     rt_runtime* runtime;
     rt_executor* executor;
+    // Shard lane (D1): this lock owns the shard's scheduler queues, waiter
+    // store, net poll state, and the schedulable state of tasks it owns.
+    // worker_cv sleeps workers waiting for ready work; poller_cv sleeps
+    // threads waiting on net-poll arbitration or idle transitions.
+    pthread_mutex_t lock;
+    pthread_cond_t worker_cv;
+    pthread_cond_t poller_cv;
     rt_scheduler scheduler;
     rt_heap_accounting heap_accounting;
     rt_net_poll_scratch net_poll_scratch;
@@ -441,6 +451,13 @@ rt_task* rt_current_task(void);
 void rt_set_current_task(rt_task* task);
 void rt_lock(rt_executor* ex);
 void rt_unlock(rt_executor* ex);
+void rt_control_lock(rt_executor* ex);
+void rt_control_unlock(rt_executor* ex);
+void rt_shard_lock(rt_shard* shard);
+void rt_shard_unlock(rt_shard* shard);
+int rt_lane_debug_enabled(void);
+rt_runtime_status rt_shard_sync_init(rt_shard* shard);
+void rt_shard_sync_destroy(rt_shard* shard);
 void rt_blocking_init(rt_executor* ex);
 void rt_blocking_request_cancel(rt_executor* ex, rt_task* task);
 rt_task* get_task(rt_executor* ex, uint64_t id);

@@ -65,7 +65,8 @@ func TestRuntimeV2LockSplitLaneAPIShape(t *testing.T) {
 	runLockSplitClangShapeCheck(t, `
 #include "rt_async_internal.h"
 
-static void lock_split_lane_api_shape(void) {
+void lock_split_lane_api_shape(void);
+void lock_split_lane_api_shape(void) {
     void (*control_lock)(rt_executor*) = rt_control_lock;
     void (*control_unlock)(rt_executor*) = rt_control_unlock;
     void (*shard_lock)(rt_shard*) = rt_shard_lock;
@@ -85,7 +86,8 @@ func TestRuntimeV2LockSplitClockAndSleepStoreShape(t *testing.T) {
 	runLockSplitClangShapeCheck(t, `
 #include "rt_async_internal.h"
 
-static uint64_t lock_split_clock_shape(rt_executor* ex, rt_shard* shard) {
+uint64_t lock_split_clock_shape(rt_executor* ex, rt_shard* shard);
+uint64_t lock_split_clock_shape(rt_executor* ex, rt_shard* shard) {
     (void)sizeof(((rt_shard*)0)->sleep_store);
     (void)shard;
     return atomic_load_explicit(&ex->now_ms, memory_order_acquire);

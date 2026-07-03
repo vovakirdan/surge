@@ -2870,3 +2870,17 @@ pass, before any task execution began:
   Task 10 -> channel; Task 11 -> ambiguous-lock + condvar retirement.
 - Helper note: use `lockSplitFunctionDefinitionBody` (definition-aware) for
   body gates; the shared `cFunctionBody` matches forward declarations.
+
+## Epic 7 Task 6 Handoff
+
+- Structure landed behavior-identically: `rt_lane.c` (lane API + TLS order
+  panics + `rt_shard_sync_init/destroy`), shard `lock`/`worker_cv`/
+  `poller_cv`, waiter `owner_hint`, `rt_lock`/`rt_unlock` delegate to the
+  control lane. `ShardSyncShape` + `LaneAPIShape` green; behavior suite and
+  `runtime-v2-check` green; sentrux 6181/5334/5458.
+- LOC watch: `rt_async_internal.h` 493/500, `rt_async_waiter.c` 490/500 —
+  Tasks 8-9 must extract before adding to either.
+- Next: Task 7 moves scheduler queues, running counts, and worker sleep to
+  the shard lane using the sanctioned nested shape (control -> shard), with
+  a per-shard wake-pending counter so the worker can release the control
+  lock before waiting on its shard cv.
