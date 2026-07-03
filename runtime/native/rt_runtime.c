@@ -26,6 +26,14 @@ static rt_runtime_status rt_runtime_init_n1(rt_runtime* runtime, rt_executor* ex
     runtime->shards[0].executor = ex;
     runtime->shards[0].shard_id = 0;
     ex->runtime = runtime;
+    rt_heap_accounting_status accounting_status =
+        rt_heap_accounting_init(&runtime->shards[0].heap_accounting);
+    if (accounting_status == RT_HEAP_ACCOUNTING_ALLOCATION_FAILED) {
+        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+    }
+    if (accounting_status != RT_HEAP_ACCOUNTING_OK) {
+        return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
+    }
     // Redundant with the memset today, but the registry lifecycle must stay
     // explicit: init pairs with rt_fd_registry_free once shutdown exists.
     return rt_fd_registry_init(rt_shard_fd_registry(&runtime->shards[0]));
@@ -48,6 +56,11 @@ rt_shard* rt_runtime_shard0(rt_runtime* runtime) {
 
 size_t rt_runtime_shard_count(const rt_runtime* runtime) {
     return runtime != NULL ? runtime->shard_count : 0;
+}
+
+rt_heap_accounting* rt_executor_heap_accounting(rt_executor* ex) {
+    rt_shard* shard = rt_runtime_shard0(rt_executor_runtime(ex));
+    return shard != NULL ? &shard->heap_accounting : NULL;
 }
 
 rt_scheduler* rt_shard_scheduler(rt_shard* shard) {

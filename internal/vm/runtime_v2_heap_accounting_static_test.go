@@ -47,9 +47,8 @@ void* (*runtime_v2_check_rt_heap_stats)(void) = rt_heap_stats;
 	}
 }
 
-func TestRuntimeV2HeapAccountingStaticTargetShape(t *testing.T) {
+func TestRuntimeV2HeapAccountingStaticTask5SkeletonShape(t *testing.T) {
 	root := repoRoot(t)
-	rtAlloc := readRuntimeV2HeapAccountingFile(t, root, "runtime/native/rt_alloc.c")
 	nativeSources := readRuntimeV2HeapAccountingNativeSources(t, root)
 
 	var failures []string
@@ -68,6 +67,26 @@ func TestRuntimeV2HeapAccountingStaticTargetShape(t *testing.T) {
 			"missing lane-local heap accounting selection for worker, I/O, blocking, or synchronous-runner contexts",
 		)
 	}
+	if !runtimeV2HeapAccountingHasLaneInstallSites(nativeSources) {
+		failures = append(failures,
+			"missing installed heap accounting cells for main, worker, I/O, blocking, and compensation lanes",
+		)
+	}
+
+	if len(failures) > 0 {
+		t.Fatalf("Runtime V2 heap accounting Task 5 skeleton shape is not implemented yet:\n- %s",
+			strings.Join(failures, "\n- "))
+	}
+}
+
+func TestRuntimeV2HeapAccountingStaticTask6RecordMigrationShape(t *testing.T) {
+	t.Skip("Epic 5 Task 6 owns alloc/free/realloc accounting migration predicates")
+
+	root := repoRoot(t)
+	rtAlloc := readRuntimeV2HeapAccountingFile(t, root, "runtime/native/rt_alloc.c")
+	nativeSources := readRuntimeV2HeapAccountingNativeSources(t, root)
+
+	var failures []string
 	if runtimeV2HeapAccountingHasOldGlobalCounterSet(rtAlloc) ||
 		runtimeV2HeapAccountingHasFileScopeHeapCounter(nativeSources) {
 		failures = append(failures,
@@ -84,6 +103,20 @@ func TestRuntimeV2HeapAccountingStaticTargetShape(t *testing.T) {
 			"record_alloc/record_free/record_realloc do not use the rt_heap_accounting record API",
 		)
 	}
+
+	if len(failures) > 0 {
+		t.Fatalf("Runtime V2 heap accounting Task 6 record migration shape is not implemented yet:\n- %s",
+			strings.Join(failures, "\n- "))
+	}
+}
+
+func TestRuntimeV2HeapAccountingStaticTask7SnapshotAggregationShape(t *testing.T) {
+	t.Skip("Epic 5 Task 7 owns heap-stats snapshot aggregation predicates")
+
+	root := repoRoot(t)
+	rtAlloc := readRuntimeV2HeapAccountingFile(t, root, "runtime/native/rt_alloc.c")
+
+	var failures []string
 	if runtimeV2HeapAccountingStatsLoadsOldGlobals(rtAlloc) {
 		failures = append(failures,
 			"rt_heap_stats() still loads old heap_* globals directly instead of aggregating accounting cells",
@@ -96,7 +129,7 @@ func TestRuntimeV2HeapAccountingStaticTargetShape(t *testing.T) {
 	}
 
 	if len(failures) > 0 {
-		t.Fatalf("Runtime V2 heap accounting static target shape is not implemented yet:\n- %s",
+		t.Fatalf("Runtime V2 heap accounting Task 7 snapshot aggregation shape is not implemented yet:\n- %s",
 			strings.Join(failures, "\n- "))
 	}
 }
@@ -118,6 +151,9 @@ func readRuntimeV2HeapAccountingNativeSources(t *testing.T, root string) string 
 		"runtime/native/rt_alloc.c",
 		"runtime/native/rt_heap_accounting.h",
 		"runtime/native/rt_heap_accounting.c",
+		"runtime/native/rt_async_state.c",
+		"runtime/native/rt_async_poll.c",
+		"runtime/native/rt_async_blocking.c",
 	}
 
 	var combined strings.Builder
@@ -166,6 +202,25 @@ func runtimeV2HeapAccountingHasLaneSelection(source string) bool {
 		body, ok = runtimeV2HeapAccountingFunctionBody(code, "rt_heap_accounting_select_cell")
 	}
 	return ok && strings.Contains(body, matches[1]) && strings.Contains(body, "cold_cell")
+}
+
+func runtimeV2HeapAccountingHasLaneInstallSites(source string) bool {
+	code := runtimeV2HeapAccountingCodeOnly(source)
+	required := []string{
+		"rt_heap_accounting_set_current_cell(ctx->heap_cell)",
+		"rt_heap_accounting_main_cell",
+		"rt_heap_accounting_io_cell",
+		"rt_heap_accounting_blocking_cell",
+		"rt_heap_accounting_compensation_cell",
+		"rt_heap_accounting_set_current_cell(saved_cell)",
+		"rt_heap_accounting_set_current_cell(NULL)",
+	}
+	for _, needle := range required {
+		if !strings.Contains(code, needle) {
+			return false
+		}
+	}
+	return true
 }
 
 func runtimeV2HeapAccountingHasOldGlobalCounterSet(source string) bool {

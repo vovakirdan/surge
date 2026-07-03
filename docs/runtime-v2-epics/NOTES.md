@@ -237,6 +237,46 @@ task, then move durable decisions into the owning epic document before closeout.
   returned no remaining findings. Residual risk: regex/source-shape gate only,
   so behavior proof still depends on Task 3 and later probes.
 
+## Epic 5 Task 05 Handoff
+
+- Scope completed: runtime/shard-owned heap-accounting skeleton. `rt_alloc.c`
+  and public `rt_heap_stats()` behavior are intentionally unchanged; Task 6 owns
+  moving `record_alloc/free/realloc`, and Task 7 owns snapshot aggregation.
+- New files: `runtime/native/rt_heap_accounting.h` and
+  `runtime/native/rt_heap_accounting.c`. They define `rt_heap_accounting_cell`,
+  `rt_heap_accounting`, `struct rt_heap_accounting_snapshot`, module-owned
+  `cold_cell`, TLS current-cell selection, skeleton record helpers, and a
+  snapshot helper.
+- Cold accounting is a deliberate bootstrap exception outside `rt_runtime`, so
+  future pre-runtime Task 6 events survive `rt_runtime_init_n1()` clearing
+  runtime storage and can be included by Task 7 aggregation.
+- `rt_shard.heap_accounting` owns runtime lane cells. Main/synchronous runner,
+  worker, I/O, blocking, and compensation paths now select lane cells. Blocking
+  worker context storage is owned by `rt_executor.blocking_worker_ctxs` because
+  detached blocking workers need stable per-thread context addresses.
+- Direct libc allocation is intentional in two places: `rt_heap_accounting.c`
+  uses `calloc/free` for accounting cell arrays, and `rt_async_blocking.c` uses
+  `calloc` for blocking worker contexts. This avoids recursive `rt_alloc`
+  accounting and preserves Task 5 public heap-stat behavior.
+- Static gate split: Task 5 skeleton subtest passes; Task 6 record-migration
+  predicates and Task 7 snapshot-aggregation predicates remain present and
+  explicitly skipped with owning task names. Do not delete or weaken those
+  predicates when implementing Tasks 6-7.
+- Checks passed after review fixes: focused static heap gate, focused heap
+  contracts, `make c-check`, `make cppcheck`, sequential `make
+  runtime-v2-check`, `git diff --check`, `./check_file_sizes.sh`, Sentrux
+  runtime/native session `5244 -> 5250`, and root/runtime/runtime-native
+  Sentrux scans/rules.
+- First `make runtime-v2-check` attempt timed out once on
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance`, but focused reproduction
+  and final sequential `make runtime-v2-check` passed. A separate missing
+  `build.stdout` failure came from running overlapping VM test commands in
+  parallel; this is recorded as `RV2-DEBT-011`.
+- Review outcome: two P2 findings were fixed (blocking context ownership and
+  static lane install-site coverage); focused re-review returned no findings.
+  Remaining risk: blocking worker contexts are process-lifetime until shutdown
+  owns detached thread lifecycle.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.

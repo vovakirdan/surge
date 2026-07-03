@@ -2,6 +2,11 @@
 
 #include <stdlib.h>
 
+typedef struct rt_blocking_worker_ctx {
+    rt_executor* ex;
+    uint32_t worker_id;
+} rt_blocking_worker_ctx;
+
 static void blocking_job_release(rt_blocking_job* job) {
     if (job == NULL) {
         return;
@@ -53,10 +58,14 @@ static rt_blocking_job* blocking_queue_pop(rt_executor* ex) {
 }
 
 static void* rt_blocking_worker_main(void* arg) {
-    rt_executor* ex = (rt_executor*)arg;
+    rt_blocking_worker_ctx* ctx = (rt_blocking_worker_ctx*)arg;
+    rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
     if (ex == NULL) {
         return NULL;
     }
+    rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
+    rt_heap_accounting_set_current_cell(
+        rt_heap_accounting_blocking_cell(accounting, ctx->worker_id));
     for (;;) {
         pthread_mutex_lock(&ex->blocking_lock);
         while (ex->blocking_head == NULL && !ex->blocking_shutdown) {
@@ -64,6 +73,7 @@ static void* rt_blocking_worker_main(void* arg) {
         }
         if (ex->blocking_shutdown && ex->blocking_head == NULL) {
             pthread_mutex_unlock(&ex->blocking_lock);
+            rt_heap_accounting_set_current_cell(NULL);
             return NULL;
         }
         rt_blocking_job* job = blocking_queue_pop(ex);
@@ -133,15 +143,25 @@ void rt_blocking_init(rt_executor* ex) {
         count = 1;
         ex->blocking_count = count;
     }
+    rt_blocking_worker_ctx* ctxs =
+        (rt_blocking_worker_ctx*)calloc((size_t)count, sizeof(rt_blocking_worker_ctx));
+    if (ctxs == NULL) {
+        panic_msg("async: blocking context allocation failed");
+        return;
+    }
     pthread_t* threads =
         (pthread_t*)rt_alloc((uint64_t)count * (uint64_t)sizeof(pthread_t), _Alignof(pthread_t));
     if (threads == NULL) {
+        free(ctxs);
         panic_msg("async: blocking worker allocation failed");
         return;
     }
+    ex->blocking_worker_ctxs = ctxs;
     ex->blocking_workers = threads;
     for (uint32_t i = 0; i < count; i++) {
-        if (pthread_create(&threads[i], NULL, rt_blocking_worker_main, ex) != 0) {
+        ctxs[i].ex = ex;
+        ctxs[i].worker_id = i;
+        if (pthread_create(&threads[i], NULL, rt_blocking_worker_main, &ctxs[i]) != 0) {
             panic_msg("async: blocking worker start failed");
             return;
         }

@@ -11,7 +11,7 @@ keep `NOTES.md` as the handoff log.
 | 2 | Complete | Dependency map artifact, selected event-delta cell model, caller-context corrections, checks, and review outcome recorded below. |
 | 3 | Complete | Heap stats contract tests for alloc/free, realloc, aligned paths, failed realloc, and concurrent workers recorded below. |
 | 4 | Complete | Pending static target-shape gate for heap-accounting ownership, ABI, record API, and aggregation recorded below. |
-| 5 | Draft | Accounting cell skeleton not started. |
+| 5 | Complete | Runtime/shard-owned accounting skeleton, cold cell, lane wiring, static gate split, checks, Sentrux, and review outcome recorded below. |
 | 6 | Draft | Alloc/free/realloc accounting migration not started. |
 | 7 | Draft | Heap stats aggregation not started. |
 | 8 | Draft | Concurrency and performance evidence not started. |
@@ -380,3 +380,117 @@ Residual risks:
   matching `NOTES.md` handoff if Task 4 must be removed.
 - No runtime artifacts, generated binaries, sockets, or benchmark reports were
   created by Task 4.
+
+## Task 5: Accounting Cell Skeleton
+
+### Task Identity And Scope
+
+- Task: `05-tasks/05-accounting-cell-skeleton.md`.
+- Date: 2026-07-03.
+- Scope: runtime-code skeleton for owner/cold/lane heap-accounting state.
+- Out of scope: migrating `record_alloc`, `record_free`, `record_realloc`, or
+  changing public `rt_heap_stats()` aggregation. Those remain Task 6 and Task 7.
+
+### Result
+
+Task 5 introduced the heap-accounting skeleton without changing `rt_alloc.c` or
+current public heap-stat behavior:
+
+- new `rt_heap_accounting_cell`, `rt_heap_accounting`, and
+  `struct rt_heap_accounting_snapshot` APIs;
+- explicit module-owned `cold_cell` outside `rt_runtime`, so future pre-runtime
+  events are not lost when `rt_runtime_init_n1()` clears runtime storage;
+- `rt_shard.heap_accounting` as the owner for runtime lane cells;
+- TLS current-cell selection with cold fallback;
+- main/synchronous runner, worker, I/O, blocking, and compensation cell
+  selection points;
+- bounded worker, blocking, and compensation cell arrays allocated with direct
+  libc `calloc` in the accounting module to avoid recursive `rt_alloc`
+  accounting;
+- blocking worker context storage owned by `rt_executor.blocking_worker_ctxs`
+  and allocated with direct `calloc` because detached blocking worker threads
+  need stable per-thread context addresses;
+- Task 5 static skeleton gate now passes, while Task 6 and Task 7 static
+  predicates remain present and explicitly skipped with owning task names.
+
+Task 5 intentionally kept the old `rt_alloc.c` global counters as the public
+source of truth. Task 6 owns migrating writes to the new record API. Task 7 owns
+switching `rt_heap_stats()` to `rt_heap_accounting_snapshot`.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `runtime/native/rt_heap_accounting.h` | created | Internal heap-accounting types and API. | 68 lines. |
+| `runtime/native/rt_heap_accounting.c` | created | Cold cell, TLS selection, record helpers, and snapshot skeleton. | 224 lines. |
+| `runtime/native/rt_async_internal.h` | updated | Include accounting API, shard owner field, executor blocking context owner, and accessor prototype. | 499 lines, under the 500-line Runtime V2 target. |
+| `runtime/native/rt_runtime.c` | updated | Initialize shard-owned heap accounting and expose executor accessor. | 197 lines. |
+| `runtime/native/rt_async_state.c` | updated | Prepare cells and select worker/I/O/compensation cells. | Stayed flat at 1727 lines; legacy ceiling not raised. |
+| `runtime/native/rt_async_blocking.c` | updated | Add blocking worker contexts and select blocking cells. | 293 lines. |
+| `runtime/native/rt_async_poll.c` | updated | Select and restore main/synchronous runner cell in `run_until_done`. | 319 lines. |
+| `internal/vm/runtime_v2_heap_accounting_static_test.go` | updated | Split Task 5 skeleton checks from Task 6/7 skipped predicates and add lane install-site checks. | 338 lines. |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 5 durable evidence. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 5 handoff. | Documentation only. |
+| `docs/runtime-v2-epics/DEBT.md` | updated | Record VM test artifact collision debt discovered during Task 5 verification. | Documentation only. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic' -count=1 -v --timeout 60s` | pass Task 5, skip Task 6/7 predicates | ABI and Task 5 skeleton passed; Task 6 and Task 7 predicates skipped with explicit owning task messages | `0` | static shape gate. |
+| `go test ./internal/vm -run '^TestLLVMNative.*Heap.*\|^TestRuntimeV2HeapAccounting' -count=1 -parallel=1 -p=1 -v --timeout 180s` | pass | heap smoke and Task 3 contract tests passed; package `ok surge/internal/vm 5.937s` in final rerun | `0` | public behavior unchanged. |
+| `make c-check` | pass | C formatting and strict warning compilation passed | `0` | C gate. |
+| `make cppcheck` | pass | checked 35 C files including `rt_heap_accounting.c`; `cppcheck OK` | `0` | static C gate. |
+| `make runtime-v2-check` | pass | MT liveness, waiter gate, and fd-registry gate passed in final sequential rerun | `0` | Runtime V2 liveness gate. |
+| `git diff --check` | no whitespace errors | no output | `0` | whitespace gate. |
+| `./check_file_sizes.sh` | pass | 7 changed C/H files checked; 6 OK, `rt_async_state.c` `LEGACY OK <=1727`; overall excellent | `0` | LOC gate. |
+| Sentrux scoped session on `runtime/native` | stable or improved | `5244 -> 5250`, `signal_delta=6`, pass | pass | runtime-code delta evidence. |
+| Sentrux root scan/rules | pass | root quality `6193`, rules pass with 0 violations | pass | required scan. |
+| Sentrux `runtime/` scan/rules | pass | runtime quality `5246`, rules pass with 0 violations | pass | required scan. |
+| Sentrux `runtime/native` scan/rules | pass | runtime/native quality `5250`, rules pass with 0 violations | pass | required scan. |
+
+Verification caveat:
+
+- The first `make runtime-v2-check` attempt saw
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance` time out once. A focused
+  standalone reproduction passed, and final sequential `make runtime-v2-check`
+  passed.
+- A later parallel duplicate VM test run produced a missing `build.stdout`
+  artifact. That was caused by running overlapping VM build tests for the same
+  test name concurrently, which race on `target/debug/.tests/`. This is recorded
+  as `RV2-DEBT-011`; future VM gates in this epic should run sequentially when
+  they can share artifact names.
+
+### Review Outcome
+
+Review subagent initially found two P2 issues:
+
+- blocking worker context array had process-lifetime semantics but no explicit
+  owner;
+- Task 5 static gate did not read/check lane install-site files.
+
+Both were fixed by storing the context owner on `rt_executor` and adding static
+checks for actual main, worker, I/O, blocking, compensation, restore, and cleanup
+call sites. Focused re-review returned no remaining findings.
+
+Residual risks:
+
+- Task 6/7 predicates are intentionally skipped and remain open obligations;
+- Task 5 lane checks are textual source-shape checks, not full C control-flow
+  proof;
+- blocking worker context storage remains process-lifetime until shutdown owns
+  detached thread lifecycle.
+
+### Debt
+
+- `RV2-DEBT-011` added for VM LLVM test artifact collisions under overlapping
+  duplicate VM test runs. This does not block Task 5; it changes how future gates
+  should be executed and belongs to the test/backend matrix rewrite unless an
+  earlier test-harness task picks it up.
+
+### Rollback/Recovery Notes
+
+- Revert this Task 5 runtime slice, this Task 5 section/status row, the matching
+  `NOTES.md` handoff, and `RV2-DEBT-011` if Task 5 must be removed.
+- No benchmark reports, sockets, or generated artifacts are required for
+  rollback. Test artifacts under `target/debug/.tests/` are disposable.

@@ -229,6 +229,9 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
         panic_msg("invalid task handle");
         return;
     }
+    rt_heap_accounting_cell* saved_cell = rt_heap_accounting_current_cell();
+    rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
+    rt_heap_accounting_set_current_cell(rt_heap_accounting_main_cell(accounting));
     uint64_t id = task->id;
     rt_lock(ex);
     if (task_status_load(task) != TASK_WAITING && task_status_load(task) != TASK_DONE) {
@@ -241,6 +244,7 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
         const rt_task* current = get_task(ex, id);
         if (current == NULL) {
             rt_unlock(ex);
+            rt_heap_accounting_set_current_cell(saved_cell);
             panic_msg("invalid task id");
             return;
         }
@@ -252,10 +256,12 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
                 *out_bits = current->result_bits;
             }
             rt_unlock(ex);
+            rt_heap_accounting_set_current_cell(saved_cell);
             return;
         }
         rt_unlock(ex);
         if (!run_ready_one(ex)) {
+            rt_heap_accounting_set_current_cell(saved_cell);
             panic_msg("async deadlock");
             return;
         }

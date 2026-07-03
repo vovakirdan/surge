@@ -2,6 +2,7 @@
 #define SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
 
 #include "rt.h"
+#include "rt_heap_accounting.h"
 
 #include <pthread.h>
 #include <setjmp.h>
@@ -150,6 +151,7 @@ struct rt_shard {
     rt_runtime* runtime;
     rt_executor* executor;
     rt_scheduler scheduler;
+    rt_heap_accounting heap_accounting;
     rt_net_poll_scratch net_poll_scratch;
     rt_fd_registry fd_registry;
     rt_channel_blocking_compat channel_blocking_compat;
@@ -232,6 +234,7 @@ struct rt_executor {
     pthread_mutex_t blocking_lock;
     pthread_cond_t blocking_cv;
     pthread_t* blocking_workers;
+    struct rt_blocking_worker_ctx* blocking_worker_ctxs;
     uint32_t blocking_count;
     uint8_t blocking_started;
     uint8_t blocking_shutdown;
@@ -395,6 +398,7 @@ rt_runtime_status rt_runtime_init_global_n1(rt_executor* ex);
 rt_runtime* rt_executor_runtime(rt_executor* ex);
 rt_shard* rt_runtime_shard0(rt_runtime* runtime);
 size_t rt_runtime_shard_count(const rt_runtime* runtime);
+rt_heap_accounting* rt_executor_heap_accounting(rt_executor* ex);
 rt_scheduler* rt_shard_scheduler(rt_shard* shard);
 const rt_scheduler* rt_shard_scheduler_const(const rt_shard* shard);
 rt_scheduler* rt_executor_scheduler(rt_executor* ex);

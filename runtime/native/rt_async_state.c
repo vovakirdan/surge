@@ -5,21 +5,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-// Async runtime state, queues, and memory helpers.
-//
-// MT NOTES (iteration 1):
-// - ST executor stored tasks in exec_state.tasks and scheduled via the global injection queue.
-// - A poll sets pending_key, then rt_async_yield parks via park_current and waiters list.
-// - Cancellation is observed in rt_async_yield/current_task_cancelled.
-// - MT needs a wake token to avoid wake-before-park races and a dedicated I/O thread
-//   (workers must not block on poll()).
-// - poll_net_waiters previously blocked inline; MT uses an I/O thread plus bounded poll timeouts
-//   to avoid starving newly added waiters.
-// - ready_push skips RUNNING tasks; yielded tasks must set READY before requeue to avoid drops.
-// - task release/free touches shared waiters/queues, so executor state remains under one lock.
-// - virtual time still advances on yields; timers only fast-forward when the system is idle.
-
 rt_executor exec_state;
 _Thread_local jmp_buf* poll_env;
 _Thread_local int poll_active = 0;
@@ -29,9 +14,9 @@ _Thread_local uint64_t tls_current_id;
 _Thread_local rt_task* tls_current_task;
 _Thread_local int tls_worker_id = -1;
 static pthread_once_t exec_once = PTHREAD_ONCE_INIT;
-
 struct rt_worker_ctx {
     rt_executor* ex;
+    rt_heap_accounting_cell* heap_cell;
     uint32_t worker_id;
     uint64_t sched_rng;
 };
@@ -217,6 +202,17 @@ static void exec_init_once(void) {
     if (threads == 0) {
         threads = rt_runtime_default_worker_count();
     }
+    uint32_t blocking_threads = rt_env_blocking_count();
+    if (blocking_threads == 0) {
+        blocking_threads = rt_runtime_default_blocking_count(threads);
+    }
+    ex->blocking_count = blocking_threads;
+    rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
+    if (rt_heap_accounting_prepare_cells(accounting, threads, blocking_threads) !=
+        RT_HEAP_ACCOUNTING_OK) {
+        panic_msg("async: heap accounting cell allocation failed");
+    }
+    rt_heap_accounting_set_current_cell(rt_heap_accounting_main_cell(accounting));
     rt_runtime_status scheduler_status =
         rt_shard_scheduler_init(rt_runtime_shard0(rt_executor_runtime(ex)),
                                 threads,
@@ -229,11 +225,6 @@ static void exec_init_once(void) {
         panic_msg("async: scheduler initialization failed");
     }
     channel_wake_force_inject = rt_env_channel_wake_force_inject();
-    uint32_t blocking_threads = rt_env_blocking_count();
-    if (blocking_threads == 0) {
-        blocking_threads = rt_runtime_default_blocking_count(threads);
-    }
-    ex->blocking_count = blocking_threads;
     if (threads > 1) {
         rt_start_workers(ex);
     }
@@ -306,6 +297,7 @@ static void rt_start_workers(rt_executor* ex) {
     memset(ctxs, 0, count * sizeof(rt_worker_ctx));
     ex->workers = threads;
     scheduler->worker_ctxs = ctxs;
+    rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
     if (pthread_create(&threads[0], NULL, rt_io_main, ex) != 0) {
         panic_msg("async: io worker start failed");
         return;
@@ -314,6 +306,7 @@ static void rt_start_workers(rt_executor* ex) {
     ex->io_started = 1;
     for (uint32_t i = 0; i < count; i++) {
         ctxs[i].ex = ex;
+        ctxs[i].heap_cell = rt_heap_accounting_worker_cell(accounting, i);
         ctxs[i].worker_id = i;
         ctxs[i].sched_rng =
             scheduler->sched_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(i + 1);
@@ -1441,6 +1434,8 @@ static void maybe_start_compensation_worker_locked(rt_executor* ex) {
     }
     memset(ctx, 0, sizeof(rt_worker_ctx));
     ctx->ex = ex;
+    ctx->heap_cell = rt_heap_accounting_compensation_cell(rt_executor_heap_accounting(ex),
+                                                          compat->compensation_count);
     ctx->worker_id = compat->compensation_count % scheduler->worker_count;
     ctx->sched_rng = scheduler->sched_seed +
                      UINT64_C(0x9e3779b97f4a7c15) *
@@ -1534,6 +1529,7 @@ static void* rt_worker_main(void* arg) {
     if (scheduler == NULL) {
         return NULL;
     }
+    rt_heap_accounting_set_current_cell(ctx->heap_cell);
     tls_worker_id = (int)worker_id;
     rt_set_current_task(NULL);
     for (;;) {
@@ -1600,6 +1596,7 @@ static void* rt_worker_main(void* arg) {
         rt_unlock(ex);
     }
     rt_set_current_task(NULL);
+    rt_heap_accounting_set_current_cell(NULL);
     return NULL;
 }
 
@@ -1662,6 +1659,8 @@ static void* rt_io_main(void* arg) {
     if (scheduler == NULL) {
         return NULL;
     }
+    rt_heap_accounting_set_current_cell(
+        rt_heap_accounting_io_cell(rt_executor_heap_accounting(ex)));
     const int poll_slice_ms = 50;
     const int net_ready_drain_limit = 16;
     rt_lock(ex);
@@ -1723,5 +1722,6 @@ static void* rt_io_main(void* arg) {
         }
     }
     rt_unlock(ex);
+    rt_heap_accounting_set_current_cell(NULL);
     return NULL;
 }
