@@ -10,7 +10,7 @@ keep `NOTES.md` as the handoff log.
 | 1 | Complete | Starting state, debt scope, Sentrux scans, heap smoke, current Runtime V2 gates, and Task 2-7 gate plan recorded below. |
 | 2 | Complete | Dependency map artifact, selected event-delta cell model, caller-context corrections, checks, and review outcome recorded below. |
 | 3 | Complete | Heap stats contract tests for alloc/free, realloc, aligned paths, failed realloc, and concurrent workers recorded below. |
-| 4 | Draft | Static shape tests not started. |
+| 4 | Complete | Pending static target-shape gate for heap-accounting ownership, ABI, record API, and aggregation recorded below. |
 | 5 | Draft | Accounting cell skeleton not started. |
 | 6 | Draft | Alloc/free/realloc accounting migration not started. |
 | 7 | Draft | Heap stats aggregation not started. |
@@ -308,3 +308,75 @@ Review subagent returned no findings. Residual risks:
   matching `NOTES.md` handoff if Task 3 must be removed.
 - No runtime artifacts, generated binaries, sockets, or benchmark reports were
   created by Task 3.
+
+## Task 4: Heap Accounting Static Shape Tests
+
+### Task Identity And Scope
+
+- Task: `05-tasks/04-heap-accounting-static-shape-tests.md`.
+- Date: 2026-07-03.
+- Scope: pending expected-red static checks for the target heap-accounting
+  shape before runtime-code changes.
+- Out of scope: runtime/native implementation, `Makefile`, CI, and broad VM
+  gates.
+
+### Result
+
+Task 4 added `internal/vm/runtime_v2_heap_accounting_static_test.go` under the
+`runtime_v2_pending` build tag. The gate checks:
+
+- public allocation ABI still matches `rt_alloc`, `rt_free`, `rt_realloc`, and
+  `rt_heap_stats` declarations in `rt.h`;
+- concrete `rt_heap_accounting_cell` and `rt_heap_accounting` owner shape exists
+  under `rt_runtime` or `rt_shard`;
+- explicit cold heap-accounting cell or accessor exists;
+- lane-local current-cell selection uses a TLS heap-accounting cell and cold
+  fallback;
+- old file-scope static atomic heap counters are rejected across native sources;
+- `record_alloc`, `record_free`, and `record_realloc` call the
+  `rt_heap_accounting_record_*` API in their function bodies;
+- `rt_heap_stats()` calls `rt_heap_accounting_snapshot` instead of direct old
+  global loads.
+
+The expected-red gate strips comments before matching and skips C prototypes
+when locating function bodies, preventing false-green results from comments or
+unused declarations.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `internal/vm/runtime_v2_heap_accounting_static_test.go` | created | Pending static target-shape gate. | 283 lines, under 500-line target. |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 4 durable evidence. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 4 handoff. | Documentation only. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `go test ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic' -count=1 -v --timeout 60s` | no default-tag tests | `testing: warning: no tests to run`; package passed | `0` | pending gate excluded from default suite. |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic' -count=1 -v --timeout 60s` | expected red before Tasks 5-7 | ABI subtest passed; target-shape subtest failed on missing owner shape, cold path, lane selection, old file-scope heap counters, missing record API, direct old global loads, and missing snapshot API | `1` expected | design proof, not a regression. |
+| `gofmt -l internal/vm/runtime_v2_heap_accounting_static_test.go` | no output | no output | `0` | formatting gate. |
+| `git diff --check` | no whitespace errors | no output | `0` | main-session post-review whitespace gate. |
+| `wc -l internal/vm/runtime_v2_heap_accounting_static_test.go` | under 500-line target | `283` | `0` | new test file is under limit. |
+
+### Review Outcome
+
+Review subagent initially found one P1 and one P2 false-green risk in the static
+predicates. The test was tightened to inspect concrete target types, owner
+fields, function bodies, TLS/current-cell selection, cold fallback, record API
+calls, and snapshot API calls after stripping comments. Final focused re-review
+returned no remaining findings.
+
+Residual risks:
+
+- this remains a regex/source-shape gate, not a semantic C analyzer;
+- behavior correctness still depends on Task 3 contract tests and later runtime
+  probes.
+
+### Rollback/Recovery Notes
+
+- Revert the pending static test file, this Task 4 section/status row, and the
+  matching `NOTES.md` handoff if Task 4 must be removed.
+- No runtime artifacts, generated binaries, sockets, or benchmark reports were
+  created by Task 4.

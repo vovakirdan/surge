@@ -215,6 +215,28 @@ task, then move durable decisions into the owning epic document before closeout.
   focused regex with `-count=3`, `gofmt -l`, `git diff --check`, and root
   Sentrux rules in review. Review outcome: no findings.
 
+## Epic 5 Task 04 Handoff
+
+- Scope completed: pending static target-shape gate in
+  `internal/vm/runtime_v2_heap_accounting_static_test.go`. No runtime/native,
+  `Makefile`, CI, or task-doc files changed.
+- The test is excluded from default gates by `//go:build runtime_v2_pending`.
+  Default focused run reported no tests; the pending-tag run failed as intended.
+- Static gate now requires concrete future shape: `rt_heap_accounting_cell`,
+  `rt_heap_accounting`, owner field in `rt_runtime` or `rt_shard`, explicit
+  cold cell/accessor, TLS/current-cell lane selection with cold fallback,
+  `rt_heap_accounting_record_*` calls in `record_*` helper bodies, and
+  `rt_heap_accounting_snapshot` from `rt_heap_stats()`.
+- The test strips comments before matching and skips prototypes before function
+  definitions. This was added after review caught false-green risks from
+  comments, unused declarations, and API names appearing outside helper bodies.
+- Expected-red causes before implementation: old file-scope heap atomics,
+  direct `record_*` writes, missing owner/cold/lane shape, direct old global
+  loads, and missing snapshot API. Tasks 5-7 own turning this gate green.
+- Review outcome: initial P1/P2 findings were fixed; final focused re-review
+  returned no remaining findings. Residual risk: regex/source-shape gate only,
+  so behavior proof still depends on Task 3 and later probes.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.
