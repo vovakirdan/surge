@@ -28,9 +28,10 @@ task evidence in `02-evidence.md`. Epic 3 is complete for owner-local waiters
 and dependency-aware runtime refactoring under the same `N=1` boundary. Epic 4
 is complete for persistent fd registry and net lifecycle proof, with accepted
 debt recorded in `DEBT.md`. Epic 5 is complete for per-shard heap accounting
-and stable heap-accounting CI gates. Epic 6 is drafted for structural `N>1`
-accept ownership under the preserved global executor lock and the Tier 1
-no-steal scheduler boundary.
+and stable heap-accounting CI gates. Epic 6 is scoped and fully task-cut for
+structural `N>1` accept ownership under the preserved global executor lock
+and the Tier 1 no-steal scheduler boundary; all 15 tasks are documented under
+`06-tasks/`, and execution has not started.
 
 ## Current Runtime V2 Artifacts
 
@@ -56,8 +57,9 @@ no-steal scheduler boundary.
 - `05-per-shard-heap-accounting.md`: Epic 5 scope, acceptance matrix, closeout,
   and Epic 6 handoff for shard-owned heap accounting.
 - `05-evidence.md`: Epic 5 task evidence ledger.
-- `06-n2-accept-ownership-and-tier1-scheduler.md`: Epic 6 draft scope,
-  acceptance contract, brief task list, and Epic 7 syntax handoff.
+- `06-n2-accept-ownership-and-tier1-scheduler.md`: Epic 6 scope, acceptance
+  contract, brief task list, and Epic 7 syntax handoff.
+- `06-tasks/`: Epic 6's 15 expanded task documents and task index.
 
 Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside

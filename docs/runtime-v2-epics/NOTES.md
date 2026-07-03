@@ -2026,3 +2026,95 @@ flat, or creates a follow-up split task.
   keyword choices.
 - The syntax review must consider keyword count, readability, and concise source
   spelling before implementation starts.
+
+## Epic 6 Task Cutting
+
+- Epic 6 review feedback (lock model calibration, `SURGE_SHARDS`/`SURGE_THREADS`
+  interaction, per-shard poller/wake with an explicit Phase 3/Phase 4 line,
+  stays-global-compat invariant for non-net primitives, the accept-loop
+  ownership conflict, N=1 static-pin updates, parked-with-work invariant,
+  `SO_REUSEPORT` listener-group close semantics, and `SURGE_SHARDS=1` no-steal
+  vacuity) was folded into
+  `docs/runtime-v2-epics/06-n2-accept-ownership-and-tier1-scheduler.md` before
+  task cutting, in an "Epic 6 Boundary Decisions" section plus updates to
+  Scope, the Accept Ownership Contract, and the Performance Contract.
+- All 15 tasks from the epic's Brief Task List are now expanded into full
+  documents under `docs/runtime-v2-epics/06-tasks/`, each with Context (with
+  exact current-code `file:line` citations so a task stands on its own),
+  Goal, Why This Task Exists, Scope, Out Of Scope, Approach/Steps, Files,
+  Skills & Working Practice, Checks, Definition Of Done, and Evidence To
+  Record. `06-tasks/README.md` indexes them with dependencies and
+  parallelization notes.
+- Key structural facts recorded during task-cutting, verified directly
+  against the current checkout, that later tasks should cite instead of
+  re-deriving:
+  - `struct rt_shard` (`rt_async_internal.h:150-160`) already carries
+    `scheduler`, `heap_accounting`, `net_poll_scratch`, `fd_registry`,
+    `channel_blocking_compat`, and `waiter_store` as direct per-shard
+    members. Epic 4/5 already made these fields shard-shaped; only
+    `shards[0]` is ever populated today. Task 6 mainly needs to make the
+    array dynamic and actually initialize `shards[1..N-1]`, not invent new
+    per-shard storage.
+  - `rt_runtime_shard0()` (`rt_runtime.c:50-55`) is the one compatibility
+    accessor every other accessor (`rt_executor_scheduler`,
+    `rt_executor_net_poll_scratch`, `rt_executor_channel_blocking_compat`,
+    `rt_executor_waiter_store`, `rt_executor_fd_registry`) routes through.
+    Task 6/Task 5 must add a shard-indexed sibling for net-owned accessors
+    only; non-net accessors keep routing through shard 0 by design.
+  - `rt_task` (`rt_async_internal.h:167-202`) has no shard/owner field at
+    all today — Task 7 must add it.
+  - `NetListener`/`NetConn` (`rt_net.c:45-53`) are `{int fd; bool closed;}` —
+    two fields, no shard tag, no generation. Task 8 extends these; this is
+    also the natural point to decide `RV2-DEBT-010` (copied-handle
+    generation) one way or the other.
+  - The wake pipe (`rt_net.c:67-68`, `net_poll_wake_read_fd`/
+    `net_poll_wake_write_fd`) is a process-global static, distinct from the
+    already-per-shard `net_poll_scratch` buffer. Task 10 replaces it with
+    per-shard wake state, explicitly stopping short of the Phase 4
+    `eventfd`/`PARKED`/credit protocol.
+  - `rt_shard_scheduler_init` (`rt_runtime.c:165-187`) already takes an
+    explicit `worker_count` and needs no change to support more shards —
+    Task 6/7 just need to call it once per shard.
+  - The `Makefile`'s `runtime-v2-check` chain (`runtime-v2-heap-check`,
+    `runtime-v2-waiter-check`, `runtime-v2-fd-registry-check`,
+    lines ~86-115) is the pattern Task 13's new `runtime-v2-accept-check`
+    must follow exactly.
+- Execution has not started. Next step is Task 1 (kickoff baseline and
+  Sentrux), which must re-verify every `file:line` citation above before
+  Task 2 begins, since drift between this note and the real checkout is
+  possible.
+
+## Epic 6 Task Cutting — Corrections Before Execution Start
+
+Three corrections applied to the freshly-cut Epic 6 tasks after a review
+pass, before any task execution began:
+
+- `06-tasks/12-trace-counters-and-benchmark-evidence.md` touches
+  `runtime/native/rt_async_state.c`/`rt_net.c` for new trace counters, which
+  makes it a runtime-code task under Global Rule 3 — it was missing Sentrux
+  root/`runtime/`/`runtime/native/` scans from its Checks. Added to Checks,
+  Definition Of Done, and Evidence To Record.
+- `06-tasks/15-epic-closeout-and-static-gates.md` previously lumped "lock
+  splitting" into "Phase 4+" deferred work. Per the roadmap in `README.md`,
+  splitting `rt_executor.lock` and moving remaining global-compatibility
+  primitives to shard-owned state is Epic 7's scope specifically, not
+  Phase 4. Reworded to separate: Epic 7 owns lock splitting; Phase 4+
+  (owned by later epics 8/9/10 per the roadmap) owns cross-shard messaging,
+  `far`/`submit_to`, remote-free, and `io_uring`.
+- `06-tasks/06-runtime-shard-array-and-config.md` and
+  `06-tasks/07-per-shard-scheduler-placement.md` had an unclear boundary
+  around worker OS threads. Verified in code
+  (`rt_async_state.c:216-220,278-319`): `rt_shard_scheduler_init` (called by
+  Task 6) only sizes `local_queues`/`worker_count`; it never touches
+  `worker_ctxs` or calls `pthread_create`. `rt_start_workers` is the
+  function that actually allocates `worker_ctxs` and spawns OS threads, and
+  it is fully executor-global today (one `ex->workers` array, one I/O
+  thread, one worker loop; `rt_worker_ctx` has no shard field). Resolved:
+  Task 6 owns shard *structure* initialization only and explicitly does not
+  spawn threads or touch `worker_ctxs` beyond shard 0. Task 7 owns making
+  `rt_start_workers` shard-aware — real per-shard worker threads, `worker_ctxs`
+  allocated per shard, each `rt_worker_ctx` tagged with its shard — because
+  Task 7 is also where the owner-shard task metadata that binding needs to
+  be meaningful gets added. Both task documents now cross-reference this
+  boundary explicitly (Task 7 has a dedicated "Boundary With Task 6"
+  section) so it cannot be read either way.

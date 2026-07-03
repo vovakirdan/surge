@@ -14,10 +14,12 @@ distribution, no-steal connection scheduling, per-shard net poller ownership,
 trace counters, benchmarks, and CI gates. Keep `SURGE_SHARDS=1` behavior
 compatible throughout the epic.
 
-**Status:** draft. Task files have not been expanded yet.
+**Status:** approved. All 15 tasks are expanded into full task documents under
+`06-tasks/`; execution has not started.
 
-**Task documents:** to be created under `06-tasks/` after this epic document is
-approved.
+**Task documents:** `06-tasks/01-kickoff-baseline-and-sentrux.md` through
+`06-tasks/15-epic-closeout-and-static-gates.md`, indexed in
+`06-tasks/README.md`.
 
 ## Inputs
 
