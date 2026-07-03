@@ -13,7 +13,7 @@ keep `NOTES.md` as the handoff log.
 | 4 | Complete | Pending static target-shape gate for heap-accounting ownership, ABI, record API, and aggregation recorded below. |
 | 5 | Complete | Runtime/shard-owned accounting skeleton, cold cell, lane wiring, static gate split, checks, Sentrux, and review outcome recorded below. |
 | 6 | Complete | Alloc/free/realloc writes now route through accounting cells; old global source-of-truth counters are gone; checks, Sentrux, and review outcome recorded below. |
-| 7 | Draft | Snapshot aggregation mechanics landed with Task 6 to preserve public heap-stat behavior; Task 7 still owns aggregation audit, focused evidence, and docs closeout. |
+| 7 | Complete | Aggregation audit, focused heap evidence, active static predicate, Sentrux scans, and docs closeout recorded below. |
 | 8 | Draft | Concurrency and performance evidence not started. |
 | 9 | Draft | Runtime V2 heap CI gate not started. |
 | 10 | Draft | Epic closeout not started. |
@@ -602,4 +602,97 @@ Residual risks:
 
 - Revert this Task 6 runtime slice, this Task 6 section/status row, and the
   matching `NOTES.md` handoff if Task 6 must be removed.
+- Test artifacts under `target/debug/.tests/` are disposable.
+
+## Task 7: Heap Stats Aggregation
+
+### Task Identity And Scope
+
+- Task: `05-tasks/07-heap-stats-aggregation.md`.
+- Date: 2026-07-03.
+- Scope: close the heap-stats aggregation task with audit, focused evidence, and
+  documentation after Task 6 moved `rt_heap_stats()` to the snapshot helper.
+- Runtime/test changes: none in Task 7; the audit found no real runtime or test
+  gap.
+- Sentrux: root, `runtime/`, and `runtime/native` scans/rules were collected;
+  a no-code scoped `runtime/native` session was run after review to document
+  that Task 7's docs-only closeout did not change native-runtime quality.
+
+### Result
+
+Task 7 confirmed the aggregation behavior now implemented in the runtime:
+
+- `rt_heap_stats()` calls
+  `rt_heap_accounting_snapshot(rt_runtime_global_heap_accounting(), ...)`
+  before allocating the public `SurgeHeapStats` result, so stats-result
+  allocations remain outside the returned snapshot.
+- `rt_heap_accounting_snapshot()` aggregates the module-owned cold cell and the
+  runtime/shard-owned main, I/O, worker, blocking, and compensation cells.
+- The old `rt_alloc.c` heap-counter globals and direct `rt_heap_stats()` global
+  loads are absent.
+- `HeapStats` layout and public ABI remain unchanged.
+- `rc_increments` and `rc_decrements` remain zero until a reference-counting
+  epic owns those counters.
+- Snapshot reads use relaxed per-cell atomics. Raw alloc/free event totals stay
+  raw; derived live totals saturate transient underflow to zero because the
+  snapshot is not a global cut across lanes.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 7 closeout evidence. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 7 handoff. | Documentation only. |
+| `docs/runtime-v2-epics/05-tasks/07-heap-stats-aggregation.md` | updated | Mark task complete. | Documentation only. |
+
+Runtime/test files were audited but not changed:
+
+| Path | Lines | Note |
+| --- | ---: | --- |
+| `runtime/native/rt_async_internal.h` | 499 | unchanged; remains at the hard Task 5/6 limit. |
+| `runtime/native/rt_alloc.c` | 127 | contains the public snapshot call before stats-result allocation. |
+| `runtime/native/rt_heap_accounting.h` | 68 | exposes snapshot/current accounting API. |
+| `runtime/native/rt_heap_accounting.c` | 223 | aggregates cold and runtime-owned cells. |
+| `internal/vm/runtime_v2_heap_accounting_static_test.go` | 334 | Task 5/6/7 static predicates are active. |
+| `internal/vm/runtime_v2_heap_accounting_contract_test.go` | 275 | sequential and concurrent heap contracts. |
+| `internal/vm/llvm_native_heap_stats_test.go` | 69 | native heap-stats smoke coverage. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `go test ./internal/vm -run '^TestLLVMNative(HeapStats\|BufferedChannelAllocatesSingleBlock)$' -count=1 -v --timeout 120s` | pass | `TestLLVMNativeHeapStats` and `TestLLVMNativeBufferedChannelAllocatesSingleBlock` passed; package `ok surge/internal/vm 4.587s` | `0` | public native heap-stats compatibility. |
+| `go test ./internal/vm -run '^TestRuntimeV2HeapAccounting' -count=1 -parallel=1 -p=1 -v --timeout 180s` | pass | sequential and concurrent heap accounting contracts passed; package `ok surge/internal/vm 4.253s` | `0` | Runtime V2 heap behavior. |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic' -count=1 -v --timeout 60s` | pass | ABI, Task 5 skeleton, Task 6 record migration, and Task 7 snapshot aggregation predicates all passed; package `ok surge/internal/vm 0.041s` | `0` | active static aggregation gate. |
+| `make c-check` | pass | C formatting and strict warning compilation passed | `0` | C gate. |
+| `make cppcheck` | pass | checked 35 C files including `rt_alloc.c` and `rt_heap_accounting.c`; `cppcheck OK` | `0` | static C gate. |
+| `make runtime-v2-check` | pass | MT liveness, waiter, pending waiter, and fd-registry gates passed; final fd-registry package `ok surge/internal/vm 15.922s` | `0` | Runtime V2 liveness gate. |
+| `make check` | pass | Go suite, golangci-lint, C gate, and file-size gate passed; file-size gate had no applicable dirty code files | `0` | broad repo gate required by the Task 7 gate plan. |
+| `git diff --check` | no whitespace errors | no output | `0` | whitespace gate. |
+| `wc -l runtime/native/rt_async_internal.h runtime/native/rt_alloc.c runtime/native/rt_heap_accounting.h runtime/native/rt_heap_accounting.c internal/vm/runtime_v2_heap_accounting_static_test.go internal/vm/runtime_v2_heap_accounting_contract_test.go internal/vm/llvm_native_heap_stats_test.go docs/runtime-v2-epics/05-evidence.md docs/runtime-v2-epics/NOTES.md docs/runtime-v2-epics/05-tasks/07-heap-stats-aggregation.md` | record touched/audited sizes | runtime/test line counts: 499, 127, 68, 223, 334, 275, 69; docs: 698, 1933, 53 | `0` | LOC evidence for audited runtime/test surfaces and touched docs. |
+| Sentrux scoped no-code session on `runtime/native` | stable | `5318 -> 5318`, `signal_delta=0`, pass | pass | records no native-runtime quality delta for the docs-only closeout. |
+| Sentrux root scan/rules | pass | root quality `6190`; rules pass with 0 violations | pass | whole-repo architectural scan. |
+| Sentrux `runtime/` scan/rules | pass | runtime quality `5279`; rules pass with 0 violations | pass | runtime scoped scan. |
+| Sentrux `runtime/native` scan/rules | pass | runtime/native quality `5318`; rules pass with 0 violations | pass | native runtime scoped scan. |
+
+### Residual Risks
+
+- Snapshot consistency remains relaxed by design. During concurrent updates,
+  live totals can be transiently conservative because the snapshot is not a
+  global cut across cells.
+- Direct libc temporaries outside the public `rt_alloc`/`rt_free` contract remain
+  outside Epic 5 scope, as recorded by Task 2.
+- `RV2-DEBT-011` remains active for overlapping VM LLVM test artifact
+  collisions; Task 7 VM checks were run sequentially where artifact names can
+  collide.
+- Task 8 still owns broader concurrency and performance evidence.
+
+### Debt
+
+- No new debt was added by Task 7.
+
+### Rollback/Recovery Notes
+
+- Revert this Task 7 docs section, status row, task status wording, and the
+  matching `NOTES.md` handoff if the Task 7 closeout must be removed.
 - Test artifacts under `target/debug/.tests/` are disposable.

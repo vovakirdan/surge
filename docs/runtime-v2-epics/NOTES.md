@@ -314,6 +314,31 @@ task, then move durable decisions into the owning epic document before closeout.
   no findings. No new debt was added. Continue running VM heap gates
   sequentially where artifact names can collide (`RV2-DEBT-011`).
 
+## Epic 5 Task 07 Handoff
+
+- Scope completed: heap-stats aggregation audit, focused evidence, Sentrux
+  scans, and docs closeout. No runtime or heap-test files changed in Task 7.
+- Current implementation: `rt_heap_stats()` snapshots
+  `rt_runtime_global_heap_accounting()` through `rt_heap_accounting_snapshot()`
+  before allocating `SurgeHeapStats`; the snapshot aggregates cold, main, I/O,
+  worker, blocking, and compensation cells.
+- Public behavior remains unchanged: `HeapStats` layout and ABI are stable,
+  `rc_increments` and `rc_decrements` stay zero, and stats-result allocations
+  are not included in the returned snapshot.
+- Static heap gate now runs and passes all Task 5/6/7 predicates. Task 7
+  confirmed the old heap globals and direct `rt_heap_stats()` global loads are
+  absent.
+- Checks passed: native heap-stats smoke tests, Runtime V2 heap accounting
+  contracts, pending static heap gate, `make c-check`, `make cppcheck`,
+  `make runtime-v2-check`, `make check`, `git diff --check`, Sentrux
+  root/runtime/native scans and rules, and a no-code runtime/native Sentrux
+  session `5318 -> 5318`. Final Sentrux qualities: root `6190`, runtime
+  `5279`, runtime/native `5318`.
+- Residual risk is intentional: relaxed per-cell snapshot reads are not a global
+  cut, so derived live totals can be transiently conservative. Task 8 owns
+  broader concurrency and performance evidence. Continue running overlapping VM
+  heap gates sequentially because of `RV2-DEBT-011`.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.

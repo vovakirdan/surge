@@ -1,7 +1,12 @@
 # Task 7: Heap Stats Aggregation
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
+
+**Completion note:** implementation landed in Task 6 when old heap-counter
+globals were removed and `rt_heap_stats()` had to read the new source of truth.
+Task 7 closed the aggregation task through audit, focused evidence, and docs;
+no additional runtime/test edit was needed.
 
 ## Goal
 
