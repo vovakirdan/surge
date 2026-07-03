@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Скрипт для проверки размера незакоммиченных файлов в git репозитории
-# Оценка по количеству строк:
+# Скрипт для проверки размера файлов в git репозитории
+# Оценка по effective source LOC: пустые строки и comment-only строки не
+# считаются для поддерживаемых исходников (.go/.c/.h).
 # <=525 +- 50 OK green
 # 575 - 675 Yellow acceptable  
 # 675+ BAD need refactoring
@@ -157,27 +158,142 @@ is_text_file() {
     return 0
 }
 
-# count_effective_lines считает строки для оценки:
-# - для go-тестов исключает пустые строки и строки-комментарии, начинающиеся с //
-# - для остальных файлов использует обычный подсчет строк
+count_source_lines() {
+    local file=$1
+
+    awk '
+        function has_code(line,    i, ch, next_ch, out) {
+            out = ""
+            for (i = 1; i <= length(line); i++) {
+                ch = substr(line, i, 1)
+                next_ch = substr(line, i + 1, 1)
+
+                if (in_block_comment) {
+                    if (ch == "*" && next_ch == "/") {
+                        in_block_comment = 0
+                        i++
+                    }
+                    continue
+                }
+
+                if (quote != "") {
+                    out = out ch
+                    if (quote == "`") {
+                        if (ch == "`") {
+                            quote = ""
+                        }
+                    } else if (escaped) {
+                        escaped = 0
+                    } else if (ch == "\\") {
+                        escaped = 1
+                    } else if (ch == quote) {
+                        quote = ""
+                    }
+                    continue
+                }
+
+                if (ch == "\"" || ch == "\047" || ch == "`") {
+                    out = out ch
+                    quote = ch
+                    escaped = 0
+                    continue
+                }
+
+                if (ch == "/" && next_ch == "/") {
+                    break
+                }
+
+                if (ch == "/" && next_ch == "*") {
+                    in_block_comment = 1
+                    i++
+                    continue
+                }
+
+                out = out ch
+            }
+
+            if (quote != "`") {
+                quote = ""
+                escaped = 0
+            }
+
+            return out ~ /[^[:space:]]/
+        }
+
+        has_code($0) { c++ }
+        END { print c + 0 }
+    ' "$file" 2>/dev/null
+}
+
+# count_effective_lines counts source LOC for supported source formats. A line
+# counts only if it contains code after removing comments; code-bearing lines
+# with trailing comments still count.
 count_effective_lines() {
     local file=$1
     local ext="${file##*.}"
 
-    if [[ "$ext" = "go" ]]; then
-        # Для go-файлов считаем только строки с кодом (без пустых и чисто //)
-        local count=$(awk '
-            /^[[:space:]]*$/ {next}
-            /^[[:space:]]*\/\// {next}
-            {c++}
-            END {print c+0}
-        ' "$file" 2>/dev/null)
+    if [[ "$ext" = "go" || "$ext" = "c" || "$ext" = "h" ]]; then
+        local count=$(count_source_lines "$file")
         echo "${count:-0}"
     else
-        # Используем awk, чтобы учитывать последнюю строку без завершающего \n
         local lines=$(awk 'END {print NR+0}' "$file" 2>/dev/null)
         echo "${lines:-0}"
     fi
+}
+
+assert_effective_lines() {
+    local label=$1
+    local file=$2
+    local expected=$3
+    local actual
+    actual=$(count_effective_lines "$file")
+
+    if [ "$actual" != "$expected" ]; then
+        echo -e "${RED}SELF-TEST FAILED:${NC} $label expected $expected, got $actual" >&2
+        return 1
+    fi
+
+    echo -e "${GREEN}SELF-TEST OK:${NC} $label = $actual"
+}
+
+run_self_test() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "$tmp_dir"' RETURN
+
+    cat >"$tmp_dir/sample.go" <<'EOF'
+package main
+
+// file comment
+/* package block
+   still comment */
+func main() { println("http://example.test/*literal*/") } // trailing
+EOF
+
+    cat >"$tmp_dir/sample.c" <<'EOF'
+#include <stdio.h>
+/* block
+ * comment
+ */
+static int value = 1; /* trailing */
+static const char *url = "http://example.test/*literal*/"; // trailing
+/* inline */ int after = 2;
+int before = 3; /* block starts
+continues
+ends */ int after_block = 4;
+EOF
+
+    cat >"$tmp_dir/comment_only.h" <<'EOF'
+// comment
+/*
+ * block comment
+ */
+
+EOF
+
+    assert_effective_lines "go comments" "$tmp_dir/sample.go" 2 || return 1
+    assert_effective_lines "c comments" "$tmp_dir/sample.c" 6 || return 1
+    assert_effective_lines "h comment-only file" "$tmp_dir/comment_only.h" 0 || return 1
 }
 
 # check_directory проверяет размер файлов (незакоммиченных или всех), фильтрует по расширениям и настройкам тестов,
@@ -365,6 +481,7 @@ show_help() {
     echo "  -t, --include-tests     - включить тестовые файлы (по умолчанию исключены)"
     echo "  -a, --all               - проверить все файлы в директории (полная проверка)"
     echo "                           по умолчанию проверяются только незакоммиченные файлы"
+    echo "  --self-test             - проверить подсчет effective LOC на комментариях"
     echo ""
     echo "Общая оценка:"
     echo "  ≥90% хороших файлов     - ОТЛИЧНО (зеленый)"
@@ -399,6 +516,10 @@ while [[ $# -gt 0 ]]; do
         -a|--all)
             CHECK_ALL_FILES=true
             shift
+            ;;
+        --self-test)
+            run_self_test
+            exit $?
             ;;
         -*)
             echo "Неизвестная опция: $1" >&2
