@@ -3,6 +3,9 @@
 #endif
 
 #include "rt_async_internal.h"
+#include "rt_net_handles.h"
+#include "rt_net_lifecycle.h"
+#include "rt_net_listener_socket.h"
 #include "rt_net_trace.h"
 
 #include <arpa/inet.h>
@@ -41,16 +44,6 @@ typedef struct NetError {
     void* message;
     void* code;
 } NetError;
-
-typedef struct NetListener {
-    int fd;
-    bool closed;
-} NetListener;
-
-typedef struct NetConn {
-    int fd;
-    bool closed;
-} NetConn;
 
 typedef enum {
     NET_WAIT_ACCEPT = 0,
@@ -410,6 +403,18 @@ static NetConn* net_conn_from_value(void* conn) {
     return (NetConn*)conn;
 }
 
+static size_t net_configured_shard_count(void) {
+    if (exec_state.initialized && rt_executor_runtime(&exec_state) != NULL) {
+        return rt_runtime_shard_count(rt_executor_runtime(&exec_state));
+    }
+    rt_runtime_start_config config;
+    const char* config_error = NULL;
+    if (rt_runtime_start_config_from_env(&config, &config_error) != RT_RUNTIME_STATUS_OK) {
+        rt_runtime_config_exit(config_error);
+    }
+    return config.shard_count;
+}
+
 void* rt_net_listen(void* addr, uint64_t port) {
     uint64_t err_code = 0;
     char* buf = net_copy_addr(addr, NULL, &err_code);
@@ -427,45 +432,44 @@ void* rt_net_listen(void* addr, uint64_t port) {
         return net_make_error(NET_ERR_INVALID_ADDR);
     }
 
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
-        return net_make_error(net_error_code_from_errno(errno));
-    }
-    int reuse = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, (socklen_t)sizeof(reuse)) != 0) {
-        uint64_t code = net_error_code_from_errno(errno);
-        close(fd);
-        return net_make_error(code);
-    }
-    if (!net_set_nonblocking(fd, &err_code)) {
-        close(fd);
-        return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
-    }
-
-    struct sockaddr_in sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sin_family = AF_INET;
-    sa.sin_port = htons((uint16_t)port);
-    sa.sin_addr = ip;
-    if (bind(fd, (struct sockaddr*)&sa, sizeof(sa)) != 0) {
-        uint64_t code = net_error_code_from_errno(errno);
-        close(fd);
-        return net_make_error(code);
-    }
-    if (listen(fd, SOMAXCONN) != 0) {
-        uint64_t code = net_error_code_from_errno(errno);
-        close(fd);
-        return net_make_error(code);
-    }
-
-    NetListener* listener =
-        (NetListener*)rt_alloc((uint64_t)sizeof(NetListener), (uint64_t)alignof(NetListener));
-    if (listener == NULL) {
-        close(fd);
+    size_t shard_count = net_configured_shard_count();
+    if (shard_count == 0) {
         return net_make_error(NET_ERR_IO);
     }
-    listener->fd = fd;
-    listener->closed = false;
+    // Task 8 installs the group-capable handle/lifecycle shape. Actual
+    // N-member SO_REUSEPORT activation waits for Task 9 because today's task
+    // park state can register one accept fd key, not a listener-group wait.
+    size_t member_count = 1;
+    NetListener* listener = rt_net_listener_alloc(NET_LISTENER_SINGLE, member_count, 0);
+    if (listener == NULL) {
+        return net_make_error(NET_ERR_IO);
+    }
+    uint16_t bound_port = (uint16_t)port;
+    for (size_t i = 0; i < member_count; i++) {
+        int listener_errno = 0;
+        int fd =
+            rt_net_create_listener_socket(&ip, (uint16_t)port, &bound_port, false, &listener_errno);
+        if (fd < 0) {
+            for (size_t j = 0; j < i; j++) {
+                if (listener->members[j].fd >= 0) {
+                    close(listener->members[j].fd);
+                }
+            }
+            rt_net_listener_free(listener);
+            return net_make_error(listener_errno == 0 ? NET_ERR_IO
+                                                      : net_error_code_from_errno(listener_errno));
+        }
+        if (!rt_net_listener_set_member(listener, i, fd, (uint32_t)i)) {
+            close(fd);
+            for (size_t j = 0; j < i; j++) {
+                if (listener->members[j].fd >= 0) {
+                    close(listener->members[j].fd);
+                }
+            }
+            rt_net_listener_free(listener);
+            return net_make_error(NET_ERR_IO);
+        }
+    }
     return net_make_success_ptr(listener);
 }
 
@@ -510,67 +514,64 @@ void* rt_net_connect(void* addr, uint64_t port) {
         return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
     }
 
-    NetConn* conn = (NetConn*)rt_alloc((uint64_t)sizeof(NetConn), (uint64_t)alignof(NetConn));
+    uint32_t owner_shard_id =
+        rt_net_owner_shard_or_compat(&exec_state, rt_debug_current_worker_shard_id());
+    NetConn* conn = rt_net_conn_alloc(fd, owner_shard_id, 1);
     if (conn == NULL) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
-    conn->fd = fd;
-    conn->closed = false;
     return net_make_success_ptr(conn);
-}
-
-static void* close_net_fd_slot(int* fd_slot, bool* closed_slot) {
-    if (fd_slot == NULL || closed_slot == NULL || *closed_slot) {
-        return net_make_error(NET_ERR_NOT_CONNECTED);
-    }
-    int fd = *fd_slot;
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return net_make_error(NET_ERR_IO);
-    }
-    rt_fd_lifecycle_snapshot snapshot;
-    rt_lock(ex);
-    rt_runtime_status status =
-        rt_fd_registry_mark_closed(rt_executor_fd_registry_for_shard(ex, 0), fd, &snapshot);
-    rt_unlock(ex);
-    if (status != RT_RUNTIME_STATUS_OK) {
-        return net_make_error(NET_ERR_IO);
-    }
-    *closed_slot = true;
-    *fd_slot = -1;
-    int close_errno = 0;
-    if (close(fd) != 0) {
-        close_errno = errno;
-    }
-    rt_fd_completion_summary summary = rt_fd_registry_wake_closed_net_waiters(ex, &snapshot);
-    rt_net_trace_waiter_completion(summary.calls, summary.woken);
-    if (close_errno != 0) {
-        return net_make_error(net_error_code_from_errno(close_errno));
-    }
-    return net_make_success_nothing();
 }
 
 void* rt_net_close_listener(void* listener) {
     NetListener* l = net_listener_from_value(listener);
-    return l == NULL ? net_make_error(NET_ERR_NOT_CONNECTED)
-                     : close_net_fd_slot(&l->fd, &l->closed);
+    if (l == NULL || l->closed) {
+        return net_make_error(NET_ERR_NOT_CONNECTED);
+    }
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return net_make_error(NET_ERR_IO);
+    }
+    int close_errno = 0;
+    rt_net_lifecycle_status status = rt_net_close_listener_members(ex, l, &close_errno);
+    if (status != RT_NET_LIFECYCLE_OK) {
+        return net_make_error(close_errno == 0 ? NET_ERR_IO
+                                               : net_error_code_from_errno(close_errno));
+    }
+    return net_make_success_nothing();
 }
 
 void* rt_net_close_conn(void* conn) {
     NetConn* c = net_conn_from_value(conn);
-    return c == NULL ? net_make_error(NET_ERR_NOT_CONNECTED)
-                     : close_net_fd_slot(&c->fd, &c->closed);
+    if (c == NULL || c->closed) {
+        return net_make_error(NET_ERR_NOT_CONNECTED);
+    }
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return net_make_error(NET_ERR_IO);
+    }
+    int close_errno = 0;
+    rt_net_lifecycle_status status =
+        rt_net_close_fd_on_owner(ex, c->owner_shard_id, &c->fd, &c->closed, &close_errno);
+    if (status == RT_NET_LIFECYCLE_OK) {
+        return net_make_success_nothing();
+    }
+    return net_make_error(
+        status == RT_NET_LIFECYCLE_INVALID
+            ? NET_ERR_NOT_CONNECTED
+            : (close_errno == 0 ? NET_ERR_IO : net_error_code_from_errno(close_errno)));
 }
 
 void* rt_net_accept(const void* listener) {
     const NetListener* l = net_listener_from_borrowed(listener);
-    if (l == NULL || l->closed) {
+    NetListenerMember member;
+    if (!rt_net_listener_selected_member_const(l, &member)) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
     int fd = -1;
     do {
-        fd = accept(l->fd, NULL, NULL);
+        fd = accept(member.fd, NULL, NULL);
     } while (fd < 0 && errno == EINTR);
     if (fd < 0) {
         return net_make_error(net_error_code_from_errno(errno));
@@ -580,13 +581,11 @@ void* rt_net_accept(const void* listener) {
         close(fd);
         return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
     }
-    NetConn* conn = (NetConn*)rt_alloc((uint64_t)sizeof(NetConn), (uint64_t)alignof(NetConn));
+    NetConn* conn = rt_net_conn_alloc(fd, member.owner_shard_id, 1);
     if (conn == NULL) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
-    conn->fd = fd;
-    conn->closed = false;
     return net_make_success_ptr(conn);
 }
 
@@ -780,8 +779,9 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
 bool rt_net_wait_accept(const void* listener) {
     const NetListener* l = net_listener_from_borrowed(listener);
     int fd = -1;
-    if (l != NULL && !l->closed) {
-        fd = l->fd;
+    NetListenerMember member;
+    if (rt_net_listener_selected_member_const(l, &member)) {
+        fd = member.fd;
     }
     return net_wait_current_task(fd, NET_WAIT_ACCEPT);
 }

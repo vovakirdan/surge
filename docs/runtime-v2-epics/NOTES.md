@@ -2425,3 +2425,50 @@ pass, before any task execution began:
   `./check_file_sizes.sh --self-test`, `./check_file_sizes.sh`,
   `sentrux check .` quality 6185, `sentrux check runtime` quality 5332, and
   `sentrux check runtime/native` quality 5353.
+
+## Epic 6 Task 08 Handoff
+
+- Scope completed: listener/connection owner metadata and owner-first net
+  close lifecycle helpers. `NetListener` and `NetConn` now live in
+  `rt_net_handles.h`; `NetListener` has a single/group/fallback discriminator,
+  member array, compatibility fd/owner fields, and per-member `(fd,
+  owner_shard_id, closed)`. `NetConn` has `owner_shard_valid` and
+  `owner_shard_id`.
+- New helper split: `rt_net_handles.c` owns allocation/member selection,
+  `rt_net_lifecycle.c` owns explicit-status close paths, and
+  `rt_net_listener_socket.c` owns listener socket setup including optional
+  `SO_REUSEPORT`. This kept `rt_net.c` at 844 effective LOC under the existing
+  904 legacy ceiling.
+- Important boundary: public `rt_net_listen` still creates one live listener
+  member even under `SURGE_SHARDS>1`. The group-capable representation exists,
+  but real N-member `SO_REUSEPORT` activation is Task 9. Do not flip that
+  switch before group wait/accept routing exists: current task state has a
+  single `park_key`, so waiting on only member 0 while Linux routes clients to
+  members 1..N can hang clients.
+- Listener close now routes through `rt_net_close_listener_members`, which
+  loops over represented members and calls `rt_net_close_fd_on_owner` with each
+  member's owner shard. With current public listen this is one member; owner-
+  local waiter-store migration and per-shard poller wake remain Tasks 10/11.
+- `RV2-DEBT-010` remains open by explicit decision. Owner metadata is not a
+  copied-handle generation guard. Current fd-registry generations protect poll
+  snapshots/waiter completions only; closing the debt needs stable handle id or
+  registry-generation validation before direct fd operations.
+- Static gate update: `runtime_v2_accept_static_test.go` no longer expects the
+  deleted `close_net_fd_slot`; it checks `rt_net_lifecycle.c` owner-first
+  helpers instead.
+- CI/gate update: `runtime-v2-accept-check` was added to `make
+  runtime-v2-check` and currently covers `TestRuntimeV2NetMetadata*` plus the
+  accept static shape tests.
+- Review found and closed: N-member listener hang risk, stale static gate, and
+  missing debt/gate documentation. The remaining full accept contract is still
+  expected-red only for downstream `TRACE_NET` owner/distribution/lifecycle
+  fields.
+- Final gates passed: `make c-check`, `make cppcheck`,
+  `make runtime-v2-accept-check`, `make runtime-v2-check`, `make check`,
+  `git diff --check`, `./check_file_sizes.sh --self-test`,
+  `./check_file_sizes.sh`, `sentrux check .` quality 6185,
+  `sentrux check runtime` quality 5320, and `sentrux check runtime/native`
+  quality 5338. A transient full `runtime-v2-check` timeout in
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance` did not reproduce in the
+  final full rerun; an accidental overlapping VM command reproduced the known
+  `RV2-DEBT-011` artifact race, so future checks should stay sequential.

@@ -23,7 +23,7 @@ parts they need and point back to it for the rest.
 | 5 | `05-multishard-static-shape-tests.md` | Complete | test/static checks | 1, 2, 3 |
 | 6 | `06-runtime-shard-array-and-config.md` | Complete | runtime code | 1, 2, 3, 5 |
 | 7 | `07-per-shard-scheduler-placement.md` | Complete | runtime code | 6 |
-| 8 | `08-listener-and-connection-owner-metadata.md` | Draft | runtime code | 6 |
+| 8 | `08-listener-and-connection-owner-metadata.md` | Complete | runtime code | 6 |
 | 9 | `09-accept-distribution-implementation.md` | Draft | runtime code | 3, 6, 7, 8 |
 | 10 | `10-per-shard-poller-and-wake-ownership.md` | Draft | runtime code | 6, 7 |
 | 11 | `11-multishard-net-lifecycle-migration.md` | Draft | runtime code | 4, 8, 9, 10 |

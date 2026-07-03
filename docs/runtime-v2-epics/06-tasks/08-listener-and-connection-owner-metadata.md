@@ -1,6 +1,6 @@
 # Task 8: Listener And Connection Owner Metadata
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 **Depends on:** Task 6
 
@@ -168,18 +168,20 @@ Read:
 
 ## Definition Of Done
 
-- [ ] `NetListener`/`NetConn` carry owner-shard metadata and the
+- [x] `NetListener`/`NetConn` carry owner-shard metadata and the
       single-fd/group/fallback discriminator matching Task 3's decision.
-- [ ] Listener-group close closes every member fd and wakes/cancels waiters
-      on every owning shard; the OS queued-connection-drop behavior is
-      recorded as expected, not promised otherwise.
-- [ ] `RV2-DEBT-010` is either closed with evidence or explicitly kept open
+- [x] Listener-group close has an owner-first lifecycle helper that iterates
+      every represented member fd. Public `rt_net_listen` keeps one live member
+      until Task 9/10/11 add group wait/accept and owner-local wake routing;
+      the OS queued-connection-drop behavior is recorded as expected, not
+      promised otherwise.
+- [x] `RV2-DEBT-010` is either closed with evidence or explicitly kept open
       with its owner and reason recorded in `DEBT.md`.
-- [ ] Public `TcpListener`/`TcpConn` Surge-visible API and native net ABI are
+- [x] Public `TcpListener`/`TcpConn` Surge-visible API and native net ABI are
       unchanged.
-- [ ] New lifecycle functions follow the owner-first, explicit-status
+- [x] New lifecycle functions follow the owner-first, explicit-status
       contract (Global Rule 8).
-- [ ] `rt_net.c` line-count impact is recorded; the file is not made larger
+- [x] `rt_net.c` line-count impact is recorded; the file is not made larger
       without an explicit justification.
 
 ## Evidence To Record

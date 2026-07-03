@@ -14,7 +14,7 @@ keep `NOTES.md` as the live handoff log.
 | 5 | Complete | Multishard static shape tests recorded below. |
 | 6 | Complete | Runtime shard array and config recorded below. |
 | 7 | Complete | Per-shard scheduler placement recorded below. |
-| 8 | Pending | Listener and connection owner metadata. |
+| 8 | Complete | Listener and connection owner metadata recorded below. |
 | 9 | Pending | Accept distribution implementation. |
 | 10 | Pending | Per-shard poller and wake ownership. |
 | 11 | Pending | Multishard net lifecycle migration. |
@@ -954,3 +954,149 @@ findings closed. No remaining Task 7 finding is open.
 - [x] Scheduler queued-work parked-with-work invariant is implemented and
       proven on the worker sleep path with a deliberate violation test.
 - [x] Relevant Task 5 static gates remain green.
+
+## Task 8: Listener And Connection Owner Metadata
+
+Status: complete on 2026-07-03.
+
+### Scope Completed
+
+- Moved native `NetListener` and `NetConn` definitions out of `rt_net.c` into
+  `rt_net_handles.h`, adding owner and lifecycle metadata while preserving the
+  public `rt.h` native function signatures.
+- `NetListener` now carries:
+  `fd`, `closed`, `kind`, `owner_shard_id`, `member_count`, and a
+  `NetListenerMember*` array. `NetListenerKind` has explicit discriminators
+  for `NET_LISTENER_SINGLE`, `NET_LISTENER_REUSEPORT_GROUP`, and
+  `NET_LISTENER_FALLBACK_HANDOFF`.
+- `NetListenerMember` records `(fd, owner_shard_id, closed)`.
+- `NetConn` now carries `fd`, `closed`, `owner_shard_valid`, and
+  `owner_shard_id`.
+- Added `rt_net_handles.c` for handle allocation/member selection and
+  `rt_net_lifecycle.c/h` for owner-first close helpers with explicit status:
+  `RT_NET_LIFECYCLE_OK`, `INVALID`, `REGISTRY_ERROR`, `CLOSE_ERROR`, and
+  `PARTIAL_CLOSE`.
+- Added `rt_net_listener_socket.c/h` to keep listener socket creation and
+  optional `SO_REUSEPORT` setup out of the over-limit `rt_net.c`.
+- Updated `rt_net_connect` and `rt_net_accept` to create owner-tagged
+  `NetConn` values. Outbound connects use the current worker shard when
+  available, otherwise compatibility owner shard `0`.
+- Updated `rt_net_close_conn` and `rt_net_close_listener` to route close through
+  owner-first lifecycle helpers instead of the deleted `close_net_fd_slot`.
+- Added `runtime_v2_net_metadata_test.go` for metadata/static ABI shape and
+  `SURGE_SHARDS=4` listen/close compatibility.
+- Added `runtime-v2-accept-check` to the Runtime V2 gate, covering the new net
+  metadata tests and the accept static shape tests.
+
+### Representation And Activation Boundary
+
+Task 3 remains the accepted model: Epic 6 targets per-shard `SO_REUSEPORT`
+listener groups. Task 8 implements the group-capable representation and
+listener-member lifecycle loop, but it deliberately does not activate
+multi-member `SO_REUSEPORT` listeners in the public `rt_net_listen` path yet.
+
+Reason: today's async task state has one `park_key`, and `rt_net_wait_accept`
+can register one net accept fd key. Creating N kernel listener sockets before
+Task 9/10/11 can register group waits would let Linux route connections to
+member fds that the runtime never waits on, producing client hangs. Task 8
+therefore keeps public listen as a single live member while preserving the
+array/discriminator shape that Task 9 will populate for real accept
+distribution.
+
+The listener-group close helper iterates every member in the representation and
+uses each member's `owner_shard_id` when marking fd-registry close snapshots.
+With the Task 8 public listen path there is one live member, so the behavior
+stays compatibility-safe. Full owner-local waiter-store migration and
+per-shard poller wake are still Task 10/11 scope.
+
+Linux `SO_REUSEPORT` listener-group close behavior remains recorded as expected
+OS behavior: closing a group member may drop connections already queued on that
+member's accept queue. Epic 6 must not promise those queued connections
+survive close.
+
+### RV2-DEBT-010 Decision
+
+`RV2-DEBT-010` stays open by deliberate Task 8 decision. Adding owner metadata
+does not make copied `TcpConn`/`TcpListener` handles generation-aware.
+Current fd-registry generations protect poll snapshots and waiter completions,
+not every direct public handle operation. Closing the debt correctly requires
+validating public handle operations against a registry generation or stable
+handle id before issuing direct fd operations.
+
+No fake generation field was added to `NetConn` or `NetListener`.
+
+### Files Touched
+
+| Path | Physical LOC | Effective LOC | Notes |
+| --- | ---: | ---: | --- |
+| `runtime/native/rt_net.c` | 904 | 844 | Legacy-ok under `.loc-legacy-allowlist` ceiling 904; net handle structs and close helper moved out. |
+| `runtime/native/rt_net_handles.c` | 130 | 122 | New handle/member allocation and selection module. |
+| `runtime/native/rt_net_handles.h` | 49 | 42 | New internal metadata shapes for listener/connection handles. |
+| `runtime/native/rt_net_lifecycle.c` | 84 | 79 | New owner-first close lifecycle helper module. |
+| `runtime/native/rt_net_lifecycle.h` | 26 | 20 | New explicit lifecycle status API. |
+| `runtime/native/rt_net_listener_socket.c` | 110 | 103 | New listener socket setup helper with optional `SO_REUSEPORT`. |
+| `runtime/native/rt_net_listener_socket.h` | 13 | 10 | New listener socket setup API. |
+| `internal/vm/runtime_v2_net_metadata_test.go` | 124 | n/a | New pending metadata/static and listen-close compatibility tests. |
+| `internal/vm/runtime_v2_accept_static_test.go` | 215 | n/a | Updated static gate for new lifecycle helper names. |
+| `Makefile` | 398 | n/a | Added `runtime-v2-accept-check` to `runtime-v2-check`. |
+
+### Review Pass
+
+Independent review found:
+
+- P1: initial implementation created N `SO_REUSEPORT` members while wait/accept
+  only selected the first member, which could hang clients. Fixed by keeping
+  public `rt_net_listen` on one live member until Task 9 adds group wait/accept
+  routing.
+- P1: owner-local waiter/poller routing is not implemented. Reclassified as
+  Task 10/11 boundary after removing public N-member activation from Task 8.
+- P1: static ownership gate still referenced deleted `close_net_fd_slot`.
+  Fixed by checking `rt_net_lifecycle.c` owner-first helpers.
+- P2: `RV2-DEBT-010` decision was not recorded. Fixed in this evidence and
+  `DEBT.md`.
+- P2: new metadata tests were not wired into the Runtime V2 gate. Fixed with
+  `runtime-v2-accept-check`.
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetMetadata' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2Accept(NetOwnershipNoShard0Shortcut\|DynamicShardArrayShape)$' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `make runtime-v2-accept-check` | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(ClosedFDFailsFast\|CloseWakePollNotificationProof)$' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Accept(DistributionAcrossOwnerShards\|OwnerShardLifecycleTraceContract)$' -count=1 -parallel=1 -p=1 -v --timeout 180s` | Expected-red without hang; failed only on downstream missing `TRACE_NET` owner/distribution/lifecycle fields. |
+| `make c-check` | Passed. |
+| `make cppcheck` | Passed. |
+| `./check_file_sizes.sh` | Passed; touched runtime files are OK or legacy-ok under effective LOC. |
+| `./check_file_sizes.sh --self-test` | Passed. |
+| `make runtime-v2-check` | Passed on final rerun. Earlier full attempts hit an intermittent timeout in `TestMTBlockingChannelHelpersAllowTimersToAdvance`; exact rerun passed in 2.6s, and the final full gate then passed. |
+| `make check` | Passed. |
+| `git diff --check` | Passed. |
+| `sentrux check .` | Passed, quality 6185. |
+| `sentrux check runtime` | Passed, quality 5320. |
+| `sentrux check runtime/native` | Passed, quality 5338. |
+
+### Remaining Work
+
+- Task 9 must activate real multi-member `SO_REUSEPORT` listener groups and
+  route accept readiness/accepted connections to the winning owner shard.
+- Task 10 must provide per-shard poller/wake ownership before listener-group
+  wait can be made fully local.
+- Task 11 must migrate net waiters/fd-registry close/cancel/shutdown from
+  compatibility shard-0/global semantics to owner-shard semantics.
+- `RV2-DEBT-010` remains open for a future stable handle id or
+  registry-generation validation design.
+
+### Definition Of Done
+
+- [x] `NetListener`/`NetConn` carry owner-shard metadata and listener
+      discriminator/member-array shape.
+- [x] Listener close uses an owner-first explicit-status lifecycle helper and
+      iterates every represented listener member.
+- [x] Public `TcpListener`/`TcpConn` Surge-visible API and native `rt.h`
+      function signatures are unchanged.
+- [x] `RV2-DEBT-010` is explicitly kept open with reason and owner.
+- [x] `rt_net.c` did not grow; effective LOC is `844 <= 904` legacy ceiling.
+- [x] Metadata/static tests are part of `runtime-v2-check` through
+      `runtime-v2-accept-check`.

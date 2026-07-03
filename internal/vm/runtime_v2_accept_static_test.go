@@ -47,7 +47,6 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 				"net_poll_wake_drain",
 				"rt_net_listen",
 				"rt_net_connect",
-				"close_net_fd_slot",
 				"rt_net_close_listener",
 				"rt_net_close_conn",
 				"rt_net_accept",
@@ -56,6 +55,14 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 				"rt_net_wait_readable",
 				"rt_net_wait_writable",
 				"poll_net_waiters",
+			},
+		},
+		{
+			path: "runtime/native/rt_net_lifecycle.c",
+			names: []string{
+				"rt_net_owner_shard_or_compat",
+				"rt_net_close_fd_on_owner",
+				"rt_net_close_listener_members",
 			},
 		},
 		{
