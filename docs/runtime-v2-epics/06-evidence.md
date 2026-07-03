@@ -9,7 +9,7 @@ keep `NOTES.md` as the live handoff log.
 | --- | --- | --- |
 | 1 | Complete | Starting state, structural facts, accepted debt, line counts, Sentrux scans, current gates, and Task 2-5 gate plan recorded below. |
 | 2 | Complete | Accept/readiness/close/cancellation/shutdown dependency map recorded in `06-accept-ownership-dependency-map.md`; no unowned gap found. |
-| 3 | Pending | Listener model proving spike. |
+| 3 | Complete | Listener model proving spike chose per-shard `SO_REUSEPORT` listener groups; fallback handoff recorded as compatibility-only; `RV2-DEBT-013` added for stdlib HTTP raw-handle worker handoff. |
 | 4 | Pending | Multishard accept contract tests. |
 | 5 | Pending | Multishard static shape tests. |
 | 6 | Pending | Runtime shard array and config. |
@@ -393,3 +393,91 @@ ownership.
       absorbed.
 - [x] Task 3 reconciliation points are explicit.
 - [x] `git diff --check` final whitespace gate.
+
+## Task 3: Listener Model Proving Spike
+
+### Task Identity And Scope
+
+- Task: `06-tasks/03-listener-model-proving-spike.md`.
+- Date: 2026-07-03.
+- Scope: proving spike for the Epic 6 listener model and one-user-accept-loop
+  conflict.
+- Proving spike: yes.
+- Created: `docs/runtime-v2-epics/06-listener-model-proving-spike.md`.
+- Scratch only: `build/tmp/runtime-v2-epic6/listener_model_probe.c` and
+  `build/tmp/runtime-v2-epic6/listener_model_probe`.
+- Updated: this evidence file, `NOTES.md`, and `DEBT.md`.
+- Out of scope: durable runtime code, VM code, parser/sema/lowering, public
+  examples, stdlib signatures, CI, Makefile, fd-registry migration, scheduler
+  placement implementation, and Phase 4 messaging.
+
+### Files Touched
+
+| Path | Change | Reason |
+| --- | --- | --- |
+| `docs/runtime-v2-epics/06-listener-model-proving-spike.md` | created | Rule-1 spike record, proof outputs, listener-model decision. |
+| `docs/runtime-v2-epics/06-evidence.md` | updated | Mark Task 3 complete and record proof commands. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 3 handoff. |
+| `docs/runtime-v2-epics/DEBT.md` | updated | Add `RV2-DEBT-013` for stdlib HTTP raw-handle worker handoff under N>1. |
+| `build/tmp/runtime-v2-epic6/listener_model_probe.c` | scratch | Quarantined C probe; not committed. |
+
+No durable runtime/native, VM, parser, semantic-analysis, lowering, stdlib,
+CI, Makefile, or public example file changed.
+
+### Commands/Checks
+
+| Command | Purpose | Result |
+| --- | --- | --- |
+| `cc -D_GNU_SOURCE -std=c11 -O2 -Wall -Wextra -Werror -pthread build/tmp/runtime-v2-epic6/listener_model_probe.c -o build/tmp/runtime-v2-epic6/listener_model_probe` | Compile the scratch probe with strict warnings. | Passed. |
+| `build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 1` | Candidate A low-count skew row. | Passed; `counts=0:0,1:0,2:0,3:1 active_shards=1`, accepted `1/1`. |
+| `build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 8` | Candidate A low-count row. | Passed; `counts=0:2,1:3,2:2,3:1 active_shards=4`, accepted `8/8`. |
+| `build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 32` | Candidate A low-count row. | Passed; `counts=0:9,1:7,2:8,3:8 active_shards=4`, accepted `32/32`. |
+| `build/tmp/runtime-v2-epic6/listener_model_probe reuseport --shards 4 --clients 1024` | Candidate A high-load proof row. | Passed; `counts=0:241,1:245,2:265,3:273 active_shards=4`, accepted `1024/1024`. |
+| `build/tmp/runtime-v2-epic6/listener_model_probe handoff --shards 4 --clients 32` | Candidate B fallback comparison. | Passed; target assignment `0:8,1:8,2:8,3:8`, accepted `32/32`, requires initial owner placement before registry exposure. |
+| `build/tmp/runtime-v2-epic6/listener_model_probe handoff --shards 4 --clients 1024` | Candidate B fallback comparison. | Passed; target assignment `0:256,1:256,2:256,3:256`, accepted `1024/1024`, not Phase 4 only if one-time placement happens before registry exposure. |
+| `wc -l build/tmp/runtime-v2-epic6/listener_model_probe.c docs/runtime-v2-epics/06-listener-model-proving-spike.md` | LOC check for scratch probe and spike doc. | Probe 296 lines, spike doc 190 lines after final update. |
+| `git diff --check` | Whitespace gate after final Task 3 docs update. | Passed with no output. |
+
+### Review Pass
+
+Main-agent review approved Task 3 after checking the Rule-1 spike fields,
+proof output, selected listener model, rejected fallback, ABI/no-syntax
+boundary, low-count skew note, and durable debt entry. The review also checked
+that scratch code is ignored under `build/` and not staged for commit.
+
+### Decision
+
+Epic 6 implements per-shard `SO_REUSEPORT` listener groups. One public
+`TcpListener` owns an internal group with one member fd per shard. Accept
+readiness is owned by the member's shard; the winning member resumes/enqueues
+the accept waiter on the member's owner shard; `rt_net_accept()` then creates
+an owner-tagged `NetConn`. A local `spawn` from that resumed continuation is
+owner-local without new Surge syntax.
+
+Fallback handoff is rejected as the target hot path. It remains documented only
+as compatibility: it is acceptable only if the accepted fd receives its initial
+owner before fd-registry exposure. Moving a registered/exposed connection would
+be the migration control plane and remains outside Epic 6.
+
+### Contracts Touched
+
+| Contract | Status | Evidence |
+| --- | --- | --- |
+| Runtime behavior | Decision only | No durable runtime code changed. |
+| Public Surge syntax/API | Preserved | Existing `net.listen` and `net.accept` signatures stay unchanged. |
+| Native ABI | Preserved | `rt.h` function surface unchanged; Task 8 may change internal native structs only. |
+| Low-connection skew | Expected | 1-client row activated one shard; Task 12 must judge distribution on a high-load row. |
+| HTTP stdlib raw handle handoff | New debt | `RV2-DEBT-013` records that `stdlib/http/server.sg` worker channel handoff is not owner-shard-safe for N>1 yet. |
+
+### Definition Of Done
+
+- [x] Rule-1 proving-spike record existed before scratch C implementation.
+- [x] Both listener models have recorded findings.
+- [x] `SO_REUSEPORT` connection distribution was empirically observed on this
+      machine.
+- [x] Internal accept representation and handler owner-shard placement are
+      named without `TBD`.
+- [x] ABI stability and no-new-syntax answers are explicit.
+- [x] Low-connection skew expectation is recorded.
+- [x] Scratch code is quarantined under `build/tmp/` and not committed.
+- [x] Task 4, Task 5, and Task 6 have a decided listener model.

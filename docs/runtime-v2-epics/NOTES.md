@@ -2196,3 +2196,44 @@ pass, before any task execution began:
   citations for shutdown, fd-registry completion/drain, poll input, listen/
   accept, steal branches, and VM handle flow. No correction was required before
   commit.
+
+## Epic 6 Task 03 Start
+
+- Started Listener Model Proving Spike after Task 2 commit
+  `8f1547f4`. The Rule-1 spike record is
+  `06-listener-model-proving-spike.md`; it was written before scratch code.
+- Approved hypothesis: compare per-shard `SO_REUSEPORT` listener group against
+  a single-acceptor explicit handoff fallback. The selected model must answer
+  internal accept work placement, handler owner-shard placement, ABI stability,
+  no-new-syntax, and low-connection skew.
+- Allowed scratch surface only:
+  `build/tmp/runtime-v2-epic6/listener_model_probe.c` and its compiled binary.
+  No durable runtime/native, VM, syntax, stdlib, CI, or Makefile edits in this
+  task.
+
+## Epic 6 Task 03 Handoff
+
+- Decision: Epic 6 targets per-shard `SO_REUSEPORT` listener groups. The proof
+  row with 4 shards and 1024 clients accepted on all four listener members:
+  `0:241,1:245,2:265,3:273`.
+- Runtime representation for later tasks: one public `TcpListener` owns an
+  internal listener group with one member fd per shard. The member fd is
+  registered in the owner shard's fd registry. Accept readiness from member `k`
+  resumes/enqueues the waiting accept task on shard `k`; `rt_net_accept()`
+  accepts from that winning member and returns an owner-tagged `NetConn`.
+- Handler placement answer: no new syntax. Code that awaits
+  `net.accept(&listener)` resumes on the accepted connection owner shard, so a
+  local `spawn` from that continuation stays owner-local. Task 4/5 should turn
+  this into tests/static gates before Task 7/9 implement it.
+- Rejected target path: single acceptor plus explicit handoff. It can assign
+  target shards only if owner placement happens before fd-registry exposure;
+  moving a registered/exposed connection is the migration control plane and is
+  outside Epic 6. Do not retry fallback in Task 9 without a new blocker for
+  `SO_REUSEPORT`.
+- Low-count skew is expected. The 1-client row activated one shard; 8/32
+  happened to activate all four on this machine, but Task 12 must judge
+  distribution using a high-load row.
+- New debt recorded: `RV2-DEBT-013`. Current `stdlib/http/server.sg` sends raw
+  `TcpConn.__opaque` through a channel to worker tasks. Under `SURGE_SHARDS>1`,
+  those workers may not be owner-shard tasks; Task 7/9/13 must make this
+  visible through guards/tests or later owner-local stdlib design.
