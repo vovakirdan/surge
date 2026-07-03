@@ -144,39 +144,39 @@ static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_
     if (ex == NULL || ch == NULL) {
         return 1;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (rt_current_task_id() == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async channel send outside task");
         return 1;
     }
     rt_task* task = rt_current_task();
     if (task == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return 1;
     }
     if (task_cancelled_load(task) != 0) {
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 0;
     }
     if (task->resume_kind == RESUME_CHAN_SEND_ACK) {
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
     if (task->resume_kind == RESUME_CHAN_SEND_CLOSED) {
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("send on closed channel");
         return 1;
     }
     if (ch->closed) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("send on closed channel");
         return 1;
     }
@@ -193,15 +193,15 @@ static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_
                 wake_channel_task(ex, recv_id, 1);
             }
             if (yield_after_handoff && prepare_channel_send_yield(task)) {
-                rt_unlock(ex);
+                rt_control_unlock(ex);
                 return 0;
             }
         }
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
     if (ch->capacity > 0 && ch->buf_len < ch->capacity && buf_push(ch, value_bits)) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
     task->resume_kind = RESUME_NONE;
@@ -209,7 +209,7 @@ static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_
     waker_key send_key = channel_send_key(ch);
     prepare_park(ex, task, send_key, 0);
     pending_key = send_key;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 0;
 }
 
@@ -227,22 +227,22 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
     if (ex == NULL || ch == NULL) {
         return 2;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (rt_current_task_id() == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async channel recv outside task");
         return 2;
     }
     rt_task* task = rt_current_task();
     if (task == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return 2;
     }
     if (task_cancelled_load(task) != 0) {
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 0;
     }
     if (task->resume_kind == RESUME_CHAN_RECV_VALUE) {
@@ -251,13 +251,13 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
         }
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
     if (task->resume_kind == RESUME_CHAN_RECV_CLOSED) {
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 2;
     }
     uint64_t val = 0;
@@ -266,7 +266,7 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
             *out_bits = val;
         }
         refill_buffer_from_sender(ex, ch, 0);
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
     uint64_t sender_id = 0;
@@ -281,11 +281,11 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
             sender->resume_bits = 0;
             wake_channel_task_no_signal(ex, sender_id, 1);
         }
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
     if (ch->closed) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 2;
     }
     task->resume_kind = RESUME_NONE;
@@ -293,7 +293,7 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
     waker_key recv_key = channel_recv_key(ch);
     prepare_park(ex, task, recv_key, 0);
     pending_key = recv_key;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 0;
 }
 
@@ -303,7 +303,7 @@ bool rt_channel_try_send(void* channel, uint64_t value_bits) {
     if (ex == NULL || ch == NULL || ch->closed) {
         return 0;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     uint64_t recv_id = 0;
     if (pop_waiter(ex, channel_recv_key(ch), &recv_id)) {
         rt_task* recv_task = get_task(ex, recv_id);
@@ -312,16 +312,16 @@ bool rt_channel_try_send(void* channel, uint64_t value_bits) {
             recv_task->resume_bits = value_bits;
             wake_channel_task(ex, recv_id, 1);
         }
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
     if (ch->capacity > 0 && ch->buf_len < ch->capacity) {
         if (buf_push(ch, value_bits)) {
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return 1;
         }
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 0;
 }
 
@@ -331,14 +331,14 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
     if (ex == NULL || ch == NULL) {
         return 0;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     uint64_t val = 0;
     if (buf_pop(ch, &val)) {
         if (out_bits != NULL) {
             *out_bits = val;
         }
         refill_buffer_from_sender(ex, ch, 1);
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
     uint64_t sender_id = 0;
@@ -352,10 +352,10 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
             sender->resume_bits = 0;
             wake_channel_task(ex, sender_id, 1);
         }
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 0;
 }
 
@@ -454,9 +454,9 @@ void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
         return;
     }
     for (;;) {
-        rt_lock(ex);
+        rt_control_lock(ex);
         uint8_t status = rt_channel_try_send_status_locked(ex, channel, value_bits);
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         if (status == 1) {
             rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
             return;
@@ -500,9 +500,9 @@ uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {
         }
     }
     for (;;) {
-        rt_lock(ex);
+        rt_control_lock(ex);
         uint8_t status = rt_channel_try_recv_status_locked(ex, channel, out_bits);
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         if (status == 1 || status == 2) {
             if (status == 1 && out_bits != NULL) {
                 rt_async_debug_printf("async chan recv ok ch=%p bits=%llu\n",
@@ -527,10 +527,10 @@ void rt_channel_close(void* channel) {
         return;
     }
     rt_async_debug_printf("async chan close ch=%p\n", (void*)ch);
-    rt_lock(ex);
+    rt_control_lock(ex);
     ch->closed = 1;
     if (ex == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return;
     }
 
@@ -556,5 +556,5 @@ void rt_channel_close(void* channel) {
         task->resume_bits = 0;
         wake_channel_task(ex, task_id, 1);
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 }

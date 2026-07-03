@@ -321,13 +321,13 @@ static uint32_t pin_shard(rt_executor* ex, uint32_t wanted) {
 }
 
 static rt_task* spawn_pinned(rt_executor* ex, int64_t poll_fn_id, uint32_t wanted_shard) {
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* task = alloc_ready_task(ex, poll_fn_id);
     if (task != NULL) {
         rt_task_set_placement(task, pin_shard(ex, wanted_shard), TASK_PLACEMENT_CONNECTION);
         ready_push(ex, task->id);
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return task;
 }
 

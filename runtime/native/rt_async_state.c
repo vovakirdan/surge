@@ -97,17 +97,6 @@ void rt_set_current_task(rt_task* task) {
     tls_current_id = task != NULL ? task->id : 0;
 }
 
-// Legacy control-lane aliases: every remaining caller is an unmigrated
-// global-compatibility path. They delegate so lane-order tracking sees the
-// control lock from Task 6 on; Task 11 deletes them with the last callers.
-void rt_lock(rt_executor* ex) {
-    rt_control_lock(ex);
-}
-
-void rt_unlock(rt_executor* ex) {
-    rt_control_unlock(ex);
-}
-
 // Seeded scheduler mode provides deterministic scheduler choices given the same seed and the same
 // arrival order of external events; it does not control I/O timing or OS thread interleavings.
 static uint8_t rt_env_sched_mode(void) {
@@ -1454,7 +1443,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
         return 0;
     }
     rt_trace_channel_blocking_wait();
-    rt_lock(ex);
+    rt_control_lock(ex);
     move_current_local_to_inject_locked(ex);
     // This sync helper parks the OS worker, so it stops contributing to scheduler progress.
     compat->channel_blocked_workers++;
@@ -1477,7 +1466,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (compat->channel_blocked_workers > 0) {
         compat->channel_blocked_workers--;
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 1;
 }
 
@@ -1499,7 +1488,7 @@ static void* rt_worker_main(void* arg) {
     rt_set_current_task(NULL);
     for (;;) {
         rt_trace_drain_signal_dump();
-        rt_lock(ex);
+        rt_control_lock(ex);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ctx, &id)) {
             // Fire own due sleepers first: another shard's tick may have
@@ -1528,12 +1517,12 @@ static void* rt_worker_main(void* arg) {
             rt_trace_worker_wake();
         }
         if (ex->shutdown) {
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             break;
         }
         rt_task* task = get_task(ex, id);
         if (task == NULL || task_status_load(task) == TASK_DONE) {
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             continue;
         }
         task_status_store(task, TASK_RUNNING);
@@ -1553,23 +1542,23 @@ static void* rt_worker_main(void* arg) {
             if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
                 pthread_cond_signal(&ex->io_cv);
             }
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             continue;
         }
-        rt_unlock(ex);
+        rt_control_unlock(ex);
 
         task_polling_enter(task);
         poll_outcome outcome = poll_task(ex, task);
         task_polling_exit(task);
 
-        rt_lock(ex);
+        rt_control_lock(ex);
         scheduler->running_count--;
         apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
         if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
             pthread_cond_signal(&ex->io_cv);
         }
-        rt_unlock(ex);
+        rt_control_unlock(ex);
     }
     rt_set_current_task(NULL);
     tls_worker_ctx = NULL;
@@ -1613,11 +1602,11 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
         return 1;
     }
 
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     task_polling_enter(task);
     poll_outcome outcome = poll_task(ex, task);
     task_polling_exit(task);
-    rt_lock(ex);
+    rt_control_lock(ex);
 
     scheduler->running_count--;
     apply_poll_outcome(ex, task, outcome);
@@ -1637,12 +1626,12 @@ static void* rt_io_main(void* arg) {
         rt_heap_accounting_io_cell(rt_executor_heap_accounting(ex)));
     const int poll_slice_ms = 50;
     const int net_ready_drain_limit = 16;
-    rt_lock(ex);
+    rt_control_lock(ex);
     for (;;) {
         if (rt_trace_dump_requested()) {
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             rt_trace_drain_signal_dump();
-            rt_lock(ex);
+            rt_control_lock(ex);
         }
         if (ex->shutdown) {
             break;
@@ -1696,7 +1685,7 @@ static void* rt_io_main(void* arg) {
             }
         }
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     rt_heap_accounting_set_current_cell(NULL);
     return NULL;
 }

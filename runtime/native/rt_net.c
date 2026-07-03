@@ -688,20 +688,20 @@ static bool net_wait_current_task(int fd, RtNetWaitKind kind) {
     if (ex == NULL) {
         return true;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* task = rt_current_task();
     if (task == NULL || rt_current_task_id() == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async net wait outside task");
         return true;
     }
     if (current_task_cancelled(ex)) {
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return false;
     }
     if (fd < 0 || rt_net_fd_ready_now(fd, kind)) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return true;
     }
     waker_key key;
@@ -716,11 +716,11 @@ static bool net_wait_current_task(int fd, RtNetWaitKind kind) {
             key = net_write_key(fd);
             break;
         default:
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return true;
     }
     if (!waker_valid(key)) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return true;
     }
     rt_net_trace_direct_wait();
@@ -732,11 +732,11 @@ static bool net_wait_current_task(int fd, RtNetWaitKind kind) {
         task->park_prepared = 0;
         task->park_key = waker_none();
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return true;
     }
     pending_key = key;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return false;
 }
 
@@ -814,13 +814,13 @@ int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int time
         }
     }
 
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     int n = -1;
     nfds_t nfds = (nfds_t)poll_count;
     do {
         n = poll(pfds, nfds, timeout_ms);
     } while (n < 0 && errno == EINTR);
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (n < 0) {
         rt_net_trace_poll_error();
         for (size_t i = 0; i < count; i++) {

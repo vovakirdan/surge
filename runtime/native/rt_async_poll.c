@@ -110,18 +110,18 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
     }
     if (task->cancel_pending) {
         if (task->scope_id != 0 && ex != NULL) {
-            rt_lock(ex);
+            rt_control_lock(ex);
             rt_scope* scope = get_scope(ex, task->scope_id);
             if (scope == NULL) {
                 task->cancel_pending = 0;
-                rt_unlock(ex);
+                rt_control_unlock(ex);
                 out.kind = POLL_DONE_CANCELLED;
                 return out;
             }
             if (scope->active_children == 0) {
                 task->cancel_pending = 0;
                 scope_exit_locked(ex, scope);
-                rt_unlock(ex);
+                rt_control_unlock(ex);
                 out.kind = POLL_DONE_CANCELLED;
                 return out;
             }
@@ -130,7 +130,7 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
             out.kind = POLL_PARKED;
             out.park_key = key;
             out.state = task->state;
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return out;
         }
         task->cancel_pending = 0;
@@ -154,15 +154,15 @@ int run_ready_one(rt_executor* ex) {
         return 0;
     }
     rt_trace_drain_signal_dump();
-    rt_lock(ex);
+    rt_control_lock(ex);
     uint64_t id = 0;
     if (!next_ready(ex, &id)) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 0;
     }
     rt_task* task = get_task(ex, id);
     if (task == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("invalid task id");
         return 1;
     }
@@ -196,15 +196,15 @@ int run_ready_one(rt_executor* ex) {
                 break;
         }
         rt_set_current_task(NULL);
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 1;
     }
 
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     task_polling_enter(task);
     poll_outcome outcome = poll_task(ex, task);
     task_polling_exit(task);
-    rt_lock(ex);
+    rt_control_lock(ex);
     switch (outcome.kind) {
         case POLL_DONE_SUCCESS:
             mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
@@ -227,7 +227,7 @@ int run_ready_one(rt_executor* ex) {
             break;
     }
     rt_set_current_task(NULL);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 1;
 }
 
@@ -240,17 +240,17 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
     rt_heap_accounting_set_current_cell(rt_heap_accounting_main_cell(accounting));
     uint64_t id = task->id;
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (task_status_load(task) != TASK_WAITING && task_status_load(task) != TASK_DONE) {
         wake_task(ex, id, 1);
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     for (;;) {
         rt_trace_drain_signal_dump();
-        rt_lock(ex);
+        rt_control_lock(ex);
         const rt_task* current = get_task(ex, id);
         if (current == NULL) {
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             rt_heap_accounting_set_current_cell(saved_cell);
             panic_msg("invalid task id");
             return;
@@ -262,11 +262,11 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
             if (out_bits != NULL) {
                 *out_bits = current->result_bits;
             }
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             rt_heap_accounting_set_current_cell(saved_cell);
             return;
         }
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         if (!run_ready_one(ex)) {
             rt_heap_accounting_set_current_cell(saved_cell);
             panic_msg("async deadlock");

@@ -37,11 +37,11 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(
         return RT_NET_LIFECYCLE_REGISTRY_ERROR;
     }
     rt_fd_lifecycle_snapshot snapshot;
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
     rt_runtime_status status = rt_fd_registry_mark_closed(registry, fd, &snapshot);
     snapshot.owner_shard_id = owner_shard_id;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     if (status != RT_RUNTIME_STATUS_OK) {
         return RT_NET_LIFECYCLE_REGISTRY_ERROR;
     }

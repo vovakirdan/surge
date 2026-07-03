@@ -124,93 +124,93 @@ int main(void) {
         return fail("missing executor");
     }
 
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* owner = alloc_task(ex, ex->next_id);
     if (owner == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("owner allocation failed");
     }
     rt_set_current_task(owner);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 
     void* scope_handle = rt_scope_enter(false);
     if (scope_handle == NULL) {
         return fail("scope enter failed");
     }
 
-    rt_lock(ex);
+    rt_control_lock(ex);
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     rt_scope* scope = get_scope(ex, scope_id);
     if (scope == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("scope missing");
     }
     rt_task* active = alloc_task(ex, ex->next_id);
     if (active == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("active task allocation failed");
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 
     rt_scope_register_child(scope_handle, active);
 
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (scope->children_len != 1 || scope->active_children != 1) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("active child not tracked");
     }
     if (active->scope_registered == 0 || active->parent_scope_id != scope_id) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("active child registration metadata missing");
     }
     mark_done(ex, active, TASK_RESULT_SUCCESS, 0);
     if (scope->children_len != 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("completed child remained in scope");
     }
     if (scope->active_children != 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("active child count not decremented");
     }
     if (active->scope_registered != 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("completed child still marked as registered");
     }
 
     rt_task* completed = alloc_task(ex, ex->next_id);
     if (completed == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("completed task allocation failed");
     }
     task_status_store(completed, TASK_DONE);
     completed->result_kind = TASK_RESULT_SUCCESS;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 
     rt_scope_register_child(scope_handle, completed);
 
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (scope->children_len != 0 || scope->active_children != 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("already completed child leaked into scope history");
     }
     if (completed->scope_registered != 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("completed child should not be marked registered");
     }
     rt_set_current_task(NULL);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 
     rt_scope_exit(scope_handle);
 
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (owner->scope_id != 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("scope exit did not clear owner scope id");
     }
     free_task_slot(ex, completed);
     free_task_slot(ex, active);
     free_task_slot(ex, owner);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 0;
 }
 `

@@ -416,8 +416,6 @@ uint32_t rt_runtime_default_blocking_count(uint32_t workers);
 uint64_t rt_current_task_id(void);
 rt_task* rt_current_task(void);
 void rt_set_current_task(rt_task* task);
-void rt_lock(rt_executor* ex);
-void rt_unlock(rt_executor* ex);
 void rt_control_lock(rt_executor* ex);
 void rt_control_unlock(rt_executor* ex);
 void rt_shard_lock(rt_shard* shard);

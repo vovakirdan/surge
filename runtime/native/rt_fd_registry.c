@@ -409,7 +409,7 @@ rt_fd_registry_wake_closed_net_waiters(rt_executor* ex, const rt_fd_lifecycle_sn
     if (ex == NULL || !fd_lifecycle_snapshot_has_interest(snapshot)) {
         return summary;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (snapshot->want_read != 0) {
         fd_complete_net_key(ex, net_read_key(snapshot->fd), snapshot->owner_shard_id, &summary);
     }
@@ -423,7 +423,7 @@ rt_fd_registry_wake_closed_net_waiters(rt_executor* ex, const rt_fd_lifecycle_sn
         (void)rt_net_wake_poll_on_shard(ex, snapshot->owner_shard_id);
         pthread_cond_broadcast(&ex->io_cv);
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return summary;
 }
 

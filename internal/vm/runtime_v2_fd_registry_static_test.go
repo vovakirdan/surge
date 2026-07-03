@@ -303,11 +303,11 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
     return rt_executor_wake_net_waiters_for_key(ex, key);
 }
 
-void rt_lock(rt_executor* ex) {
+void rt_control_lock(rt_executor* ex) {
     (void)ex;
 }
 
-void rt_unlock(rt_executor* ex) {
+void rt_control_unlock(rt_executor* ex) {
     (void)ex;
 }
 

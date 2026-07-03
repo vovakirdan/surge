@@ -5,13 +5,13 @@ rt_runtime_status rt_executor_drain_shutdown_net_waiters(rt_executor* ex) {
     if (ex == NULL) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
         (void)rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(
             ex, rt_executor_fd_registry_for_shard(ex, i), (uint32_t)i);
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return RT_RUNTIME_STATUS_OK;
 }
 
@@ -19,7 +19,7 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
     if (ex == NULL) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     ex->shutdown = 1;
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
@@ -32,7 +32,7 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
     rt_sched_wake_broadcast_all(ex);
     pthread_cond_broadcast(&ex->compat_cv);
     pthread_cond_broadcast(&ex->done_cv);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 
     if (ex->blocking_started) {
         pthread_mutex_lock(&ex->blocking_lock);

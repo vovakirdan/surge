@@ -306,7 +306,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
     uint64_t tasks_other_kind = 0;
     rt_waiter_trace_counts waiters = {0};
 
-    rt_lock(ex);
+    rt_control_lock(ex);
     trace_collect_scheduler_snapshot(
         ex->runtime, &worker_count, &running, &inject_len, &local_total, &local_max);
     for (size_t i = 1; i < ex->tasks_cap; i++) {
@@ -396,7 +396,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
     if (pos + 1 < sizeof(buf)) {
         buf[pos++] = '\n';
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     (void)write(STDERR_FILENO, buf, pos);
 }
 
@@ -508,7 +508,7 @@ void rt_sched_trace_dump(void) {
     if (!exec_state.initialized) {
         return;
     }
-    rt_lock(&exec_state);
+    rt_control_lock(&exec_state);
     const rt_scheduler* scheduler = rt_executor_scheduler_const(&exec_state);
     uint64_t local = trace_sched_local_pops;
     uint64_t inject = trace_sched_inject_pops;
@@ -525,7 +525,7 @@ void rt_sched_trace_dump(void) {
         atomic_load_explicit(&trace_sched_conn_owner_mismatch_total, memory_order_relaxed);
     uint64_t seed = scheduler != NULL ? scheduler->sched_seed : 0;
     uint8_t mode = scheduler != NULL ? scheduler->sched_mode : SCHED_PARALLEL;
-    rt_unlock(&exec_state);
+    rt_control_unlock(&exec_state);
 
     char buf[512];
     size_t pos = 0;

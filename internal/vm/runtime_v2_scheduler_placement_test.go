@@ -287,19 +287,19 @@ static int worker_shape(void) {
     if (ex == NULL) {
         return fail("missing executor");
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_runtime* runtime = rt_executor_runtime(ex);
     if (rt_runtime_shard_count(runtime) != 4) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("runtime shard count mismatch");
     }
     if (rt_worker_count() != 4) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("total worker count mismatch");
     }
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
     if (accounting == NULL || accounting->worker_cell_count != 4) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return fail("worker heap cell count mismatch");
     }
     for (size_t i = 0; i < 4; i++) {
@@ -307,15 +307,15 @@ static int worker_shape(void) {
         rt_scheduler* scheduler = rt_shard_scheduler(shard);
         if (shard == NULL || scheduler == NULL || scheduler->worker_count != 1 ||
             scheduler->worker_ctxs == NULL) {
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return fail("missing shard worker context");
         }
         if (!rt_debug_validate_worker_ctx(ex, (uint32_t)i, 0, (uint32_t)i)) {
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return fail("worker context metadata mismatch");
         }
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }
@@ -357,31 +357,31 @@ static int no_steal(void) {
 	    atomic_store_explicit(&target_polled, 0, memory_order_relaxed);
 	    atomic_store_explicit(&wrong_shard_poll, 0, memory_order_relaxed);
 
-	    rt_lock(ex);
+	    rt_control_lock(ex);
 	    rt_task* gate = alloc_ready_task(ex, POLL_KIND_GATE);
 	    if (gate == NULL) {
-	        rt_unlock(ex);
+	        rt_control_unlock(ex);
 	        return fail("gate task allocation failed");
 	    }
 	    rt_task_set_placement(gate, 1, TASK_PLACEMENT_CONNECTION);
 	    ready_push(ex, gate->id);
-	    rt_unlock(ex);
+	    rt_control_unlock(ex);
 
 	    if (!wait_for_u32(&gate_started, 1, 1000)) {
 	        (void)rt_executor_request_shutdown(ex);
 	        return fail("gate task did not start");
 	    }
 
-	    rt_lock(ex);
+	    rt_control_lock(ex);
 	    rt_task* target = alloc_ready_task(ex, POLL_KIND_TARGET);
 	    if (target == NULL) {
-	        rt_unlock(ex);
+	        rt_control_unlock(ex);
 	        (void)rt_executor_request_shutdown(ex);
 	        return fail("target task allocation failed");
 	    }
 	    rt_task_set_placement(target, 1, TASK_PLACEMENT_CONNECTION);
 	    ready_push(ex, target->id);
-	    rt_unlock(ex);
+	    rt_control_unlock(ex);
 
 	    sleep_us(100000);
 	    if (atomic_load_explicit(&target_polled, memory_order_acquire) != 0) {
@@ -408,15 +408,15 @@ static int no_steal(void) {
 	    if (ex == NULL) {
 	        return fail("missing executor");
 	    }
-	    rt_lock(ex);
+	    rt_control_lock(ex);
 	    rt_task* task = alloc_ready_task(ex, POLL_KIND_GENERIC);
 	    if (task == NULL) {
-	        rt_unlock(ex);
+	        rt_control_unlock(ex);
 	        return fail("task allocation failed");
 	    }
 	    rt_task_set_placement(task, 99, TASK_PLACEMENT_CONNECTION);
 	    ready_push(ex, task->id);
-	    rt_unlock(ex);
+	    rt_control_unlock(ex);
 	    return fail("invalid owner placement did not fail closed");
 	}
 
@@ -425,9 +425,9 @@ static int no_steal(void) {
     if (ex == NULL) {
         return fail("missing executor");
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_debug_assert_no_parked_with_work(ex, 1);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }
@@ -437,16 +437,16 @@ static int parked_violation(void) {
     if (ex == NULL) {
         return fail("missing executor");
 	    }
-	    rt_lock(ex);
+	    rt_control_lock(ex);
 	    rt_task* task = alloc_ready_task(ex, POLL_KIND_GENERIC);
 	    if (task == NULL) {
-	        rt_unlock(ex);
+	        rt_control_unlock(ex);
 	        return fail("task allocation failed");
     }
     rt_task_set_placement(task, 1, TASK_PLACEMENT_CONNECTION);
     ready_push(ex, task->id);
     rt_debug_assert_no_parked_with_work(ex, 1);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return fail("parked-with-work assertion did not fire");
 }
 

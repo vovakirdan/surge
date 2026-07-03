@@ -22,12 +22,12 @@ void* __task_create(
     if (ex == NULL) {
         return NULL;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     uint64_t id = ex->next_id++;
     ensure_task_cap(ex, id);
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
     if (task == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: task allocation failed");
         return NULL;
     }
@@ -49,7 +49,7 @@ void* __task_create(
     }
     rt_task_assign_spawn_owner(task);
     ready_push(ex, id);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return task;
 }
 
@@ -69,10 +69,10 @@ void rt_task_wake(void* task) {
     if (ex == NULL) {
         return;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* target = task_from_handle(task);
     if (target == NULL || task_status_load(target) == TASK_DONE) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return;
     }
     const rt_task* current = rt_current_task();
@@ -83,7 +83,7 @@ void rt_task_wake(void* task) {
         }
     }
     wake_task(ex, target->id, 1);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 }
 
 uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
@@ -95,25 +95,25 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     if (target == NULL) {
         return 2;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (rt_current_task_id() == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async poll outside task");
         return 2;
     }
     if (rt_current_task_id() == target->id) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("task cannot await itself");
         return 2;
     }
     rt_task* current = rt_current_task();
     if (current == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return 2;
     }
     if (current_task_cancelled(ex)) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 0;
     }
     if (target->kind == TASK_KIND_USER && task_status_load(target) == TASK_READY &&
@@ -129,7 +129,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
             *out_bits = target->result_bits;
         }
         task_release(ex, target);
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return kind;
     }
     if (target->kind != TASK_KIND_CHECKPOINT) {
@@ -137,7 +137,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         prepare_park(ex, current, key, 0);
         pending_key = key;
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 0;
 }
 
@@ -154,13 +154,13 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     (void)task_wake_token_exchange(target, 0);
     scheduler->running_count++;
     rt_set_current_task(target);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 
     task_polling_enter(target);
     poll_outcome outcome = poll_task(ex, target);
     task_polling_exit(target);
 
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (scheduler->running_count > 0) {
         scheduler->running_count--;
     }
@@ -178,7 +178,7 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
         return;
     }
     if (rt_worker_count() > 1) {
-        rt_lock(ex);
+        rt_control_lock(ex);
         if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
             wake_task(ex, target->id, 1);
         }
@@ -192,15 +192,15 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
             *out_bits = target->result_bits;
         }
         task_release(ex, target);
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return;
     }
     rt_task* current = rt_current_task();
     run_until_done(ex, target, out_kind, out_bits);
     rt_set_current_task(current);
-    rt_lock(ex);
+    rt_control_lock(ex);
     task_release(ex, target);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 }
 
 void rt_task_cancel(void* task) {
@@ -212,9 +212,9 @@ void rt_task_cancel(void* task) {
     if (target == NULL) {
         return;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     cancel_task(ex, target->id);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 }
 
 void* rt_task_clone(void* task) {
@@ -226,9 +226,9 @@ void* rt_task_clone(void* task) {
     if (ex == NULL) {
         return NULL;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     task_add_ref(target);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return target;
 }
 
@@ -237,28 +237,28 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
     if (ex == NULL) {
         return 2;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (rt_current_task_id() == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async timeout outside task");
         return 2;
     }
     rt_task* current = rt_current_task();
     if (current == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return 2;
     }
     clear_wait_keys(ex, current);
     if (current_task_cancelled(ex)) {
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 0;
     }
 
     rt_task* target = task_from_handle(task);
     if (target == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 2;
     }
 
@@ -274,7 +274,7 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
     if (timeout_id == 0) {
         timeout_task = spawn_sleep_task_locked(ex, ms);
         if (timeout_task == NULL) {
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return 2;
         }
         current->timeout_task_id = timeout_task->id;
@@ -291,7 +291,7 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
         }
         task_release(ex, target);
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return kind;
     }
     if (timeout_task != NULL && task_status_load(timeout_task) == TASK_DONE) {
@@ -303,7 +303,7 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
         task_release(ex, timeout_task);
         task_release(ex, target);
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 2;
     }
 
@@ -327,7 +327,7 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
     }
     prepare_park(ex, current, first_key, first_added);
     pending_key = first_key;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return 0;
 }
 
@@ -336,22 +336,22 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
     if (ex == NULL) {
         return default_index >= 0 ? default_index : -1;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (rt_current_task_id() == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async select outside task");
         return -1;
     }
     rt_task* current = rt_current_task();
     if (current == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return -1;
     }
     clear_wait_keys(ex, current);
     if (current_task_cancelled(ex)) {
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return -1;
     }
 
@@ -372,14 +372,14 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
         }
         if (task_status_load(target) == TASK_DONE) {
             pending_key = waker_none();
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return (int64_t)i;
         }
     }
 
     if (default_index >= 0) {
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return default_index;
     }
 
@@ -412,7 +412,7 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
         prepare_park(ex, current, first_key, first_added);
     }
     pending_key = first_key;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return -1;
 }
 
@@ -426,15 +426,15 @@ int64_t rt_select_poll(uint64_t count,
     if (ex == NULL) {
         return default_index >= 0 ? default_index : -1;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     if (rt_current_task_id() == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async select outside task");
         return -1;
     }
     rt_task* current = rt_current_task();
     if (current == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return -1;
     }
@@ -442,7 +442,7 @@ int64_t rt_select_poll(uint64_t count,
     if (current_task_cancelled(ex)) {
         clear_select_timers(ex, current);
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return -1;
     }
 
@@ -463,7 +463,7 @@ int64_t rt_select_poll(uint64_t count,
         }
         if (current->select_timers_cap < count) {
             pending_key = waker_none();
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return -1;
         }
         current->select_timers_len = (size_t)count;
@@ -487,7 +487,7 @@ int64_t rt_select_poll(uint64_t count,
             case SELECT_TASK: {
                 const rt_task* target = task_from_handle(handle);
                 if (target == NULL) {
-                    rt_unlock(ex);
+                    rt_control_unlock(ex);
                     return -1;
                 }
                 if (task_status_load(target) != TASK_WAITING &&
@@ -512,7 +512,7 @@ int64_t rt_select_poll(uint64_t count,
                 if (status == 1) {
                     selected = (int64_t)i;
                 } else if (status == 2) {
-                    rt_unlock(ex);
+                    rt_control_unlock(ex);
                     panic_msg("send on closed channel");
                     return -1;
                 }
@@ -521,7 +521,7 @@ int64_t rt_select_poll(uint64_t count,
             case SELECT_TIMEOUT: {
                 const rt_task* target = task_from_handle(handle);
                 if (target == NULL) {
-                    rt_unlock(ex);
+                    rt_control_unlock(ex);
                     return -1;
                 }
                 if (task_status_load(target) != TASK_WAITING &&
@@ -564,7 +564,7 @@ int64_t rt_select_poll(uint64_t count,
         }
         clear_select_timers(ex, current);
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return selected;
     }
 
@@ -577,7 +577,7 @@ int64_t rt_select_poll(uint64_t count,
             case SELECT_TASK: {
                 const rt_task* target = task_from_handle(handle);
                 if (target == NULL) {
-                    rt_unlock(ex);
+                    rt_control_unlock(ex);
                     return -1;
                 }
                 waker_key key = join_key(target->id);
@@ -618,7 +618,7 @@ int64_t rt_select_poll(uint64_t count,
             case SELECT_TIMEOUT: {
                 const rt_task* target = task_from_handle(handle);
                 if (target == NULL) {
-                    rt_unlock(ex);
+                    rt_control_unlock(ex);
                     return -1;
                 }
                 waker_key key = join_key(target->id);
@@ -670,7 +670,7 @@ int64_t rt_select_poll(uint64_t count,
         prepare_park(ex, current, first_key, first_added);
     }
     pending_key = first_key;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return -1;
 }
 
@@ -737,9 +737,9 @@ void* checkpoint(void) {
     if (ex == NULL) {
         return NULL;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* task = spawn_checkpoint_task_locked(ex);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return task;
 }
 
@@ -748,8 +748,8 @@ void* rt_sleep(uint64_t ms) {
     if (ex == NULL) {
         return NULL;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* task = spawn_sleep_task_locked(ex, ms);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return task;
 }

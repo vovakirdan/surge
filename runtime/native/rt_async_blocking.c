@@ -116,9 +116,9 @@ static void* rt_blocking_worker_main(void* arg) {
                                                     BLOCKING_JOB_DONE,
                                                     memory_order_acq_rel,
                                                     memory_order_acquire)) {
-            rt_lock(ex);
+            rt_control_lock(ex);
             wake_key_all(ex, blocking_key(job->task_id));
-            rt_unlock(ex);
+            rt_control_unlock(ex);
         }
         blocking_job_release(job);
     }
@@ -234,12 +234,12 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
     if (ex == NULL) {
         return NULL;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     uint64_t id = ex->next_id++;
     ensure_task_cap(ex, id);
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
     if (task == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: blocking task allocation failed");
         return NULL;
     }
@@ -266,7 +266,7 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
     if (job == NULL) {
         ex->tasks[id] = NULL;
         rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async: blocking job allocation failed");
         return NULL;
     }
@@ -290,6 +290,6 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
                           (unsigned long long)state_align);
     blocking_queue_push(ex, job);
     ready_push(ex, id);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return task;
 }

@@ -249,11 +249,11 @@ void rt_task_replace_owner(rt_executor* ex,
     rt_task_set_placement(task, shard_id, placement_class);
 }
 
-void rt_lock(rt_executor* ex) {
+void rt_control_lock(rt_executor* ex) {
     (void)ex;
 }
 
-void rt_unlock(rt_executor* ex) {
+void rt_control_unlock(rt_executor* ex) {
     (void)ex;
 }
 

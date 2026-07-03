@@ -16,11 +16,11 @@ int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, i
     if (ex == NULL || fd < 0) {
         return 0;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
     int had_row = rt_fd_registry_find_const(registry, fd) != NULL;
     rt_runtime_status status = rt_fd_registry_register_open_fd(registry, fd);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     if (status == RT_RUNTIME_STATUS_OK) {
         if (!had_row) {
             rt_net_trace_fd_owner_registry_row();
@@ -35,10 +35,10 @@ void rt_net_forget_registered_fd_on_owner(rt_executor* ex, uint32_t owner_shard_
         return;
     }
     rt_fd_lifecycle_snapshot snapshot;
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
     (void)rt_fd_registry_mark_closed(registry, fd, &snapshot);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 }
 
 int rt_net_interest_present_for_key(rt_executor* ex, waker_key key) {
@@ -91,12 +91,12 @@ void rt_net_place_current_task_on_owner(rt_executor* ex, uint32_t owner_shard_id
     if (ex == NULL) {
         return;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* task = rt_current_task();
     if (task != NULL) {
         rt_task_replace_owner(ex, task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
     }
-    rt_unlock(ex);
+    rt_control_unlock(ex);
 }
 
 static int
@@ -145,10 +145,10 @@ int rt_net_consume_ready_accept_member(const NetListener* listener, NetListenerM
     if (ex == NULL || out == NULL) {
         return 0;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* task = rt_current_task();
     if (task == NULL || task->net_ready_accept_valid == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return 0;
     }
     int fd = task->net_ready_accept_fd;
@@ -156,7 +156,7 @@ int rt_net_consume_ready_accept_member(const NetListener* listener, NetListenerM
     task->net_ready_accept_valid = 0;
     task->net_ready_accept_fd = -1;
     clear_wait_keys(ex, task);
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     if (!net_listener_live_member_for_fd(listener, fd, out)) {
         return 0;
     }
@@ -188,20 +188,20 @@ bool rt_net_wait_accept(const void* listener) {
     if (ex == NULL) {
         return true;
     }
-    rt_lock(ex);
+    rt_control_lock(ex);
     rt_task* task = rt_current_task();
     if (task == NULL || rt_current_task_id() == 0) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         panic_msg("async net wait outside task");
         return true;
     }
     if (current_task_cancelled(ex)) {
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return false;
     }
     if (l == NULL || l->closed || l->members == NULL) {
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return true;
     }
     net_register_listener_members_locked(ex, l);
@@ -217,7 +217,7 @@ bool rt_net_wait_accept(const void* listener) {
                                       member->owner_shard_id);
             }
             net_task_set_ready_accept(ex, task, member->fd, member->owner_shard_id);
-            rt_unlock(ex);
+            rt_control_unlock(ex);
             return true;
         }
     }
@@ -251,11 +251,11 @@ bool rt_net_wait_accept(const void* listener) {
     }
     if (!waker_valid(first_key)) {
         pending_key = waker_none();
-        rt_unlock(ex);
+        rt_control_unlock(ex);
         return true;
     }
     prepare_park(ex, task, first_key, first_added);
     pending_key = first_key;
-    rt_unlock(ex);
+    rt_control_unlock(ex);
     return false;
 }
