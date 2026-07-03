@@ -2118,3 +2118,43 @@ pass, before any task execution began:
   be meaningful gets added. Both task documents now cross-reference this
   boundary explicitly (Task 7 has a dedicated "Boundary With Task 6"
   section) so it cannot be read either way.
+
+## Epic 6 Task 01 Handoff
+
+- Scope completed: kickoff baseline before Epic 6 implementation. Docs-only;
+  no runtime code, tests, task documents, `Makefile`, CI, Sentrux rules, or
+  benchmark scripts changed.
+- Start commit: `9e1de4a0 docs(runtime): expand epic 6 tasks`; branch
+  `codex/runtime-net-scheduler-refactor`; clean tree at start.
+- Baseline line counts: `rt_async_internal.h` 499, `rt_runtime.c` 202,
+  `rt_net.c` 904, `rt_fd_registry.h` 113, `rt_fd_registry.c` 409,
+  `rt_async_state.c` 1727, `rt_async_task.c` 768,
+  `runtime_v2_skeleton_static_test.go` 61,
+  `runtime_v2_fd_registry_static_test.go` 426, `mt_correctness_test.go` 1351,
+  and `mt_executor_test.go` 1511.
+- Sentrux MCP was available and used; CLI fallback was not needed. Required CLI
+  checks also passed: `sentrux check .` quality `6190`, `sentrux check runtime`
+  quality `5279`, and `sentrux check runtime/native` quality `5318`. MCP
+  `check_rules` passed for all three paths.
+- Structural kickoff facts are recorded in `06-evidence.md`: fixed
+  `RT_RUNTIME_SHARD_COUNT 1U`, fixed `rt_runtime.shards[...]`, shard-0
+  compatibility accessors, global `rt_executor`, no task owner-shard metadata,
+  no net-handle owner metadata, global wake pipe, `SO_REUSEADDR` listener
+  setup, shard-shaped fd registry storage still resolved through shard 0, and
+  `SURGE_THREADS` as the only worker-count env knob.
+- Baseline checks: `git diff --check` passed before and after docs edits;
+  `git diff --no-index --check /dev/null docs/runtime-v2-epics/06-evidence.md`
+  printed no whitespace errors for the new untracked evidence file; `make
+  check` passed with normal `SURGE_SKIP_TIMEOUT_TESTS=1`. The first
+  `make runtime-v2-check` attempt failed before any docs edit because
+  `TestMTBlockingChannelHelpersAllowTimersToAdvance` timed out after 30s, then
+  immediate `timeout 300s make runtime-v2-check` passed the full Runtime V2
+  chain. Treat the current baseline gate as green on rerun, with the first
+  timeout recorded as `RV2-DEBT-002` flake evidence.
+- Accepted debt relevant to Epic 6 remains open and recorded in
+  `06-evidence.md`: `RV2-DEBT-001`, `002`, `003`, `004`, `005`, `006`, `007`,
+  `010`, `011`, and `012`.
+- Next: Task 2 should create `06-accept-ownership-dependency-map.md` and map
+  accept/readiness/close/cancellation/shutdown paths from the frozen Task 1
+  starting facts. It should not re-litigate the listener model; Task 3 owns the
+  proving spike, and both tasks must reconcile before Tasks 4/5 finalize tests.
