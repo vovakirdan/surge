@@ -471,3 +471,33 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
   `runtime-v2-check` pass twice; `make check` pre-commit; `git diff
   --check` clean.
 - Regressions: none.
+
+## Task 11 (In Progress): The Peel — Slices Landed So Far
+
+- Task: Epic 7 Task 11 per `11-blocking-await-shutdown-lanes.md` (peel
+  plan). Date: 2026-07-04. Main session. Status: alias kill + B1a landed;
+  B1b (worker turn), B2 (channel ops), B4 (io thread/N=1 runner + `io_cv`
+  retirement + `done_cv` gating) remain, with the exact choreography
+  recorded in `NOTES.md`.
+- `9db7e56e refactor(runtime): name the control lane at every remaining
+  lock site` — `rt_lock`/`rt_unlock` deleted (definitions, declarations,
+  ~90 call sites, five test harness stub sets); static gate
+  `NoAmbiguousGlobalLock` flipped green.
+- `7a181d48 feat(runtime): give wake, park, waiter, and sleep primitives
+  shard-lane locks` (B1a) — all primitives take their store/owner shard
+  locks internally while every caller still holds control (additive
+  guardian phase): wake = owner-lock leaf + deferred stale-key removal;
+  park = register-then-commit with the owner-lock token dance (the
+  spike-proven order) and post-unlock abort removal; `wake_key_all` and
+  net completion switched to collect-then-wake batches; join migration
+  batches under source-then-destination locks; sleep fire drains under the
+  shard lock and wakes outside. The lane order assertions run in every
+  test binary.
+- Checks after each slice: behavior suite 9/9 x 2 configs,
+  `timeout 600s make runtime-v2-check` twice, c-check, cppcheck,
+  `make check` pre-commit, `git diff --check`.
+- LOC watch: `rt_async_waiter.c` 550 (over the 500 target after the
+  collect batches — Task 14 must split or re-house the batch helpers);
+  `rt_async_state.c` 1655/1722; `rt_waiter_route.c` 102.
+- Static gates remaining red by design: `WorkerLoopShardLane` (B1b),
+  `ChannelOwnerShape` (B2), `GlobalCondvarRetirement` (B4).
