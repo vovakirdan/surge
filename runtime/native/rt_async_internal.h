@@ -3,6 +3,7 @@
 #include "rt.h"
 #include "rt_heap_accounting.h"
 #include "rt_runtime_config.h"
+#include "rt_waiter.h"
 #include <pthread.h>
 #include <setjmp.h>
 #include <stdatomic.h>
@@ -49,18 +50,6 @@ typedef enum {
 } poll_kind;
 
 typedef enum {
-    WAKER_NONE = 0,
-    WAKER_JOIN = 1,
-    WAKER_TIMER = 2,
-    WAKER_CHAN_SEND = 3,
-    WAKER_CHAN_RECV = 4,
-    WAKER_NET_ACCEPT = 5,
-    WAKER_NET_READ = 6,
-    WAKER_NET_WRITE = 7,
-    WAKER_SCOPE = 8,
-    WAKER_BLOCKING = 9,
-} waker_kind;
-typedef enum {
     SCHED_PARALLEL = 0,
     SCHED_SEEDED = 1,
 } sched_mode;
@@ -69,41 +58,6 @@ typedef enum {
     RT_TRACE_SCHED_SRC_INJECT = 1,
     RT_TRACE_SCHED_SRC_STEAL = 2,
 } rt_trace_sched_source;
-typedef struct {
-    uint8_t kind;
-    uint64_t id;
-} waker_key;
-
-typedef struct {
-    waker_key key;
-    uint64_t task_id;
-    // Owner shard of task_id at registration time (D3/D5): stable for
-    // non-accept keys, refreshed by the control-lane accept transition.
-    uint32_t owner_hint;
-} waiter;
-
-typedef struct {
-    size_t removed;
-    size_t woken;
-} rt_waiter_completion;
-
-typedef struct {
-    waiter* entries;
-    size_t len;
-    size_t cap;
-    size_t net_len;
-} rt_waiter_store;
-
-typedef struct {
-    uint64_t total;
-    uint64_t join;
-    uint64_t timer;
-    uint64_t chan_send;
-    uint64_t chan_recv;
-    uint64_t net;
-    uint64_t other;
-} rt_waiter_trace_counts;
-
 typedef enum {
     BLOCKING_JOB_PENDING = 0,
     BLOCKING_JOB_DONE = 1,
@@ -330,7 +284,6 @@ void rt_trace_channel_task_blocking_recv(void);
 void rt_trace_channel_handoff_yield(void);
 void rt_trace_compensation_started(void);
 void rt_trace_parked_with_work(void);
-void rt_trace_collect_waiter_counts(const rt_executor* ex, rt_waiter_trace_counts* out);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
@@ -401,19 +354,6 @@ extern _Thread_local waker_key pending_key;
 extern _Thread_local uint64_t tls_current_id;
 extern _Thread_local rt_task* tls_current_task;
 
-waker_key waker_none(void);
-int waker_valid(waker_key key);
-waker_key join_key(uint64_t id);
-waker_key timer_key(uint64_t id);
-waker_key scope_key(uint64_t id);
-waker_key channel_send_key(const rt_channel* ch);
-waker_key channel_recv_key(const rt_channel* ch);
-waker_key net_accept_key(int fd);
-waker_key net_read_key(int fd);
-waker_key net_write_key(int fd);
-int waker_is_net(waker_key key);
-waker_key blocking_key(uint64_t id);
-
 rt_executor* ensure_exec(void);
 rt_runtime_status rt_runtime_init_global(rt_executor* ex, size_t shard_count);
 rt_runtime_status rt_runtime_init_shard_schedulers(rt_runtime* runtime,
@@ -469,7 +409,6 @@ void rt_blocking_init(rt_executor* ex);
 void rt_blocking_request_cancel(rt_executor* ex, rt_task* task);
 rt_task* get_task(rt_executor* ex, uint64_t id);
 rt_scope* get_scope(rt_executor* ex, uint64_t id);
-uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id);
 
 int deque_push_tail(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg);
 int deque_push_head(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg);
@@ -477,21 +416,9 @@ int deque_pop_head(rt_deque* dq, uint64_t* out_id);
 int deque_pop_tail(rt_deque* dq, uint64_t* out_id);
 void ensure_task_cap(rt_executor* ex, uint64_t id);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
-rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
-rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key);
-rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
-                                                                   waker_key key,
-                                                                   uint32_t owner_shard_id);
-void ensure_waiter_cap(rt_executor* ex);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);
 
-void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
-void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
-void clear_wait_keys(rt_executor* ex, rt_task* task);
-void add_wait_key(rt_executor* ex, rt_task* task, waker_key key);
-void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_added);
-int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id);
 uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64_t* out_bits);
 uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits);
 void clear_select_timers(rt_executor* ex, rt_task* task);
