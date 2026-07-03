@@ -380,19 +380,23 @@ int main(void) {
 // TestRuntimeV2FDRegistryStaticBoundary proves the current approved
 // placeholder still holds: shard-owned poll scratch, stable io-loop and
 // wake-fd entry points, net waker keys as the wake currency, explicit
-// rt_runtime_status codes, and the N=1 runtime shape. This must stay GREEN
-// through Tasks 5-11; it deliberately does not duplicate the waiter-store
-// surface already pinned by TestRuntimeV2WaiterHelperStaticBoundary.
+// rt_runtime_status codes, and a positive static shard storage limit. This
+// must stay GREEN through Tasks 5-11; it deliberately does not duplicate the
+// waiter-store surface already pinned by TestRuntimeV2WaiterHelperStaticBoundary.
 func TestRuntimeV2FDRegistryStaticBoundary(t *testing.T) {
 	source := `
 #include "rt_async_internal.h"
 
-#ifndef RT_RUNTIME_SHARD_COUNT
-#error "RT_RUNTIME_SHARD_COUNT must define the N=1 runtime shape"
+#if defined(RT_RUNTIME_MAX_SHARDS)
+#define RT_RUNTIME_STATIC_SHARD_LIMIT RT_RUNTIME_MAX_SHARDS
+#elif defined(RT_RUNTIME_SHARD_COUNT)
+#define RT_RUNTIME_STATIC_SHARD_LIMIT RT_RUNTIME_SHARD_COUNT
+#else
+#error "Runtime V2 must define a static shard storage limit"
 #endif
 
-#if RT_RUNTIME_SHARD_COUNT != 1
-#error "Epic 4 fd registry work assumes exactly one shard"
+#if RT_RUNTIME_STATIC_SHARD_LIMIT < 1
+#error "Runtime V2 static shard storage limit must be positive"
 #endif
 
 // Poll scratch stays reachable through the shard-first owner path; the FD
@@ -415,6 +419,7 @@ int (*runtime_v2_check_waker_is_net)(waker_key) = waker_is_net;
 _Static_assert(sizeof(((rt_shard*)0)->net_poll_scratch) == sizeof(rt_net_poll_scratch), "rt_shard.net_poll_scratch must own poll scratch by value");
 _Static_assert(sizeof(((rt_net_poll_scratch*)0)->fds_cap) == sizeof(size_t), "rt_net_poll_scratch.fds_cap must stay size_t");
 _Static_assert(sizeof(((rt_net_poll_scratch*)0)->pfds_cap) == sizeof(size_t), "rt_net_poll_scratch.pfds_cap must stay size_t");
+_Static_assert(RT_RUNTIME_STATIC_SHARD_LIMIT >= 1, "runtime shard storage limit must be positive");
 
 // Recoverable-failure statuses stay explicit and distinct (Global Rule 8).
 _Static_assert(RT_RUNTIME_STATUS_OK == 0, "rt_runtime_status OK must stay 0");

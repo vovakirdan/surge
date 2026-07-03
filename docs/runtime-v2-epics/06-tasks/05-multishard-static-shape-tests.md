@@ -154,8 +154,10 @@ Create:
 
 - `go build ./...` (static/compile-time assertions must not break the
   build)
-- `go test ./internal/vm -run 'TestRuntimeV2Skeleton|TestRuntimeV2FDRegistryStatic'`
-- `go test ./internal/vm -run '<new net-ownership gate test name>'`
+- `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2Skeleton|TestRuntimeV2FDRegistryStatic'`
+- `go test -tags runtime_v2_pending ./internal/vm -run '<new net-ownership gate test name>'`
+  (expected fail against current code until net-owned accessors stop routing
+  through shard 0)
 - `go test -tags runtime_v2_pending ./internal/vm -run '<pending MAX_SHARDS shape test>'`
   (expected fail until Task 6, in the "not defined yet" shape)
 - `git diff --check`

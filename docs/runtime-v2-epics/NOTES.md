@@ -2296,3 +2296,35 @@ pass, before any task execution began:
   and lifecycle ownership real; Task 12 must expose the trace fields used by
   the pending contract; Task 13 should promote the tagged gate only after the
   owner implementation is green.
+
+## Epic 6 Task 05 Handoff
+
+- Scope completed: static gates for dynamic shard storage and net ownership
+  shortcut prevention. Runtime implementation is unchanged.
+- Existing pending static pins in `runtime_v2_skeleton_static_test.go` and
+  `runtime_v2_fd_registry_static_test.go` no longer hard-require
+  `RT_RUNTIME_SHARD_COUNT == 1`; they accept the future
+  `RT_RUNTIME_MAX_SHARDS` name or the current `RT_RUNTIME_SHARD_COUNT` fallback
+  and assert the static storage limit is positive.
+- Added `runtime_v2_accept_static_test.go` under `runtime_v2_pending`.
+  `TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut` mechanically scans
+  `rt_runtime.c` and fails if net-owned accessors route through
+  `rt_runtime_shard0()`/`shards[0]`. The documented global-compat exemptions
+  are scheduler, channel blocking compat, and generic waiter-store accessors.
+  `TestRuntimeV2AcceptDynamicShardArrayShape` pins the future
+  `RT_RUNTIME_MAX_SHARDS` plus bounded runtime `shard_count` contract.
+- Independent checks:
+  `go build ./...` passed; `go test -tags runtime_v2_pending ./internal/vm
+  -run 'TestRuntimeV2Skeleton|TestRuntimeV2FDRegistryStatic' -count=1
+  -parallel=1 -p=1 -v --timeout 90s` passed; `git diff --check` passed.
+- Expected-red static checks:
+  `go test -tags runtime_v2_pending ./internal/vm -run
+  'TestRuntimeV2Accept(NetOwnershipNoShard0Shortcut|DynamicShardArrayShape)'
+  -count=1 -parallel=1 -p=1 -v --timeout 90s` failed as intended because
+  `rt_executor_net_poll_scratch`, `rt_executor_fd_registry`, and
+  `rt_executor_fd_registry_const` still route through shard 0, and
+  `RT_RUNTIME_MAX_SHARDS` is not defined yet.
+- Process correction: the original Task 5 check list used untagged `go test`
+  commands for already tagged static files. That produced `no tests to run`;
+  the task doc now records the correct tagged commands so Task 6/13 do not
+  inherit a false green.

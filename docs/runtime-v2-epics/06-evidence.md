@@ -575,3 +575,79 @@ not Task 4 implementation bugs.
       or hangs.
 - [x] Evidence and notes record the green subset, expected-red subset, and
       liveness probe.
+
+## Task 5: Multishard Static Shape Tests
+
+### Task Identity And Scope
+
+- Task: `06-tasks/05-multishard-static-shape-tests.md`.
+- Date: 2026-07-03.
+- Scope: static shape gates for the future dynamic shard array and net
+  ownership no-shard-0 shortcut rule.
+- Updated: `internal/vm/runtime_v2_skeleton_static_test.go`,
+  `internal/vm/runtime_v2_fd_registry_static_test.go`,
+  `docs/runtime-v2-epics/06-tasks/05-multishard-static-shape-tests.md`, this
+  evidence file, and `NOTES.md`.
+- Created: `internal/vm/runtime_v2_accept_static_test.go`.
+- Out of scope: runtime/native implementation, behavior tests beyond Task 4,
+  Makefile, CI, Sentrux rules, trace-counter implementation, parser/sema/
+  lowering, public syntax, stdlib signatures, and benchmark changes.
+
+### Files Touched
+
+| Path | Change | Reason |
+| --- | --- | --- |
+| `internal/vm/runtime_v2_skeleton_static_test.go` | updated | Replace fixed `RT_RUNTIME_SHARD_COUNT == 1` pin with static storage limit compatibility shape. |
+| `internal/vm/runtime_v2_fd_registry_static_test.go` | updated | Same static shard storage limit compatibility shape for fd-registry boundary tests. |
+| `internal/vm/runtime_v2_accept_static_test.go` | created | Pending net-owned no-shard-0 shortcut gate and pending `RT_RUNTIME_MAX_SHARDS` shape gate. |
+| `docs/runtime-v2-epics/06-tasks/05-multishard-static-shape-tests.md` | updated | Correct checks to use `runtime_v2_pending` for tagged static tests. |
+| `docs/runtime-v2-epics/06-evidence.md` | updated | Record Task 5 checks and expected-red static gates. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 5 handoff for Tasks 6/7/9/11/13. |
+
+No runtime/native code, VM implementation code, `Makefile`, CI files, Sentrux
+rules, parser/sema/lowering, stdlib signatures, public examples, or benchmark
+scripts changed.
+
+### Static Gate Contract
+
+| Gate | Current status | Future owner |
+| --- | --- | --- |
+| Existing skeleton/fd-registry static pins accept either `RT_RUNTIME_MAX_SHARDS` or current `RT_RUNTIME_SHARD_COUNT`, but require a positive storage limit. | Green today under `runtime_v2_pending`. | Task 6 replaces the fallback macro with `RT_RUNTIME_MAX_SHARDS`; these gates should stay green. |
+| Net-owned accessors must not route through `rt_runtime_shard0()` or `shards[0]`. | Expected-red today: `rt_executor_net_poll_scratch`, `rt_executor_fd_registry`, and `rt_executor_fd_registry_const` still route through shard 0. | Tasks 6/8/9/10/11 move net ownership to explicit shard owners. |
+| `rt_runtime.shards` must be sized by `RT_RUNTIME_MAX_SHARDS` and runtime `shard_count` must be bounded by it. | Expected-red today: `RT_RUNTIME_MAX_SHARDS` is not defined. | Task 6. |
+| Stays-global compatibility accessors are allowed to remain explicit compatibility paths. | Documented in the test: scheduler, channel blocking compat, and generic waiter-store accessors. | Task 7 may shrink scheduler exemptions when owner placement lands; non-net global primitives remain compat in Epic 6. |
+
+### Commands/Checks
+
+| Command | Purpose | Result |
+| --- | --- | --- |
+| `go build ./...` | Default compile gate after adding pending static tests. | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2Skeleton|TestRuntimeV2FDRegistryStatic' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Existing static gates after replacing fixed `N=1` pins. | Passed: `TestRuntimeV2FDRegistryStaticShape`, `TestRuntimeV2FDRegistryStaticBoundary`, and `TestRuntimeV2SkeletonStaticShape`. |
+| `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2Accept(NetOwnershipNoShard0Shortcut|DynamicShardArrayShape)' -count=1 -parallel=1 -p=1 -v --timeout 90s` | New Task 5 static gates before runtime implementation. | Expected-red: net-owned accessors still route through shard 0; `RT_RUNTIME_MAX_SHARDS` is not defined. |
+| `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2Skeleton|TestRuntimeV2FDRegistryStatic|TestRuntimeV2Accept(NetOwnershipNoShard0Shortcut|DynamicShardArrayShape)' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Mixed green/expected-red confirmation. | Existing static pins passed; new accept static gates failed in the intended shape. |
+| `git diff --check` | Whitespace gate. | Passed with no output. |
+| `wc -l internal/vm/runtime_v2_accept_static_test.go internal/vm/runtime_v2_skeleton_static_test.go internal/vm/runtime_v2_fd_registry_static_test.go` | LOC check for new/touched static tests. | 133, 66, and 431 lines; all under the 500-line limit. |
+
+### Review Pass
+
+Main-session review checked the Task 5 diff against the task spec, Task 2's
+`net-shard-owned` vs `stays-global-compat` line, the existing build tags, and
+the current source bodies in `runtime/native/rt_runtime.c`. One process issue
+was fixed before commit: the task's check list originally omitted
+`-tags runtime_v2_pending` for files that are already tagged, which produced a
+false `no tests to run` result. The task doc and evidence now use the tagged
+commands.
+
+No P0/P1 blocker remains for this static-test task. The new accept static tests
+are deliberately expected-red until later Epic 6 implementation tasks.
+
+### Definition Of Done
+
+- [x] Existing `N=1` static pins now assert a dynamic-compatible positive shard
+      storage limit and still pass against current code.
+- [x] A pending net-ownership gate fails on net accessors routed through shard 0
+      without failing documented global-compat accessors.
+- [x] The stays-global exemption list is written next to the gate.
+- [x] A pending `RT_RUNTIME_MAX_SHARDS` shape test exists for Task 6.
+- [x] Task 6 can replace `RT_RUNTIME_SHARD_COUNT` with
+      `RT_RUNTIME_MAX_SHARDS` without discovering the old static pins mid-task.
