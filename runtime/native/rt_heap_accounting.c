@@ -213,12 +213,11 @@ rt_heap_accounting_status rt_heap_accounting_snapshot(rt_heap_accounting* accoun
                                 &alloc_bytes,
                                 &free_bytes);
     }
-    if (free_count > alloc_count || free_bytes > alloc_bytes) {
-        return RT_HEAP_ACCOUNTING_INVARIANT_VIOLATION;
-    }
     out->alloc_count = alloc_count;
     out->free_count = free_count;
-    out->live_blocks = alloc_count - free_count;
-    out->live_bytes = alloc_bytes - free_bytes;
+    // Snapshot reads are not a global cut across all relaxed per-lane counters.
+    // Counts stay raw, while transient live underflow is saturated for public stats.
+    out->live_blocks = alloc_count >= free_count ? alloc_count - free_count : 0;
+    out->live_bytes = alloc_bytes >= free_bytes ? alloc_bytes - free_bytes : 0;
     return RT_HEAP_ACCOUNTING_OK;
 }

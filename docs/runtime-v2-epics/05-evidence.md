@@ -12,8 +12,8 @@ keep `NOTES.md` as the handoff log.
 | 3 | Complete | Heap stats contract tests for alloc/free, realloc, aligned paths, failed realloc, and concurrent workers recorded below. |
 | 4 | Complete | Pending static target-shape gate for heap-accounting ownership, ABI, record API, and aggregation recorded below. |
 | 5 | Complete | Runtime/shard-owned accounting skeleton, cold cell, lane wiring, static gate split, checks, Sentrux, and review outcome recorded below. |
-| 6 | Draft | Alloc/free/realloc accounting migration not started. |
-| 7 | Draft | Heap stats aggregation not started. |
+| 6 | Complete | Alloc/free/realloc writes now route through accounting cells; old global source-of-truth counters are gone; checks, Sentrux, and review outcome recorded below. |
+| 7 | Draft | Snapshot aggregation mechanics landed with Task 6 to preserve public heap-stat behavior; Task 7 still owns aggregation audit, focused evidence, and docs closeout. |
 | 8 | Draft | Concurrency and performance evidence not started. |
 | 9 | Draft | Runtime V2 heap CI gate not started. |
 | 10 | Draft | Epic closeout not started. |
@@ -494,3 +494,112 @@ Residual risks:
   `NOTES.md` handoff, and `RV2-DEBT-011` if Task 5 must be removed.
 - No benchmark reports, sockets, or generated artifacts are required for
   rollback. Test artifacts under `target/debug/.tests/` are disposable.
+
+## Task 6: Alloc/Free/Realloc Accounting Migration
+
+### Task Identity And Scope
+
+- Task: `05-tasks/06-alloc-free-realloc-accounting-migration.md`.
+- Date: 2026-07-03.
+- Scope: route existing heap-accounted allocation events through the
+  runtime/shard-owned accounting cells introduced by Task 5.
+- Boundary note: `rt_heap_stats()` had to switch to
+  `rt_heap_accounting_snapshot()` in this task so public heap-stat tests keep
+  proving the new source of truth after old globals are removed. Task 7 remains
+  responsible for the aggregation audit, compatibility evidence, and
+  documentation closeout.
+
+### Result
+
+Task 6 removed the old `rt_alloc.c` file-scope global counters:
+
+- `heap_alloc_count`;
+- `heap_free_count`;
+- `heap_live_blocks`;
+- `heap_live_bytes`.
+
+`record_alloc`, `record_free`, and `record_realloc` now call the
+`rt_heap_accounting_record_*` API against `rt_heap_accounting_current_cell()`.
+Failed allocation and failed realloc paths still return before recording an
+event. `rt_free(NULL, ...)`, `rt_realloc(NULL, ...)`,
+`rt_realloc(ptr, old, 0, ...)`, aligned realloc's allocate-copy-free path, and
+`rt_array_forget_allocation` placement are unchanged.
+
+`rt_heap_stats()` now snapshots `rt_runtime_global_heap_accounting()` before
+allocating the public `SurgeHeapStats` result. The snapshot includes the cold
+cell even when runtime-owned accounting is not initialized, preserving
+pre-runtime accounting events.
+
+Review corrected an important concurrency point: snapshot reads use relaxed
+per-lane atomics and are not a single global cut. Therefore raw
+`alloc_count`/`free_count` stay raw, while derived `live_blocks` and
+`live_bytes` saturate transient underflow to zero instead of treating
+`free > alloc` or `freed_bytes > allocated_bytes` as an invariant violation.
+
+The Task 6 and Task 7 static predicates are now active and green.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `runtime/native/rt_alloc.c` | updated | Route record helpers through heap-accounting cells and snapshot public stats from the new source of truth. | 127 lines. |
+| `runtime/native/rt_heap_accounting.c` | updated | Keep raw event totals and saturate only derived live values on transient snapshot skew. | 223 lines. |
+| `runtime/native/rt_heap_accounting.h` | updated | Remove stale invariant-violation status and expose `rt_runtime_global_heap_accounting()`. | 68 lines. |
+| `runtime/native/rt_runtime.c` | updated | Add narrow accessor for shard0 heap accounting without initializing runtime from the allocator path. | 202 lines. |
+| `internal/vm/runtime_v2_heap_accounting_static_test.go` | updated | Activate Task 6 and Task 7 static predicates. | 334 lines. |
+| `STATS.md` | updated by pre-commit | Refresh generated code-size statistics after runtime/test line-count changes. | Generated stats artifact. |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 6 durable evidence. | Documentation only. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Task 6 handoff. | Documentation only. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic' -count=1 -v --timeout 60s` | pass | ABI, Task 5 skeleton, Task 6 record migration, and Task 7 snapshot aggregation predicates all passed; package `ok surge/internal/vm 0.041s` in main-session rerun | `0` | static shape gate. |
+| `go test ./internal/vm -run '^TestLLVMNative.*Heap.*\|^TestRuntimeV2HeapAccounting' -count=1 -parallel=1 -p=1 -v --timeout 180s` | pass | `TestLLVMNativeHeapStats`, sequential contracts, and concurrent workers contract passed; package `ok surge/internal/vm 5.994s` in main-session rerun | `0` | heap behavior gate. |
+| `make c-check` | pass | C formatting and strict warning compilation passed | `0` | C gate. |
+| `make cppcheck` | pass | checked 35 C files including `rt_alloc.c` and `rt_heap_accounting.c`; `cppcheck OK` | `0` | static C gate. |
+| `make runtime-v2-check` | pass | MT liveness, waiter gate, and fd-registry gate passed sequentially; fd-registry package time `15.896s` | `0` | Runtime V2 liveness gate. |
+| `make check` | pass | Go suite, golangci-lint, C gate, and file-size gate passed | `0` | broad repo gate requested by Task 1 gate plan. |
+| Pre-commit `scripts/code_stats_md.sh` | refresh stats | `STATS.md` updated runtime/native code lines `16304 -> 16291`, test lines `40578 -> 40574`, total lines `200489 -> 200472` | `0` | automatic commit hook artifact. |
+| `git diff --check` | no whitespace errors | no output | `0` | whitespace gate. |
+| `./check_file_sizes.sh` | pass | 4 changed C/H files checked; all OK; overall excellent | `0` | LOC gate. |
+| Sentrux scoped session on `runtime/native` | stable or improved | task-scoped session before final review fixes recorded `5306 -> 5318`, pass | pass | runtime-code delta evidence. |
+| Sentrux root scan/rules | pass | root quality `6190`, rules pass with 0 violations | pass | final current-code scan. |
+| Sentrux `runtime/` scan/rules | pass | runtime quality `5279`, rules pass with 0 violations | pass | final current-code scan. |
+| Sentrux `runtime/native` scan/rules | pass | runtime/native quality `5318`, rules pass with 0 violations | pass | final current-code scan. |
+
+### Review Outcome
+
+Review subagent initially found:
+
+- one P1 issue: returning `NULL` from `rt_heap_stats()` on transient
+  cross-counter snapshot skew would make valid concurrent accounting look like
+  an invariant violation;
+- one P2 issue: Task 7 snapshot aggregation predicates were mechanically
+  satisfied by the Task 6 boundary change but still skipped.
+
+Both were fixed. Focused re-review returned no findings after inspecting the
+five changed files and rerunning the two focused heap gates.
+
+Residual risks:
+
+- snapshot consistency remains relaxed by design; exact live values can be
+  transiently conservative during concurrent updates;
+- Task 7 still owns aggregation evidence and docs because the mechanical
+  `rt_heap_stats()` switch happened in Task 6 for testability;
+- direct libc temporaries outside the current `rt_alloc`/`rt_free` contract
+  remain outside Epic 5 scope, as recorded by Task 2.
+
+### Debt
+
+- No new debt was added by Task 6.
+- `RV2-DEBT-011` remains active for overlapping VM LLVM test artifact
+  collisions; Task 6 gates were run sequentially where VM artifacts can share
+  names.
+
+### Rollback/Recovery Notes
+
+- Revert this Task 6 runtime slice, this Task 6 section/status row, and the
+  matching `NOTES.md` handoff if Task 6 must be removed.
+- Test artifacts under `target/debug/.tests/` are disposable.

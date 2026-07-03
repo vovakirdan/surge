@@ -63,6 +63,11 @@ rt_heap_accounting* rt_executor_heap_accounting(rt_executor* ex) {
     return shard != NULL ? &shard->heap_accounting : NULL;
 }
 
+rt_heap_accounting* rt_runtime_global_heap_accounting(void) {
+    rt_shard* shard = rt_runtime_shard0(&runtime_state);
+    return shard != NULL ? &shard->heap_accounting : NULL;
+}
+
 rt_scheduler* rt_shard_scheduler(rt_shard* shard) {
     return shard != NULL ? &shard->scheduler : NULL;
 }

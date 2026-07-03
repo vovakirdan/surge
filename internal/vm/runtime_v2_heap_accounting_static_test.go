@@ -80,8 +80,6 @@ func TestRuntimeV2HeapAccountingStaticTask5SkeletonShape(t *testing.T) {
 }
 
 func TestRuntimeV2HeapAccountingStaticTask6RecordMigrationShape(t *testing.T) {
-	t.Skip("Epic 5 Task 6 owns alloc/free/realloc accounting migration predicates")
-
 	root := repoRoot(t)
 	rtAlloc := readRuntimeV2HeapAccountingFile(t, root, "runtime/native/rt_alloc.c")
 	nativeSources := readRuntimeV2HeapAccountingNativeSources(t, root)
@@ -111,8 +109,6 @@ func TestRuntimeV2HeapAccountingStaticTask6RecordMigrationShape(t *testing.T) {
 }
 
 func TestRuntimeV2HeapAccountingStaticTask7SnapshotAggregationShape(t *testing.T) {
-	t.Skip("Epic 5 Task 7 owns heap-stats snapshot aggregation predicates")
-
 	root := repoRoot(t)
 	rtAlloc := readRuntimeV2HeapAccountingFile(t, root, "runtime/native/rt_alloc.c")
 

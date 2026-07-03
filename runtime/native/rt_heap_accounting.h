@@ -9,7 +9,6 @@ typedef enum {
     RT_HEAP_ACCOUNTING_INVALID_ARGUMENT = 1,
     RT_HEAP_ACCOUNTING_ALLOCATION_FAILED = 2,
     RT_HEAP_ACCOUNTING_CAPACITY_OVERFLOW = 3,
-    RT_HEAP_ACCOUNTING_INVARIANT_VIOLATION = 4,
 } rt_heap_accounting_status;
 
 typedef struct rt_heap_accounting_cell {
@@ -64,5 +63,6 @@ void rt_heap_accounting_record_realloc(rt_heap_accounting_cell* cell,
                                        uint64_t new_size);
 rt_heap_accounting_status rt_heap_accounting_snapshot(rt_heap_accounting* accounting,
                                                       struct rt_heap_accounting_snapshot* out);
+rt_heap_accounting* rt_runtime_global_heap_accounting(void);
 
 #endif

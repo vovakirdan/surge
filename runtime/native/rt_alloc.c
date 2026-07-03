@@ -3,8 +3,8 @@
 #endif
 
 #include "rt.h"
+#include "rt_heap_accounting.h"
 
-#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,11 +17,6 @@ typedef struct SurgeHeapStats {
     void* rc_decrements;
 } SurgeHeapStats;
 
-static _Atomic uint64_t heap_alloc_count;
-static _Atomic uint64_t heap_free_count;
-static _Atomic uint64_t heap_live_blocks;
-static _Atomic uint64_t heap_live_bytes;
-
 static uint64_t min_u64(uint64_t a, uint64_t b) {
     return a < b ? a : b;
 }
@@ -31,29 +26,15 @@ static uint64_t alloc_size(uint64_t size) {
 }
 
 static void record_alloc(uint64_t size) {
-    (void)atomic_fetch_add_explicit(&heap_alloc_count, 1, memory_order_relaxed);
-    (void)atomic_fetch_add_explicit(&heap_live_blocks, 1, memory_order_relaxed);
-    (void)atomic_fetch_add_explicit(&heap_live_bytes, alloc_size(size), memory_order_relaxed);
+    rt_heap_accounting_record_alloc(rt_heap_accounting_current_cell(), size);
 }
 
 static void record_free(uint64_t size) {
-    (void)atomic_fetch_add_explicit(&heap_free_count, 1, memory_order_relaxed);
-    (void)atomic_fetch_sub_explicit(&heap_live_blocks, 1, memory_order_relaxed);
-    (void)atomic_fetch_sub_explicit(&heap_live_bytes, alloc_size(size), memory_order_relaxed);
+    rt_heap_accounting_record_free(rt_heap_accounting_current_cell(), size);
 }
 
 static void record_realloc(uint64_t old_size, uint64_t new_size) {
-    uint64_t old_actual = alloc_size(old_size);
-    uint64_t new_actual = alloc_size(new_size);
-    (void)atomic_fetch_add_explicit(&heap_alloc_count, 1, memory_order_relaxed);
-    (void)atomic_fetch_add_explicit(&heap_free_count, 1, memory_order_relaxed);
-    if (new_actual >= old_actual) {
-        (void)atomic_fetch_add_explicit(
-            &heap_live_bytes, new_actual - old_actual, memory_order_relaxed);
-    } else {
-        (void)atomic_fetch_sub_explicit(
-            &heap_live_bytes, old_actual - new_actual, memory_order_relaxed);
-    }
+    rt_heap_accounting_record_realloc(rt_heap_accounting_current_cell(), old_size, new_size);
 }
 
 void* rt_alloc(uint64_t size, uint64_t align) {
@@ -110,20 +91,22 @@ void* rt_realloc(uint8_t* ptr, uint64_t old_size, uint64_t new_size, uint64_t al
 }
 
 void* rt_heap_stats(void) {
-    uint64_t alloc_count = atomic_load_explicit(&heap_alloc_count, memory_order_relaxed);
-    uint64_t free_count = atomic_load_explicit(&heap_free_count, memory_order_relaxed);
-    uint64_t live_blocks = atomic_load_explicit(&heap_live_blocks, memory_order_relaxed);
-    uint64_t live_bytes = atomic_load_explicit(&heap_live_bytes, memory_order_relaxed);
+    struct rt_heap_accounting_snapshot snapshot;
+    rt_heap_accounting_status status =
+        rt_heap_accounting_snapshot(rt_runtime_global_heap_accounting(), &snapshot);
+    if (status != RT_HEAP_ACCOUNTING_OK) {
+        return NULL;
+    }
 
     SurgeHeapStats* stats = (SurgeHeapStats*)rt_alloc((uint64_t)sizeof(SurgeHeapStats),
                                                       (uint64_t) _Alignof(SurgeHeapStats));
     if (stats == NULL) {
         return NULL;
     }
-    stats->alloc_count = rt_biguint_from_u64(alloc_count);
-    stats->free_count = rt_biguint_from_u64(free_count);
-    stats->live_blocks = rt_biguint_from_u64(live_blocks);
-    stats->live_bytes = rt_biguint_from_u64(live_bytes);
+    stats->alloc_count = rt_biguint_from_u64(snapshot.alloc_count);
+    stats->free_count = rt_biguint_from_u64(snapshot.free_count);
+    stats->live_blocks = rt_biguint_from_u64(snapshot.live_blocks);
+    stats->live_bytes = rt_biguint_from_u64(snapshot.live_bytes);
     stats->rc_increments = rt_biguint_from_u64(0);
     stats->rc_decrements = rt_biguint_from_u64(0);
     return stats;

@@ -277,6 +277,43 @@ task, then move durable decisions into the owning epic document before closeout.
   Remaining risk: blocking worker contexts are process-lifetime until shutdown
   owns detached thread lifecycle.
 
+## Epic 5 Task 06 Handoff
+
+- Scope completed: `record_alloc`, `record_free`, and `record_realloc` no
+  longer write old `rt_alloc.c` global counters. The old global source of truth
+  (`heap_alloc_count`, `heap_free_count`, `heap_live_blocks`,
+  `heap_live_bytes`) was removed.
+- Allocation events now route through `rt_heap_accounting_record_*` using
+  `rt_heap_accounting_current_cell()`. Failed allocation/realloc paths still do
+  not record events, `rt_free(NULL, ...)` remains a no-op, realloc-null and
+  realloc-zero semantics are preserved, and `rt_array_forget_allocation` stayed
+  on the same free paths.
+- Boundary decision: `rt_heap_stats()` switched to
+  `rt_heap_accounting_snapshot()` in Task 6, not Task 7, because removing the
+  old globals requires public heap-stat tests to read the new source of truth.
+  Task 7 still owns the aggregation audit, focused evidence, and documentation
+  closeout.
+- `rt_runtime_global_heap_accounting()` is a narrow shard0 accessor. It does
+  not allocate, initialize the executor, or call scheduler internals from the
+  allocator path.
+- Review fix: snapshot reads are relaxed per-lane reads, not a global cut.
+  `alloc_count` and `free_count` stay raw; only derived `live_blocks` and
+  `live_bytes` saturate transient underflow to zero. The stale
+  `RT_HEAP_ACCOUNTING_INVARIANT_VIOLATION` status was removed.
+- Static heap gate now runs all Task 5/6/7 predicates and passes. That does not
+  close Task 7; it means Task 7 starts from working mechanics and should prove
+  and document the aggregation semantics.
+- Checks passed: focused static heap gate, focused heap contracts,
+  `make c-check`, `make cppcheck`, `make runtime-v2-check`, `make check`,
+  `git diff --check`, `./check_file_sizes.sh`, and final root/runtime/native
+  Sentrux scans/rules. Final Sentrux qualities: root `6190`, runtime `5279`,
+  runtime/native `5318`.
+- Pre-commit refreshed `STATS.md` in the Task 6 commit to reflect the smaller
+  native runtime and static-test line counts.
+- Review outcome: initial P1/P2 findings were fixed; focused re-review returned
+  no findings. No new debt was added. Continue running VM heap gates
+  sequentially where artifact names can collide (`RV2-DEBT-011`).
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.
