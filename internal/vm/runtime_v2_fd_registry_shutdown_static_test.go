@@ -68,6 +68,13 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker
     return (rt_waiter_completion){waker_valid(key) && waker_is_net(key) ? 1U : 0U, 1U};
 }
 
+rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
+                                                                   waker_key key,
+                                                                   uint32_t owner_shard_id) {
+    (void)owner_shard_id;
+    return rt_executor_wake_net_waiters_for_key(ex, key);
+}
+
 void rt_lock(rt_executor* ex) {
     (void)ex;
 }
@@ -94,8 +101,8 @@ static int require_int(int condition, int code) {
 
 int main(void) {
     rt_executor ex;
-    rt_fd_lifecycle_snapshot read_closed = {42, 7, 0, 1, 0};
-    rt_fd_lifecycle_snapshot empty_closed = {43, 8, 0, 0, 0};
+    rt_fd_lifecycle_snapshot read_closed = {42, 7, 0, 0, 1, 0};
+    rt_fd_lifecycle_snapshot empty_closed = {43, 8, 0, 0, 0, 0};
 
     rt_fd_completion_summary summary =
         rt_fd_registry_wake_closed_net_waiters(&ex, &read_closed);
@@ -154,6 +161,24 @@ static int unlock_calls;
 static int read_calls;
 static int accept_calls;
 static int write_calls;
+
+size_t rt_runtime_shard_count(const rt_runtime* runtime) {
+    (void)runtime;
+    return 1;
+}
+
+rt_runtime* rt_executor_runtime(rt_executor* ex) {
+    (void)ex;
+    return NULL;
+}
+
+int rt_exec_trace_enabled(void) {
+    return 0;
+}
+
+void rt_net_trace_shutdown_poller_wakeups_enabled(uint64_t wakeups) {
+    (void)wakeups;
+}
 
 void* rt_alloc(uint64_t size, uint64_t align) {
     (void)align;
@@ -223,6 +248,13 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker
     if (key.kind == WAKER_NET_ACCEPT && key.id == 10) accept_calls++;
     if (key.kind == WAKER_NET_WRITE && key.id == 11) write_calls++;
     return (rt_waiter_completion){1, 1};
+}
+
+rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
+                                                                   waker_key key,
+                                                                   uint32_t owner_shard_id) {
+    (void)owner_shard_id;
+    return rt_executor_wake_net_waiters_for_key(ex, key);
 }
 
 void rt_lock(rt_executor* ex) {

@@ -81,7 +81,7 @@ func TestRuntimeV2FDRegistryCancelledDuplicateReadWaiterPreservesLiveAndReregist
 	ensureLLVMToolchain(t)
 	port := pickFreePort(t)
 	source := fdRegistryPrelude + fdRegistryCancelDuplicateReadBody + fdRegistryMain
-	env := overrideEnvVar(mtEnv(t), "SURGE_ASYNC_DEBUG", "1")
+	env := overrideEnvVar(overrideEnvVar(mtEnv(t), "SURGE_THREADS", "1"), "SURGE_ASYNC_DEBUG", "1")
 	srv := startFDRegistryServer(t, source, env, strconv.Itoa(port), "0")
 
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))

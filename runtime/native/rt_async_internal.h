@@ -182,6 +182,9 @@ typedef struct rt_task {
     waker_key* wait_keys;
     size_t wait_keys_len;
     size_t wait_keys_cap;
+    uint8_t net_ready_accept_valid;
+    int net_ready_accept_fd;
+    uint32_t net_ready_accept_owner_shard;
     uint64_t timeout_task_id;
     uint64_t* select_timers;
     size_t select_timers_len;
@@ -426,6 +429,9 @@ void ensure_task_cap(rt_executor* ex, uint64_t id);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
 rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key);
+rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
+                                                                   waker_key key,
+                                                                   uint32_t owner_shard_id);
 void ensure_waiter_cap(rt_executor* ex);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);

@@ -23,6 +23,7 @@ typedef struct NetListener {
     uint8_t kind;
     uint32_t owner_shard_id;
     size_t member_count;
+    size_t next_accept_index;
     NetListenerMember* members;
 } NetListener;
 
@@ -37,6 +38,10 @@ NetListener*
 rt_net_listener_alloc(NetListenerKind kind, size_t member_count, uint32_t owner_shard_id);
 void rt_net_listener_free(NetListener* listener);
 void rt_net_listener_release_members(NetListener* listener);
+int rt_net_listener_registry_add(NetListener* listener);
+void rt_net_listener_registry_remove(const NetListener* listener);
+NetListener* rt_net_listener_canonical(NetListener* listener);
+const NetListener* rt_net_listener_canonical_const(const NetListener* listener);
 int rt_net_listener_set_member(NetListener* listener,
                                size_t index,
                                int fd,

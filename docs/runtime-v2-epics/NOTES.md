@@ -2472,3 +2472,42 @@ pass, before any task execution began:
   `TestMTBlockingChannelHelpersAllowTimersToAdvance` did not reproduce in the
   final full rerun; an accidental overlapping VM command reproduced the known
   `RV2-DEBT-011` artifact race, so future checks should stay sequential.
+
+## Epic 6 Task 09 Handoff
+
+- Scope completed: real accept distribution. `rt_net_listen` now creates one
+  `SO_REUSEPORT` listener member per configured shard under `SURGE_SHARDS>1`.
+  The public `TcpListener` remains one Surge value; internally it resolves to a
+  canonical listener group.
+- `rt_net_wait_accept` registers the waiting task against every live listener
+  member fd. The first ready member records `net_ready_accept_fd` and
+  `net_ready_accept_owner_shard` on the task, places the continuation as
+  `TASK_PLACEMENT_CONNECTION`, and clears sibling accept wait keys immediately
+  so a later ready member cannot overwrite the winner before `rt_net_accept`.
+- `rt_fd_registry_register_open_fd` adds durable open-fd rows. Listener members,
+  outbound connects, and accepted connections now enter the owner shard's
+  fd registry before interests are attached. Registered zero-interest rows stay
+  until close; compatibility interest-only rows still disappear on last detach.
+- Poller boundary: Task 9 uses a single aggregate poll over all shard
+  registries and stores `owner_shard_id` in each poll snapshot. This is a
+  deliberate bridge, not Task 10's per-shard poller/wake-fd ownership.
+- Lifecycle boundary: Task 9 made shutdown drain iterate owner shard registries
+  where aggregate polling needed owner-aware completion, but Task 10/11 still
+  own real per-shard poller wake, close/cancel/shutdown lifecycle proof, and
+  non-net waiter unaffectedness.
+- Non-owner guard decision: no guard was added in Task 9. `RV2-DEBT-013`
+  remains open because copied/raw `TcpConn.__opaque` operations need a stable
+  owner/generation guard before denial can be made safe. Newly added Task 9
+  paths do not route missing owner rows through shard 0.
+- Test correction: the duplicate-read cancellation fd-registry fixture now
+  forces `SURGE_THREADS=1`; its previous MT timing allowed data to wake both
+  duplicate readers before parent cancellation, which tested scheduler timing
+  rather than registry cancellation semantics.
+- Independent review found two P1 issues and both were fixed: listener registry
+  capacity now grows under its mutex, and accept readiness now clears sibling
+  wait keys at winner completion. Static guards pin both fixes.
+- Final gates passed: focused FD registry suite, full accept suite,
+  `make runtime-v2-accept-check`, `make c-check`, `make cppcheck`,
+  `git diff --check`, `./check_file_sizes.sh`, `make runtime-v2-check`,
+  `make check`, and Sentrux root/runtime/native scans (`6185`, `5330`,
+  `5450`).

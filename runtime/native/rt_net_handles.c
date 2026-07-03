@@ -1,6 +1,135 @@
 #include "rt_net_handles.h"
 #include "rt_async_internal.h"
 
+#include <pthread.h>
+
+typedef struct {
+    int fd;
+    NetListener* listener;
+} NetListenerRegistryEntry;
+
+static pthread_mutex_t net_listener_registry_lock = PTHREAD_MUTEX_INITIALIZER;
+static NetListenerRegistryEntry* net_listener_registry_entries;
+static size_t net_listener_registry_len;
+static size_t net_listener_registry_cap;
+
+static int net_listener_registry_ensure_cap(size_t want) {
+    if (want <= net_listener_registry_cap) {
+        return 1;
+    }
+    size_t next_cap = net_listener_registry_cap == 0 ? 8 : net_listener_registry_cap;
+    while (next_cap < want) {
+        if (next_cap > SIZE_MAX / 2U) {
+            return 0;
+        }
+        next_cap *= 2U;
+    }
+    if (next_cap > SIZE_MAX / sizeof(NetListenerRegistryEntry)) {
+        return 0;
+    }
+    size_t old_size = net_listener_registry_cap * sizeof(NetListenerRegistryEntry);
+    size_t new_size = next_cap * sizeof(NetListenerRegistryEntry);
+    NetListenerRegistryEntry* next =
+        (NetListenerRegistryEntry*)rt_realloc((uint8_t*)net_listener_registry_entries,
+                                              (uint64_t)old_size,
+                                              (uint64_t)new_size,
+                                              _Alignof(NetListenerRegistryEntry));
+    if (next == NULL) {
+        return 0;
+    }
+    net_listener_registry_entries = next;
+    net_listener_registry_cap = next_cap;
+    return 1;
+}
+
+static void net_listener_registry_add_fd_locked(NetListener* listener, int fd) {
+    if (listener == NULL || fd < 0) {
+        return;
+    }
+    for (size_t i = 0; i < net_listener_registry_len; i++) {
+        NetListenerRegistryEntry* entry = &net_listener_registry_entries[i];
+        if (entry->fd == fd) {
+            entry->listener = listener;
+            return;
+        }
+    }
+    net_listener_registry_entries[net_listener_registry_len++] =
+        (NetListenerRegistryEntry){fd, listener};
+}
+
+int rt_net_listener_registry_add(NetListener* listener) {
+    if (listener == NULL) {
+        return 0;
+    }
+    pthread_mutex_lock(&net_listener_registry_lock);
+    size_t want = net_listener_registry_len + 1U;
+    if (listener->members != NULL) {
+        want += listener->member_count;
+    }
+    if (!net_listener_registry_ensure_cap(want)) {
+        pthread_mutex_unlock(&net_listener_registry_lock);
+        return 0;
+    }
+    net_listener_registry_add_fd_locked(listener, listener->fd);
+    if (listener->members != NULL) {
+        for (size_t i = 0; i < listener->member_count; i++) {
+            if (!listener->members[i].closed) {
+                net_listener_registry_add_fd_locked(listener, listener->members[i].fd);
+            }
+        }
+    }
+    pthread_mutex_unlock(&net_listener_registry_lock);
+    return 1;
+}
+
+void rt_net_listener_registry_remove(const NetListener* listener) {
+    if (listener == NULL) {
+        return;
+    }
+    pthread_mutex_lock(&net_listener_registry_lock);
+    size_t out = 0;
+    for (size_t i = 0; i < net_listener_registry_len; i++) {
+        if (net_listener_registry_entries[i].listener == listener) {
+            continue;
+        }
+        net_listener_registry_entries[out++] = net_listener_registry_entries[i];
+    }
+    net_listener_registry_len = out;
+    pthread_mutex_unlock(&net_listener_registry_lock);
+}
+
+NetListener* rt_net_listener_canonical(NetListener* listener) {
+    if (listener == NULL || listener->fd < 0) {
+        return listener;
+    }
+    pthread_mutex_lock(&net_listener_registry_lock);
+    for (size_t i = 0; i < net_listener_registry_len; i++) {
+        if (net_listener_registry_entries[i].fd == listener->fd) {
+            NetListener* canonical = net_listener_registry_entries[i].listener;
+            pthread_mutex_unlock(&net_listener_registry_lock);
+            return canonical;
+        }
+    }
+    pthread_mutex_unlock(&net_listener_registry_lock);
+    return listener;
+}
+
+const NetListener* rt_net_listener_canonical_const(const NetListener* listener) {
+    if (listener == NULL || listener->fd < 0) {
+        return listener;
+    }
+    pthread_mutex_lock(&net_listener_registry_lock);
+    for (size_t i = 0; i < net_listener_registry_len; i++) {
+        if (net_listener_registry_entries[i].fd == listener->fd) {
+            const NetListener* canonical = net_listener_registry_entries[i].listener;
+            pthread_mutex_unlock(&net_listener_registry_lock);
+            return canonical;
+        }
+    }
+    pthread_mutex_unlock(&net_listener_registry_lock);
+    return listener;
+}
+
 NetListener*
 rt_net_listener_alloc(NetListenerKind kind, size_t member_count, uint32_t owner_shard_id) {
     if (member_count == 0) {
@@ -50,6 +179,7 @@ void rt_net_listener_free(NetListener* listener) {
     if (listener == NULL) {
         return;
     }
+    rt_net_listener_registry_remove(listener);
     rt_net_listener_release_members(listener);
     rt_free((uint8_t*)listener, (uint64_t)sizeof(NetListener), (uint64_t) _Alignof(NetListener));
 }

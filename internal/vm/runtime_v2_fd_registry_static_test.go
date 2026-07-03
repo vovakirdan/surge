@@ -108,6 +108,7 @@ func runFDRegistryBehaviorCheck(t *testing.T, label, source string) {
 //	rt_runtime_status rt_fd_registry_ensure_cap(rt_fd_registry* registry);
 //	size_t rt_fd_registry_len(const rt_fd_registry* registry);
 //	const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd);
+//	rt_runtime_status rt_fd_registry_register_open_fd(rt_fd_registry* registry, int fd);
 //
 // Task 6 extended the guard with the registration-side interest mutators:
 //
@@ -150,6 +151,7 @@ void (*runtime_v2_check_fd_registry_free)(rt_fd_registry*) = rt_fd_registry_free
 rt_runtime_status (*runtime_v2_check_fd_registry_ensure_cap)(rt_fd_registry*) = rt_fd_registry_ensure_cap;
 size_t (*runtime_v2_check_fd_registry_len)(const rt_fd_registry*) = rt_fd_registry_len;
 const rt_fd_entry* (*runtime_v2_check_fd_registry_find_const)(const rt_fd_registry*, int) = rt_fd_registry_find_const;
+rt_runtime_status (*runtime_v2_check_fd_registry_register_open_fd)(rt_fd_registry*, int) = rt_fd_registry_register_open_fd;
 
 // Task 6 registration-side interest mutators, driven by the waiter-store
 // bridge in rt_async_waiter.c under ex->lock. Attach returns explicit status
@@ -294,6 +296,13 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker
     return (rt_waiter_completion){0, 0};
 }
 
+rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
+                                                                   waker_key key,
+                                                                   uint32_t owner_shard_id) {
+    (void)owner_shard_id;
+    return rt_executor_wake_net_waiters_for_key(ex, key);
+}
+
 void rt_lock(rt_executor* ex) {
     (void)ex;
 }
@@ -370,10 +379,22 @@ int main(void) {
     if (err != 0) return err;
 
     rt_fd_registry_detach_net_interest(&registry, read_key);
+    err = require_int(rt_fd_registry_register_open_fd(&registry, 77) == RT_RUNTIME_STATUS_OK, 16);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_len(&registry) == 1, 17);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 0, 18);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_mark_closed(&registry, 77, &closed) ==
+                          RT_RUNTIME_STATUS_OK,
+                      19);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_len(&registry) == 0, 20);
+    if (err != 0) return err;
     registry.next_generation = UINT64_MAX;
     err = require_int(rt_fd_registry_attach_net_interest(&registry, read_key) ==
                           RT_RUNTIME_STATUS_ALLOCATION_FAILED,
-                      16);
+                      21);
     if (err != 0) return err;
     rt_fd_registry_free(&registry);
     return 0;

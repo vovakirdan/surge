@@ -13,6 +13,12 @@ void rt_net_trace_poll_timeout_enabled(void);
 void rt_net_trace_poll_wake_fd_enabled(void);
 void rt_net_trace_poll_ready_enabled(void);
 void rt_net_trace_waiter_completion_enabled(uint64_t calls, uint64_t woken);
+void rt_net_trace_accept_owner_enabled(uint32_t owner_shard_id);
+void rt_net_trace_fd_owner_registry_row_enabled(void);
+void rt_net_trace_close_owner_wakeup_enabled(void);
+void rt_net_trace_shutdown_poller_wakeups_enabled(uint64_t count);
+void rt_net_trace_listener_group_member_closed_enabled(void);
+void rt_net_trace_non_owner_conn_denied_enabled(void);
 
 static inline void rt_net_trace_direct_wait(void) {
     if (!rt_exec_trace_enabled()) {
@@ -68,6 +74,48 @@ static inline void rt_net_trace_waiter_completion(uint64_t calls, uint64_t woken
         return;
     }
     rt_net_trace_waiter_completion_enabled(calls, woken);
+}
+
+static inline void rt_net_trace_accept_owner(uint32_t owner_shard_id) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_accept_owner_enabled(owner_shard_id);
+}
+
+static inline void rt_net_trace_fd_owner_registry_row(void) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_fd_owner_registry_row_enabled();
+}
+
+static inline void rt_net_trace_close_owner_wakeup(void) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_close_owner_wakeup_enabled();
+}
+
+static inline void rt_net_trace_shutdown_poller_wakeups(uint64_t count) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_shutdown_poller_wakeups_enabled(count);
+}
+
+static inline void rt_net_trace_listener_group_member_closed(void) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_listener_group_member_closed_enabled();
+}
+
+static inline void rt_net_trace_non_owner_conn_denied(void) {
+    if (!rt_exec_trace_enabled()) {
+        return;
+    }
+    rt_net_trace_non_owner_conn_denied_enabled();
 }
 
 #endif

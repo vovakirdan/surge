@@ -51,10 +51,18 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 				"rt_net_close_conn",
 				"rt_net_accept",
 				"net_wait_current_task",
-				"rt_net_wait_accept",
 				"rt_net_wait_readable",
 				"rt_net_wait_writable",
 				"poll_net_waiters",
+			},
+		},
+		{
+			path: "runtime/native/rt_net_accept_group.c",
+			names: []string{
+				"rt_net_register_open_fd_on_owner",
+				"rt_net_interest_present_for_key",
+				"rt_net_fd_ready_now",
+				"rt_net_wait_accept",
 			},
 		},
 		{
@@ -131,6 +139,60 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		if _, ok := cFunctionBody(source, name); !ok {
 			t.Fatalf("documented stays-global accessor %s not found in rt_runtime.c", name)
 		}
+	}
+}
+
+func TestRuntimeV2AcceptReadinessClearsSiblingWaitKeys(t *testing.T) {
+	root := repoRoot(t)
+	sourceBytes, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_async_waiter.c"))
+	if err != nil {
+		t.Fatalf("read rt_async_waiter.c: %v", err)
+	}
+	source := string(sourceBytes)
+
+	wakeBody, ok := cFunctionBody(source, "rt_executor_wake_net_waiters_for_key_on_owner")
+	if !ok {
+		t.Fatal("rt_executor_wake_net_waiters_for_key_on_owner not found")
+	}
+	if !strings.Contains(wakeBody, "clear_accept_winner_wait_keys") {
+		t.Fatalf("accept readiness must clear sibling listener-member wait keys before Task 9 closes")
+	}
+
+	clearBody, ok := cFunctionBody(source, "clear_accept_winner_wait_keys")
+	if !ok {
+		t.Fatal("clear_accept_winner_wait_keys not found")
+	}
+	for _, needle := range []string{
+		"key.kind != WAKER_NET_ACCEPT",
+		"net_ready_accept_valid",
+		"net_ready_accept_fd",
+		"net_ready_accept_owner_shard",
+		"clear_wait_keys(ex, task)",
+	} {
+		if !strings.Contains(clearBody, needle) {
+			t.Fatalf("clear_accept_winner_wait_keys is missing %q", needle)
+		}
+	}
+}
+
+func TestRuntimeV2AcceptListenerRegistryGrowsUnderLock(t *testing.T) {
+	root := repoRoot(t)
+	sourceBytes, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_net_handles.c"))
+	if err != nil {
+		t.Fatalf("read rt_net_handles.c: %v", err)
+	}
+	body, ok := cFunctionBody(string(sourceBytes), "rt_net_listener_registry_add")
+	if !ok {
+		t.Fatal("rt_net_listener_registry_add not found")
+	}
+	lockAt := strings.Index(body, "pthread_mutex_lock(&net_listener_registry_lock)")
+	wantAt := strings.Index(body, "size_t want = net_listener_registry_len")
+	ensureAt := strings.Index(body, "net_listener_registry_ensure_cap(want)")
+	if lockAt < 0 || wantAt < 0 || ensureAt < 0 {
+		t.Fatalf("listener registry add must lock, size from current len, and ensure capacity")
+	}
+	if !(lockAt < wantAt && wantAt < ensureAt) {
+		t.Fatalf("listener registry capacity must be computed under net_listener_registry_lock")
 	}
 }
 

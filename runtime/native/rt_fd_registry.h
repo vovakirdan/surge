@@ -12,14 +12,13 @@
 //   writes through the waiter-store bridge in rt_async_waiter.c; Task 7 makes
 //   the registry the only poll input: poll_net_waiters snapshots rows into the
 //   shard poll scratch under ex->lock and never scans the waiter store.
-// - A row exists iff at least one open net-key waiter for that fd is parked in
-//   the waiter store, or a close transition is draining the row's last waiters.
-//   The fd-registry-attach-miss bridge is resolved in Task 7: after
-//   prepare_park, net_wait_current_task verifies its interest row exists
-//   (rt_fd_registry_net_interest_present) and otherwise undoes the park and
-//   reports spurious readiness, so a parked open net waiter always has a row
-//   and every parked open fd is polled. Detaching the last interest flag
-//   swap-removes the row; row order is not meaningful and find is a linear scan.
+// - A row exists while the runtime owns a live registered net fd, or while an
+//   interest-only compatibility row has at least one open net-key waiter parked
+//   in the waiter store. After prepare_park, net_wait_current_task verifies its
+//   interest row exists and otherwise undoes the park, so a parked open net
+//   waiter always has a row and every interested fd is polled. Detaching the
+//   last interest flag removes only non-registered compatibility rows; row
+//   order is not meaningful and find is a linear scan.
 // - generation guards fd-reuse stale wakes; close_state guards post-close
 //   interest. Remove-plus-recreate preserves stale-wake safety because new rows
 //   take a monotonic generation from next_generation instead of resetting to 0.
@@ -39,6 +38,7 @@ typedef struct {
     int fd;
     uint64_t generation;
     uint8_t close_state; // holds rt_fd_close_state values (rt_task.status pattern)
+    uint8_t registered_open;
     uint8_t want_accept;
     uint8_t want_read;
     uint8_t want_write;
@@ -59,6 +59,7 @@ typedef struct {
 typedef struct {
     int fd;
     uint64_t generation;
+    uint32_t owner_shard_id;
     uint8_t want_accept;
     uint8_t want_read;
     uint8_t want_write;
@@ -67,6 +68,7 @@ typedef struct {
 typedef struct {
     int fd;
     uint64_t generation;
+    uint32_t owner_shard_id;
     uint8_t want_accept;
     uint8_t want_read;
     uint8_t want_write;
@@ -95,6 +97,7 @@ void rt_fd_registry_free(rt_fd_registry* registry);
 rt_runtime_status rt_fd_registry_ensure_cap(rt_fd_registry* registry);
 size_t rt_fd_registry_len(const rt_fd_registry* registry);
 const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd);
+rt_runtime_status rt_fd_registry_register_open_fd(rt_fd_registry* registry, int fd);
 rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
 void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);
 int rt_fd_registry_net_interest_present(const rt_fd_registry* registry, waker_key key);
@@ -105,6 +108,8 @@ rt_fd_completion_state rt_fd_registry_completion_state(const rt_fd_registry* reg
                                                        waker_key key);
 rt_fd_completion_summary rt_fd_registry_complete_ready_net_waiters(
     rt_executor* ex, const rt_fd_poll_interest* snapshot, int read_ready, int write_ready);
+rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(
+    rt_executor* ex, rt_fd_registry* registry, uint32_t owner_shard_id);
 rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked(rt_executor* ex,
                                                                           rt_fd_registry* registry);
 rt_fd_completion_summary

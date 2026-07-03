@@ -1,6 +1,6 @@
 # Task 9: Accept Distribution Implementation
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 **Depends on:** Task 3, Task 6, Task 7, Task 8
 

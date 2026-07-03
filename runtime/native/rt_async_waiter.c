@@ -1,5 +1,7 @@
 #include "rt_async_internal.h"
 
+#include <limits.h>
+
 waker_key waker_none(void) {
     waker_key key = {WAKER_NONE, 0};
     return key;
@@ -88,8 +90,21 @@ static void fd_registry_bridge_net_attach(rt_executor* ex, waker_key key) {
     if (!waker_is_net(key)) {
         return;
     }
-    rt_runtime_status status =
-        rt_fd_registry_attach_net_interest(rt_executor_fd_registry_for_shard(ex, 0), key);
+    rt_fd_registry* registry = NULL;
+    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+    for (size_t i = 0; i < shard_count; i++) {
+        rt_fd_registry* candidate = rt_executor_fd_registry_for_shard(ex, i);
+        const rt_fd_entry* entry = rt_fd_registry_find_const(candidate, (int)key.id);
+        if (entry != NULL && entry->close_state == RT_FD_CLOSE_STATE_OPEN) {
+            registry = candidate;
+            break;
+        }
+    }
+    if (registry == NULL && shard_count == 1) {
+        registry = rt_executor_fd_registry_for_shard(ex, 0);
+    }
+    rt_runtime_status status = registry != NULL ? rt_fd_registry_attach_net_interest(registry, key)
+                                                : RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     if (status != RT_RUNTIME_STATUS_OK && rt_async_debug_enabled()) {
         rt_async_debug_printf("fd-registry-attach-miss kind=%u fd=%llu status=%d\n",
                               (unsigned)key.kind,
@@ -107,9 +122,16 @@ static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
     }
     int removed_open_interest = 0;
     if (remaining_same_key == 0) {
-        removed_open_interest = rt_fd_registry_net_interest_present(
-            rt_executor_fd_registry_const_for_shard(ex, 0), key);
-        rt_fd_registry_detach_net_interest(rt_executor_fd_registry_for_shard(ex, 0), key);
+        size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+        for (size_t i = 0; i < shard_count; i++) {
+            rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, i);
+            if (rt_fd_registry_find_const(registry, (int)key.id) == NULL) {
+                continue;
+            }
+            removed_open_interest = rt_fd_registry_net_interest_present(registry, key);
+            rt_fd_registry_detach_net_interest(registry, key);
+            break;
+        }
     }
     if (rt_async_debug_enabled()) {
         // Debug consistency check: recount same-key waiters independently and
@@ -122,8 +144,16 @@ static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
                 recount++;
             }
         }
-        int interest = rt_fd_registry_net_interest_present(
-            rt_executor_fd_registry_const_for_shard(ex, 0), key);
+        int interest = 0;
+        size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+        for (size_t i = 0; i < shard_count; i++) {
+            const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
+            if (rt_fd_registry_find_const(registry, (int)key.id) == NULL) {
+                continue;
+            }
+            interest = rt_fd_registry_net_interest_present(registry, key);
+            break;
+        }
         if (recount != remaining_same_key || (recount == 0 && interest)) {
             rt_async_debug_printf(
                 "fd-registry-bridge mismatch kind=%u fd=%llu remaining=%zu recount=%zu "
@@ -180,7 +210,27 @@ rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store) {
     return RT_RUNTIME_STATUS_OK;
 }
 
-rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
+static void clear_accept_winner_wait_keys(rt_executor* ex, waker_key key, uint32_t owner_shard_id) {
+    if (ex == NULL || key.kind != WAKER_NET_ACCEPT || key.id > (uint64_t)INT_MAX) {
+        return;
+    }
+    int ready_fd = (int)key.id;
+    for (size_t i = 1; i < ex->tasks_cap; i++) {
+        rt_task* task = ex->tasks[i];
+        if (task == NULL || task->net_ready_accept_valid == 0 || task->wait_keys_len == 0) {
+            continue;
+        }
+        if (task->net_ready_accept_fd != ready_fd ||
+            task->net_ready_accept_owner_shard != owner_shard_id) {
+            continue;
+        }
+        clear_wait_keys(ex, task);
+    }
+}
+
+rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
+                                                                   waker_key key,
+                                                                   uint32_t owner_shard_id) {
     rt_waiter_completion result = {0, 0};
     if (ex == NULL || !waker_valid(key) || !waker_is_net(key)) {
         return result;
@@ -201,6 +251,21 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker
         if (task == NULL || task_status_load(task) == TASK_DONE || task_cancelled_load(task) != 0) {
             continue;
         }
+        if (key.kind == WAKER_NET_ACCEPT) {
+            rt_task* mutable_task = get_task(ex, w.task_id);
+            if (mutable_task != NULL) {
+                if (rt_async_debug_enabled()) {
+                    rt_async_debug_printf("net-accept-ready task=%llu fd=%llu owner=%u\n",
+                                          (unsigned long long)w.task_id,
+                                          (unsigned long long)key.id,
+                                          owner_shard_id);
+                }
+                mutable_task->net_ready_accept_valid = 1;
+                mutable_task->net_ready_accept_fd = (int)key.id;
+                mutable_task->net_ready_accept_owner_shard = owner_shard_id;
+                rt_task_set_placement(mutable_task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
+            }
+        }
         result.woken++;
         wake_task(ex, w.task_id, 0);
     }
@@ -208,7 +273,12 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker
     net_waiters_removed(store, key, result.removed);
     // Completion removed every waiter of this key, so no same-key entry remains.
     (void)fd_registry_bridge_net_detach_if_last(ex, key, result.removed, 0);
+    clear_accept_winner_wait_keys(ex, key, owner_shard_id);
     return result;
+}
+
+rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
+    return rt_executor_wake_net_waiters_for_key_on_owner(ex, key, 0);
 }
 
 void ensure_waiter_cap(rt_executor* ex) {

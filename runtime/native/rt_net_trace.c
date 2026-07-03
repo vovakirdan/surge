@@ -27,6 +27,13 @@ static _Atomic uint64_t net_poll_allocs_total;
 static _Atomic uint64_t net_poll_dedup_checks_total;
 static _Atomic uint64_t net_waiter_complete_calls_total;
 static _Atomic uint64_t net_waiter_completed_total;
+static _Atomic uint64_t net_accept_owner_mask;
+static _Atomic uint64_t net_fd_owner_registry_rows_total;
+static _Atomic uint64_t net_close_owner_wakeups_total;
+static _Atomic uint64_t net_cancel_owner_cleanup_total;
+static _Atomic uint64_t net_shutdown_poller_wakeups_total;
+static _Atomic uint64_t net_non_owner_conn_denied_total;
+static _Atomic uint64_t net_listener_group_members_closed_total;
 
 #define NET_TRACE_DUMP_FORMAT                                                                      \
     "TRACE_NET reason=%s io_poll_calls=%llu io_poll_timeouts=%llu "                                \
@@ -36,7 +43,10 @@ static _Atomic uint64_t net_waiter_completed_total;
     "io_poll_waiters_total=%llu io_direct_waits=%llu "                                             \
     "io_waiter_scan_entries=%llu io_waiter_net_entries=%llu "                                      \
     "io_poll_rebuilds=%llu io_poll_allocs=%llu io_poll_dedup_checks=%llu "                         \
-    "io_waiter_complete_calls=%llu io_waiter_completed=%llu\n"
+    "io_waiter_complete_calls=%llu io_waiter_completed=%llu "                                      \
+    "accept_owner_active_shards=%llu fd_owner_registry_rows=%llu "                                 \
+    "close_owner_wakeups=%llu cancel_owner_cleanup=%llu shutdown_poller_wakeups=%llu "             \
+    "non_owner_conn_denied=%llu listener_group_members_closed=%llu\n"
 #define NET_TRACE_DUMP_ARGS(reason)                                                                \
     (reason), net_trace_load(&net_poll_calls_total), net_trace_load(&net_poll_timeouts_total),     \
         net_trace_load(&net_poll_wake_fd_total), net_trace_load(&net_poll_ready_total),            \
@@ -47,7 +57,14 @@ static _Atomic uint64_t net_waiter_completed_total;
         net_trace_load(&net_waiter_net_entries_total), net_trace_load(&net_poll_rebuilds_total),   \
         net_trace_load(&net_poll_allocs_total), net_trace_load(&net_poll_dedup_checks_total),      \
         net_trace_load(&net_waiter_complete_calls_total),                                          \
-        net_trace_load(&net_waiter_completed_total)
+        net_trace_load(&net_waiter_completed_total),                                               \
+        (unsigned long long)__builtin_popcountll(net_trace_load(&net_accept_owner_mask)),          \
+        net_trace_load(&net_fd_owner_registry_rows_total),                                         \
+        net_trace_load(&net_close_owner_wakeups_total),                                            \
+        net_trace_load(&net_cancel_owner_cleanup_total),                                           \
+        net_trace_load(&net_shutdown_poller_wakeups_total),                                        \
+        net_trace_load(&net_non_owner_conn_denied_total),                                          \
+        net_trace_load(&net_listener_group_members_closed_total)
 
 static unsigned long long net_trace_load(const _Atomic uint64_t* counter) {
     return (unsigned long long)atomic_load_explicit(counter, memory_order_relaxed);
@@ -125,4 +142,32 @@ void rt_net_trace_poll_ready_enabled(void) {
 void rt_net_trace_waiter_completion_enabled(uint64_t calls, uint64_t woken) {
     net_trace_add(&net_waiter_complete_calls_total, calls);
     net_trace_add(&net_waiter_completed_total, woken);
+}
+
+void rt_net_trace_accept_owner_enabled(uint32_t owner_shard_id) {
+    if (owner_shard_id >= 64U) {
+        return;
+    }
+    uint64_t bit = UINT64_C(1) << owner_shard_id;
+    (void)atomic_fetch_or_explicit(&net_accept_owner_mask, bit, memory_order_relaxed);
+}
+
+void rt_net_trace_fd_owner_registry_row_enabled(void) {
+    net_trace_inc(&net_fd_owner_registry_rows_total);
+}
+
+void rt_net_trace_close_owner_wakeup_enabled(void) {
+    net_trace_inc(&net_close_owner_wakeups_total);
+}
+
+void rt_net_trace_shutdown_poller_wakeups_enabled(uint64_t count) {
+    net_trace_add(&net_shutdown_poller_wakeups_total, count);
+}
+
+void rt_net_trace_listener_group_member_closed_enabled(void) {
+    net_trace_inc(&net_listener_group_members_closed_total);
+}
+
+void rt_net_trace_non_owner_conn_denied_enabled(void) {
+    net_trace_inc(&net_non_owner_conn_denied_total);
 }

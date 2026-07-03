@@ -37,6 +37,7 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(
     rt_lock(ex);
     rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
     rt_runtime_status status = rt_fd_registry_mark_closed(registry, fd, &snapshot);
+    snapshot.owner_shard_id = owner_shard_id;
     rt_unlock(ex);
     if (status != RT_RUNTIME_STATUS_OK) {
         return RT_NET_LIFECYCLE_REGISTRY_ERROR;
@@ -51,6 +52,9 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(
         }
     }
     rt_fd_completion_summary summary = rt_fd_registry_wake_closed_net_waiters(ex, &snapshot);
+    if (summary.calls != 0 || summary.woken != 0) {
+        rt_net_trace_close_owner_wakeup();
+    }
     rt_net_trace_waiter_completion(summary.calls, summary.woken);
     return close_errno == 0 ? RT_NET_LIFECYCLE_OK : RT_NET_LIFECYCLE_CLOSE_ERROR;
 }
@@ -71,6 +75,9 @@ rt_net_close_listener_members(rt_executor* ex, NetListener* listener, int* out_e
         rt_net_lifecycle_status status = rt_net_close_fd_on_owner(
             ex, member->owner_shard_id, &member->fd, &member->closed, &close_errno);
         if (status == RT_NET_LIFECYCLE_OK || status == RT_NET_LIFECYCLE_INVALID) {
+            if (status == RT_NET_LIFECYCLE_OK) {
+                rt_net_trace_listener_group_member_closed();
+            }
             continue;
         }
         final_status =

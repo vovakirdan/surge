@@ -82,6 +82,35 @@ static rt_fd_entry* fd_registry_find_mut(rt_fd_registry* registry, int fd) {
     return NULL;
 }
 
+static rt_runtime_status
+fd_registry_create_row(rt_fd_registry* registry, int fd, rt_fd_entry** out) {
+    if (registry == NULL || out == NULL || fd < 0) {
+        return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
+    }
+    if (registry->next_generation == UINT64_MAX) {
+        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+    }
+    rt_runtime_status status = rt_fd_registry_ensure_cap(registry);
+    if (status != RT_RUNTIME_STATUS_OK) {
+        return status;
+    }
+    rt_fd_entry* entry = &registry->entries[registry->len++];
+    memset(entry, 0, sizeof(*entry));
+    entry->fd = fd;
+    registry->next_generation++;
+    entry->generation = registry->next_generation;
+    *out = entry;
+    return RT_RUNTIME_STATUS_OK;
+}
+
+static void fd_registry_remove_at(rt_fd_registry* registry, size_t index) {
+    if (registry == NULL || index >= registry->len) {
+        return;
+    }
+    registry->entries[index] = registry->entries[registry->len - 1];
+    registry->len--;
+}
+
 static void fd_lifecycle_snapshot_clear(rt_fd_lifecycle_snapshot* out, int fd) {
     if (out == NULL) {
         return;
@@ -151,6 +180,24 @@ int rt_fd_registry_net_interest_present(const rt_fd_registry* registry, waker_ke
     return fd_entry_interest_value(entry, key.kind);
 }
 
+rt_runtime_status rt_fd_registry_register_open_fd(rt_fd_registry* registry, int fd) {
+    if (registry == NULL || fd < 0) {
+        return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
+    }
+    rt_fd_entry* entry = fd_registry_find_mut(registry, fd);
+    if (entry == NULL) {
+        rt_runtime_status status = fd_registry_create_row(registry, fd, &entry);
+        if (status != RT_RUNTIME_STATUS_OK) {
+            return status;
+        }
+    }
+    if (entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
+        return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
+    }
+    entry->registered_open = 1;
+    return RT_RUNTIME_STATUS_OK;
+}
+
 // Registration-side attach: find or create the owning fd row and set the
 // interest flag for the key's kind. Idempotent for duplicate same-key waiters
 // (flags, not counts: the waiter store decides when the last waiter leaves).
@@ -168,18 +215,10 @@ rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, w
     }
     rt_fd_entry* entry = fd_registry_find_mut(registry, fd);
     if (entry == NULL) {
-        if (registry->next_generation == UINT64_MAX) {
-            return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
-        }
-        rt_runtime_status status = rt_fd_registry_ensure_cap(registry);
+        rt_runtime_status status = fd_registry_create_row(registry, fd, &entry);
         if (status != RT_RUNTIME_STATUS_OK) {
             return status;
         }
-        entry = &registry->entries[registry->len++];
-        memset(entry, 0, sizeof(*entry));
-        entry->fd = fd;
-        registry->next_generation++;
-        entry->generation = registry->next_generation;
     }
     if (entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
         return RT_RUNTIME_STATUS_OK;
@@ -210,9 +249,14 @@ void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key)
         return;
     }
     *slot = 0;
-    if (entry->want_accept == 0 && entry->want_read == 0 && entry->want_write == 0) {
-        *entry = registry->entries[registry->len - 1];
-        registry->len--;
+    if (entry->registered_open == 0 && entry->want_accept == 0 && entry->want_read == 0 &&
+        entry->want_write == 0) {
+        for (size_t i = 0; i < registry->len; i++) {
+            if (&registry->entries[i] == entry) {
+                fd_registry_remove_at(registry, i);
+                break;
+            }
+        }
     }
 }
 
@@ -222,7 +266,7 @@ rt_fd_registry_mark_closed(rt_fd_registry* registry, int fd, rt_fd_lifecycle_sna
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     fd_lifecycle_snapshot_clear(out, fd);
-    rt_fd_entry* entry = fd_registry_find_mut(registry, fd);
+    const rt_fd_entry* entry = fd_registry_find_mut(registry, fd);
     if (entry == NULL) {
         return RT_RUNTIME_STATUS_OK;
     }
@@ -230,7 +274,12 @@ rt_fd_registry_mark_closed(rt_fd_registry* registry, int fd, rt_fd_lifecycle_sna
     out->want_accept = entry->want_accept;
     out->want_read = entry->want_read;
     out->want_write = entry->want_write;
-    entry->close_state = RT_FD_CLOSE_STATE_CLOSED;
+    for (size_t i = 0; i < registry->len; i++) {
+        if (&registry->entries[i] == entry) {
+            fd_registry_remove_at(registry, i);
+            break;
+        }
+    }
     return RT_RUNTIME_STATUS_OK;
 }
 
@@ -267,11 +316,15 @@ static void fd_completion_add(rt_fd_completion_summary* summary, rt_waiter_compl
     summary->woken += (uint64_t)completion.woken;
 }
 
-static void fd_complete_net_key(rt_executor* ex, waker_key key, rt_fd_completion_summary* summary) {
+static void fd_complete_net_key(rt_executor* ex,
+                                waker_key key,
+                                uint32_t owner_shard_id,
+                                rt_fd_completion_summary* summary) {
     if (ex == NULL || summary == NULL || !waker_valid(key) || !waker_is_net(key)) {
         return;
     }
-    fd_completion_add(summary, rt_executor_wake_net_waiters_for_key(ex, key));
+    fd_completion_add(summary,
+                      rt_executor_wake_net_waiters_for_key_on_owner(ex, key, owner_shard_id));
 }
 
 static void fd_complete_current_net_key(rt_executor* ex,
@@ -282,7 +335,7 @@ static void fd_complete_current_net_key(rt_executor* ex,
     if (rt_fd_registry_completion_state(registry, snapshot, key) != RT_FD_COMPLETION_CURRENT) {
         return;
     }
-    fd_complete_net_key(ex, key, summary);
+    fd_complete_net_key(ex, key, snapshot->owner_shard_id, summary);
 }
 
 rt_fd_completion_summary rt_fd_registry_complete_ready_net_waiters(
@@ -291,7 +344,8 @@ rt_fd_completion_summary rt_fd_registry_complete_ready_net_waiters(
     if (ex == NULL || snapshot == NULL) {
         return summary;
     }
-    const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, 0);
+    const rt_fd_registry* registry =
+        rt_executor_fd_registry_const_for_shard(ex, snapshot->owner_shard_id);
     if (read_ready) {
         fd_complete_current_net_key(ex, registry, snapshot, net_read_key(snapshot->fd), &summary);
         fd_complete_current_net_key(ex, registry, snapshot, net_accept_key(snapshot->fd), &summary);
@@ -308,17 +362,16 @@ static void fd_registry_remove_matching_lifetime(rt_fd_registry* registry,
         return;
     }
     for (size_t i = 0; i < registry->len; i++) {
-        rt_fd_entry* entry = &registry->entries[i];
+        const rt_fd_entry* entry = &registry->entries[i];
         if (entry->fd == snapshot->fd && entry->generation == snapshot->generation) {
-            *entry = registry->entries[registry->len - 1];
-            registry->len--;
+            fd_registry_remove_at(registry, i);
             return;
         }
     }
 }
 
-rt_fd_completion_summary
-rt_fd_registry_drain_shutdown_net_waiters_locked(rt_executor* ex, rt_fd_registry* registry) {
+rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(
+    rt_executor* ex, rt_fd_registry* registry, uint32_t owner_shard_id) {
     rt_fd_completion_summary summary = {0, 0};
     if (ex == NULL || registry == NULL) {
         return summary;
@@ -328,13 +381,13 @@ rt_fd_registry_drain_shutdown_net_waiters_locked(rt_executor* ex, rt_fd_registry
     while (registry->len > 0) {
         rt_fd_entry entry = registry->entries[registry->len - 1];
         if (entry.want_read != 0) {
-            fd_complete_net_key(ex, net_read_key(entry.fd), &summary);
+            fd_complete_net_key(ex, net_read_key(entry.fd), owner_shard_id, &summary);
         }
         if (entry.want_accept != 0) {
-            fd_complete_net_key(ex, net_accept_key(entry.fd), &summary);
+            fd_complete_net_key(ex, net_accept_key(entry.fd), owner_shard_id, &summary);
         }
         if (entry.want_write != 0) {
-            fd_complete_net_key(ex, net_write_key(entry.fd), &summary);
+            fd_complete_net_key(ex, net_write_key(entry.fd), owner_shard_id, &summary);
         }
         fd_registry_remove_matching_lifetime(registry, &entry);
     }
@@ -343,6 +396,11 @@ rt_fd_registry_drain_shutdown_net_waiters_locked(rt_executor* ex, rt_fd_registry
         pthread_cond_broadcast(&ex->io_cv);
     }
     return summary;
+}
+
+rt_fd_completion_summary
+rt_fd_registry_drain_shutdown_net_waiters_locked(rt_executor* ex, rt_fd_registry* registry) {
+    return rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(ex, registry, 0);
 }
 
 static int fd_lifecycle_snapshot_has_interest(const rt_fd_lifecycle_snapshot* snapshot) {
@@ -358,13 +416,13 @@ rt_fd_registry_wake_closed_net_waiters(rt_executor* ex, const rt_fd_lifecycle_sn
     }
     rt_lock(ex);
     if (snapshot->want_read != 0) {
-        fd_complete_net_key(ex, net_read_key(snapshot->fd), &summary);
+        fd_complete_net_key(ex, net_read_key(snapshot->fd), snapshot->owner_shard_id, &summary);
     }
     if (snapshot->want_accept != 0) {
-        fd_complete_net_key(ex, net_accept_key(snapshot->fd), &summary);
+        fd_complete_net_key(ex, net_accept_key(snapshot->fd), snapshot->owner_shard_id, &summary);
     }
     if (snapshot->want_write != 0) {
-        fd_complete_net_key(ex, net_write_key(snapshot->fd), &summary);
+        fd_complete_net_key(ex, net_write_key(snapshot->fd), snapshot->owner_shard_id, &summary);
     }
     if (summary.calls != 0) {
         rt_net_wake_poll();
@@ -400,6 +458,7 @@ size_t rt_fd_registry_snapshot_poll_interest(const rt_fd_registry* registry,
         }
         out[count].fd = entry->fd;
         out[count].generation = entry->generation;
+        out[count].owner_shard_id = 0;
         out[count].want_accept = want_accept;
         out[count].want_read = want_read;
         out[count].want_write = want_write;

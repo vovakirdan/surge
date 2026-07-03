@@ -3,6 +3,7 @@
 #endif
 
 #include "rt_async_internal.h"
+#include "rt_net_accept_group.h"
 #include "rt_net_handles.h"
 #include "rt_net_lifecycle.h"
 #include "rt_net_listener_socket.h"
@@ -44,12 +45,6 @@ typedef struct NetError {
     void* message;
     void* code;
 } NetError;
-
-typedef enum {
-    NET_WAIT_ACCEPT = 0,
-    NET_WAIT_READ = 1,
-    NET_WAIT_WRITE = 2,
-} NetWaitKind;
 
 typedef struct SurgeArrayHeader {
     uint64_t len;
@@ -379,14 +374,21 @@ static const NetListener* net_listener_from_borrowed(const void* listener) {
     if (listener == NULL) {
         return NULL;
     }
-    return *(const NetListener* const*)listener;
+    return rt_net_listener_canonical_const(*(const NetListener* const*)listener);
 }
 
 static NetListener* net_listener_from_value(void* listener) {
     if (listener == NULL) {
         return NULL;
     }
-    return (NetListener*)listener;
+    return rt_net_listener_canonical((NetListener*)listener);
+}
+
+static NetListener* net_listener_from_borrowed_mut(const void* listener) {
+    if (listener == NULL) {
+        return NULL;
+    }
+    return rt_net_listener_canonical(*(NetListener* const*)listener);
 }
 
 static const NetConn* net_conn_from_borrowed(const void* conn) {
@@ -436,19 +438,17 @@ void* rt_net_listen(void* addr, uint64_t port) {
     if (shard_count == 0) {
         return net_make_error(NET_ERR_IO);
     }
-    // Task 8 installs the group-capable handle/lifecycle shape. Actual
-    // N-member SO_REUSEPORT activation waits for Task 9 because today's task
-    // park state can register one accept fd key, not a listener-group wait.
-    size_t member_count = 1;
-    NetListener* listener = rt_net_listener_alloc(NET_LISTENER_SINGLE, member_count, 0);
+    size_t member_count = shard_count;
+    NetListenerKind kind = member_count > 1 ? NET_LISTENER_REUSEPORT_GROUP : NET_LISTENER_SINGLE;
+    NetListener* listener = rt_net_listener_alloc(kind, member_count, 0);
     if (listener == NULL) {
         return net_make_error(NET_ERR_IO);
     }
     uint16_t bound_port = (uint16_t)port;
     for (size_t i = 0; i < member_count; i++) {
         int listener_errno = 0;
-        int fd =
-            rt_net_create_listener_socket(&ip, (uint16_t)port, &bound_port, false, &listener_errno);
+        int fd = rt_net_create_listener_socket(
+            &ip, (uint16_t)port, &bound_port, member_count > 1, &listener_errno);
         if (fd < 0) {
             for (size_t j = 0; j < i; j++) {
                 if (listener->members[j].fd >= 0) {
@@ -469,6 +469,15 @@ void* rt_net_listen(void* addr, uint64_t port) {
             rt_net_listener_free(listener);
             return net_make_error(NET_ERR_IO);
         }
+    }
+    if (!rt_net_listener_registry_add(listener)) {
+        for (size_t j = 0; j < member_count; j++) {
+            if (listener->members[j].fd >= 0) {
+                close(listener->members[j].fd);
+            }
+        }
+        rt_net_listener_free(listener);
+        return net_make_error(NET_ERR_IO);
     }
     return net_make_success_ptr(listener);
 }
@@ -516,8 +525,14 @@ void* rt_net_connect(void* addr, uint64_t port) {
 
     uint32_t owner_shard_id =
         rt_net_owner_shard_or_compat(&exec_state, rt_debug_current_worker_shard_id());
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL || !rt_net_register_open_fd_on_owner(ex, owner_shard_id, fd)) {
+        close(fd);
+        return net_make_error(NET_ERR_IO);
+    }
     NetConn* conn = rt_net_conn_alloc(fd, owner_shard_id, 1);
     if (conn == NULL) {
+        rt_net_forget_registered_fd_on_owner(ex, owner_shard_id, fd);
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
@@ -566,26 +581,61 @@ void* rt_net_close_conn(void* conn) {
 void* rt_net_accept(const void* listener) {
     const NetListener* l = net_listener_from_borrowed(listener);
     NetListenerMember member;
-    if (!rt_net_listener_selected_member_const(l, &member)) {
+    int have_preferred = rt_net_consume_ready_accept_member(l, &member);
+    if (!have_preferred && !rt_net_listener_selected_member_const(l, &member)) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
+    NetListener* mutable_listener = net_listener_from_borrowed_mut(listener);
     int fd = -1;
-    do {
-        fd = accept(member.fd, NULL, NULL);
-    } while (fd < 0 && errno == EINTR);
-    if (fd < 0) {
-        return net_make_error(net_error_code_from_errno(errno));
+    uint64_t last_error = NET_ERR_WOULD_BLOCK;
+    size_t member_count = l != NULL ? l->member_count : 0;
+    size_t start = have_preferred ? rt_net_listener_index_for_fd(l, member.fd)
+                                  : (mutable_listener != NULL && member_count > 0
+                                         ? mutable_listener->next_accept_index % member_count
+                                         : 0);
+    for (size_t offset = 0; fd < 0 && l != NULL && offset < member_count; offset++) {
+        size_t index = (start + offset) % member_count;
+        const NetListenerMember* next = &l->members[index];
+        if (next->closed || next->fd < 0) {
+            continue;
+        }
+        member = *next;
+        do {
+            fd = accept(member.fd, NULL, NULL);
+        } while (fd < 0 && errno == EINTR);
+        if (fd >= 0) {
+            break;
+        }
+        last_error = net_error_code_from_errno(errno);
+        if (last_error != NET_ERR_WOULD_BLOCK) {
+            return net_make_error(last_error);
+        }
     }
+    if (fd < 0) {
+        return net_make_error(last_error);
+    }
+    rt_net_listener_note_accept(mutable_listener, member.fd);
     uint64_t err_code = 0;
     if (!net_prepare_conn_fd(fd, &err_code)) {
         close(fd);
         return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
     }
-    NetConn* conn = rt_net_conn_alloc(fd, member.owner_shard_id, 1);
-    if (conn == NULL) {
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL || !rt_net_register_open_fd_on_owner(ex, member.owner_shard_id, fd)) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
+    NetConn* conn = rt_net_conn_alloc(fd, member.owner_shard_id, 1);
+    if (conn == NULL) {
+        rt_net_forget_registered_fd_on_owner(ex, member.owner_shard_id, fd);
+        close(fd);
+        return net_make_error(NET_ERR_IO);
+    }
+    rt_net_place_current_task_on_owner(ex, member.owner_shard_id);
+    if (rt_async_debug_enabled()) {
+        rt_async_debug_printf("net-accept-success fd=%d owner=%u\n", fd, member.owner_shard_id);
+    }
+    rt_net_trace_accept_owner(member.owner_shard_id);
     return net_make_success_ptr(conn);
 }
 
@@ -695,31 +745,7 @@ void* rt_net_write_bytes(const void* conn, const void* bytes, uint64_t offset, u
     return net_make_success_ptr(count);
 }
 
-static bool net_fd_ready_now(int fd, NetWaitKind kind) {
-    if (fd < 0) {
-        return true;
-    }
-    short events = POLLIN;
-    short ready_mask = POLLIN | POLLERR | POLLHUP | POLLNVAL;
-    if (kind == NET_WAIT_WRITE) {
-        events = POLLOUT;
-        ready_mask = POLLOUT | POLLERR | POLLHUP | POLLNVAL;
-    }
-    struct pollfd pfd;
-    memset(&pfd, 0, sizeof(pfd));
-    pfd.fd = fd;
-    pfd.events = events;
-    int n = -1;
-    do {
-        n = poll(&pfd, 1, 0);
-    } while (n < 0 && errno == EINTR);
-    if (n <= 0) {
-        return n < 0;
-    }
-    return (pfd.revents & ready_mask) != 0;
-}
-
-static bool net_wait_current_task(int fd, NetWaitKind kind) {
+static bool net_wait_current_task(int fd, RtNetWaitKind kind) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return true;
@@ -736,19 +762,19 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
         rt_unlock(ex);
         return false;
     }
-    if (fd < 0 || net_fd_ready_now(fd, kind)) {
+    if (fd < 0 || rt_net_fd_ready_now(fd, kind)) {
         rt_unlock(ex);
         return true;
     }
     waker_key key;
     switch (kind) {
-        case NET_WAIT_ACCEPT:
+        case RT_NET_WAIT_ACCEPT:
             key = net_accept_key(fd);
             break;
-        case NET_WAIT_READ:
+        case RT_NET_WAIT_READ:
             key = net_read_key(fd);
             break;
-        case NET_WAIT_WRITE:
+        case RT_NET_WAIT_WRITE:
             key = net_write_key(fd);
             break;
         default:
@@ -761,7 +787,7 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
     }
     rt_net_trace_direct_wait();
     prepare_park(ex, task, key, 0);
-    if (!rt_fd_registry_net_interest_present(rt_executor_fd_registry_const_for_shard(ex, 0), key)) {
+    if (!rt_net_interest_present_for_key(ex, key)) {
         // Attach failed or closed the row: undo the park so the rowless waiter
         // cannot be lost now that poll input is registry-only.
         remove_waiter(ex, key, task->id);
@@ -776,23 +802,13 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
     return false;
 }
 
-bool rt_net_wait_accept(const void* listener) {
-    const NetListener* l = net_listener_from_borrowed(listener);
-    int fd = -1;
-    NetListenerMember member;
-    if (rt_net_listener_selected_member_const(l, &member)) {
-        fd = member.fd;
-    }
-    return net_wait_current_task(fd, NET_WAIT_ACCEPT);
-}
-
 bool rt_net_wait_readable(const void* conn) {
     const NetConn* c = net_conn_from_borrowed(conn);
     int fd = -1;
     if (c != NULL && !c->closed) {
         fd = c->fd;
     }
-    return net_wait_current_task(fd, NET_WAIT_READ);
+    return net_wait_current_task(fd, RT_NET_WAIT_READ);
 }
 
 bool rt_net_wait_writable(const void* conn) {
@@ -801,14 +817,18 @@ bool rt_net_wait_writable(const void* conn) {
     if (c != NULL && !c->closed) {
         fd = c->fd;
     }
-    return net_wait_current_task(fd, NET_WAIT_WRITE);
+    return net_wait_current_task(fd, RT_NET_WAIT_WRITE);
 }
 
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     // Caller must hold ex->lock; this function releases it while polling.
     // The registry snapshot copied under ex->lock is the only guarded poll input.
-    const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, 0);
-    size_t cap = rt_fd_registry_len(registry);
+    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+    size_t cap = 0;
+    for (size_t i = 0; i < shard_count; i++) {
+        const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
+        cap += rt_fd_registry_len(registry);
+    }
     if (cap == 0) {
         return 0;
     }
@@ -817,7 +837,15 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     if (!ensure_net_poll_fds(scratch, cap, &fds)) {
         return 0;
     }
-    size_t count = rt_fd_registry_snapshot_poll_interest(registry, fds, cap);
+    size_t count = 0;
+    for (size_t i = 0; i < shard_count && count < cap; i++) {
+        const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
+        size_t added = rt_fd_registry_snapshot_poll_interest(registry, fds + count, cap - count);
+        for (size_t j = 0; j < added; j++) {
+            fds[count + j].owner_shard_id = (uint32_t)i;
+        }
+        count += added;
+    }
     if (count == 0) {
         return 0;
     }
