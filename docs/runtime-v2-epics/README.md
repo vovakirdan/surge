@@ -27,10 +27,8 @@ runtime/shard-structure scope in `02-n1-runtime-shard-structure.md`, with
 task evidence in `02-evidence.md`. Epic 3 is complete for owner-local waiters
 and dependency-aware runtime refactoring under the same `N=1` boundary. Epic 4
 is complete for persistent fd registry and net lifecycle proof, with accepted
-debt recorded in `DEBT.md`.
-
-Epic 5 is planned in `05-per-shard-heap-accounting.md`. Its task documents live
-under `05-tasks/`; implementation has not started.
+debt recorded in `DEBT.md`. Epic 5 is complete for per-shard heap accounting
+and stable heap-accounting CI gates.
 
 ## Current Runtime V2 Artifacts
 
@@ -53,8 +51,8 @@ under `05-tasks/`; implementation has not started.
 - `04-persistent-fd-registry-and-net-lifecycle.md`: Epic 4 scope, task list,
   acceptance gates, closeout, and Epic 5 handoff.
 - `04-evidence.md`: Epic 4 task evidence ledger.
-- `05-per-shard-heap-accounting.md`: Epic 5 scope, task list, and acceptance
-  gates for shard-owned heap accounting.
+- `05-per-shard-heap-accounting.md`: Epic 5 scope, acceptance matrix, closeout,
+  and Epic 6 handoff for shard-owned heap accounting.
 - `05-evidence.md`: Epic 5 task evidence ledger.
 
 Known backend-test debt remains accepted for now: the focused
@@ -83,8 +81,8 @@ Every epic should move the runtime toward these goals:
 | 2 | `02-n1-runtime-shard-structure.md` | Complete. Introduced V2-shaped `rt_runtime` / `rt_shard` structures with `N=1`, migrated selected owner surfaces, and added the stable Runtime V2 liveness gate without changing behavior. |
 | 3 | `03-owner-local-waiters-and-runtime-refactor.md` | Complete. Moved included waiter surfaces to owner-local structures under `N=1`, added stable waiter liveness gates, and landed dependency-aware runtime refactoring. |
 | 4 | `04-persistent-fd-registry-and-net-lifecycle.md` | Complete. Replaced poll-set rebuilds with a shard-local persistent fd registry and proved net lifecycle ownership with accepted debt. |
-| 5 | `05-per-shard-heap-accounting.md` | Planned. Move hot heap counters to shard-owned accounting before real `N>1` benchmarking. |
-| 6 | TBD | Enable multi-shard accept ownership and remove hot-path stealing for connection tasks. |
+| 5 | `05-per-shard-heap-accounting.md` | Complete. Moved heap accounting from global hot counters to runtime/shard-owned cells, preserved public allocation behavior, and added stable heap-accounting gates to Runtime V2 CI coverage. |
+| 6 | TBD | Enable multi-shard accept ownership and remove hot-path stealing for connection tasks, starting from the completed heap-accounting cell model. |
 | 7 | TBD | Add the explicit crossing language surface. Must start with a dedicated syntax review; current names such as `far`, `submit_to`, and `shard-movable` are placeholders. |
 | 8 | TBD | Add cross-shard runtime transport, remote operations, Tier 2 destinations, and generation-checked distributed flows. |
 | 9 | TBD | Add remote-free routing and shard-local hot pools. |

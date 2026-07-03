@@ -11,10 +11,12 @@ stats from process-global counters to shard-owned accounting cells, then make
 owner-shard span metadata, remote-free queues, and cross-shard memory ownership
 stay out until the allocator and hot-pool epic.
 
-**Status:** planned. Task documents are drafted; implementation has not started.
+**Status:** complete. Epic 5 moved heap accounting to runtime/shard-owned
+cells, added a stable heap gate to Runtime V2 CI coverage, and recorded
+remaining benchmark/test-harness debt.
 
-**Task documents:** brief task scopes live under `05-tasks/`. Expand only the
-next task before execution.
+**Task documents:** completed task scopes live under `05-tasks/`. Task 10
+records the closeout evidence and Epic 6 handoff.
 
 ## Inputs
 
@@ -37,7 +39,7 @@ next task before execution.
 - `internal/vm/runtime_v2_*_test.go`
 - `.github/workflows/*`
 
-## Starting State
+## Starting State Before Epic 5
 
 `runtime/native/rt_alloc.c` owns four process-global relaxed atomic counters:
 
@@ -259,9 +261,23 @@ Epic 5 is complete only when:
 - `05-evidence.md`, `NOTES.md`, this document, and `README.md` are updated with
   the final state and the exact Epic 6 handoff.
 
+### Final Acceptance Matrix
+
+| Requirement | Status | Evidence |
+| --- | --- | --- |
+| Heap stats are no longer one process-global hot counter block. | Complete | Tasks 5-7 moved accounting into runtime/shard-owned cells and removed the old global source of truth. |
+| Public allocation ABI and observable `HeapStats` behavior are preserved. | Complete | Task 3 behavior contracts and Task 6 migration checks cover alloc/free/realloc/aligned/failure paths. |
+| Cold and concurrent worker paths are accounted. | Complete | Tasks 5-8 record explicit cold accounting and repeated concurrent worker proofs. |
+| Stable heap checks run in local Runtime V2 gates and CI. | Complete | Task 9 added `runtime-v2-heap-check` and wired it into `runtime-v2-check`, which the existing CI job runs. |
+| Static checks guard the target shape. | Complete | Task 4 static predicates are active in `runtime_v2_pending` and run through `runtime-v2-heap-check`. |
+| Final quality gates and Sentrux evidence are recorded. | Complete | Task 10 records the final command and Sentrux closeout results in `05-evidence.md`. |
+| Epic-owned debt is closed or recorded. | Complete | `RV2-DEBT-012` remains open for the heavier manual benchmark crash; `RV2-DEBT-011` remains accepted test-harness debt. |
+
 ## Epic 6 Handoff
 
-Epic 6 should start from `N>1` accept ownership only after heap accounting no
-longer adds a global hot counter to every allocation and free. It should still
-avoid crossing syntax, remote-free queues, allocator pools, and backend I/O
-migration unless those surfaces become explicit Epic 6 scope.
+Epic 6 should start from `N>1` accept ownership with heap accounting no longer
+adding a global hot counter to every allocation and free. It should still avoid
+crossing syntax, remote-free queues, allocator pools, and backend I/O migration
+unless those surfaces become explicit Epic 6 scope. Epic 7 retains the syntax
+gate: names such as `far`, `submit_to`, and `shard-movable` are semantic
+placeholders, not final keywords.

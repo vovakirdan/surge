@@ -1,6 +1,6 @@
 # Task 2: Heap Accounting Dependency Map
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** design map
 
 ## Goal

@@ -391,6 +391,37 @@ task, then move durable decisions into the owning epic document before closeout.
 - Review outcome: one P2 env-inheritance issue was fixed; focused re-review
   returned no findings. No new debt was added by Task 9.
 
+## Epic 5 Closeout Handoff
+
+- Scope completed: per-shard heap accounting. Allocation/free/realloc accounting
+  events now flow through runtime/shard-owned cells, `rt_heap_stats()` aggregates
+  those cells on read, and the old global heap counters are not the source of
+  truth.
+- Public behavior preserved: `rt_alloc`, `rt_free`, `rt_realloc`, `HeapStats`,
+  failed allocation/realloc, null/zero realloc, aligned allocation, and
+  `rt_array_forget_allocation` semantics are covered by focused behavior and
+  static gates.
+- Stable CI coverage exists through `runtime-v2-heap-check`, which is called by
+  `make runtime-v2-check`; the existing Runtime V2 GitHub Actions job inherits
+  the heap gate.
+- Runtime contract docs were updated narrowly: `docs/RUNTIME_V2.md` and
+  `docs/RUNTIME.ru.md` no longer describe native heap accounting as global
+  counters. No syntax, keyword, parser, or language-surface section was changed.
+- Remaining debt: `RV2-DEBT-011` for overlapping VM build/test artifacts and
+  `RV2-DEBT-012` for the heavier manual heap benchmark crash. The benchmark
+  stays current-checkout manual evidence, not a CI threshold.
+- Final closeout gates passed: `make c-check`, `make cppcheck`,
+  `make runtime-v2-heap-check`, `make runtime-v2-check`, `make check`, and
+  `git diff --check`.
+- Final Sentrux scans/rules passed: root quality `6190`, `runtime/` quality
+  `5279`, and `runtime/native` quality `5318`, all with 0 rule violations.
+- Epic 6 should start from `N>1` accept ownership and hot-path connection task
+  placement. It should not start from crossing syntax, remote-free queues,
+  allocator pools, backend I/O migration, or language keyword selection.
+- Preserve the Epic 7 syntax gate: `far`, `submit_to`, and `shard-movable` are
+  semantic placeholders until a dedicated syntax review chooses final source
+  spelling.
+
 ## Epic 4 Task 01 Handoff
 
 - Scope completed: kickoff baseline and Sentrux state before fd-registry work.

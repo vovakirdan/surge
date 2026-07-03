@@ -16,16 +16,19 @@ keep `NOTES.md` as the handoff log.
 | 7 | Complete | Aggregation audit, focused heap evidence, active static predicate, Sentrux scans, and docs closeout recorded below. |
 | 8 | Complete | Repeated concurrent heap tests, SURGE_THREADS stress, manual heap benchmark script/report, review outcome, and benchmark stress debt recorded below. |
 | 9 | Complete | `runtime-v2-heap-check` added, wired into `runtime-v2-check`, CI inheritance confirmed, checks and review outcome recorded below. |
-| 10 | Draft | Epic closeout not started. |
+| 10 | Complete | Epic closeout docs, canonical heap-accounting wording, task status index, final gates, Sentrux results, debt status, and Epic 6 handoff recorded below. |
 
-## Open Evidence Questions
+## Closed Evidence Questions
 
-- Which accounting cell model removes the hot global counter cache line without
-  hiding a new shared shard-local bottleneck under current multi-worker `N=1`?
-- Which cold allocation paths run before runtime initialization, and how do they
-  report into `rt_heap_stats()`?
-- Which focused tests are stable enough for `runtime-v2-heap-check` and CI?
-- Does heap accounting change covered Runtime V2 net or channel benchmark rows?
+- The selected model is runtime/shard-owned heap accounting with per-lane cells
+  and aggregate-on-read snapshots.
+- Cold and non-runtime allocations use an explicit cold accounting path and are
+  included in `rt_heap_stats()`.
+- `runtime-v2-heap-check` now runs the stable native heap smoke, heap behavior,
+  and static shape predicates and is included in `runtime-v2-check`.
+- Task 8 recorded current Surge-level heap benchmark evidence. Net and channel
+  benchmark rows were not required because Epic 5 did not change those paths
+  beyond accounting calls.
 
 ## Task 1: Kickoff Baseline And Sentrux
 
@@ -918,3 +921,80 @@ The same review also confirmed:
 
 - Revert the Makefile target/wiring, this Task 9 section/status row, task status
   wording, and matching `NOTES.md` handoff if Task 9 must be removed.
+
+## Task 10: Epic Closeout And Static Gates
+
+### Task Identity And Scope
+
+- Task: `05-tasks/10-epic-closeout-and-static-gates.md`.
+- Date: 2026-07-03.
+- Scope: close Epic 5 with durable docs, final gates, Sentrux evidence, debt
+  accounting, and a precise Epic 6 handoff.
+- Runtime/test changes: none.
+- Syntax/language changes: none.
+- Canonical docs: updated stale heap-accounting wording in `docs/RUNTIME_V2.md`
+  and `docs/RUNTIME.ru.md`; syntax/keyword warning text was preserved.
+
+### Result
+
+Epic 5 is complete for its stated heap-accounting scope:
+
+- `rt_alloc`, `rt_free`, and `rt_realloc` record accounting events through
+  runtime/shard-owned cells rather than old file-scope global counters;
+- `rt_heap_stats()` aggregates cells on read and preserves snapshot-before-result
+  allocation behavior;
+- public allocation ABI and `HeapStats` layout are unchanged;
+- stable heap behavior and static predicates run through `runtime-v2-heap-check`;
+- `runtime-v2-check` calls the heap gate, so the existing Runtime V2 CI job
+  inherits it;
+- Task 8 stress and benchmark evidence remains manual and is not a CI threshold.
+
+### Files Touched
+
+| Path | Change | Reason |
+| --- | --- | --- |
+| `docs/RUNTIME_V2.md` | updated | Remove stale global heap-counter wording and mark Phase 2.5 complete. |
+| `docs/RUNTIME.ru.md` | updated | Align native heap debug paragraph with cell-based accounting. |
+| `docs/runtime-v2-epics/05-per-shard-heap-accounting.md` | updated | Mark Epic 5 complete and add final acceptance matrix. |
+| `docs/runtime-v2-epics/05-evidence.md` | updated | Record Task 10 closeout evidence. |
+| `docs/runtime-v2-epics/README.md` | updated | Mark Epic 5 complete in roadmap and artifact list. |
+| `docs/runtime-v2-epics/NOTES.md` | updated | Add Epic 5 closeout and Epic 6 handoff. |
+| `docs/runtime-v2-epics/05-tasks/*.md` | updated | Mark all Epic 5 tasks complete. |
+| `docs/runtime-v2-epics/05-tasks/README.md` | updated | Update Epic 5 task index statuses. |
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence note |
+| --- | --- | --- | --- | --- |
+| `make c-check` | pass | C formatting OK; strict warning compile OK; all C runtime checks passed | `0` | native C gate. |
+| `make cppcheck` | pass | checked 35/35 C files; `cppcheck OK` | `0` | native static-analysis gate. |
+| `make runtime-v2-heap-check` | pass | native heap smoke `ok surge/internal/vm 4.666s`; heap contracts `ok surge/internal/vm 4.267s`; static heap gate `ok surge/internal/vm 0.042s` | `0` | stable heap gate. |
+| `make runtime-v2-check` | pass | MT liveness `ok surge/internal/vm 8.938s`; nested heap gate passed; waiter gate `ok surge/internal/vm 0.036s` and `21.253s`; fd-registry gate `ok surge/internal/vm 16.599s` | `0` | CI-inherited Runtime V2 gate. |
+| `make check` | pass | Go suite passed with `internal/vm` `6.129s`; golangci-lint reported `0 issues`; C gate passed; file-size gate had no applicable files | `0` | broad local gate. |
+| `git diff --check` | no whitespace errors | no output | `0` | whitespace gate. |
+| Sentrux root scan/rules | pass | root quality `6190`; rules pass with 0 violations; `rules_checked=8` of 12 defined | pass | whole-repo architectural scan. |
+| Sentrux `runtime/` scan/rules | pass | runtime quality `5279`; rules pass with 0 violations; `rules_checked=7` of 8 defined | pass | scoped runtime scan. |
+| Sentrux `runtime/native` scan/rules | pass | runtime/native quality `5318`; rules pass with 0 violations; `rules_checked=7` of 7 defined | pass | scoped native scan. |
+
+### Debt
+
+- No `DEBT.md` edit was required in Task 10.
+- `RV2-DEBT-011` remains open for overlapping VM LLVM build/test artifact
+  collisions. Closeout gates were run sequentially.
+- `RV2-DEBT-012` remains open for the heavier generated Surge-level heap
+  benchmark crash. It blocks promoting the manual benchmark beyond
+  current-checkout evidence, but it does not block Epic 5 closeout.
+
+### Residual Risks
+
+- `runtime-v2-heap-check` is a stable behavior/static gate, not a performance
+  regression threshold.
+- Heap allocation still uses the current `malloc`/`free` strategy. Shard-local
+  hot pools, owner-shard metadata, and remote-free routing remain later epics.
+- Epic 6 starts from `N>1` accept ownership only; crossing syntax and keyword
+  selection stay behind the Epic 7 syntax gate.
+
+### Rollback/Recovery Notes
+
+- Revert the Task 10 docs/status updates and the narrow runtime-doc wording
+  changes if the Epic 5 closeout must be removed.

@@ -93,9 +93,10 @@ Code evidence:
   matching waiters.
 - `runtime/native/rt_async_channel.c` makes direct channel send and receive
   take the global executor lock and use the shared waiter list.
-- `runtime/native/rt_alloc.c` records every alloc/free with global relaxed
-  atomic counters: `heap_alloc_count`, `heap_free_count`, `heap_live_blocks`,
-  and `heap_live_bytes`.
+- `runtime/native/rt_alloc.c` records alloc/free/realloc events through
+  runtime or shard-owned heap-accounting cells. `rt_heap_stats()` aggregates
+  those cells on read; the old global heap counters are no longer the source of
+  truth.
 
 Benchmark evidence:
 
@@ -116,8 +117,9 @@ Benchmark evidence:
 The strongest current theory is therefore:
 
 ```text
-Global scheduler state, global waiter scans, cross-worker wake placement, and
-global allocation counters prevent the runtime from scaling linearly.
+Global scheduler state, global waiter scans, and cross-worker wake placement
+remain the main scaling risks. Before Epic 5, global allocation counters were
+also on the hot allocation path; heap accounting now uses owner-scoped cells.
 ```
 
 ## Target Architecture
@@ -442,11 +444,14 @@ Tier 1 shard-local state.
 Shared-nothing requires more than removing locks. It also requires removing
 shared cache lines from the hot path.
 
-Current `rt_alloc` updates global atomic counters on every allocation and free.
-Runtime V2 changes this:
+Epic 5 completed the first allocator step: heap accounting no longer writes one
+process-global counter set on every allocation and free. Current `rt_alloc`,
+`rt_free`, and `rt_realloc` record events into runtime or shard-owned
+accounting cells, including an explicit cold path, and `rt_heap_stats()`
+aggregates those cells on read.
 
-- each shard keeps local heap counters;
-- `rt_heap_stats()` aggregates counters on read;
+Runtime V2 still needs later allocator ownership work:
+
 - hot runtime objects come from shard-local slab or bump allocators;
 - connection buffers, task states, waiter nodes, and parser scratch memory are
   allocated and freed on the owning shard;
@@ -456,9 +461,8 @@ Runtime V2 changes this:
 - the owner drains remote frees at scheduler safepoints or before allocation;
 - request-path code must not touch shared refcounts or global heap counters.
 
-The first allocator step is not a slab allocator. The first step is removing the
-four global allocation counter cache lines before `N>1` benchmarking. Slab or
-bump pools come later, after the scheduler result is measurable.
+The first allocator step was not a slab allocator. Slab or bump pools come
+later, after the scheduler result is measurable.
 
 ### 12. Io Boundary
 
@@ -585,7 +589,7 @@ cancellation traffic.
 | Cross-worker wake churn | Non-worker wakes enter global inject; worker wakes can signal other workers. | Net readiness resumes the task on the owning shard. |
 | I/O thread as partial worker | The current patch drains ready inject tasks after net readiness. | A shard runs its own net-ready continuations or drains a net-woken queue only. |
 | Expensive channel handoff | Channel send/recv uses global lock plus shared waiters. | Same-shard channel handoff is local; cross-shard handoff is explicit messaging. |
-| Global allocation counters | `rt_alloc` touches shared atomics on every alloc/free. | Per-shard heap stats and shard-local hot object pools. |
+| Heap allocation ownership | Heap accounting uses runtime/shard-owned cells, but allocation still uses the current `malloc`/`free` strategy. | Shard-local hot object pools and owner-routed frees. |
 | Cross-shard value lifetime | A value can be used and dropped away from its allocation owner. | Only `own` shard-movable values cross shards; the allocator routes non-owner frees to the owning shard. |
 | Shard-pinned resource move | `own File` could move to another shard while its fd remains registered on the old shard. | Types that transitively own shard-registered resources are shard-pinned; ordinary sends are rejected and explicit migration re-registers the resource. |
 | Invisible cross-shard cost | A remote operation could be spelled like a local one. | Crossing is a distinct typed construct (`far` + `submit_to`); cost is legible before compile. |
@@ -663,14 +667,15 @@ structure pass.
 - Keep one shard.
 - Prove counter changes against the existing tiny TCP probe.
 
-### Phase 2.5: Per-Shard Heap Counters
+### Phase 2.5: Heap Accounting Cells
 
-- Move `heap_alloc_count`, `heap_free_count`, `heap_live_blocks`, and
-  `heap_live_bytes` into shard-local counters.
-- Keep the underlying `malloc` and `free` implementation.
-- Aggregate heap stats only when requested.
-- Finish this before or with `N>1` so Phase 3 measures scheduler sharding, not
-  allocator counter contention.
+- Completed by Epic 5: allocation/free/realloc accounting writes through
+  runtime or shard-owned cells, including cold accounting.
+- The underlying `malloc`, `free`, `realloc`, and aligned-allocation behavior
+  stayed unchanged.
+- Heap stats aggregate only when requested.
+- Phase 3 can measure scheduler sharding without the old global heap-counter
+  source of truth on the allocation path.
 
 ### Phase 3: N>1 Accept Ownership
 

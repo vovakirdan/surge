@@ -1,6 +1,6 @@
 # Task 4: Heap Accounting Static Shape Tests
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** test/static checks
 
 ## Goal

@@ -1,6 +1,6 @@
 # Task 3: Heap Stats Contract Tests
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** test writing
 
 ## Goal

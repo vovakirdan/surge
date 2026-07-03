@@ -291,9 +291,11 @@ waiters или когда меняется shutdown state. `TRACE_NET` counters 
 
 ### 3.6 Heap и debug intrinsics
 
-Native allocations проходят через `rt_alloc`, `rt_free` и `rt_realloc`. Runtime
-считает allocation count, free count, live blocks и live bytes. Intrinsic
-`rt_heap_stats()` отдает эти counters.
+Native allocations проходят через `rt_alloc`, `rt_free` и `rt_realloc`.
+Runtime записывает allocation/free/realloc events в heap-accounting cells,
+которые принадлежат runtime или shard state. Intrinsic `rt_heap_stats()`
+агрегирует эти cells и отдает allocation count, free count, live blocks и live
+bytes.
 
 У VM собственная heap model и похожее debug-facing поведение, где это возможно,
 но native counters описывают только native allocation traffic.

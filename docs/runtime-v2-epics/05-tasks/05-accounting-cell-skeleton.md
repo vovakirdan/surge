@@ -1,6 +1,6 @@
 # Task 5: Accounting Cell Skeleton
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 
 ## Goal

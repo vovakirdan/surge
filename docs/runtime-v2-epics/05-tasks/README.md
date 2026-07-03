@@ -8,16 +8,16 @@ the epic document is updated first.
 
 | Task | File | Status | Kind |
 | --- | --- | --- | --- |
-| 1 | `01-kickoff-baseline-and-sentrux.md` | Draft | evidence |
-| 2 | `02-heap-accounting-dependency-map.md` | Draft | design map |
-| 3 | `03-heap-stats-contract-tests.md` | Draft | test writing |
-| 4 | `04-heap-accounting-static-shape-tests.md` | Draft | test/static checks |
-| 5 | `05-accounting-cell-skeleton.md` | Draft | runtime code |
-| 6 | `06-alloc-free-realloc-accounting-migration.md` | Draft | runtime code |
-| 7 | `07-heap-stats-aggregation.md` | Draft | runtime code |
-| 8 | `08-concurrency-and-performance-evidence.md` | Draft | evidence/benchmark |
-| 9 | `09-runtime-v2-heap-ci-gates.md` | Draft | CI |
-| 10 | `10-epic-closeout-and-static-gates.md` | Draft | closeout |
+| 1 | `01-kickoff-baseline-and-sentrux.md` | Complete | evidence |
+| 2 | `02-heap-accounting-dependency-map.md` | Complete | design map |
+| 3 | `03-heap-stats-contract-tests.md` | Complete | test writing |
+| 4 | `04-heap-accounting-static-shape-tests.md` | Complete | test/static checks |
+| 5 | `05-accounting-cell-skeleton.md` | Complete | runtime code |
+| 6 | `06-alloc-free-realloc-accounting-migration.md` | Complete | runtime code |
+| 7 | `07-heap-stats-aggregation.md` | Complete | runtime code |
+| 8 | `08-concurrency-and-performance-evidence.md` | Complete | evidence/benchmark |
+| 9 | `09-runtime-v2-heap-ci-gates.md` | Complete | CI |
+| 10 | `10-epic-closeout-and-static-gates.md` | Complete | closeout |
 
 ## Rules
 

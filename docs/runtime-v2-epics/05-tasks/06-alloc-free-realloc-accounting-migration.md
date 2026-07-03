@@ -1,6 +1,6 @@
 # Task 6: Alloc/Free/Realloc Accounting Migration
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 
 ## Goal

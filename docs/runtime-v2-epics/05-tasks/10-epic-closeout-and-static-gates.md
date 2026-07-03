@@ -1,6 +1,6 @@
 # Task 10: Epic Closeout And Static Gates
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** closeout
 
 ## Goal
