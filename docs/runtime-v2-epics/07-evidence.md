@@ -427,3 +427,31 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
 - Sentrux: `runtime/native` 5419, rules pass.
 - Regressions: none. Follow-up: Task 10 moves channel keys to the channel
   owner store.
+
+## Task 9: Sleep/Timer Store And Virtual Clock
+
+- Task: Epic 7 Task 9. Proving spike: no. Date: 2026-07-04. Main session.
+- Scope per `09-sleep-timer-store-and-virtual-clock.md`: `rt_async_sleep.c`
+  (127 effective LOC) with per-shard `(deadline, task_id)`-sorted stores,
+  atomic `min_deadline` mirrors, atomic `now_ms` (relaxed `fetch_add`
+  ticks + monotonic CAS advance); `poll_sleep_task` arms into the owner
+  store; `mark_done` cleans cancelled sleepers; `tick_virtual` fires own
+  due sleepers inline and hands foreign shards wake tokens; worker loop
+  pops own due sleepers at scan top; `next_sleep_deadline` = min over
+  mirrors; `advance_time_to_next_timer` = CAS + all-shard fire sweep. The
+  whole-table scans are gone.
+- Defect caught during the task: zeroed `min_deadline` mirrors read as a
+  phantom deadline at 0 and would spin the idle paths;
+  `rt_sleep_store_init` in `rt_shard_init` fixes empty stores to
+  `UINT64_MAX` (recorded in code).
+- Rule 5 note: the sleep store coexists with timer-key waiter entries by
+  design — park registration vs ordered deadline index; the reason is in
+  the file header and task doc.
+- Checks: c-check/cppcheck pass; full lock-split suite: 9 behavior modes
+  green, `ClockAndSleepStoreShape` + `NoWholeTableSleepScan` flipped green,
+  the four Task-10/11 gates red by design; `runtime-v2-check` pass twice
+  (includes `TestMTBlockingChannelHelpersAllowTimersToAdvance` and seeded
+  scheduler); `make check` pre-commit; `git diff --check` clean.
+- LOC: `rt_async_sleep.c` 127; state.c 1565/1722; internal.h 460;
+  poll.c 308.
+- Regressions: none.

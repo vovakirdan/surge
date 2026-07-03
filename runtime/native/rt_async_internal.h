@@ -107,6 +107,20 @@ typedef struct {
 } rt_net_poll_wake;
 
 typedef struct {
+    uint64_t deadline;
+    uint64_t task_id;
+} rt_sleep_entry;
+
+typedef struct {
+    // Sorted by (deadline, task_id); mutated under the owning lane. The
+    // atomic mirror lets tick paths peek other shards without their locks.
+    rt_sleep_entry* entries;
+    size_t len;
+    size_t cap;
+    _Atomic uint64_t min_deadline;
+} rt_sleep_store;
+
+typedef struct {
     uint32_t channel_blocked_workers;
     uint32_t compensation_count;
     uint32_t compensation_high_water;
@@ -128,6 +142,7 @@ struct rt_shard {
     rt_fd_registry fd_registry;
     rt_channel_blocking_compat channel_blocking_compat;
     rt_waiter_store waiter_store;
+    rt_sleep_store sleep_store;
     uint32_t shard_id;
     uint8_t net_polling;
 };
@@ -195,7 +210,9 @@ typedef struct {
 struct rt_executor {
     uint64_t next_id;
     uint64_t next_scope_id;
-    uint64_t now_ms;
+    // Virtual clock (D7): relaxed atomic counter; ticks are fetch_add, idle
+    // jumps go through rt_clock_advance_to (monotonic CAS).
+    _Atomic uint64_t now_ms;
     rt_runtime* runtime;
     rt_task** tasks;
     size_t tasks_cap;
@@ -450,6 +467,16 @@ rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task);
 void rt_sched_wake_signal_shard_n(rt_shard* shard, uint32_t tokens);
 void rt_sched_wake_broadcast_all(rt_executor* ex);
 void rt_sched_worker_sleep(rt_executor* ex, rt_shard* shard);
+void rt_sleep_store_init(rt_sleep_store* store);
+rt_runtime_status rt_sleep_store_add(rt_sleep_store* store, uint64_t deadline, uint64_t task_id);
+int rt_sleep_store_remove(rt_sleep_store* store, uint64_t task_id);
+int rt_sleep_store_pop_due(rt_sleep_store* store, uint64_t now, uint64_t* out_task_id);
+uint64_t rt_sleep_store_min(const rt_sleep_store* store);
+void rt_sleep_store_destroy(rt_sleep_store* store);
+uint64_t rt_clock_now(const rt_executor* ex);
+uint64_t rt_clock_tick(rt_executor* ex);
+int rt_clock_advance_to(rt_executor* ex, uint64_t target);
+size_t rt_sleep_fire_due_on_shard(rt_executor* ex, rt_shard* shard, uint64_t now);
 int rt_task_can_steal_from_shard(const rt_task* task, uint32_t shard_id);
 int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t shard_id);
 void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id);

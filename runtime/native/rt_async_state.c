@@ -1001,39 +1001,41 @@ void park_current(rt_executor* ex, waker_key key) {
     pthread_cond_signal(&ex->io_cv);
 }
 
+// Yield tick (D7): advance the clock, fire the ticking shard's own due
+// sleepers inline, and hand other shards a wake token when their atomic
+// min-deadline mirror says they have due work — the owner pops its own
+// store on its next scheduler turn.
 void tick_virtual(rt_executor* ex) {
     if (ex == NULL) {
         return;
     }
-    ex->now_ms++;
-    if (ex->tasks_cap == 0) {
-        return;
-    }
-    for (size_t i = 1; i < ex->tasks_cap; i++) {
-        const rt_task* task = ex->tasks[i];
-        if (task == NULL || task->kind != TASK_KIND_SLEEP ||
-            task_status_load(task) != TASK_WAITING || !task->sleep_armed) {
+    uint64_t now = rt_clock_tick(ex);
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    rt_shard* own = tls_worker_ctx != NULL && tls_worker_ctx->ex == ex ? tls_worker_ctx->shard
+                                                                       : rt_runtime_shard0(runtime);
+    size_t shard_count = rt_runtime_shard_count(runtime);
+    for (size_t i = 0; i < shard_count; i++) {
+        rt_shard* shard = rt_runtime_shard(runtime, i);
+        if (shard == NULL || rt_sleep_store_min(&shard->sleep_store) > now) {
             continue;
         }
-        if (task->sleep_deadline <= ex->now_ms) {
-            wake_task(ex, task->id, 1);
+        if (shard == own) {
+            (void)rt_sleep_fire_due_on_shard(ex, shard, now);
+        } else {
+            rt_sched_wake_signal_shard_n(shard, 1);
         }
     }
 }
 
 static int next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline) {
-    if (ex == NULL) {
-        return 0;
-    }
+    const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
+    size_t shard_count = rt_runtime_shard_count(runtime);
     uint64_t next_deadline = UINT64_MAX;
-    for (size_t i = 1; i < ex->tasks_cap; i++) {
-        const rt_task* task = ex->tasks[i];
-        if (task == NULL || task->kind != TASK_KIND_SLEEP ||
-            task_status_load(task) != TASK_WAITING || !task->sleep_armed) {
-            continue;
-        }
-        if (task->sleep_deadline < next_deadline) {
-            next_deadline = task->sleep_deadline;
+    for (size_t i = 0; i < shard_count; i++) {
+        const rt_shard* shard = rt_runtime_shard_const(runtime, i);
+        uint64_t min = shard != NULL ? rt_sleep_store_min(&shard->sleep_store) : UINT64_MAX;
+        if (min < next_deadline) {
+            next_deadline = min;
         }
     }
     if (next_deadline == UINT64_MAX) {
@@ -1053,16 +1055,12 @@ int advance_time_to_next_timer(rt_executor* ex) {
     if (!next_sleep_deadline(ex, &next_deadline)) {
         return 0;
     }
-    ex->now_ms = next_deadline;
-    for (size_t i = 1; i < ex->tasks_cap; i++) {
-        const rt_task* task = ex->tasks[i];
-        if (task == NULL || task->kind != TASK_KIND_SLEEP ||
-            task_status_load(task) != TASK_WAITING || !task->sleep_armed) {
-            continue;
-        }
-        if (task->sleep_deadline <= ex->now_ms) {
-            wake_task(ex, task->id, 1);
-        }
+    (void)rt_clock_advance_to(ex, next_deadline);
+    uint64_t now = rt_clock_now(ex);
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    size_t shard_count = rt_runtime_shard_count(runtime);
+    for (size_t i = 0; i < shard_count; i++) {
+        (void)rt_sleep_fire_due_on_shard(ex, rt_runtime_shard(runtime, i), now);
     }
     return 1;
 }
@@ -1283,6 +1281,12 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     }
     task->park_key = waker_none();
     task->park_prepared = 0;
+    if (task->kind == TASK_KIND_SLEEP && task->sleep_armed) {
+        // Cancelled sleepers leave the deadline index here; fired sleepers
+        // were already popped, so the remove is a no-op for them.
+        (void)rt_sleep_store_remove(&rt_task_owner_shard(ex, task)->sleep_store, task->id);
+        task->sleep_armed = 0;
+    }
     task_status_store(task, TASK_DONE);
     task_enqueued_store(task, 0);
     task->result_kind = result_kind;
@@ -1498,6 +1502,12 @@ static void* rt_worker_main(void* arg) {
         rt_lock(ex);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ctx, &id)) {
+            // Fire own due sleepers first: another shard's tick may have
+            // handed this shard a wake token instead of popping its store.
+            if (rt_sleep_store_min(&ctx->shard->sleep_store) <= rt_clock_now(ex) &&
+                rt_sleep_fire_due_on_shard(ex, ctx->shard, rt_clock_now(ex)) > 0) {
+                continue;
+            }
             if (rt_net_begin_poll_on_shard(ex, ctx->shard_id)) {
                 int woke_net =
                     rt_net_poll_waiters_owned_on_shard(ex, ctx->shard_id, worker_net_poll_slice_ms);

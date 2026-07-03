@@ -2919,3 +2919,17 @@ pass, before any task execution began:
   LOC all under targets (waiter.c 491/500). Channel keys stay shard-0 until
   Task 10 (comment + resolver default arm).
 - Next: Task 9 sleep/timer store + atomic clock.
+
+## Epic 7 Task 9 Handoff
+
+- Sleep scans are dead: per-shard sorted sleep stores + atomic mirrors +
+  atomic clock landed (`rt_async_sleep.c`); tick fires own shard inline and
+  tokens foreign shards; worker loop pops own due sleepers; advance is a
+  monotonic CAS + global fire sweep. Gates `ClockAndSleepStoreShape` and
+  `NoWholeTableSleepScan` green; behavior suite and `runtime-v2-check` x2
+  green.
+- Trap recorded: empty-store mirrors MUST be UINT64_MAX (zeroed memory
+  reads as deadline 0 and spins idle paths) — `rt_sleep_store_init` in
+  `rt_shard_init`.
+- Next: Task 10 channel owner shard (channel keys to owner store,
+  same-shard fast path), then Task 11 the peel.

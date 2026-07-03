@@ -54,6 +54,7 @@ static void rt_shard_destroy(rt_shard* shard) {
     rt_net_poll_scratch_destroy(rt_shard_net_poll_scratch(shard));
     rt_net_poll_wake_close(&shard->net_poll_wake);
     rt_fd_registry_free(rt_shard_fd_registry(shard));
+    rt_sleep_store_destroy(&shard->sleep_store);
     rt_heap_accounting_destroy(&shard->heap_accounting);
     rt_shard_sync_destroy(shard);
     memset(shard, 0, sizeof(*shard));
@@ -97,6 +98,7 @@ rt_shard_init(rt_runtime* runtime, rt_executor* ex, rt_shard* shard, size_t shar
     shard->shard_id = (uint32_t)shard_index;
     shard->net_poll_wake.read_fd = -1;
     shard->net_poll_wake.write_fd = -1;
+    rt_sleep_store_init(&shard->sleep_store);
     rt_runtime_status status = rt_shard_sync_init(shard);
     if (status != RT_RUNTIME_STATUS_OK) {
         return status;

@@ -21,7 +21,7 @@ static poll_outcome poll_checkpoint_task(const rt_executor* ex, rt_task* task) {
     return out;
 }
 
-static poll_outcome poll_sleep_task(const rt_executor* ex, rt_task* task) {
+static poll_outcome poll_sleep_task(rt_executor* ex, rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
@@ -32,13 +32,20 @@ static poll_outcome poll_sleep_task(const rt_executor* ex, rt_task* task) {
         return out;
     }
     if (!task->sleep_armed) {
-        task->sleep_deadline = ex->now_ms + task->sleep_delay;
+        task->sleep_deadline = rt_clock_now(ex) + task->sleep_delay;
         task->sleep_armed = 1;
+        // Arm once: the owner shard's sleep store is the deadline index the
+        // tick/advance paths pop; the timer-key waiter entry is the park.
+        if (rt_sleep_store_add(&rt_task_owner_shard(ex, task)->sleep_store,
+                               task->sleep_deadline,
+                               task->id) != RT_RUNTIME_STATUS_OK) {
+            panic_msg("async: sleep store allocation failed");
+        }
         out.kind = POLL_PARKED;
         out.park_key = timer_key(task->id);
         return out;
     }
-    if (ex->now_ms < task->sleep_deadline) {
+    if (rt_clock_now(ex) < task->sleep_deadline) {
         out.kind = POLL_PARKED;
         out.park_key = timer_key(task->id);
         return out;

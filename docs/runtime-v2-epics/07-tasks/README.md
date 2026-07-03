@@ -24,7 +24,7 @@ documents quote the parts they need and point back to it for the rest.
 | 6 | `06-shard-lock-structure-landing.md` | Complete | runtime code | 3, 5 |
 | 7 | `07-scheduler-ready-and-park-wake-migration.md` | Complete | runtime code | 4, 6 |
 | 8 | `08-waiter-store-key-ownership-migration.md` | Complete | runtime code | 7 |
-| 9 | `09-sleep-timer-store-and-virtual-clock.md` | Pending | runtime code | 7, 8 |
+| 9 | `09-sleep-timer-store-and-virtual-clock.md` | Complete | runtime code | 7, 8 |
 | 10 | `10-channel-owner-shard-migration.md` | Pending | runtime code | 8 |
 | 11 | `11-blocking-await-shutdown-lanes.md` | Pending | runtime code | 8, 9, 10 |
 | 12 | `12-lock-split-trace-counters-and-benchmarks.md` | Pending | trace/benchmark | 11 |
