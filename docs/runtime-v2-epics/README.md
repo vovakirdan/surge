@@ -33,7 +33,11 @@ native TCP accept ownership under the preserved global executor lock and the
 Tier 1 no-steal scheduler boundary. It added the stable
 `runtime-v2-accept-check` gate, final benchmark evidence, and an explicit Epic
 7 lock-splitting handoff. Remaining copied/raw net-handle owner guards and
-legacy large-file cleanup stay recorded in `DEBT.md`.
+legacy large-file cleanup stay recorded in `DEBT.md`. Epic 7 is in progress in
+`07-executor-lock-split-and-shard-runtime-state.md`: it splits the preserved
+global executor lock into per-shard locks plus a reduced global control lane
+and moves scheduler queues, waiter stores, sleep timers, and channel ownership
+to shard-owned state.
 
 ## Current Runtime V2 Artifacts
 
@@ -64,6 +68,10 @@ legacy large-file cleanup stay recorded in `DEBT.md`.
 - `06-evidence.md`: Epic 6 task evidence, benchmark rows, final gates, and
   closeout accounting.
 - `06-tasks/`: Epic 6's 15 expanded task documents and task index.
+- `07-executor-lock-split-and-shard-runtime-state.md`: Epic 7 scope, boundary
+  decisions, lock ownership contract, and task list (in progress).
+- `07-evidence.md`: Epic 7 task evidence ledger (created by Epic 7 Task 1).
+- `07-tasks/`: Epic 7 task index and expanded task documents.
 
 Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside
@@ -93,7 +101,7 @@ Every epic should move the runtime toward these goals:
 | 4 | `04-persistent-fd-registry-and-net-lifecycle.md` | Complete. Replaced poll-set rebuilds with a shard-local persistent fd registry and proved net lifecycle ownership with accepted debt. |
 | 5 | `05-per-shard-heap-accounting.md` | Complete. Moved heap accounting from global hot counters to runtime/shard-owned cells, preserved public allocation behavior, and added stable heap-accounting gates to Runtime V2 CI coverage. |
 | 6 | `06-n2-accept-ownership-and-tier1-scheduler.md` | Complete. Enabled structural multi-shard native TCP accept ownership under the preserved global lock, added per-shard net poller/wake ownership, removed non-owner stealing for Tier 1 connection tasks, and promoted the stable accept gate. |
-| 7 | TBD | Split the preserved global executor lock and move remaining global compatibility primitives toward shard-owned runtime state under `N>1`, starting from Epic 6's owner-local net path. |
+| 7 | `07-executor-lock-split-and-shard-runtime-state.md` | In progress. Splits the preserved global executor lock into per-shard locks plus a reduced control lane: shard-owned scheduler queues, per-key waiter-store ownership, an explicit sleep store, channel owner shards, and re-laned blocking/await/shutdown paths under `N>1`. |
 | 8 | TBD | Add the explicit crossing language surface and Phase 4 runtime transport. Must start with a dedicated syntax review; current names such as `far`, `submit_to`, and `shard-movable` are placeholders. |
 | 9 | TBD | Add remote-free routing and shard-local hot pools. |
 | 10 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |

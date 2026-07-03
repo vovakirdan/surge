@@ -2729,3 +2729,38 @@ pass, before any task execution began:
   attempt hit the known `RV2-DEBT-002` timeout class in
   `TestMTBlockingChannelHelpersAllowTimersToAdvance`; the immediate rerun
   passed the full Runtime V2 chain including the accept gate.
+
+## Epic 7 Kickoff Context
+
+- Epic 7 opened as
+  `07-executor-lock-split-and-shard-runtime-state.md` with task index
+  `07-tasks/README.md`. Scope: split `rt_executor.lock` into per-shard locks
+  plus a reduced global control lane; move scheduler queues, waiter-store key
+  ownership, sleep timers, and channel ownership to shard-owned state; re-lane
+  blocking completion, main-thread await, and shutdown.
+- Current single-lock evidence anchors: invariant comment
+  `rt_async_internal.h:259-271`; worker loop takes the global lock every
+  scheduler turn and sleeps on the one global `ready_cv`
+  (`rt_async_state.c:1656`, `1675`); multi-shard wakes broadcast to all
+  workers (`rt_async_state.c:737-743`); non-net waiters all land in shard 0's
+  store (`rt_async_waiter.c:438-459`, `rt_runtime.c:245-251`); sleep timers
+  scan the whole task table per yield (`rt_async_state.c:1162-1226`); channel
+  ops take the global lock (`rt_async_channel.c:130-203`, `213-287`).
+- Key boundary decisions already fixed in the epic doc: two-lane model only
+  (shard lock + control lane); lock order control -> at most one shard lock,
+  never shard -> control, never two shard locks; collect-then-wake for
+  cross-shard wakes with `wake_token` absorbing spurious wakes; task ids never
+  reused; every task gets an owner shard at creation; one global virtual
+  clock preserved, whole-table sleep scans replaced by an explicit sleep
+  store; channels get an owner shard (creating task's shard, shard 0
+  outside tasks); no Phase 4 messaging, eventfd, credits, or `PARKED`
+  protocol in this epic.
+- Accept-time owner re-placement (`rt_async_waiter.c:345-358`) is the one
+  place a task's owner shard changes after creation; the Task 3 spike must
+  define that transition protocol under split locks.
+- Intended proof shape: Task 4 behavior tests + Task 5 static gates first,
+  then strictly sequenced lane migrations (Tasks 6-11), then counters +
+  benchmarks vs the Epic 6 closeout rows, then the `runtime-v2-lock-check`
+  gate. Performance contract: the 8-shard/1024-conn row must improve on the
+  Epic 6 closeout baseline or the closeout must name the next serialization
+  point with evidence.
