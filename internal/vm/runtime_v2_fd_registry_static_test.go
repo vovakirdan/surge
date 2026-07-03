@@ -311,7 +311,15 @@ void rt_unlock(rt_executor* ex) {
     (void)ex;
 }
 
-void rt_net_wake_poll(void) {
+uint64_t rt_net_wake_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id) {
+    (void)ex;
+    (void)owner_shard_id;
+    return 1;
+}
+
+uint64_t rt_net_wake_poll_all_shards(rt_executor* ex) {
+    (void)ex;
+    return 0;
 }
 
 #include "rt_fd_registry.c"
@@ -431,10 +439,14 @@ func TestRuntimeV2FDRegistryStaticBoundary(t *testing.T) {
 rt_net_poll_scratch* (*runtime_v2_check_shard_net_poll_scratch)(rt_shard*) = rt_shard_net_poll_scratch;
 rt_net_poll_scratch* (*runtime_v2_check_executor_net_poll_scratch)(rt_executor*) = rt_executor_net_poll_scratch;
 
-// io-loop entry and wake-fd surface whose signatures must stay stable while
-// Tasks 6-11 reroute their internals through the registry.
-int (*runtime_v2_check_poll_net_waiters)(rt_executor*, int) = poll_net_waiters;
-void (*runtime_v2_check_net_wake_poll)(void) = rt_net_wake_poll;
+// Shard-owned poller and wake-fd surfaces. Task 10 makes the owner shard an
+// explicit argument so production net paths do not target a process-global pipe.
+int (*runtime_v2_check_poll_net_waiters_on_shard)(rt_executor*, uint32_t, int) =
+    poll_net_waiters_on_shard;
+uint64_t (*runtime_v2_check_net_wake_poll_on_shard)(rt_executor*, uint32_t) =
+    rt_net_wake_poll_on_shard;
+uint64_t (*runtime_v2_check_net_wake_poll_all_shards)(rt_executor*) =
+    rt_net_wake_poll_all_shards;
 
 // Net waker keys remain the wake currency between the registry and the
 // waiter store.
@@ -444,6 +456,7 @@ waker_key (*runtime_v2_check_net_write_key)(int) = net_write_key;
 int (*runtime_v2_check_waker_is_net)(waker_key) = waker_is_net;
 
 _Static_assert(sizeof(((rt_shard*)0)->net_poll_scratch) == sizeof(rt_net_poll_scratch), "rt_shard.net_poll_scratch must own poll scratch by value");
+_Static_assert(sizeof(((rt_shard*)0)->net_poll_wake) == sizeof(rt_net_poll_wake), "rt_shard.net_poll_wake must own wake pipe state by value");
 _Static_assert(sizeof(((rt_net_poll_scratch*)0)->fds_cap) == sizeof(size_t), "rt_net_poll_scratch.fds_cap must stay size_t");
 _Static_assert(sizeof(((rt_net_poll_scratch*)0)->pfds_cap) == sizeof(size_t), "rt_net_poll_scratch.pfds_cap must stay size_t");
 _Static_assert(RT_RUNTIME_STATIC_SHARD_LIMIT >= 1, "runtime shard storage limit must be positive");

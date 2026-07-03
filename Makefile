@@ -117,7 +117,7 @@ runtime-v2-fd-registry-check:
 
 runtime-v2-accept-check:
 	@echo ">> Running Runtime V2 accept metadata gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(NetMetadata(StaticShape|MultiShardListenClose)|Accept(NetOwnershipNoShard0Shortcut|DynamicShardArrayShape))$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(NetMetadata(StaticShape|MultiShardListenClose)|Accept(NetOwnershipNoShard0Shortcut|DynamicShardArrayShape)|NetPoller(PerShardWakeShape|PerShardWakeBehavior|ShardLocalPollInput|GlobalIOThreadDoesNotOwnMultiShardNetPolling|ShutdownWakesEveryShard))$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 
 # ===== Format =====
 format: fmt

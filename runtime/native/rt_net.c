@@ -52,9 +52,6 @@ typedef struct SurgeArrayHeader {
     void* data;
 } SurgeArrayHeader;
 
-static int net_poll_wake_read_fd = -1;
-static int net_poll_wake_write_fd = -1;
-
 static size_t net_next_cap(size_t current, size_t want) {
     size_t next = current == 0 ? 8 : current;
     while (next < want) {
@@ -64,65 +61,6 @@ static size_t net_next_cap(size_t current, size_t want) {
         next *= 2U;
     }
     return next;
-}
-
-static int net_set_nonblocking_cloexec(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        return 0;
-    }
-    flags = fcntl(fd, F_GETFD, 0);
-    if (flags < 0 || fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) {
-        return 0;
-    }
-    return 1;
-}
-
-static int net_poll_wake_init(void) {
-    if (net_poll_wake_read_fd >= 0 && net_poll_wake_write_fd >= 0) {
-        return 1;
-    }
-    int fds[2] = {-1, -1};
-    if (pipe(fds) != 0) {
-        return 0;
-    }
-    if (!net_set_nonblocking_cloexec(fds[0]) || !net_set_nonblocking_cloexec(fds[1])) {
-        close(fds[0]);
-        close(fds[1]);
-        return 0;
-    }
-    net_poll_wake_read_fd = fds[0];
-    net_poll_wake_write_fd = fds[1];
-    return 1;
-}
-
-void rt_net_wake_poll(void) {
-    if (net_poll_wake_write_fd < 0) {
-        return;
-    }
-    uint8_t byte = 1;
-    ssize_t n = -1;
-    do {
-        n = write(net_poll_wake_write_fd, &byte, 1);
-    } while (n < 0 && errno == EINTR);
-    (void)n;
-}
-
-static void net_poll_wake_drain(void) {
-    if (net_poll_wake_read_fd < 0) {
-        return;
-    }
-    uint8_t buf[64];
-    for (;;) {
-        ssize_t n = read(net_poll_wake_read_fd, buf, sizeof(buf));
-        if (n > 0) {
-            continue;
-        }
-        if (n < 0 && errno == EINTR) {
-            continue;
-        }
-        break;
-    }
 }
 
 static int
@@ -820,36 +758,31 @@ bool rt_net_wait_writable(const void* conn) {
     return net_wait_current_task(fd, RT_NET_WAIT_WRITE);
 }
 
-int poll_net_waiters(rt_executor* ex, int timeout_ms) {
+int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms) {
     // Caller must hold ex->lock; this function releases it while polling.
     // The registry snapshot copied under ex->lock is the only guarded poll input.
-    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
-    size_t cap = 0;
-    for (size_t i = 0; i < shard_count; i++) {
-        const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
-        cap += rt_fd_registry_len(registry);
+    rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
+    if (shard == NULL) {
+        return 0;
     }
+    const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, owner_shard_id);
+    size_t cap = rt_fd_registry_len(registry);
     if (cap == 0) {
         return 0;
     }
-    rt_net_poll_scratch* scratch = rt_executor_net_poll_scratch_for_shard(ex, 0);
+    rt_net_poll_scratch* scratch = rt_shard_net_poll_scratch(shard);
     rt_fd_poll_interest* fds = NULL;
     if (!ensure_net_poll_fds(scratch, cap, &fds)) {
         return 0;
     }
-    size_t count = 0;
-    for (size_t i = 0; i < shard_count && count < cap; i++) {
-        const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
-        size_t added = rt_fd_registry_snapshot_poll_interest(registry, fds + count, cap - count);
-        for (size_t j = 0; j < added; j++) {
-            fds[count + j].owner_shard_id = (uint32_t)i;
-        }
-        count += added;
+    size_t count = rt_fd_registry_snapshot_poll_interest(registry, fds, cap);
+    for (size_t i = 0; i < count; i++) {
+        fds[i].owner_shard_id = owner_shard_id;
     }
     if (count == 0) {
         return 0;
     }
-    int wake_fd = net_poll_wake_init() ? net_poll_wake_read_fd : -1;
+    int wake_fd = rt_net_poll_wake_init(shard) ? shard->net_poll_wake.read_fd : -1;
     size_t wake_count = wake_fd >= 0 ? 1U : 0U;
     size_t poll_count = count + wake_count;
     if (poll_count < count || poll_count > (size_t)((nfds_t)-1)) {
@@ -904,7 +837,7 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
 
     int woke = 0;
     if (wake_fd >= 0 && pfds[0].revents != 0) {
-        net_poll_wake_drain();
+        rt_net_poll_wake_drain(shard);
         rt_net_trace_poll_wake_fd();
         woke = 1;
     }

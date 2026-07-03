@@ -2511,3 +2511,39 @@ pass, before any task execution began:
   `git diff --check`, `./check_file_sizes.sh`, `make runtime-v2-check`,
   `make check`, and Sentrux root/runtime/native scans (`6185`, `5330`,
   `5450`).
+
+## Epic 6 Task 10 Handoff
+
+- Scope completed: per-shard net poller/wake ownership. Epic 6 chose
+  shard-worker-owned polling for `SURGE_SHARDS>1`, matching Task 7's one
+  Tier 1 worker per shard. The global I/O thread remains a single-shard/timer
+  compatibility path and is gated out of multishard net polling.
+- New module: `runtime/native/rt_net_poller.c` owns per-shard wake pipes,
+  effective wake-count returns, wake draining, shard-local waiter detection,
+  and shard-local poll ownership helpers.
+- `rt_shard` now owns `net_poll_wake` and `net_polling`; `rt_executor` no
+  longer owns a process-global net polling flag.
+- `poll_net_waiters_on_shard` snapshots only the target shard's registry, uses
+  only the target shard's scratch storage, and drains only the target shard's
+  wake pipe.
+- Wake routing is owner-shard explicit for park commit, waiter
+  attach/detach notification, close wake, and shutdown.
+- Shutdown trace accounting is now honest: `rt_net_wake_poll_all_shards`
+  returns the sum of effective per-shard wakes, and
+  `shutdown_poller_wakeups` records that returned value.
+- Added `TestRuntimeV2NetPollerPerShardWakeBehavior`, a C behavior harness
+  using production `rt_net_poller.c` and real nonblocking pipes. It proves
+  shard-1 wake does not wake shard 0, all-shards wake wakes both, and
+  shard-local interest detection does not treat registered zero-interest rows
+  as pollable work.
+- No Phase 4 primitives were added: no eventfd protocol, no inbound queues, no
+  credits, no seq-cst `PARKED`, no wake elision, and no cross-shard messaging.
+- Independent review found and then re-closed three issues: shutdown wake
+  trace was initially fake, tests were initially too string-heavy, and
+  `rt_async_state.c` initially exceeded its LOC ceiling. The fixes extracted
+  `rt_net_poller.c`, added the behavior harness, and made wake APIs return
+  effective counts.
+- Final gates passed: focused NetPoller/FDRegistry/Accept tests,
+  `make c-check`, `make cppcheck`, `./check_file_sizes.sh`,
+  `git diff --check`, `make runtime-v2-check`, `make check`, and Sentrux
+  root/runtime/native scans (`6185`, `5326`, `5465`).

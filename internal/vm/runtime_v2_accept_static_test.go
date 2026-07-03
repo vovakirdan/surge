@@ -42,9 +42,6 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		{
 			path: "runtime/native/rt_net.c",
 			names: []string{
-				"net_poll_wake_init",
-				"rt_net_wake_poll",
-				"net_poll_wake_drain",
 				"rt_net_listen",
 				"rt_net_connect",
 				"rt_net_close_listener",
@@ -53,7 +50,18 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 				"net_wait_current_task",
 				"rt_net_wait_readable",
 				"rt_net_wait_writable",
-				"poll_net_waiters",
+				"poll_net_waiters_on_shard",
+			},
+		},
+		{
+			path: "runtime/native/rt_net_poller.c",
+			names: []string{
+				"rt_net_poll_wake_init",
+				"rt_net_wake_poll_on_shard",
+				"rt_net_wake_poll_all_shards",
+				"rt_net_has_waiters_on_shard",
+				"rt_net_begin_poll_on_shard",
+				"rt_net_poll_waiters_owned_on_shard",
 			},
 		},
 		{
@@ -97,9 +105,9 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		{
 			path: "runtime/native/rt_async_state.c",
 			names: []string{
-				"has_net_waiters",
-				"begin_net_poll",
-				"poll_net_waiters_owned",
+				"park_current",
+				"next_ready",
+				"rt_io_main",
 			},
 		},
 	}

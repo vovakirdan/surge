@@ -26,8 +26,8 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
         (void)rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(
             ex, rt_executor_fd_registry_for_shard(ex, i), (uint32_t)i);
     }
-    rt_net_trace_shutdown_poller_wakeups((uint64_t)shard_count);
-    rt_net_wake_poll();
+    uint64_t pollers_woken = rt_net_wake_poll_all_shards(ex);
+    rt_net_trace_shutdown_poller_wakeups(pollers_woken);
     pthread_cond_broadcast(&ex->io_cv);
     pthread_cond_broadcast(&ex->ready_cv);
     pthread_cond_broadcast(&ex->done_cv);

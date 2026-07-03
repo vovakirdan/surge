@@ -15,8 +15,8 @@ keep `NOTES.md` as the live handoff log.
 | 6 | Complete | Runtime shard array and config recorded below. |
 | 7 | Complete | Per-shard scheduler placement recorded below. |
 | 8 | Complete | Listener and connection owner metadata recorded below. |
-| 9 | Pending | Accept distribution implementation. |
-| 10 | Pending | Per-shard poller and wake ownership. |
+| 9 | Complete | Accept distribution implementation recorded below. |
+| 10 | Complete | Per-shard poller and wake ownership recorded below. |
 | 11 | Pending | Multishard net lifecycle migration. |
 | 12 | Pending | Trace counters and benchmark evidence. |
 | 13 | Pending | Runtime V2 accept CI gates. |
@@ -1238,3 +1238,139 @@ Independent review found:
       silent.
 - [x] Relevant Task 4 accept distribution/static tests pass or were corrected
       to keep Task 10/11 lifecycle fields honest.
+
+## Task 10: Per-Shard Poller And Wake Ownership
+
+### Task Identity And Scope
+
+- Task: `06-tasks/10-per-shard-poller-and-wake-ownership.md`.
+- Kind: runtime code.
+- Commit boundary: pending at evidence-write time.
+- Scope: per-shard net wake pipes, per-shard net poll ownership, owner-shard
+  wake routing for registry changes/close/cancellation/shutdown, and tests that
+  prove cross-shard wake silence.
+- Out of scope: Phase 4 cross-shard messaging, eventfd protocol, inbound
+  queues, credits, seq-cst `PARKED`, lock sharding, and public Surge syntax.
+
+### Poller Ownership Decision
+
+Epic 6 uses shard-worker-owned net polling for `SURGE_SHARDS>1`.
+This matches Task 7's actual worker shape: multishard mode starts one Tier 1
+worker per shard, and each worker already owns its scheduler context and
+`shard_id`. Adding a dedicated poller thread per shard would double the normal
+thread count while still running under the preserved global `ex->lock`.
+
+`rt_io_main` remains a single-shard/timer compatibility path. Its net polling
+condition is gated to `shard_count <= 1`, so under `SURGE_SHARDS>1` it no
+longer owns net readiness polling.
+
+### Implementation
+
+- Added `rt_net_poll_wake` by value on `rt_shard` and moved poll-in-progress
+  state from `rt_executor.net_polling` to `rt_shard.net_polling`.
+- Added `runtime/native/rt_net_poller.c` for per-shard wake and poller helper
+  ownership:
+  - `rt_net_poll_wake_init`
+  - `rt_net_poll_wake_close`
+  - `rt_net_poll_wake_drain`
+  - `rt_net_wake_poll_on_shard`
+  - `rt_net_wake_poll_all_shards`
+  - `rt_net_has_waiters_on_shard`
+  - `rt_net_begin_poll_on_shard`
+  - `rt_net_poll_waiters_owned_on_shard`
+- `rt_net_wake_poll_on_shard` writes only the target shard's pipe and returns
+  an effective wake count. `EAGAIN`/`EWOULDBLOCK` counts as effective because a
+  wake byte is already pending in that shard's pipe. Invalid owner/init/write
+  failures return zero.
+- `rt_net_wake_poll_all_shards` iterates configured shards and returns the sum
+  of effective per-shard wakes.
+- `rt_executor_request_shutdown` now traces the returned wake count after
+  `rt_net_wake_poll_all_shards(ex)`, not raw `shard_count`.
+- `poll_net_waiters_on_shard` now snapshots only the target shard's
+  `fd_registry`, uses only that shard's `net_poll_scratch`, and drains only
+  that shard's wake pipe.
+- Owner-routed wake call sites now target the owning shard:
+  `park_current`, waiter attach/detach notification, fd close wake, and
+  shutdown.
+
+### Tests And Gates
+
+- Added `internal/vm/runtime_v2_net_poller_static_test.go`.
+- Added `TestRuntimeV2NetPollerPerShardWakeBehavior`, which compiles a C
+  harness including production `rt_net_poller.c`, creates real nonblocking
+  pipes, verifies a shard-1 wake does not wake shard 0, verifies all-shards
+  wake returns two effective wakes, and checks shard-local waiter/polling
+  state.
+- Added NetPoller tests to `make runtime-v2-accept-check`, so
+  `make runtime-v2-check` now carries the Task 10 static/behavior proof.
+- Updated fd-registry shutdown harnesses away from the old
+  `rt_net_wake_poll(void)` API and pinned trace accounting to the actual
+  all-shards wake return value.
+
+### Review Pass
+
+Independent review initially found:
+
+- P1: `shutdown_poller_wakeups` was traced as raw `shard_count` before the
+  wake call and could report wakes that did not happen.
+- P1: Task 10 proof was mostly string/static checks and did not prove real
+  per-shard pipe behavior or cross-shard wake silence.
+- P2: `make cppcheck` failed on const-pointer style and `rt_async_state.c`
+  exceeded its legacy LOC ceiling.
+
+Fixes:
+
+- `rt_net_wake_poll_on_shard`/`rt_net_wake_poll_all_shards` now return
+  effective counts; shutdown traces the returned count.
+- `TestRuntimeV2NetPollerPerShardWakeBehavior` uses production
+  `rt_net_poller.c` and real pipes for the cross-silence proof.
+- `rt_net_poller.c` owns the new helpers, bringing `rt_async_state.c` back
+  under its legacy LOC ceiling.
+
+Re-review found no remaining P0/P1 code blockers. The only remaining review
+note was operational: include the new untracked files in the Task 10 commit.
+
+### Files Touched
+
+| Path | Effective LOC | Notes |
+| --- | ---: | --- |
+| `runtime/native/rt_net_poller.c` | 133 | New per-shard wake/poller helper module. |
+| `runtime/native/rt_async_state.c` | 1717 | Legacy-ok under ceiling 1727 after helper extraction. |
+| `runtime/native/rt_net.c` | 815 | Legacy-ok under ceiling 904; shard-local polling remains here. |
+| `runtime/native/rt_async_internal.h` | 459 | Adds per-shard wake/poll fields and helper prototypes. |
+| `runtime/native/rt_async_waiter.c` | 419 | Owner-routed waiter attach/detach wake. |
+| `runtime/native/rt_fd_registry.c` | 405 | Owner-routed close/shutdown wake. |
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetPoller' -count=1 -parallel=1 -p=1 -v --timeout 120s` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(AcceptNetOwnershipNoShard0Shortcut\|FDRegistry(StaticBoundary\|CloseWakePollNotificationProof\|ShutdownDrainBehavior\|ShutdownDrainStaticContract)\|NetPoller)' -count=1 -parallel=1 -p=1 -v --timeout 180s` | Passed. |
+| `make c-check` | Passed. |
+| `make cppcheck` | Passed. |
+| `./check_file_sizes.sh` | Passed; `rt_async_state.c` is back under its legacy ceiling. |
+| `git diff --check` | Passed. |
+| `make runtime-v2-check` | Passed. |
+| `make check` | Passed. |
+| `sentrux check .` | Passed, quality 6185. |
+| `sentrux check runtime` | Passed, quality 5326. |
+| `sentrux check runtime/native` | Passed, quality 5465. |
+
+### Definition Of Done
+
+- [x] The poller-ownership model is chosen and justified against Task 7's
+      worker shape.
+- [x] Every shard that owns net fds has per-shard wake state and per-shard
+      poll-in-progress state.
+- [x] Process-global wake pipe statics and old `rt_net_wake_poll(void)` /
+      `poll_net_waiters(rt_executor*, int)` surfaces are removed.
+- [x] `SURGE_SHARDS=1` keeps single-shard compatibility through shard 0's
+      struct-owned wake pipe.
+- [x] `SURGE_SHARDS>1` net polling is shard-worker-owned; `rt_io_main` does
+      not own multishard net polling.
+- [x] Cross-shard wake silence is proven with a C behavior harness using real
+      per-shard pipes.
+- [x] Shutdown wakes all shard pollers and traces the actual effective wake
+      count.
+- [x] No Phase 4 primitive was implemented or pre-decided.

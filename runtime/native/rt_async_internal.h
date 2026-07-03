@@ -129,6 +129,12 @@ typedef struct {
     void* pfds;
     size_t pfds_cap;
 } rt_net_poll_scratch;
+
+typedef struct {
+    int read_fd;
+    int write_fd;
+} rt_net_poll_wake;
+
 typedef struct {
     uint32_t channel_blocked_workers;
     uint32_t compensation_count;
@@ -140,10 +146,12 @@ struct rt_shard {
     rt_scheduler scheduler;
     rt_heap_accounting heap_accounting;
     rt_net_poll_scratch net_poll_scratch;
+    rt_net_poll_wake net_poll_wake;
     rt_fd_registry fd_registry;
     rt_channel_blocking_compat channel_blocking_compat;
     rt_waiter_store waiter_store;
     uint32_t shard_id;
+    uint8_t net_polling;
 };
 
 struct rt_runtime {
@@ -220,7 +228,6 @@ struct rt_executor {
     pthread_cond_t io_cv;
     pthread_cond_t done_cv;
     pthread_t* workers;
-    uint8_t net_polling;
     uint8_t initialized;
     uint8_t io_started;
     uint8_t shutdown;
@@ -424,6 +431,7 @@ void rt_blocking_init(rt_executor* ex);
 void rt_blocking_request_cancel(rt_executor* ex, rt_task* task);
 rt_task* get_task(rt_executor* ex, uint64_t id);
 rt_scope* get_scope(rt_executor* ex, uint64_t id);
+uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id);
 
 void ensure_task_cap(rt_executor* ex, uint64_t id);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
@@ -496,8 +504,15 @@ rt_runtime_status rt_executor_drain_shutdown_net_waiters(rt_executor* ex);
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task);
-int poll_net_waiters(rt_executor* ex, int timeout_ms);
-void rt_net_wake_poll(void);
+int rt_net_poll_wake_init(rt_shard* shard);
+void rt_net_poll_wake_close(rt_net_poll_wake* wake);
+void rt_net_poll_wake_drain(rt_shard* shard);
+int rt_net_has_waiters_on_shard(const rt_executor* ex, uint32_t owner_shard_id);
+int rt_net_begin_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id);
+int rt_net_poll_waiters_owned_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms);
+int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms);
+uint64_t rt_net_wake_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id);
+uint64_t rt_net_wake_poll_all_shards(rt_executor* ex);
 void rt_net_trace_dump(const char* reason);
 void rt_trace_drain_signal_dump(void);
 int run_ready_one(rt_executor* ex);

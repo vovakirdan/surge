@@ -392,7 +392,7 @@ rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked_on_own
         fd_registry_remove_matching_lifetime(registry, &entry);
     }
     if (summary.calls != 0) {
-        rt_net_wake_poll();
+        (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
         pthread_cond_broadcast(&ex->io_cv);
     }
     return summary;
@@ -425,7 +425,7 @@ rt_fd_registry_wake_closed_net_waiters(rt_executor* ex, const rt_fd_lifecycle_sn
         fd_complete_net_key(ex, net_write_key(snapshot->fd), snapshot->owner_shard_id, &summary);
     }
     if (summary.calls != 0) {
-        rt_net_wake_poll();
+        (void)rt_net_wake_poll_on_shard(ex, snapshot->owner_shard_id);
         pthread_cond_broadcast(&ex->io_cv);
     }
     rt_unlock(ex);

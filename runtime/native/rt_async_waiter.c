@@ -86,22 +86,40 @@ static void net_waiters_removed(rt_waiter_store* store, waker_key key, size_t co
 // parked waiter: net_wait_current_task re-verifies the row after
 // prepare_park and undoes the park on a miss (fd-registry-attach-miss
 // resolution); the debug print below records the miss itself.
-static void fd_registry_bridge_net_attach(rt_executor* ex, waker_key key) {
+uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id) {
+    if (ex == NULL || !waker_is_net(key) || key.id > (uint64_t)INT_MAX) {
+        return fallback_shard_id;
+    }
+    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+    for (size_t i = 0; i < shard_count; i++) {
+        const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
+        const rt_fd_entry* entry = rt_fd_registry_find_const(registry, (int)key.id);
+        if (entry != NULL && entry->close_state == RT_FD_CLOSE_STATE_OPEN) {
+            return (uint32_t)i;
+        }
+    }
+    return fallback_shard_id;
+}
+
+static int fd_registry_bridge_net_attach(rt_executor* ex, waker_key key, uint32_t* out_owner) {
     if (!waker_is_net(key)) {
-        return;
+        return 0;
     }
     rt_fd_registry* registry = NULL;
+    uint32_t owner_shard_id = 0;
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
         rt_fd_registry* candidate = rt_executor_fd_registry_for_shard(ex, i);
         const rt_fd_entry* entry = rt_fd_registry_find_const(candidate, (int)key.id);
         if (entry != NULL && entry->close_state == RT_FD_CLOSE_STATE_OPEN) {
             registry = candidate;
+            owner_shard_id = (uint32_t)i;
             break;
         }
     }
     if (registry == NULL && shard_count == 1) {
         registry = rt_executor_fd_registry_for_shard(ex, 0);
+        owner_shard_id = 0;
     }
     rt_runtime_status status = registry != NULL ? rt_fd_registry_attach_net_interest(registry, key)
                                                 : RT_RUNTIME_STATUS_INVALID_ARGUMENT;
@@ -111,12 +129,20 @@ static void fd_registry_bridge_net_attach(rt_executor* ex, waker_key key) {
                               (unsigned long long)key.id,
                               (int)status);
     }
+    if (status == RT_RUNTIME_STATUS_OK) {
+        if (out_owner != NULL) {
+            *out_owner = owner_shard_id;
+        }
+        return 1;
+    }
+    return 0;
 }
 
 static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
                                                  waker_key key,
                                                  size_t removed,
-                                                 size_t remaining_same_key) {
+                                                 size_t remaining_same_key,
+                                                 uint32_t* out_owner) {
     if (removed == 0 || !waker_is_net(key)) {
         return 0;
     }
@@ -130,6 +156,9 @@ static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
             }
             removed_open_interest = rt_fd_registry_net_interest_present(registry, key);
             rt_fd_registry_detach_net_interest(registry, key);
+            if (out_owner != NULL) {
+                *out_owner = (uint32_t)i;
+            }
             break;
         }
     }
@@ -170,14 +199,15 @@ static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
 
 static void fd_registry_bridge_notify_removed_interest(rt_executor* ex,
                                                        waker_key key,
-                                                       int removed_open_interest) {
+                                                       int removed_open_interest,
+                                                       uint32_t owner_shard_id) {
     if (ex == NULL || !removed_open_interest || !waker_is_net(key)) {
         return;
     }
     // Remove-side only: the current poll snapshot may still contain this key.
     // Readiness completion already comes from the poller path and must not
     // write an extra wake byte.
-    rt_net_wake_poll();
+    (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
     pthread_cond_signal(&ex->io_cv);
 }
 
@@ -272,7 +302,7 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
     store->len = out;
     net_waiters_removed(store, key, result.removed);
     // Completion removed every waiter of this key, so no same-key entry remains.
-    (void)fd_registry_bridge_net_detach_if_last(ex, key, result.removed, 0);
+    (void)fd_registry_bridge_net_detach_if_last(ex, key, result.removed, 0, NULL);
     clear_accept_winner_wait_keys(ex, key, owner_shard_id);
     return result;
 }
@@ -333,9 +363,10 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     store->len = out;
     net_waiters_removed(store, key, removed);
+    uint32_t owner_shard_id = 0;
     int removed_open_interest =
-        fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key);
-    fd_registry_bridge_notify_removed_interest(ex, key, removed_open_interest);
+        fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key, &owner_shard_id);
+    fd_registry_bridge_notify_removed_interest(ex, key, removed_open_interest, owner_shard_id);
 }
 
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
@@ -354,7 +385,10 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     store->entries[store->len++] = (waiter){key, task_id};
     net_waiter_added(store, key);
-    fd_registry_bridge_net_attach(ex, key);
+    uint32_t owner_shard_id = 0;
+    if (fd_registry_bridge_net_attach(ex, key, &owner_shard_id)) {
+        (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
+    }
 }
 
 void clear_wait_keys(rt_executor* ex, rt_task* task) {
@@ -431,7 +465,7 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     }
     store->len = out;
     net_waiters_removed(store, key, removed);
-    (void)fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key);
+    (void)fd_registry_bridge_net_detach_if_last(ex, key, removed, kept_same_key, NULL);
     if (found && out_id != NULL) {
         *out_id = found_id;
     }

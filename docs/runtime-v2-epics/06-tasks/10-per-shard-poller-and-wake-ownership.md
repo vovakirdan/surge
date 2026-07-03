@@ -1,6 +1,6 @@
 # Task 10: Per-Shard Poller And Wake Ownership
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 **Depends on:** Task 6, Task 7
 

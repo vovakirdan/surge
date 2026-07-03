@@ -1151,7 +1151,8 @@ void park_current(rt_executor* ex, waker_key key) {
     }
     rt_trace_park_committed();
     if (waker_is_net(key)) {
-        rt_net_wake_poll();
+        uint32_t owner_shard_id = rt_net_owner_shard_for_key(ex, key, 0);
+        (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
     }
     pthread_cond_signal(&ex->io_cv);
 }
@@ -1174,26 +1175,6 @@ void tick_virtual(rt_executor* ex) {
             wake_task(ex, task->id, 1);
         }
     }
-}
-
-static int has_net_waiters(const rt_executor* ex) {
-    const rt_waiter_store* store = rt_executor_waiter_store_const(ex);
-    return store != NULL && store->net_len > 0;
-}
-
-static int begin_net_poll(rt_executor* ex) {
-    if (ex == NULL || ex->net_polling || !has_net_waiters(ex)) {
-        return 0;
-    }
-    ex->net_polling = 1;
-    return 1;
-}
-
-static int poll_net_waiters_owned(rt_executor* ex, int timeout_ms) {
-    int woke = poll_net_waiters(ex, timeout_ms);
-    ex->net_polling = 0;
-    pthread_cond_signal(&ex->io_cv);
-    return woke;
 }
 
 static int next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline) {
@@ -1247,21 +1228,23 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
         return 0;
     }
     while (!ready_pop(ex, out_id)) {
-        if (begin_net_poll(ex) && poll_net_waiters_owned(ex, 0)) {
+        if (rt_net_begin_poll_on_shard(ex, 0) && rt_net_poll_waiters_owned_on_shard(ex, 0, 0)) {
             continue;
         }
         uint64_t next_deadline = 0;
         int have_timer = next_sleep_deadline(ex, &next_deadline);
         if (have_timer) {
-            if (has_net_waiters(ex)) {
+            if (rt_net_has_waiters_on_shard(ex, 0)) {
                 uint64_t now = ex->now_ms;
                 uint64_t diff = next_deadline > now ? next_deadline - now : 0;
                 int timeout_ms = diff > (uint64_t)INT_MAX ? INT_MAX : (int)diff;
                 if (timeout_ms > 0) {
-                    if (begin_net_poll(ex) && poll_net_waiters_owned(ex, timeout_ms)) {
+                    if (rt_net_begin_poll_on_shard(ex, 0) &&
+                        rt_net_poll_waiters_owned_on_shard(ex, 0, timeout_ms)) {
                         continue;
                     }
-                    if (ex->net_polling && !ex->shutdown) {
+                    const rt_shard* shard = rt_runtime_shard_const(rt_executor_runtime(ex), 0);
+                    if (shard != NULL && shard->net_polling && !ex->shutdown) {
                         pthread_cond_wait(&ex->io_cv, &ex->lock);
                         continue;
                     }
@@ -1273,10 +1256,13 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
                 continue;
             }
         } else {
-            if (begin_net_poll(ex) && poll_net_waiters_owned(ex, -1)) {
+            if (rt_net_begin_poll_on_shard(ex, 0) &&
+                rt_net_poll_waiters_owned_on_shard(ex, 0, -1)) {
                 continue;
             }
-            if (ex->net_polling && has_net_waiters(ex) && !ex->shutdown) {
+            const rt_shard* shard = rt_runtime_shard_const(rt_executor_runtime(ex), 0);
+            if (shard != NULL && shard->net_polling && rt_net_has_waiters_on_shard(ex, 0) &&
+                !ex->shutdown) {
                 pthread_cond_wait(&ex->io_cv, &ex->lock);
                 continue;
             }
@@ -1668,8 +1654,9 @@ static void* rt_worker_main(void* arg) {
         rt_lock(ex);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ctx, &id)) {
-            if (begin_net_poll(ex)) {
-                int woke_net = poll_net_waiters_owned(ex, worker_net_poll_slice_ms);
+            if (rt_net_begin_poll_on_shard(ex, ctx->shard_id)) {
+                int woke_net =
+                    rt_net_poll_waiters_owned_on_shard(ex, ctx->shard_id, worker_net_poll_slice_ms);
                 if (woke_net) {
                     continue;
                 }
@@ -1805,7 +1792,8 @@ static void* rt_io_main(void* arg) {
         }
         uint64_t deadline = 0;
         int have_timer = next_sleep_deadline(ex, &deadline);
-        int have_net = has_net_waiters(ex);
+        size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+        int have_net = shard_count <= 1 && rt_net_has_waiters_on_shard(ex, 0);
         int idle = runtime_running_count(ex) == 0 && runnable_is_empty(ex);
 
         if (!have_net && (!have_timer || !idle)) {
@@ -1833,11 +1821,11 @@ static void* rt_io_main(void* arg) {
         if (timeout_ms < 0) {
             timeout_ms = poll_slice_ms;
         }
-        if (!begin_net_poll(ex)) {
+        if (!rt_net_begin_poll_on_shard(ex, 0)) {
             pthread_cond_wait(&ex->io_cv, &ex->lock);
             continue;
         }
-        if (poll_net_waiters_owned(ex, timeout_ms)) {
+        if (rt_net_poll_waiters_owned_on_shard(ex, 0, timeout_ms)) {
             for (int i = 0; i < net_ready_drain_limit && !ex->shutdown; i++) {
                 if (!run_ready_one_nowait_locked(ex)) {
                     break;
