@@ -84,6 +84,9 @@ typedef struct {
 
 rt_fd_registry* rt_shard_fd_registry(rt_shard* shard);
 const rt_fd_registry* rt_shard_fd_registry_const(const rt_shard* shard);
+rt_fd_registry* rt_executor_fd_registry_for_shard(rt_executor* ex, size_t shard_index);
+const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor* ex,
+                                                              size_t shard_index);
 rt_fd_registry* rt_executor_fd_registry(rt_executor* ex);
 const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex);
 

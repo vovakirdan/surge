@@ -532,7 +532,7 @@ static void* close_net_fd_slot(int* fd_slot, bool* closed_slot) {
     rt_fd_lifecycle_snapshot snapshot;
     rt_lock(ex);
     rt_runtime_status status =
-        rt_fd_registry_mark_closed(rt_executor_fd_registry(ex), fd, &snapshot);
+        rt_fd_registry_mark_closed(rt_executor_fd_registry_for_shard(ex, 0), fd, &snapshot);
     rt_unlock(ex);
     if (status != RT_RUNTIME_STATUS_OK) {
         return net_make_error(NET_ERR_IO);
@@ -762,7 +762,7 @@ static bool net_wait_current_task(int fd, NetWaitKind kind) {
     }
     rt_net_trace_direct_wait();
     prepare_park(ex, task, key, 0);
-    if (!rt_fd_registry_net_interest_present(rt_executor_fd_registry_const(ex), key)) {
+    if (!rt_fd_registry_net_interest_present(rt_executor_fd_registry_const_for_shard(ex, 0), key)) {
         // Attach failed or closed the row: undo the park so the rowless waiter
         // cannot be lost now that poll input is registry-only.
         remove_waiter(ex, key, task->id);
@@ -807,12 +807,12 @@ bool rt_net_wait_writable(const void* conn) {
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {
     // Caller must hold ex->lock; this function releases it while polling.
     // The registry snapshot copied under ex->lock is the only guarded poll input.
-    const rt_fd_registry* registry = rt_executor_fd_registry_const(ex);
+    const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, 0);
     size_t cap = rt_fd_registry_len(registry);
     if (cap == 0) {
         return 0;
     }
-    rt_net_poll_scratch* scratch = rt_executor_net_poll_scratch(ex);
+    rt_net_poll_scratch* scratch = rt_executor_net_poll_scratch_for_shard(ex, 0);
     rt_fd_poll_interest* fds = NULL;
     if (!ensure_net_poll_fds(scratch, cap, &fds)) {
         return 0;

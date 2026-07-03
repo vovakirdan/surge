@@ -2334,3 +2334,57 @@ pass, before any task execution began:
   it only inspected the three `rt_runtime.c` accessors. The committed follow-up
   broadened the gate before Task 6 continued and also removed a future
   `-Wall -Wextra -Werror` false-red from the dynamic-shape C snippet.
+
+## Epic 6 LOC Checker Handoff
+
+- Tooling correction: `check_file_sizes.sh` now reports effective source LOC
+  for `.go`, `.c`, and `.h` files. Blank lines and comment-only `//` or
+  `/* ... */` lines do not count; code-bearing lines with trailing comments
+  still count. This avoids pressuring runtime work to delete useful invariants
+  or design comments just to satisfy the line gate.
+- Added `./check_file_sizes.sh --self-test`, covering Go/C/H comment-only
+  lines, block comments, trailing comments, and comment tokens inside string
+  literals. The self-test passed locally.
+- `./check_file_sizes.sh` passed on the current Epic 6 worktree after the
+  metric change. Example current effective counts: `rt_async_internal.h` 424,
+  `rt_async_state.c` 1573 legacy-ok, and `rt_net.c` 843 legacy-ok.
+- `RV2-DEBT-014` was closed immediately in `DEBT.md`; it should not be carried
+  as future debt unless a new parser edge case is found.
+
+## Epic 6 Task 06 Handoff
+
+- Scope completed: Runtime V2 now has fixed bounded storage
+  `RT_RUNTIME_MAX_SHARDS=64` plus runtime `shard_count`. `SURGE_SHARDS`
+  defaults to `1`, rejects invalid values, and drives structural shard
+  initialization. `SURGE_THREADS` remains the old compatibility worker-count
+  control for `SURGE_SHARDS=1`; under `SURGE_SHARDS>1` it must be unset or
+  equal to `SURGE_SHARDS`.
+- Task 6 stayed structural. It initializes per-shard containers and scheduler
+  structures, but it does not make `rt_start_workers` shard-aware, does not add
+  worker/task owner placement, and does not distribute accepted connections.
+  Task 7 owns actual worker-to-shard binding.
+- New config surface lives in `runtime/native/rt_runtime_config.c/h`. The
+  startup path exits with an explicit diagnostic for invalid config because
+  `pthread_once` cannot propagate a recoverable status to callers.
+- New accessor names to reuse in Tasks 7-11:
+  `rt_runtime_shard`, `rt_runtime_shard_const`,
+  `rt_executor_net_poll_scratch_for_shard`, and
+  `rt_executor_fd_registry_for_shard`. Current net-owned call sites use
+  `_for_shard(ex, 0)` as explicit compatibility placeholders; replacing those
+  literals with real owner-shard values is future task work.
+- `TRACE_EXEC` now includes `runtime_shards=<count>`. This is only a config
+  proof field; the remaining full accept contract still expects future
+  `TRACE_NET` owner/distribution/lifecycle fields from Tasks 8-12.
+- Independent review found and closed one P2: default blocking pool size briefly
+  derived from `shard_count` under `SURGE_SHARDS>1`. It now derives from
+  `legacy_worker_threads`, so `SURGE_SHARDS` does not silently create extra
+  blocking OS threads in the structural task.
+- Final gates passed: `make c-check`, `make cppcheck`, focused Task 6 config
+  tests, Task 5 static gates, `make runtime-v2-check`, `make check`,
+  `git diff --check`, `sentrux check .` quality 6188, `sentrux check runtime`
+  quality 5301, and `sentrux check runtime/native` quality 5340.
+- Full pending accept remains expected-red only for downstream fields:
+  `accept_owner_active_shards`, `fd_owner_registry_rows`,
+  `close_owner_wakeups`, `cancel_owner_cleanup`,
+  `shutdown_poller_wakeups`, `non_owner_conn_denied`, and
+  `listener_group_members_closed`.

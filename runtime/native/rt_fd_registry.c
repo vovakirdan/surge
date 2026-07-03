@@ -291,7 +291,7 @@ rt_fd_completion_summary rt_fd_registry_complete_ready_net_waiters(
     if (ex == NULL || snapshot == NULL) {
         return summary;
     }
-    const rt_fd_registry* registry = rt_executor_fd_registry_const(ex);
+    const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, 0);
     if (read_ready) {
         fd_complete_current_net_key(ex, registry, snapshot, net_read_key(snapshot->fd), &summary);
         fd_complete_current_net_key(ex, registry, snapshot, net_accept_key(snapshot->fd), &summary);

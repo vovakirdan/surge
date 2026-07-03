@@ -667,3 +667,151 @@ are deliberately expected-red until later Epic 6 implementation tasks.
 - [x] A pending `RT_RUNTIME_MAX_SHARDS` shape test exists for Task 6.
 - [x] Task 6 can replace `RT_RUNTIME_SHARD_COUNT` with
       `RT_RUNTIME_MAX_SHARDS` without discovering the old static pins mid-task.
+
+## Task 6: Runtime Shard Array And Config
+
+Status: complete on 2026-07-03.
+
+### Scope Completed
+
+- Replaced fixed `RT_RUNTIME_SHARD_COUNT == 1` storage with
+  `RT_RUNTIME_MAX_SHARDS` plus runtime `shard_count`.
+- Added `runtime/native/rt_runtime_config.c/h` for startup configuration,
+  `SURGE_SHARDS`, `SURGE_THREADS` interaction, and explicit runtime status
+  codes outside the bloated async-state file.
+- Added shard-indexed runtime accessors:
+  `rt_runtime_shard`, `rt_runtime_shard_const`,
+  `rt_executor_net_poll_scratch_for_shard`, and
+  `rt_executor_fd_registry_for_shard`.
+- Initialized every configured shard's structural state:
+  `shard_id`, executor/runtime back-pointers, scheduler container,
+  waiter store, fd registry, net poll scratch, and heap accounting cell.
+- Kept Task 6 structural-only: `rt_start_workers` is still not shard-aware,
+  no worker ctx gains owner-shard placement, and net-owned call sites use
+  explicit `_for_shard(ex, 0)` compatibility placeholders until Tasks 7-11.
+- Added `runtime_shards=<count>` to `TRACE_EXEC` so Task 4's config contract
+  can prove startup used the requested shard count.
+- Updated fd-registry static harness snippets so they link against the new
+  shard-indexed registry accessor names.
+- Closed `RV2-DEBT-014`: `check_file_sizes.sh` now counts effective source LOC
+  for `.go`, `.c`, and `.h` by ignoring blank/comment-only lines while still
+  counting code-bearing lines with trailing comments.
+
+### Bound And Config Decisions
+
+`RT_RUNTIME_MAX_SHARDS` is `64`. This keeps runtime storage bounded and
+static, avoids adding allocator/lifetime complexity to the structural task,
+and is large enough for the current one-Tier-1-worker-per-shard target on
+common development and CI hosts. If a later performance epic proves larger
+machines need more than 64 Tier 1 shards, that task can raise the bound with
+benchmark evidence and storage-cost accounting.
+
+`SURGE_SHARDS` defaults to `1`. Values must parse strictly as decimal integers
+in `1..RT_RUNTIME_MAX_SHARDS`; `0`, non-numeric values, negatives, and
+over-bound values exit with an explicit diagnostic instead of falling back.
+
+`SURGE_THREADS` remains the compatibility worker-count control only when
+`SURGE_SHARDS=1`. Under `SURGE_SHARDS>1`, it may be unset or equal to
+`SURGE_SHARDS`; any other set value is an explicit configuration error. Task 6
+does not spawn one worker per shard yet. It initializes per-shard scheduler
+containers with `worker_count=1` and leaves real worker-to-shard binding to
+Task 7.
+
+`SURGE_BLOCKING_THREADS` remains an explicit override. The default blocking
+pool size is derived from `legacy_worker_threads`, not from `shard_count`; this
+preserves Task 6's structural-only boundary and avoids making `SURGE_SHARDS>1`
+silently create extra blocking OS threads before Task 7 owns thread placement.
+
+### Files Touched
+
+| Path | Physical LOC | Effective LOC | Notes |
+| --- | ---: | ---: | --- |
+| `check_file_sizes.sh` | 538 | n/a | Tooling script; added source-comment-aware counter and `--self-test`. |
+| `runtime/native/rt_async_internal.h` | 492 | 424 | Under 500 physical lines after moving config/status definitions to `rt_runtime_config.h`. |
+| `runtime/native/rt_async_state.c` | 1696 | 1573 | Legacy-ok under `.loc-legacy-allowlist` ceiling 1727; config parsing extracted. |
+| `runtime/native/rt_async_trace.c` | 500 | 466 | At physical 500-line target; added `runtime_shards` only. |
+| `runtime/native/rt_async_waiter.c` | 369 | 319 | Net-owned path uses explicit shard-indexed placeholder. |
+| `runtime/native/rt_fd_registry.c` | 409 | 350 | Net-owned path uses explicit shard-indexed placeholder. |
+| `runtime/native/rt_fd_registry.h` | 116 | 74 | Declares shard-indexed registry accessor. |
+| `runtime/native/rt_net.c` | 904 | 843 | Legacy-ok under ceiling 904; net-owned paths use explicit shard-indexed placeholders. |
+| `runtime/native/rt_runtime.c` | 316 | 271 | Shard-count init/destroy/accessor implementation. |
+| `runtime/native/rt_runtime_config.c` | 135 | 127 | New config parser/status surface. |
+| `runtime/native/rt_runtime_config.h` | 28 | 20 | New max-shard/status/config declarations. |
+| `runtime/native/rt_shutdown.c` | 35 | 32 | Shutdown path uses explicit shard-indexed placeholder. |
+| `internal/vm/runtime_v2_fd_registry_shutdown_static_test.go` | 320 | n/a | Harness stub for new shard-indexed registry accessor. |
+| `internal/vm/runtime_v2_fd_registry_static_test.go` | 437 | n/a | Harness stub for new shard-indexed registry accessor. |
+
+### Contracts Proven
+
+- `SURGE_SHARDS=1` still passes the default native net compatibility contract
+  from Task 4.
+- `SURGE_SHARDS=4` initializes runtime structures for four shards and exposes
+  `runtime_shards=4` in `TRACE_EXEC`.
+- Invalid `SURGE_SHARDS` values fail explicitly with diagnostics.
+- Conflicting `SURGE_THREADS` under `SURGE_SHARDS>1` fails explicitly.
+- Task 5 static gates now pass against the real `RT_RUNTIME_MAX_SHARDS` shape.
+- Net-owned shard-0 compatibility is explicit at call sites via
+  `_for_shard(ex, 0)`; hidden `rt_runtime_shard0()`/`shards[0]` shortcuts are
+  blocked by the pending static gate.
+
+### Review Pass
+
+Independent review found one P2 issue: the first Task 6 draft derived default
+blocking pool size from `shard_count` under `SURGE_SHARDS>1`, which could
+create extra blocking OS threads and violate the structural-only boundary. The
+fix changed the default path to:
+
+```c
+blocking_threads = rt_runtime_default_blocking_count(out->legacy_worker_threads);
+```
+
+The reviewer then confirmed the default blocking pool is no longer derived
+from `shard_count`, found no new findings, and the focused compile/static
+gates passed.
+
+### Commands/Checks
+
+| Command | Result |
+| --- | --- |
+| `make c-check` | Passed. |
+| `make cppcheck` | Passed; `rt_runtime_config.c` included in cppcheck. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2Accept(ShardConfigInitializesRequestedShardCount\|RejectsInvalidShardConfig\|RejectsConflictingThreadCount)$' -count=1 -parallel=1 -p=1 -v --timeout 180s` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestRuntimeV2AcceptShardOneNativeNetCompatibility$' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Passed in independent review. |
+| `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2Accept(NetOwnershipNoShard0Shortcut\|DynamicShardArrayShape)' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Passed. |
+| `go test -tags runtime_v2_pending ./internal/vm -run 'TestRuntimeV2Skeleton\|TestRuntimeV2FDRegistryStatic' -count=1 -parallel=1 -p=1 -v --timeout 90s` | Passed. |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Accept' -count=1 -parallel=1 -p=1 -v --timeout 180s` | Expected-red. Config/static/compat cases passed; failures were limited to downstream owner/distribution/lifecycle fields: `accept_owner_active_shards`, `fd_owner_registry_rows`, `close_owner_wakeups`, `cancel_owner_cleanup`, `shutdown_poller_wakeups`, `non_owner_conn_denied`, and `listener_group_members_closed`. |
+| `make runtime-v2-check` | Passed. |
+| `make check` | Passed, including Go tests, lint, `make c-check`, and effective LOC gate. |
+| `./check_file_sizes.sh --self-test` | Passed. |
+| `./check_file_sizes.sh -a` | Passed; 697 checked files, 665 OK, 24 acceptable, 8 legacy-ok, 0 bad. |
+| `git diff --check` | Passed. |
+| `sentrux check .` | Passed, quality 6188. |
+| `sentrux check runtime` | Passed, quality 5301. |
+| `sentrux check runtime/native` | Passed, quality 5340. |
+
+### Remaining Work
+
+- Task 7 must make worker/task placement shard-aware and define how
+  `SURGE_SHARDS>1` actually maps running worker contexts to shards.
+- Tasks 8-11 must replace `_for_shard(ex, 0)` compatibility placeholders with
+  real owner-shard routing for listeners, accepted connections, readiness,
+  close/cancel/shutdown, and poller wake ownership.
+- Task 12 must add the remaining owner/distribution/lifecycle `TRACE_NET`
+  proof fields that the full pending accept contract still expects.
+
+### Definition Of Done
+
+- [x] `SURGE_SHARDS=1` compatibility path passed Task 4's native net regression
+      floor and broad runtime gates.
+- [x] `SURGE_SHARDS=N>1` initializes `N` shard structures without spawning new
+      shard-bound workers.
+- [x] Invalid `SURGE_SHARDS` fails with an explicit diagnostic.
+- [x] Conflicting `SURGE_THREADS` under `SURGE_SHARDS>1` fails explicitly.
+- [x] Partial initialization has cleanup paths through `rt_runtime_destroy` /
+      `rt_runtime_destroy_global`.
+- [x] Task 5 static gates pass against `RT_RUNTIME_MAX_SHARDS`.
+- [x] Shard-indexed accessors exist for net-owned call sites; stays-global
+      compatibility paths remain explicit.
+- [x] Line-count impact is recorded; all new/heavily rewritten code files stay
+      under the 500-line target, and legacy over-limit files did not grow past
+      their allowlist ceilings.

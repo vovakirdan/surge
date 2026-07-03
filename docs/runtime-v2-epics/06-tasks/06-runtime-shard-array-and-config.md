@@ -1,6 +1,6 @@
 # Task 6: Runtime Shard Array And Config
 
-**Status:** Draft
+**Status:** Complete
 **Kind:** runtime code
 **Depends on:** Task 1, Task 2, Task 3, Task 5
 

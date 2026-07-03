@@ -5,7 +5,8 @@ rt_runtime_status rt_executor_drain_shutdown_net_waiters(rt_executor* ex) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     rt_lock(ex);
-    (void)rt_fd_registry_drain_shutdown_net_waiters_locked(ex, rt_executor_fd_registry(ex));
+    (void)rt_fd_registry_drain_shutdown_net_waiters_locked(
+        ex, rt_executor_fd_registry_for_shard(ex, 0));
     rt_unlock(ex);
     return RT_RUNTIME_STATUS_OK;
 }
@@ -16,7 +17,8 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
     }
     rt_lock(ex);
     ex->shutdown = 1;
-    (void)rt_fd_registry_drain_shutdown_net_waiters_locked(ex, rt_executor_fd_registry(ex));
+    (void)rt_fd_registry_drain_shutdown_net_waiters_locked(
+        ex, rt_executor_fd_registry_for_shard(ex, 0));
     rt_net_wake_poll();
     pthread_cond_broadcast(&ex->io_cv);
     pthread_cond_broadcast(&ex->ready_cv);

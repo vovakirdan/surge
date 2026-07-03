@@ -134,6 +134,9 @@ static void trace_exec_dump(const char* reason) {
         pos = trace_append_literal(buf, pos, sizeof(buf), reason);
         pos = trace_append_literal(buf, pos, sizeof(buf), " ");
     }
+    pos = trace_append_literal(buf, pos, sizeof(buf), "runtime_shards=");
+    pos = trace_append_u64(buf, pos, sizeof(buf), rt_runtime_shard_count(exec_state.runtime));
+    pos = trace_append_literal(buf, pos, sizeof(buf), " ");
     pos = trace_append_literal(buf, pos, sizeof(buf), "wake_called=");
     pos = trace_append_u64(buf,
                            pos,

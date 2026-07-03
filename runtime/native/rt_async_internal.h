@@ -3,6 +3,7 @@
 
 #include "rt.h"
 #include "rt_heap_accounting.h"
+#include "rt_runtime_config.h"
 
 #include <pthread.h>
 #include <setjmp.h>
@@ -112,19 +113,11 @@ typedef struct {
 typedef _Atomic uint8_t atomic_u8;
 typedef _Atomic uint32_t atomic_u32;
 
-typedef enum {
-    RT_RUNTIME_STATUS_OK = 0,
-    RT_RUNTIME_STATUS_INVALID_ARGUMENT = 1,
-    RT_RUNTIME_STATUS_ALLOCATION_FAILED = 2,
-} rt_runtime_status;
-
 typedef struct rt_executor rt_executor;
 typedef struct rt_runtime rt_runtime;
 typedef struct rt_shard rt_shard;
 typedef struct rt_worker_ctx rt_worker_ctx;
 #include "rt_fd_registry.h"
-
-#define RT_RUNTIME_SHARD_COUNT 1U
 
 typedef struct {
     rt_deque inject;
@@ -161,7 +154,7 @@ struct rt_shard {
 
 struct rt_runtime {
     size_t shard_count;
-    rt_shard shards[RT_RUNTIME_SHARD_COUNT];
+    rt_shard shards[RT_RUNTIME_MAX_SHARDS];
 };
 
 typedef struct rt_task {
@@ -247,26 +240,18 @@ struct rt_executor {
 };
 
 // Executor invariants:
-// - ex->lock owns tasks[], scopes[], the single shard waiter store,
-//   fd registry rows, net waiter/poll scratch state, scheduler queues/counters,
-//   channel/blocking compatibility counters, net_polling, timer state, and
-//   shutdown flags.
-// - task status is atomic so external helpers can observe it, but transitions that
-//   touch queues or waiters still happen under ex->lock.
-// - waiter_store is a FIFO-by-key registration list. prepare_park may
-//   pre-register a waiter before the task stores TASK_WAITING; wake_task uses
-//   wake_token to close wake-before-park races.
-// - ready queues hold task ids whose enqueued flag is set. Worker threads pop local
-//   queues first, then inject, then steal; non-worker threads inject globally.
-// - running_count counts tasks currently being polled. User tasks may poll without
-//   ex->lock, but the increment/decrement around that poll is protected by ex->lock.
-// - channel_blocking_compat.channel_blocked_workers counts executor workers parked
-//   inside sync channel helpers after temporarily leaving running_count.
-//   Compensation workers are a fallback for that path, not a normal async
-//   parking mechanism.
-// - The I/O thread is signaled when the executor becomes idle, when net waiters are
-//   registered, or when shutdown changes. Workers sleep on ready_cv only after they
-//   fail to find local, injected, stealable, or immediately pollable net work.
+// - ex->lock owns tasks/scopes, shard stores, scheduler queues/counters,
+//   channel/blocking compatibility counters, net polling, timers, and shutdown.
+// - task status is atomic for external observation; queue/waiter transitions
+//   still happen under ex->lock.
+// - waiter_store is FIFO-by-key. prepare_park may pre-register before
+//   TASK_WAITING; wake_token closes wake-before-park races.
+// - ready queues hold enqueued task ids. Workers pop local, inject, then steal;
+//   non-worker threads inject globally.
+// - running_count increments/decrements under ex->lock around user polls.
+// - channel_blocking_compat tracks sync-channel worker parking; compensation
+//   workers are a fallback for that path, not normal async parking.
+// - The I/O thread is signaled on idle, net waiter registration, and shutdown.
 
 typedef struct rt_channel rt_channel;
 
@@ -394,8 +379,15 @@ int waker_is_net(waker_key key);
 waker_key blocking_key(uint64_t id);
 
 rt_executor* ensure_exec(void);
-rt_runtime_status rt_runtime_init_global_n1(rt_executor* ex);
+rt_runtime_status rt_runtime_init_global(rt_executor* ex, size_t shard_count);
+rt_runtime_status rt_runtime_init_shard_schedulers(rt_runtime* runtime,
+                                                   uint32_t worker_count,
+                                                   uint8_t sched_mode_value,
+                                                   uint64_t sched_seed);
+void rt_runtime_destroy_global(void);
 rt_runtime* rt_executor_runtime(rt_executor* ex);
+rt_shard* rt_runtime_shard(rt_runtime* runtime, size_t index);
+const rt_shard* rt_runtime_shard_const(const rt_runtime* runtime, size_t index);
 rt_shard* rt_runtime_shard0(rt_runtime* runtime);
 size_t rt_runtime_shard_count(const rt_runtime* runtime);
 rt_heap_accounting* rt_executor_heap_accounting(rt_executor* ex);
@@ -404,6 +396,7 @@ const rt_scheduler* rt_shard_scheduler_const(const rt_shard* shard);
 rt_scheduler* rt_executor_scheduler(rt_executor* ex);
 const rt_scheduler* rt_executor_scheduler_const(const rt_executor* ex);
 rt_net_poll_scratch* rt_shard_net_poll_scratch(rt_shard* shard);
+rt_net_poll_scratch* rt_executor_net_poll_scratch_for_shard(rt_executor* ex, size_t shard_index);
 rt_net_poll_scratch* rt_executor_net_poll_scratch(rt_executor* ex);
 rt_channel_blocking_compat* rt_shard_channel_blocking_compat(rt_shard* shard);
 const rt_channel_blocking_compat* rt_shard_channel_blocking_compat_const(const rt_shard* shard);

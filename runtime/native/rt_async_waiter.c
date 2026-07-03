@@ -88,7 +88,8 @@ static void fd_registry_bridge_net_attach(rt_executor* ex, waker_key key) {
     if (!waker_is_net(key)) {
         return;
     }
-    rt_runtime_status status = rt_fd_registry_attach_net_interest(rt_executor_fd_registry(ex), key);
+    rt_runtime_status status =
+        rt_fd_registry_attach_net_interest(rt_executor_fd_registry_for_shard(ex, 0), key);
     if (status != RT_RUNTIME_STATUS_OK && rt_async_debug_enabled()) {
         rt_async_debug_printf("fd-registry-attach-miss kind=%u fd=%llu status=%d\n",
                               (unsigned)key.kind,
@@ -106,9 +107,9 @@ static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
     }
     int removed_open_interest = 0;
     if (remaining_same_key == 0) {
-        removed_open_interest =
-            rt_fd_registry_net_interest_present(rt_executor_fd_registry_const(ex), key);
-        rt_fd_registry_detach_net_interest(rt_executor_fd_registry(ex), key);
+        removed_open_interest = rt_fd_registry_net_interest_present(
+            rt_executor_fd_registry_const_for_shard(ex, 0), key);
+        rt_fd_registry_detach_net_interest(rt_executor_fd_registry_for_shard(ex, 0), key);
     }
     if (rt_async_debug_enabled()) {
         // Debug consistency check: recount same-key waiters independently and
@@ -121,7 +122,8 @@ static int fd_registry_bridge_net_detach_if_last(rt_executor* ex,
                 recount++;
             }
         }
-        int interest = rt_fd_registry_net_interest_present(rt_executor_fd_registry_const(ex), key);
+        int interest = rt_fd_registry_net_interest_present(
+            rt_executor_fd_registry_const_for_shard(ex, 0), key);
         if (recount != remaining_same_key || (recount == 0 && interest)) {
             rt_async_debug_printf(
                 "fd-registry-bridge mismatch kind=%u fd=%llu remaining=%zu recount=%zu "

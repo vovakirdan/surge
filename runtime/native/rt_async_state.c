@@ -106,38 +106,6 @@ void rt_unlock(rt_executor* ex) {
     pthread_mutex_unlock(&ex->lock);
 }
 
-static uint32_t rt_env_worker_count(void) {
-    const char* value = getenv("SURGE_THREADS");
-    if (value == NULL || value[0] == '\0') {
-        return 0;
-    }
-    char* end = NULL;
-    long parsed = strtol(value, &end, 10);
-    if (end == value || parsed <= 0) {
-        return 0;
-    }
-    if ((unsigned long)parsed > UINT32_MAX) { // NOLINT(runtime/int)
-        return UINT32_MAX;
-    }
-    return (uint32_t)parsed;
-}
-
-static uint32_t rt_env_blocking_count(void) {
-    const char* value = getenv("SURGE_BLOCKING_THREADS");
-    if (value == NULL || value[0] == '\0') {
-        return 0;
-    }
-    char* end = NULL;
-    long parsed = strtol(value, &end, 10);
-    if (end == value || parsed <= 0) {
-        return 0;
-    }
-    if ((unsigned long)parsed > UINT32_MAX) { // NOLINT(runtime/int)
-        return UINT32_MAX;
-    }
-    return (uint32_t)parsed;
-}
-
 // Seeded scheduler mode provides deterministic scheduler choices given the same seed and the same
 // arrival order of external events; it does not control I/O timing or OS thread interleavings.
 static uint8_t rt_env_sched_mode(void) {
@@ -187,7 +155,12 @@ static void move_current_local_to_inject_locked(rt_executor* ex);
 static void exec_init_once(void) {
     rt_executor* ex = &exec_state;
     memset(ex, 0, sizeof(*ex));
-    if (rt_runtime_init_global_n1(ex) != RT_RUNTIME_STATUS_OK) {
+    rt_runtime_start_config config;
+    const char* config_error = NULL;
+    if (rt_runtime_start_config_from_env(&config, &config_error) != RT_RUNTIME_STATUS_OK) {
+        rt_runtime_config_exit(config_error);
+    }
+    if (rt_runtime_init_global(ex, config.shard_count) != RT_RUNTIME_STATUS_OK) {
         panic_msg("async: runtime skeleton initialization failed");
     }
     ex->next_id = 1;
@@ -198,30 +171,26 @@ static void exec_init_once(void) {
     pthread_cond_init(&ex->done_cv, NULL);
     rt_exec_trace_init();
     rt_sched_trace_init();
-    uint32_t threads = rt_env_worker_count();
-    if (threads == 0) {
-        threads = rt_runtime_default_worker_count();
-    }
-    uint32_t blocking_threads = rt_env_blocking_count();
-    if (blocking_threads == 0) {
-        blocking_threads = rt_runtime_default_blocking_count(threads);
-    }
+    uint32_t threads = config.legacy_worker_threads;
+    uint32_t blocking_threads = config.blocking_threads;
     ex->blocking_count = blocking_threads;
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
     if (rt_heap_accounting_prepare_cells(accounting, threads, blocking_threads) !=
         RT_HEAP_ACCOUNTING_OK) {
+        rt_runtime_destroy_global();
         panic_msg("async: heap accounting cell allocation failed");
     }
     rt_heap_accounting_set_current_cell(rt_heap_accounting_main_cell(accounting));
-    rt_runtime_status scheduler_status =
-        rt_shard_scheduler_init(rt_runtime_shard0(rt_executor_runtime(ex)),
-                                threads,
-                                rt_env_sched_mode(),
-                                rt_env_sched_seed());
+    rt_runtime_status scheduler_status = rt_runtime_init_shard_schedulers(rt_executor_runtime(ex),
+                                                                          config.shard_worker_count,
+                                                                          rt_env_sched_mode(),
+                                                                          rt_env_sched_seed());
     if (scheduler_status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
+        rt_runtime_destroy_global();
         panic_msg("async: local queue allocation failed");
     }
     if (scheduler_status != RT_RUNTIME_STATUS_OK) {
+        rt_runtime_destroy_global();
         panic_msg("async: scheduler initialization failed");
     }
     channel_wake_force_inject = rt_env_channel_wake_force_inject();

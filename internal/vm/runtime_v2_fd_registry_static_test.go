@@ -282,6 +282,12 @@ const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
     return NULL;
 }
 
+const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor* ex,
+                                                              size_t shard_index) {
+    (void)shard_index;
+    return rt_executor_fd_registry_const(ex);
+}
+
 rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
     (void)ex;
     (void)key;
