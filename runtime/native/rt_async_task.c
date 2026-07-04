@@ -51,19 +51,45 @@ void* __task_create(
     // identical lock cancel_task now snapshots children[] under (see
     // cancel_task, rt_async_state.c) - no extra lock.
     //
-    // Invariant this relies on: the parent cannot be undergoing a
-    // cross-thread owner replacement concurrently with this spawn.
-    // rt_task_replace_owner (the accept transition) has exactly one call
-    // site that targets a task other than the caller's own from a
-    // different thread (rt_executor_wake_net_waiters_for_key_on_owner,
-    // rt_async_waiter.c), and that target is always popped from a waiter
-    // store - i.e. currently TASK_WAITING, which cannot itself be executing
-    // __task_create. Its other two call sites (net_task_set_ready_accept
-    // via rt_net_wait_accept; rt_net_place_current_task_on_owner) always
-    // replace rt_current_task() - the calling thread's own task,
-    // synchronously, sequenced-before any later spawn that same thread
-    // performs. So a parent's owner_shard_id is never being concurrently
-    // rewritten by another thread while this thread reads it above.
+    // Invariant this relies on (write this down precisely - a future
+    // rt_task_replace_owner call site, e.g. Task 7's planned join-consume
+    // placement adoption, must fit case (a) below without breaking this):
+    // (a) task_add_child always runs on the parent's own executing thread -
+    //     spawning a child is a synchronous call the parent makes from
+    //     within its own poll, never issued on the parent's behalf by
+    //     another thread. So every append to a given parent's children[]
+    //     is program-order sequenced with anything else that thread does
+    //     to itself, INCLUDING a self-replace of its own owner_shard_id
+    //     (today: rt_net_place_current_task_on_owner / the accept
+    //     self-place path; a future self-adoption at join-consume would be
+    //     the same shape).
+    // (b) this append takes the CHILD's owner shard lock, which
+    //     rt_task_inherit_placement (just above) set to the parent's
+    //     CURRENT owner_shard_id at this exact spawn - read fresh, not
+    //     cached.
+    // (c) a reader (cancel_task, rt_async_state.c) holds control plus the
+    //     parent's CURRENT owner shard lock. Every rt_task_replace_owner
+    //     call today is either a self-replace on the owning thread (case
+    //     (a): program order carries prior appends forward to whatever
+    //     lock that thread acquires next - happens-before is the
+    //     transitive closure of sequenced-before and synchronizes-with, so
+    //     even a parent that changes its own owner BETWEEN two of its own
+    //     children's spawns leaves both appends visible to a canceller
+    //     locking the parent's current owner shard), or a cross-thread
+    //     replace targeting a task popped from a waiter store, i.e.
+    //     TASK_WAITING - parked, not mid-spawn
+    //     (rt_executor_wake_net_waiters_for_key_on_owner, rt_async_waiter.c,
+    //     the only such call site; net_task_set_ready_accept and
+    //     rt_net_place_current_task_on_owner are the two self-replace
+    //     sites - grep-verified, all in rt_net_accept_group.c /
+    //     rt_async_waiter.c).
+    // This does NOT claim a running parent's owner_shard_id never changes
+    // (it can, per (a)) - only that no path lets a DIFFERENT thread rewrite
+    // it while the owning thread might be mid-append. If a future change
+    // ever lets a parent spawn while parked, or lets another thread replace
+    // a task's owner while that task is unambiguously running (not
+    // self-driven, not popped-from-a-store), this invariant breaks and
+    // must be re-derived before relying on it.
     rt_shard* owner_shard = rt_task_owner_shard(ex, task);
     rt_shard_lock(owner_shard);
     rt_task_slot_store(ex, id, task);

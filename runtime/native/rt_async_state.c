@@ -1459,6 +1459,18 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     // recurse. Legal lane order (control held, then at most one shard lock,
     // released before any further lock); never two shard locks, since each
     // recursion level locks/copies/unlocks before descending.
+    //
+    // Locking THIS task's CURRENT owner shard (not whatever shard protected
+    // some earlier append) is sufficient even if this task's own owner
+    // changed since an earlier append: every append and every self-replace
+    // of this task's own owner_shard_id happen on this task's own executing
+    // thread (see the invariant at __task_create's matching lock site,
+    // rt_async_task.c), so program order plus the same-thread "lock
+    // handoff" (a release sequenced-before a later acquire of a different
+    // lock, both by the same thread, transitively carries prior writes
+    // forward) publishes every earlier append to whoever locks the current
+    // owner shard. This depends on that invariant staying true - re-check
+    // it before adding any new rt_task_replace_owner call site.
     rt_shard* owner_shard = rt_task_owner_shard(ex, task);
     rt_shard_lock(owner_shard);
     size_t child_count = task->children_len;
