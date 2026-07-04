@@ -379,6 +379,36 @@ static void trace_exec_snapshot_dump(const char* reason) {
         } else {
             tasks_done++;
         }
+        if (status == TASK_WAITING || status == TASK_READY) {
+            // Liveness triage line (Epic 8): a parked or queued task's park
+            // key, generation, queue flag, wake token, and pending resume
+            // identify a stranded park or a lost wake from one snapshot.
+            char tbuf[224];
+            size_t tpos = 0;
+            tpos = trace_append_literal(tbuf,
+                                        tpos,
+                                        sizeof(tbuf),
+                                        status == TASK_WAITING ? "TRACE_TASK_WAITING"
+                                                               : "TRACE_TASK_READY");
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "task", task->id);
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "kind", task->kind);
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "pk_kind", task->park_key.kind);
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "pk_id", task->park_key.id);
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "park_seq", task->park_seq);
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "enq", task_enqueued_load(task));
+            trace_append_kv_u64(tbuf,
+                                &tpos,
+                                sizeof(tbuf),
+                                "tok",
+                                atomic_load_explicit(&((rt_task*)(uintptr_t)task)->wake_token,
+                                                     memory_order_acquire));
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "resume", task->resume_kind);
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "owner", task->owner_shard_id);
+            if (tpos + 1 < sizeof(tbuf)) {
+                tbuf[tpos++] = '\n';
+            }
+            (void)write(STDERR_FILENO, tbuf, tpos);
+        }
         if (task->kind == TASK_KIND_USER) {
             if (status == TASK_READY) {
                 tasks_ready_user++;
@@ -404,6 +434,29 @@ static void trace_exec_snapshot_dump(const char* reason) {
         }
     }
     rt_trace_collect_waiter_counts(ex, &waiters);
+    {
+        // Raw store dump (Epic 8 triage): entries beyond len expose a
+        // truncated-length corruption that counts and scans cannot see.
+        rt_runtime* rt = rt_executor_runtime(ex);
+        size_t shard_count = rt_runtime_shard_count(rt);
+        for (size_t si = 0; si < shard_count; si++) {
+            rt_shard* shard = rt_runtime_shard(rt, si);
+            if (shard == NULL) {
+                continue;
+            }
+            const rt_waiter_store* st = &shard->waiter_store;
+            char sbuf[192];
+            size_t spos = 0;
+            spos = trace_append_literal(sbuf, spos, sizeof(sbuf), "TRACE_STORE");
+            trace_append_kv_u64(sbuf, &spos, sizeof(sbuf), "shard", si);
+            trace_append_kv_u64(sbuf, &spos, sizeof(sbuf), "len", st->len);
+            trace_append_kv_u64(sbuf, &spos, sizeof(sbuf), "cap", st->cap);
+            if (spos + 1 < sizeof(sbuf)) {
+                sbuf[spos++] = '\n';
+            }
+            (void)write(STDERR_FILENO, sbuf, spos);
+        }
+    }
 
     char buf[1800];
     size_t pos = 0;

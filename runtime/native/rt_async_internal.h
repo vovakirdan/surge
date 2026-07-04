@@ -472,6 +472,7 @@ void rt_shard_lock(rt_shard* shard);
 void rt_shard_unlock(rt_shard* shard);
 int rt_lane_debug_enabled(void);
 int rt_lane_holds_control(void);
+int rt_lane_holds_shard(uint32_t shard_id);
 rt_runtime_status rt_shard_sync_init(rt_shard* shard);
 void rt_shard_sync_destroy(rt_shard* shard);
 void rt_blocking_init(rt_executor* ex);
@@ -613,5 +614,7 @@ int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id);
 int rt_next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
 int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task);
+rt_scheduler* current_worker_scheduler(const rt_executor* ex);
+void maybe_start_compensation_worker_locked(rt_executor* ex);
 
 #endif

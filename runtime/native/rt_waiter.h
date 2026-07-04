@@ -97,6 +97,7 @@ uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fal
 uint32_t rt_net_owner_shard_probe_locked(rt_executor* ex, int fd, uint32_t hint_shard_id);
 void ensure_waiter_cap(rt_executor* ex);
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
+void remove_waiter_generation(rt_executor* ex, waker_key key, uint64_t task_id, uint32_t seq);
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
 void clear_wait_keys(rt_executor* ex, rt_task* task);
 void add_wait_key(rt_executor* ex, rt_task* task, waker_key key);

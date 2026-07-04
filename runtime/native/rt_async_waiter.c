@@ -139,10 +139,11 @@ static size_t count_net_waiters_for_key_all_shards(rt_executor* ex, waker_key ke
     return count;
 }
 
-static size_t remove_waiter_from_store(rt_waiter_store* store,
-                                       waker_key key,
-                                       uint64_t task_id,
-                                       size_t* out_kept_same_key) {
+static size_t remove_waiter_from_store_seq(rt_waiter_store* store,
+                                           waker_key key,
+                                           uint64_t task_id,
+                                           uint32_t seq,
+                                           size_t* out_kept_same_key) {
     if (out_kept_same_key != NULL) {
         *out_kept_same_key = 0;
     }
@@ -154,7 +155,8 @@ static size_t remove_waiter_from_store(rt_waiter_store* store,
     size_t kept_same_key = 0;
     for (size_t i = 0; i < store->len; i++) {
         waiter w = store->entries[i];
-        if (w.task_id == task_id && w.key.kind == key.kind && w.key.id == key.id) {
+        if (w.task_id == task_id && w.key.kind == key.kind && w.key.id == key.id &&
+            (seq == 0 || w.seq == seq)) {
             removed++;
             continue;
         }
@@ -424,6 +426,40 @@ static void ensure_wait_keys_cap(rt_task* task, size_t want) {
     }
     task->wait_keys = next;
     task->wait_keys_cap = next_cap;
+}
+
+static size_t remove_waiter_from_store(rt_waiter_store* store,
+                                       waker_key key,
+                                       uint64_t task_id,
+                                       size_t* out_kept_same_key) {
+    return remove_waiter_from_store_seq(store, key, task_id, 0, out_kept_same_key);
+}
+
+// Generation-qualified removal (Epic 8 blocker fix): the deferred stale-key
+// removal in wake_task_with_policy runs after the owner lock is released,
+// and the woken task can re-register the same channel key in that window.
+// Removing by (key, task) alone would eat the fresh registration and strand
+// the new park; qualifying by the captured park generation removes only the
+// entry the wake actually orphaned. seq == 0 keeps the unqualified behavior
+// for non-channel keys, whose entries carry seq 0.
+void remove_waiter_generation(rt_executor* ex, waker_key key, uint64_t task_id, uint32_t seq) {
+    if (ex == NULL || !waker_valid(key)) {
+        return;
+    }
+    if (!waker_is_net(key)) {
+        size_t kept_same_key = 0;
+        rt_shard* store_shard = rt_waiter_key_shard(ex, key);
+        if (store_shard != NULL) {
+            rt_shard_lock(store_shard);
+        }
+        (void)remove_waiter_from_store_seq(
+            rt_waiter_store_for_key(ex, key), key, task_id, seq, &kept_same_key);
+        if (store_shard != NULL) {
+            rt_shard_unlock(store_shard);
+        }
+        return;
+    }
+    remove_waiter(ex, key, task_id);
 }
 
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {

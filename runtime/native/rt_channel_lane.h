@@ -189,9 +189,19 @@ channel_park_prepare_locked(rt_shard* owner_shard, rt_task* task, waker_key key)
     // re-enter this path without their entry having been popped; appending
     // again would strand a duplicate that outlives this park and, once the
     // guest reuses the channel address, misdelivers into an unrelated park.
+    // A matched entry must be re-armed with a fresh generation: it may be a
+    // leftover from a superseded park (same task, same key — e.g. a reused
+    // channel address across park generations), and an entry whose seq lags
+    // task->park_seq validates false at delivery, which would pop-and-drop
+    // the registration and strand this park forever.
     for (size_t i = 0; i < store->len; i++) {
-        const waiter* w = &store->entries[i];
+        waiter* w = &store->entries[i];
         if (w->task_id == task->id && w->key.kind == key.kind && w->key.id == key.id) {
+            task->park_seq++;
+            if (task->park_seq == 0) {
+                task->park_seq = 1;
+            }
+            w->seq = task->park_seq;
             task->park_key = key;
             task->park_prepared = 1;
             return;
