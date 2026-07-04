@@ -50,8 +50,11 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 				"net_wait_current_task",
 				"rt_net_wait_readable",
 				"rt_net_wait_writable",
-				"poll_net_waiters_on_shard",
 			},
+		},
+		{
+			path:  "runtime/native/rt_net_poll_pass.c",
+			names: []string{"poll_net_waiters_on_shard"},
 		},
 		{
 			path: "runtime/native/rt_net_poller.c",

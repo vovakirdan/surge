@@ -58,9 +58,9 @@ func TestRuntimeV2NetPollerPerShardWakeShape(t *testing.T) {
 
 func TestRuntimeV2NetPollerShardLocalPollInput(t *testing.T) {
 	root := repoRoot(t)
-	sourceBytes, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_net.c"))
+	sourceBytes, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_net_poll_pass.c"))
 	if err != nil {
-		t.Fatalf("read rt_net.c: %v", err)
+		t.Fatalf("read rt_net_poll_pass.c: %v", err)
 	}
 	body, ok := cFunctionBody(string(sourceBytes), "poll_net_waiters_on_shard")
 	if !ok {
