@@ -3118,3 +3118,27 @@ pass, before any task execution began:
   strictly sequenced C work on the lifecycle path; Task 11 (starvation
   investigation, `RV2-DEBT-015`) is independent after the spike but must
   not share C write sets with the lifecycle task in flight.
+
+## Epic 8 Task 1 (2026-07-04, main session)
+
+- Baselines recorded post-blocker-fix: 8x1024 matrix row 2.011s (1.30x the
+  1-shard row), control_lock_acquired 26.4/request (the epic's numeric
+  target), full census of 51 control-lock sites classified in
+  `08-evidence.md` (16 steady-path lifecycle sites to migrate).
+- GATE BLOCKER found and fixed during baselining (own commit): the
+  ParkUnpark "load flake" was a real lost-wake — deferred waiter removals
+  (wake-policy stale key; park-abort) executed after the owner lock was
+  released could delete a FRESH re-registration of the same channel key.
+  Removals are now generation-qualified; dedupe re-arms leftovers onto the
+  current generation. 120/120 repro-clean; runtime-v2-check green x2
+  consecutive, no rerun. Triage tooling kept under SURGE_TRACE_EXEC:
+  TRACE_TASK_WAITING/READY per-task park state + TRACE_STORE len/cap.
+  The compat lane moved to rt_async_compat.c (state.c 1452 <= 1580).
+- RV2-DEBT-015 surprise: the 8x1024x100 starvation probe completed
+  cleanly in one run (19.0s, p95 307us, no >10s tails) — Task 11 must
+  first re-establish a reproducer before fixing anything; the Epic 7
+  fairness ticks plus this lost-wake fix may have moved the landscape.
+- For Task 2 (dependency map): start from the census table; the
+  register-then-commit + generation protocol now has THREE moving parts
+  (park_seq, entry seq, deferred removals) — the map must treat
+  generations as part of the waiter-store ownership contract.
