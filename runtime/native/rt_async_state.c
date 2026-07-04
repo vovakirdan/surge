@@ -1,3 +1,7 @@
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+#endif
+
 #include "rt_async_internal.h"
 
 #include <errno.h>
@@ -5,6 +9,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 rt_executor exec_state;
 _Thread_local jmp_buf* poll_env;
 _Thread_local int poll_active = 0;
@@ -138,6 +143,7 @@ static uint8_t rt_env_channel_wake_force_inject(void) {
 static void rt_start_workers(rt_executor* ex);
 static void* rt_worker_main(void* arg);
 static void* rt_io_main(void* arg);
+static void io_cv_timedwait_slice(rt_executor* ex);
 static int scheduler_runnable_is_empty(const rt_scheduler* scheduler);
 static int runnable_is_empty(const rt_executor* ex);
 static uint32_t runtime_running_count(const rt_executor* ex);
@@ -1193,7 +1199,7 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
                     }
                     const rt_shard* shard = rt_runtime_shard_const(rt_executor_runtime(ex), 0);
                     if (shard != NULL && shard->net_polling && !ex->shutdown) {
-                        pthread_cond_wait(&ex->io_cv, &ex->lock);
+                        io_cv_timedwait_slice(ex);
                         continue;
                     }
                 }
@@ -1211,7 +1217,7 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
             const rt_shard* shard = rt_runtime_shard_const(rt_executor_runtime(ex), 0);
             if (shard != NULL && shard->net_polling && rt_net_has_waiters_on_shard(ex, 0) &&
                 !ex->shutdown) {
-                pthread_cond_wait(&ex->io_cv, &ex->lock);
+                io_cv_timedwait_slice(ex);
                 continue;
             }
             return 0;
@@ -1422,7 +1428,9 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
         }
     }
     wake_key_all_with_policy(ex, join_key(task->id), 0);
-    pthread_cond_broadcast(&ex->done_cv);
+    if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) > 0) {
+        pthread_cond_broadcast(&ex->done_cv);
+    }
     if (atomic_load_explicit(&task->handle_refs, memory_order_relaxed) == 0) {
         free_task(ex, task);
     }
@@ -1737,6 +1745,21 @@ static int run_ready_one_nowait_locked(rt_executor* ex) {
     return 1;
 }
 
+static void io_cv_timedwait_slice(rt_executor* ex) {
+    // Self-refreshing wait (peel step B1b/B4): the io thread's predicates
+    // (net waiters, timers, idleness) are shard-lane state now, so instead
+    // of requiring every shard path to signal io_cv, the io thread re-checks
+    // them at least every poll slice.
+    struct timespec deadline;
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_nsec += 50L * 1000L * 1000L;
+    if (deadline.tv_nsec >= 1000000000L) {
+        deadline.tv_sec += 1;
+        deadline.tv_nsec -= 1000000000L;
+    }
+    (void)pthread_cond_timedwait(&ex->io_cv, &ex->lock, &deadline);
+}
+
 static void* rt_io_main(void* arg) {
     rt_executor* ex = (rt_executor*)arg;
     if (ex == NULL) {
@@ -1763,7 +1786,7 @@ static void* rt_io_main(void* arg) {
         int idle = runtime_running_count(ex) == 0 && runnable_is_empty(ex);
 
         if (!have_net && (!have_timer || !idle)) {
-            pthread_cond_wait(&ex->io_cv, &ex->lock);
+            io_cv_timedwait_slice(ex);
             continue;
         }
 
@@ -1771,7 +1794,7 @@ static void* rt_io_main(void* arg) {
             if (idle && have_timer && advance_time_to_next_timer(ex)) {
                 continue;
             }
-            pthread_cond_wait(&ex->io_cv, &ex->lock);
+            io_cv_timedwait_slice(ex);
             continue;
         }
 
@@ -1788,7 +1811,7 @@ static void* rt_io_main(void* arg) {
             timeout_ms = poll_slice_ms;
         }
         if (!rt_net_begin_poll_on_shard(ex, 0)) {
-            pthread_cond_wait(&ex->io_cv, &ex->lock);
+            io_cv_timedwait_slice(ex);
             continue;
         }
         if (rt_net_poll_waiters_owned_on_shard(ex, 0, timeout_ms)) {

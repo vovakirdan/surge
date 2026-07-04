@@ -245,6 +245,9 @@ struct rt_executor {
     // Control-lane waiter store: scope keys only (D8). Everything else is
     // owner-resolved by rt_waiter_store_for_key.
     rt_waiter_store control_waiters;
+    // Main-thread awaiters parked on done_cv (D10): completions broadcast
+    // only when this is nonzero, so plain task exits skip the control cv.
+    atomic_u32 done_waiters;
 };
 
 // Executor invariants:
@@ -466,6 +469,7 @@ int advance_time_to_next_timer(rt_executor* ex);
 int next_ready(rt_executor* ex, uint64_t* out_id);
 
 rt_task* task_from_handle(void* handle);
+rt_task* rt_spawn_sleep_task_locked(rt_executor* ex, uint64_t delay);
 uint64_t task_id_from_handle(void* handle);
 void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_class);
 void rt_task_replace_owner(rt_executor* ex,
