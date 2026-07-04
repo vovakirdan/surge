@@ -278,12 +278,12 @@ int main(void) {
 
 func TestRuntimeV2NetPollerGlobalIOThreadDoesNotOwnMultiShardNetPolling(t *testing.T) {
 	root := repoRoot(t)
-	sourceBytes, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_async_state.c"))
+	sourceBytes, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_worker_turn.c"))
 	if err != nil {
-		t.Fatalf("read rt_async_state.c: %v", err)
+		t.Fatalf("read rt_worker_turn.c: %v", err)
 	}
 	source := string(sourceBytes)
-	if !strings.Contains(source, "static void* rt_io_main(void* arg) {") {
+	if !strings.Contains(source, "void* rt_io_main(void* arg) {") {
 		t.Fatal("rt_io_main definition not found")
 	}
 	if !strings.Contains(source, "shard_count <= 1 && rt_net_has_waiters_on_shard(ex, 0)") {

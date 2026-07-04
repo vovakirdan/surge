@@ -278,7 +278,7 @@ static int fail(const char* msg) {
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
-    ex->tasks[id] = task;
+    rt_task_slot_store(ex, id, task);
     return task;
 }
 

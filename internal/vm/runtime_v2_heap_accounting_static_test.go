@@ -148,6 +148,7 @@ func readRuntimeV2HeapAccountingNativeSources(t *testing.T, root string) string 
 		"runtime/native/rt_heap_accounting.h",
 		"runtime/native/rt_heap_accounting.c",
 		"runtime/native/rt_async_state.c",
+		"runtime/native/rt_worker_turn.c",
 		"runtime/native/rt_async_poll.c",
 		"runtime/native/rt_async_blocking.c",
 	}

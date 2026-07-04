@@ -31,7 +31,7 @@ void* __task_create(
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
-    ex->tasks[id] = task;
+    rt_task_slot_store(ex, id, task);
     rt_task* parent = rt_current_task();
     if (parent != NULL) {
         task_add_child(parent, id);
@@ -152,14 +152,17 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     if (ex == NULL || current == NULL || target == NULL) {
         return;
     }
-    rt_scheduler* scheduler = rt_task_scheduler(ex, target);
-    if (scheduler == NULL) {
+    rt_shard* owner_shard = rt_task_owner_shard(ex, target);
+    rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
+    if (owner_shard == NULL || scheduler == NULL) {
         return;
     }
     task_enqueued_store(target, 0);
     task_status_store(target, TASK_RUNNING);
     (void)task_wake_token_exchange(target, 0);
+    rt_shard_lock(owner_shard);
     scheduler->running_count++;
+    rt_shard_unlock(owner_shard);
     rt_set_current_task(target);
     rt_control_unlock(ex);
 
@@ -168,9 +171,11 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     task_polling_exit(target);
 
     rt_control_lock(ex);
+    rt_shard_lock(owner_shard);
     if (scheduler->running_count > 0) {
         scheduler->running_count--;
     }
+    rt_shard_unlock(owner_shard);
     apply_poll_outcome(ex, target, outcome);
     rt_set_current_task(current);
 }
@@ -263,7 +268,7 @@ static rt_task* spawn_internal_task_locked(rt_executor* ex, uint8_t kind, uint64
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
     rt_task_inherit_placement(task, rt_current_task());
     rt_task_assign_spawn_owner(task);
-    ex->tasks[id] = task;
+    rt_task_slot_store(ex, id, task);
     ready_push(ex, id);
     return task;
 }

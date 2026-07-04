@@ -253,7 +253,7 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
-    ex->tasks[id] = task;
+    rt_task_slot_store(ex, id, task);
     rt_task* parent = rt_current_task();
     if (parent != NULL) {
         task_add_child(parent, id);
@@ -264,7 +264,7 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
     rt_blocking_job* job =
         (rt_blocking_job*)rt_alloc(sizeof(rt_blocking_job), _Alignof(rt_blocking_job));
     if (job == NULL) {
-        ex->tasks[id] = NULL;
+        rt_task_slot_store(ex, id, NULL);
         rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
         rt_control_unlock(ex);
         panic_msg("async: blocking job allocation failed");

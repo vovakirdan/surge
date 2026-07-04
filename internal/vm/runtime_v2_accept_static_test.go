@@ -106,12 +106,12 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 			},
 		},
 		{
-			path: "runtime/native/rt_async_state.c",
-			names: []string{
-				"park_current",
-				"next_ready",
-				"rt_io_main",
-			},
+			path:  "runtime/native/rt_async_state.c",
+			names: []string{"park_current", "next_ready"},
+		},
+		{
+			path:  "runtime/native/rt_worker_turn.c",
+			names: []string{"rt_io_main", "rt_worker_main"},
 		},
 	}
 	for _, target := range netOwnedSources {

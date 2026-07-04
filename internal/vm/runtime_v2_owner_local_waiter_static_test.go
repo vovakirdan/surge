@@ -197,11 +197,21 @@ const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
     return rt_executor_fd_registry_const_for_shard(ex, 0);
 }
 
+static rt_task_table* stub_table;
+
+rt_task_table* rt_task_table_snapshot(rt_executor* ex) {
+    (void)ex;
+    return stub_table;
+}
+
+static rt_task* stub_tasks[8];
+
 rt_task* get_task(rt_executor* ex, uint64_t id) {
-    if (ex == NULL || id >= ex->tasks_cap) {
+    (void)ex;
+    if (id >= 8) {
         return NULL;
     }
-    return ex->tasks[id];
+    return stub_tasks[id];
 }
 
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
@@ -307,14 +317,12 @@ int main(void) {
     rt_executor ex;
     rt_task task;
     rt_task peer_task;
-    rt_task* tasks[8];
+    rt_task** tasks = stub_tasks;
     memset(&runtime, 0, sizeof(runtime));
     memset(&ex, 0, sizeof(ex));
-    memset(tasks, 0, sizeof(tasks));
+    memset(stub_tasks, 0, sizeof(stub_tasks));
     runtime.shard_count = 2;
     ex.runtime = &runtime;
-    ex.tasks = tasks;
-    ex.tasks_cap = 8;
     reset_task(&task, 7);
     reset_task(&peer_task, 6);
     tasks[6] = &peer_task;

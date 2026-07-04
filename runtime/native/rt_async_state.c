@@ -18,18 +18,8 @@ _Thread_local waker_key pending_key;
 _Thread_local uint64_t tls_current_id;
 _Thread_local rt_task* tls_current_task;
 _Thread_local int tls_worker_id = -1;
-static _Thread_local rt_worker_ctx* tls_worker_ctx;
+_Thread_local rt_worker_ctx* tls_worker_ctx;
 static pthread_once_t exec_once = PTHREAD_ONCE_INIT;
-struct rt_worker_ctx {
-    rt_executor* ex;
-    rt_shard* shard;
-    rt_scheduler* scheduler;
-    rt_heap_accounting_cell* heap_cell;
-    uint32_t shard_id;
-    uint32_t worker_id;
-    uint32_t worker_index;
-    uint64_t sched_rng;
-};
 
 static uint8_t channel_wake_force_inject;
 
@@ -141,13 +131,7 @@ static uint8_t rt_env_channel_wake_force_inject(void) {
 }
 
 static void rt_start_workers(rt_executor* ex);
-static void* rt_worker_main(void* arg);
-static void* rt_io_main(void* arg);
-static void io_cv_timedwait_slice(rt_executor* ex);
 static int scheduler_runnable_is_empty(const rt_scheduler* scheduler);
-static int runnable_is_empty(const rt_executor* ex);
-static uint32_t runtime_running_count(const rt_executor* ex);
-static int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id);
 static void maybe_start_compensation_worker_locked(rt_executor* ex);
 static void move_current_local_to_inject_locked(const rt_executor* ex);
 
@@ -245,35 +229,28 @@ static int scheduler_runnable_is_empty(const rt_scheduler* scheduler) {
     return 1;
 }
 
-static int runnable_is_empty(const rt_executor* ex) {
-    const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
-    if (runtime == NULL || runtime->shard_count < 1 ||
-        runtime->shard_count > RT_RUNTIME_MAX_SHARDS) {
-        return 1;
-    }
-    for (size_t i = 0; i < runtime->shard_count; i++) {
-        const rt_scheduler* scheduler = rt_shard_scheduler_const(&runtime->shards[i]);
-        if (!scheduler_runnable_is_empty(scheduler)) {
+// Locked idle sample for control-lane callers (io thread, N=1 runner):
+// reads each shard's queues and running count under that shard's lock, one
+// shard at a time. Cross-shard atomicity is not promised (spike D7); for
+// SURGE_SHARDS=1 the single-shard sample is exact.
+int rt_sched_idle_sample_locked(rt_executor* ex) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    size_t shard_count = rt_runtime_shard_count(runtime);
+    for (size_t i = 0; i < shard_count; i++) {
+        rt_shard* shard = rt_runtime_shard(runtime, i);
+        if (shard == NULL) {
+            continue;
+        }
+        rt_shard_lock(shard);
+        const rt_scheduler* scheduler = rt_shard_scheduler_const(shard);
+        int busy = scheduler != NULL &&
+                   (scheduler->running_count > 0 || !scheduler_runnable_is_empty(scheduler));
+        rt_shard_unlock(shard);
+        if (busy) {
             return 0;
         }
     }
     return 1;
-}
-
-static uint32_t runtime_running_count(const rt_executor* ex) {
-    const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
-    if (runtime == NULL || runtime->shard_count < 1 ||
-        runtime->shard_count > RT_RUNTIME_MAX_SHARDS) {
-        return 0;
-    }
-    uint32_t total = 0;
-    for (size_t i = 0; i < runtime->shard_count; i++) {
-        const rt_scheduler* scheduler = rt_shard_scheduler_const(&runtime->shards[i]);
-        if (scheduler != NULL) {
-            total += scheduler->running_count;
-        }
-    }
-    return total;
 }
 
 static uint64_t sched_next_u64(rt_worker_ctx* ctx) {
@@ -376,10 +353,29 @@ uint32_t rt_debug_current_worker_shard_id(void) {
 }
 
 rt_task* get_task(rt_executor* ex, uint64_t id) {
-    if (ex == NULL || id == 0 || id >= ex->tasks_cap) {
+    if (ex == NULL || id == 0) {
         return NULL;
     }
-    return ex->tasks[id];
+    rt_task_table* table = atomic_load_explicit(&ex->tasks_table, memory_order_acquire);
+    if (table == NULL || id >= table->cap) {
+        return NULL;
+    }
+    return atomic_load_explicit(&table->slots[id], memory_order_acquire);
+}
+
+rt_task_table* rt_task_table_snapshot(rt_executor* ex) {
+    return ex != NULL ? atomic_load_explicit(&ex->tasks_table, memory_order_acquire) : NULL;
+}
+
+void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task) {
+    // Caller holds the control lock and has sized the table via
+    // ensure_task_cap.
+    rt_task_table* table = atomic_load_explicit(&ex->tasks_table, memory_order_relaxed);
+    if (table == NULL || id >= table->cap) {
+        panic_msg("async: task slot out of range");
+        return;
+    }
+    atomic_store_explicit(&table->slots[id], task, memory_order_release);
 }
 
 rt_scope* get_scope(rt_executor* ex, uint64_t id) {
@@ -444,24 +440,52 @@ static int ensure_ptr_array_cap(void** array,
 }
 
 void ensure_task_cap(rt_executor* ex, uint64_t id) {
+    // Caller holds the control lock. Growth copies into a fresh table and
+    // publishes it with release; the retired generation stays allocated so
+    // lock-free readers never dereference reclaimed memory (bounded by
+    // doubling to under one live-table's worth of retired slots).
     if (ex == NULL) {
         return;
     }
-    if (id < ex->tasks_cap) {
+    rt_task_table* table = atomic_load_explicit(&ex->tasks_table, memory_order_relaxed);
+    size_t cap = table != NULL ? table->cap : 0;
+    if (id < cap) {
         return;
     }
-    if (id >= SIZE_MAX) {
+    if (id >= SIZE_MAX / 2) {
         panic_msg("async: task capacity overflow");
         return;
     }
     size_t want = (size_t)id + 1;
-    (void)ensure_ptr_array_cap((void**)&ex->tasks,
-                               sizeof(rt_task*),
-                               &ex->tasks_cap,
-                               want,
-                               _Alignof(rt_task*),
-                               "async: task capacity overflow",
-                               "async: task allocation failed");
+    size_t next_cap = cap == 0 ? 64 : cap;
+    while (next_cap < want) {
+        if (next_cap > SIZE_MAX / 2) {
+            panic_msg("async: task capacity overflow");
+            return;
+        }
+        next_cap *= 2;
+    }
+    if (next_cap > (SIZE_MAX - sizeof(rt_task_table)) / sizeof(_Atomic(rt_task*))) {
+        panic_msg("async: task capacity overflow");
+        return;
+    }
+    uint64_t bytes = (uint64_t)(sizeof(rt_task_table) + next_cap * sizeof(_Atomic(rt_task*)));
+    rt_task_table* next = (rt_task_table*)rt_alloc(bytes, _Alignof(rt_task_table));
+    if (next == NULL) {
+        panic_msg("async: task allocation failed");
+        return;
+    }
+    next->cap = next_cap;
+    size_t i = 0;
+    for (; table != NULL && i < table->cap; i++) {
+        atomic_store_explicit(&next->slots[i],
+                              atomic_load_explicit(&table->slots[i], memory_order_relaxed),
+                              memory_order_relaxed);
+    }
+    for (; i < next_cap; i++) {
+        atomic_store_explicit(&next->slots[i], NULL, memory_order_relaxed);
+    }
+    atomic_store_explicit(&ex->tasks_table, next, memory_order_release);
 }
 
 void ensure_scope_cap(rt_executor* ex, uint64_t id) {
@@ -727,22 +751,30 @@ void ready_push(rt_executor* ex, uint64_t id) {
 }
 
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id) {
-    // Caller holds ex->lock. This is intentionally narrow: it only removes the
-    // fresh child task that __task_create just pushed onto the current worker.
-    rt_scheduler* scheduler = rt_task_scheduler(ex, get_task(ex, id));
+    // Caller holds the control lock. This is intentionally narrow: it only
+    // removes the fresh child task that __task_create just pushed onto the
+    // current worker, so the queue is the caller's own shard's and its lock
+    // nests here.
+    rt_shard* owner_shard = rt_task_owner_shard(ex, get_task(ex, id));
+    rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
+    if (owner_shard == NULL) {
+        return 0;
+    }
+    rt_shard_lock(owner_shard);
     rt_deque* local = current_local_queue(ex, scheduler);
-    if (local == NULL || local->len == 0 || local->buf == NULL) {
-        return 0;
+    int taken = 0;
+    if (local != NULL && local->len > 0 && local->buf != NULL) {
+        size_t idx = local->head + local->len - 1;
+        if (local->buf[idx] == id) {
+            local->len--;
+            if (local->len == 0) {
+                local->head = 0;
+            }
+            taken = 1;
+        }
     }
-    size_t idx = local->head + local->len - 1;
-    if (local->buf[idx] != id) {
-        return 0;
-    }
-    local->len--;
-    if (local->len == 0) {
-        local->head = 0;
-    }
-    return 1;
+    rt_shard_unlock(owner_shard);
+    return taken;
 }
 
 static int ready_push_yielded_task(rt_executor* ex, uint64_t id) {
@@ -752,14 +784,21 @@ static int ready_push_yielded_task(rt_executor* ex, uint64_t id) {
 }
 
 int ready_pop(rt_executor* ex, uint64_t* out_id) {
-    // Caller holds ex->lock; worker_next_ready adds local and steal paths.
-    rt_scheduler* scheduler = rt_executor_scheduler(ex);
-    return scheduler != NULL ? pop_task_from_deque(
-                                   ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, 0)
-                             : 0;
+    // Control-lane single-runner pop (N=1 runner and io drain): the queue is
+    // shard 0 state, so the pop nests shard 0's lock under the control lock.
+    rt_shard* shard0 = rt_runtime_shard0(rt_executor_runtime(ex));
+    rt_scheduler* scheduler = rt_shard_scheduler(shard0);
+    if (shard0 == NULL || scheduler == NULL) {
+        return 0;
+    }
+    rt_shard_lock(shard0);
+    int popped =
+        pop_task_from_deque(ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, 0);
+    rt_shard_unlock(shard0);
+    return popped;
 }
 
-static int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id) {
+int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id) {
     rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
     rt_scheduler* scheduler = ctx != NULL ? ctx->scheduler : NULL;
     uint32_t worker_id = ctx != NULL ? ctx->worker_id : 0;
@@ -1157,7 +1196,7 @@ void tick_virtual(rt_executor* ex) {
     }
 }
 
-static int next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline) {
+int rt_next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline) {
     const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
     size_t shard_count = rt_runtime_shard_count(runtime);
     uint64_t next_deadline = UINT64_MAX;
@@ -1182,7 +1221,7 @@ int advance_time_to_next_timer(rt_executor* ex) {
         return 0;
     }
     uint64_t next_deadline = 0;
-    if (!next_sleep_deadline(ex, &next_deadline)) {
+    if (!rt_next_sleep_deadline(ex, &next_deadline)) {
         return 0;
     }
     (void)rt_clock_advance_to(ex, next_deadline);
@@ -1204,7 +1243,7 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
             continue;
         }
         uint64_t next_deadline = 0;
-        int have_timer = next_sleep_deadline(ex, &next_deadline);
+        int have_timer = rt_next_sleep_deadline(ex, &next_deadline);
         if (have_timer) {
             if (rt_net_has_waiters_on_shard(ex, 0)) {
                 uint64_t now = ex->now_ms;
@@ -1346,14 +1385,12 @@ static void free_task(rt_executor* ex, rt_task* task) {
                 (uint64_t)task->children_cap * (uint64_t)sizeof(uint64_t),
                 _Alignof(uint64_t));
     }
-    if (task->id < ex->tasks_cap) {
-        ex->tasks[task->id] = NULL;
-    }
+    rt_task_slot_store(ex, task->id, NULL);
     rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
 }
 
 void task_release(rt_executor* ex, rt_task* task) {
-    // Caller must hold ex->lock.
+    // Caller holds the control lock.
     if (ex == NULL || task == NULL) {
         return;
     }
@@ -1364,6 +1401,29 @@ void task_release(rt_executor* ex, rt_task* task) {
     refs = atomic_fetch_sub_explicit(&task->handle_refs, 1, memory_order_acq_rel);
     if (refs == 1 && task_status_load(task) == TASK_DONE) {
         free_task(ex, task);
+    }
+}
+
+void task_release_lane_aware(rt_executor* ex, rt_task* task) {
+    // Free requires the control lane (D3); a control-free caller acquires it
+    // only when this drop is the last reference to a DONE task.
+    if (ex == NULL || task == NULL) {
+        return;
+    }
+    uint32_t refs = atomic_load_explicit(&task->handle_refs, memory_order_relaxed);
+    if (refs == 0) {
+        return;
+    }
+    refs = atomic_fetch_sub_explicit(&task->handle_refs, 1, memory_order_acq_rel);
+    if (refs == 1 && task_status_load(task) == TASK_DONE) {
+        int need_control = !rt_lane_holds_control();
+        if (need_control) {
+            rt_control_lock(ex);
+        }
+        free_task(ex, task);
+        if (need_control) {
+            rt_control_unlock(ex);
+        }
     }
 }
 
@@ -1396,9 +1456,44 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     }
 }
 
+// Lane-aware completion (peel B1b): a control-lane caller runs the whole
+// body as before; a worker (control-free) takes the control lock only when
+// the exit actually owns control-lane work. The pure shard-local exit — no
+// residual multi-key registrations, no scope, no main awaiter, refs held —
+// never touches the control lane.
+static int mark_done_needs_control(const rt_executor* ex, const rt_task* task) {
+    if (task->wait_keys_len > 0 || task->select_timers_len > 0) {
+        return 1;
+    }
+    if (task->parent_scope_id != 0 || task->scope_registered) {
+        return 1;
+    }
+    if (waker_valid(task->park_key)) {
+        waker_kind kind = (waker_kind)task->park_key.kind;
+        // Join keys resolve a foreign target, scope keys live on the control
+        // store, and net keys resolve owners through cross-shard registry
+        // scans: all three need the control lane for a safe removal.
+        if (kind == WAKER_JOIN || kind == WAKER_SCOPE || waker_is_net(task->park_key)) {
+            return 1;
+        }
+    }
+    if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) > 0) {
+        return 1;
+    }
+    return 0;
+}
+
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits) {
     if (ex == NULL || task == NULL) {
         return;
+    }
+    // Pin the task across completion: a joiner woken mid-body may consume
+    // the result and drop the last handle on another shard before the body
+    // finishes touching the task.
+    task_add_ref(task);
+    int need_control = !rt_lane_holds_control() && mark_done_needs_control(ex, task);
+    if (need_control) {
+        rt_control_lock(ex);
     }
     if (task->wait_keys_len > 0) {
         clear_wait_keys(ex, task);
@@ -1449,9 +1544,12 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) > 0) {
         pthread_cond_broadcast(&ex->done_cv);
     }
-    if (atomic_load_explicit(&task->handle_refs, memory_order_relaxed) == 0) {
-        free_task(ex, task);
+    if (need_control) {
+        rt_control_unlock(ex);
     }
+    // Drop the completion pin; the release frees under the control lane when
+    // this was the last reference.
+    task_release_lane_aware(ex, task);
 }
 
 void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
@@ -1464,18 +1562,30 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
             break;
         case POLL_DONE_CANCELLED:
             if (task->scope_id != 0) {
+                // Scope teardown is control-lane state; a worker-context
+                // cancellation takes the lane for this branch only.
+                int need_control = !rt_lane_holds_control();
+                if (need_control) {
+                    rt_control_lock(ex);
+                }
                 rt_scope* scope = get_scope(ex, task->scope_id);
-                if (scope != NULL) {
-                    if (scope->active_children > 0) {
-                        task->cancel_pending = 1;
-                        scope_cancel_children_locked(ex, scope);
-                        task->state = outcome.state;
-                        waker_key key = scope_key(scope->id);
-                        prepare_park(ex, task, key, 0);
-                        park_current(ex, key);
-                        break;
+                if (scope != NULL && scope->active_children > 0) {
+                    task->cancel_pending = 1;
+                    scope_cancel_children_locked(ex, scope);
+                    task->state = outcome.state;
+                    waker_key key = scope_key(scope->id);
+                    prepare_park(ex, task, key, 0);
+                    park_current(ex, key);
+                    if (need_control) {
+                        rt_control_unlock(ex);
                     }
+                    break;
+                }
+                if (scope != NULL) {
                     scope_exit_locked(ex, scope);
+                }
+                if (need_control) {
+                    rt_control_unlock(ex);
                 }
             }
             mark_done(ex, task, TASK_RESULT_CANCELLED, 0);
@@ -1560,6 +1670,10 @@ static void move_current_local_to_inject_locked(const rt_executor* ex) {
         tls_worker_ctx->worker_id >= scheduler->worker_count || scheduler->local_queues == NULL) {
         return;
     }
+    // Queue moves, the wake-token bump, and the broadcast share one shard
+    // lock hold; the caller holds the control lock and no shard lock.
+    rt_shard* own_shard = tls_worker_ctx->shard;
+    rt_shard_lock(own_shard);
     rt_deque* local = &scheduler->local_queues[tls_worker_ctx->worker_id];
     uint64_t id = 0;
     uint32_t moved = 0;
@@ -1572,8 +1686,14 @@ static void move_current_local_to_inject_locked(const rt_executor* ex) {
         }
     }
     if (moved > 0) {
-        rt_sched_wake_signal_shard_n(tls_worker_ctx->shard, moved);
+        if (scheduler->wake_pending > UINT32_MAX - moved) {
+            scheduler->wake_pending = UINT32_MAX;
+        } else {
+            scheduler->wake_pending += moved;
+        }
+        pthread_cond_broadcast(&own_shard->worker_cv);
     }
+    rt_shard_unlock(own_shard);
 }
 
 int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
@@ -1594,259 +1714,28 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     // This sync helper parks the OS worker, so it stops contributing to scheduler progress.
     atomic_fetch_add_explicit(&compat->channel_blocked_workers, 1, memory_order_acq_rel);
     int dropped_running = 0;
-    if (scheduler->running_count > 0) {
-        scheduler->running_count--;
-        dropped_running = 1;
-        if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
-            pthread_cond_signal(&ex->io_cv);
+    rt_shard* own_shard = tls_worker_ctx != NULL ? tls_worker_ctx->shard : NULL;
+    if (own_shard != NULL) {
+        rt_shard_lock(own_shard);
+        if (scheduler->running_count > 0) {
+            scheduler->running_count--;
+            dropped_running = 1;
         }
+        rt_shard_unlock(own_shard);
     }
     maybe_start_compensation_worker_locked(ex);
     while (!ex->shutdown && task->resume_kind == RESUME_NONE &&
            task_wake_token_exchange(task, 0) == 0) {
         pthread_cond_wait(&ex->compat_cv, &ex->lock);
     }
-    if (dropped_running) {
+    if (dropped_running && own_shard != NULL) {
+        rt_shard_lock(own_shard);
         scheduler->running_count++;
+        rt_shard_unlock(own_shard);
     }
     if (atomic_load_explicit(&compat->channel_blocked_workers, memory_order_acquire) > 0) {
         atomic_fetch_sub_explicit(&compat->channel_blocked_workers, 1, memory_order_acq_rel);
     }
     rt_control_unlock(ex);
     return 1;
-}
-
-static void* rt_worker_main(void* arg) {
-    rt_worker_ctx* ctx = (rt_worker_ctx*)arg;
-    rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
-    uint32_t worker_id = ctx != NULL ? ctx->worker_id : 0;
-    const int worker_net_poll_slice_ms = 1;
-    if (ex == NULL) {
-        return NULL;
-    }
-    rt_scheduler* scheduler = ctx != NULL ? ctx->scheduler : NULL;
-    if (scheduler == NULL) {
-        return NULL;
-    }
-    rt_heap_accounting_set_current_cell(ctx->heap_cell);
-    tls_worker_ctx = ctx;
-    tls_worker_id = worker_id <= (uint32_t)INT_MAX ? (int)worker_id : -1;
-    rt_set_current_task(NULL);
-    for (;;) {
-        rt_trace_drain_signal_dump();
-        rt_control_lock(ex);
-        uint64_t id = 0;
-        while (!ex->shutdown && !worker_next_ready(ctx, &id)) {
-            // Fire own due sleepers first: another shard's tick may have
-            // handed this shard a wake token instead of popping its store.
-            if (rt_sleep_store_min(&ctx->shard->sleep_store) <= rt_clock_now(ex) &&
-                rt_sleep_fire_due_on_shard(ex, ctx->shard, rt_clock_now(ex)) > 0) {
-                continue;
-            }
-            if (rt_net_begin_poll_on_shard(ex, ctx->shard_id)) {
-                int woke_net =
-                    rt_net_poll_waiters_owned_on_shard(ex, ctx->shard_id, worker_net_poll_slice_ms);
-                if (woke_net) {
-                    continue;
-                }
-                if (ex->shutdown || worker_next_ready(ctx, &id)) {
-                    break;
-                }
-                if (rt_net_has_waiters_on_shard(ex, ctx->shard_id)) {
-                    continue;
-                }
-            }
-            // Sleep only after local, inject, and steal queues have been checked under ex->lock.
-            rt_debug_assert_no_parked_with_work(ex, ctx->shard_id);
-            rt_trace_worker_sleep();
-            rt_sched_worker_sleep(ex, ctx->shard);
-            rt_trace_worker_wake();
-        }
-        if (ex->shutdown) {
-            rt_control_unlock(ex);
-            break;
-        }
-        rt_task* task = get_task(ex, id);
-        if (task == NULL || task_status_load(task) == TASK_DONE) {
-            rt_control_unlock(ex);
-            continue;
-        }
-        task_status_store(task, TASK_RUNNING);
-        (void)task_wake_token_exchange(task, 0);
-        // running_count is changed only while holding ex->lock.
-        scheduler->running_count++;
-        rt_set_current_task(task);
-
-        uint8_t kind = task->kind;
-        if (kind != TASK_KIND_USER) {
-            task_polling_enter(task);
-            poll_outcome outcome = poll_task(ex, task);
-            task_polling_exit(task);
-            scheduler->running_count--;
-            apply_poll_outcome(ex, task, outcome);
-            rt_set_current_task(NULL);
-            if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
-                pthread_cond_signal(&ex->io_cv);
-            }
-            rt_control_unlock(ex);
-            continue;
-        }
-        rt_control_unlock(ex);
-
-        task_polling_enter(task);
-        poll_outcome outcome = poll_task(ex, task);
-        task_polling_exit(task);
-
-        rt_control_lock(ex);
-        scheduler->running_count--;
-        apply_poll_outcome(ex, task, outcome);
-        rt_set_current_task(NULL);
-        if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
-            pthread_cond_signal(&ex->io_cv);
-        }
-        rt_control_unlock(ex);
-    }
-    rt_set_current_task(NULL);
-    tls_worker_ctx = NULL;
-    tls_worker_id = -1;
-    rt_heap_accounting_set_current_cell(NULL);
-    return NULL;
-}
-
-static int run_ready_one_nowait_locked(rt_executor* ex) {
-    if (ex == NULL) {
-        return 0;
-    }
-    uint64_t id = 0;
-    if (!ready_pop(ex, &id)) {
-        return 0;
-    }
-    rt_task* task = get_task(ex, id);
-    if (task == NULL || task_status_load(task) == TASK_DONE) {
-        return 1;
-    }
-    rt_scheduler* scheduler = rt_task_scheduler(ex, task);
-    if (scheduler == NULL) {
-        return 1;
-    }
-    task_status_store(task, TASK_RUNNING);
-    (void)task_wake_token_exchange(task, 0);
-    scheduler->running_count++;
-    rt_set_current_task(task);
-
-    uint8_t kind = task->kind;
-    if (kind != TASK_KIND_USER) {
-        task_polling_enter(task);
-        poll_outcome outcome = poll_task(ex, task);
-        task_polling_exit(task);
-        scheduler->running_count--;
-        apply_poll_outcome(ex, task, outcome);
-        rt_set_current_task(NULL);
-        if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
-            pthread_cond_signal(&ex->io_cv);
-        }
-        return 1;
-    }
-
-    rt_control_unlock(ex);
-    task_polling_enter(task);
-    poll_outcome outcome = poll_task(ex, task);
-    task_polling_exit(task);
-    rt_control_lock(ex);
-
-    scheduler->running_count--;
-    apply_poll_outcome(ex, task, outcome);
-    rt_set_current_task(NULL);
-    if (runtime_running_count(ex) == 0 && runnable_is_empty(ex)) {
-        pthread_cond_signal(&ex->io_cv);
-    }
-    return 1;
-}
-
-static void io_cv_timedwait_slice(rt_executor* ex) {
-    // Self-refreshing wait (peel step B1b/B4): the io thread's predicates
-    // (net waiters, timers, idleness) are shard-lane state now, so instead
-    // of requiring every shard path to signal io_cv, the io thread re-checks
-    // them at least every poll slice.
-    struct timespec deadline;
-    clock_gettime(CLOCK_REALTIME, &deadline);
-    deadline.tv_nsec += 50L * 1000L * 1000L;
-    if (deadline.tv_nsec >= 1000000000L) {
-        deadline.tv_sec += 1;
-        deadline.tv_nsec -= 1000000000L;
-    }
-    (void)pthread_cond_timedwait(&ex->io_cv, &ex->lock, &deadline);
-}
-
-static void* rt_io_main(void* arg) {
-    rt_executor* ex = (rt_executor*)arg;
-    if (ex == NULL) {
-        return NULL;
-    }
-    rt_heap_accounting_set_current_cell(
-        rt_heap_accounting_io_cell(rt_executor_heap_accounting(ex)));
-    const int poll_slice_ms = 50;
-    const int net_ready_drain_limit = 16;
-    rt_control_lock(ex);
-    for (;;) {
-        if (rt_trace_dump_requested()) {
-            rt_control_unlock(ex);
-            rt_trace_drain_signal_dump();
-            rt_control_lock(ex);
-        }
-        if (ex->shutdown) {
-            break;
-        }
-        uint64_t deadline = 0;
-        int have_timer = next_sleep_deadline(ex, &deadline);
-        size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
-        int have_net = shard_count <= 1 && rt_net_has_waiters_on_shard(ex, 0);
-        int idle = runtime_running_count(ex) == 0 && runnable_is_empty(ex);
-
-        if (!have_net && (!have_timer || !idle)) {
-            io_cv_timedwait_slice(ex);
-            continue;
-        }
-
-        if (!have_net) {
-            if (idle && have_timer && advance_time_to_next_timer(ex)) {
-                continue;
-            }
-            io_cv_timedwait_slice(ex);
-            continue;
-        }
-
-        int timeout_ms = poll_slice_ms;
-        if (idle && have_timer) {
-            uint64_t now = ex->now_ms;
-            uint64_t diff = deadline > now ? deadline - now : 0;
-            int timer_ms = diff > (uint64_t)INT_MAX ? INT_MAX : (int)diff;
-            if (timer_ms < timeout_ms) {
-                timeout_ms = timer_ms;
-            }
-        }
-        if (timeout_ms < 0) {
-            timeout_ms = poll_slice_ms;
-        }
-        if (!rt_net_begin_poll_on_shard(ex, 0)) {
-            io_cv_timedwait_slice(ex);
-            continue;
-        }
-        if (rt_net_poll_waiters_owned_on_shard(ex, 0, timeout_ms)) {
-            for (int i = 0; i < net_ready_drain_limit && !ex->shutdown; i++) {
-                if (!run_ready_one_nowait_locked(ex)) {
-                    break;
-                }
-            }
-            continue;
-        }
-        if (idle && have_timer) {
-            if (advance_time_to_next_timer(ex)) {
-                continue;
-            }
-        }
-    }
-    rt_control_unlock(ex);
-    rt_heap_accounting_set_current_cell(NULL);
-    return NULL;
 }

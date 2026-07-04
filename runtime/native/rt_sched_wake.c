@@ -40,24 +40,3 @@ void rt_sched_wake_broadcast_all(rt_executor* ex) {
         rt_sched_wake_signal_shard_n(shard, sleepers > 0 ? sleepers : 1U);
     }
 }
-
-// Release the control lock and sleep on the shard worker cv until a wake
-// token or shutdown arrives; reacquires the control lock before returning.
-// The caller re-scans its queues after this returns: a leftover token costs
-// one extra scan, a missing token is impossible (see file header).
-void rt_sched_worker_sleep(rt_executor* ex, rt_shard* shard) {
-    if (ex == NULL || shard == NULL) {
-        return;
-    }
-    rt_scheduler* scheduler = rt_shard_scheduler(shard);
-    rt_control_unlock(ex);
-    rt_shard_lock(shard);
-    while (scheduler != NULL && scheduler->wake_pending == 0 && !ex->shutdown) {
-        pthread_cond_wait(&shard->worker_cv, &shard->lock);
-    }
-    if (scheduler != NULL && scheduler->wake_pending > 0) {
-        scheduler->wake_pending--;
-    }
-    rt_shard_unlock(shard);
-    rt_control_lock(ex);
-}

@@ -94,6 +94,17 @@ typedef struct {
     uint64_t sched_seed;
 } rt_scheduler;
 
+struct rt_worker_ctx {
+    rt_executor* ex;
+    rt_shard* shard;
+    rt_scheduler* scheduler;
+    rt_heap_accounting_cell* heap_cell;
+    uint32_t shard_id;
+    uint32_t worker_id;
+    uint32_t worker_index;
+    uint64_t sched_rng;
+};
+
 typedef struct {
     void* fds;
     size_t fds_cap;
@@ -208,6 +219,16 @@ typedef struct {
     size_t children_cap;
 } rt_scope;
 
+// Task id -> task pointer table (D3): readers on any lane load the table
+// pointer and a slot with acquire; growth allocates a copy and publishes it
+// with release under the control lock. Retired generations are deliberately
+// never freed - doubling bounds them to less than the live table's size -
+// so a reader can never dereference a reallocated array.
+typedef struct rt_task_table {
+    size_t cap;
+    _Atomic(rt_task*) slots[];
+} rt_task_table;
+
 struct rt_executor {
     uint64_t next_id;
     uint64_t next_scope_id;
@@ -215,8 +236,7 @@ struct rt_executor {
     // jumps go through rt_clock_advance_to (monotonic CAS).
     _Atomic uint64_t now_ms;
     rt_runtime* runtime;
-    rt_task** tasks;
-    size_t tasks_cap;
+    _Atomic(rt_task_table*) tasks_table;
     rt_scope** scopes;
     size_t scopes_cap;
     pthread_mutex_t lock;
@@ -377,6 +397,8 @@ extern _Thread_local poll_outcome poll_result;
 extern _Thread_local waker_key pending_key;
 extern _Thread_local uint64_t tls_current_id;
 extern _Thread_local rt_task* tls_current_task;
+extern _Thread_local rt_worker_ctx* tls_worker_ctx;
+extern _Thread_local int tls_worker_id;
 
 rt_executor* ensure_exec(void);
 rt_runtime_status rt_runtime_init_global(rt_executor* ex, size_t shard_count);
@@ -438,6 +460,8 @@ int deque_push_head(rt_deque* dq, uint64_t id, const char* overflow_msg, const c
 int deque_pop_head(rt_deque* dq, uint64_t* out_id);
 int deque_pop_tail(rt_deque* dq, uint64_t* out_id);
 void ensure_task_cap(rt_executor* ex, uint64_t id);
+void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task);
+rt_task_table* rt_task_table_snapshot(rt_executor* ex);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);
@@ -483,7 +507,7 @@ void rt_task_assign_spawn_owner(rt_task* task);
 rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task);
 void rt_sched_wake_signal_shard_n(rt_shard* shard, uint32_t tokens);
 void rt_sched_wake_broadcast_all(rt_executor* ex);
-void rt_sched_worker_sleep(rt_executor* ex, rt_shard* shard);
+int rt_sched_idle_sample_locked(rt_executor* ex);
 void rt_sleep_store_init(rt_sleep_store* store);
 rt_runtime_status rt_sleep_store_add(rt_sleep_store* store, uint64_t deadline, uint64_t task_id);
 int rt_sleep_store_remove(rt_sleep_store* store, uint64_t task_id);
@@ -512,6 +536,7 @@ void scope_exit_locked(rt_executor* ex, rt_scope* scope);
 
 void task_add_ref(rt_task* task);
 void task_release(rt_executor* ex, rt_task* task);
+void task_release_lane_aware(rt_executor* ex, rt_task* task);
 
 void* rt_channel_new(uint64_t capacity);
 bool rt_channel_send(void* channel, uint64_t value_bits);
@@ -547,6 +572,12 @@ void rt_trace_sched_connection_owner_placed(void);
 void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worker_shard_id);
 void rt_trace_drain_signal_dump(void);
 int run_ready_one(rt_executor* ex);
+int rt_run_ready_one_nowait_locked(rt_executor* ex);
+void* rt_worker_main(void* arg);
+void* rt_io_main(void* arg);
+void io_cv_timedwait_slice(rt_executor* ex);
+int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id);
+int rt_next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
 int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task);
 

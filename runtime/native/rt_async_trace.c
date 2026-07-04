@@ -309,8 +309,9 @@ static void trace_exec_snapshot_dump(const char* reason) {
     rt_control_lock(ex);
     trace_collect_scheduler_snapshot(
         ex->runtime, &worker_count, &running, &inject_len, &local_total, &local_max);
-    for (size_t i = 1; i < ex->tasks_cap; i++) {
-        const rt_task* task = ex->tasks[i];
+    rt_task_table* table = rt_task_table_snapshot(ex);
+    for (size_t i = 1; table != NULL && i < table->cap; i++) {
+        const rt_task* task = atomic_load_explicit(&table->slots[i], memory_order_acquire);
         if (task == NULL) {
             continue;
         }

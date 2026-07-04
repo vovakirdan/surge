@@ -306,8 +306,9 @@ static void clear_accept_winner_wait_keys(rt_executor* ex, waker_key key, uint32
         return;
     }
     int ready_fd = (int)key.id;
-    for (size_t i = 1; i < ex->tasks_cap; i++) {
-        rt_task* task = ex->tasks[i];
+    rt_task_table* table = rt_task_table_snapshot(ex);
+    for (size_t i = 1; table != NULL && i < table->cap; i++) {
+        rt_task* task = atomic_load_explicit(&table->slots[i], memory_order_acquire);
         if (task == NULL || task->net_ready_accept_valid == 0 || task->wait_keys_len == 0) {
             continue;
         }
