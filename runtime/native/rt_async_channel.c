@@ -1,107 +1,10 @@
-#include "rt_async_internal.h"
+#include "rt_channel_lane.h"
 
-// Async runtime channel support.
-
-struct rt_channel {
-    uint64_t capacity;
-    // Owner shard (D5 channel slice): fixed at creation to the creating
-    // task's shard (shard 0 outside tasks); channel waiter keys live in the
-    // owner's store and never move.
-    uint32_t owner_shard_id;
-    uint8_t closed;
-    uint64_t* buf;
-    size_t buf_len;
-    size_t buf_head;
-};
+// Async channel fast lanes (peel B2): send and recv run on the channel
+// owner's shard lane; see rt_channel_lane.h for the shared protocol.
 
 uint32_t rt_channel_owner_shard_id(const rt_channel* ch) {
     return ch != NULL ? ch->owner_shard_id : 0;
-}
-
-static uint64_t channel_align_up(uint64_t size, uint64_t align) {
-    if (align == 0) {
-        return size;
-    }
-    uint64_t rem = size % align;
-    if (rem == 0) {
-        return size;
-    }
-    uint64_t add = align - rem;
-    if (size > UINT64_MAX - add) {
-        panic_msg("async: channel allocation overflow");
-        return 0;
-    }
-    return size + add;
-}
-
-static uint64_t channel_buffer_offset(void) {
-    return channel_align_up((uint64_t)sizeof(rt_channel), (uint64_t) _Alignof(uint64_t));
-}
-
-static uint64_t channel_alloc_size(uint64_t capacity) {
-    if (capacity == 0) {
-        return (uint64_t)sizeof(rt_channel);
-    }
-    uint64_t offset = channel_buffer_offset();
-    if (capacity > (UINT64_MAX - offset) / (uint64_t)sizeof(uint64_t)) {
-        panic_msg("async: channel allocation overflow");
-        return 0;
-    }
-    return offset + capacity * (uint64_t)sizeof(uint64_t);
-}
-
-static rt_channel* channel_from_handle(void* handle) {
-    if (handle == NULL) {
-        panic_msg("async: null channel handle");
-        return NULL;
-    }
-    return (rt_channel*)handle;
-}
-
-static int buf_push(rt_channel* ch, uint64_t value_bits) {
-    if (ch == NULL || ch->capacity == 0 || ch->buf_len >= ch->capacity || ch->buf == NULL) {
-        return 0;
-    }
-    size_t idx = (ch->buf_head + ch->buf_len) % ch->capacity;
-    ch->buf[idx] = value_bits;
-    ch->buf_len++;
-    return 1;
-}
-
-static int buf_pop(rt_channel* ch, uint64_t* out_bits) {
-    if (ch == NULL || ch->buf_len == 0 || ch->buf == NULL) {
-        return 0;
-    }
-    if (out_bits != NULL) {
-        *out_bits = ch->buf[ch->buf_head];
-    }
-    ch->buf_head = (ch->buf_head + 1) % ch->capacity;
-    ch->buf_len--;
-    return 1;
-}
-
-static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch, int signal_sender) {
-    if (ch == NULL || ch->capacity == 0 || ch->buf_len >= ch->capacity) {
-        return;
-    }
-    uint64_t sender_id = 0;
-    if (!pop_waiter(ex, channel_send_key(ch), &sender_id)) {
-        return;
-    }
-    rt_task* sender = get_task(ex, sender_id);
-    if (sender == NULL || task_status_load(sender) == TASK_DONE) {
-        return;
-    }
-    if (!buf_push(ch, sender->resume_bits)) {
-        return;
-    }
-    sender->resume_kind = RESUME_CHAN_SEND_ACK;
-    sender->resume_bits = 0;
-    if (signal_sender) {
-        wake_channel_task(ex, sender_id, 1);
-    } else {
-        wake_channel_task_no_signal(ex, sender_id, 1);
-    }
 }
 
 static int prepare_channel_send_yield(rt_task* task) {
@@ -144,73 +47,98 @@ static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_
     if (ex == NULL || ch == NULL) {
         return 1;
     }
-    rt_control_lock(ex);
     if (rt_current_task_id() == 0) {
-        rt_control_unlock(ex);
         panic_msg("async channel send outside task");
         return 1;
     }
     rt_task* task = rt_current_task();
     if (task == NULL) {
-        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return 1;
     }
     if (task_cancelled_load(task) != 0) {
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
-        rt_control_unlock(ex);
         return 0;
     }
-    if (task->resume_kind == RESUME_CHAN_SEND_ACK) {
-        task->resume_kind = RESUME_NONE;
-        task->resume_bits = 0;
-        rt_control_unlock(ex);
-        return 1;
-    }
-    if (task->resume_kind == RESUME_CHAN_SEND_CLOSED) {
-        task->resume_kind = RESUME_NONE;
-        task->resume_bits = 0;
-        rt_control_unlock(ex);
-        panic_msg("send on closed channel");
-        return 1;
-    }
-    if (ch->closed) {
-        rt_control_unlock(ex);
-        panic_msg("send on closed channel");
-        return 1;
-    }
-    uint64_t recv_id = 0;
+    rt_shard* ch_shard = channel_owner_shard(ex, ch);
+    rt_shard* own_shard = rt_task_owner_shard(ex, task);
     waker_key recv_key = channel_recv_key(ch);
-    if (pop_waiter(ex, recv_key, &recv_id)) {
-        rt_task* recv_task = get_task(ex, recv_id);
-        if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
-            recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
-            recv_task->resume_bits = value_bits;
-            if (yield_after_handoff) {
-                wake_channel_task_no_signal(ex, recv_id, 1);
-            } else {
-                wake_channel_task(ex, recv_id, 1);
+    int same_shard_worker = tls_worker_ctx != NULL && tls_worker_ctx->shard == ch_shard;
+    for (;;) {
+        // Consume-or-arm under our owner lock: peers ack a registered send
+        // under this lock, so checking and re-arming the mailbox anywhere
+        // else races the ack and can overwrite it (stranding both sides).
+        // Bumping park_seq on consume retires any entry this task still has
+        // in the store, so a later pop of it validates false.
+        rt_shard_lock(own_shard);
+        uint8_t rk = task->resume_kind;
+        if (rk == RESUME_CHAN_SEND_ACK || rk == RESUME_CHAN_SEND_CLOSED) {
+            task->resume_kind = RESUME_NONE;
+            task->resume_bits = 0;
+            task->park_seq++;
+            rt_shard_unlock(own_shard);
+            if (rk == RESUME_CHAN_SEND_CLOSED) {
+                panic_msg("send on closed channel");
+            }
+            return 1;
+        }
+        task->resume_kind = RESUME_NONE;
+        task->resume_bits = value_bits;
+        rt_shard_unlock(own_shard);
+        rt_shard_lock(ch_shard);
+        if (ch->closed) {
+            rt_shard_unlock(ch_shard);
+            panic_msg("send on closed channel");
+            return 1;
+        }
+        waiter cand;
+        if (channel_pop_candidate_locked(ch_shard, recv_key, &cand)) {
+            if (cand.seq == 0) {
+                channel_wake_only(ex, ch_shard, &cand);
+                rt_shard_unlock(ch_shard);
+                continue;
+            }
+            if (cand.owner_hint == ch->owner_shard_id) {
+                int no_signal = yield_after_handoff && same_shard_worker;
+                int pushed = 0;
+                int live = channel_deliver_same_shard_locked(ex,
+                                                             ch_shard,
+                                                             &cand,
+                                                             RESUME_CHAN_RECV_VALUE,
+                                                             value_bits,
+                                                             no_signal ? 0 : 1,
+                                                             &pushed);
+                if (!live) {
+                    rt_shard_unlock(ch_shard);
+                    continue;
+                }
+                rt_shard_unlock(ch_shard);
+                channel_compat_broadcast_if_needed(ex, pushed);
+                if (yield_after_handoff && prepare_channel_send_yield(task)) {
+                    return 0;
+                }
+                return 1;
+            }
+            rt_shard_unlock(ch_shard);
+            if (!channel_deliver_foreign(ex, &cand, RESUME_CHAN_RECV_VALUE, value_bits)) {
+                continue;
             }
             if (yield_after_handoff && prepare_channel_send_yield(task)) {
-                rt_control_unlock(ex);
                 return 0;
             }
+            return 1;
         }
-        rt_control_unlock(ex);
-        return 1;
+        if (ch->capacity > 0 && ch->buf_len < ch->capacity && buf_push(ch, value_bits)) {
+            rt_shard_unlock(ch_shard);
+            return 1;
+        }
+        waker_key send_key = channel_send_key(ch);
+        channel_park_prepare_locked(ch_shard, task, send_key);
+        rt_shard_unlock(ch_shard);
+        pending_key = send_key;
+        return 0;
     }
-    if (ch->capacity > 0 && ch->buf_len < ch->capacity && buf_push(ch, value_bits)) {
-        rt_control_unlock(ex);
-        return 1;
-    }
-    task->resume_kind = RESUME_NONE;
-    task->resume_bits = value_bits;
-    waker_key send_key = channel_send_key(ch);
-    prepare_park(ex, task, send_key, 0);
-    pending_key = send_key;
-    rt_control_unlock(ex);
-    return 0;
 }
 
 bool rt_channel_send(void* channel, uint64_t value_bits) {
@@ -227,334 +155,151 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
     if (ex == NULL || ch == NULL) {
         return 2;
     }
-    rt_control_lock(ex);
     if (rt_current_task_id() == 0) {
-        rt_control_unlock(ex);
         panic_msg("async channel recv outside task");
         return 2;
     }
     rt_task* task = rt_current_task();
     if (task == NULL) {
-        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return 2;
     }
     if (task_cancelled_load(task) != 0) {
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
-        rt_control_unlock(ex);
         return 0;
     }
-    if (task->resume_kind == RESUME_CHAN_RECV_VALUE) {
-        if (out_bits != NULL) {
-            *out_bits = task->resume_bits;
-        }
-        task->resume_kind = RESUME_NONE;
-        task->resume_bits = 0;
-        rt_control_unlock(ex);
-        return 1;
-    }
-    if (task->resume_kind == RESUME_CHAN_RECV_CLOSED) {
-        task->resume_kind = RESUME_NONE;
-        task->resume_bits = 0;
-        rt_control_unlock(ex);
-        return 2;
-    }
-    uint64_t val = 0;
-    if (buf_pop(ch, &val)) {
-        if (out_bits != NULL) {
-            *out_bits = val;
-        }
-        refill_buffer_from_sender(ex, ch, 0);
-        rt_control_unlock(ex);
-        return 1;
-    }
-    uint64_t sender_id = 0;
+    rt_shard* ch_shard = channel_owner_shard(ex, ch);
+    rt_shard* own_shard = rt_task_owner_shard(ex, task);
     waker_key send_key = channel_send_key(ch);
-    if (pop_waiter(ex, send_key, &sender_id)) {
-        rt_task* sender = get_task(ex, sender_id);
-        if (sender != NULL && task_status_load(sender) != TASK_DONE) {
-            if (out_bits != NULL) {
-                *out_bits = sender->resume_bits;
+    for (;;) {
+        // Consume-or-arm under our owner lock (see rt_channel_send_inner):
+        // peers deliver values under this lock; anywhere else the check
+        // races the delivery and re-arming would overwrite it.
+        rt_shard_lock(own_shard);
+        uint8_t rk = task->resume_kind;
+        if (rk == RESUME_CHAN_RECV_VALUE || rk == RESUME_CHAN_RECV_CLOSED) {
+            if (rk == RESUME_CHAN_RECV_VALUE && out_bits != NULL) {
+                *out_bits = task->resume_bits;
             }
-            sender->resume_kind = RESUME_CHAN_SEND_ACK;
-            sender->resume_bits = 0;
-            wake_channel_task_no_signal(ex, sender_id, 1);
+            task->resume_kind = RESUME_NONE;
+            task->resume_bits = 0;
+            task->park_seq++;
+            rt_shard_unlock(own_shard);
+            return rk == RESUME_CHAN_RECV_VALUE ? 1 : 2;
         }
-        rt_control_unlock(ex);
-        return 1;
-    }
-    if (ch->closed) {
-        rt_control_unlock(ex);
-        return 2;
-    }
-    task->resume_kind = RESUME_NONE;
-    task->resume_bits = 0;
-    waker_key recv_key = channel_recv_key(ch);
-    prepare_park(ex, task, recv_key, 0);
-    pending_key = recv_key;
-    rt_control_unlock(ex);
-    return 0;
-}
-
-bool rt_channel_try_send(void* channel, uint64_t value_bits) {
-    rt_executor* ex = ensure_exec();
-    rt_channel* ch = channel_from_handle(channel);
-    if (ex == NULL || ch == NULL || ch->closed) {
-        return 0;
-    }
-    rt_control_lock(ex);
-    uint64_t recv_id = 0;
-    if (pop_waiter(ex, channel_recv_key(ch), &recv_id)) {
-        rt_task* recv_task = get_task(ex, recv_id);
-        if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
-            recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
-            recv_task->resume_bits = value_bits;
-            wake_channel_task(ex, recv_id, 1);
-        }
-        rt_control_unlock(ex);
-        return 1;
-    }
-    if (ch->capacity > 0 && ch->buf_len < ch->capacity) {
-        if (buf_push(ch, value_bits)) {
-            rt_control_unlock(ex);
+        task->resume_kind = RESUME_NONE;
+        task->resume_bits = 0;
+        rt_shard_unlock(own_shard);
+        rt_shard_lock(ch_shard);
+        uint64_t val = 0;
+        if (buf_pop(ch, &val)) {
+            // Refill from a parked sender: same-shard senders hand their
+            // value over inline; foreign senders are woken to retry so the
+            // value never travels outside its owner's lock.
+            waiter cand;
+            while (ch->buf_len < ch->capacity &&
+                   channel_pop_candidate_locked(ch_shard, send_key, &cand)) {
+                if (cand.seq == 0) {
+                    channel_wake_only(ex, ch_shard, &cand);
+                    continue;
+                }
+                if (cand.owner_hint == ch->owner_shard_id) {
+                    rt_task* sender = get_task(ex, cand.task_id);
+                    if (!channel_candidate_valid(sender, &cand)) {
+                        continue;
+                    }
+                    if (buf_push(ch, sender->resume_bits)) {
+                        sender->resume_kind = RESUME_CHAN_SEND_ACK;
+                        sender->resume_bits = 0;
+                        // A parked sender has a waiter entry, so the leaf
+                        // enqueues it; compat senders never park entries
+                        // while RUNNING, so no compat fallback is needed.
+                        (void)wake_task_on_shard_locked(
+                            ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                    }
+                    break;
+                }
+                rt_shard_unlock(ch_shard);
+                (void)channel_deliver_foreign(ex, &cand, RESUME_NONE, 0);
+                rt_shard_lock(ch_shard);
+            }
+            rt_shard_unlock(ch_shard);
+            if (out_bits != NULL) {
+                *out_bits = val;
+            }
             return 1;
         }
-    }
-    rt_control_unlock(ex);
-    return 0;
-}
-
-bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
-    rt_executor* ex = ensure_exec();
-    rt_channel* ch = channel_from_handle(channel);
-    if (ex == NULL || ch == NULL) {
-        return 0;
-    }
-    rt_control_lock(ex);
-    uint64_t val = 0;
-    if (buf_pop(ch, &val)) {
-        if (out_bits != NULL) {
-            *out_bits = val;
-        }
-        refill_buffer_from_sender(ex, ch, 1);
-        rt_control_unlock(ex);
-        return 1;
-    }
-    uint64_t sender_id = 0;
-    if (pop_waiter(ex, channel_send_key(ch), &sender_id)) {
-        rt_task* sender = get_task(ex, sender_id);
-        if (sender != NULL && task_status_load(sender) != TASK_DONE) {
-            if (out_bits != NULL) {
-                *out_bits = sender->resume_bits;
+        waiter cand;
+        if (channel_pop_candidate_locked(ch_shard, send_key, &cand)) {
+            if (cand.seq == 0) {
+                channel_wake_only(ex, ch_shard, &cand);
+                rt_shard_unlock(ch_shard);
+                continue;
             }
-            sender->resume_kind = RESUME_CHAN_SEND_ACK;
-            sender->resume_bits = 0;
-            wake_channel_task(ex, sender_id, 1);
-        }
-        rt_control_unlock(ex);
-        return 1;
-    }
-    rt_control_unlock(ex);
-    return 0;
-}
-
-// rt_channel_try_recv_status_locked is the locked, non-blocking recv with closed status.
-// Returns 0 = not ready, 1 = received value, 2 = channel closed.
-uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64_t* out_bits) {
-    rt_channel* ch = channel_from_handle(channel);
-    if (ex == NULL || ch == NULL) {
-        return 0;
-    }
-    uint64_t val = 0;
-    if (buf_pop(ch, &val)) {
-        if (out_bits != NULL) {
-            *out_bits = val;
-        }
-        refill_buffer_from_sender(ex, ch, 1);
-        return 1;
-    }
-    uint64_t sender_id = 0;
-    if (pop_waiter(ex, channel_send_key(ch), &sender_id)) {
-        rt_task* sender = get_task(ex, sender_id);
-        if (sender != NULL && task_status_load(sender) != TASK_DONE) {
-            if (out_bits != NULL) {
-                *out_bits = sender->resume_bits;
-            }
-            sender->resume_kind = RESUME_CHAN_SEND_ACK;
-            sender->resume_bits = 0;
-            wake_channel_task(ex, sender_id, 1);
-        }
-        return 1;
-    }
-    if (ch->closed) {
-        return 2;
-    }
-    return 0;
-}
-
-// rt_channel_try_send_status_locked is the locked, non-blocking send with closed status.
-// Returns 0 = not ready, 1 = sent, 2 = channel closed.
-uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits) {
-    rt_channel* ch = channel_from_handle(channel);
-    if (ex == NULL || ch == NULL) {
-        return 0;
-    }
-    if (ch->closed) {
-        return 2;
-    }
-    uint64_t recv_id = 0;
-    if (pop_waiter(ex, channel_recv_key(ch), &recv_id)) {
-        rt_task* recv_task = get_task(ex, recv_id);
-        if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
-            recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
-            recv_task->resume_bits = value_bits;
-            wake_channel_task(ex, recv_id, 1);
-        }
-        return 1;
-    }
-    if (ch->capacity > 0 && ch->buf_len < ch->capacity && buf_push(ch, value_bits)) {
-        return 1;
-    }
-    return 0;
-}
-
-static void channel_blocking_yield(void) {
-    rt_executor* ex = ensure_exec();
-    rt_task* current = rt_current_task();
-    if (rt_wait_current_worker_wakeup(ex, current)) {
-        return;
-    }
-    void* task = checkpoint();
-    if (task == NULL) {
-        return;
-    }
-    rt_task_await(task, NULL, NULL);
-}
-
-void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
-    rt_executor* ex = ensure_exec();
-    rt_channel* ch = channel_from_handle(channel);
-    if (ex == NULL || ch == NULL) {
-        return;
-    }
-    rt_async_debug_printf(
-        "async chan send start ch=%p bits=%llu\n", (void*)ch, (unsigned long long)value_bits);
-    if (rt_current_task() != NULL) {
-        rt_trace_channel_task_blocking_send();
-        while (!rt_channel_send(channel, value_bits)) {
-            if (current_task_cancelled(ex)) {
-                pending_key = waker_none();
-                return;
-            }
-            channel_blocking_yield();
-        }
-        pending_key = waker_none();
-        rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
-        return;
-    }
-    for (;;) {
-        rt_control_lock(ex);
-        uint8_t status = rt_channel_try_send_status_locked(ex, channel, value_bits);
-        rt_control_unlock(ex);
-        if (status == 1) {
-            rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
-            return;
-        }
-        if (status == 2) {
-            rt_async_debug_printf("async chan send closed ch=%p\n", (void*)ch);
-            panic_msg("send on closed channel");
-            return;
-        }
-        channel_blocking_yield();
-    }
-}
-
-uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {
-    rt_executor* ex = ensure_exec();
-    rt_channel* ch = channel_from_handle(channel);
-    if (ex == NULL || ch == NULL) {
-        return 2;
-    }
-    rt_async_debug_printf("async chan recv start ch=%p\n", (void*)ch);
-    if (rt_current_task() != NULL) {
-        rt_trace_channel_task_blocking_recv();
-        for (;;) {
-            uint8_t status = rt_channel_recv(channel, out_bits);
-            if (status != 0) {
-                pending_key = waker_none();
-                if (status == 1 && out_bits != NULL) {
-                    rt_async_debug_printf("async chan recv ok ch=%p bits=%llu\n",
-                                          (void*)ch,
-                                          (unsigned long long)*out_bits);
-                } else if (status == 2) {
-                    rt_async_debug_printf("async chan recv closed ch=%p\n", (void*)ch);
+            if (cand.owner_hint == ch->owner_shard_id) {
+                rt_task* sender = get_task(ex, cand.task_id);
+                if (!channel_candidate_valid(sender, &cand)) {
+                    rt_shard_unlock(ch_shard);
+                    continue;
                 }
-                return status;
+                uint64_t bits = sender->resume_bits;
+                sender->resume_kind = RESUME_CHAN_SEND_ACK;
+                sender->resume_bits = 0;
+                int pushed = wake_task_on_shard_locked(
+                    ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                rt_shard_unlock(ch_shard);
+                channel_compat_broadcast_if_needed(ex, pushed);
+                if (out_bits != NULL) {
+                    *out_bits = bits;
+                }
+                return 1;
             }
-            if (current_task_cancelled(ex)) {
-                pending_key = waker_none();
-                return 2;
+            rt_shard_unlock(ch_shard);
+            // Foreign parked sender: read its value and ack under its
+            // owner's lock (direct handoff, no buffer interplay).
+            int need_control = !rt_lane_holds_control();
+            if (need_control) {
+                rt_control_lock(ex);
             }
-            channel_blocking_yield();
-        }
-    }
-    for (;;) {
-        rt_control_lock(ex);
-        uint8_t status = rt_channel_try_recv_status_locked(ex, channel, out_bits);
-        rt_control_unlock(ex);
-        if (status == 1 || status == 2) {
-            if (status == 1 && out_bits != NULL) {
-                rt_async_debug_printf("async chan recv ok ch=%p bits=%llu\n",
-                                      (void*)ch,
-                                      (unsigned long long)*out_bits);
-            } else if (status == 2) {
-                rt_async_debug_printf("async chan recv closed ch=%p\n", (void*)ch);
+            int live = 0;
+            uint64_t bits = 0;
+            rt_task* sender = get_task(ex, cand.task_id);
+            if (channel_candidate_valid(sender, &cand)) {
+                rt_shard* sender_shard = rt_task_owner_shard(ex, sender);
+                rt_shard_lock(sender_shard);
+                int pushed = 0;
+                if (channel_candidate_valid(sender, &cand)) {
+                    bits = sender->resume_bits;
+                    sender->resume_kind = RESUME_CHAN_SEND_ACK;
+                    sender->resume_bits = 0;
+                    pushed = wake_task_on_shard_locked(ex, sender_shard, sender, 1, 0, 1, NULL);
+                    live = 1;
+                }
+                rt_shard_unlock(sender_shard);
+                if (live) {
+                    channel_compat_broadcast_if_needed(ex, pushed);
+                }
             }
-            return status;
+            if (need_control) {
+                rt_control_unlock(ex);
+            }
+            if (!live) {
+                continue;
+            }
+            if (out_bits != NULL) {
+                *out_bits = bits;
+            }
+            return 1;
         }
-        channel_blocking_yield();
-    }
-}
-
-void rt_channel_close(void* channel) {
-    rt_executor* ex = ensure_exec();
-    rt_channel* ch = channel_from_handle(channel);
-    if (ch == NULL) {
-        return;
-    }
-    if (ch->closed) {
-        return;
-    }
-    rt_async_debug_printf("async chan close ch=%p\n", (void*)ch);
-    rt_control_lock(ex);
-    ch->closed = 1;
-    if (ex == NULL) {
-        rt_control_unlock(ex);
-        return;
-    }
-
-    uint64_t task_id = 0;
-    waker_key recv_key = channel_recv_key(ch);
-    while (pop_waiter(ex, recv_key, &task_id)) {
-        rt_task* task = get_task(ex, task_id);
-        if (task == NULL || task_status_load(task) == TASK_DONE) {
-            continue;
+        if (ch->closed) {
+            rt_shard_unlock(ch_shard);
+            return 2;
         }
-        task->resume_kind = RESUME_CHAN_RECV_CLOSED;
-        task->resume_bits = 0;
-        wake_channel_task(ex, task_id, 1);
+        waker_key recv_key = channel_recv_key(ch);
+        channel_park_prepare_locked(ch_shard, task, recv_key);
+        rt_shard_unlock(ch_shard);
+        pending_key = recv_key;
+        return 0;
     }
-
-    waker_key send_key = channel_send_key(ch);
-    while (pop_waiter(ex, send_key, &task_id)) {
-        rt_task* task = get_task(ex, task_id);
-        if (task == NULL || task_status_load(task) == TASK_DONE) {
-            continue;
-        }
-        task->resume_kind = RESUME_CHAN_SEND_CLOSED;
-        task->resume_bits = 0;
-        wake_channel_task(ex, task_id, 1);
-    }
-    rt_control_unlock(ex);
 }

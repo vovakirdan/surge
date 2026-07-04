@@ -39,6 +39,11 @@ typedef struct {
     // Owner shard of task_id at registration time (D3/D5): stable for
     // non-accept keys, refreshed by the control-lane accept transition.
     uint32_t owner_hint;
+    // Channel-lane registration generation (candidate/validate): matches the
+    // task's park_seq while the park is current. Zero marks wake-only
+    // entries (select arms and other add_waiter registrations), which carry
+    // no value mailbox and must never receive a resume write.
+    uint32_t seq;
 } waiter;
 
 typedef struct {

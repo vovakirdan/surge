@@ -23,6 +23,10 @@ static pthread_once_t exec_once = PTHREAD_ONCE_INIT;
 
 static uint8_t channel_wake_force_inject;
 
+int channel_wake_force_inject_enabled(void) {
+    return channel_wake_force_inject != 0;
+}
+
 static int async_debug_enabled_cached = -1;
 
 int rt_async_debug_enabled(void) {
@@ -1047,23 +1051,6 @@ void wake_net_task(rt_executor* ex, uint64_t id) {
     wake_task_with_policy(ex, id, 0, 1, 0, 1);
 }
 
-void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    wake_task_with_policy(ex, id, remove_waiter_flag, channel_wake_force_inject != 0, 0, 1);
-}
-
-void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
-    // Use only for cooperative channel handoffs where the current worker is still
-    // active and can drain the injected continuation after the current poll yields,
-    // parks, or completes. Generic external/net/timer wakes must signal sleepers.
-    // Force inject keeps handoff order predictable and avoids local LIFO ping-pong.
-    // The no-signal contract only covers the current worker's own scheduler: a
-    // task owned by another shard lands in a queue this worker never drains, so
-    // cross-scheduler handoffs must signal or the owner shard sleeps through it.
-    const rt_task* task = get_task(ex, id);
-    int same_scheduler = rt_task_scheduler(ex, task) == current_worker_scheduler(ex);
-    wake_task_with_policy(ex, id, remove_waiter_flag, 1, 0, same_scheduler ? 0 : 1);
-}
-
 // Abort/self-requeue after a park lost to the wake token: caller holds the
 // owner shard lock.
 static void
@@ -1709,6 +1696,21 @@ static void move_current_local_to_inject_locked(const rt_executor* ex) {
     rt_shard_unlock(own_shard);
 }
 
+static void compat_cv_timedwait_slice(rt_executor* ex) {
+    // Self-refreshing wait: not every ready push can reach a compat-parked
+    // worker (a wake into a shard whose workers all sit here signals only
+    // that shard's worker_cv), so the wait re-checks for drainable work at
+    // least every slice instead of relying on compat_cv alone.
+    struct timespec deadline;
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_nsec += 10L * 1000L * 1000L;
+    if (deadline.tv_nsec >= 1000000000L) {
+        deadline.tv_sec += 1;
+        deadline.tv_nsec -= 1000000000L;
+    }
+    (void)pthread_cond_timedwait(&ex->compat_cv, &ex->lock, &deadline);
+}
+
 int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL || tls_worker_id < 0) {
         return 0;
@@ -1739,7 +1741,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     maybe_start_compensation_worker_locked(ex);
     while (!ex->shutdown && task->resume_kind == RESUME_NONE &&
            task_wake_token_exchange(task, 0) == 0) {
-        pthread_cond_wait(&ex->compat_cv, &ex->lock);
+        compat_cv_timedwait_slice(ex);
     }
     if (dropped_running && own_shard != NULL) {
         rt_shard_lock(own_shard);

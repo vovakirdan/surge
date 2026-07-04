@@ -200,6 +200,11 @@ typedef struct rt_task {
     uint64_t sleep_deadline;
     uint64_t scope_id;
     uint64_t parent_scope_id;
+    // Park generation for channel candidate/validate: bumped when a channel
+    // park registers and when this task consumes a delivered channel resume,
+    // so a popped entry from a superseded park validates false instead of
+    // redelivering into a reused mailbox.
+    uint32_t park_seq;
     waker_key park_key;
     waker_key* wait_keys;
     size_t wait_keys_len;
@@ -476,6 +481,14 @@ void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);
 
 uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64_t* out_bits);
+uint8_t rt_channel_try_recv_status_owner_locked(rt_executor* ex,
+                                                rt_shard* ch_shard,
+                                                rt_channel* ch,
+                                                uint64_t* out_bits);
+uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
+                                                rt_shard* ch_shard,
+                                                rt_channel* ch,
+                                                uint64_t value_bits);
 uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits);
 void clear_select_timers(rt_executor* ex, rt_task* task);
 void ready_push(rt_executor* ex, uint64_t id);
@@ -496,8 +509,7 @@ int ready_take_current_local_tail(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_net_task(rt_executor* ex, uint64_t id);
-void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
-void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter_flag);
+int channel_wake_force_inject_enabled(void);
 void wake_key_all(rt_executor* ex, waker_key key);
 void park_current(rt_executor* ex, waker_key key);
 void tick_virtual(rt_executor* ex);

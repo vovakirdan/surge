@@ -508,7 +508,7 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
         rt_waiter_store* store = &owner_shard->waiter_store;
         status = rt_waiter_store_ensure_cap(store);
         if (status == RT_RUNTIME_STATUS_OK) {
-            store->entries[store->len++] = (waiter){key, task_id, owner_hint};
+            store->entries[store->len++] = (waiter){key, task_id, owner_hint, 0};
             net_waiter_added(store, key);
             rt_runtime_status attach =
                 rt_fd_registry_attach_net_interest(&owner_shard->fd_registry, key);
@@ -530,7 +530,7 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
         }
         status = rt_waiter_store_ensure_cap(store);
         if (status == RT_RUNTIME_STATUS_OK) {
-            store->entries[store->len++] = (waiter){key, task_id, owner_hint};
+            store->entries[store->len++] = (waiter){key, task_id, owner_hint, 0};
         }
         if (store_shard != NULL) {
             rt_shard_unlock(store_shard);
