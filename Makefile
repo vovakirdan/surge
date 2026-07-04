@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-accept-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-accept-check runtime-v2-lock-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -99,6 +99,7 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-waiter-check
 	$(MAKE) runtime-v2-fd-registry-check
 	$(MAKE) runtime-v2-accept-check
+	$(MAKE) runtime-v2-lock-check
 
 runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 heap accounting gate"
@@ -121,6 +122,11 @@ runtime-v2-accept-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(NetMetadata(StaticShape|MultiShardListenClose)|Accept(ShardConfigInitializesRequestedShardCount|RejectsInvalidShardConfig|RejectsConflictingThreadCount|DistributionAcrossOwnerShards|OwnerShardLifecycleTraceContract|NetOwnershipNoShard0Shortcut|DynamicShardArrayShape|ReadinessClearsSiblingWaitKeys|ListenerRegistryGrowsUnderLock))$$' -count=1 -parallel=1 -p=1 -v --timeout 240s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetPoller(PerShardWakeShape|PerShardWakeBehavior|ShardLocalPollInput|GlobalIOThreadDoesNotOwnMultiShardNetPolling|ShutdownWakesEveryShard)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SchedulerPlacement(WorkerShape|NoStealPolicy|NoStealWorkerPath|StealPathSourceGate)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
+
+runtime-v2-lock-check:
+	@echo ">> Running Runtime V2 lock split gate"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LockSplit(LaneAPIShape|ShardSyncShape|WorkerLoopShardLane|NoAmbiguousGlobalLock|ClockAndSleepStoreShape|NoWholeTableSleepScan|ChannelOwnerShape|GlobalCondvarRetirement)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LockSplit(CrossShardJoin|CrossShardCancel|CrossShardChannelFifoAndClose|ChannelCloseWakesParkedReceiver|SelectAcrossOwners|TimeoutAcrossOwners|SleepIdleAdvanceMultiShard|BlockingCompletionCrossShard|ShutdownWakesAllLanes)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 # ===== Format =====
 format: fmt
