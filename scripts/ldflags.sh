@@ -38,7 +38,10 @@ fi
 
 git_commit="$(git -C "$root" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
 git_message="$(git -C "$root" log -1 --pretty=%s 2>/dev/null || echo unknown)"
-git_message_esc="$(printf '%s' "$git_message" | sed "s/'/'\"'\"'/g")"
+# The result is parsed by Go's quoted.Split (via -ldflags), which understands
+# a single-quoted token but not shell-style '"'"' concatenation, so quotes
+# inside the message cannot be escaped — strip them instead.
+git_message_esc="$(printf '%s' "$git_message" | tr -d "'\"")"
 build_date="${BUILD_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
 
 printf "%s" "-X surge/internal/version.BaseVersion=${base_version} \
