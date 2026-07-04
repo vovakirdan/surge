@@ -105,7 +105,11 @@ rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_
             if (!waker_is_net(key)) {
                 continue;
             }
-            uint32_t owner_shard_id = rt_net_owner_shard_for_key(ex, key, 0);
+            uint32_t owner_shard_id = rt_net_owner_shard_probe_locked(
+                ex, (int)key.id, tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : 0);
+            if (owner_shard_id == UINT32_MAX) {
+                continue;
+            }
             uint64_t wrote = rt_net_wake_poll_on_shard(ex, owner_shard_id);
             woken += wrote;
             if (wrote > 0 && multi_shard) {
@@ -115,8 +119,10 @@ rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_
         }
     }
     if (woken == 0 && waker_is_net(fallback_key)) {
-        uint32_t owner_shard_id = rt_net_owner_shard_for_key(ex, fallback_key, 0);
-        uint64_t wrote = rt_net_wake_poll_on_shard(ex, owner_shard_id);
+        uint32_t owner_shard_id = rt_net_owner_shard_probe_locked(
+            ex, (int)fallback_key.id, tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : 0);
+        uint64_t wrote =
+            owner_shard_id != UINT32_MAX ? rt_net_wake_poll_on_shard(ex, owner_shard_id) : 0;
         woken += wrote;
         if (wrote > 0 && multi_shard) {
             rt_sched_wake_signal_shard_n(rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id),

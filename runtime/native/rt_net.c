@@ -628,24 +628,25 @@ void* rt_net_write_bytes(const void* conn, const void* bytes, uint64_t offset, u
 }
 
 static bool net_wait_current_task(int fd, RtNetWaitKind kind) {
+    // Control-free read/write wait registration (peel B3): the current
+    // task's fields are thread-own while RUNNING, the registration takes the
+    // fd owner's shard lock inside add_waiter, and the interest re-verify
+    // reads the owner registry under the same shard's lock. Accept waits
+    // stay on the control lane (rt_net_wait_accept).
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return true;
     }
-    rt_control_lock(ex);
     rt_task* task = rt_current_task();
     if (task == NULL || rt_current_task_id() == 0) {
-        rt_control_unlock(ex);
         panic_msg("async net wait outside task");
         return true;
     }
     if (current_task_cancelled(ex)) {
         pending_key = waker_none();
-        rt_control_unlock(ex);
         return false;
     }
     if (fd < 0 || rt_net_fd_ready_now(fd, kind)) {
-        rt_control_unlock(ex);
         return true;
     }
     waker_key key;
@@ -660,27 +661,34 @@ static bool net_wait_current_task(int fd, RtNetWaitKind kind) {
             key = net_write_key(fd);
             break;
         default:
-            rt_control_unlock(ex);
             return true;
     }
     if (!waker_valid(key)) {
-        rt_control_unlock(ex);
         return true;
     }
     rt_net_trace_direct_wait();
     prepare_park(ex, task, key, 0);
-    if (!rt_net_interest_present_for_key(ex, key)) {
+    uint32_t verify_owner = rt_net_owner_shard_probe_locked(
+        ex, fd, task->owner_shard_valid != 0 ? task->owner_shard_id : 0);
+    int interest_present = 0;
+    if (verify_owner != UINT32_MAX) {
+        rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), verify_owner);
+        if (owner_shard != NULL) {
+            rt_shard_lock(owner_shard);
+            interest_present = rt_fd_registry_net_interest_present(&owner_shard->fd_registry, key);
+            rt_shard_unlock(owner_shard);
+        }
+    }
+    if (!interest_present) {
         // Attach failed or closed the row: undo the park so the rowless waiter
         // cannot be lost now that poll input is registry-only.
         remove_waiter(ex, key, task->id);
         task->park_prepared = 0;
         task->park_key = waker_none();
         pending_key = waker_none();
-        rt_control_unlock(ex);
         return true;
     }
     pending_key = key;
-    rt_control_unlock(ex);
     return false;
 }
 

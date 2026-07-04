@@ -42,7 +42,10 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
         return NULL;
     }
     if (waker_is_net(key)) {
-        return rt_runtime_shard(rt_executor_runtime(ex), rt_net_owner_shard_for_key(ex, key, 0));
+        uint32_t owner_shard_id = rt_net_owner_shard_probe_locked(
+            ex, (int)key.id, tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : 0);
+        return rt_runtime_shard(rt_executor_runtime(ex),
+                                owner_shard_id != UINT32_MAX ? owner_shard_id : 0);
     }
     switch ((waker_kind)key.kind) {
         case WAKER_JOIN:

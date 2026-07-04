@@ -160,6 +160,20 @@ uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fal
     return fallback_shard_id;
 }
 
+_Thread_local rt_worker_ctx* tls_worker_ctx;
+
+uint32_t rt_net_owner_shard_probe_locked(rt_executor* ex, int fd, uint32_t hint_shard_id) {
+    (void)ex;
+    (void)hint_shard_id;
+    if (fd == 10) {
+        return 0;
+    }
+    if (fd == 11) {
+        return 1;
+    }
+    return UINT32_MAX;
+}
+
 void rt_shard_lock(rt_shard* shard) {
     (void)shard;
 }

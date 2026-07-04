@@ -197,6 +197,12 @@ const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
     return rt_executor_fd_registry_const_for_shard(ex, 0);
 }
 
+int rt_lane_holds_control(void) {
+    return 1;
+}
+
+_Thread_local rt_worker_ctx* tls_worker_ctx;
+
 static rt_task_table* stub_table;
 
 rt_task_table* rt_task_table_snapshot(rt_executor* ex) {

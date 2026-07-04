@@ -101,7 +101,7 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		{
 			path: "runtime/native/rt_async_waiter.c",
 			names: []string{
-				"fd_registry_bridge_net_attach",
+				"rt_net_owner_shard_probe_locked",
 				"fd_registry_bridge_net_detach_if_last_on_owner",
 			},
 		},

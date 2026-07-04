@@ -89,6 +89,7 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
                                                                    waker_key key,
                                                                    uint32_t owner_shard_id);
 uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id);
+uint32_t rt_net_owner_shard_probe_locked(rt_executor* ex, int fd, uint32_t hint_shard_id);
 void ensure_waiter_cap(rt_executor* ex);
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
