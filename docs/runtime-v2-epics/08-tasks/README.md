@@ -17,7 +17,7 @@ they need and point back to it for the rest.
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
 | 1 | `01-kickoff-baseline-and-sentrux.md` | Complete | evidence | none |
-| 2 | `02-lifecycle-dependency-map.md` | Pending | design map | 1 |
+| 2 | `02-lifecycle-dependency-map.md` | Complete | design map | 1 |
 | 3 | `03-lifecycle-lane-proving-spike.md` | Pending | proving spike | 1, 2 |
 | 4 | `04-lifecycle-behavior-contract-tests.md` | Pending | test writing | 1, 2, 3 |
 | 5 | `05-lifecycle-static-shape-and-trace-tests.md` | Pending | test/static checks | 1, 2, 3 |

@@ -214,3 +214,84 @@ Channels baseline `rv2-e8-task1-baseline-channels.md` (ns/op) — the
 | default(32) | reused_reply | 12487 |
 | default(32) | new_reply | 14144 |
 | default(32) | sync_new_reply | 456739 |
+
+## Task 2: Lifecycle Dependency Map
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 2 per `08-tasks/02-lifecycle-dependency-map.md`.
+- Epic: 8. Date: 2026-07-04. Author/session: `mapper` architect subagent
+  (plan approved by `main` before any edit, per RULES.md Global Rule 9).
+- Scope: produce `08-lifecycle-dependency-map.md` (the lifecycle analogue of
+  the Epic 7 executor-lock map) and its self-contained task document; update
+  the task index, this ledger, and `NOTES.md`.
+- Out of scope: any C/test/benchmark/CI change; lane-model **decisions**
+  (Task 3); select slow lane migration (named non-goal); Phase 4 surfaces.
+- Proving spike: no.
+
+### Baseline Commit/Status
+
+- Baseline commit: `daeac51e` (Task 1 kickoff-baseline record).
+- Branch/worktree: `codex/runtime-net-scheduler-refactor`.
+- Status before: Task 1 complete; no `02-*` task doc or lifecycle map existed.
+- Status after: map and task doc created; index row flipped to Complete.
+- Dirty or untracked not touched: `.claude-flow/`, `.claude/`, `CLAUDE.md`,
+  `.mcp.json`, `.swarm/`, `ruvector.db` (tool droppings, never committed).
+- Local environment blockers: none.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/08-lifecycle-dependency-map.md` | created | the dependency map | docs; no code line limit |
+| `docs/runtime-v2-epics/08-tasks/02-lifecycle-dependency-map.md` | created | self-contained task doc | docs |
+| `docs/runtime-v2-epics/08-tasks/README.md` | edited | Task 2 status → Complete | docs |
+| `docs/runtime-v2-epics/08-evidence.md` | edited | this Task 2 section | docs |
+| `docs/runtime-v2-epics/NOTES.md` | edited | Task 2 working notes | docs |
+
+### Contracts Touched
+
+| Contract or behavior | Source | Preserved, changed, or N/A | Evidence |
+| --- | --- | --- | --- |
+| any runtime behavior | runtime C | N/A — docs-only, no code changed | no C/test files in the diff |
+| line numbers vs Task 1 census | `08-evidence.md` census | preserved (re-verified) | 16 steady-path sites match at baseline `daeac51e` |
+
+### Sentrux Root/Scoped Signals
+
+- N/A for this docs-only task; no scanned path changed. Epic-level signals
+  recorded in the Task 1 section (repo 6174, `runtime` 5296,
+  `runtime/native` 5389, all rules pass) remain current.
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence path or note |
+| --- | --- | --- | --- | --- |
+| `git diff --check` | no output | no output | `0` | tracked-file whitespace gate |
+| build | N/A | N/A | N/A | docs-only; nothing compiled |
+
+### Benchmarks And Generated Reports
+
+- N/A; no runtime path changed.
+
+### Trace Counters/Liveness Proof
+
+- N/A; no runtime path changed.
+
+### Known Regressions
+
+- None; documentation only.
+
+### Dead Ends / Paths Not To Retry
+
+- None.
+
+### Rollback/Recovery Notes
+
+- Revert the five docs files listed above; no runtime or generated artifacts.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks completion? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Answer the 16 Task 3 open questions (S5-Q1..Q14, S6-Q1, S7-Q1, S9-Q7) | No (this task) / Yes (Task 3) | `08-tasks/03-lifecycle-lane-proving-spike.md` | map records current+target+open-questions; spike decides and rewrites the lane table on conflict |
+| Reconcile the stale invariant comment `rt_async_internal.h:292-304` | No | Task 13/14 closeout | still describes pre-Epic-7 executor-wide ownership |

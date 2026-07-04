@@ -3142,3 +3142,46 @@ pass, before any task execution began:
   register-then-commit + generation protocol now has THREE moving parts
   (park_seq, entry seq, deferred removals) — the map must treat
   generations as part of the waiter-store ownership contract.
+
+## Epic 8 Task 2 (2026-07-04, mapper architect subagent)
+
+- Plan gate honored (Global Rule 9): plan sent to main and approved before any
+  file edit. Two approval notes applied — spike open questions phrased for
+  yes/no or concrete-protocol answers; README status wording kept as
+  "Complete" to match Task 1.
+- Produced `08-lifecycle-dependency-map.md` (the lifecycle analogue of
+  `07-executor-lock-dependency-map.md`) and the self-contained task doc
+  `08-tasks/02-lifecycle-dependency-map.md`. Docs-only; `git diff --check`
+  clean; nothing compiled.
+- Line numbers re-verified against baseline `daeac51e`; all 16 steady-path
+  census sites still match (task.c 15/62/88/167,173/229/243/289/300;
+  state.c release_lane_aware 1429, mark_done 1508 / gate 1486, apply cancelled
+  1586; scope.c 10/45/84/100/134).
+- Map conclusions (target lane per surface): task-id allocation + table growth
+  stay control (fixed); slot publish + ready-push and slot lookup are the
+  primary owner-shard candidates (spike S5-Q1, lookup); join poll + result read
+  target the target-task owner shard (spike S5-Q3); completion (`mark_done`) is
+  already lane-aware and targets owner-shard-local, with control only for the
+  residual `mark_done_needs_control` reasons; scope enter/register/cancel/
+  join/exit target the scope owner lane with a named control fallback for
+  cross-owner (spike S5-Q7..Q11); clone → atomic refcount (spike S5-Q6);
+  handle release/final free is already lane-aware (control frees, atomic
+  refcount); external await / N=1 runner / sync-compat / select stay compat
+  (select is a named non-goal).
+- Generation contract documented as part of the waiter-store ownership
+  contract (map §4): `park_seq` single-writer on the running poller, entry
+  `seq` copied at channel registration (`seq==0` for non-channel), and the two
+  deferred generation-qualified removers (`wake_task_with_policy`,
+  `park_current` abort). Open question S9-Q7 asks whether join/scope
+  registrations need the same qualification once off control (they are
+  single-target and not address-reused like channels).
+- `mark_done_needs_control` reasons enumerated (map §6): scope membership and
+  `WAKER_JOIN`/`WAKER_SCOPE` park-key removal are the removal targets; net-key
+  removal and `done_waiters>0` are compatibility (not hot-path debt). S6-Q1
+  asks Task 3 to confirm only the two compat reasons survive on the hot path.
+- Flagged for closeout: the stale executor-wide invariant comment at
+  `rt_async_internal.h:292-304` (still says `ex->lock` owns tasks/scopes/shard
+  stores/scheduler queues and `running_count`).
+- Next (Task 3, proving spike): answer the 16 open questions (S5-Q1..Q14,
+  S6-Q1, S7-Q1, S9-Q7); the spike output rewrites the map's lane table on
+  conflict, and Tasks 4/5 must not start until both are reconciled.
