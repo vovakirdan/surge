@@ -3239,3 +3239,54 @@ pass, before any task execution began:
   trigger so Task 6 does not relitigate it.
 - Still flagged for closeout: the stale executor-wide invariant comment at
   `rt_async_internal.h:292-304`.
+
+## Task 4 (subagent `tester-behavior`): Lifecycle Behavior Contract Tests
+
+- Added 5 Go test files under `internal/vm/runtime_v2_lifecycle_behavior_*_test.go`
+  (build tag `runtime_v2_pending`, native C harness compiled at test time,
+  no repository C/H file touched), covering the epic's focused-probe list:
+  owner-local create/ready-push, join result observation across
+  `SURGE_SHARDS=1,2,8`, three join register-then-verify timing cases,
+  clone/release stress, a TSan completion-pin stress, scope enter/register/
+  join/exit, cancelled-poll scope teardown, worker-vs-external await, and
+  shutdown with join/scope/timer/channel/blocking all parked at once.
+- Scope failfast has both a selected existing test
+  (`TestRuntimeV2FailfastScopeCancellationWakesOwner`) and a dedicated new
+  raw-C-level probe (`TestRuntimeV2LifecycleScopeFailfastCancellation`,
+  added after the main session asked for one explicitly, since failfast is
+  a required epic-contract item); net-parked-shutdown is satisfied by
+  selecting `TestRuntimeV2NetPollerShutdownWakesEveryShard` rather than
+  duplicating a synthetic socket. Full reasoning in
+  `08-tasks/04-lifecycle-behavior-contract-tests.md`.
+- Final count: 10 new tests. 9 PASS cleanly via real `go test`; the 10th
+  (`TestRuntimeV2LifecycleCompletionPinInterleavingTSan`) SKIPs by design
+  (see below). Full `SURGE_SHARDS=1,2,8` matrix green.
+- Discovered (not previously written down): `tick_virtual`/
+  `advance_time_to_next_timer` (`rt_async_state.c:1199-1257`) fast-forwards
+  the virtual clock to the next timer deadline once workers go idle, so a
+  long `rt_sleep` is not a stable "parked forever" primitive — fires in
+  ~200ms of real time once nothing else is ready. Used a channel-recv park
+  instead wherever a task needed to stay genuinely idle-but-alive.
+- **RESOLVED (main session decision):** the TSan test
+  (`TestRuntimeV2LifecycleCompletionPinInterleavingTSan`) found two real,
+  reproducible races: (1) `mark_done`'s result-write-after-`TASK_DONE`-store
+  ordering — Rule 1's already-documented Task 8 "Required change," now
+  TSan-confirmed dynamically. (2) A second, not-previously-documented race:
+  `wake_task_on_shard_locked` (`rt_async_state.c:965`) writes
+  `task->park_key` under the shard lock while `mark_done_needs_control`
+  (`:1494`) reads the same field with no lock at all (structurally
+  unavoidable — that read decides whether to take a lock). Decision: commit
+  the test with its full body, gated by `t.Skip("pending Task 8: baseline
+  races RV2-DEBT-019 ...")`, matching Task 5's P6-P10 pending-gate
+  convention. The result-visibility mitigation (an external awaiter forcing
+  `mark_done_needs_control` true) is now toggleable via
+  `LIFECYCLE_PIN_STRESS_NO_KEEPALIVE=1` so Task 8 can reproduce either race
+  in isolation or both together. Recorded as `RV2-DEBT-019` in `DEBT.md`,
+  owner Task 8 (completion epilogue), interacting with Task 7's helper-wake
+  call site, with a close condition naming both the fix and the gate
+  activation. Confirmed the full `^TestRuntimeV2Lifecycle` regex (this
+  task's 10 tests + Task 5's static/trace tests — exactly what
+  `make runtime-v2-lifecycle-check` runs) is green: 9 PASS, 1 SKIP, 0 FAIL.
+- Full gates (`make c-check`, `make cppcheck`, `make runtime-v2-check`,
+  `make check`, `git diff --check`, `./check_file_sizes.sh -a`) run under
+  the granted commit barrier; results recorded below / in `08-evidence.md`.

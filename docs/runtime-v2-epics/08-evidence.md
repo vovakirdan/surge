@@ -412,3 +412,145 @@ proof model).
 | Reorder `mark_done` result writes before the `TASK_DONE` release store | No (this task) / Yes (Task 8) | `08-tasks/08-completion-epilogue-and-done-path.md` | rule 1: lock-free join read needs result visible before DONE |
 | Add create-site `control_lock_acquired` counter + evaluate S5-Q1 escalation | No (this task) / Yes (Tasks 5/6) | `05-...`, `06-...` | decides realization A vs segmented table B |
 | Reconcile the stale invariant comment `rt_async_internal.h:292-304` | No | Task 13/14 closeout | still describes pre-Epic-7 executor-wide ownership |
+
+## Task 4: Lifecycle Behavior Contract Tests
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 4 per `08-tasks/04-lifecycle-behavior-contract-tests.md`.
+- Epic: 8. Date: 2026-07-04. Author/session: subagent `tester-behavior`.
+- Scope: five new Go test files (`internal/vm/runtime_v2_lifecycle_behavior_*_test.go`,
+  build tag `runtime_v2_pending`), a native C harness compiled at test time
+  (no repository C/H file touched), covering the epic's focused-probe list
+  for create/join/handle-lifetime/scope/await/shutdown.
+- Out of scope: static-shape/trace-gate tests (Task 5, landed); any lifecycle
+  migration (Tasks 6-10); net-fairness investigation (Task 11).
+- Proving spike: no.
+
+### Files Added
+
+- `internal/vm/runtime_v2_lifecycle_behavior_harness_test.go` (478 lines):
+  build helpers (plain + TSan variants), env/run helpers,
+  `lifecycleHarnessCommon` (includes, shared globals, spawn/wait helpers,
+  owner-probe/join/clone/pin poll functions).
+- `internal/vm/runtime_v2_lifecycle_behavior_create_join_test.go` (213
+  lines): 3 tests + `lifecycleHarnessCreateJoinModes`.
+- `internal/vm/runtime_v2_lifecycle_behavior_handle_lifetime_test.go` (185
+  lines): 2 tests (one TSan-gated, `t.Skip`'d pending Task 8) +
+  `lifecycleHarnessHandleLifetimeModes`.
+- `internal/vm/runtime_v2_lifecycle_behavior_scope_test.go` (353 lines): 3
+  tests + `lifecycleHarnessScopeAndShutdown`.
+- `internal/vm/runtime_v2_lifecycle_behavior_await_shutdown_test.go` (374
+  lines): 2 tests + `lifecycleHarnessMain` (dispatcher, remaining mode
+  drivers, `main()`).
+- All five at or under the 500-line cap (Global Rule 4); the harness source
+  is deliberately split across all five files' Go constants purely for that
+  cap and concatenated at build time (see the task document for the exact
+  build-function assembly).
+
+### Scenario -> Probe-List Mapping
+
+See `08-tasks/04-lifecycle-behavior-contract-tests.md` "Scenario ->
+Probe-List Mapping" for the full table. Summary: 10 new
+`TestRuntimeV2Lifecycle*` tests, one native harness, covering owner-local
+create/ready-push, same/cross-shard join result observation, three join
+register-then-verify timing cases, clone/release stress, a TSan completion-
+pin stress (`t.Skip`'d pending Task 8, see below), scope enter/register/
+join/exit, scope failfast cancellation, cancelled-poll scope teardown,
+worker-vs-external await, and shutdown with 5 concurrently parked wait
+kinds (join/scope/timer/channel/blocking).
+
+One probe-list item is satisfied by **selecting** an existing test in
+addition to adding a new one, per the epic rules' "add or select" language:
+net-parked shutdown (`TestRuntimeV2NetPollerShutdownWakesEveryShard`,
+`runtime-v2-accept-check`) is not duplicated with a synthetic socket in this
+harness. Scope failfast cancellation was initially scoped this way too
+(selecting the existing `TestRuntimeV2FailfastScopeCancellationWakesOwner`)
+but the main session asked for a dedicated raw-C-level probe as well, since
+failfast is an explicitly required item in the epic's contract;
+`TestRuntimeV2LifecycleScopeFailfastCancellation` was added to satisfy that
+directly, driving `rt_scope_register_child`'s late-registration failfast
+branch (`rt_async_scope.c:67-75`) with an explicit registration order the
+raw C harness controls, complementing rather than duplicating the existing
+Surge-source-level test. The "no parked-with-work" probe is satisfied by the
+existing `TestRuntimeV2SchedulerPlacementParkedWithWorkInvariant` /
+`...SourceGate` pair; see the task document for why re-deriving it via an
+external call to `rt_debug_assert_no_parked_with_work` against actively
+busy-yielding tasks does not work (the helper only checks queue emptiness,
+not worker sleep state, so it fires unconditionally against any
+continuously-re-enqueuing task — not a race, just the wrong tool for that
+external-check shape).
+
+### Discovered Runtime Behavior (recorded here and in the task document)
+
+Virtual-clock idle fast-forward: `tick_virtual`/`advance_time_to_next_timer`
+(`rt_async_state.c:1199-1257`) jumps the virtual clock straight to the next
+timer deadline once workers go idle, so a long `rt_sleep` fires almost
+immediately (~200ms observed) rather than staying parked — not a stable
+"parked forever" primitive in this runtime. Not previously written down
+anywhere this task's research found; relevant to future timer/shutdown
+liveness work.
+
+### Finding: Two TSan-Confirmed Data Races, Recorded As RV2-DEBT-019 (Resolved For This Task)
+
+`TestRuntimeV2LifecycleCompletionPinInterleavingTSan` found two real,
+reproducible races in the current baseline. Full detail and file:line
+citations in `08-tasks/04-lifecycle-behavior-contract-tests.md` "Open
+Finding" section and `DEBT.md` RV2-DEBT-019. Summary:
+
+1. **Result-visibility ordering** (`mark_done` writes `result_kind`/
+   `result_bits` after the `TASK_DONE` release store when
+   `mark_done_needs_control` is false, `rt_async_state.c:1486-1545`) is
+   Rule 1's already-documented "Required change" for Task 8, now confirmed
+   by TSan against the real tree rather than only by written argument.
+   **Mitigated** in the test by holding one external awaiter alive for the
+   whole stress window (forces `mark_done_needs_control` true universally,
+   matching the precondition the "sound today" claim depends on).
+2. **`park_key` race** (`wake_task_on_shard_locked`'s write at
+   `rt_async_state.c:965` vs `mark_done_needs_control`'s unlocked read at
+   `:1494`, both touching the same task's `park_key`) reproduces
+   consistently even after mitigating (1). Not found documented anywhere in
+   this epic's records prior to this task. Sits in the exact surfaces Tasks
+   7 and 8 are about to migrate.
+
+**Resolution (main session decision):** the test is committed with its full
+body intact, gated by `t.Skip("pending Task 8: baseline races RV2-DEBT-019
+...")`, matching the epic's established pending-gate convention (Task 5's
+P6-P10 static gates use the same pattern). The in-test mitigation for race
+(1) is now toggleable via `LIFECYCLE_PIN_STRESS_NO_KEEPALIVE=1` (unset by
+default), so Task 8 can reproduce either race in isolation or both together
+while implementing its fix. RV2-DEBT-019 is recorded in `DEBT.md` with owner
+Task 8 (interacting with Task 7's helper-wake call site) and an explicit
+close condition (reorder the result writes, make the `park_key` read/write
+pair race-free, delete the `t.Skip`, add the test to
+`runtime-v2-lifecycle-check`). Because Task 5 already wired
+`make runtime-v2-lifecycle-check` (broad `-run '^TestRuntimeV2Lifecycle'`,
+`Makefile:132-134`) into `make runtime-v2-check`, the `t.Skip` is what keeps
+this from failing that gate today; confirmed the full `^TestRuntimeV2Lifecycle`
+regex (this task's 10 tests plus Task 5's static/trace tests) runs green
+with exactly one `SKIP` (this test) and no `FAIL`.
+
+### Gates (this tree)
+
+- `gofmt -l` on all five new files: clean.
+- `go vet -tags runtime_v2_pending ./internal/vm/...`: clean.
+- Standalone C harness compile (`clang -std=c11 -Wall -Wextra -Werror
+  -pthread`) against every `runtime/native/*.c` except `rt_entry.c`: clean,
+  zero warnings, both the plain and `-fsanitize=thread -g -O1` variants.
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags
+  runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Lifecycle' -count=1
+  -parallel=1 -p=1 -v --timeout 360s`: **all 10 of this task's tests PASS
+  except the TSan test which SKIPs as designed**; Task 5's static/trace
+  tests in the same regex also PASS/SKIP as expected; zero FAIL. ~28s total.
+- Focused `SURGE_SHARDS=1,2,8` matrix for the create/join tests: PASS at all
+  three shard counts (both standalone and via `go test`).
+- Full gate suite (`git diff --check`, `make c-check`, `make cppcheck`,
+  `make runtime-v2-check`, `make check`, `./check_file_sizes.sh -a`):
+  recorded below once run under the granted commit barrier.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks completion? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Fix RV2-DEBT-019 (both races), delete the `t.Skip`, add to `runtime-v2-lifecycle-check` | No (this task) / Yes (Task 8) | `08-completion-epilogue-and-done-path.md`, `DEBT.md` | Recorded debt with owner and close condition |
+
