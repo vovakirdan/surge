@@ -639,3 +639,98 @@ worker-side joins).
 | --- | --- | --- | --- |
 | Escalate Task 6 to segmented table (B) | No (this task) / Yes (Task 6) | `06-task-create-and-table-publication.md` | create = 3.500/request >= 2.0 (measured) |
 | Activate P6-P10 static gates on their peel commits | No | Tasks 6-10 | delete the `t.Skip` line naming each task |
+
+## Task 6: Task Create And Table Publication
+
+### Task Identity And Scope
+
+Realization (B) (mandatory per Task 5's escalation verdict, `ctrl_create=
+3.500/req >= 2.0`): the segmented never-moved-slot task table, plus the
+`__task_create` restructure onto the owner shard lane. Full write-up:
+`08-tasks/06-task-create-and-table-publication.md`.
+
+### Files Touched
+
+- C: `rt_async_internal.h` (`rt_task_table`/new `rt_task_segment`, `next_id`
+  atomic, new decls), new `rt_task_table.c` (41 lines, segment allocation),
+  `rt_async_state.c` (`get_task`/`rt_task_slot_store`/`rt_task_table_snapshot`
+  reimplemented for segments, old `ensure_task_cap` moved out,
+  `cancel_task` fixed for the task_add_child hazard — net -11 lines),
+  `rt_async_task.c` (`__task_create` restructured), `rt_async_waiter.c` +
+  `rt_async_trace.c` (the two full-table scanners updated to
+  `get_task`+`rt_task_table_snapshot` bound).
+- Tests: `internal/vm/runtime_v2_lifecycle_static_test.go` (P6 `t.Skip`
+  deleted), new `internal/vm/runtime_v2_lifecycle_task6_cancel_spawn_race_test.go`
+  (self-contained cancel-vs-spawn race probe, plain + TSan variants),
+  `internal/vm/runtime_v2_owner_local_waiter_static_test.go` (pre-existing
+  stub signature updated for the `rt_task_table_snapshot` return-type
+  change — not a lifecycle behavior-test file).
+- `Makefile`: `runtime-v2-lifecycle-check` regex gains
+  `StaticCreateReadyPushOwnerShard` and `CancelSpawnChildrenRace`.
+
+### Hazard Found And Fixed
+
+Moving `task_add_child` off control (required to hit the escalation target)
+opened a genuine data race against `cancel_task`'s control-held children[]
+walk (a running parent being cancelled from another thread while it spawns).
+Fixed by nesting `task_add_child` in the parent/child's shared owner-shard
+lock and having `cancel_task` snapshot children ids under that same lock
+before recursing. Full argument, including the owner-replacement edge case
+main flagged, is in the task document's "Hazard Found And Fixed" section.
+Proven by a new TSan-backed race test
+(`TestRuntimeV2LifecycleCancelSpawnChildrenRace`, enumerated;
+`...RaceTSan`, best-effort, passed clean — zero TSan reports).
+
+### Gates
+
+- `git diff --check`: clean.
+- `make c-check`, `make cppcheck`: OK.
+- `timeout 1200s make runtime-v2-check`: exit 0 (all lifecycle behavior +
+  static + trace gates green, including the newly-activated P6 and the new
+  race gate).
+- `make check`: exit 0 (all Go packages, lint 0 issues).
+- `./check_file_sizes.sh -a`: `rt_async_state.c` **1444** (down from 1455;
+  ceiling 1580, not grown), `rt_task_table.c` 41 (new, well under 500),
+  `rt_async_task.c` 307, `rt_async_internal.h` 535 — all OK.
+- Sentrux: root 6175 (baseline 6174), `runtime` 5294 (baseline 5296),
+  `runtime/native` 5385 (baseline 5387) — all "All rules pass", no drop.
+
+### Before/After Measurement (8x1024 row, `SURGE_TRACE_EXEC=1`)
+
+| Site | Before /req | After /req |
+| --- | ---: | ---: |
+| `control_lock_acquired` | 26.348 | 22.780 |
+| `ctrl_create` | **3.500** | **0.001** |
+| `ctrl_join_poll` | 3.885 | 3.881 |
+| `ctrl_completion` | 0.509 | 0.506 |
+| `ctrl_scope` | 13.000 | 13.000 |
+| `ctrl_handle` | ~0 | 3.500 |
+| residual `OTHER` | 5.454 | 1.890 |
+
+`ctrl_create` is essentially eliminated (residual = rare segment-growth
+events, ~7-8 total across 8192 requests). `ctrl_create`'s old cost reappears
+almost exactly in `ctrl_handle` (via `poll_ready_child_inline`'s pre-existing,
+Task-6-untouched control bracket, S5-Q4, Task 7 territory — full explanation
+in the task document). The genuine net win (`control_lock_acquired` dropping
+3.570/request) comes from the `OTHER` residual, not fully attributed within
+this task's scope; flagged for Task 7 to pin down further when it touches
+`rt_task_poll`/`poll_ready_child_inline` directly.
+
+### Task 7 Handoff
+
+- `get_task`'s external contract is unchanged (same signature, same
+  lock-free acquire semantics); no caller elsewhere in the tree needed
+  changes.
+- `rt_task_table_snapshot` now returns `uint64_t` (a `next_id` bound), not a
+  struct pointer — use `get_task(ex, i)` + this bound for any future
+  full-table scan, never direct struct access.
+- `ctrl_handle` now dominated by `poll_ready_child_inline` on the net bench;
+  expect a large drop when Task 7 migrates its control bracket (S5-Q4).
+- `cancel_task`'s children[] read is now owner-shard-lock-protected; keep
+  paired with `task_add_child`'s lane in any future change.
+
+### Commit Boundary
+
+One commit: segmented task table + `__task_create` restructure + the
+`cancel_task` hazard fix + P6 activation + the new race-probe test + doc
+updates. No other lifecycle surface changes in this commit.

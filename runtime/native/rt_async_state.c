@@ -357,26 +357,42 @@ rt_task* get_task(rt_executor* ex, uint64_t id) {
     if (ex == NULL || id == 0) {
         return NULL;
     }
-    rt_task_table* table = atomic_load_explicit(&ex->tasks_table, memory_order_acquire);
-    if (table == NULL || id >= table->cap) {
+    size_t seg_idx = (size_t)(id >> RT_TASK_TABLE_SEGMENT_SHIFT);
+    if (seg_idx >= RT_TASK_TABLE_MAX_SEGMENTS) {
         return NULL;
     }
-    return atomic_load_explicit(&table->slots[id], memory_order_acquire);
+    rt_task_segment* segment =
+        atomic_load_explicit(&ex->tasks_table.segments[seg_idx], memory_order_acquire);
+    if (segment == NULL) {
+        return NULL;
+    }
+    size_t slot_idx = (size_t)(id & (RT_TASK_TABLE_SEGMENT_SIZE - 1));
+    return atomic_load_explicit(&segment->slots[slot_idx], memory_order_acquire);
 }
 
-rt_task_table* rt_task_table_snapshot(rt_executor* ex) {
-    return ex != NULL ? atomic_load_explicit(&ex->tasks_table, memory_order_acquire) : NULL;
+uint64_t rt_task_table_snapshot(rt_executor* ex) {
+    return ex != NULL ? atomic_load_explicit(&ex->next_id, memory_order_acquire) : 0;
 }
 
 void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task) {
-    // Caller holds the control lock and has sized the table via
-    // ensure_task_cap.
-    rt_task_table* table = atomic_load_explicit(&ex->tasks_table, memory_order_relaxed);
-    if (table == NULL || id >= table->cap) {
+    // Caller holds either the control lock (growth-adjacent legacy
+    // creators) or the task's owner shard lock (steady-state __task_create,
+    // Task 6): the segment already exists in both cases (ensure_task_cap /
+    // rt_task_table_segment_missing ran first), so this is a pure
+    // release-store into a never-moved slot.
+    size_t seg_idx = (size_t)(id >> RT_TASK_TABLE_SEGMENT_SHIFT);
+    if (seg_idx >= RT_TASK_TABLE_MAX_SEGMENTS) {
         panic_msg("async: task slot out of range");
         return;
     }
-    atomic_store_explicit(&table->slots[id], task, memory_order_release);
+    rt_task_segment* segment =
+        atomic_load_explicit(&ex->tasks_table.segments[seg_idx], memory_order_acquire);
+    if (segment == NULL) {
+        panic_msg("async: task slot out of range");
+        return;
+    }
+    size_t slot_idx = (size_t)(id & (RT_TASK_TABLE_SEGMENT_SIZE - 1));
+    atomic_store_explicit(&segment->slots[slot_idx], task, memory_order_release);
 }
 
 rt_scope* get_scope(rt_executor* ex, uint64_t id) {
@@ -440,54 +456,10 @@ static int ensure_ptr_array_cap(void** array,
     return 1;
 }
 
-void ensure_task_cap(rt_executor* ex, uint64_t id) {
-    // Caller holds the control lock. Growth copies into a fresh table and
-    // publishes it with release; the retired generation stays allocated so
-    // lock-free readers never dereference reclaimed memory (bounded by
-    // doubling to under one live-table's worth of retired slots).
-    if (ex == NULL) {
-        return;
-    }
-    rt_task_table* table = atomic_load_explicit(&ex->tasks_table, memory_order_relaxed);
-    size_t cap = table != NULL ? table->cap : 0;
-    if (id < cap) {
-        return;
-    }
-    if (id >= SIZE_MAX / 2) {
-        panic_msg("async: task capacity overflow");
-        return;
-    }
-    size_t want = (size_t)id + 1;
-    size_t next_cap = cap == 0 ? 64 : cap;
-    while (next_cap < want) {
-        if (next_cap > SIZE_MAX / 2) {
-            panic_msg("async: task capacity overflow");
-            return;
-        }
-        next_cap *= 2;
-    }
-    if (next_cap > (SIZE_MAX - sizeof(rt_task_table)) / sizeof(_Atomic(rt_task*))) {
-        panic_msg("async: task capacity overflow");
-        return;
-    }
-    uint64_t bytes = (uint64_t)(sizeof(rt_task_table) + next_cap * sizeof(_Atomic(rt_task*)));
-    rt_task_table* next = (rt_task_table*)rt_alloc(bytes, _Alignof(rt_task_table));
-    if (next == NULL) {
-        panic_msg("async: task allocation failed");
-        return;
-    }
-    next->cap = next_cap;
-    size_t i = 0;
-    for (; table != NULL && i < table->cap; i++) {
-        atomic_store_explicit(&next->slots[i],
-                              atomic_load_explicit(&table->slots[i], memory_order_relaxed),
-                              memory_order_relaxed);
-    }
-    for (; i < next_cap; i++) {
-        atomic_store_explicit(&next->slots[i], NULL, memory_order_relaxed);
-    }
-    atomic_store_explicit(&ex->tasks_table, next, memory_order_release);
-}
+// ensure_task_cap moved to rt_task_table.c (Epic 8 Task 6): the segmented
+// table's growth (allocating a segment) is a smaller, self-contained
+// operation than the old copy-on-grow table's, so it now lives with the
+// rest of the segment-allocation logic rather than here.
 
 void ensure_scope_cap(rt_executor* ex, uint64_t id) {
     if (ex == NULL) {
@@ -1474,8 +1446,41 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     if (task_status_load(task) == TASK_WAITING) {
         wake_task(ex, task->id, 1);
     }
-    for (size_t i = 0; i < task->children_len; i++) {
-        cancel_task(ex, task->children[i]);
+    // Since Epic 8 Task 6, task_add_child appends into this task's
+    // children[] under the task's own owner shard lock, not control (the
+    // steady-state __task_create path takes no control lock at all). This
+    // control-held walk can no longer read task->children[]/children_len
+    // directly - a concurrent append on a RUNNING task (this walk's caller
+    // already holds control, but the appending thread does not) could
+    // realloc the array mid-read. Collect-then-recurse (mirrors
+    // wake_key_all's collect-then-wake and
+    // rt_executor_wake_net_waiters_for_key_on_owner's inline-batch pattern):
+    // snapshot the ids under the task's owner shard lock, release it, then
+    // recurse. Legal lane order (control held, then at most one shard lock,
+    // released before any further lock); never two shard locks, since each
+    // recursion level locks/copies/unlocks before descending.
+    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
+    rt_shard_lock(owner_shard);
+    size_t child_count = task->children_len;
+    uint64_t inline_children[8];
+    uint64_t* children = inline_children;
+    if (child_count > 8) {
+        children = (uint64_t*)rt_alloc(child_count * sizeof(uint64_t), _Alignof(uint64_t));
+        if (children == NULL) {
+            rt_shard_unlock(owner_shard);
+            panic_msg("async: cancel snapshot allocation failed");
+            return;
+        }
+    }
+    if (child_count > 0) {
+        memcpy(children, task->children, child_count * sizeof(uint64_t));
+    }
+    rt_shard_unlock(owner_shard);
+    for (size_t i = 0; i < child_count; i++) {
+        cancel_task(ex, children[i]);
+    }
+    if (children != inline_children) {
+        rt_free((uint8_t*)children, child_count * sizeof(uint64_t), _Alignof(uint64_t));
     }
 }
 

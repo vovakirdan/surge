@@ -3305,3 +3305,79 @@ pass, before any task execution began:
 - Full gates (`make c-check`, `make cppcheck`, `make runtime-v2-check`,
   `make check`, `git diff --check`, `./check_file_sizes.sh -a`) run under
   the granted commit barrier; results recorded below / in `08-evidence.md`.
+
+## Task 6: Task Create And Table Publication
+
+- Escalation verdict from Task 5 is binding: `ctrl_create=3.500/req >= 2.0`
+  means Task 6 implements realization (B), the segmented never-moved-slot
+  task table — not the safe-minimal (A) the epic doc names as the default.
+- Design: `rt_task_table` is now a fixed-size, embedded (not swapped)
+  directory of `_Atomic(rt_task_segment*)` (4096 slots/segment, 65536
+  segments, 512KB directory). A segment, once allocated, is never freed or
+  moved — this is what removes the publish-vs-growth race the spike's
+  `-DUNSAFE_PUBLISH` control caught in the old copy-on-grow table.
+  `next_id` becomes `_Atomic uint64_t`. `get_task`/`rt_task_slot_store`/
+  `rt_task_table_snapshot` stay defined in `rt_async_state.c` (required by
+  the active, already-shipped G3 static gate, which greps that exact file
+  and function body); `rt_task_table_snapshot`'s signature changed from a
+  struct pointer to a `uint64_t next_id` bound (approved by main), used by
+  the two full-table scanners instead of touching the segmented internals
+  directly. New file `rt_task_table.c` (41 lines) owns segment allocation.
+- `__task_create` restructured to the spike-proven order: atomic id-alloc
+  (no lock) -> lock-free segment-presence peek -> rare control-lane segment
+  growth if missing -> owner-shard lock for slot-store + `task_add_child` +
+  ready-push (one critical section, matching the proven interleaving) ->
+  unlock -> lane-aware compensation-worker check (reusing `wake_task`'s
+  existing idiom, not new machinery).
+- **Hazard found during planning, fixed in the same commit (required, not
+  optional):** moving `task_add_child` off control opened a real data race
+  against `cancel_task`'s control-held children[] walk (a running parent
+  cancelled from another thread while it spawns — a supported case). Fixed
+  by nesting `task_add_child` under the parent/child's shared owner-shard
+  lock (free — a fresh child's owner shard always equals its parent's) and
+  having `cancel_task` snapshot children ids under that same lock before
+  recursing (collect-then-recurse, mirroring the existing collect-then-wake
+  shape). Verified the soundness argument (a parent's owner_shard_id is
+  never concurrently rewritten by another thread while task_add_child reads
+  it) by grep-auditing all three `rt_task_replace_owner` call sites: only
+  one (`rt_executor_wake_net_waiters_for_key_on_owner`) targets a different
+  task from another thread, and that target is always popped from a waiter
+  store (i.e. parked, not running); the other two always self-replace
+  synchronously. Wrote this down as an invariant comment at the lock site
+  plus in the task doc, per main's explicit requirement. Proven by a new,
+  self-contained test file (does not edit the Task 4 behavior-test files):
+  `TestRuntimeV2LifecycleCancelSpawnChildrenRace` (deterministic, enumerated
+  in `runtime-v2-lifecycle-check`) and `...RaceTSan` (best-effort, TSan,
+  passed clean — zero races).
+- Also fixed (required for compilation, not lifecycle-owned): a pre-existing
+  stub in `internal/vm/runtime_v2_owner_local_waiter_static_test.go`
+  (Epic-7-era, defines its own `rt_task_table_snapshot` to satisfy a
+  standalone waiter-behavior harness's linker needs) had its signature
+  updated to match the new `uint64_t` return type; its behavior (always a
+  no-op scan, since it previously always returned `NULL`) is unchanged.
+- Measurement (8x1024 row, `SURGE_TRACE_EXEC=1`, 3 stable runs): `ctrl_create`
+  drops from 3.500/req to 0.001/req (residual = ~7-8 rare segment-growth
+  events across 8192 requests) — the escalation's numeric target,
+  essentially eliminated. `control_lock_acquired` drops from 26.348/req to
+  22.780/req. Honest accounting (main required this): `ctrl_create`'s old
+  cost does not simply vanish from `sum(sites)` — it reappears almost
+  exactly in `ctrl_handle` (28673 total both before-as-create and
+  after-as-handle, bit-for-bit reproducible across 3 runs), traced to
+  `poll_ready_child_inline`'s pre-existing (unchanged by this task) control
+  bracket firing far more reliably now that its "target still at local
+  queue tail" precondition benefits from create's faster completion — this
+  is exactly the surface the dependency map's S5-Q4 already flags as Task
+  7's future migration target. The genuine win (`control_lock_acquired`
+  dropping 3.570/req) comes almost entirely from the `OTHER` residual
+  bucket (5.454 -> 1.890/req); this task did not fully instrument that
+  bucket's internal composition and reports it honestly as an open question
+  for Task 7 to pin down when it touches `rt_task_poll` directly.
+- Gates: `git diff --check` clean; `make c-check`, `make cppcheck` OK;
+  `timeout 1200s make runtime-v2-check` exit 0 (includes the activated P6
+  and the new race gate); `make check` exit 0; `./check_file_sizes.sh -a`:
+  `rt_async_state.c` 1444 (down from 1455, ceiling 1580 not grown),
+  `rt_task_table.c` 41 (new, well under 500); Sentrux root/runtime/
+  runtime-native all "All rules pass", quality flat vs baseline (6175/5294/
+  5385 vs 6174/5296/5387).
+- Full write-up: `08-tasks/06-task-create-and-table-publication.md`.
+  Evidence: `08-evidence.md` Task 6 section.

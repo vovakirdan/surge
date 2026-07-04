@@ -203,11 +203,15 @@ int rt_lane_holds_control(void) {
 
 _Thread_local rt_worker_ctx* tls_worker_ctx;
 
-static rt_task_table* stub_table;
-
-rt_task_table* rt_task_table_snapshot(rt_executor* ex) {
+// Epic 8 Task 6 changed rt_task_table_snapshot's signature from a struct
+// pointer to a uint64_t next_id bound (rt_async_internal.h); this stub
+// always returned NULL before, which made clear_accept_winner_wait_keys's
+// scan a no-op in this harness (table != NULL guarded the loop) - returning
+// 0 here preserves that exact no-op behavior (the loop below bound=0 never
+// runs either).
+uint64_t rt_task_table_snapshot(rt_executor* ex) {
     (void)ex;
-    return stub_table;
+    return 0;
 }
 
 static rt_task* stub_tasks[8];

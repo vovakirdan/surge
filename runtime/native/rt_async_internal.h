@@ -238,24 +238,44 @@ typedef struct {
     size_t children_cap;
 } rt_scope;
 
-// Task id -> task pointer table (D3): readers on any lane load the table
-// pointer and a slot with acquire; growth allocates a copy and publishes it
-// with release under the control lock. Retired generations are deliberately
-// never freed - doubling bounds them to less than the live table's size -
-// so a reader can never dereference a reallocated array.
+// Segmented task table (Epic 8 Task 6, S5-Q1 realization B): a segment,
+// once published, is never freed or moved, so a task pointer's address is
+// stable for the task's whole lifetime and an owner-lane publish can never
+// race a concurrent growth the way the old copy-on-grow table could (the
+// spike's -DUNSAFE_PUBLISH negative control). Segment size and the fixed
+// directory bound are compile-time constants; the directory itself never
+// grows or moves, only individual segments are lazily allocated. Directory
+// memory (RT_TASK_TABLE_MAX_SEGMENTS pointers, 512KB here) is the same
+// monotonic, never-freed growth shape the old table already had (retired
+// generations were never freed either) - not new debt, just redistributed.
+#define RT_TASK_TABLE_SEGMENT_SHIFT 12
+#define RT_TASK_TABLE_SEGMENT_SIZE (1u << RT_TASK_TABLE_SEGMENT_SHIFT)
+#define RT_TASK_TABLE_MAX_SEGMENTS (1u << 16)
+
+typedef struct rt_task_segment {
+    _Atomic(rt_task*) slots[RT_TASK_TABLE_SEGMENT_SIZE];
+} rt_task_segment;
+
 typedef struct rt_task_table {
-    size_t cap;
-    _Atomic(rt_task*) slots[];
+    _Atomic(rt_task_segment*) segments[RT_TASK_TABLE_MAX_SEGMENTS];
 } rt_task_table;
 
 struct rt_executor {
-    uint64_t next_id;
+    // Atomic (Epic 8 Task 6): id allocation is a lock-free fetch_add on the
+    // owner-lane create path; control-held creators (checkpoint/sleep/
+    // blocking submit) may still use `++` directly (an atomic RMW too, just
+    // with the implicit seq_cst order), safely mixed with the relaxed
+    // fetch_add used elsewhere.
+    _Atomic uint64_t next_id;
     uint64_t next_scope_id;
     // Virtual clock (D7): relaxed atomic counter; ticks are fetch_add, idle
     // jumps go through rt_clock_advance_to (monotonic CAS).
     _Atomic uint64_t now_ms;
     rt_runtime* runtime;
-    _Atomic(rt_task_table*) tasks_table;
+    // Embedded (not a swappable pointer): the segmented table's directory is
+    // fixed-size and never reallocated, so there is nothing to atomically
+    // swap at this level. See the rt_task_table definition above.
+    rt_task_table tasks_table;
     rt_scope** scopes;
     size_t scopes_cap;
     pthread_mutex_t lock;
@@ -506,7 +526,17 @@ int deque_pop_head(rt_deque* dq, uint64_t* out_id);
 int deque_pop_tail(rt_deque* dq, uint64_t* out_id);
 void ensure_task_cap(rt_executor* ex, uint64_t id);
 void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task);
-rt_task_table* rt_task_table_snapshot(rt_executor* ex);
+// rt_task_table_snapshot (Epic 8 Task 6): an acquire snapshot of the
+// exclusive upper bound on ids ever allocated (ex->next_id), used by the two
+// full-table scanners (rt_async_waiter.c, rt_async_trace.c) as their
+// get_task(ex, i) iteration bound instead of walking a table struct
+// directly - the segmented directory is internal to rt_async_state.c /
+// rt_task_table.c.
+uint64_t rt_task_table_snapshot(rt_executor* ex);
+// rt_task_table_segment_missing (Epic 8 Task 6): lock-free peek used by
+// __task_create's steady-state path to decide whether the rare, control-lane
+// segment-growth branch is needed at all.
+int rt_task_table_segment_missing(rt_executor* ex, uint64_t id);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);

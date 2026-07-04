@@ -159,16 +159,13 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 
 // ===== PENDING gates (Tasks 6-10; delete the t.Skip line in the peel commit) =====
 
-// P6 (Task 6, create/publish): realization A moves the ready-push (id enqueue)
-// under the owner shard lock while id-alloc + table growth + slot publish stay
-// on control. Activation: Task 6's commit lands the owner-shard ready-push in
-// __task_create; delete the Skip and assert ready_push runs under
-// rt_shard_lock, publish/growth still under control (control -> shard order).
+// P6 (Task 6, create/publish): realization B (the segmented never-moved-slot
+// task table, adopted per the Task 5 escalation verdict: ctrl_create=3.500/req
+// >= 2.0) moves id-alloc, slot publish, and ready-push under the owner shard
+// lock with no control acquisition in the steady state; only a rare
+// segment-growth event still takes control. Activated by Task 6's commit:
+// asserts ready_push runs under rt_shard_lock in __task_create.
 func TestRuntimeV2LifecycleStaticCreateReadyPushOwnerShard(t *testing.T) {
-	t.Skip("activates in Task 6 (06-task-create-and-table-publication): " +
-		"__task_create ready-push moves under rt_shard_lock (realization A); " +
-		"publish + ensure_task_cap stay control-lane. Assert ready_push is bracketed " +
-		"by rt_shard_lock/rt_shard_unlock and the slot store stays control-held.")
 	body := lifecycleFindFunctionBody(t, "__task_create")
 	if !strings.Contains(body, "rt_shard_lock(") {
 		t.Fatalf("__task_create must ready-push under the owner shard lock:\n%s", body)

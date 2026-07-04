@@ -12,13 +12,18 @@ void* __task_create(
     if (ex == NULL) {
         return NULL;
     }
-    rt_control_lock(ex);
-    rt_trace_control_lock_site(RT_CTRL_SITE_CREATE);
-    uint64_t id = ex->next_id++;
-    ensure_task_cap(ex, id);
+    uint64_t id = atomic_fetch_add_explicit(&ex->next_id, 1, memory_order_relaxed);
+    if (rt_task_table_segment_missing(ex, id)) {
+        // Segment growth is the one rare, amortized control-lane event left
+        // on the create path (S5-Q1 realization B): once a segment exists,
+        // every other id in it needs no control acquisition at all.
+        rt_control_lock(ex);
+        rt_trace_control_lock_site(RT_CTRL_SITE_CREATE);
+        ensure_task_cap(ex, id);
+        rt_control_unlock(ex);
+    }
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
     if (task == NULL) {
-        rt_control_unlock(ex);
         panic_msg("async: task allocation failed");
         return NULL;
     }
@@ -32,15 +37,58 @@ void* __task_create(
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
-    rt_task_slot_store(ex, id, task);
+
     rt_task* parent = rt_current_task();
     if (parent != NULL) {
-        task_add_child(parent, id);
         rt_task_inherit_placement(task, parent);
     }
     rt_task_assign_spawn_owner(task);
-    ready_push(ex, id);
-    rt_control_unlock(ex);
+
+    // Spike-proven order: assign owner -> shard-lock -> slot-store(release)
+    // -> ready-push -> unlock. The parent's children[] append is nested in
+    // the SAME critical section: a fresh child's owner shard always equals
+    // its parent's (rt_task_inherit_placement, just above), so this is the
+    // identical lock cancel_task now snapshots children[] under (see
+    // cancel_task, rt_async_state.c) - no extra lock.
+    //
+    // Invariant this relies on: the parent cannot be undergoing a
+    // cross-thread owner replacement concurrently with this spawn.
+    // rt_task_replace_owner (the accept transition) has exactly one call
+    // site that targets a task other than the caller's own from a
+    // different thread (rt_executor_wake_net_waiters_for_key_on_owner,
+    // rt_async_waiter.c), and that target is always popped from a waiter
+    // store - i.e. currently TASK_WAITING, which cannot itself be executing
+    // __task_create. Its other two call sites (net_task_set_ready_accept
+    // via rt_net_wait_accept; rt_net_place_current_task_on_owner) always
+    // replace rt_current_task() - the calling thread's own task,
+    // synchronously, sequenced-before any later spawn that same thread
+    // performs. So a parent's owner_shard_id is never being concurrently
+    // rewritten by another thread while this thread reads it above.
+    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
+    rt_shard_lock(owner_shard);
+    rt_task_slot_store(ex, id, task);
+    if (parent != NULL) {
+        task_add_child(parent, id);
+    }
+    (void)ready_push_task_locked(ex, owner_shard, task, 0, 0, 1);
+    rt_shard_unlock(owner_shard);
+
+    // Lane-aware compensation-worker check, mirroring wake_task's identical
+    // pattern (rt_async_state.c): only sync-channel-blocked-worker scenarios
+    // need this, so the common case (no compat workers parked) costs one
+    // atomic load and no lock.
+    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
+    if (compat != NULL &&
+        atomic_load_explicit(&compat->channel_blocked_workers, memory_order_acquire) > 0) {
+        int need_control = !rt_lane_holds_control();
+        if (need_control) {
+            rt_control_lock(ex);
+        }
+        maybe_start_compensation_worker_locked(ex);
+        if (need_control) {
+            rt_control_unlock(ex);
+        }
+    }
     return task;
 }
 
