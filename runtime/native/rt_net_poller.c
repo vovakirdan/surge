@@ -190,6 +190,6 @@ int rt_net_poll_waiters_owned_on_shard(rt_executor* ex, uint32_t owner_shard_id,
         pthread_cond_broadcast(&shard->poller_cv);
         rt_shard_unlock(shard);
     }
-    pthread_cond_signal(&ex->io_cv);
+    rt_io_poll_nudge(ex);
     return woke;
 }

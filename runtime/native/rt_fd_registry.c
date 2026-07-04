@@ -429,7 +429,7 @@ rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked_on_own
     }
     if (summary.calls != 0) {
         (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
-        pthread_cond_broadcast(&ex->io_cv);
+        rt_io_poll_nudge(ex);
     }
     return summary;
 }
@@ -457,7 +457,7 @@ rt_fd_registry_wake_closed_net_waiters(rt_executor* ex, const rt_fd_lifecycle_sn
     }
     if (summary.calls != 0) {
         (void)rt_net_wake_poll_on_shard(ex, snapshot->owner_shard_id);
-        pthread_cond_broadcast(&ex->io_cv);
+        rt_io_poll_nudge(ex);
     }
     rt_control_unlock(ex);
     return summary;

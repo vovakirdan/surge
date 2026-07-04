@@ -169,7 +169,6 @@ static void exec_init_once(void) {
     ex->next_scope_id = 1;
     pthread_mutex_init(&ex->lock, NULL);
     pthread_cond_init(&ex->compat_cv, NULL);
-    pthread_cond_init(&ex->io_cv, NULL);
     pthread_cond_init(&ex->done_cv, NULL);
     rt_exec_trace_init();
     rt_sched_trace_init();
@@ -1167,7 +1166,7 @@ void park_current(rt_executor* ex, waker_key key) {
     if (waker_is_net(key)) {
         (void)rt_net_wake_poll_for_task_wait_keys(ex, task, key);
     }
-    pthread_cond_signal(&ex->io_cv);
+    rt_io_poll_nudge(ex);
 }
 
 // Yield tick (D7): advance the clock, fire the ticking shard's own due
@@ -1256,7 +1255,7 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
                     }
                     const rt_shard* shard = rt_runtime_shard_const(rt_executor_runtime(ex), 0);
                     if (shard != NULL && shard->net_polling && !ex->shutdown) {
-                        io_cv_timedwait_slice(ex);
+                        rt_io_wait_slice(ex);
                         continue;
                     }
                 }
@@ -1274,7 +1273,7 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
             const rt_shard* shard = rt_runtime_shard_const(rt_executor_runtime(ex), 0);
             if (shard != NULL && shard->net_polling && rt_net_has_waiters_on_shard(ex, 0) &&
                 !ex->shutdown) {
-                io_cv_timedwait_slice(ex);
+                rt_io_wait_slice(ex);
                 continue;
             }
             return 0;

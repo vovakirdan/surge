@@ -40,3 +40,22 @@ void rt_sched_wake_broadcast_all(rt_executor* ex) {
         rt_sched_wake_signal_shard_n(shard, sleepers > 0 ? sleepers : 1U);
     }
 }
+
+// Pokes the io thread's shard-0 poller wait (peel B4): the io thread's
+// slice wait lives on shard 0's poller_cv now that the global io condvar
+// is retired, so control-lane events that change its predicates (a committed
+// timer park, a finished poll pass, fd lifecycle completions, shutdown)
+// nudge it here instead of signaling a global condvar. Callers hold the
+// control lock or no lock, never a shard lock.
+void rt_io_poll_nudge(rt_executor* ex) {
+    rt_shard* shard0 = rt_runtime_shard0(rt_executor_runtime(ex));
+    if (shard0 == NULL) {
+        return;
+    }
+    rt_shard_lock(shard0);
+    if (shard0->poller_nudges != UINT32_MAX) {
+        shard0->poller_nudges++;
+    }
+    pthread_cond_broadcast(&shard0->poller_cv);
+    rt_shard_unlock(shard0);
+}

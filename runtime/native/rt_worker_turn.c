@@ -64,11 +64,12 @@ int rt_run_ready_one_nowait_locked(rt_executor* ex) {
     return 1;
 }
 
-void io_cv_timedwait_slice(rt_executor* ex) {
-    // Self-refreshing wait (peel step B1b/B4): the io thread's predicates
-    // (net waiters, timers, idleness) are shard-lane state now, so instead
-    // of requiring every shard path to signal io_cv, the io thread re-checks
-    // them at least every poll slice.
+void rt_io_wait_slice(rt_executor* ex) {
+    // Self-refreshing wait (peel B4): the io thread sleeps on shard 0's
+    // poller_cv — its predicates (net waiters, timers, idleness) are
+    // shard-lane state — and re-checks them at least every poll slice. The
+    // control lock is released for the sleep so control-lane work never
+    // stalls behind an idle io thread.
     struct timespec deadline;
     clock_gettime(CLOCK_REALTIME, &deadline);
     deadline.tv_nsec += 50L * 1000L * 1000L;
@@ -76,7 +77,18 @@ void io_cv_timedwait_slice(rt_executor* ex) {
         deadline.tv_sec += 1;
         deadline.tv_nsec -= 1000000000L;
     }
-    (void)pthread_cond_timedwait(&ex->io_cv, &ex->lock, &deadline);
+    rt_shard* shard0 = rt_runtime_shard0(rt_executor_runtime(ex));
+    if (shard0 == NULL) {
+        return;
+    }
+    rt_control_unlock(ex);
+    rt_shard_lock(shard0);
+    if (shard0->poller_nudges == 0) {
+        (void)pthread_cond_timedwait(&shard0->poller_cv, &shard0->lock, &deadline);
+    }
+    shard0->poller_nudges = 0;
+    rt_shard_unlock(shard0);
+    rt_control_lock(ex);
 }
 
 void* rt_worker_main(void* arg) {
@@ -209,7 +221,7 @@ void* rt_io_main(void* arg) {
         int idle = rt_sched_idle_sample_locked(ex);
 
         if (!have_net && (!have_timer || !idle)) {
-            io_cv_timedwait_slice(ex);
+            rt_io_wait_slice(ex);
             continue;
         }
 
@@ -217,7 +229,7 @@ void* rt_io_main(void* arg) {
             if (idle && have_timer && advance_time_to_next_timer(ex)) {
                 continue;
             }
-            io_cv_timedwait_slice(ex);
+            rt_io_wait_slice(ex);
             continue;
         }
 
@@ -234,7 +246,13 @@ void* rt_io_main(void* arg) {
             timeout_ms = poll_slice_ms;
         }
         if (!rt_net_begin_poll_on_shard(ex, 0)) {
-            io_cv_timedwait_slice(ex);
+            // Another poller owns the net wait. Its short slices never reach
+            // the timer branch below, so due virtual timers must advance
+            // here or a worker monopolizing the poll starves every sleeper.
+            if (idle && have_timer && advance_time_to_next_timer(ex)) {
+                continue;
+            }
+            rt_io_wait_slice(ex);
             continue;
         }
         if (rt_net_poll_waiters_owned_on_shard(ex, 0, timeout_ms)) {

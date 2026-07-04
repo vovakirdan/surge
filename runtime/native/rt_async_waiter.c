@@ -243,9 +243,10 @@ static void fd_registry_bridge_notify_removed_interest(rt_executor* ex,
     }
     // Remove-side only: the current poll snapshot may still contain this key.
     // Readiness completion already comes from the poller path and must not
-    // write an extra wake byte.
+    // write an extra wake byte. The wake byte interrupts an in-flight poll;
+    // an io thread between polls re-checks its predicates within a slice, so
+    // no condvar signal is needed here (a shard lock is held).
     (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);
-    pthread_cond_signal(&ex->io_cv);
 }
 
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store) {

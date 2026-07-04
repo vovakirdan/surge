@@ -104,7 +104,10 @@ int pthread_cond_broadcast(pthread_cond_t* cond) {
     return 0;
 }
 
-
+void rt_io_poll_nudge(rt_executor* ex) {
+    (void)ex;
+    cond_broadcast_calls++;
+}
 
 rt_runtime* rt_executor_runtime(rt_executor* ex) {
     (void)ex;
@@ -345,6 +348,10 @@ void rt_sched_wake_broadcast_all(rt_executor* ex) {
     sched_broadcast_calls++;
 }
 
+void rt_io_poll_nudge(rt_executor* ex) {
+    (void)ex;
+    cond_broadcast_calls++;
+}
 
 rt_shard* rt_runtime_shard(rt_runtime* runtime, size_t index) {
     (void)runtime;

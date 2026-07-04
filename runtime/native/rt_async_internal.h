@@ -166,6 +166,11 @@ struct rt_shard {
     rt_sleep_store sleep_store;
     uint32_t shard_id;
     uint8_t net_polling;
+    // Pending io nudges (peel B4): rt_io_poll_nudge bumps this under the
+    // shard lock before broadcasting poller_cv; rt_io_wait_slice consumes it
+    // under the same lock before sleeping, so a nudge that lands between the
+    // io thread's control release and its cond wait is never lost.
+    uint32_t poller_nudges;
 };
 
 struct rt_runtime {
@@ -257,7 +262,6 @@ struct rt_executor {
     // compat_cv sleeps sync-channel compatibility waiters under the control
     // lock; worker sleep lives on each shard's worker_cv since Task 7.
     pthread_cond_t compat_cv;
-    pthread_cond_t io_cv;
     pthread_cond_t done_cv;
     pthread_t* workers;
     uint8_t initialized;
@@ -597,7 +601,8 @@ int run_ready_one(rt_executor* ex);
 int rt_run_ready_one_nowait_locked(rt_executor* ex);
 void* rt_worker_main(void* arg);
 void* rt_io_main(void* arg);
-void io_cv_timedwait_slice(rt_executor* ex);
+void rt_io_wait_slice(rt_executor* ex);
+void rt_io_poll_nudge(rt_executor* ex);
 int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id);
 int rt_next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);

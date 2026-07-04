@@ -317,6 +317,10 @@ uint64_t rt_net_wake_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id) {
     return 1;
 }
 
+void rt_io_poll_nudge(rt_executor* ex) {
+    (void)ex;
+}
+
 uint64_t rt_net_wake_poll_all_shards(rt_executor* ex) {
     (void)ex;
     return 0;

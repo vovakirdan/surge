@@ -193,6 +193,11 @@ void rt_sched_wake_signal_shard_n(rt_shard* shard, uint32_t tokens) {
     sched_wake_signal_by_shard[shard->shard_id]++;
 }
 
+void rt_io_poll_nudge(rt_executor* ex) {
+    (void)ex;
+    cond_signal_calls++;
+}
+
 #include "rt_net_poller.c"
 
 static int require_int(int condition, int code) {
@@ -317,12 +322,13 @@ func TestRuntimeV2NetPollerShutdownWakesEveryShard(t *testing.T) {
 	}
 	// Since Epic 7 Task 7 worker sleep is per-shard: shutdown must sweep every
 	// shard's worker_cv (rt_sched_wake_broadcast_all) and the control-lane
-	// compat_cv instead of the retired global ready_cv.
+	// compat_cv, and nudge the io thread's shard-0 poller wait (the global
+	// ready_cv and io_cv are retired).
 	for _, required := range []string{
 		"rt_net_wake_poll_all_shards(ex)",
 		"rt_sched_wake_broadcast_all(ex)",
 		"pthread_cond_broadcast(&ex->compat_cv)",
-		"pthread_cond_broadcast(&ex->io_cv)",
+		"rt_io_poll_nudge(ex)",
 	} {
 		if !strings.Contains(requestBody, required) {
 			t.Fatalf("shutdown request body missing %q", required)

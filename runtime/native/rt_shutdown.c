@@ -28,7 +28,7 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
     }
     uint64_t pollers_woken = rt_net_wake_poll_all_shards(ex);
     rt_net_trace_shutdown_poller_wakeups(pollers_woken);
-    pthread_cond_broadcast(&ex->io_cv);
+    rt_io_poll_nudge(ex);
     rt_sched_wake_broadcast_all(ex);
     pthread_cond_broadcast(&ex->compat_cv);
     pthread_cond_broadcast(&ex->done_cv);
