@@ -334,7 +334,7 @@ for shard_count in $shards; do
 					printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 						"$shard_count" "$worker_count" "$connection_count" "$mode" "$pattern" \
 						"$requests" "$got_requests" "$total_us" "$avg_us" "$p50_us" "$p95_us" >>"$report"
-					printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+					printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 						"$shard_count" "$worker_count" "$connection_count" "$mode" "$pattern" \
 						"$(trace_value "$trace_log" TRACE_NET runtime_shards)" \
 						"$(trace_value "$trace_log" SCHED_TRACE steal)" \
@@ -349,6 +349,11 @@ for shard_count in $shards; do
 						"$(trace_value "$trace_log" TRACE_NET fd_ready_batches)" \
 						"$(trace_value "$trace_log" TRACE_NET fd_ready_batch_fds_total)" \
 						"$(trace_value "$trace_log" TRACE_NET fd_ready_batch_fds_max)" \
+						"$(trace_value "$trace_log" TRACE_EXEC control_lock_acquired)" \
+						"$(trace_value "$trace_log" TRACE_EXEC cross_shard_wakes)" \
+						"$(trace_value "$trace_log" TRACE_EXEC spurious_wakes_absorbed)" \
+						"$(trace_value "$trace_log" TRACE_EXEC collect_wake_batches)" \
+						"$(trace_value "$trace_log" TRACE_EXEC owner_replacements)" \
 						"\`$(trace_prefixed_fields "$trace_log" TRACE_NET_SHARDS accept_)\`" \
 						"\`$(trace_prefixed_fields "$trace_log" TRACE_NET_SHARDS fd_ready_batches_)\`" \
 						"\`$(trace_prefixed_fields "$trace_log" TRACE_NET_SHARDS fd_ready_fds_)\`" >>"$trace_rows"
@@ -363,8 +368,8 @@ cat >>"$report" <<'EOF'
 
 ## Runtime Trace
 
-| shards | threads | connections | mode | pattern | runtime shards | sched steal | Tier 1 denied steals | conn owner placed | conn owner local | conn owner mismatch | accept total | active accept shards | accept imbalance | global fallbacks | fd batches | fd batch fds | fd batch max | per-shard accepts | per-shard fd batches | per-shard fd fds |
-| ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| shards | threads | connections | mode | pattern | runtime shards | sched steal | Tier 1 denied steals | conn owner placed | conn owner local | conn owner mismatch | accept total | active accept shards | accept imbalance | global fallbacks | fd batches | fd batch fds | fd batch max | control lock acq | cross-shard wakes | spurious absorbed | collect batches | owner replacements | per-shard accepts | per-shard fd batches | per-shard fd fds |
+| ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
 EOF
 cat "$trace_rows" >>"$report"
 

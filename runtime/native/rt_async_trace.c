@@ -20,6 +20,11 @@ static _Atomic uint64_t trace_channel_task_blocking_send_total;
 static _Atomic uint64_t trace_channel_task_blocking_recv_total;
 static _Atomic uint64_t trace_channel_handoff_yield_total;
 static _Atomic uint64_t trace_compensation_started_total;
+static _Atomic uint64_t trace_control_lock_acquired_total;
+static _Atomic uint64_t trace_cross_shard_wake_total;
+static _Atomic uint64_t trace_spurious_wake_absorbed_total;
+static _Atomic uint64_t trace_collect_wake_batch_total;
+static _Atomic uint64_t trace_owner_replaced_total;
 static uint64_t trace_sched_hash;
 static uint64_t trace_sched_events;
 static uint64_t trace_sched_local_pops;
@@ -98,6 +103,26 @@ void rt_trace_compensation_started(void) {
     trace_inc_atomic(&trace_compensation_started_total);
 }
 
+void rt_trace_control_lock_acquired(void) {
+    trace_inc_atomic(&trace_control_lock_acquired_total);
+}
+
+void rt_trace_cross_shard_wake(void) {
+    trace_inc_atomic(&trace_cross_shard_wake_total);
+}
+
+void rt_trace_spurious_wake_absorbed(void) {
+    trace_inc_atomic(&trace_spurious_wake_absorbed_total);
+}
+
+void rt_trace_collect_wake_batch(void) {
+    trace_inc_atomic(&trace_collect_wake_batch_total);
+}
+
+void rt_trace_owner_replaced(void) {
+    trace_inc_atomic(&trace_owner_replaced_total);
+}
+
 static size_t trace_append_literal(char* buf, size_t pos, size_t cap, const char* lit) {
     if (buf == NULL || lit == NULL) {
         return pos;
@@ -167,7 +192,7 @@ static void trace_exec_dump(const char* reason) {
     if (!rt_exec_trace_enabled()) {
         return;
     }
-    char buf[768];
+    char buf[1152];
     size_t pos = 0;
     pos = trace_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC ");
     if (reason != NULL) {
@@ -250,6 +275,35 @@ static void trace_exec_dump(const char* reason) {
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_compensation_started_total, memory_order_relaxed));
+    pos = trace_append_literal(buf, pos, sizeof(buf), " control_lock_acquired=");
+    pos = trace_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_control_lock_acquired_total, memory_order_relaxed));
+    pos = trace_append_literal(buf, pos, sizeof(buf), " cross_shard_wakes=");
+    pos =
+        trace_append_u64(buf,
+                         pos,
+                         sizeof(buf),
+                         atomic_load_explicit(&trace_cross_shard_wake_total, memory_order_relaxed));
+    pos = trace_append_literal(buf, pos, sizeof(buf), " spurious_wakes_absorbed=");
+    pos = trace_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_spurious_wake_absorbed_total, memory_order_relaxed));
+    pos = trace_append_literal(buf, pos, sizeof(buf), " collect_wake_batches=");
+    pos = trace_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_collect_wake_batch_total, memory_order_relaxed));
+    pos = trace_append_literal(buf, pos, sizeof(buf), " owner_replacements=");
+    pos = trace_append_u64(buf,
+                           pos,
+                           sizeof(buf),
+                           atomic_load_explicit(&trace_owner_replaced_total, memory_order_relaxed));
     pos = trace_append_literal(buf, pos, sizeof(buf), " blocking_submitted=");
     pos = trace_append_u64(
         buf,

@@ -358,6 +358,9 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
     if (need_control) {
         rt_control_lock(ex);
     }
+    if (batch_len > 0) {
+        rt_trace_collect_wake_batch();
+    }
     for (size_t i = 0; i < batch_len; i++) {
         rt_task* task = get_task(ex, batch[i]);
         if (task == NULL || task_status_load(task) == TASK_DONE || task_cancelled_load(task) != 0) {

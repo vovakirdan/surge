@@ -50,6 +50,7 @@ void rt_control_lock(rt_executor* ex) {
     }
     pthread_mutex_lock(&ex->lock);
     lane_state.holds_control = 1;
+    rt_trace_control_lock_acquired();
 }
 
 void rt_control_unlock(rt_executor* ex) {

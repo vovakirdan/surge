@@ -967,6 +967,10 @@ int wake_task_on_shard_locked(const rt_executor* ex,
     task->park_key = waker_none();
     task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
+    if (tls_worker_ctx != NULL && tls_worker_ctx->ex == ex &&
+        tls_worker_ctx->shard != owner_shard) {
+        rt_trace_cross_shard_wake();
+    }
     uint8_t status = task_status_load(task);
     if (status == TASK_DONE || status == TASK_RUNNING || task_enqueued_load(task) != 0) {
         return 0;
@@ -1054,6 +1058,7 @@ void wake_net_task(rt_executor* ex, uint64_t id) {
 // owner shard lock.
 static void
 park_requeue_locked(const rt_executor* ex, rt_shard* owner_shard, rt_task* task, waker_key key) {
+    rt_trace_spurious_wake_absorbed();
     waker_kind kind = (waker_kind)key.kind;
     int force_inject =
         channel_wake_force_inject != 0 && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV);
@@ -1113,6 +1118,9 @@ static void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) 
     }
     if (store_shard != NULL) {
         rt_shard_unlock(store_shard);
+    }
+    if (batch_len > 0) {
+        rt_trace_collect_wake_batch();
     }
     for (size_t i = 0; i < batch_len; i++) {
         wake_task_with_policy(ex, batch[i], 0, 0, front, 1);

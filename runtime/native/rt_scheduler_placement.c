@@ -81,6 +81,7 @@ void rt_task_replace_owner(rt_executor* ex,
                            rt_task* task,
                            uint32_t shard_id,
                            uint8_t placement_class) {
+    rt_trace_owner_replaced();
     if (task == NULL) {
         return;
     }

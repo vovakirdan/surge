@@ -346,6 +346,12 @@ void rt_trace_channel_task_blocking_recv(void);
 void rt_trace_channel_handoff_yield(void);
 void rt_trace_compensation_started(void);
 void rt_trace_parked_with_work(void);
+// Lock-split counters (Epic 7 Task 12): steady-path serialization evidence.
+void rt_trace_control_lock_acquired(void);
+void rt_trace_cross_shard_wake(void);
+void rt_trace_spurious_wake_absorbed(void);
+void rt_trace_collect_wake_batch(void);
+void rt_trace_owner_replaced(void);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
