@@ -626,3 +626,13 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
   broke `make build`.
 - Sentrux (all rules pass): repo 6182→6174, `runtime` 5340→5296,
   `runtime/native` 5467→5389 — split churn, no rule regressions.
+
+## Final Certification (post-closeout tree)
+
+- `timeout 1200s make runtime-v2-check` on the closed tree (through
+  `15aa47cf`): run 1 caught a missing harness stub for the Task 12
+  collect-batch counter (fixed and committed as `15aa47cf`); run 2
+  failed only on the documented `TestMTChannelParkUnpark` load-flake
+  (`RV2-DEBT-002`, 62s under `t.Parallel` on the loaded host); run 3
+  fully green (exit 0, zero failures) including the promoted
+  `runtime-v2-lock-check` stage. `git diff --check` clean.
