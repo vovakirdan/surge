@@ -8,6 +8,7 @@ void* rt_scope_enter(bool failfast) {
         return NULL;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
     if (rt_current_task_id() == 0) {
         rt_control_unlock(ex);
         panic_msg("rt_scope_enter without current task");
@@ -43,6 +44,7 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
         return;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     rt_scope* scope = get_scope(ex, scope_id);
     if (scope == NULL) {
@@ -82,6 +84,7 @@ void rt_scope_cancel_all(const void* scope_handle) {
         return;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     const rt_scope* scope = get_scope(ex, scope_id);
     if (scope == NULL) {
@@ -98,6 +101,7 @@ bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfa
         return true;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     rt_scope* scope = get_scope(ex, scope_id);
     if (scope == NULL) {
@@ -132,6 +136,7 @@ void rt_scope_exit(const void* scope_handle) {
         return;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     rt_scope* scope = get_scope(ex, scope_id);
     if (scope == NULL) {

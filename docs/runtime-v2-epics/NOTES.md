@@ -3239,6 +3239,21 @@ pass, before any task execution began:
   trigger so Task 6 does not relitigate it.
 - Still flagged for closeout: the stale executor-wide invariant comment at
   `rt_async_internal.h:292-304`.
+- Task 5 done: per-site `control_lock_acquired` attribution (`rt_ctrl_site`
+  enum, `rt_trace_control_lock_site`, 6 `TRACE_EXEC` fields + bench columns),
+  static gates (G1-G6 active/wired via new `runtime-v2-lifecycle-check`;
+  P6-P10 pending as `t.Skip` with per-task activation criteria), and a
+  trace-contract gate. Additive C only (no behavior change), `rt_lane.c`
+  untouched. The `runtime-v2-lifecycle-check` stage enumerates each green test by
+  name (Epic 7 precedent), so it gates Task 4's behavior contracts too from this
+  commit on; pending P6-P10 gates are added to the regex by their peel commits.
+- DECISION for Task 6 (measured, do not relitigate): 8x1024 baseline gives
+  create = **3.500 control acq/request >= 2.0** → **ESCALATE to realization (B),
+  the segmented never-moved-slot task table**. Realization A's per-connection
+  amortization is disproven (request trees spawn ~3.5 tasks/request). Total
+  26.348/request re-verifies the 26.4 baseline. Secondary targets by size:
+  scope 13.000/request (Task 9, biggest payoff), join-poll 3.885 (Task 7),
+  completion 0.509 (Task 8); handle/await-compat ~0 on the net bench.
 
 ## Task 4 (subagent `tester-behavior`): Lifecycle Behavior Contract Tests
 

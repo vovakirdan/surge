@@ -554,3 +554,88 @@ with exactly one `SKIP` (this test) and no `FAIL`.
 | --- | --- | --- | --- |
 | Fix RV2-DEBT-019 (both races), delete the `t.Skip`, add to `runtime-v2-lifecycle-check` | No (this task) / Yes (Task 8) | `08-completion-epilogue-and-done-path.md`, `DEBT.md` | Recorded debt with owner and close condition |
 
+## Task 5: Lifecycle Static Shape And Trace Tests
+
+### Task Identity And Scope
+
+Per-site `control_lock_acquired` attribution (additive C counters, no behavior
+change), static gate machinery mirroring Epic 7's lock-split static tests, a
+trace-contract gate, and the 8x1024 per-site baseline that decides the Task 6
+escalation. Full write-up: `08-tasks/05-lifecycle-static-shape-and-trace-tests.md`.
+
+### Files Touched
+
+- C (additive): `rt_async_internal.h` (`rt_ctrl_site` enum + decl),
+  `rt_async_trace.c` (per-site array, `rt_trace_control_lock_site`, 6 dump
+  fields, buf 1152->1280), `rt_async_task.c` / `rt_async_scope.c` /
+  `rt_async_state.c` (census-site tags; `state.c` +3 lines).
+- `scripts/bench_native_net.sh` (6 per-site trace columns).
+- Tests (NEW, `//go:build runtime_v2_pending`):
+  `internal/vm/runtime_v2_lifecycle_static_test.go` (G1-G6 active + P6-P10
+  pending), `internal/vm/runtime_v2_lifecycle_trace_test.go`.
+- `Makefile` (`runtime-v2-lifecycle-check` stage, `-run` regex enumerating each
+  green test by name — the 6 active gates + trace gate + Task 4's behavior
+  contracts; wired into `runtime-v2-check`).
+- `rt_lane.c`: NOT touched (generic `control_lock_acquired` unchanged).
+
+### Per-Site Baseline (net `direct/seq`, 8 shards / 8 threads / 1024 conns / 8 req/conn = 8192 requests, `SURGE_TRACE_EXEC=1`)
+
+| Site | Total | Per request |
+| --- | ---: | ---: |
+| `control_lock_acquired` (all) | 215842 | 26.348 |
+| `ctrl_create` | 28673 | **3.500** |
+| `ctrl_join_poll` | 31822 | 3.885 |
+| `ctrl_scope` | 106499 | 13.000 |
+| `ctrl_completion` | 4169 | 0.509 |
+| `ctrl_await_compat` | 1 | 0.000 |
+| `ctrl_handle` | 1 | 0.000 |
+| sum(sites) | 171165 | 20.894 |
+| residual (`OTHER`) | 44677 | 5.454 |
+
+Total 26.348/request re-verifies the Task 1 baseline of 26.4/request (counters
+are non-perturbing).
+
+### Escalation Verdict (S5-Q1)
+
+**Create = 3.500 control acq/request >= 2.0 → ESCALATE. Task 6 adopts
+realization (B), the segmented never-moved-slot task table.** The
+per-connection amortization hypothesis for (A) is disproven: request trees spawn
+multiple tasks per request (3.5 creates/request), so create is a material
+per-request control consumer. Secondary: `ctrl_scope = 13.000/request` is the
+single largest attributable consumer (Task 9 has the biggest payoff);
+`ctrl_join_poll = 3.885` is Task 7's target; `ctrl_completion = 0.509` is Task
+8's; handle/await-compat ~0 on the net bench (no public wake/clone/cancel,
+worker-side joins).
+
+### Gates (this tree)
+
+- `git diff --check`: clean.
+- `make c-check`, `make cppcheck`: OK.
+- Active static gates G1-G6 verified against real sources; G1 `clang
+  -fsyntax-only` snippet compiles.
+- `./check_file_sizes.sh -a`: `rt_async_state.c` 1455 (<=1580 legacy),
+  `rt_async_trace.c` 648 (ACCEPTABLE), all others green.
+- `make runtime-v2-check` (incl. `runtime-v2-lifecycle-check`) + `make check` +
+  Sentrux scans: run under the commit barrier after Task 4 lands (recorded at
+  commit time).
+
+### Known Regressions
+
+- None; C changes are additive counters (no behavior change), tests are new.
+
+### Static Gate Inventory
+
+- Active (green, wired): G1 enum/API shape, G2 join route-by-target-owner, G3
+  task-table atomic snapshot, G4 join/scope unqualified seq, G5 create counter
+  wired, G6 all census sites tagged.
+- Pending (`t.Skip` with activation criteria; delete `Skip` in the peel commit):
+  P6 create ready-push owner-shard (Task 6), P7 join-poll owner lane (Task 7),
+  P8 completion result-visibility order (Task 8), P9 scope owner lane (Task 9),
+  P10 await-compat counted separately (Task 10).
+
+### Follow-Ups And Blockers
+
+| Item | Blocks completion? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Escalate Task 6 to segmented table (B) | No (this task) / Yes (Task 6) | `06-task-create-and-table-publication.md` | create = 3.500/request >= 2.0 (measured) |
+| Activate P6-P10 static gates on their peel commits | No | Tasks 6-10 | delete the `t.Skip` line naming each task |

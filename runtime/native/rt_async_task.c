@@ -13,6 +13,7 @@ void* __task_create(
         return NULL;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_CREATE);
     uint64_t id = ex->next_id++;
     ensure_task_cap(ex, id);
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
@@ -60,6 +61,7 @@ void rt_task_wake(void* task) {
         return;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
     rt_task* target = task_from_handle(task);
     if (target == NULL || task_status_load(target) == TASK_DONE) {
         rt_control_unlock(ex);
@@ -86,6 +88,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         return 2;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_JOIN_POLL);
     if (rt_current_task_id() == 0) {
         rt_control_unlock(ex);
         panic_msg("async poll outside task");
@@ -171,6 +174,7 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     task_polling_exit(target);
 
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
     rt_shard_lock(owner_shard);
     if (scheduler->running_count > 0) {
         scheduler->running_count--;
@@ -191,6 +195,7 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
     }
     if (rt_worker_count() > 1) {
         rt_control_lock(ex);
+        rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT);
         if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
             wake_task(ex, target->id, 1);
         }
@@ -227,6 +232,7 @@ void rt_task_cancel(void* task) {
         return;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
     cancel_task(ex, target->id);
     rt_control_unlock(ex);
 }
@@ -241,6 +247,7 @@ void* rt_task_clone(void* task) {
         return NULL;
     }
     rt_control_lock(ex);
+    rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
     task_add_ref(target);
     rt_control_unlock(ex);
     return target;

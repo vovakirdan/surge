@@ -1441,6 +1441,7 @@ void task_release_lane_aware(rt_executor* ex, rt_task* task) {
         int need_control = !rt_lane_holds_control();
         if (need_control) {
             rt_control_lock(ex);
+            rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
         }
         free_task(ex, task);
         if (need_control) {
@@ -1516,6 +1517,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     int need_control = !rt_lane_holds_control() && mark_done_needs_control(ex, task);
     if (need_control) {
         rt_control_lock(ex);
+        rt_trace_control_lock_site(RT_CTRL_SITE_COMPLETION);
     }
     if (task->wait_keys_len > 0) {
         clear_wait_keys(ex, task);
@@ -1589,6 +1591,7 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
                 int need_control = !rt_lane_holds_control();
                 if (need_control) {
                     rt_control_lock(ex);
+                    rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
                 }
                 rt_scope* scope = get_scope(ex, task->scope_id);
                 if (scope != NULL && scope->active_children > 0) {

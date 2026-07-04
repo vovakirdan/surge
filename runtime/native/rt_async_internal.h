@@ -353,6 +353,26 @@ void rt_trace_spurious_wake_absorbed(void);
 void rt_trace_collect_wake_batch(void);
 void rt_trace_owner_replaced(void);
 
+// Per-site attribution of control-lane acquisitions on the task/scope
+// lifecycle census paths (Epic 8 Task 5). Additive over control_lock_acquired:
+// each census site tags its acquisition so Tasks 6-10 can measure the
+// per-request control traffic each migration slice peels. Order matches the
+// TRACE_EXEC dump fields. RT_CTRL_SITE_HANDLE covers the Task 7 handle slice
+// (wake/inline-child-poll/cancel/clone/release); checkpoint and rt_sleep stay
+// in OTHER (spawn-shaped, negligible on the net bench).
+typedef enum {
+    RT_CTRL_SITE_OTHER = 0,
+    RT_CTRL_SITE_CREATE,
+    RT_CTRL_SITE_JOIN_POLL,
+    RT_CTRL_SITE_COMPLETION,
+    RT_CTRL_SITE_SCOPE,
+    RT_CTRL_SITE_AWAIT_COMPAT,
+    RT_CTRL_SITE_HANDLE,
+    RT_CTRL_SITE_COUNT
+} rt_ctrl_site;
+
+void rt_trace_control_lock_site(rt_ctrl_site site);
+
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
 }
