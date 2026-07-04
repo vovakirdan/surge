@@ -26,11 +26,11 @@ documents quote the parts they need and point back to it for the rest.
 | 8 | `08-waiter-store-key-ownership-migration.md` | Complete | runtime code | 7 |
 | 9 | `09-sleep-timer-store-and-virtual-clock.md` | Complete | runtime code | 7, 8 |
 | 10 | `10-channel-owner-shard-migration.md` | Complete | runtime code | 8 |
-| 11 | `11-blocking-await-shutdown-lanes.md` | In progress (alias kill + B1a landed; B1b/B2/B4 remain) | runtime code | 8, 9, 10 |
-| 12 | `12-lock-split-trace-counters-and-benchmarks.md` | Pending | trace/benchmark | 11 |
-| 13 | `13-runtime-v2-lock-ci-gate.md` | Pending | CI | 4, 5, 12 |
-| 14 | `14-large-file-and-loc-tranche.md` | Pending | refactor | 11, 12, 13 |
-| 15 | `15-epic-closeout.md` | Pending | closeout | all |
+| 11 | `11-blocking-await-shutdown-lanes.md` | Complete | runtime code | 8, 9, 10 |
+| 12 | `12-lock-split-trace-counters-and-benchmarks.md` | Complete | trace/benchmark | 11 |
+| 13 | `13-runtime-v2-lock-ci-gate.md` | Complete | CI | 4, 5, 12 |
+| 14 | `14-large-file-and-loc-tranche.md` | Complete | refactor | 11, 12, 13 |
+| 15 | `15-epic-closeout.md` | Complete | closeout | all |
 
 ## Rules
 

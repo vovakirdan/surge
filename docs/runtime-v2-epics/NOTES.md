@@ -3039,3 +3039,33 @@ pass, before any task execution began:
   remaining accessors of queues/running_count get shard locks as control
   drops). Then B2 channels, B4 io/runner + io_cv retirement + done_cv
   gating.
+
+## Epic 7 Close (2026-07-04, main session)
+
+- Epic complete: Tasks 1-15, closeout section in the epic doc, ledger
+  entries through Task 14, DEBT.md reconciled (002 updated with fixed
+  root causes; 004 closed; 015-018 added), README + RUNTIME_V2.md phase
+  notes updated.
+- Final peel state: B1b landed the shard-locked worker turn
+  (`rt_worker_turn.c`) with inject/net fairness ticks; B2 moved channel
+  entry APIs onto the channel owner's lane and introduced the
+  generation-validated candidate/validate protocol (waiter `seq` +
+  `park_seq`, owner-locked consume-or-arm mailbox, store-dedupe on
+  registration, wake-only `seq==0` select entries, 10ms compat slice,
+  compat broadcast after non-enqueued deliveries; channel code now lives
+  in `rt_async_channel.c` + `rt_channel_lane.h` + `rt_channel_sync.c`);
+  B4 retired `io_cv` onto shard 0's `poller_cv` (`rt_io_wait_slice` +
+  `rt_io_poll_nudge` token) and taught the poll-ownership-miss branch to
+  advance due virtual timers.
+- For Epic 8: the control lane's steady-path consumer is task lifecycle
+  (~26 `control_lock_acquired` per request on the 8x1024 row). The task
+  table is already an atomic-snapshot structure and owner stability holds,
+  so create/join/done can move shard-local without new deref rules. Watch
+  `RV2-DEBT-015` (net starvation, reproducible via
+  `stallrepro.py`-style load) when touching scheduler pacing, and do not
+  build Phase 4 transport under a lifecycle label (syntax review first).
+- Gate hygiene notes: `ldflags.sh` now strips quotes from commit subjects
+  (Go's quoted.Split cannot parse shell-escaped apostrophes — a commit
+  subject briefly broke `make build`); the net bench script reports the
+  five new lock-split counters; `.loc-legacy-allowlist` ceilings:
+  state.c 1580, task.c/net.c removed.

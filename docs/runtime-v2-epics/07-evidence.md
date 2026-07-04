@@ -501,3 +501,128 @@ the lock split this row must pass, or its failure becomes a closeout blocker.
   `rt_async_state.c` 1655/1722; `rt_waiter_route.c` 102.
 - Static gates remaining red by design: `WorkerLoopShardLane` (B1b),
   `ChannelOwnerShape` (B2), `GlobalCondvarRetirement` (B4).
+
+## Task 11 (Complete): B1b Worker Turn, B2 Channel Lane, B4 io_cv Retirement
+
+- Task: Epic 7 Task 11 remaining slices. Date: 2026-07-04. Main session.
+  Status: complete; every Task 5 static gate green.
+- B1b — `7de5ab21 feat(runtime): run the worker turn on the shard lane`,
+  `644b2f10 feat(runtime): register net read/write waits on the shard
+  lane`, `28893c2e feat(runtime): make net poll and registry mutation
+  lane-aware` (source-shape gate repoint fixed forward in `86aa4eb1`),
+  `05533900 feat(runtime): add inject and net-poll fairness ticks to the
+  worker turn`. Worker turn scans under its own shard lock
+  (`rt_worker_turn.c`); net waits register control-free through
+  `rt_net_owner_shard_probe_locked`; `WorkerLoopShardLane` flipped green.
+- B2 — `0cbb557d feat(runtime): move channel operations to the channel
+  owner's shard lane`. Channel entry APIs run on the channel owner's
+  shard lock; `ChannelOwnerShape` flipped green. The peel surfaced three
+  rendezvous races the control lock had masked, fixed with a generation
+  protocol (details in the commit and NOTES): waiter entries carry
+  `park_seq`; candidate delivery validates `park_key` + generation; a
+  task consumes or re-arms its resume mailbox only under its owner shard
+  lock (consume bumps the generation); registration dedupes against the
+  store; select's `add_waiter` entries stay `seq==0` and are wake-only.
+  The sync-channel compat wait self-refreshes on a 10ms
+  `compat_cv` slice and channel deliveries broadcast `compat_cv` when the
+  peer was not enqueued. Fixed a deterministic pre-existing hang:
+  `TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit` hung
+  6/6 standalone at `fe92559b` (epic 6 close, `SURGE_THREADS=2`) via
+  lost-ack (retry prologue overwrote a landed `SEND_ACK` outside any
+  lock) plus stale-entry misdelivery through reused channel addresses
+  (observed as a segfault decoding a value as a channel handle); post-B2
+  it passes 10/10. `rt_async_channel.c` split into the async fast lanes,
+  `rt_channel_lane.h` (shared protocol), and `rt_channel_sync.c`
+  (try/compat/blocking/close) for the size gate.
+- B4 — `4eff8180 feat(runtime): retire the global io condvar onto shard
+  0's poller wait`. `rt_io_wait_slice` sleeps on shard 0's `poller_cv`
+  with the control lock released; `rt_io_poll_nudge` (token under the
+  shard lock + broadcast) replaces every `io_cv` signal; the
+  waiter-detach signal is dropped (fires under a held store lock; wake
+  byte + self-refresh cover it); the poll-ownership-miss branch advances
+  due virtual timers when idle (a worker polling in 1ms slices otherwise
+  starves every sleeper — caught by
+  `TestRuntimeV2FDRegistryWakeFDObservedForInterestAddedDuringPoll`,
+  0/4 fail at B2, 2/4 with the naive B4, 0/8 with the advance).
+  `GlobalCondvarRetirement` flipped green; the shutdown shape gate and
+  four stub harnesses track `rt_io_poll_nudge` as the poller
+  notification.
+- Checks per slice: 9-mode behavior suite at `SURGE_SHARDS=1` and `3`,
+  `timeout 900s make runtime-v2-check` (B2: red, red, green(after fix),
+  green, green; B4: one fully green run plus two runs failing only on
+  documented classes — `TestMTChannelParkUnpark` 62s under parallel load
+  (`RV2-DEBT-002`) and one ~2.3ms exit=1 empty-output infra transient —
+  each non-reproducible focused at count=5..8), c-check, cppcheck,
+  `make check` pre-commit, `git diff --check`.
+- LOC after B2 split: `rt_async_channel.c` 276, `rt_channel_lane.h` 210,
+  `rt_channel_sync.c` 290, `rt_async_state.c` 1580, `rt_async_waiter.c`
+  573 (all effective, all inside the gate).
+
+## Task 12 (Complete): Lock-Split Trace Counters And Benchmarks
+
+- Task doc: `12-lock-split-trace-counters-and-benchmarks.md`. Date:
+  2026-07-04. Main session.
+- Counters on `TRACE_EXEC`: `control_lock_acquired`, `cross_shard_wakes`,
+  `spurious_wakes_absorbed`, `collect_wake_batches`,
+  `owner_replacements`; `scripts/bench_native_net.sh` reports them as
+  Runtime Trace columns.
+- Final matrix `build/benchmarks/rv2-e7-task12-final-epic6-matrix.md`
+  (current checkout, direct/seq, 8 req/conn, total us vs the Task 1
+  baseline `runtime-v2-epic7-task1-baseline-epic6-matrix.md`):
+
+| shards | conns | baseline us | final us | delta |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1 | 3669 | 3550 | -3% (noise) |
+| 1 | 8 | 14598 | 14896 | +2% (noise) |
+| 1 | 32 | 54550 | 51968 | -5% (noise) |
+| 1 | 1024 | 1537005 | 1530555 | 0% |
+| 8 | 1 | 4123 | 3199 | -22% |
+| 8 | 8 | 17026 | 16354 | -4% |
+| 8 | 32 | 63725 | 61081 | -4% |
+| 8 | 1024 | 2516745 | 1939032 | **-23%** |
+
+- Small-load rows within noise (contract met). The 8-shard/1024 row
+  improves 23% against the Epic 6 closeout baseline (contract met) but
+  still runs 1.27x the 1-shard row; the counters name the next
+  serialization point: `control_lock_acquired=215781` for 8192 requests
+  (~26 per request) — task lifecycle (create/join poll/await/done) still
+  serializes on the control lane. Recorded as the Epic 8 candidate.
+  Reference counters for that row: `cross_shard_wakes=1798`,
+  `spurious_wakes_absorbed=3`, `collect_wake_batches=5238`,
+  `owner_replacements=1026` (one per accepted connection plus spawn),
+  steal counters zero (accept ownership contract intact, imbalance 35).
+- Channels `build/benchmarks/rv2-e7-task12-final-channels.md` vs the
+  pre-B2 report `native-channel-request-reply.md` (ns/op):
+  ping_pong@1 4914→4361 (-11%), reused_reply@1 3730→3802 (+2%),
+  new_reply@1 4098→3969 (-3%), sync_new_reply@1 4626→4347 (-6%);
+  ping_pong@2 21129→15235 (**-28%**), reused_reply@2 15035→12261
+  (-18%), new_reply@2 17131→13302 (-22%); ping_pong@default(32)
+  20342→15458 (-24%). The sync-compat probe pays for the closed
+  lost-ack/misdelivery races: sync_new_reply@2 42112→47791 (+13%),
+  @default(32) 192162→449293 (**+134%**), with a 10ms-slice worst case
+  per round when a wake lands without a broadcast (this is what pushed
+  two script runs past their outer timeout at default mode; standalone
+  default-mode runs complete in seconds). Accepted (deprecated lane,
+  correctness first) and recorded as `RV2-DEBT-017`.
+
+## Task 13 (Complete): runtime-v2-lock-check CI Gate
+
+- Task doc: `13-runtime-v2-lock-ci-gate.md`. Date: 2026-07-04.
+- `make runtime-v2-lock-check`: 8 static shape gates (120s) + 9
+  cross-shard behavior modes (300s, each at shards 1 and 3), wired into
+  `runtime-v2-check` after the accept gate; CI runs `make
+  runtime-v2-check` (`.github/workflows/ci.yml`), same promotion path as
+  the Epic 6 accept gate. Standalone run green (20.4s).
+
+## Task 14 (Complete): Large-File And LOC Tranche + Sentrux
+
+- Task doc: `14-large-file-and-loc-tranche.md`. Date: 2026-07-04.
+- `.loc-legacy-allowlist`: `rt_async_state.c` 1722→1580;
+  `rt_async_task.c` (282) and `rt_net.c` (666) removed from the
+  allowlist. `./check_file_sizes.sh -a` 100% good files.
+- `scripts/ldflags.sh` sanitizes quotes out of the embedded commit
+  message: Go's quoted.Split (the `-ldflags` parser) does not understand
+  shell `'"'"'` concatenation, and the B4 commit subject's apostrophe
+  broke `make build`.
+- Sentrux (all rules pass): repo 6182→6174, `runtime` 5340→5296,
+  `runtime/native` 5467→5389 — split churn, no rule regressions.

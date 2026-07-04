@@ -507,6 +507,36 @@ Epic 7 is complete only when:
 - `07-evidence.md`, `NOTES.md`, this document, `README.md`, and
   `docs/RUNTIME_V2.md` phase notes are updated with the final state.
 
+## Closeout (2026-07-04)
+
+Epic 7 is complete. All fifteen tasks closed; the acceptance list above is
+satisfied:
+
+- The Lock Ownership Contract is implemented and gated: eight static shape
+  gates plus nine cross-shard behavior modes run green at `SURGE_SHARDS=1`
+  and `3` under `make runtime-v2-lock-check`, which `runtime-v2-check` (and
+  therefore CI) invokes. The worker turn, park/wake, waiter stores, sleep
+  timers, and channel operations run on shard lanes; the lane-order
+  assertions are always on and stayed silent through the closing gates.
+- Steady-path evidence: the closeout matrix
+  (`build/benchmarks/rv2-e7-task12-final-epic6-matrix.md`) improves the
+  8-shard/1024 row 23% against the Epic 6 closeout baseline with small-load
+  rows inside noise, and the new `control_lock_acquired` counter names the
+  next serialization point — task lifecycle, ~26 control acquisitions per
+  request (`RV2-DEBT-016`, the Epic 8 candidate). Async channel probes
+  improved 14-25% at two workers; the sync-compat probe regression is
+  `RV2-DEBT-017`.
+- The Epic 6 accept gate still passes; connection tasks show zero non-owner
+  steals in the closeout matrix trace rows.
+- The peel closed three latent sync-channel races (lost ack, stale-entry
+  misdelivery, duplicate registration) with a generation-validated
+  candidate/validate protocol; the previously flaking compensation-limit
+  hang now passes 10/10 (`RV2-DEBT-002` updated with the root causes).
+- Deferred with owners: `RV2-DEBT-015` (adopted 8x1024x100 starvation,
+  present at baseline), `RV2-DEBT-016`, `RV2-DEBT-017`, `RV2-DEBT-018`
+  (harness transient). Sentrux signals: 6182→6174 / 5340→5296 / 5467→5389,
+  all rules pass.
+
 ## Next Runtime Handoff And Syntax Gate
 
 Epic 8 owns the explicit crossing surface and Phase 4 transport. It must start

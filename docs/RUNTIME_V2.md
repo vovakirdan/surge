@@ -691,9 +691,15 @@ structure pass.
   non-owner shards.
 - Phase 3 does not claim lock-level throughput scaling: `rt_executor.lock`
   still protects the remaining global executor state.
-- Channels, task join, scope wake, cancellation state, blocking completions,
-  timers, `now_ms`, and generic ready work remain global compatibility paths
-  until the next runtime ownership epic splits the executor lock.
+- Epic 7 then split that lock: scheduler queues, worker sleep/wake, waiter
+  stores, sleep timers (atomic virtual clock + per-shard sorted stores), and
+  channel ownership run on per-shard lanes under `rt_shard.lock`, with a
+  reduced control lane for task lifecycle, scopes, select, shutdown, and the
+  sync-channel compatibility wait. Lane order (control -> at most one shard
+  lock) is asserted at runtime; `runtime-v2-lock-check` gates eight code-shape
+  properties and nine cross-shard behavior modes in CI. Task lifecycle is the
+  remaining steady-path control consumer (`RV2-DEBT-016`) and is the Epic 8
+  entry point.
 - Cross-shard messaging, explicit crossing syntax, remote-free routing, and
   alternate I/O backends remain later phases.
 

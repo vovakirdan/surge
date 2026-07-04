@@ -33,11 +33,13 @@ native TCP accept ownership under the preserved global executor lock and the
 Tier 1 no-steal scheduler boundary. It added the stable
 `runtime-v2-accept-check` gate, final benchmark evidence, and an explicit Epic
 7 lock-splitting handoff. Remaining copied/raw net-handle owner guards and
-legacy large-file cleanup stay recorded in `DEBT.md`. Epic 7 is in progress in
-`07-executor-lock-split-and-shard-runtime-state.md`: it splits the preserved
-global executor lock into per-shard locks plus a reduced global control lane
-and moves scheduler queues, waiter stores, sleep timers, and channel ownership
-to shard-owned state.
+legacy large-file cleanup stay recorded in `DEBT.md`. Epic 7 is complete per
+`07-executor-lock-split-and-shard-runtime-state.md`: it split the preserved
+global executor lock into per-shard locks plus a reduced global control lane,
+moved scheduler queues, waiter stores, sleep timers, and channel ownership to
+shard-owned state, and promoted the lock gate (`runtime-v2-lock-check`) into
+`runtime-v2-check`. Epic 8 (task lifecycle lane and the explicit crossing
+surface) is next.
 
 ## Current Runtime V2 Artifacts
 
