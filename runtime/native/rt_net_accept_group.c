@@ -17,9 +17,16 @@ int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, i
         return 0;
     }
     rt_control_lock(ex);
+    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
     rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
+    if (owner_shard != NULL) {
+        rt_shard_lock(owner_shard);
+    }
     int had_row = rt_fd_registry_find_const(registry, fd) != NULL;
     rt_runtime_status status = rt_fd_registry_register_open_fd(registry, fd);
+    if (owner_shard != NULL) {
+        rt_shard_unlock(owner_shard);
+    }
     rt_control_unlock(ex);
     if (status == RT_RUNTIME_STATUS_OK) {
         if (!had_row) {
@@ -36,8 +43,15 @@ void rt_net_forget_registered_fd_on_owner(rt_executor* ex, uint32_t owner_shard_
     }
     rt_fd_lifecycle_snapshot snapshot;
     rt_control_lock(ex);
+    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
     rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
+    if (owner_shard != NULL) {
+        rt_shard_lock(owner_shard);
+    }
     (void)rt_fd_registry_mark_closed(registry, fd, &snapshot);
+    if (owner_shard != NULL) {
+        rt_shard_unlock(owner_shard);
+    }
     rt_control_unlock(ex);
 }
 
@@ -173,10 +187,17 @@ static void net_register_listener_members_locked(rt_executor* ex, const NetListe
         if (member->closed || member->fd < 0 || member->owner_shard_id >= shard_count) {
             continue;
         }
+        rt_shard* member_shard = rt_runtime_shard(rt_executor_runtime(ex), member->owner_shard_id);
         rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, member->owner_shard_id);
+        if (member_shard != NULL) {
+            rt_shard_lock(member_shard);
+        }
         int had_row = rt_fd_registry_find_const(registry, member->fd) != NULL;
-        if (rt_fd_registry_register_open_fd(registry, member->fd) == RT_RUNTIME_STATUS_OK &&
-            !had_row) {
+        rt_runtime_status member_status = rt_fd_registry_register_open_fd(registry, member->fd);
+        if (member_shard != NULL) {
+            rt_shard_unlock(member_shard);
+        }
+        if (member_status == RT_RUNTIME_STATUS_OK && !had_row) {
             rt_net_trace_fd_owner_registry_row();
         }
     }

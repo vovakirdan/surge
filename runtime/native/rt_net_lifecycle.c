@@ -38,8 +38,15 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(
     }
     rt_fd_lifecycle_snapshot snapshot;
     rt_control_lock(ex);
+    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
     rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
+    if (owner_shard != NULL) {
+        rt_shard_lock(owner_shard);
+    }
     rt_runtime_status status = rt_fd_registry_mark_closed(registry, fd, &snapshot);
+    if (owner_shard != NULL) {
+        rt_shard_unlock(owner_shard);
+    }
     snapshot.owner_shard_id = owner_shard_id;
     rt_control_unlock(ex);
     if (status != RT_RUNTIME_STATUS_OK) {

@@ -160,18 +160,29 @@ int rt_net_has_waiters_on_shard(const rt_executor* ex, uint32_t owner_shard_id) 
 
 int rt_net_begin_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id) {
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
-    if (shard == NULL || shard->net_polling || !rt_net_has_waiters_on_shard(ex, owner_shard_id)) {
+    if (shard == NULL) {
         return 0;
     }
-    shard->net_polling = 1;
-    return 1;
+    // net_polling arbitration lives on the shard lane; callers hold either
+    // the control lock (io thread, N=1 runner) or nothing (worker turn).
+    rt_shard_lock(shard);
+    int begun = 0;
+    if (!shard->net_polling && rt_net_has_waiters_on_shard(ex, owner_shard_id)) {
+        shard->net_polling = 1;
+        begun = 1;
+    }
+    rt_shard_unlock(shard);
+    return begun;
 }
 
 int rt_net_poll_waiters_owned_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms) {
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
     int woke = poll_net_waiters_on_shard(ex, owner_shard_id, timeout_ms);
     if (shard != NULL) {
+        rt_shard_lock(shard);
         shard->net_polling = 0;
+        pthread_cond_broadcast(&shard->poller_cv);
+        rt_shard_unlock(shard);
     }
     pthread_cond_signal(&ex->io_cv);
     return woke;

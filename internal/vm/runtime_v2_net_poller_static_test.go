@@ -160,6 +160,14 @@ uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fal
     return fallback_shard_id;
 }
 
+void rt_shard_lock(rt_shard* shard) {
+    (void)shard;
+}
+
+void rt_shard_unlock(rt_shard* shard) {
+    (void)shard;
+}
+
 static uint32_t sched_wake_signal_calls;
 static uint32_t sched_wake_signal_by_shard[RT_RUNTIME_MAX_SHARDS];
 

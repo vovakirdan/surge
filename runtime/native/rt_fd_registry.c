@@ -332,7 +332,20 @@ static void fd_complete_current_net_key(rt_executor* ex,
                                         const rt_fd_poll_interest* snapshot,
                                         waker_key key,
                                         rt_fd_completion_summary* summary) {
-    if (rt_fd_registry_completion_state(registry, snapshot, key) != RT_FD_COMPLETION_CURRENT) {
+    // The generation/interest check reads registry rows, which are shard
+    // state; take the owner's lock for the read so control-free (worker)
+    // completions cannot race attach/detach. A detach landing right after
+    // the unlock is benign: the wake pass finds no matching waiter.
+    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), snapshot->owner_shard_id);
+    if (owner_shard != NULL) {
+        rt_shard_lock(owner_shard);
+    }
+    int current =
+        rt_fd_registry_completion_state(registry, snapshot, key) == RT_FD_COMPLETION_CURRENT;
+    if (owner_shard != NULL) {
+        rt_shard_unlock(owner_shard);
+    }
+    if (!current) {
         return;
     }
     fd_complete_net_key(ex, key, snapshot->owner_shard_id, summary);
@@ -376,10 +389,27 @@ rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked_on_own
     if (ex == NULL || registry == NULL) {
         return summary;
     }
-    // Caller holds ex->lock. Snapshot each row before waking because wake
-    // fan-out removes waiter-store entries and may detach the same registry row.
-    while (registry->len > 0) {
-        rt_fd_entry entry = registry->entries[registry->len - 1];
+    // Caller holds the control lock. Snapshot each row before waking because
+    // wake fan-out removes waiter-store entries and may detach the same
+    // registry row; rows are shard state, so the snapshot and the removal
+    // take the owner shard's lock while the completion calls run outside it.
+    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
+    for (;;) {
+        rt_fd_entry entry;
+        int have_entry = 0;
+        if (owner_shard != NULL) {
+            rt_shard_lock(owner_shard);
+        }
+        if (registry->len > 0) {
+            entry = registry->entries[registry->len - 1];
+            have_entry = 1;
+        }
+        if (owner_shard != NULL) {
+            rt_shard_unlock(owner_shard);
+        }
+        if (!have_entry) {
+            break;
+        }
         if (entry.want_read != 0) {
             fd_complete_net_key(ex, net_read_key(entry.fd), owner_shard_id, &summary);
         }
@@ -389,7 +419,13 @@ rt_fd_completion_summary rt_fd_registry_drain_shutdown_net_waiters_locked_on_own
         if (entry.want_write != 0) {
             fd_complete_net_key(ex, net_write_key(entry.fd), owner_shard_id, &summary);
         }
+        if (owner_shard != NULL) {
+            rt_shard_lock(owner_shard);
+        }
         fd_registry_remove_matching_lifetime(registry, &entry);
+        if (owner_shard != NULL) {
+            rt_shard_unlock(owner_shard);
+        }
     }
     if (summary.calls != 0) {
         (void)rt_net_wake_poll_on_shard(ex, owner_shard_id);

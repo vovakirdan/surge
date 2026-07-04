@@ -104,6 +104,26 @@ int pthread_cond_broadcast(pthread_cond_t* cond) {
     return 0;
 }
 
+
+
+rt_runtime* rt_executor_runtime(rt_executor* ex) {
+    (void)ex;
+    return NULL;
+}
+
+rt_shard* rt_runtime_shard(rt_runtime* runtime, size_t index) {
+    (void)runtime;
+    (void)index;
+    return NULL;
+}
+
+void rt_shard_lock(rt_shard* shard) {
+    (void)shard;
+}
+
+void rt_shard_unlock(rt_shard* shard) {
+    (void)shard;
+}
 #include "rt_fd_registry.c"
 
 static int require_int(int condition, int code) {
@@ -325,6 +345,20 @@ void rt_sched_wake_broadcast_all(rt_executor* ex) {
     sched_broadcast_calls++;
 }
 
+
+rt_shard* rt_runtime_shard(rt_runtime* runtime, size_t index) {
+    (void)runtime;
+    (void)index;
+    return NULL;
+}
+
+void rt_shard_lock(rt_shard* shard) {
+    (void)shard;
+}
+
+void rt_shard_unlock(rt_shard* shard) {
+    (void)shard;
+}
 #include "rt_fd_registry.c"
 #include "rt_shutdown.c"
 

@@ -32,6 +32,10 @@ int rt_lane_debug_enabled(void) {
     return 1;
 }
 
+int rt_lane_holds_control(void) {
+    return lane_state.holds_control != 0;
+}
+
 void rt_control_lock(rt_executor* ex) {
     if (ex == NULL) {
         return;

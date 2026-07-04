@@ -956,19 +956,37 @@ static void wake_task_with_policy(rt_executor* ex,
     if (remove_waiter_flag && waker_valid(stale_key)) {
         remove_waiter(ex, stale_key, id);
     }
+    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
+    int compat_active = compat != NULL && atomic_load_explicit(&compat->channel_blocked_workers,
+                                                               memory_order_acquire) > 0;
     if (pushed) {
         rt_trace_wake_enqueued();
-        const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
-        if (compat != NULL && compat->channel_blocked_workers > 0) {
+        if (compat_active) {
+            // Compensation bookkeeping is control-lane state; a control-free
+            // (worker) wake takes the lane only when compat workers are
+            // actually parked.
+            int need_control = !rt_lane_holds_control();
+            if (need_control) {
+                rt_control_lock(ex);
+            }
             maybe_start_compensation_worker_locked(ex);
+            if (need_control) {
+                rt_control_unlock(ex);
+            }
         }
-    } else {
+    } else if (compat_active) {
         // The woken task is RUNNING inside a sync-channel compat wait: the
         // OS worker sleeps on compat_cv under the control lock, so this
         // broadcast is its only wake path (the wake_token is already set).
-        const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
-        if (compat != NULL && compat->channel_blocked_workers > 0) {
-            pthread_cond_broadcast(&ex->compat_cv);
+        // It must hold the control lock or it can land in the waiter's
+        // check-to-wait window and be lost.
+        int need_control = !rt_lane_holds_control();
+        if (need_control) {
+            rt_control_lock(ex);
+        }
+        pthread_cond_broadcast(&ex->compat_cv);
+        if (need_control) {
+            rt_control_unlock(ex);
         }
     }
 }
@@ -1574,7 +1592,7 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     rt_control_lock(ex);
     move_current_local_to_inject_locked(ex);
     // This sync helper parks the OS worker, so it stops contributing to scheduler progress.
-    compat->channel_blocked_workers++;
+    atomic_fetch_add_explicit(&compat->channel_blocked_workers, 1, memory_order_acq_rel);
     int dropped_running = 0;
     if (scheduler->running_count > 0) {
         scheduler->running_count--;
@@ -1591,8 +1609,8 @@ int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task) {
     if (dropped_running) {
         scheduler->running_count++;
     }
-    if (compat->channel_blocked_workers > 0) {
-        compat->channel_blocked_workers--;
+    if (atomic_load_explicit(&compat->channel_blocked_workers, memory_order_acquire) > 0) {
+        atomic_fetch_sub_explicit(&compat->channel_blocked_workers, 1, memory_order_acq_rel);
     }
     rt_control_unlock(ex);
     return 1;

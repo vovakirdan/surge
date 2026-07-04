@@ -121,7 +121,8 @@ typedef struct {
 } rt_sleep_store;
 
 typedef struct {
-    uint32_t channel_blocked_workers;
+    // Atomic so control-free wake paths may read it; writes stay control-lane.
+    atomic_u32 channel_blocked_workers;
     uint32_t compensation_count;
     uint32_t compensation_high_water;
 } rt_channel_blocking_compat;
@@ -424,6 +425,7 @@ void rt_control_unlock(rt_executor* ex);
 void rt_shard_lock(rt_shard* shard);
 void rt_shard_unlock(rt_shard* shard);
 int rt_lane_debug_enabled(void);
+int rt_lane_holds_control(void);
 rt_runtime_status rt_shard_sync_init(rt_shard* shard);
 void rt_shard_sync_destroy(rt_shard* shard);
 void rt_blocking_init(rt_executor* ex);
