@@ -131,7 +131,7 @@ runtime-v2-lock-check:
 
 runtime-v2-lifecycle-check:
 	@echo ">> Running Runtime V2 task-lifecycle lane gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Lifecycle(StaticControlSiteEnumShape|StaticJoinWaiterRoutesByTargetOwner|StaticTaskTableAtomicSnapshot|StaticJoinScopeWaitersUnqualified|StaticCreateSiteCounterWired|StaticCensusSitesTagged|TraceControlSiteContract|OwnerLocalCreateAndReadyPublication|JoinPollResultObservation|JoinWaiterCleanupRegisterThenVerify|CloneReleaseLastReferenceFree|ScopeEnterRegisterJoinExit|ScopeFailfastCancellation|ScopeCancelledPollTeardown|WorkerAwaitVsExternalAwait|ShutdownWithParkedTasks|StaticCreateReadyPushOwnerShard|CancelSpawnChildrenRace)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Lifecycle(StaticControlSiteEnumShape|StaticJoinWaiterRoutesByTargetOwner|StaticTaskTableAtomicSnapshot|StaticJoinScopeWaitersUnqualified|StaticCreateSiteCounterWired|StaticCensusSitesTagged|TraceControlSiteContract|OwnerLocalCreateAndReadyPublication|JoinPollResultObservation|JoinWaiterCleanupRegisterThenVerify|CloneReleaseLastReferenceFree|ScopeEnterRegisterJoinExit|ScopeFailfastCancellation|ScopeCancelledPollTeardown|WorkerAwaitVsExternalAwait|ShutdownWithParkedTasks|StaticCreateReadyPushOwnerShard|CancelSpawnChildrenRace|StaticJoinPollOwnerLane|JoinConsumePlacementAdoption)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 # ===== Format =====
 format: fmt

@@ -22,7 +22,7 @@ they need and point back to it for the rest.
 | 4 | `04-lifecycle-behavior-contract-tests.md` | Complete (TSan probe pending Task 8; finding recorded as RV2-DEBT-019) | test writing | 1, 2, 3 |
 | 5 | `05-lifecycle-static-shape-and-trace-tests.md` | Complete | test/static checks | 1, 2, 3 |
 | 6 | `06-task-create-and-table-publication.md` | Complete | runtime code | 3, 4, 5 |
-| 7 | `07-join-poll-and-handle-lifetime.md` | Pending | runtime code | 6 |
+| 7 | `07-join-poll-and-handle-lifetime.md` | Complete (F2 net-fairness fix folded in) | runtime code | 6 |
 | 8 | `08-completion-epilogue-and-done-path.md` | Pending | runtime code | 7 |
 | 9 | `09-scope-owner-lane.md` | Pending | runtime code | 7, 8 |
 | 10 | `10-await-runner-blocking-compat.md` | Pending | runtime code | 8, 9 |

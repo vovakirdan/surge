@@ -3402,3 +3402,69 @@ pass, before any task execution began:
   numbers should be disregarded; the `check_file_sizes.sh`/Sentrux/gate
   numbers in the Task 6 evidence section are unaffected (separate tooling,
   already correctly scoped).
+
+## Task 7: Join Poll And Handle Lifetime (Complete)
+
+- Migrated `rt_task_poll` (join register + result read), `poll_ready_child_inline`,
+  `rt_task_clone`, and `rt_task_wake` off the control lane (rule 2, S5-Q2/
+  Q3/Q4/Q6); `rt_task_cancel` stays control (S5-Q5, unchanged since Task 6).
+  Pulled the `mark_done` result-write-before-`TASK_DONE` reorder into this
+  task as a named enabling change (2 lines; closes RACE 1 of
+  `RV2-DEBT-019`), rather than deferring to Task 8.
+- **Folded in F2**, the Epic 8 Task 11 net-fairness fix (`RV2-DEBT-015`): a
+  joiner consuming a DONE child carrying `TASK_PLACEMENT_CONNECTION` adopts
+  the child's placement via `rt_task_replace_owner` (new static helper
+  `rt_task_poll_adopt_placement`, both DONE-consume branches of
+  `rt_task_poll`, immediately before `task_release_lane_aware`). Hard-
+  constraint arm chosen: (1) an explicit control fallback (gated
+  `!rt_lane_holds_control()`, tagged `RT_CTRL_SITE_JOIN_POLL`), reusing the
+  accept-transition's own safety argument rather than re-deriving Task 6's
+  children[]-append happens-before chain. New `placement_adoptions` trace
+  counter proves it fires (~0.25/req on the 8x1024 row, matching the
+  O(connections) frequency bound).
+- **F2 measured working**: a mid-load `SIGUSR1` dump shows the owner
+  histogram genuinely spread across all 8 shards (338-440 tasks/shard) for
+  the first time — the pre-F2 baseline was "3073/3073 owner=0" (all
+  execution on shard 0, `epic8-task11-placement-funnel`). `TRACE_STORE`
+  waiter counts similarly distributed (338-444/shard vs all-in-shard-0);
+  steady-state `inject_len=0` (vs ~1023 before). New dedicated test
+  `TestRuntimeV2LifecycleJoinConsumePlacementAdoption` proves both the
+  positive (adopts) and negative (does not adopt from a
+  `TASK_PLACEMENT_GENERIC` child) cases, per main's explicit review
+  requirement.
+- **Honest accounting of a real, reproducible cost increase** (main's
+  "report honestly" precedent from Task 6): `control_lock_acquired`'s total
+  went *up* (186593 -> ~195600 on the same 8x1024/8192-request row), driven
+  by `ctrl_completion` jumping from 4141 to a bit-exact 28673 every run.
+  Root cause: `poll_ready_child_inline` used to hold control across its
+  entire body (including the nested `mark_done` call), so `mark_done`'s own
+  `need_control` check silently short-circuited false and its control work
+  ran "for free" and untagged under the caller's ambient lock. Dropping
+  `poll_ready_child_inline`'s control (required by S5-Q4) removes that
+  ambient hold, so `mark_done` now correctly (and honestly) evaluates and
+  tags its own need for these same completions - not a bug, a previously-
+  hidden cost becoming visible. This is squarely Task 8/9's territory to
+  claw back (`mark_done_needs_control`'s scope/join-key reasons, S6-Q1
+  reduction, and scope ownership moving off control) - flagged explicitly
+  in the Task 8 handoff. `ctrl_join_poll` itself dropped from 3.881/req to
+  ~0.25/req exactly as designed (S5-Q3); `ctrl_scope` unchanged (106499,
+  exact match, Task 9's territory).
+- Two already-active Task 5 gates were updated (both approved by main
+  before implementation): `TestRuntimeV2LifecycleStaticCensusSitesTagged`
+  (G6) - `rt_task_clone`'s case deleted (drops control unconditionally, S5-
+  Q6, nothing left to tag), `rt_task_poll`'s entry repointed to the new
+  `rt_task_poll_adopt_placement` helper (structurally required by P7's own
+  "no `rt_control_lock(` in `rt_task_poll`'s own body" bar, not evasive).
+  `TestRuntimeV2LifecycleTraceControlSiteContract` - `ctrl_join_poll`
+  removed from the must-be-nonzero list (genuinely 0 in that synthetic
+  no-connection-placement program after this task).
+- Gates: `git diff --check` clean; `make c-check` OK (one cppcheck fix:
+  `rt_task_poll_adopt_placement`'s `target` param made `const`); `make
+  cppcheck` 0 findings; `timeout 1200s make runtime-v2-check` exit 0 (all
+  lifecycle gates green, including the newly-activated P7 and the new F2
+  test); `make check` exit 0; `./check_file_sizes.sh -a`: `rt_async_task.c`
+  312 (up from 307, OK), others unchanged/OK; Sentrux root/runtime/
+  runtime-native all "All rules pass" (6174/5290/5379 vs baseline
+  6175/5294/5385, normal noise). No `RV2-DEBT-018` transient encountered.
+- Full write-up: `08-tasks/07-join-poll-and-handle-lifetime.md`. Evidence:
+  `08-evidence.md` Task 7 section.

@@ -372,6 +372,12 @@ void rt_trace_cross_shard_wake(void);
 void rt_trace_spurious_wake_absorbed(void);
 void rt_trace_collect_wake_batch(void);
 void rt_trace_owner_replaced(void);
+// F2 (Epic 8 Task 7 / Task 11 net-fairness fix): counts join-consume
+// placement adoptions specifically (rt_task_poll_adopt_placement,
+// rt_async_task.c), distinct from rt_trace_owner_replaced's aggregate over
+// every rt_task_replace_owner caller (including the pre-existing accept
+// transition). Proof obligation from the Task 11 F2 spec.
+void rt_trace_placement_adoption(void);
 
 // Per-site attribution of control-lane acquisitions on the task/scope
 // lifecycle census paths (Epic 8 Task 5). Additive over control_lock_acquired:

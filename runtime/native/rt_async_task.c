@@ -4,6 +4,7 @@
 
 static rt_task* spawn_checkpoint_task_locked(rt_executor* ex);
 static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* target);
+static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, const rt_task* target);
 
 void* __task_create(
     uint64_t poll_fn_id,
@@ -134,22 +135,30 @@ void rt_task_wake(void* task) {
     if (ex == NULL) {
         return;
     }
-    rt_control_lock(ex);
-    rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
     rt_task* target = task_from_handle(task);
     if (target == NULL || task_status_load(target) == TASK_DONE) {
-        rt_control_unlock(ex);
         return;
     }
+    // S5-Q2: the wake itself is owner-shard work (wake_task manages its own
+    // shard locking, already called control-free elsewhere in the tree); only
+    // the rare scope-adoption write stays behind a control fallback. The peek
+    // reads only current's own scope_id (thread-local while current is
+    // RUNNING, safe without a lock) - target->parent_scope_id is read only
+    // under the lock, never as an unsynchronized peek, since Task 9 still has
+    // rt_scope_register_child writing it under control.
     const rt_task* current = rt_current_task();
-    if (current != NULL && current->scope_id != 0 && target->parent_scope_id == 0) {
-        const rt_scope* scope = get_scope(ex, current->scope_id);
-        if (scope != NULL) {
-            target->parent_scope_id = scope->id;
+    if (current != NULL && current->scope_id != 0) {
+        rt_control_lock(ex);
+        rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
+        if (target->parent_scope_id == 0) {
+            const rt_scope* scope = get_scope(ex, current->scope_id);
+            if (scope != NULL) {
+                target->parent_scope_id = scope->id;
+            }
         }
+        rt_control_unlock(ex);
     }
     wake_task(ex, target->id, 1);
-    rt_control_unlock(ex);
 }
 
 uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
@@ -161,26 +170,27 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     if (target == NULL) {
         return 2;
     }
-    rt_control_lock(ex);
-    rt_trace_control_lock_site(RT_CTRL_SITE_JOIN_POLL);
+    // S5-Q3/rule 2 (Epic 8 Task 7): the join register + result read run on
+    // the target task's own owner shard lane, no control. add_waiter/
+    // remove_waiter already route WAKER_JOIN to rt_task_owner_shard(ex,
+    // get_task(ex, key.id)) (rt_waiter_route.c) and mark_done's completion
+    // drain pops that same store under that same shard lock - that
+    // serialization was always nested INSIDE the old outer control lock, not
+    // provided by it, so dropping the outer lock does not remove it.
     if (rt_current_task_id() == 0) {
-        rt_control_unlock(ex);
         panic_msg("async poll outside task");
         return 2;
     }
     if (rt_current_task_id() == target->id) {
-        rt_control_unlock(ex);
         panic_msg("task cannot await itself");
         return 2;
     }
     rt_task* current = rt_current_task();
     if (current == NULL) {
-        rt_control_unlock(ex);
         panic_msg("async: missing current task");
         return 2;
     }
     if (current_task_cancelled(ex)) {
-        rt_control_unlock(ex);
         return 0;
     }
     if (target->kind == TASK_KIND_USER && task_status_load(target) == TASK_READY &&
@@ -195,8 +205,10 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         if (out_bits != NULL) {
             *out_bits = target->result_bits;
         }
-        task_release(ex, target);
-        rt_control_unlock(ex);
+        // F2 (Epic 8 Task 11 net-fairness fix): read placement before
+        // release, which may free target.
+        rt_task_poll_adopt_placement(ex, current, target);
+        task_release_lane_aware(ex, target);
         return kind;
     }
     if (target->kind != TASK_KIND_CHECKPOINT) {
@@ -216,15 +228,72 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
             if (out_bits != NULL) {
                 *out_bits = target->result_bits;
             }
-            task_release(ex, target);
-            rt_control_unlock(ex);
+            rt_task_poll_adopt_placement(ex, current, target);
+            task_release_lane_aware(ex, target);
             return kind;
         }
     }
-    rt_control_unlock(ex);
     return 0;
 }
 
+// F2 (Epic 8 Task 11 net-fairness fix, folded into Task 7): a task consuming
+// a DONE child carrying TASK_PLACEMENT_CONNECTION adopts the child's
+// placement, so the durable request pipeline follows the accepting shard
+// instead of staying at the parent's spawn-time owner (see
+// docs/runtime-v2-epics/08-tasks/07-join-poll-and-handle-lifetime.md).
+//
+// Invariant (R1, review requirement): the caller must hold NO shard lock
+// here. rt_task_replace_owner takes the control lane, and control-after-
+// shard is a lane-order violation rt_lane.c asserts against; both call sites
+// in rt_task_poll reach this only after any shard lock taken earlier in that
+// branch (inside add_waiter/remove_waiter) has already been released by the
+// callee.
+//
+// current is the task RUNNING on this thread - reading its placement_class/
+// owner_shard_id and then having rt_task_replace_owner write those same
+// fields is a self-read/self-write from the task's own executing thread,
+// the same "self-replace on RUNNING task" shape __task_create's invariant
+// comment above already anticipated. target's placement fields are read
+// only after observing TASK_DONE (acquire-loaded by the caller): no code
+// path calls rt_task_replace_owner on a DONE task (the two self-replace
+// sites act on the calling thread's own RUNNING task; the one cross-thread
+// site targets a task popped from a waiter store, i.e. TASK_WAITING), so
+// target's placement is frozen from the moment it went DONE.
+static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, const rt_task* target) {
+    if (current == NULL || target == NULL || target->placement_class != TASK_PLACEMENT_CONNECTION ||
+        target->owner_shard_valid == 0) {
+        return;
+    }
+    if (current->placement_class == TASK_PLACEMENT_CONNECTION &&
+        current->owner_shard_id == target->owner_shard_id) {
+        return;
+    }
+    // Hard-constraint arm (1) from the Task 11 F2 spec: an explicit control
+    // fallback, counted under a named site, permitted because adoption is
+    // O(connections) (once per accept/bootstrap), never per-request steady
+    // state once parent and child already share placement (the guard above).
+    int need_control = !rt_lane_holds_control();
+    if (need_control) {
+        rt_control_lock(ex);
+        rt_trace_control_lock_site(RT_CTRL_SITE_JOIN_POLL);
+    }
+    rt_task_replace_owner(ex, current, target->owner_shard_id, TASK_PLACEMENT_CONNECTION);
+    rt_trace_placement_adoption();
+    if (need_control) {
+        rt_control_unlock(ex);
+    }
+}
+
+// S5-Q4 (Epic 8 Task 7): runs entirely on the child's owner shard lane, no
+// control. The only eligible child is the fresh, just-created child popped
+// off the CURRENT WORKER'S OWN local queue tail (ready_take_current_local_tail,
+// guarded at the call site above); by construction (rt_task_inherit_placement
+// copies the parent's owner shard before publish, Task 6) that child's owner
+// shard equals this worker's shard, and it is reachable from no other
+// queue - no other thread can be concurrently running or inline-polling it.
+// If a future change ever lets a child be inline-polled off a queue other
+// than the popping worker's own local tail, this invariant must be
+// re-derived before relying on it.
 static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* target) {
     if (ex == NULL || current == NULL || target == NULL) {
         return;
@@ -241,14 +310,11 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     scheduler->running_count++;
     rt_shard_unlock(owner_shard);
     rt_set_current_task(target);
-    rt_control_unlock(ex);
 
     task_polling_enter(target);
     poll_outcome outcome = poll_task(ex, target);
     task_polling_exit(target);
 
-    rt_control_lock(ex);
-    rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
     rt_shard_lock(owner_shard);
     if (scheduler->running_count > 0) {
         scheduler->running_count--;
@@ -316,14 +382,12 @@ void* rt_task_clone(void* task) {
     if (target == NULL) {
         return NULL;
     }
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return NULL;
-    }
-    rt_control_lock(ex);
-    rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
+    // S5-Q6 (Epic 8 Task 7): drops control unconditionally, not a rare
+    // fallback - task_add_ref is a relaxed atomic increment, and the caller
+    // already holds a live handle to target (the handle being cloned), so
+    // handle_refs >= 1 before this call; the free rule (free only at
+    // refs 1->0 && TASK_DONE) can never race a live-handle clone to zero.
     task_add_ref(target);
-    rt_control_unlock(ex);
     return target;
 }
 

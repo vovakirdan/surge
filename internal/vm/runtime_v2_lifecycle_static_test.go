@@ -140,9 +140,19 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 		tag string
 	}{
 		{"__task_create", "RT_CTRL_SITE_CREATE"},
-		{"rt_task_poll", "RT_CTRL_SITE_JOIN_POLL"},
+		// Epic 8 Task 7: rt_task_poll itself no longer takes the control lane
+		// at all (P7, StaticJoinPollOwnerLane, below) - its only remaining
+		// control acquisition is the rare F2 placement-adoption fallback,
+		// which must live in a separate function
+		// (rt_task_poll_adopt_placement) so rt_task_poll's own body can
+		// satisfy P7's "no rt_control_lock(" bar. Repointed here rather than
+		// removed: the site is still real and still tagged, just under a
+		// different function name.
+		{"rt_task_poll_adopt_placement", "RT_CTRL_SITE_JOIN_POLL"},
 		{"rt_task_await", "RT_CTRL_SITE_AWAIT_COMPAT"},
-		{"rt_task_clone", "RT_CTRL_SITE_HANDLE"},
+		// rt_task_clone: S5-Q6 drops control unconditionally (unlike clone/
+		// wake's scope-adoption case, this is not a rare fallback) - there is
+		// nothing left to tag, so this case is deleted rather than repointed.
 		{"rt_task_wake", "RT_CTRL_SITE_HANDLE"},
 		{"rt_task_cancel", "RT_CTRL_SITE_HANDLE"},
 		{"mark_done", "RT_CTRL_SITE_COMPLETION"},
@@ -174,15 +184,11 @@ func TestRuntimeV2LifecycleStaticCreateReadyPushOwnerShard(t *testing.T) {
 
 // P7 (Task 7, join poll + handle lifetime): the join register + result read move
 // to the target owner store lane; the DONE fast path no longer spans the control
-// lane. Activation: Task 7's commit; delete the Skip and assert rt_task_poll's
-// steady join path takes no rt_control_lock across register/read (mirrors the
-// lock-split WorkerLoopShardLane banned-substring gate).
+// lane. Activated: rt_task_poll itself never takes rt_control_lock (its only
+// remaining control acquisition, the rare F2 placement-adoption fallback,
+// lives in the separate rt_task_poll_adopt_placement function - see G6 above
+// and 08-tasks/07-join-poll-and-handle-lifetime.md).
 func TestRuntimeV2LifecycleStaticJoinPollOwnerLane(t *testing.T) {
-	t.Skip("activates in Task 7 (07-join-poll-and-handle-lifetime): " +
-		"rt_task_poll join register + result read run on the target owner store " +
-		"lane (rule 2). Assert the poll steady path holds no control lock across " +
-		"the join register/DONE read; the JOIN_POLL counter drops toward zero on " +
-		"the 8x1024 row.")
 	body := lifecycleFindFunctionBody(t, "rt_task_poll")
 	if strings.Contains(body, "rt_control_lock(") {
 		t.Fatalf("rt_task_poll must not hold the control lane on the join path:\n%s", body)

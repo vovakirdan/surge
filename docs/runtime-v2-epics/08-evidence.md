@@ -773,3 +773,190 @@ applicable uncommitted C/Go files needing action). Full
 `runtime-v2-check` not run (not required for this scope, per main).
 Follow-up commit: `fix(runtime): sweep cancel-spawn race test shards and
 exclude tool dirs from code stats`.
+
+## Task 7: Join Poll And Handle Lifetime
+
+### Task Identity And Scope
+
+Migrates `rt_task_poll` (join register + result read), `poll_ready_child_inline`,
+`rt_task_clone`, and `rt_task_wake` off the control lane per the spike (rule
+2, S5-Q2/Q3/Q4/Q6); `rt_task_cancel`/`cancel_task` stay control per S5-Q5
+(unchanged). Folds in F2, the Epic 8 Task 11 net-fairness fix
+(`RV2-DEBT-015`): a joiner consuming a DONE child carrying
+`TASK_PLACEMENT_CONNECTION` adopts the child's placement, so
+`serve_many`/`serve_conn`'s durable pipeline follows the accepting shard
+instead of staying pinned to shard 0. Full write-up:
+`08-tasks/07-join-poll-and-handle-lifetime.md`.
+
+### Sequencing Hazard Resolution
+
+Chose arm (i) from the Task 6 handoff: pulled the `mark_done` result-write
+reorder (write `result_kind`/`result_bits` before the `TASK_DONE` release
+store) into this task as a 2-line enabling change, rather than deferring to
+Task 8. This closes RACE 1 of `RV2-DEBT-019` (Task 4's TSan finding); RACE 2
+(the unlocked `park_key` read in `mark_done_needs_control`) and un-skipping
+`TestRuntimeV2LifecycleCompletionPinInterleavingTSan` remain Task 8's.
+
+### Files Touched
+
+- C: `rt_async_state.c` (2-line `mark_done` reorder only), `rt_async_task.c`
+  (`rt_task_poll`, `poll_ready_child_inline`, `rt_task_clone`, `rt_task_wake`;
+  new static helper `rt_task_poll_adopt_placement` for F2),
+  `rt_async_trace.c` + `rt_async_internal.h` (new `placement_adoptions`
+  counter).
+- Tests: `internal/vm/runtime_v2_lifecycle_static_test.go` (P7 `t.Skip`
+  deleted; G6's table repointed/pruned — see "Review-Visible Changes"
+  below), `internal/vm/runtime_v2_lifecycle_trace_test.go` (trace-contract
+  `ctrl_join_poll` must-be-nonzero assertion removed, `ctrl_create` kept),
+  new `internal/vm/runtime_v2_lifecycle_behavior_placement_adoption_test.go`
+  (F2 positive/negative), small wiring additions in
+  `runtime_v2_lifecycle_behavior_harness_test.go` (2 enum values, one
+  concatenation entry) and `runtime_v2_lifecycle_behavior_await_shutdown_test.go`
+  (2 `main()` dispatch lines, 2 switch cases).
+- `Makefile`: `runtime-v2-lifecycle-check` regex gains
+  `StaticJoinPollOwnerLane` and `JoinConsumePlacementAdoption`.
+
+### Review-Visible Changes To Task 5's Shipped Gates
+
+Both approved by main before implementation (plan-gate response).
+
+1. `TestRuntimeV2LifecycleStaticCensusSitesTagged` (G6): `rt_task_clone`'s
+   case deleted (S5-Q6 drops control unconditionally, nothing left to tag);
+   `rt_task_poll`'s `RT_CTRL_SITE_JOIN_POLL` entry repointed to
+   `rt_task_poll_adopt_placement` (the tag now lives in that separate
+   helper, structurally required by P7's own "no `rt_control_lock(` in
+   `rt_task_poll`'s own body" bar).
+2. `TestRuntimeV2LifecycleTraceControlSiteContract`: `ctrl_join_poll` removed
+   from the must-be-nonzero list (genuinely 0 in that synthetic
+   no-connection-placement program after this task); `ctrl_create` kept
+   (segment growth still fires at least once per process).
+
+### F2 Hard-Constraint Arm Chosen
+
+Arm (1): explicit control fallback in `rt_task_poll_adopt_placement`, gated
+`!rt_lane_holds_control()`, tagged `RT_CTRL_SITE_JOIN_POLL`, plus a dedicated
+`placement_adoptions` trace counter. Reuses the accept-transition's own
+`rt_task_replace_owner` primitive and safety argument (self-replace on a
+RUNNING task, on that task's own thread) rather than re-deriving Task 6's
+children[]-append happens-before chain, per the spec's explicit permission
+(adoption is O(connections), never per-request steady state).
+
+### F2 Correctness Test
+
+New `TestRuntimeV2LifecycleJoinConsumePlacementAdoption` (positive/negative
+subtests, per main's explicit review requirement R2): a joiner on shard 0
+consumes a DONE child pinned to shard 1. Positive (child
+`TASK_PLACEMENT_CONNECTION`-placed): joiner's own `owner_shard_id`/
+`placement_class` become shard-1/`CONNECTION`. Negative (child
+`TASK_PLACEMENT_GENERIC`-placed): joiner's placement is unchanged — the
+guard is as load-bearing as the adoption. Both green.
+
+### Measurement: Net Bench 8x1024, `SURGE_TRACE_EXEC=1`, 3 Runs
+
+Direct mode, 8 shards / 8 threads / 1024 connections / 8 req/conn = 8192
+requests, run directly against `benchmarks/native/net_request_reply`
+(bit-exact reproducible across all 3 runs for every per-site counter).
+"Before" is Task 6's committed baseline (`5523094e`/`a2d3f87c`/`05d95b60`).
+
+| Site | Before /req (total) | After /req (total) |
+| --- | ---: | ---: |
+| `control_lock_acquired` | 22.780 (186593) | **23.90 (195751-195430)** |
+| `ctrl_create` | 0.001 (8) | 0.001 (11-12) |
+| `ctrl_join_poll` | 3.881 (31792) | **0.249 (2019-2037)** |
+| `ctrl_completion` | 0.506 (4141) | **3.500 (28673)** |
+| `ctrl_scope` | 13.000 (106499) | 13.000 (106499, exact match) |
+| `ctrl_handle` | 3.500 (28673) | 3.626 (29696) |
+| `placement_adoptions` (new) | n/a | 0.247 (2019-2037) |
+
+**F2 works exactly as designed** (the epic's primary goal for this task):
+`placement_adoptions` fires ~2019-2037 times (once per accept-ish event,
+matching the O(connections) frequency bound, not O(requests) — 1024
+connections, adoption fires roughly twice per connection: once for
+`serve_many` adopting per accept, once for the first `serve_conn` spawn
+inheriting it). A mid-load `SIGUSR1` dump (60 req/conn, sampled ~1s in)
+shows the owner histogram genuinely spread across all 8 shards for the
+first time (`338`-`440` tasks per shard, vs the pre-F2 baseline's "3073/3073
+owner=0" from `epic8-task11-placement-funnel`); `TRACE_STORE` waiter counts
+are similarly distributed (338-444 per shard vs all-in-shard-0 before);
+steady-state `inject_len=0` at both the mid-load sample and exit (vs ~1023
+before). `ctrl_join_poll` drops to near-zero as designed (S5-Q3): the
+residual ~0.25/req is entirely the F2 fallback firing, not steady-state join
+traffic.
+
+**Honest accounting of a real, reproducible increase (main's "report
+honestly" precedent, Task 6):** `control_lock_acquired`'s total went *up*
+(186593 -> ~195600), not down, driven by `ctrl_completion` jumping from
+4141 to a bit-exact 28673 every run. Root cause: before this task,
+`poll_ready_child_inline` held control across its entire body (including the
+nested `apply_poll_outcome`/`mark_done` call), so `mark_done`'s own
+`need_control` check short-circuited false (`rt_lane_holds_control()` was
+already true) and its control-lane work for these completions ran "for
+free" under the caller's ambient lock — untagged, since the tag call only
+fires inside `mark_done`'s own take-lock branch. Migrating
+`poll_ready_child_inline` off control (S5-Q4, required by this task) removes
+that ambient hold, so `mark_done` now correctly evaluates its own need for
+these same completions and — since Task 6 already established this exact
+benchmark drives the `write_owned(...).await()`/`net.read_some(...).await()`
+inline-child-poll pattern on almost every request (`ctrl_handle`=28673 at
+Task 6 landing) — takes its own separate, now-honestly-tagged
+`RT_CTRL_SITE_COMPLETION` lock for nearly all of them (28673, matching that
+same population almost exactly). This is not a bug and not something to
+revert (S5-Q4's "no control acquire" is the spike's explicit verdict for
+`poll_ready_child_inline` itself, and it correctly has zero control
+acquisitions of its own now); it is a previously-hidden cost becoming
+visible, and it is **exactly the surface Task 8/9 are positioned to remove**:
+`mark_done_needs_control`'s scope/join-key reasons (driving most of this
+`ctrl_completion` rise, since these net-wrapper children are scope-registered)
+are Task 8's S6-Q1 reduction target, and scope ownership moving off control
+entirely is Task 9's. Flagged explicitly in the Task 8 handoff below.
+`ctrl_handle` also rose slightly (28673 -> 29696) despite
+`poll_ready_child_inline`'s own bracket being removed entirely; not fully
+attributed within this task (candidate: F2's redistribution changing the
+timing of some existing `rt_task_cancel`/timeout-race code path in
+`stdlib/net`), reported honestly rather than claimed as understood.
+
+### Gates
+
+- `git diff --check`: clean.
+- `make c-check` (cfmt + strict warnings): OK (one cppcheck-driven fix:
+  `rt_task_poll_adopt_placement`'s `target` parameter declared
+  `const rt_task*`).
+- `make cppcheck`: OK, 0 findings after the const-parameter fix.
+- `timeout 1200s make runtime-v2-check`: exit 0, all lifecycle
+  behavior/static/trace gates green, including the newly-activated P7
+  (`StaticJoinPollOwnerLane`) and the new F2 test
+  (`JoinConsumePlacementAdoption`, both subtests).
+- `make check`: exit 0 (all Go packages, `golangci-lint` 0 issues, `c-check`
+  OK, file sizes OK).
+- `./check_file_sizes.sh -a`: `rt_async_task.c` 312 (up from 307, OK),
+  `rt_async_internal.h` 536 (OK), `rt_async_state.c` 1444 (unchanged
+  effective count, legacy ceiling 1580 not approached), `rt_async_trace.c`
+  671 (acceptable tier, was already there pre-task; +11 lines from the new
+  counter).
+- Sentrux: root 6174 (baseline 6175), `runtime` 5290 (baseline 5294),
+  `runtime/native` 5379 (baseline 5385) — all "All rules pass", normal
+  noise, no quality drop.
+- No `RV2-DEBT-018` transient encountered; every gate run passed on the
+  first attempt.
+
+### Task 8 Handoff
+
+- The `mark_done` result-write reorder is done (before the `TASK_DONE`
+  store); RACE 2 (`park_key` unlocked read) and the TSan pin test un-skip
+  are still yours.
+- `mark_done_needs_control`'s scope/join-key reasons are the direct cause of
+  this task's `ctrl_completion` rise (4141 -> 28673) — reducing them per
+  S6-Q1 should claw most of that back, and is now measurable against this
+  task's row rather than Task 6's (which never actually exercised
+  `mark_done` control-free for these completions, per the root-cause
+  explanation above).
+- `rt_task_poll_adopt_placement` (F2) calls `rt_task_replace_owner` on
+  `current` — if Task 8 changes anything about how/when `mark_done` runs
+  relative to `rt_task_poll`'s DONE branches, re-check that F2's "no shard
+  lock held" invariant (R1) still holds at both call sites.
+- Per `epic8-task11-starvation`'s `RV2-DEBT-016` reinterpretation: this row
+  is the first one where 8-shard execution is genuinely distributed: from
+  here on, per-request control cost is paid by 8 truly-contending workers,
+  not amortized on a single busy one — Task 8/9's own before/after
+  measurements should use this task's row as their baseline, not Task 6's.
+exclude tool dirs from code stats`.

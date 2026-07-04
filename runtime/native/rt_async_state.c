@@ -1556,10 +1556,15 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
         rt_shard_unlock(sleep_shard);
         task->sleep_armed = 0;
     }
-    task_status_store(task, TASK_DONE);
-    task_enqueued_store(task, 0);
+    // Epic 8 Task 7 enabling change (rule 1): the result fields must be
+    // written before the TASK_DONE release store, so a joiner's acquire-load
+    // of TASK_DONE (rt_task_poll, now control-free) publishes them without
+    // needing the control lock. Nothing else in this function reads either
+    // field, so the reorder is behavior-preserving.
     task->result_kind = result_kind;
     task->result_bits = result_bits;
+    task_status_store(task, TASK_DONE);
+    task_enqueued_store(task, 0);
     task->state = NULL;
     rt_scope* scope = NULL;
     if (task->parent_scope_id != 0) {

@@ -79,13 +79,16 @@ fn main() -> int {
 		t.Fatalf("missing control_lock_acquired in TRACE_EXEC exit line:\n%s", line)
 	}
 
-	// The two always-on census sites at baseline must fire: create takes the
-	// control lane for id-alloc + table growth + slot publish, and each await
-	// drives a control-held rt_task_poll.
-	for _, field := range []string{"ctrl_create", "ctrl_join_poll"} {
-		if values[field] == 0 {
-			t.Fatalf("expected non-zero %s in TRACE_EXEC exit line:\n%s", field, line)
-		}
+	// ctrl_create is the one always-on census site: segment growth fires at
+	// least once per process (the very first id allocated). ctrl_join_poll is
+	// NOT asserted non-zero here since Epic 8 Task 7: rt_task_poll itself no
+	// longer takes control at all, and this program spawns no
+	// TASK_PLACEMENT_CONNECTION tasks, so the only remaining ctrl_join_poll
+	// source (the F2 placement-adoption fallback, rt_task_poll_adopt_placement)
+	// never fires here - ctrl_join_poll is genuinely 0 in this scenario, which
+	// is the correct post-Task-7 behavior, not a missing wire-up.
+	if values["ctrl_create"] == 0 {
+		t.Fatalf("expected non-zero ctrl_create in TRACE_EXEC exit line:\n%s", line)
 	}
 
 	// Attribution invariant: the per-site counters partition a subset of the

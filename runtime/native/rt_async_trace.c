@@ -25,6 +25,7 @@ static _Atomic uint64_t trace_cross_shard_wake_total;
 static _Atomic uint64_t trace_spurious_wake_absorbed_total;
 static _Atomic uint64_t trace_collect_wake_batch_total;
 static _Atomic uint64_t trace_owner_replaced_total;
+static _Atomic uint64_t trace_placement_adoption_total;
 static _Atomic uint64_t trace_control_lock_site_total[RT_CTRL_SITE_COUNT];
 static uint64_t trace_sched_hash;
 static uint64_t trace_sched_events;
@@ -122,6 +123,10 @@ void rt_trace_collect_wake_batch(void) {
 
 void rt_trace_owner_replaced(void) {
     trace_inc_atomic(&trace_owner_replaced_total);
+}
+
+void rt_trace_placement_adoption(void) {
+    trace_inc_atomic(&trace_placement_adoption_total);
 }
 
 void rt_trace_control_lock_site(rt_ctrl_site site) {
@@ -312,6 +317,12 @@ static void trace_exec_dump(const char* reason) {
                            pos,
                            sizeof(buf),
                            atomic_load_explicit(&trace_owner_replaced_total, memory_order_relaxed));
+    pos = trace_append_literal(buf, pos, sizeof(buf), " placement_adoptions=");
+    pos = trace_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&trace_placement_adoption_total, memory_order_relaxed));
     // Per-site control-lock attribution (Epic 8 Task 5). Fields follow the
     // rt_ctrl_site order; their sum is <= control_lock_acquired (residual is
     // the untagged RT_CTRL_SITE_OTHER sites).

@@ -123,6 +123,12 @@ void __surge_poll_call(uint64_t id) {
         case POLL_SCOPE_OWNER_FAILFAST:
             poll_scope_owner_failfast();
             break;
+        case POLL_ADOPT_TARGET:
+            poll_adopt_target();
+            break;
+        case POLL_ADOPT_JOINER:
+            poll_adopt_joiner();
+            break;
         default:
             break;
     }
@@ -368,6 +374,12 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "shutdown-parked") == 0) {
         return mode_shutdown_parked(ex);
+    }
+    if (strcmp(argv[1], "placement-adopt-positive") == 0) {
+        return mode_placement_adopt_positive(ex);
+    }
+    if (strcmp(argv[1], "placement-adopt-negative") == 0) {
+        return mode_placement_adopt_negative(ex);
     }
     return fail("unknown mode");
 }
