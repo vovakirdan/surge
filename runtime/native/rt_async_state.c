@@ -901,6 +901,11 @@ int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id) {
         }
         return 0;
     }
+    if (ctx != NULL && ++ctx->pop_tick % 61U == 0U &&
+        pop_task_from_deque(
+            ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
+        return 1;
+    }
     if (scheduler->local_queues != NULL && worker_id < scheduler->worker_count) {
         if (pop_task_from_deque(ex,
                                 &scheduler->local_queues[worker_id],
@@ -1032,6 +1037,14 @@ static void wake_task_with_policy(rt_executor* ex,
 
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
     wake_task_with_policy(ex, id, remove_waiter_flag, 0, 0, 1);
+}
+
+void wake_net_task(rt_executor* ex, uint64_t id) {
+    // Net readiness wakes go through the inject queue: a worker completing
+    // its own shard's readiness would otherwise stack continuations on its
+    // local LIFO, and under sustained readiness the oldest connection
+    // starves (the same reason yielded tasks force-inject).
+    wake_task_with_policy(ex, id, 0, 1, 0, 1);
 }
 
 void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {

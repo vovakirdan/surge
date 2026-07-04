@@ -375,7 +375,7 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
             rt_task_replace_owner(ex, task, owner_shard_id, TASK_PLACEMENT_CONNECTION);
         }
         result.woken++;
-        wake_task(ex, batch[i], 0);
+        wake_net_task(ex, batch[i]);
     }
     if (batch != inline_batch) {
         rt_free((uint8_t*)batch, (uint64_t)(batch_cap * sizeof(uint64_t)), _Alignof(uint64_t));

@@ -220,6 +220,10 @@ rt_task* get_task(rt_executor* ex, uint64_t id) {
     return stub_tasks[id];
 }
 
+void wake_net_task(rt_executor* ex, uint64_t id) {
+    wake_task(ex, id, 0);
+}
+
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
     (void)remove_waiter_flag;
     rt_task* task = get_task(ex, id);

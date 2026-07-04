@@ -102,6 +102,9 @@ void* rt_worker_main(void* arg) {
     // so the lock is released around them and around every poll.
     for (;;) {
         rt_trace_drain_signal_dump();
+        if (++ctx->net_tick % 61U == 0U && rt_net_begin_poll_on_shard(ex, ctx->shard_id)) {
+            (void)rt_net_poll_waiters_owned_on_shard(ex, ctx->shard_id, 0);
+        }
         rt_shard_lock(shard);
         uint64_t id = 0;
         while (!ex->shutdown && !worker_next_ready(ctx, &id)) {

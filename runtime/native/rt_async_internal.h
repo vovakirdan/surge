@@ -103,6 +103,15 @@ struct rt_worker_ctx {
     uint32_t worker_id;
     uint32_t worker_index;
     uint64_t sched_rng;
+    // Fairness tick: every 61st pop drains the inject queue first so
+    // force-injected wakes (net readiness, yields) cannot starve behind a
+    // constantly refilled local LIFO under sustained load.
+    uint32_t pop_tick;
+    // Net fairness tick: every 61st turn runs a zero-timeout net poll pass
+    // even though ready work exists - a continuously busy shard would
+    // otherwise never poll its own fds and their readiness would starve
+    // until the queues drain (the Epic 7 baseline 8x1024 stall).
+    uint32_t net_tick;
 };
 
 typedef struct {
@@ -486,6 +495,7 @@ int wake_task_on_shard_locked(const rt_executor* ex,
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
+void wake_net_task(rt_executor* ex, uint64_t id);
 void wake_channel_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_channel_task_no_signal(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_key_all(rt_executor* ex, waker_key key);
