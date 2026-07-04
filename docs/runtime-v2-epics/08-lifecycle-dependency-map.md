@@ -13,11 +13,24 @@ exist), **tls** (thread-local), **blocking** (the blocking pool's own lock),
 **compat** (a named compatibility lane that keeps control but is counted
 separately from request steady state).
 
-Target lanes marked **(spike)** are Task 3 decisions; the direction the epic
-document fixes is stated, and each open question is phrased so Task 3 answers
+Target lanes marked **(spike)** were Task 3 decisions; the direction the epic
+document fixes is stated, and each open question was phrased so Task 3 answered
 it with a yes/no or a concrete protocol choice, never "investigate". Task 3's
-spike output rewrites this map's lane table on conflict (index rule); Tasks 4
-and 5 must not start until both are reconciled.
+spike output rewrites this map's lane table on conflict (index rule).
+
+> **Task 3 reconciliation (2026-07-04).** All 16 `(spike)` questions are now
+> decided in `08-lifecycle-lane-proving-spike.md`; the Target-Lane Summary (§9)
+> below is rewritten to the decided lanes. Notable outcomes: S5-Q1 resolves to
+> "id-alloc/growth/slot-publish stay control, ready-push to owner shard"
+> (realization A) with a numeric escalation to a segmented table (B) if Task 5's
+> create-site counter shows create >= 2.0 control acq/request on the 8x1024
+> row; S5-Q7 adopts the task-table atomic-snapshot protocol for `ex->scopes`;
+> S5-Q10 moves `scope_key` waiters to the scope owner shard store (revising
+> Epic 7 D8); S9-Q7 keeps join/scope entries unqualified (`seq == 0`). Rule 1
+> records a required Task 8 change: `mark_done` must write the result before the
+> `TASK_DONE` release store once the join read (Task 7) drops control. The
+> per-surface `(spike)` cells in §2-§5 state the epic's preferred *direction*;
+> the decided lane and its proof are in the spike record.
 
 Baseline commit for all anchors: `daeac51e` (Task 1 kickoff-baseline record;
 tree after the Task 1 generation-qualified-removal fix). Line numbers were
@@ -504,22 +517,28 @@ Consolidated, each answerable yes/no or by a concrete protocol choice:
 | S7-Q1 | Accept transition stays the single cross-owner lifecycle edge after the join-store move — yes/no. | accept (7) |
 | S9-Q7 | Do join/scope registrations need `park_seq`-style generation qualification once off control, or is `seq==0` (unqualified) still correct because their keys are single-target and not address-reused like channels — pick one. | waiter contract (4) |
 
-### Target-Lane Summary
+### Target-Lane Summary (decided by Task 3)
 
-| Surface | Today | Target lane |
+Reconciled to the spike verdicts (`08-lifecycle-lane-proving-spike.md`).
+
+| Surface | Today | Decided lane (Task 3) |
 | --- | --- | --- |
 | task create id + table growth | control | control (fixed) |
-| task slot publish + ready push | control | owner shard **(spike S5-Q1)** |
-| task lookup (`get_task`) | acquire load (control-era callers) | lock-free acquire / owner-locked deref **(spike)** |
-| handle wake | control | owner shard (+ control scope-adoption fallback) **(spike S5-Q2)** |
-| worker join poll + result read | control | target task owner shard **(spike S5-Q3)** |
-| inline child poll | control (unlock around poll) | child owner shard **(spike S5-Q4)** |
-| cancel (tree walk / per-task wake) | control | control tree + owner-shard wake **(spike S5-Q5)** |
-| handle clone | control | atomic refcount **(spike S5-Q6)** |
-| checkpoint/sleep spawn | control | control (id+growth) + owner shard (publish) **(spike S5-Q1)** |
-| scope enter/register/cancel/join/exit | control | scope owner lane (named control fallback cross-owner) **(spike S5-Q7..Q11)** |
-| handle release / final free | lane-aware (control for free) | atomic refcount + control free (realized) |
-| completion epilogue | lane-aware (control on residual) | owner shard; control only for S6 residual reasons |
-| cancelled-poll scope teardown | lane-aware (control scope branch) | scope owner lane **(spike S5-Q14)** |
-| accept transition | control (net path) | owner-change + join-waiter migration (fixed, named edge) |
-| external await / N=1 runner / sync-compat / select | control + `done_cv`/`compat_cv` | compat (counted separately; select a non-goal) |
+| task slot publish | control | control (serialized with growth) — **S5-Q1** realization A; segmented-table B escalates it to owner shard on the >=2.0 acq/request trigger |
+| task ready push | control | owner shard — **S5-Q1** |
+| task lookup (`get_task`) | acquire load (control-era callers) | lock-free acquire load; owner-locked deref per rule 1 — **S5-Q1/rule 1** |
+| handle wake | control | owner shard; control fallback for the scope-adoption write — **S5-Q2** |
+| worker join poll + result read | control | target task owner shard (register-then-verify; result read via acquire on `TASK_DONE`) — **S5-Q3, rule 2** |
+| inline child poll | control (unlock around poll) | child owner shard, no control — **S5-Q4** |
+| cancel (tree walk / per-task wake) | control | control tree walk + owner-shard per-task wake — **S5-Q5, rule 4** |
+| handle clone | control | atomic refcount, no control — **S5-Q6** |
+| checkpoint/sleep spawn | control | control (id+growth+publish) + owner shard (ready push) — **S5-Q1** |
+| scope table (`ex->scopes`) | control | atomic-snapshot; enter keeps control for alloc/growth/publish — **S5-Q7** |
+| scope register/child-done/join/exit/failfast | control | scope owner shard lane; control fallback (control -> child owner) cross-owner — **S5-Q8/Q9/Q11, rule 3** |
+| `scope_key` waiters | `ex->control_waiters` (D8) | scope owner shard `waiter_store` — **S5-Q10** (revises Epic 7 D8) |
+| handle release / final free | lane-aware (control for free) | atomic refcount + control free; completion pin covers the body — **S5-Q12, rule 1** |
+| completion epilogue | lane-aware (control on residual) | owner shard; control only for net-key removal + `done_waiters>0` — **S6-Q1** |
+| cancelled-poll scope teardown | lane-aware (control scope branch) | scope owner lane; control fallback cross-owner — **S5-Q14** |
+| accept transition | control (net path) | owner-change + join-waiter migration; the sole post-spawn cross-owner edge — **S7-Q1** |
+| join/scope waiter generation | `seq == 0` | `seq == 0` unqualified (monotonic never-reused ids) — **S9-Q7, rule 6** |
+| external await / N=1 runner / sync-compat / select | control + `done_cv`/`compat_cv` | compat, counted separately (`done_cv` external-only) — **rule 5**; select a non-goal |

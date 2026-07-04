@@ -3185,3 +3185,57 @@ pass, before any task execution began:
 - Next (Task 3, proving spike): answer the 16 open questions (S5-Q1..Q14,
   S6-Q1, S7-Q1, S9-Q7); the spike output rewrites the map's lane table on
   conflict, and Tasks 4/5 must not start until both are reconciled.
+
+## Epic 8 Task 3 (2026-07-04, spiker subagent)
+
+- Plan gate honored (Global Rule 9 + Rule 1): plan sent to main and approved
+  before any file edit or long-running command. Main's decisions folded in:
+  record BOTH S5-Q1 designs with a numeric escalation criterion (do not commit
+  to the segmented table in the spike); run the corroboration Go test; record
+  the Epic 7 D8 revision for S5-Q10; and have rule 1 state the completion-pin
+  interleaving explicitly (TSan model asserts it).
+- Deliverables: `08-lifecycle-lane-proving-spike.md` (spike record + six rules),
+  `08-tasks/03-lifecycle-lane-proving-spike.md` (task doc); reconciled
+  `08-lifecycle-dependency-map.md` Target-Lane Summary; updated `README.md`
+  (Task 3 Complete), `08-evidence.md` (Task 3 section), this file. Docs-only
+  commit; tree C state pristine; `git diff --check` clean.
+- Proof: throwaway TSan model (scratchpad `lifecycle_publish_refcount_spike.c`,
+  NOT committed) — 4 shards / 160000 publications / 20000 completion-pin
+  interleavings; safe design PASS on `clang -O1 -g -fsanitize=thread` and
+  `-O2 -DNDEBUG`, twice each, `lost_publishes=0 uaf_detected=0`. Two
+  deterministic negative controls fire: `-DUNSAFE_PUBLISH` loses a slot
+  (shard-lane publish vs control-lane growth), `-DUNSAFE_NOPIN` aborts on a
+  poisoned-payload read (joiner frees mid-body without the pin). Corroboration:
+  4 waiter-contract tests PASS at baseline. S7-Q1 grep audit: only
+  `rt_task_replace_owner` (accept) writes `owner_shard_id` post-spawn.
+- 16 verdicts: S5-Q1 YES (ready-push owner shard; publish stays
+  control-serialized with growth = realization A; escalate to segmented table B
+  iff Task 5 create-site counter shows create >= 2.0 control acq/request on the
+  8x1024 row); S5-Q2 YES; S5-Q3 YES; S5-Q4 YES; S5-Q5 control tree walk +
+  owner-shard wake; S5-Q6 YES; S5-Q7 adopt task-table atomic-snapshot for
+  `ex->scopes`; S5-Q8 YES; S5-Q9 YES; S5-Q10 move `scope_key` waiters to the
+  scope owner shard store (revises Epic 7 D8); S5-Q11 YES; S5-Q12 YES; S5-Q14
+  YES; S6-Q1 YES (only net-key removal + `done_waiters>0` survive); S7-Q1 YES;
+  S9-Q7 `seq == 0` unqualified (join/scope keys are monotonic never-reused ids,
+  not reusable addresses — must NOT adopt channel `park_seq`).
+- Six written rules recorded (the Tasks 4-10 contract): (1) task lifetime —
+  lookup/deref legality, result visibility, refcount release, control-lane free,
+  and the completion pin holding the struct across the joiner-frees-mid-body
+  interleaving; (2) join result visibility; (3) scope owner-lane model + named
+  control fallback; (4) cancellation boundedness; (5) external-await boundary;
+  (6) join/scope generation qualification.
+- LOAD-BEARING required change for Task 8: `mark_done` currently writes
+  `result_kind`/`result_bits` (`rt_async_state.c:1542-1543`) AFTER the
+  `TASK_DONE` release store (`:1540`; `task_status_store` is release). Sound
+  today only because join readers hold control; Task 8 MUST reorder the result
+  writes before the `TASK_DONE` store when Task 7 drops control from the join
+  read, or the lock-free join read is unsound.
+- Re-scoping for later tasks: Tasks 4 and 5 may now start in parallel (map and
+  spike reconciled). Which `mark_done_needs_control` reasons survive: only
+  net-key removal (net contract) and `done_waiters>0` (external-await compat) —
+  scope membership + `WAKER_JOIN` + `WAKER_SCOPE` all become owner-local after
+  S5-Q3/Q10, so Task 8's target is those two compat reasons. Task 6 default is
+  realization A; the segmented-table escalation is pre-decided by the numeric
+  trigger so Task 6 does not relitigate it.
+- Still flagged for closeout: the stale executor-wide invariant comment at
+  `rt_async_internal.h:292-304`.

@@ -295,3 +295,120 @@ Channels baseline `rv2-e8-task1-baseline-channels.md` (ns/op) — the
 | --- | --- | --- | --- |
 | Answer the 16 Task 3 open questions (S5-Q1..Q14, S6-Q1, S7-Q1, S9-Q7) | No (this task) / Yes (Task 3) | `08-tasks/03-lifecycle-lane-proving-spike.md` | map records current+target+open-questions; spike decides and rewrites the lane table on conflict |
 | Reconcile the stale invariant comment `rt_async_internal.h:292-304` | No | Task 13/14 closeout | still describes pre-Epic-7 executor-wide ownership |
+
+## Task 3: Lifecycle Lane Proving Spike
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 3 per `08-tasks/03-lifecycle-lane-proving-spike.md`.
+- Epic: 8. Date: 2026-07-04. Author/session: `spiker` subagent (plan approved
+  by `main` before any edit or long-running command, per RULES.md Global Rule 9
+  and Rule 1).
+- Scope: decide the shard-owned lifecycle model — answer all 16 `(spike)`
+  questions with evidence; produce the spike record and the six written rules;
+  reconcile the map's lane table; update the index, this ledger, and `NOTES.md`.
+- Out of scope: any committed C/test/benchmark/CI change (the throwaway TSan
+  model stays scratchpad-only); implementation (Tasks 4-10); select migration
+  (non-goal); Phase 4 surfaces.
+- Proving spike: **yes** (RULES.md Global Rule 1). Temporary `MUST` deviation:
+  none in the tree — the model lives outside the repository, so no runtime
+  `MUST` was violated in the committed state.
+
+### Baseline Commit/Status
+
+- Baseline commit: `daeac51e` (Task 1 kickoff-baseline). All 16 census sites
+  re-verified in place.
+- Branch/worktree: `codex/runtime-net-scheduler-refactor`.
+- Status before: Task 2 complete; the 16 `(spike)` cells were open.
+- Status after: all 16 decided; map lane table reconciled; index row Complete.
+- Dirty/untracked not touched: `.claude-flow/`, `.claude/`, `CLAUDE.md`,
+  `.mcp.json`, `.swarm/`, `ruvector.db`; scratchpad probe not staged.
+- Local environment blockers: none.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `docs/runtime-v2-epics/08-lifecycle-lane-proving-spike.md` | created | the spike record + six written rules | docs; no code line limit |
+| `docs/runtime-v2-epics/08-tasks/03-lifecycle-lane-proving-spike.md` | created | self-contained task doc | docs |
+| `docs/runtime-v2-epics/08-lifecycle-dependency-map.md` | edited | reconcile lane table to the decided lanes (index rule) | docs |
+| `docs/runtime-v2-epics/08-tasks/README.md` | edited | Task 3 status → Complete | docs |
+| `docs/runtime-v2-epics/08-evidence.md` | edited | this Task 3 section | docs |
+| `docs/runtime-v2-epics/NOTES.md` | edited | Task 3 working notes | docs |
+
+Not committed: `lifecycle_publish_refcount_spike.c` (scratchpad throwaway
+proof model).
+
+### Contracts Touched
+
+| Contract or behavior | Source | Preserved, changed, or N/A | Evidence |
+| --- | --- | --- | --- |
+| any runtime behavior | runtime C | N/A — no committed C change; tree C state pristine | `git status` shows no `runtime/` file staged/modified |
+| register-then-verify join race | `rt_async_task.c:129-145` | preserved (argument extends it) | `TestRuntimeV2CancelledJoinWaiterDoesNotConsumeTaskCompletionWake` PASS |
+| completion pin covers `mark_done` body | `rt_async_state.c:1515,1574` | preserved; recorded as rule 1 | TSan model asserts the interleaving; `-DUNSAFE_NOPIN` aborts |
+| result written before `TASK_DONE` release store | `rt_async_state.c:1540-1543` | **change required in Task 8** (currently written after) | rule 1 records the reorder; model validates the correct order |
+
+### Sentrux Root/Scoped Signals
+
+- N/A for this docs-only commit; no scanned path changed. Epic-level signals in
+  the Task 1 section (repo 6174, `runtime` 5296, `runtime/native` 5389, all
+  rules pass) remain current.
+
+### Commands/Checks
+
+| Command or tool | Expected result | Actual result | Exit/status | Evidence path or note |
+| --- | --- | --- | --- | --- |
+| `git diff --check` | no output | no output | `0` | tracked-file whitespace gate |
+| `git status` C-pristine | no `runtime/` change | clean | n/a | docs-only commit; model in scratchpad |
+| `clang -O1 -g -fsanitize=thread lifecycle_publish_refcount_spike.c` then run x2 | PASS, zero TSan reports | `published=160000 lost_publishes=0 uaf_detected=0` PASS x2 | `0` | Ubuntu clang 18.1.3 |
+| `clang -O2 -DNDEBUG ...` then run x2 | PASS | PASS x2 | `0` | optimized build |
+| `clang ... -DUNSAFE_PUBLISH ...` (negative control) | FAIL (lost publish) | `lost_publishes=1` | `1` | shard-lane publish vs growth loses a slot |
+| `clang ... -DUNSAFE_NOPIN ...` (negative control) | FAIL (UAF) | poisoned-payload assert abort | `134` | pin removed → joiner frees mid-body |
+| `SURGE_BACKEND=llvm go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(CancelledJoinWaiter...|FailfastScope...|BlockingCompletion...|CancelledBlockingWaiter...)$'` | PASS | 4/4 PASS (11.6s) | `0` | S5-Q3/Q8 corroboration |
+| owner-shard-id audit (`grep rt_task_set_placement / rt_task_replace_owner`) | single post-spawn writer | only `rt_task_replace_owner` (accept) | n/a | S7-Q1 |
+
+### Benchmarks And Generated Reports
+
+- N/A; no runtime path changed. The spike defines the Task 5 create-site
+  `control_lock_acquired` counter and the S5-Q1 escalation threshold
+  (>= 2.0 acq/request on the 8x1024 row) as the future measurement.
+
+### Trace Counters/Liveness Proof
+
+- Liveness proof is the throwaway TSan model (no lost publishes/UAF; completion
+  pin holds the struct across the joiner-frees-mid-body interleaving) plus the
+  existing waiter-contract tests at baseline. No committed runtime change.
+
+### Verdict Summary (16 questions)
+
+- S5-Q1 YES (ready-push owner shard; publish stays control-serialized with
+  growth, realization A; segmented-table B on the >=2.0 acq/request trigger).
+- S5-Q2 YES; S5-Q3 YES; S5-Q4 YES; S5-Q5 control tree walk + owner wake;
+  S5-Q6 YES; S5-Q7 adopt atomic-snapshot for `ex->scopes`; S5-Q8 YES; S5-Q9 YES;
+  S5-Q10 move `scope_key` to scope owner store (revises D8); S5-Q11 YES;
+  S5-Q12 YES; S5-Q14 YES; S6-Q1 YES (net-key + `done_waiters` survive);
+  S7-Q1 YES; S9-Q7 `seq == 0` unqualified.
+
+### Known Regressions
+
+- None; documentation only, tree C state pristine.
+
+### Dead Ends / Paths Not To Retry
+
+- Shard-lane slot publication concurrent with control-lane copy-on-grow table
+  growth: unsafe (no lane-order-legal happens-before; `-DUNSAFE_PUBLISH`
+  demonstrates the lost slot). Do not retry without the segmented-table (B)
+  change.
+
+### Rollback/Recovery Notes
+
+- Revert the six docs files; no runtime or generated artifacts. The scratchpad
+  model is disposable.
+
+### Follow-Ups And Blockers
+
+| Item | Blocks completion? | Owner or next document | Reason |
+| --- | --- | --- | --- |
+| Reorder `mark_done` result writes before the `TASK_DONE` release store | No (this task) / Yes (Task 8) | `08-tasks/08-completion-epilogue-and-done-path.md` | rule 1: lock-free join read needs result visible before DONE |
+| Add create-site `control_lock_acquired` counter + evaluate S5-Q1 escalation | No (this task) / Yes (Tasks 5/6) | `05-...`, `06-...` | decides realization A vs segmented table B |
+| Reconcile the stale invariant comment `rt_async_internal.h:292-304` | No | Task 13/14 closeout | still describes pre-Epic-7 executor-wide ownership |
