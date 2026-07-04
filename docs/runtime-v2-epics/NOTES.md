@@ -2716,7 +2716,8 @@ pass, before any task execution began:
   open and now point to future net handle ABI/lifecycle or owner-local stdlib
   server design. `RV2-DEBT-003`, `RV2-DEBT-004`, and `RV2-DEBT-005` remain
   open with stricter LOC ceilings. `RV2-DEBT-001`, `RV2-DEBT-002`, and
-  `RV2-DEBT-011` remain Epic 11 test/backend matrix debt.
+  `RV2-DEBT-011` remain test/backend matrix debt; the live ledger now assigns
+  that matrix rewrite to Epic 12 after the Epic 8 insertion.
 - Final benchmark report:
   `build/benchmarks/runtime-v2-epic6-closeout-native-net.md` (ignored build
   artifact). The 8-shard/1024 row used all 8 accept shards with
@@ -2729,6 +2730,22 @@ pass, before any task execution began:
   attempt hit the known `RV2-DEBT-002` timeout class in
   `TestMTBlockingChannelHelpersAllowTimersToAdvance`; the immediate rerun
   passed the full Runtime V2 chain including the accept gate.
+
+## Post-Epic 7 Docs/Debt Cleanup
+
+- Epic 7 status was normalized after review: the epic document and roadmap now
+  mark it Complete, matching the closeout and `07-tasks/README.md`.
+- The next runtime epic is explicitly runtime-only: task lifecycle/control-lane
+  peel plus the adopted 8x1024 starvation investigation (`RV2-DEBT-016` and
+  `RV2-DEBT-015`). It must not change Surge syntax or implement Phase 4
+  transport.
+- The explicit crossing surface and Phase 4 transport moved to the following
+  roadmap slot and still require a dedicated language-syntax review with the
+  user before parser, semantic, lowering, stdlib public API, or examples
+  change.
+- `RV2-DEBT-004` moved from the Open Debt table to Closed Debt. Test/backend
+  matrix owners in the live debt ledger were renumbered to Epic 12 after the
+  task-lifecycle epic was inserted before syntax/transport work.
 
 ## Epic 7 Kickoff Context
 

@@ -18,8 +18,8 @@ then sleep timers, then channels, then blocking/await/shutdown lanes. Keep
 `SURGE_SHARDS=1` observable behavior compatible throughout, and keep the
 Epic 6 accept-ownership result intact.
 
-**Status:** in progress. Task documents are expanded one at a time per
-`README.md` working mode.
+**Status:** complete. All fifteen tasks are closed with evidence in
+`07-evidence.md`; `runtime-v2-lock-check` is wired into `runtime-v2-check`.
 
 **Task documents:** `07-tasks/01-kickoff-baseline-and-sentrux.md` through
 `07-tasks/15-epic-closeout.md`, indexed in `07-tasks/README.md`.
@@ -539,9 +539,14 @@ satisfied:
 
 ## Next Runtime Handoff And Syntax Gate
 
-Epic 8 owns the explicit crossing surface and Phase 4 transport. It must start
-with a dedicated language-syntax review with the user; `far`, `submit_to`,
-`crosses`, and `shard-movable` remain semantic placeholders until then. Epic 7
-must not pre-implement Phase 4 mechanics: if a task concludes that correctness
-requires inbound message queues or the seq-cst `PARKED` protocol, stop and
-re-scope with the user instead of building transport under a lock-split label.
+Epic 8 should stay runtime-only: move task lifecycle work off the remaining
+control lane and investigate the adopted 8x1024 starvation debt. Its primary
+owners are `RV2-DEBT-016` and `RV2-DEBT-015`. It must not change Surge syntax
+or pre-implement Phase 4 transport.
+
+The explicit crossing surface and Phase 4 transport remain a separate later
+epic. That work must start with a dedicated language-syntax review with the
+user; `far`, `submit_to`, `crosses`, and `shard-movable` remain semantic
+placeholders until then. If a runtime task concludes that correctness requires
+inbound message queues or the seq-cst `PARKED` protocol, stop and re-scope with
+the user instead of building transport under a lifecycle-lane label.
