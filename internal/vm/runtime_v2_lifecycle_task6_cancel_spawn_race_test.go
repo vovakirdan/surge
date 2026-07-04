@@ -69,44 +69,53 @@ func buildRuntimeV2CancelSpawnRaceHarness(t *testing.T, name string, extraFlags 
 	return binPath
 }
 
+// cancelSpawnRaceShardThreads mirrors runLifecycleModeAcrossShards'
+// convention (runtime_v2_lifecycle_behavior_harness_test.go): SURGE_THREADS
+// must equal SURGE_SHARDS whenever SURGE_SHARDS>1 (the runtime enforces
+// this at startup); SURGE_SHARDS=1 tolerates extra worker threads.
+var cancelSpawnRaceShardThreads = map[string]string{"1": "4", "2": "2", "8": "8"}
+
+func runCancelSpawnRaceAcrossShards(t *testing.T, binPath string) {
+	t.Helper()
+	for _, shards := range []string{"1", "2", "8"} {
+		t.Run("shards-"+shards, func(t *testing.T) {
+			env := overrideEnvVar(os.Environ(), "SURGE_SHARDS", shards)
+			env = overrideEnvVar(env, "SURGE_THREADS", cancelSpawnRaceShardThreads[shards])
+			env = overrideEnvVar(env, "SURGE_BLOCKING_THREADS", "1")
+			cmd := exec.Command(binPath)
+			cmd.Env = env
+			stdout, stderr, exitCode := runCommand(t, cmd, "")
+			if exitCode != 0 {
+				t.Fatalf("cancel/spawn children race failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					shards, exitCode, stdout, stderr)
+			}
+		})
+	}
+}
+
 // TestRuntimeV2LifecycleCancelSpawnChildrenRace is the required, enumerated
 // gate (runtime-v2-lifecycle-check): a deterministic, non-TSan run that
 // must complete with no panic/abort and no hang, proving the collect-then-
 // recurse fix in cancel_task does not deadlock, drop children, or corrupt
-// the array under concurrent cancellation.
+// the array under concurrent cancellation. Swept across SURGE_SHARDS=1,2,8
+// (the epic's required matrix) so the hazard-closing test also exercises
+// the SHARDS=1 degenerate case, not just a multi-shard configuration.
 func TestRuntimeV2LifecycleCancelSpawnChildrenRace(t *testing.T) {
 	binPath := buildRuntimeV2CancelSpawnRaceHarness(t, "cancel_spawn_race", nil)
-	env := overrideEnvVar(os.Environ(), "SURGE_SHARDS", "4")
-	env = overrideEnvVar(env, "SURGE_THREADS", "4")
-	env = overrideEnvVar(env, "SURGE_BLOCKING_THREADS", "1")
-	cmd := exec.Command(binPath)
-	cmd.Env = env
-	stdout, stderr, exitCode := runCommand(t, cmd, "")
-	if exitCode != 0 {
-		t.Fatalf("cancel/spawn children race failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
-			exitCode, stdout, stderr)
-	}
+	runCancelSpawnRaceAcrossShards(t, binPath)
 }
 
 // TestRuntimeV2LifecycleCancelSpawnChildrenRaceTSan is the TSan oracle for
-// the same scenario (mirrors the Task 4 completion-pin-stress methodology).
-// Not part of the enumerated runtime-v2-lifecycle-check regex: TSan builds
-// are slower and best-effort here (skips, not fails, if unsupported), but
-// this is the strongest available proof that the fix closes a genuine data
-// race rather than just avoiding an observed crash.
+// the same scenario (mirrors the Task 4 completion-pin-stress methodology),
+// swept across the same SURGE_SHARDS=1,2,8 matrix. Not part of the
+// enumerated runtime-v2-lifecycle-check regex: TSan builds are slower and
+// best-effort here (skips, not fails, if unsupported), but this is the
+// strongest available proof that the fix closes a genuine data race rather
+// than just avoiding an observed crash.
 func TestRuntimeV2LifecycleCancelSpawnChildrenRaceTSan(t *testing.T) {
 	binPath := buildRuntimeV2CancelSpawnRaceHarness(
 		t, "cancel_spawn_race_tsan", []string{"-fsanitize=thread", "-g", "-O1"})
-	env := overrideEnvVar(os.Environ(), "SURGE_SHARDS", "4")
-	env = overrideEnvVar(env, "SURGE_THREADS", "4")
-	env = overrideEnvVar(env, "SURGE_BLOCKING_THREADS", "1")
-	cmd := exec.Command(binPath)
-	cmd.Env = env
-	stdout, stderr, exitCode := runCommand(t, cmd, "")
-	if exitCode != 0 {
-		t.Fatalf("cancel/spawn children race (TSan) failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
-			exitCode, stdout, stderr)
-	}
+	runCancelSpawnRaceAcrossShards(t, binPath)
 }
 
 const cancelSpawnRaceHarnessSource = `

@@ -734,3 +734,42 @@ this task's scope; flagged for Task 7 to pin down further when it touches
 One commit: segmented task table + `__task_create` restructure + the
 `cancel_task` hazard fix + P6 activation + the new race-probe test + doc
 updates. No other lifecycle surface changes in this commit.
+
+### Review Response Addendum
+
+Independent review verdict: APPROVE-WITH-NOTES, no blockers. Two minor
+findings, both fixed in a follow-up commit before Task 7 spawned:
+
+1. `TestRuntimeV2LifecycleCancelSpawnChildrenRace`/`...RaceTSan` hardcoded
+   `SURGE_SHARDS=4`, missing the epic's required `SURGE_SHARDS=1,2,8`
+   sweep — the hazard-closing test must also exercise the `SHARDS=1`
+   degenerate case. Fixed: both tests now sweep `1,2,8` via subtests
+   (`shards-1`/`shards-2`/`shards-8`), mirroring
+   `runLifecycleModeAcrossShards`'s shard/thread convention. Re-ran:
+   `TestRuntimeV2LifecycleCancelSpawnChildrenRace` (plain) green at all
+   three; `...RaceTSan` green at all three (zero TSan reports).
+2. `STATS.md` (committed alongside the Task 6 commit by the pre-commit
+   hook) was bogus: `scripts/code_stats_md.sh`'s `get_dir_stats "."` scan
+   used an unscoped `find "."`, which recursed into
+   `.claude/worktrees/<agent>/` (a full nested repo checkout from the
+   Task 11 investigator's separate worktree) and roughly doubled every
+   "main code" count (Files 720->1374, LOC 163977->307176). The
+   `cmd`/`internal`/`runtime/native`-scoped scans were unaffected (their
+   `find` start paths don't nest under `.claude/`). Fixed: added
+   `-not -path "./.claude/*" -not -path "./target/*"` to both
+   `scripts/code_stats.sh` and `scripts/code_stats_md.sh` (identical
+   duplicated logic in both, fixed identically to avoid future
+   divergence), regenerated `STATS.md` (now Files 721/LOC 164167 main
+   code — matches the reviewer's cited correct baseline within a few
+   files/lines, the small remaining delta being this task's own new test
+   file).
+
+Checks run for this addendum (narrower scope than a full runtime-code
+task per main's direction - test-sweep + script-only, not a lifecycle
+surface change): `bash -n` on both scripts; focused race test at
+`SURGE_SHARDS=1,2,8` (plain + TSan, both green); `make check` (exit 0,
+all Go packages, lint 0 issues, `c-check` OK, file-size gate reports no
+applicable uncommitted C/Go files needing action). Full
+`runtime-v2-check` not run (not required for this scope, per main).
+Follow-up commit: `fix(runtime): sweep cancel-spawn race test shards and
+exclude tool dirs from code stats`.

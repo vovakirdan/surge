@@ -3381,3 +3381,24 @@ pass, before any task execution began:
   5385 vs 6174/5296/5387).
 - Full write-up: `08-tasks/06-task-create-and-table-publication.md`.
   Evidence: `08-evidence.md` Task 6 section.
+- **Review response (before Task 7 spawned):** independent review of Task 6
+  came back APPROVE-WITH-NOTES, two minor findings, both fixed in a
+  follow-up commit. (1) The new race test hardcoded `SURGE_SHARDS=4`
+  instead of sweeping the epic's required `1,2,8` matrix - fixed, both the
+  plain and TSan variants now sweep via subtests, green at all three. (2)
+  **Correction:** `STATS.md` committed with Task 6 was bogus -
+  `scripts/code_stats_md.sh`'s (and `code_stats.sh`'s, same duplicated
+  logic) `get_dir_stats "."` used an unscoped `find "."` that recursed into
+  `.claude/worktrees/<agent>/` - a full nested repo checkout from Task 11's
+  separate investigator worktree - roughly doubling every "main code"
+  count (Files 720->1374, LOC 163977->307176 as committed). This was a
+  pre-existing script bug, not something Task 6's changes caused, but it
+  would have compounded across every remaining task's commit if left
+  unfixed (each pre-commit hook regenerates STATS.md). Fixed by excluding
+  `.claude/*` and `target/*` in both scripts; STATS.md regenerated to the
+  correct scope (Files 721/LOC 164167 main code, matching the reviewer's
+  cited baseline within the few files/lines this task's own new test file
+  legitimately adds). Any Task 6 evidence that quoted the bogus STATS.md
+  numbers should be disregarded; the `check_file_sizes.sh`/Sentrux/gate
+  numbers in the Task 6 evidence section are unaffected (separate tooling,
+  already correctly scoped).

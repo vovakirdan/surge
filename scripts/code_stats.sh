@@ -31,11 +31,14 @@ get_dir_stats() {
     if [ "$exclude_tests" = "true" ]; then
         find_cmd="$find_cmd -not -name \"*_test.go\""
     fi
-    find_cmd="$find_cmd -not -path \"./testdata/*\" -not -path \"./stdlib/*\" -not -path \"./core/*\""
-    
+    # Exclude tool/vendor checkouts nested under the repo root (e.g. agent
+    # worktrees under .claude/worktrees/, and any target/ build output) so a
+    # dir-scoped scan of "." does not double-count a full nested repo copy.
+    find_cmd="$find_cmd -not -path \"./testdata/*\" -not -path \"./stdlib/*\" -not -path \"./core/*\" -not -path \"./.claude/*\" -not -path \"./target/*\""
+
     local file_count=$(eval "$find_cmd" 2>/dev/null | wc -l)
     local line_count=$(eval "$find_cmd -exec wc -l {} +" 2>/dev/null | tail -1 | awk '{print $1}')
-    
+
     echo "${file_count:-0} ${line_count:-0}"
 }
 
