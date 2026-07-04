@@ -3086,3 +3086,35 @@ pass, before any task execution began:
   subject briefly broke `make build`); the net bench script reports the
   five new lock-split counters; `.loc-legacy-allowlist` ceilings:
   state.c 1580, task.c/net.c removed.
+
+## Epic 8 Draft Opened
+
+- Created `08-task-lifecycle-lane-and-net-fairness.md` as the review draft for
+  the next runtime-only epic. The document targets `RV2-DEBT-016` (task
+  lifecycle control-lane traffic) and `RV2-DEBT-015` (8x1024 starvation), and
+  keeps syntax, explicit crossing, inbound queues, remote select, eventfd
+  credits, and the seq-cst `PARKED` protocol out of scope.
+- `08-tasks/` was not created yet. Next step after user review is to adjust the
+  epic scope, then create the brief task index and expand Task 1 only.
+
+## Epic 8 Open (2026-07-04, main session)
+
+- Epic 8 document reviewed against the Epic 7 closeout state and fixed:
+  trace counter field names now match the Task 12 `TRACE_EXEC` fields
+  (`spurious_wakes_absorbed`, plus `collect_wake_batches` added); the
+  accept transition (`rt_task_replace_owner`) is named as the existing
+  cross-owner lifecycle edge; the select slow lane is a named non-goal
+  (stays control-serialized, keep `seq == 0` wake-only entries working);
+  Inputs gained `rt_scheduler_placement.c`, `rt_lane.c`,
+  `rt_channel_sync.c`. DEBT.md's test-matrix owner rows already said
+  Epic 12 (matches the roadmap; no change needed).
+- Task index created at `08-tasks/README.md` (14 tasks, dependencies, lane
+  rules carried over from Epic 7 with the additive-then-peel commit shape);
+  Task 1 (`01-kickoff-baseline-and-sentrux.md`) expanded and ready to
+  execute: fresh baselines are mandatory — same host but a different day
+  than the Epic 7 closeout rows, so the ~26 control-acquisitions/request
+  target must be re-measured before implementation starts.
+- Sequencing note for the session that executes this: Tasks 6-10 are
+  strictly sequenced C work on the lifecycle path; Task 11 (starvation
+  investigation, `RV2-DEBT-015`) is independent after the spike but must
+  not share C write sets with the lifecycle task in flight.
