@@ -228,6 +228,9 @@ void rt_io_poll_nudge(rt_executor* ex) {
     (void)ex;
 }
 
+void rt_trace_collect_wake_batch(void) {
+}
+
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
     (void)remove_waiter_flag;
     rt_task* task = get_task(ex, id);
