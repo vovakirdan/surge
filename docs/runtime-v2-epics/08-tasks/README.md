@@ -23,7 +23,7 @@ they need and point back to it for the rest.
 | 5 | `05-lifecycle-static-shape-and-trace-tests.md` | Complete | test/static checks | 1, 2, 3 |
 | 6 | `06-task-create-and-table-publication.md` | Complete | runtime code | 3, 4, 5 |
 | 7 | `07-join-poll-and-handle-lifetime.md` | Complete (F2 net-fairness fix folded in) | runtime code | 6 |
-| 8 | `08-completion-epilogue-and-done-path.md` | Pending | runtime code | 7 |
+| 8 | `08-completion-epilogue-and-done-path.md` | Complete (RV2-DEBT-019 closed: full park_key race family + F2 migrate; WAKER_JOIN reason removed, scope reason + ctrl_completion clawback deferred to Task 9; RV2-DEBT-020 raised) | runtime code | 7 |
 | 9 | `09-scope-owner-lane.md` | Pending | runtime code | 7, 8 |
 | 10 | `10-await-runner-blocking-compat.md` | Pending | runtime code | 8, 9 |
 | 11 | `11-net-fairness-starvation-investigation.md` | Complete (RV2-DEBT-015 FIXED: mechanism pinned by this task, F2 fix folded into Task 7, acceptance re-verified at `d998df20`) | investigation/runtime code | 1, 3 (may start after Task 3; must not share C write sets with Tasks 6-10 in flight) |

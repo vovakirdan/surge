@@ -319,6 +319,7 @@ check_directory() {
         files_to_check=$(
             find "$dir" \
                 \( -path '*/.git' \
+                -o -path '*/.claude' \
                 -o -path '*/target' \
                 -o -path '*/build' \
                 -o -path '*/dist' \

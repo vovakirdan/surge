@@ -724,10 +724,13 @@ void ready_push(rt_executor* ex, uint64_t id) {
 }
 
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id) {
-    // Caller holds the control lock. This is intentionally narrow: it only
-    // removes the fresh child task that __task_create just pushed onto the
-    // current worker, so the queue is the caller's own shard's and its lock
-    // nests here.
+    // Serialized by the owner shard lock taken below, NOT the control lock:
+    // rt_task_poll (the sole caller, rt_async_task.c) reaches here control-free
+    // since Epic 8 Task 7. The take here, the worker's own next_ready pop, and
+    // any steal all run under this shard's rt_shard_lock (rt_worker_turn.c), so
+    // that lock is the local queue's serializer. Intentionally narrow: it only
+    // removes the fresh child __task_create just pushed onto the current
+    // worker, so the queue is this shard's own and its lock nests here.
     rt_shard* owner_shard = rt_task_owner_shard(ex, get_task(ex, id));
     rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
     if (owner_shard == NULL) {
@@ -931,11 +934,16 @@ int wake_task_on_shard_locked(const rt_executor* ex,
     if (ex == NULL || task == NULL) {
         return 0;
     }
-    if (out_stale_key != NULL && waker_valid(task->park_key)) {
-        *out_stale_key = task->park_key;
-    }
-    task->park_key = waker_none();
-    task->park_prepared = 0;
+    // Ownership invariant (RV2-DEBT-019): park_key/park_prepared belong to the
+    // RUNNING task's own thread until it commits to WAITING under this owner
+    // shard lock (the D5 register-then-commit path: prepare_park /
+    // park_current write them unlocked while RUNNING, then set TASK_WAITING
+    // under this lock). The wake path may therefore only read or clear those
+    // fields once the task is provably parked (WAITING, not enqueued); for any
+    // other status they are being written by the owning thread and must not be
+    // touched here. The wake token is atomic and is set unconditionally: it is
+    // the D5 signal that a park racing this wake must abort and re-run, and it
+    // is valid to deliver whether or not the task is currently parked.
     (void)task_wake_token_exchange(task, 1);
     if (tls_worker_ctx != NULL && tls_worker_ctx->ex == ex &&
         tls_worker_ctx->shard != owner_shard) {
@@ -943,8 +951,21 @@ int wake_task_on_shard_locked(const rt_executor* ex,
     }
     uint8_t status = task_status_load(task);
     if (status == TASK_DONE || status == TASK_RUNNING || task_enqueued_load(task) != 0) {
+        // Not parked: the wake token above still guarantees a task mid-park
+        // aborts and re-runs. Any stale registration this task left is cleaned
+        // by its own remove_waiter path (rt_task_poll's register-then-verify
+        // DONE branch, rt_async_task.c; park_current's token-abort requeue),
+        // not by an orphaned deferred removal from a wake that never owned the
+        // park.
         return 0;
     }
+    // Parked (WAITING, not enqueued): park_key is stable under this owner shard
+    // lock, so this wake owns the park consume.
+    if (out_stale_key != NULL && waker_valid(task->park_key)) {
+        *out_stale_key = task->park_key;
+    }
+    task->park_key = waker_none();
+    task->park_prepared = 0;
     return ready_push_task_locked(ex, owner_shard, task, force_inject, front, signal_ready);
 }
 
@@ -975,8 +996,13 @@ static void wake_task_with_policy(rt_executor* ex,
     // Capture the park generation with the key: the deferred removal below
     // runs after this lock is released, and the woken task can re-register
     // the same channel key in that window; the generation confines the
-    // removal to the entry this wake actually orphaned.
-    if (task->park_key.kind == WAKER_CHAN_SEND || task->park_key.kind == WAKER_CHAN_RECV) {
+    // removal to the entry this wake actually orphaned. Only a parked (WAITING,
+    // not enqueued) task has a stable park_key/park_seq under this lock; a
+    // RUNNING task owns those fields on its own thread (RV2-DEBT-019), so
+    // reading them for a non-parked task would race its unlocked writes. The
+    // same WAITING gate governs wake_task_on_shard_locked's park_key clear.
+    if (task_status_load(task) == TASK_WAITING && task_enqueued_load(task) == 0 &&
+        (task->park_key.kind == WAKER_CHAN_SEND || task->park_key.kind == WAKER_CHAN_RECV)) {
         stale_seq = task->park_seq;
     }
     int pushed = wake_task_on_shard_locked(
@@ -1414,6 +1440,7 @@ void task_release_lane_aware(rt_executor* ex, rt_task* task) {
         if (need_control) {
             rt_control_lock(ex);
             rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
+            rt_trace_control_lock_handle_site(RT_CTRL_HANDLE_FREE);
         }
         free_task(ex, task);
         if (need_control) {
@@ -1501,21 +1528,28 @@ void cancel_task(rt_executor* ex, uint64_t id) {
 // the exit actually owns control-lane work. The pure shard-local exit — no
 // residual multi-key registrations, no scope, no main awaiter, refs held —
 // never touches the control lane.
-static int mark_done_needs_control(const rt_executor* ex, const rt_task* task) {
+//
+// park_needs_control is derived by mark_done from the park_key it snapshotted
+// under the task's own owner shard lock (RV2-DEBT-019 race 2): reading park_key
+// here unlocked raced wake_task_on_shard_locked's write. A net park_key still
+// needs the cross-shard registry removal, and a WAKER_SCOPE park_key still
+// lives on ex->control_waiters until Task 9 moves the scope_key store to the
+// scope owner lane. The WAKER_JOIN reason is gone (Epic 8 Task 8, S6-Q1): Task
+// 7 moved the join waiter store to the target owner shard, so a join-key
+// removal is owner-local and runs control-free.
+static int
+mark_done_needs_control(const rt_executor* ex, const rt_task* task, int park_needs_control) {
     if (task->wait_keys_len > 0 || task->select_timers_len > 0) {
         return 1;
     }
+    // Scope completion still runs control-lane scope bookkeeping (get_scope,
+    // scope_child_done_locked, failfast) below until Task 9 moves it to the
+    // scope owner lane (S6-Q1 defers this reason to Task 9 per S5-Q8/Q10).
     if (task->parent_scope_id != 0 || task->scope_registered) {
         return 1;
     }
-    if (waker_valid(task->park_key)) {
-        waker_kind kind = (waker_kind)task->park_key.kind;
-        // Join keys resolve a foreign target, scope keys live on the control
-        // store, and net keys resolve owners through cross-shard registry
-        // scans: all three need the control lane for a safe removal.
-        if (kind == WAKER_JOIN || kind == WAKER_SCOPE || waker_is_net(task->park_key)) {
-            return 1;
-        }
+    if (park_needs_control) {
+        return 1;
     }
     if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) > 0) {
         return 1;
@@ -1531,7 +1565,21 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // the result and drop the last handle on another shard before the body
     // finishes touching the task.
     task_add_ref(task);
-    int need_control = !rt_lane_holds_control() && mark_done_needs_control(ex, task);
+    // The task is RUNNING here (just polled to completion, TASK_DONE is not
+    // stored until below), and the wake path only reads or clears a task's
+    // park_key while that task is parked (WAITING, not enqueued) under its
+    // owner shard lock (wake_task_on_shard_locked's WAITING gate). So no other
+    // thread writes this RUNNING task's park_key, and this plain read/clear is
+    // race-free without a lock (RV2-DEBT-019: the wake-side gate is the
+    // load-bearing half; the old unlocked read here raced only because the
+    // wake path used to clear park_key on RUNNING tasks too).
+    waker_key park = task->park_key;
+    // A net park_key needs the cross-shard registry removal; a WAKER_SCOPE key
+    // still lives on ex->control_waiters until Task 9. A WAKER_JOIN key is
+    // owner-local since Task 7, so it is removed control-free below (S6-Q1).
+    int park_needs_control = waker_valid(park) && (waker_is_net(park) || park.kind == WAKER_SCOPE);
+    int need_control =
+        !rt_lane_holds_control() && mark_done_needs_control(ex, task, park_needs_control);
     if (need_control) {
         rt_control_lock(ex);
         rt_trace_control_lock_site(RT_CTRL_SITE_COMPLETION);
@@ -1542,8 +1590,8 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     if (task->select_timers_len > 0) {
         clear_select_timers(ex, task);
     }
-    if (waker_valid(task->park_key)) {
-        remove_waiter(ex, task->park_key, task->id);
+    if (waker_valid(park)) {
+        remove_waiter(ex, park, task->id);
     }
     task->park_key = waker_none();
     task->park_prepared = 0;

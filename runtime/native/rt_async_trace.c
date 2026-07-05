@@ -136,6 +136,16 @@ void rt_trace_control_lock_site(rt_ctrl_site site) {
     (void)atomic_fetch_add_explicit(&trace_control_lock_site_total[site], 1, memory_order_relaxed);
 }
 
+static _Atomic uint64_t trace_control_lock_handle_site_total[RT_CTRL_HANDLE_COUNT];
+
+void rt_trace_control_lock_handle_site(rt_ctrl_handle_site site) {
+    if (!rt_exec_trace_enabled() || (unsigned)site >= (unsigned)RT_CTRL_HANDLE_COUNT) {
+        return;
+    }
+    (void)atomic_fetch_add_explicit(
+        &trace_control_lock_handle_site_total[site], 1, memory_order_relaxed);
+}
+
 static size_t trace_append_literal(char* buf, size_t pos, size_t cap, const char* lit) {
     if (buf == NULL || lit == NULL) {
         return pos;
@@ -205,7 +215,7 @@ static void trace_exec_dump(const char* reason) {
     if (!rt_exec_trace_enabled()) {
         return;
     }
-    char buf[1280];
+    char buf[1408];
     size_t pos = 0;
     pos = trace_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC ");
     if (reason != NULL) {
@@ -324,46 +334,37 @@ static void trace_exec_dump(const char* reason) {
         sizeof(buf),
         atomic_load_explicit(&trace_placement_adoption_total, memory_order_relaxed));
     // Per-site control-lock attribution (Epic 8 Task 5). Fields follow the
-    // rt_ctrl_site order; their sum is <= control_lock_acquired (residual is
-    // the untagged RT_CTRL_SITE_OTHER sites).
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "ctrl_create",
-                        atomic_load_explicit(&trace_control_lock_site_total[RT_CTRL_SITE_CREATE],
-                                             memory_order_relaxed));
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "ctrl_join_poll",
-                        atomic_load_explicit(&trace_control_lock_site_total[RT_CTRL_SITE_JOIN_POLL],
-                                             memory_order_relaxed));
-    trace_append_kv_u64(
-        buf,
-        &pos,
-        sizeof(buf),
-        "ctrl_completion",
-        atomic_load_explicit(&trace_control_lock_site_total[RT_CTRL_SITE_COMPLETION],
-                             memory_order_relaxed));
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "ctrl_scope",
-                        atomic_load_explicit(&trace_control_lock_site_total[RT_CTRL_SITE_SCOPE],
-                                             memory_order_relaxed));
-    trace_append_kv_u64(
-        buf,
-        &pos,
-        sizeof(buf),
-        "ctrl_await_compat",
-        atomic_load_explicit(&trace_control_lock_site_total[RT_CTRL_SITE_AWAIT_COMPAT],
-                             memory_order_relaxed));
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "ctrl_handle",
-                        atomic_load_explicit(&trace_control_lock_site_total[RT_CTRL_SITE_HANDLE],
-                                             memory_order_relaxed));
+    // rt_ctrl_site order (OTHER at index 0 is the untagged residual and is not
+    // dumped); their sum is <= control_lock_acquired. Emitted via a loop rather
+    // than one call per site so the RT_CTRL_SITE_HANDLE sub-site breakdown
+    // (Task 8) fits without growing this over-limit file (Global Rule 4).
+    static const char* const ctrl_site_names[RT_CTRL_SITE_COUNT] = {NULL,
+                                                                    "ctrl_create",
+                                                                    "ctrl_join_poll",
+                                                                    "ctrl_completion",
+                                                                    "ctrl_scope",
+                                                                    "ctrl_await_compat",
+                                                                    "ctrl_handle"};
+    for (size_t s = RT_CTRL_SITE_CREATE; s < RT_CTRL_SITE_COUNT; s++) {
+        trace_append_kv_u64(
+            buf,
+            &pos,
+            sizeof(buf),
+            ctrl_site_names[s],
+            atomic_load_explicit(&trace_control_lock_site_total[s], memory_order_relaxed));
+    }
+    // RT_CTRL_SITE_HANDLE sub-site breakdown (Epic 8 Task 8, reviewer Note 3):
+    // the three sum to ctrl_handle and attribute the Task 7->8 ctrl_handle delta.
+    static const char* const ctrl_handle_site_names[RT_CTRL_HANDLE_COUNT] = {
+        "ctrl_handle_wake", "ctrl_handle_cancel", "ctrl_handle_free"};
+    for (size_t s = 0; s < RT_CTRL_HANDLE_COUNT; s++) {
+        trace_append_kv_u64(
+            buf,
+            &pos,
+            sizeof(buf),
+            ctrl_handle_site_names[s],
+            atomic_load_explicit(&trace_control_lock_handle_site_total[s], memory_order_relaxed));
+    }
     pos = trace_append_literal(buf, pos, sizeof(buf), " blocking_submitted=");
     pos = trace_append_u64(
         buf,

@@ -75,7 +75,14 @@ void rt_waiter_migrate_join_waiters(rt_executor* ex,
     rt_shard* to_shard = rt_runtime_shard(rt_executor_runtime(ex), to_shard_id);
     rt_waiter_store* from = rt_executor_waiter_store_for_shard(ex, from_shard_id);
     rt_waiter_store* to = rt_executor_waiter_store_for_shard(ex, to_shard_id);
-    if (from == NULL || to == NULL || from == to || from->len == 0) {
+    // Do NOT early-out on from->len here: since Epic 8 Task 7 join registration
+    // runs under the source shard lock (not the control lock), so from->len is
+    // written concurrently and reading it unlocked is a data race
+    // (RV2-DEBT-019, surfaced by the completion-pin TSan stress via F2 adoption
+    // consuming a CONNECTION-placed target). The batch loop below reads from->len
+    // under the source shard lock; an empty source simply returns after the
+    // first locked pass.
+    if (from == NULL || to == NULL || from == to) {
         return;
     }
     // Extract under the source lock, append under the destination lock:

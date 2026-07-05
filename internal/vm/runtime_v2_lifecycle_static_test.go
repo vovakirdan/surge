@@ -196,22 +196,25 @@ func TestRuntimeV2LifecycleStaticJoinPollOwnerLane(t *testing.T) {
 }
 
 // P8 (Task 8, completion epilogue): mark_done writes result_kind/result_bits
-// BEFORE the TASK_DONE release store (rule 1/2), and mark_done_needs_control is
-// reduced to net-key removal + done_waiters only (S6-Q1). Activation: Task 8's
-// commit; delete the Skip and assert the result writes precede the TASK_DONE
-// store and the scope/WAKER_JOIN/WAKER_SCOPE reasons are gone from
-// mark_done_needs_control.
+// BEFORE the TASK_DONE release store (rule 1/2), and the WAKER_JOIN reason is
+// gone from mark_done_needs_control (S6-Q1) — Task 7 moved the join waiter
+// store to the target owner shard, so a join-key removal is owner-local and
+// runs control-free. The remaining scope reason (parent_scope_id/scope_
+// registered and the WAKER_SCOPE park_key) stays until Task 9 moves scope
+// bookkeeping + the scope_key store to the scope owner lane; that
+// scope-reason-gone assertion belongs to P9 (TestRuntimeV2LifecycleStaticScope
+// OwnerLane), not here. Activated by Task 8's commit.
 func TestRuntimeV2LifecycleStaticCompletionResultVisibilityOrder(t *testing.T) {
-	t.Skip("activates in Task 8 (08-completion-epilogue-and-done-path): " +
-		"mark_done writes result_kind/result_bits before the TASK_DONE release " +
-		"store, and mark_done_needs_control keeps only net-key removal + " +
-		"done_waiters>0. Assert the result-write offsets precede the TASK_DONE " +
-		"store and the parent_scope_id/WAKER_JOIN/WAKER_SCOPE reasons are removed.")
 	body := lifecycleFindFunctionBody(t, "mark_done")
 	resultIdx := strings.Index(body, "task->result_kind = result_kind")
 	doneIdx := strings.Index(body, "task_status_store(task, TASK_DONE)")
 	if resultIdx < 0 || doneIdx < 0 || resultIdx > doneIdx {
 		t.Fatalf("mark_done must write the result before the TASK_DONE release store:\n%s", body)
+	}
+	needsControl := lifecycleFindFunctionBody(t, "mark_done_needs_control")
+	if strings.Contains(needsControl, "WAKER_JOIN") {
+		t.Fatalf("mark_done_needs_control must not keep the WAKER_JOIN reason "+
+			"(join removal is owner-local since Task 7):\n%s", needsControl)
 	}
 }
 

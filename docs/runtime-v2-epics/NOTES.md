@@ -3501,3 +3501,43 @@ pass, before any task execution began:
   caveat recorded in the task doc.
 - Full write-up: `08-tasks/11-net-fairness-starvation-investigation.md`.
   Evidence: `08-evidence.md` Task 11 section.
+
+## Epic 8 Task 08 Handoff
+
+- Scope completed: completion epilogue / done path. Single commit on `585e3c5c`.
+- RV2-DEBT-019 CLOSED as a full `park_key` race FAMILY (the debt's two-race
+  summary undercounted it). Root fix: the wake primitive
+  (`wake_task_on_shard_locked` / `wake_task_with_policy`) now touches a task's
+  `park_key`/`park_prepared` ONLY when the task is parked (WAITING and not
+  enqueued) under the owner shard lock; the wake token still fires
+  unconditionally (D5 abort). This closes the completer-side read AND the
+  joiner-side register-then-commit races (`prepare_park`/`park_current` write
+  `park_key` unlocked while RUNNING). With the wake gate, `mark_done` reads
+  `park_key` as a plain thread-own read (no lock) — completion stays
+  shard-local-cheap. Global Rule 7 ownership comment added at
+  `wake_task_on_shard_locked`.
+- Sibling data race fixed in-commit: `rt_waiter_migrate_join_waiters` unlocked
+  `from->len` early-out (removed). Its higher-level control-era assumption is
+  NEW debt RV2-DEBT-020 (owner: Epic 8 closeout; suspected benign — F2 fires
+  only on DONE targets and register-then-verify re-checks DONE).
+- S6-Q1: only the `WAKER_JOIN` reason removed from `mark_done_needs_control`.
+  Scope (`parent_scope_id`/`scope_registered`) and `WAKER_SCOPE` reasons stay
+  until Task 9's scope-owner-lane migration. `ctrl_completion` (28673) is the
+  scope reason -> clawback reassigned to Task 9 (RV2-DEBT-016 note).
+- Un-skipped `TestRuntimeV2LifecycleCompletionPinInterleavingTSan` in NO-KEEPALIVE
+  mode, swept SHARDS 1/2/8, wired into `runtime-v2-lifecycle-check`. Pre-existence
+  of the races confirmed at clean `585e3c5c` (no-keepalive SHARDS=8 FAILED under
+  TSan, exit 1).
+- P8 static gate activated (result-before-DONE + WAKER_JOIN-gone); scope-reason-
+  gone assertion deferred to P9 (Task 9), noted in the P8 comment.
+- Reviewer stale comments fixed: `ready_take_current_local_tail` (owner shard
+  lock, not control) and `remove_waiter` ("control OR nothing, never a shard
+  lock").
+- `ctrl_handle` sub-attribution added (`ctrl_handle_wake/cancel/free`): 29696 =
+  free 28672 + wake 1024 + cancel 0. The Task 7 rise is the per-connection
+  `rt_task_wake` scope-adoption (wake=1024), not the free path.
+- Gates green: `runtime-v2-check` (full blast-radius, wake primitive touched),
+  `make check`, c-check, cppcheck, file sizes (`rt_async_trace.c` 671->666 via a
+  dump-loop refactor that offsets the new counters), git diff --check.
+- NOT tested / open: RV2-DEBT-020 re-derivation (Task 14). Task 9 owns the
+  scope-reason removal + P9 + the `ctrl_completion` clawback.

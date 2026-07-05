@@ -4,8 +4,8 @@
 
 ## 📊 Main code (without tests)
 
-- **Files:** 720 (Go: 653, C: 67)
-- **Lines of code:** 163693 (Go: 143047, C: 20646)
+- **Files:** 721 (Go: 654, C: 67)
+- **Lines of code:** 164332 (Go: 143607, C: 20725)
 
 ## 📁 Directory breakdown
 
@@ -13,7 +13,7 @@
 |------------|--------|-------|
 | `cmd/` | 28 | 4819 |
 | `internal/` | 624 | 138213 |
-| `runtime/native/` (C code) | 67 | 20646 |
+| `runtime/native/` (C code) | 67 | 20725 |
 
 ## 🏆 Top 10 packages by size
 
@@ -33,12 +33,12 @@
 ## 🧪 Test files
 
 - **Files:** 213
-- **Lines of code:** 46665
+- **Lines of code:** 46675
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 933
-- **Lines of code:** 210358
+- **Files:** 934
+- **Lines of code:** 211007
 
 ## 📊 Percentage breakdown
 

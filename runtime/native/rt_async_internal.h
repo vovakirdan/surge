@@ -399,6 +399,22 @@ typedef enum {
 
 void rt_trace_control_lock_site(rt_ctrl_site site);
 
+// Sub-site breakdown of RT_CTRL_SITE_HANDLE (Epic 8 Task 8 evidence, reviewer
+// Note 3): the aggregate handle counter mixes three distinct control-lane
+// causes, so each is tagged separately to attribute the Task 7 -> Task 8
+// ctrl_handle delta honestly. Additive; the three sum to ctrl_handle. WAKE is
+// rt_task_wake's scope-adoption fallback, CANCEL is rt_task_cancel, and FREE is
+// task_release_lane_aware's last-reference free (the net-wrapper child frees
+// now firing in rt_task_poll's DONE branches since Task 7).
+typedef enum {
+    RT_CTRL_HANDLE_WAKE = 0,
+    RT_CTRL_HANDLE_CANCEL,
+    RT_CTRL_HANDLE_FREE,
+    RT_CTRL_HANDLE_COUNT
+} rt_ctrl_handle_site;
+
+void rt_trace_control_lock_handle_site(rt_ctrl_handle_site site);
+
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
 }

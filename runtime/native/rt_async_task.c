@@ -150,6 +150,7 @@ void rt_task_wake(void* task) {
     if (current != NULL && current->scope_id != 0) {
         rt_control_lock(ex);
         rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
+        rt_trace_control_lock_handle_site(RT_CTRL_HANDLE_WAKE);
         if (target->parent_scope_id == 0) {
             const rt_scope* scope = get_scope(ex, current->scope_id);
             if (scope != NULL) {
@@ -373,6 +374,7 @@ void rt_task_cancel(void* task) {
     }
     rt_control_lock(ex);
     rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
+    rt_trace_control_lock_handle_site(RT_CTRL_HANDLE_CANCEL);
     cancel_task(ex, target->id);
     rt_control_unlock(ex);
 }

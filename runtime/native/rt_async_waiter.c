@@ -463,7 +463,12 @@ void remove_waiter_generation(rt_executor* ex, waker_key key, uint64_t task_id, 
 }
 
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
-    // Caller holds ex->lock; compaction preserves relative order of other waiters.
+    // Caller holds either the control lock or nothing, never a shard lock
+    // (mirrors add_waiter): the control-free join-poll/completion callers reach
+    // here without ex->lock since Epic 8 Task 7/8. This takes the key's store
+    // owner shard lock internally (net keys scan every shard's store, so those
+    // still need the control lane); compaction preserves the relative order of
+    // the other waiters.
     if (ex == NULL || !waker_valid(key)) {
         return;
     }

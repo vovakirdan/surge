@@ -38,24 +38,31 @@ func TestRuntimeV2LifecycleCloneReleaseLastReferenceFree(t *testing.T) {
 // threads with no artificial sleep, and TSan is the oracle that turns "the
 // process didn't crash" into "no data race, no use-after-free was observed".
 //
-// Skipped pending Task 8: this test found two real, reproducible baseline
-// races (RV2-DEBT-019, docs/runtime-v2-epics/DEBT.md). Set
-// LIFECYCLE_PIN_STRESS_NO_KEEPALIVE=1 to reproduce both together (the state
-// before this test's in-harness mitigation); unset (default) isolates the
-// second, park_key race by forcing mark_done_needs_control true throughout.
-// Task 8's peel commit deletes this skip and adds this test's name to
-// runtime-v2-lifecycle-check once both races are fixed.
+// Runs in NO-KEEPALIVE mode (LIFECYCLE_PIN_STRESS_NO_KEEPALIVE=1), the
+// required-passing configuration: it exercises BOTH races RV2-DEBT-019 found in
+// the baseline together, with no in-harness mitigation. Race 1 (mark_done's
+// result writes after the TASK_DONE release store) was closed by Task 7's
+// reorder; race 2 (mark_done_needs_control's unlocked park_key read vs
+// wake_task_on_shard_locked's write) is closed by Task 8 reading+clearing
+// park_key under the task's owner shard lock. Swept across SURGE_SHARDS=1,2,8;
+// TSan is the oracle. Wired into runtime-v2-lifecycle-check by Task 8.
 func TestRuntimeV2LifecycleCompletionPinInterleavingTSan(t *testing.T) {
-	t.Skip("pending Task 8: baseline races RV2-DEBT-019 -- (1) mark_done result writes must move before the TASK_DONE release store; (2) mark_done_needs_control's unlocked park_key read vs wake_task_on_shard_locked write. Task 8's peel commit deletes this skip and adds the test to runtime-v2-lifecycle-check.")
 	binPath := buildRuntimeV2LifecycleHarnessTSan(t)
-	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
-	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "completion-pin-stress", env)
-	if strings.Contains(stderr, "ThreadSanitizer") {
-		t.Fatalf("ThreadSanitizer reported a race in the completion-pin interleaving\nstdout:\n%s\nstderr:\n%s",
-			stdout, stderr)
-	}
-	if exitCode != 0 {
-		t.Fatalf("completion-pin stress failed (code=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	shardThreads := map[string]string{"1": "2", "2": "2", "8": "8"}
+	for _, shards := range []string{"1", "2", "8"} {
+		t.Run("shards-"+shards, func(t *testing.T) {
+			env := lifecycleEnv("SURGE_SHARDS="+shards, "SURGE_THREADS="+shardThreads[shards],
+				"SURGE_BLOCKING_THREADS=1", "LIFECYCLE_PIN_STRESS_NO_KEEPALIVE=1")
+			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "completion-pin-stress", env)
+			if strings.Contains(stderr, "ThreadSanitizer") {
+				t.Fatalf("ThreadSanitizer reported a race in the completion-pin interleaving "+
+					"at SURGE_SHARDS=%s\nstdout:\n%s\nstderr:\n%s", shards, stdout, stderr)
+			}
+			if exitCode != 0 {
+				t.Fatalf("completion-pin stress failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					shards, exitCode, stdout, stderr)
+			}
+		})
 	}
 }
 

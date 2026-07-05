@@ -1043,3 +1043,140 @@ microsecond-exact latencies.
   the re-baseline owns separating them.
 - Remaining control-lane consumer on the sustained run is scope traffic
   (`control_lock_acquired` ~18.3/request) — Task 9's domain.
+
+## Task 8: Completion Epilogue And Done Path
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 8 per `08-tasks/08-completion-epilogue-and-done-path.md`.
+- Epic: 8. Author/session: subagent `coder-t8` (plan approved by `main` before
+  any edit, RULES.md Global Rule 9; two mid-task scope decisions — the Task
+  8/Task 9 split and the wake-primitive family fix — approved before implementing).
+- Scope: fix RV2-DEBT-019 (the full `park_key` race family), S6-Q1 `WAKER_JOIN`
+  reason removal, un-skip the no-keepalive TSan pin test + wire it, peel P8, two
+  stale lock-comments, per-site `RT_CTRL_SITE_HANDLE` sub-attribution, and a
+  1-line F2 migrate data-race fix (sibling of the same post-Task-7 class).
+- Out of scope (moved/deferred): the `ctrl_completion` clawback and the scope /
+  `WAKER_SCOPE` reasons (Task 9); the F2 migrate higher-level assumption
+  (RV2-DEBT-020, Epic 8 closeout).
+- Commit sits on `585e3c5c` (Task 11 landing).
+
+### The Task 8/Task 9 Split (approved)
+
+S6-Q1's scope-reason removal is annotated against S5-Q8/Q10, which are Task 9's
+scope-owner-lane migration. Task 8 removed ONLY the `WAKER_JOIN` reason from
+`mark_done_needs_control` (safe: Task 7 moved the join store to the target owner
+shard). The `parent_scope_id`/`scope_registered` and `WAKER_SCOPE` reasons stay
+until Task 9 (`get_scope` atomic snapshot + scope bookkeeping + `scope_key` store
+on the scope owner lane); dropping them earlier would run scope mutations
+unserialized. The `ctrl_completion` = 28673 cost is the scope reason, so the
+clawback is reassigned to Task 9 (recorded in DEBT.md RV2-DEBT-016).
+
+### RV2-DEBT-019 Closure (full `park_key` family)
+
+The no-keepalive completion-pin TSan stress showed the debt's "race 2" is a
+family, all one class (Task 7 moved registration off control onto the source
+shard lock; consumers kept control-era assumptions):
+
+1. result-visibility (race 1) — closed by Task 7's reorder.
+2. `mark_done_needs_control`'s unlocked `park_key` read — closed by the S6-Q1
+   refactor (helper no longer reads `park_key`; `mark_done` reads it plain).
+3. THE ROOT: `wake_task_on_shard_locked`/`wake_task_with_policy` read+cleared a
+   task's `park_key`/`park_prepared` before checking status, racing the JOINER's
+   own unlocked register-then-commit writes (`prepare_park` via `rt_task_poll`,
+   `park_current` via `apply_poll_outcome`). Closed by gating the wake path's
+   `park_key` work on the task being parked (WAITING and not enqueued) under the
+   owner shard lock; the wake token still fires unconditionally (D5 abort signal).
+   With the wake gate, no waker touches a RUNNING task's `park_key`, so
+   `mark_done` (always RUNNING at that point) reads it as a plain thread-own
+   read with no lock — completion stays shard-local-cheap (S6-Q1).
+
+Sibling in the same class: `rt_waiter_migrate_join_waiters` read `from->len`
+unlocked (F2/accept path, triggered via `spawn_pinned`'s `TASK_PLACEMENT_
+CONNECTION` -> F2 adoption). Fixed by dropping the unlocked early-out. Its
+higher-level (non-race) assumption is RV2-DEBT-020.
+
+### Baseline Pre-Existence (main-requested, one run)
+
+Runtime C stashed, un-skipped no-keepalive test kept, at clean `585e3c5c`:
+`go test -tags runtime_v2_pending ./internal/vm -run
+'^TestRuntimeV2LifecycleCompletionPinInterleavingTSan$/shards-8$' ...` FAILED,
+exit 1, `tsan_warnings=1` (~92s), first race in `rt_waiter_migrate_join_waiters`.
+Confirms both classes pre-exist; none of the racing functions are in the Task 8
+diff except for the gate added.
+
+### Files Touched
+
+- C: `rt_async_state.c` (`mark_done` plain-read + S6-Q1 `mark_done_needs_control`
+  signature/JOIN-drop; wake_task_on_shard_locked + wake_task_with_policy WAITING
+  gate; `task_release_lane_aware` HANDLE_FREE tag; `ready_take_current_local_tail`
+  comment), `rt_async_task.c` (2 HANDLE sub-site tags), `rt_async_waiter.c`
+  (`remove_waiter` comment), `rt_waiter_route.c` (migrate unlocked-read fix),
+  `rt_async_trace.c` (HANDLE sub-counter array/function + dump-loop refactor),
+  `rt_async_internal.h` (`rt_ctrl_handle_site` enum + decl).
+- Tests: `runtime_v2_lifecycle_static_test.go` (P8 activated),
+  `runtime_v2_lifecycle_behavior_handle_lifetime_test.go` (pin un-skip,
+  no-keepalive, shard sweep), `Makefile` (lifecycle regex +CompletionPinInterleavingTSan).
+
+### Gates
+
+| Command | Result |
+| --- | --- |
+| `git diff --check` | clean |
+| `make c-check` | pass |
+| `make cppcheck` | pass |
+| `timeout 1500 make runtime-v2-check` | exit 0, 0 FAIL — full blast-radius suite green incl. pin test @ SHARDS 1/2/8 TSan-clean |
+| `make check` | exit 0 |
+| `./check_file_sizes.sh -a` | pass (rt_async_trace.c 671->666 net -5; rt_async_state.c 1447 <=1580) |
+| TSan pin no-keepalive @ SHARDS 1/2/8 | PASS, tsan_warnings=0 |
+
+### Measurement (net direct/seq, 8 shards/8 threads/1024 conns/8 req/conn = 8192 req, `SURGE_TRACE_EXEC=1`)
+
+Before = Task 7 anchor. After = this task.
+
+| Site | Before (Task 7) | After (Task 8) |
+| --- | ---: | ---: |
+| `control_lock_acquired` | ~195600 | 192454 |
+| `ctrl_create` | 11-12 | 9 |
+| `ctrl_join_poll` | 2019-2037 | 2039 |
+| `ctrl_completion` | 28673 | 28673 (clawback = Task 9) |
+| `ctrl_scope` | 106499 | 106499 |
+| `ctrl_handle` | 29696 | 29696 |
+| total us (8x1024) | ~1.51e6 | 1510801 |
+
+Per-site is essentially bit-stable vs Task 7: the `WAKER_JOIN` reason removal has
+~0 effect on this bench because these completions take control via the scope
+reason, not the join park-key. `control_lock_acquired` dropped ~1.5% (noise/small
+win), no regression.
+
+### Per-Site `ctrl_handle` Sub-Attribution (reviewer Note 3)
+
+`ctrl_handle` = 29696 breaks down (measured, direct server run, sums exactly):
+`ctrl_handle_free` = 28672, `ctrl_handle_wake` = 1024, `ctrl_handle_cancel` = 0
+(28672 + 1024 + 0 = 29696). This resolves the Task 7 28673->29696 rise honestly:
+
+- `ctrl_handle_free` = 28672 is the dominant part — the ~3.5/req net-wrapper
+  child last-reference frees (`task_release_lane_aware`) now firing in
+  `rt_task_poll`'s DONE branches after Task 7 removed
+  `poll_ready_child_inline`'s ambient control hold. Same ~28673 population Task
+  6 saw, unchanged.
+- `ctrl_handle_wake` = 1024 is exactly once per connection — `rt_task_wake`'s
+  scope-adoption control fallback (S5-Q2) on the durable per-connection task.
+  This IS the delta the reviewer flagged (28673->29696, ~1023): not the free
+  path changing, but the per-connection scope-adoption wake, now measured
+  separately instead of hidden in the aggregate.
+- `ctrl_handle_cancel` = 0 — no public `rt_task_cancel` on this bench.
+
+(Tagged per-site counts are deterministic across runs; `control_lock_acquired`'s
+untagged `OTHER` residual varies slightly with scheduling, e.g. 192454 in the
+harness row vs 201325 in this direct capture — the tagged sites match.)
+
+### Task 9 Handoff
+
+- Remove `parent_scope_id`/`scope_registered` + `WAKER_SCOPE` reasons from
+  `mark_done_needs_control` once `get_scope` is atomic-snapshot and scope
+  bookkeeping + the `scope_key` store live on the scope owner lane; that reclaims
+  the 28673 `ctrl_completion` (RV2-DEBT-016 clawback anchor is this row).
+- P9 (`...StaticScopeOwnerLane`) should add the scope-reason-gone assertion the
+  P8 comment defers to it.
+- RV2-DEBT-020 (migrate higher-level assumption) is Epic 8 closeout's.
