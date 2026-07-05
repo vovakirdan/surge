@@ -2,11 +2,16 @@
 
 // Owner resolution for non-net keys (dependency map section 5): join, timer,
 // and blocking keys carry the parked-on task's id, so its owner shard stores
-// the waiters and completion wakes stay owner-local. Scope keys are
-// control-lane state. Channel keys stay on the shard-0 compatibility store
-// until the Task 10 channel-owner migration. Resolution is stable while a
-// registration exists: the only post-spawn owner change is the accept
-// transition, which migrates join entries (rt_task_replace_owner).
+// the waiters and completion wakes stay owner-local. Scope keys carry the
+// scope id and route to the scope's PINNED owner shard (Epic 8 Task 9, S5-Q10,
+// revising Epic 7 D8): the scope's owner_shard_id is fixed at rt_scope_enter,
+// so both the join_all park and the child-done wake serialize on that one
+// shard's store lock; a freed/absent scope (monotonic, never-reused ids)
+// resolves to shard 0 via rt_scope_owner_shard, draining nothing. Channel keys
+// stay on the shard-0 compatibility store until the Task 10 channel-owner
+// migration. Resolution is stable while a registration exists: the only
+// post-spawn task owner change is the accept transition, which migrates join
+// entries (rt_task_replace_owner); scopes never migrate.
 rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
     if (ex == NULL || !waker_valid(key)) {
         return NULL;
@@ -23,7 +28,7 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
         case WAKER_BLOCKING:
             return rt_shard_waiter_store(rt_task_owner_shard(ex, get_task(ex, key.id)));
         case WAKER_SCOPE:
-            return &ex->control_waiters;
+            return rt_shard_waiter_store(rt_scope_owner_shard(ex, get_scope(ex, key.id)));
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:
             // Channel keys embed the channel pointer; channels are never
@@ -53,7 +58,7 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
         case WAKER_BLOCKING:
             return rt_task_owner_shard(ex, get_task(ex, key.id));
         case WAKER_SCOPE:
-            return NULL;
+            return rt_scope_owner_shard(ex, get_scope(ex, key.id));
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:
             return rt_runtime_shard(

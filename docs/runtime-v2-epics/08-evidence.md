@@ -1180,3 +1180,122 @@ harness row vs 201325 in this direct capture — the tagged sites match.)
 - P9 (`...StaticScopeOwnerLane`) should add the scope-reason-gone assertion the
   P8 comment defers to it.
 - RV2-DEBT-020 (migrate higher-level assumption) is Epic 8 closeout's.
+
+## Task 9: Scope Owner Lane
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 9 per `08-tasks/09-scope-owner-lane.md` (full write-up there).
+- Author/session: subagent `coder-t9` (plan approved by `main`, RULES.md Global
+  Rule 9; two riders accepted before implementing — scope-shard pinning and the
+  cancel-interplay re-derivation deciding a counted control fallback for the walk).
+- Scope: scope table atomic snapshot (S5-Q7 → realization B), scope object
+  bookkeeping + `scope_key` store on the scope owner shard (S5-Q8/Q10, revising
+  Epic 7 D8), scope free/cancelled-teardown on the owner lane (S5-Q11/Q14),
+  `mark_done_needs_control` final form (S6-Q1), P9 peel + scope-reason-gone.
+- Commit sits on `ae44d945` (Task 8 landing).
+
+### Cancel-interplay re-derivation (Q2 rider)
+
+The plan's fully control-free failfast cancel walk does NOT close cleanly, so the
+walk and cross-owner child-done take a counted control fallback; same-owner
+child-done stays control-free. Proof: `cancel_task(child)` reads the child's
+`owner_shard_id`, which F2 adoption (`rt_task_replace_owner`) writes under the
+control lane; a control-free walk races that non-atomic write and breaks Task 6's
+owner-lock invariant (`rt_async_task.c:71-93` case (c)). Cross-owner child-done
+needs control because a re-placed child's `parent_scope_id`/`scope_registered`
+were published under the old pinned shard lock before the F2 control barrier. Full
+case-by-case in `09-scope-owner-lane.md`.
+
+### Stale-key / scope lifetime (Q1 rider)
+
+Scope ids are monotonic, never reused; a freed slot is release-stored NULL and
+never reallocated, so a late `scope_key` remove/wake resolves `get_scope` to the
+live scope or NULL (routed to shard 0, draining nothing) — no generation needed
+(same S9-Q7/rule-6 argument). Scope pointer deref only happens while a
+registration/active child exists, all causally before `scope_exit`'s free.
+
+### Gates
+
+| Command | Result |
+| --- | --- |
+| `git diff --check` | clean |
+| `make c-check` | pass |
+| `make cppcheck` | pass (fixed identicalCondition false positive via a locked-read helper, a redundant condition, and two const-param suggestions) |
+| `make check` | exit 0, 0 FAIL |
+| `make runtime-v2-check` | pass (fixed a link break in `runtime_v2_owner_local_waiter_static_test.go`: its self-contained harness includes `rt_waiter_route.c`, whose `WAKER_SCOPE` case now calls `get_scope`/`rt_scope_owner_shard` — added minimal stubs) |
+| `runtime-v2-lifecycle-check` | pass incl. P9 (`StaticScopeOwnerLane`) + three `Scope*AcrossShards` (shards 1/2/8) |
+| no-keepalive `CompletionPinInterleavingTSan` @ shards 1/2/8 | PASS, tsan_warnings=0 |
+| `./check_file_sizes.sh -a` | pass; `rt_async_state.c` 1447→1377 (shrank 70, ≤1580), `rt_async_internal.h` 543→555 (+12, green ≤575), new `rt_scope_table.c` 41, `rt_async_scope.c` 167→296 |
+
+### Sentrux (scoped rescan)
+
+CLI `sentrux check` (MCP not connected this session; CLI check/gate per Epic 4
+precedent): runtime/native quality **5387, all 7 rules pass** (no drop); root
+6174; runtime 5298. No unexplained quality drop.
+
+### Measurement (8x1024 direct/seq, 8192 req, `SURGE_TRACE_EXEC=1`)
+
+Both rows captured with fresh matching-commit builds (the `08-evidence.md` Task 8
+anchor was a stale-binary capture; the baseline reproduces with a fresh build).
+
+| Site | Before (fresh HEAD) | After (Task 9) | Δ |
+| --- | ---: | ---: | ---: |
+| `control_lock_acquired` | 192262 | 105285 | -86977 (-45%) |
+| `ctrl_scope` | 106499 | 19464 | -87035 (-82%) |
+| `ctrl_completion` | 28673 | 28673 | 0 |
+| `ctrl_handle` | 29696 | 29696 | 0 |
+| `ctrl_join_poll` | 2047 | 2039 | ~0 |
+| `ctrl_create` | 10 | 8 | ~0 |
+
+`ctrl_scope` -82%: enter/register/join-all/exit off control on the same-owner
+steady path. Residual `ctrl_scope`=19464 (~2.375/req) is the cross-owner
+`scope_on_child_done` control fallback: net-wrapper request children are F2-adopted
+(`rt_task_poll_adopt_placement`) to the accepting shard, which frequently differs
+from their scope's pinned shard, so their child-done takes the counted cross-owner
+control path per the approved Q2 re-derivation. **Future-optimization candidate
+(named, not implemented):** re-pin a scope to the adopting shard when its owner
+task is F2-adopted (so the scope follows the durable pipeline and its children
+become same-owner again), or migrate the scope's `active_children` accounting under
+the same control barrier the adoption already holds. Either would move most of the
+19464 back off control, but both change scope↔placement coupling and belong to the
+net-handle/placement work, not Task 9. Recorded in RV2-DEBT-016.
+
+**`ctrl_completion` finding (corrects the Task 8 clawback attribution).** Two
+independent proofs that the 28673 is scope-INDEPENDENT (net-handle residual):
+
+*Proof 1 (in-tree, permanent).* With the scope reason fully removed from
+`mark_done_needs_control` (P9 asserts `parent_scope_id`/`scope_registered` are
+gone), `ctrl_completion` is bit-identical 28673 before and after. If the scope
+reason drove it, removing it would drop it.
+
+*Proof 2 (throwaway probe, reverted — Global Rule 1 shape).*
+- **Hypothesis:** the 28673 `ctrl_completion` acquisitions are net-key removals
+  (`park_needs_control`/net `wait_keys`), not the scope reason.
+- **Method:** temporarily tag `mark_done`'s control acquisition `RT_CTRL_SITE_COMPLETION`
+  only when `park_needs_control` (a net `park_key`) and `RT_CTRL_SITE_AWAIT_COMPAT`
+  otherwise; rebuild; re-run the 8x1024 anchor.
+- **Result:** `ctrl_completion` → 0, `ctrl_await_compat` → 28674 (the whole
+  population moved to the non-net-park branch), which is `mark_done_needs_control`'s
+  `wait_keys_len > 0` reason — net-wrapper children carry NET keys in `wait_keys[]`,
+  and `clear_wait_keys` removes them at completion (net-key removal scans shards).
+  Not a net `park_key`, not the scope reason.
+- **Success/failure criterion:** if the 28674 had stayed on `COMPLETION` it would
+  be a net `park_key`; if it had split with the scope reason it would be scope.
+  Neither happened.
+- **Reverted:** the split tag was reverted; `mark_done` tags `RT_CTRL_SITE_COMPLETION`
+  unconditionally as before. Not committed.
+
+Conclusion: the 28673 is the net/accept-contract removal S6-Q1 explicitly keeps out
+of this epic (net-key removal stays), reached via the `wait_keys` array. It is a
+net-handle/accept residual, not scope. RV2-DEBT-016's clawback note is corrected.
+Per `main`'s direction this residual is NOT chased in Task 9 (chasing it would be
+scope creep into the net/accept surface this epic does not own).
+
+### Task 10 Handoff
+
+- `mark_done_needs_control` final form is now net-key + `done_waiters` (plus the
+  `wait_keys`/`select_timers` compat residual). The net `wait_keys` `ctrl_completion`
+  residual (28673) is future net-handle/accept work, not Task 10.
+- `ex->control_waiters` is now only the `rt_waiter_store_for_key` default and the
+  diagnostic dump; no lifecycle key routes to it. Task 10 owns `done_cv`/`compat_cv`.

@@ -266,6 +266,20 @@ rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task) {
     return rt_runtime_shard(runtime, 0);
 }
 
+// Scope stubs (Epic 8 Task 9): rt_waiter_route.c's WAKER_SCOPE case now resolves
+// through get_scope + rt_scope_owner_shard. This net-waiter harness never
+// registers scope keys, so minimal stubs satisfy the link.
+rt_scope* get_scope(rt_executor* ex, uint64_t id) {
+    (void)ex;
+    (void)id;
+    return NULL;
+}
+
+rt_shard* rt_scope_owner_shard(rt_executor* ex, const rt_scope* scope) {
+    (void)scope;
+    return rt_runtime_shard(rt_executor_runtime(ex), 0);
+}
+
 void rt_task_replace_owner(rt_executor* ex,
                            rt_task* task,
                            uint32_t shard_id,

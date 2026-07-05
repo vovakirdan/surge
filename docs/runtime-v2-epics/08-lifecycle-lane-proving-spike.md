@@ -243,6 +243,19 @@ on the scope owner shard lane with acquire-snapshot lookups.
 Lane: **scope table = atomic snapshot; scope enter control for alloc/growth/
 publish; scope object ops on the scope owner shard.**
 
+**Task 9 revision (realization A→B, recorded):** the atomic-snapshot table is
+implemented as the segmented never-moved-slot `rt_scope_table` (mirroring Task 6's
+`rt_task_table`, not the copy-on-grow-with-pointer-swap this verdict first
+described), and `rt_scope_enter` escalates from realization A (enter keeps control
+for alloc/growth/publish) to realization B (control-free publish), exactly the way
+S5-Q1 escalated for `__task_create`. With the segmented table the scope-id is an
+atomic `fetch_add`, segment growth is the only rare control event, the slot publish
+is a release store into a never-moved slot, and `owner->scope_id` is a thread-own
+write on the RUNNING owner — so enter takes no control lock on the steady path.
+Justification: `ctrl_scope` is the epic's largest control consumer, so the near-zero
+target requires enter off control; measured `ctrl_scope` 106499→19464 on the 8x1024
+anchor confirms the win. See `08-tasks/09-scope-owner-lane.md`.
+
 ### S5-Q8 — Child register and child-done serialize on the scope owner shard lock
 
 **Verdict: YES.** `rt_scope_register_child` (`rt_async_scope.c:40-77`) mutates
@@ -267,6 +280,24 @@ together. Same bounded-cleanup rule as S5-Q5 (rule 4).
 
 Lane: **scope owner lane; control fallback (control -> child owner) for
 cross-owner children.**
+
+**Task 9 re-derivation (confirmed, recorded):** Task 9 first proposed a fully
+control-free child cancel walk (snapshot-release-walk, the pattern `cancel_task`
+already uses for its own `children[]`). The re-derivation showed it does NOT close
+cleanly, so this verdict's counted control fallback stands FOR THE WALK. Reason:
+`cancel_task(child)` reads the child's `owner_shard_id` to pick the shard lock for
+snapshotting that child's `children[]`, and F2 placement adoption
+(`rt_task_poll_adopt_placement` → `rt_task_replace_owner`) writes `owner_shard_id`
+under the control lane; `owner_shard_id` is a plain non-atomic `uint32_t`, so a
+control-free walk races that write and breaks Task 6's owner-lock invariant
+(`rt_async_task.c:71-93` case (c): the reader holds control plus the owner shard
+lock). Cross-owner (re-placed) child-done also takes control, because a re-placed
+child's `parent_scope_id`/`scope_registered` were published under the OLD pinned
+shard lock before the F2 control barrier (no happens-before to a read on the new
+shard). Same-owner non-failfast child-done stays control-free under the pinned
+shard lock (register and child-done lock the same shard; the status check plus the
+atomic `TASK_DONE` store close the register-vs-completion race). See
+`08-tasks/09-scope-owner-lane.md` for the full walk-through.
 
 ### S5-Q10 — `scope_key` waiters move to the scope owner shard store
 

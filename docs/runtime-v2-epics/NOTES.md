@@ -3541,3 +3541,39 @@ pass, before any task execution began:
   dump-loop refactor that offsets the new counters), git diff --check.
 - NOT tested / open: RV2-DEBT-020 re-derivation (Task 14). Task 9 owns the
   scope-reason removal + P9 + the `ctrl_completion` clawback.
+
+## Epic 8 Task 09 Handoff (Scope Owner Lane)
+
+- Scope completed: same-owner scope enter/register/join-all/exit/failfast
+  bookkeeping and the `scope_key` waiter store moved off the control lane onto the
+  scope's PINNED owner shard lane; `get_scope` is a lock-free acquire load of a new
+  segmented `rt_scope_table` (mirrors `rt_task_table`); S6-Q1 complete
+  (`mark_done_needs_control` final form = net-key + `done_waiters`); P9 peeled with
+  the scope-reason-gone assertion. Full write-up: `08-tasks/09-scope-owner-lane.md`.
+- Design: `rt_scope.owner_shard_id` pins the scope's serialization lock for its
+  whole life (decoupled from the owner task's F2 mobility). `WAKER_SCOPE` routes to
+  that pinned shard store (revises Epic 7 D8). Waiter primitives take the shard lock
+  internally, so bookkeeping uses register-then-verify (join_all) and
+  mutate-then-wake / snapshot-release-walk (child-done, failfast).
+- Cancel-interplay (Q2 rider): the failfast/cancel WALK and cross-owner child-done
+  take a counted control fallback (tagged `RT_CTRL_SITE_SCOPE`), NOT control-free —
+  re-derived because `cancel_task` reads child `owner_shard_id` that F2 self-replace
+  writes under control (Task 6 owner-lock invariant, `rt_async_task.c:71-93`).
+  Same-owner non-failfast child-done stays control-free (the win).
+- Measurement (8x1024 direct/seq, fresh matching-commit builds): `ctrl_scope`
+  106499→19464 (-82%), `control_lock_acquired` 192262→105285 (-45%).
+  `ctrl_completion`=28673 UNCHANGED and proven scope-INDEPENDENT — it is a NET
+  `wait_keys` removal residual (net/accept contract, S6-Q1 keeps it out of this
+  epic), NOT the scope reason. Task 8's DEBT.md clawback attribution was corrected
+  (RV2-DEBT-016).
+- Gates: `git diff --check`, `make c-check`, `make cppcheck`, `make check`,
+  `make runtime-v2-check` (incl. lifecycle-check with P9 + `Scope*AcrossShards`
+  shards 1/2/8), no-keepalive `CompletionPinInterleavingTSan` shards 1/2/8
+  TSan-clean, `./check_file_sizes.sh -a`. `rt_async_state.c` shrank 1447→1377;
+  `rt_async_internal.h` 543→555; new `rt_scope_table.c` 41. Sentrux runtime/native
+  5387, all rules pass.
+- Fixed along the way: `runtime_v2_owner_local_waiter_static_test.go` link break
+  (its harness includes `rt_waiter_route.c`, whose `WAKER_SCOPE` now calls
+  `get_scope`/`rt_scope_owner_shard` — added stubs).
+- Next (Task 10): `done_cv`/`compat_cv` external-await narrowing. The net
+  `wait_keys` `ctrl_completion` residual is future net-handle/accept work, not Task 10.

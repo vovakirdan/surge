@@ -72,6 +72,31 @@ func TestRuntimeV2LifecycleScopeCancelledPollTeardown(t *testing.T) {
 	}
 }
 
+// The three ...AcrossShards tests below re-run the same scope scenarios under
+// SURGE_SHARDS=1,2,8 (Epic 8 Task 9 scope-owner-lane migration). Under
+// SURGE_SHARDS>1 the scope is pinned to its owner's shard and scope_key parks/
+// wakes route to that shard's waiter store (not the control-lane store), so
+// these prove the segmented scope table, pinned-shard scope_key routing, and
+// owner-lane register/child-done/join_all/exit/failfast/cancel bookkeeping all
+// hold when the runtime has multiple shards. Genuine cross-thread, cross-shard
+// scope-child completion (post-F2 net-wrapper children on contending workers)
+// is additionally covered by the 8-shard/1024 net benchmark that anchors the
+// task's ctrl_scope/ctrl_completion measurement.
+func TestRuntimeV2LifecycleScopeEnterRegisterJoinExitAcrossShards(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarness(t)
+	runLifecycleModeAcrossShards(t, binPath, "scope-basic")
+}
+
+func TestRuntimeV2LifecycleScopeFailfastCancellationAcrossShards(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarness(t)
+	runLifecycleModeAcrossShards(t, binPath, "scope-failfast")
+}
+
+func TestRuntimeV2LifecycleScopeCancelledPollTeardownAcrossShards(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarness(t)
+	runLifecycleModeAcrossShards(t, binPath, "scope-cancelled-poll-teardown")
+}
+
 // lifecycleHarnessScopeAndShutdown holds the scope, timer, channel, blocking,
 // and external-await poll functions (concatenated after
 // lifecycleHarnessCommon in runtime_v2_lifecycle_behavior_harness_test.go).

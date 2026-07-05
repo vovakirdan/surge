@@ -225,18 +225,47 @@ func TestRuntimeV2LifecycleStaticCompletionResultVisibilityOrder(t *testing.T) {
 // the Skip and assert get_scope acquire-loads a scopes snapshot and
 // rt_waiter_route.c maps WAKER_SCOPE to the scope owner shard.
 func TestRuntimeV2LifecycleStaticScopeOwnerLane(t *testing.T) {
-	t.Skip("activates in Task 9 (09-scope-owner-lane): ex->scopes atomic-snapshot, " +
-		"get_scope lock-free acquire load, WAKER_SCOPE routes to the scope owner " +
-		"store instead of ex->control_waiters. Assert get_scope uses " +
-		"memory_order_acquire and rt_waiter_route.c no longer maps WAKER_SCOPE to " +
-		"control_waiters.")
+	// get_scope is a lock-free acquire snapshot of the segmented scopes_table
+	// (mirroring get_task/G3): the segment pointer and the slot are both
+	// acquire-loaded.
 	body := lifecycleFindFunctionBody(t, "get_scope")
-	if !strings.Contains(body, "memory_order_acquire") {
-		t.Fatalf("get_scope must acquire-load the scopes snapshot:\n%s", body)
+	if strings.Count(body, "memory_order_acquire") < 2 {
+		t.Fatalf("get_scope must acquire-load both the scope segment and the slot:\n%s", body)
 	}
+	if !strings.Contains(body, "scopes_table") {
+		t.Fatalf("get_scope must read the atomic scopes_table snapshot:\n%s", body)
+	}
+	state := lifecycleReadNativeFile(t, "rt_async_state.c")
+	if !strings.Contains(state, "rt_scope_slot_store") {
+		t.Fatal("scope-table atomic-snapshot protocol requires rt_scope_slot_store in rt_async_state.c")
+	}
+	// WAKER_SCOPE routes to the scope owner shard store (S5-Q10, revising Epic 7
+	// D8), not ex->control_waiters.
 	route := lifecycleReadNativeFile(t, "rt_waiter_route.c")
 	if strings.Contains(route, "case WAKER_SCOPE:\n            return &ex->control_waiters;") {
 		t.Fatal("WAKER_SCOPE must move off ex->control_waiters to the scope owner store")
+	}
+	if !strings.Contains(route, "rt_scope_owner_shard(ex, get_scope(ex, key.id))") {
+		t.Fatal("WAKER_SCOPE must resolve the scope owner shard via " +
+			"rt_scope_owner_shard(ex, get_scope(ex, key.id))")
+	}
+	// Scope-reason-gone (the assertion P8 deferred to P9, S6-Q1 complete):
+	// mark_done_needs_control no longer forces control for a scope-registered
+	// child, and mark_done's park_needs_control no longer keys on WAKER_SCOPE -
+	// scope completion runs on the scope owner lane and the scope_key store is
+	// owner-local, so both reasons are removed. mark_done_needs_control's final
+	// form is net-key + done_waiters (plus the select/multi-key residual).
+	needsControl := lifecycleFindFunctionBody(t, "mark_done_needs_control")
+	for _, banned := range []string{"parent_scope_id", "scope_registered"} {
+		if strings.Contains(needsControl, banned) {
+			t.Fatalf("mark_done_needs_control must not keep the scope reason (%s) "+
+				"- scope completion is owner-lane since Task 9:\n%s", banned, needsControl)
+		}
+	}
+	markDone := lifecycleFindFunctionBody(t, "mark_done")
+	if strings.Contains(markDone, "WAKER_SCOPE") {
+		t.Fatalf("mark_done park_needs_control must not key on WAKER_SCOPE "+
+			"(scope_key removal is owner-local since Task 9):\n%s", markDone)
 	}
 }
 

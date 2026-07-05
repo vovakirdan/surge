@@ -396,64 +396,44 @@ void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task) {
 }
 
 rt_scope* get_scope(rt_executor* ex, uint64_t id) {
-    if (ex == NULL || id == 0 || id >= ex->scopes_cap) {
+    // Lock-free acquire snapshot (Epic 8 Task 9, S5-Q7): segment pointer then
+    // slot, both memory_order_acquire, mirroring get_task. A NULL segment or
+    // slot means the scope does not exist (never created, or freed by
+    // scope_exit and its monotonic id never reused).
+    if (ex == NULL || id == 0) {
         return NULL;
     }
-    return ex->scopes[id];
+    size_t seg_idx = (size_t)(id >> RT_SCOPE_TABLE_SEGMENT_SHIFT);
+    if (seg_idx >= RT_SCOPE_TABLE_MAX_SEGMENTS) {
+        return NULL;
+    }
+    rt_scope_segment* segment =
+        atomic_load_explicit(&ex->scopes_table.segments[seg_idx], memory_order_acquire);
+    if (segment == NULL) {
+        return NULL;
+    }
+    size_t slot_idx = (size_t)(id & (RT_SCOPE_TABLE_SEGMENT_SIZE - 1));
+    return atomic_load_explicit(&segment->slots[slot_idx], memory_order_acquire);
 }
 
-static int ensure_ptr_array_cap(void** array,
-                                size_t elem_size,
-                                size_t* cap,
-                                size_t want,
-                                uint64_t align,
-                                const char* overflow_msg,
-                                const char* alloc_msg) {
-    if (array == NULL || cap == NULL || elem_size == 0) {
-        panic_msg(overflow_msg);
-        return 0;
+void rt_scope_slot_store(rt_executor* ex, uint64_t id, rt_scope* scope) {
+    // Caller holds the control lock only for the rare segment-growth branch;
+    // the steady rt_scope_enter publish and scope_exit clear reach here after
+    // ensure_scope_cap / rt_scope_table_segment_missing guaranteed the segment
+    // exists, so this is a pure release-store into a never-moved slot.
+    size_t seg_idx = (size_t)(id >> RT_SCOPE_TABLE_SEGMENT_SHIFT);
+    if (seg_idx >= RT_SCOPE_TABLE_MAX_SEGMENTS) {
+        panic_msg("async: scope slot out of range");
+        return;
     }
-    if (want <= *cap) {
-        return 1;
+    rt_scope_segment* segment =
+        atomic_load_explicit(&ex->scopes_table.segments[seg_idx], memory_order_acquire);
+    if (segment == NULL) {
+        panic_msg("async: scope slot out of range");
+        return;
     }
-    if (*cap > SIZE_MAX / elem_size) {
-        panic_msg(overflow_msg);
-        return 0;
-    }
-    size_t next_cap = *cap == 0 ? 8 : *cap;
-    while (next_cap < want) {
-        if (next_cap > SIZE_MAX / 2) {
-            panic_msg(overflow_msg);
-            return 0;
-        }
-        next_cap *= 2;
-    }
-    if (next_cap > SIZE_MAX / elem_size) {
-        panic_msg(overflow_msg);
-        return 0;
-    }
-    size_t old_size = (*cap) * elem_size;
-    size_t new_size = next_cap * elem_size;
-    size_t diff = next_cap - *cap;
-    if (diff > 0 && diff > SIZE_MAX / elem_size) {
-        panic_msg(overflow_msg);
-        return 0;
-    }
-    if (old_size > UINT64_MAX || new_size > UINT64_MAX) {
-        panic_msg(overflow_msg);
-        return 0;
-    }
-    void* next = rt_realloc((uint8_t*)(*array), (uint64_t)old_size, (uint64_t)new_size, align);
-    if (next == NULL) {
-        panic_msg(alloc_msg);
-        return 0;
-    }
-    if (diff > 0) {
-        memset((uint8_t*)next + old_size, 0, diff * elem_size);
-    }
-    *array = next;
-    *cap = next_cap;
-    return 1;
+    size_t slot_idx = (size_t)(id & (RT_SCOPE_TABLE_SEGMENT_SIZE - 1));
+    atomic_store_explicit(&segment->slots[slot_idx], scope, memory_order_release);
 }
 
 // ensure_task_cap moved to rt_task_table.c (Epic 8 Task 6): the segmented
@@ -461,26 +441,8 @@ static int ensure_ptr_array_cap(void** array,
 // operation than the old copy-on-grow table's, so it now lives with the
 // rest of the segment-allocation logic rather than here.
 
-void ensure_scope_cap(rt_executor* ex, uint64_t id) {
-    if (ex == NULL) {
-        return;
-    }
-    if (id < ex->scopes_cap) {
-        return;
-    }
-    if (id >= SIZE_MAX) {
-        panic_msg("async: scope capacity overflow");
-        return;
-    }
-    size_t want = (size_t)id + 1;
-    (void)ensure_ptr_array_cap((void**)&ex->scopes,
-                               sizeof(rt_scope*),
-                               &ex->scopes_cap,
-                               want,
-                               _Alignof(rt_scope*),
-                               "async: scope capacity overflow",
-                               "async: scope allocation failed");
-}
+// ensure_scope_cap moved to rt_scope_table.c (Epic 8 Task 9): scope table
+// growth now allocates a segment, mirroring ensure_task_cap / rt_task_table.c.
 
 void ensure_child_cap(rt_task* task, size_t want) {
     if (task == NULL) {
@@ -1354,27 +1316,11 @@ int scope_remove_child(rt_scope* scope, uint64_t child_id) {
     return 0;
 }
 
-void scope_cancel_children_locked(rt_executor* ex, const rt_scope* scope) {
-    if (ex == NULL || scope == NULL) {
-        return;
-    }
-    for (size_t i = 0; i < scope->children_len; i++) {
-        cancel_task(ex, scope->children[i]);
-    }
-}
-
-void scope_child_done_locked(rt_executor* ex, rt_scope* scope, uint64_t child_id) {
-    if (ex == NULL || scope == NULL) {
-        return;
-    }
-    (void)scope_remove_child(scope, child_id);
-    if (scope->active_children > 0) {
-        scope->active_children--;
-    }
-    if (scope->active_children == 0) {
-        wake_key_all(ex, scope_key(scope->id));
-    }
-}
+// scope_cancel_children_locked / scope_child_done_locked moved to
+// rt_async_scope.c (Epic 8 Task 9): completion-side scope bookkeeping now runs
+// on the scope owner shard lane (scope_on_child_done) with a counted control
+// fallback for the rare cancel/failfast walk, replacing the old control-lane
+// helpers.
 
 void task_add_ref(rt_task* task) {
     if (task == NULL) {
@@ -1531,21 +1477,17 @@ void cancel_task(rt_executor* ex, uint64_t id) {
 //
 // park_needs_control is derived by mark_done from the park_key it snapshotted
 // under the task's own owner shard lock (RV2-DEBT-019 race 2): reading park_key
-// here unlocked raced wake_task_on_shard_locked's write. A net park_key still
-// needs the cross-shard registry removal, and a WAKER_SCOPE park_key still
-// lives on ex->control_waiters until Task 9 moves the scope_key store to the
-// scope owner lane. The WAKER_JOIN reason is gone (Epic 8 Task 8, S6-Q1): Task
-// 7 moved the join waiter store to the target owner shard, so a join-key
-// removal is owner-local and runs control-free.
+// here unlocked raced wake_task_on_shard_locked's write. Only a net park_key
+// still forces control here (cross-shard registry removal). S6-Q1 is now
+// complete: the WAKER_JOIN reason went in Task 8, and the scope reason
+// (parent_scope_id/scope_registered) and the WAKER_SCOPE park_key reason are
+// gone in Task 9 - scope completion bookkeeping runs on the scope owner shard
+// lane (scope_on_child_done) and the scope_key waiter store moved to the scope
+// owner shard, so both are owner-local. mark_done_needs_control's final form is
+// net-key + done_waiters (plus the select/multi-key compat residual).
 static int
 mark_done_needs_control(const rt_executor* ex, const rt_task* task, int park_needs_control) {
     if (task->wait_keys_len > 0 || task->select_timers_len > 0) {
-        return 1;
-    }
-    // Scope completion still runs control-lane scope bookkeeping (get_scope,
-    // scope_child_done_locked, failfast) below until Task 9 moves it to the
-    // scope owner lane (S6-Q1 defers this reason to Task 9 per S5-Q8/Q10).
-    if (task->parent_scope_id != 0 || task->scope_registered) {
         return 1;
     }
     if (park_needs_control) {
@@ -1574,10 +1516,10 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // load-bearing half; the old unlocked read here raced only because the
     // wake path used to clear park_key on RUNNING tasks too).
     waker_key park = task->park_key;
-    // A net park_key needs the cross-shard registry removal; a WAKER_SCOPE key
-    // still lives on ex->control_waiters until Task 9. A WAKER_JOIN key is
-    // owner-local since Task 7, so it is removed control-free below (S6-Q1).
-    int park_needs_control = waker_valid(park) && (waker_is_net(park) || park.kind == WAKER_SCOPE);
+    // A net park_key needs the cross-shard registry removal. Join keys (Task 7)
+    // and scope keys (Task 9, scope_key store moved to the scope owner shard)
+    // are owner-local, so they are removed control-free below (S6-Q1 complete).
+    int park_needs_control = waker_valid(park) && waker_is_net(park);
     int need_control =
         !rt_lane_holds_control() && mark_done_needs_control(ex, task, park_needs_control);
     if (need_control) {
@@ -1614,26 +1556,13 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     task_status_store(task, TASK_DONE);
     task_enqueued_store(task, 0);
     task->state = NULL;
-    rt_scope* scope = NULL;
-    if (task->parent_scope_id != 0) {
-        scope = get_scope(ex, task->parent_scope_id);
-    }
-    if (scope != NULL) {
-        if (result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered) {
-            // First cancellation observed under the executor lock wins.
-            scope->failfast_triggered = 1;
-            scope->failfast_child = task->id;
-            // First cancellation wins; cancel remaining children and wake the owner.
-            scope_cancel_children_locked(ex, scope);
-            if (scope->owner != 0) {
-                wake_task(ex, scope->owner, 1);
-            }
-        }
-        if (task->scope_registered) {
-            scope_child_done_locked(ex, scope, task->id);
-            task->scope_registered = 0;
-        }
-    }
+    // Scope completion bookkeeping (Epic 8 Task 9, S5-Q8): runs on the scope
+    // owner shard lane. The steady same-owner non-failfast child-done is
+    // control-free under the pinned shard lock; only a cross-owner (re-placed
+    // child) or a failfast-triggering completion takes the counted control
+    // fallback inside scope_on_child_done, so it no longer forces
+    // mark_done_needs_control on the request hot path.
+    scope_on_child_done(ex, task, result_kind);
     wake_key_all_with_policy(ex, join_key(task->id), 0);
     if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) > 0) {
         pthread_cond_broadcast(&ex->done_cv);
@@ -1656,28 +1585,54 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
             break;
         case POLL_DONE_CANCELLED:
             if (task->scope_id != 0) {
-                // Scope teardown is control-lane state; a worker-context
-                // cancellation takes the lane for this branch only.
+                // Owner-cancelled scope teardown (S5-Q14, Epic 8 Task 9): the
+                // child cancel walk needs the control lane (re-derivation:
+                // cancel_task reads sibling owner_shard_ids that F2 self-replace
+                // writes under control), so this rare branch takes control. But
+                // same-owner child-done now runs control-free on the pinned
+                // shard lane, so control no longer excludes it - the re-park on
+                // scope_key uses register-then-verify (scope_key routes to the
+                // pinned store) to avoid losing a child-done wake.
                 int need_control = !rt_lane_holds_control();
                 if (need_control) {
                     rt_control_lock(ex);
                     rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
                 }
                 rt_scope* scope = get_scope(ex, task->scope_id);
-                if (scope != NULL && scope->active_children > 0) {
+                rt_shard* pinned = scope != NULL ? rt_scope_owner_shard(ex, scope) : NULL;
+                size_t active = 0;
+                if (scope != NULL) {
+                    rt_shard_lock(pinned);
+                    active = scope->active_children;
+                    rt_shard_unlock(pinned);
+                }
+                if (scope != NULL && active > 0) {
                     task->cancel_pending = 1;
-                    scope_cancel_children_locked(ex, scope);
+                    scope_cancel_children_controlled(ex, scope);
                     task->state = outcome.state;
                     waker_key key = scope_key(scope->id);
                     prepare_park(ex, task, key, 0);
-                    park_current(ex, key);
-                    if (need_control) {
-                        rt_control_unlock(ex);
+                    rt_shard_lock(pinned);
+                    size_t active_after = scope->active_children;
+                    rt_shard_unlock(pinned);
+                    if (active_after != 0) {
+                        park_current(ex, key);
+                        if (need_control) {
+                            rt_control_unlock(ex);
+                        }
+                        break;
                     }
-                    break;
+                    // All children drained during the walk/registration: undo
+                    // the park and fall through to exit + mark_done.
+                    remove_waiter(ex, key, task->id);
+                    task->park_prepared = 0;
+                    task->park_key = waker_none();
+                    pending_key = waker_none();
                 }
                 if (scope != NULL) {
+                    rt_shard_lock(pinned);
                     scope_exit_locked(ex, scope);
+                    rt_shard_unlock(pinned);
                 }
                 if (need_control) {
                     rt_control_unlock(ex);

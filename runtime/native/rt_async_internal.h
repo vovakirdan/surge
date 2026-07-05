@@ -229,6 +229,14 @@ typedef struct rt_task {
 typedef struct {
     uint64_t id;
     uint64_t owner;
+    // Pinned scope owner shard (Epic 8 Task 9, S5-Q8/Q10): set once at
+    // rt_scope_enter from the entering task's owner shard and NEVER changed.
+    // Every scope-object mutation and the scope_key waiter store both serialize
+    // on THIS shard's lock, so the scope's serialization lock is stable for its
+    // whole life even if the owner TASK is later re-placed by F2 placement
+    // adoption (rt_task_poll_adopt_placement) - resolving the lock through the
+    // mobile owner task would split the scope across two locks and race.
+    uint32_t owner_shard_id;
     uint8_t failfast;
     uint8_t failfast_triggered;
     uint64_t failfast_child;
@@ -260,6 +268,27 @@ typedef struct rt_task_table {
     _Atomic(rt_task_segment*) segments[RT_TASK_TABLE_MAX_SEGMENTS];
 } rt_task_table;
 
+// Segmented scope table (Epic 8 Task 9, S5-Q7): the exact same never-moved-slot
+// atomic-snapshot structure as rt_task_table (Global Rule 5 - reuse the proven
+// pattern, not a new one). get_scope becomes a lock-free acquire load so scope
+// object bookkeeping can run on the scope owner shard lane instead of control.
+// Scope ids are monotonic and never reused (rt_scope_enter fetch_adds
+// next_scope_id); a slot cleared on scope_exit is release-stored NULL and never
+// reallocated, so a late scope_key wake/remove for a freed id resolves get_scope
+// to NULL (routed to shard 0, draining nothing) - no generation needed, the
+// same S9-Q7/rule-6 monotonic-never-reused-id argument as join/scope waiters.
+#define RT_SCOPE_TABLE_SEGMENT_SHIFT 12
+#define RT_SCOPE_TABLE_SEGMENT_SIZE (1u << RT_SCOPE_TABLE_SEGMENT_SHIFT)
+#define RT_SCOPE_TABLE_MAX_SEGMENTS (1u << 16)
+
+typedef struct rt_scope_segment {
+    _Atomic(rt_scope*) slots[RT_SCOPE_TABLE_SEGMENT_SIZE];
+} rt_scope_segment;
+
+typedef struct rt_scope_table {
+    _Atomic(rt_scope_segment*) segments[RT_SCOPE_TABLE_MAX_SEGMENTS];
+} rt_scope_table;
+
 struct rt_executor {
     // Atomic (Epic 8 Task 6): id allocation is a lock-free fetch_add on the
     // owner-lane create path; control-held creators (checkpoint/sleep/
@@ -267,7 +296,9 @@ struct rt_executor {
     // with the implicit seq_cst order), safely mixed with the relaxed
     // fetch_add used elsewhere.
     _Atomic uint64_t next_id;
-    uint64_t next_scope_id;
+    // Atomic (Epic 8 Task 9): scope-id allocation is a lock-free fetch_add on
+    // the owner-lane rt_scope_enter path, mirroring next_id.
+    _Atomic uint64_t next_scope_id;
     // Virtual clock (D7): relaxed atomic counter; ticks are fetch_add, idle
     // jumps go through rt_clock_advance_to (monotonic CAS).
     _Atomic uint64_t now_ms;
@@ -276,8 +307,9 @@ struct rt_executor {
     // fixed-size and never reallocated, so there is nothing to atomically
     // swap at this level. See the rt_task_table definition above.
     rt_task_table tasks_table;
-    rt_scope** scopes;
-    size_t scopes_cap;
+    // Segmented atomic-snapshot scope table (Epic 8 Task 9): same never-moved-
+    // slot, fixed-directory shape as tasks_table; get_scope acquire-loads it.
+    rt_scope_table scopes_table;
     pthread_mutex_t lock;
     // compat_cv sleeps sync-channel compatibility waiters under the control
     // lock; worker sleep lives on each shard's worker_cv since Task 7.
@@ -301,8 +333,10 @@ struct rt_executor {
     atomic_u32 blocking_cancel_requested;
     struct rt_blocking_job* blocking_head;
     struct rt_blocking_job* blocking_tail;
-    // Control-lane waiter store: scope keys only (D8). Everything else is
-    // owner-resolved by rt_waiter_store_for_key.
+    // Control-lane waiter store. Epic 7 D8 kept scope keys here; Epic 8 Task 9
+    // (S5-Q10) moved scope keys to the scope owner shard store, so this now
+    // only backs the rt_waiter_store_for_key default (unknown waker kind) and
+    // the diagnostic waiter dump. Everything else is owner-resolved.
     rt_waiter_store control_waiters;
     // Main-thread awaiters parked on done_cv (D10): completions broadcast
     // only when this is nonzero, so plain task exits skip the control cv.
@@ -559,7 +593,14 @@ uint64_t rt_task_table_snapshot(rt_executor* ex);
 // __task_create's steady-state path to decide whether the rare, control-lane
 // segment-growth branch is needed at all.
 int rt_task_table_segment_missing(rt_executor* ex, uint64_t id);
+// Segmented scope table (Epic 8 Task 9, rt_scope_table.c): mirror of the task
+// table helpers. ensure_scope_cap allocates the id's segment under the control
+// lock (rare growth); rt_scope_slot_store release-stores into a never-moved
+// slot; rt_scope_table_segment_missing is the lock-free peek rt_scope_enter
+// uses to skip control on the steady path.
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
+void rt_scope_slot_store(rt_executor* ex, uint64_t id, rt_scope* scope);
+int rt_scope_table_segment_missing(rt_executor* ex, uint64_t id);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);
 
@@ -635,8 +676,15 @@ uint32_t rt_debug_current_worker_shard_id(void);
 void task_add_child(rt_task* parent, uint64_t child_id);
 void scope_add_child(rt_scope* scope, uint64_t child_id);
 int scope_remove_child(rt_scope* scope, uint64_t child_id);
-void scope_cancel_children_locked(rt_executor* ex, const rt_scope* scope);
-void scope_child_done_locked(rt_executor* ex, rt_scope* scope, uint64_t child_id);
+// Scope owner lane (Epic 8 Task 9, rt_async_scope.c): rt_scope_owner_shard
+// resolves the scope's PINNED owner shard (stable for the scope's life);
+// scope_on_child_done is mark_done's completion-side bookkeeping (same-owner
+// control-free / cross-owner+failfast counted control fallback);
+// scope_cancel_children_controlled snapshots children under the pinned shard
+// lock and cancels each under the control lane (caller holds control).
+rt_shard* rt_scope_owner_shard(rt_executor* ex, const rt_scope* scope);
+void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind);
+void scope_cancel_children_controlled(rt_executor* ex, const rt_scope* scope);
 void scope_exit_locked(rt_executor* ex, rt_scope* scope);
 
 void task_add_ref(rt_task* task);
