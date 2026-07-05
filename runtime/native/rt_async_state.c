@@ -1524,7 +1524,19 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
         !rt_lane_holds_control() && mark_done_needs_control(ex, task, park_needs_control);
     if (need_control) {
         rt_control_lock(ex);
-        rt_trace_control_lock_site(RT_CTRL_SITE_COMPLETION);
+        // Attribute honestly (Epic 8 Task 10, rule 5): a completion forced onto
+        // the control lane SOLELY because a non-worker awaiter is parked on
+        // done_cv (done_waiters>0, with no net park_key and no residual
+        // multi-key work) is external-await compatibility, counted separately
+        // from worker steady-state completion. Net-key / wait_keys / select-
+        // timer removals are genuine completion control work and stay COMPLETION.
+        int completion_reason =
+            task->wait_keys_len > 0 || task->select_timers_len > 0 || park_needs_control;
+        if (completion_reason) {
+            rt_trace_control_lock_site(RT_CTRL_SITE_COMPLETION);
+        } else {
+            rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT);
+        }
     }
     if (task->wait_keys_len > 0) {
         clear_wait_keys(ex, task);

@@ -3577,3 +3577,46 @@ pass, before any task execution began:
   `get_scope`/`rt_scope_owner_shard` — added stubs).
 - Next (Task 10): `done_cv`/`compat_cv` external-await narrowing. The net
   `wait_keys` `ctrl_completion` residual is future net-handle/accept work, not Task 10.
+
+## Epic 8 Task 10 Handoff (Await / Runner / Blocking Compat, coder-t10)
+
+- Scope: keep `done_cv`/`compat_cv` external-only and COUNTED SEPARATELY (spike
+  rule 5); peel P10; honest-split the single-worker runner + sync `compat_cv`
+  lane (no migration). Commit on `b9a420c0`. Full write-up:
+  `08-tasks/10-await-runner-blocking-compat.md`; evidence in `08-evidence.md`.
+- Already true at `b9a420c0` (Tasks 7/8/9): `rt_task_poll` never touches
+  `done_cv`; `done_cv`'s only waiter is `rt_task_await` workers>1 (tags
+  AWAIT_COMPAT); the `mark_done` broadcast is `done_waiters`-guarded. So Task 10
+  had NO lane to migrate — only honest counting + gate + docs.
+- Code change (behavior-neutral): `mark_done` splits its control tag —
+  COMPLETION iff `wait_keys_len>0 || select_timers_len>0 || net park_key`, else
+  AWAIT_COMPAT (the reason is a parked external awaiter, `done_waiters>0`). The
+  lock is taken identically; only the trace tag changes. `rt_async_state.c`
+  1377→1383.
+- P10 peeled + strengthened (`StaticAwaitCompatCountedSeparately`, 5 assertions)
+  and a trace guardian (`TraceAwaitCompatCountedSeparately`, asserts external
+  await → `ctrl_await_compat>0`); both wired into `runtime-v2-lifecycle-check`.
+- Honest split (no migration): `run_until_done`/`run_ready_one` (N=1 whole-
+  executor loop) and `rt_wait_current_worker_wakeup` (sync `compat_cv`,
+  RV2-DEBT-017) stay control-lane by design, counted-separate compat, not worker
+  steady-path; untagged OTHER. Rule 5.
+- FINDING (corrects Task 9 + RV2-DEBT-016): the 8x1024 `ctrl_completion`=28673 is
+  NOT a net `wait_keys` residual — the tag split moved the whole population to
+  `ctrl_await_compat`, proving the only reason was `done_waiters>0`. The net
+  bench's `main` externally awaits `serve_many` (main.sg:309), so
+  `done_waiters=1` for the whole run and net-wrapper child completions serialize
+  on control as external-await compat. Behavior unchanged (total control
+  105285→105351 noise; `ctrl_completion` 28673→0, `ctrl_await_compat` 1→28674).
+  Task 12 input: ~27% of net-bench control is that harness artifact; not a clean
+  steady-state measurement.
+- RV2-DEBT-022 raised: narrow pre-existing latent `done_cv` lost-wakeup window
+  (lockless `done_waiters` read + StoreLoad gap). Empirically unreachable; NO
+  `done_cv` behavior change this task. Owner: focused compat fix or Task 14.
+- Gates all green: `git diff --check`, `make c-check`, `make cppcheck`,
+  `make runtime-v2-check` (incl P10 + trace gate + no-keepalive
+  CompletionPinInterleavingTSan @ shards 1/2/8), `make check`,
+  `./check_file_sizes.sh -a` (rt_async_state.c 1383 ≤1580). Sentrux: root 6174,
+  runtime 5295, runtime/native 5382, all rules pass (no drop vs Task 9).
+- Next (Task 12): net/channel re-baseline. The net bench's external-await
+  artifact (done_waiters=1) means completion is shard-local when done_waiters==0;
+  factor that into the steady-state control-per-request judgment.

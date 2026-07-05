@@ -1043,6 +1043,20 @@ microsecond-exact latencies.
   the re-baseline owns separating them.
 - Remaining control-lane consumer on the sustained run is scope traffic
   (`control_lock_acquired` ~18.3/request) — Task 9's domain.
+- (Epic 8 Task 10) The net bench's `@entrypoint main` externally awaits
+  `serve_many` for the whole run (`benchmarks/native/net_request_reply/main.sg:309`,
+  non-worker + `workers>1` → `done_cv` branch), so `done_waiters=1` in steady
+  state and every net-wrapper child completion serializes on control as
+  external-await compat. Task 10's tag split measured this as `ctrl_await_compat`
+  = 28674 (~3.5/req, was mislabeled `ctrl_completion`), ~27% of the 8x1024 row's
+  105351 control acquisitions. This is a HARNESS-STRUCTURAL artifact (every
+  multi-worker Surge program parks a root external awaiter for its lifetime), NOT
+  worker steady-state completion cost. Task 12 re-baseline should: (a) report
+  `ctrl_await_compat` as its own column, and (b) track **steady-state-control =
+  `control_lock_acquired` − `ctrl_await_compat`** as the control-per-request
+  metric, so the harness's external-await serialization does not mask the true
+  worker-lane steady-state cost. Net-wrapper child completion is shard-local
+  (control-free) whenever `done_waiters==0`.
 
 ## Task 8: Completion Epilogue And Done Path
 
@@ -1299,3 +1313,117 @@ scope creep into the net/accept surface this epic does not own).
   residual (28673) is future net-handle/accept work, not Task 10.
 - `ex->control_waiters` is now only the `rt_waiter_store_for_key` default and the
   diagnostic dump; no lifecycle key routes to it. Task 10 owns `done_cv`/`compat_cv`.
+
+## Task 10: Await / Runner / Blocking Compatibility
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 10 per `08-tasks/10-await-runner-blocking-compat.md` (full
+  write-up there). Author/session: subagent `coder-t10` (plan approved by `main`,
+  RULES.md Global Rule 9).
+- Scope: keep `done_cv`/`compat_cv` external-only and **counted separately**
+  (spike rule 5); peel P10; honest split of the single-worker runner and the
+  sync `compat_cv` lane (no migration). Commit sits on `b9a420c0` (Task 9).
+- No control lane dropped. One behavior-neutral code change (a trace-tag split);
+  the rest is gate activation + docs.
+
+### What Was Already True (Tasks 7/8/9)
+
+The tree already satisfied the structural half of rule 5 at `b9a420c0`:
+`rt_task_poll` (worker-lane join) references neither `done_cv` nor `done_waiters`;
+`done_cv`'s only waiter is `rt_task_await`'s `workers>1` branch
+(`rt_async_task.c:337-357`, already tagged `RT_CTRL_SITE_AWAIT_COMPAT`); the
+`mark_done` broadcast (`rt_async_state.c:1567-1569`) is `done_waiters`-guarded;
+`done_waiters` is incremented only by the external-await path. So Task 10 had no
+lane to migrate — its job was honest counting + proof.
+
+### Change 1 — Honest counting (behavior-neutral)
+
+`mark_done` now splits its control tag: `COMPLETION` when the completion is forced
+onto control by real completion work (`wait_keys_len`/`select_timers_len` residual
+or a net park_key), `AWAIT_COMPAT` when the *only* reason is `done_waiters > 0`
+(a parked external awaiter). `completion_reason` is the exact complement of
+`mark_done_needs_control`'s non-`done_waiters` reasons, so the split is provably
+correct. The control lock is taken identically; only the trace tag changes. `G6`
+still passes (the `COMPLETION` call remains).
+
+### Change 2 — P10 peeled + trace guardian
+
+`TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately` (P10) activated and
+strengthened to five assertions: (i) `rt_task_poll` never references `done_cv`;
+(ii) `rt_task_await` is the `done_cv` waiter and tags `AWAIT_COMPAT`; (iii) the
+`mark_done` broadcast is `done_waiters`-guarded; (iv) the done_waiters-only
+completion tags `AWAIT_COMPAT`; (v) the completion module (`rt_async_state.c`)
+broadcasts `done_cv` exactly once and never waits on it. New trace guardian
+`TestRuntimeV2LifecycleTraceAwaitCompatCountedSeparately` runs a `SURGE_SHARDS=2`
+program where `main` externally awaits and inner tasks join worker-side, and
+asserts `ctrl_await_compat > 0`. Both wired into `runtime-v2-lifecycle-check`.
+
+### Honest split (no migration)
+
+The single-worker runner (`run_until_done`/`run_ready_one`, `rt_async_poll.c`) is
+the `N=1` legacy executor loop (control-lane by construction, no shards to lane
+against) and the sync-channel `compat_cv` lane (`rt_wait_current_worker_wakeup`,
+`rt_async_compat.c`, `RV2-DEBT-017`) is the deprecated thread-blocking sync path.
+Both are counted-separate compatibility lanes per rule 5, not worker steady-path
+(they do not run on the 8-shard net steady state), and stay control-lane by
+design. They remain untagged `OTHER`; tagging the `N=1` whole-executor loop as a
+lifecycle site would misrepresent it. No code change.
+
+### Correction: the 8x1024 `ctrl_completion`=28673 is external-await compat, NOT a net residual
+
+The tag split produced a provable correction to Task 9's Proof-2 attribution.
+Measured 8x1024 direct/seq (`SURGE_TRACE_EXEC=1`), the whole `ctrl_completion`
+population (28673) moved to `ctrl_await_compat` (28674). Because `completion_reason`
+was false for every one, none carried `wait_keys`, select timers, or a net
+park_key — so the sole reason they took control was `done_waiters > 0`. The net
+benchmark's `@entrypoint main` calls `serve_many(...).await()`
+(`benchmarks/native/net_request_reply/main.sg:309`) on the non-worker main thread
+with `workers > 1`, parking on `done_cv` and holding `done_waiters = 1` for the
+whole run. So those completions serialize on control because of the benchmark's
+own main-thread external await, not a net `wait_keys` residual. Net-wrapper child
+completions are shard-local (control-free) whenever `done_waiters == 0` (Task 8's
+wake gate clears the child's `park_key` before completion; these children never
+register `wait_keys[]`). `RV2-DEBT-016` corrected. Task 12 input: ~27% of the net
+bench's control traffic (28673/105351) is that harness artifact — every
+multi-worker Surge program parks a root external awaiter for its lifetime — so the
+net bench is not a clean steady-state completion measurement.
+
+### Measurement (8x1024 direct/seq, 8192 req, `SURGE_TRACE_EXEC=1`)
+
+| Site | Before (Task 9, `b9a420c0`) | After (Task 10) |
+| --- | ---: | ---: |
+| `control_lock_acquired` | 105285 | 105351 (noise) |
+| `ctrl_completion` | 28673 | 0 |
+| `ctrl_await_compat` | 1 | 28674 |
+| `ctrl_scope` | 19464 | 19465 |
+| `ctrl_handle` | 29696 | 29696 |
+| `ctrl_join_poll` | 2039 | 2039 |
+| `ctrl_create` | 8 | 10 |
+
+Total control unchanged (behavior-neutral); only the completion/await-compat split
+flips. Report: `scratchpad/t10-net-after.md`.
+
+### Open Correctness Note (RV2-DEBT-022)
+
+A narrow, pre-existing latent `done_cv` lost-wakeup window was found (Global Rule 2
+trace) and recorded as `RV2-DEBT-022`: `mark_done` reads `done_waiters` locklessly
+to decide control, and a completion that reads `done_waiters == 0` in the window
+before the external awaiter's increment (with the awaited target completing on a
+worker not re-synchronized to that increment) can skip the broadcast. The correct
+fix is a seq-cst StoreLoad protocol + late-broadcast-under-lock, too heavy for this
+narrow task; the window is empirically unreachable (external await is `main`
+awaiting a long-lived task). No `done_cv` behavior change in this task.
+
+### Files Touched
+
+- C: `rt_async_state.c` (`mark_done` tag split; 1377→1383 effective, ≤1580).
+- Tests: `runtime_v2_lifecycle_static_test.go` (P10 activate+strengthen),
+  `runtime_v2_lifecycle_trace_test.go` (new trace guardian), `Makefile`
+  (lifecycle regex +2).
+- Docs: this section, `10-await-runner-blocking-compat.md`, `NOTES.md`,
+  `08-tasks/README.md`, `DEBT.md`.
+
+### Gates
+
+(Recorded at commit time below.)

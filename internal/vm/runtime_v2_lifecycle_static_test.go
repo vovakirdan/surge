@@ -275,13 +275,52 @@ func TestRuntimeV2LifecycleStaticScopeOwnerLane(t *testing.T) {
 // the worker-side join path never references done_cv and the await-compat
 // counter accounts only for the non-worker (workers>1) await entries.
 func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
-	t.Skip("activates in Task 10 (10-await-runner-blocking-compat): done_cv / " +
-		"compat_cv remain external-only and counted separately (rule 5). Assert " +
-		"only the workers>1 branch of rt_task_await touches done_cv and tags " +
-		"AWAIT_COMPAT, and the worker-lane join path (rt_task_poll) never " +
-		"references done_cv.")
-	body := lifecycleFindFunctionBody(t, "rt_task_poll")
-	if strings.Contains(body, "done_cv") {
-		t.Fatalf("worker-lane join (rt_task_poll) must not reference done_cv:\n%s", body)
+	// (i) rule 5: the worker-lane join path never touches done_cv. Worker-side
+	// join is the owner-lane path (rt_task_poll, P7); done_cv is external-only.
+	poll := lifecycleFindFunctionBody(t, "rt_task_poll")
+	if strings.Contains(poll, "done_cv") {
+		t.Fatalf("worker-lane join (rt_task_poll) must not reference done_cv:\n%s", poll)
+	}
+	// (ii) the only done_cv waiter is rt_task_await's non-worker (workers>1)
+	// branch, and it tags its control acquisition AWAIT_COMPAT so external await
+	// is counted separately from worker steady state.
+	await := lifecycleFindFunctionBody(t, "rt_task_await")
+	if !strings.Contains(await, "pthread_cond_wait(&ex->done_cv") {
+		t.Fatalf("rt_task_await (workers>1) must be the done_cv external-await waiter:\n%s", await)
+	}
+	if !strings.Contains(await, "rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT)") {
+		t.Fatalf("rt_task_await must tag its control acquisition AWAIT_COMPAT (rule 5):\n%s", await)
+	}
+	// (iii) mark_done broadcasts done_cv only under a done_waiters guard, so a
+	// plain worker completion (done_waiters==0) never signals the control cv.
+	markDone := lifecycleFindFunctionBody(t, "mark_done")
+	bcastIdx := strings.Index(markDone, "pthread_cond_broadcast(&ex->done_cv)")
+	if bcastIdx < 0 {
+		t.Fatalf("mark_done must broadcast done_cv for external awaiters:\n%s", markDone)
+	}
+	guardIdx := strings.Index(markDone, "done_waiters")
+	if guardIdx < 0 || guardIdx > bcastIdx {
+		t.Fatalf("mark_done must guard the done_cv broadcast with a done_waiters check "+
+			"(so plain worker completions skip it):\n%s", markDone)
+	}
+	// (iv) a completion forced onto the control lane solely by a parked external
+	// awaiter is tagged AWAIT_COMPAT, not COMPLETION (counted separately).
+	if !strings.Contains(markDone, "rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT)") {
+		t.Fatalf("mark_done must count the done_waiters-only completion under AWAIT_COMPAT "+
+			"(rule 5, counted separately from worker steady state):\n%s", markDone)
+	}
+	// done_cv is confined to the external-await lane: the completion module
+	// (rt_async_state.c) only ever broadcasts done_cv, exactly once, under the
+	// done_waiters guard above; it never waits on it. The lone waiter is
+	// rt_task_await (asserted in (ii)). This is robust to comments mentioning
+	// the condvar by name — it counts the actual condvar operations.
+	state := lifecycleReadNativeFile(t, "rt_async_state.c")
+	if n := strings.Count(state, "pthread_cond_broadcast(&ex->done_cv)"); n != 1 {
+		t.Fatalf("rt_async_state.c must broadcast done_cv exactly once "+
+			"(the done_waiters-guarded completion broadcast); got %d", n)
+	}
+	if strings.Contains(state, "pthread_cond_wait(&ex->done_cv") {
+		t.Fatal("rt_async_state.c (worker completion) must never wait on done_cv; " +
+			"the only waiter is the external-await path rt_task_await")
 	}
 }
