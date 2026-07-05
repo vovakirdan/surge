@@ -960,3 +960,86 @@ timing of some existing `rt_task_cancel`/timeout-race code path in
   not amortized on a single busy one — Task 8/9's own before/after
   measurements should use this task's row as their baseline, not Task 6's.
 exclude tool dirs from code stats`.
+
+## Task 11: Net Fairness Starvation Investigation
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 11 per
+  `08-tasks/11-net-fairness-starvation-investigation.md` (self-contained;
+  full investigation log, mechanism analysis, F2/F1 specs, attribution
+  experiment, and acceptance table live there — this section is the
+  ledger summary).
+- Epic: 8. Dates: 2026-07-04 (investigation at `27eeabd7`) and 2026-07-05
+  (re-verification at `d998df20`). Author/session: `investigator`
+  subagent in an isolated worktree; plan-gated by main per RULES.md
+  Global Rule 9; quiet windows granted by main for cited runs.
+- Scope: reproduce, instrument, and resolve `RV2-DEBT-015`. The fix (F2)
+  was implemented by Task 7 (write-set owner), per the class-(b)-style
+  handoff recorded in the task doc; this task owns the mechanism
+  evidence, the fix spec, the reproducer harness, and the acceptance
+  re-verification.
+
+### Findings (mechanism, trace-pinned)
+
+1. Placement funnel: stdlib net ops are ephemeral async wrapper child
+   tasks; the accept transition placed the wrapper (`rt_net.c:516` fast
+   path, `rt_async_waiter.c` parked path), so the placement died with it
+   and every durable task inherited shard 0. Mid-load SIGUSR1 dumps
+   showed 3073/3073 live tasks `owner=0`, one worker at ~105% of a core
+   with seven workers under 1%, and `conn_owner_local=2` for a whole
+   run against `conn_owner_placed=1030`.
+2. Inject rotation: with the funnel, parked-read completions were
+   cross-shard wakes into shard 0's single-consumer inject FIFO
+   (`inject_len=1023`, drain ~1070/s -> ~0.96s sojourn), producing a
+   deterministic ~1.0-1.5s tail band on 8.4% of requests under sustained
+   1024-way load — and zero at `SURGE_SHARDS=1`, which also ran 22%
+   faster than 8 shards.
+3. Attribution: a pre-fix build at `072bbde0` showed the identical band
+   (5.3%, p95 1.000s) and the >10s class reproduced at neither commit —
+   the historical 10.6-13.6s tails were this rotation stretched by WSL2
+   host load (healing on load drop), not the Task 1 lost-wake and not a
+   platform-only behavior.
+
+### Resolution And Acceptance (quiet-window evidence at `d998df20`)
+
+F2 (placement adoption at join consume, `rt_task_poll_adopt_placement`)
+landed in Task 7's `d998df20` under hard-constraint arm (1). Acceptance:
+sustained 90s 8x1024 run with ZERO >=1s stalls (was 45762/544114) at
+8550 req/s (+41%); 8-shard 1.12x the 1-shard sustained row (was 0.82x);
+per-worker CPU balanced (max/min ~2.0, was ~150x); bench probe
+8x1024x100 5/5 clean with no >10s tails; owner histogram 320-456 across
+all 8 shards; `inject_len=0`; `cross_shard_wakes` 84961 -> 2017;
+`placement_adoptions=2017` (~2/connection, confirming the O(connections)
+bound with join-poll control traffic adoption-only). `RV2-DEBT-015`
+moved to Closed Debt. Environment caveat recorded in the task doc: the
+host rebooted between pre- and post-F2 runs, so cross-boundary
+comparisons rest on stall counts, ratios, and counters, not
+microsecond-exact latencies.
+
+### Deliverables Landed
+
+- `scripts/stallrepro.py`, `scripts/run_stallrepro.sh`,
+  `scripts/cpu_validate.sh`: the reconstructed reproducer/validation
+  harness, promoted with repo-relative paths; owns its per-probe
+  timeouts (noted in `RV2-DEBT-006`).
+- `DEBT.md`: `RV2-DEBT-015` closed with evidence; `RV2-DEBT-016`
+  residual note (pre/post-F2 8x1024 rows are not comparable — Task 12
+  must re-baseline); `RV2-DEBT-006` reference-shape note.
+
+### Task 12 Inputs (explicit)
+
+- Sustained scaling is now CLIENT-bound: the Python 1024-thread client
+  saturates ~8.5k req/s while server workers sit near 40% CPU each;
+  Task 12 needs a stronger load generator before quoting scaling
+  numbers.
+- Post-F2 1024-conn bench rows are unimodal (p50 ~20.4ms ~= 128
+  outstanding x ~160us service) in BOTH shard configs — fair round-robin
+  replaced the pre-F2 streak bimodality (p50 175us + heavy tail). The
+  p50 shift is fairness, not regression; totals are the comparable
+  metric.
+- The 1-shard bench total moved 15.5s (old boot, `27eeabd7`) -> 17.2s
+  (new boot, `d998df20`); reboot and Task 6/7 overhead are confounded —
+  the re-baseline owns separating them.
+- Remaining control-lane consumer on the sustained run is scope traffic
+  (`control_lock_acquired` ~18.3/request) — Task 9's domain.

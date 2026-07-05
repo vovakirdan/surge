@@ -3468,3 +3468,36 @@ pass, before any task execution began:
   6175/5294/5385, normal noise). No `RV2-DEBT-018` transient encountered.
 - Full write-up: `08-tasks/07-join-poll-and-handle-lifetime.md`. Evidence:
   `08-evidence.md` Task 7 section.
+
+## Task 11: Net Fairness Starvation Investigation (Complete, `investigator` subagent)
+
+- `RV2-DEBT-015` is CLOSED (fixed, not constrained). Mechanism was NOT
+  WSL2 poll behavior: a placement funnel (stdlib net wrapper child tasks
+  received the accept-transition placement and died with it) put ALL
+  user-task execution on shard 0's single worker since at least Epic 6,
+  and parked-read completions rotated through that shard's inject FIFO
+  (~1s deterministic band at 1024-way sustained load; the historical
+  >10s tails were the same rotation stretched by host load). Pre-fix
+  build at `072bbde0` reproduced the identical band, ruling out the
+  Task 1 lost-wake as the differentiator.
+- Fix: F2 placement adoption at join consume, spec'd by this task and
+  implemented by Task 7 (`rt_task_poll_adopt_placement`, `d998df20`,
+  hard-constraint arm 1). Acceptance at `d998df20`: zero >=1s stalls in
+  the 90s sustained run (was 8.4% of requests), 8-shard 1.12x 1-shard
+  (was 0.82x), balanced workers, bench probe 5/5 clean, owner histogram
+  spread, `inject_len=0`, adoptions O(connections).
+- Durable consequences for the rest of the epic: (1) all pre-F2 8x1024
+  rows measured a single-worker topology — Task 12 MUST re-baseline
+  before judging control-lane targets (recorded in `RV2-DEBT-016`);
+  (2) sustained bench p50 is now fair-unimodal (~20ms), not a
+  regression; (3) sustained scaling is client-bound (~8.5k req/s Python
+  client) — Task 12 needs a stronger load generator; (4) remaining
+  control consumer is scope traffic (Task 9).
+- Harness promoted: `scripts/stallrepro.py` (sustained 1024-conn client
+  with live stall detection), `scripts/run_stallrepro.sh` (server +
+  watcher + SIGUSR1 mid-stall dumps), `scripts/cpu_validate.sh`
+  (per-thread CPU split) — these own their per-probe timeouts (noted in
+  `RV2-DEBT-006`). Host rebooted between pre/post-F2 evidence runs;
+  caveat recorded in the task doc.
+- Full write-up: `08-tasks/11-net-fairness-starvation-investigation.md`.
+  Evidence: `08-evidence.md` Task 11 section.
