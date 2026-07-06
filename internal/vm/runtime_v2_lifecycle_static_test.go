@@ -298,9 +298,12 @@ func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
 	if bcastIdx < 0 {
 		t.Fatalf("mark_done must broadcast done_cv for external awaiters:\n%s", markDone)
 	}
-	guardIdx := strings.Index(markDone, "done_waiters")
+	// Match the real guard load, not the bare "done_waiters" substring — comments
+	// in mark_done mention done_waiters by name, which would make a bare-substring
+	// check pass even with the guard deleted (Task 10 review finding).
+	guardIdx := strings.Index(markDone, "atomic_load_explicit(&ex->done_waiters")
 	if guardIdx < 0 || guardIdx > bcastIdx {
-		t.Fatalf("mark_done must guard the done_cv broadcast with a done_waiters check "+
+		t.Fatalf("mark_done must guard the done_cv broadcast with a done_waiters load "+
 			"(so plain worker completions skip it):\n%s", markDone)
 	}
 	// (iv) a completion forced onto the control lane solely by a parked external

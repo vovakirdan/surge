@@ -1485,12 +1485,21 @@ void cancel_task(rt_executor* ex, uint64_t id) {
 // lane (scope_on_child_done) and the scope_key waiter store moved to the scope
 // owner shard, so both are owner-local. mark_done_needs_control's final form is
 // net-key + done_waiters (plus the select/multi-key compat residual).
-static int
-mark_done_needs_control(const rt_executor* ex, const rt_task* task, int park_needs_control) {
-    if (task->wait_keys_len > 0 || task->select_timers_len > 0) {
-        return 1;
+// completion_reason_out reports whether a genuine completion reason (net key /
+// wait_keys / select timers) forced control, as the exact complement of the
+// done_waiters-only case: the AWAIT_COMPAT tag in mark_done keys off it, so the
+// tag split cannot drift from the control decision (they share this one
+// evaluation; Epic 8 Task 10 review finding).
+static int mark_done_needs_control(const rt_executor* ex,
+                                   const rt_task* task,
+                                   int park_needs_control,
+                                   int* completion_reason_out) {
+    int completion_reason =
+        task->wait_keys_len > 0 || task->select_timers_len > 0 || park_needs_control;
+    if (completion_reason_out != NULL) {
+        *completion_reason_out = completion_reason;
     }
-    if (park_needs_control) {
+    if (completion_reason) {
         return 1;
     }
     if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) > 0) {
@@ -1520,18 +1529,19 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // and scope keys (Task 9, scope_key store moved to the scope owner shard)
     // are owner-local, so they are removed control-free below (S6-Q1 complete).
     int park_needs_control = waker_valid(park) && waker_is_net(park);
-    int need_control =
-        !rt_lane_holds_control() && mark_done_needs_control(ex, task, park_needs_control);
+    // Attribute honestly (Epic 8 Task 10, rule 5): a completion forced onto
+    // the control lane SOLELY because a non-worker awaiter is parked on
+    // done_cv (done_waiters>0, with no net park_key and no residual
+    // multi-key work) is external-await compatibility, counted separately
+    // from worker steady-state completion. Net-key / wait_keys / select-
+    // timer removals are genuine completion control work and stay COMPLETION.
+    // completion_reason comes out of the same evaluation that decides
+    // need_control, so the tag split cannot drift from the control decision.
+    int completion_reason = 0;
+    int need_control = !rt_lane_holds_control() &&
+                       mark_done_needs_control(ex, task, park_needs_control, &completion_reason);
     if (need_control) {
         rt_control_lock(ex);
-        // Attribute honestly (Epic 8 Task 10, rule 5): a completion forced onto
-        // the control lane SOLELY because a non-worker awaiter is parked on
-        // done_cv (done_waiters>0, with no net park_key and no residual
-        // multi-key work) is external-await compatibility, counted separately
-        // from worker steady-state completion. Net-key / wait_keys / select-
-        // timer removals are genuine completion control work and stay COMPLETION.
-        int completion_reason =
-            task->wait_keys_len > 0 || task->select_timers_len > 0 || park_needs_control;
         if (completion_reason) {
             rt_trace_control_lock_site(RT_CTRL_SITE_COMPLETION);
         } else {

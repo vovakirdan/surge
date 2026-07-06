@@ -3620,3 +3620,9 @@ pass, before any task execution began:
 - Next (Task 12): net/channel re-baseline. The net bench's external-await
   artifact (done_waiters=1) means completion is shard-local when done_waiters==0;
   factor that into the steady-state control-per-request judgment.
+- Task 10 review (Codex, verdict APPROVE-WITH-NOTES): P10 assertion (iii) was
+  substring-vacuous (comment matched before the real guard) — fixed to match the
+  guard load; completion_reason complement made structural via an out-param from
+  mark_done_needs_control (single shared evaluation). Informational: trace
+  guardian's ctrl_await_compat>0 includes completions racing the parked awaiter
+  (the documented DEBT-016 population). Fix commit follows aa66a0b7.

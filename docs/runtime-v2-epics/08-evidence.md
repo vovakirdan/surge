@@ -1427,3 +1427,31 @@ awaiting a long-lived task). No `done_cv` behavior change in this task.
 ### Gates
 
 (Recorded at commit time below.)
+
+### Independent Review (Task 10, commit `aa66a0b7`)
+
+Review ran via Codex CLI (`codex exec`, read-only sandbox) after the Claude
+reviewer's session limit interrupted its pass; the review brief and directed
+surfaces were identical. Verdict: **APPROVE-WITH-NOTES**, no blocking findings.
+
+- MEDIUM (fixed in the follow-up commit): P10's assertion (iii) matched the bare
+  substring `done_waiters` inside `mark_done`, which a comment satisfies before
+  the real guard — the gate passed even with the guard deleted. Fixed by
+  matching the actual guard load `atomic_load_explicit(&ex->done_waiters` before
+  the broadcast.
+- LOW (fixed in the follow-up commit): `completion_reason` duplicated the
+  non-`done_waiters` reasons of `mark_done_needs_control` as parallel code that
+  could drift. Fixed structurally: `mark_done_needs_control` now reports
+  `completion_reason` through an out-param from the same evaluation that decides
+  `need_control`, so the AWAIT_COMPAT tag split cannot drift from the control
+  decision.
+- Informational (accepted, already documented): the trace guardian's nonzero
+  `ctrl_await_compat` includes every completion racing the parked external
+  awaiter, exactly the DEBT-016 Task 10 population.
+
+Also independently confirmed: Makefile regex anchoring, RV2-DEBT-022's
+Store-Buffering analysis (acquire/release on two different atomics does not
+preclude StoreLoad reordering), and no regression risk to the Task 8 wake gate
+or Task 9 scope-owner lane. Post-fix gates: `make c-check`, `make cppcheck`,
+`make runtime-v2-lifecycle-check` (P10 strengthened assertion + trace guardian +
+no-keepalive pin TSan) all green; `git diff --check` clean.
