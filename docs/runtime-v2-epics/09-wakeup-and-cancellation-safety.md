@@ -30,9 +30,10 @@ allowlist, and a static gate must prove no hook sits on the worker steady
 path. Fix tasks then reuse that one mechanism instead of re-litigating it.
 
 **Status:** in progress. Task documents exist under `09-tasks/`; the first
-implementation slice stabilized the sync-point scaffold and proved
-`RV2-DEBT-023` for the cancel-vs-park never-firing-key window. `RV2-DEBT-020`
-and `RV2-DEBT-022` remain pending.
+implementation slices stabilized the sync-point scaffold, closed
+`RV2-DEBT-023` for the cancel-vs-park never-firing-key window, and closed
+`RV2-DEBT-020` with a generic join-route migration fix. `RV2-DEBT-022` remains
+pending.
 
 ## Inputs
 
@@ -89,13 +90,12 @@ The remaining risks are narrow but correctness-critical:
   cancellation check, return `POLL_PARKED`, then commit to `TASK_WAITING` after
   the cancel path skipped the wake. If the park key never fires, the cancelled
   task strands.
-- `RV2-DEBT-020`: `rt_waiter_migrate_join_waiters` no longer has the old
-  control-lock serialization guarantee. Every `rt_task_replace_owner` caller
-  must be re-enumerated against the current code before this debt is narrowed:
-  F2 adoption, accept wake paths, and accept self-placement each re-own a
-  different task shape. A late join waiter could remain on the old owner shard
-  unless the proof shows no such joiner exists or the migration protocol is
-  strengthened.
+- `RV2-DEBT-020`: CLOSED by Epic 9 Task 3. `rt_task_replace_owner` now publishes
+  an atomic join-owner route before migration, and `WAKER_JOIN`
+  add/remove/pop/collect-all wake revalidate that route under the selected shard
+  lock. The deterministic
+  `SP_MIGRATE_GAP` negative-control build proves the old order stranded a late
+  join waiter.
 
 `RV2-DEBT-003` remains open because `rt_async_state.c` is still over the
 Runtime V2 line target. The relevant remaining split candidate is the
@@ -147,12 +147,12 @@ per-task atomic, so no shard lock is required, but `cancel_task` holds the
 control lane during its tree walk — the write must be shown compatible with
 the lane order in both the control-held and control-free call shapes).
 
-**Accept-transition proof must be explicit.** Closing `RV2-DEBT-020` may be a
-proof or a code change. A proof must show why no joiner can race the acceptor's
-accept-time self-replace while the target is still running. A code change must
-preserve the lane order and avoid Phase 4 transport. If the proof exposes a
-net-handle or stdlib ABI dependency, the closeout must record the smaller
-blocking condition instead of leaving the current broad debt in place.
+**Accept-transition proof is fixed generically.** Epic 9 Task 3 did not rely on
+a net-handle/stdlib blocker. It enumerated all four `rt_task_replace_owner` call
+shapes and closed the stale-read/register-after-drain gap with a generic
+join-route protocol. Future owner-replacement call sites must still re-derive
+the completion-before-migration property or use a stronger old+new wake/marker
+scheme.
 
 **Refactor follows ownership, not file size alone.** If Epic 9 extracts the
 completion/cancel cluster from `rt_async_state.c`, the split must reduce real
@@ -171,7 +171,8 @@ Epic 9 owns:
 
 - `RV2-DEBT-022`: external-await `done_cv` ordering.
 - `RV2-DEBT-023`: cancellation vs `RUNNING -> WAITING` park ordering.
-- `RV2-DEBT-020`: accept-transition join-waiter migration proof or fix.
+- `RV2-DEBT-020`: closed by Task 3's join-route migration fix and
+  `SP_MIGRATE_GAP` proof.
 
 Epic 9 may touch:
 
@@ -288,10 +289,9 @@ Suggested task order (final slicing happens in the task documents):
    (see Approach); written interleaving models for all three windows.
 3. `RV2-DEBT-023` fix (smallest surface; the candidate one-line token fix and
    its proof obligations are already recorded).
-4. `RV2-DEBT-022` fix (protocol change on the completion/await handshake).
-5. `RV2-DEBT-020` proof-or-fix (analysis-heavy; may be pulled EARLIER if the
-   team wants owner-replacement reachability settled before the fix tasks land,
-   since discovering it late reshapes the epic boundary).
+4. `RV2-DEBT-020` proof-or-fix (completed early as Task 3 with a generic
+   join-route migration fix).
+5. `RV2-DEBT-022` fix (protocol change on the completion/await handshake).
 6. Optional dependency-aware completion/cancel split (`RV2-DEBT-003` riders
    apply).
 7. Closeout (contract sweep, DEBT/NOTES/RUNTIME_V2 reconciliation, Sentrux
@@ -313,8 +313,7 @@ Epic 9 is complete only when:
 
 - `RV2-DEBT-022` is closed with a deterministic proof and an ordering argument;
 - `RV2-DEBT-023` is closed with a deterministic proof and an ordering argument;
-- `RV2-DEBT-020` is closed, narrowed to a smaller debt with concrete proof, or
-  fixed with deterministic coverage;
+- `RV2-DEBT-020` is closed by the Task 3 deterministic migration-gap proof;
 - every changed wake/cancel/await path has a written ownership and cleanup
   invariant;
 - `runtime-v2-check`, `make check`, `make c-check`, `make cppcheck`,

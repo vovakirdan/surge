@@ -138,7 +138,13 @@ void __surge_poll_call(uint64_t id) {
         case POLL_XOWNER_OWNER:
             poll_xowner_owner();
             break;
-#ifdef RT_TEST_SYNC_POINTS
+	#ifdef RT_TEST_SYNC_POINTS
+        case POLL_DEBT020_ADOPT_JOINER:
+            poll_debt020_adopt_joiner();
+            break;
+        case POLL_DEBT020_GAP_JOINER:
+            poll_debt020_gap_joiner();
+            break;
         case POLL_CANCEL_PARK_PROOF:
             poll_cancel_park_proof();
             break;
@@ -398,7 +404,10 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "scope-cross-owner") == 0) {
         return mode_scope_cross_owner(ex);
     }
-#ifdef RT_TEST_SYNC_POINTS
+	#ifdef RT_TEST_SYNC_POINTS
+    if (strcmp(argv[1], "debt020-migrate-gap-proof") == 0) {
+        return mode_debt020_migrate_gap_proof(ex);
+    }
     if (strcmp(argv[1], "debt023-cancel-park-proof") == 0) {
         return mode_debt023_cancel_park_proof(ex);
     }

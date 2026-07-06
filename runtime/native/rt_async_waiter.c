@@ -446,6 +446,10 @@ void remove_waiter_generation(rt_executor* ex, waker_key key, uint64_t task_id, 
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
+    if (key.kind == WAKER_JOIN) {
+        rt_waiter_remove_join_waiter_generation(ex, key, task_id, seq);
+        return;
+    }
     if (!waker_is_net(key)) {
         size_t kept_same_key = 0;
         rt_shard* store_shard = rt_waiter_key_shard(ex, key);
@@ -470,6 +474,10 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     // still need the control lane); compaction preserves the relative order of
     // the other waiters.
     if (ex == NULL || !waker_valid(key)) {
+        return;
+    }
+    if (key.kind == WAKER_JOIN) {
+        rt_waiter_remove_join_waiter_generation(ex, key, task_id, 0);
         return;
     }
     int net_key = waker_is_net(key);
@@ -535,7 +543,9 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     const rt_task* task = get_task(ex, task_id);
     uint32_t owner_hint = task != NULL && task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
     rt_runtime_status status = RT_RUNTIME_STATUS_OK;
-    if (waker_is_net(key)) {
+    if (key.kind == WAKER_JOIN) {
+        status = rt_waiter_add_join_waiter(ex, key, task_id, owner_hint);
+    } else if (waker_is_net(key)) {
         uint32_t owner_shard_id = rt_net_owner_shard_probe_locked(ex, (int)key.id, owner_hint);
         rt_shard* owner_shard = owner_shard_id != UINT32_MAX
                                     ? rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id)
@@ -628,31 +638,26 @@ void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_add
     task->park_prepared = 1;
 }
 
-int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
-    // Caller holds ex->lock; stale/done/cancelled waiters are dropped while scanning.
-    uint32_t owner_shard_id = 0;
-    int net_key = waker_is_net(key);
-    if (net_key) {
-        owner_shard_id = rt_net_owner_shard_probe_locked(
-            ex, (int)key.id, tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : 0);
-        if (owner_shard_id == UINT32_MAX) {
-            owner_shard_id = 0;
-        }
-    }
-    rt_waiter_store* store = net_key ? rt_executor_waiter_store_for_shard(ex, owner_shard_id)
-                                     : rt_waiter_store_for_key(ex, key);
-    if (store == NULL || !waker_valid(key) || store->len == 0) {
-        return 0;
-    }
-    rt_shard* store_shard = rt_waiter_key_shard(ex, key);
-    if (store_shard != NULL) {
-        rt_shard_lock(store_shard);
-    }
-    size_t out = 0;
+static int pop_waiter_from_locked_store(rt_executor* ex,
+                                        rt_waiter_store* store,
+                                        waker_key key,
+                                        uint64_t* out_id,
+                                        size_t* out_removed,
+                                        size_t* out_kept_same_key) {
     size_t removed = 0;
     size_t kept_same_key = 0;
     int found = 0;
     uint64_t found_id = 0;
+    if (store == NULL || !waker_valid(key)) {
+        if (out_removed != NULL) {
+            *out_removed = 0;
+        }
+        if (out_kept_same_key != NULL) {
+            *out_kept_same_key = 0;
+        }
+        return 0;
+    }
+    size_t out = 0;
     for (size_t i = 0; i < store->len; i++) {
         waiter w = store->entries[i];
         if (w.key.kind == key.kind && w.key.id == key.id) {
@@ -676,6 +681,44 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
         store->entries[out++] = w;
     }
     store->len = out;
+    if (found && out_id != NULL) {
+        *out_id = found_id;
+    }
+    if (out_removed != NULL) {
+        *out_removed = removed;
+    }
+    if (out_kept_same_key != NULL) {
+        *out_kept_same_key = kept_same_key;
+    }
+    return found;
+}
+
+int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
+    // Caller holds ex->lock; stale/done/cancelled waiters are dropped while scanning.
+    if (key.kind == WAKER_JOIN) {
+        return rt_waiter_pop_join_waiter(ex, key, out_id);
+    }
+    uint32_t owner_shard_id = 0;
+    int net_key = waker_is_net(key);
+    if (net_key) {
+        owner_shard_id = rt_net_owner_shard_probe_locked(
+            ex, (int)key.id, tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : 0);
+        if (owner_shard_id == UINT32_MAX) {
+            owner_shard_id = 0;
+        }
+    }
+    rt_waiter_store* store = net_key ? rt_executor_waiter_store_for_shard(ex, owner_shard_id)
+                                     : rt_waiter_store_for_key(ex, key);
+    if (store == NULL || !waker_valid(key) || store->len == 0) {
+        return 0;
+    }
+    rt_shard* store_shard = rt_waiter_key_shard(ex, key);
+    if (store_shard != NULL) {
+        rt_shard_lock(store_shard);
+    }
+    size_t removed = 0;
+    size_t kept_same_key = 0;
+    int found = pop_waiter_from_locked_store(ex, store, key, out_id, &removed, &kept_same_key);
     net_waiters_removed(store, key, removed);
     if (net_key) {
         (void)fd_registry_bridge_net_detach_if_last_on_owner(
@@ -683,9 +726,6 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     }
     if (store_shard != NULL) {
         rt_shard_unlock(store_shard);
-    }
-    if (found && out_id != NULL) {
-        *out_id = found_id;
     }
     return found;
 }

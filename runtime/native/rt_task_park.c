@@ -181,45 +181,50 @@ void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) {
     uint64_t* batch = inline_batch;
     size_t batch_cap = sizeof(inline_batch) / sizeof(inline_batch[0]);
     size_t batch_len = 0;
-    rt_shard* store_shard = rt_waiter_key_shard(ex, key);
-    if (store_shard != NULL) {
-        rt_shard_lock(store_shard);
-    }
-    rt_waiter_store* store = rt_waiter_store_for_key(ex, key);
-    if (store != NULL && store->len > 0) {
-        size_t out = 0;
-        for (size_t i = 0; i < store->len; i++) {
-            waiter w = store->entries[i];
-            if (w.key.kind == key.kind && w.key.id == key.id) {
-                if (batch_len == batch_cap) {
-                    size_t next_cap = batch_cap * 2;
-                    uint64_t* next = (uint64_t*)rt_alloc((uint64_t)(next_cap * sizeof(uint64_t)),
-                                                         _Alignof(uint64_t));
-                    if (next == NULL) {
-                        panic_msg("async: wake batch allocation failed");
-                        break;
-                    }
-                    memcpy(next, batch, batch_len * sizeof(uint64_t));
-                    if (batch != inline_batch) {
-                        rt_free((uint8_t*)batch,
-                                (uint64_t)(batch_cap * sizeof(uint64_t)),
-                                _Alignof(uint64_t));
-                    }
-                    batch = next;
-                    batch_cap = next_cap;
-                }
-                batch[batch_len++] = w.task_id;
-                continue;
-            }
-            store->entries[out++] = w;
+    if (key.kind == WAKER_JOIN) {
+        batch_len = rt_waiter_collect_join_waiters(ex, key, &batch, &batch_cap, inline_batch);
+    } else {
+        rt_shard* store_shard = rt_waiter_key_shard(ex, key);
+        if (store_shard != NULL) {
+            rt_shard_lock(store_shard);
         }
-        // No net-key producer exists for this path (scope/join/blocking keys
-        // only); net_len and fd-registry bookkeeping stay owned by the
-        // rt_async_waiter.c removal paths.
-        store->len = out;
-    }
-    if (store_shard != NULL) {
-        rt_shard_unlock(store_shard);
+        rt_waiter_store* store = rt_waiter_store_for_key(ex, key);
+        if (store != NULL && store->len > 0) {
+            size_t out = 0;
+            for (size_t i = 0; i < store->len; i++) {
+                waiter w = store->entries[i];
+                if (w.key.kind == key.kind && w.key.id == key.id) {
+                    if (batch_len == batch_cap) {
+                        size_t next_cap = batch_cap * 2;
+                        uint64_t* next = (uint64_t*)rt_alloc(
+                            (uint64_t)(next_cap * sizeof(uint64_t)), _Alignof(uint64_t));
+                        if (next == NULL) {
+                            panic_msg("async: wake batch allocation failed");
+                            break;
+                        }
+                        memcpy(next, batch, batch_len * sizeof(uint64_t));
+                        if (batch != inline_batch) {
+                            rt_free((uint8_t*)batch,
+                                    (uint64_t)(batch_cap * sizeof(uint64_t)),
+                                    _Alignof(uint64_t));
+                        }
+                        batch = next;
+                        batch_cap = next_cap;
+                    }
+                    batch[batch_len++] = w.task_id;
+                    continue;
+                }
+                store->entries[out++] = w;
+            }
+            // No net-key producer exists for this path (scope/blocking keys
+            // only here; join keys use the route-lock helper above); net_len
+            // and fd-registry bookkeeping stay owned by rt_async_waiter.c
+            // removal paths.
+            store->len = out;
+        }
+        if (store_shard != NULL) {
+            rt_shard_unlock(store_shard);
+        }
     }
     if (batch_len > 0) {
         rt_trace_collect_wake_batch();

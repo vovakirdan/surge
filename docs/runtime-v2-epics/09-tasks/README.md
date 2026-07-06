@@ -17,7 +17,7 @@ changes, no Phase 4 transport, no control-lane rollback of Epic 8 paths.
 | --- | --- | --- | --- | --- |
 | 1 | `01-proving-spike-sync-points.md` | Complete for scaffold + harness arming | proving spike | none |
 | 2 | `02-debt-023-cancel-wake-token.md` | Complete for cancel-vs-park proof | runtime code | 1 |
-| 3 | `03-debt-020-accept-migration-proof.md` | Planned | proof / analysis | 1, 2 |
+| 3 | `03-debt-020-accept-migration-proof.md` | Complete; `RV2-DEBT-020` closed by join-route fix | runtime code + proof | 1, 2 |
 | 4 | `04-debt-022-donecv-storeload.md` | Planned | runtime code | 1, 2, 3 |
 | 5 | `05-epic-closeout.md` | Planned | closeout | all |
 
@@ -37,7 +37,8 @@ counts prove the window. Broader proof-matrix rows such as
 
 - `RV2-DEBT-022`: external-await `done_cv` StoreLoad ordering (Task 4).
 - `RV2-DEBT-023`: cancellation vs `RUNNING -> WAITING` park ordering (Task 2).
-- `RV2-DEBT-020`: accept-transition join-waiter migration proof-or-fix (Task 3).
+- `RV2-DEBT-020`: closed by Task 3's join-route migration fix and
+  `SP_MIGRATE_GAP` proof.
 - `RV2-DEBT-003`: only if a dependency-aware completion/cancel split is taken.
   Architect ruling: the split is OUT of Epic 9 (none of the three fixes needs
   it); recommended for a follow-up epic.

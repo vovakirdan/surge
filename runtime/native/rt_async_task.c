@@ -53,17 +53,16 @@ void* __task_create(
     // cancel_task, rt_async_state.c) - no extra lock.
     //
     // Invariant this relies on (write this down precisely - a future
-    // rt_task_replace_owner call site, e.g. Task 7's planned join-consume
-    // placement adoption, must fit case (a) below without breaking this):
+    // rt_task_replace_owner call site, e.g. the join-consume placement adoption
+    // path, must fit case (a) below without breaking this):
     // (a) task_add_child always runs on the parent's own executing thread -
     //     spawning a child is a synchronous call the parent makes from
     //     within its own poll, never issued on the parent's behalf by
     //     another thread. So every append to a given parent's children[]
     //     is program-order sequenced with anything else that thread does
     //     to itself, INCLUDING a self-replace of its own owner_shard_id
-    //     (today: rt_net_place_current_task_on_owner / the accept
-    //     self-place path; a future self-adoption at join-consume would be
-    //     the same shape).
+    //     (today: rt_task_poll_adopt_placement plus the accept
+    //     rt_net_place_current_task_on_owner self-place path).
     // (b) this append takes the CHILD's owner shard lock, which
     //     rt_task_inherit_placement (just above) set to the parent's
     //     CURRENT owner_shard_id at this exact spawn - read fresh, not
@@ -80,10 +79,10 @@ void* __task_create(
     //     replace targeting a task popped from a waiter store, i.e.
     //     TASK_WAITING - parked, not mid-spawn
     //     (rt_executor_wake_net_waiters_for_key_on_owner, rt_async_waiter.c,
-    //     the only such call site; net_task_set_ready_accept and
-    //     rt_net_place_current_task_on_owner are the two self-replace
-    //     sites - grep-verified, all in rt_net_accept_group.c /
-    //     rt_async_waiter.c).
+    //     the only such call shape; rt_task_poll_adopt_placement,
+    //     net_task_set_ready_accept, and rt_net_place_current_task_on_owner
+    //     are the current self-replace shapes - grep-verified in
+    //     rt_async_task.c, rt_net_accept_group.c, and rt_async_waiter.c).
     // This does NOT claim a running parent's owner_shard_id never changes
     // (it can, per (a)) - only that no path lets a DIFFERENT thread rewrite
     // it while the owning thread might be mid-append. If a future change
@@ -171,13 +170,11 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     if (target == NULL) {
         return 2;
     }
-    // S5-Q3/rule 2 (Epic 8 Task 7): the join register + result read run on
-    // the target task's own owner shard lane, no control. add_waiter/
-    // remove_waiter already route WAKER_JOIN to rt_task_owner_shard(ex,
-    // get_task(ex, key.id)) (rt_waiter_route.c) and mark_done's completion
-    // drain pops that same store under that same shard lock - that
-    // serialization was always nested INSIDE the old outer control lock, not
-    // provided by it, so dropping the outer lock does not remove it.
+    // S5-Q3/rule 2 (Epic 8 Task 7 + Epic 9 DEBT-020): the join register +
+    // result read run on the target task's join-owner shard route, no control.
+    // add/remove/pop for WAKER_JOIN resolve join_owner_shard_id, lock that
+    // shard, and revalidate the route under the lock. mark_done's completion
+    // drain pops that same routed store under that same shard lock.
     if (rt_current_task_id() == 0) {
         panic_msg("async poll outside task");
         return 2;

@@ -66,7 +66,7 @@ proven in Slices 2/4.
 
 | Item | Blocks? | Owner | Reason |
 | --- | --- | --- | --- |
-| `SP_MIGRATE_GAP` allowlist addition | no | coder | only if the DEBT-020 proof (Slice 3) becomes a code fix |
+| `SP_MIGRATE_GAP` allowlist addition | closed | coder | added in Slice 3 after the old migration order was proven to strand a late join waiter |
 
 ---
 
@@ -130,11 +130,66 @@ proof were not run.
 
 ## Slice 3 — RV2-DEBT-020 (accept-migration proof)
 
-_Pending; proof reset. Task 3 must re-enumerate all `rt_task_replace_owner`
-callers and prove whether any `join_key` waiter can strand during owner
-replacement. Earlier local narrowing to a net-handle/stdlib-ABI blocker is not
-accepted as evidence. Do not update `rt_waiter_route.c` comments until this proof
-or fix is complete._
+**Status:** complete. `RV2-DEBT-020` is closed by a generic join-route protocol
+and a deterministic positive/negative `SP_MIGRATE_GAP` proof. Full task write-up:
+`09-tasks/03-debt-020-accept-migration-proof.md`.
+
+### Caller Enumeration
+
+| Caller | Re-owned task | Status at call | Join waiter can exist/strand? |
+| --- | --- | --- | --- |
+| `runtime/native/rt_async_task.c:278` | F2 adoption re-owns `current`, not the DONE child. | RUNNING | Can exist via cloned handles; old migration could strand a gap waiter. Generic fix covers it. |
+| `runtime/native/rt_async_waiter.c:381` | accept wake re-owns the popped accept waiter. | WAITING before `wake_net_task` | Can exist via cloned handles; generic fix covers it. |
+| `runtime/native/rt_net_accept_group.c:101` | accept ready-now re-owns `rt_current_task()`. | RUNNING | Can exist while mid-accept; generic fix covers it. |
+| `runtime/native/rt_net_accept_group.c:111` / `runtime/native/rt_net.c:516` | accept success self-placement re-owns `rt_current_task()`. | RUNNING | Can exist while mid-accept; generic fix covers it. |
+
+### Interleaving Model
+
+The accepted fix is not simple publish-before-migrate. It adds an atomic
+`join_owner_shard_id` route on `rt_task` and requires every `WAKER_JOIN`
+add/remove/pop and collect-all wake operation to resolve the route, lock that
+shard, re-read the route under the same lock, and retry on mismatch. Production owner replacement
+publishes the new join route while holding the old route shard lock, then drains
+old entries. A stale registrar that selected the old route before publication
+either inserted before publication and is drained, or re-reads the changed route
+under that same lock and retries on the new store.
+
+Completion-before-migration is closed by current call shapes, not by the route
+field alone: F2, accept ready-now, and accept success re-own the executing
+`rt_current_task()`, so completion cannot run until `rt_task_replace_owner`
+returns to the poll/native call; accept wake re-owns a WAITING task before
+`wake_net_task` enqueues it.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `runtime/native/rt_async_internal.h` | add `join_owner_shard_id` and acquire/release helpers | separate join-waiter route from scheduler placement publication | 569 (OK) |
+| `runtime/native/rt_scheduler_placement.c` | publish/migrate join route in `rt_task_replace_owner`; negative-control old order | generic fix for all four production call shapes | 125 (OK) |
+| `runtime/native/rt_waiter_route.c` | add `rt_waiter_publish_join_owner_and_migrate`; keep old migrator only for negative control | close stale-read/register-after-drain gap | 176 (OK) |
+| `runtime/native/rt_waiter_join_route.c` | new join add/remove/pop/collect route-lock helpers | prevent store/lock snapshot mismatch for `WAKER_JOIN` | 141 (OK) |
+| `runtime/native/rt_async_waiter.c` | delegate `WAKER_JOIN` add/remove/pop to route-lock helpers | avoid generic split store/lock routing for join keys | 639 (ACCEPTABLE) |
+| `runtime/native/rt_task_park.c` | route `wake_key_all_with_policy` join-key collection through the join-route helper | completion wake must not split join store/lock snapshots | 207 (OK) |
+| `runtime/native/rt_sync_point.h`, `runtime/native/rt_sync_point.c`, `check_sync_points.sh` | add `SP_MIGRATE_GAP` and allowlist placement | deterministic migration-gap proof | 38 / 180 (OK) |
+| `internal/vm/runtime_v2_lifecycle_behavior_*` and `internal/vm/runtime_v2_lifecycle_static_test.go` | add Debt020 harness, static route assertion, dispatch, and negative control | positive/negative proof and static guard | Go tests |
+| `Makefile` | include Debt020 proof pair in `runtime-v2-lifecycle-check` | keep the proof in the lifecycle gate | n/a |
+
+### Commands/Checks
+
+| Command | Actual | Exit |
+| --- | --- | --- |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LifecycleDebt020MigrateGap(Proof\|NegativeControl)$' -count=1 -parallel=1 -p=1 -v --timeout 120s` | positive proof passed at `SURGE_SHARDS=2,8`; negative-control build failed with `debt020 migrate-gap joiner stranded` and the Go test passed | 0 |
+| focused static/proof command including `StaticJoinWaiterRoutesByTargetOwner` and `OwnerLocalWaiterSkeletonStaticShape` | passed | 0 |
+| `make runtime-v2-syncpoint-check` | pass; allowlist has 6 enumerators and `SP_MIGRATE_GAP` is placed only in `rt_scheduler_placement.c` / `rt_waiter_route.c` | 0 |
+| `make c-check` | pass after `clang-format -i runtime/native/rt_waiter_join_route.c runtime/native/rt_async_waiter.c runtime/native/rt_waiter.h` | 0 |
+| `make cppcheck` | pass after const-pointer cleanup in the new join-route helpers | 0 |
+| `./check_file_sizes.sh -a` | pass after splitting join helpers; `rt_async_waiter.c` 639 ACCEPTABLE, `rt_waiter_join_route.c` 141 OK, `rt_task_park.c` 207 OK, no `>675` files | 0 |
+| `git diff --check` | clean | 0 |
+
+### Not Run In This Slice
+
+Full `make runtime-v2-check`, full `make check`, and perf benchmarks were not
+run in this slice.
 
 ## Slice 4 — RV2-DEBT-022 (done_cv StoreLoad fence)
 

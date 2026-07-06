@@ -73,18 +73,39 @@ void lifecycle_ctrl_site_api_shape(void) {
 `)
 }
 
-// G2 (S5-Q3, rule 2): join waiters route to the target task's owner shard store
-// via the task id, so the join register and the completion drain serialize on
-// one lock. This routing is stable across the whole epic (join never moves back
-// to control), so it is asserted as a permanent invariant.
+// G2 (S5-Q3, rule 2): join waiters route through the target task's atomic
+// join-owner shard id. Add/remove/pop must resolve the route, lock that shard,
+// and re-read the route under the same lock before touching the store; this
+// keeps owner replacement from pairing an old store with a new lock.
 func TestRuntimeV2LifecycleStaticJoinWaiterRoutesByTargetOwner(t *testing.T) {
-	source := lifecycleReadNativeFile(t, "rt_waiter_route.c")
-	if !strings.Contains(source, "case WAKER_JOIN:") {
+	routeSource := lifecycleReadNativeFile(t, "rt_waiter_route.c")
+	if !strings.Contains(routeSource, "case WAKER_JOIN:") {
 		t.Fatal("rt_waiter_route.c must handle WAKER_JOIN explicitly")
 	}
-	if !strings.Contains(source, "rt_task_owner_shard(ex, get_task(ex, key.id))") {
-		t.Fatal("WAKER_JOIN must resolve the target owner shard from the task id " +
-			"(rt_task_owner_shard(ex, get_task(ex, key.id)))")
+	if !strings.Contains(routeSource, "rt_task_join_waiter_shard(ex, key.id)") {
+		t.Fatal("WAKER_JOIN must resolve through rt_task_join_waiter_shard")
+	}
+	waiterSource := lifecycleReadNativeFile(t, "rt_waiter_join_route.c")
+	for _, needle := range []string{
+		"lock_join_waiter_route",
+		"rt_task_join_owner_shard_id_load(target)",
+		"rt_task_join_owner_shard_id_load(target) == route",
+		"rt_waiter_pop_join_waiter",
+		"rt_waiter_remove_join_waiter_generation",
+		"rt_waiter_collect_join_waiters",
+	} {
+		if !strings.Contains(waiterSource, needle) {
+			t.Fatalf("join waiter route protocol missing %q", needle)
+		}
+	}
+	parkSource := lifecycleReadNativeFile(t, "rt_task_park.c")
+	for _, needle := range []string{
+		"key.kind == WAKER_JOIN",
+		"rt_waiter_collect_join_waiters(ex, key",
+	} {
+		if !strings.Contains(parkSource, needle) {
+			t.Fatalf("wake_key_all_with_policy must route WAKER_JOIN through collect helper; missing %q", needle)
+		}
 	}
 }
 
@@ -197,9 +218,9 @@ func TestRuntimeV2LifecycleStaticJoinPollOwnerLane(t *testing.T) {
 
 // P8 (Task 8, completion epilogue): mark_done writes result_kind/result_bits
 // BEFORE the TASK_DONE release store (rule 1/2), and the WAKER_JOIN reason is
-// gone from mark_done_needs_control (S6-Q1) — Task 7 moved the join waiter
-// store to the target owner shard, so a join-key removal is owner-local and
-// runs control-free. The remaining scope reason (parent_scope_id/scope_
+// gone from mark_done_needs_control (S6-Q1) — join-key removal is
+// join-owner-route local and runs control-free. The remaining scope reason
+// (parent_scope_id/scope_
 // registered and the WAKER_SCOPE park_key) stays until Task 9 moves scope
 // bookkeeping + the scope_key store to the scope owner lane; that
 // scope-reason-gone assertion belongs to P9 (TestRuntimeV2LifecycleStaticScope

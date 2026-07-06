@@ -3791,5 +3791,31 @@ pass, before any task execution began:
   net-handle/stdlib blocker is not evidence; Task 3 must enumerate every
   `rt_task_replace_owner` caller and then prove, narrow, or fix the
   accept-transition join-waiter migration case.
-- Still pending in Epic 9: `RV2-DEBT-020`, `RV2-DEBT-022`, broader
-  cancellation matrix rows, final full `runtime-v2-check`/Sentrux/perf closeout.
+- At the Task 1/2 handoff, still pending in Epic 9: `RV2-DEBT-020`,
+  `RV2-DEBT-022`, broader cancellation matrix rows, final full
+  `runtime-v2-check`/Sentrux/perf closeout. Task 3 later closed
+  `RV2-DEBT-020`.
+
+## 2026-07-06 Epic 9 Task 3 Handoff
+
+- Closed `RV2-DEBT-020`. The proof found a real old-order stranding shape: a
+  `join_key(task)` waiter can register on the old owner store after migration
+  drained it, while completion wakes route to the new owner.
+- Fix shape: `rt_task` now carries atomic `join_owner_shard_id`; owner
+  replacement publishes the join route under the old route shard lock before
+  draining old entries; `WAKER_JOIN` add/remove/pop and completion collect-all
+  wake all resolve, lock, and revalidate the route before touching a store.
+  This covers all four production `rt_task_replace_owner` shapes: F2 RUNNING
+  `current`, accept wake WAITING task, accept ready-now RUNNING task, and accept
+  success self-placement RUNNING task.
+- `SP_MIGRATE_GAP` is now active in the sync-point allowlist. Positive proof
+  passes at `SURGE_SHARDS=2,8`; negative control
+  (`RV2_DEBT_020_NEGATIVE_CONTROL`) restores the old order and strands with
+  `debt020 migrate-gap joiner stranded`.
+- Verification run for this slice: targeted Debt020 proof pair, focused static
+  route/owner-local waiter check, `make runtime-v2-syncpoint-check`,
+  `make c-check`, `make cppcheck`, and `./check_file_sizes.sh -a` all passed.
+  The join-route helper was split into `rt_waiter_join_route.c` to keep
+  `rt_async_waiter.c` below the hard file-size gate.
+- Still pending in Epic 9: `RV2-DEBT-022`, broader cancellation matrix rows,
+  final full `runtime-v2-check`/Sentrux/perf closeout.

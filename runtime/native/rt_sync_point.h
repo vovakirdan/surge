@@ -16,9 +16,7 @@
 // translation unit fails to compile, in BOTH the armed and the release build
 // (the release macro still references the enumerator). Adding a site therefore
 // requires (1) adding an enumerator here and (2) listing the window in
-// check_sync_points.sh. Epic 9 permits exactly the five windows below; a sixth
-// (SP_MIGRATE_GAP) is reserved for an RV2-DEBT-020 code fix and must not be
-// added unless that fix is approved.
+// check_sync_points.sh. Epic 9 permits exactly the six windows below.
 #ifndef RT_SYNC_POINT_H
 #define RT_SYNC_POINT_H
 
@@ -44,6 +42,11 @@ typedef enum rt_sync_point_id {
     // wake_key_all_with_policy: reached inside the batch drain loop, so a cancel
     // can race a mid-drain key wake (token vs batch-compaction ordering).
     RT_SYNC_POINT_SP_WAKEKEY_MID_DRAIN,
+    // rt_task_replace_owner / join-waiter migration: reached after the owner
+    // replacement route publication boundary. The positive build publishes the
+    // join route before this point; the RV2_DEBT_020_NEGATIVE_CONTROL build
+    // reaches it before publishing, reproducing the old migrate gap.
+    RT_SYNC_POINT_SP_MIGRATE_GAP,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

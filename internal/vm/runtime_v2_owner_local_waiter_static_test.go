@@ -251,6 +251,7 @@ void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_c
     task->owner_shard_id = shard_id;
     task->owner_shard_valid = 1;
     task->placement_class = placement_class;
+    rt_task_join_owner_shard_id_store(task, shard_id);
 }
 
 uint32_t rt_channel_owner_shard_id(const rt_channel* ch) {
@@ -287,9 +288,9 @@ void rt_task_replace_owner(rt_executor* ex,
     if (task == NULL) {
         return;
     }
-    uint32_t old_shard_id = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+    uint32_t old_shard_id = rt_task_join_owner_shard_id_load(task);
     if (old_shard_id != shard_id) {
-        rt_waiter_migrate_join_waiters(ex, task->id, old_shard_id, shard_id);
+        rt_waiter_publish_join_owner_and_migrate(ex, task, old_shard_id, shard_id);
     }
     rt_task_set_placement(task, shard_id, placement_class);
 }
@@ -333,9 +334,10 @@ int pthread_cond_broadcast(pthread_cond_t* cond) {
     return 0;
 }
 
-#include "rt_fd_registry.c"
-#include "rt_async_waiter.c"
-#include "rt_waiter_route.c"
+	#include "rt_fd_registry.c"
+	#include "rt_async_waiter.c"
+	#include "rt_waiter_route.c"
+	#include "rt_waiter_join_route.c"
 
 static int require_int(int condition, int code) {
     return condition ? 0 : code;
@@ -352,6 +354,7 @@ int main(void) {
     rt_executor ex;
     rt_task task;
     rt_task peer_task;
+    rt_task join_target;
     rt_task** tasks = stub_tasks;
     memset(&runtime, 0, sizeof(runtime));
     memset(&ex, 0, sizeof(ex));
@@ -360,8 +363,10 @@ int main(void) {
     ex.runtime = &runtime;
     reset_task(&task, 7);
     reset_task(&peer_task, 6);
+    reset_task(&join_target, 55);
     tasks[6] = &peer_task;
     tasks[7] = &task;
+    tasks[55] = &join_target;
 
     int err = require_int(rt_fd_registry_init(&runtime.shards[0].fd_registry) ==
                               RT_RUNTIME_STATUS_OK,

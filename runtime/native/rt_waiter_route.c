@@ -1,17 +1,26 @@
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
-// Owner resolution for non-net keys (dependency map section 5): join, timer,
-// and blocking keys carry the parked-on task's id, so its owner shard stores
-// the waiters and completion wakes stay owner-local. Scope keys carry the
-// scope id and route to the scope's PINNED owner shard (Epic 8 Task 9, S5-Q10,
-// revising Epic 7 D8): the scope's owner_shard_id is fixed at rt_scope_enter,
-// so both the join_all park and the child-done wake serialize on that one
-// shard's store lock; a freed/absent scope (monotonic, never-reused ids)
-// resolves to shard 0 via rt_scope_owner_shard, draining nothing. Channel keys
-// stay on the shard-0 compatibility store until the Task 10 channel-owner
-// migration. Resolution is stable while a registration exists: the only
-// post-spawn task owner change is the accept transition, which migrates join
-// entries (rt_task_replace_owner); scopes never migrate.
+static rt_shard* rt_task_join_waiter_shard(rt_executor* ex, uint64_t task_id) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    const rt_task* task = get_task(ex, task_id);
+    return rt_runtime_shard(runtime, rt_task_join_owner_shard_id_load(task));
+}
+
+// Owner resolution for non-net keys (dependency map section 5): join keys use
+// the task's atomic join-owner route, while timer and blocking keys carry the
+// parked-on task's id and use its scheduler owner shard. Join add/remove/pop
+// and collect-all wake operations must not call this helper as a split "store
+// now, lock later" sequence: rt_async_waiter.c / rt_task_park.c delegate to the
+// join-route helpers, which resolve the join route, lock that shard, and
+// revalidate the route under the lock before touching the store. Scope keys
+// carry the scope id and route to the scope's PINNED owner shard (Epic 8 Task 9,
+// S5-Q10, revising Epic 7 D8): the scope's owner_shard_id is fixed at
+// rt_scope_enter, so both the join_all park and the child-done wake serialize
+// on that one shard's store lock; a freed/absent scope (monotonic, never-reused
+// ids) resolves to shard 0 via rt_scope_owner_shard, draining nothing. Channel
+// keys stay on the shard-0 compatibility store until the Task 10 channel-owner
+// migration.
 rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
     if (ex == NULL || !waker_valid(key)) {
         return NULL;
@@ -24,6 +33,7 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
     }
     switch ((waker_kind)key.kind) {
         case WAKER_JOIN:
+            return rt_shard_waiter_store(rt_task_join_waiter_shard(ex, key.id));
         case WAKER_TIMER:
         case WAKER_BLOCKING:
             return rt_shard_waiter_store(rt_task_owner_shard(ex, get_task(ex, key.id)));
@@ -54,6 +64,7 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
     }
     switch ((waker_kind)key.kind) {
         case WAKER_JOIN:
+            return rt_task_join_waiter_shard(ex, key.id);
         case WAKER_TIMER:
         case WAKER_BLOCKING:
             return rt_task_owner_shard(ex, get_task(ex, key.id));
@@ -90,38 +101,84 @@ void rt_waiter_migrate_join_waiters(rt_executor* ex,
     if (from == NULL || to == NULL || from == to) {
         return;
     }
-    // Extract under the source lock, append under the destination lock:
-    // never two shard locks at once. Batches repeat until the source has no
-    // matching entry left.
-    //
-    // Post-Task-7 interleaving (RV2-DEBT-020 re-derivation). The pre-Task-7
-    // comment here claimed "the caller holds the control lock, so no same-key
-    // registration can interleave between the two holds" -- that is now FALSE.
-    // Since Epic 8 Task 7, a joiner's join-key registration (rt_task_poll's
-    // register-then-verify via add_waiter/prepare_park) runs under the target's
-    // owner SHARD lock, not the control lock, so a same-key registration CAN
-    // land between the source-unlock and the destination-lock; a partial final
-    // batch also leaves such a late arrival on the source shard, where the
-    // eventual completion wake (routed to the target's NEW owner shard) will not
-    // scan it. The two callers of rt_task_replace_owner split on whether this
-    // strands the late joiner:
-    //   - F2 adoption (rt_task_poll_adopt_placement) fires ONLY on a target the
-    //     joiner already observed TASK_DONE. A racing joiner's register-then-
-    //     verify re-checks TASK_DONE after registering and self-consumes the
-    //     completed target (rt_async_task.c), so it never depends on the
-    //     migration moving its entry -- provably benign.
-    //   - the accept transition (rt_net_accept_group.c) self-replaces a still-
-    //     RUNNING rt_current_task(); register-then-verify's re-check does NOT
-    //     help a not-yet-DONE target, so the micro-window is not proven benign
-    //     here. It is the carried residual RV2-DEBT-020, owned by the future
-    //     net-handle/accept epic (whether any joiner races the acceptor's own
-    //     accept-time self-replace is that epic's join-structure analysis).
+    // Legacy old-order migration kept for the RV2-DEBT-020 negative-control
+    // build only. It drains the old store before publishing the join route, so
+    // a late registration can land on the old store after the final drain and
+    // miss completion once wakes route to the new owner.
     waker_key key = join_key(task_id);
     for (;;) {
         waiter moved[16];
         size_t moved_len = 0;
         if (from_shard != NULL) {
             rt_shard_lock(from_shard);
+        }
+        size_t out = 0;
+        for (size_t i = 0; i < from->len; i++) {
+            waiter w = from->entries[i];
+            if (w.key.kind == key.kind && w.key.id == key.id &&
+                moved_len < sizeof(moved) / sizeof(moved[0])) {
+                moved[moved_len++] = w;
+                continue;
+            }
+            from->entries[out++] = w;
+        }
+        from->len = out;
+        if (from_shard != NULL) {
+            rt_shard_unlock(from_shard);
+        }
+        if (moved_len == 0) {
+            return;
+        }
+        if (to_shard != NULL) {
+            rt_shard_lock(to_shard);
+        }
+        for (size_t i = 0; i < moved_len; i++) {
+            if (rt_waiter_store_ensure_cap(to) != RT_RUNTIME_STATUS_OK) {
+                panic_msg("async: waiter allocation failed");
+                break;
+            }
+            to->entries[to->len++] = moved[i];
+        }
+        if (to_shard != NULL) {
+            rt_shard_unlock(to_shard);
+        }
+        if (moved_len < sizeof(moved) / sizeof(moved[0])) {
+            return;
+        }
+    }
+}
+
+void rt_waiter_publish_join_owner_and_migrate(rt_executor* ex,
+                                              rt_task* task,
+                                              uint32_t from_shard_id,
+                                              uint32_t to_shard_id) {
+    if (ex == NULL || task == NULL || from_shard_id == to_shard_id) {
+        return;
+    }
+    rt_shard* from_shard = rt_runtime_shard(rt_executor_runtime(ex), from_shard_id);
+    rt_shard* to_shard = rt_runtime_shard(rt_executor_runtime(ex), to_shard_id);
+    rt_waiter_store* from = rt_executor_waiter_store_for_shard(ex, from_shard_id);
+    rt_waiter_store* to = rt_executor_waiter_store_for_shard(ex, to_shard_id);
+    if (from == NULL || to == NULL || from == to) {
+        rt_task_join_owner_shard_id_store(task, to_shard_id);
+        return;
+    }
+    waker_key key = join_key(task->id);
+    int published = 0;
+    for (;;) {
+        waiter moved[16];
+        size_t moved_len = 0;
+        if (from_shard != NULL) {
+            rt_shard_lock(from_shard);
+        }
+        if (!published) {
+            // Publish the join route while holding the old route's shard lock.
+            // A stale registrar that already selected the old route either got
+            // in before this store and is drained below, or re-reads the changed
+            // route under this same lock and retries on the new store.
+            rt_task_join_owner_shard_id_store(task, to_shard_id);
+            RT_SYNC_POINT(SP_MIGRATE_GAP);
+            published = 1;
         }
         size_t out = 0;
         for (size_t i = 0; i < from->len; i++) {

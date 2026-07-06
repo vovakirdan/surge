@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 static int scheduler_has_queued_work(const rt_scheduler* scheduler) {
     if (scheduler == NULL) {
@@ -72,6 +73,7 @@ void rt_task_set_placement(rt_task* task, uint32_t shard_id, uint8_t placement_c
     task->owner_shard_id = shard_id;
     task->owner_shard_valid = 1;
     task->placement_class = placement_class;
+    rt_task_join_owner_shard_id_store(task, shard_id);
     if (placement_class == TASK_PLACEMENT_CONNECTION) {
         rt_trace_sched_connection_owner_placed();
     }
@@ -85,12 +87,23 @@ void rt_task_replace_owner(rt_executor* ex,
     if (task == NULL) {
         return;
     }
-    // The accept transition is the only post-spawn owner change (D3/D4).
-    // Join waiters live in the owned task's store, so they move with it or
-    // the completion wake would scan the wrong shard.
-    uint32_t old_shard_id = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+    // Join waiters route through join_owner_shard_id, not the scheduler
+    // placement fields directly. Publishing that route before migration sends
+    // late registrations to the destination; migration then moves entries that
+    // already landed on the old shard. The negative-control build restores the
+    // old order so the deterministic SP_MIGRATE_GAP proof strands a joiner.
+    // Current callers cannot complete the re-owned task between route publish
+    // and migration: they either re-own rt_current_task before its poll returns
+    // or re-own a net-accept waiter before wake_net_task can enqueue it.
+    uint32_t old_shard_id = rt_task_join_owner_shard_id_load(task);
     if (old_shard_id != shard_id) {
+#ifdef RV2_DEBT_020_NEGATIVE_CONTROL
         rt_waiter_migrate_join_waiters(ex, task->id, old_shard_id, shard_id);
+        RT_SYNC_POINT(SP_MIGRATE_GAP);
+        rt_task_join_owner_shard_id_store(task, shard_id);
+#else
+        rt_waiter_publish_join_owner_and_migrate(ex, task, old_shard_id, shard_id);
+#endif
     }
     rt_task_set_placement(task, shard_id, placement_class);
 }

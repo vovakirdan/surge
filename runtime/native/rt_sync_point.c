@@ -73,6 +73,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_AWAIT_AFTER_INCREMENT";
         case RT_SYNC_POINT_SP_WAKEKEY_MID_DRAIN:
             return "SP_WAKEKEY_MID_DRAIN";
+        case RT_SYNC_POINT_SP_MIGRATE_GAP:
+            return "SP_MIGRATE_GAP";
         default:
             return "";
     }

@@ -83,7 +83,7 @@ Architect's decisive reasoning (recorded verbatim, memory write path malformed):
   do not evaluate `cond` at all and keep only the enumerator cast. This preserves
   the "no branch / no symbol / no condition evaluation" shipping-path property
   while still making the allowlist load-bearing.
-- The allowlist is the `rt_sync_point_id` enum. Exactly five windows are
+- The allowlist is the `rt_sync_point_id` enum. Exactly six windows are
   permitted this epic:
   - `SP_CANCEL_BEFORE_WAKE` (cancel_task, `rt_async_state.c`)
   - `SP_PARK_BEFORE_WAITING` (user-task PARKED outcome before WAITING commit,
@@ -92,8 +92,8 @@ Architect's decisive reasoning (recorded verbatim, memory write path malformed):
   - `SP_MARKDONE_BEFORE_DONEWAITERS_LOAD` (mark_done tail, `rt_async_state.c`)
   - `SP_AWAIT_AFTER_INCREMENT` (rt_task_await, `rt_async_task.c`)
   - `SP_WAKEKEY_MID_DRAIN` (wake_key_all_with_policy, `rt_task_park.c`)
-  - `SP_MIGRATE_GAP` is reserved for an RV2-DEBT-020 code fix and is NOT added
-    unless that fix is approved.
+  - `SP_MIGRATE_GAP` (RV2-DEBT-020 owner-replacement migration gap,
+    `rt_scheduler_placement.c` / `rt_waiter_route.c`)
 
 ### Armed implementation — `runtime/native/rt_sync_point.c`
 

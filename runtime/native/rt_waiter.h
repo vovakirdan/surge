@@ -5,10 +5,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Waiter keys, entries, and stores. Stores are owned per the Epic 7
-// dependency map: net keys by the fd owner shard, join/timer/blocking keys
-// by the parked-on task's owner shard, scope keys by the control lane, and
-// channel keys by the channel owner (shard 0 until the Task 10 migration).
+// Waiter keys, entries, and stores. Stores are owned per the Epic 7/9
+// dependency map: net keys by the fd owner shard, join keys by the task's
+// atomic join-owner route, timer/blocking keys by the parked-on task's owner
+// shard, scope keys by the control lane, and channel keys by the channel owner
+// (shard 0 until the Task 10 migration).
 
 typedef struct rt_executor rt_executor;
 typedef struct rt_task rt_task;
@@ -89,6 +90,22 @@ void rt_waiter_migrate_join_waiters(rt_executor* ex,
                                     uint64_t task_id,
                                     uint32_t from_shard_id,
                                     uint32_t to_shard_id);
+void rt_waiter_publish_join_owner_and_migrate(rt_executor* ex,
+                                              rt_task* task,
+                                              uint32_t from_shard_id,
+                                              uint32_t to_shard_id);
+rt_runtime_status
+rt_waiter_add_join_waiter(rt_executor* ex, waker_key key, uint64_t task_id, uint32_t owner_hint);
+void rt_waiter_remove_join_waiter_generation(rt_executor* ex,
+                                             waker_key key,
+                                             uint64_t task_id,
+                                             uint32_t seq);
+int rt_waiter_pop_join_waiter(rt_executor* ex, waker_key key, uint64_t* out_id);
+size_t rt_waiter_collect_join_waiters(rt_executor* ex,
+                                      waker_key key,
+                                      uint64_t** batch,
+                                      size_t* batch_cap,
+                                      const uint64_t* inline_batch);
 rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key);
 rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
                                                                    waker_key key,

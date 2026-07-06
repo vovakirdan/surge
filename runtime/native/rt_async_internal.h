@@ -190,6 +190,7 @@ typedef struct rt_task {
     uint8_t placement_class;
     uint8_t owner_shard_valid;
     uint32_t owner_shard_id;
+    atomic_u32 join_owner_shard_id;
     atomic_u8 cancelled;
     atomic_u8 enqueued;
     atomic_u8 wake_token;
@@ -225,6 +226,20 @@ typedef struct rt_task {
     size_t children_len;
     size_t children_cap;
 } rt_task;
+
+static inline uint32_t rt_task_join_owner_shard_id_load(const rt_task* task) {
+    if (task == NULL) {
+        return 0;
+    }
+    return atomic_load_explicit(&task->join_owner_shard_id, memory_order_acquire);
+}
+
+static inline void rt_task_join_owner_shard_id_store(rt_task* task, uint32_t shard_id) {
+    if (task == NULL) {
+        return;
+    }
+    atomic_store_explicit(&task->join_owner_shard_id, shard_id, memory_order_release);
+}
 
 typedef struct {
     uint64_t id;
