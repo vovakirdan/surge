@@ -107,7 +107,12 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		},
 		{
 			path:  "runtime/native/rt_async_state.c",
-			names: []string{"park_current", "next_ready"},
+			names: []string{"next_ready"},
+		},
+		{
+			// park_current extracted to rt_task_park.c (Epic 8 Task 13).
+			path:  "runtime/native/rt_task_park.c",
+			names: []string{"park_current"},
 		},
 		{
 			path:  "runtime/native/rt_worker_turn.c",

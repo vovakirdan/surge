@@ -3667,3 +3667,54 @@ pass, before any task execution began:
   No C touched → c-check/cppcheck N/A. `make runtime-v2-perf-check` standalone
   PASS (~4s). RV2-DEBT-018 policy applies to any VM-harness transient (focused
   rerun count>=5).
+
+## Epic 8 Task 13 Handoff (Large-File And Quality Tranche, coder-t13)
+
+- Scope: refactor/quality tranche (RULES.md Global Rule 4). Behavior IDENTICAL
+  (MOVE/RENAME/COMMENT only); the full `runtime-v2-check` battery is the
+  before/after proof. Full write-up: `08-tasks/13-large-file-and-quality-tranche.md`;
+  evidence in `08-evidence.md` Task 13.
+- EXTRACTION: the task park/unpark + key-wake primitive cluster
+  (`wake_task_on_shard_locked`/`wake_task_with_policy`/`wake_task`/`wake_net_task`/
+  `park_requeue_locked`/`wake_key_all_with_policy`/`wake_key_all`/`park_current`)
+  moved VERBATIM from `rt_async_state.c` into new `runtime/native/rt_task_park.c`
+  (203 eff LOC). `diff` proved byte-identical except two intended edits: (1) the
+  `channel_wake_force_inject` static read → its `channel_wake_force_inject_enabled()`
+  accessor (behavior-identical; static stays in state.c), (2) `wake_key_all_with_policy`
+  `static`→extern (mark_done drains join waiters across the new boundary; prototype
+  added to `rt_async_internal.h`; every call site byte-identical, mark_done untouched).
+  All load-bearing invariant comments (Leaf-wake, RV2-DEBT-019 park_key ownership,
+  D5 register-then-commit/wake-token, generation-qualified removal) moved verbatim.
+- LOC: `rt_async_state.c` 1386→1184 eff (−202); `rt_task_park.c` 203 new;
+  `rt_async_internal.h` 555→556 (one prototype). `.loc-legacy-allowlist` ceiling
+  lowered 1580→1184 (exact measured, zero headroom). RV2-DEBT-003 stays OPEN with
+  three named remaining split candidates (ready-queue / completion-cancel /
+  handle-lifetime); completion cluster deliberately NOT moved (active RV2-DEBT-022
+  done_cv hot path + a done_cv filename-pinned static gate).
+- COMMENT: the stale executor-invariant block in `rt_async_internal.h` (had
+  drifted to :346-358, described the pre-Epic-7 executor-wide model) rewritten to
+  the three-lane model (control / shard / atomic) naming the cross-owner and
+  external-await control residuals.
+- STATIC-GATE: `TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut` pinned
+  `park_current` to `rt_async_state.c` by filename; pin split so `park_current`→
+  `rt_task_park.c`, `next_ready` stays. Build/embed/harness all glob `native/*.c`
+  → new file auto-discovered, no Makefile/embed edits.
+- SWEEP: no stale attribution comments in touched files (completion comments
+  already carry Task 10's corrected attribution); no dead code (strict-warning
+  compile clean).
+- GATES (green): `git diff --check`, `make c-check`, `make cppcheck`, `make check`,
+  `make runtime-v2-check` (CompletionPinInterleavingTSan PASS shards 1/2/8;
+  PerfControlLaneGate steady-state-control 8.059/req << 20.0 ceiling — no
+  control-lane regression; NoShard0Shortcut pin-split PASS), `./check_file_sizes.sh -a`.
+  Two runtime-v2-check runs first hit accepted transients (RV2-DEBT-018 empty-output
+  on the select test; a net-timing flake on the accept trace test), each proven
+  non-reproducible with focused reruns (5/5 green each; the -count=5 select failure
+  was RV2-DEBT-011 same-test artifact-dir reuse, not logic); a third clean run was
+  fully green.
+- SENTRUX: all rules pass at every scope. `sentrux check` code-scope quality
+  dropped −40/−41 (0.76%): the inherent inter-module coupling of splitting the
+  runtime's hottest interconnect (park↔wake↔ready↔completion mutual recursion),
+  ACCEPTED per RULES.md G3 with RV2-DEBT-003 as recovery owner — the tool's own
+  `sentrux gate` shows the QUALITY dimension IMPROVED vs the committed baseline
+  (runtime/native 5159→5341), its DEGRADED verdict is on cumulative-since-Jul-2
+  coupling/complex-fn drift, not this verbatim move.

@@ -343,19 +343,36 @@ struct rt_executor {
     atomic_u32 done_waiters;
 };
 
-// Executor invariants:
-// - ex->lock owns tasks/scopes, shard stores, scheduler queues/counters,
-//   channel/blocking compatibility counters, net polling, timers, and shutdown.
-// - task status is atomic for external observation; queue/waiter transitions
-//   still happen under ex->lock.
-// - waiter_store is FIFO-by-key. prepare_park may pre-register before
-//   TASK_WAITING; wake_token closes wake-before-park races.
-// - ready queues hold enqueued task ids. Workers pop local, inject, then steal;
-//   non-worker threads inject globally.
-// - running_count increments/decrements under ex->lock around user polls.
-// - channel_blocking_compat tracks sync-channel worker parking; compensation
-//   workers are a fallback for that path, not normal async parking.
-// - The I/O thread is signaled on idle, net waiter registration, and shutdown.
+// Executor lane invariants (post-Epic-7 lane split, post-Epic-8 lifecycle
+// move). There is no single executor lock; ownership is split across three
+// lanes, and a legible design must place every mutation in exactly one:
+// - Control lane (ex->lock): task/scope TABLE GROWTH only (segment alloc); the
+//   external/main-thread await compatibility path (done_cv broadcast, gated on
+//   done_waiters, and compat_cv for the sync-channel lane); the cross-owner
+//   residuals that still keep a control fallback this epic (scope_on_child_done
+//   when a child's owner shard != the scope's pinned owner shard, failfast
+//   scope_cancel_children_controlled, and the cancel_task sibling walk);
+//   checkpoint/sleep/blocking submit; and compensation-worker bookkeeping.
+//   control_waiters now backs only the unknown-waker-kind default and the
+//   diagnostic waiter dump.
+// - Shard lane (rt_shard.lock): the owning shard's scheduler ready queues
+//   (local + inject), running_count, wake_pending, waiter_store (join, net, and
+//   channel keys plus the scope owner's scope_key all route here), sleep_store,
+//   net poll state / fd registry, per-shard channel_blocking_compat, and the
+//   steady-state task/scope lifecycle: slot publish/read, park/wake
+//   (rt_task_park.c), and scope-object bookkeeping on the scope's pinned owner
+//   shard.
+// - Atomic, no lock held: task->status (acquire/release; the TASK_DONE release
+//   store publishes result_kind/result_bits written before it),
+//   enqueued/cancelled/wake_token/polling/handle_refs, next_id/next_scope_id/
+//   now_ms/shutdown, the task and scope table slots (acquire-loaded by
+//   get_task/get_scope), the sleep_store min_deadline mirror, done_waiters, and
+//   channel_blocked_workers.
+// Carried wake races: waiter_store is FIFO-by-key; prepare_park may pre-register
+// before TASK_WAITING and the wake_token closes the wake-before-park window
+// (D5). Workers pop local, then inject, then steal; non-worker threads inject
+// globally. The I/O thread is signaled on idle, net waiter registration, and
+// shutdown.
 
 typedef struct rt_channel rt_channel;
 
@@ -635,6 +652,9 @@ void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_net_task(rt_executor* ex, uint64_t id);
 int channel_wake_force_inject_enabled(void);
 void wake_key_all(rt_executor* ex, waker_key key);
+// Extracted to rt_task_park.c (Epic 8 Task 13); external because mark_done
+// (rt_async_state.c) drains join waiters across the module boundary.
+void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front);
 void park_current(rt_executor* ex, waker_key key);
 void tick_virtual(rt_executor* ex);
 int advance_time_to_next_timer(rt_executor* ex);

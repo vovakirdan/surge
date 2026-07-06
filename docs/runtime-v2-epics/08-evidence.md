@@ -1626,3 +1626,110 @@ before rerun-to-green.
 | `docs/runtime-v2-epics/08-tasks/README.md` | Task 12 status -> Complete |
 | `docs/runtime-v2-epics/DEBT.md` | `RV2-DEBT-016` closed; `RV2-DEBT-006` note |
 | `docs/runtime-v2-epics/NOTES.md` | Task 12 handoff |
+
+## Task 13: Large-File And Quality Tranche
+
+- Task: Epic 8 Task 13 per `08-tasks/13-large-file-and-quality-tranche.md`
+  (refactor/quality; behavior identical, MOVE/RENAME/COMMENT only).
+- Full write-up: `08-tasks/13-large-file-and-quality-tranche.md`.
+
+### Extraction (RV2-DEBT-003)
+
+Task park/unpark + key-wake primitive cluster moved verbatim from
+`rt_async_state.c` into new `runtime/native/rt_task_park.c`. `diff` of the moved
+block vs the pre-edit source was byte-identical except two intended edits: the
+`channel_wake_force_inject` static read → `channel_wake_force_inject_enabled()`
+accessor (behavior-identical), and `wake_key_all_with_policy` `static`→extern
+(mark_done drains join waiters across the new boundary; prototype added to
+`rt_async_internal.h`; call sites byte-identical). Load-bearing invariant comments
+(Leaf-wake, RV2-DEBT-019 park_key ownership, D5 register-then-commit/wake-token,
+generation-qualified removal) moved verbatim.
+
+| File (eff LOC) | Before | After | Delta |
+| --- | --- | --- | --- |
+| `rt_async_state.c` | 1386 | 1184 | −202 |
+| `rt_task_park.c` | — | 203 | new |
+| `rt_async_internal.h` | 555 | 556 | +1 |
+
+`.loc-legacy-allowlist` ceiling lowered `1580`→`1184` (exact measured, zero
+headroom). `RV2-DEBT-003` stays OPEN; named remaining candidates: ready-queue,
+completion/cancel (deferred — active RV2-DEBT-022 done_cv hot path + done_cv
+filename-pinned static gate), handle-lifetime clusters.
+
+### Invariant comment + pin split
+
+The stale executor-invariant block in `rt_async_internal.h` (drifted to
+`:346-358`, described the pre-Epic-7 executor-wide model) rewritten to the
+three-lane model (control / shard / atomic) naming the cross-owner and
+external-await control residuals. The Epic 6
+`TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut` filename pin for `park_current`
+was split to point at `rt_task_park.c` (`next_ready` stays). Build `C_SOURCES`
+glob, `//go:embed native/*.c`, and VM harness globs auto-discover the new file.
+
+### Quality sweep
+
+No edits required in the touched files: completion-helper comments already carry
+Task 10's corrected `ctrl_completion` attribution; owner-oriented naming holds;
+no dead code (strict-warning compile clean).
+
+### Gates
+
+| Command | Result |
+| --- | --- |
+| `git diff --check` | clean |
+| `make c-check` | PASS |
+| `make cppcheck` | PASS (56 files incl. rt_task_park.c) |
+| `make check` | PASS |
+| `make runtime-v2-check` | PASS (green run): CompletionPinInterleavingTSan PASS shards 1/2/8; PerfControlLaneGate steady-state-control 8.059/req << 20.0 ceiling; NoShard0Shortcut pin-split PASS |
+| `./check_file_sizes.sh -a` | PASS; deltas above; rt_async_state.c 1184 at ceiling |
+
+Transient handling: two earlier `runtime-v2-check` runs hit accepted transients
+(RV2-DEBT-018 empty-output exit=1 ~2.9ms on the select-timeout waiter test; a
+net-timing flake — `io_poll_calls=0`, `fd_ready_batches=0` — on the accept trace
+test). Each proven non-reproducible: accept 5/5 green focused; select 5/5 green as
+separate `-count=1` runs (the `-count=5` select failure was RV2-DEBT-011 same-test
+artifact-dir reuse, not logic). A third clean `runtime-v2-check` run was fully
+green.
+
+### Sentrux (CLI `sentrux check`; MCP not connected, per the Epic 8 mechanism)
+
+| Scope | Before | After | Rules |
+| --- | --- | --- | --- |
+| root `.` | 6174 | 6173 | 10, all pass |
+| `runtime` | 5295 | 5255 | 7, all pass |
+| `runtime/native` | 5382 | 5341 | 7, all pass |
+
+All rules pass at every scope before and after. The −40/−41 (0.76%) code-scope
+drop is the inherent inter-module coupling of splitting the runtime's hottest
+interconnect (park↔wake↔ready↔completion mutual recursion — `mark_done`/
+`cancel_task`/`apply_poll_outcome` stay and call into the moved wake/park, which
+calls back into `ready_push`/waiter helpers). ACCEPTED per `RULES.md` Global Rule
+3 with `RV2-DEBT-003` as the recorded recovery owner: the tool's own `sentrux
+gate` (vs the committed baseline the epic's `sentrux gate --save` uses) shows the
+QUALITY dimension IMPROVED (`runtime/native` 5159→5341); its "DEGRADED" verdict is
+on Coupling (0.00→0.06) and Complex-functions (21→23), both cumulative drift since
+the Jul-2 baseline (all of Epic 5-8), not this verbatim move. In Global-Rule-3
+terms: the rule blocks completion on a lower `quality_signal` UNLESS the epic
+records an accepted recovery task — `RV2-DEBT-003` is exactly that and now carries
+the recovery explicitly. The underlying property did not get worse; the
+previously-invisible intra-file coupling became a visible inter-module
+measurement (the gate's quality dimension is +182 ABOVE the committed baseline,
+5159→5341). Rejecting the split to keep the `check` number flat would optimize
+the scoreboard over the codebase — the review-value and the epic's invariants
+live in the wake/park cluster — so the split stands and the drop is accepted. The
+file-size win (1386→1184) is the task's goal; the sweep found no offset to remove.
+
+### Files Touched
+
+| Path | Change |
+| --- | --- |
+| `runtime/native/rt_task_park.c` | new (park/wake cluster, 203 eff LOC) |
+| `runtime/native/rt_async_state.c` | cluster removed (−202 eff LOC); no call-site change |
+| `runtime/native/rt_async_internal.h` | invariant comment rewritten; `wake_key_all_with_policy` prototype |
+| `.loc-legacy-allowlist` | rt_async_state.c ceiling 1580→1184 |
+| `internal/vm/runtime_v2_accept_static_test.go` | park_current pin split to rt_task_park.c |
+| `docs/runtime-v2-epics/08-tasks/13-large-file-and-quality-tranche.md` | new (write-up) |
+| `docs/runtime-v2-epics/08-evidence.md` | this section |
+| `docs/runtime-v2-epics/08-tasks/README.md` | Task 13 status → Complete |
+| `docs/runtime-v2-epics/DEBT.md` | RV2-DEBT-003 Task 13 progress note |
+| `docs/runtime-v2-epics/NOTES.md` | Task 13 handoff |
