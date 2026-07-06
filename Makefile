@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -102,6 +102,11 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-lock-check
 	$(MAKE) runtime-v2-lifecycle-check
 	$(MAKE) runtime-v2-perf-check
+	$(MAKE) runtime-v2-syncpoint-check
+
+runtime-v2-syncpoint-check:
+	@echo ">> Running Runtime V2 sync-point proving-spike static gate (Epic 9)"
+	./check_sync_points.sh
 
 runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 heap accounting gate"
@@ -132,7 +137,7 @@ runtime-v2-lock-check:
 
 runtime-v2-lifecycle-check:
 	@echo ">> Running Runtime V2 task-lifecycle lane gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Lifecycle(StaticControlSiteEnumShape|StaticJoinWaiterRoutesByTargetOwner|StaticTaskTableAtomicSnapshot|StaticJoinScopeWaitersUnqualified|StaticCreateSiteCounterWired|StaticCensusSitesTagged|TraceControlSiteContract|OwnerLocalCreateAndReadyPublication|JoinPollResultObservation|JoinWaiterCleanupRegisterThenVerify|CloneReleaseLastReferenceFree|ScopeEnterRegisterJoinExit|ScopeFailfastCancellation|ScopeCancelledPollTeardown|WorkerAwaitVsExternalAwait|ShutdownWithParkedTasks|StaticCreateReadyPushOwnerShard|CancelSpawnChildrenRace|StaticJoinPollOwnerLane|StaticScopeOwnerLane|JoinConsumePlacementAdoption|ScopeEnterRegisterJoinExitAcrossShards|ScopeFailfastCancellationAcrossShards|ScopeCancelledPollTeardownAcrossShards|ScopeCrossOwnerChildDone|CompletionPinInterleavingTSan|StaticAwaitCompatCountedSeparately|TraceAwaitCompatCountedSeparately)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Lifecycle(StaticControlSiteEnumShape|StaticJoinWaiterRoutesByTargetOwner|StaticTaskTableAtomicSnapshot|StaticJoinScopeWaitersUnqualified|StaticCreateSiteCounterWired|StaticCensusSitesTagged|TraceControlSiteContract|OwnerLocalCreateAndReadyPublication|JoinPollResultObservation|JoinWaiterCleanupRegisterThenVerify|CloneReleaseLastReferenceFree|ScopeEnterRegisterJoinExit|ScopeFailfastCancellation|ScopeCancelledPollTeardown|WorkerAwaitVsExternalAwait|ShutdownWithParkedTasks|StaticCreateReadyPushOwnerShard|CancelSpawnChildrenRace|StaticJoinPollOwnerLane|StaticScopeOwnerLane|JoinConsumePlacementAdoption|ScopeEnterRegisterJoinExitAcrossShards|ScopeFailfastCancellationAcrossShards|ScopeCancelledPollTeardownAcrossShards|ScopeCrossOwnerChildDone|Debt023CancelParkWakeTokenProof|Debt023CancelParkWakeTokenNegativeControl|CompletionPinInterleavingTSan|StaticAwaitCompatCountedSeparately|TraceAwaitCompatCountedSeparately)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-perf-check:
 	@echo ">> Running Runtime V2 performance CI gate (Epic 8 Task 12)"

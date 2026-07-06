@@ -3760,3 +3760,36 @@ pass, before any task execution began:
   12/14 evidence links. Open safety debts that should drive the next planning
   pass remain `RV2-DEBT-020`, `RV2-DEBT-022`, and `RV2-DEBT-023`; longer-lived
   cleanup/compat items remain `RV2-DEBT-003` and `RV2-DEBT-017`.
+
+## 2026-07-06 Epic 9 Draft Handoff
+
+- Created `09-wakeup-and-cancellation-safety.md` as a draft epic document only;
+  no task slicing yet.
+- Scope: runtime-only safety pass before final crossing work. The epic targets
+  `RV2-DEBT-022` (`done_cv` external-await ordering), `RV2-DEBT-023`
+  (cancel vs RUNNING->WAITING park ordering), and `RV2-DEBT-020`
+  (accept-transition join-waiter migration proof/fix).
+- Boundary: no Surge syntax, parser, semantic/lowering, stdlib public examples,
+  Phase 4 inbound queues, remote messages, eventfd credits, remote `select`,
+  remote-free queues, shard-movable checking, or seq-cst Phase 4 `PARKED`
+  protocol.
+- Refactor rule: `RV2-DEBT-003` may be touched only if the completion/cancel
+  split follows the safety fix's real dependency boundary and reduces coupling;
+  no cosmetic file split.
+
+## 2026-07-06 Epic 9 Task 1/2 First Slice
+
+- Added the test-only sync-point scaffold (`RT_SYNC_POINT`,
+  `RT_SYNC_POINT_IF`, `runtime-v2-syncpoint-check`). Release builds compile the
+  hooks to no `rt_sync_point_reach` symbol, and the static gate now allowlists
+  placement even when clang-format wraps a conditional hook across lines.
+- Closed `RV2-DEBT-023` for the original cancel-vs-RUNNING-to-WAITING
+  never-firing-key window: `cancel_task` now forces the wake token
+  unconditionally, and the deterministic positive/negative-control proof is in
+  `runtime_v2_lifecycle_behavior_syncpoint_test.go`.
+- `RV2-DEBT-020` proof was reset deliberately. The abandoned narrowing to a
+  net-handle/stdlib blocker is not evidence; Task 3 must enumerate every
+  `rt_task_replace_owner` caller and then prove, narrow, or fix the
+  accept-transition join-waiter migration case.
+- Still pending in Epic 9: `RV2-DEBT-020`, `RV2-DEBT-022`, broader
+  cancellation matrix rows, final full `runtime-v2-check`/Sentrux/perf closeout.

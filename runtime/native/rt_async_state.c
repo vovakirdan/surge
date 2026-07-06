@@ -3,6 +3,7 @@
 #endif
 
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -1142,23 +1143,29 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     if (task->kind == TASK_KIND_BLOCKING) {
         rt_blocking_request_cancel(ex, task);
     }
-    // The cancelled flag is stored unconditionally above; the wake here is
-    // only for a task already parked (WAITING), whose owner-shard-lock wake
-    // re-runs it so its next poll observes the flag and unwinds. A READY target
-    // is already queued and observes the flag when it is next polled. A RUNNING
-    // target whose poll returns YIELDED/DONE re-runs or completes and observes
-    // it too. The one UNRESOLVED case is a RUNNING target that parks on a key
-    // that never naturally fires, cancelled in the exact window between its
-    // poll's cancelled-check (rt_async_poll.c, already passed -> POLL_PARKED)
-    // and park_current's status store to TASK_WAITING (rt_task_park.c): this
-    // status load reads RUNNING and skips the wake, park_current re-checks only
-    // the wake token (not the cancelled flag), so the target strands with
-    // cancelled=1 until its park_key fires by other means. Narrow latent
-    // lost-cancellation, RV2-DEBT-023 (a candidate fix is to set the wake token
-    // unconditionally here so park_current's token re-check aborts the park).
-    if (task_status_load(task) == TASK_WAITING) {
-        wake_task(ex, task->id, 1);
-    }
+    // Wake-token ordering rule (RV2-DEBT-023, Epic 9). The cancelled flag is
+    // stored unconditionally above; the wake here is now UNCONDITIONAL too - it
+    // no longer gates on observing TASK_WAITING. cancel_task runs control-held
+    // (every caller holds the control lane; proof in
+    // docs/runtime-v2-epics/09-tasks/02-debt-023-cancel-wake-token.md), so
+    // free_task (control-lane only) cannot free this task between the get_task
+    // above and this wake, and wake_task -> wake_task_on_shard_locked sets the
+    // wake token unconditionally under the owner shard lock (rt_task_park.c) and
+    // only ENQUEUES when the target is WAITING and not already enqueued. This
+    // closes the lost-cancellation window: a RUNNING target that already passed
+    // its poll's cancelled-check (rt_async_poll.c -> POLL_PARKED) and is
+    // committing to TASK_WAITING in park_current re-checks the token
+    // (rt_task_park.c); the token this wake sets aborts that park and re-runs
+    // the target, so its next poll observes cancelled=1 and unwinds even on a
+    // never-firing park_key. READY / RUNNING(YIELDED|DONE) / already-WAITING
+    // targets are unaffected (already queued, re-run or complete, or enqueued as
+    // before). A token set on a target that later parks on a LEGITIMATE key
+    // costs one bounded spurious abort-and-requeue, already counted by
+    // rt_trace_spurious_wake_absorbed (rt_task_park.c). SP_CANCEL_BEFORE_WAKE
+    // reproduces the race deterministically against SP_PARK_BEFORE_WAITING; its
+    // reached-count is the proof that this wake path engaged.
+    RT_SYNC_POINT(SP_CANCEL_BEFORE_WAKE);
+    RT_DEBT023_CANCEL_WAKE(ex, task);
     // Since Epic 8 Task 6, task_add_child appends into this task's
     // children[] under the task's own owner shard lock, not control (the
     // steady-state __task_create path takes no control lock at all). This

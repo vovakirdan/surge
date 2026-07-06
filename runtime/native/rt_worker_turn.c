@@ -3,6 +3,7 @@
 #endif
 
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 #include <limits.h>
 #include <time.h>
@@ -54,6 +55,7 @@ int rt_run_ready_one_nowait_locked(rt_executor* ex) {
     task_polling_enter(task);
     poll_outcome outcome = poll_task(ex, task);
     task_polling_exit(task);
+    RT_SYNC_POINT_IF(outcome.kind == POLL_PARKED, SP_PARK_BEFORE_WAITING);
     rt_control_lock(ex);
 
     rt_shard_lock(owner_shard);
@@ -179,6 +181,8 @@ void* rt_worker_main(void* arg) {
         task_polling_enter(task);
         poll_outcome outcome = poll_task(ex, task);
         task_polling_exit(task);
+        RT_SYNC_POINT_IF(task->kind == TASK_KIND_USER && outcome.kind == POLL_PARKED,
+                         SP_PARK_BEFORE_WAITING);
 
         rt_shard_lock(shard);
         if (scheduler->running_count > 0) {

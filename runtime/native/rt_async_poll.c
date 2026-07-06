@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 // Async runtime polling and scheduler logic.
 
@@ -207,6 +208,12 @@ int run_ready_one(rt_executor* ex) {
     task_polling_enter(task);
     poll_outcome outcome = poll_task(ex, task);
     task_polling_exit(task);
+    // RV2-DEBT-023 proof window: user poll has already passed its
+    // cancellation check and returned PARKED, but this worker has not
+    // re-entered the control lane to commit TASK_WAITING in park_current.
+    // A real external rt_task_cancel can run here and must set the wake
+    // token even though the target still reads as TASK_RUNNING.
+    RT_SYNC_POINT_IF(outcome.kind == POLL_PARKED, SP_PARK_BEFORE_WAITING);
     rt_control_lock(ex);
     switch (outcome.kind) {
         case POLL_DONE_SUCCESS:

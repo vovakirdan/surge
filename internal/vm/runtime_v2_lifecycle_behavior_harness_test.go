@@ -32,6 +32,17 @@ func buildRuntimeV2LifecycleHarnessTSan(t *testing.T) string {
 		t, "lifecycle_harness_tsan", []string{"-fsanitize=thread", "-g", "-O1"})
 }
 
+func buildRuntimeV2LifecycleHarnessSyncPoints(t *testing.T, negativeControl bool) string {
+	t.Helper()
+	name := "lifecycle_harness_syncpoints"
+	flags := []string{"-DRT_TEST_SYNC_POINTS"}
+	if negativeControl {
+		name += "_negative"
+		flags = append(flags, "-DRV2_DEBT_023_NEGATIVE_CONTROL")
+	}
+	return buildRuntimeV2LifecycleHarnessWithFlags(t, name, flags)
+}
+
 func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFlags []string) string {
 	t.Helper()
 	clang, err := exec.LookPath("clang")
@@ -45,7 +56,7 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 	binPath := filepath.Join(tmpDir, name)
 	source := lifecycleHarnessCommon + lifecycleHarnessCreateJoinModes + lifecycleHarnessHandleLifetimeModes +
 		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessScopeCrossOwner +
-		lifecycleHarnessMain
+		lifecycleHarnessSyncPointModes + lifecycleHarnessMain
 	if writeErr := os.WriteFile(harnessPath, []byte(source), 0o600); writeErr != nil {
 		t.Fatalf("write harness: %v", writeErr)
 	}
@@ -140,6 +151,7 @@ func runLifecycleModeAcrossShards(t *testing.T, binPath string, mode string) {
 const lifecycleHarnessCommon = `
 #define _POSIX_C_SOURCE 199309L
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 #include <stdatomic.h>
 #include <stdio.h>
