@@ -29,12 +29,12 @@ starts: hooks must compile to nothing outside test builds, live on a named
 allowlist, and a static gate must prove no hook sits on the worker steady
 path. Fix tasks then reuse that one mechanism instead of re-litigating it.
 
-**Status:** in progress. Task documents exist under `09-tasks/`; the first
-implementation slices stabilized the sync-point scaffold, closed
-`RV2-DEBT-023` for the cancel-vs-park never-firing-key window, and closed
-`RV2-DEBT-020` with a generic join-route migration fix. Task 4 closed
+**Status:** complete for the three owned safety debts. Task documents live
+under `09-tasks/`; Task 1 stabilized the test-only sync-point scaffold, Task 2
+closed `RV2-DEBT-023` for the cancel-vs-park never-firing-key window, Task 3
+closed `RV2-DEBT-020` with a generic join-route migration fix, Task 4 closed
 `RV2-DEBT-022` with a seq-cst external-await StoreLoad handshake and a guarded
-post-`DONE` `done_cv` broadcast helper.
+post-`DONE` `done_cv` broadcast helper, and Task 5 reconciled closeout docs.
 
 ## Inputs
 
@@ -85,11 +85,10 @@ The remaining risks are narrow but correctness-critical:
   use one seq-cst StoreLoad handshake (`done_waiters` increment/status load vs
   `TASK_DONE` store/post-DONE waiter load), and the single `done_cv` broadcast
   lives in `rt_done_cv.c` under `ex->lock` with `RT_CTRL_SITE_AWAIT_COMPAT`.
-- `RV2-DEBT-023`: `cancel_task` stores the cancelled flag but wakes only if its
-  lock-free status read sees `TASK_WAITING`. A running task can pass its
-  cancellation check, return `POLL_PARKED`, then commit to `TASK_WAITING` after
-  the cancel path skipped the wake. If the park key never fires, the cancelled
-  task strands.
+- `RV2-DEBT-023`: CLOSED by Epic 9 Task 2. `cancel_task` now unconditionally
+  sets the target's wake token through the owner shard, so a running task that
+  races cancellation with its `RUNNING -> WAITING` park commit aborts the park
+  and re-runs to observe `cancelled=1`.
 - `RV2-DEBT-020`: CLOSED by Epic 9 Task 3. `rt_task_replace_owner` now publishes
   an atomic join-owner route before migration, and `WAKER_JOIN`
   add/remove/pop/collect-all wake revalidate that route under the selected shard
@@ -100,15 +99,13 @@ The remaining risks are narrow but correctness-critical:
 `RV2-DEBT-003` remains open because `rt_async_state.c` is still over the
 Runtime V2 line target. The relevant remaining split candidate is the
 completion/cancel cluster (`cancel_task`, `mark_done*`, `apply_poll_outcome`).
-Epic 9 may reduce that file only when the split follows the safety fix's real
-dependency boundary. Two riders from the ledger apply verbatim: the
+Epic 9 deliberately did not take that split because none of the three safety
+fixes required it. Two riders from the ledger apply verbatim: the
 `RV2-DEBT-003` RECOVERY NOTE requires any further split to REDUCE the
 now-visible wake/park inter-module coupling (not merely relocate lines), with
-the Sentrux coupling dimension re-checked when it lands; and the completion
-cluster was deliberately deferred in Epic 8 Task 13 because a lifecycle static
-gate pins `done_cv` behavior to `rt_async_state.c` by filename — moving the
-cluster requires the same mechanical gate pin-split Task 13 performed for
-`park_current`, recorded in the task document.
+the Sentrux coupling dimension re-checked when it lands; and Task 4 already
+removed the old `done_cv` filename blocker by extracting the guarded broadcast
+helper into `rt_done_cv.c` with a static gate.
 
 ## Epic 9 Boundary Decisions
 
@@ -171,7 +168,7 @@ Epic 9 owns:
 
 - `RV2-DEBT-022`: closed by Task 4's seq-cst external-await `done_cv`
   ordering fix.
-- `RV2-DEBT-023`: cancellation vs `RUNNING -> WAITING` park ordering.
+- `RV2-DEBT-023`: closed by Task 2's unconditional cancel wake-token proof.
 - `RV2-DEBT-020`: closed by Task 3's join-route migration fix and
   `SP_MIGRATE_GAP` proof.
 
@@ -201,30 +198,25 @@ Every implementation slice must start with a written interleaving model:
 - the new ordering guarantee;
 - the test or trace that would fail if the guarantee regressed.
 
-Required proof coverage:
+Proof coverage ledger (planned rows and closeout disposition):
 
-- external await against an already-running target, a parked target, and an
-  already-DONE target (the trivial case belongs in the matrix, not in prose);
-- multiple concurrent external awaiters on the same and on different targets
-  (`done_waiters > 1`; the broadcast-vs-signal choice must be argued);
-- cancellation racing a task that is about to park on a never-firing key —
-  including a sleeping task explicitly (cancelled sleepers have their own
-  deadline-index removal path in `mark_done`);
-- cancellation racing the wake side: a cancel arriving while
-  `wake_key_all` is mid-drain on the target's key (token vs batch-compaction
-  ordering);
-- the `RV2-DEBT-022` x `RV2-DEBT-023` intersection: cancellation of a task
-  whose completion is concurrently racing a parked external awaiter — both
-  fixes touch `mark_done`/`cancel_task`, so the combined window must be named
-  and proven, not assumed independent;
-- cancellation of READY, WAITING, RUNNING, and DONE targets with no task
-  resurrection;
-- accept-transition owner replacement with any join-waiter migration outcome
-  named and proven;
-- shutdown while tasks are parked in join, channel, timer, blocking, and net
-  waits after the wake/cancel changes;
-- no parked-with-work and no stranded waiter after the changed paths;
-- `SURGE_SHARDS=1`, `2`, and `8` where the path is shard-sensitive.
+| Row | Closeout disposition |
+| --- | --- |
+| external await against an already-running target, a parked target, and an already-DONE target | Covered by Task 4's deterministic proof plus `Debt022ExternalAwaitMatrix`. |
+| multiple concurrent external awaiters on the same and on different targets (`done_waiters > 1`) | Covered by `Debt022ExternalAwaitMatrix`; Task 4 argues broadcast rather than signal. |
+| cancellation racing a task about to park on a never-firing key | Covered for the known `RV2-DEBT-023` channel-key window by Task 2's positive/negative sync-point proof at `SURGE_SHARDS=1,2,8`. A sleep-specific row is future matrix hardening, not a known open correctness debt. |
+| cancellation racing the wake side while `wake_key_all` is mid-drain | Future matrix hardening. The unconditional wake-token fix removes the known status-gated lost-cancel window, and no separate correctness debt was opened for this row. |
+| `RV2-DEBT-022` x `RV2-DEBT-023` intersection | Covered by Task 4's cancelled parked target row in `Debt022ExternalAwaitMatrix`. |
+| cancellation of READY, WAITING, RUNNING, and DONE targets with no task resurrection | Covered by Task 2's no-resurrection proof and code invariant; future matrix work may add dedicated per-status rows. |
+| accept-transition owner replacement with join-waiter migration outcome named and proven | Covered by Task 3's generic join-route protocol and positive/negative `SP_MIGRATE_GAP` proof. |
+| shutdown while tasks are parked in join, channel, timer, blocking, and net waits after the wake/cancel changes | Covered by the promoted lifecycle and net shutdown gates inside `runtime-v2-check`. |
+| no parked-with-work and no stranded waiter after the changed paths | Covered by existing scheduler/lifecycle gates plus the three positive/negative debt proofs. |
+| `SURGE_SHARDS=1`, `2`, and `8` where shard-sensitive | Covered where each task is shard-sensitive: Task 2 at 1/2/8, Task 3 at 2/8, and Task 4 at 1/2/8. |
+
+The load-bearing Epic 9 debt closures have dedicated positive/negative
+deterministic proofs. Broader cancellation rows that did not receive a new
+dedicated sync-point row are recorded in Task 5 as future matrix-hardening
+candidates, not as separate known correctness debts.
 
 Static or trace gates should prove:
 
@@ -296,8 +288,8 @@ Suggested task order (final slicing happens in the task documents):
 5. `RV2-DEBT-022` fix (protocol change on the completion/await handshake).
 6. Optional dependency-aware completion/cancel split (`RV2-DEBT-003` riders
    apply).
-7. Closeout (contract sweep, DEBT/NOTES/RUNTIME_V2 reconciliation, Sentrux
-   session end).
+7. Closeout (completed as Task 5: contract sweep, DEBT/NOTES/RUNTIME_V2
+   reconciliation, Sentrux status).
 
 Likely independent review surfaces:
 

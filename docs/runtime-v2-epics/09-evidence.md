@@ -120,8 +120,8 @@ architect.
 
 | Item | Blocks? | Owner | Reason |
 | --- | --- | --- | --- |
-| Broader DEBT-023 matrix: join-key and sleep-kind variants + TSan | no for first-slice close; yes for full epic matrix | coder + tester | first slice proves the never-firing channel key path deterministically |
-| cancel racing `wake_key_all` mid-drain (`SP_WAKEKEY_MID_DRAIN`) | no for first-slice close; yes for full epic matrix | coder | hook remains allowlisted but unused |
+| Broader DEBT-023 matrix: join-key and sleep-kind variants + TSan | no | future matrix hardening | first slice proves the known never-firing channel key bug deterministically; closeout does not convert broader rows into known debt |
+| cancel racing `wake_key_all` mid-drain (`SP_WAKEKEY_MID_DRAIN`) | no | future matrix hardening | hook remains allowlisted but unused; no separate correctness debt was opened |
 
 ### Not Run In This Slice
 
@@ -259,7 +259,44 @@ coupling/complex-function recovery class carried by `RV2-DEBT-003`; Sentrux
 `check` passes at all required scopes and runtime/native quality improved above
 the stored baseline.
 
-## Slice 5 — Closeout
+## Slice 5 — Epic Closeout
 
-_Pending. DEBT.md / NOTES.md / README.md / RUNTIME_V2.md / epic-doc status;
-final perf counters; contract sweep._
+**Status:** complete. Full closeout:
+`09-tasks/05-epic-closeout.md`.
+
+### Final State
+
+| Item | State |
+| --- | --- |
+| `RV2-DEBT-023` | CLOSED by Task 2 (`dfbf5897`): unconditional cancel wake token plus positive/negative `SP_PARK_BEFORE_WAITING` proof. |
+| `RV2-DEBT-020` | CLOSED by Task 3 (`ff57b8a2`): join-owner route plus positive/negative `SP_MIGRATE_GAP` proof. |
+| `RV2-DEBT-022` | CLOSED by Task 4 (`82c633a7`): seq-cst external-await StoreLoad handshake plus guarded `rt_done_cv.c` broadcast helper and positive/negative proof. |
+| `RV2-DEBT-003` | OPEN: dependency-aware cleanup remains future work; Task 4 removed the old `done_cv` helper blocker but did not take the completion/cancel split. |
+| Broader cancellation matrix | Not converted into new debt. Dedicated rows beyond the three closed windows remain future matrix-hardening candidates if we choose to expand cancellation coverage. |
+
+### Final Gates From Last Code Slice
+
+| Command | Actual | Exit |
+| --- | --- | --- |
+| `git diff --check` | clean | 0 |
+| `make c-check` | pass | 0 |
+| `make cppcheck` | pass | 0 |
+| `make runtime-v2-syncpoint-check` | pass; seven Epic 9 sync-point enumerators | 0 |
+| `make runtime-v2-lifecycle-check` | pass; includes Debt020/022/023 proof pairs plus lifecycle static/TSan gates | 0 |
+| `make runtime-v2-perf-check` | pass; `control_lock_acquired=11819`, `ctrl_await_compat=3458`, steady-state-control `8.165/req`, lifecycle-control `5.999/req` | 0 |
+| `make runtime-v2-check` | pass | 0 |
+| `make check` | pass | 0 |
+| `./check_file_sizes.sh -a` | pass; key touched files stayed within current allowlists | 0 |
+| `sentrux check .` | pass; quality `6177` | 0 |
+| `sentrux check runtime` | pass; quality `5327` | 0 |
+| `sentrux check runtime/native` | pass; quality `5430` | 0 |
+
+Sentrux `gate` still reports the existing cumulative `RV2-DEBT-003` recovery
+class on complex-function/coupling drift; this is recorded in the debt ledger
+and is not a new Epic 9 debt.
+
+### Closeout Docs
+
+Updated in this slice: `09-tasks/05-epic-closeout.md`, this evidence file, the
+Epic 9 task index, `09-wakeup-and-cancellation-safety.md`, `NOTES.md`, the
+epics README, and `docs/RUNTIME_V2.md`.

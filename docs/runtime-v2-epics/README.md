@@ -45,10 +45,13 @@ adopted 8x1024 starvation debt, promoted lifecycle/perf gates into
 `runtime-v2-check`, and recorded the remaining wakeup/cancel/accept-transition
 debts in `DEBT.md`. The explicit crossing surface and Phase 4 transport move
 to a later epic and still require a dedicated syntax review first. Epic 9 is
-the runtime-only safety pass before those final epics: close or narrow the
-carried wakeup, cancellation, and accept-transition debts without adding Phase
-4 transport or language syntax. Its first implementation slice added the
-test-only sync-point proof scaffold and closed `RV2-DEBT-023`.
+complete per `09-wakeup-and-cancellation-safety.md`: it added the test-only
+sync-point proof scaffold and closed the three carried local safety debts
+without adding Phase 4 transport or language syntax: `RV2-DEBT-023`
+(cancel-vs-park), `RV2-DEBT-020` (owner-replacement join-waiter migration), and
+`RV2-DEBT-022` (external-await `done_cv` StoreLoad ordering). Broader
+cancellation matrix rows remain future test-matrix hardening candidates, not
+new known correctness debt.
 
 ## Current Runtime V2 Artifacts
 
@@ -93,10 +96,10 @@ test-only sync-point proof scaffold and closed `RV2-DEBT-023`.
 - `08-evidence.md`: Epic 8 task evidence ledger, final benchmark rows, and
   closeout accounting.
 - `09-wakeup-and-cancellation-safety.md`: Epic 9 scope, boundary decisions,
-  proof contract, and acceptance criteria for wakeup/cancel/accept transition
-  safety before final crossing work.
-- `09-evidence.md`: Epic 9 evidence ledger. Task 1/2 are recorded; Task 3+
-  remain pending.
+  proof contract, closeout status, and acceptance criteria for
+  wakeup/cancel/accept transition safety before final crossing work.
+- `09-evidence.md`: Epic 9 evidence ledger, final proof/gate evidence, and
+  closeout accounting.
 - `09-tasks/`: Epic 9 task index and expanded task documents.
 
 Known backend-test debt remains accepted for now: the focused
@@ -129,7 +132,7 @@ Every epic should move the runtime toward these goals:
 | 6 | `06-n2-accept-ownership-and-tier1-scheduler.md` | Complete. Enabled structural multi-shard native TCP accept ownership under the preserved global lock, added per-shard net poller/wake ownership, removed non-owner stealing for Tier 1 connection tasks, and promoted the stable accept gate. |
 | 7 | `07-executor-lock-split-and-shard-runtime-state.md` | Complete. Split the preserved global executor lock into per-shard locks plus a reduced control lane, moved scheduler queues, per-key waiter-store ownership, sleep stores, channel owner shards, and re-laned blocking/await/shutdown paths under `N>1`. |
 | 8 | `08-task-lifecycle-lane-and-net-fairness.md` | Complete. Moved task lifecycle, join/done, await accounting, and same-owner scope bookkeeping off the remaining steady-path control lane; fixed the adopted 8x1024 starvation debt; added lifecycle/perf gates. No syntax or Phase 4 transport work. |
-| 9 | `09-wakeup-and-cancellation-safety.md` | In progress. Runtime-only safety pass before final crossing work. The test-only sync-point scaffold landed and `RV2-DEBT-023` is closed; `RV2-DEBT-020` and `RV2-DEBT-022` remain pending. No syntax or Phase 4 transport work. |
+| 9 | `09-wakeup-and-cancellation-safety.md` | Complete. Runtime-only safety pass before final crossing work. Added deterministic sync-point proofs and closed `RV2-DEBT-023`, `RV2-DEBT-020`, and `RV2-DEBT-022`. No syntax or Phase 4 transport work. |
 | 10 | TBD | Add remote-free routing and shard-local hot pools. |
 | 11 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |
 | 12 | TBD | Rewrite the VM/native/LLVM test matrix around the stable Runtime V2 contracts and remove accepted backend-test debt. |

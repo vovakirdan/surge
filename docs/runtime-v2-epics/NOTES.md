@@ -3856,5 +3856,33 @@ pass, before any task execution began:
   `5430`). `sentrux gate` still reports cumulative degradation vs the old
   baseline on complex-function count and runtime/native coupling; this remains
   under `RV2-DEBT-003`, with runtime/native quality improved (`5159 -> 5430`).
-- Still pending in Epic 9: closeout sweep and any decision on whether to take
-  the broader `RV2-DEBT-003` completion/cancel split in a later epic.
+- Task 4 handoff before closeout: closeout sweep and the `RV2-DEBT-003`
+  completion/cancel split decision still needed final reconciliation. The
+  closeout entry below records that reconciliation.
+
+## 2026-07-06 Epic 9 Closeout
+
+- Epic 9 is closed for its three owned local safety debts. Final code commits:
+  `dfbf5897` (`RV2-DEBT-023` cancel wake-token proof), `ff57b8a2`
+  (`RV2-DEBT-020` join-route migration proof), and `82c633a7`
+  (`RV2-DEBT-022` external-await `done_cv` StoreLoad proof).
+- Task 5 closeout created `09-tasks/05-epic-closeout.md` and reconciled
+  `09-evidence.md`, the Epic 9 document, the task index, the epics README, and
+  `docs/RUNTIME_V2.md`.
+- Debt state: `RV2-DEBT-020`, `RV2-DEBT-022`, and `RV2-DEBT-023` are CLOSED in
+  `DEBT.md`; `RV2-DEBT-003` remains OPEN for dependency-aware cleanup and
+  cumulative Sentrux coupling/complexity recovery. No new Epic 9 debt was
+  opened.
+- Broader cancellation matrix rows named during planning, such as a
+  sleep-specific row or cancel during `wake_key_all` mid-drain, did not receive
+  dedicated new sync-point tests. They are recorded as future matrix-hardening
+  candidates, not as known correctness debt.
+- Final code gates are from Task 4: `make runtime-v2-check`, `make check`,
+  `make c-check`, `make cppcheck`, `make runtime-v2-syncpoint-check`,
+  lifecycle/perf checks, LOC, and required Sentrux `check` scans passed.
+  Sentrux `gate` still reports the existing `RV2-DEBT-003` cumulative recovery
+  class.
+- Next planning should choose between dependency-aware cleanup, net-handle /
+  stdlib owner-safety, benchmark/test harness hardening, or Phase 4 crossing.
+  Any syntax, keyword, parser, semantic, lowering, or public crossing surface
+  work must stop first for the dedicated language-syntax review.

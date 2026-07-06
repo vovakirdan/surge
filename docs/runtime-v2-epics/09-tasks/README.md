@@ -19,7 +19,7 @@ changes, no Phase 4 transport, no control-lane rollback of Epic 8 paths.
 | 2 | `02-debt-023-cancel-wake-token.md` | Complete for cancel-vs-park proof | runtime code | 1 |
 | 3 | `03-debt-020-accept-migration-proof.md` | Complete; `RV2-DEBT-020` closed by join-route fix | runtime code + proof | 1, 2 |
 | 4 | `04-debt-022-donecv-storeload.md` | Complete; `RV2-DEBT-022` closed by seq-cst external-await handshake | runtime code | 1, 2, 3 |
-| 5 | `05-epic-closeout.md` | Planned | closeout | all |
+| 5 | `05-epic-closeout.md` | Complete; Epic 9 closed for the three owned safety debts | closeout | all |
 
 Execution order note (architect ruling): DEBT-020 (Task 3) is pulled EARLIER
 than the DEBT-022 fix so owner-replacement reachability is settled before the
@@ -37,7 +37,8 @@ counts prove the window. Broader proof-matrix rows such as
 
 - `RV2-DEBT-022`: closed by Task 4's external-await `done_cv` StoreLoad
   ordering fix.
-- `RV2-DEBT-023`: cancellation vs `RUNNING -> WAITING` park ordering (Task 2).
+- `RV2-DEBT-023`: closed by Task 2's cancellation vs `RUNNING -> WAITING`
+  park-ordering proof.
 - `RV2-DEBT-020`: closed by Task 3's join-route migration fix and
   `SP_MIGRATE_GAP` proof.
 - `RV2-DEBT-003`: only if a dependency-aware completion/cancel split is taken.
@@ -61,3 +62,8 @@ handshake in `rt_task_await` / `mark_done` plus the post-DONE
 `SURGE_SHARDS=1,2,8`; the negative-control build strands with
 `debt022 external awaiter stranded before done_cv wait`; matrix rows cover
 multi-awaiters, already-DONE, parked target, and cancelled parked target.
+
+Task 5 note (2026-07-06): Epic 9 is closed for the three owned ledger debts:
+`RV2-DEBT-023`, `RV2-DEBT-020`, and `RV2-DEBT-022`. Broader cancellation matrix
+rows named during planning remain optional future matrix-hardening coverage, not
+new known correctness debt.

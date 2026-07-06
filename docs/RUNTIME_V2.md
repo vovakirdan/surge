@@ -718,6 +718,15 @@ structure pass.
   accepting shard. Residual control on the net bench is external-await compat
   and the cross-owner scope fallback, both reassigned to their owners; no
   syntax, parser, or Phase-4 crossing work was done.
+- Epic 9 then closed the local safety debts that Epic 8 carried before Phase 4:
+  cancellation racing `RUNNING -> WAITING` park now sets an unconditional owner
+  wake token (`RV2-DEBT-023`), owner replacement publishes and revalidates an
+  atomic join-owner route before migrating join waiters (`RV2-DEBT-020`), and
+  external await/completion use a seq-cst StoreLoad handshake plus a guarded
+  post-`DONE` `done_cv` broadcast helper (`RV2-DEBT-022`). These changes are
+  runtime-only and proof-first: deterministic test-only sync points provide
+  positive and negative controls, while Phase 4 messaging, eventfd credits,
+  remote `select`, shard-movable checks, and syntax remain unimplemented.
 - Cross-shard messaging, explicit crossing syntax, remote-free routing, and
   alternate I/O backends remain later phases.
 
