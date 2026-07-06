@@ -3,6 +3,7 @@
 package vm_test
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -95,6 +96,44 @@ func TestRuntimeV2LifecycleScopeFailfastCancellationAcrossShards(t *testing.T) {
 func TestRuntimeV2LifecycleScopeCancelledPollTeardownAcrossShards(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
 	runLifecycleModeAcrossShards(t, binPath, "scope-cancelled-poll-teardown")
+}
+
+// TestRuntimeV2LifecycleScopeCrossOwnerChildDone is the deterministic
+// cross-owner scope-completion regression test (RV2-DEBT-021). The
+// cross-owner scope_on_child_done control fallback (rt_async_scope.c:340-377)
+// is the sole producer of the residual ctrl_scope on the 8x1024 net benchmark
+// (Epic 8 Task 9); before this test it was exercised only by that benchmark
+// and the no-keepalive completion-pin TSan stress, neither deterministic in
+// CI. Here a scope owner pinned to shard 0 registers a scope-child while it is
+// same-owner, then parks in join_all; the scope-child adopts a shard-1
+// CONNECTION placement via the real F2 machinery (rt_task_poll_adopt_placement
+// consuming a connection-placed grandchild) and completes cross-owner, so
+// scope_on_child_done takes the counted control fallback and wakes the owner
+// cross-shard (the harness driver holds the owner parked until then, so the
+// wake, not a self-consume, is what completes it). The mode driver asserts the
+// scope-child actually adopted the cross-owner shard. Cross-owner needs
+// SURGE_SHARDS>=2 (at SHARDS=1 the grandchild clamps to shard 0 and the
+// completion is same-owner, so the branch is unreachable), so this sweeps only
+// 2 and 8; the existing Scope*AcrossShards tests keep their children
+// same-owner and never take this path (see their comment above).
+func TestRuntimeV2LifecycleScopeCrossOwnerChildDone(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarness(t)
+	// SURGE_THREADS must equal SURGE_SHARDS whenever SURGE_SHARDS>1 (runtime
+	// startup requirement, matching runLifecycleModeAcrossShards).
+	for _, shards := range []int{2, 8} {
+		shards := shards
+		t.Run(fmt.Sprintf("shards-%d", shards), func(t *testing.T) {
+			env := lifecycleEnv(
+				fmt.Sprintf("SURGE_SHARDS=%d", shards),
+				fmt.Sprintf("SURGE_THREADS=%d", shards),
+				"SURGE_BLOCKING_THREADS=1")
+			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "scope-cross-owner", env)
+			if exitCode != 0 {
+				t.Fatalf("cross-owner scope completion failed at SURGE_SHARDS=%d (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					shards, exitCode, stdout, stderr)
+			}
+		})
+	}
 }
 
 // lifecycleHarnessScopeAndShutdown holds the scope, timer, channel, blocking,

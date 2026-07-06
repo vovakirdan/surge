@@ -129,6 +129,15 @@ void __surge_poll_call(uint64_t id) {
         case POLL_ADOPT_JOINER:
             poll_adopt_joiner();
             break;
+        case POLL_XOWNER_GRANDCHILD:
+            poll_xowner_grandchild();
+            break;
+        case POLL_XOWNER_SCOPE_CHILD:
+            poll_xowner_scope_child();
+            break;
+        case POLL_XOWNER_OWNER:
+            poll_xowner_owner();
+            break;
         default:
             break;
     }
@@ -380,6 +389,9 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "placement-adopt-negative") == 0) {
         return mode_placement_adopt_negative(ex);
+    }
+    if (strcmp(argv[1], "scope-cross-owner") == 0) {
+        return mode_scope_cross_owner(ex);
     }
     return fail("unknown mode");
 }

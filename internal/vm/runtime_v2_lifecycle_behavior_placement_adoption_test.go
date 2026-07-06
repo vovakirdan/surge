@@ -136,3 +136,138 @@ static int mode_placement_adopt_negative(rt_executor* ex) {
     return mode_placement_adopt(ex, TASK_PLACEMENT_GENERIC, TASK_PLACEMENT_GENERIC);
 }
 `
+
+// lifecycleHarnessScopeCrossOwner is the RV2-DEBT-021 deterministic
+// cross-owner scope-completion driver. It is concatenated after
+// lifecycleHarnessPlacementAdoption (it reuses that block's spawn_placed
+// helper) and before lifecycleHarnessMain. See
+// TestRuntimeV2LifecycleScopeCrossOwnerChildDone
+// (runtime_v2_lifecycle_behavior_scope_test.go) for the contract.
+const lifecycleHarnessScopeCrossOwner = `
+// RV2-DEBT-021: the cross-owner scope_on_child_done control fallback
+// (rt_async_scope.c:340-377) is the sole producer of the residual ctrl_scope
+// on the 8x1024 net bench, but before this test only that benchmark and the
+// no-keepalive completion-pin TSan stress exercised it -- neither
+// deterministic in CI. This drives it deterministically via the REAL F2
+// machinery: a scope owner pinned to shard 0 registers a scope-child while it
+// is still same-owner (shard 0), then parks in join_all; the scope-child then
+// adopts a shard-1 CONNECTION placement by consuming a connection-placed
+// grandchild through rt_task_poll (rt_task_poll_adopt_placement, exactly the
+// production F2 path), so when it completes its owner_shard_id (1) != the
+// scope's pinned shard (0) and scope_on_child_done takes the counted
+// cross-owner control fallback, waking the owner cross-shard. Needs
+// SURGE_SHARDS>=2; at SHARDS=1 the grandchild clamps to shard 0 and the
+// completion stays same-owner, so the test only sweeps 2 and 8.
+
+static _Atomic(void*) g_xowner_grandchild;
+static _Atomic uint32_t g_xowner_registered;
+static _Atomic uint32_t g_xowner_go;
+static _Atomic uint32_t g_xowner_child_shard;
+
+static void poll_xowner_grandchild(void) {
+    rt_async_return(NULL, 55);
+}
+
+// Gated on g_xowner_go, which the driver sets only after the owner is parked
+// in join_all, so the completion drives a genuine cross-shard wake rather than
+// racing the owner's park. On release it joins the connection-placed
+// grandchild -- F2 adopts shard-1 CONNECTION onto THIS task -- then returns,
+// completing cross-owner. The grandchild handle is re-read from the global on
+// each poll (not the one-shot __task_state, which clears after the first read)
+// so a not-yet-DONE first poll can yield and retry safely.
+static void poll_xowner_scope_child(void) {
+    if (atomic_load_explicit(&g_xowner_go, memory_order_acquire) == 0) {
+        rt_async_yield(NULL);
+        return;
+    }
+    void* gc = atomic_load_explicit(&g_xowner_grandchild, memory_order_acquire);
+    uint64_t bits = 0;
+    uint8_t st = rt_task_poll(gc, &bits);
+    if (st == 0) {
+        rt_async_yield(gc);
+        return;
+    }
+    const rt_task* self = rt_current_task();
+    atomic_store_explicit(&g_xowner_child_shard, self->owner_shard_id, memory_order_release);
+    rt_async_return(NULL, st == 1 && bits == 55 ? 1 : 0);
+}
+
+static void poll_xowner_owner(void) {
+    uint32_t phase = atomic_load_explicit(&g_scope_owner_phase, memory_order_acquire);
+    if (phase == 0) {
+        void* handle = rt_scope_enter(false);
+        atomic_store_explicit(&g_scope_handle, handle, memory_order_release);
+        // Same-owner at register time (child inherits the owner's shard 0);
+        // the cross-owner placement is adopted only later, when the child
+        // consumes the grandchild (which it reads from g_xowner_grandchild).
+        void* child = __task_create(POLL_XOWNER_SCOPE_CHILD, NULL);
+        atomic_store_explicit(&g_scope_child_a, child, memory_order_release);
+        rt_scope_register_child(handle, child);
+        atomic_store_explicit(&g_xowner_registered, 1, memory_order_release);
+        atomic_store_explicit(&g_scope_owner_phase, 1, memory_order_release);
+        rt_async_yield(NULL);
+        return;
+    }
+    void* handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
+    uint64_t pending = 0;
+    bool failfast = false;
+    bool done = rt_scope_join_all(handle, &pending, &failfast);
+    if (!done) {
+        rt_async_yield(NULL);
+        return;
+    }
+    rt_scope_exit(handle);
+    rt_async_return(NULL, 0);
+}
+
+static int mode_scope_cross_owner(rt_executor* ex) {
+    atomic_store_explicit(&g_scope_owner_phase, 0, memory_order_relaxed);
+    atomic_store_explicit(&g_scope_handle, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_scope_child_a, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_xowner_grandchild, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_xowner_registered, 0, memory_order_relaxed);
+    atomic_store_explicit(&g_xowner_go, 0, memory_order_relaxed);
+    atomic_store_explicit(&g_xowner_child_shard, UINT32_MAX, memory_order_relaxed);
+
+    // The F2 adoption source: a grandchild connection-placed on shard 1.
+    rt_task* grandchild =
+        spawn_placed(ex, POLL_XOWNER_GRANDCHILD, 1, TASK_PLACEMENT_CONNECTION, NULL);
+    if (grandchild == NULL) {
+        return fail("cross-owner grandchild allocation failed");
+    }
+    atomic_store_explicit(&g_xowner_grandchild, grandchild, memory_order_release);
+
+    rt_task* owner = spawn_pinned(ex, POLL_XOWNER_OWNER, 0);
+    if (owner == NULL) {
+        return fail("cross-owner scope owner allocation failed");
+    }
+    // The owner must register the scope-child and be parked in join_all before
+    // the child is released, so scope_on_child_done drives a real cross-shard
+    // wake instead of the owner self-consuming at its join_all re-check.
+    if (!wait_u32_at_least(&g_xowner_registered, 1, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("owner did not register its scope-child");
+    }
+    if (!wait_task_status(owner, TASK_WAITING, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("owner did not park in join_all before child release");
+    }
+    atomic_store_explicit(&g_xowner_go, 1, memory_order_release);
+
+    if (!await_expect(ex, owner, 1, 0, "cross-owner scope owner")) {
+        return 1;
+    }
+    // The scope-child must have adopted the grandchild's shard (1), which
+    // differs from the scope's pinned shard (0) -- proving scope_on_child_done
+    // actually took the cross-owner branch.
+    uint32_t child_shard = atomic_load_explicit(&g_xowner_child_shard, memory_order_acquire);
+    uint32_t adopted_shard = pin_shard(ex, 1);
+    (void)rt_executor_request_shutdown(ex);
+    if (child_shard != adopted_shard) {
+        fprintf(stderr, "cross-owner: scope-child owner shard=%u, expected adopted shard=%u\n",
+                child_shard, adopted_shard);
+        return fail("scope-child did not adopt the cross-owner shard");
+    }
+    return 0;
+}
+`

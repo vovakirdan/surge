@@ -44,7 +44,8 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 	harnessPath := filepath.Join(tmpDir, name+".c")
 	binPath := filepath.Join(tmpDir, name)
 	source := lifecycleHarnessCommon + lifecycleHarnessCreateJoinModes + lifecycleHarnessHandleLifetimeModes +
-		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessMain
+		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessScopeCrossOwner +
+		lifecycleHarnessMain
 	if writeErr := os.WriteFile(harnessPath, []byte(source), 0o600); writeErr != nil {
 		t.Fatalf("write harness: %v", writeErr)
 	}
@@ -174,7 +175,10 @@ enum {
     POLL_MAKE_PARK_FOREVER_CHAN = 4022,
     POLL_SCOPE_OWNER_FAILFAST = 4023,
     POLL_ADOPT_TARGET = 4024,
-    POLL_ADOPT_JOINER = 4025
+    POLL_ADOPT_JOINER = 4025,
+    POLL_XOWNER_GRANDCHILD = 4026,
+    POLL_XOWNER_SCOPE_CHILD = 4027,
+    POLL_XOWNER_OWNER = 4028
 };
 
 enum { BLOCKING_FN_SLOW = 5001 };
