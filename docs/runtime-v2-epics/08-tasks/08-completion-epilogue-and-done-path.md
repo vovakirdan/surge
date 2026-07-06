@@ -152,13 +152,24 @@ not a TSan data race, and is genuinely F2 territory — recorded as RV2-DEBT-020
 ### Post-change `park_key` reader audit (main's verification point)
 
 `grep task->park_key runtime/native`: the only cross-thread reader that was
-unlocked (`mark_done_needs_control`) is gone. Remaining accesses are all safe:
-`mark_done` (plain thread-own read on the RUNNING task, per the wake gate);
-`wake_task_on_shard_locked:934` / `wake_task_with_policy:982` (now gated on
-WAITING, under the owner shard lock); `channel_lane.h:89` (peer match under the
-channel owner shard lock); `park_current:1137` and `prepare_park:627` (thread-
-own, RUNNING); `rt_async_trace.c` SIGUSR1 dump (best-effort, trace-only). No
-cross-thread unlocked reader of a task's `park_key` remains.
+unlocked *in the completion/lifecycle path* (`mark_done_needs_control`) is gone.
+Remaining accesses are all safe: `mark_done` (plain thread-own read on the
+RUNNING task, per the wake gate); `wake_task_on_shard_locked:934` /
+`wake_task_with_policy:982` (now gated on WAITING, under the owner shard lock);
+`channel_lane.h:89` — this is `channel_candidate_valid`'s `park_key` peek, and
+it has TWO callers: `channel_deliver_same_shard_locked` reads it under the
+channel owner shard lock (safe), but `channel_deliver_foreign` peeks it
+pre-lock (under the control lock only, before taking the peer's owner shard
+lock and re-validating), so that first read is a documented-benign candidate/
+validate cross-lock read (`rt_channel_lane.h:83-86`: a mismatch just drops the
+candidate, an exact key match means the peer still parks on this key), NOT an
+owner-shard-locked read; `park_current:1137` and `prepare_park:627` (thread-own,
+RUNNING); `rt_async_trace.c` SIGUSR1 dump (best-effort, trace-only). So no
+cross-thread unlocked reader remains in the completion/lifecycle path; the one
+surviving cross-lock reader is `channel_deliver_foreign`'s pre-lock peek, which
+is the pre-existing, documented-benign channel candidate/validate read (not a
+regression and not a `park_key`-ownership violation), the epic's channel lane
+being an explicit non-goal here.
 
 ## S6-Q1 Reduction
 

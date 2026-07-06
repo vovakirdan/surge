@@ -700,6 +700,24 @@ structure pass.
   properties and nine cross-shard behavior modes in CI. Task lifecycle is the
   remaining steady-path control consumer (`RV2-DEBT-016`) and is the Epic 8
   entry point.
+- Epic 8 then moved task lifecycle and same-owner scope bookkeeping off the
+  control lane: task create/publish uses a segmented never-moved-slot task
+  table on the owner shard lane, worker join polling and normal done completion
+  are owner-shard-local, and scope enter/register/join-all/exit plus the
+  `scope_key` waiter store run on the scope's pinned owner shard. `done_cv` /
+  `compat_cv` stay external/main-thread-await compatibility only and are counted
+  separately. Control-lane steady-state dropped from ~26.4 to ~9.36
+  acquisitions per request on the 8-shard/1024 row, and the 8-shard/1024 total
+  is at least as fast as the 1-shard row; a per-commit trace-counter gate
+  (`TestRuntimeV2PerfControlLaneGate`, `runtime-v2-perf-check`) guards it
+  (`RV2-DEBT-016` closed). The 8-shard/1024 net starvation (`RV2-DEBT-015`) was
+  a placement funnel — stdlib net wrapper tasks pinned every durable task to
+  shard 0 — fixed by join-consume placement adoption (F2,
+  `rt_task_poll_adopt_placement`): a joiner consuming a DONE connection-placed
+  child adopts its placement, so the durable serve pipeline follows the
+  accepting shard. Residual control on the net bench is external-await compat
+  and the cross-owner scope fallback, both reassigned to their owners; no
+  syntax, parser, or Phase-4 crossing work was done.
 - Cross-shard messaging, explicit crossing syntax, remote-free routing, and
   alternate I/O backends remain later phases.
 

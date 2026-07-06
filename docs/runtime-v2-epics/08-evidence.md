@@ -1733,3 +1733,93 @@ file-size win (1386→1184) is the task's goal; the sweep found no offset to rem
 | `docs/runtime-v2-epics/08-tasks/README.md` | Task 13 status → Complete |
 | `docs/runtime-v2-epics/DEBT.md` | RV2-DEBT-003 Task 13 progress note |
 | `docs/runtime-v2-epics/NOTES.md` | Task 13 handoff |
+
+## Task 14: Epic Closeout
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 14 per `08-tasks/14-epic-closeout.md` (the closeout doc; full
+  contract-verification sweep, DEBT reconciliation, reviewer-note dispositions,
+  and next-epic handoff live there — this section is the gate/evidence record).
+- Epic: 8. Date: 2026-07-06. Author/session: `coder-t14` subagent (plan approved
+  by `main` before any edit, RULES.md Global Rule 9).
+- Scope: NOTES consolidation, DEBT reconciliation to final states, the reviewer
+  notes parked to closeout (T8-N1/N2, T8-supplemental, T9-N1), the RV2-DEBT-020
+  comment re-derivation, the RV2-DEBT-021 deterministic cross-owner scope test,
+  RUNTIME_V2 flowback, and the sentrux quality comparison vs epic start.
+- Out of scope: any runtime behavior change beyond two in-code comment
+  corrections (RV2-DEBT-020 in `rt_waiter_route.c`, the cancel-mid-park comment
+  in `rt_async_state.c`) and the one new test; no select/net-handle/placement/
+  Phase-4 work; no syntax/parser/lowering.
+- Proving spike: no.
+
+### Decisions (ratified by main)
+
+- **RV2-DEBT-020 → CARRY, comment corrected.** The false "caller holds the
+  control lock, so no same-key registration can interleave" comment in
+  `rt_waiter_route.c` was rewritten to the accurate post-Task-7 model: F2
+  adoption is PROVEN benign (DONE-target + register-then-verify self-consume),
+  the accept-transition self-replace of a still-RUNNING `rt_current_task()` is
+  the carried residual, owner reassigned to the net-handle/accept epic.
+  Subsumes reviewer note T8-N2.
+- **RV2-DEBT-021 → CLOSED (implemented).** `TestRuntimeV2LifecycleScopeCrossOwnerChildDone`
+  (harness driver in `runtime_v2_lifecycle_behavior_placement_adoption_test.go`,
+  test in `runtime_v2_lifecycle_behavior_scope_test.go`), wired into
+  `runtime-v2-lifecycle-check`. Deterministic via real F2 machinery; SHARDS=2,8;
+  3/3 green at both standalone.
+- **T8-N1 → FIXED** (park_key reader-audit wording in
+  `08-tasks/08-completion-epilogue-and-done-path.md`).
+- **T8-supplemental → NEW DEBT RV2-DEBT-023.** The mid-park re-derivation found
+  a real, narrow latent lost-cancellation: `cancel_task` wakes only a
+  `TASK_WAITING` target, and `park_current` re-checks only the wake token
+  (`rt_task_park.c:271`), so a cancel reading RUNNING in the RUNNING→WAITING
+  park window skips the wake and strands a target parked on a never-firing key.
+  Recorded (not half-fixed) with a truthful in-code comment and a candidate fix
+  (unconditional wake token in `cancel_task`). REPORTED to main as a finding.
+- **Task 12 optional errgroup hardening → SKIPPED** (no new module dep for a
+  test-only cosmetic; `errCh` already deterministic-first-error).
+
+### Gates (final closeout tree)
+
+| Command | Result |
+| --- | --- |
+| `git diff --check` | clean |
+| `make c-check` | pass (comment-only C changes: `rt_waiter_route.c`, `rt_async_state.c`) |
+| `make cppcheck` | pass (56 files) |
+| `make check` | exit 0 |
+| `make runtime-v2-check` | exit 0, 0 FAIL: `ScopeCrossOwnerChildDone` PASS (shards 2 & 8), `CompletionPinInterleavingTSan` PASS TSan-clean @ 1/2/8, `TestRuntimeV2PerfControlLaneGate` PASS (lifecycle-control 5.999/req ≤ 9.0, steady 8.069/req ≤ 20.0, placement_adoptions=253, accept_owner_active_shards=8) |
+| `./check_file_sizes.sh -a` | 100% good; `rt_async_state.c` 1184 eff LOC (comment additions are not effective LOC, ceiling not approached), `rt_waiter_route.c` 105 |
+| `gofmt -l` / `go vet -tags runtime_v2_pending` | clean |
+
+### Sentrux (final sequence; CLI `sentrux check`, MCP not connected — Epic 8 mechanism)
+
+| Scope | Epic start (Task 1, `daeac51e`) | Closeout | Rules |
+| --- | ---: | ---: | --- |
+| root `.` | 6174 | 6175 | 10, all pass |
+| `runtime` | 5296 | 5292 | 7, all pass |
+| `runtime/native` | 5389 | 5377 | 7, all pass |
+
+Net over the whole epic: +1 / −4 / −12, all within run-to-run noise, no rule
+violation at any scope. The only deliberate intra-epic code-scope change is
+Task 13's park/wake extraction (accepted under Global Rule 3 with `RV2-DEBT-003`
+as the recovery owner); the closeout's own C changes are comments only and moved
+nothing. No `session_end` quality regression.
+
+### Files Touched
+
+| Path | Change |
+| --- | --- |
+| `internal/vm/runtime_v2_lifecycle_behavior_harness_test.go` | 3 enum values + concat entry for the cross-owner harness |
+| `internal/vm/runtime_v2_lifecycle_behavior_placement_adoption_test.go` | new `lifecycleHarnessScopeCrossOwner` driver (reuses `spawn_placed`) |
+| `internal/vm/runtime_v2_lifecycle_behavior_await_shutdown_test.go` | 3 poll-dispatch cases + `scope-cross-owner` mode dispatch |
+| `internal/vm/runtime_v2_lifecycle_behavior_scope_test.go` | `TestRuntimeV2LifecycleScopeCrossOwnerChildDone` (+ `fmt` import) |
+| `Makefile` | `runtime-v2-lifecycle-check` regex +`ScopeCrossOwnerChildDone` |
+| `runtime/native/rt_waiter_route.c` | RV2-DEBT-020 comment re-derivation (F2 benign / accept carried) |
+| `runtime/native/rt_async_state.c` | `cancel_task` mid-park comment (RV2-DEBT-023) |
+| `docs/runtime-v2-epics/08-tasks/08-completion-epilogue-and-done-path.md` | T8-N1 park_key audit wording fix |
+| `docs/runtime-v2-epics/08-tasks/14-epic-closeout.md` | new (closeout doc + contract sweep) |
+| `docs/runtime-v2-epics/08-evidence.md` | this section |
+| `docs/runtime-v2-epics/DEBT.md` | RV2-DEBT-020 corrected/reassigned, 021 closed, 022 carry, 023 new |
+| `docs/runtime-v2-epics/08-tasks/README.md` | Task 14 → Complete |
+| `docs/RUNTIME_V2.md` | Phase 3 Epic 8 durable-result bullet |
+| `docs/runtime-v2-epics/NOTES.md` | Epic 8 closeout consolidation |

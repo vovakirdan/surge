@@ -1142,6 +1142,20 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     if (task->kind == TASK_KIND_BLOCKING) {
         rt_blocking_request_cancel(ex, task);
     }
+    // The cancelled flag is stored unconditionally above; the wake here is
+    // only for a task already parked (WAITING), whose owner-shard-lock wake
+    // re-runs it so its next poll observes the flag and unwinds. A READY target
+    // is already queued and observes the flag when it is next polled. A RUNNING
+    // target whose poll returns YIELDED/DONE re-runs or completes and observes
+    // it too. The one UNRESOLVED case is a RUNNING target that parks on a key
+    // that never naturally fires, cancelled in the exact window between its
+    // poll's cancelled-check (rt_async_poll.c, already passed -> POLL_PARKED)
+    // and park_current's status store to TASK_WAITING (rt_task_park.c): this
+    // status load reads RUNNING and skips the wake, park_current re-checks only
+    // the wake token (not the cancelled flag), so the target strands with
+    // cancelled=1 until its park_key fires by other means. Narrow latent
+    // lost-cancellation, RV2-DEBT-023 (a candidate fix is to set the wake token
+    // unconditionally here so park_current's token re-check aborts the park).
     if (task_status_load(task) == TASK_WAITING) {
         wake_task(ex, task->id, 1);
     }

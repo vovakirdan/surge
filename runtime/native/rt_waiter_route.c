@@ -91,9 +91,31 @@ void rt_waiter_migrate_join_waiters(rt_executor* ex,
         return;
     }
     // Extract under the source lock, append under the destination lock:
-    // never two shard locks at once. The caller holds the control lock, so
-    // no same-key registration can interleave between the two holds. Batches
-    // repeat until the source has no matching entry left.
+    // never two shard locks at once. Batches repeat until the source has no
+    // matching entry left.
+    //
+    // Post-Task-7 interleaving (RV2-DEBT-020 re-derivation). The pre-Task-7
+    // comment here claimed "the caller holds the control lock, so no same-key
+    // registration can interleave between the two holds" -- that is now FALSE.
+    // Since Epic 8 Task 7, a joiner's join-key registration (rt_task_poll's
+    // register-then-verify via add_waiter/prepare_park) runs under the target's
+    // owner SHARD lock, not the control lock, so a same-key registration CAN
+    // land between the source-unlock and the destination-lock; a partial final
+    // batch also leaves such a late arrival on the source shard, where the
+    // eventual completion wake (routed to the target's NEW owner shard) will not
+    // scan it. The two callers of rt_task_replace_owner split on whether this
+    // strands the late joiner:
+    //   - F2 adoption (rt_task_poll_adopt_placement) fires ONLY on a target the
+    //     joiner already observed TASK_DONE. A racing joiner's register-then-
+    //     verify re-checks TASK_DONE after registering and self-consumes the
+    //     completed target (rt_async_task.c), so it never depends on the
+    //     migration moving its entry -- provably benign.
+    //   - the accept transition (rt_net_accept_group.c) self-replaces a still-
+    //     RUNNING rt_current_task(); register-then-verify's re-check does NOT
+    //     help a not-yet-DONE target, so the micro-window is not proven benign
+    //     here. It is the carried residual RV2-DEBT-020, owned by the future
+    //     net-handle/accept epic (whether any joiner races the acceptor's own
+    //     accept-time self-replace is that epic's join-structure analysis).
     waker_key key = join_key(task_id);
     for (;;) {
         waiter moved[16];

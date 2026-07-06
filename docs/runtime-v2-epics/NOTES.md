@@ -3,6 +3,33 @@
 This is the live handoff log for Runtime V2 work. Keep it current during each
 task, then move durable decisions into the owning epic document before closeout.
 
+## Epic 8 Closeout (Consolidated 2026-07-06)
+
+Epic 8 (Task Lifecycle Lane And Net Fairness) is COMPLETE at closeout commit on
+`af0416fc` (Task 13). Per Global Rule 10, the durable Epic 8 decisions now live
+in their permanent homes; the per-task handoff blocks below are kept as history
+but are no longer the source of truth:
+
+- Durable architecture result → `docs/RUNTIME_V2.md` Phase 3 (task lifecycle +
+  same-owner scope bookkeeping on owner lanes; segmented task table; `done_cv`/
+  `compat_cv` external-only; control steady-state ~26.4→9.36/req; F2 placement
+  adoption fixing the net starvation funnel).
+- Contract-by-contract proof, task ledger, and next-epic handoff →
+  `08-tasks/14-epic-closeout.md` (both contracts verified clause-by-clause with
+  named test/commit proofs; NO unmet clauses).
+- Debt final states → `DEBT.md`: RV2-DEBT-015/016/019 CLOSED; RV2-DEBT-021
+  CLOSED (new deterministic cross-owner scope test); RV2-DEBT-020 carried
+  (comment corrected, owner → net-handle/accept epic); RV2-DEBT-022 carried;
+  RV2-DEBT-023 NEW (cancel RUNNING→WAITING lost-cancellation, found in the
+  Task-8-supplemental mid-park re-derivation); RV2-DEBT-003 open with the
+  Task 13 recovery clause.
+- Per-task gate/evidence records → `08-evidence.md` Tasks 1-14.
+
+MANDATORY next-epic gate (also in the epic doc + RUNTIME_V2 Phase 4): Epic 8 did
+NO syntax/parser/semantic/Phase-4 work. `far`/`submit_to`/`crosses`/
+shard-movable and all crossing transport remain undesigned; the next epic
+touching any crossing surface MUST start with a dedicated user syntax review.
+
 ## Current State
 
 - Runtime V2 target architecture lives in `docs/RUNTIME_V2.md`.
