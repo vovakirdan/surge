@@ -3745,3 +3745,18 @@ pass, before any task execution began:
   `sentrux gate` shows the QUALITY dimension IMPROVED vs the committed baseline
   (runtime/native 5159→5341), its DEGRADED verdict is on cumulative-since-Jul-2
   coupling/complex-fn drift, not this verbatim move.
+
+## 2026-07-06 Docs/Debt Cleanup Handoff
+
+- Scope: docs-only cleanup after Epic 8 closeout review. No runtime code or
+  tests changed.
+- `README.md`: marked Epic 8 complete, removed the duplicate draft artifact
+  entry, added `08-evidence.md`, and changed Epic 9 from "Phase 4 next" to
+  "next scope to decide" with safety-debt candidates named first.
+- `08-task-lifecycle-lane-and-net-fairness.md`: changed the top status to
+  complete, added the closeout summary, and updated the next-runtime handoff
+  to name carried debts before syntax/Phase 4 work.
+- `DEBT.md`: moved `RV2-DEBT-016` from Open Debt to Closed Debt with the Task
+  12/14 evidence links. Open safety debts that should drive the next planning
+  pass remain `RV2-DEBT-020`, `RV2-DEBT-022`, and `RV2-DEBT-023`; longer-lived
+  cleanup/compat items remain `RV2-DEBT-003` and `RV2-DEBT-017`.

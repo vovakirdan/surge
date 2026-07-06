@@ -17,10 +17,30 @@ scope bookkeeping, await/runner compatibility, and net fairness. The
 8-shard/1024 starvation debt is investigated inside the same epic because it
 is scheduler/lifecycle-adjacent and must be understood before Phase 4.
 
-**Status:** active. Reviewed against the Epic 7 closeout state on
-2026-07-04; boundary review fixes applied (trace counter field names, the
-named accept-transition cross-owner edge, the select non-goal, and the
-lifecycle input files).
+**Status:** complete. Opened against the Epic 7 closeout state on
+2026-07-04 and closed after Task 14 with runtime-only scope preserved: no
+syntax, parser, lowering, public crossing surface, inbound queues, remote
+messages, eventfd credits, remote `select`, or seq-cst `PARKED` protocol work
+landed in this epic.
+
+## Closeout Summary
+
+Epic 8 met its lifecycle and fairness contracts. Steady task creation, worker
+join polling, normal done completion, and same-owner scope bookkeeping avoid
+the control lane in the request steady path. The promoted
+`TestRuntimeV2PerfControlLaneGate` is wired through `runtime-v2-perf-check`
+and `runtime-v2-check`; the final Task 12 baseline measured about
+`12.86` total control acquisitions/request and `9.36` steady-state control
+acquisitions/request on the 8-shard/1024 row, materially below the Epic 7
+`~26.4/request` baseline. The adopted 8-shard/1024 starvation debt was traced
+to the placement funnel and fixed by F2 placement adoption at join consume.
+
+Closed debt: `RV2-DEBT-015`, `RV2-DEBT-016`, `RV2-DEBT-019`, and
+`RV2-DEBT-021`. Carried debt for the next planning pass:
+`RV2-DEBT-020` (accept-transition join-waiter migration proof),
+`RV2-DEBT-022` (external-await `done_cv` ordering), `RV2-DEBT-023`
+(cancel vs RUNNING-to-WAITING park ordering), plus the longer-lived
+`RV2-DEBT-003` and `RV2-DEBT-017` cleanup/compat items.
 
 **Task documents:** `08-tasks/README.md` (index); expand each task document
 before executing it, per the index rules.
@@ -394,9 +414,10 @@ Epic 8 is complete only when:
 
 ## Next Runtime Handoff And Syntax Gate
 
-The next epic after Epic 8 should not be chosen until the lifecycle and
-fairness evidence is known. If Epic 8 leaves only explicit crossing work, the
-following epic must start with a dedicated language-syntax review with the
-user. No task may introduce or bless names such as `far`, `submit_to`,
-`crosses`, or `shard-movable` without that review.
-
+The lifecycle and fairness evidence is now known. The next runtime planning
+pass should decide whether to close the carried wakeup/cancel/accept-transition
+safety debts before starting the final crossing work. If the next epic changes
+Surge syntax, keywords, parser rules, semantic checks, lowering, public
+examples, or the explicit crossing surface, it must start with a dedicated
+language-syntax review with the user. No task may introduce or bless names such
+as `far`, `submit_to`, `crosses`, or `shard-movable` without that review.

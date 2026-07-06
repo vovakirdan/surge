@@ -38,10 +38,13 @@ legacy large-file cleanup stay recorded in `DEBT.md`. Epic 7 is complete per
 global executor lock into per-shard locks plus a reduced global control lane,
 moved scheduler queues, waiter stores, sleep timers, and channel ownership to
 shard-owned state, and promoted the lock gate (`runtime-v2-lock-check`) into
-`runtime-v2-check`. Epic 8 is next and should stay runtime-only: move task
-lifecycle work off the remaining control lane and investigate the adopted
-8x1024 starvation debt. The explicit crossing surface and Phase 4 transport
-move to a later epic and still require a dedicated syntax review first.
+`runtime-v2-check`. Epic 8 is complete per
+`08-task-lifecycle-lane-and-net-fairness.md`: it moved steady task lifecycle
+work and same-owner scope bookkeeping off the hot control lane, fixed the
+adopted 8x1024 starvation debt, promoted lifecycle/perf gates into
+`runtime-v2-check`, and recorded the remaining wakeup/cancel/accept-transition
+debts in `DEBT.md`. The explicit crossing surface and Phase 4 transport move
+to a later epic and still require a dedicated syntax review first.
 
 ## Current Runtime V2 Artifacts
 
@@ -81,11 +84,10 @@ move to a later epic and still require a dedicated syntax review first.
   D1-D16 and the park/wake protocol proof.
 - `07-tasks/`: Epic 7 task index and expanded task documents.
 - `08-task-lifecycle-lane-and-net-fairness.md`: Epic 8 scope, boundary
-  decisions, contracts, and task list.
+  decisions, contracts, task list, closeout, and next-runtime handoff.
 - `08-tasks/`: Epic 8 task index and expanded task documents.
-- `08-task-lifecycle-lane-and-net-fairness.md`: draft Epic 8 scope, boundary
-  decisions, proof contract, and brief task list for task lifecycle/control-lane
-  migration plus the 8x1024 starvation investigation.
+- `08-evidence.md`: Epic 8 task evidence ledger, final benchmark rows, and
+  closeout accounting.
 
 Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside
@@ -116,8 +118,8 @@ Every epic should move the runtime toward these goals:
 | 5 | `05-per-shard-heap-accounting.md` | Complete. Moved heap accounting from global hot counters to runtime/shard-owned cells, preserved public allocation behavior, and added stable heap-accounting gates to Runtime V2 CI coverage. |
 | 6 | `06-n2-accept-ownership-and-tier1-scheduler.md` | Complete. Enabled structural multi-shard native TCP accept ownership under the preserved global lock, added per-shard net poller/wake ownership, removed non-owner stealing for Tier 1 connection tasks, and promoted the stable accept gate. |
 | 7 | `07-executor-lock-split-and-shard-runtime-state.md` | Complete. Split the preserved global executor lock into per-shard locks plus a reduced control lane, moved scheduler queues, per-key waiter-store ownership, sleep stores, channel owner shards, and re-laned blocking/await/shutdown paths under `N>1`. |
-| 8 | `08-task-lifecycle-lane-and-net-fairness.md` | In progress. Move task lifecycle, join/done, await, and scope bookkeeping off the remaining steady-path control lane, and investigate the adopted 8x1024 starvation debt. No syntax or Phase 4 transport work. |
-| 9 | TBD | Add the explicit crossing language surface and Phase 4 runtime transport. Must start with a dedicated syntax review; current names such as `far`, `submit_to`, and `shard-movable` are placeholders. |
+| 8 | `08-task-lifecycle-lane-and-net-fairness.md` | Complete. Moved task lifecycle, join/done, await accounting, and same-owner scope bookkeeping off the remaining steady-path control lane; fixed the adopted 8x1024 starvation debt; added lifecycle/perf gates. No syntax or Phase 4 transport work. |
+| 9 | TBD | Next scope to decide. Preferred candidates before final crossing work: close carried wakeup/cancel/accept-transition safety debts (`RV2-DEBT-020`, `RV2-DEBT-022`, `RV2-DEBT-023`) and continue dependency-aware runtime cleanup where it reduces real coupling. Any explicit crossing language surface or Phase 4 runtime transport must start with a dedicated syntax review; current names such as `far`, `submit_to`, and `shard-movable` are placeholders. |
 | 10 | TBD | Add remote-free routing and shard-local hot pools. |
 | 11 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |
 | 12 | TBD | Rewrite the VM/native/LLVM test matrix around the stable Runtime V2 contracts and remove accepted backend-test debt. |
