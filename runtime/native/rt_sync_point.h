@@ -16,7 +16,7 @@
 // translation unit fails to compile, in BOTH the armed and the release build
 // (the release macro still references the enumerator). Adding a site therefore
 // requires (1) adding an enumerator here and (2) listing the window in
-// check_sync_points.sh. Epic 9 permits exactly the six windows below.
+// check_sync_points.sh. Epic 9 permits exactly the seven windows below.
 #ifndef RT_SYNC_POINT_H
 #define RT_SYNC_POINT_H
 
@@ -33,12 +33,17 @@ typedef enum rt_sync_point_id {
     // before committing TASK_WAITING, while status is RUNNING.
     RT_SYNC_POINT_SP_PARK_BEFORE_WAITING,
     // mark_done tail: reached after the TASK_DONE store, immediately before the
-    // seq-cst fence and the done_waiters load. Pairs with
+    // post-DONE seq-cst done_waiters load. Pairs with
     // SP_AWAIT_AFTER_INCREMENT to reproduce the RV2-DEBT-022 StoreLoad window.
     RT_SYNC_POINT_SP_MARKDONE_BEFORE_DONEWAITERS_LOAD,
     // rt_task_await: reached after the done_waiters increment, before the
-    // seq-cst fence and the status predicate load.
+    // seq-cst status predicate load.
     RT_SYNC_POINT_SP_AWAIT_AFTER_INCREMENT,
+    // rt_task_await: reached after the external awaiter observed not-DONE and
+    // immediately before pthread_cond_wait atomically releases ex->lock. Pairs
+    // with RV2_DEBT_022_NEGATIVE_CONTROL to prove unlocked done_cv broadcasts
+    // can be lost when they race this final wait transition.
+    RT_SYNC_POINT_SP_AWAIT_BEFORE_DONECV_WAIT,
     // wake_key_all_with_policy: reached inside the batch drain loop, so a cancel
     // can race a mid-drain key wake (token vs batch-compaction ordering).
     RT_SYNC_POINT_SP_WAKEKEY_MID_DRAIN,

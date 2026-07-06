@@ -480,6 +480,7 @@ typedef enum {
 } rt_ctrl_handle_site;
 
 void rt_trace_control_lock_handle_site(rt_ctrl_handle_site site);
+void rt_done_cv_broadcast_after_done(rt_executor* ex);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
@@ -490,6 +491,76 @@ static inline void task_status_store(rt_task* task, uint8_t status) {
         return;
     }
     atomic_store_explicit(&task->status, status, memory_order_release);
+}
+
+static inline uint8_t task_status_load_seq_cst(const rt_task* task) {
+    return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_seq_cst);
+}
+
+static inline void task_status_store_seq_cst(rt_task* task, uint8_t status) {
+    if (task == NULL) {
+        return;
+    }
+    atomic_store_explicit(&task->status, status, memory_order_seq_cst);
+}
+
+static inline uint32_t rt_done_waiters_load_before_done(const rt_executor* ex) {
+    if (ex == NULL) {
+        return 0;
+    }
+#ifdef RV2_DEBT_022_NEGATIVE_CONTROL
+    // Deterministic negative control: force the old "missed waiter" branch
+    // that the unfenced StoreLoad protocol allowed.
+    const volatile uint32_t missed = 0;
+    return missed;
+#else
+    return atomic_load_explicit(&ex->done_waiters, memory_order_acquire);
+#endif
+}
+
+static inline void rt_done_waiters_increment_for_external_await(rt_executor* ex) {
+    if (ex == NULL) {
+        return;
+    }
+#ifdef RV2_DEBT_022_NEGATIVE_CONTROL
+    (void)atomic_fetch_add_explicit(&ex->done_waiters, 1, memory_order_acq_rel);
+#else
+    (void)atomic_fetch_add_explicit(&ex->done_waiters, 1, memory_order_seq_cst);
+#endif
+}
+
+static inline void rt_done_waiters_decrement_for_external_await(rt_executor* ex) {
+    if (ex == NULL) {
+        return;
+    }
+    (void)atomic_fetch_sub_explicit(&ex->done_waiters, 1, memory_order_acq_rel);
+}
+
+static inline uint8_t rt_task_status_load_for_external_await(const rt_task* task) {
+#ifdef RV2_DEBT_022_NEGATIVE_CONTROL
+    return task_status_load(task);
+#else
+    return task_status_load_seq_cst(task);
+#endif
+}
+
+static inline void rt_task_status_store_done_for_external_awaiters(rt_task* task) {
+#ifdef RV2_DEBT_022_NEGATIVE_CONTROL
+    task_status_store(task, TASK_DONE);
+#else
+    task_status_store_seq_cst(task, TASK_DONE);
+#endif
+}
+
+static inline uint32_t rt_done_waiters_load_after_done(const rt_executor* ex) {
+    if (ex == NULL) {
+        return 0;
+    }
+#ifdef RV2_DEBT_022_NEGATIVE_CONTROL
+    return atomic_load_explicit(&ex->done_waiters, memory_order_acquire);
+#else
+    return atomic_load_explicit(&ex->done_waiters, memory_order_seq_cst);
+#endif
 }
 
 static inline uint8_t task_enqueued_load(const rt_task* task) {

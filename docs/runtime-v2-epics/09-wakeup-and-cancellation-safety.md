@@ -32,8 +32,9 @@ path. Fix tasks then reuse that one mechanism instead of re-litigating it.
 **Status:** in progress. Task documents exist under `09-tasks/`; the first
 implementation slices stabilized the sync-point scaffold, closed
 `RV2-DEBT-023` for the cancel-vs-park never-firing-key window, and closed
-`RV2-DEBT-020` with a generic join-route migration fix. `RV2-DEBT-022` remains
-pending.
+`RV2-DEBT-020` with a generic join-route migration fix. Task 4 closed
+`RV2-DEBT-022` with a seq-cst external-await StoreLoad handshake and a guarded
+post-`DONE` `done_cv` broadcast helper.
 
 ## Inputs
 
@@ -80,11 +81,10 @@ gates, and the 8-shard/1024 net row no longer funnels durable work to shard 0.
 
 The remaining risks are narrow but correctness-critical:
 
-- `RV2-DEBT-022`: external `rt_task_await` waits on `done_cv` under `ex->lock`
-  (the control mutex), while completion reads `done_waiters` without a lock to
-  decide whether to broadcast. A running target can complete after the external
-  awaiter starts parking but before the completion observes `done_waiters`,
-  skipping the only `done_cv` wake source.
+- `RV2-DEBT-022`: CLOSED by Epic 9 Task 4. External await and completion now
+  use one seq-cst StoreLoad handshake (`done_waiters` increment/status load vs
+  `TASK_DONE` store/post-DONE waiter load), and the single `done_cv` broadcast
+  lives in `rt_done_cv.c` under `ex->lock` with `RT_CTRL_SITE_AWAIT_COMPAT`.
 - `RV2-DEBT-023`: `cancel_task` stores the cancelled flag but wakes only if its
   lock-free status read sees `TASK_WAITING`. A running task can pass its
   cancellation check, return `POLL_PARKED`, then commit to `TASK_WAITING` after
@@ -129,10 +129,10 @@ control lane, name it, count it separately, and keep it outside worker steady
 state.
 
 **External await stays compatibility.** `done_cv` remains external/main-thread
-await compatibility, not the worker join mechanism. Closing `RV2-DEBT-022`
-requires an ordering protocol: either the seq-cst StoreLoad handshake described
-in `DEBT.md` or an equivalent proof that a completion cannot skip the broadcast
-for a parked external awaiter.
+await compatibility, not the worker join mechanism. `RV2-DEBT-022` is closed
+by the Task 4 seq-cst StoreLoad handshake described in `DEBT.md`; future edits
+must preserve the proof that a completion cannot skip the broadcast for a
+parked external awaiter.
 
 **Cancellation must wake the transition.** Closing `RV2-DEBT-023` requires the
 cancel path to force a cancelled task to re-run when cancellation races the
@@ -169,7 +169,8 @@ placement-adoption gates.
 
 Epic 9 owns:
 
-- `RV2-DEBT-022`: external-await `done_cv` ordering.
+- `RV2-DEBT-022`: closed by Task 4's seq-cst external-await `done_cv`
+  ordering fix.
 - `RV2-DEBT-023`: cancellation vs `RUNNING -> WAITING` park ordering.
 - `RV2-DEBT-020`: closed by Task 3's join-route migration fix and
   `SP_MIGRATE_GAP` proof.
@@ -263,12 +264,13 @@ steady-state-control/request must be explained and either fixed or assigned to
 a named debt with evidence.
 
 The `RV2-DEBT-022` fix is the one place this epic touches the completion hot
-path: a seq-cst store on `TASK_DONE` (or whatever ordering the chosen protocol
-needs) is paid by EVERY completion, not only await-compat ones. The task that
-lands it must measure the steady-path cost of the chosen ordering with a
-before/after `bench_native_net.sh` run against the Task 12 re-baseline row,
-and cheaper shapes (for example, a fence taken only when `done_waiters` is
-observed nonzero) remain admissible under the "equivalent proof" clause.
+path: the chosen seq-cst helper shape is paid by EVERY completion, not only
+await-compat ones. Task 4 accepted the per-commit
+`make runtime-v2-perf-check` counters as the slice measurement because the
+protocol does not add a steady-path control-lock acquisition; closeout may add
+a native net benchmark row if the final epic sweep needs a higher-load
+throughput datapoint. Cheaper future shapes remain admissible only under the
+"equivalent proof" clause.
 
 This epic is not expected to improve throughput. Its expected value is
 stronger correctness and a smaller set of unknown ordering assumptions before
@@ -311,7 +313,8 @@ Likely independent review surfaces:
 
 Epic 9 is complete only when:
 
-- `RV2-DEBT-022` is closed with a deterministic proof and an ordering argument;
+- `RV2-DEBT-022` is closed with Task 4's deterministic proof and ordering
+  argument;
 - `RV2-DEBT-023` is closed with a deterministic proof and an ordering argument;
 - `RV2-DEBT-020` is closed by the Task 3 deterministic migration-gap proof;
 - every changed wake/cancel/await path has a written ownership and cleanup

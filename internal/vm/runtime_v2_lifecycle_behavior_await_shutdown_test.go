@@ -145,6 +145,9 @@ void __surge_poll_call(uint64_t id) {
         case POLL_DEBT020_GAP_JOINER:
             poll_debt020_gap_joiner();
             break;
+        case POLL_DEBT022_GATED_TARGET:
+            poll_debt022_gated_target();
+            break;
         case POLL_CANCEL_PARK_PROOF:
             poll_cancel_park_proof();
             break;
@@ -407,6 +410,21 @@ int main(int argc, char** argv) {
 	#ifdef RT_TEST_SYNC_POINTS
     if (strcmp(argv[1], "debt020-migrate-gap-proof") == 0) {
         return mode_debt020_migrate_gap_proof(ex);
+    }
+    if (strcmp(argv[1], "debt022-donecv-storeload-proof") == 0) {
+        return mode_debt022_donecv_storeload_proof(ex);
+    }
+    if (strcmp(argv[1], "debt022-multi-awaiters") == 0) {
+        return mode_debt022_multi_awaiters(ex);
+    }
+    if (strcmp(argv[1], "debt022-already-done") == 0) {
+        return mode_debt022_already_done(ex);
+    }
+    if (strcmp(argv[1], "debt022-parked-target") == 0) {
+        return mode_debt022_parked_target(ex);
+    }
+    if (strcmp(argv[1], "debt022-cancelled-parked-target") == 0) {
+        return mode_debt022_cancelled_parked_target(ex);
     }
     if (strcmp(argv[1], "debt023-cancel-park-proof") == 0) {
         return mode_debt023_cancel_park_proof(ex);

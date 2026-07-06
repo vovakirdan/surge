@@ -1249,7 +1249,7 @@ static int mark_done_needs_control(const rt_executor* ex,
     if (completion_reason) {
         return 1;
     }
-    if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) > 0) {
+    if (rt_done_waiters_load_before_done(ex) > 0) {
         return 1;
     }
     return 0;
@@ -1322,7 +1322,8 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // field, so the reorder is behavior-preserving.
     task->result_kind = result_kind;
     task->result_bits = result_bits;
-    task_status_store(task, TASK_DONE);
+    rt_task_status_store_done_for_external_awaiters(task);
+    RT_SYNC_POINT(SP_MARKDONE_BEFORE_DONEWAITERS_LOAD);
     task_enqueued_store(task, 0);
     task->state = NULL;
     // Scope completion bookkeeping (Epic 8 Task 9, S5-Q8): runs on the scope
@@ -1333,9 +1334,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // mark_done_needs_control on the request hot path.
     scope_on_child_done(ex, task, result_kind);
     wake_key_all_with_policy(ex, join_key(task->id), 0);
-    if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) > 0) {
-        pthread_cond_broadcast(&ex->done_cv);
-    }
+    rt_done_cv_broadcast_after_done(ex);
     if (need_control) {
         rt_control_unlock(ex);
     }

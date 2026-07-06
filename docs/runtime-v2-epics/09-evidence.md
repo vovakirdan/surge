@@ -180,7 +180,7 @@ returns to the poll/native call; accept wake re-owns a WAITING task before
 | --- | --- | --- |
 | `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LifecycleDebt020MigrateGap(Proof\|NegativeControl)$' -count=1 -parallel=1 -p=1 -v --timeout 120s` | positive proof passed at `SURGE_SHARDS=2,8`; negative-control build failed with `debt020 migrate-gap joiner stranded` and the Go test passed | 0 |
 | focused static/proof command including `StaticJoinWaiterRoutesByTargetOwner` and `OwnerLocalWaiterSkeletonStaticShape` | passed | 0 |
-| `make runtime-v2-syncpoint-check` | pass; allowlist has 6 enumerators and `SP_MIGRATE_GAP` is placed only in `rt_scheduler_placement.c` / `rt_waiter_route.c` | 0 |
+| `make runtime-v2-syncpoint-check` | pass; `SP_MIGRATE_GAP` is placed only in `rt_scheduler_placement.c` / `rt_waiter_route.c` | 0 |
 | `make c-check` | pass after `clang-format -i runtime/native/rt_waiter_join_route.c runtime/native/rt_async_waiter.c runtime/native/rt_waiter.h` | 0 |
 | `make cppcheck` | pass after const-pointer cleanup in the new join-route helpers | 0 |
 | `./check_file_sizes.sh -a` | pass after splitting join helpers; `rt_async_waiter.c` 639 ACCEPTABLE, `rt_waiter_join_route.c` 141 OK, `rt_task_park.c` 207 OK, no `>675` files | 0 |
@@ -193,10 +193,71 @@ run in this slice.
 
 ## Slice 4 — RV2-DEBT-022 (done_cv StoreLoad fence)
 
-_Pending. seq-cst fence on both sides of the external-await handshake; DONE
-store stays plain release; LOC offset by removing `mark_done_needs_control`
-:1245-1247; update the `rt_async_internal.h` lane-invariant comment; negative
-control MUST fail; before/after `bench_native_net.sh`; hold the perf floor._
+**Status:** complete. `RV2-DEBT-022` is closed by the seq-cst StoreLoad
+handshake in the external-await compatibility path plus a guarded post-`DONE`
+`done_cv` broadcast helper.
+
+### Interleaving Model
+
+- Old window: external awaiter did `done_waiters++` then loaded
+  `target->status`; completer stored `TASK_DONE` then loaded `done_waiters`.
+  Without both store->load edges in one seq-cst order, the awaiter could observe
+  not-DONE and park while the completer observed zero waiters and skipped the
+  only steady-state `done_cv` broadcast.
+- New protocol: `rt_done_waiters_increment_for_external_await`,
+  `rt_task_status_load_for_external_await`,
+  `rt_task_status_store_done_for_external_awaiters`, and
+  `rt_done_waiters_load_after_done` are seq-cst in production. The
+  `done_cv` broadcast is delegated to `rt_done_cv_broadcast_after_done`, which
+  performs the post-`DONE` waiter load and broadcasts under `ex->lock` with the
+  `RT_CTRL_SITE_AWAIT_COMPAT` trace tag.
+- Negative control: `RV2_DEBT_022_NEGATIVE_CONTROL` removes the seq-cst
+  participation and forces the old missed-waiter decision. The runtime proof
+  then strands with `debt022 external awaiter stranded before done_cv wait`,
+  showing the condvar/broadcast half would lose the only wake.
+
+### Files Touched
+
+| Path | Change | Reason | Size/limit note |
+| --- | --- | --- | --- |
+| `runtime/native/rt_async_internal.h` | add seq-cst external-await helper cluster and `rt_done_cv_broadcast_after_done` prototype | keep the ordering contract named and statically pinnable | 630 (ACCEPTABLE) |
+| `runtime/native/rt_async_task.c` | use seq-cst waiter increment/status load helpers; add `SP_AWAIT_BEFORE_DONECV_WAIT` | awaiter half of StoreLoad proof | 317 (OK) |
+| `runtime/native/rt_async_state.c` | use seq-cst DONE store helper; delegate `done_cv` broadcast | completer half without adding control-lane fallback to every completion | 1183 (LEGACY OK <= 1184) |
+| `runtime/native/rt_done_cv.c` | new focused post-DONE waiter load + single completion broadcast helper | isolate `done_cv` compat and avoid growing `rt_async_state.c` | 20 (OK) |
+| `runtime/native/rt_sync_point.h`, `runtime/native/rt_sync_point.c`, `check_sync_points.sh` | add seventh Epic 9 window, `SP_AWAIT_BEFORE_DONECV_WAIT` | deterministic condvar-window proof | header 39 / c 182 (OK) |
+| `internal/vm/runtime_v2_lifecycle_behavior_*`, `runtime_v2_lifecycle_static_test.go` | add positive/negative Debt022 proof, external-await matrix, static gates | close debt with deterministic and mechanical evidence | Go tests |
+| `Makefile` | add Debt022 proof tests to `runtime-v2-lifecycle-check` | CI gate coverage | n/a |
+
+### Commands/Checks
+
+| Command | Actual | Exit |
+| --- | --- | --- |
+| `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LifecycleDebt022(DoneCVStoreLoad(Proof\|NegativeControl)\|ExternalAwaitMatrix)$' -count=1 -parallel=1 -p=1 -v --timeout 120s` | positive proof passed at `SURGE_SHARDS=1,2,8`; negative-control failed for the expected `debt022 external awaiter stranded before done_cv wait`; matrix passed multi-awaiters, already-DONE, parked target, cancelled parked target | 0 |
+| focused static + Debt022 proof command including `StaticAwaitCompatCountedSeparately` | passed; static gate pins helper names, single completion `done_cv` broadcast in `rt_done_cv.c`, and no worker completion wait on `done_cv` | 0 |
+| `make runtime-v2-syncpoint-check` | pass; allowlist has 7 enumerators and `SP_AWAIT_BEFORE_DONECV_WAIT` is pinned to `rt_async_task.c` | 0 |
+| `make c-check` | pass | 0 |
+| `make cppcheck` | pass after making the negative-control missed waiter read non-constant to cppcheck | 0 |
+| `./check_file_sizes.sh -a` | pass; `rt_async_state.c` 1183, `rt_async_internal.h` 630, `rt_async_task.c` 317, `rt_done_cv.c` 20, `rt_sync_point.c` 182, `rt_sync_point.h` 39 | 0 |
+| `make runtime-v2-lifecycle-check` | pass; includes Debt020/022/023 and static lifecycle gates | 0 |
+| `make runtime-v2-perf-check` | pass; `control_lock_acquired=11819` (`11.542/req`), `ctrl_await_compat=3458` (`3.377/req`), steady-state-control `8361` (`8.165/req`, ceiling `20.0`), lifecycle-control `6143` (`5.999/req`, ceiling `9.0`), `placement_adoptions=253` | 0 |
+| `make runtime-v2-check` | pass after repairing the owner-local net waiter C harness capacity for Task 3's join-route lookup (`stub_tasks[8]` could not contain its own id `55` target) | 0 |
+| `make check` | pass; Go tests, golangci-lint, `c-check`, and uncommitted-file LOC gate green | 0 |
+| `sentrux check .` | pass; quality `6177`; 10 rules checked | 0 |
+| `sentrux check runtime` | pass; quality `5327`; 7 rules checked | 0 |
+| `sentrux check runtime/native` | pass; quality `5430`; 7 rules checked | 0 |
+| `sentrux gate .` | DEGRADED vs old baseline: quality `6198 -> 6177`, complex functions `533 -> 538` | 1 |
+| `sentrux gate runtime` | DEGRADED vs old baseline: quality `5195 -> 5327`, complex functions `21 -> 23` | 1 |
+| `sentrux gate runtime/native` | DEGRADED vs old baseline: quality `5159 -> 5430`, coupling `0.00 -> 0.06`, complex functions `21 -> 23` | 1 |
+
+### Follow-Ups
+
+No new debt was opened for `RV2-DEBT-022`. The broader
+`RV2-DEBT-003` completion/cancel split remains open, but this task removed the
+`done_cv` broadcast as a blocker by moving it into `rt_done_cv.c` with a static
+gate. The Sentrux gate failures are the existing cumulative
+coupling/complex-function recovery class carried by `RV2-DEBT-003`; Sentrux
+`check` passes at all required scopes and runtime/native quality improved above
+the stored baseline.
 
 ## Slice 5 — Closeout
 

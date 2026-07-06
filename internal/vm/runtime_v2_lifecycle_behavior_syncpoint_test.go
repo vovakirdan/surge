@@ -83,12 +83,103 @@ func TestRuntimeV2LifecycleDebt020MigrateGapNegativeControl(t *testing.T) {
 	}
 }
 
+func TestRuntimeV2LifecycleDebt022DoneCVStoreLoadProof(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt022(t, false)
+	for _, shards := range []string{"1", "2", "8"} {
+		shards := shards
+		t.Run("positive-shards-"+shards, func(t *testing.T) {
+			threads := map[string]string{"1": "4", "2": "2", "8": "8"}[shards]
+			env := lifecycleEnv(
+				"SURGE_SHARDS="+shards,
+				"SURGE_THREADS="+threads,
+				"SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_AWAIT_BEFORE_DONECV_WAIT:block")
+			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt022-donecv-storeload-proof", env)
+			if exitCode != 0 {
+				t.Fatalf("DEBT-022 positive proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					shards, exitCode, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestRuntimeV2LifecycleDebt022DoneCVStoreLoadNegativeControl(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt022(t, true)
+	env := lifecycleEnv(
+		"SURGE_SHARDS=2",
+		"SURGE_THREADS=2",
+		"SURGE_BLOCKING_THREADS=1",
+		"SURGE_SYNC_POINT=SP_AWAIT_BEFORE_DONECV_WAIT:block")
+	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt022-donecv-storeload-proof", env)
+	if exitCode == 0 {
+		t.Fatalf("DEBT-022 negative-control proof unexpectedly passed\nstdout:\n%s\nstderr:\n%s",
+			stdout, stderr)
+	}
+	if !strings.Contains(stderr, "debt022 external awaiter stranded before done_cv wait") {
+		t.Fatalf("DEBT-022 negative-control failed for the wrong reason (code=%d)\nstdout:\n%s\nstderr:\n%s",
+			exitCode, stdout, stderr)
+	}
+}
+
+func TestRuntimeV2LifecycleDebt022ExternalAwaitMatrix(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt022(t, false)
+	for _, mode := range []string{
+		"debt022-multi-awaiters",
+		"debt022-already-done",
+		"debt022-parked-target",
+		"debt022-cancelled-parked-target",
+	} {
+		mode := mode
+		t.Run(mode, func(t *testing.T) {
+			env := lifecycleEnv(
+				"SURGE_SHARDS=2",
+				"SURGE_THREADS=2",
+				"SURGE_BLOCKING_THREADS=1")
+			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, mode, env)
+			if exitCode != 0 {
+				t.Fatalf("DEBT-022 matrix mode %q failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					mode, exitCode, stdout, stderr)
+			}
+		})
+	}
+}
+
 const lifecycleHarnessSyncPointModes = `
 #ifdef RT_TEST_SYNC_POINTS
 #define POLL_CANCEL_PARK_PROOF 4031
 
 static _Atomic uint32_t g_debt020_gap_joiner_enabled;
 static _Atomic uint32_t g_debt020_gap_joiner_registered;
+static _Atomic uint32_t g_debt022_target_gate;
+static _Atomic uint32_t g_debt022_awaiter_done;
+static _Atomic uint32_t g_debt022_awaiter_kind;
+static _Atomic uint32_t g_debt022_awaiter_bad;
+static _Atomic uint64_t g_debt022_awaiter_bits;
+static _Atomic uint32_t g_debt022_expected_kind;
+static _Atomic uint64_t g_debt022_expected_bits;
+
+static void poll_debt022_gated_target(void) {
+    if (atomic_load_explicit(&g_debt022_target_gate, memory_order_acquire) == 0) {
+        rt_async_yield(NULL);
+        return;
+    }
+    rt_async_return(NULL, 77);
+}
+
+static void* debt022_awaiter_thread(void* arg) {
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(arg, &kind, &bits);
+    uint32_t expected_kind = atomic_load_explicit(&g_debt022_expected_kind, memory_order_acquire);
+    uint64_t expected = atomic_load_explicit(&g_debt022_expected_bits, memory_order_acquire);
+    atomic_store_explicit(&g_debt022_awaiter_bits, bits, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_kind, kind, memory_order_release);
+    if (kind != expected_kind || bits != expected) {
+        atomic_store_explicit(&g_debt022_awaiter_bad, 1, memory_order_release);
+    }
+    atomic_fetch_add_explicit(&g_debt022_awaiter_done, 1, memory_order_acq_rel);
+    return NULL;
+}
 
 static void poll_cancel_park_proof(void) {
     rt_task* self = rt_current_task();
@@ -220,6 +311,274 @@ static int mode_debt020_migrate_gap_proof(rt_executor* ex) {
     }
     if (!await_expect(ex, adopter, 1, 55, "debt020 adopter")) {
         return 1;
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+static int mode_debt022_donecv_storeload_proof(rt_executor* ex) {
+    unsigned await_before =
+        rt_sync_point_reached_count(RT_SYNC_POINT_SP_AWAIT_BEFORE_DONECV_WAIT);
+    unsigned mark_done_before =
+        rt_sync_point_reached_count(RT_SYNC_POINT_SP_MARKDONE_BEFORE_DONEWAITERS_LOAD);
+    atomic_store_explicit(&g_debt022_target_gate, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_done, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_kind, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_bad, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_bits, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_kind, 1, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_bits, 77, memory_order_release);
+
+    rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 1);
+    void* await_handle = target != NULL ? rt_task_clone(target) : NULL;
+    if (target == NULL || await_handle == NULL) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 target allocation failed");
+    }
+
+    pthread_t awaiter;
+    if (pthread_create(&awaiter, NULL, debt022_awaiter_thread, await_handle) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 awaiter thread failed to start");
+    }
+
+    if (!wait_sync_point_count(RT_SYNC_POINT_SP_AWAIT_BEFORE_DONECV_WAIT, await_before, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        rt_sync_point_open();
+        pthread_join(awaiter, NULL);
+        return fail("debt022 awaiter did not reach before-wait window");
+    }
+    if (task_status_load(target) == TASK_DONE) {
+        (void)rt_executor_request_shutdown(ex);
+        rt_sync_point_open();
+        pthread_join(awaiter, NULL);
+        return fail("debt022 target completed before awaiter parked");
+    }
+
+    atomic_store_explicit(&g_debt022_target_gate, 1, memory_order_release);
+#ifdef RV2_DEBT_022_NEGATIVE_CONTROL
+    if (!wait_task_status(target, TASK_DONE, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        rt_sync_point_open();
+        pthread_join(awaiter, NULL);
+        return fail("debt022 target did not complete");
+    }
+    if (!wait_sync_point_count(RT_SYNC_POINT_SP_MARKDONE_BEFORE_DONEWAITERS_LOAD,
+                               mark_done_before,
+                               4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        rt_sync_point_open();
+        pthread_join(awaiter, NULL);
+        return fail("debt022 completer did not reach mark_done window");
+    }
+
+    sleep_us(50000);
+    rt_sync_point_open();
+#else
+    sleep_us(50000);
+    rt_sync_point_open();
+    if (!wait_task_status(target, TASK_DONE, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter, NULL);
+        return fail("debt022 target did not complete after await release");
+    }
+    if (!wait_sync_point_count(RT_SYNC_POINT_SP_MARKDONE_BEFORE_DONEWAITERS_LOAD,
+                               mark_done_before,
+                               4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter, NULL);
+        return fail("debt022 completer did not reach mark_done window");
+    }
+#endif
+    if (!wait_u32_at_least(&g_debt022_awaiter_done, 1, 1500)) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter, NULL);
+        return fail("debt022 external awaiter stranded before done_cv wait");
+    }
+    pthread_join(awaiter, NULL);
+    if (atomic_load_explicit(&g_debt022_awaiter_bad, memory_order_acquire) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 awaiter observed wrong result");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+static int mode_debt022_multi_awaiters(rt_executor* ex) {
+    atomic_store_explicit(&g_debt022_target_gate, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_done, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_bad, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_kind, 1, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_bits, 77, memory_order_release);
+    rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 1);
+    void* handle_a = target != NULL ? rt_task_clone(target) : NULL;
+    void* handle_b = target != NULL ? rt_task_clone(target) : NULL;
+    if (target == NULL || handle_a == NULL || handle_b == NULL) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 multi-await target allocation failed");
+    }
+    pthread_t awaiter_a;
+    pthread_t awaiter_b;
+    if (pthread_create(&awaiter_a, NULL, debt022_awaiter_thread, handle_a) != 0 ||
+        pthread_create(&awaiter_b, NULL, debt022_awaiter_thread, handle_b) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 multi-await thread failed to start");
+    }
+    for (uint32_t i = 0; i < 4000; i++) {
+        if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) >= 2) {
+            break;
+        }
+        sleep_us(1000);
+    }
+    if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) < 2) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter_a, NULL);
+        pthread_join(awaiter_b, NULL);
+        return fail("debt022 multi-awaiters did not both park");
+    }
+    atomic_store_explicit(&g_debt022_target_gate, 1, memory_order_release);
+    if (!wait_u32_at_least(&g_debt022_awaiter_done, 2, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter_a, NULL);
+        pthread_join(awaiter_b, NULL);
+        return fail("debt022 broadcast did not wake both awaiters");
+    }
+    pthread_join(awaiter_a, NULL);
+    pthread_join(awaiter_b, NULL);
+    if (atomic_load_explicit(&g_debt022_awaiter_bad, memory_order_acquire) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 multi-await observed wrong result");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+static int mode_debt022_already_done(rt_executor* ex) {
+    atomic_store_explicit(&g_debt022_target_gate, 1, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_kind, 1, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_bits, 77, memory_order_release);
+    rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 1);
+    if (target == NULL || !wait_task_status(target, TASK_DONE, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 already-done target setup failed");
+    }
+    if (!await_expect(ex, target, 1, 77, "debt022 already-done target")) {
+        return 1;
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+static int mode_debt022_parked_target(rt_executor* ex) {
+    atomic_store_explicit(&g_park_forever_chan, NULL, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_done, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_bad, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_kind, 1, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_bits, 99, memory_order_release);
+
+    rt_task* maker = spawn_pinned(ex, POLL_MAKE_PARK_FOREVER_CHAN, 0);
+    if (maker == NULL || !wait_ptr(&g_park_forever_chan, 4000) ||
+        !wait_task_status(maker, TASK_DONE, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 parked-target channel setup failed");
+    }
+
+    rt_task* target = spawn_pinned(ex, POLL_PARK_FOREVER, 1);
+    void* await_handle = target != NULL ? rt_task_clone(target) : NULL;
+    if (target == NULL || await_handle == NULL) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 parked-target allocation failed");
+    }
+    if (!wait_task_status(target, TASK_WAITING, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 target did not park before external await");
+    }
+
+    pthread_t awaiter;
+    if (pthread_create(&awaiter, NULL, debt022_awaiter_thread, await_handle) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 parked-target awaiter thread failed to start");
+    }
+    for (uint32_t i = 0; i < 4000; i++) {
+        if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) >= 1) {
+            break;
+        }
+        sleep_us(1000);
+    }
+    if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) < 1) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter, NULL);
+        return fail("debt022 parked-target awaiter did not park");
+    }
+
+    void* ch = atomic_load_explicit(&g_park_forever_chan, memory_order_acquire);
+    rt_channel_send_blocking(ch, 99);
+    if (!wait_u32_at_least(&g_debt022_awaiter_done, 1, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter, NULL);
+        return fail("debt022 parked-target awaiter was not woken");
+    }
+    pthread_join(awaiter, NULL);
+    if (atomic_load_explicit(&g_debt022_awaiter_bad, memory_order_acquire) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 parked-target observed wrong result");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+static int mode_debt022_cancelled_parked_target(rt_executor* ex) {
+    atomic_store_explicit(&g_park_forever_chan, NULL, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_done, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_awaiter_bad, 0, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_kind, 2, memory_order_release);
+    atomic_store_explicit(&g_debt022_expected_bits, 0, memory_order_release);
+
+    rt_task* maker = spawn_pinned(ex, POLL_MAKE_PARK_FOREVER_CHAN, 0);
+    if (maker == NULL || !wait_ptr(&g_park_forever_chan, 4000) ||
+        !wait_task_status(maker, TASK_DONE, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 cancelled-target channel setup failed");
+    }
+
+    rt_task* target = spawn_pinned(ex, POLL_PARK_FOREVER, 1);
+    void* await_handle = target != NULL ? rt_task_clone(target) : NULL;
+    if (target == NULL || await_handle == NULL) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 cancelled-target allocation failed");
+    }
+    if (!wait_task_status(target, TASK_WAITING, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 target did not park before cancel");
+    }
+
+    pthread_t awaiter;
+    if (pthread_create(&awaiter, NULL, debt022_awaiter_thread, await_handle) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 cancelled-target awaiter thread failed to start");
+    }
+    for (uint32_t i = 0; i < 4000; i++) {
+        if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) >= 1) {
+            break;
+        }
+        sleep_us(1000);
+    }
+    if (atomic_load_explicit(&ex->done_waiters, memory_order_acquire) < 1) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter, NULL);
+        return fail("debt022 cancelled-target awaiter did not park");
+    }
+
+    rt_task_cancel(target);
+    if (!wait_u32_at_least(&g_debt022_awaiter_done, 1, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        pthread_join(awaiter, NULL);
+        return fail("debt022 cancelled-target awaiter was not woken");
+    }
+    pthread_join(awaiter, NULL);
+    if (atomic_load_explicit(&g_debt022_awaiter_bad, memory_order_acquire) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt022 cancelled-target observed wrong result");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;

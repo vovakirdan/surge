@@ -214,11 +214,11 @@ uint64_t rt_task_table_snapshot(rt_executor* ex) {
     return 0;
 }
 
-static rt_task* stub_tasks[8];
+static rt_task* stub_tasks[128];
 
 rt_task* get_task(rt_executor* ex, uint64_t id) {
     (void)ex;
-    if (id >= 8) {
+    if (id >= 128) {
         return NULL;
     }
     return stub_tasks[id];

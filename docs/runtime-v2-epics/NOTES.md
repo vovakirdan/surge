@@ -3716,8 +3716,9 @@ pass, before any task execution began:
   `rt_async_internal.h` 555→556 (one prototype). `.loc-legacy-allowlist` ceiling
   lowered 1580→1184 (exact measured, zero headroom). RV2-DEBT-003 stays OPEN with
   three named remaining split candidates (ready-queue / completion-cancel /
-  handle-lifetime); completion cluster deliberately NOT moved (active RV2-DEBT-022
-  done_cv hot path + a done_cv filename-pinned static gate).
+  handle-lifetime); completion cluster deliberately NOT moved at that time
+  (then-active RV2-DEBT-022 done_cv hot path + a done_cv filename-pinned static
+  gate; Epic 9 Task 4 later moved the `done_cv` helper and closed the debt).
 - COMMENT: the stale executor-invariant block in `rt_async_internal.h` (had
   drifted to :346-358, described the pre-Epic-7 executor-wide model) rewritten to
   the three-lane model (control / shard / atomic) naming the cross-owner and
@@ -3817,5 +3818,43 @@ pass, before any task execution began:
   `make c-check`, `make cppcheck`, and `./check_file_sizes.sh -a` all passed.
   The join-route helper was split into `rt_waiter_join_route.c` to keep
   `rt_async_waiter.c` below the hard file-size gate.
-- Still pending in Epic 9: `RV2-DEBT-022`, broader cancellation matrix rows,
-  final full `runtime-v2-check`/Sentrux/perf closeout.
+- At the Task 3 handoff, still pending in Epic 9: `RV2-DEBT-022`, broader
+  cancellation matrix rows, final full `runtime-v2-check`/Sentrux/perf
+  closeout. Task 4 later closed `RV2-DEBT-022`.
+
+## 2026-07-06 Epic 9 Task 4 Handoff
+
+- Closed `RV2-DEBT-022`. External await and completion now use one seq-cst
+  StoreLoad handshake: external await increments `done_waiters` seq-cst and
+  loads target status seq-cst; completion stores `TASK_DONE` seq-cst and then
+  loads `done_waiters` seq-cst before the guarded broadcast.
+- The `done_cv` broadcast moved into `runtime/native/rt_done_cv.c`. It is still
+  external-await compatibility only, takes/binds `ex->lock`, tags
+  `RT_CTRL_SITE_AWAIT_COMPAT`, and the static gate pins exactly one broadcast
+  call site there. Worker joins remain `done_cv`-free.
+- Deterministic proof: `SP_AWAIT_AFTER_INCREMENT`,
+  `SP_AWAIT_BEFORE_DONECV_WAIT`, and
+  `SP_MARKDONE_BEFORE_DONEWAITERS_LOAD` reproduce the window. Positive proof
+  passed at `SURGE_SHARDS=1,2,8`; negative-control build strands with
+  `debt022 external awaiter stranded before done_cv wait`.
+- External-await matrix now covers multi-awaiters, already-DONE target, parked
+  target woken by channel send, and cancelled parked target. The cancelled row
+  is the explicit `RV2-DEBT-022` x `RV2-DEBT-023` intersection.
+- Gates run for the slice: focused Debt022 proof/matrix, focused static gate,
+  `make runtime-v2-syncpoint-check`, `make c-check`, `make cppcheck`,
+  `./check_file_sizes.sh -a`, `make runtime-v2-lifecycle-check`,
+  `make runtime-v2-perf-check`, `make runtime-v2-check`, and `make check`
+  passed. Perf counters recorded from the full runtime-v2 check:
+  `control_lock_acquired=11819`, `ctrl_await_compat=3458`,
+  steady-state-control `8.165/req`, lifecycle-control `5.999/req`.
+- Full `runtime-v2-check` initially exposed a test-harness stale assumption from
+  Task 3: `TestRuntimeV2OwnerLocalNetWaiterBehavior` used `stub_tasks[8]` while
+  registering a join target with id `55`; the new join-route lookup correctly
+  required that target to exist. The harness now uses `stub_tasks[128]`, and the
+  focused test plus the full gate pass.
+- Sentrux `check` passes at root/runtime/runtime-native (`6177`, `5327`,
+  `5430`). `sentrux gate` still reports cumulative degradation vs the old
+  baseline on complex-function count and runtime/native coupling; this remains
+  under `RV2-DEBT-003`, with runtime/native quality improved (`5159 -> 5430`).
+- Still pending in Epic 9: closeout sweep and any decision on whether to take
+  the broader `RV2-DEBT-003` completion/cancel split in a later epic.

@@ -51,7 +51,7 @@ Architect's decisive reasoning (recorded verbatim, memory write path malformed):
 - **Files/surfaces allowed to change:** new `runtime/native/rt_sync_point.h`,
   `runtime/native/rt_sync_point.c`, `check_sync_points.sh`, the
   `runtime-v2-syncpoint-check` Makefile target; later, `RT_SYNC_POINT(...)` or
-  `RT_SYNC_POINT_IF(...)` call sites inside the five allowlisted windows only.
+  `RT_SYNC_POINT_IF(...)` call sites inside the seven allowlisted windows only.
 - **Behavior explicitly NOT final design:** the arming ENV format
   (`SURGE_SYNC_POINT`) and the rendezvous actions are test scaffolding, not a
   runtime contract; only the compile-to-nothing property and the allowlist are
@@ -63,7 +63,7 @@ Architect's decisive reasoning (recorded verbatim, memory write path malformed):
   symbols; armed build reproduces each window on demand; static gate green in
   `runtime-v2-check`.
 - **Failure criteria:** any rendezvous symbol in the tag-off build; a hook
-  outside the five windows; a default build path arming the hooks.
+  outside the seven windows; a default build path arming the hooks.
 - **Rollback note:** the mechanism is isolated to the two new files + the gate;
   reverting them and the `RT_SYNC_POINT(...)` / `RT_SYNC_POINT_IF(...)` call
   sites removes it entirely with no shipping-path residue (the macros are
@@ -83,7 +83,7 @@ Architect's decisive reasoning (recorded verbatim, memory write path malformed):
   do not evaluate `cond` at all and keep only the enumerator cast. This preserves
   the "no branch / no symbol / no condition evaluation" shipping-path property
   while still making the allowlist load-bearing.
-- The allowlist is the `rt_sync_point_id` enum. Exactly six windows are
+- The allowlist is the `rt_sync_point_id` enum. Exactly seven windows are
   permitted this epic:
   - `SP_CANCEL_BEFORE_WAKE` (cancel_task, `rt_async_state.c`)
   - `SP_PARK_BEFORE_WAITING` (user-task PARKED outcome before WAITING commit,
@@ -91,6 +91,8 @@ Architect's decisive reasoning (recorded verbatim, memory write path malformed):
     `rt_worker_turn.c`)
   - `SP_MARKDONE_BEFORE_DONEWAITERS_LOAD` (mark_done tail, `rt_async_state.c`)
   - `SP_AWAIT_AFTER_INCREMENT` (rt_task_await, `rt_async_task.c`)
+  - `SP_AWAIT_BEFORE_DONECV_WAIT` (external awaiter just before `done_cv` wait,
+    `rt_async_task.c`)
   - `SP_WAKEKEY_MID_DRAIN` (wake_key_all_with_policy, `rt_task_park.c`)
   - `SP_MIGRATE_GAP` (RV2-DEBT-020 owner-replacement migration gap,
     `rt_scheduler_placement.c` / `rt_waiter_route.c`)

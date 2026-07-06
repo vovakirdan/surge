@@ -71,6 +71,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_MARKDONE_BEFORE_DONEWAITERS_LOAD";
         case RT_SYNC_POINT_SP_AWAIT_AFTER_INCREMENT:
             return "SP_AWAIT_AFTER_INCREMENT";
+        case RT_SYNC_POINT_SP_AWAIT_BEFORE_DONECV_WAIT:
+            return "SP_AWAIT_BEFORE_DONECV_WAIT";
         case RT_SYNC_POINT_SP_WAKEKEY_MID_DRAIN:
             return "SP_WAKEKEY_MID_DRAIN";
         case RT_SYNC_POINT_SP_MIGRATE_GAP:

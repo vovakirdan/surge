@@ -73,7 +73,7 @@ func runFDRegistryBehaviorCheck(t *testing.T, label, source string) {
 	runCmd := exec.Command(exe)
 	runOutput, err := runCmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("%s run failed:\n%s", label, runOutput)
+		t.Fatalf("%s run failed: %v\n%s", label, err, runOutput)
 	}
 }
 

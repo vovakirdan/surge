@@ -18,7 +18,7 @@ changes, no Phase 4 transport, no control-lane rollback of Epic 8 paths.
 | 1 | `01-proving-spike-sync-points.md` | Complete for scaffold + harness arming | proving spike | none |
 | 2 | `02-debt-023-cancel-wake-token.md` | Complete for cancel-vs-park proof | runtime code | 1 |
 | 3 | `03-debt-020-accept-migration-proof.md` | Complete; `RV2-DEBT-020` closed by join-route fix | runtime code + proof | 1, 2 |
-| 4 | `04-debt-022-donecv-storeload.md` | Planned | runtime code | 1, 2, 3 |
+| 4 | `04-debt-022-donecv-storeload.md` | Complete; `RV2-DEBT-022` closed by seq-cst external-await handshake | runtime code | 1, 2, 3 |
 | 5 | `05-epic-closeout.md` | Planned | closeout | all |
 
 Execution order note (architect ruling): DEBT-020 (Task 3) is pulled EARLIER
@@ -35,7 +35,8 @@ counts prove the window. Broader proof-matrix rows such as
 
 ## Owned Debt
 
-- `RV2-DEBT-022`: external-await `done_cv` StoreLoad ordering (Task 4).
+- `RV2-DEBT-022`: closed by Task 4's external-await `done_cv` StoreLoad
+  ordering fix.
 - `RV2-DEBT-023`: cancellation vs `RUNNING -> WAITING` park ordering (Task 2).
 - `RV2-DEBT-020`: closed by Task 3's join-route migration fix and
   `SP_MIGRATE_GAP` proof.
@@ -53,3 +54,10 @@ counts prove the window. Broader proof-matrix rows such as
 - Durable decisions (mechanism rationale, rulings, proof outcomes) live in these
   docs and `../DEBT.md`, not in the swarm memory store (its write path is
   malformed for this session).
+
+Task 4 note (2026-07-06): `RV2-DEBT-022` is closed by the seq-cst StoreLoad
+handshake in `rt_task_await` / `mark_done` plus the post-DONE
+`rt_done_cv_broadcast_after_done` helper. Positive proof covers
+`SURGE_SHARDS=1,2,8`; the negative-control build strands with
+`debt022 external awaiter stranded before done_cv wait`; matrix rows cover
+multi-awaiters, already-DONE, parked target, and cancelled parked target.

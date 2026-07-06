@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 // Async runtime task API and task builtins.
 
@@ -337,11 +338,13 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
         if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
             wake_task(ex, target->id, 1);
         }
-        atomic_fetch_add_explicit(&ex->done_waiters, 1, memory_order_acq_rel);
-        while (task_status_load(target) != TASK_DONE) {
+        rt_done_waiters_increment_for_external_await(ex);
+        RT_SYNC_POINT(SP_AWAIT_AFTER_INCREMENT);
+        while (rt_task_status_load_for_external_await(target) != TASK_DONE) {
+            RT_SYNC_POINT(SP_AWAIT_BEFORE_DONECV_WAIT);
             pthread_cond_wait(&ex->done_cv, &ex->lock);
         }
-        atomic_fetch_sub_explicit(&ex->done_waiters, 1, memory_order_acq_rel);
+        rt_done_waiters_decrement_for_external_await(ex);
         if (out_kind != NULL) {
             *out_kind = target->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
         }

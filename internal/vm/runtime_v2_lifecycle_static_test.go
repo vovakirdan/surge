@@ -312,39 +312,85 @@ func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
 	if !strings.Contains(await, "rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT)") {
 		t.Fatalf("rt_task_await must tag its control acquisition AWAIT_COMPAT (rule 5):\n%s", await)
 	}
-	// (iii) mark_done broadcasts done_cv only under a done_waiters guard, so a
-	// plain worker completion (done_waiters==0) never signals the control cv.
+	for _, needle := range []string{
+		"rt_done_waiters_increment_for_external_await(ex)",
+		"RT_SYNC_POINT(SP_AWAIT_AFTER_INCREMENT)",
+		"rt_task_status_load_for_external_await(target)",
+		"RT_SYNC_POINT(SP_AWAIT_BEFORE_DONECV_WAIT)",
+	} {
+		if !strings.Contains(await, needle) {
+			t.Fatalf("rt_task_await must keep the RV2-DEBT-022 await-side protocol; missing %q:\n%s",
+				needle, await)
+		}
+	}
+	// (iii) mark_done publishes DONE through the external-await StoreLoad helper
+	// and delegates the done_cv broadcast to rt_done_cv.c, so the legacy file does
+	// not regain lines while the broadcast contract remains pinned.
 	markDone := lifecycleFindFunctionBody(t, "mark_done")
-	bcastIdx := strings.Index(markDone, "pthread_cond_broadcast(&ex->done_cv)")
+	for _, needle := range []string{
+		"rt_task_status_store_done_for_external_awaiters(task)",
+		"RT_SYNC_POINT(SP_MARKDONE_BEFORE_DONEWAITERS_LOAD)",
+		"rt_done_cv_broadcast_after_done(ex)",
+	} {
+		if !strings.Contains(markDone, needle) {
+			t.Fatalf("mark_done must keep the RV2-DEBT-022 completion-side protocol; missing %q:\n%s",
+				needle, markDone)
+		}
+	}
+	doneCV := lifecycleFindFunctionBody(t, "rt_done_cv_broadcast_after_done")
+	bcastIdx := strings.Index(doneCV, "pthread_cond_broadcast(&ex->done_cv)")
 	if bcastIdx < 0 {
-		t.Fatalf("mark_done must broadcast done_cv for external awaiters:\n%s", markDone)
+		t.Fatalf("rt_done_cv_broadcast_after_done must broadcast done_cv for external awaiters:\n%s",
+			doneCV)
 	}
-	// Match the real guard load, not the bare "done_waiters" substring — comments
-	// in mark_done mention done_waiters by name, which would make a bare-substring
-	// check pass even with the guard deleted (Task 10 review finding).
-	guardIdx := strings.Index(markDone, "atomic_load_explicit(&ex->done_waiters")
+	guardIdx := strings.Index(doneCV, "rt_done_waiters_load_after_done(ex)")
 	if guardIdx < 0 || guardIdx > bcastIdx {
-		t.Fatalf("mark_done must guard the done_cv broadcast with a done_waiters load "+
-			"(so plain worker completions skip it):\n%s", markDone)
+		t.Fatalf("done_cv broadcast must be guarded by the post-DONE waiter load:\n%s", doneCV)
 	}
-	// (iv) a completion forced onto the control lane solely by a parked external
-	// awaiter is tagged AWAIT_COMPAT, not COMPLETION (counted separately).
-	if !strings.Contains(markDone, "rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT)") {
-		t.Fatalf("mark_done must count the done_waiters-only completion under AWAIT_COMPAT "+
-			"(rule 5, counted separately from worker steady state):\n%s", markDone)
+	for _, needle := range []string{
+		"rt_control_lock(ex)",
+		"rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT)",
+	} {
+		if !strings.Contains(doneCV, needle) {
+			t.Fatalf("done_cv helper must take/tag the control lane for late external awaiters; missing %q:\n%s",
+				needle, doneCV)
+		}
 	}
-	// done_cv is confined to the external-await lane: the completion module
-	// (rt_async_state.c) only ever broadcasts done_cv, exactly once, under the
+	// done_cv is confined to the external-await lane: steady-state completion
+	// only ever broadcasts done_cv once, through rt_done_cv.c, under the
 	// done_waiters guard above; it never waits on it. The lone waiter is
 	// rt_task_await (asserted in (ii)). This is robust to comments mentioning
 	// the condvar by name — it counts the actual condvar operations.
 	state := lifecycleReadNativeFile(t, "rt_async_state.c")
-	if n := strings.Count(state, "pthread_cond_broadcast(&ex->done_cv)"); n != 1 {
-		t.Fatalf("rt_async_state.c must broadcast done_cv exactly once "+
+	doneCVSource := lifecycleReadNativeFile(t, "rt_done_cv.c")
+	if strings.Contains(state, "pthread_cond_broadcast(&ex->done_cv)") {
+		t.Fatal("rt_async_state.c must delegate done_cv broadcasting to rt_done_cv.c")
+	}
+	if n := strings.Count(doneCVSource, "pthread_cond_broadcast(&ex->done_cv)"); n != 1 {
+		t.Fatalf("rt_done_cv.c must broadcast done_cv exactly once "+
 			"(the done_waiters-guarded completion broadcast); got %d", n)
 	}
-	if strings.Contains(state, "pthread_cond_wait(&ex->done_cv") {
-		t.Fatal("rt_async_state.c (worker completion) must never wait on done_cv; " +
-			"the only waiter is the external-await path rt_task_await")
+	if strings.Contains(state, "pthread_cond_wait(&ex->done_cv") ||
+		strings.Contains(doneCVSource, "pthread_cond_wait(&ex->done_cv") {
+		t.Fatal("completion code must never wait on done_cv; the only waiter is rt_task_await")
+	}
+	header := lifecycleReadNativeFile(t, "rt_async_internal.h")
+	for _, item := range []struct {
+		name string
+		want string
+	}{
+		{"rt_done_waiters_increment_for_external_await", "memory_order_seq_cst"},
+		{"rt_task_status_load_for_external_await", "task_status_load_seq_cst(task)"},
+		{"rt_task_status_store_done_for_external_awaiters", "task_status_store_seq_cst(task, TASK_DONE)"},
+		{"rt_done_waiters_load_after_done", "memory_order_seq_cst"},
+	} {
+		body, ok := lockSplitFunctionDefinitionBody(header, item.name)
+		if !ok {
+			t.Fatalf("rt_async_internal.h must define RV2-DEBT-022 helper %q", item.name)
+		}
+		if !strings.Contains(body, item.want) {
+			t.Fatalf("RV2-DEBT-022 helper %s must keep its seq-cst contract; missing %q:\n%s",
+				item.name, item.want, body)
+		}
 	}
 }
