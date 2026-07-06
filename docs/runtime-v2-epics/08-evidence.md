@@ -1455,3 +1455,174 @@ preclude StoreLoad reordering), and no regression risk to the Task 8 wake gate
 or Task 9 scope-owner lane. Post-fix gates: `make c-check`, `make cppcheck`,
 `make runtime-v2-lifecycle-check` (P10 strengthened assertion + trace guardian +
 no-keepalive pin TSan) all green; `git diff --check` clean.
+
+## Task 12: Performance Benchmark And CI Gate
+
+### Task Identity And Scope
+
+- Task: Epic 8 Task 12 per `08-tasks/12-performance-benchmark-and-ci-gate.md`
+  (self-contained; full write-up, gate design, acceptance runbook, and
+  `RV2-DEBT-016` decision live there — this section is the ledger summary and the
+  epic's performance record).
+- Epic: 8. Date: 2026-07-06. Author/session: `coder-t12` subagent (plan approved
+  by `main` before any edit or bench run, RULES.md Global Rule 9).
+- Scope: post-F2 net re-baseline (the epic's performance record, replacing the
+  non-comparable pre-F2 rows), channels reference refresh, sustained-stall /
+  CPU-distribution acceptance re-verification, a per-commit trace-counter CI
+  gate, and the `RV2-DEBT-016` final-state decision.
+- Out of scope: any runtime C behavior change; new counters; select /
+  net-handle / placement work; chasing the cross-owner `ctrl_scope` or
+  external-await `ctrl_await_compat` residuals (owned elsewhere).
+- Proving spike: no.
+
+### Baseline Commit / Environment
+
+- Baseline: HEAD `8c89f358`. Fresh matching-commit build of `surge` and the net
+  fixture (`bench_native_net.sh` enforces the commit-match check; the stale
+  `8c4b16f9` binary was rebuilt).
+- Host: WSL2, 32 hardware threads. Host load 0.6-1.7 at the start of each bench
+  run (stamped by the harness); the 90s stallrepro drove host load to ~22 from
+  its 1024-thread Python client.
+
+### Re-Baseline: Net Matrix (the epic's performance record)
+
+`bench_native_net.sh`, direct/seq, 8 req/conn, `SURGE_TRACE_EXEC=1`. 1024-conn
+rows x5 (medians shown; per-site counters are bit-stable, wall-clock varies with
+the client). This REPLACES the pre-F2 8x1024 rows (Epic 6/7 closeouts, Epic 8
+Task 1/5), which measured single-worker placement-funnel execution and are not
+comparable.
+
+| shards | conns | total us | p50 us | p95 us | note |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 1 | 3529 | 90 | 261 | small-row noise |
+| 1 | 8 | 16175 | 1079 | 1853 | |
+| 1 | 32 | 55881 | 2875 | 5811 | |
+| 1 | 1024 | ~1538061 | 20440 | ~37000 | x5 mean; client-bound |
+| 8 | 1 | 4118 | 235 | 278 | low-count `SO_REUSEPORT` skew |
+| 8 | 8 | 16206 | 1165 | 2314 | |
+| 8 | 32 | 55754 | 2744 | 5951 | |
+| 8 | 1024 | ~1479968 | 15065 | ~35750 | x5(4 clean) mean; client-bound |
+
+> **Table footnote (1-shard rows):** the 1-shard config runs the `N=1`
+> single-worker runner loop; its totals and its `control_lock_acquired`
+> (30.8/req on the 1024 row, `ctrl_await_compat`=0, OTHER ~203k — the per-poll
+> runner-loop control) are the legacy runner, NOT a worker steady-state point.
+> The epic's control target and the 26.4/req baseline are the 8-shard row (see
+> the counter table below).
+
+- **8-shard >= 1-shard: MET.** 8-shard/1024 total ~1.48M us is ~4% faster than
+  1-shard/1024 ~1.54M us across all repeats; 8-shard p50 (15.0ms) < 1-shard p50
+  (20.4ms). Both p50s unimodal (fair round-robin shape, NOT the pre-F2 bimodal
+  175us+tail — a p50 shift, not a regression; totals carry the judgment).
+- **Sustained throughput is client-bound** (~5.5k req/s at `client_parallel=128`);
+  no server-scaling claim is made from these totals.
+
+### Re-Baseline: Control-Lane Counters (8x1024, deterministic)
+
+| Site | Total | Per request | |
+| --- | ---: | ---: | --- |
+| `control_lock_acquired` | ~105316 | **12.86** | all acquisitions |
+| `ctrl_await_compat` | 28674 | 3.500 | external-await harness artifact (own column) |
+| **steady-state-control** | ~76642 | **9.36** | `control_lock_acquired − ctrl_await_compat` (primary metric) |
+| `ctrl_scope` | 19464 | 2.376 | cross-owner `scope_on_child_done` fallback |
+| `ctrl_handle` | 29696 | 3.625 | net-wrapper child free (28672) + per-conn wake (1024) |
+| `ctrl_join_poll` | ~2030 | 0.248 | F2 placement-adoption fallback (O(connections)) |
+| `ctrl_create` | 8-11 | ~0.001 | segment-growth residual |
+| `ctrl_completion` | 0 | 0 | (Task 10 tag split moved it to `ctrl_await_compat`) |
+
+Epic 7 closeout baseline was ~26.4/request; HEAD is **12.86/request** total,
+**9.36/request** steady-state — the Performance Contract control-lane target is
+met. `ctrl_await_compat`/`ctrl_handle` bit-identical across repeats; only the
+untagged `OTHER` residual (net/accept/io/shutdown) jitters.
+
+**1-shard/1024 is not a steady-state point:** `control_lock_acquired` ~252400
+(30.8/req), `ctrl_await_compat`=0, OTHER ~203k — the `N=1` single-worker runner
+loop (spike rule 5, counted-separate compat), not worker steady state. The
+epic's control target is the 8-shard row.
+
+### Re-Baseline: Channels Refresh (`bench_native_channels.sh`, ns/op)
+
+Channel rendezvous path untouched by Epic 8 Tasks 6-10; refresh confirms no
+regression (within host noise of the Task 1 baseline). `sync_new_reply`
+default(32) 456739 -> 489663 is noise (`RV2-DEBT-017` cost unchanged); the
+sync/default probe completed in ~13s (no `RV2-DEBT-006` outer-timeout hit).
+
+| mode | ping_pong | reused_reply | new_reply | sync_new_reply |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 4712 | 3778 | 4218 | 4581 |
+| 2 | 17430 | 13694 | 15128 | 55283 |
+| default(32) | 16984 | 13720 | 15210 | 489663 |
+
+### Acceptance: Sustained Stall / CPU Distribution (`RV2-DEBT-015` re-verify)
+
+- `run_stallrepro.sh` 90s sustained 8x1024: 746372 req, 0 errors, **0 tails
+  >=5s, 0 tails >=10s** (one 1.25s blip; p50 82ms, p95 301ms, max 1.25s). Host
+  load ~22 during the run from the 1024-thread client; the single ~1s blip is
+  the client-load-coupled residual band Task 11 pinned, not a server stall.
+  Harness exits 0 (>10s-tail fixed criterion PASS).
+- `cpu_validate.sh` 30s: 242241 req, 0 errors, **0 tails >=1s**, per-shard-worker
+  CPU balanced (jiffies 305-526 across 8 active shard threads, max/min ~1.7; no
+  funnel — pre-F2 was ~150x imbalance). F2 holds at HEAD.
+
+### CI Gate
+
+New per-commit `TestRuntimeV2PerfControlLaneGate`
+(`internal/vm/runtime_v2_perf_gate_test.go`, `runtime_v2_pending`, 422 lines),
+wired via new Makefile `runtime-v2-perf-check` -> `runtime-v2-check`.
+Deterministic trace-counter gate on a fixed 8-shard x 128-conn x 8-req workload
+(built via `go test`, no `./surge` dependency; wall-clock NOT asserted).
+Assertions (measured HEAD in brackets, ceilings carry headroom):
+
+1. lifecycle-control/req = `(create+join_poll+completion+scope+handle)/req` <=
+   9.0 [~6.0, bit-stable — precise Epic-8-surface regression detector].
+2. steady-state-control/req = `(control_lock_acquired − ctrl_await_compat)/req`
+   <= 20.0 [~8.1, contract-literal backstop; a regression toward 26.4 fails].
+3. `placement_adoptions` > 0 [~253 — F2 firing, no placement-funnel regression].
+4. `accept_owner_active_shards` >= 2 [8 — accepts distributed].
+
+Design rationale (why counters not wall-clock; per-commit vs manual/nightly
+split): full write-up in the task doc. Stability across 5 runs: lifecycle
+5.995-6.001/req, steady 8.00-8.25/req, adoptions 249-255, 8 accept shards.
+
+### `RV2-DEBT-016`: CLOSED
+
+Closed with this re-baseline: control-lane target met (9.36/req steady-state <<
+26.4), scaling met (8-shard >= 1-shard). Two residuals reassigned to existing
+owners: the external-await `ctrl_await_compat` (28674, `RV2-DEBT-022` owns the
+`done_cv` ordering) and the cross-owner `ctrl_scope` fallback (19464, future
+net-handle/placement work, `RV2-DEBT-021` owns its test gap). The three-step
+attribution chain (Task 8 -> 9 -> 10) is preserved verbatim in `DEBT.md`.
+
+### Gates
+
+| Command | Result |
+| --- | --- |
+| `git diff --check` | clean |
+| `make runtime-v2-perf-check` (standalone) | PASS (~4s) |
+| `make runtime-v2-check` (incl. new perf stage) | PASS (all stages green, 0 FAIL; perf stage lifecycle 5.999/req, steady 7.851/req at run time) |
+| `make check` | PASS |
+| `./check_file_sizes.sh -a` | PASS; new test 422 lines (<=500), no C touched |
+| `gofmt -l` / `go vet -tags runtime_v2_pending` | clean |
+| Sentrux `check` root / runtime / runtime-native | 6174 / 5295 / 5382, all rules pass — identical to the Task 10 closeout signals (no C changed, no quality delta) |
+
+Sentrux via CLI `sentrux check` (MCP not connected this session; CLI is the
+accepted Epic 8 mechanism). No runtime/native source changed, so there is no
+scoped diff and no `session_start`/`session_end` delta to record beyond the
+unchanged signals above.
+
+No C touched (gate reads existing counters), so `make c-check`/`make cppcheck`
+are N/A; `git diff --check` still run. `RV2-DEBT-018` policy: no VM-harness
+transient encountered; if one appears in the full gate, focused rerun count>=5
+before rerun-to-green.
+
+### Files Touched
+
+| Path | Change |
+| --- | --- |
+| `internal/vm/runtime_v2_perf_gate_test.go` | new (per-commit perf gate, 422 lines) |
+| `Makefile` | new `runtime-v2-perf-check` stage + `.PHONY` + call from `runtime-v2-check` |
+| `docs/runtime-v2-epics/08-tasks/12-performance-benchmark-and-ci-gate.md` | new (full write-up) |
+| `docs/runtime-v2-epics/08-evidence.md` | this section |
+| `docs/runtime-v2-epics/08-tasks/README.md` | Task 12 status -> Complete |
+| `docs/runtime-v2-epics/DEBT.md` | `RV2-DEBT-016` closed; `RV2-DEBT-006` note |
+| `docs/runtime-v2-epics/NOTES.md` | Task 12 handoff |

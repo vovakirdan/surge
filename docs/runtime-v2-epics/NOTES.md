@@ -3626,3 +3626,44 @@ pass, before any task execution began:
   mark_done_needs_control (single shared evaluation). Informational: trace
   guardian's ctrl_await_compat>0 includes completions racing the parked awaiter
   (the documented DEBT-016 population). Fix commit follows aa66a0b7.
+
+## Epic 8 Task 12 Handoff (Performance Benchmark And CI Gate, coder-t12)
+
+- Scope: post-F2 net re-baseline (the epic's performance record, replacing the
+  non-comparable pre-F2 rows), channels reference refresh, sustained-stall /
+  CPU-distribution acceptance re-verify, a per-commit trace-counter CI gate, and
+  the RV2-DEBT-016 final-state decision. Baseline HEAD `8c89f358`; fresh
+  matching-commit build (stale `8c4b16f9` binary rebuilt). NO runtime C change.
+  Full write-up: `08-tasks/12-performance-benchmark-and-ci-gate.md`; the record
+  is `08-evidence.md` Task 12.
+- RE-BASELINE (8x1024, x5): `control_lock_acquired` ~105316/8192 = 12.86/req
+  total; steady-state-control (= total − `ctrl_await_compat` 28674) = 9.36/req
+  — both << the Epic 7 ~26.4/req. 8-shard/1024 total ~1.48M us is ~4% FASTER
+  than 1-shard ~1.54M (scaling met); p50 15.0ms (8-shard) / 20.4ms (1-shard),
+  both unimodal (fairness shape, not regression). 1-shard control (~30.8/req) is
+  the N=1 runner loop (not a steady-state point). Sustained rows are client-bound.
+- ACCEPTANCE: 90s stallrepro 746372 req, 0 err, 0 tails >=5s/>=10s (one 1.25s
+  client-load blip); cpu_validate balanced across all 8 shard workers (max/min
+  ~1.7, no funnel). RV2-DEBT-015 holds fixed at HEAD. Channels within Task 1
+  noise (rendezvous path untouched this epic).
+- CI GATE: new `TestRuntimeV2PerfControlLaneGate`
+  (`internal/vm/runtime_v2_perf_gate_test.go`, `runtime_v2_pending`, 422 lines),
+  wired via new Makefile `runtime-v2-perf-check` → `runtime-v2-check`.
+  Deterministic trace-counter gate on a fixed 8-shard x 128-conn x 8-req
+  workload (built via `go test`, no `./surge` dep, wall-clock NOT asserted):
+  (1) lifecycle-control/req <= 9.0 [~6.0, bit-stable]; (2) steady-state-control/req
+  <= 20.0 [~8.1]; (3) `placement_adoptions` > 0 [~253, F2/anti-funnel];
+  (4) `accept_owner_active_shards` >= 2 [8]. Counters preferred over wall-clock
+  (host-load/client-bound fragility). The 90s stallrepro + full 8x1024 matrix are
+  the MANUAL/nightly acceptance runbook (in the task doc), NOT per-commit.
+- RV2-DEBT-016: CLOSED (Task 12) — control target met (9.36/req steady-state),
+  scaling met. Residuals reassigned: external-await `ctrl_await_compat`
+  (RV2-DEBT-022), cross-owner `ctrl_scope` (RV2-DEBT-021). Three-step attribution
+  chain (Task 8→9→10) preserved verbatim in the DEBT.md cell (flipped in place to
+  Status=Closed to keep it byte-for-byte). RV2-DEBT-006 got a Task 12 note (channels
+  script exercised, per-probe-timeout debt unchanged).
+- Gates (at commit): `git diff --check`, `make check`, `make runtime-v2-check`
+  (incl. new perf stage), `./check_file_sizes.sh -a`, Sentrux root/runtime/native.
+  No C touched → c-check/cppcheck N/A. `make runtime-v2-perf-check` standalone
+  PASS (~4s). RV2-DEBT-018 policy applies to any VM-harness transient (focused
+  rerun count>=5).
