@@ -12,7 +12,24 @@ static const NetListener* net_listener_from_borrowed(const void* listener) {
     return rt_net_listener_canonical_const(*(const NetListener* const*)listener);
 }
 
+static NetListener* net_listener_from_borrowed_mut_group(const void* listener) {
+    if (listener == NULL) {
+        return NULL;
+    }
+    return rt_net_listener_canonical(*(NetListener* const*)listener);
+}
+
 int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, int fd) {
+    return rt_net_register_open_fd_on_owner_generation(ex, owner_shard_id, fd, NULL);
+}
+
+int rt_net_register_open_fd_on_owner_generation(rt_executor* ex,
+                                                uint32_t owner_shard_id,
+                                                int fd,
+                                                uint64_t* out_generation) {
+    if (out_generation != NULL) {
+        *out_generation = 0;
+    }
     if (ex == NULL || fd < 0) {
         return 0;
     }
@@ -23,7 +40,8 @@ int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, i
         rt_shard_lock(owner_shard);
     }
     int had_row = rt_fd_registry_find_const(registry, fd) != NULL;
-    rt_runtime_status status = rt_fd_registry_register_open_fd(registry, fd);
+    rt_runtime_status status =
+        rt_fd_registry_register_open_fd_generation(registry, fd, out_generation);
     if (owner_shard != NULL) {
         rt_shard_unlock(owner_shard);
     }
@@ -35,6 +53,74 @@ int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, i
         return 1;
     }
     return 0;
+}
+
+int rt_net_conn_probe_open(rt_executor* ex,
+                           uint32_t hint_shard_id,
+                           int fd,
+                           uint16_t generation_check,
+                           uint32_t* out_owner_shard_id) {
+    if (out_owner_shard_id != NULL) {
+        *out_owner_shard_id = UINT32_MAX;
+    }
+    if (ex == NULL || fd < 0) {
+        return 0;
+    }
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    size_t shard_count = rt_runtime_shard_count(runtime);
+    for (size_t step = 0; step < shard_count; step++) {
+        size_t index = step;
+        if (hint_shard_id < shard_count) {
+            // Visit the hint first, then the rest in order, skipping the
+            // hint's own slot when the loop reaches it.
+            if (step == 0) {
+                index = hint_shard_id;
+            } else if (step <= hint_shard_id) {
+                index = step - 1;
+            }
+        }
+        rt_shard* shard = rt_runtime_shard(runtime, index);
+        if (shard == NULL) {
+            continue;
+        }
+        rt_shard_lock(shard);
+        const rt_fd_entry* entry = rt_fd_registry_find_const(&shard->fd_registry, fd);
+        if (entry != NULL && entry->registered_open != 0) {
+            // The first REGISTERED row decides: registered rows are unique
+            // per live fd across shards (registration is owner-only).
+            // Interest-only compatibility rows never validate a handle and
+            // never veto one either, so the probe skips them.
+            int open = entry->close_state == RT_FD_CLOSE_STATE_OPEN &&
+                       (uint16_t)(entry->generation & 0xFFFFU) == generation_check;
+            rt_shard_unlock(shard);
+            if (open && out_owner_shard_id != NULL) {
+                *out_owner_shard_id = (uint32_t)index;
+            }
+            return open;
+        }
+        rt_shard_unlock(shard);
+    }
+    return 0;
+}
+
+int rt_net_handle_open_on_owner(rt_executor* ex,
+                                uint32_t owner_shard_id,
+                                int fd,
+                                uint64_t generation) {
+    // Owner-locked stale-handle guard (RV2-DEBT-010): the registry mutations
+    // this races against (register, mark_closed) run under the same owner
+    // shard lock, so a handle whose fd closed or was reused cannot validate.
+    if (ex == NULL || fd < 0) {
+        return 0;
+    }
+    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
+    if (owner_shard == NULL) {
+        return 0;
+    }
+    rt_shard_lock(owner_shard);
+    int open = rt_fd_registry_handle_open(&owner_shard->fd_registry, fd, generation);
+    rt_shard_unlock(owner_shard);
+    return open;
 }
 
 void rt_net_forget_registered_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, int fd) {
@@ -177,13 +263,13 @@ int rt_net_consume_ready_accept_member(const NetListener* listener, NetListenerM
     return out->owner_shard_id == owner_shard_id;
 }
 
-static void net_register_listener_members_locked(rt_executor* ex, const NetListener* listener) {
+static void net_register_listener_members_locked(rt_executor* ex, NetListener* listener) {
     if (ex == NULL || listener == NULL || listener->members == NULL) {
         return;
     }
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < listener->member_count; i++) {
-        const NetListenerMember* member = &listener->members[i];
+        NetListenerMember* member = &listener->members[i];
         if (member->closed || member->fd < 0 || member->owner_shard_id >= shard_count) {
             continue;
         }
@@ -193,14 +279,32 @@ static void net_register_listener_members_locked(rt_executor* ex, const NetListe
             rt_shard_lock(member_shard);
         }
         int had_row = rt_fd_registry_find_const(registry, member->fd) != NULL;
-        rt_runtime_status member_status = rt_fd_registry_register_open_fd(registry, member->fd);
+        uint64_t generation = 0;
+        rt_runtime_status member_status =
+            rt_fd_registry_register_open_fd_generation(registry, member->fd, &generation);
         if (member_shard != NULL) {
             rt_shard_unlock(member_shard);
         }
-        if (member_status == RT_RUNTIME_STATUS_OK && !had_row) {
-            rt_net_trace_fd_owner_registry_row();
+        if (member_status == RT_RUNTIME_STATUS_OK) {
+            // Stamp the row generation into the shared member so accept and
+            // close validate against the row this registration confirmed
+            // (RV2-DEBT-010). Members are shared via the canonical listener,
+            // so every copy observes the stamp.
+            member->generation = generation;
+            if (!had_row) {
+                rt_net_trace_fd_owner_registry_row();
+            }
         }
     }
+}
+
+void rt_net_stamp_listener_members(rt_executor* ex, NetListener* listener) {
+    if (ex == NULL || listener == NULL || listener->closed) {
+        return;
+    }
+    rt_control_lock(ex);
+    net_register_listener_members_locked(ex, listener);
+    rt_control_unlock(ex);
 }
 
 bool rt_net_wait_accept(const void* listener) {
@@ -225,7 +329,7 @@ bool rt_net_wait_accept(const void* listener) {
         rt_control_unlock(ex);
         return true;
     }
-    net_register_listener_members_locked(ex, l);
+    net_register_listener_members_locked(ex, net_listener_from_borrowed_mut_group(listener));
     for (size_t i = 0; i < l->member_count; i++) {
         const NetListenerMember* member = &l->members[i];
         if (member->closed || member->fd < 0) {

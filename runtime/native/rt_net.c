@@ -7,6 +7,7 @@
 #include "rt_net_handles.h"
 #include "rt_net_lifecycle.h"
 #include "rt_net_listener_socket.h"
+#include "rt_net_result.h"
 #include "rt_net_trace.h"
 
 #include <arpa/inet.h>
@@ -29,187 +30,9 @@
 #define alignof(t) __alignof__(t)
 #endif
 
-enum {
-    NET_ERR_WOULD_BLOCK = 1,
-    NET_ERR_TIMED_OUT = 2,
-    NET_ERR_CONNECTION_RESET = 3,
-    NET_ERR_CONNECTION_REFUSED = 4,
-    NET_ERR_NOT_CONNECTED = 5,
-    NET_ERR_ADDR_IN_USE = 6,
-    NET_ERR_INVALID_ADDR = 7,
-    NET_ERR_IO = 8,
-    NET_ERR_UNSUPPORTED = 9,
-};
-
-typedef struct NetError {
-    void* message;
-    void* code;
-} NetError;
-
-typedef struct SurgeArrayHeader {
-    uint64_t len;
-    uint64_t cap;
-    void* data;
-} SurgeArrayHeader;
-
-static const char* net_error_message(uint64_t code) {
-    switch (code) {
-        case NET_ERR_WOULD_BLOCK:
-            return "WouldBlock";
-        case NET_ERR_TIMED_OUT:
-            return "TimedOut";
-        case NET_ERR_CONNECTION_RESET:
-            return "ConnectionReset";
-        case NET_ERR_CONNECTION_REFUSED:
-            return "ConnectionRefused";
-        case NET_ERR_NOT_CONNECTED:
-            return "NotConnected";
-        case NET_ERR_ADDR_IN_USE:
-            return "AddrInUse";
-        case NET_ERR_INVALID_ADDR:
-            return "InvalidAddr";
-        case NET_ERR_UNSUPPORTED:
-            return "Unsupported";
-        default:
-            return "Io";
-    }
-}
-
-static uint64_t net_error_code_from_errno(int err) {
-    switch (err) {
-        case EAGAIN:
-#ifdef EWOULDBLOCK
-#if EWOULDBLOCK != EAGAIN
-        case EWOULDBLOCK:
-#endif
-#endif
-            return NET_ERR_WOULD_BLOCK;
-        case ETIMEDOUT:
-            return NET_ERR_TIMED_OUT;
-        case ECONNRESET:
-        case ECONNABORTED:
-        case EPIPE:
-            return NET_ERR_CONNECTION_RESET;
-        case ECONNREFUSED:
-            return NET_ERR_CONNECTION_REFUSED;
-        case ENOTCONN:
-            return NET_ERR_NOT_CONNECTED;
-        case EADDRINUSE:
-            return NET_ERR_ADDR_IN_USE;
-        case EADDRNOTAVAIL:
-        case EINVAL:
-            return NET_ERR_INVALID_ADDR;
-        case EAFNOSUPPORT:
-        case EPROTONOSUPPORT:
-        case ENOSYS:
-        case EOPNOTSUPP:
-            return NET_ERR_UNSUPPORTED;
-        default:
-            return NET_ERR_IO;
-    }
-}
-
-static void* net_make_error(uint64_t code) {
-    NetError* err = (NetError*)rt_alloc((uint64_t)sizeof(NetError), (uint64_t)alignof(NetError));
-    if (err == NULL) {
-        return NULL;
-    }
-    const char* msg = net_error_message(code);
-    err->message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
-    err->code = rt_biguint_from_u64(code);
-    return (void*)err;
-}
-
-static void* net_make_success_ptr(void* payload) {
-    size_t payload_align = alignof(void*);
-    size_t payload_size = sizeof(NetError);
-    if (payload_size < sizeof(void*)) {
-        payload_size = sizeof(void*);
-    }
-    size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
-    memcpy(mem + payload_offset, (const void*)&payload, sizeof(payload));
-    return mem;
-}
-
-static void* net_make_success_nothing(void) {
-    size_t payload_align = alignof(void*);
-    size_t payload_size = sizeof(NetError);
-    size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
-    mem[payload_offset] = 0;
-    return mem;
-}
-
-static void* net_make_success_bytes(uint8_t* data, uint64_t len, uint64_t cap) {
-    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
-                                                           (uint64_t)alignof(SurgeArrayHeader));
-    if (header == NULL) {
-        if (data != NULL) {
-            rt_free(data, cap, (uint64_t)alignof(uint8_t));
-        }
-        return net_make_error(NET_ERR_IO);
-    }
-    header->len = len;
-    header->cap = cap;
-    header->data = data;
-    void* out = net_make_success_ptr((void*)header);
-    if (out == NULL) {
-        if (data != NULL) {
-            rt_free(data, cap, (uint64_t)alignof(uint8_t));
-        }
-        rt_free((uint8_t*)header,
-                (uint64_t)sizeof(SurgeArrayHeader),
-                (uint64_t)alignof(SurgeArrayHeader));
-        return net_make_error(NET_ERR_IO);
-    }
-    return out;
-}
-
-static char* net_copy_addr(void* addr, uint64_t* out_len, uint64_t* err_code) {
-    if (err_code != NULL) {
-        *err_code = 0;
-    }
-    uint64_t len = rt_string_len_bytes(addr);
-    if (len == 0) {
-        if (err_code != NULL) {
-            *err_code = NET_ERR_INVALID_ADDR;
-        }
-        return NULL;
-    }
-    const uint8_t* bytes = rt_string_ptr(addr);
-    if (bytes == NULL) {
-        if (err_code != NULL) {
-            *err_code = NET_ERR_INVALID_ADDR;
-        }
-        return NULL;
-    }
-    if (memchr(bytes, 0, (size_t)len) != NULL) {
-        if (err_code != NULL) {
-            *err_code = NET_ERR_INVALID_ADDR;
-        }
-        return NULL;
-    }
-    char* buf = (char*)malloc((size_t)len + 1);
-    if (buf == NULL) {
-        if (err_code != NULL) {
-            *err_code = NET_ERR_IO;
-        }
-        return NULL;
-    }
-    memcpy(buf, bytes, (size_t)len);
-    buf[len] = '\0';
-    if (out_len != NULL) {
-        *out_len = len;
-    }
-    return buf;
-}
+// NetResult/NetError constructors, error-code mapping, and net_copy_addr
+// moved to rt_net_result.c (Epic 10 Task 3): the Surge-visible result ABI is
+// one owner surface, and the split keeps this file under the LOC gate.
 
 static int net_set_nonblocking(int fd, uint64_t* out_code) {
     if (out_code != NULL) {
@@ -285,6 +108,43 @@ static NetConn* net_conn_from_value(void* conn) {
         return NULL;
     }
     return (NetConn*)conn;
+}
+
+// Stale-handle guard for public conn handles (Epic 10 Task 3, RV2-DEBT-010).
+// Reads ONLY the 8-byte handle word (fd, closed, generation_check): a public
+// TcpConn may be a reconstructed box that carries nothing beyond it (see the
+// NetConn contract in rt_net_handles.h), so the owner shard is resolved by
+// the registry probe, not from the struct. The probe validates under each
+// shard's lock, so a copy that raced an unsynchronized closed/fd write cannot
+// validate: a closed fd has no registered row, and a reused fd number carries
+// a newer generation whose low 16 bits mismatch the handle word's check.
+static int net_conn_op_open(const NetConn* c) {
+    if (c == NULL || c->closed || c->fd < 0) {
+        return 0;
+    }
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return 0;
+    }
+    return rt_net_conn_probe_open(
+        ex, rt_debug_current_worker_shard_id(), c->fd, c->generation_check, NULL);
+}
+
+// Unlocked short-circuit for the accept path: live members are stamped
+// (generation != 0) by the first wait/accept registration; the stamp is
+// write-once under the control+owner locks, so a racing redundant re-stamp is
+// the worst case here, never a missed one.
+static int net_listener_members_stamped(const NetListener* l) {
+    if (l == NULL || l->members == NULL) {
+        return 1;
+    }
+    for (size_t i = 0; i < l->member_count; i++) {
+        const NetListenerMember* member = &l->members[i];
+        if (!member->closed && member->fd >= 0 && member->generation == 0) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static size_t net_configured_shard_count(void) {
@@ -408,11 +268,13 @@ void* rt_net_connect(void* addr, uint64_t port) {
     uint32_t owner_shard_id =
         rt_net_owner_shard_or_compat(&exec_state, rt_debug_current_worker_shard_id());
     rt_executor* ex = ensure_exec();
-    if (ex == NULL || !rt_net_register_open_fd_on_owner(ex, owner_shard_id, fd)) {
+    uint64_t generation = 0;
+    if (ex == NULL ||
+        !rt_net_register_open_fd_on_owner_generation(ex, owner_shard_id, fd, &generation)) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
-    NetConn* conn = rt_net_conn_alloc(fd, owner_shard_id, 1);
+    NetConn* conn = rt_net_conn_alloc(fd, owner_shard_id, 1, generation);
     if (conn == NULL) {
         rt_net_forget_registered_fd_on_owner(ex, owner_shard_id, fd);
         close(fd);
@@ -448,9 +310,17 @@ void* rt_net_close_conn(void* conn) {
     if (ex == NULL) {
         return net_make_error(NET_ERR_IO);
     }
+    // The owner shard comes from the registry probe, never from the struct:
+    // a reconstructed handle carries only the 8-byte handle word and its
+    // owner_shard_id bytes are out of bounds (RV2-DEBT-010 contract).
+    uint32_t owner_shard_id = UINT32_MAX;
+    if (!rt_net_conn_probe_open(
+            ex, rt_debug_current_worker_shard_id(), c->fd, c->generation_check, &owner_shard_id)) {
+        return net_make_error(NET_ERR_NOT_CONNECTED);
+    }
     int close_errno = 0;
-    rt_net_lifecycle_status status =
-        rt_net_close_fd_on_owner(ex, c->owner_shard_id, &c->fd, &c->closed, &close_errno);
+    rt_net_lifecycle_status status = rt_net_close_fd_on_owner(
+        ex, owner_shard_id, &c->fd, &c->closed, (uint64_t)c->generation_check, 1, &close_errno);
     if (status == RT_NET_LIFECYCLE_OK) {
         return net_make_success_nothing();
     }
@@ -462,12 +332,22 @@ void* rt_net_close_conn(void* conn) {
 
 void* rt_net_accept(const void* listener) {
     const NetListener* l = net_listener_from_borrowed(listener);
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return net_make_error(NET_ERR_IO);
+    }
+    NetListener* mutable_listener = net_listener_from_borrowed_mut(listener);
+    // Stamp member generations before the first accept so the per-member
+    // stale guard below can validate against the owner registry row
+    // (RV2-DEBT-010). Idempotent; skipped once every live member is stamped.
+    if (!net_listener_members_stamped(l)) {
+        rt_net_stamp_listener_members(ex, mutable_listener);
+    }
     NetListenerMember member;
     int have_preferred = rt_net_consume_ready_accept_member(l, &member);
     if (!have_preferred && !rt_net_listener_selected_member_const(l, &member)) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
-    NetListener* mutable_listener = net_listener_from_borrowed_mut(listener);
     int fd = -1;
     uint64_t last_error = NET_ERR_WOULD_BLOCK;
     size_t member_count = l != NULL ? l->member_count : 0;
@@ -482,6 +362,14 @@ void* rt_net_accept(const void* listener) {
             continue;
         }
         member = *next;
+        // Per-member stale guard (RV2-DEBT-010): never accept(2) on a member
+        // fd whose registry row is gone or reused. An unstamped member
+        // (generation 0, e.g. a racing registration failure) fails closed;
+        // the caller's wait path re-registers and retries.
+        if (member.generation == 0 ||
+            !rt_net_handle_open_on_owner(ex, member.owner_shard_id, member.fd, member.generation)) {
+            continue;
+        }
         do {
             fd = accept(member.fd, NULL, NULL);
         } while (fd < 0 && errno == EINTR);
@@ -502,12 +390,13 @@ void* rt_net_accept(const void* listener) {
         close(fd);
         return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
     }
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL || !rt_net_register_open_fd_on_owner(ex, member.owner_shard_id, fd)) {
+    uint64_t conn_generation = 0;
+    if (!rt_net_register_open_fd_on_owner_generation(
+            ex, member.owner_shard_id, fd, &conn_generation)) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
-    NetConn* conn = rt_net_conn_alloc(fd, member.owner_shard_id, 1);
+    NetConn* conn = rt_net_conn_alloc(fd, member.owner_shard_id, 1, conn_generation);
     if (conn == NULL) {
         rt_net_forget_registered_fd_on_owner(ex, member.owner_shard_id, fd);
         close(fd);
@@ -523,7 +412,7 @@ void* rt_net_accept(const void* listener) {
 
 void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap) {
     const NetConn* c = net_conn_from_borrowed(conn);
-    if (c == NULL || c->closed) {
+    if (!net_conn_op_open(c)) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
     if (cap == 0) {
@@ -546,7 +435,7 @@ void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap) {
 
 void* rt_net_write(const void* conn, const uint8_t* buf, uint64_t len) {
     const NetConn* c = net_conn_from_borrowed(conn);
-    if (c == NULL || c->closed) {
+    if (!net_conn_op_open(c)) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
     if (len == 0) {
@@ -569,7 +458,7 @@ void* rt_net_write(const void* conn, const uint8_t* buf, uint64_t len) {
 
 void* rt_net_read_bytes(const void* conn, uint64_t cap) {
     const NetConn* c = net_conn_from_borrowed(conn);
-    if (c == NULL || c->closed) {
+    if (!net_conn_op_open(c)) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
     if (cap == 0) {
@@ -600,7 +489,7 @@ void* rt_net_read_bytes(const void* conn, uint64_t cap) {
 
 void* rt_net_write_bytes(const void* conn, const void* bytes, uint64_t offset, uint64_t len) {
     const NetConn* c = net_conn_from_borrowed(conn);
-    if (c == NULL || c->closed) {
+    if (!net_conn_op_open(c)) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
     const SurgeArrayHeader* header = (const SurgeArrayHeader*)bytes;
@@ -693,9 +582,12 @@ static bool net_wait_current_task(int fd, RtNetWaitKind kind) {
 }
 
 bool rt_net_wait_readable(const void* conn) {
+    // Stale guard before interest registration (RV2-DEBT-010): a stale copy
+    // must not attach poll interest to a reused fd's new row. Returning true
+    // resumes the caller, whose next data op reports NotConnected.
     const NetConn* c = net_conn_from_borrowed(conn);
     int fd = -1;
-    if (c != NULL && !c->closed) {
+    if (net_conn_op_open(c)) {
         fd = c->fd;
     }
     return net_wait_current_task(fd, RT_NET_WAIT_READ);
@@ -704,7 +596,7 @@ bool rt_net_wait_readable(const void* conn) {
 bool rt_net_wait_writable(const void* conn) {
     const NetConn* c = net_conn_from_borrowed(conn);
     int fd = -1;
-    if (c != NULL && !c->closed) {
+    if (net_conn_op_open(c)) {
         fd = c->fd;
     }
     return net_wait_current_task(fd, RT_NET_WAIT_WRITE);

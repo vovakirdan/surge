@@ -49,6 +49,12 @@ typedef struct {
     size_t len;
     size_t cap;
     uint64_t next_generation;
+    // fd -> entries index dense map (-1 = no row), maintained at the two row
+    // mutation points (create/remove) under the owner shard lock. Added by
+    // Epic 10 Task 3 so the per-op stale-handle guard is O(1) instead of the
+    // linear scan, which would cost O(live fds) on every read/write.
+    int32_t* fd_index;
+    size_t fd_index_cap;
 } rt_fd_registry;
 
 // Poll-interest snapshot row copied into the shard poll scratch under
@@ -98,6 +104,23 @@ rt_runtime_status rt_fd_registry_ensure_cap(rt_fd_registry* registry);
 size_t rt_fd_registry_len(const rt_fd_registry* registry);
 const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd);
 rt_runtime_status rt_fd_registry_register_open_fd(rt_fd_registry* registry, int fd);
+// Epic 10 Task 3 (RV2-DEBT-010): register and report the row's generation so
+// the caller can stamp it into the public handle. The stamped generation is
+// the stale-handle guard's comparison key.
+rt_runtime_status rt_fd_registry_register_open_fd_generation(rt_fd_registry* registry,
+                                                             int fd,
+                                                             uint64_t* out_generation);
+// Epic 10 Task 3 (RV2-DEBT-010): owner-locked stale-handle guard predicate.
+// Returns 1 only when fd has an OPEN, registered_open row whose generation
+// matches the handle's stamped generation; 0 for missing rows, closed rows,
+// interest-only rows, and generation mismatches (fd reused).
+int rt_fd_registry_handle_open(const rt_fd_registry* registry, int fd, uint64_t generation);
+// 16-bit variant for public conn handles: reconstructed TcpConn boxes carry
+// only the handle word, whose generation_check is the row generation's low
+// 16 bits (see the NetConn contract in rt_net_handles.h).
+int rt_fd_registry_handle_check_open(const rt_fd_registry* registry,
+                                     int fd,
+                                     uint16_t generation_check);
 rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
 void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);
 int rt_fd_registry_net_interest_present(const rt_fd_registry* registry, waker_key key);

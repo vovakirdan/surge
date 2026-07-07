@@ -247,7 +247,8 @@ int rt_net_listener_selected_member_const(const NetListener* listener, NetListen
     return 1;
 }
 
-NetConn* rt_net_conn_alloc(int fd, uint32_t owner_shard_id, uint8_t owner_shard_valid) {
+NetConn*
+rt_net_conn_alloc(int fd, uint32_t owner_shard_id, uint8_t owner_shard_valid, uint64_t generation) {
     NetConn* conn = (NetConn*)rt_alloc((uint64_t)sizeof(NetConn), (uint64_t) _Alignof(NetConn));
     if (conn == NULL) {
         return NULL;
@@ -255,6 +256,9 @@ NetConn* rt_net_conn_alloc(int fd, uint32_t owner_shard_id, uint8_t owner_shard_
     conn->fd = fd;
     conn->closed = false;
     conn->owner_shard_valid = owner_shard_valid;
+    // Low 16 bits of the registry row generation ride in the handle word so
+    // reconstructed copies stay verifiable (see the NetConn contract).
+    conn->generation_check = (uint16_t)(generation & 0xFFFFU);
     conn->owner_shard_id = owner_shard_id;
     return conn;
 }

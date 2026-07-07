@@ -23,8 +23,13 @@ uint32_t rt_net_current_owner_shard(rt_executor* ex) {
     return rt_net_owner_shard_or_compat(ex, rt_debug_current_worker_shard_id());
 }
 
-rt_net_lifecycle_status rt_net_close_fd_on_owner(
-    rt_executor* ex, uint32_t owner_shard_id, int* fd_slot, bool* closed_slot, int* out_errno) {
+rt_net_lifecycle_status rt_net_close_fd_on_owner(rt_executor* ex,
+                                                 uint32_t owner_shard_id,
+                                                 int* fd_slot,
+                                                 bool* closed_slot,
+                                                 uint64_t generation,
+                                                 int generation_check16,
+                                                 int* out_errno) {
     if (out_errno != NULL) {
         *out_errno = 0;
     }
@@ -42,6 +47,24 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(
     rt_fd_registry* registry = rt_executor_fd_registry_for_shard(ex, owner_shard_id);
     if (owner_shard != NULL) {
         rt_shard_lock(owner_shard);
+    }
+    // Stale-close guard (Epic 10 Task 3, RV2-DEBT-010): the handle must still
+    // match its OPEN registered row under this lock. Two racing closers both
+    // pass the unsynchronized *closed_slot check, but only the first finds
+    // the row; the loser is rejected here and never issues a second close(2)
+    // on a possibly-reused fd number.
+    int stale;
+    if (generation_check16 != 0) {
+        stale = !rt_fd_registry_handle_check_open(registry, fd, (uint16_t)(generation & 0xFFFFU));
+    } else {
+        stale = generation != 0 && !rt_fd_registry_handle_open(registry, fd, generation);
+    }
+    if (stale) {
+        if (owner_shard != NULL) {
+            rt_shard_unlock(owner_shard);
+        }
+        rt_control_unlock(ex);
+        return RT_NET_LIFECYCLE_INVALID;
     }
     rt_runtime_status status = rt_fd_registry_mark_closed(registry, fd, &snapshot);
     if (owner_shard != NULL) {
@@ -82,8 +105,13 @@ rt_net_close_listener_members(rt_executor* ex, NetListener* listener, int* out_e
     for (size_t i = 0; i < listener->member_count; i++) {
         NetListenerMember* member = &listener->members[i];
         int close_errno = 0;
-        rt_net_lifecycle_status status = rt_net_close_fd_on_owner(
-            ex, member->owner_shard_id, &member->fd, &member->closed, &close_errno);
+        rt_net_lifecycle_status status = rt_net_close_fd_on_owner(ex,
+                                                                  member->owner_shard_id,
+                                                                  &member->fd,
+                                                                  &member->closed,
+                                                                  member->generation,
+                                                                  0,
+                                                                  &close_errno);
         if (status == RT_NET_LIFECYCLE_OK || status == RT_NET_LIFECYCLE_INVALID) {
             if (status == RT_NET_LIFECYCLE_OK) {
                 rt_net_trace_listener_group_member_closed();

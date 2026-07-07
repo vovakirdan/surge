@@ -98,6 +98,7 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-heap-check
 	$(MAKE) runtime-v2-waiter-check
 	$(MAKE) runtime-v2-fd-registry-check
+	$(MAKE) runtime-v2-net-handle-check
 	$(MAKE) runtime-v2-accept-check
 	$(MAKE) runtime-v2-lock-check
 	$(MAKE) runtime-v2-lifecycle-check
@@ -122,6 +123,10 @@ runtime-v2-waiter-check:
 runtime-v2-fd-registry-check:
 	@echo ">> Running Runtime V2 fd registry liveness gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(RepeatedReadinessSingleFD|ReadWriteInterestSharesFDRow|DuplicateReadWaitersBothComplete|ClosedFDFailsFast|StaticShape|StaticBoundary|GenerationStaleSnapshotProof|CloseWakePollNotificationProof|ShutdownDrainStaticContract|ShutdownDrainBehavior)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
+
+runtime-v2-net-handle-check:
+	@echo ">> Running Runtime V2 net-handle guard gate (Epic 10 Task 3)"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetHandle(StaleCopyReusedFD|GuardStaticShape)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-accept-check:
 	@echo ">> Running Runtime V2 accept CI gate"

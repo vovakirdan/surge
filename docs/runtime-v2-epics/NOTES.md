@@ -3974,3 +3974,46 @@ pass, before any task execution began:
   owner-locked data-path validation with status-code reject; Task 4 replaces
   the HTTP `Channel<int>` worker pool with owner-local per-connection serving
   bounded by a token channel.
+
+## 2026-07-07 Epic 10 Task 3 (RV2-DEBT-010 net-handle contract) Implementation
+
+- Task doc: `10-tasks/03-debt-010-net-handle-contract.md` (with the mid-task
+  design revision). LOAD-BEARING ABI DISCOVERY, verified by pointer tracing:
+  `TcpConn.__opaque` is the first 8 bytes of `NetConn` (packed fd/closed/
+  owner_shard_valid), NOT a pointer value at the language level; reconstructed
+  `{ __opaque = handle }` boxes are 8 bytes and reading `owner_shard_id` or
+  anything past byte 8 on them was pre-existing OOB UB. `__opaque` ints are
+  raw words: Surge code may only move them (arithmetic segfaults in
+  rt_bigint). Listener copies survive only via the canonical fd-keyed
+  listener registry.
+- Contract landed: `NetConn.generation_check` (16-bit, in former padding
+  bytes 6-7, write-once at registration), `NetListenerMember.generation`
+  (full 64-bit, members never reconstructed); `rt_net_conn_probe_open`
+  (hint-first per-shard locked probe; first REGISTERED row decides;
+  interest-only rows neither validate nor veto); guard calls in
+  read/write/read_bytes/write_bytes/wait/close; accept stamps + validates
+  members; `rt_net_close_fd_on_owner` gained (generation, generation_check16)
+  and revalidates under the owner lock (one closer wins). fd registry gained
+  an fd→index dense map (O(1) find; maintained only in
+  fd_registry_create_row/fd_registry_remove_at).
+- `rt_net.c` LOC gate: guard additions pushed it 666→708 eff; extracted the
+  NetResult/NetError constructor cluster verbatim to `rt_net_result.c`
+  (160 eff) + `rt_net_result.h` (30) — `rt_net.c` now 537 eff (OK band).
+- Proof: `TestRuntimeV2NetHandleStaleCopyReusedFD` (SHARDS=1,2,8) green;
+  static shape gate green; new `runtime-v2-net-handle-check` stage wired into
+  `runtime-v2-check`. Negative control: fixture built at pre-guard `ec7721c5`
+  HANGS (stale read parks on the reused fd's readiness) vs exit 0 now.
+- Bench (256-conn direct/pipe; the 1024-conn rows connection-reset on this
+  WSL2 host even at the pre-Task-2 commit — verified in a worktree, recorded
+  as host limitation, RV2-DEBT-006-adjacent): 1x256 10251.18→10262.97 us/op
+  (noise); 8x256 10204.33→10464.74/10123.29 across two runs (within
+  variance). Guard hint hits the first lock on owner-local traffic.
+- Sentrux after Task 3 (CLI, all rules pass): root `6175`, runtime `5306`,
+  native `5402`; `sentrux gate runtime/native`: coupling `0.00 -> 0.05`
+  (BETTER than the Epic 9 record's 0.06), complex functions `21 -> 23`
+  (unchanged vs record), quality above committed baseline.
+- `RV2-DEBT-010` CLOSED in `DEBT.md` with three NAMED narrowed residuals
+  (16-bit check aliasing ~2^-16; listener canonical-rebind race; POSIX
+  concurrent-close window). Fixture insight for Task 4: the stdlib HTTP
+  `Channel<int>` handoff carries the packed handle word, so reconstructed
+  worker-side conns are exactly the guarded-handle class.

@@ -18,8 +18,21 @@ typedef enum {
 
 uint32_t rt_net_owner_shard_or_compat(rt_executor* ex, uint32_t requested);
 uint32_t rt_net_current_owner_shard(rt_executor* ex);
-rt_net_lifecycle_status rt_net_close_fd_on_owner(
-    rt_executor* ex, uint32_t owner_shard_id, int* fd_slot, bool* closed_slot, int* out_errno);
+// generation is the handle's stamped fd-registry row generation (Epic 10
+// Task 3, RV2-DEBT-010): it must match the row under the owner shard lock or
+// the close is rejected as stale, so exactly one closer wins and a reused fd
+// is never close(2)'d twice. generation_check16 selects the comparison for
+// public conn handles, whose handle word carries only the generation's low
+// 16 bits; with generation_check16 == 0 a nonzero generation compares in
+// full (listener members) and generation 0 preserves the legacy behavior for
+// never-registered members.
+rt_net_lifecycle_status rt_net_close_fd_on_owner(rt_executor* ex,
+                                                 uint32_t owner_shard_id,
+                                                 int* fd_slot,
+                                                 bool* closed_slot,
+                                                 uint64_t generation,
+                                                 int generation_check16,
+                                                 int* out_errno);
 rt_net_lifecycle_status
 rt_net_close_listener_members(rt_executor* ex, NetListener* listener, int* out_errno);
 

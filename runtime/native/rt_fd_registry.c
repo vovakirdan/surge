@@ -22,7 +22,55 @@ void rt_fd_registry_free(rt_fd_registry* registry) {
                 (uint64_t)(registry->cap * sizeof(rt_fd_entry)),
                 _Alignof(rt_fd_entry));
     }
+    if (registry->fd_index != NULL) {
+        rt_free((uint8_t*)registry->fd_index,
+                (uint64_t)(registry->fd_index_cap * sizeof(int32_t)),
+                _Alignof(int32_t));
+    }
     memset(registry, 0, sizeof(*registry));
+}
+
+// fd -> entries index maintenance (Epic 10 Task 3). The dense map is derived
+// state under the same owner shard lock as the entries array; rows are only
+// created/removed at the two mutation points below, so those are the only
+// writers. Growth fills new slots with -1 (no row).
+static rt_runtime_status fd_index_ensure(rt_fd_registry* registry, int fd) {
+    if (registry == NULL || fd < 0) {
+        return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
+    }
+    if ((size_t)fd < registry->fd_index_cap) {
+        return RT_RUNTIME_STATUS_OK;
+    }
+    size_t next_cap = registry->fd_index_cap == 0 ? 64 : registry->fd_index_cap;
+    while (next_cap <= (size_t)fd) {
+        if (next_cap > SIZE_MAX / 2U) {
+            return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+        }
+        next_cap *= 2U;
+    }
+    if (next_cap > SIZE_MAX / sizeof(int32_t)) {
+        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+    }
+    int32_t* next = (int32_t*)rt_realloc((uint8_t*)registry->fd_index,
+                                         (uint64_t)(registry->fd_index_cap * sizeof(int32_t)),
+                                         (uint64_t)(next_cap * sizeof(int32_t)),
+                                         _Alignof(int32_t));
+    if (next == NULL) {
+        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+    }
+    for (size_t i = registry->fd_index_cap; i < next_cap; i++) {
+        next[i] = -1;
+    }
+    registry->fd_index = next;
+    registry->fd_index_cap = next_cap;
+    return RT_RUNTIME_STATUS_OK;
+}
+
+static void fd_index_store(rt_fd_registry* registry, int fd, int32_t index) {
+    if (registry == NULL || fd < 0 || (size_t)fd >= registry->fd_index_cap) {
+        return;
+    }
+    registry->fd_index[fd] = index;
 }
 
 // Growth mirrors rt_waiter_store_ensure_cap: start at 16 rows, double with
@@ -62,24 +110,29 @@ size_t rt_fd_registry_len(const rt_fd_registry* registry) {
 }
 
 const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd) {
-    if (registry == NULL) {
+    // O(1) via the fd index: every live row was created through
+    // fd_registry_create_row, which ensures the index covers its fd.
+    if (registry == NULL || fd < 0 || (size_t)fd >= registry->fd_index_cap) {
         return NULL;
     }
-    for (size_t i = 0; i < registry->len; i++) {
-        if (registry->entries[i].fd == fd) {
-            return &registry->entries[i];
-        }
+    int32_t index = registry->fd_index[fd];
+    if (index < 0 || (size_t)index >= registry->len || registry->entries[index].fd != fd) {
+        return NULL;
     }
-    return NULL;
+    return &registry->entries[index];
 }
 
 static rt_fd_entry* fd_registry_find_mut(rt_fd_registry* registry, int fd) {
-    for (size_t i = 0; i < registry->len; i++) {
-        if (registry->entries[i].fd == fd) {
-            return &registry->entries[i];
-        }
+    // O(1) via the fd index; mirrors rt_fd_registry_find_const without the
+    // const cast the strict-warning build rejects.
+    if (registry == NULL || fd < 0 || (size_t)fd >= registry->fd_index_cap) {
+        return NULL;
     }
-    return NULL;
+    int32_t index = registry->fd_index[fd];
+    if (index < 0 || (size_t)index >= registry->len || registry->entries[index].fd != fd) {
+        return NULL;
+    }
+    return &registry->entries[index];
 }
 
 static rt_runtime_status
@@ -94,11 +147,16 @@ fd_registry_create_row(rt_fd_registry* registry, int fd, rt_fd_entry** out) {
     if (status != RT_RUNTIME_STATUS_OK) {
         return status;
     }
+    status = fd_index_ensure(registry, fd);
+    if (status != RT_RUNTIME_STATUS_OK) {
+        return status;
+    }
     rt_fd_entry* entry = &registry->entries[registry->len++];
     memset(entry, 0, sizeof(*entry));
     entry->fd = fd;
     registry->next_generation++;
     entry->generation = registry->next_generation;
+    fd_index_store(registry, fd, (int32_t)(registry->len - 1));
     *out = entry;
     return RT_RUNTIME_STATUS_OK;
 }
@@ -107,8 +165,13 @@ static void fd_registry_remove_at(rt_fd_registry* registry, size_t index) {
     if (registry == NULL || index >= registry->len) {
         return;
     }
+    fd_index_store(registry, registry->entries[index].fd, -1);
     registry->entries[index] = registry->entries[registry->len - 1];
     registry->len--;
+    if (index < registry->len) {
+        // Swap-remove moved the former tail row; repoint its index slot.
+        fd_index_store(registry, registry->entries[index].fd, (int32_t)index);
+    }
 }
 
 static void fd_lifecycle_snapshot_clear(rt_fd_lifecycle_snapshot* out, int fd) {
@@ -181,6 +244,15 @@ int rt_fd_registry_net_interest_present(const rt_fd_registry* registry, waker_ke
 }
 
 rt_runtime_status rt_fd_registry_register_open_fd(rt_fd_registry* registry, int fd) {
+    return rt_fd_registry_register_open_fd_generation(registry, fd, NULL);
+}
+
+rt_runtime_status rt_fd_registry_register_open_fd_generation(rt_fd_registry* registry,
+                                                             int fd,
+                                                             uint64_t* out_generation) {
+    if (out_generation != NULL) {
+        *out_generation = 0;
+    }
     if (registry == NULL || fd < 0) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
@@ -195,7 +267,36 @@ rt_runtime_status rt_fd_registry_register_open_fd(rt_fd_registry* registry, int 
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     entry->registered_open = 1;
+    if (out_generation != NULL) {
+        *out_generation = entry->generation;
+    }
     return RT_RUNTIME_STATUS_OK;
+}
+
+// Stale-handle guard predicate (Epic 10 Task 3, RV2-DEBT-010). Caller holds
+// the owner shard lock, so this read cannot race register/mark_closed: a
+// handle whose fd was closed finds no row (mark_closed swap-removes it), and
+// a handle whose fd number was reused finds a row with a newer generation.
+// Interest-only compatibility rows (registered_open == 0) never validate a
+// public handle.
+int rt_fd_registry_handle_open(const rt_fd_registry* registry, int fd, uint64_t generation) {
+    const rt_fd_entry* entry = rt_fd_registry_find_const(registry, fd);
+    if (entry == NULL || entry->registered_open == 0 ||
+        entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
+        return 0;
+    }
+    return entry->generation == generation;
+}
+
+int rt_fd_registry_handle_check_open(const rt_fd_registry* registry,
+                                     int fd,
+                                     uint16_t generation_check) {
+    const rt_fd_entry* entry = rt_fd_registry_find_const(registry, fd);
+    if (entry == NULL || entry->registered_open == 0 ||
+        entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
+        return 0;
+    }
+    return (uint16_t)(entry->generation & 0xFFFFU) == generation_check;
 }
 
 // Registration-side attach: find or create the owning fd row and set the
