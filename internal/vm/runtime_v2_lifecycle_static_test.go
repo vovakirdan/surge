@@ -361,16 +361,23 @@ func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
 	// done_waiters guard above; it never waits on it. The lone waiter is
 	// rt_task_await (asserted in (ii)). This is robust to comments mentioning
 	// the condvar by name — it counts the actual condvar operations.
+	// mark_done moved to rt_task_complete.c (Epic 10 Task 2); both the legacy
+	// file and the completion file must delegate done_cv broadcasting.
 	state := lifecycleReadNativeFile(t, "rt_async_state.c")
+	complete := lifecycleReadNativeFile(t, "rt_task_complete.c")
 	doneCVSource := lifecycleReadNativeFile(t, "rt_done_cv.c")
 	if strings.Contains(state, "pthread_cond_broadcast(&ex->done_cv)") {
 		t.Fatal("rt_async_state.c must delegate done_cv broadcasting to rt_done_cv.c")
+	}
+	if strings.Contains(complete, "pthread_cond_broadcast(&ex->done_cv)") {
+		t.Fatal("rt_task_complete.c must delegate done_cv broadcasting to rt_done_cv.c")
 	}
 	if n := strings.Count(doneCVSource, "pthread_cond_broadcast(&ex->done_cv)"); n != 1 {
 		t.Fatalf("rt_done_cv.c must broadcast done_cv exactly once "+
 			"(the done_waiters-guarded completion broadcast); got %d", n)
 	}
 	if strings.Contains(state, "pthread_cond_wait(&ex->done_cv") ||
+		strings.Contains(complete, "pthread_cond_wait(&ex->done_cv") ||
 		strings.Contains(doneCVSource, "pthread_cond_wait(&ex->done_cv") {
 		t.Fatal("completion code must never wait on done_cv; the only waiter is rt_task_await")
 	}

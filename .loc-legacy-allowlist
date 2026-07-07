@@ -5,7 +5,6 @@
 # Raising a ceiling is a deliberate debt decision and must be documented in
 # docs/runtime-v2-epics/DEBT.md or the owning task evidence.
 
-runtime/native/rt_async_state.c 1184 Runtime V2 split in progress; ceiling tightened at Epic 8 Task 13 (park/wake cluster extracted to rt_task_park.c); RV2-DEBT-003 stays open for the remaining ready-queue/completion/handle-lifetime clusters; must not grow before further refactor.
 runtime/native/rt_term.c 1091 Existing terminal runtime debt outside Runtime V2 Epic 4 scope.
 runtime/native/rt_fs.c 978 Existing filesystem runtime debt outside Runtime V2 Epic 4 scope.
 runtime/native/rt_string.c 762 Existing string runtime debt outside Runtime V2 Epic 4 scope.

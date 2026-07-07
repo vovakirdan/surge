@@ -78,9 +78,10 @@ func TestRuntimeV2SchedulerPlacementParkedWithWorkSourceGate(t *testing.T) {
 
 func readRuntimeV2SchedulerStateSource(t *testing.T) string {
 	t.Helper()
-	sourceBytes, err := os.ReadFile(filepath.Join(repoRoot(t), "runtime", "native", "rt_async_state.c"))
+	// Ready-queue cluster extracted to rt_ready_queue.c (Epic 10 Task 2).
+	sourceBytes, err := os.ReadFile(filepath.Join(repoRoot(t), "runtime", "native", "rt_ready_queue.c"))
 	if err != nil {
-		t.Fatalf("read rt_async_state.c: %v", err)
+		t.Fatalf("read rt_ready_queue.c: %v", err)
 	}
 	return string(sourceBytes)
 }

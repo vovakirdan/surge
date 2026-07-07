@@ -733,6 +733,10 @@ int wake_task_on_shard_locked(const rt_executor* ex,
                               int signal_ready,
                               waker_key* out_stale_key);
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id);
+// Extracted to rt_ready_queue.c (Epic 10 Task 2); external because
+// apply_poll_outcome (rt_task_complete.c) re-pushes yielded tasks across the
+// module boundary.
+int ready_push_yielded_task(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_net_task(rt_executor* ex, uint64_t id);

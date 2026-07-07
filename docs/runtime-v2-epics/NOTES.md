@@ -3886,3 +3886,91 @@ pass, before any task execution began:
   stdlib owner-safety, benchmark/test harness hardening, or Phase 4 crossing.
   Any syntax, keyword, parser, semantic, lowering, or public crossing surface
   work must stop first for the dedicated language-syntax review.
+
+## 2026-07-07 Epic 10 Start (Task 1: Dependency And Debt Map)
+
+- Epic 10 (`10-runtime-debt-burndown-and-owner-safety.md`) implementation
+  starts. Owned debts: `RV2-DEBT-003` (dependency-aware `rt_async_state.c`
+  split), `RV2-DEBT-010` (copied/stale net-handle safety), `RV2-DEBT-013`
+  (stdlib HTTP owner-shard safety). No language syntax, no Phase 4 transport.
+- Pre-implementation Sentrux baselines (CLI `sentrux check`, all rules pass):
+  root `6178`, `runtime` `5326`, `runtime/native` `5428`. Paths:
+  `/home/zov/projects/surge/surge`, `.../runtime`, `.../runtime/native`.
+- Baseline `make c-check` passed on the starting checkout.
+- `rt_async_state.c` current shape: 1426 raw / 1184 effective LOC (allowlist
+  ceiling 1184). Cluster map derived from code: (A) executor bootstrap/init +
+  worker start + TLS + debug (~l.1-355), (B) task/scope slot accessors + child
+  caps (~l.357-492), (C) ready-queue cluster (`scheduler_runnable_is_empty`,
+  `rt_sched_idle_sample_locked`, `sched_next_u64`, `current_worker_scheduler`,
+  `current_local_queue`, `pop_task_from_deque`, `ready_push*`,
+  `ready_take_current_local_tail`, `ready_pop`, `worker_next_ready`), (D)
+  virtual clock/sleep tick + N=1 runner (`tick_virtual`,
+  `rt_next_sleep_deadline`, `advance_time_to_next_timer`, `next_ready`), (E)
+  handle helpers + lifetime (`task_from_handle`, `task_add_child`,
+  `scope_add_child`, `scope_remove_child`, `task_add_ref`, `free_task`,
+  `task_release`, `task_release_lane_aware`, `clear_select_timers`), (F)
+  completion/cancel (`current_task_cancelled`, `cancel_task`,
+  `mark_done_needs_control`, `mark_done`, `apply_poll_outcome`).
+- External-caller map recorded (grep over `runtime/native/*.c`): ready-queue
+  consumers are `rt_worker_turn.c`, `rt_async_task.c`, `rt_async_poll.c`,
+  `rt_async_blocking.c`, `rt_task_park.c`; completion consumers are
+  `rt_async_poll.c`, `rt_async_scope.c`, `rt_async_task.c`, `rt_worker_turn.c`,
+  `rt_async_select.c`; handle-lifetime consumers are `rt_async_task.c`,
+  `rt_async_select.c`. Makefile globs `runtime/native/*.c`, so new files need
+  no build wiring.
+- Net-handle current shape (`rt_net_handles.h`): `NetConn` is a heap struct
+  `{fd, closed, owner_shard_valid, owner_shard_id}`; `TcpConn.__opaque` is an
+  `int` carrying the `NetConn*`. `stdlib/http/server.sg` sends that int through
+  `Channel<int>` to pre-spawned `serve_worker` tasks (placement decided at
+  server start, not per connection) — the RV2-DEBT-013 surface.
+- Subagent maps in flight: `net-mapper` (RV2-DEBT-010 surface) and
+  `http-mapper` (RV2-DEBT-013 surface + placement mechanism). Task 1 document
+  `10-tasks/01-dependency-and-debt-map.md` will consolidate both.
+
+## 2026-07-07 Epic 10 Task 2 (RV2-DEBT-003 split) Implementation
+
+- Task doc: `10-tasks/02-debt-003-state-split.md` (written model + cluster map
+  + repointed static gates). Verbatim moves only, no behavior change.
+- New files: `runtime/native/rt_ready_queue.c` (378 eff LOC; shard ready-queue
+  mutation + worker pop policy, every mutation under the owner shard lock),
+  `runtime/native/rt_task_complete.c` (203 eff LOC; cancel_task/mark_done/
+  apply_poll_outcome/clear_select_timers/current_task_cancelled),
+  `runtime/native/rt_task_lifetime.c` (67 eff LOC; task_add_ref/free_task/
+  task_release/task_release_lane_aware).
+- `rt_async_state.c`: 1184 -> 537 effective LOC; entry REMOVED from
+  `.loc-legacy-allowlist` (now rides the normal gate, OK band). It keeps
+  executor bootstrap/config/TLS, task/scope slot accessors (needle-pinned by
+  lifecycle static gates — deliberately not moved), virtual clock + N=1
+  runner, and child/handle helpers.
+- Header change: `ready_push_yielded_task` static -> extern
+  (`rt_async_internal.h`), needed by `apply_poll_outcome` across the new
+  module boundary. `rt_sync_point.h` include moved with the completion
+  cluster.
+- Static gates repointed: `check_sync_points.sh` SP_CANCEL_BEFORE_WAKE +
+  SP_MARKDONE_BEFORE_DONEWAITERS_LOAD -> `rt_task_complete.c`;
+  `readRuntimeV2SchedulerStateSource` -> `rt_ready_queue.c`; lifecycle
+  `done_cv` confinement scan EXTENDED to also scan `rt_task_complete.c`.
+- Gates so far: `git diff --check` OK, `make c-check` OK, `make cppcheck` OK,
+  `./check_sync_points.sh` OK, `./check_file_sizes.sh -a` OK (100%).
+- Sentrux after split (CLI `sentrux check`, all rules pass): root `6179`
+  (baseline 6178, +1), runtime `5298` (baseline 5326, -28), runtime/native
+  `5399` (baseline 5428, -29). `sentrux gate runtime/native` vs the committed
+  Jul-2 baseline: quality `5159 -> 5399` (UP +240); DEGRADED verdict repeats
+  the KNOWN RV2-DEBT-003 cumulative recovery class with IDENTICAL numbers to
+  the Epic 9 Task 4 record (coupling `0.00 -> 0.06`, complex functions
+  `21 -> 23`) — this task added no new measured coupling and no new complex
+  functions; the scoped `check` drop is the same make-hidden-coupling-visible
+  accounting class recorded at Epic 8 Task 13, now with the split landed and
+  the allowlist entry gone.
+- FINAL Task 2 gates: `make runtime-v2-check` PASSED (full stage list incl.
+  lifecycle, perf control-lane gate, accept, lock split, syncpoint) and
+  `make check` PASSED (test + lint + c-check + file sizes) on the split tree.
+  `RV2-DEBT-003` CLOSED in `DEBT.md` with the Sentrux coupling re-check
+  evidence. Task doc: `10-tasks/02-debt-003-state-split.md`.
+- Task 1 map is consolidated in `10-tasks/01-dependency-and-debt-map.md`
+  (scheduler clusters re-derived in-session; net-handle and stdlib HTTP maps
+  from the `net-mapper`/`http-mapper` research subagents, cross-checked).
+  Decisions it feeds: Task 3 stamps registry generations into net handles +
+  owner-locked data-path validation with status-code reject; Task 4 replaces
+  the HTTP `Channel<int>` worker pool with owner-local per-connection serving
+  bounded by a token channel.

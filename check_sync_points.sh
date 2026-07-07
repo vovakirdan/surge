@@ -32,9 +32,9 @@ note_ok() { printf "${GREEN}OK${NC}   %s\n" "$1"; }
 # Allowlist: the RT_SYNC_POINT_SP_* enumerators declared in the header, and the
 # file(s) each is permitted to appear in.
 declare -A WINDOW_FILE=(
-    [SP_CANCEL_BEFORE_WAKE]="rt_async_state.c"
+    [SP_CANCEL_BEFORE_WAKE]="rt_task_complete.c"
     [SP_PARK_BEFORE_WAITING]="rt_async_poll.c rt_worker_turn.c"
-    [SP_MARKDONE_BEFORE_DONEWAITERS_LOAD]="rt_async_state.c"
+    [SP_MARKDONE_BEFORE_DONEWAITERS_LOAD]="rt_task_complete.c"
     [SP_AWAIT_AFTER_INCREMENT]="rt_async_task.c"
     [SP_AWAIT_BEFORE_DONECV_WAIT]="rt_async_task.c"
     [SP_WAKEKEY_MID_DRAIN]="rt_task_park.c"
