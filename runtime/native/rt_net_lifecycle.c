@@ -28,7 +28,6 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(rt_executor* ex,
                                                  int* fd_slot,
                                                  bool* closed_slot,
                                                  uint64_t generation,
-                                                 int generation_check16,
                                                  int* out_errno) {
     if (out_errno != NULL) {
         *out_errno = 0;
@@ -53,12 +52,7 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(rt_executor* ex,
     // pass the unsynchronized *closed_slot check, but only the first finds
     // the row; the loser is rejected here and never issues a second close(2)
     // on a possibly-reused fd number.
-    int stale;
-    if (generation_check16 != 0) {
-        stale = !rt_fd_registry_handle_check_open(registry, fd, (uint16_t)(generation & 0xFFFFU));
-    } else {
-        stale = generation != 0 && !rt_fd_registry_handle_open(registry, fd, generation);
-    }
+    int stale = generation != 0 && !rt_fd_registry_handle_open(registry, fd, generation);
     if (stale) {
         if (owner_shard != NULL) {
             rt_shard_unlock(owner_shard);
@@ -110,7 +104,6 @@ rt_net_close_listener_members(rt_executor* ex, NetListener* listener, int* out_e
                                                                   &member->fd,
                                                                   &member->closed,
                                                                   member->generation,
-                                                                  0,
                                                                   &close_errno);
         if (status == RT_NET_LIFECYCLE_OK || status == RT_NET_LIFECYCLE_INVALID) {
             if (status == RT_NET_LIFECYCLE_OK) {

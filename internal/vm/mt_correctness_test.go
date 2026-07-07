@@ -679,10 +679,12 @@ fn main(port: uint) -> int {
     }
     let cfg: http.ServerConfig = {
         max_pipeline_depth = 16:uint,
+        worker_count = 4:uint,
         max_initial_line_bytes = 1024:uint,
         max_header_bytes = 4096:uint,
         max_headers_count = 64:uint,
         max_body_bytes = 16:uint,
+        accept_timeout_ms = 1000:uint,
         idle_timeout_ms = 1000:uint,
         read_timeout_ms = 1000:uint,
         write_timeout_ms = 1000:uint

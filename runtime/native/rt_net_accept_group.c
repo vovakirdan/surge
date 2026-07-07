@@ -55,61 +55,13 @@ int rt_net_register_open_fd_on_owner_generation(rt_executor* ex,
     return 0;
 }
 
-int rt_net_conn_probe_open(rt_executor* ex,
-                           uint32_t hint_shard_id,
-                           int fd,
-                           uint16_t generation_check,
-                           uint32_t* out_owner_shard_id) {
-    if (out_owner_shard_id != NULL) {
-        *out_owner_shard_id = UINT32_MAX;
-    }
-    if (ex == NULL || fd < 0) {
-        return 0;
-    }
-    rt_runtime* runtime = rt_executor_runtime(ex);
-    size_t shard_count = rt_runtime_shard_count(runtime);
-    for (size_t step = 0; step < shard_count; step++) {
-        size_t index = step;
-        if (hint_shard_id < shard_count) {
-            // Visit the hint first, then the rest in order, skipping the
-            // hint's own slot when the loop reaches it.
-            if (step == 0) {
-                index = hint_shard_id;
-            } else if (step <= hint_shard_id) {
-                index = step - 1;
-            }
-        }
-        rt_shard* shard = rt_runtime_shard(runtime, index);
-        if (shard == NULL) {
-            continue;
-        }
-        rt_shard_lock(shard);
-        const rt_fd_entry* entry = rt_fd_registry_find_const(&shard->fd_registry, fd);
-        if (entry != NULL && entry->registered_open != 0) {
-            // The first REGISTERED row decides: registered rows are unique
-            // per live fd across shards (registration is owner-only).
-            // Interest-only compatibility rows never validate a handle and
-            // never veto one either, so the probe skips them.
-            int open = entry->close_state == RT_FD_CLOSE_STATE_OPEN &&
-                       (uint16_t)(entry->generation & 0xFFFFU) == generation_check;
-            rt_shard_unlock(shard);
-            if (open && out_owner_shard_id != NULL) {
-                *out_owner_shard_id = (uint32_t)index;
-            }
-            return open;
-        }
-        rt_shard_unlock(shard);
-    }
-    return 0;
-}
-
 int rt_net_handle_open_on_owner(rt_executor* ex,
                                 uint32_t owner_shard_id,
                                 int fd,
                                 uint64_t generation) {
-    // Owner-locked stale-handle guard (RV2-DEBT-010): the registry mutations
-    // this races against (register, mark_closed) run under the same owner
-    // shard lock, so a handle whose fd closed or was reused cannot validate.
+    // Owner-locked fd-lifetime guard: the registry mutations this races
+    // against (register, mark_closed) run under the same owner shard lock, so
+    // a handle whose fd closed or was reused cannot validate.
     if (ex == NULL || fd < 0) {
         return 0;
     }

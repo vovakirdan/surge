@@ -71,7 +71,7 @@ async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpRes
         }
         return Success(bytes);
     }
-    let read_task = spawn net.read_some(&conn, cap);
+    let read_task = net.read_some(&conn, cap);
     let read_res = timeout(read_task, timeout_ms);
     let mut ok: bool = false;
     let mut bytes: byte[] = [];
@@ -139,7 +139,7 @@ async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) ->
         }
         return Success(nothing);
     }
-    let write_task = spawn net.write_all(&conn, bytes);
+    let write_task = net.write_all(&conn, bytes);
     let write_res = timeout(write_task, timeout_ms);
     let mut ok: bool = false;
     let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "write failed");
@@ -428,88 +428,44 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
     return nothing;
 }
 
-async fn serve_worker(conns: Channel<int>, cfg: ServerConfig, handler: Handler) -> nothing {
-    while true {
-        let handle_opt = conns.recv();
-        compare handle_opt {
-            Some(handle) => {
-                let cfg_copy = copy_server_config(&cfg);
-                let conn: TcpConn = { __opaque = handle };
-                let _ = serve_conn(conn, cfg_copy, handler).await();
-            }
-            nothing => {
-                break;
-            }
-        };
-    }
-    return nothing;
-}
-
 pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: Handler) -> nothing {
     let listen_res = net.listen(addr, port);
     compare listen_res {
         Success(listener) => {
             let worker_count: uint = pick_worker_count(&cfg);
-            let conn_queue = make_channel::<int>(worker_count);
+            let stop = make_channel::<uint>(worker_count);
             let mut workers: Task<nothing>[] = [];
             workers.reserve(worker_count);
             let mut worker_idx: uint = 0:uint;
             while worker_idx < worker_count {
                 let cfg_copy = copy_server_config(&cfg);
-                let worker_queue = conn_queue;
-                let worker = spawn serve_worker(worker_queue, cfg_copy, handler);
+                let worker_stop = stop;
+                let worker_listener = copy_listener(&listener);
+                let worker = @local spawn serve_accept_worker(worker_listener, worker_stop, cfg_copy, handler);
                 workers.push(worker);
                 worker_idx = worker_idx + 1:uint;
             }
-            while true {
-                if cfg.accept_timeout_ms == 0:uint {
-                    let accept_task = net.accept(&listener);
-                    let accept_res = accept_task.await();
-                    compare accept_res {
-                        Success(net_res) => {
-                            compare net_res {
-                                Success(conn) => {
-                                    let handle: int = conn.__opaque;
-                                    conn_queue.send(handle);
-                                }
-                                err => {
-                                    let _ = err;
-                                    break;
-                                }
-                            };
+            if cfg.accept_timeout_ms == 0:uint {
+                let _ = stop.recv();
+            } else {
+                let mut stopped: uint = 0:uint;
+                while stopped < worker_count {
+                    compare stop.recv() {
+                        Some(_) => {
+                            stopped = stopped + 1:uint;
                         }
-                        Cancelled() => {
-                            break;
-                        }
-                    };
-                } else {
-                    let accept_task = spawn net.accept(&listener);
-                    let accept_res = timeout(accept_task, cfg.accept_timeout_ms);
-                    compare accept_res {
-                        Success(net_res) => {
-                            compare net_res {
-                                Success(conn) => {
-                                    let handle: int = conn.__opaque;
-                                    conn_queue.send(handle);
-                                }
-                                err => {
-                                    let _ = err;
-                                    break;
-                                }
-                            };
-                        }
-                        Cancelled() => {
+                        nothing => {
                             break;
                         }
                     };
                 }
             }
-            conn_queue.close();
+            let _ = net.close_listener(own listener);
             while workers.__len() != 0:uint {
                 let worker = workers.pop().safe();
                 let _ = worker.await();
             }
-            let _ = net.close_listener(own listener);
+            stop.close();
         }
         err => {
             let _ = err;

@@ -100,24 +100,40 @@ static const NetConn* net_conn_from_borrowed(const void* conn) {
     if (conn == NULL) {
         return NULL;
     }
-    return *(const NetConn* const*)conn;
+    return rt_net_conn_canonical_const(*(const NetConn* const*)conn);
 }
 
 static NetConn* net_conn_from_value(void* conn) {
     if (conn == NULL) {
         return NULL;
     }
-    return (NetConn*)conn;
+    return rt_net_conn_canonical((NetConn*)conn);
 }
 
-// Stale-handle guard for public conn handles (Epic 10 Task 3, RV2-DEBT-010).
-// Reads ONLY the 8-byte handle word (fd, closed, generation_check): a public
-// TcpConn may be a reconstructed box that carries nothing beyond it (see the
-// NetConn contract in rt_net_handles.h), so the owner shard is resolved by
-// the registry probe, not from the struct. The probe validates under each
-// shard's lock, so a copy that raced an unsynchronized closed/fd write cannot
-// validate: a closed fd has no registered row, and a reused fd number carries
-// a newer generation whose low 16 bits mismatch the handle word's check.
+static int net_conn_owner_local(rt_executor* ex, const NetConn* c) {
+    if (ex == NULL || c == NULL) {
+        return 0;
+    }
+    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
+    if (shard_count <= 1) {
+        return 1;
+    }
+    uint32_t worker_shard = rt_debug_current_worker_shard_id();
+    if (worker_shard == c->owner_shard_id) {
+        return 1;
+    }
+    rt_task* task = rt_current_task();
+    if (task != NULL && task->owner_shard_valid != 0 && task->owner_shard_id == c->owner_shard_id) {
+        return 1;
+    }
+    rt_net_trace_non_owner_conn_denied();
+    return 0;
+}
+
+// Public conn guard (Epic 10 Task 3 recovery). c is already canonicalized from
+// the handle table, so fields beyond the public handle word are safe to read.
+// The fd registry check still protects validate-vs-close ordering, while the
+// handle table makes stale copied handles independent from OS fd reuse rules.
 static int net_conn_op_open(const NetConn* c) {
     if (c == NULL || c->closed || c->fd < 0) {
         return 0;
@@ -126,8 +142,10 @@ static int net_conn_op_open(const NetConn* c) {
     if (ex == NULL) {
         return 0;
     }
-    return rt_net_conn_probe_open(
-        ex, rt_debug_current_worker_shard_id(), c->fd, c->generation_check, NULL);
+    if (!net_conn_owner_local(ex, c)) {
+        return 0;
+    }
+    return rt_net_handle_open_on_owner(ex, c->owner_shard_id, c->fd, c->generation);
 }
 
 // Unlocked short-circuit for the accept path: live members are stamped
@@ -274,12 +292,13 @@ void* rt_net_connect(void* addr, uint64_t port) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
-    NetConn* conn = rt_net_conn_alloc(fd, owner_shard_id, 1, generation);
+    NetConn* conn = rt_net_conn_alloc(fd, owner_shard_id, generation);
     if (conn == NULL) {
         rt_net_forget_registered_fd_on_owner(ex, owner_shard_id, fd);
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
+    rt_net_place_current_task_on_owner(ex, owner_shard_id);
     return net_make_success_ptr(conn);
 }
 
@@ -294,6 +313,7 @@ void* rt_net_close_listener(void* listener) {
     }
     int close_errno = 0;
     rt_net_lifecycle_status status = rt_net_close_listener_members(ex, l, &close_errno);
+    rt_net_listener_registry_remove(l);
     if (status != RT_NET_LIFECYCLE_OK) {
         return net_make_error(close_errno == 0 ? NET_ERR_IO
                                                : net_error_code_from_errno(close_errno));
@@ -310,18 +330,15 @@ void* rt_net_close_conn(void* conn) {
     if (ex == NULL) {
         return net_make_error(NET_ERR_IO);
     }
-    // The owner shard comes from the registry probe, never from the struct:
-    // a reconstructed handle carries only the 8-byte handle word and its
-    // owner_shard_id bytes are out of bounds (RV2-DEBT-010 contract).
-    uint32_t owner_shard_id = UINT32_MAX;
-    if (!rt_net_conn_probe_open(
-            ex, rt_debug_current_worker_shard_id(), c->fd, c->generation_check, &owner_shard_id)) {
+    if (!net_conn_owner_local(ex, c) ||
+        !rt_net_handle_open_on_owner(ex, c->owner_shard_id, c->fd, c->generation)) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
     int close_errno = 0;
     rt_net_lifecycle_status status = rt_net_close_fd_on_owner(
-        ex, owner_shard_id, &c->fd, &c->closed, (uint64_t)c->generation_check, 1, &close_errno);
+        ex, c->owner_shard_id, &c->fd, &c->closed, c->generation, &close_errno);
     if (status == RT_NET_LIFECYCLE_OK) {
+        rt_net_conn_registry_remove(c);
         return net_make_success_nothing();
     }
     return net_make_error(
@@ -396,7 +413,7 @@ void* rt_net_accept(const void* listener) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
-    NetConn* conn = rt_net_conn_alloc(fd, member.owner_shard_id, 1, conn_generation);
+    NetConn* conn = rt_net_conn_alloc(fd, member.owner_shard_id, conn_generation);
     if (conn == NULL) {
         rt_net_forget_registered_fd_on_owner(ex, member.owner_shard_id, fd);
         close(fd);

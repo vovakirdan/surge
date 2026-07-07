@@ -119,6 +119,10 @@ fn copy_conn(conn: &TcpConn) -> TcpConn {
     return { __opaque = conn.__opaque };
 }
 
+fn copy_listener(listener: &TcpListener) -> TcpListener {
+    return { __opaque = listener.__opaque };
+}
+
 type HeaderMeta = {
     content_len: uint,
     has_content_len: bool,

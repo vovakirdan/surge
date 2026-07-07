@@ -1,0 +1,52 @@
+pragma module;
+
+async fn serve_accept_worker(listener: TcpListener, stop: Channel<uint>, cfg: ServerConfig, handler: Handler) -> nothing {
+    while true {
+        if cfg.accept_timeout_ms == 0:uint {
+            let accept_task = net.accept(&listener);
+            let accept_res = accept_task.await();
+            compare accept_res {
+                Success(net_res) => {
+                    compare net_res {
+                        Success(conn) => {
+                            let cfg_copy = copy_server_config(&cfg);
+                            let _ = serve_conn(conn, cfg_copy, handler).await();
+                        }
+                        err => {
+                            let _ = err;
+                            let _ = stop.try_send(1:uint);
+                            break;
+                        }
+                    };
+                }
+                Cancelled() => {
+                    let _ = stop.try_send(1:uint);
+                    break;
+                }
+            };
+        } else {
+            let accept_task = net.accept(&listener);
+            let accept_res = timeout(accept_task, cfg.accept_timeout_ms);
+            compare accept_res {
+                Success(net_res) => {
+                    compare net_res {
+                        Success(conn) => {
+                            let cfg_copy = copy_server_config(&cfg);
+                            let _ = serve_conn(conn, cfg_copy, handler).await();
+                        }
+                        err => {
+                            let _ = err;
+                            let _ = stop.try_send(1:uint);
+                            break;
+                        }
+                    };
+                }
+                Cancelled() => {
+                    let _ = stop.try_send(1:uint);
+                    break;
+                }
+            };
+        }
+    }
+    return nothing;
+}

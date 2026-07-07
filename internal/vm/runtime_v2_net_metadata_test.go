@@ -47,14 +47,16 @@ _Static_assert(NET_LISTENER_FALLBACK_HANDOFF != NET_LISTENER_SINGLE,
 
 _Static_assert(sizeof(((NetListenerMember*)0)->fd) == sizeof(int),
                "listener member must carry fd");
-_Static_assert(sizeof(((NetListenerMember*)0)->owner_shard_id) == sizeof(uint32_t),
-               "listener member must carry owner shard id");
-_Static_assert(sizeof(((NetListenerMember*)0)->closed) == sizeof(bool),
-               "listener member must carry closed state");
-_Static_assert(offsetof(NetListener, fd) == 0,
-               "listener must preserve legacy fd prefix for copied handles");
-_Static_assert(sizeof(((NetListener*)0)->fd) == sizeof(int),
-               "listener must carry compatibility fd");
+	_Static_assert(sizeof(((NetListenerMember*)0)->owner_shard_id) == sizeof(uint32_t),
+	               "listener member must carry owner shard id");
+	_Static_assert(sizeof(((NetListenerMember*)0)->closed) == sizeof(bool),
+	               "listener member must carry closed state");
+	_Static_assert(offsetof(NetListener, handle_id) == 0,
+	               "listener public handle word must be a stable runtime handle id");
+	_Static_assert(sizeof(((NetListener*)0)->handle_id) == sizeof(uint64_t),
+	               "listener handle id must fill the public opaque word");
+	_Static_assert(sizeof(((NetListener*)0)->fd) == sizeof(int),
+	               "listener must carry compatibility fd");
 _Static_assert(sizeof(((NetListener*)0)->kind) == sizeof(uint8_t),
                "listener must carry discriminator");
 _Static_assert(sizeof(((NetListener*)0)->closed) == sizeof(bool),
@@ -63,16 +65,20 @@ _Static_assert(sizeof(((NetListener*)0)->owner_shard_id) == sizeof(uint32_t),
                "listener must carry compatibility owner shard");
 _Static_assert(sizeof(((NetListener*)0)->member_count) == sizeof(size_t),
                "listener must carry member count");
-_Static_assert(sizeof(((NetListener*)0)->members) == sizeof(NetListenerMember*),
-               "listener must own member array");
-_Static_assert(sizeof(((NetConn*)0)->fd) == sizeof(int), "connection must carry fd");
-_Static_assert(sizeof(((NetConn*)0)->closed) == sizeof(bool),
-               "connection must carry closed state");
-_Static_assert(sizeof(((NetConn*)0)->owner_shard_valid) == sizeof(uint8_t),
-               "connection must carry owner validity");
-_Static_assert(sizeof(((NetConn*)0)->owner_shard_id) == sizeof(uint32_t),
-               "connection must carry owner shard id");
-`
+	_Static_assert(sizeof(((NetListener*)0)->members) == sizeof(NetListenerMember*),
+	               "listener must own member array");
+	_Static_assert(offsetof(NetConn, handle_id) == 0,
+	               "connection public handle word must be a stable runtime handle id");
+	_Static_assert(sizeof(((NetConn*)0)->handle_id) == sizeof(uint64_t),
+	               "connection handle id must fill the public opaque word");
+	_Static_assert(sizeof(((NetConn*)0)->fd) == sizeof(int), "connection must carry fd");
+	_Static_assert(sizeof(((NetConn*)0)->closed) == sizeof(bool),
+	               "connection must carry closed state");
+	_Static_assert(sizeof(((NetConn*)0)->owner_shard_id) == sizeof(uint32_t),
+	               "connection must carry owner shard id");
+	_Static_assert(sizeof(((NetConn*)0)->generation) == sizeof(uint64_t),
+	               "connection must carry full fd-registry generation");
+	`
 
 	cmd := exec.Command(
 		clang,

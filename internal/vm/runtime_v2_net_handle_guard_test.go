@@ -12,24 +12,21 @@ import (
 )
 
 // Epic 10 Task 3 (RV2-DEBT-010) behavior and static gates for the copied
-// net-handle generation contract. A public TcpConn may be a reconstructed
-// 8-byte box carrying only the handle word {fd, closed, owner_shard_valid,
-// generation_check}; every data-path op validates that word against the
-// owning shard's fd-registry row before touching the fd.
+// net-handle contract. A public TcpConn may be a reconstructed 8-byte box
+// carrying only the stable runtime handle id; every data-path op resolves that
+// id through the handle table before touching fd, owner, closed, or generation
+// fields.
 
-// netHandleStaleReuseSource is self-contained: it proves that a handle copy
-// taken before close cannot act on the SAME fd number after the OS reuses it
-// for a new connection. Flow: conn1/a1 open, snapshot conn1's handle word,
-// close ONLY conn1 so exactly one fd number is free, connect conn2 — on
-// Linux the lowest free descriptor, i.e. conn1's number, is reused — then
-// every stale op (read, write, close) must fail with exactly
-// NET_ERR_NOT_CONNECTED(5) from the generation guard: the reused fd's
-// registry row carries a newer generation whose low 16 bits mismatch the
-// stale handle word. The load-bearing clause is the stale close: it must NOT
-// close(2) conn2's live fd, proven by conn2 round-tripping a probe byte
-// afterwards. __opaque values are raw handle words, not bignum ints, so the
-// program only moves them (no arithmetic or comparison). Distinct exit codes
-// identify the first failed expectation.
+// netHandleStaleReuseSource is self-contained: it proves that a copied
+// accepted-connection handle taken before close cannot act after close, even
+// after a later connection opens. The proof is cross-platform: it does not
+// depend on Linux fd reuse order. Every stale op (read, write, close) must fail
+// with exactly NET_ERR_NOT_CONNECTED(5) because the handle id was removed from
+// the runtime handle table. The load-bearing clause is the stale close: it must
+// not close the newer accepted connection, proven by that connection still
+// writing a probe byte afterwards. __opaque values are raw handle words, not
+// bignum ints, so the program only moves them (no arithmetic or comparison).
+// Distinct exit codes identify the first failed expectation.
 const netHandleStaleReuseSource = `import stdlib/net as net;
 
 fn probe() -> byte[] {
@@ -38,8 +35,7 @@ fn probe() -> byte[] {
     return out;
 }
 
-@entrypoint
-fn main() -> int {
+async fn run() -> int {
     let listen_res = net.listen("127.0.0.1", %[1]d:uint);
     compare listen_res {
         Success(listener) => {
@@ -62,10 +58,11 @@ fn main() -> int {
                         Cancelled() => {}
                     };
                     if !a1_ok { return 31; }
-                    let stale_handle: int = conn1.__opaque;
-                    let close1_res = net.close_conn(own conn1);
-                    let close1_ok: bool = compare close1_res { Success(_) => true; _ => false; };
-                    if !close1_ok { return 32; }
+	                    let stale_handle: int = a1_handle;
+	                    let stale_live: TcpConn = { __opaque: stale_handle };
+	                    let close1_res = net.close_conn(own stale_live);
+	                    let close1_ok: bool = compare close1_res { Success(_) => true; _ => false; };
+	                    if !close1_ok { return 32; }
 
                     let conn2_res = net.connect("127.0.0.1", %[1]d:uint);
                     compare conn2_res {
@@ -105,25 +102,15 @@ fn main() -> int {
                             let sclose_code: uint = compare sclose_res { Success(_) => 0:uint; err => err.code; };
                             if sclose_code != 5:uint { return 24; }
 
-                            let cwrite_res = net.write_all(&conn2, probe()).await();
-                            let cwrite_ok: bool = compare cwrite_res {
-                                Success(res) => compare res { Success(_) => true; _ => false; };
-                                Cancelled() => false;
-                            };
-                            if !cwrite_ok { return 25; }
-                            let a2_conn: TcpConn = { __opaque: a2_handle };
-                            let aread_res = net.read_some(&a2_conn, 4:uint).await();
-                            let aread_ok: bool = compare aread_res {
-                                Success(res) => compare res {
-                                    Success(bytes) => bytes.__len() == 1:uint;
-                                    _ => false;
-                                };
-                                Cancelled() => false;
-                            };
-                            if !aread_ok { return 26; }
-                            let _ = net.close_conn(own conn2);
-                            let a2_close: TcpConn = { __opaque: a2_handle };
-                            let _ = net.close_conn(own a2_close);
+	                            let a2_conn: TcpConn = { __opaque: a2_handle };
+	                            let cwrite_res = net.write_all(&a2_conn, probe()).await();
+	                            let cwrite_ok: bool = compare cwrite_res {
+	                                Success(res) => compare res { Success(_) => true; _ => false; };
+	                                Cancelled() => false;
+	                            };
+	                            if !cwrite_ok { return 25; }
+	                            let a2_close: TcpConn = { __opaque: a2_handle };
+	                            let _ = net.close_conn(own a2_close);
                             let _ = net.close_listener(own listener);
                             print("ok");
                             return 0;
@@ -138,13 +125,22 @@ fn main() -> int {
     };
     return 38;
 }
+
+@entrypoint
+fn main() -> int {
+    let res = run().await();
+    return compare res {
+        Success(code) => code;
+        Cancelled() => 99;
+    };
+}
 `
 
 // TestRuntimeV2NetHandleStaleCopyReusedFD: a stale copied/reconstructed conn
-// handle must not read, write, or close an OS fd number that has been reused
-// by a newer connection; each stale op fails with the guard's stable
-// NET_ERR_NOT_CONNECTED, and the reusing connection stays fully functional
-// (in particular, the stale close must not close(2) the live fd).
+// handle must not read, write, or close after its handle id is closed; each
+// stale op fails with the guard's stable NET_ERR_NOT_CONNECTED, and a newer
+// connection stays functional (in particular, the stale close must not close
+// the live fd).
 func TestRuntimeV2NetHandleStaleCopyReusedFD(t *testing.T) {
 	ensureLLVMToolchain(t)
 	port := pickFreePort(t)
@@ -166,10 +162,9 @@ func TestRuntimeV2NetHandleStaleCopyReusedFD(t *testing.T) {
 }
 
 // TestRuntimeV2NetHandleGuardStaticShape pins the guard wiring: the handle
-// word carries generation_check, every conn data-path op validates through
-// net_conn_op_open, the close path revalidates under the owner lock, and the
-// probe resolves the owner shard from the registry instead of reading beyond
-// the 8-byte handle word.
+// word carries a stable runtime handle id, every conn data-path op validates
+// through net_conn_op_open, the close path revalidates under the owner lock,
+// and no conn path reads beyond the handle word before canonical lookup.
 func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 	root := repoRoot(t)
 	read := func(rel string) string {
@@ -181,9 +176,15 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 		return string(data)
 	}
 	handles := read("runtime/native/rt_net_handles.h")
-	for _, needle := range []string{"generation_check", "handle word"} {
+	for _, needle := range []string{"handle id", "never an OS fd", "rt_net_conn_canonical"} {
 		if !strings.Contains(handles, needle) {
 			t.Fatalf("rt_net_handles.h must document the handle-word contract; missing %q", needle)
+		}
+	}
+	handleSource := read("runtime/native/rt_net_handles.c")
+	for _, needle := range []string{"net_handle_registry_add", "net_handle_registry_lookup", "NET_HANDLE_CONN"} {
+		if !strings.Contains(handleSource, needle) {
+			t.Fatalf("rt_net_handles.c must own the stable handle table; missing %q", needle)
 		}
 	}
 	netSource := read("runtime/native/rt_net.c")
@@ -201,19 +202,30 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 			t.Fatalf("data-path op %s must call the stale-handle guard net_conn_op_open", fn)
 		}
 	}
-	if !strings.Contains(netSource, "rt_net_conn_probe_open(") {
-		t.Fatal("rt_net.c must resolve conn owner shards through rt_net_conn_probe_open")
+	for _, needle := range []string{"rt_net_conn_canonical", "net_conn_owner_local", "rt_net_handle_open_on_owner"} {
+		if !strings.Contains(netSource, needle) {
+			t.Fatalf("rt_net.c must canonicalize and validate conn handles; missing %q", needle)
+		}
+	}
+	if strings.Contains(netSource, "rt_net_conn_probe_open(") {
+		t.Fatal("rt_net.c must not use fd-scanning conn probes after stable handle ids")
 	}
 	lifecycle := read("runtime/native/rt_net_lifecycle.c")
-	for _, needle := range []string{"rt_fd_registry_handle_check_open", "rt_fd_registry_handle_open"} {
+	for _, needle := range []string{"rt_fd_registry_handle_open"} {
 		if !strings.Contains(lifecycle, needle) {
 			t.Fatalf("close path must revalidate the handle under the owner lock; missing %q", needle)
 		}
 	}
+	if strings.Contains(lifecycle, "rt_fd_registry_handle_check_open") {
+		t.Fatal("close path must not use the removed 16-bit generation check")
+	}
 	registry := read("runtime/native/rt_fd_registry.c")
-	for _, needle := range []string{"fd_index", "rt_fd_registry_handle_check_open"} {
+	for _, needle := range []string{"fd_index", "rt_fd_registry_handle_open"} {
 		if !strings.Contains(registry, needle) {
 			t.Fatalf("fd registry must provide the O(1) guard lookup; missing %q", needle)
 		}
+	}
+	if strings.Contains(registry, "rt_fd_registry_handle_check_open") {
+		t.Fatal("fd registry must not keep the removed 16-bit public-handle predicate")
 	}
 }

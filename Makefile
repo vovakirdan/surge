@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -99,6 +99,7 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-waiter-check
 	$(MAKE) runtime-v2-fd-registry-check
 	$(MAKE) runtime-v2-net-handle-check
+	$(MAKE) runtime-v2-http-owner-check
 	$(MAKE) runtime-v2-accept-check
 	$(MAKE) runtime-v2-lock-check
 	$(MAKE) runtime-v2-lifecycle-check
@@ -127,6 +128,10 @@ runtime-v2-fd-registry-check:
 runtime-v2-net-handle-check:
 	@echo ">> Running Runtime V2 net-handle guard gate (Epic 10 Task 3)"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetHandle(StaleCopyReusedFD|GuardStaticShape)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
+
+runtime-v2-http-owner-check:
+	@echo ">> Running Runtime V2 HTTP owner-local gate (Epic 10 Task 4)"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HTTPOwnerLocal(StaticShape|Behavior)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-accept-check:
 	@echo ">> Running Runtime V2 accept CI gate"

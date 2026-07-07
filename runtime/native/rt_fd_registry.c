@@ -288,17 +288,6 @@ int rt_fd_registry_handle_open(const rt_fd_registry* registry, int fd, uint64_t 
     return entry->generation == generation;
 }
 
-int rt_fd_registry_handle_check_open(const rt_fd_registry* registry,
-                                     int fd,
-                                     uint16_t generation_check) {
-    const rt_fd_entry* entry = rt_fd_registry_find_const(registry, fd);
-    if (entry == NULL || entry->registered_open == 0 ||
-        entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
-        return 0;
-    }
-    return (uint16_t)(entry->generation & 0xFFFFU) == generation_check;
-}
-
 // Registration-side attach: find or create the owning fd row and set the
 // interest flag for the key's kind. Idempotent for duplicate same-key waiters
 // (flags, not counts: the waiter store decides when the last waiter leaves).
