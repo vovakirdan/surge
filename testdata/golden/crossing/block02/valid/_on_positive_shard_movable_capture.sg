@@ -1,0 +1,15 @@
+// Epic 11 Block 2 positive: own @shard_movable capture (ON-CAP-V002)
+@shard_movable
+type Request = {
+    id: int,
+};
+
+fn compute(req: own Request) -> int {
+    return req.id;
+}
+
+fn run(req: own Request) crosses -> TaskResult<int> {
+    return on pool {
+        ret compute(own req);
+    };
+}

@@ -1,0 +1,15 @@
+// EXPECT-DIAG: SEM3168
+// Epic 11 Block 3 negative: own non-@shard_movable capture (C05)
+type Job = {
+    id: int,
+};
+
+fn run_job(job: own Job) -> int {
+    return job.id;
+}
+
+fn start(job: own Job) crosses -> far Task<int> {
+    return spawn on distributed {
+        ret run_job(own job);
+    };
+}

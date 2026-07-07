@@ -1,0 +1,10 @@
+// Epic 11 Block 1 positive: far type alias (FAR-PARSE-009, FAR-ID-001)
+type RemoteConn = far TcpConn;
+
+fn register(conn: far TcpConn) -> nothing {
+    return nothing;
+}
+
+fn use_alias(conn: RemoteConn) -> nothing {
+    return register(conn);
+}

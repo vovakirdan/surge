@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3166
+// Epic 11 Block 4 negative: @nosend capture into spawn on (CAPTURE-011)
+@nosend
+type LocalOnly = {
+    id: int,
+};
+
+fn peek(v: own LocalOnly) -> int {
+    return v.id;
+}
+
+fn run(v: own LocalOnly) crosses -> far Task<int> {
+    return spawn on pool {
+        ret peek(own v);
+    };
+}

@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3165
+// Epic 11 Block 2 negative: shared borrow capture (ON-CAP-N001)
+type Request = {
+    id: int,
+};
+
+fn read(r: &Request) -> int {
+    return r.id;
+}
+
+fn run(req: Request) crosses -> TaskResult<int> {
+    let r: &Request = &req;
+    return on pool {
+        ret read(r);
+    };
+}

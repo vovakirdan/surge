@@ -1,0 +1,9 @@
+// EXPECT-DIAG: SYN2016
+// Epic 11 Block 4 negative: @shard_pinned on param (ATTR-010)
+type Conn = {
+    fd: int,
+};
+
+fn f(@shard_pinned conn: Conn) -> nothing {
+    return nothing;
+}

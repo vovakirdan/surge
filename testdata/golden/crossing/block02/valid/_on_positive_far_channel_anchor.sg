@@ -1,0 +1,12 @@
+// Epic 11 Block 2 positive: anchored far channel send (ON-DST-V006, ON-ANCHOR-V001)
+@shard_movable
+type Message = {
+    id: int,
+};
+
+fn send_job(ch: far Channel<Message>, msg: own Message) crosses -> TaskResult<nothing> {
+    return on ch {
+        ch.send(own msg);
+        ret nothing;
+    };
+}

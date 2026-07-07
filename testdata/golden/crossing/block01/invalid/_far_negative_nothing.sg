@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SEM3141
+// Epic 11 Block 1 negative: far nothing (FAR-CAP-NEG-001)
+fn f(x: far nothing) -> nothing {
+    return nothing;
+}

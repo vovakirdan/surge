@@ -1,0 +1,10 @@
+// Epic 11 Block 4 positive: @shard_movable containing @shard_movable (MOVABLE-002)
+@shard_movable
+type Inner = {
+    id: int,
+};
+
+@shard_movable
+type Outer = {
+    inner: Inner,
+};

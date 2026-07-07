@@ -1,0 +1,12 @@
+// Epic 11 Block 2 positive: Placement (Copy) captured into block (ON-CAP-V004)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn run(n: int, other: Placement) crosses -> TaskResult<int> {
+    return on pool {
+        let p: Placement = other;
+        let _ = p;
+        ret double(n);
+    };
+}

@@ -1,0 +1,15 @@
+// EXPECT-DIAG: SEM3163
+// Epic 11 Block 3 negative: non-crosses caller of crosses fn (X04)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) crosses -> far Task<int> {
+    return spawn on pool {
+        ret double(n);
+    };
+}
+
+fn caller(n: int) -> far Task<int> {
+    return start(n);
+}

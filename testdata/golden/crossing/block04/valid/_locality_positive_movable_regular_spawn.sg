@@ -1,0 +1,14 @@
+// Epic 11 Block 4 positive: @shard_movable + @send via ordinary spawn (LOCALITY-004)
+@send
+@shard_movable
+type Job = {
+    id: int,
+};
+
+async fn work(job: own Job) -> int {
+    return job.id;
+}
+
+fn run(job: own Job) -> Task<int> {
+    return spawn work(own job);
+}

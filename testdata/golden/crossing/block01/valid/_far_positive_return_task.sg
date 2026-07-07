@@ -1,0 +1,4 @@
+// Epic 11 Block 1 positive: far Task return type (FAR-LEX-003, FAR-PARSE-006)
+fn handle(t: far Task<int>) -> far Task<int> {
+    return t;
+}

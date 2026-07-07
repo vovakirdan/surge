@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3169
+// Epic 11 Block 4 negative: @send-only crosses via spawn on (LOCALITY-006)
+@send
+type Job = {
+    id: int,
+};
+
+fn run_job(job: own Job) -> int {
+    return job.id;
+}
+
+fn run(job: own Job) crosses -> far Task<int> {
+    return spawn on distributed {
+        ret run_job(own job);
+    };
+}

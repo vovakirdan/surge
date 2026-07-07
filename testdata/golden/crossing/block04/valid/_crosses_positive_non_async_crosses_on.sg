@@ -1,0 +1,10 @@
+// Epic 11 Block 4 positive: non-async crosses fn with on (CROSSES-EFFECT-005)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn route(n: int) crosses -> TaskResult<int> {
+    return on pool {
+        ret double(n);
+    };
+}

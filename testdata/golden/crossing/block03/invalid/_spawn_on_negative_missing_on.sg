@@ -1,0 +1,7 @@
+// EXPECT-DIAG: SEM3111
+// Epic 11 Block 3 negative: spawn without on (S06)
+fn start() crosses -> far Task<int> {
+    return spawn distributed {
+        ret 1;
+    };
+}

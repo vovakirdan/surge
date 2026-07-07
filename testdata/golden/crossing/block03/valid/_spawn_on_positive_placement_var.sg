@@ -1,0 +1,11 @@
+// Epic 11 Block 3 positive: spawn on dst where dst: Placement (D04)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) crosses -> far Task<int> {
+    let dst: Placement = pool;
+    return spawn on dst {
+        ret double(n);
+    };
+}

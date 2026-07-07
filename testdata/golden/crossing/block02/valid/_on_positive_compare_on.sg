@@ -1,0 +1,26 @@
+// Epic 11 Block 2 positive: compare on placement (ON-CMP-V001)
+@shard_movable
+type Request = {
+    id: int,
+};
+
+type Response = {
+    code: int,
+};
+
+fn compute(req: own Request) -> Response {
+    return Response { code: req.id };
+}
+
+fn default_response() -> Response {
+    return Response { code: 0 };
+}
+
+async fn route(req: own Request) crosses -> Response {
+    compare on pool {
+        ret compute(own req);
+    } {
+        Success(v) => return v;
+        Cancelled() => return default_response();
+    };
+}

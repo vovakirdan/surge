@@ -1,0 +1,11 @@
+// Epic 11 Block 2 positive: ret nothing result (ON-BODY-V002)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn run(n: int) crosses -> TaskResult<nothing> {
+    return on pool {
+        let _ = double(n);
+        ret nothing;
+    };
+}

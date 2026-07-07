@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SEM3164
+// Epic 11 Block 4 negative: far Task cancel without crosses (CROSSES-EFFECT-012)
+fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}

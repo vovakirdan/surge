@@ -1,0 +1,5 @@
+// EXPECT-DIAG: FUT7016
+// Epic 11 Block 3 negative: far Task await backend unavailable (G02)
+fn wait_result(t: far Task<int>) crosses -> TaskResult<int> {
+    return t.await();
+}

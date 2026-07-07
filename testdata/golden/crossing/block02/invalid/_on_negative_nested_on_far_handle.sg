@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3153
+// Epic 11 Block 2 negative: nested on far handle (ON-NEST-N002)
+fn run(ch: far Channel<int>, conn: far TcpConn) crosses -> TaskResult<nothing> {
+    return on ch {
+        let inner: TaskResult<nothing> = on conn {
+            conn.close();
+            ret nothing;
+        };
+        ret nothing;
+    };
+}

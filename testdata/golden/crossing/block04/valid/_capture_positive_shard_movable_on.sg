@@ -1,0 +1,15 @@
+// Epic 11 Block 4 positive: own @shard_movable into on (CAPTURE-003)
+@shard_movable
+type Job = {
+    id: int,
+};
+
+fn run_job(job: own Job) -> int {
+    return job.id;
+}
+
+fn run(job: own Job) crosses -> TaskResult<int> {
+    return on pool {
+        ret run_job(own job);
+    };
+}

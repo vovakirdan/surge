@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3162
+// Epic 11 Block 4 negative: on in non-crosses fn (CROSSES-EFFECT-007)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn route(n: int) -> TaskResult<int> {
+    return on pool {
+        ret double(n);
+    };
+}

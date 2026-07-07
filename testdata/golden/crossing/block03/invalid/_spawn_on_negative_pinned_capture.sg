@@ -1,0 +1,8 @@
+// EXPECT-DIAG: SEM3167
+// Epic 11 Block 3 negative: own @shard_pinned capture (C07)
+fn start(conn: own TcpConn) crosses -> far Task<nothing> {
+    return spawn on pool {
+        conn.close();
+        ret nothing;
+    };
+}

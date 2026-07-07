@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SEM3138
+// Epic 11 Block 1 negative: far &mut T (FAR-PARSE-NEG-004, FAR-OWN-NEG-003)
+fn f(x: far &mut TcpConn) -> nothing {
+    return nothing;
+}

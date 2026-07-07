@@ -1,0 +1,14 @@
+// Epic 11 Block 4 positive: crosses fn calling crosses fn (CROSSES-EFFECT-003)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn inner(n: int) crosses -> TaskResult<int> {
+    return on pool {
+        ret double(n);
+    };
+}
+
+fn outer(n: int) crosses -> TaskResult<int> {
+    return inner(n);
+}

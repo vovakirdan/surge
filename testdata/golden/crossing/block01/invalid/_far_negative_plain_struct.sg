@@ -1,0 +1,9 @@
+// EXPECT-DIAG: SEM3141
+// Epic 11 Block 1 negative: far over plain struct with no marker (FAR-CAP-NEG-007)
+type PlainStruct = {
+    id: int,
+};
+
+fn f(x: far PlainStruct) -> nothing {
+    return nothing;
+}

@@ -1,0 +1,6 @@
+// EXPECT-DIAG: SYN2016
+// Epic 11 Block 4 negative: @shard_movable on fn (ATTR-004)
+@shard_movable
+fn f() -> nothing {
+    return nothing;
+}

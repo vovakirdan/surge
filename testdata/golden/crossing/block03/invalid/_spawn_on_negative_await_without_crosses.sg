@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SEM3164
+// Epic 11 Block 3 negative: far Task await without crosses (T07)
+fn wait_result(t: far Task<int>) -> TaskResult<int> {
+    return t.await();
+}

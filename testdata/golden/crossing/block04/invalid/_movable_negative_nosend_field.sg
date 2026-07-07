@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3171
+// Epic 11 Block 4 negative: @shard_movable with owned @nosend field (MOVABLE-009)
+@nosend
+type LocalOnly = {
+    id: int,
+};
+
+@shard_movable
+type Job = {
+    local: LocalOnly,
+};

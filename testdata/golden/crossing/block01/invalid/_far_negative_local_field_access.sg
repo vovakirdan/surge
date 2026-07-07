@@ -1,0 +1,9 @@
+// EXPECT-DIAG: SEM3142
+// Epic 11 Block 1 negative: local field access on far handle (FAR-OPS-NEG-006)
+type Record = {
+    id: int,
+};
+
+fn f(value: far Record) -> int {
+    return value.id;
+}

@@ -1,0 +1,8 @@
+// EXPECT-DIAG: SEM3151
+// Epic 11 Block 2 negative: remote write through far TcpConn (ON-TCP-N002)
+fn run(conn: far TcpConn, buf: &byte[]) crosses -> TaskResult<nothing> {
+    return on conn {
+        conn.write(buf);
+        ret nothing;
+    };
+}

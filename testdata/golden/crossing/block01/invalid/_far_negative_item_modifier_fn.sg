@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SYN2015
+// Epic 11 Block 1 negative: far as item modifier on fn (FAR-PARSE-NEG-009)
+far fn f() -> nothing {
+    return nothing;
+}

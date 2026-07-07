@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3146
+// Epic 11 Block 2 negative: bare function name destination (ON-DST-N005)
+fn route_for(user_id: uint64) -> Placement {
+    return distributed;
+}
+
+fn run() crosses -> TaskResult<int> {
+    return on route_for {
+        ret 1;
+    };
+}

@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3015
+// Epic 11 Block 3 negative: far Task returned as local Task (T04)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) crosses -> Task<int> {
+    return spawn on distributed {
+        ret double(n);
+    };
+}

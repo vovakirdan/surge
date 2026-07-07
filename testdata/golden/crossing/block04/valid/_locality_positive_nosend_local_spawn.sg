@@ -1,0 +1,13 @@
+// Epic 11 Block 4 positive: @nosend captured by @local spawn (LOCALITY-003)
+@nosend
+type LocalOnly = {
+    id: int,
+};
+
+async fn consume(v: own LocalOnly) -> int {
+    return v.id;
+}
+
+fn run(v: own LocalOnly) -> Task<int> {
+    return @local spawn consume(own v);
+}

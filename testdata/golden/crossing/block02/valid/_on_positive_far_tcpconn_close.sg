@@ -1,0 +1,7 @@
+// Epic 11 Block 2 positive: anchored far TcpConn close (ON-DST-V007, ON-ANCHOR-V002, ON-TCP-V001)
+fn close_remote(conn: far TcpConn) crosses -> TaskResult<nothing> {
+    return on conn {
+        conn.close();
+        ret nothing;
+    };
+}

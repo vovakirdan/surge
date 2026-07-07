@@ -1,0 +1,13 @@
+// EXPECT-DIAG: SEM3150
+// Epic 11 Block 2 negative: unanchored far channel operation (ON-ANCHOR-N001)
+@shard_movable
+type Message = {
+    id: int,
+};
+
+fn run(a: far Channel<Message>, b: far Channel<Message>, msg: own Message) crosses -> TaskResult<nothing> {
+    return on a {
+        b.send(own msg);
+        ret nothing;
+    };
+}

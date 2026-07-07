@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SYN2034
+// Epic 11 Block 4 negative: duplicate crosses (CROSSES-GRAMMAR-010)
+fn route(req: int) crosses crosses -> int {
+    return req;
+}

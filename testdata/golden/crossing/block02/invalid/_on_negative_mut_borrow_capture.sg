@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3165
+// Epic 11 Block 2 negative: mutable borrow capture (ON-CAP-N002)
+type Request = {
+    id: int,
+};
+
+fn bump(r: &mut Request) -> int {
+    return r.id;
+}
+
+fn run(mut req: Request) crosses -> TaskResult<int> {
+    let r: &mut Request = &mut req;
+    return on pool {
+        ret bump(r);
+    };
+}

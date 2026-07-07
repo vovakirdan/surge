@@ -1,0 +1,6 @@
+// EXPECT-DIAG: SYN2031
+// Epic 11 Block 1 negative: reserved keyword as binding (FAR-LEX-NEG-001)
+fn main() -> int {
+    let far: int = 1;
+    return far;
+}

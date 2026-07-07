@@ -1,0 +1,4 @@
+// Epic 11 Block 4 positive: async fn without crosses and no remote work (CROSSES-EFFECT-006)
+async fn compute(n: int) -> int {
+    return n * 2;
+}

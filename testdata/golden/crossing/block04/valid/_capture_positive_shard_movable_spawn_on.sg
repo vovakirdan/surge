@@ -1,0 +1,15 @@
+// Epic 11 Block 4 positive: own @shard_movable into spawn on (CAPTURE-004)
+@shard_movable
+type Job = {
+    id: int,
+};
+
+fn run_job(job: own Job) -> int {
+    return job.id;
+}
+
+fn run(job: own Job) crosses -> far Task<int> {
+    return spawn on distributed {
+        ret run_job(own job);
+    };
+}

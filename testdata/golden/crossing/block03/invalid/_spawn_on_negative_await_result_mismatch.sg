@@ -1,0 +1,6 @@
+// EXPECT-DIAG: SEM3015
+// Epic 11 Block 3 negative: far Task await result treated as T (T11)
+fn wait_result(t: far Task<int>) crosses -> int {
+    let r: int = t.await();
+    return r;
+}

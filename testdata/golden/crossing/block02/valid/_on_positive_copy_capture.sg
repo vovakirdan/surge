@@ -1,0 +1,11 @@
+// Epic 11 Block 2 positive: Copy capture (ON-CAP-V001)
+fn add(x: int, y: int) -> int {
+    return x + y;
+}
+
+fn run(n: int) crosses -> TaskResult<int> {
+    let k: int = 7;
+    return on pool {
+        ret add(n, k);
+    };
+}

@@ -1,0 +1,10 @@
+// Epic 11 Block 3 positive: return far Task from crosses fn (S03, T03, L04)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) crosses -> far Task<int> {
+    return spawn on distributed {
+        ret double(n);
+    };
+}

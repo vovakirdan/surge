@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3169
+// Epic 11 Block 4 negative: @send-only crosses via on (LOCALITY-005)
+@send
+type Job = {
+    id: int,
+};
+
+fn run_job(job: own Job) -> int {
+    return job.id;
+}
+
+fn run(job: own Job) crosses -> TaskResult<int> {
+    return on pool {
+        ret run_job(own job);
+    };
+}

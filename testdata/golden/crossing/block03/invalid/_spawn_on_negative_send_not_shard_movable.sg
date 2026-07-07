@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3169
+// Epic 11 Block 3 negative: @send but not @shard_movable (C08)
+@send
+type SendOnly = {
+    id: int,
+};
+
+fn use_value(v: own SendOnly) -> int {
+    return v.id;
+}
+
+fn start(v: own SendOnly) crosses -> far Task<int> {
+    return spawn on distributed {
+        ret use_value(own v);
+    };
+}

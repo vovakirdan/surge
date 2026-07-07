@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SYN2031
+// Epic 11 Block 1 negative: reserved keyword as function name (FAR-LEX-NEG-002)
+fn far() -> nothing {
+    return nothing;
+}

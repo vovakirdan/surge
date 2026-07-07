@@ -1,0 +1,14 @@
+// Epic 11 Block 4 positive: async fn crosses with on (CROSSES-GRAMMAR-003, CROSSES-EFFECT-004)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+async fn route(n: int) crosses -> int {
+    let r: TaskResult<int> = on pool {
+        ret double(n);
+    };
+    return compare r {
+        Success(v) => v;
+        Cancelled() => 0;
+    };
+}

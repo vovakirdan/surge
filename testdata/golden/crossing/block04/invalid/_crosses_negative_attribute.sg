@@ -1,0 +1,6 @@
+// EXPECT-DIAG: SEM3173
+// Epic 11 Block 4 negative: @crosses attribute (CROSSES-GRAMMAR-006)
+@crosses
+fn route(req: int) -> int {
+    return req;
+}

@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3165
+// Epic 11 Block 3 negative: shared borrow capture (C03)
+type Job = {
+    id: int,
+};
+
+fn read(r: &Job) -> int {
+    return r.id;
+}
+
+fn start(job: Job) crosses -> far Task<int> {
+    let r: &Job = &job;
+    return spawn on pool {
+        ret read(r);
+    };
+}

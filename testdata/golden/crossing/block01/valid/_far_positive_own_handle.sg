@@ -1,0 +1,8 @@
+// Epic 11 Block 1 positive: own far handle move (FAR-PARSE-002, FAR-OWN-001)
+fn take(x: own far TcpConn) -> nothing {
+    return nothing;
+}
+
+fn caller(h: own far TcpConn) -> nothing {
+    return take(own h);
+}

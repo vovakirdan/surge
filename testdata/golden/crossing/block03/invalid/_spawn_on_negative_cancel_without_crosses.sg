@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SEM3164
+// Epic 11 Block 3 negative: far Task cancel without crosses (T08)
+fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}

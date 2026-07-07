@@ -1,0 +1,8 @@
+// EXPECT-DIAG: SEM3161
+// Epic 11 Block 3 negative: unreachable after ret (B06)
+fn start() crosses -> far Task<int> {
+    return spawn on pool {
+        ret 1;
+        ret 2;
+    };
+}

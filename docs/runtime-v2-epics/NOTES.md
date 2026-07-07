@@ -3,6 +3,53 @@
 This is the live handoff log for Runtime V2 work. Keep it current during each
 task, then move durable decisions into the owning epic document before closeout.
 
+## Epic 11 Prep Pass (2026-07-07)
+
+Documentation-only prep pass over the Epic 11 crossing-surface documents
+(`11-explicit-crossing-language-surface.md` and `11-tasks/block-01..04`), plus a
+new `11-tasks/README.md`. No compiler, runtime, or stdlib code was changed; the
+stdlib/prelude edits are recorded as Block 4 implementation tasks, not performed.
+Decision source: user-approved design decisions in ruflo memory
+`surge-runtime-v2/epic11-prep-decisions`; compiler infrastructure map in
+`surge-runtime-v2/epic11-infra-map`; final fixture matrices in
+`surge-runtime-v2/epic11-final-matrices`.
+
+What changed:
+
+- `far` handles are affine (move-only); `far Task<T>` strictly affine, with
+  `.await()`/`.cancel()` consuming the handle. Copyable handles postponed.
+- Remote-handle-capable defined once: intrinsic `Channel<T>`, intrinsic
+  `Task<T>`, and `@shard_pinned` types. Arrays are not capable: `far T[]` parses
+  but sema-rejects as postponed.
+- Keyword strategy recorded: `far` hard reserved; `on` and `crosses` contextual
+  (back-compat positives `let on = 1;` / `let crosses = 1;`).
+- Epic 11 execution scope recorded: surface plus lowering guards only; crossing
+  execution emits a deterministic backend-unavailable diagnostic (`on` and
+  `spawn on`); all positive golden fixtures are compile-only.
+- Diagnostic dedup: Block 4 owns the crosses-missing and capture families;
+  Blocks 2/3 reference them. All Block 3 placeholders converted to kebab-case.
+  Reuse-first allocation policy annotated (per lead + infra map): e.g.
+  `SemaUseAfterMove` 3130, `SemaTaskNotAwaited` 3107, `SemaSpawnNotTask` 3111,
+  `SemaTypeMismatch` 3015, `SemaBorrowConflict` 3018, `SemaRawPointerNotAllowed`
+  3129, `SynModifierNotAllowed` 2015; postponed surfaces to `FUT` 7xxx.
+- Block 3 S06 (`spawn distributed { ... }`) re-specified to the existing local
+  `spawn` grammar path (`SemaSpawnNotTask` 3111), not a new missing-`on` code.
+  Block 3 B07 re-specified as a local-`Task<T>` capture violation, not an
+  illegal-await. `far Task<T>` lifecycle rows added (drop / double-await /
+  await-after-cancel).
+- `far TcpConn` control-op list closed to `{ close() }` (removed `cancel_read`
+  row/fixture). Placement recorded as a `Copy`, shard-movable intrinsic with
+  capture rows. `compare on` and statement-position `on` positives added.
+  Drop-site contract (own `@shard_movable` dropped on destination if not
+  returned) and out-of-range `shard(id)` runtime contract recorded.
+- Draft 9 documentation scope recorded in the epic Documentation Contract.
+- New debt: RV2-DEBT-024 (`crosses` effect-polymorphism), RV2-DEBT-025
+  (`@far_copy` opt-in), RV2-DEBT-026 (`far` arrays), all postponed.
+
+Next: test-master reserves the diagnostic codes in `internal/diag/codes.go`
+(reuse-first) and lands golden fixtures under `testdata/golden/.../invalid/`
+following the forced implementation order in `11-tasks/README.md`.
+
 ## Epic 8 Closeout (Consolidated 2026-07-06)
 
 Epic 8 (Task Lifecycle Lane And Net Fairness) is COMPLETE at closeout commit on

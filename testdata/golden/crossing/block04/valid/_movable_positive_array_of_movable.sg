@@ -1,0 +1,10 @@
+// Epic 11 Block 4 positive: @shard_movable array of @shard_movable (MOVABLE-003)
+@shard_movable
+type Job = {
+    id: int,
+};
+
+@shard_movable
+type Batch = {
+    jobs: Job[],
+};

@@ -1,0 +1,10 @@
+// EXPECT-DIAG: SEM3141
+// Epic 11 Block 1 negative: far over @nosend local-only type (FAR-CAP-NEG-006)
+@nosend
+type LocalOnly = {
+    id: int,
+};
+
+fn f(x: far LocalOnly) -> nothing {
+    return nothing;
+}

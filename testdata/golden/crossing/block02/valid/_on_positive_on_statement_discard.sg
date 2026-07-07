@@ -1,0 +1,12 @@
+// Epic 11 Block 2 positive: on used in statement position (ON-STMT-V001)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn run(n: int) crosses -> nothing {
+    on pool {
+        let _ = double(n);
+        ret nothing;
+    };
+    return nothing;
+}

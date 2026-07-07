@@ -1,0 +1,5 @@
+// Epic 11 Block 3 positive: far Task await in crosses fn (T05, T10)
+fn wait_result(t: far Task<int>) crosses -> TaskResult<int> {
+    let r: TaskResult<int> = t.await();
+    return r;
+}

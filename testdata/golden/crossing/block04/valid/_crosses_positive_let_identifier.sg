@@ -1,0 +1,5 @@
+// Epic 11 Block 4 positive: `crosses` remains a valid identifier (CROSSES-GRAMMAR-016)
+fn f() -> int {
+    let crosses: int = 1;
+    return crosses;
+}

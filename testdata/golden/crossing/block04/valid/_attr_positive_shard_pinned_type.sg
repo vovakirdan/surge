@@ -1,0 +1,5 @@
+// Epic 11 Block 4 positive: @shard_pinned on type (ATTR-002)
+@shard_pinned
+type PinnedResource = {
+    fd: int,
+};

@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3156
+// Epic 11 Block 3 negative: bare function name destination (D08)
+fn route_for(user_id: uint64) -> Placement {
+    return distributed;
+}
+
+fn start() crosses -> far Task<int> {
+    return spawn on route_for {
+        ret 1;
+    };
+}

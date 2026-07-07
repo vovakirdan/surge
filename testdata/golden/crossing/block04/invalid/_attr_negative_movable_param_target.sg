@@ -1,0 +1,9 @@
+// EXPECT-DIAG: SYN2016
+// Epic 11 Block 4 negative: @shard_movable on param (ATTR-006)
+type Job = {
+    id: int,
+};
+
+fn f(@shard_movable job: Job) -> nothing {
+    return nothing;
+}

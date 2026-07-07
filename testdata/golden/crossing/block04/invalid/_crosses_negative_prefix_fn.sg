@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SYN2034
+// Epic 11 Block 4 negative: prefix crosses fn (CROSSES-GRAMMAR-007)
+crosses fn route(req: int) -> int {
+    return req;
+}

@@ -1,0 +1,14 @@
+// Epic 11 Block 2 positive: on route_for(id) returning Placement (ON-DST-V005)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn route_for(user_id: uint64) -> Placement {
+    return distributed;
+}
+
+fn score(n: int, uid: uint64) crosses -> TaskResult<int> {
+    return on route_for(uid) {
+        ret double(n);
+    };
+}
