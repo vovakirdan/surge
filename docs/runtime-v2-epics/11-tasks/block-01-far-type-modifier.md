@@ -238,10 +238,10 @@ mapping is recorded in `11-tasks/README.md`.
 Allocation rules follow the reuse-first policy: where an Epic 11 negative row
 maps onto an existing invariant, reuse the existing code if it renders `far`
 correctly; allocate a new code only for genuinely new invariants, and route
-postponed surfaces to the `FUT` (7xxx) range. test-master owns the actual
-reservation in `internal/diag/codes.go` and replaces these placeholders.
+postponed surfaces to the `FUT` (7xxx) range. New Epic 11 codes are reserved in
+`internal/diag/codes_crossing.go`; reused codes remain in `internal/diag/codes.go`.
 
-| Placeholder | Allocation rule (reuse-first) | Rows |
+| Code | Allocation rule (reuse-first) | Rows |
 | --- | --- | --- |
 | `SYN2031` | Reuse the existing reserved-keyword-as-identifier diagnostic if one exists; otherwise allocate new (SYN range). Message shape: "`far` is a reserved keyword; rename this identifier". Fix: rename identifier. | `FAR-LEX-NEG-*` |
 | `SEM3136` | Allocate new (SEM range); new invariant. Message shape: "nested `far` handles are not allowed". Fix: remove one `far` only when semantics remain local-handle equivalent. | `FAR-PARSE-NEG-001` |

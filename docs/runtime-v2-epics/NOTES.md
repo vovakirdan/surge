@@ -9,10 +9,9 @@ Documentation-only prep pass over the Epic 11 crossing-surface documents
 (`11-explicit-crossing-language-surface.md` and `11-tasks/block-01..04`), plus a
 new `11-tasks/README.md`. No compiler, runtime, or stdlib code was changed; the
 stdlib/prelude edits are recorded as Block 4 implementation tasks, not performed.
-Decision source: user-approved design decisions in ruflo memory
-`surge-runtime-v2/epic11-prep-decisions`; compiler infrastructure map in
-`surge-runtime-v2/epic11-infra-map`; final fixture matrices in
-`surge-runtime-v2/epic11-final-matrices`.
+Decision source: the repo-local Epic 11 contract document, block matrices,
+fixture inventory, and this notes file. No external agent memory is required to
+reconstruct or execute the Epic 11 language-surface plan.
 
 What changed:
 
@@ -45,10 +44,16 @@ What changed:
 - Draft 9 documentation scope recorded in the epic Documentation Contract.
 - New debt: RV2-DEBT-024 (`crosses` effect-polymorphism), RV2-DEBT-025
   (`@far_copy` opt-in), RV2-DEBT-026 (`far` arrays), all postponed.
+- Diagnostic codes are reserved in `internal/diag/codes_crossing.go`, and the
+  staged fixture matrix lives under `testdata/golden/crossing/block0{1..4}`.
+- The current `internal/crossinggate` harness is sema-stage only.
+  Backend-unavailable rows (`FUT7014`..`FUT7017`) need a separate
+  lowering/backend gate or explicit stage/config selector before Block 2/3 full
+  gates are enabled.
 
-Next: test-master reserves the diagnostic codes in `internal/diag/codes.go`
-(reuse-first) and lands golden fixtures under `testdata/golden/.../invalid/`
-following the forced implementation order in `11-tasks/README.md`.
+Next: start implementation following the forced order in `11-tasks/README.md`:
+Block 1 `far`, then the Block 4 grammar slice, then Blocks 2/3, then the Block 4
+semantic slice and documentation closeout.
 
 ## Epic 8 Closeout (Consolidated 2026-07-06)
 

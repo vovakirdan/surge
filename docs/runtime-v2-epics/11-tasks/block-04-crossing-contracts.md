@@ -36,19 +36,17 @@ changes begin.
 - An `own @shard_movable` value moved into an `on` or `spawn on` body is dropped
   on the destination shard if it is not returned from the body.
 
-## Diagnostic Placeholders
+## Diagnostic Codes
 
-Exact numeric diagnostic-code allocation happens during implementation. Until
-then, negative fixtures must assert these stable placeholders. Block 4 is the
-single owner of the crossing-effect (`crosses`) family and the crossing-capture
-family; Blocks 2 and 3 reference these placeholders rather than allocating their
-own (see the shared-diagnostics ownership table in `11-tasks/README.md`).
-Allocation follows the reuse-first policy: reuse an existing diagnostic where one
-already expresses the invariant (for example an existing `@nosend`-crossing or
-borrow-capture code), allocate new in the `SEM` range for genuinely new
-invariants, and route postponed surfaces to the `FUT` (7xxx) range.
+Exact diagnostic codes are allocated. Block 4 is the single owner of the
+crossing-effect (`crosses`) family and the crossing-capture family; Blocks 2 and
+3 reference these codes rather than allocating their own (see the
+shared-diagnostics ownership table in `11-tasks/README.md`). Allocation follows
+the reuse-first policy: reuse an existing diagnostic where one already expresses
+the invariant, allocate new in the `SEM` range for genuinely new invariants, and
+route postponed surfaces to the `FUT` (7xxx) range.
 
-| Placeholder | Invariant |
+| Code | Invariant |
 | --- | --- |
 | `SEM3162` | A function performs crossing work but is not marked `crosses`. |
 | `SEM3163` | A non-`crosses` function calls a `crosses` function. |

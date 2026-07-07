@@ -7,26 +7,28 @@ lowering obligations. Implementation, test files, diagnostic-code allocation, an
 commits are outside these documents.
 
 Source of truth for the surface is
-`../11-explicit-crossing-language-surface.md`. The approved design decisions for
-this prep pass are recorded in ruflo memory
-(`surge-runtime-v2/epic11-prep-decisions`) and the compiler infrastructure map in
-`surge-runtime-v2/epic11-infra-map`.
+`../11-explicit-crossing-language-surface.md`. The approved design decisions,
+diagnostic allocations, fixture inventories, and implementation-order constraints
+are recorded in this directory and in `../NOTES.md`. No external agent memory is
+required to reconstruct the Epic 11 contract.
 
 ## Block Index
 
 | Block | Document | Surface | Status |
 | --- | --- | --- | --- |
-| 1 | `block-01-far-type-modifier.md` | `far T` type modifier | Matrix drafted |
-| 2 | `block-02-on-placement-crossing.md` | `on dst { ... }` placement crossing | Matrix drafted |
-| 3 | `block-03-spawn-on-remote-spawn.md` | `spawn on dst { ... }`, `far Task<T>` | Matrix drafted |
-| 4 | `block-04-crossing-contracts.md` | `crosses`, `@shard_movable`, `@shard_pinned` | Matrix drafted |
+| 1 | `block-01-far-type-modifier.md` | `far T` type modifier | Matrix staged and gated |
+| 2 | `block-02-on-placement-crossing.md` | `on dst { ... }` placement crossing | Matrix staged and gated |
+| 3 | `block-03-spawn-on-remote-spawn.md` | `spawn on dst { ... }`, `far Task<T>` | Matrix staged and gated |
+| 4 | `block-04-crossing-contracts.md` | `crosses`, `@shard_movable`, `@shard_pinned` | Matrix staged and gated |
 
 ## Execution Scope
 
 Epic 11 delivers the language surface (lexer, parser, sema) plus lowering guards
-only. Every crossing execution path emits a deterministic backend-unavailable
-diagnostic until the Phase 4 transport epic, and all positive golden fixtures are
-compile-only. See the epic "Epic 11 Execution Scope" section.
+only. Accepted language forms are compile-only in the positive fixture matrix.
+Execution remains guarded until the Phase 4 transport epic: lowering/backend
+checks must report the deterministic backend-unavailable diagnostics documented
+below instead of falling through to backend panics or runtime execution. See the
+epic "Epic 11 Execution Scope" section.
 
 ## Forced Implementation Order
 
@@ -85,10 +87,10 @@ drop-without-await, `SemaSpawnNotTask` (3111) for `spawn distributed { ... }`
 `SemaRawPointerNotAllowed` (3129) for `far *T` / `*far T`, and
 `SynModifierNotAllowed` (2015) for `far` used as an item modifier.
 
-## Placeholder to Diagnostic-Code Mapping
+## Historical Placeholder to Diagnostic-Code Mapping
 
-Every `TBD-DIAG-*` placeholder that appeared in the block matrices has been
-replaced in the docs with the allocated code below. New codes live in
+Every `TBD-DIAG-*` placeholder that appeared in earlier block-matrix drafts has
+been replaced in the docs with the allocated code below. New codes live in
 `internal/diag/codes_crossing.go`; reuses point at existing `codes.go` codes.
 
 | Placeholder | Code | Disposition |
@@ -180,13 +182,28 @@ generated while the surface is unimplemented. Positive fixtures are compile-only
 **Harness.** `internal/crossinggate` drives the fixtures under `go test`
 (`make check`). It has four independent gate constants in
 `internal/crossinggate/crossinggate.go`, all `false` today, so every block's test
-`t.Skip`s cleanly. When a gate is `true`, the harness runs each fixture through
-`driver.Diagnose` at the sema stage: negatives must emit their `EXPECT-DIAG`
-code, positives must be error-free.
+`t.Skip`s cleanly. When a gate is `true`, the harness runs each sema-stage
+fixture through `driver.Diagnose` at the sema stage: negatives must emit their
+`EXPECT-DIAG` code, positives must be error-free.
+
+**Backend-unavailable rows.** Fixtures whose expected codes are `FUT7014`,
+`FUT7015`, `FUT7016`, or `FUT7017` prove lowering/backend guard behavior, not the
+ordinary sema acceptance path. They intentionally mirror positive source shapes
+under an unsupported execution configuration. Before flipping Block 2 or Block 3
+gates, the implementation must either move these rows into a separate
+lowering/backend gate or teach `internal/crossinggate` an explicit stage/config
+selector. They must not be treated as plain sema-negative fixtures while the
+matching positive compile-only fixtures are also enabled.
 
 **Flipping a gate (one per block, in the forced order above).**
 
 1. Implement the block's parser + sema.
+   - For Block 4, the grammar slice lands before Blocks 2/3, while the semantic
+     slice closes after Blocks 2/3. The single `Block4Enabled` constant is a
+     final full-block gate; focused parser/sema unit tests carry the intermediate
+     grammar-slice proof.
+   - For backend-unavailable rows, set up the separate lowering/backend proof
+     described above before enabling the affected full block gate.
 2. Set the matching constant to `true` in
    `internal/crossinggate/crossinggate.go` (`Block1Enabled` … `Block4Enabled`).
 3. Run `go test ./internal/crossinggate/` and fix implementation until the

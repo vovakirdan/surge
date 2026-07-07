@@ -174,11 +174,10 @@ falling through to an ambiguous backend error.
 
 ## Negative Golden Fixture Inventory
 
-Every negative fixture must assert the exact diagnostic code once allocated.
-The placeholders below are part of the documented matrix and must be replaced
-or confirmed before implementation marks the block complete.
+Every negative fixture asserts an exact diagnostic code. Historical `TBD-DIAG-*`
+placeholders were resolved in `11-tasks/README.md` before implementation.
 
-| Fixture | Matrix rows | Diagnostic placeholder | Fix availability |
+| Fixture | Matrix rows | Diagnostic code | Fix availability |
 | --- | --- | --- | --- |
 | `spawn_on_negative_nonplacement_literal.sg` | D06 | `SEM3154` | Fixable: use `Placement`. |
 | `spawn_on_negative_type_destination.sg` | D07 | `SEM3155` | Fixable: use a value destination. |

@@ -62,11 +62,10 @@ as an `on` destination.
 
 ## Invalid Destination Matrix
 
-Every negative fixture in this table must assert the diagnostic placeholder in
-the fixture metadata. Before implementation, each placeholder must be replaced
-with a reused or newly allocated exact diagnostic code.
+Every negative fixture in this table asserts the exact diagnostic code in the
+fixture metadata.
 
-| Row | Destination | Fixture | Diagnostic placeholder | Fix availability | Required message shape |
+| Row | Destination | Fixture | Diagnostic code | Fix availability | Required message shape |
 | --- | --- | --- | --- | --- | --- |
 | ON-DST-N001 | `t: far Task<T>` | `on_negative_far_task_destination.sg` | `SEM3143` | Fixable: use `t.await()` or `t.cancel()` in a `crosses` context. | `far Task<T>` is not an `on` destination. |
 | ON-DST-N002 | `blocking` | `on_negative_blocking_destination.sg` | `FUT7012` | Fixable: use existing `blocking { ... }` or choose a `Placement`. | `on blocking` is not part of Epic 11. |
@@ -178,9 +177,9 @@ leaking, or falling through to an ambiguous backend error.
 | --- | --- | --- | --- | --- | --- |
 | ON-GATE-N001 | Phase 4 placement-crossing lowering unavailable | `on_negative_backend_unavailable.sg` | `FUT7014` | Fixable only by selecting/enabling a supported backend/configuration. | `on` execution is guarded until the Phase 4 transport epic. |
 
-## Diagnostic Placeholder Inventory
+## Diagnostic Code Inventory
 
-| Placeholder | Allocation rule |
+| Code | Allocation rule |
 | --- | --- |
 | `SEM3143` | Reuse if a destination-kind diagnostic exists; otherwise allocate for `far Task<T>` destination rejection. |
 | `FUT7012` | Postponed surface: reuse the `FUT`-range blocking diagnostic (e.g. `FutBlockingNotSupported`) unless the parser already owns a precise unsupported-form code. |
@@ -232,7 +231,7 @@ table in `11-tasks/README.md`.
 
 ## Negative Golden Fixture Inventory
 
-| Fixture | Matrix row | Diagnostic placeholder | Fix availability |
+| Fixture | Matrix row | Diagnostic code | Fix availability |
 | --- | --- | --- | --- |
 | `on_negative_far_task_destination.sg` | ON-DST-N001 | `SEM3143` | Fixable |
 | `on_negative_blocking_destination.sg` | ON-DST-N002 | `FUT7012` | Fixable |
@@ -285,7 +284,7 @@ marked complete.
 
 - Every accepted destination in Epic 11 Block 2 has a positive fixture.
 - Every invalid destination in Epic 11 Block 2 has a negative fixture.
-- Every negative fixture names one diagnostic placeholder.
+- Every negative fixture names one diagnostic code.
 - Every negative fixture records fix availability.
 - `TaskResult<T>` wrapping is tested in binding and function-return contexts.
 - `ret` and `return` are tested separately.
