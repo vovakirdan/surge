@@ -1,0 +1,1 @@
+error SYN2031 testdata/golden/crossing/block01/invalid/far_negative_reserved_extern_target.sg:3:8 `far` is a reserved keyword; rename this identifier

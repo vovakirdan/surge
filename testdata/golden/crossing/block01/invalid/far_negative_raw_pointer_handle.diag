@@ -1,0 +1,1 @@
+error SEM3129 testdata/golden/crossing/block01/invalid/far_negative_raw_pointer_handle.sg:3:9 raw pointers are backend-only; use ownership/borrows or expose an intrinsic/extern API

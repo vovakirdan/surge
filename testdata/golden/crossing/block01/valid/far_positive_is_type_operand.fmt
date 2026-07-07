@@ -1,0 +1,4 @@
+// Epic 11 Block 1 positive: far participates in type identity operands (FAR-ID-010)
+fn check(x: far TcpConn) -> bool {
+    return x is far TcpConn;
+}

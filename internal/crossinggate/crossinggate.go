@@ -21,7 +21,7 @@ package crossinggate
 // one to true when that block's parser + semantic analysis is implemented.
 const (
 	// Block1Enabled gates the `far` type-modifier fixtures.
-	Block1Enabled = false
+	Block1Enabled = true
 	// Block2Enabled gates the `on dst { ... }` placement-crossing fixtures.
 	Block2Enabled = false
 	// Block3Enabled gates the `spawn on dst { ... }` remote-spawn fixtures.

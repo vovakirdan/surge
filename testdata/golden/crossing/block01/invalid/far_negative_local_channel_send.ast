@@ -1,0 +1,17 @@
+far_negative_local_channel_send.sg (span: 3:1-11:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Message
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: id: int
+└─ Item[1]: Fn (span: 7:1-10:2)
+   ├─ Name: f
+   ├─ Params: (ch: far Channel<Message>, msg: own Message)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:61-10:2)
+         ├─ Stmt[0]: Expr (span: 8:5-8:22)
+         │  └─ Expr: expr#5: ch.send(own msg)
+         └─ Stmt[1]: Return (span: 9:5-9:20)
+            └─ Expr: expr#6: nothing

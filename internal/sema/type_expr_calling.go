@@ -19,6 +19,9 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 					receiverType = instantiated
 				}
 			}
+			if !receiverIsType && tc.reportFarLocalOp(receiverType, span) {
+				return types.NoTypeID
+			}
 			if !receiverIsType && tc.lookupName(member.Field) == "await" {
 				allowAwait := tc.awaitDepth > 0
 				if !allowAwait {
@@ -141,6 +144,9 @@ func (tc *typeChecker) typeExprIndex(id ast.ExprID, span source.Span) types.Type
 	}
 	container := tc.typeExpr(idx.Target)
 	indexType := tc.typeExpr(idx.Index)
+	if tc.reportFarLocalOp(container, span) {
+		return types.NoTypeID
+	}
 	_, isAddressOfOperand := tc.addressOfOperands[id]
 	var sig *symbols.FunctionSignature
 	var sigCand typeKeyCandidate

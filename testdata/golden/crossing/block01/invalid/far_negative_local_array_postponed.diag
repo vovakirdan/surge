@@ -1,0 +1,1 @@
+error FUT7010 testdata/golden/crossing/block01/invalid/far_negative_local_array_postponed.sg:3:10 local arrays of `far` handles are not supported yet

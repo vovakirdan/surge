@@ -36,6 +36,10 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 		result = tc.resolveTypePath(path, expr.Span, scope)
 	case ast.TypeExprUnary:
 		if unary, ok := tc.builder.Types.UnaryType(id); ok && unary != nil {
+			if unary.Op == ast.TypeUnaryFar {
+				result = tc.resolveFarTypeExpr(id, unary, scope)
+				break
+			}
 			inner := tc.resolveTypeExprWithScope(unary.Inner, scope)
 			if inner != types.NoTypeID {
 				switch unary.Op {
@@ -54,6 +58,10 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 		if arr, ok := tc.builder.Types.Array(id); ok && arr != nil {
 			elem := tc.resolveTypeExprWithScope(arr.Elem, scope)
 			if elem != types.NoTypeID {
+				if tc.isFarType(elem) {
+					tc.report(diag.FutFarLocalArrayPostponed, expr.Span, "local arrays of `far` handles are not supported yet")
+					break
+				}
 				if arr.Kind == ast.ArraySized {
 					lengthArg := tc.resolveArrayLengthArg(arr, expr.Span)
 					if lengthArg == types.NoTypeID {

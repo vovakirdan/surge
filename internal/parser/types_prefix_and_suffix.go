@@ -8,7 +8,7 @@ import (
 	"surge/internal/token"
 )
 
-// parseTypePrefix обрабатывает цепочки префиксов: own, &, &mut, *
+// parseTypePrefix обрабатывает цепочки префиксов: own, &, &mut, *, far
 // Поддерживает множественные префиксы типа **int, &&mut Payload, own &T
 func (p *Parser) parseTypePrefix() (ast.TypeID, bool) {
 	type prefixInfo struct {
@@ -71,6 +71,32 @@ prefixLoop:
 			p.advance()
 			prefixes = append(prefixes, prefixInfo{
 				op:   ast.TypeUnaryPointer,
+				span: start.Cover(p.lastSpan),
+			})
+		case token.KwFar:
+			start := p.lx.Peek().Span
+			p.advance()
+			if p.at(token.Gt) {
+				p.emitDiagnostic(
+					diag.SynFarReservedIdent,
+					diag.SevError,
+					start,
+					"`far` is a reserved keyword; rename this identifier",
+					nil,
+				)
+				return ast.NoTypeID, false
+			}
+			if p.at(token.LParen) {
+				p.emitDiagnostic(
+					diag.SemaFarGroupingUnsupported,
+					diag.SevError,
+					start.Cover(p.lx.Peek().Span),
+					"grouping does not change `far` array precedence",
+					nil,
+				)
+			}
+			prefixes = append(prefixes, prefixInfo{
+				op:   ast.TypeUnaryFar,
 				span: start.Cover(p.lastSpan),
 			})
 		default:

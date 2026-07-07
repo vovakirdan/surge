@@ -1,0 +1,1 @@
+error FUT7011 testdata/golden/crossing/block01/invalid/far_negative_function_handle.sg:3:9 function types cannot be used as `far` remote handles yet

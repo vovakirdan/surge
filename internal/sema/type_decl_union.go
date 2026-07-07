@@ -304,6 +304,8 @@ func typeKeyForTypeExpr(builder *ast.Builder, typeID ast.TypeID) symbols.TypeKey
 				return symbols.TypeKey("own " + inner)
 			case ast.TypeUnaryPointer:
 				return symbols.TypeKey("*" + inner)
+			case ast.TypeUnaryFar:
+				return symbols.TypeKey("far " + inner)
 			}
 		}
 	case ast.TypeExprConst:

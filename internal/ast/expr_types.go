@@ -256,6 +256,8 @@ const (
 	ExprUnaryRefMut
 	// ExprUnaryOwn represents the own operator (own).
 	ExprUnaryOwn
+	// ExprUnaryFar represents the far type-operand modifier (far).
+	ExprUnaryFar
 	// ExprUnaryAwait represents the await operator (await).
 	ExprUnaryAwait
 )
@@ -277,6 +279,8 @@ func (op ExprUnaryOp) String() string {
 		return "&mut"
 	case ExprUnaryOwn:
 		return "own"
+	case ExprUnaryFar:
+		return "far"
 	case ExprUnaryAwait:
 		return "await"
 	default:

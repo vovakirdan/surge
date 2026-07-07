@@ -1,0 +1,28 @@
+  1: At              "@" at 3:1-3:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "nosend" at 3:2-3:8
+  3: KwType          "type" at 4:1-4:5 (leading: Newline)
+  4: Ident           "LocalOnly" at 4:6-4:15 (leading: Space)
+  5: Assign          "=" at 4:16-4:17 (leading: Space)
+  6: LBrace          "{" at 4:18-4:19 (leading: Space)
+  7: Ident           "id" at 5:5-5:7 (leading: Newline, Space)
+  8: Colon           ":" at 5:7-5:8
+  9: Ident           "int" at 5:9-5:12 (leading: Space)
+ 10: Comma           "," at 5:12-5:13
+ 11: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 12: Semicolon       ";" at 6:2-6:3
+ 13: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 14: Ident           "f" at 8:4-8:5 (leading: Space)
+ 15: LParen          "(" at 8:5-8:6
+ 16: Ident           "x" at 8:6-8:7
+ 17: Colon           ":" at 8:7-8:8
+ 18: KwFar           "far" at 8:9-8:12 (leading: Space)
+ 19: Ident           "LocalOnly" at 8:13-8:22 (leading: Space)
+ 20: RParen          ")" at 8:22-8:23
+ 21: Arrow           "->" at 8:24-8:26 (leading: Space)
+ 22: NothingLit      "nothing" at 8:27-8:34 (leading: Space)
+ 23: LBrace          "{" at 8:35-8:36 (leading: Space)
+ 24: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 25: NothingLit      "nothing" at 9:12-9:19 (leading: Space)
+ 26: Semicolon       ";" at 9:19-9:20
+ 27: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 28: EOF             at 11:1-11:1

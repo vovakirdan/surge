@@ -293,7 +293,7 @@ func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.Type
 			return t
 		}
 		switch tt.Kind {
-		case types.KindArray, types.KindPointer, types.KindReference, types.KindOwn:
+		case types.KindArray, types.KindPointer, types.KindReference, types.KindOwn, types.KindFar:
 			elem := walk(tt.Elem)
 			if elem == tt.Elem {
 				cache[t] = t

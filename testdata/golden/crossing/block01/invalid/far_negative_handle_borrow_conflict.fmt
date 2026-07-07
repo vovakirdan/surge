@@ -1,0 +1,18 @@
+// EXPECT-DIAG: SEM3018
+// Epic 11 Block 1 negative: borrow conflict on far handle (FAR-OWN-005, FAR-OWN-006)
+fn edit(x: &mut far TcpConn) -> nothing {
+    return nothing;
+}
+
+fn view(x: &far TcpConn) -> nothing {
+    return nothing;
+}
+
+fn f(h: far TcpConn) -> nothing {
+    let mut local: far TcpConn = h;
+    let m: &mut far TcpConn = &mut local;
+    let s: &far TcpConn = &local;
+    let _ = view(s);
+    let _ = edit(m);
+    return nothing;
+}

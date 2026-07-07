@@ -22,17 +22,28 @@ func (p *Parser) parseExternItem(attrs []ast.Attr, attrSpan source.Span) (ast.It
 	}
 
 	targetType, ok := p.parseTypePrefix()
+	targetCloseConsumed := false
 	if !ok {
 		p.resyncUntil(token.Gt, token.RBrace, token.KwFn, token.KwField)
 		if p.at(token.Gt) {
 			p.advance()
+			targetCloseConsumed = true
 		}
 		if !p.at(token.LBrace) {
 			return ast.NoItemID, false
 		}
 	}
 
-	if _, ok = p.expect(token.Gt, diag.SynUnexpectedToken, "expected '>' after extern target type"); !ok {
+	if !targetCloseConsumed {
+		if _, ok = p.expect(token.Gt, diag.SynUnexpectedToken, "expected '>' after extern target type"); !ok {
+			p.resyncUntil(token.LBrace, token.RBrace, token.KwFn, token.KwField)
+			if !p.at(token.LBrace) {
+				return ast.NoItemID, false
+			}
+		}
+	}
+
+	if !p.at(token.LBrace) {
 		p.resyncUntil(token.LBrace, token.RBrace, token.KwFn, token.KwField)
 		if !p.at(token.LBrace) {
 			return ast.NoItemID, false

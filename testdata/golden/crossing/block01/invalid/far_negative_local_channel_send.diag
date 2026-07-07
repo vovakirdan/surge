@@ -1,0 +1,1 @@
+error SEM3142 testdata/golden/crossing/block01/invalid/far_negative_local_channel_send.sg:8:5 operation on far Channel<Message> requires an accepted remote context

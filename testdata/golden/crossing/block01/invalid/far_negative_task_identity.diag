@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/crossing/block01/invalid/far_negative_task_identity.sg:4:37 cannot assign Task<far TcpConn> to far Task<TcpConn>

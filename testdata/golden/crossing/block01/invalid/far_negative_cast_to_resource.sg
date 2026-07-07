@@ -1,0 +1,7 @@
+// EXPECT-DIAG: SEM3015
+// Epic 11 Block 1 negative: cast far handle to resource (FAR-OPS-NEG-007)
+fn f(value: far TcpConn) -> nothing {
+    let c: TcpConn = value to TcpConn;
+    let _ = c;
+    return nothing;
+}

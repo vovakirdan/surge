@@ -1,0 +1,22 @@
+far_positive_alias.sg (span: 2:1-11:1)
+├─ Item[0]: Type (span: 2:1-2:31)
+│  ├─ Name: RemoteConn
+│  ├─ Kind: Alias
+│  ├─ Visibility: private
+│  └─ Target: far TcpConn
+├─ Item[1]: Fn (span: 4:1-6:2)
+│  ├─ Name: register
+│  ├─ Params: (conn: far TcpConn)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:43-6:2)
+│        └─ Stmt[0]: Return (span: 5:5-5:20)
+│           └─ Expr: expr#1: nothing
+└─ Item[2]: Fn (span: 8:1-10:2)
+   ├─ Name: use_alias
+   ├─ Params: (conn: RemoteConn)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:43-10:2)
+         └─ Stmt[0]: Return (span: 9:5-9:27)
+            └─ Expr: expr#4: register(conn)

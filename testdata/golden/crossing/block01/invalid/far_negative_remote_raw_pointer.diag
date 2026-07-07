@@ -1,0 +1,2 @@
+error SEM3129 testdata/golden/crossing/block01/invalid/far_negative_remote_raw_pointer.sg:3:9 `far *T` is not allowed
+error SEM3129 testdata/golden/crossing/block01/invalid/far_negative_remote_raw_pointer.sg:3:13 raw pointers are backend-only; use ownership/borrows or expose an intrinsic/extern API

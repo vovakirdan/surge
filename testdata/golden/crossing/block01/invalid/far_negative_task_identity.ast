@@ -1,0 +1,19 @@
+far_negative_task_identity.sg (span: 3:1-8:1)
+└─ Item[0]: Fn (span: 3:1-7:2)
+   ├─ Name: f
+   ├─ Params: (local: Task<far TcpConn>)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:43-7:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:43)
+         │  ├─ Name: remote
+         │  ├─ Mutable: false
+         │  ├─ Type: far Task<TcpConn>
+         │  └─ Value: expr#1: local
+         ├─ Stmt[1]: Let (span: 5:5-5:20)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#2: remote
+         └─ Stmt[2]: Return (span: 6:5-6:20)
+            └─ Expr: expr#3: nothing

@@ -1,0 +1,9 @@
+far_negative_local_field_access.sg (span: 3:1-6:1)
+└─ Item[0]: Fn (span: 3:1-5:2)
+   ├─ Name: f
+   ├─ Params: (value: far TcpConn)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:33-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:27)
+            └─ Expr: expr#2: value.__opaque

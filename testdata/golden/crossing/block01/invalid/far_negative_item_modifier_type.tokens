@@ -1,0 +1,7 @@
+  1: KwFar           "far" at 3:1-3:4 (leading: LineComment, Newline, LineComment, Newline)
+  2: KwType          "type" at 3:5-3:9 (leading: Space)
+  3: Ident           "Remote" at 3:10-3:16 (leading: Space)
+  4: Assign          "=" at 3:17-3:18 (leading: Space)
+  5: Ident           "TcpConn" at 3:19-3:26 (leading: Space)
+  6: Semicolon       ";" at 3:26-3:27
+  7: EOF             at 4:1-4:1

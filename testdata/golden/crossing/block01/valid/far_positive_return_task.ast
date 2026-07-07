@@ -1,0 +1,9 @@
+far_positive_return_task.sg (span: 2:1-5:1)
+└─ Item[0]: Fn (span: 2:1-4:2)
+   ├─ Name: handle
+   ├─ Params: (t: far Task<int>)
+   ├─ Return: far Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:46-4:2)
+         └─ Stmt[0]: Return (span: 3:5-3:14)
+            └─ Expr: expr#1: t

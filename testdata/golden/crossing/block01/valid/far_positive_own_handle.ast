@@ -1,0 +1,17 @@
+far_positive_own_handle.sg (span: 2:1-9:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: take
+│  ├─ Params: (x: own far TcpConn)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:40-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:20)
+│           └─ Expr: expr#1: nothing
+└─ Item[1]: Fn (span: 6:1-8:2)
+   ├─ Name: caller
+   ├─ Params: (h: own far TcpConn)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:42-8:2)
+         └─ Stmt[0]: Return (span: 7:5-7:24)
+            └─ Expr: expr#5: take(own h)

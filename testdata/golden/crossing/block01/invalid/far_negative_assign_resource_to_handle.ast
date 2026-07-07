@@ -1,0 +1,19 @@
+far_negative_assign_resource_to_handle.sg (span: 3:1-8:1)
+└─ Item[0]: Fn (span: 3:1-7:2)
+   ├─ Name: f
+   ├─ Params: (c: TcpConn)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:29-7:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:28)
+         │  ├─ Name: h
+         │  ├─ Mutable: false
+         │  ├─ Type: far TcpConn
+         │  └─ Value: expr#1: c
+         ├─ Stmt[1]: Let (span: 5:5-5:15)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#2: h
+         └─ Stmt[2]: Return (span: 6:5-6:20)
+            └─ Expr: expr#3: nothing

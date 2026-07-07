@@ -40,6 +40,8 @@ const (
 	KindReference
 	// KindOwn represents an own type.
 	KindOwn
+	// KindFar represents a remote handle type.
+	KindFar
 	// KindStruct represents a struct type.
 	KindStruct
 	// KindAlias represents an alias type.
@@ -84,6 +86,8 @@ func (k Kind) String() string {
 		return "reference"
 	case KindOwn:
 		return "own"
+	case KindFar:
+		return "far"
 	case KindStruct:
 		return "struct"
 	case KindAlias:
@@ -171,4 +175,9 @@ func MakeReference(elem TypeID, mutable bool) Type {
 // MakeOwn describes own T.
 func MakeOwn(elem TypeID) Type {
 	return Type{Kind: KindOwn, Elem: elem}
+}
+
+// MakeFar describes far T, a local handle to a remote value/resource.
+func MakeFar(elem TypeID) Type {
+	return Type{Kind: KindFar, Elem: elem}
 }

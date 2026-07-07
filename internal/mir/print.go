@@ -489,6 +489,8 @@ func typeStr(typesIn *types.Interner, id types.TypeID) string {
 		return fmt.Sprintf("&%s", typeStr(typesIn, t.Elem))
 	case types.KindOwn:
 		return fmt.Sprintf("own %s", typeStr(typesIn, t.Elem))
+	case types.KindFar:
+		return fmt.Sprintf("far %s", typeStr(typesIn, t.Elem))
 	case types.KindArray:
 		if t.Count == types.ArrayDynamicLength {
 			return fmt.Sprintf("[%s]", typeStr(typesIn, t.Elem))

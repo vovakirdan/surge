@@ -99,6 +99,8 @@ const (
 	KwField // field
 	// KwEnum represents the 'enum' keyword.
 	KwEnum // enum
+	// KwFar represents the 'far' keyword.
+	KwFar // far
 
 	// NothingLit represents the nothing literal token.
 	NothingLit

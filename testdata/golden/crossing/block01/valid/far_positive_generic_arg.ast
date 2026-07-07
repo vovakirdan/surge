@@ -1,0 +1,9 @@
+far_positive_generic_arg.sg (span: 2:1-5:1)
+└─ Item[0]: Fn (span: 2:1-4:2)
+   ├─ Name: take
+   ├─ Params: (ch: Channel<far Task<int>>)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:48-4:2)
+         └─ Stmt[0]: Return (span: 3:5-3:20)
+            └─ Expr: expr#1: nothing

@@ -98,6 +98,8 @@ func (k Kind) String() string {
 		return "KwField"
 	case KwEnum:
 		return "KwEnum"
+	case KwFar:
+		return "KwFar"
 	case NothingLit:
 		return "NothingLit"
 	case IntLit:

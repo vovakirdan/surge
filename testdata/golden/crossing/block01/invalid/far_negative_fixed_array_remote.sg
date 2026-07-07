@@ -1,0 +1,9 @@
+// EXPECT-DIAG: FUT7009
+// Epic 11 Block 1 negative: far fixed-array handle postponed (FAR-PREC-002)
+type Message = {
+    id: int,
+};
+
+fn f(x: far Message[4]) -> nothing {
+    return nothing;
+}

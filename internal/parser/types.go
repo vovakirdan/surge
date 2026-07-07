@@ -128,6 +128,22 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 		fnTok := p.advance()
 		return p.parseFunctionType(fnTok.Span, false)
 
+	case token.KwExtern:
+		externTok := p.advance()
+		nameID := p.arenas.StringsInterner.Intern("extern")
+		segments := []ast.TypePathSegment{{
+			Name: nameID,
+		}}
+		if p.at(token.Lt) {
+			args, ok := p.parseTypeArgs()
+			if !ok {
+				return ast.NoTypeID, false
+			}
+			segments[0].Generics = args
+		}
+		pathSpan := externTok.Span.Cover(p.lastSpan)
+		return p.parseTypeSuffix(p.arenas.Types.NewPath(pathSpan, segments))
+
 	default:
 		// p.err(diag.SynExpectType, "expected type")
 		// так как := это токен, то мы можем уверенно сдвигаться

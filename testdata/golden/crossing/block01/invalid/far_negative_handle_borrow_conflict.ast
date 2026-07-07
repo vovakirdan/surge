@@ -1,0 +1,50 @@
+far_negative_handle_borrow_conflict.sg (span: 3:1-19:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: edit
+│  ├─ Params: (x: &mut far TcpConn)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:41-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:20)
+│           └─ Expr: expr#1: nothing
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: view
+│  ├─ Params: (x: &far TcpConn)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:37-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:20)
+│           └─ Expr: expr#2: nothing
+└─ Item[2]: Fn (span: 11:1-18:2)
+   ├─ Name: f
+   ├─ Params: (h: far TcpConn)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:33-18:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:36)
+         │  ├─ Name: local
+         │  ├─ Mutable: true
+         │  ├─ Type: far TcpConn
+         │  └─ Value: expr#3: h
+         ├─ Stmt[1]: Let (span: 13:5-13:42)
+         │  ├─ Name: m
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut far TcpConn
+         │  └─ Value: expr#5: &mut local
+         ├─ Stmt[2]: Let (span: 14:5-14:34)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: &far TcpConn
+         │  └─ Value: expr#7: &local
+         ├─ Stmt[3]: Let (span: 15:5-15:21)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: view(s)
+         ├─ Stmt[4]: Let (span: 16:5-16:21)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#13: edit(m)
+         └─ Stmt[5]: Return (span: 17:5-17:20)
+            └─ Expr: expr#14: nothing

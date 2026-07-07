@@ -80,7 +80,7 @@ func (e *LayoutEngine) computeLayout(id types.TypeID, state *layoutState) (TypeL
 	case types.KindString:
 		return e.ptrLayout(), nil
 
-	case types.KindPointer, types.KindReference, types.KindFn:
+	case types.KindPointer, types.KindReference, types.KindFar, types.KindFn:
 		return e.ptrLayout(), nil
 
 	case types.KindStruct:

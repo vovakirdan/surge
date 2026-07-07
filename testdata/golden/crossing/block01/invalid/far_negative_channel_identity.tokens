@@ -1,0 +1,45 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Message" at 3:6-3:13 (leading: Space)
+  3: Assign          "=" at 3:14-3:15 (leading: Space)
+  4: LBrace          "{" at 3:16-3:17 (leading: Space)
+  5: Ident           "id" at 4:5-4:7 (leading: Newline, Space)
+  6: Colon           ":" at 4:7-4:8
+  7: Ident           "int" at 4:9-4:12 (leading: Space)
+  8: Comma           "," at 4:12-4:13
+  9: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 10: Semicolon       ";" at 5:2-5:3
+ 11: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 12: Ident           "f" at 7:4-7:5 (leading: Space)
+ 13: LParen          "(" at 7:5-7:6
+ 14: Ident           "local" at 7:6-7:11
+ 15: Colon           ":" at 7:11-7:12
+ 16: Ident           "Channel" at 7:13-7:20 (leading: Space)
+ 17: Lt              "<" at 7:20-7:21
+ 18: KwFar           "far" at 7:21-7:24
+ 19: Ident           "TcpConn" at 7:25-7:32 (leading: Space)
+ 20: Gt              ">" at 7:32-7:33
+ 21: RParen          ")" at 7:33-7:34
+ 22: Arrow           "->" at 7:35-7:37 (leading: Space)
+ 23: NothingLit      "nothing" at 7:38-7:45 (leading: Space)
+ 24: LBrace          "{" at 7:46-7:47 (leading: Space)
+ 25: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 26: Ident           "remote" at 8:9-8:15 (leading: Space)
+ 27: Colon           ":" at 8:15-8:16
+ 28: KwFar           "far" at 8:17-8:20 (leading: Space)
+ 29: Ident           "Channel" at 8:21-8:28 (leading: Space)
+ 30: Lt              "<" at 8:28-8:29
+ 31: Ident           "Message" at 8:29-8:36
+ 32: Gt              ">" at 8:36-8:37
+ 33: Assign          "=" at 8:38-8:39 (leading: Space)
+ 34: Ident           "local" at 8:40-8:45 (leading: Space)
+ 35: Semicolon       ";" at 8:45-8:46
+ 36: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 37: Underscore      "_" at 9:9-9:10 (leading: Space)
+ 38: Assign          "=" at 9:11-9:12 (leading: Space)
+ 39: Ident           "remote" at 9:13-9:19 (leading: Space)
+ 40: Semicolon       ";" at 9:19-9:20
+ 41: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 42: NothingLit      "nothing" at 10:12-10:19 (leading: Space)
+ 43: Semicolon       ";" at 10:19-10:20
+ 44: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 45: EOF             at 12:1-12:1

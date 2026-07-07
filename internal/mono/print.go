@@ -215,6 +215,8 @@ func formatType(typesIn *types.Interner, strs *source.Interner, id types.TypeID,
 		return "&" + formatType(typesIn, strs, tt.Elem, depth+1)
 	case types.KindOwn:
 		return "own " + formatType(typesIn, strs, tt.Elem, depth+1)
+	case types.KindFar:
+		return "far " + formatType(typesIn, strs, tt.Elem, depth+1)
 	case types.KindArray:
 		if tt.Count == types.ArrayDynamicLength {
 			return "[" + formatType(typesIn, strs, tt.Elem, depth+1) + "]"

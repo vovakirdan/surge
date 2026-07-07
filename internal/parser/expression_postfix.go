@@ -162,7 +162,7 @@ func (p *Parser) parseCastExpr(value ast.ExprID) (ast.ExprID, bool) {
 
 func startsTypeExpr(kind token.Kind) bool {
 	switch kind {
-	case token.Ident, token.NothingLit, token.LParen, token.KwFn, token.KwOwn,
+	case token.Ident, token.NothingLit, token.LParen, token.KwFn, token.KwOwn, token.KwFar,
 		token.Amp, token.AndAnd, token.Star:
 		return true
 	default:

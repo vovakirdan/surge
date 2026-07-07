@@ -681,6 +681,8 @@ func (p *Printer) formatType(t types.Type, id types.TypeID) string {
 		return fmt.Sprintf("&%s", p.typeStr(t.Elem))
 	case types.KindOwn:
 		return fmt.Sprintf("own %s", p.typeStr(t.Elem))
+	case types.KindFar:
+		return fmt.Sprintf("far %s", p.typeStr(t.Elem))
 	case types.KindArray:
 		if t.Count == types.ArrayDynamicLength {
 			return fmt.Sprintf("[%s]", p.typeStr(t.Elem))

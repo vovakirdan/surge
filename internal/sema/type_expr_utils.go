@@ -128,6 +128,8 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 		return fmt.Sprintf("*%s", tc.typeLabel(tt.Elem))
 	case types.KindOwn:
 		return fmt.Sprintf("own %s", tc.typeLabel(tt.Elem))
+	case types.KindFar:
+		return fmt.Sprintf("far %s", tc.typeLabel(tt.Elem))
 	case types.KindStruct:
 		if info, ok := tc.types.StructInfo(id); ok && info != nil {
 			if name := tc.lookupTypeName(id, info.Name); name != "" {
@@ -339,7 +341,7 @@ func (tc *typeChecker) substituteTypeParams(id types.TypeID, mapping map[types.T
 		}
 	}
 	switch tt.Kind {
-	case types.KindPointer, types.KindReference, types.KindOwn:
+	case types.KindPointer, types.KindReference, types.KindOwn, types.KindFar:
 		elem := tc.substituteTypeParams(tt.Elem, mapping)
 		if elem == tt.Elem {
 			return resolved

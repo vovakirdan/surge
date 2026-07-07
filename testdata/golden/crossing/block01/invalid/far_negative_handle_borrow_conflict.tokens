@@ -1,0 +1,96 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "edit" at 3:4-3:8 (leading: Space)
+  3: LParen          "(" at 3:8-3:9
+  4: Ident           "x" at 3:9-3:10
+  5: Colon           ":" at 3:10-3:11
+  6: Amp             "&" at 3:12-3:13 (leading: Space)
+  7: KwMut           "mut" at 3:13-3:16
+  8: KwFar           "far" at 3:17-3:20 (leading: Space)
+  9: Ident           "TcpConn" at 3:21-3:28 (leading: Space)
+ 10: RParen          ")" at 3:28-3:29
+ 11: Arrow           "->" at 3:30-3:32 (leading: Space)
+ 12: NothingLit      "nothing" at 3:33-3:40 (leading: Space)
+ 13: LBrace          "{" at 3:41-3:42 (leading: Space)
+ 14: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 15: NothingLit      "nothing" at 4:12-4:19 (leading: Space)
+ 16: Semicolon       ";" at 4:19-4:20
+ 17: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 18: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 19: Ident           "view" at 7:4-7:8 (leading: Space)
+ 20: LParen          "(" at 7:8-7:9
+ 21: Ident           "x" at 7:9-7:10
+ 22: Colon           ":" at 7:10-7:11
+ 23: Amp             "&" at 7:12-7:13 (leading: Space)
+ 24: KwFar           "far" at 7:13-7:16
+ 25: Ident           "TcpConn" at 7:17-7:24 (leading: Space)
+ 26: RParen          ")" at 7:24-7:25
+ 27: Arrow           "->" at 7:26-7:28 (leading: Space)
+ 28: NothingLit      "nothing" at 7:29-7:36 (leading: Space)
+ 29: LBrace          "{" at 7:37-7:38 (leading: Space)
+ 30: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 31: NothingLit      "nothing" at 8:12-8:19 (leading: Space)
+ 32: Semicolon       ";" at 8:19-8:20
+ 33: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 34: KwFn            "fn" at 11:1-11:3 (leading: Newline)
+ 35: Ident           "f" at 11:4-11:5 (leading: Space)
+ 36: LParen          "(" at 11:5-11:6
+ 37: Ident           "h" at 11:6-11:7
+ 38: Colon           ":" at 11:7-11:8
+ 39: KwFar           "far" at 11:9-11:12 (leading: Space)
+ 40: Ident           "TcpConn" at 11:13-11:20 (leading: Space)
+ 41: RParen          ")" at 11:20-11:21
+ 42: Arrow           "->" at 11:22-11:24 (leading: Space)
+ 43: NothingLit      "nothing" at 11:25-11:32 (leading: Space)
+ 44: LBrace          "{" at 11:33-11:34 (leading: Space)
+ 45: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
+ 46: KwMut           "mut" at 12:9-12:12 (leading: Space)
+ 47: Ident           "local" at 12:13-12:18 (leading: Space)
+ 48: Colon           ":" at 12:18-12:19
+ 49: KwFar           "far" at 12:20-12:23 (leading: Space)
+ 50: Ident           "TcpConn" at 12:24-12:31 (leading: Space)
+ 51: Assign          "=" at 12:32-12:33 (leading: Space)
+ 52: Ident           "h" at 12:34-12:35 (leading: Space)
+ 53: Semicolon       ";" at 12:35-12:36
+ 54: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 55: Ident           "m" at 13:9-13:10 (leading: Space)
+ 56: Colon           ":" at 13:10-13:11
+ 57: Amp             "&" at 13:12-13:13 (leading: Space)
+ 58: KwMut           "mut" at 13:13-13:16
+ 59: KwFar           "far" at 13:17-13:20 (leading: Space)
+ 60: Ident           "TcpConn" at 13:21-13:28 (leading: Space)
+ 61: Assign          "=" at 13:29-13:30 (leading: Space)
+ 62: Amp             "&" at 13:31-13:32 (leading: Space)
+ 63: KwMut           "mut" at 13:32-13:35
+ 64: Ident           "local" at 13:36-13:41 (leading: Space)
+ 65: Semicolon       ";" at 13:41-13:42
+ 66: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 67: Ident           "s" at 14:9-14:10 (leading: Space)
+ 68: Colon           ":" at 14:10-14:11
+ 69: Amp             "&" at 14:12-14:13 (leading: Space)
+ 70: KwFar           "far" at 14:13-14:16
+ 71: Ident           "TcpConn" at 14:17-14:24 (leading: Space)
+ 72: Assign          "=" at 14:25-14:26 (leading: Space)
+ 73: Amp             "&" at 14:27-14:28 (leading: Space)
+ 74: Ident           "local" at 14:28-14:33
+ 75: Semicolon       ";" at 14:33-14:34
+ 76: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 77: Underscore      "_" at 15:9-15:10 (leading: Space)
+ 78: Assign          "=" at 15:11-15:12 (leading: Space)
+ 79: Ident           "view" at 15:13-15:17 (leading: Space)
+ 80: LParen          "(" at 15:17-15:18
+ 81: Ident           "s" at 15:18-15:19
+ 82: RParen          ")" at 15:19-15:20
+ 83: Semicolon       ";" at 15:20-15:21
+ 84: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
+ 85: Underscore      "_" at 16:9-16:10 (leading: Space)
+ 86: Assign          "=" at 16:11-16:12 (leading: Space)
+ 87: Ident           "edit" at 16:13-16:17 (leading: Space)
+ 88: LParen          "(" at 16:17-16:18
+ 89: Ident           "m" at 16:18-16:19
+ 90: RParen          ")" at 16:19-16:20
+ 91: Semicolon       ";" at 16:20-16:21
+ 92: KwReturn        "return" at 17:5-17:11 (leading: Newline, Space)
+ 93: NothingLit      "nothing" at 17:12-17:19 (leading: Space)
+ 94: Semicolon       ";" at 17:19-17:20
+ 95: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 96: EOF             at 19:1-19:1

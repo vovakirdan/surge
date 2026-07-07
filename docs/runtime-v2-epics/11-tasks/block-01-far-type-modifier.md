@@ -249,12 +249,12 @@ postponed surfaces to the `FUT` (7xxx) range. New Epic 11 codes are reserved in
 | `SEM3138` | Allocate new (SEM range); new invariant. Message shape: "`far &T` and `far &mut T` are invalid remote lifetimes". Fix: rewrite as `&far T` or `&mut far T` only when borrowing the local handle is intended. | `FAR-PARSE-NEG-003`, `FAR-PARSE-NEG-004`, `FAR-OWN-NEG-002`, `FAR-OWN-NEG-003` |
 | `SEM3129` | Reuse `SemaRawPointerNotAllowed` (3129) if it renders `far`; else allocate new. Message shape: "`far *T` is not allowed". Fix: none. | `FAR-PARSE-NEG-005`, `FAR-PTR-NEG-001`, `FAR-PTR-NEG-003` |
 | `SEM3129` | Reuse `SemaRawPointerNotAllowed` (3129) if it renders `far`; else allocate new. Message shape: "`*far T` is not allowed in user code". Fix: none. | `FAR-PARSE-NEG-006`, `FAR-PTR-NEG-002`, `FAR-PTR-NEG-004` |
-| `FUT7011` | Allocate new in the `FUT` (7xxx) range; postponed remote-function-handle surface. Message shape: "`far fn(...) -> T` is not part of Epic 11". Fix: none. | `FAR-PARSE-NEG-007` |
+| `FUT7011` | Allocate new in the `FUT` (7xxx) range; postponed remote-function-handle surface. Message shape: "function types cannot be used as `far` remote handles yet". Fix: none. | `FAR-PARSE-NEG-007` |
 | `SEM3139` | Allocate new (SEM range); new invariant. Message shape: "`extern<T>` is not a value capability for `far`". Fix: none. | `FAR-PARSE-NEG-008` |
 | `SYN2015` | Reuse `SynModifierNotAllowed` (2015). Message shape: "`far` is a type modifier, not an item modifier". Fix: move `far` into the type position when applicable. | `FAR-PARSE-NEG-009`, `FAR-PARSE-NEG-010` |
 | `SEM3140` | Allocate new (SEM range) if grouped single-type syntax reaches the type parser. Message shape: "grouping does not change `far` array precedence". Fix: use a supported generic container. | `FAR-PREC-NEG-001` |
-| `FUT7010` | Allocate new in the `FUT` (7xxx) range; postponed local-array-of-`far`-handles surface. Message shape: "local arrays of `far` handles need an accepted grouping syntax". Fix: use a supported generic container. | `FAR-PREC-NEG-002` |
-| `FUT7009` | Allocate new in the `FUT` (7xxx) range; `far T[]` (remote handle to an array) is postponed. Message shape: "`far` arrays are not part of Epic 11". Fix: none in Epic 11. | `FAR-PREC-001`, `FAR-PREC-002`, `FAR-CAP-NEG-008` |
+| `FUT7010` | Allocate new in the `FUT` (7xxx) range; postponed local-array-of-`far`-handles surface. Message shape: "local arrays of `far` handles are not supported yet". Fix: use a supported generic container. | `FAR-PREC-NEG-002` |
+| `FUT7009` | Allocate new in the `FUT` (7xxx) range; `far T[]` (remote handle to an array) is postponed. Message shape: "array types cannot be used as `far` remote handles yet". Fix: use a remote-handle-capable type instead of an array. | `FAR-PREC-001`, `FAR-PREC-002`, `FAR-CAP-NEG-008` |
 | `SEM3015` | Reuse `SemaTypeMismatch` (3015); it must preserve `far` in rendered types (show both `far T` and `T`). Fix: none unless an explicit handle/resource conversion exists. | `FAR-ID-002`, `FAR-ID-003`, `FAR-ID-005`, `FAR-ID-007`, `FAR-ID-008`, `FAR-ID-009` |
 | `SEM3141` | Allocate new (SEM range); new invariant. Message shape: "`far` requires a remote-handle-capable type". Fix: use `own T` crossing or add `@shard_pinned` (Block 4). | `FAR-CAP-NEG-001` through `FAR-CAP-NEG-007` |
 | `SEM3130` | Reuse `SemaUseAfterMove` (3130) if it renders `far`; else allocate new. | `FAR-OWN-002` |
@@ -268,8 +268,10 @@ message text.
 
 ## Positive Golden Fixture Inventory
 
-Fixtures live with the Epic 11 crossing language goldens once the test owner
-creates the suite. Each file name must map back to one or more matrix rows.
+Fixtures live with the Epic 11 crossing language goldens under
+`testdata/golden/crossing/block01/valid/` and are visible to `make
+golden-check` once Block 1 lands. Each file name must map back to one or more
+matrix rows.
 
 | Fixture | Rows | Required contents |
 | --- | --- | --- |
@@ -282,6 +284,7 @@ creates the suite. Each file name must map back to one or more matrix rows.
 | `far_positive_own_handle.sg` | `FAR-PARSE-002`, `FAR-OWN-001` | `own far TcpConn` parameter and move of local handle. |
 | `far_positive_borrow_handle.sg` | `FAR-PARSE-003`, `FAR-OWN-003`, `FAR-OWN-007` | `&far TcpConn` borrow plus `@drop`. |
 | `far_positive_mut_borrow_handle.sg` | `FAR-PARSE-004`, `FAR-OWN-004` | `&mut far TcpConn` borrow of a mutable local handle binding. |
+| `far_positive_is_type_operand.sg` | `FAR-ID-010` | `x is far TcpConn` proves `far` participates in type identity operands. |
 
 ## Negative Golden Fixture Inventory
 
@@ -290,6 +293,7 @@ creates the suite. Each file name must map back to one or more matrix rows.
 | `far_negative_reserved_binding.sg` | `FAR-LEX-NEG-001` | `SYN2031` |
 | `far_negative_reserved_function.sg` | `FAR-LEX-NEG-002` | `SYN2031` |
 | `far_negative_reserved_type.sg` | `FAR-LEX-NEG-003` | `SYN2031` |
+| `far_negative_reserved_extern_target.sg` | `FAR-LEX-NEG-004` | `SYN2031` |
 | `far_negative_nested.sg` | `FAR-PARSE-NEG-001` | `SEM3136` |
 | `far_negative_remote_own.sg` | `FAR-PARSE-NEG-002`, `FAR-OWN-NEG-001` | `SEM3137` |
 | `far_negative_remote_borrow.sg` | `FAR-PARSE-NEG-003`, `FAR-OWN-NEG-002` | `SEM3138` |

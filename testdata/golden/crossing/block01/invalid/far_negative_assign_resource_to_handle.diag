@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/crossing/block01/invalid/far_negative_assign_resource_to_handle.sg:4:26 cannot assign TcpConn to far TcpConn

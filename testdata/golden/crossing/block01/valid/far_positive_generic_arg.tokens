@@ -1,0 +1,21 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "take" at 2:4-2:8 (leading: Space)
+  3: LParen          "(" at 2:8-2:9
+  4: Ident           "ch" at 2:9-2:11
+  5: Colon           ":" at 2:11-2:12
+  6: Ident           "Channel" at 2:13-2:20 (leading: Space)
+  7: Lt              "<" at 2:20-2:21
+  8: KwFar           "far" at 2:21-2:24
+  9: Ident           "Task" at 2:25-2:29 (leading: Space)
+ 10: Lt              "<" at 2:29-2:30
+ 11: Ident           "int" at 2:30-2:33
+ 12: Shr             ">>" at 2:33-2:35
+ 13: RParen          ")" at 2:35-2:36
+ 14: Arrow           "->" at 2:37-2:39 (leading: Space)
+ 15: NothingLit      "nothing" at 2:40-2:47 (leading: Space)
+ 16: LBrace          "{" at 2:48-2:49 (leading: Space)
+ 17: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 18: NothingLit      "nothing" at 3:12-3:19 (leading: Space)
+ 19: Semicolon       ";" at 3:19-3:20
+ 20: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 21: EOF             at 5:1-5:1

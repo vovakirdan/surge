@@ -193,7 +193,7 @@ func isHandleValueType(typesIn *types.Interner, id types.TypeID) bool {
 		return false
 	}
 	switch tt.Kind {
-	case types.KindStruct, types.KindTuple, types.KindUnion, types.KindEnum, types.KindString, types.KindArray, types.KindFn:
+	case types.KindStruct, types.KindTuple, types.KindUnion, types.KindEnum, types.KindString, types.KindArray, types.KindFar, types.KindFn:
 		return true
 	case types.KindPointer, types.KindReference:
 		return false

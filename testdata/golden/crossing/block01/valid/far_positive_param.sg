@@ -1,0 +1,4 @@
+// Epic 11 Block 1 positive: far parameter (FAR-LEX-002, FAR-PARSE-001)
+fn register(conn: far TcpConn) -> nothing {
+    return nothing;
+}

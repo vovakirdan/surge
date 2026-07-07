@@ -1,0 +1,1 @@
+error SYN2015 testdata/golden/crossing/block01/invalid/far_negative_item_modifier_fn.sg:3:1 `far` is a type modifier, not an item modifier

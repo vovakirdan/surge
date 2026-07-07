@@ -295,6 +295,32 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 		)
 		p.resyncTop()
 		return ast.NoItemID, false
+	case token.KwFar:
+		farTok := p.advance()
+		p.emitDiagnostic(
+			diag.SynModifierNotAllowed,
+			diag.SevError,
+			farTok.Span,
+			"`far` is a type modifier, not an item modifier",
+			nil,
+		)
+		switch p.lx.Peek().Kind {
+		case token.KwFn:
+			itemID, parsed := p.parseFnItem(attrs, attrSpan, fnModifiers{})
+			if parsed {
+				p.attachDirectiveBlocks(itemID, directiveBlocks)
+			}
+			return itemID, parsed
+		case token.KwType:
+			itemID, parsed := p.parseTypeItem(attrs, attrSpan, ast.VisPrivate, farTok.Span, true)
+			if parsed {
+				p.attachDirectiveBlocks(itemID, directiveBlocks)
+			}
+			return itemID, parsed
+		default:
+			p.resyncTop()
+			return ast.NoItemID, false
+		}
 	case token.KwPub, token.KwAsync, token.Ident:
 		mods := p.parseFnModifiers()
 		if p.at(token.KwFn) {
@@ -646,6 +672,17 @@ func (p *Parser) parseIdent() (source.StringID, bool) {
 		tok := p.advance()
 		id := p.arenas.StringsInterner.Intern(tok.Text)
 		return id, true
+	}
+	if p.at(token.KwFar) {
+		tok := p.advance()
+		p.emitDiagnostic(
+			diag.SynFarReservedIdent,
+			diag.SevError,
+			tok.Span,
+			"`far` is a reserved keyword; rename this identifier",
+			nil,
+		)
+		return source.NoStringID, false
 	}
 	p.err(diag.SynExpectIdentifier, "expected identifier, got \""+p.lx.Peek().Text+"\"")
 	return source.NoStringID, false

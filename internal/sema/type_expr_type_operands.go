@@ -2,6 +2,7 @@ package sema
 
 import (
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -37,6 +38,18 @@ func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (ty
 			case ast.ExprUnaryOwn:
 				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
 					return tc.types.Intern(types.MakeOwn(inner)), true
+				}
+			case ast.ExprUnaryFar:
+				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
+					if tc.isFarType(inner) {
+						tc.report(diag.SemaFarNested, expr.Span, "nested `far` handles are not allowed")
+						return types.NoTypeID, false
+					}
+					if !tc.isRemoteHandleCapableType(inner) {
+						tc.report(diag.SemaFarNonCapability, expr.Span, "`far` requires a remote-handle-capable type, got %s", tc.typeLabel(inner))
+						return types.NoTypeID, false
+					}
+					return tc.types.Intern(types.MakeFar(inner)), true
 				}
 			case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
 				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
@@ -112,6 +125,13 @@ func (tc *typeChecker) tryResolveTypeOperand(exprID ast.ExprID) types.TypeID {
 			case ast.ExprUnaryOwn:
 				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {
 					return tc.types.Intern(types.MakeOwn(inner))
+				}
+			case ast.ExprUnaryFar:
+				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {
+					if tc.isFarType(inner) || !tc.isRemoteHandleCapableType(inner) {
+						return types.NoTypeID
+					}
+					return tc.types.Intern(types.MakeFar(inner))
 				}
 			case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
 				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {

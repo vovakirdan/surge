@@ -53,6 +53,8 @@ func labelDepth(typesIn *Interner, id TypeID, depth int) string {
 		return "&" + labelDepth(typesIn, tt.Elem, depth+1)
 	case KindOwn:
 		return "own " + labelDepth(typesIn, tt.Elem, depth+1)
+	case KindFar:
+		return "far " + labelDepth(typesIn, tt.Elem, depth+1)
 	case KindArray:
 		elem := labelDepth(typesIn, tt.Elem, depth+1)
 		if tt.Count == ArrayDynamicLength {

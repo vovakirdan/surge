@@ -1,0 +1,1 @@
+error SEM3142 testdata/golden/crossing/block01/invalid/far_negative_local_method_call.sg:4:5 operation on far TcpConn requires an accepted remote context

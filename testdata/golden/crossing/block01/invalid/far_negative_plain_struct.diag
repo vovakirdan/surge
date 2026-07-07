@@ -1,0 +1,1 @@
+error SEM3141 testdata/golden/crossing/block01/invalid/far_negative_plain_struct.sg:7:9 `far` requires a remote-handle-capable type, got PlainStruct

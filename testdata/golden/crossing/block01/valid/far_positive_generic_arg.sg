@@ -1,0 +1,4 @@
+// Epic 11 Block 1 positive: far as generic argument (FAR-PARSE-007, FAR-PREC-003)
+fn take(ch: Channel<far Task<int>>) -> nothing {
+    return nothing;
+}

@@ -1,0 +1,28 @@
+far_positive_borrow_handle.sg (span: 2:1-12:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: view
+│  ├─ Params: (x: &far TcpConn)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:37-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:20)
+│           └─ Expr: expr#1: nothing
+└─ Item[1]: Fn (span: 6:1-11:2)
+   ├─ Name: caller
+   ├─ Params: (h: far TcpConn)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:38-11:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:30)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &far TcpConn
+         │  └─ Value: expr#3: &h
+         ├─ Stmt[1]: Let (span: 8:5-8:21)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#6: view(r)
+         ├─ Stmt[2]: Drop (span: 9:5-9:13)
+         └─ Stmt[3]: Return (span: 10:5-10:20)
+            └─ Expr: expr#8: nothing

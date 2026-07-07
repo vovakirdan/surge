@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/crossing/block01/invalid/far_negative_channel_identity.sg:8:40 cannot assign Channel<far TcpConn> to far Channel<Message>

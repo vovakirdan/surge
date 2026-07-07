@@ -44,6 +44,7 @@ var keywords = map[string]Kind{
 	"is":       KwIs,
 	"field":    KwField,
 	"enum":     KwEnum,
+	"far":      KwFar,
 	"nothing":  NothingLit,
 }
 

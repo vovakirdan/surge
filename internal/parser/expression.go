@@ -195,6 +195,16 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 			continue
 		}
 
+		if tok.Kind == token.KwFar && p.inTypeOperandContext > 0 {
+			farTok := p.advance()
+			prefixes = append(prefixes, prefixOp{
+				kind:  prefixUnary,
+				span:  farTok.Span,
+				unary: ast.ExprUnaryFar,
+			})
+			continue
+		}
+
 		// Обычные унарные операторы
 		if op, ok := p.getUnaryOperator(tok.Kind); ok {
 			opTok := p.advance()

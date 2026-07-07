@@ -1,0 +1,12 @@
+// Epic 11 Block 1 positive: far Channel distinct from Channel<far T> (FAR-PARSE-005, FAR-PREC-005)
+type Message = {
+    id: int,
+};
+
+fn remote(ch: far Channel<Message>) -> nothing {
+    return nothing;
+}
+
+fn local(ch: Channel<far Task<int>>) -> nothing {
+    return nothing;
+}

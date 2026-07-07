@@ -1,0 +1,26 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "PlainStruct" at 3:6-3:17 (leading: Space)
+  3: Assign          "=" at 3:18-3:19 (leading: Space)
+  4: LBrace          "{" at 3:20-3:21 (leading: Space)
+  5: Ident           "id" at 4:5-4:7 (leading: Newline, Space)
+  6: Colon           ":" at 4:7-4:8
+  7: Ident           "int" at 4:9-4:12 (leading: Space)
+  8: Comma           "," at 4:12-4:13
+  9: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 10: Semicolon       ";" at 5:2-5:3
+ 11: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 12: Ident           "f" at 7:4-7:5 (leading: Space)
+ 13: LParen          "(" at 7:5-7:6
+ 14: Ident           "x" at 7:6-7:7
+ 15: Colon           ":" at 7:7-7:8
+ 16: KwFar           "far" at 7:9-7:12 (leading: Space)
+ 17: Ident           "PlainStruct" at 7:13-7:24 (leading: Space)
+ 18: RParen          ")" at 7:24-7:25
+ 19: Arrow           "->" at 7:26-7:28 (leading: Space)
+ 20: NothingLit      "nothing" at 7:29-7:36 (leading: Space)
+ 21: LBrace          "{" at 7:37-7:38 (leading: Space)
+ 22: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 23: NothingLit      "nothing" at 8:12-8:19 (leading: Space)
+ 24: Semicolon       ";" at 8:19-8:20
+ 25: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 26: EOF             at 10:1-10:1

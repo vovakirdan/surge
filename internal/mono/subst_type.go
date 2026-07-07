@@ -63,7 +63,7 @@ func (s *Subst) typeNoCache(id types.TypeID) types.TypeID {
 		}
 		return s.TypeArgs[idx]
 
-	case types.KindPointer, types.KindReference, types.KindOwn, types.KindArray:
+	case types.KindPointer, types.KindReference, types.KindOwn, types.KindFar, types.KindArray:
 		elem := s.Type(tt.Elem)
 		if elem == tt.Elem {
 			return id

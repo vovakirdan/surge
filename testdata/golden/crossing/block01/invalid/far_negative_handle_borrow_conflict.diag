@@ -1,0 +1,1 @@
+error SEM3018 testdata/golden/crossing/block01/invalid/far_negative_handle_borrow_conflict.sg:14:27 cannot take shared borrow of 'local' while an exclusive borrow is active

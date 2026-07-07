@@ -1,0 +1,1 @@
+error FUT7009 testdata/golden/crossing/block01/invalid/far_negative_array_remote.sg:7:9 array types cannot be used as `far` remote handles yet

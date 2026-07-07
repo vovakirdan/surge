@@ -1,0 +1,12 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Holder" at 2:6-2:12 (leading: Space)
+  3: Assign          "=" at 2:13-2:14 (leading: Space)
+  4: LBrace          "{" at 2:15-2:16 (leading: Space)
+  5: Ident           "conn" at 3:5-3:9 (leading: Newline, Space)
+  6: Colon           ":" at 3:9-3:10
+  7: KwFar           "far" at 3:11-3:14 (leading: Space)
+  8: Ident           "TcpConn" at 3:15-3:22 (leading: Space)
+  9: Comma           "," at 3:22-3:23
+ 10: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 11: Semicolon       ";" at 4:2-4:3
+ 12: EOF             at 5:1-5:1

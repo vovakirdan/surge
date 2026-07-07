@@ -1,0 +1,10 @@
+// EXPECT-DIAG: SEM3130
+// Epic 11 Block 1 negative: use after moving far handle (FAR-OWN-002)
+fn take(x: own far TcpConn) -> nothing {
+    return nothing;
+}
+
+fn f(h: own far TcpConn) -> nothing {
+    let _ = take(own h);
+    return take(own h);
+}

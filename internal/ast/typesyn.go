@@ -254,6 +254,8 @@ const (
 	TypeUnaryRefMut
 	// TypeUnaryPointer represents a pointer type (`*`).
 	TypeUnaryPointer
+	// TypeUnaryFar represents a remote handle type (`far`).
+	TypeUnaryFar
 )
 
 // TypeArrayKind distinguishes between slice and sized array.

@@ -1,0 +1,22 @@
+far_positive_mut_borrow_handle.sg (span: 2:1-10:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: edit
+│  ├─ Params: (x: &mut far TcpConn)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:41-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:20)
+│           └─ Expr: expr#1: nothing
+└─ Item[1]: Fn (span: 6:1-9:2)
+   ├─ Name: caller
+   ├─ Params: (h: far TcpConn)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:38-9:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:36)
+         │  ├─ Name: local
+         │  ├─ Mutable: true
+         │  ├─ Type: far TcpConn
+         │  └─ Value: expr#2: h
+         └─ Stmt[1]: Return (span: 8:5-8:29)
+            └─ Expr: expr#6: edit(&mut local)

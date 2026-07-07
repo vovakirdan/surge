@@ -56,6 +56,8 @@ func formatTypeExprInline(builder *ast.Builder, typeID ast.TypeID) string {
 			op = "&mut "
 		case ast.TypeUnaryPointer:
 			op = "*"
+		case ast.TypeUnaryFar:
+			op = "far "
 		default:
 			op = "<?>"
 		}

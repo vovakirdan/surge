@@ -1,0 +1,2 @@
+error SEM3051 testdata/golden/crossing/block01/invalid/far_negative_reserved_binding.sg:3:11 function returning int is missing a return
+error SYN2031 testdata/golden/crossing/block01/invalid/far_negative_reserved_binding.sg:4:9 `far` is a reserved keyword; rename this identifier

@@ -220,6 +220,9 @@ func (tc *typeChecker) typeExprMember(id ast.ExprID, span source.Span) types.Typ
 		return tc.typeOfEnumVariant(enumType, member.Field, span)
 	}
 	targetType := tc.typeExpr(member.Target)
+	if tc.reportFarLocalOp(targetType, span) {
+		return types.NoTypeID
+	}
 	resultType := tc.memberResultType(targetType, member.Field, span)
 	_, isAddressOfOperand := tc.addressOfOperands[id]
 	tc.checkAtomicFieldDirectAccess(id, isAddressOfOperand, span)

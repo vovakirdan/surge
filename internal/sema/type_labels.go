@@ -201,6 +201,10 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 		if inner := tc.typeKeyForType(tt.Elem); inner != "" {
 			return symbols.TypeKey("*" + string(inner))
 		}
+	case types.KindFar:
+		if inner := tc.typeKeyForType(tt.Elem); inner != "" {
+			return symbols.TypeKey("far " + string(inner))
+		}
 	case types.KindArray:
 		inner := tc.typeKeyForType(tt.Elem)
 		if inner == "" {
@@ -390,6 +394,10 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 	case strings.HasPrefix(s, "*"):
 		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "*")))); inner != types.NoTypeID {
 			return tc.types.Intern(types.MakePointer(inner))
+		}
+	case strings.HasPrefix(s, "far "):
+		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "far ")))); inner != types.NoTypeID {
+			return tc.types.Intern(types.MakeFar(inner))
 		}
 	case strings.HasPrefix(s, "Option<") && strings.HasSuffix(s, ">"):
 		innerKey := strings.TrimSuffix(strings.TrimPrefix(s, "Option<"), ">")

@@ -1,7 +1,0 @@
-// EXPECT-DIAG: SEM3015
-// Epic 11 Block 1 negative: Task<far T> vs far Task<T> identity (FAR-ID-008)
-fn f(local: Task<far int>) -> nothing {
-    let remote: far Task<int> = local;
-    let _ = remote;
-    return nothing;
-}

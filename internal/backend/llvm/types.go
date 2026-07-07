@@ -59,7 +59,7 @@ func llvmType(typesIn *types.Interner, id types.TypeID) (string, error) {
 		return intWidthType(tt.Width), nil
 	case types.KindFloat:
 		return floatWidthType(tt.Width), nil
-	case types.KindString, types.KindPointer, types.KindReference, types.KindFn:
+	case types.KindString, types.KindPointer, types.KindReference, types.KindFar, types.KindFn:
 		return "ptr", nil
 	case types.KindStruct:
 		if _, ok := typesIn.ArrayInfo(id); ok {

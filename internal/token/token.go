@@ -43,7 +43,7 @@ func (t Token) IsKeyword() bool {
 	case KwFn, KwLet, KwConst, KwMut, KwOwn, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue, KwReturn, KwRet,
 		KwImport, KwAs, KwType, KwContract, KwTag, KwExtern, KwPub, KwAsync, KwBlocking,
 		KwCompare, KwSelect, KwRace, KwFinally, KwChannel, KwSpawn, KwTrue, KwFalse, KwSignal, KwParallel, KwMap, KwReduce,
-		KwWith, KwMacro, KwPragma, KwTo, KwHeir, KwIs, KwField:
+		KwWith, KwMacro, KwPragma, KwTo, KwHeir, KwIs, KwField, KwEnum, KwFar:
 		return true
 	default:
 		return false

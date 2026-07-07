@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SEM3137
+// Epic 11 Block 1 negative: far own T (FAR-PARSE-NEG-002, FAR-OWN-NEG-001)
+fn f(x: far own TcpConn) -> nothing {
+    return nothing;
+}

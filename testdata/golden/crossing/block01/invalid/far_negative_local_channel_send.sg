@@ -1,0 +1,10 @@
+// EXPECT-DIAG: SEM3142
+// Epic 11 Block 1 negative: local channel send on far handle outside on (FAR-OPS-NEG-003)
+type Message = {
+    id: int,
+};
+
+fn f(ch: far Channel<Message>, msg: own Message) -> nothing {
+    ch.send(own msg);
+    return nothing;
+}

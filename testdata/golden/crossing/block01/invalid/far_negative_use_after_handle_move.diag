@@ -1,0 +1,1 @@
+error SEM3130 testdata/golden/crossing/block01/invalid/far_negative_use_after_handle_move.sg:9:21 use of moved value 'h'

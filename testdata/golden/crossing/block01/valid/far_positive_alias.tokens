@@ -1,0 +1,39 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "RemoteConn" at 2:6-2:16 (leading: Space)
+  3: Assign          "=" at 2:17-2:18 (leading: Space)
+  4: KwFar           "far" at 2:19-2:22 (leading: Space)
+  5: Ident           "TcpConn" at 2:23-2:30 (leading: Space)
+  6: Semicolon       ";" at 2:30-2:31
+  7: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+  8: Ident           "register" at 4:4-4:12 (leading: Space)
+  9: LParen          "(" at 4:12-4:13
+ 10: Ident           "conn" at 4:13-4:17
+ 11: Colon           ":" at 4:17-4:18
+ 12: KwFar           "far" at 4:19-4:22 (leading: Space)
+ 13: Ident           "TcpConn" at 4:23-4:30 (leading: Space)
+ 14: RParen          ")" at 4:30-4:31
+ 15: Arrow           "->" at 4:32-4:34 (leading: Space)
+ 16: NothingLit      "nothing" at 4:35-4:42 (leading: Space)
+ 17: LBrace          "{" at 4:43-4:44 (leading: Space)
+ 18: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 19: NothingLit      "nothing" at 5:12-5:19 (leading: Space)
+ 20: Semicolon       ";" at 5:19-5:20
+ 21: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 22: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 23: Ident           "use_alias" at 8:4-8:13 (leading: Space)
+ 24: LParen          "(" at 8:13-8:14
+ 25: Ident           "conn" at 8:14-8:18
+ 26: Colon           ":" at 8:18-8:19
+ 27: Ident           "RemoteConn" at 8:20-8:30 (leading: Space)
+ 28: RParen          ")" at 8:30-8:31
+ 29: Arrow           "->" at 8:32-8:34 (leading: Space)
+ 30: NothingLit      "nothing" at 8:35-8:42 (leading: Space)
+ 31: LBrace          "{" at 8:43-8:44 (leading: Space)
+ 32: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 33: Ident           "register" at 9:12-9:20 (leading: Space)
+ 34: LParen          "(" at 9:20-9:21
+ 35: Ident           "conn" at 9:21-9:25
+ 36: RParen          ")" at 9:25-9:26
+ 37: Semicolon       ";" at 9:26-9:27
+ 38: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 39: EOF             at 11:1-11:1

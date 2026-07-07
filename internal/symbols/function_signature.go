@@ -118,6 +118,8 @@ func makeTypeKey(builder *ast.Builder, typeID ast.TypeID) TypeKey {
 				return TypeKey("own " + inner)
 			case ast.TypeUnaryPointer:
 				return TypeKey("*" + inner)
+			case ast.TypeUnaryFar:
+				return TypeKey("far " + inner)
 			}
 		}
 	case ast.TypeExprConst:

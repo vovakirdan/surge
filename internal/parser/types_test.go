@@ -123,6 +123,54 @@ func TestOwnershipBorrowingTypes(t *testing.T) {
 	}
 }
 
+func TestFarTypeModifierTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"far_type", "let x: far TcpConn;", "far TcpConn"},
+		{"own_far_handle", "let x: own far TcpConn;", "own far TcpConn"},
+		{"borrow_far_handle", "let x: &far TcpConn;", "&far TcpConn"},
+		{"mut_borrow_far_handle", "let x: &mut far TcpConn;", "&mut far TcpConn"},
+		{"far_generic_arg", "let x: Channel<far TcpConn>;", "Channel<far TcpConn>"},
+		{"far_remote_channel", "let x: far Channel<Message>;", "far Channel<Message>"},
+		{"far_remote_array", "let x: far TcpConn[];", "far TcpConn[]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			letItem, arenas := parseTestInput(t, tt.input)
+			assertSingleLetItem(t, letItem, arenas, tt.expected)
+		})
+	}
+}
+
+func TestFarArrayPrecedenceASTShape(t *testing.T) {
+	t.Run("far_remote_array", func(t *testing.T) {
+		letItem, arenas := parseTestInput(t, "let x: far TcpConn[];")
+		unary, ok := arenas.Types.UnaryType(letItem.Type)
+		if !ok || unary == nil || unary.Op != ast.TypeUnaryFar {
+			t.Fatalf("expected top-level far unary, got %s", formatType(arenas, letItem.Type))
+		}
+		if node := arenas.Types.Get(unary.Inner); node == nil || node.Kind != ast.TypeExprArray {
+			t.Fatalf("expected far inner to be array, got %s", formatType(arenas, unary.Inner))
+		}
+	})
+
+	t.Run("local_array_of_far_handles", func(t *testing.T) {
+		letItem, arenas := parseTestInput(t, "let x: (far TcpConn)[];")
+		array, ok := arenas.Types.Array(letItem.Type)
+		if !ok || array == nil {
+			t.Fatalf("expected top-level array, got %s", formatType(arenas, letItem.Type))
+		}
+		unary, ok := arenas.Types.UnaryType(array.Elem)
+		if !ok || unary == nil || unary.Op != ast.TypeUnaryFar {
+			t.Fatalf("expected array element to be far unary, got %s", formatType(arenas, array.Elem))
+		}
+	})
+}
+
 func TestArrayTypes(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -385,6 +433,13 @@ func formatType(arenas *ast.Builder, typeID ast.TypeID) string {
 			if !ok {
 				return "<invalid string>"
 			}
+			if len(segment.Generics) > 0 {
+				args := make([]string, 0, len(segment.Generics))
+				for _, arg := range segment.Generics {
+					args = append(args, formatType(arenas, arg))
+				}
+				name += "<" + strings.Join(args, ", ") + ">"
+			}
 			parts = append(parts, name)
 		}
 		return strings.Join(parts, ".")
@@ -404,6 +459,8 @@ func formatType(arenas *ast.Builder, typeID ast.TypeID) string {
 			return "&mut " + inner
 		case ast.TypeUnaryPointer:
 			return "*" + inner
+		case ast.TypeUnaryFar:
+			return "far " + inner
 		default:
 			return "<unknown unary op>" + inner
 		}

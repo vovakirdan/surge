@@ -1,0 +1,42 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Message" at 3:6-3:13 (leading: Space)
+  3: Assign          "=" at 3:14-3:15 (leading: Space)
+  4: LBrace          "{" at 3:16-3:17 (leading: Space)
+  5: Ident           "id" at 4:5-4:7 (leading: Newline, Space)
+  6: Colon           ":" at 4:7-4:8
+  7: Ident           "int" at 4:9-4:12 (leading: Space)
+  8: Comma           "," at 4:12-4:13
+  9: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 10: Semicolon       ";" at 5:2-5:3
+ 11: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 12: Ident           "f" at 7:4-7:5 (leading: Space)
+ 13: LParen          "(" at 7:5-7:6
+ 14: Ident           "ch" at 7:6-7:8
+ 15: Colon           ":" at 7:8-7:9
+ 16: KwFar           "far" at 7:10-7:13 (leading: Space)
+ 17: Ident           "Channel" at 7:14-7:21 (leading: Space)
+ 18: Lt              "<" at 7:21-7:22
+ 19: Ident           "Message" at 7:22-7:29
+ 20: Gt              ">" at 7:29-7:30
+ 21: Comma           "," at 7:30-7:31
+ 22: Ident           "msg" at 7:32-7:35 (leading: Space)
+ 23: Colon           ":" at 7:35-7:36
+ 24: KwOwn           "own" at 7:37-7:40 (leading: Space)
+ 25: Ident           "Message" at 7:41-7:48 (leading: Space)
+ 26: RParen          ")" at 7:48-7:49
+ 27: Arrow           "->" at 7:50-7:52 (leading: Space)
+ 28: NothingLit      "nothing" at 7:53-7:60 (leading: Space)
+ 29: LBrace          "{" at 7:61-7:62 (leading: Space)
+ 30: Ident           "ch" at 8:5-8:7 (leading: Newline, Space)
+ 31: Dot             "." at 8:7-8:8
+ 32: Ident           "send" at 8:8-8:12
+ 33: LParen          "(" at 8:12-8:13
+ 34: KwOwn           "own" at 8:13-8:16
+ 35: Ident           "msg" at 8:17-8:20 (leading: Space)
+ 36: RParen          ")" at 8:20-8:21
+ 37: Semicolon       ";" at 8:21-8:22
+ 38: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 39: NothingLit      "nothing" at 9:12-9:19 (leading: Space)
+ 40: Semicolon       ";" at 9:19-9:20
+ 41: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 42: EOF             at 11:1-11:1

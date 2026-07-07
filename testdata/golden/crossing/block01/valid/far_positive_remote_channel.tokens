@@ -1,0 +1,49 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Message" at 2:6-2:13 (leading: Space)
+  3: Assign          "=" at 2:14-2:15 (leading: Space)
+  4: LBrace          "{" at 2:16-2:17 (leading: Space)
+  5: Ident           "id" at 3:5-3:7 (leading: Newline, Space)
+  6: Colon           ":" at 3:7-3:8
+  7: Ident           "int" at 3:9-3:12 (leading: Space)
+  8: Comma           "," at 3:12-3:13
+  9: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 10: Semicolon       ";" at 4:2-4:3
+ 11: KwFn            "fn" at 6:1-6:3 (leading: Newline)
+ 12: Ident           "remote" at 6:4-6:10 (leading: Space)
+ 13: LParen          "(" at 6:10-6:11
+ 14: Ident           "ch" at 6:11-6:13
+ 15: Colon           ":" at 6:13-6:14
+ 16: KwFar           "far" at 6:15-6:18 (leading: Space)
+ 17: Ident           "Channel" at 6:19-6:26 (leading: Space)
+ 18: Lt              "<" at 6:26-6:27
+ 19: Ident           "Message" at 6:27-6:34
+ 20: Gt              ">" at 6:34-6:35
+ 21: RParen          ")" at 6:35-6:36
+ 22: Arrow           "->" at 6:37-6:39 (leading: Space)
+ 23: NothingLit      "nothing" at 6:40-6:47 (leading: Space)
+ 24: LBrace          "{" at 6:48-6:49 (leading: Space)
+ 25: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 26: NothingLit      "nothing" at 7:12-7:19 (leading: Space)
+ 27: Semicolon       ";" at 7:19-7:20
+ 28: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 29: KwFn            "fn" at 10:1-10:3 (leading: Newline)
+ 30: Ident           "local" at 10:4-10:9 (leading: Space)
+ 31: LParen          "(" at 10:9-10:10
+ 32: Ident           "ch" at 10:10-10:12
+ 33: Colon           ":" at 10:12-10:13
+ 34: Ident           "Channel" at 10:14-10:21 (leading: Space)
+ 35: Lt              "<" at 10:21-10:22
+ 36: KwFar           "far" at 10:22-10:25
+ 37: Ident           "Task" at 10:26-10:30 (leading: Space)
+ 38: Lt              "<" at 10:30-10:31
+ 39: Ident           "int" at 10:31-10:34
+ 40: Shr             ">>" at 10:34-10:36
+ 41: RParen          ")" at 10:36-10:37
+ 42: Arrow           "->" at 10:38-10:40 (leading: Space)
+ 43: NothingLit      "nothing" at 10:41-10:48 (leading: Space)
+ 44: LBrace          "{" at 10:49-10:50 (leading: Space)
+ 45: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space)
+ 46: NothingLit      "nothing" at 11:12-11:19 (leading: Space)
+ 47: Semicolon       ";" at 11:19-11:20
+ 48: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 49: EOF             at 13:1-13:1

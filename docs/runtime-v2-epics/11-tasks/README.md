@@ -171,19 +171,22 @@ The Epic 11 golden fixtures already exist, gated so `make check` and
 `make golden-check` stay green until each block is implemented.
 
 **Location and naming.** Fixtures live under
-`testdata/golden/crossing/block0{1..4}/{valid,invalid}/`. Every file name is
-`_`-prefixed (e.g. `_far_negative_nested.sg`). The shell golden runner
-(`scripts/golden_update.sh`) skips any basename starting with `_`, so these
-fixtures are invisible to `make golden-check` and never get a (wrong) `.diag`
-generated while the surface is unimplemented. Positive fixtures are compile-only
-(parse + sema, zero errors). Each negative fixture carries a
-`// EXPECT-DIAG: <CODE>` header naming the exact diagnostic it must produce.
+`testdata/golden/crossing/block0{1..4}/{valid,invalid}/`. Unimplemented blocks
+keep `_`-prefixed file names (e.g. `_on_negative_bad_anchor.sg`). The shell
+golden runner (`scripts/golden_update.sh`) skips any basename starting with `_`,
+so staged fixtures stay invisible to `make golden-check` until the block lands.
+Once a block is implemented, its fixtures must drop the `_` prefix and commit the
+generated sidecars (`.diag`, `.tokens`, `.ast`, `.fmt`) so `make golden-check`
+becomes part of that block's proof. Positive fixtures are compile-only (parse +
+sema, zero errors). Each negative fixture carries a `// EXPECT-DIAG: <CODE>`
+header naming the exact diagnostic it must produce.
 
 **Harness.** `internal/crossinggate` drives the fixtures under `go test`
 (`make check`). It has four independent gate constants in
-`internal/crossinggate/crossinggate.go`, all `false` today, so every block's test
-`t.Skip`s cleanly. When a gate is `true`, the harness runs each sema-stage
-fixture through `driver.Diagnose` at the sema stage: negatives must emit their
+`internal/crossinggate/crossinggate.go`; Block 1 is enabled once its `far T`
+surface lands, and later blocks remain disabled until their implementation
+slices are ready. When a gate is `true`, the harness runs each sema-stage fixture
+through `driver.Diagnose` at the sema stage: negatives must emit their
 `EXPECT-DIAG` code, positives must be error-free.
 
 **Backend-unavailable rows.** Fixtures whose expected codes are `FUT7014`,
@@ -209,8 +212,8 @@ matching positive compile-only fixtures are also enabled.
 3. Run `go test ./internal/crossinggate/` and fix implementation until the
    block's positives and negatives pass.
 
-**Optional: fold into the shell golden corpus.** Once a block passes under the
-gate, its fixtures can additionally join `make golden-check`: drop the `_`
-prefix from that block's files and run `make golden-update` to generate the
-committed sidecars (`.diag` etc.). Until then the `crossinggate` harness is the
-authoritative gate.
+**Fold into the shell golden corpus.** Once a block passes under the gate, its
+fixtures must join `make golden-check`: drop the `_` prefix from that block's
+files, run `make golden-update`, commit the generated sidecars, and then run
+`make golden-check`. Until a block is implemented, the `crossinggate` harness is
+the authoritative staged-fixture gate.

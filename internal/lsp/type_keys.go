@@ -133,6 +133,10 @@ func typeKeyForType(interner *types.Interner, id types.TypeID) symbols.TypeKey {
 		if inner := typeKeyForType(interner, tt.Elem); inner != "" {
 			return symbols.TypeKey("own " + string(inner))
 		}
+	case types.KindFar:
+		if inner := typeKeyForType(interner, tt.Elem); inner != "" {
+			return symbols.TypeKey("far " + string(inner))
+		}
 	case types.KindPointer:
 		if inner := typeKeyForType(interner, tt.Elem); inner != "" {
 			return symbols.TypeKey("*" + string(inner))
