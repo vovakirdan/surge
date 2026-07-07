@@ -539,6 +539,10 @@ This module provides async TCP helpers backed by runtime intrinsics. When a
 socket returns `WouldBlock`, the helper parks the current task on direct runtime
 readiness instead of allocating a separate wait task.
 
+`TcpListener` and `TcpConn` are opaque runtime handles. User code must not
+interpret `__opaque` as an OS file descriptor or pointer; copied/reconstructed
+handles are validated by the runtime before native socket operations.
+
 ---
 
 ## 13. HTTP Family
@@ -573,6 +577,12 @@ Core public constructors and helpers:
 - `request_has_header`
 - `request_content_length`
 - `request_keep_alive`
+- `serve`
+
+`ServerConfig` controls parser limits, `worker_count`, accept timeout, idle
+timeout, read timeout, and write timeout. The current native Runtime V2 HTTP
+server keeps accepted connection handling owner-local under `SURGE_SHARDS>1`:
+it does not pass raw `TcpConn.__opaque` values through worker channels.
 
 ### 13.2 `stdlib/http/parser`
 
@@ -702,7 +712,8 @@ Public API:
 
 ### 13.9 `stdlib/http/server`
 
-- This file currently contains implementation support for the HTTP stack and does not expose its own public API.
+- `stdlib/http/server.sg` and `stdlib/http/accept.sg` contain implementation
+  support for `http.serve` and do not expose additional public APIs.
 
 ---
 

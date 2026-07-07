@@ -4017,3 +4017,33 @@ pass, before any task execution began:
   concurrent-close window). Fixture insight for Task 4: the stdlib HTTP
   `Channel<int>` handoff carries the packed handle word, so reconstructed
   worker-side conns are exactly the guarded-handle class.
+
+## 2026-07-07 Epic 10 Task 3 Correction + Task 4/5 Closeout
+
+- Task 3 final implementation was corrected after the 16-bit handle-word plan:
+  `TcpConn.__opaque` and `TcpListener.__opaque` now carry stable runtime handle
+  ids, not fd-shaped packed words, OS fds, or native pointers. Native net
+  entrypoints canonicalize copied handles through the handle table before
+  reading fd/owner/closed/generation fields. The fd-registry generation remains
+  the owner-locked lifetime proof for live canonical handles.
+- `RV2-DEBT-010` ledger and `10-tasks/03-debt-010-net-handle-contract.md` were
+  updated to the stable-handle-id contract. Important residual: handle ids are
+  monotonic and not reused; this is intentional for stale-copy safety and is
+  acceptable until Surge-visible net objects get a destructor/free path.
+- Task 4 closed `RV2-DEBT-013`: `stdlib/http` no longer sends raw
+  `TcpConn.__opaque` through `Channel<int>`. New `stdlib/http/accept.sg`
+  contains the fixed local accept worker; `server.sg` spawns those workers with
+  copied listener handles and handles each accepted conn directly via
+  `serve_conn`.
+- `accept_timeout_ms` note: native Runtime V2 timers are executor timers, not a
+  wall-clock readiness mechanism for external Go clients. The HTTP owner
+  behavior gate therefore runs the server with `accept_timeout_ms = 0`, proves
+  real HTTP responses at `SURGE_SHARDS=1,2,8`, and terminates the process from
+  the harness.
+- Gates after Task 4: `make runtime-v2-http-owner-check`,
+  `go test ./internal/vm -run TestMTCorrectnessHTTPServer -count=1`,
+  `make runtime-v2-net-handle-check`, `make runtime-v2-accept-check`,
+  `make c-check`, `git diff --check`, commit-hook `make check`, and Sentrux
+  `/runtime` (`quality_signal=5345`, rules pass, `0` violations).
+- Code commit: `9d1b06c1 fix(runtime): stabilize net handles and http
+  ownership`. It includes `STATS.md` updated by the pre-commit hook.

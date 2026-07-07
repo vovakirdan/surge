@@ -1,148 +1,113 @@
-# Epic 10 Task 3: RV2-DEBT-010 — Copied Net-Handle Generation Contract
+# Epic 10 Task 3: RV2-DEBT-010 - Stable Net Handle Contract
 
-**Status:** implemented; the design was revised mid-task by the handle-word
-discovery below.
-**Kind:** runtime code (native net + fd registry), no stdlib signature change,
-no syntax, no Phase 4 transport.
+**Status:** complete.
+**Kind:** native runtime net safety, no stdlib signature change, no syntax, no
+Phase 4 transport.
 
-## Load-bearing discovery: the 8-byte handle word
+## Result
 
-The original plan stamped a full 64-bit generation into `NetConn`. Tracing a
-guard rejection (`net-guard-reject fd=6 ... gen=0` on a pointer that
-`rt_net_conn_alloc` never returned) exposed the real public-handle ABI:
+`TcpConn.__opaque` and `TcpListener.__opaque` now carry stable runtime handle
+ids. They are not OS file descriptors and not native pointers. Full native
+objects (`NetConn`, `NetListener`) and reconstructed Surge boxes both start
+with the same handle-id word; every native net entrypoint must canonicalize
+that word through the runtime handle table before reading fields beyond byte 8.
 
-- Surge lowers struct values as heap-boxed pointers, and the `NetResult`
-  payload `NetConn*` is used directly as the `TcpConn` box pointer, so
-  `conn.__opaque` reads the FIRST 8 BYTES of `NetConn` (packed
-  `{fd:int32, closed:u8, owner_shard_valid:u8, 2 pad bytes}`), not a pointer.
-- `TcpConn { __opaque = handle }` reconstruction allocates a fresh 8-byte box
-  holding only that prefix. C code that dereferences a reconstructed handle
-  beyond byte 8 (`owner_shard_id`, any new 64-bit field) reads OUT OF BOUNDS —
-  pre-existing UB that `rt_net_close_conn` already committed on stdlib HTTP's
-  reconstructed conns. This is precisely what the DEBT-010 ledger phrase
-  "copied net handles still carry only the raw native fd view" meant.
-- `NetListener` survives copying only because every operation resolves the
-  canonical full struct through the fd-keyed listener registry.
-- `__opaque` values are raw words, not bignum ints: Surge programs may only
-  move them; arithmetic or comparison on them crashes in `rt_bigint_*`.
+This closes the old copied-handle hazard without depending on Linux fd reuse
+behavior. A copied stale handle whose native object was closed is removed from
+the handle table and fails with `NET_ERR_NOT_CONNECTED` before it can attach
+readiness interest or issue `read(2)`, `write(2)`, `accept(2)`, or `close(2)`
+against a reused backend fd.
 
-Consequences: the conn guard may trust ONLY the handle word; the spare two
-padding bytes become a 16-bit `generation_check`; and the owner shard must be
-resolved by a registry probe, never read from the struct.
+## Written Model
 
-## Written model (epic Proof And Quality Contract)
+- **Owned state and lifetime changed:** `runtime/native/rt_net_handles.c` owns
+  a process-local handle table keyed by monotonic `uint64_t` ids. Entries are
+  typed (`NET_HANDLE_CONN`, `NET_HANDLE_LISTENER`) and point at canonical
+  runtime objects. Ids are not reused.
+- **Public/internal contract before the task:** copied/reconstructed public
+  net handles carried only the first word of the native object. Earlier data
+  paths could read raw fd/closed state directly from stale or 8-byte copied
+  boxes.
+- **Old unsafe path:** a stale copied `TcpConn` could conceptually operate on
+  an fd number after the original connection had closed and the OS had reused
+  that number. A copied 8-byte box also made any read of fields beyond the
+  public handle word out-of-bounds.
+- **New invariant:** public net entrypoints first resolve the handle id to a
+  canonical `NetConn`/`NetListener`; only that canonical object exposes fd,
+  owner shard, closed state, and fd-registry generation. Conn read/write/wait
+  and close additionally validate owner-local execution and the owner shard's
+  fd-registry generation with `rt_net_handle_open_on_owner`.
+- **Failing proof if regressed:** stale copied handles must return
+  `NET_ERR_NOT_CONNECTED`, not park on or close a newer connection. Static
+  tests must fail if data-path ops stop calling the canonical guard.
 
-- **Owned state and lifetime being changed:** `NetConn` gains a 16-bit
-  `generation_check` inside the 8-byte handle word (previously padding), and
-  `NetListenerMember` gains a full 64-bit `generation`; both are stamped from
-  the owning shard's fd-registry row at registration time. The fd-registry
-  row (mutated only under the owner shard lock) remains the single source of
-  truth; the stamps are write-once before the handle is published, so reading
-  them from any alias or reconstruction is race-free.
-- **Public/internal contract before the task:** `TcpConn.__opaque` /
-  `TcpListener.__opaque` is a raw `NetConn*`/`NetListener*` shared by every
-  copy. Public data-path ops (`rt_net_read`, `rt_net_write`,
-  `rt_net_read_bytes`, `rt_net_write_bytes`, `rt_net_accept`,
-  `rt_net_close_conn`, `rt_net_close_listener`, `rt_net_wait_readable`,
-  `rt_net_wait_writable`) validate only the in-struct `closed` bool — a plain,
-  unsynchronized field — and then issue the raw syscall on `c->fd`.
-- **Old unsafe path:** (a) a copied handle can race the unsynchronized
-  `closed=true` / `fd=-1` writes of a concurrent close and issue `read(2)` /
-  `write(2)` on an fd number the OS has already reassigned to a different
-  socket; (b) two concurrent closes of the same conn both pass the `closed`
-  check, and the second `rt_fd_registry_mark_closed` finds no row and returns
-  OK, so both call `close(2)` — the second close can tear down an unrelated
-  reused fd; (c) a stale waiter can attach poll interest to the NEW row of a
-  reused fd and later consume its readiness.
-- **New invariant:** every public conn data-path operation (`read`, `write`,
-  `read_bytes`, `write_bytes`, `wait readable/writable`, `close`) validates
-  the 8-byte handle word against the fd registry through
-  `rt_net_conn_probe_open`: the probe visits shard registries (current-worker
-  hint first) under each shard's lock, the first REGISTERED row for the fd
-  decides, and the row must be OPEN with `generation & 0xFFFF ==
-  generation_check`. Accept validates each listener member against its full
-  64-bit generation (`rt_net_handle_open_on_owner`) after stamping members at
-  registration. Close revalidates under the owner lock before
-  `mark_closed`, so exactly one closer wins and a reused fd is never
-  `close(2)`'d by a stale handle. Every rejection uses the existing stable
-  `NET_ERR_NOT_CONNECTED` status path.
-- **Failing proof if regressed:** `TestRuntimeV2NetHandleStaleCopyReusedFD`
-  (SURGE_SHARDS=1,2,8): stale read/write/close on a reused fd must each
-  return exactly `NotConnected(5)` and the stale close must not kill the
-  reusing connection's probe round-trip; `TestRuntimeV2NetHandleGuardStaticShape`
-  pins the guard wiring. Negative control: the same fixture built at the
-  pre-guard commit `ec7721c5` HANGS (timeout kill, exit 143) — the stale read
-  parks on the reused fd's readiness, exactly the waiter-consumption hazard
-  the ledger described. Both wired into `make runtime-v2-net-handle-check`
-  inside `runtime-v2-check`.
+## Implementation Surfaces
 
-## Why a registry fd-index accompanies the guard (Global Rule 5 record)
+- `rt_net_handles.h/.c`
+  - `NetListener` and `NetConn` start with `uint64_t handle_id`.
+  - `net_handle_registry_add/lookup/remove` own stable handle ids.
+  - `rt_net_listener_canonical(_const)` and `rt_net_conn_canonical(_const)`
+    resolve copied handles before field access.
+  - `rt_net_conn_registry_remove` removes a closed connection handle.
+- `rt_net.c`
+  - `net_conn_from_borrowed/value` and `net_listener_from_borrowed/value`
+    canonicalize through the handle table.
+  - `net_conn_op_open` rejects closed, stale, non-owner, or generation-mismatched
+    conn operations.
+  - `rt_net_connect` and `rt_net_accept` stamp the fd-registry generation into
+    the canonical `NetConn`.
+  - `rt_net_close_conn` removes the handle-table entry only after the owner
+    close succeeds.
+  - `rt_net_close_listener` removes listener registry and handle-table state
+    after closing listener members.
+- `rt_net_accept_group.c/.h`, `rt_net_lifecycle.c/.h`, `rt_fd_registry.c/.h`
+  - owner-locked fd generation checks remain the lifetime proof for live
+    canonical handles.
+  - the removed 16-bit public-handle predicate is not part of the final
+    contract.
 
-`rt_fd_registry_find_const` is a linear scan; every live connection holds a
-row, so a 1-shard/1024-connection workload would pay O(1024) per read/write —
-an unacceptable hot-path regression for a safety check. The existing primitive
-is therefore insufficient for a per-op guard. The registry gains an
-`fd -> entry index` dense array (`int32_t* fd_index`), owned by the same
-registry struct, maintained at exactly the two existing mutation points
-(`fd_registry_create_row`, `fd_registry_remove_at`), making `find` O(1).
-Cancellation/shutdown/error paths are unchanged: the index is derived state
-under the same owner shard lock. It also speeds the existing wait-path probe
-and attach/detach scans. Proof: existing fd-registry gates must stay green;
-the net benchmark must not regress materially.
+## Behavior Matrix
 
-## Copied-handle behavior matrix (contract this task defines and tests)
-
-| Operation on a copy | Live handle | After close (any alias) | After close + fd reused |
+| Operation on copied handle | Live canonical object | After close | After close + backend fd reuse |
 | --- | --- | --- | --- |
-| `read`/`write`/`read_bytes`/`write_bytes` | unchanged | `NotConnected` | `NotConnected` (16-bit check mismatch, locked probe) |
-| `close` | closes once | `NotConnected` | `NotConnected`; never a second `close(2)` |
-| `wait readable/writable` | unchanged | proceed-and-fail via the op guard | no interest attach on the new row |
-| `copy`/reconstruct (`{__opaque}`) | carries the handle word | same as above | same as above |
-| accept on listener member | unchanged | `NotConnected` | member guard rejects mismatched row (full 64-bit) |
+| `read`/`write`/`read_bytes`/`write_bytes` | owner-local + generation validated | `NotConnected` | `NotConnected`; no syscall on reused fd |
+| wait readable/writable | owner-local + generation validated before interest registration | resumes and next op fails | no interest attaches to the reused fd row |
+| `close_conn` | one owner close succeeds | `NotConnected` | stale close cannot close the newer fd |
+| `accept` on copied listener | canonical listener object | `NotConnected` after removal | stale listener id fails canonical lookup |
 
-The conn check is 16-bit by ABI necessity (only two padding bytes exist in
-the handle word), so a stale handle validates falsely only if the same fd
-number is re-registered on the same shard exactly k·65536 generations later
-while the stale copy is still held — a bounded ~2^-16 aliasing residual per
-reuse event, recorded in `DEBT.md` as part of the close note. `NetConn`
-allocations are never freed today (pre-existing accepted leak; no destructor
-exists on the Surge side), so aliases cannot dangle; this task documents that
-fact and does not change it.
+## Proof
 
-## Narrowed listener boundary (documented, not hidden)
+- `TestRuntimeV2NetHandleStaleCopyReusedFD`
+  - runs with `SURGE_SHARDS=1,2,8`;
+  - stale read/write/close each return code `5` (`NET_ERR_NOT_CONNECTED`);
+  - stale close does not break the newer accepted connection's probe write.
+- `TestRuntimeV2NetHandleGuardStaticShape`
+  - pins the handle-id contract text;
+  - requires the stable handle table and canonical conn lookup;
+  - rejects the removed 16-bit public-handle predicate.
+- `runtime-v2-net-handle-check`
+  - wired into `runtime-v2-check`.
 
-Listener copies resolve through the canonical fd-keyed listener registry. A
-listener copy racing a concurrent `close_listener` while a new listener binds
-the same fd number can canonicalize to the NEW listener object and accept from
-it. Full listener-handle generation canonicalization is deliberately out of
-scope: the accept-time member guard added here validates the fd row before
-`accept(2)`, and the residual object-identity race requires concurrent close +
-rebind + a torn read of the copy's fd field. Recorded as a named narrowed
-boundary in `DEBT.md` rather than silently accepted.
+Negative control from the pre-guard fixture hangs by parking a stale read on a
+reused fd's readiness; the current implementation exits cleanly.
 
-## Implementation surfaces
+## Residual Boundaries
 
-- `rt_fd_registry.h/.c`: `fd_index` dense map; `rt_fd_registry_handle_open`
-  (guard predicate: row exists && `registered_open` && OPEN && generation
-  equal); `rt_fd_registry_register_open_fd_generation` (register + report the
-  row generation).
-- `rt_net_handles.h/.c`: `generation` fields; `rt_net_conn_alloc` and
-  `rt_net_listener_set_member` gain the generation parameter.
-- `rt_net_accept_group.c`: `rt_net_register_open_fd_on_owner` reports the row
-  generation; listener-member registration stamps member generations.
-- `rt_net_lifecycle.c`: `rt_net_close_fd_on_owner` validates the handle
-  generation under the owner shard lock before `mark_closed`; row-absent close
-  stays legal only for never-registered members.
-- `rt_net.c`: owner-locked guard helper + calls in read/write/read_bytes/
-  write_bytes/accept/close/wait entry points.
-- Tests: `internal/vm/runtime_v2_net_handle_guard_test.go` (+ static shape),
-  new Makefile stage `runtime-v2-net-handle-check` wired into
-  `runtime-v2-check`.
+- The handle table grows monotonically and ids are not reused. This is
+  deliberate for stale-copy safety and no worse than the current lack of a
+  Surge-visible `NetConn` free path.
+- The fd-registry generation check still matters for live canonical handles:
+  it protects validate-vs-close ordering under the owner shard lock.
+- This task does not implement Phase 4 resource migration. Non-owner conn use
+  under `SURGE_SHARDS>1` is rejected with `NET_ERR_NOT_CONNECTED` unless the
+  current worker/task is already owner-local.
 
 ## Gates
 
-`git diff --check`, `make c-check`, `make cppcheck`, focused new tests,
-`make runtime-v2-check`, `make check`, `./check_file_sizes.sh -a`, Sentrux
-root + `runtime/` + `runtime/native`, and `scripts/bench_native_net.sh`
-before/after rows (1-shard/1024 and 8-shard/1024, direct/pipe) with trace
-counters explaining any delta.
+- `make runtime-v2-net-handle-check`
+- `make runtime-v2-accept-check`
+- `make c-check`
+- `make check` via commit hook for `9d1b06c1`
+- `git diff --check`
+- Sentrux `/runtime`: `quality_signal=5345`, rules pass, `0` violations during
+  the post-Task-4 verification pass.

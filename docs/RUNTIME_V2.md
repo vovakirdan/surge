@@ -727,6 +727,18 @@ structure pass.
   runtime-only and proof-first: deterministic test-only sync points provide
   positive and negative controls, while Phase 4 messaging, eventfd credits,
   remote `select`, shard-movable checks, and syntax remain unimplemented.
+- Epic 10 then closed the owner-safety cleanup needed before any explicit
+  crossing surface: native TCP public handles are stable runtime handle ids,
+  not OS fds or pointers, and every net entrypoint canonicalizes copied
+  `TcpConn`/`TcpListener` handles before touching fd, owner, closed, or
+  generation fields. Stale copied handles are removed from the runtime handle
+  table on close and fail with `NET_ERR_NOT_CONNECTED`; the fd registry
+  generation check remains the owner-locked lifetime proof for live canonical
+  handles. `stdlib/http::serve` no longer launders raw `TcpConn.__opaque`
+  values through `Channel<int>` workers; fixed accept workers handle accepted
+  connections owner-locally and the Runtime V2 HTTP owner gate covers
+  `SURGE_SHARDS=1,2,8`. This is still Phase 3 owner-safety, not Phase 4
+  cross-shard messaging or resource migration.
 - Cross-shard messaging, explicit crossing syntax, remote-free routing, and
   alternate I/O backends remain later phases.
 

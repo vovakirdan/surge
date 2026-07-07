@@ -101,9 +101,9 @@ new known correctness debt.
 - `09-evidence.md`: Epic 9 evidence ledger, final proof/gate evidence, and
   closeout accounting.
 - `09-tasks/`: Epic 9 task index and expanded task documents.
-- `10-runtime-debt-burndown-and-owner-safety.md`: draft Epic 10 scope for
-  dependency-aware cleanup, copied net-handle safety, and stdlib HTTP
-  owner-shard hardening before Phase 4.
+- `10-runtime-debt-burndown-and-owner-safety.md`: Epic 10 scope and closeout
+  for dependency-aware cleanup, stable copied net-handle safety, and stdlib
+  HTTP owner-shard hardening before Phase 4.
 
 Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside
@@ -136,7 +136,7 @@ Every epic should move the runtime toward these goals:
 | 7 | `07-executor-lock-split-and-shard-runtime-state.md` | Complete. Split the preserved global executor lock into per-shard locks plus a reduced control lane, moved scheduler queues, per-key waiter-store ownership, sleep stores, channel owner shards, and re-laned blocking/await/shutdown paths under `N>1`. |
 | 8 | `08-task-lifecycle-lane-and-net-fairness.md` | Complete. Moved task lifecycle, join/done, await accounting, and same-owner scope bookkeeping off the remaining steady-path control lane; fixed the adopted 8x1024 starvation debt; added lifecycle/perf gates. No syntax or Phase 4 transport work. |
 | 9 | `09-wakeup-and-cancellation-safety.md` | Complete. Runtime-only safety pass before final crossing work. Added deterministic sync-point proofs and closed `RV2-DEBT-023`, `RV2-DEBT-020`, and `RV2-DEBT-022`. No syntax or Phase 4 transport work. |
-| 10 | `10-runtime-debt-burndown-and-owner-safety.md` | Draft. Burn down owner-safety and cleanup debt before Phase 4: `RV2-DEBT-003`, `RV2-DEBT-010`, and `RV2-DEBT-013`; no syntax or transport work. |
+| 10 | `10-runtime-debt-burndown-and-owner-safety.md` | Complete. Closed `RV2-DEBT-003`, `RV2-DEBT-010`, and `RV2-DEBT-013`: dependency-aware runtime split, stable net handle ids, and owner-local stdlib HTTP server path. No syntax or Phase 4 transport work. |
 | 11 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |
 | 12 | TBD | Rewrite the VM/native/LLVM test matrix around the stable Runtime V2 contracts and remove accepted backend-test debt. |
 

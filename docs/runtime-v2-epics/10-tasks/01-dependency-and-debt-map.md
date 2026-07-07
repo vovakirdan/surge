@@ -121,14 +121,15 @@ pattern, single-shard only); `stdlib/net/net.sg` `*_owned` reconstructions
 (same-task, wrapper-internal); `testdata/llvm_parity/http_connect.sg:78`
 (whole `TcpListener` into `spawn`, single-shard). No `examples/` use net/http.
 
-## 4. Decisions this map feeds (taken in Tasks 3-4 docs)
+## 4. Decisions this map fed (final Tasks 3-4 result)
 
-- Task 3 (RV2-DEBT-010): stamp the registry generation into net handles at
-  registration and add an owner-locked validation before data-path fd ops,
-  rejecting with the existing stable `NET_ERR_NOT_CONNECTED` path; measure the
-  hot-path cost with the native net benchmark.
-- Task 4 (RV2-DEBT-013): replace the HTTP worker-pool `Channel<int>` handoff
-  with owner-local per-connection serving (spawn after accept inherits the
-  accept-migrated shard), bounded by `worker_count` via a token channel of
-  plain ints; delete the `__opaque` laundering; add `SURGE_SHARDS=1,2,8`
-  behavior coverage.
+- Task 3 (RV2-DEBT-010): the mid-task ABI investigation replaced the initial
+  generation-in-handle plan with stable runtime handle ids. Public
+  `TcpConn.__opaque` / `TcpListener.__opaque` values now resolve through a
+  handle table before any fd/owner/closed/generation field is read; live
+  canonical conn operations still use the owner shard's fd-registry generation
+  as the lifetime proof and reject failures with `NET_ERR_NOT_CONNECTED`.
+- Task 4 (RV2-DEBT-013): the HTTP `Channel<int>` worker handoff was removed.
+  `http.serve` now uses fixed local accept workers with copied listener handles
+  and handles each accepted `TcpConn` directly on the owner-local task path.
+  `runtime-v2-http-owner-check` covers `SURGE_SHARDS=1,2,8`.

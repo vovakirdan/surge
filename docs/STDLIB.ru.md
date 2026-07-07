@@ -539,6 +539,11 @@ import stdlib/net as net;
 socket возвращает `WouldBlock`, helper паркует текущую задачу на прямом runtime
 readiness wait, не аллоцируя отдельную wait task.
 
+`TcpListener` и `TcpConn` — opaque runtime handles. Пользовательский код не
+должен трактовать `__opaque` как OS file descriptor или pointer; скопированные
+или реконструированные handles валидируются runtime перед native socket
+операциями.
+
 ---
 
 ## 13. HTTP Family
@@ -573,6 +578,12 @@ import stdlib/http as http;
 - `request_has_header`
 - `request_content_length`
 - `request_keep_alive`
+- `serve`
+
+`ServerConfig` управляет parser limits, `worker_count`, accept timeout, idle
+timeout, read timeout и write timeout. Текущий native Runtime V2 HTTP server
+сохраняет обработку accepted connections owner-local при `SURGE_SHARDS>1`: он
+не передает raw `TcpConn.__opaque` значения через worker channels.
 
 ### 13.2 `stdlib/http/parser`
 
@@ -702,7 +713,8 @@ import stdlib/http as http;
 
 ### 13.9 `stdlib/http/server`
 
-- Этот файл сейчас содержит implementation support для HTTP stack и не экспортирует собственный публичный API.
+- `stdlib/http/server.sg` и `stdlib/http/accept.sg` содержат implementation
+  support для `http.serve` и не экспортируют дополнительных публичных API.
 
 ---
 

@@ -15,8 +15,9 @@ ship this public multi-shard path yet" if that is the honest current contract,
 but it must encode that contract as tests, runtime guards, or docs rather than
 leaving it implicit.
 
-**Status:** draft. Task documents do not exist yet. After review, expand one
-task at a time under `10-tasks/`.
+**Status:** complete. Task documents live under `10-tasks/`; Epic 10 closed
+`RV2-DEBT-003`, `RV2-DEBT-010`, and `RV2-DEBT-013` without syntax changes or
+Phase 4 transport.
 
 ## Inputs
 
@@ -60,18 +61,40 @@ cancellation, and owner replacement:
 
 The remaining blockers before Phase 4 are different in kind:
 
-- `RV2-DEBT-003`: `rt_async_state.c` remains over the Runtime V2 line target,
+- `RV2-DEBT-003`: at the start of Epic 10, `rt_async_state.c` remained over
+  the Runtime V2 line target,
   and Sentrux gate still reports the cumulative coupling/complexity recovery
   class. The remaining split candidates are ready-queue, completion/cancel, and
   handle lifetime.
-- `RV2-DEBT-010`: public copied net handles still expose raw native fd state.
+- `RV2-DEBT-010`: at the start of Epic 10, public copied net handles still
+  exposed raw native fd state.
   Registry generations protect poll snapshots and waiter completion, but a
   stale copied handle can still conceptually act on a reused OS fd unless a
   stable handle/generation contract is added or public behavior is narrowed.
-- `RV2-DEBT-013`: `stdlib/http/server.sg` sends raw `TcpConn.__opaque` handles
-  through a channel to worker tasks. Under `SURGE_SHARDS>1`, those workers may
-  run off the accepted connection's owner shard, so read/write ownership is not
-  guaranteed by the current public surface.
+- `RV2-DEBT-013`: at the start of Epic 10, `stdlib/http/server.sg` sent raw
+  `TcpConn.__opaque` handles through a channel to worker tasks. Under
+  `SURGE_SHARDS>1`, those workers could run off the accepted connection's owner
+  shard, so read/write ownership was not guaranteed by the public surface.
+
+## Closeout State
+
+Epic 10 landed the following runtime-only owner-safety changes:
+
+- `RV2-DEBT-003` closed by splitting `rt_async_state.c` into dependency-owned
+  ready-queue, completion/cancel, and task-lifetime modules while keeping the
+  normal LOC gate green.
+- `RV2-DEBT-010` closed by replacing public TCP handle words with stable
+  runtime handle ids. Native net entrypoints canonicalize copied handles
+  through the handle table before reading fd/owner/closed/generation fields;
+  stale handles are removed on close and fail with `NET_ERR_NOT_CONNECTED`.
+- `RV2-DEBT-013` closed by removing the `stdlib/http` raw `TcpConn.__opaque`
+  worker handoff. `http.serve` now uses fixed local accept workers; accepted
+  connections are handled on the owner-local task path, and
+  `runtime-v2-http-owner-check` covers `SURGE_SHARDS=1,2,8`.
+
+The epic did not add language syntax, `far`/`submit_to`/`crosses`, inbound
+queues, remote `select`, eventfd credit accounting, remote-free queues, or
+alternate I/O backends. Runtime V2 still treats those as later Phase 4+ work.
 
 ## Boundary Decisions
 
@@ -136,28 +159,22 @@ Epic 10 does not own:
 - `RV2-DEBT-017`: sync-channel compatibility latency remains with the future
   sync-compat retirement work.
 
-## Expected Work Shape
+## Executed Work Shape
 
-This document intentionally does not pre-slice tasks yet. The likely task
-groups are:
+Epic 10 executed as five task documents:
 
-1. **Dependency and debt map.** Re-read current code and write the exact
-   dependency map for `rt_async_state.c` split candidates, copied net handles,
-   stdlib HTTP handle flow, and relevant tests/gates.
-2. **`RV2-DEBT-003` cleanup tranche.** Extract only the clusters that have a
-   clean dependency boundary, with before/after LOC and Sentrux evidence.
-3. **Copied net-handle contract.** Decide and implement the stable id/generation
-   or guard model for public net handle operations.
-4. **Stdlib HTTP owner-safety.** Either make the handler path owner-local under
-   `SURGE_SHARDS>1` or add an explicit compatibility guard/documented fallback.
-5. **Proof and perf gate refresh.** Add focused stale-handle, non-owner net use,
-   and HTTP owner-safety tests; keep `runtime-v2-check` and `make check` green.
-6. **Closeout.** Reconcile `DEBT.md`, `NOTES.md`, `README.md`,
-   `docs/RUNTIME_V2.md`, Sentrux results, LOC allowlists, and next-epic handoff.
-
-The exact task order should be chosen after Task 1's map. Do not implement the
-net-handle or stdlib HTTP decision before the current handle representation and
-stdlib flow are re-derived from code.
+1. **Dependency and debt map.** Re-read current code and wrote the exact map for
+   `rt_async_state.c` split candidates, copied net handles, stdlib HTTP handle
+   flow, and relevant tests/gates.
+2. **`RV2-DEBT-003` cleanup tranche.** Split only clusters with clean dependency
+   boundaries and recorded before/after LOC plus Sentrux evidence.
+3. **Copied net-handle contract.** Landed stable runtime handle ids for public
+   net handles and canonical lookup before native fd operations.
+4. **Stdlib HTTP owner-safety.** Removed the HTTP raw `TcpConn.__opaque`
+   worker-pool handoff and added owner-local multi-shard behavior coverage.
+5. **Closeout.** Reconciled `DEBT.md`, `NOTES.md`, `README.md`,
+   `docs/RUNTIME_V2.md`, stdlib docs, Sentrux results, gates, and next-epic
+   handoff.
 
 ## Proof And Quality Contract
 
