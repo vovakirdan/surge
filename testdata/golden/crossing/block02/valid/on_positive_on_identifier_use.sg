@@ -1,0 +1,6 @@
+// Epic 11 Block 2 positive: `on` identifier used in expression (ON-KW-V002)
+fn f() -> int {
+    let on: int = 5;
+    let x: int = on + 1;
+    return x;
+}

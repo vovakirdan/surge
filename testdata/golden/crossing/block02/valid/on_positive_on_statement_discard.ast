@@ -1,0 +1,19 @@
+on_positive_on_statement_discard.sg (span: 2:1-13:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: double
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:26-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#3: (x * 2)
+└─ Item[1]: Fn (span: 6:1-12:2)
+   ├─ Name: run
+   ├─ Params: (n: int)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:35-12:2)
+         ├─ Stmt[0]: Expr (span: 7:5-10:7)
+         │  └─ Expr: expr#9: on pool { 2 stmt(s) }
+         └─ Stmt[1]: Return (span: 11:5-11:20)
+            └─ Expr: expr#10: nothing

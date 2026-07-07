@@ -22,7 +22,7 @@ func (p *Parser) parseIdentOrStructLiteral() (ast.ExprID, bool) {
 	nameID := p.arenas.StringsInterner.Intern(tok.Text)
 	// Don't parse as struct literal in type operand context (e.g., 'x is MyType')
 	// to avoid treating 'MyType {' as struct literal when followed by if-block
-	if p.inTypeOperandContext == 0 && tok.Kind == token.Ident && p.isTypeLiteralName(tok.Text) && p.at(token.LBrace) {
+	if p.inTypeOperandContext == 0 && p.noStructLiteral == 0 && tok.Kind == token.Ident && p.isTypeLiteralName(tok.Text) && p.at(token.LBrace) {
 		segments := []ast.TypePathSegment{{
 			Name:     nameID,
 			Generics: nil,
@@ -162,6 +162,12 @@ func (p *Parser) parseNothingLiteral() (ast.ExprID, bool) {
 // parseParenExpr парсит выражения в скобках - может быть группировкой или tuple
 func (p *Parser) parseParenExpr() (ast.ExprID, bool) {
 	openTok := p.advance() // съедаем '('
+
+	// Inside parentheses a `TypeName {` is unambiguous, so re-enable struct-literal
+	// recognition even when an outer context suppressed it (e.g. an `on` destination).
+	savedNoStructLiteral := p.noStructLiteral
+	p.noStructLiteral = 0
+	defer func() { p.noStructLiteral = savedNoStructLiteral }()
 
 	commas := make([]source.Span, 0, 2)
 	var trailing bool

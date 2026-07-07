@@ -1,0 +1,22 @@
+on_positive_async_crosses_fn.sg (span: 2:1-15:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: double
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:26-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#3: (x * 2)
+└─ Item[1]: Fn (span: 6:1-14:2)
+   ├─ Name: run
+   ├─ Params: (n: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:37-14:2)
+         ├─ Stmt[0]: Let (span: 7:5-9:7)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: TaskResult<int>
+         │  └─ Value: expr#8: on pool { 1 stmt(s) }
+         └─ Stmt[1]: Return (span: 10:5-13:7)
+            └─ Expr: expr#17: compare r { 2 arms }

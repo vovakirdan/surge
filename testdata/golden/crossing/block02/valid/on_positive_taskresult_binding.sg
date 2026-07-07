@@ -1,0 +1,12 @@
+// Epic 11 Block 2 positive: TaskResult binding (ON-BODY-V003)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn run(n: int) crosses -> nothing {
+    let r: TaskResult<int> = on pool {
+        ret double(n);
+    };
+    let _ = r;
+    return nothing;
+}

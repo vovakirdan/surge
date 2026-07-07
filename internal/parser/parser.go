@@ -61,6 +61,10 @@ type Parser struct {
 	// inTypeOperandContext > 0 indicates we're parsing a type operand (right side of 'is'/'heir').
 	// In this context, we should not parse 'TypeName {' as struct literal.
 	inTypeOperandContext int
+	// noStructLiteral > 0 suppresses `TypeName {` struct-literal recognition so a
+	// trailing '{' opens a following block instead (e.g. the `on <dst> { body }`
+	// destination, where `on Job {` must be dst `Job` + body, not a struct literal).
+	noStructLiteral int
 	// rangeLiteralExprDepth enables missing-end handling for range literals at a specific expr depth.
 	rangeLiteralExprDepth int
 	rangeLiteralPending   bool

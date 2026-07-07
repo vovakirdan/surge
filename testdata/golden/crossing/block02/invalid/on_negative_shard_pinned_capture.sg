@@ -1,0 +1,8 @@
+// EXPECT-DIAG: SEM3167
+// Epic 11 Block 2 negative: owned @shard_pinned capture (ON-CAP-N004)
+fn run(conn: own TcpConn) crosses -> TaskResult<nothing> {
+    return on pool {
+        conn.close();
+        ret nothing;
+    };
+}

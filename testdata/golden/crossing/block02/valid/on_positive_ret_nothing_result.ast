@@ -1,0 +1,17 @@
+on_positive_ret_nothing_result.sg (span: 2:1-12:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: double
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:26-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#3: (x * 2)
+└─ Item[1]: Fn (span: 6:1-11:2)
+   ├─ Name: run
+   ├─ Params: (n: int)
+   ├─ Return: TaskResult<nothing>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:47-11:2)
+         └─ Stmt[0]: Return (span: 7:5-10:7)
+            └─ Expr: expr#9: on pool { 2 stmt(s) }

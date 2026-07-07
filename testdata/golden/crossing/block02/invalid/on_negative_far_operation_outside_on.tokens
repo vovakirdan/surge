@@ -1,0 +1,23 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "run" at 3:4-3:7 (leading: Space)
+  3: LParen          "(" at 3:7-3:8
+  4: Ident           "conn" at 3:8-3:12
+  5: Colon           ":" at 3:12-3:13
+  6: KwFar           "far" at 3:14-3:17 (leading: Space)
+  7: Ident           "TcpConn" at 3:18-3:25 (leading: Space)
+  8: RParen          ")" at 3:25-3:26
+  9: Ident           "crosses" at 3:27-3:34 (leading: Space)
+ 10: Arrow           "->" at 3:35-3:37 (leading: Space)
+ 11: NothingLit      "nothing" at 3:38-3:45 (leading: Space)
+ 12: LBrace          "{" at 3:46-3:47 (leading: Space)
+ 13: Ident           "conn" at 4:5-4:9 (leading: Newline, Space)
+ 14: Dot             "." at 4:9-4:10
+ 15: Ident           "close" at 4:10-4:15
+ 16: LParen          "(" at 4:15-4:16
+ 17: RParen          ")" at 4:16-4:17
+ 18: Semicolon       ";" at 4:17-4:18
+ 19: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 20: NothingLit      "nothing" at 5:12-5:19 (leading: Space)
+ 21: Semicolon       ";" at 5:19-5:20
+ 22: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 23: EOF             at 7:1-7:1

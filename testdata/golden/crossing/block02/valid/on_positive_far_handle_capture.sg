@@ -1,0 +1,10 @@
+// Epic 11 Block 2 positive: far handle captured by value (ON-CAP-V003)
+fn keep(c: far TcpConn) -> nothing {
+    return nothing;
+}
+
+fn run(conn: far TcpConn) crosses -> TaskResult<nothing> {
+    return on pool {
+        ret keep(conn);
+    };
+}

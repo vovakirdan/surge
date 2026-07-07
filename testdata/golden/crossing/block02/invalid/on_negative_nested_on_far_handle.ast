@@ -1,0 +1,9 @@
+on_negative_nested_on_far_handle.sg (span: 3:1-12:1)
+└─ Item[0]: Fn (span: 3:1-11:2)
+   ├─ Name: run
+   ├─ Params: (ch: far Channel<int>, conn: far TcpConn)
+   ├─ Return: TaskResult<nothing>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:80-11:2)
+         └─ Stmt[0]: Return (span: 4:5-10:7)
+            └─ Expr: expr#9: on ch { 2 stmt(s) }

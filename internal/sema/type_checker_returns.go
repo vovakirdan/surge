@@ -49,10 +49,28 @@ func (tc *typeChecker) currentReturnContext() *returnContext {
 
 func (tc *typeChecker) currentBlockReturnContext() *returnContext {
 	ctx := tc.currentReturnContext()
-	if ctx == nil || ctx.kind != returnCtxBlockExpr || ctx.collect == nil {
+	if ctx == nil || ctx.collect == nil {
+		return nil
+	}
+	if ctx.kind != returnCtxBlockExpr && ctx.kind != returnCtxOnCrossing {
 		return nil
 	}
 	return ctx
+}
+
+// insideOnCrossing reports whether the innermost enclosing value-producing
+// context is an `on` crossing body (before any function boundary). A `return`
+// in that position cannot exit through the crossing and is rejected (SEM3147).
+func (tc *typeChecker) insideOnCrossing() bool {
+	for i := len(tc.returnStack) - 1; i >= 0; i-- {
+		switch tc.returnStack[i].kind {
+		case returnCtxOnCrossing:
+			return true
+		case returnCtxFunction:
+			return false
+		}
+	}
+	return false
 }
 
 func (tc *typeChecker) appendCollectedResult(ctx *returnContext, span source.Span, expr ast.ExprID, typ types.TypeID) {
@@ -92,6 +110,13 @@ func (tc *typeChecker) currentBlockReturnExpectedType() types.TypeID {
 func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual types.TypeID) {
 	ctx := tc.currentReturnContext()
 	if ctx == nil || tc.types == nil {
+		return
+	}
+	if tc.insideOnCrossing() {
+		tc.report(diag.SemaOnBodyReturn, span, "`return` cannot exit through a crossing block; use `ret`")
+		if n := len(tc.onCrossingStack); n > 0 {
+			tc.onCrossingStack[n-1].returnRejected = true
+		}
 		return
 	}
 	if ctx.collect != nil && ctx.kind != returnCtxFunction {

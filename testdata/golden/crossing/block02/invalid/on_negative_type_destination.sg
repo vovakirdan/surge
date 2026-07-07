@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3145
+// Epic 11 Block 2 negative: type name destination (ON-DST-N004)
+type Job = {
+    id: int,
+};
+
+fn run() crosses -> TaskResult<int> {
+    return on Job {
+        ret 1;
+    };
+}

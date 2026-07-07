@@ -1,4 +1,5 @@
 // EXPECT-DIAG: FUT7014
+// EXPECT-STAGE: backend
 // Epic 11 Block 2 negative: on placement crossing backend unavailable (ON-GATE-N001)
 fn double(x: int) -> int {
     return x * 2;

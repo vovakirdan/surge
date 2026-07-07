@@ -8,7 +8,8 @@ fn bump(r: &mut Request) -> int {
     return r.id;
 }
 
-fn run(mut req: Request) crosses -> TaskResult<int> {
+fn run() crosses -> TaskResult<int> {
+    let mut req: Request = Request { id: 0 };
     let r: &mut Request = &mut req;
     return on pool {
         ret bump(r);

@@ -21,7 +21,11 @@ type ConstBinding struct {
 	ValueSpan  source.Span
 }
 
-func (p *Parser) parseConstBinding() (ConstBinding, bool) {
+// parseConstBinding parses a `const NAME[: Type] = value` binding. When
+// allowNoValue is true (only `@intrinsic` const items), the `= value`
+// initializer may be omitted: the value is runtime-provided, mirroring how an
+// `@intrinsic fn` declares no body.
+func (p *Parser) parseConstBinding(allowNoValue bool) (ConstBinding, bool) {
 	startSpan := p.lx.Peek().Span
 
 	nameID, ok := p.parseIdent()
@@ -47,18 +51,24 @@ func (p *Parser) parseConstBinding() (ConstBinding, bool) {
 		}
 	}
 
-	assignTok, ok := p.expect(token.Assign, diag.SynUnexpectedToken, "expected '=' in const declaration", nil)
-	if !ok {
-		return ConstBinding{}, false
-	}
-
-	valueID, ok := p.parseExpr()
-	if !ok {
-		return ConstBinding{}, false
-	}
+	var assignTok token.Token
+	valueID := ast.NoExprID
 	var valueSpan source.Span
-	if expr := p.arenas.Exprs.Get(valueID); expr != nil {
-		valueSpan = expr.Span
+	if allowNoValue && !p.at(token.Assign) {
+		// `@intrinsic` const without an initializer: value is runtime-provided.
+	} else {
+		var ok bool
+		assignTok, ok = p.expect(token.Assign, diag.SynUnexpectedToken, "expected '=' in const declaration", nil)
+		if !ok {
+			return ConstBinding{}, false
+		}
+		valueID, ok = p.parseExpr()
+		if !ok {
+			return ConstBinding{}, false
+		}
+		if expr := p.arenas.Exprs.Get(valueID); expr != nil {
+			valueSpan = expr.Span
+		}
 	}
 
 	binding := ConstBinding{
@@ -78,7 +88,8 @@ func (p *Parser) parseConstBinding() (ConstBinding, bool) {
 func (p *Parser) parseConstItemWithVisibility(attrs []ast.Attr, attrSpan source.Span, visibility ast.Visibility, prefixSpan source.Span, hasPrefix bool) (ast.ItemID, bool) {
 	constTok := p.advance()
 
-	binding, ok := p.parseConstBinding()
+	// `@intrinsic` const items may omit the initializer (runtime-provided value).
+	binding, ok := p.parseConstBinding(p.attrsContainName(attrs, "intrinsic"))
 	if !ok {
 		insertPos := p.lastSpan.ZeroideToEnd()
 		p.resyncUntil(token.Semicolon, token.RBrace, token.EOF)
@@ -173,7 +184,7 @@ func (p *Parser) parseConstItemWithVisibility(attrs []ast.Attr, attrSpan source.
 func (p *Parser) parseConstStmt() (ast.StmtID, bool) {
 	constTok := p.advance()
 
-	binding, ok := p.parseConstBinding()
+	binding, ok := p.parseConstBinding(false)
 	if !ok {
 		return ast.NoStmtID, false
 	}

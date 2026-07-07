@@ -1,0 +1,38 @@
+on_positive_compare_on.sg (span: 2:1-27:1)
+├─ Item[0]: Type (span: 2:1-5:3)
+│  ├─ Name: Request
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @shard_movable
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Type (span: 7:1-9:3)
+│  ├─ Name: Response
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: code: int
+├─ Item[2]: Fn (span: 11:1-13:2)
+│  ├─ Name: compute
+│  ├─ Params: (req: own Request)
+│  ├─ Return: Response
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:42-13:2)
+│        └─ Stmt[0]: Return (span: 12:5-12:38)
+│           └─ Expr: expr#4: <ExprKind(22)>
+├─ Item[3]: Fn (span: 15:1-17:2)
+│  ├─ Name: default_response
+│  ├─ Params: ()
+│  ├─ Return: Response
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 15:35-17:2)
+│        └─ Stmt[0]: Return (span: 16:5-16:33)
+│           └─ Expr: expr#7: <ExprKind(22)>
+└─ Item[4]: Fn (span: 19:1-26:2)
+   ├─ Name: route
+   ├─ Params: (req: own Request)
+   ├─ Return: Response
+   └─ Body:
+      └─ Stmt[0]: Block (span: 19:54-26:2)
+         └─ Stmt[0]: Expr (span: 20:5-25:7)
+            └─ Expr: expr#24: compare on pool { 1 stmt(s) } { 2 arms }

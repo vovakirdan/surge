@@ -62,6 +62,8 @@ const (
 	ExprBlock
 	// ExprRangeLit represents a range literal expression.
 	ExprRangeLit
+	// ExprOn represents an `on dst { ... }` placement-crossing expression (Epic 11 Block 2).
+	ExprOn
 )
 
 // Expr represents an expression node in the AST.
@@ -459,6 +461,15 @@ type ExprBlockingData struct {
 // The block must end with a return statement (unless type is nothing).
 type ExprBlockData struct {
 	Stmts []StmtID
+}
+
+// ExprOnData represents an `on <dst> { ... }` placement-crossing expression.
+// Dest is the destination expression (a `Placement` value or an accepted `far`
+// handle; validated by sema). Body is the value block whose result is produced
+// by `ret`. The crossing evaluates to `TaskResult<T>` (enforced by sema).
+type ExprOnData struct {
+	Dest ExprID
+	Body StmtID
 }
 
 // ExprTaskData represents the operand of a `task` expression.

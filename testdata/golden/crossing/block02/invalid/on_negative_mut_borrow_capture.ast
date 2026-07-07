@@ -1,0 +1,33 @@
+on_negative_mut_borrow_capture.sg (span: 3:1-18:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Request
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: bump
+│  ├─ Params: (r: &mut Request)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:33-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:17)
+│           └─ Expr: expr#2: r.id
+└─ Item[2]: Fn (span: 11:1-17:2)
+   ├─ Name: run
+   ├─ Params: ()
+   ├─ Return: TaskResult<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:37-17:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:46)
+         │  ├─ Name: req
+         │  ├─ Mutable: true
+         │  ├─ Type: Request
+         │  └─ Value: expr#5: <ExprKind(22)>
+         ├─ Stmt[1]: Let (span: 13:5-13:36)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut Request
+         │  └─ Value: expr#7: &mut req
+         └─ Stmt[2]: Return (span: 14:5-16:7)
+            └─ Expr: expr#12: on pool { 1 stmt(s) }

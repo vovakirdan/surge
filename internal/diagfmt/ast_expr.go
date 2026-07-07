@@ -268,6 +268,19 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 			}
 		}
 		return "blocking { ... }"
+	case ast.ExprOn:
+		data, ok := builder.Exprs.On(exprID)
+		if !ok || data == nil {
+			return "<invalid-on>"
+		}
+		dest := formatExprInlineDepth(builder, data.Dest, depth+1)
+		dest = wrapExprIfNeeded(builder, data.Dest, dest)
+		if builder.Stmts != nil && data.Body.IsValid() {
+			if block := builder.Stmts.Block(data.Body); block != nil {
+				return fmt.Sprintf("on %s { %d stmt(s) }", dest, len(block.Stmts))
+			}
+		}
+		return "on " + dest + " { ... }"
 	case ast.ExprParallel:
 		data, ok := builder.Exprs.Parallel(exprID)
 		if !ok {
@@ -494,6 +507,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Async"
 	case ast.ExprBlocking:
 		return "Blocking"
+	case ast.ExprOn:
+		return "On"
 	case ast.ExprRangeLit:
 		return "RangeLit"
 	default:

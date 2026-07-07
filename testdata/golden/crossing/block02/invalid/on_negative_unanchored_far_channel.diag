@@ -1,0 +1,1 @@
+error SEM3150 testdata/golden/crossing/block02/invalid/on_negative_unanchored_far_channel.sg:10:9 this remote handle is not anchored by the current `on` destination

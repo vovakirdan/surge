@@ -16,6 +16,8 @@ const (
 	FnModifierAsync FnModifier = 1 << iota
 	// FnModifierPublic marks a public function.
 	FnModifierPublic
+	// FnModifierCrosses marks a function carrying the `crosses` shard-crossing effect.
+	FnModifierCrosses
 )
 
 // FnParam represents a function parameter.

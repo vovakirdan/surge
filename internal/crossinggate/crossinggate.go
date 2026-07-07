@@ -23,7 +23,7 @@ const (
 	// Block1Enabled gates the `far` type-modifier fixtures.
 	Block1Enabled = true
 	// Block2Enabled gates the `on dst { ... }` placement-crossing fixtures.
-	Block2Enabled = false
+	Block2Enabled = true
 	// Block3Enabled gates the `spawn on dst { ... }` remote-spawn fixtures.
 	Block3Enabled = false
 	// Block4Enabled gates the crossing-contract fixtures (`crosses`,

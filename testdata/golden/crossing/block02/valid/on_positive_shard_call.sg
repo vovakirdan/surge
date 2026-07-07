@@ -1,0 +1,10 @@
+// Epic 11 Block 2 positive: on shard(id) (ON-DST-V003)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn score(n: int, id: ShardId) crosses -> TaskResult<int> {
+    return on shard(id) {
+        ret double(n);
+    };
+}

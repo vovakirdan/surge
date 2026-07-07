@@ -111,6 +111,8 @@ type typeChecker struct {
 	arrayViewBindings           map[symbols.SymbolID]struct{}
 	assignmentLHSDepth          int
 	movedBindings               map[symbols.SymbolID]source.Span
+	blockingDepth               int             // nesting depth of `blocking { }` bodies (suspension illegal inside)
+	onCrossingStack             []onAnchorFrame // active `on dst { ... }` crossing frames (Epic 11 Block 2)
 }
 
 type returnContext struct {
@@ -135,6 +137,10 @@ const (
 	returnCtxFunction returnContextKind = iota
 	returnCtxBlockExpr
 	returnCtxTaskPayload
+	// returnCtxOnCrossing marks the value-producing body of an `on dst { ... }`
+	// placement crossing: `ret` yields the crossed result, while `return` is
+	// rejected because it cannot exit through the crossing boundary.
+	returnCtxOnCrossing
 )
 
 type returnStatus int

@@ -1,0 +1,1 @@
+error SEM3144 testdata/golden/crossing/block02/invalid/on_negative_integer_destination.sg:4:15 `on` destination must be a `Placement` value or an accepted `far` handle

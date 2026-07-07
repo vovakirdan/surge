@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/buildpipeline"
 	"surge/internal/diag"
 	"surge/internal/driver"
 )
@@ -16,6 +17,12 @@ import (
 // expectDiagRe extracts the expected diagnostic code from a negative fixture's
 // `// EXPECT-DIAG: <CODE>` header line.
 var expectDiagRe = regexp.MustCompile(`EXPECT-DIAG:\s*([A-Z]+[0-9]+)`)
+
+// expectStageRe extracts the optional `// EXPECT-STAGE: <stage>` header. Most
+// negatives are checked at the sema stage (the default); fixtures whose expected
+// diagnostic is produced by a backend/lowering guard rather than sema declare
+// `// EXPECT-STAGE: backend` so the harness routes them through the compile path.
+var expectStageRe = regexp.MustCompile(`EXPECT-STAGE:\s*([a-z]+)`)
 
 // repoRoot resolves the repository root from this test file's location so the
 // fixtures can be found regardless of the working directory `go test` uses.
@@ -41,6 +48,46 @@ func diagnose(t *testing.T, path string) []*diag.Diagnostic {
 		return nil
 	}
 	return res.Bag.Items()
+}
+
+// diagnoseBackend runs a fixture through the VM-backend compile path so that
+// backend/lowering guards fire. Epic 11 delivers the `on` surface compile-only:
+// a placement crossing that type-checks but reaches a backend is reported with
+// FUT7014 (FutOnBackendUnavailable) by a buildpipeline guard, not by the
+// sema-stage driver.Diagnose path. Fixtures that assert such a code declare
+// `// EXPECT-STAGE: backend`. BackendVM is used because the guard is
+// backend-independent (no backend has the Phase 4 transport); this mirrors how
+// FutBlockingNotSupported is exercised via the VM backend.
+func diagnoseBackend(t *testing.T, path string) []*diag.Diagnostic {
+	t.Helper()
+	res, err := buildpipeline.Compile(context.Background(), &buildpipeline.CompileRequest{
+		TargetPath:     path,
+		Backend:        buildpipeline.BackendVM,
+		MaxDiagnostics: 200,
+	})
+	// A backend guard reports through diagnostics; Compile also returns a
+	// non-nil error when the bag has errors. Inspect the bag whenever it is
+	// populated, and only fail the test if there is no bag to inspect.
+	if res.Diagnose == nil || res.Diagnose.Bag == nil {
+		if err != nil {
+			t.Fatalf("crossinggate: backend compile %s: %v", filepath.Base(path), err)
+		}
+		return nil
+	}
+	return res.Diagnose.Bag.Items()
+}
+
+// expectedStage reads the optional `// EXPECT-STAGE:` annotation, defaulting to
+// the sema stage when absent.
+func expectedStage(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "sema"
+	}
+	if m := expectStageRe.FindSubmatch(data); m != nil {
+		return string(m[1])
+	}
+	return "sema"
 }
 
 // expectedCode reads the `// EXPECT-DIAG:` annotation from a negative fixture.
@@ -103,7 +150,13 @@ func runFixtures(t *testing.T, block string) {
 	for _, f := range invalidFiles {
 		t.Run("invalid/"+filepath.Base(f), func(t *testing.T) {
 			want := expectedCode(t, f)
-			diags := diagnose(t, f)
+			var diags []*diag.Diagnostic
+			switch expectedStage(f) {
+			case "backend":
+				diags = diagnoseBackend(t, f)
+			default:
+				diags = diagnose(t, f)
+			}
 			for _, d := range diags {
 				if d.Code.ID() == want {
 					return

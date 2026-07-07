@@ -92,6 +92,20 @@ func (p *Parser) parseFnModifiers() fnModifiers {
 			mods.extend(tok.Span)
 			continue
 		case token.Ident:
+			// `crosses fn ...`: the crossing effect keyword is misplaced as a
+			// prefix modifier; it belongs after the parameter list (SYN2034).
+			if tok.Text == contextualCrosses {
+				tok = p.advance()
+				p.emitDiagnostic(
+					diag.SynCrossesPlacement,
+					diag.SevError,
+					tok.Span,
+					crossesPlacementMessage,
+					nil,
+				)
+				mods.extend(tok.Span)
+				continue
+			}
 			tok = p.advance()
 			msg := "unknown function modifier"
 			note := "Possible fn modifier: pub, async"

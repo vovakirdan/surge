@@ -391,6 +391,17 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 			return
 		}
 		fr.walkStmt(data.Body)
+	case ast.ExprOn:
+		data, _ := fr.builder.Exprs.On(exprID)
+		if data == nil {
+			return
+		}
+		if data.Dest.IsValid() {
+			fr.walkExpr(data.Dest)
+		}
+		if data.Body.IsValid() {
+			fr.walkStmt(data.Body)
+		}
 	case ast.ExprBlock:
 		data, _ := fr.builder.Exprs.Block(exprID)
 		if data == nil {

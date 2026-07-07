@@ -95,6 +95,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		ty = tc.typeExprAsync(id, expr.Span)
 	case ast.ExprBlocking:
 		ty = tc.typeExprBlocking(id, expr.Span)
+	case ast.ExprOn:
+		ty = tc.typeExprOn(id, expr.Span)
 	case ast.ExprTask:
 		if task, ok := tc.builder.Exprs.Task(id); ok && task != nil {
 			ty = tc.typeSpawnExpr(id, expr.Span, task.Value, false)

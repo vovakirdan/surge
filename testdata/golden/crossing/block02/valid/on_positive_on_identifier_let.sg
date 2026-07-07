@@ -1,0 +1,5 @@
+// Epic 11 Block 2 positive: `on` remains a valid identifier (ON-KW-V001)
+fn f() -> int {
+    let on: int = 1;
+    return on;
+}

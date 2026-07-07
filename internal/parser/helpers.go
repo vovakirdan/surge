@@ -284,6 +284,17 @@ func (p *Parser) resyncStatement() {
 	}
 }
 
+// attrsContainName reports whether attrs includes an attribute whose interned
+// name equals name.
+func (p *Parser) attrsContainName(attrs []ast.Attr, name string) bool {
+	for _, attr := range attrs {
+		if s, ok := p.arenas.StringsInterner.Lookup(attr.Name); ok && s == name {
+			return true
+		}
+	}
+	return false
+}
+
 // FakeError — эмулирует ошибку в указанном span
 // используется для генерации диагностик для дебага
 func (p *Parser) FakeError(msg string, span source.Span) {

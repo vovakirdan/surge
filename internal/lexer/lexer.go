@@ -18,7 +18,8 @@ type Lexer struct {
 	file    *source.File
 	cursor  Cursor
 	opts    Options
-	look    *token.Token   // 1 элементный буфер для токена
+	look    *token.Token   // 1-й элемент буфера предпросмотра
+	look2   *token.Token   // 2-й элемент буфера предпросмотра (для Peek2)
 	hold    []token.Trivia // накопленные leading trivia
 	last    token.Token
 	hasLast bool
@@ -45,6 +46,7 @@ func (lx *Lexer) SetRange(start, end uint32) {
 		lx.cursor.Limit = end
 	}
 	lx.look = nil
+	lx.look2 = nil
 	lx.hold = nil
 	lx.last = token.Token{}
 	lx.hasLast = false
@@ -53,15 +55,22 @@ func (lx *Lexer) SetRange(start, end uint32) {
 // Next возвращает следующий **значимый** токен с уже собранным Leading.
 // После EOF всегда возвращает EOF.
 func (lx *Lexer) Next() token.Token {
-	// 1) Если есть look — вернуть его и очистить
+	// 1) Если есть буферизованный токен — вернуть его и сдвинуть буфер
 	if lx.look != nil {
 		tok := *lx.look
-		lx.look = nil
+		lx.look = lx.look2
+		lx.look2 = nil
 		lx.last = tok
 		lx.hasLast = true
 		return tok
 	}
 
+	return lx.scanNext()
+}
+
+// scanNext сканирует следующий значимый токен напрямую из источника,
+// минуя буфер предпросмотра.
+func (lx *Lexer) scanNext() token.Token {
 	// 2) collectLeadingTrivia() — набить lx.hold
 	lx.collectLeadingTrivia()
 
@@ -129,13 +138,30 @@ func (lx *Lexer) Next() token.Token {
 
 // Peek возвращает следующий токен, не потребляя его.
 func (lx *Lexer) Peek() token.Token {
-	t := lx.Next()
-	lx.look = &t
-	return t
+	if lx.look == nil {
+		t := lx.scanNext()
+		lx.look = &t
+	}
+	return *lx.look
+}
+
+// Peek2 возвращает токен, следующий за Peek(), не потребляя ни одного.
+// Используется для контекстных ключевых слов (`on`, `crosses`), где решение
+// зависит от токена, идущего сразу после идентификатора.
+func (lx *Lexer) Peek2() token.Token {
+	lx.Peek() // гарантируем, что первый элемент буфера заполнен
+	if lx.look2 == nil {
+		t := lx.scanNext()
+		lx.look2 = &t
+	}
+	return *lx.look2
 }
 
 // Push injects a token back into the lookahead buffer.
 func (lx *Lexer) Push(tok token.Token) {
+	if lx.look != nil {
+		lx.look2 = lx.look
+	}
 	lx.look = &tok
 }
 

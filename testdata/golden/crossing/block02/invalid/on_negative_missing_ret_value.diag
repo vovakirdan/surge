@@ -1,0 +1,1 @@
+error SEM3148 testdata/golden/crossing/block02/invalid/on_negative_missing_ret_value.sg:4:12 an `on` crossing block must produce its value with `ret`

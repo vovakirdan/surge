@@ -100,6 +100,19 @@ prefixLoop:
 				span: start.Cover(p.lastSpan),
 			})
 		default:
+			// `crosses fn(...) -> T` function-type syntax is not supported
+			// (Epic 11 Block 4 grammar slice, SYN2036). A bare `crosses` here is
+			// an ordinary type name and is left to the primary type parser.
+			if p.atContextualCrosses() && p.lx.Peek2().Kind == token.KwFn {
+				tok := p.advance() // consume `crosses`; parse the `fn(...)` type as the base
+				p.emitDiagnostic(
+					diag.SynCrossesFnType,
+					diag.SevError,
+					tok.Span,
+					"function-type syntax for `crosses` is not supported",
+					nil,
+				)
+			}
 			// Больше префиксов нет, выходим из цикла
 			break prefixLoop
 		}

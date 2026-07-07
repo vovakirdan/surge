@@ -411,7 +411,7 @@ func (p *Parser) parseForClassic(forTok token.Token) (ast.StmtID, bool) {
 func (p *Parser) parseForInitializer() (ast.StmtID, bool) {
 	if p.at(token.KwConst) {
 		constTok := p.advance()
-		binding, ok := p.parseConstBinding()
+		binding, ok := p.parseConstBinding(false)
 		if !ok {
 			return ast.NoStmtID, false
 		}

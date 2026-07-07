@@ -1,0 +1,24 @@
+on_positive_shard_movable_capture.sg (span: 2:1-16:1)
+├─ Item[0]: Type (span: 2:1-5:3)
+│  ├─ Name: Request
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @shard_movable
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: compute
+│  ├─ Params: (req: own Request)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:37-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:19)
+│           └─ Expr: expr#2: req.id
+└─ Item[2]: Fn (span: 11:1-15:2)
+   ├─ Name: run
+   ├─ Params: (req: own Request)
+   ├─ Return: TaskResult<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:53-15:2)
+         └─ Stmt[0]: Return (span: 12:5-14:7)
+            └─ Expr: expr#8: on pool { 1 stmt(s) }

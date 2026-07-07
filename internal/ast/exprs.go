@@ -34,6 +34,7 @@ type Exprs struct {
 	Asyncs       *Arena[ExprAsyncData]
 	Blockings    *Arena[ExprBlockingData]
 	Blocks       *Arena[ExprBlockData]
+	Ons          *Arena[ExprOnData]
 }
 
 // NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
@@ -71,6 +72,7 @@ func NewExprs(capHint uint) *Exprs {
 		Asyncs:       NewArena[ExprAsyncData](capHint),
 		Blockings:    NewArena[ExprBlockingData](capHint),
 		Blocks:       NewArena[ExprBlockData](capHint),
+		Ons:          NewArena[ExprOnData](capHint),
 	}
 }
 
@@ -457,6 +459,24 @@ func (e *Exprs) Blocking(id ExprID) (*ExprBlockingData, bool) {
 		return nil, false
 	}
 	return e.Blockings.Get(uint32(expr.Payload)), true
+}
+
+// NewOn creates a new `on <dst> { ... }` placement-crossing expression.
+func (e *Exprs) NewOn(span source.Span, dest ExprID, body StmtID) ExprID {
+	payload := e.Ons.Allocate(ExprOnData{
+		Dest: dest,
+		Body: body,
+	})
+	return e.new(ExprOn, span, PayloadID(payload))
+}
+
+// On returns the placement-crossing data for the given expression ID.
+func (e *Exprs) On(id ExprID) (*ExprOnData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprOn {
+		return nil, false
+	}
+	return e.Ons.Get(uint32(expr.Payload)), true
 }
 
 // NewParallelMap creates a new parallel map expression.

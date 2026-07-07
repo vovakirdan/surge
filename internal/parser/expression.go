@@ -353,7 +353,9 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 			expr = newExpr
 		case token.LBrace:
 			// Don't parse as struct literal in type operand context (e.g., 'x is MyType')
-			if p.inTypeOperandContext > 0 {
+			// or where struct literals are suppressed (e.g. an `on` destination, so the
+			// '{' opens the crossing body instead of a struct literal).
+			if p.inTypeOperandContext > 0 || p.noStructLiteral > 0 {
 				return expr, true
 			}
 			if typeID, ok := p.typePathFromExpr(expr); ok {
@@ -496,6 +498,9 @@ func isTypeStartByte(b byte) bool {
 func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	switch p.lx.Peek().Kind {
 	case token.Ident, token.Underscore:
+		if p.atOnCrossingHead() {
+			return p.parseOnCrossing()
+		}
 		return p.parseIdentOrStructLiteral()
 
 	case token.IntLit, token.UintLit, token.FloatLit:

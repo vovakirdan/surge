@@ -6,6 +6,35 @@ This document is the test-case matrix and fixture inventory for Epic 11 Block 2:
 It is documentary only. It does not define parser, semantic-analysis, lowering,
 runtime, or public-example implementation work.
 
+## Implementation Status (2026-07-07)
+
+IMPLEMENTED. `Block2Enabled` is `true` in
+`internal/crossinggate/crossinggate.go`; Block 2 fixtures are activated and
+green under `go test ./internal/crossinggate/` (47/47 subtests) and
+`make golden-check`. See `docs/runtime-v2-epics/NOTES.md` (Epic 11 Block 2
+Implementation) for the full implementation surface and evidence. Block-2-scoped
+notes:
+
+- Every negative asserts its mapped diagnostic; the `FUT7014`
+  backend-unavailable row (ON-GATE-N001) asserts at the backend stage via the
+  harness `// EXPECT-STAGE: backend` selector, so `on_negative_backend_unavailable.sg`
+  stays `_`-prefixed and out of the shell golden corpus (its sema `.diag` is
+  empty by design).
+- ON-CAP-N002 (`on_negative_mut_borrow_capture.sg`) uses a local `let mut`
+  binding rather than a `mut` parameter, to produce a single clean `SEM3165`
+  golden; this tests the `&mut`-capture-into-`on` invariant, not `mut`-parameter
+  syntax. `mut` parameters are out of Epic 11 scope: `docs/LANGUAGE.md:2104`
+  documents them but the compiler rejects them with `SYN2102`
+  (documented-but-unimplemented, separate ticket; see NOTES).
+- Contextual-`on` boundary: a destination is recognized only when `on` is
+  immediately followed by an identifier, a literal, or `blocking`. A
+  parenthesized destination (`on (expr) { ... }`) is NOT recognized as a
+  crossing — bind it to a variable first (`let p = expr; on p { ... }`). No
+  block-02 fixture needs one.
+- Drift: `@shard_pinned` was added to `TcpConn` in `core/intrinsics.sg` to make
+  `own TcpConn` capture reject with `SEM3167` (ON-CAP-N004) — a semantically
+  correct stdlib addition beyond the literal recipe, recorded in NOTES.
+
 ## Scope
 
 Block 2 covers immediate placement crossing:

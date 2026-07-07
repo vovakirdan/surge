@@ -88,6 +88,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	expandProgressFiles(req, phaseProgress, diagRes)
 
 	addBlockingVMErrors(req, diagRes)
+	addOnCrossingBackendErrors(req, diagRes)
 
 	diagRes.MergeModuleDiagnostics()
 

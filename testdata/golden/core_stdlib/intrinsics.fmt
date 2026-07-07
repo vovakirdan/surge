@@ -79,7 +79,7 @@ pub type TcpListener = {
     __opaque: int,
 };
 
-@intrinsic @nosend
+@intrinsic @nosend @shard_pinned
 pub type TcpConn = {
     __opaque: int,
 };
@@ -188,6 +188,22 @@ pub type Task<T> = {
 
 pub tag Cancelled();
 pub type TaskResult<T> = Success(T) | Cancelled;
+
+// Epic 11: explicit placement crossing surface (compile-only; runtime execution
+// of `on dst { ... }` is guarded until the Phase 4 transport epic). `Placement`
+// is a Copy, shard-movable value; `pool` and `distributed` are prelude
+// placements and `shard(id)` selects a placement by shard.
+@intrinsic @copy
+pub type Placement = {
+    __opaque: int,
+};
+
+pub type ShardId = uint32;
+
+@intrinsic pub const pool: Placement;
+@intrinsic pub const distributed: Placement;
+
+@intrinsic pub fn shard(id: ShardId) -> Placement;
 
 @intrinsic fn rt_scope_enter(failfast: bool) -> uint;
 @intrinsic fn rt_scope_register_child<T>(scope: uint, child: Task<T>) -> nothing;

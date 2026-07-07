@@ -19,8 +19,8 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 					receiverType = instantiated
 				}
 			}
-			if !receiverIsType && tc.reportFarLocalOp(receiverType, span) {
-				return types.NoTypeID
+			if !receiverIsType && tc.isFarType(receiverType) {
+				return tc.typeFarHandleCall(member, receiverType, call, span)
 			}
 			if !receiverIsType && tc.lookupName(member.Field) == "await" {
 				allowAwait := tc.awaitDepth > 0

@@ -1,0 +1,41 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "run" at 3:4-3:7 (leading: Space)
+  3: LParen          "(" at 3:7-3:8
+  4: Ident           "conn" at 3:8-3:12
+  5: Colon           ":" at 3:12-3:13
+  6: KwFar           "far" at 3:14-3:17 (leading: Space)
+  7: Ident           "TcpConn" at 3:18-3:25 (leading: Space)
+  8: Comma           "," at 3:25-3:26
+  9: Ident           "buf" at 3:27-3:30 (leading: Space)
+ 10: Colon           ":" at 3:30-3:31
+ 11: Amp             "&" at 3:32-3:33 (leading: Space)
+ 12: KwMut           "mut" at 3:33-3:36
+ 13: Ident           "byte" at 3:37-3:41 (leading: Space)
+ 14: LBracket        "[" at 3:41-3:42
+ 15: RBracket        "]" at 3:42-3:43
+ 16: RParen          ")" at 3:43-3:44
+ 17: Ident           "crosses" at 3:45-3:52 (leading: Space)
+ 18: Arrow           "->" at 3:53-3:55 (leading: Space)
+ 19: Ident           "TaskResult" at 3:56-3:66 (leading: Space)
+ 20: Lt              "<" at 3:66-3:67
+ 21: NothingLit      "nothing" at 3:67-3:74
+ 22: Gt              ">" at 3:74-3:75
+ 23: LBrace          "{" at 3:76-3:77 (leading: Space)
+ 24: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 25: Ident           "on" at 4:12-4:14 (leading: Space)
+ 26: Ident           "conn" at 4:15-4:19 (leading: Space)
+ 27: LBrace          "{" at 4:20-4:21 (leading: Space)
+ 28: Ident           "conn" at 5:9-5:13 (leading: Newline, Space)
+ 29: Dot             "." at 5:13-5:14
+ 30: Ident           "read" at 5:14-5:18
+ 31: LParen          "(" at 5:18-5:19
+ 32: Ident           "buf" at 5:19-5:22
+ 33: RParen          ")" at 5:22-5:23
+ 34: Semicolon       ";" at 5:23-5:24
+ 35: KwRet           "ret" at 6:9-6:12 (leading: Newline, Space)
+ 36: NothingLit      "nothing" at 6:13-6:20 (leading: Space)
+ 37: Semicolon       ";" at 6:20-6:21
+ 38: RBrace          "}" at 7:5-7:6 (leading: Newline, Space)
+ 39: Semicolon       ";" at 7:6-7:7
+ 40: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 41: EOF             at 9:1-9:1

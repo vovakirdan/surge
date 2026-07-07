@@ -1,0 +1,7 @@
+// EXPECT-DIAG: SEM3144
+// Epic 11 Block 2 negative: integer destination (ON-DST-N003)
+fn run() crosses -> TaskResult<int> {
+    return on 1 {
+        ret 1;
+    };
+}

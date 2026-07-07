@@ -1,0 +1,11 @@
+// Epic 11 Block 2 positive: on dst where dst: Placement (ON-DST-V004)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn score(n: int) crosses -> TaskResult<int> {
+    let dst: Placement = pool;
+    return on dst {
+        ret double(n);
+    };
+}

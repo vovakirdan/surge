@@ -1,0 +1,1 @@
+error SEM3149 testdata/golden/crossing/block02/invalid/on_negative_assign_unwrapped_result.sg:8:18 `on` evaluates to `TaskResult<T>`, not `T`

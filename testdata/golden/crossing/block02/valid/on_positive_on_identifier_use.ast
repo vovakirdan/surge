@@ -1,0 +1,19 @@
+on_positive_on_identifier_use.sg (span: 2:1-7:1)
+└─ Item[0]: Fn (span: 2:1-6:2)
+   ├─ Name: f
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:15-6:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:21)
+         │  ├─ Name: on
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 5
+         ├─ Stmt[1]: Let (span: 4:5-4:25)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#4: (on + 1)
+         └─ Stmt[2]: Return (span: 5:5-5:14)
+            └─ Expr: expr#5: x

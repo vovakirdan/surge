@@ -1,0 +1,13 @@
+// EXPECT-DIAG: SEM3149
+// Epic 11 Block 2 negative: on result assigned to T instead of TaskResult<T> (ON-BODY-N003)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn run(n: int) crosses -> nothing {
+    let v: int = on pool {
+        ret double(n);
+    };
+    let _ = v;
+    return nothing;
+}

@@ -1,0 +1,1 @@
+error SEM3151 testdata/golden/crossing/block02/invalid/on_negative_tcpconn_accept.sg:5:9 remote socket I/O through `far TcpConn` is not supported yet

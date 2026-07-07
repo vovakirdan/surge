@@ -1,0 +1,8 @@
+// EXPECT-DIAG: SEM3151
+// Epic 11 Block 2 negative: remote accept through far TcpConn (ON-TCP-N003)
+fn run(conn: far TcpConn) crosses -> TaskResult<nothing> {
+    return on conn {
+        conn.accept();
+        ret nothing;
+    };
+}

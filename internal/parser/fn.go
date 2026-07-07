@@ -131,6 +131,9 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 		}
 	}
 
+	// `crosses` before the parameter list (`fn f crosses(...)`) is misplaced.
+	p.rejectMisplacedCrosses()
+
 	openParen, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name")
 	if !ok {
 		p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
@@ -143,6 +146,12 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 		return parsedFn{}, false
 	}
 	result.paramsSpan = openParen.Span.Cover(closeParenSpan)
+
+	// `crosses` effect keyword: valid only here, between the parameter list and
+	// the return type / body (Epic 11 Block 4 grammar slice).
+	if p.parseCrossesEffectAfterParams() {
+		flags |= ast.FnModifierCrosses
+	}
 
 	var returnType ast.TypeID
 	if p.at(token.Arrow) {
@@ -187,6 +196,9 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 	if returnType == ast.NoTypeID {
 		returnType = p.makeNothingType(p.lastSpan.ZeroideToEnd())
 	}
+
+	// `crosses` after the return type (`fn f(...) -> T crosses { ... }`) is misplaced.
+	p.rejectMisplacedCrosses()
 
 	var bodyStmtID ast.StmtID
 	switch p.lx.Peek().Kind {

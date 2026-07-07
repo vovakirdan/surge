@@ -1,0 +1,6 @@
+// EXPECT-DIAG: SEM3142
+// Epic 11 Block 2 negative: far operation outside on (ON-ANCHOR-N003)
+fn run(conn: far TcpConn) crosses -> nothing {
+    conn.close();
+    return nothing;
+}

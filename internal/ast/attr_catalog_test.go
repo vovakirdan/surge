@@ -35,6 +35,38 @@ func TestLookupAttr_SpecialFlags(t *testing.T) {
 	}
 }
 
+func TestShardAttrsAreTypeOnly(t *testing.T) {
+	for _, name := range []string{"shard_movable", "shard_pinned"} {
+		spec, ok := LookupAttr(name)
+		if !ok {
+			t.Fatalf("expected @%s spec", name)
+		}
+		if !spec.Allows(AttrTargetType) {
+			t.Errorf("@%s should allow type declarations", name)
+		}
+		for _, bad := range []AttrTargetMask{AttrTargetFn, AttrTargetField, AttrTargetParam, AttrTargetBlock, AttrTargetLet} {
+			if spec.Allows(bad) {
+				t.Errorf("@%s should not allow target %d", name, bad)
+			}
+		}
+	}
+}
+
+func TestIntrinsicAllowsConstTarget(t *testing.T) {
+	// `@intrinsic pub const pool: Placement;` requires const/let target support
+	// (Epic 11 Block 4 placement intrinsics).
+	spec, ok := LookupAttr("intrinsic")
+	if !ok {
+		t.Fatal("expected intrinsic spec")
+	}
+	if !spec.Allows(AttrTargetLet) {
+		t.Error("@intrinsic should allow const/let targets")
+	}
+	if !spec.Allows(AttrTargetFn) || !spec.Allows(AttrTargetType) {
+		t.Error("@intrinsic should still allow fn and type targets")
+	}
+}
+
 func TestAttrSpecsSortedUnique(t *testing.T) {
 	specs := AttrSpecs()
 	if len(specs) != len(attrRegistry) {

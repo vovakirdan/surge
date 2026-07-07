@@ -16,8 +16,8 @@ required to reconstruct the Epic 11 contract.
 
 | Block | Document | Surface | Status |
 | --- | --- | --- | --- |
-| 1 | `block-01-far-type-modifier.md` | `far T` type modifier | Matrix staged and gated |
-| 2 | `block-02-on-placement-crossing.md` | `on dst { ... }` placement crossing | Matrix staged and gated |
+| 1 | `block-01-far-type-modifier.md` | `far T` type modifier | Implemented (gate enabled) |
+| 2 | `block-02-on-placement-crossing.md` | `on dst { ... }` placement crossing | Implemented (gate enabled) |
 | 3 | `block-03-spawn-on-remote-spawn.md` | `spawn on dst { ... }`, `far Task<T>` | Matrix staged and gated |
 | 4 | `block-04-crossing-contracts.md` | `crosses`, `@shard_movable`, `@shard_pinned` | Matrix staged and gated |
 
@@ -183,20 +183,34 @@ header naming the exact diagnostic it must produce.
 
 **Harness.** `internal/crossinggate` drives the fixtures under `go test`
 (`make check`). It has four independent gate constants in
-`internal/crossinggate/crossinggate.go`; Block 1 is enabled once its `far T`
-surface lands, and later blocks remain disabled until their implementation
-slices are ready. When a gate is `true`, the harness runs each sema-stage fixture
-through `driver.Diagnose` at the sema stage: negatives must emit their
-`EXPECT-DIAG` code, positives must be error-free.
+`internal/crossinggate/crossinggate.go`; Block 1 and Block 2 are enabled once
+their surfaces land, and later blocks remain disabled until their implementation
+slices are ready. When a gate is `true`, the harness runs each fixture at the
+stage named by its optional `// EXPECT-STAGE:` header (default sema, via
+`driver.Diagnose`): negatives must emit their `EXPECT-DIAG` code, positives must
+be error-free.
 
 **Backend-unavailable rows.** Fixtures whose expected codes are `FUT7014`,
 `FUT7015`, `FUT7016`, or `FUT7017` prove lowering/backend guard behavior, not the
 ordinary sema acceptance path. They intentionally mirror positive source shapes
-under an unsupported execution configuration. Before flipping Block 2 or Block 3
-gates, the implementation must either move these rows into a separate
-lowering/backend gate or teach `internal/crossinggate` an explicit stage/config
-selector. They must not be treated as plain sema-negative fixtures while the
-matching positive compile-only fixtures are also enabled.
+under an unsupported execution configuration and must not be treated as plain
+sema-negative fixtures while the matching positive compile-only fixtures are also
+enabled. Block 2 resolves this with an explicit stage selector in the harness
+(the pattern Block 3 must reuse for `FUT7015`–`FUT7017`):
+
+- The fixture carries `// EXPECT-STAGE: backend` in addition to its
+  `// EXPECT-DIAG:` header. `internal/crossinggate` routes such fixtures through
+  `buildpipeline.Compile` with `BackendVM` and asserts the code on the resulting
+  diagnostic bag, while every other fixture stays on the sema-stage
+  `driver.Diagnose` path. The backend guard is unconditional, so no special
+  backend/config value is needed.
+- Because the diagnostic is emitted only at the backend stage, `surge diag`
+  (sema) produces an empty `.diag`, which `scripts/golden_update.sh` rejects for
+  `invalid/` fixtures. The backend-unavailable fixture therefore stays
+  `_`-prefixed: `golden_update.sh` skips it (no committed sidecars, excluded from
+  `make golden-check`), while the `crossinggate` go-test still exercises it
+  because its `invalid/*.sg` glob matches `_`-prefixed names and the gate is the
+  `BlockNEnabled` constant, not the prefix.
 
 **Flipping a gate (one per block, in the forced order above).**
 
@@ -215,5 +229,11 @@ matching positive compile-only fixtures are also enabled.
 **Fold into the shell golden corpus.** Once a block passes under the gate, its
 fixtures must join `make golden-check`: drop the `_` prefix from that block's
 files, run `make golden-update`, commit the generated sidecars, and then run
-`make golden-check`. Until a block is implemented, the `crossinggate` harness is
-the authoritative staged-fixture gate.
+`make golden-check`. The one exception is backend-unavailable fixtures
+(`// EXPECT-STAGE: backend`), which stay `_`-prefixed and out of the shell corpus
+(see "Backend-unavailable rows" above). Note that adding stdlib symbols (e.g. a
+block's new intrinsics) shifts global `sym=`/`type#`/`L` IDs, so `make
+golden-update` legitimately regenerates unrelated `hir`/`mir`/`mono` goldens with
+renumbered IDs; that renumbering is expected and carries no structural change.
+Until a block is implemented, the `crossinggate` harness is the authoritative
+staged-fixture gate.

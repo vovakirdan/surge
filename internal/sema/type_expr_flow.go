@@ -158,7 +158,9 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 	if !ok || blockingData == nil {
 		return types.NoTypeID
 	}
+	tc.blockingDepth++
 	resultType := tc.taskBlockPayload(span, blockingData.Body, false)
+	tc.blockingDepth--
 	captures := tc.collectBlockingCaptures(blockingData.Body)
 	tc.recordBlockingCaptures(id, captures)
 	for _, cap := range captures {
