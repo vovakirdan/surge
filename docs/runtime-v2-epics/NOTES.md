@@ -4293,3 +4293,48 @@ usage/wiring first, then real backend/lowering.
 The nested `vscode-extension` repository was updated separately for Epic 11
 highlighting and versioned as `0.0.15` in commit `e703523` (not committed into
 the parent Surge repository).
+
+## 2026-07-08 — Epic 12 proposed document drafted
+
+Proposed next epic document:
+`12-crossing-surface-integration-and-lowering-readiness.md`.
+
+Scope: bridge Epic 11's compile-time crossing surface into compiler/backend
+readiness without implementing Phase 4 transport. The document explicitly
+forbids hidden local fallback for `on` / `spawn on` / `far Task` operations,
+requires deterministic backend-unavailable diagnostics before transport exists,
+and requires a written lowering-readiness contract that preserves crossing
+destination/result/effect metadata through the real compiler path.
+
+The old "Epic 12 test/backend matrix rewrite" placeholder is not dropped.
+`DEBT.md` was updated so `RV2-DEBT-001`, `RV2-DEBT-002`, `RV2-DEBT-011`, and
+`RV2-DEBT-018` are reconciled by Epic 12 if they block crossing backend rows, or
+reassigned to a later named backend/test-harness epic during Task 1. `RV2-DEBT-024`
+is a decision point for this epic: implement higher-order/cross-module effect
+propagation only if lowering readiness proves it is needed now; otherwise
+reaffirm the deferral with evidence.
+
+No `12-tasks/` directory exists yet. The next discussion should review and
+accept/rework the epic document before task slicing.
+
+## 2026-07-08 — Epic 12 document revised and task slices drafted
+
+The Epic 12 document was revised after an expert review against the current
+compiler state: the representation decision (guard-before-HIR vs
+lower-into-HIR-then-guard) is now forced into Task 1 with a recorded
+rationale; the backend-unavailable guard contract gained default-closed
+gating, an ICE-on-bypass requirement, and a tested negative space (LSP /
+check-only paths must stay clean on valid crossing code); matrix taxonomy is
+aligned to the real backend set (`BackendVM`, `BackendLLVM`); the current
+FUT7014-7017 messages are recorded as violating the new wording contract
+("Phase 4" is an internal number) with fixture churn expected in Task 2; and
+the `RV2-DEBT-024` criterion is sharpened to "required iff the chosen
+representation layer needs effect bits on imported function symbols".
+
+`12-tasks/` was drafted: `README.md` (index, order ruling, per-task gates)
+plus six task documents — 01 dependency/debt/representation map (binding
+decisions), 02 backend-unavailable diagnostic contract, 03 lowering-readiness
+representation (owns the DEBT-024 decision), 04 controlled compile-time usage
+fixtures, 05 test harness hardening (DEBT-011/018; may be promoted ahead of
+02/04 by Task 1's map), 06 CI gates and closeout. The epic and task documents
+are pending review together; no implementation has started.

@@ -43,15 +43,20 @@ shard-owned state, and promoted the lock gate (`runtime-v2-lock-check`) into
 work and same-owner scope bookkeeping off the hot control lane, fixed the
 adopted 8x1024 starvation debt, promoted lifecycle/perf gates into
 `runtime-v2-check`, and recorded the remaining wakeup/cancel/accept-transition
-debts in `DEBT.md`. The explicit crossing surface and Phase 4 transport move
-to a later epic and still require a dedicated syntax review first. Epic 9 is
-complete per `09-wakeup-and-cancellation-safety.md`: it added the test-only
-sync-point proof scaffold and closed the three carried local safety debts
-without adding Phase 4 transport or language syntax: `RV2-DEBT-023`
-(cancel-vs-park), `RV2-DEBT-020` (owner-replacement join-waiter migration), and
-`RV2-DEBT-022` (external-await `done_cv` StoreLoad ordering). Broader
-cancellation matrix rows remain future test-matrix hardening candidates, not
-new known correctness debt.
+debts in `DEBT.md`. Epic 9 is complete per
+`09-wakeup-and-cancellation-safety.md`: it added the test-only sync-point proof
+scaffold and closed the three carried local safety debts without adding Phase 4
+transport or language syntax: `RV2-DEBT-023` (cancel-vs-park),
+`RV2-DEBT-020` (owner-replacement join-waiter migration), and `RV2-DEBT-022`
+(external-await `done_cv` StoreLoad ordering). Epic 10 is complete per
+`10-runtime-debt-burndown-and-owner-safety.md`: it closed the dependency-aware
+runtime split, stable copied net-handle safety, and owner-local stdlib HTTP
+server path. Epic 11 is complete per
+`11-explicit-crossing-language-surface.md`: it accepted the Draft 9 crossing
+surface at lexer/parser/sema/golden level (`far`, `on`, `spawn on`, inferred
+effects, `@shard_movable`, `@shard_pinned`) without Phase 4 transport. Epic 12
+is proposed in `12-crossing-surface-integration-and-lowering-readiness.md` as
+the compiler/backend readiness bridge before real cross-shard transport.
 
 ## Current Runtime V2 Artifacts
 
@@ -104,12 +109,22 @@ new known correctness debt.
 - `10-runtime-debt-burndown-and-owner-safety.md`: Epic 10 scope and closeout
   for dependency-aware cleanup, stable copied net-handle safety, and stdlib
   HTTP owner-shard hardening before Phase 4.
+- `11-explicit-crossing-language-surface.md`: Epic 11 accepted language
+  surface, golden-test contract, compile-time implementation scope, and Draft 9
+  closeout for explicit crossing.
+- `11-tasks/`: Epic 11 block documents for `far`, `on`, `spawn on`, and
+  crossing contracts.
+- `12-crossing-surface-integration-and-lowering-readiness.md`: proposed Epic
+  12 scope for backend-unavailable diagnostics, compiler representation
+  preservation, matrix/debt reconciliation, and Phase 4 transport handoff.
 
 Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside
-the Runtime V2 green gates. Epic 12 owns the VM/native/LLVM test-matrix
-rewrite. Until then, runtime tasks must keep that debt named in `DEBT.md` and
-must not attribute new regressions to it without evidence.
+the Runtime V2 green gates. Epic 12 must reconcile the old VM/native/LLVM
+test-matrix debt labels with the crossing-readiness matrix: close the blocking
+parts, narrow the scope, or reassign the remaining debt to a later named owner.
+Until then, runtime tasks must keep that debt named in `DEBT.md` and must not
+attribute new regressions to it without evidence.
 
 ## Standing Migration Goals
 
@@ -137,15 +152,17 @@ Every epic should move the runtime toward these goals:
 | 8 | `08-task-lifecycle-lane-and-net-fairness.md` | Complete. Moved task lifecycle, join/done, await accounting, and same-owner scope bookkeeping off the remaining steady-path control lane; fixed the adopted 8x1024 starvation debt; added lifecycle/perf gates. No syntax or Phase 4 transport work. |
 | 9 | `09-wakeup-and-cancellation-safety.md` | Complete. Runtime-only safety pass before final crossing work. Added deterministic sync-point proofs and closed `RV2-DEBT-023`, `RV2-DEBT-020`, and `RV2-DEBT-022`. No syntax or Phase 4 transport work. |
 | 10 | `10-runtime-debt-burndown-and-owner-safety.md` | Complete. Closed `RV2-DEBT-003`, `RV2-DEBT-010`, and `RV2-DEBT-013`: dependency-aware runtime split, stable net handle ids, and owner-local stdlib HTTP server path. No syntax or Phase 4 transport work. |
-| 11 | TBD | Add the `Io` boundary and optional backend work such as `io_uring` after ownership is stable. |
-| 12 | TBD | Rewrite the VM/native/LLVM test matrix around the stable Runtime V2 contracts and remove accepted backend-test debt. |
+| 11 | `11-explicit-crossing-language-surface.md` | Complete. Accepted and implemented the Draft 9 compile-time crossing surface: `far`, contextual `on`, `spawn on`, inferred crossing effects, and shard movement attributes. No Phase 4 transport. |
+| 12 | `12-crossing-surface-integration-and-lowering-readiness.md` | Proposed. Preserve crossing meaning through the compiler/backend pipeline, enforce deterministic backend-unavailable behavior, reconcile backend-test debt, and prepare the Phase 4 transport/lowering handoff. |
+| 13 | TBD | Implement real Phase 4 cross-shard transport/lowering once Epic 12 proves the compiler/backend readiness contract. |
 
 ## Language Syntax Gate
 
-Before any epic or task changes Surge syntax, keywords, parser rules, semantic
-checks for new syntax, or public examples, stop and review the language surface
-with the user. The `RUNTIME_V2.md` names for crossing, far handles, and shard
-movability describe semantics only. They are not final keyword choices.
+Before any future epic or task changes Surge syntax, keywords, parser rules,
+semantic checks for new syntax, or public examples, stop and review the
+language surface with the user. Epic 11 selected the current crossing surface;
+later epics must not add shorthand, new keywords, or public examples without an
+explicit design review.
 
 ## Standing Gates
 
