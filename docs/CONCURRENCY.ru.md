@@ -1,9 +1,9 @@
 # Модель конкурентности Surge v1
 [English](CONCURRENCY.md) | [Russian](CONCURRENCY.ru.md)
 
-> **Статус:** Native/LLVM бэкенды используют MT-исполнитель; VM однопоточный для корректности и диагностики. `blocking { ... }` поддерживается только в native/LLVM. `strict::nonblocking` пока не реализован (будущая работа).
-> **Область:** async/await, Task/TaskResult, spawn, каналы, отмена, таймауты, режимы MT executor, blocking { }, strict::nonblocking (будущее)
-> **Вне области:** data-parallel ключевые слова (`parallel map/reduce`), `signal`
+> **Статус:** Native/LLVM бэкенды используют MT-исполнитель; VM однопоточный для корректности и диагностики. `blocking { ... }` поддерживается только в native/LLVM. Draft 9 crossing-синтаксис принимается parser/sema, но Phase 4 transport/lowering ещё не реализован.
+> **Область:** async/await, Task/TaskResult, spawn, Draft 9 `far` / `on` / `spawn on` compile-time crossing surface, каналы, отмена, таймауты, режимы MT executor, blocking { }, strict::nonblocking (будущее)
+> **Вне области:** data-parallel ключевые слова (`parallel map/reduce`), `signal`, Phase 4 cross-shard transport/lowering для `on` и `spawn on`
 
 ---
 
@@ -125,6 +125,7 @@ Failfast означает: если дочерняя задача заверша
 ```sg
 spawn expr
 @local spawn expr
+spawn on dst { ret expr; }
 ```
 
 Правила:
@@ -136,6 +137,12 @@ spawn expr
 - `@local spawn` разрешает `@nosend` захваты, но возвращает локальный task handle (не sendable):
   его нельзя захватывать в `spawn`, отправлять через каналы или возвращать из функции.
 - `spawn checkpoint()` вызывает предупреждение как бесполезный вызов (`SemaSpawnCheckpointUseless`).
+- `spawn on dst { ... }` — Draft 9 форма placed-spawn, которая возвращает
+  `far Task<T>`. Назначение имеет тип `Placement` (`pool`, `distributed`,
+  `shard(id)` или вычисленное значение placement). Внутри placed-блока
+  используется `ret`, а не `return`.
+- `@local spawn on dst` запрещён. Локальная изоляция задачи и удалённое
+  размещение — разные execution contracts.
 
 Пример:
 
@@ -158,9 +165,15 @@ compare t2.await() {
 Инварианты MT-ready модели:
 
 - `spawn` требует Sendable захваты; `@local spawn` разрешает `@nosend`.
+- `spawn on` требует, чтобы захваты можно было переместить через границу
+  шарда: `own`-захваты проверяются против `@nosend`, активных borrow и
+  `@shard_pinned`.
 - Local task handle нельзя переносить в sendable-контекст (capture в `spawn`, return, send по каналу).
 - `Task<T>` — SuspendSafe через `await` (контейнеры SuspendSafe, если элементы SuspendSafe).
 - Контейнеры задач нужно дренировать (`pop` + `await`) до выхода из scope.
+- `spawn on` остаётся compile-time поверхностью до Phase 4 transport; backend,
+  который не умеет lowering, обязан выдать детерминированную
+  backend-unavailable диагностику.
 
 ---
 
@@ -180,6 +193,37 @@ compare fetch_user(42).await() {
 - Разрешено внутри `async` функций/блоков и `@entrypoint` функций.
 - Запрещено в простых синхронных функциях (`SemaIntrinsicBadContext`).
 - `await` внутри циклов поддерживается.
+- `far Task<T>.await()` — удалённая crossing-операция. Она потребляет remote
+  task handle и возвращает `TaskResult<T>`.
+- `far Task<T>.cancel()` — удалённая crossing-операция, возвращающая
+  `TaskResult<nothing>`.
+
+### Placement Crossing (Draft 9 compile-time)
+
+`on dst { ... }` — immediate placement-crossing форма:
+
+```sg
+fn send_job(ch: far Channel<Job>, job: own Job) -> TaskResult<nothing> {
+    return on ch {
+        ret ch.send(own job);
+    };
+}
+```
+
+Правила:
+
+- `dst` может быть `Placement` (`pool`, `distributed`, `shard(id)` или
+  вычисленный placement) либо remote handle с информацией о владельце,
+  например `far Channel<T>`.
+- Тело использует `ret`, чтобы вернуть результат блока. `return` внутри `on`
+  запрещён: он неоднозначно выглядел бы как возврат из окружающей функции.
+- Захваты следуют тем же crossing-правилам, что и `spawn on`: можно переносить
+  `own` movable-значения, нельзя переносить активные borrow, `@nosend`
+  значения и `@shard_pinned` значения.
+- Компилятор сам выводит crossing effect по `on`, `spawn on` и операциям над
+  `far Task<T>`. Keyword `crosses` не существует.
+- Epic 11 принимает эту поверхность только на уровне parser/sema. Исполнение
+  в backend остаётся под guard до появления Phase 4 transport.
 
 ---
 

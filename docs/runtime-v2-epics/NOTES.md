@@ -4271,3 +4271,25 @@ Debt state updated: `RV2-DEBT-024` is no longer "effect inference deferred";
 the remaining debt is higher-order/function-type effect propagation and possible
 cross-module export propagation if Phase 4 lowering proves it needs caller
 effects across module boundaries.
+
+## 2026-07-08 — Epic 11 Draft 9 documentation closeout
+
+The connected language docs now describe the accepted Epic 11 surface instead
+of candidate names: `LANGUAGE.md` / `LANGUAGE.ru.md` are Draft 9, `far T` is a
+type modifier, `on dst { ... }` is the immediate placement-crossing block,
+`spawn on dst { ... }` returns `far Task<T>`, crossing effects are inferred, and
+`crosses` remains an ordinary identifier.
+
+`ATTRIBUTES.md` / `ATTRIBUTES.ru.md` document `@shard_movable` and
+`@shard_pinned`; `CONCURRENCY.md` / `CONCURRENCY.ru.md` explain the compile-time
+crossing surface without promising Phase 4 execution; `RUNTIME_V2.md` now points
+Phase 4 at lowering/transport work instead of syntax selection.
+
+Public runtime examples remain intentionally deferred: Epic 11 proves parser,
+semantic checks, golden fixtures, and backend-unavailable guards, but does not
+provide cross-shard transport. The next epic should be split into compile-time
+usage/wiring first, then real backend/lowering.
+
+The nested `vscode-extension` repository was updated separately for Epic 11
+highlighting and versioned as `0.0.15` in commit `e703523` (not committed into
+the parent Surge repository).

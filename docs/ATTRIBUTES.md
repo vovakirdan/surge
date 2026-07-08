@@ -70,6 +70,8 @@ Status legend:
 | `@releases_lock` | fn | string | Enforced | Callee releases lock. |
 | `@waits_on` | fn | string | Enforced | Marks potential blocking. |
 | `@send` | type | none | Enforced | Field composition must be sendable. |
+| `@shard_movable` | type | none | Enforced | Owned values may cross shard boundaries if fields/members are recursively movable. |
+| `@shard_pinned` | type | none | Enforced | Values/resources are pinned to their owner shard; owned values cannot cross. |
 | `@sealed` | type | none | Enforced | Cannot be extended. |
 | `@pure` | fn | none | Parsed | No side-effect checks yet. |
 
@@ -260,6 +262,37 @@ pub type Task<T> = { __opaque: int };
 - `@send` requires all fields to be sendable (recursively).
 - `@nosend` forbids crossing task boundaries.
 - They conflict with each other.
+
+### `@shard_movable` / `@shard_pinned`
+
+`@shard_movable` marks a type whose owned values may cross shard boundaries in
+`on dst { ... }` and `spawn on dst { ... }` captures. The compiler validates the
+type recursively:
+
+- primitive scalar fields, enums, `far T` handles, and recursively movable
+  `own T`, tuple, and array members are accepted;
+- fields or union members with `@nosend`, `@shard_pinned`, or unmarked
+  user-defined types are rejected;
+- `@send` and `@copy` alone are not enough for owned shard movement.
+
+`@shard_pinned` marks a type or runtime resource that must stay on its owner
+shard. Owned `@shard_pinned` values cannot be captured across crossing
+boundaries; use an accepted `far T` handle or an explicit future migration path.
+
+The two attributes conflict with each other.
+
+```sg
+@shard_movable
+type Job = {
+    id: uint64,
+    payload: string,
+};
+
+@intrinsic
+@nosend
+@shard_pinned
+pub type TcpConn = { __opaque: int };
+```
 
 ### `@copy`
 

@@ -238,36 +238,35 @@ different cost is a hidden cliff, which is exactly what the cost model forbids.
 
 Runtime V2 therefore makes crossing a distinct, visible construct.
 
-The concrete names in this section are working names. Before any compiler,
-parser, semantic-analysis, or public syntax work starts, run a separate syntax
-review and choose the final keywords/operators for brevity and readability.
-`far`, `submit_to`, and related spellings below describe the contract shape, not
-the final language surface.
+Epic 11 selected and implemented the compile-time crossing surface for parser
+and semantic analysis: `far T`, `on dst { ... }`, `spawn on dst { ... }`,
+inferred crossing effects, `@shard_movable`, and `@shard_pinned`. Backend
+lowering and Phase 4 transport are separate follow-up work.
 
 **Far handles.** A capability that targets another shard has a distinct type,
-written `far T` as a working name. `far Chan<T>` is a channel endpoint owned by
-another shard; `far Task<T>` is a handle to a task running on another shard. A
+written `far T`. `far Chan<T>` is a channel endpoint owned by another shard;
+`far Task<T>` is a handle to a task running on another shard. A
 `far` handle is produced only by an explicitly distributed operation. Local
 operations on a `far` handle do not type-check, for the same reason a borrow
 cannot cross: the operation would imply cross-shard lifetime or wakeup work.
 
-**The crossing construct.** The only legal way to act through a `far` handle,
-move an `own` shard-movable value to another shard, or offload to Tier 2 is the
-explicit form:
+**The crossing constructs.** The legal ways to make a crossing visible are:
 
 ```text
-submit_to(dst) { work }      // working name; sibling of blocking { }
+on dst { work }              // immediate placement crossing; returns TaskResult<T>
+spawn on dst { work }        // placed child task; returns far Task<T>
 ```
 
-`dst` is a specific shard, a Tier 2 destination such as `pool` or `blocking`, or
-`distributed` for any shard. The construct:
+`dst` is a `Placement` such as `pool`, `distributed`, `shard(id)`, or a computed
+placement value, or an accepted owner-anchored `far` handle destination such as
+`far Channel<T>` / the closed `far TcpConn` control-operation set. The
+constructs:
 
 - admits only `own` shard-movable values or copyable captures into `work`;
   borrowed captures and shard-pinned captures do not type-check;
-- suspends the calling task and resumes it from a cross-shard completion
-  message, not a local waiter or fd readiness;
-- lowers to a distinct cross-shard resume kind, analogous to the existing
-  channel resume kinds in the current runtime.
+- use `ret` inside the crossing block; `return` cannot escape through it;
+- infer a function-level crossing effect in semantic analysis;
+- will lower to distinct cross-shard resume kinds once Phase 4 transport lands.
 
 Because every crossing is one of these constructs, every crossing is visible in
 source. Reading a function body, the programmer sees each point where work
@@ -387,7 +386,7 @@ low-fanout distributed work, but it must not be the default per-request shape.
 
 **Distributed spawn is an explicit crossing.** A local spawn may capture borrows
 of the parent; parent and child share a shard, so the borrows stay valid. A
-distributed spawn is written `submit_to(distributed) { ... }` and is checked
+distributed spawn is written `spawn on distributed { ... }` and is checked
 move-only plus shard-movable: it may capture `own` shard-movable values or
 copyable values, never `&T`, `&mut T`, or shard-pinned resources of the parent.
 The construct that makes the crossing visible is also the point where the
@@ -411,11 +410,11 @@ Runtime V2 separates hot shard-local work from work that should leave the shard.
 - Tier 2 is the offload tier for work that should leave the connection shard:
   blocking calls, bounded CPU-heavy work, and compatibility operations.
 
-Tier 2 has two destinations. `submit_to(blocking)` is a dynamically sized pool
-for work that blocks in syscalls; its threads may park indefinitely.
-`submit_to(pool)` is a fixed, approximately core-count pool for CPU-bound work
-that must not block and may be stolen internally. Mixing them in one pool lets a
-blocked syscall stall queued CPU work, so the boundary is explicit.
+Tier 2 has two destinations. Existing `blocking { ... }` is a dynamically sized
+pool for work that blocks in syscalls; its threads may park indefinitely.
+`spawn on pool { ... }` is the accepted source shape for future CPU-bound placed
+work that must not block and may be stolen internally. Mixing them in one pool
+lets a blocked syscall stall queued CPU work, so the boundary is explicit.
 
 The CPU destination is a stealing pool, and stealing lives here and nowhere
 else. This is the one place where work stealing is the correct tool: the work is
@@ -429,11 +428,11 @@ connection's hot path. I/O skew, such as one fat connection bound to one shard's
 fd, is a different problem with a different lever: migration. Skew therefore has
 two levers, not zero - Tier 2 for CPU, migration for I/O.
 
-Entry to Tier 2 is the crossing construct with a Tier 2 destination:
-`submit_to(pool) { ... }` or `submit_to(blocking) { ... }`. It obeys the same
-move-only and shard-movable capture rule as a shard boundary, checked in
-semantic analysis. One construct serves every crossing - specific shard, Tier 2
-pool, blocking pool, and distributed - and one rule governs all captures.
+Entry to CPU Tier 2 is the crossing construct with a Tier 2 placement:
+`spawn on pool { ... }`. OS-blocking work continues to use the existing
+`blocking { ... }` expression. Placed work obeys the same move-only and
+shard-movable capture rule as a shard boundary, checked in semantic analysis.
+The syntax stays explicit, and one rule governs all crossing captures.
 
 Tier 2 completion returns to the caller's shard through the same cross-shard
 completion path as shard-to-shard work. Tier 2 code cannot hold borrows into
@@ -509,7 +508,7 @@ none is unsupported.
 
 Thread-per-core without Tier 1 stealing gives up automatic fairness in the
 connection hot path. That is deliberate: Tier 1 fd ownership stays stable, CPU
-skew goes through `submit_to(pool)`, and I/O skew goes through migration.
+skew goes through `spawn on pool`, and I/O skew goes through migration.
 Migration and rebalancing remain control-plane features. The trigger policy is
 still open; candidate signals are shard queue depth, byte rate, CPU budget, and
 tail latency.
@@ -534,9 +533,10 @@ surface keyword. An explicit function-level `crosses` marker was prototyped and
 then removed; instead the crossing effect is INFERRED at semantic analysis and
 stored in function metadata, with no programmer-facing keyword or requirement.
 `on dst { }`, `spawn on`, and `far Task<T>.await()`/`.cancel()` are valid in any
-function. The inference implementation itself is deferred to the Phase 4
-transport epic (see `runtime-v2-epics/DEBT.md` RV2-DEBT-024); no effect inference
-runs yet beyond accepting the forms.
+function. Epic 11 implements direct/intra-module sema inference for these forms
+and direct calls. Higher-order/function-type propagation and possible exported
+cross-module effect metadata remain tracked as `RV2-DEBT-024` if Phase 4
+lowering needs them.
 
 ## Cost Model And Levers
 
@@ -558,13 +558,13 @@ criterion for the refactor.
 | --- | --- | --- | --- | --- |
 | Same-shard fd readiness | ✓ | ✓ | ✓ | FD owner resumes the task locally. |
 | Same-shard channel send | ✓ | ✓ | ✓ | Channel owner and task owner are the same shard. |
-| Cross-shard send (`own` shard-movable value, unbounded)¹ | ~ | ✓ | ✓ | `submit_to` sends an owned payload to the channel owner. |
+| Cross-shard send (`own` shard-movable value, unbounded)¹ | ~ | ✓ | ✓ | Future remote channel operation sends an owned payload to the channel owner through the explicit crossing surface. |
 | Cross-shard bounded send | ~ | ~ | ✓ | Receiver-owned request/ack models capacity and backpressure. |
 | Remote `select` over `far` arms | ~ | ~ | ~² | Slow coordinator uses generation tokens and stale completion rejection. |
 | Local spawn / `join_all` request tree | ✓ | ✓ | ✓ | Spawn is shard-local by default. |
-| Distributed spawn / join | ~ | ✓ | ✓ | `submit_to(distributed)`; join via `far Task<T>`. |
-| `blocking {}` syscall offload | ~ | ✓ | ✓ | `submit_to(blocking)`, completion to owner. |
-| CPU skew, hot shard | ~ | ✓ | ✓ | `submit_to(pool)`; Tier 2 steals internally. |
+| Distributed spawn / join | ~ | ✓ | ✓ | `spawn on distributed { ... }`; join via `far Task<T>`. |
+| `blocking {}` syscall offload | ~ | ✓ | ✓ | Existing `blocking { ... }` pool, completion to owner. |
+| CPU skew, hot shard | ~ | ✓ | ✓ | `spawn on pool { ... }`; Tier 2 steals internally once lowered. |
 | I/O skew, fat connection | ~ | ~ | ~ | Migration control plane; trigger heuristic open. |
 | Shard-pinned resource transfer | ~ | ~ | ✓ | Explicit migration re-registers the fd, timer, or equivalent resource on the destination shard. |
 | Cross-shard free, `own` shard-movable value dropped remotely | ✓ | ✓ | ✓ | Allocator routes free to owner; move makes it visible. |
@@ -594,7 +594,7 @@ cancellation traffic.
 | Heap allocation ownership | Heap accounting uses runtime/shard-owned cells, but allocation still uses the current `malloc`/`free` strategy. | Shard-local hot object pools and owner-routed frees. |
 | Cross-shard value lifetime | A value can be used and dropped away from its allocation owner. | Only `own` shard-movable values cross shards; the allocator routes non-owner frees to the owning shard. |
 | Shard-pinned resource move | `own File` could move to another shard while its fd remains registered on the old shard. | Types that transitively own shard-registered resources are shard-pinned; ordinary sends are rejected and explicit migration re-registers the resource. |
-| Invisible cross-shard cost | A remote operation could be spelled like a local one. | Crossing is a distinct typed construct (`far` + `submit_to`); cost is legible before compile. |
+| Invisible cross-shard cost | A remote operation could be spelled like a local one. | Crossing is a distinct typed construct (`far` + `on` / `spawn on`); cost is legible before compile. |
 | Lost cross-shard wakeup | A producer can enqueue, see the target as running, skip the wake, and race with target parking. | Wake elision uses the seq-cst park protocol: `PARKED` store, queue re-check, and debug invariant. |
 | Unbounded inbound transport | Cross-shard messages can grow memory without backpressure. | Inbound transport is bounded by target credits with a reserved control lane for release messages. |
 | Remote bounded channels | A bounded send across shards needs receiver-side capacity state. | The receiver shard owns capacity and completes sends through request/ack. |
@@ -629,25 +629,29 @@ should not promise forever.
 ## Migration Plan
 
 Note: from Phase 4 onward, V2 spans two workstreams. The runtime gains shard
-messaging and remote-free; the compiler gains the `far` qualifier, the
-`submit_to` construct, move-only capture checks, and a cross-shard resume kind
-in async lowering. Neither half is complete without the other.
+messaging and remote-free; the compiler already has the `far` qualifier,
+`on dst { ... }`, `spawn on dst { ... }`, move-only capture checks, and
+shard-movable validation at parser/sema level. Lowering still needs the
+cross-shard resume kind and transport integration. Neither half is complete
+without the other.
 
 ### Phase 0: Contract And Structure
 
 Implementation note, 2026-06-26: this design phase is broader than the first
 implementation epic. Epic 1 records the contracts, rules, evidence shape, and
 known debt. Epic 2 implements only the `N=1` `rt_runtime`/`rt_shard`
-structure. The `far` handle type, `submit_to`, shard-movable enforcement, and
-cross-shard lowering remain later epics and must not be pulled into the `N=1`
-structure pass.
+structure. The accepted crossing syntax and sema checks (`far`, `on`,
+`spawn on`, shard-movable enforcement) are later Epic 11 work relative to that
+initial structure pass; cross-shard lowering remains after the compile-time
+surface.
 
 - Define scheduler semantics that are part of the language contract.
 - Define the shard boundary rule: only `own` shard-movable values may cross
   shards; borrows and shard-pinned resources may not.
-- Define the crossing surface as a language contract: the `far` handle type, the
-  `submit_to` construct, and the move-only capture rule. This requires a spec
-  draft update, not only a runtime change.
+- Define the crossing surface as a language contract: the `far` handle type,
+  `on dst { ... }`, `spawn on dst { ... }`, inferred crossing effects, and the
+  move-only capture rule. This requires a spec draft update, not only a runtime
+  change.
 - Define shard-movable versus shard-pinned types. Types that transitively own
   shard-registered resources require `far` handles or explicit migration.
 - Add V2-shaped shard structs with `N=1`.
@@ -741,8 +745,9 @@ structure pass.
   connections owner-locally and the Runtime V2 HTTP owner gate covers
   `SURGE_SHARDS=1,2,8`. This is still Phase 3 owner-safety, not Phase 4
   cross-shard messaging or resource migration.
-- Cross-shard messaging, explicit crossing syntax, remote-free routing, and
-  alternate I/O backends remain later phases.
+- Cross-shard messaging, crossing lowering, remote-free routing, and alternate
+  I/O backends remain later phases. The explicit crossing syntax and semantic
+  surface are now Epic 11 compile-time work.
 
 ### Phase 4: Cross-Shard Messaging And Shard-Movable Values
 
@@ -752,14 +757,15 @@ structure pass.
 - Add explicit messages for cross-shard channel operations, cancellation,
   distributed scopes, and controlled migration.
 - Enforce move-only and shard-movable boundaries for payloads.
-- Stop before parser, compiler, or public syntax changes and run a dedicated
-  syntax review. The names in this document are placeholders until that review
-  chooses the final concise surface.
-- Enforce the crossing surface in the compiler: semantic analysis rejects
-  crossings outside `submit_to` and rejects borrowed or shard-pinned captures;
-  async lowering emits the cross-shard resume kind for `submit_to`.
-- Split Tier 2 destinations into `submit_to(blocking)` for syscall-blocking
-  work and `submit_to(pool)` for CPU-bound work with internal stealing.
+- Use the Epic 11 syntax surface rather than reopening keyword choice:
+  `far T`, `on dst { ... }`, `spawn on dst { ... }`, inferred crossing effects,
+  `@shard_movable`, and `@shard_pinned`.
+- Complete backend/lowering integration: async lowering emits cross-shard resume
+  kinds for `on` and `spawn on`, and unavailable backends keep deterministic
+  diagnostics until transport is enabled.
+- Split Tier 2 lowering destinations according to accepted placement values:
+  existing `blocking { ... }` for syscall-blocking work and `spawn on pool`
+  for CPU-bound placed work with internal stealing.
 - Implement the wake-elision park protocol with sequentially consistent
   enqueue/PARKED ordering and the PARKED-with-non-empty-queue debug invariant.
 - Implement bounded inbound transport queues with target credits and a reserved

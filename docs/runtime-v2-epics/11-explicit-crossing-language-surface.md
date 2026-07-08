@@ -5,9 +5,9 @@ explicit crossing. This epic defines the first accepted syntax and semantic
 contracts for remote handles, placement crossing, remote spawn, and crossing
 capability markers.
 
-**Status:** confirmed contract for task slicing. No parser, semantic-analysis,
-lowering, runtime transport, or public example work may start until the
-corresponding block's golden-test matrix is written first.
+**Status:** implemented at lexer/parser/sema/golden-gate level. Blocks 1-4 have
+landed with compile-time lowering guards; Phase 4 runtime transport/lowering and
+public runtime examples are intentionally deferred to the next epic.
 
 Small drift is allowed only through an explicit document update reviewed with
 the user. Silent drift is forbidden: if a planned valid form cannot be made to
@@ -47,8 +47,8 @@ golden fixtures, implementation tasks, and documentation closeout.
    `@shard_movable`, `@shard_pinned`, and their interaction with existing
    `@send`, `@nosend`, and `@local spawn`.
 
-These blocks may be implemented independently after task slicing, but each
-block starts with tests, not parser changes.
+These blocks were implemented independently after task slicing, and each block
+started with its golden-test matrix before parser/sema changes.
 
 ## Test-First Contract
 
@@ -875,19 +875,20 @@ The `far TcpConn` control-operation set is closed in Epic 11 to exactly
 control) is accepted on a `far TcpConn` in this epic. Remote read/write on
 `far TcpConn` is postponed beyond Epic 11.
 
-## Acceptance Criteria Before Task Slicing
+## Epic Closeout Criteria
 
-The epic is ready for task slicing when:
+The epic is complete when:
 
-- every block has positive and negative matrix rows converted into golden-test
-  fixture names;
-- every negative row has an exact diagnostic code assigned or explicitly marked
-  as a new-code allocation;
-- every accepted form has at least one positive golden fixture;
-- every invariant has at least one negative golden fixture;
-- Draft 9 documentation scope is recorded for `LANGUAGE.md` and
-  `LANGUAGE.ru.md`;
-- `ATTRIBUTES.md` / `ATTRIBUTES.ru.md` updates for `@shard_movable` and
-  `@shard_pinned` are planned;
-- `docs/RUNTIME_V2.md` update points are listed;
-- no implementation task starts before the relevant golden fixtures exist.
+- every block has positive and negative matrix rows covered by active
+  crossing-gate fixtures or explicitly parked future fixtures;
+- every negative row has a deterministic diagnostic code;
+- Draft 9 documentation is updated in `LANGUAGE.md` and `LANGUAGE.ru.md`;
+- `ATTRIBUTES.md` and `ATTRIBUTES.ru.md` document `@shard_movable` and
+  `@shard_pinned`;
+- `RUNTIME_V2.md` describes the accepted surface and no longer presents
+  `far`, `on`, `spawn on`, or crossing effects as candidate working names;
+- `CONCURRENCY.md` / `CONCURRENCY.ru.md` explain the compile-time crossing
+  surface without promising Phase 4 execution;
+- `NOTES.md` records the final evidence and residual future work;
+- public examples remain deferred until syntax, semantic checks, and Phase 4
+  transport/lowering all exist.

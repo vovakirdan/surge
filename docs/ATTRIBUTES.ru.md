@@ -70,6 +70,8 @@ fn multiple() { return nothing; }
 | `@releases_lock` | fn | string | Enforced | Вызываемая функция освобождает блокировку. |
 | `@waits_on` | fn | string | Enforced | Помечает потенциальную блокировку. |
 | `@send` | type | нет | Enforced | Композиция полей должна быть sendable. |
+| `@shard_movable` | type | нет | Enforced | Owned values могут пересекать shard boundaries, если поля/члены рекурсивно movable. |
+| `@shard_pinned` | type | нет | Enforced | Значения/ресурсы pinned к owner shard; owned values не могут пересекать границу. |
 | `@sealed` | type | нет | Enforced | Нельзя расширять. |
 | `@pure` | fn | нет | Parsed | Проверки чистоты пока отсутствуют. |
 
@@ -260,6 +262,38 @@ pub type Task<T> = { __opaque: int };
 - `@send` требует, чтобы все поля были sendable (рекурсивно).
 - `@nosend` запрещает пересечение границ задач.
 - Они конфликтуют друг с другом.
+
+### `@shard_movable` / `@shard_pinned`
+
+`@shard_movable` помечает тип, чьи owned values могут пересекать shard
+boundaries в захватах `on dst { ... }` и `spawn on dst { ... }`. Компилятор
+проверяет тип рекурсивно:
+
+- primitive scalar fields, enums, `far T` handles, а также рекурсивно movable
+  `own T`, tuple и array members допустимы;
+- поля или члены union с `@nosend`, `@shard_pinned` или немаркированными
+  user-defined типами отвергаются;
+- `@send` и `@copy` сами по себе недостаточны для owned shard movement.
+
+`@shard_pinned` помечает тип или runtime resource, который должен оставаться на
+owner shard. Owned `@shard_pinned` values нельзя захватывать через crossing
+boundaries; используйте допустимый `far T` handle или будущий явный migration
+path.
+
+Эти два атрибута конфликтуют друг с другом.
+
+```sg
+@shard_movable
+type Job = {
+    id: uint64,
+    payload: string,
+};
+
+@intrinsic
+@nosend
+@shard_pinned
+pub type TcpConn = { __opaque: int };
+```
 
 ### `@copy`
 

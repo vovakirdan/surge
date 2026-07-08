@@ -1,4 +1,4 @@
-# Surge Language Specification (Draft 8)
+# Surge Language Specification (Draft 9)
 [English](LANGUAGE.md) | [Russian](LANGUAGE.ru.md)
 
 > **Status:** Draft for review
@@ -19,8 +19,9 @@
 
 ### Implementation Snapshot
 
-- Keywords match `internal/token/keywords.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, blocking, compare, select, race, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
-- The type checker resolves `int`, `uint`, `float`, fixed-width numerics (`int8`, `uint64`, `float32`, ...), `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`), slices `T[]`, and sized arrays `T[N]` with constant `N`. Raw pointers (`*T`) are allowed only in `extern` and `@intrinsic` declarations.
+- Keywords match `internal/token/keywords.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, ret, import, as, type, contract, tag, enum, extern, pub, async, blocking, compare, select, race, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, far, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
+- `on` is a contextual keyword: it is recognized only as `on dst { ... }` and as the `on` in `spawn on dst { ... }`. It remains an ordinary identifier everywhere else. `crosses` is not a keyword; crossing effects are inferred by semantic analysis.
+- The type checker resolves `int`, `uint`, `float`, fixed-width numerics (`int8`, `uint64`, `float32`, ...), `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`), remote-handle forms (`far T`), slices `T[]`, and sized arrays `T[N]` with constant `N`. Raw pointers (`*T`) are allowed only in `extern` and `@intrinsic` declarations.
 - Tuple and function types are supported in sema and runtime lowering.
 - Tags and tagged unions are implemented. `Option` and `Erring` are standard aliases built on `Some`/`Success` tags plus `nothing`/error types; `ErrorLike` and `Error` live in the prelude; `compare` exhaustiveness is enforced for tagged unions.
 - Enums are implemented as nominal integer-backed types with explicit variants.
@@ -52,12 +53,16 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 
 ```
 pub, fn, let, const, mut, own, if, else, while, for, in, break, continue,
-import, as, type, contract, tag, enum, extern, return, signal, compare, select, race, spawn, channel,
+import, as, type, contract, tag, enum, extern, return, ret, signal, compare, select, race, spawn, channel,
 parallel, map, reduce, with, to, heir, is, async, blocking, macro, pragma, field,
-true, false, nothing
+far, true, false, nothing
 ```
 
 Attribute names (e.g., `pure`, `override`, `packed`) are identifiers that appear after `@` rather than standalone keywords.
+
+`on` is contextual and does not appear in the hard keyword list. It is parsed as
+a crossing operator only in `on dst { ... }` and `spawn on dst { ... }`.
+`crosses` is an ordinary identifier.
 
 ### 1.5. Literals
 
@@ -126,6 +131,7 @@ Iteration order is **not specified** and must not be relied upon.
 ### 2.3. Ownership & References
 
 * `own T` – owning value, moved by default.
+* `far T` – affine handle to a value or capability owned by another shard.
 * `&T` – shared immutable borrow (read-only view).
 * `&mut T` – exclusive mutable borrow.
 * `*T` – raw pointer (backend-only; unmanaged, no ownership or lifetime guarantees).
@@ -151,6 +157,8 @@ Borrowing rules:
 **Function parameters:**
 
 * `fn f(x: own T)`: takes ownership.
+* `fn f(x: far T)`: takes ownership of a remote handle; accepted operations
+  depend on the handle kind.
 * `fn f(x: &T)`: shared-borrows; caller retains ownership; lifetime is lexical.
 * `fn f(x: &mut T)`: exclusive mutable borrow.
 * `fn f(x: *T)`: raw pointer parameter (backend-only; allowed only in `extern`/`@intrinsic` declarations).
@@ -163,6 +171,28 @@ To avoid data races the following conservative rule applies:
 * Borrowed references `&T` and `&mut T` are not allowed to cross worker-thread boundaries (attempting to do so is a compile-time error).
 
 This rule simplifies early implementation and preserves soundness of the ownership model without a full cross-worker-thread borrow-checker.
+
+### 2.3.1. Remote Handles (`far T`)
+
+`far T` is the type-form for a remote handle. It is a type modifier, not an
+attribute and not a value-level operator.
+
+Accepted in Draft 9:
+
+* `far Channel<T>` and `far TcpConn` / `far TcpListener` as remote handle types.
+* `far Task<T>` as the handle returned by `spawn on dst { ... }`.
+* `far T` in parameter, binding, return, generic argument, tuple, and struct
+  field type positions when `T` is a remote-handle-capable type.
+
+Rejected or postponed in Draft 9:
+
+* `far far T` and `far own T`.
+* `far &T`, `far &mut T`, and user-level `far *T`.
+* `far T[]` / `far T[N]` remote array handles and local arrays of `far` handles.
+* `far fn(...) -> T` remote function handles.
+
+`far` handles are affine: they are moved, not copied. Remote task operations
+(`far Task<T>.await()` and `.cancel()`) consume the handle.
 
 ### 2.4. Generics
 
@@ -1683,6 +1713,7 @@ work must go through `blocking { ... }` (native/LLVM only).
 ```sg
 spawn expr
 @local spawn expr
+spawn on dst { ret expr; }
 ```
 
 - `expr` must be `Task<T>` (an `async fn` call, an `async { ... }` block, or a `blocking { ... }` block).
@@ -1691,6 +1722,12 @@ spawn expr
 - Captured values are moved into the task; `@nosend` types are rejected unless using `@local spawn`.
 - `@local spawn` returns a local task handle (not sendable): it cannot be captured by `spawn`,
   sent through channels, or returned from a function.
+- `spawn on dst { ... }` is the remote-spawn form. `dst` must be a `Placement`
+  value (`pool`, `distributed`, `shard(id)`, or a computed `Placement`). The
+  block produces its value with `ret`, returns `far Task<T>`, and infers the
+  enclosing function's crossing effect.
+- `@local spawn on dst { ... }` is invalid: local spawn and remote placement are
+  mutually exclusive.
 
 **Example:**
 ```sg
@@ -1703,6 +1740,42 @@ compare t.await() {
 };
 ```
 
+#### Placement Crossing (`on dst { ... }`)
+
+```sg
+on dst {
+    ret expr;
+}
+```
+
+`on dst { ... }` runs a crossing block at a placement destination and returns
+`TaskResult<T>`. Like `spawn on`, `dst` must be a `Placement` value or an
+accepted remote handle destination. The block uses `ret`, not `return`, to
+produce the block value.
+
+The semantic effect is inferred. There is no `crosses` marker:
+
+```sg
+fn score(req: own Request) -> TaskResult<int> {
+    return on pool {
+        let value = handle(own req);
+        ret value;
+    };
+}
+```
+
+Crossing captures obey the shard-movement contract:
+
+* Copy values may cross by copy.
+* Owned user values must have a valid `@shard_movable` type.
+* Borrows cannot cross.
+* `@nosend` and `@shard_pinned` values cannot cross as owned payloads.
+* `@send` and `@copy` alone do not imply shard mobility for owned user values.
+
+Accepted crossing forms currently compile through parser and semantic analysis.
+Backends that cannot lower Phase 4 crossing transport must emit deterministic
+backend-unavailable diagnostics instead of executing or panicking.
+
 #### Task<T> API
 
 ```sg
@@ -1712,6 +1785,18 @@ extern<Task<T>> {
     fn await(self: own Task<T>) -> TaskResult<T>;
 }
 ```
+
+`far Task<T>` exposes remote task operations with the same names:
+
+```sg
+extern<far Task<T>> {
+    fn await(self: own far Task<T>) -> TaskResult<T>;
+    fn cancel(self: own far Task<T>) -> TaskResult<nothing>;
+}
+```
+
+These calls consume the remote handle and infer the enclosing function's
+crossing effect.
 
 ```sg
 tag Cancelled();
@@ -2701,14 +2786,15 @@ Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
 Blocking   := "blocking" "{" Stmt* "}"
-Expr       := Compare | Select | Race | Spawn | Async | Blocking | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
+Expr       := Compare | Select | Race | On | Spawn | Async | Blocking | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
 Parallel   := "parallel" "map" Expr "with" ArgList "=>" Expr
           | "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
 ArgList    := "(" (Expr ("," Expr)*)? ")" | "()"
 TypeHeirPred := "(" Expr " heir " CoreType ")"
 TupleLit   := "(" Expr ("," Expr)+ ")"
 AwaitExpr  := Expr "." "await" "(" ")"   // awaits a Task; valid in async fn/block and @entrypoint
-Spawn      := "spawn" Expr
+On         := "on" Expr Block
+Spawn      := "spawn" Expr | "spawn" "on" Expr Block
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
 Select     := "select" "{" SelectArm (";" SelectArm)* ";"? "}"
@@ -2720,8 +2806,8 @@ Pattern        := "finally" | Literal | "nothing" | Ident
                 | Ident "if" Expr
 PatternArgs   := Pattern ("," Pattern)*
 TuplePattern  := "(" Pattern ("," Pattern)+ ")"
-Type           := Ownership? (TupleType | CoreType) Suffix*
-Ownership      := "own" | "&" | "&mut" | "*"
+Type           := TypePrefix* (TupleType | CoreType) Suffix*
+TypePrefix     := "own" | "far" | "&" | "&mut" | "*"
 CoreType       := Ident ("<" Type ("," Type)* ">")?
 TupleType      := "(" Type ("," Type)+ ")"
 ParamTypes     := Type ("," Type)*

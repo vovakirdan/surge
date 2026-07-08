@@ -1,9 +1,9 @@
 # Surge Concurrency Model v1
 [English](CONCURRENCY.md) | [Russian](CONCURRENCY.ru.md)
 
-> **Status:** Native/LLVM backends run the MT executor; VM is single-threaded for correctness and diagnostics. `blocking { ... }` is supported only on native/LLVM. `strict::nonblocking` is not implemented yet (future work).
-> **Scope:** async/await, Task/TaskResult, spawn, channels, cancellation, timeouts, MT executor modes, blocking { }, strict::nonblocking (future)
-> **Out of scope:** data-parallel keywords (`parallel map/reduce`), `signal`
+> **Status:** Native/LLVM backends run the MT executor; VM is single-threaded for correctness and diagnostics. `blocking { ... }` is supported only on native/LLVM. Draft 9 crossing syntax is accepted by parser/sema, but Phase 4 transport/lowering is not implemented yet.
+> **Scope:** async/await, Task/TaskResult, spawn, Draft 9 `far` / `on` / `spawn on` compile-time crossing surface, channels, cancellation, timeouts, MT executor modes, blocking { }, strict::nonblocking (future)
+> **Out of scope:** data-parallel keywords (`parallel map/reduce`), `signal`, Phase 4 cross-shard transport/lowering for `on` and `spawn on`
 
 ---
 
@@ -131,6 +131,7 @@ remaining children and the parent returns `Cancelled`.
 ```sg
 spawn expr
 @local spawn expr
+spawn on dst { ret expr; }
 ```
 
 Rules:
@@ -142,6 +143,12 @@ Rules:
 - `@local spawn` allows `@nosend` captures, but the resulting task handle is local (not sendable):
   it cannot be captured by `spawn`, sent through channels, or returned from a function.
 - `spawn checkpoint()` is warned as useless (`SemaSpawnCheckpointUseless`).
+- `spawn on dst { ... }` is the Draft 9 placed-spawn form and returns
+  `far Task<T>`. The destination is a `Placement` (`pool`, `distributed`,
+  `shard(id)`, or a computed placement). It uses `ret`, not `return`, inside
+  the placed block.
+- `@local spawn on dst` is invalid. Local task isolation and remote placement
+  are different execution contracts.
 
 Example:
 
@@ -164,9 +171,13 @@ compare t2.await() {
 MT-ready invariants:
 
 - `spawn` captures must be Sendable; `@local spawn` allows `@nosend`.
+- `spawn on` captures must be movable across shard boundaries: owned captures
+  are checked against `@nosend`, active borrows, and `@shard_pinned`.
 - Local task handles cannot cross sendable boundaries (capture in `spawn`, return, channel send).
 - `Task<T>` is SuspendSafe across `await` (containers are SuspendSafe if their elements are).
 - Task containers must be drained (`pop` + `await`) before scope exit.
+- `spawn on` is compile-time only until Phase 4 transport lands; backends that
+  cannot lower it must report the deterministic backend-unavailable diagnostic.
 
 ---
 
@@ -186,6 +197,36 @@ Rules:
 - Allowed inside `async` functions/blocks and `@entrypoint` functions.
 - Rejected in plain sync functions (`SemaIntrinsicBadContext`).
 - `await` inside loops is supported.
+- `far Task<T>.await()` is a remote crossing operation. It consumes the remote
+  task handle and returns `TaskResult<T>`.
+- `far Task<T>.cancel()` is a remote crossing operation and returns
+  `TaskResult<nothing>`.
+
+### Placement Crossing (Draft 9 compile-time)
+
+`on dst { ... }` is the immediate placement-crossing form:
+
+```sg
+fn send_job(ch: far Channel<Job>, job: own Job) -> TaskResult<nothing> {
+    return on ch {
+        ret ch.send(own job);
+    };
+}
+```
+
+Rules:
+
+- `dst` may be a `Placement` (`pool`, `distributed`, `shard(id)`, or a computed
+  placement) or a remote handle with owner information such as `far Channel<T>`.
+- The body uses `ret` to produce the block result. `return` from inside `on` is
+  invalid because it would target the surrounding function ambiguously.
+- Captures follow the same crossing rules as `spawn on`: owned movable values
+  may cross, active borrows may not, `@nosend` values may not, and
+  `@shard_pinned` values may not be moved.
+- The compiler infers the crossing effect from `on`, `spawn on`, and remote
+  `far Task<T>` operations. There is no `crosses` keyword.
+- Epic 11 accepts this surface at parser/sema level only. Backend execution is
+  guarded until Phase 4 transport exists.
 
 ---
 
