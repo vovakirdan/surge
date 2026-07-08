@@ -43,12 +43,9 @@ golden fixtures, implementation tasks, and documentation closeout.
    destination model.
 3. **Remote Spawn Block:** `spawn on dst { ... }`, `far Task<T>`, and remote
    task lifecycle rules.
-4. **Crossing Contracts:** `crosses`, `@shard_movable`, `@shard_pinned`, and
-   their interaction with existing `@send`, `@nosend`, and `@local spawn`.
-   (**Note:** the explicit `crosses` keyword was RETIRED by design change D17 on
-   2026-07-08 — the crossing effect is now inferred at sema, not a surface
-   keyword. See the "`crosses` Function Effect" section, which retains the
-   original design as historical record.)
+4. **Crossing Contracts:** inferred crossing function effects,
+   `@shard_movable`, `@shard_pinned`, and their interaction with existing
+   `@send`, `@nosend`, and `@local spawn`.
 
 These blocks may be implemented independently after task slicing, but each
 block starts with tests, not parser changes.
@@ -89,7 +86,8 @@ Epic 11 is not complete until connected language documents are updated:
 - `docs/ATTRIBUTES.md` and `docs/ATTRIBUTES.ru.md` document
   `@shard_movable` and `@shard_pinned`.
 - `docs/RUNTIME_V2.md` replaces the old working-name wording for `far`, `on`,
-  `spawn on`, and `crosses`, and marks postponed surfaces as future work.
+  `spawn on`, and inferred crossing effects, and marks postponed surfaces as
+  future work.
 - Public examples are added only after syntax, semantic, and minimal lowering
   tests exist.
 
@@ -98,10 +96,9 @@ Epic 11 is not complete until connected language documents are updated:
 The concrete update points recorded for the Draft 9 pass are:
 
 - `docs/LANGUAGE.md` (Draft 8 -> Draft 9): add `far` to the type-form grammar
-  and reserved-keyword list; document `on` and `crosses` as contextual keywords
-  with the back-compatibility note; add `on dst { ... }` and
-  `spawn on dst { ... }` crossing forms and the `crosses` function effect; add
-  the `Placement` / `pool` / `distributed` / `shard(id)` prelude surface; record
+  and reserved-keyword list; document `on` / `spawn on`, inferred crossing
+  effects, and the fact that `crosses` remains an ordinary identifier; add the
+  `Placement` / `pool` / `distributed` / `shard(id)` prelude surface; record
   `far T[]` and copyable `far` handles as postponed.
 - `docs/LANGUAGE.ru.md`: the matching Draft 9 update, kept in step with
   `LANGUAGE.md`.
@@ -109,9 +106,9 @@ The concrete update points recorded for the Draft 9 pass are:
   `@shard_pinned` (targets, conflict rule, recursive field validation, and their
   relationship to `@send` / `@nosend`).
 - `docs/RUNTIME_V2.md`: replace working-name wording for `far`, `on`,
-  `spawn on`, and `crosses`; state the Epic 11 execution scope (surface plus
-  lowering guards, transport postponed) and the backend-unavailable diagnostic
-  contract.
+  `spawn on`, and inferred crossing effects; state the Epic 11 execution scope
+  (surface plus lowering guards, transport postponed) and the
+  backend-unavailable diagnostic contract.
 - `docs/CONCURRENCY.md`: cross-reference the crossing surface where it describes
   task and channel boundaries, if a Draft 9 touch point is needed.
 
@@ -131,7 +128,7 @@ The concrete update points recorded for the Draft 9 pass are:
 - `core/intrinsics.sg` — prelude intrinsic declarations for `TcpConn`,
   `TcpListener`, `Task<T>`, `Channel<T>`, and the new `Placement` / `shard` /
   `pool` / `distributed` surface; the site where `@shard_pinned` is added to
-  `TcpConn`
+  TCP runtime handles
 - `internal/token/keywords.go` and `internal/token/kind.go` — keyword table for
   the hard-reserved `far`
 - `internal/diag/codes.go` — diagnostic-code registry (reuse-first allocation)
@@ -182,31 +179,33 @@ These surfaces are postponed, not accidentally omitted.
 
 ## Keyword Strategy
 
-Epic 11 introduces three source words with two different lexical strategies:
+Epic 11 introduces two crossing source words with two different lexical
+strategies:
 
 - `far` is a hard reserved keyword. It is added to the lexer keyword table and
   can no longer be used as an ordinary identifier. Existing code that used `far`
   as an identifier must be renamed; that migration is covered by Block 1's
   reserved-identifier fixtures.
-- `on` and `crosses` are contextual keywords. They are not added to the lexer
-  keyword table and continue to tokenize as identifiers. The parser recognizes
-  them only in their crossing positions: `on` at an expression head
-  (`on <expr> { ... }`) and immediately after `spawn`; `crosses` only between a
-  function parameter list `)` and the following `->`, `{`, or `;`. Everywhere
-  else they remain ordinary identifiers, so pre-existing code such as
-  `let on = 1;` and `let crosses = 1;` keeps parsing unchanged. Blocks 2 and 4
-  carry the positive back-compatibility fixtures for this.
+- `on` is a contextual keyword. It is not added to the lexer keyword table and
+  continues to tokenize as an identifier. The parser recognizes it only in its
+  crossing positions: `on` at an expression head (`on <expr> { ... }`) and
+  immediately after `spawn`. Everywhere else it remains an ordinary identifier,
+  so pre-existing code such as `let on = 1;` keeps parsing unchanged. Block 2
+  carries the positive back-compatibility fixtures for this.
+- `crosses` is not a keyword. It remains an ordinary identifier; crossing is an
+  inferred semantic effect.
 
 This split is deliberate: `far` is a type-position modifier with no reasonable
-identifier collision cost, while `on` and `crosses` are common enough English
-words that reserving them would break existing programs.
+identifier collision cost, while `on` is a common enough English word that
+reserving it would break existing programs. The former `crosses` marker was
+retired entirely because the compiler can infer the effect.
 
 ## Epic 11 Execution Scope
 
 Epic 11 delivers the language surface only: lexer, parser, and semantic-analysis
-support for `far`, `on`, `spawn on`, `crosses`, `@shard_movable`, and
-`@shard_pinned`, plus lowering guards. It does not deliver the Phase 4 crossing
-transport.
+support for `far`, `on`, `spawn on`, inferred crossing effects,
+`@shard_movable`, and `@shard_pinned`, plus lowering guards. It does not deliver
+the Phase 4 crossing transport.
 
 - Every crossing execution path (`on`, `spawn on`, and remote `far Task<T>`
   operations) emits a deterministic backend-unavailable diagnostic (the
@@ -240,7 +239,7 @@ fn register(conn: far TcpConn) -> nothing {
     return nothing;
 }
 
-fn start(job: own Job) crosses -> far Task<Result> {
+fn start(job: own Job) -> far Task<Result> {
     return spawn on distributed {
         ret run_job(own job);
     };
@@ -346,7 +345,7 @@ Positive golden fixtures:
 
 - type alias: `type RemoteConn = far TcpConn;`
 - parameter: `fn f(conn: far TcpConn) -> nothing`;
-- return type: `fn f() crosses -> far Task<int>`;
+- return type: `fn f() -> far Task<int>`;
 - generic argument: `Channel<far Task<int>>`;
 - `own far T`, `&far T`, and `&mut far T`.
 
@@ -368,7 +367,7 @@ It is the common "do this there and wait here" form. It is not a spawn form and
 does not return a task handle.
 
 ```sg
-fn score(req: own Request) crosses -> TaskResult<int> {
+fn score(req: own Request) -> TaskResult<int> {
     return on pool {
         ret compute_score(own req);
     };
@@ -412,7 +411,7 @@ fn route_for(user_id: uint64) -> Placement {
     return shard((user_id % shard_count()) as ShardId);
 }
 
-fn route(req: own Request, user_id: uint64) crosses -> TaskResult<Response> {
+fn route(req: own Request, user_id: uint64) -> TaskResult<Response> {
     let dst: Placement = route_for(user_id);
     return on dst {
         ret handle_request(own req);
@@ -456,8 +455,8 @@ does not implement the runtime dispatch.
 - `@nosend` value captures are invalid.
 - `@shard_pinned` value captures are invalid unless captured as `far T`.
 - The block returns `TaskResult<T>`.
-- `on` is allowed only where suspension is legal and the enclosing function or
-  block satisfies the `crosses` rules below.
+- `on` is allowed only where suspension is legal. Its enclosing function is
+  inferred as `MayCross`.
 - An `on` block may be matched directly with `compare on dst { ... } { ... }`,
   handling the `TaskResult<T>` arms (`Success(v)` / `Cancelled()`) in place.
 - `on` is allowed in statement position with its `TaskResult<T>` discarded, the
@@ -472,7 +471,7 @@ same block are not assumed to share the owner.
 Valid:
 
 ```sg
-fn send_job(ch: far Channel<Job>, job: own Job) crosses -> TaskResult<nothing> {
+fn send_job(ch: far Channel<Job>, job: own Job) -> TaskResult<nothing> {
     return on ch {
         ch.send(own job);
         ret nothing;
@@ -483,7 +482,7 @@ fn send_job(ch: far Channel<Job>, job: own Job) crosses -> TaskResult<nothing> {
 Invalid:
 
 ```sg
-fn send_two(a: far Channel<Job>, b: far Channel<Job>, job: own Job) crosses -> TaskResult<nothing> {
+fn send_two(a: far Channel<Job>, b: far Channel<Job>, job: own Job) -> TaskResult<nothing> {
     return on a {
         b.send(own job); // diagnostic: b is not proven to be owned by destination a
         ret nothing;
@@ -527,7 +526,7 @@ Negative golden fixtures:
 remote completion immediately.
 
 ```sg
-fn start(job: own Job) crosses -> far Task<Result> {
+fn start(job: own Job) -> far Task<Result> {
     return spawn on distributed {
         ret run_job(own job);
     };
@@ -567,11 +566,11 @@ fn start(job: own Job) crosses -> far Task<Result> {
 `far Task<T>` has two accepted remote task operations in Epic 11:
 
 ```sg
-fn wait_result(t: far Task<Result>) crosses -> TaskResult<Result> {
+fn wait_result(t: far Task<Result>) -> TaskResult<Result> {
     return t.await();
 }
 
-fn cancel_remote(t: far Task<Result>) crosses -> TaskResult<nothing> {
+fn cancel_remote(t: far Task<Result>) -> TaskResult<nothing> {
     return t.cancel();
 }
 ```
@@ -580,7 +579,7 @@ fn cancel_remote(t: far Task<Result>) crosses -> TaskResult<nothing> {
   `TaskResult<T>`.
 - `t.cancel()` on `far Task<T>` is a remote crossing operation and returns
   `TaskResult<nothing>`.
-- Both operations require the enclosing function to be marked `crosses`.
+- Both operations infer `MayCross` on the enclosing function.
 - These methods are distinct from local `Task<T>` methods even if the surface
   spelling is intentionally familiar.
 - `far Task<T>` is not a valid `on` destination in Epic 11. This avoids nested
@@ -593,7 +592,7 @@ Positive golden fixtures:
 - `spawn on distributed { ret value; } -> far Task<T>`;
 - `spawn on pool { ret value; } -> far Task<T>`;
 - `spawn on shard(id) { ret value; } -> far Task<T>`;
-- returning `far Task<T>` from a `crosses` function.
+- returning `far Task<T>` from a function whose `MayCross` effect is inferred.
 
 Negative golden fixtures:
 
@@ -602,90 +601,65 @@ Negative golden fixtures:
 - `@nosend` value capture;
 - `@shard_pinned` value capture;
 - `return` inside `spawn on`;
-- `.await()` on `far Task<T>` inside a non-`crosses` function;
-- `cancel()` on `far Task<T>` inside a non-`crosses` function;
+- invalid `far Task<T>.await()` result use;
+- invalid `far Task<T>.cancel()` result use;
 - `spawn on ch` where `ch: far Channel<T>`;
 - `spawn on` in a backend/configuration where Phase 4 is unavailable.
 
 ## Block 4: Crossing Contracts
 
-### `crosses` Function Effect
+### Inferred Crossing Function Effect
 
-> **RETIRED (design change D17, 2026-07-08).** The explicit `crosses` keyword has
-> been REMOVED from the language. The crossing effect it named is retained but is
-> now INFERRED at semantic analysis and stored in function metadata; there is no
-> surface keyword and no programmer-facing requirement. The `crosses` grammar was
-> removed (`fn f() crosses -> T` no longer parses: `SYN2012`/`SYN2205`), the
-> `Signature.Crosses` field/setter were deleted, and diagnostics `SEM3162`
-> (missing `crosses`), `SEM3163` (caller propagation), and `SEM3164`
-> (`far Task` await/cancel outside `crosses`) are RETIRED (numbers reserved).
-> `on dst { }`, `spawn on`, and `far Task<T>.await()`/`.cancel()` are now valid in
-> any function. The **inference implementation itself is deferred to the Phase 4
-> transport epic** (see `DEBT.md` RV2-DEBT-024); no effect inference is performed
-> today beyond accepting the forms. The syntax and rules described in the rest of
-> this section are RETAINED BELOW AS HISTORICAL RECORD of the original explicit
-> design; the `crosses` tokens in the examples no longer parse.
+The explicit `crosses` keyword was retired by design change D17 on
+2026-07-08. Crossing is now an inferred semantic effect stored in
+`Result.FunctionEffects[fn].MayCross`; there is no surface keyword and no
+programmer-facing marker requirement.
 
-`crosses` is a function-level effect keyword. It is part of the function
-signature and means the function may perform cross-shard work or call another
-`crosses` function.
+The compiler infers `MayCross` from:
 
-Accepted syntax:
+- `on dst { ... }`;
+- `spawn on dst { ... }`;
+- `far Task<T>.await()`;
+- `far Task<T>.cancel()`;
+- direct calls to functions already inferred as `MayCross`.
+
+Examples:
 
 ```sg
-fn route(req: own Request) crosses -> TaskResult<Response> {
+fn route(req: own Request) -> TaskResult<Response> {
     return on distributed {
         ret handle(own req);
     };
 }
 
-async fn route_async(req: own Request) crosses -> Response {
-    compare on pool {
-        ret compute(own req);
-    } {
-        Success(v) => return v;
-        Cancelled() => return default_response();
+fn start(job: own Job) -> far Task<Result> {
+    return spawn on pool {
+        ret process(own job);
     };
 }
 
-fn notify(ch: far Channel<Event>, event: own Event) crosses {
-    compare on ch {
-        ch.send(own event);
-        ret nothing;
-    } {
-        Success(_) => return nothing;
-        Cancelled() => return nothing;
-    };
+fn wait_result(t: far Task<Result>) -> TaskResult<Result> {
+    return t.await();
+}
+
+fn outer(req: own Request) -> TaskResult<Response> {
+    return route(own req); // `MayCross` propagates through the direct call.
 }
 ```
 
-Rejected syntax:
+Retired syntax:
 
 ```sg
-crosses fn route(req: Request) -> Response { ... } // diagnostic
-@crosses fn route(req: Request) -> Response { ... } // diagnostic
-fn route(req: Request) -> Response crosses { ... } // diagnostic
+fn route(req: Request) crosses -> Response { ... } // no longer valid syntax
+crosses fn route(req: Request) -> Response { ... } // no longer valid syntax
+@crosses fn route(req: Request) -> Response { ... } // unknown attribute
 ```
 
-Grammar placement:
+Retired diagnostics: `SEM3162`, `SEM3163`, `SEM3164`, `SYN2034`, `SYN2035`,
+and `SYN2036` are reserved and must not be reused.
 
-```text
-FnDef := Attr* "fn" Ident GenericParams? ParamList "crosses"? RetType? Block
-AsyncFn := Attr* "async" "fn" Ident GenericParams? ParamList "crosses"? RetType? Block
-FnDecl := Attr* "fn" Ident GenericParams? ParamList "crosses"? RetType? ";"
-```
-
-Rules:
-
-- A function containing `on` or `spawn on` must be marked `crosses`.
-- A function calling another `crosses` function must itself be marked
-  `crosses`.
-- `crosses` does not change the return type.
-- `crosses` does not imply `async`.
-- `async` does not imply `crosses`.
-- `crosses` is not accepted on type declarations, variables, fields, blocks, or
-  statements.
-- Function-type syntax for `crosses fn(...) -> T` is postponed in Epic 11.
+Remaining debt: higher-order/function-type effect propagation and possible
+cross-module export propagation are tracked as `RV2-DEBT-024`.
 
 ### `@shard_movable`
 
@@ -746,20 +720,17 @@ Rules:
 
 Positive golden fixtures:
 
-- `crosses fn` form with `on`;
-- `async fn ... crosses` form with `on`;
-- `fn ... crosses` returning `far Task<T>`;
+- `on` infers `MayCross`;
+- `spawn on` infers `MayCross`;
+- `far Task<T>.await()` / `.cancel()` infer `MayCross`;
+- a direct call chain propagates `MayCross`;
+- `crosses` remains an ordinary identifier;
 - `@shard_movable` value captured by `own` in `on`;
 - `@shard_pinned` value represented by `far T`;
 - `@nosend` value accepted by `@local spawn` but rejected by `spawn on`.
 
 Negative golden fixtures:
 
-- `on` inside a function missing `crosses`;
-- calling a `crosses` function from a non-`crosses` function;
-- `@crosses`;
-- prefix `crosses fn`;
-- `crosses` after return type;
 - `@shard_pinned` + `@shard_movable`;
 - `@send` treated as sufficient for shard movement;
 - `@copy` treated as sufficient for user-defined shard movement;
@@ -778,7 +749,7 @@ These are explicitly postponed and must diagnose if used in Epic 11:
 - resource migration syntax;
 - remote socket read/write through `far TcpConn`;
 - remote closures and `far fn(...) -> T`;
-- function-type syntax for `crosses`;
+- higher-order/function-type crossing-effect syntax;
 - using `far Task<T>` as an `on` destination;
 - copyable `far` handles (a future opt-in capability, working name `@far_copy`);
   `far` handles are affine in Epic 11;
@@ -809,10 +780,8 @@ fixtures. The required diagnostic families are:
 - shard-pinned value capture into crossing;
 - operation on an unanchored `far` handle inside `on`;
 - `@local spawn on`;
-- `.await()` or `cancel()` on `far Task<T>` without `crosses`;
+- invalid `far Task<T>.await()` / `.cancel()` result use;
 - using `far Task<T>` as an `on` destination;
-- missing `crosses`;
-- invalid `crosses` placement;
 - invalid shard mobility attribute target;
 - `@shard_movable` / `@shard_pinned` conflict;
 - unsupported backend/configuration for Phase 4 syntax.
@@ -823,7 +792,6 @@ Diagnostic messages must name the invariant:
 - "this operation would move a shard-pinned resource; use a far handle or
   explicit migration";
 - "remote channel send must be written inside `on <that channel>`";
-- "this function crosses shards but is not marked `crosses`";
 - "this remote handle is not anchored by the current `on` destination".
 
 ## Reference Usage
@@ -837,7 +805,7 @@ type Job = {
     payload: string,
 };
 
-fn send_job(ch: far Channel<Job>, job: own Job) crosses -> TaskResult<nothing> {
+fn send_job(ch: far Channel<Job>, job: own Job) -> TaskResult<nothing> {
     return on ch {
         ch.send(own job);
         ret nothing;
@@ -854,7 +822,7 @@ type Request = {
     body: string,
 };
 
-fn score(req: own Request) crosses -> TaskResult<int> {
+fn score(req: own Request) -> TaskResult<int> {
     return on pool {
         ret compute_score(own req);
     };
@@ -864,7 +832,7 @@ fn score(req: own Request) crosses -> TaskResult<int> {
 ### Distributed Spawn
 
 ```sg
-fn start(job: own Job) crosses -> far Task<Result> {
+fn start(job: own Job) -> far Task<Result> {
     return spawn on distributed {
         ret run_job(own job);
     };
@@ -878,7 +846,7 @@ fn route_for(user_id: uint64) -> Placement {
     return shard((user_id % shard_count()) as ShardId);
 }
 
-fn route(req: own Request, user_id: uint64) crosses -> TaskResult<Response> {
+fn route(req: own Request, user_id: uint64) -> TaskResult<Response> {
     return on route_for(user_id) {
         ret handle_request(own req);
     };
@@ -894,7 +862,7 @@ type TcpConn = {
     __opaque: int,
 };
 
-fn close_remote(conn: far TcpConn) crosses -> TaskResult<nothing> {
+fn close_remote(conn: far TcpConn) -> TaskResult<nothing> {
     return on conn {
         conn.close();
         ret nothing;
@@ -905,7 +873,7 @@ fn close_remote(conn: far TcpConn) crosses -> TaskResult<nothing> {
 The `far TcpConn` control-operation set is closed in Epic 11 to exactly
 `{ close() }`. No other operation (read, write, accept, or any other socket
 control) is accepted on a `far TcpConn` in this epic. Remote read/write on
-`far TcpConn` is not part of Epic 11.
+`far TcpConn` is postponed beyond Epic 11.
 
 ## Acceptance Criteria Before Task Slicing
 

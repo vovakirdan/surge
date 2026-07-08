@@ -85,8 +85,8 @@ const (
 	// SemaCrossesCallerMissing (RETIRED): `crosses` call-propagation requirement
 	// dropped with the `crosses` grammar removal. Number reserved, never reuse.
 	SemaCrossesCallerMissing Code = 3163
-	// SemaFarTaskCrossesMissing (RETIRED): `far Task<T>` await/cancel no longer
-	// requires an enclosing `crosses` function. Number reserved, never reuse.
+	// SemaFarTaskCrossesMissing (RETIRED): `far Task<T>` await/cancel now infer
+	// the crossing effect. Number reserved, never reuse.
 	SemaFarTaskCrossesMissing Code = 3164
 	// SemaCrossBorrowCapture rejects a borrowed value captured into a crossing boundary.
 	SemaCrossBorrowCapture Code = 3165
@@ -183,9 +183,9 @@ var crossingCodeDescriptions = map[Code]string{
 	SemaSpawnOnBodyMissingRet:      "a `spawn on` block must produce its result with `ret`",
 	SemaSpawnOnUnreachableAfterRet: "unreachable statement after `ret` in a `spawn on` block",
 
-	SemaCrossesMissing:               "this function crosses shards but is not marked `crosses`",
-	SemaCrossesCallerMissing:         "calling a `crosses` function requires the caller to be marked `crosses`",
-	SemaFarTaskCrossesMissing:        "`far Task<T>` await/cancel requires the enclosing function to be marked `crosses`",
+	SemaCrossesMissing:               "retired diagnostic: crossing effects are inferred",
+	SemaCrossesCallerMissing:         "retired diagnostic: crossing call effects are inferred",
+	SemaFarTaskCrossesMissing:        "retired diagnostic: remote task operations infer crossing effects",
 	SemaCrossBorrowCapture:           "borrowed values cannot cross shard boundaries",
 	SemaCrossNosendCapture:           "`@nosend` values cannot cross task or shard boundaries outside `@local spawn`",
 	SemaCrossPinnedCapture:           "this operation would move a shard-pinned resource; use a far handle or explicit migration",
@@ -194,15 +194,15 @@ var crossingCodeDescriptions = map[Code]string{
 	SemaShardMovableCopyInsufficient: "`@copy` is not sufficient for shard movement; add `@shard_movable`",
 	SemaShardMovableField:            "a `@shard_movable` type must have only shard-movable fields",
 	SemaShardAttrConflict:            "`@shard_movable` conflicts with `@shard_pinned`",
-	SemaCrossesAttribute:             "`crosses` is a function effect, not an attribute; write `crosses` in the signature",
+	SemaCrossesAttribute:             "`@crosses` is not supported; crossing effects are inferred",
 	SemaLocalSpawnOn:                 "`@local spawn on` is invalid; local spawn and remote placement are mutually exclusive",
 
 	SynFarReservedIdent:          "`far` is a reserved keyword; rename this identifier",
 	SynSpawnOnMissingBlock:       "`spawn on` requires a `{ ret expr; }` block",
 	SynSpawnOnMissingDestination: "`spawn on` requires a `Placement` destination",
-	SynCrossesPlacement:          "`crosses` must appear after the parameter list and before the return type",
-	SynCrossesTarget:             "`crosses` may only mark a function",
-	SynCrossesFnType:             "function-type syntax for `crosses` is not supported yet",
+	SynCrossesPlacement:          "retired diagnostic: `crosses` is not a function modifier",
+	SynCrossesTarget:             "retired diagnostic: `crosses` is not a function modifier",
+	SynCrossesFnType:             "`crosses fn(...)` function types are not part of the language",
 
 	FutFarArrayPostponed:               "array types cannot be used as `far` remote handles yet",
 	FutFarLocalArrayPostponed:          "local arrays of `far` handles are not supported yet",

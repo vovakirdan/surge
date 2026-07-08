@@ -1,0 +1,27 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Conn" at 3:6-3:10 (leading: Space)
+  3: Assign          "=" at 3:11-3:12 (leading: Space)
+  4: LBrace          "{" at 3:13-3:14 (leading: Space)
+  5: Ident           "fd" at 4:5-4:7 (leading: Newline, Space)
+  6: Colon           ":" at 4:7-4:8
+  7: Ident           "int" at 4:9-4:12 (leading: Space)
+  8: Comma           "," at 4:12-4:13
+  9: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 10: Semicolon       ";" at 5:2-5:3
+ 11: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 12: Ident           "f" at 7:4-7:5 (leading: Space)
+ 13: LParen          "(" at 7:5-7:6
+ 14: At              "@" at 7:6-7:7
+ 15: Ident           "shard_pinned" at 7:7-7:19
+ 16: Ident           "conn" at 7:20-7:24 (leading: Space)
+ 17: Colon           ":" at 7:24-7:25
+ 18: Ident           "Conn" at 7:26-7:30 (leading: Space)
+ 19: RParen          ")" at 7:30-7:31
+ 20: Arrow           "->" at 7:32-7:34 (leading: Space)
+ 21: NothingLit      "nothing" at 7:35-7:42 (leading: Space)
+ 22: LBrace          "{" at 7:43-7:44 (leading: Space)
+ 23: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 24: NothingLit      "nothing" at 8:12-8:19 (leading: Space)
+ 25: Semicolon       ";" at 8:19-8:20
+ 26: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 27: EOF             at 10:1-10:1

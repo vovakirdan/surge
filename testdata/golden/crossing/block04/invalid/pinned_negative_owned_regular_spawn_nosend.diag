@@ -1,0 +1,1 @@
+error SEM3086 testdata/golden/crossing/block04/invalid/pinned_negative_owned_regular_spawn_nosend.sg:8:28 cannot send 'conn' of @nosend type 'TcpConn' to spawn; use @local spawn

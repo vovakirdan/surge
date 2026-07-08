@@ -65,8 +65,9 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 	if tc.isFarType(capType) {
 		return
 	}
+	owned := tc.isOwnType(capType)
 	// Copy values, including `Placement`, may cross freely (ON-CAP-V001/V004).
-	if tc.result != nil && tc.result.IsCopyType(capType) {
+	if !owned && tc.result != nil && tc.result.IsCopyType(capType) {
 		return
 	}
 	// Owned captures are judged on their nominal type (strip the `own` wrapper).
@@ -86,9 +87,23 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 		// C08: `@send` alone is not sufficient for shard movement.
 		tc.report(diag.SemaShardMovableSendInsufficient, span,
 			"`@send` is not sufficient for shard movement; add `@shard_movable`")
+	case owned && tc.typeHasAttr(nominal, "copy"):
+		// LOCALITY-007/008: `@copy` alone allows copying, not owned migration.
+		tc.report(diag.SemaShardMovableCopyInsufficient, span,
+			"`@copy` is not sufficient for shard movement; add `@shard_movable`")
+	case owned && tc.result != nil && tc.result.IsCopyType(nominal):
+		// Owned builtin Copy values do not need a user shard-movement marker.
 	default:
 		// ON-CAP-N005: unmarked owned user values are not shard-movable.
 		tc.report(diag.SemaCrossNotShardMovable, span,
 			"this owned value is not shard-movable; mark its type `@shard_movable` to cross it")
 	}
+}
+
+func (tc *typeChecker) isOwnType(id types.TypeID) bool {
+	if id == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	tt, ok := tc.types.Lookup(tc.resolveAlias(id))
+	return ok && tt.Kind == types.KindOwn
 }

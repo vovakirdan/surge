@@ -1,8 +1,0 @@
-// EXPECT-DIAG: SEM3167
-// Epic 11 Block 4 negative: own @shard_pinned into on (PINNED-004)
-fn run(conn: own TcpConn) crosses -> TaskResult<nothing> {
-    return on pool {
-        conn.close();
-        ret nothing;
-    };
-}

@@ -1,0 +1,19 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "f" at 2:4-2:5 (leading: Space)
+  3: LParen          "(" at 2:5-2:6
+  4: RParen          ")" at 2:6-2:7
+  5: Arrow           "->" at 2:8-2:10 (leading: Space)
+  6: Ident           "int" at 2:11-2:14 (leading: Space)
+  7: LBrace          "{" at 2:15-2:16 (leading: Space)
+  8: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  9: Ident           "crosses" at 3:9-3:16 (leading: Space)
+ 10: Colon           ":" at 3:16-3:17
+ 11: Ident           "int" at 3:18-3:21 (leading: Space)
+ 12: Assign          "=" at 3:22-3:23 (leading: Space)
+ 13: IntLit          "1" at 3:24-3:25 (leading: Space)
+ 14: Semicolon       ";" at 3:25-3:26
+ 15: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 16: Ident           "crosses" at 4:12-4:19 (leading: Space)
+ 17: Semicolon       ";" at 4:19-4:20
+ 18: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 19: EOF             at 6:1-6:1

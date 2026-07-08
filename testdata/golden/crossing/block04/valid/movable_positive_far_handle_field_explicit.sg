@@ -1,0 +1,6 @@
+// Epic 11 Block 4 positive: @shard_movable containing far handle field (MOVABLE-004)
+@shard_movable
+type Holder = {
+    id: int,
+    conn: far TcpConn,
+};

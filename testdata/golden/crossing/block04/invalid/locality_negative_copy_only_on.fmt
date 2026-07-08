@@ -1,0 +1,17 @@
+// EXPECT-DIAG: SEM3170
+// Epic 11 Block 4 negative: @copy-only crosses via on (LOCALITY-007)
+@copy
+type Point = {
+    x: int,
+    y: int,
+};
+
+fn sum(p: own Point) -> int {
+    return p.x + p.y;
+}
+
+fn run(p: own Point) -> TaskResult<int> {
+    return on pool {
+        ret sum(own p);
+    };
+}

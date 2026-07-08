@@ -1,0 +1,7 @@
+// Epic 11 Block 4 positive: on anchors far handle (PINNED-002)
+fn run(conn: far TcpConn) -> TaskResult<nothing> {
+    return on conn {
+        conn.close();
+        ret nothing;
+    };
+}

@@ -90,6 +90,9 @@ func (tc *typeChecker) validateAllConflicts(infos []AttrInfo) {
 	// @send vs @nosend
 	tc.checkConflict(infos, "send", "nosend", diag.SemaAttrSendNosend)
 
+	// Shard movement and shard pinning are mutually exclusive.
+	tc.checkConflict(infos, "shard_movable", "shard_pinned", diag.SemaShardAttrConflict)
+
 	// @nonblocking vs @waits_on
 	tc.checkConflict(infos, "nonblocking", "waits_on", diag.SemaAttrNonblockingWaitsOn)
 

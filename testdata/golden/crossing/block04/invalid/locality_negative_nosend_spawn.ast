@@ -1,0 +1,24 @@
+locality_negative_nosend_spawn.sg (span: 3:1-15:1)
+├─ Item[0]: Type (span: 3:1-6:3)
+│  ├─ Name: LocalOnly
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Fn (span: 8:1-10:2)
+│  ├─ Name: work
+│  ├─ Params: (v: own LocalOnly)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:40-10:2)
+│        └─ Stmt[0]: Return (span: 9:5-9:17)
+│           └─ Expr: expr#2: v.id
+└─ Item[2]: Fn (span: 12:1-14:2)
+   ├─ Name: run
+   ├─ Params: (v: own LocalOnly)
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:39-14:2)
+         └─ Stmt[0]: Return (span: 13:5-13:30)
+            └─ Expr: expr#7: spawn work(own v)

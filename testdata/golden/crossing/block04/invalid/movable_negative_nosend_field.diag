@@ -1,0 +1,1 @@
+error SEM3171 testdata/golden/crossing/block04/invalid/movable_negative_nosend_field.sg:8:1 `@shard_movable` type has non-shard-movable field `local` of type `LocalOnly`

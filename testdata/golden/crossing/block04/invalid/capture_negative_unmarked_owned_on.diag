@@ -1,0 +1,1 @@
+error SEM3168 testdata/golden/crossing/block04/invalid/capture_negative_unmarked_owned_on.sg:13:29 this owned value is not shard-movable; mark its type `@shard_movable` to cross it

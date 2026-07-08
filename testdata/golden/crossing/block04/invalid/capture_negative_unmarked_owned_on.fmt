@@ -1,0 +1,15 @@
+// EXPECT-DIAG: SEM3168
+// Epic 11 Block 4 negative: unmarked owned user value into on (CAPTURE-016)
+type Payload = {
+    id: int,
+};
+
+fn use_payload(p: own Payload) -> int {
+    return p.id;
+}
+
+fn run(p: own Payload) -> TaskResult<int> {
+    return on pool {
+        ret use_payload(own p);
+    };
+}

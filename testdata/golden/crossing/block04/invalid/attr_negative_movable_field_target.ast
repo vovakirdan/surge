@@ -1,0 +1,7 @@
+attr_negative_movable_field_target.sg (span: 3:1-6:1)
+└─ Item[0]: Type (span: 3:1-5:3)
+   ├─ Name: Job
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   └─ Struct:
+      └─ Field[0]: id: uint64 [@shard_movable]

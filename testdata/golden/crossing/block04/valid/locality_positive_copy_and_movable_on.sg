@@ -1,0 +1,17 @@
+// Epic 11 Block 4 positive: @copy and @shard_movable crosses via on (LOCALITY-002)
+@copy
+@shard_movable
+type Point = {
+    x: int,
+    y: int,
+};
+
+fn sum(p: own Point) -> int {
+    return p.x + p.y;
+}
+
+fn run(p: own Point) -> TaskResult<int> {
+    return on pool {
+        ret sum(own p);
+    };
+}

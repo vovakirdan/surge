@@ -137,6 +137,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		}
 		tc.rememberFunctionInstantiation(selMono.sym, selMono.typeArgs, span, note)
 		tc.recordCallSymbol(callID, selMono.sym)
+		tc.recordFunctionCrossingCall(selMono.sym)
 		tc.checkArrayViewResizeCall(name, args, span)
 		return selMono.result
 	}
@@ -165,6 +166,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		}
 		tc.rememberFunctionInstantiation(selGeneric.sym, selGeneric.typeArgs, span, note)
 		tc.recordCallSymbol(callID, selGeneric.sym)
+		tc.recordFunctionCrossingCall(selGeneric.sym)
 		tc.checkArrayViewResizeCall(name, args, span)
 		return selGeneric.result
 	}

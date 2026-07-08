@@ -1,0 +1,24 @@
+locality_positive_movable_regular_spawn.sg (span: 2:1-15:1)
+├─ Item[0]: Type (span: 2:1-6:3)
+│  ├─ Name: Job
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @send, @shard_movable
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Fn (span: 8:1-10:2)
+│  ├─ Name: work
+│  ├─ Params: (job: own Job)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:36-10:2)
+│        └─ Stmt[0]: Return (span: 9:5-9:19)
+│           └─ Expr: expr#2: job.id
+└─ Item[2]: Fn (span: 12:1-14:2)
+   ├─ Name: run
+   ├─ Params: (job: own Job)
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:35-14:2)
+         └─ Stmt[0]: Return (span: 13:5-13:32)
+            └─ Expr: expr#7: spawn work(own job)

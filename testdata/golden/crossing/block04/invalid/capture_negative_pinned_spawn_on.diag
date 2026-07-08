@@ -1,0 +1,2 @@
+error SEM3005 testdata/golden/crossing/block04/invalid/capture_negative_pinned_spawn_on.sg:5:9 own TcpConn has no method close
+error SEM3167 testdata/golden/crossing/block04/invalid/capture_negative_pinned_spawn_on.sg:5:9 this operation would move a shard-pinned resource; use a far handle or explicit migration

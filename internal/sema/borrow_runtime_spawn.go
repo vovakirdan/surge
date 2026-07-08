@@ -7,9 +7,6 @@ import (
 )
 
 func (tc *typeChecker) enforceSpawn(expr ast.ExprID, allowNosend bool) {
-	if len(tc.bindingBorrow) == 0 {
-		return
-	}
 	seen := make(map[symbols.SymbolID]struct{})
 	tc.scanSpawn(expr, seen, allowNosend)
 }

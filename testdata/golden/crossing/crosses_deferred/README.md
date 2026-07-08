@@ -1,23 +1,25 @@
 # crosses_deferred — parked crossing-effect scenarios
 
-These fixtures are **parked, not deleted**. They exercise the crossing-effect
-scenarios that the explicit `crosses` keyword used to check at parse/sema time.
-The keyword was removed on 2026-07-08 (design change D17); the crossing effect is
-now to be **inferred at semantic analysis** and stored in function metadata, with
-the inference implementation deferred to the Phase 4 transport epic
-(see `docs/runtime-v2-epics/DEBT.md` RV2-DEBT-024).
+These fixtures are **parked, not deleted**. They preserve the keyword-era
+crossing-effect scenarios that the explicit `crosses` keyword used to check at
+parse/sema time. The keyword was removed on 2026-07-08 (design change D17); the
+crossing effect is now inferred at semantic analysis and stored in
+`Result.FunctionEffects[fn].MayCross`.
 
-Until inference lands there is nothing to assert, so these files are:
+The active assertions live in `testdata/golden/crossing/block04/` and
+`internal/sema/crossing_effect_test.go`. This directory remains historical only,
+so these files are:
 
 - **NOT wired into** the `internal/crossinggate` harness — it scans only
   `block0{1..4}/{valid,invalid}`, never this directory; and
 - **skipped by** `scripts/golden_update.sh` — this directory is pruned, so no
   sidecars are generated and the `README.md` is preserved.
 
-Each file carries a `FUTURE-ASSERT:` note describing what semantic
-crosses-inference should assert once implemented; none carry an `EXPECT-DIAG`
-header (the surface diagnostics they used to assert are retired). The retired
-surface diagnostics `SEM3162`/`SEM3163`/`SEM3164` keep their reserved numbers.
+Files may still carry old `FUTURE-ASSERT:` notes from the transition period, but
+those assertions are now covered by active Block 4 fixtures and sema unit tests.
+None carry an `EXPECT-DIAG` header: the surface diagnostics they used to assert
+are retired. The retired diagnostics `SEM3162`/`SEM3163`/`SEM3164` keep their
+reserved numbers.
 
 | File | Origin | Future assertion |
 | --- | --- | --- |

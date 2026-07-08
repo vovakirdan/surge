@@ -1,0 +1,14 @@
+movable_negative_array_of_unmarked_user_type.sg (span: 3:1-11:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Payload
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: id: int
+└─ Item[1]: Type (span: 7:1-10:3)
+   ├─ Name: Batch
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @shard_movable
+   └─ Struct:
+      └─ Field[0]: items: Payload[]

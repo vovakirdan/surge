@@ -34,6 +34,7 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 
 	// Note: `on` no longer requires an explicit `crosses` marker — the effect is
 	// inferred by sema (SEM3162 retired with the `crosses` grammar removal).
+	tc.markCurrentFunctionMayCross()
 
 	// ON-CROSS-N002: `on` is legal only where suspension is legal (not inside
 	// a `blocking { }` body).

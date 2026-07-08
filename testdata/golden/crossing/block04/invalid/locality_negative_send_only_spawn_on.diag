@@ -1,0 +1,1 @@
+error SEM3169 testdata/golden/crossing/block04/invalid/locality_negative_send_only_spawn_on.sg:14:25 `@send` is not sufficient for shard movement; add `@shard_movable`

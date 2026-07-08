@@ -1,0 +1,28 @@
+capture_negative_borrow_on.sg (span: 3:1-17:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Job
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: read
+│  ├─ Params: (r: &Job)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:25-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:17)
+│           └─ Expr: expr#2: r.id
+└─ Item[2]: Fn (span: 11:1-16:2)
+   ├─ Name: run
+   ├─ Params: (job: Job)
+   ├─ Return: TaskResult<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:37-16:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:24)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &Job
+         │  └─ Value: expr#4: &job
+         └─ Stmt[1]: Return (span: 13:5-15:7)
+            └─ Expr: expr#9: on pool { 1 stmt(s) }

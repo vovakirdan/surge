@@ -1,0 +1,23 @@
+capture_negative_unmarked_owned_spawn_on.sg (span: 3:1-16:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Payload
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: use_payload
+│  ├─ Params: (p: own Payload)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:39-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:17)
+│           └─ Expr: expr#2: p.id
+└─ Item[2]: Fn (span: 11:1-15:2)
+   ├─ Name: run
+   ├─ Params: (p: own Payload)
+   ├─ Return: far Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:41-15:2)
+         └─ Stmt[0]: Return (span: 12:5-14:7)
+            └─ Expr: expr#8: spawn on pool { 1 stmt(s) }

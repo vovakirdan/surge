@@ -1,0 +1,8 @@
+// EXPECT-DIAG: SEM3167
+// Epic 11 Block 4 negative: own @shard_pinned into spawn on (PINNED-005)
+fn run(conn: own TcpConn) -> far Task<nothing> {
+    return spawn on pool {
+        conn.close();
+        ret nothing;
+    };
+}

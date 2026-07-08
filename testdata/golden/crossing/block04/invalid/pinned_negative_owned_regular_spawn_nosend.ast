@@ -1,0 +1,17 @@
+pinned_negative_owned_regular_spawn_nosend.sg (span: 3:1-10:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: serve
+│  ├─ Params: (conn: own TcpConn)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:46-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:20)
+│           └─ Expr: expr#1: nothing
+└─ Item[1]: Fn (span: 7:1-9:2)
+   ├─ Name: run
+   ├─ Params: (conn: own TcpConn)
+   ├─ Return: Task<nothing>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:44-9:2)
+         └─ Stmt[0]: Return (span: 8:5-8:34)
+            └─ Expr: expr#6: spawn serve(own conn)

@@ -1,0 +1,1 @@
+error SEM3174 testdata/golden/crossing/block04/invalid/locality_negative_local_spawn_on.sg:8:12 `@local spawn on` is invalid; local spawn and remote placement are mutually exclusive

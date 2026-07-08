@@ -1,0 +1,25 @@
+effect_positive_call_chain_inferred.sg (span: 2:1-15:1)
+├─ Item[0]: Fn (span: 2:1-6:2)
+│  ├─ Name: inner
+│  ├─ Params: (n: int)
+│  ├─ Return: TaskResult<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:37-6:2)
+│        └─ Stmt[0]: Return (span: 3:5-5:7)
+│           └─ Expr: expr#3: on pool { 1 stmt(s) }
+├─ Item[1]: Fn (span: 8:1-10:2)
+│  ├─ Name: middle
+│  ├─ Params: (n: int)
+│  ├─ Return: TaskResult<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:38-10:2)
+│        └─ Stmt[0]: Return (span: 9:5-9:21)
+│           └─ Expr: expr#6: inner(n)
+└─ Item[2]: Fn (span: 12:1-14:2)
+   ├─ Name: outer
+   ├─ Params: (n: int)
+   ├─ Return: TaskResult<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:37-14:2)
+         └─ Stmt[0]: Return (span: 13:5-13:22)
+            └─ Expr: expr#9: middle(n)

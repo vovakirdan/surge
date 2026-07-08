@@ -1,0 +1,24 @@
+capture_positive_shard_movable_on.sg (span: 2:1-16:1)
+├─ Item[0]: Type (span: 2:1-5:3)
+│  ├─ Name: Job
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @shard_movable
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: run_job
+│  ├─ Params: (job: own Job)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:33-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:19)
+│           └─ Expr: expr#2: job.id
+└─ Item[2]: Fn (span: 11:1-15:2)
+   ├─ Name: run
+   ├─ Params: (job: own Job)
+   ├─ Return: TaskResult<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:41-15:2)
+         └─ Stmt[0]: Return (span: 12:5-14:7)
+            └─ Expr: expr#8: on pool { 1 stmt(s) }

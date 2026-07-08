@@ -19,7 +19,7 @@ required to reconstruct the Epic 11 contract.
 | 1 | `block-01-far-type-modifier.md` | `far T` type modifier | Implemented (gate enabled) |
 | 2 | `block-02-on-placement-crossing.md` | `on dst { ... }` placement crossing | Implemented (gate enabled) |
 | 3 | `block-03-spawn-on-remote-spawn.md` | `spawn on dst { ... }`, `far Task<T>` | Implemented (gate enabled) |
-| 4 | `block-04-crossing-contracts.md` | `crosses`, `@shard_movable`, `@shard_pinned` | Matrix staged and gated |
+| 4 | `block-04-crossing-contracts.md` | inferred crossing effect, `@shard_movable`, `@shard_pinned` | Implemented (gate enabled) |
 
 ## Execution Scope
 
@@ -38,20 +38,15 @@ because the golden fixtures cross-depend:
 1. **Block 1 (`far` type modifier).** Establishes the `far T` type former. Blocks
    2, 3, and 4 all need `far` types to exist before their fixtures can even parse
    (`far Channel<T>` destinations, `far Task<T>` results, `far T` captures).
-2. **Block 4 grammar slice.** Land the `crosses` parsing (contextual keyword in
-   signature position) and the `@shard_movable` / `@shard_pinned` attribute
-   parsing. Blocks 2 and 3 fixtures are written inside `crosses` functions and
-   capture attribute-marked values, so this grammar must parse first.
-3. **Blocks 2 and 3 (`on` and `spawn on`).** Build the crossing forms on top of
-   the Block 1 types and the Block 4 grammar. These may proceed in parallel with
-   each other.
-4. **Block 4 sema slice.** Enforce `crosses` propagation, capture legality,
-   shard-mobility validation, and the conflict rules. This closes last because it
-   checks the crossing forms introduced by Blocks 2 and 3, so those forms must
-   exist before the semantic checks can be exercised.
+2. **Blocks 2 and 3 (`on` and `spawn on`).** Build the crossing forms on top of
+   the Block 1 types. These may proceed in parallel with each other.
+3. **Block 4 contracts.** Infer the crossing effect from `on`, `spawn on`,
+   `far Task<T>` operations, and direct calls; enforce capture legality,
+   shard-mobility validation, and shard-attribute conflict rules. This closes
+   last because it judges the crossing forms introduced by Blocks 2 and 3.
 
-The rule is: types first, then the grammar that Blocks 2/3 are written in, then
-the crossing forms, then the semantic contract that judges them.
+The rule is: types first, then the crossing forms, then the semantic contract
+that judges them.
 
 ## Shared Diagnostics Ownership
 
@@ -74,6 +69,9 @@ surfaces use the `FUT` 7xxx range.
 | `SEM3167` | Block 4 | `@shard_pinned` value crosses as `own T`. | Block 2 (ON-CAP-N004), Block 3 (C07) |
 | `SEM3168` | Block 4 | Unmarked owned user value (incl. local `Task<T>`) crosses as `own T`. | Block 2 (ON-CAP-N005), Block 3 (C05, B07) |
 | `SEM3169` | Block 4 | `@send`-only user type crosses as `own T`. | Block 3 (C08) |
+| `SEM3170` | Block 4 | `@copy`-only user type crosses as `own T`. | Block 4 locality fixtures |
+| `SEM3171` | Block 4 | `@shard_movable` type contains a non-shard-movable field/member. | Block 4 movable fixtures |
+| `SEM3172` | Block 4 | `@shard_movable` conflicts with `@shard_pinned`. | Block 4 attr/pinned fixtures |
 | `SEM3174` | Block 4 | `@local spawn on` is used. | Block 3 (S07) |
 | `SEM3143` | Block 2 | `far Task<T>` used as an `on` destination. | Block 3 (T09) |
 | `SEM3142` | Block 1 | Local operation on `far T` outside an accepted crossing context. | Block 2 (ON-ANCHOR-N003) |
@@ -81,9 +79,8 @@ surfaces use the `FUT` 7xxx range.
 > **`crosses` retirement note (design change D17, completed 2026-07-08).** The
 > explicit `crosses` keyword has been REMOVED from the language: the crossing
 > effect is retained but inferred at semantic analysis and stored in function
-> metadata rather than required at a call/definition site (inference
-> implementation itself is deferred to the Phase 4 transport epic). Consequences,
-> now landed:
+> metadata rather than required at a call/definition site. Consequences, now
+> landed:
 > - The `crosses` grammar is removed — `fn f() crosses -> T` no longer parses
 >   (`SYN2012`/`SYN2205`). `Signature.Crosses` and its setter are removed.
 > - `SEM3162`/`SEM3163`/`SEM3164` are RETIRED (numbers reserved, not reused).
@@ -91,13 +88,10 @@ surfaces use the `FUT` 7xxx range.
 >   `on dst { }`, `spawn on`, and `far Task<T>.await()`/`.cancel()` are valid in
 >   any function.
 > - The crosses-requirement negatives are PARKED, not deleted, in
->   `testdata/golden/crossing/crosses_deferred/` (Block 3's four X03/X04/T07/T08
->   fixtures and Block 2's `on_negative_missing_crosses`). Their scenarios stay
->   useful for future semantic crosses-inference (Phase 4); each carries a
->   `FUTURE-ASSERT:` note instead of `EXPECT-DIAG`. The parking directory is not
->   wired into the crossinggate harness and is skipped by `golden_update.sh`.
->   Block 2 also had the `crosses` keyword stripped from every remaining fixture
->   (filenames retained; naming drift documented in the `block-02` doc).
+>   `testdata/golden/crossing/crosses_deferred/` for history. Active Block 4
+>   fixtures now use valid source without a marker keyword, and
+>   `internal/sema/crossing_effect_test.go` asserts the inferred `MayCross`
+>   metadata directly.
 
 Reused existing codes (per the infra map and reuse-first policy) include
 `SemaUseAfterMove` (3130) for `far`-handle affinity and `far Task<T>`
@@ -168,9 +162,9 @@ been replaced in the docs with the allocated code below. New codes live in
 | `TBD-DIAG-SPAWN-ON-BACKEND-UNAVAILABLE` | `FUT7015` | new |
 | `TBD-DIAG-FAR-TASK-AWAIT-BACKEND-UNAVAILABLE` | `FUT7016` | new |
 | `TBD-DIAG-FAR-TASK-CANCEL-BACKEND-UNAVAILABLE` | `FUT7017` | new |
-| `TBD-DIAG-CROSSES-MISSING` | `SEM3162` | new |
-| `TBD-DIAG-CROSSES-CALLER-MISSING` | `SEM3163` | new |
-| `TBD-DIAG-FAR-TASK-CROSSES-MISSING` | `SEM3164` | new |
+| `TBD-DIAG-CROSSES-MISSING` | `SEM3162` | retired/reserved |
+| `TBD-DIAG-CROSSES-CALLER-MISSING` | `SEM3163` | retired/reserved |
+| `TBD-DIAG-FAR-TASK-CROSSES-MISSING` | `SEM3164` | retired/reserved |
 | `TBD-DIAG-CROSS-BORROW-CAPTURE` | `SEM3165` | new |
 | `TBD-DIAG-CROSS-NOSEND-CAPTURE` | `SEM3166` | new |
 | `TBD-DIAG-CROSS-PINNED-CAPTURE` | `SEM3167` | new |
@@ -181,9 +175,9 @@ been replaced in the docs with the allocated code below. New codes live in
 | `TBD-DIAG-SHARD-ATTR-TARGET` | `SYN2016` | reuse (existing) |
 | `TBD-DIAG-SHARD-ATTR-CONFLICT` | `SEM3172` | new |
 | `TBD-DIAG-CROSSES-ATTRIBUTE` | `SEM3173` | new |
-| `TBD-DIAG-CROSSES-PLACEMENT` | `SYN2034` | new |
-| `TBD-DIAG-CROSSES-TARGET` | `SYN2035` | new |
-| `TBD-DIAG-CROSSES-FN-TYPE` | `SYN2036` | new |
+| `TBD-DIAG-CROSSES-PLACEMENT` | `SYN2034` | retired/reserved |
+| `TBD-DIAG-CROSSES-TARGET` | `SYN2035` | retired/reserved |
+| `TBD-DIAG-CROSSES-FN-TYPE` | `SYN2036` | retired/reserved |
 | `TBD-DIAG-LOCAL-SPAWN-ON` | `SEM3174` | new |
 
 ## Golden Fixtures and Per-Block Test Gate

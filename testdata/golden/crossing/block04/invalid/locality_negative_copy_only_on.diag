@@ -1,0 +1,1 @@
+error SEM3170 testdata/golden/crossing/block04/invalid/locality_negative_copy_only_on.sg:15:21 `@copy` is not sufficient for shard movement; add `@shard_movable`

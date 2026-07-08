@@ -1,0 +1,56 @@
+  1: At              "@" at 2:1-2:2 (leading: LineComment, Newline)
+  2: Ident           "send" at 2:2-2:6
+  3: At              "@" at 3:1-3:2 (leading: Newline)
+  4: Ident           "shard_movable" at 3:2-3:15
+  5: KwType          "type" at 4:1-4:5 (leading: Newline)
+  6: Ident           "Job" at 4:6-4:9 (leading: Space)
+  7: Assign          "=" at 4:10-4:11 (leading: Space)
+  8: LBrace          "{" at 4:12-4:13 (leading: Space)
+  9: Ident           "id" at 5:5-5:7 (leading: Newline, Space)
+ 10: Colon           ":" at 5:7-5:8
+ 11: Ident           "int" at 5:9-5:12 (leading: Space)
+ 12: Comma           "," at 5:12-5:13
+ 13: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 14: Semicolon       ";" at 6:2-6:3
+ 15: KwAsync         "async" at 8:1-8:6 (leading: Newline)
+ 16: KwFn            "fn" at 8:7-8:9 (leading: Space)
+ 17: Ident           "work" at 8:10-8:14 (leading: Space)
+ 18: LParen          "(" at 8:14-8:15
+ 19: Ident           "job" at 8:15-8:18
+ 20: Colon           ":" at 8:18-8:19
+ 21: KwOwn           "own" at 8:20-8:23 (leading: Space)
+ 22: Ident           "Job" at 8:24-8:27 (leading: Space)
+ 23: RParen          ")" at 8:27-8:28
+ 24: Arrow           "->" at 8:29-8:31 (leading: Space)
+ 25: Ident           "int" at 8:32-8:35 (leading: Space)
+ 26: LBrace          "{" at 8:36-8:37 (leading: Space)
+ 27: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 28: Ident           "job" at 9:12-9:15 (leading: Space)
+ 29: Dot             "." at 9:15-9:16
+ 30: Ident           "id" at 9:16-9:18
+ 31: Semicolon       ";" at 9:18-9:19
+ 32: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 33: KwFn            "fn" at 12:1-12:3 (leading: Newline)
+ 34: Ident           "run" at 12:4-12:7 (leading: Space)
+ 35: LParen          "(" at 12:7-12:8
+ 36: Ident           "job" at 12:8-12:11
+ 37: Colon           ":" at 12:11-12:12
+ 38: KwOwn           "own" at 12:13-12:16 (leading: Space)
+ 39: Ident           "Job" at 12:17-12:20 (leading: Space)
+ 40: RParen          ")" at 12:20-12:21
+ 41: Arrow           "->" at 12:22-12:24 (leading: Space)
+ 42: Ident           "Task" at 12:25-12:29 (leading: Space)
+ 43: Lt              "<" at 12:29-12:30
+ 44: Ident           "int" at 12:30-12:33
+ 45: Gt              ">" at 12:33-12:34
+ 46: LBrace          "{" at 12:35-12:36 (leading: Space)
+ 47: KwReturn        "return" at 13:5-13:11 (leading: Newline, Space)
+ 48: KwSpawn         "spawn" at 13:12-13:17 (leading: Space)
+ 49: Ident           "work" at 13:18-13:22 (leading: Space)
+ 50: LParen          "(" at 13:22-13:23
+ 51: KwOwn           "own" at 13:23-13:26
+ 52: Ident           "job" at 13:27-13:30 (leading: Space)
+ 53: RParen          ")" at 13:30-13:31
+ 54: Semicolon       ";" at 13:31-13:32
+ 55: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 56: EOF             at 15:1-15:1

@@ -1,0 +1,1 @@
+error SYN2016 testdata/golden/crossing/block04/invalid/attr_negative_movable_field_target.sg:4:5 attribute '@shard_movable' is not allowed here

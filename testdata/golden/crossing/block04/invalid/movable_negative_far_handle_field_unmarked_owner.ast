@@ -1,0 +1,14 @@
+movable_negative_far_handle_field_unmarked_owner.sg (span: 3:1-11:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Holder
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: conn: far TcpConn
+└─ Item[1]: Type (span: 7:1-10:3)
+   ├─ Name: Envelope
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @shard_movable
+   └─ Struct:
+      └─ Field[0]: holder: Holder

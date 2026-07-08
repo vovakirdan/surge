@@ -1,0 +1,10 @@
+// Epic 11 Block 4 positive: `on` infers the crossing effect.
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn route(n: int) -> TaskResult<int> {
+    return on distributed {
+        ret double(n);
+    };
+}

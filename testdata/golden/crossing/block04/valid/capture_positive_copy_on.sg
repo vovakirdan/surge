@@ -1,0 +1,11 @@
+// Epic 11 Block 4 positive: Copy capture into on (CAPTURE-001)
+fn add(x: int, y: int) -> int {
+    return x + y;
+}
+
+fn run(n: int) -> TaskResult<int> {
+    let k: int = 4;
+    return on pool {
+        ret add(n, k);
+    };
+}

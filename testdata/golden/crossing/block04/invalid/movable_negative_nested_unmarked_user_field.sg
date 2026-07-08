@@ -1,0 +1,15 @@
+// EXPECT-DIAG: SEM3171
+// Epic 11 Block 4 negative: recursive validation reaches unmarked type (MOVABLE-006)
+type Leaf = {
+    id: int,
+};
+
+@shard_movable
+type Middle = {
+    leaf: Leaf,
+};
+
+@shard_movable
+type Top = {
+    middle: Middle,
+};

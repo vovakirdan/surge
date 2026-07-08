@@ -1,0 +1,11 @@
+// Epic 11 Block 4 positive: Copy capture into spawn on (CAPTURE-002)
+fn add(x: int, y: int) -> int {
+    return x + y;
+}
+
+fn run(n: int) -> far Task<int> {
+    let k: int = 4;
+    return spawn on pool {
+        ret add(n, k);
+    };
+}

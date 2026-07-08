@@ -1,0 +1,26 @@
+capture_positive_nosend_local_spawn.sg (span: 2:1-17:1)
+├─ Item[0]: Type (span: 2:1-5:3)
+│  ├─ Name: LocalOnly
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: id: int
+└─ Item[1]: Fn (span: 7:1-16:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:23-16:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:34)
+         │  ├─ Name: v
+         │  ├─ Mutable: false
+         │  ├─ Type: LocalOnly
+         │  └─ Value: expr#3: <ExprKind(22)>
+         ├─ Stmt[1]: Let (span: 9:5-11:7)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: spawn async { 1 stmt(s) }
+         └─ Stmt[2]: Expr (span: 12:5-15:7)
+            └─ Expr: expr#18: compare t.await() { 2 arms }

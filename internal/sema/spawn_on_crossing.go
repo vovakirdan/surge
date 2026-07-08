@@ -31,6 +31,7 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	// Note: the `crosses` effect is inferred by sema (not demanded from the
 	// programmer), so `spawn on` does not require an explicit `crosses` marker
 	// (X03/SEM3162 retired per the crosses-inference design change).
+	tc.markCurrentFunctionMayCross()
 
 	// A crossing body cannot open a second crossing; the uniform SemaOnNested
 	// rule covers `on`/`spawn on` in any combination (matrix has no nested
@@ -129,6 +130,7 @@ func (tc *typeChecker) typeFarTaskCall(member *ast.ExprMemberData, receiverType 
 	// Note: the `crosses` effect is inferred, so await/cancel on a `far Task<T>`
 	// no longer requires an explicit `crosses` marker (T07/T08/SEM3164 retired
 	// per the crosses-inference design change).
+	tc.markCurrentFunctionMayCross()
 
 	// await/cancel take no arguments, but type any present for the usual checks.
 	for _, arg := range call.Args {

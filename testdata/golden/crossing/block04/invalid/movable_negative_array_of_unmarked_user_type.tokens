@@ -1,0 +1,25 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Payload" at 3:6-3:13 (leading: Space)
+  3: Assign          "=" at 3:14-3:15 (leading: Space)
+  4: LBrace          "{" at 3:16-3:17 (leading: Space)
+  5: Ident           "id" at 4:5-4:7 (leading: Newline, Space)
+  6: Colon           ":" at 4:7-4:8
+  7: Ident           "int" at 4:9-4:12 (leading: Space)
+  8: Comma           "," at 4:12-4:13
+  9: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 10: Semicolon       ";" at 5:2-5:3
+ 11: At              "@" at 7:1-7:2 (leading: Newline)
+ 12: Ident           "shard_movable" at 7:2-7:15
+ 13: KwType          "type" at 8:1-8:5 (leading: Newline)
+ 14: Ident           "Batch" at 8:6-8:11 (leading: Space)
+ 15: Assign          "=" at 8:12-8:13 (leading: Space)
+ 16: LBrace          "{" at 8:14-8:15 (leading: Space)
+ 17: Ident           "items" at 9:5-9:10 (leading: Newline, Space)
+ 18: Colon           ":" at 9:10-9:11
+ 19: Ident           "Payload" at 9:12-9:19 (leading: Space)
+ 20: LBracket        "[" at 9:19-9:20
+ 21: RBracket        "]" at 9:20-9:21
+ 22: Comma           "," at 9:21-9:22
+ 23: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 24: Semicolon       ";" at 10:2-10:3
+ 25: EOF             at 11:1-11:1

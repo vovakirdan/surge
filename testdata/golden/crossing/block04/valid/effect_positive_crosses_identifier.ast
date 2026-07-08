@@ -1,0 +1,14 @@
+effect_positive_crosses_identifier.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: f
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:15-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:26)
+         │  ├─ Name: crosses
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         └─ Stmt[1]: Return (span: 4:5-4:20)
+            └─ Expr: expr#2: crosses

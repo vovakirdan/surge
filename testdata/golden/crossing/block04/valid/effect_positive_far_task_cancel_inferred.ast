@@ -1,0 +1,9 @@
+effect_positive_far_task_cancel_inferred.sg (span: 2:1-5:1)
+└─ Item[0]: Fn (span: 2:1-4:2)
+   ├─ Name: cancel_remote
+   ├─ Params: (t: far Task<int>)
+   ├─ Return: TaskResult<nothing>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:59-4:2)
+         └─ Stmt[0]: Return (span: 3:5-3:23)
+            └─ Expr: expr#3: t.cancel()

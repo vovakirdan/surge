@@ -1,0 +1,16 @@
+// Epic 11 Block 4 positive: own @shard_movable dropped on destination shard (CAPTURE-015)
+@shard_movable
+type Job = {
+    id: int,
+};
+
+fn consume(job: own Job) -> int {
+    return job.id;
+}
+
+fn run(job: own Job) -> TaskResult<int> {
+    return on pool {
+        let _ = consume(own job);
+        ret 0;
+    };
+}

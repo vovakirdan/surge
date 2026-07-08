@@ -178,7 +178,11 @@ func (tc *typeChecker) validateAttrs(start ast.AttrID, count uint32, target ast.
 	for _, attr := range attrs {
 		if spec, ok := ast.LookupAttrID(tc.builder.StringsInterner, attr.Name); ok {
 			if !spec.Allows(target) {
-				tc.report(code, attr.Span, "attribute '@%s' is not allowed here", tc.lookupName(attr.Name))
+				reportCode := code
+				if spec.Name == "shard_movable" || spec.Name == "shard_pinned" {
+					reportCode = diag.SynAttributeNotAllowed
+				}
+				tc.report(reportCode, attr.Span, "attribute '@%s' is not allowed here", tc.lookupName(attr.Name))
 			}
 			continue
 		}

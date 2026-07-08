@@ -74,7 +74,7 @@ pub enum SeekWhences: SeekWhence = { Start, Current, End }
 // NetError.code:
 // 1 WouldBlock, 2 TimedOut, 3 ConnectionReset, 4 ConnectionRefused, 5 NotConnected,
 // 6 AddrInUse, 7 InvalidAddr, 8 Io, 9 Unsupported.
-@intrinsic @nosend
+@intrinsic @nosend @shard_pinned
 pub type TcpListener = {
     __opaque: int,
 };

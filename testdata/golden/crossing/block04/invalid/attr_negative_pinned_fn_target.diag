@@ -1,0 +1,1 @@
+error SYN2016 testdata/golden/crossing/block04/invalid/attr_negative_pinned_fn_target.sg:3:1 attribute '@shard_pinned' is not allowed here

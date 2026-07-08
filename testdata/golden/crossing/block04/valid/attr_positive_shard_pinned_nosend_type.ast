@@ -1,0 +1,8 @@
+attr_positive_shard_pinned_nosend_type.sg (span: 2:1-7:1)
+└─ Item[0]: Type (span: 2:1-6:3)
+   ├─ Name: Socket
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @shard_pinned, @nosend
+   └─ Struct:
+      └─ Field[0]: fd: int

@@ -1,0 +1,8 @@
+pinned_negative_movable_conflict.sg (span: 3:1-8:1)
+└─ Item[0]: Type (span: 3:1-7:3)
+   ├─ Name: Resource
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @shard_pinned, @shard_movable
+   └─ Struct:
+      └─ Field[0]: id: int

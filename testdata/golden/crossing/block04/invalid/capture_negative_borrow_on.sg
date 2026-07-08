@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3165
+// Epic 11 Block 4 negative: borrow capture into on (CAPTURE-007)
+type Job = {
+    id: int,
+};
+
+fn read(r: &Job) -> int {
+    return r.id;
+}
+
+fn run(job: Job) -> TaskResult<int> {
+    let r: &Job = &job;
+    return on pool {
+        ret read(r);
+    };
+}

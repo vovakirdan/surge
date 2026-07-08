@@ -1,0 +1,1 @@
+error SEM3171 testdata/golden/crossing/block04/invalid/movable_negative_array_of_unmarked_user_type.sg:7:1 `@shard_movable` type has non-shard-movable field `items` of type `[Payload]`

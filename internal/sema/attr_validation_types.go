@@ -333,3 +333,114 @@ func (tc *typeChecker) isExpandedCopyType(typeID types.TypeID, span source.Span,
 
 	return false
 }
+
+func (tc *typeChecker) validateShardMovableTypes() {
+	if tc == nil || tc.types == nil || tc.typeIDItems == nil {
+		return
+	}
+	for typeID, itemID := range tc.typeIDItems {
+		if typeID == types.NoTypeID || !tc.typeHasAttr(typeID, "shard_movable") {
+			continue
+		}
+		span := tc.itemSpan(itemID)
+		if span == (source.Span{}) {
+			span = tc.fallbackTypeSpan(typeID)
+		}
+		tc.validateShardMovableType(typeID, span, make(map[types.TypeID]bool))
+	}
+}
+
+func (tc *typeChecker) validateShardMovableType(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool) bool {
+	resolved := tc.resolveAlias(typeID)
+	if resolved == types.NoTypeID {
+		return false
+	}
+	if visiting[resolved] {
+		return true
+	}
+	visiting[resolved] = true
+	defer delete(visiting, resolved)
+
+	ok := true
+	if structInfo, found := tc.types.StructInfo(resolved); found && structInfo != nil {
+		for _, field := range structInfo.Fields {
+			if tc.isShardMovableMemberType(field.Type, span, visiting) {
+				continue
+			}
+			tc.report(diag.SemaShardMovableField, span,
+				"`@shard_movable` type has non-shard-movable field `%s` of type `%s`",
+				tc.lookupName(field.Name), tc.typeLabel(field.Type))
+			ok = false
+		}
+		return ok
+	}
+	if unionInfo, found := tc.types.UnionInfo(resolved); found && unionInfo != nil {
+		for _, member := range unionInfo.Members {
+			switch member.Kind {
+			case types.UnionMemberType:
+				if tc.isShardMovableMemberType(member.Type, span, visiting) {
+					continue
+				}
+				tc.report(diag.SemaShardMovableField, span,
+					"`@shard_movable` union has non-shard-movable member of type `%s`",
+					tc.typeLabel(member.Type))
+				ok = false
+			case types.UnionMemberTag:
+				for _, arg := range member.TagArgs {
+					if tc.isShardMovableMemberType(arg, span, visiting) {
+						continue
+					}
+					tc.report(diag.SemaShardMovableField, span,
+						"`@shard_movable` union tag `%s` has non-shard-movable payload type `%s`",
+						tc.lookupName(member.TagName), tc.typeLabel(arg))
+					ok = false
+				}
+			}
+		}
+	}
+	return ok
+}
+
+func (tc *typeChecker) isShardMovableMemberType(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool) bool {
+	if typeID == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	resolved := tc.resolveAlias(typeID)
+	if elem, _, _, ok := tc.arrayInfo(resolved); ok {
+		return tc.isShardMovableMemberType(elem, span, visiting)
+	}
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return false
+	}
+	switch tt.Kind {
+	case types.KindUnit, types.KindNothing, types.KindBool, types.KindString, types.KindInt, types.KindUint, types.KindFloat, types.KindEnum:
+		return true
+	case types.KindFar:
+		return true
+	case types.KindOwn:
+		return tc.isShardMovableMemberType(tt.Elem, span, visiting)
+	case types.KindTuple:
+		return tc.isTupleShardMovable(resolved, span, visiting)
+	}
+	if tc.typeHasAttr(resolved, "shard_pinned") || tc.typeHasAttr(resolved, "nosend") {
+		return false
+	}
+	if tc.typeHasAttr(resolved, "shard_movable") {
+		return tc.validateShardMovableType(resolved, span, visiting)
+	}
+	return false
+}
+
+func (tc *typeChecker) isTupleShardMovable(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool) bool {
+	info, ok := tc.types.TupleInfo(typeID)
+	if !ok || info == nil {
+		return false
+	}
+	for _, elem := range info.Elems {
+		if !tc.isShardMovableMemberType(elem, span, visiting) {
+			return false
+		}
+	}
+	return true
+}

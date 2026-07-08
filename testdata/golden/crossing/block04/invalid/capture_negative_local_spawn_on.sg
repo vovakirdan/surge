@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3174
+// Epic 11 Block 4 negative: @local spawn on (CAPTURE-014)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn run(n: int) -> far Task<int> {
+    return @local spawn on pool {
+        ret double(n);
+    };
+}

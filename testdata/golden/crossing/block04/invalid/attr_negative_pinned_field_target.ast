@@ -1,0 +1,7 @@
+attr_negative_pinned_field_target.sg (span: 3:1-6:1)
+└─ Item[0]: Type (span: 3:1-5:3)
+   ├─ Name: Conn
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   └─ Struct:
+      └─ Field[0]: fd: int [@shard_pinned]

@@ -1,0 +1,25 @@
+locality_negative_copy_only_on.sg (span: 3:1-18:1)
+├─ Item[0]: Type (span: 3:1-7:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Fn (span: 9:1-11:2)
+│  ├─ Name: sum
+│  ├─ Params: (p: own Point)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:29-11:2)
+│        └─ Stmt[0]: Return (span: 10:5-10:22)
+│           └─ Expr: expr#5: (p.x + p.y)
+└─ Item[2]: Fn (span: 13:1-17:2)
+   ├─ Name: run
+   ├─ Params: (p: own Point)
+   ├─ Return: TaskResult<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:41-17:2)
+         └─ Stmt[0]: Return (span: 14:5-16:7)
+            └─ Expr: expr#11: on pool { 1 stmt(s) }

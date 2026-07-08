@@ -1,0 +1,8 @@
+attr_positive_shard_pinned_type.sg (span: 2:1-6:1)
+└─ Item[0]: Type (span: 2:1-5:3)
+   ├─ Name: PinnedResource
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @shard_pinned
+   └─ Struct:
+      └─ Field[0]: fd: int

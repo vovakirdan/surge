@@ -1,0 +1,1 @@
+error SEM3172 testdata/golden/crossing/block04/invalid/attr_negative_movable_pinned_conflict.sg:4:1 attribute '@shard_pinned' conflicts with '@shard_movable'

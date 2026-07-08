@@ -1,0 +1,16 @@
+// Epic 11 Block 4 positive: @nosend captured by @local spawn (CAPTURE-006)
+@nosend
+type LocalOnly = {
+    id: int,
+};
+
+@entrypoint fn main() {
+    let v: LocalOnly = { id: 1 };
+    let t = @local spawn async {
+        return v.id;
+    };
+    compare t.await() {
+        Success(_) => nothing;
+        Cancelled() => nothing;
+    };
+}

@@ -1,0 +1,1 @@
+error SEM3171 testdata/golden/crossing/block04/invalid/movable_negative_pinned_field.sg:3:1 `@shard_movable` type has non-shard-movable field `conn` of type `TcpConn`

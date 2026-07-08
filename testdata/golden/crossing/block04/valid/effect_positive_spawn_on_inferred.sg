@@ -1,0 +1,10 @@
+// Epic 11 Block 4 positive: `spawn on` infers the crossing effect.
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) -> far Task<int> {
+    return spawn on pool {
+        ret double(n);
+    };
+}

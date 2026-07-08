@@ -1,0 +1,24 @@
+locality_negative_nosend_on.sg (span: 3:1-17:1)
+├─ Item[0]: Type (span: 3:1-6:3)
+│  ├─ Name: LocalOnly
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: id: int
+├─ Item[1]: Fn (span: 8:1-10:2)
+│  ├─ Name: peek
+│  ├─ Params: (v: own LocalOnly)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:34-10:2)
+│        └─ Stmt[0]: Return (span: 9:5-9:17)
+│           └─ Expr: expr#2: v.id
+└─ Item[2]: Fn (span: 12:1-16:2)
+   ├─ Name: run
+   ├─ Params: (v: own LocalOnly)
+   ├─ Return: TaskResult<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:45-16:2)
+         └─ Stmt[0]: Return (span: 13:5-15:7)
+            └─ Expr: expr#8: on pool { 1 stmt(s) }

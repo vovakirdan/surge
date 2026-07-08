@@ -120,7 +120,7 @@ fixture metadata.
 | Row | Destination | Fixture | Diagnostic code | Fix availability | Required message shape |
 | --- | --- | --- | --- | --- | --- |
 | ON-DST-N001 | `t: far Task<T>` | `on_negative_far_task_destination.sg` | `SEM3143` | Fixable: use `t.await()` or `t.cancel()`. | `far Task<T>` is not an `on` destination. |
-| ON-DST-N002 | `blocking` | `on_negative_blocking_destination.sg` | `FUT7012` | Fixable: use existing `blocking { ... }` or choose a `Placement`. | `on blocking` is not part of Epic 11. |
+| ON-DST-N002 | `blocking` | `on_negative_blocking_destination.sg` | `FUT7012` | Fixable: use existing `blocking { ... }` or choose a `Placement`. | `on blocking` is postponed beyond Epic 11. |
 | ON-DST-N003 | ordinary value | `on_negative_integer_destination.sg` | `SEM3144` | Fixable: pass `Placement`, `shard(id)`, or an accepted `far` handle. | Destination type is not `Placement` or accepted `far` handle. |
 | ON-DST-N004 | type name | `on_negative_type_destination.sg` | `SEM3145` | Fixable: use a value of type `Placement`. | Type names are not placement targets. |
 | ON-DST-N005 | bare function name | `on_negative_bare_fn_destination.sg` | `SEM3146` | Fixable: call the function if it returns `Placement`. | Function value is not a placement target. |

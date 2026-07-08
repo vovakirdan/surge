@@ -51,9 +51,10 @@ What changed:
   lowering/backend gate or explicit stage/config selector before Block 2/3 full
   gates are enabled.
 
-Next: start implementation following the forced order in `11-tasks/README.md`:
-Block 1 `far`, then the Block 4 grammar slice, then Blocks 2/3, then the Block 4
-semantic slice and documentation closeout.
+Historical next-step note at task staging time: start with Block 1 `far`, then
+Blocks 2/3, then Block 4 contracts and documentation closeout. The earlier
+"Block 4 grammar slice" wording was superseded when the explicit `crosses`
+keyword was retired.
 
 ## Epic 11 Block 1 Implementation (2026-07-07)
 
@@ -4232,8 +4233,10 @@ surface keyword, no programmer-facing requirement). The `crosses` grammar was
 removed (`fn f() crosses -> T` no longer parses: `SYN2012`/`SYN2205`),
 `Signature.Crosses` and its setter were deleted, and `SEM3162`/`SEM3163`/`SEM3164`
 are retired (numbers reserved). `on`, `spawn on`, and `far Task<T>`
-await/cancel are valid in any function. The inference implementation itself is
-deferred to the Phase 4 transport epic (see `DEBT.md` RV2-DEBT-024).
+await/cancel are valid in any function. Update after Block 4 completion:
+direct sema inference is implemented; `RV2-DEBT-024` now tracks only
+higher-order/function-type effect propagation and possible cross-module export
+propagation.
 
 This SUPERSEDES earlier keyword-strategy notes in this log — including the
 "`on` and `crosses` contextual keyword" strategy and the Block 4 "`crosses`
@@ -4245,3 +4248,26 @@ fixtures and Block 2's `on_negative_missing_crosses` — each carrying a
 `FUTURE-ASSERT:` note for the coming semantic crosses-inference; the directory is
 not wired into the crossinggate harness and is skipped by `golden_update.sh`.
 Block 2 also had `crosses` stripped from every remaining fixture in this cleanup.
+
+## 2026-07-08 — Epic 11 Block 4 crossing contracts implemented
+
+Block 4 is now implemented without a public `crosses` keyword. Sema records
+`Result.FunctionEffects[fn].MayCross` for direct `on`, `spawn on`,
+`far Task<T>.await()`, `far Task<T>.cancel()`, and transitive direct-call
+propagation. The active Block 4 fixtures were rewritten to valid marker-free
+source; historical keyword-era fixtures were moved under
+`testdata/golden/crossing/crosses_deferred/block04/`.
+
+Shard contracts are active: `@shard_movable`/`@shard_pinned` type-only target
+checks (`SYN2016`), conflict checks (`SEM3172`), recursive shard-movable
+field/member validation (`SEM3171`), `@send`/`@copy`-only owned crossing
+diagnostics (`SEM3169`/`SEM3170`), and `@nosend`/`@shard_pinned` crossing
+diagnostics are gated by `internal/crossinggate`. `TcpListener` now matches
+`TcpConn` as `@shard_pinned @nosend`. Ordinary `spawn` keeps its established
+`SEM3086` nosend diagnostic; `SEM3166` is for `on` / `spawn on` crossing
+boundaries.
+
+Debt state updated: `RV2-DEBT-024` is no longer "effect inference deferred";
+the remaining debt is higher-order/function-type effect propagation and possible
+cross-module export propagation if Phase 4 lowering proves it needs caller
+effects across module boundaries.

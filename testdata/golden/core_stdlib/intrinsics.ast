@@ -195,7 +195,7 @@ intrinsics.sg (span: 1:1-886:1)
 │  ├─ Name: TcpListener
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
-│  ├─ Attributes: @intrinsic, @nosend
+│  ├─ Attributes: @intrinsic, @nosend, @shard_pinned
 │  └─ Struct:
 │     └─ Field[0]: __opaque: int
 ├─ Item[38]: Type (span: 82:1-85:3)

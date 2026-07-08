@@ -1,0 +1,2 @@
+error SYN2016 testdata/golden/crossing/block04/invalid/attr_negative_pinned_block_target.sg:4:5 attributes are not allowed on statements (except '@drop')
+error SEM3134 testdata/golden/crossing/block04/invalid/attr_negative_pinned_block_target.sg:5:9 'ret' can only be used inside value-producing blocks

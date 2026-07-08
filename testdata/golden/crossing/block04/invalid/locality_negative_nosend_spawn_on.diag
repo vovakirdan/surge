@@ -1,0 +1,1 @@
+error SEM3166 testdata/golden/crossing/block04/invalid/locality_negative_nosend_spawn_on.sg:14:22 `@nosend` values cannot cross task or shard boundaries outside `@local spawn`

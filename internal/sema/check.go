@@ -59,6 +59,7 @@ type Result struct {
 	BindingTypes           map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
 	ItemScopes             map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
 	BlockingCaptures       map[ast.ExprID][]symbols.SymbolID // Captures for blocking { ... } expressions
+	FunctionEffects        map[symbols.SymbolID]FunctionEffect
 	// FarTaskAwaitSpans / FarTaskCancelSpans record `far Task<T>` await/cancel
 	// call sites (Epic 11 Block 3) so the backend guard can emit FUT7016 /
 	// FUT7017 until the Phase 4 transport backend can lower them. They are
@@ -67,6 +68,13 @@ type Result struct {
 	// in the same file.
 	FarTaskAwaitSpans  []source.Span
 	FarTaskCancelSpans []source.Span
+}
+
+// FunctionEffect stores inferred function-level effects used by later lowering
+// phases. Crossing is inferred from sema-resolved operations rather than a
+// programmer-written surface marker.
+type FunctionEffect struct {
+	MayCross bool
 }
 
 // Check performs semantic analysis (type inference, borrow checks, etc.).
@@ -90,6 +98,7 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		IndexSymbols:           make(map[ast.ExprID]symbols.SymbolID),
 		IndexSetSymbols:        make(map[ast.ExprID]symbols.SymbolID),
 		BlockingCaptures:       make(map[ast.ExprID][]symbols.SymbolID),
+		FunctionEffects:        make(map[symbols.SymbolID]FunctionEffect),
 	}
 	if opts.Types != nil {
 		res.TypeInterner = opts.Types

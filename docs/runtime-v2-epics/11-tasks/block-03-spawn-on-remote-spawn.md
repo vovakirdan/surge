@@ -74,7 +74,7 @@ It does not wait for completion immediately.
 Accepted shape:
 
 ```sg
-fn start(job: own Job) crosses -> far Task<Result> {
+fn start(job: own Job) -> far Task<Result> {
     return spawn on distributed {
         ret run_job(own job);
     };
@@ -94,8 +94,8 @@ Rules imported from Epic 11:
   (affine). A local `Task<T>` is not `@shard_movable`.
 - The expression result type is `far Task<T>`, which is strictly affine and
   follows local `Task<T>` must-await-or-return lifecycle rules.
-- Use of `spawn on` requires an enclosing `crosses` function or block context
-  once Block 4 crossing checks are active.
+- Use of `spawn on` infers `Result.FunctionEffects[fn].MayCross` on the
+  enclosing function once Block 4 crossing checks are active.
 
 ## Destination Typing Matrix
 
@@ -112,7 +112,7 @@ Rules imported from Epic 11:
 | D09 | `spawn on route_for(id) { ret value; }` where return type is not `Placement` | Invalid | Diagnostic: `SEM3154`; fix: make the function return `Placement` or choose a placement value. |
 | D10 | `spawn on ch { ret value; }` where `ch: far Channel<T>` | Invalid | Diagnostic: `SEM3157`; fix: use `on ch { ... }` for immediate owner-anchored handle operations. |
 | D11 | `spawn on conn { ret value; }` where `conn: far TcpConn` | Invalid | Diagnostic: `SEM3157`; fix: use an accepted `Placement` destination. |
-| D12 | `spawn on t { ret value; }` where `t: far Task<T>` | Invalid | Diagnostic: `SEM3158`; fix: call `t.await()` or `t.cancel()` in a `crosses` context. |
+| D12 | `spawn on t { ret value; }` where `t: far Task<T>` | Invalid | Diagnostic: `SEM3158`; fix: call `t.await()` or `t.cancel()`. |
 | D13 | `spawn on blocking { ret value; }` | Invalid | Diagnostic: `FUT7013` (postponed; reuse `FUT`-range blocking code); fix: use `blocking { ... }` as the existing local blocking-task form, or use a `Placement` destination. |
 
 ## Syntax Matrix
@@ -156,7 +156,7 @@ Rules imported from Epic 11:
 
 ## Crosses Propagation Matrix
 
-**RETIRED (design change).** The explicit `crosses` keyword is being removed;
+**RETIRED (design change).** The explicit `crosses` keyword has been removed;
 the crossing effect is inferred into metadata rather than required. X03/X04 no
 longer produce diagnostics, and their negative fixtures were parked in
 `crosses_deferred/` (see Implementation Status). X01/X02
@@ -175,14 +175,14 @@ are demoted to plain positives (they parse and type-check with `crosses` absent)
 | --- | --- | --- | --- |
 | T01 | `let t: far Task<int> = spawn on distributed { ret 1; };` | Valid | Remote spawn expression has type `far Task<int>`. |
 | T02 | `let t: Task<int> = spawn on distributed { ret 1; };` | Invalid | Diagnostic: `SEM3015`; fix: change annotation to `far Task<int>` or use local `spawn`. |
-| T03 | `return spawn on distributed { ret value; };` from `crosses -> far Task<T>` | Valid | Return type matches `far Task<T>`. |
-| T04 | `return spawn on distributed { ret value; };` from `crosses -> Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: return `far Task<T>` or use local `spawn`. |
-| T05 | `t.await()` where `t: far Task<T>` inside `crosses` function | Valid | Consumes the handle (affine) and returns `TaskResult<T>`. |
-| T06 | `t.cancel()` where `t: far Task<T>` inside `crosses` function | Valid | Consumes the handle (affine) and returns `TaskResult<nothing>`. |
+| T03 | `return spawn on distributed { ret value; };` from `-> far Task<T>` | Valid | Return type matches `far Task<T>` and `MayCross` is inferred. |
+| T04 | `return spawn on distributed { ret value; };` from `-> Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: return `far Task<T>` or use local `spawn`. |
+| T05 | `t.await()` where `t: far Task<T>` | Valid | Consumes the handle (affine), returns `TaskResult<T>`, and infers `MayCross`. |
+| T06 | `t.cancel()` where `t: far Task<T>` | Valid | Consumes the handle (affine), returns `TaskResult<nothing>`, and infers `MayCross`. |
 | T07 | `t.await()` where `t: far Task<T>` inside a non-crossing function | PARKED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture parked in `crosses_deferred/`. |
 | T08 | `t.cancel()` where `t: far Task<T>` inside a non-crossing function | PARKED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture parked in `crosses_deferred/`. |
 | T09 | `on t { ret value; }` where `t: far Task<T>` | Invalid by Block 2 dependency | Diagnostic: `SEM3143` (Block 2); fix: use `t.await()` or `t.cancel()`. |
-| T10 | `let r: TaskResult<T> = t.await();` where `t: far Task<T>` in `crosses` | Valid | Result identity matches local `Task<T>.await()` shape but crosses remotely. |
+| T10 | `let r: TaskResult<T> = t.await();` where `t: far Task<T>` | Valid | Result identity matches local `Task<T>.await()` shape but crosses remotely. |
 | T11 | `let r: T = t.await();` where `t: far Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: handle `TaskResult<T>`. |
 | T12 | `let r: nothing = t.cancel();` where `t: far Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: handle `TaskResult<nothing>`. |
 
@@ -200,7 +200,7 @@ a use-after-move resolved statically.
 | L01 | `let t = spawn on pool { ret 1; };` with `t` unused at end of scope | Invalid | A `far Task<T>` must be awaited or returned. Diagnostic: reuse the local-task not-awaited diagnostic (`SemaTaskNotAwaited` 3107). Fix: `t.await()`, `t.cancel()`, or return `t`. |
 | L02 | `let a = t.await(); let b = t.await();` | Invalid | `.await()` consumed the affine handle; the second use is a use-after-move. Diagnostic: reuse `SemaUseAfterMove` (3130). Fix: await once. |
 | L03 | `t.cancel(); let r = t.await();` | Invalid | `.cancel()` consumed the handle; the following `.await()` is a use-after-move. Diagnostic: reuse `SemaUseAfterMove` (3130). Fix: do not use the handle after cancel. |
-| L04 | `return t;` from `crosses -> far Task<T>` | Valid | Returning the handle transfers ownership; it is not a drop. |
+| L04 | `return t;` from `-> far Task<T>` | Valid | Returning the handle transfers ownership; it is not a drop. |
 
 ## Backend And Feature-Gate Matrix
 
@@ -263,12 +263,12 @@ placeholders were resolved in `11-tasks/README.md` before implementation.
 | `spawn_on_negative_nosend_capture.sg` | C06 | `SEM3166` (Block 4) | Fixable: use local `@local spawn` or remove capture. |
 | `spawn_on_negative_pinned_capture.sg` | C07 | `SEM3167` (Block 4) | Fixable: use remote handle or owner-shard operation. |
 | `spawn_on_negative_send_not_shard_movable.sg` | C08 | `SEM3169` (Block 4) | Fixable only if shard-movement rules are satisfied. |
-| `spawn_on_negative_without_crosses.sg` | X03 | PARKED (was `SEM3162`) | Parked in `crosses_deferred/`: `crosses` inferred; awaits Phase 4 inference. |
-| `spawn_on_negative_crosses_call_propagation.sg` | X04 | PARKED (was `SEM3163`) | Parked in `crosses_deferred/`: `crosses` inferred; awaits Phase 4 inference. |
+| `spawn_on_negative_without_crosses.sg` | X03 | PARKED (was `SEM3162`) | Parked in `crosses_deferred/`: `crosses` inferred; retained as historical negative. |
+| `spawn_on_negative_crosses_call_propagation.sg` | X04 | PARKED (was `SEM3163`) | Parked in `crosses_deferred/`: `crosses` inferred; retained as historical negative. |
 | `spawn_on_negative_local_task_assignment.sg` | T02 | `SEM3015` | Fixable: use `far Task<T>` annotation or local `spawn`. |
 | `spawn_on_negative_return_local_task_mismatch.sg` | T04 | `SEM3015` | Fixable: return `far Task<T>` or use local `spawn`. |
-| `spawn_on_negative_await_without_crosses.sg` | T07 | PARKED (was `SEM3164`) | Parked in `crosses_deferred/`: `crosses` inferred; awaits Phase 4 inference. |
-| `spawn_on_negative_cancel_without_crosses.sg` | T08 | PARKED (was `SEM3164`) | Parked in `crosses_deferred/`: `crosses` inferred; awaits Phase 4 inference. |
+| `spawn_on_negative_await_without_crosses.sg` | T07 | PARKED (was `SEM3164`) | Parked in `crosses_deferred/`: `crosses` inferred; retained as historical negative. |
+| `spawn_on_negative_cancel_without_crosses.sg` | T08 | PARKED (was `SEM3164`) | Parked in `crosses_deferred/`: `crosses` inferred; retained as historical negative. |
 | `spawn_on_negative_await_result_mismatch.sg` | T11 | `SEM3015` | Fixable: handle `TaskResult<T>`. |
 | `spawn_on_negative_cancel_result_mismatch.sg` | T12 | `SEM3015` | Fixable: handle `TaskResult<nothing>`. |
 | `spawn_on_negative_far_task_dropped.sg` | L01 | reuse `SemaTaskNotAwaited` (3107) | Fixable: await, cancel, or return the handle. |
@@ -292,8 +292,8 @@ implementation follow-up must add focused tests in these surfaces:
 - Semantic tests for `Placement` destination typing.
 - Semantic tests for capture/sendability and `@shard_movable` requirements,
   including the local-`Task<T>` capture violation (B07).
-- Semantic tests for `crosses` propagation on `spawn on`, `far Task<T>.await()`,
-  and `far Task<T>.cancel()`.
+- Semantic tests for inferred crossing-effect propagation on `spawn on`,
+  `far Task<T>.await()`, and `far Task<T>.cancel()`.
 - Semantic tests proving `far Task<T>` is distinct from local `Task<T>`.
 - Semantic tests for `far Task<T>` affine lifecycle: drop-without-await
   (`SemaTaskNotAwaited`), double-await, and await-after-cancel

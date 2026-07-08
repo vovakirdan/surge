@@ -74,6 +74,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 			}
 			resultType := tc.methodResultType(member, receiverType, member.Target, argTypes, argExprs, span, receiverIsType)
 			symID := tc.recordMethodCallSymbol(id, member, receiverType, member.Target, argTypes, argExprs, receiverIsType)
+			tc.recordFunctionCrossingCall(symID)
 			var explicitArgs []types.TypeID
 			if !usedTypeArgsForReceiver {
 				explicitArgs = tc.resolveCallTypeArgs(call.TypeArgs)

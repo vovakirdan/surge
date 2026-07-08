@@ -113,6 +113,8 @@ type typeChecker struct {
 	movedBindings               map[symbols.SymbolID]source.Span
 	blockingDepth               int             // nesting depth of `blocking { }` bodies (suspension illegal inside)
 	onCrossingStack             []onAnchorFrame // active `on dst { ... }` crossing frames (Epic 11 Block 2)
+	directFunctionCrossing      map[symbols.SymbolID]struct{}
+	functionCrossingEdges       map[symbols.SymbolID]map[symbols.SymbolID]struct{}
 }
 
 type returnContext struct {
@@ -234,6 +236,8 @@ func (tc *typeChecker) run() {
 	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
 	tc.movedBindings = make(map[symbols.SymbolID]source.Span)
 	tc.taskContainers = make(map[Place]*taskContainerInfo)
+	tc.directFunctionCrossing = make(map[symbols.SymbolID]struct{})
+	tc.functionCrossingEdges = make(map[symbols.SymbolID]map[symbols.SymbolID]struct{})
 
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
@@ -278,6 +282,10 @@ func (tc *typeChecker) run() {
 	tc.validateTypeLayouts()
 	done()
 
+	done = phase("validate_shard_movable")
+	tc.validateShardMovableTypes()
+	done()
+
 	done = phase("walk_items")
 	root := tc.fileScope()
 	rootPushed := tc.pushScope(root)
@@ -287,6 +295,10 @@ func (tc *typeChecker) run() {
 	if rootPushed {
 		tc.leaveScope()
 	}
+	done()
+
+	done = phase("infer_function_effects")
+	tc.finalizeFunctionEffects()
 	done()
 
 	done = phase("flush_borrow")

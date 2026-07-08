@@ -1,0 +1,13 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Job" at 3:6-3:9 (leading: Space)
+  3: Assign          "=" at 3:10-3:11 (leading: Space)
+  4: LBrace          "{" at 3:12-3:13 (leading: Space)
+  5: At              "@" at 4:5-4:6 (leading: Newline, Space)
+  6: Ident           "shard_movable" at 4:6-4:19
+  7: Ident           "id" at 4:20-4:22 (leading: Space)
+  8: Colon           ":" at 4:22-4:23
+  9: Ident           "uint64" at 4:24-4:30 (leading: Space)
+ 10: Comma           "," at 4:30-4:31
+ 11: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 12: Semicolon       ";" at 5:2-5:3
+ 13: EOF             at 6:1-6:1

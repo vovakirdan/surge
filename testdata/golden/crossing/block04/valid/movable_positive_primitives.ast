@@ -1,0 +1,10 @@
+movable_positive_primitives.sg (span: 2:1-8:1)
+└─ Item[0]: Type (span: 2:1-7:3)
+   ├─ Name: Job
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @shard_movable
+   └─ Struct:
+      ├─ Field[0]: id: uint64
+      ├─ Field[1]: count: int
+      └─ Field[2]: ok: bool

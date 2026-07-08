@@ -1,0 +1,3 @@
+error SEM3171 testdata/golden/crossing/block04/invalid/movable_negative_nested_unmarked_user_field.sg:7:1 `@shard_movable` type has non-shard-movable field `leaf` of type `Leaf`
+error SEM3171 testdata/golden/crossing/block04/invalid/movable_negative_nested_unmarked_user_field.sg:12:1 `@shard_movable` type has non-shard-movable field `leaf` of type `Leaf`
+error SEM3171 testdata/golden/crossing/block04/invalid/movable_negative_nested_unmarked_user_field.sg:12:1 `@shard_movable` type has non-shard-movable field `middle` of type `Middle`

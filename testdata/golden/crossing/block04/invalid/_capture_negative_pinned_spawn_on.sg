@@ -1,8 +1,0 @@
-// EXPECT-DIAG: SEM3167
-// Epic 11 Block 4 negative: owned @shard_pinned capture into spawn on (CAPTURE-013)
-fn run(conn: own TcpConn) crosses -> far Task<nothing> {
-    return spawn on pool {
-        conn.close();
-        ret nothing;
-    };
-}
