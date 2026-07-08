@@ -12,11 +12,12 @@ runtime transport epic. It may prepare the lowering shape, add guards, harden
 tests, and use the new syntax in controlled compiler/stdlib-facing fixtures. It
 must not silently turn those fixtures into public runtime capability.
 
-**Status:** proposed document, revised after expert review on 2026-07-08
-(representation decision forced into Task 1, default-closed guard contract,
-diagnostic negative space, backend taxonomy alignment, sharpened
-`RV2-DEBT-024` criterion). Task documents are drafted in `12-tasks/`
-(pending review together with this document).
+**Status:** complete as of 2026-07-08. Epic 12 selected the
+**guard-before-HIR** representation, added sema lowering-readiness records,
+froze deterministic backend-unavailable diagnostics, promoted
+`runtime-v2-crossing-check`, reconciled carried backend/test debt, and wrote the
+Phase 4 transport/lowering handoff. No HIR/MIR crossing nodes, runtime
+transport, public runnable crossing examples, or new syntax were added.
 
 ## Why This Epic Exists
 
@@ -375,3 +376,76 @@ It should start only after Epic 12 can answer:
 - what state is OS-neutral versus backend-specific;
 - which compile-time metadata the backend can rely on;
 - which tests fail today only because transport is intentionally unavailable.
+
+## Closeout (2026-07-08)
+
+Epic 12 is closed.
+
+### Final Shape
+
+- Representation decision: **guard-before-HIR**. Valid crossing source stays in
+  parser/sema/readiness metadata; executable backend paths stop with
+  backend-unavailable diagnostics until Phase 4 transport exists.
+- Backend diagnostics: `FUT7014`-`FUT7017` now name the unavailable crossing
+  surface and backend/configuration boundary without internal epic wording.
+- Guard behavior: executable backend guards are default-closed, and direct HIR
+  bypass of `on` / `spawn on` produces deterministic internal errors.
+- Readiness metadata: `sema.Result.CrossingLowering` records destination,
+  captures, result/handle types, far-task receiver consumption, remote operation
+  summaries, source coordinates, and function ownership.
+- Integration fixtures: internal `_`-prefixed fixtures cover valid combinations
+  and invalid stdlib-facing boundaries without adding public runnable examples.
+- CI gate: `runtime-v2-crossing-check` is wired into `runtime-v2-check`.
+
+### Acceptance Evidence
+
+- Per-form backend-unavailable outcome:
+  `TestCrossingBackendUnavailableMessages`, `TestSpawnOnBackendGuards`, and
+  `TestEpic12IntegrationFixtures`.
+- No hidden local fallback: backend rows assert `FUT7014`-`FUT7017`; HIR bypass
+  rows assert deterministic internal errors.
+- Default-closed guard:
+  `TestCrossingBackendGuardsAreDefaultClosed`.
+- Compile-only negative space:
+  `internal/crossinggate` negative-space tests and Task 2 buildpipeline tests.
+- Readiness metadata:
+  `TestCrossingLowering*` and `TestEpic12IntegrationFixtures`.
+- `RV2-DEBT-024` deferral:
+  `TestCrossingReadinessDebt024ModuleImportDoesNotRequireImportedEffects`.
+- Stable gate:
+  `make runtime-v2-crossing-check` passed twice consecutively.
+- Closeout gates:
+  `make golden-check`, `make check`, `./check_file_sizes.sh -a`,
+  `sentrux check .` (quality `6189`), and `sentrux check internal` (quality
+  `6532`) passed.
+
+### Debt Disposition
+
+- `RV2-DEBT-001`, `RV2-DEBT-002`, `RV2-DEBT-011`, `RV2-DEBT-017`, and
+  `RV2-DEBT-018` remain open with non-Epic-12 owners.
+- `RV2-DEBT-024` remains explicitly deferred to Phase 4 transport lowering or
+  a later effect-system epic.
+
+### Phase 4 Starting Contract
+
+Phase 4 should start from `internal/sema/crossing_lowering.go`. Future lowering
+may rely on these `CrossingLoweringInfo` fields: `Kind`, `Expr`, `Span`,
+`Body`, `Function`, `Destination`, `Captures`, `PayloadType`, `ResultType`,
+`HandleType`, `ReceiverExpr`, `ReceiverSymbol`, `ReceiverType`,
+`ConsumesHandle`, and `RemoteOps`.
+
+The required runtime protocols are:
+
+- placement `on`: request to destination shard, captured payload transfer,
+  caller park, and `TaskResult<T>` reply;
+- far-handle `on`: owner-routed operation message with method summary and
+  `TaskResult<T>` reply;
+- `spawn on`: remote child publication and returned `far Task<T>` handle;
+- `far Task.await`: owner-routed wait/consume and result reply;
+- `far Task.cancel`: owner-routed cancellation/consume and
+  `TaskResult<nothing>` reply;
+- remote handle cleanup/free routing after handle consumption or drop.
+
+All compiler metadata above is OS-neutral. Platform-specific wake, queue,
+poller, and fd-readiness mechanisms belong behind runtime/backend transport
+interfaces in the next epic.

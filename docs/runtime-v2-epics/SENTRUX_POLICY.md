@@ -8,6 +8,7 @@ defines how later Runtime V2 tasks must use repository and scoped scans.
 Sentrux rule files now exist for every mandatory Runtime V2 scan root:
 
 - `.sentrux/rules.toml`
+- `internal/.sentrux/rules.toml`
 - `runtime/.sentrux/rules.toml`
 - `runtime/native/.sentrux/rules.toml`
 
@@ -18,7 +19,9 @@ baseline-preserving, not ideal-state targets. Tightening them is tracked in
 
 Current local validation:
 
-- `sentrux check .`: passed, quality `6198`.
+- `sentrux check .`: passed, quality `6189` (Epic 12 closeout).
+- `sentrux check internal`: passed, quality `6532` (added during Epic 12
+  closeout for compiler-scoped work).
 - `sentrux check runtime`: passed, quality `5195`.
 - `sentrux check runtime/native`: passed, quality `5159`.
 - MCP `check_rules`: passed for root, `runtime/`, and `runtime/native`.
@@ -47,13 +50,13 @@ The repository root scan returned:
 | Cross-module edges | 1820 |
 | Root-cause scores | `acyclicity=10000`, `depth=6667`, `equality=4696`, `modularity=3435`, `redundancy=8588` |
 
-For the repository root, `check_rules` reported:
+Before Pre-Epic 4 hardening, repository-root `check_rules` reported:
 
 ```text
 No rules file found at /home/zov/projects/surge/surge/.sentrux/rules.toml. Create one to define architectural constraints.
 ```
 
-The runtime scoped scan returned:
+The runtime scoped scan before Pre-Epic 4 hardening returned:
 
 | Field | Value |
 | --- | --- |
@@ -66,20 +69,20 @@ The runtime scoped scan returned:
 | Cross-module edges | 0 |
 | Root-cause scores | `acyclicity=10000`, `depth=8889`, `equality=4735`, `modularity=3333`, `redundancy=2574` |
 
-For the runtime scoped scan, `check_rules` reported:
+Before Pre-Epic 4 hardening, runtime scoped `check_rules` reported:
 
 ```text
 No rules file found at /home/zov/projects/surge/surge/runtime/.sentrux/rules.toml. Create one to define architectural constraints.
 ```
 
-Filesystem inspection also found no `.sentrux/` directory at the repository root
-and no `runtime/.sentrux/` directory in this checkout.
+That missing-rules state is historical. The current mandatory rule files are
+listed above.
 
 ## Rule File Decision
 
 Pre-Epic 4 quality hardening closed the missing-rules blocker. Missing Sentrux
 rules are no longer an accepted Runtime V2 state for the repository root,
-`runtime/`, or `runtime/native/`.
+`internal/`, `runtime/`, or `runtime/native/`.
 
 The initial rules are deliberately conservative:
 
@@ -89,6 +92,9 @@ The initial rules are deliberately conservative:
 - root layers encode broad direction only;
 - root boundaries prevent native runtime code from depending on Go compiler,
   VM, or CLI internals.
+- `internal/` starts with baseline-preserving constraints only. Layer/boundary
+  rules for compiler packages need a dependency-aware cleanup because the
+  current compiler and VM packages are not arranged as a simple one-way stack.
 
 Future tasks should tighten these rules only with evidence. Do not encode
 implementation details such as lock ordering or transient queue internals in

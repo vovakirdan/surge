@@ -55,8 +55,12 @@ server path. Epic 11 is complete per
 `11-explicit-crossing-language-surface.md`: it accepted the Draft 9 crossing
 surface at lexer/parser/sema/golden level (`far`, `on`, `spawn on`, inferred
 effects, `@shard_movable`, `@shard_pinned`) without Phase 4 transport. Epic 12
-is proposed in `12-crossing-surface-integration-and-lowering-readiness.md` as
-the compiler/backend readiness bridge before real cross-shard transport.
+is complete per `12-crossing-surface-integration-and-lowering-readiness.md`:
+it preserved crossing meaning at sema/readiness level, froze deterministic
+backend-unavailable behavior, added `runtime-v2-crossing-check`, reconciled
+backend/test debt, and wrote the Phase 4 transport/lowering handoff. It did not
+add HIR/MIR crossing nodes, runtime transport, public runnable examples, or new
+syntax.
 
 ## Current Runtime V2 Artifacts
 
@@ -114,17 +118,16 @@ the compiler/backend readiness bridge before real cross-shard transport.
   closeout for explicit crossing.
 - `11-tasks/`: Epic 11 block documents for `far`, `on`, `spawn on`, and
   crossing contracts.
-- `12-crossing-surface-integration-and-lowering-readiness.md`: proposed Epic
-  12 scope for backend-unavailable diagnostics, compiler representation
-  preservation, matrix/debt reconciliation, and Phase 4 transport handoff.
+- `12-crossing-surface-integration-and-lowering-readiness.md`: Epic 12 closeout
+  for backend-unavailable diagnostics, sema lowering-readiness records,
+  matrix/debt reconciliation, `runtime-v2-crossing-check`, and Phase 4
+  transport handoff.
 
 Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside
-the Runtime V2 green gates. Epic 12 must reconcile the old VM/native/LLVM
-test-matrix debt labels with the crossing-readiness matrix: close the blocking
-parts, narrow the scope, or reassign the remaining debt to a later named owner.
-Until then, runtime tasks must keep that debt named in `DEBT.md` and must not
-attribute new regressions to it without evidence.
+the Runtime V2 green gates. Epic 12 reconciled the crossing-readiness part of
+that debt; remaining VM/native/LLVM matrix and artifact-lifecycle work is owned
+by **Backend/Test Matrix Cleanup** in `DEBT.md`.
 
 ## Standing Migration Goals
 
@@ -153,8 +156,8 @@ Every epic should move the runtime toward these goals:
 | 9 | `09-wakeup-and-cancellation-safety.md` | Complete. Runtime-only safety pass before final crossing work. Added deterministic sync-point proofs and closed `RV2-DEBT-023`, `RV2-DEBT-020`, and `RV2-DEBT-022`. No syntax or Phase 4 transport work. |
 | 10 | `10-runtime-debt-burndown-and-owner-safety.md` | Complete. Closed `RV2-DEBT-003`, `RV2-DEBT-010`, and `RV2-DEBT-013`: dependency-aware runtime split, stable net handle ids, and owner-local stdlib HTTP server path. No syntax or Phase 4 transport work. |
 | 11 | `11-explicit-crossing-language-surface.md` | Complete. Accepted and implemented the Draft 9 compile-time crossing surface: `far`, contextual `on`, `spawn on`, inferred crossing effects, and shard movement attributes. No Phase 4 transport. |
-| 12 | `12-crossing-surface-integration-and-lowering-readiness.md` | Proposed. Preserve crossing meaning through the compiler/backend pipeline, enforce deterministic backend-unavailable behavior, reconcile backend-test debt, and prepare the Phase 4 transport/lowering handoff. |
-| 13 | TBD | Implement real Phase 4 cross-shard transport/lowering once Epic 12 proves the compiler/backend readiness contract. |
+| 12 | `12-crossing-surface-integration-and-lowering-readiness.md` | Complete. Preserved crossing meaning through sema readiness metadata, enforced deterministic backend-unavailable behavior, promoted `runtime-v2-crossing-check`, reconciled backend-test debt, and prepared the Phase 4 transport/lowering handoff. |
+| 13 | TBD | Implement real Phase 4 cross-shard transport/lowering from Epic 12's readiness record and handoff. |
 
 ## Language Syntax Gate
 
@@ -178,6 +181,7 @@ Every epic must say which of these gates apply and record the exact evidence:
 - live runtime trace or timeout-based liveness proof for scheduler, wakeup, or
   cancellation changes
 - CI coverage for stable Runtime V2 liveness tests before an epic closes
+- `runtime-v2-crossing-check` for crossing compiler/backend readiness
 - a doc update that states which Runtime V2 contract was preserved, changed, or
   deliberately deferred
 

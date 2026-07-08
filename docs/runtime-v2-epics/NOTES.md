@@ -45,6 +45,43 @@ Debt disposition:
 - `RV2-DEBT-001` / `RV2-DEBT-002` stay under **Backend/Test Matrix Cleanup** as
   established by Task 1.
 
+## Epic 12 Closeout (2026-07-08)
+
+Epic 12 is complete. The accepted shape is **guard-before-HIR**: crossing
+source is accepted through parser/sema, represented for future lowering by
+`sema.Result.CrossingLowering`, and stopped at executable backends with
+deterministic `FUT7014`-`FUT7017` diagnostics until Phase 4 transport exists.
+
+What landed:
+
+- `runtime-v2-crossing-check` in `Makefile`, wired into `runtime-v2-check`.
+- Internal Task 4 integration fixtures under
+  `testdata/golden/crossing/integration/{valid,invalid}`.
+- Compiler-scoped Sentrux rules in `internal/.sentrux/rules.toml`.
+- Final docs in the Epic 12 document and Task 6 closeout, including the Phase
+  4 handoff.
+
+Final evidence:
+
+- `make runtime-v2-crossing-check` passed twice consecutively.
+- `make golden-check` passed.
+- `make check` passed.
+- `./check_file_sizes.sh -a` passed: 745 files, 0 over hard limit.
+- `sentrux check .` passed, quality `6189`.
+- `sentrux check internal` passed, quality `6532`.
+
+Debt disposition:
+
+- `RV2-DEBT-001`, `RV2-DEBT-002`, `RV2-DEBT-011`, `RV2-DEBT-017`, and
+  `RV2-DEBT-018` remain open under non-Epic-12 owners.
+- `RV2-DEBT-024` remains deferred to Phase 4 transport lowering or a later
+  effect-system epic. Task 3 proved imported function effect bits are not
+  required for the current readiness contract.
+
+Next epic should be real Phase 4 transport/lowering. Start from
+`internal/sema/crossing_lowering.go` and the Phase 4 handoff section in
+`12-tasks/06-ci-gates-and-closeout.md`.
+
 ## Epic 11 Prep Pass (2026-07-07)
 
 Documentation-only prep pass over the Epic 11 crossing-surface documents

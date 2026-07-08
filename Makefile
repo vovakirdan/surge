@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -95,6 +95,7 @@ runtime-v2-check:
 	fi
 	@echo ">> Running Runtime V2 liveness gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=$(SURGE_MT_TIMEOUT_SCALE) $(GO) test ./internal/vm -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	$(MAKE) runtime-v2-crossing-check
 	$(MAKE) runtime-v2-heap-check
 	$(MAKE) runtime-v2-waiter-check
 	$(MAKE) runtime-v2-fd-registry-check
@@ -105,6 +106,12 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-lifecycle-check
 	$(MAKE) runtime-v2-perf-check
 	$(MAKE) runtime-v2-syncpoint-check
+
+runtime-v2-crossing-check:
+	@echo ">> Running Runtime V2 crossing readiness gate (Epic 12)"
+	$(GO) test ./internal/crossinggate -count=1 --timeout 60s
+	$(GO) test ./internal/buildpipeline ./internal/hir -run '^(TestCrossingBackendUnavailableMessages|TestCrossingBackendGuardsAreDefaultClosed|TestCrossingBackendGuardDoesNotMaskSemaErrors|TestLowerOnCrossingBypassReturnsError|TestLowerSpawnOnCrossingBypassReturnsError)$$' -count=1 --timeout 60s
+	$(GO) test ./internal/sema ./internal/driver -run '^(TestCrossingLowering.*|TestFunctionCrossingEffectInference|TestCrossingReadinessDebt024ModuleImportDoesNotRequireImportedEffects)$$' -count=1 --timeout 60s
 
 runtime-v2-syncpoint-check:
 	@echo ">> Running Runtime V2 sync-point proving-spike static gate (Epic 9)"

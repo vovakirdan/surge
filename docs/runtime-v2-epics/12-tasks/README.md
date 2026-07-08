@@ -19,7 +19,7 @@ examples. See the epic's Boundary Decisions.
 | 3 | `03-lowering-readiness-representation.md` | Complete | compiler metadata + tests | 1, 2 |
 | 4 | `04-compile-time-usage-fixtures.md` | Complete | fixtures/probes | 2, 3 |
 | 5 | `05-test-harness-hardening.md` | Complete | test harness; not promoted | 1 |
-| 6 | `06-ci-gates-and-closeout.md` | Pending | CI + closeout | all |
+| 6 | `06-ci-gates-and-closeout.md` | Complete | CI + closeout | all |
 
 Execution order ruling: Task 1 selected **guard-before-HIR**. No HIR/MIR
 crossing-node task is inserted before Task 3. Task 1 did not reproduce

@@ -1,0 +1,11 @@
+# Internal compiler/VM architectural guardrails.
+# Created during Epic 12 closeout to make compiler-scoped Sentrux checks real.
+
+[constraints]
+min_quality = 0.60
+min_modularity = 0.30
+min_acyclicity = 1.0
+min_equality = 0.45
+min_redundancy = 0.80
+max_cc = 150
+max_fn_lines = 600
