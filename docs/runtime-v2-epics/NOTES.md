@@ -3,6 +3,48 @@
 This is the live handoff log for Runtime V2 work. Keep it current during each
 task, then move durable decisions into the owning epic document before closeout.
 
+## Epic 12 Task 4 Implementation (2026-07-08)
+
+Task 4 is complete for controlled compile-time usage fixtures/probes. Scope
+stayed internal: no public examples, runtime transport, HIR/MIR crossing nodes,
+new syntax, or stdlib public API changes.
+
+What changed:
+
+- Added `_`-prefixed integration fixtures under
+  `testdata/golden/crossing/integration/{valid,invalid}` only. They remain out
+  of `make golden-update`/shell golden sidecars.
+- Added `internal/crossinggate/integration_test.go` with
+  `TestEpic12IntegrationFixtures`, asserting Task 3 `CrossingLowering` records
+  via `driver.Diagnose` and backend-unavailable diagnostics through both VM and
+  LLVM backend selections.
+- Positive coverage now combines valid surfaces only: separate `on` +
+  `spawn on`, `spawn on` followed by valid `far Task.await`, far-task
+  await/cancel records plus direct-call crossing inference, generic crossing
+  source sites with multiple instantiations, and stdlib-facing `far Channel<T>`
+  anchoring.
+- Invalid probes pin current boundaries: nested crossing remains `SEM3153`;
+  remote `TcpConn` I/O remains `SEM3151`; owned `TcpListener` capture remains
+  `SEM3167`; rejected sources produce no accepted `CrossingLowering` records.
+
+Design finding: Task 4's planned `spawn on` body containing a nested `on` is
+not valid under the Epic 11 nested-crossing invariant. The task records this as
+an invalid probe instead of changing syntax or sema.
+
+## Epic 12 Task 5 Disposition (2026-07-08)
+
+Task 5 was closed as not promoted to implementation. Epic 12 crossing backend
+rows use `buildpipeline.Compile` through `internal/crossinggate`; they do not
+call `internal/vm` artifact helpers or create `target/debug/.tests` files.
+
+Debt disposition:
+
+- `RV2-DEBT-011` remains open under **Backend/Test Matrix Cleanup**.
+- `RV2-DEBT-018` remains open with `RV2-DEBT-011`; Epic 12 did not reproduce it
+  and did not exercise the suspected artifact lifecycle path.
+- `RV2-DEBT-001` / `RV2-DEBT-002` stay under **Backend/Test Matrix Cleanup** as
+  established by Task 1.
+
 ## Epic 11 Prep Pass (2026-07-07)
 
 Documentation-only prep pass over the Epic 11 crossing-surface documents

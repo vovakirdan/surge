@@ -17,8 +17,8 @@ examples. See the epic's Boundary Decisions.
 | 1 | `01-dependency-debt-and-representation-map.md` | Complete | map/evidence + decision | none |
 | 2 | `02-backend-unavailable-diagnostic-contract.md` | Complete | compiler diagnostics + tests | 1 |
 | 3 | `03-lowering-readiness-representation.md` | Complete | compiler metadata + tests | 1, 2 |
-| 4 | `04-compile-time-usage-fixtures.md` | Pending | fixtures/probes | 2, 3 |
-| 5 | `05-test-harness-hardening.md` | Pending | test harness | 1 (may be promoted) |
+| 4 | `04-compile-time-usage-fixtures.md` | Complete | fixtures/probes | 2, 3 |
+| 5 | `05-test-harness-hardening.md` | Complete | test harness; not promoted | 1 |
 | 6 | `06-ci-gates-and-closeout.md` | Pending | CI + closeout | all |
 
 Execution order ruling: Task 1 selected **guard-before-HIR**. No HIR/MIR
@@ -35,9 +35,11 @@ usage that makes the race relevant.
 - `RV2-DEBT-002`: MT liveness group budget/isolation residue — reassigned by
   Task 1 to **Backend/Test Matrix Cleanup**.
 - `RV2-DEBT-011`: VM LLVM build/test artifact races under overlapping tests —
-  still in Task 5 / later harness scope, but not promoted before Tasks 2/4.
-- `RV2-DEBT-018`: rare empty-output VM harness transient — likely in-scope
-  with Task 5 / later harness hardening, but not promoted before Tasks 2/4.
+  not promoted by Task 5 because Epic 12 crossing rows use
+  `buildpipeline`/`crossinggate`, not VM artifact helpers; reassigned to
+  **Backend/Test Matrix Cleanup**.
+- `RV2-DEBT-018`: rare empty-output VM harness transient — not promoted by
+  Task 5 for the same reason; reassigned with `RV2-DEBT-011`.
 - `RV2-DEBT-024`: higher-order/cross-module crossing-effect propagation —
   Task 3 reaffirmed that it is not required for guard-before-HIR readiness;
   it remains owned by Phase 4 transport lowering or a later effect-system epic.

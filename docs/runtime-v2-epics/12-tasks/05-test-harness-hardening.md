@@ -1,7 +1,6 @@
 # Epic 12 Task 5: Test Harness Hardening
 
-**Status:** pending. May be promoted ahead of Tasks 2 and 4 by Task 1's map
-(see index README order ruling).
+**Status:** complete; not promoted to implementation in Epic 12.
 **Kind:** test harness; Go test helpers only, no compiler or runtime logic.
 **Depends on:** Task 1 (debt reconciliation, current failure modes).
 
@@ -90,3 +89,36 @@ nearby.
   owner).
 - 001/002 rows in `DEBT.md` updated with either closure evidence or a named
   new owner; no stale "Epic 12" placeholders remain anywhere in `DEBT.md`.
+
+## Results (2026-07-08)
+
+Task 5 was not promoted to code changes in Epic 12. The crossing-readiness
+matrix added by Tasks 2 and 4 uses `buildpipeline.Compile` through
+`internal/buildpipeline` and `internal/crossinggate`; it does not use the
+`internal/vm` artifact helpers that create files under `target/debug/.tests`.
+
+Evidence:
+
+- `internal/crossinggate/crossing_gate_test.go` routes backend-stage crossing
+  fixtures through `diagnoseBackend`, which calls `buildpipeline.Compile`.
+- `internal/crossinggate/integration_test.go` reuses the same helper for Task
+  4 integration fixtures.
+- `rg -n "newTestArtifacts|target/debug/.tests|buildpipeline.Compile|diagnoseBackend" internal/crossinggate internal/buildpipeline internal/vm/test_helpers_test.go internal/vm/mt_executor_test.go`
+  shows `newTestArtifacts` is confined to `internal/vm` tests, while the
+  crossinggate backend rows use `buildpipeline.Compile`.
+- Task 2 recorded the same boundary after adding backend-unavailable guards:
+  backend-stage rows do not create executable VM/LLVM artifacts.
+
+Disposition:
+
+- `RV2-DEBT-001` and `RV2-DEBT-002` remain owned by the future
+  **Backend/Test Matrix Cleanup** epic; they do not block compile-time
+  crossing readiness.
+- `RV2-DEBT-011` remains open and is reassigned to **Backend/Test Matrix
+  Cleanup**. Epic 12 did not depend on the artifact helper, so per-run unique
+  artifact directories would be unrelated churn here.
+- `RV2-DEBT-018` remains open with `RV2-DEBT-011` under **Backend/Test Matrix
+  Cleanup**. Epic 12 did not reproduce it in crossing-adjacent focused probes
+  and did not exercise the suspected artifact lifecycle path.
+
+No VM, runtime, compiler, or test-harness code changed in this task.
