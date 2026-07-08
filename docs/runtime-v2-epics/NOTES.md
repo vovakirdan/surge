@@ -4338,3 +4338,29 @@ representation (owns the DEBT-024 decision), 04 controlled compile-time usage
 fixtures, 05 test harness hardening (DEBT-011/018; may be promoted ahead of
 02/04 by Task 1's map), 06 CI gates and closeout. The epic and task documents
 are pending review together; no implementation has started.
+
+## 2026-07-08 — Epic 12 Task 1 Closeout
+
+Task 1 is complete as a documentation/evidence task. The binding
+representation decision is **guard-before-HIR**: crossing constructs remain
+blocked at `buildpipeline.Compile` until a real transport backend exists, and
+Task 3 will add a sema-derived lowering-readiness record instead of introducing
+`on` / `spawn on` HIR or MIR nodes.
+
+The throwaway HIR-bypass spike disabled the crossing backend guards and built a
+valid `on pool { ret 1; }` program with both VM and LLVM backends. Both paths
+failed with `MIR validation failed: function crossing_value: bb0: return
+without value in non-nothing function`, proving that `ExprOn` reaching HIR is
+currently an unsafe bypass (`internal/hir/lower_expr.go` silently returns `nil`
+for unhandled expression kinds). Task 2 must add an explicit ICE-on-bypass
+guard.
+
+Debt disposition: `RV2-DEBT-001` and `RV2-DEBT-002` remain open but are
+reassigned to the named future **Backend/Test Matrix Cleanup** epic because
+their broad VM/LLVM failures are not needed for Epic 12 compile-time crossing
+readiness. `RV2-DEBT-011` and `RV2-DEBT-018` are not promoted before Tasks 2/4:
+a duplicate `TestLLVMBuildPortable` overlap probe passed 20/20 processes, and
+focused crossing/sema probes passed; the full `make runtime-v2-check` baseline
+also passed. They stay in Task 5 only if later Epic 12 work starts using VM
+artifact helpers; otherwise they also move to the backend matrix cleanup track.
+`RV2-DEBT-024` remains Task 3's decision point.

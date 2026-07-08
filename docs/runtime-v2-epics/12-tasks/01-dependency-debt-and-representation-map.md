@@ -1,6 +1,6 @@
 # Epic 12 Task 1: Dependency, Debt, And Representation Map
 
-**Status:** pending.
+**Status:** complete.
 **Kind:** map/evidence + two binding decisions. No production code changes;
 read-only probes and throwaway experiments are allowed but must not be
 committed.
@@ -143,3 +143,114 @@ Exact commands for later gates: the `crossinggate` run, focused
 - Representation decision and debt dispositions written; index README updated
   if Task 5 is promoted or a Task 2.5/3-pre document is inserted.
 - No production code changed; no experiment committed.
+
+## Results (2026-07-08)
+
+Task 1 is closed as a documentation/evidence task. No production code changed,
+and the throwaway HIR-bypass worktree was removed after the spike.
+
+### Guard-Point And Pipeline Map
+
+| Entry path | Guard fires? | What reaches HIR? | Evidence |
+| --- | --- | --- | --- |
+| `buildpipeline.Compile` with `BackendVM` | Yes, today via allowlist. | Diagnostics are added before module diagnostics merge and before lowering stops on errors. | `internal/buildpipeline/compile.go:90-96`, `on_crossing_check.go:18-31`, `spawn_on_check.go:23-56`. |
+| `buildpipeline.Compile` with `BackendLLVM` | Yes, today via allowlist. | Same as VM. | `internal/buildpipeline/compile.go:90-96`, `on_crossing_check.go:23`, `spawn_on_check.go:28`. |
+| `buildpipeline.Compile` with any other non-empty backend | No today: both guards return before adding diagnostics; `Build` rejects unsupported backend only after `Compile`. Task 2 must invert this to default-closed. | If the unsupported backend path asks for HIR/MIR before the build rejection, `ExprOn` can reach lowering. | `internal/buildpipeline/on_crossing_check.go:23-24`, `spawn_on_check.go:28-29`, `build.go:63-75`. |
+| `driver.Diagnose` / `surge diag` / shell golden sema rows | No backend guard by design. | HIR only runs when `DiagnoseOptions.EmitHIR` is true; otherwise parse/sema only. | `internal/driver/diagnose.go:327-333`; shell golden rows use sema diagnostics, not `buildpipeline.Compile`. |
+| LSP diagnostics path | No backend guard by design. | Same diagnose-only path: valid crossing code must remain clean for editor diagnostics until a build backend is selected. | `internal/driver/diagnose/diagnose.go` delegates to `driver.DiagnoseWithOptions`; no `buildpipeline` call in the LSP path. |
+| `surge fix` | No backend guard by design. | Diagnose-only path; fixes must not report backend-unavailable crossing diagnostics. | `cmd/surge/fix.go:106-107`. |
+| `surge fmt` / formatter | No backend guard. | Parser + AST formatter only; no sema, no HIR, no backend. | `internal/driver/format.go:98-126`, `internal/format/doc.go:1-7`. |
+
+### ExprOn-Reaches-HIR Experiment
+
+The throwaway worktree `/tmp/surge-rv2-task1-hir-spike` locally disabled
+`addOnCrossingBackendErrors` and `addSpawnOnBackendErrors`, then built a valid
+`on pool { ret 1; }` program with both executable backends:
+
+```bash
+SURGE_STDLIB=/tmp/surge-rv2-task1-hir-spike \
+  go run ./cmd/surge build --backend vm --ui off --keep-tmp --emit-mir /tmp/on_reaches_hir.sg
+
+SURGE_STDLIB=/tmp/surge-rv2-task1-hir-spike \
+  go run ./cmd/surge build --backend llvm --ui off --keep-tmp --emit-mir /tmp/on_reaches_hir.sg
+```
+
+Both failed with:
+
+```text
+MIR validation failed: function crossing_value: bb0: return without value in non-nothing function
+```
+
+Reason: `internal/hir/lower_expr.go:146-147` silently returns `nil` for
+unhandled expression kinds; there is no `ast.ExprOn` case. Task 2 must add an
+explicit ICE-on-bypass guard for `ExprOn` reaching HIR/lowering so a guard bug
+cannot degrade into a vague MIR validation failure.
+
+### Sema Metadata Inventory
+
+| Contract row | Have / have-not | Current location and drop point |
+| --- | --- | --- |
+| `on` destination expression and destination type | Have enough at sema time; not persisted as a named lowering record. | `internal/sema/on_crossing.go:50-52` calls `checkOnDestination`; `checkOnDestination` types `data.Dest` at `:122` and derives far/placement shape at `:126-140`. The typed expression itself remains recoverable through AST + `Result.ExprTypes`, but no crossing-specific record survives. |
+| `spawn on` destination expression and type | Have enough at sema time; not persisted as a named lowering record. | `internal/sema/spawn_on_crossing.go:43-45` and `:178-215` validate the destination; AST + `ExprTypes` retain the expression/type, but no crossing-specific record exists. |
+| Captured payloads and movability judgments | Semantics are checked; the exact accepted capture set and judgment are dropped after diagnostics. | `typeExprOn` calls `checkOnCaptures` at `internal/sema/on_crossing.go:65-66`; `typeExprSpawnOn` calls it at `spawn_on_crossing.go:59-60`. Task 3 must persist any lowering-readable capture summary it needs. |
+| `on` block result type | Have at sema time; expression type is persisted but payload/result pairing is not named. | `unifyOnBodyResults` at `internal/sema/on_crossing.go:155-185`; `TaskResult<T>` creation at `:76`; expression result is stored through normal `Result.ExprTypes`. |
+| `spawn on` result type | Have at sema time; expression type is persisted as `far Task<T>`, payload is not named separately. | `internal/sema/spawn_on_crossing.go:62-73` computes payload and `farTaskType`; the expression type survives through `Result.ExprTypes`. |
+| `far Task<T>.await()` / `.cancel()` spans and result types | Spans are persisted; result types are normal expression types. Receiver/payload metadata is not named as a lowering record. | `internal/sema/spawn_on_crossing.go:155-171` appends `FarTaskAwaitSpans` / `FarTaskCancelSpans` and returns `TaskResult<T>` / `TaskResult<nothing>`; `internal/sema/check.go:63-70` stores spans in `Result`. |
+| Function crossing effect | Direct and direct-call transitive intra-module `MayCross` is persisted. Higher-order and cross-module propagation remain unresolved. | `internal/sema/crossing_effect.go:5-17` marks direct effects; `:41-67` finalizes call propagation; `internal/sema/check.go:62` stores `FunctionEffects`. |
+
+### Debt Reconciliation
+
+| Debt | Task 1 result | Owner / action |
+| --- | --- | --- |
+| `RV2-DEBT-001` | Still open. The broad focused command remains red for existing LLVM parity, terminal, and HTTP compatibility failures unrelated to crossing readiness. | Reassigned to the named future **Backend/Test Matrix Cleanup** epic. Epic 12 uses focused `buildpipeline` / `crossinggate` backend-unavailable rows instead of this broad command as a green gate. |
+| `RV2-DEBT-002` | Still open. The MT liveness budget/isolation residue is not needed to prove compile-time crossing guards. | Reassigned to **Backend/Test Matrix Cleanup** with the existing compat-lane cleanup. |
+| `RV2-DEBT-011` | Not promoted before Tasks 2/4. A focused overlap probe ran duplicate `TestLLVMBuildPortable` processes for 10 iterations (20/20 processes passed) and did not reproduce artifact races. | Remains open for Task 5 / later harness hardening. If Task 2/4 introduce VM artifact helpers, Task 5 is promoted then. |
+| `RV2-DEBT-018` | Not reproduced by focused crossing-adjacent probes. | Remains open with `RV2-DEBT-011`; no early promotion. |
+| `RV2-DEBT-024` | Not decided in Task 1. Current importer inventory shows no Task 2 consumer for imported crossing effects because guards are AST/sema-result based in the compiling module. | Task 3 owns the decision: implement/import effect metadata only if the chosen lowering-readiness record needs it. |
+
+### Binding Representation Decision
+
+Epic 12 uses option **(a) guard-before-HIR**.
+
+Rationale:
+
+- The HIR-bypass spike proves `ExprOn` currently becomes a malformed MIR path
+  instead of a meaningful diagnostic when it reaches lowering.
+- Sema already has enough source-level data to produce an explicit
+  lowering-readiness record without introducing real HIR/MIR crossing nodes.
+- Option (b) would pull affine `far T`, captures, move-plan, and borrow
+  interactions into HIR/MIR before the Phase 4 transport design is ready.
+
+Task 3 therefore records crossing lowering-readiness metadata derived from sema;
+HIR/MIR remain crossing-free except for Task 2's ICE-on-bypass check.
+
+### Test Command Inventory
+
+Task 1 probes:
+
+```bash
+go test ./internal/buildpipeline ./internal/crossinggate -count=1
+go test ./internal/crossinggate -run 'TestEpic11Block(2|3)|TestSpawnOnBackendGuards' -count=10
+go test ./internal/sema -run 'Test.*Cross|Test.*SpawnOn|Test.*Far' -count=1
+timeout 300s go test ./internal/vm -run 'MT|Async|Net|LLVM' -count=1 -v
+timeout 1200s make runtime-v2-check
+```
+
+Results: the focused crossing/buildpipeline/sema commands passed. The broad VM
+command failed for the known backend/test-matrix debt class and is not an Epic
+12 green gate. The full `runtime-v2-check` baseline passed.
+
+Later gates:
+
+```bash
+go test ./internal/buildpipeline -count=1
+go test ./internal/crossinggate -count=1
+make golden-check
+make runtime-v2-crossing-check
+./check_file_sizes.sh -a
+make check
+```
+
+`make runtime-v2-crossing-check` is the candidate CI target name following the
+existing `runtime-v2-*-check` pattern; Task 6 owns adding it after Tasks 2-5 are
+stable.

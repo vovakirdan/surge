@@ -14,33 +14,30 @@ examples. See the epic's Boundary Decisions.
 
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
-| 1 | `01-dependency-debt-and-representation-map.md` | Pending | map/evidence + decision | none |
+| 1 | `01-dependency-debt-and-representation-map.md` | Complete | map/evidence + decision | none |
 | 2 | `02-backend-unavailable-diagnostic-contract.md` | Pending | compiler diagnostics + tests | 1 |
 | 3 | `03-lowering-readiness-representation.md` | Pending | compiler metadata + tests | 1, 2 |
 | 4 | `04-compile-time-usage-fixtures.md` | Pending | fixtures/probes | 2, 3 |
 | 5 | `05-test-harness-hardening.md` | Pending | test harness | 1 (may be promoted) |
 | 6 | `06-ci-gates-and-closeout.md` | Pending | CI + closeout | all |
 
-Execution order ruling: Task 1 runs first and makes two decisions that bind
-everything after it — the representation decision (guard-before-HIR vs
-lower-into-HIR-then-guard) and the debt disposition. If Task 1 finds that
-`RV2-DEBT-011`/`RV2-DEBT-018` make backend matrix rows untrustworthy, Task 5
-is promoted to run before Tasks 2 and 4; otherwise Task 5 runs in index order.
-If Task 1 selects representation option (b), a new task document for HIR/MIR
-node introduction must be written and inserted before Task 3, and this index
-updated.
+Execution order ruling: Task 1 selected **guard-before-HIR**. No HIR/MIR
+crossing-node task is inserted before Task 3. Task 1 did not reproduce
+`RV2-DEBT-011`/`RV2-DEBT-018` in focused crossing-adjacent probes, so Task 5 is
+not promoted ahead of Tasks 2 and 4 unless those tasks add VM artifact-helper
+usage that makes the race relevant.
 
 ## Owned Debt
 
 - `RV2-DEBT-001`: broad focused VM/backend command is not a green gate —
-  in-scope only as far as the crossing-readiness matrix needs it, else
-  reassign with a named owner.
-- `RV2-DEBT-002`: MT liveness group budget/isolation residue — same treatment
-  as DEBT-001.
+  reassigned by Task 1 to the named future **Backend/Test Matrix Cleanup** epic
+  because Epic 12 crossing rows stay in `buildpipeline` / `crossinggate`.
+- `RV2-DEBT-002`: MT liveness group budget/isolation residue — reassigned by
+  Task 1 to **Backend/Test Matrix Cleanup**.
 - `RV2-DEBT-011`: VM LLVM build/test artifact races under overlapping tests —
-  likely in-scope (Task 5).
+  still in Task 5 / later harness scope, but not promoted before Tasks 2/4.
 - `RV2-DEBT-018`: rare empty-output VM harness transient — likely in-scope
-  (Task 5, probably closed by the DEBT-011 fix).
+  with Task 5 / later harness hardening, but not promoted before Tasks 2/4.
 - `RV2-DEBT-024`: higher-order/cross-module crossing-effect propagation —
   decision point in Task 3, criterion in the epic's Debt Ownership section.
 
