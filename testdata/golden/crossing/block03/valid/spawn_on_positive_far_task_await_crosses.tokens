@@ -1,0 +1,36 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "wait_result" at 2:4-2:15 (leading: Space)
+  3: LParen          "(" at 2:15-2:16
+  4: Ident           "t" at 2:16-2:17
+  5: Colon           ":" at 2:17-2:18
+  6: KwFar           "far" at 2:19-2:22 (leading: Space)
+  7: Ident           "Task" at 2:23-2:27 (leading: Space)
+  8: Lt              "<" at 2:27-2:28
+  9: Ident           "int" at 2:28-2:31
+ 10: Gt              ">" at 2:31-2:32
+ 11: RParen          ")" at 2:32-2:33
+ 12: Arrow           "->" at 2:34-2:36 (leading: Space)
+ 13: Ident           "TaskResult" at 2:37-2:47 (leading: Space)
+ 14: Lt              "<" at 2:47-2:48
+ 15: Ident           "int" at 2:48-2:51
+ 16: Gt              ">" at 2:51-2:52
+ 17: LBrace          "{" at 2:53-2:54 (leading: Space)
+ 18: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 19: Ident           "r" at 3:9-3:10 (leading: Space)
+ 20: Colon           ":" at 3:10-3:11
+ 21: Ident           "TaskResult" at 3:12-3:22 (leading: Space)
+ 22: Lt              "<" at 3:22-3:23
+ 23: Ident           "int" at 3:23-3:26
+ 24: Gt              ">" at 3:26-3:27
+ 25: Assign          "=" at 3:28-3:29 (leading: Space)
+ 26: Ident           "t" at 3:30-3:31 (leading: Space)
+ 27: Dot             "." at 3:31-3:32
+ 28: Ident           "await" at 3:32-3:37
+ 29: LParen          "(" at 3:37-3:38
+ 30: RParen          ")" at 3:38-3:39
+ 31: Semicolon       ";" at 3:39-3:40
+ 32: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 33: Ident           "r" at 4:12-4:13 (leading: Space)
+ 34: Semicolon       ";" at 4:13-4:14
+ 35: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 36: EOF             at 6:1-6:1

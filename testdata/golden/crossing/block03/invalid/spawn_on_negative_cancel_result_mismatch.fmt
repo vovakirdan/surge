@@ -1,0 +1,7 @@
+// EXPECT-DIAG: SEM3015
+// Epic 11 Block 3 negative: far Task cancel result treated as nothing (T12)
+fn cancel_remote(t: far Task<int>) -> nothing {
+    let r: nothing = t.cancel();
+    let _ = r;
+    return nothing;
+}

@@ -1,0 +1,14 @@
+// Epic 11 Block 3 positive: spawn on route_for(id) returning Placement (D05)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn route_for(user_id: uint64) -> Placement {
+    return distributed;
+}
+
+fn start(n: int, uid: uint64) -> far Task<int> {
+    return spawn on route_for(uid) {
+        ret double(n);
+    };
+}

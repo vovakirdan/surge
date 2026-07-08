@@ -50,3 +50,28 @@ func (p *Parser) atOnCrossingHead() bool {
 func (p *Parser) atContextualCrosses() bool {
 	return p.atContextualKeyword(contextualCrosses)
 }
+
+// atSpawnOnRemoteHead reports whether, with the `spawn` keyword already consumed,
+// the parser is at the head of a `spawn on <dst> { ... }` remote-spawn expression
+// (Epic 11 Block 3). It matches the contextual `on` keyword followed either by a
+// destination head (the same heads as atOnCrossingHead) or by `{`. The `{` case
+// is the missing-destination shape `spawn on { ... }` (diagnosed SYN2033): after
+// `spawn`, `on {` is unambiguously a remote spawn whose destination was omitted,
+// since a local `spawn` of an identifier `on` would be followed by a terminator
+// (`spawn on;`) rather than a block. `spawn on;` and other non-head follows keep
+// `on` as an ordinary identifier so the existing local-spawn grammar applies.
+func (p *Parser) atSpawnOnRemoteHead() bool {
+	if !p.atContextualKeyword(contextualOn) {
+		return false
+	}
+	switch p.lx.Peek2().Kind {
+	case token.Ident, token.KwBlocking,
+		token.IntLit, token.UintLit, token.FloatLit,
+		token.StringLit, token.FStringLit,
+		token.KwTrue, token.KwFalse, token.NothingLit,
+		token.LBrace:
+		return true
+	default:
+		return false
+	}
+}

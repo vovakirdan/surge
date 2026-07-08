@@ -1,0 +1,14 @@
+spawn_on_positive_far_task_await_crosses.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: wait_result
+   ├─ Params: (t: far Task<int>)
+   ├─ Return: TaskResult<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:53-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:40)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: TaskResult<int>
+         │  └─ Value: expr#3: t.await()
+         └─ Stmt[1]: Return (span: 4:5-4:14)
+            └─ Expr: expr#4: r

@@ -1,0 +1,1 @@
+error SEM3156 testdata/golden/crossing/block03/invalid/spawn_on_negative_bare_function_destination.sg:8:21 a bare function name is not a `spawn on` placement target; call it if it returns `Placement`

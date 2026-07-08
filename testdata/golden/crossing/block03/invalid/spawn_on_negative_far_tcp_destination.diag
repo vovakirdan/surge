@@ -1,0 +1,1 @@
+error SEM3157 testdata/golden/crossing/block03/invalid/spawn_on_negative_far_tcp_destination.sg:4:21 `far` handle destinations are invalid for `spawn on`; use `on` for immediate handle operations

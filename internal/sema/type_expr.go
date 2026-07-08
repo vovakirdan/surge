@@ -96,7 +96,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	case ast.ExprBlocking:
 		ty = tc.typeExprBlocking(id, expr.Span)
 	case ast.ExprOn:
-		ty = tc.typeExprOn(id, expr.Span)
+		// Single divergence gate for the shared ExprOn node: `spawn on dst { ... }`
+		// (Spawn flag set) is the Block 3 remote-spawn variant yielding `far Task<T>`;
+		// plain `on dst { ... }` is the Block 2 immediate crossing yielding `TaskResult<T>`.
+		if data, okOn := tc.builder.Exprs.On(id); okOn && data != nil && data.Spawn {
+			ty = tc.typeExprSpawnOn(id, expr.Span)
+		} else {
+			ty = tc.typeExprOn(id, expr.Span)
+		}
 	case ast.ExprTask:
 		if task, ok := tc.builder.Exprs.Task(id); ok && task != nil {
 			ty = tc.typeSpawnExpr(id, expr.Span, task.Value, false)

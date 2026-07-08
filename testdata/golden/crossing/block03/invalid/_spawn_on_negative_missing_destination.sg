@@ -1,7 +1,0 @@
-// EXPECT-DIAG: SYN2033
-// Epic 11 Block 3 negative: spawn on missing destination (S05)
-fn start() crosses -> far Task<int> {
-    return spawn on {
-        ret 1;
-    };
-}

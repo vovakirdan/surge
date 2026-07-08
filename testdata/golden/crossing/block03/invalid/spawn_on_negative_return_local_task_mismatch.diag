@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/crossing/block03/invalid/spawn_on_negative_return_local_task_mismatch.sg:8:5 return type mismatch: expected Task<int>, got far Task<int>

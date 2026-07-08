@@ -131,20 +131,42 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 	return left, true
 }
 
+// prefixKind classifies a collected prefix operator in parseUnaryExpr.
+type prefixKind uint8
+
+const (
+	prefixUnary prefixKind = iota
+	prefixSpawn
+)
+
+// prefixOp records one collected prefix operator (a unary operator or `spawn`)
+// so parseUnaryExpr can apply them to the operand right-to-left.
+type prefixOp struct {
+	kind  prefixKind
+	span  source.Span
+	unary ast.ExprUnaryOp
+}
+
+// applyPrefixOps wraps expr with the collected prefixes, innermost last, so they
+// apply in source order (right-to-left over the operand).
+func (p *Parser) applyPrefixOps(prefixes []prefixOp, expr ast.ExprID) ast.ExprID {
+	for i := len(prefixes) - 1; i >= 0; i-- {
+		exprSpan := prefixes[i].span
+		if node := p.arenas.Exprs.Get(expr); node != nil {
+			exprSpan = prefixes[i].span.Cover(node.Span)
+		}
+		switch prefixes[i].kind {
+		case prefixUnary:
+			expr = p.arenas.Exprs.NewUnary(exprSpan, prefixes[i].unary, expr)
+		case prefixSpawn:
+			expr = p.arenas.Exprs.NewSpawn(exprSpan, expr, ast.NoAttrID, 0)
+		}
+	}
+	return expr
+}
+
 // parseUnaryExpr обрабатывает унарные операторы (префиксы)
 func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
-	type prefixKind uint8
-	const (
-		prefixUnary prefixKind = iota
-		prefixSpawn
-	)
-
-	type prefixOp struct {
-		kind  prefixKind
-		span  source.Span
-		unary ast.ExprUnaryOp
-	}
-
 	var prefixes []prefixOp
 
 	// Собираем все префиксы
@@ -153,6 +175,17 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 
 		if tok.Kind == token.KwSpawn {
 			spawnTok := p.advance()
+			// `spawn on <dst> { ... }` is a self-contained remote-spawn expression
+			// (Epic 11 Block 3), not `spawn` applied to an `on` crossing. Everything
+			// else — including `spawn distributed { ... }` (no `on`) and `spawn on;`
+			// (identifier `on`) — stays on the local-spawn prefix path.
+			if p.atSpawnOnRemoteHead() {
+				remote, ok := p.parseSpawnOnRemote(spawnTok.Span, ast.NoAttrID, 0)
+				if !ok {
+					return ast.NoExprID, false
+				}
+				return p.applyPrefixOps(prefixes, remote), true
+			}
 			prefixes = append(prefixes, prefixOp{
 				kind: prefixSpawn,
 				span: spawnTok.Span,
@@ -226,20 +259,7 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 	}
 
 	// Применяем префиксы справа налево
-	for i := len(prefixes) - 1; i >= 0; i-- {
-		exprSpan := prefixes[i].span
-		if node := p.arenas.Exprs.Get(expr); node != nil {
-			exprSpan = prefixes[i].span.Cover(node.Span)
-		}
-		switch prefixes[i].kind {
-		case prefixUnary:
-			expr = p.arenas.Exprs.NewUnary(exprSpan, prefixes[i].unary, expr)
-		case prefixSpawn:
-			expr = p.arenas.Exprs.NewSpawn(exprSpan, expr, ast.NoAttrID, 0)
-		}
-	}
-
-	return expr, true
+	return p.applyPrefixOps(prefixes, expr), true
 }
 
 // parsePostfixExpr обрабатывает постфиксные операторы

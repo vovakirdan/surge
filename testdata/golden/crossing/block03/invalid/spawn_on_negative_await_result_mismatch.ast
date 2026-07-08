@@ -1,0 +1,14 @@
+spawn_on_negative_await_result_mismatch.sg (span: 3:1-7:1)
+└─ Item[0]: Fn (span: 3:1-6:2)
+   ├─ Name: wait_result
+   ├─ Params: (t: far Task<int>)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:41-6:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:28)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#3: t.await()
+         └─ Stmt[1]: Return (span: 5:5-5:14)
+            └─ Expr: expr#4: r

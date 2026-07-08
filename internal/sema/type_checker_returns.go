@@ -113,7 +113,11 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		return
 	}
 	if tc.insideOnCrossing() {
-		tc.report(diag.SemaOnBodyReturn, span, "`return` cannot exit through a crossing block; use `ret`")
+		if n := len(tc.onCrossingStack); n > 0 && tc.onCrossingStack[n-1].isSpawn {
+			tc.report(diag.SemaSpawnOnBodyReturn, span, "`return` cannot exit through a `spawn on` block; use `ret`")
+		} else {
+			tc.report(diag.SemaOnBodyReturn, span, "`return` cannot exit through a crossing block; use `ret`")
+		}
 		if n := len(tc.onCrossingStack); n > 0 {
 			tc.onCrossingStack[n-1].returnRejected = true
 		}

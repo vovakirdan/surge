@@ -89,6 +89,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 
 	addBlockingVMErrors(req, diagRes)
 	addOnCrossingBackendErrors(req, diagRes)
+	addSpawnOnBackendErrors(req, diagRes)
 
 	diagRes.MergeModuleDiagnostics()
 

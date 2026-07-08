@@ -1,0 +1,15 @@
+// Epic 11 Block 3 positive: own @shard_movable capture (C02)
+@shard_movable
+type Job = {
+    id: int,
+};
+
+fn run_job(job: own Job) -> int {
+    return job.id;
+}
+
+fn start(job: own Job) -> far Task<int> {
+    return spawn on distributed {
+        ret run_job(own job);
+    };
+}

@@ -1,0 +1,27 @@
+spawn_on_negative_local_task_assignment.sg (span: 3:1-14:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: double
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:26-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:18)
+│           └─ Expr: expr#3: (x * 2)
+└─ Item[1]: Fn (span: 7:1-13:2)
+   ├─ Name: start
+   ├─ Params: (n: int)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:29-13:2)
+         ├─ Stmt[0]: Let (span: 8:5-10:7)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: Task<int>
+         │  └─ Value: expr#8: spawn on distributed { 1 stmt(s) }
+         ├─ Stmt[1]: Let (span: 11:5-11:15)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#9: t
+         └─ Stmt[2]: Return (span: 12:5-12:20)
+            └─ Expr: expr#10: nothing

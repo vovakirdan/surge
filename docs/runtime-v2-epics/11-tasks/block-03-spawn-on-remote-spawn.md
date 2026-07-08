@@ -10,6 +10,58 @@ crossing-contract rules. It does not redefine `on dst { ... }` immediate
 crossing semantics, `crosses`, `@shard_movable`, `@shard_pinned`, `@send`,
 `@nosend`, or `@local spawn`.
 
+## Implementation Status
+
+**Implemented; `crossinggate` gate enabled (`Block3Enabled = true`).** Parser +
+semantic analysis land the `spawn on dst { ... }` and `far Task<T>`
+await/cancel surface, with backend-unavailable guards (`FUT7015`–`FUT7017`)
+reported through `buildpipeline.Compile`. Golden fixtures under
+`testdata/golden/crossing/block03/{valid,invalid}/` are activated (14 positives,
+29 sema negatives with committed sidecars; the three `FUT7015`–`FUT7017`
+backend-unavailable negatives stay `_`-prefixed with `// EXPECT-STAGE: backend`
+and are exercised only through `internal/crossinggate`).
+
+Deviations from the original matrix, all from the mid-block design change that
+removes the explicit `crosses` keyword (crossing effect now inferred into
+metadata, not required at a site):
+
+- **`crosses` retired.** The keyword is no longer required for `spawn on`,
+  `far Task<T>.await()`, or `.cancel()`; it is stripped from every fixture
+  source. The `crosses` propagation matrix (X03/X04) and lifecycle rows
+  `T07`/`T08` are **RETIRED**: `SEM3162`/`SEM3163`/`SEM3164` are no longer
+  emitted for spawn-on/await/cancel. `SEM3162` remains live only via Block 2's
+  `on`-crossing emission until the separate post-Block-3 grammar-cleanup commit.
+- **Four negatives deleted** (their asserted requirement no longer exists):
+  `_spawn_on_negative_without_crosses` (X03), `_spawn_on_negative_crosses_call_propagation`
+  (X04), `_spawn_on_negative_await_without_crosses` (T07),
+  `_spawn_on_negative_cancel_without_crosses` (T08).
+- **X01/X02 demoted to plain positives.** `spawn_on_positive_async_crosses.sg`
+  and the other positives keep their matrix-documented filenames even though the
+  `crosses` keyword is gone from their bodies (naming drift retained
+  intentionally so the matrix cross-reference stays stable).
+- **S06 (`spawn distributed { ret 1; }`, `SEM3111`)** is framed in statement
+  position (return position parses the trailing block as a struct literal and
+  yields `SYN2012`/`SEM3051` instead). The faithful orphaned-block form emits
+  the documented three-diagnostic recovery cascade: `SEM3111` (spawn of a
+  `Placement`, not a `Task`) + `SEM3134` (`ret` outside a value block) + `SYN2012`
+  (statement recovery).
+- **Nested crossings.** A uniform `SemaOnNested` (`SEM3153`) rejects any crossing
+  (`on` or `spawn on`) opening another crossing block; the matrix has no nested
+  spawn-on row, so this is a conservative superset.
+- **Backend guard is one-per-construct.** End-to-end (`surge build --backend vm`
+  and `--backend llvm`), each remote-spawn/await/cancel construct emits exactly
+  one `FUT7015`/`FUT7016`/`FUT7017`; two spawn-ons emit two. Span-dedup is
+  correct, matching Block 2's landed behavior. The higher counts visible in the
+  `crossinggate` `diagnoseBackend` harness come only from compiling the whole
+  `block03/invalid/` directory as a single module (one guard per sibling
+  construct), not from duplication; the harness asserts code presence, so
+  activation is unaffected.
+- **Sidecar diagnostic counts.** Most negatives emit a single diagnostic; three
+  carry a documented two-diagnostic cascade within Block 2 precedent
+  (`local_task_assignment`: `SEM3015`+`SEM3107`; `missing_block`:
+  `SYN2032`+`SEM3160`; `pinned_capture`: `SEM3005`+`SEM3167`, mirroring block02
+  `on_negative_shard_pinned_capture`).
+
 ## Accepted Surface
 
 `spawn on dst { ... }` creates placed work and returns a `far Task<T>` handle.
@@ -100,12 +152,17 @@ Rules imported from Epic 11:
 
 ## Crosses Propagation Matrix
 
+**RETIRED (design change).** The explicit `crosses` keyword is being removed;
+the crossing effect is inferred into metadata rather than required. X03/X04 no
+longer produce diagnostics, and their negative fixtures were deleted. X01/X02
+are demoted to plain positives (they parse and type-check with `crosses` absent).
+
 | ID | Form | Status | Expected result |
 | --- | --- | --- | --- |
-| X01 | `fn f(...) crosses -> far Task<T> { return spawn on pool { ret value; }; }` | Valid | Function explicitly allows crossing. |
-| X02 | `async fn f(...) crosses -> far Task<T> { return spawn on pool { ret value; }; }` | Valid | `async` does not imply `crosses`, but may combine with it. |
-| X03 | `fn f(...) -> far Task<T> { return spawn on pool { ret value; }; }` | Invalid | Diagnostic: `SEM3162` (Block 4); fix: add `crosses` to the function signature if the API may cross. |
-| X04 | Caller invokes a `crosses` function returning `far Task<T>` from non-`crosses` function | Invalid by Block 4 dependency | Diagnostic: `SEM3163` (Block 4); fix: add `crosses` or move the call behind a non-crossing API. |
+| X01 | `fn f(...) -> far Task<T> { return spawn on pool { ret value; }; }` | Valid (plain positive) | Crossing effect inferred; no keyword required. |
+| X02 | `async fn f(...) -> far Task<T> { return spawn on pool { ret value; }; }` | Valid (plain positive) | `async` combines with an inferred crossing effect. |
+| X03 | `fn f(...) -> far Task<T> { return spawn on pool { ret value; }; }` | RETIRED | Was `SEM3162`; crossing now inferred, no diagnostic. Fixture deleted. |
+| X04 | Caller invokes a crossing function returning `far Task<T>` from a non-crossing function | RETIRED | Was `SEM3163`; crossing now inferred, no diagnostic. Fixture deleted. |
 
 ## `far Task<T>` Identity And Operation Matrix
 
@@ -117,8 +174,8 @@ Rules imported from Epic 11:
 | T04 | `return spawn on distributed { ret value; };` from `crosses -> Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: return `far Task<T>` or use local `spawn`. |
 | T05 | `t.await()` where `t: far Task<T>` inside `crosses` function | Valid | Consumes the handle (affine) and returns `TaskResult<T>`. |
 | T06 | `t.cancel()` where `t: far Task<T>` inside `crosses` function | Valid | Consumes the handle (affine) and returns `TaskResult<nothing>`. |
-| T07 | `t.await()` where `t: far Task<T>` inside non-`crosses` function | Invalid | Diagnostic: `SEM3164` (Block 4); fix: add `crosses` if the API may cross. |
-| T08 | `t.cancel()` where `t: far Task<T>` inside non-`crosses` function | Invalid | Diagnostic: `SEM3164` (Block 4); fix: add `crosses` if the API may cross. |
+| T07 | `t.await()` where `t: far Task<T>` inside a non-crossing function | RETIRED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture deleted. |
+| T08 | `t.cancel()` where `t: far Task<T>` inside a non-crossing function | RETIRED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture deleted. |
 | T09 | `on t { ret value; }` where `t: far Task<T>` | Invalid by Block 2 dependency | Diagnostic: `SEM3143` (Block 2); fix: use `t.await()` or `t.cancel()`. |
 | T10 | `let r: TaskResult<T> = t.await();` where `t: far Task<T>` in `crosses` | Valid | Result identity matches local `Task<T>.await()` shape but crosses remotely. |
 | T11 | `let r: T = t.await();` where `t: far Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: handle `TaskResult<T>`. |
@@ -201,12 +258,12 @@ placeholders were resolved in `11-tasks/README.md` before implementation.
 | `spawn_on_negative_nosend_capture.sg` | C06 | `SEM3166` (Block 4) | Fixable: use local `@local spawn` or remove capture. |
 | `spawn_on_negative_pinned_capture.sg` | C07 | `SEM3167` (Block 4) | Fixable: use remote handle or owner-shard operation. |
 | `spawn_on_negative_send_not_shard_movable.sg` | C08 | `SEM3169` (Block 4) | Fixable only if shard-movement rules are satisfied. |
-| `spawn_on_negative_without_crosses.sg` | X03 | `SEM3162` (Block 4) | Fixable: add `crosses`. |
-| `spawn_on_negative_crosses_call_propagation.sg` | X04 | `SEM3163` (Block 4) | Fixable: add `crosses` or restructure API. |
+| ~~`spawn_on_negative_without_crosses.sg`~~ | X03 | RETIRED (`SEM3162`) | Deleted: `crosses` inferred, requirement removed. |
+| ~~`spawn_on_negative_crosses_call_propagation.sg`~~ | X04 | RETIRED (`SEM3163`) | Deleted: `crosses` inferred, requirement removed. |
 | `spawn_on_negative_local_task_assignment.sg` | T02 | `SEM3015` | Fixable: use `far Task<T>` annotation or local `spawn`. |
 | `spawn_on_negative_return_local_task_mismatch.sg` | T04 | `SEM3015` | Fixable: return `far Task<T>` or use local `spawn`. |
-| `spawn_on_negative_await_without_crosses.sg` | T07 | `SEM3164` (Block 4) | Fixable: add `crosses`. |
-| `spawn_on_negative_cancel_without_crosses.sg` | T08 | `SEM3164` (Block 4) | Fixable: add `crosses`. |
+| ~~`spawn_on_negative_await_without_crosses.sg`~~ | T07 | RETIRED (`SEM3164`) | Deleted: `crosses` inferred, requirement removed. |
+| ~~`spawn_on_negative_cancel_without_crosses.sg`~~ | T08 | RETIRED (`SEM3164`) | Deleted: `crosses` inferred, requirement removed. |
 | `spawn_on_negative_await_result_mismatch.sg` | T11 | `SEM3015` | Fixable: handle `TaskResult<T>`. |
 | `spawn_on_negative_cancel_result_mismatch.sg` | T12 | `SEM3015` | Fixable: handle `TaskResult<nothing>`. |
 | `spawn_on_negative_far_task_dropped.sg` | L01 | reuse `SemaTaskNotAwaited` (3107) | Fixable: await, cancel, or return the handle. |

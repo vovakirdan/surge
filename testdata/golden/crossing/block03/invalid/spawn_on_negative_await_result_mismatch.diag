@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/crossing/block03/invalid/spawn_on_negative_await_result_mismatch.sg:4:18 cannot assign TaskResult<int> to int

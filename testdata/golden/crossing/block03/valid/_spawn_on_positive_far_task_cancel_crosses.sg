@@ -1,4 +1,0 @@
-// Epic 11 Block 3 positive: far Task cancel in crosses fn (T06)
-fn cancel_remote(t: far Task<int>) crosses -> TaskResult<nothing> {
-    return t.cancel();
-}

@@ -1,0 +1,3 @@
+error SEM3111 testdata/golden/crossing/block03/invalid/spawn_on_negative_missing_on.sg:8:5 spawn requires async function call or Task<T> expression, got Placement
+error SYN2012 testdata/golden/crossing/block03/invalid/spawn_on_negative_missing_on.sg:8:22 expected ';' after expression statement
+error SEM3134 testdata/golden/crossing/block03/invalid/spawn_on_negative_missing_on.sg:9:9 'ret' can only be used inside value-producing blocks

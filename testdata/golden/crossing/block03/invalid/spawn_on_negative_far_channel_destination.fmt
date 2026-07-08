@@ -1,0 +1,7 @@
+// EXPECT-DIAG: SEM3157
+// Epic 11 Block 3 negative: far channel destination (D10)
+fn start(ch: far Channel<int>) -> far Task<int> {
+    return spawn on ch {
+        ret 1;
+    };
+}

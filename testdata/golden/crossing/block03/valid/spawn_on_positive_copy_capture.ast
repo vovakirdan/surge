@@ -1,0 +1,22 @@
+spawn_on_positive_copy_capture.sg (span: 2:1-12:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: add
+│  ├─ Params: (x: int, y: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:31-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#3: (x + y)
+└─ Item[1]: Fn (span: 6:1-11:2)
+   ├─ Name: start
+   ├─ Params: (n: int)
+   ├─ Return: far Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:35-11:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:20)
+         │  ├─ Name: k
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#4: 3
+         └─ Stmt[1]: Return (span: 8:5-10:7)
+            └─ Expr: expr#10: spawn on pool { 1 stmt(s) }

@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3166
+// Epic 11 Block 3 negative: @nosend capture (C06)
+@nosend
+type LocalOnly = {
+    id: int,
+};
+
+fn peek(v: own LocalOnly) -> int {
+    return v.id;
+}
+
+fn start(v: own LocalOnly) -> far Task<int> {
+    return spawn on pool {
+        ret peek(own v);
+    };
+}

@@ -18,7 +18,7 @@ required to reconstruct the Epic 11 contract.
 | --- | --- | --- | --- |
 | 1 | `block-01-far-type-modifier.md` | `far T` type modifier | Implemented (gate enabled) |
 | 2 | `block-02-on-placement-crossing.md` | `on dst { ... }` placement crossing | Implemented (gate enabled) |
-| 3 | `block-03-spawn-on-remote-spawn.md` | `spawn on dst { ... }`, `far Task<T>` | Matrix staged and gated |
+| 3 | `block-03-spawn-on-remote-spawn.md` | `spawn on dst { ... }`, `far Task<T>` | Implemented (gate enabled) |
 | 4 | `block-04-crossing-contracts.md` | `crosses`, `@shard_movable`, `@shard_pinned` | Matrix staged and gated |
 
 ## Execution Scope
@@ -66,9 +66,9 @@ surfaces use the `FUT` 7xxx range.
 
 | Code | Owner | Invariant | Referenced by |
 | --- | --- | --- | --- |
-| `SEM3162` | Block 4 | Function performs crossing work but is not marked `crosses`. | Block 2 (ON-CROSS-N001), Block 3 (X03) |
-| `SEM3163` | Block 4 | Non-`crosses` function calls a `crosses` function. | Block 3 (X04) |
-| `SEM3164` | Block 4 | `far Task<T>.await()` / `.cancel()` used outside a `crosses` function. | Block 3 (T07, T08) |
+| `SEM3162` | Block 4 | Function performs crossing work but is not marked `crosses`. | Block 2 (ON-CROSS-N001); Block 3 reference retired (see note) |
+| `SEM3163` | Block 4 | Non-`crosses` function calls a `crosses` function. | none live; Block 3 reference retired (see note) |
+| `SEM3164` | Block 4 | `far Task<T>.await()` / `.cancel()` used outside a `crosses` function. | none live; Block 3 reference retired (see note) |
 | `SEM3165` | Block 4 | Borrowed value captured into a crossing boundary. | Block 2 (ON-CAP-N001/N002), Block 3 (C03, C04) |
 | `SEM3166` | Block 4 | `@nosend` value crosses outside `@local spawn`. | Block 2 (ON-CAP-N003), Block 3 (C06) |
 | `SEM3167` | Block 4 | `@shard_pinned` value crosses as `own T`. | Block 2 (ON-CAP-N004), Block 3 (C07) |
@@ -77,6 +77,20 @@ surfaces use the `FUT` 7xxx range.
 | `SEM3174` | Block 4 | `@local spawn on` is used. | Block 3 (S07) |
 | `SEM3143` | Block 2 | `far Task<T>` used as an `on` destination. | Block 3 (T09) |
 | `SEM3142` | Block 1 | Local operation on `far T` outside an accepted crossing context. | Block 2 (ON-ANCHOR-N003) |
+
+> **`crosses` retirement note (design change during Block 3).** The explicit
+> `crosses` keyword is being removed from the language: the crossing effect is
+> retained but inferred into metadata rather than required at a call/definition
+> site. Accordingly, `SEM3162` (X03), `SEM3163` (X04), and `SEM3164` (T07/T08)
+> are no longer emitted for `spawn on` / `far Task<T>.await()` / `.cancel()`, and
+> the four Block 3 negatives that asserted them (`_spawn_on_negative_without_crosses`,
+> `_spawn_on_negative_crosses_call_propagation`, `_spawn_on_negative_await_without_crosses`,
+> `_spawn_on_negative_cancel_without_crosses`) were deleted rather than activated.
+> `SEM3162` remains live only through Block 2's `on`-crossing emission
+> (`checkCrossesRequirement`, ON-CROSS-N001) until a separate post-Block-3 cleanup
+> commit removes the `crosses` grammar, that emission site, and these three codes
+> together. Block 3 activation does not touch Block 2 fixtures or
+> `on_crossing.go`.
 
 Reused existing codes (per the infra map and reuse-first policy) include
 `SemaUseAfterMove` (3130) for `far`-handle affinity and `far Task<T>`

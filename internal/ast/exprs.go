@@ -470,6 +470,23 @@ func (e *Exprs) NewOn(span source.Span, dest ExprID, body StmtID) ExprID {
 	return e.new(ExprOn, span, PayloadID(payload))
 }
 
+// NewSpawnOn creates a new `spawn on <dst> { ... }` remote-spawn expression.
+// It reuses the ExprOn node kind with the Spawn flag set, so AST walks that do
+// not care about the distinction keep treating it as a crossing while sema and
+// the formatter branch on the flag. The span must cover the `spawn` keyword.
+// attrStart/attrCount carry any leading attributes (e.g. `@local`) so sema can
+// reject invalid combinations such as `@local spawn on` (SEM3174).
+func (e *Exprs) NewSpawnOn(span source.Span, dest ExprID, body StmtID, attrStart AttrID, attrCount uint32) ExprID {
+	payload := e.Ons.Allocate(ExprOnData{
+		Dest:      dest,
+		Body:      body,
+		Spawn:     true,
+		AttrStart: attrStart,
+		AttrCount: attrCount,
+	})
+	return e.new(ExprOn, span, PayloadID(payload))
+}
+
 // On returns the placement-crossing data for the given expression ID.
 func (e *Exprs) On(id ExprID) (*ExprOnData, bool) {
 	expr := e.Get(id)

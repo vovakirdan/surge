@@ -14,6 +14,10 @@ import (
 type onAnchorFrame struct {
 	anchorSym symbols.SymbolID
 	isFar     bool
+	// isSpawn marks a `spawn on dst { ... }` remote-spawn body (Block 3) so the
+	// shared `return`-rejection site reports the spawn-on code (SEM3159) instead
+	// of the immediate-crossing code (SEM3147).
+	isSpawn bool
 	// returnRejected records that a `return` was rejected inside this crossing
 	// body (SEM3147), so the missing-`ret` and result-wrapping checks stay quiet.
 	returnRejected bool

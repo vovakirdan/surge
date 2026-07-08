@@ -1,0 +1,18 @@
+// EXPECT-DIAG: SEM3168
+// Epic 11 Block 3 negative: local Task<T> captured as own crossing value (B07)
+// A local `Task<int>` is not `@shard_movable`, so capturing it into the remote
+// spawn-on body is a shard-movability violation (SEM3168), not an await error.
+fn consume(t: Task<int>) -> int {
+    return 0;
+}
+
+async fn work() -> int {
+    return 1;
+}
+
+fn start() -> far Task<int> {
+    let local: Task<int> = spawn work();
+    return spawn on pool {
+        ret consume(local);
+    };
+}

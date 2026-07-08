@@ -1,0 +1,2 @@
+error SEM3015 testdata/golden/crossing/block03/invalid/spawn_on_negative_local_task_assignment.sg:8:24 cannot assign far Task<int> to Task<int>
+error SEM3107 testdata/golden/crossing/block03/invalid/spawn_on_negative_local_task_assignment.sg:8:24 task is neither awaited nor returned

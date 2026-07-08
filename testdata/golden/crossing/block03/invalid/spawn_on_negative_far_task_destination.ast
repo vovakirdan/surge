@@ -1,0 +1,9 @@
+spawn_on_negative_far_task_destination.sg (span: 3:1-8:1)
+└─ Item[0]: Fn (span: 3:1-7:2)
+   ├─ Name: start
+   ├─ Params: (t: far Task<int>)
+   ├─ Return: far Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:45-7:2)
+         └─ Stmt[0]: Return (span: 4:5-6:7)
+            └─ Expr: expr#3: spawn on t { 1 stmt(s) }

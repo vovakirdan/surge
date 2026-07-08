@@ -1,0 +1,12 @@
+// EXPECT-DIAG: SEM3107
+// Epic 11 Block 3 negative: far Task dropped without await/return (L01)
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) -> nothing {
+    let t: far Task<int> = spawn on distributed {
+        ret double(n);
+    };
+    return nothing;
+}

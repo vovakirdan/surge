@@ -1,0 +1,17 @@
+// EXPECT-DIAG: SEM3165
+// Epic 11 Block 3 negative: mutable borrow capture (C04)
+type Job = {
+    id: int,
+};
+
+fn bump(r: &mut Job) -> int {
+    return r.id;
+}
+
+fn start() -> far Task<int> {
+    let mut job: Job = Job { id: 0 };
+    let r: &mut Job = &mut job;
+    return spawn on pool {
+        ret bump(r);
+    };
+}

@@ -1,0 +1,10 @@
+// Epic 11 Block 3 positive: far handle captured by value (C09)
+fn keep(c: far TcpConn) -> nothing {
+    return nothing;
+}
+
+fn start(conn: far TcpConn) -> far Task<nothing> {
+    return spawn on pool {
+        ret keep(conn);
+    };
+}

@@ -273,14 +273,18 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		if !ok || data == nil {
 			return "<invalid-on>"
 		}
+		head := "on"
+		if data.Spawn {
+			head = "spawn on"
+		}
 		dest := formatExprInlineDepth(builder, data.Dest, depth+1)
 		dest = wrapExprIfNeeded(builder, data.Dest, dest)
 		if builder.Stmts != nil && data.Body.IsValid() {
 			if block := builder.Stmts.Block(data.Body); block != nil {
-				return fmt.Sprintf("on %s { %d stmt(s) }", dest, len(block.Stmts))
+				return fmt.Sprintf("%s %s { %d stmt(s) }", head, dest, len(block.Stmts))
 			}
 		}
-		return "on " + dest + " { ... }"
+		return head + " " + dest + " { ... }"
 	case ast.ExprParallel:
 		data, ok := builder.Exprs.Parallel(exprID)
 		if !ok {

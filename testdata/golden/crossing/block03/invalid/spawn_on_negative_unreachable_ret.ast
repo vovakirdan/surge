@@ -1,0 +1,9 @@
+spawn_on_negative_unreachable_ret.sg (span: 3:1-9:1)
+└─ Item[0]: Fn (span: 3:1-8:2)
+   ├─ Name: start
+   ├─ Params: ()
+   ├─ Return: far Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:29-8:2)
+         └─ Stmt[0]: Return (span: 4:5-7:7)
+            └─ Expr: expr#4: spawn on pool { 2 stmt(s) }

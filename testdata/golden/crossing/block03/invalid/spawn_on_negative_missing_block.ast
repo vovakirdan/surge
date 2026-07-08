@@ -1,0 +1,9 @@
+spawn_on_negative_missing_block.sg (span: 3:1-6:1)
+└─ Item[0]: Fn (span: 3:1-5:2)
+   ├─ Name: start
+   ├─ Params: ()
+   ├─ Return: far Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:29-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:33)
+            └─ Expr: expr#2: spawn on distributed { ... }

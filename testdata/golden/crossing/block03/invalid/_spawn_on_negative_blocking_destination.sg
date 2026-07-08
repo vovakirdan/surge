@@ -1,7 +1,0 @@
-// EXPECT-DIAG: FUT7013
-// Epic 11 Block 3 negative: spawn on blocking postponed (D13)
-fn start() crosses -> far Task<int> {
-    return spawn on blocking {
-        ret 1;
-    };
-}

@@ -82,6 +82,10 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 			"`@nosend` values cannot cross task or shard boundaries outside `@local spawn`")
 	case tc.typeHasAttr(nominal, "shard_movable"):
 		// ON-CAP-V002: owned shard-movable values may cross.
+	case tc.typeHasAttr(nominal, "send"):
+		// C08: `@send` alone is not sufficient for shard movement.
+		tc.report(diag.SemaShardMovableSendInsufficient, span,
+			"`@send` is not sufficient for shard movement; add `@shard_movable`")
 	default:
 		// ON-CAP-N005: unmarked owned user values are not shard-movable.
 		tc.report(diag.SemaCrossNotShardMovable, span,

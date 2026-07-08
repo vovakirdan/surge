@@ -1,0 +1,26 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "cancel_remote" at 2:4-2:17 (leading: Space)
+  3: LParen          "(" at 2:17-2:18
+  4: Ident           "t" at 2:18-2:19
+  5: Colon           ":" at 2:19-2:20
+  6: KwFar           "far" at 2:21-2:24 (leading: Space)
+  7: Ident           "Task" at 2:25-2:29 (leading: Space)
+  8: Lt              "<" at 2:29-2:30
+  9: Ident           "int" at 2:30-2:33
+ 10: Gt              ">" at 2:33-2:34
+ 11: RParen          ")" at 2:34-2:35
+ 12: Arrow           "->" at 2:36-2:38 (leading: Space)
+ 13: Ident           "TaskResult" at 2:39-2:49 (leading: Space)
+ 14: Lt              "<" at 2:49-2:50
+ 15: NothingLit      "nothing" at 2:50-2:57
+ 16: Gt              ">" at 2:57-2:58
+ 17: LBrace          "{" at 2:59-2:60 (leading: Space)
+ 18: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 19: Ident           "t" at 3:12-3:13 (leading: Space)
+ 20: Dot             "." at 3:13-3:14
+ 21: Ident           "cancel" at 3:14-3:20
+ 22: LParen          "(" at 3:20-3:21
+ 23: RParen          ")" at 3:21-3:22
+ 24: Semicolon       ";" at 3:22-3:23
+ 25: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 26: EOF             at 5:1-5:1

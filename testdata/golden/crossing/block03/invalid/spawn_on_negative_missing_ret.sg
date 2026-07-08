@@ -1,0 +1,8 @@
+// EXPECT-DIAG: SEM3160
+// Epic 11 Block 3 negative: spawn on body missing ret (B05)
+fn start() -> far Task<int> {
+    return spawn on pool {
+        let x: int = 1;
+        let _ = x;
+    };
+}

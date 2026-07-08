@@ -19,6 +19,11 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 					receiverType = instantiated
 				}
 			}
+			if !receiverIsType && tc.isFarTaskType(receiverType) {
+				if method := tc.lookupName(member.Field); method == "await" || method == "cancel" {
+					return tc.typeFarTaskCall(member, receiverType, call, span, method)
+				}
+			}
 			if !receiverIsType && tc.isFarType(receiverType) {
 				return tc.typeFarHandleCall(member, receiverType, call, span)
 			}

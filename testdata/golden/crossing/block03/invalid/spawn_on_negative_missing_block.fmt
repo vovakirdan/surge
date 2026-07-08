@@ -1,0 +1,5 @@
+// EXPECT-DIAG: SYN2032
+// Epic 11 Block 3 negative: spawn on missing block (S04)
+fn start() -> far Task<int> {
+    return spawn on distributed;
+}

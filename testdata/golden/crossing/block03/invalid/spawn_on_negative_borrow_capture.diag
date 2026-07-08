@@ -1,0 +1,1 @@
+error SEM3165 testdata/golden/crossing/block03/invalid/spawn_on_negative_borrow_capture.sg:14:18 borrowed values cannot cross shard boundaries

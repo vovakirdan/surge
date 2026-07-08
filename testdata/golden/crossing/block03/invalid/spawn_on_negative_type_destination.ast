@@ -1,0 +1,15 @@
+spawn_on_negative_type_destination.sg (span: 3:1-12:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Job
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: id: int
+└─ Item[1]: Fn (span: 7:1-11:2)
+   ├─ Name: start
+   ├─ Params: ()
+   ├─ Return: far Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:29-11:2)
+         └─ Stmt[0]: Return (span: 8:5-10:7)
+            └─ Expr: expr#3: spawn on Job { 1 stmt(s) }

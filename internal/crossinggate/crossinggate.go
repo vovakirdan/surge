@@ -25,7 +25,7 @@ const (
 	// Block2Enabled gates the `on dst { ... }` placement-crossing fixtures.
 	Block2Enabled = true
 	// Block3Enabled gates the `spawn on dst { ... }` remote-spawn fixtures.
-	Block3Enabled = false
+	Block3Enabled = true
 	// Block4Enabled gates the crossing-contract fixtures (`crosses`,
 	// `@shard_movable`, `@shard_pinned`).
 	Block4Enabled = false

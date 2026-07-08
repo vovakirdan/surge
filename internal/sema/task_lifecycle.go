@@ -72,10 +72,12 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 		return
 	}
 
-	// Only track if the expression is actually a Task<T>
+	// Only track if the expression is actually a Task<T> or an affine
+	// `far Task<T>` remote handle (from `spawn on`), which transfers ownership
+	// on return just like a local task.
 	returnExpr = tc.unwrapGroupExpr(returnExpr)
 	returnType := tc.result.ExprTypes[returnExpr]
-	if !tc.isTaskType(returnType) {
+	if !tc.isTaskType(returnType) && !tc.isFarTaskType(returnType) {
 		return
 	}
 
@@ -87,6 +89,15 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 	// Case 1: Direct spawn expression (return spawn foo())
 	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn {
 		tc.taskTracker.MarkReturnedByExpr(returnExpr)
+		return
+	}
+
+	// Case 1b: Direct remote spawn (return spawn on dst { ... }), which shares
+	// the ExprOn node with the Spawn flag set.
+	if expr.Kind == ast.ExprOn {
+		if data, ok := tc.builder.Exprs.On(returnExpr); ok && data != nil && data.Spawn {
+			tc.taskTracker.MarkReturnedByExpr(returnExpr)
+		}
 		return
 	}
 

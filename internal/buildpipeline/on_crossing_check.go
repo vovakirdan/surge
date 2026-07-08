@@ -46,8 +46,14 @@ func collectOnCrossingSpans(builder *ast.Builder) []source.Span {
 	seen := make(map[source.Span]struct{})
 	count := builder.Exprs.Arena.Len()
 	for i := uint32(1); i <= count; i++ {
-		expr := builder.Exprs.Get(ast.ExprID(i))
+		id := ast.ExprID(i)
+		expr := builder.Exprs.Get(id)
 		if expr == nil || expr.Kind != ast.ExprOn {
+			continue
+		}
+		// `spawn on dst { ... }` shares the ExprOn node with the Spawn flag set;
+		// it is guarded separately (FUT7015), so skip it here.
+		if data, ok := builder.Exprs.On(id); ok && data != nil && data.Spawn {
 			continue
 		}
 		if _, dup := seen[expr.Span]; dup {

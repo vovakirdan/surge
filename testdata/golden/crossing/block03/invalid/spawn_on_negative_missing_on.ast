@@ -1,0 +1,14 @@
+spawn_on_negative_missing_on.sg (span: 7:1-13:1)
+└─ Item[0]: Fn (span: 7:1-12:2)
+   ├─ Name: start
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:23-12:2)
+         ├─ Stmt[0]: Expr (span: 8:5-8:22)
+         │  └─ Expr: expr#2: spawn distributed
+         ├─ Stmt[1]: Block (span: 8:23-10:6)
+         │  └─ Stmt[0]: Ret (span: 9:9-9:15)
+         │     └─ Expr: expr#3: 1
+         └─ Stmt[2]: Return (span: 11:5-11:20)
+            └─ Expr: expr#4: nothing

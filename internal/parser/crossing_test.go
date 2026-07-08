@@ -441,14 +441,21 @@ func TestOnBlockingDestinationRejected(t *testing.T) {
 	}
 }
 
-// --- `spawn on` must not crash the parser (Block 3 stays gated) ---------------
+// --- `spawn on` parses as a single remote-spawn node (Block 3) ----------------
 
-func TestSpawnOnDoesNotCrashParser(t *testing.T) {
-	// `spawn on pool { ... }` parses as `spawn (on pool { ... })` on the existing
-	// spawn path; Block 3 semantics remain gated. The contract here is only that
-	// the parser does not panic and still produces the crossing node.
-	arenas, _, _ := parseProgram(t, "fn f() crosses { spawn on pool { ret 1; } }")
-	if len(onExprs(arenas)) != 1 {
-		t.Fatal("expected the `on` crossing node under `spawn` to parse")
+func TestSpawnOnParsesAsRemoteSpawnNode(t *testing.T) {
+	// `spawn on pool { ... }` parses as one ExprOn node with the Spawn flag set,
+	// never as `spawn` applied to a separate `on` crossing.
+	arenas, bag, _ := parseProgram(t, "fn f() crosses { spawn on pool { ret 1; }; }")
+	if bag.Len() != 0 {
+		t.Fatalf("expected clean parse, got: %s", diagnosticsSummary(bag))
+	}
+	ons := onExprs(arenas)
+	if len(ons) != 1 {
+		t.Fatalf("expected exactly 1 ExprOn, got %d", len(ons))
+	}
+	data, ok := arenas.Exprs.On(ons[0])
+	if !ok || data == nil || !data.Spawn {
+		t.Fatal("expected the ExprOn node to carry the Spawn flag")
 	}
 }

@@ -1,0 +1,22 @@
+spawn_on_positive_placement_var.sg (span: 2:1-12:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: double
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:26-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#3: (x * 2)
+└─ Item[1]: Fn (span: 6:1-11:2)
+   ├─ Name: start
+   ├─ Params: (n: int)
+   ├─ Return: far Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:35-11:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:31)
+         │  ├─ Name: dst
+         │  ├─ Mutable: false
+         │  ├─ Type: Placement
+         │  └─ Value: expr#4: pool
+         └─ Stmt[1]: Return (span: 8:5-10:7)
+            └─ Expr: expr#9: spawn on dst { 1 stmt(s) }

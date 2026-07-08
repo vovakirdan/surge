@@ -229,8 +229,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					tc.updateStmtBinding(id, letStmt.Value)
 					tc.markArrayViewBinding(symID, tc.isArrayViewExpr(letStmt.Value))
 					tc.markTaskContainerFromBinding(symID, letStmt.Value, valueType, tc.exprSpan(letStmt.Value))
-					// Track task binding for structured concurrency
-					if tc.taskTracker != nil && tc.isTaskType(valueType) {
+					// Track task binding for structured concurrency. `far Task<T>`
+					// (from `spawn on`) is affine and follows the same
+					// must-await-or-return lifecycle as a local `Task<T>`.
+					if tc.taskTracker != nil && (tc.isTaskType(valueType) || tc.isFarTaskType(valueType)) {
 						tc.taskTracker.BindTaskByExpr(letStmt.Value, symID)
 					}
 					tc.updateLocalTaskBindingFromExpr(symID, letStmt.Value)

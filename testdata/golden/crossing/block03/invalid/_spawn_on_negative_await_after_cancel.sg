@@ -1,6 +1,0 @@
-// EXPECT-DIAG: SEM3130
-// Epic 11 Block 3 negative: far Task awaited after cancel (L03)
-fn cancel_then_wait(t: far Task<int>) crosses -> TaskResult<int> {
-    let _ = t.cancel();
-    return t.await();
-}

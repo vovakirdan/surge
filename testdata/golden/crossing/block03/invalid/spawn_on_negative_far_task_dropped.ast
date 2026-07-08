@@ -1,0 +1,22 @@
+spawn_on_negative_far_task_dropped.sg (span: 3:1-13:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: double
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:26-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:18)
+│           └─ Expr: expr#3: (x * 2)
+└─ Item[1]: Fn (span: 7:1-12:2)
+   ├─ Name: start
+   ├─ Params: (n: int)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:29-12:2)
+         ├─ Stmt[0]: Let (span: 8:5-10:7)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: far Task<int>
+         │  └─ Value: expr#8: spawn on distributed { 1 stmt(s) }
+         └─ Stmt[1]: Return (span: 11:5-11:20)
+            └─ Expr: expr#9: nothing

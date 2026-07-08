@@ -1,0 +1,1 @@
+error SEM3155 testdata/golden/crossing/block03/invalid/spawn_on_negative_type_destination.sg:8:21 a type name is not a `spawn on` placement target

@@ -1,0 +1,1 @@
+error SEM3158 testdata/golden/crossing/block03/invalid/spawn_on_negative_far_task_destination.sg:4:21 `far Task<T>` is not a `spawn on` destination; use `await()` or `cancel()`

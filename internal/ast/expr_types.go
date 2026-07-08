@@ -463,13 +463,28 @@ type ExprBlockData struct {
 	Stmts []StmtID
 }
 
-// ExprOnData represents an `on <dst> { ... }` placement-crossing expression.
+// ExprOnData represents an `on <dst> { ... }` placement-crossing expression and
+// its `spawn on <dst> { ... }` remote-spawn variant (Epic 11 Block 3).
 // Dest is the destination expression (a `Placement` value or an accepted `far`
 // handle; validated by sema). Body is the value block whose result is produced
-// by `ret`. The crossing evaluates to `TaskResult<T>` (enforced by sema).
+// by `ret`.
+//
+// When Spawn is false this is the immediate crossing: it evaluates to
+// `TaskResult<T>` (enforced by sema). When Spawn is true the node was written as
+// `spawn on <dst> { ... }`: it creates placed work and evaluates to
+// `far Task<T>` instead of running the body immediately. The two share this node
+// so downstream AST walks treat them uniformly; only the surfaces that must
+// distinguish them (parser, formatter, sema) branch on Spawn.
+//
+// AttrStart/AttrCount carry any attributes written before the expression. Block 2
+// `on` never takes attributes (they stay NoAttrID/0); the `spawn on` variant
+// preserves them so sema can reject `@local spawn on` (SEM3174).
 type ExprOnData struct {
-	Dest ExprID
-	Body StmtID
+	Dest      ExprID
+	Body      StmtID
+	Spawn     bool
+	AttrStart AttrID
+	AttrCount uint32
 }
 
 // ExprTaskData represents the operand of a `task` expression.

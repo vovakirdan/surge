@@ -1,0 +1,66 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "double" at 2:4-2:10 (leading: Space)
+  3: LParen          "(" at 2:10-2:11
+  4: Ident           "x" at 2:11-2:12
+  5: Colon           ":" at 2:12-2:13
+  6: Ident           "int" at 2:14-2:17 (leading: Space)
+  7: RParen          ")" at 2:17-2:18
+  8: Arrow           "->" at 2:19-2:21 (leading: Space)
+  9: Ident           "int" at 2:22-2:25 (leading: Space)
+ 10: LBrace          "{" at 2:26-2:27 (leading: Space)
+ 11: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 12: Ident           "x" at 3:12-3:13 (leading: Space)
+ 13: Star            "*" at 3:14-3:15 (leading: Space)
+ 14: IntLit          "2" at 3:16-3:17 (leading: Space)
+ 15: Semicolon       ";" at 3:17-3:18
+ 16: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 17: KwFn            "fn" at 6:1-6:3 (leading: Newline)
+ 18: Ident           "route_for" at 6:4-6:13 (leading: Space)
+ 19: LParen          "(" at 6:13-6:14
+ 20: Ident           "user_id" at 6:14-6:21
+ 21: Colon           ":" at 6:21-6:22
+ 22: Ident           "uint64" at 6:23-6:29 (leading: Space)
+ 23: RParen          ")" at 6:29-6:30
+ 24: Arrow           "->" at 6:31-6:33 (leading: Space)
+ 25: Ident           "Placement" at 6:34-6:43 (leading: Space)
+ 26: LBrace          "{" at 6:44-6:45 (leading: Space)
+ 27: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 28: Ident           "distributed" at 7:12-7:23 (leading: Space)
+ 29: Semicolon       ";" at 7:23-7:24
+ 30: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 31: KwFn            "fn" at 10:1-10:3 (leading: Newline)
+ 32: Ident           "start" at 10:4-10:9 (leading: Space)
+ 33: LParen          "(" at 10:9-10:10
+ 34: Ident           "n" at 10:10-10:11
+ 35: Colon           ":" at 10:11-10:12
+ 36: Ident           "int" at 10:13-10:16 (leading: Space)
+ 37: Comma           "," at 10:16-10:17
+ 38: Ident           "uid" at 10:18-10:21 (leading: Space)
+ 39: Colon           ":" at 10:21-10:22
+ 40: Ident           "uint64" at 10:23-10:29 (leading: Space)
+ 41: RParen          ")" at 10:29-10:30
+ 42: Arrow           "->" at 10:31-10:33 (leading: Space)
+ 43: KwFar           "far" at 10:34-10:37 (leading: Space)
+ 44: Ident           "Task" at 10:38-10:42 (leading: Space)
+ 45: Lt              "<" at 10:42-10:43
+ 46: Ident           "int" at 10:43-10:46
+ 47: Gt              ">" at 10:46-10:47
+ 48: LBrace          "{" at 10:48-10:49 (leading: Space)
+ 49: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space)
+ 50: KwSpawn         "spawn" at 11:12-11:17 (leading: Space)
+ 51: Ident           "on" at 11:18-11:20 (leading: Space)
+ 52: Ident           "route_for" at 11:21-11:30 (leading: Space)
+ 53: LParen          "(" at 11:30-11:31
+ 54: Ident           "uid" at 11:31-11:34
+ 55: RParen          ")" at 11:34-11:35
+ 56: LBrace          "{" at 11:36-11:37 (leading: Space)
+ 57: KwRet           "ret" at 12:9-12:12 (leading: Newline, Space)
+ 58: Ident           "double" at 12:13-12:19 (leading: Space)
+ 59: LParen          "(" at 12:19-12:20
+ 60: Ident           "n" at 12:20-12:21
+ 61: RParen          ")" at 12:21-12:22
+ 62: Semicolon       ";" at 12:22-12:23
+ 63: RBrace          "}" at 13:5-13:6 (leading: Newline, Space)
+ 64: Semicolon       ";" at 13:6-13:7
+ 65: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 66: EOF             at 15:1-15:1

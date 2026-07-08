@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/trace"
 	"surge/internal/types"
@@ -58,6 +59,14 @@ type Result struct {
 	BindingTypes           map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
 	ItemScopes             map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
 	BlockingCaptures       map[ast.ExprID][]symbols.SymbolID // Captures for blocking { ... } expressions
+	// FarTaskAwaitSpans / FarTaskCancelSpans record `far Task<T>` await/cancel
+	// call sites (Epic 11 Block 3) so the backend guard can emit FUT7016 /
+	// FUT7017 until the Phase 4 transport backend can lower them. They are
+	// type-directed (recorded only where sema resolved a `far Task<T>` receiver),
+	// so a `far Task` obtained via a parameter is guarded without any `spawn on`
+	// in the same file.
+	FarTaskAwaitSpans  []source.Span
+	FarTaskCancelSpans []source.Span
 }
 
 // Check performs semantic analysis (type inference, borrow checks, etc.).
