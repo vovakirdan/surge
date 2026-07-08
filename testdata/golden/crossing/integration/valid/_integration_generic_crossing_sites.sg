@@ -1,0 +1,14 @@
+// Epic 12 Task 4 integration: one generic crossing source site, multiple instantiations.
+fn route<T>(dst: Placement) -> TaskResult<T> {
+    return on dst {
+        ret default::<T>();
+    };
+}
+
+fn use_int(dst: Placement) -> TaskResult<int> {
+    return route::<int>(dst);
+}
+
+fn use_bool(dst: Placement) -> TaskResult<bool> {
+    return route::<bool>(dst);
+}

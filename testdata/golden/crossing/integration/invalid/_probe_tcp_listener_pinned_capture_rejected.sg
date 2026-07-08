@@ -1,0 +1,12 @@
+// EXPECT-DIAG: SEM3167
+// Epic 12 Task 4 stdlib-facing probe: owned TcpListener is shard-pinned.
+fn consume(listener: own TcpListener) -> nothing {
+    return nothing;
+}
+
+fn run(listener: own TcpListener) -> TaskResult<nothing> {
+    return on pool {
+        consume(own listener);
+        ret nothing;
+    };
+}

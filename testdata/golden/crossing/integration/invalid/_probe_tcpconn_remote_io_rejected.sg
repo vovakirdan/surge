@@ -1,0 +1,8 @@
+// EXPECT-DIAG: SEM3151
+// Epic 12 Task 4 stdlib-facing probe: remote TcpConn I/O stays rejected.
+fn run(conn: far TcpConn, buf: &mut byte[]) -> TaskResult<nothing> {
+    return on conn {
+        conn.read(buf);
+        ret nothing;
+    };
+}

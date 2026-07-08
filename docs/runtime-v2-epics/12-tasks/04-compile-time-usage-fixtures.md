@@ -1,6 +1,6 @@
 # Epic 12 Task 4: Controlled Compile-Time Usage Fixtures
 
-**Status:** pending.
+**Status:** complete.
 **Kind:** fixtures + internal probes; no compiler logic changes expected.
 **Depends on:** Task 2 (stable diagnostics), Task 3 (readiness record to
 assert against).
@@ -97,3 +97,81 @@ evidence.
   changes.
 - Any construct that misbehaved is recorded as a design-review finding, not
   patched.
+
+## Results (2026-07-08)
+
+Task 4 is complete. The implementation stayed within the guard-before-HIR
+shape from Tasks 1-3: no HIR/MIR crossing nodes, runtime transport, syntax,
+stdlib public API, or public examples were added.
+
+### Fixture Family
+
+All Task 4 fixtures are internal `_`-prefixed files under
+`testdata/golden/crossing/integration/{valid,invalid}`. They intentionally have
+no generated `.diag`, `.tokens`, `.ast`, or `.fmt` sidecars and remain outside
+the shell golden corpus.
+
+Valid fixtures:
+
+- `_integration_combined_on_spawn_on.sg`: separate valid `on` and `spawn on`
+  sites in one module, including an owned `@shard_movable` capture.
+- `_integration_spawn_on_then_await.sg`: valid `spawn on` result consumed by
+  `far Task<T>.await()` in the same function.
+- `_integration_far_task_direct_call_chain.sg`: direct await/cancel sites plus
+  a valid direct-call inference chain around an `on` crossing. A candidate that
+  passed `far Task<T>` through wrapper functions was rejected by current sema
+  with `SEM3046`, so the fixture was reshaped instead of changing sema.
+- `_integration_generic_crossing_sites.sg`: one generic `on` source site used
+  through multiple instantiations; current behavior records the source site
+  once and propagates `MayCross` to the direct callers.
+- `_probe_far_channel_on_and_spawn_on.sg`: stdlib-facing `far Channel<T>`
+  anchored operation plus a separate `spawn on` site.
+
+Invalid fixtures:
+
+- `_integration_nested_crossing_rejected.sg`: `spawn on` body containing nested
+  `on` is rejected with `SEM3153` and produces no accepted
+  `CrossingLowering` record.
+- `_probe_tcpconn_remote_io_rejected.sg`: remote `TcpConn.read` remains
+  rejected with `SEM3151` and produces no accepted record.
+- `_probe_tcp_listener_pinned_capture_rejected.sg`: owned `TcpListener` capture
+  remains rejected with `SEM3167` and produces no accepted record.
+
+### Harness
+
+`internal/crossinggate/integration_test.go` adds
+`TestEpic12IntegrationFixtures`. The test uses `driver.Diagnose` at sema stage
+to assert Task 3 `Result.CrossingLowering` records, including form kind,
+function ownership, destination/result/handle type labels, far-handle anchoring,
+remote operation names, capture mode/verdict, handle consumption, and
+direct-call `MayCross` propagation without synthetic call-site records.
+
+The same test uses the existing crossinggate backend helper to compile valid
+fixtures through both `BackendVM` and `BackendLLVM`, asserting the relevant
+backend-unavailable diagnostics (`FUT7014`-`FUT7017`) without executing any
+crossing form.
+
+### Design Finding
+
+Task 4's original example of a `spawn on` body containing a nested `on` is not
+currently a valid Epic 11 construct. Sema intentionally rejects nested crossing
+with `SEM3153`. This task records that as an integration finding and pins it as
+an invalid probe; it does not relax the nested-crossing invariant or introduce
+new syntax/semantics.
+
+### Golden Decision
+
+`make golden-update` is not needed for Task 4. The new fixtures are
+backend-stage/internal integration probes and stay `_`-prefixed by design, so
+the shell golden runner skips them. `make golden-check` remains a no-drift gate,
+but there are no Task 4 sidecars to regenerate or commit.
+
+### Proof
+
+Commands run:
+
+```bash
+go test ./internal/crossinggate -run 'TestEpic12IntegrationFixtures' -count=1
+go test ./internal/crossinggate -count=1
+git diff --check
+```

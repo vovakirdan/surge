@@ -1,0 +1,21 @@
+// Epic 12 Task 4 integration: separate valid `on` and `spawn on` sites.
+@shard_movable
+type Job = {
+    id: int,
+};
+
+fn consume(job: own Job) -> int {
+    return job.id;
+}
+
+fn immediate(dst: Placement, n: int) -> TaskResult<int> {
+    return on dst {
+        ret n + 1;
+    };
+}
+
+fn start(dst: Placement, job: own Job) -> far Task<int> {
+    return spawn on dst {
+        ret consume(own job);
+    };
+}

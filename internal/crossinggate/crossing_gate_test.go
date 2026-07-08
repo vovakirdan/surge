@@ -77,7 +77,29 @@ func diagnoseBackend(t *testing.T, path string, backend buildpipeline.Backend) [
 		}
 		return nil
 	}
-	return res.Diagnose.Bag.Items()
+	return diagnosticsForPath(t, res.Diagnose, path)
+}
+
+func diagnosticsForPath(t *testing.T, res *driver.DiagnoseResult, path string) []*diag.Diagnostic {
+	t.Helper()
+	if res == nil || res.Bag == nil {
+		return nil
+	}
+	if res.FileSet == nil {
+		t.Fatalf("crossinggate: backend compile %s returned no file set", filepath.Base(path))
+	}
+	target := filepath.Clean(path)
+	out := make([]*diag.Diagnostic, 0, len(res.Bag.Items()))
+	for _, d := range res.Bag.Items() {
+		if d == nil || !res.FileSet.HasFile(d.Primary.File) {
+			continue
+		}
+		file := res.FileSet.Get(d.Primary.File)
+		if file != nil && filepath.Clean(file.Path) == target {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // expectedStage reads the optional `// EXPECT-STAGE:` annotation, defaulting to

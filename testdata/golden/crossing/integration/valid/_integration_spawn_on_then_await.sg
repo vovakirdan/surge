@@ -1,0 +1,7 @@
+// Epic 12 Task 4 integration: valid `spawn on` handle consumed by `far Task.await`.
+fn run(dst: Placement) -> TaskResult<int> {
+    let task: far Task<int> = spawn on dst {
+        ret 3;
+    };
+    return task.await();
+}

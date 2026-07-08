@@ -1,0 +1,18 @@
+// Epic 12 Task 4 stdlib-facing probe: far Channel<T> anchor plus ordinary spawn on.
+@shard_movable
+type Message = {
+    id: int,
+};
+
+fn send_job(ch: far Channel<Message>, msg: own Message) -> TaskResult<nothing> {
+    return on ch {
+        ch.send(own msg);
+        ret nothing;
+    };
+}
+
+fn schedule(dst: Placement, msg: own Message) -> far Task<int> {
+    return spawn on dst {
+        ret msg.id;
+    };
+}
