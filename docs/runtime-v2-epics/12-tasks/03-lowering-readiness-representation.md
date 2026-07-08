@@ -1,6 +1,6 @@
 # Epic 12 Task 3: Lowering Readiness Representation
 
-**Status:** pending.
+**Status:** complete.
 **Kind:** compiler metadata + tests. Under representation option (b) this
 task is preceded by a separate HIR/MIR node-introduction task (written only
 if Task 1 chose (b)).
@@ -109,3 +109,121 @@ summarized in `NOTES.md` at closeout.
 - DEBT-024 decision recorded in `DEBT.md` with fixture evidence (reaffirm
   expected; escalation documented if not).
 - Handoff map written.
+
+## Results (2026-07-08)
+
+Task 3 is complete. The representation decision from Task 1 remains binding:
+Epic 12 uses **guard-before-HIR**. No HIR/MIR crossing nodes, transport,
+runtime C, stdlib API, syntax, or public runnable examples were introduced.
+
+### Readiness Record
+
+`internal/sema` now exposes `Result.CrossingLowering`, populated during sema
+from the same accepted crossing paths that type-check the source forms. The
+record is source/sema-level and explicit:
+
+- `CrossingLoweringKind`: `on` placement, `on` far-handle, `spawn on`,
+  `far Task.await`, `far Task.cancel`;
+- `CrossingDestinationInfo`: destination expression, resolved type,
+  placement/far-handle kind, far-handle anchor symbol, owner-anchor verdict;
+- `CrossingCaptureInfo`: captured symbol/expression/span/type, capture mode,
+  and exact sema verdict (`copy`, `Placement` copy, far-handle move, owned
+  `@shard_movable`, owned builtin Copy);
+- `CrossingRemoteOpInfo`: accepted anchored operation through an `on`
+  far-handle destination, including method, receiver expression/symbol/type;
+- payload/result/handle type fields and a function-symbol back-reference to
+  `FunctionEffects`.
+
+Capture classification is not duplicated. `checkOnCaptures` now returns the
+accepted capture summary while using the same `classifyOnCapture` branches that
+emit SEM3165-SEM3169 diagnostics. Rejected captures are not recorded as accepted
+lowering payloads. Each crossing-site append is also gated by a sema-error
+checkpoint: if typing the destination, body, captures, result, remote operation,
+or far-task receiver reports a new error, no accepted-looking readiness record
+is emitted for that rejected site.
+
+Task 2 backend guards were **not** switched to the readiness record in this
+slice. That switch is optional and would require a stable public
+`DiagnoseResult` accessor over root + dependency sema records. Current guards
+remain raw diagnostic guards; future backend consumers should read
+`Result.CrossingLowering`.
+
+### Loss-Detection Tests
+
+`internal/sema/crossing_lowering_test.go` asserts concrete field values for:
+
+- `TestCrossingLoweringOnPlacementRecord`: destination/result/capture/function
+  back-reference;
+- `TestCrossingLoweringOnFarHandleRecord`: far-handle destination, anchor, and
+  accepted remote `close` operation;
+- `TestCrossingLoweringSpawnOnRecord`: placement destination, movable owned
+  capture, payload/result/handle type;
+- `TestCrossingLoweringFarTaskAwaitRecord`: receiver, payload/result, handle
+  consumption;
+- `TestCrossingLoweringFarTaskCancelRecord`: receiver, result, handle
+  consumption;
+- `TestCrossingLoweringDirectCallEffectStability`: direct-call propagation still
+  marks the wrapper `MayCross`, but no synthetic lowering record is created for
+  the call site; only the real `on` site has a record.
+- `TestCrossingLoweringRejectedOnBodyDoesNotRecord`,
+  `TestCrossingLoweringRejectedSpawnOnBodyDoesNotRecord`,
+  `TestCrossingLoweringRejectedFarHandleOpDoesNotRecord`,
+  `TestCrossingLoweringRejectedFarTaskReuseDoesNotRecordSecondOperation`, and
+  `TestCrossingLoweringRejectedFarTaskAwaitAfterCancelDoesNotRecordSecondOperation`:
+  rejected crossing sites do not leave false accepted records.
+
+These tests assert concrete form kind, destination, result/handle type, function
+effect back-reference, source coordinates, capture coordinates, receiver
+coordinates, and negative-space behavior. They fail on contract-relevant
+information loss, not just on missing non-nil values.
+
+### `RV2-DEBT-024` Decision
+
+`internal/driver/crossing_readiness_test.go` adds
+`TestCrossingReadinessDebt024ModuleImportDoesNotRequireImportedEffects`, a
+two-module fixture:
+
+- module A exports a function containing a real `on pool { ret 7; }` crossing;
+- module B imports and calls that function;
+- module B does not synthesize a lowering record for the imported call, and its
+  caller-side imported `MayCross` effect remains deferred;
+- module A's dependency sema result still contains the real on-placement
+  readiness record.
+
+Conclusion: imported function effect bits are **not required** for the current
+guard-before-HIR readiness representation. `RV2-DEBT-024` remains open for
+Phase 4 transport lowering or a later effect-system epic, where higher-order and
+cross-module caller effects can be designed with their own matrix.
+
+### Handoff Map
+
+| Source form | Readiness fields | Future runtime-message meaning | OS-neutral boundary |
+| --- | --- | --- | --- |
+| `on placement { ret value; }` | `Destination.Expr/Type`, `Captures`, `PayloadType`, `ResultType`, `Span`, `Function` | destination placement, payload materialization plan, result envelope, caller resume point | `Placement` is compiler/runtime semantic data; no Linux fd or poll primitive is implied. |
+| `on far_handle { ... }` | far-handle destination, `AnchorSymbol`, `OwnerAnchored`, `RemoteOps`, captures, result type | route operation through owner handle; execute only accepted anchored remote operations; return `TaskResult<T>` | handle ownership is semantic; concrete wake/fd/event primitive is Phase 4. |
+| `spawn on placement { ret value; }` | placement destination, captures, `PayloadType`, `ResultType`, `HandleType` | create remote child task, move/copy accepted payloads, return `far Task<T>` handle | task placement and handle identity are OS-neutral. |
+| `far Task<T>.await()` | receiver expr/symbol/type, `ConsumesHandle`, payload/result | consume remote task handle and resume caller with `TaskResult<T>` | await protocol is transport-level, not tied to epoll/eventfd here. |
+| `far Task<T>.cancel()` | receiver expr/symbol/type, `ConsumesHandle`, result | consume/cancel remote task handle and return `TaskResult<nothing>` | cancellation route is semantic; wake mechanism is Phase 4. |
+
+### Proof
+
+Commands run:
+
+```bash
+go test ./internal/sema -run 'CrossingLowering|FunctionCrossingEffect' -count=1
+go test ./internal/driver -run 'CrossingReadinessDebt024' -count=1
+go test ./internal/sema ./internal/buildpipeline ./internal/crossinggate -count=1
+go test ./internal/sema ./internal/buildpipeline ./internal/crossinggate ./internal/driver -run 'Crossing|SpawnOn|FunctionCrossingEffect' -count=1
+git diff --check
+./check_file_sizes.sh -a
+```
+
+Sentrux:
+
+- root scan: quality `6187`; `check_rules` pass, `rules_checked=8`,
+  `violation_count=0`;
+- `sentrux check internal`: existing missing `internal/.sentrux/rules.toml`
+  gap; the scoped command fails before a scoped quality score, so no scoped
+  rule compliance is claimed.
+
+No golden fixtures were added or regenerated for this task.

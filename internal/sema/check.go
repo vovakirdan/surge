@@ -68,6 +68,7 @@ type Result struct {
 	// in the same file.
 	FarTaskAwaitSpans  []source.Span
 	FarTaskCancelSpans []source.Span
+	CrossingLowering   []CrossingLoweringInfo
 }
 
 // FunctionEffect stores inferred function-level effects used by later lowering
@@ -113,15 +114,20 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 	}
 
 	checker := typeChecker{
-		builder:  builder,
-		fileID:   fileID,
-		reporter: opts.Reporter,
-		symbols:  opts.Symbols,
-		result:   &res,
-		types:    res.TypeInterner,
-		exports:  opts.Exports,
-		insts:    opts.Instantiations,
-		tracer:   trace.FromContext(ctx),
+		builder: builder,
+		fileID:  fileID,
+		symbols: opts.Symbols,
+		result:  &res,
+		types:   res.TypeInterner,
+		exports: opts.Exports,
+		insts:   opts.Instantiations,
+		tracer:  trace.FromContext(ctx),
+	}
+	if opts.Reporter != nil {
+		checker.reporter = &diagnosticCountingReporter{
+			inner:      opts.Reporter,
+			errorCount: &checker.errorCount,
+		}
 	}
 	checker.run()
 	if opts.AlienHints {

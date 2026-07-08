@@ -4390,3 +4390,43 @@ focused `go test` for buildpipeline/HIR/crossinggate, `make golden-check`,
 `sentrux check internal` (existing missing `internal/.sentrux/rules.toml`
 recorded, no scoped compliance claimed), guard-text grep, and `git diff
 --check`.
+
+## 2026-07-08 — Epic 12 Task 3 Closeout
+
+Task 3 is complete. Sema now exposes `Result.CrossingLowering`, an explicit
+guard-before-HIR readiness record for accepted crossing forms: `on` placement,
+`on` far-handle, `spawn on`, `far Task.await`, and `far Task.cancel`. The
+record carries destination expression/type, far-handle anchor verdict, accepted
+capture summaries, accepted remote ops for anchored far handles, payload/result
+/ handle types, receiver/consume data for far-task operations, and a function
+symbol back-reference to `FunctionEffects`.
+
+Capture summaries are produced by the same classification path that emits the
+SEM3165-SEM3169 diagnostics, so the record does not introduce a second copy of
+the crossing-capture rules. Record appends are guarded by a per-site sema-error
+checkpoint: invalid crossing bodies, rejected remote operations, and rejected
+far-task handle reuse do not leave accepted-looking lowering records. Backend
+guards were not switched to the record in this slice; they remain Task 2
+diagnostic guards, while future backend/lowering consumers should use the sema
+readiness record.
+
+`RV2-DEBT-024` was narrowed but not closed. The two-module driver fixture proves
+imported function effect bits are not required for the current readiness layer:
+module B's imported call does not synthesize a lowering record, while module A's
+dependency sema result keeps the real `on` crossing-site record. Higher-order
+and cross-module caller-effect propagation remains deferred to Phase 4 transport
+lowering or a later effect-system epic.
+
+Proof run for this closeout:
+`go test ./internal/sema -run 'CrossingLowering|FunctionCrossingEffect' -count=1`,
+`go test ./internal/driver -run 'CrossingReadinessDebt024' -count=1`, and
+`go test ./internal/sema ./internal/buildpipeline ./internal/crossinggate -count=1`.
+After independent review caught false-record risk, added negative record tests
+for invalid on/spawn bodies, rejected far-handle remote I/O, double await, and
+await-after-cancel, then re-ran
+`go test ./internal/sema ./internal/buildpipeline ./internal/crossinggate ./internal/driver -run 'Crossing|SpawnOn|FunctionCrossingEffect' -count=1`.
+Also run: `git diff --check`, `./check_file_sizes.sh -a`, root Sentrux scan
+quality `6187` with rules pass, and `sentrux check internal` confirming the
+existing missing `internal/.sentrux/rules.toml` rule-file gap. No scoped
+`internal` rule compliance or quality score is claimed. No golden fixtures were
+added for Task 3.

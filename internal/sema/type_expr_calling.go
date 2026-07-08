@@ -11,6 +11,7 @@ import (
 func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.ExprCallData) types.TypeID {
 	if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
 		if tc.moduleSymbolForExpr(member.Target) == nil {
+			receiverCheckpoint := tc.errorCheckpoint()
 			receiverType, receiverIsType := tc.memberReceiverType(member.Target)
 			usedTypeArgsForReceiver := receiverIsType && len(call.TypeArgs) > 0
 			if usedTypeArgsForReceiver {
@@ -21,7 +22,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 			}
 			if !receiverIsType && tc.isFarTaskType(receiverType) {
 				if method := tc.lookupName(member.Field); method == "await" || method == "cancel" {
-					return tc.typeFarTaskCall(member, receiverType, call, span, method)
+					return tc.typeFarTaskCall(id, member, receiverType, call, span, method, receiverCheckpoint)
 				}
 			}
 			if !receiverIsType && tc.isFarType(receiverType) {

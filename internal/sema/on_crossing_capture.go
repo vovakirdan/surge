@@ -39,36 +39,69 @@ func (tc *typeChecker) typeFarHandleCall(member *ast.ExprMemberData, receiverTyp
 	for _, arg := range call.Args {
 		tc.typeExpr(arg.Value)
 	}
+	tc.recordActiveOnRemoteOp(CrossingRemoteOpInfo{
+		Method:         methodName,
+		Span:           span,
+		ReceiverExpr:   member.Target,
+		ReceiverSymbol: recvSym,
+		ReceiverType:   receiverType,
+	})
 	return tc.types.Builtins().Nothing
+}
+
+func (tc *typeChecker) recordActiveOnRemoteOp(op CrossingRemoteOpInfo) {
+	if tc == nil || len(tc.onCrossingStack) == 0 {
+		return
+	}
+	last := len(tc.onCrossingStack) - 1
+	tc.onCrossingStack[last].remoteOps = append(tc.onCrossingStack[last].remoteOps, op)
 }
 
 // checkOnCaptures enforces capture legality for values crossing an `on`
 // boundary (ON-CAP rows). The capture-effect diagnostics are owned by Block 4;
 // Block 2 emits them at the crossing site so the invariants hold now.
-func (tc *typeChecker) checkOnCaptures(body ast.StmtID) {
+func (tc *typeChecker) checkOnCaptures(body ast.StmtID) ([]CrossingCaptureInfo, bool) {
+	ok := true
+	var captures []CrossingCaptureInfo
 	for _, cap := range tc.collectBlockingCaptures(body) {
 		capType := tc.bindingType(cap.symID)
 		if capType == types.NoTypeID {
 			continue
 		}
-		tc.classifyOnCapture(capType, cap.span)
+		mode, verdict, accepted := tc.classifyOnCapture(capType, cap.span)
+		if !accepted {
+			ok = false
+			continue
+		}
+		captures = append(captures, CrossingCaptureInfo{
+			Symbol:  cap.symID,
+			Expr:    cap.exprID,
+			Span:    cap.span,
+			Type:    capType,
+			Mode:    mode,
+			Verdict: verdict,
+		})
 	}
+	return captures, ok
 }
 
-func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span) {
+func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span) (CrossingCaptureMode, CrossingCaptureVerdict, bool) {
 	// Borrowed captures are rejected on the surface type (ON-CAP-N001/N002).
 	if tc.isReferenceType(capType) {
 		tc.report(diag.SemaCrossBorrowCapture, span, "borrowed values cannot cross shard boundaries")
-		return
+		return 0, 0, false
 	}
 	// Far handles move in (affine); the remote resource stays put (ON-CAP-V003).
 	if tc.isFarType(capType) {
-		return
+		return CrossingCaptureMoveFarHandle, CrossingCaptureFarHandle, true
 	}
 	owned := tc.isOwnType(capType)
 	// Copy values, including `Placement`, may cross freely (ON-CAP-V001/V004).
 	if !owned && tc.result != nil && tc.result.IsCopyType(capType) {
-		return
+		if tc.isPlacementType(capType) {
+			return CrossingCaptureCopy, CrossingCapturePlacementCopy, true
+		}
+		return CrossingCaptureCopy, CrossingCaptureCopyValue, true
 	}
 	// Owned captures are judged on their nominal type (strip the `own` wrapper).
 	nominal := tc.valueType(capType)
@@ -77,26 +110,33 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 		// ON-CAP-N004: shard-pinned resources cannot cross as owned values.
 		tc.report(diag.SemaCrossPinnedCapture, span,
 			"this operation would move a shard-pinned resource; use a far handle or explicit migration")
+		return 0, 0, false
 	case tc.typeHasAttr(nominal, "nosend"):
 		// ON-CAP-N003: `@nosend` forbids crossing task/shard boundaries.
 		tc.report(diag.SemaCrossNosendCapture, span,
 			"`@nosend` values cannot cross task or shard boundaries outside `@local spawn`")
+		return 0, 0, false
 	case tc.typeHasAttr(nominal, "shard_movable"):
 		// ON-CAP-V002: owned shard-movable values may cross.
+		return CrossingCaptureMoveOwned, CrossingCaptureOwnedShardMovable, true
 	case tc.typeHasAttr(nominal, "send"):
 		// C08: `@send` alone is not sufficient for shard movement.
 		tc.report(diag.SemaShardMovableSendInsufficient, span,
 			"`@send` is not sufficient for shard movement; add `@shard_movable`")
+		return 0, 0, false
 	case owned && tc.typeHasAttr(nominal, "copy"):
 		// LOCALITY-007/008: `@copy` alone allows copying, not owned migration.
 		tc.report(diag.SemaShardMovableCopyInsufficient, span,
 			"`@copy` is not sufficient for shard movement; add `@shard_movable`")
+		return 0, 0, false
 	case owned && tc.result != nil && tc.result.IsCopyType(nominal):
 		// Owned builtin Copy values do not need a user shard-movement marker.
+		return CrossingCaptureMoveOwned, CrossingCaptureOwnedBuiltinCopy, true
 	default:
 		// ON-CAP-N005: unmarked owned user values are not shard-movable.
 		tc.report(diag.SemaCrossNotShardMovable, span,
 			"this owned value is not shard-movable; mark its type `@shard_movable` to cross it")
+		return 0, 0, false
 	}
 }
 

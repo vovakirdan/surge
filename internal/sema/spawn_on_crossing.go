@@ -21,11 +21,14 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	if !ok || data == nil {
 		return types.NoTypeID
 	}
+	checkpoint := tc.errorCheckpoint()
+	siteOK := true
 
 	// S07: `@local spawn on` mixes a local-only handle with remote placement.
 	if tc.spawnOnHasAttr(data, "local") {
 		tc.report(diag.SemaLocalSpawnOn, span,
 			"`@local spawn on` is invalid; local spawn and remote placement are mutually exclusive")
+		siteOK = false
 	}
 
 	// Note: the `crosses` effect is inferred by sema (not demanded from the
@@ -38,10 +41,14 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	// spawn-on row, so this is a conservative superset).
 	if len(tc.onCrossingStack) > 0 {
 		tc.report(diag.SemaOnNested, span, "nested `on` crossing blocks are not allowed")
+		siteOK = false
 	}
 
 	// Destination typing (D01-D13) with the spawn-on diagnostic set.
-	tc.checkSpawnOnDestination(data.Dest)
+	destInfo := tc.checkSpawnOnDestination(data.Dest)
+	if destInfo.Kind != CrossingDestinationPlacement {
+		siteOK = false
+	}
 
 	// Walk the body under a crossing return context so `ret` yields the payload
 	// and `return` is rejected (SEM3159); mark the frame so the shared
@@ -57,7 +64,10 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	tc.popReturnContext()
 
 	// Capture legality across the shard boundary (C01-C10).
-	tc.checkOnCaptures(data.Body)
+	captures, capturesOK := tc.checkOnCaptures(data.Body)
+	if !capturesOK {
+		siteOK = false
+	}
 
 	payload, sawRet := tc.unifyOnBodyResults(returns, bareRet)
 
@@ -65,12 +75,18 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	// discarded `on` crossing, a dropped `far Task` is still a lifecycle error).
 	if !sawRet && !returnRejected {
 		tc.report(diag.SemaSpawnOnBodyMissingRet, span, "a `spawn on` block must produce its result with `ret`")
+		siteOK = false
 	}
 
 	// B06: statements after the body's `ret` are unreachable.
-	tc.checkSpawnOnUnreachableRet(data.Body)
+	if !tc.checkSpawnOnUnreachableRet(data.Body) {
+		siteOK = false
+	}
 
 	resultType := tc.farTaskType(payload, span)
+	if returnRejected {
+		siteOK = false
+	}
 
 	// Affine must-await lifecycle: register a well-formed handle so a drop
 	// without await/return reports SemaTaskNotAwaited (L01) and a return
@@ -86,6 +102,20 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 		if expected := tc.expectedTypeForExpr(id); expected != types.NoTypeID {
 			return expected
 		}
+	}
+	if siteOK && !tc.hasErrorsSince(checkpoint) {
+		tc.recordCrossingLowering(&CrossingLoweringInfo{
+			Kind:        CrossingLoweringSpawnOn,
+			Expr:        id,
+			Span:        span,
+			Body:        data.Body,
+			Function:    tc.currentFnSym(),
+			Destination: destInfo,
+			Captures:    cloneCrossingCaptures(captures),
+			PayloadType: payload,
+			ResultType:  resultType,
+			HandleType:  resultType,
+		})
 	}
 	return resultType
 }
@@ -126,7 +156,7 @@ func (tc *typeChecker) isFarTaskType(id types.TypeID) bool {
 // `TaskResult<nothing>` (T06). The result differs from a local `Task` extern
 // method (own self vs `&self`), so it is synthesized here rather than resolved
 // against the intrinsic.
-func (tc *typeChecker) typeFarTaskCall(member *ast.ExprMemberData, receiverType types.TypeID, call *ast.ExprCallData, span source.Span, method string) types.TypeID {
+func (tc *typeChecker) typeFarTaskCall(id ast.ExprID, member *ast.ExprMemberData, receiverType types.TypeID, call *ast.ExprCallData, span source.Span, method string, checkpoint int) types.TypeID {
 	// Note: the `crosses` effect is inferred, so await/cancel on a `far Task<T>`
 	// no longer requires an explicit `crosses` marker (T07/T08/SEM3164 retired
 	// per the crosses-inference design change).
@@ -168,18 +198,38 @@ func (tc *typeChecker) typeFarTaskCall(member *ast.ExprMemberData, receiverType 
 			payload = inner
 		}
 	}
-	return tc.taskResultType(payload, span)
+	resultType := tc.taskResultType(payload, span)
+	kind := CrossingLoweringFarTaskAwait
+	if method == "cancel" {
+		kind = CrossingLoweringFarTaskCancel
+	}
+	if !tc.hasErrorsSince(checkpoint) {
+		tc.recordCrossingLowering(&CrossingLoweringInfo{
+			Kind:           kind,
+			Expr:           id,
+			Span:           span,
+			Function:       tc.currentFnSym(),
+			ReceiverExpr:   member.Target,
+			ReceiverSymbol: tc.symbolForExpr(member.Target),
+			ReceiverType:   receiverType,
+			ConsumesHandle: true,
+			PayloadType:    payload,
+			ResultType:     resultType,
+		})
+	}
+	return resultType
 }
 
 // checkSpawnOnDestination validates a `spawn on` destination. Unlike an `on`
 // crossing, a `spawn on` accepts only a `Placement` value — every `far` handle
 // is rejected (D10-D12), and non-placement values/literals are rejected (D06,
 // D09) with the spawn-on diagnostic set.
-func (tc *typeChecker) checkSpawnOnDestination(dest ast.ExprID) {
+func (tc *typeChecker) checkSpawnOnDestination(dest ast.ExprID) CrossingDestinationInfo {
+	info := CrossingDestinationInfo{Expr: dest}
 	if !dest.IsValid() {
 		// `spawn on { }` / `spawn on blocking { }`: the parser already emitted
 		// SYN2033 / FUT7013.
-		return
+		return info
 	}
 	// Type-name and bare-function destinations are not value expressions and are
 	// detected structurally before value typing.
@@ -187,45 +237,48 @@ func (tc *typeChecker) checkSpawnOnDestination(dest ast.ExprID) {
 		switch sym.Kind {
 		case symbols.SymbolType:
 			tc.report(diag.SemaSpawnOnDestTypeName, tc.exprSpan(dest), "a type name is not a `spawn on` placement target")
-			return
+			return info
 		case symbols.SymbolFunction:
 			tc.report(diag.SemaSpawnOnDestBareFn, tc.exprSpan(dest),
 				"a bare function name is not a `spawn on` placement target; call it if it returns `Placement`")
-			return
+			return info
 		}
 	}
 	destType := tc.typeExpr(dest)
 	if destType == types.NoTypeID {
-		return
+		return info
 	}
+	info.Type = destType
 	if tc.isFarType(destType) {
 		if tc.isTaskType(tc.farInner(destType)) {
 			tc.report(diag.SemaSpawnOnDestFarTask, tc.exprSpan(dest),
 				"`far Task<T>` is not a `spawn on` destination; use `await()` or `cancel()`")
-			return
+			return info
 		}
 		tc.report(diag.SemaSpawnOnDestFarHandle, tc.exprSpan(dest),
 			"`far` handle destinations are invalid for `spawn on`; use `on` for immediate handle operations")
-		return
+		return info
 	}
 	if tc.isPlacementType(destType) {
-		return
+		info.Kind = CrossingDestinationPlacement
+		return info
 	}
 	tc.report(diag.SemaSpawnOnDestNotPlacement, tc.exprSpan(dest),
 		"`spawn on` destination must be a `Placement` value")
+	return info
 }
 
 // checkSpawnOnUnreachableRet reports the first statement that follows the body's
 // first `ret` as unreachable (B06). Only the body block's top-level statements
 // are considered; a `ret` produces the remote task result, so nothing may run
 // after it.
-func (tc *typeChecker) checkSpawnOnUnreachableRet(body ast.StmtID) {
+func (tc *typeChecker) checkSpawnOnUnreachableRet(body ast.StmtID) bool {
 	if tc.builder == nil || tc.builder.Stmts == nil {
-		return
+		return true
 	}
 	block := tc.builder.Stmts.Block(body)
 	if block == nil {
-		return
+		return true
 	}
 	sawRet := false
 	for _, stmtID := range block.Stmts {
@@ -235,10 +288,11 @@ func (tc *typeChecker) checkSpawnOnUnreachableRet(body ast.StmtID) {
 		}
 		if sawRet {
 			tc.report(diag.SemaSpawnOnUnreachableAfterRet, stmt.Span, "unreachable statement after `ret` in a `spawn on` block")
-			return
+			return false
 		}
 		if stmt.Kind == ast.StmtRet {
 			sawRet = true
 		}
 	}
+	return true
 }

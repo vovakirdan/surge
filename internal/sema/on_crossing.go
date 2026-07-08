@@ -14,6 +14,7 @@ import (
 type onAnchorFrame struct {
 	anchorSym symbols.SymbolID
 	isFar     bool
+	remoteOps []CrossingRemoteOpInfo
 	// isSpawn marks a `spawn on dst { ... }` remote-spawn body (Block 3) so the
 	// shared `return`-rejection site reports the spawn-on code (SEM3159) instead
 	// of the immediate-crossing code (SEM3147).
@@ -30,7 +31,9 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	if !ok || data == nil {
 		return types.NoTypeID
 	}
+	checkpoint := tc.errorCheckpoint()
 	discarded := tc.isExprDiscarded(id)
+	siteOK := true
 
 	// Note: `on` no longer requires an explicit `crosses` marker — the effect is
 	// inferred by sema (SEM3162 retired with the `crosses` grammar removal).
@@ -40,15 +43,20 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	// a `blocking { }` body).
 	if tc.blockingDepth > 0 {
 		tc.report(diag.SemaOnSuspendContext, span, "`on` is allowed only where suspension is legal")
+		siteOK = false
 	}
 
 	// ON-NEST-N001/N002: a crossing body cannot open a second crossing.
 	if len(tc.onCrossingStack) > 0 {
 		tc.report(diag.SemaOnNested, span, "nested `on` crossing blocks are not allowed")
+		siteOK = false
 	}
 
 	// ON-DST rows: type the destination and derive the anchor frame.
-	frame := tc.checkOnDestination(data.Dest)
+	frame, destInfo := tc.checkOnDestination(data.Dest)
+	if destInfo.Kind == CrossingDestinationNone {
+		siteOK = false
+	}
 
 	// Walk the body under a crossing return context so `ret` yields the result
 	// and `return` is rejected (SEM3147); track the anchor for far-handle ops.
@@ -58,12 +66,16 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	tc.onCrossingStack = append(tc.onCrossingStack, frame)
 	tc.walkStmt(data.Body)
 	last := len(tc.onCrossingStack) - 1
-	returnRejected := tc.onCrossingStack[last].returnRejected
+	frame = tc.onCrossingStack[last]
+	returnRejected := frame.returnRejected
 	tc.onCrossingStack = tc.onCrossingStack[:last]
 	tc.popReturnContext()
 
 	// ON-CAP rows: capture legality across the crossing boundary.
-	tc.checkOnCaptures(data.Body)
+	captures, capturesOK := tc.checkOnCaptures(data.Body)
+	if !capturesOK {
+		siteOK = false
+	}
 
 	payload, sawRet := tc.unifyOnBodyResults(returns, bareRet)
 
@@ -71,13 +83,31 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	// A rejected `return` (SEM3147) already explains a missing result.
 	if !sawRet && !discarded && !returnRejected {
 		tc.report(diag.SemaOnBodyMissingRet, span, "an `on` crossing block must produce its value with `ret`")
+		siteOK = false
 	}
 
 	resultType := tc.taskResultType(payload, span)
 	if resultType == types.NoTypeID {
 		resultType = payload
 	}
+	if returnRejected {
+		siteOK = false
+	}
 	if discarded {
+		if siteOK && !tc.hasErrorsSince(checkpoint) {
+			tc.recordCrossingLowering(&CrossingLoweringInfo{
+				Kind:        crossingLoweringKindForOnDestination(destInfo),
+				Expr:        id,
+				Span:        span,
+				Body:        data.Body,
+				Function:    tc.currentFnSym(),
+				Destination: destInfo,
+				Captures:    cloneCrossingCaptures(captures),
+				RemoteOps:   cloneCrossingRemoteOps(frame.remoteOps),
+				PayloadType: payload,
+				ResultType:  resultType,
+			})
+		}
 		return resultType
 	}
 
@@ -94,17 +124,32 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	if override, ok := tc.checkOnResultWrapping(id, payload, resultType, span); ok {
 		return override
 	}
+	if siteOK && !tc.hasErrorsSince(checkpoint) {
+		tc.recordCrossingLowering(&CrossingLoweringInfo{
+			Kind:        crossingLoweringKindForOnDestination(destInfo),
+			Expr:        id,
+			Span:        span,
+			Body:        data.Body,
+			Function:    tc.currentFnSym(),
+			Destination: destInfo,
+			Captures:    cloneCrossingCaptures(captures),
+			RemoteOps:   cloneCrossingRemoteOps(frame.remoteOps),
+			PayloadType: payload,
+			ResultType:  resultType,
+		})
+	}
 	return resultType
 }
 
 // checkOnDestination validates an `on` destination against the accepted set
 // (`Placement` value, `far Channel<T>`, control-only `far TcpConn`) and returns
 // the anchor frame for far-handle destinations.
-func (tc *typeChecker) checkOnDestination(dest ast.ExprID) onAnchorFrame {
+func (tc *typeChecker) checkOnDestination(dest ast.ExprID) (onAnchorFrame, CrossingDestinationInfo) {
 	var frame onAnchorFrame
+	info := CrossingDestinationInfo{Expr: dest}
 	if !dest.IsValid() {
 		// `on blocking { }`: the parser already emitted FUT7012.
-		return frame
+		return frame, info
 	}
 	// Type-name and bare-function destinations are not value expressions and are
 	// detected structurally before value typing.
@@ -112,33 +157,45 @@ func (tc *typeChecker) checkOnDestination(dest ast.ExprID) onAnchorFrame {
 		switch sym.Kind {
 		case symbols.SymbolType:
 			tc.report(diag.SemaOnDestTypeName, tc.exprSpan(dest), "a type name is not a placement target")
-			return frame
+			return frame, info
 		case symbols.SymbolFunction:
 			tc.report(diag.SemaOnDestBareFn, tc.exprSpan(dest),
 				"a function value is not a placement target; call it if it returns `Placement`")
-			return frame
+			return frame, info
 		}
 	}
 	destType := tc.typeExpr(dest)
 	if destType == types.NoTypeID {
-		return frame
+		return frame, info
 	}
+	info.Type = destType
 	if tc.isFarType(destType) {
 		if tc.isTaskType(tc.farInner(destType)) {
 			tc.report(diag.SemaOnDestFarTask, tc.exprSpan(dest),
 				"`far Task<T>` is not an `on` destination; use `await()` or `cancel()`")
-			return frame
+			return frame, info
 		}
 		frame.isFar = true
 		frame.anchorSym = tc.symbolForExpr(dest)
-		return frame
+		info.Kind = CrossingDestinationFarHandle
+		info.AnchorSymbol = frame.anchorSym
+		info.OwnerAnchored = frame.anchorSym.IsValid()
+		return frame, info
 	}
 	if tc.isPlacementType(destType) {
-		return frame
+		info.Kind = CrossingDestinationPlacement
+		return frame, info
 	}
 	tc.report(diag.SemaOnDestNotPlacement, tc.exprSpan(dest),
 		"`on` destination must be a `Placement` value or an accepted `far` handle")
-	return frame
+	return frame, info
+}
+
+func crossingLoweringKindForOnDestination(dest CrossingDestinationInfo) CrossingLoweringKind {
+	if dest.Kind == CrossingDestinationFarHandle {
+		return CrossingLoweringOnFarHandle
+	}
+	return CrossingLoweringOnPlacement
 }
 
 // destIdentSymbol resolves a bare-identifier destination to its symbol, or nil

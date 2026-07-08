@@ -33,6 +33,7 @@ type typeChecker struct {
 	builder        *ast.Builder
 	fileID         ast.FileID
 	reporter       diag.Reporter
+	errorCount     int
 	symbols        *symbols.Result
 	result         *Result
 	types          *types.Interner
@@ -115,6 +116,35 @@ type typeChecker struct {
 	onCrossingStack             []onAnchorFrame // active `on dst { ... }` crossing frames (Epic 11 Block 2)
 	directFunctionCrossing      map[symbols.SymbolID]struct{}
 	functionCrossingEdges       map[symbols.SymbolID]map[symbols.SymbolID]struct{}
+}
+
+type diagnosticCountingReporter struct {
+	inner      diag.Reporter
+	errorCount *int
+}
+
+// Report forwards diagnostics while counting sema errors for local checkpoints.
+func (r *diagnosticCountingReporter) Report(code diag.Code, sev diag.Severity, primary source.Span, msg string, notes []diag.Note, fixes []*diag.Fix) {
+	if sev >= diag.SevError && r.errorCount != nil {
+		(*r.errorCount)++
+	}
+	if r.inner != nil {
+		r.inner.Report(code, sev, primary, msg, notes, fixes)
+	}
+}
+
+func (tc *typeChecker) errorCheckpoint() int {
+	if tc == nil {
+		return 0
+	}
+	return tc.errorCount
+}
+
+func (tc *typeChecker) hasErrorsSince(checkpoint int) bool {
+	if tc == nil {
+		return false
+	}
+	return tc.errorCount > checkpoint
 }
 
 type returnContext struct {
