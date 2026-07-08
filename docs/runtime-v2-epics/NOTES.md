@@ -4364,3 +4364,29 @@ focused crossing/sema probes passed; the full `make runtime-v2-check` baseline
 also passed. They stay in Task 5 only if later Epic 12 work starts using VM
 artifact helpers; otherwise they also move to the backend matrix cleanup track.
 `RV2-DEBT-024` remains Task 3's decision point.
+
+## 2026-07-08 — Epic 12 Task 2 Closeout
+
+Task 2 is complete. The backend-unavailable crossing guards are now
+default-closed for every non-empty backend until a backend is explicitly marked
+transport-capable; an empty backend remains the compile-only/no-backend path.
+Frozen FUT7014-FUT7017 messages no longer mention internal epic or phase
+numbers.
+
+HIR lowering now reports a deterministic internal compiler error if an
+`ast.ExprOn` bypasses the buildpipeline guard. Crossinggate backend-stage rows
+run through both VM and LLVM backend selections with `buildpipeline.Compile`;
+no VM artifact helpers or executable outputs were introduced, so Task 5
+promotion was not needed. Backend-unavailable guards now run only after sema
+accepts the module, so sema-invalid crossings do not get extra FUT7014/FUT7015
+noise. The direct-call/inferred-crossing backend row is not claimed by Task 2;
+Task 3 owns that through the lowering-readiness metadata record and
+`RV2-DEBT-024` decision.
+
+Negative-space tests cover diagnose, LSP-facing diagnostics, format-check, and
+fix paths for valid crossing code. Proof gates run for this closeout:
+focused `go test` for buildpipeline/HIR/crossinggate, `make golden-check`,
+`make check`, full LOC scan, root Sentrux check (rules pass), scoped
+`sentrux check internal` (existing missing `internal/.sentrux/rules.toml`
+recorded, no scoped compliance claimed), guard-text grep, and `git diff
+--check`.

@@ -117,6 +117,14 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	case ast.ExprSpawn:
 		return l.lowerSpawnExpr(expr, ty)
 
+	case ast.ExprOn:
+		construct := "`on`"
+		if data, ok := l.builder.Exprs.On(exprID); ok && data != nil && data.Spawn {
+			construct = "`spawn on`"
+		}
+		l.setErrorf("internal compiler error: %s crossing reached HIR lowering before backend-unavailable guard", construct)
+		return nil
+
 	case ast.ExprAsync:
 		return l.lowerAsyncExpr(expr, ty)
 	case ast.ExprBlocking:

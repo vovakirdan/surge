@@ -8,24 +8,20 @@ import (
 )
 
 const (
-	spawnOnUnavailableMsg       = "`spawn on` remote spawn cannot be lowered yet; the Phase 4 transport backend is unavailable"
-	farTaskAwaitUnavailableMsg  = "`far Task<T>.await()` cannot be lowered yet; the Phase 4 transport backend is unavailable"
-	farTaskCancelUnavailableMsg = "`far Task<T>.cancel()` cannot be lowered yet; the Phase 4 transport backend is unavailable"
+	spawnOnUnavailableMsg       = "`spawn on` remote spawn cannot be executed: no available backend supports cross-shard transport"
+	farTaskAwaitUnavailableMsg  = "`far Task<T>.await()` cannot be executed: no available backend supports remote task transport"
+	farTaskCancelUnavailableMsg = "`far Task<T>.cancel()` cannot be executed: no available backend supports remote task transport"
 )
 
 // addSpawnOnBackendErrors guards accepted `spawn on dst { ... }` remote spawns
-// and `far Task<T>` await/cancel operations that reach lowering. Epic 11 Block 3
-// delivers the surface compile-only: no backend can execute remote spawn or
-// remote task lifecycle until the Phase 4 transport epic, so any such construct
-// that type-checks and reaches a backend is reported deterministically
-// (FUT7015 / FUT7016 / FUT7017) rather than crashing or silently dropping it.
-// This mirrors addOnCrossingBackendErrors (FUT7014).
+// and `far Task<T>` await/cancel operations that reach an executable backend.
+// Until a backend explicitly records remote transport support, accepted remote
+// spawn/task lifecycle code reports FUT7015/FUT7016/FUT7017 deterministically.
 func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult) {
 	if req == nil || diagRes == nil || diagRes.Bag == nil || diagRes.Builder == nil {
 		return
 	}
-	// No current backend implements the remote-spawn transport.
-	if req.Backend != BackendVM && req.Backend != BackendLLVM {
+	if !crossingBackendGuardApplies(req.Backend) {
 		return
 	}
 

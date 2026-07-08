@@ -209,10 +209,10 @@ var crossingCodeDescriptions = map[Code]string{
 	FutFarFnHandle:                     "function types cannot be used as `far` remote handles yet",
 	FutOnDestBlocking:                  "`on blocking` is not a valid crossing destination",
 	FutSpawnOnDestBlocking:             "`spawn on blocking` is not a valid placement destination",
-	FutOnBackendUnavailable:            "`on` placement crossing is not available in this backend/configuration",
-	FutSpawnOnBackendUnavailable:       "`spawn on` remote spawn is not available in this backend/configuration",
-	FutFarTaskAwaitBackendUnavailable:  "`far Task<T>.await()` is not available in this backend/configuration",
-	FutFarTaskCancelBackendUnavailable: "`far Task<T>.cancel()` is not available in this backend/configuration",
+	FutOnBackendUnavailable:            "`on` placement crossing cannot be executed: no available backend supports cross-shard transport",
+	FutSpawnOnBackendUnavailable:       "`spawn on` remote spawn cannot be executed: no available backend supports cross-shard transport",
+	FutFarTaskAwaitBackendUnavailable:  "`far Task<T>.await()` cannot be executed: no available backend supports remote task transport",
+	FutFarTaskCancelBackendUnavailable: "`far Task<T>.cancel()` cannot be executed: no available backend supports remote task transport",
 }
 
 func init() {

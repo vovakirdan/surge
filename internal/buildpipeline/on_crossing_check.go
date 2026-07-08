@@ -7,20 +7,17 @@ import (
 	"surge/internal/source"
 )
 
-const onCrossingUnavailableMsg = "`on` placement crossing cannot be lowered yet; the Phase 4 transport backend is unavailable"
+const onCrossingUnavailableMsg = "`on` placement crossing cannot be executed: no available backend supports cross-shard transport"
 
 // addOnCrossingBackendErrors guards accepted `on dst { ... }` placement
-// crossings that reach lowering. Epic 11 delivers the surface compile-only:
-// no backend can execute a crossing until the Phase 4 transport epic, so any
-// crossing that type-checks and reaches a backend is reported deterministically
-// (FUT7014) rather than crashing or silently dropping the crossing. This mirrors
-// addBlockingVMErrors / FutBlockingNotSupported (7008).
+// crossings that reach an executable backend. Until a backend explicitly records
+// crossing transport support, accepted crossing code reports FUT7014
+// deterministically rather than crashing or silently dropping the crossing.
 func addOnCrossingBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult) {
 	if req == nil || diagRes == nil || diagRes.Bag == nil || diagRes.Builder == nil {
 		return
 	}
-	// No current backend implements the crossing transport.
-	if req.Backend != BackendVM && req.Backend != BackendLLVM {
+	if !crossingBackendGuardApplies(req.Backend) {
 		return
 	}
 	spans := collectOnCrossingSpans(diagRes.Builder)

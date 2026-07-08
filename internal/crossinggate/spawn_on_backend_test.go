@@ -28,13 +28,17 @@ func TestSpawnOnBackendGuards(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.fixture, func(t *testing.T) {
 			path := filepath.Join(base, tc.fixture)
-			diags := diagnoseBackend(t, path)
-			for _, d := range diags {
-				if d.Code.ID() == tc.want {
-					return
-				}
+			for _, backend := range backendStageBackends {
+				t.Run(string(backend), func(t *testing.T) {
+					diags := diagnoseBackend(t, path, backend)
+					for _, d := range diags {
+						if d.Code.ID() == tc.want {
+							return
+						}
+					}
+					t.Errorf("expected %s from backend guard, got %s", tc.want, summarize(diags))
+				})
 			}
-			t.Errorf("expected %s from backend guard, got %s", tc.want, summarize(diags))
 		})
 	}
 }

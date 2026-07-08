@@ -15,7 +15,7 @@ examples. See the epic's Boundary Decisions.
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
 | 1 | `01-dependency-debt-and-representation-map.md` | Complete | map/evidence + decision | none |
-| 2 | `02-backend-unavailable-diagnostic-contract.md` | Pending | compiler diagnostics + tests | 1 |
+| 2 | `02-backend-unavailable-diagnostic-contract.md` | Complete | compiler diagnostics + tests | 1 |
 | 3 | `03-lowering-readiness-representation.md` | Pending | compiler metadata + tests | 1, 2 |
 | 4 | `04-compile-time-usage-fixtures.md` | Pending | fixtures/probes | 2, 3 |
 | 5 | `05-test-harness-hardening.md` | Pending | test harness | 1 (may be promoted) |

@@ -50,19 +50,22 @@ func diagnose(t *testing.T, path string) []*diag.Diagnostic {
 	return res.Bag.Items()
 }
 
-// diagnoseBackend runs a fixture through the VM-backend compile path so that
+var backendStageBackends = []buildpipeline.Backend{
+	buildpipeline.BackendVM,
+	buildpipeline.BackendLLVM,
+}
+
+// diagnoseBackend runs a fixture through a backend compile path so that
 // backend/lowering guards fire. Epic 11 delivers the `on` surface compile-only:
 // a placement crossing that type-checks but reaches a backend is reported with
 // FUT7014 (FutOnBackendUnavailable) by a buildpipeline guard, not by the
 // sema-stage driver.Diagnose path. Fixtures that assert such a code declare
-// `// EXPECT-STAGE: backend`. BackendVM is used because the guard is
-// backend-independent (no backend has the Phase 4 transport); this mirrors how
-// FutBlockingNotSupported is exercised via the VM backend.
-func diagnoseBackend(t *testing.T, path string) []*diag.Diagnostic {
+// `// EXPECT-STAGE: backend`.
+func diagnoseBackend(t *testing.T, path string, backend buildpipeline.Backend) []*diag.Diagnostic {
 	t.Helper()
 	res, err := buildpipeline.Compile(context.Background(), &buildpipeline.CompileRequest{
 		TargetPath:     path,
-		Backend:        buildpipeline.BackendVM,
+		Backend:        backend,
 		MaxDiagnostics: 200,
 	})
 	// A backend guard reports through diagnostics; Compile also returns a
@@ -150,19 +153,29 @@ func runFixtures(t *testing.T, block string) {
 	for _, f := range invalidFiles {
 		t.Run("invalid/"+filepath.Base(f), func(t *testing.T) {
 			want := expectedCode(t, f)
-			var diags []*diag.Diagnostic
 			switch expectedStage(f) {
 			case "backend":
-				diags = diagnoseBackend(t, f)
-			default:
-				diags = diagnose(t, f)
-			}
-			for _, d := range diags {
-				if d.Code.ID() == want {
-					return
+				for _, backend := range backendStageBackends {
+					t.Run(string(backend), func(t *testing.T) {
+						diags := diagnoseBackend(t, f, backend)
+						for _, d := range diags {
+							if d.Code.ID() == want {
+								return
+							}
+						}
+						t.Errorf("negative fixture: expected diagnostic %s, got %s", want, summarize(diags))
+					})
 				}
+				return
+			default:
+				diags := diagnose(t, f)
+				for _, d := range diags {
+					if d.Code.ID() == want {
+						return
+					}
+				}
+				t.Errorf("negative fixture: expected diagnostic %s, got %s", want, summarize(diags))
 			}
-			t.Errorf("negative fixture: expected diagnostic %s, got %s", want, summarize(diags))
 		})
 	}
 }

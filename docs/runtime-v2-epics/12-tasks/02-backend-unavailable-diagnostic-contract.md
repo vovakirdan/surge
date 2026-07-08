@@ -1,6 +1,6 @@
 # Epic 12 Task 2: Backend-Unavailable Diagnostic Contract
 
-**Status:** pending.
+**Status:** complete.
 **Kind:** compiler diagnostics + tests.
 **Depends on:** Task 1 (guard-point map, ExprOn-reaches-HIR experiment).
 
@@ -29,6 +29,17 @@ deterministic internal error on guard bypass, and a tested negative space
 - Precedent for a VM-only guard: `blocking_check.go:16`
   (`FutBlockingNotSupported`, 7008) — do not change its behavior in this
   task.
+
+## Frozen Messages
+
+Task 2 freezes the current backend-unavailable wording for the crossing
+surface. Future wording changes are contract changes and need a documented
+reason.
+
+- `FUT7014`: `` `on` placement crossing cannot be executed: no available backend supports cross-shard transport ``
+- `FUT7015`: `` `spawn on` remote spawn cannot be executed: no available backend supports cross-shard transport ``
+- `FUT7016`: `` `far Task<T>.await()` cannot be executed: no available backend supports remote task transport ``
+- `FUT7017`: `` `far Task<T>.cancel()` cannot be executed: no available backend supports remote task transport ``
 
 ## Scope
 
@@ -92,13 +103,21 @@ Add explicit tests that valid crossing code produces zero FUT7014-7017 on:
 
 ### 5. Per-form matrix rows
 
-Ensure each of the five lowering-contract forms plus a direct call to an
-inferred-crossing function has a backend-stage fixture for **both**
-`BackendVM` and `BackendLLVM` (current fixtures cover VM only, per
+Ensure the backend-unavailable forms that are directly visible to the current
+AST/sema guard (`on`, `spawn on`, `far Task.await`, `far Task.cancel`, and
+`on` through an accepted far handle) have backend-stage fixture coverage for
+**both** `BackendVM` and `BackendLLVM` (current fixtures cover VM only, per
 `crossing_gate_test.go:58`). Reuse the `// EXPECT-STAGE: backend` mechanism;
 extend the harness with a backend selector header (e.g.
-`// EXPECT-BACKEND: llvm`) if needed, keeping `_`-prefix rules intact. If
-LLVM-path compilation of these fixtures trips DEBT-011 artifact races, stop
+`// EXPECT-BACKEND: llvm`) if needed, keeping `_`-prefix rules intact.
+
+The direct-call-to-inferred-crossing-function row is **not** a Task 2 backend
+guard proof: the current guard is AST-crossing based, and real direct-call
+lowering readiness belongs to Task 3's explicit sema metadata record and
+`RV2-DEBT-024` decision. Do not add a misleading Task 2 fixture that passes only
+because the callee body contains an `on`.
+
+If LLVM-path compilation of these fixtures trips DEBT-011 artifact races, stop
 and trigger the Task 5 promotion path instead of stabilizing by retries.
 
 ### 6. Golden churn
@@ -121,4 +140,59 @@ review the diff is message-text-only, commit sidecars, `make golden-check`.
 - Fabricated-backend test proves default-closed behavior.
 - ICE-on-bypass test exists and fails if the check is removed.
 - Negative-space tests exist for sema/LSP paths.
-- VM and LLVM rows exist for all five forms + direct crossing call.
+- VM and LLVM rows exist for all Task-2-visible backend-unavailable forms.
+- Direct-call effect/lowering readiness is explicitly handed to Task 3, not
+  claimed by an AST-crossing guard fixture.
+
+## Results (2026-07-08)
+
+Tests were added before the implementation where practical. Before the code
+change, the new checks caught the expected failures:
+
+- message-contract tests saw the old "Phase 4 transport backend" wording;
+- fabricated-backend guard rows produced no FUT7014-FUT7017 diagnostic, proving
+  the old behavior was default-open;
+- the direct HIR bypass test returned no error when `ast.ExprOn` reached
+  lowering.
+
+Implementation:
+
+- `internal/buildpipeline/crossing_transport.go` now owns the shared
+  default-closed crossing transport predicate: an empty backend means
+  non-executable/no backend selected and skips; every non-empty backend is
+  blocked until explicitly marked transport-capable.
+- FUT7014-FUT7017 messages were rewritten to the frozen wording above, with no
+  internal epic/phase language in guard messages or nearby code comments.
+- `internal/diag/codes_crossing.go` uses the same frozen wording for these
+  diagnostic descriptions so fallback/title rendering cannot drift.
+- Backend-unavailable guards now run only after sema has accepted the module;
+  sema-invalid `on` / `spawn on` fixtures keep their semantic diagnostic
+  without an additional FUT7014/FUT7015 masking diagnostic.
+- `hir.Lower` now stops deterministically if `ast.ExprOn` reaches HIR lowering
+  and returns an internal compiler error naming `` `on` `` or `` `spawn on` ``.
+- Crossinggate backend-stage fixtures now run against both VM and LLVM backend
+  selections through `buildpipeline.Compile`; no VM artifact helpers or
+  executable build outputs were introduced.
+- The direct-call inferred-crossing backend row is not claimed here; Task 3
+  owns it through the lowering-readiness representation.
+- Negative-space coverage confirms valid crossing code stays clean for
+  diagnose, LSP-facing diagnostics, format-check, and fix paths.
+
+Proof:
+
+- `go test ./internal/buildpipeline ./internal/hir ./internal/crossinggate -count=1`
+- `make golden-check`
+- `make check`
+- `./check_file_sizes.sh -a`
+- `sentrux check .`
+- `sentrux check internal` (scoped check records the existing missing
+  `internal/.sentrux/rules.toml`; do not claim scoped rule compliance)
+- `rg -n "Phase|Epic" internal/buildpipeline/on_crossing_check.go internal/buildpipeline/spawn_on_check.go internal/buildpipeline/crossing_transport.go`
+- `git diff --check`
+
+Stop-condition checks:
+
+- Runtime C, stdlib public API, Phase 4 transport/lowering, and executable
+  backend artifact helpers were not touched.
+- Task 5 promotion was not needed: backend-stage rows use `buildpipeline`
+  diagnostics only and do not create executable artifacts.

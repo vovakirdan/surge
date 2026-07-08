@@ -211,6 +211,57 @@ fn main() -> int {
 	}
 }
 
+func TestLowerOnCrossingBypassReturnsError(t *testing.T) {
+	src := `
+tag Success<T>(T);
+tag Cancelled();
+type TaskResult<T> = Success(T) | Cancelled;
+@copy
+type Placement = { __opaque: int };
+@intrinsic const pool: Placement;
+
+fn score(n: int) -> TaskResult<int> {
+    return on pool {
+        ret n;
+    };
+}
+`
+	_, _, err := parseAndLower(t, src)
+	if err == nil {
+		t.Fatal("expected HIR lowering error for `on` crossing bypass, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "`on`") || !strings.Contains(msg, "HIR lowering") {
+		t.Fatalf("expected deterministic `on` HIR lowering error, got %q", msg)
+	}
+}
+
+func TestLowerSpawnOnCrossingBypassReturnsError(t *testing.T) {
+	src := `
+tag Success<T>(T);
+tag Cancelled();
+type TaskResult<T> = Success(T) | Cancelled;
+type Task<T> = { __opaque: int };
+@copy
+type Placement = { __opaque: int };
+@intrinsic const pool: Placement;
+
+fn start(n: int) -> far Task<int> {
+    return spawn on pool {
+        ret n;
+    };
+}
+`
+	_, _, err := parseAndLower(t, src)
+	if err == nil {
+		t.Fatal("expected HIR lowering error for `spawn on` crossing bypass, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "`spawn on`") || !strings.Contains(msg, "HIR lowering") {
+		t.Fatalf("expected deterministic `spawn on` HIR lowering error, got %q", msg)
+	}
+}
+
 func parseAndLower(t *testing.T, src string) (*hir.Module, *types.Interner, error) {
 	t.Helper()
 

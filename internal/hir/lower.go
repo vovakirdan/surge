@@ -47,6 +47,9 @@ func Lower(
 	l.stmtSymbols = buildStmtSymbolIndex(symRes, fileID)
 
 	l.lowerFile(fileID)
+	if l.err != nil {
+		return nil, l.err
+	}
 
 	// Normalize HIR by desugaring high-level constructs (compare, for, etc).
 	// This must run before lifting borrow artefacts so that LocalID mappings stay coherent.
@@ -72,6 +75,14 @@ type lowerer struct {
 	module      *Module
 	nextFnID    FuncID
 	stmtSymbols map[ast.StmtID]symbols.SymbolID
+	err         error
+}
+
+func (l *lowerer) setErrorf(format string, args ...any) {
+	if l == nil || l.err != nil {
+		return
+	}
+	l.err = fmt.Errorf(format, args...)
 }
 
 func buildStmtSymbolIndex(symRes *symbols.Result, fileID ast.FileID) map[ast.StmtID]symbols.SymbolID {
