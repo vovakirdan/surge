@@ -529,12 +529,14 @@ lifetime, cancellation, and allocation contracts are stable.
 
 ## Open Decisions
 
-Open decision: whether crossing propagates into function signatures. The
-`submit_to` construct makes a crossing visible where it occurs. Surfacing it at
-the call site of any function that crosses requires a `crosses` effect, which is
-a second color over async. Candidate: a checked function-level `crosses` marker,
-like `unsafe`, not full effect inference. Resolve before the cross-shard
-lowering epic.
+Decided (2026-07-08, Epic 11 / design change D17): the crossing effect is NOT a
+surface keyword. An explicit function-level `crosses` marker was prototyped and
+then removed; instead the crossing effect is INFERRED at semantic analysis and
+stored in function metadata, with no programmer-facing keyword or requirement.
+`on dst { }`, `spawn on`, and `far Task<T>.await()`/`.cancel()` are valid in any
+function. The inference implementation itself is deferred to the Phase 4
+transport epic (see `runtime-v2-epics/DEBT.md` RV2-DEBT-024); no effect inference
+runs yet beyond accepting the forms.
 
 ## Cost Model And Levers
 

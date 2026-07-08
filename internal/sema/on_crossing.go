@@ -32,8 +32,8 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	}
 	discarded := tc.isExprDiscarded(id)
 
-	// ON-CROSS-N001: `on` requires the enclosing function to carry `crosses`.
-	tc.checkCrossesRequirement(span)
+	// Note: `on` no longer requires an explicit `crosses` marker — the effect is
+	// inferred by sema (SEM3162 retired with the `crosses` grammar removal).
 
 	// ON-CROSS-N002: `on` is legal only where suspension is legal (not inside
 	// a `blocking { }` body).
@@ -94,15 +94,6 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 		return override
 	}
 	return resultType
-}
-
-// checkCrossesRequirement rejects an `on` crossing in a function that is not
-// marked `crosses` (ON-CROSS-N001, SEM3162 owned by Block 4).
-func (tc *typeChecker) checkCrossesRequirement(span source.Span) {
-	if sym := tc.symbolFromID(tc.currentFnSym()); sym != nil && sym.Signature != nil && sym.Signature.Crosses {
-		return
-	}
-	tc.report(diag.SemaCrossesMissing, span, "this function crosses shards but is not marked `crosses`")
 }
 
 // checkOnDestination validates an `on` destination against the accepted set

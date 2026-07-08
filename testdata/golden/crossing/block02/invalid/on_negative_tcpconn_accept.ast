@@ -4,6 +4,6 @@ on_negative_tcpconn_accept.sg (span: 3:1-9:1)
    ├─ Params: (conn: far TcpConn)
    ├─ Return: TaskResult<nothing>
    └─ Body:
-      └─ Stmt[0]: Block (span: 3:58-8:2)
+      └─ Stmt[0]: Block (span: 3:50-8:2)
          └─ Stmt[0]: Return (span: 4:5-7:7)
             └─ Expr: expr#6: on conn { 2 stmt(s) }

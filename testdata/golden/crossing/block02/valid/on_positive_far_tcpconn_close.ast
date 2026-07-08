@@ -4,6 +4,6 @@ on_positive_far_tcpconn_close.sg (span: 2:1-8:1)
    ├─ Params: (conn: far TcpConn)
    ├─ Return: TaskResult<nothing>
    └─ Body:
-      └─ Stmt[0]: Block (span: 2:67-7:2)
+      └─ Stmt[0]: Block (span: 2:59-7:2)
          └─ Stmt[0]: Return (span: 3:5-6:7)
             └─ Expr: expr#6: on conn { 2 stmt(s) }

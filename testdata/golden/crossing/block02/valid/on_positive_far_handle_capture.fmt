@@ -3,7 +3,7 @@ fn keep(c: far TcpConn) -> nothing {
     return nothing;
 }
 
-fn run(conn: far TcpConn) crosses -> TaskResult<nothing> {
+fn run(conn: far TcpConn) -> TaskResult<nothing> {
     return on pool {
         ret keep(conn);
     };

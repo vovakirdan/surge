@@ -1,9 +1,9 @@
-// Epic 11 Block 2 positive: async and crosses combined (ON-CROSS-V002)
+// Epic 11 Block 2 positive: async fn containing on (ON-CROSS-V002; crosses keyword removed)
 fn double(x: int) -> int {
     return x * 2;
 }
 
-async fn run(n: int) crosses -> int {
+async fn run(n: int) -> int {
     let r: TaskResult<int> = on pool {
         ret double(n);
     };

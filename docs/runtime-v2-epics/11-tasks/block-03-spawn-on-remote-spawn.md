@@ -31,10 +31,14 @@ metadata, not required at a site):
   `T07`/`T08` are **RETIRED**: `SEM3162`/`SEM3163`/`SEM3164` are no longer
   emitted for spawn-on/await/cancel. `SEM3162` remains live only via Block 2's
   `on`-crossing emission until the separate post-Block-3 grammar-cleanup commit.
-- **Four negatives deleted** (their asserted requirement no longer exists):
+- **Four negatives PARKED** in `testdata/golden/crossing/crosses_deferred/`
+  (not deleted): the surface `crosses` requirement is gone, but the scenarios
+  stay useful for future semantic crosses-inference (Phase 4), so they are
+  parked with `FUTURE-ASSERT:` notes instead of `EXPECT-DIAG` headers —
   `_spawn_on_negative_without_crosses` (X03), `_spawn_on_negative_crosses_call_propagation`
   (X04), `_spawn_on_negative_await_without_crosses` (T07),
-  `_spawn_on_negative_cancel_without_crosses` (T08).
+  `_spawn_on_negative_cancel_without_crosses` (T08). The parking directory is not
+  wired into the crossinggate harness and is skipped by `golden_update.sh`.
 - **X01/X02 demoted to plain positives.** `spawn_on_positive_async_crosses.sg`
   and the other positives keep their matrix-documented filenames even though the
   `crosses` keyword is gone from their bodies (naming drift retained
@@ -154,15 +158,16 @@ Rules imported from Epic 11:
 
 **RETIRED (design change).** The explicit `crosses` keyword is being removed;
 the crossing effect is inferred into metadata rather than required. X03/X04 no
-longer produce diagnostics, and their negative fixtures were deleted. X01/X02
+longer produce diagnostics, and their negative fixtures were parked in
+`crosses_deferred/` (see Implementation Status). X01/X02
 are demoted to plain positives (they parse and type-check with `crosses` absent).
 
 | ID | Form | Status | Expected result |
 | --- | --- | --- | --- |
 | X01 | `fn f(...) -> far Task<T> { return spawn on pool { ret value; }; }` | Valid (plain positive) | Crossing effect inferred; no keyword required. |
 | X02 | `async fn f(...) -> far Task<T> { return spawn on pool { ret value; }; }` | Valid (plain positive) | `async` combines with an inferred crossing effect. |
-| X03 | `fn f(...) -> far Task<T> { return spawn on pool { ret value; }; }` | RETIRED | Was `SEM3162`; crossing now inferred, no diagnostic. Fixture deleted. |
-| X04 | Caller invokes a crossing function returning `far Task<T>` from a non-crossing function | RETIRED | Was `SEM3163`; crossing now inferred, no diagnostic. Fixture deleted. |
+| X03 | `fn f(...) -> far Task<T> { return spawn on pool { ret value; }; }` | PARKED | Was `SEM3162`; crossing now inferred, no diagnostic. Fixture parked in `crosses_deferred/`. |
+| X04 | Caller invokes a crossing function returning `far Task<T>` from a non-crossing function | PARKED | Was `SEM3163`; crossing now inferred, no diagnostic. Fixture parked in `crosses_deferred/`. |
 
 ## `far Task<T>` Identity And Operation Matrix
 
@@ -174,8 +179,8 @@ are demoted to plain positives (they parse and type-check with `crosses` absent)
 | T04 | `return spawn on distributed { ret value; };` from `crosses -> Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: return `far Task<T>` or use local `spawn`. |
 | T05 | `t.await()` where `t: far Task<T>` inside `crosses` function | Valid | Consumes the handle (affine) and returns `TaskResult<T>`. |
 | T06 | `t.cancel()` where `t: far Task<T>` inside `crosses` function | Valid | Consumes the handle (affine) and returns `TaskResult<nothing>`. |
-| T07 | `t.await()` where `t: far Task<T>` inside a non-crossing function | RETIRED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture deleted. |
-| T08 | `t.cancel()` where `t: far Task<T>` inside a non-crossing function | RETIRED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture deleted. |
+| T07 | `t.await()` where `t: far Task<T>` inside a non-crossing function | PARKED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture parked in `crosses_deferred/`. |
+| T08 | `t.cancel()` where `t: far Task<T>` inside a non-crossing function | PARKED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture parked in `crosses_deferred/`. |
 | T09 | `on t { ret value; }` where `t: far Task<T>` | Invalid by Block 2 dependency | Diagnostic: `SEM3143` (Block 2); fix: use `t.await()` or `t.cancel()`. |
 | T10 | `let r: TaskResult<T> = t.await();` where `t: far Task<T>` in `crosses` | Valid | Result identity matches local `Task<T>.await()` shape but crosses remotely. |
 | T11 | `let r: T = t.await();` where `t: far Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: handle `TaskResult<T>`. |
@@ -258,12 +263,12 @@ placeholders were resolved in `11-tasks/README.md` before implementation.
 | `spawn_on_negative_nosend_capture.sg` | C06 | `SEM3166` (Block 4) | Fixable: use local `@local spawn` or remove capture. |
 | `spawn_on_negative_pinned_capture.sg` | C07 | `SEM3167` (Block 4) | Fixable: use remote handle or owner-shard operation. |
 | `spawn_on_negative_send_not_shard_movable.sg` | C08 | `SEM3169` (Block 4) | Fixable only if shard-movement rules are satisfied. |
-| ~~`spawn_on_negative_without_crosses.sg`~~ | X03 | RETIRED (`SEM3162`) | Deleted: `crosses` inferred, requirement removed. |
-| ~~`spawn_on_negative_crosses_call_propagation.sg`~~ | X04 | RETIRED (`SEM3163`) | Deleted: `crosses` inferred, requirement removed. |
+| `spawn_on_negative_without_crosses.sg` | X03 | PARKED (was `SEM3162`) | Parked in `crosses_deferred/`: `crosses` inferred; awaits Phase 4 inference. |
+| `spawn_on_negative_crosses_call_propagation.sg` | X04 | PARKED (was `SEM3163`) | Parked in `crosses_deferred/`: `crosses` inferred; awaits Phase 4 inference. |
 | `spawn_on_negative_local_task_assignment.sg` | T02 | `SEM3015` | Fixable: use `far Task<T>` annotation or local `spawn`. |
 | `spawn_on_negative_return_local_task_mismatch.sg` | T04 | `SEM3015` | Fixable: return `far Task<T>` or use local `spawn`. |
-| ~~`spawn_on_negative_await_without_crosses.sg`~~ | T07 | RETIRED (`SEM3164`) | Deleted: `crosses` inferred, requirement removed. |
-| ~~`spawn_on_negative_cancel_without_crosses.sg`~~ | T08 | RETIRED (`SEM3164`) | Deleted: `crosses` inferred, requirement removed. |
+| `spawn_on_negative_await_without_crosses.sg` | T07 | PARKED (was `SEM3164`) | Parked in `crosses_deferred/`: `crosses` inferred; awaits Phase 4 inference. |
+| `spawn_on_negative_cancel_without_crosses.sg` | T08 | PARKED (was `SEM3164`) | Parked in `crosses_deferred/`: `crosses` inferred; awaits Phase 4 inference. |
 | `spawn_on_negative_await_result_mismatch.sg` | T11 | `SEM3015` | Fixable: handle `TaskResult<T>`. |
 | `spawn_on_negative_cancel_result_mismatch.sg` | T12 | `SEM3015` | Fixable: handle `TaskResult<nothing>`. |
 | `spawn_on_negative_far_task_dropped.sg` | L01 | reuse `SemaTaskNotAwaited` (3107) | Fixable: await, cancel, or return the handle. |

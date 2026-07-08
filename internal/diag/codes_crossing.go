@@ -78,11 +78,15 @@ const (
 
 	// --- Block 4: crossing contracts, SEM (3162-3174) ---
 
-	// SemaCrossesMissing rejects crossing work in a function not marked `crosses`.
+	// SemaCrossesMissing (RETIRED): the explicit `crosses` requirement was dropped
+	// when the `crosses` grammar was removed — the effect is inferred, not demanded.
+	// Number reserved, never reuse.
 	SemaCrossesMissing Code = 3162
-	// SemaCrossesCallerMissing rejects a non-`crosses` function calling a `crosses` function.
+	// SemaCrossesCallerMissing (RETIRED): `crosses` call-propagation requirement
+	// dropped with the `crosses` grammar removal. Number reserved, never reuse.
 	SemaCrossesCallerMissing Code = 3163
-	// SemaFarTaskCrossesMissing rejects `far Task<T>` await/cancel outside a `crosses` function.
+	// SemaFarTaskCrossesMissing (RETIRED): `far Task<T>` await/cancel no longer
+	// requires an enclosing `crosses` function. Number reserved, never reuse.
 	SemaFarTaskCrossesMissing Code = 3164
 	// SemaCrossBorrowCapture rejects a borrowed value captured into a crossing boundary.
 	SemaCrossBorrowCapture Code = 3165
@@ -113,11 +117,14 @@ const (
 	SynSpawnOnMissingBlock Code = 2032
 	// SynSpawnOnMissingDestination rejects `spawn on { ... }` without a destination.
 	SynSpawnOnMissingDestination Code = 2033
-	// SynCrossesPlacement rejects `crosses` outside the after-params/before-return-type slot.
+	// SynCrossesPlacement (RETIRED): the `crosses` grammar was removed, so its
+	// placement can no longer be misplaced. Number reserved, never reuse.
 	SynCrossesPlacement Code = 2034
-	// SynCrossesTarget rejects `crosses` on a non-function target.
+	// SynCrossesTarget (RETIRED): `crosses` is no longer a function modifier.
+	// Number reserved, never reuse.
 	SynCrossesTarget Code = 2035
-	// SynCrossesFnType rejects function-type syntax for `crosses fn(...) -> T`.
+	// SynCrossesFnType (RETIRED): `crosses fn(...)` type syntax removed with the
+	// `crosses` grammar. Number reserved, never reuse.
 	SynCrossesFnType Code = 2036
 
 	// --- Postponed / backend-unavailable crossing surfaces (FUT 7009-7017) ---

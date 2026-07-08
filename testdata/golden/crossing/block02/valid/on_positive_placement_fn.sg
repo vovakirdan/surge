@@ -7,7 +7,7 @@ fn route_for(user_id: uint64) -> Placement {
     return distributed;
 }
 
-fn score(n: int, uid: uint64) crosses -> TaskResult<int> {
+fn score(n: int, uid: uint64) -> TaskResult<int> {
     return on route_for(uid) {
         ret double(n);
     };

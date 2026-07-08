@@ -2,21 +2,20 @@
   2: Ident           "run" at 3:4-3:7 (leading: Space)
   3: LParen          "(" at 3:7-3:8
   4: RParen          ")" at 3:8-3:9
-  5: Ident           "crosses" at 3:10-3:17 (leading: Space)
-  6: Arrow           "->" at 3:18-3:20 (leading: Space)
-  7: Ident           "TaskResult" at 3:21-3:31 (leading: Space)
-  8: Lt              "<" at 3:31-3:32
-  9: Ident           "int" at 3:32-3:35
- 10: Gt              ">" at 3:35-3:36
- 11: LBrace          "{" at 3:37-3:38 (leading: Space)
- 12: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
- 13: Ident           "on" at 4:12-4:14 (leading: Space)
- 14: KwBlocking      "blocking" at 4:15-4:23 (leading: Space)
- 15: LBrace          "{" at 4:24-4:25 (leading: Space)
- 16: KwRet           "ret" at 5:9-5:12 (leading: Newline, Space)
- 17: IntLit          "1" at 5:13-5:14 (leading: Space)
- 18: Semicolon       ";" at 5:14-5:15
- 19: RBrace          "}" at 6:5-6:6 (leading: Newline, Space)
- 20: Semicolon       ";" at 6:6-6:7
- 21: RBrace          "}" at 7:1-7:2 (leading: Newline)
- 22: EOF             at 8:1-8:1
+  5: Arrow           "->" at 3:10-3:12 (leading: Space)
+  6: Ident           "TaskResult" at 3:13-3:23 (leading: Space)
+  7: Lt              "<" at 3:23-3:24
+  8: Ident           "int" at 3:24-3:27
+  9: Gt              ">" at 3:27-3:28
+ 10: LBrace          "{" at 3:29-3:30 (leading: Space)
+ 11: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 12: Ident           "on" at 4:12-4:14 (leading: Space)
+ 13: KwBlocking      "blocking" at 4:15-4:23 (leading: Space)
+ 14: LBrace          "{" at 4:24-4:25 (leading: Space)
+ 15: KwRet           "ret" at 5:9-5:12 (leading: Newline, Space)
+ 16: IntLit          "1" at 5:13-5:14 (leading: Space)
+ 17: Semicolon       ";" at 5:14-5:15
+ 18: RBrace          "}" at 6:5-6:6 (leading: Newline, Space)
+ 19: Semicolon       ";" at 6:6-6:7
+ 20: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 21: EOF             at 8:1-8:1

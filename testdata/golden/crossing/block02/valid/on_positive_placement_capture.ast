@@ -12,6 +12,6 @@ on_positive_placement_capture.sg (span: 2:1-13:1)
    ├─ Params: (n: int, other: Placement)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 6:61-12:2)
+      └─ Stmt[0]: Block (span: 6:53-12:2)
          └─ Stmt[0]: Return (span: 7:5-11:7)
             └─ Expr: expr#10: on pool { 3 stmt(s) }

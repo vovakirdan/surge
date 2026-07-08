@@ -10,7 +10,7 @@ import (
 // keyword and destination are preserved, and the formatted output reparses
 // cleanly with the same top-level item kinds.
 func TestFormatSpawnOnRemote(t *testing.T) {
-	src := []byte("fn f() crosses -> int { return spawn on pool { ret 1; }; }\n")
+	src := []byte("fn f() -> int { return spawn on pool { ret 1; }; }\n")
 	sf, builder, fileID := parseSource(t, src)
 	formatted, err := FormatFile(sf, builder, fileID, Options{})
 	if err != nil {

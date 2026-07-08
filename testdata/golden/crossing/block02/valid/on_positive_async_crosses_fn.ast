@@ -12,7 +12,7 @@ on_positive_async_crosses_fn.sg (span: 2:1-15:1)
    ├─ Params: (n: int)
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 6:37-14:2)
+      └─ Stmt[0]: Block (span: 6:29-14:2)
          ├─ Stmt[0]: Let (span: 7:5-9:7)
          │  ├─ Name: r
          │  ├─ Mutable: false

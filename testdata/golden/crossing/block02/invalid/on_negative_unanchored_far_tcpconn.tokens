@@ -11,27 +11,26 @@
  11: KwFar           "far" at 3:37-3:40 (leading: Space)
  12: Ident           "TcpConn" at 3:41-3:48 (leading: Space)
  13: RParen          ")" at 3:48-3:49
- 14: Ident           "crosses" at 3:50-3:57 (leading: Space)
- 15: Arrow           "->" at 3:58-3:60 (leading: Space)
- 16: Ident           "TaskResult" at 3:61-3:71 (leading: Space)
- 17: Lt              "<" at 3:71-3:72
- 18: NothingLit      "nothing" at 3:72-3:79
- 19: Gt              ">" at 3:79-3:80
- 20: LBrace          "{" at 3:81-3:82 (leading: Space)
- 21: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
- 22: Ident           "on" at 4:12-4:14 (leading: Space)
- 23: Ident           "conn_a" at 4:15-4:21 (leading: Space)
- 24: LBrace          "{" at 4:22-4:23 (leading: Space)
- 25: Ident           "conn_b" at 5:9-5:15 (leading: Newline, Space)
- 26: Dot             "." at 5:15-5:16
- 27: Ident           "close" at 5:16-5:21
- 28: LParen          "(" at 5:21-5:22
- 29: RParen          ")" at 5:22-5:23
- 30: Semicolon       ";" at 5:23-5:24
- 31: KwRet           "ret" at 6:9-6:12 (leading: Newline, Space)
- 32: NothingLit      "nothing" at 6:13-6:20 (leading: Space)
- 33: Semicolon       ";" at 6:20-6:21
- 34: RBrace          "}" at 7:5-7:6 (leading: Newline, Space)
- 35: Semicolon       ";" at 7:6-7:7
- 36: RBrace          "}" at 8:1-8:2 (leading: Newline)
- 37: EOF             at 9:1-9:1
+ 14: Arrow           "->" at 3:50-3:52 (leading: Space)
+ 15: Ident           "TaskResult" at 3:53-3:63 (leading: Space)
+ 16: Lt              "<" at 3:63-3:64
+ 17: NothingLit      "nothing" at 3:64-3:71
+ 18: Gt              ">" at 3:71-3:72
+ 19: LBrace          "{" at 3:73-3:74 (leading: Space)
+ 20: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 21: Ident           "on" at 4:12-4:14 (leading: Space)
+ 22: Ident           "conn_a" at 4:15-4:21 (leading: Space)
+ 23: LBrace          "{" at 4:22-4:23 (leading: Space)
+ 24: Ident           "conn_b" at 5:9-5:15 (leading: Newline, Space)
+ 25: Dot             "." at 5:15-5:16
+ 26: Ident           "close" at 5:16-5:21
+ 27: LParen          "(" at 5:21-5:22
+ 28: RParen          ")" at 5:22-5:23
+ 29: Semicolon       ";" at 5:23-5:24
+ 30: KwRet           "ret" at 6:9-6:12 (leading: Newline, Space)
+ 31: NothingLit      "nothing" at 6:13-6:20 (leading: Space)
+ 32: Semicolon       ";" at 6:20-6:21
+ 33: RBrace          "}" at 7:5-7:6 (leading: Newline, Space)
+ 34: Semicolon       ";" at 7:6-7:7
+ 35: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 36: EOF             at 9:1-9:1

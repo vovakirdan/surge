@@ -4,7 +4,7 @@ fn route_for(user_id: uint64) -> Placement {
     return distributed;
 }
 
-fn run() crosses -> TaskResult<int> {
+fn run() -> TaskResult<int> {
     return on route_for {
         ret 1;
     };

@@ -12,6 +12,6 @@ on_positive_taskresult_return.sg (span: 2:1-11:1)
    ├─ Params: (n: int)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 6:43-10:2)
+      └─ Stmt[0]: Block (span: 6:35-10:2)
          └─ Stmt[0]: Return (span: 7:5-9:7)
             └─ Expr: expr#8: on pool { 1 stmt(s) }

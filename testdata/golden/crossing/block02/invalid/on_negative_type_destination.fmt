@@ -4,7 +4,7 @@ type Job = {
     id: int,
 };
 
-fn run() crosses -> TaskResult<int> {
+fn run() -> TaskResult<int> {
     return on Job {
         ret 1;
     };

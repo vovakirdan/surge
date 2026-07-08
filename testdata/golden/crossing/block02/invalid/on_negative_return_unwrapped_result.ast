@@ -12,6 +12,6 @@ on_negative_return_unwrapped_result.sg (span: 3:1-12:1)
    ├─ Params: (n: int)
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 7:31-11:2)
+      └─ Stmt[0]: Block (span: 7:23-11:2)
          └─ Stmt[0]: Return (span: 8:5-10:7)
             └─ Expr: expr#8: on pool { 1 stmt(s) }

@@ -33,6 +33,6 @@ on_positive_compare_on.sg (span: 2:1-27:1)
    ├─ Params: (req: own Request)
    ├─ Return: Response
    └─ Body:
-      └─ Stmt[0]: Block (span: 19:54-26:2)
+      └─ Stmt[0]: Block (span: 19:46-26:2)
          └─ Stmt[0]: Expr (span: 20:5-25:7)
             └─ Expr: expr#24: compare on pool { 1 stmt(s) } { 2 arms }

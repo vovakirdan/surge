@@ -32,12 +32,6 @@ func (p *printer) printFnItem(item *ast.Item, fn *ast.FnItem) {
 		panic(err)
 	}
 
-	// `crosses` effect sits between the parameter list and the return type.
-	if fn.Flags&ast.FnModifierCrosses != 0 {
-		p.writer.Space()
-		p.writer.WriteString("crosses")
-	}
-
 	if spanValid(fn.ReturnSpan) && fn.ReturnType != ast.NoTypeID {
 		p.writer.Space()
 		p.writer.WriteString("->")

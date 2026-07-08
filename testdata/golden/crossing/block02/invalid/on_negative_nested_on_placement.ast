@@ -12,6 +12,6 @@ on_negative_nested_on_placement.sg (span: 3:1-15:1)
    ├─ Params: (n: int)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 7:43-14:2)
+      └─ Stmt[0]: Block (span: 7:35-14:2)
          └─ Stmt[0]: Return (span: 8:5-13:7)
             └─ Expr: expr#13: on pool { 2 stmt(s) }

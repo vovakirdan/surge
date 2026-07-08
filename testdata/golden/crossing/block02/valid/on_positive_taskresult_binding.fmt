@@ -3,7 +3,7 @@ fn double(x: int) -> int {
     return x * 2;
 }
 
-fn run(n: int) crosses -> nothing {
+fn run(n: int) -> nothing {
     let r: TaskResult<int> = on pool {
         ret double(n);
     };

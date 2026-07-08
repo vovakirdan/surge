@@ -22,21 +22,6 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 		mutSpan = mutTok.Span
 	}
 
-	// `let crosses <name>`: `crosses` is misused as a binding modifier here; it
-	// may only mark a function (Epic 11 Block 4 grammar slice, SYN2035). A bare
-	// `let crosses = ...` / `let crosses: T = ...` keeps `crosses` as the binding
-	// name and is unaffected.
-	if p.atContextualCrosses() && p.lx.Peek2().Kind == token.Ident {
-		crossesTok := p.advance()
-		p.emitDiagnostic(
-			diag.SynCrossesTarget,
-			diag.SevError,
-			crossesTok.Span,
-			"`crosses` may only mark a function",
-			nil,
-		)
-	}
-
 	// Парсим имя переменной
 	nameID, ok := p.parseIdent()
 	if !ok {

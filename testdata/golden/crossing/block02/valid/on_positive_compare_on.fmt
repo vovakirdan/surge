@@ -16,7 +16,7 @@ fn default_response() -> Response {
     return Response { code: 0 };
 }
 
-async fn route(req: own Request) crosses -> Response {
+async fn route(req: own Request) -> Response {
     compare on pool {
         ret compute(own req);
     } {

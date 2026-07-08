@@ -1,2 +1,2 @@
-error SEM3051 testdata/golden/crossing/block02/invalid/on_negative_illegal_suspend_context.sg:7:24 function returning TaskResult<int> is missing a return
+error SEM3051 testdata/golden/crossing/block02/invalid/on_negative_illegal_suspend_context.sg:7:16 function returning TaskResult<int> is missing a return
 error SEM3152 testdata/golden/crossing/block02/invalid/on_negative_illegal_suspend_context.sg:9:16 `on` is allowed only where suspension is legal

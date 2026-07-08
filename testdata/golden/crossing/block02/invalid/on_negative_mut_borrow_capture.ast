@@ -18,7 +18,7 @@ on_negative_mut_borrow_capture.sg (span: 3:1-18:1)
    ├─ Params: ()
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 11:37-17:2)
+      └─ Stmt[0]: Block (span: 11:29-17:2)
          ├─ Stmt[0]: Let (span: 12:5-12:46)
          │  ├─ Name: req
          │  ├─ Mutable: true

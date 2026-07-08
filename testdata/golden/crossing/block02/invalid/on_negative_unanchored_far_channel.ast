@@ -11,6 +11,6 @@ on_negative_unanchored_far_channel.sg (span: 3:1-14:1)
    ├─ Params: (a: far Channel<Message>, b: far Channel<Message>, msg: own Message)
    ├─ Return: TaskResult<nothing>
    └─ Body:
-      └─ Stmt[0]: Block (span: 8:107-13:2)
+      └─ Stmt[0]: Block (span: 8:99-13:2)
          └─ Stmt[0]: Return (span: 9:5-12:7)
             └─ Expr: expr#8: on a { 2 stmt(s) }

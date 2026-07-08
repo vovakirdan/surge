@@ -1,0 +1,13 @@
+// PARKED (crosses_deferred): awaiting semantic crosses-inference (Phase 4).
+// FUTURE-ASSERT: assert the inferred crosses metadata on the enclosing fn that
+// contains `on`. Was Block 2 ON-CROSS-N001 / SEM3162 (retired as a surface
+// requirement).
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn run(n: int) -> TaskResult<int> {
+    return on pool {
+        ret double(n);
+    };
+}

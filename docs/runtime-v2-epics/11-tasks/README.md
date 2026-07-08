@@ -66,9 +66,9 @@ surfaces use the `FUT` 7xxx range.
 
 | Code | Owner | Invariant | Referenced by |
 | --- | --- | --- | --- |
-| `SEM3162` | Block 4 | Function performs crossing work but is not marked `crosses`. | Block 2 (ON-CROSS-N001); Block 3 reference retired (see note) |
-| `SEM3163` | Block 4 | Non-`crosses` function calls a `crosses` function. | none live; Block 3 reference retired (see note) |
-| `SEM3164` | Block 4 | `far Task<T>.await()` / `.cancel()` used outside a `crosses` function. | none live; Block 3 reference retired (see note) |
+| ~~`SEM3162`~~ | — | RETIRED — was "function crosses shards but not marked `crosses`". | none (code reserved) |
+| ~~`SEM3163`~~ | — | RETIRED — was "non-`crosses` function calls a `crosses` function". | none (code reserved) |
+| ~~`SEM3164`~~ | — | RETIRED — was "`far Task<T>.await()`/`.cancel()` outside a `crosses` function". | none (code reserved) |
 | `SEM3165` | Block 4 | Borrowed value captured into a crossing boundary. | Block 2 (ON-CAP-N001/N002), Block 3 (C03, C04) |
 | `SEM3166` | Block 4 | `@nosend` value crosses outside `@local spawn`. | Block 2 (ON-CAP-N003), Block 3 (C06) |
 | `SEM3167` | Block 4 | `@shard_pinned` value crosses as `own T`. | Block 2 (ON-CAP-N004), Block 3 (C07) |
@@ -78,19 +78,26 @@ surfaces use the `FUT` 7xxx range.
 | `SEM3143` | Block 2 | `far Task<T>` used as an `on` destination. | Block 3 (T09) |
 | `SEM3142` | Block 1 | Local operation on `far T` outside an accepted crossing context. | Block 2 (ON-ANCHOR-N003) |
 
-> **`crosses` retirement note (design change during Block 3).** The explicit
-> `crosses` keyword is being removed from the language: the crossing effect is
-> retained but inferred into metadata rather than required at a call/definition
-> site. Accordingly, `SEM3162` (X03), `SEM3163` (X04), and `SEM3164` (T07/T08)
-> are no longer emitted for `spawn on` / `far Task<T>.await()` / `.cancel()`, and
-> the four Block 3 negatives that asserted them (`_spawn_on_negative_without_crosses`,
-> `_spawn_on_negative_crosses_call_propagation`, `_spawn_on_negative_await_without_crosses`,
-> `_spawn_on_negative_cancel_without_crosses`) were deleted rather than activated.
-> `SEM3162` remains live only through Block 2's `on`-crossing emission
-> (`checkCrossesRequirement`, ON-CROSS-N001) until a separate post-Block-3 cleanup
-> commit removes the `crosses` grammar, that emission site, and these three codes
-> together. Block 3 activation does not touch Block 2 fixtures or
-> `on_crossing.go`.
+> **`crosses` retirement note (design change D17, completed 2026-07-08).** The
+> explicit `crosses` keyword has been REMOVED from the language: the crossing
+> effect is retained but inferred at semantic analysis and stored in function
+> metadata rather than required at a call/definition site (inference
+> implementation itself is deferred to the Phase 4 transport epic). Consequences,
+> now landed:
+> - The `crosses` grammar is removed — `fn f() crosses -> T` no longer parses
+>   (`SYN2012`/`SYN2205`). `Signature.Crosses` and its setter are removed.
+> - `SEM3162`/`SEM3163`/`SEM3164` are RETIRED (numbers reserved, not reused).
+>   `checkCrossesRequirement` and `checkCrossesCaller` are removed from sema, so
+>   `on dst { }`, `spawn on`, and `far Task<T>.await()`/`.cancel()` are valid in
+>   any function.
+> - The crosses-requirement negatives are PARKED, not deleted, in
+>   `testdata/golden/crossing/crosses_deferred/` (Block 3's four X03/X04/T07/T08
+>   fixtures and Block 2's `on_negative_missing_crosses`). Their scenarios stay
+>   useful for future semantic crosses-inference (Phase 4); each carries a
+>   `FUTURE-ASSERT:` note instead of `EXPECT-DIAG`. The parking directory is not
+>   wired into the crossinggate harness and is skipped by `golden_update.sh`.
+>   Block 2 also had the `crosses` keyword stripped from every remaining fixture
+>   (filenames retained; naming drift documented in the `block-02` doc).
 
 Reused existing codes (per the infra map and reuse-first policy) include
 `SemaUseAfterMove` (3130) for `far`-handle affinity and `far Task<T>`

@@ -1,11 +1,11 @@
 package parser
 
 // Tests for the Epic 11 Block 2 grammar layer: the contextual `on dst { ... }`
-// placement-crossing expression and the Block 4 grammar prerequisite (the
-// contextual `crosses` function effect and the `@shard_movable` / `@shard_pinned`
-// attribute targets). These exercise parsing and AST shape only; semantic
-// analysis (destination typing, capture legality, crosses propagation) is owned
-// by Block 4 sema and is not covered here.
+// placement-crossing expression. The explicit `crosses` function-effect keyword
+// has been removed from the language (the effect is inferred by sema), so
+// `crosses` is now an ordinary identifier and is covered as such here. These
+// exercise parsing and AST shape only; semantic analysis (destination typing,
+// capture legality, effect inference) is owned by sema and is not covered here.
 
 import (
 	"surge/internal/ast"
@@ -65,22 +65,6 @@ func onExprs(arenas *ast.Builder) []ast.ExprID {
 	return out
 }
 
-// firstFnFlags returns the FnModifier flags of the first function item in the file.
-func firstFnFlags(t *testing.T, arenas *ast.Builder, fileID ast.FileID) ast.FnModifier {
-	t.Helper()
-	file := arenas.Files.Get(fileID)
-	if file == nil {
-		t.Fatal("nil file")
-	}
-	for _, itemID := range file.Items {
-		if fn, ok := arenas.Items.Fn(itemID); ok {
-			return fn.Flags
-		}
-	}
-	t.Fatal("no function item found")
-	return 0
-}
-
 // identName returns the interned name of an ExprIdent, or "" otherwise.
 func identName(arenas *ast.Builder, exprID ast.ExprID) string {
 	if ident, ok := arenas.Exprs.Ident(exprID); ok && ident != nil {
@@ -91,108 +75,38 @@ func identName(arenas *ast.Builder, exprID ast.ExprID) string {
 	return ""
 }
 
-// --- `crosses` function effect: acceptance and effect bit -------------------
+// --- `crosses` is an ordinary identifier (effect keyword removed) ------------
 
-func TestCrossesEffectAccepted(t *testing.T) {
+// The explicit `crosses` function-effect keyword was removed from the language;
+// the effect is inferred by sema from metadata. `crosses` therefore parses as a
+// plain identifier in every position, and none of the former placement/target
+// diagnostics fire.
+
+func TestCrossesIsPlainIdentifier(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
 	}{
-		{"fn_with_return_type", "fn route() crosses -> int { ret 1; }"},
-		{"fn_no_return_type", "fn notify() crosses { ret 1; }"},
-		{"async_fn", "async fn route() crosses -> int { ret 1; }"},
-		{"fn_declaration", "fn remote() crosses -> int;"},
-		{"return_far_task_slot", "fn start() crosses -> int { ret 1; }"},
+		{"let_binding", "let crosses = 1;"},
+		{"let_typed_binding", "let crosses: int = 1;"},
+		{"fn_name", "fn crosses() -> int { ret 1; }"},
+		{"param_name", "fn route(crosses: int) -> int { ret crosses; }"},
+		{"type_name", "type crosses = int;"},
+		{"field_name", "type Data = { crosses: int };"},
+		{"value_use", "fn f() -> int { let x = crosses; ret x; }"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			arenas, bag, fileID := parseProgram(t, tt.input)
+			_, bag, _ := parseProgram(t, tt.input)
 			if bag.Len() != 0 {
-				t.Fatalf("expected no diagnostics, got: %s", diagnosticsSummary(bag))
-			}
-			flags := firstFnFlags(t, arenas, fileID)
-			if flags&ast.FnModifierCrosses == 0 {
-				t.Errorf("expected FnModifierCrosses to be set, flags=%b", flags)
+				t.Fatalf("expected clean parse of `crosses` as an identifier, got: %s", diagnosticsSummary(bag))
 			}
 		})
 	}
 }
 
-func TestCrossesEffectIndependentOfAsync(t *testing.T) {
-	arenas, bag, fileID := parseProgram(t, "async fn route() crosses -> int { ret 1; }")
-	if bag.Len() != 0 {
-		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
-	}
-	flags := firstFnFlags(t, arenas, fileID)
-	if flags&ast.FnModifierCrosses == 0 {
-		t.Error("expected FnModifierCrosses set")
-	}
-	if flags&ast.FnModifierAsync == 0 {
-		t.Error("expected FnModifierAsync set alongside crosses")
-	}
-}
-
-// --- `crosses` placement rejections (SYN2034) --------------------------------
-
-func TestCrossesPlacementRejected(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-	}{
-		{"prefix_fn", "crosses fn route() -> int { ret 1; }"},
-		{"after_return_type", "fn route() -> int crosses { ret 1; }"},
-		{"before_params", "fn route crosses() -> int { ret 1; }"},
-		{"duplicate", "fn route() crosses crosses -> int { ret 1; }"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, bag, _ := parseProgram(t, tt.input)
-			if !bagHasCode(bag, diag.SynCrossesPlacement) {
-				t.Fatalf("expected SynCrossesPlacement, got: %s", diagnosticsSummary(bag))
-			}
-		})
-	}
-}
-
-// --- `crosses` on non-function targets (SYN2035) -----------------------------
-
-func TestCrossesNonFnTargetRejected(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-	}{
-		{"type_target", "type crosses Data = { id: uint64 };"},
-		{"field_target", "type Data = { crosses id: uint64 };"},
-		{"let_target", "let crosses data = other;"},
-		{"block_target", "fn f() { crosses { ret 1; } }"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, bag, _ := parseProgram(t, tt.input)
-			if !bagHasCode(bag, diag.SynCrossesTarget) {
-				t.Fatalf("expected SynCrossesTarget, got: %s", diagnosticsSummary(bag))
-			}
-		})
-	}
-}
-
-// --- `crosses fn(...)` function-type syntax (SYN2036) ------------------------
-
-func TestCrossesFnTypeRejected(t *testing.T) {
-	_, bag, _ := parseProgram(t, "let cb: crosses fn(int) -> int = route;")
-	if !bagHasCode(bag, diag.SynCrossesFnType) {
-		t.Fatalf("expected SynCrossesFnType, got: %s", diagnosticsSummary(bag))
-	}
-}
-
-// --- `crosses` back-compat as an identifier ----------------------------------
-
-func TestCrossesIdentifierBackCompat(t *testing.T) {
-	tests := []string{
-		"let crosses = 1;",
-		"let crosses: int = 1;",
-	}
-	for _, input := range tests {
+func TestCrossesBindingNamePreserved(t *testing.T) {
+	for _, input := range []string{"let crosses = 1;", "let crosses: int = 1;"} {
 		t.Run(input, func(t *testing.T) {
 			letItem, arenas, bag := parseLetWithBag(t, input)
 			if bag.Len() != 0 {
@@ -228,7 +142,7 @@ func TestOnCrossingDestinations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := "fn f() crosses { " + tt.body + "; }"
+			src := "fn f() { " + tt.body + "; }"
 			arenas, bag, _ := parseProgram(t, src)
 			if bag.Len() != 0 {
 				t.Fatalf("expected clean parse, got: %s", diagnosticsSummary(bag))
@@ -267,7 +181,7 @@ func TestOnTypeNameDestinationParses(t *testing.T) {
 	// `on Job { ... }` where `Job` is a type name must parse as destination `Job`
 	// plus a body block (struct-literal recognition suppressed), so sema can reject
 	// the type-name destination (SEM3145) rather than the parser eating the body.
-	arenas, bag, _ := parseProgram(t, "fn g() crosses -> int { return on Job { ret 1; }; }")
+	arenas, bag, _ := parseProgram(t, "fn g() -> int { return on Job { ret 1; }; }")
 	if bag.Len() != 0 {
 		t.Fatalf("expected clean parse, got: %s", diagnosticsSummary(bag))
 	}
@@ -310,7 +224,7 @@ func TestOnLiteralDestinationParses(t *testing.T) {
 		"on true { ret 1; }",
 	} {
 		t.Run(body, func(t *testing.T) {
-			arenas, bag, _ := parseProgram(t, "fn g() crosses -> int { return "+body+"; }")
+			arenas, bag, _ := parseProgram(t, "fn g() -> int { return "+body+"; }")
 			if bag.Len() != 0 {
 				t.Fatalf("expected clean parse, got: %s", diagnosticsSummary(bag))
 			}
@@ -333,10 +247,10 @@ func TestOnExpressionPositions(t *testing.T) {
 		name string
 		src  string
 	}{
-		{"statement_discard", "fn f() crosses { on pool { ret 1; }; }"},
-		{"after_return", "fn f() crosses -> int { return on pool { ret 1; }; }"},
-		{"after_assign", "fn f() crosses { let r = on pool { ret 1; }; }"},
-		{"compare_scrutinee", "fn f() crosses { compare on pool { ret 1; } { Success(v) => v; Cancelled() => 0; } }"},
+		{"statement_discard", "fn f() { on pool { ret 1; }; }"},
+		{"after_return", "fn f() -> int { return on pool { ret 1; }; }"},
+		{"after_assign", "fn f() { let r = on pool { ret 1; }; }"},
+		{"compare_scrutinee", "fn f() { compare on pool { ret 1; } { Success(v) => v; Cancelled() => 0; } }"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -435,7 +349,7 @@ func TestValuelessConstRequiresIntrinsic(t *testing.T) {
 // --- postponed `on blocking` destination (FUT7012) ---------------------------
 
 func TestOnBlockingDestinationRejected(t *testing.T) {
-	_, bag, _ := parseProgram(t, "fn f() crosses { on blocking { ret 1; } }")
+	_, bag, _ := parseProgram(t, "fn f() { on blocking { ret 1; } }")
 	if !bagHasCode(bag, diag.FutOnDestBlocking) {
 		t.Fatalf("expected FutOnDestBlocking, got: %s", diagnosticsSummary(bag))
 	}
@@ -446,7 +360,7 @@ func TestOnBlockingDestinationRejected(t *testing.T) {
 func TestSpawnOnParsesAsRemoteSpawnNode(t *testing.T) {
 	// `spawn on pool { ... }` parses as one ExprOn node with the Spawn flag set,
 	// never as `spawn` applied to a separate `on` crossing.
-	arenas, bag, _ := parseProgram(t, "fn f() crosses { spawn on pool { ret 1; }; }")
+	arenas, bag, _ := parseProgram(t, "fn f() { spawn on pool { ret 1; }; }")
 	if bag.Len() != 0 {
 		t.Fatalf("expected clean parse, got: %s", diagnosticsSummary(bag))
 	}

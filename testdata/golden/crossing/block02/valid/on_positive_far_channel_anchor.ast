@@ -11,6 +11,6 @@ on_positive_far_channel_anchor.sg (span: 2:1-13:1)
    ├─ Params: (ch: far Channel<Message>, msg: own Message)
    ├─ Return: TaskResult<nothing>
    └─ Body:
-      └─ Stmt[0]: Block (span: 7:88-12:2)
+      └─ Stmt[0]: Block (span: 7:80-12:2)
          └─ Stmt[0]: Return (span: 8:5-11:7)
             └─ Expr: expr#8: on ch { 2 stmt(s) }

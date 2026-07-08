@@ -8,7 +8,7 @@ fn read(r: &Request) -> int {
     return r.id;
 }
 
-fn run(req: Request) crosses -> TaskResult<int> {
+fn run(req: Request) -> TaskResult<int> {
     let r: &Request = &req;
     return on pool {
         ret read(r);

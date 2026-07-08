@@ -8,7 +8,7 @@ fn compute(req: own Request) -> int {
     return req.id;
 }
 
-fn run(req: own Request) crosses -> TaskResult<int> {
+fn run(req: own Request) -> TaskResult<int> {
     return on pool {
         ret compute(own req);
     };

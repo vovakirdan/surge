@@ -2,14 +2,11 @@ package parser
 
 import "surge/internal/token"
 
-// Contextual keyword texts for Epic 11 explicit crossing surface. `on` and
-// `crosses` are contextual: they are recognized as keywords only in their
-// specific syntactic positions and remain ordinary identifiers everywhere else
-// (e.g. `let on = 1;`, `let crosses: int = 1;` keep parsing).
-const (
-	contextualOn      = "on"
-	contextualCrosses = "crosses"
-)
+// Contextual keyword text for the Epic 11 explicit crossing surface. `on` is
+// contextual: it is recognized as a keyword only in its specific syntactic
+// positions and remains an ordinary identifier everywhere else (e.g.
+// `let on = 1;` keeps parsing).
+const contextualOn = "on"
 
 // atContextualKeyword reports whether the next token is an identifier whose text
 // equals name. It never treats reserved keyword tokens as a match.
@@ -42,13 +39,6 @@ func (p *Parser) atOnCrossingHead() bool {
 	default:
 		return false
 	}
-}
-
-// atContextualCrosses reports whether the next token is the contextual `crosses`
-// effect keyword. Used only in function-signature positions, where an ordinary
-// identifier is never syntactically valid, so the match is unambiguous.
-func (p *Parser) atContextualCrosses() bool {
-	return p.atContextualKeyword(contextualCrosses)
 }
 
 // atSpawnOnRemoteHead reports whether, with the `spawn` keyword already consumed,

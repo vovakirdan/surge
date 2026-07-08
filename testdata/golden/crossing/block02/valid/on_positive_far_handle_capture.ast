@@ -12,6 +12,6 @@ on_positive_far_handle_capture.sg (span: 2:1-11:1)
    ├─ Params: (conn: far TcpConn)
    ├─ Return: TaskResult<nothing>
    └─ Body:
-      └─ Stmt[0]: Block (span: 6:58-10:2)
+      └─ Stmt[0]: Block (span: 6:50-10:2)
          └─ Stmt[0]: Return (span: 7:5-9:7)
             └─ Expr: expr#6: on pool { 1 stmt(s) }

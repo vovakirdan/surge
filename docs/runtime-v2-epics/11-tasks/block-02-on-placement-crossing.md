@@ -35,6 +35,28 @@ notes:
   `own TcpConn` capture reject with `SEM3167` (ON-CAP-N004) — a semantically
   correct stdlib addition beyond the literal recipe, recorded in NOTES.
 
+### `crosses` retirement update (D17, 2026-07-08)
+
+The explicit `crosses` keyword has been REMOVED from the language (crossing
+effect now inferred at sema, stored in function metadata; inference impl deferred
+to Phase 4). This retires the Block 2 crossing-effect *requirement*, which was
+already only a Block 4 dependency here:
+
+- **ON-CROSS-N001 requirement retired; fixture PARKED.** `on` no longer requires
+  an enclosing `crosses` effect; `on dst { }` is valid in any function. The
+  surface diagnostic `SEM3162` is retired (`checkCrossesRequirement` removed).
+  The fixture `on_negative_missing_crosses.sg` produces no diagnostic today, but
+  the scenario stays useful for future semantic crosses-inference, so it was
+  MOVED (not deleted) to `testdata/golden/crossing/crosses_deferred/` with a
+  `FUTURE-ASSERT:` note ("assert inferred crosses metadata on the enclosing fn")
+  and its sema sidecars dropped. That parking directory is not wired into the
+  crossinggate harness and is skipped by `golden_update.sh`.
+- **ON-CROSS-V001/V002 retained as plain positives.** `on_positive_crosses_fn.sg`
+  and `on_positive_async_crosses_fn.sg` keep their matrix-documented filenames but
+  no longer carry the keyword (naming drift, intentional). The `crosses` keyword
+  was stripped from every remaining Block 2 fixture signature; all other negatives
+  re-assert their unchanged codes (`SEM3142`–`SEM3153`, captures, `FUT7012/7014`).
+
 ## Scope
 
 Block 2 covers immediate placement crossing:
@@ -57,8 +79,9 @@ Contract:
 - The crossing waits for completion and evaluates to `TaskResult<T>`.
 - The body result is produced by `ret expr;`.
 - `return` inside an `on` body is invalid.
-- The enclosing function or block must satisfy the Block 4 `crosses`
-  requirement.
+- ~~The enclosing function or block must satisfy the Block 4 `crosses`
+  requirement.~~ RETIRED (D17): the `crosses` keyword is removed; the crossing
+  effect is inferred, so `on` is valid in any function.
 
 ## Contract Dependencies
 
@@ -67,7 +90,7 @@ Block 2 depends on these contracts without expanding their test matrices:
 | Dependency | Block | Required surface for Block 2 |
 | --- | --- | --- |
 | `far T` type modifier | Block 1 | Enables `far Channel<T>` and `far TcpConn` destination typing. |
-| `crosses` function effect | Block 4 | Required for functions or blocks that contain `on`. |
+| ~~`crosses` function effect~~ | — | RETIRED (D17): keyword removed; crossing effect inferred, no longer required for `on`. |
 | `@shard_movable` | Block 4 | Required for owned user-defined value captures that cross shards. |
 | `@shard_pinned` | Block 4 | Required to reject owned shard-pinned captures and allow `far T` handle use. |
 | `@send` / `@nosend` | Existing attributes plus Block 4 | Attributes remain constraints; they are not type-use modifiers. |
@@ -96,7 +119,7 @@ fixture metadata.
 
 | Row | Destination | Fixture | Diagnostic code | Fix availability | Required message shape |
 | --- | --- | --- | --- | --- | --- |
-| ON-DST-N001 | `t: far Task<T>` | `on_negative_far_task_destination.sg` | `SEM3143` | Fixable: use `t.await()` or `t.cancel()` in a `crosses` context. | `far Task<T>` is not an `on` destination. |
+| ON-DST-N001 | `t: far Task<T>` | `on_negative_far_task_destination.sg` | `SEM3143` | Fixable: use `t.await()` or `t.cancel()`. | `far Task<T>` is not an `on` destination. |
 | ON-DST-N002 | `blocking` | `on_negative_blocking_destination.sg` | `FUT7012` | Fixable: use existing `blocking { ... }` or choose a `Placement`. | `on blocking` is not part of Epic 11. |
 | ON-DST-N003 | ordinary value | `on_negative_integer_destination.sg` | `SEM3144` | Fixable: pass `Placement`, `shard(id)`, or an accepted `far` handle. | Destination type is not `Placement` or accepted `far` handle. |
 | ON-DST-N004 | type name | `on_negative_type_destination.sg` | `SEM3145` | Fixable: use a value of type `Placement`. | Type names are not placement targets. |
@@ -111,7 +134,7 @@ fixture metadata.
 | ON-BODY-V001 | `on pool { ret 1; }` | `on_positive_pool.sg` | `TaskResult<int>` | N/A | `ret expr;` produces the body value and `on` wraps it. |
 | ON-BODY-V002 | `on pool { ret nothing; }` | `on_positive_ret_nothing_result.sg` | `TaskResult<nothing>` | N/A | `nothing` is a valid body value. |
 | ON-BODY-V003 | assigned to `TaskResult<T>` | `on_positive_taskresult_binding.sg` | `TaskResult<T>` | N/A | Direct assignment proves result wrapping. |
-| ON-BODY-V004 | returned from `crosses -> TaskResult<T>` | `on_positive_taskresult_return.sg` | `TaskResult<T>` | N/A | Function return type matches `on` result. |
+| ON-BODY-V004 | returned from a `-> TaskResult<T>` function | `on_positive_taskresult_return.sg` | `TaskResult<T>` | N/A | Function return type matches `on` result. |
 | ON-BODY-N001 | `return expr;` inside body | `on_negative_return_in_body.sg` | `SEM3147` | Fixable: replace with `ret expr;`. | `return` cannot exit through a crossing block. |
 | ON-BODY-N002 | missing `ret` in value context | `on_negative_missing_ret_value.sg` | `SEM3148` | Fixable: add `ret expr;`. | The block must produce the requested `T`. |
 | ON-BODY-N003 | body result assigned to `T` | `on_negative_assign_unwrapped_result.sg` | `SEM3149` | Fixable: bind `TaskResult<T>` or handle `Success` / `Cancelled`. | `on` returns `TaskResult<T>`, not `T`. |
@@ -162,9 +185,9 @@ rejected. Remote socket I/O is rejected in Epic 11.
 
 | Row | Enclosing context | Fixture | Expected type or diagnostic | Fix availability | Contract |
 | --- | --- | --- | --- | --- | --- |
-| ON-CROSS-V001 | `fn f(...) crosses -> TaskResult<T>` | `on_positive_crosses_fn.sg` | `TaskResult<T>` | N/A | A `crosses` function may contain `on`. |
-| ON-CROSS-V002 | `async fn f(...) crosses -> T` handling `TaskResult<T>` | `on_positive_async_crosses_fn.sg` | Checked result handling | N/A | `async` does not replace `crosses`; both may appear. |
-| ON-CROSS-N001 | non-`crosses` function contains `on` | `on_negative_missing_crosses.sg` | `SEM3162` (Block 4) | Fixable: add `crosses` to the enclosing function signature. | `on` requires the enclosing crossing effect. |
+| ON-CROSS-V001 | `fn f(...) -> TaskResult<T>` containing `on` | `on_positive_crosses_fn.sg` | `TaskResult<T>` | N/A | Plain positive: any function may contain `on` (crossing inferred). Filename retained; keyword removed. |
+| ON-CROSS-V002 | `async fn f(...) -> T` handling `TaskResult<T>` | `on_positive_async_crosses_fn.sg` | Checked result handling | N/A | Plain positive: `async` function containing `on`. Filename retained; keyword removed. |
+| ON-CROSS-N001 | non-`crosses` function contains `on` | `on_negative_missing_crosses.sg` (parked) | PARKED (was `SEM3162`) | — | `crosses` removed, effect inferred; scenario parked in `crosses_deferred/` for future inference. |
 | ON-CROSS-N002 | `on` inside context where suspension is illegal | `on_negative_illegal_suspend_context.sg` | `SEM3152` | Not safely fixable automatically. | `on` is allowed only where suspension is legal. |
 
 ## Nested Crossing Matrix
@@ -226,12 +249,11 @@ leaking, or falling through to an ambiguous backend error.
 | `SEM3153` | Allocate for nested crossing rejection. |
 | `FUT7014` | Postponed transport: allocate in the `FUT` (7xxx) range for Phase 4 placement-crossing lowering being unavailable. |
 
-The capture and crossing-effect diagnostics used by Block 2 are owned by Block 4,
-not allocated here: `SEM3165` (ON-CAP-N001/N002),
-`SEM3166` (ON-CAP-N003), `SEM3167`
-(ON-CAP-N004), `SEM3168` (ON-CAP-N005), and
-`SEM3162` (ON-CROSS-N001). See the shared-diagnostics ownership
-table in `11-tasks/README.md`.
+The capture diagnostics used by Block 2 are owned by Block 4, not allocated here:
+`SEM3165` (ON-CAP-N001/N002), `SEM3166` (ON-CAP-N003), `SEM3167` (ON-CAP-N004),
+and `SEM3168` (ON-CAP-N005). The crossing-effect diagnostic `SEM3162`
+(ON-CROSS-N001) is RETIRED (D17): `crosses` removed, effect inferred. See the
+shared-diagnostics ownership table in `11-tasks/README.md`.
 
 ## Positive Golden Fixture Inventory
 
@@ -284,7 +306,7 @@ table in `11-tasks/README.md`.
 | `on_negative_tcpconn_read.sg` | ON-TCP-N001 | `SEM3151` | Not safely fixable automatically |
 | `on_negative_tcpconn_write.sg` | ON-TCP-N002 | `SEM3151` | Not safely fixable automatically |
 | `on_negative_tcpconn_accept.sg` | ON-TCP-N003 | `SEM3151` | Not safely fixable automatically |
-| `on_negative_missing_crosses.sg` | ON-CROSS-N001 | `SEM3162` (Block 4) | Fixable |
+| `on_negative_missing_crosses.sg` (parked) | ON-CROSS-N001 | PARKED (was `SEM3162`) | Moved to `crosses_deferred/` (D17) |
 | `on_negative_illegal_suspend_context.sg` | ON-CROSS-N002 | `SEM3152` | Not safely fixable automatically |
 | `on_negative_nested_on_placement.sg` | ON-NEST-N001 | `SEM3153` | Fixable |
 | `on_negative_nested_on_far_handle.sg` | ON-NEST-N002 | `SEM3153` | Fixable |
@@ -306,7 +328,7 @@ marked complete.
 | Capture sema | Copy (including `Placement`), `own @shard_movable`, `far T` handle by move, borrow rejection, `@nosend` rejection, `@shard_pinned` owned rejection, unmarked owned user-value rejection. |
 | Owner-anchor sema | Destination `far` handle anchors only itself; unanchored far-handle operations are rejected. |
 | `far TcpConn` sema | Control-only operations accepted; read/write/accept rejected. |
-| Crosses sema | `on` requires enclosing `crosses`; `async` alone is insufficient. |
+| ~~Crosses sema~~ | RETIRED (D17): `crosses` keyword removed; crossing effect inferred, so `on` needs no enclosing marker. |
 | Lowering / backend smoke | Minimal accepted placement crossing lowers to a crossing operation returning `TaskResult<T>`; rejected forms do not reach lowering. |
 
 ## Review Checklist
@@ -330,5 +352,6 @@ marked complete.
 - Phase 4 backend-unavailable behavior has a deterministic negative fixture.
 - The capture and crossing-effect diagnostics are Block 4-owned; Block 2
   references them and does not allocate them.
-- `crosses` appears only as a Block 4 dependency and requirement.
+- `crosses` (the keyword) is RETIRED (D17); the crossing effect it named is now
+  inferred at sema. It appears in this doc only as retired/historical rows.
 - The document does not add Block 1, Block 3, or Block 4 implementation scope.

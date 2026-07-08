@@ -21,21 +21,6 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 		startSpan = prefixSpan.Cover(startSpan)
 	}
 
-	// `type crosses Data = ...`: `crosses` is misused as a type-declaration
-	// modifier; it may only mark a function (Epic 11 Block 4, SYN2035). A type
-	// actually named `crosses` (`type crosses = ...`) is followed by `=` and is
-	// unaffected.
-	if p.atContextualCrosses() && p.lx.Peek2().Kind == token.Ident {
-		crossesTok := p.advance()
-		p.emitDiagnostic(
-			diag.SynCrossesTarget,
-			diag.SevError,
-			crossesTok.Span,
-			"`crosses` may only mark a function",
-			nil,
-		)
-	}
-
 	nameID, ok := p.parseIdent()
 	if !ok {
 		p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
@@ -284,21 +269,6 @@ func (p *Parser) parseTypeStructBody() (fields []ast.TypeStructFieldSpec, commas
 			p.emitDiagnostic(diag.SynUnclosedBrace, diag.SevError, tok.Span, "expected '}' to close struct body", nil)
 			bodySpan = openTok.Span
 			return
-		}
-
-		// `{ crosses id: T }`: `crosses` misused as a field modifier; it may only
-		// mark a function (Epic 11 Block 4, SYN2035). A field actually named
-		// `crosses` (`{ crosses: T }`) is followed by `:` and is unaffected.
-		if tok.Kind == token.Ident && tok.Text == contextualCrosses && p.lx.Peek2().Kind == token.Ident {
-			crossesTok := p.advance()
-			p.emitDiagnostic(
-				diag.SynCrossesTarget,
-				diag.SevError,
-				crossesTok.Span,
-				"`crosses` may only mark a function",
-				nil,
-			)
-			tok = p.lx.Peek()
 		}
 
 		var fieldAttrs []ast.Attr

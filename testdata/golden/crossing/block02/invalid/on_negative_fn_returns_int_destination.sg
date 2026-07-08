@@ -4,7 +4,7 @@ fn pick() -> int {
     return 0;
 }
 
-fn run() crosses -> TaskResult<int> {
+fn run() -> TaskResult<int> {
     return on pick() {
         ret 1;
     };

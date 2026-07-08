@@ -12,7 +12,7 @@ on_positive_on_statement_discard.sg (span: 2:1-13:1)
    ├─ Params: (n: int)
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 6:35-12:2)
+      └─ Stmt[0]: Block (span: 6:27-12:2)
          ├─ Stmt[0]: Expr (span: 7:5-10:7)
          │  └─ Expr: expr#9: on pool { 2 stmt(s) }
          └─ Stmt[1]: Return (span: 11:5-11:20)

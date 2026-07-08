@@ -4223,3 +4223,25 @@ pass, before any task execution began:
   `/runtime` (`quality_signal=5345`, rules pass, `0` violations).
 - Code commit: `9d1b06c1 fix(runtime): stabilize net handles and http
   ownership`. It includes `STATS.md` updated by the pre-commit hook.
+
+## 2026-07-08 — `crosses` keyword removed (design change D17)
+
+The explicit `crosses` keyword has been REMOVED from the language; the crossing
+effect is now inferred at semantic analysis and stored in function metadata (no
+surface keyword, no programmer-facing requirement). The `crosses` grammar was
+removed (`fn f() crosses -> T` no longer parses: `SYN2012`/`SYN2205`),
+`Signature.Crosses` and its setter were deleted, and `SEM3162`/`SEM3163`/`SEM3164`
+are retired (numbers reserved). `on`, `spawn on`, and `far Task<T>`
+await/cancel are valid in any function. The inference implementation itself is
+deferred to the Phase 4 transport epic (see `DEBT.md` RV2-DEBT-024).
+
+This SUPERSEDES earlier keyword-strategy notes in this log — including the
+"`on` and `crosses` contextual keyword" strategy and the Block 4 "`crosses`
+effect parsing" grammar prerequisites — for the `crosses` keyword specifically
+(`on` remains a contextual keyword; `far` remains hard-reserved). The
+crosses-requirement negatives are PARKED (not deleted) in
+`testdata/golden/crossing/crosses_deferred/` — Block 3's four X03/X04/T07/T08
+fixtures and Block 2's `on_negative_missing_crosses` — each carrying a
+`FUTURE-ASSERT:` note for the coming semantic crosses-inference; the directory is
+not wired into the crossinggate harness and is skipped by `golden_update.sh`.
+Block 2 also had `crosses` stripped from every remaining fixture in this cleanup.

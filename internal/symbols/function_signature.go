@@ -21,8 +21,6 @@ type FunctionSignature struct {
 	Result     TypeKey
 	HasBody    bool
 	HasSelf    bool
-	// Crosses records the function-level `crosses` shard-crossing effect (Epic 11 Block 4).
-	Crosses bool
 }
 
 func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSignature {
@@ -47,7 +45,6 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 		Result:     resultKey,
 		HasBody:    fn.Body.IsValid(),
 		HasSelf:    false,
-		Crosses:    fn.Flags&ast.FnModifierCrosses != 0,
 	}
 	for i, pid := range ids {
 		param := builder.Items.FnParam(pid)

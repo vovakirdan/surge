@@ -34,29 +34,28 @@
  34: KwOwn           "own" at 8:63-8:66 (leading: Space)
  35: Ident           "Message" at 8:67-8:74 (leading: Space)
  36: RParen          ")" at 8:74-8:75
- 37: Ident           "crosses" at 8:76-8:83 (leading: Space)
- 38: Arrow           "->" at 8:84-8:86 (leading: Space)
- 39: Ident           "TaskResult" at 8:87-8:97 (leading: Space)
- 40: Lt              "<" at 8:97-8:98
- 41: NothingLit      "nothing" at 8:98-8:105
- 42: Gt              ">" at 8:105-8:106
- 43: LBrace          "{" at 8:107-8:108 (leading: Space)
- 44: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
- 45: Ident           "on" at 9:12-9:14 (leading: Space)
- 46: Ident           "a" at 9:15-9:16 (leading: Space)
- 47: LBrace          "{" at 9:17-9:18 (leading: Space)
- 48: Ident           "b" at 10:9-10:10 (leading: Newline, Space)
- 49: Dot             "." at 10:10-10:11
- 50: Ident           "send" at 10:11-10:15
- 51: LParen          "(" at 10:15-10:16
- 52: KwOwn           "own" at 10:16-10:19
- 53: Ident           "msg" at 10:20-10:23 (leading: Space)
- 54: RParen          ")" at 10:23-10:24
- 55: Semicolon       ";" at 10:24-10:25
- 56: KwRet           "ret" at 11:9-11:12 (leading: Newline, Space)
- 57: NothingLit      "nothing" at 11:13-11:20 (leading: Space)
- 58: Semicolon       ";" at 11:20-11:21
- 59: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
- 60: Semicolon       ";" at 12:6-12:7
- 61: RBrace          "}" at 13:1-13:2 (leading: Newline)
- 62: EOF             at 14:1-14:1
+ 37: Arrow           "->" at 8:76-8:78 (leading: Space)
+ 38: Ident           "TaskResult" at 8:79-8:89 (leading: Space)
+ 39: Lt              "<" at 8:89-8:90
+ 40: NothingLit      "nothing" at 8:90-8:97
+ 41: Gt              ">" at 8:97-8:98
+ 42: LBrace          "{" at 8:99-8:100 (leading: Space)
+ 43: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 44: Ident           "on" at 9:12-9:14 (leading: Space)
+ 45: Ident           "a" at 9:15-9:16 (leading: Space)
+ 46: LBrace          "{" at 9:17-9:18 (leading: Space)
+ 47: Ident           "b" at 10:9-10:10 (leading: Newline, Space)
+ 48: Dot             "." at 10:10-10:11
+ 49: Ident           "send" at 10:11-10:15
+ 50: LParen          "(" at 10:15-10:16
+ 51: KwOwn           "own" at 10:16-10:19
+ 52: Ident           "msg" at 10:20-10:23 (leading: Space)
+ 53: RParen          ")" at 10:23-10:24
+ 54: Semicolon       ";" at 10:24-10:25
+ 55: KwRet           "ret" at 11:9-11:12 (leading: Newline, Space)
+ 56: NothingLit      "nothing" at 11:13-11:20 (leading: Space)
+ 57: Semicolon       ";" at 11:20-11:21
+ 58: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
+ 59: Semicolon       ";" at 12:6-12:7
+ 60: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 61: EOF             at 14:1-14:1

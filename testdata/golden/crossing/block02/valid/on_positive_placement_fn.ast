@@ -20,6 +20,6 @@ on_positive_placement_fn.sg (span: 2:1-15:1)
    ├─ Params: (n: int, uid: uint64)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 10:58-14:2)
+      └─ Stmt[0]: Block (span: 10:50-14:2)
          └─ Stmt[0]: Return (span: 11:5-13:7)
             └─ Expr: expr#11: on route_for(uid) { 1 stmt(s) }

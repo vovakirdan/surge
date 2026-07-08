@@ -21,24 +21,23 @@
  21: KwFar           "far" at 6:14-6:17 (leading: Space)
  22: Ident           "TcpConn" at 6:18-6:25 (leading: Space)
  23: RParen          ")" at 6:25-6:26
- 24: Ident           "crosses" at 6:27-6:34 (leading: Space)
- 25: Arrow           "->" at 6:35-6:37 (leading: Space)
- 26: Ident           "TaskResult" at 6:38-6:48 (leading: Space)
- 27: Lt              "<" at 6:48-6:49
- 28: NothingLit      "nothing" at 6:49-6:56
- 29: Gt              ">" at 6:56-6:57
- 30: LBrace          "{" at 6:58-6:59 (leading: Space)
- 31: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
- 32: Ident           "on" at 7:12-7:14 (leading: Space)
- 33: Ident           "pool" at 7:15-7:19 (leading: Space)
- 34: LBrace          "{" at 7:20-7:21 (leading: Space)
- 35: KwRet           "ret" at 8:9-8:12 (leading: Newline, Space)
- 36: Ident           "keep" at 8:13-8:17 (leading: Space)
- 37: LParen          "(" at 8:17-8:18
- 38: Ident           "conn" at 8:18-8:22
- 39: RParen          ")" at 8:22-8:23
- 40: Semicolon       ";" at 8:23-8:24
- 41: RBrace          "}" at 9:5-9:6 (leading: Newline, Space)
- 42: Semicolon       ";" at 9:6-9:7
- 43: RBrace          "}" at 10:1-10:2 (leading: Newline)
- 44: EOF             at 11:1-11:1
+ 24: Arrow           "->" at 6:27-6:29 (leading: Space)
+ 25: Ident           "TaskResult" at 6:30-6:40 (leading: Space)
+ 26: Lt              "<" at 6:40-6:41
+ 27: NothingLit      "nothing" at 6:41-6:48
+ 28: Gt              ">" at 6:48-6:49
+ 29: LBrace          "{" at 6:50-6:51 (leading: Space)
+ 30: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 31: Ident           "on" at 7:12-7:14 (leading: Space)
+ 32: Ident           "pool" at 7:15-7:19 (leading: Space)
+ 33: LBrace          "{" at 7:20-7:21 (leading: Space)
+ 34: KwRet           "ret" at 8:9-8:12 (leading: Newline, Space)
+ 35: Ident           "keep" at 8:13-8:17 (leading: Space)
+ 36: LParen          "(" at 8:17-8:18
+ 37: Ident           "conn" at 8:18-8:22
+ 38: RParen          ")" at 8:22-8:23
+ 39: Semicolon       ";" at 8:23-8:24
+ 40: RBrace          "}" at 9:5-9:6 (leading: Newline, Space)
+ 41: Semicolon       ";" at 9:6-9:7
+ 42: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 43: EOF             at 11:1-11:1

@@ -62,35 +62,37 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		want string // expected diagnostic code; "" means no error expected
 	}{
 		// Destinations (ON-DST).
-		{"placement_const_ok", `fn f() crosses -> TaskResult<int> { return on pool { ret 1; }; }`, ""},
-		{"placement_call_ok", `fn g(id: ShardId) crosses -> TaskResult<int> { return on shard(id) { ret 1; }; }`, ""},
-		{"far_task_dest", `fn f(t: far Task<int>) crosses -> TaskResult<int> { return on t { ret 1; }; }`, "SEM3143"},
-		{"integer_dest", `fn f(p: Placement) crosses -> TaskResult<int> { let x: int = 1; return on x { ret 1; }; }`, "SEM3144"},
-		{"bare_fn_dest", `fn r() -> Placement { return pool; } fn f() crosses -> TaskResult<int> { return on r { ret 1; }; }`, "SEM3146"},
+		{"placement_const_ok", `fn f() -> TaskResult<int> { return on pool { ret 1; }; }`, ""},
+		{"placement_call_ok", `fn g(id: ShardId) -> TaskResult<int> { return on shard(id) { ret 1; }; }`, ""},
+		{"far_task_dest", `fn f(t: far Task<int>) -> TaskResult<int> { return on t { ret 1; }; }`, "SEM3143"},
+		{"integer_dest", `fn f(p: Placement) -> TaskResult<int> { let x: int = 1; return on x { ret 1; }; }`, "SEM3144"},
+		{"bare_fn_dest", `fn r() -> Placement { return pool; } fn f() -> TaskResult<int> { return on r { ret 1; }; }`, "SEM3146"},
 
 		// Result wrapping (ON-BODY).
-		{"unwrapped_result", `fn f() crosses -> int { return on pool { ret 1; }; }`, "SEM3149"},
-		{"return_in_body", `fn f() crosses -> TaskResult<int> { return on pool { return 1; }; }`, "SEM3147"},
-		{"missing_ret", `fn f() crosses -> TaskResult<int> { return on pool { let x: int = 1; let _ = x; }; }`, "SEM3148"},
+		{"unwrapped_result", `fn f() -> int { return on pool { ret 1; }; }`, "SEM3149"},
+		{"return_in_body", `fn f() -> TaskResult<int> { return on pool { return 1; }; }`, "SEM3147"},
+		{"missing_ret", `fn f() -> TaskResult<int> { return on pool { let x: int = 1; let _ = x; }; }`, "SEM3148"},
 
 		// Captures (ON-CAP).
-		{"copy_capture_ok", `fn dbl(x: int) -> int { return x; } fn f(n: int) crosses -> TaskResult<int> { return on pool { ret dbl(n); }; }`, ""},
-		{"movable_capture_ok", `fn use(m: own Movable) -> int { return m.id; } fn f(m: own Movable) crosses -> TaskResult<int> { return on pool { ret use(own m); }; }`, ""},
-		{"borrow_capture", `fn rd(r: &Plain) -> int { return r.id; } fn f(p: Plain) crosses -> TaskResult<int> { let r: &Plain = &p; return on pool { ret rd(r); }; }`, "SEM3165"},
-		{"nosend_capture", `fn pk(v: own LocalOnly) -> int { return v.id; } fn f(v: own LocalOnly) crosses -> TaskResult<int> { return on pool { ret pk(own v); }; }`, "SEM3166"},
-		{"pinned_capture", `fn f(c: own TcpConn) crosses -> TaskResult<int> { return on pool { let _ = c; ret 1; }; }`, "SEM3167"},
-		{"unmarked_capture", `fn use(p: own Plain) -> int { return p.id; } fn f(p: own Plain) crosses -> TaskResult<int> { return on pool { ret use(own p); }; }`, "SEM3168"},
+		{"copy_capture_ok", `fn dbl(x: int) -> int { return x; } fn f(n: int) -> TaskResult<int> { return on pool { ret dbl(n); }; }`, ""},
+		{"movable_capture_ok", `fn use(m: own Movable) -> int { return m.id; } fn f(m: own Movable) -> TaskResult<int> { return on pool { ret use(own m); }; }`, ""},
+		{"borrow_capture", `fn rd(r: &Plain) -> int { return r.id; } fn f(p: Plain) -> TaskResult<int> { let r: &Plain = &p; return on pool { ret rd(r); }; }`, "SEM3165"},
+		{"nosend_capture", `fn pk(v: own LocalOnly) -> int { return v.id; } fn f(v: own LocalOnly) -> TaskResult<int> { return on pool { ret pk(own v); }; }`, "SEM3166"},
+		{"pinned_capture", `fn f(c: own TcpConn) -> TaskResult<int> { return on pool { let _ = c; ret 1; }; }`, "SEM3167"},
+		{"unmarked_capture", `fn use(p: own Plain) -> int { return p.id; } fn f(p: own Plain) -> TaskResult<int> { return on pool { ret use(own p); }; }`, "SEM3168"},
 
 		// Anchor + control-only (ON-ANCHOR / ON-TCP).
-		{"unanchored_far", `fn f(a: far Channel<int>, b: far Channel<int>) crosses -> TaskResult<nothing> { return on a { b.close(); ret nothing; }; }`, "SEM3150"},
-		{"tcp_close_ok", `fn f(conn: far TcpConn) crosses -> TaskResult<nothing> { return on conn { conn.close(); ret nothing; }; }`, ""},
-		{"tcp_read_rejected", `fn f(conn: far TcpConn) crosses -> TaskResult<nothing> { return on conn { conn.read(); ret nothing; }; }`, "SEM3151"},
-		{"far_op_outside_on", `fn f(conn: far TcpConn) crosses -> nothing { conn.close(); return nothing; }`, "SEM3142"},
+		{"unanchored_far", `fn f(a: far Channel<int>, b: far Channel<int>) -> TaskResult<nothing> { return on a { b.close(); ret nothing; }; }`, "SEM3150"},
+		{"tcp_close_ok", `fn f(conn: far TcpConn) -> TaskResult<nothing> { return on conn { conn.close(); ret nothing; }; }`, ""},
+		{"tcp_read_rejected", `fn f(conn: far TcpConn) -> TaskResult<nothing> { return on conn { conn.read(); ret nothing; }; }`, "SEM3151"},
+		{"far_op_outside_on", `fn f(conn: far TcpConn) -> nothing { conn.close(); return nothing; }`, "SEM3142"},
 
-		// Effect + structure (ON-CROSS / ON-NEST).
-		{"missing_crosses", `fn f() -> TaskResult<int> { return on pool { ret 1; }; }`, "SEM3162"},
-		{"nested_on", `fn f() crosses -> TaskResult<int> { return on pool { let inner: TaskResult<int> = on distributed { ret 1; }; ret 1; }; }`, "SEM3153"},
-		{"suspend_in_blocking", `fn f() crosses -> TaskResult<int> { blocking { let _ = on pool { ret 1; }; ret nothing; }; return on pool { ret 1; }; }`, "SEM3152"},
+		// Effect + structure (ON-NEST). The `crosses` requirement (SEM3162) is
+		// retired: `on dst { }` is valid without a `crosses` marker (the effect is
+		// inferred).
+		{"on_without_crosses_ok", `fn f() -> TaskResult<int> { return on pool { ret 1; }; }`, ""},
+		{"nested_on", `fn f() -> TaskResult<int> { return on pool { let inner: TaskResult<int> = on distributed { ret 1; }; ret 1; }; }`, "SEM3153"},
+		{"suspend_in_blocking", `fn f() -> TaskResult<int> { blocking { let _ = on pool { ret 1; }; ret nothing; }; return on pool { ret 1; }; }`, "SEM3152"},
 	}
 
 	for _, tc := range cases {

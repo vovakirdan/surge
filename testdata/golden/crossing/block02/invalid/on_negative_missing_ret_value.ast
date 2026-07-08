@@ -4,6 +4,6 @@ on_negative_missing_ret_value.sg (span: 3:1-9:1)
    ├─ Params: ()
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 3:37-8:2)
+      └─ Stmt[0]: Block (span: 3:29-8:2)
          └─ Stmt[0]: Return (span: 4:5-7:7)
             └─ Expr: expr#4: on pool { 2 stmt(s) }

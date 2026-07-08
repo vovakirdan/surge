@@ -19,6 +19,6 @@ on_positive_shard_movable_capture.sg (span: 2:1-16:1)
    ├─ Params: (req: own Request)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 11:53-15:2)
+      └─ Stmt[0]: Block (span: 11:45-15:2)
          └─ Stmt[0]: Return (span: 12:5-14:7)
             └─ Expr: expr#8: on pool { 1 stmt(s) }

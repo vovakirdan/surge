@@ -1,0 +1,17 @@
+// PARKED (crosses_deferred): awaiting semantic crosses-inference (Phase 4).
+// FUTURE-ASSERT: the inferred crossing effect propagates through calls — the
+// caller of a crossing fn is itself inferred crossing. Was Block 3 X04 / SEM3163
+// (retired as a surface requirement; `crosses` keyword stripped from `start`).
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) -> far Task<int> {
+    return spawn on pool {
+        ret double(n);
+    };
+}
+
+fn caller(n: int) -> far Task<int> {
+    return start(n);
+}

@@ -4,6 +4,6 @@ on_negative_far_task_destination.sg (span: 3:1-8:1)
    ├─ Params: (t: far Task<int>)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 3:53-7:2)
+      └─ Stmt[0]: Block (span: 3:45-7:2)
          └─ Stmt[0]: Return (span: 4:5-6:7)
             └─ Expr: expr#3: on t { 1 stmt(s) }

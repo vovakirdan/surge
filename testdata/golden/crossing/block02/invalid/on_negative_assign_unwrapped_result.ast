@@ -12,7 +12,7 @@ on_negative_assign_unwrapped_result.sg (span: 3:1-14:1)
    ├─ Params: (n: int)
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 7:35-13:2)
+      └─ Stmt[0]: Block (span: 7:27-13:2)
          ├─ Stmt[0]: Let (span: 8:5-10:7)
          │  ├─ Name: v
          │  ├─ Mutable: false

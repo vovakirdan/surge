@@ -45,6 +45,10 @@ golden fixtures, implementation tasks, and documentation closeout.
    task lifecycle rules.
 4. **Crossing Contracts:** `crosses`, `@shard_movable`, `@shard_pinned`, and
    their interaction with existing `@send`, `@nosend`, and `@local spawn`.
+   (**Note:** the explicit `crosses` keyword was RETIRED by design change D17 on
+   2026-07-08 — the crossing effect is now inferred at sema, not a surface
+   keyword. See the "`crosses` Function Effect" section, which retains the
+   original design as historical record.)
 
 These blocks may be implemented independently after task slicing, but each
 block starts with tests, not parser changes.
@@ -606,6 +610,21 @@ Negative golden fixtures:
 ## Block 4: Crossing Contracts
 
 ### `crosses` Function Effect
+
+> **RETIRED (design change D17, 2026-07-08).** The explicit `crosses` keyword has
+> been REMOVED from the language. The crossing effect it named is retained but is
+> now INFERRED at semantic analysis and stored in function metadata; there is no
+> surface keyword and no programmer-facing requirement. The `crosses` grammar was
+> removed (`fn f() crosses -> T` no longer parses: `SYN2012`/`SYN2205`), the
+> `Signature.Crosses` field/setter were deleted, and diagnostics `SEM3162`
+> (missing `crosses`), `SEM3163` (caller propagation), and `SEM3164`
+> (`far Task` await/cancel outside `crosses`) are RETIRED (numbers reserved).
+> `on dst { }`, `spawn on`, and `far Task<T>.await()`/`.cancel()` are now valid in
+> any function. The **inference implementation itself is deferred to the Phase 4
+> transport epic** (see `DEBT.md` RV2-DEBT-024); no effect inference is performed
+> today beyond accepting the forms. The syntax and rules described in the rest of
+> this section are RETAINED BELOW AS HISTORICAL RECORD of the original explicit
+> design; the `crosses` tokens in the examples no longer parse.
 
 `crosses` is a function-level effect keyword. It is part of the function
 signature and means the function may perform cross-shard work or call another

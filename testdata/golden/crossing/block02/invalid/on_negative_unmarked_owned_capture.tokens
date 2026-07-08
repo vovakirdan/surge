@@ -33,25 +33,24 @@
  33: KwOwn           "own" at 11:11-11:14 (leading: Space)
  34: Ident           "Payload" at 11:15-11:22 (leading: Space)
  35: RParen          ")" at 11:22-11:23
- 36: Ident           "crosses" at 11:24-11:31 (leading: Space)
- 37: Arrow           "->" at 11:32-11:34 (leading: Space)
- 38: Ident           "TaskResult" at 11:35-11:45 (leading: Space)
- 39: Lt              "<" at 11:45-11:46
- 40: Ident           "int" at 11:46-11:49
- 41: Gt              ">" at 11:49-11:50
- 42: LBrace          "{" at 11:51-11:52 (leading: Space)
- 43: KwReturn        "return" at 12:5-12:11 (leading: Newline, Space)
- 44: Ident           "on" at 12:12-12:14 (leading: Space)
- 45: Ident           "pool" at 12:15-12:19 (leading: Space)
- 46: LBrace          "{" at 12:20-12:21 (leading: Space)
- 47: KwRet           "ret" at 13:9-13:12 (leading: Newline, Space)
- 48: Ident           "use_payload" at 13:13-13:24 (leading: Space)
- 49: LParen          "(" at 13:24-13:25
- 50: KwOwn           "own" at 13:25-13:28
- 51: Ident           "p" at 13:29-13:30 (leading: Space)
- 52: RParen          ")" at 13:30-13:31
- 53: Semicolon       ";" at 13:31-13:32
- 54: RBrace          "}" at 14:5-14:6 (leading: Newline, Space)
- 55: Semicolon       ";" at 14:6-14:7
- 56: RBrace          "}" at 15:1-15:2 (leading: Newline)
- 57: EOF             at 16:1-16:1
+ 36: Arrow           "->" at 11:24-11:26 (leading: Space)
+ 37: Ident           "TaskResult" at 11:27-11:37 (leading: Space)
+ 38: Lt              "<" at 11:37-11:38
+ 39: Ident           "int" at 11:38-11:41
+ 40: Gt              ">" at 11:41-11:42
+ 41: LBrace          "{" at 11:43-11:44 (leading: Space)
+ 42: KwReturn        "return" at 12:5-12:11 (leading: Newline, Space)
+ 43: Ident           "on" at 12:12-12:14 (leading: Space)
+ 44: Ident           "pool" at 12:15-12:19 (leading: Space)
+ 45: LBrace          "{" at 12:20-12:21 (leading: Space)
+ 46: KwRet           "ret" at 13:9-13:12 (leading: Newline, Space)
+ 47: Ident           "use_payload" at 13:13-13:24 (leading: Space)
+ 48: LParen          "(" at 13:24-13:25
+ 49: KwOwn           "own" at 13:25-13:28
+ 50: Ident           "p" at 13:29-13:30 (leading: Space)
+ 51: RParen          ")" at 13:30-13:31
+ 52: Semicolon       ";" at 13:31-13:32
+ 53: RBrace          "}" at 14:5-14:6 (leading: Newline, Space)
+ 54: Semicolon       ";" at 14:6-14:7
+ 55: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 56: EOF             at 16:1-16:1

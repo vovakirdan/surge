@@ -12,7 +12,7 @@ on_positive_taskresult_binding.sg (span: 2:1-13:1)
    ├─ Params: (n: int)
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 6:35-12:2)
+      └─ Stmt[0]: Block (span: 6:27-12:2)
          ├─ Stmt[0]: Let (span: 7:5-9:7)
          │  ├─ Name: r
          │  ├─ Mutable: false

@@ -224,20 +224,6 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 		)
 		return ast.NoStmtID, false
 	default:
-		// `crosses { ... }`: `crosses` misused as a block modifier; it may only
-		// mark a function (Epic 11 Block 4 grammar slice, SYN2035). A bare
-		// `crosses;` expression statement keeps `crosses` as an identifier.
-		if p.atContextualCrosses() && p.lx.Peek2().Kind == token.LBrace {
-			crossesTok := p.advance()
-			p.emitDiagnostic(
-				diag.SynCrossesTarget,
-				diag.SevError,
-				crossesTok.Span,
-				"`crosses` may only mark a function",
-				nil,
-			)
-			return p.parseBlock()
-		}
 		return p.parseExprStmt()
 	}
 }

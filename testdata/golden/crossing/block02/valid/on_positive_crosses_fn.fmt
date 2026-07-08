@@ -1,9 +1,9 @@
-// Epic 11 Block 2 positive: crosses fn containing on (ON-CROSS-V001)
+// Epic 11 Block 2 positive: fn containing on (ON-CROSS-V001; crosses keyword removed)
 fn double(x: int) -> int {
     return x * 2;
 }
 
-fn run(n: int) crosses -> TaskResult<int> {
+fn run(n: int) -> TaskResult<int> {
     return on pool {
         ret double(n);
     };

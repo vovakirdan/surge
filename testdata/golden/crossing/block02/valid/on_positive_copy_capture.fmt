@@ -3,7 +3,7 @@ fn add(x: int, y: int) -> int {
     return x + y;
 }
 
-fn run(n: int) crosses -> TaskResult<int> {
+fn run(n: int) -> TaskResult<int> {
     let k: int = 7;
     return on pool {
         ret add(n, k);

@@ -18,7 +18,7 @@ on_negative_shared_borrow_capture.sg (span: 3:1-17:1)
    ├─ Params: (req: Request)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 11:49-16:2)
+      └─ Stmt[0]: Block (span: 11:41-16:2)
          ├─ Stmt[0]: Let (span: 12:5-12:28)
          │  ├─ Name: r
          │  ├─ Mutable: false

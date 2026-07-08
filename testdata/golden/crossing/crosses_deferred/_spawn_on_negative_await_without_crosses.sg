@@ -1,0 +1,7 @@
+// PARKED (crosses_deferred): awaiting semantic crosses-inference (Phase 4).
+// FUTURE-ASSERT: `far Task<T>.await()` implies a crossing effect on the
+// enclosing fn (inferred). Was Block 3 T07 / SEM3164 (retired as a surface
+// requirement).
+fn wait_result(t: far Task<int>) -> TaskResult<int> {
+    return t.await();
+}

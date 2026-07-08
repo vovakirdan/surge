@@ -1,0 +1,7 @@
+// PARKED (crosses_deferred): awaiting semantic crosses-inference (Phase 4).
+// FUTURE-ASSERT: `far Task<T>.cancel()` implies a crossing effect on the
+// enclosing fn (inferred). Was Block 3 T08 / SEM3164 (retired as a surface
+// requirement).
+fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}

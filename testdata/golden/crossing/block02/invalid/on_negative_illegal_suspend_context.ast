@@ -12,6 +12,6 @@ on_negative_illegal_suspend_context.sg (span: 3:1-14:1)
    ├─ Params: (n: int)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 7:43-13:2)
+      └─ Stmt[0]: Block (span: 7:35-13:2)
          └─ Stmt[0]: Expr (span: 8:5-12:7)
             └─ Expr: expr#9: blocking { 1 stmt(s) }

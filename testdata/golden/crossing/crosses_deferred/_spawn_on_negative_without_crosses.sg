@@ -1,0 +1,12 @@
+// PARKED (crosses_deferred): awaiting semantic crosses-inference (Phase 4).
+// FUTURE-ASSERT: the fn containing `spawn on` gains an inferred crossing effect
+// in its metadata. Was Block 3 X03 / SEM3162 (retired as a surface requirement).
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) -> far Task<int> {
+    return spawn on pool {
+        ret double(n);
+    };
+}

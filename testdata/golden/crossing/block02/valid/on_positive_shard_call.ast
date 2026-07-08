@@ -12,6 +12,6 @@ on_positive_shard_call.sg (span: 2:1-11:1)
    ├─ Params: (n: int, id: ShardId)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 6:58-10:2)
+      └─ Stmt[0]: Block (span: 6:50-10:2)
          └─ Stmt[0]: Return (span: 7:5-9:7)
             └─ Expr: expr#10: on shard(id) { 1 stmt(s) }

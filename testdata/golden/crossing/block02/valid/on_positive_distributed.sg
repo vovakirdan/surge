@@ -3,7 +3,7 @@ fn double(x: int) -> int {
     return x * 2;
 }
 
-fn score(n: int) crosses -> TaskResult<int> {
+fn score(n: int) -> TaskResult<int> {
     return on distributed {
         ret double(n);
     };

@@ -19,6 +19,6 @@ on_negative_nosend_capture.sg (span: 3:1-17:1)
    ├─ Params: (v: own LocalOnly)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 12:53-16:2)
+      └─ Stmt[0]: Block (span: 12:45-16:2)
          └─ Stmt[0]: Return (span: 13:5-15:7)
             └─ Expr: expr#8: on pool { 1 stmt(s) }

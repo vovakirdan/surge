@@ -12,6 +12,6 @@ on_negative_bare_fn_destination.sg (span: 3:1-12:1)
    ├─ Params: ()
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 7:37-11:2)
+      └─ Stmt[0]: Block (span: 7:29-11:2)
          └─ Stmt[0]: Return (span: 8:5-10:7)
             └─ Expr: expr#4: on route_for { 1 stmt(s) }

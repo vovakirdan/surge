@@ -12,7 +12,7 @@ on_positive_copy_capture.sg (span: 2:1-12:1)
    ├─ Params: (n: int)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 6:43-11:2)
+      └─ Stmt[0]: Block (span: 6:35-11:2)
          ├─ Stmt[0]: Let (span: 7:5-7:20)
          │  ├─ Name: k
          │  ├─ Mutable: false

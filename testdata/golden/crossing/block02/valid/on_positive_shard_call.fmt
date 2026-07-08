@@ -3,7 +3,7 @@ fn double(x: int) -> int {
     return x * 2;
 }
 
-fn score(n: int, id: ShardId) crosses -> TaskResult<int> {
+fn score(n: int, id: ShardId) -> TaskResult<int> {
     return on shard(id) {
         ret double(n);
     };

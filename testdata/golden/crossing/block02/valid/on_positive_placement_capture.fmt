@@ -3,7 +3,7 @@ fn double(x: int) -> int {
     return x * 2;
 }
 
-fn run(n: int, other: Placement) crosses -> TaskResult<int> {
+fn run(n: int, other: Placement) -> TaskResult<int> {
     return on pool {
         let p: Placement = other;
         let _ = p;

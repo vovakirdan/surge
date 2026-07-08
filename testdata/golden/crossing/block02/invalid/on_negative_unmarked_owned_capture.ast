@@ -18,6 +18,6 @@ on_negative_unmarked_owned_capture.sg (span: 3:1-16:1)
    ├─ Params: (p: own Payload)
    ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 11:51-15:2)
+      └─ Stmt[0]: Block (span: 11:43-15:2)
          └─ Stmt[0]: Return (span: 12:5-14:7)
             └─ Expr: expr#8: on pool { 1 stmt(s) }

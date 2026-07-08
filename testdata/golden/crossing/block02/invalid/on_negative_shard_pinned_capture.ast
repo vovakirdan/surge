@@ -4,6 +4,6 @@ on_negative_shard_pinned_capture.sg (span: 3:1-9:1)
    ├─ Params: (conn: own TcpConn)
    ├─ Return: TaskResult<nothing>
    └─ Body:
-      └─ Stmt[0]: Block (span: 3:58-8:2)
+      └─ Stmt[0]: Block (span: 3:50-8:2)
          └─ Stmt[0]: Return (span: 4:5-7:7)
             └─ Expr: expr#6: on pool { 2 stmt(s) }

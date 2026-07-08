@@ -43,9 +43,9 @@ func TestSpawnOnRemoteExpressionPositions(t *testing.T) {
 		name string
 		src  string
 	}{
-		{"S01_statement", "fn f() crosses { spawn on distributed { ret 1; }; }"},
-		{"S02_let_init", "fn f() crosses { let t = spawn on pool { ret 1; }; }"},
-		{"S03_return", "fn f() crosses -> int { return spawn on distributed { ret 1; }; }"},
+		{"S01_statement", "fn f() { spawn on distributed { ret 1; }; }"},
+		{"S02_let_init", "fn f() { let t = spawn on pool { ret 1; }; }"},
+		{"S03_return", "fn f() -> int { return spawn on distributed { ret 1; }; }"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestSpawnOnDestinations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src := "fn f() crosses { let t = " + tt.body + "; }"
+			src := "fn f() { let t = " + tt.body + "; }"
 			arenas, bag, _ := parseProgram(t, src)
 			if bag.Len() != 0 {
 				t.Fatalf("expected clean parse, got: %s", diagnosticsSummary(bag))
@@ -119,7 +119,7 @@ func TestSpawnOnDestinations(t *testing.T) {
 // `Job` plus a body block (struct-literal recognition suppressed), so sema can
 // reject the type destination (SEM3155) rather than the parser eating the body.
 func TestSpawnOnTypeNameDestinationParses(t *testing.T) {
-	arenas, bag, _ := parseProgram(t, "fn g() crosses -> int { return spawn on Job { ret 1; }; }")
+	arenas, bag, _ := parseProgram(t, "fn g() -> int { return spawn on Job { ret 1; }; }")
 	if bag.Len() != 0 {
 		t.Fatalf("expected clean parse, got: %s", diagnosticsSummary(bag))
 	}
@@ -139,7 +139,7 @@ func TestSpawnOnTypeNameDestinationParses(t *testing.T) {
 // --- S04: missing block → SYN2032 --------------------------------------------
 
 func TestSpawnOnMissingBlock(t *testing.T) {
-	arenas, bag, _ := parseProgram(t, "fn f() crosses { spawn on distributed; }")
+	arenas, bag, _ := parseProgram(t, "fn f() { spawn on distributed; }")
 	if !bagHasCode(bag, diag.SynSpawnOnMissingBlock) {
 		t.Fatalf("expected SynSpawnOnMissingBlock (SYN2032), got: %s", diagnosticsSummary(bag))
 	}
@@ -157,7 +157,7 @@ func TestSpawnOnMissingBlock(t *testing.T) {
 // --- S05: missing destination → SYN2033 --------------------------------------
 
 func TestSpawnOnMissingDestination(t *testing.T) {
-	arenas, bag, _ := parseProgram(t, "fn f() crosses { spawn on { ret 1; }; }")
+	arenas, bag, _ := parseProgram(t, "fn f() { spawn on { ret 1; }; }")
 	if !bagHasCode(bag, diag.SynSpawnOnMissingDestination) {
 		t.Fatalf("expected SynSpawnOnMissingDestination (SYN2033), got: %s", diagnosticsSummary(bag))
 	}
@@ -180,7 +180,7 @@ func TestSpawnWithoutOnRoutesToLocalSpawn(t *testing.T) {
 	// No `on`: `spawn` consumes the postfix expression and this must NOT become a
 	// remote-spawn node nor emit a missing-`on` parse code. Its rejection is the
 	// existing SemaSpawnNotTask (3111) at sema time.
-	arenas, bag, _ := parseProgram(t, "fn f() crosses { spawn distributed { ret 1; }; }")
+	arenas, bag, _ := parseProgram(t, "fn f() { spawn distributed { ret 1; }; }")
 	if len(spawnOnExprs(arenas)) != 0 {
 		t.Error("`spawn distributed { ... }` must not parse as a remote spawn-on node")
 	}
@@ -192,7 +192,7 @@ func TestSpawnWithoutOnRoutesToLocalSpawn(t *testing.T) {
 // --- S07: `@local spawn on ...` must PARSE (sema rejects with SEM3174) --------
 
 func TestLocalSpawnOnParses(t *testing.T) {
-	arenas, bag, _ := parseProgram(t, "fn f() crosses { @local spawn on distributed { ret 1; }; }")
+	arenas, bag, _ := parseProgram(t, "fn f() { @local spawn on distributed { ret 1; }; }")
 	if bag.Len() != 0 {
 		t.Fatalf("`@local spawn on` must parse cleanly (SEM3174 is a sema error), got: %s", diagnosticsSummary(bag))
 	}
@@ -214,7 +214,7 @@ func TestLocalSpawnOnParses(t *testing.T) {
 // --- `spawn on blocking` postponed destination → FUT7013 ----------------------
 
 func TestSpawnOnBlockingDestinationRejected(t *testing.T) {
-	_, bag, _ := parseProgram(t, "fn f() crosses { spawn on blocking { ret 1; }; }")
+	_, bag, _ := parseProgram(t, "fn f() { spawn on blocking { ret 1; }; }")
 	if !bagHasCode(bag, diag.FutSpawnOnDestBlocking) {
 		t.Fatalf("expected FutSpawnOnDestBlocking (FUT7013), got: %s", diagnosticsSummary(bag))
 	}
@@ -225,7 +225,7 @@ func TestSpawnOnBlockingDestinationRejected(t *testing.T) {
 func TestSpawnOnBodyReturnParses(t *testing.T) {
 	// `return` inside the remote body is a semantic error (SEM3159), not a parse
 	// error: the body must still parse `return` normally.
-	arenas, bag, _ := parseProgram(t, "fn f() crosses { let t = spawn on pool { return 1; }; }")
+	arenas, bag, _ := parseProgram(t, "fn f() { let t = spawn on pool { return 1; }; }")
 	if bag.Len() != 0 {
 		t.Fatalf("expected clean parse of `return` inside spawn-on body, got: %s", diagnosticsSummary(bag))
 	}
