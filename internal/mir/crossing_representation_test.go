@@ -137,6 +137,21 @@ fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 					t.Fatalf("handle type = %q, want %q", got, tc.wantHandle)
 				}
 			}
+			if tc.kind == sema.CrossingLoweringSpawnOn {
+				if ins.BodyFuncID == mir.NoFuncID {
+					t.Fatal("spawn_on crossing missing synthetic poll function id")
+				}
+				if ins.Pending.Local == mir.NoLocalID {
+					t.Fatal("spawn_on crossing missing persisted pending local")
+				}
+				if len(ins.State.Fields) != tc.wantCaptures {
+					t.Fatalf("spawn_on state fields = %d, want %d", len(ins.State.Fields), tc.wantCaptures)
+				}
+				pollFn := compiled.mod.Funcs[ins.BodyFuncID]
+				if pollFn == nil || !strings.HasPrefix(pollFn.Name, "__spawn_on_block$") || !strings.HasSuffix(pollFn.Name, "$poll") {
+					t.Fatalf("spawn_on synthetic poll function name = %v", pollFn)
+				}
+			}
 			if len(ins.Captures) != tc.wantCaptures {
 				t.Fatalf("captures = %d, want %d", len(ins.Captures), tc.wantCaptures)
 			}
@@ -207,11 +222,57 @@ async fn run(dst: Placement) -> TaskResult<int> {
 	}
 }
 
+func TestMIRAsyncSpawnOnCrossingKeepsPreSuspendInputsAndRetryState(t *testing.T) {
+	compiled := compileCrossingMIR(t, crossingMIRPrelude+`
+async fn checkpoint() -> int {
+    return 0;
+}
+
+async fn run(dst: Placement, n: int) -> far Task<int> {
+    let _ = checkpoint().await();
+    return spawn on dst {
+        ret n;
+    };
+}
+`, crossingForms(sema.CrossingLoweringSpawnOn))
+
+	for _, f := range compiled.mod.Funcs {
+		mir.SimplifyCFG(f)
+	}
+	if err := mir.LowerAsyncStateMachine(compiled.mod, compiled.sema, compiled.symbols.Table); err != nil {
+		t.Fatalf("async lowering failed: %v", err)
+	}
+	ins := requireMIRCrossing(t, compiled.mod, sema.CrossingLoweringSpawnOn)
+	if ins.ReadyBB == mir.NoBlockID {
+		t.Fatalf("async spawn_on crossing missing ready block")
+	}
+	if ins.PendBB == mir.NoBlockID {
+		t.Fatalf("async spawn_on crossing missing pending block")
+	}
+	if ins.Pending.Local == mir.NoLocalID {
+		t.Fatalf("async spawn_on crossing missing pending local")
+	}
+	if !asyncPayloadHasLabels(compiled.types, "__AsyncPayload$run", "Placement", "int") {
+		t.Fatalf("pre-spawn suspend payload must preserve Placement and int inputs before first spawn_on publish")
+	}
+	if !asyncPayloadHasLabels(compiled.types, "__AsyncPayload$run", "*uint8") {
+		t.Fatalf("spawn_on pending payload must preserve rt_remote_spawn_pending* retry state")
+	}
+	if err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+		CrossingForms: crossingForms(sema.CrossingLoweringSpawnOn),
+	}); err != nil {
+		t.Fatalf("validate async spawn_on crossing MIR: %v", err)
+	}
+}
+
 const crossingMIRPrelude = `
 tag Success<T>(T);
 tag Cancelled();
 type TaskResult<T> = Success(T) | Cancelled;
 type Task<T> = { __opaque: int };
+extern<Task<T>> {
+    fn await(self: own Task<T>) -> TaskResult<T>;
+}
 @intrinsic @copy
 type Placement = { __opaque: int };
 type TcpConn = { fd: int };
@@ -312,6 +373,47 @@ func requireMIRCrossing(t *testing.T, mod *mir.Module, kind sema.CrossingLowerin
 	}
 	t.Fatalf("missing MIR crossing kind %d", kind)
 	return mir.CrossingInstr{}
+}
+
+func asyncPayloadHasLabels(typesIn *types.Interner, unionName string, labels ...string) bool {
+	if typesIn == nil || typesIn.Strings == nil {
+		return false
+	}
+	for id := types.TypeID(1); ; id++ {
+		tt, ok := typesIn.Lookup(id)
+		if !ok {
+			break
+		}
+		if tt.Kind != types.KindUnion {
+			continue
+		}
+		info, ok := typesIn.UnionInfo(id)
+		if !ok || info == nil {
+			continue
+		}
+		name, ok := typesIn.Strings.Lookup(info.Name)
+		if !ok || name != unionName {
+			continue
+		}
+		for _, member := range info.Members {
+			got := make(map[string]bool, len(member.TagArgs))
+			for _, arg := range member.TagArgs {
+				got[types.Label(typesIn, arg)] = true
+			}
+			all := true
+			for _, want := range labels {
+				if !got[want] {
+					all = false
+					break
+				}
+			}
+			if all {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }
 
 func crossingDiagSummary(bag *diag.Bag) string {

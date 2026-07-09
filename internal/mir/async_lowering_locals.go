@@ -291,7 +291,11 @@ func collectLocalsInInstr(ins *Instr, set localSet) {
 		}
 	case InstrCrossing:
 		collectLocalsFromPlace(ins.Crossing.Dst, set)
+		collectLocalsFromPlace(ins.Crossing.Pending, set)
 		collectLocalsFromOperand(&ins.Crossing.Destination.Value, set)
+		for i := range ins.Crossing.State.Fields {
+			collectLocalsFromOperand(&ins.Crossing.State.Fields[i].Value, set)
+		}
 		for i := range ins.Crossing.Captures {
 			collectLocalsFromOperand(&ins.Crossing.Captures[i].Value, set)
 		}

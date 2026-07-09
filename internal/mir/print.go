@@ -158,7 +158,14 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 	case InstrSpawn:
 		return fmt.Sprintf("%s = spawn %s", formatPlace(ins.Spawn.Dst), formatOperand(&ins.Spawn.Value))
 	case InstrCrossing:
-		return fmt.Sprintf("%s = crossing_%s", formatPlace(ins.Crossing.Dst), mirCrossingKindName(ins.Crossing.Kind))
+		extra := ""
+		if ins.Crossing.BodyFuncID != NoFuncID {
+			extra = fmt.Sprintf(" fn.%d", ins.Crossing.BodyFuncID)
+		}
+		if ins.Crossing.Pending.Local != NoLocalID || ins.Crossing.Pending.Global != NoGlobalID {
+			extra += fmt.Sprintf(" pending=%s", formatPlace(ins.Crossing.Pending))
+		}
+		return fmt.Sprintf("%s = crossing_%s%s", formatPlace(ins.Crossing.Dst), mirCrossingKindName(ins.Crossing.Kind), extra)
 	case InstrBlocking:
 		return fmt.Sprintf("%s = blocking fn.%d", formatPlace(ins.Blocking.Dst), ins.Blocking.FuncID)
 	case InstrPoll:

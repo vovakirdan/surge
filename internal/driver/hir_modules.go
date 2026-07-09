@@ -16,9 +16,20 @@ import (
 	"surge/internal/types"
 )
 
+// HIRCombineOptions configures cross-file and cross-module HIR merging.
+type HIRCombineOptions struct {
+	CrossingForms map[sema.CrossingLoweringKind]bool
+}
+
 // CombineHIRWithModules appends module bodies (including stdlib dependencies) to the root HIR
 // module so that cross-module calls can be executed by the VM.
 func CombineHIRWithModules(ctx context.Context, res *DiagnoseResult) (*hir.Module, error) {
+	return CombineHIRWithModulesWithOptions(ctx, res, HIRCombineOptions{})
+}
+
+// CombineHIRWithModulesWithOptions appends module bodies using the same HIR
+// feature flags as the root lowering path.
+func CombineHIRWithModulesWithOptions(ctx context.Context, res *DiagnoseResult, opts HIRCombineOptions) (*hir.Module, error) {
 	if res == nil || res.HIR == nil {
 		return nil, nil
 	}
@@ -45,7 +56,7 @@ func CombineHIRWithModules(ctx context.Context, res *DiagnoseResult) (*hir.Modul
 
 	nextFnID := maxFuncID(combined.Funcs) + 1
 
-	if err := appendRootModuleFiles(ctx, res, combined, &nextFnID); err != nil {
+	if err := appendRootModuleFiles(ctx, res, combined, &nextFnID, opts); err != nil {
 		return nil, err
 	}
 	mergeCopyTypesFromRecord(res.Sema, res.rootRecord)
@@ -84,7 +95,7 @@ func CombineHIRWithModules(ctx context.Context, res *DiagnoseResult) (*hir.Modul
 		if rootPath != "" && normalizeExportsKey(rec.Meta.Path) == rootPath {
 			continue
 		}
-		if err := appendModuleRecordHIR(ctx, res, rec, combined, &nextFnID); err != nil {
+		if err := appendModuleRecordHIR(ctx, res, rec, combined, &nextFnID, opts); err != nil {
 			return nil, err
 		}
 	}
@@ -92,7 +103,7 @@ func CombineHIRWithModules(ctx context.Context, res *DiagnoseResult) (*hir.Modul
 	return combined, nil
 }
 
-func appendRootModuleFiles(ctx context.Context, res *DiagnoseResult, combined *hir.Module, nextFnID *hir.FuncID) error {
+func appendRootModuleFiles(ctx context.Context, res *DiagnoseResult, combined *hir.Module, nextFnID *hir.FuncID, opts HIRCombineOptions) error {
 	if res == nil || combined == nil || nextFnID == nil {
 		return nil
 	}
@@ -109,7 +120,9 @@ func appendRootModuleFiles(ctx context.Context, res *DiagnoseResult, combined *h
 		if !ok || semaRes == nil {
 			continue
 		}
-		rootHIR, err := hir.Lower(ctx, rootRec.Builder, fileID, semaRes, &symRes)
+		rootHIR, err := hir.LowerWithOptions(ctx, rootRec.Builder, fileID, semaRes, &symRes, hir.LowerOptions{
+			CrossingForms: opts.CrossingForms,
+		})
 		if err != nil {
 			return err
 		}
@@ -131,7 +144,7 @@ func appendRootModuleFiles(ctx context.Context, res *DiagnoseResult, combined *h
 	return nil
 }
 
-func appendModuleRecordHIR(ctx context.Context, res *DiagnoseResult, rec *moduleRecord, combined *hir.Module, nextFnID *hir.FuncID) error {
+func appendModuleRecordHIR(ctx context.Context, res *DiagnoseResult, rec *moduleRecord, combined *hir.Module, nextFnID *hir.FuncID, opts HIRCombineOptions) error {
 	if rec == nil || rec.Builder == nil || rec.Table == nil || combined == nil || nextFnID == nil {
 		return nil
 	}
@@ -155,7 +168,9 @@ func appendModuleRecordHIR(ctx context.Context, res *DiagnoseResult, rec *module
 		if !ok || semaRes == nil {
 			continue
 		}
-		modHIR, err := hir.Lower(ctx, rec.Builder, fileID, semaRes, &symRes)
+		modHIR, err := hir.LowerWithOptions(ctx, rec.Builder, fileID, semaRes, &symRes, hir.LowerOptions{
+			CrossingForms: opts.CrossingForms,
+		})
 		if err != nil {
 			return err
 		}

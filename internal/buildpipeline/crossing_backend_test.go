@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"surge/internal/diag"
+	"surge/internal/sema"
 )
 
 func testRepoRoot(t *testing.T) string {
@@ -276,6 +277,186 @@ fn caller() -> TaskResult<int> {
 				t.Errorf("expected imported on placement and on far-handle diagnostics, got %d: %s", got, summarizeCodes(diags))
 			}
 		})
+	}
+}
+
+func TestSpawnOnCrossingOverrideIsTestScoped(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.sg")
+	source := `
+async fn run(dst: Placement, n: int) -> far Task<int> {
+    return spawn on dst {
+        ret n + 1;
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	guarded, guardedErr := Compile(context.Background(), &CompileRequest{
+		TargetPath:     path,
+		Backend:        BackendLLVM,
+		MaxDiagnostics: 200,
+	})
+	if guardedErr == nil {
+		t.Fatal("expected default production compile to stay guarded")
+	}
+	if guarded.MIR != nil {
+		t.Fatal("default guarded compile must not produce MIR")
+	}
+	if guarded.Diagnose == nil || guarded.Diagnose.Bag == nil {
+		t.Fatalf("missing diagnostics from guarded compile: %v", guardedErr)
+	}
+	if got := findDiagnostic(guarded.Diagnose.Bag.Items(), diag.FutSpawnOnBackendUnavailable); got == nil {
+		t.Fatalf("expected FUT7015 without override, got %s", summarizeCodes(guarded.Diagnose.Bag.Items()))
+	}
+
+	enabled, enabledErr := Compile(context.Background(), &CompileRequest{
+		TargetPath:     path,
+		Backend:        BackendLLVM,
+		MaxDiagnostics: 200,
+		CrossingFormsForTest: map[sema.CrossingLoweringKind]bool{
+			sema.CrossingLoweringSpawnOn: true,
+		},
+	})
+	if enabledErr != nil {
+		t.Fatalf("test-scoped spawn_on override should compile to MIR: %v", enabledErr)
+	}
+	if enabled.MIR == nil {
+		t.Fatal("test-scoped spawn_on override produced no MIR")
+	}
+	if enabled.Diagnose != nil && enabled.Diagnose.Bag != nil {
+		if got := findDiagnostic(enabled.Diagnose.Bag.Items(), diag.FutSpawnOnBackendUnavailable); got != nil {
+			t.Fatalf("test override must suppress FUT7015 only for the requested form, got %s", got.Code.ID())
+		}
+	}
+}
+
+func TestSpawnOnCrossingOverrideDoesNotOpenOtherForms(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.sg")
+	source := `
+fn direct_on(dst: Placement) -> TaskResult<int> {
+    return on dst {
+        ret 1;
+    };
+}
+
+fn wait_remote(t: far Task<int>) -> TaskResult<int> {
+    return t.await();
+}
+
+fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}
+
+async fn remote_child(dst: Placement) -> far Task<int> {
+    return spawn on dst {
+        ret 1;
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	res, err := Compile(context.Background(), &CompileRequest{
+		TargetPath:     path,
+		Backend:        BackendLLVM,
+		MaxDiagnostics: 200,
+		CrossingFormsForTest: map[sema.CrossingLoweringKind]bool{
+			sema.CrossingLoweringSpawnOn: true,
+		},
+	})
+	if err == nil {
+		t.Fatal("spawn-only override must not open other crossing forms")
+	}
+	if res.MIR != nil {
+		t.Fatal("compile with still-guarded crossing forms must not produce MIR")
+	}
+	if res.Diagnose == nil || res.Diagnose.Bag == nil {
+		t.Fatalf("missing diagnostics from guarded compile: %v", err)
+	}
+	diags := res.Diagnose.Bag.Items()
+	for _, code := range []diag.Code{
+		diag.FutOnBackendUnavailable,
+		diag.FutFarTaskAwaitBackendUnavailable,
+		diag.FutFarTaskCancelBackendUnavailable,
+	} {
+		if findDiagnostic(diags, code) == nil {
+			t.Fatalf("expected %s with spawn-only override, got %s", code.ID(), summarizeCodes(diags))
+		}
+	}
+	if got := findDiagnostic(diags, diag.FutSpawnOnBackendUnavailable); got != nil {
+		t.Fatalf("spawn-only override should suppress FUT7015, got %s", summarizeCodes(diags))
+	}
+}
+
+func TestSpawnOnCrossingOverrideCoversImportedModules(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	dir, err := os.MkdirTemp(".", "rv2-crossing-override-xmod-")
+	if err != nil {
+		t.Fatalf("mkdir temp project: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+	})
+	remoteDir := filepath.Join(dir, "remote")
+	err = os.MkdirAll(remoteDir, 0o755)
+	if err != nil {
+		t.Fatalf("mkdir remote module: %v", err)
+	}
+	err = os.WriteFile(filepath.Join(remoteDir, "remote.sg"), []byte(`
+pragma module::remote;
+
+pub async fn remote_child(dst: Placement, n: int) -> far Task<int> {
+    return spawn on dst {
+        ret n + 1;
+    };
+}
+`), 0o600)
+	if err != nil {
+		t.Fatalf("write remote module: %v", err)
+	}
+	mainPath := filepath.Join(dir, "main.sg")
+	err = os.WriteFile(mainPath, []byte(`
+import remote::remote_child;
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}
+`), 0o600)
+	if err != nil {
+		t.Fatalf("write main source: %v", err)
+	}
+
+	res, err := Compile(context.Background(), &CompileRequest{
+		TargetPath:     mainPath,
+		Backend:        BackendLLVM,
+		MaxDiagnostics: 200,
+		CrossingFormsForTest: map[sema.CrossingLoweringKind]bool{
+			sema.CrossingLoweringSpawnOn: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("spawn_on override should apply during imported-module HIR merge: %v", err)
+	}
+	if res.MIR == nil {
+		t.Fatal("imported spawn_on override compile produced no MIR")
 	}
 }
 

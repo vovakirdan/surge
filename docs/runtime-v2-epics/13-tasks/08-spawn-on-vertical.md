@@ -1,6 +1,6 @@
 # Epic 13 Task 8: `spawn on` Executable Vertical
 
-**Status:** pending.
+**Status:** complete.
 **Kind:** LLVM lowering + runtime e2e. Gates together with Task 9 — the
 crossing guard for `spawn on` does NOT flip publicly in this task.
 **Depends on:** Task 6 (publication API), Task 7 (representation).
@@ -60,7 +60,59 @@ Task 1 recorded the safety proof.
 4. Trace evidence: publication counters increment; owner histogram shows the
    destination shard.
 
-## Proof
+## Closeout
+
+Implemented the executable `spawn on` lowering spine behind the
+test-scoped crossing override. The production capability guard remains closed:
+normal LLVM/VM compiles still report FUT7015 for `spawn on` until Task 9 lands
+the `far Task.await()` / `far Task.cancel()` discharge path and flips the joint
+gate deliberately.
+
+What landed:
+
+- `CompileRequest.CrossingFormsForTest` and corresponding HIR/MIR combine,
+  lower, and validate options, including dependency-module coverage.
+- MIR `InstrCrossing` state/pending fields plus a synthetic remote poll
+  function/state record for `spawn on`.
+- LLVM lowering to `rt_remote_spawn_publish_placement`, including retry
+  through the persistent pending slot, async task suspension, handle allocation,
+  status-to-panic mapping, and no local spawn fallback.
+- Runtime placement publication wrapper with distinct unsupported/invalid
+  placement statuses.
+- ABI/static proof that `rt_far_task_handle` is exactly the shape allocated by
+  codegen.
+
+Boundaries kept explicit:
+
+- Full source-level user e2e that consumes the returned `far Task<T>` waits for
+  Task 9, because Task 8 intentionally does not open await/cancel.
+- Non-async/synchronous `fn -> far Task<T>` bodies remain guarded in production
+  and are not a supported executable vertical in this task.
+- `pool`, immediate `on`, far-handle `on`, remote channels/select, distributed
+  scope accounting, and remote-free ownership remain out of scope.
+
+Verified:
+
+- `go test ./internal/mir -run 'Crossing|SpawnOn' -count=1`
+- `go test ./internal/buildpipeline -run 'Crossing|SpawnOn' -count=1`
+- `go test ./internal/backend/llvm -run 'Crossing|SpawnOn|Placement' -count=1`
+- `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2RemotePublication(APIShape|Behavior|FailurePathStaticGuards)$' -count=1`
+- `go test ./internal/driver -run 'Remap|HIR|Crossing|Module' -count=1`
+- `make runtime-v2-crossing-check`
+- `make c-check`
+- `make cppcheck`
+- `make check`
+- `sentrux check .` quality `6184`
+- `sentrux check internal` quality `6528`
+- `sentrux check runtime` quality `5360`
+- `sentrux check runtime/native` quality `5484`
+
+## Joint Gate Proof Carried To Task 9
+
+The original executable rows below require both publication and the
+`far Task<T>` discharge path. Task 8 landed the publication/codegen side and
+kept the public guard closed; Task 9 owns completing these rows and flipping
+the joint production capability.
 
 - All Step 1 rows green at `SURGE_SHARDS=1,2,8`.
 - Publication wait proven a task suspend: the self-crossing row plus a row

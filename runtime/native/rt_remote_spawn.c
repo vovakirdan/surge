@@ -76,7 +76,7 @@ static void remote_spawn_pending_finish(rt_executor* ex,
     }
 }
 
-static rt_remote_spawn_status remote_spawn_pending_snapshot(rt_remote_spawn_pending* pending,
+static rt_remote_spawn_status remote_spawn_pending_snapshot(const rt_remote_spawn_pending* pending,
                                                             rt_far_task_handle* out) {
     rt_remote_spawn_status status = RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
     pthread_mutex_lock(&remote_spawn_lock);
@@ -107,6 +107,19 @@ static rt_remote_spawn_status remote_spawn_transport_status(rt_transport_status 
         return RT_REMOTE_SPAWN_STATUS_QUEUE_FULL;
     }
     return RT_REMOTE_SPAWN_STATUS_REFUSED;
+}
+
+static rt_remote_spawn_status remote_spawn_placement_status(rt_placement_status status) {
+    switch (status) {
+        case RT_PLACEMENT_STATUS_OK:
+            return RT_REMOTE_SPAWN_STATUS_OK;
+        case RT_PLACEMENT_STATUS_UNSUPPORTED:
+            return RT_REMOTE_SPAWN_STATUS_UNSUPPORTED_PLACEMENT;
+        case RT_PLACEMENT_STATUS_INVALID_SHARD:
+        case RT_PLACEMENT_STATUS_INVALID_ARGUMENT:
+        default:
+            return RT_REMOTE_SPAWN_STATUS_INVALID_PLACEMENT;
+    }
 }
 
 static void remote_spawn_release_msg_payload(const rt_transport_msg* msg) {
@@ -210,6 +223,36 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
     *pending = req;
     remote_spawn_prepare_reply_wait(ex, current, req->request_id);
     return RT_REMOTE_SPAWN_STATUS_PENDING;
+}
+
+rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
+                                                         int64_t poll_fn_id,
+                                                         void* state,
+                                                         rt_remote_spawn_pending** pending,
+                                                         rt_far_task_handle* out_handle) {
+    if (pending == NULL || out_handle == NULL) {
+        return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
+    }
+    if (*pending != NULL) {
+        return rt_remote_spawn_publish(0, poll_fn_id, state, pending, out_handle);
+    }
+
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
+    }
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    const rt_task* current = rt_current_task();
+    if (runtime == NULL || current == NULL || rt_current_task_id() == 0) {
+        return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
+    }
+
+    rt_placement_resolution resolved =
+        rt_placement_resolve(runtime, placement, remote_spawn_current_source_shard(current));
+    if (resolved.status != RT_PLACEMENT_STATUS_OK) {
+        return remote_spawn_placement_status(resolved.status);
+    }
+    return rt_remote_spawn_publish(resolved.shard_id, poll_fn_id, state, pending, out_handle);
 }
 
 static rt_remote_spawn_status

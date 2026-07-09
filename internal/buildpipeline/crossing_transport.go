@@ -13,6 +13,16 @@ func crossingBackendGuardApplies(backend Backend, form sema.CrossingLoweringKind
 	return !backendSupportsCrossingForm(backend, form)
 }
 
+func crossingBackendGuardAppliesForRequest(req *CompileRequest, form sema.CrossingLoweringKind) bool {
+	if req == nil {
+		return false
+	}
+	if req.CrossingFormsForTest != nil && req.CrossingFormsForTest[form] {
+		return false
+	}
+	return crossingBackendGuardApplies(req.Backend, form)
+}
+
 func backendSupportsCrossingForm(backend Backend, form sema.CrossingLoweringKind) bool {
 	return false
 }

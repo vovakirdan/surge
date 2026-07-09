@@ -122,7 +122,7 @@ static int net_conn_owner_local(rt_executor* ex, const NetConn* c) {
     if (worker_shard == c->owner_shard_id) {
         return 1;
     }
-    rt_task* task = rt_current_task();
+    const rt_task* task = rt_current_task();
     if (task != NULL && task->owner_shard_valid != 0 && task->owner_shard_id == c->owner_shard_id) {
         return 1;
     }

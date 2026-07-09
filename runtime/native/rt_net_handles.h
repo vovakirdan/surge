@@ -57,7 +57,7 @@ void rt_net_listener_free(NetListener* listener);
 void rt_net_listener_release_members(NetListener* listener);
 int rt_net_listener_registry_add(NetListener* listener);
 void rt_net_listener_registry_remove(const NetListener* listener);
-NetListener* rt_net_listener_canonical(NetListener* listener);
+NetListener* rt_net_listener_canonical(const NetListener* listener);
 const NetListener* rt_net_listener_canonical_const(const NetListener* listener);
 int rt_net_listener_set_member(NetListener* listener,
                                size_t index,
@@ -67,7 +67,7 @@ NetListenerMember* rt_net_listener_first_live_member(NetListener* listener);
 const NetListenerMember* rt_net_listener_first_live_member_const(const NetListener* listener);
 int rt_net_listener_selected_member_const(const NetListener* listener, NetListenerMember* out);
 NetConn* rt_net_conn_alloc(int fd, uint32_t owner_shard_id, uint64_t generation);
-NetConn* rt_net_conn_canonical(NetConn* conn);
+NetConn* rt_net_conn_canonical(const NetConn* conn);
 const NetConn* rt_net_conn_canonical_const(const NetConn* conn);
 void rt_net_conn_registry_remove(const NetConn* conn);
 

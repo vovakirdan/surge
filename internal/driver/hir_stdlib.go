@@ -655,6 +655,25 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID, st
 			data.Captures[i].SymbolID = remapSymbol(data.Captures[i].SymbolID, mapping)
 		}
 		expr.Data = data
+	case hir.ExprCrossing:
+		data, ok := expr.Data.(hir.CrossingData)
+		if !ok {
+			return
+		}
+		data.Destination.AnchorSymbol = remapSymbol(data.Destination.AnchorSymbol, mapping)
+		remapExpr(data.Destination.Value, mapping, state)
+		remapBlock(data.Body, mapping, state)
+		for i := range data.Captures {
+			data.Captures[i].Symbol = remapSymbol(data.Captures[i].Symbol, mapping)
+			remapExpr(data.Captures[i].Value, mapping, state)
+		}
+		for i := range data.RemoteOps {
+			data.RemoteOps[i].ReceiverSymbol = remapSymbol(data.RemoteOps[i].ReceiverSymbol, mapping)
+			remapExpr(data.RemoteOps[i].Receiver, mapping, state)
+		}
+		data.ReceiverSymbol = remapSymbol(data.ReceiverSymbol, mapping)
+		remapExpr(data.Receiver, mapping, state)
+		expr.Data = data
 	case hir.ExprCast:
 		data, ok := expr.Data.(hir.CastData)
 		if !ok {

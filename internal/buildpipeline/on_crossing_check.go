@@ -17,10 +17,10 @@ func addOnCrossingBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseRes
 	if req == nil || diagRes == nil || diagRes.Bag == nil || diagRes.Builder == nil {
 		return
 	}
-	spans := collectOnCrossingSpans(req.Backend, diagRes.Sema)
+	spans := collectOnCrossingSpans(req, diagRes.Sema)
 	for _, mod := range diagRes.DependencyAnalyses() {
 		for _, sr := range mod.Sema {
-			spans = append(spans, collectOnCrossingSpans(req.Backend, sr)...)
+			spans = append(spans, collectOnCrossingSpans(req, sr)...)
 		}
 	}
 	for _, sp := range dedupeSpans(spans) {
@@ -35,8 +35,8 @@ func addOnCrossingBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseRes
 
 // collectOnCrossingSpans returns the spans of sema-accepted `on` crossing
 // records whose form is not backend-supported.
-func collectOnCrossingSpans(backend Backend, semaRes *sema.Result) []source.Span {
-	if semaRes == nil {
+func collectOnCrossingSpans(req *CompileRequest, semaRes *sema.Result) []source.Span {
+	if req == nil || semaRes == nil {
 		return nil
 	}
 	var spans []source.Span
@@ -48,7 +48,7 @@ func collectOnCrossingSpans(backend Backend, semaRes *sema.Result) []source.Span
 		default:
 			continue
 		}
-		if !crossingBackendGuardApplies(backend, info.Kind) {
+		if !crossingBackendGuardAppliesForRequest(req, info.Kind) {
 			continue
 		}
 		if _, dup := seen[info.Span]; dup {

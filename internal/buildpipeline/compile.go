@@ -13,6 +13,7 @@ import (
 	"surge/internal/mono"
 	"surge/internal/observ"
 	"surge/internal/project"
+	"surge/internal/sema"
 )
 
 // DirInfo describes a directory run target.
@@ -32,6 +33,10 @@ type CompileRequest struct {
 	Progress              ProgressSink
 	Files                 []string
 	Backend               Backend
+	// CrossingFormsForTest is an internal executable-crossing override used by
+	// Runtime V2 proof tests before a backend capability is publicly flipped.
+	// CLI/env paths must leave it nil.
+	CrossingFormsForTest map[sema.CrossingLoweringKind]bool
 }
 
 // CompileResult captures compilation artefacts and stage timings.
@@ -131,7 +136,9 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	}
 
 	if diagRes.HIR == nil {
-		hirModule, lowerErr := hir.LowerWithOptions(ctx, diagRes.Builder, diagRes.FileID, diagRes.Sema, diagRes.Symbols, hir.LowerOptions{})
+		hirModule, lowerErr := hir.LowerWithOptions(ctx, diagRes.Builder, diagRes.FileID, diagRes.Sema, diagRes.Symbols, hir.LowerOptions{
+			CrossingForms: req.CrossingFormsForTest,
+		})
 		if lowerErr != nil {
 			err = fmt.Errorf("HIR lowering failed: %w", lowerErr)
 			emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
@@ -160,7 +167,9 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	}
 	lowerStart := time.Now()
 
-	hirModule, err := driver.CombineHIRWithModules(ctx, diagRes)
+	hirModule, err := driver.CombineHIRWithModulesWithOptions(ctx, diagRes, driver.HIRCombineOptions{
+		CrossingForms: req.CrossingFormsForTest,
+	})
 	if err != nil {
 		err = fmt.Errorf("HIR merge failed: %w", err)
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
@@ -179,7 +188,9 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		return result, err
 	}
 
-	mirMod, err := mir.LowerModule(mm, diagRes.Sema)
+	mirMod, err := mir.LowerModuleWithOptions(mm, diagRes.Sema, mir.LowerOptions{
+		CrossingForms: req.CrossingFormsForTest,
+	})
 	if err != nil {
 		err = fmt.Errorf("MIR lowering failed: %w", err)
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
@@ -201,7 +212,9 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		mir.SimplifyCFG(f)
 	}
 
-	if err := mir.Validate(mirMod, diagRes.Sema.TypeInterner); err != nil {
+	if err := mir.ValidateWithOptions(mirMod, diagRes.Sema.TypeInterner, mir.ValidateOptions{
+		CrossingForms: req.CrossingFormsForTest,
+	}); err != nil {
 		err = fmt.Errorf("MIR validation failed: %w", err)
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
 		return result, err

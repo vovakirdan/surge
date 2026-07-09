@@ -237,6 +237,10 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 				case InstrCrossing:
 					visitType(ins.Crossing.Destination.Type)
 					visitOperand(&ins.Crossing.Destination.Value)
+					visitType(ins.Crossing.State.TypeID)
+					for si := range ins.Crossing.State.Fields {
+						visitOperand(&ins.Crossing.State.Fields[si].Value)
+					}
 					for ci := range ins.Crossing.Captures {
 						visitType(ins.Crossing.Captures[ci].Type)
 						visitOperand(&ins.Crossing.Captures[ci].Value)

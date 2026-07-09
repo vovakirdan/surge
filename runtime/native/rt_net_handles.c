@@ -192,7 +192,7 @@ void rt_net_listener_registry_remove(const NetListener* listener) {
     net_handle_registry_remove(listener->handle_id, NET_HANDLE_LISTENER, listener);
 }
 
-NetListener* rt_net_listener_canonical(NetListener* listener) {
+NetListener* rt_net_listener_canonical(const NetListener* listener) {
     if (listener == NULL || listener->handle_id == 0) {
         return NULL;
     }
@@ -349,7 +349,7 @@ NetConn* rt_net_conn_alloc(int fd, uint32_t owner_shard_id, uint64_t generation)
     return conn;
 }
 
-NetConn* rt_net_conn_canonical(NetConn* conn) {
+NetConn* rt_net_conn_canonical(const NetConn* conn) {
     if (conn == NULL || conn->handle_id == 0) {
         return NULL;
     }

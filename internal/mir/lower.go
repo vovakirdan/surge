@@ -333,8 +333,10 @@ func (l *funcLowerer) forkLowerer() *funcLowerer {
 	return &funcLowerer{
 		out:                 l.out,
 		mf:                  l.mf,
+		mono:                l.mono,
 		sema:                l.sema,
 		types:               l.types,
+		symbols:             l.symbols,
 		symToLocal:          make(map[symbols.SymbolID]LocalID),
 		symToGlobal:         l.symToGlobal,
 		nextTemp:            1,

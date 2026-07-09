@@ -327,7 +327,11 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				checkOperand(ins.Spawn.Value, ctx)
 			case InstrCrossing:
 				checkPlace(ins.Crossing.Dst, ctx)
+				checkPlace(ins.Crossing.Pending, ctx)
 				checkOperand(ins.Crossing.Destination.Value, ctx)
+				for i := range ins.Crossing.State.Fields {
+					checkOperand(ins.Crossing.State.Fields[i].Value, ctx)
+				}
 				for i := range ins.Crossing.Captures {
 					checkOperand(ins.Crossing.Captures[i].Value, ctx)
 				}

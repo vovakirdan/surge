@@ -174,7 +174,11 @@ func addUsesFromCrossing(ins *CrossingInstr, addUse, addDef func(LocalID)) {
 	}
 	addUsesFromPlaceWrite(ins.Dst, addUse)
 	addDefFromPlace(ins.Dst, addDef)
+	addUsesFromPlace(ins.Pending, addUse)
 	addUsesFromOperand(&ins.Destination.Value, addUse, addDef)
+	for i := range ins.State.Fields {
+		addUsesFromOperand(&ins.State.Fields[i].Value, addUse, addDef)
+	}
 	for i := range ins.Captures {
 		addUsesFromOperand(&ins.Captures[i].Value, addUse, addDef)
 	}

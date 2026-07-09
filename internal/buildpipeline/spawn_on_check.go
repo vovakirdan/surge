@@ -23,14 +23,14 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 	}
 	modules := diagRes.DependencyAnalyses()
 
-	spawnSpans := collectCrossingSpans(req.Backend, diagRes.Sema, sema.CrossingLoweringSpawnOn)
-	awaitSpans := collectCrossingSpans(req.Backend, diagRes.Sema, sema.CrossingLoweringFarTaskAwait)
-	cancelSpans := collectCrossingSpans(req.Backend, diagRes.Sema, sema.CrossingLoweringFarTaskCancel)
+	spawnSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringSpawnOn)
+	awaitSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringFarTaskAwait)
+	cancelSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringFarTaskCancel)
 	for _, mod := range modules {
 		for _, sr := range mod.Sema {
-			spawnSpans = append(spawnSpans, collectCrossingSpans(req.Backend, sr, sema.CrossingLoweringSpawnOn)...)
-			awaitSpans = append(awaitSpans, collectCrossingSpans(req.Backend, sr, sema.CrossingLoweringFarTaskAwait)...)
-			cancelSpans = append(cancelSpans, collectCrossingSpans(req.Backend, sr, sema.CrossingLoweringFarTaskCancel)...)
+			spawnSpans = append(spawnSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringSpawnOn)...)
+			awaitSpans = append(awaitSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringFarTaskAwait)...)
+			cancelSpans = append(cancelSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringFarTaskCancel)...)
 		}
 	}
 	for _, sp := range dedupeSpans(spawnSpans) {
@@ -61,8 +61,8 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 
 // collectCrossingSpans returns sema-accepted crossing spans for a form when the
 // current backend has no capability for that form.
-func collectCrossingSpans(backend Backend, semaRes *sema.Result, form sema.CrossingLoweringKind) []source.Span {
-	if semaRes == nil || !crossingBackendGuardApplies(backend, form) {
+func collectCrossingSpans(req *CompileRequest, semaRes *sema.Result, form sema.CrossingLoweringKind) []source.Span {
+	if req == nil || semaRes == nil || !crossingBackendGuardAppliesForRequest(req, form) {
 		return nil
 	}
 	var spans []source.Span

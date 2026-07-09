@@ -4707,3 +4707,48 @@ Debt disposition:
   attribution is available, but it does not prove the root cause impossible.
 - `RV2-DEBT-027`: opened for the rare non-empty-stderr `async: double poll`
   liveness failure observed while trying to satisfy the second full-gate pass.
+
+## 2026-07-09 — Epic 13 Task 8 Closeout
+
+Task 8 is complete as the guarded `spawn on` publication/codegen vertical. It
+does not flip public crossing support: normal production compiles still fail
+closed with FUT7015 until Task 9 adds `far Task.await()` / `far Task.cancel()`
+and flips the joint capability gate deliberately.
+
+What changed:
+
+- Buildpipeline compile requests gained a test-scoped crossing-form override,
+  and dependency-module HIR/MIR combine/lower/validate paths propagate it.
+- MIR `InstrCrossing` now carries spawn-on state, pending-slot, and synthetic
+  remote-poll function metadata; async liveness/state-machine lowering keeps
+  pre-suspend inputs and retry state.
+- LLVM lowering emits `rt_remote_spawn_publish_placement`, persistent pending
+  retries, async task suspension, deterministic status-to-panic paths, and no
+  local spawn fallback.
+- Native runtime gained the placement publication wrapper and distinct invalid
+  vs unsupported placement statuses. Static VM checks pin
+  `rt_far_task_handle` to the codegen allocation shape.
+
+Boundaries and follow-up:
+
+- Full source-level user e2e that consumes the returned `far Task<T>` remains
+  Task 9, because Task 8 intentionally provides no await/cancel discharge path.
+- Non-async `fn -> far Task<T>` is not opened as a public executable form by
+  this task; the production guard remains the safety boundary.
+- `pool`, immediate `on`, far-handle `on`, remote channels/select,
+  distributed scopes, and remote-free ownership remain outside Task 8.
+
+Verified:
+
+- `go test ./internal/mir -run 'Crossing|SpawnOn' -count=1`
+- `go test ./internal/buildpipeline -run 'Crossing|SpawnOn' -count=1`
+- `go test ./internal/backend/llvm -run 'Crossing|SpawnOn|Placement' -count=1`
+- `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2RemotePublication(APIShape|Behavior|FailurePathStaticGuards)$' -count=1`
+- `go test ./internal/driver -run 'Remap|HIR|Crossing|Module' -count=1`
+- `make runtime-v2-crossing-check`
+- `make c-check`
+- `make cppcheck`
+- `make check`
+- `sentrux check .` quality `6184`; `sentrux check internal` quality `6528`;
+  `sentrux check runtime` quality `5360`; `sentrux check runtime/native`
+  quality `5484`.

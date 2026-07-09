@@ -128,6 +128,7 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 					crossing := ins.Crossing
 					crossing.Captures = append([]CrossingCapture(nil), crossing.Captures...)
 					crossing.RemoteOps = append([]CrossingRemoteOp(nil), crossing.RemoteOps...)
+					crossing.State.Fields = append([]StructLitField(nil), crossing.State.Fields...)
 					crossing.ReadyBB = afterBB
 					crossing.PendBB = NoBlockID
 					pollInstr = Instr{Kind: InstrCrossing, Crossing: crossing}

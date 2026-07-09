@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "rt_placement.h"
+
 typedef struct rt_executor rt_executor;
 typedef struct rt_shard rt_shard;
 typedef struct rt_remote_spawn_pending rt_remote_spawn_pending;
@@ -16,6 +18,8 @@ typedef enum rt_remote_spawn_status {
     RT_REMOTE_SPAWN_STATUS_QUEUE_FULL = 4,
     RT_REMOTE_SPAWN_STATUS_REFUSED = 5,
     RT_REMOTE_SPAWN_STATUS_STALE_TOKEN = 6,
+    RT_REMOTE_SPAWN_STATUS_UNSUPPORTED_PLACEMENT = 7,
+    RT_REMOTE_SPAWN_STATUS_INVALID_PLACEMENT = 8,
 } rt_remote_spawn_status;
 
 typedef struct rt_far_task_handle {
@@ -30,6 +34,11 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
                                                void* state,
                                                rt_remote_spawn_pending** pending,
                                                rt_far_task_handle* out_handle);
+rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
+                                                         int64_t poll_fn_id,
+                                                         void* state,
+                                                         rt_remote_spawn_pending** pending,
+                                                         rt_far_task_handle* out_handle);
 rt_remote_spawn_status rt_remote_spawn_handle_validate(rt_executor* ex,
                                                        const rt_far_task_handle* handle);
 uint64_t rt_remote_spawn_pending_request_id(const rt_remote_spawn_pending* pending);

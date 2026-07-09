@@ -134,6 +134,13 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("panic bounds length out of range")
 	e.ensureStringConst("missing poll function")
 	e.ensureStringConst("missing blocking function")
+	e.ensureStringConst("spawn on remote publish requires an async task context")
+	e.ensureStringConst("spawn on destination is shut down")
+	e.ensureStringConst("spawn on remote publish queue is full")
+	e.ensureStringConst("spawn on remote publish was refused")
+	e.ensureStringConst("spawn on placement is not supported by this backend")
+	e.ensureStringConst("spawn on placement is invalid")
+	e.ensureStringConst("spawn on remote publish failed")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}
