@@ -8,6 +8,7 @@ import (
 
 	"surge/internal/diag"
 	"surge/internal/driver"
+	"surge/internal/hir"
 	"surge/internal/mir"
 	"surge/internal/mono"
 	"surge/internal/observ"
@@ -64,7 +65,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	opts := driver.DiagnoseOptions{
 		Stage:              driver.DiagnoseStageSema,
 		MaxDiagnostics:     req.MaxDiagnostics,
-		EmitHIR:            true,
+		EmitHIR:            false,
 		EmitInstantiations: true,
 		BaseDir:            req.BaseDir,
 		RootKind:           req.RootKind,
@@ -129,6 +130,15 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		}
 	}
 
+	if diagRes.HIR == nil {
+		hirModule, lowerErr := hir.LowerWithOptions(ctx, diagRes.Builder, diagRes.FileID, diagRes.Sema, diagRes.Symbols, hir.LowerOptions{})
+		if lowerErr != nil {
+			err = fmt.Errorf("HIR lowering failed: %w", lowerErr)
+			emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
+			return result, err
+		}
+		diagRes.HIR = hirModule
+	}
 	if diagRes.HIR == nil {
 		err = fmt.Errorf("HIR not available")
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)

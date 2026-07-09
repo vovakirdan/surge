@@ -60,6 +60,12 @@ func TestCrossingBackendUnavailableMessages(t *testing.T) {
 			message: "`on` placement crossing cannot be executed: no available backend supports cross-shard transport",
 		},
 		{
+			name:    "on far handle",
+			fixture: "testdata/golden/crossing/block02/invalid/_on_negative_far_handle_backend_unavailable.sg",
+			code:    diag.FutOnBackendUnavailable,
+			message: "`on` placement crossing cannot be executed: no available backend supports cross-shard transport",
+		},
+		{
 			name:    "spawn on",
 			fixture: "testdata/golden/crossing/block03/invalid/_spawn_on_negative_backend_unavailable.sg",
 			code:    diag.FutSpawnOnBackendUnavailable,
@@ -107,6 +113,11 @@ func TestCrossingBackendGuardsAreDefaultClosed(t *testing.T) {
 			code:    diag.FutOnBackendUnavailable,
 		},
 		{
+			name:    "on far handle",
+			fixture: "testdata/golden/crossing/block02/invalid/_on_negative_far_handle_backend_unavailable.sg",
+			code:    diag.FutOnBackendUnavailable,
+		},
+		{
 			name:    "spawn on",
 			fixture: "testdata/golden/crossing/block03/invalid/_spawn_on_negative_backend_unavailable.sg",
 			code:    diag.FutSpawnOnBackendUnavailable,
@@ -124,9 +135,13 @@ func TestCrossingBackendGuardsAreDefaultClosed(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			diags := compileFixtureDiagnostics(t, tc.fixture, Backend("future_backend"))
-			if got := findDiagnostic(diags, tc.code); got == nil {
-				t.Fatalf("expected default-closed %s, got %s", tc.code.ID(), summarizeCodes(diags))
+			for _, backend := range []Backend{BackendVM, BackendLLVM, Backend("future_backend")} {
+				t.Run(string(backend), func(t *testing.T) {
+					diags := compileFixtureDiagnostics(t, tc.fixture, backend)
+					if got := findDiagnostic(diags, tc.code); got == nil {
+						t.Fatalf("expected default-closed %s, got %s", tc.code.ID(), summarizeCodes(diags))
+					}
+				})
 			}
 		})
 	}
@@ -206,12 +221,20 @@ pub fn cancel_remote() -> TaskResult<nothing> {
 	};
 	return task.cancel();
 }
+
+pub fn close_remote(ch: far Channel<int>) -> TaskResult<nothing> {
+	return on ch {
+		ch.close();
+		ret nothing;
+	};
+}
 `)
 	mainPath := filepath.Join(dir, "main.sg")
 	writeFile(mainPath, `
 import remote::remote_score;
 import remote::start_remote;
 import remote::cancel_remote;
+import remote::close_remote;
 
 fn caller() -> TaskResult<int> {
 	let _score = remote_score();
@@ -249,8 +272,21 @@ fn caller() -> TaskResult<int> {
 					t.Errorf("missing %s for imported crossing surface, got %s", code.ID(), summarizeCodes(diags))
 				}
 			}
+			if got := countDiagnostics(diags, diag.FutOnBackendUnavailable); got < 2 {
+				t.Errorf("expected imported on placement and on far-handle diagnostics, got %d: %s", got, summarizeCodes(diags))
+			}
 		})
 	}
+}
+
+func countDiagnostics(diags []*diag.Diagnostic, code diag.Code) int {
+	count := 0
+	for _, d := range diags {
+		if d.Code == code {
+			count++
+		}
+	}
+	return count
 }
 
 func summarizeCodes(diags []*diag.Diagnostic) string {

@@ -417,6 +417,46 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 			}
 		}
 		e.Data = data
+	case hir.ExprCrossing:
+		data, ok := e.Data.(hir.CrossingData)
+		if !ok {
+			return nil
+		}
+		data.Destination.Type = s.Type(data.Destination.Type)
+		if data.Destination.Value != nil {
+			if err := s.ApplyExpr(data.Destination.Value); err != nil {
+				return err
+			}
+		}
+		for i := range data.Captures {
+			data.Captures[i].Type = s.Type(data.Captures[i].Type)
+			if data.Captures[i].Value != nil {
+				if err := s.ApplyExpr(data.Captures[i].Value); err != nil {
+					return err
+				}
+			}
+		}
+		for i := range data.RemoteOps {
+			data.RemoteOps[i].ReceiverType = s.Type(data.RemoteOps[i].ReceiverType)
+			if data.RemoteOps[i].Receiver != nil {
+				if err := s.ApplyExpr(data.RemoteOps[i].Receiver); err != nil {
+					return err
+				}
+			}
+		}
+		data.ReceiverType = s.Type(data.ReceiverType)
+		if data.Receiver != nil {
+			if err := s.ApplyExpr(data.Receiver); err != nil {
+				return err
+			}
+		}
+		data.PayloadType = s.Type(data.PayloadType)
+		data.ResultType = s.Type(data.ResultType)
+		data.HandleType = s.Type(data.HandleType)
+		if err := s.ApplyBlock(data.Body); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprAsync:
 		data, ok := e.Data.(hir.AsyncData)
 		if !ok {

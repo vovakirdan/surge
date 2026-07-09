@@ -360,6 +360,23 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 		}
 		data.Value = cloneExpr(data.Value)
 		out.Data = data
+	case hir.ExprCrossing:
+		data, ok := e.Data.(hir.CrossingData)
+		if !ok {
+			break
+		}
+		data.Destination.Value = cloneExpr(data.Destination.Value)
+		data.Body = cloneBlock(data.Body)
+		data.Captures = append([]hir.CrossingCapture(nil), data.Captures...)
+		for i := range data.Captures {
+			data.Captures[i].Value = cloneExpr(data.Captures[i].Value)
+		}
+		data.RemoteOps = append([]hir.CrossingRemoteOp(nil), data.RemoteOps...)
+		for i := range data.RemoteOps {
+			data.RemoteOps[i].Receiver = cloneExpr(data.RemoteOps[i].Receiver)
+		}
+		data.Receiver = cloneExpr(data.Receiver)
+		out.Data = data
 	case hir.ExprAsync:
 		data, ok := e.Data.(hir.AsyncData)
 		if !ok {

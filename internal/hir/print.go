@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"surge/internal/sema"
 	"surge/internal/types"
 )
 
@@ -587,6 +588,16 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 		p.printf("spawn ")
 		p.printExpr(data.Value)
 
+	case ExprCrossing:
+		data := e.Data.(CrossingData)
+		p.printf("crossing %s ", formatCrossingKind(data.Kind))
+		if data.Destination.Value != nil {
+			p.printExpr(data.Destination.Value)
+		}
+		if data.Receiver != nil {
+			p.printExpr(data.Receiver)
+		}
+
 	case ExprAsync:
 		data := e.Data.(AsyncData)
 		if data.Failfast {
@@ -629,6 +640,23 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 	// Optionally add type annotation (skip for simple literals to reduce noise)
 	if showType && !skipType && e.Type != types.NoTypeID {
 		p.printf(": %s", p.typeStr(e.Type))
+	}
+}
+
+func formatCrossingKind(kind sema.CrossingLoweringKind) string {
+	switch kind {
+	case sema.CrossingLoweringOnPlacement:
+		return "on"
+	case sema.CrossingLoweringOnFarHandle:
+		return "on_far_handle"
+	case sema.CrossingLoweringSpawnOn:
+		return "spawn_on"
+	case sema.CrossingLoweringFarTaskAwait:
+		return "far_task_await"
+	case sema.CrossingLoweringFarTaskCancel:
+		return "far_task_cancel"
+	default:
+		return fmt.Sprintf("kind_%d", kind)
 	}
 }
 

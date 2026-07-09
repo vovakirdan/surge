@@ -109,9 +109,10 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-transport-contract-check
 
 runtime-v2-crossing-check:
-	@echo ">> Running Runtime V2 crossing readiness gate (Epic 12)"
+	@echo ">> Running Runtime V2 crossing readiness gate (Epic 13)"
 	$(GO) test ./internal/crossinggate -count=1 --timeout 60s
-	$(GO) test ./internal/buildpipeline ./internal/hir -run '^(TestCrossingBackendUnavailableMessages|TestCrossingBackendGuardsAreDefaultClosed|TestCrossingBackendGuardDoesNotMaskSemaErrors|TestLowerOnCrossingBypassReturnsError|TestLowerSpawnOnCrossingBypassReturnsError)$$' -count=1 --timeout 60s
+	$(GO) test ./internal/buildpipeline ./internal/hir -run '^(TestCrossingBackendUnavailableMessages|TestCrossingBackendGuardsAreDefaultClosed|TestCrossingBackendGuardDoesNotMaskSemaErrors|TestCrossingBackendGuardsCoverImportedModules|TestLowerOnCrossingBypassReturnsError|TestLowerSpawnOnCrossingBypassReturnsError|TestLowerFarTaskCrossingBypassReturnsError|TestLowerCrossingRepresentationWithExplicitCapability)$$' -count=1 --timeout 60s
+	$(GO) test ./internal/mono ./internal/mir -run '^(TestMonoPreservesCrossingRepresentation|TestMIRCrossingRepresentationWithExplicitCapability|TestMIRCrossingValidationDefaultClosed|TestMIRAsyncCrossingSuspendRepresentation)$$' -count=1 --timeout 60s
 	$(GO) test ./internal/sema ./internal/driver -run '^(TestCrossingLowering.*|TestFunctionCrossingEffectInference|TestCrossingReadinessDebt024ModuleImportDoesNotRequireImportedEffects)$$' -count=1 --timeout 60s
 
 runtime-v2-syncpoint-check:

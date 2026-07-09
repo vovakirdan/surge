@@ -219,6 +219,20 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 				return
 			}
 			walkExpr(data.Value)
+		case hir.ExprCrossing:
+			data, ok := e.Data.(hir.CrossingData)
+			if !ok {
+				return
+			}
+			walkExpr(data.Destination.Value)
+			for i := range data.Captures {
+				walkExpr(data.Captures[i].Value)
+			}
+			for i := range data.RemoteOps {
+				walkExpr(data.RemoteOps[i].Receiver)
+			}
+			walkExpr(data.Receiver)
+			walkBlock(data.Body)
 		case hir.ExprAsync:
 			data, ok := e.Data.(hir.AsyncData)
 			if !ok {

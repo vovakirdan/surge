@@ -104,6 +104,10 @@ func localsAssignedInBlock(f *Func, bbID BlockID) localSet {
 			if len(ins.Select.Dst.Proj) == 0 && ins.Select.Dst.Kind == PlaceLocal {
 				set.add(ins.Select.Dst.Local)
 			}
+		case InstrCrossing:
+			if len(ins.Crossing.Dst.Proj) == 0 && ins.Crossing.Dst.Kind == PlaceLocal {
+				set.add(ins.Crossing.Dst.Local)
+			}
 		}
 	}
 	return set
@@ -167,6 +171,10 @@ func reachableBlocksFrom(f *Func, start BlockID) []BlockID {
 			case InstrSelect:
 				visit(last.Select.ReadyBB)
 				visit(last.Select.PendBB)
+				return
+			case InstrCrossing:
+				visit(last.Crossing.ReadyBB)
+				visit(last.Crossing.PendBB)
 				return
 			}
 		}
@@ -281,6 +289,16 @@ func collectLocalsInInstr(ins *Instr, set localSet) {
 				collectLocalsFromOperand(&arm.Ms, set)
 			}
 		}
+	case InstrCrossing:
+		collectLocalsFromPlace(ins.Crossing.Dst, set)
+		collectLocalsFromOperand(&ins.Crossing.Destination.Value, set)
+		for i := range ins.Crossing.Captures {
+			collectLocalsFromOperand(&ins.Crossing.Captures[i].Value, set)
+		}
+		for i := range ins.Crossing.RemoteOps {
+			collectLocalsFromOperand(&ins.Crossing.RemoteOps[i].Receiver, set)
+		}
+		collectLocalsFromOperand(&ins.Crossing.Receiver, set)
 	}
 }
 

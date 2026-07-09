@@ -424,6 +424,38 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 		e.Data = data
 		return nil
 
+	case ExprCrossing:
+		data := e.Data.(CrossingData)
+		if data.Destination.Value != nil {
+			if err := normalizeExpr(ctx, data.Destination.Value); err != nil {
+				return err
+			}
+		}
+		for i := range data.Captures {
+			if data.Captures[i].Value != nil {
+				if err := normalizeExpr(ctx, data.Captures[i].Value); err != nil {
+					return err
+				}
+			}
+		}
+		for i := range data.RemoteOps {
+			if data.RemoteOps[i].Receiver != nil {
+				if err := normalizeExpr(ctx, data.RemoteOps[i].Receiver); err != nil {
+					return err
+				}
+			}
+		}
+		if data.Receiver != nil {
+			if err := normalizeExpr(ctx, data.Receiver); err != nil {
+				return err
+			}
+		}
+		if err := normalizeBlock(ctx, data.Body); err != nil {
+			return err
+		}
+		e.Data = data
+		return nil
+
 	case ExprAsync:
 		data := e.Data.(AsyncData)
 		if err := normalizeBlock(ctx, data.Body); err != nil {

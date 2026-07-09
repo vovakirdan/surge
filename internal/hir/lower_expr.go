@@ -50,6 +50,9 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 
 	// Get type from sema
 	ty := l.semaRes.ExprTypes[exprID]
+	if info, ok := l.crossingInfo(exprID); ok {
+		return l.lowerCrossingExpr(exprID, info)
+	}
 
 	switch expr.Kind {
 	case ast.ExprGroup:

@@ -1,9 +1,9 @@
 package buildpipeline
 
 import (
-	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/driver"
+	"surge/internal/sema"
 	"surge/internal/source"
 )
 
@@ -21,35 +21,25 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 	if req == nil || diagRes == nil || diagRes.Bag == nil || diagRes.Builder == nil {
 		return
 	}
-	if !crossingBackendGuardApplies(req.Backend) {
-		return
-	}
-
 	modules := diagRes.DependencyAnalyses()
 
-	spawnSpans := collectSpawnOnSpans(diagRes.Builder)
+	spawnSpans := collectCrossingSpans(req.Backend, diagRes.Sema, sema.CrossingLoweringSpawnOn)
+	awaitSpans := collectCrossingSpans(req.Backend, diagRes.Sema, sema.CrossingLoweringFarTaskAwait)
+	cancelSpans := collectCrossingSpans(req.Backend, diagRes.Sema, sema.CrossingLoweringFarTaskCancel)
 	for _, mod := range modules {
-		spawnSpans = append(spawnSpans, collectSpawnOnSpans(mod.Builder)...)
+		for _, sr := range mod.Sema {
+			spawnSpans = append(spawnSpans, collectCrossingSpans(req.Backend, sr, sema.CrossingLoweringSpawnOn)...)
+			awaitSpans = append(awaitSpans, collectCrossingSpans(req.Backend, sr, sema.CrossingLoweringFarTaskAwait)...)
+			cancelSpans = append(cancelSpans, collectCrossingSpans(req.Backend, sr, sema.CrossingLoweringFarTaskCancel)...)
+		}
 	}
-	for _, sp := range spawnSpans {
+	for _, sp := range dedupeSpans(spawnSpans) {
 		diagRes.Bag.Add(&diag.Diagnostic{
 			Severity: diag.SevError,
 			Code:     diag.FutSpawnOnBackendUnavailable,
 			Message:  spawnOnUnavailableMsg,
 			Primary:  sp,
 		})
-	}
-
-	var awaitSpans, cancelSpans []source.Span
-	if diagRes.Sema != nil {
-		awaitSpans = append(awaitSpans, diagRes.Sema.FarTaskAwaitSpans...)
-		cancelSpans = append(cancelSpans, diagRes.Sema.FarTaskCancelSpans...)
-	}
-	for _, mod := range modules {
-		for _, sr := range mod.Sema {
-			awaitSpans = append(awaitSpans, sr.FarTaskAwaitSpans...)
-			cancelSpans = append(cancelSpans, sr.FarTaskCancelSpans...)
-		}
 	}
 	for _, sp := range dedupeSpans(awaitSpans) {
 		diagRes.Bag.Add(&diag.Diagnostic{
@@ -69,31 +59,24 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 	}
 }
 
-// collectSpawnOnSpans returns the span of every `spawn on` remote-spawn
-// expression in the module's AST (ExprOn nodes with the Spawn flag), deduped by
-// span so each construct is guarded exactly once.
-func collectSpawnOnSpans(builder *ast.Builder) []source.Span {
-	if builder == nil || builder.Exprs == nil || builder.Exprs.Arena == nil {
+// collectCrossingSpans returns sema-accepted crossing spans for a form when the
+// current backend has no capability for that form.
+func collectCrossingSpans(backend Backend, semaRes *sema.Result, form sema.CrossingLoweringKind) []source.Span {
+	if semaRes == nil || !crossingBackendGuardApplies(backend, form) {
 		return nil
 	}
 	var spans []source.Span
 	seen := make(map[source.Span]struct{})
-	count := builder.Exprs.Arena.Len()
-	for i := uint32(1); i <= count; i++ {
-		id := ast.ExprID(i)
-		expr := builder.Exprs.Get(id)
-		if expr == nil || expr.Kind != ast.ExprOn {
+	for idx := range semaRes.CrossingLowering {
+		info := &semaRes.CrossingLowering[idx]
+		if info.Kind != form {
 			continue
 		}
-		data, ok := builder.Exprs.On(id)
-		if !ok || data == nil || !data.Spawn {
+		if _, dup := seen[info.Span]; dup {
 			continue
 		}
-		if _, dup := seen[expr.Span]; dup {
-			continue
-		}
-		seen[expr.Span] = struct{}{}
-		spans = append(spans, expr.Span)
+		seen[info.Span] = struct{}{}
+		spans = append(spans, info.Span)
 	}
 	return spans
 }

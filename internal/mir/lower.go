@@ -15,8 +15,24 @@ import (
 	"surge/internal/types"
 )
 
+// LowerOptions configures optional MIR lowering features. Crossing forms are
+// default-closed; callers must explicitly enable each represented form.
+type LowerOptions struct {
+	CrossingForms map[sema.CrossingLoweringKind]bool
+}
+
+func (opts LowerOptions) crossingEnabled(kind sema.CrossingLoweringKind) bool {
+	return opts.CrossingForms != nil && opts.CrossingForms[kind]
+}
+
 // LowerModule converts a monomorphized module to MIR.
 func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
+	return LowerModuleWithOptions(mm, semaRes, LowerOptions{})
+}
+
+// LowerModuleWithOptions converts a monomorphized module to MIR with explicit
+// lowering capabilities.
+func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts LowerOptions) (*Module, error) {
 	out := &Module{
 		Funcs:     make(map[FuncID]*Func),
 		FuncBySym: make(map[symbols.SymbolID]FuncID),
@@ -103,6 +119,7 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 			staticStringGlobals: staticStringGlobals,
 			staticStringInits:   staticStringInits,
 			nextFuncID:          &nextID,
+			opts:                opts,
 		}
 		if mm.Source != nil {
 			fl.symbols = mm.Source.Symbols
@@ -190,6 +207,7 @@ type funcLowerer struct {
 	staticStringGlobals map[string]GlobalID
 	staticStringInits   map[GlobalID]string
 	nextFuncID          *FuncID
+	opts                LowerOptions
 }
 
 func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
@@ -325,6 +343,7 @@ func (l *funcLowerer) forkLowerer() *funcLowerer {
 		staticStringGlobals: l.staticStringGlobals,
 		staticStringInits:   l.staticStringInits,
 		nextFuncID:          l.nextFuncID,
+		opts:                l.opts,
 	}
 }
 

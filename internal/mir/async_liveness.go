@@ -94,6 +94,8 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 			addUsesFromOperand(&ins.Spawn.Value, addUse, addDef)
 			addUsesFromPlaceWrite(ins.Spawn.Dst, addUse)
 			addDefFromPlace(ins.Spawn.Dst, addDef)
+		case InstrCrossing:
+			addUsesFromCrossing(&ins.Crossing, addUse, addDef)
 		case InstrBlocking:
 			for i := range ins.Blocking.State.Fields {
 				addUsesFromOperand(&ins.Blocking.State.Fields[i].Value, addUse, addDef)
@@ -164,6 +166,22 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 	}
 
 	return use, def
+}
+
+func addUsesFromCrossing(ins *CrossingInstr, addUse, addDef func(LocalID)) {
+	if ins == nil {
+		return
+	}
+	addUsesFromPlaceWrite(ins.Dst, addUse)
+	addDefFromPlace(ins.Dst, addDef)
+	addUsesFromOperand(&ins.Destination.Value, addUse, addDef)
+	for i := range ins.Captures {
+		addUsesFromOperand(&ins.Captures[i].Value, addUse, addDef)
+	}
+	for i := range ins.RemoteOps {
+		addUsesFromOperand(&ins.RemoteOps[i].Receiver, addUse, addDef)
+	}
+	addUsesFromOperand(&ins.Receiver, addUse, addDef)
 }
 
 func addUsesFromOperand(op *Operand, addUse, addDef func(LocalID)) {

@@ -2,6 +2,7 @@ package mir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/sema"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -22,6 +23,8 @@ const (
 	InstrAwait
 	// InstrSpawn represents a spawn instruction.
 	InstrSpawn
+	// InstrCrossing represents a backend-neutral crossing operation.
+	InstrCrossing
 	// InstrBlocking represents a blocking task creation instruction.
 	InstrBlocking
 	// InstrPoll represents a poll instruction.
@@ -56,6 +59,8 @@ func (k InstrKind) String() string {
 		return "Await"
 	case InstrSpawn:
 		return "Spawn"
+	case InstrCrossing:
+		return "Crossing"
 	case InstrBlocking:
 		return "Blocking"
 	case InstrPoll:
@@ -89,6 +94,7 @@ type Instr struct {
 	EndBorrow EndBorrowInstr
 	Await     AwaitInstr
 	Spawn     SpawnInstr
+	Crossing  CrossingInstr
 	Blocking  BlockingInstr
 	Poll      PollInstr
 	JoinAll   JoinAllInstr
@@ -162,6 +168,58 @@ type AwaitInstr struct {
 type SpawnInstr struct {
 	Dst   Place
 	Value Operand
+}
+
+// CrossingDestination carries the MIR-side destination operand for `on` and
+// `spawn on` crossings.
+type CrossingDestination struct {
+	Kind          sema.CrossingDestinationKind
+	Value         Operand
+	Type          types.TypeID
+	AnchorSymbol  symbols.SymbolID
+	OwnerAnchored bool
+}
+
+// CrossingCapture carries one sema-accepted capture operand.
+type CrossingCapture struct {
+	Symbol  symbols.SymbolID
+	Value   Operand
+	Type    types.TypeID
+	Mode    sema.CrossingCaptureMode
+	Verdict sema.CrossingCaptureVerdict
+}
+
+// CrossingRemoteOp carries one owner-anchored remote operation in an
+// `on far_handle { ... }` body.
+type CrossingRemoteOp struct {
+	Method         string
+	Receiver       Operand
+	ReceiverSymbol symbols.SymbolID
+	ReceiverType   types.TypeID
+}
+
+// CrossingInstr represents a crossing operation without backend execution
+// semantics. ReadyBB/PendBB are populated by async lowering when the crossing is
+// used as a suspend point inside an async function.
+type CrossingInstr struct {
+	Kind sema.CrossingLoweringKind
+	Dst  Place
+
+	Destination CrossingDestination
+	Captures    []CrossingCapture
+	RemoteOps   []CrossingRemoteOp
+
+	Receiver       Operand
+	ReceiverSymbol symbols.SymbolID
+	ReceiverType   types.TypeID
+	ConsumesHandle bool
+
+	PayloadType types.TypeID
+	ResultType  types.TypeID
+	HandleType  types.TypeID
+
+	ReadyBB BlockID
+	PendBB  BlockID
 }
 
 // BlockingInstr represents a blocking task creation instruction.

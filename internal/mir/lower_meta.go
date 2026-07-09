@@ -234,6 +234,22 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 							visitOperand(&arm.Ms)
 						}
 					}
+				case InstrCrossing:
+					visitType(ins.Crossing.Destination.Type)
+					visitOperand(&ins.Crossing.Destination.Value)
+					for ci := range ins.Crossing.Captures {
+						visitType(ins.Crossing.Captures[ci].Type)
+						visitOperand(&ins.Crossing.Captures[ci].Value)
+					}
+					for ri := range ins.Crossing.RemoteOps {
+						visitType(ins.Crossing.RemoteOps[ri].ReceiverType)
+						visitOperand(&ins.Crossing.RemoteOps[ri].Receiver)
+					}
+					visitType(ins.Crossing.ReceiverType)
+					visitOperand(&ins.Crossing.Receiver)
+					visitType(ins.Crossing.PayloadType)
+					visitType(ins.Crossing.ResultType)
+					visitType(ins.Crossing.HandleType)
 				default:
 				}
 			}

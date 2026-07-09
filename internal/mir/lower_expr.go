@@ -219,6 +219,9 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 	case hir.ExprSpawn:
 		return l.lowerSpawnExpr(e, consume)
 
+	case hir.ExprCrossing:
+		return l.lowerCrossingExpr(e, consume)
+
 	case hir.ExprAsync:
 		return l.lowerAsyncExpr(e, consume)
 

@@ -4,12 +4,27 @@ import (
 	"errors"
 	"fmt"
 
+	"surge/internal/sema"
 	"surge/internal/types"
 )
+
+// ValidateOptions configures optional MIR validation capabilities.
+type ValidateOptions struct {
+	CrossingForms map[sema.CrossingLoweringKind]bool
+}
+
+func (opts ValidateOptions) crossingEnabled(kind sema.CrossingLoweringKind) bool {
+	return opts.CrossingForms != nil && opts.CrossingForms[kind]
+}
 
 // Validate checks MIR module invariants.
 // Returns error if any invariant is violated.
 func Validate(m *Module, typesIn *types.Interner) error {
+	return ValidateWithOptions(m, typesIn, ValidateOptions{})
+}
+
+// ValidateWithOptions checks MIR module invariants with explicit capabilities.
+func ValidateWithOptions(m *Module, typesIn *types.Interner, opts ValidateOptions) error {
 	if m == nil {
 		return nil
 	}
@@ -21,14 +36,14 @@ func Validate(m *Module, typesIn *types.Interner) error {
 		if f == nil {
 			continue
 		}
-		if err := validateFunc(f, typesIn, m.Globals); err != nil {
+		if err := validateFunc(f, typesIn, m.Globals, opts); err != nil {
 			errs = append(errs, fmt.Errorf("function %s: %w", f.Name, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-func validateFunc(f *Func, typesIn *types.Interner, globals []Global) error {
+func validateFunc(f *Func, typesIn *types.Interner, globals []Global, opts ValidateOptions) error {
 	if f == nil {
 		return nil
 	}
@@ -70,6 +85,11 @@ func validateFunc(f *Func, typesIn *types.Interner, globals []Global) error {
 		errs = append(errs, err)
 	}
 
+	// 9. Crossing instructions are default-closed unless explicitly enabled.
+	if err := validateCrossingSupport(f, opts); err != nil {
+		errs = append(errs, err)
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -80,7 +100,7 @@ func validateBlocksTerminated(f *Func) error {
 		if f.Blocks[i].Term.Kind == TermNone {
 			if len(f.Blocks[i].Instrs) > 0 {
 				last := f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
-				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv || last.Kind == InstrNetWait || last.Kind == InstrTimeout || last.Kind == InstrSelect {
+				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv || last.Kind == InstrNetWait || last.Kind == InstrTimeout || last.Kind == InstrSelect || last.Kind == InstrCrossing {
 					continue
 				}
 			}
@@ -151,6 +171,13 @@ func validateBlockTargets(f *Func) error {
 				}
 				if !blockExists(ins.Select.PendBB) {
 					errs = append(errs, fmt.Errorf("bb%d instr %d: select pending target bb%d does not exist", i, j, ins.Select.PendBB))
+				}
+			case InstrCrossing:
+				if ins.Crossing.ReadyBB != NoBlockID && !blockExists(ins.Crossing.ReadyBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: crossing ready target bb%d does not exist", i, j, ins.Crossing.ReadyBB))
+				}
+				if ins.Crossing.PendBB != NoBlockID && !blockExists(ins.Crossing.PendBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: crossing pending target bb%d does not exist", i, j, ins.Crossing.PendBB))
 				}
 			}
 		}
@@ -298,6 +325,16 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			case InstrSpawn:
 				checkPlace(ins.Spawn.Dst, ctx)
 				checkOperand(ins.Spawn.Value, ctx)
+			case InstrCrossing:
+				checkPlace(ins.Crossing.Dst, ctx)
+				checkOperand(ins.Crossing.Destination.Value, ctx)
+				for i := range ins.Crossing.Captures {
+					checkOperand(ins.Crossing.Captures[i].Value, ctx)
+				}
+				for i := range ins.Crossing.RemoteOps {
+					checkOperand(ins.Crossing.RemoteOps[i].Receiver, ctx)
+				}
+				checkOperand(ins.Crossing.Receiver, ctx)
 			case InstrBlocking:
 				checkPlace(ins.Blocking.Dst, ctx)
 				for i := range ins.Blocking.State.Fields {
@@ -584,5 +621,26 @@ func validateDrop(f *Func, globals []Global) error {
 		}
 	}
 
+	return errors.Join(errs...)
+}
+
+func validateCrossingSupport(f *Func, opts ValidateOptions) error {
+	if f == nil {
+		return nil
+	}
+	var errs []error
+	for bi := range f.Blocks {
+		bb := &f.Blocks[bi]
+		for ii := range bb.Instrs {
+			ins := &bb.Instrs[ii]
+			if ins.Kind != InstrCrossing {
+				continue
+			}
+			if opts.crossingEnabled(ins.Crossing.Kind) {
+				continue
+			}
+			errs = append(errs, fmt.Errorf("bb%d instr %d: crossing %s is not enabled", bi, ii, mirCrossingKindName(ins.Crossing.Kind)))
+		}
+	}
 	return errors.Join(errs...)
 }

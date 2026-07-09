@@ -2,6 +2,7 @@ package hir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -57,6 +58,8 @@ const (
 	ExprTask
 	// ExprSpawn represents spawn expression.
 	ExprSpawn
+	// ExprCrossing represents a backend-neutral crossing operation.
+	ExprCrossing
 	// ExprAsync represents async { ... } block expression.
 	ExprAsync
 	// ExprBlocking represents blocking { ... } block expression.
@@ -114,6 +117,8 @@ func (k ExprKind) String() string {
 		return "Task"
 	case ExprSpawn:
 		return "Spawn"
+	case ExprCrossing:
+		return "Crossing"
 	case ExprAsync:
 		return "Async"
 	case ExprBlocking:
@@ -356,6 +361,59 @@ type SpawnData struct {
 }
 
 func (SpawnData) exprData() {}
+
+// CrossingDestination describes the lowered destination of an `on` or
+// `spawn on` crossing.
+type CrossingDestination struct {
+	Kind          sema.CrossingDestinationKind
+	Value         *Expr
+	Type          types.TypeID
+	AnchorSymbol  symbols.SymbolID
+	OwnerAnchored bool
+}
+
+// CrossingCapture describes a sema-accepted boundary capture.
+type CrossingCapture struct {
+	Symbol  symbols.SymbolID
+	Value   *Expr
+	Span    source.Span
+	Type    types.TypeID
+	Mode    sema.CrossingCaptureMode
+	Verdict sema.CrossingCaptureVerdict
+}
+
+// CrossingRemoteOp describes an accepted owner-anchored operation inside
+// `on far_handle { ... }`.
+type CrossingRemoteOp struct {
+	Method         string
+	Span           source.Span
+	Receiver       *Expr
+	ReceiverSymbol symbols.SymbolID
+	ReceiverType   types.TypeID
+}
+
+// CrossingData holds backend-neutral crossing lowering metadata. Kind uses the
+// sema form enum so later backend capability checks stay aligned with the
+// source construct sema accepted.
+type CrossingData struct {
+	Kind sema.CrossingLoweringKind
+
+	Destination CrossingDestination
+	Body        *Block
+	Captures    []CrossingCapture
+	RemoteOps   []CrossingRemoteOp
+
+	Receiver       *Expr
+	ReceiverSymbol symbols.SymbolID
+	ReceiverType   types.TypeID
+	ConsumesHandle bool
+
+	PayloadType types.TypeID
+	ResultType  types.TypeID
+	HandleType  types.TypeID
+}
+
+func (CrossingData) exprData() {}
 
 // AsyncData holds data for ExprAsync.
 type AsyncData struct {

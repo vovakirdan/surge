@@ -23,8 +23,8 @@ task-suspend-vs-shard-park invariant.
 | 3 | `03-park-wake-proof.md` | Complete | runtime proof tests | 1, 2 |
 | 4 | `04-inbound-transport-spine.md` | Complete | native runtime | 3 |
 | 5 | `05-placement-abi.md` | Complete | runtime ABI + prelude | 1 |
-| 6 | `06-remote-publication-api.md` | Pending | native runtime API | 4, 5 |
-| 7 | `07-lowering-representation.md` | Pending | compiler HIR/MIR + guards | 1 |
+| 6 | `06-remote-publication-api.md` | Complete | native runtime API | 4, 5 |
+| 7 | `07-lowering-representation.md` | Complete | compiler HIR/MIR + guards | 1 |
 | 8 | `08-spawn-on-vertical.md` | Pending | lowering + runtime e2e | 6, 7 |
 | 9 | `09-await-cancel-vertical.md` | Pending | lowering + runtime e2e | 8 |
 | 10 | `10-immediate-on-vertical.md` | Pending | lowering + runtime e2e | 6, 7, 9 |

@@ -13,6 +13,7 @@ const (
 	suspendNetWait
 	suspendTimeout
 	suspendSelect
+	suspendCrossing
 )
 
 // awaitSite describes a suspend point that has been split into a poll instruction.
@@ -39,7 +40,7 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 			bb := &f.Blocks[bi]
 			for i := 0; i < len(bb.Instrs); i++ {
 				ins := &bb.Instrs[i]
-				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrNetWait && ins.Kind != InstrTimeout && ins.Kind != InstrSelect {
+				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrNetWait && ins.Kind != InstrTimeout && ins.Kind != InstrSelect && ins.Kind != InstrCrossing {
 					continue
 				}
 				if ins.Kind == InstrChanSend && ins.ChanSend.ReadyBB != NoBlockID {
@@ -55,6 +56,9 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 					continue
 				}
 				if ins.Kind == InstrSelect && ins.Select.ReadyBB != NoBlockID {
+					continue
+				}
+				if ins.Kind == InstrCrossing && ins.Crossing.ReadyBB != NoBlockID {
 					continue
 				}
 				prelude := append([]Instr(nil), bb.Instrs[:i]...)
@@ -119,6 +123,14 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 						ReadyBB: afterBB,
 						PendBB:  NoBlockID,
 					}}
+				case InstrCrossing:
+					kind = suspendCrossing
+					crossing := ins.Crossing
+					crossing.Captures = append([]CrossingCapture(nil), crossing.Captures...)
+					crossing.RemoteOps = append([]CrossingRemoteOp(nil), crossing.RemoteOps...)
+					crossing.ReadyBB = afterBB
+					crossing.PendBB = NoBlockID
+					pollInstr = Instr{Kind: InstrCrossing, Crossing: crossing}
 				default:
 					continue
 				}
@@ -256,6 +268,13 @@ func collectSuspendSites(f *Func) []awaitSite {
 					pollInstr: ii,
 					readyBB:   ins.Select.ReadyBB,
 				})
+			case InstrCrossing:
+				sites = append(sites, awaitSite{
+					kind:      suspendCrossing,
+					pollBB:    bbID,
+					pollInstr: ii,
+					readyBB:   ins.Crossing.ReadyBB,
+				})
 			}
 		}
 	}
@@ -332,6 +351,15 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			if includePollPending && last.Select.PendBB != NoBlockID {
 				out = append(out, last.Select.PendBB)
+			}
+			return out
+		case InstrCrossing:
+			out := []BlockID{}
+			if last.Crossing.ReadyBB != NoBlockID {
+				out = append(out, last.Crossing.ReadyBB)
+			}
+			if includePollPending && last.Crossing.PendBB != NoBlockID {
+				out = append(out, last.Crossing.PendBB)
 			}
 			return out
 		}

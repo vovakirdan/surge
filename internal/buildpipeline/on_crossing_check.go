@@ -1,9 +1,9 @@
 package buildpipeline
 
 import (
-	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/driver"
+	"surge/internal/sema"
 	"surge/internal/source"
 )
 
@@ -17,14 +17,13 @@ func addOnCrossingBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseRes
 	if req == nil || diagRes == nil || diagRes.Bag == nil || diagRes.Builder == nil {
 		return
 	}
-	if !crossingBackendGuardApplies(req.Backend) {
-		return
-	}
-	spans := collectOnCrossingSpans(diagRes.Builder)
+	spans := collectOnCrossingSpans(req.Backend, diagRes.Sema)
 	for _, mod := range diagRes.DependencyAnalyses() {
-		spans = append(spans, collectOnCrossingSpans(mod.Builder)...)
+		for _, sr := range mod.Sema {
+			spans = append(spans, collectOnCrossingSpans(req.Backend, sr)...)
+		}
 	}
-	for _, sp := range spans {
+	for _, sp := range dedupeSpans(spans) {
 		diagRes.Bag.Add(&diag.Diagnostic{
 			Severity: diag.SevError,
 			Code:     diag.FutOnBackendUnavailable,
@@ -34,33 +33,29 @@ func addOnCrossingBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseRes
 	}
 }
 
-// collectOnCrossingSpans returns the span of every `on` crossing expression in
-// the module's AST.
-func collectOnCrossingSpans(builder *ast.Builder) []source.Span {
-	if builder == nil || builder.Exprs == nil || builder.Exprs.Arena == nil {
+// collectOnCrossingSpans returns the spans of sema-accepted `on` crossing
+// records whose form is not backend-supported.
+func collectOnCrossingSpans(backend Backend, semaRes *sema.Result) []source.Span {
+	if semaRes == nil {
 		return nil
 	}
 	var spans []source.Span
-	// Arena IDs are 1-based (Get(0) == nil). Dedupe by span so a given crossing
-	// is guarded exactly once even if the arena is visited more than once.
 	seen := make(map[source.Span]struct{})
-	count := builder.Exprs.Arena.Len()
-	for i := uint32(1); i <= count; i++ {
-		id := ast.ExprID(i)
-		expr := builder.Exprs.Get(id)
-		if expr == nil || expr.Kind != ast.ExprOn {
+	for idx := range semaRes.CrossingLowering {
+		info := &semaRes.CrossingLowering[idx]
+		switch info.Kind {
+		case sema.CrossingLoweringOnPlacement, sema.CrossingLoweringOnFarHandle:
+		default:
 			continue
 		}
-		// `spawn on dst { ... }` shares the ExprOn node with the Spawn flag set;
-		// it is guarded separately (FUT7015), so skip it here.
-		if data, ok := builder.Exprs.On(id); ok && data != nil && data.Spawn {
+		if !crossingBackendGuardApplies(backend, info.Kind) {
 			continue
 		}
-		if _, dup := seen[expr.Span]; dup {
+		if _, dup := seen[info.Span]; dup {
 			continue
 		}
-		seen[expr.Span] = struct{}{}
-		spans = append(spans, expr.Span)
+		seen[info.Span] = struct{}{}
+		spans = append(spans, info.Span)
 	}
 	return spans
 }

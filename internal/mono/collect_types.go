@@ -251,6 +251,27 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 			return
 		}
 		collectTypesFromExpr(data.Value, visit)
+	case hir.ExprCrossing:
+		data, ok := e.Data.(hir.CrossingData)
+		if !ok {
+			return
+		}
+		visit(data.Destination.Type)
+		collectTypesFromExpr(data.Destination.Value, visit)
+		for i := range data.Captures {
+			visit(data.Captures[i].Type)
+			collectTypesFromExpr(data.Captures[i].Value, visit)
+		}
+		for i := range data.RemoteOps {
+			visit(data.RemoteOps[i].ReceiverType)
+			collectTypesFromExpr(data.RemoteOps[i].Receiver, visit)
+		}
+		visit(data.ReceiverType)
+		collectTypesFromExpr(data.Receiver, visit)
+		visit(data.PayloadType)
+		visit(data.ResultType)
+		visit(data.HandleType)
+		collectTypesFromBlock(data.Body, visit)
 	case hir.ExprAsync:
 		data, ok := e.Data.(hir.AsyncData)
 		if !ok {

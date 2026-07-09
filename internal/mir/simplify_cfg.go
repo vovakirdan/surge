@@ -119,6 +119,9 @@ func applyRedirects(f *Func, redirects map[BlockID]BlockID) {
 			case InstrSelect:
 				last.Select.ReadyBB = redirect(last.Select.ReadyBB)
 				last.Select.PendBB = redirect(last.Select.PendBB)
+			case InstrCrossing:
+				last.Crossing.ReadyBB = redirect(last.Crossing.ReadyBB)
+				last.Crossing.PendBB = redirect(last.Crossing.PendBB)
 			}
 		}
 	}
@@ -170,6 +173,10 @@ func computeReachability(f *Func) []bool {
 			case InstrSelect:
 				visit(last.Select.ReadyBB)
 				visit(last.Select.PendBB)
+				return
+			case InstrCrossing:
+				visit(last.Crossing.ReadyBB)
+				visit(last.Crossing.PendBB)
 				return
 			}
 		}
@@ -272,6 +279,9 @@ func compactBlocks(f *Func, reachable []bool) {
 			case InstrSelect:
 				last.Select.ReadyBB = remap(last.Select.ReadyBB)
 				last.Select.PendBB = remap(last.Select.PendBB)
+			case InstrCrossing:
+				last.Crossing.ReadyBB = remap(last.Crossing.ReadyBB)
+				last.Crossing.PendBB = remap(last.Crossing.PendBB)
 			}
 		}
 	}

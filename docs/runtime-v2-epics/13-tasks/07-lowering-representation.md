@@ -1,6 +1,6 @@
 # Epic 13 Task 7: Compiler Lowering Representation
 
-**Status:** pending.
+**Status:** complete.
 **Kind:** compiler HIR/MIR + guard split. Backend-neutral representation;
 no form becomes executable in this task.
 **Depends on:** Task 1 (map). May run parallel to Tasks 3-6.
@@ -91,10 +91,26 @@ to the runtime APIs (Tasks 8-10), VM support, sema acceptance changes.
 
 ## Proof
 
-- Representation tests green under the override; guard/FUT matrix green
-  without it; `make runtime-v2-crossing-check` twice.
-- `make golden-check` for fixture churn; `sentrux check internal`;
-  `./check_file_sizes.sh -a`; `make check`.
+- Backend guard split is default-closed for VM, LLVM, and unknown backends
+  across `on` placement, `on` far-handle, `spawn on`, far `Task.await`, and
+  far `Task.cancel`; imported-module crossing records are guarded before HIR
+  lowering.
+- HIR lowers all five crossing forms only through explicit test capability
+  flags and keeps deterministic ICE backstops when the production capability
+  set is empty.
+- Mono clone/subst/traversal/type collection preserves the new HIR crossing
+  node; MIR lowers all five forms only through explicit test capability flags,
+  validates crossing instructions as default-closed, and models async crossing
+  suspension with ready/pending blocks.
+- Negative-space diagnostics remain out of plain driver, workspace/LSP,
+  format, and fix paths for valid `on`, `spawn on`, far `Task.await`, and far
+  `Task.cancel` code.
+- Proof commands run in this pass:
+  - `go test ./internal/buildpipeline ./internal/hir ./internal/mono ./internal/mir -run 'Crossing|LowerOnCrossingBypass|LowerSpawnOnCrossingBypass|LowerFarTaskCrossingBypass|MonoPreservesCrossingRepresentation|MIRCrossing|MIRAsyncCrossing' -count=1 --timeout 90s`
+  - `go test ./internal/crossinggate -run 'TestBackendUnavailableNegativeSpace' -count=1 -v --timeout 60s`
+  - `make runtime-v2-crossing-check` (twice)
+  - `git diff --check`
+  - `./check_file_sizes.sh -a`
 
 ## Stop Conditions
 

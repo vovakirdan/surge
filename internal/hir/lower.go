@@ -26,6 +26,29 @@ func Lower(
 	semaRes *sema.Result,
 	symRes *symbols.Result,
 ) (*Module, error) {
+	return LowerWithOptions(ctx, builder, fileID, semaRes, symRes, LowerOptions{})
+}
+
+// LowerOptions configures optional HIR lowering features. Crossing forms are
+// default-closed; callers must explicitly list every accepted form they want
+// lowered into HIR representation.
+type LowerOptions struct {
+	CrossingForms map[sema.CrossingLoweringKind]bool
+}
+
+func (opts LowerOptions) crossingEnabled(kind sema.CrossingLoweringKind) bool {
+	return opts.CrossingForms != nil && opts.CrossingForms[kind]
+}
+
+// LowerWithOptions transforms an AST module with explicit lowering options.
+func LowerWithOptions(
+	ctx context.Context,
+	builder *ast.Builder,
+	fileID ast.FileID,
+	semaRes *sema.Result,
+	symRes *symbols.Result,
+	opts LowerOptions,
+) (*Module, error) {
 	if builder == nil || fileID == ast.NoFileID || semaRes == nil {
 		return nil, nil
 	}
@@ -36,6 +59,7 @@ func Lower(
 		semaRes:  semaRes,
 		symRes:   symRes,
 		strings:  builder.StringsInterner,
+		opts:     opts,
 		nextFnID: 1,
 		module: &Module{
 			SourceAST:    fileID,
@@ -45,6 +69,7 @@ func Lower(
 		},
 	}
 	l.stmtSymbols = buildStmtSymbolIndex(symRes, fileID)
+	l.crossingByExpr = buildCrossingLoweringIndex(semaRes)
 
 	l.lowerFile(fileID)
 	if l.err != nil {
@@ -67,15 +92,17 @@ func Lower(
 
 // lowerer holds context for the lowering pass.
 type lowerer struct {
-	ctx         context.Context
-	builder     *ast.Builder
-	semaRes     *sema.Result
-	symRes      *symbols.Result
-	strings     *source.Interner
-	module      *Module
-	nextFnID    FuncID
-	stmtSymbols map[ast.StmtID]symbols.SymbolID
-	err         error
+	ctx            context.Context
+	builder        *ast.Builder
+	semaRes        *sema.Result
+	symRes         *symbols.Result
+	strings        *source.Interner
+	module         *Module
+	opts           LowerOptions
+	nextFnID       FuncID
+	stmtSymbols    map[ast.StmtID]symbols.SymbolID
+	crossingByExpr map[ast.ExprID]*sema.CrossingLoweringInfo
+	err            error
 }
 
 func (l *lowerer) setErrorf(format string, args ...any) {
@@ -83,6 +110,21 @@ func (l *lowerer) setErrorf(format string, args ...any) {
 		return
 	}
 	l.err = fmt.Errorf(format, args...)
+}
+
+func buildCrossingLoweringIndex(semaRes *sema.Result) map[ast.ExprID]*sema.CrossingLoweringInfo {
+	if semaRes == nil || len(semaRes.CrossingLowering) == 0 {
+		return nil
+	}
+	out := make(map[ast.ExprID]*sema.CrossingLoweringInfo, len(semaRes.CrossingLowering))
+	for idx := range semaRes.CrossingLowering {
+		info := &semaRes.CrossingLowering[idx]
+		if !info.Expr.IsValid() {
+			continue
+		}
+		out[info.Expr] = info
+	}
+	return out
 }
 
 func buildStmtSymbolIndex(symRes *symbols.Result, fileID ast.FileID) map[ast.StmtID]symbols.SymbolID {

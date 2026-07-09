@@ -25,6 +25,26 @@ fn score(n: int) -> TaskResult<int> {
 }
 `
 
+const validSpawnAndFarTaskCrossingSource = `
+fn double(x: int) -> int {
+    return x * 2;
+}
+
+fn start(n: int) -> far Task<int> {
+    return spawn on pool {
+        ret double(n);
+    };
+}
+
+fn wait_remote(t: far Task<int>) -> TaskResult<int> {
+    return t.await();
+}
+
+fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}
+`
+
 func writeCrossingFixture(t *testing.T, src string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -60,63 +80,75 @@ func assertNoWorkspaceBackendUnavailableDiagnostics(t *testing.T, diags []worksp
 
 func TestBackendUnavailableNegativeSpace(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", repoRoot(t))
-	path := writeCrossingFixture(t, validCrossingSource)
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{name: "on", src: validCrossingSource},
+		{name: "spawn_and_far_task", src: validSpawnAndFarTaskCrossingSource},
+	}
 
-	t.Run("driver diagnose", func(t *testing.T) {
-		res, err := driver.Diagnose(context.Background(), path, driver.DiagnoseStageSema, 200)
-		if err != nil {
-			t.Fatalf("diagnose: %v", err)
-		}
-		if res == nil || res.Bag == nil {
-			t.Fatal("diagnose result missing bag")
-		}
-		assertNoBackendUnavailableDiagnostics(t, res.Bag.Items())
-	})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writeCrossingFixture(t, tc.src)
 
-	t.Run("lsp workspace diagnose path", func(t *testing.T) {
-		diags, err := workspacediag.DiagnoseWorkspace(context.Background(), &workspacediag.DiagnoseOptions{
-			ProjectRoot:    path,
-			BaseDir:        filepath.Dir(path),
-			Stage:          driver.DiagnoseStageAll,
-			MaxDiagnostics: 200,
-		}, workspacediag.FileOverlay{})
-		if err != nil {
-			t.Fatalf("workspace diagnose: %v", err)
-		}
-		assertNoWorkspaceBackendUnavailableDiagnostics(t, diags)
-	})
+			t.Run("driver diagnose", func(t *testing.T) {
+				res, err := driver.Diagnose(context.Background(), path, driver.DiagnoseStageSema, 200)
+				if err != nil {
+					t.Fatalf("diagnose: %v", err)
+				}
+				if res == nil || res.Bag == nil {
+					t.Fatal("diagnose result missing bag")
+				}
+				assertNoBackendUnavailableDiagnostics(t, res.Bag.Items())
+			})
 
-	t.Run("format path", func(t *testing.T) {
-		results, err := driver.FormatPaths(context.Background(), []string{path}, driver.FormatOptions{
-			Check:          true,
-			MaxDiagnostics: 200,
+			t.Run("lsp workspace diagnose path", func(t *testing.T) {
+				diags, err := workspacediag.DiagnoseWorkspace(context.Background(), &workspacediag.DiagnoseOptions{
+					ProjectRoot:    path,
+					BaseDir:        filepath.Dir(path),
+					Stage:          driver.DiagnoseStageAll,
+					MaxDiagnostics: 200,
+				}, workspacediag.FileOverlay{})
+				if err != nil {
+					t.Fatalf("workspace diagnose: %v", err)
+				}
+				assertNoWorkspaceBackendUnavailableDiagnostics(t, diags)
+			})
+
+			t.Run("format path", func(t *testing.T) {
+				results, err := driver.FormatPaths(context.Background(), []string{path}, driver.FormatOptions{
+					Check:          true,
+					MaxDiagnostics: 200,
+				})
+				if err != nil {
+					t.Fatalf("format paths: %v", err)
+				}
+				if len(results) != 1 {
+					t.Fatalf("expected one format result, got %d", len(results))
+				}
+				if results[0].Err != nil {
+					t.Fatalf("format result error: %v", results[0].Err)
+				}
+			})
+
+			t.Run("fix path", func(t *testing.T) {
+				res, err := driver.DiagnoseWithOptions(context.Background(), path, &driver.DiagnoseOptions{
+					Stage:          driver.DiagnoseStageAll,
+					MaxDiagnostics: 200,
+				})
+				if err != nil {
+					t.Fatalf("fix diagnose: %v", err)
+				}
+				if res == nil || res.Bag == nil || res.FileSet == nil {
+					t.Fatal("fix diagnose result missing data")
+				}
+				assertNoBackendUnavailableDiagnostics(t, res.Bag.Items())
+				_, applyErr := fix.Apply(res.FileSet, res.Bag.Items(), fix.ApplyOptions{Mode: fix.ApplyModeOnce})
+				if !errors.Is(applyErr, fix.ErrNoFixes) {
+					t.Fatalf("expected no applicable fixes, got %v", applyErr)
+				}
+			})
 		})
-		if err != nil {
-			t.Fatalf("format paths: %v", err)
-		}
-		if len(results) != 1 {
-			t.Fatalf("expected one format result, got %d", len(results))
-		}
-		if results[0].Err != nil {
-			t.Fatalf("format result error: %v", results[0].Err)
-		}
-	})
-
-	t.Run("fix path", func(t *testing.T) {
-		res, err := driver.DiagnoseWithOptions(context.Background(), path, &driver.DiagnoseOptions{
-			Stage:          driver.DiagnoseStageAll,
-			MaxDiagnostics: 200,
-		})
-		if err != nil {
-			t.Fatalf("fix diagnose: %v", err)
-		}
-		if res == nil || res.Bag == nil || res.FileSet == nil {
-			t.Fatal("fix diagnose result missing data")
-		}
-		assertNoBackendUnavailableDiagnostics(t, res.Bag.Items())
-		_, applyErr := fix.Apply(res.FileSet, res.Bag.Items(), fix.ApplyOptions{Mode: fix.ApplyModeOnce})
-		if !errors.Is(applyErr, fix.ErrNoFixes) {
-			t.Fatalf("expected no applicable fixes, got %v", applyErr)
-		}
-	})
+	}
 }

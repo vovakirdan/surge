@@ -357,6 +357,31 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 			return err
 		}
 		e.Data = data
+	case hir.ExprCrossing:
+		data, ok := e.Data.(hir.CrossingData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteCallsInExpr(data.Destination.Value, f); err != nil {
+			return err
+		}
+		for i := range data.Captures {
+			if err := rewriteCallsInExpr(data.Captures[i].Value, f); err != nil {
+				return err
+			}
+		}
+		for i := range data.RemoteOps {
+			if err := rewriteCallsInExpr(data.RemoteOps[i].Receiver, f); err != nil {
+				return err
+			}
+		}
+		if err := rewriteCallsInExpr(data.Receiver, f); err != nil {
+			return err
+		}
+		if err := rewriteCallsInBlock(data.Body, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprAsync:
 		data, ok := e.Data.(hir.AsyncData)
 		if !ok {

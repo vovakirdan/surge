@@ -360,6 +360,31 @@ func rewriteVarRefsInExpr(e *hir.Expr, f varRefRewriteFunc) error {
 			return err
 		}
 		e.Data = data
+	case hir.ExprCrossing:
+		data, ok := e.Data.(hir.CrossingData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteVarRefsInExpr(data.Destination.Value, f); err != nil {
+			return err
+		}
+		for i := range data.Captures {
+			if err := rewriteVarRefsInExpr(data.Captures[i].Value, f); err != nil {
+				return err
+			}
+		}
+		for i := range data.RemoteOps {
+			if err := rewriteVarRefsInExpr(data.RemoteOps[i].Receiver, f); err != nil {
+				return err
+			}
+		}
+		if err := rewriteVarRefsInExpr(data.Receiver, f); err != nil {
+			return err
+		}
+		if err := rewriteVarRefsInBlock(data.Body, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprAsync:
 		data, ok := e.Data.(hir.AsyncData)
 		if !ok {

@@ -191,8 +191,9 @@ pub type TaskResult<T> = Success(T) | Cancelled;
 
 // Epic 11: explicit placement crossing surface (compile-only; runtime execution
 // of `on dst { ... }` is guarded until the Phase 4 transport epic). `Placement`
-// is a Copy, shard-movable value; `pool` and `distributed` are prelude
-// placements and `shard(id)` selects a placement by shard.
+// is a Copy, shard-movable tagged word at runtime: low bits store the kind,
+// upper bits store the payload. `pool` and `distributed` are prelude placements
+// and `shard(id)` selects a placement by shard.
 @intrinsic @copy
 pub type Placement = {
     __opaque: int,

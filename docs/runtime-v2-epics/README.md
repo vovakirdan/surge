@@ -60,10 +60,16 @@ it preserved crossing meaning at sema/readiness level, froze deterministic
 backend-unavailable behavior, added `runtime-v2-crossing-check`, reconciled
 backend/test debt, and wrote the Phase 4 transport/lowering handoff. It did not
 add HIR/MIR crossing nodes, runtime transport, public runnable examples, or new
-syntax. Epic 13 is proposed per
+syntax. Epic 13 is active per
 `13-phase4-transport-spine-and-placement-task-lowering.md`: first executable
 Phase 4 vertical for the cross-shard transport spine and placement task
-lowering, not the whole remote-channel/select/Tier-2 surface.
+lowering, not the whole remote-channel/select/Tier-2 surface. Task 6's
+runtime-native remote publication API is complete in this worktree, with
+generation-backed far handles, task-suspend reply wait, deterministic failure
+statuses, and focused `runtime_v2_pending` proof. Task 7's backend-neutral
+compiler representation is complete in this worktree: guards remain
+default-closed before production HIR lowering, HIR/MIR crossing nodes are
+capability-gated for tests, and no executable backend lowering is enabled.
 
 ## Current Runtime V2 Artifacts
 
@@ -125,7 +131,7 @@ lowering, not the whole remote-channel/select/Tier-2 surface.
   for backend-unavailable diagnostics, sema lowering-readiness records,
   matrix/debt reconciliation, `runtime-v2-crossing-check`, and Phase 4
   transport handoff.
-- `13-phase4-transport-spine-and-placement-task-lowering.md`: proposed Epic 13
+- `13-phase4-transport-spine-and-placement-task-lowering.md`: active Epic 13
   boundary for the first executable Phase 4 transport/lowering vertical.
 
 Known backend-test debt remains accepted for now: the focused
@@ -162,7 +168,7 @@ Every epic should move the runtime toward these goals:
 | 10 | `10-runtime-debt-burndown-and-owner-safety.md` | Complete. Closed `RV2-DEBT-003`, `RV2-DEBT-010`, and `RV2-DEBT-013`: dependency-aware runtime split, stable net handle ids, and owner-local stdlib HTTP server path. No syntax or Phase 4 transport work. |
 | 11 | `11-explicit-crossing-language-surface.md` | Complete. Accepted and implemented the Draft 9 compile-time crossing surface: `far`, contextual `on`, `spawn on`, inferred crossing effects, and shard movement attributes. No Phase 4 transport. |
 | 12 | `12-crossing-surface-integration-and-lowering-readiness.md` | Complete. Preserved crossing meaning through sema readiness metadata, enforced deterministic backend-unavailable behavior, promoted `runtime-v2-crossing-check`, reconciled backend-test debt, and prepared the Phase 4 transport/lowering handoff. |
-| 13 | `13-phase4-transport-spine-and-placement-task-lowering.md` | Proposed. Implement the first real Phase 4 execution vertical: OS-neutral inbound transport spine plus placement task lowering for `spawn on shard/distributed`, `far Task.await/cancel`, and immediate `on shard/distributed`; leave remote channels, remote `select`, Tier 2 `pool`, migration, and remote-free to later epics. |
+| 13 | `13-phase4-transport-spine-and-placement-task-lowering.md` | Active. Implement the first real Phase 4 execution vertical: OS-neutral inbound transport spine plus placement task lowering for `spawn on shard/distributed`, `far Task.await/cancel`, and immediate `on shard/distributed`; Task 6's runtime-native remote publication API and Task 7's backend-neutral compiler representation are complete, while executable crossing backend lowering, await/cancel routing, remote channels, remote `select`, Tier 2 `pool`, migration, and remote-free stay out of this task. |
 
 ## Language Syntax Gate
 

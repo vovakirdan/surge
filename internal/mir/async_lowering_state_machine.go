@@ -130,6 +130,10 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 					if ins.Select.Dst.Kind == PlaceLocal && len(ins.Select.Dst.Proj) == 0 {
 						sites[i].liveLocals.delete(ins.Select.Dst.Local)
 					}
+				case InstrCrossing:
+					if ins.Crossing.Dst.Kind == PlaceLocal && len(ins.Crossing.Dst.Proj) == 0 {
+						sites[i].liveLocals.delete(ins.Crossing.Dst.Local)
+					}
 				}
 			}
 		}
