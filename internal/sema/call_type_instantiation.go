@@ -196,6 +196,13 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		}
 		return tc.types.Intern(types.MakePointer(inner))
 
+	case strings.HasPrefix(s, "far "):
+		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "far "))), tc.peelFar(actual), bindings, paramNames)
+		if inner == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.types.Intern(types.MakeFar(inner))
+
 	// Handle built-in generic types
 	case strings.HasPrefix(s, "Option<") && strings.HasSuffix(s, ">"):
 		content := strings.TrimSuffix(strings.TrimPrefix(s, "Option<"), ">")
@@ -402,6 +409,13 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 		}
 		return tc.types.Intern(types.MakePointer(inner))
 
+	case strings.HasPrefix(s, "far "):
+		inner := tc.instantiateResultType(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "far "))), bindings, paramNames)
+		if inner == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.types.Intern(types.MakeFar(inner))
+
 	case strings.HasPrefix(s, "Option<") && strings.HasSuffix(s, ">"):
 		content := strings.TrimSuffix(strings.TrimPrefix(s, "Option<"), ">")
 		inner := tc.instantiateResultType(symbols.TypeKey(content), bindings, paramNames)
@@ -468,6 +482,19 @@ func (tc *typeChecker) peelReference(id types.TypeID) types.TypeID {
 			return id
 		}
 	}
+}
+
+// peelFar unwraps a far handle to its remote element type. Used when matching
+// a `far T` signature key against an actual far-typed value during inference.
+func (tc *typeChecker) peelFar(id types.TypeID) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil {
+		return id
+	}
+	resolved := tc.valueType(id)
+	if tt, ok := tc.types.Lookup(resolved); ok && tt.Kind == types.KindFar && tt.Elem != types.NoTypeID {
+		return tt.Elem
+	}
+	return id
 }
 
 func (tc *typeChecker) peelReferencePreserveAlias(id types.TypeID) types.TypeID {

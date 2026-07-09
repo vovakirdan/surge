@@ -105,6 +105,75 @@ fn caller() -> TaskResult<int> {
 	}
 }
 
+func TestCrossingReadinessFarTaskImportSignatureResolves(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", repoRootFromDriverTest(t))
+
+	dir, err := os.MkdirTemp(".", "rv2-far-import-")
+	if err != nil {
+		t.Fatalf("mkdir temp project: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+	})
+	remoteDir := filepath.Join(dir, "remote")
+	if mkdirErr := os.MkdirAll(remoteDir, 0o755); mkdirErr != nil {
+		t.Fatalf("mkdir remote module: %v", mkdirErr)
+	}
+	writeFile := func(path, body string) {
+		t.Helper()
+		if writeErr := os.WriteFile(path, []byte(body), 0o600); writeErr != nil {
+			t.Fatalf("write %s: %v", path, writeErr)
+		}
+	}
+	writeFile(filepath.Join(remoteDir, "remote.sg"), `
+pragma module::remote;
+
+pub fn start_remote() -> far Task<int> {
+	return spawn on pool {
+		ret 7;
+	};
+}
+`)
+	mainPath := filepath.Join(dir, "main.sg")
+	writeFile(mainPath, `
+import remote::start_remote;
+
+fn caller() -> TaskResult<int> {
+	let task = start_remote();
+	return task.await();
+}
+`)
+	resetExplicitModuleDirCacheForTest()
+
+	res, err := DiagnoseWithOptions(context.Background(), mainPath, &DiagnoseOptions{
+		Stage:          DiagnoseStageSema,
+		MaxDiagnostics: 128,
+	})
+	if err != nil {
+		t.Fatalf("diagnose: %v", err)
+	}
+	if res == nil || res.Bag == nil || res.Sema == nil || res.Symbols == nil {
+		t.Fatalf("diagnose result missing sema data")
+	}
+	if res.Bag.HasErrors() {
+		t.Fatalf("imported `far Task<T>` signature must resolve without errors, got: %s", driverDiagnosticsSummary(res.Bag))
+	}
+
+	if got := len(res.Sema.FarTaskAwaitSpans); got != 1 {
+		t.Fatalf("root far-task await spans = %d, want 1", got)
+	}
+	if got := len(res.Sema.CrossingLowering); got != 1 {
+		t.Fatalf("root lowering records = %d, want 1", got)
+	}
+	if res.Sema.CrossingLowering[0].Kind != sema.CrossingLoweringFarTaskAwait {
+		t.Fatalf("root record kind = %d, want far-task await", res.Sema.CrossingLowering[0].Kind)
+	}
+	caller := requireDriverFunctionSymbolID(t, res.Symbols, "caller")
+	if !res.Sema.FunctionEffects[caller].MayCross {
+		t.Fatalf("caller awaiting an imported far Task must infer the crossing effect")
+	}
+}
+
 func driverDiagnosticsSummary(bag *diag.Bag) string {
 	if bag == nil {
 		return "<nil>"
