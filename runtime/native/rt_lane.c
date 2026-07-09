@@ -36,6 +36,10 @@ int rt_lane_holds_control(void) {
     return lane_state.holds_control != 0;
 }
 
+int rt_lane_holds_any_shard(void) {
+    return lane_state.shard_id_plus_one != 0;
+}
+
 int rt_lane_holds_shard(uint32_t shard_id) {
     return lane_state.shard_id_plus_one == shard_id + 1U;
 }

@@ -41,7 +41,8 @@ int rt_sched_idle_sample_locked(rt_executor* ex) {
         rt_shard_lock(shard);
         const rt_scheduler* scheduler = rt_shard_scheduler_const(shard);
         int busy = scheduler != NULL &&
-                   (scheduler->running_count > 0 || !scheduler_runnable_is_empty(scheduler));
+                   (scheduler->running_count > 0 || !scheduler_runnable_is_empty(scheduler) ||
+                    rt_transport_inbound_len_locked(shard) > 0);
         rt_shard_unlock(shard);
         if (busy) {
             return 0;

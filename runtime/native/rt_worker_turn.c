@@ -121,7 +121,11 @@ void* rt_worker_main(void* arg) {
         }
         rt_shard_lock(shard);
         uint64_t id = 0;
+        (void)rt_transport_drain_inbound_locked(shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);
         while (!ex->shutdown && !worker_next_ready(ctx, &id)) {
+            if (rt_transport_drain_inbound_locked(shard, 0) > 0) {
+                continue;
+            }
             if (rt_sleep_store_min(&shard->sleep_store) <= rt_clock_now(ex)) {
                 rt_shard_unlock(shard);
                 size_t fired = rt_sleep_fire_due_on_shard(ex, shard, rt_clock_now(ex));
@@ -151,8 +155,11 @@ void* rt_worker_main(void* arg) {
                 }
             }
             // Sleep only after local, inject, and steal queues have been
-            // checked under the shard lock; wake_pending closes the window
-            // between that check and the wait.
+            // checked under the shard lock. Transport then publishes PARKED
+            // under the same lock and re-checks inbound before worker_cv wait.
+            if (rt_transport_prepare_shard_park(shard) == RT_TRANSPORT_STATUS_UNAVAILABLE) {
+                continue;
+            }
             rt_debug_assert_no_parked_with_work(ex, ctx->shard_id);
             rt_trace_worker_sleep();
             while (scheduler->wake_pending == 0 && !ex->shutdown) {
@@ -161,6 +168,7 @@ void* rt_worker_main(void* arg) {
             if (scheduler->wake_pending > 0) {
                 scheduler->wake_pending--;
             }
+            rt_transport_mark_shard_running(shard);
             rt_trace_worker_wake();
         }
         if (ex->shutdown) {

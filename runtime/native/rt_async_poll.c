@@ -159,6 +159,12 @@ int run_ready_one(rt_executor* ex) {
     }
     rt_trace_drain_signal_dump();
     rt_control_lock(ex);
+    rt_shard* shard0 = rt_runtime_shard0(rt_executor_runtime(ex));
+    if (shard0 != NULL) {
+        rt_shard_lock(shard0);
+        (void)rt_transport_drain_inbound_locked(shard0, RT_TRANSPORT_DRAIN_TURN_LIMIT);
+        rt_shard_unlock(shard0);
+    }
     uint64_t id = 0;
     if (!next_ready(ex, &id)) {
         rt_control_unlock(ex);

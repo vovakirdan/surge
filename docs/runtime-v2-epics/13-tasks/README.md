@@ -21,7 +21,7 @@ task-suspend-vs-shard-park invariant.
 | 1 | `01-kickoff-map-and-contracts.md` | Complete | map/evidence + decisions | none |
 | 2 | `02-transport-harness-hardening.md` | Complete | test harness | 1 |
 | 3 | `03-park-wake-proof.md` | Complete | runtime proof tests | 1, 2 |
-| 4 | `04-inbound-transport-spine.md` | Pending | native runtime | 3 |
+| 4 | `04-inbound-transport-spine.md` | Complete | native runtime | 3 |
 | 5 | `05-placement-abi.md` | Pending | runtime ABI + prelude | 1 |
 | 6 | `06-remote-publication-api.md` | Pending | native runtime API | 4, 5 |
 | 7 | `07-lowering-representation.md` | Pending | compiler HIR/MIR + guards | 1 |

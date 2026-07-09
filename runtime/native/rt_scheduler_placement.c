@@ -137,11 +137,14 @@ int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t s
 }
 
 void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id) {
-    const rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
-    const rt_shard* shard = rt_runtime_shard_const(runtime, shard_id);
+    rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
+    rt_shard* shard = rt_runtime_shard(runtime, shard_id);
     const rt_scheduler* scheduler = rt_shard_scheduler_const(shard);
-    if (!scheduler_has_queued_work(scheduler)) {
+    if (!scheduler_has_queued_work(scheduler) && rt_transport_inbound_len_locked(shard) == 0) {
         return;
+    }
+    if (shard != NULL && rt_transport_inbound_len_locked(shard) != 0) {
+        shard->transport.parked_with_work_violations++;
     }
     rt_trace_parked_with_work();
     panic_msg("async: parked-with-work invariant violated");

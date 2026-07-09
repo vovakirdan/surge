@@ -12,6 +12,7 @@ import (
 
 func TestRuntimeV2TransportSeamStaticShape(t *testing.T) {
 	source := `
+#include "rt_async_internal.h"
 #include "rt_transport.h"
 
 rt_transport_status (*runtime_v2_check_transport_enqueue)(rt_shard*, const rt_transport_msg*) =
@@ -25,17 +26,29 @@ void (*runtime_v2_check_transport_mark_shard_running)(rt_shard*) =
 uint64_t (*runtime_v2_check_transport_shutdown_wake_all)(rt_executor*) =
     rt_transport_shutdown_wake_all;
 struct rt_transport_debug_snapshot (*runtime_v2_check_transport_debug_snapshot)(
-    const rt_shard*) = rt_transport_debug_snapshot;
+    rt_shard*) = rt_transport_debug_snapshot;
 
 _Static_assert(RT_TRANSPORT_STATUS_OK == 0, "transport OK status must stay zero");
-_Static_assert(RT_TRANSPORT_STATUS_PENDING_SPINE != RT_TRANSPORT_STATUS_OK,
-               "pending-spine status must not look successful");
+_Static_assert(RT_TRANSPORT_STATUS_QUEUE_FULL != RT_TRANSPORT_STATUS_OK,
+               "data backpressure must not look successful");
+_Static_assert(RT_TRANSPORT_DATA_QUEUE_CAP > 0, "data queue must be bounded");
+_Static_assert(RT_TRANSPORT_CONTROL_QUEUE_CAP > 0, "control queue must be reserved");
+_Static_assert(RT_TRANSPORT_DRAIN_TURN_LIMIT > 0, "worker turn must have bounded transport drain");
+_Static_assert(RT_TRANSPORT_CONTROL_QUEUE_CAP < RT_TRANSPORT_DATA_QUEUE_CAP,
+               "control lane is reserved, not the bulk data lane");
+
 _Static_assert(RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST != RT_TRANSPORT_MSG_NONE,
-               "remote spawn request must be a real transport category");
-_Static_assert(RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY != RT_TRANSPORT_MSG_NONE,
-               "immediate on reply must be a real transport category");
+               "remote spawn request must be a real data category");
+_Static_assert(RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST != RT_TRANSPORT_MSG_NONE,
+               "immediate execute request must be a real data category");
+_Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION != RT_TRANSPORT_MSG_NONE,
+               "completion must be a real control category");
+_Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST != RT_TRANSPORT_MSG_NONE,
+               "cancel must be a real control category");
+_Static_assert(RT_TRANSPORT_MSG_CREDIT_CONTROL != RT_TRANSPORT_MSG_NONE,
+               "credit must be a real control category");
 _Static_assert(RT_TRANSPORT_MSG_SHUTDOWN_WAKE != RT_TRANSPORT_MSG_NONE,
-               "shutdown wake must be a real transport category");
+               "shutdown wake must be a real control category");
 
 _Static_assert(sizeof(rt_transport_msg) > 0, "rt_transport_msg must be complete");
 _Static_assert(sizeof(((rt_transport_msg*)0)->source_shard_id) == sizeof(uint32_t),
@@ -47,10 +60,25 @@ _Static_assert(sizeof(((rt_transport_msg*)0)->generation) == sizeof(uint64_t),
 _Static_assert(sizeof(((rt_transport_msg*)0)->payload_len) == sizeof(size_t),
                "payload length must stay size_t");
 
+_Static_assert(sizeof(((rt_shard*)0)->transport) == sizeof(rt_transport_state),
+               "rt_shard must embed transport state by value");
+_Static_assert(sizeof(((rt_transport_state*)0)->data) / sizeof(rt_transport_msg) ==
+                   RT_TRANSPORT_DATA_QUEUE_CAP,
+               "data lane capacity must be structural");
+_Static_assert(sizeof(((rt_transport_state*)0)->control) / sizeof(rt_transport_msg) ==
+                   RT_TRANSPORT_CONTROL_QUEUE_CAP,
+               "control lane capacity must be structural");
+_Static_assert(sizeof(((rt_transport_state*)0)->park_state) == sizeof(_Atomic uint8_t),
+               "park state must be atomic");
+
 _Static_assert(sizeof(struct rt_transport_debug_snapshot) > 0,
                "transport debug snapshot must be complete");
 _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->inbound_len) == sizeof(size_t),
                "snapshot inbound_len must stay size_t");
+_Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->control_len) == sizeof(size_t),
+               "snapshot control_len must stay size_t");
+_Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->data_len) == sizeof(size_t),
+               "snapshot data_len must stay size_t");
 _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->transport_wake_writes) ==
                    sizeof(uint64_t),
                "transport wake writes must be counted separately");
@@ -65,49 +93,139 @@ _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->shutdown_wakes) 
 	runFDRegistryStaticCheck(t, "Runtime V2 transport seam static shape check", source)
 }
 
-func TestRuntimeV2TransportStubPendingBehavior(t *testing.T) {
+func TestRuntimeV2TransportSpineBehavior(t *testing.T) {
 	source := `
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "rt_async_internal.h"
 #include "rt_transport.h"
 
-static int require_int(int condition, int code) {
-    return condition ? 0 : code;
+void panic_msg(const char* msg) {
+    fprintf(stderr, "panic: %s\n", msg);
+}
+
+void rt_trace_control_lock_acquired(void) {
+}
+
+static int require_int(int condition, const char* message) {
+    if (!condition) {
+        fprintf(stderr, "%s\n", message);
+        return 1;
+    }
+    return 0;
+}
+
+static int init_shard(rt_shard* shard, rt_runtime* runtime, rt_executor* ex, uint32_t id) {
+    memset(shard, 0, sizeof(*shard));
+    shard->runtime = runtime;
+    shard->executor = ex;
+    shard->shard_id = id;
+    if (rt_shard_sync_init(shard) != RT_RUNTIME_STATUS_OK) return 1;
+    if (rt_transport_state_init(&shard->transport) != RT_RUNTIME_STATUS_OK) return 2;
+    shard->scheduler.worker_count = 1;
+    return 0;
+}
+
+static void destroy_shard(rt_shard* shard) {
+    rt_transport_state_destroy(&shard->transport);
+    rt_shard_sync_destroy(shard);
 }
 
 int main(void) {
-    rt_transport_msg msg = {
+    rt_executor ex = {0};
+    rt_runtime runtime = {0};
+    runtime.shard_count = 2;
+    ex.runtime = &runtime;
+    if (init_shard(&runtime.shards[0], &runtime, &ex, 0) != 0) return 2;
+    if (init_shard(&runtime.shards[1], &runtime, &ex, 1) != 0) return 3;
+    rt_shard* shard = &runtime.shards[0];
+    rt_shard* other = &runtime.shards[1];
+
+    rt_transport_msg data = {
         .kind = RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST,
         .source_shard_id = 0,
-        .target_shard_id = 1,
+        .target_shard_id = 0,
         .route_id = 11,
         .generation = 22,
-        .payload = 0,
-        .payload_len = 0,
     };
-    rt_transport_msg out = {0};
-    struct rt_transport_debug_snapshot snapshot = rt_transport_debug_snapshot(0);
+    rt_transport_msg control = data;
+    control.kind = RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION;
+    control.route_id = 99;
 
-    int err = require_int(snapshot.pending_spine == 1, 1);
-    if (err != 0) return err;
-    err = require_int(snapshot.inbound_len == 0, 2);
-    if (err != 0) return err;
-    err = require_int(snapshot.transport_wake_writes == 0, 3);
-    if (err != 0) return err;
-    err = require_int(snapshot.transport_wake_elisions == 0, 4);
-    if (err != 0) return err;
-    err = require_int(rt_transport_enqueue(0, &msg) == RT_TRANSPORT_STATUS_PENDING_SPINE, 5);
-    if (err != 0) return err;
-    err = require_int(rt_transport_try_drain_one(0, &out) == RT_TRANSPORT_STATUS_UNAVAILABLE, 6);
-    if (err != 0) return err;
-    err = require_int(rt_transport_prepare_shard_park(0) == RT_TRANSPORT_STATUS_PENDING_SPINE, 7);
-    if (err != 0) return err;
-    rt_transport_mark_shard_running(0);
-    err = require_int(rt_transport_shutdown_wake_all(0) == 0, 8);
-    if (err != 0) return err;
+    if (require_int(rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK,
+                    "data enqueue failed")) return 3;
+    if (require_int(rt_transport_enqueue(shard, &control) == RT_TRANSPORT_STATUS_OK,
+                    "control enqueue failed")) return 4;
+
+    rt_transport_msg out = {0};
+    if (require_int(rt_transport_try_drain_one(shard, &out) == RT_TRANSPORT_STATUS_OK,
+                    "first drain failed")) return 5;
+    if (require_int(out.kind == RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION,
+                    "control lane did not drain before data")) return 6;
+    if (require_int(rt_transport_try_drain_one(shard, &out) == RT_TRANSPORT_STATUS_OK,
+                    "second drain failed")) return 7;
+    if (require_int(out.kind == RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST,
+                    "data lane did not drain after control")) return 8;
+
+    for (size_t i = 0; i < RT_TRANSPORT_DATA_QUEUE_CAP; i++) {
+        if (rt_transport_enqueue(shard, &data) != RT_TRANSPORT_STATUS_OK) return 9;
+    }
+    if (require_int(rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_QUEUE_FULL,
+                    "bounded data lane did not report full")) return 10;
+    if (require_int(rt_transport_enqueue(shard, &control) == RT_TRANSPORT_STATUS_OK,
+                    "reserved control lane was blocked by full data lane")) return 11;
+    rt_shard_lock(shard);
+    (void)rt_transport_drain_inbound_locked(shard, 0);
+    rt_shard_unlock(shard);
+
+    if (require_int(rt_transport_prepare_shard_park(shard) == RT_TRANSPORT_STATUS_OK,
+                    "empty shard did not park")) return 12;
+    if (require_int(rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK,
+                    "parked enqueue failed")) return 13;
+    struct rt_transport_debug_snapshot snapshot = rt_transport_debug_snapshot(shard);
+    if (require_int(snapshot.transport_wake_writes == 1,
+                    "parked shard wake was not recorded exactly once")) return 14;
+    if (require_int(snapshot.inbound_len == 1,
+                    "parked enqueue did not publish inbound message")) return 15;
+    rt_transport_mark_shard_running(shard);
+    (void)rt_transport_try_drain_one(shard, &out);
+
+    if (require_int(rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK,
+                    "running enqueue failed")) return 16;
+    snapshot = rt_transport_debug_snapshot(shard);
+    if (require_int(snapshot.transport_wake_elisions >= 1,
+                    "running shard wake was not elided")) return 17;
+    (void)rt_transport_try_drain_one(shard, &out);
+
+    rt_shard_lock(shard);
+    if (require_int(rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK,
+                    "same-shard locked enqueue failed")) return 18;
+    snapshot = rt_transport_debug_snapshot(shard);
+    if (require_int(snapshot.inbound_len == 1,
+                    "same-shard locked snapshot did not see inbound")) return 19;
+    if (require_int(rt_transport_try_drain_one(shard, &out) == RT_TRANSPORT_STATUS_OK,
+                    "same-shard locked drain failed")) return 20;
+    if (require_int(rt_transport_enqueue(other, &data) == RT_TRANSPORT_STATUS_INVALID_ARGUMENT,
+                    "cross-shard locked enqueue must fail before taking another shard lock")) return 21;
+    rt_shard_unlock(shard);
+
+    if (require_int(rt_transport_shutdown_wake_all(&ex) == 2,
+                    "shutdown did not wake every shard")) return 22;
+    snapshot = rt_transport_debug_snapshot(shard);
+    if (require_int(snapshot.shutdown_wakes == 1,
+                    "shutdown wake counter not recorded")) return 23;
+
+    destroy_shard(shard);
+    destroy_shard(other);
     return 0;
 }
 `
 
-	runTransportCProgram(t, "Runtime V2 transport stub pending behavior", source)
+	runTransportCProgram(t, "Runtime V2 transport spine behavior", source, nil)
 }
 
 func TestRuntimeV2TransportSyncPointAllowlistShape(t *testing.T) {
@@ -116,6 +234,8 @@ func TestRuntimeV2TransportSyncPointAllowlistShape(t *testing.T) {
 	syncPointSource := readTransportContractFile(t, root, "runtime/native/rt_sync_point.c")
 	checkScript := readTransportContractFile(t, root, "check_sync_points.sh")
 	transportSource := readTransportContractFile(t, root, "runtime/native/rt_transport.c")
+	workerTurn := readTransportContractFile(t, root, "runtime/native/rt_worker_turn.c")
+	asyncPoll := readTransportContractFile(t, root, "runtime/native/rt_async_poll.c")
 
 	names := []string{
 		"SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK",
@@ -136,32 +256,41 @@ func TestRuntimeV2TransportSyncPointAllowlistShape(t *testing.T) {
 			t.Fatalf("check_sync_points.sh must allow %s only in rt_transport.c", name)
 		}
 		if !strings.Contains(transportSource, "RT_SYNC_POINT("+name+")") {
-			t.Fatalf("rt_transport.c must expose stub window %s", name)
+			t.Fatalf("rt_transport.c must expose transport sync-point window %s", name)
 		}
 	}
 	if strings.Contains(checkScript, "rt_net.c\"") &&
 		strings.Contains(checkScript, "SP_TRANSPORT_") {
 		t.Fatal("transport sync-point windows must not be allowlisted on net wake sources")
 	}
+	workerDrain := strings.Index(workerTurn,
+		"(void)rt_transport_drain_inbound_locked(shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);")
+	workerReady := strings.Index(workerTurn, "while (!ex->shutdown && !worker_next_ready")
+	if workerDrain < 0 || workerReady < 0 || workerDrain > workerReady {
+		t.Fatal("worker loop must drain a bounded transport slice before ready-work selection")
+	}
+	if !strings.Contains(asyncPoll,
+		"(void)rt_transport_drain_inbound_locked(shard0, RT_TRANSPORT_DRAIN_TURN_LIMIT);") {
+		t.Fatal("single-runner run_ready_one path must drain transport before ready-pop")
+	}
 }
 
-func TestRuntimeV2TransportPendingProbeRowsDocumented(t *testing.T) {
+func TestRuntimeV2TransportProbeRowsDocumented(t *testing.T) {
 	root := repoRoot(t)
-	taskDoc := readTransportContractFile(t, root, "docs/runtime-v2-epics/13-tasks/03-park-wake-proof.md")
+	taskDoc := readTransportContractFile(t, root, "docs/runtime-v2-epics/13-tasks/04-inbound-transport-spine.md")
 	liveness := readTransportContractFile(t, root, "docs/runtime-v2-epics/LIVENESS_PROBES.md")
 
 	for _, needle := range []string{
 		"make runtime-v2-transport-contract-check",
 		"go test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$'",
-		"pending-spine",
+		"worker_cv",
 	} {
 		if !strings.Contains(taskDoc, needle) {
-			t.Fatalf("Task 3 doc missing %q", needle)
+			t.Fatalf("Task 4 doc missing %q", needle)
 		}
 	}
 	for _, needle := range []string{
-		"Task 3 static gate: `make runtime-v2-transport-contract-check`",
-		"pending acceptance command: `go test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$'`",
+		"Task 4 transport gate: `make runtime-v2-transport-contract-check` (also called by `make runtime-v2-check`)",
 	} {
 		if !strings.Contains(liveness, needle) {
 			t.Fatalf("LIVENESS_PROBES missing %q", needle)
@@ -178,7 +307,7 @@ func readTransportContractFile(t *testing.T, root, rel string) string {
 	return string(data)
 }
 
-func runTransportCProgram(t *testing.T, label, source string) {
+func runTransportCProgram(t *testing.T, label, source string, extraFlags []string) {
 	t.Helper()
 	root := repoRoot(t)
 	clang, err := exec.LookPath("clang")
@@ -186,20 +315,26 @@ func runTransportCProgram(t *testing.T, label, source string) {
 		t.Fatalf("clang is required for Runtime V2 transport contract check: %v", err)
 	}
 	exe := filepath.Join(t.TempDir(), "transport-contract")
-	cmd := exec.Command(
-		clang,
+	args := []string{
 		"-std=c11",
 		"-Wall",
 		"-Wextra",
 		"-Werror",
-		"-I"+filepath.Join(root, "runtime", "native"),
+		"-I" + filepath.Join(root, "runtime", "native"),
+	}
+	args = append(args, extraFlags...)
+	args = append(args,
 		"-x",
 		"c",
 		"-",
 		filepath.Join(root, "runtime", "native", "rt_transport.c"),
+		filepath.Join(root, "runtime", "native", "rt_lane.c"),
+		filepath.Join(root, "runtime", "native", "rt_sync_point.c"),
+		"-pthread",
 		"-o",
 		exe,
 	)
+	cmd := exec.Command(clang, args...)
 	cmd.Dir = root
 	cmd.Stdin = strings.NewReader(source)
 	output, err := cmd.CombinedOutput()

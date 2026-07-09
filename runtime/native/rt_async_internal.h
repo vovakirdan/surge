@@ -3,6 +3,7 @@
 #include "rt.h"
 #include "rt_heap_accounting.h"
 #include "rt_runtime_config.h"
+#include "rt_transport.h"
 #include "rt_waiter.h"
 #include <pthread.h>
 #include <setjmp.h>
@@ -160,6 +161,7 @@ struct rt_shard {
     rt_heap_accounting heap_accounting;
     rt_net_poll_scratch net_poll_scratch;
     rt_net_poll_wake net_poll_wake;
+    rt_transport_state transport;
     rt_fd_registry fd_registry;
     rt_channel_blocking_compat channel_blocking_compat;
     rt_waiter_store waiter_store;
@@ -671,6 +673,7 @@ void rt_shard_lock(rt_shard* shard);
 void rt_shard_unlock(rt_shard* shard);
 int rt_lane_debug_enabled(void);
 int rt_lane_holds_control(void);
+int rt_lane_holds_any_shard(void);
 int rt_lane_holds_shard(uint32_t shard_id);
 rt_runtime_status rt_shard_sync_init(rt_shard* shard);
 void rt_shard_sync_destroy(rt_shard* shard);

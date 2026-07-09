@@ -27,6 +27,40 @@ longer blocks Phase 4 lowering, but higher-order/function-type and exported
 hidden-crossing effects remain an Epic 13 Task 1 decision point or later
 effect-system work.
 
+## Epic 13 Task 4 Implementation (2026-07-09)
+
+Task 4 replaces the Task 3 transport stub with a native inbound spine only.
+`rt_shard` now embeds `rt_transport_state` by value; `rt_runtime.c`
+initializes and destroys it. `rt_transport.c/.h` implement a shard-locked
+bounded data queue plus a separate reserved control queue, seq-cst transport
+PARKED/RUNNING state, control-before-data drain, transport wake/elision/shutdown
+counters, pipe-backed `rt_transport_wake` drain/write accounting, shutdown
+wake-all, and a reply-wait task-suspend seam.
+
+Boundary: the transport pipe is not wired into `rt_net_poll_pass`. Current
+worker idle sleep is on shard `worker_cv`, so Task 4 delivers correctness wake
+through the existing shard `wake_pending`/`worker_cv` token path and keeps the
+pipe as an OS-neutral abstraction/counter/drain surface for later pollset work.
+The queue is shard-locked in this first spine; producer entry into the
+PARKED->recheck window is serialized by the target shard lock, so the
+sync-point row proves the recheck shape and the worker row proves the actual
+condvar wake path.
+
+Scope deliberately excluded placement ABI, remote publication protocol,
+compiler lowering, new syntax, payload ownership semantics beyond shallow
+message copies, and credit accounting beyond the declared control category.
+
+Focused evidence: `go test -tags runtime_v2_transport_spine ./internal/vm -run
+'^TestRuntimeV2TransportSpineAcceptanceRows$' -count=1 -v --timeout 120s`
+passed. Positive rows cover shard-locked recheck shape with sync-point reach,
+RUNNING wake elision, real `worker_cv` wake/drain for a transport-PARKED shard,
+parked-with-inbound invariant, shutdown wake, and reply-wait task-suspend seam.
+Negative controls
+`RT_TRANSPORT_NEG_SKIP_RECHECK`, `RT_TRANSPORT_NEG_RELAXED_PARK_ORDER`,
+`RT_TRANSPORT_NEG_SKIP_PARKED_WAKE`, `RT_TRANSPORT_NEG_WRITE_RUNNING_WAKE`,
+`RT_TRANSPORT_NEG_SHUTDOWN_NO_WAKE`, and
+`RT_TRANSPORT_NEG_REPLY_WAIT_PARKS_SHARD` fail deterministically.
+
 ## Epic 13 Task 3 Implementation (2026-07-09)
 
 Task 3 adds the transport contract test seam only. New files
@@ -44,17 +78,17 @@ The Task 4 sync-point names are now in `rt_sync_point.h/.c` and allowlisted by
 `SP_TRANSPORT_REPLY_WAIT_BEFORE_TASK_SUSPEND`, and
 `SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE`.
 
-New gate: `make runtime-v2-transport-contract-check` runs the passing
-`runtime_v2_pending` static/pending-shape rows. It is intentionally not wired
-into `runtime-v2-check` in Task 3; the behavioral acceptance rows are behind
-`runtime_v2_transport_spine` and fail with `pending-spine` until Task 4 lands
-the inbound transport spine.
+Task 3 introduced `make runtime-v2-transport-contract-check` for the passing
+`runtime_v2_pending` static/pending-shape rows, intentionally leaving it
+outside `runtime-v2-check` until the production spine existed. Task 4 upgrades
+the target into the transport gate: it runs the static/behavior rows and the
+`runtime_v2_transport_spine` C acceptance rows, and `runtime-v2-check` calls it
+directly.
 
-The opt-in acceptance rows are static sentinels for the Task 4 matrix, not a
-behavior pass in Task 3. They enumerate lost-wake seq-cst proof plus negative
-controls, wake elision positives/negatives, PARKED-with-inbound-work
-positive/negative, shutdown wake positive/negative, and reply-wait
-task-suspend positive/negative.
+The acceptance rows enumerate lost-wake seq-cst proof plus negative controls,
+wake elision positives/negatives, PARKED-with-inbound-work positive/negative,
+shutdown wake positive/negative, and reply-wait task-suspend
+positive/negative.
 
 ## Epic 12 Task 4 Implementation (2026-07-08)
 

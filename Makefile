@@ -106,6 +106,7 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-lifecycle-check
 	$(MAKE) runtime-v2-perf-check
 	$(MAKE) runtime-v2-syncpoint-check
+	$(MAKE) runtime-v2-transport-contract-check
 
 runtime-v2-crossing-check:
 	@echo ">> Running Runtime V2 crossing readiness gate (Epic 12)"
@@ -118,8 +119,9 @@ runtime-v2-syncpoint-check:
 	./check_sync_points.sh
 
 runtime-v2-transport-contract-check:
-	@echo ">> Running Runtime V2 transport contract static gate (Epic 13 Task 3)"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Transport(SeamStaticShape|StubPendingBehavior|SyncPointAllowlistShape|PendingProbeRowsDocumented)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
+	@echo ">> Running Runtime V2 transport contract gate (Epic 13 Task 4)"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Transport(SeamStaticShape|SpineBehavior|SyncPointAllowlistShape|ProbeRowsDocumented)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 
 runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 heap accounting gate"
