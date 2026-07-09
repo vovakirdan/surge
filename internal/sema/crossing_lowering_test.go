@@ -27,8 +27,9 @@ func checkCrossingLoweringDiagnostics(t *testing.T, src string) (*Result, *symbo
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(128)
 	res := Check(context.Background(), builder, fileID, Options{
-		Reporter: &diag.BagReporter{Bag: semaBag},
-		Symbols:  symRes,
+		Reporter:   &diag.BagReporter{Bag: semaBag},
+		Symbols:    symRes,
+		ModulePath: builder.StringsInterner.Intern("core"),
 	})
 	return &res, symRes, semaBag
 }

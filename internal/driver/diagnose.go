@@ -279,7 +279,16 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 				phaseBegin("sema")
 				semaIdx := begin("sema")
 				semaSpan := trace.Begin(tracer, trace.ScopePass, "sema", diagSpan.ID())
-				semaRes = diagnoseSemaWithTypes(ctx, builder, astFile, bag, moduleExports, symbolsRes, sharedTypes, alienHintsEnabled, instRecorder)
+				semaRes = diagnoseSemaWithTypes(ctx,
+					builder,
+					astFile,
+					bag,
+					moduleExports,
+					symbolsRes,
+					sharedTypes,
+					modulePath,
+					alienHintsEnabled,
+					instRecorder)
 				semaSpan.End("")
 				end(semaIdx, "")
 				phaseEnd("sema")
@@ -371,7 +380,14 @@ func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, mod
 	return &res
 }
 
-func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, alienHints bool, insts sema.InstantiationRecorder) *sema.Result {
+func semaModulePath(builder *ast.Builder, modulePath string) source.StringID {
+	if builder == nil || builder.StringsInterner == nil || modulePath == "" {
+		return source.NoStringID
+	}
+	return builder.StringsInterner.Intern(modulePath)
+}
+
+func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, modulePath string, alienHints bool, insts sema.InstantiationRecorder) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
@@ -379,15 +395,15 @@ func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, 
 		Reporter:       &diag.BagReporter{Bag: bag},
 		Symbols:        symbolsRes,
 		Exports:        exports,
+		ModulePath:     semaModulePath(builder, modulePath),
 		AlienHints:     alienHints,
-		Bag:            bag,
 		Instantiations: insts,
 	}
 	res := sema.Check(ctx, builder, fileID, opts)
 	return &res
 }
 
-func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner, alienHints bool, insts sema.InstantiationRecorder) *sema.Result {
+func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner, modulePath string, alienHints bool, insts sema.InstantiationRecorder) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
@@ -396,8 +412,8 @@ func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast
 		Symbols:        symbolsRes,
 		Exports:        exports,
 		Types:          typeInterner,
+		ModulePath:     semaModulePath(builder, modulePath),
 		AlienHints:     alienHints,
-		Bag:            bag,
 		Instantiations: insts,
 	}
 	res := sema.Check(ctx, builder, fileID, opts)

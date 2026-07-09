@@ -102,3 +102,24 @@ func (r BagReporter) Report(code Code, sev Severity, primary source.Span, msg st
 		Primary: primary, Notes: notes, Fixes: fixes,
 	})
 }
+
+// ReporterBag returns the underlying diagnostic bag for reporters that expose
+// one directly or through a standard wrapper.
+func ReporterBag(r Reporter) *Bag {
+	switch rr := r.(type) {
+	case BagReporter:
+		return rr.Bag
+	case *BagReporter:
+		if rr == nil {
+			return nil
+		}
+		return rr.Bag
+	case *DedupReporter:
+		if rr == nil {
+			return nil
+		}
+		return ReporterBag(rr.next)
+	default:
+		return nil
+	}
+}

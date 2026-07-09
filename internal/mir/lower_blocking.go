@@ -131,7 +131,7 @@ func (l *funcLowerer) captureOperand(capture blockingCaptureInfo) (Operand, erro
 				return l.placeOperand(Place{Kind: PlaceGlobal, Global: global}, ty, true), nil
 			}
 		}
-		if op, handled, err := l.lowerConstValue(capture.SymbolID, true); handled {
+		if op, handled, err := l.lowerConstValue(capture.SymbolID, true, capture.Type); handled {
 			return op, err
 		}
 	}

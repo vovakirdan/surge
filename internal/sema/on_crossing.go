@@ -261,7 +261,7 @@ func (tc *typeChecker) checkOnResultWrapping(id ast.ExprID, payload, resultType 
 
 // isPlacementType reports whether id is the intrinsic `Placement` type.
 func (tc *typeChecker) isPlacementType(id types.TypeID) bool {
-	return tc.typeNameIs(id, "Placement")
+	return tc != nil && tc.types != nil && tc.types.IsRuntimePlacementType(id)
 }
 
 // farInner returns the handle type wrapped by a `far T`, or NoTypeID.

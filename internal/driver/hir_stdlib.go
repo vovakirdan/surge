@@ -237,13 +237,17 @@ func appendCoreInstantiations(ctx context.Context, res *DiagnoseResult, coreRec 
 			continue
 		}
 		bag := diag.NewBag(0)
+		modulePath := "core"
+		if coreRec.Meta != nil && coreRec.Meta.Path != "" {
+			modulePath = coreRec.Meta.Path
+		}
 		sema.Check(ctx, coreRec.Builder, fileID, sema.Options{
 			Reporter:       &diag.BagReporter{Bag: bag},
 			Symbols:        &symRes,
 			Exports:        exports,
 			Types:          res.Sema.TypeInterner,
+			ModulePath:     semaModulePath(coreRec.Builder, modulePath),
 			AlienHints:     false,
-			Bag:            bag,
 			Instantiations: recorder,
 		})
 		if bag.HasErrors() {

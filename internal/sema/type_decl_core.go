@@ -1,7 +1,10 @@
 package sema
 
 import (
+	"strings"
+
 	"surge/internal/ast"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -58,7 +61,38 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 		if symID := tc.typeSymbolForItem(itemID); symID.IsValid() {
 			tc.assignSymbolType(symID, typeID)
 		}
+		if tc.isRuntimePlacementTypeDecl(itemID, typeItem) {
+			tc.types.MarkRuntimePlacementType(typeID)
+		}
 	}
+}
+
+func (tc *typeChecker) isRuntimePlacementTypeDecl(itemID ast.ItemID, typeItem *ast.TypeItem) bool {
+	if tc == nil || typeItem == nil || tc.builder == nil {
+		return false
+	}
+	if tc.lookupName(typeItem.Name) != "Placement" {
+		return false
+	}
+	infos := tc.collectAttrs(typeItem.AttrStart, typeItem.AttrCount)
+	_, ok := hasAttr(infos, "intrinsic")
+	if !ok {
+		return false
+	}
+	if !isCoreRuntimeModulePath(tc.modulePath) {
+		return false
+	}
+	symID := tc.typeSymbolForItem(itemID)
+	if !symID.IsValid() {
+		return false
+	}
+	sym := tc.symbolFromID(symID)
+	return sym != nil && sym.Kind == symbols.SymbolType && sym.Flags&symbols.SymbolFlagBuiltin != 0
+}
+
+func isCoreRuntimeModulePath(path string) bool {
+	trimmed := strings.Trim(path, "/")
+	return trimmed == "core" || strings.HasPrefix(trimmed, "core/")
 }
 
 func (tc *typeChecker) recordTypeDeclAttrs(file *ast.File) {

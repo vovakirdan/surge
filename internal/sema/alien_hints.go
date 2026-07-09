@@ -25,12 +25,7 @@ func emitAlienHints(builder *ast.Builder, fileID ast.FileID, opts Options) {
 	if !opts.AlienHints || opts.Reporter == nil {
 		return
 	}
-	bag := opts.Bag
-	if bag == nil {
-		if br, ok := opts.Reporter.(*diag.BagReporter); ok {
-			bag = br.Bag
-		}
-	}
+	bag := diag.ReporterBag(opts.Reporter)
 	if bag == nil {
 		return
 	}

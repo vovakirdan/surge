@@ -43,6 +43,9 @@ func llvmType(typesIn *types.Interner, id types.TypeID) (string, error) {
 	if typesIn == nil {
 		return "void", fmt.Errorf("missing type interner")
 	}
+	if isPlacementType(typesIn, id) {
+		return "i64", nil
+	}
 	id = resolveAliasAndOwn(typesIn, id)
 	tt, ok := typesIn.Lookup(id)
 	if !ok {

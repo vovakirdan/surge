@@ -41,6 +41,7 @@ type Interner struct {
 	Strings          *source.Interner
 	typeLayoutAttrs  map[TypeID]LayoutAttrs
 	copyTypes        map[TypeID]struct{}
+	placementTypes   map[TypeID]struct{}
 	params           []TypeParamInfo
 	unions           []UnionInfo
 	enums            []EnumInfo
@@ -188,4 +189,40 @@ func (in *Interner) MarkCopyType(id TypeID) {
 		in.copyTypes = make(map[TypeID]struct{}, 64)
 	}
 	in.copyTypes[id] = struct{}{}
+}
+
+// MarkRuntimePlacementType records the core runtime Placement ABI type.
+func (in *Interner) MarkRuntimePlacementType(id TypeID) {
+	if in == nil || id == NoTypeID {
+		return
+	}
+	if in.placementTypes == nil {
+		in.placementTypes = make(map[TypeID]struct{}, 4)
+	}
+	in.placementTypes[id] = struct{}{}
+}
+
+// IsRuntimePlacementType reports whether id is the core runtime Placement ABI type.
+func (in *Interner) IsRuntimePlacementType(id TypeID) bool {
+	if in == nil || id == NoTypeID {
+		return false
+	}
+	const maxDepth = 32
+	for range maxDepth {
+		if in.placementTypes != nil {
+			if _, ok := in.placementTypes[id]; ok {
+				return true
+			}
+		}
+		tt, ok := in.Lookup(id)
+		if !ok || tt.Kind != KindAlias {
+			return false
+		}
+		target, ok := in.AliasTarget(id)
+		if !ok || target == NoTypeID || target == id {
+			return false
+		}
+		id = target
+	}
+	return false
 }

@@ -31,7 +31,12 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 			return Operand{}, fmt.Errorf("mir: var ref: unexpected payload %T", e.Data)
 		}
 		if !data.SymbolID.IsValid() {
-			return Operand{}, fmt.Errorf("mir: unsupported global value reference %q", data.Name)
+			if op, handled := l.lowerPlacementIntrinsicConstName(data.Name, e.Type); handled {
+				return op, nil
+			}
+			return Operand{},
+				fmt.Errorf("mir: unsupported global value reference %q (type %s)",
+					data.Name, types.Label(l.types, e.Type))
 		}
 		ty := e.Type
 		local, ok := l.symToLocal[data.SymbolID]
@@ -59,7 +64,10 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 				return l.placeOperand(Place{Kind: PlaceGlobal, Global: global}, ty, consume), nil
 			}
 		}
-		if op, handled, err := l.lowerConstValue(data.SymbolID, consume); handled {
+		if op, handled := l.lowerPlacementIntrinsicConstSymbol(data.SymbolID, data.Name, e.Type); handled {
+			return op, nil
+		}
+		if op, handled, err := l.lowerConstValue(data.SymbolID, consume, e.Type); handled {
 			return op, err
 		}
 		if ty == types.NoTypeID && l.symbols != nil && l.symbols.Table != nil && l.symbols.Table.Symbols != nil {

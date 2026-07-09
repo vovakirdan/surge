@@ -2,6 +2,7 @@ package mir
 
 import (
 	"fmt"
+	"strings"
 
 	"fortio.org/safecast"
 
@@ -126,6 +127,13 @@ func (l *funcLowerer) lowerExprForType(e *hir.Expr, expected types.TypeID) (Oper
 		clone.Type = expected
 		e = &clone
 	}
+	if expected != types.NoTypeID && l.isRuntimePlacementType(expected) && e.Kind == hir.ExprVarRef {
+		if data, ok := e.Data.(hir.VarRefData); ok && (data.Name == "pool" || data.Name == "distributed") {
+			clone := *e
+			clone.Type = expected
+			e = &clone
+		}
+	}
 	if expected != types.NoTypeID && e != nil && e.Kind == hir.ExprTupleLit && l != nil && l.types != nil {
 		if _, ok := l.types.TupleInfo(resolveAlias(l.types, expected)); ok {
 			clone := *e
@@ -224,7 +232,7 @@ func (l *funcLowerer) staticStringGlobal(raw string) GlobalID {
 	return id
 }
 
-func (l *funcLowerer) lowerConstValue(symID symbols.SymbolID, consume bool) (Operand, bool, error) {
+func (l *funcLowerer) lowerConstValue(symID symbols.SymbolID, consume bool, fallbackType types.TypeID) (Operand, bool, error) {
 	if l == nil || !symID.IsValid() || l.consts == nil {
 		return Operand{}, false, nil
 	}
@@ -233,6 +241,13 @@ func (l *funcLowerer) lowerConstValue(symID symbols.SymbolID, consume bool) (Ope
 		return Operand{}, false, nil
 	}
 	if decl.Value == nil {
+		placementType := decl.Type
+		if placementType == types.NoTypeID {
+			placementType = fallbackType
+		}
+		if op, ok := l.lowerPlacementIntrinsicConstSymbol(symID, decl.Name, placementType); ok {
+			return op, true, nil
+		}
 		return Operand{}, true, fmt.Errorf("mir: const %q has no value", decl.Name)
 	}
 	if l.constStack == nil {
@@ -251,6 +266,150 @@ func (l *funcLowerer) lowerConstValue(symID symbols.SymbolID, consume bool) (Ope
 		op.Type = decl.Type
 	}
 	return op, true, nil
+}
+
+const (
+	mirPlacementKindBits        = 8
+	mirPlacementKindPool        = uint64(1)
+	mirPlacementKindDistributed = uint64(2)
+)
+
+func (l *funcLowerer) lowerPlacementIntrinsicConstSymbol(symID symbols.SymbolID, name string, placementType types.TypeID) (Operand, bool) {
+	if !l.isRuntimePlacementConstSymbol(symID, name) {
+		return Operand{}, false
+	}
+	if placementType == types.NoTypeID && l != nil && l.symbols != nil && l.symbols.Table != nil && l.symbols.Table.Symbols != nil {
+		if sym := l.symbols.Table.Symbols.Get(symID); sym != nil {
+			placementType = sym.Type
+		}
+	}
+	if !l.isRuntimePlacementType(placementType) {
+		return Operand{}, false
+	}
+	var encoded uint64
+	switch name {
+	case "pool":
+		encoded = mirPlacementKindPool
+	case "distributed":
+		encoded = mirPlacementKindDistributed
+	default:
+		return Operand{}, false
+	}
+	return Operand{
+		Kind: OperandConst,
+		Type: placementType,
+		Const: Const{
+			Kind:      ConstUint,
+			Type:      placementType,
+			UintValue: encoded,
+		},
+	}, true
+}
+
+func (l *funcLowerer) lowerPlacementIntrinsicConstName(name string, placementType types.TypeID) (Operand, bool) {
+	if placementType == types.NoTypeID && l != nil && l.f != nil {
+		placementType = l.f.Result
+	}
+	if !l.isRuntimePlacementType(placementType) {
+		return Operand{}, false
+	}
+	var encoded uint64
+	switch name {
+	case "pool":
+		encoded = mirPlacementKindPool
+	case "distributed":
+		encoded = mirPlacementKindDistributed
+	default:
+		return Operand{}, false
+	}
+	return Operand{
+		Kind: OperandConst,
+		Type: placementType,
+		Const: Const{
+			Kind:      ConstUint,
+			Type:      placementType,
+			UintValue: encoded,
+		},
+	}, true
+}
+
+func (l *funcLowerer) isRuntimePlacementType(id types.TypeID) bool {
+	if l == nil || l.types == nil || id == types.NoTypeID {
+		return false
+	}
+	if l.types.IsRuntimePlacementType(id) {
+		return true
+	}
+	if mirRuntimePlacementTypeFromSymbols(l.symbols, l.types, id) {
+		l.types.MarkRuntimePlacementType(resolveAliasType(l.types, id))
+		return true
+	}
+	return false
+}
+
+func (l *funcLowerer) isRuntimePlacementConstSymbol(symID symbols.SymbolID, wantName string) bool {
+	if l == nil || l.symbols == nil || l.symbols.Table == nil ||
+		l.symbols.Table.Symbols == nil || l.symbols.Table.Strings == nil || !symID.IsValid() {
+		return false
+	}
+	sym := l.symbols.Table.Symbols.Get(symID)
+	if sym == nil || sym.Kind != symbols.SymbolConst || sym.Name == source.NoStringID {
+		return false
+	}
+	if !mirIsCoreRuntimeConstSymbol(sym) {
+		return false
+	}
+	name := l.symbols.Table.Strings.MustLookup(sym.Name)
+	return name == wantName && (name == "pool" || name == "distributed")
+}
+
+func mirIsCoreRuntimeConstSymbol(sym *symbols.Symbol) bool {
+	if sym == nil {
+		return false
+	}
+	if sym.ModulePath == "" {
+		return false
+	}
+	trimmed := strings.Trim(sym.ModulePath, "/")
+	if trimmed != "core" && !strings.HasPrefix(trimmed, "core/") {
+		return false
+	}
+	return sym.Flags&(symbols.SymbolFlagBuiltin|symbols.SymbolFlagImported|symbols.SymbolFlagPublic) != 0
+}
+
+func mirIsCoreRuntimeSymbol(sym *symbols.Symbol) bool {
+	if sym == nil || sym.Flags&symbols.SymbolFlagBuiltin == 0 {
+		return false
+	}
+	if sym.ModulePath != "" {
+		trimmed := strings.Trim(sym.ModulePath, "/")
+		return trimmed == "core" || strings.HasPrefix(trimmed, "core/")
+	}
+	return sym.Flags&symbols.SymbolFlagImported != 0
+}
+
+func mirRuntimePlacementTypeFromSymbols(symRes *symbols.Result, typesIn *types.Interner, id types.TypeID) bool {
+	if symRes == nil || symRes.Table == nil || symRes.Table.Symbols == nil || symRes.Table.Strings == nil ||
+		typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	resolved := resolveAliasType(typesIn, id)
+	for i := 1; i <= symRes.Table.Symbols.Len(); i++ {
+		sym := symRes.Table.Symbols.Get(symbols.SymbolID(i))
+		if sym == nil || sym.Kind != symbols.SymbolType || sym.Type == types.NoTypeID || sym.Name == source.NoStringID {
+			continue
+		}
+		if sym.Type != id && sym.Type != resolved {
+			continue
+		}
+		if symRes.Table.Strings.MustLookup(sym.Name) != "Placement" {
+			continue
+		}
+		if mirIsCoreRuntimeSymbol(sym) {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveAliasType(in *types.Interner, id types.TypeID) types.TypeID {

@@ -2,6 +2,7 @@
 #define SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
 #include "rt.h"
 #include "rt_heap_accounting.h"
+#include "rt_placement.h"
 #include "rt_runtime_config.h"
 #include "rt_transport.h"
 #include "rt_waiter.h"
@@ -147,6 +148,15 @@ typedef struct {
     uint32_t compensation_count;
     uint32_t compensation_high_water;
 } rt_channel_blocking_compat;
+
+typedef struct {
+    _Atomic uint64_t resolve_attempts;
+    _Atomic uint64_t exact_shard_resolutions;
+    _Atomic uint64_t distributed_resolutions;
+    _Atomic uint64_t distributed_non_caller_resolutions;
+    _Atomic uint64_t invalid_shard_resolutions;
+    _Atomic uint64_t unsupported_resolutions;
+} rt_placement_debug_counters;
 struct rt_shard {
     rt_runtime* runtime;
     rt_executor* executor;
@@ -177,6 +187,8 @@ struct rt_shard {
 
 struct rt_runtime {
     size_t shard_count;
+    _Atomic uint64_t placement_rr_next;
+    rt_placement_debug_counters placement_debug;
     rt_shard shards[RT_RUNTIME_MAX_SHARDS];
 };
 

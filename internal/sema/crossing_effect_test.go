@@ -50,8 +50,9 @@ fn second_wrapper() -> TaskResult<int> {
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(64)
 	res := Check(context.Background(), builder, fileID, Options{
-		Reporter: &diag.BagReporter{Bag: semaBag},
-		Symbols:  symRes,
+		Reporter:   &diag.BagReporter{Bag: semaBag},
+		Symbols:    symRes,
+		ModulePath: builder.StringsInterner.Intern("core"),
 	})
 	if semaBag.HasErrors() {
 		t.Fatalf("sema diagnostics: %s", diagnosticsSummary(semaBag))

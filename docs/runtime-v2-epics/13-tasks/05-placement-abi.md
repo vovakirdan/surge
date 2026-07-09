@@ -1,6 +1,6 @@
 # Epic 13 Task 5: Placement ABI And Destination Resolution
 
-**Status:** pending.
+**Status:** complete (2026-07-09).
 **Kind:** runtime ABI + prelude/backend plumbing.
 **Depends on:** Task 1 (placement decisions). May run parallel to Tasks 3-4.
 
@@ -29,20 +29,28 @@ resolve it to a destination shard id, with trace evidence".
   net intrinsics reach `runtime/native` through the LLVM backend
   (`internal/backend/llvm`) — map the exact path before designing.
 
-## Design (from Task 1 decisions; restate here when made)
+## Design (implemented)
 
-- `Placement` runtime encoding: a tagged word (kind: POOL / DISTRIBUTED /
-  SHARD + shard id payload) is the expected shape; must stay Copy and
-  shard-movable, and must not leak pointers.
-- `shard(id)` out-of-range rule: exactly the Task 1 decision (clamp / error /
-  modulo), implemented once in the runtime resolver and tested.
-- `distributed` policy: exactly the Task 1 decision (round-robin / hash /
-  non-current-shard), implemented in the resolver with a trace counter or
-  trace event proving a non-caller destination is selectable.
-- Resolution API (suggested): `rt_placement_resolve(placement, current_shard)
-  -> shard_id` with status for unsupported kinds; `pool` resolves to a
-  status the caller must turn into the placement-unavailable diagnostic path
-  (or is rejected before runtime — record which layer owns it).
+- Public Surge source signatures are unchanged:
+  `@intrinsic @copy pub type Placement = { __opaque: int }`,
+  `pool`, `distributed`, and `shard(id: ShardId)` remain the public surface.
+- `Placement` lowers as a pointer-free `i64` tagged word in LLVM. Low 8 bits
+  store the kind; upper bits store the payload:
+  `pool = 1`, `distributed = 2`, `shard(id) = (id << 8) | 3`.
+- Native resolver API is `rt_placement_resolve(rt_runtime*, uint64_t placement,
+  uint32_t current_shard_id) -> rt_placement_resolution`.
+- `shard(id)` resolves exactly when `id < runtime->shard_count`.
+  Out-of-range returns `RT_PLACEMENT_STATUS_INVALID_SHARD`, destination
+  `UINT32_MAX`, and increments `invalid_shard_resolutions`; it never clamps,
+  modulo-maps, or falls back to shard 0.
+- `distributed` uses a deterministic per-runtime round-robin cursor. For
+  `shard_count > 1`, if the round-robin candidate is the caller shard, the
+  resolver selects the next shard instead and increments
+  `distributed_non_caller_resolutions`.
+- `pool` and unknown placement kinds return `RT_PLACEMENT_STATUS_UNSUPPORTED`
+  with no destination. Pool execution remains out of scope.
+- Debug evidence stays resolver-local through
+  `rt_placement_debug_snapshot`; `rt_async_trace.c` was not changed.
 
 ## Scope
 
@@ -72,13 +80,41 @@ diagnostic-only), any new placement kinds or syntax, migration.
 
 ## Proof
 
-- Resolver unit rows green at `SURGE_SHARDS=1,2,8`.
-- Distribution proof: over N `distributed` resolutions with >1 shards, at
-  least one non-caller destination (per the chosen policy's guarantee).
-- `make runtime-v2-crossing-check` green (guards untouched by ABI work).
-- `make c-check`, `make cppcheck`, `./check_file_sizes.sh -a`,
-  `sentrux check runtime/native` and `internal` if backend files changed,
-  `make check`.
+- `go test ./internal/backend/llvm -run '^TestPlacementIntrinsicsLowerAsTaggedI64$' -count=1 -v`
+  passed. Proves `pool`, `distributed`, and `shard(3)` materialize as tagged
+  `i64`, and no unresolved `@pool`, `@distributed`, or `@shard` call/global
+  leaks into IR.
+- `go test ./internal/sema -run 'TestUserDefinedPlacementIntrinsicDoesNotBecomeRuntimePlacement|TestSpawnOnCrossing|TestOnCrossing|TestCrossing' -count=1 --timeout 90s`
+  passed. Proves user-defined `@intrinsic type Placement` lookalikes outside
+  core are not marked as runtime Placement, while the core placement crossing
+  matrix remains valid.
+- `go test ./internal/backend/llvm -run 'TestPlacement|TestUserPlacement|TestUserShard' -count=1 -v --timeout 90s`
+  passed. Proves user `Placement` aliases and user `shard` functions do not
+  lower as runtime placement intrinsics.
+- `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Placement(ABIStaticShape|ResolverRows)$' -count=1 -parallel=1 -p=1 -v --timeout 60s`
+  passed. Proves resolver rows for shard counts 1, 2, and 8, out-of-range
+  fail-closed behavior, unsupported `pool`, unknown-kind unsupported status,
+  and non-caller distributed evidence.
+- `go test ./internal/diag ./internal/sema ./internal/driver -count=1 --timeout 90s`
+  passed after `sema.Options` switched to an interned `ModulePath` and
+  `diag.ReporterBag` kept alien-hints compatible with dedup reporters.
+- `go test ./internal/mir ./internal/backend/llvm -count=1 --timeout 90s`
+  passed.
+- `make runtime-v2-crossing-check` passed.
+- `make c-check` passed.
+- `make cppcheck` scanned the new `runtime/native/rt_placement.c` without a
+  new finding, but the target remains nonzero due to existing style findings:
+  `runtime/native/rt_net.c:125` (`constVariablePointer`),
+  `runtime/native/rt_net_handles.c:195` and `:352`
+  (`constParameterPointer`).
+- `./check_file_sizes.sh -a` passed. New placement files are OK; existing
+  acceptable/legacy files remain within their configured ceilings.
+- `sentrux check runtime/native` passed, quality 5455.
+- `sentrux check internal` passed, quality 6533.
+- Independent review found no remaining P0/P1 blockers after the provenance
+  fixes. The review's P2 (`appendModuleInstantiations` missing `ModulePath`)
+  was fixed before closeout.
+- `make check` passed after the `sema.Options` size/lint fix.
 
 ## Stop Conditions
 

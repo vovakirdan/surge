@@ -219,9 +219,11 @@ func appendModuleInstantiations(ctx context.Context, res *DiagnoseResult, rec *m
 		exports = make(map[string]*symbols.ModuleExports)
 	}
 
+	modulePath := ""
 	moduleLabel := "module"
 	if rec.Meta != nil && rec.Meta.Path != "" {
-		moduleLabel = rec.Meta.Path
+		modulePath = rec.Meta.Path
+		moduleLabel = modulePath
 	}
 
 	paramStart := res.Sema.TypeInterner.TypeParamCount()
@@ -236,8 +238,8 @@ func appendModuleInstantiations(ctx context.Context, res *DiagnoseResult, rec *m
 			Symbols:        &symRes,
 			Exports:        exports,
 			Types:          res.Sema.TypeInterner,
+			ModulePath:     semaModulePath(rec.Builder, modulePath),
 			AlienHints:     false,
-			Bag:            bag,
 			Instantiations: recorder,
 		})
 		if bag.HasErrors() {

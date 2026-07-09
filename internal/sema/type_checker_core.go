@@ -38,6 +38,7 @@ type typeChecker struct {
 	result         *Result
 	types          *types.Interner
 	exports        map[string]*symbols.ModuleExports
+	modulePath     string
 	magic          map[symbols.TypeKey]map[string][]*symbols.FunctionSignature
 	magicSymbols   map[*symbols.FunctionSignature]symbols.SymbolID
 	borrow         *BorrowTable

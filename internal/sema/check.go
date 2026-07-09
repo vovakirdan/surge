@@ -17,12 +17,26 @@ type Options struct {
 	Symbols  *symbols.Result
 	Types    *types.Interner
 	Exports  map[string]*symbols.ModuleExports
+	// ModulePath is the normalized module path for the file currently being
+	// checked, interned in the current AST builder. Runtime ABI markers use it
+	// to distinguish core definitions from user-defined lookalikes.
+	ModulePath source.StringID
 	// Instantiations records generic instantiation use-sites (optional).
 	Instantiations InstantiationRecorder
 	// AlienHints toggles emission of optional "alien hints" diagnostics.
 	// When false, semantic diagnostics must behave exactly as before.
 	AlienHints bool
-	Bag        *diag.Bag
+}
+
+func optionModulePath(builder *ast.Builder, opts Options) string {
+	if builder == nil || builder.StringsInterner == nil || opts.ModulePath == source.NoStringID {
+		return ""
+	}
+	path, ok := builder.StringsInterner.Lookup(opts.ModulePath)
+	if !ok {
+		return ""
+	}
+	return path
 }
 
 // Result stores semantic artefacts produced by the checker.
@@ -114,14 +128,15 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 	}
 
 	checker := typeChecker{
-		builder: builder,
-		fileID:  fileID,
-		symbols: opts.Symbols,
-		result:  &res,
-		types:   res.TypeInterner,
-		exports: opts.Exports,
-		insts:   opts.Instantiations,
-		tracer:  trace.FromContext(ctx),
+		builder:    builder,
+		fileID:     fileID,
+		symbols:    opts.Symbols,
+		result:     &res,
+		types:      res.TypeInterner,
+		exports:    opts.Exports,
+		modulePath: optionModulePath(builder, opts),
+		insts:      opts.Instantiations,
+		tracer:     trace.FromContext(ctx),
 	}
 	if opts.Reporter != nil {
 		checker.reporter = &diagnosticCountingReporter{

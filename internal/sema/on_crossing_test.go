@@ -15,8 +15,8 @@ const onCrossingPrelude = `
 tag Success<T>(T);
 tag Cancelled();
 type TaskResult<T> = Success(T) | Cancelled;
-@copy
-type Placement = { __opaque: int };
+	@intrinsic @copy
+	type Placement = { __opaque: int };
 type ShardId = uint32;
 type Channel<T> = { __opaque: int };
 @shard_pinned
@@ -44,8 +44,9 @@ func onCrossingCodes(t *testing.T, src string) map[string]bool {
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(64)
 	Check(context.Background(), builder, fileID, Options{
-		Reporter: &diag.BagReporter{Bag: semaBag},
-		Symbols:  symRes,
+		Reporter:   &diag.BagReporter{Bag: semaBag},
+		Symbols:    symRes,
+		ModulePath: builder.StringsInterner.Intern("core"),
 	})
 	for _, d := range semaBag.Items() {
 		if d.Severity == diag.SevError {
@@ -53,6 +54,41 @@ func onCrossingCodes(t *testing.T, src string) map[string]bool {
 		}
 	}
 	return codes
+}
+
+func TestUserDefinedPlacementIntrinsicDoesNotBecomeRuntimePlacement(t *testing.T) {
+	src := `
+@intrinsic @copy
+type Placement = { __opaque: int };
+type ShardId = uint32;
+tag Success<T>(T);
+tag Cancelled();
+type TaskResult<T> = Success(T) | Cancelled;
+@intrinsic const pool: Placement;
+
+fn f() -> TaskResult<int> {
+	return on pool { ret 1; };
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.HasErrors() {
+		t.Fatalf("parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	symRes := resolveSymbols(t, builder, fileID)
+	semaBag := diag.NewBag(64)
+	Check(context.Background(), builder, fileID, Options{
+		Reporter: &diag.BagReporter{Bag: semaBag},
+		Symbols:  symRes,
+	})
+	codes := map[string]bool{}
+	for _, d := range semaBag.Items() {
+		if d.Severity == diag.SevError {
+			codes[d.Code.ID()] = true
+		}
+	}
+	if !codes["SEM3144"] {
+		t.Fatalf("expected SEM3144 for user-defined Placement intrinsic, got: %s", joinCodes(codes))
+	}
 }
 
 func TestOnCrossingDiagnostics(t *testing.T) {

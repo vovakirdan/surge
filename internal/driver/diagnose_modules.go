@@ -227,13 +227,14 @@ func resolveModuleRecord(
 			rec.Symbols = make(map[ast.FileID]symbols.Result)
 		}
 		rec.Symbols[fileID] = res
+		modulePath := resolveModulePath(filePath)
 		semaRes := sema.Check(ctx, rec.Builder, fileID, sema.Options{
 			Reporter:       reporter,
 			Symbols:        &res,
 			Exports:        moduleExports,
 			Types:          typeInterner,
+			ModulePath:     semaModulePath(rec.Builder, modulePath),
 			AlienHints:     !opts.NoAlienHints,
-			Bag:            bag,
 			Instantiations: insts,
 		})
 		rec.Sema[fileID] = &semaRes
@@ -325,7 +326,31 @@ func collectModuleExports(
 			exports[normPath] = rec.Exports
 		}
 	}
+	markRuntimePlacementType(exports, typeInterner)
 	return exports
+}
+
+func markRuntimePlacementType(exports map[string]*symbols.ModuleExports, typeInterner *types.Interner) {
+	if len(exports) == 0 || typeInterner == nil {
+		return
+	}
+	for modulePath, exp := range exports {
+		trimmed := strings.Trim(normalizeExportsKey(modulePath), "/")
+		if (trimmed != "core" && !strings.HasPrefix(trimmed, "core/")) || exp == nil {
+			continue
+		}
+		candidates := exp.Lookup("Placement")
+		for i := range candidates {
+			candidate := &candidates[i]
+			if candidate.Kind != symbols.SymbolType || candidate.Type == types.NoTypeID {
+				continue
+			}
+			if candidate.Flags&symbols.SymbolFlagBuiltin == 0 {
+				continue
+			}
+			typeInterner.MarkRuntimePlacementType(candidate.Type)
+		}
+	}
 }
 
 // enforceEntrypoints, ensureStdlibModules, and other helper functions moved to separate files

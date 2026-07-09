@@ -248,7 +248,15 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 							end(symbolIdx, symbolNote)
 
 							semaIdx := begin("sema")
-							semaRes = diagnoseSema(ctx, builder, astFile, bag, nil, symbolsRes, !opts.NoAlienHints, nil)
+							semaRes = diagnoseSema(ctx,
+								builder,
+								astFile,
+								bag,
+								nil,
+								symbolsRes,
+								modulePath,
+								!opts.NoAlienHints,
+								nil)
 							end(semaIdx, "")
 						}
 					}

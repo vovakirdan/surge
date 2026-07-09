@@ -187,6 +187,9 @@ func isHandleValueType(typesIn *types.Interner, id types.TypeID) bool {
 	if typesIn == nil || id == types.NoTypeID {
 		return false
 	}
+	if isPlacementType(typesIn, id) {
+		return false
+	}
 	id = resolveAliasAndOwn(typesIn, id)
 	tt, ok := typesIn.Lookup(id)
 	if !ok {
@@ -200,6 +203,10 @@ func isHandleValueType(typesIn *types.Interner, id types.TypeID) bool {
 	default:
 		return false
 	}
+}
+
+func isPlacementType(typesIn *types.Interner, id types.TypeID) bool {
+	return typesIn != nil && typesIn.IsRuntimePlacementType(id)
 }
 
 func isNothingType(typesIn *types.Interner, id types.TypeID) bool {
