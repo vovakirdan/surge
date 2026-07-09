@@ -3,6 +3,30 @@
 This is the live handoff log for Runtime V2 work. Keep it current during each
 task, then move durable decisions into the owning epic document before closeout.
 
+## Epic 13 Prep (2026-07-09)
+
+Prepared proposed Epic 13:
+`13-phase4-transport-spine-and-placement-task-lowering.md`.
+
+Scope decision for review: Epic 13 should be the first executable Phase 4
+vertical, not the whole Phase 4 surface. The proposed executable forms are
+`spawn on shard(id)`, `spawn on distributed`, `far Task<T>.await()`,
+`far Task<T>.cancel()`, and immediate `on shard(id)` / `on distributed`.
+Remote channels, remote `select`, Tier 2 `pool`, migration, distributed-scope
+messages, and remote-free queues stay out unless a task explicitly expands the
+scope with review.
+
+Post-Epic-12 fixes are part of the starting state:
+
+- `c591788e` resolves imported `far T` signatures and records caller-side
+  far-task await readiness/effects for imported `far Task<T>`.
+- `2fce7c22` makes backend guards scan dependency-module crossing constructs.
+
+`RV2-DEBT-024` was narrowed accordingly: direct imported `far Task` usage no
+longer blocks Phase 4 lowering, but higher-order/function-type and exported
+hidden-crossing effects remain an Epic 13 Task 1 decision point or later
+effect-system work.
+
 ## Epic 12 Task 4 Implementation (2026-07-08)
 
 Task 4 is complete for controlled compile-time usage fixtures/probes. Scope
