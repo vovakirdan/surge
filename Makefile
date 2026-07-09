@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -116,6 +116,10 @@ runtime-v2-crossing-check:
 runtime-v2-syncpoint-check:
 	@echo ">> Running Runtime V2 sync-point proving-spike static gate (Epic 9)"
 	./check_sync_points.sh
+
+runtime-v2-transport-contract-check:
+	@echo ">> Running Runtime V2 transport contract static gate (Epic 13 Task 3)"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Transport(SeamStaticShape|StubPendingBehavior|SyncPointAllowlistShape|PendingProbeRowsDocumented)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
 
 runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 heap accounting gate"

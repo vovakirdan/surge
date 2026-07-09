@@ -16,7 +16,9 @@
 // translation unit fails to compile, in BOTH the armed and the release build
 // (the release macro still references the enumerator). Adding a site therefore
 // requires (1) adding an enumerator here and (2) listing the window in
-// check_sync_points.sh. Epic 9 permits exactly the seven windows below.
+// check_sync_points.sh. Epic 9 introduced the first lifecycle windows; Epic 13
+// Task 3 adds transport park/wake contract windows whose production sites land
+// in Task 4.
 #ifndef RT_SYNC_POINT_H
 #define RT_SYNC_POINT_H
 
@@ -52,6 +54,24 @@ typedef enum rt_sync_point_id {
     // join route before this point; the RV2_DEBT_020_NEGATIVE_CONTROL build
     // reaches it before publishing, reproducing the old migrate gap.
     RT_SYNC_POINT_SP_MIGRATE_GAP,
+    // transport consumer: reached after the inbound drain, before publishing
+    // the shard PARKED state.
+    RT_SYNC_POINT_SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK,
+    // transport consumer: reached after publishing PARKED, before the required
+    // inbound re-check that prevents parked-with-work strands.
+    RT_SYNC_POINT_SP_TRANSPORT_AFTER_PARK_BEFORE_RECHECK,
+    // transport producer: reached after publishing the complete message,
+    // before reading the target shard's park state.
+    RT_SYNC_POINT_SP_TRANSPORT_AFTER_PUBLISH_BEFORE_STATE_LOAD,
+    // transport producer: reached after reading park state, before deciding
+    // whether to write the transport wake fd or elide the wake.
+    RT_SYNC_POINT_SP_TRANSPORT_AFTER_STATE_LOAD_BEFORE_WAKE,
+    // transport reply waiter: reached before a task suspends on a reply waiter;
+    // this must not be a shard park.
+    RT_SYNC_POINT_SP_TRANSPORT_REPLY_WAIT_BEFORE_TASK_SUSPEND,
+    // transport shutdown: reached after shutdown is visible, before waking all
+    // transport-parked shards and reply waiters.
+    RT_SYNC_POINT_SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

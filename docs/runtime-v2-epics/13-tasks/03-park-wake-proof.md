@@ -1,8 +1,9 @@
 # Epic 13 Task 3: Transport Contract Tests And Park/Wake Proof
 
-**Status:** pending.
-**Kind:** runtime proof tests (test-first for Task 4). Deterministic
-positive proofs + negative controls; sync-point pattern.
+**Status:** complete as of 2026-07-09.
+**Kind:** runtime proof-test scaffolding (test-first for Task 4).
+Static/pending proof-shape rows now; deterministic behavioral positives and
+negative controls become executable in Task 4.
 **Depends on:** Task 1 (invariants), Task 2 (trustworthy harness).
 
 ## Goal
@@ -110,6 +111,83 @@ function, runnable before lowering exists.
 - Each negative control demonstrably detects its bug (run log in evidence).
 - `check_sync_points.sh` green with the new windows.
 - `make c-check`, `make cppcheck` if native test hooks are C; `make check`.
+
+## Task 3 Result
+
+Task 3 adds the C-only transport contract seam and the static/pending
+proof-shape fixtures without implementing the inbound queue/spine. The runtime
+seam lives in `runtime/native/rt_transport.h` and
+`runtime/native/rt_transport.c`; the stub returns
+`RT_TRANSPORT_STATUS_PENDING_SPINE` or
+`RT_TRANSPORT_STATUS_UNAVAILABLE`, reports zero inbound work, and exposes
+transport wake counters separately from net wake counters.
+
+The Task 4 sync-point windows are allowlisted now, but their current call sites
+are stubs in `rt_transport.c` only:
+
+- `SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK`
+- `SP_TRANSPORT_AFTER_PARK_BEFORE_RECHECK`
+- `SP_TRANSPORT_AFTER_PUBLISH_BEFORE_STATE_LOAD`
+- `SP_TRANSPORT_AFTER_STATE_LOAD_BEFORE_WAKE`
+- `SP_TRANSPORT_REPLY_WAIT_BEFORE_TASK_SUSPEND`
+- `SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE`
+
+Passing Task 3 static/pending-shape gate:
+
+```sh
+make runtime-v2-transport-contract-check
+```
+
+Expected-failing Task 4 acceptance command, intentionally outside normal CI:
+
+```sh
+go test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$'
+```
+
+Current expected diagnostic until Task 4 replaces the stub seam:
+
+```text
+pending-spine: <row> requires Task 4 inbound transport spine (rt_transport_enqueue returned RT_TRANSPORT_STATUS_PENDING_SPINE)
+```
+
+The opt-in acceptance rows enumerate the Task 4 behavioral contract matrix:
+lost-wake seq-cst proof plus skip-recheck/relaxed-ordering negatives, wake
+elision running/PARKED positives plus wake-written/skipped negatives,
+PARKED-with-inbound-work positive/negative, shutdown wake positive/negative,
+and reply-wait task-suspend positive/negative. In Task 3 they are pending
+sentinels only; a `pending-spine` result is expected and not a behavior pass.
+
+## Evidence
+
+Verification from this implementation pass:
+
+- `gofmt` on the new Go tests: passed.
+- `clang-format` on touched native C/header files: passed.
+- `git diff --check`: passed.
+- `./check_sync_points.sh`: passed; allowlist matches 13 header enumerators,
+  all call sites are in their windows, and the release build has no
+  `rt_sync_point_reach` symbol.
+- `make runtime-v2-syncpoint-check`: passed.
+- `make runtime-v2-transport-contract-check`: passed; 4/4
+  `runtime_v2_pending` transport static/pending-shape rows green.
+- `make runtime-v2-crossing-check`: passed explicitly; Task 4+ closeouts that
+  touch lowering should continue to run it explicitly.
+- Expected-red acceptance command:
+  `go test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$' -count=1 -v --timeout 60s`
+  failed as intended with `pending-spine: ... requires Task 4 inbound transport
+  spine (rt_transport_enqueue returned RT_TRANSPORT_STATUS_PENDING_SPINE)` and
+  C stderr `pending-spine: rt_transport_enqueue has no inbound spine yet`.
+- `make c-check`: passed.
+- `make cppcheck`: failed on pre-existing style findings outside Task 3
+  (`runtime/native/rt_net.c:125`, `runtime/native/rt_net_handles.c:195`,
+  `runtime/native/rt_net_handles.c:352`). `rt_transport.c` had no cppcheck
+  finding.
+- `make check`: passed.
+- `./check_file_sizes.sh -a`: passed; 747 files checked, 714 under the good
+  threshold, 28 acceptable, 5 legacy ceilings, 0 over limit.
+- Sentrux: root `sentrux check .` passed with quality `6189`; scoped runtime
+  `sentrux check runtime` passed with quality `5343`; scoped native
+  `sentrux check runtime/native` passed with quality `5458`.
 
 ## Stop Conditions
 

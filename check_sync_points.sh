@@ -39,6 +39,12 @@ declare -A WINDOW_FILE=(
     [SP_AWAIT_BEFORE_DONECV_WAIT]="rt_async_task.c"
     [SP_WAKEKEY_MID_DRAIN]="rt_task_park.c"
     [SP_MIGRATE_GAP]="rt_scheduler_placement.c rt_waiter_route.c"
+    [SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK]="rt_transport.c"
+    [SP_TRANSPORT_AFTER_PARK_BEFORE_RECHECK]="rt_transport.c"
+    [SP_TRANSPORT_AFTER_PUBLISH_BEFORE_STATE_LOAD]="rt_transport.c"
+    [SP_TRANSPORT_AFTER_STATE_LOAD_BEFORE_WAKE]="rt_transport.c"
+    [SP_TRANSPORT_REPLY_WAIT_BEFORE_TASK_SUSPEND]="rt_transport.c"
+    [SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE]="rt_transport.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in
@@ -49,7 +55,7 @@ if [ "$header_names" != "$allow_names" ]; then
     note_fail "allowlist in check_sync_points.sh drifted from rt_sync_point.h enumerators"
     diff <(echo "$header_names") <(echo "$allow_names") || true
 else
-    note_ok "allowlist matches the 7 header enumerators"
+    note_ok "allowlist matches the 13 header enumerators"
 fi
 
 # Files that actually call a sync-point macro.

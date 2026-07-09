@@ -27,6 +27,35 @@ longer blocks Phase 4 lowering, but higher-order/function-type and exported
 hidden-crossing effects remain an Epic 13 Task 1 decision point or later
 effect-system work.
 
+## Epic 13 Task 3 Implementation (2026-07-09)
+
+Task 3 adds the transport contract test seam only. New files
+`runtime/native/rt_transport.h` and `runtime/native/rt_transport.c` expose the
+C-only transport API, message categories, pending debug snapshot, and separate
+transport wake counters, but deliberately do not implement an inbound queue,
+transport wake fd, or production spine.
+
+The Task 4 sync-point names are now in `rt_sync_point.h/.c` and allowlisted by
+`check_sync_points.sh` for `rt_transport.c` only:
+`SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK`,
+`SP_TRANSPORT_AFTER_PARK_BEFORE_RECHECK`,
+`SP_TRANSPORT_AFTER_PUBLISH_BEFORE_STATE_LOAD`,
+`SP_TRANSPORT_AFTER_STATE_LOAD_BEFORE_WAKE`,
+`SP_TRANSPORT_REPLY_WAIT_BEFORE_TASK_SUSPEND`, and
+`SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE`.
+
+New gate: `make runtime-v2-transport-contract-check` runs the passing
+`runtime_v2_pending` static/pending-shape rows. It is intentionally not wired
+into `runtime-v2-check` in Task 3; the behavioral acceptance rows are behind
+`runtime_v2_transport_spine` and fail with `pending-spine` until Task 4 lands
+the inbound transport spine.
+
+The opt-in acceptance rows are static sentinels for the Task 4 matrix, not a
+behavior pass in Task 3. They enumerate lost-wake seq-cst proof plus negative
+controls, wake elision positives/negatives, PARKED-with-inbound-work
+positive/negative, shutdown wake positive/negative, and reply-wait
+task-suspend positive/negative.
+
 ## Epic 12 Task 4 Implementation (2026-07-08)
 
 Task 4 is complete for controlled compile-time usage fixtures/probes. Scope
