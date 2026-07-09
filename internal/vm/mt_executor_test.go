@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -20,7 +19,7 @@ func buildLLVMProgramFromSource(t *testing.T, source string) string {
 	ensureLLVMToolchain(t)
 	root := repoRoot(t)
 	artifacts := newTestArtifacts(t, root)
-	srcPath := filepath.Join(artifacts.Dir, sanitizeTestName(t.Name())+".sg")
+	srcPath := artifactSourcePath(artifacts)
 	if err := os.WriteFile(srcPath, []byte(source), 0o600); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
@@ -31,8 +30,10 @@ func buildLLVMProgramFromSource(t *testing.T, source string) string {
 	writeArtifact(t, artifacts.Dir, "build.stderr", buildErr)
 	writeArtifact(t, artifacts.Dir, "build.exit_code", fmt.Sprintf("%d\n", buildCode))
 	outputPath := llvmOutputPath(root, srcPath)
+	trackLLVMBuildArtifacts(root, artifacts, outputPath)
 	artifacts.Repro = llvmReproCommand(root, srcPath, outputPath, nil)
 	writeArtifact(t, artifacts.Dir, "repro.txt", artifacts.Repro+"\n")
+	writeArtifact(t, artifacts.Dir, "build.tmp_dir", artifacts.TmpDir+"\n")
 	if buildCode != 0 {
 		t.Fatalf("LLVM build failed (exit=%d). See %s", buildCode, artifacts.Dir)
 	}
@@ -248,19 +249,69 @@ func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout
 	dur := time.Since(start)
 	stdout := outBuf.String()
 	stderr := errBuf.String()
+	artifactInfo := lookupRunArtifactInfo(outputPath)
 	if ctx.Err() == context.DeadlineExceeded {
-		t.Fatalf("program timeout after %s\nstdout:\n%s\nstderr:\n%s", timeout, stdout, stderr)
+		writeRunOutputArtifacts(t, artifactInfo.artifactsDir, stdout, stderr, -1)
+		diagnostics := formatRunDiagnostics(runDiagnostics{
+			cmd:          cmd,
+			artifactsDir: artifactInfo.artifactsDir,
+			outputPath:   outputPath,
+			tmpDir:       artifactInfo.tmpDir,
+			stdout:       stdout,
+			stderr:       stderr,
+			exitCode:     -1,
+			duration:     dur,
+			timeout:      timeout,
+			ctxErr:       ctx.Err(),
+		})
+		writeRunDiagnostics(t, artifactInfo.artifactsDir, diagnostics)
+		t.Fatalf("program timeout after %s\nstdout:\n%s\nstderr:\n%s\ndiagnostics:\n%s", timeout, stdout, stderr, diagnostics)
 	}
 	exitCode := 0
+	var exitErr *exec.ExitError
 	if err != nil {
-		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
-			t.Fatalf("run %s: %v\nstderr:\n%s", outputPath, err, stderr)
+			writeRunOutputArtifacts(t, artifactInfo.artifactsDir, stdout, stderr, -1)
+			diagnostics := formatRunDiagnostics(runDiagnostics{
+				cmd:          cmd,
+				artifactsDir: artifactInfo.artifactsDir,
+				outputPath:   outputPath,
+				tmpDir:       artifactInfo.tmpDir,
+				stdout:       stdout,
+				stderr:       stderr,
+				exitCode:     -1,
+				duration:     dur,
+			})
+			writeRunDiagnostics(t, artifactInfo.artifactsDir, diagnostics)
+			t.Fatalf("run %s: %v\nstderr:\n%s\ndiagnostics:\n%s", outputPath, err, stderr, diagnostics)
 		}
 	}
-	return dur, runResult{stdout: stdout, stderr: stderr, exitCode: exitCode}
+	writeRunOutputArtifacts(t, artifactInfo.artifactsDir, stdout, stderr, exitCode)
+	diagnostics := ""
+	if exitCode != 0 && stdout == "" && stderr == "" {
+		diagnostics = formatRunDiagnostics(runDiagnostics{
+			cmd:          cmd,
+			artifactsDir: artifactInfo.artifactsDir,
+			outputPath:   outputPath,
+			tmpDir:       artifactInfo.tmpDir,
+			stdout:       stdout,
+			stderr:       stderr,
+			exitCode:     exitCode,
+			exitErr:      exitErr,
+			duration:     dur,
+			timeout:      timeout,
+		})
+		writeRunDiagnostics(t, artifactInfo.artifactsDir, diagnostics)
+	}
+	return dur, runResult{
+		stdout:       stdout,
+		stderr:       stderr,
+		exitCode:     exitCode,
+		artifactsDir: artifactInfo.artifactsDir,
+		diagnostics:  diagnostics,
+	}
 }
 
 func requireLLVMBackend(t *testing.T) {

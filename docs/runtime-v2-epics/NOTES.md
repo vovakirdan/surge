@@ -4577,3 +4577,70 @@ runtime-v2-check` passed, `make check` passed in the docs commit hook,
 `./check_file_sizes.sh -a` passed with 745 files / 0 over limit / overall
 `ОТЛИЧНО`, and sentrux passed at root quality `6189`, runtime `5345`,
 runtime/native `5460`, internal `6532`.
+
+## 2026-07-09 — Epic 13 Task 2 Closeout
+
+Task 2 is complete as a harness-hardening task for the Epic 13 transport gate.
+The implementation is test-only under `internal/vm`; no production
+runtime/compiler code was changed.
+
+What changed:
+
+- `newTestArtifacts` now creates a per-run `MkdirTemp` directory under
+  `target/debug/.tests/` and derives the source basename from that directory,
+  so identical logical test names no longer share artifact dirs, LLVM output
+  binaries, or LLVM tmp dirs.
+- Successful tests remove their output binary, tmp dir, registry entry, and
+  artifact dir. Failed tests retain artifacts and log artifact dir, binary
+  stat, tmp dir, repro command, and `run.diagnostics` when present.
+- LLVM run helpers write `run.diagnostics` for non-zero empty-output exits and
+  timeout/non-`ExitError` fatal paths. Diagnostics are returned separately and
+  do not mutate stdout/stderr, so existing negative tests keep their normal
+  assertion surface.
+- `runBinaryWithTimeout` can resolve artifact metadata for binaries produced
+  by `buildLLVMProgramFromSource`, which gives the MT executor rows the same
+  attribution path and preserves `run.stdout`, `run.stderr`, and
+  `run.exit_code` for retained artifacts.
+
+Proof added:
+
+- `TestVMTestArtifactsArePerRunUnique` checks two helper invocations in one
+  test get distinct artifact/output/tmp paths.
+- `TestVMTestArtifactsOverlapStress` runs ten parallel LLVM build/run subtests
+  with the same logical name and verifies unique artifact/output/tmp paths.
+- `TestRunBinaryWithTimeoutReportsEmptyOutputDiagnostics` proves an
+  empty-output non-zero process keeps empty stdout/stderr while returning
+  diagnostic metadata and writing retained run artifacts.
+
+Verified during the task:
+
+- `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestVMTestArtifactsOverlapStress$' -count=1 -parallel=10 -p=1 -v --timeout 180s`
+  passed.
+- `go test ./internal/vm -run '^(TestVMTestArtifactsArePerRunUnique|TestRunBinaryWithTimeoutReportsEmptyOutputDiagnostics)$' -count=10 -parallel=2 -p=1 -v --timeout 60s`
+  passed.
+- `make runtime-v2-check` passed twice consecutively after the final
+  run-artifact retention update. Final perf rows included
+  `steady-state-control=8.230/req` and then `8.122/req`, with
+  `accept_owner_active_shards=8`.
+- `make check` passed after the lint cleanup (`intrange` loop style).
+- `./check_file_sizes.sh -a` passed: 745 files, 0 over limit, 100% good.
+- `sentrux check .` passed with quality `6189`; `sentrux check internal`
+  passed with quality `6531`.
+- An intermediate second full-gate attempt failed in `TestMTChannelParkUnpark`
+  with non-empty stderr `panic: async: double poll`. Focused rerun
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=3 go test ./internal/vm -run '^TestMTChannelParkUnpark$' -count=10 -parallel=1 -p=1 -v --timeout 120s`
+  passed 10/10. This is recorded as `RV2-DEBT-027` because it is a runtime
+  liveness flake, not an artifact/empty-output harness failure.
+- Independent rereview found no blockers/P1/P2 after the diagnostics and
+  overlap-stress corrections.
+
+Debt disposition:
+
+- `RV2-DEBT-011`: the transport-gate VM helper slice is closed by per-run
+  unique artifact/output/tmp paths plus overlap stress. The row remains open
+  for broad VM/backend command orchestration under Backend/Test Matrix Cleanup.
+- `RV2-DEBT-018`: instrumented but not closed. One implementation-time
+  empty-output occurrence was retained with `run.diagnostics`, which proves
+  attribution is available, but it does not prove the root cause impossible.
+- `RV2-DEBT-027`: opened for the rare non-empty-stderr `async: double poll`
+  liveness failure observed while trying to satisfy the second full-gate pass.

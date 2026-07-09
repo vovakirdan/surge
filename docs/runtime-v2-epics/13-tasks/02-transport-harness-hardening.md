@@ -1,6 +1,6 @@
 # Epic 13 Task 2: Transport Harness Hardening
 
-**Status:** pending.
+**Status:** complete as of 2026-07-09.
 **Kind:** test harness. Narrow `RV2-DEBT-011`/`RV2-DEBT-018` promotion; not
 the broad matrix rewrite.
 **Depends on:** Task 1 (baseline, map).
@@ -90,14 +90,67 @@ behavior change: `make runtime-v2-check` x2.
 - `make runtime-v2-check` twice consecutively green.
 - `make check` green.
 
+## Result
+
+Task 2 hardens the `internal/vm` LLVM build/run harness used by later
+transport rows without touching production runtime/compiler code.
+
+Implementation:
+
+- `newTestArtifacts` now delegates to `newTestArtifactsWithName`, which uses
+  `os.MkdirTemp` under `target/debug/.tests/` and derives the source basename
+  from the unique artifact directory. This makes the artifact dir, LLVM output
+  binary, and LLVM tmp dir per-run unique for identical logical test names.
+- Artifact cleanup keeps failure artifacts and logs artifact dir, binary stat,
+  tmp dir, repro command, and `run.diagnostics`; successful tests remove the
+  output binary, tmp dir, registry entry, and artifact dir.
+- The LLVM run helpers write `run.diagnostics` for non-zero empty-output exits
+  and timeout/non-`ExitError` fatal paths. Diagnostics do not replace
+  stdout/stderr, so existing negative tests keep their assertion surface.
+- `runBinaryWithTimeout` can resolve artifact metadata for binaries built by
+  `buildLLVMProgramFromSource`; it now preserves `run.stdout`, `run.stderr`,
+  `run.exit_code`, and empty-output diagnostics without changing the returned
+  expected outputs.
+
+New tests:
+
+- `TestVMTestArtifactsArePerRunUnique` proves two helper calls in the same test
+  get distinct artifact/output/tmp paths.
+- `TestVMTestArtifactsOverlapStress` runs ten parallel LLVM build/run subtests
+  with the same logical name and verifies no artifact/output/tmp path repeats.
+- `TestRunBinaryWithTimeoutReportsEmptyOutputDiagnostics` proves empty-output
+  non-zero exits return unchanged stdout/stderr, preserve run artifacts, and
+  write diagnostic metadata.
+
+Evidence:
+
+- Focused overlap proof passed:
+  `SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestVMTestArtifactsOverlapStress$' -count=1 -parallel=10 -p=1 -v --timeout 180s`.
+- Focused helper proof passed:
+  `go test ./internal/vm -run '^(TestVMTestArtifactsArePerRunUnique|TestRunBinaryWithTimeoutReportsEmptyOutputDiagnostics)$' -count=10 -parallel=2 -p=1 -v --timeout 60s`.
+- `make runtime-v2-check` passed twice consecutively after the final
+  run-artifact retention update. Final perf rows included
+  `steady-state-control=8.230/req` and then `8.122/req`, with
+  `accept_owner_active_shards=8`.
+- `make check` passed after the lint cleanup (`intrange` loop style).
+- `./check_file_sizes.sh -a` passed: 745 files, 0 over limit, 100% good.
+- `sentrux check .` passed with quality `6189`; `sentrux check internal`
+  passed with quality `6531`.
+- An intermediate second full-gate attempt exposed `RV2-DEBT-027`
+  (`TestMTChannelParkUnpark` / `panic: async: double poll`), which is a
+  non-empty-stderr runtime liveness flake rather than an artifact/empty-output
+  harness failure. Focused rerun of that test passed 10/10.
+- Independent rereview reported no blockers/P1/P2 after the diagnostics and
+  overlap-stress corrections.
+
 ## Debt
 
-- `RV2-DEBT-011`: narrow close for the transport-gate path — update the row
-  with evidence; the broad matrix scope stays with Backend/Test Matrix
-  Cleanup (do not close the whole row unless the fix genuinely covers all VM
-  helpers).
-- `RV2-DEBT-018`: record whether empty-output capture plus unique dirs
-  removes the class or only instruments it.
+- `RV2-DEBT-011`: transport-gate slice is complete. The whole debt row stays
+  open for the broad matrix cleanup because duplicate focused VM command
+  orchestration is outside this task.
+- `RV2-DEBT-018`: instrumented, not closed. During implementation one
+  empty-output occurrence was retained with `run.diagnostics`, proving the
+  failure is now attributable, but not proving the root cause impossible.
 
 ## Stop Conditions
 
