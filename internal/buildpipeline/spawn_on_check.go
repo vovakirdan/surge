@@ -25,7 +25,13 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 		return
 	}
 
-	for _, sp := range collectSpawnOnSpans(diagRes.Builder) {
+	modules := diagRes.DependencyAnalyses()
+
+	spawnSpans := collectSpawnOnSpans(diagRes.Builder)
+	for _, mod := range modules {
+		spawnSpans = append(spawnSpans, collectSpawnOnSpans(mod.Builder)...)
+	}
+	for _, sp := range spawnSpans {
 		diagRes.Bag.Add(&diag.Diagnostic{
 			Severity: diag.SevError,
 			Code:     diag.FutSpawnOnBackendUnavailable,
@@ -34,10 +40,18 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 		})
 	}
 
-	if diagRes.Sema == nil {
-		return
+	var awaitSpans, cancelSpans []source.Span
+	if diagRes.Sema != nil {
+		awaitSpans = append(awaitSpans, diagRes.Sema.FarTaskAwaitSpans...)
+		cancelSpans = append(cancelSpans, diagRes.Sema.FarTaskCancelSpans...)
 	}
-	for _, sp := range dedupeSpans(diagRes.Sema.FarTaskAwaitSpans) {
+	for _, mod := range modules {
+		for _, sr := range mod.Sema {
+			awaitSpans = append(awaitSpans, sr.FarTaskAwaitSpans...)
+			cancelSpans = append(cancelSpans, sr.FarTaskCancelSpans...)
+		}
+	}
+	for _, sp := range dedupeSpans(awaitSpans) {
 		diagRes.Bag.Add(&diag.Diagnostic{
 			Severity: diag.SevError,
 			Code:     diag.FutFarTaskAwaitBackendUnavailable,
@@ -45,7 +59,7 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 			Primary:  sp,
 		})
 	}
-	for _, sp := range dedupeSpans(diagRes.Sema.FarTaskCancelSpans) {
+	for _, sp := range dedupeSpans(cancelSpans) {
 		diagRes.Bag.Add(&diag.Diagnostic{
 			Severity: diag.SevError,
 			Code:     diag.FutFarTaskCancelBackendUnavailable,

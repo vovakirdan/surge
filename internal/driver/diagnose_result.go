@@ -5,7 +5,9 @@ import (
 
 	"fortio.org/safecast"
 
+	"surge/internal/ast"
 	"surge/internal/project"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 )
@@ -106,6 +108,47 @@ func (r *DiagnoseResult) Entrypoints() []EntrypointInfo {
 		return entries[i].Name < entries[j].Name
 	})
 	return entries
+}
+
+// ModuleAnalysis exposes one dependency module's parsed AST and per-file sema
+// results for pipeline passes that must inspect every compiled module, such as
+// the crossing backend guards.
+type ModuleAnalysis struct {
+	Builder *ast.Builder
+	Sema    []*sema.Result
+}
+
+// DependencyAnalyses returns AST/sema analysis for every resolved module other
+// than the root module, in deterministic module-path order.
+func (r *DiagnoseResult) DependencyAnalyses() []ModuleAnalysis {
+	if r == nil || r.moduleRecords == nil {
+		return nil
+	}
+	paths := make([]string, 0, len(r.moduleRecords))
+	seen := make(map[*moduleRecord]struct{}, len(r.moduleRecords))
+	for path, rec := range r.moduleRecords {
+		if rec == nil || rec == r.rootRecord || rec.Builder == nil {
+			continue
+		}
+		if _, dup := seen[rec]; dup {
+			continue
+		}
+		seen[rec] = struct{}{}
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	analyses := make([]ModuleAnalysis, 0, len(paths))
+	for _, path := range paths {
+		rec := r.moduleRecords[path]
+		semaResults := make([]*sema.Result, 0, len(rec.Sema))
+		for _, fileID := range rec.FileIDs {
+			if sr := rec.Sema[fileID]; sr != nil {
+				semaResults = append(semaResults, sr)
+			}
+		}
+		analyses = append(analyses, ModuleAnalysis{Builder: rec.Builder, Sema: semaResults})
+	}
+	return analyses
 }
 
 // MergeModuleDiagnostics merges diagnostics from dependency modules into the root bag.

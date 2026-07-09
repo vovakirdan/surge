@@ -21,6 +21,9 @@ func addOnCrossingBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseRes
 		return
 	}
 	spans := collectOnCrossingSpans(diagRes.Builder)
+	for _, mod := range diagRes.DependencyAnalyses() {
+		spans = append(spans, collectOnCrossingSpans(mod.Builder)...)
+	}
 	for _, sp := range spans {
 		diagRes.Bag.Add(&diag.Diagnostic{
 			Severity: diag.SevError,
