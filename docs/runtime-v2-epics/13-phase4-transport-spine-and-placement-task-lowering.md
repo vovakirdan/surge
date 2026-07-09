@@ -4,15 +4,16 @@
 OS-neutral cross-shard transport spine plus backend lowering for placement task
 crossings. The target executable surface is `spawn on shard(id)` /
 `spawn on distributed`, `far Task<T>.await()`, `far Task<T>.cancel()`, and
-`on shard(id)` / `on distributed` as the immediate "spawn then await" crossing.
+`on shard(id)` / `on distributed` as dedicated immediate execute/reply
+crossings.
 
-**Status:** proposed as of 2026-07-09; revised the same day after a three-way
-design review (severability contract, harness-hardening slice, dedicated
-execute/reply for immediate `on`, payload constraint, task-suspend invariant,
-debt additions). Task documents are drafted in `13-tasks/` (see its
-`README.md` for the order rulings and per-task gates). This document remains
-authoritative for boundaries and contracts; each task restates the state it
-depends on before implementation starts.
+**Status:** active as of 2026-07-09. Task 1 is complete and records the
+binding kickoff decisions (handle generation token, detached affine lifecycle,
+plain-data/copyable payloads, placement rules, reply-wait task suspension, and
+debt ownership). Task documents live in `13-tasks/` (see its `README.md` for
+the order rulings and per-task gates). This document remains authoritative for
+boundaries and contracts; each task restates the state it depends on before
+implementation starts.
 
 ## Why This Epic Exists
 
@@ -22,7 +23,8 @@ backends fail deterministically. The next step is not more syntax and not more
 compile-only readiness. The next step is a small but real Phase 4 vertical:
 
 - a target shard can receive a runtime message without a lost wake;
-- a source shard can park and resume on a transport reply;
+- a source task can suspend and resume on a transport reply without parking
+  its shard;
 - a remote task can be published on a chosen destination shard;
 - a `far Task<T>` handle can be awaited or cancelled through the task owner;
 - the compiler/backend can lower supported crossing forms to that runtime path;
@@ -70,10 +72,12 @@ remote-free ownership.
 
 **Supported placements are explicit.** The initial executable placements are:
 
-- `shard(id)`: deterministic destination shard after range/clamp/diagnostic
-  rules are written in the task contract;
-- `distributed`: deterministic runtime-selected destination using a documented
-  policy and trace evidence that work can leave the caller shard.
+- `shard(id)`: deterministic runtime destination shard; out-of-range ids never
+  clamp or modulo and instead take a deterministic non-executing
+  placement-error/cancel path with trace visibility;
+- `distributed`: deterministic runtime round-robin destination that prefers a
+  non-caller shard when `shard_count > 1` and has trace evidence that work can
+  leave the caller shard.
 
 `pool` is not executable in this epic unless a task explicitly adds the Tier 2
 CPU destination contract. The default assumption is that `spawn on pool` and
@@ -132,20 +136,20 @@ credit machinery that nothing exercises.
 RUNTIME_V2 seq-cst enqueue/PARKED ordering rule and the debug invariant:
 no PARKED shard may have a non-empty inbound transport queue at a safepoint.
 
-**Remote handle model is a decision, not an accident.** Before lowering, Task 1
-must decide whether `far Task<T>` is represented by the existing stable
-`rt_task*` handle plus owner routing, or by a new packed/generation handle. The
-decision must cover stale handle prevention, cancellation routing, await
-consumption, and cleanup. Whatever the representation, each far task carries a
-generation or no-reuse token so completion and cancellation cannot
-double-complete a handle; the token is mandatory, not conditional.
+**Remote handle model is explicit, not accidental.** Task 1 selected the first
+model: keep the existing stable task identity as the runtime anchor, but never
+ship a raw pointer-only far handle. A `far Task<T>` executable handle carries
+owner-shard routing plus a mandatory generation/no-reuse token. Later tasks
+may choose the packed representation details, but every await, cancel,
+completion reply, release, and stale reply validates the token before
+consuming or completing the handle.
 
 **Detached affine far Task is the severability contract.** Epic 13 executes
 placed child tasks without the distributed-scope protocol. That is severable
 only under the model Epic 11 already fixed statically
 (`11-tasks/block-03-spawn-on-remote-spawn.md`, lifecycle matrix `L01`-`L04`):
 `far Task<T>` is strictly affine, a dropped handle is a compile error, and drop
-is not an implicit detach or cancel. Task 1 must restate this as the runtime
+is not an implicit detach or cancel. Task 1 restated this as the runtime
 contract:
 
 - a placed child is NOT enrolled in the enclosing local scope's `join_all` or
@@ -163,11 +167,11 @@ broadcasts remain out of scope for this epic.
 **Payloads are plain-data or copyable until remote-free exists.** RUNTIME_V2
 gives heap-owned crossing payloads a pointer-move representation whose memory
 returns to the allocation owner through a remote-free path — and that path is
-Phase 5 work. Epic 13 therefore either restricts executable crossing captures
-and `ret` payloads to plain-data/copyable representations, or records a written
-safety proof that the current allocator makes cross-shard free safe, including
-the Epic 5 shard heap-accounting attribution question. Silently moving
-heap-owned payloads without one of those two answers is not acceptable.
+Phase 5 work. Epic 13 therefore restricts executable crossing captures and
+`ret` payloads to plain-data/copyable representations. Heap-owned moves remain
+compile-time/backend-unavailable for executable lowering until the allocator
+owner/remote-free epic provides a written safety proof, including the Epic 5
+shard heap-accounting attribution question.
 
 **Reply waits are task suspends, not shard parks.** A caller waiting for a
 transport reply suspends its task cooperatively; it must not park the shard.
@@ -175,8 +179,8 @@ On a self-crossing destination — including every run under `SURGE_SHARDS=1` �
 the destination shard IS the caller shard, and a shard-level park would sleep
 the only worker able to drain the inbound queue, run the body, and produce the
 reply: a silent deadlock, not a visible failure. The shard park/wake protocol
-governs shard idle sleep only. Task 1 records this as an invariant, and the
-self-crossing test row is its forcing function.
+governs shard idle sleep only. The self-crossing test row is its forcing
+function.
 
 ## Owned Surfaces
 
@@ -224,7 +228,7 @@ required:
 | --- | --- | --- |
 | Remote spawn request | caller shard -> destination shard | publish or request creation of a task body on the destination shard |
 | Remote spawn ack | destination shard -> caller shard | release `spawn on` publication wait and return a `far Task<T>` handle |
-| Remote task completion | task owner shard -> waiter shard | resume a parked `far Task.await` caller with `TaskResult<T>` |
+| Remote task completion | task owner shard -> waiter shard | resume a suspended `far Task.await` caller with `TaskResult<T>` |
 | Remote task cancel request | requester shard -> task owner shard | request cancellation of a remote task |
 | Remote task cancel ack | task owner shard -> requester shard | resume `far Task.cancel` with `TaskResult<nothing>` |
 | Immediate `on` execute request | caller shard -> destination shard | run an `on` block body on the destination and register the reply route |
@@ -364,13 +368,12 @@ Epic 13 must start by reviewing:
 - `RV2-DEBT-001`, `RV2-DEBT-002`: not in scope unless Epic 13 chooses to add
   VM execution support or needs the broad VM/native/LLVM matrix as a green
   gate.
-- `RV2-DEBT-025` and `RV2-DEBT-026`: Task 1 must review both while deciding
-  the `far Task<T>` handle model. `RV2-DEBT-025` (copyable `far` handles) is
-  load-bearing: affine single-consumer handles are what make the
-  completion/cancel race tractable, so Task 1 either reaffirms affinity as a
-  transport invariant and reassigns the stale "Epic 11 follow-up" owner, or
-  stops for design review. `RV2-DEBT-026` (`far` arrays) only needs its stale
-  owner reassigned.
+- `RV2-DEBT-025` and `RV2-DEBT-026`: Task 1 reviewed both. `RV2-DEBT-025`
+  (copyable `far` handles) remains open but affinity is reaffirmed as a
+  transport invariant and the stale owner is reassigned to a later explicit
+  far-copy capability/design-review epic after Phase 4 transport is stable.
+  `RV2-DEBT-026` (`far` arrays) is reassigned to a later
+  collections/crossing epic.
 
 Do not close unrelated debt just because a file is nearby.
 

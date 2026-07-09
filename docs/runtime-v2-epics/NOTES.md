@@ -4533,3 +4533,47 @@ quality `6187` with rules pass, and `sentrux check internal` confirming the
 existing missing `internal/.sentrux/rules.toml` rule-file gap. No scoped
 `internal` rule compliance or quality score is claimed. No golden fixtures were
 added for Task 3.
+
+## 2026-07-09 — Epic 13 Task 1 Closeout
+
+Task 1 is complete as a documentation/evidence task. The documentation commit
+that introduced Epic 13 is `094f4a39 docs(runtime): plan Epic 13 transport
+vertical`; no production code was changed by Task 1.
+
+Binding decisions for the rest of the epic:
+
+- `far Task<T>` uses the existing stable task identity as the first runtime
+  anchor but must carry owner-shard routing plus a mandatory generation/no-reuse
+  token. Raw pointer-only remote handles are rejected. Affine single-consumer
+  far handles are reaffirmed as a transport invariant.
+- Placed children created by `spawn on` are detached from the enclosing local
+  scope; the affine handle is the lifecycle edge until distributed scopes exist.
+  Publication wait is non-cancellable before ack, and Epic 13 owns cleanup for
+  publication waits, far await/cancel waiters, far-handle local cleanup on
+  failfast/unwind exits, and shutdown drain.
+- Executable crossing payloads are restricted to plain-data/copyable
+  representations. Heap-owned moves wait for allocator-owner/remote-free proof;
+  the current `rt_free` path accounts frees to the current heap cell.
+- Executable placements are `shard(id)` and `distributed`. Out-of-range
+  `shard(id)` does not clamp or modulo; it takes a deterministic non-executing
+  placement-error/cancel path with trace visibility. `distributed` is
+  round-robin and must prove a non-caller owner shard when `SURGE_SHARDS>1`.
+- Reply waits suspend tasks, never shards. The `SURGE_SHARDS=1` self-crossing
+  row is mandatory to catch deadlocks where the only worker parks instead of
+  draining transport.
+- `RV2-DEBT-024` is not needed for this vertical: direct crossing-site
+  readiness records plus dependency-module guard scans are enough. Hidden
+  ordinary-function/higher-order crossing effects move to a later effect-system
+  epic.
+
+Debt updates: `RV2-DEBT-011`/`018` are promoted narrowly into Epic 13 Task 2
+for the transport-gate VM harness path; the broad matrix cleanup remains
+future work. `RV2-DEBT-025` is reassigned to a later explicit far-copy
+capability/design-review epic after Phase 4 transport is stable. `RV2-DEBT-026`
+is reassigned to a later collections/crossing epic.
+
+Baseline before code: `make runtime-v2-crossing-check` passed twice, `make
+runtime-v2-check` passed, `make check` passed in the docs commit hook,
+`./check_file_sizes.sh -a` passed with 745 files / 0 over limit / overall
+`ОТЛИЧНО`, and sentrux passed at root quality `6189`, runtime `5345`,
+runtime/native `5460`, internal `6532`.
