@@ -31,6 +31,7 @@ void* __task_create(
     }
     memset(task, 0, sizeof(rt_task));
     task->id = id;
+    task->generation = id;
     task->poll_fn_id = (int64_t)poll_fn_id;
     task->state = state;
     task_status_store(task, TASK_READY);
@@ -406,6 +407,7 @@ static rt_task* spawn_internal_task_locked(rt_executor* ex, uint8_t kind, uint64
     }
     memset(task, 0, sizeof(rt_task));
     task->id = id;
+    task->generation = id;
     task_status_store(task, TASK_READY);
     task->kind = kind;
     task->sleep_delay = sleep_delay;

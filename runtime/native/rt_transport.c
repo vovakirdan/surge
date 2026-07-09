@@ -198,6 +198,11 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
     } else {
         state->data_enqueue_count++;
     }
+    if (msg->kind == RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST) {
+        state->transport_spawn_requests++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK) {
+        state->transport_spawn_acks++;
+    }
     return RT_TRANSPORT_STATUS_OK;
 }
 
@@ -459,6 +464,8 @@ rt_transport_debug_snapshot_locked(const rt_shard* shard) {
     snapshot.drain_count = state->drain_count;
     snapshot.control_drain_count = state->control_drain_count;
     snapshot.data_drain_count = state->data_drain_count;
+    snapshot.transport_spawn_requests = state->transport_spawn_requests;
+    snapshot.transport_spawn_acks = state->transport_spawn_acks;
     snapshot.transport_wake_writes = state->transport_wake_writes;
     snapshot.transport_wake_elisions = state->transport_wake_elisions;
     snapshot.shutdown_wakes = state->shutdown_wakes;

@@ -42,7 +42,7 @@ typedef struct rt_transport_msg {
     uint32_t target_shard_id;
     uint64_t route_id;
     uint64_t generation;
-    const void* payload;
+    void* payload;
     size_t payload_len;
 } rt_transport_msg;
 
@@ -74,6 +74,8 @@ typedef struct rt_transport_state {
     uint64_t drain_count;
     uint64_t control_drain_count;
     uint64_t data_drain_count;
+    uint64_t transport_spawn_requests;
+    uint64_t transport_spawn_acks;
     uint64_t transport_wake_writes;
     uint64_t transport_wake_elisions;
     uint64_t shutdown_wakes;
@@ -91,6 +93,8 @@ struct rt_transport_debug_snapshot {
     uint64_t drain_count;
     uint64_t control_drain_count;
     uint64_t data_drain_count;
+    uint64_t transport_spawn_requests;
+    uint64_t transport_spawn_acks;
     uint64_t transport_wake_writes;
     uint64_t transport_wake_elisions;
     uint64_t shutdown_wakes;

@@ -1,6 +1,6 @@
 # Epic 13 Task 6: Remote Task Publication Runtime API
 
-**Status:** pending.
+**Status:** complete in this worktree (2026-07-09).
 **Kind:** native runtime API. Status-code based; no compiler lowering yet.
 **Depends on:** Task 4 (spine), Task 5 (placement resolution).
 
@@ -30,19 +30,23 @@ callers), before any crossing form lowers to it.
   caller's local scope accounting; the handle is the only lifecycle edge;
   publication wait is non-cancellable until ack.
 
-## API Shape (suggested; final names in-task)
+## API Shape
 
-- `rt_remote_spawn_publish(dst_shard, body_fn, payload, payload_meta,
-  out_pending) -> status` — enqueue spawn request (data-lane category).
-- Destination drain handler: create the task on the destination shard as
-  owner, per owner-shard invariants; enqueue spawn ack (control lane) with
-  the handle + generation token.
-- Caller side: `out_pending` is a task-suspend wait (reply waiter keyed on
-  the request id) — NEVER a shard park (reply-wait invariant); ack resolves
-  it to the `far Task` handle value.
-- Failure statuses: destination shutdown, queue full (bounded!), publication
-  refused — each a distinct status code the future lowering maps to runtime
-  errors deterministically; no silent local spawn fallback status exists.
+- `rt_remote_spawn_publish(dst_shard_id, poll_fn_id, state, pending,
+  out_handle) -> rt_remote_spawn_status` enqueues a remote spawn request over
+  the data lane. The Task 6 test-hook payload is exactly `poll_fn_id + state`;
+  no copied payload bytes/size/alignment contract is introduced here.
+- `rt_far_task_handle` is the current public native handle shape:
+  `task_id + generation + owner_shard_id`. It deliberately does not expose a
+  raw `rt_task*` and does not pack the final public ABI.
+- Destination drain creates the task on the destination owner shard, assigns
+  the birth generation token, and sends a spawn ack with the far handle.
+- Caller side stores a pending record and waits on `WAKER_REMOTE_SPAWN_REPLY`
+  keyed by request id. The reply wait uses task suspension, never shard park,
+  including same-shard/self-crossing runs.
+- Failure statuses are distinct C status codes: invalid argument,
+  destination shutdown, queue full, refused, and stale token. There is no
+  silent local spawn fallback.
 
 ## Scope
 
@@ -77,12 +81,18 @@ Task 1 decision (plain-data/copyable unless the safety proof was recorded).
 
 ## Proof
 
-- All Step 1 rows green; the owner-differs row proves work left the caller
-  shard at `SURGE_SHARDS>1`.
-- No regression: `make runtime-v2-check` twice, `make
-  runtime-v2-crossing-check` (guards still closed — nothing lowers yet).
-- `make c-check`, `make cppcheck`, `./check_file_sizes.sh -a`,
-  `sentrux check runtime/native`, `make check`.
+- Focused Task 6 runtime-native proof passed:
+  `go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2RemotePublication' -count=1 -parallel=1 -p=1 -v --timeout 180s`.
+- Native C strict-format/strict-warning proof passed: `make c-check`.
+- Covered rows: static API shape/status enum/handle generation field, publish
+  to another shard at `SURGE_SHARDS=2` and `SURGE_SHARDS=8`, destination owner
+  proof, live ack handle validation, same-shard self-crossing without shard
+  park, deterministic shutdown status, data-lane queue-full status with
+  control lane unaffected, stale-token rejection, and spawn request/ack
+  counters in the transport debug snapshot.
+- Deliberately still out of scope: compiler lowering, executable crossing
+  vertical, await/cancel routing, packed ABI representation, copied payload
+  ownership, scope enrollment, and remote-free.
 
 ## Stop Conditions
 

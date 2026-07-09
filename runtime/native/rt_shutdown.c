@@ -1,5 +1,6 @@
 #include "rt_async_internal.h"
 #include "rt_net_trace.h"
+#include "rt_remote_spawn.h"
 
 rt_runtime_status rt_executor_drain_shutdown_net_waiters(rt_executor* ex) {
     if (ex == NULL) {
@@ -21,6 +22,7 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
     }
     rt_control_lock(ex);
     ex->shutdown = 1;
+    rt_remote_spawn_fail_all_pending(ex, RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN);
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
         (void)rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(

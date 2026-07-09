@@ -31,6 +31,11 @@ waker_key blocking_key(uint64_t id) {
     return key;
 }
 
+waker_key remote_spawn_reply_key(uint64_t id) {
+    waker_key key = {WAKER_REMOTE_SPAWN_REPLY, id};
+    return key;
+}
+
 waker_key channel_send_key(const rt_channel* ch) {
     waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch};
     return key;

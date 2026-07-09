@@ -27,6 +27,7 @@ typedef enum {
     WAKER_NET_WRITE = 7,
     WAKER_SCOPE = 8,
     WAKER_BLOCKING = 9,
+    WAKER_REMOTE_SPAWN_REPLY = 10,
 } waker_kind;
 
 typedef struct {
@@ -81,6 +82,7 @@ waker_key net_read_key(int fd);
 waker_key net_write_key(int fd);
 int waker_is_net(waker_key key);
 waker_key blocking_key(uint64_t id);
+waker_key remote_spawn_reply_key(uint64_t id);
 uint32_t rt_channel_owner_shard_id(const rt_channel* ch);
 
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);

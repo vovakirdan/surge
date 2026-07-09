@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_remote_spawn.h"
 #include "rt_sync_point.h"
 
 // Async runtime polling and scheduler logic.
@@ -162,7 +163,7 @@ int run_ready_one(rt_executor* ex) {
     rt_shard* shard0 = rt_runtime_shard0(rt_executor_runtime(ex));
     if (shard0 != NULL) {
         rt_shard_lock(shard0);
-        (void)rt_transport_drain_inbound_locked(shard0, RT_TRANSPORT_DRAIN_TURN_LIMIT);
+        (void)rt_remote_spawn_drain_inbound_locked(ex, shard0, RT_TRANSPORT_DRAIN_TURN_LIMIT);
         rt_shard_unlock(shard0);
     }
     uint64_t id = 0;

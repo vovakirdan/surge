@@ -245,6 +245,7 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
     }
     memset(task, 0, sizeof(rt_task));
     task->id = id;
+    task->generation = id;
     task->poll_fn_id = -1;
     task->state = NULL;
     task_status_store(task, TASK_READY);

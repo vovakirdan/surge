@@ -3,6 +3,7 @@
 #endif
 
 #include "rt_async_internal.h"
+#include "rt_remote_spawn.h"
 #include "rt_sync_point.h"
 
 #include <limits.h>
@@ -121,9 +122,9 @@ void* rt_worker_main(void* arg) {
         }
         rt_shard_lock(shard);
         uint64_t id = 0;
-        (void)rt_transport_drain_inbound_locked(shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);
+        (void)rt_remote_spawn_drain_inbound_locked(ex, shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);
         while (!ex->shutdown && !worker_next_ready(ctx, &id)) {
-            if (rt_transport_drain_inbound_locked(shard, 0) > 0) {
+            if (rt_remote_spawn_drain_inbound_locked(ex, shard, 0) > 0) {
                 continue;
             }
             if (rt_sleep_store_min(&shard->sleep_store) <= rt_clock_now(ex)) {

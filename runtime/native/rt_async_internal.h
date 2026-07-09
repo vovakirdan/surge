@@ -194,6 +194,7 @@ struct rt_runtime {
 
 typedef struct rt_task {
     uint64_t id;
+    uint64_t generation;
     int64_t poll_fn_id;
     void* state;
     uint64_t result_bits;

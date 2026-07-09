@@ -79,6 +79,12 @@ _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->control_len) == 
                "snapshot control_len must stay size_t");
 _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->data_len) == sizeof(size_t),
                "snapshot data_len must stay size_t");
+_Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->transport_spawn_requests) ==
+                   sizeof(uint64_t),
+               "transport spawn requests must be counted separately");
+_Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->transport_spawn_acks) ==
+                   sizeof(uint64_t),
+               "transport spawn acks must be counted separately");
 _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->transport_wake_writes) ==
                    sizeof(uint64_t),
                "transport wake writes must be counted separately");
@@ -264,13 +270,13 @@ func TestRuntimeV2TransportSyncPointAllowlistShape(t *testing.T) {
 		t.Fatal("transport sync-point windows must not be allowlisted on net wake sources")
 	}
 	workerDrain := strings.Index(workerTurn,
-		"(void)rt_transport_drain_inbound_locked(shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);")
+		"(void)rt_remote_spawn_drain_inbound_locked(ex, shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);")
 	workerReady := strings.Index(workerTurn, "while (!ex->shutdown && !worker_next_ready")
 	if workerDrain < 0 || workerReady < 0 || workerDrain > workerReady {
 		t.Fatal("worker loop must drain a bounded transport slice before ready-work selection")
 	}
 	if !strings.Contains(asyncPoll,
-		"(void)rt_transport_drain_inbound_locked(shard0, RT_TRANSPORT_DRAIN_TURN_LIMIT);") {
+		"(void)rt_remote_spawn_drain_inbound_locked(ex, shard0, RT_TRANSPORT_DRAIN_TURN_LIMIT);") {
 		t.Fatal("single-runner run_ready_one path must drain transport before ready-pop")
 	}
 }
