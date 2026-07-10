@@ -4969,8 +4969,11 @@ Gates (all green): `git diff --check`, `make c-check`, `make cppcheck`,
 `make golden-check`, `make runtime-v2-crossing-check` twice post-flip,
 `make runtime-v2-transport-contract-check` (Tasks 4 + 9 + 10 sections),
 `./check_sync_points.sh`, `./check_file_sizes.sh -a`, `make check`.
-Sentrux evidence recorded on the committed tree after the Task 10 commit (see
-the follow-up evidence note; pre-change committed baselines: root `6184`,
-`internal` `6522`, `runtime` `5332`, `runtime/native` `5420`).
+Sentrux CLI on the committed Task 10 tree (`dc1d37fd`), all rules passing at
+every scope: root `6183` (baseline `6184`), `internal` `6518` (`6522`),
+`runtime` `5324` (`5332`), `runtime/native` `5409` (`5420`, ~-0.2%). The
+scoped `runtime/native` residual is the same inherent-subsystem-coupling
+shape as Task 9's and is folded into `RV2-DEBT-028` (same recovery owner,
+Task 12 closeout).
 
 Task 11 (unsupported-forms matrix) and Task 12 (bench/CI closeout) remain.
