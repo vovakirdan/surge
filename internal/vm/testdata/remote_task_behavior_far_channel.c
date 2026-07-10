@@ -53,6 +53,21 @@ int rtb_mode_channel_create(void) {
     if (rt_far_channel_release(ex, &state.handle) != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {
         return rtb_fail("double release was not stale");
     }
+    rtb_create_state dropped;
+    void* drop_task = rtb_start_channel_create(&dropped, rt_placement_shard(1), 2);
+    (void)rtb_await(drop_task, &kind, &bits);
+    if (dropped.status != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("drop-hook setup create failed");
+    }
+    rt_far_task_handle* heap_handle = NULL;
+    if (rt_far_channel_handle_alloc(&heap_handle) != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("drop-hook token alloc failed");
+    }
+    *heap_handle = dropped.handle;
+    rt_far_channel_handle_drop(heap_handle);
+    if (rt_far_channel_resolve(ex, &dropped.handle) != NULL) {
+        return rtb_fail("dropped handle still resolves");
+    }
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }

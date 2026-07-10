@@ -236,6 +236,23 @@ rt_remote_task_status rt_far_channel_handle_alloc(rt_far_task_handle** out) {
     return RT_REMOTE_TASK_STATUS_OK;
 }
 
+// Drop hook for a caller-side channel handle: releases the owner-side
+// registry entry (dropping the only handle makes the channel unreachable)
+// and frees the token. The LLVM backend has no scope-exit drop emission yet
+// (heap reclamation is task/heap-cell level); this is the single call the
+// drop machinery wires to when it lands, and teardown paths may call it
+// directly. Stale entries (already released/teardown) are tolerated.
+void rt_far_channel_handle_drop(rt_far_task_handle* handle) {
+    if (handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
+        return;
+    }
+    rt_executor* ex = ensure_exec();
+    if (ex != NULL) {
+        (void)rt_far_channel_release(ex, handle);
+    }
+    rt_far_channel_handle_free(handle);
+}
+
 void rt_far_channel_handle_free(const rt_far_task_handle* handle) {
     if (handle == NULL) {
         return;

@@ -171,7 +171,13 @@ path, per the Epic 13 handoff contract.
    body-creates-channel + spawns a local owner-side consumer + returns the
    far producer handle; the no-counterparty shape is the genesis-time face
    of self-deadlock and gets its own reproducer against the decision-5
-   detection. Full record: `14-tasks/01-kickoff.md`.
+   detection. Genesis-slice amendment (2026-07-10): the fresh-channel-return SYNTAX
+   exercised the slice's stop condition (freshness needs whole-function
+   dataflow; the kind/bits reply path cannot carry a token) — `channel_on`
+   is the shipped producer implementing the primitive's semantics, and
+   `ret <fresh channel>` returns to design review with a dataflow plan
+   before any later task picks it up. Full record: `14-tasks/01-kickoff.md`
+   and `14-tasks/02-handle-genesis.md`.
 10. **Out of scope.** Remote `select`, distributed scopes, migration, `pool`
    execution, VM transport, multi-producer handles, the per-op message fast
    path (admissible later only per decision 1).

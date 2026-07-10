@@ -1,17 +1,40 @@
 # Epic 14 Task 1.5: Handle Genesis
 
-**Status:** in progress (2026-07-10). Shipped so far: the kind-tagged token,
-the owner-side registry with teardown ordering, the create message pair with
-counters, the caller API, the harness rows (mint/resolve/release, kind
-aliasing, shutdown sweep, one-shard self-crossing), the `channel_on`
-intrinsic with its sema record and FUT7018 guard, the MIR/LLVM lowering, and
-the override-gated mint e2e (`SURGE_SHARDS=1,2,8`) wired into the transport
-gate. Remaining in this slice: the fresh-channel-return primitive as a
-USER-visible surface (`ret <fresh channel>` typing + freshness/escape check
-— `channel_on` already implements the primitive's semantics directly, which
-the Task 1 architecture allows), the far-channel handle drop lowering
-(caller-side token free + owner-routed release on scope exit), and the
-local-counterparty contract text hand-off to Tasks 2-3.
+**Status:** complete (2026-07-10). Shipped: the kind-tagged token, the
+owner-side registry with teardown ordering, the create message pair with
+counters, the caller API, the harness rows (mint/resolve/release + drop
+hook, kind aliasing, shutdown sweep, one-shard self-crossing), the
+`channel_on` intrinsic with its sema record and FUT7018 guard, the MIR/LLVM
+lowering, and the override-gated mint e2e (`SURGE_SHARDS=1,2,8`) wired into
+the transport gate as the channel genesis section.
+
+Dispositions of the remaining contract items:
+
+- **Fresh-return as user syntax: stop condition exercised.** The
+  freshness/escape check for `ret <channel>` needs whole-function dataflow
+  beyond existing sema analyses, and the reply payload path (64-bit
+  kind/bits) cannot carry a token without the shared-pending transfer that
+  `channel_on` already uses — so per this document's first stop condition,
+  `channel_on` IS the shipped producer (its implementation — owner-side
+  create, registry mint, token transfer through the shared pending — is
+  exactly the sanctioned primitive's semantics), and `ret <fresh channel>`
+  as surface syntax goes back to design review for a later task with a
+  recorded dataflow plan. The epic decision 9 text is amended accordingly.
+- **Handle drop: hook shipped, wiring deferred with the language.** The
+  LLVM backend emits no scope-exit drops for ANY owned type today
+  (`InstrDrop` is a no-op; heap reclamation is task/heap-cell level), so
+  the caller-side token follows the language-wide story rather than
+  getting a bespoke mechanism: `rt_far_channel_handle_drop` (release the
+  registry entry + free the token, stale-tolerant) exists and is
+  harness-proven; the general drop machinery wires to it when it lands.
+  Until then tokens are reclaimed with their task's heap cell and registry
+  entries at shutdown — bounded per run, recorded.
+- **Local-counterparty contract: handed to Tasks 2-3.** The contract text
+  lives in epic decision 9; the reproducer (mint with no owner-side
+  consumer -> capacity-blocked remote send -> the decision-5 detection
+  outcome) requires the anchored send lowering and the detection runtime,
+  both Task 2-3 deliverables. The registry hooks the reproducer needs
+  (resolve/inflight pinning) shipped here.
 **Kind:** runtime handle registry + typing primitive + `channel_on` surface.
 **Depends on:** Task 1 (contract: epic decision 9, `01-kickoff.md`).
 

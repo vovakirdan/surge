@@ -5142,3 +5142,31 @@ gained boundary decision 9 (handle genesis). Highlights:
   `internal` `6518`, `runtime` `5324`, `runtime/native` `5409`.
 
 Next: Task 1.5 (genesis slice).
+
+## 2026-07-10 — Epic 14 Task 1.5 Complete: Handle Genesis
+
+A runnable program can now obtain a `far Channel<T>`:
+`channel_on::<T>(dst, capacity)` works end to end under the test-scoped
+capability override on `SURGE_SHARDS=1,2,8` (prelude intrinsic -> sema
+crossing record -> MIR pending/handle slots -> LLVM create call with a
+deterministic panic error space -> transport create request/reply pair with
+counters -> owner-side registry mint -> filled caller token). Three commits:
+runtime registry + kind-tagged token, sema record + FUT7018 guard, MIR/LLVM
+lowering + mint e2e (wired into the transport gate).
+
+Contract dispositions recorded in `14-tasks/02-handle-genesis.md`: the
+fresh-return SYNTAX exercised the slice's stop condition and returns to
+design review (`channel_on` implements the sanctioned primitive's semantics
+directly); the caller-side token drop follows the language-wide drop story
+(`rt_far_channel_handle_drop` hook shipped and harness-proven; the backend
+emits no scope-exit drops for any owned type yet); the local-counterparty
+reproducer hands to Tasks 2-3 with its registry hooks in place.
+
+Latent gap fixed for every crossing kind: the LLVM string-constant
+collector never walked crossing operands, so bignum-typed literals (all
+`uint` literals) riding any crossing failed emission; the collector now
+covers destination/receiver/state/captures/remote-op operands.
+
+Sentrux committed-tree baselines for the next task are re-measured at its
+kickoff (this slice added a runtime module, compiler files, and tests).
+Next: Task 2 (behavior rows for the anchored-op race/failure matrix).
