@@ -5072,9 +5072,14 @@ the handoff log record.
   pool execution remain open).
 - Quality closeout: `make check`, `make c-check`, `make cppcheck`,
   `make golden-check`, `./check_file_sizes.sh -a`, `make runtime-v2-check`
-  twice, Sentrux four scopes on the committed tree — numbers recorded below
-  after the closing commit; deltas vs the Task 1-era baselines are the
-  RV2-DEBT-028 record.
+  (fully green runs plus one discarded run holding only the documented
+  transient), Sentrux CLI four scopes on the committed closing tree
+  (`abe301a1`), all rules passing: root `6183`, `internal` `6518`,
+  `runtime` `5324`, `runtime/native` `5409` — identical to the Task 10/11
+  committed baselines (the closeout added counters, harness fixes, a
+  benchmark script, and docs; quality-neutral). The epic-cumulative scoped
+  `runtime/native` delta vs the committed pre-Task-9 tree remains the
+  `RV2-DEBT-028` record.
 
 Full-gate stabilization findings while running `runtime-v2-check` twice:
 
