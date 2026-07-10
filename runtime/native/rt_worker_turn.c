@@ -163,7 +163,13 @@ void* rt_worker_main(void* arg) {
                 continue;
             }
             rt_debug_assert_no_parked_with_work(ex, ctx->shard_id);
+            // The deadlock scan takes every shard's lock one at a time, so
+            // it runs with this shard's lock released; a wake landing in
+            // the gap bumps wake_pending under the lock and the sleep
+            // guard below cannot lose it.
+            rt_shard_unlock(shard);
             rt_remote_task_deadlock_check(ex);
+            rt_shard_lock(shard);
             rt_trace_worker_sleep();
             while (scheduler->wake_pending == 0 && !ex->shutdown) {
                 pthread_cond_wait(&shard->worker_cv, &shard->lock);

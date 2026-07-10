@@ -6,19 +6,24 @@
 
 // Remote-channel self-deadlock detection. A caller suspended on an execute
 // reply cannot be woken by anything if the body it shipped is parked on a
-// channel waiter while the whole executor is quiescent: every shard parked
-// with drained queues, no pending timers, no net waiters, and no blocking
-// work queued or running. At that point no future event exists that could
-// free the channel, so the runtime reports the deadlock with an actionable
-// message instead of hanging silently — the remote analog of the local
-// external-await "async deadlock" panic.
+// channel waiter while the whole executor is quiescent: every shard has no
+// running or ready task, no inbound transport work, no pending timers, no
+// net waiters, and no blocking work is queued or running. At that point no
+// future event exists that could free the channel, so the runtime reports
+// the deadlock with an actionable message instead of hanging silently — the
+// remote analog of the local external-await "async deadlock" panic.
 //
-// The check runs only at a worker's idle-park edge (steady-state cost is
-// zero) and takes the double-check shape: scan, find a suspect, then
-// re-verify global quiescence before panicking, so a wake that lands
-// between the two passes (e.g. a blocking completion in the window between
-// its running-counter decrement and its wake) cannot produce a false
-// positive: the wake makes some shard non-parked and the re-verify bails.
+// The check runs at a worker's idle-park edge with NO shard lock held (the
+// caller re-acquires its shard lock afterwards; a wake landing in that
+// window bumps wake_pending under the shard lock, so the sleep guard cannot
+// lose it). Each shard's signals are read under that shard's own lock, one
+// shard at a time — the lane discipline forbids holding two shard locks.
+// The scan is double-checked: quiescence, suspect, then quiescence and the
+// same suspect again. Any activity between the passes either shows up as a
+// running/ready task or inbound work under some shard lock, or it woke the
+// suspect — and a woken suspect is no longer TASK_WAITING on a channel key
+// at the second look. The blocking pool's dec-before-wake window is
+// absorbed the same way: the wake makes some shard non-quiescent.
 //
 // Coverage note: the single-shard single-worker configuration starts no
 // worker threads — the awaiting driver thread polls tasks itself — so this
@@ -27,20 +32,53 @@
 // await finds nothing runnable.
 //
 // Blind spot (shared with the driver-side panic): a non-runtime thread that
-// touches a channel through FFI is invisible to the quiescence scan. The
-// runtime's own tasks cannot trip this falsely — a running task keeps its
-// shard non-parked, so quiescence plus a channel-parked body means no
-// in-model waker exists. Embedders whose external threads legitimately
-// feed or drain channels can opt out with SURGE_REMOTE_DEADLOCK_DETECT=0;
-// the default is on in every build.
+// touches a channel through FFI is invisible to the quiescence scan.
+// Embedders whose external threads legitimately feed or drain channels can
+// opt out with SURGE_REMOTE_DEADLOCK_DETECT=0; the default is on in every
+// build.
 
 static int deadlock_detect_enabled(void) {
-    static int enabled = -1;
-    if (enabled < 0) {
-        const char* value = getenv("SURGE_REMOTE_DEADLOCK_DETECT");
-        enabled = value == NULL || strcmp(value, "0") != 0;
+    // -1 = not yet parsed. Racing initializers compute the same value from
+    // the same environment, so a duplicated store is harmless.
+    static _Atomic int enabled = -1;
+    int value = atomic_load_explicit(&enabled, memory_order_relaxed);
+    if (value < 0) {
+        const char* env = getenv("SURGE_REMOTE_DEADLOCK_DETECT");
+        value = env == NULL || strcmp(env, "0") != 0;
+        atomic_store_explicit(&enabled, value, memory_order_relaxed);
     }
-    return enabled;
+    return value;
+}
+
+// All signals that could produce future progress on this shard, read under
+// the shard's own lock: transport park state, running and ready tasks,
+// undrained inbound work, pending timers, and net waiters.
+static int shard_quiescent_locked(const rt_executor* ex, rt_shard* shard) {
+    if (atomic_load_explicit(&shard->transport.park_state, memory_order_seq_cst) !=
+        RT_TRANSPORT_SHARD_PARKED) {
+        return 0;
+    }
+    const rt_scheduler* scheduler = rt_shard_scheduler(shard);
+    if (scheduler == NULL || scheduler->running_count != 0 || scheduler->inject.len != 0) {
+        return 0;
+    }
+    if (scheduler->local_queues != NULL) {
+        for (uint32_t i = 0; i < scheduler->worker_count; i++) {
+            if (scheduler->local_queues[i].len != 0) {
+                return 0;
+            }
+        }
+    }
+    if (rt_transport_inbound_len_locked(shard) != 0) {
+        return 0;
+    }
+    if (rt_sleep_store_min(&shard->sleep_store) != UINT64_MAX) {
+        return 0;
+    }
+    if (rt_net_has_waiters_on_shard(ex, shard->shard_id)) {
+        return 0;
+    }
+    return 1;
 }
 
 static int all_shards_quiescent(rt_executor* ex) {
@@ -51,33 +89,32 @@ static int all_shards_quiescent(rt_executor* ex) {
         if (shard == NULL) {
             return 0;
         }
-        if (atomic_load_explicit(&shard->transport.park_state, memory_order_seq_cst) !=
-            RT_TRANSPORT_SHARD_PARKED) {
-            return 0;
-        }
-        if (rt_sleep_store_min(&shard->sleep_store) != UINT64_MAX) {
-            return 0;
-        }
-        if (rt_net_has_waiters_on_shard(ex, (uint32_t)i)) {
+        rt_shard_lock(shard);
+        int quiescent = shard_quiescent_locked(ex, shard);
+        rt_shard_unlock(shard);
+        if (!quiescent) {
             return 0;
         }
     }
-    if (ex->blocking_head != NULL ||
-        atomic_load_explicit(&ex->blocking_running, memory_order_acquire) != 0) {
+    pthread_mutex_lock(&ex->blocking_lock);
+    int blocking_empty = ex->blocking_head == NULL;
+    pthread_mutex_unlock(&ex->blocking_lock);
+    if (!blocking_empty || atomic_load_explicit(&ex->blocking_running, memory_order_acquire) != 0) {
         return 0;
     }
     return 1;
 }
 
-// Returns the parked-on-channel body task of a suspended execute pending,
-// or NULL. Fields are read best-effort: at genuine quiescence nothing
-// mutates them, and the double-check discards racy sightings.
-static const rt_task* find_channel_parked_body(rt_executor* ex, const char** op_name) {
+// Returns the id of a parked-on-channel body task of a suspended execute
+// pending, or 0. When `expect_task_id` is nonzero, only that body counts —
+// the verify pass must see the same suspect still parked, not a new one.
+static uint64_t
+find_channel_parked_body(rt_executor* ex, uint64_t expect_task_id, const char** op_name) {
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     if (state == NULL) {
-        return NULL;
+        return 0;
     }
-    const rt_task* suspect = NULL;
+    uint64_t suspect_id = 0;
     pthread_mutex_lock(&state->lock);
     for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
         if (it->status != RT_REMOTE_TASK_STATUS_PENDING) {
@@ -89,19 +126,22 @@ static const rt_task* find_channel_parked_body(rt_executor* ex, const char** op_
         if (it->handle.task_id == 0) {
             continue;
         }
-        rt_task* body = get_task(ex, it->handle.task_id);
+        if (expect_task_id != 0 && it->handle.task_id != expect_task_id) {
+            continue;
+        }
+        const rt_task* body = get_task(ex, it->handle.task_id);
         if (body == NULL || task_status_load(body) != TASK_WAITING) {
             continue;
         }
         uint8_t kind = body->park_key.kind;
         if (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV) {
-            suspect = body;
+            suspect_id = it->handle.task_id;
             *op_name = kind == WAKER_CHAN_SEND ? "send" : "recv";
             break;
         }
     }
     pthread_mutex_unlock(&state->lock);
-    return suspect;
+    return suspect_id;
 }
 
 void rt_remote_task_deadlock_check(rt_executor* ex) {
@@ -115,21 +155,26 @@ void rt_remote_task_deadlock_check(rt_executor* ex) {
         return;
     }
     const char* op_name = "";
-    const rt_task* suspect = find_channel_parked_body(ex, &op_name);
-    if (suspect == NULL) {
+    uint64_t suspect_id = find_channel_parked_body(ex, 0, &op_name);
+    if (suspect_id == 0) {
         return;
     }
     if (!all_shards_quiescent(ex)) {
         return;
     }
-    static char message[192];
+    if (find_channel_parked_body(ex, suspect_id, &op_name) != suspect_id) {
+        return;
+    }
+    const rt_task* suspect = get_task(ex, suspect_id);
+    uint32_t suspect_shard = suspect != NULL ? suspect->owner_shard_id : 0;
+    static char message[256];
     (void)snprintf(message,
                    sizeof(message),
                    "remote channel deadlock: an anchored block is parked on channel %s "
                    "(body task %llu, shard %u) while every shard is idle; "
                    "nothing can wake it — the channel's consumer is the suspended caller",
                    op_name,
-                   (unsigned long long)suspect->id,
-                   (unsigned)suspect->owner_shard_id);
+                   (unsigned long long)suspect_id,
+                   (unsigned)suspect_shard);
     panic_msg(message);
 }
