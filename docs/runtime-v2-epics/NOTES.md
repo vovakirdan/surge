@@ -5170,3 +5170,39 @@ covers destination/receiver/state/captures/remote-op operands.
 Sentrux committed-tree baselines for the next task are re-measured at its
 kickoff (this slice added a runtime module, compiler files, and tests).
 Next: Task 2 (behavior rows for the anchored-op race/failure matrix).
+
+## 2026-07-10 — Epic 14 Tasks 2-3 Increment 3: Self-Deadlock Detection
+
+`rt_remote_task_deadlock.c` implements decision 5: at a worker's idle-park
+edge (after `rt_transport_prepare_shard_park` publishes PARKED), the runtime
+checks global quiescence — every shard transport-PARKED, every sleep store
+empty, no net waiters, no blocking work queued or running — and scans the
+pending list for a suspended execute/anchored block whose body task is
+parked on a channel waiter. A hit is re-verified against quiescence (the
+double-check absorbs the blocking-pool dec-before-wake window) and then
+panics in every build with the actionable message naming the operation,
+the body task, and its shard.
+
+Configuration boundary discovered while proving the rows: SHARDS=1 with one
+worker starts no worker threads at all (`rt_async_state.c` returns before
+spawning; the awaiting driver thread polls tasks itself), so the park-edge
+check cannot run there — that mode's quiescence is already covered by the
+driver-side "async deadlock" panic. The reproducer rows therefore run on
+one shard with two workers and on two shards.
+
+External-counterparty boundary: four existing anchored rows use the harness
+main thread as the channel counterparty (drain/close/cancel/teardown from
+outside the runtime), which the quiescence scan correctly cannot see —
+detection fired on all four as designed. The resolution is a legitimate
+embedder knob, not a test hack: `SURGE_REMOTE_DEADLOCK_DETECT=0` opts out
+for processes whose external threads feed or drain channels through FFI;
+the default stays on in every build. The rows set the knob and say why.
+
+New rows: `anchored-self-deadlock` (rows 7+8 of the matrix — a full channel
+whose only consumer is the suspended caller; asserts nonzero exit plus the
+panic text on both configurations) and `anchored-pin-vs-release` (row 9 —
+release during an active block returns OK, the token stops resolving
+immediately, and the body completes on its already-resolved pointer because
+the dispatch-time pin defers reclamation to the reply edge; the body holds
+a busy-yield gate so it stays runnable and quiescence never falsely forms).
+Row 10 (leak audit) rides Task 6 stress as planned.

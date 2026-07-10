@@ -30,7 +30,11 @@ New runtime surface (this task):
   pin per the registry contract; the pin drops when the reply edge
   resolves).
 - the self-deadlock detection (decision 5): the all-shards-quiescent check
-  at the worker idle-park boundary with the actionable panic.
+  at the worker idle-park boundary with the actionable panic
+  (`rt_remote_task_deadlock.c`; double-checked scan, on in every build,
+  `SURGE_REMOTE_DEADLOCK_DETECT=0` opts out for embedders whose external
+  threads feed channels through FFI — the quiescence model cannot see
+  non-runtime threads).
 
 ## Row Plan (the epic's race/failure matrix, harness level)
 
@@ -50,12 +54,20 @@ New runtime surface (this task):
    suspended caller.
 7. self-deadlock reproducer: full channel whose only consumer is the
    initiating caller -> the decision-5 panic naming the channel and the
-   parked operation.
+   parked operation. DONE (`anchored-self-deadlock`, expected-panic rows on
+   1 shard/2 workers and 2 shards; the single-worker configuration starts
+   no worker threads, so its quiescence stays with the driver-side "async
+   deadlock" panic).
 8. no-counterparty mint (genesis handoff): mint with no owner-side
-   consumer + capacity-blocked sends -> same decision-5 outcome.
+   consumer + capacity-blocked sends -> same decision-5 outcome. DONE
+   (folded into row 7: the reproducer mints and blocks on capacity with no
+   consumer anywhere).
 9. inflight-pin vs release: release during an active block waits for (or
    deterministically rejects per contract) the pinned entry; no
-   use-after-free of the channel under the body's feet.
+   use-after-free of the channel under the body's feet. DONE
+   (`anchored-pin-vs-release`: release returns OK and flips the entry to
+   RELEASING, the token stops resolving, the body completes on its
+   already-resolved pointer, reclamation waits for the reply-edge unpin).
 10. leak audit: pendings, tokens, registry entries, body tasks after each
     row.
 
