@@ -104,7 +104,12 @@ path, per the Epic 13 handoff contract.
    documented hang, or detection — and Task 1 decides it BEFORE
    implementation; a deterministic reproducer row proves whichever behavior
    is chosen. This dependency shape is forbidden/defined explicitly, never
-   left implicit.
+   left implicit. The diagnostics contract (decision 8) biases this choice:
+   a silent documented hang is the LAST resort — prefer detection with an
+   actionable runtime diagnostic (naming the channel, the parked operation,
+   and the wait cycle) at least in debug builds, since the shape is
+   statically undecidable (consumer topology is dynamic) but dynamically
+   observable.
 6. **Credits deferral (review: endorsed with obligations).** The
    credit-return protocol stays deferred, recorded as NAMED DEBT with
    measured justification — the epic does NOT claim the Phase 4 credit
@@ -123,7 +128,30 @@ path, per the Epic 13 handoff contract.
    token. This epic must not accidentally establish a cross-shard
    string/array ABI or ownership convention that the allocator epic would
    have to unwind.
-8. **Out of scope.** Remote `select`, distributed scopes, migration, `pool`
+8. **Diagnostics contract — kindness-first.** The compiler diagnoses at the
+   earliest stage that can NAME THE REAL CAUSE, with a fix hint; the generic
+   backend-unavailable message is reserved for the one case it is true
+   (a backend without transport capability). Every failure this epic
+   introduces is classified into exactly one tier:
+   - sema-diagnosable (emit a precise SEM code at semantic analysis):
+     a crossing in a synchronous context ("this crossing suspends; make the
+     enclosing function `async`" — sema owns `SuspendCapable`, the backend
+     is not the cause); a non-crossable payload or capture ("field `x.y`
+     owns heap memory and cannot cross shards yet" — name the exact nested
+     field and type, not just the struct); anchor-handle misuse (already
+     SEM3142/3150/3153 from Epic 11; any hole found gets a row here, not a
+     runtime check);
+   - compile-time-but-backend-dependent (keep FUT700x): the same construct
+     on VM/unknown backends — the backend genuinely is the cause;
+   - runtime-only (deterministic error with an actionable message plus a
+     counter): stale tokens, owner teardown, closed channels — and, per
+     decision 5, detected wait cycles in debug builds.
+   Because the sync-context and payload causes are shared with the Epic 13
+   forms (which today all report the generic backend message), the precision
+   split lands as a dedicated task slice in this epic and upgrades the whole
+   crossing family at once. This classification is the template for every
+   future feature: if sema CAN know the cause, sema says it.
+9. **Out of scope.** Remote `select`, distributed scopes, migration, `pool`
    execution, VM transport, multi-producer handles, the per-op message fast
    path (admissible later only per decision 1).
 
@@ -160,6 +188,12 @@ path, per the Epic 13 handoff contract.
 5. Negative matrix + hidden-fallback audit extension + compile-time payload
    negatives (nested heap-containing structs, far-handle captures,
    concurrent borrows).
+5b. Diagnostics precision pass (decision 8) over the whole crossing family:
+   split the sync-context cause and the payload cause out of the generic
+   backend-unavailable message into sema-stage diagnostics with fix hints
+   and exact field paths; the guard-matrix tests re-pin the new codes; the
+   generic message survives only on genuinely backend-blocked rows.
+   Golden-fixture churn is expected and reviewed comment/diag-only.
 6. `QUEUE_FULL` stress row (bounded retry, control-lane progress,
    telemetry), bench row against the Epic 13 baseline, gate wiring,
    deferred-credit debt row, closeout.
@@ -178,6 +212,11 @@ path, per the Epic 13 handoff contract.
   `credit_stalls` instrumented; the credit deferral is a named debt row.
 - All unsupported forms keep their diagnostics; compile-only paths stay
   clean; `unsupported_fallback_attempts` stays zero.
+- Diagnostics precision: a synchronous-context crossing and a heap-owning
+  payload each produce their own sema-stage diagnostic naming the real
+  cause (context / exact field), with the generic backend message left only
+  on backend-blocked rows; if decision 5 chose detection, the self-deadlock
+  reproducer shows the actionable runtime diagnostic.
 - Gates: extended transport gate green twice; crossing-check twice; bench
   row recorded.
 
