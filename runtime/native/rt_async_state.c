@@ -3,6 +3,7 @@
 #endif
 
 #include "rt_async_internal.h"
+#include "rt_far_channel.h"
 #include "rt_remote_task.h"
 
 #include <errno.h>
@@ -140,16 +141,25 @@ static void exec_init_once(void) {
         rt_runtime_destroy_global();
         panic_msg("async: remote task state initialization failed");
     }
+    if (rt_far_channel_state_init(ex) != RT_RUNTIME_STATUS_OK) {
+        (void)rt_remote_task_state_destroy(ex);
+        rt_runtime_destroy_global();
+        panic_msg("async: far channel state initialization failed");
+    }
     rt_runtime_status scheduler_status = rt_runtime_init_shard_schedulers(rt_executor_runtime(ex),
                                                                           config.shard_worker_count,
                                                                           rt_env_sched_mode(),
                                                                           rt_env_sched_seed());
     if (scheduler_status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
+        rt_far_channel_release_all(ex);
+        (void)rt_far_channel_state_destroy(ex);
         (void)rt_remote_task_state_destroy(ex);
         rt_runtime_destroy_global();
         panic_msg("async: local queue allocation failed");
     }
     if (scheduler_status != RT_RUNTIME_STATUS_OK) {
+        rt_far_channel_release_all(ex);
+        (void)rt_far_channel_state_destroy(ex);
         (void)rt_remote_task_state_destroy(ex);
         rt_runtime_destroy_global();
         panic_msg("async: scheduler initialization failed");

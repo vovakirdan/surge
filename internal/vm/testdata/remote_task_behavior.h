@@ -2,6 +2,7 @@
 #define SURGE_TEST_REMOTE_TASK_BEHAVIOR_H
 
 #include "rt_async_internal.h"
+#include "rt_far_channel.h"
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task_internal.h"
 #include "rt_sync_point.h"
@@ -15,6 +16,7 @@ enum {
     POLL_RTB_PUBLISHER = 9102,
     POLL_RTB_LIFECYCLE = 9103,
     POLL_RTB_EXECUTE = 9104,
+    POLL_RTB_CHANNEL_CREATE = 9105,
 };
 
 typedef struct rtb_child_state {
@@ -85,5 +87,19 @@ int rtb_mode_immediate_stale(void);
 int rtb_mode_cancel_race(void);
 int rtb_mode_shutdown(void);
 int rtb_mode_immediate_self_crossing(void);
+
+typedef struct rtb_create_state {
+    rt_remote_task_pending* pending;
+    uint64_t placement;
+    uint64_t capacity;
+    rt_far_task_handle handle;
+    rt_remote_task_status status;
+} rtb_create_state;
+
+void* rtb_start_channel_create(rtb_create_state* state, uint64_t placement, uint64_t capacity);
+int rtb_mode_channel_create(void);
+int rtb_mode_channel_kind_aliasing(void);
+int rtb_mode_channel_shutdown_release(void);
+int rtb_mode_channel_create_self(void);
 
 #endif

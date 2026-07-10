@@ -1,3 +1,4 @@
+#include "rt_far_channel.h"
 #include "rt_remote_task_internal.h"
 #include "rt_sync_point.h"
 
@@ -63,9 +64,10 @@ static void record_stale_drop(rt_executor* ex, const rt_transport_msg* msg) {
 
 static int
 owner_matches(const rt_far_task_handle* handle, const rt_task* task, uint32_t owner_shard_id) {
-    return handle != NULL && task != NULL && handle->task_id == task->id &&
-           task->generation == handle->generation && task->owner_shard_valid != 0 &&
-           task->owner_shard_id == owner_shard_id && task->owner_shard_id == handle->owner_shard_id;
+    return handle != NULL && task != NULL && handle->kind == RT_FAR_HANDLE_KIND_TASK &&
+           handle->task_id == task->id && task->generation == handle->generation &&
+           task->owner_shard_valid != 0 && task->owner_shard_id == owner_shard_id &&
+           task->owner_shard_id == handle->owner_shard_id;
 }
 
 static rt_remote_task_status consume_handle(rt_task* task, uint8_t next_state) {
@@ -251,9 +253,13 @@ int rt_remote_task_dispatch_message(rt_executor* ex, const rt_transport_msg* msg
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST:
             rt_immediate_on_dispatch_execute(ex, msg);
             return 1;
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST:
+            rt_far_channel_dispatch_create(ex, msg);
+            return 1;
         case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
             dispatch_reply(ex, msg);
             return 1;
         default:

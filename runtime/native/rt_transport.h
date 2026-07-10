@@ -30,6 +30,8 @@ typedef enum rt_transport_msg_kind {
     RT_TRANSPORT_MSG_SHUTDOWN_WAKE = 9,
     RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST = 10,
     RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST = 11,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST = 12,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY = 13,
 } rt_transport_msg_kind;
 
 typedef enum rt_transport_park_state {
@@ -84,6 +86,8 @@ typedef struct rt_transport_state {
     uint64_t remote_task_release_requests;
     uint64_t immediate_on_execute_requests;
     uint64_t immediate_on_replies;
+    uint64_t far_channel_create_requests;
+    uint64_t far_channel_create_replies;
     uint64_t credit_stalls;
     uint64_t unsupported_fallback_attempts;
     uint64_t transport_wake_writes;
@@ -111,6 +115,8 @@ struct rt_transport_debug_snapshot {
     uint64_t remote_task_release_requests;
     uint64_t immediate_on_execute_requests;
     uint64_t immediate_on_replies;
+    uint64_t far_channel_create_requests;
+    uint64_t far_channel_create_replies;
     uint64_t credit_stalls;
     uint64_t unsupported_fallback_attempts;
     uint64_t transport_wake_writes;

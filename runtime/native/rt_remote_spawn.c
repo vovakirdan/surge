@@ -301,7 +301,7 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
         handle = (rt_far_task_handle){.task_id = task->id,
                                       .generation = task->generation,
                                       .owner_shard_id = req->target_shard_id,
-                                      ._pad = 0};
+                                      .kind = RT_FAR_HANDLE_KIND_TASK};
     }
     if (status != RT_REMOTE_SPAWN_STATUS_OK) {
         remote_spawn_pending_finish(ex, req, status, NULL);

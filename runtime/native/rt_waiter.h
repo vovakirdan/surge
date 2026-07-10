@@ -86,6 +86,7 @@ int waker_is_net(waker_key key);
 waker_key blocking_key(uint64_t id);
 waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id);
 uint32_t rt_channel_owner_shard_id(const rt_channel* ch);
+void rt_channel_bind_owner_shard(void* channel, uint32_t shard_id);
 
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
 rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key);

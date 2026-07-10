@@ -12,6 +12,7 @@ typedef enum rt_remote_task_op {
     RT_REMOTE_TASK_OP_CANCEL = 2,
     RT_REMOTE_TASK_OP_RELEASE = 3,
     RT_REMOTE_TASK_OP_EXECUTE = 4,
+    RT_REMOTE_TASK_OP_CHANNEL_CREATE = 5,
 } rt_remote_task_op;
 
 enum {

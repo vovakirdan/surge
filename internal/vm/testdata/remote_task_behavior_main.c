@@ -37,5 +37,13 @@ int main(int argc, char** argv) {
         return rtb_mode_shutdown();
     if (strcmp(argv[1], "immediate-self-crossing") == 0)
         return rtb_mode_immediate_self_crossing();
+    if (strcmp(argv[1], "channel-create") == 0)
+        return rtb_mode_channel_create();
+    if (strcmp(argv[1], "channel-kind-aliasing") == 0)
+        return rtb_mode_channel_kind_aliasing();
+    if (strcmp(argv[1], "channel-shutdown-release") == 0)
+        return rtb_mode_channel_shutdown_release();
+    if (strcmp(argv[1], "channel-create-self") == 0)
+        return rtb_mode_channel_create_self();
     return rtb_fail("unknown mode");
 }

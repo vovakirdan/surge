@@ -1,10 +1,12 @@
 #include "rt_async_internal.h"
+#include "rt_far_channel.h"
 #include "rt_net_trace.h"
 #include "rt_remote_spawn.h"
 #include "rt_remote_task.h"
 
 static void rt_shutdown_release_far_tasks(rt_executor* ex) {
     rt_far_task_release_all(ex);
+    rt_far_channel_release_all(ex);
     for (;;) {
         size_t drained = 0;
         size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));

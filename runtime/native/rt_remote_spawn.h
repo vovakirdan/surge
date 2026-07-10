@@ -1,6 +1,8 @@
 #ifndef SURGE_RUNTIME_NATIVE_RT_REMOTE_SPAWN_H
 #define SURGE_RUNTIME_NATIVE_RT_REMOTE_SPAWN_H
 
+#include "rt_transport.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -22,11 +24,21 @@ typedef enum rt_remote_spawn_status {
     RT_REMOTE_SPAWN_STATUS_INVALID_PLACEMENT = 8,
 } rt_remote_spawn_status;
 
+// Shared far-handle token: one allocator/validator namespace for every
+// far-handle kind. `kind` disambiguates registries so a task token can
+// never resolve against a channel record (and vice versa) even when ids
+// collide. Lifetime models stay per-kind; only the token shape is shared.
+typedef enum rt_far_handle_kind {
+    RT_FAR_HANDLE_KIND_UNSET = 0,
+    RT_FAR_HANDLE_KIND_TASK = 1,
+    RT_FAR_HANDLE_KIND_CHANNEL = 2,
+} rt_far_handle_kind;
+
 typedef struct rt_far_task_handle {
     uint64_t task_id;
     uint64_t generation;
     uint32_t owner_shard_id;
-    uint32_t _pad;
+    uint32_t kind;
 } rt_far_task_handle;
 
 rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,

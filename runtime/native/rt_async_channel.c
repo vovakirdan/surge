@@ -7,6 +7,15 @@ uint32_t rt_channel_owner_shard_id(const rt_channel* ch) {
     return ch != NULL ? ch->owner_shard_id : 0;
 }
 
+// Binds a channel created outside task context (e.g. a transport dispatcher
+// minting an owner-side channel) to its owning shard.
+void rt_channel_bind_owner_shard(void* channel, uint32_t shard_id) {
+    rt_channel* ch = channel_from_handle(channel);
+    if (ch != NULL) {
+        ch->owner_shard_id = shard_id;
+    }
+}
+
 static int prepare_channel_send_yield(rt_task* task) {
     if (task == NULL) {
         return 0;

@@ -354,6 +354,7 @@ struct rt_executor {
     // Written on the control lane; read by shard-side wait predicates.
     _Atomic uint8_t shutdown;
     struct rt_remote_task_state* remote_tasks;
+    struct rt_far_channel_state* far_channels;
     pthread_mutex_t blocking_lock;
     pthread_cond_t blocking_cv;
     pthread_t* blocking_workers;

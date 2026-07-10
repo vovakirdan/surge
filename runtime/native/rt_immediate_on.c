@@ -127,8 +127,10 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
 
-    rt_far_task_handle route = {
-        .task_id = 0, .generation = 0, .owner_shard_id = resolved.shard_id, ._pad = 0};
+    rt_far_task_handle route = {.task_id = 0,
+                                .generation = 0,
+                                .owner_shard_id = resolved.shard_id,
+                                .kind = RT_FAR_HANDLE_KIND_TASK};
     rt_remote_task_pending* request =
         rt_remote_task_pending_new(ex, &route, source_shard, RT_REMOTE_TASK_OP_EXECUTE, 1);
     if (request == NULL) {

@@ -103,6 +103,26 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "immediate-self-crossing",
 			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1"),
 		},
+		{
+			name: "far-channel-mint-resolve-release-round-trip",
+			mode: "channel-create",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "far-channel-kind-tag-blocks-registry-aliasing",
+			mode: "channel-kind-aliasing",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "far-channel-shutdown-releases-live-entries",
+			mode: "channel-shutdown-release",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "far-channel-self-crossing-create-uses-transport",
+			mode: "channel-create-self",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
