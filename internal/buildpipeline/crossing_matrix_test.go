@@ -83,6 +83,52 @@ fn main() -> int {
 	}
 }
 
+// The channel producer stays guarded on every backend until its lowering
+// lands: an async, copy-element `channel_on` — the exact shape that will
+// become executable — reports its own diagnostic, not a generic one.
+func TestChannelOnStaysGuardedOnAllBackends(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.sg")
+	source := `
+async fn produce(dst: Placement) -> int {
+    let ch: far Channel<int> = channel_on::<int>(dst, 4);
+    let _ = ch;
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	for _, backend := range []Backend{BackendVM, BackendLLVM, Backend("future_backend")} {
+		t.Run(string(backend), func(t *testing.T) {
+			res, compileErr := Compile(context.Background(), &CompileRequest{
+				TargetPath:     path,
+				Backend:        backend,
+				MaxDiagnostics: 200,
+			})
+			if compileErr == nil {
+				t.Fatal("expected channel_on to stay guarded before its lowering lands")
+			}
+			if res.MIR != nil {
+				t.Fatal("expected no MIR for a guarded channel_on compile")
+			}
+			if res.Diagnose == nil || res.Diagnose.Bag == nil {
+				t.Fatalf("missing diagnostics bag: %v", compileErr)
+			}
+			diags := res.Diagnose.Bag.Items()
+			if findDiagnostic(diags, diag.FutChannelOnBackendUnavailable) == nil {
+				t.Fatalf("missing FUT7018 on %s, got %s", backend, summarizeCodes(diags))
+			}
+		})
+	}
+}
+
 // Production LLVM opens the async immediate `on placement` shape: it compiles
 // to MIR with no backend-unavailable diagnostic.
 func TestLLVMTransportCapabilityOpensAsyncImmediateOn(t *testing.T) {

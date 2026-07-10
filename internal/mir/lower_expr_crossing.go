@@ -22,6 +22,8 @@ func mirCrossingKindName(kind sema.CrossingLoweringKind) string {
 		return "far_task_await"
 	case sema.CrossingLoweringFarTaskCancel:
 		return "far_task_cancel"
+	case sema.CrossingLoweringChannelCreate:
+		return "channel_create"
 	default:
 		return fmt.Sprintf("kind_%d", kind)
 	}

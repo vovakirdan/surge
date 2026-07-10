@@ -28,6 +28,8 @@ func crossingConstructName(kind sema.CrossingLoweringKind) string {
 		return "`far Task<T>.await()`"
 	case sema.CrossingLoweringFarTaskCancel:
 		return "`far Task<T>.cancel()`"
+	case sema.CrossingLoweringChannelCreate:
+		return "`channel_on`"
 	default:
 		return fmt.Sprintf("crossing kind %d", kind)
 	}

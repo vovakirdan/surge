@@ -30,6 +30,7 @@ type Plain = { id: int };
 @intrinsic const pool: Placement;
 @intrinsic const distributed: Placement;
 @intrinsic fn shard(id: ShardId) -> Placement;
+@intrinsic fn channel_on<T>(dst: Placement, capacity: uint) -> far Channel<T>;
 `
 
 // onCrossingCodes runs parse + sema on the prelude plus src and returns the set

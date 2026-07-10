@@ -88,6 +88,10 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		return res.IsCopyType(info.PayloadType)
 	case sema.CrossingLoweringFarTaskCancel:
 		return true
+	case sema.CrossingLoweringChannelCreate:
+		// The element type is the channel's payload boundary: a channel whose
+		// values cannot cross shards must not be mintable remotely.
+		return res.IsCopyType(info.PayloadType)
 	default:
 		return false
 	}

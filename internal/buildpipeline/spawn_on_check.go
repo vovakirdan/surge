@@ -11,6 +11,7 @@ const (
 	spawnOnUnavailableMsg       = "`spawn on` remote spawn cannot be executed: no available backend supports cross-shard transport"
 	farTaskAwaitUnavailableMsg  = "`far Task<T>.await()` cannot be executed: no available backend supports remote task transport"
 	farTaskCancelUnavailableMsg = "`far Task<T>.cancel()` cannot be executed: no available backend supports remote task transport"
+	channelOnUnavailableMsg     = "`channel_on(...)` cannot be executed: this backend has no remote channel transport"
 )
 
 // addSpawnOnBackendErrors guards accepted `spawn on dst { ... }` remote spawns
@@ -26,11 +27,13 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 	spawnSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringSpawnOn)
 	awaitSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringFarTaskAwait)
 	cancelSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringFarTaskCancel)
+	channelSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringChannelCreate)
 	for _, mod := range modules {
 		for _, sr := range mod.Sema {
 			spawnSpans = append(spawnSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringSpawnOn)...)
 			awaitSpans = append(awaitSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringFarTaskAwait)...)
 			cancelSpans = append(cancelSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringFarTaskCancel)...)
+			channelSpans = append(channelSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringChannelCreate)...)
 		}
 	}
 	for _, sp := range dedupeSpans(spawnSpans) {
@@ -54,6 +57,14 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 			Severity: diag.SevError,
 			Code:     diag.FutFarTaskCancelBackendUnavailable,
 			Message:  farTaskCancelUnavailableMsg,
+			Primary:  sp,
+		})
+	}
+	for _, sp := range dedupeSpans(channelSpans) {
+		diagRes.Bag.Add(&diag.Diagnostic{
+			Severity: diag.SevError,
+			Code:     diag.FutChannelOnBackendUnavailable,
+			Message:  channelOnUnavailableMsg,
 			Primary:  sp,
 		})
 	}

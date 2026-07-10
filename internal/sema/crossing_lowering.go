@@ -22,6 +22,10 @@ const (
 	CrossingLoweringFarTaskAwait
 	// CrossingLoweringFarTaskCancel records `far Task<T>.cancel()`.
 	CrossingLoweringFarTaskCancel
+	// CrossingLoweringChannelCreate records a `channel_on(dst, cap)` producer
+	// call: create a channel owned by the destination shard and return the
+	// remote handle.
+	CrossingLoweringChannelCreate
 )
 
 // CrossingDestinationKind classifies a checked crossing destination.

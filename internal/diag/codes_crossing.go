@@ -147,6 +147,8 @@ const (
 	FutFarTaskAwaitBackendUnavailable Code = 7016
 	// FutFarTaskCancelBackendUnavailable marks `far Task<T>.cancel()` as unavailable in this backend/configuration.
 	FutFarTaskCancelBackendUnavailable Code = 7017
+	// FutChannelOnBackendUnavailable marks `channel_on(...)` as unavailable in this backend/configuration.
+	FutChannelOnBackendUnavailable Code = 7018
 )
 
 // crossingCodeDescriptions holds the human-readable titles for the
@@ -213,6 +215,7 @@ var crossingCodeDescriptions = map[Code]string{
 	FutSpawnOnBackendUnavailable:       "`spawn on` remote spawn cannot be executed: no available backend supports cross-shard transport",
 	FutFarTaskAwaitBackendUnavailable:  "`far Task<T>.await()` cannot be executed: no available backend supports remote task transport",
 	FutFarTaskCancelBackendUnavailable: "`far Task<T>.cancel()` cannot be executed: no available backend supports remote task transport",
+	FutChannelOnBackendUnavailable:     "`channel_on(...)` cannot be executed: this backend has no remote channel transport",
 }
 
 func init() {

@@ -2,12 +2,12 @@
 == HIR ==
 module 
 
-fn sum(arr: type#1501) -> int (id=1, sym=1419) {
+fn sum(arr: type#1505) -> int (id=1, sym=1421) {
   let mut total: int [copy] = 0
   {
     let mut __iter1: type#190 = iter_init(arr): type#190
     while true {
-      let __next2: type#1503 = iter_next(__iter1): type#1503
+      let __next2: type#1507 = iter_next(__iter1): type#1507
       if tag_test(__next2, nothing): bool {
         break
       }

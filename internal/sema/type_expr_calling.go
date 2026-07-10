@@ -149,7 +149,9 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 			tc.report(diag.SemaIntrinsicBadContext, span, "timeout(...) is only available in async/task context; call it inside async/task and await it via x.await()")
 		}
 	}
-	return tc.callResultType(id, call, span)
+	resultType := tc.callResultType(id, call, span)
+	tc.maybeRecordChannelCreateCrossing(id, call, resultType, span)
+	return resultType
 }
 
 func (tc *typeChecker) typeExprIndex(id ast.ExprID, span source.Span) types.TypeID {

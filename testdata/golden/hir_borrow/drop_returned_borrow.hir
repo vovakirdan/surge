@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-@entrypoint fn main() -> nothing (id=1, sym=1419) {
+@entrypoint fn main() -> nothing (id=1, sym=1421) {
   let mut xs: type#79 = [1, 2, 3]: type#79
   let item: &mut int [&mut] = get_mut((&mut xs), 0): &mut int
   ((* item) = 10): int
@@ -13,17 +13,17 @@ module
 }
 
 borrow edges:
-  L2839(item) (&mut) borrows L2838(xs) at 0:95-97 scope=S3
-  L2840(shared) (&) borrows L2838(xs) at 0:167-170 scope=S3
+  L2843(item) (&mut) borrows L2842(xs) at 0:95-97 scope=S3
+  L2844(shared) (&) borrows L2842(xs) at 0:167-170 scope=S3
 events:
-  borrow_start L2839(item) -> L2838(xs) (&mut) at 0:95-97 scope=S3 note="B1"
-  write L2839(item) at 0:114-124 scope=S3 note="write_through_mut_ref"
-  drop L2839(item) -> L2838(xs) at 0:130-141 scope=S3 note="B1"
-  borrow_end L2839(item) -> L2838(xs) at 0:130-141 scope=S3 note="drop B1"
-  borrow_start L2840(shared) -> L2838(xs) (&) at 0:167-170 scope=S3 note="B2"
-  borrow_end L2840(shared) -> L2838(xs) scope=S3 note="scope_end B2"
+  borrow_start L2843(item) -> L2842(xs) (&mut) at 0:95-97 scope=S3 note="B1"
+  write L2843(item) at 0:114-124 scope=S3 note="write_through_mut_ref"
+  drop L2843(item) -> L2842(xs) at 0:130-141 scope=S3 note="B1"
+  borrow_end L2843(item) -> L2842(xs) at 0:130-141 scope=S3 note="drop B1"
+  borrow_start L2844(shared) -> L2842(xs) (&) at 0:167-170 scope=S3 note="B2"
+  borrow_end L2844(shared) -> L2842(xs) scope=S3 note="scope_end B2"
 move plan:
-  L2838(xs): MoveNeedsDrop (non-copy (drop))
-  L2839(item): MoveAllowed (non-copy reference)
-  L2840(shared): MoveCopy (copy type)
+  L2842(xs): MoveNeedsDrop (non-copy (drop))
+  L2843(item): MoveAllowed (non-copy reference)
+  L2844(shared): MoveCopy (copy type)
 

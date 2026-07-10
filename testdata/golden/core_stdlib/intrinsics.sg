@@ -206,6 +206,12 @@ pub type ShardId = uint32;
 
 @intrinsic pub fn shard(id: ShardId) -> Placement;
 
+// Creates a channel owned by the destination placement's shard and returns
+// the caller's remote handle to it. The channel object never leaves its
+// owner; only the handle crosses. Execution requires a backend with remote
+// channel transport; other backends report a deterministic diagnostic.
+@intrinsic pub fn channel_on<T>(dst: Placement, capacity: uint) -> far Channel<T>;
+
 @intrinsic fn rt_scope_enter(failfast: bool) -> uint;
 @intrinsic fn rt_scope_register_child<T>(scope: uint, child: Task<T>) -> nothing;
 @intrinsic fn rt_scope_cancel_all(scope: uint) -> nothing;
