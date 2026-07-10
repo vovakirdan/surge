@@ -106,7 +106,6 @@ static void* rt_blocking_worker_main(void* arg) {
                               (unsigned long long)job->task_id,
                               (unsigned long long)job->fn_id,
                               (unsigned long long)result);
-        (void)atomic_fetch_sub_explicit(&ex->blocking_running, 1, memory_order_relaxed);
         (void)atomic_fetch_add_explicit(&ex->blocking_completed, 1, memory_order_relaxed);
 
         job->result_bits = result;
@@ -120,6 +119,11 @@ static void* rt_blocking_worker_main(void* arg) {
             wake_key_all(ex, blocking_key(job->task_id));
             rt_control_unlock(ex);
         }
+        // The running counter drops only after the completion wake is
+        // delivered: idleness checks treat a nonzero count as pending
+        // progress, so a decrement before the wake would let them observe
+        // a quiescent pool while the woken task is not yet visible.
+        (void)atomic_fetch_sub_explicit(&ex->blocking_running, 1, memory_order_release);
         blocking_job_release(job);
     }
 }

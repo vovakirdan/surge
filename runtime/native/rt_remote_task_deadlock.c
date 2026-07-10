@@ -111,9 +111,12 @@ static int all_shards_quiescent(rt_executor* ex) {
 // keeps its body alive, and the reference keeps it valid after the unlock —
 // inbound dispatch nests `state->lock` under a shard lock, so this function
 // must never do the reverse), then each body's status and park key are read
-// under its own owner shard lock with no other lock held. When
-// `expect_task_id` is nonzero, only that body counts — the verify pass must
-// see the same suspect still parked, not a new one.
+// under its own owner shard lock with no other lock held. Batches walk the
+// whole list by qualifying position; at the quiescence this runs under the
+// list cannot mutate between batches, and any churn that could shift
+// positions also fails the caller's re-verify. When `expect_task_id` is
+// nonzero, only that body counts — the verify pass must see the same
+// suspect still parked, not a new one.
 static uint64_t find_channel_parked_body(rt_executor* ex,
                                          uint64_t expect_task_id,
                                          const char** op_name,
@@ -122,56 +125,70 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
     if (state == NULL) {
         return 0;
     }
-    enum { RT_DEADLOCK_CANDIDATE_CAP = 8 };
-    rt_task* bodies[RT_DEADLOCK_CANDIDATE_CAP];
-    size_t body_count = 0;
-    pthread_mutex_lock(&state->lock);
-    for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
-        if (it->status != RT_REMOTE_TASK_STATUS_PENDING) {
-            continue;
+    enum { RT_DEADLOCK_CANDIDATE_BATCH = 8 };
+    size_t skip = 0;
+    for (;;) {
+        rt_task* bodies[RT_DEADLOCK_CANDIDATE_BATCH];
+        size_t body_count = 0;
+        size_t seen = 0;
+        pthread_mutex_lock(&state->lock);
+        for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
+            if (it->status != RT_REMOTE_TASK_STATUS_PENDING) {
+                continue;
+            }
+            if (it->op != RT_REMOTE_TASK_OP_EXECUTE &&
+                it->op != RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
+                continue;
+            }
+            if (it->handle.task_id == 0) {
+                continue;
+            }
+            if (expect_task_id != 0 && it->handle.task_id != expect_task_id) {
+                continue;
+            }
+            if (seen++ < skip) {
+                continue;
+            }
+            rt_task* body = get_task(ex, it->handle.task_id);
+            if (body == NULL) {
+                continue;
+            }
+            task_add_ref(body);
+            bodies[body_count++] = body;
+            if (body_count == RT_DEADLOCK_CANDIDATE_BATCH) {
+                break;
+            }
         }
-        if (it->op != RT_REMOTE_TASK_OP_EXECUTE && it->op != RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
-            continue;
-        }
-        if (it->handle.task_id == 0) {
-            continue;
-        }
-        if (expect_task_id != 0 && it->handle.task_id != expect_task_id) {
-            continue;
-        }
-        rt_task* body = get_task(ex, it->handle.task_id);
-        if (body == NULL) {
-            continue;
-        }
-        task_add_ref(body);
-        bodies[body_count++] = body;
-        if (body_count == RT_DEADLOCK_CANDIDATE_CAP) {
-            break;
-        }
-    }
-    pthread_mutex_unlock(&state->lock);
-    uint64_t suspect_id = 0;
-    for (size_t i = 0; i < body_count; i++) {
-        rt_task* body = bodies[i];
-        if (suspect_id == 0) {
-            rt_shard* owner = rt_task_owner_shard(ex, body);
-            if (owner != NULL) {
-                rt_shard_lock(owner);
-                int waiting = task_status_load(body) == TASK_WAITING;
-                uint8_t kind = body->park_key.kind;
-                rt_shard_unlock(owner);
-                if (waiting && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV)) {
-                    suspect_id = body->id;
-                    *op_name = kind == WAKER_CHAN_SEND ? "send" : "recv";
-                    if (owner_shard_id != NULL) {
-                        *owner_shard_id = body->owner_shard_id;
+        pthread_mutex_unlock(&state->lock);
+        uint64_t suspect_id = 0;
+        for (size_t i = 0; i < body_count; i++) {
+            rt_task* body = bodies[i];
+            if (suspect_id == 0) {
+                rt_shard* owner = rt_task_owner_shard(ex, body);
+                if (owner != NULL) {
+                    rt_shard_lock(owner);
+                    int waiting = task_status_load(body) == TASK_WAITING;
+                    uint8_t kind = body->park_key.kind;
+                    rt_shard_unlock(owner);
+                    if (waiting && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV)) {
+                        suspect_id = body->id;
+                        *op_name = kind == WAKER_CHAN_SEND ? "send" : "recv";
+                        if (owner_shard_id != NULL) {
+                            *owner_shard_id = body->owner_shard_id;
+                        }
                     }
                 }
             }
+            task_release_lane_aware(ex, body);
         }
-        task_release_lane_aware(ex, body);
+        if (suspect_id != 0) {
+            return suspect_id;
+        }
+        if (body_count < RT_DEADLOCK_CANDIDATE_BATCH) {
+            return 0;
+        }
+        skip += body_count;
     }
-    return suspect_id;
 }
 
 void rt_remote_task_deadlock_check(rt_executor* ex) {
