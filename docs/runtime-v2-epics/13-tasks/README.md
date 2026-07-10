@@ -29,7 +29,7 @@ task-suspend-vs-shard-park invariant.
 | 9 | `09-await-cancel-vertical.md` | Complete | lowering + runtime e2e | 8 |
 | 10 | `10-immediate-on-vertical.md` | Complete | lowering + runtime e2e | 6, 7, 9 |
 | 11 | `11-unsupported-forms-matrix.md` | Complete | backend matrix tests | 8, 9, 10 |
-| 12 | `12-benchmark-ci-gate-closeout.md` | Pending | bench + CI + closeout | all |
+| 12 | `12-benchmark-ci-gate-closeout.md` | Complete | bench + CI + closeout | all |
 
 Execution order rulings:
 

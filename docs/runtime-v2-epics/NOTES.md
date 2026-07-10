@@ -5026,3 +5026,82 @@ the extended pattern), `make runtime-v2-transport-contract-check`,
 Sentrux baselines: root `6183`, `internal` `6518`, `runtime` `5324`,
 `runtime/native` `5409` (unchanged from the Task 10 close-out; this task
 adds only tests and docs). Task 12 (benchmark + CI gate + closeout) remains.
+
+## 2026-07-10 — Epic 13 Task 12 Complete: Epic Closeout And Handoff
+
+The epic's Closeout section (final shape, per-criterion acceptance evidence,
+debt disposition, handoff pointers) is written into
+`13-phase4-transport-spine-and-placement-task-lowering.md`; this entry is
+the handoff log record.
+
+- Gate: `runtime-v2-transport-check` is the stable umbrella over the
+  transport contract target (park/wake spine acceptance incl. the lost-wake
+  negative control, publication rows, the three e2e verticals, race rows,
+  and the negative matrix), wired into `runtime-v2-check`. Every `-run`
+  regex verified non-empty via `go test -list`
+  (4/1/8/3/4/12/4/14 matching tests per pattern); the gate passed twice
+  consecutively before wiring.
+- Benchmark: `scripts/bench_crossing.py` (owns per-probe subprocess
+  timeouts and reports probe/mode on expiry — the `RV2-DEBT-006` lesson;
+  the channel-script debt is not inherited). Baseline at 2000
+  iterations/probe: spawn-await 92848/5850/6338 rt/sec at shards 1/2/8
+  (10.8/171.0/157.8 us/rt); immediate-on 146388/17643/12018 rt/sec
+  (6.8/56.7/83.2 us/rt). Multi-shard round trips cost ~57-171 us — honest
+  liveness-cost numbers for the remote-channel epic to baseline against,
+  not line-rate claims. Immediate-on's ~2.5-3x advantage over spawn+await
+  on multi-shard rows is the dedicated-category rationale made measurable.
+- Trace counter review: enqueue (total/control/data), drain
+  (total/control/data), wake writes, wake elisions, spawn requests/acks,
+  completion replies, cancel replies, stale generation-token drops, release
+  requests, immediate execute requests/replies all exist and are exercised
+  by rows in the behavior/spine suites. Added this task: `credit_stalls`
+  (declared per the epic contract; structurally zero until the credit
+  protocol exists — recorded as such) and `unsupported_fallback_attempts`
+  (tripwire; asserted zero in the trace-equivalence row — nonzero is a bug
+  by definition).
+- Debt: `011`/`018` narrow-closed for the transport gate (Task 2 evidence in
+  their rows; broad matrix stays with Backend/Test Matrix Cleanup); `024`
+  reaffirmed (Task 1 decision; higher-order boundary future); `025`/`026`
+  reassigned with affinity as a transport invariant; `028` reviewed and kept
+  open, owner moved to the next native structural cleanup pass together
+  with `naming-cleanup-plan.md`; no new debt from Tasks 3-11 without an
+  owner.
+- Docs: `README.md` (epics) marks Epic 13 complete with the new gate;
+  `docs/RUNTIME_V2.md` Phase 4 carries the executable-now vs future-work
+  status note (no overstatement: channels/select/scopes/migration/credits/
+  pool execution remain open).
+- Quality closeout: `make check`, `make c-check`, `make cppcheck`,
+  `make golden-check`, `./check_file_sizes.sh -a`, `make runtime-v2-check`
+  twice, Sentrux four scopes on the committed tree — numbers recorded below
+  after the closing commit; deltas vs the Task 1-era baselines are the
+  RV2-DEBT-028 record.
+
+Full-gate stabilization findings while running `runtime-v2-check` twice:
+
+- Latent harness breaks from the Task 9 `waker_key.owner_shard_id` field, in
+  gates that only run inside the full `runtime-v2-check` family: two-field
+  `waker_key` initializers in the fd-registry harness snippets
+  (`runtime_v2_fd_registry_static_test.go`,
+  `runtime_v2_fd_registry_shutdown_static_test.go`) and the net-poller wake
+  matrix (`runtime_v2_net_poller_static_test.go`) failed
+  `-Wmissing-field-initializers -Werror`; fixed by adding the third field.
+  The fd-registry shutdown harness also needed transport teardown stubs
+  (`rt_far_task_release_all`, `rt_remote_spawn_drain_inbound_locked`,
+  `rt_remote_spawn_fail_all_pending`) because `rt_shutdown.c` now routes
+  far-task release/drain at shutdown. Same class as the explicit-source-list
+  pitfall recorded at Task 9 close-out: harnesses that embed or `#include`
+  runtime sources must be revisited whenever shared runtime structs/entry
+  points change.
+- Accepted transient (documented `RV2-DEBT-018`/`027` class):
+  `TestRuntimeV2HTTPOwnerLocalBehavior` failed once per discarded run on a
+  different shard row each time (shards-8, then shards-2; `status=408`
+  empty-body client timeout — net-timing, unrelated to transport work).
+  Focused reruns green (3x and 5x); the accepted evidence pair is a fully
+  green `runtime-v2-check` plus a second run whose only failure is this
+  documented transient with green focused reruns, following the Epic 8
+  Task 13 precedent.
+
+Next epics reuse the spine: message-kind + dispatcher-arm + pending/reply-
+wait/take-owner discipline (pointers in the epic Closeout). The epic/task
+naming cleanup (`naming-cleanup-plan.md`) is the recommended next
+maintenance change before the Backend/Test Matrix Cleanup epic.

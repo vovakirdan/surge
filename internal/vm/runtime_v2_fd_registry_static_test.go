@@ -268,15 +268,15 @@ int waker_is_net(waker_key key) {
 }
 
 waker_key net_accept_key(int fd) {
-    return (waker_key){WAKER_NET_ACCEPT, (uint64_t)fd};
+    return (waker_key){WAKER_NET_ACCEPT, (uint64_t)fd, 0};
 }
 
 waker_key net_read_key(int fd) {
-    return (waker_key){WAKER_NET_READ, (uint64_t)fd};
+    return (waker_key){WAKER_NET_READ, (uint64_t)fd, 0};
 }
 
 waker_key net_write_key(int fd) {
-    return (waker_key){WAKER_NET_WRITE, (uint64_t)fd};
+    return (waker_key){WAKER_NET_WRITE, (uint64_t)fd, 0};
 }
 
 const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
@@ -357,7 +357,7 @@ int main(void) {
     rt_fd_poll_interest first[1];
     rt_fd_poll_interest second[1];
     rt_fd_lifecycle_snapshot closed;
-    waker_key read_key = {WAKER_NET_READ, 42};
+    waker_key read_key = {WAKER_NET_READ, 42, 0};
 
     int err = require_int(rt_fd_registry_init(&registry) == RT_RUNTIME_STATUS_OK, 1);
     if (err != 0) return err;

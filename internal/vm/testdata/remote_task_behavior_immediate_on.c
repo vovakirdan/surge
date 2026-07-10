@@ -52,6 +52,10 @@ int task10_mode_basic(void) {
         destination.transport_spawn_requests != 0 || destination.transport_spawn_acks != 0) {
         return task9_fail("immediate basic used a publication-ack pair");
     }
+    if (source.unsupported_fallback_attempts != 0 ||
+        destination.unsupported_fallback_attempts != 0) {
+        return task9_fail("a crossing attempted an unsupported local fallback");
+    }
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }

@@ -490,3 +490,100 @@ The likely follow-up epics after Epic 13 are:
 
 Epic 13 should close with enough evidence that those epics reuse the transport
 spine instead of inventing parallel wake/message paths.
+
+
+## Closeout (2026-07-10)
+
+Final shape: the inbound transport spine (bounded two-lane ring, PARKED-state
+wake protocol, per-shard inbound queues) carries five executable message
+flows — remote spawn request/ack, remote task await/completion,
+cancel/cancel-ack, release, and the dedicated immediate execute/reply pair.
+`backendSupportsCrossingForm(LLVM, spawn_on | far_task_await |
+far_task_cancel | on_placement)` is open in production; everything else
+stays deterministically guarded.
+
+Acceptance evidence per criterion:
+
+- supported forms execute with focused tests: far-task e2e, immediate-on
+  e2e, imported-module e2e (all `SURGE_SHARDS=1,2,8`), behavior harness rows
+  (`make runtime-v2-transport-check`);
+- unsupported forms/backends fail deterministically: the owned matrix table
+  and hidden-fallback audit in `13-tasks/11-unsupported-forms-matrix.md`;
+- multi-shard non-caller proof: `immediate-on-distributed-non-caller` row +
+  the resolver's distributed non-caller policy row;
+- self-crossing reply waits are task suspends:
+  `immediate-on-self-crossing-uses-transport-at-one-shard` (counters at one
+  worker) and every `shards_1` e2e sub-row;
+- generation token + no-double-complete: registration-race rows under
+  sync points with exactly-one reply-edge consumption plus stale
+  request/reply negative rows;
+- park/wake proof incl. lost-wake negative control:
+  `TestRuntimeV2TransportSpineAcceptanceRows`;
+- bounded transport queues: ring capacity + QUEUE_FULL rows in the spine
+  behavior test (no deferral needed);
+- trace counters: enqueue (total + per lane), wake writes, wake elisions,
+  spawn requests/acks, completion replies, cancellation replies, stale
+  generation-token drops, release requests, immediate execute
+  requests/replies, plus `credit_stalls` (declared, structurally zero until
+  the credit protocol lands) and `unsupported_fallback_attempts` (asserted
+  zero in the trace-equivalence row — a nonzero value is a bug by
+  definition);
+- gates wired: `runtime-v2-transport-check` (park/wake spine, publication,
+  verticals, races, negative matrix) runs inside `runtime-v2-check`;
+  `runtime-v2-crossing-check` carries the post-flip matrix; every `-run`
+  regex verified non-empty via `go test -list` (4/1/8/3/4/12/4/14 matches);
+- benchmark baseline (`scripts/bench_crossing.py`, owns per-probe timeouts,
+  2000 iterations/probe, reference host, correctness-and-liveness-cost
+  numbers, not line-rate claims):
+
+  | probe | shards | rt/sec | us/rt |
+  | --- | --- | --- | --- |
+  | spawn-await | 1 | 92848 | 10.8 |
+  | spawn-await | 2 | 5850 | 171.0 |
+  | spawn-await | 8 | 6338 | 157.8 |
+  | immediate-on | 1 | 146388 | 6.8 |
+  | immediate-on | 2 | 17643 | 56.7 |
+  | immediate-on | 8 | 12018 | 83.2 |
+
+  The immediate execute/reply pair is ~2.5-3x cheaper per round trip than
+  spawn+await on multi-shard rows — the dedicated-category rationale is
+  visible in the numbers.
+
+Debt disposition: `RV2-DEBT-011`/`018` narrow-closed for the transport gate
+by Task 2 (broad matrix stays with the Backend/Test Matrix Cleanup epic);
+`RV2-DEBT-024` reaffirmed by Task 1 (direct crossing-site records suffice;
+higher-order boundary stays with a future effect-system epic);
+`RV2-DEBT-025`/`026` reassigned with affinity reaffirmed as a transport
+invariant; `RV2-DEBT-028` stays open (scoped `runtime/native` Sentrux
+residual from the new subsystem's inherent coupling) owned by the next
+native runtime structural cleanup pass together with the naming cleanup
+(`naming-cleanup-plan.md`); `RV2-DEBT-006` was not inherited — the new
+benchmark owns per-probe timeouts.
+
+Handoff to later epics:
+
+- remote channel send/recv: add two message kinds to the envelope enum and a
+  dispatcher arm in `rt_remote_task_dispatch_message`; reuse the listed
+  pending + reply-wait + `take_owner` discipline (`rt_remote_task_pending.c`,
+  `rt_remote_task_wait.c`) exactly as immediate `on` did — no new wake path;
+- remote `select`: the slow coordinator can register multiple reply-wait
+  keys per task (`waker_key.owner_shard_id` routing is already per-key);
+  generation tokens per edge come from the same request-id discipline;
+- distributed scope cancel/complete: reuse the token-validated routed-cancel
+  shape (`dispatch_execute_cancel`) and the owner-done completion hook;
+- Tier 2 pool: `rt_placement_resolve` already isolates the placement
+  decision; `RT_PLACEMENT_KIND_POOL` flips from UNSUPPORTED to a pool
+  scheduler without touching lowering (the compile side already passes pool
+  through);
+- credits/data-lane accounting resume point: the reserved control lane and
+  the `credit_stalls` counter exist; the credit-return protocol itself was
+  never spiked in this epic — start from the Phase 4 contract in
+  `docs/RUNTIME_V2.md`;
+- compile-time metadata consumers can rely on: per-form
+  `sema.CrossingLoweringInfo` (destination/captures/payload/result/
+  `SuspendCapable`), MIR `CrossingInstr` with body poll function + pending
+  slot, and the `backendSupportsCrossingForm` predicate plus
+  `crossingRecordExecutable` two-stage guard;
+- tests that fail today ONLY because features are intentionally
+  unavailable: none — the negative space is green by design (guarded forms
+  assert their diagnostics; nothing is skipped or expected-fail).

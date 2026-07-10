@@ -42,15 +42,15 @@ int waker_is_net(waker_key key) {
 }
 
 waker_key net_accept_key(int fd) {
-    return (waker_key){WAKER_NET_ACCEPT, (uint64_t)fd};
+    return (waker_key){WAKER_NET_ACCEPT, (uint64_t)fd, 0};
 }
 
 waker_key net_read_key(int fd) {
-    return (waker_key){WAKER_NET_READ, (uint64_t)fd};
+    return (waker_key){WAKER_NET_READ, (uint64_t)fd, 0};
 }
 
 waker_key net_write_key(int fd) {
-    return (waker_key){WAKER_NET_WRITE, (uint64_t)fd};
+    return (waker_key){WAKER_NET_WRITE, (uint64_t)fd, 0};
 }
 
 const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
@@ -246,15 +246,15 @@ int waker_is_net(waker_key key) {
 }
 
 waker_key net_accept_key(int fd) {
-    return (waker_key){WAKER_NET_ACCEPT, (uint64_t)fd};
+    return (waker_key){WAKER_NET_ACCEPT, (uint64_t)fd, 0};
 }
 
 waker_key net_read_key(int fd) {
-    return (waker_key){WAKER_NET_READ, (uint64_t)fd};
+    return (waker_key){WAKER_NET_READ, (uint64_t)fd, 0};
 }
 
 waker_key net_write_key(int fd) {
-    return (waker_key){WAKER_NET_WRITE, (uint64_t)fd};
+    return (waker_key){WAKER_NET_WRITE, (uint64_t)fd, 0};
 }
 
 rt_fd_registry* rt_executor_fd_registry(rt_executor* ex) {
@@ -373,6 +373,27 @@ void rt_shard_lock(rt_shard* shard) {
 void rt_shard_unlock(rt_shard* shard) {
     (void)shard;
 }
+
+#include "rt_remote_spawn.h"
+
+// Transport teardown stubs: the shutdown path releases outstanding far-task
+// leases and drains inbound transport queues; this harness proves only the
+// fd-registry drain behavior, so both are no-ops here.
+void rt_far_task_release_all(rt_executor* ex) {
+    (void)ex;
+}
+
+size_t rt_remote_spawn_drain_inbound_locked(rt_executor* ex, rt_shard* shard, size_t limit) {
+    (void)ex;
+    (void)shard;
+    (void)limit;
+    return 0;
+}
+
+void rt_remote_spawn_fail_all_pending(rt_executor* ex, rt_remote_spawn_status status) {
+    (void)ex;
+    (void)status;
+}
 #include "rt_fd_registry.c"
 #include "rt_shutdown.c"
 
@@ -383,9 +404,9 @@ static int require_int(int condition, int code) {
 int main(void) {
     rt_executor ex;
     memset(&ex, 0, sizeof(ex));
-    waker_key read_key = {WAKER_NET_READ, 10};
-    waker_key accept_key = {WAKER_NET_ACCEPT, 10};
-    waker_key write_key = {WAKER_NET_WRITE, 11};
+    waker_key read_key = {WAKER_NET_READ, 10, 0};
+    waker_key accept_key = {WAKER_NET_ACCEPT, 10, 0};
+    waker_key write_key = {WAKER_NET_WRITE, 11, 0};
 
     int err = require_int(rt_fd_registry_init(&registries[0]) == RT_RUNTIME_STATUS_OK, 1);
     if (err != 0) return err;

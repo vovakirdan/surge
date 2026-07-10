@@ -272,8 +272,8 @@ int main(void) {
     if (err != 0) return err;
 
     waker_key wait_keys[2] = {
-        {WAKER_NET_ACCEPT, 10},
-        {WAKER_NET_ACCEPT, 11},
+        {WAKER_NET_ACCEPT, 10, 0},
+        {WAKER_NET_ACCEPT, 11, 0},
     };
     rt_task task;
     memset(&task, 0, sizeof(task));

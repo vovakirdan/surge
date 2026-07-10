@@ -25,6 +25,8 @@ static struct rt_transport_debug_snapshot snapshot_locked(const rt_shard* shard)
     snapshot.remote_task_release_requests = state->remote_task_release_requests;
     snapshot.immediate_on_execute_requests = state->immediate_on_execute_requests;
     snapshot.immediate_on_replies = state->immediate_on_replies;
+    snapshot.credit_stalls = state->credit_stalls;
+    snapshot.unsupported_fallback_attempts = state->unsupported_fallback_attempts;
     snapshot.transport_wake_writes = state->transport_wake_writes;
     snapshot.transport_wake_elisions = state->transport_wake_elisions;
     snapshot.shutdown_wakes = state->shutdown_wakes;

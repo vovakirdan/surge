@@ -1,6 +1,9 @@
 # Epic 13 Task 12: Benchmark, CI Gate, And Closeout
 
-**Status:** pending.
+**Status:** complete (2026-07-10). Evidence: epic Closeout section in
+`13-phase4-transport-spine-and-placement-task-lowering.md`; `NOTES.md`
+"Epic 13 Task 12 Complete"; gate `runtime-v2-transport-check`;
+`scripts/bench_crossing.py` baseline table.
 **Kind:** bench + CI + docs/debt closeout.
 **Depends on:** all previous tasks.
 

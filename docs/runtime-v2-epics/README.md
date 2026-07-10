@@ -60,16 +60,19 @@ it preserved crossing meaning at sema/readiness level, froze deterministic
 backend-unavailable behavior, added `runtime-v2-crossing-check`, reconciled
 backend/test debt, and wrote the Phase 4 transport/lowering handoff. It did not
 add HIR/MIR crossing nodes, runtime transport, public runnable examples, or new
-syntax. Epic 13 is active per
-`13-phase4-transport-spine-and-placement-task-lowering.md`: first executable
-Phase 4 vertical for the cross-shard transport spine and placement task
-lowering, not the whole remote-channel/select/Tier-2 surface. Task 6's
-runtime-native remote publication API is complete in this worktree, with
-generation-backed far handles, task-suspend reply wait, deterministic failure
-statuses, and focused `runtime_v2_pending` proof. Task 7's backend-neutral
-compiler representation is complete in this worktree: guards remain
-default-closed before production HIR lowering, HIR/MIR crossing nodes are
-capability-gated for tests, and no executable backend lowering is enabled.
+syntax. Epic 13 is complete per
+`13-phase4-transport-spine-and-placement-task-lowering.md` (Closeout,
+2026-07-10): the first executable Phase 4 vertical — inbound transport
+spine, placement ABI, and the placement task crossings (`spawn on`,
+`far Task.await/cancel`, immediate `on` on its dedicated execute/reply
+category) run in production on LLVM/native across `SURGE_SHARDS=1,2,8`
+with generation tokens, owner-routed cancellation, teardown release, and
+trace-counter proof. The negative space is matrix-owned
+(`13-tasks/11-unsupported-forms-matrix.md`), the stable gate is
+`runtime-v2-transport-check` (wired into `runtime-v2-check`), and
+`scripts/bench_crossing.py` records the crossing baseline. Remote
+channels/select, distributed scopes, `pool` execution, credits, and
+migration remain future epics
 
 ## Current Runtime V2 Artifacts
 

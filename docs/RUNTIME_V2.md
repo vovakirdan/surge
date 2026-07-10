@@ -751,6 +751,17 @@ surface.
 
 ### Phase 4: Cross-Shard Messaging And Shard-Movable Values
 
+Status (2026-07-10): the first executable vertical is live on the
+LLVM/native backend — the inbound transport spine (bounded two-lane queues,
+PARKED-wake protocol), placement resolution for `shard(id)`/`distributed`,
+and the placement task crossings `spawn on`, `far Task.await()/.cancel()`,
+and immediate `on` (dedicated execute/reply category) execute in production
+with generation-token discipline and trace counters
+(`13-phase4-transport-spine-and-placement-task-lowering.md` Closeout, gate
+`runtime-v2-transport-check`). Remote channels, remote `select`, distributed
+scopes, migration, `pool` execution, credits/data-lane accounting, and any
+VM transport remain future work; their forms keep deterministic diagnostics.
+
 - Add per-shard inbound queues and wake fds.
 - Signal a target shard according to the PARKED-state wake protocol, not by a
   relaxed empty-to-non-empty queue check.
