@@ -50,6 +50,34 @@ static void poll_anchored_recv(rtb_anchored_state* state) {
     rt_async_return(state, (uint64_t)status);
 }
 
+// Body poll: resolve the anchor once, remember the raw channel, then
+// busy-yield (no waiter registered, so the task stays runnable and the
+// shard never looks quiescent) until the harness flips `proceed`. The send
+// after the gate runs on the remembered pointer — if the token was released
+// while this block was in flight, the dispatch-time pin is what keeps that
+// pointer alive.
+static void poll_anchored_pinned_send(rtb_anchored_state* state) {
+    rt_executor* ex = ensure_exec();
+    if (current_task_cancelled(ex)) {
+        rt_async_return_cancelled(state);
+    }
+    if (state->channel == NULL) {
+        void* channel = rt_far_channel_resolve(ex, &state->anchor);
+        if (channel == NULL) {
+            rt_async_return(state, 0);
+        }
+        state->channel = channel;
+        atomic_store_explicit(&state->body_ran, 1, memory_order_release);
+    }
+    if (atomic_load_explicit(&state->proceed, memory_order_acquire) == 0) {
+        rt_async_yield(state);
+    }
+    if (!rt_channel_send(state->channel, state->value)) {
+        rt_async_yield(state);
+    }
+    rt_async_return(state, 1);
+}
+
 // Caller poll: one anchored execute, retry until the reply.
 static void poll_anchored_caller(rtb_anchored_state* state) {
     uint8_t kind = 0;
@@ -70,6 +98,9 @@ void rtb_anchored_poll_dispatch(uint64_t id) {
     }
     if (id == POLL_RTB_ANCHORED_RECV_BODY) {
         poll_anchored_recv((rtb_anchored_state*)__task_state());
+    }
+    if (id == POLL_RTB_ANCHORED_PINNED_BODY) {
+        poll_anchored_pinned_send((rtb_anchored_state*)__task_state());
     }
     if (id == POLL_RTB_ANCHORED_CALLER) {
         poll_anchored_caller((rtb_anchored_state*)__task_state());
@@ -350,5 +381,71 @@ int rtb_mode_anchored_owner_teardown(void) {
         RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
         return rtb_fail("teardown left the caller without a deterministic failure");
     }
+    return 0;
+}
+
+// Self-deadlock reproducer: a full channel whose only consumer is the
+// initiating caller — the shipped send body parks, the caller sleeps on the
+// reply, and once every shard is idle the runtime must panic with the
+// actionable remote-channel-deadlock message rather than hang. The harness
+// process dies; the Go row asserts the exit and the message.
+int rtb_mode_anchored_self_deadlock(void) {
+    (void)ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(0), 1)) {
+        return rtb_fail("self-deadlock mint failed");
+    }
+    rtb_anchored_state prefill;
+    void* prefill_caller = rtb_start_anchored(&prefill, &minted.handle, 1);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(prefill_caller, &kind, &bits);
+    if (prefill.status != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("self-deadlock prefill failed");
+    }
+    rtb_anchored_state state;
+    (void)rtb_start_anchored(&state, &minted.handle, 2);
+    // Do not await and do not drain: the only path that could free the
+    // channel is this thread, which now just sleeps. The detection must
+    // fire from a worker's idle-park edge and abort the process.
+    for (uint32_t i = 0; i < 10000; i++) {
+        rtb_sleep_us(1000);
+    }
+    return rtb_fail("self-deadlock was not detected within the window");
+}
+
+// Release during an active block: the dispatch-time pin refuses
+// reclamation under the body's feet — the token stops resolving the moment
+// the release lands (stop-new), but the channel pointer the body already
+// holds stays valid until the block's reply edge unpins the entry.
+int rtb_mode_anchored_pin_vs_release(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("pin-vs-release mint failed");
+    }
+    rtb_anchored_state state;
+    memset(&state, 0, sizeof(state));
+    state.anchor = minted.handle;
+    state.value = 4;
+    state.body_poll_id = POLL_RTB_ANCHORED_PINNED_BODY;
+    void* caller = __task_create(POLL_RTB_ANCHORED_CALLER, &state);
+    if (!rtb_wait_u32(&state.body_ran, 1, 5000)) {
+        return rtb_fail("pin-vs-release body did not resolve the channel");
+    }
+    if (rt_far_channel_release(ex, &minted.handle) != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("release of a pinned entry did not succeed logically");
+    }
+    if (rt_far_channel_resolve(ex, &minted.handle) != NULL) {
+        return rtb_fail("released token still resolves during the block");
+    }
+    atomic_store_explicit(&state.proceed, 1, memory_order_release);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(caller, &kind, &bits);
+    if (state.status != RT_REMOTE_TASK_STATUS_OK || state.result_bits != 1) {
+        return rtb_fail("pinned block did not complete after the release");
+    }
+    (void)rt_executor_request_shutdown(ex);
     return 0;
 }

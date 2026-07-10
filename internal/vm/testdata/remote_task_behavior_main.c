@@ -57,5 +57,9 @@ int main(int argc, char** argv) {
         return rtb_mode_anchored_cancel_parked_body();
     if (strcmp(argv[1], "anchored-owner-teardown") == 0)
         return rtb_mode_anchored_owner_teardown();
+    if (strcmp(argv[1], "anchored-self-deadlock") == 0)
+        return rtb_mode_anchored_self_deadlock();
+    if (strcmp(argv[1], "anchored-pin-vs-release") == 0)
+        return rtb_mode_anchored_pin_vs_release();
     return rtb_fail("unknown mode");
 }

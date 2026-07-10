@@ -4,6 +4,7 @@
 
 #include "rt_async_internal.h"
 #include "rt_remote_spawn.h"
+#include "rt_remote_task.h"
 #include "rt_sync_point.h"
 
 #include <limits.h>
@@ -162,6 +163,7 @@ void* rt_worker_main(void* arg) {
                 continue;
             }
             rt_debug_assert_no_parked_with_work(ex, ctx->shard_id);
+            rt_remote_task_deadlock_check(ex);
             rt_trace_worker_sleep();
             while (scheduler->wake_pending == 0 && !ex->shutdown) {
                 pthread_cond_wait(&shard->worker_cv, &shard->lock);

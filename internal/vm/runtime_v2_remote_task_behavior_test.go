@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -136,21 +137,46 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 		{
 			name: "anchored-full-channel-parks-body-not-dispatcher",
 			mode: "anchored-full-channel",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The channel counterparty here is the harness main thread — an
+				// external actor the quiescence scan cannot see.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0",
+			),
 		},
 		{
 			name: "anchored-close-wakes-parked-recv-with-closed-outcome",
 			mode: "anchored-close-vs-recv",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The channel counterparty here is the harness main thread — an
+				// external actor the quiescence scan cannot see.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0",
+			),
 		},
 		{
 			name: "anchored-caller-cancel-cannot-resurrect-parked-body",
 			mode: "anchored-cancel-parked-body",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The channel counterparty here is the harness main thread — an
+				// external actor the quiescence scan cannot see.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0",
+			),
 		},
 		{
 			name: "anchored-owner-teardown-fails-caller-deterministically",
 			mode: "anchored-owner-teardown",
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The channel counterparty here is the harness main thread — an
+				// external actor the quiescence scan cannot see.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0",
+			),
+		},
+		{
+			name: "anchored-release-during-block-keeps-pinned-channel-alive",
+			mode: "anchored-pin-vs-release",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
 	}
@@ -160,6 +186,46 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			if code != 0 {
 				t.Fatalf("remote task mode %q failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					row.mode, code, stdout, stderr)
+			}
+		})
+	}
+}
+
+// A self-deadlocked anchored block — the channel's only consumer is the
+// caller suspended on the block's own reply — must abort the process with
+// the actionable remote-channel-deadlock panic instead of hanging. The
+// single-worker configuration is excluded deliberately: it starts no worker
+// threads, so the park-edge check never runs there and quiescence is the
+// driver-side "async deadlock" panic's territory.
+func TestRuntimeV2RemoteChannelSelfDeadlockPanics(t *testing.T) {
+	bin := buildRemoteTaskBehaviorHarness(t)
+	rows := []struct {
+		name string
+		env  []string
+	}{
+		{
+			name: "one-shard-two-workers",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=2"),
+		},
+		{
+			name: "two-shards",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			stdout, stderr, code := runRemotePublicationHarness(t, bin, "anchored-self-deadlock", row.env)
+			if code == 0 {
+				t.Fatalf("self-deadlock mode exited cleanly\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+			}
+			combined := stdout + stderr
+			if !strings.Contains(combined, "remote channel deadlock") {
+				t.Fatalf("missing deadlock panic (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					code, stdout, stderr)
+			}
+			if !strings.Contains(combined, "parked on channel send") {
+				t.Fatalf("panic does not name the parked operation\nstdout:\n%s\nstderr:\n%s",
+					stdout, stderr)
 			}
 		})
 	}
