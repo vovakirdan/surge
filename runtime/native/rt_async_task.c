@@ -345,7 +345,7 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
         }
         rt_done_waiters_decrement_for_external_await(ex);
         if (out_kind != NULL) {
-            *out_kind = rt_far_task_take_result(target, rt_current_task out_bits);
+            *out_kind = rt_far_task_take_result(target, rt_current_task(), out_bits);
         } else {
             (void)rt_far_task_take_result(target, rt_current_task(), out_bits);
         }
