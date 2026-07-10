@@ -206,6 +206,36 @@ int task10_mode_cancel_race(void) {
     return 0;
 }
 
+// Self-crossing at one shard: the destination equals the caller shard and
+// the executor has a single worker, yet the execute still travels the
+// transport path — the counters prove there is no hidden local shortcut and
+// the reply wait is a task suspend, not a shard park.
+int rtb_mode_immediate_self_crossing(void) {
+    rt_executor* ex = ensure_exec();
+    task9_child_state child;
+    memset(&child, 0, sizeof(child));
+    atomic_store_explicit(&child.gate, 1, memory_order_relaxed);
+    task10_exec_state state;
+    void* task = task10_start_exec(&state, rt_placement_shard(0), &child);
+    if (!task10_await_exec(&state, task)) {
+        return task9_fail("self-crossing execute failed");
+    }
+    if (state.result_kind != 1 || state.result_bits != 91) {
+        return task9_fail("self-crossing result mismatch");
+    }
+    if (atomic_load_explicit(&child.owner, memory_order_acquire) != 0) {
+        return task9_fail("self-crossing body did not run on the caller shard");
+    }
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    struct rt_transport_debug_snapshot shard0 =
+        rt_transport_debug_snapshot(rt_runtime_shard(runtime, 0));
+    if (shard0.immediate_on_execute_requests != 1 || shard0.immediate_on_replies != 1) {
+        return task9_fail("self-crossing bypassed the transport path");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 // Shutdown wakes an execute reply waiter that will never get a reply.
 int task10_mode_shutdown(void) {
     rt_executor* ex = ensure_exec();

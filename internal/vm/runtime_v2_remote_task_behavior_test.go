@@ -98,6 +98,11 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "immediate-shutdown",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "immediate-on-self-crossing-uses-transport-at-one-shard",
+			mode: "immediate-self-crossing",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

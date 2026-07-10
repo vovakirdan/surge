@@ -21,6 +21,19 @@ func buildRuntimeV2CrossingSource(
 	source string,
 	forms map[sema.CrossingLoweringKind]bool,
 ) string {
+	return buildRuntimeV2CrossingProject(t, source, nil, forms)
+}
+
+// buildRuntimeV2CrossingProject is the multi-file variant: modules maps a
+// module name to its source; each is written as <dir>/<name>/<name>.sg next
+// to the root source so `import <name>::...` resolves through the normal
+// dependency scan.
+func buildRuntimeV2CrossingProject(
+	t *testing.T,
+	source string,
+	modules map[string]string,
+	forms map[sema.CrossingLoweringKind]bool,
+) string {
 	t.Helper()
 	ensureLLVMToolchain(t)
 
@@ -30,6 +43,15 @@ func buildRuntimeV2CrossingSource(
 	sourcePath := artifactSourcePath(artifacts)
 	if err := os.WriteFile(sourcePath, []byte(source), 0o600); err != nil {
 		t.Fatalf("write crossing source: %v", err)
+	}
+	for name, body := range modules {
+		moduleDir := filepath.Join(artifacts.Dir, name)
+		if err := os.MkdirAll(moduleDir, 0o700); err != nil {
+			t.Fatalf("create module dir %s: %v", name, err)
+		}
+		if err := os.WriteFile(filepath.Join(moduleDir, name+".sg"), []byte(body), 0o600); err != nil {
+			t.Fatalf("write module %s: %v", name, err)
+		}
 	}
 
 	result, err := buildpipeline.Build(t.Context(), &buildpipeline.BuildRequest{

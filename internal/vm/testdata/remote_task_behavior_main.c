@@ -35,5 +35,7 @@ int main(int argc, char** argv) {
         return task10_mode_cancel_race();
     if (strcmp(argv[1], "immediate-shutdown") == 0)
         return task10_mode_shutdown();
+    if (strcmp(argv[1], "immediate-self-crossing") == 0)
+        return rtb_mode_immediate_self_crossing();
     return task9_fail("unknown mode");
 }

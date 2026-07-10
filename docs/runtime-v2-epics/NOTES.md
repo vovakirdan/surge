@@ -4977,3 +4977,52 @@ shape as Task 9's and is folded into `RV2-DEBT-028` (same recovery owner,
 Task 12 closeout).
 
 Task 11 (unsupported-forms matrix) and Task 12 (bench/CI closeout) remain.
+
+## 2026-07-10 — Epic 13 Task 11 Complete
+
+Task 11 proves the negative space of the split-capability matrix. No
+capability changed. The owned (backend × form) matrix table, the
+hidden-fallback audit with `file:line` evidence, and the bypass-backstop
+re-verification live in `13-tasks/11-unsupported-forms-matrix.md`.
+
+New owned cells added by this task (behavior-named per the naming policy in
+`naming-cleanup-plan.md`; no epic/task identifiers in code):
+
+- `TestVMAndUnknownBackendsKeepExecutableAsyncFormsGuarded`
+  (`internal/buildpipeline/crossing_matrix_test.go`): the exact async +
+  copyable shapes the LLVM capability opened stay FUT7014-7017 on `BackendVM`
+  and an unknown backend — the flip is per-(backend, form), not blanket.
+- `TestLLVMTransportCapabilityOpensAsyncImmediateOn` and
+  `TestLLVMTransportCapabilityOpensAsyncFarTaskLifecycle`: compile-to-MIR
+  proofs that production LLVM suppresses FUT7014/7015/7016/7017 for the
+  opened shapes (parallel to the existing spawn-on variant).
+- `TestRuntimeV2ImportedCrossingProductionCapability`
+  (`internal/vm/runtime_v2_imported_crossing_e2e_test.go`): an async
+  `on distributed` + `spawn on distributed`/await pair living in an imported
+  module compiles and EXECUTES end to end on `SURGE_SHARDS=1,2,8` — the
+  dependency scan's positive path. Probed first as a spike because the
+  Epic 12 record flagged imported-module crossings as an ICE risk; no ICE:
+  the executable path is clean. Multi-file support added to the e2e builder
+  (`buildRuntimeV2CrossingProject`).
+- `immediate-on-self-crossing-uses-transport-at-one-shard` behavior row
+  (`rtb_mode_immediate_self_crossing`, `SURGE_SHARDS=1`): the transport
+  counters fire (one execute request + one reply on the caller shard) even
+  when destination == caller and only one worker exists — no hidden local
+  shortcut, the reply wait is a task suspend.
+
+The new compile rows joined `make runtime-v2-crossing-check`; the imported
+e2e joined `make runtime-v2-transport-contract-check`.
+
+Sema rows re-pinned as-is (owning tests named in the matrix table): remote
+`far Channel<T>` ops keep the `SemaFarLocalOp` family rejection; `far
+TcpConn` remote I/O keeps `SemaOnTcpRemoteIO`; the HIR bypass backstop
+remains non-vacuous because the capability flips widened only the
+buildpipeline form map, never the HIR lowerer's own gate.
+
+Gates: full matrix run green twice (`make runtime-v2-crossing-check` ×2 with
+the extended pattern), `make runtime-v2-transport-contract-check`,
+`make golden-check`, `sentrux check internal`, `make check`,
+`git diff --check`, `./check_file_sizes.sh -a`. Pre-change committed-tree
+Sentrux baselines: root `6183`, `internal` `6518`, `runtime` `5324`,
+`runtime/native` `5409` (unchanged from the Task 10 close-out; this task
+adds only tests and docs). Task 12 (benchmark + CI gate + closeout) remains.

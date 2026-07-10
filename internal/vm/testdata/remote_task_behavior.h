@@ -84,5 +84,6 @@ int task10_mode_invalid_shard(void);
 int task10_mode_stale(void);
 int task10_mode_cancel_race(void);
 int task10_mode_shutdown(void);
+int rtb_mode_immediate_self_crossing(void);
 
 #endif
