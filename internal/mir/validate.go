@@ -328,7 +328,8 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			case InstrCrossing:
 				checkPlace(ins.Crossing.Dst, ctx)
 				checkPlace(ins.Crossing.Pending, ctx)
-				if ins.Crossing.Kind == sema.CrossingLoweringSpawnOn {
+				if ins.Crossing.Kind == sema.CrossingLoweringSpawnOn ||
+					ins.Crossing.Kind == sema.CrossingLoweringChannelCreate {
 					checkPlace(ins.Crossing.Handle, ctx)
 				}
 				checkOperand(ins.Crossing.Destination.Value, ctx)

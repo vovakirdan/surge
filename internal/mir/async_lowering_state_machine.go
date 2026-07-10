@@ -143,7 +143,8 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 						if ins.Crossing.Pending.Kind == PlaceLocal && len(ins.Crossing.Pending.Proj) == 0 {
 							readyLive.add(ins.Crossing.Pending.Local)
 						}
-						if ins.Crossing.Kind == sema.CrossingLoweringSpawnOn &&
+						if (ins.Crossing.Kind == sema.CrossingLoweringSpawnOn ||
+							ins.Crossing.Kind == sema.CrossingLoweringChannelCreate) &&
 							ins.Crossing.Handle.Kind == PlaceLocal && len(ins.Crossing.Handle.Proj) == 0 {
 							readyLive.add(ins.Crossing.Handle.Local)
 						}

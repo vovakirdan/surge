@@ -112,6 +112,8 @@ func (l *funcLowerer) lowerCrossingExpr(e *hir.Expr, consume bool) (Operand, err
 		if err := l.prepareOnPlacementCrossing(&ins, data.Body, e.Span); err != nil {
 			return Operand{}, err
 		}
+	case data.Kind == sema.CrossingLoweringChannelCreate:
+		l.prepareChannelCreateCrossing(&ins, e.Span)
 	case crossingUsesPendingRetryState(data.Kind):
 		l.prepareFarTaskLifecycleCrossing(&ins, e.Span)
 	}
@@ -268,7 +270,35 @@ func crossingUsesPendingRetryState(kind sema.CrossingLoweringKind) bool {
 	return kind == sema.CrossingLoweringSpawnOn ||
 		kind == sema.CrossingLoweringOnPlacement ||
 		kind == sema.CrossingLoweringFarTaskAwait ||
-		kind == sema.CrossingLoweringFarTaskCancel
+		kind == sema.CrossingLoweringFarTaskCancel ||
+		kind == sema.CrossingLoweringChannelCreate
+}
+
+// prepareChannelCreateCrossing persists the pending-retry slot and the
+// caller-side handle slot for the channel producer; there is no body
+// function — the destination creates the channel itself.
+func (l *funcLowerer) prepareChannelCreateCrossing(ins *CrossingInstr, span source.Span) {
+	if l == nil || ins == nil {
+		return
+	}
+	pendingType := l.opaquePointerType()
+	pendingLocal := l.newTemp(pendingType, "channel_create_pending", span)
+	handleLocal := l.newTemp(pendingType, "channel_create_handle", span)
+	for _, local := range []LocalID{pendingLocal, handleLocal} {
+		l.emit(&Instr{
+			Kind: InstrAssign,
+			Assign: AssignInstr{
+				Dst: Place{Local: local},
+				Src: RValue{Kind: RValueUse, Use: Operand{
+					Kind:  OperandConst,
+					Type:  pendingType,
+					Const: Const{Kind: ConstInt, Type: pendingType, IntValue: 0},
+				}},
+			},
+		})
+	}
+	ins.Pending = Place{Local: pendingLocal}
+	ins.Handle = Place{Local: handleLocal}
 }
 
 func (l *funcLowerer) prepareFarTaskLifecycleCrossing(ins *CrossingInstr, span source.Span) {

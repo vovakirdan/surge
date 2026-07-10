@@ -1,6 +1,17 @@
 # Epic 14 Task 1.5: Handle Genesis
 
-**Status:** in progress (2026-07-10).
+**Status:** in progress (2026-07-10). Shipped so far: the kind-tagged token,
+the owner-side registry with teardown ordering, the create message pair with
+counters, the caller API, the harness rows (mint/resolve/release, kind
+aliasing, shutdown sweep, one-shard self-crossing), the `channel_on`
+intrinsic with its sema record and FUT7018 guard, the MIR/LLVM lowering, and
+the override-gated mint e2e (`SURGE_SHARDS=1,2,8`) wired into the transport
+gate. Remaining in this slice: the fresh-channel-return primitive as a
+USER-visible surface (`ret <fresh channel>` typing + freshness/escape check
+— `channel_on` already implements the primitive's semantics directly, which
+the Task 1 architecture allows), the far-channel handle drop lowering
+(caller-side token free + owner-routed release on scope exit), and the
+local-counterparty contract text hand-off to Tasks 2-3.
 **Kind:** runtime handle registry + typing primitive + `channel_on` surface.
 **Depends on:** Task 1 (contract: epic decision 9, `01-kickoff.md`).
 

@@ -217,6 +217,33 @@ void rt_far_channel_release_all(rt_executor* ex) {
     }
 }
 
+// Caller-side handle storage: a bare token struct owned by the caller task's
+// scope. Unlike far-task handles (pointers into a lease), a channel handle
+// is a pure value token; the struct exists only so the LLVM far-handle
+// representation (pointer) has something to point at.
+rt_remote_task_status rt_far_channel_handle_alloc(rt_far_task_handle** out) {
+    if (out == NULL) {
+        return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
+    }
+    rt_far_task_handle* handle =
+        (rt_far_task_handle*)rt_alloc(sizeof(*handle), _Alignof(rt_far_task_handle));
+    if (handle == NULL) {
+        return RT_REMOTE_TASK_STATUS_REFUSED;
+    }
+    memset(handle, 0, sizeof(*handle));
+    handle->kind = RT_FAR_HANDLE_KIND_CHANNEL;
+    *out = handle;
+    return RT_REMOTE_TASK_STATUS_OK;
+}
+
+void rt_far_channel_handle_free(const rt_far_task_handle* handle) {
+    if (handle == NULL) {
+        return;
+    }
+    rt_free(
+        (uint8_t*)(uintptr_t)(const void*)handle, sizeof(*handle), _Alignof(rt_far_task_handle));
+}
+
 // Caller-side create: execute/reply discipline with a caller-allocated
 // handle out-param, mirroring `spawn on` publication. The destination
 // creates the channel with owner-side heap accounting, mints the registry

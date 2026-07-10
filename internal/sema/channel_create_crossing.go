@@ -52,12 +52,26 @@ func (tc *typeChecker) maybeRecordChannelCreateCrossing(
 			"`channel_on` destination must be a `Placement` value")
 		return
 	}
+	capacity := ast.NoExprID
+	capacityType := types.NoTypeID
+	if len(call.Args) >= 2 {
+		capacity = call.Args[1].Value
+		if tc.result != nil {
+			capacityType = tc.result.ExprTypes[capacity]
+		}
+	}
 	tc.markCurrentFunctionMayCross()
 	tc.recordCrossingLowering(&CrossingLoweringInfo{
 		Kind:     CrossingLoweringChannelCreate,
 		Expr:     id,
 		Span:     span,
 		Function: tc.currentFnSym(),
+		// The receiver slot carries the capacity operand: the producer has
+		// no method receiver, and the slot's lowering plumbing (HIR value,
+		// MIR operand, liveness, validation) is exactly what a scalar
+		// argument needs.
+		ReceiverExpr: capacity,
+		ReceiverType: capacityType,
 		// The producer suspends on its reply like every crossing; the
 		// synchronous-context cause gets its own sema diagnostic in the
 		// crossing-family precision pass.

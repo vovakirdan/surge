@@ -177,7 +177,7 @@ func addUsesFromCrossing(ins *CrossingInstr, addUse, addDef func(LocalID)) {
 	addUsesFromPlaceWrite(ins.Dst, addUse)
 	addDefFromPlace(ins.Dst, addDef)
 	addUsesFromPlace(ins.Pending, addUse)
-	if ins.Kind == sema.CrossingLoweringSpawnOn {
+	if ins.Kind == sema.CrossingLoweringSpawnOn || ins.Kind == sema.CrossingLoweringChannelCreate {
 		addUsesFromPlace(ins.Handle, addUse)
 	}
 	addUsesFromOperand(&ins.Destination.Value, addUse, addDef)

@@ -37,6 +37,8 @@ func (fe *funcEmitter) emitInstrCrossing(ins *mir.Instr) error {
 		return fe.emitSpawnOnCrossing(&ins.Crossing)
 	case sema.CrossingLoweringOnPlacement:
 		return fe.emitImmediateOnCrossing(&ins.Crossing)
+	case sema.CrossingLoweringChannelCreate:
+		return fe.emitChannelCreateCrossing(&ins.Crossing)
 	case sema.CrossingLoweringFarTaskAwait:
 		return fe.emitFarTaskLifecycleCrossing(&ins.Crossing, "await", "rt_far_task_await")
 	case sema.CrossingLoweringFarTaskCancel:

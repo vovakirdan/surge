@@ -41,6 +41,18 @@ func (e *Emitter) collectStringConsts() {
 				case mir.InstrTimeout:
 					e.collectOperand(&ins.Timeout.Task)
 					e.collectOperand(&ins.Timeout.Ms)
+				case mir.InstrCrossing:
+					e.collectOperand(&ins.Crossing.Destination.Value)
+					e.collectOperand(&ins.Crossing.Receiver)
+					for k := range ins.Crossing.State.Fields {
+						e.collectOperand(&ins.Crossing.State.Fields[k].Value)
+					}
+					for k := range ins.Crossing.Captures {
+						e.collectOperand(&ins.Crossing.Captures[k].Value)
+					}
+					for k := range ins.Crossing.RemoteOps {
+						e.collectOperand(&ins.Crossing.RemoteOps[k].Receiver)
+					}
 				case mir.InstrSelect:
 					for k := range ins.Select.Arms {
 						arm := &ins.Select.Arms[k]

@@ -162,6 +162,13 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("on execute token is stale")
 	e.ensureStringConst("on placement is not supported by this backend")
 	e.ensureStringConst("on execute request failed")
+	e.ensureStringConst("channel_on placement is invalid")
+	e.ensureStringConst("channel_on destination shard is shut down")
+	e.ensureStringConst("channel_on transport queue is full")
+	e.ensureStringConst("channel_on create request was refused")
+	e.ensureStringConst("channel_on placement is not supported by this backend")
+	e.ensureStringConst("channel_on create request failed")
+	e.ensureStringConst("channel_on capacity out of range")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}
