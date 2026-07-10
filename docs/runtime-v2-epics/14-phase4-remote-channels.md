@@ -151,7 +151,28 @@ path, per the Epic 13 handoff contract.
    split lands as a dedicated task slice in this epic and upgrades the whole
    crossing family at once. This classification is the template for every
    future feature: if sema CAN know the cause, sema says it.
-9. **Out of scope.** Remote `select`, distributed scopes, migration, `pool`
+9. **Handle genesis (Task 1 resolution; external review recorded).** No
+   producer of a `far Channel<T>` value exists before this epic (Epic 11:
+   parameters only). Committed: `channel_on(dst, cap) -> far Channel<T>` is
+   the headline user-facing producer, shipped in this epic as thin sugar
+   over the sanctioned primitive — a crossing body may export a
+   FRESHLY-CREATED `Channel<T>` (freshness/escape-checked), which lowering
+   mints into `far Channel<T>` via an owner-side channel registry. The
+   typing rule is nominal and narrow: a channel capability transfer, not a
+   general `T -> far T` return coercion (no other type acquires `far` by
+   return). Handle tokens come from ONE shared allocator/validator carrying
+   `owner_shard + kind + id + generation` (kind separates task-lease from
+   channel-handle, killing cross-registry aliasing), while the task and
+   channel LIFETIME models stay independent (one-shot result-transfer
+   leases vs live explicitly-closed object records; refcounts and teardown
+   uncoupled; teardown order: stop new crossings -> drain in-flight ->
+   invalidate generations -> reclaim). The genesis contract must state what
+   retains the owner-side endpoint at mint time — the supported idiom is
+   body-creates-channel + spawns a local owner-side consumer + returns the
+   far producer handle; the no-counterparty shape is the genesis-time face
+   of self-deadlock and gets its own reproducer against the decision-5
+   detection. Full record: `14-tasks/01-kickoff.md`.
+10. **Out of scope.** Remote `select`, distributed scopes, migration, `pool`
    execution, VM transport, multi-producer handles, the per-op message fast
    path (admissible later only per decision 1).
 
@@ -166,6 +187,7 @@ path, per the Epic 13 handoff contract.
 | caller cancel vs completion | exactly-one reply-edge consumption; late cancel neither suppresses nor duplicates a completed result |
 | stale-waiter resurrection | a late channel wake cannot re-park or resume a cancelled/closed body |
 | self-deadlock shape | the decision-5 behavior, deterministically reproduced |
+| no-counterparty mint (only handle exported, no owner-side consumer) | genesis-contract outcome; reproducer against the decision-5 detection |
 | generation wrap/reuse | stale handles fail deterministically across owner restart and channel-slot reuse |
 | leak audit under stress | every request ends in exactly one terminal result or one accounted orphaned reply; zero leaked reply edges, waiters, tasks, generation entries |
 
@@ -175,6 +197,11 @@ path, per the Epic 13 handoff contract.
    define the owner-side linearization point; fix the anchored op set for
    the first vertical (send, recv, close) and each op's in-body result
    shape.
+1.5. Handle genesis (every e2e depends on it): shared typed handle-token
+   mechanism; the fresh-channel-return primitive with its freshness/escape
+   check; owner-side channel registry + teardown ordering; the
+   local-counterparty contract with its reproducer; one source-level
+   create/send/recv e2e; the `channel_on` API shape as sugar.
 2. Test-first behavior rows (`SURGE_SHARDS=1,2,8`): the full race/failure
    matrix above plus trace equivalence (one execute request + one reply per
    block; fallback tripwire zero) and the dispatcher-liveness row.

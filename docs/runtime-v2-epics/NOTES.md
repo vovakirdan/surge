@@ -5110,3 +5110,35 @@ Next epics reuse the spine: message-kind + dispatcher-arm + pending/reply-
 wait/take-owner discipline (pointers in the epic Closeout). The epic/task
 naming cleanup (`naming-cleanup-plan.md`) is the recommended next
 maintenance change before the Backend/Test Matrix Cleanup epic.
+
+## 2026-07-10 — Epic 14 Task 1 Complete: Kickoff Decisions
+
+All kickoff decisions are recorded in `14-tasks/01-kickoff.md`; the epic doc
+gained boundary decision 9 (handle genesis). Highlights:
+
+- Anchored op set for the first vertical: `{send, recv, close}` on
+  `far Channel<T>`, in-body results follow LOCAL channel semantics
+  unchanged; `try_*` and `far TcpConn` I/O excluded.
+- Owner-side linearization point: the local channel lane transition on the
+  owner shard (`rt_channel_lane.h`) — FIFO is inherited from local
+  channels, not rebuilt in transport; channels already know their owner
+  (`rt_channel_owner_shard_id`).
+- Self-deadlock (epic decision 5) resolved: detection with a deterministic
+  actionable panic in all build modes at the worker idle-park quiescence
+  boundary, extending the `"async deadlock"` precedent
+  (`rt_async_poll.c:289`); feasibility bound recorded (narrows to debug +
+  design review if quiescence cannot separate deadlock from legitimate
+  idle).
+- Handle genesis (external review, Codex pass): `channel_on(dst, cap)` is
+  the headline producer, sugar over the sanctioned fresh-channel-return
+  primitive with a nominal-and-narrow typing rule (no general `T -> far T`
+  coercion); one shared handle-token allocator with a `kind` tag, task and
+  channel lifetimes kept independent; the local-counterparty rule named
+  (the no-consumer mint is the genesis-time face of self-deadlock, gets a
+  reproducer). G2 capture-mints and G3 harness-only rejected.
+- Diagnostics tiers assigned per epic decision 8, incl. the two
+  precision-pass sema codes (sync context; exact non-crossable field).
+- Sentrux baselines re-pinned on the committed tree: root `6183`,
+  `internal` `6518`, `runtime` `5324`, `runtime/native` `5409`.
+
+Next: Task 1.5 (genesis slice).
