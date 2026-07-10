@@ -22,7 +22,7 @@ void rt_far_channel_release_all(rt_executor* ex);
 
 rt_remote_task_status rt_far_channel_handle_alloc(rt_far_task_handle** out);
 void rt_far_channel_handle_free(const rt_far_task_handle* handle);
-void rt_far_channel_handle_drop(rt_far_task_handle* handle);
+void rt_far_channel_handle_drop(const rt_far_task_handle* handle);
 rt_remote_task_status rt_far_channel_create(uint64_t placement,
                                             uint64_t capacity,
                                             rt_remote_task_pending** pending,
