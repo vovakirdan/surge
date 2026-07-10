@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3015
-// Epic 11 Block 1 negative: resource assigned to far handle type (FAR-ID-003)
+// negative: resource assigned to far handle type
 fn f(c: TcpConn) -> nothing {
     let h: far TcpConn = c;
     let _ = h;

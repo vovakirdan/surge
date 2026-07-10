@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: Copy capture (ON-CAP-V001)
+// positive: Copy capture
 fn add(x: int, y: int) -> int {
     return x + y;
 }

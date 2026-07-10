@@ -35,7 +35,7 @@ func TestRuntimeV2SchedulerPlacementStealPathSourceGate(t *testing.T) {
 	}
 	if !strings.Contains(helperBody, "rt_task_can_steal_from_shard(task, shard_id)") ||
 		!strings.Contains(helperBody, "rt_trace_sched_tier1_steal_denied()") {
-		t.Fatalf("steal denial helper must preserve the no-steal check and expose Task 12 evidence:\n%s",
+		t.Fatalf("steal denial helper must preserve the no-steal check and expose scheduler evidence:\n%s",
 			helperBody)
 	}
 	for offset := 0; ; {
@@ -78,7 +78,7 @@ func TestRuntimeV2SchedulerPlacementParkedWithWorkSourceGate(t *testing.T) {
 
 func readRuntimeV2SchedulerStateSource(t *testing.T) string {
 	t.Helper()
-	// Ready-queue cluster extracted to rt_ready_queue.c (Epic 10 Task 2).
+	// Ready-queue cluster extracted to rt_ready_queue.c.
 	sourceBytes, err := os.ReadFile(filepath.Join(repoRoot(t), "runtime", "native", "rt_ready_queue.c"))
 	if err != nil {
 		t.Fatalf("read rt_ready_queue.c: %v", err)

@@ -482,7 +482,7 @@ func isCoreModulePath(path string) bool {
 }
 
 // instantiateGenericType instantiates a generic type (given by TypeID) with concrete type arguments.
-// This is used for static method calls like Type::<Args>::method().
+// This is used for static method calls like Type::<Args>::method.
 func (tc *typeChecker) instantiateGenericType(baseType types.TypeID, typeArgs []types.TypeID, site source.Span) types.TypeID {
 	if baseType == types.NoTypeID || len(typeArgs) == 0 || tc.types == nil {
 		return types.NoTypeID

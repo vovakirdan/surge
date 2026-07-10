@@ -1,6 +1,6 @@
 #include "rt_async_internal.h"
 
-// Shard-lane worker wake path (Epic 7 Task 7, spike D5/D6 applied to worker
+// Shard-lane worker wake path (spike D5/D6 applied to worker
 // sleep). Wake producers bump wake_pending under the target shard's lock
 // before signaling; sleepers re-check wake_pending under the same lock
 // before waiting, so a wake between the control-lane "no work" decision and

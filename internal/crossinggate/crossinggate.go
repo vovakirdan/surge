@@ -1,4 +1,4 @@
-// Package crossinggate wires the Epic 11 crossing-surface golden fixtures into
+// Package crossinggate wires the crossing-surface golden fixtures into
 // `go test` behind per-block gates.
 //
 // The active fixtures live under
@@ -7,7 +7,7 @@
 // so `make check` stays green. Flipping a gate to true activates that block's
 // contract: every negative fixture must emit the diagnostic code named in its
 // `// EXPECT-DIAG:` header and every positive fixture must be error-free at the
-// sema stage (parse + sema only; Epic 11 execution scope).
+// sema stage (parse + sema only; execution scope is compile-time analysis).
 //
 // Flip the gates in the documented implementation order (Block 1, then Blocks
 // 2 and 3, then the inferred-effect / shard-attribute contracts in Block 4).
@@ -15,7 +15,7 @@
 // the placeholder -> diagnostic-code mapping.
 package crossinggate
 
-// Per-block gates for the Epic 11 crossing fixtures. Each is independent; flip
+// Per-block gates for the crossing fixtures. Each is independent; flip
 // one to true when that block's parser + semantic analysis is implemented.
 const (
 	// Block1Enabled gates the `far` type-modifier fixtures.

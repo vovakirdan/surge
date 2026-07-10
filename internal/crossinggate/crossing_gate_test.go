@@ -37,7 +37,7 @@ func repoRoot(t *testing.T) string {
 }
 
 // diagnose runs parse + semantic analysis on a single fixture and returns the
-// emitted diagnostics. Epic 11 execution scope is parse + sema only.
+// emitted diagnostics. The supported execution scope is parse + sema only.
 func diagnose(t *testing.T, path string) []*diag.Diagnostic {
 	t.Helper()
 	res, err := driver.Diagnose(context.Background(), path, driver.DiagnoseStageSema, 200)
@@ -56,7 +56,7 @@ var backendStageBackends = []buildpipeline.Backend{
 }
 
 // diagnoseBackend runs a fixture through a backend compile path so that
-// backend/lowering guards fire. Epic 11 delivers the `on` surface compile-only:
+// backend/lowering guards fire. The `on` surface is compile-only:
 // a placement crossing that type-checks but reaches a backend is reported with
 // FUT7014 (FutOnBackendUnavailable) by a buildpipeline guard, not by the
 // sema-stage driver.Diagnose path. Fixtures that assert such a code declare
@@ -202,30 +202,30 @@ func runFixtures(t *testing.T, block string) {
 	}
 }
 
-const gateSkip = "Epic 11 %s gate disabled: fixtures staged, awaiting parser/sema implementation"
+const gateSkip = "%s gate disabled: fixtures staged, awaiting parser/sema implementation"
 
-func TestEpic11Block1Far(t *testing.T) {
+func TestCrossingFixturesFarHandles(t *testing.T) {
 	if !Block1Enabled {
 		t.Skipf(gateSkip, "block01")
 	}
 	runFixtures(t, "block01")
 }
 
-func TestEpic11Block2On(t *testing.T) {
+func TestCrossingFixturesOnPlacement(t *testing.T) {
 	if !Block2Enabled {
 		t.Skipf(gateSkip, "block02")
 	}
 	runFixtures(t, "block02")
 }
 
-func TestEpic11Block3SpawnOn(t *testing.T) {
+func TestCrossingFixturesSpawnOn(t *testing.T) {
 	if !Block3Enabled {
 		t.Skipf(gateSkip, "block03")
 	}
 	runFixtures(t, "block03")
 }
 
-func TestEpic11Block4Contracts(t *testing.T) {
+func TestCrossingFixturesContracts(t *testing.T) {
 	if !Block4Enabled {
 		t.Skipf(gateSkip, "block04")
 	}

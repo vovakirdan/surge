@@ -231,14 +231,14 @@ func TestRuntimeV2AcceptShardConfigInitializesRequestedShardCount(t *testing.T) 
 	values := parseExecTrace(t, res.stderr)
 	got, ok := values["runtime_shards"]
 	if !ok {
-		t.Fatalf("missing runtime_shards in TRACE_EXEC; Task 6 defines shard_count and Task 12 exposes it\nstderr:\n%s",
+		t.Fatalf("missing runtime_shards in TRACE_EXEC; shard configuration must expose the requested count\nstderr:\n%s",
 			res.stderr)
 	}
 	if got != 4 {
 		t.Fatalf("expected runtime_shards=4, got %d\nstderr:\n%s", got, res.stderr)
 	}
 	netValues, netLine := runtimeV2NetTraceValues(t, res.stderr, "exit")
-	requireRuntimeV2AcceptNetFieldEqual(t, netValues, netLine, "runtime_shards", 4, "Task 12")
+	requireRuntimeV2AcceptNetFieldEqual(t, netValues, netLine, "runtime_shards", 4, "runtime shard configuration")
 }
 
 func TestRuntimeV2AcceptRejectsInvalidShardConfig(t *testing.T) {
@@ -249,7 +249,7 @@ func TestRuntimeV2AcceptRejectsInvalidShardConfig(t *testing.T) {
 			env := overrideEnvVar(runtimeV2AcceptEnv(t), "SURGE_SHARDS", value)
 			res := runRuntimeV2AcceptConfigProbe(t, env)
 			if res.exitCode == 0 {
-				t.Fatalf("expected explicit SURGE_SHARDS rejection for %q; Task 6 owns this diagnostic\nstdout:\n%s\nstderr:\n%s",
+				t.Fatalf("expected explicit SURGE_SHARDS rejection for %q; shard configuration owns this diagnostic\nstdout:\n%s\nstderr:\n%s",
 					value, res.stdout, res.stderr)
 			}
 			if !strings.Contains(res.stderr, "SURGE_SHARDS") {
@@ -268,7 +268,7 @@ func TestRuntimeV2AcceptRejectsConflictingThreadCount(t *testing.T) {
 	env = overrideEnvVar(env, "SURGE_THREADS", "2")
 	res := runRuntimeV2AcceptConfigProbe(t, env)
 	if res.exitCode == 0 {
-		t.Fatalf("expected SURGE_SHARDS/SURGE_THREADS conflict rejection; Task 6/7 own this boundary\nstdout:\n%s\nstderr:\n%s",
+		t.Fatalf("expected SURGE_SHARDS/SURGE_THREADS conflict rejection; shard/thread configuration owns this boundary\nstdout:\n%s\nstderr:\n%s",
 			res.stdout, res.stderr)
 	}
 	if !strings.Contains(res.stderr, "SURGE_SHARDS") || !strings.Contains(res.stderr, "SURGE_THREADS") {
@@ -283,10 +283,10 @@ func TestRuntimeV2AcceptDistributionAcrossOwnerShards(t *testing.T) {
 	const clients = 64
 	stderr := runRuntimeV2AcceptBurst(t, shards, clients)
 	values, line := runtimeV2NetTraceValues(t, stderr, "exit")
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "runtime_shards", shards, "Task 12")
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_total", clients, "Task 9/12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "runtime_shards", shards, "runtime shard configuration")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_total", clients, "accept owner distribution")
 	shardValues, shardLine := runtimeV2NetShardTraceValues(t, stderr, "exit")
-	requireRuntimeV2AcceptNetFieldEqual(t, shardValues, shardLine, "runtime_shards", shards, "Task 12")
+	requireRuntimeV2AcceptNetFieldEqual(t, shardValues, shardLine, "runtime_shards", shards, "runtime shard configuration")
 
 	var total uint64
 	var active uint64
@@ -313,11 +313,11 @@ func TestRuntimeV2AcceptDistributionAcrossOwnerShards(t *testing.T) {
 		t.Fatalf("per-shard accept total mismatch: got %d want %d\nTRACE_NET:\n%s\nTRACE_NET_SHARDS:\n%s",
 			total, clients, line, shardLine)
 	}
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_active_shards", active, "Task 12")
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_min", min, "Task 12")
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_max", max, "Task 12")
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_imbalance", max-min, "Task 12")
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "global_path_fallbacks", 0, "Task 5/12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_active_shards", active, "accept owner distribution")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_min", min, "accept owner distribution")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_max", max, "accept owner distribution")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_imbalance", max-min, "accept owner distribution")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "global_path_fallbacks", 0, "global path fallback accounting")
 }
 
 func TestRuntimeV2AcceptOwnerShardLifecycleTraceContract(t *testing.T) {
@@ -335,73 +335,73 @@ func TestRuntimeV2AcceptOwnerShardLifecycleTraceContract(t *testing.T) {
 			name:  "accept owner total is counted",
 			field: "accept_owner_total",
 			min:   8,
-			owner: "Task 9/12",
+			owner: "accept owner distribution",
 		},
 		{
 			name:  "accept owner imbalance is present",
 			field: "accept_owner_imbalance",
 			min:   0,
-			owner: "Task 12",
+			owner: "accept owner distribution",
 		},
 		{
 			name:  "global-path fallback counter is present",
 			field: "global_path_fallbacks",
 			min:   0,
-			owner: "Task 5/12",
+			owner: "global path fallback accounting",
 		},
 		{
 			name:  "fd readiness batches are counted",
 			field: "fd_ready_batches",
 			min:   1,
-			owner: "Task 10/12",
+			owner: "fd readiness batching",
 		},
 		{
 			name:  "fd readiness batch fds are counted",
 			field: "fd_ready_batch_fds_total",
 			min:   1,
-			owner: "Task 10/12",
+			owner: "fd readiness batching",
 		},
 		{
 			name:  "fd readiness batch max is counted",
 			field: "fd_ready_batch_fds_max",
 			min:   1,
-			owner: "Task 10/12",
+			owner: "fd readiness batching",
 		},
 		{
 			name:  "readiness uses owner shard registry",
 			field: "fd_owner_registry_rows",
 			min:   1,
-			owner: "Task 8/11/12",
+			owner: "owner-shard registry",
 		},
 		{
 			name:  "close owner wake counter is present",
 			field: "close_owner_wakeups",
 			min:   0,
-			owner: "Task 8/11/12",
+			owner: "listener close wakeups",
 		},
 		{
 			name:  "cancellation cleanup has owner shard counter",
 			field: "cancel_owner_cleanup",
 			min:   0,
-			owner: "Task 11/12",
+			owner: "cancellation cleanup",
 		},
 		{
 			name:  "shutdown poller wake counter is present",
 			field: "shutdown_poller_wakeups",
 			min:   0,
-			owner: "Task 10/11/12",
+			owner: "shutdown poller wakeups",
 		},
 		{
 			name:  "non-owner connection use is visible",
 			field: "non_owner_conn_denied",
 			min:   0,
-			owner: "Task 7/9/12",
+			owner: "connection ownership",
 		},
 		{
 			name:  "listener group close covers every member",
 			field: "listener_group_members_closed",
 			min:   4,
-			owner: "Task 8/9/11/12",
+			owner: "listener group lifecycle",
 		},
 	}
 	for _, tc := range cases {
@@ -409,7 +409,7 @@ func TestRuntimeV2AcceptOwnerShardLifecycleTraceContract(t *testing.T) {
 			requireRuntimeV2AcceptNetFieldAtLeast(t, values, line, tc.field, tc.min, tc.owner)
 		})
 	}
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "runtime_shards", 4, "Task 12")
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_total", 8, "Task 9/12")
-	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "global_path_fallbacks", 0, "Task 5/12")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "runtime_shards", 4, "runtime shard configuration")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "accept_owner_total", 8, "accept owner distribution")
+	requireRuntimeV2AcceptNetFieldEqual(t, values, line, "global_path_fallbacks", 0, "global path fallback accounting")
 }

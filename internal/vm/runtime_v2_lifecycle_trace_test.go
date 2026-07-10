@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-// Epic 8 Task 5 trace-contract gate. Proves the per-site control-lock
+// Trace-contract gate. Proves the per-site control-lock
 // attribution counters (rt_ctrl_site, rt_async_trace.c) are wired into the
 // TRACE_EXEC dump and increment on the lifecycle census paths. The two
 // always-on census sites at baseline daeac51e — create (__task_create) and
 // join-poll (rt_task_poll) — must be non-zero; every per-site field must be
-// present so bench_native_net.sh and Tasks 6-10 can read per-request
+// present so bench_native_net.sh and can read per-request
 // attribution. The sum of the six sites can never exceed the global
 // control_lock_acquired total (attribution is a strict subset; the residual is
 // the untagged RT_CTRL_SITE_OTHER acquisitions).
@@ -81,7 +81,7 @@ fn main() -> int {
 
 	// ctrl_create is the one always-on census site: segment growth fires at
 	// least once per process (the very first id allocated). ctrl_join_poll is
-	// NOT asserted non-zero here since Epic 8 Task 7: rt_task_poll itself no
+	// NOT asserted non-zero here because rt_task_poll itself no
 	// longer takes control at all, and this program spawns no
 	// TASK_PLACEMENT_CONNECTION tasks, so the only remaining ctrl_join_poll
 	// source (the F2 placement-adoption fallback, rt_task_poll_adopt_placement)
@@ -103,7 +103,7 @@ fn main() -> int {
 	}
 }
 
-// Epic 8 Task 10 (P10, rule 5) trace guardian: external/main-thread await is
+// (P10, rule 5) trace guardian: external/main-thread await is
 // counted separately under ctrl_await_compat. The @entrypoint main runs on the
 // non-worker main thread; with workers>1 (SURGE_SHARDS=2) its top-level
 // h.await() takes rt_task_await's done_cv compatibility branch, which tags

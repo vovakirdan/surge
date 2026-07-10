@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: @shard_movable with primitive fields (MOVABLE-001)
+// positive: @shard_movable with primitive fields
 @shard_movable
 type Job = {
     id: uint64,

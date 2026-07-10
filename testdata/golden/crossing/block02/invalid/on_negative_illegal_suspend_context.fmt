@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3152
-// Epic 11 Block 2 negative: on where suspension is illegal (ON-CROSS-N002)
+// negative: on where suspension is illegal
 fn double(x: int) -> int {
     return x * 2;
 }

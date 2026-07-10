@@ -1,7 +1,7 @@
 #include "rt_async_internal.h"
 
 // Ready-queue deque storage. Callers own the locking: today every deque is
-// mutated under the executor lock; the Epic 7 lock split moves ownership to
+// mutated under the executor lock; the lock split moves ownership to
 // the owning shard's lock without changing these helpers.
 
 static int

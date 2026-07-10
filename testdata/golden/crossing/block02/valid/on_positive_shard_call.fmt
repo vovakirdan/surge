@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: on shard(id) (ON-DST-V003)
+// positive: on shard(id)
 fn double(x: int) -> int {
     return x * 2;
 }

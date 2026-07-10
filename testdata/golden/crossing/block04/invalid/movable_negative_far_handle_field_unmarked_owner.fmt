@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3171
-// Epic 11 Block 4 negative: unmarked owner with far handle field crosses as own (MOVABLE-010)
+// negative: unmarked owner with far handle field crosses as own
 type Holder = {
     conn: far TcpConn,
 };

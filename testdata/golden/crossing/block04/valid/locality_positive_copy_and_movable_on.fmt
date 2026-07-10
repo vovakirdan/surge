@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: @copy and @shard_movable crosses via on (LOCALITY-002)
+// positive: @copy and @shard_movable crosses via on
 @copy
 @shard_movable
 type Point = {

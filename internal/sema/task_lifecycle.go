@@ -20,7 +20,7 @@ import (
 // This is called when a .await() method call is detected on a task.
 //
 // The function handles two cases:
-//  1. Direct spawn expression: spawn foo().await()
+//  1. Direct spawn expression: spawn foo.await()
 //     - The task expression itself is marked as awaited
 //  2. Variable reference: let t = spawn foo(); t.await()
 //     - The binding symbol is used to locate and mark the task
@@ -38,7 +38,7 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 		return
 	}
 
-	// Case 1: Direct spawn expression (spawn foo().await())
+	// Case 1: Direct spawn expression (spawn foo.await())
 	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn {
 		tc.taskTracker.MarkAwaitedByExpr(targetExpr)
 		tc.noteTaskContainerPopConsumedByExpr(targetExpr)
@@ -117,7 +117,7 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 // the task - the current scope is no longer responsible for awaiting it.
 //
 // Common patterns this enables:
-//   - Task combinators: join_all([spawn a(), spawn b()])
+//   - Task combinators: join_all([spawn a spawn b()])
 //   - Task storage: task_queue.push(spawn compute())
 //   - Higher-order functions: map_async(items, task_processor)
 func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {

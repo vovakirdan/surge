@@ -2,7 +2,7 @@
 
 // Async runtime scope management.
 //
-// Epic 8 Task 9 (scope owner lane, S5-Q7/Q8/Q9/Q10/Q11/Q14): scope object
+// Scope owner lane (S5-Q7/Q8/Q9/Q10/Q11/Q14): scope object
 // bookkeeping runs on the scope's PINNED owner shard lane instead of the
 // control lane. A scope's owner shard is fixed at rt_scope_enter
 // (scope->owner_shard_id) and every scope-object mutation plus the scope_key
@@ -15,12 +15,12 @@
 // the pinned shard lock and releases it before any park/wake/cancel, using two
 // patterns already blessed elsewhere in this runtime: register-then-verify
 // (rt_task_poll) for join_all's park, and mutate-then-wake / snapshot-release-
-// walk (cancel_task's own children[] walk, Task 6) for child-done and failfast.
+// walk (cancel_task's own children[] walk, ) for child-done and failfast.
 //
-// Cancel/failfast walks keep a COUNTED control fallback (S5-Q9, Task 9
+// Cancel/failfast walks keep a COUNTED control fallback (S5-Q9);
 // re-derivation): cancel_task reads each child's owner_shard_id, which F2
 // self-replace (rt_task_replace_owner) writes under the control lane, so a
-// control-free walk would race that write and break Task 6's owner-lock
+// control-free walk would race that write and break owner-lock
 // invariant (rt_async_task.c). These walks are O(children) on rare
 // cancellation, never the steady request completion path.
 

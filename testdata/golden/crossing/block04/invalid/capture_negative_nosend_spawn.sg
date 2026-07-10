@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3086
-// Epic 11 Block 4 negative: @nosend capture into ordinary spawn (CAPTURE-010)
+// negative: @nosend capture into ordinary spawn
 @nosend
 type LocalOnly = {
     id: int,

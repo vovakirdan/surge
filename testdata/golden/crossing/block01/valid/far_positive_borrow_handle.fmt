@@ -1,4 +1,4 @@
-// Epic 11 Block 1 positive: shared borrow of far handle + drop (FAR-PARSE-003, FAR-OWN-003, FAR-OWN-007)
+// positive: shared borrow of far handle + drop
 fn view(x: &far TcpConn) -> nothing {
     return nothing;
 }

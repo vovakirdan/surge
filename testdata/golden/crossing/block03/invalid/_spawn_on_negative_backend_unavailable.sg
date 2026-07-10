@@ -1,6 +1,6 @@
 // EXPECT-DIAG: FUT7015
 // EXPECT-STAGE: backend
-// Epic 11 Block 3 negative: spawn on backend unavailable (G01)
+// negative: spawn on backend unavailable
 fn double(x: int) -> int {
     return x * 2;
 }

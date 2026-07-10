@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3171
-// Epic 11 Block 4 negative: @shard_movable with owned @shard_pinned field (MOVABLE-008)
+// negative: @shard_movable with owned @shard_pinned field
 @shard_movable
 type Job = {
     conn: TcpConn,

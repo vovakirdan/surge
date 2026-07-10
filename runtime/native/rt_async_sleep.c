@@ -1,6 +1,6 @@
 #include "rt_async_internal.h"
 
-// Per-shard sleep store (Epic 7 Task 9, spike D7). The waiter store keeps
+// Per-shard sleep store (spike D7). The waiter store keeps
 // the park registration for timer keys; this store is the deadline index
 // that replaces the whole-task-table scans. Both are owner-shard state. The
 // atomic min_deadline mirror lets tick paths peek other shards without

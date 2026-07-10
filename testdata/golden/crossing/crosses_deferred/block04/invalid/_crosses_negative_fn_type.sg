@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SYN2036
-// Epic 11 Block 4 negative: crosses function-type syntax (CROSSES-GRAMMAR-015)
+// negative: crosses function-type syntax
 fn route(req: int) -> int {
     return req;
 }

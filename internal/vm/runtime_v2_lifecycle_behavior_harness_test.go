@@ -21,7 +21,7 @@ func buildRuntimeV2LifecycleHarness(t *testing.T) string {
 }
 
 // buildRuntimeV2LifecycleHarnessTSan builds the same harness with
-// ThreadSanitizer enabled, mirroring the Task 3 spike's proof methodology
+// ThreadSanitizer enabled, mirroring the spike's proof methodology
 // (docs/runtime-v2-epics/08-lifecycle-lane-proving-spike.md: "a standalone C
 // model built clang -O1 -g -fsanitize=thread") but against the real tree
 // instead of the scratchpad model. Skips (not fails) if clang lacks TSan
@@ -495,7 +495,7 @@ static void poll_clone_racer(void) {
 // busy-polls with no sleep so its last-handle release has the best chance of
 // landing while another worker thread is still inside mark_done's body. This
 // is a probabilistic regression stress, not a forced deterministic
-// reproduction (Task 4 does not touch rt_async_state.c to inject a delay);
+// reproduction (does not touch rt_async_state.c to inject a delay);
 // TSan is the oracle that turns "no crash" into "no data race, no UAF".
 static void poll_pin_target(void) {
     rt_async_return(NULL, 99);

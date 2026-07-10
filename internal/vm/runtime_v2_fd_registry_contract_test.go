@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// Epic 4 Task 3 (FD lifecycle contract tests). These tests pin the net fd
-// lifecycle behavior the persistent fd registry migration (Tasks 5-11) must
+// (FD lifecycle contract tests). These tests pin the net fd
+// lifecycle behavior the persistent fd registry migration must
 // preserve; all four are green today and must stay green after the waiter-scan
 // poll rebuild path is replaced. They assert only migration-durable counters:
 // io_direct_waits, io_poll_calls, io_poll_net_ready, io_waiter_completed, and
@@ -419,7 +419,7 @@ func TestRuntimeV2FDRegistryDuplicateReadWaitersBothComplete(t *testing.T) {
 // success nor would-block) instead of parking net interest. Today the copies
 // observe NET_ERR_IO(8) via EBADF (a handle copy clones the NetConn view: fd
 // number without the closed flag); a generation-guarded registry may tighten
-// this to NET_ERR_NOT_CONNECTED(5) in Task 9, which this test permits.
+// this to NET_ERR_NOT_CONNECTED(5) in the future implementation, which this test permits.
 const fdRegistryClosedFDSource = `import stdlib/net as net;
 
 fn probe() -> byte[] {

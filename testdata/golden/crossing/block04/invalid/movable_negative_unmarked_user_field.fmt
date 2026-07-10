@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3171
-// Epic 11 Block 4 negative: @shard_movable with unmarked user field (MOVABLE-005)
+// negative: @shard_movable with unmarked user field
 type Payload = {
     id: int,
 };

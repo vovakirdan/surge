@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SYN2034
-// Epic 11 Block 4 negative: crosses after return type (CROSSES-GRAMMAR-008)
+// negative: crosses after return type
 fn route(req: int) -> int crosses {
     return req;
 }

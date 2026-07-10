@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: ret nothing result (ON-BODY-V002)
+// positive: ret nothing result
 fn double(x: int) -> int {
     return x * 2;
 }

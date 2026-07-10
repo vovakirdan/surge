@@ -6,7 +6,7 @@
 
 #include <time.h>
 
-// Sync-channel blocking compatibility lane (Epic 8 extraction): the parked
+// Sync-channel blocking compatibility lane (extraction): the parked
 // OS-worker wait, its self-refreshing compat_cv slice, the local-queue
 // handoff to inject, and compensation worker spawn. This is the deprecated
 // thread-blocking path for sync channel helpers; the async fast lanes never

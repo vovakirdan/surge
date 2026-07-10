@@ -6,7 +6,7 @@ import (
 )
 
 // TestFormatSpawnOnRemote checks that a `spawn on <dst> { ... }` remote-spawn
-// expression (Epic 11 Block 3) formats canonically and round-trips: the `spawn`
+// expression (Block 3) formats canonically and round-trips: the `spawn`
 // keyword and destination are preserved, and the formatted output reparses
 // cleanly with the same top-level item kinds.
 func TestFormatSpawnOnRemote(t *testing.T) {

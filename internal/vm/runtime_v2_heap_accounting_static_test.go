@@ -47,7 +47,7 @@ void* (*runtime_v2_check_rt_heap_stats)(void) = rt_heap_stats;
 	}
 }
 
-func TestRuntimeV2HeapAccountingStaticTask5SkeletonShape(t *testing.T) {
+func TestRuntimeV2HeapAccountingStaticShardCellSkeletonShape(t *testing.T) {
 	root := repoRoot(t)
 	nativeSources := readRuntimeV2HeapAccountingNativeSources(t, root)
 
@@ -74,12 +74,12 @@ func TestRuntimeV2HeapAccountingStaticTask5SkeletonShape(t *testing.T) {
 	}
 
 	if len(failures) > 0 {
-		t.Fatalf("Runtime V2 heap accounting Task 5 skeleton shape is not implemented yet:\n- %s",
+		t.Fatalf("Runtime V2 heap accounting shard-cell skeleton shape is not implemented yet:\n- %s",
 			strings.Join(failures, "\n- "))
 	}
 }
 
-func TestRuntimeV2HeapAccountingStaticTask6RecordMigrationShape(t *testing.T) {
+func TestRuntimeV2HeapAccountingStaticRecordMigrationShape(t *testing.T) {
 	root := repoRoot(t)
 	rtAlloc := readRuntimeV2HeapAccountingFile(t, root, "runtime/native/rt_alloc.c")
 	nativeSources := readRuntimeV2HeapAccountingNativeSources(t, root)
@@ -103,12 +103,12 @@ func TestRuntimeV2HeapAccountingStaticTask6RecordMigrationShape(t *testing.T) {
 	}
 
 	if len(failures) > 0 {
-		t.Fatalf("Runtime V2 heap accounting Task 6 record migration shape is not implemented yet:\n- %s",
+		t.Fatalf("Runtime V2 heap accounting record migration shape is not implemented yet:\n- %s",
 			strings.Join(failures, "\n- "))
 	}
 }
 
-func TestRuntimeV2HeapAccountingStaticTask7SnapshotAggregationShape(t *testing.T) {
+func TestRuntimeV2HeapAccountingStaticSnapshotAggregationShape(t *testing.T) {
 	root := repoRoot(t)
 	rtAlloc := readRuntimeV2HeapAccountingFile(t, root, "runtime/native/rt_alloc.c")
 
@@ -125,7 +125,7 @@ func TestRuntimeV2HeapAccountingStaticTask7SnapshotAggregationShape(t *testing.T
 	}
 
 	if len(failures) > 0 {
-		t.Fatalf("Runtime V2 heap accounting Task 7 snapshot aggregation shape is not implemented yet:\n- %s",
+		t.Fatalf("Runtime V2 heap accounting snapshot aggregation shape is not implemented yet:\n- %s",
 			strings.Join(failures, "\n- "))
 	}
 }

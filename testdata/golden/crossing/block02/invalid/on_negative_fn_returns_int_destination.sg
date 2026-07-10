@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3144
-// Epic 11 Block 2 negative: function returning non-Placement (ON-DST-N006)
+// negative: function returning non-Placement
 fn pick() -> int {
     return 0;
 }

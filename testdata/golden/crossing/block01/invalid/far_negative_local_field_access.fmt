@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3142
-// Epic 11 Block 1 negative: local field access on far handle (FAR-OPS-NEG-006)
+// negative: local field access on far handle
 fn f(value: far TcpConn) -> int {
     return value.__opaque;
 }

@@ -1,6 +1,6 @@
 #include "rt_async_internal.h"
 
-// Segmented scope table growth (Epic 8 Task 9, S5-Q7). Mirror of
+// Segmented scope table growth (S5-Q7). Mirror of
 // rt_task_table.c (Global Rule 5 - reuse the proven never-moved-slot pattern):
 // this file owns lazily allocating the fixed-size directory's segments.
 // get_scope / rt_scope_slot_store (the lock-free-read half of the protocol)

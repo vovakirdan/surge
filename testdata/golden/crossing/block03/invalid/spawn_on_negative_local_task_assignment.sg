@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3015
-// Epic 11 Block 3 negative: far Task assigned to local Task annotation (T02)
+// negative: far Task assigned to local Task annotation
 fn double(x: int) -> int {
     return x * 2;
 }

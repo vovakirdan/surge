@@ -8,8 +8,8 @@
 // Ownership and lifecycle:
 // - Each rt_shard owns one rt_fd_registry by value; it is initialized with the
 //   owning shard in rt_runtime_init_n1 and, like the waiter store and poll
-//   scratch, guarded by ex->lock. Task 6 routes registration-side interest
-//   writes through the waiter-store bridge in rt_async_waiter.c; Task 7 makes
+//   scratch, guarded by ex->lock. routes registration-side interest
+//   writes through the waiter-store bridge in rt_async_waiter.c; makes
 //   the registry the only poll input: poll_net_waiters snapshots rows into the
 //   shard poll scratch under ex->lock and never scans the waiter store.
 // - A row exists while the runtime owns a live registered net fd, or while an
@@ -23,8 +23,8 @@
 //   interest. Remove-plus-recreate preserves stale-wake safety because new rows
 //   take a monotonic generation from next_generation instead of resetting to 0.
 // - rt_fd_registry_free releases entry storage. No caller exists today because
-//   the process has no executor shutdown path (see the Epic 4 dependency map);
-//   Tasks 10-11 create that path and wire the free.
+//   the process has no executor shutdown path (see the dependency map);
+//   create that path and wire the free.
 // This header is included from rt_async_internal.h after rt_runtime_status,
 // waker_key, and the rt_shard/rt_executor forward typedefs; translation units
 // include rt_async_internal.h, not this header directly.
@@ -51,7 +51,7 @@ typedef struct {
     uint64_t next_generation;
     // fd -> entries index dense map (-1 = no row), maintained at the two row
     // mutation points (create/remove) under the owner shard lock. Added by
-    // Epic 10 Task 3 so the per-op stale-handle guard is O(1) instead of the
+    // so the per-op stale-handle guard is O(1) instead of the
     // linear scan, which would cost O(live fds) on every read/write.
     int32_t* fd_index;
     size_t fd_index_cap;
@@ -104,7 +104,7 @@ rt_runtime_status rt_fd_registry_ensure_cap(rt_fd_registry* registry);
 size_t rt_fd_registry_len(const rt_fd_registry* registry);
 const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd);
 rt_runtime_status rt_fd_registry_register_open_fd(rt_fd_registry* registry, int fd);
-// Epic 10 Task 3 recovery: register and report the row's generation so the
+// recovery: register and report the row's generation so the
 // canonical runtime handle can validate its fd lifetime under the owner lock.
 rt_runtime_status rt_fd_registry_register_open_fd_generation(rt_fd_registry* registry,
                                                              int fd,

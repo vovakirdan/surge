@@ -1,6 +1,6 @@
 package parser
 
-// Tests for the Epic 11 Block 3 grammar layer: the `spawn on <dst> { ... }`
+// Tests for the Block 3 grammar layer: the `spawn on <dst> { ... }`
 // remote-spawn expression. These exercise parsing and AST shape only; semantic
 // analysis (destination typing, `far Task<T>` result, capture legality, crosses
 // propagation, and the `@local spawn on` rejection SEM3174) is owned by sema and

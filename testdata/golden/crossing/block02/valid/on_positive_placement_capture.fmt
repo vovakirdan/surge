@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: Placement (Copy) captured into block (ON-CAP-V004)
+// positive: Placement (Copy) captured into block
 fn double(x: int) -> int {
     return x * 2;
 }

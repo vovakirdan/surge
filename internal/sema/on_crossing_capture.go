@@ -28,14 +28,14 @@ func (tc *typeChecker) typeFarHandleCall(member *ast.ExprMemberData, receiverTyp
 		return types.NoTypeID
 	}
 
-	// `far TcpConn` is control-only in Epic 11: `close()` is the sole operation.
+	// `far TcpConn` is control-only: `close()` is the sole operation.
 	if tc.typeNameIs(tc.farInner(receiverType), "TcpConn") && methodName != "close" {
 		tc.report(diag.SemaOnTcpRemoteIO, span, "remote socket I/O through `far TcpConn` is not supported yet")
 		return types.NoTypeID
 	}
 
 	// Accepted anchored operation: type argument expressions for the usual
-	// checks; the crossing itself is compile-only in Epic 11.
+	// checks; the crossing itself is compile-only.
 	for _, arg := range call.Args {
 		tc.typeExpr(arg.Value)
 	}

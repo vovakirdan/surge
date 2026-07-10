@@ -1,5 +1,5 @@
 // EXPECT-DIAG: FUT7012
-// Epic 11 Block 2 negative: on blocking postponed (ON-DST-N002)
+// negative: on blocking postponed
 fn run() -> TaskResult<int> {
     return on blocking {
         ret 1;

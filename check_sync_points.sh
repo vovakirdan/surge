@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runtime V2 Epic 9 proving-spike static gate.
+# Runtime V2 sync-point proving-spike static gate.
 #
 # Proves the test-only RT_SYNC_POINT hooks can never sit on the worker steady
 # path of a shipping build, and that every hook is on the named allowlist in

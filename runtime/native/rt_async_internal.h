@@ -112,7 +112,7 @@ struct rt_worker_ctx {
     // Net fairness tick: every 61st turn runs a zero-timeout net poll pass
     // even though ready work exists - a continuously busy shard would
     // otherwise never poll its own fds and their readiness would starve
-    // until the queues drain (the Epic 7 baseline 8x1024 stall).
+    // until the queues drain (the baseline 8x1024 stall).
     uint32_t net_tick;
 };
 
@@ -262,7 +262,7 @@ static inline void rt_task_join_owner_shard_id_store(rt_task* task, uint32_t sha
 typedef struct {
     uint64_t id;
     uint64_t owner;
-    // Pinned scope owner shard (Epic 8 Task 9, S5-Q8/Q10): set once at
+    // Pinned scope owner shard (S5-Q8/Q10): set once at
     // rt_scope_enter from the entering task's owner shard and NEVER changed.
     // Every scope-object mutation and the scope_key waiter store both serialize
     // on THIS shard's lock, so the scope's serialization lock is stable for its
@@ -279,7 +279,7 @@ typedef struct {
     size_t children_cap;
 } rt_scope;
 
-// Segmented task table (Epic 8 Task 6, S5-Q1 realization B): a segment,
+// Segmented task table (S5-Q1 realization B): a segment,
 // once published, is never freed or moved, so a task pointer's address is
 // stable for the task's whole lifetime and an owner-lane publish can never
 // race a concurrent growth the way the old copy-on-grow table could (the
@@ -301,7 +301,7 @@ typedef struct rt_task_table {
     _Atomic(rt_task_segment*) segments[RT_TASK_TABLE_MAX_SEGMENTS];
 } rt_task_table;
 
-// Segmented scope table (Epic 8 Task 9, S5-Q7): the exact same never-moved-slot
+// Segmented scope table (S5-Q7): the exact same never-moved-slot
 // atomic-snapshot structure as rt_task_table (Global Rule 5 - reuse the proven
 // pattern, not a new one). get_scope becomes a lock-free acquire load so scope
 // object bookkeeping can run on the scope owner shard lane instead of control.
@@ -323,13 +323,13 @@ typedef struct rt_scope_table {
 } rt_scope_table;
 
 struct rt_executor {
-    // Atomic (Epic 8 Task 6): id allocation is a lock-free fetch_add on the
+    // Atomic: id allocation is a lock-free fetch_add on the
     // owner-lane create path; control-held creators (checkpoint/sleep/
     // blocking submit) may still use `++` directly (an atomic RMW too, just
     // with the implicit seq_cst order), safely mixed with the relaxed
     // fetch_add used elsewhere.
     _Atomic uint64_t next_id;
-    // Atomic (Epic 8 Task 9): scope-id allocation is a lock-free fetch_add on
+    // Atomic: scope-id allocation is a lock-free fetch_add on
     // the owner-lane rt_scope_enter path, mirroring next_id.
     _Atomic uint64_t next_scope_id;
     // Virtual clock (D7): relaxed atomic counter; ticks are fetch_add, idle
@@ -340,12 +340,12 @@ struct rt_executor {
     // fixed-size and never reallocated, so there is nothing to atomically
     // swap at this level. See the rt_task_table definition above.
     rt_task_table tasks_table;
-    // Segmented atomic-snapshot scope table (Epic 8 Task 9): same never-moved-
+    // Segmented atomic-snapshot scope table: same never-moved-
     // slot, fixed-directory shape as tasks_table; get_scope acquire-loads it.
     rt_scope_table scopes_table;
     pthread_mutex_t lock;
     // compat_cv sleeps sync-channel compatibility waiters under the control
-    // lock; worker sleep lives on each shard's worker_cv since Task 7.
+    // lock; worker sleep lives on each shard's worker_cv since .
     pthread_cond_t compat_cv;
     pthread_cond_t done_cv;
     pthread_t* workers;
@@ -367,7 +367,7 @@ struct rt_executor {
     atomic_u32 blocking_cancel_requested;
     struct rt_blocking_job* blocking_head;
     struct rt_blocking_job* blocking_tail;
-    // Control-lane waiter store. Epic 7 D8 kept scope keys here; Epic 8 Task 9
+    // Control-lane waiter store. Scope keys remain here for compatibility;
     // (S5-Q10) moved scope keys to the scope owner shard store, so this now
     // only backs the rt_waiter_store_for_key default (unknown waker kind) and
     // the diagnostic waiter dump. Everything else is owner-resolved.
@@ -450,7 +450,7 @@ void rt_trace_channel_task_blocking_recv(void);
 void rt_trace_channel_handoff_yield(void);
 void rt_trace_compensation_started(void);
 void rt_trace_parked_with_work(void);
-// Lock-split counters (Epic 7 Task 12): steady-path serialization evidence.
+// Lock-split counters: steady-path serialization evidence.
 void rt_trace_control_lock_acquired(void);
 void rt_trace_cross_shard_wake(void);
 void rt_trace_spurious_wake_absorbed(void);
@@ -461,10 +461,10 @@ void rt_trace_owner_replaced(void);
 void rt_trace_placement_adoption(void);
 
 // Per-site attribution of control-lane acquisitions on the task/scope
-// lifecycle census paths (Epic 8 Task 5). Additive over control_lock_acquired:
-// each census site tags its acquisition so Tasks 6-10 can measure the
+// lifecycle census paths. Additive over control_lock_acquired:
+// each census site tags its acquisition so can measure the
 // per-request control traffic each migration slice peels. Order matches the
-// TRACE_EXEC dump fields. RT_CTRL_SITE_HANDLE covers the Task 7 handle slice
+// TRACE_EXEC dump fields. RT_CTRL_SITE_HANDLE covers the handle slice
 // (wake/inline-child-poll/cancel/clone/release); checkpoint and rt_sleep stay
 // in OTHER (spawn-shaped, negligible on the net bench).
 typedef enum {
@@ -697,18 +697,18 @@ int deque_pop_head(rt_deque* dq, uint64_t* out_id);
 int deque_pop_tail(rt_deque* dq, uint64_t* out_id);
 void ensure_task_cap(rt_executor* ex, uint64_t id);
 void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task);
-// rt_task_table_snapshot (Epic 8 Task 6): an acquire snapshot of the
+// rt_task_table_snapshot: an acquire snapshot of the
 // exclusive upper bound on ids ever allocated (ex->next_id), used by the two
 // full-table scanners (rt_async_waiter.c, rt_async_trace.c) as their
 // get_task(ex, i) iteration bound instead of walking a table struct
 // directly - the segmented directory is internal to rt_async_state.c /
 // rt_task_table.c.
 uint64_t rt_task_table_snapshot(rt_executor* ex);
-// rt_task_table_segment_missing (Epic 8 Task 6): lock-free peek used by
+// rt_task_table_segment_missing: lock-free peek used by
 // __task_create's steady-state path to decide whether the rare, control-lane
 // segment-growth branch is needed at all.
 int rt_task_table_segment_missing(rt_executor* ex, uint64_t id);
-// Segmented scope table (Epic 8 Task 9, rt_scope_table.c): mirror of the task
+// Segmented scope table (rt_scope_table.c): mirror of the task
 // table helpers. ensure_scope_cap allocates the id's segment under the control
 // lock (rare growth); rt_scope_slot_store release-stores into a never-moved
 // slot; rt_scope_table_segment_missing is the lock-free peek rt_scope_enter
@@ -745,7 +745,7 @@ int wake_task_on_shard_locked(const rt_executor* ex,
                               int signal_ready,
                               waker_key* out_stale_key);
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id);
-// Extracted to rt_ready_queue.c (Epic 10 Task 2); external because
+// Extracted to rt_ready_queue.c; external because
 // apply_poll_outcome (rt_task_complete.c) re-pushes yielded tasks across the
 // module boundary.
 int ready_push_yielded_task(rt_executor* ex, uint64_t id);
@@ -754,7 +754,7 @@ void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_net_task(rt_executor* ex, uint64_t id);
 int channel_wake_force_inject_enabled(void);
 void wake_key_all(rt_executor* ex, waker_key key);
-// Extracted to rt_task_park.c (Epic 8 Task 13); external because mark_done
+// Extracted to rt_task_park.c; external because mark_done
 // (rt_async_state.c) drains join waiters across the module boundary.
 void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front);
 void park_current(rt_executor* ex, waker_key key);
@@ -798,7 +798,7 @@ uint32_t rt_debug_current_worker_shard_id(void);
 void task_add_child(rt_task* parent, uint64_t child_id);
 void scope_add_child(rt_scope* scope, uint64_t child_id);
 int scope_remove_child(rt_scope* scope, uint64_t child_id);
-// Scope owner lane (Epic 8 Task 9, rt_async_scope.c): rt_scope_owner_shard
+// Scope owner lane (rt_async_scope.c): rt_scope_owner_shard
 // resolves the scope's PINNED owner shard (stable for the scope's life);
 // scope_on_child_done is mark_done's completion-side bookkeeping (same-owner
 // control-free / cross-owner+failfast counted control fallback);

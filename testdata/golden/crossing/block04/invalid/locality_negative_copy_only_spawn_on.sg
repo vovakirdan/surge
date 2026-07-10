@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3170
-// Epic 11 Block 4 negative: @copy-only crosses via spawn on (LOCALITY-008)
+// negative: @copy-only crosses via spawn on
 @copy
 type Point = {
     x: int,

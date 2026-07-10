@@ -1,8 +1,8 @@
 package diag
 
-// Epic 11 explicit-crossing language diagnostics (far / on / spawn on / crosses
+// explicit-crossing language diagnostics (far / on / spawn on / crosses
 // and the shard-mobility attributes). These codes were reserved during the
-// Epic 11 test-preparation pass ahead of the parser/sema implementation.
+// test-preparation pass ahead of the parser/sema implementation.
 //
 // They live in this sibling file rather than codes.go so that codes.go stays
 // within its file-size ceiling (check_file_sizes.sh). Code.ID() is range-based
@@ -149,10 +149,10 @@ const (
 	FutFarTaskCancelBackendUnavailable Code = 7017
 )
 
-// crossingCodeDescriptions holds the human-readable titles for the Epic 11
+// crossingCodeDescriptions holds the human-readable titles for the
 // crossing diagnostics. Merged into codeDescription by init() so Title()/String()
 // resolve them like any other code. Messages name the invariant, matching the
-// message shapes recorded in the Epic 11 block matrices.
+// message shapes recorded in the block matrices.
 var crossingCodeDescriptions = map[Code]string{
 	SemaFarNested:              "nested `far` handles are not allowed",
 	SemaFarRemoteOwn:           "`far own T` is invalid; move `own T` through `on` or `spawn on`",

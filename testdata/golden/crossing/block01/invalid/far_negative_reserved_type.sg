@@ -1,3 +1,3 @@
 // EXPECT-DIAG: SYN2031
-// Epic 11 Block 1 negative: reserved keyword as type alias (FAR-LEX-NEG-003)
+// negative: reserved keyword as type alias
 type far = int;

@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3149
-// Epic 11 Block 2 negative: on result assigned to T instead of TaskResult<T> (ON-BODY-N003)
+// negative: on result assigned to T instead of TaskResult<T>
 fn double(x: int) -> int {
     return x * 2;
 }

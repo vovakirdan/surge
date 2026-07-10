@@ -178,10 +178,10 @@ static size_t remove_waiter_from_store_seq(rt_waiter_store* store,
     return removed;
 }
 
-// Task 6 fd-registry-waiter-bridge: registry interest mirrors waiter-store
+// fd-registry-waiter-bridge: registry interest mirrors waiter-store
 // membership exactly. Attach runs after a successful append so interest never
 // exists without a waiter; detach runs only when the caller's same-pass scan
-// proved the last waiter for the key left the store. Since Task 7 the
+// proved the last waiter for the key left the store. Since the
 // registry is the only poll input, so a failed attach may not strand a
 // parked waiter: net_wait_current_task re-verifies the row after
 // prepare_park and undoes the park on a miss (fd-registry-attach-miss
@@ -440,7 +440,7 @@ static size_t remove_waiter_from_store(rt_waiter_store* store,
     return remove_waiter_from_store_seq(store, key, task_id, 0, out_kept_same_key);
 }
 
-// Generation-qualified removal (Epic 8 blocker fix): the deferred stale-key
+// Generation-qualified removal (blocker fix): the deferred stale-key
 // removal in wake_task_with_policy runs after the owner lock is released,
 // and the woken task can re-register the same channel key in that window.
 // Removing by (key, task) alone would eat the fresh registration and strand
@@ -474,7 +474,7 @@ void remove_waiter_generation(rt_executor* ex, waker_key key, uint64_t task_id, 
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     // Caller holds either the control lock or nothing, never a shard lock
     // (mirrors add_waiter): the control-free join-poll/completion callers reach
-    // here without ex->lock since Epic 8 Task 7/8. This takes the key's store
+    // here without ex->lock since /8. This takes the key's store
     // owner shard lock internally (net keys scan every shard's store, so those
     // still need the control lane); compaction preserves the relative order of
     // the other waiters.

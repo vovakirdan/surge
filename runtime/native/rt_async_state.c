@@ -286,7 +286,7 @@ uint64_t rt_task_table_snapshot(rt_executor* ex) {
 void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task) {
     // Caller holds either the control lock (growth-adjacent legacy
     // creators) or the task's owner shard lock (steady-state __task_create,
-    // Task 6): the segment already exists in both cases (ensure_task_cap /
+    // ): the segment already exists in both cases (ensure_task_cap /
     // rt_task_table_segment_missing ran first), so this is a pure
     // release-store into a never-moved slot.
     size_t seg_idx = (size_t)(id >> RT_TASK_TABLE_SEGMENT_SHIFT);
@@ -305,7 +305,7 @@ void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task) {
 }
 
 rt_scope* get_scope(rt_executor* ex, uint64_t id) {
-    // Lock-free acquire snapshot (Epic 8 Task 9, S5-Q7): segment pointer then
+    // Lock-free acquire snapshot (S5-Q7): segment pointer then
     // slot, both memory_order_acquire, mirroring get_task. A NULL segment or
     // slot means the scope does not exist (never created, or freed by
     // scope_exit and its monotonic id never reused).
@@ -345,12 +345,12 @@ void rt_scope_slot_store(rt_executor* ex, uint64_t id, rt_scope* scope) {
     atomic_store_explicit(&segment->slots[slot_idx], scope, memory_order_release);
 }
 
-// ensure_task_cap moved to rt_task_table.c (Epic 8 Task 6): the segmented
+// ensure_task_cap moved to rt_task_table.c: the segmented
 // table's growth (allocating a segment) is a smaller, self-contained
 // operation than the old copy-on-grow table's, so it now lives with the
 // rest of the segment-allocation logic rather than here.
 
-// ensure_scope_cap moved to rt_scope_table.c (Epic 8 Task 9): scope table
+// ensure_scope_cap moved to rt_scope_table.c: scope table
 // growth now allocates a segment, mirroring ensure_task_cap / rt_task_table.c.
 
 void ensure_child_cap(rt_task* task, size_t want) {
@@ -399,14 +399,14 @@ void ensure_scope_child_cap(rt_scope* scope, size_t want) {
     scope->children_cap = next_cap;
 }
 
-// clear_select_timers moved to rt_task_complete.c (Epic 10 Task 2): select
+// clear_select_timers moved to rt_task_complete.c: select
 // timer teardown is completion/cancel-side cleanup, so it lives with
 // mark_done and cancel_task.
 
 // Ready-queue cluster (scheduler_runnable_is_empty,
 // rt_sched_idle_sample_locked, sched_next_u64, current_worker_scheduler,
 // current_local_queue, pop_task_from_deque, ready_push*, ready_pop,
-// worker_next_ready) moved to rt_ready_queue.c (Epic 10 Task 2): shard
+// worker_next_ready) moved to rt_ready_queue.c: shard
 // ready-queue mutation and the worker pop policy are one owner surface.
 // Yield tick (D7): advance the clock, fire the ticking shard's own due
 // sleepers inline, and hand other shards a wake token when their atomic
@@ -573,16 +573,16 @@ int scope_remove_child(rt_scope* scope, uint64_t child_id) {
 }
 
 // scope_cancel_children_locked / scope_child_done_locked moved to
-// rt_async_scope.c (Epic 8 Task 9): completion-side scope bookkeeping now runs
+// rt_async_scope.c: completion-side scope bookkeeping now runs
 // on the scope owner shard lane (scope_on_child_done) with a counted control
 // fallback for the rare cancel/failfast walk, replacing the old control-lane
 // helpers.
 
 // Handle-lifetime cluster (task_add_ref, free_task, task_release,
-// task_release_lane_aware) moved to rt_task_lifetime.c (Epic 10 Task 2):
+// task_release_lane_aware) moved to rt_task_lifetime.c:
 // the task handle refcount and control-lane free are one owner surface.
 
 // Completion/cancel cluster (current_task_cancelled, cancel_task,
 // mark_done_needs_control, mark_done, apply_poll_outcome) moved to
-// rt_task_complete.c (Epic 10 Task 2): terminal task transitions are one
+// rt_task_complete.c: terminal task transitions are one
 // owner surface.

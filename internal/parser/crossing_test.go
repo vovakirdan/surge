@@ -1,6 +1,6 @@
 package parser
 
-// Tests for the Epic 11 Block 2 grammar layer: the contextual `on dst { ... }`
+// Tests for the Block 2 grammar layer: the contextual `on dst { ... }`
 // placement-crossing expression. The explicit `crosses` function-effect keyword
 // has been removed from the language (the effect is inferred by sema), so
 // `crosses` is now an ordinary identifier and is covered as such here. These

@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3111
-// Epic 11 Block 3 negative: spawn without on (S06)
+// negative: spawn without on
 // `spawn distributed { ret 1; }` has no `on`, so `spawn` consumes the postfix
 // `distributed` (a Placement, not a Task) and reaches SemaSpawnNotTask (SEM3111);
 // the trailing block is orphaned, so the deterministic recovery cascade also

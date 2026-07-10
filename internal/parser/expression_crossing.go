@@ -16,7 +16,7 @@ import (
 func (p *Parser) parseOnCrossing() (ast.ExprID, bool) {
 	onTok := p.advance() // consume contextual `on`
 
-	// `on blocking { ... }` is a postponed destination in Epic 11. Reject it with
+	// `on blocking { ... }` is a postponed destination. Reject it with
 	// a deterministic diagnostic instead of parsing `blocking` as a value, and
 	// still consume the trailing block so parsing recovers cleanly.
 	if p.at(token.KwBlocking) {
@@ -68,7 +68,7 @@ func (p *Parser) parseOnCrossing() (ast.ExprID, bool) {
 }
 
 // parseSpawnOnRemote parses a `spawn on <dst> { ... }` remote-spawn expression
-// (Epic 11 Block 3). The caller has consumed the `spawn` keyword (passing its
+// This parses the remote-spawn form. The caller has consumed the `spawn` keyword (passing its
 // span as spawnSpan) and verified via atSpawnOnRemoteHead that the current token
 // is the contextual `on` keyword followed by a destination head or `{`. The
 // result reuses the ExprOn node with the Spawn flag set; it evaluates to
@@ -94,7 +94,7 @@ func (p *Parser) parseSpawnOnRemote(spawnSpan source.Span, attrStart ast.AttrID,
 		return p.arenas.Exprs.NewSpawnOn(p.spawnOnSpan(spawnSpan, onTok.Span, bodyID), ast.NoExprID, bodyID, attrStart, attrCount), true
 	}
 
-	// `spawn on blocking { ... }` is a postponed destination in Epic 11. Reject it
+	// `spawn on blocking { ... }` is a postponed destination. Reject it
 	// with a deterministic diagnostic (mirroring Block 2's `on blocking`) and still
 	// consume the trailing block for recovery.
 	if p.at(token.KwBlocking) {

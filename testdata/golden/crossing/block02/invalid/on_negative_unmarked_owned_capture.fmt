@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3168
-// Epic 11 Block 2 negative: unmarked owned user value capture (ON-CAP-N005)
+// negative: unmarked owned user value capture
 type Payload = {
     id: int,
 };

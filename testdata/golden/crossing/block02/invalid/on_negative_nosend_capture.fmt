@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3166
-// Epic 11 Block 2 negative: @nosend capture (ON-CAP-N003)
+// negative: @nosend capture
 @nosend
 type LocalOnly = {
     id: int,

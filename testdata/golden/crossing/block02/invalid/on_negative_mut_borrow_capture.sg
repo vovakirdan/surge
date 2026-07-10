@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3165
-// Epic 11 Block 2 negative: mutable borrow capture (ON-CAP-N002)
+// negative: mutable borrow capture
 type Request = {
     id: int,
 };

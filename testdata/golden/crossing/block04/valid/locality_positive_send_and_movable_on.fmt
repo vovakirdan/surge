@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: @send and @shard_movable crosses via on (LOCALITY-001)
+// positive: @send and @shard_movable crosses via on
 @send
 @shard_movable
 type Job = {

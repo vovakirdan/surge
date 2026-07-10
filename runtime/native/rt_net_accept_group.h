@@ -15,7 +15,7 @@ typedef enum {
 } RtNetWaitKind;
 
 int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, int fd);
-// Epic 10 Task 3 (RV2-DEBT-010): register and report the fd-registry row
+// (RV2-DEBT-010): register and report the fd-registry row
 // generation so the caller can stamp it into the public handle.
 int rt_net_register_open_fd_on_owner_generation(rt_executor* ex,
                                                 uint32_t owner_shard_id,
@@ -27,7 +27,7 @@ int rt_net_handle_open_on_owner(rt_executor* ex,
                                 uint32_t owner_shard_id,
                                 int fd,
                                 uint64_t generation);
-// Epic 10 Task 3 (RV2-DEBT-010): register every live listener member fd on its
+// (RV2-DEBT-010): register every live listener member fd on its
 // owner shard and stamp the row generation into the member.
 void rt_net_stamp_listener_members(rt_executor* ex, NetListener* listener);
 void rt_net_forget_registered_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, int fd);

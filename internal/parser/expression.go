@@ -176,7 +176,7 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 		if tok.Kind == token.KwSpawn {
 			spawnTok := p.advance()
 			// `spawn on <dst> { ... }` is a self-contained remote-spawn expression
-			// (Epic 11 Block 3), not `spawn` applied to an `on` crossing. Everything
+			// (Block 3), not `spawn` applied to an `on` crossing. Everything
 			// else — including `spawn distributed { ... }` (no `on`) and `spawn on;`
 			// (identifier `on`) — stays on the local-spawn prefix path.
 			if p.atSpawnOnRemoteHead() {

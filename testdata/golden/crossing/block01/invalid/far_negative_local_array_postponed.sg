@@ -1,5 +1,5 @@
 // EXPECT-DIAG: FUT7010
-// Epic 11 Block 1 negative: local array of far handles postponed (FAR-PREC-NEG-002)
+// negative: local array of far handles postponed
 fn f(x: (far TcpConn)[]) -> nothing {
     return nothing;
 }

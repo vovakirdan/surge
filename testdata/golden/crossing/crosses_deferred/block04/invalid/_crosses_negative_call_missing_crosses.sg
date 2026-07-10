@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3163
-// Epic 11 Block 4 negative: non-crosses caller of crosses fn (CROSSES-EFFECT-009)
+// negative: non-crosses caller of crosses fn
 fn double(x: int) -> int {
     return x * 2;
 }

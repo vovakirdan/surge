@@ -102,7 +102,7 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 		}
 	case ast.TypeExprTuple:
 		if tup, ok := tc.builder.Types.Tuple(id); ok && tup != nil {
-			// Empty tuple () is unit type
+			// Empty tuple is unit type
 			if len(tup.Elems) == 0 {
 				result = tc.types.Builtins().Unit
 				break

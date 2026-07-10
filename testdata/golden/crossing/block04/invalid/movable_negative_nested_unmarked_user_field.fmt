@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3171
-// Epic 11 Block 4 negative: recursive validation reaches unmarked type (MOVABLE-006)
+// negative: recursive validation reaches unmarked type
 type Leaf = {
     id: int,
 };

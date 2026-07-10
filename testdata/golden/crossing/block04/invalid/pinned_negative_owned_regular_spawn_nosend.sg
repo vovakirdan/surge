@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3086
-// Epic 11 Block 4 negative: @shard_pinned @nosend into ordinary spawn (PINNED-006)
+// negative: @shard_pinned @nosend into ordinary spawn
 async fn serve(conn: own TcpConn) -> nothing {
     return nothing;
 }

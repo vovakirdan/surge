@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-// NetResult/NetError ABI constructors (Epic 10 Task 3 split): this module
+// NetResult/NetError ABI constructors (split): this module
 // owns the Surge-visible net error codes and the tag/payload construction
 // for NetResult success and error values. Extracted verbatim from rt_net.c.
 

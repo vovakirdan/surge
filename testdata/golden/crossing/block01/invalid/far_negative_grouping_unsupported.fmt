@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3140
-// Epic 11 Block 1 negative: grouped far array (FAR-PREC-NEG-001)
+// negative: grouped far array
 fn f(x: far (TcpConn)[]) -> nothing {
     return nothing;
 }

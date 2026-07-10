@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: crosses fn without return type (CROSSES-GRAMMAR-002)
+// positive: crosses fn without return type
 fn notify(ch: far Channel<int>, event: int) crosses {
     on ch {
         ch.send(own event);

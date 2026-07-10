@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3171
-// Epic 11 Block 4 negative: @shard_movable with owned @nosend field (MOVABLE-009)
+// negative: @shard_movable with owned @nosend field
 @nosend
 type LocalOnly = {
     id: int,

@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: on route_for(id) returning Placement (ON-DST-V005)
+// positive: on route_for(id) returning Placement
 fn double(x: int) -> int {
     return x * 2;
 }

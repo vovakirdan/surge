@@ -320,7 +320,7 @@ func TestRuntimeV2NetPollerShutdownWakesEveryShard(t *testing.T) {
 	if !ok {
 		t.Fatal("rt_executor_request_shutdown not found")
 	}
-	// Since Epic 7 Task 7 worker sleep is per-shard: shutdown must sweep every
+	// Since worker sleep is per-shard: shutdown must sweep every
 	// shard's worker_cv (rt_sched_wake_broadcast_all) and the control-lane
 	// compat_cv, and nudge the io thread's shard-0 poller wait (the global
 	// ready_cv and io_cv are retired).

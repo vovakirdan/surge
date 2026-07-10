@@ -1,4 +1,4 @@
-// Task completion and cancellation (Epic 10 Task 2, RV2-DEBT-003 split):
+// Task completion and cancellation (RV2-DEBT-003 split):
 // this module owns the terminal task transitions — cancel propagation
 // (cancel_task tree walk), completion (mark_done) and poll-outcome
 // application (apply_poll_outcome). Lane contract: cancel_task runs
@@ -53,7 +53,7 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     if (task->kind == TASK_KIND_BLOCKING) {
         rt_blocking_request_cancel(ex, task);
     }
-    // Wake-token ordering rule (RV2-DEBT-023, Epic 9). The cancelled flag is
+    // Wake-token ordering rule (RV2-DEBT-023, ). The cancelled flag is
     // stored unconditionally above; the wake here is now UNCONDITIONAL too - it
     // no longer gates on observing TASK_WAITING. cancel_task runs control-held
     // (every caller holds the control lane; proof in
@@ -76,7 +76,7 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     // reached-count is the proof that this wake path engaged.
     RT_SYNC_POINT(SP_CANCEL_BEFORE_WAKE);
     RT_DEBT023_CANCEL_WAKE(ex, task);
-    // Since Epic 8 Task 6, task_add_child appends into this task's
+    // Since , task_add_child appends into this task's
     // children[] under the task's own owner shard lock, not control (the
     // steady-state __task_create path takes no control lock at all). This
     // control-held walk can no longer read task->children[]/children_len
@@ -136,9 +136,9 @@ void cancel_task(rt_executor* ex, uint64_t id) {
 // under the task's own owner shard lock (RV2-DEBT-019 race 2): reading park_key
 // here unlocked raced wake_task_on_shard_locked's write. Only a net park_key
 // still forces control here (cross-shard registry removal). S6-Q1 is now
-// complete: the WAKER_JOIN reason went in Task 8, and the scope reason
+// complete: the WAKER_JOIN reason went in , and the scope reason
 // (parent_scope_id/scope_registered) and the WAKER_SCOPE park_key reason are
-// gone in Task 9 - scope completion bookkeeping runs on the scope owner shard
+// gone in - scope completion bookkeeping runs on the scope owner shard
 // lane (scope_on_child_done) and the scope_key waiter store moved to the scope
 // owner shard, so both are owner-local. mark_done_needs_control's final form is
 // net-key + done_waiters (plus the select/multi-key compat residual).
@@ -146,7 +146,7 @@ void cancel_task(rt_executor* ex, uint64_t id) {
 // wait_keys / select timers) forced control, as the exact complement of the
 // done_waiters-only case: the AWAIT_COMPAT tag in mark_done keys off it, so the
 // tag split cannot drift from the control decision (they share this one
-// evaluation; Epic 8 Task 10 review finding).
+// evaluation; review finding).
 static int mark_done_needs_control(const rt_executor* ex,
                                    const rt_task* task,
                                    int park_needs_control,
@@ -182,11 +182,11 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // load-bearing half; the old unlocked read here raced only because the
     // wake path used to clear park_key on RUNNING tasks too).
     waker_key park = task->park_key;
-    // A net park_key needs the cross-shard registry removal. Join keys (Task 7)
-    // and scope keys (Task 9, scope_key store moved to the scope owner shard)
+    // A net park_key needs the cross-shard registry removal. Join keys
+    // and scope keys (scope_key store moved to the scope owner shard)
     // are owner-local, so they are removed control-free below (S6-Q1 complete).
     int park_needs_control = waker_valid(park) && waker_is_net(park);
-    // Attribute honestly (Epic 8 Task 10, rule 5): a completion forced onto
+    // Attribute honestly (rule 5): a completion forced onto
     // the control lane SOLELY because a non-worker awaiter is parked on
     // done_cv (done_waiters>0, with no net park_key and no residual
     // multi-key work) is external-await compatibility, counted separately
@@ -225,7 +225,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
         rt_shard_unlock(sleep_shard);
         task->sleep_armed = 0;
     }
-    // Epic 8 Task 7 enabling change (rule 1): the result fields must be
+    // enabling change (rule 1): the result fields must be
     // written before the TASK_DONE release store, so a joiner's acquire-load
     // of TASK_DONE (rt_task_poll, now control-free) publishes them without
     // needing the control lock. Nothing else in this function reads either
@@ -239,7 +239,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     RT_SYNC_POINT(SP_MARKDONE_BEFORE_DONEWAITERS_LOAD);
     task_enqueued_store(task, 0);
     task->state = NULL;
-    // Scope completion bookkeeping (Epic 8 Task 9, S5-Q8): runs on the scope
+    // Scope completion bookkeeping (S5-Q8): runs on the scope
     // owner shard lane. The steady same-owner non-failfast child-done is
     // control-free under the pinned shard lock; only a cross-owner (re-placed
     // child) or a failfast-triggering completion takes the counted control
@@ -266,7 +266,7 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
             break;
         case POLL_DONE_CANCELLED:
             if (task->scope_id != 0) {
-                // Owner-cancelled scope teardown (S5-Q14, Epic 8 Task 9): the
+                // Owner-cancelled scope teardown (S5-Q14, ): the
                 // child cancel walk needs the control lane (re-derivation:
                 // cancel_task reads sibling owner_shard_ids that F2 self-replace
                 // writes under control), so this rare branch takes control. But

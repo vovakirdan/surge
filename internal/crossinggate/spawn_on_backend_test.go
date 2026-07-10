@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// TestSpawnOnBackendGuards validates the Epic 11 Block 3 backend-unavailable
+// TestSpawnOnBackendGuards validates the Block 3 backend-unavailable
 // guards (FUT7015 / FUT7016 / FUT7017) directly against the staged block03
-// fixtures, independent of the Block3Enabled gate. Epic 11 delivers the remote
+// fixtures, independent of the Block3Enabled gate. The remote
 // spawn surface compile-only: a `spawn on` remote spawn, `far Task<T>.await()`,
 // or `far Task<T>.cancel()` that type-checks but reaches a backend must be
 // reported deterministically rather than crash or silently drop. The await /

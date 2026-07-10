@@ -13,7 +13,7 @@ import (
 	"surge/internal/types"
 )
 
-func TestEpic12IntegrationFixtures(t *testing.T) {
+func TestCrossingGuardIntegrationFixtures(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", repoRoot(t))
 	base := filepath.Join(repoRoot(t), "testdata", "golden", "crossing", "integration")
 

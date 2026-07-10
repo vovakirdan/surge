@@ -10,9 +10,9 @@ import (
 	"testing"
 )
 
-// Epic 7 Task 5 static gates. These pin the post-split shape decided by
+// static gates. These pin the post-split shape decided by
 // 07-locking-model-proving-spike.md (decisions D1-D16). They are expected to
-// stay red until Tasks 6-11 land and are wired into CI by Task 13 only once
+// stay red until the implementation lands and are wired into CI only once
 // green. Until then no Makefile gate runs them.
 
 func runLockSplitClangShapeCheck(t *testing.T, source string) {

@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: on used in statement position (ON-STMT-V001)
+// positive: on used in statement position
 fn double(x: int) -> int {
     return x * 2;
 }

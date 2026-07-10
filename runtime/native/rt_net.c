@@ -31,7 +31,7 @@
 #endif
 
 // NetResult/NetError constructors, error-code mapping, and net_copy_addr
-// moved to rt_net_result.c (Epic 10 Task 3): the Surge-visible result ABI is
+// moved to rt_net_result.c: the Surge-visible result ABI is
 // one owner surface, and the split keeps this file under the LOC gate.
 
 static int net_set_nonblocking(int fd, uint64_t* out_code) {
@@ -130,7 +130,7 @@ static int net_conn_owner_local(rt_executor* ex, const NetConn* c) {
     return 0;
 }
 
-// Public conn guard (Epic 10 Task 3 recovery). c is already canonicalized from
+// Public conn guard (recovery). c is already canonicalized from
 // the handle table, so fields beyond the public handle word are safe to read.
 // The fd registry check still protects validate-vs-close ordering, while the
 // handle table makes stale copied handles independent from OS fd reuse rules.

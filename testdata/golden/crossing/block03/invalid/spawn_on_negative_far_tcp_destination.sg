@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3157
-// Epic 11 Block 3 negative: far TcpConn destination (D11)
+// negative: far TcpConn destination
 fn start(conn: far TcpConn) -> far Task<int> {
     return spawn on conn {
         ret 1;

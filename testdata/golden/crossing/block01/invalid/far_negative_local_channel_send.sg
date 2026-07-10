@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3142
-// Epic 11 Block 1 negative: local channel send on far handle outside on (FAR-OPS-NEG-003)
+// negative: local channel send on far handle outside on
 type Message = {
     id: int,
 };

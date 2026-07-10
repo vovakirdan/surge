@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3150
-// Epic 11 Block 2 negative: unanchored far TcpConn operation (ON-ANCHOR-N002)
+// negative: unanchored far TcpConn operation
 fn run(conn_a: far TcpConn, conn_b: far TcpConn) -> TaskResult<nothing> {
     return on conn_a {
         conn_b.close();

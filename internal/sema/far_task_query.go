@@ -3,7 +3,7 @@ package sema
 import "surge/internal/types"
 
 // IsDirectFarTaskType reports the direct runtime-owned `far Task<T>` handle
-// shape. Containers intentionally do not match: Task 9's lease seam tracks one
+// shape. Containers intentionally do not match: lease seam tracks one
 // direct handle pointer at a time.
 func (r *Result) IsDirectFarTaskType(id types.TypeID) bool {
 	if r == nil || r.TypeInterner == nil || id == types.NoTypeID {

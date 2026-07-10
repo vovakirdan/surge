@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3169
-// Epic 11 Block 4 negative: @send-only crosses via on (LOCALITY-005)
+// negative: @send-only crosses via on
 @send
 type Job = {
     id: int,

@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3130
-// Epic 11 Block 1 negative: far handle is affine, not Copy (FAR-OWN-008)
+// negative: far handle is affine, not Copy
 fn take(x: own far TcpConn) -> nothing {
     return nothing;
 }

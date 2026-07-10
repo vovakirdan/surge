@@ -12,7 +12,7 @@ import (
 // compatibility path rule 5 names) both observe correct results when driven
 // concurrently: a non-worker thread (this harness's main()) calls
 // rt_task_await directly while a separately spawned worker-side joiner task
-// uses rt_task_poll on its own target. Guards rule 5 ahead of Task 10.
+// uses rt_task_poll on its own target. Guards rule 5 for the await path.
 func TestRuntimeV2LifecycleWorkerAwaitVsExternalAwait(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
 	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
@@ -48,7 +48,7 @@ func TestRuntimeV2LifecycleShutdownWithParkedTasks(t *testing.T) {
 }
 
 // lifecycleHarnessMain holds the per-mode drivers, the __surge_poll_call
-// dispatcher, and main(). Concatenated after lifecycleHarnessCommon and
+// dispatcher, and main. Concatenated after lifecycleHarnessCommon and
 // lifecycleHarnessScopeAndShutdown (see buildRuntimeV2LifecycleHarnessWithFlags
 // in runtime_v2_lifecycle_behavior_harness_test.go) into one translation unit.
 const lifecycleHarnessMain = `

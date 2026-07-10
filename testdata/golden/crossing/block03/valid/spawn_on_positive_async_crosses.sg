@@ -1,4 +1,4 @@
-// Epic 11 Block 3 positive: async spawn on (X02, crosses now inferred)
+// positive: async spawn on (crosses now inferred)
 fn double(x: int) -> int {
     return x * 2;
 }

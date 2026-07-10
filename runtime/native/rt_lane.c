@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 
-// Lock-lane discipline for the Epic 7 executor lock split (spike decision
+// Lock-lane discipline for the executor lock split (spike decision
 // D2): a thread may hold the control lock and then at most one shard lock.
 // Taking the control lock while holding a shard lock, taking a second shard
 // lock, or re-entering the control lock are ownership-model violations, not

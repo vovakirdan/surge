@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: crosses fn calling crosses fn (CROSSES-EFFECT-003)
+// positive: crosses fn calling crosses fn
 fn double(x: int) -> int {
     return x * 2;
 }

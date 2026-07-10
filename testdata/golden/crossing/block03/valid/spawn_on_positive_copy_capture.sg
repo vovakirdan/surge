@@ -1,4 +1,4 @@
-// Epic 11 Block 3 positive: Copy capture (C01)
+// positive: Copy capture
 fn add(x: int, y: int) -> int {
     return x + y;
 }

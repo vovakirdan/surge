@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: spawn on inside crosses fn (CROSSES-EFFECT-002)
+// positive: spawn on inside crosses fn
 fn double(x: int) -> int {
     return x * 2;
 }

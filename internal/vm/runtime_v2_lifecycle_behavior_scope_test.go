@@ -13,7 +13,7 @@ import (
 // completing immediately, one yielding a few times first) registered under
 // one scope, join_all parking the owner until both drain, then a clean exit.
 // This gives file:line-precise coverage of the park/wake path itself ahead
-// of Task 9's scope-owner-lane migration (S5-Q7/Q8/Q10), complementing the
+// of the scope-owner-lane migration (S5-Q7/Q8/Q10), complementing the
 // existing Surge-source-level scope coverage in
 // runtime_v2_task_scope_blocking_waiter_contract_test.go.
 func TestRuntimeV2LifecycleScopeEnterRegisterJoinExit(t *testing.T) {
@@ -40,10 +40,10 @@ func TestRuntimeV2LifecycleScopeEnterRegisterJoinExit(t *testing.T) {
 // duplicates, the existing Surge-source-level
 // `TestRuntimeV2FailfastScopeCancellationWakesOwner`
 // (`runtime_v2_task_scope_blocking_waiter_contract_test.go`, also selected
-// by the Task 3 spike's corroboration table): that test proves the contract
+// by the spike's corroboration table): that test proves the contract
 // through compiled Surge/LLVM codegen; this one proves the same C entry
 // points directly, with an explicit registration order the raw C harness
-// controls. Guards S5-Q8/S5-Q9 (rule 3) ahead of Task 9.
+// controls. Guards S5-Q8/S5-Q9 (rule 3) ahead of the next implementation step.
 func TestRuntimeV2LifecycleScopeFailfastCancellation(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
 	env := lifecycleEnv("SURGE_SHARDS=1", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
@@ -62,7 +62,7 @@ func TestRuntimeV2LifecycleScopeFailfastCancellation(t *testing.T) {
 // child has actually drained. This is a genuine gap in existing coverage --
 // the existing failfast test covers a *child's* cancellation triggering
 // scope failfast, not the *owner* being cancelled while it owns a scope with
-// pending children. Guards S5-Q14 ahead of Task 9.
+// pending children. Guards S5-Q14 ahead of the next implementation step.
 func TestRuntimeV2LifecycleScopeCancelledPollTeardown(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
 	env := lifecycleEnv("SURGE_SHARDS=1", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
@@ -74,7 +74,7 @@ func TestRuntimeV2LifecycleScopeCancelledPollTeardown(t *testing.T) {
 }
 
 // The three ...AcrossShards tests below re-run the same scope scenarios under
-// SURGE_SHARDS=1,2,8 (Epic 8 Task 9 scope-owner-lane migration). Under
+// SURGE_SHARDS=1,2,8 (scope-owner-lane migration). Under
 // SURGE_SHARDS>1 the scope is pinned to its owner's shard and scope_key parks/
 // wakes route to that shard's waiter store (not the control-lane store), so
 // these prove the segmented scope table, pinned-shard scope_key routing, and
@@ -102,7 +102,7 @@ func TestRuntimeV2LifecycleScopeCancelledPollTeardownAcrossShards(t *testing.T) 
 // cross-owner scope-completion regression test (RV2-DEBT-021). The
 // cross-owner scope_on_child_done control fallback (rt_async_scope.c:340-377)
 // is the sole producer of the residual ctrl_scope on the 8x1024 net benchmark
-// (Epic 8 Task 9); before this test it was exercised only by that benchmark
+// ); before this test it was exercised only by the benchmark
 // and the no-keepalive completion-pin TSan stress, neither deterministic in
 // CI. Here a scope owner pinned to shard 0 registers a scope-child while it is
 // same-owner, then parks in join_all; the scope-child adopts a shard-1

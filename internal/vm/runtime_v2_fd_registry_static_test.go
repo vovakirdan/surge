@@ -77,8 +77,8 @@ func runFDRegistryBehaviorCheck(t *testing.T, label, source string) {
 	}
 }
 
-// TestRuntimeV2FDRegistryStaticShape guards the Epic 4 Task 5 fd registry
-// skeleton contract. It is EXPECTED RED until Task 5 lands exactly this shape,
+// TestRuntimeV2FDRegistryStaticShape guards the fd registry
+// skeleton contract. It is EXPECTED RED until the implementation lands exactly this shape,
 // reachable from rt_async_internal.h:
 //
 //	typedef enum {
@@ -110,12 +110,12 @@ func runFDRegistryBehaviorCheck(t *testing.T, label, source string) {
 //	const rt_fd_entry* rt_fd_registry_find_const(const rt_fd_registry* registry, int fd);
 //	rt_runtime_status rt_fd_registry_register_open_fd(rt_fd_registry* registry, int fd);
 //
-// Task 6 extended the guard with the registration-side interest mutators:
+// extended the guard with the registration-side interest mutators:
 //
 //	rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
 //	void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);
 //
-// Task 7 extended the guard with the poll-input reads (the registry is the
+// extended the guard with the poll-input reads (the registry is the
 // only poll-set source; the snapshot row is the ex->lock-held copy that
 // poll() and completion run against):
 //
@@ -123,7 +123,7 @@ func runFDRegistryBehaviorCheck(t *testing.T, label, source string) {
 //	size_t rt_fd_registry_snapshot_poll_interest(const rt_fd_registry* registry,
 //	                                             rt_fd_poll_interest* out, size_t out_cap);
 //
-// Task 9 extended the guard with close/generation lifecycle APIs:
+// extended the guard with close/generation lifecycle APIs:
 //
 //	rt_runtime_status rt_fd_registry_mark_closed(
 //	    rt_fd_registry* registry, int fd, rt_fd_lifecycle_snapshot* out);
@@ -153,21 +153,21 @@ size_t (*runtime_v2_check_fd_registry_len)(const rt_fd_registry*) = rt_fd_regist
 const rt_fd_entry* (*runtime_v2_check_fd_registry_find_const)(const rt_fd_registry*, int) = rt_fd_registry_find_const;
 rt_runtime_status (*runtime_v2_check_fd_registry_register_open_fd)(rt_fd_registry*, int) = rt_fd_registry_register_open_fd;
 
-// Task 6 registration-side interest mutators, driven by the waiter-store
+// registration-side interest mutators, driven by the waiter-store
 // bridge in rt_async_waiter.c under ex->lock. Attach returns explicit status
 // (allocation can fail on row creation); detach is the caller-proved
 // last-waiter path and cannot fail in a way callers act on.
 rt_runtime_status (*runtime_v2_check_fd_registry_attach_net_interest)(rt_fd_registry*, waker_key) = rt_fd_registry_attach_net_interest;
 void (*runtime_v2_check_fd_registry_detach_net_interest)(rt_fd_registry*, waker_key) = rt_fd_registry_detach_net_interest;
 
-// Task 7 poll-input reads: interest-present resolves the attach-miss bridge
+// poll-input reads: interest-present resolves the attach-miss bridge
 // after prepare_park; the snapshot copies rows into the shard poll scratch
 // under ex->lock as the only poll-set source (no waiter-store scan).
 int (*runtime_v2_check_fd_registry_net_interest_present)(const rt_fd_registry*, waker_key) = rt_fd_registry_net_interest_present;
 size_t (*runtime_v2_check_fd_registry_snapshot_poll_interest)(
     const rt_fd_registry*, rt_fd_poll_interest*, size_t) = rt_fd_registry_snapshot_poll_interest;
 
-// Task 9 close/generation lifecycle: close records exact per-kind wake
+// close/generation lifecycle: close records exact per-kind wake
 // interests without allocation, and poll completion validates fd+generation,
 // open state, and current interest before waking a raw-fd key.
 rt_runtime_status (*runtime_v2_check_fd_registry_mark_closed)(
@@ -440,7 +440,7 @@ int main(void) {
 // placeholder still holds: shard-owned poll scratch, stable io-loop and
 // wake-fd entry points, net waker keys as the wake currency, explicit
 // rt_runtime_status codes, and a positive static shard storage limit. This
-// must stay GREEN through Tasks 5-11; it deliberately does not duplicate the
+// must stay GREEN through the migration; it deliberately does not duplicate the
 // waiter-store surface already pinned by TestRuntimeV2WaiterHelperStaticBoundary.
 func TestRuntimeV2FDRegistryStaticBoundary(t *testing.T) {
 	source := `
@@ -463,7 +463,7 @@ func TestRuntimeV2FDRegistryStaticBoundary(t *testing.T) {
 rt_net_poll_scratch* (*runtime_v2_check_shard_net_poll_scratch)(rt_shard*) = rt_shard_net_poll_scratch;
 rt_net_poll_scratch* (*runtime_v2_check_executor_net_poll_scratch)(rt_executor*) = rt_executor_net_poll_scratch;
 
-// Shard-owned poller and wake-fd surfaces. Task 10 makes the owner shard an
+// Shard-owned poller and wake-fd surfaces. The owner shard is an
 // explicit argument so production net paths do not target a process-global pipe.
 int (*runtime_v2_check_poll_net_waiters_on_shard)(rt_executor*, uint32_t, int) =
     poll_net_waiters_on_shard;

@@ -64,7 +64,7 @@ func crossingFormsForRequest(req *CompileRequest) map[sema.CrossingLoweringKind]
 	return forms
 }
 
-// crossingRecordExecutable applies the narrower Epic 13 representation gate
+// crossingRecordExecutable applies the narrower representation gate
 // after a backend advertises the form. This first vertical is suspend-only and
 // may carry only plain-data/copyable payloads; heap-owned shard-movable values
 // stay guarded until remote-free ownership exists.

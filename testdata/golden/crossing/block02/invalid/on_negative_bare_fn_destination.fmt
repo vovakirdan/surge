@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3146
-// Epic 11 Block 2 negative: bare function name destination (ON-DST-N005)
+// negative: bare function name destination
 fn route_for(user_id: uint64) -> Placement {
     return distributed;
 }

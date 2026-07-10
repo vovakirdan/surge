@@ -165,7 +165,7 @@ func TestRuntimeV2FDRegistryShutdownDrainStaticContract(t *testing.T) {
 	source := `
 #include "rt_async_internal.h"
 
-// Task 10 expected-red contract for Task 11: shutdown must have an explicit,
+// expected-red contract: shutdown must have an explicit,
 // status-returning entry point and a separate fd-registry net-waiter drain
 // hook visible from rt_async_internal.h. The names follow the existing
 // rt_executor_* owner-first helper style and keep shutdown ownership out of

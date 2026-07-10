@@ -1,4 +1,4 @@
-// Epic 11 Block 3 positive: spawn on shard(id) (D03)
+// positive: spawn on shard(id)
 fn double(x: int) -> int {
     return x * 2;
 }

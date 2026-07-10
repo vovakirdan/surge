@@ -3,7 +3,7 @@
 #include "rt_remote_task_internal.h"
 #include "rt_sync_point.h"
 
-// Immediate `on placement` execute/reply vertical (Epic 13 Task 10): one
+// Immediate `on placement` execute/reply vertical: one
 // request, one reply, one request-scoped cancellation token, no publicly
 // observable far Task handle. The pending's handle starts as {task_id=0,
 // generation=request_id, owner_shard_id=destination}; the destination fills

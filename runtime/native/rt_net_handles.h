@@ -21,7 +21,7 @@ typedef struct {
     uint32_t owner_shard_id;
     bool closed;
     // fd-registry row generation stamped when the member fd is registered on
-    // its owner shard (Epic 10 Task 3, RV2-DEBT-010); 0 = not yet registered.
+    // its owner shard (RV2-DEBT-010); 0 = not yet registered.
     uint64_t generation;
 } NetListenerMember;
 
@@ -36,7 +36,7 @@ typedef struct NetListener {
     NetListenerMember* members;
 } NetListener;
 
-// Public handle-word contract (Epic 10 Task 3 recovery): Surge intrinsic net
+// Public handle-word contract (recovery): Surge intrinsic net
 // structs expose exactly one word, `__opaque`. That word is a runtime-generated
 // handle id, never an OS fd and never a pointer. Full runtime objects and
 // reconstructed `{ __opaque = id }` boxes both start with this word; every

@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3018
-// Epic 11 Block 1 negative: borrow conflict on far handle (FAR-OWN-005, FAR-OWN-006)
+// negative: borrow conflict on far handle
 fn edit(x: &mut far TcpConn) -> nothing {
     return nothing;
 }

@@ -11,7 +11,7 @@ func TestIsArrayOrMapType_IncludesArrayFixed(t *testing.T) {
 	// This is a unit test for the LLVM backend's "handle pointer" logic.
 	//
 	// Before the fix, fixed arrays (ArrayFixed<T, N>) were not treated as array-like
-	// in emitHandleOperandPtr(), which caused iter_init / indexing to accidentally
+	// in emitHandleOperandPtr which caused iter_init / indexing to accidentally
 	// dereference the array data pointer as if it were a handle pointer.
 	strings := source.NewInterner()
 	typesIn := types.NewInterner()

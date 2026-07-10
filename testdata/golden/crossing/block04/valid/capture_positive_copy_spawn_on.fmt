@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: Copy capture into spawn on (CAPTURE-002)
+// positive: Copy capture into spawn on
 fn add(x: int, y: int) -> int {
     return x + y;
 }

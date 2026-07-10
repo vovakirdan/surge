@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SYN2016
-// Epic 11 Block 4 negative: @shard_pinned on fn (ATTR-008)
+// negative: @shard_pinned on fn
 @shard_pinned
 fn f() -> nothing {
     return nothing;

@@ -1,4 +1,4 @@
-// Epic 11 Block 3 positive: return far Task (S03, T03, L04)
+// positive: return far Task
 fn double(x: int) -> int {
     return x * 2;
 }

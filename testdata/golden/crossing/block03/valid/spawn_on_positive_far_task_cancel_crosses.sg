@@ -1,4 +1,4 @@
-// Epic 11 Block 3 positive: far Task cancel (T06)
+// positive: far Task cancel
 fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
     return t.cancel();
 }

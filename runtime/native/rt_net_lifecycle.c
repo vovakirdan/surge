@@ -47,7 +47,7 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(rt_executor* ex,
     if (owner_shard != NULL) {
         rt_shard_lock(owner_shard);
     }
-    // Stale-close guard (Epic 10 Task 3, RV2-DEBT-010): the handle must still
+    // Stale-close guard (RV2-DEBT-010): the handle must still
     // match its OPEN registered row under this lock. Two racing closers both
     // pass the unsynchronized *closed_slot check, but only the first finds
     // the row; the loser is rejected here and never issues a second close(2)

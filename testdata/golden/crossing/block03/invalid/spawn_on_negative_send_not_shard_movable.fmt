@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3169
-// Epic 11 Block 3 negative: @send but not @shard_movable (C08)
+// negative: @send but not @shard_movable
 @send
 type SendOnly = {
     id: int,

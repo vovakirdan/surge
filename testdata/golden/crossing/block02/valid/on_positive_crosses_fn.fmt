@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: fn containing on (ON-CROSS-V001; crosses keyword removed)
+// positive: fn containing on (crosses keyword removed)
 fn double(x: int) -> int {
     return x * 2;
 }

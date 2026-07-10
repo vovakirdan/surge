@@ -1,4 +1,4 @@
-// Epic 11 Block 1 positive: far field type (FAR-PARSE-010)
+// positive: far field type
 type Holder = {
     conn: far TcpConn,
 };

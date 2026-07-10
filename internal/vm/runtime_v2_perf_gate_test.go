@@ -11,15 +11,15 @@ import (
 	"time"
 )
 
-// Epic 8 Task 12 performance CI gate. This is the per-commit half of the Epic 8
+// performance CI gate. This is the per-commit half of the performance contract.
 // Performance Contract: a deterministic trace-counter gate on a fixed net
 // workload, wired into `make runtime-v2-perf-check` (and thus
 // `make runtime-v2-check`). It replaces the pre-F2, wall-clock scaling judgment
 // with counter thresholds that do not depend on host load or core count.
 //
 // Why trace counters, not wall-clock:
-//   - The Epic 7 closeout put the 8-shard/1024 row at control_lock_acquired ~=
-//     26.4 per request; Epic 8 moved task create/join/completion and same-owner
+//   - The closeout put the 8-shard/1024 row at control_lock_acquired ~=
+//     26.4 per request; moved task create/join/completion and same-owner
 //     scope bookkeeping off the control lane. Control-lock acquisitions per
 //     request are a LOGICAL property of request processing (how many times the
 //     control lane is taken to serve N requests), independent of wall-clock time,
@@ -28,26 +28,26 @@ import (
 //     saturates ~8.5k req/s while server workers sit near 40% CPU), so it cannot
 //     cleanly attribute a regression to the runtime.
 //   - The tagged per-site lifecycle counters (ctrl_create/join_poll/completion/
-//     scope/handle) are bit-stable across runs and across client patterns (Epic 8
-//     Task 5-10 evidence, re-confirmed at HEAD: ctrl_scope/ctrl_handle/
+//     scope/handle) are bit-stable across runs and across client patterns (
+//     evidence, re-confirmed at HEAD: ctrl_scope/ctrl_handle/
 //     ctrl_await_compat are identical to the count across five gate-workload runs).
 //     The untagged RT_CTRL_SITE_OTHER residual (net/accept/io-drain/shutdown, not
-//     Epic 8's migration surface) jitters with scheduling, so the precise gate is
+//     migration surface) jitters with scheduling, so the precise gate is
 //     the tagged lifecycle sum, with the contract-literal steady-state metric as a
 //     generous backstop.
 //
-// Metric definitions (per the epic + Task 10/Task 12 inputs):
+// Metric definitions for the recorded gate inputs:
 //   - ctrl_await_compat is a HARNESS-STRUCTURAL artifact: every multi-worker Surge
 //     program parks a root external awaiter (@entrypoint main awaiting serve_many)
 //     for its whole lifetime, so ~1 completion per net-wrapper child serializes on
 //     control as external-await compat (done_waiters>0), NOT worker steady-state
 //     completion cost. It is reported as its own column and EXCLUDED from the
 //     steady-state metric.
-//   - steady-state-control = control_lock_acquired - ctrl_await_compat (Task 12
+//   - steady-state-control = control_lock_acquired - ctrl_await_compat (
 //     primary control-per-request metric).
 //   - lifecycle-control = ctrl_create + ctrl_join_poll + ctrl_completion +
 //     ctrl_scope + ctrl_handle (the tagged, bit-stable steady-path lifecycle
-//     acquisitions; the precise regression detector for Epic 8's migrated surface).
+//     acquisitions; the precise regression detector for migrated surface).
 //
 // Fairness (F2, RV2-DEBT-015): placement_adoptions>0 proves join-consume placement
 // adoption is firing, i.e. the pre-F2 placement funnel (all durable tasks pinned to
@@ -64,7 +64,7 @@ import (
 // at HEAD on the reference host (8 shards x 128 conns x 8 req = 1024 requests):
 // lifecycle-control ~= 6.25/req (bit-stable), steady-state-control ~= 12.0/req
 // (<=1.5% run jitter under a fixed client), placement_adoptions ~= 253,
-// accept_owner_active_shards = 8. See 08-evidence.md Task 12 for the full record.
+// accept_owner_active_shards = 8. See 08-evidence.md for the full record.
 const (
 	perfGateShards       = 8
 	perfGateConnections  = 128
@@ -74,7 +74,7 @@ const (
 	// Ceiling on the tagged steady-path lifecycle control acquisitions per
 	// request (bit-stable; measured ~6.25/req). A regression that reintroduces
 	// control-lane traffic on task create/join/completion/scope/handle lifts this
-	// immediately. Well below the 26.4/req Epic 7 baseline.
+	// immediately. Well below the 26.4/req baseline.
 	maxLifecycleControlPerReq = 9.0
 
 	// Ceiling on the contract-literal steady-state control per request
@@ -236,9 +236,9 @@ fn main(port: uint, connections: uint = 1:uint) -> int {
 }
 `
 
-// TestRuntimeV2PerfControlLaneGate is the Epic 8 Task 12 per-commit performance
+// TestRuntimeV2PerfControlLaneGate is the per-commit performance
 // gate. It runs a fixed 8-shard net workload, drives it to completion, and asserts
-// the deterministic control-lane and fairness counters against the Epic 8
+// the deterministic control-lane and fairness counters against the performance contract.
 // Performance Contract. Wall-clock timing is deliberately NOT asserted.
 func TestRuntimeV2PerfControlLaneGate(t *testing.T) {
 	ensureLLVMToolchain(t)
@@ -300,7 +300,7 @@ func TestRuntimeV2PerfControlLaneGate(t *testing.T) {
 	lifecyclePerReq := float64(lifecycleControl) / reqs
 	steadyStatePerReq := float64(control-awaitCompat) / reqs
 
-	t.Logf("Task 12 perf gate (8 shards x %d conns x %d req = %d requests):",
+	t.Logf("Performance gate (8 shards x %d conns x %d req = %d requests):",
 		perfGateConnections, perfGateRequests, perfGateTotalRequest)
 	t.Logf("  control_lock_acquired=%d (%.3f/req) ctrl_await_compat=%d (%.3f/req)",
 		control, float64(control)/reqs, awaitCompat, float64(awaitCompat)/reqs)
@@ -312,20 +312,20 @@ func TestRuntimeV2PerfControlLaneGate(t *testing.T) {
 	t.Logf("  placement_adoptions=%d accept_owner_active_shards=%d", adoptions, activeAcceptShards)
 
 	// (1) Precise, bit-stable regression detector: tagged steady-path lifecycle
-	// control per request. Epic 8 moved task create/join/completion and same-owner
+	// control per request. moved task create/join/completion and same-owner
 	// scope bookkeeping off the control lane; a regression relifts these.
 	if lifecyclePerReq > maxLifecycleControlPerReq {
 		t.Fatalf("lifecycle control per request %.3f exceeds ceiling %.1f "+
-			"(Epic 8 Performance Contract regression: task create/join/completion/scope/handle "+
+			"(performance contract regression: task create/join/completion/scope/handle "+
 			"control-lane traffic increased)\n%s",
 			lifecyclePerReq, maxLifecycleControlPerReq, line)
 	}
 
 	// (2) Contract-literal backstop: steady-state control per request must stay
-	// materially below the Epic 7 closeout baseline of ~26.4/req.
+	// materially below the closeout baseline of ~26.4/req.
 	if steadyStatePerReq > maxSteadyStateControlPerReq {
 		t.Fatalf("steady-state control per request %.3f exceeds ceiling %.1f "+
-			"(control_lock_acquired=%d - ctrl_await_compat=%d; Epic 7 baseline was ~26.4/req)\n%s",
+			"(control_lock_acquired=%d - ctrl_await_compat=%d; baseline was ~26.4/req)\n%s",
 			steadyStatePerReq, maxSteadyStateControlPerReq, control, awaitCompat, line)
 	}
 

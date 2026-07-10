@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3143
-// Epic 11 Block 2 negative: far Task as on destination (ON-DST-N001)
+// negative: far Task as on destination
 fn run(t: far Task<int>) -> TaskResult<int> {
     return on t {
         ret 1;

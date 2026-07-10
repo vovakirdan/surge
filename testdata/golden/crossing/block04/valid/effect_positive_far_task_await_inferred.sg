@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: `far Task<T>.await()` infers the crossing effect.
+// positive: `far Task<T>.await()` infers the crossing effect.
 fn wait_result(t: far Task<int>) -> TaskResult<int> {
     return t.await();
 }

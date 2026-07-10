@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3151
-// Epic 11 Block 2 negative: remote read through far TcpConn (ON-TCP-N001)
+// negative: remote read through far TcpConn
 fn run(conn: far TcpConn, buf: &mut byte[]) -> TaskResult<nothing> {
     return on conn {
         conn.read(buf);

@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3086
-// Epic 11 Block 4 negative: @nosend via ordinary spawn (LOCALITY-009)
+// negative: @nosend via ordinary spawn
 @nosend
 type LocalOnly = {
     id: int,

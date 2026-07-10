@@ -30,7 +30,7 @@ void rt_fd_registry_free(rt_fd_registry* registry) {
     memset(registry, 0, sizeof(*registry));
 }
 
-// fd -> entries index maintenance (Epic 10 Task 3). The dense map is derived
+// fd -> entries index maintenance. The dense map is derived
 // state under the same owner shard lock as the entries array; rows are only
 // created/removed at the two mutation points below, so those are the only
 // writers. Growth fills new slots with -1 (no row).
@@ -228,7 +228,7 @@ static int fd_poll_interest_value(const rt_fd_poll_interest* snapshot, uint8_t k
     }
 }
 
-// Does the row for key's fd exist and carry key's interest kind? Task 7 uses
+// Does the row for key's fd exist and carry key's interest kind? uses
 // this after prepare_park to resolve the fd-registry-attach-miss bridge: a
 // parked net waiter whose attach failed would never be polled once the poll
 // set derives from registry rows, so the caller undoes the park instead.
@@ -273,7 +273,7 @@ rt_runtime_status rt_fd_registry_register_open_fd_generation(rt_fd_registry* reg
     return RT_RUNTIME_STATUS_OK;
 }
 
-// Stale-handle guard predicate (Epic 10 Task 3, RV2-DEBT-010). Caller holds
+// Stale-handle guard predicate (RV2-DEBT-010). Caller holds
 // the owner shard lock, so this read cannot race register/mark_closed: a
 // handle whose fd was closed finds no row (mark_closed swap-removes it), and
 // a handle whose fd number was reused finds a row with a newer generation.
@@ -553,7 +553,7 @@ rt_fd_registry_wake_closed_net_waiters(rt_executor* ex, const rt_fd_lifecycle_sn
     return summary;
 }
 
-// Task 7 poll input: copy one poll-interest row per registry entry into the
+// poll input: copy one poll-interest row per registry entry into the
 // caller's scratch under ex->lock. The copy is the poll snapshot: poll() and
 // completion run against it after ex->lock is released, so rows mutated by
 // other workers during an in-flight poll cannot change the snapshot. Closed

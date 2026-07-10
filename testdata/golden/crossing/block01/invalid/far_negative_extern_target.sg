@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3139
-// Epic 11 Block 1 negative: far extern<T> (FAR-PARSE-NEG-008)
+// negative: far extern<T>
 fn f(x: far extern<TcpConn>) -> nothing {
     return nothing;
 }

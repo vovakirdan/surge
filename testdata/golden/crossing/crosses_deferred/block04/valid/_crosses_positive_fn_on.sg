@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: crosses fn with on (CROSSES-GRAMMAR-001, CROSSES-EFFECT-001)
+// positive: crosses fn with on
 fn double(x: int) -> int {
     return x * 2;
 }

@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: @shard_movable on type (ATTR-001)
+// positive: @shard_movable on type
 @shard_movable
 type Job = {
     id: uint64,

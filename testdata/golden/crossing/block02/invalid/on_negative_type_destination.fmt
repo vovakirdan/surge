@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3145
-// Epic 11 Block 2 negative: type name destination (ON-DST-N004)
+// negative: type name destination
 type Job = {
     id: int,
 };

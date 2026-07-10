@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: far handle anchored by on (CAPTURE-005)
+// positive: far handle anchored by on
 fn run(conn: far TcpConn) -> TaskResult<nothing> {
     return on conn {
         conn.close();

@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: on pool (ON-DST-V001, ON-BODY-V001)
+// positive: on pool
 fn double(x: int) -> int {
     return x * 2;
 }

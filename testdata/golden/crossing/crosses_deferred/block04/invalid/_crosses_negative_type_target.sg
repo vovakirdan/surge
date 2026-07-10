@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SYN2035
-// Epic 11 Block 4 negative: crosses on type target (CROSSES-GRAMMAR-011)
+// negative: crosses on type target
 type crosses Data = {
     id: uint64,
 };

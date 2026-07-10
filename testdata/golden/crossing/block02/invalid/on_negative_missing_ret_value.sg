@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3148
-// Epic 11 Block 2 negative: on value block without ret (ON-BODY-N002)
+// negative: on value block without ret
 fn run() -> TaskResult<int> {
     return on pool {
         let x: int = 1;

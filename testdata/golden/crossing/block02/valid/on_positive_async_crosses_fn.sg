@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: async fn containing on (ON-CROSS-V002; crosses keyword removed)
+// positive: async fn containing on (crosses keyword removed)
 fn double(x: int) -> int {
     return x * 2;
 }

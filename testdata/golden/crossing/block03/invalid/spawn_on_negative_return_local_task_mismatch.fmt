@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3015
-// Epic 11 Block 3 negative: far Task returned as local Task (T04)
+// negative: far Task returned as local Task
 fn double(x: int) -> int {
     return x * 2;
 }

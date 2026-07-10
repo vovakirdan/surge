@@ -154,11 +154,11 @@ func TestRuntimeV2RemotePublicationFailurePathStaticGuards(t *testing.T) {
 		t.Fatal("shutdown must drop queued remote-spawn transport payload refs")
 	}
 	if !strings.Contains(source, `panic_msg("remote spawn: unsupported transport message kind")`) {
-		t.Fatal("Task 6 drain must fail closed for transport kinds it does not handle")
+		t.Fatal("drain must fail closed for transport kinds it does not handle")
 	}
 	if !strings.Contains(
 		source, `panic_msg("remote spawn: unsupported transport message kind during shutdown")`) {
-		t.Fatal("Task 6 shutdown drain must fail closed for transport kinds it does not handle")
+		t.Fatal("shutdown drain must fail closed for transport kinds it does not handle")
 	}
 }
 

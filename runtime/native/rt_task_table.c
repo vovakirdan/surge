@@ -1,6 +1,6 @@
 #include "rt_async_internal.h"
 
-// Segmented task table growth (Epic 8 Task 6, S5-Q1 realization B). This
+// Segmented task table growth (S5-Q1 realization B). This
 // file owns the one concept the escalation added: lazily allocating the
 // fixed-size directory's segments. get_task / rt_task_slot_store /
 // rt_task_table_snapshot (the lock-free-read half of this protocol) stay in

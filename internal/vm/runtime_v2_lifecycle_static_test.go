@@ -9,24 +9,24 @@ import (
 	"testing"
 )
 
-// Epic 8 Task 5 static gates. These pin the task/scope lifecycle-lane shape
+// static gates. These pin the task/scope lifecycle-lane shape
 // decided by 08-lifecycle-lane-proving-spike.md (rules 1-6, decisions
 // S5-Q1..S9-Q7). The ACTIVE gates below assert properties already true at
 // baseline daeac51e plus the per-site control-lock counter wiring this task
 // adds; they run green and are wired into `make runtime-v2-check` via the
 // runtime-v2-lifecycle-check stage, whose -run regex enumerates each green
-// test by name (Epic 7 precedent) — the active gates below plus Task 4's
+// test by name (the established gate pattern) — the active gates below plus
 // behavior contracts. Pending gates are added to that regex by their owning
 // task when the Skip is removed.
 //
 // The PENDING gates at the bottom are the per-path "no control lane" / owner-
-// lane assertions for Tasks 6-10. Following the Epic 7 additive-then-peel rule,
+// lane assertions for the migrated paths. Following the additive-then-peel rule,
 // each lands here now as machinery + a written assertion but t.Skip()s with its
 // activating task and exact activation criteria; the owning task deletes the
 // Skip line in the same commit that peels its path, so the gate turns green
-// with the migration. (This is a deliberate, documented deviation from Epic 7's
+// with the migration. (This is a deliberate, documented deviation from the
 // red-until-wired static tests: t.Skip keeps `go test -tags runtime_v2_pending
-// ./...` green while Task 4 shares the tree.)
+// ./...` green while the migration shares the tree.)
 
 // lifecycleFindFunctionBody returns the definition body of a C function in
 // runtime/native, reusing the lock-split scanner (same package, same tag).
@@ -47,7 +47,7 @@ func lifecycleReadNativeFile(t *testing.T, name string) string {
 
 // G1: the per-site attribution enum carries exactly the six census sites plus
 // the untagged OTHER residual, and the increment entry point has the expected
-// signature. This is the contract Tasks 6-10 measure their peels against.
+// signature. This is the contract used to measure migration steps.
 func TestRuntimeV2LifecycleStaticControlSiteEnumShape(t *testing.T) {
 	runLockSplitClangShapeCheck(t, `
 #include "rt_async_internal.h"
@@ -112,7 +112,7 @@ func TestRuntimeV2LifecycleStaticJoinWaiterRoutesByTargetOwner(t *testing.T) {
 // G3 (rule 1): task lookup is a lock-free acquire snapshot — the table pointer
 // and the slot are both acquire-loaded, and the copy-on-grow table is published
 // through the slot-store/snapshot helpers. This is the protocol S5-Q7 has the
-// scope table adopt in Task 9.
+// scope table adopt this protocol.
 func TestRuntimeV2LifecycleStaticTaskTableAtomicSnapshot(t *testing.T) {
 	body := lifecycleFindFunctionBody(t, "get_task")
 	if strings.Count(body, "memory_order_acquire") < 2 {
@@ -142,7 +142,7 @@ func TestRuntimeV2LifecycleStaticJoinScopeWaitersUnqualified(t *testing.T) {
 
 // G5: the escalation-critical create-site counter is wired. __task_create takes
 // the control lane and tags it CREATE; this counter's 8x1024 per-request value
-// decides the Task 6 segmented-table escalation (>= 2.0/request).
+// decides the segmented-table escalation (>= 2.0/request).
 func TestRuntimeV2LifecycleStaticCreateSiteCounterWired(t *testing.T) {
 	body := lifecycleFindFunctionBody(t, "__task_create")
 	if !strings.Contains(body, "rt_trace_control_lock_site(RT_CTRL_SITE_CREATE)") {
@@ -151,7 +151,7 @@ func TestRuntimeV2LifecycleStaticCreateSiteCounterWired(t *testing.T) {
 }
 
 // G6: every lifecycle census site tags its control acquisition with the matching
-// rt_ctrl_site, so Tasks 6-10 cannot silently drop a tag while peeling a path
+// rt_ctrl_site, so cannot silently drop a tag while peeling a path
 // (which would make the per-request attribution lie). checkpoint and rt_sleep
 // stay intentionally untagged (OTHER): they are spawn-shaped and negligible on
 // the net bench.
@@ -161,7 +161,7 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 		tag string
 	}{
 		{"__task_create", "RT_CTRL_SITE_CREATE"},
-		// Epic 8 Task 7: rt_task_poll itself no longer takes the control lane
+		// rt_task_poll itself no longer takes the control lane
 		// at all (P7, StaticJoinPollOwnerLane, below) - its only remaining
 		// control acquisition is the rare F2 placement-adoption fallback,
 		// which must live in a separate function
@@ -188,13 +188,13 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 	}
 }
 
-// ===== PENDING gates (Tasks 6-10; delete the t.Skip line in the peel commit) =====
+// ===== PENDING gates (delete the t.Skip line in the peel commit) =====
 
-// P6 (Task 6, create/publish): realization B (the segmented never-moved-slot
-// task table, adopted per the Task 5 escalation verdict: ctrl_create=3.500/req
+// P6 (create/publish): realization B (the segmented never-moved-slot
+// task table, adopted per the escalation verdict: ctrl_create=3.500/req
 // >= 2.0) moves id-alloc, slot publish, and ready-push under the owner shard
 // lock with no control acquisition in the steady state; only a rare
-// segment-growth event still takes control. Activated by Task 6's commit:
+// segment-growth event still takes control. Activated when the implementation lands:
 // asserts ready_push runs under rt_shard_lock in __task_create.
 func TestRuntimeV2LifecycleStaticCreateReadyPushOwnerShard(t *testing.T) {
 	body := lifecycleFindFunctionBody(t, "__task_create")
@@ -203,7 +203,7 @@ func TestRuntimeV2LifecycleStaticCreateReadyPushOwnerShard(t *testing.T) {
 	}
 }
 
-// P7 (Task 7, join poll + handle lifetime): the join register + result read move
+// P7 (join poll + handle lifetime): the join register + result read move
 // to the target owner store lane; the DONE fast path no longer spans the control
 // lane. Activated: rt_task_poll itself never takes rt_control_lock (its only
 // remaining control acquisition, the rare F2 placement-adoption fallback,
@@ -216,15 +216,15 @@ func TestRuntimeV2LifecycleStaticJoinPollOwnerLane(t *testing.T) {
 	}
 }
 
-// P8 (Task 8, completion epilogue): mark_done writes result_kind/result_bits
+// P8 (completion epilogue): mark_done writes result_kind/result_bits
 // BEFORE the TASK_DONE release store (rule 1/2), and the WAKER_JOIN reason is
 // gone from mark_done_needs_control (S6-Q1) — join-key removal is
 // join-owner-route local and runs control-free. The remaining scope reason
 // (parent_scope_id/scope_
-// registered and the WAKER_SCOPE park_key) stays until Task 9 moves scope
+// registered and the WAKER_SCOPE park_key) stays until the scope bookkeeping moves
 // bookkeeping + the scope_key store to the scope owner lane; that
 // scope-reason-gone assertion belongs to P9 (TestRuntimeV2LifecycleStaticScope
-// OwnerLane), not here. Activated by Task 8's commit.
+// OwnerLane), not here. Activated when the implementation lands.
 func TestRuntimeV2LifecycleStaticCompletionResultVisibilityOrder(t *testing.T) {
 	body := lifecycleFindFunctionBody(t, "mark_done")
 	resultIdx := strings.Index(body, "task->result_kind = result_kind")
@@ -235,14 +235,14 @@ func TestRuntimeV2LifecycleStaticCompletionResultVisibilityOrder(t *testing.T) {
 	needsControl := lifecycleFindFunctionBody(t, "mark_done_needs_control")
 	if strings.Contains(needsControl, "WAKER_JOIN") {
 		t.Fatalf("mark_done_needs_control must not keep the WAKER_JOIN reason "+
-			"(join removal is owner-local since Task 7):\n%s", needsControl)
+			"(join removal is owner-local):\n%s", needsControl)
 	}
 }
 
-// P9 (Task 9, scope owner lane): ex->scopes becomes an atomic-snapshot table
+// P9 (scope owner lane): ex->scopes becomes an atomic-snapshot table
 // (get_scope is a lock-free acquire load), scope object bookkeeping + the
 // scope_key store move to the scope owner shard, and WAKER_SCOPE routes to the
-// scope owner store (revising Epic 7 D8). Activation: Task 9's commit; delete
+// scope owner store. Activation: when the implementation lands; delete
 // the Skip and assert get_scope acquire-loads a scopes snapshot and
 // rt_waiter_route.c maps WAKER_SCOPE to the scope owner shard.
 func TestRuntimeV2LifecycleStaticScopeOwnerLane(t *testing.T) {
@@ -260,7 +260,7 @@ func TestRuntimeV2LifecycleStaticScopeOwnerLane(t *testing.T) {
 	if !strings.Contains(state, "rt_scope_slot_store") {
 		t.Fatal("scope-table atomic-snapshot protocol requires rt_scope_slot_store in rt_async_state.c")
 	}
-	// WAKER_SCOPE routes to the scope owner shard store (S5-Q10, revising Epic 7
+	// WAKER_SCOPE routes to the scope owner shard store (S5-Q10),
 	// D8), not ex->control_waiters.
 	route := lifecycleReadNativeFile(t, "rt_waiter_route.c")
 	if strings.Contains(route, "case WAKER_SCOPE:\n            return &ex->control_waiters;") {
@@ -280,19 +280,19 @@ func TestRuntimeV2LifecycleStaticScopeOwnerLane(t *testing.T) {
 	for _, banned := range []string{"parent_scope_id", "scope_registered"} {
 		if strings.Contains(needsControl, banned) {
 			t.Fatalf("mark_done_needs_control must not keep the scope reason (%s) "+
-				"- scope completion is owner-lane since Task 9:\n%s", banned, needsControl)
+				"- scope completion is owner-lane:\n%s", banned, needsControl)
 		}
 	}
 	markDone := lifecycleFindFunctionBody(t, "mark_done")
 	if strings.Contains(markDone, "WAKER_SCOPE") {
 		t.Fatalf("mark_done park_needs_control must not key on WAKER_SCOPE "+
-			"(scope_key removal is owner-local since Task 9):\n%s", markDone)
+			"(scope_key removal is owner-local):\n%s", markDone)
 	}
 }
 
-// P10 (Task 10, await/runner/blocking compat): done_cv and compat_cv stay
+// P10 (await/runner/blocking compat): done_cv and compat_cv stay
 // external/main-thread only and are counted separately from the worker-lane
-// join path (rule 5). Activation: Task 10's commit; delete the Skip and assert
+// join path (rule 5). Activation: when the implementation lands; delete the Skip and assert
 // the worker-side join path never references done_cv and the await-compat
 // counter accounts only for the non-worker (workers>1) await entries.
 func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
@@ -361,7 +361,7 @@ func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
 	// done_waiters guard above; it never waits on it. The lone waiter is
 	// rt_task_await (asserted in (ii)). This is robust to comments mentioning
 	// the condvar by name — it counts the actual condvar operations.
-	// mark_done moved to rt_task_complete.c (Epic 10 Task 2); both the legacy
+	// mark_done moved to rt_task_complete.c; both the legacy
 	// file and the completion file must delegate done_cv broadcasting.
 	state := lifecycleReadNativeFile(t, "rt_async_state.c")
 	complete := lifecycleReadNativeFile(t, "rt_task_complete.c")

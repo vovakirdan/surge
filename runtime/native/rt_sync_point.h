@@ -1,4 +1,4 @@
-// Runtime V2 Epic 9 proving spike: test-only deterministic interleaving hooks.
+// Runtime V2 proving spike: test-only deterministic interleaving hooks.
 //
 // RT_SYNC_POINT(name) and RT_SYNC_POINT_IF(cond, name) mark an instruction-scale
 // rendezvous inside REAL runtime code so a test can pause one thread at a named
@@ -16,9 +16,9 @@
 // translation unit fails to compile, in BOTH the armed and the release build
 // (the release macro still references the enumerator). Adding a site therefore
 // requires (1) adding an enumerator here and (2) listing the window in
-// check_sync_points.sh. Epic 9 introduced the first lifecycle windows; Epic 13
-// Task 3 adds transport park/wake contract windows whose production sites land
-// in Task 4.
+// check_sync_points.sh. The first lifecycle windows were introduced here;
+// adds transport park/wake contract windows whose production sites land
+// in .
 #ifndef RT_SYNC_POINT_H
 #define RT_SYNC_POINT_H
 
@@ -129,7 +129,7 @@ void rt_sync_point_open(void);
 
 #endif // RT_TEST_SYNC_POINTS
 
-// RV2-DEBT-023 negative-control toggle (Epic 9 proof infrastructure, available
+// RV2-DEBT-023 negative-control toggle (proof infrastructure, available
 // in every build so cancel_task compiles either way). Default expands to the
 // unconditional wake (the fix). A build that defines RV2_DEBT_023_NEGATIVE_
 // CONTROL restores the pre-fix status-gated wake, which MUST strand the

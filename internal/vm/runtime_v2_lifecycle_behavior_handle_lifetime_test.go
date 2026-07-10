@@ -12,7 +12,7 @@ import (
 // rt_async_task.c:234-247; task_add_ref/task_release, rt_async_state.c:
 // 1381-1427), asserting no crash/hang and correct result observation over
 // many racers. Guards S5-Q6 (clone drops control, relies on the atomic
-// refcount + live-handle rule) ahead of Task 7.
+// refcount + live-handle rule) ahead of the next implementation step.
 func TestRuntimeV2LifecycleCloneReleaseLastReferenceFree(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
 	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
@@ -33,7 +33,7 @@ func TestRuntimeV2LifecycleCloneReleaseLastReferenceFree(t *testing.T) {
 // at :1574) precisely so this cannot free the task out from under itself.
 //
 // This is a probabilistic regression stress, not the spike's forced
-// deterministic model (Task 4 does not modify rt_async_state.c to inject a
+// deterministic model (does not modify rt_async_state.c to inject a
 // delay): many (target, joiner) pairs run concurrently across worker
 // threads with no artificial sleep, and TSan is the oracle that turns "the
 // process didn't crash" into "no data race, no use-after-free was observed".
@@ -41,11 +41,11 @@ func TestRuntimeV2LifecycleCloneReleaseLastReferenceFree(t *testing.T) {
 // Runs in NO-KEEPALIVE mode (LIFECYCLE_PIN_STRESS_NO_KEEPALIVE=1), the
 // required-passing configuration: it exercises BOTH races RV2-DEBT-019 found in
 // the baseline together, with no in-harness mitigation. Race 1 (mark_done's
-// result writes after the TASK_DONE release store) was closed by Task 7's
+// result writes after the TASK_DONE release store) was closed by the release-store ordering;
 // reorder; race 2 (mark_done_needs_control's unlocked park_key read vs
-// wake_task_on_shard_locked's write) is closed by Task 8 reading+clearing
+// wake_task_on_shard_locked's write) is closed by reading+clearing
 // park_key under the task's owner shard lock. Swept across SURGE_SHARDS=1,2,8;
-// TSan is the oracle. Wired into runtime-v2-lifecycle-check by Task 8.
+// TSan is the oracle. Wired into runtime-v2-lifecycle-check.
 func TestRuntimeV2LifecycleCompletionPinInterleavingTSan(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessTSan(t)
 	shardThreads := map[string]string{"1": "2", "2": "2", "8": "8"}
@@ -120,11 +120,11 @@ static void* g_keepalive_target;
 // keepalive, TSan correctly flags a real data race here between mark_done's
 // unlocked result write and rt_task_poll/rt_task_await's control-lock-held
 // read -- confirmed by direct observation while developing this harness; it
-// is the exact "Required change" Task 8 already owns, not a new bug this
+// is the exact required change owned by this test, not a new bug this
 // test introduces. Forcing need_control true tests the completion-pin
 // property (rule 1's actual subject) under the precondition the current
 // design documents, rather than incidentally re-discovering the already-
-// tracked Task 8 item on every run.
+// tracked race on every run.
 static void* keepalive_awaiter_thread(void* arg) {
     (void)arg;
     uint8_t kind = 0;
@@ -140,10 +140,10 @@ static int mode_completion_pin_stress(rt_executor* ex) {
         (void)rt_executor_request_shutdown(ex);
         return fail("park-forever channel setup failed");
     }
-    // RV2-DEBT-019: the keepalive is toggleable so Task 8 can exercise EITHER
+    // RV2-DEBT-019: the keepalive is toggleable so the harness can exercise EITHER
     // race in isolation while deciding its fix: unset (default) isolates the
     // park_key race (item 2) by forcing mark_done_needs_control true, which
-    // also masks the result-visibility race (item 1, Task 8's own target).
+    // also masks the result-visibility race (item 1, the test's target).
     // Set LIFECYCLE_PIN_STRESS_NO_KEEPALIVE=1 to disable this and reproduce
     // both races together, matching this test's state before mitigation.
     if (getenv("LIFECYCLE_PIN_STRESS_NO_KEEPALIVE") == NULL) {

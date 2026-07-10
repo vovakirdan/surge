@@ -1,4 +1,4 @@
-// Epic 11 Block 1 positive: exclusive borrow of far handle (FAR-PARSE-004, FAR-OWN-004)
+// positive: exclusive borrow of far handle
 fn edit(x: &mut far TcpConn) -> nothing {
     return nothing;
 }

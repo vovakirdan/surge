@@ -333,11 +333,11 @@ static void trace_exec_dump(const char* reason) {
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_placement_adoption_total, memory_order_relaxed));
-    // Per-site control-lock attribution (Epic 8 Task 5). Fields follow the
+    // Per-site control-lock attribution. Fields follow the
     // rt_ctrl_site order (OTHER at index 0 is the untagged residual and is not
     // dumped); their sum is <= control_lock_acquired. Emitted via a loop rather
     // than one call per site so the RT_CTRL_SITE_HANDLE sub-site breakdown
-    // (Task 8) fits without growing this over-limit file (Global Rule 4).
+    // fits without growing this over-limit file (Global Rule 4).
     static const char* const ctrl_site_names[RT_CTRL_SITE_COUNT] = {NULL,
                                                                     "ctrl_create",
                                                                     "ctrl_join_poll",
@@ -353,8 +353,8 @@ static void trace_exec_dump(const char* reason) {
             ctrl_site_names[s],
             atomic_load_explicit(&trace_control_lock_site_total[s], memory_order_relaxed));
     }
-    // RT_CTRL_SITE_HANDLE sub-site breakdown (Epic 8 Task 8, reviewer Note 3):
-    // the three sum to ctrl_handle and attribute the Task 7->8 ctrl_handle delta.
+    // RT_CTRL_SITE_HANDLE sub-site breakdown (reviewer Note 3):
+    // the three sum to ctrl_handle and attribute the ->8 ctrl_handle delta.
     static const char* const ctrl_handle_site_names[RT_CTRL_HANDLE_COUNT] = {
         "ctrl_handle_wake", "ctrl_handle_cancel", "ctrl_handle_free"};
     for (size_t s = 0; s < RT_CTRL_HANDLE_COUNT; s++) {
@@ -441,7 +441,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
             tasks_done++;
         }
         if (status == TASK_WAITING || status == TASK_READY) {
-            // Liveness triage line (Epic 8): a parked or queued task's park
+            // Liveness triage line: a parked or queued task's park
             // key, generation, queue flag, wake token, and pending resume
             // identify a stranded park or a lost wake from one snapshot.
             char tbuf[224];
@@ -496,7 +496,7 @@ static void trace_exec_snapshot_dump(const char* reason) {
     }
     rt_trace_collect_waiter_counts(ex, &waiters);
     {
-        // Raw store dump (Epic 8 triage): entries beyond len expose a
+        // Raw store dump (triage): entries beyond len expose a
         // truncated-length corruption that counts and scans cannot see.
         rt_runtime* rt = rt_executor_runtime(ex);
         size_t shard_count = rt_runtime_shard_count(rt);

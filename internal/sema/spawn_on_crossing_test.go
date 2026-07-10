@@ -2,7 +2,7 @@ package sema
 
 import "testing"
 
-// TestSpawnOnDiagnostics covers the Epic 11 Block 3 `spawn on dst { ... }`
+// TestSpawnOnDiagnostics covers the Block 3 `spawn on dst { ... }`
 // remote-spawn surface and the `far Task<T>` lifecycle. It reuses the
 // placement-crossing prelude (onCrossingPrelude) and the onCrossingCodes helper
 // from on_crossing_test.go; extra declarations are supplied inline per case.

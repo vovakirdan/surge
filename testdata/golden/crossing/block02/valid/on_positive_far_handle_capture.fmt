@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: far handle captured by value (ON-CAP-V003)
+// positive: far handle captured by value
 fn keep(c: far TcpConn) -> nothing {
     return nothing;
 }

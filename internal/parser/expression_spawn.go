@@ -12,7 +12,7 @@ func (p *Parser) parseSpawnExprWithAttrs(attrs []ast.Attr, attrSpan source.Span)
 	p.validateSpawnAttrs(attrs, attrSpan)
 	spawnTok := p.advance()
 
-	// `@local spawn on <dst> { ... }` (Epic 11 Block 3, row S07) must parse as a
+	// `@local spawn on <dst> { ... }` (Block 3, row S07) must parse as a
 	// remote-spawn expression; sema rejects the `@local` combination (SEM3174).
 	// The attributes are already validated above and are carried onto the node so
 	// sema can see the `@local` and emit SEM3174.

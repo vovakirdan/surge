@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: inferred crossing effect propagates through calls.
+// positive: inferred crossing effect propagates through calls.
 fn inner(n: int) -> TaskResult<int> {
     return on pool {
         ret n;

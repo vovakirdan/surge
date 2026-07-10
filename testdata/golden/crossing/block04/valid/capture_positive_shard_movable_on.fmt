@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: own @shard_movable into on (CAPTURE-003)
+// positive: own @shard_movable into on
 @shard_movable
 type Job = {
     id: int,

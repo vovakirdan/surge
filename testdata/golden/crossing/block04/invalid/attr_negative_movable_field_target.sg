@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SYN2016
-// Epic 11 Block 4 negative: @shard_movable on field (ATTR-005)
+// negative: @shard_movable on field
 type Job = {
     @shard_movable id: uint64,
 };

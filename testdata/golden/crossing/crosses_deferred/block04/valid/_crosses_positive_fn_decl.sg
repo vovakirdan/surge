@@ -1,2 +1,2 @@
-// Epic 11 Block 4 positive: crosses on a function declaration (CROSSES-GRAMMAR-004)
+// positive: crosses on a function declaration
 fn remote_ready(ch: far Channel<int>) crosses -> TaskResult<bool>;

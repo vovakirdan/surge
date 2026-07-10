@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SYN2035
-// Epic 11 Block 4 negative: crosses on block target (CROSSES-GRAMMAR-014)
+// negative: crosses on block target
 fn f() -> int {
     crosses {
         ret 1;

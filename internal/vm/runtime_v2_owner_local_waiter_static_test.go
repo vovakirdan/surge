@@ -203,7 +203,7 @@ int rt_lane_holds_control(void) {
 
 _Thread_local rt_worker_ctx* tls_worker_ctx;
 
-// Epic 8 Task 6 changed rt_task_table_snapshot's signature from a struct
+// changed rt_task_table_snapshot's signature from a struct
 // pointer to a uint64_t next_id bound (rt_async_internal.h); this stub
 // always returned NULL before, which made clear_accept_winner_wait_keys's
 // scan a no-op in this harness (table != NULL guarded the loop) - returning
@@ -267,7 +267,7 @@ rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task) {
     return rt_runtime_shard(runtime, 0);
 }
 
-// Scope stubs (Epic 8 Task 9): rt_waiter_route.c's WAKER_SCOPE case now resolves
+// Scope stubs: rt_waiter_route.c's WAKER_SCOPE case now resolves
 // through get_scope + rt_scope_owner_shard. This net-waiter harness never
 // registers scope keys, so minimal stubs satisfy the link.
 rt_scope* get_scope(rt_executor* ex, uint64_t id) {

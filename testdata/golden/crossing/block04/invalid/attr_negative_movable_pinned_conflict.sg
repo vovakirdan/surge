@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3172
-// Epic 11 Block 4 negative: @shard_movable + @shard_pinned conflict (ATTR-012)
+// negative: @shard_movable + @shard_pinned conflict
 @shard_movable
 @shard_pinned
 type Resource = {

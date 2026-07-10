@@ -10,7 +10,7 @@ import (
 	"surge/internal/types"
 )
 
-// typeExprSpawnOn type-checks a `spawn on dst { ... }` remote spawn (Epic 11
+// typeExprSpawnOn type-checks a `spawn on dst { ... }` remote spawn (
 // Block 3). It shares the ExprOn node with the immediate crossing but, instead
 // of running the body and yielding `TaskResult<T>`, it creates placed work and
 // yields a strictly-affine `far Task<T>` handle whose payload `T` is the body's

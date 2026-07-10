@@ -109,14 +109,14 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-transport-check
 
 runtime-v2-crossing-check:
-	@echo ">> Running Runtime V2 crossing readiness gate (Epic 13)"
+	@echo ">> Running Runtime V2 crossing readiness gate"
 	$(GO) test ./internal/crossinggate -count=1 --timeout 60s
 	$(GO) test ./internal/buildpipeline ./internal/hir -run '^(TestCrossingBackendUnavailableMessages|TestCrossingBackendGuardsAreDefaultClosed|TestCrossingBackendGuardDoesNotMaskSemaErrors|TestCrossingBackendGuardsCoverImportedModules|TestVMAndUnknownBackendsKeepExecutableAsyncFormsGuarded|TestLLVMTransportCapabilityOpensAsyncSpawnOn|TestLLVMTransportCapabilityOpensAsyncImmediateOn|TestLLVMTransportCapabilityOpensAsyncFarTaskLifecycle|TestLowerOnCrossingBypassReturnsError|TestLowerSpawnOnCrossingBypassReturnsError|TestLowerFarTaskCrossingBypassReturnsError|TestLowerCrossingRepresentationWithExplicitCapability)$$' -count=1 --timeout 60s
 	$(GO) test ./internal/mono ./internal/mir -run '^(TestMonoPreservesCrossingRepresentation|TestMIRCrossingRepresentationWithExplicitCapability|TestMIRCrossingValidationDefaultClosed|TestMIRAsyncCrossingSuspendRepresentation)$$' -count=1 --timeout 60s
 	$(GO) test ./internal/sema ./internal/driver -run '^(TestCrossingLowering.*|TestFunctionCrossingEffectInference|TestCrossingReadinessDebt024ModuleImportDoesNotRequireImportedEffects)$$' -count=1 --timeout 60s
 
 runtime-v2-syncpoint-check:
-	@echo ">> Running Runtime V2 sync-point proving-spike static gate (Epic 9)"
+	@echo ">> Running Runtime V2 sync-point proving-spike static gate"
 	./check_sync_points.sh
 
 # The stable transport gate: park/wake spine acceptance, publication rows,
@@ -126,20 +126,20 @@ runtime-v2-transport-check: runtime-v2-transport-contract-check
 	@echo ">> Runtime V2 transport gate complete"
 
 runtime-v2-transport-contract-check:
-	@echo ">> Running Runtime V2 transport contract gate (Epic 13 Task 4)"
+	@echo ">> Running Runtime V2 transport contract gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Transport(SeamStaticShape|SpineBehavior|SyncPointAllowlistShape|ProbeRowsDocumented)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
-	@echo ">> Running Runtime V2 remote task acceptance gate (Epic 13 Task 9)"
+	@echo ">> Running Runtime V2 remote task acceptance gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Remote(TaskBehavior|TaskReplyValidationIsGenerationQualified|TaskSourcesRespectFileLimit|TaskStateHasInitRollbackPair|Publication(APIShape|Behavior|FailurePathStaticGuards))$$|^TestRuntimeV2TransportReplyWaitersHaveExplicitShardRouting$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2FarTaskSource(OverrideAcrossShards|ProductionCapability)$$|^TestRuntimeV2SpawnOnPoolProductionCapabilityFailsDeterministically$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
-	@echo ">> Running Runtime V2 immediate-on acceptance gate (Epic 13 Task 10)"
+	@echo ">> Running Runtime V2 immediate-on acceptance gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2ImmediateOn(SourceOverrideAcrossShards|SourceProductionCapability|PoolProductionCapabilityFailsDeterministically)$$|^TestRuntimeV2ImportedCrossingProductionCapability$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 heap accounting gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestLLVMNative(HeapStats|BufferedChannelAllocatesSingleBlock)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2HeapAccounting(SequentialContracts|ConcurrentWorkersContract)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic(PublicABI|Task5SkeletonShape|Task6RecordMigrationShape|Task7SnapshotAggregationShape)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic(PublicABI|ShardCellSkeletonShape|RecordMigrationShape|SnapshotAggregationShape)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
 
 runtime-v2-waiter-check:
 	@echo ">> Running Runtime V2 waiter liveness gate"
@@ -151,11 +151,11 @@ runtime-v2-fd-registry-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(RepeatedReadinessSingleFD|ReadWriteInterestSharesFDRow|DuplicateReadWaitersBothComplete|ClosedFDFailsFast|StaticShape|StaticBoundary|GenerationStaleSnapshotProof|CloseWakePollNotificationProof|ShutdownDrainStaticContract|ShutdownDrainBehavior)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-net-handle-check:
-	@echo ">> Running Runtime V2 net-handle guard gate (Epic 10 Task 3)"
+	@echo ">> Running Runtime V2 net-handle guard gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetHandle(StaleCopyReusedFD|GuardStaticShape)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-http-owner-check:
-	@echo ">> Running Runtime V2 HTTP owner-local gate (Epic 10 Task 4)"
+	@echo ">> Running Runtime V2 HTTP owner-local gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HTTPOwnerLocal(StaticShape|Behavior)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-accept-check:
@@ -175,7 +175,7 @@ runtime-v2-lifecycle-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Lifecycle(StaticControlSiteEnumShape|StaticJoinWaiterRoutesByTargetOwner|StaticTaskTableAtomicSnapshot|StaticJoinScopeWaitersUnqualified|StaticCreateSiteCounterWired|StaticCensusSitesTagged|TraceControlSiteContract|OwnerLocalCreateAndReadyPublication|JoinPollResultObservation|JoinWaiterCleanupRegisterThenVerify|CloneReleaseLastReferenceFree|ScopeEnterRegisterJoinExit|ScopeFailfastCancellation|ScopeCancelledPollTeardown|WorkerAwaitVsExternalAwait|ShutdownWithParkedTasks|StaticCreateReadyPushOwnerShard|CancelSpawnChildrenRace|StaticJoinPollOwnerLane|StaticScopeOwnerLane|JoinConsumePlacementAdoption|ScopeEnterRegisterJoinExitAcrossShards|ScopeFailfastCancellationAcrossShards|ScopeCancelledPollTeardownAcrossShards|ScopeCrossOwnerChildDone|Debt020MigrateGapProof|Debt020MigrateGapNegativeControl|Debt022DoneCVStoreLoadProof|Debt022DoneCVStoreLoadNegativeControl|Debt022ExternalAwaitMatrix|Debt023CancelParkWakeTokenProof|Debt023CancelParkWakeTokenNegativeControl|CompletionPinInterleavingTSan|StaticAwaitCompatCountedSeparately|TraceAwaitCompatCountedSeparately)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-perf-check:
-	@echo ">> Running Runtime V2 performance CI gate (Epic 8 Task 12)"
+	@echo ">> Running Runtime V2 performance CI gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2PerfControlLaneGate$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 # ===== Format =====

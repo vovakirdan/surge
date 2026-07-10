@@ -10,7 +10,7 @@ import (
 // create -> owner-shard assign -> ready-push -> run path stays on the
 // assigned owner shard today (rt_async_task.c:8-44 __task_create,
 // rt_task_assign_spawn_owner:40, ready_push:41), across SURGE_SHARDS=1,2,8.
-// This guards S5-Q1 (08-lifecycle-lane-proving-spike.md): Task 6 may move
+// This guards S5-Q1 (08-lifecycle-lane-proving-spike.md): the implementation may move
 // slot-publish + ready-push to the owner shard lock, but the observable
 // contract -- a task placed on shard N runs on shard N's worker -- must not
 // change.
@@ -24,7 +24,7 @@ func TestRuntimeV2LifecycleOwnerLocalCreateAndReadyPublication(t *testing.T) {
 // both a same-shard and a cross-shard join, across SURGE_SHARDS=1,2,8. This
 // is the direct regression guard for rule 2 (join result visibility) and
 // S5-Q3 (join register-then-verify under the target-owner store lock alone),
-// which Task 7 implements against.
+// which the test implements against.
 func TestRuntimeV2LifecycleJoinPollResultObservation(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
 	t.Run("same-shard", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestRuntimeV2LifecycleJoinPollResultObservation(t *testing.T) {
 //     register-then-verify window (rt_async_task.c:127-145) over many
 //     iterations. This cannot force the exact interleaving deterministically
 //     without touching rt_async_task.c/rt_async_state.c (out of scope for
-//     Task 4); the iteration count is the mitigation, matching the Task 3
+//     ); the iteration count is the mitigation, matching the stress methodology.
 //     spike's own justification for its TSan model's iteration counts.
 //   - "post-park": the target yields several times before completing, so the
 //     joiner parks first and is woken later by the normal completion drain

@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: @nosend captured by @local spawn (CAPTURE-006)
+// positive: @nosend captured by @local spawn
 @nosend
 type LocalOnly = {
     id: int,

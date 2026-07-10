@@ -3,7 +3,7 @@ package mir
 import "surge/internal/types"
 
 // IsDirectFarTaskType reports the concrete runtime-owned `far Task<T>` shape.
-// It intentionally does not recurse through containers: Task 9's lease seam
+// It intentionally does not recurse through containers: lease seam
 // only owns direct handles that the native ABI represents as one pointer.
 func IsDirectFarTaskType(typesIn *types.Interner, id types.TypeID) bool {
 	if typesIn == nil || id == types.NoTypeID {

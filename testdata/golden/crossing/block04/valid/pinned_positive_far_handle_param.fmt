@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: far handle param for @shard_pinned type (PINNED-001)
+// positive: far handle param for @shard_pinned type
 fn accept_handle(conn: far TcpConn) -> nothing {
     return nothing;
 }

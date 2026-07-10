@@ -1,6 +1,6 @@
 #include "rt_async_internal.h"
 
-// Task park/unpark primitive (Epic 8 Task 13 extraction from rt_async_state.c).
+// Task park/unpark primitive (extraction from rt_async_state.c).
 // Owner concept: how a RUNNING task suspends itself behind a waker_key
 // (park_current), how a parked task is made schedulable again (wake_task /
 // wake_net_task / wake_key_all), and the leaf enqueue that consumes the park

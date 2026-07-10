@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3162
-// Epic 11 Block 4 negative: async fn with on but no crosses (CROSSES-EFFECT-010)
+// negative: async fn with on but no crosses
 fn double(x: int) -> int {
     return x * 2;
 }

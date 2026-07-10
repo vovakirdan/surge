@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: @shard_pinned + @nosend on type (ATTR-003)
+// positive: @shard_pinned + @nosend on type
 @shard_pinned
 @nosend
 type Socket = {

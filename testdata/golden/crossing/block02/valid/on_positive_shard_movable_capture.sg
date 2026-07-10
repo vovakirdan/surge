@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: own @shard_movable capture (ON-CAP-V002)
+// positive: own @shard_movable capture
 @shard_movable
 type Request = {
     id: int,

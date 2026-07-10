@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Epic 10 Task 3 (RV2-DEBT-010) behavior and static gates for the copied
+// (RV2-DEBT-010) behavior and static gates for the copied
 // net-handle contract. A public TcpConn may be a reconstructed 8-byte box
 // carrying only the stable runtime handle id; every data-path op resolves that
 // id through the handle table before touching fd, owner, closed, or generation

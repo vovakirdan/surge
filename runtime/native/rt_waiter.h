@@ -5,11 +5,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Waiter keys, entries, and stores. Stores are owned per the Epic 7/9
+// Waiter keys, entries, and stores. Stores are owned per the /9
 // dependency map: net keys by the fd owner shard, join keys by the task's
 // atomic join-owner route, timer/blocking keys by the parked-on task's owner
 // shard, scope keys by the control lane, and channel keys by the channel owner
-// (shard 0 until the Task 10 migration).
+// (shard 0 until the migration).
 
 typedef struct rt_executor rt_executor;
 typedef struct rt_task rt_task;

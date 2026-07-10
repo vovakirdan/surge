@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3168
-// Epic 11 Block 4 negative: unmarked owned user value into spawn on (CAPTURE-017)
+// negative: unmarked owned user value into spawn on
 type Payload = {
     id: int,
 };

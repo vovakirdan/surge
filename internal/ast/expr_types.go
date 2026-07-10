@@ -62,7 +62,7 @@ const (
 	ExprBlock
 	// ExprRangeLit represents a range literal expression.
 	ExprRangeLit
-	// ExprOn represents an `on dst { ... }` placement-crossing expression (Epic 11 Block 2).
+	// ExprOn represents an `on dst { ... }` placement-crossing expression (Block 2).
 	ExprOn
 )
 
@@ -464,7 +464,7 @@ type ExprBlockData struct {
 }
 
 // ExprOnData represents an `on <dst> { ... }` placement-crossing expression and
-// its `spawn on <dst> { ... }` remote-spawn variant (Epic 11 Block 3).
+// its `spawn on <dst> { ... }` remote-spawn variant (Block 3).
 // Dest is the destination expression (a `Placement` value or an accepted `far`
 // handle; validated by sema). Body is the value block whose result is produced
 // by `ret`.

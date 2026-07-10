@@ -114,7 +114,7 @@ type typeChecker struct {
 	assignmentLHSDepth          int
 	movedBindings               map[symbols.SymbolID]source.Span
 	blockingDepth               int             // nesting depth of `blocking { }` bodies (suspension illegal inside)
-	onCrossingStack             []onAnchorFrame // active `on dst { ... }` crossing frames (Epic 11 Block 2)
+	onCrossingStack             []onAnchorFrame // active `on dst { ... }` crossing frames
 	directFunctionCrossing      map[symbols.SymbolID]struct{}
 	functionCrossingEdges       map[symbols.SymbolID]map[symbols.SymbolID]struct{}
 }

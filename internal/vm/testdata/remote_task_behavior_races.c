@@ -15,49 +15,49 @@ static int wait_pending(rt_executor* ex,
         }
         size_t count = rt_runtime_shard_count(rt_executor_runtime(ex));
         for (size_t shard = 0; shard < count; shard++) {
-            task9_drain(ex, (uint32_t)shard);
+            rtb_drain(ex, (uint32_t)shard);
         }
-        task9_sleep_us(1000);
+        rtb_sleep_us(1000);
     }
     return 0;
 }
 
-int task9_mode_already_done(void) {
+int rtb_mode_already_done(void) {
     rt_executor* ex = ensure_exec();
-    task9_child_state child;
+    rtb_child_state child;
     memset(&child, 0, sizeof(child));
     atomic_store_explicit(&child.gate, 1, memory_order_relaxed);
-    rt_far_task_handle* handle = task9_publish_handle(&child, 1);
+    rt_far_task_handle* handle = rtb_publish_handle(&child, 1);
     if (handle == NULL)
-        return task9_fail("already-DONE publication failed");
-    if (!task9_wait_task_done(ex, handle->task_id, 5000)) {
-        return task9_fail("remote child did not reach DONE before await");
+        return rtb_fail("already-DONE publication failed");
+    if (!rtb_wait_task_done(ex, handle->task_id, 5000)) {
+        return rtb_fail("remote child did not reach DONE before await");
     }
-    task9_lifecycle_state state;
-    void* task = task9_start_lifecycle(&state, handle, 0);
+    rtb_lifecycle_state state;
+    void* task = rtb_start_lifecycle(&state, handle, 0);
     uint8_t kind = 0;
     uint64_t bits = 0;
-    if (!task9_await(task, &kind, &bits))
-        return task9_fail("already-DONE caller failed");
+    if (!rtb_await(task, &kind, &bits))
+        return rtb_fail("already-DONE caller failed");
     if (state.status != RT_REMOTE_TASK_STATUS_OK || state.result_kind != 1 ||
         state.result_bits != 91) {
-        return task9_fail("already-DONE await result mismatch");
+        return rtb_fail("already-DONE await result mismatch");
     }
     rt_shard* source = rt_runtime_shard(rt_executor_runtime(ex), 0);
     if (rt_transport_debug_snapshot(source).remote_task_completion_replies != 1) {
-        return task9_fail("already-DONE completion counter mismatch");
+        return rtb_fail("already-DONE completion counter mismatch");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }
 
-int task9_mode_stale(void) {
+int rtb_mode_stale(void) {
     rt_executor* ex = ensure_exec();
-    task9_child_state child;
+    rtb_child_state child;
     memset(&child, 0, sizeof(child));
-    rt_far_task_handle* handle = task9_publish_handle(&child, 1);
+    rt_far_task_handle* handle = rtb_publish_handle(&child, 1);
     if (handle == NULL)
-        return task9_fail("stale publication failed");
+        return rtb_fail("stale publication failed");
     rt_shard* source = rt_runtime_shard(rt_executor_runtime(ex), 0);
     rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), 1);
     uint64_t source_stale_before = rt_transport_debug_snapshot(source).remote_task_stale_drops;
@@ -76,19 +76,19 @@ int task9_mode_stale(void) {
     };
     (void)rt_remote_task_dispatch_message(ex, &bad_request);
     if (rt_remote_task_pending_snapshot(bad, NULL, NULL) != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {
-        return task9_fail("stale request was not rejected");
+        return rtb_fail("stale request was not rejected");
     }
     rt_remote_task_pending_consume(bad);
 
-    task9_lifecycle_state state;
-    void* task = task9_start_lifecycle(&state, handle, 0);
+    rtb_lifecycle_state state;
+    void* task = rtb_start_lifecycle(&state, handle, 0);
     rt_remote_task_pending* pending = NULL;
     for (uint32_t i = 0; i < 5000 && pending == NULL; i++) {
         pending = atomic_load_explicit(&state.visible_pending, memory_order_acquire);
-        task9_sleep_us(1000);
+        rtb_sleep_us(1000);
     }
     if (pending == NULL)
-        return task9_fail("valid await did not become pending");
+        return rtb_fail("valid await did not become pending");
     rt_remote_task_pending_add_ref(pending);
     rt_transport_msg bad_reply = {
         .kind = RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION,
@@ -100,27 +100,27 @@ int task9_mode_stale(void) {
     };
     (void)rt_remote_task_dispatch_message(ex, &bad_reply);
     if (rt_remote_task_pending_snapshot(pending, NULL, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
-        return task9_fail("stale reply completed the valid pending request");
+        return rtb_fail("stale reply completed the valid pending request");
     }
     uint64_t source_stale_after = rt_transport_debug_snapshot(source).remote_task_stale_drops;
     uint64_t owner_stale_after = rt_transport_debug_snapshot(owner).remote_task_stale_drops;
     if (source_stale_after != source_stale_before + 1 ||
         owner_stale_after != owner_stale_before + 1) {
-        return task9_fail("stale drop counters did not attribute request and reply targets");
+        return rtb_fail("stale drop counters did not attribute request and reply targets");
     }
 
     atomic_store_explicit(&child.gate, 1, memory_order_release);
-    task9_wake(ex, pending->handle.task_id);
+    rtb_wake(ex, pending->handle.task_id);
     uint8_t kind = 0;
     uint64_t bits = 0;
-    if (!task9_await(task, &kind, &bits))
-        return task9_fail("valid await caller failed");
+    if (!rtb_await(task, &kind, &bits))
+        return rtb_fail("valid await caller failed");
     if (state.status != RT_REMOTE_TASK_STATUS_OK || state.result_kind != 1 ||
         state.result_bits != 91) {
-        return task9_fail("valid reply after stale reply did not succeed");
+        return rtb_fail("valid reply after stale reply did not succeed");
     }
     if (rt_transport_debug_snapshot(source).remote_task_completion_replies != 1) {
-        return task9_fail("valid completion reply counter mismatch");
+        return rtb_fail("valid completion reply counter mismatch");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;
@@ -137,15 +137,15 @@ static void* dispatch_race(void* raw) {
     return NULL;
 }
 
-int task9_mode_registration_race(rt_sync_point_id point) {
+int rtb_mode_registration_race(rt_sync_point_id point) {
     rt_executor* ex = ensure_exec();
-    task9_child_state child;
+    rtb_child_state child;
     memset(&child, 0, sizeof(child));
-    rt_far_task_handle* handle = task9_publish_handle(&child, 0);
+    rt_far_task_handle* handle = rtb_publish_handle(&child, 0);
     if (handle == NULL)
-        return task9_fail("race publication failed");
+        return rtb_fail("race publication failed");
     if (rt_far_task_lease_consume(handle) != RT_REMOTE_TASK_STATUS_OK) {
-        return task9_fail("race lease consume failed");
+        return rtb_fail("race lease consume failed");
     }
     rt_remote_task_pending* pending =
         rt_remote_task_pending_new(ex, handle, 0, RT_REMOTE_TASK_OP_CANCEL, 1);
@@ -161,17 +161,17 @@ int task9_mode_registration_race(rt_sync_point_id point) {
     };
     pthread_t thread;
     if (pthread_create(&thread, NULL, dispatch_race, &race) != 0) {
-        return task9_fail("race dispatcher start failed");
+        return rtb_fail("race dispatcher start failed");
     }
     for (uint32_t i = 0; i < 5000 && rt_sync_point_reached_count(point) == 0; i++) {
-        task9_sleep_us(1000);
+        rtb_sleep_us(1000);
     }
     if (rt_sync_point_reached_count(point) != 1)
-        return task9_fail("race window not reached");
+        return rtb_fail("race window not reached");
     atomic_store_explicit(&child.gate, 1, memory_order_release);
-    task9_wake(ex, handle->task_id);
-    if (!task9_wait_task_done(ex, handle->task_id, 5000)) {
-        return task9_fail("child did not complete inside registration window");
+    rtb_wake(ex, handle->task_id);
+    if (!rtb_wait_task_done(ex, handle->task_id, 5000)) {
+        return rtb_fail("child did not complete inside registration window");
     }
     rt_sync_point_open();
     (void)pthread_join(thread, NULL);
@@ -179,15 +179,15 @@ int task9_mode_registration_race(rt_sync_point_id point) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     if (!wait_pending(ex, pending, &status, &kind, &bits)) {
-        return task9_fail("registration race stranded pending reply");
+        return rtb_fail("registration race stranded pending reply");
     }
     if (status != RT_REMOTE_TASK_STATUS_OK || kind != 1) {
-        return task9_fail("registration race result mismatch");
+        return rtb_fail("registration race result mismatch");
     }
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), 0);
     struct rt_transport_debug_snapshot snapshot = rt_transport_debug_snapshot(shard);
     if (snapshot.remote_task_cancel_replies != 1 || snapshot.remote_task_stale_drops != 0) {
-        return task9_fail("registration race consumed more than one reply edge");
+        return rtb_fail("registration race consumed more than one reply edge");
     }
     rt_remote_task_pending_consume(pending);
     rt_far_task_handle_free(handle);

@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: on distributed (ON-DST-V002)
+// positive: on distributed
 fn double(x: int) -> int {
     return x * 2;
 }

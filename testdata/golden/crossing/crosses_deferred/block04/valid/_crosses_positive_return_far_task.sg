@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: crosses fn returning far Task (CROSSES-GRAMMAR-005)
+// positive: crosses fn returning far Task
 fn double(x: int) -> int {
     return x * 2;
 }

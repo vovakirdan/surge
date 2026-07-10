@@ -110,7 +110,7 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 			names: []string{"next_ready"},
 		},
 		{
-			// park_current extracted to rt_task_park.c (Epic 8 Task 13).
+			// park_current extracted to rt_task_park.c.
 			path:  "runtime/native/rt_task_park.c",
 			names: []string{"park_current"},
 		},
@@ -136,13 +136,13 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		}
 	}
 	if len(offenders) > 0 {
-		t.Fatalf("net-owned paths still route through shard 0: %s; pass explicit owner shards before completing Epic 6", strings.Join(offenders, ", "))
+		t.Fatalf("net-owned paths still route through shard 0: %s; pass explicit owner shards", strings.Join(offenders, ", "))
 	}
 
-	// Stays-global compatibility exemptions from Task 2:
+	// Stays-global compatibility exemptions:
 	// channel blocking compat, generic waiter-store compat, and scheduler
-	// compatibility until Task 7 defines owner placement. These paths may keep
-	// explicit shard-0/global accessors in Epic 6 while net ownership migrates.
+	// compatibility until owner placement is defined. These paths may keep
+	// explicit shard-0/global accessors while net ownership migrates.
 	staysGlobal := []string{
 		"rt_executor_scheduler",
 		"rt_executor_scheduler_const",
@@ -171,7 +171,7 @@ func TestRuntimeV2AcceptReadinessClearsSiblingWaitKeys(t *testing.T) {
 		t.Fatal("rt_executor_wake_net_waiters_for_key_on_owner not found")
 	}
 	if !strings.Contains(wakeBody, "clear_accept_winner_wait_keys") {
-		t.Fatalf("accept readiness must clear sibling listener-member wait keys before Task 9 closes")
+		t.Fatalf("accept readiness must clear sibling listener-member wait keys before closing")
 	}
 
 	clearBody, ok := cFunctionBody(source, "clear_accept_winner_wait_keys")
@@ -223,7 +223,7 @@ func TestRuntimeV2AcceptDynamicShardArrayShape(t *testing.T) {
 #include "rt_async_internal.h"
 
 #ifndef RT_RUNTIME_MAX_SHARDS
-#error "Task 6 must replace fixed shard count storage with RT_RUNTIME_MAX_SHARDS"
+#error "fixed shard count storage must be replaced with RT_RUNTIME_MAX_SHARDS"
 #else
 #if RT_RUNTIME_MAX_SHARDS < 1
 #error "RT_RUNTIME_MAX_SHARDS must be positive"

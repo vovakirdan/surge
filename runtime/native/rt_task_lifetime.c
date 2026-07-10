@@ -1,4 +1,4 @@
-// Task handle lifetime (Epic 10 Task 2, RV2-DEBT-003 split): this module
+// Task handle lifetime (RV2-DEBT-003 split): this module
 // owns the task handle refcount and the free of a DONE task's memory. Lane
 // contract: free_task runs only on the control lane (D3); task_release
 // assumes the caller already holds control, task_release_lane_aware acquires

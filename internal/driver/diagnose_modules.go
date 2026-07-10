@@ -167,7 +167,7 @@ func resolveModuleRecord(
 	}
 
 	// For import resolution we want a "file-based" module path (e.g. neon/tui/app),
-	// not the directory module path (e.g. neon/tui). This matches collectImports().
+	// not the directory module path (e.g. neon/tui). This matches collectImports.
 	// Fallback to the module meta path if we can't derive it from the file path.
 	resolveModulePath := func(filePath string) string {
 		if strings.TrimSpace(filePath) != "" {

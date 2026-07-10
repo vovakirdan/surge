@@ -1,4 +1,4 @@
-// Epic 11 Block 3 positive: spawn on pool (D02, S02, B01)
+// positive: spawn on pool
 fn double(x: int) -> int {
     return x * 2;
 }

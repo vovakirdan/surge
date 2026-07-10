@@ -218,7 +218,7 @@ func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string
 			t.Fatalf("expected non-zero %s in TRACE_NET %s line:\n%s", field, reason, line)
 		}
 	}
-	// Epic 4 Task 7 contract update: the poll set derives from persistent fd
+	// contract update: the poll set derives from persistent fd
 	// registry rows, so the legacy waiter-derived rebuild path (full waiter
 	// store scan plus O(n^2) fd dedup) must never run. These counters staying
 	// zero is the machine-checkable acceptance evidence for that.

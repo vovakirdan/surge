@@ -75,7 +75,7 @@ type Result struct {
 	BlockingCaptures       map[ast.ExprID][]symbols.SymbolID // Captures for blocking { ... } expressions
 	FunctionEffects        map[symbols.SymbolID]FunctionEffect
 	// FarTaskAwaitSpans / FarTaskCancelSpans record `far Task<T>` await/cancel
-	// call sites (Epic 11 Block 3) so the backend guard can emit FUT7016 /
+	// call sites (Block 3) so the backend guard can emit FUT7016 /
 	// FUT7017 until the Phase 4 transport backend can lower them. They are
 	// type-directed (recorded only where sema resolved a `far Task<T>` receiver),
 	// so a `far Task` obtained via a parameter is guarded without any `spawn on`

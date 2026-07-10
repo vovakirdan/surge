@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3174
-// Epic 11 Block 3 negative: @local spawn on conflict (S07)
+// negative: @local spawn on conflict
 fn double(x: int) -> int {
     return x * 2;
 }

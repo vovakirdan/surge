@@ -1,5 +1,5 @@
 // EXPECT-DIAG: FUT7011
-// Epic 11 Block 1 negative: far fn handle postponed (FAR-PARSE-NEG-007)
+// negative: far fn handle postponed
 fn f(x: far fn(int) -> int) -> nothing {
     return nothing;
 }

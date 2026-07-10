@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SYN2016
-// Epic 11 Block 4 negative: @shard_movable on block (ATTR-007)
+// negative: @shard_movable on block
 fn f() -> int {
     @shard_movable {
         ret 1;

@@ -2,7 +2,7 @@ package parser
 
 import "surge/internal/token"
 
-// Contextual keyword text for the Epic 11 explicit crossing surface. `on` is
+// Contextual keyword text for the explicit crossing surface. `on` is
 // contextual: it is recognized as a keyword only in its specific syntactic
 // positions and remains an ordinary identifier everywhere else (e.g.
 // `let on = 1;` keeps parsing).
@@ -17,7 +17,7 @@ func (p *Parser) atContextualKeyword(name string) bool {
 
 // atOnCrossingHead reports whether the parser is at the head of an
 // `on <dst> { ... }` crossing expression: the contextual `on` keyword followed
-// immediately by a destination head. Valid Epic 11 destinations are
+// immediately by a destination head. Valid destinations are
 // identifier-headed (`pool`, `distributed`, `shard(id)`, `route_for(id)`, a
 // `Placement` variable, or a `far` handle); the postponed `on blocking` and the
 // invalid literal destinations (`on 1 { ... }`) are also recognized so sema can
@@ -43,7 +43,7 @@ func (p *Parser) atOnCrossingHead() bool {
 
 // atSpawnOnRemoteHead reports whether, with the `spawn` keyword already consumed,
 // the parser is at the head of a `spawn on <dst> { ... }` remote-spawn expression
-// (Epic 11 Block 3). It matches the contextual `on` keyword followed either by a
+// (Block 3). It matches the contextual `on` keyword followed either by a
 // destination head (the same heads as atOnCrossingHead) or by `{`. The `{` case
 // is the missing-destination shape `spawn on { ... }` (diagnosed SYN2033): after
 // `spawn`, `on {` is unambiguously a remote spawn whose destination was omitted,

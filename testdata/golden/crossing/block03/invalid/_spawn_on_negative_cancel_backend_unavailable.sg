@@ -1,6 +1,6 @@
 // EXPECT-DIAG: FUT7017
 // EXPECT-STAGE: backend
-// Epic 11 Block 3 negative: far Task cancel backend unavailable (G03)
+// negative: far Task cancel backend unavailable
 fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
     return t.cancel();
 }

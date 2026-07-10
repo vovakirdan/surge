@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// Epic 8 Task 6 introduced a hazard: task_add_child (the parent's children[]
+// introduced a hazard: task_add_child (the parent's children[]
 // append in __task_create) moved off the control lane onto the parent's own
 // owner shard lock, but cancel_task's tree walk (rt_async_state.c) still
 // runs entirely under control and, before this task's fix, read
@@ -23,7 +23,7 @@ import (
 // harness that spawns many parents which each spawn children in a tight
 // loop while a separate, non-worker pthread concurrently calls
 // rt_task_cancel on them. This file is intentionally self-contained (does
-// not reuse or edit the Task 4 lifecycleHarness* files).
+// not reuse or edit the lifecycleHarness* files).
 
 func buildRuntimeV2CancelSpawnRaceHarness(t *testing.T, name string, extraFlags []string) string {
 	t.Helper()
@@ -106,7 +106,7 @@ func TestRuntimeV2LifecycleCancelSpawnChildrenRace(t *testing.T) {
 }
 
 // TestRuntimeV2LifecycleCancelSpawnChildrenRaceTSan is the TSan oracle for
-// the same scenario (mirrors the Task 4 completion-pin-stress methodology),
+// the same scenario (mirrors the completion-pin-stress methodology),
 // swept across the same SURGE_SHARDS=1,2,8 matrix. Not part of the
 // enumerated runtime-v2-lifecycle-check regex: TSan builds are slower and
 // best-effort here (skips, not fails, if unsupported), but this is the

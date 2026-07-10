@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: resource uses @shard_pinned + @nosend (PINNED-003)
+// positive: resource uses @shard_pinned + @nosend
 @shard_pinned
 @nosend
 type Socket = {

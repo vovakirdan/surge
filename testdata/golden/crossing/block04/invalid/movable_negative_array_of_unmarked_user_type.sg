@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3171
-// Epic 11 Block 4 negative: @shard_movable array of unmarked type (MOVABLE-007)
+// negative: @shard_movable array of unmarked type
 type Payload = {
     id: int,
 };

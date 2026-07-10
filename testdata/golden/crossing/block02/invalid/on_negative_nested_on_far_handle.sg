@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3153
-// Epic 11 Block 2 negative: nested on far handle (ON-NEST-N002)
+// negative: nested on far handle
 fn run(ch: far Channel<int>, conn: far TcpConn) -> TaskResult<nothing> {
     return on ch {
         let inner: TaskResult<nothing> = on conn {

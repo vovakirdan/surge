@@ -149,7 +149,7 @@ void rt_task_wake(void* task) {
     // the rare scope-adoption write stays behind a control fallback. The peek
     // reads only current's own scope_id (thread-local while current is
     // RUNNING, safe without a lock) - target->parent_scope_id is read only
-    // under the lock, never as an unsynchronized peek, since Task 9 still has
+    // under the lock, never as an unsynchronized peek, since still has
     // rt_scope_register_child writing it under control.
     const rt_task* current = rt_current_task();
     if (current != NULL && current->scope_id != 0) {
@@ -176,7 +176,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     if (target == NULL) {
         return 2;
     }
-    // S5-Q3/rule 2 (Epic 8 Task 7 + Epic 9 DEBT-020): the join register +
+    // S5-Q3/rule 2 (+ DEBT-020): the join register +
     // result read run on the target task's join-owner shard route, no control.
     // add/remove/pop for WAKER_JOIN resolve join_owner_shard_id, lock that
     // shard, and revalidate the route under the lock. mark_done's completion
@@ -206,7 +206,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     }
     if (task_status_load(target) == TASK_DONE) {
         uint8_t kind = rt_far_task_take_result(target, current, out_bits);
-        // F2 (Epic 8 Task 11 net-fairness fix): read placement before
+        // F2 (net-fairness fix): read placement before
         // release, which may free target.
         rt_task_poll_adopt_placement(ex, current, target);
         task_release_lane_aware(ex, target);
@@ -234,7 +234,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     return 0;
 }
 
-// F2 (Epic 8 Task 11 net-fairness fix, folded into Task 7): a task consuming
+// F2 (net-fairness fix, folded into ): a task consuming
 // a DONE child carrying TASK_PLACEMENT_CONNECTION adopts the child's
 // placement, so the durable request pipeline follows the accepting shard
 // instead of staying at the parent's spawn-time owner (see
@@ -266,7 +266,7 @@ static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, cons
         current->owner_shard_id == target->owner_shard_id) {
         return;
     }
-    // Hard-constraint arm (1) from the Task 11 F2 spec: an explicit control
+    // Hard-constraint arm (1) from the F2 spec: an explicit control
     // fallback, counted under a named site, permitted because adoption is
     // O(connections) (once per accept/bootstrap), never per-request steady
     // state once parent and child already share placement (the guard above).
@@ -282,11 +282,11 @@ static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, cons
     }
 }
 
-// S5-Q4 (Epic 8 Task 7): runs entirely on the child's owner shard lane, no
+// S5-Q4: runs entirely on the child's owner shard lane, no
 // control. The only eligible child is the fresh, just-created child popped
 // off the CURRENT WORKER'S OWN local queue tail (ready_take_current_local_tail,
 // guarded at the call site above); by construction (rt_task_inherit_placement
-// copies the parent's owner shard before publish, Task 6) that child's owner
+// copies the parent's owner shard before publish, ) that child's owner
 // shard equals this worker's shard, and it is reachable from no other
 // queue - no other thread can be concurrently running or inline-polling it.
 // If a future change ever lets a child be inline-polled off a queue other
@@ -345,7 +345,7 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
         }
         rt_done_waiters_decrement_for_external_await(ex);
         if (out_kind != NULL) {
-            *out_kind = rt_far_task_take_result(target, rt_current_task(), out_bits);
+            *out_kind = rt_far_task_take_result(target, rt_current_task out_bits);
         } else {
             (void)rt_far_task_take_result(target, rt_current_task(), out_bits);
         }
@@ -386,7 +386,7 @@ void* rt_task_clone(void* task) {
     if (target == NULL) {
         return NULL;
     }
-    // S5-Q6 (Epic 8 Task 7): drops control unconditionally, not a rare
+    // S5-Q6: drops control unconditionally, not a rare
     // fallback - task_add_ref is a relaxed atomic increment, and the caller
     // already holds a live handle to target (the handle being cloned), so
     // handle_refs >= 1 before this call; the free rule (free only at

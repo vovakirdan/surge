@@ -14,12 +14,12 @@ static rt_shard* rt_task_join_waiter_shard(rt_executor* ex, uint64_t task_id) {
 // now, lock later" sequence: rt_async_waiter.c / rt_task_park.c delegate to the
 // join-route helpers, which resolve the join route, lock that shard, and
 // revalidate the route under the lock before touching the store. Scope keys
-// carry the scope id and route to the scope's PINNED owner shard (Epic 8 Task 9,
-// S5-Q10, revising Epic 7 D8): the scope's owner_shard_id is fixed at
+// carry the scope id and route to the scope's PINNED owner shard (,
+// S5-Q10, revising D8): the scope's owner_shard_id is fixed at
 // rt_scope_enter, so both the join_all park and the child-done wake serialize
 // on that one shard's store lock; a freed/absent scope (monotonic, never-reused
 // ids) resolves to shard 0 via rt_scope_owner_shard, draining nothing. Channel
-// keys stay on the shard-0 compatibility store until the Task 10 channel-owner
+// keys stay on the shard-0 compatibility store until the channel-owner
 // migration.
 rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
     if (ex == NULL || !waker_valid(key)) {
@@ -97,7 +97,7 @@ void rt_waiter_migrate_join_waiters(rt_executor* ex,
     rt_shard* to_shard = rt_runtime_shard(rt_executor_runtime(ex), to_shard_id);
     rt_waiter_store* from = rt_executor_waiter_store_for_shard(ex, from_shard_id);
     rt_waiter_store* to = rt_executor_waiter_store_for_shard(ex, to_shard_id);
-    // Do NOT early-out on from->len here: since Epic 8 Task 7 join registration
+    // Do NOT early-out on from->len here: since join registration
     // runs under the source shard lock (not the control lock), so from->len is
     // written concurrently and reading it unlocked is a data race
     // (RV2-DEBT-019, surfaced by the completion-pin TSan stress via F2 adoption

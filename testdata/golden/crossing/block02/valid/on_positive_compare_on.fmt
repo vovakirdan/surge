@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: compare on placement (ON-CMP-V001)
+// positive: compare on placement
 @shard_movable
 type Request = {
     id: int,

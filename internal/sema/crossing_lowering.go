@@ -105,7 +105,7 @@ type CrossingLoweringInfo struct {
 	Body     ast.StmtID
 	Function symbols.SymbolID
 	// SuspendCapable is true when lowering occurs inside an async function or
-	// async block. Epic 13's first executable transport vertical may suspend
+	// async block. The first executable transport vertical may suspend
 	// only at those sites; synchronous forms remain backend-guarded.
 	SuspendCapable bool
 

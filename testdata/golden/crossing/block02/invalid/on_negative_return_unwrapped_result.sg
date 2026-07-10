@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3149
-// Epic 11 Block 2 negative: on result returned from -> T function (ON-BODY-N004)
+// negative: on result returned from -> T function
 fn double(x: int) -> int {
     return x * 2;
 }

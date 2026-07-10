@@ -37,7 +37,7 @@ func (p *Parser) getDiagnosticSpan() source.Span {
 }
 
 // currentErrorSpan — возвращает оптимальный span для ошибок expect
-// Если Peek().Kind == EOF, возвращает позицию сразу после lastSpan
+// Если Peek.Kind == EOF, возвращает позицию сразу после lastSpan
 func (p *Parser) currentErrorSpan() source.Span {
 	peek := p.lx.Peek()
 	if peek.Kind == token.EOF {

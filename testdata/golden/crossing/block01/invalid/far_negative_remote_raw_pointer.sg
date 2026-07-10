@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3129
-// Epic 11 Block 1 negative: far *T (FAR-PARSE-NEG-005, FAR-PTR-NEG-001)
+// negative: far *T
 fn f(x: far *TcpConn) -> nothing {
     return nothing;
 }

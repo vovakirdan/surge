@@ -1,4 +1,4 @@
-// Runtime V2 Epic 9 proving spike: test-only deterministic interleaving hooks.
+// Runtime V2 proving spike: test-only deterministic interleaving hooks.
 //
 // The entire translation unit is empty unless RT_TEST_SYNC_POINTS is defined,
 // so a shipping build links no rendezvous code and exports no rt_sync_point_*

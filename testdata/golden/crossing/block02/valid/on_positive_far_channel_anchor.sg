@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: anchored far channel send (ON-DST-V006, ON-ANCHOR-V001)
+// positive: anchored far channel send
 @shard_movable
 type Message = {
     id: int,

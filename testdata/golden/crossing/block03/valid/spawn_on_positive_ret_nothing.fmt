@@ -1,4 +1,4 @@
-// Epic 11 Block 3 positive: spawn on with ret nothing (B03)
+// positive: spawn on with ret nothing
 fn double(x: int) -> int {
     return x * 2;
 }

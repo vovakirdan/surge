@@ -54,7 +54,7 @@ func TestShardAttrsAreTypeOnly(t *testing.T) {
 
 func TestIntrinsicAllowsConstTarget(t *testing.T) {
 	// `@intrinsic pub const pool: Placement;` requires const/let target support
-	// (Epic 11 Block 4 placement intrinsics).
+	// (Block 4 placement intrinsics).
 	spec, ok := LookupAttr("intrinsic")
 	if !ok {
 		t.Fatal("expected intrinsic spec")

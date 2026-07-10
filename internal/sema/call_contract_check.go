@@ -116,7 +116,7 @@ func (tc *typeChecker) isAnyLockHeld(la *lockAnalyzer, key LockKey) bool {
 }
 
 // resolveCalleeAndReceiver resolves the callee symbol and receiver symbol for a call.
-// For method calls like self.method(), returns (method_symbol, self_symbol).
+// For method calls like self.method returns (method_symbol, self_symbol).
 // For direct calls, returns (function_symbol, NoSymbolID).
 func (tc *typeChecker) resolveCalleeAndReceiver(call *ast.ExprCallData) (callee, receiver symbols.SymbolID) {
 	if call == nil {

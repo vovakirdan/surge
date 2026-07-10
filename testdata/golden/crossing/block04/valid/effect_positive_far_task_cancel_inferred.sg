@@ -1,4 +1,4 @@
-// Epic 11 Block 4 positive: `far Task<T>.cancel()` infers the crossing effect.
+// positive: `far Task<T>.cancel()` infers the crossing effect.
 fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
     return t.cancel();
 }

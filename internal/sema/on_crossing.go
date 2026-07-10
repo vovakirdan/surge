@@ -24,7 +24,7 @@ type onAnchorFrame struct {
 	returnRejected bool
 }
 
-// typeExprOn type-checks an `on dst { ... }` placement crossing (Epic 11 Block 2)
+// typeExprOn type-checks an `on dst { ... }` placement crossing (Block 2)
 // and yields `TaskResult<T>` where `T` is the body's `ret` value type.
 func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID {
 	data, ok := tc.builder.Exprs.On(id)

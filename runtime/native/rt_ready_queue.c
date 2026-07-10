@@ -1,4 +1,4 @@
-// Ready-queue ownership (Epic 10 Task 2, RV2-DEBT-003 split): this module
+// Ready-queue ownership (RV2-DEBT-003 split): this module
 // owns every mutation of a shard scheduler's ready queues (local deques +
 // inject) and the worker pop policy. Lane contract: every queue mutation runs
 // under the owning shard's rt_shard_lock; callers either already hold it
@@ -240,7 +240,7 @@ void ready_push(rt_executor* ex, uint64_t id) {
 int ready_take_current_local_tail(rt_executor* ex, uint64_t id) {
     // Serialized by the owner shard lock taken below, NOT the control lock:
     // rt_task_poll (the sole caller, rt_async_task.c) reaches here control-free
-    // since Epic 8 Task 7. The take here, the worker's own next_ready pop, and
+    // since . The take here, the worker's own next_ready pop, and
     // any steal all run under this shard's rt_shard_lock (rt_worker_turn.c), so
     // that lock is the local queue's serializer. Intentionally narrow: it only
     // removes the fresh child __task_create just pushed onto the current

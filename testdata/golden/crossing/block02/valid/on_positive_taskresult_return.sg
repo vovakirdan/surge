@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: TaskResult return (ON-BODY-V004)
+// positive: TaskResult return
 fn double(x: int) -> int {
     return x * 2;
 }

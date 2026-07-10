@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3165
-// Epic 11 Block 4 negative: borrow capture into spawn on (CAPTURE-008)
+// negative: borrow capture into spawn on
 type Job = {
     id: int,
 };

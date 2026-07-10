@@ -1,4 +1,4 @@
-// Epic 11 Block 2 positive: on dst where dst: Placement (ON-DST-V004)
+// positive: on dst where dst: Placement
 fn double(x: int) -> int {
     return x * 2;
 }

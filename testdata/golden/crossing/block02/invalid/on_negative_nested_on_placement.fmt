@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3153
-// Epic 11 Block 2 negative: nested on placement (ON-NEST-N001)
+// negative: nested on placement
 fn double(x: int) -> int {
     return x * 2;
 }

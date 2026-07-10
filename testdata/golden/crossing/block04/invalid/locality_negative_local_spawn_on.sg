@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3174
-// Epic 11 Block 4 negative: @local spawn on combines local and remote (LOCALITY-012)
+// negative: @local spawn on combines local and remote
 fn double(x: int) -> int {
     return x * 2;
 }

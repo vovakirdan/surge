@@ -296,11 +296,11 @@ func TestRuntimeV2TransportProbeRowsDocumented(t *testing.T) {
 		"worker_cv",
 	} {
 		if !strings.Contains(taskDoc, needle) {
-			t.Fatalf("Task 4 doc missing %q", needle)
+			t.Fatalf("transport contract doc missing %q", needle)
 		}
 	}
 	for _, needle := range []string{
-		"Task 4 transport gate: `make runtime-v2-transport-contract-check` (also called by `make runtime-v2-check`)",
+		"transport gate: `make runtime-v2-transport-contract-check` (also called by `make runtime-v2-check`)",
 	} {
 		if !strings.Contains(liveness, needle) {
 			t.Fatalf("LIVENESS_PROBES missing %q", needle)

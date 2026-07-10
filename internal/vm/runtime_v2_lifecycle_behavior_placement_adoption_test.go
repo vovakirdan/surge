@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// TestRuntimeV2LifecycleJoinConsumePlacementAdoption proves F2 (Epic 8 Task
-// 11 net-fairness fix, RV2-DEBT-015, folded into Task 7 by main-session
+// TestRuntimeV2LifecycleJoinConsumePlacementAdoption proves F2 (RV2-DEBT-015)
+// net-fairness behavior: join consumption adopts the child's placement.
 // decision 2026-07-04): rt_task_poll_adopt_placement (rt_async_task.c),
 // called from both DONE-consume branches of rt_task_poll, makes a joiner
 // adopt a DONE child's placement when that child carries
