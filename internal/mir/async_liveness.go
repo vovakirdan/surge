@@ -1,5 +1,7 @@
 package mir
 
+import "surge/internal/sema"
+
 // blockLiveness holds use/def/in/out sets for liveness analysis.
 type blockLiveness struct {
 	use localSet
@@ -175,6 +177,9 @@ func addUsesFromCrossing(ins *CrossingInstr, addUse, addDef func(LocalID)) {
 	addUsesFromPlaceWrite(ins.Dst, addUse)
 	addDefFromPlace(ins.Dst, addDef)
 	addUsesFromPlace(ins.Pending, addUse)
+	if ins.Kind == sema.CrossingLoweringSpawnOn {
+		addUsesFromPlace(ins.Handle, addUse)
+	}
 	addUsesFromOperand(&ins.Destination.Value, addUse, addDef)
 	for i := range ins.State.Fields {
 		addUsesFromOperand(&ins.State.Fields[i].Value, addUse, addDef)

@@ -280,7 +280,7 @@ fn caller() -> TaskResult<int> {
 	}
 }
 
-func TestSpawnOnCrossingOverrideIsTestScoped(t *testing.T) {
+func TestLLVMTransportCapabilityOpensAsyncSpawnOn(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.sg")
@@ -300,41 +300,20 @@ fn main() -> int {
 		t.Fatalf("write source: %v", err)
 	}
 
-	guarded, guardedErr := Compile(context.Background(), &CompileRequest{
-		TargetPath:     path,
-		Backend:        BackendLLVM,
-		MaxDiagnostics: 200,
-	})
-	if guardedErr == nil {
-		t.Fatal("expected default production compile to stay guarded")
-	}
-	if guarded.MIR != nil {
-		t.Fatal("default guarded compile must not produce MIR")
-	}
-	if guarded.Diagnose == nil || guarded.Diagnose.Bag == nil {
-		t.Fatalf("missing diagnostics from guarded compile: %v", guardedErr)
-	}
-	if got := findDiagnostic(guarded.Diagnose.Bag.Items(), diag.FutSpawnOnBackendUnavailable); got == nil {
-		t.Fatalf("expected FUT7015 without override, got %s", summarizeCodes(guarded.Diagnose.Bag.Items()))
-	}
-
 	enabled, enabledErr := Compile(context.Background(), &CompileRequest{
 		TargetPath:     path,
 		Backend:        BackendLLVM,
 		MaxDiagnostics: 200,
-		CrossingFormsForTest: map[sema.CrossingLoweringKind]bool{
-			sema.CrossingLoweringSpawnOn: true,
-		},
 	})
 	if enabledErr != nil {
-		t.Fatalf("test-scoped spawn_on override should compile to MIR: %v", enabledErr)
+		t.Fatalf("production LLVM async spawn_on should compile to MIR: %v", enabledErr)
 	}
 	if enabled.MIR == nil {
-		t.Fatal("test-scoped spawn_on override produced no MIR")
+		t.Fatal("production LLVM async spawn_on produced no MIR")
 	}
 	if enabled.Diagnose != nil && enabled.Diagnose.Bag != nil {
 		if got := findDiagnostic(enabled.Diagnose.Bag.Items(), diag.FutSpawnOnBackendUnavailable); got != nil {
-			t.Fatalf("test override must suppress FUT7015 only for the requested form, got %s", got.Code.ID())
+			t.Fatalf("production LLVM capability must suppress FUT7015, got %s", got.Code.ID())
 		}
 	}
 }

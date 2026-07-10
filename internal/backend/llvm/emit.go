@@ -141,6 +141,20 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("spawn on placement is not supported by this backend")
 	e.ensureStringConst("spawn on placement is invalid")
 	e.ensureStringConst("spawn on remote publish failed")
+	e.ensureStringConst("far Task.await requires an async task context")
+	e.ensureStringConst("far Task.await owner shard is shut down")
+	e.ensureStringConst("far Task.await transport queue is full")
+	e.ensureStringConst("far Task.await remote task request was refused")
+	e.ensureStringConst("far Task.await handle is stale")
+	e.ensureStringConst("far Task.await handle was already consumed")
+	e.ensureStringConst("far Task.await remote task request failed")
+	e.ensureStringConst("far Task.cancel requires an async task context")
+	e.ensureStringConst("far Task.cancel owner shard is shut down")
+	e.ensureStringConst("far Task.cancel transport queue is full")
+	e.ensureStringConst("far Task.cancel remote task request was refused")
+	e.ensureStringConst("far Task.cancel handle is stale")
+	e.ensureStringConst("far Task.cancel handle was already consumed")
+	e.ensureStringConst("far Task.cancel remote task request failed")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}

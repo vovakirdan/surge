@@ -42,7 +42,10 @@ rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
 rt_remote_spawn_status rt_remote_spawn_handle_validate(rt_executor* ex,
                                                        const rt_far_task_handle* handle);
 uint64_t rt_remote_spawn_pending_request_id(const rt_remote_spawn_pending* pending);
+int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle);
 size_t rt_remote_spawn_drain_inbound_locked(rt_executor* ex, rt_shard* shard, size_t limit);
+rt_transport_status
+rt_remote_spawn_enqueue_with_drain(rt_executor* ex, rt_shard* shard, const rt_transport_msg* msg);
 void rt_remote_spawn_fail_all_pending(rt_executor* ex, rt_remote_spawn_status status);
 
 #endif

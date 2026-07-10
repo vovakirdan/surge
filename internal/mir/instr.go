@@ -212,10 +212,10 @@ type CrossingInstr struct {
 	// Spawn-on executable lowering uses BodyFuncID as the destination poll
 	// function and State as the once-published payload. Pending is a persisted
 	// rt_remote_spawn_pending* slot that survives async suspension.
-	BodyFuncID FuncID
-	State      StructLit
-	Pending    Place
-
+	BodyFuncID     FuncID
+	State          StructLit
+	Pending        Place
+	Handle         Place
 	Receiver       Operand
 	ReceiverSymbol symbols.SymbolID
 	ReceiverType   types.TypeID

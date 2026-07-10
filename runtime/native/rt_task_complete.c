@@ -10,6 +10,7 @@
 // rt_async_state.c; no behavior change.
 
 #include "rt_async_internal.h"
+#include "rt_remote_task.h"
 #include "rt_sync_point.h"
 
 void clear_select_timers(rt_executor* ex, rt_task* task) {
@@ -231,7 +232,9 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // field, so the reorder is behavior-preserving.
     task->result_kind = result_kind;
     task->result_bits = result_bits;
+    rt_far_task_release_owned(ex, task);
     rt_task_status_store_done_for_external_awaiters(task);
+    rt_remote_task_on_owner_done(ex, task);
     RT_SYNC_POINT(SP_MARKDONE_BEFORE_DONEWAITERS_LOAD);
     task_enqueued_store(task, 0);
     task->state = NULL;

@@ -6,6 +6,7 @@
 // rt_async_state.c; no behavior change.
 
 #include "rt_async_internal.h"
+#include "rt_remote_task.h"
 
 void task_add_ref(rt_task* task) {
     if (task == NULL) {
@@ -36,6 +37,7 @@ static void free_task(rt_executor* ex, rt_task* task) {
                 (uint64_t)task->children_cap * (uint64_t)sizeof(uint64_t),
                 _Alignof(uint64_t));
     }
+    rt_far_task_release_result(ex, task);
     rt_task_slot_store(ex, task->id, NULL);
     rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
 }

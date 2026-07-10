@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_remote_task.h"
 
 // Select and timeout arms. Registration is control-serialized (spike D12):
 // these paths register one task under several key owners, so they stay on
@@ -84,10 +85,7 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
     }
 
     if (task_status_load(target) == TASK_DONE) {
-        uint8_t kind = target->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
-        if (out_bits != NULL) {
-            *out_bits = target->result_bits;
-        }
+        uint8_t kind = rt_far_task_take_result(target, current, out_bits);
         current->timeout_task_id = 0;
         if (timeout_task != NULL) {
             task_release(ex, timeout_task);

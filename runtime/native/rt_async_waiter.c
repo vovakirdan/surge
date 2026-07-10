@@ -3,7 +3,7 @@
 #include <limits.h>
 
 waker_key waker_none(void) {
-    waker_key key = {WAKER_NONE, 0};
+    waker_key key = {WAKER_NONE, 0, 0};
     return key;
 }
 
@@ -12,52 +12,52 @@ int waker_valid(waker_key key) {
 }
 
 waker_key join_key(uint64_t id) {
-    waker_key key = {WAKER_JOIN, id};
+    waker_key key = {WAKER_JOIN, id, 0};
     return key;
 }
 
 waker_key timer_key(uint64_t id) {
-    waker_key key = {WAKER_TIMER, id};
+    waker_key key = {WAKER_TIMER, id, 0};
     return key;
 }
 
 waker_key scope_key(uint64_t id) {
-    waker_key key = {WAKER_SCOPE, id};
+    waker_key key = {WAKER_SCOPE, id, 0};
     return key;
 }
 
 waker_key blocking_key(uint64_t id) {
-    waker_key key = {WAKER_BLOCKING, id};
+    waker_key key = {WAKER_BLOCKING, id, 0};
     return key;
 }
 
-waker_key remote_spawn_reply_key(uint64_t id) {
-    waker_key key = {WAKER_REMOTE_SPAWN_REPLY, id};
+waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id) {
+    waker_key key = {WAKER_REMOTE_SPAWN_REPLY, id, owner_shard_id};
     return key;
 }
 
 waker_key channel_send_key(const rt_channel* ch) {
-    waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch};
+    waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch, 0};
     return key;
 }
 
 waker_key channel_recv_key(const rt_channel* ch) {
-    waker_key key = {WAKER_CHAN_RECV, (uint64_t)(uintptr_t)ch};
+    waker_key key = {WAKER_CHAN_RECV, (uint64_t)(uintptr_t)ch, 0};
     return key;
 }
 
 waker_key net_accept_key(int fd) {
-    waker_key key = {WAKER_NET_ACCEPT, (uint64_t)fd};
+    waker_key key = {WAKER_NET_ACCEPT, (uint64_t)fd, 0};
     return key;
 }
 
 waker_key net_read_key(int fd) {
-    waker_key key = {WAKER_NET_READ, (uint64_t)fd};
+    waker_key key = {WAKER_NET_READ, (uint64_t)fd, 0};
     return key;
 }
 
 waker_key net_write_key(int fd) {
-    waker_key key = {WAKER_NET_WRITE, (uint64_t)fd};
+    waker_key key = {WAKER_NET_WRITE, (uint64_t)fd, 0};
     return key;
 }
 

@@ -16,6 +16,7 @@ func TestRuntimeV2RemotePublicationAPIShape(t *testing.T) {
 #include <stdint.h>
 #include "rt_async_internal.h"
 #include "rt_remote_spawn.h"
+#include "rt_remote_task.h"
 
 rt_remote_spawn_status (*check_publish)(uint32_t, int64_t, void*,
     rt_remote_spawn_pending**, rt_far_task_handle*) = rt_remote_spawn_publish;
@@ -25,6 +26,16 @@ rt_remote_spawn_status (*check_validate)(rt_executor*, const rt_far_task_handle*
     rt_remote_spawn_handle_validate;
 size_t (*check_drain)(rt_executor*, rt_shard*, size_t) =
     rt_remote_spawn_drain_inbound_locked;
+rt_remote_task_status (*check_far_await)(const rt_far_task_handle*,
+    rt_remote_task_pending**, uint8_t*, uint64_t*) = rt_far_task_await;
+rt_remote_task_status (*check_far_cancel)(const rt_far_task_handle*,
+    rt_remote_task_pending**, uint8_t*, uint64_t*) = rt_far_task_cancel;
+rt_remote_task_status (*check_far_release)(const rt_far_task_handle*) =
+    rt_far_task_release;
+rt_remote_spawn_status (*check_handle_alloc)(rt_far_task_handle**) =
+    rt_far_task_handle_alloc;
+rt_runtime_status (*check_remote_task_state_destroy)(rt_executor*) =
+    rt_remote_task_state_destroy;
 
 _Static_assert(RT_REMOTE_SPAWN_STATUS_OK == 0, "OK status must stay zero");
 _Static_assert(RT_REMOTE_SPAWN_STATUS_PENDING != RT_REMOTE_SPAWN_STATUS_OK,
@@ -39,6 +50,11 @@ _Static_assert(RT_REMOTE_SPAWN_STATUS_UNSUPPORTED_PLACEMENT != RT_REMOTE_SPAWN_S
                "unsupported placement must not look like missing async context");
 _Static_assert(RT_REMOTE_SPAWN_STATUS_INVALID_PLACEMENT != RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT,
                "invalid placement must not look like missing async context");
+_Static_assert(RT_REMOTE_TASK_STATUS_OK == 0, "remote task OK status must stay zero");
+_Static_assert(RT_REMOTE_TASK_STATUS_PENDING != RT_REMOTE_TASK_STATUS_OK,
+               "remote task pending must not look successful");
+_Static_assert(RT_REMOTE_TASK_STATUS_CONSUMED != RT_REMOTE_TASK_STATUS_STALE_TOKEN,
+               "consumed handle must not look stale");
 _Static_assert(sizeof(rt_far_task_handle) == 24,
                "LLVM far Task handle allocation assumes exact native handle size");
 _Static_assert(_Alignof(rt_far_task_handle) == 8,
@@ -53,8 +69,16 @@ _Static_assert(sizeof(((rt_far_task_handle*)0)->owner_shard_id) == sizeof(uint32
                "owner shard id must stay uint32_t");
 _Static_assert(sizeof(((rt_task*)0)->generation) == sizeof(uint64_t),
                "task birth generation must be stored on the task");
+_Static_assert(sizeof(((rt_task*)0)->remote_handle_state) == sizeof(_Atomic uint8_t),
+               "remote task handle consume state must be atomic");
 _Static_assert(WAKER_REMOTE_SPAWN_REPLY != WAKER_NONE,
                "remote spawn reply wait must have its own waiter key");
+_Static_assert(WAKER_REMOTE_TASK_REPLY != WAKER_NONE,
+               "remote task reply wait must have its own waiter key");
+_Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST != RT_TRANSPORT_MSG_NONE,
+               "remote task await request must be a real control category");
+_Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST != RT_TRANSPORT_MSG_NONE,
+               "remote task release request must be a real control category");
 `
 
 	runFDRegistryStaticCheck(t, "Runtime V2 remote publication API shape", source)
@@ -117,10 +141,14 @@ func TestRuntimeV2RemotePublicationFailurePathStaticGuards(t *testing.T) {
 		"remote_spawn_pending_finish(ex, req, RT_REMOTE_SPAWN_STATUS_OK, &handle);") {
 		t.Fatal("ack enqueue failure must not complete the pending publication as OK")
 	}
+	publishStatus := strings.Index(source, "status = remote_spawn_publish_destination_task")
 	ackStatus := strings.Index(source, "status = remote_spawn_enqueue_ack")
-	ackFailure := strings.Index(source, "remote_spawn_free_unpublished_task(ex, task);")
-	if ackStatus < 0 || ackFailure < 0 || ackFailure < ackStatus {
-		t.Fatal("failed ack publication must free the unpublished destination task before wake")
+	ackFailure := strings.Index(source, "(void)rt_far_task_release(&handle);")
+	if publishStatus < 0 || ackStatus < publishStatus {
+		t.Fatal("destination task must be published before its OK ack becomes observable")
+	}
+	if ackFailure < ackStatus {
+		t.Fatal("failed ack enqueue must owner-route release of the already-published task")
 	}
 	if !strings.Contains(source, "remote_spawn_release_msg_payload(&msg);") {
 		t.Fatal("shutdown must drop queued remote-spawn transport payload refs")
@@ -201,6 +229,7 @@ const remotePublicationHarness = `
 #define _POSIX_C_SOURCE 199309L
 #include "rt_async_internal.h"
 #include "rt_remote_spawn.h"
+#include "rt_remote_task.h"
 #include "rt_sync_point.h"
 #include "rt_transport.h"
 

@@ -135,9 +135,10 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		}
 	}
 
+	crossingForms := crossingFormsForRequest(req)
 	if diagRes.HIR == nil {
 		hirModule, lowerErr := hir.LowerWithOptions(ctx, diagRes.Builder, diagRes.FileID, diagRes.Sema, diagRes.Symbols, hir.LowerOptions{
-			CrossingForms: req.CrossingFormsForTest,
+			CrossingForms: crossingForms,
 		})
 		if lowerErr != nil {
 			err = fmt.Errorf("HIR lowering failed: %w", lowerErr)
@@ -168,7 +169,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	lowerStart := time.Now()
 
 	hirModule, err := driver.CombineHIRWithModulesWithOptions(ctx, diagRes, driver.HIRCombineOptions{
-		CrossingForms: req.CrossingFormsForTest,
+		CrossingForms: crossingForms,
 	})
 	if err != nil {
 		err = fmt.Errorf("HIR merge failed: %w", err)
@@ -189,7 +190,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	}
 
 	mirMod, err := mir.LowerModuleWithOptions(mm, diagRes.Sema, mir.LowerOptions{
-		CrossingForms: req.CrossingFormsForTest,
+		CrossingForms: crossingForms,
 	})
 	if err != nil {
 		err = fmt.Errorf("MIR lowering failed: %w", err)
@@ -213,7 +214,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	}
 
 	if err := mir.ValidateWithOptions(mirMod, diagRes.Sema.TypeInterner, mir.ValidateOptions{
-		CrossingForms: req.CrossingFormsForTest,
+		CrossingForms: crossingForms,
 	}); err != nil {
 		err = fmt.Errorf("MIR validation failed: %w", err)
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)

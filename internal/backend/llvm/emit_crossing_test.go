@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -37,13 +38,28 @@ async fn run(dst: Placement, n: int) -> far Task<int> {
 
 	for _, want := range []string{
 		"declare i32 @rt_remote_spawn_publish_placement(i64, i64, ptr, ptr, ptr)",
-		"call ptr @rt_alloc(i64 24, i64 8)",
+		"declare i32 @rt_far_task_handle_alloc(ptr)",
+		"call i32 @rt_far_task_handle_alloc(ptr ",
 		"call i32 @rt_remote_spawn_publish_placement(",
 		"call i32 @rt_remote_spawn_publish_placement(i64 0,",
 	} {
 		if !strings.Contains(ir, want) {
 			t.Fatalf("spawn_on LLVM IR missing %q:\n%s", want, ir)
 		}
+	}
+	if strings.Contains(runPoll, "call ptr @rt_alloc(i64 24, i64 8)") {
+		t.Fatalf("spawn_on must allocate far-task handles through the runtime ABI:\n%s", runPoll)
+	}
+	retryBranch := strings.Index(runPoll, "br i1 ")
+	handleAlloc := strings.Index(runPoll, "call i32 @rt_far_task_handle_alloc(ptr ")
+	if retryBranch < 0 || handleAlloc < retryBranch {
+		t.Fatalf("far-task handle allocation must live on the initial branch, after retry selection:\n%s", runPoll)
+	}
+	allocCall := runPoll[handleAlloc:]
+	allocBranch := strings.Index(allocCall, "br i1 ")
+	publishCall := strings.Index(allocCall, "call i32 @rt_remote_spawn_publish_placement(")
+	if allocBranch < 0 || publishCall < allocBranch {
+		t.Fatalf("far-task allocation status must branch before publication:\n%s", runPoll)
 	}
 	for _, want := range []string{
 		"i32 2, label",
@@ -66,6 +82,119 @@ async fn run(dst: Placement, n: int) -> far Task<int> {
 		!strings.Contains(spawnPollBody, "call void @rt_async_return(") {
 		t.Fatalf("synthetic remote child poll must read task state and async-return result:\n%s", spawnPollBody)
 	}
+}
+
+func TestEmitFarTaskLifecycleCrossingUsesRemoteTaskPath(t *testing.T) {
+	sourceCode := `
+async fn wait_remote(t: far Task<int>) -> TaskResult<int> {
+    return t.await();
+}
+
+async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}
+`
+
+	mirMod, result := lowerCrossingMIRFromSource(
+		t,
+		sourceCode,
+		sema.CrossingLoweringFarTaskAwait,
+		sema.CrossingLoweringFarTaskCancel,
+	)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+
+	waitPoll := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mirMod, "wait_remote$poll").ID))
+	cancelPoll := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mirMod, "cancel_remote$poll").ID))
+	for _, want := range []string{
+		"declare i32 @rt_far_task_await(ptr, ptr, ptr, ptr)",
+		"declare i32 @rt_far_task_cancel(ptr, ptr, ptr, ptr)",
+		"call i32 @rt_far_task_await(",
+		"call i32 @rt_far_task_cancel(",
+		"call i32 @rt_far_task_await(ptr null,",
+		"call i32 @rt_far_task_cancel(ptr null,",
+	} {
+		if !strings.Contains(ir, want) {
+			t.Fatalf("far Task lifecycle LLVM IR missing %q:\n%s", want, ir)
+		}
+	}
+	for _, body := range []struct {
+		name string
+		text string
+	}{
+		{name: "await", text: waitPoll},
+		{name: "cancel", text: cancelPoll},
+	} {
+		for _, want := range []string{
+			"i32 2, label",
+			"i32 3, label",
+			"i32 4, label",
+			"i32 5, label",
+			"i32 6, label",
+			"i32 7, label",
+			"call void @rt_panic(",
+		} {
+			if !strings.Contains(body.text, want) {
+				t.Fatalf("far Task %s status/error path missing %q:\n%s", body.name, want, body.text)
+			}
+		}
+		if strings.Contains(body.text, "call void @rt_task_await") ||
+			strings.Contains(body.text, "call void @rt_task_cancel") {
+			t.Fatalf("far Task %s lowering must not use local task lifecycle fallback:\n%s", body.name, body.text)
+		}
+		runtimeCall := "call i32 @rt_far_task_" + body.name + "("
+		initialCalls := strings.Count(body.text, runtimeCall) - strings.Count(body.text, runtimeCall+"ptr null,")
+		if got := strings.Count(body.text, "call void @rt_far_task_handle_free("); got != initialCalls {
+			t.Fatalf("far Task %s must free every initial consumed handle, got %d frees for %d initial calls:\n%s", body.name, got, initialCalls, body.text)
+		}
+	}
+}
+
+func TestEmitFarTaskAsyncOwnershipTransferHooks(t *testing.T) {
+	sourceCode := `
+async fn forward_far_task_lease(t: far Task<int>) -> far Task<int> {
+    return t;
+}
+`
+
+	mirMod, result := lowerCrossingMIRFromSource(t, sourceCode)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+
+	constructor := findMIRFunc(t, mirMod, "forward_far_task_lease")
+	poll := llvmFunctionContaining(t, ir, "call void @rt_far_task_prepare_return(")
+	calls := make([]string, 0, 4)
+	for _, block := range constructor.Blocks {
+		for _, ins := range block.Instrs {
+			if ins.Kind == mir.InstrCall {
+				calls = append(calls, ins.Call.Callee.Name)
+			}
+		}
+	}
+	begin := slices.Index(calls, "rt_far_task_begin_transfer")
+	create := slices.Index(calls, "__task_create")
+	finish := slices.Index(calls, "rt_far_task_finish_transfer")
+	if begin < 0 || create < 0 || finish < 0 || begin >= create || create >= finish {
+		t.Fatalf("far Task parameter ownership must bracket task creation, calls=%v", calls)
+	}
+	if !strings.Contains(poll, "call void @rt_far_task_prepare_return(") {
+		t.Fatalf("successful direct far Task async return must prepare lease transfer:\n%s", poll)
+	}
+}
+
+func llvmFunctionContaining(t *testing.T, ir, needle string) string {
+	t.Helper()
+	for _, part := range strings.Split(ir, "\ndefine ") {
+		if strings.Contains(part, needle) {
+			return "define " + part
+		}
+	}
+	t.Fatalf("missing LLVM function containing %q", needle)
+	return ""
 }
 
 func lowerCrossingMIRFromSource(t *testing.T, sourceCode string, forms ...sema.CrossingLoweringKind) (*mir.Module, *driver.DiagnoseResult) {

@@ -11,14 +11,14 @@
 #include <string.h>
 #include <unistd.h>
 
-static struct rt_transport_debug_snapshot rt_transport_debug_snapshot_locked(const rt_shard* shard);
-
 static int rt_transport_msg_is_control(rt_transport_msg_kind kind) {
     switch (kind) {
         case RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK:
+        case RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST:
         case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK:
+        case RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
         case RT_TRANSPORT_MSG_CREDIT_CONTROL:
         case RT_TRANSPORT_MSG_SHUTDOWN_WAKE:
@@ -163,13 +163,6 @@ void rt_transport_state_destroy(rt_transport_state* state) {
     rt_transport_wake_init_empty(&state->wake);
 }
 
-static size_t rt_transport_lane_len_locked(const rt_transport_state* state, int control) {
-    if (state == NULL) {
-        return 0;
-    }
-    return control ? state->control_len : state->data_len;
-}
-
 size_t rt_transport_inbound_len_locked(const rt_shard* shard) {
     if (shard == NULL) {
         return 0;
@@ -202,6 +195,12 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
         state->transport_spawn_requests++;
     } else if (msg->kind == RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK) {
         state->transport_spawn_acks++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION) {
+        state->remote_task_completion_replies++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK) {
+        state->remote_task_cancel_replies++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST) {
+        state->remote_task_release_requests++;
     }
     return RT_TRANSPORT_STATUS_OK;
 }
@@ -425,55 +424,6 @@ uint64_t rt_transport_shutdown_wake_all(rt_executor* ex) {
     }
     return wakes;
 #endif
-}
-
-struct rt_transport_debug_snapshot rt_transport_debug_snapshot(rt_shard* shard) {
-    if (shard == NULL) {
-        struct rt_transport_debug_snapshot snapshot = {0};
-        return snapshot;
-    }
-    if (rt_lane_holds_shard(shard->shard_id)) {
-        return rt_transport_debug_snapshot_locked(shard);
-    }
-    if (rt_lane_holds_any_shard()) {
-        panic_msg("transport: debug snapshot while holding another shard lock");
-        struct rt_transport_debug_snapshot snapshot = {0};
-        return snapshot;
-    }
-    rt_shard_lock(shard);
-    struct rt_transport_debug_snapshot snapshot = rt_transport_debug_snapshot_locked(shard);
-    rt_shard_unlock(shard);
-    return snapshot;
-}
-
-static struct rt_transport_debug_snapshot
-rt_transport_debug_snapshot_locked(const rt_shard* shard) {
-    struct rt_transport_debug_snapshot snapshot = {0};
-    if (shard == NULL) {
-        return snapshot;
-    }
-    const rt_transport_state* state = &shard->transport;
-    snapshot.control_len = rt_transport_lane_len_locked(state, 1);
-    snapshot.data_len = rt_transport_lane_len_locked(state, 0);
-    snapshot.inbound_len = snapshot.control_len + snapshot.data_len;
-    snapshot.park_state =
-        (rt_transport_park_state)atomic_load_explicit(&state->park_state, memory_order_seq_cst);
-    snapshot.enqueue_count = state->enqueue_count;
-    snapshot.control_enqueue_count = state->control_enqueue_count;
-    snapshot.data_enqueue_count = state->data_enqueue_count;
-    snapshot.drain_count = state->drain_count;
-    snapshot.control_drain_count = state->control_drain_count;
-    snapshot.data_drain_count = state->data_drain_count;
-    snapshot.transport_spawn_requests = state->transport_spawn_requests;
-    snapshot.transport_spawn_acks = state->transport_spawn_acks;
-    snapshot.transport_wake_writes = state->transport_wake_writes;
-    snapshot.transport_wake_elisions = state->transport_wake_elisions;
-    snapshot.shutdown_wakes = state->shutdown_wakes;
-    snapshot.parked_with_work_violations = state->parked_with_work_violations;
-    snapshot.wake_drain_count = state->wake.drain_count;
-    snapshot.wake_drain_bytes = state->wake.drain_bytes;
-    snapshot.wake_write_failures = state->wake.write_failures;
-    return snapshot;
 }
 
 size_t rt_transport_drain_inbound_locked(rt_shard* shard, size_t limit) {

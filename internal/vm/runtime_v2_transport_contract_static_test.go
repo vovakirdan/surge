@@ -45,6 +45,10 @@ _Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION != RT_TRANSPORT_MSG_NONE,
                "completion must be a real control category");
 _Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST != RT_TRANSPORT_MSG_NONE,
                "cancel must be a real control category");
+_Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST != RT_TRANSPORT_MSG_NONE,
+               "remote task await must be a real control category");
+_Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST != RT_TRANSPORT_MSG_NONE,
+               "remote task release must be a real control category");
 _Static_assert(RT_TRANSPORT_MSG_CREDIT_CONTROL != RT_TRANSPORT_MSG_NONE,
                "credit must be a real control category");
 _Static_assert(RT_TRANSPORT_MSG_SHUTDOWN_WAKE != RT_TRANSPORT_MSG_NONE,
@@ -334,6 +338,7 @@ func runTransportCProgram(t *testing.T, label, source string, extraFlags []strin
 		"c",
 		"-",
 		filepath.Join(root, "runtime", "native", "rt_transport.c"),
+		filepath.Join(root, "runtime", "native", "rt_transport_debug.c"),
 		filepath.Join(root, "runtime", "native", "rt_lane.c"),
 		filepath.Join(root, "runtime", "native", "rt_sync_point.c"),
 		"-pthread",

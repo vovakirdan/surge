@@ -62,14 +62,18 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 // collectCrossingSpans returns sema-accepted crossing spans for a form when the
 // current backend has no capability for that form.
 func collectCrossingSpans(req *CompileRequest, semaRes *sema.Result, form sema.CrossingLoweringKind) []source.Span {
-	if req == nil || semaRes == nil || !crossingBackendGuardAppliesForRequest(req, form) {
+	if req == nil || semaRes == nil || req.Backend == "" {
 		return nil
 	}
+	backendBlocked := crossingBackendGuardAppliesForRequest(req, form)
 	var spans []source.Span
 	seen := make(map[source.Span]struct{})
 	for idx := range semaRes.CrossingLowering {
 		info := &semaRes.CrossingLowering[idx]
 		if info.Kind != form {
+			continue
+		}
+		if !backendBlocked && crossingRecordExecutable(semaRes, info) {
 			continue
 		}
 		if _, dup := seen[info.Span]; dup {

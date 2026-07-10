@@ -210,6 +210,9 @@ typedef struct rt_task {
     atomic_u8 enqueued;
     atomic_u8 wake_token;
     atomic_u8 polling;
+    atomic_u8 remote_handle_state;
+    atomic_u8 far_task_result_state;
+    _Atomic(struct rt_far_task_lease*) far_task_result_lease;
     uint8_t checkpoint_polled;
     uint8_t sleep_armed;
     uint8_t park_prepared;
@@ -350,6 +353,7 @@ struct rt_executor {
     uint8_t io_started;
     // Written on the control lane; read by shard-side wait predicates.
     _Atomic uint8_t shutdown;
+    struct rt_remote_task_state* remote_tasks;
     pthread_mutex_t blocking_lock;
     pthread_cond_t blocking_cv;
     pthread_t* blocking_workers;
@@ -373,9 +377,8 @@ struct rt_executor {
     atomic_u32 done_waiters;
 };
 
-// Executor lane invariants (post-Epic-7 lane split, post-Epic-8 lifecycle
-// move). There is no single executor lock; ownership is split across three
-// lanes, and a legible design must place every mutation in exactly one:
+// Executor lane invariants (post-Epic-7 lane split, post-Epic-8 lifecycle):
+// there is no single executor lock; every mutation belongs to one lane:
 // - Control lane (ex->lock): task/scope TABLE GROWTH only (segment alloc); the
 //   external/main-thread await compatibility path (done_cv broadcast, gated on
 //   done_waiters, and compat_cv for the sync-channel lane); the cross-owner
@@ -395,7 +398,7 @@ struct rt_executor {
 // - Atomic, no lock held: task->status (acquire/release; the TASK_DONE release
 //   store publishes result_kind/result_bits written before it),
 //   enqueued/cancelled/wake_token/polling/handle_refs, next_id/next_scope_id/
-//   now_ms/shutdown, the task and scope table slots (acquire-loaded by
+//   remote_handle_state, now_ms/shutdown, the task and scope table slots (acquire-loaded by
 //   get_task/get_scope), the sleep_store min_deadline mirror, done_waiters, and
 //   channel_blocked_workers.
 // Carried wake races: waiter_store is FIFO-by-key; prepare_park may pre-register
@@ -453,11 +456,8 @@ void rt_trace_cross_shard_wake(void);
 void rt_trace_spurious_wake_absorbed(void);
 void rt_trace_collect_wake_batch(void);
 void rt_trace_owner_replaced(void);
-// F2 (Epic 8 Task 7 / Task 11 net-fairness fix): counts join-consume
-// placement adoptions specifically (rt_task_poll_adopt_placement,
-// rt_async_task.c), distinct from rt_trace_owner_replaced's aggregate over
-// every rt_task_replace_owner caller (including the pre-existing accept
-// transition). Proof obligation from the Task 11 F2 spec.
+// F2: counts join-consume placement adoptions, distinct from
+// rt_trace_owner_replaced's aggregate over every owner replacement.
 void rt_trace_placement_adoption(void);
 
 // Per-site attribution of control-lane acquisitions on the task/scope
@@ -480,13 +480,9 @@ typedef enum {
 
 void rt_trace_control_lock_site(rt_ctrl_site site);
 
-// Sub-site breakdown of RT_CTRL_SITE_HANDLE (Epic 8 Task 8 evidence, reviewer
-// Note 3): the aggregate handle counter mixes three distinct control-lane
-// causes, so each is tagged separately to attribute the Task 7 -> Task 8
-// ctrl_handle delta honestly. Additive; the three sum to ctrl_handle. WAKE is
-// rt_task_wake's scope-adoption fallback, CANCEL is rt_task_cancel, and FREE is
-// task_release_lane_aware's last-reference free (the net-wrapper child frees
-// now firing in rt_task_poll's DONE branches since Task 7).
+// RT_CTRL_SITE_HANDLE sub-sites remain additive: WAKE is rt_task_wake's
+// scope-adoption fallback, CANCEL is rt_task_cancel, and FREE is the
+// last-reference release.
 typedef enum {
     RT_CTRL_HANDLE_WAKE = 0,
     RT_CTRL_HANDLE_CANCEL,

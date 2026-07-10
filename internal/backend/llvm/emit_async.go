@@ -660,7 +660,7 @@ func (fe *funcEmitter) emitTermAsyncReturn(term *mir.Terminator) error {
 				valueType = baseType
 			}
 		}
-		bits, err := fe.emitValueToI64(val, valTy, valueType)
+		bits, err := fe.emitAsyncReturnBits(val, valTy, valueType)
 		if err != nil {
 			return err
 		}

@@ -228,8 +228,19 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 	taskTmp := addLocal(f, "__task", taskType, localFlagsFor(typesIn, semaRes, taskType))
 
 	args := make([]Operand, 0, len(startVariant.locals))
+	farTaskParams := make([]LocalID, 0, len(startVariant.locals))
 	for _, localID := range startVariant.locals {
 		args = append(args, operandForLocal(f, localID))
+		if int(localID) >= 0 && int(localID) < len(f.Locals) &&
+			IsDirectFarTaskType(typesIn, f.Locals[localID].Type) {
+			farTaskParams = append(farTaskParams, localID)
+		}
+	}
+	for _, localID := range farTaskParams {
+		appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
+			Callee: Callee{Kind: CalleeValue, Name: "rt_far_task_begin_transfer"},
+			Args:   []Operand{{Kind: OperandCopy, Place: Place{Local: localID}}},
+		}})
 	}
 
 	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
@@ -267,6 +278,15 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 			Place: Place{Local: stateTmp},
 		}},
 	}})
+	for _, localID := range farTaskParams {
+		appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
+			Callee: Callee{Kind: CalleeValue, Name: "rt_far_task_finish_transfer"},
+			Args: []Operand{
+				{Kind: OperandCopy, Place: Place{Local: localID}},
+				{Kind: OperandCopy, Place: Place{Local: taskTmp}},
+			},
+		}})
+	}
 	setBlockTerm(f, entry, Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: Operand{Kind: OperandMove, Place: Place{Local: taskTmp}}}})
 	return nil
 }

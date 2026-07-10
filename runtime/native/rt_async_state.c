@@ -3,13 +3,15 @@
 #endif
 
 #include "rt_async_internal.h"
+#include "rt_remote_task.h"
 
 #include <errno.h>
 #include <limits.h>
-#include <stdarg.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+// Like the other executor locks and condition variables, this singleton lives
+// until process exit. rt_executor_request_shutdown quiesces it; it is not a
+// general reusable executor destructor.
 rt_executor exec_state;
 _Thread_local jmp_buf* poll_env;
 _Thread_local int poll_active = 0;
@@ -25,52 +27,6 @@ static uint8_t channel_wake_force_inject;
 
 int channel_wake_force_inject_enabled(void) {
     return channel_wake_force_inject != 0;
-}
-
-static int async_debug_enabled_cached = -1;
-
-int rt_async_debug_enabled(void) {
-    if (async_debug_enabled_cached >= 0) {
-        return async_debug_enabled_cached;
-    }
-    const char* value = getenv("SURGE_ASYNC_DEBUG");
-    if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
-        async_debug_enabled_cached = 0;
-        return 0;
-    }
-    async_debug_enabled_cached = 1;
-    return 1;
-}
-
-void rt_async_debug_printf(const char* fmt, ...) {
-    if (!rt_async_debug_enabled() || fmt == NULL) {
-        return;
-    }
-    char buf[512];
-    va_list args;
-    va_start(args, fmt);
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-nonliteral"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-#endif
-    int n = vsnprintf(buf, sizeof(buf), fmt, args);
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-    va_end(args);
-    if (n <= 0) {
-        return;
-    }
-    uint64_t len = (uint64_t)n;
-    if ((size_t)n >= sizeof(buf)) {
-        len = (uint64_t)(sizeof(buf) - 1);
-    }
-    rt_write_stderr((const uint8_t*)buf, len);
 }
 
 void panic_msg(const char* msg) {
@@ -180,15 +136,21 @@ static void exec_init_once(void) {
         panic_msg("async: heap accounting cell allocation failed");
     }
     rt_heap_accounting_set_current_cell(rt_heap_accounting_main_cell(accounting));
+    if (rt_remote_task_state_init(ex) != RT_RUNTIME_STATUS_OK) {
+        rt_runtime_destroy_global();
+        panic_msg("async: remote task state initialization failed");
+    }
     rt_runtime_status scheduler_status = rt_runtime_init_shard_schedulers(rt_executor_runtime(ex),
                                                                           config.shard_worker_count,
                                                                           rt_env_sched_mode(),
                                                                           rt_env_sched_seed());
     if (scheduler_status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
+        (void)rt_remote_task_state_destroy(ex);
         rt_runtime_destroy_global();
         panic_msg("async: local queue allocation failed");
     }
     if (scheduler_status != RT_RUNTIME_STATUS_OK) {
+        (void)rt_remote_task_state_destroy(ex);
         rt_runtime_destroy_global();
         panic_msg("async: scheduler initialization failed");
     }

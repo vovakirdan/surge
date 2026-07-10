@@ -152,6 +152,11 @@ fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 					t.Fatalf("spawn_on synthetic poll function name = %v", pollFn)
 				}
 			}
+			if tc.kind == sema.CrossingLoweringFarTaskAwait || tc.kind == sema.CrossingLoweringFarTaskCancel {
+				if ins.Pending.Local == mir.NoLocalID {
+					t.Fatal("far Task lifecycle crossing missing persisted pending local")
+				}
+			}
 			if len(ins.Captures) != tc.wantCaptures {
 				t.Fatalf("captures = %d, want %d", len(ins.Captures), tc.wantCaptures)
 			}
@@ -262,6 +267,65 @@ async fn run(dst: Placement, n: int) -> far Task<int> {
 		CrossingForms: crossingForms(sema.CrossingLoweringSpawnOn),
 	}); err != nil {
 		t.Fatalf("validate async spawn_on crossing MIR: %v", err)
+	}
+}
+
+func TestMIRAsyncFarTaskLifecycleCrossingKeepsRetryState(t *testing.T) {
+	cases := []struct {
+		name     string
+		form     sema.CrossingLoweringKind
+		funcName string
+		src      string
+	}{
+		{
+			name:     "await",
+			form:     sema.CrossingLoweringFarTaskAwait,
+			funcName: "wait_remote",
+			src: crossingMIRPrelude + `
+async fn wait_remote(t: far Task<int>) -> TaskResult<int> {
+    return t.await();
+}
+`,
+		},
+		{
+			name:     "cancel",
+			form:     sema.CrossingLoweringFarTaskCancel,
+			funcName: "cancel_remote",
+			src: crossingMIRPrelude + `
+async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}
+`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			compiled := compileCrossingMIR(t, tc.src, crossingForms(tc.form))
+			for _, f := range compiled.mod.Funcs {
+				mir.SimplifyCFG(f)
+			}
+			if err := mir.LowerAsyncStateMachine(compiled.mod, compiled.sema, compiled.symbols.Table); err != nil {
+				t.Fatalf("async lowering failed: %v", err)
+			}
+			ins := requireMIRCrossing(t, compiled.mod, tc.form)
+			if ins.ReadyBB == mir.NoBlockID {
+				t.Fatalf("async far Task lifecycle crossing missing ready block")
+			}
+			if ins.PendBB == mir.NoBlockID {
+				t.Fatalf("async far Task lifecycle crossing missing pending block")
+			}
+			if ins.Pending.Local == mir.NoLocalID {
+				t.Fatalf("async far Task lifecycle crossing missing pending local")
+			}
+			if !asyncPayloadHasLabels(compiled.types, "__AsyncPayload$"+tc.funcName, "*uint8") {
+				t.Fatalf("far Task lifecycle retry payload must preserve rt_remote_task_pending* state")
+			}
+			if err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+				CrossingForms: crossingForms(tc.form),
+			}); err != nil {
+				t.Fatalf("validate async far Task lifecycle crossing MIR: %v", err)
+			}
+		})
 	}
 }
 

@@ -105,16 +105,17 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	}
 	if siteOK && !tc.hasErrorsSince(checkpoint) {
 		tc.recordCrossingLowering(&CrossingLoweringInfo{
-			Kind:        CrossingLoweringSpawnOn,
-			Expr:        id,
-			Span:        span,
-			Body:        data.Body,
-			Function:    tc.currentFnSym(),
-			Destination: destInfo,
-			Captures:    cloneCrossingCaptures(captures),
-			PayloadType: payload,
-			ResultType:  resultType,
-			HandleType:  resultType,
+			Kind:           CrossingLoweringSpawnOn,
+			Expr:           id,
+			Span:           span,
+			Body:           data.Body,
+			Function:       tc.currentFnSym(),
+			SuspendCapable: tc.awaitDepth > 0,
+			Destination:    destInfo,
+			Captures:       cloneCrossingCaptures(captures),
+			PayloadType:    payload,
+			ResultType:     resultType,
+			HandleType:     resultType,
 		})
 	}
 	return resultType
@@ -209,6 +210,7 @@ func (tc *typeChecker) typeFarTaskCall(id ast.ExprID, member *ast.ExprMemberData
 			Expr:           id,
 			Span:           span,
 			Function:       tc.currentFnSym(),
+			SuspendCapable: tc.awaitDepth > 0,
 			ReceiverExpr:   member.Target,
 			ReceiverSymbol: tc.symbolForExpr(member.Target),
 			ReceiverType:   receiverType,

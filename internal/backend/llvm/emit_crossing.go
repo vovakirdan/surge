@@ -16,6 +16,15 @@ const (
 	rtRemoteSpawnRefused              = 5
 	rtRemoteSpawnUnsupportedPlacement = 7
 	rtRemoteSpawnInvalidPlacement     = 8
+
+	rtRemoteTaskOK                  = 0
+	rtRemoteTaskPending             = 1
+	rtRemoteTaskInvalidArgument     = 2
+	rtRemoteTaskDestinationShutdown = 3
+	rtRemoteTaskQueueFull           = 4
+	rtRemoteTaskRefused             = 5
+	rtRemoteTaskStaleToken          = 6
+	rtRemoteTaskConsumed            = 7
 )
 
 func (fe *funcEmitter) emitInstrCrossing(ins *mir.Instr) error {
@@ -25,6 +34,10 @@ func (fe *funcEmitter) emitInstrCrossing(ins *mir.Instr) error {
 	switch ins.Crossing.Kind {
 	case sema.CrossingLoweringSpawnOn:
 		return fe.emitSpawnOnCrossing(&ins.Crossing)
+	case sema.CrossingLoweringFarTaskAwait:
+		return fe.emitFarTaskLifecycleCrossing(&ins.Crossing, "await", "rt_far_task_await")
+	case sema.CrossingLoweringFarTaskCancel:
+		return fe.emitFarTaskLifecycleCrossing(&ins.Crossing, "cancel", "rt_far_task_cancel")
 	default:
 		return fmt.Errorf("crossing %s is not implemented in LLVM backend", mirCrossingKindNameForLLVM(ins.Crossing.Kind))
 	}
@@ -68,8 +81,13 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	if pendingTy != "ptr" {
 		return fmt.Errorf("spawn_on pending slot must lower as ptr, got %s", pendingTy)
 	}
-	handlePtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 24, i64 8)\n", handlePtr)
+	handleSlot, handleSlotTy, err := fe.emitPlacePtr(ins.Handle)
+	if err != nil {
+		return err
+	}
+	if handleSlotTy != "ptr" {
+		return fmt.Errorf("spawn_on handle slot must lower as ptr, got %s", handleSlotTy)
+	}
 	statusSlot := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32\n", statusSlot)
 	pendingVal := fe.nextTemp()
@@ -86,6 +104,19 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isRetry, retryBB, initBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", initBB)
+	allocStatus := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf,
+		"  %s = call i32 @rt_far_task_handle_alloc(ptr %s)\n", allocStatus, handleSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", allocStatus, statusSlot)
+	allocOK := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i32 %s, %d\n", allocOK, allocStatus, rtRemoteSpawnOK)
+	allocReadyBB := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf,
+		"  br i1 %s, label %%%s, label %%%s\n", allocOK, allocReadyBB, statusBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", allocReadyBB)
+	handlePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handlePtr, handleSlot)
 	placementVal, placementTy, err := fe.emitValueOperand(&ins.Destination.Value)
 	if err != nil {
 		return err
@@ -116,13 +147,15 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", retryBB)
+	retryHandlePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", retryHandlePtr, handleSlot)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
 		"  %s = call i32 @rt_remote_spawn_publish_placement(i64 0, i64 %d, ptr null, ptr %s, ptr %s)\n",
 		retryStatus,
 		ins.BodyFuncID,
 		pendingPtr,
-		handlePtr)
+		retryHandlePtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", retryStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
@@ -143,6 +176,8 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isOK, readyBB, errBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
+	readyHandlePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", readyHandlePtr, handleSlot)
 	dstPtr, dstTy, err := fe.emitPlacePtr(ins.Dst)
 	if err != nil {
 		return err
@@ -150,10 +185,14 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	if dstTy != "ptr" {
 		return fmt.Errorf("spawn_on handle destination must lower as ptr, got %s", dstTy)
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", handlePtr, dstPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", readyHandlePtr, dstPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ReadyBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
+	errorHandlePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", errorHandlePtr, handleSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_far_task_handle_free(ptr %s)\n", errorHandlePtr)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", handleSlot)
 	shutdownBB := fe.nextInlineBlock()
 	queueBB := fe.nextInlineBlock()
 	refusedBB := fe.nextInlineBlock()

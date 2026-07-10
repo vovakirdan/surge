@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_remote_task.h"
 #include "rt_sync_point.h"
 
 // Async runtime task API and task builtins.
@@ -39,6 +40,9 @@ void* __task_create(
     task_cancelled_store(task, 0);
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
+    atomic_store_explicit(&task->remote_handle_state, 0, memory_order_relaxed);
+    atomic_store_explicit(&task->far_task_result_state, 0, memory_order_relaxed);
+    atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
 
     rt_task* parent = rt_current_task();
@@ -201,10 +205,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         wake_task(ex, target->id, 1);
     }
     if (task_status_load(target) == TASK_DONE) {
-        uint8_t kind = target->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
-        if (out_bits != NULL) {
-            *out_bits = target->result_bits;
-        }
+        uint8_t kind = rt_far_task_take_result(target, current, out_bits);
         // F2 (Epic 8 Task 11 net-fairness fix): read placement before
         // release, which may free target.
         rt_task_poll_adopt_placement(ex, current, target);
@@ -224,10 +225,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
             current->park_prepared = 0;
             current->park_key = waker_none();
             pending_key = waker_none();
-            uint8_t kind = target->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
-            if (out_bits != NULL) {
-                *out_bits = target->result_bits;
-            }
+            uint8_t kind = rt_far_task_take_result(target, current, out_bits);
             rt_task_poll_adopt_placement(ex, current, target);
             task_release_lane_aware(ex, target);
             return kind;
@@ -347,10 +345,9 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
         }
         rt_done_waiters_decrement_for_external_await(ex);
         if (out_kind != NULL) {
-            *out_kind = target->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
-        }
-        if (out_bits != NULL) {
-            *out_bits = target->result_bits;
+            *out_kind = rt_far_task_take_result(target, rt_current_task(), out_bits);
+        } else {
+            (void)rt_far_task_take_result(target, rt_current_task(), out_bits);
         }
         task_release(ex, target);
         rt_control_unlock(ex);
@@ -359,6 +356,10 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
     rt_task* current = rt_current_task();
     run_until_done(ex, target, out_kind, out_bits);
     rt_set_current_task(current);
+    uint8_t kind = rt_far_task_take_result(target, current, out_bits);
+    if (out_kind != NULL) {
+        *out_kind = kind;
+    }
     rt_control_lock(ex);
     task_release(ex, target);
     rt_control_unlock(ex);
@@ -414,6 +415,9 @@ static rt_task* spawn_internal_task_locked(rt_executor* ex, uint8_t kind, uint64
     task_cancelled_store(task, 0);
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
+    atomic_store_explicit(&task->remote_handle_state, 0, memory_order_relaxed);
+    atomic_store_explicit(&task->far_task_result_state, 0, memory_order_relaxed);
+    atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
     rt_task_inherit_placement(task, rt_current_task());
     rt_task_assign_spawn_owner(task);

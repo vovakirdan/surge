@@ -28,6 +28,8 @@ typedef enum rt_transport_msg_kind {
     RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY = 7,
     RT_TRANSPORT_MSG_CREDIT_CONTROL = 8,
     RT_TRANSPORT_MSG_SHUTDOWN_WAKE = 9,
+    RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST = 10,
+    RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST = 11,
 } rt_transport_msg_kind;
 
 typedef enum rt_transport_park_state {
@@ -76,6 +78,10 @@ typedef struct rt_transport_state {
     uint64_t data_drain_count;
     uint64_t transport_spawn_requests;
     uint64_t transport_spawn_acks;
+    uint64_t remote_task_completion_replies;
+    uint64_t remote_task_cancel_replies;
+    uint64_t remote_task_stale_drops;
+    uint64_t remote_task_release_requests;
     uint64_t transport_wake_writes;
     uint64_t transport_wake_elisions;
     uint64_t shutdown_wakes;
@@ -95,6 +101,10 @@ struct rt_transport_debug_snapshot {
     uint64_t data_drain_count;
     uint64_t transport_spawn_requests;
     uint64_t transport_spawn_acks;
+    uint64_t remote_task_completion_replies;
+    uint64_t remote_task_cancel_replies;
+    uint64_t remote_task_stale_drops;
+    uint64_t remote_task_release_requests;
     uint64_t transport_wake_writes;
     uint64_t transport_wake_elisions;
     uint64_t shutdown_wakes;
@@ -112,6 +122,7 @@ rt_transport_status rt_transport_prepare_shard_park(rt_shard* shard);
 void rt_transport_mark_shard_running(rt_shard* shard);
 uint64_t rt_transport_shutdown_wake_all(rt_executor* ex);
 struct rt_transport_debug_snapshot rt_transport_debug_snapshot(rt_shard* shard);
+void rt_transport_record_remote_task_stale(rt_shard* shard);
 size_t rt_transport_drain_inbound_locked(rt_shard* shard, size_t limit);
 size_t rt_transport_inbound_len_locked(const rt_shard* shard);
 int rt_transport_reply_wait_before_task_suspend(void);

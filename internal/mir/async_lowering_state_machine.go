@@ -134,13 +134,18 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 					if ins.Crossing.Dst.Kind == PlaceLocal && len(ins.Crossing.Dst.Proj) == 0 {
 						sites[i].liveLocals.delete(ins.Crossing.Dst.Local)
 					}
-					if ins.Crossing.Kind == sema.CrossingLoweringSpawnOn {
-						// The first publish consumes the one-shot destination/state inputs.
-						// A retry after publication wait only needs the persisted pending
-						// pointer plus locals that are live on the ready path.
+					if crossingUsesPendingRetryState(ins.Crossing.Kind) {
+						// The first crossing submission consumes one-shot inputs (spawn_on
+						// destination/state, far-task receiver handle). A retry after transport
+						// wait only needs the persisted pending pointer plus locals that are
+						// live on the ready path.
 						readyLive := cloneSet(live[sites[i].pollBB].out)
 						if ins.Crossing.Pending.Kind == PlaceLocal && len(ins.Crossing.Pending.Proj) == 0 {
 							readyLive.add(ins.Crossing.Pending.Local)
+						}
+						if ins.Crossing.Kind == sema.CrossingLoweringSpawnOn &&
+							ins.Crossing.Handle.Kind == PlaceLocal && len(ins.Crossing.Handle.Proj) == 0 {
+							readyLive.add(ins.Crossing.Handle.Local)
 						}
 						if ins.Crossing.Dst.Kind == PlaceLocal && len(ins.Crossing.Dst.Proj) == 0 {
 							readyLive.delete(ins.Crossing.Dst.Local)

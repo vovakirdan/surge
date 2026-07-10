@@ -89,6 +89,12 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_TRANSPORT_REPLY_WAIT_BEFORE_TASK_SUSPEND";
         case RT_SYNC_POINT_SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE:
             return "SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE";
+        case RT_SYNC_POINT_SP_REMOTE_TASK_BEFORE_OWNER_REGISTER:
+            return "SP_REMOTE_TASK_BEFORE_OWNER_REGISTER";
+        case RT_SYNC_POINT_SP_REMOTE_TASK_AFTER_OWNER_REGISTER:
+            return "SP_REMOTE_TASK_AFTER_OWNER_REGISTER";
+        case RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK:
+            return "SP_REMOTE_SPAWN_BEFORE_ACK";
         default:
             return "";
     }

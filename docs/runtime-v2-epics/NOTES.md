@@ -4752,3 +4752,121 @@ Verified:
 - `sentrux check .` quality `6184`; `sentrux check internal` quality `6528`;
   `sentrux check runtime` quality `5360`; `sentrux check runtime/native`
   quality `5484`.
+
+## 2026-07-10 — Epic 13 Task 9 Start
+
+Task 9 resumes from the uncommitted await/cancel draft after committed Task 8
+(`55fb97b5`). The task must not flip production LLVM crossing capability until
+remote `far Task` await, cancel, stale-token handling, owner-routed reply waits,
+teardown release, and the plain-data/copyable payload boundary are proven
+together. `spawn on`, await, and cancel remain one joint public gate.
+
+Initial focused evidence on the inherited draft:
+
+- `go test ./internal/mir ./internal/backend/llvm -run
+  'Crossing|FarTask|SpawnOn' -count=1 --timeout 120s` passed.
+- `go test -tags runtime_v2_pending ./internal/vm -run
+  '^TestRuntimeV2RemotePublication(APIShape|Behavior|FailurePathStaticGuards)$'
+  -count=1 --timeout 180s` passed.
+- `make c-check` and `make cppcheck` passed.
+- `git diff --check` passed.
+- `./check_file_sizes.sh -a` passed the repository threshold, but the new
+  612-line `rt_remote_task.c` draft must be split before completion.
+
+Review before implementation found mandatory blockers: reply envelopes do not
+yet validate route/generation, `WAKER_REMOTE_TASK_REPLY` falls through the
+shard-0 waiter route, reply re-registration lacks register-then-verify, handle
+allocations have retry/consume leak paths, `rt_far_task_release` has no lowering
+callsite, executable heap-owned payloads are not rejected, required 1/2/8 and
+race/teardown/shutdown rows are missing, and the production capability remains
+default-closed.
+
+Pre-change Sentrux MCP baselines, all with `check_rules` passing:
+
+- repository root quality `6183`;
+- `internal/` quality `6527`;
+- `runtime/` quality `5362`;
+- `runtime/native/` quality `5486`.
+
+The active Sentrux delta session is rooted at `runtime/native/` with baseline
+quality `5486`. Task 10 and later forms remain out of scope until Task 9 is
+closed and reviewed.
+
+## 2026-07-10 — Epic 13 Task 9 Complete
+
+Task 9 delivers the `far Task<T>.await()` / `far Task<T>.cancel()` executable
+vertical and the joint public gate for `spawn on` + await + cancel.
+`backendSupportsCrossingForm(LLVM, spawn_on | far_task_await |
+far_task_cancel)` is default-open in production
+(`internal/buildpipeline/crossing_transport.go`); no override env var exists —
+`CrossingFormsForTest` remains a test-scoped struct field whose forms union
+with the open production set.
+
+Every mandatory blocker from the start-entry review is closed in the shipped
+code:
+
+- reply envelopes are route/generation qualified both directions
+  (`request_matches` / `reply_matches` / `owner_matches`,
+  `rt_remote_task_dispatch.c`), with stale drops counted per target shard;
+- `WAKER_REMOTE_TASK_REPLY` routes by `waker_key.owner_shard_id`
+  (`rt_waiter_route.c`), no shard-0 fallthrough;
+- reply re-registration parks first and unwinds if already resolved
+  (`rt_remote_task_wait.c`);
+- `start_remote_task` balances lease consume/restore and pending refs on every
+  early return (`rt_remote_task_api.c`);
+- teardown release is routed at every entry point: owner-done
+  (`rt_task_complete.c`), producer lifetime (`rt_task_lifetime.c`), shutdown
+  (`rt_shutdown.c` via `rt_far_task_release_all`), spawn ack/fail paths
+  (`rt_remote_spawn_pending.c`, `rt_remote_spawn.c`), and the lowering frees
+  handles through `rt_far_task_handle_free` -> lease `RELEASING` ->
+  owner-routed `rt_far_task_release` message — never direct cross-shard state;
+- executable payloads are compile-guarded to plain-data/copyable
+  (`crossingRecordExecutable`, `TestLLVMTransportPayloadGuard*`), and
+  `Task<far Task<T>>.clone()` is SEM3116 (`task_clone_affine_test.go`).
+
+Acceptance rows (all green): spawn-then-await and spawn-then-cancel across
+`SURGE_SHARDS=1,2,8` under both the override and the production capability
+(`runtime_v2_far_task_source_e2e_test.go`, includes shards=1 self-crossing
+await); already-DONE immediate reply; fabricated stale request AND stale reply
+rejected with per-target stale-drop attribution; cancel-vs-completion
+registration races closed under `SP_REMOTE_TASK_BEFORE/AFTER_OWNER_REGISTER`
+sync points with exactly-one reply-edge consumption proven by transport
+counters (`remote_task_behavior_races.c` — the epic's acceptance row, sync
+points, not timing); unconsumed-handle teardown with owner-side observation;
+cancel-before-publication-ack; queue-failure lease restore; shutdown wakes
+reply waiters on all shards (`runtime_v2_remote_task_behavior_test.go`).
+
+New in this close-out pass:
+
+- the remote-task acceptance suite and the far-task e2e are now wired into
+  `make runtime-v2-transport-contract-check` (they were previously orphaned
+  from every gate);
+- `spawn on pool` post-flip behavior is pinned by
+  `TestRuntimeV2SpawnOnPoolProductionCapabilityFailsDeterministically`: the
+  form-keyed gate lets it compile, and it must fail with the deterministic
+  `spawn on placement is not supported by this backend` panic (placement
+  resolver returns UNSUPPORTED for POOL) — no hidden local fallback;
+- `rt_transport_debug.c` was added to the two explicit C-harness source lists
+  (`runTransportCProgram`, spine acceptance) that broke when
+  `rt_transport_debug_snapshot` moved out of `rt_transport.c`;
+- runtime dedup: shared `rt_far_task_lease_find_locked`,
+  `rt_remote_task_result_kind`, `rt_remote_spawn_enqueue_with_drain` (three
+  enqueue-drain-retry copies), unified await/cancel `dispatch_request`,
+  shared `rt_remote_task_reply_owner_done`, merged
+  `release_owned`/`release_all` loops, factored `result_lease_take_locked`.
+
+Gates (all green): `git diff --check`, `make c-check`, `make cppcheck`,
+`make golden-check`, `make runtime-v2-crossing-check` run twice with the
+post-flip matrix (compile-only negative space still clean),
+`make runtime-v2-transport-contract-check` with the new rows,
+`./check_file_sizes.sh -a` (every `rt_remote_task*` module <= 300 lines),
+`make check`.
+
+Sentrux CLI (`sentrux check`, all rules pass at every scope): root `6182`,
+`internal` `6526`, `runtime` `5356`, `runtime/native` `5464`. The scoped
+`runtime/native` signal is below the `5486` start baseline (~-0.36%,
+committed-HEAD CLI parity `5484` -> `5464`): the residual is the inherent
+import/call coupling of the ~1.1k-line remote-task subsystem after the dedup
+pass produced no measurable metric recovery. Accepted per `RULES.md` Global
+Rule 3 recovery clause with `RV2-DEBT-028` as the recovery owner (precedent:
+Epic 8 Task 13 / `RV2-DEBT-003`). Task 10 (`on` execute/reply) remains next.

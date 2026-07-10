@@ -24,5 +24,69 @@ func crossingBackendGuardAppliesForRequest(req *CompileRequest, form sema.Crossi
 }
 
 func backendSupportsCrossingForm(backend Backend, form sema.CrossingLoweringKind) bool {
-	return false
+	if backend != BackendLLVM {
+		return false
+	}
+	switch form {
+	case sema.CrossingLoweringSpawnOn,
+		sema.CrossingLoweringFarTaskAwait,
+		sema.CrossingLoweringFarTaskCancel:
+		return true
+	default:
+		return false
+	}
+}
+
+func crossingFormsForRequest(req *CompileRequest) map[sema.CrossingLoweringKind]bool {
+	if req == nil {
+		return nil
+	}
+	forms := make(map[sema.CrossingLoweringKind]bool, len(req.CrossingFormsForTest)+3)
+	for form, enabled := range req.CrossingFormsForTest {
+		if enabled {
+			forms[form] = true
+		}
+	}
+	for _, form := range []sema.CrossingLoweringKind{
+		sema.CrossingLoweringSpawnOn,
+		sema.CrossingLoweringFarTaskAwait,
+		sema.CrossingLoweringFarTaskCancel,
+	} {
+		if backendSupportsCrossingForm(req.Backend, form) {
+			forms[form] = true
+		}
+	}
+	if len(forms) == 0 {
+		return nil
+	}
+	return forms
+}
+
+// crossingRecordExecutable applies the narrower Epic 13 representation gate
+// after a backend advertises the form. This first vertical is suspend-only and
+// may carry only plain-data/copyable payloads; heap-owned shard-movable values
+// stay guarded until remote-free ownership exists.
+func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo) bool {
+	if res == nil || info == nil || !info.SuspendCapable {
+		return false
+	}
+	switch info.Kind {
+	case sema.CrossingLoweringSpawnOn:
+		for _, capture := range info.Captures {
+			if capture.Verdict == sema.CrossingCaptureOwnedShardMovable {
+				return false
+			}
+			if capture.Verdict == sema.CrossingCaptureFarHandle &&
+				res.IsDirectFarTaskType(capture.Type) {
+				return false
+			}
+		}
+		return res.IsCopyType(info.PayloadType)
+	case sema.CrossingLoweringFarTaskAwait:
+		return res.IsCopyType(info.PayloadType)
+	case sema.CrossingLoweringFarTaskCancel:
+		return true
+	default:
+		return false
+	}
 }

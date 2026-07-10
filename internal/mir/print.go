@@ -99,43 +99,6 @@ func dumpFunc(w io.Writer, f *Func, typesIn *types.Interner) error {
 	return nil
 }
 
-func formatLocalFlags(f LocalFlags) string {
-	if f == 0 {
-		return ""
-	}
-	var parts []string
-	if f&LocalFlagCopy != 0 {
-		parts = append(parts, "copy")
-	}
-	if f&LocalFlagOwn != 0 {
-		parts = append(parts, "own")
-	}
-	if f&LocalFlagRef != 0 {
-		parts = append(parts, "ref")
-	}
-	if f&LocalFlagRefMut != 0 {
-		parts = append(parts, "refmut")
-	}
-	if f&LocalFlagPtr != 0 {
-		parts = append(parts, "ptr")
-	}
-	if len(parts) == 0 {
-		return ""
-	}
-	return "[" + join(parts, ",") + "]"
-}
-
-func join(parts []string, sep string) string {
-	if len(parts) == 0 {
-		return ""
-	}
-	out := parts[0]
-	for i := 1; i < len(parts); i++ {
-		out += sep + parts[i]
-	}
-	return out
-}
-
 func formatInstr(typesIn *types.Interner, ins *Instr) string {
 	if ins == nil {
 		return "<instr?>"
@@ -164,6 +127,9 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 		}
 		if ins.Crossing.Pending.Local != NoLocalID || ins.Crossing.Pending.Global != NoGlobalID {
 			extra += fmt.Sprintf(" pending=%s", formatPlace(ins.Crossing.Pending))
+		}
+		if ins.Crossing.Handle.Local != NoLocalID || ins.Crossing.Handle.Global != NoGlobalID {
+			extra += fmt.Sprintf(" handle=%s", formatPlace(ins.Crossing.Handle))
 		}
 		return fmt.Sprintf("%s = crossing_%s%s", formatPlace(ins.Crossing.Dst), mirCrossingKindName(ins.Crossing.Kind), extra)
 	case InstrBlocking:

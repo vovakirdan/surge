@@ -72,6 +72,18 @@ typedef enum rt_sync_point_id {
     // transport shutdown: reached after shutdown is visible, before waking all
     // transport-parked shards and reply waiters.
     RT_SYNC_POINT_SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE,
+    // remote task owner: reached after observing not-DONE but before
+    // publishing the owner reply edge. A test completes in this window to
+    // prove register-then-verify closes the lost completion.
+    RT_SYNC_POINT_SP_REMOTE_TASK_BEFORE_OWNER_REGISTER,
+    // remote task owner: reached after publishing the owner reply edge and
+    // pinning the task, before the DONE re-check. A test completes the task in
+    // this window to prove both the re-check and the task-lifetime pin.
+    RT_SYNC_POINT_SP_REMOTE_TASK_AFTER_OWNER_REGISTER,
+    // remote spawn destination: reached after the child is published, before
+    // its ack is enqueued. Cancellation here must abandon the caller-owned
+    // lease and turn the eventual ack into an owner-routed release.
+    RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
