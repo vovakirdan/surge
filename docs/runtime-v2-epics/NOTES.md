@@ -5206,3 +5206,24 @@ immediately, and the body completes on its already-resolved pointer because
 the dispatch-time pin defers reclamation to the reply edge; the body holds
 a busy-yield gate so it stays runnable and quiescence never falsely forms).
 Row 10 (leak audit) rides Task 6 stress as planned.
+
+### Detection hardening after external review (same day)
+
+Five Codex review rounds against the increment converged to clean. The
+material findings, all fixed: per-shard transport `park_state` is a
+last-edge flag, so quiescence now reads `running_count`, both ready
+queues, inbound length, timers, and net waiters under each shard's own
+lock, one at a time, with the caller's lock released around the check
+(`wake_pending` keeps the sleep guard); `blocking_head` is read under
+`blocking_lock`; the blocking pool claims a job in `blocking_running`
+under the queue lock at dequeue and drops it only after the completion
+wake is delivered, closing the two windows where a job was invisible to
+idleness checks; the suspect scan retains bodies only through
+`owner_registered` pendings (the flag is coupled to the registration's
+counted body reference under the pending-list lock, so `task_add_ref`
+cannot race the last free) and walks the whole list in batches instead of
+capping at eight; the verify pass re-confirms the same suspect. The
+detector's soundness argument is inductive: once one quiescence pass
+holds with a channel-parked registered body, no in-model event source
+remains, so the state is stable; every event source is now visible to the
+scan at the instant it is checked.
