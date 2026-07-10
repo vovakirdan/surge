@@ -31,5 +31,12 @@ rt_remote_spawn_status remote_spawn_pending_snapshot(const rt_remote_spawn_pendi
                                                      rt_far_task_handle* out);
 void remote_spawn_pending_consume(rt_remote_spawn_pending* pending);
 void remote_spawn_pending_fail_all(rt_executor* ex, rt_remote_spawn_status status);
+rt_remote_spawn_status rt_remote_spawn_create_body_task(rt_executor* ex,
+                                                        uint64_t poll_fn_id,
+                                                        void* state,
+                                                        uint32_t target_shard_id,
+                                                        rt_task** out_task);
+rt_remote_spawn_status rt_remote_spawn_publish_body_task(rt_executor* ex, rt_task* task);
+void rt_remote_spawn_free_unpublished_task(rt_executor* ex, rt_task* task);
 
 #endif

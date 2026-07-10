@@ -84,6 +84,11 @@ typedef enum rt_sync_point_id {
     // its ack is enqueued. Cancellation here must abandon the caller-owned
     // lease and turn the eventual ack into an owner-routed release.
     RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK,
+    // immediate on destination: reached after the execute pending is bound to
+    // the created body task and owner-registered, before the body task is
+    // published. A test cancels the caller in this window to prove the
+    // caller-cancel route and the reply edge resolve exactly once.
+    RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

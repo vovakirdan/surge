@@ -56,6 +56,11 @@ func TestRuntimeV2RemoteTaskSourcesRespectFileLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob remote-task sources: %v", err)
 	}
+	immediate, err := filepath.Glob(filepath.Join(root, "runtime", "native", "rt_immediate_on*.[ch]"))
+	if err != nil {
+		t.Fatalf("glob immediate-on sources: %v", err)
+	}
+	matches = append(matches, immediate...)
 	for _, path := range matches {
 		body, readErr := os.ReadFile(path)
 		if readErr != nil {

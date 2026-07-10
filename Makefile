@@ -126,6 +126,8 @@ runtime-v2-transport-contract-check:
 	@echo ">> Running Runtime V2 remote task acceptance gate (Epic 13 Task 9)"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Remote(TaskBehavior|TaskReplyValidationIsGenerationQualified|TaskSourcesRespectFileLimit|TaskStateHasInitRollbackPair|Publication(APIShape|Behavior|FailurePathStaticGuards))$$|^TestRuntimeV2TransportReplyWaitersHaveExplicitShardRouting$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2FarTaskSource(OverrideAcrossShards|ProductionCapability)$$|^TestRuntimeV2SpawnOnPoolProductionCapabilityFailsDeterministically$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	@echo ">> Running Runtime V2 immediate-on acceptance gate (Epic 13 Task 10)"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2ImmediateOn(SourceOverrideAcrossShards|SourceProductionCapability|PoolProductionCapabilityFailsDeterministically)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 heap accounting gate"

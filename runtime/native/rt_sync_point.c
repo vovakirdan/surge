@@ -95,6 +95,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_REMOTE_TASK_AFTER_OWNER_REGISTER";
         case RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK:
             return "SP_REMOTE_SPAWN_BEFORE_ACK";
+        case RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH:
+            return "SP_IMMEDIATE_ON_BEFORE_PUBLISH";
         default:
             return "";
     }

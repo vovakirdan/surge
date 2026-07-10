@@ -130,11 +130,36 @@ static int finish_registered_owner(rt_executor* ex, rt_task* task) {
     return 1;
 }
 
+// Cancel of an in-flight immediate execute: token-validated, no handle
+// consumption, no second owner registration, never touches the reply edge.
+static void dispatch_execute_cancel(rt_executor* ex, const rt_transport_msg* msg) {
+    rt_remote_task_pending* pending = msg != NULL ? msg->payload : NULL;
+    if (!request_matches(msg, pending)) {
+        record_stale_drop(ex, msg);
+        rt_remote_task_pending_release(pending);
+        return;
+    }
+    const rt_task* task = get_task(ex, pending->handle.task_id);
+    if (owner_matches(&pending->handle, task, msg->target_shard_id)) {
+        if (task_status_load(task) != TASK_DONE) {
+            cancel_owner_task(ex, task->id);
+        }
+    } else {
+        record_stale_drop(ex, msg);
+    }
+    rt_remote_task_pending_release(pending);
+}
+
 static void dispatch_request(rt_executor* ex, const rt_transport_msg* msg, rt_remote_task_op op) {
     rt_transport_msg_kind reply_kind = op == RT_REMOTE_TASK_OP_CANCEL
                                            ? RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK
                                            : RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION;
     rt_remote_task_pending* pending = msg != NULL ? msg->payload : NULL;
+    if (op == RT_REMOTE_TASK_OP_CANCEL && pending != NULL &&
+        pending->op == RT_REMOTE_TASK_OP_EXECUTE) {
+        dispatch_execute_cancel(ex, msg);
+        return;
+    }
     rt_task* task = take_valid_request(ex, msg, pending, reply_kind);
     if (task == NULL) {
         return;
@@ -203,7 +228,10 @@ static void dispatch_reply(rt_executor* ex, const rt_transport_msg* msg) {
                                   (rt_remote_task_status)pending->reply_status,
                                   pending->result_kind,
                                   pending->result_bits);
-    rt_remote_task_pending_release(pending);
+    // Consume (unlink + release): an orphaned reply — the caller already
+    // resumed through the cancel path and dropped its reference — must not
+    // leave a freed pending linked in the list.
+    rt_remote_task_pending_consume(pending);
 }
 
 int rt_remote_task_dispatch_message(rt_executor* ex, const rt_transport_msg* msg) {
@@ -220,8 +248,12 @@ int rt_remote_task_dispatch_message(rt_executor* ex, const rt_transport_msg* msg
         case RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST:
             dispatch_release(ex, msg);
             return 1;
+        case RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST:
+            rt_immediate_on_dispatch_execute(ex, msg);
+            return 1;
         case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK:
+        case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
             dispatch_reply(ex, msg);
             return 1;
         default:

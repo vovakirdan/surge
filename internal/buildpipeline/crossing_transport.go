@@ -29,6 +29,7 @@ func backendSupportsCrossingForm(backend Backend, form sema.CrossingLoweringKind
 	}
 	switch form {
 	case sema.CrossingLoweringSpawnOn,
+		sema.CrossingLoweringOnPlacement,
 		sema.CrossingLoweringFarTaskAwait,
 		sema.CrossingLoweringFarTaskCancel:
 		return true
@@ -49,6 +50,7 @@ func crossingFormsForRequest(req *CompileRequest) map[sema.CrossingLoweringKind]
 	}
 	for _, form := range []sema.CrossingLoweringKind{
 		sema.CrossingLoweringSpawnOn,
+		sema.CrossingLoweringOnPlacement,
 		sema.CrossingLoweringFarTaskAwait,
 		sema.CrossingLoweringFarTaskCancel,
 	} {
@@ -71,7 +73,7 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		return false
 	}
 	switch info.Kind {
-	case sema.CrossingLoweringSpawnOn:
+	case sema.CrossingLoweringSpawnOn, sema.CrossingLoweringOnPlacement:
 		for _, capture := range info.Captures {
 			if capture.Verdict == sema.CrossingCaptureOwnedShardMovable {
 				return false

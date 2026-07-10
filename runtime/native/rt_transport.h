@@ -82,6 +82,8 @@ typedef struct rt_transport_state {
     uint64_t remote_task_cancel_replies;
     uint64_t remote_task_stale_drops;
     uint64_t remote_task_release_requests;
+    uint64_t immediate_on_execute_requests;
+    uint64_t immediate_on_replies;
     uint64_t transport_wake_writes;
     uint64_t transport_wake_elisions;
     uint64_t shutdown_wakes;
@@ -105,6 +107,8 @@ struct rt_transport_debug_snapshot {
     uint64_t remote_task_cancel_replies;
     uint64_t remote_task_stale_drops;
     uint64_t remote_task_release_requests;
+    uint64_t immediate_on_execute_requests;
+    uint64_t immediate_on_replies;
     uint64_t transport_wake_writes;
     uint64_t transport_wake_elisions;
     uint64_t shutdown_wakes;

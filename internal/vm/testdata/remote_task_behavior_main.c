@@ -23,5 +23,17 @@ int main(int argc, char** argv) {
         return task9_mode_queue_failure();
     if (strcmp(argv[1], "shutdown-waiters") == 0)
         return task9_mode_shutdown_waiters();
+    if (strcmp(argv[1], "immediate-basic") == 0)
+        return task10_mode_basic();
+    if (strcmp(argv[1], "immediate-distributed") == 0)
+        return task10_mode_distributed();
+    if (strcmp(argv[1], "immediate-invalid-shard") == 0)
+        return task10_mode_invalid_shard();
+    if (strcmp(argv[1], "immediate-stale") == 0)
+        return task10_mode_stale();
+    if (strcmp(argv[1], "immediate-cancel-race") == 0)
+        return task10_mode_cancel_race();
+    if (strcmp(argv[1], "immediate-shutdown") == 0)
+        return task10_mode_shutdown();
     return task9_fail("unknown mode");
 }

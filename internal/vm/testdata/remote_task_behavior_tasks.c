@@ -141,6 +141,24 @@ static void poll_lifecycle(task9_lifecycle_state* state) {
     rt_async_return(state, (uint64_t)state->status);
 }
 
+static void poll_task10_exec(task10_exec_state* state) {
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    state->status = rt_immediate_on_execute(state->placement,
+                                            (int64_t)state->body_poll_id,
+                                            state->body_state,
+                                            &state->pending,
+                                            &kind,
+                                            &bits);
+    if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
+        atomic_store_explicit(&state->visible_pending, state->pending, memory_order_release);
+        rt_async_yield(state);
+    }
+    state->result_kind = kind;
+    state->result_bits = bits;
+    rt_async_return(state, (uint64_t)state->status);
+}
+
 void __surge_poll_call(uint64_t id) {
     if (id == POLL_TASK9_CHILD) {
         poll_child((task9_child_state*)__task_state());
@@ -150,6 +168,9 @@ void __surge_poll_call(uint64_t id) {
     }
     if (id == POLL_TASK9_LIFECYCLE) {
         poll_lifecycle((task9_lifecycle_state*)__task_state());
+    }
+    if (id == POLL_TASK10_EXEC) {
+        poll_task10_exec((task10_exec_state*)__task_state());
     }
     rt_async_return(NULL, 0);
 }

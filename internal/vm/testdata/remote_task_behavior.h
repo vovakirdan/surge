@@ -14,6 +14,7 @@ enum {
     POLL_TASK9_CHILD = 9101,
     POLL_TASK9_PUBLISHER = 9102,
     POLL_TASK9_LIFECYCLE = 9103,
+    POLL_TASK10_EXEC = 9104,
 };
 
 typedef struct task9_child_state {
@@ -65,5 +66,23 @@ int task9_mode_teardown(void);
 int task9_mode_pre_ack_cancel(void);
 int task9_mode_queue_failure(void);
 int task9_mode_shutdown_waiters(void);
+
+typedef struct task10_exec_state {
+    rt_remote_task_pending* pending;
+    uint64_t placement;
+    uint64_t body_poll_id;
+    void* body_state;
+    _Atomic(rt_remote_task_pending*) visible_pending;
+    rt_remote_task_status status;
+    uint8_t result_kind;
+    uint64_t result_bits;
+} task10_exec_state;
+
+int task10_mode_basic(void);
+int task10_mode_distributed(void);
+int task10_mode_invalid_shard(void);
+int task10_mode_stale(void);
+int task10_mode_cancel_race(void);
+int task10_mode_shutdown(void);
 
 #endif

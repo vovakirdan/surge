@@ -141,7 +141,7 @@ func TestRuntimeV2RemotePublicationFailurePathStaticGuards(t *testing.T) {
 		"remote_spawn_pending_finish(ex, req, RT_REMOTE_SPAWN_STATUS_OK, &handle);") {
 		t.Fatal("ack enqueue failure must not complete the pending publication as OK")
 	}
-	publishStatus := strings.Index(source, "status = remote_spawn_publish_destination_task")
+	publishStatus := strings.Index(source, "status = rt_remote_spawn_publish_body_task")
 	ackStatus := strings.Index(source, "status = remote_spawn_enqueue_ack")
 	ackFailure := strings.Index(source, "(void)rt_far_task_release(&handle);")
 	if publishStatus < 0 || ackStatus < publishStatus {

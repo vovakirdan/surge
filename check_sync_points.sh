@@ -48,6 +48,7 @@ declare -A WINDOW_FILE=(
     [SP_REMOTE_TASK_AFTER_OWNER_REGISTER]="rt_remote_task_dispatch.c"
     [SP_REMOTE_TASK_BEFORE_OWNER_REGISTER]="rt_remote_task_dispatch.c"
     [SP_REMOTE_SPAWN_BEFORE_ACK]="rt_remote_spawn.c"
+    [SP_IMMEDIATE_ON_BEFORE_PUBLISH]="rt_immediate_on.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in

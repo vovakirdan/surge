@@ -48,7 +48,8 @@ func collectOnCrossingSpans(req *CompileRequest, semaRes *sema.Result) []source.
 		default:
 			continue
 		}
-		if !crossingBackendGuardAppliesForRequest(req, info.Kind) {
+		backendBlocked := crossingBackendGuardAppliesForRequest(req, info.Kind)
+		if !backendBlocked && crossingRecordExecutable(semaRes, info) {
 			continue
 		}
 		if _, dup := seen[info.Span]; dup {

@@ -18,6 +18,7 @@ typedef enum rt_remote_task_status {
     RT_REMOTE_TASK_STATUS_REFUSED = 5,
     RT_REMOTE_TASK_STATUS_STALE_TOKEN = 6,
     RT_REMOTE_TASK_STATUS_CONSUMED = 7,
+    RT_REMOTE_TASK_STATUS_UNSUPPORTED_PLACEMENT = 8,
 } rt_remote_task_status;
 
 rt_remote_task_status rt_far_task_await(const rt_far_task_handle* handle,
@@ -29,6 +30,14 @@ rt_remote_task_status rt_far_task_cancel(const rt_far_task_handle* handle,
                                          uint8_t* out_kind,
                                          uint64_t* out_bits);
 rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle);
+// Immediate `on placement` execute/reply: one request, one reply, one
+// request-scoped cancellation token, no publicly observable far Task handle.
+rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
+                                              int64_t poll_fn_id,
+                                              void* state,
+                                              rt_remote_task_pending** pending,
+                                              uint8_t* out_kind,
+                                              uint64_t* out_bits);
 rt_remote_spawn_status rt_far_task_handle_alloc(rt_far_task_handle** out_handle);
 void rt_far_task_handle_free(const rt_far_task_handle* handle);
 void rt_far_task_begin_transfer(const rt_far_task_handle* handle);
@@ -47,6 +56,7 @@ rt_runtime_status rt_remote_task_state_destroy(rt_executor* ex);
 int rt_remote_task_dispatch_message(rt_executor* ex, const rt_transport_msg* msg);
 void rt_remote_task_release_msg_payload(const rt_transport_msg* msg);
 void rt_remote_task_on_owner_done(rt_executor* ex, rt_task* task);
+void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller);
 void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status status);
 
 #endif

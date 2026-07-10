@@ -11,6 +11,7 @@ typedef enum rt_remote_task_op {
     RT_REMOTE_TASK_OP_AWAIT = 1,
     RT_REMOTE_TASK_OP_CANCEL = 2,
     RT_REMOTE_TASK_OP_RELEASE = 3,
+    RT_REMOTE_TASK_OP_EXECUTE = 4,
 } rt_remote_task_op;
 
 enum {
@@ -48,6 +49,10 @@ struct rt_remote_task_pending {
     uint8_t reply_status;
     uint8_t result_kind;
     uint8_t owner_registered;
+    uint8_t cancel_routed;
+    uint64_t caller_task_id;
+    uint64_t body_poll_fn_id;
+    void* body_state;
     uint64_t result_bits;
     _Atomic uint32_t refs;
     uint8_t listed;
@@ -112,6 +117,8 @@ rt_remote_task_status rt_remote_task_transport_status(rt_transport_status status
 void rt_remote_task_reply_owner_done(rt_executor* ex,
                                      rt_task* task,
                                      rt_remote_task_pending* pending);
+void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* msg);
+void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pending);
 void rt_remote_task_reply_or_finish(rt_executor* ex,
                                     rt_remote_task_pending* pending,
                                     rt_remote_task_status status,

@@ -4870,3 +4870,107 @@ import/call coupling of the ~1.1k-line remote-task subsystem after the dedup
 pass produced no measurable metric recovery. Accepted per `RULES.md` Global
 Rule 3 recovery clause with `RV2-DEBT-028` as the recovery owner (precedent:
 Epic 8 Task 13 / `RV2-DEBT-003`). Task 10 (`on` execute/reply) remains next.
+
+## 2026-07-10 — Epic 13 Task 10 Start
+
+Task 10 lowers immediate `on shard(id)` / `on distributed` to the dedicated
+execute/reply message category (`RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST`
+= 6, `RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY` = 7, declared by Task 4 with the
+execute request on the data lane and the reply on the control lane,
+`rt_transport.c` `rt_transport_msg_is_control`). The spawn+await desugar is
+rejected by the epic's Lowering Contract; trace equivalence (one request, one
+reply, no publication-ack pair) must be proven by transport counters.
+`on far_handle` stays FUT7014 (separate `CrossingLoweringOnFarHandle` kind, so
+the form-keyed flip of `CrossingLoweringOnPlacement` cannot open it); `on pool`
+stays a placement diagnostic.
+
+Starting state verified: sema records `CrossingLoweringOnPlacement` with
+destination/captures/payload (`internal/sema/on_crossing.go`); MIR
+`CrossingInstr` and the spawn-poll body-function lowering
+(`lower_expr_crossing_spawn_poll.go`) are reusable; LLVM `emitInstrCrossing`
+has no `OnPlacement` case yet (default error);
+`crossingRecordExecutable` returns false for `OnPlacement` (default arm), so
+the form stays guarded until this task's deliberate flip.
+
+Pre-change Sentrux CLI baselines on the committed tree (`8b82c1f9`), all rules
+passing: repository root quality `6184`; `internal/` `6522`; `runtime/`
+`5332`; `runtime/native/` `5420`. Observed tool behavior: the CLI
+`quality_signal` differs between a dirty and a committed tree for identical
+content (Task 9 close-out measured `5464` uncommitted vs `5420` committed for
+the same `runtime/native` sources), so Task 10 completion compares
+committed-tree numbers against these committed-tree baselines.
+
+## 2026-07-10 — Epic 13 Task 10 Complete
+
+Task 10 delivers immediate `on shard(id)` / `on distributed` on the dedicated
+execute/reply category and flips `backendSupportsCrossingForm(LLVM,
+on_placement)` in production. No desugar: one request
+(`RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST`, data lane), one reply
+(`RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY`, control lane), one request-scoped
+token, no publicly observable `far Task<T>` handle.
+
+Implementation:
+
+- Runtime: new `rt_immediate_on.c` (275 lines) — caller-side
+  `rt_immediate_on_execute` (placement resolve, pending + reply wait reuse of
+  the Task 9 machinery, `RT_REMOTE_TASK_OP_EXECUTE`), destination-side
+  dispatch (body task creation via the exported
+  `rt_remote_spawn_create_body_task`/`publish_body_task` helpers, bind-then-
+  owner-register with a status re-check closing the teardown race), routed
+  caller-cancel (`rt_immediate_on_cancel_inflight`, exactly-once via
+  `cancel_routed`), and caller-teardown release
+  (`rt_immediate_on_release_owned`, hooked in `rt_task_complete.c` mark-done):
+  bound in-flight requests keep the pending listed so the owner-done hook
+  answers the orphaned reply exactly once; unbound queued requests are
+  resolved so a late dispatch refuses to create an orphan body. The reply
+  dispatcher now consumes (unlink + release) so an orphaned reply cannot leave
+  a freed pending linked. Trace counters `immediate_on_execute_requests` /
+  `immediate_on_replies` added to the transport debug snapshot.
+- Out-of-range `shard(id)` resumes as `Cancelled` without running the body
+  (Task 1 decision 4), proven with the resolver counter; `on pool` fails with
+  the deterministic `on placement is not supported by this backend` panic.
+- Compiler: sema `on` records now carry `SuspendCapable`
+  (`internal/sema/on_crossing.go`); MIR `prepareOnPlacementCrossing` reuses
+  the spawn-on body-poll-function lowering with a pending slot and no handle;
+  LLVM `emitImmediateOnCrossing` (`emit_crossing_immediate_on.go`) suspends on
+  the reply and materializes `TaskResult<T>` via the shared lifecycle result
+  emitter; `rt_immediate_on_execute` builtin declared; panic strings
+  registered.
+- Guard matrix: `addOnCrossingBackendErrors` now applies the same two-stage
+  rule as spawn-on (`backendBlocked || !crossingRecordExecutable`), so
+  synchronous `on`, `on far_handle` (separate `CrossingLoweringOnFarHandle`
+  kind), VM, and unknown backends keep FUT7014 deterministically — the entire
+  pre-flip crossinggate/buildpipeline matrix passes unchanged post-flip.
+- New sync point `SP_IMMEDIATE_ON_BEFORE_PUBLISH` (allowlisted to
+  `rt_immediate_on.c`) drives the caller-cancel race row.
+
+Acceptance rows (all green):
+
+- e2e (`runtime_v2_immediate_on_source_e2e_test.go`, override + production,
+  `SURGE_SHARDS=1,2,8` — shards=1 is the self-crossing forcing-function row):
+  `on shard(0)`, `on distributed`, copyable captures, out-of-range
+  `shard(4096)` → `Cancelled`; `on pool` deterministic panic row;
+- behavior harness (`remote_task_behavior_immediate_on.c`): trace equivalence
+  (exactly 1 execute request + 1 reply, zero publication-ack pairs) + owner
+  proof; distributed non-caller proof; invalid-shard Cancelled resume with
+  zero transport messages; fabricated stale execute request rejected with a
+  destination stale drop; caller-cancel race under
+  `SP_IMMEDIATE_ON_BEFORE_PUBLISH:block` — the cancelled caller resumes
+  exactly once through the cancel path (a cancelled task cannot re-park:
+  `rt_async_yield` completes it), the routed cancel reaches the body
+  (`cancelled` observed), and the orphaned reply edge is consumed exactly
+  once with zero stale drops; shutdown fails the execute reply waiter with
+  `DESTINATION_SHUTDOWN`.
+- The immediate-on rows are wired into
+  `make runtime-v2-transport-contract-check` (new Task 10 section), and the
+  `rt_immediate_on*.[ch]` glob joined the 300-line module pin.
+
+Gates (all green): `git diff --check`, `make c-check`, `make cppcheck`,
+`make golden-check`, `make runtime-v2-crossing-check` twice post-flip,
+`make runtime-v2-transport-contract-check` (Tasks 4 + 9 + 10 sections),
+`./check_sync_points.sh`, `./check_file_sizes.sh -a`, `make check`.
+Sentrux evidence recorded on the committed tree after the Task 10 commit (see
+the follow-up evidence note; pre-change committed baselines: root `6184`,
+`internal` `6522`, `runtime` `5332`, `runtime/native` `5420`).
+
+Task 11 (unsupported-forms matrix) and Task 12 (bench/CI closeout) remain.

@@ -96,16 +96,17 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	if discarded {
 		if siteOK && !tc.hasErrorsSince(checkpoint) {
 			tc.recordCrossingLowering(&CrossingLoweringInfo{
-				Kind:        crossingLoweringKindForOnDestination(destInfo),
-				Expr:        id,
-				Span:        span,
-				Body:        data.Body,
-				Function:    tc.currentFnSym(),
-				Destination: destInfo,
-				Captures:    cloneCrossingCaptures(captures),
-				RemoteOps:   cloneCrossingRemoteOps(frame.remoteOps),
-				PayloadType: payload,
-				ResultType:  resultType,
+				Kind:           crossingLoweringKindForOnDestination(destInfo),
+				Expr:           id,
+				Span:           span,
+				Body:           data.Body,
+				Function:       tc.currentFnSym(),
+				Destination:    destInfo,
+				Captures:       cloneCrossingCaptures(captures),
+				RemoteOps:      cloneCrossingRemoteOps(frame.remoteOps),
+				PayloadType:    payload,
+				ResultType:     resultType,
+				SuspendCapable: tc.awaitDepth > 0,
 			})
 		}
 		return resultType
@@ -126,16 +127,17 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	}
 	if siteOK && !tc.hasErrorsSince(checkpoint) {
 		tc.recordCrossingLowering(&CrossingLoweringInfo{
-			Kind:        crossingLoweringKindForOnDestination(destInfo),
-			Expr:        id,
-			Span:        span,
-			Body:        data.Body,
-			Function:    tc.currentFnSym(),
-			Destination: destInfo,
-			Captures:    cloneCrossingCaptures(captures),
-			RemoteOps:   cloneCrossingRemoteOps(frame.remoteOps),
-			PayloadType: payload,
-			ResultType:  resultType,
+			Kind:           crossingLoweringKindForOnDestination(destInfo),
+			Expr:           id,
+			Span:           span,
+			Body:           data.Body,
+			Function:       tc.currentFnSym(),
+			Destination:    destInfo,
+			Captures:       cloneCrossingCaptures(captures),
+			RemoteOps:      cloneCrossingRemoteOps(frame.remoteOps),
+			PayloadType:    payload,
+			ResultType:     resultType,
+			SuspendCapable: tc.awaitDepth > 0,
 		})
 	}
 	return resultType

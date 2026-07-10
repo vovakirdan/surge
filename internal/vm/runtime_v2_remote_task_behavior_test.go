@@ -65,6 +65,39 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "shutdown-waiters",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "immediate-on-trace-equivalence-and-owner-proof",
+			mode: "immediate-basic",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "immediate-on-distributed-non-caller",
+			mode: "immediate-distributed",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "immediate-on-invalid-shard-cancelled-resume",
+			mode: "immediate-invalid-shard",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "immediate-on-stale-request-rejected",
+			mode: "immediate-stale",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "immediate-on-caller-cancel-exactly-one-resume",
+			mode: "immediate-cancel-race",
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block",
+			),
+		},
+		{
+			name: "immediate-on-shutdown-wakes-reply-waiter",
+			mode: "immediate-shutdown",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

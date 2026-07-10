@@ -101,11 +101,16 @@ func (l *funcLowerer) lowerCrossingExpr(e *hir.Expr, consume bool) (Operand, err
 		}
 		ins.Receiver = recv
 	}
-	if data.Kind == sema.CrossingLoweringSpawnOn {
+	switch {
+	case data.Kind == sema.CrossingLoweringSpawnOn:
 		if err := l.prepareSpawnOnCrossing(&ins, data.Body, e.Span); err != nil {
 			return Operand{}, err
 		}
-	} else if crossingUsesPendingRetryState(data.Kind) {
+	case data.Kind == sema.CrossingLoweringOnPlacement:
+		if err := l.prepareOnPlacementCrossing(&ins, data.Body, e.Span); err != nil {
+			return Operand{}, err
+		}
+	case crossingUsesPendingRetryState(data.Kind):
 		l.prepareFarTaskLifecycleCrossing(&ins, e.Span)
 	}
 
@@ -193,8 +198,73 @@ func (l *funcLowerer) prepareSpawnOnCrossing(ins *CrossingInstr, body *hir.Block
 	return nil
 }
 
+// prepareOnPlacementCrossing lowers the immediate `on placement` body into a
+// destination poll function exactly like `spawn on`, but the crossing keeps
+// only the pending-retry slot: there is no publicly observable far Task
+// handle for the dedicated execute/reply category.
+func (l *funcLowerer) prepareOnPlacementCrossing(ins *CrossingInstr, body *hir.Block, span source.Span) error {
+	if l == nil || ins == nil {
+		return nil
+	}
+	if body == nil {
+		return fmt.Errorf("mir: on: missing body")
+	}
+	pollID := l.allocFuncID()
+	if pollID == NoFuncID {
+		return fmt.Errorf("mir: on: failed to allocate poll function id")
+	}
+	name := fmt.Sprintf("__on_block$%d$poll", pollID)
+	captures := l.spawnOnCaptureInfo(ins.Captures)
+	stateType, err := buildSpawnOnStateStruct(l.types, name, captures)
+	if err != nil {
+		return err
+	}
+	fl := l.forkLowerer()
+	if fl == nil {
+		return fmt.Errorf("mir: on: failed to fork lowerer")
+	}
+	fn, err := fl.lowerSpawnOnPollFunc(pollID, name, body, ins.PayloadType, stateType, captures, span)
+	if err != nil {
+		return err
+	}
+	if l.out != nil {
+		l.out.Funcs[pollID] = fn
+	}
+
+	stateLit := StructLit{TypeID: stateType}
+	for i := range captures {
+		if i >= len(ins.Captures) {
+			return fmt.Errorf("mir: on: capture state mismatch")
+		}
+		stateLit.Fields = append(stateLit.Fields, StructLitField{
+			Name:  captures[i].FieldName,
+			Value: ins.Captures[i].Value,
+		})
+	}
+
+	pendingType := l.opaquePointerType()
+	pendingLocal := l.newTemp(pendingType, "on_pending", span)
+	l.emit(&Instr{
+		Kind: InstrAssign,
+		Assign: AssignInstr{
+			Dst: Place{Local: pendingLocal},
+			Src: RValue{Kind: RValueUse, Use: Operand{
+				Kind:  OperandConst,
+				Type:  pendingType,
+				Const: Const{Kind: ConstInt, Type: pendingType, IntValue: 0},
+			}},
+		},
+	})
+
+	ins.BodyFuncID = pollID
+	ins.State = stateLit
+	ins.Pending = Place{Local: pendingLocal}
+	return nil
+}
+
 func crossingUsesPendingRetryState(kind sema.CrossingLoweringKind) bool {
 	return kind == sema.CrossingLoweringSpawnOn ||
+		kind == sema.CrossingLoweringOnPlacement ||
 		kind == sema.CrossingLoweringFarTaskAwait ||
 		kind == sema.CrossingLoweringFarTaskCancel
 }

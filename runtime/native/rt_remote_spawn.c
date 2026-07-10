@@ -196,12 +196,12 @@ rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
     return rt_remote_spawn_publish(resolved.shard_id, poll_fn_id, state, pending, out_handle);
 }
 
-static rt_remote_spawn_status
-remote_spawn_create_destination_task(rt_executor* ex,
-                                     const rt_remote_spawn_pending* req,
-                                     rt_task** out_task,
-                                     rt_far_task_handle* out_handle) {
-    if (out_task == NULL || out_handle == NULL) {
+rt_remote_spawn_status rt_remote_spawn_create_body_task(rt_executor* ex,
+                                                        uint64_t poll_fn_id,
+                                                        void* state,
+                                                        uint32_t target_shard_id,
+                                                        rt_task** out_task) {
+    if (out_task == NULL) {
         return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
     }
     *out_task = NULL;
@@ -224,8 +224,8 @@ remote_spawn_create_destination_task(rt_executor* ex,
     memset(task, 0, sizeof(*task));
     task->id = id;
     task->generation = id;
-    task->poll_fn_id = (int64_t)req->poll_fn_id;
-    task->state = req->state;
+    task->poll_fn_id = (int64_t)poll_fn_id;
+    task->state = state;
     task->kind = TASK_KIND_USER;
     task_status_store(task, TASK_READY);
     task_cancelled_store(task, 0);
@@ -235,9 +235,9 @@ remote_spawn_create_destination_task(rt_executor* ex,
     atomic_store_explicit(&task->far_task_result_state, 0, memory_order_relaxed);
     atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
-    rt_task_set_placement(task, req->target_shard_id, TASK_PLACEMENT_CONNECTION);
+    rt_task_set_placement(task, target_shard_id, TASK_PLACEMENT_CONNECTION);
 
-    rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), req->target_shard_id);
+    rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), target_shard_id);
     if (owner == NULL) {
         rt_free((uint8_t*)task, sizeof(*task), _Alignof(rt_task));
         return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
@@ -245,15 +245,11 @@ remote_spawn_create_destination_task(rt_executor* ex,
     rt_shard_lock(owner);
     rt_task_slot_store(ex, id, task);
     rt_shard_unlock(owner);
-    *out_handle = (rt_far_task_handle){.task_id = id,
-                                       .generation = task->generation,
-                                       .owner_shard_id = req->target_shard_id,
-                                       ._pad = 0};
     *out_task = task;
     return RT_REMOTE_SPAWN_STATUS_OK;
 }
 
-static void remote_spawn_free_unpublished_task(rt_executor* ex, rt_task* task) {
+void rt_remote_spawn_free_unpublished_task(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL) {
         return;
     }
@@ -273,8 +269,7 @@ remote_spawn_enqueue_ack(rt_executor* ex, rt_shard* source, const rt_transport_m
     return remote_spawn_transport_status(rt_remote_spawn_enqueue_with_drain(ex, source, ack));
 }
 
-static rt_remote_spawn_status remote_spawn_publish_destination_task(rt_executor* ex,
-                                                                    rt_task* task) {
+rt_remote_spawn_status rt_remote_spawn_publish_body_task(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL) {
         return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
     }
@@ -300,7 +295,14 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
 
     rt_far_task_handle handle = {0};
     rt_task* task = NULL;
-    rt_remote_spawn_status status = remote_spawn_create_destination_task(ex, req, &task, &handle);
+    rt_remote_spawn_status status = rt_remote_spawn_create_body_task(
+        ex, req->poll_fn_id, req->state, req->target_shard_id, &task);
+    if (status == RT_REMOTE_SPAWN_STATUS_OK) {
+        handle = (rt_far_task_handle){.task_id = task->id,
+                                      .generation = task->generation,
+                                      .owner_shard_id = req->target_shard_id,
+                                      ._pad = 0};
+    }
     if (status != RT_REMOTE_SPAWN_STATUS_OK) {
         remote_spawn_pending_finish(ex, req, status, NULL);
         remote_spawn_pending_release(req);
@@ -309,9 +311,9 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
 
     req->handle = handle;
 
-    status = remote_spawn_publish_destination_task(ex, task);
+    status = rt_remote_spawn_publish_body_task(ex, task);
     if (status != RT_REMOTE_SPAWN_STATUS_OK) {
-        remote_spawn_free_unpublished_task(ex, task);
+        rt_remote_spawn_free_unpublished_task(ex, task);
         remote_spawn_pending_finish(ex, req, status, NULL);
         remote_spawn_pending_release(req);
         return;

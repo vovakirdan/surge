@@ -1,6 +1,8 @@
 # Epic 13 Task 10: Immediate `on` Executable Vertical
 
-**Status:** pending.
+**Status:** complete (2026-07-10). Evidence: `NOTES.md` "Epic 13 Task 10
+Complete"; capability open in `internal/buildpipeline/crossing_transport.go`;
+acceptance rows wired into `make runtime-v2-transport-contract-check`.
 **Kind:** LLVM lowering + runtime e2e. Dedicated execute/reply message
 category — the spawn+await desugar is rejected by the epic's Lowering
 Contract.

@@ -155,6 +155,13 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("far Task.cancel handle is stale")
 	e.ensureStringConst("far Task.cancel handle was already consumed")
 	e.ensureStringConst("far Task.cancel remote task request failed")
+	e.ensureStringConst("on crossing requires an async task context")
+	e.ensureStringConst("on destination shard is shut down")
+	e.ensureStringConst("on transport queue is full")
+	e.ensureStringConst("on execute request was refused")
+	e.ensureStringConst("on execute token is stale")
+	e.ensureStringConst("on placement is not supported by this backend")
+	e.ensureStringConst("on execute request failed")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}

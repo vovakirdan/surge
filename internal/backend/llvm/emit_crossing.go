@@ -17,14 +17,15 @@ const (
 	rtRemoteSpawnUnsupportedPlacement = 7
 	rtRemoteSpawnInvalidPlacement     = 8
 
-	rtRemoteTaskOK                  = 0
-	rtRemoteTaskPending             = 1
-	rtRemoteTaskInvalidArgument     = 2
-	rtRemoteTaskDestinationShutdown = 3
-	rtRemoteTaskQueueFull           = 4
-	rtRemoteTaskRefused             = 5
-	rtRemoteTaskStaleToken          = 6
-	rtRemoteTaskConsumed            = 7
+	rtRemoteTaskOK                   = 0
+	rtRemoteTaskPending              = 1
+	rtRemoteTaskInvalidArgument      = 2
+	rtRemoteTaskDestinationShutdown  = 3
+	rtRemoteTaskQueueFull            = 4
+	rtRemoteTaskRefused              = 5
+	rtRemoteTaskStaleToken           = 6
+	rtRemoteTaskConsumed             = 7
+	rtRemoteTaskUnsupportedPlacement = 8
 )
 
 func (fe *funcEmitter) emitInstrCrossing(ins *mir.Instr) error {
@@ -34,6 +35,8 @@ func (fe *funcEmitter) emitInstrCrossing(ins *mir.Instr) error {
 	switch ins.Crossing.Kind {
 	case sema.CrossingLoweringSpawnOn:
 		return fe.emitSpawnOnCrossing(&ins.Crossing)
+	case sema.CrossingLoweringOnPlacement:
+		return fe.emitImmediateOnCrossing(&ins.Crossing)
 	case sema.CrossingLoweringFarTaskAwait:
 		return fe.emitFarTaskLifecycleCrossing(&ins.Crossing, "await", "rt_far_task_await")
 	case sema.CrossingLoweringFarTaskCancel:

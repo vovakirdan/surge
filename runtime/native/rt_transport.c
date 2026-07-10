@@ -201,6 +201,10 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
         state->remote_task_cancel_replies++;
     } else if (msg->kind == RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST) {
         state->remote_task_release_requests++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST) {
+        state->immediate_on_execute_requests++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY) {
+        state->immediate_on_replies++;
     }
     return RT_TRANSPORT_STATUS_OK;
 }
