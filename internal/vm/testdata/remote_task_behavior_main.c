@@ -51,5 +51,11 @@ int main(int argc, char** argv) {
         return rtb_mode_anchored_stale_anchor();
     if (strcmp(argv[1], "anchored-full-channel") == 0)
         return rtb_mode_anchored_full_channel();
+    if (strcmp(argv[1], "anchored-close-vs-recv") == 0)
+        return rtb_mode_anchored_close_vs_recv();
+    if (strcmp(argv[1], "anchored-cancel-parked-body") == 0)
+        return rtb_mode_anchored_cancel_parked_body();
+    if (strcmp(argv[1], "anchored-owner-teardown") == 0)
+        return rtb_mode_anchored_owner_teardown();
     return rtb_fail("unknown mode");
 }

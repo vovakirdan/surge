@@ -138,6 +138,21 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "anchored-full-channel",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "anchored-close-wakes-parked-recv-with-closed-outcome",
+			mode: "anchored-close-vs-recv",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "anchored-caller-cancel-cannot-resurrect-parked-body",
+			mode: "anchored-cancel-parked-body",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "anchored-owner-teardown-fails-caller-deterministically",
+			mode: "anchored-owner-teardown",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

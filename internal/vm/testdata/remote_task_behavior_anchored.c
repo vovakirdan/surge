@@ -29,12 +29,33 @@ static void poll_anchored_send(rtb_anchored_state* state) {
     rt_async_return(state, 1);
 }
 
+// Body poll: resolve the anchor and receive one value; a false-ish recv
+// status of 0 means parked (yield and re-enter), 1 delivers the value, and
+// 2 is the closed outcome — returned through the single reply as-is.
+static void poll_anchored_recv(rtb_anchored_state* state) {
+    rt_executor* ex = ensure_exec();
+    if (current_task_cancelled(ex)) {
+        rt_async_return_cancelled(state);
+    }
+    void* channel = rt_far_channel_resolve(ex, &state->anchor);
+    if (channel == NULL) {
+        rt_async_return(state, 0);
+    }
+    atomic_store_explicit(&state->body_ran, 1, memory_order_release);
+    uint64_t received = 0;
+    uint8_t status = rt_channel_recv(channel, &received);
+    if (status == 0) {
+        rt_async_yield(state);
+    }
+    rt_async_return(state, (uint64_t)status);
+}
+
 // Caller poll: one anchored execute, retry until the reply.
 static void poll_anchored_caller(rtb_anchored_state* state) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute_anchored(
-        &state->anchor, POLL_RTB_ANCHORED_BODY, state, &state->pending, &kind, &bits);
+        &state->anchor, (int64_t)state->body_poll_id, state, &state->pending, &kind, &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state);
     }
@@ -46,6 +67,9 @@ static void poll_anchored_caller(rtb_anchored_state* state) {
 void rtb_anchored_poll_dispatch(uint64_t id) {
     if (id == POLL_RTB_ANCHORED_BODY) {
         poll_anchored_send((rtb_anchored_state*)__task_state());
+    }
+    if (id == POLL_RTB_ANCHORED_RECV_BODY) {
+        poll_anchored_recv((rtb_anchored_state*)__task_state());
     }
     if (id == POLL_RTB_ANCHORED_CALLER) {
         poll_anchored_caller((rtb_anchored_state*)__task_state());
@@ -65,6 +89,14 @@ rtb_start_anchored(rtb_anchored_state* state, const rt_far_task_handle* anchor, 
     memset(state, 0, sizeof(*state));
     state->anchor = *anchor;
     state->value = value;
+    state->body_poll_id = POLL_RTB_ANCHORED_BODY;
+    return __task_create(POLL_RTB_ANCHORED_CALLER, state);
+}
+
+static void* rtb_start_anchored_recv(rtb_anchored_state* state, const rt_far_task_handle* anchor) {
+    memset(state, 0, sizeof(*state));
+    state->anchor = *anchor;
+    state->body_poll_id = POLL_RTB_ANCHORED_RECV_BODY;
     return __task_create(POLL_RTB_ANCHORED_CALLER, state);
 }
 
@@ -195,5 +227,128 @@ int rtb_mode_anchored_full_channel(void) {
         return rtb_fail("released body did not complete the block");
     }
     (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Close-vs-recv: an empty-channel recv body parks; the owner-side close
+// wakes it with the closed outcome, which travels through the single reply.
+// Never a success-after-close.
+int rtb_mode_anchored_close_vs_recv(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("close-vs-recv mint failed");
+    }
+    void* channel = rt_far_channel_resolve(ex, &minted.handle);
+    rtb_anchored_state state;
+    void* caller = rtb_start_anchored_recv(&state, &minted.handle);
+    if (!rtb_wait_u32(&state.body_ran, 1, 5000)) {
+        return rtb_fail("recv body did not start");
+    }
+    rt_channel_close(channel);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(caller, &kind, &bits);
+    if (state.status != RT_REMOTE_TASK_STATUS_OK || state.result_kind != 1 ||
+        state.result_bits != 2) {
+        return rtb_fail("closed channel did not deliver the closed outcome through the reply");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Caller cancelled while the body is parked on a full channel: the caller
+// resumes exactly once through the cancel path, the routed cancel reaches
+// the parked body (which observes cancellation on its re-poll), and the
+// orphaned reply edge is consumed exactly once; a later capacity wake
+// cannot resurrect the cancelled body.
+int rtb_mode_anchored_cancel_parked_body(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("cancel-parked mint failed");
+    }
+    void* channel = rt_far_channel_resolve(ex, &minted.handle);
+    rtb_anchored_state prefill;
+    void* prefill_caller = rtb_start_anchored(&prefill, &minted.handle, 5);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(prefill_caller, &kind, &bits);
+    if (prefill.status != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("cancel-parked prefill failed");
+    }
+    rtb_anchored_state state;
+    void* caller = rtb_start_anchored(&state, &minted.handle, 6);
+    uint64_t caller_id = ((rt_task*)caller)->id;
+    if (!rtb_wait_u32(&state.body_ran, 1, 5000)) {
+        return rtb_fail("cancel-parked body did not start");
+    }
+    rt_control_lock(ex);
+    cancel_task(ex, caller_id);
+    rt_control_unlock(ex);
+    (void)rtb_await(caller, &kind, &bits);
+    if (kind != 2) {
+        return rtb_fail("cancelled caller did not resume through the cancel path");
+    }
+    // The orphaned reply edge must resolve exactly once; give it time, then
+    // try a late wake — draining a slot must not resurrect the body.
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    struct rt_transport_debug_snapshot source = {0};
+    for (uint32_t i = 0; i < 5000; i++) {
+        source = rt_transport_debug_snapshot(rt_runtime_shard(runtime, 0));
+        if (source.immediate_on_replies >= 2) {
+            break;
+        }
+        rtb_sleep_us(1000);
+    }
+    if (source.immediate_on_replies != 2 || source.remote_task_stale_drops != 0) {
+        return rtb_fail("cancel-parked reply edges were not each consumed exactly once");
+    }
+    uint64_t drained = 0;
+    (void)rt_channel_try_recv(channel, &drained);
+    rtb_sleep_us(20000);
+    struct rt_transport_debug_snapshot after =
+        rt_transport_debug_snapshot(rt_runtime_shard(runtime, 0));
+    if (after.immediate_on_replies != 2) {
+        return rtb_fail("a late capacity wake resurrected the cancelled body");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Owner teardown mid-flight: shutdown fails the suspended caller's pending
+// deterministically; no vanished reply.
+int rtb_mode_anchored_owner_teardown(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("teardown mint failed");
+    }
+    rtb_anchored_state prefill;
+    void* prefill_caller = rtb_start_anchored(&prefill, &minted.handle, 9);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(prefill_caller, &kind, &bits);
+    rtb_anchored_state state;
+    void* caller = rtb_start_anchored(&state, &minted.handle, 10);
+    (void)caller;
+    if (!rtb_wait_u32(&state.body_ran, 1, 5000)) {
+        return rtb_fail("teardown body did not start");
+    }
+    rt_remote_task_pending* pending = NULL;
+    for (uint32_t i = 0; i < 5000 && pending == NULL; i++) {
+        pending = state.pending;
+        rtb_sleep_us(1000);
+    }
+    if (pending == NULL) {
+        return rtb_fail("teardown caller had no pending");
+    }
+    if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
+        return rtb_fail("executor shutdown failed");
+    }
+    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) !=
+        RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
+        return rtb_fail("teardown left the caller without a deterministic failure");
+    }
     return 0;
 }

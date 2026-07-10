@@ -19,6 +19,7 @@ enum {
     POLL_RTB_CHANNEL_CREATE = 9105,
     POLL_RTB_ANCHORED_BODY = 9106,
     POLL_RTB_ANCHORED_CALLER = 9107,
+    POLL_RTB_ANCHORED_RECV_BODY = 9108,
 };
 
 typedef struct rtb_child_state {
@@ -103,6 +104,7 @@ typedef struct rtb_anchored_state {
     rt_remote_task_pending* pending;
     rt_far_task_handle anchor;
     uint64_t value;
+    uint64_t body_poll_id;
     _Atomic uint32_t body_ran;
     rt_remote_task_status status;
     uint8_t result_kind;
@@ -113,6 +115,9 @@ void rtb_anchored_poll_dispatch(uint64_t id);
 int rtb_mode_anchored_send_round_trip(void);
 int rtb_mode_anchored_stale_anchor(void);
 int rtb_mode_anchored_full_channel(void);
+int rtb_mode_anchored_close_vs_recv(void);
+int rtb_mode_anchored_cancel_parked_body(void);
+int rtb_mode_anchored_owner_teardown(void);
 
 int rtb_mode_channel_create(void);
 int rtb_mode_channel_kind_aliasing(void);
