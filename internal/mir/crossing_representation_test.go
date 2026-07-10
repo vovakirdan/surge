@@ -220,6 +220,15 @@ async fn run(dst: Placement) -> TaskResult<int> {
 	if ins.PendBB == mir.NoBlockID {
 		t.Fatalf("async crossing missing pending block")
 	}
+	if ins.BodyFuncID == mir.NoFuncID {
+		t.Fatalf("on crossing missing destination poll function")
+	}
+	if compiled.mod.Funcs[ins.BodyFuncID] == nil {
+		t.Fatalf("on crossing poll function %d not materialized", ins.BodyFuncID)
+	}
+	if ins.Pending.Kind != mir.PlaceLocal {
+		t.Fatalf("on crossing missing persisted pending slot")
+	}
 	if err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
 		CrossingForms: crossingForms(sema.CrossingLoweringOnPlacement),
 	}); err != nil {

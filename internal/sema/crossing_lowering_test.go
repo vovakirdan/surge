@@ -74,6 +74,20 @@ func symbolNameForTest(t *testing.T, symRes *symbols.Result, id symbols.SymbolID
 	return name
 }
 
+func TestCrossingLoweringOnPlacementRecordIsSuspendCapableInAsync(t *testing.T) {
+	res, _ := checkCrossingLowering(t, `
+async fn run(dst: Placement, n: int) -> TaskResult<int> {
+	return on dst {
+		ret n;
+	};
+}
+`)
+	info := requireCrossingLowering(t, res, CrossingLoweringOnPlacement)
+	if !info.SuspendCapable {
+		t.Fatalf("async on record must be suspend-capable")
+	}
+}
+
 func TestCrossingLoweringOnPlacementRecord(t *testing.T) {
 	res, symRes := checkCrossingLowering(t, `
 fn run(dst: Placement, n: int) -> TaskResult<int> {
@@ -88,6 +102,9 @@ fn run(dst: Placement, n: int) -> TaskResult<int> {
 	info := requireCrossingLowering(t, res, CrossingLoweringOnPlacement)
 	if !info.Expr.IsValid() || info.Span.Empty() || !info.Body.IsValid() {
 		t.Fatalf("missing site coordinates: expr=%d span=%s body=%d", info.Expr, info.Span, info.Body)
+	}
+	if info.SuspendCapable {
+		t.Fatalf("synchronous on record must not be suspend-capable")
 	}
 	if got := symbolNameForTest(t, symRes, info.Function); got != "run" {
 		t.Fatalf("function = %q, want run", got)
