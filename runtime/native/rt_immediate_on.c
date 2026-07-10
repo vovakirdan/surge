@@ -1,17 +1,17 @@
+#include "rt_far_channel.h"
 #include "rt_placement.h"
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task_internal.h"
 #include "rt_sync_point.h"
-
-// Immediate `on placement` execute/reply vertical: one
-// request, one reply, one request-scoped cancellation token, no publicly
-// observable far Task handle. The pending's handle starts as {task_id=0,
-// generation=request_id, owner_shard_id=destination}; the destination fills
+// Immediate `on placement` execute/reply: one request, one reply, one
+// request-scoped cancellation token, no far Task handle exposed. The
+// pending handle starts as {task_id=0, generation=request_id, owner_shard};
+// the destination fills
 // task_id/generation from the created body task before registering the reply
 // route, so the owner-done completion hook and the reply envelope share the
 // same token discipline as far-task await.
 
-static uint32_t immediate_on_source_shard(const rt_task* current) {
+uint32_t rt_immediate_on_source_shard(const rt_task* current) {
     if (current != NULL && current->owner_shard_valid != 0) {
         return current->owner_shard_id;
     }
@@ -19,8 +19,8 @@ static uint32_t immediate_on_source_shard(const rt_task* current) {
     return worker_shard != UINT32_MAX ? worker_shard : 0;
 }
 
-static rt_remote_task_status
-immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {
+rt_remote_task_status
+rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {
     rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind, out_bits);
     if (status != RT_REMOTE_TASK_STATUS_PENDING) {
         rt_remote_task_pending_consume(*slot);
@@ -88,19 +88,19 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
         rt_remote_task_status status =
             rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-            return immediate_on_finish_retry(pending, out_kind, out_bits);
+            return rt_immediate_on_finish_retry(pending, out_kind, out_bits);
         }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
-            return immediate_on_finish_retry(pending, out_kind, out_bits);
+            return rt_immediate_on_finish_retry(pending, out_kind, out_bits);
         }
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
 
     rt_runtime* runtime = rt_executor_runtime(ex);
-    uint32_t source_shard = immediate_on_source_shard(current);
+    uint32_t source_shard = rt_immediate_on_source_shard(current);
     rt_placement_resolution resolved = rt_placement_resolve(runtime, placement, source_shard);
     if (resolved.status == RT_PLACEMENT_STATUS_UNSUPPORTED) {
         return RT_REMOTE_TASK_STATUS_UNSUPPORTED_PLACEMENT;
@@ -196,10 +196,27 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         rt_remote_task_pending_release(pending);
         return;
     }
+    if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
+        // Validate and pin the anchor before any body exists: a stale anchor
+        // answers without running anything, and a live one cannot be
+        // reclaimed under the block's feet until the reply edge resolves.
+        if (!rt_far_channel_pin(ex, &pending->anchor)) {
+            rt_remote_task_reply_or_finish(ex,
+                                           pending,
+                                           RT_REMOTE_TASK_STATUS_STALE_TOKEN,
+                                           2,
+                                           0,
+                                           RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+            return;
+        }
+    }
     rt_task* task = NULL;
     rt_remote_spawn_status created = rt_remote_spawn_create_body_task(
         ex, pending->body_poll_fn_id, pending->body_state, msg->target_shard_id, &task);
     if (created != RT_REMOTE_SPAWN_STATUS_OK) {
+        if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
+            rt_far_channel_unpin(ex, &pending->anchor);
+        }
         rt_remote_task_reply_or_finish(
             ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, 0, RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
         return;
@@ -211,6 +228,9 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     pthread_mutex_lock(&state->lock);
     if (pending->status != RT_REMOTE_TASK_STATUS_PENDING) {
         pthread_mutex_unlock(&state->lock);
+        if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
+            rt_far_channel_unpin(ex, &pending->anchor);
+        }
         rt_remote_spawn_free_unpublished_task(ex, task);
         rt_remote_task_pending_release(pending);
         return;
@@ -223,6 +243,9 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     RT_SYNC_POINT(SP_IMMEDIATE_ON_BEFORE_PUBLISH);
     rt_remote_spawn_status published = rt_remote_spawn_publish_body_task(ex, task);
     if (published != RT_REMOTE_SPAWN_STATUS_OK) {
+        if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
+            rt_far_channel_unpin(ex, &pending->anchor);
+        }
         rt_remote_task_pending_set_owner_registered(pending, 0);
         task_release_lane_aware(ex, task);
         rt_remote_spawn_free_unpublished_task(ex, task);

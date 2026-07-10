@@ -158,7 +158,8 @@ static void dispatch_request(rt_executor* ex, const rt_transport_msg* msg, rt_re
                                            : RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION;
     rt_remote_task_pending* pending = msg != NULL ? msg->payload : NULL;
     if (op == RT_REMOTE_TASK_OP_CANCEL && pending != NULL &&
-        pending->op == RT_REMOTE_TASK_OP_EXECUTE) {
+        (pending->op == RT_REMOTE_TASK_OP_EXECUTE ||
+         pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED)) {
         dispatch_execute_cancel(ex, msg);
         return;
     }

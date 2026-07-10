@@ -190,6 +190,7 @@ void __surge_poll_call(uint64_t id) {
     if (id == POLL_RTB_CHANNEL_CREATE) {
         poll_rtb_channel_create((rtb_create_state*)__task_state());
     }
+    rtb_anchored_poll_dispatch(id);
     if (id == POLL_RTB_EXECUTE) {
         poll_rtb_execute((rtb_execute_state*)__task_state());
     }

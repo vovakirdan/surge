@@ -123,6 +123,21 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "channel-create-self",
 			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1"),
 		},
+		{
+			name: "anchored-send-round-trip-with-trace-proof",
+			mode: "anchored-send-round-trip",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "anchored-stale-and-wrong-kind-answer-without-a-body",
+			mode: "anchored-stale-anchor",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "anchored-full-channel-parks-body-not-dispatcher",
+			mode: "anchored-full-channel",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

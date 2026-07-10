@@ -13,6 +13,7 @@ typedef enum rt_remote_task_op {
     RT_REMOTE_TASK_OP_RELEASE = 3,
     RT_REMOTE_TASK_OP_EXECUTE = 4,
     RT_REMOTE_TASK_OP_CHANNEL_CREATE = 5,
+    RT_REMOTE_TASK_OP_EXECUTE_ANCHORED = 6,
 } rt_remote_task_op;
 
 enum {
@@ -54,6 +55,7 @@ struct rt_remote_task_pending {
     uint64_t caller_task_id;
     uint64_t body_poll_fn_id;
     void* body_state;
+    rt_far_task_handle anchor;
     uint64_t result_bits;
     _Atomic uint32_t refs;
     uint8_t listed;
@@ -119,6 +121,9 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                      rt_task* task,
                                      rt_remote_task_pending* pending);
 void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* msg);
+uint32_t rt_immediate_on_source_shard(const rt_task* current);
+rt_remote_task_status
+rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits);
 void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pending);
 void rt_remote_task_reply_or_finish(rt_executor* ex,
                                     rt_remote_task_pending* pending,

@@ -45,5 +45,11 @@ int main(int argc, char** argv) {
         return rtb_mode_channel_shutdown_release();
     if (strcmp(argv[1], "channel-create-self") == 0)
         return rtb_mode_channel_create_self();
+    if (strcmp(argv[1], "anchored-send-round-trip") == 0)
+        return rtb_mode_anchored_send_round_trip();
+    if (strcmp(argv[1], "anchored-stale-anchor") == 0)
+        return rtb_mode_anchored_stale_anchor();
+    if (strcmp(argv[1], "anchored-full-channel") == 0)
+        return rtb_mode_anchored_full_channel();
     return rtb_fail("unknown mode");
 }

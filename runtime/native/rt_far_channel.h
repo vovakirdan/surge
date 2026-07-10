@@ -15,6 +15,8 @@ rt_remote_task_status rt_far_channel_mint(rt_executor* ex,
                                           uint32_t owner_shard_id,
                                           rt_far_task_handle* out);
 void* rt_far_channel_resolve(rt_executor* ex, const rt_far_task_handle* handle);
+int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle);
+void rt_far_channel_unpin(rt_executor* ex, const rt_far_task_handle* handle);
 rt_remote_task_status rt_far_channel_release(rt_executor* ex, const rt_far_task_handle* handle);
 void rt_far_channel_release_all(rt_executor* ex);
 
