@@ -106,15 +106,25 @@ static int all_shards_quiescent(rt_executor* ex) {
 }
 
 // Returns the id of a parked-on-channel body task of a suspended execute
-// pending, or 0. When `expect_task_id` is nonzero, only that body counts —
-// the verify pass must see the same suspect still parked, not a new one.
-static uint64_t
-find_channel_parked_body(rt_executor* ex, uint64_t expect_task_id, const char** op_name) {
+// pending, or 0. Two phases keep the lock order acyclic: candidate bodies
+// are collected and retained under `state->lock` (a listed PENDING pending
+// keeps its body alive, and the reference keeps it valid after the unlock —
+// inbound dispatch nests `state->lock` under a shard lock, so this function
+// must never do the reverse), then each body's status and park key are read
+// under its own owner shard lock with no other lock held. When
+// `expect_task_id` is nonzero, only that body counts — the verify pass must
+// see the same suspect still parked, not a new one.
+static uint64_t find_channel_parked_body(rt_executor* ex,
+                                         uint64_t expect_task_id,
+                                         const char** op_name,
+                                         uint32_t* owner_shard_id) {
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     if (state == NULL) {
         return 0;
     }
-    uint64_t suspect_id = 0;
+    enum { RT_DEADLOCK_CANDIDATE_CAP = 8 };
+    rt_task* bodies[RT_DEADLOCK_CANDIDATE_CAP];
+    size_t body_count = 0;
     pthread_mutex_lock(&state->lock);
     for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
         if (it->status != RT_REMOTE_TASK_STATUS_PENDING) {
@@ -129,18 +139,38 @@ find_channel_parked_body(rt_executor* ex, uint64_t expect_task_id, const char** 
         if (expect_task_id != 0 && it->handle.task_id != expect_task_id) {
             continue;
         }
-        const rt_task* body = get_task(ex, it->handle.task_id);
-        if (body == NULL || task_status_load(body) != TASK_WAITING) {
+        rt_task* body = get_task(ex, it->handle.task_id);
+        if (body == NULL) {
             continue;
         }
-        uint8_t kind = body->park_key.kind;
-        if (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV) {
-            suspect_id = it->handle.task_id;
-            *op_name = kind == WAKER_CHAN_SEND ? "send" : "recv";
+        task_add_ref(body);
+        bodies[body_count++] = body;
+        if (body_count == RT_DEADLOCK_CANDIDATE_CAP) {
             break;
         }
     }
     pthread_mutex_unlock(&state->lock);
+    uint64_t suspect_id = 0;
+    for (size_t i = 0; i < body_count; i++) {
+        rt_task* body = bodies[i];
+        if (suspect_id == 0) {
+            rt_shard* owner = rt_task_owner_shard(ex, body);
+            if (owner != NULL) {
+                rt_shard_lock(owner);
+                int waiting = task_status_load(body) == TASK_WAITING;
+                uint8_t kind = body->park_key.kind;
+                rt_shard_unlock(owner);
+                if (waiting && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV)) {
+                    suspect_id = body->id;
+                    *op_name = kind == WAKER_CHAN_SEND ? "send" : "recv";
+                    if (owner_shard_id != NULL) {
+                        *owner_shard_id = body->owner_shard_id;
+                    }
+                }
+            }
+        }
+        task_release_lane_aware(ex, body);
+    }
     return suspect_id;
 }
 
@@ -155,18 +185,17 @@ void rt_remote_task_deadlock_check(rt_executor* ex) {
         return;
     }
     const char* op_name = "";
-    uint64_t suspect_id = find_channel_parked_body(ex, 0, &op_name);
+    uint32_t suspect_shard = 0;
+    uint64_t suspect_id = find_channel_parked_body(ex, 0, &op_name, &suspect_shard);
     if (suspect_id == 0) {
         return;
     }
     if (!all_shards_quiescent(ex)) {
         return;
     }
-    if (find_channel_parked_body(ex, suspect_id, &op_name) != suspect_id) {
+    if (find_channel_parked_body(ex, suspect_id, &op_name, &suspect_shard) != suspect_id) {
         return;
     }
-    const rt_task* suspect = get_task(ex, suspect_id);
-    uint32_t suspect_shard = suspect != NULL ? suspect->owner_shard_id : 0;
     static char message[256];
     (void)snprintf(message,
                    sizeof(message),
