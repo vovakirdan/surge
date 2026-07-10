@@ -77,6 +77,12 @@ static void* rt_blocking_worker_main(void* arg) {
             return NULL;
         }
         rt_blocking_job* job = blocking_queue_pop(ex);
+        if (job != NULL) {
+            // Claim the job in the running counter before the queue lock is
+            // released: a popped-but-unclaimed job would be invisible to
+            // idleness checks that read the queue and the counter together.
+            (void)atomic_fetch_add_explicit(&ex->blocking_running, 1, memory_order_relaxed);
+        }
         pthread_mutex_unlock(&ex->blocking_lock);
         if (job == NULL) {
             continue;
@@ -92,11 +98,11 @@ static void* rt_blocking_worker_main(void* arg) {
             rt_async_debug_printf("async blocking cancelled task=%llu fn=%llu\n",
                                   (unsigned long long)job->task_id,
                                   (unsigned long long)job->fn_id);
+            (void)atomic_fetch_sub_explicit(&ex->blocking_running, 1, memory_order_release);
             blocking_job_release(job);
             continue;
         }
 
-        (void)atomic_fetch_add_explicit(&ex->blocking_running, 1, memory_order_relaxed);
         rt_async_debug_printf("async blocking start task=%llu fn=%llu state=%p\n",
                               (unsigned long long)job->task_id,
                               (unsigned long long)job->fn_id,
