@@ -107,10 +107,14 @@ static int all_shards_quiescent(rt_executor* ex) {
 
 // Returns the id of a parked-on-channel body task of a suspended execute
 // pending, or 0. Two phases keep the lock order acyclic: candidate bodies
-// are collected and retained under `state->lock` (a listed PENDING pending
-// keeps its body alive, and the reference keeps it valid after the unlock —
-// inbound dispatch nests `state->lock` under a shard lock, so this function
-// must never do the reverse), then each body's status and park key are read
+// are collected and retained under `state->lock` — `owner_registered` is
+// checked under that lock because the flag is set right after the
+// registration takes its counted body reference and cleared under the same
+// lock by whichever path will drop that reference, so a registered pending
+// guarantees the body memory is alive for the `task_add_ref` here (inbound
+// dispatch nests `state->lock` under a shard lock, so this function must
+// never take a shard lock inside it). Each body's status and park key are
+// then read
 // under its own owner shard lock with no other lock held. Batches walk the
 // whole list by qualifying position; at the quiescence this runs under the
 // list cannot mutate between batches, and any churn that could shift
@@ -140,7 +144,7 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
                 it->op != RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
                 continue;
             }
-            if (it->handle.task_id == 0) {
+            if (it->handle.task_id == 0 || it->owner_registered == 0) {
                 continue;
             }
             if (expect_task_id != 0 && it->handle.task_id != expect_task_id) {
