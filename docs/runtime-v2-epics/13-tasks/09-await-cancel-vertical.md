@@ -1,6 +1,9 @@
 # Epic 13 Task 9: `far Task.await` / `far Task.cancel` Executable Vertical
 
-**Status:** pending.
+**Status:** complete (2026-07-10). Evidence: `NOTES.md` "Epic 13 Task 9
+Complete"; joint gate open in `internal/buildpipeline/crossing_transport.go`;
+acceptance rows wired into `make runtime-v2-transport-contract-check`;
+residual scoped Sentrux delta owned by `RV2-DEBT-028`.
 **Kind:** LLVM lowering + runtime e2e + the joint public gate for
 `spawn on` + await/cancel.
 **Depends on:** Task 8.
