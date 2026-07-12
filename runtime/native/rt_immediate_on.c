@@ -11,6 +11,14 @@
 // route, so the owner-done completion hook and the reply envelope share the
 // same token discipline as far-task await.
 
+// One reply edge, stated once: every dispatch-side failure answers the
+// caller with a status through the shared pending and never twice.
+static void immediate_on_answer(rt_executor* ex,
+                                rt_remote_task_pending* pending,
+                                rt_remote_task_status status) {
+    rt_remote_task_reply_or_finish(ex, pending, status, 2, 0, RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+}
+
 uint32_t rt_immediate_on_source_shard(const rt_task* current) {
     if (current != NULL && current->owner_shard_valid != 0) {
         return current->owner_shard_id;
@@ -184,12 +192,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         rt_runtime* runtime = rt_executor_runtime(ex);
         rt_transport_record_remote_task_stale(
             msg != NULL ? rt_runtime_shard(runtime, msg->target_shard_id) : NULL);
-        rt_remote_task_reply_or_finish(ex,
-                                       pending,
-                                       RT_REMOTE_TASK_STATUS_STALE_TOKEN,
-                                       2,
-                                       0,
-                                       RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+        immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN);
         return;
     }
     if (rt_remote_task_pending_snapshot(pending, NULL, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
@@ -201,12 +204,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         // answers without running anything, and a live one cannot be
         // reclaimed under the block's feet until the reply edge resolves.
         if (!rt_far_channel_pin(ex, &pending->anchor, &pending->anchored_channel)) {
-            rt_remote_task_reply_or_finish(ex,
-                                           pending,
-                                           RT_REMOTE_TASK_STATUS_STALE_TOKEN,
-                                           2,
-                                           0,
-                                           RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+            immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN);
             return;
         }
     }
@@ -217,8 +215,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
             rt_far_channel_unpin(ex, &pending->anchor);
         }
-        rt_remote_task_reply_or_finish(
-            ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, 0, RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+        immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
         return;
     }
     // Bind the body task into the token and register the reply route before
@@ -249,8 +246,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         rt_remote_task_pending_set_owner_registered(pending, 0);
         task_release_lane_aware(ex, task);
         rt_remote_spawn_free_unpublished_task(ex, task);
-        rt_remote_task_reply_or_finish(
-            ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, 0, RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+        immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
         return;
     }
     // Drop the creation reference: no far handle exists for an immediate

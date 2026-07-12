@@ -150,6 +150,25 @@ void* rt_far_channel_resolve(rt_executor* ex, const rt_far_task_handle* handle) 
     return channel;
 }
 
+// The reclaim contract in one place: only a RELEASING entry with no
+// in-flight pins may be freed, and the free happens after the registry
+// lock is dropped (release_entry retakes it to unlink), so no site frees
+// under the lock and no quiescent entry is freed twice — every decision
+// is serialized by the same lock that made it.
+static int reclaim_ready_locked(const rt_far_channel_entry* entry) {
+    return atomic_load_explicit(&entry->state, memory_order_acquire) == RT_FAR_CHANNEL_RELEASING &&
+           atomic_load_explicit(&entry->inflight, memory_order_acquire) == 0;
+}
+
+static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* entry);
+
+static void unlock_then_reclaim(rt_far_channel_state* state, rt_far_channel_entry* target) {
+    pthread_mutex_unlock(&state->lock);
+    if (target != NULL) {
+        release_entry(state, target);
+    }
+}
+
 static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* entry) {
     pthread_mutex_lock(&state->lock);
     rt_far_channel_entry** cursor = &state->head;
@@ -187,11 +206,7 @@ rt_remote_task_status rt_far_channel_release(rt_executor* ex, const rt_far_task_
         pthread_mutex_unlock(&state->lock);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
-    int reclaim = atomic_load_explicit(&entry->inflight, memory_order_acquire) == 0;
-    pthread_mutex_unlock(&state->lock);
-    if (reclaim) {
-        release_entry(state, entry);
-    }
+    unlock_then_reclaim(state, reclaim_ready_locked(entry) ? entry : NULL);
     return RT_REMOTE_TASK_STATUS_OK;
 }
 
@@ -207,21 +222,18 @@ void rt_far_channel_release_all(rt_executor* ex) {
         pthread_mutex_lock(&state->lock);
         rt_far_channel_entry* target = NULL;
         for (rt_far_channel_entry* it = state->head; it != NULL; it = it->next) {
-            uint8_t entry_state = atomic_load_explicit(&it->state, memory_order_acquire);
-            uint32_t inflight = atomic_load_explicit(&it->inflight, memory_order_acquire);
-            if (entry_state == RT_FAR_CHANNEL_OPEN) {
+            if (atomic_load_explicit(&it->state, memory_order_acquire) == RT_FAR_CHANNEL_OPEN) {
                 atomic_store_explicit(&it->state, RT_FAR_CHANNEL_RELEASING, memory_order_release);
             }
-            if (inflight == 0) {
+            if (reclaim_ready_locked(it)) {
                 target = it;
                 break;
             }
         }
-        pthread_mutex_unlock(&state->lock);
+        unlock_then_reclaim(state, target);
         if (target == NULL) {
             return;
         }
-        release_entry(state, target);
     }
 }
 
@@ -276,16 +288,12 @@ void rt_far_channel_unpin(rt_executor* ex, const rt_far_task_handle* handle) {
     rt_far_channel_entry* entry = find_locked(state, handle);
     rt_far_channel_entry* reclaim = NULL;
     if (entry != NULL) {
-        uint32_t before = atomic_fetch_sub_explicit(&entry->inflight, 1, memory_order_acq_rel);
-        if (before == 1 &&
-            atomic_load_explicit(&entry->state, memory_order_acquire) == RT_FAR_CHANNEL_RELEASING) {
+        (void)atomic_fetch_sub_explicit(&entry->inflight, 1, memory_order_acq_rel);
+        if (reclaim_ready_locked(entry)) {
             reclaim = entry;
         }
     }
-    pthread_mutex_unlock(&state->lock);
-    if (reclaim != NULL) {
-        release_entry(state, reclaim);
-    }
+    unlock_then_reclaim(state, reclaim);
 }
 
 // Caller-side handle storage: a bare token struct owned by the caller task's
