@@ -169,6 +169,12 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("channel_on placement is not supported by this backend")
 	e.ensureStringConst("channel_on create request failed")
 	e.ensureStringConst("channel_on capacity out of range")
+	e.ensureStringConst("anchored on requires an async task context and a channel anchor")
+	e.ensureStringConst("anchored on destination shard is shut down")
+	e.ensureStringConst("anchored on transport queue is full")
+	e.ensureStringConst("anchored on execute request was refused")
+	e.ensureStringConst("anchored channel is gone: the far channel was released before the block could run")
+	e.ensureStringConst("anchored on execute request failed")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}

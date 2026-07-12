@@ -83,10 +83,11 @@ fn main() -> int {
 	}
 }
 
-// The channel producer stays guarded on every backend until its lowering
-// lands: an async, copy-element `channel_on` — the exact shape that will
-// become executable — reports its own diagnostic, not a generic one.
-func TestChannelOnStaysGuardedOnAllBackends(t *testing.T) {
+// The channel producer is open on LLVM (the transport capability) and stays
+// guarded with its own diagnostic on every other backend: an async,
+// copy-element `channel_on` — the executable shape — compiles on LLVM and
+// reports FUT7018 elsewhere.
+func TestChannelOnGuardMatrix(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.sg")
@@ -112,8 +113,17 @@ fn main() -> int {
 				Backend:        backend,
 				MaxDiagnostics: 200,
 			})
+			if backend == BackendLLVM {
+				if compileErr != nil {
+					t.Fatalf("channel_on must compile on LLVM: %v", compileErr)
+				}
+				if res.MIR == nil {
+					t.Fatal("expected MIR for the open channel_on compile")
+				}
+				return
+			}
 			if compileErr == nil {
-				t.Fatal("expected channel_on to stay guarded before its lowering lands")
+				t.Fatal("expected channel_on to stay guarded on this backend")
 			}
 			if res.MIR != nil {
 				t.Fatal("expected no MIR for a guarded channel_on compile")

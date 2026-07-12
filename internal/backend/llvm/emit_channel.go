@@ -352,6 +352,9 @@ func (fe *funcEmitter) emitInstrChanRecv(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
+	if ins.ChanRecv.Anchored {
+		return fe.emitAnchoredChanRecv(ins)
+	}
 	chVal, err := fe.emitChannelHandle(&ins.ChanRecv.Channel)
 	if err != nil {
 		return err
