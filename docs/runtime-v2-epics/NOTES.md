@@ -5299,3 +5299,15 @@ heap-owning captures die at sema (SEM3168) before any backend gate — the
 payload guard's genuine surface is shard-movable captures and non-copy
 payloads. Next: Task 5b (diagnostics precision across the crossing
 family).
+
+## 2026-07-12 — Epic 14 Task 5b Complete: Cause-Precise Crossing Diagnostics
+
+The guard stage now names the real blocker per crossing record: FUT7019
+for a missing async context (same fix on every backend), FUT7020 for
+payloads/captures that cannot ship — with the capture binding name, the
+exact nested field path of the first heap-owning leaf, and the anchored
+union-reply unwrap fix in the message — and the generic per-form
+backend codes only where the shape is executable and the backend lacks
+transport. Sync golden fixtures re-pinned to FUT7019; default-closed
+matrix keeps VM/unknown; message content pinned by a dedicated test.
+Next: Task 6 (QUEUE_FULL stress, leak audit, bench row, epic closeout).
