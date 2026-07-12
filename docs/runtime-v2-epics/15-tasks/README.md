@@ -6,8 +6,8 @@ review records, and the stop conditions.
 
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
-| 1 | `01-kickoff-attribution.md` | Ready | evidence + decision table + move inventory | none |
-| 1b | liveness-panic precondition | Pending | diagnostics + TSan stress + overlap review | 1 |
+| 1 | `01-kickoff-attribution.md` | Complete | evidence + decision table + move inventory | none |
+| 1b | liveness-panic precondition | In progress | diagnostics + TSan stress + overlap review | 1 |
 | 2 | gate manifest + integrity meta-test | Pending | tooling + make check step | 1b |
 | 3 | structural pass (all enforced scopes) | Pending | refactor, per-row dispositions | 1, 1b |
 | 3r | remeasure noise bands post-cleanup | Pending | measurement | 3 |
