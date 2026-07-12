@@ -165,10 +165,14 @@ static void exec_init_once(void) {
         panic_msg("async: scheduler initialization failed");
     }
     channel_wake_force_inject = rt_env_channel_wake_force_inject();
+    // The blocking pool must exist before any worker can reach an idle-park
+    // edge: the park-edge deadlock scan locks blocking_lock, so the pool's
+    // primitives have to be initialized before the worker threads start
+    // (pthread_create publishes the initialization).
+    rt_blocking_init(ex);
     if (threads > 1 || rt_runtime_shard_count(rt_executor_runtime(ex)) > 1) {
         rt_start_workers(ex);
     }
-    rt_blocking_init(ex);
     ex->initialized = 1;
 }
 
