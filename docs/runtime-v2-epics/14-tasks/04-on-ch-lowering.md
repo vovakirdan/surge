@@ -70,6 +70,40 @@
    backend, imported module) and keeps `TestChannelOnStaysGuardedOnAllBackends`
    inverted into "guarded everywhere except LLVM".
 
+## Body-Suspension Decision (second opinion, 2026-07-12)
+
+Existing crossing bodies are one-shot poll functions; anchored send/recv
+must park mid-body. The fork — synthesize an async function per body and
+reuse the async state-machine transform (full machinery) vs restrict the
+first vertical — went to an external second opinion (Codex): **restricted
+vertical now** (~85%), full machinery as a named debt row implemented
+later behind an opaque lowered-body artifact seam (crossing lowering must
+never inspect the transform's `{pc, variants}` layout directly).
+
+The vertical-1 rule, strict and structural so re-entry-from-top is sound:
+
+- the anchored operation is the FIRST statement of the block (directly a
+  call statement, a `let` initializer, or the `ret` expression — never
+  under `if`/loop/`match`), so a parked re-entry re-executes an empty
+  prefix;
+- exactly ONE anchored operation in the whole body: a second suspension
+  point would replay the first op on its re-entry;
+- no other suspension inside the body (nested `on` is already SEM3153);
+- the post-op suffix runs exactly once (the retry consumes the ack and
+  falls through), so ordinary effects after the op are fine;
+- the diagnostic names the restriction and the workaround: split into
+  multiple `on ch` blocks. `send`-then-`close` is a documented follow-up
+  relaxation (close never suspends), not part of the first gate.
+
+Lowering consequence: the park protocol lives in three runtime helpers —
+`rt_anchored_channel_send(state, bits)` (yield inside on a false send;
+returning means sent), `rt_anchored_channel_recv(state, &bits)` (yield
+inside on parked; returns the local recv status), and
+`rt_anchored_channel_close()` — over the dispatch-cached channel, so the
+compiled body reuses the local channel protocol byte-for-byte and MIR
+emits plain calls. A compiler-lowered retry-after-park row is REQUIRED
+(the hand-written harness bodies do not prove the compiled path).
+
 ## Increments
 
 - **A. sema typing parity** — real `typeFarHandleCall` for channel
@@ -79,10 +113,13 @@
   channel in the pending under the existing pin;
   `rt_anchored_channel_for_current_task` helper + harness row proving the
   cached pointer equals the owner-side channel and survives release.
-- **C. MIR body lowering** — OnFarHandle prepares body poll fn + pending
-  (OnPlacement shape), hidden prologue local from the helper, anchor
-  method calls rewritten to local chan instrs on that local; validate/
-  liveness/state-machine arms.
+- **C. sema vertical-1 rule + runtime helpers** — the structural
+  first-statement/single-op restriction with its friendly diagnostic;
+  the three anchored channel helpers in the runtime with harness rows.
+- **C2. MIR body lowering** — OnFarHandle prepares body poll fn + pending
+  (OnPlacement shape); anchored ops lower as plain calls to the helpers
+  (recv materializes Option<T> from the status/bits pair);
+  crossingUsesPendingRetryState includes OnFarHandle.
 - **D. LLVM emit + flip + matrix** — anchored execute emit arm, builtin
   decls, capability flip for both forms, guard-matrix updates, source
   e2e: `channel_on` + `on ch { send/recv/close }` across
