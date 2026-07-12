@@ -239,3 +239,54 @@ int rtb_mode_anchored_leak_audit(void) {
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }
+
+// The cross-producer negative observation: values land in the owner's
+// local-lane execution order, NOT in block-start order. Producer one's
+// block starts first but its body holds at a gate; producer two's block
+// sends and completes; releasing the gate lands producer one's value
+// second. Per-producer FIFO is pinned elsewhere (the round-trip rows and
+// the source e2e); this row pins that no cross-producer promise exists.
+int rtb_mode_anchored_cross_producer_order(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 4)) {
+        return rtb_fail("cross-producer mint failed");
+    }
+    void* channel = rt_far_channel_resolve(ex, &minted.handle);
+    rtb_anchored_state first;
+    memset(&first, 0, sizeof(first));
+    first.anchor = minted.handle;
+    first.value = 11;
+    first.body_poll_id = POLL_RTB_ANCHORED_PINNED_BODY;
+    void* first_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &first);
+    if (!rtb_wait_u32(&first.body_ran, 1, 5000)) {
+        return rtb_fail("first producer's body did not start");
+    }
+    rtb_anchored_state second;
+    memset(&second, 0, sizeof(second));
+    second.anchor = minted.handle;
+    second.value = 22;
+    second.body_poll_id = POLL_RTB_ANCHORED_BODY;
+    void* second_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &second);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(second_caller, &kind, &bits);
+    if (second.status != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("second producer failed");
+    }
+    atomic_store_explicit(&first.proceed, 1, memory_order_release);
+    (void)rtb_await(first_caller, &kind, &bits);
+    if (first.status != RT_REMOTE_TASK_STATUS_OK || first.result_bits != 1) {
+        return rtb_fail("first producer failed after the gate");
+    }
+    uint64_t drained = 0;
+    if (!rt_channel_try_recv(channel, &drained) || drained != 22) {
+        return rtb_fail("cross-producer order followed block-start order (expected the "
+                        "second producer's value first)");
+    }
+    if (!rt_channel_try_recv(channel, &drained) || drained != 11) {
+        return rtb_fail("first producer's value was lost");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}

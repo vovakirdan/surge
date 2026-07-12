@@ -19,6 +19,14 @@
   and the channel registry census (`rt_far_channel_debug_live_count`)
   are empty and the fallback tripwire is zero.
 
+- `anchored-cross-producer-order` (post-closeout addendum): the
+  cross-producer negative observation from the acceptance draft —
+  deterministic inversion via the gated body proves values follow the
+  owner's local-lane execution order, not cross-producer block-start
+  order. The closeout initially over-scoped this criterion as blocked on
+  RV2-DEBT-025; only the source-level two-producer PROGRAM is (the
+  criterion never required source level).
+
 ## Bench Row (same harness/host as the Epic 13 baseline, 2000 iters)
 
 | probe | shards | rt/sec | us/rt |

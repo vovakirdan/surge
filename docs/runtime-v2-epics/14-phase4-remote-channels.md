@@ -12,9 +12,12 @@ Acceptance against the draft criteria:
   suite rows 1-10, incl. the self-deadlock expected-panic rows and the
   leak census).
 - Single-producer owner-side FIFO observed source-side (e2e 41-then-42);
-  the cross-producer negative observation is BLOCKED on copyable far
-  handles (`RV2-DEBT-025`) — one holder cannot be two producers — and
-  moves with that debt.
+  the cross-producer negative observation is pinned at the harness level
+  (`anchored-cross-producer-order`: values land in the owner's local-lane
+  execution order, not block-start order — the first-started block's
+  value arrives second when its body is held at a gate). Only the
+  SOURCE-LEVEL two-producer program stays with `RV2-DEBT-025` (affine
+  handles admit one holder).
 - Self-deadlock behavior: runtime detection in every build with the
   actionable panic (decision 5), plus the driver-mode boundary and the
   FFI opt-out documented in `rt_remote_task_deadlock.c`.

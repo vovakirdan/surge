@@ -67,5 +67,7 @@ int main(int argc, char** argv) {
         return rtb_mode_anchored_queue_full();
     if (strcmp(argv[1], "anchored-leak-audit") == 0)
         return rtb_mode_anchored_leak_audit();
+    if (strcmp(argv[1], "anchored-cross-producer-order") == 0)
+        return rtb_mode_anchored_cross_producer_order();
     return rtb_fail("unknown mode");
 }

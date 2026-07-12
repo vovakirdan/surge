@@ -202,6 +202,11 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "anchored-leak-audit",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "anchored-cross-producer-order-is-lane-order-not-start-order",
+			mode: "anchored-cross-producer-order",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
