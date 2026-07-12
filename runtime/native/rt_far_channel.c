@@ -111,6 +111,16 @@ rt_remote_task_status rt_far_channel_mint(rt_executor* ex,
     return RT_REMOTE_TASK_STATUS_OK;
 }
 
+// Token validation happens in layers shared by every token-facing
+// operation: id+generation reaches an entry that still belongs to this
+// token; the live-open layer additionally requires the owner-shard match
+// and the OPEN state (the resolve/pin contract — a releasing entry stops
+// serving new work while pinned blocks keep their cached pointers).
+static rt_far_channel_entry* generation_checked_locked(rt_far_channel_state* state,
+                                                       const rt_far_task_handle* handle);
+static rt_far_channel_entry* live_open_locked(rt_far_channel_state* state,
+                                              const rt_far_task_handle* handle);
+
 static rt_far_channel_entry* find_locked(rt_far_channel_state* state,
                                          const rt_far_task_handle* handle) {
     for (rt_far_channel_entry* it = state->head; it != NULL; it = it->next) {
@@ -131,11 +141,9 @@ void* rt_far_channel_resolve(rt_executor* ex, const rt_far_task_handle* handle) 
         return NULL;
     }
     pthread_mutex_lock(&state->lock);
-    rt_far_channel_entry* entry = find_locked(state, handle);
+    rt_far_channel_entry* entry = live_open_locked(state, handle);
     void* channel = NULL;
-    if (entry != NULL && entry->generation == handle->generation &&
-        entry->owner_shard_id == handle->owner_shard_id &&
-        atomic_load_explicit(&entry->state, memory_order_acquire) == RT_FAR_CHANNEL_OPEN) {
+    if (entry != NULL) {
         channel = entry->channel;
     }
     pthread_mutex_unlock(&state->lock);
@@ -165,8 +173,8 @@ rt_remote_task_status rt_far_channel_release(rt_executor* ex, const rt_far_task_
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     pthread_mutex_lock(&state->lock);
-    rt_far_channel_entry* entry = find_locked(state, handle);
-    if (entry == NULL || entry->generation != handle->generation) {
+    rt_far_channel_entry* entry = generation_checked_locked(state, handle);
+    if (entry == NULL) {
         pthread_mutex_unlock(&state->lock);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
@@ -230,11 +238,9 @@ int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle, void**
         return 0;
     }
     pthread_mutex_lock(&state->lock);
-    rt_far_channel_entry* entry = find_locked(state, handle);
+    rt_far_channel_entry* entry = live_open_locked(state, handle);
     int pinned = 0;
-    if (entry != NULL && entry->generation == handle->generation &&
-        entry->owner_shard_id == handle->owner_shard_id &&
-        atomic_load_explicit(&entry->state, memory_order_acquire) == RT_FAR_CHANNEL_OPEN) {
+    if (entry != NULL) {
         (void)atomic_fetch_add_explicit(&entry->inflight, 1, memory_order_acq_rel);
         if (out_channel != NULL) {
             *out_channel = entry->channel;
@@ -479,4 +485,23 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
                                    1,
                                    minted.task_id,
                                    RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
+}
+
+static rt_far_channel_entry* generation_checked_locked(rt_far_channel_state* state,
+                                                       const rt_far_task_handle* handle) {
+    rt_far_channel_entry* entry = find_locked(state, handle);
+    if (entry == NULL || entry->generation != handle->generation) {
+        return NULL;
+    }
+    return entry;
+}
+
+static rt_far_channel_entry* live_open_locked(rt_far_channel_state* state,
+                                              const rt_far_task_handle* handle) {
+    rt_far_channel_entry* entry = generation_checked_locked(state, handle);
+    if (entry == NULL || entry->owner_shard_id != handle->owner_shard_id ||
+        atomic_load_explicit(&entry->state, memory_order_acquire) != RT_FAR_CHANNEL_OPEN) {
+        return NULL;
+    }
+    return entry;
 }
