@@ -3,6 +3,27 @@
 This policy records the current Sentrux behavior for Runtime V2 work and
 defines how later Runtime V2 tasks must use repository and scoped scans.
 
+## Structural-Cleanup Epic Update (2026-07-12)
+
+Threshold placement is noise-derived. Bands were measured over a
+30-commit committed-tree sweep (per scope, per metric; method and tables
+in `15-tasks/01-kickoff-attribution.md`): a threshold sits >= 3
+commit-step bands below the current operating point, so a knife-edge can
+never flap on a small commit while a genuine regression (> the band)
+still trips. Applied: `runtime/native` and `runtime` `min_redundancy`
+0.25 -> 0.245 (operating points 0.2514/0.2513, band 0.0015 — the old
+gates sat INSIDE one commit's noise and had already flapped).
+
+Root-scope metrics are ADVISORY floors: the root scan resolves only
+2171 of 4043 import specs (46% unresolved), so its `equality`/
+`redundancy` partially measure resolver behavior, not structure; the
+`min_equality` level sat below 0.45 for the entire sweep window and
+predates the last epic. Floors relaxed to catastrophic-only (0.44 /
+0.79). Re-promotion condition: when the tool (or a plugin/config
+change) resolves >= 90% of root import specs, root thresholds return to
+noise-band placement like the enforced scopes. Enforced structural
+gates: `internal`, `runtime`, `runtime/native`.
+
 ## Pre-Epic 4 Update
 
 Sentrux rule files now exist for every mandatory Runtime V2 scan root:

@@ -11,8 +11,8 @@ review records, and the stop conditions.
 | 2 | `02-gate-integrity.md` | Complete | tooling + make check step | 1b |
 | 3 | `03-structural-pass.md` (with 3r) | Complete | refactor, per-row dispositions | 1, 1b |
 | 3r | `03-structural-pass.md` (folded) | Complete | measurement | 3 |
-| 4 | threshold re-baseline + SENTRUX_POLICY | In progress | policy + debt closure | 3r |
-| 5 | naming remainder (allowlist -> C3 -> C2) | Pending | docs + fixtures | none (after 2 preferred) |
+| 4 | `04-threshold-rebaseline.md` | Complete | policy + debt closure | 3r |
+| 5 | naming remainder (allowlist -> C3 -> C2) | In progress | docs + fixtures | none (after 2 preferred) |
 | 6 | closeout (clean clone, symbol census) | Pending | release invariants | all |
 
 Rules: Epic 13/14 task rules apply unchanged (expand only the next task,
