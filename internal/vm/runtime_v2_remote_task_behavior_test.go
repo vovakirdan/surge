@@ -179,6 +179,15 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "anchored-pin-vs-release",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "anchored-helper-protocol-park-retry-close",
+			mode: "anchored-helper-protocol",
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The parked send's counterparty is the harness main thread.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0",
+			),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

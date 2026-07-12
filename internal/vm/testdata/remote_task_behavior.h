@@ -21,6 +21,9 @@ enum {
     POLL_RTB_ANCHORED_CALLER = 9107,
     POLL_RTB_ANCHORED_RECV_BODY = 9108,
     POLL_RTB_ANCHORED_PINNED_BODY = 9109,
+    POLL_RTB_ANCHORED_HELPER_SEND = 9110,
+    POLL_RTB_ANCHORED_HELPER_RECV = 9111,
+    POLL_RTB_ANCHORED_HELPER_CLOSE = 9112,
 };
 
 typedef struct rtb_child_state {
@@ -123,6 +126,7 @@ int rtb_mode_anchored_cancel_parked_body(void);
 int rtb_mode_anchored_owner_teardown(void);
 int rtb_mode_anchored_self_deadlock(void);
 int rtb_mode_anchored_pin_vs_release(void);
+int rtb_mode_anchored_helper_protocol(void);
 
 int rtb_mode_channel_create(void);
 int rtb_mode_channel_kind_aliasing(void);

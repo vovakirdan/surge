@@ -85,3 +85,49 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
     *pending = NULL;
     return status;
 }
+
+// Compiled anchored-body channel operations. The park protocol is the local
+// channel machinery unchanged: a parked send/recv registers the local
+// waiter and yields; the wake re-enters the body FROM THE TOP, which stays
+// sound because the language restricts the first vertical to bodies whose
+// anchored operation is the first statement (an empty prefix replays for
+// free, and the re-entered operation consumes the handoff ack). Returning
+// from a helper therefore means the operation completed.
+
+static void* anchored_channel_or_die(void) {
+    void* channel = rt_remote_task_anchored_channel_current();
+    if (channel == NULL) {
+        panic_msg("anchored channel operation outside an anchored block body");
+    }
+    return channel;
+}
+
+void rt_anchored_channel_send(void* state, uint64_t value_bits) {
+    rt_executor* ex = ensure_exec();
+    if (current_task_cancelled(ex)) {
+        rt_async_return_cancelled(state);
+    }
+    void* channel = anchored_channel_or_die();
+    if (!rt_channel_send(channel, value_bits)) {
+        rt_async_yield(state);
+    }
+}
+
+// Returns the local recv outcome: 1 delivers a value through out_bits, 2 is
+// the closed outcome. The parked case never returns (yield re-enters).
+uint8_t rt_anchored_channel_recv(void* state, uint64_t* out_bits) {
+    rt_executor* ex = ensure_exec();
+    if (current_task_cancelled(ex)) {
+        rt_async_return_cancelled(state);
+    }
+    void* channel = anchored_channel_or_die();
+    uint8_t status = rt_channel_recv(channel, out_bits);
+    if (status == 0) {
+        rt_async_yield(state);
+    }
+    return status;
+}
+
+void rt_anchored_channel_close(void) {
+    rt_channel_close(anchored_channel_or_die());
+}

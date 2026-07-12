@@ -83,6 +83,37 @@ static void poll_anchored_pinned_send(rtb_anchored_state* state) {
     rt_async_return(state, 1);
 }
 
+// Body polls shaped exactly like compiled vertical-1 output: the anchored
+// operation is the first statement and the helper parks/re-enters inside.
+static void poll_anchored_helper_send(rtb_anchored_state* state) {
+    rt_executor* ex = ensure_exec();
+    if (current_task_cancelled(ex)) {
+        rt_async_return_cancelled(state);
+    }
+    atomic_store_explicit(&state->body_ran, 1, memory_order_release);
+    rt_anchored_channel_send(state, state->value);
+    rt_async_return(state, 1);
+}
+
+static void poll_anchored_helper_recv(rtb_anchored_state* state) {
+    rt_executor* ex = ensure_exec();
+    if (current_task_cancelled(ex)) {
+        rt_async_return_cancelled(state);
+    }
+    uint64_t bits = 0;
+    uint8_t status = rt_anchored_channel_recv(state, &bits);
+    rt_async_return(state, ((uint64_t)status << 32) | (bits & 0xffffffffu));
+}
+
+static void poll_anchored_helper_close(rtb_anchored_state* state) {
+    rt_executor* ex = ensure_exec();
+    if (current_task_cancelled(ex)) {
+        rt_async_return_cancelled(state);
+    }
+    rt_anchored_channel_close();
+    rt_async_return(state, 1);
+}
+
 // Caller poll: one anchored execute, retry until the reply.
 static void poll_anchored_caller(rtb_anchored_state* state) {
     uint8_t kind = 0;
@@ -98,6 +129,15 @@ static void poll_anchored_caller(rtb_anchored_state* state) {
 }
 
 void rtb_anchored_poll_dispatch(uint64_t id) {
+    if (id == POLL_RTB_ANCHORED_HELPER_SEND) {
+        poll_anchored_helper_send((rtb_anchored_state*)__task_state());
+    }
+    if (id == POLL_RTB_ANCHORED_HELPER_RECV) {
+        poll_anchored_helper_recv((rtb_anchored_state*)__task_state());
+    }
+    if (id == POLL_RTB_ANCHORED_HELPER_CLOSE) {
+        poll_anchored_helper_close((rtb_anchored_state*)__task_state());
+    }
     if (id == POLL_RTB_ANCHORED_BODY) {
         poll_anchored_send((rtb_anchored_state*)__task_state());
     }
@@ -450,6 +490,78 @@ int rtb_mode_anchored_pin_vs_release(void) {
     (void)rtb_await(caller, &kind, &bits);
     if (state.status != RT_REMOTE_TASK_STATUS_OK || state.result_bits != 1) {
         return rtb_fail("pinned block did not complete after the release");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// The helper protocol end to end, in the exact shape compiled vertical-1
+// bodies take: a send that parks on capacity and completes after the drain,
+// a recv that delivers the parked value, a close, and a recv that reports
+// the closed outcome. The send's counterparty is the harness main thread,
+// so the row runs with the self-deadlock detector opted out.
+int rtb_mode_anchored_helper_protocol(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("helper-protocol mint failed");
+    }
+    void* channel = rt_far_channel_resolve(ex, &minted.handle);
+    rtb_anchored_state prefill;
+    memset(&prefill, 0, sizeof(prefill));
+    prefill.anchor = minted.handle;
+    prefill.value = 7;
+    prefill.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    void* prefill_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &prefill);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(prefill_caller, &kind, &bits);
+    if (prefill.status != RT_REMOTE_TASK_STATUS_OK || prefill.result_bits != 1) {
+        return rtb_fail("helper send did not complete on free capacity");
+    }
+    rtb_anchored_state parked;
+    memset(&parked, 0, sizeof(parked));
+    parked.anchor = minted.handle;
+    parked.value = 8;
+    parked.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    void* parked_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &parked);
+    if (!rtb_wait_u32(&parked.body_ran, 1, 5000)) {
+        return rtb_fail("helper send body did not start");
+    }
+    uint64_t drained = 0;
+    if (!rt_channel_try_recv(channel, &drained) || drained != 7) {
+        return rtb_fail("owner-side drain did not observe the first value");
+    }
+    (void)rtb_await(parked_caller, &kind, &bits);
+    if (parked.status != RT_REMOTE_TASK_STATUS_OK || parked.result_bits != 1) {
+        return rtb_fail("parked helper send did not complete after the drain");
+    }
+    rtb_anchored_state receiver;
+    memset(&receiver, 0, sizeof(receiver));
+    receiver.anchor = minted.handle;
+    receiver.body_poll_id = POLL_RTB_ANCHORED_HELPER_RECV;
+    void* recv_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &receiver);
+    (void)rtb_await(recv_caller, &kind, &bits);
+    if (receiver.status != RT_REMOTE_TASK_STATUS_OK || receiver.result_bits != ((1ull << 32) | 8)) {
+        return rtb_fail("helper recv did not deliver the parked send's value");
+    }
+    rtb_anchored_state closer;
+    memset(&closer, 0, sizeof(closer));
+    closer.anchor = minted.handle;
+    closer.body_poll_id = POLL_RTB_ANCHORED_HELPER_CLOSE;
+    void* close_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &closer);
+    (void)rtb_await(close_caller, &kind, &bits);
+    if (closer.status != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("helper close failed");
+    }
+    rtb_anchored_state after;
+    memset(&after, 0, sizeof(after));
+    after.anchor = minted.handle;
+    after.body_poll_id = POLL_RTB_ANCHORED_HELPER_RECV;
+    void* after_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &after);
+    (void)rtb_await(after_caller, &kind, &bits);
+    if (after.status != RT_REMOTE_TASK_STATUS_OK || after.result_bits != (2ull << 32)) {
+        return rtb_fail("helper recv after close did not report the closed outcome");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;
