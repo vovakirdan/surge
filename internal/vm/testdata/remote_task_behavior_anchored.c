@@ -91,7 +91,7 @@ static void poll_anchored_helper_send(rtb_anchored_state* state) {
         rt_async_return_cancelled(state);
     }
     atomic_store_explicit(&state->body_ran, 1, memory_order_release);
-    rt_anchored_channel_send(state, state->value);
+    rt_anchored_channel_send(state->value);
     rt_async_return(state, 1);
 }
 
@@ -101,7 +101,7 @@ static void poll_anchored_helper_recv(rtb_anchored_state* state) {
         rt_async_return_cancelled(state);
     }
     uint64_t bits = 0;
-    uint8_t status = rt_anchored_channel_recv(state, &bits);
+    uint8_t status = rt_anchored_channel_recv(&bits);
     rt_async_return(state, ((uint64_t)status << 32) | (bits & 0xffffffffu));
 }
 

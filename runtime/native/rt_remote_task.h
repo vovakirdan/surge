@@ -68,10 +68,14 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
 void rt_remote_task_deadlock_check(rt_executor* ex);
 // The dispatch-cached local channel of the calling anchored body, or NULL.
 void* rt_remote_task_anchored_channel_current(void);
+// Both halves of the calling anchored body's binding: the dispatch-cached
+// channel and the shipped poll state. Returns 0 outside a bound body.
+int rt_remote_task_anchored_binding_current(void** out_channel, void** out_state);
 // Compiled anchored-body channel operations over the dispatch-cached
-// channel; parked send/recv yields inside (re-entry restarts the body).
-void rt_anchored_channel_send(void* state, uint64_t value_bits);
-uint8_t rt_anchored_channel_recv(void* state, uint64_t* out_bits);
+// channel; parked send/recv yields inside (re-entry restarts the body), so
+// returning from a helper means the operation completed.
+void rt_anchored_channel_send(uint64_t value_bits);
+uint8_t rt_anchored_channel_recv(uint64_t* out_bits);
 void rt_anchored_channel_close(void);
 
 #endif

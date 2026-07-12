@@ -94,20 +94,20 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
 // free, and the re-entered operation consumes the handoff ack). Returning
 // from a helper therefore means the operation completed.
 
-static void* anchored_channel_or_die(void) {
-    void* channel = rt_remote_task_anchored_channel_current();
-    if (channel == NULL) {
+static void anchored_binding_or_die(void** out_channel, void** out_state) {
+    if (!rt_remote_task_anchored_binding_current(out_channel, out_state)) {
         panic_msg("anchored channel operation outside an anchored block body");
     }
-    return channel;
 }
 
-void rt_anchored_channel_send(void* state, uint64_t value_bits) {
+void rt_anchored_channel_send(uint64_t value_bits) {
     rt_executor* ex = ensure_exec();
+    void* channel = NULL;
+    void* state = NULL;
+    anchored_binding_or_die(&channel, &state);
     if (current_task_cancelled(ex)) {
         rt_async_return_cancelled(state);
     }
-    void* channel = anchored_channel_or_die();
     if (!rt_channel_send(channel, value_bits)) {
         rt_async_yield(state);
     }
@@ -115,12 +115,14 @@ void rt_anchored_channel_send(void* state, uint64_t value_bits) {
 
 // Returns the local recv outcome: 1 delivers a value through out_bits, 2 is
 // the closed outcome. The parked case never returns (yield re-enters).
-uint8_t rt_anchored_channel_recv(void* state, uint64_t* out_bits) {
+uint8_t rt_anchored_channel_recv(uint64_t* out_bits) {
     rt_executor* ex = ensure_exec();
+    void* channel = NULL;
+    void* state = NULL;
+    anchored_binding_or_die(&channel, &state);
     if (current_task_cancelled(ex)) {
         rt_async_return_cancelled(state);
     }
-    void* channel = anchored_channel_or_die();
     uint8_t status = rt_channel_recv(channel, out_bits);
     if (status == 0) {
         rt_async_yield(state);
@@ -129,5 +131,7 @@ uint8_t rt_anchored_channel_recv(void* state, uint64_t* out_bits) {
 }
 
 void rt_anchored_channel_close(void) {
-    rt_channel_close(anchored_channel_or_die());
+    void* channel = NULL;
+    anchored_binding_or_die(&channel, NULL);
+    rt_channel_close(channel);
 }
