@@ -1,6 +1,6 @@
-// EXPECT-DIAG: FUT7016
+// EXPECT-DIAG: FUT7019
 // EXPECT-STAGE: backend
-// negative: far Task await backend unavailable
+// negative: far Task await in a synchronous context
 fn wait_result(t: far Task<int>) -> TaskResult<int> {
     return t.await();
 }

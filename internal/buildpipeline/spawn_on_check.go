@@ -24,92 +24,37 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 	}
 	modules := diagRes.DependencyAnalyses()
 
-	spawnSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringSpawnOn)
-	awaitSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringFarTaskAwait)
-	cancelSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringFarTaskCancel)
-	channelSpans := collectCrossingSpans(req, diagRes.Sema, sema.CrossingLoweringChannelCreate)
-	for _, mod := range modules {
-		for _, sr := range mod.Sema {
-			spawnSpans = append(spawnSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringSpawnOn)...)
-			awaitSpans = append(awaitSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringFarTaskAwait)...)
-			cancelSpans = append(cancelSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringFarTaskCancel)...)
-			channelSpans = append(channelSpans, collectCrossingSpans(req, sr, sema.CrossingLoweringChannelCreate)...)
+	forms := []struct {
+		form    sema.CrossingLoweringKind
+		generic diag.Code
+		message string
+	}{
+		{sema.CrossingLoweringSpawnOn, diag.FutSpawnOnBackendUnavailable, spawnOnUnavailableMsg},
+		{sema.CrossingLoweringFarTaskAwait, diag.FutFarTaskAwaitBackendUnavailable, farTaskAwaitUnavailableMsg},
+		{sema.CrossingLoweringFarTaskCancel, diag.FutFarTaskCancelBackendUnavailable, farTaskCancelUnavailableMsg},
+		{sema.CrossingLoweringChannelCreate, diag.FutChannelOnBackendUnavailable, channelOnUnavailableMsg},
+	}
+	mainStrings := diagRes.Builder.StringsInterner
+	for _, entry := range forms {
+		findings := collectCrossingGuardFindings(
+			req, diagRes.Sema, mainStrings, entry.form, entry.generic, entry.message)
+		for _, mod := range modules {
+			var modStrings *source.Interner
+			if mod.Builder != nil {
+				modStrings = mod.Builder.StringsInterner
+			}
+			for _, sr := range mod.Sema {
+				findings = append(findings, collectCrossingGuardFindings(
+					req, sr, modStrings, entry.form, entry.generic, entry.message)...)
+			}
+		}
+		for _, finding := range dedupeCrossingGuardFindings(findings) {
+			diagRes.Bag.Add(&diag.Diagnostic{
+				Severity: diag.SevError,
+				Code:     finding.Code,
+				Message:  finding.Message,
+				Primary:  finding.Span,
+			})
 		}
 	}
-	for _, sp := range dedupeSpans(spawnSpans) {
-		diagRes.Bag.Add(&diag.Diagnostic{
-			Severity: diag.SevError,
-			Code:     diag.FutSpawnOnBackendUnavailable,
-			Message:  spawnOnUnavailableMsg,
-			Primary:  sp,
-		})
-	}
-	for _, sp := range dedupeSpans(awaitSpans) {
-		diagRes.Bag.Add(&diag.Diagnostic{
-			Severity: diag.SevError,
-			Code:     diag.FutFarTaskAwaitBackendUnavailable,
-			Message:  farTaskAwaitUnavailableMsg,
-			Primary:  sp,
-		})
-	}
-	for _, sp := range dedupeSpans(cancelSpans) {
-		diagRes.Bag.Add(&diag.Diagnostic{
-			Severity: diag.SevError,
-			Code:     diag.FutFarTaskCancelBackendUnavailable,
-			Message:  farTaskCancelUnavailableMsg,
-			Primary:  sp,
-		})
-	}
-	for _, sp := range dedupeSpans(channelSpans) {
-		diagRes.Bag.Add(&diag.Diagnostic{
-			Severity: diag.SevError,
-			Code:     diag.FutChannelOnBackendUnavailable,
-			Message:  channelOnUnavailableMsg,
-			Primary:  sp,
-		})
-	}
-}
-
-// collectCrossingSpans returns sema-accepted crossing spans for a form when the
-// current backend has no capability for that form.
-func collectCrossingSpans(req *CompileRequest, semaRes *sema.Result, form sema.CrossingLoweringKind) []source.Span {
-	if req == nil || semaRes == nil || req.Backend == "" {
-		return nil
-	}
-	backendBlocked := crossingBackendGuardAppliesForRequest(req, form)
-	var spans []source.Span
-	seen := make(map[source.Span]struct{})
-	for idx := range semaRes.CrossingLowering {
-		info := &semaRes.CrossingLowering[idx]
-		if info.Kind != form {
-			continue
-		}
-		if !backendBlocked && crossingRecordExecutable(semaRes, info) {
-			continue
-		}
-		if _, dup := seen[info.Span]; dup {
-			continue
-		}
-		seen[info.Span] = struct{}{}
-		spans = append(spans, info.Span)
-	}
-	return spans
-}
-
-// dedupeSpans returns the input spans with duplicates removed, preserving order,
-// so a construct recorded once per occurrence is guarded exactly once.
-func dedupeSpans(in []source.Span) []source.Span {
-	if len(in) == 0 {
-		return nil
-	}
-	var out []source.Span
-	seen := make(map[source.Span]struct{}, len(in))
-	for _, sp := range in {
-		if _, dup := seen[sp]; dup {
-			continue
-		}
-		seen[sp] = struct{}{}
-		out = append(out, sp)
-	}
-	return out
 }

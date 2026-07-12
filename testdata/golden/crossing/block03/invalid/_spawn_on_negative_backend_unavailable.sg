@@ -1,6 +1,6 @@
-// EXPECT-DIAG: FUT7015
+// EXPECT-DIAG: FUT7019
 // EXPECT-STAGE: backend
-// negative: spawn on backend unavailable
+// negative: spawn on in a synchronous context
 fn double(x: int) -> int {
     return x * 2;
 }

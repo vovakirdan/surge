@@ -1,6 +1,6 @@
-// EXPECT-DIAG: FUT7017
+// EXPECT-DIAG: FUT7019
 // EXPECT-STAGE: backend
-// negative: far Task cancel backend unavailable
+// negative: far Task cancel in a synchronous context
 fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
     return t.cancel();
 }

@@ -48,46 +48,72 @@ func findDiagnostic(diags []*diag.Diagnostic, code diag.Code) *diag.Diagnostic {
 }
 
 func TestCrossingBackendUnavailableMessages(t *testing.T) {
+	// Executable async shapes on a transportless backend: only there does the
+	// generic backend message survive. The synchronous variants of the same
+	// programs are pinned as FUT7019 by the crossinggate golden fixtures.
 	cases := []struct {
 		name    string
-		fixture string
+		src     string
 		code    diag.Code
 		message string
 	}{
 		{
-			name:    "on placement",
-			fixture: "testdata/golden/crossing/block02/invalid/_on_negative_backend_unavailable.sg",
+			name: "on placement",
+			src: `async fn run(n: int) -> TaskResult<int> {
+    return on pool { ret n; };
+}`,
 			code:    diag.FutOnBackendUnavailable,
 			message: "`on` placement crossing cannot be executed: no available backend supports cross-shard transport",
 		},
 		{
-			name:    "on far handle",
-			fixture: "testdata/golden/crossing/block02/invalid/_on_negative_far_handle_backend_unavailable.sg",
+			name: "on far handle",
+			src: `async fn send_job(ch: far Channel<int>) -> TaskResult<nothing> {
+    return on ch { ch.send(1); ret nothing; };
+}`,
 			code:    diag.FutOnBackendUnavailable,
 			message: "`on` placement crossing cannot be executed: no available backend supports cross-shard transport",
 		},
 		{
-			name:    "spawn on",
-			fixture: "testdata/golden/crossing/block03/invalid/_spawn_on_negative_backend_unavailable.sg",
+			name: "spawn on",
+			src: `async fn start(n: int) -> far Task<int> {
+    return spawn on distributed { ret n; };
+}`,
 			code:    diag.FutSpawnOnBackendUnavailable,
 			message: "`spawn on` remote spawn cannot be executed: no available backend supports cross-shard transport",
 		},
 		{
-			name:    "far task await",
-			fixture: "testdata/golden/crossing/block03/invalid/_spawn_on_negative_await_backend_unavailable.sg",
+			name: "far task await",
+			src: `async fn wait_result(t: far Task<int>) -> TaskResult<int> {
+    return t.await();
+}`,
 			code:    diag.FutFarTaskAwaitBackendUnavailable,
 			message: "`far Task<T>.await()` cannot be executed: no available backend supports remote task transport",
 		},
 		{
-			name:    "far task cancel",
-			fixture: "testdata/golden/crossing/block03/invalid/_spawn_on_negative_cancel_backend_unavailable.sg",
+			name: "far task cancel",
+			src: `async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}`,
 			code:    diag.FutFarTaskCancelBackendUnavailable,
 			message: "`far Task<T>.cancel()` cannot be executed: no available backend supports remote task transport",
 		},
 	}
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			diags := compileFixtureDiagnostics(t, tc.fixture, BackendVM)
+			path := filepath.Join(t.TempDir(), "main.sg")
+			if err := os.WriteFile(path, []byte(tc.src), 0o600); err != nil {
+				t.Fatalf("write source: %v", err)
+			}
+			res, _ := Compile(context.Background(), &CompileRequest{
+				TargetPath:     path,
+				Backend:        BackendVM,
+				MaxDiagnostics: 200,
+			})
+			if res.Diagnose == nil || res.Diagnose.Bag == nil {
+				t.Fatal("missing diagnostics bag")
+			}
+			diags := res.Diagnose.Bag.Items()
 			got := findDiagnostic(diags, tc.code)
 			if got == nil {
 				t.Fatalf("expected %s, got %s", tc.code.ID(), summarizeCodes(diags))
@@ -103,42 +129,69 @@ func TestCrossingBackendUnavailableMessages(t *testing.T) {
 }
 
 func TestCrossingBackendGuardsAreDefaultClosed(t *testing.T) {
+	// Executable async shapes stay guarded with the generic backend code on
+	// every backend WITHOUT the transport capability. LLVM is deliberately
+	// absent: these forms are open there and the open behavior is pinned by
+	// the capability tests and the e2e suites.
 	cases := []struct {
-		name    string
-		fixture string
-		code    diag.Code
+		name string
+		src  string
+		code diag.Code
 	}{
 		{
-			name:    "on placement",
-			fixture: "testdata/golden/crossing/block02/invalid/_on_negative_backend_unavailable.sg",
-			code:    diag.FutOnBackendUnavailable,
+			name: "on placement",
+			src: `async fn run(n: int) -> TaskResult<int> {
+    return on pool { ret n; };
+}`,
+			code: diag.FutOnBackendUnavailable,
 		},
 		{
-			name:    "on far handle",
-			fixture: "testdata/golden/crossing/block02/invalid/_on_negative_far_handle_backend_unavailable.sg",
-			code:    diag.FutOnBackendUnavailable,
+			name: "on far handle",
+			src: `async fn send_job(ch: far Channel<int>) -> TaskResult<nothing> {
+    return on ch { ch.send(1); ret nothing; };
+}`,
+			code: diag.FutOnBackendUnavailable,
 		},
 		{
-			name:    "spawn on",
-			fixture: "testdata/golden/crossing/block03/invalid/_spawn_on_negative_backend_unavailable.sg",
-			code:    diag.FutSpawnOnBackendUnavailable,
+			name: "spawn on",
+			src: `async fn start(n: int) -> far Task<int> {
+    return spawn on distributed { ret n; };
+}`,
+			code: diag.FutSpawnOnBackendUnavailable,
 		},
 		{
-			name:    "far task await",
-			fixture: "testdata/golden/crossing/block03/invalid/_spawn_on_negative_await_backend_unavailable.sg",
-			code:    diag.FutFarTaskAwaitBackendUnavailable,
+			name: "far task await",
+			src: `async fn wait_result(t: far Task<int>) -> TaskResult<int> {
+    return t.await();
+}`,
+			code: diag.FutFarTaskAwaitBackendUnavailable,
 		},
 		{
-			name:    "far task cancel",
-			fixture: "testdata/golden/crossing/block03/invalid/_spawn_on_negative_cancel_backend_unavailable.sg",
-			code:    diag.FutFarTaskCancelBackendUnavailable,
+			name: "far task cancel",
+			src: `async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
+    return t.cancel();
+}`,
+			code: diag.FutFarTaskCancelBackendUnavailable,
 		},
 	}
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, backend := range []Backend{BackendVM, BackendLLVM, Backend("future_backend")} {
+			for _, backend := range []Backend{BackendVM, Backend("future_backend")} {
 				t.Run(string(backend), func(t *testing.T) {
-					diags := compileFixtureDiagnostics(t, tc.fixture, backend)
+					path := filepath.Join(t.TempDir(), "main.sg")
+					if err := os.WriteFile(path, []byte(tc.src), 0o600); err != nil {
+						t.Fatalf("write source: %v", err)
+					}
+					res, _ := Compile(context.Background(), &CompileRequest{
+						TargetPath:     path,
+						Backend:        backend,
+						MaxDiagnostics: 200,
+					})
+					if res.Diagnose == nil || res.Diagnose.Bag == nil {
+						t.Fatal("missing diagnostics bag")
+					}
+					diags := res.Diagnose.Bag.Items()
 					if got := findDiagnostic(diags, tc.code); got == nil {
 						t.Fatalf("expected default-closed %s, got %s", tc.code.ID(), summarizeCodes(diags))
 					}
@@ -245,12 +298,11 @@ fn caller() -> TaskResult<int> {
 }
 `)
 
-	wantCodes := []diag.Code{
-		diag.FutOnBackendUnavailable,
-		diag.FutSpawnOnBackendUnavailable,
-		diag.FutFarTaskAwaitBackendUnavailable,
-		diag.FutFarTaskCancelBackendUnavailable,
-	}
+	// Every imported crossing sits in a synchronous function, so the guard
+	// names the missing async context — the same finding on every backend.
+	// The count proves the guard walked the DEPENDENCY module: at least six
+	// findings live in remote.sg (on placement, spawn on, spawn+cancel, and
+	// the on far-handle form), beyond the caller's own sites.
 	for _, backend := range []Backend{BackendVM, BackendLLVM, Backend("future_backend")} {
 		t.Run(string(backend), func(t *testing.T) {
 			res, compileErr := Compile(context.Background(), &CompileRequest{
@@ -268,13 +320,9 @@ fn caller() -> TaskResult<int> {
 				t.Fatalf("missing diagnostics bag: %v", compileErr)
 			}
 			diags := res.Diagnose.Bag.Items()
-			for _, code := range wantCodes {
-				if findDiagnostic(diags, code) == nil {
-					t.Errorf("missing %s for imported crossing surface, got %s", code.ID(), summarizeCodes(diags))
-				}
-			}
-			if got := countDiagnostics(diags, diag.FutOnBackendUnavailable); got < 2 {
-				t.Errorf("expected imported on placement and on far-handle diagnostics, got %d: %s", got, summarizeCodes(diags))
+			if got := countDiagnostics(diags, diag.FutCrossingSyncContext); got < 6 {
+				t.Errorf("expected the guard to reach the imported module's crossings, got %d sync-context findings: %s",
+					got, summarizeCodes(diags))
 			}
 		})
 	}
@@ -370,14 +418,11 @@ fn main() -> int {
 		t.Fatalf("missing diagnostics from guarded compile: %v", err)
 	}
 	diags := res.Diagnose.Bag.Items()
-	for _, code := range []diag.Code{
-		diag.FutOnBackendUnavailable,
-		diag.FutFarTaskAwaitBackendUnavailable,
-		diag.FutFarTaskCancelBackendUnavailable,
-	} {
-		if findDiagnostic(diags, code) == nil {
-			t.Fatalf("expected %s with spawn-only override, got %s", code.ID(), summarizeCodes(diags))
-		}
+	// The three non-spawn forms sit in synchronous functions, so the guard
+	// names the missing async context for each; the compile still stops.
+	if got := countDiagnostics(diags, diag.FutCrossingSyncContext); got < 3 {
+		t.Fatalf("expected the non-spawn forms to stay guarded with spawn-only override, got %d findings: %s",
+			got, summarizeCodes(diags))
 	}
 	if got := findDiagnostic(diags, diag.FutSpawnOnBackendUnavailable); got != nil {
 		t.Fatalf("spawn-only override should suppress FUT7015, got %s", summarizeCodes(diags))

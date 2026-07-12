@@ -151,6 +151,10 @@ const (
 	FutFarTaskCancelBackendUnavailable Code = 7017
 	// FutChannelOnBackendUnavailable marks `channel_on(...)` as unavailable in this backend/configuration.
 	FutChannelOnBackendUnavailable Code = 7018
+	// FutCrossingSyncContext marks a crossing whose only blocker is the missing async context.
+	FutCrossingSyncContext Code = 7019
+	// FutCrossingPayloadNotShippable marks a crossing whose payload or capture cannot cross shards yet.
+	FutCrossingPayloadNotShippable Code = 7020
 )
 
 // crossingCodeDescriptions holds the human-readable titles for the
@@ -158,13 +162,15 @@ const (
 // resolve them like any other code. Messages name the invariant, matching the
 // message shapes recorded in the block matrices.
 var crossingCodeDescriptions = map[Code]string{
-	SemaFarNested:              "nested `far` handles are not allowed",
-	SemaFarRemoteOwn:           "`far own T` is invalid; move `own T` through `on` or `spawn on`",
-	SemaFarRemoteBorrow:        "`far &T` and `far &mut T` are invalid remote lifetimes",
-	SemaFarExternTarget:        "`extern<T>` is not a value capability for `far`",
-	SemaFarGroupingUnsupported: "grouping does not change `far` array precedence",
-	SemaFarNonCapability:       "`far` requires a remote-handle-capable type",
-	SemaFarLocalOp:             "operation on `far T` requires an accepted remote context",
+	FutCrossingSyncContext:         "this crossing suspends and needs an `async` context",
+	FutCrossingPayloadNotShippable: "this crossing's payload cannot cross shards yet",
+	SemaFarNested:                  "nested `far` handles are not allowed",
+	SemaFarRemoteOwn:               "`far own T` is invalid; move `own T` through `on` or `spawn on`",
+	SemaFarRemoteBorrow:            "`far &T` and `far &mut T` are invalid remote lifetimes",
+	SemaFarExternTarget:            "`extern<T>` is not a value capability for `far`",
+	SemaFarGroupingUnsupported:     "grouping does not change `far` array precedence",
+	SemaFarNonCapability:           "`far` requires a remote-handle-capable type",
+	SemaFarLocalOp:                 "operation on `far T` requires an accepted remote context",
 
 	SemaOnDestFarTask:      "`far Task<T>` is not an `on` destination; use `await()` or `cancel()`",
 	SemaOnDestNotPlacement: "`on` destination must be a `Placement` value or an accepted `far` handle",

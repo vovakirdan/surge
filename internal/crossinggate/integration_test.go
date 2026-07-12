@@ -17,6 +17,9 @@ func TestCrossingGuardIntegrationFixtures(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", repoRoot(t))
 	base := filepath.Join(repoRoot(t), "testdata", "golden", "crossing", "integration")
 
+	// Every integration fixture places its crossings in synchronous
+	// functions, so the guard names the missing async context per site —
+	// one FUT7019 per crossing, uniformly on every backend.
 	valid := []struct {
 		fixture      string
 		backendCodes []string
@@ -24,27 +27,27 @@ func TestCrossingGuardIntegrationFixtures(t *testing.T) {
 	}{
 		{
 			fixture:      "_integration_combined_on_spawn_on.sg",
-			backendCodes: []string{"FUT7014", "FUT7015"},
+			backendCodes: []string{"FUT7019", "FUT7019"},
 			assert:       assertCombinedOnSpawnOnRecords,
 		},
 		{
 			fixture:      "_integration_spawn_on_then_await.sg",
-			backendCodes: []string{"FUT7015", "FUT7016"},
+			backendCodes: []string{"FUT7019", "FUT7019"},
 			assert:       assertSpawnOnThenAwaitRecords,
 		},
 		{
 			fixture:      "_integration_far_task_direct_call_chain.sg",
-			backendCodes: []string{"FUT7014", "FUT7016", "FUT7017"},
+			backendCodes: []string{"FUT7019", "FUT7019", "FUT7019"},
 			assert:       assertFarTaskDirectCallChainRecords,
 		},
 		{
 			fixture:      "_integration_generic_crossing_sites.sg",
-			backendCodes: []string{"FUT7014"},
+			backendCodes: []string{"FUT7019"},
 			assert:       assertGenericCrossingRecords,
 		},
 		{
 			fixture:      "_probe_far_channel_on_and_spawn_on.sg",
-			backendCodes: []string{"FUT7014", "FUT7015"},
+			backendCodes: []string{"FUT7019", "FUT7019"},
 			assert:       assertFarChannelProbeRecords,
 		},
 	}

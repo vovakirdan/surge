@@ -81,7 +81,11 @@ type CrossingDestinationInfo struct {
 // CrossingCaptureInfo is an accepted cross-boundary capture and its movement
 // judgment. Rejected captures are reported as diagnostics and are not recorded.
 type CrossingCaptureInfo struct {
-	Symbol  symbols.SymbolID
+	Symbol symbols.SymbolID
+	// Name is the capture's source-level binding name, recorded at check
+	// time so later pipeline stages can diagnose captures without a
+	// symbol-table round trip.
+	Name    string
 	Expr    ast.ExprID
 	Span    source.Span
 	Type    types.TypeID

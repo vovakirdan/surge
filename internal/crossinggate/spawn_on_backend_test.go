@@ -5,14 +5,15 @@ import (
 	"testing"
 )
 
-// TestSpawnOnBackendGuards validates the Block 3 backend-unavailable
-// guards (FUT7015 / FUT7016 / FUT7017) directly against the staged block03
-// fixtures, independent of the Block3Enabled gate. The remote
-// spawn surface compile-only: a `spawn on` remote spawn, `far Task<T>.await()`,
-// or `far Task<T>.cancel()` that type-checks but reaches a backend must be
-// reported deterministically rather than crash or silently drop. The await /
-// cancel fixtures obtain the `far Task` via a parameter (no `spawn on` in the
-// same file), proving those guards fire on their own.
+// TestSpawnOnBackendGuards validates the crossing guards directly against
+// the staged block03 fixtures, independent of the Block3Enabled gate: a
+// `spawn on` remote spawn, `far Task<T>.await()`, or `far Task<T>.cancel()`
+// that type-checks but reaches a backend must be reported deterministically
+// rather than crash or silently drop. The fixtures sit in synchronous
+// functions, so the guard names the missing async context (FUT7019) — the
+// same finding on every backend; the await / cancel fixtures obtain the
+// `far Task` via a parameter (no `spawn on` in the same file), proving the
+// guards fire on their own.
 func TestSpawnOnBackendGuards(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", repoRoot(t))
 	base := filepath.Join(repoRoot(t), "testdata", "golden", "crossing", "block03", "invalid")
@@ -21,9 +22,9 @@ func TestSpawnOnBackendGuards(t *testing.T) {
 		fixture string
 		want    string
 	}{
-		{"_spawn_on_negative_backend_unavailable.sg", "FUT7015"},
-		{"_spawn_on_negative_await_backend_unavailable.sg", "FUT7016"},
-		{"_spawn_on_negative_cancel_backend_unavailable.sg", "FUT7017"},
+		{"_spawn_on_negative_backend_unavailable.sg", "FUT7019"},
+		{"_spawn_on_negative_await_backend_unavailable.sg", "FUT7019"},
+		{"_spawn_on_negative_cancel_backend_unavailable.sg", "FUT7019"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.fixture, func(t *testing.T) {

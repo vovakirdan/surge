@@ -1,6 +1,6 @@
-// EXPECT-DIAG: FUT7014
+// EXPECT-DIAG: FUT7019
 // EXPECT-STAGE: backend
-// negative: on placement crossing backend unavailable
+// negative: on placement crossing in a synchronous context
 fn double(x: int) -> int {
     return x * 2;
 }

@@ -145,8 +145,13 @@ func (tc *typeChecker) checkOnCaptures(body ast.StmtID) ([]CrossingCaptureInfo, 
 			ok = false
 			continue
 		}
+		name := ""
+		if sym := tc.symbolFromID(cap.symID); sym != nil {
+			name = tc.lookupName(sym.Name)
+		}
 		captures = append(captures, CrossingCaptureInfo{
 			Symbol:  cap.symID,
+			Name:    name,
 			Expr:    cap.exprID,
 			Span:    cap.span,
 			Type:    capType,

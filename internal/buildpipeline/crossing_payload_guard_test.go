@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"surge/internal/diag"
@@ -29,7 +30,7 @@ async fn start(dst: Placement, m: own Movable) -> far Task<int> {
     return spawn on dst { ret use(own m); };
 }
 `,
-			codes: []diag.Code{diag.FutSpawnOnBackendUnavailable},
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
 			name: "heap backed result and await",
@@ -42,10 +43,7 @@ async fn wait(t: far Task<string>) -> TaskResult<string> {
     return t.await();
 }
 `,
-			codes: []diag.Code{
-				diag.FutSpawnOnBackendUnavailable,
-				diag.FutFarTaskAwaitBackendUnavailable,
-			},
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
 			name: "captured far task lease",
@@ -57,7 +55,7 @@ async fn start(dst: Placement, task: far Task<int>) -> far Task<int> {
     };
 }
 `,
-			codes: []diag.Code{diag.FutSpawnOnBackendUnavailable},
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
 			name: "heap element channel mint",
@@ -68,7 +66,7 @@ async fn produce(dst: Placement) -> int {
     return 0;
 }
 `,
-			codes: []diag.Code{diag.FutChannelOnBackendUnavailable},
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
 			name: "union reply through anchored block",
@@ -77,7 +75,7 @@ async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {
     return on ch { ret ch.recv(); };
 }
 `,
-			codes: []diag.Code{diag.FutOnBackendUnavailable},
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
 			name: "captured far task lease in anchored body",
@@ -90,7 +88,7 @@ async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
     };
 }
 `,
-			codes: []diag.Code{diag.FutOnBackendUnavailable},
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
 			name: "owned shard movable capture into anchored body",
@@ -108,16 +106,16 @@ async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
     };
 }
 `,
-			codes: []diag.Code{diag.FutOnBackendUnavailable},
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
-			name: "synchronous safe site",
+			name: "synchronous site names the missing async context",
 			src: `
 fn start(dst: Placement) -> far Task<int> {
     return spawn on dst { ret 7; };
 }
 `,
-			codes: []diag.Code{diag.FutSpawnOnBackendUnavailable},
+			codes: []diag.Code{diag.FutCrossingSyncContext},
 		},
 	}
 	for _, tc := range cases {
@@ -138,6 +136,77 @@ fn start(dst: Placement) -> far Task<int> {
 			for _, code := range tc.codes {
 				if findDiagnostic(res.Diagnose.Bag.Items(), code) == nil {
 					t.Errorf("missing %s; got %s", code.ID(), summarizeCodes(res.Diagnose.Bag.Items()))
+				}
+			}
+		})
+	}
+}
+
+// TestCrossingPayloadDiagnosticNamesTheField pins the kindness contract:
+// a nested heap-owning payload names the exact offending field path, and
+// the anchored union reply names the in-body unwrap fix.
+func TestCrossingPayloadDiagnosticNamesTheField(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	cases := []struct {
+		name     string
+		src      string
+		contains []string
+	}{
+		{
+			name: "nested field path",
+			src: `
+type Meta = { name: string };
+type Report = { id: int, meta: Meta };
+
+async fn start(dst: Placement) -> far Task<Report> {
+    return spawn on dst { ret Report{ id: 1, meta: Meta{ name: "x" } }; };
+}
+`,
+			contains: []string{"`Report`", "field `meta.name` owns heap memory"},
+		},
+		{
+			name: "anchored union reply names the unwrap fix",
+			src: `
+async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {
+    return on ch { ret ch.recv(); };
+}
+`,
+			contains: []string{"`Option<int>`", "unwrap it inside the block before `ret`"},
+		},
+		{
+			name: "shard movable capture names the binding",
+			src: `
+@shard_movable
+type Movable = { id: int };
+
+fn use(m: own Movable) -> int { return m.id; }
+
+async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
+    return on ch { ch.send(1); let _ = use(own m); ret nothing; };
+}
+`,
+			contains: []string{"capture `m`", "moves owned data across shards"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "main.sg")
+			if err := os.WriteFile(path, []byte(tc.src), 0o600); err != nil {
+				t.Fatalf("write source: %v", err)
+			}
+			res, _ := Compile(context.Background(), &CompileRequest{
+				TargetPath: path, Backend: BackendLLVM, MaxDiagnostics: 200,
+			})
+			if res.Diagnose == nil || res.Diagnose.Bag == nil {
+				t.Fatal("missing diagnostics bag")
+			}
+			found := findDiagnostic(res.Diagnose.Bag.Items(), diag.FutCrossingPayloadNotShippable)
+			if found == nil {
+				t.Fatalf("missing FUT7020, got %s", summarizeCodes(res.Diagnose.Bag.Items()))
+			}
+			for _, want := range tc.contains {
+				if !strings.Contains(found.Message, want) {
+					t.Fatalf("message %q does not contain %q", found.Message, want)
 				}
 			}
 		})
@@ -217,12 +286,11 @@ pub async fn wait_remote(t: far Task<string>) -> TaskResult<string> {
 	if res.Diagnose == nil || res.Diagnose.Bag == nil {
 		t.Fatalf("missing diagnostics: %v", compileErr)
 	}
-	for _, code := range []diag.Code{
-		diag.FutSpawnOnBackendUnavailable,
-		diag.FutFarTaskAwaitBackendUnavailable,
-	} {
-		if findDiagnostic(res.Diagnose.Bag.Items(), code) == nil {
-			t.Errorf("missing imported %s; got %s", code.ID(), summarizeCodes(res.Diagnose.Bag.Items()))
-		}
+	// Both imported crossings carry a heap-backed `string` payload, so the
+	// guard names the payload cause for each — proving the payload walk
+	// reaches dependency modules.
+	if got := countDiagnostics(res.Diagnose.Bag.Items(), diag.FutCrossingPayloadNotShippable); got < 2 {
+		t.Errorf("expected imported payload findings, got %d: %s",
+			got, summarizeCodes(res.Diagnose.Bag.Items()))
 	}
 }

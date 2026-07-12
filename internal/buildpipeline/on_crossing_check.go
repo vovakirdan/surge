@@ -17,46 +17,33 @@ func addOnCrossingBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseRes
 	if req == nil || diagRes == nil || diagRes.Bag == nil || diagRes.Builder == nil {
 		return
 	}
-	spans := collectOnCrossingSpans(req, diagRes.Sema)
-	for _, mod := range diagRes.DependencyAnalyses() {
-		for _, sr := range mod.Sema {
-			spans = append(spans, collectOnCrossingSpans(req, sr)...)
+	mainStrings := diagRes.Builder.StringsInterner
+	var findings []crossingGuardFinding
+	for _, form := range []sema.CrossingLoweringKind{
+		sema.CrossingLoweringOnPlacement,
+		sema.CrossingLoweringOnFarHandle,
+	} {
+		findings = append(findings, collectCrossingGuardFindings(
+			req, diagRes.Sema, mainStrings, form,
+			diag.FutOnBackendUnavailable, onCrossingUnavailableMsg)...)
+		for _, mod := range diagRes.DependencyAnalyses() {
+			var modStrings *source.Interner
+			if mod.Builder != nil {
+				modStrings = mod.Builder.StringsInterner
+			}
+			for _, sr := range mod.Sema {
+				findings = append(findings, collectCrossingGuardFindings(
+					req, sr, modStrings, form,
+					diag.FutOnBackendUnavailable, onCrossingUnavailableMsg)...)
+			}
 		}
 	}
-	for _, sp := range dedupeSpans(spans) {
+	for _, finding := range dedupeCrossingGuardFindings(findings) {
 		diagRes.Bag.Add(&diag.Diagnostic{
 			Severity: diag.SevError,
-			Code:     diag.FutOnBackendUnavailable,
-			Message:  onCrossingUnavailableMsg,
-			Primary:  sp,
+			Code:     finding.Code,
+			Message:  finding.Message,
+			Primary:  finding.Span,
 		})
 	}
-}
-
-// collectOnCrossingSpans returns the spans of sema-accepted `on` crossing
-// records whose form is not backend-supported.
-func collectOnCrossingSpans(req *CompileRequest, semaRes *sema.Result) []source.Span {
-	if req == nil || semaRes == nil {
-		return nil
-	}
-	var spans []source.Span
-	seen := make(map[source.Span]struct{})
-	for idx := range semaRes.CrossingLowering {
-		info := &semaRes.CrossingLowering[idx]
-		switch info.Kind {
-		case sema.CrossingLoweringOnPlacement, sema.CrossingLoweringOnFarHandle:
-		default:
-			continue
-		}
-		backendBlocked := crossingBackendGuardAppliesForRequest(req, info.Kind)
-		if !backendBlocked && crossingRecordExecutable(semaRes, info) {
-			continue
-		}
-		if _, dup := seen[info.Span]; dup {
-			continue
-		}
-		seen[info.Span] = struct{}{}
-		spans = append(spans, info.Span)
-	}
-	return spans
 }

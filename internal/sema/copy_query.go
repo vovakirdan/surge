@@ -1,6 +1,9 @@
 package sema
 
-import "surge/internal/types"
+import (
+	"surge/internal/source"
+	"surge/internal/types"
+)
 
 // IsCopyType reports whether values of the given type can be implicitly copied,
 // matching the semantics used by the type checker (builtin Copy + @copy types).
@@ -38,4 +41,37 @@ func resolveAlias(in *types.Interner, id types.TypeID) types.TypeID {
 		seen++
 	}
 	return id
+}
+
+// NonCopyCulpritPath names the first non-copy component inside a struct
+// payload for diagnostics: a dotted field path like "meta.name", or "" when
+// the type itself (or an unnamed component) is the culprit. The strings
+// interner renders field names; passing nil degrades to "".
+func (r *Result) NonCopyCulpritPath(strings *source.Interner, id types.TypeID) string {
+	if r == nil || r.TypeInterner == nil || strings == nil {
+		return ""
+	}
+	var walk func(t types.TypeID, depth int) string
+	walk = func(t types.TypeID, depth int) string {
+		if depth > 8 || t == types.NoTypeID || r.IsCopyType(t) {
+			return ""
+		}
+		resolved := resolveAlias(r.TypeInterner, t)
+		fields := r.TypeInterner.StructFields(resolved)
+		for i := range fields {
+			if r.IsCopyType(fields[i].Type) {
+				continue
+			}
+			name := strings.MustLookup(fields[i].Name)
+			if name == "" {
+				return ""
+			}
+			if inner := walk(fields[i].Type, depth+1); inner != "" {
+				return name + "." + inner
+			}
+			return name
+		}
+		return ""
+	}
+	return walk(id, 0)
 }
