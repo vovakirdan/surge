@@ -5311,3 +5311,17 @@ backend codes only where the shape is executable and the backend lacks
 transport. Sync golden fixtures re-pinned to FUT7019; default-closed
 matrix keeps VM/unknown; message content pinned by a dedicated test.
 Next: Task 6 (QUEUE_FULL stress, leak audit, bench row, epic closeout).
+
+## 2026-07-12 — Epic 14 Complete: Remote Channels
+
+Task 6 closed the epic: the queue-full stress row proves bounded
+per-attempt failure with control-lane progress past a saturated data
+lane (the saturation gate must park the in-flight body on channel
+capacity — a busy owner drains the fill before the flooded enqueue can
+observe it); the leak census churns 48 lifecycles (release racing a
+pinned block included) and finds the pending list and channel registry
+empty; the bench row lands at ~6.9/54.6/55.8 us per anchored block at
+1/2/8 shards — within noise of plain immediate-on, so the registry
+pin+cached-resolve architecture is free at the spine's scale. Credit
+flow control is RV2-DEBT-031. Epic acceptance recorded in the epic doc
+closeout; the cross-producer FIFO negative moves with RV2-DEBT-025.

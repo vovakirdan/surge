@@ -1,5 +1,48 @@
 # Epic 14: Remote Channels Over The Transport Spine
 
+## Closeout (2026-07-12)
+
+All tasks complete (1, 1.5, 2-3, 4, 5, 5b, 6 — see `14-tasks/README.md`).
+Acceptance against the draft criteria:
+
+- Anchored `on ch` send/recv/close execute on LLVM across
+  `SURGE_SHARDS=1,2,8` incl. owner==caller (production capability, no
+  override): `TestRuntimeV2OnChAnchoredOpsAcrossShards`.
+- The race/failure matrix is test-owned and green repeatedly (behavior
+  suite rows 1-10, incl. the self-deadlock expected-panic rows and the
+  leak census).
+- Single-producer owner-side FIFO observed source-side (e2e 41-then-42);
+  the cross-producer negative observation is BLOCKED on copyable far
+  handles (`RV2-DEBT-025`) — one holder cannot be two producers — and
+  moves with that debt.
+- Self-deadlock behavior: runtime detection in every build with the
+  actionable panic (decision 5), plus the driver-mode boundary and the
+  FFI opt-out documented in `rt_remote_task_deadlock.c`.
+- No dispatcher blocks on channel capacity; parked bodies carry cancel
+  and teardown wake paths (rows 4-6); QUEUE_FULL is bounded per attempt
+  with control-lane progress and `credit_stalls` structurally zero
+  (`RV2-DEBT-031`).
+- Diagnostics precision shipped for the whole family: FUT7019
+  (sync context, with the make-it-async fix), FUT7020 (payload/capture,
+  with capture names, exact nested field paths, and the anchored unwrap
+  hint); generic backend codes survive only on genuinely backend-blocked
+  rows; `unsupported_fallback_attempts` asserted zero across rows.
+- Bench row (2000 iters, reference host): on-ch-pair 72491/9166/8970
+  pairs/sec at 1/2/8 shards — ~6.9/54.6/55.8 us per anchored block,
+  within noise of the plain immediate-on block; the registry pin adds no
+  measurable cost. Baselines reproduced within noise on the same run.
+
+Vertical-1 boundaries carried as named debt: general anchored bodies
+(`RV2-DEBT-030`, async transform behind an opaque artifact seam), union
+reply payloads (in-body unwrap is the pattern until a by-value wire
+format), copyable far handles (`RV2-DEBT-025`, blocks concurrent
+source-level park-retry and multi-producer rows), credit flow control
+(`RV2-DEBT-031`). Sentrux at closeout (committed tree): root `6182`
+(`min_equality` `0.4484`, RV2-DEBT-029), `internal` `6506`, `runtime`
+`5304`, `runtime/native` `5394` — the small native drift joins the
+RV2-DEBT-028 recovery scope.
+
+
 **Status:** design accepted (2026-07-10); ready for task slicing. Boundary
 decisions were validated by an independent external review (Codex via the
 second-opinion pass); per-decision outcomes are recorded inline. No task may
