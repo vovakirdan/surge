@@ -24,6 +24,7 @@ enum {
     POLL_RTB_ANCHORED_HELPER_SEND = 9110,
     POLL_RTB_ANCHORED_HELPER_RECV = 9111,
     POLL_RTB_ANCHORED_HELPER_CLOSE = 9112,
+    POLL_RTB_ANCHORED_FLOODED_CALLER = 9113,
 };
 
 typedef struct rtb_child_state {
@@ -127,6 +128,10 @@ int rtb_mode_anchored_owner_teardown(void);
 int rtb_mode_anchored_self_deadlock(void);
 int rtb_mode_anchored_pin_vs_release(void);
 int rtb_mode_anchored_helper_protocol(void);
+int rtb_mint_channel(rtb_create_state* create, uint64_t placement, uint64_t capacity);
+void rtb_anchored_audit_poll_dispatch(uint64_t id);
+int rtb_mode_anchored_queue_full(void);
+int rtb_mode_anchored_leak_audit(void);
 
 int rtb_mode_channel_create(void);
 int rtb_mode_channel_kind_aliasing(void);

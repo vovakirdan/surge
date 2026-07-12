@@ -188,6 +188,20 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 				"SURGE_REMOTE_DEADLOCK_DETECT=0",
 			),
 		},
+		{
+			name: "anchored-queue-full-bounded-with-control-progress",
+			mode: "anchored-queue-full",
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The parked block's counterparty is the harness main thread.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0",
+			),
+		},
+		{
+			name: "anchored-lifecycle-churn-leaves-no-residue",
+			mode: "anchored-leak-audit",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

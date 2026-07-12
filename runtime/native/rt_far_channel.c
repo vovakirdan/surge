@@ -245,6 +245,22 @@ int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle, void**
     return pinned;
 }
 
+// Test-support census: live (non-reclaimed) registry entries. Harness rows
+// use it to prove teardown leaves nothing behind.
+size_t rt_far_channel_debug_live_count(rt_executor* ex) {
+    rt_far_channel_state* state = rt_far_channel_state_get(ex);
+    if (state == NULL) {
+        return 0;
+    }
+    size_t count = 0;
+    pthread_mutex_lock(&state->lock);
+    for (const rt_far_channel_entry* it = state->head; it != NULL; it = it->next) {
+        count++;
+    }
+    pthread_mutex_unlock(&state->lock);
+    return count;
+}
+
 void rt_far_channel_unpin(rt_executor* ex, const rt_far_task_handle* handle) {
     rt_far_channel_state* state = rt_far_channel_state_get(ex);
     if (state == NULL || handle == NULL) {

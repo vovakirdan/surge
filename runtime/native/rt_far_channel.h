@@ -6,6 +6,8 @@
 typedef struct rt_far_channel_state rt_far_channel_state;
 
 rt_far_channel_state* rt_far_channel_state_get(rt_executor* ex);
+// Test-support census of live registry entries.
+size_t rt_far_channel_debug_live_count(rt_executor* ex);
 // Init-rollback pair; mirrors the remote-task state convention.
 rt_runtime_status rt_far_channel_state_init(rt_executor* ex);
 rt_runtime_status rt_far_channel_state_destroy(rt_executor* ex);

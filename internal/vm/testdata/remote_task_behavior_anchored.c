@@ -152,7 +152,7 @@ void rtb_anchored_poll_dispatch(uint64_t id) {
     }
 }
 
-static int rtb_mint_channel(rtb_create_state* create, uint64_t placement, uint64_t capacity) {
+int rtb_mint_channel(rtb_create_state* create, uint64_t placement, uint64_t capacity) {
     void* task = rtb_start_channel_create(create, placement, capacity);
     uint8_t kind = 0;
     uint64_t bits = 0;
