@@ -13,7 +13,7 @@ race/failure matrix, the diagnostics contract, and the stop conditions.
 | 4 | `04-on-ch-lowering.md` | Complete | compiler + gates | 3 |
 | 5 | `05-negative-matrix.md` | Complete | tests + audit | 4 |
 | 5b | `05b-diagnostics-precision.md` | Complete | guard diagnostics | 4 |
-| 6 | QUEUE_FULL stress, bench row, gate wiring, debt, closeout | Pending (next) | bench + CI + closeout | all |
+| 6 | `06-stress-bench-closeout.md` | Complete | bench + CI + closeout | all |
 
 Rules: Epic 13's task rules apply unchanged (expand only the next task,
 test-first or recorded spike plan, stop conditions route findings to owners,
