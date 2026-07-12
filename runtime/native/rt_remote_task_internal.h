@@ -56,6 +56,9 @@ struct rt_remote_task_pending {
     uint64_t body_poll_fn_id;
     void* body_state;
     rt_far_task_handle anchor;
+    // Anchored blocks only: the local channel resolved atomically with the
+    // dispatch-time pin; valid until the reply-edge unpin.
+    void* anchored_channel;
     uint64_t result_bits;
     _Atomic uint32_t refs;
     uint8_t listed;

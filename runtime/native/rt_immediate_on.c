@@ -200,7 +200,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         // Validate and pin the anchor before any body exists: a stale anchor
         // answers without running anything, and a live one cannot be
         // reclaimed under the block's feet until the reply edge resolves.
-        if (!rt_far_channel_pin(ex, &pending->anchor)) {
+        if (!rt_far_channel_pin(ex, &pending->anchor, &pending->anchored_channel)) {
             rt_remote_task_reply_or_finish(ex,
                                            pending,
                                            RT_REMOTE_TASK_STATUS_STALE_TOKEN,

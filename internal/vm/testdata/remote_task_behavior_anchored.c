@@ -72,6 +72,11 @@ static void poll_anchored_pinned_send(rtb_anchored_state* state) {
     if (atomic_load_explicit(&state->proceed, memory_order_acquire) == 0) {
         rt_async_yield(state);
     }
+    // The dispatch-cached pointer must match the body's own resolve and must
+    // still be served after the release (the pin holds it to the reply edge).
+    if (rt_remote_task_anchored_channel_current() != state->channel) {
+        rt_async_return(state, 0);
+    }
     if (!rt_channel_send(state->channel, state->value)) {
         rt_async_yield(state);
     }

@@ -226,3 +226,30 @@ rt_remote_task_pending* rt_remote_task_pending_take_owner(const rt_task* task) {
     pthread_mutex_unlock(&state->lock);
     return target;
 }
+
+// The anchored block's body reaches its channel through the pending that
+// created it: dispatch cached the pointer atomically with the pin, so the
+// body sees a valid channel for the block's whole lifetime even when a
+// release races the block (the pin defers reclamation to the reply edge).
+// NULL means the calling task is not a bound anchored body.
+void* rt_remote_task_anchored_channel_current(void) {
+    rt_executor* ex = ensure_exec();
+    rt_remote_task_state* state = rt_remote_task_state_get(ex);
+    const rt_task* current = rt_current_task();
+    if (state == NULL || current == NULL) {
+        return NULL;
+    }
+    void* channel = NULL;
+    pthread_mutex_lock(&state->lock);
+    for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
+        if (it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED &&
+            it->status == RT_REMOTE_TASK_STATUS_PENDING && it->handle.task_id == current->id &&
+            it->handle.generation == current->generation &&
+            it->handle.owner_shard_id == current->owner_shard_id) {
+            channel = it->anchored_channel;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&state->lock);
+    return channel;
+}

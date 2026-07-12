@@ -221,7 +221,10 @@ void rt_far_channel_release_all(rt_executor* ex) {
 // generation, and owner) so release/teardown cannot reclaim the channel
 // under the body's feet. Returns nonzero on success; the pin is dropped by
 // rt_far_channel_unpin when the block's reply edge resolves.
-int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle) {
+// Pin and resolve are one atomic step: the OPEN check, the inflight
+// increment, and the channel-pointer read happen under the registry lock,
+// so a release racing the pin can never yield "pinned but unresolvable".
+int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle, void** out_channel) {
     rt_far_channel_state* state = rt_far_channel_state_get(ex);
     if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
         return 0;
@@ -233,6 +236,9 @@ int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle) {
         entry->owner_shard_id == handle->owner_shard_id &&
         atomic_load_explicit(&entry->state, memory_order_acquire) == RT_FAR_CHANNEL_OPEN) {
         (void)atomic_fetch_add_explicit(&entry->inflight, 1, memory_order_acq_rel);
+        if (out_channel != NULL) {
+            *out_channel = entry->channel;
+        }
         pinned = 1;
     }
     pthread_mutex_unlock(&state->lock);

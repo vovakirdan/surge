@@ -66,5 +66,7 @@ void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller);
 void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status status);
 // Idle-park-edge self-deadlock detection for suspended execute blocks.
 void rt_remote_task_deadlock_check(rt_executor* ex);
+// The dispatch-cached local channel of the calling anchored body, or NULL.
+void* rt_remote_task_anchored_channel_current(void);
 
 #endif
