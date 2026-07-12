@@ -228,9 +228,17 @@ func TestRuntimeV2LifecycleStaticJoinPollOwnerLane(t *testing.T) {
 func TestRuntimeV2LifecycleStaticCompletionResultVisibilityOrder(t *testing.T) {
 	body := lifecycleFindFunctionBody(t, "mark_done")
 	resultIdx := strings.Index(body, "task->result_kind = result_kind")
-	doneIdx := strings.Index(body, "task_status_store(task, TASK_DONE)")
+	doneIdx := strings.Index(body, "rt_task_status_store_done_for_external_awaiters(task)")
 	if resultIdx < 0 || doneIdx < 0 || resultIdx > doneIdx {
-		t.Fatalf("mark_done must write the result before the TASK_DONE release store:\n%s", body)
+		t.Fatalf("mark_done must write the result before the TASK_DONE store call:\n%s", body)
+	}
+	// The store hides behind the external-awaiter helper, so pin the helper
+	// to the DONE store too — the indirection must not be able to mask a
+	// weakened or missing publication.
+	internalHeader := lifecycleReadNativeFile(t, "rt_async_internal.h")
+	if !strings.Contains(internalHeader, "task_status_store_seq_cst(task, TASK_DONE)") {
+		t.Fatal("rt_task_status_store_done_for_external_awaiters must publish TASK_DONE " +
+			"with the seq_cst store")
 	}
 	needsControl := lifecycleFindFunctionBody(t, "mark_done_needs_control")
 	if strings.Contains(needsControl, "WAKER_JOIN") {
