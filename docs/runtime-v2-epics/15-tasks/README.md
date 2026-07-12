@@ -7,9 +7,9 @@ review records, and the stop conditions.
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
 | 1 | `01-kickoff-attribution.md` | Complete | evidence + decision table + move inventory | none |
-| 1b | liveness-panic precondition | In progress | diagnostics + TSan stress + overlap review | 1 |
-| 2 | gate manifest + integrity meta-test | Pending | tooling + make check step | 1b |
-| 3 | structural pass (all enforced scopes) | Pending | refactor, per-row dispositions | 1, 1b |
+| 1b | `01b-liveness-precondition.md` | Complete | diagnostics + TSan stress + overlap review | 1 |
+| 2 | `02-gate-integrity.md` | Complete | tooling + make check step | 1b |
+| 3 | structural pass (all enforced scopes) | In progress | refactor, per-row dispositions | 1, 1b |
 | 3r | remeasure noise bands post-cleanup | Pending | measurement | 3 |
 | 4 | threshold re-baseline + SENTRUX_POLICY | Pending | policy + debt closure | 3r |
 | 5 | naming remainder (allowlist -> C3 -> C2) | Pending | docs + fixtures | none (after 2 preferred) |

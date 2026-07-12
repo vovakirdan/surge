@@ -1,0 +1,10 @@
+# Gate-integrity exemption ledger. One entry per line:
+#   kind name owner reason...
+# kind = gate  -> a Makefile target deliberately not reachable from the
+#                 check / runtime-v2-check roots (manual, owned).
+# kind = test  -> a test deliberately outside every gate selection.
+# kind = tag   -> a build-tag family with its own runner outside the
+#                 Makefile go-test surface.
+gate runtime-v2-liveness-stress runtime-maintainers quarantined RV2-DEBT-027 recurrence bound; manual by design, run at fix-epoch cadence
+gate bench bench-owner performance benchmark target, not a correctness gate
+tag golden golden.sh golden fixtures run through scripts/golden.sh, not a Makefile go-test line

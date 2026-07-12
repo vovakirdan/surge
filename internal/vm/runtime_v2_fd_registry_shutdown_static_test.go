@@ -383,6 +383,10 @@ void rt_far_task_release_all(rt_executor* ex) {
     (void)ex;
 }
 
+void rt_far_channel_release_all(rt_executor* ex) {
+    (void)ex;
+}
+
 size_t rt_remote_spawn_drain_inbound_locked(rt_executor* ex, rt_shard* shard, size_t limit) {
     (void)ex;
     (void)shard;
