@@ -38,6 +38,10 @@ int rtb_mode_channel_create(void) {
         rt_transport_debug_snapshot(rt_runtime_shard(runtime, 0));
     struct rt_transport_debug_snapshot destination =
         rt_transport_debug_snapshot(rt_runtime_shard(runtime, 1));
+    if (destination.unsupported_fallback_attempts != 0 ||
+        source.unsupported_fallback_attempts != 0) {
+        return rtb_fail("channel create must not attempt a local fallback");
+    }
     if (destination.far_channel_create_requests != 1 || source.far_channel_create_replies != 1) {
         return rtb_fail("create trace counters mismatch");
     }

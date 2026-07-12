@@ -60,6 +60,57 @@ async fn start(dst: Placement, task: far Task<int>) -> far Task<int> {
 			codes: []diag.Code{diag.FutSpawnOnBackendUnavailable},
 		},
 		{
+			name: "heap element channel mint",
+			src: `
+async fn produce(dst: Placement) -> int {
+    let ch: far Channel<string> = channel_on::<string>(dst, 4);
+    let _ = ch;
+    return 0;
+}
+`,
+			codes: []diag.Code{diag.FutChannelOnBackendUnavailable},
+		},
+		{
+			name: "union reply through anchored block",
+			src: `
+async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {
+    return on ch { ret ch.recv(); };
+}
+`,
+			codes: []diag.Code{diag.FutOnBackendUnavailable},
+		},
+		{
+			name: "captured far task lease in anchored body",
+			src: `
+async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
+    return on ch {
+        ch.send(1);
+        let _cancelled: TaskResult<nothing> = task.cancel();
+        ret nothing;
+    };
+}
+`,
+			codes: []diag.Code{diag.FutOnBackendUnavailable},
+		},
+		{
+			name: "owned shard movable capture into anchored body",
+			src: `
+@shard_movable
+type Movable = { id: int };
+
+fn use(m: own Movable) -> int { return m.id; }
+
+async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
+    return on ch {
+        ch.send(1);
+        let _ = use(own m);
+        ret nothing;
+    };
+}
+`,
+			codes: []diag.Code{diag.FutOnBackendUnavailable},
+		},
+		{
 			name: "synchronous safe site",
 			src: `
 fn start(dst: Placement) -> far Task<int> {

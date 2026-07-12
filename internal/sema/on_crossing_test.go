@@ -153,6 +153,8 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"on_without_crosses_ok", `fn f() -> TaskResult<int> { return on pool { ret 1; }; }`, ""},
 		{"nested_on", `fn f() -> TaskResult<int> { return on pool { let inner: TaskResult<int> = on distributed { ret 1; }; ret 1; }; }`, "SEM3153"},
 		{"suspend_in_blocking", `fn f() -> TaskResult<int> { blocking { let _ = on pool { ret 1; }; ret nothing; }; return on pool { ret 1; }; }`, "SEM3152"},
+		{"anchored_suspend_in_blocking", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { blocking { let _ = on ch { ch.send(1); ret nothing; }; ret nothing; }; return on ch { ch.send(2); ret nothing; }; }`, "SEM3152"},
+		{"anchored_borrow_capture", `fn rd(r: &Plain) -> int { return r.id; } fn f(ch: far Channel<int>, p: Plain) -> TaskResult<nothing> { let r: &Plain = &p; return on ch { ch.send(1); let _ = rd(r); ret nothing; }; }`, "SEM3165"},
 	}
 
 	for _, tc := range cases {

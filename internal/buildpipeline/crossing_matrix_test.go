@@ -43,6 +43,16 @@ async fn lifecycle(dst: Placement) -> int {
     };
 }
 
+async fn anchored(ch: far Channel<int>) -> int {
+    return compare on ch {
+        ch.send(4);
+        ret 4;
+    } {
+        Success(v) => v;
+        Cancelled() => -1;
+    };
+}
+
 @entrypoint
 fn main() -> int {
     return 0;
