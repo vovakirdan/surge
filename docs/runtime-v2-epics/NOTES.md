@@ -5286,3 +5286,16 @@ only; VM/unknown backends keep FUT7018/FUT7014; the two-stage payload
 gate keeps non-copy replies guarded everywhere. Task 5b sharpens those
 messages to name the real cause. Next: Task 5 (negative matrix, payload
 negatives, hidden-fallback audit).
+
+## 2026-07-12 — Epic 14 Task 5 Complete: Negative Matrix + Payload Gates
+
+Tests only: the anchored executable shape joined the VM/unknown guarded
+matrix; payload negatives pin the heap-element mint (FUT7018), the union
+reply, the captured far-task lease, and the shard-movable capture behind
+FUT7014 on LLVM; sema rows prove SEM3152/SEM3165 hold behind the
+far-handle destination; the far-channel create row watches the
+unsupported-fallback tripwire. Finding recorded in the task doc: plain
+heap-owning captures die at sema (SEM3168) before any backend gate — the
+payload guard's genuine surface is shard-movable captures and non-copy
+payloads. Next: Task 5b (diagnostics precision across the crossing
+family).

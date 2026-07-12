@@ -11,8 +11,8 @@ race/failure matrix, the diagnostics contract, and the stop conditions.
 | 2 | `03-anchored-ops-runtime.md` (joint with 3) | Complete | test harness rows | 1, 1.5 |
 | 3 | `03-anchored-ops-runtime.md` (joint with 2) | Complete | native runtime | 2 |
 | 4 | `04-on-ch-lowering.md` | Complete | compiler + gates | 3 |
-| 5 | negative matrix + payload negatives + hidden-fallback audit | Pending (next) | tests + audit | 4 |
-| 5b | diagnostics precision pass (crossing family) | Pending | sema diagnostics | 4 |
+| 5 | `05-negative-matrix.md` | Complete | tests + audit | 4 |
+| 5b | diagnostics precision pass (crossing family) | Pending (next) | sema diagnostics | 4 |
 | 6 | QUEUE_FULL stress, bench row, gate wiring, debt, closeout | Pending | bench + CI + closeout | all |
 
 Rules: Epic 13's task rules apply unchanged (expand only the next task,

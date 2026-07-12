@@ -1,6 +1,16 @@
 # Epic 14 Task 5: Negative Matrix, Payload Negatives, Fallback Audit
 
-**Status:** in progress (2026-07-12).
+**Status:** complete (2026-07-12). All four scopes landed as tests only
+(no production code). Closeout Sentrux (committed tree): identical to the
+Task 4 closeout — root `6183` (RV2-DEBT-029 unchanged, equality `0.4486`),
+`internal` `6507`, `runtime` `5310`, `runtime/native` `5399`.
+
+One boundary sharpened while writing rows: a heap-owning capture (e.g. a
+`string`) into an anchored body is rejected by SEMA (SEM3168, not
+shard-movable) before any backend gate — a stronger wall than the payload
+guard; the guard-level negative is the `@shard_movable` capture, which
+passes sema and stops at the executable gate (FUT7014). Task 5b names
+these causes in the message text.
 **Kind:** tests + audit (no production code expected).
 **Depends on:** Task 4 (both channel forms open on LLVM).
 
