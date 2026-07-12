@@ -1,6 +1,8 @@
 # Epic 15: Structural Cleanup And Gate Integrity
 
-**Status:** draft for review (2026-07-12).
+**Status:** reviewed, ready for Task 1 (2026-07-12). Boundary decisions
+settled by the first second-opinion pass; task slicing hardened by a full
+Codex consult (17 findings, all incorporated — record below).
 **Kind:** structural refactoring + tooling integrity; behavior-neutral by
 contract (every change proves itself with the full gate set).
 
@@ -83,36 +85,71 @@ Three debts converged after Epic 14:
    `rt_string.c` splits are real refactors of non-Runtime-V2 code with
    their own regression surface; candidate for a later epic.
 
-## Planned Task Slices
+## Planned Task Slices (order: 1 -> 1b -> 2 -> 3 -> 3r -> 4 -> 5 -> 6)
 
-1. Kickoff/evidence: pin Sentrux metric semantics (`equality`,
-   `redundancy`, `quality_signal` composition), measure per-metric
-   commit-to-commit noise bands over recent history, and produce
-   per-file / per-edge attribution for each failing scope; classify each
-   contributor: real smell vs inherent coupling vs resolver noise.
-   Output: a decision table (fix / rebaseline / advisory) that tasks 3-4
-   execute.
-1b. Liveness-panic precondition (decision 5): diagnostics capture, TSan
-   stress-repetition harness, quarantine label, and a path-overlap risk
-   review against every structural move planned by task 1.
-2. Gate-integrity meta-test: enumerate tests vs gate patterns, wire into
-   `make check`; exemption list starts empty except documented
-   slow/manual suites; also assert every gate `-run` regex still matches
-   at least one test (the Epic 13 "verified non-empty" practice,
-   mechanized).
-3. Structural pass over `runtime/native` remote-task family per the
-   task-1 decision table (shared-helper extraction, module boundary
-   moves, dedup of the census/debug shapes), measured on the committed
-   tree after each sub-step; stop when the decision table is exhausted —
-   not when the metric is satisfied.
-4. Threshold re-baseline for whatever task 1 classified inherent, with
-   dated rationale and margins wide enough that a small commit cannot
-   flip a gate; update `SENTRUX_POLICY.md`; close or narrow
+1. Kickoff/evidence. Pin Sentrux metric semantics, measure per-metric
+   commit-to-commit noise bands over recent history, attribute each
+   failing metric per file/edge ACROSS ALL THREE ENFORCED SCOPES
+   (`internal`, `runtime`, `runtime/native`), and produce two
+   acceptance-tested artifacts: (a) a decision table where every row
+   names the metric, the evidence, the classification (real smell /
+   inherent / resolver noise), the disposition (fix / rebaseline /
+   advisory), the target task, the owner, and a fallback; (b) a concrete
+   STRUCTURAL MOVE INVENTORY (which helpers merge, which boundaries
+   move) that 1b reviews and task 3 executes. A smell found outside
+   `runtime/native` gets a row and a disposition like any other — no
+   scope may fail acceptance without an owned row.
+1b. Liveness-panic precondition (decision 5), AFTER task 1 (it reviews
+   overlap against the move inventory) and BEFORE task 2 (its stress
+   harness adds a test the gate inventory must see). Concrete exit
+   criteria: the exact panic diagnostics and environment fields
+   recorded in the debt row; a TSan stress-repetition harness (>= 50
+   iterations per run, seed/env captured) landed and quarantine-labeled
+   as the exemption list's single seeded entry; a written overlap
+   verdict for every move in the inventory; the handoff condition to
+   the fix owner stated in RV2-DEBT-027.
+2. Gate manifest + integrity meta-test. First build the CANONICAL GATE
+   MANIFEST — every Makefile target and manual suite with its full
+   command context (tags, env, timeout, owner, reachable-from-check or
+   explicitly-manual). The meta-test then validates against that
+   manifest: every runtime-v2 test selected by some gate (via `go test
+   -list` UNDER THE GATE'S OWN TAGS AND ENV, never a regex
+   reimplementation), every gate selecting at least one test, every
+   non-manual gate reachable from `make check`. Bootstrap rule: the
+   meta-test cannot prove its own execution, so `make check` invokes it
+   as a direct step of the check target itself — the outer gate is the
+   bootstrap. Negative controls run in isolated subprocesses and never
+   flip gate status. Exemptions carry owner + reason; the list starts
+   with exactly one entry (the 1b quarantined stress row).
+3. Structural pass per the task-1 decision table and move inventory —
+   all enforced scopes, not only `runtime/native`. Each sub-step is a
+   real commit (the committed-tree measurement rule is operational, not
+   aspirational). Behavior neutrality for C moves is proven beyond the
+   gate set: the exported `rt_*` symbol census (`nm`) and the public
+   header include graph are compared before/after each sub-step. Every
+   decision-table row ends in exactly one state: FIXED (with the
+   measured delta), RECLASSIFIED to task 4 (with why the refactor was
+   wrong), or BLOCKED (owner + evidence). The task ends when no row is
+   open — never "when the metric is satisfied".
+3r. Remeasure. Noise bands and operating points are recomputed on the
+   post-cleanup committed tree; task 4 consumes THESE numbers, not the
+   task-1 ones.
+4. Threshold re-baseline for rows classified inherent, using the 3r
+   measurements, with dated rationale per threshold in
+   `SENTRUX_POLICY.md`; the root scope's advisory status and its
+   re-promotion condition are written there too; close or narrow
    RV2-DEBT-028/029.
-5. Naming remainder: fixture-matrix promotion (C3), the 8 headers (C2),
-   plan-doc closeout with a zero census.
-6. Closeout: full gate set twice, Sentrux four scopes recorded, debt
-   dispositions.
+5. Naming remainder. Order inside the task: inventory allowed
+   references FIRST (RV2-DEBT pointers, sync-point names stay), create
+   the durable `docs/crossing-fixture-matrix.md` (C3) BEFORE rewriting
+   the 8 fixture headers (C2), then close `naming-cleanup-plan.md` with
+   the final census against that allowlist — "zero references" means
+   zero OUTSIDE the recorded allowlist.
+6. Closeout. Beyond re-running per-task proofs: a clean-clone
+   reproduction of the full gate set, no generated artifacts in the
+   tree, Sentrux output stable across two consecutive runs, and the
+   exported-symbol census unchanged relative to the epic's start except
+   for moves the decision table records.
 
 ## Acceptance Criteria (draft)
 
@@ -120,12 +157,35 @@ Three debts converged after Epic 14:
   noise-band-derived margins; the root scope is recorded as advisory
   with its re-promotion condition; every threshold change carries a
   dated rationale.
-- The gate-integrity meta-test runs in `make check`, has caught (in a
-  deliberate negative control) both rot modes: an unlisted test and a
-  pattern matching nothing.
+- The gate manifest exists with an owner per gate; the meta-test runs as
+  a direct step of `make check` and has caught, in isolated-subprocess
+  negative controls, both rot modes: an unlisted test and a pattern
+  matching nothing.
+- Every decision-table row is closed as fixed, rebaselined, or blocked
+  with an owner — including any row outside `runtime/native`.
 - Zero epic/task references outside `docs/` and commit messages; the
   spec row IDs resolve to a durable document.
 - Every task's gates green twice; goldens comment-only.
+
+## Structure Review Record (2026-07-12, Codex consult)
+
+Seventeen findings on slicing/ordering, all incorporated: task-1 scope
+widened to every enforced scope with owned rows (was: attribution
+everywhere, fixes only in `runtime/native`); task 1 now outputs a
+concrete move inventory (1b's overlap review had an impossible
+dependency on a plan that didn't exist); order fixed to 1 -> 1b -> 2 (the
+stress harness adds a test the gate inventory must see); the
+quarantine-vs-empty-exemptions contradiction resolved (one seeded owned
+entry); the meta-test's own execution bootstrapped by the `make check`
+target directly; regex matching replaced by manifest-driven `go test
+-list` under each gate's tags/env; task 3 given a per-row failure
+disposition and ABI/symbol/include-graph neutrality checks; an explicit
+remeasure step (3r) inserted so task 4 does not encode stale noise
+bands; sub-step measurement defined as real commits; task 5 ordered
+(allowlist -> C3 doc -> C2 headers) with "zero references" scoped to the
+allowlist; 1b given numeric exit criteria; closeout given release
+invariants (clean clone, artifact-free tree, stable Sentrux, symbol
+census).
 
 ## Second-Opinion Record (2026-07-12, Codex via /second-opinion)
 
