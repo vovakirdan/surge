@@ -15,6 +15,9 @@ const onCrossingPrelude = `
 tag Success<T>(T);
 tag Cancelled();
 type TaskResult<T> = Success(T) | Cancelled;
+tag Some<T>(T);
+tag None();
+type Option<T> = Some(T) | None;
 	@intrinsic @copy
 	type Placement = { __opaque: int };
 type ShardId = uint32;
@@ -65,6 +68,9 @@ type ShardId = uint32;
 tag Success<T>(T);
 tag Cancelled();
 type TaskResult<T> = Success(T) | Cancelled;
+tag Some<T>(T);
+tag None();
+type Option<T> = Some(T) | None;
 @intrinsic const pool: Placement;
 
 fn f() -> TaskResult<int> {
@@ -123,6 +129,16 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"tcp_close_ok", `fn f(conn: far TcpConn) -> TaskResult<nothing> { return on conn { conn.close(); ret nothing; }; }`, ""},
 		{"tcp_read_rejected", `fn f(conn: far TcpConn) -> TaskResult<nothing> { return on conn { conn.read(); ret nothing; }; }`, "SEM3151"},
 		{"far_op_outside_on", `fn f(conn: far TcpConn) -> nothing { conn.close(); return nothing; }`, "SEM3142"},
+
+		// Anchored channel operations carry the local surface (ON-CHAN):
+		// send(own T) -> nothing, recv() -> Option<T>, close() -> nothing.
+		{"anchored_send_ok", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.send(1); ret nothing; }; }`, ""},
+		{"anchored_recv_ok", `fn f(ch: far Channel<int>) -> TaskResult<int> { return on ch { let v: Option<int> = ch.recv(); let _ = v; ret 1; }; }`, ""},
+		{"anchored_close_ok", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.close(); ret nothing; }; }`, ""},
+		{"anchored_send_missing_value", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.send(); ret nothing; }; }`, "SEM3175"},
+		{"anchored_send_wrong_type", `fn f(ch: far Channel<int>, p: Plain) -> TaskResult<nothing> { return on ch { ch.send(p); ret nothing; }; }`, "SEM3015"},
+		{"anchored_recv_takes_no_args", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { let _ = ch.recv(1); ret nothing; }; }`, "SEM3175"},
+		{"anchored_try_send_unsupported", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { let _ = ch.try_send(1); ret nothing; }; }`, "SEM3175"},
 
 		// Effect + structure (ON-NEST). The `crosses` requirement (SEM3162) is
 		// retired: `on dst { }` is valid without a `crosses` marker (the effect is

@@ -4,6 +4,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -34,6 +35,14 @@ func (tc *typeChecker) typeFarHandleCall(member *ast.ExprMemberData, receiverTyp
 		return types.NoTypeID
 	}
 
+	// Anchored channel operations carry the local `Channel<T>` surface:
+	// `send(own T) -> nothing`, `recv() -> Option<T>`, `close() -> nothing`.
+	// The op executes owner-side against the resolved local channel, so the
+	// signatures must not drift from `core/intrinsics.sg`.
+	if element := tc.channelPayloadType(tc.farInner(receiverType)); element != types.NoTypeID {
+		return tc.typeAnchoredChannelOp(methodName, element, member, receiverType, recvSym, call, span)
+	}
+
 	// Accepted anchored operation: type argument expressions for the usual
 	// checks; the crossing itself is compile-only.
 	for _, arg := range call.Args {
@@ -47,6 +56,69 @@ func (tc *typeChecker) typeFarHandleCall(member *ast.ExprMemberData, receiverTyp
 		ReceiverType:   receiverType,
 	})
 	return tc.types.Builtins().Nothing
+}
+
+// typeAnchoredChannelOp types one anchored channel operation with local
+// parity. Arity and value-type failures name the expected local signature so
+// the fix is readable from the diagnostic alone.
+func (tc *typeChecker) typeAnchoredChannelOp(
+	methodName string,
+	element types.TypeID,
+	member *ast.ExprMemberData,
+	receiverType types.TypeID,
+	recvSym symbols.SymbolID,
+	call *ast.ExprCallData,
+	span source.Span,
+) types.TypeID {
+	record := func() {
+		tc.recordActiveOnRemoteOp(CrossingRemoteOpInfo{
+			Method:         methodName,
+			Span:           span,
+			ReceiverExpr:   member.Target,
+			ReceiverSymbol: recvSym,
+			ReceiverType:   receiverType,
+		})
+	}
+	switch methodName {
+	case "send":
+		if len(call.Args) != 1 {
+			tc.report(diag.SemaOnChannelOp, span,
+				"anchored `send` takes exactly one value of the channel element type `%s`",
+				tc.typeLabel(element))
+			return types.NoTypeID
+		}
+		argType := tc.typeExprWithExpected(call.Args[0].Value, element)
+		// The local signature takes `own T`: moved owned values match the
+		// element on their nominal type.
+		if argType != types.NoTypeID && !tc.typesAssignable(element, argType, true) &&
+			!tc.typesAssignable(element, tc.valueType(argType), true) {
+			tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Args[0].Value),
+				"anchored `send` value must be `%s` (the channel element type), got `%s`",
+				tc.typeLabel(element), tc.typeLabel(argType))
+			return types.NoTypeID
+		}
+		record()
+		return tc.types.Builtins().Nothing
+	case "recv":
+		if len(call.Args) != 0 {
+			tc.report(diag.SemaOnChannelOp, span, "anchored `recv` takes no arguments")
+			return types.NoTypeID
+		}
+		record()
+		return tc.resolveOptionType(element, span, tc.scopeOrFile(tc.currentScope()))
+	case "close":
+		if len(call.Args) != 0 {
+			tc.report(diag.SemaOnChannelOp, span, "anchored `close` takes no arguments")
+			return types.NoTypeID
+		}
+		record()
+		return tc.types.Builtins().Nothing
+	default:
+		tc.report(diag.SemaOnChannelOp, span,
+			"`%s` is not an anchored channel operation; `on ch` supports `send`, `recv`, and `close`",
+			methodName)
+		return types.NoTypeID
+	}
 }
 
 func (tc *typeChecker) recordActiveOnRemoteOp(op CrossingRemoteOpInfo) {

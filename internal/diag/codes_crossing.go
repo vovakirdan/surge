@@ -108,6 +108,8 @@ const (
 	SemaCrossesAttribute Code = 3173
 	// SemaLocalSpawnOn rejects `@local spawn on`.
 	SemaLocalSpawnOn Code = 3174
+	// SemaOnChannelOp rejects an anchored channel operation outside the supported send/recv/close surface.
+	SemaOnChannelOp Code = 3175
 
 	// --- Parse-level crossing diagnostics (SYN 2031-2036) ---
 
@@ -198,6 +200,7 @@ var crossingCodeDescriptions = map[Code]string{
 	SemaShardAttrConflict:            "`@shard_movable` conflicts with `@shard_pinned`",
 	SemaCrossesAttribute:             "`@crosses` is not supported; crossing effects are inferred",
 	SemaLocalSpawnOn:                 "`@local spawn on` is invalid; local spawn and remote placement are mutually exclusive",
+	SemaOnChannelOp:                  "Unsupported anchored channel operation",
 
 	SynFarReservedIdent:          "`far` is a reserved keyword; rename this identifier",
 	SynSpawnOnMissingBlock:       "`spawn on` requires a `{ ret expr; }` block",
