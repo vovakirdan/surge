@@ -1,6 +1,29 @@
 # Epic 14 Task 4: `on ch` Lowering And The Capability Flip
 
-**Status:** in progress (2026-07-12).
+**Status:** complete (2026-07-12). All five increments landed; the e2e
+runs `on ch` send/recv/close across `SURGE_SHARDS=1,2,8` under the
+production capability (transport gate green twice). Closeout Sentrux
+(committed tree): root `6183` (RV2-DEBT-029 unchanged in kind, equality
+`0.4486`), `internal` `6507`, `runtime` `5310`, `runtime/native` `5399` —
+deltas within noise of the kickoff baselines below.
+
+Dispositions:
+
+- **Full async-body machinery** (general bodies with multiple/conditional
+  anchored ops) is RV2-DEBT-030: implement by synthesizing an async
+  function per body behind an opaque lowered-body artifact seam; the
+  vertical-1 shape rule (SEM3175) is the user-facing boundary until then.
+- **Union reply payloads**: `ret ch.recv()` stays behind the payload gate
+  — a union value would ship an owner-heap pointer through the reply.
+  The vertical pattern is in-body unwrapping (`let v = ch.recv(); ret
+  compare v { ... };`), which the shape rule's post-op suffix allows.
+  Rides the payload-representation work; Task 5b names the cause
+  precisely.
+- **Concurrent source-level park-retry** is blocked on affine far handles
+  (RV2-DEBT-025): one holder cannot drain its own parked send. The
+  compiled body SHAPE's park/retry is proven by the harness
+  helper-protocol row (byte-identical helper sequence); the concurrent
+  source proof lands with `@far_copy` or the borrow story.
 **Kind:** compiler lowering (sema/MIR/LLVM) + capability flip + guard matrix.
 **Depends on:** Tasks 2-3 (anchored execute runtime, registry pinning, rows).
 

@@ -5258,3 +5258,31 @@ pre-existing root `min_equality` breach is now tracked as RV2-DEBT-029
 with the same recovery owner as RV2-DEBT-028. Next: Task 4 (`on ch`
 lowering through anchored execute, ChannelCreate capability flip, guard
 matrix).
+
+## 2026-07-12 — Epic 14 Task 4 Complete: `on ch` Lowering + Capability Flip
+
+The anchored-op vertical is executable end to end on LLVM: `channel_on`
+plus `on ch { send/recv/close }` compile and run across
+`SURGE_SHARDS=1,2,8` under the production capability (no override), with
+single-producer FIFO and the closed outcome observed source-side.
+
+Shape of the vertical, decided with an external second opinion: bodies
+stay one-shot poll functions; the park protocol lives in three runtime
+helpers (`rt_anchored_channel_send/recv/close`) that reach the channel
+and the shipped poll state through the current task's pending binding and
+yield inside — re-entry restarts the body from the top, which sema keeps
+sound by requiring the single anchored operation to be the body's first
+statement (SEM3175, with the split-into-blocks workaround in the
+message). General bodies are RV2-DEBT-030 (async transform per body
+behind an opaque artifact seam). Two more boundaries surfaced and were
+recorded rather than papered over: union reply payloads stay behind the
+payload gate (`ret ch.recv()` would ship an owner-heap pointer; the
+pattern is in-body unwrapping), and concurrent source-level park-retry
+waits on copyable far handles (RV2-DEBT-025) — the compiled park shape is
+proven by the harness helper-protocol row.
+
+Guard matrix after the flip: `channel_on` and `on ch` compile on LLVM
+only; VM/unknown backends keep FUT7018/FUT7014; the two-stage payload
+gate keeps non-copy replies guarded everywhere. Task 5b sharpens those
+messages to name the real cause. Next: Task 5 (negative matrix, payload
+negatives, hidden-fallback audit).
