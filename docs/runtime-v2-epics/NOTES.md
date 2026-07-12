@@ -5227,3 +5227,17 @@ detector's soundness argument is inductive: once one quiescence pass
 holds with a channel-parked registered body, no in-model event source
 remains, so the state is stable; every event source is now visible to the
 scan at the instant it is checked.
+
+### Init-order regression caught by the TSan gate (2026-07-12)
+
+Wiring the stale completion-visibility static back into
+`runtime-v2-lifecycle-check` exposed a real detection-increment bug the
+frequently-run gates missed: workers start before `rt_blocking_init`, so a
+worker reaching its first idle-park edge locked `blocking_lock` before the
+mutex existed. The zeroed static executor masked it in plain builds;
+`CompletionPinInterleavingTSan` (also absent from the frequently-run set)
+hung inside TSan's race report on it. Fixed by initializing the blocking
+pool before `rt_start_workers` — thread creation publishes the pool. The
+lifecycle gate now covers both tests; four consecutive gate runs green
+(one isolated `JoinPollResultObservation` flake on the first run, 5x green
+in isolation, RV2-DEBT-018/027-class transient).
