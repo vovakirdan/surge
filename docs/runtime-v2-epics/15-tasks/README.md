@@ -9,9 +9,9 @@ review records, and the stop conditions.
 | 1 | `01-kickoff-attribution.md` | Complete | evidence + decision table + move inventory | none |
 | 1b | `01b-liveness-precondition.md` | Complete | diagnostics + TSan stress + overlap review | 1 |
 | 2 | `02-gate-integrity.md` | Complete | tooling + make check step | 1b |
-| 3 | structural pass (all enforced scopes) | In progress | refactor, per-row dispositions | 1, 1b |
-| 3r | remeasure noise bands post-cleanup | Pending | measurement | 3 |
-| 4 | threshold re-baseline + SENTRUX_POLICY | Pending | policy + debt closure | 3r |
+| 3 | `03-structural-pass.md` (with 3r) | Complete | refactor, per-row dispositions | 1, 1b |
+| 3r | `03-structural-pass.md` (folded) | Complete | measurement | 3 |
+| 4 | threshold re-baseline + SENTRUX_POLICY | In progress | policy + debt closure | 3r |
 | 5 | naming remainder (allowlist -> C3 -> C2) | Pending | docs + fixtures | none (after 2 preferred) |
 | 6 | closeout (clean clone, symbol census) | Pending | release invariants | all |
 
