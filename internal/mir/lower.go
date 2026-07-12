@@ -183,12 +183,16 @@ type returnCtx struct {
 }
 
 type funcLowerer struct {
-	out     *Module
-	mf      *mono.MonoFunc
-	mono    *mono.MonoModule
-	sema    *sema.Result
-	types   *types.Interner
-	symbols *symbols.Result
+	out  *Module
+	mf   *mono.MonoFunc
+	mono *mono.MonoModule
+	// anchoredBody marks the forked lowerer of an `on far_handle` block body:
+	// anchored channel operations lower to the runtime helpers that park by
+	// re-entering the body from the top.
+	anchoredBody bool
+	sema         *sema.Result
+	types        *types.Interner
+	symbols      *symbols.Result
 
 	f   *Func
 	cur BlockID
@@ -529,6 +533,20 @@ func (l *funcLowerer) isChannelType(ty types.TypeID) bool {
 		return l.typeNameMatches(info.Name, "Channel")
 	}
 	return false
+}
+
+// isFarChannelType reports a `far Channel<T>` handle (the far wrapper is NOT
+// unwrapped by unwrapContainerType, deliberately: a far channel is a token,
+// not a local channel value).
+func (l *funcLowerer) isFarChannelType(ty types.TypeID) bool {
+	if l == nil || l.types == nil || ty == types.NoTypeID {
+		return false
+	}
+	tt, ok := l.types.Lookup(resolveAlias(l.types, ty))
+	if !ok || tt.Kind != types.KindFar {
+		return false
+	}
+	return l.isChannelType(tt.Elem)
 }
 
 func (l *funcLowerer) unwrapContainerType(id types.TypeID) types.TypeID {

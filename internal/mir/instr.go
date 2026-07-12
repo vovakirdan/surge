@@ -267,6 +267,11 @@ type ChanRecvInstr struct {
 	Channel Operand
 	ReadyBB BlockID
 	PendBB  BlockID
+	// Anchored marks a receive inside an anchored crossing body: the runtime
+	// helper reaches the channel through the current task's pending and parks
+	// by re-entering the body, so Channel is unused and there are no
+	// ready/pending suspend targets.
+	Anchored bool
 }
 
 // NetWaitKind distinguishes network readiness waits.

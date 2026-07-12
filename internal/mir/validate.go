@@ -145,6 +145,11 @@ func validateBlockTargets(f *Func) error {
 					errs = append(errs, fmt.Errorf("bb%d instr %d: chan_send pending target bb%d does not exist", i, j, ins.ChanSend.PendBB))
 				}
 			case InstrChanRecv:
+				if ins.ChanRecv.Anchored {
+					// Anchored receives park by re-entering the body; they
+					// carry no suspend targets.
+					continue
+				}
 				if !blockExists(ins.ChanRecv.ReadyBB) {
 					errs = append(errs, fmt.Errorf("bb%d instr %d: chan_recv ready target bb%d does not exist", i, j, ins.ChanRecv.ReadyBB))
 				}

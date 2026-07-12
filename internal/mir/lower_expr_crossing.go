@@ -108,8 +108,9 @@ func (l *funcLowerer) lowerCrossingExpr(e *hir.Expr, consume bool) (Operand, err
 		if err := l.prepareSpawnOnCrossing(&ins, data.Body, e.Span); err != nil {
 			return Operand{}, err
 		}
-	case data.Kind == sema.CrossingLoweringOnPlacement:
-		if err := l.prepareOnPlacementCrossing(&ins, data.Body, e.Span); err != nil {
+	case data.Kind == sema.CrossingLoweringOnPlacement,
+		data.Kind == sema.CrossingLoweringOnFarHandle:
+		if err := l.prepareImmediateBodyCrossing(&ins, data.Body, e.Span); err != nil {
 			return Operand{}, err
 		}
 	case data.Kind == sema.CrossingLoweringChannelCreate:
@@ -202,22 +203,28 @@ func (l *funcLowerer) prepareSpawnOnCrossing(ins *CrossingInstr, body *hir.Block
 	return nil
 }
 
-// prepareOnPlacementCrossing lowers the immediate `on placement` body into a
-// destination poll function exactly like `spawn on`, but the crossing keeps
-// only the pending-retry slot: there is no publicly observable far Task
-// handle for the dedicated execute/reply category.
-func (l *funcLowerer) prepareOnPlacementCrossing(ins *CrossingInstr, body *hir.Block, span source.Span) error {
+// prepareImmediateBodyCrossing lowers an immediate `on` body (placement or
+// anchored far-handle destination) into a destination poll function exactly
+// like `spawn on`, but the crossing keeps only the pending-retry slot: there
+// is no publicly observable far Task handle for the dedicated execute/reply
+// category. Anchored bodies additionally lower their channel operations to
+// the park-by-re-entry runtime helpers.
+func (l *funcLowerer) prepareImmediateBodyCrossing(ins *CrossingInstr, body *hir.Block, span source.Span) error {
 	if l == nil || ins == nil {
 		return nil
 	}
 	if body == nil {
 		return fmt.Errorf("mir: on: missing body")
 	}
+	anchored := ins.Kind == sema.CrossingLoweringOnFarHandle
 	pollID := l.allocFuncID()
 	if pollID == NoFuncID {
 		return fmt.Errorf("mir: on: failed to allocate poll function id")
 	}
 	name := fmt.Sprintf("__on_block$%d$poll", pollID)
+	if anchored {
+		name = fmt.Sprintf("__on_anchored_block$%d$poll", pollID)
+	}
 	captures := l.spawnOnCaptureInfo(ins.Captures)
 	stateType, err := buildSpawnOnStateStruct(l.types, name, captures)
 	if err != nil {
@@ -227,6 +234,7 @@ func (l *funcLowerer) prepareOnPlacementCrossing(ins *CrossingInstr, body *hir.B
 	if fl == nil {
 		return fmt.Errorf("mir: on: failed to fork lowerer")
 	}
+	fl.anchoredBody = anchored
 	fn, err := fl.lowerSpawnOnPollFunc(pollID, name, body, ins.PayloadType, stateType, captures, span)
 	if err != nil {
 		return err
@@ -269,6 +277,7 @@ func (l *funcLowerer) prepareOnPlacementCrossing(ins *CrossingInstr, body *hir.B
 func crossingUsesPendingRetryState(kind sema.CrossingLoweringKind) bool {
 	return kind == sema.CrossingLoweringSpawnOn ||
 		kind == sema.CrossingLoweringOnPlacement ||
+		kind == sema.CrossingLoweringOnFarHandle ||
 		kind == sema.CrossingLoweringFarTaskAwait ||
 		kind == sema.CrossingLoweringFarTaskCancel ||
 		kind == sema.CrossingLoweringChannelCreate

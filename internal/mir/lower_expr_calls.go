@@ -205,6 +205,47 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 		}
 	}
 
+	// Anchored crossing bodies: channel operations on the far anchor lower to
+	// the runtime helpers that reach the channel through the current task's
+	// pending and park by re-entering the body from the top (sema pinned the
+	// operation as the body's first statement, so the replayed prefix is
+	// empty). Returning from a helper means the operation completed. The far
+	// member call carries no resolved symbol, so it is intercepted on its
+	// HIR shape before the generic callee handling.
+	if l.anchoredBody && data.Callee != nil && data.Callee.Kind == hir.ExprFieldAccess {
+		if fa, ok := data.Callee.Data.(hir.FieldAccessData); ok && fa.Object != nil &&
+			l.isFarChannelType(fa.Object.Type) {
+			switch fa.FieldName {
+			case "send":
+				opArgs, argErr := l.lowerCallArgs(e, data)
+				if argErr != nil {
+					return Operand{}, argErr
+				}
+				if len(opArgs) == 1 {
+					l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
+						Callee: Callee{Kind: CalleeValue, Name: "rt_anchored_channel_send"},
+						Args:   opArgs,
+					}})
+					return l.constNothing(e.Type), nil
+				}
+			case "recv":
+				tmp := l.newTemp(e.Type, "anchored_recv", e.Span)
+				l.emit(&Instr{Kind: InstrChanRecv, ChanRecv: ChanRecvInstr{
+					Dst:      Place{Local: tmp},
+					Anchored: true,
+					ReadyBB:  NoBlockID,
+					PendBB:   NoBlockID,
+				}})
+				return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
+			case "close":
+				l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
+					Callee: Callee{Kind: CalleeValue, Name: "rt_anchored_channel_close"},
+				}})
+				return l.constNothing(e.Type), nil
+			}
+		}
+	}
+
 	args, err := l.lowerCallArgs(e, data)
 	if err != nil {
 		return Operand{}, err

@@ -342,6 +342,9 @@ const crossingMIRPrelude = `
 tag Success<T>(T);
 tag Cancelled();
 type TaskResult<T> = Success(T) | Cancelled;
+tag Some<T>(T);
+tag None();
+type Option<T> = Some(T) | None;
 type Task<T> = { __opaque: int };
 extern<Task<T>> {
     fn await(self: own Task<T>) -> TaskResult<T>;
@@ -359,6 +362,81 @@ type crossingMIRCompileResult struct {
 	types   *types.Interner
 	sema    *sema.Result
 	symbols *symbols.Result
+}
+
+// TestMIRAnchoredChannelBodyLowersToReentryHelpers pins the anchored-body
+// shape: the crossing produces a body poll function and a pending-retry
+// slot, the send lowers to the park-by-re-entry runtime helper call, and
+// the receive lowers to an anchored chan_recv (no suspend targets) whose
+// destination carries Option<T>.
+func TestMIRAnchoredChannelBodyLowersToReentryHelpers(t *testing.T) {
+	src := crossingMIRPrelude + `
+fn producer(ch: far Channel<int>, n: int) -> TaskResult<nothing> {
+    return on ch {
+        ch.send(n);
+        ret nothing;
+    };
+}
+
+fn consumer(ch: far Channel<int>) -> TaskResult<Option<int>> {
+    return on ch {
+        ret ch.recv();
+    };
+}
+`
+	compiled := compileCrossingMIR(t, src, crossingForms(sema.CrossingLoweringOnFarHandle))
+	sendCalls := 0
+	anchoredRecvs := 0
+	bodyFns := 0
+	for _, fn := range compiled.mod.Funcs {
+		if fn == nil {
+			continue
+		}
+		if strings.HasPrefix(fn.Name, "__on_anchored_block$") && strings.HasSuffix(fn.Name, "$poll") {
+			bodyFns++
+		}
+		for bi := range fn.Blocks {
+			for ii := range fn.Blocks[bi].Instrs {
+				ins := &fn.Blocks[bi].Instrs[ii]
+				switch ins.Kind {
+				case mir.InstrCall:
+					if ins.Call.Callee.Name == "rt_anchored_channel_send" {
+						sendCalls++
+						if len(ins.Call.Args) != 1 {
+							t.Fatalf("anchored send helper call args = %d, want 1", len(ins.Call.Args))
+						}
+					}
+				case mir.InstrChanRecv:
+					if ins.ChanRecv.Anchored {
+						anchoredRecvs++
+						if ins.ChanRecv.ReadyBB != mir.NoBlockID || ins.ChanRecv.PendBB != mir.NoBlockID {
+							t.Fatal("anchored chan_recv must carry no suspend targets")
+						}
+						if got := types.Label(compiled.types, mustLocalType(t, fn, ins.ChanRecv.Dst)); got != "Option<int>" {
+							t.Fatalf("anchored recv dst type = %q, want Option<int>", got)
+						}
+					}
+				}
+			}
+		}
+	}
+	if bodyFns != 2 {
+		t.Fatalf("anchored body poll functions = %d, want 2", bodyFns)
+	}
+	if sendCalls != 1 {
+		t.Fatalf("anchored send helper calls = %d, want 1", sendCalls)
+	}
+	if anchoredRecvs != 1 {
+		t.Fatalf("anchored chan_recv instrs = %d, want 1", anchoredRecvs)
+	}
+}
+
+func mustLocalType(t *testing.T, fn *mir.Func, place mir.Place) types.TypeID {
+	t.Helper()
+	if place.Local == mir.NoLocalID || int(place.Local) >= len(fn.Locals) {
+		t.Fatalf("place has no local")
+	}
+	return fn.Locals[place.Local].Type
 }
 
 func crossingForms(kinds ...sema.CrossingLoweringKind) map[sema.CrossingLoweringKind]bool {
