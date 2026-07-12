@@ -139,6 +139,13 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"anchored_send_wrong_type", `fn f(ch: far Channel<int>, p: Plain) -> TaskResult<nothing> { return on ch { ch.send(p); ret nothing; }; }`, "SEM3015"},
 		{"anchored_recv_takes_no_args", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { let _ = ch.recv(1); ret nothing; }; }`, "SEM3175"},
 		{"anchored_try_send_unsupported", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { let _ = ch.try_send(1); ret nothing; }; }`, "SEM3175"},
+		// Vertical-1 anchored-body shape (ON-SHAPE): the operation is the
+		// first statement's immediate expression; one operation per block.
+		{"anchored_op_first_stmt_let_ok", `fn f(ch: far Channel<int>) -> TaskResult<int> { return on ch { let v: Option<int> = ch.recv(); let _ = v; ret 1; }; }`, ""},
+		{"anchored_op_first_stmt_ret_ok", `fn f(ch: far Channel<int>) -> TaskResult<Option<int>> { return on ch { ret ch.recv(); }; }`, ""},
+		{"anchored_two_ops_rejected", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.send(1); ch.close(); ret nothing; }; }`, "SEM3175"},
+		{"anchored_op_after_effect_rejected", `fn g() -> int { return 1; } fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { let x: int = g(); ch.send(x); ret nothing; }; }`, "SEM3175"},
+		{"anchored_op_under_if_rejected", `fn f(ch: far Channel<int>, c: bool) -> TaskResult<nothing> { return on ch { if c { ch.send(1); } ret nothing; }; }`, "SEM3175"},
 
 		// Effect + structure (ON-NEST). The `crosses` requirement (SEM3162) is
 		// retired: `on dst { }` is valid without a `crosses` marker (the effect is

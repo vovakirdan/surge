@@ -73,6 +73,10 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 
 	// ON-CAP rows: capture legality across the crossing boundary.
 	captures, capturesOK := tc.checkOnCaptures(data.Body)
+	if destInfo.Kind == CrossingDestinationFarHandle &&
+		!tc.checkAnchoredBodyShape(data.Body, frame.remoteOps) {
+		siteOK = false
+	}
 	if !capturesOK {
 		siteOK = false
 	}
@@ -277,4 +281,53 @@ func (tc *typeChecker) farInner(id types.TypeID) types.TypeID {
 		return types.NoTypeID
 	}
 	return tt.Elem
+}
+
+// checkAnchoredBodyShape enforces the first-vertical anchored-body form. A
+// parked anchored operation re-enters the body FROM THE TOP, so replay is
+// sound only when nothing observable precedes the operation and no second
+// suspension can replay it: the single anchored operation must be the first
+// statement's immediate expression (a bare call statement, a `let`
+// initializer, or the `ret` value), and one block performs at most one.
+// Bodies with no anchored operation ship plain computation and need no rule.
+func (tc *typeChecker) checkAnchoredBodyShape(body ast.StmtID, ops []CrossingRemoteOpInfo) bool {
+	if len(ops) == 0 || tc.builder == nil {
+		return true
+	}
+	if len(ops) > 1 {
+		tc.report(diag.SemaOnChannelOp, ops[1].Span,
+			"this `on` block anchors more than one channel operation; a parked operation "+
+				"re-enters the body from the top, which would replay the first one — "+
+				"split the work into one `on` block per operation")
+		return false
+	}
+	op := ops[0]
+	head := ast.NoExprID
+	if block := tc.builder.Stmts.Block(body); block != nil && len(block.Stmts) > 0 {
+		first := block.Stmts[0]
+		if stmt := tc.builder.Stmts.Get(first); stmt != nil {
+			switch stmt.Kind {
+			case ast.StmtExpr:
+				if payload := tc.builder.Stmts.Expr(first); payload != nil {
+					head = payload.Expr
+				}
+			case ast.StmtLet:
+				if payload := tc.builder.Stmts.Let(first); payload != nil {
+					head = payload.Value
+				}
+			case ast.StmtRet:
+				if payload := tc.builder.Stmts.Ret(first); payload != nil {
+					head = payload.Expr
+				}
+			}
+		}
+	}
+	if head.IsValid() && tc.exprSpan(head) == op.Span {
+		return true
+	}
+	tc.report(diag.SemaOnChannelOp, op.Span,
+		"the anchored channel operation must be the first statement of the `on` block "+
+			"(a parked operation re-enters the body from the top); bind its result first, "+
+			"e.g. `let v = ch.recv();`, and keep everything else after it")
+	return false
 }
