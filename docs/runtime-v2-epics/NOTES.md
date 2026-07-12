@@ -5325,3 +5325,21 @@ empty; the bench row lands at ~6.9/54.6/55.8 us per anchored block at
 pin+cached-resolve architecture is free at the spine's scale. Credit
 flow control is RV2-DEBT-031. Epic acceptance recorded in the epic doc
 closeout; the cross-producer FIFO negative moves with RV2-DEBT-025.
+
+## 2026-07-12 — Epic 15 Complete: Structural Cleanup + Gate Integrity
+
+Closed in one pass. Substance: noise-band measurement showed both
+redundancy gates were knife-edges by construction (gap < one commit
+step); the registry dedup (layered token validation, one reclaim
+contract, one reply helper) lifted native redundancy 0.2491 -> 0.2514
+and quality to 5405 with a byte-identical exported-symbol census;
+thresholds re-placed 3 noise bands below operating points; root scope
+demoted to advisory (46% unresolved imports) with a written
+re-promotion condition. Gate integrity is now mechanized
+(internal/gatecheck in make check): its first runs surfaced 14 orphaned
+tagged tests, an invisible fd-registry harness link break, and a
+pre-lock-split anchor in the parked-with-work source gate — three
+finds, all fixed. RV2-DEBT-027 bounded (50/50 + 3/3 TSan, quarantined
+stress target, owner + handoff); DEBT-028 closed re-baselined; DEBT-029
+closed advisory; naming plan closed with a zero census. Next-epic
+candidates note: `16-candidates.md` (recommendation: @far_copy).

@@ -13,7 +13,7 @@ review records, and the stop conditions.
 | 3r | `03-structural-pass.md` (folded) | Complete | measurement | 3 |
 | 4 | `04-threshold-rebaseline.md` | Complete | policy + debt closure | 3r |
 | 5 | `05-naming-remainder.md` | Complete | docs + fixtures | none (after 2 preferred) |
-| 6 | closeout (clean clone, symbol census) | In progress | release invariants | all |
+| 6 | `06-closeout.md` | Complete | release invariants | all |
 
 Rules: Epic 13/14 task rules apply unchanged (expand only the next task,
 behavior-neutral proof per task — full gate set green before and after,

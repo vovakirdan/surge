@@ -1,6 +1,7 @@
 # Epic 15: Structural Cleanup And Gate Integrity
 
-**Status:** reviewed, ready for Task 1 (2026-07-12). Boundary decisions
+**Status:** COMPLETE (2026-07-12). All tasks closed same-day; outcome
+table and release invariants in `15-tasks/06-closeout.md`. Boundary decisions
 settled by the first second-opinion pass; task slicing hardened by a full
 Codex consult (17 findings, all incorporated — record below).
 **Kind:** structural refactoring + tooling integrity; behavior-neutral by
