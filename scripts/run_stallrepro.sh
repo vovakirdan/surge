@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RV2-DEBT-015 reproducer orchestrator (Epic 8 Task 11): fixture server +
+# RV2-DEBT-015 reproducer orchestrator: fixture server +
 # sustained stallrepro client + 250ms kernel-side ss watcher that SIGUSR1s
 # the server for a live TRACE_EXEC dump on the first detected stall.
 # Owns its per-probe timeouts (client socket timeouts + bounded duration +

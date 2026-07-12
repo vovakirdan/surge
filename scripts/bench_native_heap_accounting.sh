@@ -324,7 +324,7 @@ cat >>"$report" <<'EOF'
 - `heap_stats_poll` measures aggregate-on-read snapshot cost plus public result allocation.
 - `concurrent_alloc_free` starts up to one task per runtime worker, capped at eight tasks.
 - Heap deltas include generated Surge loop/runtime allocations around each probe.
-- This is manual evidence for Runtime V2 Epic 5 Task 8. Do not wire it into `make check`.
+- This is manual heap-accounting evidence. Do not wire it into `make check`.
 EOF
 
 echo "benchmark report: $report"

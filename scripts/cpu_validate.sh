@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Per-thread CPU split of the net fixture server under sustained 1024-conn
-# load (Epic 8 Task 11 acceptance probe): proves whether task execution is
+# load probe: proves whether task execution is
 # distributed across shard workers or funneled onto one.
 #
 # Usage: cpu_validate.sh <tag>

@@ -1,4 +1,4 @@
-// Epic 12 Task 4 stdlib-facing probe: far Channel<T> anchor plus ordinary spawn on.
+// stdlib-facing probe: a far Channel<T> anchor coexists with an ordinary spawn on.
 @shard_movable
 type Message = {
     id: int,

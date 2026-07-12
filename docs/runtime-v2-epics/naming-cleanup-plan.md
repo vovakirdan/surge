@@ -1,7 +1,16 @@
 # Epic/Task Reference Cleanup Plan
 
-**Status:** planned, not started. This document is the single owner of the
-cleanup; no partial renames outside it.
+**Status:** CLOSED (2026-07-12). The main sweep (clusters A1/A2/B1/B2/C1
+plus 427 of the 435 C2 fixture headers) landed in the naming-cleanup
+commit after Epic 13; the structural-cleanup epic finished the remainder:
+the 8 surviving epic-numbered fixture headers rewritten to self-contained
+behavior sentences, the last production/script/prelude comments cleaned,
+and the C3 decision resolved as option (b) at the observed scale — after
+the main sweep only two `ON-CROSS-N001` mentions survived (both in the
+crosses_deferred fixture's own retirement note, where the ID documents a
+RETIRED surface and reads as history, kept deliberately). Final census:
+zero `Epic N` references outside `docs/` and commit messages. The naming
+policy section below remains in force for new code.
 **Rule that triggered it:** planning artifacts (epic/task documents) are
 transient — they will be archived or deleted long before this code stops
 mattering. A comment that says "added in Epic 3 Task 2" or an identifier named

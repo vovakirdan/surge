@@ -1,5 +1,5 @@
 // EXPECT-DIAG: SEM3153
-// Epic 12 Task 4 probe: nested crossing remains invalid under Epic 11.
+// negative probe: a crossing block nested inside another crossing block is rejected.
 fn run(dst: Placement) -> far Task<int> {
     return spawn on dst {
         let r: TaskResult<int> = on dst {

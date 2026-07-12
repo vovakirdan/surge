@@ -12,8 +12,8 @@ review records, and the stop conditions.
 | 3 | `03-structural-pass.md` (with 3r) | Complete | refactor, per-row dispositions | 1, 1b |
 | 3r | `03-structural-pass.md` (folded) | Complete | measurement | 3 |
 | 4 | `04-threshold-rebaseline.md` | Complete | policy + debt closure | 3r |
-| 5 | naming remainder (allowlist -> C3 -> C2) | In progress | docs + fixtures | none (after 2 preferred) |
-| 6 | closeout (clean clone, symbol census) | Pending | release invariants | all |
+| 5 | `05-naming-remainder.md` | Complete | docs + fixtures | none (after 2 preferred) |
+| 6 | closeout (clean clone, symbol census) | In progress | release invariants | all |
 
 Rules: Epic 13/14 task rules apply unchanged (expand only the next task,
 behavior-neutral proof per task — full gate set green before and after,

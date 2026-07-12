@@ -1,5 +1,5 @@
 # Internal compiler/VM architectural guardrails.
-# Created during Epic 12 closeout to make compiler-scoped Sentrux checks real.
+# Compiler-scoped Sentrux guardrails (internal/).
 
 [constraints]
 min_quality = 0.60

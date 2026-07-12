@@ -1,4 +1,4 @@
-// Epic 12 Task 4 integration: far-task ops plus direct-call crossing inference.
+// integration: far-task await/cancel plus direct-call crossing-effect inference.
 fn wait_remote(t: far Task<int>) -> TaskResult<int> {
     return t.await();
 }
