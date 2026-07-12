@@ -5241,3 +5241,20 @@ pool before `rt_start_workers` — thread creation publishes the pool. The
 lifecycle gate now covers both tests; four consecutive gate runs green
 (one isolated `JoinPollResultObservation` flake on the first run, 5x green
 in isolation, RV2-DEBT-018/027-class transient).
+
+## 2026-07-12 — Epic 14 Tasks 2-3 Complete: Anchored Ops + Detection
+
+Anchored execute with registry pinning and the full behavior-row slice are
+closed: rows 1-9 of the race/failure matrix green on the behavior harness
+(round trip, stale/wrong-kind without a body, full-channel park with a
+live dispatcher, close-vs-recv closed outcome, cancel-no-resurrection,
+owner teardown, self-deadlock expected-panic on both worker
+configurations, pin-vs-release), row 10 (leak audit) rides Task 6 stress
+by design. The self-deadlock detector survived five external review
+rounds and the lifecycle-gate hardening (blocking-pool init-order fix).
+Closeout Sentrux on the committed tree: root `6186`, `internal` `6509`,
+`runtime` `5309`, `runtime/native` `5399`; all scoped rules pass; the
+pre-existing root `min_equality` breach is now tracked as RV2-DEBT-029
+with the same recovery owner as RV2-DEBT-028. Next: Task 4 (`on ch`
+lowering through anchored execute, ChannelCreate capability flip, guard
+matrix).

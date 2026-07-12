@@ -1,6 +1,12 @@
 # Epic 14 Tasks 2-3: Anchored-Op Behavior Rows And Runtime
 
-**Status:** in progress (2026-07-10).
+**Status:** complete (2026-07-12). Rows 1-9 landed and green (row 10, the
+leak audit, rides Task 6 stress by design). Self-deadlock detection shipped
+and hardened through five external review rounds plus the TSan-caught
+blocking-pool init-order fix; closeout Sentrux (committed tree): root
+`6186` (root `min_equality` breach predates this task -> RV2-DEBT-029),
+`internal` `6509`, `runtime` `5309`, `runtime/native` `5399` — all scoped
+rules pass, deltas within noise of the kickoff baselines below.
 **Kind:** test-first harness rows + the anchored execute runtime.
 **Depends on:** Task 1 (contract), Task 1.5 (registry, tokens, mint).
 
