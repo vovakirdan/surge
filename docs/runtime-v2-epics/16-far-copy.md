@@ -103,6 +103,65 @@ capability-gated at the type level either way.
 - Kindness-first: mis-sharing diagnostics name the fix at sema
   (decision-8 template).
 
+## Race And Failure Matrix (contract-level draft; every row test-owned before any flip)
+
+1. share-vs-final-release: a sibling minted concurrently with the last
+   other lease releasing — either the mint lands on a live entry or it
+   answers stale; never a lease on a reclaimed entry.
+2. share-vs-pin/reclaim: minting while an anchored block holds a pin;
+   release-all during a mint round trip.
+3. double release of one sibling -> exactly one stale-token answer;
+   other siblings unaffected (per-lease generation proof).
+4. cross-sibling confusion: ops through sibling X after sibling Y
+   released; X unaffected.
+5. leaked lease: a task exits without releasing — entry stays live
+   (documented liveness debt, not UAF); census row proves no reclaim.
+6. owner teardown with active leases on remote shards: deterministic
+   stale answers to every sibling, no waiter left parked.
+7. cancellation mid-share: caller cancelled during the mint round trip
+   -> the orphaned lease is consumed autonomously (mirrors the
+   orphaned-reply discipline).
+8. concurrent producers park-retry (the RV2-DEBT-025 unlock): two
+   source-level holders, capacity-full park, drain by the other holder
+   — the compiled park path proof Epic 14 could not express.
+9. multi-producer FIFO negative at source level (lane order, not
+   share order — extends the Epic 14 harness row).
+10. self-deadlock adversarial set: (a) true deadlock with two holders
+    both parked on the same channel with no third waker -> panic names
+    the lease topology; (b) NOT-deadlock: holder A parked while holder
+    B is runnable elsewhere -> no panic (false-negative guard);
+    (c) sibling released while its former peer is parked.
+11. generation exhaustion on one lease id fails closed.
+12. trace counters: share mints/replies counted; fallback tripwire
+    stays zero; leak census extended to lease tables.
+
+## Acceptance Criteria (draft)
+
+- `ch.share()` works end to end on LLVM at SHARDS=1,2,8: N-way fan-out
+  producer/consumer source program with park-retry through compiled
+  bodies (the row Epic 14 recorded as blocked).
+- The matrix above is test-owned and green twice; the leak census
+  covers lease tables.
+- Sema diagnostics: "use of moved far handle: call `share()` before
+  moving it into multiple tasks" with span-precise hints; misuse never
+  degrades to a runtime-only failure (kindness-first).
+- Self-deadlock detection re-grounded on the (task, lease) wait graph
+  with the adversarial rows green; the FFI opt-out contract unchanged.
+- Bench row: share-mint cost at topology construction; steady-state
+  anchored-op cost unchanged from the Epic 14 baseline within noise.
+- Gates: transport umbrella + gatecheck green twice; goldens diag-only.
+
+## Stop Conditions
+
+- If the per-lease generation move cannot keep the existing
+  stale-token rows green unchanged, stop and re-review the data model
+  (the token wire format is a public ABI surface).
+- If detector re-grounding cannot prove the false-negative guard
+  (row 10b) without walking cross-shard state from the caller side,
+  route to design review rather than weaken the quiescence contract.
+- Force-close semantics questions route to slice 2's own review; slice
+  1 ships with release-only semantics.
+
 ## Open Questions For Kickoff
 
 1. Release semantics per model (and the teardown matrix deltas).
