@@ -61,12 +61,18 @@ func TestRuntimeV2SchedulerPlacementStealPathSourceGate(t *testing.T) {
 }
 
 func TestRuntimeV2SchedulerPlacementParkedWithWorkSourceGate(t *testing.T) {
-	source := readRuntimeV2SchedulerStateSource(t)
+	// The worker turn owns the park edge (extracted to rt_worker_turn.c;
+	// the shard lane replaced the executor-global lock/cv).
+	sourceBytes, err := os.ReadFile(filepath.Join(repoRoot(t), "runtime", "native", "rt_worker_turn.c"))
+	if err != nil {
+		t.Fatalf("read rt_worker_turn.c: %v", err)
+	}
+	source := string(sourceBytes)
 	assertIndex := strings.Index(source, "rt_debug_assert_no_parked_with_work(ex, ctx->shard_id)")
 	if assertIndex < 0 {
 		t.Fatal("worker sleep path must assert no shard-local queued work before cond wait")
 	}
-	waitIndex := strings.Index(source[assertIndex:], "pthread_cond_wait(&ex->ready_cv, &ex->lock)")
+	waitIndex := strings.Index(source[assertIndex:], "pthread_cond_wait(&shard->worker_cv, &shard->lock)")
 	if waitIndex < 0 {
 		t.Fatal("worker sleep path must assert no shard-local queued work before cond wait")
 	}
