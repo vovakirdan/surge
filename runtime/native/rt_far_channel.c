@@ -13,20 +13,39 @@
 // stop accepting new crossings -> drain in-flight -> invalidate generations
 // -> reclaim.
 
-typedef enum rt_far_channel_entry_state {
-    RT_FAR_CHANNEL_OPEN = 0,
-    RT_FAR_CHANNEL_RELEASING = 1,
-} rt_far_channel_entry_state;
+// One lease per holder. The generation is globally unique (the shared
+// request allocator never repeats), so the generation IS the lease
+// identity: sibling tokens carry the same entry id with distinct
+// generations, and a double release of one sibling is exactly
+// stale-detectable without touching the others. The entry lives while any
+// lease is active or any anchored block holds a pin; a released lease
+// stops new work for ITS token only.
+typedef struct rt_far_channel_lease {
+    uint64_t generation;
+    uint8_t released;
+    struct rt_far_channel_lease* next;
+} rt_far_channel_lease;
 
 typedef struct rt_far_channel_entry {
     void* channel;
     uint64_t id;
-    uint64_t generation;
     uint32_t owner_shard_id;
-    _Atomic uint8_t state;
+    uint32_t active_leases;
+    rt_far_channel_lease* leases;
     _Atomic uint32_t inflight;
     struct rt_far_channel_entry* next;
 } rt_far_channel_entry;
+
+static rt_far_channel_lease* lease_new(uint64_t generation) {
+    rt_far_channel_lease* lease =
+        (rt_far_channel_lease*)rt_alloc(sizeof(*lease), _Alignof(rt_far_channel_lease));
+    if (lease == NULL) {
+        return NULL;
+    }
+    memset(lease, 0, sizeof(*lease));
+    lease->generation = generation;
+    return lease;
+}
 
 struct rt_far_channel_state {
     rt_executor* executor;
@@ -97,29 +116,39 @@ rt_remote_task_status rt_far_channel_mint(rt_executor* ex,
     memset(entry, 0, sizeof(*entry));
     entry->channel = channel;
     entry->id = atomic_fetch_add_explicit(&tokens->next_request_id, 1, memory_order_relaxed);
-    entry->generation = entry->id;
     entry->owner_shard_id = owner_shard_id;
-    atomic_store_explicit(&entry->state, RT_FAR_CHANNEL_OPEN, memory_order_relaxed);
+    // The creating holder is the first lease; every later holder mints a
+    // sibling through the same allocator, so all lease validation shares
+    // one code path from the first token on.
+    rt_far_channel_lease* first = lease_new(entry->id);
+    if (first == NULL) {
+        rt_free((uint8_t*)entry, sizeof(*entry), _Alignof(rt_far_channel_entry));
+        return RT_REMOTE_TASK_STATUS_REFUSED;
+    }
+    entry->leases = first;
+    entry->active_leases = 1;
     pthread_mutex_lock(&state->lock);
     entry->next = state->head;
     state->head = entry;
     pthread_mutex_unlock(&state->lock);
     *out = (rt_far_task_handle){.task_id = entry->id,
-                                .generation = entry->generation,
+                                .generation = first->generation,
                                 .owner_shard_id = owner_shard_id,
                                 .kind = RT_FAR_HANDLE_KIND_CHANNEL};
     return RT_REMOTE_TASK_STATUS_OK;
 }
 
 // Token validation happens in layers shared by every token-facing
-// operation: id+generation reaches an entry that still belongs to this
-// token; the live-open layer additionally requires the owner-shard match
-// and the OPEN state (the resolve/pin contract — a releasing entry stops
-// serving new work while pinned blocks keep their cached pointers).
-static rt_far_channel_entry* generation_checked_locked(rt_far_channel_state* state,
-                                                       const rt_far_task_handle* handle);
-static rt_far_channel_entry* live_open_locked(rt_far_channel_state* state,
-                                              const rt_far_task_handle* handle);
+// operation: the id reaches the entry, the generation reaches this
+// token's lease row; the live layer additionally requires the owner-shard
+// match and an ACTIVE lease (the resolve/pin contract — a released lease
+// stops new work for its holder while pinned blocks keep their cached
+// pointers and other holders keep working).
+static rt_far_channel_entry* lease_checked_locked(rt_far_channel_state* state,
+                                                  const rt_far_task_handle* handle,
+                                                  rt_far_channel_lease** out_lease);
+static rt_far_channel_entry* live_lease_locked(rt_far_channel_state* state,
+                                               const rt_far_task_handle* handle);
 
 static rt_far_channel_entry* find_locked(rt_far_channel_state* state,
                                          const rt_far_task_handle* handle) {
@@ -141,7 +170,7 @@ void* rt_far_channel_resolve(rt_executor* ex, const rt_far_task_handle* handle) 
         return NULL;
     }
     pthread_mutex_lock(&state->lock);
-    rt_far_channel_entry* entry = live_open_locked(state, handle);
+    rt_far_channel_entry* entry = live_lease_locked(state, handle);
     void* channel = NULL;
     if (entry != NULL) {
         channel = entry->channel;
@@ -150,13 +179,13 @@ void* rt_far_channel_resolve(rt_executor* ex, const rt_far_task_handle* handle) 
     return channel;
 }
 
-// The reclaim contract in one place: only a RELEASING entry with no
-// in-flight pins may be freed, and the free happens after the registry
-// lock is dropped (release_entry retakes it to unlink), so no site frees
-// under the lock and no quiescent entry is freed twice — every decision
-// is serialized by the same lock that made it.
+// The reclaim contract in one place: only an entry with no active leases
+// and no in-flight pins may be freed, and the free happens after the
+// registry lock is dropped (release_entry retakes it to unlink), so no
+// site frees under the lock and no quiescent entry is freed twice — every
+// decision is serialized by the same lock that made it.
 static int reclaim_ready_locked(const rt_far_channel_entry* entry) {
-    return atomic_load_explicit(&entry->state, memory_order_acquire) == RT_FAR_CHANNEL_RELEASING &&
+    return entry->active_leases == 0 &&
            atomic_load_explicit(&entry->inflight, memory_order_acquire) == 0;
 }
 
@@ -179,6 +208,12 @@ static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* ent
         *cursor = entry->next;
     }
     pthread_mutex_unlock(&state->lock);
+    rt_far_channel_lease* lease = entry->leases;
+    while (lease != NULL) {
+        rt_far_channel_lease* next = lease->next;
+        rt_free((uint8_t*)lease, sizeof(*lease), _Alignof(rt_far_channel_lease));
+        lease = next;
+    }
     rt_free((uint8_t*)entry, sizeof(*entry), _Alignof(rt_far_channel_entry));
 }
 
@@ -192,20 +227,14 @@ rt_remote_task_status rt_far_channel_release(rt_executor* ex, const rt_far_task_
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     pthread_mutex_lock(&state->lock);
-    rt_far_channel_entry* entry = generation_checked_locked(state, handle);
-    if (entry == NULL) {
+    rt_far_channel_lease* lease = NULL;
+    rt_far_channel_entry* entry = lease_checked_locked(state, handle, &lease);
+    if (entry == NULL || lease->released != 0) {
         pthread_mutex_unlock(&state->lock);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
-    uint8_t expected = RT_FAR_CHANNEL_OPEN;
-    if (!atomic_compare_exchange_strong_explicit(&entry->state,
-                                                 &expected,
-                                                 RT_FAR_CHANNEL_RELEASING,
-                                                 memory_order_acq_rel,
-                                                 memory_order_acquire)) {
-        pthread_mutex_unlock(&state->lock);
-        return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
-    }
+    lease->released = 1;
+    entry->active_leases--;
     unlock_then_reclaim(state, reclaim_ready_locked(entry) ? entry : NULL);
     return RT_REMOTE_TASK_STATUS_OK;
 }
@@ -222,9 +251,10 @@ void rt_far_channel_release_all(rt_executor* ex) {
         pthread_mutex_lock(&state->lock);
         rt_far_channel_entry* target = NULL;
         for (rt_far_channel_entry* it = state->head; it != NULL; it = it->next) {
-            if (atomic_load_explicit(&it->state, memory_order_acquire) == RT_FAR_CHANNEL_OPEN) {
-                atomic_store_explicit(&it->state, RT_FAR_CHANNEL_RELEASING, memory_order_release);
+            for (rt_far_channel_lease* lease = it->leases; lease != NULL; lease = lease->next) {
+                lease->released = 1;
             }
+            it->active_leases = 0;
             if (reclaim_ready_locked(it)) {
                 target = it;
                 break;
@@ -250,7 +280,7 @@ int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle, void**
         return 0;
     }
     pthread_mutex_lock(&state->lock);
-    rt_far_channel_entry* entry = live_open_locked(state, handle);
+    rt_far_channel_entry* entry = live_lease_locked(state, handle);
     int pinned = 0;
     if (entry != NULL) {
         (void)atomic_fetch_add_explicit(&entry->inflight, 1, memory_order_acq_rel);
@@ -495,21 +525,48 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
                                    RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
 }
 
-static rt_far_channel_entry* generation_checked_locked(rt_far_channel_state* state,
-                                                       const rt_far_task_handle* handle) {
+static rt_far_channel_entry* lease_checked_locked(rt_far_channel_state* state,
+                                                  const rt_far_task_handle* handle,
+                                                  rt_far_channel_lease** out_lease) {
     rt_far_channel_entry* entry = find_locked(state, handle);
-    if (entry == NULL || entry->generation != handle->generation) {
+    if (entry == NULL) {
+        return NULL;
+    }
+    for (rt_far_channel_lease* lease = entry->leases; lease != NULL; lease = lease->next) {
+        if (lease->generation == handle->generation) {
+            if (out_lease != NULL) {
+                *out_lease = lease;
+            }
+            return entry;
+        }
+    }
+    return NULL;
+}
+
+static rt_far_channel_entry* live_lease_locked(rt_far_channel_state* state,
+                                               const rt_far_task_handle* handle) {
+    rt_far_channel_lease* lease = NULL;
+    rt_far_channel_entry* entry = lease_checked_locked(state, handle, &lease);
+    if (entry == NULL || lease->released != 0 || entry->owner_shard_id != handle->owner_shard_id) {
         return NULL;
     }
     return entry;
 }
 
-static rt_far_channel_entry* live_open_locked(rt_far_channel_state* state,
-                                              const rt_far_task_handle* handle) {
-    rt_far_channel_entry* entry = generation_checked_locked(state, handle);
-    if (entry == NULL || entry->owner_shard_id != handle->owner_shard_id ||
-        atomic_load_explicit(&entry->state, memory_order_acquire) != RT_FAR_CHANNEL_OPEN) {
-        return NULL;
+// Test-support census of lease rows across all live entries: the leak
+// audit proves churn leaves neither entries nor lease rows behind.
+size_t rt_far_channel_debug_lease_count(rt_executor* ex) {
+    rt_far_channel_state* state = rt_far_channel_state_get(ex);
+    if (state == NULL) {
+        return 0;
     }
-    return entry;
+    size_t count = 0;
+    pthread_mutex_lock(&state->lock);
+    for (const rt_far_channel_entry* it = state->head; it != NULL; it = it->next) {
+        for (const rt_far_channel_lease* lease = it->leases; lease != NULL; lease = lease->next) {
+            count++;
+        }
+    }
+    pthread_mutex_unlock(&state->lock);
+    return count;
 }
