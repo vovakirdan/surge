@@ -1,8 +1,45 @@
 # Epic 16: Shared Far Handles (`share()` sibling leases) — DRAFT
 
-**Status:** ACTIVE (direction confirmed by review 2026-07-13; the
-sharing model is B per the second-opinion record below). Tasks execute
-from `16-tasks/README.md`. Retires RV2-DEBT-025 and unblocks
+**Status:** COMPLETE (2026-07-13). All slices landed same-day; closeout
+below. Force-close (slice 2) deferred behind its own design review
+(RV2-DEBT-032); select/migration lease work (slice 3) rides those
+epics.
+
+## Closeout (2026-07-13)
+
+- **Acceptance met.** `ch.share()` end to end on LLVM at SHARDS=1,2,8:
+  the fan-out e2e runs two producers on sibling leases parking on a
+  capacity-1 channel with cross-holder drain — the concurrent compiled
+  park-retry proof RV2-DEBT-025 blocked — with cross-producer arrival
+  asserted as a set (owner-lane order stays the only promise). The
+  matrix rows are behavior-suite-owned and green repeatedly: sibling
+  round trip with trace counters, per-lease release independence with
+  exact double-release staleness, stale share through a released lease,
+  the pin outliving every lease to the reply edge, teardown draining
+  all leases, and the lease census backing each row.
+- **Detector re-grounded without touching quiescence.** The soundness
+  argument survives multiple holders (a runnable sibling keeps its
+  shard non-quiescent); the panic names the lease topology ("has N
+  leases but every holder is idle"); adversarial rows pin the true
+  two-holder deadlock, the runnable-holder false-negative guard, and
+  the deadlock after a peer released.
+- **Kindness surface.** `share()` types as a borrowed mint (original
+  stays usable — pinned by a reuse row); misuse diagnostics: SEM3175
+  arity, FUT7019 sync-context, FUT7021 off-LLVM, and the
+  use-after-move hint now says "call share() before moving it so each
+  holder keeps its own lease".
+- **Bench.** share-mint 112068/11925/11186 mints/s at 1/2/8 shards
+  (8.9/83.9/89.4 us) — within the immediate-on band even with 2000
+  leases accumulating on one entry (the linear lease walk does not
+  dominate at this scale; a lease-table index is future work if
+  topologies grow beyond thousands of holders per channel).
+- **Debt.** RV2-DEBT-025 closed as superseded (copyable tokens rejected
+  by review; the need met by sibling leases); RV2-DEBT-032 opened for
+  force-close behind a design review.
+- **Sentrux** (committed tree at closeout): root 6177, internal 6499,
+  runtime 5303, native 5392 — all scopes pass the noise-band
+  thresholds; deltas within the recorded bands.
+ Retires RV2-DEBT-025 and unblocks
 the concurrent source-level park-retry proof, the multi-producer FIFO
 negative, and real producer/consumer topologies.
 

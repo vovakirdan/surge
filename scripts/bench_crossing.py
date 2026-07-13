@@ -6,6 +6,7 @@ Measures the placement task crossing verticals on the LLVM/native backend:
   - immediate-on: N immediate `on distributed` round trips
   - on-ch-pair: N anchored send + anchored recv block pairs over one
     `channel_on` channel (two execute/reply round trips per iteration)
+  - share-mint: N sibling-lease mints on one channel (share round trips)
 
 Each probe owns its timeout (subprocess-level, reported with probe/mode on
 expiry) instead of relying on an outer wrapper. This is a correctness and
@@ -115,9 +116,35 @@ fn main() -> int {
 }
 """
 
+SHARE_MINT_SOURCE = """
+async fn probe(iterations: int) -> int {
+    let ch: far Channel<int> = channel_on::<int>(distributed, 4);
+    let mut i: int = 0;
+    while i < iterations {
+        let sib: far Channel<int> = ch.share();
+        let _ = sib;
+        i = i + 1;
+    }
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn probe(%ITER%);
+    return compare task.await() {
+        Success(code) => code;
+        Cancelled() => 2;
+    };
+}
+"""
+
 PROBES = {
     "spawn-await": SPAWN_AWAIT_SOURCE,
     "immediate-on": IMMEDIATE_ON_SOURCE,
+    # One iteration = one sibling-lease mint round trip (leases accumulate
+    # on one entry for the run, so this also exercises the lease-table walk
+    # at growing depth).
+    "share-mint": SHARE_MINT_SOURCE,
     # One iteration = an anchored send block + an anchored recv block (two
     # execute/reply round trips through the owner's local channel lane).
     "on-ch-pair": ON_CH_PAIR_SOURCE,

@@ -5343,3 +5343,23 @@ finds, all fixed. RV2-DEBT-027 bounded (50/50 + 3/3 TSan, quarantined
 stress target, owner + handoff); DEBT-028 closed re-baselined; DEBT-029
 closed advisory; naming plan closed with a zero census. Next-epic
 candidates note: `16-candidates.md` (recommendation: @far_copy).
+
+## 2026-07-13 — Epic 16 Complete: Shared Far Handles Via Sibling Leases
+
+One-day epic. The registry entry moved from single-generation identity
+to a lease table (generation = lease identity, allocator-unique; the
+creating holder is lease zero, so one validation path from the first
+token). share() is an anchored owner op through the execute/reply
+discipline (kinds 14/15); a released holder cannot propagate access;
+reclaim waits for zero active leases AND zero pins. The deadlock
+detector needed no quiescence change — only lease-topology wording and
+three adversarial rows (true two-holder deadlock, runnable-holder
+false-negative guard, deadlock-after-peer-release). The fan-out e2e
+lands the two rows Epic 14 recorded as blocked: concurrent compiled
+park-retry with cross-holder drain, and cross-producer arrival as a
+set. Bench: share-mint in the immediate-on band (8.9/83.9/89.4 us at
+1/2/8). DEBT-025 closed superseded; DEBT-032 (force-close) opened
+behind design review. Harness gotcha recorded: deadlock-panic rows must
+sequence main-thread releases BEFORE the parked producer starts — main
+is invisible to quiescence, so the panic can outrun a late release and
+change the lease-count wording.
