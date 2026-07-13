@@ -1,7 +1,10 @@
 # Epic 17: Remote Select — DRAFT
 
-**Status:** draft with the fork RESOLVED (2026-07-13, external review);
-review-ready pending the DEBT-027 stress-epoch triage noted below.
+**Status:** review-ready (fork resolved 2026-07-13, external review).
+Sequencing note: the stress-epoch triage REPRODUCED the RV2-DEBT-027
+double-poll race (~4% per run on a retained binary — see the debt row);
+the park/wake machinery this epic parks selectors on is the flaking
+machinery, so the fix-first-vs-parallel decision gates Task 1.
 
 ## Why This Epic Exists
 
