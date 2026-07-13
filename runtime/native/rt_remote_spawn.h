@@ -42,11 +42,13 @@ typedef struct rt_far_task_handle {
 } rt_far_task_handle;
 
 rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
+                                               uint64_t state_drop_fn_id,
                                                int64_t poll_fn_id,
                                                void* state,
                                                rt_remote_spawn_pending** pending,
                                                rt_far_task_handle* out_handle);
 rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
+                                                         uint64_t state_drop_fn_id,
                                                          int64_t poll_fn_id,
                                                          void* state,
                                                          rt_remote_spawn_pending** pending,

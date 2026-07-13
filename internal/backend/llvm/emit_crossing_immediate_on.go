@@ -69,7 +69,7 @@ func (fe *funcEmitter) emitImmediateOnCrossing(ins *mir.CrossingInstr) error {
 	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_immediate_on_execute(i64 %s, i64 %d, ptr %s, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_immediate_on_execute(i64 %s, i64 0, i64 %d, ptr %s, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		placementVal,
 		ins.BodyFuncID,
@@ -83,7 +83,7 @@ func (fe *funcEmitter) emitImmediateOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", retryBB)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_immediate_on_execute(i64 0, i64 %d, ptr null, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_immediate_on_execute(i64 0, i64 0, i64 %d, ptr null, ptr %s, ptr %s, ptr %s)\n",
 		retryStatus,
 		ins.BodyFuncID,
 		pendingPtr,

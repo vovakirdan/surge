@@ -94,6 +94,7 @@ static void poll_publisher(rtb_publish_state* state) {
         }
     }
     state->status = rt_remote_spawn_publish(state->destination,
+                                            0,
                                             (int64_t)state->poll_id,
                                             state->task_state,
                                             &state->pending,
@@ -145,6 +146,7 @@ static void poll_rtb_execute(rtb_execute_state* state) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute(state->placement,
+                                            0,
                                             (int64_t)state->body_poll_id,
                                             state->body_state,
                                             &state->pending,
@@ -177,11 +179,17 @@ void* rtb_start_channel_create(rtb_create_state* state, uint64_t placement, uint
     return __task_create(POLL_RTB_CHANNEL_CREATE, state);
 }
 
-// Drop-dispatch stub: no harness state struct carries a drop obligation
-// (drop-fn id 0 never dispatches), so reaching this is a test bug.
+// Drop-dispatch stub with a census: the migration rows install nonzero
+// drop-fn ids and assert exactly-once destruction; everything else keeps
+// id 0 and never reaches this.
+_Atomic uint64_t rtb_drop_calls;
+_Atomic uint64_t rtb_drop_last_id;
+_Atomic(void*) rtb_drop_last_state;
+
 void __surge_drop_call(uint64_t id, void* state) {
-    (void)id;
-    (void)state;
+    atomic_fetch_add_explicit(&rtb_drop_calls, 1, memory_order_acq_rel);
+    atomic_store_explicit(&rtb_drop_last_id, id, memory_order_release);
+    atomic_store_explicit(&rtb_drop_last_state, state, memory_order_release);
 }
 
 void __surge_poll_call(uint64_t id) {
@@ -201,6 +209,7 @@ void __surge_poll_call(uint64_t id) {
     rtb_anchored_audit_poll_dispatch(id);
     rtb_share_poll_dispatch(id);
     rtb_select_poll_dispatch(id);
+    rtb_drop_poll_dispatch(id);
     if (id == POLL_RTB_EXECUTE) {
         poll_rtb_execute((rtb_execute_state*)__task_state());
     }

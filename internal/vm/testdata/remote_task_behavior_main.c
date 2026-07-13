@@ -117,5 +117,17 @@ int main(int argc, char** argv) {
         return rtb_mode_select_no_deadlock_when_runnable();
     if (strcmp(argv[1], "select-self-deadlock") == 0)
         return rtb_mode_select_self_deadlock();
+    if (strcmp(argv[1], "drop-invalid-placement") == 0)
+        return rtb_mode_drop_invalid_placement();
+    if (strcmp(argv[1], "drop-stale-anchor") == 0)
+        return rtb_mode_drop_stale_anchor();
+    if (strcmp(argv[1], "drop-queue-full") == 0)
+        return rtb_mode_drop_queue_full();
+    if (strcmp(argv[1], "drop-select-mixed-owners") == 0)
+        return rtb_mode_drop_select_mixed_owners();
+    if (strcmp(argv[1], "drop-handoff-not-dropped") == 0)
+        return rtb_mode_drop_handoff_not_dropped();
+    if (strcmp(argv[1], "drop-zero-id-never-dispatches") == 0)
+        return rtb_mode_drop_zero_id_never_dispatches();
     return rtb_fail("unknown mode");
 }

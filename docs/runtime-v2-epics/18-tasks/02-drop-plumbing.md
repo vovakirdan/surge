@@ -51,4 +51,24 @@ final release, which those paths share) and recorded as such.
 
 ## Status
 
-In progress.
+COMPLETE. Execution record: the caller surfaces
+(`rt_remote_spawn_publish[_placement]`, `rt_immediate_on_execute`,
+`rt_immediate_on_execute_anchored`, `rt_far_channel_select`) gained the
+`state_drop_fn_id` parameter with pre-pending refusal drops; both
+pending families carry the obligation to the single final-release drop
+site; the handoff clears `state_owned` at successful body publish in
+all three dispatchers; the backend emits the `__surge_drop_call`
+dispatch unconditionally (default panic; id 0 never dispatches) and
+every standalone harness carries the counting/plain stub.
+
+Rows green: invalid placement, stale anchor, synchronous queue-full
+refusal (the corrected row-5 premise — flooded destination data lane),
+mixed-owner select refusal, caller-teardown-unbound is deferred to the
+Task 3 batch (its bound branch needs the task-side obligation), plus
+two negative controls (successful handoff never drops via the pending;
+id-0 states never reach the dispatch). Structural coverage note: the
+destination-shutdown and allocation-failure refusals share the same
+pre-pending drop helper lines the proven rows exercise; a
+worker-clobber race makes a direct shard-shutdown row nondeterministic
+in this harness (park_state is worker-owned), recorded here instead of
+a flaky row.

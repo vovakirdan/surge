@@ -33,12 +33,14 @@ rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle);
 // Immediate `on placement` execute/reply: one request, one reply, one
 // request-scoped cancellation token, no publicly observable far Task handle.
 rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle* anchor,
+                                                       uint64_t state_drop_fn_id,
                                                        int64_t poll_fn_id,
                                                        void* state,
                                                        rt_remote_task_pending** pending,
                                                        uint8_t* out_kind,
                                                        uint64_t* out_bits);
 rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
+                                              uint64_t state_drop_fn_id,
                                               int64_t poll_fn_id,
                                               void* state,
                                               rt_remote_task_pending** pending,

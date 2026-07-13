@@ -364,7 +364,7 @@ void __surge_poll_call(uint64_t id) {
             }
         }
         rt_remote_spawn_status status = rt_remote_spawn_publish(
-            st->dst, POLL_REMOTE_CHILD, st->child, &st->pending, &st->handle);
+            st->dst, 0, POLL_REMOTE_CHILD, st->child, &st->pending, &st->handle);
         if (status == RT_REMOTE_SPAWN_STATUS_PENDING) {
             st->saw_pending = 1;
             st->request_id = rt_remote_spawn_pending_request_id(st->pending);

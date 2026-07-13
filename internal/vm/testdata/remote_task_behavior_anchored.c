@@ -119,7 +119,7 @@ static void poll_anchored_caller(rtb_anchored_state* state) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute_anchored(
-        &state->anchor, (int64_t)state->body_poll_id, state, &state->pending, &kind, &bits);
+        &state->anchor, 0, (int64_t)state->body_poll_id, state, &state->pending, &kind, &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state);
     }

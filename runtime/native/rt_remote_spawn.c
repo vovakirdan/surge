@@ -85,7 +85,17 @@ static void remote_spawn_clear_reply_wait(rt_executor* ex,
     }
 }
 
+// A refusal before any pending exists still owns the moved state: the
+// caller-side drop keeps the exactly-once obligation on synchronous
+// failure edges (id 0 = nothing to drop, today's shape).
+static void remote_spawn_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {
+    if (state_drop_fn_id != 0 && state != NULL) {
+        __surge_drop_call(state_drop_fn_id, state);
+    }
+}
+
 rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
+                                               uint64_t state_drop_fn_id,
                                                int64_t poll_fn_id,
                                                void* state,
                                                rt_remote_spawn_pending** pending,
@@ -117,22 +127,27 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
 
     rt_shard* dst = rt_runtime_shard(runtime, dst_shard_id);
     if (dst == NULL) {
+        remote_spawn_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
     }
     if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
         atomic_load_explicit(&dst->transport.park_state, memory_order_acquire) ==
             RT_TRANSPORT_SHARD_SHUTDOWN) {
+        remote_spawn_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN;
     }
 
     rt_remote_spawn_pending* req =
         (rt_remote_spawn_pending*)rt_alloc(sizeof(*req), _Alignof(rt_remote_spawn_pending));
     if (req == NULL) {
+        remote_spawn_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_SPAWN_STATUS_REFUSED;
     }
     memset(req, 0, sizeof(*req));
     req->poll_fn_id = (uint64_t)poll_fn_id;
     req->state = state;
+    req->state_drop_fn_id = state_drop_fn_id;
+    req->state_owned = state_drop_fn_id != 0;
     req->caller_task_id = current->id;
     req->source_shard_id = remote_spawn_current_source_shard(current);
     req->target_shard_id = dst_shard_id;
@@ -167,6 +182,7 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
 }
 
 rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
+                                                         uint64_t state_drop_fn_id,
                                                          int64_t poll_fn_id,
                                                          void* state,
                                                          rt_remote_spawn_pending** pending,
@@ -175,7 +191,7 @@ rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
         return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        return rt_remote_spawn_publish(0, poll_fn_id, state, pending, out_handle);
+        return rt_remote_spawn_publish(0, state_drop_fn_id, poll_fn_id, state, pending, out_handle);
     }
 
     rt_executor* ex = ensure_exec();
@@ -191,9 +207,11 @@ rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
     rt_placement_resolution resolved =
         rt_placement_resolve(runtime, placement, remote_spawn_current_source_shard(current));
     if (resolved.status != RT_PLACEMENT_STATUS_OK) {
+        remote_spawn_drop_unshipped_state(state_drop_fn_id, state);
         return remote_spawn_placement_status(resolved.status);
     }
-    return rt_remote_spawn_publish(resolved.shard_id, poll_fn_id, state, pending, out_handle);
+    return rt_remote_spawn_publish(
+        resolved.shard_id, state_drop_fn_id, poll_fn_id, state, pending, out_handle);
 }
 
 rt_remote_spawn_status rt_remote_spawn_create_body_task(rt_executor* ex,
@@ -318,6 +336,10 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
         remote_spawn_pending_release(req);
         return;
     }
+    // The drop obligation hands off with the published body: from here the
+    // task family owns the shipped state (its rows live in the
+    // remote-owner half of the matrix).
+    req->state_owned = 0;
 
     rt_shard* source = rt_runtime_shard(rt_executor_runtime(ex), req->source_shard_id);
     rt_transport_msg ack = {

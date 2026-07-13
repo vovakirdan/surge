@@ -108,7 +108,7 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 
 	statusVal0 := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_far_channel_select(ptr %s, ptr %s, ptr %s, i64 %d, i64 %d, "+
+		"  %s = call i32 @rt_far_channel_select(ptr %s, ptr %s, ptr %s, i64 %d, i64 0, i64 %d, "+
 			"ptr null, ptr %s, ptr %s, ptr %s)\n",
 		statusVal0,
 		anchorsBase,

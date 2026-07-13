@@ -372,6 +372,36 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "select-no-deadlock-when-runnable",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "drop-invalid-placement-drops-exactly-once",
+			mode: "drop-invalid-placement",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "drop-stale-anchor-drops-exactly-once",
+			mode: "drop-stale-anchor",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "drop-synchronous-queue-full-refusal-drops-exactly-once",
+			mode: "drop-queue-full",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "drop-mixed-owner-select-refusal-drops-exactly-once",
+			mode: "drop-select-mixed-owners",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "drop-handoff-to-a-published-body-never-drops-via-pending",
+			mode: "drop-handoff-not-dropped",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "drop-zero-id-states-never-reach-the-dispatch",
+			mode: "drop-zero-id-never-dispatches",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

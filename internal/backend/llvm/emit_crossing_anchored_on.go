@@ -75,7 +75,7 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_immediate_on_execute_anchored(ptr %s, i64 %d, ptr %s, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_immediate_on_execute_anchored(ptr %s, i64 0, i64 %d, ptr %s, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		anchorVal,
 		ins.BodyFuncID,
@@ -89,7 +89,7 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", retryBB)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_immediate_on_execute_anchored(ptr null, i64 %d, ptr null, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_immediate_on_execute_anchored(ptr null, i64 0, i64 %d, ptr null, ptr %s, ptr %s, ptr %s)\n",
 		retryStatus,
 		ins.BodyFuncID,
 		pendingPtr,

@@ -81,7 +81,16 @@ void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pe
     }
 }
 
+// A refusal before any pending exists still owns the moved state (id 0 =
+// nothing to drop, today's shape).
+static void immediate_on_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {
+    if (state_drop_fn_id != 0 && state != NULL) {
+        __surge_drop_call(state_drop_fn_id, state);
+    }
+}
+
 rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
+                                              uint64_t state_drop_fn_id,
                                               int64_t poll_fn_id,
                                               void* state,
                                               rt_remote_task_pending** pending,
@@ -111,9 +120,11 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     uint32_t source_shard = rt_immediate_on_source_shard(current);
     rt_placement_resolution resolved = rt_placement_resolve(runtime, placement, source_shard);
     if (resolved.status == RT_PLACEMENT_STATUS_UNSUPPORTED) {
+        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_UNSUPPORTED_PLACEMENT;
     }
     if (resolved.status != RT_PLACEMENT_STATUS_OK) {
+        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
         // Out-of-range shard(id): deterministic non-executing placement error
         // path — the immediate crossing resumes as Cancelled, the body does
         // not run, and the resolver's invalid-placement counter records it.
@@ -127,11 +138,13 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     }
     rt_shard* destination = rt_runtime_shard(runtime, resolved.shard_id);
     if (destination == NULL) {
+        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
         atomic_load_explicit(&destination->transport.park_state, memory_order_acquire) ==
             RT_TRANSPORT_SHARD_SHUTDOWN) {
+        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
 
@@ -142,6 +155,7 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     rt_remote_task_pending* request =
         rt_remote_task_pending_new(ex, &route, source_shard, RT_REMOTE_TASK_OP_EXECUTE, 1);
     if (request == NULL) {
+        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     // Request-scoped token until the destination binds the body task.
@@ -149,6 +163,8 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     request->caller_task_id = current->id;
     request->body_poll_fn_id = (uint64_t)poll_fn_id;
     request->body_state = state;
+    request->state_drop_fn_id = state_drop_fn_id;
+    request->state_owned = state_drop_fn_id != 0;
     *pending = request;
     (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
@@ -249,6 +265,9 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
         return;
     }
+    // The drop obligation hands off with the published body (the
+    // remote-owner half of the matrix owns it from here).
+    pending->state_owned = 0;
     // Drop the creation reference: no far handle exists for an immediate
     // execute, so the owner registration (released by the owner-done reply)
     // is the only remaining task reference held for this request.

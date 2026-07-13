@@ -34,10 +34,17 @@ static int select_request_matches(const rt_transport_msg* msg,
 // (sema owns the kind diagnostic; this is the runtime's defense in depth),
 // and every arm kind must be a channel operation — timeout and default arms
 // stay on the caller in every lowering.
+static void select_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {
+    if (state_drop_fn_id != 0 && state != NULL) {
+        __surge_drop_call(state_drop_fn_id, state);
+    }
+}
+
 rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
                                             const uint64_t* send_bits,
                                             uint64_t count,
+                                            uint64_t state_drop_fn_id,
                                             int64_t poll_fn_id,
                                             void* state,
                                             rt_remote_task_pending** pending,
@@ -63,30 +70,36 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
     if (anchors == NULL || kinds == NULL || count == 0 || count > RT_FAR_CHANNEL_SELECT_MAX_ARMS) {
+        select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     for (uint64_t i = 0; i < count; i++) {
         if (anchors[i] == NULL || anchors[i]->kind != RT_FAR_HANDLE_KIND_CHANNEL ||
             anchors[i]->owner_shard_id != anchors[0]->owner_shard_id) {
+            select_drop_unshipped_state(state_drop_fn_id, state);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
         if (kinds[i] != SELECT_CHAN_RECV && kinds[i] != SELECT_CHAN_SEND) {
+            select_drop_unshipped_state(state_drop_fn_id, state);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
     }
     rt_runtime* runtime = rt_executor_runtime(ex);
     rt_shard* destination = rt_runtime_shard(runtime, anchors[0]->owner_shard_id);
     if (destination == NULL) {
+        select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
     if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
         atomic_load_explicit(&destination->transport.park_state, memory_order_acquire) ==
             RT_TRANSPORT_SHARD_SHUTDOWN) {
+        select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
     rt_far_channel_select_arm* arms = (rt_far_channel_select_arm*)rt_alloc(
         count * sizeof(rt_far_channel_select_arm), _Alignof(rt_far_channel_select_arm));
     if (arms == NULL) {
+        select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     memset(arms, 0, count * sizeof(rt_far_channel_select_arm));
@@ -105,12 +118,15 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         rt_free((uint8_t*)arms,
                 count * sizeof(rt_far_channel_select_arm),
                 _Alignof(rt_far_channel_select_arm));
+        select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     request->handle.generation = request->request_id;
     request->caller_task_id = current->id;
     request->body_poll_fn_id = (uint64_t)poll_fn_id;
     request->body_state = state;
+    request->state_drop_fn_id = state_drop_fn_id;
+    request->state_owned = state_drop_fn_id != 0;
     request->select_arms = arms;
     request->select_count = count;
     *pending = request;
@@ -210,6 +226,8 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
         select_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
         return;
     }
+    // The drop obligation hands off with the published body.
+    pending->state_owned = 0;
     task_release_lane_aware(ex, task);
 }
 

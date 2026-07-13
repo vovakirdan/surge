@@ -29,6 +29,10 @@ enum {
     POLL_RTB_SPINNER = 9115,
     POLL_RTB_SELECT_CALLER = 9116,
     POLL_RTB_SELECT_BODY = 9117,
+    POLL_RTB_DROP_EXECUTE = 9118,
+    POLL_RTB_DROP_ANCHORED = 9119,
+    POLL_RTB_DROP_SELECT = 9120,
+    POLL_RTB_DROP_BODY = 9121,
 };
 
 typedef struct rtb_child_state {
@@ -62,6 +66,10 @@ typedef struct rtb_lifecycle_state {
     uint8_t result_kind;
     uint64_t result_bits;
 } rtb_lifecycle_state;
+
+extern _Atomic uint64_t rtb_drop_calls;
+extern _Atomic uint64_t rtb_drop_last_id;
+extern _Atomic(void*) rtb_drop_last_state;
 
 int rtb_fail(const char* message);
 void rtb_sleep_us(unsigned long micros);
@@ -148,6 +156,14 @@ int rtb_mode_select_caller_teardown(void);
 int rtb_mode_select_owner_teardown(void);
 int rtb_mode_select_no_deadlock_when_runnable(void);
 int rtb_mode_select_self_deadlock(void);
+
+void rtb_drop_poll_dispatch(uint64_t id);
+int rtb_mode_drop_invalid_placement(void);
+int rtb_mode_drop_stale_anchor(void);
+int rtb_mode_drop_queue_full(void);
+int rtb_mode_drop_select_mixed_owners(void);
+int rtb_mode_drop_handoff_not_dropped(void);
+int rtb_mode_drop_zero_id_never_dispatches(void);
 
 void rtb_share_poll_dispatch(uint64_t id);
 int rtb_mode_share_round_trip(void);
