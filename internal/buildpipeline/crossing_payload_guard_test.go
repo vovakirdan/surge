@@ -19,20 +19,6 @@ func TestLLVMTransportPayloadGuard(t *testing.T) {
 		codes []diag.Code
 	}{
 		{
-			name: "owned shard movable capture",
-			src: `
-@shard_movable
-type Movable = { id: int };
-
-fn use(m: own Movable) -> int { return m.id; }
-
-async fn start(dst: Placement, m: own Movable) -> far Task<int> {
-    return spawn on dst { ret use(own m); };
-}
-`,
-			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
-		},
-		{
 			name: "heap backed result and await",
 			src: `
 async fn start(dst: Placement) -> far Task<string> {
@@ -84,24 +70,6 @@ async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
     return on ch {
         ch.send(1);
         let _cancelled: TaskResult<nothing> = task.cancel();
-        ret nothing;
-    };
-}
-`,
-			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
-		},
-		{
-			name: "owned shard movable capture into anchored body",
-			src: `
-@shard_movable
-type Movable = { id: int };
-
-fn use(m: own Movable) -> int { return m.id; }
-
-async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
-    return on ch {
-        ch.send(1);
-        let _ = use(own m);
         ret nothing;
     };
 }
@@ -183,18 +151,13 @@ async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {
 			contains: []string{"`Option<int>`", "unwrap it inside the block before `ret`"},
 		},
 		{
-			name: "shard movable capture names the binding",
+			name: "far task capture names the binding",
 			src: `
-@shard_movable
-type Movable = { id: int };
-
-fn use(m: own Movable) -> int { return m.id; }
-
-async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
-    return on ch { ch.send(1); let _ = use(own m); ret nothing; };
+async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
+    return on ch { ch.send(1); let _c: TaskResult<nothing> = task.cancel(); ret nothing; };
 }
 `,
-			contains: []string{"capture `m`", "moves owned data across shards"},
+			contains: []string{"capture `task`", "carries a `far Task` lease"},
 		},
 	}
 	for _, tc := range cases {
@@ -219,6 +182,61 @@ async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
 				}
 			}
 		})
+	}
+}
+
+// The migration vertical: owned @shard_movable captures ship into
+// crossing bodies (the FUT7020 guard no longer fires for them); the
+// crossing compiles to MIR on the transport backend.
+func TestOwnedShardMovableCapturesShip(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	sources := []string{
+		`
+@shard_movable
+type Movable = { id: int };
+
+fn use(m: own Movable) -> int { return m.id; }
+
+async fn start(dst: Placement, m: own Movable) -> far Task<int> {
+    return spawn on dst { ret use(own m); };
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`,
+		`
+@shard_movable
+type Movable = { id: int };
+
+fn use(m: own Movable) -> int { return m.id; }
+
+async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
+    return on ch {
+        ch.send(1);
+        let _ = use(own m);
+        ret nothing;
+    };
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`,
+	}
+	for i, source := range sources {
+		path := filepath.Join(t.TempDir(), "main.sg")
+		if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+			t.Fatalf("write source %d: %v", i, err)
+		}
+		res, err := Compile(context.Background(), &CompileRequest{
+			TargetPath: path, Backend: BackendLLVM, MaxDiagnostics: 200,
+		})
+		if err != nil {
+			t.Fatalf("owned movable capture %d failed to compile: %v (%s)",
+				i, err, summarizeCodes(res.Diagnose.Bag.Items()))
+		}
+		if res.MIR == nil {
+			t.Fatalf("owned movable capture %d produced no MIR", i)
+		}
 	}
 }
 

@@ -67,16 +67,6 @@ func classifyCrossingPayload(
 		sema.CrossingLoweringOnFarHandle:
 		for i := range info.Captures {
 			capture := &info.Captures[i]
-			if capture.Verdict == sema.CrossingCaptureOwnedShardMovable {
-				return crossingGuardFinding{
-					Code: diag.FutCrossingPayloadNotShippable,
-					Span: capture.Span,
-					Message: fmt.Sprintf(
-						"capture `%s` (`%s`) moves owned data across shards, which this "+
-							"vertical does not ship yet; pass plain-copy data or build the "+
-							"value on the destination", capture.Name, label(capture.Type)),
-				}, true
-			}
 			if capture.Verdict == sema.CrossingCaptureFarHandle &&
 				semaRes.IsDirectFarTaskType(capture.Type) {
 				return crossingGuardFinding{

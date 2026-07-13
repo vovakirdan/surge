@@ -84,9 +84,11 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 	case sema.CrossingLoweringSpawnOn, sema.CrossingLoweringOnPlacement,
 		sema.CrossingLoweringOnFarHandle:
 		for _, capture := range info.Captures {
-			if capture.Verdict == sema.CrossingCaptureOwnedShardMovable {
-				return false
-			}
+			// Owned @shard_movable captures ship since the migration
+			// vertical: in shared memory the capture is a pointer in the
+			// crossing state struct, and reclamation follows the language's
+			// current memory model unchanged (see the migration epic's
+			// drop-obligation record).
 			if capture.Verdict == sema.CrossingCaptureFarHandle &&
 				res.IsDirectFarTaskType(capture.Type) {
 				return false

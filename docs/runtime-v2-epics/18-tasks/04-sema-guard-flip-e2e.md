@@ -48,4 +48,29 @@
 
 ## Status
 
-In progress.
+COMPLETE, with the epic's second scope correction: compiled drop
+functions have NOTHING to build on today — `InstrDrop` is a no-op in
+the LLVM backend and compiled code frees no owned heap value at scope
+exit anywhere (the contract's recorded "current malloc/free strategy"
+pre-1.0 model). Therefore:
+
+- The guard flip ships under the language's CURRENT memory model: an
+  owned capture moved into a crossing body is reclaimed exactly as it
+  would have been locally (today: not at all) — the crossing adds NO
+  new leak class. The drop-obligation plumbing (Tasks 2-3) stays in
+  place at id 0, dormant and row-proven, and becomes load-bearing the
+  day the language grows real drop emission — recorded as the new
+  debt row (drop emission is language-wide work, not a crossing
+  epic).
+- What shipped here: `crossingRecordExecutable` accepts owned
+  @shard_movable captures for all three body-carrying forms; the
+  FUT7020 classifier arm for them is gone (far-Task captures and
+  non-copy payloads keep their guards, kindness rows retargeted);
+  positive compile tests for both shapes; e2e green FIRST RUN at
+  SHARDS=1/2/8 (spawn-on and immediate-on both move an owned
+  @shard_movable value built locally); the crossing e2e gate carries
+  the new test.
+- Census assertions are deliberately absent: with no frees in the
+  language there is nothing to balance; the e2e proves behavior
+  (moved values processed remotely with correct results and affine
+  move-out at the source).

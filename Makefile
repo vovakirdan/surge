@@ -135,7 +135,7 @@ runtime-v2-transport-contract-check:
 	@echo ">> Running Runtime V2 immediate-on acceptance gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2ImmediateOn(SourceOverrideAcrossShards|SourceProductionCapability|PoolProductionCapabilityFailsDeterministically)$$|^TestRuntimeV2ImportedCrossingProductionCapability$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 channel genesis gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2(ChannelGenesisOverrideAcrossShards|OnChAnchoredOpsAcrossShards|ShareFanOutAcrossShards|RemoteSelectFanInAcrossShards)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2(ChannelGenesisOverrideAcrossShards|OnChAnchoredOpsAcrossShards|ShareFanOutAcrossShards|RemoteSelectFanInAcrossShards|OwnedCaptureMigrationAcrossShards)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 heap accounting gate"
