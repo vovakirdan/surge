@@ -245,7 +245,13 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 		{
 			name: "select-parked-selector-wakes-on-send-exactly-once",
 			mode: "select-park-then-send",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-tie-break-matches-the-local-scan-order",
@@ -260,7 +266,13 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 		{
 			name: "select-close-wakes-the-parked-selector-exactly-once",
 			mode: "select-park-then-close",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-cancel-before-binding-resumes-cancelled",
@@ -270,41 +282,94 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 		{
 			name: "select-cancel-of-a-parked-selector-resumes-cancelled",
 			mode: "select-cancel-parked",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-cancel-vs-send-yields-exactly-one-terminal",
 			mode: "select-cancel-vs-send",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-spurious-caller-wake-mints-no-second-request",
 			mode: "select-retry-single-body",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-spurious-body-wake-is-absorbed-and-rearmed",
 			mode: "select-stale-wake",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-pins-outlive-every-released-lease-to-the-reply",
 			mode: "select-release-while-parked",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-sibling-lease-send-wakes-exactly-one-selector",
 			mode: "select-sibling-isolation",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-orphaned-reply-after-caller-teardown-is-consumed",
 			mode: "select-caller-teardown",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-owner-teardown-fails-the-parked-caller-deterministically",
 			mode: "select-owner-teardown",
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
+		},
+		{
+			name: "select-runnable-spinner-suppresses-the-deadlock-panic",
+			mode: "select-no-deadlock-when-runnable",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
 	}
@@ -356,6 +421,12 @@ func TestRuntimeV2RemoteChannelSelfDeadlockPanics(t *testing.T) {
 			mode: "share-deadlock-after-peer-release",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 			want: "consumer is the suspended caller",
+		},
+		{
+			name: "parked-selector-deadlock-names-the-select-shape",
+			mode: "select-self-deadlock",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			want: "an anchored select over 2 arms is parked",
 		},
 	}
 	for _, row := range rows {

@@ -113,5 +113,9 @@ int main(int argc, char** argv) {
         return rtb_mode_select_caller_teardown();
     if (strcmp(argv[1], "select-owner-teardown") == 0)
         return rtb_mode_select_owner_teardown();
+    if (strcmp(argv[1], "select-no-deadlock-when-runnable") == 0)
+        return rtb_mode_select_no_deadlock_when_runnable();
+    if (strcmp(argv[1], "select-self-deadlock") == 0)
+        return rtb_mode_select_self_deadlock();
     return rtb_fail("unknown mode");
 }

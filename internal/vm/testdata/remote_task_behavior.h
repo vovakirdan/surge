@@ -145,6 +145,8 @@ int rtb_mode_select_release_while_parked(void);
 int rtb_mode_select_sibling_isolation(void);
 int rtb_mode_select_caller_teardown(void);
 int rtb_mode_select_owner_teardown(void);
+int rtb_mode_select_no_deadlock_when_runnable(void);
+int rtb_mode_select_self_deadlock(void);
 
 void rtb_share_poll_dispatch(uint64_t id);
 int rtb_mode_share_round_trip(void);

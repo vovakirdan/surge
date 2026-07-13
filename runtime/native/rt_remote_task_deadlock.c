@@ -126,7 +126,8 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
                                          uint64_t expect_task_id,
                                          const char** op_name,
                                          uint32_t* owner_shard_id,
-                                         rt_far_task_handle* out_anchor) {
+                                         rt_far_task_handle* out_anchor,
+                                         uint64_t* out_arm_count) {
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     if (state == NULL) {
         return 0;
@@ -136,6 +137,7 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
     for (;;) {
         rt_task* bodies[RT_DEADLOCK_CANDIDATE_BATCH];
         rt_far_task_handle anchors[RT_DEADLOCK_CANDIDATE_BATCH];
+        uint64_t arm_counts[RT_DEADLOCK_CANDIDATE_BATCH];
         size_t body_count = 0;
         size_t seen = 0;
         pthread_mutex_lock(&state->lock);
@@ -144,7 +146,8 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
                 continue;
             }
             if (it->op != RT_REMOTE_TASK_OP_EXECUTE &&
-                it->op != RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
+                it->op != RT_REMOTE_TASK_OP_EXECUTE_ANCHORED &&
+                it->op != RT_REMOTE_TASK_OP_CHANNEL_SELECT) {
                 continue;
             }
             if (it->handle.task_id == 0 || it->owner_registered == 0) {
@@ -160,8 +163,19 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
             if (body == NULL) {
                 continue;
             }
-            anchors[body_count] =
-                it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED ? it->anchor : (rt_far_task_handle){0};
+            // The whole caller->reply->body->channel chain collapses into
+            // this one suspect: the parked selector body stands for the
+            // remote select op, first arm's lease naming the topology.
+            if (it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) {
+                anchors[body_count] =
+                    it->select_count > 0 ? it->select_arms[0].anchor : (rt_far_task_handle){0};
+                arm_counts[body_count] = it->select_count;
+            } else {
+                anchors[body_count] = it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED
+                                          ? it->anchor
+                                          : (rt_far_task_handle){0};
+                arm_counts[body_count] = 0;
+            }
             task_add_ref(body);
             bodies[body_count++] = body;
             if (body_count == RT_DEADLOCK_CANDIDATE_BATCH) {
@@ -181,12 +195,17 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
                     rt_shard_unlock(owner);
                     if (waiting && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV)) {
                         suspect_id = body->id;
-                        *op_name = kind == WAKER_CHAN_SEND ? "send" : "recv";
+                        *op_name = arm_counts[i] > 0         ? "select"
+                                   : kind == WAKER_CHAN_SEND ? "send"
+                                                             : "recv";
                         if (owner_shard_id != NULL) {
                             *owner_shard_id = body->owner_shard_id;
                         }
                         if (out_anchor != NULL) {
                             *out_anchor = anchors[i];
+                        }
+                        if (out_arm_count != NULL) {
+                            *out_arm_count = arm_counts[i];
                         }
                     }
                 }
@@ -216,14 +235,17 @@ void rt_remote_task_deadlock_check(rt_executor* ex) {
     const char* op_name = "";
     uint32_t suspect_shard = 0;
     rt_far_task_handle anchor = {0};
-    uint64_t suspect_id = find_channel_parked_body(ex, 0, &op_name, &suspect_shard, &anchor);
+    uint64_t arm_count = 0;
+    uint64_t suspect_id =
+        find_channel_parked_body(ex, 0, &op_name, &suspect_shard, &anchor, &arm_count);
     if (suspect_id == 0) {
         return;
     }
     if (!all_shards_quiescent(ex)) {
         return;
     }
-    if (find_channel_parked_body(ex, suspect_id, &op_name, &suspect_shard, &anchor) != suspect_id) {
+    if (find_channel_parked_body(ex, suspect_id, &op_name, &suspect_shard, &anchor, &arm_count) !=
+        suspect_id) {
         return;
     }
     // Quiescence is the whole soundness argument, holders included: a
@@ -232,7 +254,16 @@ void rt_remote_task_deadlock_check(rt_executor* ex) {
     // ever drain it. The lease count names that topology for the user.
     size_t holders = rt_far_channel_active_lease_count(ex, &anchor);
     static char message[320];
-    if (holders > 1) {
+    if (arm_count > 0) {
+        (void)snprintf(message,
+                       sizeof(message),
+                       "remote channel deadlock: an anchored select over %llu arms is parked "
+                       "(body task %llu, shard %u) while every shard is idle; nothing can wake "
+                       "it — every holder of its arm channels is idle too",
+                       (unsigned long long)arm_count,
+                       (unsigned long long)suspect_id,
+                       (unsigned)suspect_shard);
+    } else if (holders > 1) {
         (void)snprintf(message,
                        sizeof(message),
                        "remote channel deadlock: an anchored block is parked on channel %s "

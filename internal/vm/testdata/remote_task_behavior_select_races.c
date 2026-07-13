@@ -312,3 +312,72 @@ int rtb_mode_select_owner_teardown(void) {
     }
     return 0;
 }
+
+// Row 15 (detector false-positive guard): a runnable spinner keeps the
+// executor non-quiescent, so a parked selector must NOT trip the deadlock
+// panic; the send then completes the select and the row exits cleanly.
+int rtb_mode_select_no_deadlock_when_runnable(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state chan_a;
+    rtb_create_state chan_b;
+    if (!rtb_mint_channel(&chan_a, rt_placement_shard(1), 1) ||
+        !rtb_mint_channel(&chan_b, rt_placement_shard(1), 1)) {
+        return rtb_fail("select-runnable mint failed");
+    }
+    static rtb_share_state spin;
+    memset(&spin, 0, sizeof(spin));
+    void* spinner = __task_create(POLL_RTB_SPINNER, &spin);
+    rtb_select_state state;
+    void* caller = NULL;
+    if (rtb_select_park2(ex, &chan_a.handle, &chan_b.handle, &state, &caller) != 0) {
+        return 1;
+    }
+    // The would-be false-positive window: shards idle except the spinner.
+    rtb_sleep_us(300000);
+    // Complete the select BEFORE parking the spinner: the main thread is
+    // invisible to quiescence, so releasing the spinner first would open a
+    // real (momentary) deadlock window ahead of this send.
+    void* raw_a = rt_far_channel_resolve(ex, &chan_a.handle);
+    if (raw_a == NULL) {
+        return rtb_fail("select-runnable resolve failed");
+    }
+    rt_channel_send_blocking(raw_a, 42);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(caller, &kind, &bits);
+    if (state.status != RT_REMOTE_TASK_STATUS_OK || state.result_bits != 0) {
+        return rtb_fail("select-runnable select did not complete");
+    }
+    atomic_store_explicit(&spin.spin_gate, 1, memory_order_release);
+    (void)rtb_await(spinner, &kind, &bits);
+    if (rt_far_channel_release(ex, &chan_a.handle) != RT_REMOTE_TASK_STATUS_OK ||
+        rt_far_channel_release(ex, &chan_b.handle) != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("select-runnable release failed");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Row 16 (detector true positive): the selector's arm channels have no
+// producer anywhere — the only other task is the caller suspended on the
+// select's own reply. Once every shard is idle the runtime must panic with
+// the select-shaped deadlock report instead of hanging. The process dies;
+// the Go row asserts the exit and the message.
+int rtb_mode_select_self_deadlock(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state chan_a;
+    rtb_create_state chan_b;
+    if (!rtb_mint_channel(&chan_a, rt_placement_shard(1), 1) ||
+        !rtb_mint_channel(&chan_b, rt_placement_shard(1), 1)) {
+        return rtb_fail("select-deadlock mint failed");
+    }
+    rtb_select_state state;
+    void* caller = NULL;
+    if (rtb_select_park2(ex, &chan_a.handle, &chan_b.handle, &state, &caller) != 0) {
+        return 1;
+    }
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(caller, &kind, &bits);
+    return rtb_fail("select-deadlock select unexpectedly completed");
+}
