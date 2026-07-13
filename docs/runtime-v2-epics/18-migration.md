@@ -1,7 +1,7 @@
 # Epic 18: Owned-Value Migration — DRAFT
 
-**Status:** draft (2026-07-13); the central fork goes to second opinion
-before the boundary decisions freeze.
+**Status:** draft with the fork RESOLVED (2026-07-13, external review);
+review-ready for the direction gate before Task 1.
 
 ## Why This Epic Exists
 
@@ -11,9 +11,15 @@ with FUT7020 ("moves owned data across shards, which this vertical does
 not ship yet; pass plain-copy data or build the value on the
 destination"). Migration is the last candidate from the post-cleanup
 list (`16-candidates.md` C) and the last big lie in the crossing
-surface: the type system already classifies movability (SEM3168-3172),
-the capture machinery already ships the bits, and only the ownership
-discipline is missing.
+surface: the type system already classifies movability (SEM3168-3172) and
+the capture machinery already ships the bits. The representation is
+sufficient; the missing work is drop-metadata plumbing on the pending
+(the request carries `void* state` with NO drop metadata, and the
+abandon paths free only the envelope — `rt_remote_spawn_internal.h`,
+`rt_remote_spawn_pending.c` consume/release) plus the exactly-once-drop
+discipline across every lifecycle edge. Harmless today only because the
+transport gate admits no droppable payloads; this epic OPENS that hole
+and must close it in the same motion.
 
 ## Starting State (evidence)
 
@@ -43,7 +49,37 @@ discipline is missing.
   shape — every failure path answers exactly once. Migration needs the
   twin: every path drops the moved capture exactly once.
 
-## The Central Fork (out for second opinion)
+## Fork Resolution (second opinion, 2026-07-13): Model A
+
+External review (codex pass converged) resolved the fork decisively
+for A, with corrections folded into this draft:
+
+- **A ships**: lifting FUT7020 for `@shard_movable` owned captures IS
+  the existing capture/state-struct lowering serving the guard
+  message's named need; no new syntax.
+- **B recorded as tail**, with softened wording: a standalone
+  `move x to placement` has no USEFUL migration semantics in a
+  shared-memory runtime without far DATA handles (ownership transfer
+  and destructor timing are observable, but there is no locality to
+  enforce — accounting cells are thread-attributed counters). The far
+  data-handle family is the recorded tail.
+- **Row-5 semantic settled: DROP, not un-move.** A move is statically
+  terminal (sema marks the source moved-from at the call expression;
+  un-move is not expressible without a fallible-move surface — a
+  different, heavier design); it matches own-argument failure
+  semantics (ownership transfers at the boundary; cleanup disposes);
+  and there is no caller-visible rollback to hand a value back to.
+  The row's original PREMISE was wrong though: queue-full is not one
+  "rollback" — the initial request enqueue refuses synchronously
+  source-side while the ACK path drains-and-retries with no rollback
+  at all. The matrix below is re-cut on the corrected model.
+- **The matrix's organizing axis, stated explicitly: does a live
+  remote owner (body/state object) exist at this edge?** Every edge
+  where it does NOT, the pending's terminal cleanup owns the drop;
+  every edge where it DOES, the destination owns it — and the rows
+  prove no edge lets both (double drop) or neither (leak) happen.
+
+## The Original Fork (retained for the record)
 
 What is vertical 1's surface?
 
@@ -71,23 +107,43 @@ What is vertical 1's surface?
 ## The Exactly-Once-Drop Matrix (vertical 1's core, every row test-owned)
 
 A moved capture must be dropped exactly once and exactly one side must
-consider itself the owner, on every path:
+consider itself the owner, on every path. Rows grouped by the
+organizing axis (does a live remote owner exist yet?).
 
-1. body runs to completion (destination drop glue — works today);
-2. body cancelled before its first poll;
-3. body cancelled mid-suspension (parked on a channel);
-4. dispatch refused (body never created — dispatch-side drop);
-5. transport queue full (request rolled back — caller-side drop
-   restores caller ownership? NO: the capture moved at the call site;
-   the rollback path must drop it, the caller's local is already
-   moved-from);
-6. stale anchor (anchored blocks; answered without a body);
-7. caller teardown with the request in flight (release_owned sweep);
-8. owner teardown with the body parked;
-9. destination shutdown answered at the call site;
-10. leak census: every row above asserts the alloc/free balance
-    across ALL accounting cells (the cross-cell free is the expected
-    shape, the census proves exactly-once globally).
+No remote owner yet — the pending's terminal cleanup drops:
+1. capture/state construction fails before publish;
+2. pending allocation failure;
+3. invalid/unresolvable placement (answered at the call site);
+4. destination shut down before enqueue;
+5. initial request enqueue refused (incl. queue-full — the SYNCHRONOUS
+   source-side refusal; the ACK lane's drain-and-retry is a different
+   site with no rollback);
+6. request discarded by shutdown/stale handling before dispatch;
+7. stale anchor (anchored blocks; answered without a body);
+8. caller teardown with the request in flight (release_owned sweep,
+   unbound branch);
+9. caller abandons the returned far Task while publish is pending.
+
+Remote owner exists — the destination owns the drop:
+10. body runs to completion (destination drop glue);
+11. body cancelled before its first poll;
+12. body cancelled mid-suspension (parked on a channel);
+13. body-task allocation fails destination-side (state arrived, no
+    task — dispatch-side drop; the boundary row between the groups);
+14. body task created but ready-queue publish fails;
+15. body panics/aborts before its first successful poll;
+16. ACK-enqueue failure after the body task exists;
+17. duplicate/stale ACK after resolution (absorbed, no second drop);
+18. owner teardown with the body parked.
+
+Cross-cutting:
+19. NESTED owned captures: exactly-once holds recursively for every
+    owned field, not just the outer state object;
+20. a field destructor panic leaves no double-drop on the remaining
+    fields (partial-cleanup row);
+21. leak census: every row asserts the alloc/free balance across ALL
+    accounting cells (cross-cell free is the expected shape; the
+    census proves exactly-once globally).
 
 ## Fixed Points
 
@@ -105,11 +161,16 @@ consider itself the owner, on every path:
 
 ## Candidate Slices (to be re-cut after the fork resolves)
 
-1. Kickoff: fork resolution record, evidence re-pin, drop-obligation
-   design note (who owns the state struct's fields on each lifecycle
-   edge), sema surface design.
-2. Runtime vertical: drop-obligation plumbing through the pending
-   lifecycle with matrix rows 1-10 (behavior suite, test-first).
-3. Sema + guard flip + e2e (build-local-process-remote at
+1. Kickoff: evidence re-pin; the drop-metadata design note (the
+   pending gains a drop-fn pointer alongside `state`; who owns the
+   state struct's fields on each lifecycle edge, by the live-remote-
+   owner axis); sema surface design.
+2. Runtime vertical A: drop-metadata plumbing + the no-remote-owner
+   rows (1-9) — every abandon path in the pending lifecycle destructs
+   `state` exactly once (behavior suite, test-first).
+3. Runtime vertical B: the remote-owner rows (10-18) + cross-cutting
+   rows (19-21, nested captures and the census).
+4. Sema + guard flip + e2e (build-local-process-remote at
    SHARDS=1/2/8; negative goldens for non-movable field paths).
-4. Bench (capture-move cost vs plain-copy baseline) + debt + closeout.
+5. Bench (capture-move cost vs plain-copy baseline) + debt + closeout
+   (owned RESULTS and the far-data-handle family recorded as tails).
