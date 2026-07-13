@@ -77,5 +77,9 @@ int rt_remote_task_anchored_binding_current(void** out_channel, void** out_state
 void rt_anchored_channel_send(uint64_t value_bits);
 uint8_t rt_anchored_channel_recv(uint64_t* out_bits);
 void rt_anchored_channel_close(void);
+// The remote-select body's single operation: local select over the bound
+// arm channels; parked selection yields inside (re-entry restarts the
+// body), so returning means a winner was decided. Returns the winner index.
+uint64_t rt_anchored_channel_select(void);
 
 #endif

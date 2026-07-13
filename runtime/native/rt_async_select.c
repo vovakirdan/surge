@@ -5,13 +5,9 @@
 // these paths register one task under several key owners, so they stay on
 // the slow lane while single-key awaits run shard-local.
 
-enum {
-    SELECT_TASK = 0,
-    SELECT_CHAN_RECV = 1,
-    SELECT_CHAN_SEND = 2,
-    SELECT_TIMEOUT = 3,
-    SELECT_DEFAULT = 4,
-};
+// Arm-kind ABI values live in rt_async_internal.h (rt_select_arm_kind): the
+// compiler emits them into rt_select_poll calls, and the remote proxy
+// selector ships them across the transport.
 
 static void ensure_select_timers_cap(rt_task* task, size_t want) {
     if (task == NULL) {

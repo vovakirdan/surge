@@ -260,11 +260,15 @@ int rt_remote_task_dispatch_message(rt_executor* ex, const rt_transport_msg* msg
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST:
             rt_far_channel_dispatch_share(ex, msg);
             return 1;
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST:
+            rt_far_channel_dispatch_select(ex, msg);
+            return 1;
         case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY:
             dispatch_reply(ex, msg);
             return 1;
         default:

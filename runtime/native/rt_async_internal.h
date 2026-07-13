@@ -51,6 +51,17 @@ typedef enum {
     POLL_PARKED = 4,
 } poll_kind;
 
+// Select arm-kind ABI: the compiler emits these values into rt_select_poll
+// calls; the remote proxy selector ships the channel subset (RECV/SEND)
+// across the transport. Do not renumber.
+typedef enum {
+    SELECT_TASK = 0,
+    SELECT_CHAN_RECV = 1,
+    SELECT_CHAN_SEND = 2,
+    SELECT_TIMEOUT = 3,
+    SELECT_DEFAULT = 4,
+} rt_select_arm_kind;
+
 typedef enum {
     SCHED_PARALLEL = 0,
     SCHED_SEEDED = 1,

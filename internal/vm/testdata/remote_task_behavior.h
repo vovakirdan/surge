@@ -27,6 +27,8 @@ enum {
     POLL_RTB_ANCHORED_FLOODED_CALLER = 9113,
     POLL_RTB_CHANNEL_SHARE = 9114,
     POLL_RTB_SPINNER = 9115,
+    POLL_RTB_SELECT_CALLER = 9116,
+    POLL_RTB_SELECT_BODY = 9117,
 };
 
 typedef struct rtb_child_state {
@@ -115,6 +117,23 @@ typedef struct rtb_share_state {
     rt_remote_task_status status;
     _Atomic uint32_t spin_gate;
 } rtb_share_state;
+
+typedef struct rtb_select_state {
+    rt_remote_task_pending* pending;
+    rt_far_task_handle anchors[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    uint8_t kinds[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    uint64_t bits[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    uint64_t count;
+    _Atomic(rt_remote_task_pending*) visible_pending;
+    rt_remote_task_status status;
+    uint8_t result_kind;
+    uint64_t result_bits;
+} rtb_select_state;
+
+void rtb_select_poll_dispatch(uint64_t id);
+int rtb_mode_select_ready_first(void);
+int rtb_mode_select_park_then_send(void);
+int rtb_mode_select_tie_break(void);
 
 void rtb_share_poll_dispatch(uint64_t id);
 int rtb_mode_share_round_trip(void);

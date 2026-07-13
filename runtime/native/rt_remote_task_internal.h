@@ -15,7 +15,22 @@ typedef enum rt_remote_task_op {
     RT_REMOTE_TASK_OP_CHANNEL_CREATE = 5,
     RT_REMOTE_TASK_OP_EXECUTE_ANCHORED = 6,
     RT_REMOTE_TASK_OP_CHANNEL_SHARE = 7,
+    RT_REMOTE_TASK_OP_CHANNEL_SELECT = 8,
 } rt_remote_task_op;
+
+// One remote-select arm: the caller's lease token, the send payload for
+// SELECT_CHAN_SEND arms, and the local channel resolved atomically with the
+// dispatch-time pin (valid until the reply-edge unpin).
+typedef struct rt_far_channel_select_arm {
+    rt_far_task_handle anchor;
+    void* channel;
+    uint64_t send_bits;
+    uint8_t kind;
+} rt_far_channel_select_arm;
+
+// Arm-count cap for one remote select: source-level selects are small, and
+// the cap keeps the dispatch pin loop and the body's stack arrays bounded.
+#define RT_FAR_CHANNEL_SELECT_MAX_ARMS 16U
 
 enum {
     RT_REMOTE_TASK_HANDLE_OPEN = 0,
@@ -60,6 +75,10 @@ struct rt_remote_task_pending {
     // Anchored blocks only: the local channel resolved atomically with the
     // dispatch-time pin; valid until the reply-edge unpin.
     void* anchored_channel;
+    // Remote select only: the arm table copied at request time (owned by the
+    // pending, freed with it); channels filled by the dispatch-time pins.
+    rt_far_channel_select_arm* select_arms;
+    uint64_t select_count;
     uint64_t result_bits;
     _Atomic uint32_t refs;
     uint8_t listed;
@@ -116,6 +135,12 @@ waker_key rt_remote_task_reply_key(uint64_t request_id, uint32_t source_shard_id
 int rt_remote_task_prepare_reply_wait(rt_executor* ex,
                                       rt_task* current,
                                       rt_remote_task_pending* pending);
+int rt_remote_task_select_binding_current(rt_far_channel_select_arm** out_arms,
+                                          uint64_t* out_count,
+                                          void** out_state);
+void rt_far_channel_select_unpin_arms(rt_executor* ex,
+                                      const rt_remote_task_pending* pending,
+                                      uint64_t pinned_count);
 void rt_remote_task_clear_reply_wait(rt_executor* ex,
                                      rt_task* current,
                                      const rt_remote_task_pending* pending);

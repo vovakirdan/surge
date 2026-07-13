@@ -34,6 +34,8 @@ typedef enum rt_transport_msg_kind {
     RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY = 13,
     RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST = 14,
     RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY = 15,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST = 16,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY = 17,
 } rt_transport_msg_kind;
 
 typedef enum rt_transport_park_state {
@@ -92,6 +94,8 @@ typedef struct rt_transport_state {
     uint64_t far_channel_create_replies;
     uint64_t far_channel_share_requests;
     uint64_t far_channel_share_replies;
+    uint64_t far_channel_select_requests;
+    uint64_t far_channel_select_replies;
     uint64_t credit_stalls;
     uint64_t unsupported_fallback_attempts;
     uint64_t transport_wake_writes;
@@ -123,6 +127,8 @@ struct rt_transport_debug_snapshot {
     uint64_t far_channel_create_replies;
     uint64_t far_channel_share_requests;
     uint64_t far_channel_share_replies;
+    uint64_t far_channel_select_requests;
+    uint64_t far_channel_select_replies;
     uint64_t credit_stalls;
     uint64_t unsupported_fallback_attempts;
     uint64_t transport_wake_writes;

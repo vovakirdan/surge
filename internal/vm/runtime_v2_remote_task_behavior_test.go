@@ -237,6 +237,21 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "share-no-deadlock-when-runnable",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "select-ready-arm-wins-without-parking",
+			mode: "select-ready-first",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-parked-selector-wakes-on-send-exactly-once",
+			mode: "select-park-then-send",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-tie-break-matches-the-local-scan-order",
+			mode: "select-tie-break",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

@@ -25,6 +25,19 @@ rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
                                            uint8_t* out_kind,
                                            uint64_t* out_bits);
 void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg);
+// Caller-side remote select (execute/reply discipline; destination = the
+// arms' shared owner shard; reply bits = the winner index) and its
+// owner-side dispatch.
+rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* anchors,
+                                            const uint8_t* kinds,
+                                            const uint64_t* send_bits,
+                                            uint64_t count,
+                                            int64_t poll_fn_id,
+                                            void* state,
+                                            rt_remote_task_pending** pending,
+                                            uint8_t* out_kind,
+                                            uint64_t* out_bits);
+void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg);
 // Init-rollback pair; mirrors the remote-task state convention.
 rt_runtime_status rt_far_channel_state_init(rt_executor* ex);
 rt_runtime_status rt_far_channel_state_destroy(rt_executor* ex);

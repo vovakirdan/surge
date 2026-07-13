@@ -17,6 +17,8 @@ void rt_remote_task_release_msg_payload(const rt_transport_msg* msg) {
         case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY:
             rt_remote_task_pending_release(msg->payload);
             break;
         default:
@@ -54,6 +56,14 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                        rt_remote_task_result_kind(task),
                                        task->result_bits,
                                        RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+    } else if (pending->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) {
+        rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
+        rt_remote_task_reply_or_finish(ex,
+                                       pending,
+                                       RT_REMOTE_TASK_STATUS_OK,
+                                       rt_remote_task_result_kind(task),
+                                       task->result_bits,
+                                       RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY);
     }
     task_release_lane_aware(ex, task);
 }

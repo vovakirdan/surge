@@ -85,5 +85,11 @@ int main(int argc, char** argv) {
         return rtb_mode_share_no_deadlock_when_runnable();
     if (strcmp(argv[1], "share-deadlock-after-peer-release") == 0)
         return rtb_mode_share_deadlock_after_peer_release();
+    if (strcmp(argv[1], "select-ready-first") == 0)
+        return rtb_mode_select_ready_first();
+    if (strcmp(argv[1], "select-park-then-send") == 0)
+        return rtb_mode_select_park_then_send();
+    if (strcmp(argv[1], "select-tie-break") == 0)
+        return rtb_mode_select_tie_break();
     return rtb_fail("unknown mode");
 }

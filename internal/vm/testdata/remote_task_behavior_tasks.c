@@ -193,6 +193,7 @@ void __surge_poll_call(uint64_t id) {
     rtb_anchored_poll_dispatch(id);
     rtb_anchored_audit_poll_dispatch(id);
     rtb_share_poll_dispatch(id);
+    rtb_select_poll_dispatch(id);
     if (id == POLL_RTB_EXECUTE) {
         poll_rtb_execute((rtb_execute_state*)__task_state());
     }
