@@ -1,7 +1,7 @@
 # Epic 17: Remote Select — DRAFT
 
-**Status:** draft skeleton (2026-07-13); the central fork goes to second
-opinion before the boundary decisions freeze.
+**Status:** draft with the fork RESOLVED (2026-07-13, external review);
+review-ready pending the DEBT-027 stress-epoch triage noted below.
 
 ## Why This Epic Exists
 
@@ -30,7 +30,67 @@ arms are the delta.
 - Sibling leases (Epic 16) make multi-channel fan-in legal at source
   level.
 
-## The Central Fork (out for second opinion)
+## Fork Resolution (second opinion, 2026-07-13): Model C first
+
+External review (Codex, grounded in the runtime contract doc, plus the
+reviewing agent's synthesis) resolved the fork:
+
+- **Vertical 1 ships C** (owner-side proxy selector): lowest race
+  novelty (one anchored request/reply, zero new race shapes), one
+  remote transaction per select regardless of arm count (the hot
+  single-owner receive loop — the primary usage — is served
+  permanently), and wholesale reuse of local select.
+- **Linearization moves to the owner lane — documented, not unsound.**
+  The runtime contract frames remote select's predictability purely as
+  cost; no caller-lane FIFO/fairness promise exists anywhere. Vertical
+  1 WRITES the explicit clause: no caller-lane ordering or fairness
+  across the shard boundary; the winner is decided on the owner lane
+  exactly where the owner's own local select would decide it.
+- **Sema restriction, kindness-first**: all far arms of one select must
+  share one owner shard in vertical 1 (mixing with local arms and
+  multi-owner selects deferred); the diagnostic names the restriction
+  and the split-into-selects workaround — the anchored-body shape-rule
+  precedent, applied again.
+- **Lift path**: C stays the permanent single-owner fast path ->
+  a stabilization vertical extracts the reusable SELECTOR LIFECYCLE
+  (winner arbitration, terminal transition, cancellation, stale-wake
+  suppression, orphaned-reply consumption, detector representation)
+  before anything distributed is built -> B (arms as anchored
+  micro-ops) becomes the honest slow path for the multi-owner tail ->
+  A (cross-shard waiter registration) is built ONLY if profiling shows
+  the multi-owner tail is hot, and never before a dedicated
+  waiter-store hardening vertical (remote select must never be the
+  first consumer of a waiter-store change — that neighborhood carries
+  the RV2-DEBT-027 flake).
+- **Detector requirement (all models, smallest in C)**: the new wait
+  chain `caller selector parked -> remote select op -> owner-side
+  channel waiter` must collapse into ONE logical selector op in the
+  suspect scan, or the detector both false-positives (both ends
+  parked) and false-negatives (the proxy looks like independent
+  progress).
+
+## Acceptance Race Matrix (C, contract-level; every row test-owned)
+
+Each row asserts exactly one terminal outcome, one visible reply edge,
+no anchored-block leak, no owner-waiter leak, no second selector
+resume: (1) ready-before-execute; (2) park-vs-send one-wake-one-winner;
+(3) ready-vs-ready tie-break matches local rt_select_poll, losers
+cleaned; (4) registration-vs-close; (5) park-vs-close wakes exactly
+once; (6) cancel-before-owner-registration; (7) cancel-after-
+registration; (8) cancel-vs-wake-in-flight (exactly one of winner/
+cancel visible, the other orphaned and consumed); (9) duplicate
+execute/retry mints no second proxy or waiter; (10) stale-generation
+wake consumed and ignored; (11) lease invalidation while parked ->
+diagnosable terminal error + owner cleanup; (12) sibling-lease
+concurrency wakes only the right selector; (13) caller teardown vs
+reply (autonomous consumption); (14) owner teardown with an anchored
+selector pending (dispatcher never blocks); (15) detector
+false-positive guard (external producer runnable -> silent);
+(16) detector true-positive (quiescence -> report names the selector
+shape). Rows 8/10/13 exercise the proven exactly-one-reply-edge
+discipline — the reason C is cheap.
+
+## The Original Fork (retained for the record)
 
 How does a remote arm wait?
 
@@ -75,13 +135,19 @@ must be explicit from day one.
   race matrix will be keyed on the same exactly-one discipline as the
   execute/reply epics.
 
-## Candidate Slices (to be re-cut after the fork resolves)
+## Planned Slices (re-cut per the resolution)
 
-1. Kickoff: fork resolution record, evidence re-pin, arm-surface sema
-   design (mixing rules, diagnostics).
-2. Runtime vertical for the chosen model with the race matrix
-   (win-vs-cancel, close-vs-armed-arm, teardown-with-armed-selector,
-   detector rows).
-3. Sema + lowering + capability + e2e (fan-in from N shared producers,
-   timeout beats empty channels, default arm short-circuits).
-4. Stress/bench/closeout.
+1. Kickoff: evidence re-pin; the contract clause (no caller-lane
+   ordering) lands in the runtime contract doc; sema surface design
+   for the single-owner restriction with its diagnostics.
+2. Runtime vertical: the proxy-selector anchored op (select ships as
+   one anchored block running local select owner-side; timeout arms
+   stay caller-side) with matrix rows 1-14.
+3. Detector: the chain-collapse representation with rows 15-16.
+4. Sema + lowering + capability + e2e (fan-in from N shared producers
+   on one owner, timeout beats empty channels, default short-circuits,
+   single-owner restriction diagnosed kindly).
+5. Stabilization: extract the selector lifecycle behind a seam (the
+   artifact B and A consume later); bench; closeout. The B/A tail work
+   is explicitly OUT of this epic (recorded as a debt row with the
+   profile-gated condition).
