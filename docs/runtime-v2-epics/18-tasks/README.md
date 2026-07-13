@@ -8,7 +8,7 @@ handles, fallible move).
 
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
-| 1 | `01-kickoff.md` | In progress | evidence re-pin + drop-metadata design + sema surface design | none |
+| 1 | `01-kickoff.md` | Complete (commit 87db8776) | evidence re-pin + drop-metadata design + sema surface design | none |
 | 2 | runtime vertical A: drop dispatch plumbing + no-remote-owner rows (1-9) | Pending | native runtime + compiler drop dispatch, test-first | 1 |
 | 3 | runtime vertical B: remote-owner rows (10-18) + cross-cutting (19-21) | Pending | native runtime, test-first | 2 |
 | 4 | sema + guard flip + e2e | Pending | compiler + gates | 1, 2, 3 |
