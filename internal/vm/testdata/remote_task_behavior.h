@@ -120,7 +120,8 @@ typedef struct rtb_share_state {
 
 typedef struct rtb_select_state {
     rt_remote_task_pending* pending;
-    rt_far_task_handle anchors[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    rt_far_task_handle anchor_slots[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    const rt_far_task_handle* anchors[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     uint8_t kinds[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     uint64_t bits[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     uint64_t count;

@@ -18,8 +18,10 @@ static int rtb_select_park2(rt_executor* ex,
                             rtb_select_state* state,
                             void** out_caller) {
     memset(state, 0, sizeof(*state));
-    state->anchors[0] = *arm0;
-    state->anchors[1] = *arm1;
+    state->anchor_slots[0] = *arm0;
+    state->anchor_slots[1] = *arm1;
+    state->anchors[0] = &state->anchor_slots[0];
+    state->anchors[1] = &state->anchor_slots[1];
     state->kinds[0] = SELECT_CHAN_RECV;
     state->kinds[1] = SELECT_CHAN_RECV;
     state->count = 2;

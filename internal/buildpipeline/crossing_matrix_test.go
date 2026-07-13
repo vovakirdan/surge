@@ -47,6 +47,11 @@ async fn fan_out(ch: far Channel<int>) -> far Channel<int> {
     return ch.share();
 }
 
+async fn fan_in(a: far Channel<int>, b: far Channel<int>) -> int {
+    let w: int = select { a.recv() => 1; b.recv() => 2; };
+    return w;
+}
+
 async fn anchored(ch: far Channel<int>) -> int {
     return compare on ch {
         ch.send(4);
@@ -71,6 +76,7 @@ fn main() -> int {
 		diag.FutFarTaskAwaitBackendUnavailable,
 		diag.FutFarTaskCancelBackendUnavailable,
 		diag.FutChannelShareBackendUnavailable,
+		diag.FutChannelSelectBackendUnavailable,
 	}
 	for _, backend := range []Backend{BackendVM, Backend("future_backend")} {
 		t.Run(string(backend), func(t *testing.T) {

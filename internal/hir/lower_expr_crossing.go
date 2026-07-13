@@ -110,13 +110,17 @@ func (l *lowerer) lowerCrossingRemoteOps(in []sema.CrossingRemoteOpInfo) []Cross
 	}
 	out := make([]CrossingRemoteOp, 0, len(in))
 	for _, op := range in {
-		out = append(out, CrossingRemoteOp{
+		lowered := CrossingRemoteOp{
 			Method:         op.Method,
 			Span:           op.Span,
 			Receiver:       l.lowerExpr(op.ReceiverExpr),
 			ReceiverSymbol: op.ReceiverSymbol,
 			ReceiverType:   op.ReceiverType,
-		})
+		}
+		if op.ValueExpr.IsValid() {
+			lowered.Value = l.lowerExpr(op.ValueExpr)
+		}
+		out = append(out, lowered)
 	}
 	return out
 }

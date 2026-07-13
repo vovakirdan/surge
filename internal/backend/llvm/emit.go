@@ -181,6 +181,12 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("share request was refused")
 	e.ensureStringConst("share source lease was already released; a released holder cannot propagate access")
 	e.ensureStringConst("share request failed")
+	e.ensureStringConst("remote select arms must be far channels sharing one owner shard; split into one select per owner")
+	e.ensureStringConst("remote select destination shard is shut down")
+	e.ensureStringConst("remote select transport queue is full")
+	e.ensureStringConst("remote select request was refused")
+	e.ensureStringConst("remote select arm lease was already released; a released holder cannot select")
+	e.ensureStringConst("remote select request failed")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}

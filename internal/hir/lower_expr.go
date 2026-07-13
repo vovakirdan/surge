@@ -51,7 +51,12 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	// Get type from sema
 	ty := l.semaRes.ExprTypes[exprID]
 	if info, ok := l.crossingInfo(exprID); ok {
-		return l.lowerCrossingExpr(exprID, info)
+		// A remote select keeps its select surface: the crossing rides
+		// inside SelectData (winner-index source) and the arm dispatch
+		// stays caller-side.
+		if info.Kind != sema.CrossingLoweringChannelSelect {
+			return l.lowerCrossingExpr(exprID, info)
+		}
 	}
 
 	switch expr.Kind {
@@ -106,10 +111,10 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerCompareExpr(expr, ty)
 
 	case ast.ExprSelect:
-		return l.lowerSelectExpr(expr, ty, false)
+		return l.lowerSelectExpr(exprID, expr, ty, false)
 
 	case ast.ExprRace:
-		return l.lowerSelectExpr(expr, ty, true)
+		return l.lowerSelectExpr(exprID, expr, ty, true)
 
 	case ast.ExprAwait:
 		return l.lowerAwaitExpr(expr, ty)

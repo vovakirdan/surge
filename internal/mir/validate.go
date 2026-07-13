@@ -347,6 +347,7 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				}
 				for i := range ins.Crossing.RemoteOps {
 					checkOperand(ins.Crossing.RemoteOps[i].Receiver, ctx)
+					checkOperand(ins.Crossing.RemoteOps[i].Value, ctx)
 				}
 				checkOperand(ins.Crossing.Receiver, ctx)
 			case InstrBlocking:

@@ -13,6 +13,7 @@ const (
 	farTaskCancelUnavailableMsg = "`far Task<T>.cancel()` cannot be executed: no available backend supports remote task transport"
 	channelOnUnavailableMsg     = "`channel_on(...)` cannot be executed: this backend has no remote channel transport"
 	channelShareUnavailableMsg  = "`share()` cannot be executed: this backend has no remote channel transport"
+	channelSelectUnavailableMsg = "remote `select` cannot be executed: this backend has no remote channel transport"
 )
 
 // addSpawnOnBackendErrors guards accepted `spawn on dst { ... }` remote spawns
@@ -35,6 +36,7 @@ func addSpawnOnBackendErrors(req *CompileRequest, diagRes *driver.DiagnoseResult
 		{sema.CrossingLoweringFarTaskCancel, diag.FutFarTaskCancelBackendUnavailable, farTaskCancelUnavailableMsg},
 		{sema.CrossingLoweringChannelCreate, diag.FutChannelOnBackendUnavailable, channelOnUnavailableMsg},
 		{sema.CrossingLoweringChannelShare, diag.FutChannelShareBackendUnavailable, channelShareUnavailableMsg},
+		{sema.CrossingLoweringChannelSelect, diag.FutChannelSelectBackendUnavailable, channelSelectUnavailableMsg},
 	}
 	mainStrings := diagRes.Builder.StringsInterner
 	for _, entry := range forms {

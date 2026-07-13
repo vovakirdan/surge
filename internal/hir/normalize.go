@@ -331,6 +331,20 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 				}
 			}
 		}
+		if data.Crossing != nil {
+			for i := range data.Crossing.RemoteOps {
+				if data.Crossing.RemoteOps[i].Receiver != nil {
+					if err := normalizeExpr(ctx, data.Crossing.RemoteOps[i].Receiver); err != nil {
+						return err
+					}
+				}
+				if data.Crossing.RemoteOps[i].Value != nil {
+					if err := normalizeExpr(ctx, data.Crossing.RemoteOps[i].Value); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		e.Data = data
 		return nil
 
@@ -441,6 +455,11 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 		for i := range data.RemoteOps {
 			if data.RemoteOps[i].Receiver != nil {
 				if err := normalizeExpr(ctx, data.RemoteOps[i].Receiver); err != nil {
+					return err
+				}
+			}
+			if data.RemoteOps[i].Value != nil {
+				if err := normalizeExpr(ctx, data.RemoteOps[i].Value); err != nil {
 					return err
 				}
 			}

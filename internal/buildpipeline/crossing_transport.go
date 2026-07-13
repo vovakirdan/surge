@@ -34,7 +34,8 @@ func backendSupportsCrossingForm(backend Backend, form sema.CrossingLoweringKind
 		sema.CrossingLoweringFarTaskAwait,
 		sema.CrossingLoweringFarTaskCancel,
 		sema.CrossingLoweringChannelCreate,
-		sema.CrossingLoweringChannelShare:
+		sema.CrossingLoweringChannelShare,
+		sema.CrossingLoweringChannelSelect:
 		return true
 	default:
 		return false
@@ -59,6 +60,7 @@ func crossingFormsForRequest(req *CompileRequest) map[sema.CrossingLoweringKind]
 		sema.CrossingLoweringFarTaskCancel,
 		sema.CrossingLoweringChannelCreate,
 		sema.CrossingLoweringChannelShare,
+		sema.CrossingLoweringChannelSelect,
 	} {
 		if backendSupportsCrossingForm(req.Backend, form) {
 			forms[form] = true
@@ -103,6 +105,11 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		// The element type is the channel's payload boundary: a channel whose
 		// values cannot cross shards must not be mintable remotely.
 		return res.IsCopyType(info.PayloadType)
+	case sema.CrossingLoweringChannelSelect:
+		// The reply is the winner index (plain bits); the arms' send payloads
+		// are plain-copy by channel construction. Async context is the sole
+		// shape requirement.
+		return true
 	default:
 		return false
 	}

@@ -28,7 +28,7 @@ void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg)
 // Caller-side remote select (execute/reply discipline; destination = the
 // arms' shared owner shard; reply bits = the winner index) and its
 // owner-side dispatch.
-rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* anchors,
+rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
                                             const uint64_t* send_bits,
                                             uint64_t count,

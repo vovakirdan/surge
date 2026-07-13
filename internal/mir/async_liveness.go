@@ -190,6 +190,7 @@ func addUsesFromCrossing(ins *CrossingInstr, addUse, addDef func(LocalID)) {
 	}
 	for i := range ins.RemoteOps {
 		addUsesFromOperand(&ins.RemoteOps[i].Receiver, addUse, addDef)
+		addUsesFromOperand(&ins.RemoteOps[i].Value, addUse, addDef)
 	}
 	addUsesFromOperand(&ins.Receiver, addUse, addDef)
 }

@@ -156,6 +156,8 @@ func crossingFormLabel(kind sema.CrossingLoweringKind) string {
 		return "`channel_on(...)`"
 	case sema.CrossingLoweringChannelShare:
 		return "`share()`"
+	case sema.CrossingLoweringChannelSelect:
+		return "remote `select`"
 	default:
 		return "this crossing"
 	}

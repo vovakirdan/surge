@@ -196,6 +196,8 @@ type CrossingRemoteOp struct {
 	Receiver       Operand
 	ReceiverSymbol symbols.SymbolID
 	ReceiverType   types.TypeID
+	// Value carries a remote-select send arm's payload; unset elsewhere.
+	Value Operand
 }
 
 // CrossingInstr represents a crossing operation without backend execution

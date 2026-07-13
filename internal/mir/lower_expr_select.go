@@ -36,6 +36,18 @@ func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace, 
 	}
 	selIndexLocal := l.newTemp(selIndexType, "select_index", e.Span)
 
+	// Remote select: the winner index ships from the arms' owner shard
+	// through the ChannelSelect crossing; the arm dispatch below is shared
+	// with the local path unchanged.
+	if data.Crossing != nil {
+		if err := l.lowerRemoteSelect(
+			data.Crossing, Place{Local: selIndexLocal}, selIndexType, e.Span); err != nil {
+			return Operand{}, err
+		}
+		return l.lowerSelectArmDispatch(e, data, nil, isRace, selIndexLocal, selIndexType,
+			boolType, resultLocal, hasResult, consume)
+	}
+
 	lowered := make([]loweredSelectArm, len(data.Arms))
 	for i, arm := range data.Arms {
 		if arm.IsDefault {
@@ -65,6 +77,26 @@ func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace, 
 		PendBB:  NoBlockID,
 	}})
 
+	return l.lowerSelectArmDispatch(e, data, lowered, isRace, selIndexLocal, selIndexType,
+		boolType, resultLocal, hasResult, consume)
+}
+
+// lowerSelectArmDispatch branches on the winner-index local into the arm
+// result blocks — shared verbatim by the local select (rt_select_poll) and
+// the remote select (ChannelSelect crossing reply). `lowered` is nil for the
+// remote path: a remote select has no task arms to race-cancel (SEM3176).
+func (l *funcLowerer) lowerSelectArmDispatch(
+	e *hir.Expr,
+	data hir.SelectData,
+	lowered []loweredSelectArm,
+	isRace bool,
+	selIndexLocal LocalID,
+	selIndexType types.TypeID,
+	boolType types.TypeID,
+	resultLocal LocalID,
+	hasResult bool,
+	consume bool,
+) (Operand, error) {
 	armBBs := make([]BlockID, len(data.Arms))
 	for i := range armBBs {
 		armBBs[i] = l.newBlock()

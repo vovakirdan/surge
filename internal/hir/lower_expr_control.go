@@ -2,12 +2,13 @@ package hir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
-func (l *lowerer) lowerSelectExpr(expr *ast.Expr, ty types.TypeID, isRace bool) *Expr {
+func (l *lowerer) lowerSelectExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID, isRace bool) *Expr {
 	var selData *ast.ExprSelectData
 	if isRace {
 		selData = l.builder.Exprs.Races.Get(uint32(expr.Payload))
@@ -18,13 +19,33 @@ func (l *lowerer) lowerSelectExpr(expr *ast.Expr, ty types.TypeID, isRace bool) 
 		return nil
 	}
 
+	// A remote select carries its ChannelSelect crossing: the winner index
+	// ships from the arms' owner shard while the arm dispatch below stays
+	// caller-side. Arm awaits are NOT lowered as expressions — the crossing's
+	// remote ops carry the channels and send payloads instead.
+	var crossing *CrossingData
+	if info, ok := l.crossingInfo(exprID); ok && info.Kind == sema.CrossingLoweringChannelSelect {
+		if !l.opts.crossingEnabled(info.Kind) {
+			l.setErrorf("internal compiler error: remote select crossing reached HIR lowering without explicit lowering capability; backend-unavailable guard should have stopped production compile")
+			return nil
+		}
+		crossing = &CrossingData{
+			Kind:        info.Kind,
+			PayloadType: info.PayloadType,
+			ResultType:  info.ResultType,
+			RemoteOps:   l.lowerCrossingRemoteOps(info.RemoteOps),
+		}
+	}
+
 	arms := make([]SelectArm, len(selData.Arms))
 	for i, arm := range selData.Arms {
 		arms[i] = SelectArm{
-			Await:     l.lowerExpr(arm.Await),
 			Result:    l.lowerExpr(arm.Result),
 			IsDefault: arm.IsDefault,
 			Span:      arm.Span,
+		}
+		if crossing == nil {
+			arms[i].Await = l.lowerExpr(arm.Await)
 		}
 	}
 
@@ -38,7 +59,8 @@ func (l *lowerer) lowerSelectExpr(expr *ast.Expr, ty types.TypeID, isRace bool) 
 		Type: ty,
 		Span: expr.Span,
 		Data: SelectData{
-			Arms: arms,
+			Arms:     arms,
+			Crossing: crossing,
 		},
 	}
 }

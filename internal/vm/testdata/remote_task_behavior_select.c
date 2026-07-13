@@ -75,8 +75,10 @@ int rtb_mode_select_ready_first(void) {
 
     rtb_select_state state;
     memset(&state, 0, sizeof(state));
-    state.anchors[0] = chan_a.handle;
-    state.anchors[1] = chan_b.handle;
+    state.anchor_slots[0] = chan_a.handle;
+    state.anchor_slots[1] = chan_b.handle;
+    state.anchors[0] = &state.anchor_slots[0];
+    state.anchors[1] = &state.anchor_slots[1];
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
     state.count = 2;
@@ -116,8 +118,10 @@ int rtb_mode_select_park_then_send(void) {
     }
     rtb_select_state state;
     memset(&state, 0, sizeof(state));
-    state.anchors[0] = chan_a.handle;
-    state.anchors[1] = chan_b.handle;
+    state.anchor_slots[0] = chan_a.handle;
+    state.anchor_slots[1] = chan_b.handle;
+    state.anchors[0] = &state.anchor_slots[0];
+    state.anchors[1] = &state.anchor_slots[1];
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
     state.count = 2;
@@ -202,8 +206,10 @@ int rtb_mode_select_tie_break(void) {
 
     rtb_select_state state;
     memset(&state, 0, sizeof(state));
-    state.anchors[0] = chan_a.handle;
-    state.anchors[1] = chan_b.handle;
+    state.anchor_slots[0] = chan_a.handle;
+    state.anchor_slots[1] = chan_b.handle;
+    state.anchors[0] = &state.anchor_slots[0];
+    state.anchors[1] = &state.anchor_slots[1];
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
     state.count = 2;
@@ -245,8 +251,10 @@ static int rtb_select_park(rt_executor* ex,
         return rtb_fail("select park mint failed");
     }
     memset(state, 0, sizeof(*state));
-    state->anchors[0] = chan_a->handle;
-    state->anchors[1] = chan_b->handle;
+    state->anchor_slots[0] = chan_a->handle;
+    state->anchor_slots[1] = chan_b->handle;
+    state->anchors[0] = &state->anchor_slots[0];
+    state->anchors[1] = &state->anchor_slots[1];
     state->kinds[0] = SELECT_CHAN_RECV;
     state->kinds[1] = SELECT_CHAN_RECV;
     state->count = 2;
@@ -303,8 +311,10 @@ int rtb_mode_select_close_before(void) {
 
     rtb_select_state state;
     memset(&state, 0, sizeof(state));
-    state.anchors[0] = chan_a.handle;
-    state.anchors[1] = chan_b.handle;
+    state.anchor_slots[0] = chan_a.handle;
+    state.anchor_slots[1] = chan_b.handle;
+    state.anchors[0] = &state.anchor_slots[0];
+    state.anchors[1] = &state.anchor_slots[1];
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
     state.count = 2;
@@ -377,8 +387,10 @@ static int rtb_select_cancel_row(int wait_for_park, const char* label) {
             return rtb_fail("select cancel mint failed");
         }
         memset(&state, 0, sizeof(state));
-        state.anchors[0] = chan_a.handle;
-        state.anchors[1] = chan_b.handle;
+        state.anchor_slots[0] = chan_a.handle;
+        state.anchor_slots[1] = chan_b.handle;
+        state.anchors[0] = &state.anchor_slots[0];
+        state.anchors[1] = &state.anchor_slots[1];
         state.kinds[0] = SELECT_CHAN_RECV;
         state.kinds[1] = SELECT_CHAN_RECV;
         state.count = 2;

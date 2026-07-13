@@ -34,7 +34,7 @@ static int select_request_matches(const rt_transport_msg* msg,
 // (sema owns the kind diagnostic; this is the runtime's defense in depth),
 // and every arm kind must be a channel operation — timeout and default arms
 // stay on the caller in every lowering.
-rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* anchors,
+rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
                                             const uint64_t* send_bits,
                                             uint64_t count,
@@ -66,8 +66,8 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* anchors,
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     for (uint64_t i = 0; i < count; i++) {
-        if (anchors[i].kind != RT_FAR_HANDLE_KIND_CHANNEL ||
-            anchors[i].owner_shard_id != anchors[0].owner_shard_id) {
+        if (anchors[i] == NULL || anchors[i]->kind != RT_FAR_HANDLE_KIND_CHANNEL ||
+            anchors[i]->owner_shard_id != anchors[0]->owner_shard_id) {
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
         if (kinds[i] != SELECT_CHAN_RECV && kinds[i] != SELECT_CHAN_SEND) {
@@ -75,7 +75,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* anchors,
         }
     }
     rt_runtime* runtime = rt_executor_runtime(ex);
-    rt_shard* destination = rt_runtime_shard(runtime, anchors[0].owner_shard_id);
+    rt_shard* destination = rt_runtime_shard(runtime, anchors[0]->owner_shard_id);
     if (destination == NULL) {
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
@@ -91,13 +91,13 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* anchors,
     }
     memset(arms, 0, count * sizeof(rt_far_channel_select_arm));
     for (uint64_t i = 0; i < count; i++) {
-        arms[i].anchor = anchors[i];
+        arms[i].anchor = *anchors[i];
         arms[i].kind = kinds[i];
         arms[i].send_bits = send_bits != NULL ? send_bits[i] : 0;
     }
     rt_far_task_handle route = {.task_id = 0,
                                 .generation = 0,
-                                .owner_shard_id = anchors[0].owner_shard_id,
+                                .owner_shard_id = anchors[0]->owner_shard_id,
                                 .kind = RT_FAR_HANDLE_KIND_TASK};
     rt_remote_task_pending* request = rt_remote_task_pending_new(
         ex, &route, rt_immediate_on_source_shard(current), RT_REMOTE_TASK_OP_CHANNEL_SELECT, 1);
@@ -119,7 +119,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* anchors,
     rt_transport_msg msg = {
         .kind = RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST,
         .source_shard_id = request->source_shard_id,
-        .target_shard_id = anchors[0].owner_shard_id,
+        .target_shard_id = anchors[0]->owner_shard_id,
         .route_id = request->request_id,
         .generation = request->handle.generation,
         .payload = request,

@@ -297,6 +297,10 @@ type SelectArm struct {
 // SelectData holds data for ExprSelect/ExprRace.
 type SelectData struct {
 	Arms []SelectArm
+	// Crossing is set for a remote select (every arm a far-channel
+	// operation): the winner index comes from the ChannelSelect crossing
+	// instead of the local poll, and the arm dispatch stays caller-side.
+	Crossing *CrossingData
 }
 
 func (SelectData) exprData() {}
@@ -383,13 +387,16 @@ type CrossingCapture struct {
 }
 
 // CrossingRemoteOp describes an accepted owner-anchored operation inside
-// `on far_handle { ... }`.
+// `on far_handle { ... }`, or one arm of a remote select.
 type CrossingRemoteOp struct {
 	Method         string
 	Span           source.Span
 	Receiver       *Expr
 	ReceiverSymbol symbols.SymbolID
 	ReceiverType   types.TypeID
+	// Value carries a remote-select send arm's payload expression; nil for
+	// recv arms and for anchored-body remote ops.
+	Value *Expr
 }
 
 // CrossingData holds backend-neutral crossing lowering metadata. Kind uses the
