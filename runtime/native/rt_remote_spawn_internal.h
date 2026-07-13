@@ -8,6 +8,12 @@ struct rt_remote_spawn_pending {
     uint64_t request_id;
     uint64_t poll_fn_id;
     void* state;
+    // Drop obligation for a droppable shipped state: the id names the
+    // compiled drop function; state_owned is set while THIS pending owns
+    // the obligation (cleared at the body handoff). The final release is
+    // the single drop site.
+    uint64_t state_drop_fn_id;
+    uint8_t state_owned;
     uint64_t caller_task_id;
     uint32_t source_shard_id;
     uint32_t target_shard_id;

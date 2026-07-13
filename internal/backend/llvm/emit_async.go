@@ -72,6 +72,22 @@ func (e *Emitter) emitPollDispatch() error {
 	}
 	fmt.Fprintf(&e.buf, "  unreachable\n")
 	fmt.Fprintf(&e.buf, "}\n\n")
+
+	// The drop dispatch: the runtime's abandon paths destruct a shipped
+	// crossing state without running its body through this switch. Drop
+	// functions arrive with the migration surface; until a module emits
+	// one, the dispatch is the default panic only (drop-fn id 0 is never
+	// dispatched by the runtime).
+	fmt.Fprintf(&e.buf, "define void @__surge_drop_call(i64 %%id, ptr %%state) {\n")
+	fmt.Fprintf(&e.buf, "entry:\n")
+	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%drop_default [\n")
+	fmt.Fprintf(&e.buf, "  ]\n")
+	fmt.Fprintf(&e.buf, "drop_default:\n")
+	if sc, ok := e.stringConsts["missing drop function"]; ok && sc.globalName != "" {
+		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)
+	}
+	fmt.Fprintf(&e.buf, "  unreachable\n")
+	fmt.Fprintf(&e.buf, "}\n\n")
 	return nil
 }
 

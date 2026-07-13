@@ -133,6 +133,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("panic bounds index out of range")
 	e.ensureStringConst("panic bounds length out of range")
 	e.ensureStringConst("missing poll function")
+	e.ensureStringConst("missing drop function")
 	e.ensureStringConst("missing blocking function")
 	e.ensureStringConst("spawn on remote publish requires an async task context")
 	e.ensureStringConst("spawn on destination is shut down")

@@ -18,6 +18,10 @@ void remote_spawn_pending_release(rt_remote_spawn_pending* pending) {
     }
     uint32_t refs = atomic_fetch_sub_explicit(&pending->refs, 1, memory_order_acq_rel);
     if (refs == 1) {
+        if (pending->state_owned != 0 && pending->state_drop_fn_id != 0 && pending->state != NULL) {
+            __surge_drop_call(pending->state_drop_fn_id, pending->state);
+            pending->state = NULL;
+        }
         rt_free((uint8_t*)pending, sizeof(*pending), _Alignof(rt_remote_spawn_pending));
     }
 }

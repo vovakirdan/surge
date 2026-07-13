@@ -649,6 +649,11 @@ static inline void task_polling_exit(rt_task* task) {
 
 extern void
 __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+// Destructs a crossing state struct without running its body: the compiled
+// twin of __surge_poll_call for the drop obligation (id 0 = nothing to
+// drop; never dispatched).
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern void __surge_drop_call(uint64_t id, void* state);
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern uint64_t __surge_blocking_call(uint64_t id, void* state);
 

@@ -110,6 +110,11 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
     }
     uint32_t refs = atomic_fetch_sub_explicit(&pending->refs, 1, memory_order_acq_rel);
     if (refs == 1) {
+        if (pending->state_owned != 0 && pending->state_drop_fn_id != 0 &&
+            pending->body_state != NULL) {
+            __surge_drop_call(pending->state_drop_fn_id, pending->body_state);
+            pending->body_state = NULL;
+        }
         if (pending->select_arms != NULL) {
             rt_free((uint8_t*)pending->select_arms,
                     pending->select_count * sizeof(rt_far_channel_select_arm),

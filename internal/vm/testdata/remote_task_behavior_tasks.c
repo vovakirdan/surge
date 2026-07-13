@@ -177,6 +177,13 @@ void* rtb_start_channel_create(rtb_create_state* state, uint64_t placement, uint
     return __task_create(POLL_RTB_CHANNEL_CREATE, state);
 }
 
+// Drop-dispatch stub: no harness state struct carries a drop obligation
+// (drop-fn id 0 never dispatches), so reaching this is a test bug.
+void __surge_drop_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
+}
+
 void __surge_poll_call(uint64_t id) {
     if (id == POLL_RTB_CHILD) {
         poll_child((rtb_child_state*)__task_state());

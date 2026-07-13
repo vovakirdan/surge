@@ -52,6 +52,13 @@ func TestRuntimeV2LifecycleShutdownWithParkedTasks(t *testing.T) {
 // lifecycleHarnessScopeAndShutdown (see buildRuntimeV2LifecycleHarnessWithFlags
 // in runtime_v2_lifecycle_behavior_harness_test.go) into one translation unit.
 const lifecycleHarnessMain = `
+// Drop-dispatch stub: no harness state struct carries a drop obligation
+// (drop-fn id 0 never dispatches), so reaching this is a test bug.
+void __surge_drop_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
+}
+
 void __surge_poll_call(uint64_t id) {
     switch (id) {
         case POLL_OWNER_PROBE:

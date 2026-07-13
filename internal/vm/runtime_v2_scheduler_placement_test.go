@@ -218,7 +218,14 @@ const schedulerPlacementHarness = `
 	    }
 	}
 
-	void __surge_poll_call(uint64_t id) {
+	// Drop-dispatch stub: no harness state struct carries a drop obligation
+// (drop-fn id 0 never dispatches), so reaching this is a test bug.
+void __surge_drop_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
+}
+
+void __surge_poll_call(uint64_t id) {
 	    if (id == POLL_KIND_GATE) {
 	        atomic_store_explicit(&gate_started, 1, memory_order_release);
 	        while (atomic_load_explicit(&release_gate, memory_order_acquire) == 0) {

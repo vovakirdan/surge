@@ -330,6 +330,13 @@ static int fill_data_lane(rt_executor* ex, uint32_t dst) {
     return rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK;
 }
 
+// Drop-dispatch stub: no harness state struct carries a drop obligation
+// (drop-fn id 0 never dispatches), so reaching this is a test bug.
+void __surge_drop_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
+}
+
 void __surge_poll_call(uint64_t id) {
     if (id == POLL_REMOTE_CHILD) {
         remote_child_state* child = (remote_child_state*)__task_state();

@@ -72,6 +72,13 @@ const scopeChildrenHarness = `
 int rt_argc = 0;
 char** rt_argv_raw = NULL;
 
+// Drop-dispatch stub: no harness state struct carries a drop obligation
+// (drop-fn id 0 never dispatches), so reaching this is a test bug.
+void __surge_drop_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
+}
+
 void __surge_poll_call(uint64_t id) {
     (void)id;
 }
