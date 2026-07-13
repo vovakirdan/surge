@@ -570,3 +570,163 @@ size_t rt_far_channel_debug_lease_count(rt_executor* ex) {
     pthread_mutex_unlock(&state->lock);
     return count;
 }
+
+// Mints a sibling lease on the source token's entry: the source lease must
+// be alive (a released holder cannot propagate access), the sibling gets
+// its own allocator-unique generation, and the new token addresses the
+// same entry. One registry lock step — a release racing the share either
+// lands before (share answers stale) or after (the sibling is already
+// active and unaffected).
+rt_remote_task_status rt_far_channel_mint_sibling(rt_executor* ex,
+                                                  const rt_far_task_handle* source,
+                                                  rt_far_task_handle* out) {
+    rt_far_channel_state* state = rt_far_channel_state_get(ex);
+    rt_remote_task_state* tokens = rt_remote_task_state_get(ex);
+    if (state == NULL || tokens == NULL || source == NULL || out == NULL ||
+        source->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
+        return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
+    }
+    rt_far_channel_lease* sibling =
+        lease_new(atomic_fetch_add_explicit(&tokens->next_request_id, 1, memory_order_relaxed));
+    if (sibling == NULL) {
+        return RT_REMOTE_TASK_STATUS_REFUSED;
+    }
+    pthread_mutex_lock(&state->lock);
+    rt_far_channel_entry* entry = live_lease_locked(state, source);
+    if (entry == NULL) {
+        pthread_mutex_unlock(&state->lock);
+        rt_free((uint8_t*)sibling, sizeof(*sibling), _Alignof(rt_far_channel_lease));
+        return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
+    }
+    sibling->next = entry->leases;
+    entry->leases = sibling;
+    entry->active_leases++;
+    pthread_mutex_unlock(&state->lock);
+    *out = (rt_far_task_handle){.task_id = entry->id,
+                                .generation = sibling->generation,
+                                .owner_shard_id = entry->owner_shard_id,
+                                .kind = RT_FAR_HANDLE_KIND_CHANNEL};
+    return RT_REMOTE_TASK_STATUS_OK;
+}
+
+// Caller-side share: the execute/reply discipline of the create path with
+// the anchor's owner shard as the destination. The reply carries the
+// sibling token through the shared pending exactly like a fresh mint.
+rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
+                                           rt_remote_task_pending** pending,
+                                           rt_far_task_handle* out_handle,
+                                           uint8_t* out_kind,
+                                           uint64_t* out_bits) {
+    rt_executor* ex = ensure_exec();
+    rt_task* current = rt_current_task();
+    if (ex == NULL || pending == NULL || out_handle == NULL || current == NULL ||
+        rt_current_task_id() == 0) {
+        return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
+    }
+    if (*pending != NULL) {
+        rt_remote_task_status status =
+            rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+        if (status == RT_REMOTE_TASK_STATUS_PENDING) {
+            if (rt_remote_task_prepare_reply_wait(ex, current, *pending) == 0) {
+                return RT_REMOTE_TASK_STATUS_PENDING;
+            }
+            status = rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+        }
+        if (status == RT_REMOTE_TASK_STATUS_OK) {
+            *out_handle = (*pending)->handle;
+        }
+        rt_remote_task_pending_consume(*pending);
+        *pending = NULL;
+        return status;
+    }
+    if (source == NULL || source->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
+        return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
+    }
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    rt_shard* destination = rt_runtime_shard(runtime, source->owner_shard_id);
+    if (destination == NULL) {
+        return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
+    }
+    if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
+        atomic_load_explicit(&destination->transport.park_state, memory_order_acquire) ==
+            RT_TRANSPORT_SHARD_SHUTDOWN) {
+        return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
+    }
+    uint32_t source_shard = current->owner_shard_valid != 0 ? current->owner_shard_id : 0;
+    rt_far_task_handle route = {.task_id = 0,
+                                .generation = 0,
+                                .owner_shard_id = source->owner_shard_id,
+                                .kind = RT_FAR_HANDLE_KIND_CHANNEL};
+    rt_remote_task_pending* request =
+        rt_remote_task_pending_new(ex, &route, source_shard, RT_REMOTE_TASK_OP_CHANNEL_SHARE, 1);
+    if (request == NULL) {
+        return RT_REMOTE_TASK_STATUS_REFUSED;
+    }
+    request->handle.generation = request->request_id;
+    request->caller_task_id = current->id;
+    // The source token rides the pending's anchor slot: the dispatch side
+    // validates the lease it names before minting anything.
+    request->anchor = *source;
+    *pending = request;
+    (void)rt_remote_task_prepare_reply_wait(ex, current, request);
+    rt_remote_task_pending_add_ref(request);
+    rt_transport_msg msg = {
+        .kind = RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST,
+        .source_shard_id = request->source_shard_id,
+        .target_shard_id = source->owner_shard_id,
+        .route_id = request->request_id,
+        .generation = request->handle.generation,
+        .payload = request,
+        .payload_len = 0,
+    };
+    rt_remote_task_status status =
+        rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));
+    if (status == RT_REMOTE_TASK_STATUS_OK) {
+        return RT_REMOTE_TASK_STATUS_PENDING;
+    }
+    rt_remote_task_clear_reply_wait(ex, current, request);
+    rt_remote_task_pending_consume(request);
+    rt_remote_task_pending_release(request);
+    *pending = NULL;
+    return status;
+}
+
+void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg) {
+    rt_remote_task_pending* pending = msg != NULL ? msg->payload : NULL;
+    rt_remote_task_state* tokens = rt_remote_task_state_get(ex);
+    if (tokens == NULL || pending == NULL) {
+        rt_remote_task_pending_release(pending);
+        return;
+    }
+    if (!create_request_matches(msg, pending)) {
+        rt_transport_record_remote_task_stale(
+            rt_runtime_shard(rt_executor_runtime(ex), msg->target_shard_id));
+        rt_remote_task_reply_or_finish(ex,
+                                       pending,
+                                       RT_REMOTE_TASK_STATUS_STALE_TOKEN,
+                                       2,
+                                       0,
+                                       RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
+        return;
+    }
+    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
+        rt_remote_task_pending_release(pending);
+        return;
+    }
+    rt_far_task_handle sibling = {0};
+    rt_remote_task_status minted = rt_far_channel_mint_sibling(ex, &pending->anchor, &sibling);
+    if (minted != RT_REMOTE_TASK_STATUS_OK) {
+        rt_remote_task_reply_or_finish(
+            ex, pending, minted, 2, 0, RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
+        return;
+    }
+    pthread_mutex_lock(&tokens->lock);
+    pending->handle = sibling;
+    pthread_mutex_unlock(&tokens->lock);
+    rt_remote_task_reply_or_finish(ex,
+                                   pending,
+                                   RT_REMOTE_TASK_STATUS_OK,
+                                   1,
+                                   sibling.task_id,
+                                   RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
+}

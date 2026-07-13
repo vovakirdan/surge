@@ -21,12 +21,14 @@ static int rt_transport_msg_is_control(rt_transport_msg_kind kind) {
         case RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
         case RT_TRANSPORT_MSG_CREDIT_CONTROL:
         case RT_TRANSPORT_MSG_SHUTDOWN_WAKE:
             return 1;
         case RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST:
             return 0;
         case RT_TRANSPORT_MSG_NONE:
         default:
@@ -211,6 +213,10 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
         state->far_channel_create_requests++;
     } else if (msg->kind == RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY) {
         state->far_channel_create_replies++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST) {
+        state->far_channel_share_requests++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY) {
+        state->far_channel_share_replies++;
     }
     return RT_TRANSPORT_STATUS_OK;
 }

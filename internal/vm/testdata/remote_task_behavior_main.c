@@ -69,5 +69,15 @@ int main(int argc, char** argv) {
         return rtb_mode_anchored_leak_audit();
     if (strcmp(argv[1], "anchored-cross-producer-order") == 0)
         return rtb_mode_anchored_cross_producer_order();
+    if (strcmp(argv[1], "share-round-trip") == 0)
+        return rtb_mode_share_round_trip();
+    if (strcmp(argv[1], "share-release-independence") == 0)
+        return rtb_mode_share_release_independence();
+    if (strcmp(argv[1], "share-from-released-lease") == 0)
+        return rtb_mode_share_from_released_lease();
+    if (strcmp(argv[1], "share-pin-outlives-leases") == 0)
+        return rtb_mode_share_pin_outlives_leases();
+    if (strcmp(argv[1], "share-teardown") == 0)
+        return rtb_mode_share_teardown();
     return rtb_fail("unknown mode");
 }

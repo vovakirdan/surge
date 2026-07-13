@@ -10,6 +10,19 @@ rt_far_channel_state* rt_far_channel_state_get(rt_executor* ex);
 size_t rt_far_channel_debug_live_count(rt_executor* ex);
 // Test-support census of lease rows across live entries.
 size_t rt_far_channel_debug_lease_count(rt_executor* ex);
+// Owner-side sibling mint: validates the source lease and issues a fresh
+// lease token on the same entry.
+rt_remote_task_status rt_far_channel_mint_sibling(rt_executor* ex,
+                                                  const rt_far_task_handle* source,
+                                                  rt_far_task_handle* out);
+// Caller-side share (execute/reply discipline; destination = the source
+// token's owner shard) and its owner-side dispatch.
+rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
+                                           rt_remote_task_pending** pending,
+                                           rt_far_task_handle* out_handle,
+                                           uint8_t* out_kind,
+                                           uint64_t* out_bits);
+void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg);
 // Init-rollback pair; mirrors the remote-task state convention.
 rt_runtime_status rt_far_channel_state_init(rt_executor* ex);
 rt_runtime_status rt_far_channel_state_destroy(rt_executor* ex);

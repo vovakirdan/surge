@@ -207,6 +207,31 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "anchored-cross-producer-order",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "share-sibling-lease-round-trip-with-trace-proof",
+			mode: "share-round-trip",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "share-per-lease-release-is-independent-and-exact",
+			mode: "share-release-independence",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "share-through-released-lease-answers-stale",
+			mode: "share-from-released-lease",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "share-pin-outlives-all-leases-to-the-reply-edge",
+			mode: "share-pin-outlives-leases",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "share-owner-teardown-goes-stale-for-every-lease",
+			mode: "share-teardown",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

@@ -15,6 +15,8 @@ void rt_remote_task_release_msg_payload(const rt_transport_msg* msg) {
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
             rt_remote_task_pending_release(msg->payload);
             break;
         default:

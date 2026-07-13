@@ -25,6 +25,7 @@ enum {
     POLL_RTB_ANCHORED_HELPER_RECV = 9111,
     POLL_RTB_ANCHORED_HELPER_CLOSE = 9112,
     POLL_RTB_ANCHORED_FLOODED_CALLER = 9113,
+    POLL_RTB_CHANNEL_SHARE = 9114,
 };
 
 typedef struct rtb_child_state {
@@ -105,6 +106,20 @@ typedef struct rtb_create_state {
 } rtb_create_state;
 
 void* rtb_start_channel_create(rtb_create_state* state, uint64_t placement, uint64_t capacity);
+
+typedef struct rtb_share_state {
+    rt_remote_task_pending* pending;
+    rt_far_task_handle source;
+    rt_far_task_handle sibling;
+    rt_remote_task_status status;
+} rtb_share_state;
+
+void rtb_share_poll_dispatch(uint64_t id);
+int rtb_mode_share_round_trip(void);
+int rtb_mode_share_release_independence(void);
+int rtb_mode_share_from_released_lease(void);
+int rtb_mode_share_pin_outlives_leases(void);
+int rtb_mode_share_teardown(void);
 typedef struct rtb_anchored_state {
     rt_remote_task_pending* pending;
     rt_far_task_handle anchor;
