@@ -41,6 +41,8 @@ func (fe *funcEmitter) emitInstrCrossing(ins *mir.Instr) error {
 		return fe.emitAnchoredOnCrossing(&ins.Crossing)
 	case sema.CrossingLoweringChannelCreate:
 		return fe.emitChannelCreateCrossing(&ins.Crossing)
+	case sema.CrossingLoweringChannelShare:
+		return fe.emitChannelShareCrossing(&ins.Crossing)
 	case sema.CrossingLoweringFarTaskAwait:
 		return fe.emitFarTaskLifecycleCrossing(&ins.Crossing, "await", "rt_far_task_await")
 	case sema.CrossingLoweringFarTaskCancel:
@@ -64,6 +66,8 @@ func mirCrossingKindNameForLLVM(kind sema.CrossingLoweringKind) string {
 		return "far_task_cancel"
 	case sema.CrossingLoweringChannelCreate:
 		return "channel_create"
+	case sema.CrossingLoweringChannelShare:
+		return "channel_share"
 	default:
 		return fmt.Sprintf("kind_%d", kind)
 	}

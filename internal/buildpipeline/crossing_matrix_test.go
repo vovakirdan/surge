@@ -43,6 +43,10 @@ async fn lifecycle(dst: Placement) -> int {
     };
 }
 
+async fn fan_out(ch: far Channel<int>) -> far Channel<int> {
+    return ch.share();
+}
+
 async fn anchored(ch: far Channel<int>) -> int {
     return compare on ch {
         ch.send(4);
@@ -66,6 +70,7 @@ fn main() -> int {
 		diag.FutSpawnOnBackendUnavailable,
 		diag.FutFarTaskAwaitBackendUnavailable,
 		diag.FutFarTaskCancelBackendUnavailable,
+		diag.FutChannelShareBackendUnavailable,
 	}
 	for _, backend := range []Backend{BackendVM, Backend("future_backend")} {
 		t.Run(string(backend), func(t *testing.T) {

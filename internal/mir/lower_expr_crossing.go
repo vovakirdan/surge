@@ -24,6 +24,8 @@ func mirCrossingKindName(kind sema.CrossingLoweringKind) string {
 		return "far_task_cancel"
 	case sema.CrossingLoweringChannelCreate:
 		return "channel_create"
+	case sema.CrossingLoweringChannelShare:
+		return "channel_share"
 	default:
 		return fmt.Sprintf("kind_%d", kind)
 	}
@@ -113,7 +115,8 @@ func (l *funcLowerer) lowerCrossingExpr(e *hir.Expr, consume bool) (Operand, err
 		if err := l.prepareImmediateBodyCrossing(&ins, data.Body, e.Span); err != nil {
 			return Operand{}, err
 		}
-	case data.Kind == sema.CrossingLoweringChannelCreate:
+	case data.Kind == sema.CrossingLoweringChannelCreate,
+		data.Kind == sema.CrossingLoweringChannelShare:
 		l.prepareChannelCreateCrossing(&ins, e.Span)
 	case crossingUsesPendingRetryState(data.Kind):
 		l.prepareFarTaskLifecycleCrossing(&ins, e.Span)
@@ -280,7 +283,8 @@ func crossingUsesPendingRetryState(kind sema.CrossingLoweringKind) bool {
 		kind == sema.CrossingLoweringOnFarHandle ||
 		kind == sema.CrossingLoweringFarTaskAwait ||
 		kind == sema.CrossingLoweringFarTaskCancel ||
-		kind == sema.CrossingLoweringChannelCreate
+		kind == sema.CrossingLoweringChannelCreate ||
+		kind == sema.CrossingLoweringChannelShare
 }
 
 // prepareChannelCreateCrossing persists the pending-retry slot and the

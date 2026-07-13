@@ -33,7 +33,8 @@ func backendSupportsCrossingForm(backend Backend, form sema.CrossingLoweringKind
 		sema.CrossingLoweringOnFarHandle,
 		sema.CrossingLoweringFarTaskAwait,
 		sema.CrossingLoweringFarTaskCancel,
-		sema.CrossingLoweringChannelCreate:
+		sema.CrossingLoweringChannelCreate,
+		sema.CrossingLoweringChannelShare:
 		return true
 	default:
 		return false
@@ -57,6 +58,7 @@ func crossingFormsForRequest(req *CompileRequest) map[sema.CrossingLoweringKind]
 		sema.CrossingLoweringFarTaskAwait,
 		sema.CrossingLoweringFarTaskCancel,
 		sema.CrossingLoweringChannelCreate,
+		sema.CrossingLoweringChannelShare,
 	} {
 		if backendSupportsCrossingForm(req.Backend, form) {
 			forms[form] = true

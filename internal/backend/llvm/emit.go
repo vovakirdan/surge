@@ -175,6 +175,12 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("anchored on execute request was refused")
 	e.ensureStringConst("anchored channel is gone: the far channel was released before the block could run")
 	e.ensureStringConst("anchored on execute request failed")
+	e.ensureStringConst("share requires an async task context and a channel handle")
+	e.ensureStringConst("share destination shard is shut down")
+	e.ensureStringConst("share transport queue is full")
+	e.ensureStringConst("share request was refused")
+	e.ensureStringConst("share source lease was already released; a released holder cannot propagate access")
+	e.ensureStringConst("share request failed")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}
