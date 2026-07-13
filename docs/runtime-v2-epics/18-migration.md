@@ -1,7 +1,8 @@
 # Epic 18: Owned-Value Migration — DRAFT
 
-**Status:** draft with the fork RESOLVED (2026-07-13, external review);
-review-ready for the direction gate before Task 1.
+**Status:** IN EXECUTION — direction approved 2026-07-13 (Model A;
+affine terminal-move fixed point and the recorded tails confirmed
+explicitly). Task index: `18-tasks/README.md`.
 
 ## Why This Epic Exists
 
