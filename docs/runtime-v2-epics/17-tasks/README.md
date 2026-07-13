@@ -10,7 +10,7 @@ tail divergence, and the lift path.
 | 1 | `01-kickoff.md` | Complete (commit 4453833b) | evidence re-pin + contract clause + sema surface design + code-space reservations | none |
 | 2 | `02-proxy-selector-vertical.md` | Complete (commits 0cfe9c09, 82e09ea1, 9b19600d) | native runtime, test-first | 1 |
 | 3 | detector chain-collapse (rows 15-16; suspect scan covers select bodies, panic names the select shape) | Complete | native runtime + adversarial rows | 2 |
-| 4 | sema + lowering + capability + e2e | Pending | compiler + gates | 1, 2 |
+| 4 | `04-sema-lowering-e2e.md` | In progress (design locked) | compiler + gates | 1, 2 |
 | 5 | stabilization (selector lifecycle seam) + bench + closeout | Pending | all | all |
 
 Rules: the established task rules apply unchanged (expand only the next
