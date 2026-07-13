@@ -89,6 +89,13 @@ typedef enum rt_sync_point_id {
     // published. A test cancels the caller in this window to prove the
     // caller-cancel route and the reply edge resolve exactly once.
     RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH,
+    // ready_push_with_policy (force-inject requeue: yielded tasks, net
+    // wakes): reached after the unlocked status/enqueued pre-checks pass,
+    // before the owner shard lock. A wake in this window can enqueue the
+    // task and hand it to another worker that stores RUNNING; the locked
+    // re-validation must then refuse the duplicate push, or its READY store
+    // overwrites RUNNING under a live poll and a second worker double-polls.
+    RT_SYNC_POINT_SP_READY_REQUEUE_BEFORE_LOCK,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

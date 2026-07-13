@@ -42,7 +42,7 @@ int rt_run_ready_one_nowait_locked(rt_executor* ex) {
 
     uint8_t kind = task->kind;
     if (kind != TASK_KIND_USER) {
-        task_polling_enter(task);
+        task_polling_enter(task, POLL_SITE_NOWAIT_RUNNER_SYSTEM);
         poll_outcome outcome = poll_task(ex, task);
         task_polling_exit(task);
         rt_shard_lock(owner_shard);
@@ -54,7 +54,7 @@ int rt_run_ready_one_nowait_locked(rt_executor* ex) {
     }
 
     rt_control_unlock(ex);
-    task_polling_enter(task);
+    task_polling_enter(task, POLL_SITE_NOWAIT_RUNNER_USER);
     poll_outcome outcome = poll_task(ex, task);
     task_polling_exit(task);
     RT_SYNC_POINT_IF(outcome.kind == POLL_PARKED, SP_PARK_BEFORE_WAITING);
@@ -195,7 +195,7 @@ void* rt_worker_main(void* arg) {
         rt_shard_unlock(shard);
         rt_set_current_task(task);
 
-        task_polling_enter(task);
+        task_polling_enter(task, POLL_SITE_WORKER_LOOP);
         poll_outcome outcome = poll_task(ex, task);
         task_polling_exit(task);
         RT_SYNC_POINT_IF(task->kind == TASK_KIND_USER && outcome.kind == POLL_PARKED,

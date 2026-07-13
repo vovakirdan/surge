@@ -49,6 +49,7 @@ declare -A WINDOW_FILE=(
     [SP_REMOTE_TASK_BEFORE_OWNER_REGISTER]="rt_remote_task_dispatch.c"
     [SP_REMOTE_SPAWN_BEFORE_ACK]="rt_remote_spawn.c"
     [SP_IMMEDIATE_ON_BEFORE_PUBLISH]="rt_immediate_on.c"
+    [SP_READY_REQUEUE_BEFORE_LOCK]="rt_ready_queue.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in
@@ -59,7 +60,7 @@ if [ "$header_names" != "$allow_names" ]; then
     note_fail "allowlist in check_sync_points.sh drifted from rt_sync_point.h enumerators"
     diff <(echo "$header_names") <(echo "$allow_names") || true
 else
-    note_ok "allowlist matches the 16 header enumerators"
+    note_ok "allowlist matches the header enumerators"
 fi
 
 # Files that actually call a sync-point macro.

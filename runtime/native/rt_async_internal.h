@@ -604,12 +604,28 @@ static inline uint8_t task_wake_token_exchange(rt_task* task, uint8_t value) {
     return atomic_exchange_explicit(&task->wake_token, value, memory_order_acq_rel);
 }
 
-static inline void task_polling_enter(rt_task* task) {
+// Poll-entry sites: the polling byte stores WHERE the current poller
+// entered, so a double-poll collision can name both sides instead of just
+// aborting. Codes are nonzero; zero means "not polling".
+typedef enum rt_poll_entry_site {
+    POLL_SITE_NONE = 0,
+    POLL_SITE_WORKER_LOOP = 1,           // rt_worker_main turn
+    POLL_SITE_CONTROL_RUNNER_SYSTEM = 2, // run_ready_one, non-user task
+    POLL_SITE_CONTROL_RUNNER_USER = 3,   // run_ready_one, user task
+    POLL_SITE_NOWAIT_RUNNER_SYSTEM = 4,  // rt_run_ready_one_nowait_locked, non-user
+    POLL_SITE_NOWAIT_RUNNER_USER = 5,    // rt_run_ready_one_nowait_locked, user
+    POLL_SITE_INLINE_CHILD = 6,          // poll_ready_child_inline (rt_task_poll)
+} rt_poll_entry_site;
+
+void rt_double_poll_panic(const rt_task* task, uint8_t holder_site, uint8_t entrant_site);
+
+static inline void task_polling_enter(rt_task* task, uint8_t site) {
     if (task == NULL) {
         return;
     }
-    if (atomic_exchange_explicit(&task->polling, 1, memory_order_acq_rel) != 0) {
-        panic_msg("async: double poll");
+    uint8_t holder = atomic_exchange_explicit(&task->polling, site, memory_order_acq_rel);
+    if (holder != 0) {
+        rt_double_poll_panic(task, holder, site);
     }
 }
 

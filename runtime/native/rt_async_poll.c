@@ -182,7 +182,7 @@ int run_ready_one(rt_executor* ex) {
     rt_set_current_task(task);
 
     if (task->kind != TASK_KIND_USER) {
-        task_polling_enter(task);
+        task_polling_enter(task, POLL_SITE_CONTROL_RUNNER_SYSTEM);
         poll_outcome outcome = poll_task(ex, task);
         task_polling_exit(task);
         switch (outcome.kind) {
@@ -212,7 +212,7 @@ int run_ready_one(rt_executor* ex) {
     }
 
     rt_control_unlock(ex);
-    task_polling_enter(task);
+    task_polling_enter(task, POLL_SITE_CONTROL_RUNNER_USER);
     poll_outcome outcome = poll_task(ex, task);
     task_polling_exit(task);
     // RV2-DEBT-023 proof window: user poll has already passed its

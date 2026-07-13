@@ -7,6 +7,7 @@
 // Extracted verbatim from rt_async_state.c; no behavior change.
 
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 static int scheduler_runnable_is_empty(const rt_scheduler* scheduler) {
     if (scheduler == NULL) {
@@ -215,7 +216,24 @@ static int ready_push_with_policy(
     if (owner_shard == NULL) {
         return 0;
     }
+    RT_SYNC_POINT_IF(force_inject, SP_READY_REQUEUE_BEFORE_LOCK);
     rt_shard_lock(owner_shard);
+    // Re-validate under the owner shard lock: the unlocked checks above can
+    // race a wake that enqueues this task and a worker that pops that entry
+    // and stores RUNNING (pops and RUNNING stores serialize on this same
+    // lock). Pushing blindly after losing that race would insert a duplicate
+    // queue entry and ready_push_task_locked's READY store would overwrite
+    // RUNNING under a live poll — a second worker then takes the duplicate
+    // and double-polls the task. RV2_DEBT_027_NEGATIVE_CONTROL restores the
+    // unvalidated push, which MUST double-poll the deterministic requeue-race
+    // proof (the non-vacuity check).
+#ifndef RV2_DEBT_027_NEGATIVE_CONTROL
+    status = task_status_load(task);
+    if (status == TASK_DONE || status == TASK_RUNNING || task_enqueued_load(task) != 0) {
+        rt_shard_unlock(owner_shard);
+        return 0;
+    }
+#endif
     int pushed = ready_push_task_locked(ex, owner_shard, task, force_inject, front, signal_ready);
     rt_shard_unlock(owner_shard);
     if (!pushed) {

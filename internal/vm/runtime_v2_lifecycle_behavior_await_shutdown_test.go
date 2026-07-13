@@ -151,6 +151,9 @@ void __surge_poll_call(uint64_t id) {
         case POLL_CANCEL_PARK_PROOF:
             poll_cancel_park_proof();
             break;
+        case POLL_READY_REQUEUE_PROBE:
+            poll_ready_requeue_probe();
+            break;
 #endif
         default:
             break;
@@ -428,6 +431,9 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "debt023-cancel-park-proof") == 0) {
         return mode_debt023_cancel_park_proof(ex);
+    }
+    if (strcmp(argv[1], "ready-requeue-wake-race") == 0) {
+        return mode_ready_requeue_wake_race(ex);
     }
 #endif
     return fail("unknown mode");

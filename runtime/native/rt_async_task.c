@@ -309,7 +309,7 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     rt_shard_unlock(owner_shard);
     rt_set_current_task(target);
 
-    task_polling_enter(target);
+    task_polling_enter(target, POLL_SITE_INLINE_CHILD);
     poll_outcome outcome = poll_task(ex, target);
     task_polling_exit(target);
 
