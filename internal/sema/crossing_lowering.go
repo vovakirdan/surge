@@ -26,6 +26,9 @@ const (
 	// call: create a channel owned by the destination shard and return the
 	// remote handle.
 	CrossingLoweringChannelCreate
+	// CrossingLoweringChannelShare records `far Channel<T>.share()` minting
+	// a sibling lease on the same channel.
+	CrossingLoweringChannelShare
 )
 
 // CrossingDestinationKind classifies a checked crossing destination.

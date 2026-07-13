@@ -93,6 +93,10 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		return res.IsCopyType(info.PayloadType)
 	case sema.CrossingLoweringFarTaskCancel:
 		return true
+	case sema.CrossingLoweringChannelShare:
+		// Only the sibling token rides the reply — plain bits by
+		// construction; the async context is the sole shape requirement.
+		return true
 	case sema.CrossingLoweringChannelCreate:
 		// The element type is the channel's payload boundary: a channel whose
 		// values cannot cross shards must not be mintable remotely.

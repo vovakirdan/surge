@@ -4,6 +4,7 @@ import (
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 func (tc *typeChecker) markBindingMoved(symID symbols.SymbolID, span source.Span) {
@@ -40,6 +41,13 @@ func (tc *typeChecker) checkUseAfterMove(symID symbols.SymbolID, span source.Spa
 	}
 	if tc.isTaskType(tc.bindingType(symID)) {
 		tc.report(diag.SemaUseAfterMove, span, "use of moved task '%s'; call %s.clone() to keep a handle", name, name)
+		return
+	}
+	bindingType := tc.bindingType(symID)
+	if tc.isFarType(bindingType) && tc.channelPayloadType(tc.farInner(bindingType)) != types.NoTypeID {
+		tc.report(diag.SemaUseAfterMove, span,
+			"use of moved far channel handle '%s'; call %s.share() before moving it so each holder keeps its own lease",
+			name, name)
 		return
 	}
 	tc.report(diag.SemaUseAfterMove, span, "use of moved value '%s'", name)

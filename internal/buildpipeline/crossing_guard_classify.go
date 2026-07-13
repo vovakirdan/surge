@@ -154,6 +154,8 @@ func crossingFormLabel(kind sema.CrossingLoweringKind) string {
 		return "`far Task<T>.cancel()`"
 	case sema.CrossingLoweringChannelCreate:
 		return "`channel_on(...)`"
+	case sema.CrossingLoweringChannelShare:
+		return "`share()`"
 	default:
 		return "this crossing"
 	}

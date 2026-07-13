@@ -109,6 +109,24 @@ async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
 			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
+			name: "share stays guarded until its lowering lands",
+			src: `
+async fn fan_out(ch: far Channel<int>) -> far Channel<int> {
+    return ch.share();
+}
+`,
+			codes: []diag.Code{diag.FutChannelShareBackendUnavailable},
+		},
+		{
+			name: "synchronous share names the missing async context",
+			src: `
+fn fan_out(ch: far Channel<int>) -> far Channel<int> {
+    return ch.share();
+}
+`,
+			codes: []diag.Code{diag.FutCrossingSyncContext},
+		},
+		{
 			name: "synchronous site names the missing async context",
 			src: `
 fn start(dst: Placement) -> far Task<int> {

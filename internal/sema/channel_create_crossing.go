@@ -121,3 +121,37 @@ func isCoreIntrinsicFunction(sym *symbols.Symbol) bool {
 	}
 	return sym.ModulePath == "" || isCoreModulePath(strings.Trim(sym.ModulePath, "/"))
 }
+
+// typeFarChannelShareCall types `ch.share()` — the caller-side sibling-lease
+// mint. The receiver is borrowed, not consumed: the original holder keeps
+// its lease and the result is a fresh handle of the same channel type. Like
+// every crossing, the call suspends on its reply, so it needs an async
+// context (the guard stage names that cause when it is the only blocker).
+func (tc *typeChecker) typeFarChannelShareCall(id ast.ExprID,
+	member *ast.ExprMemberData,
+	receiverType types.TypeID,
+	call *ast.ExprCallData,
+	span source.Span) types.TypeID {
+	if len(call.Args) != 0 {
+		tc.report(diag.SemaOnChannelOp, span, "`share` takes no arguments")
+		return types.NoTypeID
+	}
+	checkpoint := tc.errorCheckpoint()
+	if !tc.hasErrorsSince(checkpoint) {
+		tc.recordCrossingLowering(&CrossingLoweringInfo{
+			Kind:           CrossingLoweringChannelShare,
+			Expr:           id,
+			Span:           span,
+			Function:       tc.currentFnSym(),
+			SuspendCapable: tc.awaitDepth > 0,
+			ReceiverExpr:   member.Target,
+			ReceiverSymbol: tc.symbolForExpr(member.Target),
+			ReceiverType:   receiverType,
+			ConsumesHandle: false,
+			PayloadType:    tc.types.Builtins().Nothing,
+			ResultType:     receiverType,
+			HandleType:     receiverType,
+		})
+	}
+	return receiverType
+}

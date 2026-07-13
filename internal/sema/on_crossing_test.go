@@ -147,6 +147,11 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"anchored_op_after_effect_rejected", `fn g() -> int { return 1; } fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { let x: int = g(); ch.send(x); ret nothing; }; }`, "SEM3175"},
 		{"anchored_op_under_if_rejected", `fn f(ch: far Channel<int>, c: bool) -> TaskResult<nothing> { return on ch { if c { ch.send(1); } ret nothing; }; }`, "SEM3175"},
 
+		// Sibling-lease mint surface (SHARE): borrowed receiver, zero args,
+		// result is the same far channel type; the original stays usable.
+		{"share_types_and_preserves_original", `async fn f(ch: far Channel<int>) -> nothing { let sib: far Channel<int> = ch.share(); let _ = sib; let again: far Channel<int> = ch.share(); let _ = again; return nothing; }`, ""},
+		{"share_takes_no_arguments", `async fn f(ch: far Channel<int>) -> nothing { let _ = ch.share(1); return nothing; }`, "SEM3175"},
+
 		// Effect + structure (ON-NEST). The `crosses` requirement (SEM3162) is
 		// retired: `on dst { }` is valid without a `crosses` marker (the effect is
 		// inferred).
@@ -182,4 +187,45 @@ func joinCodes(codes map[string]bool) string {
 		parts = append(parts, c)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// The moved-handle diagnostic must carry the share() fix per the kindness
+// contract: naming the mechanism (per-holder leases) at the misuse site.
+func TestFarChannelMovedHandleHintNamesShare(t *testing.T) {
+	src := onCrossingPrelude + `
+fn consume(ch: far Channel<int>) -> nothing { let _ = ch; return nothing; }
+fn f(ch: far Channel<int>) -> nothing {
+    let _ = consume(ch);
+    let _ = consume(ch);
+    return nothing;
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.HasErrors() {
+		t.Fatalf("parse errors: %v", parseBag.Items())
+	}
+	symRes := resolveSymbols(t, builder, fileID)
+	semaBag := diag.NewBag(64)
+	Check(context.Background(), builder, fileID, Options{
+		Reporter:   &diag.BagReporter{Bag: semaBag},
+		Symbols:    symRes,
+		ModulePath: builder.StringsInterner.Intern("core"),
+	})
+	for _, d := range semaBag.Items() {
+		if d.Code == diag.SemaUseAfterMove {
+			if !strings.Contains(d.Message, "share() before moving") {
+				t.Fatalf("moved-handle message misses the share hint: %q", d.Message)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected a use-after-move diagnostic, got: %s", joinCodes(onCrossingBagCodes(semaBag)))
+}
+
+func onCrossingBagCodes(bag *diag.Bag) map[string]bool {
+	codes := map[string]bool{}
+	for _, d := range bag.Items() {
+		codes[d.Code.ID()] = true
+	}
+	return codes
 }

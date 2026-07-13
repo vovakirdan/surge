@@ -26,6 +26,10 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 				}
 			}
 			if !receiverIsType && tc.isFarType(receiverType) {
+				if tc.lookupName(member.Field) == "share" &&
+					tc.channelPayloadType(tc.farInner(receiverType)) != types.NoTypeID {
+					return tc.typeFarChannelShareCall(id, member, receiverType, call, span)
+				}
 				return tc.typeFarHandleCall(member, receiverType, call, span)
 			}
 			if !receiverIsType && tc.lookupName(member.Field) == "await" {
