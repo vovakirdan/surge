@@ -7,7 +7,7 @@ tail divergence, and the lift path.
 
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
-| 1 | `01-kickoff.md` | In progress | evidence re-pin + contract clause + sema surface design + code-space reservations | none |
+| 1 | `01-kickoff.md` | Complete (commit 4453833b) | evidence re-pin + contract clause + sema surface design + code-space reservations | none |
 | 2 | proxy-selector runtime vertical (matrix rows 1-14) | Pending | native runtime, test-first | 1 |
 | 3 | detector chain-collapse (matrix rows 15-16) | Pending | native runtime + adversarial rows | 2 |
 | 4 | sema + lowering + capability + e2e | Pending | compiler + gates | 1, 2 |
