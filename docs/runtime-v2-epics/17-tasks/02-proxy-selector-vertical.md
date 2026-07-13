@@ -96,6 +96,15 @@ with no cancel route. Both fixes reuse the anchored-cancel discipline
 verbatim. Harness note: census asserts after cancel rows must SETTLE
 (the reply-edge unpin is asynchronous to the caller's cancel resume).
 
+Gates at close (commit 9b19600d): behavior suite x2, transport umbrella
+(make exit 0 captured directly), make check. Committed-tree Sentrux vs
+the kickoff baseline (2ea291be): internal 6499->6491, runtime
+5302->5297, runtime/native 5391->5384 — the usual new-subsystem
+coupling for a transport vertical, inside the enforced noise-band
+thresholds (RV2-DEBT-028 re-baseline discipline). File caps hold: the
+select module sits beside the far-channel family, and the remote-task
+pending module stays under the 300-line family gate.
+
 ### Debt position
 
 RV2-DEBT-030 (anchored-body shape rule): the selector body is a NEW
