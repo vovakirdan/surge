@@ -1,10 +1,11 @@
 # Epic 17: Remote Select — DRAFT
 
 **Status:** review-ready (fork resolved 2026-07-13, external review).
-Sequencing note: the stress-epoch triage REPRODUCED the RV2-DEBT-027
-double-poll race (~4% per run on a retained binary — see the debt row);
-the park/wake machinery this epic parks selectors on is the flaking
-machinery, so the fix-first-vs-parallel decision gates Task 1.
+Sequencing note RESOLVED: the RV2-DEBT-027 double-poll race was
+reproduced, root-caused (requeue-push TOCTOU vs wake), and FIXED
+(commit `8a31b9b5`, deterministic proof + negative control + green
+stress epoch — see the closed debt row) BEFORE this epic's Task 1, so
+the park/wake machinery selectors park on is clean at kickoff.
 
 ## Why This Epic Exists
 
