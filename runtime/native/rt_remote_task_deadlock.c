@@ -1,3 +1,4 @@
+#include "rt_far_channel.h"
 #include "rt_remote_task_internal.h"
 
 #include <stdio.h>
@@ -124,7 +125,8 @@ static int all_shards_quiescent(rt_executor* ex) {
 static uint64_t find_channel_parked_body(rt_executor* ex,
                                          uint64_t expect_task_id,
                                          const char** op_name,
-                                         uint32_t* owner_shard_id) {
+                                         uint32_t* owner_shard_id,
+                                         rt_far_task_handle* out_anchor) {
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     if (state == NULL) {
         return 0;
@@ -133,6 +135,7 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
     size_t skip = 0;
     for (;;) {
         rt_task* bodies[RT_DEADLOCK_CANDIDATE_BATCH];
+        rt_far_task_handle anchors[RT_DEADLOCK_CANDIDATE_BATCH];
         size_t body_count = 0;
         size_t seen = 0;
         pthread_mutex_lock(&state->lock);
@@ -157,6 +160,8 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
             if (body == NULL) {
                 continue;
             }
+            anchors[body_count] =
+                it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED ? it->anchor : (rt_far_task_handle){0};
             task_add_ref(body);
             bodies[body_count++] = body;
             if (body_count == RT_DEADLOCK_CANDIDATE_BATCH) {
@@ -179,6 +184,9 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
                         *op_name = kind == WAKER_CHAN_SEND ? "send" : "recv";
                         if (owner_shard_id != NULL) {
                             *owner_shard_id = body->owner_shard_id;
+                        }
+                        if (out_anchor != NULL) {
+                            *out_anchor = anchors[i];
                         }
                     }
                 }
@@ -207,24 +215,43 @@ void rt_remote_task_deadlock_check(rt_executor* ex) {
     }
     const char* op_name = "";
     uint32_t suspect_shard = 0;
-    uint64_t suspect_id = find_channel_parked_body(ex, 0, &op_name, &suspect_shard);
+    rt_far_task_handle anchor = {0};
+    uint64_t suspect_id = find_channel_parked_body(ex, 0, &op_name, &suspect_shard, &anchor);
     if (suspect_id == 0) {
         return;
     }
     if (!all_shards_quiescent(ex)) {
         return;
     }
-    if (find_channel_parked_body(ex, suspect_id, &op_name, &suspect_shard) != suspect_id) {
+    if (find_channel_parked_body(ex, suspect_id, &op_name, &suspect_shard, &anchor) != suspect_id) {
         return;
     }
-    static char message[256];
-    (void)snprintf(message,
-                   sizeof(message),
-                   "remote channel deadlock: an anchored block is parked on channel %s "
-                   "(body task %llu, shard %u) while every shard is idle; "
-                   "nothing can wake it — the channel's consumer is the suspended caller",
-                   op_name,
-                   (unsigned long long)suspect_id,
-                   (unsigned)suspect_shard);
+    // Quiescence is the whole soundness argument, holders included: a
+    // runnable sibling holder keeps its shard non-quiescent, so reaching
+    // this point means EVERY holder of the channel is idle and none can
+    // ever drain it. The lease count names that topology for the user.
+    size_t holders = rt_far_channel_active_lease_count(ex, &anchor);
+    static char message[320];
+    if (holders > 1) {
+        (void)snprintf(message,
+                       sizeof(message),
+                       "remote channel deadlock: an anchored block is parked on channel %s "
+                       "(body task %llu, shard %u) while every shard is idle; the channel "
+                       "has %zu leases but every holder is idle too — none of them can "
+                       "ever wake this block",
+                       op_name,
+                       (unsigned long long)suspect_id,
+                       (unsigned)suspect_shard,
+                       holders);
+    } else {
+        (void)snprintf(message,
+                       sizeof(message),
+                       "remote channel deadlock: an anchored block is parked on channel %s "
+                       "(body task %llu, shard %u) while every shard is idle; "
+                       "nothing can wake it — the channel's consumer is the suspended caller",
+                       op_name,
+                       (unsigned long long)suspect_id,
+                       (unsigned)suspect_shard);
+    }
     panic_msg(message);
 }

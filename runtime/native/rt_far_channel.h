@@ -10,6 +10,8 @@ rt_far_channel_state* rt_far_channel_state_get(rt_executor* ex);
 size_t rt_far_channel_debug_live_count(rt_executor* ex);
 // Test-support census of lease rows across live entries.
 size_t rt_far_channel_debug_lease_count(rt_executor* ex);
+// Active leases on the entry a token addresses (deadlock diagnostics).
+size_t rt_far_channel_active_lease_count(rt_executor* ex, const rt_far_task_handle* handle);
 // Owner-side sibling mint: validates the source lease and issues a fresh
 // lease token on the same entry.
 rt_remote_task_status rt_far_channel_mint_sibling(rt_executor* ex,

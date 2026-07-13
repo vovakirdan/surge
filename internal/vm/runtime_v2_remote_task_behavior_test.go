@@ -232,6 +232,11 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "share-teardown",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "share-runnable-holder-suppresses-the-deadlock-panic",
+			mode: "share-no-deadlock-when-runnable",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -254,31 +259,48 @@ func TestRuntimeV2RemoteChannelSelfDeadlockPanics(t *testing.T) {
 	bin := buildRemoteTaskBehaviorHarness(t)
 	rows := []struct {
 		name string
+		mode string
 		env  []string
+		want string
 	}{
 		{
 			name: "one-shard-two-workers",
+			mode: "anchored-self-deadlock",
 			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=2"),
+			want: "parked on channel send",
 		},
 		{
 			name: "two-shards",
+			mode: "anchored-self-deadlock",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			want: "parked on channel send",
+		},
+		{
+			name: "two-holders-panic-names-the-lease-topology",
+			mode: "share-deadlock-two-holders",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			want: "has 2 leases but every holder is idle",
+		},
+		{
+			name: "deadlock-still-fires-after-the-peer-released",
+			mode: "share-deadlock-after-peer-release",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			want: "consumer is the suspended caller",
 		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
-			stdout, stderr, code := runRemotePublicationHarness(t, bin, "anchored-self-deadlock", row.env)
+			stdout, stderr, code := runRemotePublicationHarness(t, bin, row.mode, row.env)
 			if code == 0 {
-				t.Fatalf("self-deadlock mode exited cleanly\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+				t.Fatalf("deadlock mode exited cleanly\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 			}
 			combined := stdout + stderr
 			if !strings.Contains(combined, "remote channel deadlock") {
 				t.Fatalf("missing deadlock panic (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					code, stdout, stderr)
 			}
-			if !strings.Contains(combined, "parked on channel send") {
-				t.Fatalf("panic does not name the parked operation\nstdout:\n%s\nstderr:\n%s",
-					stdout, stderr)
+			if !strings.Contains(combined, row.want) {
+				t.Fatalf("panic missing %q\nstdout:\n%s\nstderr:\n%s", row.want, stdout, stderr)
 			}
 		})
 	}

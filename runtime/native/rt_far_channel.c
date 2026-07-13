@@ -553,6 +553,22 @@ static rt_far_channel_entry* live_lease_locked(rt_far_channel_state* state,
     return entry;
 }
 
+// Active-lease count for the entry a token addresses (0 when the entry is
+// gone). The deadlock diagnostic uses it to name the lease topology: a
+// parked block plus global quiescence means every one of these holders is
+// idle, so none of them can ever drain the channel.
+size_t rt_far_channel_active_lease_count(rt_executor* ex, const rt_far_task_handle* handle) {
+    rt_far_channel_state* state = rt_far_channel_state_get(ex);
+    if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
+        return 0;
+    }
+    pthread_mutex_lock(&state->lock);
+    rt_far_channel_entry* entry = find_locked(state, handle);
+    size_t count = entry != NULL ? entry->active_leases : 0;
+    pthread_mutex_unlock(&state->lock);
+    return count;
+}
+
 // Test-support census of lease rows across all live entries: the leak
 // audit proves churn leaves neither entries nor lease rows behind.
 size_t rt_far_channel_debug_lease_count(rt_executor* ex) {

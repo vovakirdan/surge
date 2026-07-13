@@ -9,6 +9,16 @@
 // discipline, per-lease stale detection, pin-vs-release with multiple
 // holders, and the lease census after teardown.
 
+// A plain local spinner: busy-yields (stays RUNNABLE, never parks) until
+// its gate opens. Its runnable-ness is what keeps the executor
+// non-quiescent — the false-negative guard for the deadlock detector.
+static void poll_rtb_spinner(rtb_share_state* state) {
+    if (atomic_load_explicit(&state->spin_gate, memory_order_acquire) == 0) {
+        rt_async_yield(state);
+    }
+    rt_async_return(state, 1);
+}
+
 static void poll_rtb_channel_share(rtb_share_state* state) {
     uint8_t kind = 0;
     uint64_t bits = 0;
@@ -23,6 +33,9 @@ static void poll_rtb_channel_share(rtb_share_state* state) {
 void rtb_share_poll_dispatch(uint64_t id) {
     if (id == POLL_RTB_CHANNEL_SHARE) {
         poll_rtb_channel_share((rtb_share_state*)__task_state());
+    }
+    if (id == POLL_RTB_SPINNER) {
+        poll_rtb_spinner((rtb_share_state*)__task_state());
     }
 }
 
@@ -247,4 +260,146 @@ int rtb_mode_share_teardown(void) {
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;
+}
+
+// Two holders, both parked as producers on a full channel, nobody left to
+// drain: a true multi-holder deadlock. The panic must name the lease
+// topology instead of implying a sole holder.
+int rtb_mode_share_deadlock_two_holders(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("two-holder deadlock mint failed");
+    }
+    rt_far_task_handle sibling = {0};
+    if (!rtb_share_sibling(ex, &minted.handle, &sibling, NULL)) {
+        return rtb_fail("two-holder deadlock share failed");
+    }
+    rtb_anchored_state prefill;
+    memset(&prefill, 0, sizeof(prefill));
+    prefill.anchor = minted.handle;
+    prefill.value = 1;
+    prefill.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    void* prefill_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &prefill);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(prefill_caller, &kind, &bits);
+    if (prefill.status != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("two-holder prefill failed");
+    }
+    rtb_anchored_state first;
+    memset(&first, 0, sizeof(first));
+    first.anchor = minted.handle;
+    first.value = 2;
+    first.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &first);
+    rtb_anchored_state second;
+    memset(&second, 0, sizeof(second));
+    second.anchor = sibling;
+    second.value = 3;
+    second.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &second);
+    // Both producers park; every holder is now idle. The detector must
+    // abort the process from a worker's idle-park edge.
+    for (uint32_t i = 0; i < 10000; i++) {
+        rtb_sleep_us(1000);
+    }
+    return rtb_fail("two-holder deadlock was not detected within the window");
+}
+
+// The false-negative guard: one producer parks on the full channel while a
+// RUNNABLE spinner keeps the executor non-quiescent — the detector must
+// stay silent for the whole window, and the run must end cleanly once the
+// channel is drained BEFORE the spinner exits.
+int rtb_mode_share_no_deadlock_when_runnable(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("guard mint failed");
+    }
+    void* channel = rt_far_channel_resolve(ex, &minted.handle);
+    rtb_anchored_state prefill;
+    memset(&prefill, 0, sizeof(prefill));
+    prefill.anchor = minted.handle;
+    prefill.value = 4;
+    prefill.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    void* prefill_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &prefill);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(prefill_caller, &kind, &bits);
+    rtb_share_state spinner;
+    memset(&spinner, 0, sizeof(spinner));
+    void* spinner_task = __task_create(POLL_RTB_SPINNER, &spinner);
+    rtb_anchored_state parked;
+    memset(&parked, 0, sizeof(parked));
+    parked.anchor = minted.handle;
+    parked.value = 5;
+    parked.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    void* parked_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &parked);
+    if (!rtb_wait_u32(&parked.body_ran, 1, 5000)) {
+        return rtb_fail("guard body did not start");
+    }
+    // The parked producer plus the runnable spinner coexist for a long
+    // window; a detector keyed on anything but real quiescence would
+    // panic here.
+    rtb_sleep_us(300000);
+    uint64_t drained = 0;
+    if (!rt_channel_try_recv(channel, &drained) || drained != 4) {
+        return rtb_fail("guard drain did not observe the prefill");
+    }
+    (void)rtb_await(parked_caller, &kind, &bits);
+    if (parked.status != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("parked producer did not complete after the drain");
+    }
+    atomic_store_explicit(&spinner.spin_gate, 1, memory_order_release);
+    (void)rtb_await(spinner_task, &kind, &bits);
+    uint64_t leftover = 0;
+    if (!rt_channel_try_recv(channel, &leftover) || leftover != 5) {
+        return rtb_fail("second value did not land after the drain");
+    }
+    if (rt_far_channel_release(ex, &minted.handle) != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("guard release failed");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// A sibling holder releases and leaves while the peer's producer is
+// parked: with the leaver gone, the parked producer is a true deadlock and
+// the panic must still fire (one active lease remains).
+int rtb_mode_share_deadlock_after_peer_release(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("peer-release mint failed");
+    }
+    rt_far_task_handle sibling = {0};
+    if (!rtb_share_sibling(ex, &minted.handle, &sibling, NULL)) {
+        return rtb_fail("peer-release share failed");
+    }
+    rtb_anchored_state prefill;
+    memset(&prefill, 0, sizeof(prefill));
+    prefill.anchor = minted.handle;
+    prefill.value = 6;
+    prefill.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    void* prefill_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &prefill);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    (void)rtb_await(prefill_caller, &kind, &bits);
+    // The peer leaves FIRST (deterministic lease topology: one active
+    // lease remains), then the surviving holder's producer parks with
+    // nobody left to drain.
+    if (rt_far_channel_release(ex, &sibling) != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("peer release failed");
+    }
+    rtb_anchored_state parked;
+    memset(&parked, 0, sizeof(parked));
+    parked.anchor = minted.handle;
+    parked.value = 7;
+    parked.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
+    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &parked);
+    for (uint32_t i = 0; i < 10000; i++) {
+        rtb_sleep_us(1000);
+    }
+    return rtb_fail("post-peer-release deadlock was not detected within the window");
 }

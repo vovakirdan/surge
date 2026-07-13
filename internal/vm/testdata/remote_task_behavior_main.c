@@ -79,5 +79,11 @@ int main(int argc, char** argv) {
         return rtb_mode_share_pin_outlives_leases();
     if (strcmp(argv[1], "share-teardown") == 0)
         return rtb_mode_share_teardown();
+    if (strcmp(argv[1], "share-deadlock-two-holders") == 0)
+        return rtb_mode_share_deadlock_two_holders();
+    if (strcmp(argv[1], "share-no-deadlock-when-runnable") == 0)
+        return rtb_mode_share_no_deadlock_when_runnable();
+    if (strcmp(argv[1], "share-deadlock-after-peer-release") == 0)
+        return rtb_mode_share_deadlock_after_peer_release();
     return rtb_fail("unknown mode");
 }
