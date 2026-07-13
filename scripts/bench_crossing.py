@@ -168,6 +168,36 @@ fn main() -> int {
 }
 """
 
+MOVE_CAPTURE_SOURCE = """
+@shard_movable
+type Job = { id: int, weight: int };
+
+fn describe(j: own Job) -> int { return j.id * 100 + j.weight; }
+
+async fn probe(iterations: int) -> int {
+    let mut i: int = 0;
+    while i < iterations {
+        let j: own Job = own Job{ id: 4, weight: 2 };
+        let got: TaskResult<int> = on distributed { ret describe(own j); };
+        let value: int = compare got { Success(x) => x; Cancelled() => 0; };
+        if value != 402 {
+            return 1;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn probe(%ITER%);
+    return compare task.await() {
+        Success(code) => code;
+        Cancelled() => 2;
+    };
+}
+"""
+
 PROBES = {
     "spawn-await": SPAWN_AWAIT_SOURCE,
     "immediate-on": IMMEDIATE_ON_SOURCE,
@@ -181,6 +211,10 @@ PROBES = {
     # One iteration = one anchored feed + one remote select deciding on the
     # ready arm (two execute/reply round trips; the select never parks).
     "select-ready": SELECT_READY_SOURCE,
+    # One iteration = one immediate on round trip carrying a MOVED owned
+    # @shard_movable capture (the migration vertical) — compare against
+    # immediate-on (plain-copy captures) for the capture-move overhead.
+    "move-capture": MOVE_CAPTURE_SOURCE,
 }
 
 

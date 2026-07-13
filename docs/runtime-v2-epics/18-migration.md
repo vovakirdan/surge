@@ -1,8 +1,42 @@
 # Epic 18: Owned-Value Migration — DRAFT
 
-**Status:** IN EXECUTION — direction approved 2026-07-13 (Model A;
-affine terminal-move fixed point and the recorded tails confirmed
-explicitly). Task index: `18-tasks/README.md`.
+**Status:** COMPLETE (2026-07-13, same day). All five tasks closed —
+task index `18-tasks/README.md`. Direction was approved the same day
+(Model A; affine terminal-move fixed point and the recorded tails
+confirmed explicitly).
+
+## Closeout (2026-07-13)
+
+What shipped: owned `@shard_movable` captures move into `on` /
+`spawn on` / `on ch` bodies (the FUT7020 guard arm for them is gone;
+far-Task captures and non-copy payloads keep their guards); the
+drop-obligation plumbing end to end — `__surge_drop_call` dispatch (the
+compiled twin of the poll dispatch), drop metadata + the single
+final-release drop site on both pending families, pre-pending refusal
+drops on all four caller surfaces, the publish handoff clear — all
+row-proven (7 drop rows incl. the corrected queue-full premise, the
+bound-cancel handoff row, and two negative controls); e2e green FIRST
+RUN at SHARDS=1/2/8; bench: capture move = plain-copy + ~6%.
+
+TWO scope corrections discovered and recorded mid-epic (both narrow
+the epic honestly rather than growing it):
+1. Surge has no user destructors — drop functions are recursive frees,
+   so glue-edge rows are allocator-balance observables (Task 3).
+2. The language emits NO drops at all today (`InstrDrop` is a backend
+   no-op) — so the guard flip ships under the current memory model
+   with no new leak class, and the entire drop-obligation machinery
+   stays dormant at id 0 until language-wide drop emission exists:
+   RV2-DEBT-034 records the activation list (compiled drop functions,
+   glue-edge rows, owned results) on the seams built here.
+
+Sentrux at closeout (committed tree): root 6169 (advisory), internal
+6484, runtime 5307, runtime/native 5395 — runtime scopes RECOVERED vs
+the kickoff baseline (5297/5384 -> 5307/5395); internal -5 within the
+noise band.
+
+Gates at close: make check, behavior suite + deadlock rows x2,
+crossing e2e gate (five verticals at SHARDS=1/2/8), compiler package
+suites — green twice.
 
 ## Why This Epic Exists
 

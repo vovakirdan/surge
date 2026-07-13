@@ -12,7 +12,7 @@ handles, fallible move).
 | 2 | `02-drop-plumbing.md` | Complete | native runtime + compiler drop dispatch, test-first | 1 |
 | 3 | `03-task-side-obligation.md` | Complete (glue-edge rows move to Task 4 e2e — no user destructors, census is the observable) | native runtime, test-first | 2 |
 | 4 | `04-sema-guard-flip-e2e.md` | Complete (guard flipped under the current memory model; drop emission recorded as debt) | compiler + gates | 1, 2, 3 |
-| 5 | bench + debt + closeout | Pending | all | all |
+| 5 | `05-bench-closeout.md` | Complete | bench + debt + closeout | all |
 
 Rules: the established task rules apply unchanged (expand only the next
 task, test-first rows, per-task gates incl. committed-tree Sentrux
