@@ -66,6 +66,16 @@ reviewing agent's synthesis) resolved the fork:
   waiter-store hardening vertical (remote select must never be the
   first consumer of a waiter-store change — that neighborhood carries
   the RV2-DEBT-027 flake).
+- **Recorded divergence inside the review (tail path, B vs A)**: the
+  external reviewer leaned toward A as the eventual multi-owner lift
+  (one decision point, channel machinery reused as-is); the synthesis
+  chose B as the honest slow path because A concentrates failure modes
+  in the waiter stores — the runtime's most delicate neighborhood (the
+  RV2-DEBT-027 double-poll lived exactly there, reproduced and fixed
+  2026-07-13). Resolution recorded here: B-for-tail over A, with A
+  buildable only behind a profile signal AND a dedicated waiter-store
+  hardening vertical. Revisit this paragraph, not just the lift path,
+  if that call is ever reopened.
 - **Detector requirement (all models, smallest in C)**: the new wait
   chain `caller selector parked -> remote select op -> owner-side
   channel waiter` must collapse into ONE logical selector op in the
