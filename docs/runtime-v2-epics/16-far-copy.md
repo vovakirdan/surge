@@ -1,8 +1,8 @@
 # Epic 16: Shared Far Handles (`share()` sibling leases) — DRAFT
 
-**Status:** draft with the design fork RESOLVED (2026-07-12); the epic
-DIRECTION (this vs remote select vs migration, `16-candidates.md`)
-still awaits review before Task 1. Retires RV2-DEBT-025 and unblocks
+**Status:** ACTIVE (direction confirmed by review 2026-07-13; the
+sharing model is B per the second-opinion record below). Tasks execute
+from `16-tasks/README.md`. Retires RV2-DEBT-025 and unblocks
 the concurrent source-level park-retry proof, the multi-producer FIFO
 negative, and real producer/consumer topologies.
 
