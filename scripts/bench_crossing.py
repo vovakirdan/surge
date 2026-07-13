@@ -138,6 +138,36 @@ fn main() -> int {
 }
 """
 
+SELECT_READY_SOURCE = """
+async fn probe(iterations: int) -> int {
+    let a: far Channel<int> = channel_on::<int>(distributed, 4);
+    let b: far Channel<int> = channel_on::<int>(distributed, 4);
+    let mut i: int = 0;
+    while i < iterations {
+        let fed: TaskResult<nothing> = on b { b.send(1); ret nothing; };
+        let ok: int = compare fed { Success(_) => 1; Cancelled() => 0; };
+        if ok != 1 {
+            return 1;
+        }
+        let w: int = select { a.recv() => 10; b.recv() => 20; };
+        if w != 20 {
+            return 1;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn probe(%ITER%);
+    return compare task.await() {
+        Success(code) => code;
+        Cancelled() => 2;
+    };
+}
+"""
+
 PROBES = {
     "spawn-await": SPAWN_AWAIT_SOURCE,
     "immediate-on": IMMEDIATE_ON_SOURCE,
@@ -148,6 +178,9 @@ PROBES = {
     # One iteration = an anchored send block + an anchored recv block (two
     # execute/reply round trips through the owner's local channel lane).
     "on-ch-pair": ON_CH_PAIR_SOURCE,
+    # One iteration = one anchored feed + one remote select deciding on the
+    # ready arm (two execute/reply round trips; the select never parks).
+    "select-ready": SELECT_READY_SOURCE,
 }
 
 

@@ -1,15 +1,44 @@
 # Epic 17: Remote Select
 
-**Status:** IN EXECUTION — direction approved 2026-07-13 (fork resolved
-to Model C by external review; the four review points — B-over-A tail,
-owner-lane linearization clause, single-owner sema restriction,
-in-epic stabilization slice — confirmed explicitly). Task index:
-`17-tasks/README.md`.
-Sequencing precondition met: the RV2-DEBT-027 double-poll race was
-reproduced, root-caused (requeue-push TOCTOU vs wake), and FIXED
+**Status:** COMPLETE (2026-07-13, one day). All five tasks closed —
+task index `17-tasks/README.md`. Direction was approved the same day
+(fork resolved to Model C by external review; the four review points —
+B-over-A tail, owner-lane linearization clause, single-owner sema
+restriction, in-epic stabilization slice — confirmed explicitly).
+
+## Closeout (2026-07-13)
+
+What shipped: the owner-side proxy selector as one anchored
+execute/reply op (transport kinds 16/17, op 8) whose body runs the
+LOCAL select over dispatch-pinned arm channels and replies with the
+winner index — the exact value local select's lowering stores, so the
+compiler shares the arm dispatch verbatim between local and remote
+selects; all 16 acceptance race rows green (14 behavior rows + the two
+detector rows: the suspect scan collapses the caller->reply->body->
+channels chain into one select-shaped suspect); the sema surface
+(SEM3176 single-block shape rule, FUT7022 backend guard); the
+owner-lane linearization clause in RUNTIME_V2.md; e2e at SHARDS=1/2/8.
+
+Cost model confirmed: `select-ready` == `on-ch-pair` within noise
+(15.1/126.3/125.5 vs 14.6/126.8/125.4 us/rt at 1/2/8 shards) — one
+remote transaction per select regardless of arm count.
+
+Defects the rows caught before any compiler surface existed: the
+select cancel fell into the generic handle-consuming path (arm-pin leak
+past owner-done) and the caller-teardown sweep missed select pendings —
+both fixed by extending the op-tagged cancel gates (the seam record
+names them as the first thing any tail vertical re-reads).
+
+Debt: RV2-DEBT-033 opened (multi-owner tail, profile-gated, B before
+A); DEBT-030/031/032 untouched. Gates at close: make check, transport
+umbrella, behavior+deadlock suites, ready-requeue proof pair, crossing
+e2e gate — green on the committed tree, twice.
+
+Sequencing note: the epic started only after RV2-DEBT-027 (double-poll
+race in the park/wake machinery selectors park on) was reproduced,
+root-caused (requeue-push TOCTOU vs wake), and FIXED the same morning
 (commit `8a31b9b5`, deterministic proof + negative control + green
-stress epoch — see the closed debt row) BEFORE Task 1, so the park/wake
-machinery selectors park on is clean at kickoff.
+stress epoch — see the closed debt row).
 
 ## Why This Epic Exists
 
