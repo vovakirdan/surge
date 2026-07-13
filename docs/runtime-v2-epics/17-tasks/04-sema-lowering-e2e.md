@@ -66,5 +66,20 @@ diagnostics goldens: mixed local+far arm (SEM3176), sync context
 
 ## Status
 
-Design locked; implementation follows as increments (sema surface ->
-lowering -> capability+e2e), each behind `make check`.
+COMPLETE (commits 940f4d7b sema, 9b3eee52 lowering+capability+e2e).
+
+Execution record: the sema surface landed with 5 unit rows (positive
+recv/send shapes, SEM3176 on mixed-local/default/task arms); the HIR
+keeps the select surface with the crossing riding inside SelectData;
+MIR shares the arm dispatch verbatim between local and remote selects
+and mints ONE canonical synthetic body poll fn per module; the LLVM
+emit passes token POINTER arrays (the runtime signature switched to
+`const rt_far_task_handle* const*` for exactly this) and routes a
+Cancelled reply through the pend edge — rt_async_yield's cancellation
+check finishes the caller, byte-for-byte the local select parked path.
+Panic strings must be pre-registered in emit.go (Epic 16 gotcha,
+re-confirmed). E2E green at SHARDS=1/2/8 first run; FUT7022 guard
+matrix row covers non-LLVM backends; `make check` green.
+
+Committed-tree Sentrux after the slice: internal 6489, runtime/native
+5384 (vs 6491/5384 at Task 2 close — inside the noise band).
