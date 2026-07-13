@@ -134,6 +134,12 @@ void rtb_select_poll_dispatch(uint64_t id);
 int rtb_mode_select_ready_first(void);
 int rtb_mode_select_park_then_send(void);
 int rtb_mode_select_tie_break(void);
+int rtb_mode_select_close_before(void);
+int rtb_mode_select_park_then_close(void);
+int rtb_mode_select_cancel_unbound(void);
+int rtb_mode_select_cancel_parked(void);
+int rtb_mode_select_cancel_vs_send(void);
+int rtb_mode_select_retry_single_body(void);
 
 void rtb_share_poll_dispatch(uint64_t id);
 int rtb_mode_share_round_trip(void);

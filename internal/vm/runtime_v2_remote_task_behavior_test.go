@@ -252,6 +252,36 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "select-tie-break",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "select-closed-arm-wins-the-registration-race",
+			mode: "select-close-before",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-close-wakes-the-parked-selector-exactly-once",
+			mode: "select-park-then-close",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-cancel-before-binding-resumes-cancelled",
+			mode: "select-cancel-unbound",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-cancel-of-a-parked-selector-resumes-cancelled",
+			mode: "select-cancel-parked",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-cancel-vs-send-yields-exactly-one-terminal",
+			mode: "select-cancel-vs-send",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-spurious-caller-wake-mints-no-second-request",
+			mode: "select-retry-single-body",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

@@ -91,5 +91,17 @@ int main(int argc, char** argv) {
         return rtb_mode_select_park_then_send();
     if (strcmp(argv[1], "select-tie-break") == 0)
         return rtb_mode_select_tie_break();
+    if (strcmp(argv[1], "select-close-before") == 0)
+        return rtb_mode_select_close_before();
+    if (strcmp(argv[1], "select-park-then-close") == 0)
+        return rtb_mode_select_park_then_close();
+    if (strcmp(argv[1], "select-cancel-unbound") == 0)
+        return rtb_mode_select_cancel_unbound();
+    if (strcmp(argv[1], "select-cancel-parked") == 0)
+        return rtb_mode_select_cancel_parked();
+    if (strcmp(argv[1], "select-cancel-vs-send") == 0)
+        return rtb_mode_select_cancel_vs_send();
+    if (strcmp(argv[1], "select-retry-single-body") == 0)
+        return rtb_mode_select_retry_single_body();
     return rtb_fail("unknown mode");
 }
