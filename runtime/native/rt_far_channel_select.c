@@ -213,6 +213,42 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
     task_release_lane_aware(ex, task);
 }
 
+// The remote-select body's binding: the dispatch-pinned arm table and the
+// shipped poll state, found through the pending that created this body (the
+// same scan discipline as the anchored single-channel binding).
+int rt_remote_task_select_binding_current(rt_far_channel_select_arm** out_arms,
+                                          uint64_t* out_count,
+                                          void** out_state) {
+    rt_executor* ex = ensure_exec();
+    rt_remote_task_state* state = rt_remote_task_state_get(ex);
+    const rt_task* current = rt_current_task();
+    if (state == NULL || current == NULL) {
+        return 0;
+    }
+    int bound = 0;
+    pthread_mutex_lock(&state->lock);
+    for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
+        if (it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT &&
+            it->status == RT_REMOTE_TASK_STATUS_PENDING && it->handle.task_id == current->id &&
+            it->handle.generation == current->generation &&
+            it->handle.owner_shard_id == current->owner_shard_id) {
+            if (out_arms != NULL) {
+                *out_arms = it->select_arms;
+            }
+            if (out_count != NULL) {
+                *out_count = it->select_count;
+            }
+            if (out_state != NULL) {
+                *out_state = it->body_state;
+            }
+            bound = 1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&state->lock);
+    return bound;
+}
+
 // The selector body's single operation: runs the local select over the
 // bound channels and returns the winner index. The parked path yields with
 // rt_select_poll's registrations in place and the wake re-enters the body

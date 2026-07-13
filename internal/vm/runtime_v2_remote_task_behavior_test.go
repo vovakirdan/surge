@@ -282,6 +282,31 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "select-retry-single-body",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "select-spurious-body-wake-is-absorbed-and-rearmed",
+			mode: "select-stale-wake",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-pins-outlive-every-released-lease-to-the-reply",
+			mode: "select-release-while-parked",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-sibling-lease-send-wakes-exactly-one-selector",
+			mode: "select-sibling-isolation",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-orphaned-reply-after-caller-teardown-is-consumed",
+			mode: "select-caller-teardown",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			name: "select-owner-teardown-fails-the-parked-caller-deterministically",
+			mode: "select-owner-teardown",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

@@ -103,5 +103,15 @@ int main(int argc, char** argv) {
         return rtb_mode_select_cancel_vs_send();
     if (strcmp(argv[1], "select-retry-single-body") == 0)
         return rtb_mode_select_retry_single_body();
+    if (strcmp(argv[1], "select-stale-wake") == 0)
+        return rtb_mode_select_stale_wake();
+    if (strcmp(argv[1], "select-release-while-parked") == 0)
+        return rtb_mode_select_release_while_parked();
+    if (strcmp(argv[1], "select-sibling-isolation") == 0)
+        return rtb_mode_select_sibling_isolation();
+    if (strcmp(argv[1], "select-caller-teardown") == 0)
+        return rtb_mode_select_caller_teardown();
+    if (strcmp(argv[1], "select-owner-teardown") == 0)
+        return rtb_mode_select_owner_teardown();
     return rtb_fail("unknown mode");
 }

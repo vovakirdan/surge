@@ -83,6 +83,19 @@ Rows are test-first: modes land red (missing symbols/status), the
 runtime lands them green, gates after each increment
 (behavior suite + c-check; transport umbrella at the end).
 
+## Execution record
+
+All 14 rows green (commits 0cfe9c09, 82e09ea1, + races increment).
+The rows caught two real defects before any compiler surface existed:
+(1) a select cancel fell through to the generic handle-consuming cancel
+path instead of the token-validated in-flight-execute cancel — the
+pending resolved past owner-done and every arm pin leaked;
+(2) `rt_immediate_on_release_owned` swept only placement executes, so a
+caller cancelled before its retry poll left an in-flight select request
+with no cancel route. Both fixes reuse the anchored-cancel discipline
+verbatim. Harness note: census asserts after cancel rows must SETTLE
+(the reply-edge unpin is asynchronous to the caller's cancel resume).
+
 ### Debt position
 
 RV2-DEBT-030 (anchored-body shape rule): the selector body is a NEW

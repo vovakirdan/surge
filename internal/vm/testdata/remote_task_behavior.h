@@ -140,6 +140,11 @@ int rtb_mode_select_cancel_unbound(void);
 int rtb_mode_select_cancel_parked(void);
 int rtb_mode_select_cancel_vs_send(void);
 int rtb_mode_select_retry_single_body(void);
+int rtb_mode_select_stale_wake(void);
+int rtb_mode_select_release_while_parked(void);
+int rtb_mode_select_sibling_isolation(void);
+int rtb_mode_select_caller_teardown(void);
+int rtb_mode_select_owner_teardown(void);
 
 void rtb_share_poll_dispatch(uint64_t id);
 int rtb_mode_share_round_trip(void);
