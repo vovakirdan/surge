@@ -317,6 +317,13 @@ from hot-path lowering" means rejected from the fast lowering, not rejected from
 the language. Stale completions from canceled arms are ignored by generation
 tokens.
 
+Remote `select` linearizes on the owner lane: the winner is decided on the
+channel owner's shard, exactly where the owner's own local `select` would
+decide it. No caller-lane ordering or fairness is promised across the shard
+boundary — two callers selecting over the same channels observe an owner-lane
+order, not their submission order. Timeout and default arms are evaluated on
+the caller's side in every lowering.
+
 The current sync channel compatibility path remains a fallback. Hot code should
 use direct async channel operations.
 

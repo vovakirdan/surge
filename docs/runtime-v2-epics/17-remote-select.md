@@ -1,11 +1,15 @@
-# Epic 17: Remote Select — DRAFT
+# Epic 17: Remote Select
 
-**Status:** review-ready (fork resolved 2026-07-13, external review).
-Sequencing note RESOLVED: the RV2-DEBT-027 double-poll race was
+**Status:** IN EXECUTION — direction approved 2026-07-13 (fork resolved
+to Model C by external review; the four review points — B-over-A tail,
+owner-lane linearization clause, single-owner sema restriction,
+in-epic stabilization slice — confirmed explicitly). Task index:
+`17-tasks/README.md`.
+Sequencing precondition met: the RV2-DEBT-027 double-poll race was
 reproduced, root-caused (requeue-push TOCTOU vs wake), and FIXED
 (commit `8a31b9b5`, deterministic proof + negative control + green
-stress epoch — see the closed debt row) BEFORE this epic's Task 1, so
-the park/wake machinery selectors park on is clean at kickoff.
+stress epoch — see the closed debt row) BEFORE Task 1, so the park/wake
+machinery selectors park on is clean at kickoff.
 
 ## Why This Epic Exists
 
