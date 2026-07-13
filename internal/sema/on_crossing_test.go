@@ -152,6 +152,16 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"share_types_and_preserves_original", `async fn f(ch: far Channel<int>) -> nothing { let sib: far Channel<int> = ch.share(); let _ = sib; let again: far Channel<int> = ch.share(); let _ = again; return nothing; }`, ""},
 		{"share_takes_no_arguments", `async fn f(ch: far Channel<int>) -> nothing { let _ = ch.share(1); return nothing; }`, "SEM3175"},
 
+		// Remote select surface (SELECT-FAR): a select with far channel arms
+		// ships whole to their owner shard; any other arm kind is diagnosed
+		// with the split rewrite (owner sameness stays a runtime check — the
+		// tokens carry the shard).
+		{"select_far_recv_arms_ok", `async fn f(a: far Channel<int>, b: far Channel<int>) -> int { let w: int = select { a.recv() => 1; b.recv() => 2; }; return w; }`, ""},
+		{"select_far_send_arm_ok", `async fn f(a: far Channel<int>, b: far Channel<int>) -> int { let w: int = select { a.send(7) => 1; b.recv() => 2; }; return w; }`, ""},
+		{"select_far_mixed_local_rejected", `async fn f(a: far Channel<int>, l: own Channel<int>) -> int { let w: int = select { a.recv() => 1; l.recv() => 2; }; return w; }`, "SEM3176"},
+		{"select_far_default_rejected", `async fn f(a: far Channel<int>) -> int { let w: int = select { a.recv() => 1; default => 2; }; return w; }`, "SEM3176"},
+		{"select_far_task_arm_rejected", `async fn f(a: far Channel<int>, t: Task<int>) -> int { let w: int = select { a.recv() => 1; t.await() => 2; }; return w; }`, "SEM3176"},
+
 		// Effect + structure (ON-NEST). The `crosses` requirement (SEM3162) is
 		// retired: `on dst { }` is valid without a `crosses` marker (the effect is
 		// inferred).

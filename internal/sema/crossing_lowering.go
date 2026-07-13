@@ -29,6 +29,10 @@ const (
 	// CrossingLoweringChannelShare records `far Channel<T>.share()` minting
 	// a sibling lease on the same channel.
 	CrossingLoweringChannelShare
+	// CrossingLoweringChannelSelect records a `select` whose arms are far
+	// channel operations: the whole select ships to the arms' owner shard as
+	// one anchored block and replies with the winner index.
+	CrossingLoweringChannelSelect
 )
 
 // CrossingDestinationKind classifies a checked crossing destination.
@@ -97,13 +101,15 @@ type CrossingCaptureInfo struct {
 }
 
 // CrossingRemoteOpInfo records an accepted operation through an anchored
-// `far T` handle inside `on far_handle { ... }`.
+// `far T` handle inside `on far_handle { ... }`, or one arm of a remote
+// select (where ValueExpr carries a send arm's payload expression).
 type CrossingRemoteOpInfo struct {
 	Method         string
 	Span           source.Span
 	ReceiverExpr   ast.ExprID
 	ReceiverSymbol symbols.SymbolID
 	ReceiverType   types.TypeID
+	ValueExpr      ast.ExprID
 }
 
 // CrossingLoweringInfo is the guard-before-HIR handoff record for accepted

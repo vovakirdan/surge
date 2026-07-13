@@ -86,7 +86,108 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 			tc.recordNumericWidening(arm.Result, armTypes[i], resultType)
 		}
 	}
+	tc.checkSelectFarArms(id, data, span)
 	return resultType
+}
+
+// checkSelectFarArms classifies the select's arms for the remote-select
+// vertical: a select containing ANY far channel arm ships to the arms'
+// owner shard as one anchored block, so it must contain ONLY far channel
+// arms — local channels, tasks, timeouts, and default arms cannot join it
+// (SEM3176 names the split). Owner-shard sameness across the far arms is
+// runtime data inside the tokens and is enforced by the runtime call; the
+// clean shape is recorded as a ChannelSelect crossing whose reply is the
+// winner index.
+func (tc *typeChecker) checkSelectFarArms(id ast.ExprID, data *ast.ExprSelectData, span source.Span) {
+	if tc.types == nil {
+		return
+	}
+	var farOps []CrossingRemoteOpInfo
+	mixed := false
+	for _, arm := range data.Arms {
+		if arm.IsDefault {
+			mixed = true
+			continue
+		}
+		op, isFar := tc.selectFarArmInfo(arm.Await)
+		if isFar {
+			farOps = append(farOps, op)
+		} else {
+			mixed = true
+		}
+	}
+	if len(farOps) == 0 {
+		return
+	}
+	if mixed {
+		for _, arm := range data.Arms {
+			if arm.IsDefault {
+				tc.report(diag.SemaSelectFarArmsSingleOwner, arm.Span,
+					"a `select` with `far` channel arms ships to their owner shard as one block "+
+						"and cannot take a default arm; give the remote channels their own `select`")
+				continue
+			}
+			if _, isFar := tc.selectFarArmInfo(arm.Await); !isFar {
+				tc.report(diag.SemaSelectFarArmsSingleOwner, arm.Span,
+					"a `select` with `far` channel arms ships to their owner shard as one block; "+
+						"this arm cannot join it — keep local channel, task, and timeout arms in "+
+						"a local `select`, or split into one `select` per owner")
+			}
+		}
+		return
+	}
+	indexType := tc.types.Builtins().Int32
+	tc.recordCrossingLowering(&CrossingLoweringInfo{
+		Kind:           CrossingLoweringChannelSelect,
+		Expr:           id,
+		Span:           span,
+		Function:       tc.currentFnSym(),
+		SuspendCapable: tc.awaitDepth > 0,
+		RemoteOps:      farOps,
+		PayloadType:    indexType,
+		ResultType:     indexType,
+	})
+}
+
+// selectFarArmInfo classifies one select arm's await expression: a recv or
+// send member call whose receiver is a far channel yields the crossing
+// remote-op record for the arm.
+func (tc *typeChecker) selectFarArmInfo(exprID ast.ExprID) (CrossingRemoteOpInfo, bool) {
+	exprID = tc.unwrapSelectAwaitExpr(exprID)
+	if !exprID.IsValid() || tc.builder == nil {
+		return CrossingRemoteOpInfo{}, false
+	}
+	expr := tc.builder.Exprs.Get(exprID)
+	if expr == nil || expr.Kind != ast.ExprCall {
+		return CrossingRemoteOpInfo{}, false
+	}
+	call, ok := tc.builder.Exprs.Call(exprID)
+	if !ok || call == nil {
+		return CrossingRemoteOpInfo{}, false
+	}
+	member, ok := tc.builder.Exprs.Member(call.Target)
+	if !ok || member == nil {
+		return CrossingRemoteOpInfo{}, false
+	}
+	name := tc.lookupName(member.Field)
+	if name != "recv" && name != "send" {
+		return CrossingRemoteOpInfo{}, false
+	}
+	recvType := tc.typeExpr(member.Target)
+	if tc.channelPayloadType(tc.farInner(recvType)) == types.NoTypeID {
+		return CrossingRemoteOpInfo{}, false
+	}
+	op := CrossingRemoteOpInfo{
+		Method:         name,
+		Span:           tc.exprSpan(exprID),
+		ReceiverExpr:   member.Target,
+		ReceiverSymbol: tc.symbolForExpr(member.Target),
+		ReceiverType:   recvType,
+	}
+	if name == "send" && len(call.Args) == 1 {
+		op.ValueExpr = call.Args[0].Value
+	}
+	return op, true
 }
 
 func (tc *typeChecker) isSelectAwaitableExpr(exprID ast.ExprID) bool {
@@ -110,13 +211,17 @@ func (tc *typeChecker) isSelectAwaitableExpr(exprID ast.ExprID) bool {
 		if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
 			name := tc.lookupName(member.Field)
 			recvType := tc.typeExpr(member.Target)
+			// Far channel arms are awaitable too: the remote-select vertical
+			// ships them owner-side (checkSelectFarArms owns the shape rule).
+			isChannelArm := tc.isChannelType(recvType) ||
+				tc.channelPayloadType(tc.farInner(recvType)) != types.NoTypeID
 			switch name {
 			case "await":
 				return len(call.Args) == 0 && tc.isTaskType(recvType)
 			case "recv":
-				return len(call.Args) == 0 && tc.isChannelType(recvType)
+				return len(call.Args) == 0 && isChannelArm
 			case "send":
-				return len(call.Args) == 1 && tc.isChannelType(recvType)
+				return len(call.Args) == 1 && isChannelArm
 			}
 		}
 		if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
@@ -176,12 +281,14 @@ func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
 				}
 			case "recv":
 				recvType := tc.typeExpr(member.Target)
-				if !tc.isChannelType(recvType) {
+				if !tc.isChannelType(recvType) &&
+					tc.channelPayloadType(tc.farInner(recvType)) == types.NoTypeID {
 					tc.report(diag.SemaTypeMismatch, tc.exprSpan(member.Target), "recv expects Channel<T>, got %s", tc.typeLabel(recvType))
 				}
 			case "send":
 				recvType := tc.typeExpr(member.Target)
-				if !tc.isChannelType(recvType) {
+				if !tc.isChannelType(recvType) &&
+					tc.channelPayloadType(tc.farInner(recvType)) == types.NoTypeID {
 					tc.report(diag.SemaTypeMismatch, tc.exprSpan(member.Target), "send expects Channel<T>, got %s", tc.typeLabel(recvType))
 				}
 				if len(call.Args) > 0 {

@@ -110,6 +110,9 @@ const (
 	SemaLocalSpawnOn Code = 3174
 	// SemaOnChannelOp rejects an anchored channel operation outside the supported send/recv/close surface.
 	SemaOnChannelOp Code = 3175
+	// SemaSelectFarArmsSingleOwner rejects a select that mixes far channel arms
+	// with any other arm kind: a remote select ships to one owner shard whole.
+	SemaSelectFarArmsSingleOwner Code = 3176
 
 	// --- Parse-level crossing diagnostics (SYN 2031-2036) ---
 
@@ -157,6 +160,8 @@ const (
 	FutCrossingPayloadNotShippable Code = 7020
 	// FutChannelShareBackendUnavailable marks `far Channel<T>.share()` as unavailable in this backend/configuration.
 	FutChannelShareBackendUnavailable Code = 7021
+	// FutChannelSelectBackendUnavailable marks a remote select as unavailable in this backend/configuration.
+	FutChannelSelectBackendUnavailable Code = 7022
 )
 
 // crossingCodeDescriptions holds the human-readable titles for the
@@ -164,16 +169,17 @@ const (
 // resolve them like any other code. Messages name the invariant, matching the
 // message shapes recorded in the block matrices.
 var crossingCodeDescriptions = map[Code]string{
-	FutCrossingSyncContext:            "this crossing suspends and needs an `async` context",
-	FutCrossingPayloadNotShippable:    "this crossing's payload cannot cross shards yet",
-	FutChannelShareBackendUnavailable: "`share()` is not available in this backend/configuration yet",
-	SemaFarNested:                     "nested `far` handles are not allowed",
-	SemaFarRemoteOwn:                  "`far own T` is invalid; move `own T` through `on` or `spawn on`",
-	SemaFarRemoteBorrow:               "`far &T` and `far &mut T` are invalid remote lifetimes",
-	SemaFarExternTarget:               "`extern<T>` is not a value capability for `far`",
-	SemaFarGroupingUnsupported:        "grouping does not change `far` array precedence",
-	SemaFarNonCapability:              "`far` requires a remote-handle-capable type",
-	SemaFarLocalOp:                    "operation on `far T` requires an accepted remote context",
+	FutCrossingSyncContext:             "this crossing suspends and needs an `async` context",
+	FutCrossingPayloadNotShippable:     "this crossing's payload cannot cross shards yet",
+	FutChannelShareBackendUnavailable:  "`share()` is not available in this backend/configuration yet",
+	FutChannelSelectBackendUnavailable: "remote `select` is not available in this backend/configuration yet",
+	SemaFarNested:                      "nested `far` handles are not allowed",
+	SemaFarRemoteOwn:                   "`far own T` is invalid; move `own T` through `on` or `spawn on`",
+	SemaFarRemoteBorrow:                "`far &T` and `far &mut T` are invalid remote lifetimes",
+	SemaFarExternTarget:                "`extern<T>` is not a value capability for `far`",
+	SemaFarGroupingUnsupported:         "grouping does not change `far` array precedence",
+	SemaFarNonCapability:               "`far` requires a remote-handle-capable type",
+	SemaFarLocalOp:                     "operation on `far T` requires an accepted remote context",
 
 	SemaOnDestFarTask:      "`far Task<T>` is not an `on` destination; use `await()` or `cancel()`",
 	SemaOnDestNotPlacement: "`on` destination must be a `Placement` value or an accepted `far` handle",
@@ -210,6 +216,7 @@ var crossingCodeDescriptions = map[Code]string{
 	SemaCrossesAttribute:             "`@crosses` is not supported; crossing effects are inferred",
 	SemaLocalSpawnOn:                 "`@local spawn on` is invalid; local spawn and remote placement are mutually exclusive",
 	SemaOnChannelOp:                  "Unsupported anchored channel operation",
+	SemaSelectFarArmsSingleOwner:     "a `select` with `far` channel arms cannot mix in other arm kinds",
 
 	SynFarReservedIdent:          "`far` is a reserved keyword; rename this identifier",
 	SynSpawnOnMissingBlock:       "`spawn on` requires a `{ ret expr; }` block",
