@@ -18,8 +18,17 @@ static void poll_rtb_drop_body(void) {
     rt_async_return(NULL, 5);
 }
 
+// A parked, state-agnostic body: the recv reaches the channel through the
+// pending BINDING, so the shipped state stays untouched borrowed bits.
+static void poll_rtb_drop_recv_body(void) {
+    uint64_t bits = 0;
+    (void)rt_anchored_channel_recv(&bits);
+    rt_async_return(NULL, 5);
+}
+
 typedef struct rtb_drop_state {
     rt_remote_task_pending* pending;
+    _Atomic(rt_remote_task_pending*) visible_pending;
     uint64_t placement;
     uint32_t flood_destination;
     rt_far_task_handle anchor;
@@ -43,6 +52,27 @@ static void poll_rtb_drop_execute(rtb_drop_state* state) {
                                             &state->pending,
                                             &kind,
                                             &bits);
+    if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
+        rt_async_yield(state);
+    }
+    state->result_kind = kind;
+    state->result_bits = bits;
+    rt_async_return(state, (uint64_t)state->status);
+}
+
+// The parked-body variant: ships the anchored recv body so the block
+// suspends owner-side until cancelled.
+static void poll_rtb_drop_anchored_recv(rtb_drop_state* state) {
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    state->status = rt_immediate_on_execute_anchored(&state->anchor,
+                                                     RTB_DROP_MARK_ID,
+                                                     (int64_t)POLL_RTB_DROP_RECV_BODY,
+                                                     &state->shipped_mark,
+                                                     &state->pending,
+                                                     &kind,
+                                                     &bits);
+    atomic_store_explicit(&state->visible_pending, state->pending, memory_order_release);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state);
     }
@@ -98,6 +128,12 @@ static void poll_rtb_drop_select(rtb_drop_state* state) {
 void rtb_drop_poll_dispatch(uint64_t id) {
     if (id == POLL_RTB_DROP_BODY) {
         poll_rtb_drop_body();
+    }
+    if (id == POLL_RTB_DROP_ANCHORED_RECV) {
+        poll_rtb_drop_anchored_recv((rtb_drop_state*)__task_state());
+    }
+    if (id == POLL_RTB_DROP_RECV_BODY) {
+        poll_rtb_drop_recv_body();
     }
     if (id == POLL_RTB_DROP_EXECUTE) {
         poll_rtb_drop_execute((rtb_drop_state*)__task_state());
@@ -267,6 +303,74 @@ int rtb_mode_drop_handoff_not_dropped(void) {
     rtb_sleep_us(50000);
     if (atomic_load_explicit(&rtb_drop_calls, memory_order_acquire) != 0) {
         return rtb_fail("handoff row dropped through the pending despite a published body");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Row (bound cancel): a droppable state handed off to a PUBLISHED body
+// must never drop through the pending, even when the caller's cancel is
+// routed and the body completes Cancelled — the reply edge and the
+// orphaned-reply consumption leave the obligation with the body family.
+int rtb_mode_drop_bound_cancel_no_pending_drop(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_drop_reset();
+    rtb_create_state minted;
+    if (!rtb_mint_channel(&minted, rt_placement_shard(1), 1)) {
+        return rtb_fail("drop bound-cancel mint failed");
+    }
+    static rtb_drop_state state;
+    memset(&state, 0, sizeof(state));
+    state.anchor = minted.handle;
+    // The anchored recv body parks on the empty channel, so the request is
+    // provably bound and suspended when the cancel lands.
+    void* caller = __task_create(POLL_RTB_DROP_ANCHORED_RECV, &state);
+    rt_remote_task_pending* pending = NULL;
+    for (uint32_t i = 0; i < 4000 && pending == NULL; i++) {
+        pending = atomic_load_explicit(&state.visible_pending, memory_order_acquire);
+        if (pending == NULL) {
+            rtb_sleep_us(1000);
+        }
+    }
+    if (pending == NULL) {
+        return rtb_fail("bound-cancel request never became visible");
+    }
+    uint64_t body_id = 0;
+    for (uint32_t i = 0; i < 4000 && body_id == 0; i++) {
+        body_id = pending->handle.task_id;
+        if (body_id == 0) {
+            rtb_sleep_us(1000);
+        }
+    }
+    if (body_id == 0) {
+        return rtb_fail("bound-cancel body was never bound");
+    }
+    rt_task_cancel(caller);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (kind != 2) {
+        return rtb_fail("bound-cancel caller did not resume as Cancelled");
+    }
+    rtb_sleep_us(50000);
+    if (atomic_load_explicit(&rtb_drop_calls, memory_order_acquire) != 0) {
+        return rtb_fail("bound-cancel dropped through the pending after handoff");
+    }
+    for (uint32_t i = 0; i < 4000; i++) {
+        if (rt_far_channel_release(ex, &minted.handle) == RT_REMOTE_TASK_STATUS_OK) {
+            break;
+        }
+        rtb_sleep_us(1000);
+    }
+    int clean = 0;
+    for (uint32_t i = 0; i < 4000 && !clean; i++) {
+        clean = rt_far_channel_debug_live_count(ex) == 0;
+        if (!clean) {
+            rtb_sleep_us(1000);
+        }
+    }
+    if (!clean) {
+        return rtb_fail("bound-cancel census found residue");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;

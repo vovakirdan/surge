@@ -129,5 +129,7 @@ int main(int argc, char** argv) {
         return rtb_mode_drop_handoff_not_dropped();
     if (strcmp(argv[1], "drop-zero-id-never-dispatches") == 0)
         return rtb_mode_drop_zero_id_never_dispatches();
+    if (strcmp(argv[1], "drop-bound-cancel-no-pending-drop") == 0)
+        return rtb_mode_drop_bound_cancel_no_pending_drop();
     return rtb_fail("unknown mode");
 }

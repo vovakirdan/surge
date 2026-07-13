@@ -33,6 +33,8 @@ enum {
     POLL_RTB_DROP_ANCHORED = 9119,
     POLL_RTB_DROP_SELECT = 9120,
     POLL_RTB_DROP_BODY = 9121,
+    POLL_RTB_DROP_ANCHORED_RECV = 9122,
+    POLL_RTB_DROP_RECV_BODY = 9123,
 };
 
 typedef struct rtb_child_state {
@@ -164,6 +166,7 @@ int rtb_mode_drop_queue_full(void);
 int rtb_mode_drop_select_mixed_owners(void);
 int rtb_mode_drop_handoff_not_dropped(void);
 int rtb_mode_drop_zero_id_never_dispatches(void);
+int rtb_mode_drop_bound_cancel_no_pending_drop(void);
 
 void rtb_share_poll_dispatch(uint64_t id);
 int rtb_mode_share_round_trip(void);

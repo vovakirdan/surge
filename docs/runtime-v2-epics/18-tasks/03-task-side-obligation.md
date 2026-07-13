@@ -44,4 +44,28 @@ task-side twin of the pending reduction:
 
 ## Status
 
-In progress.
+COMPLETE, with a scope correction discovered mid-task: Surge has no
+user destructors — the drop function is a compiler-emitted recursive
+FREE of heap-owning fields, so the glue-edge rows (body cancelled
+mid-frame, nested captures, partial cleanup) are only observable as
+allocator balance and belong to Task 4's compiled e2e where drop
+functions actually exist. The runtime half proven here:
+
+- drop-bound-cancel row: a droppable state handed to a PUBLISHED body
+  never drops through the pending, even when the caller's cancel is
+  routed and the body (parked via the binding recv) completes
+  Cancelled — zero pending drops, clean census through releases.
+- The publish-failure boundary (rows 13/14) is structural: the
+  handoff clears ownership only AFTER `rt_remote_spawn_publish_body_
+  task` returns OK, so every failure before that leaves the pending
+  owner and the central drop site fires.
+- Shutdown-with-unpolled-bodies follows the process-exit model (the
+  executor is a process-lifetime singleton; task structs themselves
+  are not reclaimed at shutdown) — recorded as the boundary, not a
+  leak: census rows complete their flows.
+- The task struct deliberately does NOT carry a drop id: no runtime
+  path reads one (the first-poll rule collapsed into "the body's
+  compiled glue owns from the first poll", which needs no runtime
+  bookkeeping). Harness note: cross-thread pending observation needs
+  the atomic mirror; plain-field polling is the trap the select rows
+  already learned.

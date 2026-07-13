@@ -402,6 +402,14 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "drop-zero-id-never-dispatches",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			name: "drop-bound-cancel-never-drops-through-the-pending",
+			mode: "drop-bound-cancel-no-pending-drop",
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The parked body's counterparty is the harness main thread.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
