@@ -45,7 +45,7 @@ Status legend:
 | `@backend` | fn | string | Validated | Warns on unknown targets; no codegen effect. |
 | `@copy` | type | none | Enforced | All fields/members must be Copy. |
 | `@deprecated` | fn, type, field, let, const | optional string | Enforced | Emits warnings on use. |
-| `@drop` | stmt | none | Enforced | Explicit drop/borrow end point. |
+| `@drop` | stmt | none | Enforced | Explicit drop/borrow end point; frees non-copy owned values (drop emission epic). |
 | `@entrypoint` | fn | optional string | Enforced | Program entrypoint. |
 | `@failfast` | async fn, async block | none | Enforced | Structured concurrency cancellation. |
 | `@local` | spawn expr | none | Enforced | Allows @nosend captures; local task handle is not sendable. |
@@ -59,7 +59,7 @@ Status legend:
 | `@override` | fn | none | Enforced | Replaces an existing signature. |
 | `@packed` | type, field | none | Enforced (type) | Field-level has no layout effect. |
 | `@align` | type, field | int pow2 | Enforced | Layout alignment override. |
-| `@raii` | type | none | Parsed | Reserved. |
+| `@raii` | type | none | Parsed | Reserved for a future user-defined scope-exit destructor hook; drops are universal and NOT @raii-gated. |
 | `@arena` | type, field, param | string | Parsed | Reserved. |
 | `@shared` | type, field | none | Parsed | Reserved. |
 | `@weak` | field | none | Parsed | Reserved. |
@@ -306,7 +306,10 @@ rejected. When valid, the type becomes Copy-capable.
 
 ### `@raii`, `@arena`, `@shared`
 
-Parsed only; no semantic checks or runtime behavior yet.
+Parsed only; no semantic checks or runtime behavior yet. `@raii` is
+reserved specifically for a future user-defined scope-exit destructor
+hook: implicit drops of non-copy owned values (the drop-emission epic)
+are universal language semantics and are NOT gated by `@raii`.
 
 ---
 

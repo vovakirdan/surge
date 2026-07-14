@@ -7,7 +7,7 @@ the @raii disposition, and the loop/shadowing row list.
 
 | Task | File | Status | Kind | Depends On |
 | --- | --- | --- | --- | --- |
-| 1 | `01-kickoff.md` | In progress | semantics record + free-helper design + census design + ATTRIBUTES.md changes + baselines | none |
+| 1 | `01-kickoff.md` | Complete | semantics record + free-helper design + census design + ATTRIBUTES.md changes + baselines | none |
 | 2 | runtime + backend floor: per-type frees, explicit-@drop leaf emission, census harness | Pending | runtime + backend, test-first | 1 |
 | 3 | scope-exit synthesis on leaf types (+ partial-move rejection, reassignment order, loop/shadowing rows) | Pending | sema + HIR, test-first | 2 |
 | 4 | recursive glue + census e2e at SHARDS=1/2/8 | Pending | compiler + gates | 3 |
