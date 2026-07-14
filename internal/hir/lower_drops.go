@@ -122,3 +122,27 @@ func (l *lowerer) wrapLoopWithScopeDrops(loop *Stmt, stmtID ast.StmtID, span sou
 	}
 	return &Stmt{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: block}}
 }
+
+// appendBlockExprEndDrops adds a block EXPRESSION's normal-exit drops
+// after its last statement. Value-producing blocks end with a ret (the
+// value must escape before its scope frees) and are skipped — those
+// locals leak, the recorded safe-direction bound; statement-shaped arm
+// blocks reclaim normally.
+func (l *lowerer) appendBlockExprEndDrops(block *Block, exprID ast.ExprID, span source.Span) {
+	if l.semaRes == nil || l.semaRes.BlockExprEndDrops == nil {
+		return
+	}
+	syms := l.semaRes.BlockExprEndDrops[exprID]
+	if len(syms) == 0 {
+		return
+	}
+	if last := block.LastStmt(); last != nil {
+		switch last.Kind {
+		case StmtReturn, StmtRet, StmtBreak, StmtContinue:
+			return
+		}
+	}
+	for _, symID := range syms {
+		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, span))
+	}
+}

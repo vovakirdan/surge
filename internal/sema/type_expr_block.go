@@ -39,6 +39,11 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 	// Walk all statements in the block
 	blockDiscarded := tc.returnStack[len(tc.returnStack)-1].discarded
 	tailType := types.NoTypeID
+	// Block expressions are lexical scopes too: without their own drop
+	// scope, arm-local bindings register in the ENCLOSING scope and the
+	// partial-path-move guard sees them as outliving the join (a false
+	// rejection stdlib/http hit through compare arms).
+	tc.pushDropScope(false)
 	for _, stmtID := range block.Stmts {
 		if hasLegacyTail && tailKind == legacyBlockTailExprStmt && stmtID == block.Stmts[len(block.Stmts)-1] {
 			if blockDiscarded {
@@ -53,6 +58,8 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 		}
 		tc.walkStmt(stmtID)
 	}
+	tc.recordBlockExprEndDrops(id)
+	tc.popDropScope()
 
 	tc.popReturnContext()
 

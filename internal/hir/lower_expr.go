@@ -47,6 +47,7 @@ func (l *lowerer) wrapOwnedTemp(exprID ast.ExprID, result *Expr) *Expr {
 	if _, ok := l.semaRes.TempDrops[exprID]; !ok {
 		return result
 	}
+
 	return &Expr{
 		Kind: ExprOwnedTemp,
 		Type: result.Type,
@@ -160,7 +161,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerCastExpr(exprID, expr, ty)
 
 	case ast.ExprBlock:
-		return l.lowerBlockExpr(expr, ty)
+		return l.lowerBlockExpr(exprID, expr, ty)
 
 	case ast.ExprTupleIndex:
 		return l.lowerTupleIndexExpr(expr, ty)

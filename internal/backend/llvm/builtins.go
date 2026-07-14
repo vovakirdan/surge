@@ -19,6 +19,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_array_free", ret: "void", params: []string{"ptr", "i64", "i64"}},
 		{name: "rt_array_debug_deferred_base_drops", ret: "i64", params: nil},
 		{name: "rt_string_free", ret: "void", params: []string{"ptr"}},
+		{name: "rt_string_clone", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_array_slice", ret: "ptr", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_array_slice_fixed", ret: "ptr", params: []string{"ptr", "ptr", "i64", "i64"}},
 		{name: "rt_array_sync_views", ret: "void", params: []string{"ptr"}},

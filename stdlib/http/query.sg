@@ -112,9 +112,12 @@ pub fn parse_query(query: &string) -> Erring<QueryParams, HttpError> {
                         return err;
                     }
                 };
+                key_raw = [];
+                value_raw = [];
+            } else {
+                key_raw = [];
+                value_raw = [];
             }
-            key_raw = [];
-            value_raw = [];
             in_value = false;
             segment_started = false;
             i = i + 1;
@@ -144,6 +147,9 @@ pub fn parse_query(query: &string) -> Erring<QueryParams, HttpError> {
                 return err;
             }
         };
+    } else {
+        @drop key_raw;
+        @drop value_raw;
     }
     return Success(out);
 }

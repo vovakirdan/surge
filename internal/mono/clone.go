@@ -101,6 +101,11 @@ func cloneStmt(s hir.Stmt) hir.Stmt {
 		if data.Value != nil {
 			data.Value = cloneExpr(data.Value)
 		}
+		if len(data.DropsAfterValue) > 0 {
+			drops := make([]hir.DropLocal, len(data.DropsAfterValue))
+			copy(drops, data.DropsAfterValue)
+			data.DropsAfterValue = drops
+		}
 		out.Data = data
 	case hir.StmtRet:
 		data, ok := s.Data.(hir.RetData)

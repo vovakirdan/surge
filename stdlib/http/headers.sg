@@ -49,6 +49,8 @@ pub fn headers_set(headers: &Headers, key: &string, value: &string) -> Headers {
         let header_key: string = clone(headers[i].key);
         if !string_eq_ascii_ci(&header_key, key) {
             out.push(Header { key = header_key, value = clone(headers[i].value) });
+        } else {
+            @drop header_key;
         }
         i = i + 1;
     }
@@ -67,6 +69,8 @@ pub fn headers_without(headers: &Headers, key: &string) -> Headers {
         let header_key: string = clone(headers[i].key);
         if !string_eq_ascii_ci(&header_key, key) {
             out.push(Header { key = header_key, value = clone(headers[i].value) });
+        } else {
+            @drop header_key;
         }
         i = i + 1;
     }

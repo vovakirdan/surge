@@ -65,6 +65,14 @@ func (s *Subst) ApplyStmt(st *hir.Stmt) error {
 				return err
 			}
 		}
+		if len(data.DropsAfterValue) > 0 {
+			drops := make([]hir.DropLocal, len(data.DropsAfterValue))
+			copy(drops, data.DropsAfterValue)
+			for i := range drops {
+				drops[i].Type = s.Type(drops[i].Type)
+			}
+			data.DropsAfterValue = drops
+		}
 		st.Data = data
 	case hir.StmtRet:
 		data, ok := st.Data.(hir.RetData)

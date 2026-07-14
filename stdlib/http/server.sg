@@ -407,6 +407,8 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
                         closing = true;
                     }
                 };
+            } else {
+                @drop resp;
             }
             if should_close {
                 closing = true;

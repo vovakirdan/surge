@@ -189,17 +189,38 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 	if align <= 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", caseIdx, mem)
 
 	if len(meta.PayloadTypes) == 0 {
+		mem := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+		fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", caseIdx, mem)
 		return mem, nil
 	}
 	offsets, err := fe.emitter.payloadOffsets(meta.PayloadTypes)
 	if err != nil {
 		return "", err
 	}
+	// The union layout can undersize when an instantiated union's members were
+	// not substituted with concrete payload types (payload sized as 0). Guard
+	// the allocation so no payload store runs past the block.
+	for i, payloadTy := range meta.PayloadTypes {
+		if isNothingType(fe.emitter.types, payloadTy) {
+			continue
+		}
+		payloadLLVM, llErr := llvmValueType(fe.emitter.types, payloadTy)
+		if llErr != nil {
+			continue
+		}
+		if plSize, _, plErr := llvmTypeSizeAlign(payloadLLVM); plErr == nil {
+			if need := layoutInfo.PayloadOffset + offsets[i] + plSize; need > size {
+				size = roundUpInt(need, align)
+			}
+		}
+	}
+
+	mem := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", caseIdx, mem)
 	for i := range args {
 		arg := &args[i]
 		payloadTy := meta.PayloadTypes[i]

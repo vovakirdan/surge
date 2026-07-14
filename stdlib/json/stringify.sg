@@ -100,9 +100,9 @@ fn sort_strings(strings: &mut string[]) -> nothing {
     while i < n {
         let mut j: int = 0;
         while j + 1 < n - i {
-            let left: string = clone(strings[j]);
-            let right: string = clone(strings[j + 1]);
-            if string_lt(&right, &left) {
+            if string_lt(strings[j + 1], strings[j]) {
+                let left: string = clone(strings[j]);
+                let right: string = clone(strings[j + 1]);
                 strings[j] = right;
                 strings[j + 1] = left;
             }

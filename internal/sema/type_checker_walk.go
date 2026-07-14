@@ -247,6 +247,9 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					tc.updateLocalTaskBindingFromExpr(symID, letStmt.Value)
 					tc.trackTaskContainerPopBinding(symID, letStmt.Value)
 					tc.registerDroppableBinding(symID)
+					if tc.isProjectionRead(letStmt.Value) {
+						tc.markAliasedBinding(symID)
+					}
 				}
 			}
 		}

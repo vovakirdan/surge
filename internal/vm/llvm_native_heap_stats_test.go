@@ -37,6 +37,13 @@ func TestLLVMNativeBufferedChannelAllocatesSingleBlock(t *testing.T) {
 	// should add three more allocations than capacity=0; a separate buffer would add four.
 	source := `@entrypoint
 fn main() -> int {
+    // Warm both channel paths first: the measured windows must contain
+    // only per-channel costs, not one-time lazy initialization — WHERE
+    // warm-up happens shifts with unrelated compiler changes (it moved
+    // when scope-exit drop synthesis landed) and is not this test's
+    // subject. The buffered-vs-unbuffered relation below is what's pinned.
+    let warm0 = make_channel::<int>(0:uint);
+    let warm1 = make_channel::<int>(1:uint);
     let s0: HeapStats = rt_heap_stats();
     let ch0 = make_channel::<int>(0:uint);
     let s1: HeapStats = rt_heap_stats();

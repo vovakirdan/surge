@@ -51,9 +51,9 @@ fn sort_entries(entries: &mut DirEntry[]) -> nothing {
     while i < n {
         let mut j: int = 0;
         while j + 1 < n - i {
-            let left: DirEntry = dir_entry_copy(entries[j]);
-            let right: DirEntry = dir_entry_copy(entries[j + 1]);
-            if string_lt(&right.name, &left.name) {
+            if string_lt(&entries[j + 1].name, &entries[j].name) {
+                let left: DirEntry = dir_entry_copy(entries[j]);
+                let right: DirEntry = dir_entry_copy(entries[j + 1]);
                 entries[j] = right;
                 entries[j + 1] = left;
             }

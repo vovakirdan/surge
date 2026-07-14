@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"fmt"
+
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -30,7 +32,8 @@ func (tc *typeChecker) checkUseAfterMove(symID symbols.SymbolID, span source.Spa
 	if !symID.IsValid() || tc.movedBindings == nil {
 		return
 	}
-	if _, moved := tc.movedBindings[symID]; !moved {
+	moveSpan, moved := tc.movedBindings[symID]
+	if !moved {
 		return
 	}
 	name := "_"
@@ -50,7 +53,20 @@ func (tc *typeChecker) checkUseAfterMove(symID symbols.SymbolID, span source.Spa
 			name, name)
 		return
 	}
-	tc.report(diag.SemaUseAfterMove, span, "use of moved value '%s'", name)
+	// The way out rides the diagnostic: name where the value went and
+	// what keeps this use valid.
+	if tc.reporter != nil {
+		if b := diag.ReportError(tc.reporter, diag.SemaUseAfterMove, span,
+			fmt.Sprintf("use of moved value '%s'", name)); b != nil {
+			if moveSpan != (source.Span{}) {
+				b.WithNote(moveSpan, fmt.Sprintf("'%s' gave its value away here", name))
+			}
+			b.WithNote(span, fmt.Sprintf(
+				"hint: if the receiver only reads '%s', let it take a reference (&); to keep using '%s' here, pass a clone instead: %s.__clone()",
+				name, name, name))
+			b.Emit()
+		}
+	}
 }
 
 func (tc *typeChecker) snapshotMovedBindings() map[symbols.SymbolID]source.Span {

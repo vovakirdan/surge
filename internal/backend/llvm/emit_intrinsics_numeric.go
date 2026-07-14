@@ -602,9 +602,6 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if align <= 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", tagIndex, mem)
 
 	offsets, err := fe.emitter.payloadOffsets([]types.TypeID{payloadType})
 	if err != nil {
@@ -614,6 +611,18 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if err != nil {
 		return "", err
 	}
+	// The union layout can undersize when an instantiated union's members were
+	// not substituted with concrete payload types (payload sized as 0). Guard
+	// the allocation so the payload store never runs past the block.
+	if plSize, _, plErr := llvmTypeSizeAlign(payloadLLVM); plErr == nil {
+		if need := layoutInfo.PayloadOffset + offsets[0] + plSize; need > size {
+			size = roundUpInt(need, align)
+		}
+	}
+
+	mem := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", tagIndex, mem)
 	if valTy != payloadLLVM {
 		casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, payloadType)
 		if err != nil {

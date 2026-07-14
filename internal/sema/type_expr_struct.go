@@ -338,10 +338,12 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 		return
 	}
 	actual := tc.typeExpr(value)
-	// The aggregate takes ownership of the field value (consumption
-	// only; binding-level moves through struct literals are the
-	// recorded Task 4 prerequisite).
+	// The aggregate takes ownership of the field value: the temp
+	// candidate is consumed AND the binding-level move is observed —
+	// using the original after the struct literal owns it is
+	// use-after-move.
 	tc.consumeTempCandidate(value)
+	tc.observeMove(value, tc.exprSpan(value))
 	if actual == types.NoTypeID {
 		if tc.applyExpectedType(value, expected) {
 			actual = tc.result.ExprTypes[value]

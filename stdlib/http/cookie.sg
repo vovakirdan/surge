@@ -270,6 +270,7 @@ pub fn response_with_set_cookie(resp: Response, cookie: &SetCookie) -> Erring<Re
             0:int;
         }
         err => {
+            @drop resp;
             out_res = err;
             0:int;
         }

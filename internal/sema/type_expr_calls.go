@@ -156,6 +156,12 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 				return types.NoTypeID
 			}
 			tc.recordImplicitConversionsForCall(sym, args)
+			// The monomorphic branch has always applied argument
+			// ownership; this branch silently skipped it, so moves
+			// through generic calls went untracked (a moved value
+			// stayed "live" in the caller — the double-free source the
+			// leaf-drop epic hit through push -> array_push).
+			tc.applyCallOwnership(sym, args)
 			tc.dropImplicitBorrowsForCall(sym, args, selGeneric.result)
 		}
 		// Check for deprecated function usage

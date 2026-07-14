@@ -234,6 +234,14 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 		// then revives the binding with the new value.
 		tc.recordReassignOldDrop(exprID, desc.Base)
 		tc.clearBindingMoved(desc.Base)
+		// Ownership of the NEW value: a projection read stays with its
+		// container (the binding becomes an alias); anything else makes
+		// the binding a fresh owner again.
+		if tc.isProjectionRead(right) {
+			tc.markAliasedBinding(desc.Base)
+		} else {
+			tc.clearAliasedBinding(desc.Base)
+		}
 	}
 
 	// Check if this is a write through a mutable reference binding (*r = value).

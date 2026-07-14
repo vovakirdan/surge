@@ -106,6 +106,7 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
 // Drop-emission reclamation: frees one owned string (unconditional; every
 // string value is a single heap allocation).
 void rt_string_free(void* handle);
+void* rt_string_clone(void* handle);
 bool rt_utf8_valid(const uint8_t* ptr, uint64_t len);
 const uint8_t* rt_string_ptr(void* s);
 uint64_t rt_string_len(void* s);

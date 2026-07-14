@@ -346,6 +346,11 @@ func (fe *funcEmitter) emitCloneIntrinsic(call *mir.CallInstr) (bool, error) {
 	if dstTy != "ptr" {
 		dstTy = "ptr"
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, argVal, ptr)
+	// Deep copy: __clone must yield an independent owned string. A bare
+	// handle store aliases the buffer, so dropping either copy frees
+	// storage the other still reads.
+	cloned := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_clone(ptr %s)\n", cloned, argVal)
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, cloned, ptr)
 	return true, nil
 }

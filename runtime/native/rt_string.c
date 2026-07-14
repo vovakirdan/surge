@@ -307,6 +307,19 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
     return (void*)s;
 }
 
+// Deep-copies a string handle into a fresh independent allocation.
+// `__clone` MUST produce an owned copy: a shallow handle copy aliases the
+// buffer, so dropping either handle frees storage the other still reads.
+// The handle is a SurgeString* (as passed by the clone emitter), not a
+// slot — mirror rt_string_free's convention.
+void* rt_string_clone(void* handle) {
+    if (handle == NULL) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    const SurgeString* s = (const SurgeString*)handle;
+    return rt_string_from_bytes(s->data, s->len_bytes);
+}
+
 const uint8_t* rt_string_ptr(void* s) {
     if (s == NULL) {
         return NULL;

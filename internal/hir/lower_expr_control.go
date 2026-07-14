@@ -196,7 +196,7 @@ func (l *lowerer) lowerCastExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 }
 
 // lowerBlockExpr lowers a block expression.
-func (l *lowerer) lowerBlockExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerBlockExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	blockData := l.builder.Exprs.Blocks.Get(uint32(expr.Payload))
 	if blockData == nil {
 		return nil
@@ -209,6 +209,7 @@ func (l *lowerer) lowerBlockExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 		}
 	}
 	l.rewriteLegacyBlockTailRet(block, ty)
+	l.appendBlockExprEndDrops(block, exprID, expr.Span)
 
 	return &Expr{
 		Kind: ExprBlock,

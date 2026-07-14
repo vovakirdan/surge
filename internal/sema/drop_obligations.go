@@ -43,14 +43,7 @@ func (tc *typeChecker) isDroppableType(id types.TypeID) bool {
 	case types.KindReference, types.KindPointer:
 		return false
 	}
-	// Generic-typed bindings are excluded from vertical-1 synthesis:
-	// call-arg moves are not observed through generic calls yet, so a
-	// generic callee cannot tell an owned param from a moved-on one —
-	// synthesizing there double-frees (push -> array_push -> intrinsic
-	// would drop the same handle in two callee scopes). Concrete types
-	// instantiated FROM generics drop at their concrete call sites; the
-	// generic-body gap closes with the recursive-glue task.
-	return !types.ContainsGenericParam(tc.types, resolved)
+	return true
 }
 
 func (tc *typeChecker) isDroppableBinding(symID symbols.SymbolID) bool {
@@ -104,6 +97,49 @@ func (tc *typeChecker) popDropScope() {
 // registerDroppableBinding adds a freshly declared binding to the current
 // scope. Shadowing needs no special case: each shadow is its own symbol
 // and registers separately, so a still-live shadowed value still drops.
+// markAliasedBinding records that a binding currently holds a handle its
+// CONTAINER still owns (its value came from a field/element/deref read —
+// sema does not track partial moves yet, so the container keeps
+// ownership and the alias must never drop: leak over double free).
+func (tc *typeChecker) markAliasedBinding(symID symbols.SymbolID) {
+	if !symID.IsValid() {
+		return
+	}
+	if tc.aliasedBindings == nil {
+		tc.aliasedBindings = make(map[symbols.SymbolID]struct{})
+	}
+	tc.aliasedBindings[symID] = struct{}{}
+}
+
+func (tc *typeChecker) clearAliasedBinding(symID symbols.SymbolID) {
+	if !symID.IsValid() || tc.aliasedBindings == nil {
+		return
+	}
+	delete(tc.aliasedBindings, symID)
+}
+
+func (tc *typeChecker) isAliasedBinding(symID symbols.SymbolID) bool {
+	if tc.aliasedBindings == nil {
+		return false
+	}
+	_, ok := tc.aliasedBindings[symID]
+	return ok
+}
+
+// isProjectionRead reports whether the expression reads THROUGH a place
+// (field access, element index, tuple index, deref): the resulting value
+// is interior state another owner keeps.
+func (tc *typeChecker) isProjectionRead(expr ast.ExprID) bool {
+	if !expr.IsValid() {
+		return false
+	}
+	desc, ok := tc.resolvePlace(expr)
+	if !ok {
+		return false
+	}
+	return len(desc.Segments) > 0
+}
+
 func (tc *typeChecker) registerDroppableBinding(symID symbols.SymbolID) {
 	if len(tc.dropScopes) == 0 || !tc.isDroppableBinding(symID) {
 		return
@@ -126,6 +162,9 @@ func (tc *typeChecker) liveDroppables(scope *dropScope) []symbols.SymbolID {
 	for i := len(scope.bindings) - 1; i >= 0; i-- {
 		symID := scope.bindings[i]
 		if _, moved := tc.movedBindings[symID]; moved {
+			continue
+		}
+		if tc.isAliasedBinding(symID) {
 			continue
 		}
 		out = append(out, symID)
@@ -162,6 +201,24 @@ func (tc *typeChecker) recordScopeEndDrops(id ast.StmtID) {
 // continue, keyed by that statement. toLoop limits collection to the
 // scopes inside the innermost loop (break/continue); otherwise every
 // scope out to the nearest function root is collected, innermost first.
+// recordBlockExprEndDrops is recordScopeEndDrops for BLOCK EXPRESSIONS
+// (compare/if arms, standalone value blocks), keyed by the expression:
+// their locals live in the block's own scope and drop at its normal end.
+func (tc *typeChecker) recordBlockExprEndDrops(id ast.ExprID) {
+	if len(tc.dropScopes) == 0 || !id.IsValid() || tc.dropObligationsSuppressed() {
+		return
+	}
+	top := &tc.dropScopes[len(tc.dropScopes)-1]
+	drops := tc.liveDroppables(top)
+	if len(drops) == 0 {
+		return
+	}
+	if tc.result.BlockExprEndDrops == nil {
+		tc.result.BlockExprEndDrops = make(map[ast.ExprID][]symbols.SymbolID)
+	}
+	tc.result.BlockExprEndDrops[id] = drops
+}
+
 func (tc *typeChecker) recordEarlyExitDrops(id ast.StmtID, toLoop bool) {
 	if !id.IsValid() || tc.dropObligationsSuppressed() {
 		return
@@ -290,6 +347,10 @@ func (tc *typeChecker) bindingName(symID symbols.SymbolID) string {
 // move tracking is the source of truth for the suppression.
 func (tc *typeChecker) recordReassignOldDrop(exprID ast.ExprID, symID symbols.SymbolID) {
 	if !exprID.IsValid() || !tc.isDroppableBinding(symID) || tc.dropObligationsSuppressed() {
+		return
+	}
+	// An aliased binding's current value belongs to its container.
+	if tc.isAliasedBinding(symID) {
 		return
 	}
 	if _, moved := tc.movedBindings[symID]; moved {

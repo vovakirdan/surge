@@ -18,9 +18,9 @@ func TestRuntimeV2RemotePublicationAPIShape(t *testing.T) {
 #include "rt_remote_spawn.h"
 #include "rt_remote_task.h"
 
-rt_remote_spawn_status (*check_publish)(uint32_t, int64_t, void*,
+rt_remote_spawn_status (*check_publish)(uint32_t, uint64_t, int64_t, void*,
     rt_remote_spawn_pending**, rt_far_task_handle*) = rt_remote_spawn_publish;
-rt_remote_spawn_status (*check_publish_placement)(rt_placement, int64_t, void*,
+rt_remote_spawn_status (*check_publish_placement)(rt_placement, uint64_t, int64_t, void*,
     rt_remote_spawn_pending**, rt_far_task_handle*) = rt_remote_spawn_publish_placement;
 rt_remote_spawn_status (*check_validate)(rt_executor*, const rt_far_task_handle*) =
     rt_remote_spawn_handle_validate;

@@ -481,6 +481,15 @@ func (l *funcLowerer) emitExitDrops(drops []hir.DropLocal) {
 		if !ok {
 			continue
 		}
+		// Generic bodies carry obligations for T-typed params; a copy
+		// instantiation has nothing to free — mirror StmtDrop lowering.
+		ty := drops[i].Type
+		if int(local) < len(l.f.Locals) {
+			ty = l.f.Locals[local].Type
+		}
+		if l.isCopyType(ty) {
+			continue
+		}
 		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: local}}})
 	}
 }

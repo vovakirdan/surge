@@ -69,6 +69,9 @@ type Result struct {
 	// TempDrops flags evaluations producing an owned value that nothing
 	// consumes; they free at their evaluation region's end.
 	TempDrops map[ast.ExprID]struct{}
+	// BlockExprEndDrops: block-expression locals live at the block's
+	// normal end (keyed by the block expression).
+	BlockExprEndDrops map[ast.ExprID][]symbols.SymbolID
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
 	CopyTypes              map[types.TypeID]struct{}
