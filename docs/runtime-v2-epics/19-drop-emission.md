@@ -1,8 +1,9 @@
 # Epic 19: Drop Emission (local owned-value reclamation) — DRAFT
 
-**Status:** draft with the fork RESOLVED (2026-07-14, external review;
-codex pass converged); review-ready for the semantics gate before
-Task 1. Direction B from
+**Status:** IN EXECUTION — semantics approved 2026-07-14 (scope-exit
+drops; partial-path-move rejection; eval-then-suppressible-drop
+reassignment order; @raii stays reserved). Task index:
+`19-tasks/README.md`. Direction B from
 `19-candidates.md`, approved as the next major arc (this epic is
 vertical 1 of a 2-3 epic arc: local emission → crossing activation
 (RV2-DEBT-034) → owner-routed frees).
