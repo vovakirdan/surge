@@ -97,6 +97,8 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	if fn.Body.IsValid() {
 		tc.pushReturnContext(returnCtxFunction, returnType, returnSpan, nil, nil)
 		pushed := tc.pushScope(scope)
+		tc.pushDropScope(true)
+		tc.registerDroppableParams(fn, scope)
 		tc.walkStmt(fn.Body)
 		if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fn.Body) != returnClosed {
 			tc.report(diag.SemaMissingReturn, returnSpan, "function returning %s is missing a return", tc.typeLabel(returnType))
@@ -108,6 +110,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		if tc.fnHasNonblocking(fn) {
 			tc.checkNonblockingFunction(fn, fn.Span)
 		}
+		tc.popDropScope()
 		if pushed {
 			tc.leaveScope()
 		}

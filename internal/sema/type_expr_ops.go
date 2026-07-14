@@ -129,7 +129,7 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 		tc.applyIndexSetterOwnership(data.Left, data.Right, rightType)
 		tc.trackTaskContainerStore(data.Left, data.Right, rightType)
 		tc.trackTaskContainerAssign(data.Left, data.Right, rightType, span)
-		tc.handleAssignment(data.Op, data.Left, data.Right, span)
+		tc.handleAssignment(exprID, data.Op, data.Left, data.Right, span)
 		tc.updateArrayViewBindingFromAssign(data.Left, data.Right)
 		tc.updateLocalTaskBindingFromAssign(data.Left, data.Right)
 		tc.trackTaskContainerPopBindingFromAssign(data.Left, data.Right)
@@ -152,7 +152,7 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 		return types.NoTypeID
 	}
 	if baseOp, ok := tc.assignmentBaseOp(data.Op); ok {
-		return tc.typeCompoundAssignment(baseOp, data.Op, span, data.Left, data.Right, leftType, rightType)
+		return tc.typeCompoundAssignment(exprID, baseOp, data.Op, span, data.Left, data.Right, leftType, rightType)
 	}
 	sig, lc, rc, ambiguous, borrowInfo := tc.magicSignatureForBinaryExpr(data.Left, data.Right, leftType, rightType, data.Op)
 	if ambiguous {
@@ -411,7 +411,7 @@ func (tc *typeChecker) typeOperandReplacement(operand ast.ExprID) string {
 	return ""
 }
 
-func (tc *typeChecker) typeCompoundAssignment(baseOp, fullOp ast.ExprBinaryOp, span source.Span, leftExpr, rightExpr ast.ExprID, leftType, rightType types.TypeID) types.TypeID {
+func (tc *typeChecker) typeCompoundAssignment(exprID ast.ExprID, baseOp, fullOp ast.ExprBinaryOp, span source.Span, leftExpr, rightExpr ast.ExprID, leftType, rightType types.TypeID) types.TypeID {
 	if leftType == types.NoTypeID || rightType == types.NoTypeID {
 		return types.NoTypeID
 	}
@@ -426,7 +426,7 @@ func (tc *typeChecker) typeCompoundAssignment(baseOp, fullOp ast.ExprBinaryOp, s
 	}
 	tc.ensureIndexAssignment(leftExpr, leftType, span)
 	tc.applyIndexSetterOwnership(leftExpr, rightExpr, rightType)
-	tc.handleAssignment(fullOp, leftExpr, rightExpr, span)
+	tc.handleAssignment(exprID, fullOp, leftExpr, rightExpr, span)
 	return leftType
 }
 

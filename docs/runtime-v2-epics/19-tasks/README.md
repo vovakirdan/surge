@@ -9,7 +9,7 @@ the @raii disposition, and the loop/shadowing row list.
 | --- | --- | --- | --- | --- |
 | 1 | `01-kickoff.md` | Complete | semantics record + free-helper design + census design + ATTRIBUTES.md changes + baselines | none |
 | 2 | `02-leaf-free-floor.md` | Complete | runtime + backend floor: per-type frees, explicit-@drop leaf emission, drop-consumes sema, free-count harness | 1 |
-| 3 | scope-exit synthesis on leaf types (+ partial-move rejection, reassignment order, loop/shadowing rows) | Pending | sema + HIR, test-first | 2 |
+| 3 | `03-scope-exit-synthesis.md` | A+B shipped; C (statement-end temporaries) pending | sema obligations + HIR carry + MIR emit; partial-move and loop back-edge rejections; reassignment order | 2 |
 | 4 | recursive glue + census e2e at SHARDS=1/2/8 | Pending | compiler + gates | 3 |
 | 5 | bench + debt + closeout (vertical 2 scoped) | Pending | all | all |
 

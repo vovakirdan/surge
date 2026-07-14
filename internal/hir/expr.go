@@ -196,6 +196,10 @@ type BinaryOpData struct {
 	Right     *Expr
 	TypeLeft  types.TypeID
 	TypeRight types.TypeID
+	// DropOverwritten (assignments to a whole droppable binding only):
+	// the target's old value is live after the RHS evaluated and frees
+	// between RHS evaluation and the store.
+	DropOverwritten bool
 }
 
 func (BinaryOpData) exprData() {}

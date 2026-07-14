@@ -151,11 +151,13 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 					return err
 				}
 			}
+			l.emitExitDrops(data.DropsAfterValue)
 			l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{Early: early}})
 			return nil
 		}
 
 		if data.Value == nil {
+			l.emitExitDrops(data.DropsAfterValue)
 			l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{Early: early}})
 			return nil
 		}
@@ -167,6 +169,8 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if err != nil {
 			return err
 		}
+		op = l.detachFromExitDrops(&op, data.DropsAfterValue, st.Span)
+		l.emitExitDrops(data.DropsAfterValue)
 		l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: op, Early: early}})
 		return nil
 
@@ -433,4 +437,40 @@ func (l *funcLowerer) lowerLetPattern(span source.Span, data hir.LetData) error 
 	}
 
 	return nil
+}
+
+// detachFromExitDrops materializes a place-shaped return operand into a
+// fresh temp before the exit drops run: terminators may read place
+// operands lazily (the VM does), and the operand can project into a
+// dropped local (`return self.code` with self dropping).
+func (l *funcLowerer) detachFromExitDrops(op *Operand, drops []hir.DropLocal, span source.Span) Operand {
+	if len(drops) == 0 {
+		return *op
+	}
+	if op.Kind != OperandCopy && op.Kind != OperandMove {
+		return *op
+	}
+	tmp := l.newTemp(op.Type, "retval", span)
+	l.emit(&Instr{
+		Kind: InstrAssign,
+		Assign: AssignInstr{
+			Dst: Place{Local: tmp},
+			Src: RValue{Kind: RValueUse, Use: *op},
+		},
+	})
+	return l.placeOperand(Place{Local: tmp}, op.Type, true)
+}
+
+// emitExitDrops frees the carried scope-exit obligations of a return:
+// after the value evaluated, before the terminator. The synthesized
+// drops match explicit `@drop` lowering (InstrDrop; copies never carry
+// obligations, references never appear — sema's droppable predicate).
+func (l *funcLowerer) emitExitDrops(drops []hir.DropLocal) {
+	for i := range drops {
+		local, ok := l.symToLocal[drops[i].SymbolID]
+		if !ok {
+			continue
+		}
+		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: local}}})
+	}
 }

@@ -41,7 +41,11 @@ func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 	}
 
 	movedBefore := tc.bindingMoved(loopSym)
+	movedBeforeLoop := tc.snapshotMovedBindings()
+	tc.enterLoopDropScope()
 	tc.walkStmt(forIn.Body)
+	tc.rejectLoopBackEdgeMoves(movedBeforeLoop, "for-in loop")
+	tc.leaveLoopDropScope()
 	movedAfter := tc.bindingMoved(loopSym)
 	if containerTracked {
 		tc.checkForInTaskConsumed(forIn, containerPlace, movedBefore, movedAfter, stmt.Span)

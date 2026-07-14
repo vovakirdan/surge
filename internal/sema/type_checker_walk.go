@@ -129,6 +129,8 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 				tc.awaitDepth++
 			}
 			pushed := tc.pushScope(scope)
+			tc.pushDropScope(true)
+			tc.registerDroppableParams(fnItem, scope)
 			tc.walkStmt(fnItem.Body)
 			if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fnItem.Body) != returnClosed {
 				tc.maybeRecordRustImplicitReturn(fnItem, returnType, returnSpan)
@@ -140,6 +142,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			if tc.fnHasNonblocking(fnItem) {
 				tc.checkNonblockingFunction(fnItem, fnItem.Span)
 			}
+			tc.popDropScope()
 			if pushed {
 				tc.leaveScope()
 			}
@@ -191,9 +194,12 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		if block := tc.builder.Stmts.Block(id); block != nil {
 			scope := tc.scopeForStmt(id)
 			pushed := tc.pushScope(scope)
+			tc.pushDropScope(false)
 			for _, child := range block.Stmts {
 				tc.walkStmt(child)
 			}
+			tc.recordScopeEndDrops(id)
+			tc.popDropScope()
 			if pushed {
 				tc.leaveScope()
 			}
@@ -217,6 +223,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				}
 				if !letStmt.Value.IsValid() {
 					tc.handleLetDefaultInit(scope, letStmt.Type, declaredType, stmt.Span)
+					tc.registerDroppableBinding(symID)
 					return
 				}
 				if letStmt.Value.IsValid() {
@@ -237,6 +244,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					}
 					tc.updateLocalTaskBindingFromExpr(symID, letStmt.Value)
 					tc.trackTaskContainerPopBinding(symID, letStmt.Value)
+					tc.registerDroppableBinding(symID)
 				}
 			}
 		}
@@ -284,6 +292,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if explicitReturn || tc.currentBlockReturnContext() == nil {
 				tc.noteTaskContainerLoopReturn()
 				tc.validateReturn(stmt.Span, ret.Expr, valueType)
+				tc.recordEarlyExitDrops(id, false)
 			} else {
 				tc.validateImplicitBlockReturn(stmt.Span, ret.Expr, valueType)
 			}
@@ -318,24 +327,30 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				case elseClosed:
 					tc.movedBindings = movedThen
 				default:
+					tc.rejectPartialPathMoves(movedThen, movedElse)
 					tc.movedBindings = mergeMovedBindings(movedThen, movedElse)
 				}
 			} else {
 				if thenClosed {
 					tc.movedBindings = movedBefore
 				} else {
+					tc.rejectPartialPathMoves(movedThen, movedBefore)
 					tc.movedBindings = mergeMovedBindings(movedThen, movedBefore)
 				}
 			}
 		}
 	case ast.StmtWhile:
 		if whileStmt := tc.builder.Stmts.While(id); whileStmt != nil {
+			movedBeforeLoop := tc.snapshotMovedBindings()
 			tc.ensureBoolContext(whileStmt.Cond, tc.exprSpan(whileStmt.Cond))
 			loopPlace, loopOK := tc.taskContainerDrainLoop(whileStmt.Cond)
 			if loopOK {
 				tc.enterTaskContainerLoop(loopPlace)
 			}
+			tc.enterLoopDropScope()
 			tc.walkStmt(whileStmt.Body)
+			tc.rejectLoopBackEdgeMoves(movedBeforeLoop, "while loop")
+			tc.leaveLoopDropScope()
 			if loopOK {
 				if loop, ok := tc.leaveTaskContainerLoop(); ok && loop.popCount > 0 && !loop.earlyExit {
 					if tc.taskContainerLoopDrained(loop) {
@@ -348,12 +363,19 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		if forStmt := tc.builder.Stmts.ForClassic(id); forStmt != nil {
 			scope := tc.scopeForStmt(id)
 			pushed := tc.pushScope(scope)
+			tc.pushDropScope(false)
 			if forStmt.Init.IsValid() {
 				tc.walkStmt(forStmt.Init)
 			}
+			movedBeforeLoop := tc.snapshotMovedBindings()
 			tc.ensureBoolContext(forStmt.Cond, tc.exprSpan(forStmt.Cond))
 			tc.typeExpr(forStmt.Post)
+			tc.enterLoopDropScope()
 			tc.walkStmt(forStmt.Body)
+			tc.rejectLoopBackEdgeMoves(movedBeforeLoop, "for loop")
+			tc.leaveLoopDropScope()
+			tc.recordScopeEndDrops(id)
+			tc.popDropScope()
 			if pushed {
 				tc.leaveScope()
 			}
@@ -366,8 +388,9 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		}
 	case ast.StmtBreak:
 		tc.noteTaskContainerLoopBreak()
+		tc.recordEarlyExitDrops(id, true)
 	case ast.StmtContinue:
-		// no-op for task containers
+		tc.recordEarlyExitDrops(id, true)
 	case ast.StmtDrop:
 		if drop := tc.builder.Stmts.Drop(id); drop != nil {
 			tc.handleDrop(drop.Expr, stmt.Span)

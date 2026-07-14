@@ -300,6 +300,11 @@ func (l *lowerer) lowerBinaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 		Left:  left,
 		Right: right,
 	}
+	if l.semaRes != nil && l.semaRes.ReassignOldDrops != nil {
+		if _, ok := l.semaRes.ReassignOldDrops[exprID]; ok && binData.Op == ast.ExprBinaryAssign {
+			data.DropOverwritten = true
+		}
+	}
 
 	if binData.Op == ast.ExprBinaryIs && l.semaRes != nil && l.semaRes.IsOperands != nil {
 		if operand, ok := l.semaRes.IsOperands[exprID]; ok {

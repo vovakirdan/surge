@@ -113,6 +113,8 @@ type typeChecker struct {
 	arrayViewBindings           map[symbols.SymbolID]struct{}
 	assignmentLHSDepth          int
 	movedBindings               map[symbols.SymbolID]source.Span
+	dropScopes                  []dropScope     // lexical scopes' droppable bindings (drop obligations)
+	loopDropMarks               []int           // dropScopes depth at each enclosing loop body
 	blockingDepth               int             // nesting depth of `blocking { }` bodies (suspension illegal inside)
 	onCrossingStack             []onAnchorFrame // active `on dst { ... }` crossing frames
 	directFunctionCrossing      map[symbols.SymbolID]struct{}

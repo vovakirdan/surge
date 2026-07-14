@@ -286,6 +286,7 @@ const (
 	SemaBlockingBorrowCapture          Code = 3133 // blocking capture cannot borrow
 	SemaRetOutsideBlock                Code = 3134 // ret used outside block expression / async payload
 	SemaImplicitBlockValue             Code = 3135 // legacy implicit block value should use ret
+	SemaPartialPathMove                Code = 3136 // droppable value moved on some paths but not others
 
 	// Ошибки I/O
 
@@ -531,6 +532,7 @@ var ( // todo расширить описания и использовать к
 		SemaTrivialRecursion:               "obvious infinite recursion cycle",
 		SemaLocalTaskNotSendable:           "local task handle is not sendable",
 		SemaImplicitBlockValue:             "legacy implicit block value should use 'ret'",
+		SemaPartialPathMove:                "droppable value moved on some paths but not others",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

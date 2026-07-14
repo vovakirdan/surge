@@ -23,6 +23,11 @@ func (l *funcLowerer) lowerAssignExpr(e *hir.Expr, data hir.BinaryOpData, consum
 	if err != nil {
 		return Operand{}, err
 	}
+	if data.DropOverwritten {
+		// The approved reassignment order: RHS fully evaluated, THEN
+		// the overwritten value frees, then the store lands.
+		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: dst}})
+	}
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{

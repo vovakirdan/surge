@@ -87,15 +87,21 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	}
 
 	var mergedMoves map[symbols.SymbolID]source.Span
+	var intersectMoves map[symbols.SymbolID]source.Span
 	for i := range cmp.Arms {
 		if armClosed[i] {
 			continue
 		}
 		if mergedMoves == nil {
 			mergedMoves = movedArms[i]
+			intersectMoves = movedArms[i]
 			continue
 		}
+		intersectMoves = intersectMovedBindings(intersectMoves, movedArms[i])
 		mergedMoves = mergeMovedBindings(mergedMoves, movedArms[i])
+	}
+	if mergedMoves != nil {
+		tc.reportOneSidedMoves(mergedMoves, intersectMoves)
 	}
 	if mergedMoves == nil {
 		tc.movedBindings = movedBefore

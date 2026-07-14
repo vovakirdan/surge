@@ -110,11 +110,23 @@ type AssignData struct {
 
 func (AssignData) stmtData() {}
 
+// DropLocal names a binding whose owned value drops at a synthesized
+// point (scope-exit synthesis). MIR resolves the symbol to its local.
+type DropLocal struct {
+	SymbolID symbols.SymbolID
+	Type     types.TypeID
+	Span     source.Span
+}
+
 // ReturnData holds data for StmtReturn.
 type ReturnData struct {
 	Value      *Expr // nil for bare return
 	IsTail     bool  // true if this return is the tail (normal) exit for a body
 	IsImplicit bool  // true if this is a synthesized block return
+	// DropsAfterValue lists live droppable bindings this return exits:
+	// they free AFTER the return value evaluates (it may borrow them)
+	// and before the terminator.
+	DropsAfterValue []DropLocal
 }
 
 func (ReturnData) stmtData() {}

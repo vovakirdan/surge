@@ -68,6 +68,16 @@ func (tc *typeChecker) restoreMovedBindings(snapshot map[symbols.SymbolID]source
 	}
 }
 
+func intersectMovedBindings(a, b map[symbols.SymbolID]source.Span) map[symbols.SymbolID]source.Span {
+	out := make(map[symbols.SymbolID]source.Span, len(a))
+	for key, value := range a {
+		if _, both := b[key]; both {
+			out[key] = value
+		}
+	}
+	return out
+}
+
 func mergeMovedBindings(a, b map[symbols.SymbolID]source.Span) map[symbols.SymbolID]source.Span {
 	out := make(map[symbols.SymbolID]source.Span, len(a)+len(b))
 	for key, value := range a {

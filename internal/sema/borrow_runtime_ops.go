@@ -215,7 +215,7 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 	}
 }
 
-func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.ExprID, span source.Span) {
+func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, left, right ast.ExprID, span source.Span) {
 	// Check @readonly attribute before allowing assignment
 	if tc.checkReadonlyFieldWrite(left, span) {
 		return // @readonly violation reported
@@ -226,6 +226,10 @@ func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.Exp
 		return
 	}
 	if desc.Base.IsValid() && len(desc.Segments) == 0 {
+		// The RHS is fully evaluated by now, so moved-ness decides the
+		// overwritten-value drop (x = f(x) suppresses it); the store
+		// then revives the binding with the new value.
+		tc.recordReassignOldDrop(exprID, desc.Base)
 		tc.clearBindingMoved(desc.Base)
 	}
 

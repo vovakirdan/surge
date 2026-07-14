@@ -55,6 +55,17 @@ type Result struct {
 	// BorrowEvents is a best-effort event log produced by the borrow checker
 	// (borrow start/end, moves, writes, drops, task escapes).
 	BorrowEvents []BorrowEvent
+	// Drop obligations for scope-exit synthesis (HIR consumes; MIR emits).
+	// ScopeEndDrops: droppable bindings live at a block's normal end,
+	// keyed by the block statement (a function body block also carries
+	// the live by-value params). EarlyExitDrops: live droppables on a
+	// return/ret/break/continue, keyed by that statement, innermost
+	// scope first. ReassignOldDrops: whole-binding assignments whose
+	// overwritten value is live after the RHS evaluated (RHS-moved
+	// targets are suppressed by construction), keyed by the assign expr.
+	ScopeEndDrops    map[ast.StmtID][]symbols.SymbolID
+	EarlyExitDrops   map[ast.StmtID][]symbols.SymbolID
+	ReassignOldDrops map[ast.ExprID]symbols.SymbolID
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
 	CopyTypes              map[types.TypeID]struct{}

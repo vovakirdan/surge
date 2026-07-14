@@ -23,6 +23,8 @@ func (l *lowerer) lowerBlockStmt(stmtID ast.StmtID) *Block {
 		}
 	}
 
+	l.appendScopeEndDrops(block, stmtID, stmt.Span)
+
 	return block
 }
 
@@ -69,7 +71,12 @@ func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
 		return &Stmt{
 			Kind: StmtReturn,
 			Span: stmt.Span,
-			Data: ReturnData{Value: value, IsTail: false, IsImplicit: isImplicit},
+			Data: ReturnData{
+				Value:           value,
+				IsTail:          false,
+				IsImplicit:      isImplicit,
+				DropsAfterValue: l.dropLocalsFor(stmtID, stmt.Span),
+			},
 		}
 
 	case ast.StmtRet:
@@ -85,18 +92,18 @@ func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
 		}
 
 	case ast.StmtBreak:
-		return &Stmt{
+		return l.wrapExitWithDrops(&Stmt{
 			Kind: StmtBreak,
 			Span: stmt.Span,
 			Data: BreakData{},
-		}
+		}, stmtID, stmt.Span)
 
 	case ast.StmtContinue:
-		return &Stmt{
+		return l.wrapExitWithDrops(&Stmt{
 			Kind: StmtContinue,
 			Span: stmt.Span,
 			Data: ContinueData{},
-		}
+		}, stmtID, stmt.Span)
 
 	case ast.StmtIf:
 		return l.lowerIfStmt(stmtID, stmt)
@@ -105,7 +112,8 @@ func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
 		return l.lowerWhileStmt(stmtID, stmt)
 
 	case ast.StmtForClassic:
-		return l.lowerForClassicStmt(stmtID, stmt)
+		forStmt := l.lowerForClassicStmt(stmtID, stmt)
+		return l.wrapLoopWithScopeDrops(forStmt, stmtID, stmt.Span)
 
 	case ast.StmtForIn:
 		return l.lowerForInStmt(stmtID, stmt)
