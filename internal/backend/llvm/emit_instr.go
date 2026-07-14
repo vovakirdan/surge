@@ -38,11 +38,62 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 		return fe.emitInstrTimeout(ins)
 	case mir.InstrSelect:
 		return fe.emitInstrSelect(ins)
-	case mir.InstrDrop, mir.InstrEndBorrow, mir.InstrNop:
+	case mir.InstrDrop:
+		return fe.emitInstrDrop(ins)
+	case mir.InstrEndBorrow, mir.InstrNop:
 		return nil
 	default:
 		return fmt.Errorf("unsupported instruction kind %v", ins.Kind)
 	}
+}
+
+// emitInstrDrop frees the dropped place's owned heap value for the leaf
+// types (string, dynamic array) and nulls the slot so a stale handle can
+// never free twice. Composite types wait for the recursive drop glue;
+// until then their drops stay no-ops, exactly as before.
+func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
+	if ins == nil {
+		return nil
+	}
+	baseType, err := fe.placeBaseType(ins.Drop.Place)
+	if err != nil || baseType == types.NoTypeID {
+		return nil
+	}
+	typesIn := fe.emitter.types
+	isString := isStringLike(typesIn, baseType)
+	elemType, dynamic, isArray := arrayElemType(typesIn, baseType)
+	if !isString && (!isArray || !dynamic) {
+		return nil
+	}
+	ptr, ptrTy, err := fe.emitPlacePtr(ins.Drop.Place)
+	if err != nil {
+		return err
+	}
+	if ptrTy != "ptr" {
+		return nil
+	}
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
+	if isString {
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", handle)
+	} else {
+		elemLLVM, err := llvmValueType(typesIn, elemType)
+		if err != nil {
+			return err
+		}
+		elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+		if err != nil {
+			return err
+		}
+		if elemAlign <= 0 {
+			elemAlign = 1
+		}
+		stride := roundUpInt(elemSize, elemAlign)
+		fmt.Fprintf(&fe.emitter.buf,
+			"  call void @rt_array_free(ptr %s, i64 %d, i64 %d)\n", handle, stride, elemAlign)
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
+	return nil
 }
 
 func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {

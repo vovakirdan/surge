@@ -1,26 +1,48 @@
 #include "rt.h"
+#include "rt_array_internal.h"
 
+#include <pthread.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
-#define SURGE_ARRAY_VIEW_CAP UINT64_MAX
-
-typedef struct SurgeArrayHeader {
-    uint64_t len;
-    uint64_t cap;
-    void* data;
-} SurgeArrayHeader;
-
-typedef struct SurgeArrayViewLink {
-    SurgeArrayHeader* base;
-    SurgeArrayHeader* view;
-    uint64_t byte_offset;
-    struct SurgeArrayViewLink* next;
-} SurgeArrayViewLink;
-
 static SurgeArrayViewLink* array_views = NULL;
+
+// The registry is process-global while tasks mutate it from every worker
+// thread; every registry touch serializes here (the drop-emission epic
+// turned the latent race hot, so the lock landed with it).
+static pthread_mutex_t array_views_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void rt_array_registry_lock(void) {
+    pthread_mutex_lock(&array_views_lock);
+}
+
+void rt_array_registry_unlock(void) {
+    pthread_mutex_unlock(&array_views_lock);
+}
+
+const SurgeArrayViewLink* rt_array_views_head_locked(void) {
+    return array_views;
+}
+
+SurgeArrayHeader* rt_array_unlink_view_locked(SurgeArrayHeader* view,
+                                              SurgeArrayViewLink** out_link) {
+    *out_link = NULL;
+    SurgeArrayViewLink** cursor = &array_views;
+    while (*cursor != NULL) {
+        SurgeArrayViewLink* link = *cursor;
+        if (link->view == view) {
+            SurgeArrayHeader* base = link->base;
+            *cursor = link->next;
+            link->next = NULL;
+            *out_link = link;
+            return base;
+        }
+        cursor = &link->next;
+    }
+    return NULL;
+}
 
 static void array_panic(const char* msg) {
     rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
@@ -48,7 +70,7 @@ bool rt_array_is_view(const void* header) {
     return array_is_view((const SurgeArrayHeader*)header);
 }
 
-static const SurgeArrayViewLink* array_find_view(const SurgeArrayHeader* header) {
+static const SurgeArrayViewLink* array_find_view_locked(const SurgeArrayHeader* header) {
     for (const SurgeArrayViewLink* link = array_views; link != NULL; link = link->next) {
         if (link->view == header) {
             return link;
@@ -59,12 +81,15 @@ static const SurgeArrayViewLink* array_find_view(const SurgeArrayHeader* header)
 
 static SurgeArrayHeader* array_base_for_slice(SurgeArrayHeader* header, uint64_t* base_offset) {
     *base_offset = 0;
-    const SurgeArrayViewLink* link = array_find_view(header);
-    if (link == NULL) {
-        return header;
+    rt_array_registry_lock();
+    const SurgeArrayViewLink* link = array_find_view_locked(header);
+    SurgeArrayHeader* base = header;
+    if (link != NULL) {
+        *base_offset = link->byte_offset;
+        base = link->base;
     }
-    *base_offset = link->byte_offset;
-    return link->base;
+    rt_array_registry_unlock();
+    return base;
 }
 
 static void
@@ -78,8 +103,10 @@ array_register_view(SurgeArrayHeader* base, SurgeArrayHeader* view, uint64_t byt
     link->base = base;
     link->view = view;
     link->byte_offset = byte_offset;
+    rt_array_registry_lock();
     link->next = array_views;
     array_views = link;
+    rt_array_registry_unlock();
 }
 
 void rt_array_forget_allocation(const void* ptr) {
@@ -87,17 +114,26 @@ void rt_array_forget_allocation(const void* ptr) {
         return;
     }
     const SurgeArrayHeader* header = (const SurgeArrayHeader*)ptr;
+    SurgeArrayViewLink* detached = NULL;
+    rt_array_registry_lock();
     SurgeArrayViewLink** cursor = &array_views;
     while (*cursor != NULL) {
         SurgeArrayViewLink* link = *cursor;
         if (link->view == header || link->base == header) {
             *cursor = link->next;
-            rt_free((uint8_t*)link,
-                    (uint64_t)sizeof(SurgeArrayViewLink),
-                    (uint64_t)alignof(SurgeArrayViewLink));
+            link->next = detached;
+            detached = link;
             continue;
         }
         cursor = &link->next;
+    }
+    rt_array_registry_unlock();
+    while (detached != NULL) {
+        SurgeArrayViewLink* next = detached->next;
+        rt_free((uint8_t*)detached,
+                (uint64_t)sizeof(SurgeArrayViewLink),
+                (uint64_t)alignof(SurgeArrayViewLink));
+        detached = next;
     }
 }
 
@@ -106,11 +142,13 @@ void rt_array_sync_views(void* array_header) {
     if (base == NULL) {
         return;
     }
+    rt_array_registry_lock();
     for (const SurgeArrayViewLink* link = array_views; link != NULL; link = link->next) {
         if (link->base == base && link->view != NULL) {
             link->view->data = base->data == NULL ? NULL : (uint8_t*)base->data + link->byte_offset;
         }
     }
+    rt_array_registry_unlock();
 }
 
 static int64_t normalize_range_index(int64_t n, int64_t length) {

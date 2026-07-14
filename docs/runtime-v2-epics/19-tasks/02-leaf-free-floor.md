@@ -1,4 +1,51 @@
-# Epic 19 Task 2: Leaf Free Floor (explicit @drop) — DESIGN + the View Fork
+# Epic 19 Task 2: Leaf Free Floor (explicit @drop) — SHIPPED
+
+## What shipped (implementation record)
+
+- **Runtime**: `rt_string_free` (rt_string.c, single free sized from the
+  header); `rt_array_free(handle, elem_stride, elem_align)`
+  (rt_array_reclaim.c) with the corrected defer mechanics (orphan
+  records hold {base, data_size, data_align}; last-view unlink frees
+  storage + header + record); registry lock added to rt_array.c
+  (closing the pre-existing MT race) with shared internals in
+  rt_array_internal.h; debug counter
+  `rt_array_debug_deferred_base_drops`.
+- **Backend**: `emitInstrDrop` (emit_instr.go) — string-like places call
+  rt_string_free, dynamic arrays call rt_array_free with the element
+  layout, and the slot is nulled after freeing (structural double-drop
+  guard; both helpers are null-safe). Composites stay no-op until the
+  Task 4 glue. The debug counter emits through `emitRtUintCounter`
+  (shared with rt_worker_count) because intrinsics returning Surge
+  `uint` must BOX the raw u64 — a raw store reads as a bignum pointer
+  and crashes.
+- **Sema**: `handleDrop` now marks non-copy owned drop targets MOVED, so
+  a second `@drop` (and any use after `@drop`) is `use of moved value`
+  at compile time; `@drop` of a copy value stays a no-op and does not
+  consume. Rows in internal/sema/drop_move_test.go.
+- **E2E**: `TestRuntimeV2DropLeafReclamation` (internal/vm), 8 scenario
+  functions covering the 11-row list at SURGE_THREADS=1,2; wired into
+  `runtime-v2-heap-check`.
+
+## Two discipline discoveries (they bit; they are load-bearing)
+
+1. **rt_free re-enters the view registry.** Every `rt_free` calls
+   `rt_array_forget_allocation` (rt_alloc.c), which takes the registry
+   lock. Therefore NOTHING may be freed while holding that lock —
+   detach under the lock, free after releasing. The first draft freed
+   link/orphan records under the lock and self-deadlocked the moment a
+   view drop actually ran (30s hang, zero output).
+2. **The census currency for this vertical is FREES, not balance.**
+   Until scope-exit synthesis (Task 3), every temporary leaks by
+   design — and even `if` statements and stats-snapshot boxing
+   allocate. But nothing frees spontaneously, so windows shaped
+   [snapshot; @drop…; snapshot] with NO other statements inside give
+   exact free_count deltas: string=1; base(no views)=2 (data+header);
+   registered view=2 (link+header); base with live views=0 (counter
+   +1); LAST view over a deferred base=5 (link+orphan+view header+
+   base data+base header); fixed-array slice=1 (header only).
+   Alloc/free BALANCE assertions arrive with Task 3/4 at program end.
+
+## Original design + the view fork (retained)
 
 ## The view discovery (supersedes the kickoff's array paragraph)
 
@@ -123,8 +170,18 @@ panic unpredictable from source — fails kindness).
       dropped-with-views must survive its own drop (fails under
       "free header immediately", passes under "defer header too").
 
+Row 10 reality check: sema did NOT reject double-@drop before this
+task (`@drop` recorded a borrow event but never consumed the binding —
+only drop-AFTER-move was caught, through `typeExpr`'s use check). The
+task closed the asymmetry: `handleDrop` now marks non-copy owned drop
+targets moved, so drop-after-drop and any use-after-drop are
+`use of moved value` at compile time, while `@drop` of a copy value
+stays non-consuming (sema rows pin all three). The emitter's
+null-store keeps the runtime safe even if a future surface bypasses
+the sema check.
+
 ## Status
 
-Design resolved (fork above); implementation next. String work is
-unaffected by the fork; array work follows the corrected defer
-mechanics.
+SHIPPED (see the implementation record at the top). All 11 rows plus
+the moved-view-into-callee row run in `TestRuntimeV2DropLeafReclamation`
+at SURGE_THREADS=1,2, wired into `runtime-v2-heap-check`.

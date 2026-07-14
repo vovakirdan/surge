@@ -269,6 +269,18 @@ static void range_bounds(const SurgeRange* r, int64_t length, int64_t* start, in
     *end = end64;
 }
 
+// Drops one owned string value: every SurgeString is a single heap
+// allocation (literals included — they materialize per use), so the free
+// is unconditional and the size comes from the header.
+void rt_string_free(void* handle) {
+    if (handle == NULL) {
+        return;
+    }
+    SurgeString* s = (SurgeString*)handle;
+    uint64_t total = (uint64_t)sizeof(SurgeString) + s->len_bytes + 1;
+    rt_free((uint8_t*)s, total, (uint64_t)alignof(SurgeString));
+}
+
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
     uint64_t bytes = len;
     uint64_t count = 0;

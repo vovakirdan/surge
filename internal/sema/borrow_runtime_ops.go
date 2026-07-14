@@ -280,7 +280,7 @@ func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.Exp
 }
 
 func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
-	tc.typeExpr(expr)
+	exprType := tc.typeExpr(expr)
 	symID := tc.symbolForExpr(expr)
 	if !symID.IsValid() {
 		tc.report(diag.SemaBorrowNonAddressable, span, "drop target must be a binding")
@@ -298,6 +298,11 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 			Scope:   tc.currentScope(),
 			Note:    "drop",
 		})
+		// Dropping an owned non-copy value consumes it: later uses
+		// (including a second drop) are use-after-move.
+		if exprType != types.NoTypeID && !tc.isCopyType(exprType) {
+			tc.markBindingMoved(symID, span)
+		}
 		return
 	}
 	var place Place

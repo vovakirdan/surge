@@ -80,7 +80,9 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 	case "monotonic_now":
 		return true, fe.emitRtMonotonicNow(call)
 	case "rt_worker_count":
-		return true, fe.emitRtWorkerCount(call)
+		return true, fe.emitRtUintCounter(call, "rt_worker_count")
+	case "rt_array_debug_deferred_base_drops":
+		return true, fe.emitRtUintCounter(call, "rt_array_debug_deferred_base_drops")
 	case "rt_exit":
 		return true, fe.emitRtExit(call)
 	case "rt_string_index":
@@ -119,15 +121,17 @@ func (fe *funcEmitter) emitRtSleep(call *mir.CallInstr) error {
 	return nil
 }
 
-func (fe *funcEmitter) emitRtWorkerCount(call *mir.CallInstr) error {
+// emitRtUintCounter emits a zero-argument runtime counter returning u64,
+// boxed into the destination's uint representation.
+func (fe *funcEmitter) emitRtUintCounter(call *mir.CallInstr, name string) error {
 	if call == nil {
 		return nil
 	}
 	if len(call.Args) != 0 {
-		return fmt.Errorf("rt_worker_count requires 0 arguments")
+		return fmt.Errorf("%s requires 0 arguments", name)
 	}
 	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_worker_count()\n", tmp)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @%s()\n", tmp, name)
 	if call.HasDst {
 		dstType := types.NoTypeID
 		if call.Dst.Kind == mir.PlaceLocal && int(call.Dst.Local) < len(fe.f.Locals) {

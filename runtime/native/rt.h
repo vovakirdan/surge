@@ -16,6 +16,12 @@ void rt_memcpy(uint8_t* dst, const uint8_t* src, uint64_t n);
 void rt_memmove(uint8_t* dst, const uint8_t* src, uint64_t n);
 void rt_array_forget_allocation(const void* ptr);
 bool rt_array_is_view(const void* header);
+// Drop-emission reclamation: drops one owned array value. Views free their
+// header and unlink; a base with live views defers header+data until the
+// last view drops; the element layout describes the dropped handle.
+void rt_array_free(void* array_header, uint64_t elem_stride, uint64_t elem_align);
+// Debug observability for the deferred-reclamation float.
+uint64_t rt_array_debug_deferred_base_drops(void);
 void* rt_array_slice(void* array_slot, void* r, uint64_t elem_stride);
 void* rt_array_slice_fixed(void* data_slot, void* r, uint64_t length, uint64_t elem_stride);
 void rt_array_sync_views(void* array_header);
@@ -97,6 +103,9 @@ typedef struct SurgeRange {
 } SurgeRange;
 
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
+// Drop-emission reclamation: frees one owned string (unconditional; every
+// string value is a single heap allocation).
+void rt_string_free(void* handle);
 bool rt_utf8_valid(const uint8_t* ptr, uint64_t len);
 const uint8_t* rt_string_ptr(void* s);
 uint64_t rt_string_len(void* s);
