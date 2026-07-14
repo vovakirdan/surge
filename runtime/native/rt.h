@@ -20,6 +20,10 @@ bool rt_array_is_view(const void* header);
 // header and unlink; a base with live views defers header+data until the
 // last view drops; the element layout describes the dropped handle.
 void rt_array_free(void* array_header, uint64_t elem_stride, uint64_t elem_align);
+void rt_array_free_elems(void* array_header,
+                         uint64_t elem_stride,
+                         uint64_t elem_align,
+                         void (*drop_elem)(void*));
 // Debug observability for the deferred-reclamation float.
 uint64_t rt_array_debug_deferred_base_drops(void);
 void* rt_array_slice(void* array_slot, void* r, uint64_t elem_stride);

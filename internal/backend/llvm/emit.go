@@ -41,6 +41,9 @@ type Emitter struct {
 	globalNames  map[mir.GlobalID]string
 	runtimeSigs  map[string]funcSig
 	paramCounts  map[mir.FuncID]int
+	// Recursive drop glue generated on demand (emit_drop_glue.go).
+	dropGlueNeeded     map[types.TypeID]struct{}
+	dropElemGlueNeeded map[types.TypeID]struct{}
 }
 
 type funcEmitter struct {
@@ -204,6 +207,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 		return "", err
 	}
 	if err := e.emitFunctions(); err != nil {
+		return "", err
+	}
+	if err := e.emitDropGlue(); err != nil {
 		return "", err
 	}
 	if err := e.emitPollDispatch(); err != nil {

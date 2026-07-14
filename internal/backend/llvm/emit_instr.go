@@ -62,7 +62,9 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	typesIn := fe.emitter.types
 	isString := isStringLike(typesIn, baseType)
 	elemType, dynamic, isArray := arrayElemType(typesIn, baseType)
-	if !isString && (!isArray || !dynamic) {
+	dynArray := isArray && dynamic
+	composite := fe.emitter.isBoxedComposite(baseType) && fe.emitter.typeOwnsHeap(baseType)
+	if !isString && !dynArray && !composite {
 		return nil
 	}
 	ptr, ptrTy, err := fe.emitPlacePtr(ins.Drop.Place)
@@ -74,23 +76,13 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	}
 	handle := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
-	if isString {
+	switch {
+	case isString:
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", handle)
-	} else {
-		elemLLVM, err := llvmValueType(typesIn, elemType)
-		if err != nil {
-			return err
-		}
-		elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
-		if err != nil {
-			return err
-		}
-		if elemAlign <= 0 {
-			elemAlign = 1
-		}
-		stride := roundUpInt(elemSize, elemAlign)
-		fmt.Fprintf(&fe.emitter.buf,
-			"  call void @rt_array_free(ptr %s, i64 %d, i64 %d)\n", handle, stride, elemAlign)
+	case dynArray:
+		fe.emitter.emitDropDynArray(handle, elemType)
+	default: // boxed composite that owns heap
+		fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n", fe.emitter.requireDropGlue(baseType), handle)
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
 	return nil
