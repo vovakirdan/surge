@@ -17,7 +17,13 @@ func (vm *VM) execDrop(frame *Frame, localID mir.LocalID) *VMError {
 		return vm.eb.useBeforeInit(slot.Name)
 	}
 	if slot.IsMoved {
-		return vm.eb.useAfterMove(slot.Name)
+		// The value's ownership already went elsewhere (the VM flags
+		// non-copy call-argument reads as moves, coarser than sema's
+		// borrow-aware tracking), so a synthesized drop of this slot is
+		// a no-op — mirroring the LLVM backend, where the emitter nulls
+		// consumed slots and the free helpers ignore null. Double drops
+		// still panic below.
+		return nil
 	}
 	if slot.IsDropped {
 		return vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: local %q used after drop", slot.Name))

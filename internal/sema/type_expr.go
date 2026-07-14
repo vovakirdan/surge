@@ -124,6 +124,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	}
 
 	tc.result.ExprTypes[id] = ty
+	tc.noteTempCandidate(id, expr.Kind, ty)
 	return ty
 }
 

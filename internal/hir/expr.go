@@ -68,6 +68,10 @@ const (
 	ExprCast
 	// ExprBlock represents a block expression { ... }.
 	ExprBlock
+	// ExprOwnedTemp marks an evaluation producing an owned value that
+	// nothing consumes: MIR materializes it into a temp local and frees
+	// it when its evaluation region ends.
+	ExprOwnedTemp
 )
 
 // String returns a human-readable name for the expression kind.
@@ -127,6 +131,8 @@ func (k ExprKind) String() string {
 		return "Cast"
 	case ExprBlock:
 		return "Block"
+	case ExprOwnedTemp:
+		return "OwnedTemp"
 	default:
 		return "Unknown"
 	}
@@ -462,3 +468,10 @@ type BlockExprData struct {
 }
 
 func (BlockExprData) exprData() {}
+
+// OwnedTempData holds data for ExprOwnedTemp.
+type OwnedTempData struct {
+	Inner *Expr
+}
+
+func (OwnedTempData) exprData() {}

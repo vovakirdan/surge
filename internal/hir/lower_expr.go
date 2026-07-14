@@ -34,7 +34,25 @@ func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
 		}
 	}
 
-	return l.applyBoolMagic(exprID, result)
+	result = l.applyBoolMagic(exprID, result)
+	return l.wrapOwnedTemp(exprID, result)
+}
+
+// wrapOwnedTemp marks evaluations sema flagged as owned-and-unconsumed:
+// MIR materializes and frees them at the evaluation region's end.
+func (l *lowerer) wrapOwnedTemp(exprID ast.ExprID, result *Expr) *Expr {
+	if result == nil || l.semaRes == nil || l.semaRes.TempDrops == nil {
+		return result
+	}
+	if _, ok := l.semaRes.TempDrops[exprID]; !ok {
+		return result
+	}
+	return &Expr{
+		Kind: ExprOwnedTemp,
+		Type: result.Type,
+		Span: result.Span,
+		Data: OwnedTempData{Inner: result},
+	}
 }
 
 // lowerExprCore does the actual lowering without implicit conversion handling.

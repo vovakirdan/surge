@@ -181,6 +181,8 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	if stmt == nil {
 		return
 	}
+	tc.pushTempFrame()
+	defer tc.popTempFrame()
 
 	var span *trace.Span
 	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {

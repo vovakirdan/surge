@@ -65,6 +65,10 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 	operandType := tc.typeExpr(data.Operand)
 	switch data.Op {
 	case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
+		// An explicit borrow can escape the statement (into a binding,
+		// field, or argument that stores it); its operand must not drop
+		// at statement end. Leak over dangle.
+		tc.consumeTempCandidate(data.Operand)
 		tc.handleBorrow(exprID, span, data.Op, data.Operand)
 		if operandType == types.NoTypeID {
 			return types.NoTypeID

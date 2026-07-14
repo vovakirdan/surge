@@ -415,6 +415,9 @@ func remapStmt(st *hir.Stmt, mapping map[symbols.SymbolID]symbols.SymbolID, stat
 			return
 		}
 		remapExpr(data.Value, mapping, state)
+		for i := range data.DropsAfterValue {
+			data.DropsAfterValue[i].SymbolID = remapSymbol(data.DropsAfterValue[i].SymbolID, mapping)
+		}
 		st.Data = data
 	case hir.StmtRet:
 		data, ok := st.Data.(hir.RetData)
@@ -483,6 +486,13 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID, st
 		state.seenExpr[expr] = struct{}{}
 	}
 	switch expr.Kind {
+	case hir.ExprOwnedTemp:
+		data, ok := expr.Data.(hir.OwnedTempData)
+		if !ok {
+			return
+		}
+		remapExpr(data.Inner, mapping, state)
+		expr.Data = data
 	case hir.ExprVarRef:
 		data, ok := expr.Data.(hir.VarRefData)
 		if !ok {

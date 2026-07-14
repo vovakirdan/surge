@@ -92,6 +92,62 @@ fn view_then_base_scope_order() -> nothing {
     let v: int[] = a.slice(0..1);
 }
 
+fn noop_probe() -> nothing {
+}
+
+fn check_balance(label: string, before: &HeapStats, after: &HeapStats, noise: uint, expected: uint) -> int {
+    let allocs: uint = after.alloc_count - before.alloc_count;
+    let frees: uint = after.free_count - before.free_count;
+    if allocs - noise != frees {
+        print(label);
+        print((allocs - noise) to string);
+        print(frees to string);
+        return 1;
+    }
+    if frees != expected {
+        print(label);
+        print(frees to string);
+        print(expected to string);
+        return 2;
+    }
+    return 0;
+}
+
+fn concat_operands_reclaimed() -> nothing {
+    let s: string = "left-" + "right";
+}
+
+fn make_owned() -> string {
+    return "made";
+}
+
+fn discarded_result_reclaimed() -> nothing {
+    make_owned();
+}
+
+fn read_str(s: &string) -> nothing {
+}
+
+fn borrowed_arg_temp_reclaimed() -> nothing {
+    read_str("bor" + "rowed");
+}
+
+fn cond_temp_loop(n: int) -> nothing {
+    let mut i: int = 0;
+    while "ab" + "cd" != "zz" {
+        i = i + 1;
+        if i >= n { break; }
+    }
+}
+
+fn cond_temp_loop_twin(n: int) -> nothing {
+    let mut i: int = 0;
+    while "abcd" != "zz" {
+        i = i + 1;
+        if i >= n { break; }
+    }
+}
+
 fn build_string_array() -> string[] {
     let mut arr: string[] = [];
     arr.push("alpha");
@@ -242,6 +298,38 @@ fn main() -> int {
 
     let g: int = generic_push_no_double_drop();
     if g != 0 { return 24; }
+
+    let n0: HeapStats = rt_heap_stats();
+    noop_probe();
+    let n1: HeapStats = rt_heap_stats();
+    let noise: uint = (n1.alloc_count - n0.alloc_count) - (n1.free_count - n0.free_count);
+
+    let t0: HeapStats = rt_heap_stats();
+    concat_operands_reclaimed();
+    let t1: HeapStats = rt_heap_stats();
+    discarded_result_reclaimed();
+    let t2: HeapStats = rt_heap_stats();
+    borrowed_arg_temp_reclaimed();
+    let t3: HeapStats = rt_heap_stats();
+
+    let rb1: int = check_balance("concat-balance window", &t0, &t1, noise, 3:uint);
+    if rb1 != 0 { return 30 + rb1; }
+    let rb2: int = check_balance("discard-balance window", &t1, &t2, noise, 1:uint);
+    if rb2 != 0 { return 40 + rb2; }
+    let rb3: int = check_balance("borrowed-temp window", &t2, &t3, noise, 3:uint);
+    if rb3 != 0 { return 50 + rb3; }
+
+    let l0: HeapStats = rt_heap_stats();
+    cond_temp_loop(4);
+    let l1: HeapStats = rt_heap_stats();
+    cond_temp_loop_twin(4);
+    let l2: HeapStats = rt_heap_stats();
+    let cond_diff: uint = (l1.free_count - l0.free_count) - (l2.free_count - l1.free_count);
+    if cond_diff != 8:uint {
+        print("cond-temp per-iteration diff");
+        print(cond_diff to string);
+        return 60;
+    }
 
     print("drop-scope-exit-ok");
     return 0;

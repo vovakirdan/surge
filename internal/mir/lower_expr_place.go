@@ -14,6 +14,20 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got <nil>")
 	}
 	switch e.Kind {
+	case hir.ExprOwnedTemp:
+		// A borrowed temporary used in place position (a method receiver
+		// on a fresh value): materialize it — the temp local is the
+		// place, and its registered region flush frees it.
+		data, ok := e.Data.(hir.OwnedTempData)
+		if !ok {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: owned temp: unexpected payload %T", e.Data)
+		}
+		op, err := l.lowerOwnedTempExpr(e, data, e.Span)
+		if err != nil {
+			return Place{Local: NoLocalID}, err
+		}
+		return op.Place, nil
+
 	case hir.ExprVarRef:
 		data, ok := e.Data.(hir.VarRefData)
 		if !ok {

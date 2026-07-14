@@ -25,6 +25,13 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		}
 		return l.lowerLiteral(e.Type, data), nil
 
+	case hir.ExprOwnedTemp:
+		data, ok := e.Data.(hir.OwnedTempData)
+		if !ok {
+			return Operand{}, fmt.Errorf("mir: owned temp: unexpected payload %T", e.Data)
+		}
+		return l.lowerOwnedTempExpr(e, data, e.Span)
+
 	case hir.ExprVarRef:
 		data, ok := e.Data.(hir.VarRefData)
 		if !ok {

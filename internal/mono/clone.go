@@ -406,6 +406,13 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 		}
 		data.Block = cloneBlock(data.Block)
 		out.Data = data
+	case hir.ExprOwnedTemp:
+		data, ok := e.Data.(hir.OwnedTempData)
+		if !ok {
+			break
+		}
+		data.Inner = cloneExpr(data.Inner)
+		out.Data = data
 	default:
 		out.Data = e.Data
 	}

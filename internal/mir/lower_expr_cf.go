@@ -55,6 +55,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 	l.setTerm(&Terminator{Kind: TermIf, If: IfTerm{Cond: cond, Then: thenBB, Else: elseBB}})
 
 	l.startBlock(thenBB)
+	l.pushTempDropFrame()
 	if data.Then != nil {
 		if hasResult {
 			op, err := l.lowerExpr(data.Then, true)
@@ -76,11 +77,13 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 	} else if hasResult {
 		l.setTerm(&Terminator{Kind: TermUnreachable})
 	}
+	l.flushTempDropFrame()
 	if !l.curBlock().Terminated() {
 		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
 	}
 
 	l.startBlock(elseBB)
+	l.pushTempDropFrame()
 	if data.Else != nil {
 		if hasResult {
 			op, err := l.lowerExpr(data.Else, true)
@@ -102,6 +105,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 	} else if hasResult {
 		l.setTerm(&Terminator{Kind: TermUnreachable})
 	}
+	l.flushTempDropFrame()
 	if !l.curBlock().Terminated() {
 		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
 	}
@@ -171,6 +175,9 @@ func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryO
 	l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
 
 	l.startBlock(rhsBB)
+	// The RHS runs conditionally: its temporaries flush inside this
+	// block so the skipped path never sees them.
+	l.pushTempDropFrame()
 	right, err := l.lowerValueExpr(data.Right, false)
 	if err != nil {
 		return Operand{}, err
@@ -179,6 +186,7 @@ func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryO
 		Dst: Place{Local: resultLocal},
 		Src: RValue{Kind: RValueUse, Use: right},
 	}})
+	l.flushTempDropFrame()
 	if !l.curBlock().Terminated() {
 		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
 	}

@@ -153,6 +153,15 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 		return nil
 	}
 	switch e.Kind {
+	case hir.ExprOwnedTemp:
+		data, ok := e.Data.(hir.OwnedTempData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteCallsInExpr(data.Inner, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)
 		if !ok {

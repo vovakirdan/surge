@@ -116,6 +116,12 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 	}
 	visit(e.Type)
 	switch e.Kind {
+	case hir.ExprOwnedTemp:
+		data, ok := e.Data.(hir.OwnedTempData)
+		if !ok {
+			return
+		}
+		collectTypesFromExpr(data.Inner, visit)
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)
 		if !ok {

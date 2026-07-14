@@ -66,6 +66,9 @@ type Result struct {
 	ScopeEndDrops    map[ast.StmtID][]symbols.SymbolID
 	EarlyExitDrops   map[ast.StmtID][]symbols.SymbolID
 	ReassignOldDrops map[ast.ExprID]symbols.SymbolID
+	// TempDrops flags evaluations producing an owned value that nothing
+	// consumes; they free at their evaluation region's end.
+	TempDrops map[ast.ExprID]struct{}
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
 	CopyTypes              map[types.TypeID]struct{}

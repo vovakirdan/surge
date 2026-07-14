@@ -13,6 +13,9 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if !expr.IsValid() || tc.borrow == nil {
 		return
 	}
+	// Every move consumes the moved evaluation: whoever receives the
+	// value owns its drop from here.
+	tc.consumeTempCandidate(expr)
 
 	// Skip move tracking for Copy types - they can be implicitly copied
 	// and the original value remains valid after the "copy".

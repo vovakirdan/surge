@@ -87,6 +87,10 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 	tc.ensureBoolContext(tern.Cond, tc.exprSpan(tern.Cond))
 	trueType := tc.typeExpr(tern.TrueExpr)
 	falseType := tc.typeExpr(tern.FalseExpr)
+	// The arms transfer into the ternary's own result value; the outer
+	// expression carries the drop candidacy from here.
+	tc.consumeTempCandidate(tern.TrueExpr)
+	tc.consumeTempCandidate(tern.FalseExpr)
 	resultType := tc.unifyTernaryBranches(trueType, falseType, span)
 	if resultType != types.NoTypeID {
 		tc.recordNumericWidening(tern.TrueExpr, trueType, resultType)
@@ -103,6 +107,7 @@ func (tc *typeChecker) typeExprArray(id ast.ExprID, span source.Span) types.Type
 	var elemType types.TypeID
 	for _, elem := range arr.Elements {
 		elemTy := tc.typeExpr(elem)
+		tc.consumeTempCandidate(elem)
 		if tc.isTaskType(elemTy) {
 			tc.trackTaskPassedAsArg(elem)
 		}
@@ -138,10 +143,12 @@ func (tc *typeChecker) typeExprMap(id ast.ExprID, span source.Span) types.TypeID
 	var valueType types.TypeID
 	for _, entry := range mp.Entries {
 		kType := tc.typeExpr(entry.Key)
+		tc.consumeTempCandidate(entry.Key)
 		if tc.isTaskType(kType) {
 			tc.trackTaskPassedAsArg(entry.Key)
 		}
 		vType := tc.typeExpr(entry.Value)
+		tc.consumeTempCandidate(entry.Value)
 		if tc.isTaskType(vType) {
 			tc.trackTaskPassedAsArg(entry.Value)
 		}
@@ -194,6 +201,7 @@ func (tc *typeChecker) typeExprTuple(id ast.ExprID) types.TypeID {
 	allValid := true
 	for _, elem := range tuple.Elements {
 		elemType := tc.typeExpr(elem)
+		tc.consumeTempCandidate(elem)
 		if elemType == types.NoTypeID {
 			allValid = false
 		}

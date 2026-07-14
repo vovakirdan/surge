@@ -200,6 +200,16 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 	}
 
 	switch e.Kind {
+	case ExprOwnedTemp:
+		data := e.Data.(OwnedTempData)
+		if data.Inner != nil {
+			if err := normalizeExpr(ctx, data.Inner); err != nil {
+				return err
+			}
+		}
+		e.Data = data
+		return nil
+
 	case ExprUnaryOp:
 		data := e.Data.(UnaryOpData)
 		if data.Operand != nil {

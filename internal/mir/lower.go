@@ -186,6 +186,9 @@ type funcLowerer struct {
 	out  *Module
 	mf   *mono.MonoFunc
 	mono *mono.MonoModule
+	// tempDropFrames scope statement-end temporaries to single-entry
+	// evaluation regions (see lower_temp_drops.go).
+	tempDropFrames [][]LocalID
 	// anchoredBody marks the forked lowerer of an `on far_handle` block body:
 	// anchored channel operations lower to the runtime helpers that park by
 	// re-entering the body from the top.

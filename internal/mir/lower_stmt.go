@@ -16,7 +16,10 @@ func (l *funcLowerer) lowerBlock(b *hir.Block) error {
 		if l.curBlock().Terminated() {
 			return nil
 		}
-		if err := l.lowerStmt(&b.Stmts[i]); err != nil {
+		l.pushTempDropFrame()
+		err := l.lowerStmt(&b.Stmts[i])
+		l.flushTempDropFrame()
+		if err != nil {
 			return err
 		}
 	}
@@ -151,12 +154,14 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 					return err
 				}
 			}
+			l.flushTempDropsForExit()
 			l.emitExitDrops(data.DropsAfterValue)
 			l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{Early: early}})
 			return nil
 		}
 
 		if data.Value == nil {
+			l.flushTempDropsForExit()
 			l.emitExitDrops(data.DropsAfterValue)
 			l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{Early: early}})
 			return nil
@@ -170,6 +175,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 			return err
 		}
 		op = l.detachFromExitDrops(&op, data.DropsAfterValue, st.Span)
+		l.flushTempDropsForExit()
 		l.emitExitDrops(data.DropsAfterValue)
 		l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: op, Early: early}})
 		return nil
@@ -232,10 +238,12 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 			return fmt.Errorf("mir: if: unexpected payload %T", st.Data)
 		}
 		cond := data.Cond
+		l.pushTempDropFrame()
 		condOp, err := l.lowerValueExpr(cond, false)
 		if err != nil {
 			return err
 		}
+		l.flushTempDropFrame()
 
 		thenBB := l.newBlock()
 		elseBB := l.newBlock()
@@ -282,10 +290,12 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: headerBB}})
 
 		l.startBlock(headerBB)
+		l.pushTempDropFrame()
 		condOp, err := l.lowerValueExpr(data.Cond, false)
 		if err != nil {
 			return err
 		}
+		l.flushTempDropFrame()
 		l.setTerm(&Terminator{
 			Kind: TermIf,
 			If: IfTerm{
@@ -444,7 +454,7 @@ func (l *funcLowerer) lowerLetPattern(span source.Span, data hir.LetData) error 
 // operands lazily (the VM does), and the operand can project into a
 // dropped local (`return self.code` with self dropping).
 func (l *funcLowerer) detachFromExitDrops(op *Operand, drops []hir.DropLocal, span source.Span) Operand {
-	if len(drops) == 0 {
+	if len(drops) == 0 && !l.hasPendingTempDrops() {
 		return *op
 	}
 	if op.Kind != OperandCopy && op.Kind != OperandMove {

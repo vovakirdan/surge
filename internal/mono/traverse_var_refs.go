@@ -159,6 +159,15 @@ func rewriteVarRefsInExpr(e *hir.Expr, f varRefRewriteFunc) error {
 			return err
 		}
 		e.Data = data
+	case hir.ExprOwnedTemp:
+		data, ok := e.Data.(hir.OwnedTempData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteVarRefsInExpr(data.Inner, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)
 		if !ok {

@@ -633,6 +633,12 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 		p.printIndent()
 		p.printf("}")
 
+	case ExprOwnedTemp:
+		data := e.Data.(OwnedTempData)
+		p.printf("owned_temp(")
+		p.printExpr(data.Inner)
+		p.printf(")")
+
 	default:
 		p.printf("<%s>", e.Kind)
 	}

@@ -158,9 +158,172 @@ compiled function; the existing suite is the regression net.
 ### Remaining in Task 3
 
 - **Increment C — statement-end temporaries** (loop row 6, the
-  alloc/free balance gate): needs its own design pass.
+  alloc/free balance gate): design below.
+
+## Increment C design: statement-end temporaries
+
+The leak: owned rvalues that no binding ever owns. `let s = "a" + "b";`
+heap-allocates BOTH literal operands; `__add(self: &string, other:
+&string)` only borrows them (evidence: core/intrinsics.sg:700), so
+after the statement they are garbage nothing frees. Same for borrowed
+call arguments (`use(&make())`), discarded results (`make();`), and
+condition temporaries in loops (row 6: they must free per-iteration).
+
+**Split (same shape as A+B — one move truth):**
+
+1. **Sema classifies.** A map of flagged exprs (`TempDrops
+   map[ast.ExprID]struct{}`): expr produces an OWNED rvalue (non-copy,
+   non-reference result of a call / magic op / string literal /
+   slice-view expression — never a place read: var refs, field reads,
+   element reads are owned by their containers) AND is never CONSUMED.
+   Consumption sites, all already walked by sema: move into a binding
+   (`let`/assign RHS), return value, by-value call argument
+   (`applyParamOwnership`'s non-`&` path — consumption marks at
+   `observeMove` entry, before the place-resolution bail), AND
+   aggregate literal positions (struct fields, array elements, tuple
+   elems) — the aggregate takes ownership. Aggregate positions are
+   consumption-only in this increment (no new use-after-move
+   rejections from struct literals; that hole is recorded with the
+   generic-call one as a Task 4 prerequisite). Borrows never consume.
+2. **HIR wraps.** Flagged exprs lower wrapped in a marker node
+   (`ExprOwnedTemp{Inner}`) — HIR lowering is the last stage holding
+   ast.ExprIDs. mono clone + print gain the case.
+3. **MIR scopes and frees.** Lowering an `ExprOwnedTemp` materializes
+   the inner operand into a temp local and registers it in the current
+   TEMP FRAME; frames flush (emit `InstrDrop` per registered temp,
+   reverse order) at region ends: statement end, and — critically for
+   loop row 6 — right after a loop condition's value materializes
+   (the header block re-runs per iteration, so cond temps free per
+   iteration). Return statements flush temps BEFORE the carried
+   scope-exit drops (inner lifetime first), after the return operand
+   detaches.
+
+**Safety spine:** a misclassified producer (flagging a place read)
+would be a double free; a missed consumer (aggregate fields) would be
+a use-after-free through the aggregate. The VM backend's dropped-slot
+checks scream on both (it caught the double-self in B), and the
+balance rows only go green when classification is exact — `let s =
+"a" + "b";` must show allocs == frees across the whole call for the
+first time.
+
+### Second-opinion verdict (codex, 2026-07-14): NO-GO as drafted,
+### GO-WITH-CHANGES — the resolved shape below supersedes the draft
+
+The review surfaced three shipping-grade holes in the draft and the
+resolution for each:
+
+1. **Control-flow arms leak ownership OUT of the classification.**
+   `let s = if c { make() } else { make() };` — the let consumes the
+   IF node; the arm results would stay flagged and drop at statement
+   end while s points at one of them (plain UAF). Resolution: arm
+   results / block tails / compare arms TRANSFER to the outer
+   control-flow expression (unflagged); the outer expression itself
+   becomes the producer and lives or dies by ITS consumption. A
+   discarded `if c { make() } else { make() };` then drops the JOIN
+   result once — single-entry, dominated, correct.
+2. **Consumption is static, so deregistration dissolves.** The draft
+   flagged at production and would have needed deregister-on-consume
+   (double-free risk). Resolved model: sema publishes the FINAL set —
+   an expression has exactly one syntactic use position, so
+   "produced-owned and never consumed" is decidable at walk time;
+   MIR registers only truly-dangling evaluations and never sees a
+   consumed one.
+3. **Conditional materialization vs the VM's uninit-drop error.**
+   LLVM allocas are NOT zero-initialized and the VM errors on
+   dropping an uninitialized slot, so flushing at a join after a
+   conditionally-evaluated region (short-circuit RHS, arm bodies) is
+   wrong on the skipped path. Resolution: temp frames push/flush
+   INSIDE each single-entry evaluation region — statement, loop/if
+   condition (after the value materializes, before the branch; loop
+   headers re-run per iteration, satisfying row 6), short-circuit
+   RHS block, if/compare arm bodies, and returns (before the carried
+   binding drops). Every flush is dominated by its materializations;
+   no active bits needed.
+
+Bounds recorded for this increment (safe direction = leak, never
+free): assign-shaped expressions are never producers (their MIR
+result is the assigned PLACE); explicit `&temp` operands are
+unflagged (an explicit borrow can escape the statement — including
+the `&"literal"` shape that handleBorrow deliberately skips);
+implicit call-argument borrows cannot escape and stay reclaimed;
+statements containing await/select/spawn/crossing/blocking constructs
+are tainted and flag nothing (temp lifetimes across suspension spill
+state — that machinery belongs to the crossing vertical); HIR-only
+generated calls (for-in ranges) stay out. Aggregate literal positions
+consume without new use-after-move rejections — recorded with the
+generic-call move hole as the Task 4 prerequisite pair.
 - Excluded and documented: tuple-destructuring patterns, for-in loop
   variables, block-expression `ret` paths (safe direction: values
   live to the ENCLOSING scope end or leak; never double-free),
   compound-assign old-value drops, module-level lets, crossing and
   blocking bodies (RV2-DEBT-034 vertical).
+
+## Increment C: SHIPPED (2026-07-14)
+
+Implemented per the post-review shape: sema publishes the final
+unconsumed-owned set (`Result.TempDrops`, classification in
+`temp_drops.go` — producers at typeExpr's single exit; consumption at
+observeMove entry, aggregate literal positions, ternary/compare-arm
+transfers, explicit-& escape; suspension statements taint their
+frame); HIR wraps flagged evaluations in `ExprOwnedTemp`; MIR
+materializes into region-scoped temp frames (`lower_temp_drops.go`)
+flushed at statement ends, loop/if condition value points
+(per-iteration for loop headers — row 6), short-circuit RHS blocks,
+if-expr arm bodies, and before return terminators. A temp used in
+place position (method receiver on a fresh value) materializes
+through `lowerPlace`'s OwnedTemp case.
+
+Pipeline traversals that had to learn the node: HIR normalize, all
+four mono traversals (clone/collect/subst/var-refs), and
+`remapHIRModule` — where the fix ALSO uncovered an A+B latency: the
+remap recursed into neither `OwnedTempData.Inner` (stale symbol IDs,
+hard MIR error) nor `ReturnData.DropsAfterValue` (the lenient lookup
+in `emitExitDrops` silently skipped unmapped drops — core functions'
+return-path binding drops were quietly not firing until now).
+
+Evidence pinned: `rt_string_concat` is a FLAT copy (memcpy into one
+fresh allocation, rt_string.c:424) — no rope, dropping operand temps
+is sound. HeapStats snapshots allocate (~5 boxes); balance windows
+calibrate that noise with an empty-call probe and assert
+`allocs - noise == frees` exactly.
+
+### Second review round (codex, resumed): GO-WITH-CHANGES — mapping
+
+- **"Register after materialization"**: holds by construction —
+  `lowerOwnedTempExpr` registers the temp with the same instruction
+  sequence that materializes it; a skipped evaluation never
+  registers. This subsumes region-enumeration completeness.
+- **CFG exit edges incl. divergence**: returns flush open frames
+  after the operand detaches. The diverging-argument case is
+  unconstructible: return/break/continue are STATEMENTS, there is no
+  try/`?` operator, and panic is `_exit(1)` (no unwinding — the
+  epic's fixed point; leak-on-panic by design).
+- **Single-owner / transfer**: dissolved statically — consumed
+  evaluations are never in any frame; nothing to transfer or
+  deregister.
+- **Dominance over null-init**: dominance chosen, keeping the VM
+  sanitizer's teeth — which immediately paid off (below).
+- **Async suspension temps**: deferred by the statement taint (leak,
+  never a free) — same boundary as crossing bodies / DEBT-034.
+
+**A finding neither review round predicted, caught by the VM
+sanitizer on an existing row:** control-flow expressions can forward
+a PLACE. A compare arm `{ out = out + "x"; }` yields the assignment's
+value — the target binding's LIVE handle — so flagging the discarded
+compare as a producer dropped `out`'s own value (a UAF through the
+binding under LLVM). Resolution: ternary/compare/block expressions
+are NEVER producers; fresh values built in arms leak when the outer
+value is discarded (safe direction, recorded with the other bounds).
+The VM also learned that dropping a MOVED slot is a no-op rather than
+a panic (its move flags are coarser than sema's borrow-aware
+tracking: non-copy call-argument reads flag as moves), mirroring the
+LLVM null-store contract while keeping the double-drop panic.
+
+## Status
+
+A+B+C SHIPPED. E2e `TestRuntimeV2DropScopeExit` carries 16 rows at
+SURGE_THREADS=1,2 — scope ends, early returns, params, shadowing,
+reassignment, view ordering (deferral counter), loop rows 1-2 and 6,
+generic-push regression, and the first alloc/free BALANCE windows
+(concat operands, discarded results, implicitly borrowed temps) —
+wired into runtime-v2-heap-check. Full `make check` green.

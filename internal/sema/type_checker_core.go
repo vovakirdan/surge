@@ -115,6 +115,7 @@ type typeChecker struct {
 	movedBindings               map[symbols.SymbolID]source.Span
 	dropScopes                  []dropScope     // lexical scopes' droppable bindings (drop obligations)
 	loopDropMarks               []int           // dropScopes depth at each enclosing loop body
+	tempFrames                  []tempFrame     // per-statement owned-rvalue candidates (temp drops)
 	blockingDepth               int             // nesting depth of `blocking { }` bodies (suspension illegal inside)
 	onCrossingStack             []onAnchorFrame // active `on dst { ... }` crossing frames
 	directFunctionCrossing      map[symbols.SymbolID]struct{}

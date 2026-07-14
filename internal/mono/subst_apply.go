@@ -171,6 +171,17 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 	e.Type = s.Type(e.Type)
 
 	switch e.Kind {
+	case hir.ExprOwnedTemp:
+		data, ok := e.Data.(hir.OwnedTempData)
+		if !ok {
+			return nil
+		}
+		if data.Inner != nil {
+			if err := s.ApplyExpr(data.Inner); err != nil {
+				return err
+			}
+		}
+		e.Data = data
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)
 		if !ok {
