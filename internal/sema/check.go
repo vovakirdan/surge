@@ -72,6 +72,21 @@ type Result struct {
 	// BlockExprEndDrops: block-expression locals live at the block's
 	// normal end (keyed by the block expression).
 	BlockExprEndDrops map[ast.ExprID][]symbols.SymbolID
+	// ArmDropsExpr: per-arm drop synthesis for partial-path moves. A
+	// droppable moved on some compare/if/ternary arms but LIVE on others
+	// is dropped at the end of each arm where it stays live (keyed by the
+	// arm's result expression), instead of being rejected. Using the
+	// value after the join stays a use-of-moved error (the binding is in
+	// the union moved-set), so no maybe-dropped value is ever readable.
+	ArmDropsExpr map[ast.ExprID][]symbols.SymbolID
+	// ArmDropsStmt: same, for if-STATEMENT branch blocks (keyed by the
+	// branch block statement).
+	ArmDropsStmt map[ast.StmtID][]symbols.SymbolID
+	// IfSyntheticElseDrops: an if-statement WITHOUT else that moves a
+	// droppable in its then-branch needs the binding dropped on the
+	// fall-through; HIR synthesizes an else block with these drops
+	// (keyed by the if statement).
+	IfSyntheticElseDrops map[ast.StmtID][]symbols.SymbolID
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
 	CopyTypes              map[types.TypeID]struct{}

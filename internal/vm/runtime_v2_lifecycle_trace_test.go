@@ -126,23 +126,16 @@ async fn branch(n: int) -> int {
     let b = spawn leaf(n + 1);
     let ra = a.await();
     let rb = b.await();
-    // Consume both results unconditionally: a nested compare that moves rb
-    // on only one outer arm is rejected by the partial-path-move rule.
-    let va = compare ra {
-        Success(x) => x;
-        Cancelled() => -1;
+    // Nested compare: rb is consumed only on the outer Success arm.
+    // Per-arm drop synthesis frees rb on the Cancelled arm, so this
+    // common shape compiles without restructuring.
+    return compare ra {
+        Success(va) => compare rb {
+            Success(vb) => va + vb;
+            Cancelled() => 0;
+        };
+        Cancelled() => 0;
     };
-    let vb = compare rb {
-        Success(x) => x;
-        Cancelled() => -1;
-    };
-    if va < 0 {
-        return 0;
-    }
-    if vb < 0 {
-        return 0;
-    }
-    return va + vb;
 }
 
 @entrypoint

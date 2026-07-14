@@ -102,7 +102,23 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		mergedMoves = mergeMovedBindings(mergedMoves, movedArms[i])
 	}
 	if mergedMoves != nil {
-		tc.reportOneSidedMoves(mergedMoves, intersectMoves)
+		// Per-arm drop synthesis: a droppable moved on some arms but live
+		// on this one drops at this arm's end (not a hard error). After
+		// the join every such binding is in the union moved-set, so using
+		// it stays a use-of-moved error.
+		for i := range cmp.Arms {
+			if armClosed[i] {
+				continue
+			}
+			drops := tc.oneSidedDroppables(movedArms[i], mergedMoves)
+			if len(drops) == 0 {
+				continue
+			}
+			if tc.result.ArmDropsExpr == nil {
+				tc.result.ArmDropsExpr = make(map[ast.ExprID][]symbols.SymbolID)
+			}
+			tc.result.ArmDropsExpr[cmp.Arms[i].Result] = drops
+		}
 	}
 	if mergedMoves == nil {
 		tc.movedBindings = movedBefore

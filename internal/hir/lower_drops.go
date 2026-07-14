@@ -146,3 +146,33 @@ func (l *lowerer) appendBlockExprEndDrops(block *Block, exprID ast.ExprID, span 
 		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, span))
 	}
 }
+
+// appendArmDrops frees the per-arm drop obligations of an if-statement
+// branch block (droppables moved in the sibling branch but live here).
+// A branch whose tail terminates escaped its value already and carries
+// no such obligation.
+func (l *lowerer) appendArmDrops(block *Block, branch ast.StmtID, span source.Span) {
+	if block == nil || l.semaRes == nil || l.semaRes.ArmDropsStmt == nil {
+		return
+	}
+	syms := l.semaRes.ArmDropsStmt[branch]
+	if len(syms) == 0 {
+		return
+	}
+	if last := block.LastStmt(); last != nil {
+		switch last.Kind {
+		case StmtReturn, StmtRet, StmtBreak, StmtContinue:
+			return
+		}
+	}
+	for _, symID := range syms {
+		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, span))
+	}
+}
+
+func (l *lowerer) syntheticElseDrops(ifStmt ast.StmtID) []symbols.SymbolID {
+	if l.semaRes == nil || l.semaRes.IfSyntheticElseDrops == nil {
+		return nil
+	}
+	return l.semaRes.IfSyntheticElseDrops[ifStmt]
+}

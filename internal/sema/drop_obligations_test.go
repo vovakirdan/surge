@@ -37,32 +37,36 @@ func requireNoSemaErrors(t *testing.T, parseBag, semaBag *diag.Bag) {
 	}
 }
 
-func TestPartialPathMoveRejectedOnIfWithoutElse(t *testing.T) {
-	parseBag, semaBag := runSemaOnSnippet(t, `
+func TestPartialPathMoveOnIfWithoutElseSynthesizesDrop(t *testing.T) {
+	// Per-arm drop synthesis: a value moved only in the then-branch is
+	// freed on the fall-through via a synthesized else — accepted, not
+	// rejected (the friendly resolution of a partial-path move).
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
 fn eat(s: string) -> nothing {
 }
 
-fn bad(c: bool) -> nothing {
+fn ok(c: bool) -> nothing {
     let s: string = "gone";
     if c {
         eat(s);
     }
 }
 `)
-	if parseBag.HasErrors() {
-		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil {
+		t.Fatal("no sema result")
 	}
-	if !hasCode(semaBag, diag.SemaPartialPathMove) {
-		t.Fatalf("expected %v diagnostic, got %s", diag.SemaPartialPathMove, diagnosticsSummary(semaBag))
+	if len(res.IfSyntheticElseDrops) == 0 {
+		t.Fatalf("expected a synthesized-else drop for the fall-through, got %v", res.IfSyntheticElseDrops)
 	}
 }
 
-func TestPartialPathMoveRejectedOnUnevenElse(t *testing.T) {
-	parseBag, semaBag := runSemaOnSnippet(t, `
+func TestPartialPathMoveOnUnevenElseSynthesizesArmDrop(t *testing.T) {
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
 fn eat(s: string) -> nothing {
 }
 
-fn bad(c: bool) -> nothing {
+fn ok(c: bool) -> nothing {
     let s: string = "gone";
     if c {
         eat(s);
@@ -71,11 +75,39 @@ fn bad(c: bool) -> nothing {
     }
 }
 `)
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil {
+		t.Fatal("no sema result")
+	}
+	if len(res.ArmDropsStmt) == 0 {
+		t.Fatalf("expected an arm-drop recorded for the else branch, got %v", res.ArmDropsStmt)
+	}
+}
+
+func TestPartialPathMoveThenUseAfterMergeStillErrors(t *testing.T) {
+	// The correctness boundary: per-arm drops free a value only when it
+	// is NOT read after the join; reading it stays a use-of-moved error.
+	parseBag, semaBag := runSemaOnSnippet(t, `
+fn eat(s: string) -> nothing {
+}
+
+fn read(s: &string) -> int {
+    return s.__len() to int;
+}
+
+fn bad(c: bool) -> int {
+    let s: string = "gone";
+    if c {
+        eat(s);
+    }
+    return read(&s);
+}
+`)
 	if parseBag.HasErrors() {
 		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
 	}
-	if !hasCode(semaBag, diag.SemaPartialPathMove) {
-		t.Fatalf("expected %v diagnostic, got %s", diag.SemaPartialPathMove, diagnosticsSummary(semaBag))
+	if !hasCode(semaBag, diag.SemaUseAfterMove) {
+		t.Fatalf("expected %v for use after a partial-path move, got %s", diag.SemaUseAfterMove, diagnosticsSummary(semaBag))
 	}
 }
 

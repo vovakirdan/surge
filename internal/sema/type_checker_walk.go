@@ -332,15 +332,23 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				case elseClosed:
 					tc.movedBindings = movedThen
 				default:
-					tc.rejectPartialPathMoves(movedThen, movedElse)
-					tc.movedBindings = mergeMovedBindings(movedThen, movedElse)
+					union := mergeMovedBindings(movedThen, movedElse)
+					tc.recordIfArmDrops(ifStmt.Then, movedThen, union)
+					tc.recordIfArmDrops(ifStmt.Else, movedElse, union)
+					tc.movedBindings = union
 				}
 			} else {
 				if thenClosed {
 					tc.movedBindings = movedBefore
 				} else {
-					tc.rejectPartialPathMoves(movedThen, movedBefore)
-					tc.movedBindings = mergeMovedBindings(movedThen, movedBefore)
+					union := mergeMovedBindings(movedThen, movedBefore)
+					if drops := tc.oneSidedDroppables(movedBefore, union); len(drops) > 0 {
+						if tc.result.IfSyntheticElseDrops == nil {
+							tc.result.IfSyntheticElseDrops = make(map[ast.StmtID][]symbols.SymbolID)
+						}
+						tc.result.IfSyntheticElseDrops[id] = drops
+					}
+					tc.movedBindings = union
 				}
 			}
 		}

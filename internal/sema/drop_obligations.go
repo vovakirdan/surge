@@ -302,33 +302,43 @@ func (tc *typeChecker) rejectLoopBackEdgeMoves(before map[symbols.SymbolID]sourc
 	}
 }
 
-// rejectPartialPathMoves diagnoses droppable bindings moved on one branch
-// of a join but not the other: without per-binding runtime drop flags
-// there is no correct static drop point for such a value.
-func (tc *typeChecker) rejectPartialPathMoves(a, b map[symbols.SymbolID]source.Span) {
-	tc.reportOneSidedMoves(a, b)
-	tc.reportOneSidedMoves(b, a)
+// oneSidedDroppables returns the droppable bindings moved in `other` but
+// LIVE in `moved`, restricted to bindings still on the scope stack — the
+// ones that must be dropped at the end of the `moved`-side arm so the
+// value is reclaimed exactly once (per-arm drop synthesis, the friendly
+// resolution of partial-path moves).
+// recordIfArmDrops records the droppables to free at the end of one
+// if-statement branch block (those moved in the sibling branch but live
+// here), keyed by the branch's block statement.
+func (tc *typeChecker) recordIfArmDrops(branch ast.StmtID, branchMoved, union map[symbols.SymbolID]source.Span) {
+	if !branch.IsValid() {
+		return
+	}
+	drops := tc.oneSidedDroppables(branchMoved, union)
+	if len(drops) == 0 {
+		return
+	}
+	if tc.result.ArmDropsStmt == nil {
+		tc.result.ArmDropsStmt = make(map[ast.StmtID][]symbols.SymbolID)
+	}
+	tc.result.ArmDropsStmt[branch] = drops
 }
 
-func (tc *typeChecker) reportOneSidedMoves(moved, other map[symbols.SymbolID]source.Span) {
-	for symID, span := range moved {
-		if _, both := other[symID]; both {
+func (tc *typeChecker) oneSidedDroppables(moved, other map[symbols.SymbolID]source.Span) []symbols.SymbolID {
+	var out []symbols.SymbolID
+	for symID := range other {
+		if _, both := moved[symID]; both {
 			continue
 		}
 		if !tc.isDroppableBinding(symID) {
 			continue
 		}
-		// Branch-local bindings are popped by the time the join merges;
-		// only a binding still on the scope stack outlives the join and
-		// needs one fate.
 		if !tc.bindingDeclaredAtOrAbove(symID, 0) {
 			continue
 		}
-		name := tc.bindingName(symID)
-		tc.report(diag.SemaPartialPathMove, span,
-			"value '%s' is moved on some paths but not others; a droppable value needs one fate — move it on every branch or none",
-			name)
+		out = append(out, symID)
 	}
+	return out
 }
 
 func (tc *typeChecker) bindingName(symID symbols.SymbolID) string {

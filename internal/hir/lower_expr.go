@@ -35,7 +35,37 @@ func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
 	}
 
 	result = l.applyBoolMagic(exprID, result)
-	return l.wrapOwnedTemp(exprID, result)
+	result = l.wrapOwnedTemp(exprID, result)
+	return l.wrapArmDrops(exprID, result)
+}
+
+// wrapArmDrops injects per-arm drop synthesis: an arm result carrying
+// live droppables (a partial-path move that this arm did not perform)
+// becomes a block that frees them, then yields the original value —
+// `{ @drop b...; ret <result> }`.
+func (l *lowerer) wrapArmDrops(exprID ast.ExprID, result *Expr) *Expr {
+	if result == nil || l.semaRes == nil || l.semaRes.ArmDropsExpr == nil {
+		return result
+	}
+	syms := l.semaRes.ArmDropsExpr[exprID]
+	if len(syms) == 0 {
+		return result
+	}
+	block := &Block{Span: result.Span}
+	for _, symID := range syms {
+		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, result.Span))
+	}
+	block.Stmts = append(block.Stmts, Stmt{
+		Kind: StmtRet,
+		Span: result.Span,
+		Data: RetData{Value: result},
+	})
+	return &Expr{
+		Kind: ExprBlock,
+		Type: result.Type,
+		Span: result.Span,
+		Data: BlockExprData{Block: block},
+	}
 }
 
 // wrapOwnedTemp marks evaluations sema flagged as owned-and-unconsumed:

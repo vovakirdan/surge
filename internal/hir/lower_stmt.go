@@ -263,10 +263,20 @@ func (l *lowerer) lowerIfStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 
 	if ifStmt.Then.IsValid() {
 		data.Then = l.lowerBlockOrWrap(ifStmt.Then)
+		l.appendArmDrops(data.Then, ifStmt.Then, stmt.Span)
 	}
 
 	if ifStmt.Else.IsValid() {
 		data.Else = l.lowerBlockOrWrap(ifStmt.Else)
+		l.appendArmDrops(data.Else, ifStmt.Else, stmt.Span)
+	} else if drops := l.syntheticElseDrops(stmtID); len(drops) > 0 {
+		// if WITHOUT else that moves a droppable in its then-branch:
+		// synthesize an else block dropping it on the fall-through.
+		block := &Block{Span: stmt.Span}
+		for _, symID := range drops {
+			block.Stmts = append(block.Stmts, l.synthDropStmt(symID, stmt.Span))
+		}
+		data.Else = block
 	}
 
 	return &Stmt{

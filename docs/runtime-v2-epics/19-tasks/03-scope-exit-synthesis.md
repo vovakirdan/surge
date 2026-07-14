@@ -333,3 +333,22 @@ reassignment, view ordering (deferral counter), loop rows 1-2 and 6,
 generic-push regression, and the first alloc/free BALANCE windows
 (concat operands, discarded results, implicitly borrowed temps) —
 wired into runtime-v2-heap-check. Full `make check` green.
+
+
+## Update (2026-07-14): partial-path moves now synthesize per-arm drops
+
+The vertical-1 answer for a droppable moved on some branches but not
+others was REJECTION (SEM3136), on the reasoning that the post-join
+merge has no single static drop point without a runtime flag. The
+author asked for the friendlier resolution, and it is sound WITHOUT a
+runtime flag: **per-arm drop synthesis**. At a compare/if/ternary join,
+a binding moved on some arms but live on others is dropped at the END
+of each arm where it stays live (the arm result is wrapped
+`{ @drop b; ret <value> }`; if-statement branches append the drop; an
+if WITHOUT else gets a synthesized else). After the join the binding is
+in the union moved-set, so USING it stays a plain use-of-moved error —
+no maybe-dropped value is ever readable. The rejection is retired
+(SEM3136 no longer emitted); the common `compare a { Ok => consume(b);
+Err => 0 }` shape compiles and reclaims b exactly once on every path.
+Sema records `ArmDropsExpr` / `ArmDropsStmt` / `IfSyntheticElseDrops`;
+HIR materializes them. E2e: TestRuntimeV2DropArmSynthesis.
