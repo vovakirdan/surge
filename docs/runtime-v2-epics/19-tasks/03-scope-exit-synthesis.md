@@ -307,8 +307,9 @@ calibrate that noise with an empty-call probe and assert
   never a free) — same boundary as crossing bodies / DEBT-034.
 
 **A finding neither review round predicted, caught by the VM
-sanitizer on an existing row:** control-flow expressions can forward
-a PLACE. A compare arm `{ out = out + "x"; }` yields the assignment's
+sanitizer on an existing row — and the concrete reason the final-set
+model replaced per-expression producer classification:** control-flow
+expressions can forward a PLACE. A compare arm `{ out = out + "x"; }` yields the assignment's
 value — the target binding's LIVE handle — so flagging the discarded
 compare as a producer dropped `out`'s own value (a UAF through the
 binding under LLVM). Resolution: ternary/compare/block expressions
@@ -318,6 +319,11 @@ The VM also learned that dropping a MOVED slot is a no-op rather than
 a panic (its move flags are coarser than sema's borrow-aware
 tracking: non-copy call-argument reads flag as moves), mirroring the
 LLVM null-store contract while keeping the double-drop panic.
+
+Recorded for a future MIR verifier pass: "every InstrDrop of a temp
+is dominated by that temp's registration" is the single cheap check
+that would catch a regression in any of the above — the VM sanitizer
+only catches what a test happens to exercise.
 
 ## Status
 

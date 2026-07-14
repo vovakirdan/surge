@@ -13,6 +13,15 @@ import (
 // so every emitted drop is dominated by its materialization — no
 // active-bit tracking, and the VM's uninitialized-slot check can never
 // fire on a skipped path.
+//
+// INVARIANT this file leans on: expressions cannot exit their region
+// early. return/break/continue are STATEMENTS, there is no try/`?`
+// propagation operator, and panic is process exit without unwinding —
+// so the only flush edges are normal completion and the return
+// statement's explicit flushTempDropsForExit. If a future surface adds
+// an expression-position early exit (a try operator), every frame open
+// at that exit must flush on its edge too, or skipped flushes become
+// leaks and — under unwinding — double frees.
 
 // hasPendingTempDrops reports whether any open frame holds temps: a
 // return operand projecting into one must detach before the exit flush.
