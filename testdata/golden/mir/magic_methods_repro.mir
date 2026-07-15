@@ -62,7 +62,7 @@ fn __not:
 fn __range:
   locals:
     L0: &type#1506 [copy,ref] name=self
-    L1: type#190 name=tmp_call1
+    L1: type#189 name=tmp_call1
   bb0:
     L1 = call __range::<int>(addr_of (*L0).values)
     return move L1

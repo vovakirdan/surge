@@ -1,15 +1,20 @@
 pragma module, no_std;
 
-pub tag FmtStr(&string);
+pub tag FmtStr(string);
 pub tag FmtInt(int);
 pub tag FmtUInt(uint);
 pub tag FmtFloat(float);
 pub tag FmtBool(bool);
 
-pub type FmtArg = FmtStr(&string) | FmtInt(int) | FmtUInt(uint) | FmtFloat(float) | FmtBool(bool);
+pub type FmtArg = FmtStr(string) | FmtInt(int) | FmtUInt(uint) | FmtFloat(float) | FmtBool(bool);
 
+// FmtArg OWNS its string (borrow-in-union is unsound here: the argument can
+// outlive the borrow, and the borrow checker does not track borrows stored in
+// a union — so drop-emission would double-free the borrowed handle). We clone
+// the argument into the tag once; formatting then appends it straight into the
+// output (see append_fmt_arg), keeping the copy count at parity with a borrow.
 pub fn fmt_arg(s: &string) -> FmtArg {
-    return FmtStr(s);
+    return FmtStr(s.__clone());
 }
 
 @overload
@@ -48,13 +53,17 @@ pub fn fmt_arg_bool(x: bool) -> FmtArg {
     return FmtBool(x);
 }
 
-fn fmt_arg_to_string(arg: &FmtArg) -> string {
+// Append the argument's rendering directly onto `out`. For a string argument
+// this concatenates the owned string in place (no intermediate clone), so a
+// string arg costs one clone (into the tag) plus the unavoidable concat — the
+// same copy count the borrowed representation had.
+fn append_fmt_arg(out: string, arg: &FmtArg) -> string {
     return compare *arg {
-        FmtStr(s) => s.__clone();
-        FmtInt(x) => x to string;
-        FmtUInt(x) => x to string;
-        FmtFloat(x) => x to string;
-        FmtBool(x) => x to string;
+        FmtStr(s) => out + s;
+        FmtInt(x) => out + (x to string);
+        FmtUInt(x) => out + (x to string);
+        FmtFloat(x) => out + (x to string);
+        FmtBool(x) => out + (x to string);
     };
 }
 
@@ -89,8 +98,7 @@ pub fn format(fmt: string, ...args: FmtArg) -> string {
                 if arg_index >= arg_count {
                     panic("format: not enough arguments for format string");
                 }
-                let arg_str: string = fmt_arg_to_string(args[arg_index]);
-                out = out + arg_str;
+                out = append_fmt_arg(out, args[arg_index]);
                 arg_index = arg_index + 1;
                 i = i + 2;
                 seg_start = i;

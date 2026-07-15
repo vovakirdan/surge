@@ -1,8 +1,8 @@
-format.sg (span: 1:1-124:1)
-├─ Item[0]: Tag (span: 3:1-3:25)
+format.sg (span: 1:1-132:1)
+├─ Item[0]: Tag (span: 3:1-3:24)
 │  ├─ Name: FmtStr
 │  ├─ Visibility: public
-│  └─ Payload: &string
+│  └─ Payload: string
 ├─ Item[1]: Tag (span: 4:1-4:21)
 │  ├─ Name: FmtInt
 │  ├─ Visibility: public
@@ -19,256 +19,251 @@ format.sg (span: 1:1-124:1)
 │  ├─ Name: FmtBool
 │  ├─ Visibility: public
 │  └─ Payload: bool
-├─ Item[5]: Type (span: 9:1-9:99)
+├─ Item[5]: Type (span: 9:1-9:98)
 │  ├─ Name: FmtArg
 │  ├─ Kind: Union
 │  ├─ Visibility: public
 │  └─ Union:
-│     ├─ Member[0]: FmtStr(&string)
+│     ├─ Member[0]: FmtStr(string)
 │     ├─ Member[1]: FmtInt(int)
 │     ├─ Member[2]: FmtUInt(uint)
 │     ├─ Member[3]: FmtFloat(float)
 │     └─ Member[4]: FmtBool(bool)
-├─ Item[6]: Fn (span: 11:1-13:2)
+├─ Item[6]: Fn (span: 16:1-18:2)
 │  ├─ Name: fmt_arg
 │  ├─ Params: (s: &string)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 11:38-13:2)
-│        └─ Stmt[0]: Return (span: 12:5-12:22)
-│           └─ Expr: expr#3: FmtStr(s)
-├─ Item[7]: Fn (span: 15:1-18:2)
+│     └─ Stmt[0]: Block (span: 16:38-18:2)
+│        └─ Stmt[0]: Return (span: 17:5-17:32)
+│           └─ Expr: expr#5: FmtStr(s.__clone())
+├─ Item[7]: Fn (span: 20:1-23:2)
 │  ├─ Name: fmt_arg
 │  ├─ Params: (x: int)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 16:34-18:2)
-│        └─ Stmt[0]: Return (span: 17:5-17:22)
-│           └─ Expr: expr#6: FmtInt(x)
-├─ Item[8]: Fn (span: 20:1-23:2)
+│     └─ Stmt[0]: Block (span: 21:34-23:2)
+│        └─ Stmt[0]: Return (span: 22:5-22:22)
+│           └─ Expr: expr#8: FmtInt(x)
+├─ Item[8]: Fn (span: 25:1-28:2)
 │  ├─ Name: fmt_arg
 │  ├─ Params: (x: uint)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 21:35-23:2)
-│        └─ Stmt[0]: Return (span: 22:5-22:23)
-│           └─ Expr: expr#9: FmtUInt(x)
-├─ Item[9]: Fn (span: 25:1-28:2)
+│     └─ Stmt[0]: Block (span: 26:35-28:2)
+│        └─ Stmt[0]: Return (span: 27:5-27:23)
+│           └─ Expr: expr#11: FmtUInt(x)
+├─ Item[9]: Fn (span: 30:1-33:2)
 │  ├─ Name: fmt_arg
 │  ├─ Params: (x: float)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 26:36-28:2)
-│        └─ Stmt[0]: Return (span: 27:5-27:24)
-│           └─ Expr: expr#12: FmtFloat(x)
-├─ Item[10]: Fn (span: 30:1-33:2)
+│     └─ Stmt[0]: Block (span: 31:36-33:2)
+│        └─ Stmt[0]: Return (span: 32:5-32:24)
+│           └─ Expr: expr#14: FmtFloat(x)
+├─ Item[10]: Fn (span: 35:1-38:2)
 │  ├─ Name: fmt_arg
 │  ├─ Params: (x: bool)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 31:35-33:2)
-│        └─ Stmt[0]: Return (span: 32:5-32:23)
-│           └─ Expr: expr#15: FmtBool(x)
-├─ Item[11]: Fn (span: 35:1-37:2)
+│     └─ Stmt[0]: Block (span: 36:35-38:2)
+│        └─ Stmt[0]: Return (span: 37:5-37:23)
+│           └─ Expr: expr#17: FmtBool(x)
+├─ Item[11]: Fn (span: 40:1-42:2)
 │  ├─ Name: fmt_arg_int
 │  ├─ Params: (x: int)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 35:38-37:2)
-│        └─ Stmt[0]: Return (span: 36:5-36:22)
-│           └─ Expr: expr#18: FmtInt(x)
-├─ Item[12]: Fn (span: 39:1-41:2)
+│     └─ Stmt[0]: Block (span: 40:38-42:2)
+│        └─ Stmt[0]: Return (span: 41:5-41:22)
+│           └─ Expr: expr#20: FmtInt(x)
+├─ Item[12]: Fn (span: 44:1-46:2)
 │  ├─ Name: fmt_arg_uint
 │  ├─ Params: (x: uint)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 39:40-41:2)
-│        └─ Stmt[0]: Return (span: 40:5-40:23)
-│           └─ Expr: expr#21: FmtUInt(x)
-├─ Item[13]: Fn (span: 43:1-45:2)
+│     └─ Stmt[0]: Block (span: 44:40-46:2)
+│        └─ Stmt[0]: Return (span: 45:5-45:23)
+│           └─ Expr: expr#23: FmtUInt(x)
+├─ Item[13]: Fn (span: 48:1-50:2)
 │  ├─ Name: fmt_arg_float
 │  ├─ Params: (x: float)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 43:42-45:2)
-│        └─ Stmt[0]: Return (span: 44:5-44:24)
-│           └─ Expr: expr#24: FmtFloat(x)
-├─ Item[14]: Fn (span: 47:1-49:2)
+│     └─ Stmt[0]: Block (span: 48:42-50:2)
+│        └─ Stmt[0]: Return (span: 49:5-49:24)
+│           └─ Expr: expr#26: FmtFloat(x)
+├─ Item[14]: Fn (span: 52:1-54:2)
 │  ├─ Name: fmt_arg_bool
 │  ├─ Params: (x: bool)
 │  ├─ Return: FmtArg
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 47:40-49:2)
-│        └─ Stmt[0]: Return (span: 48:5-48:23)
-│           └─ Expr: expr#27: FmtBool(x)
-├─ Item[15]: Fn (span: 51:1-59:2)
-│  ├─ Name: fmt_arg_to_string
-│  ├─ Params: (arg: &FmtArg)
+│     └─ Stmt[0]: Block (span: 52:40-54:2)
+│        └─ Stmt[0]: Return (span: 53:5-53:23)
+│           └─ Expr: expr#29: FmtBool(x)
+├─ Item[15]: Fn (span: 60:1-68:2)
+│  ├─ Name: append_fmt_arg
+│  ├─ Params: (out: string, arg: &FmtArg)
 │  ├─ Return: string
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 51:46-59:2)
-│        └─ Stmt[0]: Return (span: 52:5-58:7)
-│           └─ Expr: expr#56: compare *arg { 5 arms }
-└─ Item[16]: Fn (span: 61:1-123:2)
+│     └─ Stmt[0]: Block (span: 60:56-68:2)
+│        └─ Stmt[0]: Return (span: 61:5-67:7)
+│           └─ Expr: expr#70: compare *arg { 5 arms }
+└─ Item[16]: Fn (span: 70:1-131:2)
    ├─ Name: format
    ├─ Params: (fmt: string, ...args: FmtArg)
    ├─ Return: string
    └─ Body:
-      └─ Stmt[0]: Block (span: 61:55-123:2)
-         ├─ Stmt[0]: Let (span: 62:5-62:45)
+      └─ Stmt[0]: Block (span: 70:55-131:2)
+         ├─ Stmt[0]: Let (span: 71:5-71:45)
          │  ├─ Name: fmt_len
          │  ├─ Mutable: false
          │  ├─ Type: int
-         │  └─ Value: expr#60: string_len_int(&fmt)
-         ├─ Stmt[1]: Let (span: 63:5-63:46)
+         │  └─ Value: expr#74: string_len_int(&fmt)
+         ├─ Stmt[1]: Let (span: 72:5-72:46)
          │  ├─ Name: arg_count
          │  ├─ Mutable: false
          │  ├─ Type: int
-         │  └─ Value: expr#64: args.__len() to int
-         ├─ Stmt[2]: Let (span: 64:5-64:32)
+         │  └─ Value: expr#78: args.__len() to int
+         ├─ Stmt[2]: Let (span: 73:5-73:32)
          │  ├─ Name: arg_index
          │  ├─ Mutable: true
          │  ├─ Type: int
-         │  └─ Value: expr#65: 0
-         ├─ Stmt[3]: Let (span: 65:5-65:30)
+         │  └─ Value: expr#79: 0
+         ├─ Stmt[3]: Let (span: 74:5-74:30)
          │  ├─ Name: out
          │  ├─ Mutable: true
          │  ├─ Type: string
-         │  └─ Value: expr#66: ""
-         ├─ Stmt[4]: Let (span: 66:5-66:24)
+         │  └─ Value: expr#80: ""
+         ├─ Stmt[4]: Let (span: 75:5-75:24)
          │  ├─ Name: i
          │  ├─ Mutable: true
          │  ├─ Type: int
-         │  └─ Value: expr#67: 0
-         ├─ Stmt[5]: Let (span: 67:5-67:32)
+         │  └─ Value: expr#81: 0
+         ├─ Stmt[5]: Let (span: 76:5-76:32)
          │  ├─ Name: seg_start
          │  ├─ Mutable: true
          │  ├─ Type: int
-         │  └─ Value: expr#68: 0
-         ├─ Stmt[6]: While (span: 69:5-114:6)
-         │  ├─ Cond: expr#71: (i < fmt_len)
+         │  └─ Value: expr#82: 0
+         ├─ Stmt[6]: While (span: 78:5-122:6)
+         │  ├─ Cond: expr#85: (i < fmt_len)
          │  └─ Body:
-Block (span: 69:23-114:6)
-         │     ├─ Stmt[0]: Let (span: 70:9-70:33)
+Block (span: 78:23-122:6)
+         │     ├─ Stmt[0]: Let (span: 79:9-79:33)
          │     │  ├─ Name: ch
          │     │  ├─ Mutable: false
          │     │  ├─ Type: uint32
-         │     │  └─ Value: expr#74: fmt[i]
-         │     ├─ Stmt[1]: If (span: 71:9-100:10)
-         │     │  ├─ Cond: expr#79: (ch == ((123) to uint32))
+         │     │  └─ Value: expr#88: fmt[i]
+         │     ├─ Stmt[1]: If (span: 80:9-108:10)
+         │     │  ├─ Cond: expr#93: (ch == ((123) to uint32))
          │     │  ├─ Then:
-Block (span: 71:31-100:10)
-         │     │  │  ├─ Stmt[0]: If (span: 72:13-74:14)
-         │     │  │  │  ├─ Cond: expr#84: (((i + 1)) >= fmt_len)
+Block (span: 80:31-108:10)
+         │     │  │  ├─ Stmt[0]: If (span: 81:13-83:14)
+         │     │  │  │  ├─ Cond: expr#98: (((i + 1)) >= fmt_len)
          │     │  │  │  ├─ Then:
-Block (span: 72:33-74:14)
-         │     │  │  │  │  └─ Stmt[0]: Expr (span: 73:17-73:65)
-         │     │  │  │  │     └─ Expr: expr#87: panic("format: unmatched '{' in format string")
+Block (span: 81:33-83:14)
+         │     │  │  │  │  └─ Stmt[0]: Expr (span: 82:17-82:65)
+         │     │  │  │  │     └─ Expr: expr#101: panic("format: unmatched '{' in format string")
          │     │  │  │  └─ Else: <none>
-         │     │  │  ├─ Stmt[1]: Let (span: 75:13-75:43)
+         │     │  │  ├─ Stmt[1]: Let (span: 84:13-84:43)
          │     │  │  │  ├─ Name: next
          │     │  │  │  ├─ Mutable: false
          │     │  │  │  ├─ Type: uint32
-         │     │  │  │  └─ Value: expr#92: fmt[(i + 1)]
-         │     │  │  ├─ Stmt[2]: If (span: 76:13-84:14)
-         │     │  │  │  ├─ Cond: expr#97: (next == ((123) to uint32))
+         │     │  │  │  └─ Value: expr#106: fmt[(i + 1)]
+         │     │  │  ├─ Stmt[2]: If (span: 85:13-93:14)
+         │     │  │  │  ├─ Cond: expr#111: (next == ((123) to uint32))
          │     │  │  │  ├─ Then:
-Block (span: 76:37-84:14)
-         │     │  │  │  │  ├─ Stmt[0]: If (span: 77:17-79:18)
-         │     │  │  │  │  │  ├─ Cond: expr#100: (i > seg_start)
-         │     │  │  │  │  │  ├─ Then:
-Block (span: 77:34-79:18)
-         │     │  │  │  │  │  │  └─ Stmt[0]: Expr (span: 78:21-78:53)
-         │     │  │  │  │  │  │     └─ Expr: expr#110: (out = ((out + fmt[[seg_start..i]])))
-         │     │  │  │  │  │  └─ Else: <none>
-         │     │  │  │  │  ├─ Stmt[1]: Expr (span: 80:17-80:33)
-         │     │  │  │  │  │  └─ Expr: expr#115: (out = ((out + "{")))
-         │     │  │  │  │  ├─ Stmt[2]: Expr (span: 81:17-81:27)
-         │     │  │  │  │  │  └─ Expr: expr#120: (i = ((i + 2)))
-         │     │  │  │  │  ├─ Stmt[3]: Expr (span: 82:17-82:31)
-         │     │  │  │  │  │  └─ Expr: expr#123: (seg_start = i)
-         │     │  │  │  │  └─ Stmt[4]: Continue (span: 83:17-83:26)
-         │     │  │  │  │     └─ (no additional data)
-         │     │  │  │  └─ Else: <none>
-         │     │  │  ├─ Stmt[3]: If (span: 85:13-98:14)
-         │     │  │  │  ├─ Cond: expr#128: (next == ((125) to uint32))
-         │     │  │  │  ├─ Then:
-Block (span: 85:37-98:14)
+Block (span: 85:37-93:14)
          │     │  │  │  │  ├─ Stmt[0]: If (span: 86:17-88:18)
-         │     │  │  │  │  │  ├─ Cond: expr#131: (i > seg_start)
+         │     │  │  │  │  │  ├─ Cond: expr#114: (i > seg_start)
          │     │  │  │  │  │  ├─ Then:
 Block (span: 86:34-88:18)
          │     │  │  │  │  │  │  └─ Stmt[0]: Expr (span: 87:21-87:53)
-         │     │  │  │  │  │  │     └─ Expr: expr#141: (out = ((out + fmt[[seg_start..i]])))
+         │     │  │  │  │  │  │     └─ Expr: expr#124: (out = ((out + fmt[[seg_start..i]])))
          │     │  │  │  │  │  └─ Else: <none>
-         │     │  │  │  │  ├─ Stmt[1]: If (span: 89:17-91:18)
-         │     │  │  │  │  │  ├─ Cond: expr#144: (arg_index >= arg_count)
-         │     │  │  │  │  │  ├─ Then:
-Block (span: 89:43-91:18)
-         │     │  │  │  │  │  │  └─ Stmt[0]: Expr (span: 90:21-90:77)
-         │     │  │  │  │  │  │     └─ Expr: expr#147: panic("format: not enough arguments for format string")
-         │     │  │  │  │  │  └─ Else: <none>
-         │     │  │  │  │  ├─ Stmt[2]: Let (span: 92:17-92:74)
-         │     │  │  │  │  │  ├─ Name: arg_str
-         │     │  │  │  │  │  ├─ Mutable: false
-         │     │  │  │  │  │  ├─ Type: string
-         │     │  │  │  │  │  └─ Value: expr#152: fmt_arg_to_string(args[arg_index])
-         │     │  │  │  │  ├─ Stmt[3]: Expr (span: 93:17-93:37)
-         │     │  │  │  │  │  └─ Expr: expr#157: (out = ((out + arg_str)))
-         │     │  │  │  │  ├─ Stmt[4]: Expr (span: 94:17-94:43)
-         │     │  │  │  │  │  └─ Expr: expr#162: (arg_index = ((arg_index + 1)))
-         │     │  │  │  │  ├─ Stmt[5]: Expr (span: 95:17-95:27)
-         │     │  │  │  │  │  └─ Expr: expr#167: (i = ((i + 2)))
-         │     │  │  │  │  ├─ Stmt[6]: Expr (span: 96:17-96:31)
-         │     │  │  │  │  │  └─ Expr: expr#170: (seg_start = i)
-         │     │  │  │  │  └─ Stmt[7]: Continue (span: 97:17-97:26)
+         │     │  │  │  │  ├─ Stmt[1]: Expr (span: 89:17-89:33)
+         │     │  │  │  │  │  └─ Expr: expr#129: (out = ((out + "{")))
+         │     │  │  │  │  ├─ Stmt[2]: Expr (span: 90:17-90:27)
+         │     │  │  │  │  │  └─ Expr: expr#134: (i = ((i + 2)))
+         │     │  │  │  │  ├─ Stmt[3]: Expr (span: 91:17-91:31)
+         │     │  │  │  │  │  └─ Expr: expr#137: (seg_start = i)
+         │     │  │  │  │  └─ Stmt[4]: Continue (span: 92:17-92:26)
          │     │  │  │  │     └─ (no additional data)
          │     │  │  │  └─ Else: <none>
-         │     │  │  └─ Stmt[4]: Expr (span: 99:13-99:61)
-         │     │  │     └─ Expr: expr#173: panic("format: unmatched '{' in format string")
-         │     │  └─ Else: <none>
-         │     ├─ Stmt[2]: If (span: 101:9-112:10)
-         │     │  ├─ Cond: expr#178: (ch == ((125) to uint32))
-         │     │  ├─ Then:
-Block (span: 101:31-112:10)
-         │     │  │  ├─ Stmt[0]: If (span: 102:13-110:14)
-         │     │  │  │  ├─ Cond: expr#193: (((((i + 1)) < fmt_len)) && ((fmt[(i + 1)] == ((125) to uint32))))
+         │     │  │  ├─ Stmt[3]: If (span: 94:13-106:14)
+         │     │  │  │  ├─ Cond: expr#142: (next == ((125) to uint32))
          │     │  │  │  ├─ Then:
-Block (span: 102:62-110:14)
-         │     │  │  │  │  ├─ Stmt[0]: If (span: 103:17-105:18)
-         │     │  │  │  │  │  ├─ Cond: expr#196: (i > seg_start)
+Block (span: 94:37-106:14)
+         │     │  │  │  │  ├─ Stmt[0]: If (span: 95:17-97:18)
+         │     │  │  │  │  │  ├─ Cond: expr#145: (i > seg_start)
          │     │  │  │  │  │  ├─ Then:
-Block (span: 103:34-105:18)
-         │     │  │  │  │  │  │  └─ Stmt[0]: Expr (span: 104:21-104:53)
-         │     │  │  │  │  │  │     └─ Expr: expr#206: (out = ((out + fmt[[seg_start..i]])))
+Block (span: 95:34-97:18)
+         │     │  │  │  │  │  │  └─ Stmt[0]: Expr (span: 96:21-96:53)
+         │     │  │  │  │  │  │     └─ Expr: expr#155: (out = ((out + fmt[[seg_start..i]])))
          │     │  │  │  │  │  └─ Else: <none>
-         │     │  │  │  │  ├─ Stmt[1]: Expr (span: 106:17-106:33)
-         │     │  │  │  │  │  └─ Expr: expr#211: (out = ((out + "}")))
-         │     │  │  │  │  ├─ Stmt[2]: Expr (span: 107:17-107:27)
-         │     │  │  │  │  │  └─ Expr: expr#216: (i = ((i + 2)))
-         │     │  │  │  │  ├─ Stmt[3]: Expr (span: 108:17-108:31)
-         │     │  │  │  │  │  └─ Expr: expr#219: (seg_start = i)
-         │     │  │  │  │  └─ Stmt[4]: Continue (span: 109:17-109:26)
+         │     │  │  │  │  ├─ Stmt[1]: If (span: 98:17-100:18)
+         │     │  │  │  │  │  ├─ Cond: expr#158: (arg_index >= arg_count)
+         │     │  │  │  │  │  ├─ Then:
+Block (span: 98:43-100:18)
+         │     │  │  │  │  │  │  └─ Stmt[0]: Expr (span: 99:21-99:77)
+         │     │  │  │  │  │  │     └─ Expr: expr#161: panic("format: not enough arguments for format string")
+         │     │  │  │  │  │  └─ Else: <none>
+         │     │  │  │  │  ├─ Stmt[2]: Expr (span: 101:17-101:60)
+         │     │  │  │  │  │  └─ Expr: expr#169: (out = append_fmt_arg(out, args[arg_index]))
+         │     │  │  │  │  ├─ Stmt[3]: Expr (span: 102:17-102:43)
+         │     │  │  │  │  │  └─ Expr: expr#174: (arg_index = ((arg_index + 1)))
+         │     │  │  │  │  ├─ Stmt[4]: Expr (span: 103:17-103:27)
+         │     │  │  │  │  │  └─ Expr: expr#179: (i = ((i + 2)))
+         │     │  │  │  │  ├─ Stmt[5]: Expr (span: 104:17-104:31)
+         │     │  │  │  │  │  └─ Expr: expr#182: (seg_start = i)
+         │     │  │  │  │  └─ Stmt[6]: Continue (span: 105:17-105:26)
          │     │  │  │  │     └─ (no additional data)
          │     │  │  │  └─ Else: <none>
-         │     │  │  └─ Stmt[1]: Expr (span: 111:13-111:61)
-         │     │  │     └─ Expr: expr#222: panic("format: unmatched '}' in format string")
+         │     │  │  └─ Stmt[4]: Expr (span: 107:13-107:61)
+         │     │  │     └─ Expr: expr#185: panic("format: unmatched '{' in format string")
          │     │  └─ Else: <none>
-         │     └─ Stmt[3]: Expr (span: 113:9-113:19)
-         │        └─ Expr: expr#227: (i = ((i + 1)))
-         ├─ Stmt[7]: If (span: 116:5-118:6)
-         │  ├─ Cond: expr#230: (seg_start < fmt_len)
+         │     ├─ Stmt[2]: If (span: 109:9-120:10)
+         │     │  ├─ Cond: expr#190: (ch == ((125) to uint32))
+         │     │  ├─ Then:
+Block (span: 109:31-120:10)
+         │     │  │  ├─ Stmt[0]: If (span: 110:13-118:14)
+         │     │  │  │  ├─ Cond: expr#205: (((((i + 1)) < fmt_len)) && ((fmt[(i + 1)] == ((125) to uint32))))
+         │     │  │  │  ├─ Then:
+Block (span: 110:62-118:14)
+         │     │  │  │  │  ├─ Stmt[0]: If (span: 111:17-113:18)
+         │     │  │  │  │  │  ├─ Cond: expr#208: (i > seg_start)
+         │     │  │  │  │  │  ├─ Then:
+Block (span: 111:34-113:18)
+         │     │  │  │  │  │  │  └─ Stmt[0]: Expr (span: 112:21-112:53)
+         │     │  │  │  │  │  │     └─ Expr: expr#218: (out = ((out + fmt[[seg_start..i]])))
+         │     │  │  │  │  │  └─ Else: <none>
+         │     │  │  │  │  ├─ Stmt[1]: Expr (span: 114:17-114:33)
+         │     │  │  │  │  │  └─ Expr: expr#223: (out = ((out + "}")))
+         │     │  │  │  │  ├─ Stmt[2]: Expr (span: 115:17-115:27)
+         │     │  │  │  │  │  └─ Expr: expr#228: (i = ((i + 2)))
+         │     │  │  │  │  ├─ Stmt[3]: Expr (span: 116:17-116:31)
+         │     │  │  │  │  │  └─ Expr: expr#231: (seg_start = i)
+         │     │  │  │  │  └─ Stmt[4]: Continue (span: 117:17-117:26)
+         │     │  │  │  │     └─ (no additional data)
+         │     │  │  │  └─ Else: <none>
+         │     │  │  └─ Stmt[1]: Expr (span: 119:13-119:61)
+         │     │  │     └─ Expr: expr#234: panic("format: unmatched '}' in format string")
+         │     │  └─ Else: <none>
+         │     └─ Stmt[3]: Expr (span: 121:9-121:19)
+         │        └─ Expr: expr#239: (i = ((i + 1)))
+         ├─ Stmt[7]: If (span: 124:5-126:6)
+         │  ├─ Cond: expr#242: (seg_start < fmt_len)
          │  ├─ Then:
-Block (span: 116:28-118:6)
-         │  │  └─ Stmt[0]: Expr (span: 117:9-117:47)
-         │  │     └─ Expr: expr#240: (out = ((out + fmt[[seg_start..fmt_len]])))
+Block (span: 124:28-126:6)
+         │  │  └─ Stmt[0]: Expr (span: 125:9-125:47)
+         │  │     └─ Expr: expr#252: (out = ((out + fmt[[seg_start..fmt_len]])))
          │  └─ Else: <none>
-         ├─ Stmt[8]: If (span: 119:5-121:6)
-         │  ├─ Cond: expr#243: (arg_index != arg_count)
+         ├─ Stmt[8]: If (span: 127:5-129:6)
+         │  ├─ Cond: expr#255: (arg_index != arg_count)
          │  ├─ Then:
-Block (span: 119:31-121:6)
-         │  │  └─ Stmt[0]: Expr (span: 120:9-120:63)
-         │  │     └─ Expr: expr#246: panic("format: too many arguments for format string")
+Block (span: 127:31-129:6)
+         │  │  └─ Stmt[0]: Expr (span: 128:9-128:63)
+         │  │     └─ Expr: expr#258: panic("format: too many arguments for format string")
          │  └─ Else: <none>
-         └─ Stmt[9]: Return (span: 122:5-122:16)
-            └─ Expr: expr#247: out
+         └─ Stmt[9]: Return (span: 130:5-130:16)
+            └─ Expr: expr#259: out

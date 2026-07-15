@@ -24,6 +24,19 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	if id == types.NoTypeID || e.types == nil {
 		return false
 	}
+	// A borrowed handle (&T, *T) owns nothing the drop glue may reclaim:
+	// freeing it double-frees or frees a value the callee never owned. This
+	// must be checked BEFORE resolveValueType, which strips a reference down
+	// to its pointee (so `&string` would otherwise look like an owned string —
+	// exactly what made FmtArg's `FmtStr(&string)` payload double-free).
+	if base := resolveAliasAndOwn(e.types, id); base != types.NoTypeID {
+		if tt, ok := e.types.Lookup(base); ok {
+			switch tt.Kind {
+			case types.KindReference, types.KindPointer:
+				return false
+			}
+		}
+	}
 	id = resolveValueType(e.types, id)
 	if _, ok := seen[id]; ok {
 		// A recursive type reached itself: whether it owns heap is
