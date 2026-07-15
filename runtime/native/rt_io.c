@@ -6,10 +6,18 @@
 
 #include <ctype.h>
 #include <inttypes.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+// Serializes stdout/stderr writes so concurrent async tasks cannot tear each
+// other's output mid-line (the multithreaded scheduler runs `print` on several
+// threads at once). A single lock across both streams also keeps stdout and
+// stderr from interleaving. `write` never re-enters the runtime, so holding
+// this across the write loop cannot deadlock.
+static pthread_mutex_t rt_io_lock = PTHREAD_MUTEX_INITIALIZER;
 
 #ifndef alignof
 #define alignof(t) __alignof__(t)
@@ -22,6 +30,7 @@ uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length) {
     if (ptr == NULL || length == 0) {
         return 0;
     }
+    pthread_mutex_lock(&rt_io_lock);
     uint64_t written = 0;
     while (written < length) {
         ssize_t chunk = write(STDOUT_FILENO, ptr + written, (size_t)(length - written));
@@ -30,6 +39,7 @@ uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length) {
         }
         written += (uint64_t)chunk;
     }
+    pthread_mutex_unlock(&rt_io_lock);
     return written;
 }
 
@@ -37,6 +47,7 @@ uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length) {
     if (ptr == NULL || length == 0) {
         return 0;
     }
+    pthread_mutex_lock(&rt_io_lock);
     uint64_t written = 0;
     while (written < length) {
         ssize_t chunk = write(STDERR_FILENO, ptr + written, (size_t)(length - written));
@@ -45,6 +56,7 @@ uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length) {
         }
         written += (uint64_t)chunk;
     }
+    pthread_mutex_unlock(&rt_io_lock);
     return written;
 }
 

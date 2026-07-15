@@ -69,12 +69,12 @@ extern<float64> {
 // I/O functions
 
 pub fn print(s: string, end: string = "\n") -> nothing {
-    let ptr = rt_string_ptr(&s);
-    let slen = rt_string_len_bytes(&s);
-    rt_write_stdout(ptr, slen);
-    let newline = end;
-    let nlen = rt_string_len_bytes(&newline);
-    rt_write_stdout(rt_string_ptr(&newline), nlen);
+    // Write the line and its terminator in ONE call: rt_write_stdout is
+    // serialized, so a single call is atomic against concurrent async tasks.
+    // Two separate writes (content, then newline) would let another task's
+    // line tear in between.
+    let line = s + end;
+    rt_write_stdout(rt_string_ptr(&line), rt_string_len_bytes(&line));
 }
 
 pub fn len<T>(self: &T) -> uint {
