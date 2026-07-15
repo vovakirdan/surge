@@ -42,6 +42,40 @@ typedef struct SurgeBigFloat {
     SurgeBigUint* mant;
 } SurgeBigFloat;
 
+// Heap bignums must be at least 2-byte aligned so the low pointer bit is free
+// for the fixnum tag (see rt_bignum_tag.h). rt_alloc hands back >= 4-byte
+// alignment in practice; assert the invariant the tagging depends on.
+_Static_assert(alignof(SurgeBigInt) >= 2, "SurgeBigInt must leave the low bit free for tagging");
+_Static_assert(alignof(SurgeBigUint) >= 2, "SurgeBigUint must leave the low bit free for tagging");
+
+#include "rt_bignum_tag.h"
+
+// fixnum <-> heap bridging, shared between the arithmetic entry points
+// (rt_bignum_int_api.c) and the constructor/conversion entry points
+// (rt_bignum_api.c, where these are defined). An operand is promoted to a
+// heap bignum for the slow path; `owned` is non-NULL when a temp was
+// allocated and must be released. Results run through *_finish, which
+// demotes back to an inline fixnum when the value fits.
+typedef struct {
+    const SurgeBigInt* p;
+    SurgeBigInt* owned;
+} bi_operand;
+
+typedef struct {
+    const SurgeBigUint* p;
+    SurgeBigUint* owned;
+} bu_operand;
+
+void* bi_from_i64_tagged(int64_t v);
+void* bi_from_u64_tagged(uint64_t v);
+void* bu_from_u64_tagged(uint64_t v);
+bi_operand bi_promote(const void* w);
+void bi_operand_release(bi_operand* o);
+void* bi_finish(SurgeBigInt* r);
+bu_operand bu_promote(const void* w);
+void bu_operand_release(bu_operand* o);
+void* bu_finish(SurgeBigUint* r);
+
 typedef enum {
     BN_OK = 0,
     BN_ERR_MAX_LIMBS,

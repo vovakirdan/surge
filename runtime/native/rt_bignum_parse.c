@@ -86,15 +86,15 @@ bn_err parse_uint_string(
         bn_err tmp_err = BN_OK;
         SurgeBigUint* prev = cur;
         cur = bu_mul_small(prev, base, &tmp_err);
+        bu_free(prev);
         if (tmp_err != BN_OK) {
-            bu_free(prev);
             bu_free(cur);
             return tmp_err;
         }
         prev = cur;
         cur = bu_add_small(prev, (uint32_t)d, &tmp_err);
+        bu_free(prev);
         if (tmp_err != BN_OK) {
-            bu_free(prev);
             bu_free(cur);
             return tmp_err;
         }

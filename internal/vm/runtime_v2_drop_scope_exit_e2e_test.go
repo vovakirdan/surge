@@ -14,11 +14,13 @@ import (
 // reassignment — while moved values never double-free.
 //
 // Measurement keeps Task 2's currency (exact free_count deltas around
-// tight windows). Two calibrated constants ride the windows: each
-// `a.push(1)` contributes 2 frees of its own and `a.slice(..)` one
-// (bignum/range unboxing on the int -> typed-storage path —
-// pre-existing, probe-verified), so rows add that noise to their drop
-// count. The view-order row's real teeth are the deferral counter:
+// tight windows). Two windows ride an int-storage cost: `a.push(1)` and
+// `a.slice(..)` move an int into typed array storage, and the free count
+// of that path is pinned into the scope-end and view-order rows. Those
+// two constants were re-pinned when small ints became inline (fixnum):
+// the value crossing into typed storage is no longer a heap bignum, so
+// the path frees a different number of blocks than it did while every
+// int was boxed. The view-order row's real teeth are the deferral counter:
 // reverse-declaration order drops the view BEFORE its base, so nothing
 // defers. Loop rows compare a
 // scenario against a twin with the droppable removed: the loop
@@ -231,7 +233,7 @@ fn main() -> int {
     let w8: HeapStats = rt_heap_stats();
     let deferred_after: uint = rt_array_debug_deferred_base_drops();
 
-    let r1: int = check_frees("scope-end window", &w0, &w1, 5:uint);
+    let r1: int = check_frees("scope-end window", &w0, &w1, 6:uint);
     if r1 != 0 { return 11; }
     let r2: int = check_frees("early-return window", &w1, &w2, 1:uint);
     if r2 != 0 { return 12; }
@@ -245,7 +247,7 @@ fn main() -> int {
     if r6 != 0 { return 16; }
     let r7: int = check_frees("reassign-suppressed window", &w6, &w7, 1:uint);
     if r7 != 0 { return 17; }
-    let r8: int = check_frees("view-order window", &w7, &w8, 7:uint);
+    let r8: int = check_frees("view-order window", &w7, &w8, 9:uint);
     if r8 != 0 { return 18; }
     if deferred_after != deferred_before {
         print("view dropped after its base: deferral counter moved");

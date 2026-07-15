@@ -7,6 +7,14 @@
 #include <string.h>
 
 // Runtime entry points called from LLVM lowering and intrinsics.
+//
+// int/uint values arrive here as tagged words (see rt_bignum_tag.h): a low-bit
+// tag marks an inline fixnum, an even non-NULL word is an aligned heap bignum,
+// and NULL is zero. Each entry decodes its operands, takes an allocation-free
+// fast path when every operand is inline-or-zero, and otherwise promotes to the
+// unchanged bi_*/bu_* heap implementation and demotes the result back inline
+// when it fits. Genuinely large results (outside the inline range) stay on the
+// heap. Bigfloat is untagged and its functions are unaffected.
 static bool string_span(void* s, const uint8_t** out_ptr, uint64_t* out_len) {
     if (out_ptr != NULL) {
         *out_ptr = NULL;
@@ -27,6 +35,134 @@ static bool string_span(void* s, const uint8_t** out_ptr, uint64_t* out_len) {
     }
     return true;
 }
+
+// ---- fixnum <-> heap bridging -------------------------------------------
+
+// Signed int64 result -> tagged word: inline when it fits, heap otherwise.
+void* bi_from_i64_tagged(int64_t v) {
+    bool ok = false;
+    void* w = fixi_box(v, &ok);
+    if (ok) {
+        return w;
+    }
+    bn_err err = BN_OK;
+    SurgeBigInt* out = bi_from_i64(v, &err);
+    if (err != BN_OK) {
+        bignum_panic_err(err);
+    }
+    return (void*)out;
+}
+
+// Unsigned magnitude -> tagged signed-int word (used by uint->int conversions
+// and unsigned literals that target int).
+void* bi_from_u64_tagged(uint64_t v) {
+    if (v <= (uint64_t)SURGE_FIXI_MAX) {
+        bool ok = false;
+        void* w = fixi_box((int64_t)v, &ok);
+        if (ok) {
+            return w;
+        }
+    }
+    bn_err err = BN_OK;
+    SurgeBigInt* out = bi_from_u64(v, &err);
+    if (err != BN_OK) {
+        bignum_panic_err(err);
+    }
+    return (void*)out;
+}
+
+// Unsigned uint64 result -> tagged word: inline when it fits, heap otherwise.
+void* bu_from_u64_tagged(uint64_t v) {
+    bool ok = false;
+    void* w = fixu_box(v, &ok);
+    if (ok) {
+        return w;
+    }
+    bn_err err = BN_OK;
+    SurgeBigUint* out = bu_from_u64(v, &err);
+    if (err != BN_OK) {
+        bignum_panic_err(err);
+    }
+    return (void*)out;
+}
+
+bi_operand bi_promote(const void* w) {
+    bi_operand o = {NULL, NULL};
+    if (w == NULL) {
+        return o;
+    }
+    if (fix_is_inline(w)) {
+        o.owned = bi_from_i64(fixi_value(w), NULL);
+        o.p = o.owned;
+    } else {
+        o.p = (const SurgeBigInt*)w;
+    }
+    return o;
+}
+
+void bi_operand_release(bi_operand* o) {
+    if (o->owned != NULL) {
+        bi_free(o->owned);
+        o->owned = NULL;
+    }
+}
+
+// Take ownership of a fresh heap result and shrink it to an inline fixnum when
+// it fits, freeing the heap block. Large results stay on the heap.
+void* bi_finish(SurgeBigInt* r) {
+    if (r == NULL) {
+        return NULL;
+    }
+    int64_t v = 0;
+    if (bi_to_i64(r, &v)) {
+        bool ok = false;
+        void* w = fixi_box(v, &ok);
+        if (ok) {
+            bi_free(r);
+            return w;
+        }
+    }
+    return (void*)r;
+}
+
+bu_operand bu_promote(const void* w) {
+    bu_operand o = {NULL, NULL};
+    if (w == NULL) {
+        return o;
+    }
+    if (fix_is_inline(w)) {
+        o.owned = bu_from_u64(fixu_value(w), NULL);
+        o.p = o.owned;
+    } else {
+        o.p = (const SurgeBigUint*)w;
+    }
+    return o;
+}
+
+void bu_operand_release(bu_operand* o) {
+    if (o->owned != NULL) {
+        bu_free(o->owned);
+        o->owned = NULL;
+    }
+}
+
+void* bu_finish(SurgeBigUint* r) {
+    if (r == NULL) {
+        return NULL;
+    }
+    uint64_t v = 0;
+    if (bu_to_u64(r, &v)) {
+        bool ok = false;
+        void* w = fixu_box(v, &ok);
+        if (ok) {
+            bu_free(r);
+            return w;
+        }
+    }
+    return (void*)r;
+}
+
+// ---- literals -----------------------------------------------------------
 
 void* rt_bigint_from_literal(const uint8_t* ptr, uint64_t len) {
     SurgeBigUint* mag = NULL;
@@ -51,7 +187,7 @@ void* rt_bigint_from_literal(const uint8_t* ptr, uint64_t len) {
     memcpy(out->limbs, mag->limbs, (size_t)mag->len * sizeof(uint32_t));
     out->len = mag->len;
     bu_free(mag);
-    return (void*)out;
+    return bi_finish(out);
 }
 
 void* rt_biguint_from_literal(const uint8_t* ptr, uint64_t len) {
@@ -61,7 +197,7 @@ void* rt_biguint_from_literal(const uint8_t* ptr, uint64_t len) {
         bignum_panic_err(err);
         return NULL;
     }
-    return (void*)mag;
+    return bu_finish(mag);
 }
 
 void* rt_bigfloat_from_literal(const uint8_t* ptr, uint64_t len) {
@@ -89,7 +225,9 @@ bool rt_parse_bigint(void* s, void** out) {
         return false;
     }
     if (out != NULL) {
-        *out = res;
+        *out = bi_finish(res);
+    } else {
+        bi_free(res);
     }
     return true;
 }
@@ -109,7 +247,9 @@ bool rt_parse_biguint(void* s, void** out) {
         return false;
     }
     if (out != NULL) {
-        *out = res;
+        *out = bu_finish(res);
+    } else {
+        bu_free(res);
     }
     return true;
 }
@@ -134,7 +274,18 @@ bool rt_parse_bigfloat(void* s, void** out) {
     return true;
 }
 
+// ---- formatting ---------------------------------------------------------
+
 void* rt_string_from_bigint(void* v) {
+    int64_t iv = 0;
+    if (fixi_as_i64(v, &iv)) {
+        char buf[24];
+        int n = snprintf(buf, sizeof(buf), "%lld", (long long)iv);
+        if (n < 0) {
+            n = 0;
+        }
+        return rt_string_from_bytes((const uint8_t*)buf, (uint64_t)n);
+    }
     bn_err err = BN_OK;
     char* s = format_int((const SurgeBigInt*)v, &err);
     if (err != BN_OK) {
@@ -152,6 +303,15 @@ void* rt_string_from_bigint(void* v) {
 }
 
 void* rt_string_from_biguint(void* v) {
+    uint64_t uv = 0;
+    if (fixu_as_u64(v, &uv)) {
+        char buf[24];
+        int n = snprintf(buf, sizeof(buf), "%llu", (unsigned long long)uv);
+        if (n < 0) {
+            n = 0;
+        }
+        return rt_string_from_bytes((const uint8_t*)buf, (uint64_t)n);
+    }
     bn_err err = BN_OK;
     char* s = format_uint((const SurgeBigUint*)v, &err);
     if (err != BN_OK) {
@@ -185,31 +345,18 @@ void* rt_string_from_bigfloat(void* v) {
     return out;
 }
 
+// ---- constructors from native words -------------------------------------
+
 void* rt_bigint_from_i64(int64_t value) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_from_i64(value, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
+    return bi_from_i64_tagged(value);
 }
 
 void* rt_bigint_from_u64(uint64_t value) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_from_u64(value, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
+    return bi_from_u64_tagged(value);
 }
 
 void* rt_biguint_from_u64(uint64_t value) {
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_from_u64(value, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
+    return bu_from_u64_tagged(value);
 }
 
 void* rt_bigfloat_from_i64(int64_t value) {
@@ -258,10 +405,24 @@ void* rt_bigfloat_from_f64(double value) {
 }
 
 bool rt_bigint_to_i64(void* v, int64_t* out) {
+    int64_t iv = 0;
+    if (fixi_as_i64(v, &iv)) {
+        if (out != NULL) {
+            *out = iv;
+        }
+        return true;
+    }
     return bi_to_i64((const SurgeBigInt*)v, out);
 }
 
 bool rt_biguint_to_u64(void* v, uint64_t* out) {
+    uint64_t uv = 0;
+    if (fixu_as_u64(v, &uv)) {
+        if (out != NULL) {
+            *out = uv;
+        }
+        return true;
+    }
     return bu_to_u64((const SurgeBigUint*)v, out);
 }
 
@@ -288,225 +449,9 @@ bool rt_bigfloat_to_f64(void* v, double* out) {
     return ok;
 }
 
-void* rt_bigint_add(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_add((const SurgeBigInt*)a, (const SurgeBigInt*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
+// ---- bigfloat arithmetic (untagged) -------------------------------------
 
-void* rt_bigint_sub(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_sub((const SurgeBigInt*)a, (const SurgeBigInt*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_bigint_mul(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_mul((const SurgeBigInt*)a, (const SurgeBigInt*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_bigint_div(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_div_mod((const SurgeBigInt*)a, (const SurgeBigInt*)b, NULL, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_bigint_mod(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* rem = NULL;
-    bi_div_mod((const SurgeBigInt*)a, (const SurgeBigInt*)b, &rem, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)rem;
-}
-
-void* rt_bigint_neg(void* a) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_neg((const SurgeBigInt*)a, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_bigint_abs(void* a) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_abs_val((const SurgeBigInt*)a, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-int32_t rt_bigint_cmp(void* a, void* b) {
-    return (int32_t)bi_cmp((const SurgeBigInt*)a, (const SurgeBigInt*)b);
-}
-
-void* rt_bigint_bit_and(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_bit_op((const SurgeBigInt*)a, (const SurgeBigInt*)b, bu_and, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_bigint_bit_or(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_bit_op((const SurgeBigInt*)a, (const SurgeBigInt*)b, bu_or, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_bigint_bit_xor(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_bit_op((const SurgeBigInt*)a, (const SurgeBigInt*)b, bu_xor, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_bigint_shl(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_shl((const SurgeBigInt*)a, (const SurgeBigInt*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic("integer overflow");
-    }
-    return (void*)out;
-}
-
-void* rt_bigint_shr(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_shr((const SurgeBigInt*)a, (const SurgeBigInt*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic("integer overflow");
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_add(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_add((const SurgeBigUint*)a, (const SurgeBigUint*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_sub(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_sub((const SurgeBigUint*)a, (const SurgeBigUint*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_mul(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_mul((const SurgeBigUint*)a, (const SurgeBigUint*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_div(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_div_mod((const SurgeBigUint*)a, (const SurgeBigUint*)b, NULL, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_mod(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigUint* rem = NULL;
-    bu_div_mod((const SurgeBigUint*)a, (const SurgeBigUint*)b, &rem, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)rem;
-}
-
-int32_t rt_biguint_cmp(void* a, void* b) {
-    return (int32_t)bu_cmp((const SurgeBigUint*)a, (const SurgeBigUint*)b);
-}
-
-void* rt_biguint_bit_and(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_and((const SurgeBigUint*)a, (const SurgeBigUint*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_bit_or(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_or((const SurgeBigUint*)a, (const SurgeBigUint*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_bit_xor(void* a, void* b) {
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_xor((const SurgeBigUint*)a, (const SurgeBigUint*)b, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_shl(void* a, void* b) {
-    int shift = 0;
-    if (!shift_count_from_biguint((const SurgeBigUint*)b, &shift)) {
-        bignum_panic("integer overflow");
-        return NULL;
-    }
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_shl((const SurgeBigUint*)a, shift, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_biguint_shr(void* a, void* b) {
-    int shift = 0;
-    if (!shift_count_from_biguint((const SurgeBigUint*)b, &shift)) {
-        bignum_panic("integer overflow");
-        return NULL;
-    }
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_shr((const SurgeBigUint*)a, shift, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    return (void*)out;
-}
-
-void* rt_bigfloat_add(void* a, void* b) {
+void* rt_bigfloat_add(const void* a, const void* b) {
     bn_err err = BN_OK;
     SurgeBigFloat* out = bf_add((const SurgeBigFloat*)a, (const SurgeBigFloat*)b, &err);
     if (err != BN_OK) {
@@ -515,7 +460,7 @@ void* rt_bigfloat_add(void* a, void* b) {
     return (void*)out;
 }
 
-void* rt_bigfloat_sub(void* a, void* b) {
+void* rt_bigfloat_sub(const void* a, const void* b) {
     bn_err err = BN_OK;
     SurgeBigFloat* out = bf_sub((const SurgeBigFloat*)a, (const SurgeBigFloat*)b, &err);
     if (err != BN_OK) {
@@ -524,7 +469,7 @@ void* rt_bigfloat_sub(void* a, void* b) {
     return (void*)out;
 }
 
-void* rt_bigfloat_mul(void* a, void* b) {
+void* rt_bigfloat_mul(const void* a, const void* b) {
     bn_err err = BN_OK;
     SurgeBigFloat* out = bf_mul((const SurgeBigFloat*)a, (const SurgeBigFloat*)b, &err);
     if (err != BN_OK) {
@@ -533,7 +478,7 @@ void* rt_bigfloat_mul(void* a, void* b) {
     return (void*)out;
 }
 
-void* rt_bigfloat_div(void* a, void* b) {
+void* rt_bigfloat_div(const void* a, const void* b) {
     bn_err err = BN_OK;
     SurgeBigFloat* out = bf_div((const SurgeBigFloat*)a, (const SurgeBigFloat*)b, &err);
     if (err != BN_OK) {
@@ -542,7 +487,7 @@ void* rt_bigfloat_div(void* a, void* b) {
     return (void*)out;
 }
 
-void* rt_bigfloat_mod(void* a, void* b) {
+void* rt_bigfloat_mod(const void* a, const void* b) {
     bn_err err = BN_OK;
     SurgeBigFloat* out = bf_mod((const SurgeBigFloat*)a, (const SurgeBigFloat*)b, &err);
     if (err != BN_OK) {
@@ -551,7 +496,7 @@ void* rt_bigfloat_mod(void* a, void* b) {
     return (void*)out;
 }
 
-void* rt_bigfloat_neg(void* a) {
+void* rt_bigfloat_neg(const void* a) {
     bn_err err = BN_OK;
     SurgeBigFloat* out = bf_neg((const SurgeBigFloat*)a, &err);
     if (err != BN_OK) {
@@ -560,7 +505,7 @@ void* rt_bigfloat_neg(void* a) {
     return (void*)out;
 }
 
-void* rt_bigfloat_abs(void* a) {
+void* rt_bigfloat_abs(const void* a) {
     bn_err err = BN_OK;
     SurgeBigFloat* out = bf_abs((const SurgeBigFloat*)a, &err);
     if (err != BN_OK) {
@@ -569,20 +514,34 @@ void* rt_bigfloat_abs(void* a) {
     return (void*)out;
 }
 
-int32_t rt_bigfloat_cmp(void* a, void* b) {
+int32_t rt_bigfloat_cmp(const void* a, const void* b) {
     return (int32_t)bf_cmp((const SurgeBigFloat*)a, (const SurgeBigFloat*)b);
 }
 
+// ---- conversions --------------------------------------------------------
+
 void* rt_bigint_to_biguint(const void* a) {
+    int64_t av = 0;
+    if (fixi_as_i64(a, &av)) {
+        if (av < 0) {
+            bignum_panic("cannot convert negative int to uint");
+            return NULL;
+        }
+        return bu_from_u64_tagged((uint64_t)av);
+    }
     const SurgeBigInt* src = (const SurgeBigInt*)a;
     if (src != NULL && src->neg && !bi_is_zero(src)) {
         bignum_panic("cannot convert negative int to uint");
         return NULL;
     }
-    return (void*)bu_clone(bi_as_uint(src), NULL);
+    return bu_finish(bu_clone(bi_as_uint(src), NULL));
 }
 
 void* rt_biguint_to_bigint(const void* a) {
+    uint64_t uv = 0;
+    if (fixu_as_u64(a, &uv)) {
+        return bi_from_u64_tagged(uv);
+    }
     const SurgeBigUint* src = (const SurgeBigUint*)a;
     if (src == NULL || src->len == 0) {
         return NULL;
@@ -596,37 +555,41 @@ void* rt_biguint_to_bigint(const void* a) {
     out->neg = 0;
     memcpy(out->limbs, src->limbs, (size_t)src->len * sizeof(uint32_t));
     out->len = src->len;
-    return (void*)out;
+    return bi_finish(out);
 }
 
-void* rt_bigint_to_bigfloat(void* a) {
+void* rt_bigint_to_bigfloat(const void* a) {
+    bi_operand ao = bi_promote(a);
     bn_err err = BN_OK;
-    SurgeBigFloat* out = bf_from_int((const SurgeBigInt*)a, &err);
+    SurgeBigFloat* out = bf_from_int(ao.p, &err);
+    bi_operand_release(&ao);
     if (err != BN_OK) {
         bignum_panic_err(err);
     }
     return (void*)out;
 }
 
-void* rt_biguint_to_bigfloat(void* a) {
+void* rt_biguint_to_bigfloat(const void* a) {
+    bu_operand ao = bu_promote(a);
     bn_err err = BN_OK;
-    SurgeBigFloat* out = bf_from_uint((const SurgeBigUint*)a, &err);
+    SurgeBigFloat* out = bf_from_uint(ao.p, &err);
+    bu_operand_release(&ao);
     if (err != BN_OK) {
         bignum_panic_err(err);
     }
     return (void*)out;
 }
 
-void* rt_bigfloat_to_bigint(void* a) {
+void* rt_bigfloat_to_bigint(const void* a) {
     bn_err err = BN_OK;
     SurgeBigInt* out = bf_to_int_trunc((const SurgeBigFloat*)a, &err);
     if (err != BN_OK) {
         bignum_panic_err(err);
     }
-    return (void*)out;
+    return bi_finish(out);
 }
 
-void* rt_bigfloat_to_biguint(void* a) {
+void* rt_bigfloat_to_biguint(const void* a) {
     bn_err err = BN_OK;
     SurgeBigUint* out = bf_to_uint_trunc((const SurgeBigFloat*)a, &err);
     if (err == BN_ERR_UNDERFLOW) {
@@ -636,5 +599,5 @@ void* rt_bigfloat_to_biguint(void* a) {
     if (err != BN_OK) {
         bignum_panic_err(err);
     }
-    return (void*)out;
+    return bu_finish(out);
 }

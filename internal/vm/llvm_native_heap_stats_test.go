@@ -42,6 +42,13 @@ fn main() -> int {
     // warm-up happens shifts with unrelated compiler changes (it moved
     // when scope-exit drop synthesis landed) and is not this test's
     // subject. The buffered-vs-unbuffered relation below is what's pinned.
+    //
+    // The pinned delta is the buffered channel's co-allocated ring buffer:
+    // two blocks. It was three until small ints became inline (fixnum) —
+    // the buffered window evaluates the capacity literal 1:uint, which used
+    // to heap-allocate a bignum, while the unbuffered window's 0:uint is the
+    // canonical zero (never allocated). That one-block asymmetry was folded
+    // into the old +3 and is gone now that 1:uint is an inline value.
     let warm0 = make_channel::<int>(0:uint);
     let warm1 = make_channel::<int>(1:uint);
     let s0: HeapStats = rt_heap_stats();
@@ -51,7 +58,7 @@ fn main() -> int {
     let s2: HeapStats = rt_heap_stats();
     let unbuffered_delta = s1.alloc_count - s0.alloc_count;
     let buffered_delta = s2.alloc_count - s1.alloc_count;
-    let expected_buffered_delta = unbuffered_delta + 3:uint;
+    let expected_buffered_delta = unbuffered_delta + 2:uint;
     if buffered_delta != expected_buffered_delta { return 1; }
     if ch0.try_send(1) { return 2; }
     let sent1 = ch1.try_send(42);

@@ -113,33 +113,33 @@ fn main() -> int {
 	}
 
 	requireHeapDelta(t, "alloc", heapStatsDelta(t, "alloc", stats[3], stats[2]),
-		heapStatsSnapshot{allocs: overhead.allocs + 1, frees: overhead.frees, liveBlocks: overhead.liveBlocks + 1, liveBytes: overhead.liveBytes + 32})
+		heapDelta{allocs: overhead.allocs + 1, frees: overhead.frees, liveBlocks: overhead.liveBlocks + 1, liveBytes: overhead.liveBytes + 32})
 	requireHeapDelta(t, "free counts", heapStatsDelta(t, "free counts", stats[4], stats[3]),
-		heapStatsSnapshot{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 32})
+		heapDelta{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 32})
 
 	requireHeapDelta(t, "realloc grow", heapStatsDelta(t, "realloc grow", stats[6], stats[5]),
-		heapStatsSnapshot{allocs: overhead.allocs + 1, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks, liveBytes: overhead.liveBytes + 8})
+		heapDelta{allocs: overhead.allocs + 1, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks, liveBytes: overhead.liveBytes + 8})
 	requireHeapDelta(t, "realloc shrink counts", heapStatsDelta(t, "realloc shrink counts", stats[7], stats[6]),
-		heapStatsSnapshot{allocs: overhead.allocs + 1, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks, liveBytes: overhead.liveBytes - 12})
+		heapDelta{allocs: overhead.allocs + 1, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks, liveBytes: overhead.liveBytes - 12})
 	requireHeapDelta(t, "realloc zero-size counts", heapStatsDelta(t, "realloc zero-size counts", stats[8], stats[7]),
-		heapStatsSnapshot{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 4})
+		heapDelta{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 4})
 	requireHeapDelta(t, "realloc null", heapStatsDelta(t, "realloc null", stats[9], stats[8]),
-		heapStatsSnapshot{allocs: overhead.allocs + 1, frees: overhead.frees, liveBlocks: overhead.liveBlocks + 1, liveBytes: overhead.liveBytes + 7})
+		heapDelta{allocs: overhead.allocs + 1, frees: overhead.frees, liveBlocks: overhead.liveBlocks + 1, liveBytes: overhead.liveBytes + 7})
 	requireHeapDelta(t, "realloc final free", heapStatsDelta(t, "realloc final free", stats[10], stats[9]),
-		heapStatsSnapshot{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 7})
+		heapDelta{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 7})
 
 	requireHeapDelta(t, "aligned alloc", heapStatsDelta(t, "aligned alloc", stats[12], stats[11]),
-		heapStatsSnapshot{allocs: overhead.allocs + 1, frees: overhead.frees, liveBlocks: overhead.liveBlocks + 1, liveBytes: overhead.liveBytes + 48})
+		heapDelta{allocs: overhead.allocs + 1, frees: overhead.frees, liveBlocks: overhead.liveBlocks + 1, liveBytes: overhead.liveBytes + 48})
 	requireHeapDelta(t, "aligned realloc grow", heapStatsDelta(t, "aligned realloc grow", stats[13], stats[12]),
-		heapStatsSnapshot{allocs: overhead.allocs + 1, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks, liveBytes: overhead.liveBytes + 48})
+		heapDelta{allocs: overhead.allocs + 1, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks, liveBytes: overhead.liveBytes + 48})
 	requireHeapDelta(t, "aligned realloc shrink", heapStatsDelta(t, "aligned realloc shrink", stats[14], stats[13]),
-		heapStatsSnapshot{allocs: overhead.allocs + 1, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks, liveBytes: overhead.liveBytes - 64})
+		heapDelta{allocs: overhead.allocs + 1, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks, liveBytes: overhead.liveBytes - 64})
 	requireHeapDelta(t, "aligned final free", heapStatsDelta(t, "aligned final free", stats[15], stats[14]),
-		heapStatsSnapshot{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 32})
+		heapDelta{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 32})
 
 	requireHeapDelta(t, "failed realloc unchanged", heapStatsDelta(t, "failed realloc unchanged", stats[17], stats[16]), overhead)
 	requireHeapDelta(t, "failed realloc original free", heapStatsDelta(t, "failed realloc original free", stats[18], stats[17]),
-		heapStatsSnapshot{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 8})
+		heapDelta{allocs: overhead.allocs, frees: overhead.frees + 1, liveBlocks: overhead.liveBlocks - 1, liveBytes: overhead.liveBytes - 8})
 }
 
 func TestRuntimeV2HeapAccountingConcurrentWorkersContract(t *testing.T) {
@@ -253,21 +253,33 @@ func parseHeapStatField(t *testing.T, field string) uint64 {
 	return value
 }
 
-func heapStatsDelta(t *testing.T, label string, after, before heapStatsSnapshot) heapStatsSnapshot {
+// heapDelta is a signed difference between two snapshots. allocs and frees are
+// cumulative counters and only ever grow, but liveBlocks and liveBytes move in
+// both directions — a realloc shrink or free legitimately reduces them — so
+// they must be signed. (They read as unsigned per-window only while every
+// window is padded by incidental int/uint bignum allocations; once small ints
+// became inline the shrink windows net negative, which is correct.)
+type heapDelta struct {
+	allocs     int64
+	frees      int64
+	liveBlocks int64
+	liveBytes  int64
+}
+
+func heapStatsDelta(t *testing.T, label string, after, before heapStatsSnapshot) heapDelta {
 	t.Helper()
-	if after.allocs < before.allocs || after.frees < before.frees ||
-		after.liveBlocks < before.liveBlocks || after.liveBytes < before.liveBytes {
-		t.Fatalf("%s counters decreased: before=%+v after=%+v", label, before, after)
+	if after.allocs < before.allocs || after.frees < before.frees {
+		t.Fatalf("%s cumulative counters decreased: before=%+v after=%+v", label, before, after)
 	}
-	return heapStatsSnapshot{
-		allocs:     after.allocs - before.allocs,
-		frees:      after.frees - before.frees,
-		liveBlocks: after.liveBlocks - before.liveBlocks,
-		liveBytes:  after.liveBytes - before.liveBytes,
+	return heapDelta{
+		allocs:     int64(after.allocs) - int64(before.allocs),
+		frees:      int64(after.frees) - int64(before.frees),
+		liveBlocks: int64(after.liveBlocks) - int64(before.liveBlocks),
+		liveBytes:  int64(after.liveBytes) - int64(before.liveBytes),
 	}
 }
 
-func requireHeapDelta(t *testing.T, label string, got, want heapStatsSnapshot) {
+func requireHeapDelta(t *testing.T, label string, got, want heapDelta) {
 	t.Helper()
 	if got != want {
 		t.Fatalf("%s delta mismatch:\nwant=%+v\n got=%+v", label, want, got)
