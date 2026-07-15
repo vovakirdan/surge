@@ -66,3 +66,63 @@ fn main() -> int {
 		t.Fatalf("integer range-for head failed with exit=%d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 }
+
+// A Range<int> VALUE (not a literal in the for-head) iterates via the generic
+// iterator protocol. The LLVM backend used to mis-read the SurgeRange as an
+// array cursor and dereference its start bound as a data pointer; the unified
+// tagged iterator makes a stored/passed/returned range step correctly, exactly
+// like the VM.
+func TestRuntimeV2RangeForStoredValue(t *testing.T) {
+	ensureLLVMToolchain(t)
+
+	source := `fn make_range(n: int) -> Range<int> {
+    return 0..n;
+}
+
+@entrypoint
+fn main() -> int {
+    // stored inclusive
+    let r1 = 2..=5;
+    let mut a: int = 0;
+    for x in r1 { a = a + x; }
+    if a != 14 { return 1; }   // 2+3+4+5
+
+    // stored exclusive
+    let r2 = 2..5;
+    let mut b: int = 0;
+    for x in r2 { b = b + x; }
+    if b != 9 { return 2; }    // 2+3+4
+
+    // returned from a function
+    let mut c: int = 0;
+    for x in make_range(4) { c = c + x; }
+    if c != 6 { return 3; }    // 0+1+2+3
+
+    // stored uint
+    let r3: Range<uint> = 1:uint..=3:uint;
+    let mut d: uint = 0:uint;
+    for x in r3 { d = d + x; }
+    if d != 6:uint { return 4; }
+
+    // empty stored range
+    let r4 = 5..5;
+    let mut e: int = 0;
+    for x in r4 { e = e + 1; }
+    if e != 0 { return 5; }
+
+    // array iteration still works through the same protocol
+    let arr: int[] = [10, 20, 30];
+    let mut f: int = 0;
+    for x in arr { f = f + x; }
+    if f != 60 { return 6; }
+
+    return 0;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	stdout, stderr, code := runBinary(t, outputPath)
+	if code != 0 {
+		t.Fatalf("stored range-for value failed with exit=%d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+}

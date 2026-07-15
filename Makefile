@@ -147,7 +147,7 @@ runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 fixnum inline-int gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2Fixnum(HotLoopHeapBalanced|BoundaryValues)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	@echo ">> Running Runtime V2 integer range-for gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2RangeForIntegerHead$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2RangeFor(IntegerHead|StoredValue)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 
 runtime-v2-waiter-check:
 	@echo ">> Running Runtime V2 waiter liveness gate"
