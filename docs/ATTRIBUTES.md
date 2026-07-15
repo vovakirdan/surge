@@ -77,6 +77,23 @@ Status legend:
 
 ---
 
+## Reserved Attributes (parsed, not yet implemented)
+
+`@raii`, `@arena`, `@shared`, `@weak`, and `@pure` are accepted by the parser and
+target-validated, but have **no semantic effect or runtime behavior yet**. They are
+reserved for future language increments and are safe to write only as forward-looking
+annotations:
+
+- `@raii` (type) — reserved for a future user-defined scope-exit destructor hook.
+  Implicit drops of non-copy owned values are universal language semantics and are
+  **not** gated by `@raii`.
+- `@arena` (type, field, param) — reserved for arena/region allocation.
+- `@shared` (type, field) — reserved.
+- `@weak` (field) — reserved for weak references.
+- `@pure` (fn) — reserved; no purity or side-effect checks are performed today.
+
+---
+
 ## Function Attributes
 
 ### `@overload`

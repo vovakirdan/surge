@@ -31,3 +31,12 @@ See also:
 - `Map<K, V>` keys are limited to `string` and integer types in v1.
 - Raw pointers (`*T`) are restricted to `extern` and `@intrinsic` declarations; there is no `unsafe` user mode yet.
 
+## Native (LLVM) backend
+
+These are sharp edges specific to the native (LLVM) backend. The VM backend is not affected by any of them.
+
+- `format(...)` / `fmt_arg(...)` with a `string` or string-slice argument currently double-frees: `format("x={}", fmt_arg("hi"))` aborts with "double free or corruption", and a head slice such as `fmt_arg(s[0..50])` reports "free(): invalid pointer". Integer arguments (`fmt_arg(42)`) are unaffected. The VM formats all argument types correctly.
+- `for` loops leak per iteration: each step boxes an `Option<T>` on the heap and the iterator object is allocated once, but neither is reclaimed yet. This affects both array iteration and integer range-for. It is a steady per-iteration leak (memory grows with iteration count), not a correctness bug.
+- Small `int`/`uint` values are stored inline in the runtime word and no longer allocate, so hot integer loops are allocation-balanced. Genuinely large integers (outside the inline range, roughly `|v| >= 2^62`) are still heap-boxed and, because `int`/`uint` are `Copy`, are not reclaimed when retained to scope exit — such values leak. Arithmetic that consumes a large intermediate still frees it, so only values kept past their last use leak.
+- Integer and unsigned range-for (`for i in a..=b` or `a..b`, in a for-head or as a stored/passed `Range<int>` / `Range<uint>` value) works correctly on both backends. The residual gap: a fixed-width `Range<i32>` used as a stored value is not yet covered on the native backend (the common `int`/`uint` case is).
+
