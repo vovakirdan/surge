@@ -1,2 +1,0 @@
-// scenario: recursive by-value type should be rejected
-type Node = { next: Node? };

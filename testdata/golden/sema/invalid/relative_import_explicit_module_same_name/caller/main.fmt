@@ -1,5 +1,0 @@
-import ./actual/chess::initial_game;
-
-fn use_game() -> int {
-    return initial_game();
-}

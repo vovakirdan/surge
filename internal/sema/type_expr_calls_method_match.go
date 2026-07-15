@@ -161,6 +161,47 @@ func (tc *typeChecker) methodParamsMatchWithImplicitBorrow(expected []symbols.Ty
 	return true
 }
 
+// methodParamsMatchAllowingRefBorrow matches non-self params with the STRICT
+// matcher (methodParamMatchesWithSubst, which respects own/Copy semantics) and,
+// only when a param is a shared reference `&T`, additionally lets an owned or
+// literal arg bind by borrowing it — the same bridge free functions apply, so
+// `s.find(name)` / `s.contains("x")` need no explicit `&`. Unlike
+// methodParamsMatchWithImplicitBorrow it never loosens the base check for
+// non-reference params, so an owned non-Copy value still cannot satisfy an
+// `own`/value param (that must stay a diagnostic, not slip through to codegen).
+func (tc *typeChecker) methodParamsMatchAllowingRefBorrow(expected []symbols.TypeKey, args []types.TypeID, argExprs []ast.ExprID, subst map[string]symbols.TypeKey) bool {
+	if len(expected) != len(args) {
+		return false
+	}
+	for i, arg := range args {
+		if tc.methodParamMatchesWithSubst(expected[i], arg, subst) {
+			continue
+		}
+		expectedKey := substituteTypeKeyParams(expected[i], subst)
+		expectedStr := strings.TrimSpace(string(expectedKey))
+		// Only a shared-ref param may borrow a non-ref arg; `&mut` and value/own
+		// params keep the strict result.
+		if !strings.HasPrefix(expectedStr, "&") || strings.HasPrefix(expectedStr, "&mut ") || tc.isReferenceType(arg) {
+			return false
+		}
+		if i >= len(argExprs) || !argExprs[i].IsValid() {
+			return false
+		}
+		expectedType := tc.typeFromKey(expectedKey)
+		if tc.isBorrowableStringLiteral(argExprs[i], expectedType) {
+			continue
+		}
+		if tc.canMaterializeForRefString(argExprs[i], expectedType) {
+			continue
+		}
+		if tc.isAddressableExpr(argExprs[i]) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func (tc *typeChecker) methodParamMatches(expected symbols.TypeKey, arg types.TypeID) bool {
 	return tc.methodParamMatchesWithSubst(expected, arg, nil)
 }

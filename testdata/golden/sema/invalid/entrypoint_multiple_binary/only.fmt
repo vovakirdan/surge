@@ -1,7 +1,0 @@
-pragma binary;
-
-@entrypoint
-fn main() {}
-
-@entrypoint
-fn alt() {}

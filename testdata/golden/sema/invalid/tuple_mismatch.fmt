@@ -1,4 +1,0 @@
-// scenario: tuple type mismatches
-fn bad_element() -> (int, string) {
-    return (1, 2);
-}

@@ -1,4 +1,0 @@
-// scenario: anonymous struct literal assigned to Erring must name the error type
-fn usage() {
-    let result: Erring<int, Error> = { message: "boom", code: 1:uint };
-}

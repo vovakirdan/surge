@@ -1,4 +1,0 @@
-// scenario: contract references an unknown type in a member
-contract UsesMissing {
-    field value: MissingType;
-}

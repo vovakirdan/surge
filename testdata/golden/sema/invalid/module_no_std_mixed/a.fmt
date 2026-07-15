@@ -1,5 +1,0 @@
-pragma module;
-
-pub fn a() -> int {
-    return helper();
-}

@@ -1,1 +1,0 @@
-error SEM3074 testdata/golden/sema/invalid/attrs_sealed_extend/only.sg:9:16 cannot extend @sealed type 'Base'

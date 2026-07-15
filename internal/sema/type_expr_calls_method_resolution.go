@@ -78,7 +78,12 @@ func (tc *typeChecker) matchMethodSignature(name string, recv types.TypeID, recv
 				if len(sig.Params)-1 != len(args) {
 					continue
 				}
-				if !tc.methodParamsMatchWithSubst(sig.Params[1:], args, subst) {
+				// Non-self params get the same implicit-borrow bridge as free
+				// functions: an owned or literal string arg binds to a `&string`
+				// param by auto-borrowing it, so `s.contains("x")` / `s.find(name)`
+				// need no explicit `&`. Without this fallback a `&string` param
+				// would only accept an already-borrowed arg.
+				if !tc.methodParamsMatchAllowingRefBorrow(sig.Params[1:], args, argExprs, subst) {
 					continue
 				}
 			case staticReceiver:

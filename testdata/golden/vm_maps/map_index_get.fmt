@@ -1,6 +1,0 @@
-@entrypoint
-fn main() -> int {
-    let m = { "x" => 10 };
-    print((m["x"]) to string);
-    return 0;
-}

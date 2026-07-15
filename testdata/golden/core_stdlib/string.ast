@@ -244,221 +244,221 @@ Block (span: 87:14-89:6)
    │  │     └─ Stmt[0]: Return (span: 98:48-98:82)
    │  │        └─ Expr: expr#170: rt_string_bytes_view(self)
    │  ├─ Fn[1]: contains
-   │  │  ├─ Params: (self: &string, needle: string)
+   │  │  ├─ Params: (self: &string, needle: &string)
    │  │  ├─ Return: bool
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 99:60-101:6)
+   │  │     Stmt[0]: Block (span: 99:61-101:6)
    │  │     └─ Stmt[0]: Return (span: 100:9-100:39)
    │  │        └─ Expr: expr#176: (self.find(needle) >= 0)
    │  ├─ Fn[2]: find
-   │  │  ├─ Params: (self: &string, needle: string)
+   │  │  ├─ Params: (self: &string, needle: &string)
    │  │  ├─ Return: int
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 102:55-104:6)
-   │  │     └─ Stmt[0]: Return (span: 103:9-103:51)
-   │  │        └─ Expr: expr#182: string_find_from(self, &needle, 0)
+   │  │     Stmt[0]: Block (span: 102:56-104:6)
+   │  │     └─ Stmt[0]: Return (span: 103:9-103:50)
+   │  │        └─ Expr: expr#181: string_find_from(self, needle, 0)
    │  ├─ Fn[3]: count
-   │  │  ├─ Params: (self: &string, needle: string)
+   │  │  ├─ Params: (self: &string, needle: &string)
    │  │  ├─ Return: int
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 105:56-116:6)
+   │  │     Stmt[0]: Block (span: 105:57-116:6)
    │  │     ├─ Stmt[0]: Let (span: 106:9-106:32)
    │  │     │  ├─ Name: count
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#183: 0
+   │  │     │  └─ Value: expr#182: 0
    │  │     ├─ Stmt[1]: Let (span: 107:9-107:30)
    │  │     │  ├─ Name: pos
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#184: 0
+   │  │     │  └─ Value: expr#183: 0
    │  │     ├─ Stmt[2]: While (span: 108:9-114:10)
-   │  │     │  ├─ Cond: expr#187: (pos >= 0)
+   │  │     │  ├─ Cond: expr#186: (pos >= 0)
    │  │     │  └─ Body:
 Block (span: 108:24-114:10)
-   │  │     │     ├─ Stmt[0]: Expr (span: 109:13-109:56)
-   │  │     │     │  └─ Expr: expr#195: (pos = string_find_from(self, &needle, pos))
+   │  │     │     ├─ Stmt[0]: Expr (span: 109:13-109:55)
+   │  │     │     │  └─ Expr: expr#193: (pos = string_find_from(self, needle, pos))
    │  │     │     └─ Stmt[1]: If (span: 110:13-113:14)
-   │  │     │        ├─ Cond: expr#198: (pos >= 0)
+   │  │     │        ├─ Cond: expr#196: (pos >= 0)
    │  │     │        ├─ Then:
 Block (span: 110:25-113:14)
    │  │     │        │  ├─ Stmt[0]: Expr (span: 111:17-111:35)
-   │  │     │        │  │  └─ Expr: expr#203: (count = ((count + 1)))
+   │  │     │        │  │  └─ Expr: expr#201: (count = ((count + 1)))
    │  │     │        │  └─ Stmt[1]: Expr (span: 112:17-112:31)
-   │  │     │        │     └─ Expr: expr#208: (pos = ((pos + 1)))
+   │  │     │        │     └─ Expr: expr#206: (pos = ((pos + 1)))
    │  │     │        └─ Else: <none>
    │  │     └─ Stmt[3]: Return (span: 115:9-115:22)
-   │  │        └─ Expr: expr#209: count
+   │  │        └─ Expr: expr#207: count
    │  ├─ Fn[4]: rfind
-   │  │  ├─ Params: (self: &string, needle: string)
+   │  │  ├─ Params: (self: &string, needle: &string)
    │  │  ├─ Return: int
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 117:56-119:6)
-   │  │     └─ Stmt[0]: Return (span: 118:9-118:44)
-   │  │        └─ Expr: expr#214: string_rfind(self, &needle)
+   │  │     Stmt[0]: Block (span: 117:57-119:6)
+   │  │     └─ Stmt[0]: Return (span: 118:9-118:43)
+   │  │        └─ Expr: expr#211: string_rfind(self, needle)
    │  ├─ Fn[5]: starts_with
-   │  │  ├─ Params: (self: &string, prefix: string)
+   │  │  ├─ Params: (self: &string, prefix: &string)
    │  │  ├─ Return: bool
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 120:63-137:6)
+   │  │     Stmt[0]: Block (span: 120:64-137:6)
    │  │     ├─ Stmt[0]: Let (span: 121:9-121:49)
    │  │     │  ├─ Name: hay_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#217: string_len_int(self)
-   │  │     ├─ Stmt[1]: Let (span: 122:9-122:52)
+   │  │     │  └─ Value: expr#214: string_len_int(self)
+   │  │     ├─ Stmt[1]: Let (span: 122:9-122:51)
    │  │     │  ├─ Name: pre_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#221: string_len_int(&prefix)
+   │  │     │  └─ Value: expr#217: string_len_int(prefix)
    │  │     ├─ Stmt[2]: If (span: 123:9-125:10)
-   │  │     │  ├─ Cond: expr#224: (pre_len == 0)
+   │  │     │  ├─ Cond: expr#220: (pre_len == 0)
    │  │     │  ├─ Then:
 Block (span: 123:25-125:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 124:13-124:25)
-   │  │     │  │     └─ Expr: expr#225: true
+   │  │     │  │     └─ Expr: expr#221: true
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[3]: If (span: 126:9-128:10)
-   │  │     │  ├─ Cond: expr#228: (pre_len > hay_len)
+   │  │     │  ├─ Cond: expr#224: (pre_len > hay_len)
    │  │     │  ├─ Then:
 Block (span: 126:30-128:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 127:13-127:26)
-   │  │     │  │     └─ Expr: expr#229: false
+   │  │     │  │     └─ Expr: expr#225: false
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[4]: Let (span: 129:9-129:28)
    │  │     │  ├─ Name: i
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#230: 0
+   │  │     │  └─ Value: expr#226: 0
    │  │     ├─ Stmt[5]: While (span: 130:9-135:10)
-   │  │     │  ├─ Cond: expr#233: (i < pre_len)
+   │  │     │  ├─ Cond: expr#229: (i < pre_len)
    │  │     │  └─ Body:
 Block (span: 130:27-135:10)
    │  │     │     ├─ Stmt[0]: If (span: 131:13-133:14)
-   │  │     │     │  ├─ Cond: expr#240: (self[i] != prefix[i])
+   │  │     │     │  ├─ Cond: expr#236: (self[i] != prefix[i])
    │  │     │     │  ├─ Then:
 Block (span: 131:37-133:14)
    │  │     │     │  │  └─ Stmt[0]: Return (span: 132:17-132:30)
-   │  │     │     │  │     └─ Expr: expr#241: false
+   │  │     │     │  │     └─ Expr: expr#237: false
    │  │     │     │  └─ Else: <none>
    │  │     │     └─ Stmt[1]: Expr (span: 134:13-134:23)
-   │  │     │        └─ Expr: expr#246: (i = ((i + 1)))
+   │  │     │        └─ Expr: expr#242: (i = ((i + 1)))
    │  │     └─ Stmt[6]: Return (span: 136:9-136:21)
-   │  │        └─ Expr: expr#247: true
+   │  │        └─ Expr: expr#243: true
    │  ├─ Fn[6]: ends_with
-   │  │  ├─ Params: (self: &string, suffix: string)
+   │  │  ├─ Params: (self: &string, suffix: &string)
    │  │  ├─ Return: bool
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 138:61-156:6)
+   │  │     Stmt[0]: Block (span: 138:62-156:6)
    │  │     ├─ Stmt[0]: Let (span: 139:9-139:49)
    │  │     │  ├─ Name: hay_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#250: string_len_int(self)
-   │  │     ├─ Stmt[1]: Let (span: 140:9-140:52)
+   │  │     │  └─ Value: expr#246: string_len_int(self)
+   │  │     ├─ Stmt[1]: Let (span: 140:9-140:51)
    │  │     │  ├─ Name: suf_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#254: string_len_int(&suffix)
+   │  │     │  └─ Value: expr#249: string_len_int(suffix)
    │  │     ├─ Stmt[2]: If (span: 141:9-143:10)
-   │  │     │  ├─ Cond: expr#257: (suf_len == 0)
+   │  │     │  ├─ Cond: expr#252: (suf_len == 0)
    │  │     │  ├─ Then:
 Block (span: 141:25-143:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 142:13-142:25)
-   │  │     │  │     └─ Expr: expr#258: true
+   │  │     │  │     └─ Expr: expr#253: true
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[3]: If (span: 144:9-146:10)
-   │  │     │  ├─ Cond: expr#261: (suf_len > hay_len)
+   │  │     │  ├─ Cond: expr#256: (suf_len > hay_len)
    │  │     │  ├─ Then:
 Block (span: 144:30-146:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 145:13-145:26)
-   │  │     │  │     └─ Expr: expr#262: false
+   │  │     │  │     └─ Expr: expr#257: false
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[4]: Let (span: 147:9-147:44)
    │  │     │  ├─ Name: start
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#265: (hay_len - suf_len)
+   │  │     │  └─ Value: expr#260: (hay_len - suf_len)
    │  │     ├─ Stmt[5]: Let (span: 148:9-148:28)
    │  │     │  ├─ Name: i
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#266: 0
+   │  │     │  └─ Value: expr#261: 0
    │  │     ├─ Stmt[6]: While (span: 149:9-154:10)
-   │  │     │  ├─ Cond: expr#269: (i < suf_len)
+   │  │     │  ├─ Cond: expr#264: (i < suf_len)
    │  │     │  └─ Body:
 Block (span: 149:27-154:10)
    │  │     │     ├─ Stmt[0]: If (span: 150:13-152:14)
-   │  │     │     │  ├─ Cond: expr#278: (self[(start + i)] != suffix[i])
+   │  │     │     │  ├─ Cond: expr#273: (self[(start + i)] != suffix[i])
    │  │     │     │  ├─ Then:
 Block (span: 150:45-152:14)
    │  │     │     │  │  └─ Stmt[0]: Return (span: 151:17-151:30)
-   │  │     │     │  │     └─ Expr: expr#279: false
+   │  │     │     │  │     └─ Expr: expr#274: false
    │  │     │     │  └─ Else: <none>
    │  │     │     └─ Stmt[1]: Expr (span: 153:13-153:23)
-   │  │     │        └─ Expr: expr#284: (i = ((i + 1)))
+   │  │     │        └─ Expr: expr#279: (i = ((i + 1)))
    │  │     └─ Stmt[7]: Return (span: 155:9-155:21)
-   │  │        └─ Expr: expr#285: true
+   │  │        └─ Expr: expr#280: true
    │  ├─ Fn[7]: split
-   │  │  ├─ Params: (self: &string, sep: string)
+   │  │  ├─ Params: (self: &string, sep: &string)
    │  │  ├─ Return: string[]
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 157:58-183:6)
-   │  │     ├─ Stmt[0]: Let (span: 158:9-158:49)
+   │  │     Stmt[0]: Block (span: 157:59-183:6)
+   │  │     ├─ Stmt[0]: Let (span: 158:9-158:48)
    │  │     │  ├─ Name: sep_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#289: string_len_int(&sep)
+   │  │     │  └─ Value: expr#283: string_len_int(sep)
    │  │     ├─ Stmt[1]: Let (span: 159:9-159:49)
    │  │     │  ├─ Name: hay_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#292: string_len_int(self)
+   │  │     │  └─ Value: expr#286: string_len_int(self)
    │  │     ├─ Stmt[2]: Let (span: 160:9-160:38)
    │  │     │  ├─ Name: parts
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: string[]
-   │  │     │  └─ Value: expr#293: <ExprKind(8)>
+   │  │     │  └─ Value: expr#287: <ExprKind(8)>
    │  │     ├─ Stmt[3]: If (span: 161:9-181:10)
-   │  │     │  ├─ Cond: expr#296: (sep_len == 0)
+   │  │     │  ├─ Cond: expr#290: (sep_len == 0)
    │  │     │  ├─ Then:
 Block (span: 161:25-168:10)
    │  │     │  │  ├─ Stmt[0]: Let (span: 162:13-162:32)
    │  │     │  │  │  ├─ Name: i
    │  │     │  │  │  ├─ Mutable: true
    │  │     │  │  │  ├─ Type: int
-   │  │     │  │  │  └─ Value: expr#297: 0
+   │  │     │  │  │  └─ Value: expr#291: 0
    │  │     │  │  └─ Stmt[1]: While (span: 163:13-167:14)
-   │  │     │  │     ├─ Cond: expr#300: (i < hay_len)
+   │  │     │  │     ├─ Cond: expr#294: (i < hay_len)
    │  │     │  │     └─ Body:
 Block (span: 163:31-167:14)
    │  │     │  │        ├─ Stmt[0]: Let (span: 164:17-164:46)
    │  │     │  │        │  ├─ Name: piece
    │  │     │  │        │  ├─ Mutable: false
    │  │     │  │        │  ├─ Type: <inferred>
-   │  │     │  │        │  └─ Value: expr#308: self[[i..((i + 1))]]
+   │  │     │  │        │  └─ Value: expr#302: self[[i..((i + 1))]]
    │  │     │  │        ├─ Stmt[1]: Expr (span: 165:17-165:35)
-   │  │     │  │        │  └─ Expr: expr#312: parts.push(piece)
+   │  │     │  │        │  └─ Expr: expr#306: parts.push(piece)
    │  │     │  │        └─ Stmt[2]: Expr (span: 166:17-166:27)
-   │  │     │  │           └─ Expr: expr#317: (i = ((i + 1)))
+   │  │     │  │           └─ Expr: expr#311: (i = ((i + 1)))
    │  │     │  └─ Else:
 Block (span: 168:16-181:10)
    │  │     │     ├─ Stmt[0]: Let (span: 169:13-169:36)
    │  │     │     │  ├─ Name: start
    │  │     │     │  ├─ Mutable: true
    │  │     │     │  ├─ Type: int
-   │  │     │     │  └─ Value: expr#318: 0
+   │  │     │     │  └─ Value: expr#312: 0
    │  │     │     ├─ Stmt[1]: While (span: 170:13-178:14)
-   │  │     │     │  ├─ Cond: expr#321: (start <= hay_len)
+   │  │     │     │  ├─ Cond: expr#315: (start <= hay_len)
    │  │     │     │  └─ Body:
 Block (span: 170:36-178:14)
-   │  │     │     │     ├─ Stmt[0]: Let (span: 171:17-171:68)
+   │  │     │     │     ├─ Stmt[0]: Let (span: 171:17-171:67)
    │  │     │     │     │  ├─ Name: idx
    │  │     │     │     │  ├─ Mutable: false
    │  │     │     │     │  ├─ Type: int
-   │  │     │     │     │  └─ Value: expr#327: string_find_from(self, &sep, start)
+   │  │     │     │     │  └─ Value: expr#320: string_find_from(self, sep, start)
    │  │     │     │     ├─ Stmt[1]: If (span: 172:17-174:18)
-   │  │     │     │     │  ├─ Cond: expr#330: (idx < 0)
+   │  │     │     │     │  ├─ Cond: expr#323: (idx < 0)
    │  │     │     │     │  ├─ Then:
 Block (span: 172:28-174:18)
    │  │     │     │     │  │  └─ Stmt[0]: Break (span: 173:21-173:27)
@@ -468,20 +468,20 @@ Block (span: 172:28-174:18)
    │  │     │     │     │  ├─ Name: piece
    │  │     │     │     │  ├─ Mutable: false
    │  │     │     │     │  ├─ Type: <inferred>
-   │  │     │     │     │  └─ Value: expr#336: self[[start..idx]]
+   │  │     │     │     │  └─ Value: expr#329: self[[start..idx]]
    │  │     │     │     ├─ Stmt[3]: Expr (span: 176:17-176:35)
-   │  │     │     │     │  └─ Expr: expr#340: parts.push(piece)
+   │  │     │     │     │  └─ Expr: expr#333: parts.push(piece)
    │  │     │     │     └─ Stmt[4]: Expr (span: 177:17-177:39)
-   │  │     │     │        └─ Expr: expr#345: (start = ((idx + sep_len)))
+   │  │     │     │        └─ Expr: expr#338: (start = ((idx + sep_len)))
    │  │     │     ├─ Stmt[2]: Let (span: 179:13-179:47)
    │  │     │     │  ├─ Name: tail
    │  │     │     │  ├─ Mutable: false
    │  │     │     │  ├─ Type: <inferred>
-   │  │     │     │  └─ Value: expr#351: self[[start..hay_len]]
+   │  │     │     │  └─ Value: expr#344: self[[start..hay_len]]
    │  │     │     └─ Stmt[3]: Expr (span: 180:13-180:30)
-   │  │     │        └─ Expr: expr#355: parts.push(tail)
+   │  │     │        └─ Expr: expr#348: parts.push(tail)
    │  │     └─ Stmt[4]: Return (span: 182:9-182:22)
-   │  │        └─ Expr: expr#356: parts
+   │  │        └─ Expr: expr#349: parts
    │  ├─ Fn[8]: join
    │  │  ├─ Params: (self: &string, parts: string[])
    │  │  ├─ Return: string
@@ -491,39 +491,39 @@ Block (span: 172:28-174:18)
    │  │     │  ├─ Name: count
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#360: parts.__len() to int
+   │  │     │  └─ Value: expr#353: parts.__len() to int
    │  │     ├─ Stmt[1]: If (span: 186:9-188:10)
-   │  │     │  ├─ Cond: expr#363: (count == 0)
+   │  │     │  ├─ Cond: expr#356: (count == 0)
    │  │     │  ├─ Then:
 Block (span: 186:23-188:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 187:13-187:23)
-   │  │     │  │     └─ Expr: expr#364: ""
+   │  │     │  │     └─ Expr: expr#357: ""
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[2]: Let (span: 189:9-189:42)
    │  │     │  ├─ Name: sep
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: string
-   │  │     │  └─ Value: expr#367: self.__clone()
+   │  │     │  └─ Value: expr#360: self.__clone()
    │  │     ├─ Stmt[3]: Let (span: 190:9-190:47)
    │  │     │  ├─ Name: out
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: string
-   │  │     │  └─ Value: expr#372: clone(parts[0])
+   │  │     │  └─ Value: expr#365: clone(parts[0])
    │  │     ├─ Stmt[4]: Let (span: 191:9-191:28)
    │  │     │  ├─ Name: i
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#373: 1
+   │  │     │  └─ Value: expr#366: 1
    │  │     ├─ Stmt[5]: While (span: 192:9-195:10)
-   │  │     │  ├─ Cond: expr#376: (i < count)
+   │  │     │  ├─ Cond: expr#369: (i < count)
    │  │     │  └─ Body:
 Block (span: 192:25-195:10)
    │  │     │     ├─ Stmt[0]: Expr (span: 193:13-193:40)
-   │  │     │     │  └─ Expr: expr#385: (out = ((((out + sep)) + parts[i])))
+   │  │     │     │  └─ Expr: expr#378: (out = ((((out + sep)) + parts[i])))
    │  │     │     └─ Stmt[1]: Expr (span: 194:13-194:23)
-   │  │     │        └─ Expr: expr#390: (i = ((i + 1)))
+   │  │     │        └─ Expr: expr#383: (i = ((i + 1)))
    │  │     └─ Stmt[6]: Return (span: 196:9-196:20)
-   │  │        └─ Expr: expr#391: out
+   │  │        └─ Expr: expr#384: out
    │  ├─ Fn[9]: trim
    │  │  ├─ Params: (self: &string)
    │  │  ├─ Return: string
@@ -533,66 +533,66 @@ Block (span: 192:25-195:10)
    │  │     │  ├─ Name: length
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#394: string_len_int(self)
+   │  │     │  └─ Value: expr#387: string_len_int(self)
    │  │     ├─ Stmt[1]: If (span: 200:9-202:10)
-   │  │     │  ├─ Cond: expr#397: (length <= 0)
+   │  │     │  ├─ Cond: expr#390: (length <= 0)
    │  │     │  ├─ Then:
 Block (span: 200:24-202:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 201:13-201:23)
-   │  │     │  │     └─ Expr: expr#398: ""
+   │  │     │  │     └─ Expr: expr#391: ""
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[2]: Let (span: 203:9-203:32)
    │  │     │  ├─ Name: start
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#399: 0
+   │  │     │  └─ Value: expr#392: 0
    │  │     ├─ Stmt[3]: While (span: 204:9-209:10)
-   │  │     │  ├─ Cond: expr#402: (start < length)
+   │  │     │  ├─ Cond: expr#395: (start < length)
    │  │     │  └─ Body:
 Block (span: 204:30-209:10)
    │  │     │     ├─ Stmt[0]: If (span: 205:13-207:14)
-   │  │     │     │  ├─ Cond: expr#408: !string_is_trim_space(self[start])
+   │  │     │     │  ├─ Cond: expr#401: !string_is_trim_space(self[start])
    │  │     │     │  ├─ Then:
 Block (span: 205:51-207:14)
    │  │     │     │  │  └─ Stmt[0]: Break (span: 206:17-206:23)
    │  │     │     │  │     └─ (no additional data)
    │  │     │     │  └─ Else: <none>
    │  │     │     └─ Stmt[1]: Expr (span: 208:13-208:31)
-   │  │     │        └─ Expr: expr#413: (start = ((start + 1)))
+   │  │     │        └─ Expr: expr#406: (start = ((start + 1)))
    │  │     ├─ Stmt[4]: If (span: 210:9-212:10)
-   │  │     │  ├─ Cond: expr#416: (start >= length)
+   │  │     │  ├─ Cond: expr#409: (start >= length)
    │  │     │  ├─ Then:
 Block (span: 210:28-212:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 211:13-211:23)
-   │  │     │  │     └─ Expr: expr#417: ""
+   │  │     │  │     └─ Expr: expr#410: ""
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[5]: Let (span: 213:9-213:39)
    │  │     │  ├─ Name: end
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#420: (length - 1)
+   │  │     │  └─ Value: expr#413: (length - 1)
    │  │     ├─ Stmt[6]: While (span: 214:9-222:10)
-   │  │     │  ├─ Cond: expr#423: (end >= start)
+   │  │     │  ├─ Cond: expr#416: (end >= start)
    │  │     │  └─ Body:
 Block (span: 214:28-222:10)
    │  │     │     ├─ Stmt[0]: If (span: 215:13-217:14)
-   │  │     │     │  ├─ Cond: expr#429: !string_is_trim_space(self[end])
+   │  │     │     │  ├─ Cond: expr#422: !string_is_trim_space(self[end])
    │  │     │     │  ├─ Then:
 Block (span: 215:49-217:14)
    │  │     │     │  │  └─ Stmt[0]: Break (span: 216:17-216:23)
    │  │     │     │  │     └─ (no additional data)
    │  │     │     │  └─ Else: <none>
    │  │     │     ├─ Stmt[1]: If (span: 218:13-220:14)
-   │  │     │     │  ├─ Cond: expr#432: (end == 0)
+   │  │     │     │  ├─ Cond: expr#425: (end == 0)
    │  │     │     │  ├─ Then:
 Block (span: 218:25-220:14)
    │  │     │     │  │  └─ Stmt[0]: Break (span: 219:17-219:23)
    │  │     │     │  │     └─ (no additional data)
    │  │     │     │  └─ Else: <none>
    │  │     │     └─ Stmt[2]: Expr (span: 221:13-221:27)
-   │  │     │        └─ Expr: expr#437: (end = ((end - 1)))
+   │  │     │        └─ Expr: expr#430: (end = ((end - 1)))
    │  │     └─ Stmt[7]: Return (span: 223:9-223:39)
-   │  │        └─ Expr: expr#445: self[[start..((end + 1))]]
+   │  │        └─ Expr: expr#438: self[[start..((end + 1))]]
    │  ├─ Fn[10]: trim_start
    │  │  ├─ Params: (self: &string)
    │  │  ├─ Return: string
@@ -602,27 +602,27 @@ Block (span: 218:25-220:14)
    │  │     │  ├─ Name: length
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#448: string_len_int(self)
+   │  │     │  └─ Value: expr#441: string_len_int(self)
    │  │     ├─ Stmt[1]: Let (span: 227:9-227:32)
    │  │     │  ├─ Name: start
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#449: 0
+   │  │     │  └─ Value: expr#442: 0
    │  │     ├─ Stmt[2]: While (span: 228:9-233:10)
-   │  │     │  ├─ Cond: expr#452: (start < length)
+   │  │     │  ├─ Cond: expr#445: (start < length)
    │  │     │  └─ Body:
 Block (span: 228:30-233:10)
    │  │     │     ├─ Stmt[0]: If (span: 229:13-231:14)
-   │  │     │     │  ├─ Cond: expr#458: !string_is_trim_space(self[start])
+   │  │     │     │  ├─ Cond: expr#451: !string_is_trim_space(self[start])
    │  │     │     │  ├─ Then:
 Block (span: 229:51-231:14)
    │  │     │     │  │  └─ Stmt[0]: Break (span: 230:17-230:23)
    │  │     │     │  │     └─ (no additional data)
    │  │     │     │  └─ Else: <none>
    │  │     │     └─ Stmt[1]: Expr (span: 232:13-232:31)
-   │  │     │        └─ Expr: expr#463: (start = ((start + 1)))
+   │  │     │        └─ Expr: expr#456: (start = ((start + 1)))
    │  │     └─ Stmt[3]: Return (span: 234:9-234:38)
-   │  │        └─ Expr: expr#469: self[[start..length]]
+   │  │        └─ Expr: expr#462: self[[start..length]]
    │  ├─ Fn[11]: trim_end
    │  │  ├─ Params: (self: &string)
    │  │  ├─ Return: string
@@ -632,118 +632,118 @@ Block (span: 229:51-231:14)
    │  │     │  ├─ Name: length
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#472: string_len_int(self)
+   │  │     │  └─ Value: expr#465: string_len_int(self)
    │  │     ├─ Stmt[1]: If (span: 238:9-240:10)
-   │  │     │  ├─ Cond: expr#475: (length <= 0)
+   │  │     │  ├─ Cond: expr#468: (length <= 0)
    │  │     │  ├─ Then:
 Block (span: 238:24-240:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 239:13-239:23)
-   │  │     │  │     └─ Expr: expr#476: ""
+   │  │     │  │     └─ Expr: expr#469: ""
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[2]: Let (span: 241:9-241:39)
    │  │     │  ├─ Name: end
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#479: (length - 1)
+   │  │     │  └─ Value: expr#472: (length - 1)
    │  │     ├─ Stmt[3]: While (span: 242:9-250:10)
-   │  │     │  ├─ Cond: expr#482: (end >= 0)
+   │  │     │  ├─ Cond: expr#475: (end >= 0)
    │  │     │  └─ Body:
 Block (span: 242:24-250:10)
    │  │     │     ├─ Stmt[0]: If (span: 243:13-245:14)
-   │  │     │     │  ├─ Cond: expr#488: !string_is_trim_space(self[end])
+   │  │     │     │  ├─ Cond: expr#481: !string_is_trim_space(self[end])
    │  │     │     │  ├─ Then:
 Block (span: 243:49-245:14)
    │  │     │     │  │  └─ Stmt[0]: Break (span: 244:17-244:23)
    │  │     │     │  │     └─ (no additional data)
    │  │     │     │  └─ Else: <none>
    │  │     │     ├─ Stmt[1]: If (span: 246:13-248:14)
-   │  │     │     │  ├─ Cond: expr#491: (end == 0)
+   │  │     │     │  ├─ Cond: expr#484: (end == 0)
    │  │     │     │  ├─ Then:
 Block (span: 246:25-248:14)
    │  │     │     │  │  └─ Stmt[0]: Break (span: 247:17-247:23)
    │  │     │     │  │     └─ (no additional data)
    │  │     │     │  └─ Else: <none>
    │  │     │     └─ Stmt[2]: Expr (span: 249:13-249:27)
-   │  │     │        └─ Expr: expr#496: (end = ((end - 1)))
+   │  │     │        └─ Expr: expr#489: (end = ((end - 1)))
    │  │     ├─ Stmt[4]: If (span: 251:9-253:10)
-   │  │     │  ├─ Cond: expr#501: string_is_trim_space(self[end])
+   │  │     │  ├─ Cond: expr#494: string_is_trim_space(self[end])
    │  │     │  ├─ Then:
 Block (span: 251:44-253:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 252:13-252:23)
-   │  │     │  │     └─ Expr: expr#502: ""
+   │  │     │  │     └─ Expr: expr#495: ""
    │  │     │  └─ Else: <none>
    │  │     └─ Stmt[5]: Return (span: 254:9-254:35)
-   │  │        └─ Expr: expr#510: self[[0..((end + 1))]]
+   │  │        └─ Expr: expr#503: self[[0..((end + 1))]]
    │  ├─ Fn[12]: replace
-   │  │  ├─ Params: (self: &string, old: string, new: string)
+   │  │  ├─ Params: (self: &string, old: &string, new: &string)
    │  │  ├─ Return: string
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 256:71-279:6)
-   │  │     ├─ Stmt[0]: Let (span: 257:9-257:49)
+   │  │     Stmt[0]: Block (span: 256:73-279:6)
+   │  │     ├─ Stmt[0]: Let (span: 257:9-257:48)
    │  │     │  ├─ Name: old_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#514: string_len_int(&old)
+   │  │     │  └─ Value: expr#506: string_len_int(old)
    │  │     ├─ Stmt[1]: If (span: 258:9-260:10)
-   │  │     │  ├─ Cond: expr#517: (old_len == 0)
+   │  │     │  ├─ Cond: expr#509: (old_len == 0)
    │  │     │  ├─ Then:
 Block (span: 258:25-260:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 259:13-259:35)
-   │  │     │  │     └─ Expr: expr#520: self.__clone()
+   │  │     │  │     └─ Expr: expr#512: self.__clone()
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[2]: Let (span: 261:9-261:49)
    │  │     │  ├─ Name: hay_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#523: string_len_int(self)
+   │  │     │  └─ Value: expr#515: string_len_int(self)
    │  │     ├─ Stmt[3]: Let (span: 262:9-262:32)
    │  │     │  ├─ Name: start
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#524: 0
+   │  │     │  └─ Value: expr#516: 0
    │  │     ├─ Stmt[4]: Let (span: 263:9-263:34)
    │  │     │  ├─ Name: out
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: string
-   │  │     │  └─ Value: expr#525: ""
+   │  │     │  └─ Value: expr#517: ""
    │  │     ├─ Stmt[5]: Let (span: 264:9-264:39)
    │  │     │  ├─ Name: changed
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: bool
-   │  │     │  └─ Value: expr#526: false
+   │  │     │  └─ Value: expr#518: false
    │  │     ├─ Stmt[6]: While (span: 265:9-273:10)
-   │  │     │  ├─ Cond: expr#531: (start <= ((hay_len - old_len)))
+   │  │     │  ├─ Cond: expr#523: (start <= ((hay_len - old_len)))
    │  │     │  └─ Body:
 Block (span: 265:42-273:10)
-   │  │     │     ├─ Stmt[0]: Let (span: 266:13-266:64)
+   │  │     │     ├─ Stmt[0]: Let (span: 266:13-266:63)
    │  │     │     │  ├─ Name: idx
    │  │     │     │  ├─ Mutable: false
    │  │     │     │  ├─ Type: int
-   │  │     │     │  └─ Value: expr#537: string_find_from(self, &old, start)
+   │  │     │     │  └─ Value: expr#528: string_find_from(self, old, start)
    │  │     │     ├─ Stmt[1]: If (span: 267:13-269:14)
-   │  │     │     │  ├─ Cond: expr#540: (idx < 0)
+   │  │     │     │  ├─ Cond: expr#531: (idx < 0)
    │  │     │     │  ├─ Then:
 Block (span: 267:24-269:14)
    │  │     │     │  │  └─ Stmt[0]: Break (span: 268:17-268:23)
    │  │     │     │  │     └─ (no additional data)
    │  │     │     │  └─ Else: <none>
    │  │     │     ├─ Stmt[2]: Expr (span: 270:13-270:28)
-   │  │     │     │  └─ Expr: expr#543: (changed = true)
+   │  │     │     │  └─ Expr: expr#534: (changed = true)
    │  │     │     ├─ Stmt[3]: Expr (span: 271:13-271:60)
-   │  │     │     │  └─ Expr: expr#557: (out = ((((out + self[[start..idx]])) + new.__clone())))
+   │  │     │     │  └─ Expr: expr#548: (out = ((((out + self[[start..idx]])) + new.__clone())))
    │  │     │     └─ Stmt[4]: Expr (span: 272:13-272:35)
-   │  │     │        └─ Expr: expr#562: (start = ((idx + old_len)))
+   │  │     │        └─ Expr: expr#553: (start = ((idx + old_len)))
    │  │     ├─ Stmt[7]: If (span: 274:9-276:10)
-   │  │     │  ├─ Cond: expr#564: !changed
+   │  │     │  ├─ Cond: expr#555: !changed
    │  │     │  ├─ Then:
 Block (span: 274:21-276:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 275:13-275:35)
-   │  │     │  │     └─ Expr: expr#567: self.__clone()
+   │  │     │  │     └─ Expr: expr#558: self.__clone()
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[8]: Expr (span: 277:9-277:44)
-   │  │     │  └─ Expr: expr#577: (out = ((out + self[[start..hay_len]])))
+   │  │     │  └─ Expr: expr#568: (out = ((out + self[[start..hay_len]])))
    │  │     └─ Stmt[9]: Return (span: 278:9-278:20)
-   │  │        └─ Expr: expr#578: out
+   │  │        └─ Expr: expr#569: out
    │  ├─ Fn[13]: reverse
    │  │  ├─ Params: (self: &string)
    │  │  ├─ Return: string
@@ -753,179 +753,179 @@ Block (span: 274:21-276:10)
    │  │     │  ├─ Name: length
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#581: string_len_int(self)
+   │  │     │  └─ Value: expr#572: string_len_int(self)
    │  │     ├─ Stmt[1]: If (span: 282:9-284:10)
-   │  │     │  ├─ Cond: expr#584: (length <= 1)
+   │  │     │  ├─ Cond: expr#575: (length <= 1)
    │  │     │  ├─ Then:
 Block (span: 282:24-284:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 283:13-283:35)
-   │  │     │  │     └─ Expr: expr#587: self.__clone()
+   │  │     │  │     └─ Expr: expr#578: self.__clone()
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[2]: Let (span: 285:9-285:34)
    │  │     │  ├─ Name: out
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: string
-   │  │     │  └─ Value: expr#588: ""
+   │  │     │  └─ Value: expr#579: ""
    │  │     ├─ Stmt[3]: Let (span: 286:9-286:37)
    │  │     │  ├─ Name: i
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#591: (length - 1)
+   │  │     │  └─ Value: expr#582: (length - 1)
    │  │     ├─ Stmt[4]: While (span: 287:9-293:10)
-   │  │     │  ├─ Cond: expr#594: (i >= 0)
+   │  │     │  ├─ Cond: expr#585: (i >= 0)
    │  │     │  └─ Body:
 Block (span: 287:22-293:10)
    │  │     │     ├─ Stmt[0]: Expr (span: 288:13-288:42)
-   │  │     │     │  └─ Expr: expr#606: (out = ((out + self[[i..((i + 1))]])))
+   │  │     │     │  └─ Expr: expr#597: (out = ((out + self[[i..((i + 1))]])))
    │  │     │     ├─ Stmt[1]: If (span: 289:13-291:14)
-   │  │     │     │  ├─ Cond: expr#609: (i == 0)
+   │  │     │     │  ├─ Cond: expr#600: (i == 0)
    │  │     │     │  ├─ Then:
 Block (span: 289:23-291:14)
    │  │     │     │  │  └─ Stmt[0]: Break (span: 290:17-290:23)
    │  │     │     │  │     └─ (no additional data)
    │  │     │     │  └─ Else: <none>
    │  │     │     └─ Stmt[2]: Expr (span: 292:13-292:23)
-   │  │     │        └─ Expr: expr#614: (i = ((i - 1)))
+   │  │     │        └─ Expr: expr#605: (i = ((i - 1)))
    │  │     └─ Stmt[5]: Return (span: 294:9-294:20)
-   │  │        └─ Expr: expr#615: out
+   │  │        └─ Expr: expr#606: out
    │  ├─ Fn[14]: levenshtein
-   │  │  ├─ Params: (self: &string, other: string)
+   │  │  ├─ Params: (self: &string, other: &string)
    │  │  ├─ Return: uint
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 296:62-338:6)
+   │  │     Stmt[0]: Block (span: 296:63-338:6)
    │  │     ├─ Stmt[0]: Let (span: 297:9-297:47)
    │  │     │  ├─ Name: a_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#618: string_len_int(self)
-   │  │     ├─ Stmt[1]: Let (span: 298:9-298:49)
+   │  │     │  └─ Value: expr#609: string_len_int(self)
+   │  │     ├─ Stmt[1]: Let (span: 298:9-298:48)
    │  │     │  ├─ Name: b_len
    │  │     │  ├─ Mutable: false
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#622: string_len_int(&other)
+   │  │     │  └─ Value: expr#612: string_len_int(other)
    │  │     ├─ Stmt[2]: If (span: 299:9-301:10)
-   │  │     │  ├─ Cond: expr#625: (a_len == 0)
+   │  │     │  ├─ Cond: expr#615: (a_len == 0)
    │  │     │  ├─ Then:
 Block (span: 299:23-301:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 300:13-300:34)
-   │  │     │  │     └─ Expr: expr#627: b_len to uint
+   │  │     │  │     └─ Expr: expr#617: b_len to uint
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[3]: If (span: 302:9-304:10)
-   │  │     │  ├─ Cond: expr#630: (b_len == 0)
+   │  │     │  ├─ Cond: expr#620: (b_len == 0)
    │  │     │  ├─ Then:
 Block (span: 302:23-304:10)
    │  │     │  │  └─ Stmt[0]: Return (span: 303:13-303:34)
-   │  │     │  │     └─ Expr: expr#632: a_len to uint
+   │  │     │  │     └─ Expr: expr#622: a_len to uint
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[4]: Let (span: 306:9-306:35)
    │  │     │  ├─ Name: prev
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: uint[]
-   │  │     │  └─ Value: expr#633: <ExprKind(8)>
+   │  │     │  └─ Value: expr#623: <ExprKind(8)>
    │  │     ├─ Stmt[5]: Let (span: 307:9-307:28)
    │  │     │  ├─ Name: j
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#634: 0
+   │  │     │  └─ Value: expr#624: 0
    │  │     ├─ Stmt[6]: While (span: 308:9-313:10)
-   │  │     │  ├─ Cond: expr#637: (j <= b_len)
+   │  │     │  ├─ Cond: expr#627: (j <= b_len)
    │  │     │  └─ Body:
 Block (span: 308:26-313:10)
    │  │     │     ├─ Stmt[0]: Let (span: 309:13-309:41)
    │  │     │     │  ├─ Name: value
    │  │     │     │  ├─ Mutable: false
    │  │     │     │  ├─ Type: uint
-   │  │     │     │  └─ Value: expr#639: j to uint
+   │  │     │     │  └─ Value: expr#629: j to uint
    │  │     │     ├─ Stmt[1]: Let (span: 310:13-310:39)
    │  │     │     │  ├─ Name: one
    │  │     │     │  ├─ Mutable: false
    │  │     │     │  ├─ Type: uint[]
-   │  │     │     │  └─ Value: expr#641: <ExprKind(8)>
+   │  │     │     │  └─ Value: expr#631: <ExprKind(8)>
    │  │     │     ├─ Stmt[2]: Expr (span: 311:13-311:31)
-   │  │     │     │  └─ Expr: expr#646: (prev = ((prev + one)))
+   │  │     │     │  └─ Expr: expr#636: (prev = ((prev + one)))
    │  │     │     └─ Stmt[3]: Expr (span: 312:13-312:23)
-   │  │     │        └─ Expr: expr#651: (j = ((j + 1)))
+   │  │     │        └─ Expr: expr#641: (j = ((j + 1)))
    │  │     ├─ Stmt[7]: Let (span: 315:9-315:28)
    │  │     │  ├─ Name: i
    │  │     │  ├─ Mutable: true
    │  │     │  ├─ Type: int
-   │  │     │  └─ Value: expr#652: 1
+   │  │     │  └─ Value: expr#642: 1
    │  │     ├─ Stmt[8]: While (span: 316:9-336:10)
-   │  │     │  ├─ Cond: expr#655: (i <= a_len)
+   │  │     │  ├─ Cond: expr#645: (i <= a_len)
    │  │     │  └─ Body:
 Block (span: 316:26-336:10)
    │  │     │     ├─ Stmt[0]: Let (span: 317:13-317:39)
    │  │     │     │  ├─ Name: curr
    │  │     │     │  ├─ Mutable: true
    │  │     │     │  ├─ Type: uint[]
-   │  │     │     │  └─ Value: expr#656: <ExprKind(8)>
+   │  │     │     │  └─ Value: expr#646: <ExprKind(8)>
    │  │     │     ├─ Stmt[1]: Let (span: 318:13-318:45)
    │  │     │     │  ├─ Name: first
    │  │     │     │  ├─ Mutable: false
    │  │     │     │  ├─ Type: uint[]
-   │  │     │     │  └─ Value: expr#659: <ExprKind(8)>
+   │  │     │     │  └─ Value: expr#649: <ExprKind(8)>
    │  │     │     ├─ Stmt[2]: Expr (span: 319:13-319:33)
-   │  │     │     │  └─ Expr: expr#664: (curr = ((curr + first)))
+   │  │     │     │  └─ Expr: expr#654: (curr = ((curr + first)))
    │  │     │     ├─ Stmt[3]: Expr (span: 320:13-320:19)
-   │  │     │     │  └─ Expr: expr#667: (j = 1)
+   │  │     │     │  └─ Expr: expr#657: (j = 1)
    │  │     │     ├─ Stmt[4]: While (span: 321:13-333:14)
-   │  │     │     │  ├─ Cond: expr#670: (j <= b_len)
+   │  │     │     │  ├─ Cond: expr#660: (j <= b_len)
    │  │     │     │  └─ Body:
 Block (span: 321:30-333:14)
    │  │     │     │     ├─ Stmt[0]: Let (span: 322:17-322:45)
    │  │     │     │     │  ├─ Name: cost
    │  │     │     │     │  ├─ Mutable: true
    │  │     │     │     │  ├─ Type: uint
-   │  │     │     │     │  └─ Value: expr#672: 1 to uint
+   │  │     │     │     │  └─ Value: expr#662: 1 to uint
    │  │     │     │     ├─ Stmt[1]: If (span: 323:17-325:18)
-   │  │     │     │     │  ├─ Cond: expr#683: (self[(i - 1)] == other[(j - 1)])
+   │  │     │     │     │  ├─ Cond: expr#673: (self[(i - 1)] == other[(j - 1)])
    │  │     │     │     │  ├─ Then:
 Block (span: 323:48-325:18)
    │  │     │     │     │  │  └─ Stmt[0]: Expr (span: 324:21-324:35)
-   │  │     │     │     │  │     └─ Expr: expr#687: (cost = (0 to uint))
+   │  │     │     │     │  │     └─ Expr: expr#677: (cost = (0 to uint))
    │  │     │     │     │  └─ Else: <none>
    │  │     │     │     ├─ Stmt[2]: Let (span: 326:17-326:50)
    │  │     │     │     │  ├─ Name: del
    │  │     │     │     │  ├─ Mutable: false
    │  │     │     │     │  ├─ Type: uint
-   │  │     │     │     │  └─ Value: expr#693: (prev[j] + (1 to uint))
+   │  │     │     │     │  └─ Value: expr#683: (prev[j] + (1 to uint))
    │  │     │     │     ├─ Stmt[3]: Let (span: 327:17-327:54)
    │  │     │     │     │  ├─ Name: ins
    │  │     │     │     │  ├─ Mutable: false
    │  │     │     │     │  ├─ Type: uint
-   │  │     │     │     │  └─ Value: expr#701: (curr[(j - 1)] + (1 to uint))
+   │  │     │     │     │  └─ Value: expr#691: (curr[(j - 1)] + (1 to uint))
    │  │     │     │     ├─ Stmt[4]: Let (span: 328:17-328:52)
    │  │     │     │     │  ├─ Name: sub
    │  │     │     │     │  ├─ Mutable: false
    │  │     │     │     │  ├─ Type: uint
-   │  │     │     │     │  └─ Value: expr#708: (prev[(j - 1)] + cost)
+   │  │     │     │     │  └─ Value: expr#698: (prev[(j - 1)] + cost)
    │  │     │     │     ├─ Stmt[5]: Let (span: 329:17-329:63)
    │  │     │     │     │  ├─ Name: best
    │  │     │     │     │  ├─ Mutable: false
    │  │     │     │     │  ├─ Type: uint
-   │  │     │     │     │  └─ Value: expr#713: string_min3_u(del, ins, sub)
+   │  │     │     │     │  └─ Value: expr#703: string_min3_u(del, ins, sub)
    │  │     │     │     ├─ Stmt[6]: Let (span: 330:17-330:42)
    │  │     │     │     │  ├─ Name: one
    │  │     │     │     │  ├─ Mutable: false
    │  │     │     │     │  ├─ Type: uint[]
-   │  │     │     │     │  └─ Value: expr#715: <ExprKind(8)>
+   │  │     │     │     │  └─ Value: expr#705: <ExprKind(8)>
    │  │     │     │     ├─ Stmt[7]: Expr (span: 331:17-331:35)
-   │  │     │     │     │  └─ Expr: expr#720: (curr = ((curr + one)))
+   │  │     │     │     │  └─ Expr: expr#710: (curr = ((curr + one)))
    │  │     │     │     └─ Stmt[8]: Expr (span: 332:17-332:27)
-   │  │     │     │        └─ Expr: expr#725: (j = ((j + 1)))
+   │  │     │     │        └─ Expr: expr#715: (j = ((j + 1)))
    │  │     │     ├─ Stmt[5]: Expr (span: 334:13-334:25)
-   │  │     │     │  └─ Expr: expr#728: (prev = curr)
+   │  │     │     │  └─ Expr: expr#718: (prev = curr)
    │  │     │     └─ Stmt[6]: Expr (span: 335:13-335:23)
-   │  │     │        └─ Expr: expr#733: (i = ((i + 1)))
+   │  │     │        └─ Expr: expr#723: (i = ((i + 1)))
    │  │     └─ Stmt[9]: Return (span: 337:9-337:28)
-   │  │        └─ Expr: expr#736: prev[b_len]
+   │  │        └─ Expr: expr#726: prev[b_len]
    │  ├─ Fn[15]: from_str
    │  │  ├─ Params: (s: &string)
    │  │  ├─ Return: Erring<string, Error>
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 340:58-342:6)
    │  │     └─ Stmt[0]: Return (span: 341:9-341:37)
-   │  │        └─ Expr: expr#741: Success(s.__clone())
+   │  │        └─ Expr: expr#731: Success(s.__clone())
    │  └─ Fn[16]: from_bytes
    │     ├─ Params: (bytes: &byte[])
    │     ├─ Return: Erring<string, Error>

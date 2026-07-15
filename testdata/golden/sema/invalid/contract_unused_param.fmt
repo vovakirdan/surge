@@ -1,4 +1,0 @@
-// scenario: contract declares a generic parameter that is never used
-contract UnusedParam<T> {
-    fn touch() -> nothing;
-}

@@ -1,4 +1,0 @@
-pragma module;
-
-@entrypoint
-fn main() {}

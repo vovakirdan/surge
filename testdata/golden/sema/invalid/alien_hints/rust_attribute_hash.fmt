@@ -1,3 +1,0 @@
-#[align]
-type Foo = { x: int };
-

@@ -1,3 +1,0 @@
-fn bad(...args: int, x: int) {}
-
-fn main() {}

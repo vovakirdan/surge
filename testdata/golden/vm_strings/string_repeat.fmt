@@ -1,6 +1,0 @@
-@entrypoint
-fn main() -> int {
-    let s = "ha" * 3;
-    print(s);
-    return 0;
-}

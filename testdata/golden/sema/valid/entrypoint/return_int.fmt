@@ -1,5 +1,0 @@
-// Test: @entrypoint returning int is valid
-@entrypoint
-fn main() -> int {
-    return 0;
-}

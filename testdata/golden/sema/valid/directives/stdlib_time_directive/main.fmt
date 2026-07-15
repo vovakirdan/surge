@@ -1,8 +1,0 @@
-// Test: time directive module
-// Expected: No errors
-import stdlib/directives/time;
-
-/// time:
-/// time.profile_fn("compute", 10, compute);
-
-fn compute() -> nothing { return nothing; }

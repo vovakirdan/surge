@@ -1,5 +1,0 @@
-// scenario: returned expression type does not match the function signature
-// Updated to use 'nothing' which has no __to conversion to int
-fn wrong_return() -> int {
-    return nothing;
-}

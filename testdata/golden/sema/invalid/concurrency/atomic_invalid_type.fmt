@@ -1,6 +1,0 @@
-// Invalid @atomic - field type is not int, uint, bool, or *T
-
-type BadAtomic = {
-    @atomic name: string,
-    @atomic data: float,
-}

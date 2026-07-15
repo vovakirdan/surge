@@ -1,7 +1,7 @@
 import stdlib/fs as fs;
 
 fn strip_prefix(path: &string, prefix: &string) -> string {
-    if !path.starts_with(prefix.__clone()) {
+    if !path.starts_with(prefix) {
         return path.__clone();
     }
     let plen: int = prefix.__len() to int;

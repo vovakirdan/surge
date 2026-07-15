@@ -4,11 +4,11 @@ module
 
 type Point <struct> (sym=1421, type=0)
 
-fn origin() -> type#1504 (id=1, sym=1422) {
-  return  { x = 0, y = 0 }: type#1504
+fn origin() -> type#1502 (id=1, sym=1422) {
+  return  { x = 0, y = 0 }: type#1502
 }
 
-fn move_point(p: type#1504, dx: int [copy], dy: int [copy]) -> type#1504 (id=2, sym=1423) {
-  return  { x = __add(p.x, dx): int, y = __add(p.y, dy): int }: type#1504
+fn move_point(p: type#1502, dx: int [copy], dy: int [copy]) -> type#1502 (id=2, sym=1423) {
+  return  { x = __add(p.x, dx): int, y = __add(p.y, dy): int }: type#1502
 }
 

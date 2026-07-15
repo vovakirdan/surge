@@ -1,7 +1,0 @@
-type Foo = { x: int }
-
-extern<Foo> {
-    pub fn __mul(self: &Foo, other: int) -> Foo {
-        return self * other;
-    }
-}

@@ -1,4 +1,0 @@
-// Test: @entrypoint without mode and no parameters is valid
-@entrypoint
-fn main() {
-}

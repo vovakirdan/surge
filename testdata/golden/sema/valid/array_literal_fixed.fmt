@@ -1,4 +1,0 @@
-fn test() {
-    let a = [1, 2, 3];
-    let fixed: int[3] = a;
-}

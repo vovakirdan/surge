@@ -1,4 +1,0 @@
-@entrypoint
-fn main() -> int {
-    return 1 / 0;
-}

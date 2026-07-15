@@ -1,1 +1,0 @@
-error FUT7000 testdata/golden/sema/invalid/signal_not_supported.sg:4:5 'signal' is not supported in v1, reserved for future use

@@ -1,4 +1,0 @@
-// scenario: tuple arity mismatch
-fn bad_length() -> (int, int, int) {
-    return (1, 2);
-}

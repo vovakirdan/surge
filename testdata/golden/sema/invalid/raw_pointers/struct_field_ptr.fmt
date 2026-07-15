@@ -1,5 +1,0 @@
-type Foo = { p: *byte };
-
-fn main() -> int {
-    return 0;
-}

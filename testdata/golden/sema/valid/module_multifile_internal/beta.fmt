@@ -1,5 +1,0 @@
-pragma module;
-
-fn beta(y: int) -> int {
-    return alpha(y) + 1;
-}

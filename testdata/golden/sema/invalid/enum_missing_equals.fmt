@@ -1,6 +1,0 @@
-// Missing '=' in enum declaration
-
-enum Color {
-    Red,
-    Green,
-}

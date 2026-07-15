@@ -1,5 +1,0 @@
-pragma no_std
-
-import stdlib/option;
-
-fn main() {}

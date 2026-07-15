@@ -1,1 +1,0 @@
-error SEM3130 testdata/golden/sema/invalid/drop_then_use.sg:5:13 use of moved value 'a'

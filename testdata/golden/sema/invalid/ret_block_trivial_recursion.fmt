@@ -1,5 +1,0 @@
-fn loop(x: int) -> int {
-    return {
-        ret loop(x);
-    };
-}

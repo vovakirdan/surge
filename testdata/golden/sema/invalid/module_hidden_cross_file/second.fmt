@@ -1,5 +1,0 @@
-pragma module;
-
-fn use_secret() -> int {
-    return secret();
-}

@@ -1,1 +1,0 @@
-error SEM3032 testdata/golden/sema/invalid/contract_unused_param.sg:2:21 unused generic parameter 'T'

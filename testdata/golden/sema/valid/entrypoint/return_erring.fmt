@@ -1,5 +1,0 @@
-// Test: @entrypoint returning Erring<int, Error> is valid (has __to(int))
-@entrypoint
-fn main() -> int! {
-    return Success(0);
-}

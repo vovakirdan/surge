@@ -1,5 +1,0 @@
-@entrypoint
-fn main() -> int {
-    return 9223372036854775807 + 1;
-}
-

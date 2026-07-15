@@ -1,6 +1,0 @@
-// scenario: simple alias to int used in a function
-type UserId = int;
-
-fn use_user(id: UserId) -> UserId {
-    return id;
-}

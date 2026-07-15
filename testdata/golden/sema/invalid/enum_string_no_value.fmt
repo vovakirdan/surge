@@ -1,6 +1,0 @@
-// Error: string enum without explicit value
-
-enum Token: string = {
-    lbrace = "{",
-    rbrace
-}

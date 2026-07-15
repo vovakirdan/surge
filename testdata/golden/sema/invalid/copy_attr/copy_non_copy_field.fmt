@@ -1,3 +1,0 @@
-// scenario: @copy type with non-Copy field should error
-@copy
-type BadConfig = { name: string }  // ERROR: string is not Copy

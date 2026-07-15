@@ -1,5 +1,0 @@
-// scenario: wrong number of arguments to function-typed variable
-fn test(f: fn(int, int) -> int) {
-    // Error: expects 2 arguments, got 1
-    let x: int = f(1);
-}

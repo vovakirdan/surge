@@ -1,7 +1,0 @@
-@entrypoint
-fn main() -> int {
-    let a: string = "a";
-    let b: string = "b";
-    return 0;
-}
-

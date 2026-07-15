@@ -1,4 +1,0 @@
-impl fn demo() -> int {
-    return 1;
-}
-

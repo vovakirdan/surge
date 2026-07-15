@@ -1,5 +1,0 @@
-fn main() -> nothing {
-    defer(foo());
-    return nothing;
-}
-

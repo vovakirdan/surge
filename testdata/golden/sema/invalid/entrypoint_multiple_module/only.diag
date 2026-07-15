@@ -1,1 +1,0 @@
-error SEM3057 testdata/golden/sema/invalid/entrypoint_multiple_module/only.sg:7:4 multiple @entrypoint functions in module

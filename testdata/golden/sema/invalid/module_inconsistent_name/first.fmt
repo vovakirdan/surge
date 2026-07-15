@@ -1,3 +1,0 @@
-pragma module::one;
-
-fn first() {}
