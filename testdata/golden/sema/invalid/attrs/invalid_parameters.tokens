@@ -1,0 +1,142 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "align" at 4:2-4:7
+  3: LParen          "(" at 4:7-4:8
+  4: IntLit          "7" at 4:8-4:9
+  5: RParen          ")" at 4:9-4:10
+  6: KwType          "type" at 5:1-5:5 (leading: Newline)
+  7: Ident           "BadAlign1" at 5:6-5:15 (leading: Space)
+  8: Assign          "=" at 5:16-5:17 (leading: Space)
+  9: LBrace          "{" at 5:18-5:19 (leading: Space)
+ 10: Ident           "x" at 6:5-6:6 (leading: Newline, Space)
+ 11: Colon           ":" at 6:6-6:7
+ 12: Ident           "int" at 6:8-6:11 (leading: Space)
+ 13: Comma           "," at 6:11-6:12
+ 14: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 15: Semicolon       ";" at 7:2-7:3
+ 16: At              "@" at 9:1-9:2 (leading: Newline)
+ 17: Ident           "align" at 9:2-9:7
+ 18: LParen          "(" at 9:7-9:8
+ 19: IntLit          "3" at 9:8-9:9
+ 20: RParen          ")" at 9:9-9:10
+ 21: KwType          "type" at 10:1-10:5 (leading: Newline)
+ 22: Ident           "BadAlign2" at 10:6-10:15 (leading: Space)
+ 23: Assign          "=" at 10:16-10:17 (leading: Space)
+ 24: LBrace          "{" at 10:18-10:19 (leading: Space)
+ 25: Ident           "y" at 11:5-11:6 (leading: Newline, Space)
+ 26: Colon           ":" at 11:6-11:7
+ 27: Ident           "int" at 11:8-11:11 (leading: Space)
+ 28: Comma           "," at 11:11-11:12
+ 29: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 30: Semicolon       ";" at 12:2-12:3
+ 31: At              "@" at 14:1-14:2 (leading: Newline)
+ 32: Ident           "align" at 14:2-14:7
+ 33: LParen          "(" at 14:7-14:8
+ 34: IntLit          "100" at 14:8-14:11
+ 35: RParen          ")" at 14:11-14:12
+ 36: KwType          "type" at 15:1-15:5 (leading: Newline)
+ 37: Ident           "BadAlign3" at 15:6-15:15 (leading: Space)
+ 38: Assign          "=" at 15:16-15:17 (leading: Space)
+ 39: LBrace          "{" at 15:18-15:19 (leading: Space)
+ 40: Ident           "z" at 16:5-16:6 (leading: Newline, Space)
+ 41: Colon           ":" at 16:6-16:7
+ 42: Ident           "int" at 16:8-16:11 (leading: Space)
+ 43: Comma           "," at 16:11-16:12
+ 44: RBrace          "}" at 17:1-17:2 (leading: Newline)
+ 45: Semicolon       ";" at 17:2-17:3
+ 46: At              "@" at 20:1-20:2 (leading: Newline, LineComment, Newline)
+ 47: Ident           "backend" at 20:2-20:9
+ 48: LParen          "(" at 20:9-20:10
+ 49: StringLit       "\"quantum\"" at 20:10-20:19
+ 50: RParen          ")" at 20:19-20:20
+ 51: KwFn            "fn" at 21:1-21:3 (leading: Newline)
+ 52: Ident           "unknown_backend1" at 21:4-21:20 (leading: Space)
+ 53: LParen          "(" at 21:20-21:21
+ 54: RParen          ")" at 21:21-21:22
+ 55: LBrace          "{" at 21:23-21:24 (leading: Space)
+ 56: RBrace          "}" at 22:1-22:2 (leading: Newline)
+ 57: At              "@" at 24:1-24:2 (leading: Newline)
+ 58: Ident           "backend" at 24:2-24:9
+ 59: LParen          "(" at 24:9-24:10
+ 60: StringLit       "\"fpga\"" at 24:10-24:16
+ 61: RParen          ")" at 24:16-24:17
+ 62: KwFn            "fn" at 25:1-25:3 (leading: Newline)
+ 63: Ident           "unknown_backend2" at 25:4-25:20 (leading: Space)
+ 64: LParen          "(" at 25:20-25:21
+ 65: RParen          ")" at 25:21-25:22
+ 66: LBrace          "{" at 25:23-25:24 (leading: Space)
+ 67: RBrace          "}" at 26:1-26:2 (leading: Newline)
+ 68: KwType          "type" at 29:1-29:5 (leading: Newline, LineComment, Newline)
+ 69: Ident           "BadGuard" at 29:6-29:14 (leading: Space)
+ 70: Assign          "=" at 29:15-29:16 (leading: Space)
+ 71: LBrace          "{" at 29:17-29:18 (leading: Space)
+ 72: Ident           "data" at 30:5-30:9 (leading: Newline, Space)
+ 73: Colon           ":" at 30:9-30:10
+ 74: Ident           "int" at 30:11-30:14 (leading: Space)
+ 75: Comma           "," at 30:14-30:15
+ 76: RBrace          "}" at 31:1-31:2 (leading: Newline)
+ 77: Semicolon       ";" at 31:2-31:3
+ 78: KwExtern        "extern" at 33:1-33:7 (leading: Newline)
+ 79: Lt              "<" at 33:7-33:8
+ 80: Ident           "BadGuard" at 33:8-33:16
+ 81: Gt              ">" at 33:16-33:17
+ 82: LBrace          "{" at 33:18-33:19 (leading: Space)
+ 83: At              "@" at 34:5-34:6 (leading: Newline, Space)
+ 84: Ident           "guarded_by" at 34:6-34:16
+ 85: LParen          "(" at 34:16-34:17
+ 86: StringLit       "\"nonexistent_lock\"" at 34:17-34:35
+ 87: RParen          ")" at 34:35-34:36
+ 88: KwFn            "fn" at 35:5-35:7 (leading: Newline, Space)
+ 89: Ident           "bad_guard" at 35:8-35:17 (leading: Space)
+ 90: LParen          "(" at 35:17-35:18
+ 91: Ident           "self" at 35:18-35:22
+ 92: Colon           ":" at 35:22-35:23
+ 93: Amp             "&" at 35:24-35:25 (leading: Space)
+ 94: Ident           "BadGuard" at 35:25-35:33
+ 95: RParen          ")" at 35:33-35:34
+ 96: LBrace          "{" at 35:35-35:36 (leading: Space)
+ 97: RBrace          "}" at 36:5-36:6 (leading: Newline, Space)
+ 98: RBrace          "}" at 37:1-37:2 (leading: Newline)
+ 99: KwExtern        "extern" at 40:1-40:7 (leading: Newline, LineComment, Newline)
+100: Lt              "<" at 40:7-40:8
+101: Ident           "BadGuard" at 40:8-40:16
+102: Gt              ">" at 40:16-40:17
+103: LBrace          "{" at 40:18-40:19 (leading: Space)
+104: At              "@" at 41:5-41:6 (leading: Newline, Space)
+105: Ident           "waits_on" at 41:6-41:14
+106: LParen          "(" at 41:14-41:15
+107: StringLit       "\"nonexistent_condition\"" at 41:15-41:38
+108: RParen          ")" at 41:38-41:39
+109: KwFn            "fn" at 42:5-42:7 (leading: Newline, Space)
+110: Ident           "bad_waits" at 42:8-42:17 (leading: Space)
+111: LParen          "(" at 42:17-42:18
+112: Ident           "self" at 42:18-42:22
+113: Colon           ":" at 42:22-42:23
+114: Amp             "&" at 42:24-42:25 (leading: Space)
+115: KwMut           "mut" at 42:25-42:28
+116: Ident           "BadGuard" at 42:29-42:37 (leading: Space)
+117: RParen          ")" at 42:37-42:38
+118: LBrace          "{" at 42:39-42:40 (leading: Space)
+119: RBrace          "}" at 43:5-43:6 (leading: Newline, Space)
+120: RBrace          "}" at 44:1-44:2 (leading: Newline)
+121: KwExtern        "extern" at 47:1-47:7 (leading: Newline, LineComment, Newline)
+122: Lt              "<" at 47:7-47:8
+123: Ident           "BadGuard" at 47:8-47:16
+124: Gt              ">" at 47:16-47:17
+125: LBrace          "{" at 47:18-47:19 (leading: Space)
+126: At              "@" at 48:5-48:6 (leading: Newline, Space)
+127: Ident           "requires_lock" at 48:6-48:19
+128: LParen          "(" at 48:19-48:20
+129: StringLit       "\"nonexistent_lock\"" at 48:20-48:38
+130: RParen          ")" at 48:38-48:39
+131: KwFn            "fn" at 49:5-49:7 (leading: Newline, Space)
+132: Ident           "bad_requires" at 49:8-49:20 (leading: Space)
+133: LParen          "(" at 49:20-49:21
+134: Ident           "self" at 49:21-49:25
+135: Colon           ":" at 49:25-49:26
+136: Amp             "&" at 49:27-49:28 (leading: Space)
+137: Ident           "BadGuard" at 49:28-49:36
+138: RParen          ")" at 49:36-49:37
+139: LBrace          "{" at 49:38-49:39 (leading: Space)
+140: RBrace          "}" at 50:5-50:6 (leading: Newline, Space)
+141: RBrace          "}" at 51:1-51:2 (leading: Newline)
+142: EOF             at 52:1-52:1

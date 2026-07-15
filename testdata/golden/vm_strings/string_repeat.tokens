@@ -1,0 +1,26 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Ident           "s" at 3:9-3:10 (leading: Space)
+ 12: Assign          "=" at 3:11-3:12 (leading: Space)
+ 13: StringLit       "\"ha\"" at 3:13-3:17 (leading: Space)
+ 14: Star            "*" at 3:18-3:19 (leading: Space)
+ 15: IntLit          "3" at 3:20-3:21 (leading: Space)
+ 16: Semicolon       ";" at 3:21-3:22
+ 17: Ident           "print" at 4:5-4:10 (leading: Newline, Space)
+ 18: LParen          "(" at 4:10-4:11
+ 19: Ident           "s" at 4:11-4:12
+ 20: RParen          ")" at 4:12-4:13
+ 21: Semicolon       ";" at 4:13-4:14
+ 22: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 23: IntLit          "0" at 5:12-5:13 (leading: Space)
+ 24: Semicolon       ";" at 5:13-5:14
+ 25: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 26: EOF             at 7:1-7:1

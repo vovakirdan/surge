@@ -1,0 +1,7 @@
+no_mode_required_param.sg (span: 3:1-6:1)
+└─ Item[0]: Fn (span: 3:1-5:2)
+   ├─ Name: main
+   ├─ Params: (x: int)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:17-5:2)

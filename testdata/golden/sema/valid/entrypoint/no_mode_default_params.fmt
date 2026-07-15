@@ -1,0 +1,4 @@
+// Test: @entrypoint without mode but all params have defaults is valid
+@entrypoint
+fn main(x: int = 10, y: string = "hello") {
+}

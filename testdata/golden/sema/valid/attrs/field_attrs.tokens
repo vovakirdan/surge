@@ -1,0 +1,107 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Container" at 3:6-3:15 (leading: Space)
+  3: Assign          "=" at 3:16-3:17 (leading: Space)
+  4: LBrace          "{" at 3:18-3:19 (leading: Space)
+  5: At              "@" at 5:5-5:6 (leading: Newline, Space, LineComment, Newline, Space)
+  6: Ident           "readonly" at 5:6-5:14
+  7: Ident           "id" at 6:5-6:7 (leading: Newline, Space)
+  8: Colon           ":" at 6:7-6:8
+  9: Ident           "int" at 6:9-6:12 (leading: Space)
+ 10: Comma           "," at 6:12-6:13
+ 11: At              "@" at 9:5-9:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 12: Ident           "hidden" at 9:6-9:12
+ 13: Ident           "internal_state" at 10:5-10:19 (leading: Newline, Space)
+ 14: Colon           ":" at 10:19-10:20
+ 15: Ident           "int" at 10:21-10:24 (leading: Space)
+ 16: Comma           "," at 10:24-10:25
+ 17: At              "@" at 13:5-13:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 18: Ident           "deprecated" at 13:6-13:16
+ 19: Ident           "legacy_field" at 14:5-14:17 (leading: Newline, Space)
+ 20: Colon           ":" at 14:17-14:18
+ 21: Ident           "int" at 14:19-14:22 (leading: Space)
+ 22: Comma           "," at 14:22-14:23
+ 23: At              "@" at 17:5-17:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 24: Ident           "packed" at 17:6-17:12
+ 25: Ident           "compact_data" at 18:5-18:17 (leading: Newline, Space)
+ 26: Colon           ":" at 18:17-18:18
+ 27: Ident           "int32" at 18:19-18:24 (leading: Space)
+ 28: Comma           "," at 18:24-18:25
+ 29: At              "@" at 21:5-21:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 30: Ident           "align" at 21:6-21:11
+ 31: LParen          "(" at 21:11-21:12
+ 32: IntLit          "8" at 21:12-21:13
+ 33: RParen          ")" at 21:13-21:14
+ 34: Ident           "aligned_value" at 22:5-22:18 (leading: Newline, Space)
+ 35: Colon           ":" at 22:18-22:19
+ 36: Ident           "int64" at 22:20-22:25 (leading: Space)
+ 37: Comma           "," at 22:25-22:26
+ 38: At              "@" at 25:5-25:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 39: Ident           "atomic" at 25:6-25:12
+ 40: Ident           "counter" at 26:5-26:12 (leading: Newline, Space)
+ 41: Colon           ":" at 26:12-26:13
+ 42: Ident           "int" at 26:14-26:17 (leading: Space)
+ 43: Comma           "," at 26:17-26:18
+ 44: At              "@" at 29:5-29:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 45: Ident           "weak" at 29:6-29:10
+ 46: Ident           "weak_ref" at 30:5-30:13 (leading: Newline, Space)
+ 47: Colon           ":" at 30:13-30:14
+ 48: KwOwn           "own" at 30:15-30:18 (leading: Space)
+ 49: Ident           "int" at 30:19-30:22 (leading: Space)
+ 50: Comma           "," at 30:22-30:23
+ 51: At              "@" at 33:5-33:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 52: Ident           "shared" at 33:6-33:12
+ 53: Ident           "shared_data" at 34:5-34:16 (leading: Newline, Space)
+ 54: Colon           ":" at 34:16-34:17
+ 55: Ident           "int" at 34:18-34:21 (leading: Space)
+ 56: Comma           "," at 34:21-34:22
+ 57: At              "@" at 37:5-37:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 58: Ident           "noinherit" at 37:6-37:15
+ 59: Ident           "private_field" at 38:5-38:18 (leading: Newline, Space)
+ 60: Colon           ":" at 38:18-38:19
+ 61: Ident           "int" at 38:20-38:23 (leading: Space)
+ 62: Comma           "," at 38:23-38:24
+ 63: Ident           "normal_field" at 40:5-40:17 (leading: Newline, Space)
+ 64: Colon           ":" at 40:17-40:18
+ 65: Ident           "int" at 40:19-40:22 (leading: Space)
+ 66: Comma           "," at 40:22-40:23
+ 67: RBrace          "}" at 41:1-41:2 (leading: Newline)
+ 68: Semicolon       ";" at 41:2-41:3
+ 69: KwType          "type" at 44:1-44:5 (leading: Newline, LineComment, Newline)
+ 70: Ident           "ThreadSafeContainer" at 44:6-44:25 (leading: Space)
+ 71: Assign          "=" at 44:26-44:27 (leading: Space)
+ 72: LBrace          "{" at 44:28-44:29 (leading: Space)
+ 73: Ident           "lock_holder" at 45:5-45:16 (leading: Newline, Space)
+ 74: Colon           ":" at 45:16-45:17
+ 75: Ident           "int" at 45:18-45:21 (leading: Space)
+ 76: Comma           "," at 45:21-45:22
+ 77: Ident           "protected_data" at 47:5-47:19 (leading: Space, LineComment, Newline, Space)
+ 78: Colon           ":" at 47:19-47:20
+ 79: Ident           "int" at 47:21-47:24 (leading: Space)
+ 80: Comma           "," at 47:24-47:25
+ 81: RBrace          "}" at 48:1-48:2 (leading: Newline)
+ 82: Semicolon       ";" at 48:2-48:3
+ 83: KwType          "type" at 51:1-51:5 (leading: Newline, LineComment, Newline)
+ 84: Ident           "ArenaAllocated" at 51:6-51:20 (leading: Space)
+ 85: Assign          "=" at 51:21-51:22 (leading: Space)
+ 86: LBrace          "{" at 51:23-51:24 (leading: Space)
+ 87: At              "@" at 52:5-52:6 (leading: Newline, Space)
+ 88: Ident           "arena" at 52:6-52:11
+ 89: LParen          "(" at 52:11-52:12
+ 90: StringLit       "\"temp\"" at 52:12-52:18
+ 91: RParen          ")" at 52:18-52:19
+ 92: Ident           "temporary" at 53:5-53:14 (leading: Newline, Space)
+ 93: Colon           ":" at 53:14-53:15
+ 94: Ident           "int" at 53:16-53:19 (leading: Space)
+ 95: Comma           "," at 53:19-53:20
+ 96: At              "@" at 55:5-55:6 (leading: Newline, Space)
+ 97: Ident           "arena" at 55:6-55:11
+ 98: LParen          "(" at 55:11-55:12
+ 99: StringLit       "\"persistent\"" at 55:12-55:24
+100: RParen          ")" at 55:24-55:25
+101: Ident           "persistent" at 56:5-56:15 (leading: Newline, Space)
+102: Colon           ":" at 56:15-56:16
+103: Ident           "int" at 56:17-56:20 (leading: Space)
+104: Comma           "," at 56:20-56:21
+105: RBrace          "}" at 57:1-57:2 (leading: Newline)
+106: Semicolon       ";" at 57:2-57:3
+107: EOF             at 58:1-58:1

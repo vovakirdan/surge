@@ -1,0 +1,8 @@
+// scenario: function type with no return (unit)
+fn accepts_action(action: fn()) {
+    // Function type parameter with unit return
+    let a: fn() = action;
+}
+
+fn do_nothing() {
+}

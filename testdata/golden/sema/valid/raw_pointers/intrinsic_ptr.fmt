@@ -1,0 +1,6 @@
+@intrinsic
+fn rt_alloc(n: uint) -> *byte;
+
+fn main() -> int {
+    return 0;
+}

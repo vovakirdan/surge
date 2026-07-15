@@ -1,0 +1,61 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "bool_logic" at 2:4-2:14 (leading: Space)
+  3: LParen          "(" at 2:14-2:15
+  4: Ident           "a" at 2:15-2:16
+  5: Colon           ":" at 2:16-2:17
+  6: Ident           "bool" at 2:18-2:22 (leading: Space)
+  7: Comma           "," at 2:22-2:23
+  8: Ident           "b" at 2:24-2:25 (leading: Space)
+  9: Colon           ":" at 2:25-2:26
+ 10: Ident           "bool" at 2:27-2:31 (leading: Space)
+ 11: RParen          ")" at 2:31-2:32
+ 12: Arrow           "->" at 2:33-2:35 (leading: Space)
+ 13: Ident           "bool" at 2:36-2:40 (leading: Space)
+ 14: LBrace          "{" at 2:41-2:42 (leading: Space)
+ 15: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 16: Ident           "both" at 3:9-3:13 (leading: Space)
+ 17: Colon           ":" at 3:13-3:14
+ 18: Ident           "bool" at 3:15-3:19 (leading: Space)
+ 19: Assign          "=" at 3:20-3:21 (leading: Space)
+ 20: Ident           "a" at 3:22-3:23 (leading: Space)
+ 21: AndAnd          "&&" at 3:24-3:26 (leading: Space)
+ 22: Ident           "b" at 3:27-3:28 (leading: Space)
+ 23: Semicolon       ";" at 3:28-3:29
+ 24: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 25: Ident           "either" at 4:9-4:15 (leading: Space)
+ 26: Colon           ":" at 4:15-4:16
+ 27: Ident           "bool" at 4:17-4:21 (leading: Space)
+ 28: Assign          "=" at 4:22-4:23 (leading: Space)
+ 29: Ident           "a" at 4:24-4:25 (leading: Space)
+ 30: OrOr            "||" at 4:26-4:28 (leading: Space)
+ 31: Ident           "b" at 4:29-4:30 (leading: Space)
+ 32: Semicolon       ";" at 4:30-4:31
+ 33: KwIf            "if" at 5:5-5:7 (leading: Newline, Space)
+ 34: LParen          "(" at 5:8-5:9 (leading: Space)
+ 35: Ident           "both" at 5:9-5:13
+ 36: AndAnd          "&&" at 5:14-5:16 (leading: Space)
+ 37: Bang            "!" at 5:17-5:18 (leading: Space)
+ 38: Ident           "either" at 5:18-5:24
+ 39: RParen          ")" at 5:24-5:25
+ 40: LBrace          "{" at 5:26-5:27 (leading: Space)
+ 41: KwReturn        "return" at 6:9-6:15 (leading: Newline, Space)
+ 42: KwFalse         "false" at 6:16-6:21 (leading: Space)
+ 43: Semicolon       ";" at 6:21-6:22
+ 44: RBrace          "}" at 7:5-7:6 (leading: Newline, Space)
+ 45: KwIf            "if" at 8:5-8:7 (leading: Newline, Space)
+ 46: LParen          "(" at 8:8-8:9 (leading: Space)
+ 47: Ident           "either" at 8:9-8:15
+ 48: OrOr            "||" at 8:16-8:18 (leading: Space)
+ 49: Bang            "!" at 8:19-8:20 (leading: Space)
+ 50: Ident           "b" at 8:20-8:21
+ 51: RParen          ")" at 8:21-8:22
+ 52: LBrace          "{" at 8:23-8:24 (leading: Space)
+ 53: KwReturn        "return" at 9:9-9:15 (leading: Newline, Space)
+ 54: KwTrue          "true" at 9:16-9:20 (leading: Space)
+ 55: Semicolon       ";" at 9:20-9:21
+ 56: RBrace          "}" at 10:5-10:6 (leading: Newline, Space)
+ 57: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space)
+ 58: Ident           "both" at 11:12-11:16 (leading: Space)
+ 59: Semicolon       ";" at 11:16-11:17
+ 60: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 61: EOF             at 13:1-13:1

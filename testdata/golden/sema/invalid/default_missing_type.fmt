@@ -1,0 +1,4 @@
+// scenario: default without explicit type arguments must fail inference
+fn usage() {
+    let a = default();
+}

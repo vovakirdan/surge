@@ -1,0 +1,19 @@
+fn_missing_return.sg (span: 2:1-8:1)
+└─ Item[0]: Fn (span: 2:1-7:2)
+   ├─ Name: missing_return
+   ├─ Params: (flag: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:38-7:2)
+         ├─ Stmt[0]: If (span: 3:5-5:6)
+         │  ├─ Cond: expr#1: flag
+         │  ├─ Then:
+Block (span: 3:15-5:6)
+         │  │  └─ Stmt[0]: Return (span: 4:9-4:18)
+         │  │     └─ Expr: expr#2: 1
+         │  └─ Else: <none>
+         └─ Stmt[1]: Let (span: 6:5-6:24)
+            ├─ Name: value
+            ├─ Mutable: false
+            ├─ Type: int
+            └─ Value: expr#3: 2

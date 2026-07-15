@@ -1,0 +1,6 @@
+// Test: @entrypoint("config") is reserved for future use
+// Expected: FUT7004
+@entrypoint("config")
+fn main() -> int {
+    return 0;
+}

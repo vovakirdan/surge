@@ -1,0 +1,2 @@
+error SYN2203 testdata/golden/parser/invalid/range_literal_inclusive_missing_end.sg:2:14 inclusive end requires an end bound
+error SYN2203 testdata/golden/parser/invalid/range_literal_inclusive_missing_end.sg:3:15 inclusive end requires an end bound

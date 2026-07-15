@@ -1,0 +1,55 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "nested" at 2:4-2:10 (leading: Space)
+  3: LParen          "(" at 2:10-2:11
+  4: Ident           "x" at 2:11-2:12
+  5: Colon           ":" at 2:12-2:13
+  6: Ident           "int" at 2:14-2:17 (leading: Space)
+  7: RParen          ")" at 2:17-2:18
+  8: Arrow           "->" at 2:19-2:21 (leading: Space)
+  9: Ident           "string" at 2:22-2:28 (leading: Space)
+ 10: LBrace          "{" at 2:29-2:30 (leading: Space)
+ 11: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 12: Ident           "x" at 3:12-3:13 (leading: Space)
+ 13: Gt              ">" at 3:14-3:15 (leading: Space)
+ 14: IntLit          "10" at 3:16-3:18 (leading: Space)
+ 15: Question        "?" at 3:19-3:20 (leading: Space)
+ 16: StringLit       "\"large\"" at 3:21-3:28 (leading: Space)
+ 17: Colon           ":" at 3:29-3:30 (leading: Space)
+ 18: Ident           "x" at 3:31-3:32 (leading: Space)
+ 19: Gt              ">" at 3:33-3:34 (leading: Space)
+ 20: IntLit          "5" at 3:35-3:36 (leading: Space)
+ 21: Question        "?" at 3:37-3:38 (leading: Space)
+ 22: StringLit       "\"medium\"" at 3:39-3:47 (leading: Space)
+ 23: Colon           ":" at 3:48-3:49 (leading: Space)
+ 24: StringLit       "\"small\"" at 3:50-3:57 (leading: Space)
+ 25: Semicolon       ";" at 3:57-3:58
+ 26: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 27: KwFn            "fn" at 6:1-6:3 (leading: Newline)
+ 28: Ident           "explicit_parens" at 6:4-6:19 (leading: Space)
+ 29: LParen          "(" at 6:19-6:20
+ 30: Ident           "x" at 6:20-6:21
+ 31: Colon           ":" at 6:21-6:22
+ 32: Ident           "int" at 6:23-6:26 (leading: Space)
+ 33: RParen          ")" at 6:26-6:27
+ 34: Arrow           "->" at 6:28-6:30 (leading: Space)
+ 35: Ident           "string" at 6:31-6:37 (leading: Space)
+ 36: LBrace          "{" at 6:38-6:39 (leading: Space)
+ 37: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 38: Ident           "x" at 7:12-7:13 (leading: Space)
+ 39: Gt              ">" at 7:14-7:15 (leading: Space)
+ 40: IntLit          "10" at 7:16-7:18 (leading: Space)
+ 41: Question        "?" at 7:19-7:20 (leading: Space)
+ 42: StringLit       "\"large\"" at 7:21-7:28 (leading: Space)
+ 43: Colon           ":" at 7:29-7:30 (leading: Space)
+ 44: LParen          "(" at 7:31-7:32 (leading: Space)
+ 45: Ident           "x" at 7:32-7:33
+ 46: Gt              ">" at 7:34-7:35 (leading: Space)
+ 47: IntLit          "5" at 7:36-7:37 (leading: Space)
+ 48: Question        "?" at 7:38-7:39 (leading: Space)
+ 49: StringLit       "\"medium\"" at 7:40-7:48 (leading: Space)
+ 50: Colon           ":" at 7:49-7:50 (leading: Space)
+ 51: StringLit       "\"small\"" at 7:51-7:58 (leading: Space)
+ 52: RParen          ")" at 7:58-7:59
+ 53: Semicolon       ";" at 7:59-7:60
+ 54: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 55: EOF             at 9:1-9:1

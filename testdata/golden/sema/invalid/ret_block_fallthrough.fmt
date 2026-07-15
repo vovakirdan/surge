@@ -1,0 +1,9 @@
+// scenario: block expression with ret on one path but reachable fallthrough without value
+fn main(flag: bool) -> int {
+    let x = {
+        if flag {
+            ret 1;
+        }
+    };
+    return x;
+}

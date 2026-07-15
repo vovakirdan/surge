@@ -1,0 +1,14 @@
+user_type_simple.sg (span: 2:1-7:1)
+├─ Item[0]: Type (span: 2:1-2:19)
+│  ├─ Name: UserId
+│  ├─ Kind: Alias
+│  ├─ Visibility: private
+│  └─ Target: int
+└─ Item[1]: Fn (span: 4:1-6:2)
+   ├─ Name: use_user
+   ├─ Params: (id: UserId)
+   ├─ Return: UserId
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:35-6:2)
+         └─ Stmt[0]: Return (span: 5:5-5:15)
+            └─ Expr: expr#1: id

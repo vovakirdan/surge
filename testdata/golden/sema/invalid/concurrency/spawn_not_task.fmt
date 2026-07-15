@@ -1,0 +1,26 @@
+// ERROR: spawn requires Task<T> expression
+
+fn sync_compute(n: int) -> int {
+    return n * 2;
+}
+
+pub fn spawn_sync_fn() -> Task<int> {
+    // ERROR SEM3111: spawn requires async function call or Task<T> expression, got int
+    return spawn sync_compute(10);
+}
+
+pub fn spawn_int_literal() -> Task<int> {
+    // ERROR SEM3111
+    return spawn 42;
+}
+
+pub fn spawn_variable() -> Task<bool> {
+    let x: bool = true;
+    // ERROR SEM3111
+    return spawn x;
+}
+
+pub fn spawn_string() -> Task<string> {
+    // ERROR SEM3111
+    return spawn "hello";
+}

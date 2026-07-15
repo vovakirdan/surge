@@ -1,0 +1,11 @@
+// Method calls should report the actual ownership mismatch for non-Copy payloads.
+
+type Item = { value: int };
+
+@entrypoint
+fn main() -> int {
+    let ch: own Channel<Item> = make_channel::<Item>(1:uint);
+    let item: Item = { value = 1 };
+    ch.send(item);
+    return 0;
+}

@@ -1,0 +1,13 @@
+import stdlib/time as time;
+
+fn duration_total() -> int64 {
+    let d = time.Duration.new(1_234_567_890:int64);
+    let copied = d;
+    let earlier = time.Duration.new(234_567_890:int64);
+    let diff = d.sub(earlier);
+    let copy_diff = copied.sub(earlier);
+    let started = time.Duration.now();
+    let finished = time.Duration.now();
+    let elapsed = finished.sub(started);
+    return diff.as_seconds() + diff.as_millis() + diff.as_micros() + diff.as_nanos() + copy_diff.as_seconds() + elapsed.as_nanos();
+}

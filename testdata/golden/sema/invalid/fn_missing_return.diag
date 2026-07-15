@@ -1,0 +1,1 @@
+error SEM3051 testdata/golden/sema/invalid/fn_missing_return.sg:2:31 function returning int is missing a return

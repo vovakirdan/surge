@@ -1,0 +1,11 @@
+// scenario: block expression where all reachable paths produce a value via ret
+fn main(flag: bool) -> int {
+    let x = {
+        if flag {
+            ret 1;
+        } else {
+            ret 2;
+        }
+    };
+    return x;
+}

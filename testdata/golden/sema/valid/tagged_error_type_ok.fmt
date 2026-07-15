@@ -1,0 +1,20 @@
+// scenario: tagged union defined with explicit tag constructors
+tag IoError(string);
+tag ParseError(string);
+
+type ErrorTagged = IoError | ParseError;
+
+fn make_error(io_failed: bool) -> ErrorTagged {
+    if (io_failed) {
+        return IoError("io failure");
+    }
+    return ParseError("parse failure");
+}
+
+tag Number<T>(T);
+
+type Integer<T> = int | Number(T);
+
+fn make_integer<T>(value: T) -> Integer<T> {
+    return Number(value);
+}

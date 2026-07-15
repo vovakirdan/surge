@@ -1,0 +1,14 @@
+// scenario: range indexing requires __index(Range<int>) overload
+type Box = {
+    value: int;
+};
+
+extern<Box> {
+    fn __index(self: Box, index: int) -> int;
+}
+
+fn test() {
+    let b = Box { value = 1 };
+    let ok = b[0];
+    let bad = b[[1..2]];
+}

@@ -1,0 +1,1 @@
+error SEM3117 testdata/golden/sema/invalid/copy_attr/copy_non_copy_field.sg:2:1 @copy type 'BadConfig' has non-Copy field 'name' of type 'string'

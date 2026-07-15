@@ -1,0 +1,7 @@
+fn main() -> int {
+    let x = {
+        ret 1;
+        2;
+    };
+    return x;
+}

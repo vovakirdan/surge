@@ -1,0 +1,1 @@
+error SEM3082 testdata/golden/sema/invalid/concurrency/break_both_branches_lock_held.sg:11:9 lock 'lock' may be held in one branch but not another

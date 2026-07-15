@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/struct_literal_return_extra_fields.sg:8:12 Foo literal expects 2 fields, got 3

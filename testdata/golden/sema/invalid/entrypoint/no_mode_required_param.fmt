@@ -1,0 +1,5 @@
+// Test: @entrypoint without mode but param without default is invalid
+// Expected: SEM3122
+@entrypoint
+fn main(x: int) {
+}

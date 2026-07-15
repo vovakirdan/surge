@@ -1,0 +1,8 @@
+// Error: duplicate variant name
+
+enum Status = {
+    Unknown,
+    Started,
+    Done,
+    Started
+}

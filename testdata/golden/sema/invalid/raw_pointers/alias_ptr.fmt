@@ -1,0 +1,6 @@
+type Ptr = *int;
+
+fn main() -> int {
+    let x: Ptr = nothing;
+    return 0;
+}

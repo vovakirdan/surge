@@ -1,0 +1,9 @@
+// scenario: struct literal in return statement with missing required field
+type Foo = {
+    value: int,
+    name: string
+}
+
+fn test_missing_field() -> Foo {
+    return {value: 1};  // ERROR: Foo is missing required field name
+}

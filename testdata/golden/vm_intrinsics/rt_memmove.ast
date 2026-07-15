@@ -1,0 +1,45 @@
+rt_memmove.sg (span: 1:1-17:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: "\n"
+│        ├─ Stmt[1]: Expr (span: 3:5-3:65)
+│        │  └─ Expr: expr#11: rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s))
+│        └─ Stmt[2]: Expr (span: 4:5-4:49)
+│           └─ Expr: expr#19: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+└─ Item[1]: Fn (span: 7:1-16:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:18-16:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:22)
+         │  ├─ Name: src
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#20: "move"
+         ├─ Stmt[1]: Let (span: 10:5-10:38)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#26: rt_alloc(4 to uint, 1 to uint)
+         ├─ Stmt[2]: Expr (span: 11:5-11:48)
+         │  └─ Expr: expr#35: rt_memmove(p, rt_string_ptr(&src), 4 to uint)
+         ├─ Stmt[3]: Let (span: 12:5-12:47)
+         │  ├─ Name: out
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#40: rt_string_from_bytes(p, 4 to uint)
+         ├─ Stmt[4]: Expr (span: 13:5-13:32)
+         │  └─ Expr: expr#47: rt_free(p, 4 to uint, 1 to uint)
+         ├─ Stmt[5]: Expr (span: 14:5-14:21)
+         │  └─ Expr: expr#50: write_line(out)
+         └─ Stmt[6]: Return (span: 15:5-15:14)
+            └─ Expr: expr#51: 0

@@ -1,0 +1,6 @@
+// Non-Copy types require explicit own move into own bindings.
+
+fn main() {
+    let s: string = "hi";
+    let os: own string = s;
+}

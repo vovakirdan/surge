@@ -1,0 +1,213 @@
+  1: KwImport        "import" at 2:1-2:7 (leading: LineComment, Newline)
+  2: Ident           "stdlib" at 2:8-2:14 (leading: Space)
+  3: Slash           "/" at 2:14-2:15
+  4: Ident           "random" at 2:15-2:21
+  5: KwAs            "as" at 2:22-2:24 (leading: Space)
+  6: Ident           "random" at 2:25-2:31 (leading: Space)
+  7: Semicolon       ";" at 2:31-2:32
+  8: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+  9: Ident           "use_random_fill" at 4:4-4:19 (leading: Space)
+ 10: LParen          "(" at 4:19-4:20
+ 11: RParen          ")" at 4:20-4:21
+ 12: Arrow           "->" at 4:22-4:24 (leading: Space)
+ 13: Ident           "Erring" at 4:25-4:31 (leading: Space)
+ 14: Lt              "<" at 4:31-4:32
+ 15: NothingLit      "nothing" at 4:32-4:39
+ 16: Comma           "," at 4:39-4:40
+ 17: Ident           "Error" at 4:41-4:46 (leading: Space)
+ 18: Gt              ">" at 4:46-4:47
+ 19: LBrace          "{" at 4:48-4:49 (leading: Space)
+ 20: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 21: KwMut           "mut" at 5:9-5:12 (leading: Space)
+ 22: Ident           "scratch" at 5:13-5:20 (leading: Space)
+ 23: Colon           ":" at 5:20-5:21
+ 24: Ident           "byte" at 5:22-5:26 (leading: Space)
+ 25: LBracket        "[" at 5:26-5:27
+ 26: RBracket        "]" at 5:27-5:28
+ 27: Assign          "=" at 5:29-5:30 (leading: Space)
+ 28: Ident           "Array" at 5:31-5:36 (leading: Space)
+ 29: ColonColon      "::" at 5:36-5:38
+ 30: Lt              "<" at 5:38-5:39
+ 31: Ident           "byte" at 5:39-5:43
+ 32: Gt              ">" at 5:43-5:44
+ 33: Dot             "." at 5:44-5:45
+ 34: Ident           "with_len" at 5:45-5:53
+ 35: LParen          "(" at 5:53-5:54
+ 36: IntLit          "8" at 5:54-5:55
+ 37: Colon           ":" at 5:55-5:56
+ 38: Ident           "uint" at 5:56-5:60
+ 39: RParen          ")" at 5:60-5:61
+ 40: Semicolon       ";" at 5:61-5:62
+ 41: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 42: Ident           "random" at 6:12-6:18 (leading: Space)
+ 43: Dot             "." at 6:18-6:19
+ 44: Ident           "fill" at 6:19-6:23
+ 45: LParen          "(" at 6:23-6:24
+ 46: Amp             "&" at 6:24-6:25
+ 47: KwMut           "mut" at 6:25-6:28
+ 48: Ident           "scratch" at 6:29-6:36 (leading: Space)
+ 49: RParen          ")" at 6:36-6:37
+ 50: Semicolon       ";" at 6:37-6:38
+ 51: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 52: KwFn            "fn" at 9:1-9:3 (leading: Newline)
+ 53: Ident           "use_random_bytes" at 9:4-9:20 (leading: Space)
+ 54: LParen          "(" at 9:20-9:21
+ 55: RParen          ")" at 9:21-9:22
+ 56: Arrow           "->" at 9:23-9:25 (leading: Space)
+ 57: Ident           "Erring" at 9:26-9:32 (leading: Space)
+ 58: Lt              "<" at 9:32-9:33
+ 59: Ident           "byte" at 9:33-9:37
+ 60: LBracket        "[" at 9:37-9:38
+ 61: RBracket        "]" at 9:38-9:39
+ 62: Comma           "," at 9:39-9:40
+ 63: Ident           "Error" at 9:41-9:46 (leading: Space)
+ 64: Gt              ">" at 9:46-9:47
+ 65: LBrace          "{" at 9:48-9:49 (leading: Space)
+ 66: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 67: Ident           "random" at 10:12-10:18 (leading: Space)
+ 68: Dot             "." at 10:18-10:19
+ 69: Ident           "bytes" at 10:19-10:24
+ 70: LParen          "(" at 10:24-10:25
+ 71: IntLit          "8" at 10:25-10:26
+ 72: Colon           ":" at 10:26-10:27
+ 73: Ident           "uint" at 10:27-10:31
+ 74: RParen          ")" at 10:31-10:32
+ 75: Semicolon       ";" at 10:32-10:33
+ 76: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 77: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 78: Ident           "use_system_rng" at 13:4-13:18 (leading: Space)
+ 79: LParen          "(" at 13:18-13:19
+ 80: RParen          ")" at 13:19-13:20
+ 81: Arrow           "->" at 13:21-13:23 (leading: Space)
+ 82: Ident           "Erring" at 13:24-13:30 (leading: Space)
+ 83: Lt              "<" at 13:30-13:31
+ 84: Ident           "uint32" at 13:31-13:37
+ 85: Comma           "," at 13:37-13:38
+ 86: Ident           "Error" at 13:39-13:44 (leading: Space)
+ 87: Gt              ">" at 13:44-13:45
+ 88: LBrace          "{" at 13:46-13:47 (leading: Space)
+ 89: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 90: KwMut           "mut" at 14:9-14:12 (leading: Space)
+ 91: Ident           "rng" at 14:13-14:16 (leading: Space)
+ 92: Colon           ":" at 14:16-14:17
+ 93: Ident           "random" at 14:18-14:24 (leading: Space)
+ 94: Dot             "." at 14:24-14:25
+ 95: Ident           "SystemRng" at 14:25-14:34
+ 96: Assign          "=" at 14:35-14:36 (leading: Space)
+ 97: Ident           "random" at 14:37-14:43 (leading: Space)
+ 98: Dot             "." at 14:43-14:44
+ 99: Ident           "system" at 14:44-14:50
+100: LParen          "(" at 14:50-14:51
+101: RParen          ")" at 14:51-14:52
+102: Semicolon       ";" at 14:52-14:53
+103: KwReturn        "return" at 15:5-15:11 (leading: Newline, Space)
+104: Ident           "rng" at 15:12-15:15 (leading: Space)
+105: Dot             "." at 15:15-15:16
+106: Ident           "next_u32" at 15:16-15:24
+107: LParen          "(" at 15:24-15:25
+108: RParen          ")" at 15:25-15:26
+109: Semicolon       ";" at 15:26-15:27
+110: RBrace          "}" at 16:1-16:2 (leading: Newline)
+111: KwFn            "fn" at 18:1-18:3 (leading: Newline)
+112: Ident           "use_pcg32_next" at 18:4-18:18 (leading: Space)
+113: LParen          "(" at 18:18-18:19
+114: RParen          ")" at 18:19-18:20
+115: Arrow           "->" at 18:21-18:23 (leading: Space)
+116: Ident           "Erring" at 18:24-18:30 (leading: Space)
+117: Lt              "<" at 18:30-18:31
+118: Ident           "uint64" at 18:31-18:37
+119: Comma           "," at 18:37-18:38
+120: Ident           "Error" at 18:39-18:44 (leading: Space)
+121: Gt              ">" at 18:44-18:45
+122: LBrace          "{" at 18:46-18:47 (leading: Space)
+123: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
+124: KwMut           "mut" at 19:9-19:12 (leading: Space)
+125: Ident           "rng" at 19:13-19:16 (leading: Space)
+126: Colon           ":" at 19:16-19:17
+127: Ident           "random" at 19:18-19:24 (leading: Space)
+128: Dot             "." at 19:24-19:25
+129: Ident           "Pcg32" at 19:25-19:30
+130: Assign          "=" at 19:31-19:32 (leading: Space)
+131: Ident           "random" at 19:33-19:39 (leading: Space)
+132: Dot             "." at 19:39-19:40
+133: Ident           "pcg32_stream" at 19:40-19:52
+134: LParen          "(" at 19:52-19:53
+135: IntLit          "42" at 19:53-19:55
+136: Colon           ":" at 19:55-19:56
+137: Ident           "uint64" at 19:56-19:62
+138: Comma           "," at 19:62-19:63
+139: IntLit          "54" at 19:64-19:66 (leading: Space)
+140: Colon           ":" at 19:66-19:67
+141: Ident           "uint64" at 19:67-19:73
+142: RParen          ")" at 19:73-19:74
+143: Semicolon       ";" at 19:74-19:75
+144: KwReturn        "return" at 20:5-20:11 (leading: Newline, Space)
+145: Ident           "rng" at 20:12-20:15 (leading: Space)
+146: Dot             "." at 20:15-20:16
+147: Ident           "next_u64" at 20:16-20:24
+148: LParen          "(" at 20:24-20:25
+149: RParen          ")" at 20:25-20:26
+150: Semicolon       ";" at 20:26-20:27
+151: RBrace          "}" at 21:1-21:2 (leading: Newline)
+152: KwFn            "fn" at 23:1-23:3 (leading: Newline)
+153: Ident           "use_pcg32_fill" at 23:4-23:18 (leading: Space)
+154: LParen          "(" at 23:18-23:19
+155: RParen          ")" at 23:19-23:20
+156: Arrow           "->" at 23:21-23:23 (leading: Space)
+157: Ident           "Erring" at 23:24-23:30 (leading: Space)
+158: Lt              "<" at 23:30-23:31
+159: NothingLit      "nothing" at 23:31-23:38
+160: Comma           "," at 23:38-23:39
+161: Ident           "Error" at 23:40-23:45 (leading: Space)
+162: Gt              ">" at 23:45-23:46
+163: LBrace          "{" at 23:47-23:48 (leading: Space)
+164: KwLet           "let" at 24:5-24:8 (leading: Newline, Space)
+165: KwMut           "mut" at 24:9-24:12 (leading: Space)
+166: Ident           "rng" at 24:13-24:16 (leading: Space)
+167: Colon           ":" at 24:16-24:17
+168: Ident           "random" at 24:18-24:24 (leading: Space)
+169: Dot             "." at 24:24-24:25
+170: Ident           "Pcg32" at 24:25-24:30
+171: Assign          "=" at 24:31-24:32 (leading: Space)
+172: Ident           "random" at 24:33-24:39 (leading: Space)
+173: Dot             "." at 24:39-24:40
+174: Ident           "pcg32" at 24:40-24:45
+175: LParen          "(" at 24:45-24:46
+176: IntLit          "7" at 24:46-24:47
+177: Colon           ":" at 24:47-24:48
+178: Ident           "uint64" at 24:48-24:54
+179: RParen          ")" at 24:54-24:55
+180: Semicolon       ";" at 24:55-24:56
+181: KwLet           "let" at 25:5-25:8 (leading: Newline, Space)
+182: KwMut           "mut" at 25:9-25:12 (leading: Space)
+183: Ident           "scratch" at 25:13-25:20 (leading: Space)
+184: Colon           ":" at 25:20-25:21
+185: Ident           "byte" at 25:22-25:26 (leading: Space)
+186: LBracket        "[" at 25:26-25:27
+187: RBracket        "]" at 25:27-25:28
+188: Assign          "=" at 25:29-25:30 (leading: Space)
+189: Ident           "Array" at 25:31-25:36 (leading: Space)
+190: ColonColon      "::" at 25:36-25:38
+191: Lt              "<" at 25:38-25:39
+192: Ident           "byte" at 25:39-25:43
+193: Gt              ">" at 25:43-25:44
+194: Dot             "." at 25:44-25:45
+195: Ident           "with_len" at 25:45-25:53
+196: LParen          "(" at 25:53-25:54
+197: IntLit          "4" at 25:54-25:55
+198: Colon           ":" at 25:55-25:56
+199: Ident           "uint" at 25:56-25:60
+200: RParen          ")" at 25:60-25:61
+201: Semicolon       ";" at 25:61-25:62
+202: KwReturn        "return" at 26:5-26:11 (leading: Newline, Space)
+203: Ident           "rng" at 26:12-26:15 (leading: Space)
+204: Dot             "." at 26:15-26:16
+205: Ident           "fill" at 26:16-26:20
+206: LParen          "(" at 26:20-26:21
+207: Amp             "&" at 26:21-26:22
+208: KwMut           "mut" at 26:22-26:25
+209: Ident           "scratch" at 26:26-26:33 (leading: Space)
+210: RParen          ")" at 26:33-26:34
+211: Semicolon       ";" at 26:34-26:35
+212: RBrace          "}" at 27:1-27:2 (leading: Newline)
+213: EOF             at 28:1-28:1

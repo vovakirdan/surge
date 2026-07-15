@@ -1,0 +1,1 @@
+error SEM3125 testdata/golden/sema/invalid/entrypoint/stdin_no_fromstdin.sg:9:9 parameter 'd' of type 'Data' does not implement FromStdin contract (missing from_str method)

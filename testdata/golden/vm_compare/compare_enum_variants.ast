@@ -1,0 +1,23 @@
+compare_enum_variants.sg (span: 3:1-22:1)
+├─ Item[0]: Type (span: 3:1-7:2)
+│  ├─ Name: Color
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+├─ Item[1]: Fn (span: 9:1-15:2)
+│  ├─ Name: label
+│  ├─ Params: (c: int)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:28-15:2)
+│        └─ Stmt[0]: Return (span: 10:5-14:7)
+│           └─ Expr: expr#10: compare c { 3 arms }
+└─ Item[2]: Fn (span: 17:1-21:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:11-21:2)
+         ├─ Stmt[0]: Expr (span: 19:5-19:30)
+         │  └─ Expr: expr#16: print(label(Color.Red))
+         └─ Stmt[1]: Expr (span: 20:5-20:31)
+            └─ Expr: expr#22: print(label(Color.Blue))

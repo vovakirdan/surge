@@ -1,0 +1,13 @@
+only.sg (span: 1:1-9:1)
+├─ Item[0]: Fn (span: 3:1-5:13)
+│  ├─ Name: main
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:11-5:13)
+└─ Item[1]: Fn (span: 7:1-8:19)
+   ├─ Name: main
+   ├─ Params: (x: int)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:17-8:19)

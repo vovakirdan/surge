@@ -1,0 +1,7 @@
+// Parser test: nested block comments are treated as trivia.
+
+fn nested_block_comments() {
+    let x = 1;
+    /* outer /* inner */ comment */
+    let y = 2;
+}

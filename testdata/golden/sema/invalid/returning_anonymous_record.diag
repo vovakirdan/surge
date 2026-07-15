@@ -1,0 +1,3 @@
+error SEM3015 testdata/golden/sema/invalid/returning_anonymous_record.sg:5:5 function returning nothing cannot return a value
+error SYN2001 testdata/golden/sema/invalid/returning_anonymous_record.sg:9:41 expected type after '->' in function signature
+error SYN2101 testdata/golden/sema/invalid/returning_anonymous_record.sg:11:1 unexpected top-level construct

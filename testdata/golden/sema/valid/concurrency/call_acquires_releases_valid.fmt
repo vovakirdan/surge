@@ -1,0 +1,20 @@
+// Valid: functions with @acquires_lock/@releases_lock contracts
+type Resource = { lock: Mutex }
+
+extern<Resource> {
+    @acquires_lock("lock")
+    fn acquire(self: &mut Resource) -> nothing {
+        self.lock.lock();
+    }
+
+    @releases_lock("lock")
+    fn release(self: &mut Resource) -> nothing {
+        self.lock.unlock();
+    }
+
+    pub fn use_resource(self: &mut Resource) -> nothing {
+        self.acquire();
+        // ... do something with the resource
+        self.release();
+    }
+}

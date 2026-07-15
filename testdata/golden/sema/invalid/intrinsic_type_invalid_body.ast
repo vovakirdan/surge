@@ -1,0 +1,8 @@
+intrinsic_type_invalid_body.sg (span: 4:1-5:1)
+└─ Item[0]: Type (span: 4:1-4:47)
+   ├─ Name: BadIntrinsic
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @intrinsic
+   └─ Struct:
+      └─ Field[0]: value: int

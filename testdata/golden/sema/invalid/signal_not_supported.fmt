@@ -1,0 +1,5 @@
+// Test that signal is rejected as v2+ feature
+
+fn test_signal() {
+    signal x := 42;
+}

@@ -1,0 +1,5 @@
+@entrypoint
+fn main() -> int {
+    print(42);
+    return 0;
+}

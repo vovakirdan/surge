@@ -1,0 +1,5 @@
+// Test: @entrypoint("stdin") with string param is valid
+@entrypoint("stdin")
+fn main(text: string) -> int {
+    return 0;
+}

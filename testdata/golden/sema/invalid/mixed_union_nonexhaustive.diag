@@ -1,0 +1,3 @@
+error SEM3053 testdata/golden/sema/invalid/mixed_union_nonexhaustive.sg:8:12 non-exhaustive pattern match: missing patterns for type string
+error SEM3053 testdata/golden/sema/invalid/mixed_union_nonexhaustive.sg:21:12 non-exhaustive pattern match: missing patterns for nothing
+error SEM3053 testdata/golden/sema/invalid/mixed_union_nonexhaustive.sg:30:12 non-exhaustive pattern match: missing patterns for IO, CPU

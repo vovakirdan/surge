@@ -1,0 +1,2 @@
+contract_unused_param.sg (span: 2:1-5:1)
+└─ Item[0]: Contract (span: 2:1-4:2)

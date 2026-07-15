@@ -1,0 +1,42 @@
+extern_type_param_shadow.sg (span: 3:1-25:1)
+├─ Item[0]: Type (span: 3:1-3:18)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Struct:
+│     <empty>
+├─ Item[1]: Extern (span: 5:1-11:2)
+│  ├─ Target: Foo<T>
+│  ├─ Members:
+│  │  ├─ Fn[0]: bad
+│  │  │  ├─ Params: (t: T)
+│  │  │  ├─ Return: Foo<T>
+│  │  │  └─ Generics: <T>
+│  │  └─ Fn[1]: ok
+│  │     ├─ Params: (u: U)
+│  │     ├─ Return: Foo<U>
+│  │     └─ Generics: <U>
+├─ Item[2]: Type (span: 13:1-13:34)
+│  ├─ Name: Pair
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <A, B>
+│  └─ Struct:
+│     ├─ Field[0]: a: A
+│     └─ Field[1]: b: B
+└─ Item[3]: Extern (span: 15:1-24:2)
+   ├─ Target: Pair<A, B>
+   ├─ Members:
+   │  ├─ Fn[0]: shadow_a
+   │  │  ├─ Params: (a: A)
+   │  │  ├─ Return: A
+   │  │  └─ Generics: <A>
+   │  ├─ Fn[1]: shadow_b
+   │  │  ├─ Params: (b: B)
+   │  │  ├─ Return: B
+   │  │  └─ Generics: <B>
+   │  └─ Fn[2]: no_shadow
+   │     ├─ Params: (c: C)
+   │     ├─ Return: C
+   │     └─ Generics: <C>

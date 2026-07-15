@@ -1,0 +1,5 @@
+// Invalid: @nonblocking function calls blocking method
+@nonblocking
+pub fn bad_lock(mtx: &mut Mutex) -> nothing {
+    mtx.lock();  // ERROR: @nonblocking calls blocking method
+}

@@ -1,0 +1,5 @@
+error SYN2205 testdata/golden/sema/invalid/alien_hints/ts_interface_extends.sg:1:1 unknown function modifier 'interface'
+info ALN8005 testdata/golden/sema/invalid/alien_hints/ts_interface_extends.sg:1:1 TypeScript `interface` / `extends` detected. Surge uses `contract` for interfaces and `type Foo = { ... };` for data shapes. In Surge, try: ```sg contract FooLike<T> { fn foo(self: T) -> int; } type Foo = { foo: int }; ```
+error SYN2205 testdata/golden/sema/invalid/alien_hints/ts_interface_extends.sg:1:11 unknown function modifier 'Foo'
+error SYN2205 testdata/golden/sema/invalid/alien_hints/ts_interface_extends.sg:1:15 unknown function modifier 'extends'
+error SYN2205 testdata/golden/sema/invalid/alien_hints/ts_interface_extends.sg:1:23 unknown function modifier 'Bar'

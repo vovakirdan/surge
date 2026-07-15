@@ -1,0 +1,11 @@
+import scripts::{alpha, beta};
+import bar::hello;
+import point;
+
+@entrypoint
+fn main() {
+    print(alpha());
+    print(beta());
+    print(hello());
+    print(point.point());
+}

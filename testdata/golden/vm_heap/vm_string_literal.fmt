@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let s: string = "x";
+    return 0;
+}
+

@@ -1,0 +1,29 @@
+send_valid_composition.sg (span: 3:1-25:1)
+├─ Item[0]: Type (span: 3:1-8:3)
+│  ├─ Name: Message
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @send
+│  └─ Struct:
+│     ├─ Field[0]: id: int
+│     ├─ Field[1]: content: string
+│     └─ Field[2]: timestamp: uint
+├─ Item[1]: Type (span: 10:1-14:3)
+│  ├─ Name: SafeData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @send
+│  └─ Struct:
+│     ├─ Field[0]: count: int [@atomic]
+│     └─ Field[1]: data: int
+└─ Item[2]: Type (span: 17:1-24:3)
+   ├─ Name: AllPrimitives
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @send
+   └─ Struct:
+      ├─ Field[0]: a: int
+      ├─ Field[1]: b: uint
+      ├─ Field[2]: c: bool
+      ├─ Field[3]: d: float
+      └─ Field[4]: e: string

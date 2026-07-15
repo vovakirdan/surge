@@ -1,0 +1,11 @@
+// Parser scenario: shorthand casts stay parseable inside call arguments.
+fn take(a: uint, b: uint) -> uint {
+    return a + b;
+}
+
+fn main() {
+    let base: uint = 0:uint;
+    let positional: uint = take(1:uint, base + 1:uint);
+    let named: uint = take(a: 2:uint, b: base + 3:uint);
+    print((positional + named) to string);
+}

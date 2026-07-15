@@ -1,0 +1,1 @@
+warning SEM3004 testdata/golden/vm_intrinsics/default_works.sg:35:5 declaration of 'len' shadows previous binding

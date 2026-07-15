@@ -1,0 +1,3 @@
+fn main() {
+    let _ = int.from_str("42");
+}

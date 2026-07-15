@@ -1,0 +1,1 @@
+error SEM3047 testdata/golden/sema/invalid/variadic_overload_ambiguous.sg:11:5 ambiguous overload for f

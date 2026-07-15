@@ -1,0 +1,30 @@
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let _child = spawn async {
+            checkpoint().await();
+            checkpoint().await();
+            print("child done");
+            return 1;
+        };
+
+        if true {
+            return 9;
+        }
+
+        return 0;
+    }).await();
+
+    compare r {
+        Success(v) => print("parent=" + (v to string));
+        Cancelled() => print("parent=cancelled");
+    };
+
+    let guard = spawn async {
+        sleep(50).await();
+        return 0;
+    };
+    let _ = guard.await();
+
+    return 0;
+}

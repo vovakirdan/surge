@@ -1,0 +1,12 @@
+// Test: @entrypoint("argv") with custom type lacking from_str is invalid
+// Expected: SEM3124
+
+type Point = {
+    x: int,
+    y: int,
+};
+
+@entrypoint("argv")
+fn main(p: Point) -> int {
+    return p.x;
+}

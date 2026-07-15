@@ -1,0 +1,39 @@
+// scenario: stdlib uuid public API typechecks
+import stdlib/random as random;
+import stdlib/uuid as uuid;
+
+fn use_uuid_seeded() -> Erring<string, Error> {
+    let mut seeded: random.Pcg32 = random.pcg32_stream(42:uint64, 54:uint64);
+    compare uuid.v4_from_pcg32(&mut seeded) {
+        Success(value) => {
+            let text: string = value.to_string();
+            compare uuid.parse(&text) {
+                Success(parsed) => {
+                    return Success(parsed.to_string());
+                }
+                err => {
+                    return err;
+                }
+            };
+        }
+        err => {
+            return err;
+        }
+    };
+}
+
+fn use_uuid_system() -> Erring<bool, Error> {
+    compare uuid.v4() {
+        Success(value) => {
+            return Success(value.is_nil());
+        }
+        err => {
+            return err;
+        }
+    };
+}
+
+fn use_uuid_nil() -> string {
+    let value: uuid.Uuid = uuid.nil();
+    return value.to_string();
+}

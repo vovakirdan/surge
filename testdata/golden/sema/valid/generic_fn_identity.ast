@@ -1,0 +1,31 @@
+generic_fn_identity.sg (span: 2:1-11:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: id
+│  ├─ Generics: <T>
+│  ├─ Params: (value: T)
+│  ├─ Return: T
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:25-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#1: value
+└─ Item[1]: Fn (span: 6:1-10:2)
+   ├─ Name: use_id
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:13-10:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:24)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#4: id(1)
+         ├─ Stmt[1]: Let (span: 8:5-8:31)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#7: id(1)
+         └─ Stmt[2]: Let (span: 9:5-9:41)
+            ├─ Name: _s
+            ├─ Mutable: false
+            ├─ Type: string
+            └─ Value: expr#10: id("ok")

@@ -1,0 +1,3 @@
+error SEM3081 testdata/golden/sema/invalid/concurrency/lock_not_released.sg:5:5 lock '' acquired here but not released before function exit
+error SEM3081 testdata/golden/sema/invalid/concurrency/lock_not_released.sg:13:5 lock '' acquired here but not released before function exit
+error SEM3081 testdata/golden/sema/invalid/concurrency/lock_not_released.sg:25:9 lock 'lock' acquired here but not released before function exit

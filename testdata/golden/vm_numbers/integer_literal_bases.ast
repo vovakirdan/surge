@@ -1,0 +1,69 @@
+integer_literal_bases.sg (span: 1:1-25:1)
+├─ Item[0]: Fn (span: 1:1-7:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-7:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:34)
+│        │  ├─ Name: slen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len(&s)
+│        ├─ Stmt[2]: Expr (span: 4:5-4:32)
+│        │  └─ Expr: expr#12: rt_write_stdout(ptr, slen)
+│        ├─ Stmt[3]: Let (span: 5:5-5:24)
+│        │  ├─ Name: newline
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#13: "\n"
+│        └─ Stmt[4]: Expr (span: 6:5-6:54)
+│           └─ Expr: expr#21: rt_write_stdout(rt_string_ptr(&newline), 1 to uint)
+└─ Item[1]: Fn (span: 9:1-24:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:18-24:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:35)
+         │  ├─ Name: leading_zero
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#22: 010
+         ├─ Stmt[1]: Let (span: 12:5-12:27)
+         │  ├─ Name: hex
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#23: 0x10
+         ├─ Stmt[2]: Let (span: 13:5-13:32)
+         │  ├─ Name: binary
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#24: 0b1010
+         ├─ Stmt[3]: Let (span: 14:5-14:28)
+         │  ├─ Name: octal
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#25: 0o7
+         ├─ Stmt[4]: Let (span: 15:5-15:33)
+         │  ├─ Name: grouped
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#26: 1_000
+         ├─ Stmt[5]: Expr (span: 17:5-17:40)
+         │  └─ Expr: expr#30: write_line(leading_zero to string)
+         ├─ Stmt[6]: Expr (span: 18:5-18:31)
+         │  └─ Expr: expr#34: write_line(hex to string)
+         ├─ Stmt[7]: Expr (span: 19:5-19:34)
+         │  └─ Expr: expr#38: write_line(binary to string)
+         ├─ Stmt[8]: Expr (span: 20:5-20:33)
+         │  └─ Expr: expr#42: write_line(octal to string)
+         ├─ Stmt[9]: Expr (span: 21:5-21:35)
+         │  └─ Expr: expr#46: write_line(grouped to string)
+         └─ Stmt[10]: Return (span: 23:5-23:14)
+            └─ Expr: expr#47: 0

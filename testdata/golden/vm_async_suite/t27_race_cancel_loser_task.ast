@@ -1,0 +1,26 @@
+t27_race_cancel_loser_task.sg (span: 1:1-33:1)
+└─ Item[0]: Fn (span: 1:1-32:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-32:2)
+         ├─ Stmt[0]: Let (span: 3:5-19:16)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#33: (async { 4 stmt(s) }).await()
+         ├─ Stmt[1]: Expr (span: 21:5-24:7)
+         │  └─ Expr: expr#50: compare r { 2 arms }
+         ├─ Stmt[2]: Let (span: 26:5-29:7)
+         │  ├─ Name: guard
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#58: spawn async { 2 stmt(s) }
+         ├─ Stmt[3]: Let (span: 30:5-30:27)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#61: guard.await()
+         └─ Stmt[4]: Return (span: 31:5-31:14)
+            └─ Expr: expr#62: 0

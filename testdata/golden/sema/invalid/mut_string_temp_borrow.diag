@@ -1,0 +1,1 @@
+error SEM3023 testdata/golden/sema/invalid/mut_string_temp_borrow.sg:6:14 cannot take mutable reference to temporary value; bind it to a variable first

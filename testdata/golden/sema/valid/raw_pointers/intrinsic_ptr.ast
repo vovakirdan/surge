@@ -1,0 +1,14 @@
+intrinsic_ptr.sg (span: 1:1-7:1)
+├─ Item[0]: Fn (span: 1:1-2:31)
+│  ├─ Name: rt_alloc
+│  ├─ Params: (n: uint)
+│  ├─ Return: *byte
+│  └─ Body: <none>
+└─ Item[1]: Fn (span: 4:1-6:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:18-6:2)
+         └─ Stmt[0]: Return (span: 5:5-5:14)
+            └─ Expr: expr#1: 0

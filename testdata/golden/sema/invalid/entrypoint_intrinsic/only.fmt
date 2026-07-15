@@ -1,0 +1,5 @@
+pragma module;
+
+@entrypoint
+@intrinsic
+fn main();

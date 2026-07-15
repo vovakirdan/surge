@@ -1,0 +1,38 @@
+fn_type_call.sg (span: 2:1-18:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: apply
+│  ├─ Params: (f: fn(int) -> int, x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:44-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:17)
+│           └─ Expr: expr#3: f(x)
+├─ Item[1]: Fn (span: 6:1-9:2)
+│  ├─ Name: apply_twice
+│  ├─ Params: (f: fn(int) -> int, x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:50-9:2)
+│        ├─ Stmt[0]: Let (span: 7:5-7:28)
+│        │  ├─ Name: result
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#6: f(x)
+│        └─ Stmt[1]: Return (span: 8:5-8:22)
+│           └─ Expr: expr#9: f(result)
+├─ Item[2]: Fn (span: 11:1-13:2)
+│  ├─ Name: apply_void
+│  ├─ Params: (action: fn() -> nothing)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:29-13:2)
+│        └─ Stmt[0]: Expr (span: 12:5-12:14)
+│           └─ Expr: expr#11: action()
+└─ Item[3]: Fn (span: 15:1-17:2)
+   ├─ Name: apply_multi
+   ├─ Params: (f: fn(int, int) -> int, a: int, b: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 15:63-17:2)
+         └─ Stmt[0]: Return (span: 16:5-16:20)
+            └─ Expr: expr#15: f(a, b)

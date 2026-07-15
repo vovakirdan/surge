@@ -1,0 +1,42 @@
+enum_usage.sg (span: 2:1-26:1)
+├─ Item[0]: Type (span: 4:1-8:2)
+│  ├─ Name: Color
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+├─ Item[1]: Type (span: 10:1-13:2)
+│  ├─ Name: Status
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+└─ Item[2]: Fn (span: 15:1-25:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 15:18-25:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:30)
+         │  ├─ Name: c1
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#7: Color.Red
+         ├─ Stmt[1]: Let (span: 18:5-18:32)
+         │  ├─ Name: c2
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#9: Color.Green
+         ├─ Stmt[2]: Let (span: 19:5-19:31)
+         │  ├─ Name: c3
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#11: Color.Blue
+         ├─ Stmt[3]: Let (span: 21:5-21:37)
+         │  ├─ Name: s1
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#13: Status.Active
+         ├─ Stmt[4]: Let (span: 22:5-22:39)
+         │  ├─ Name: s2
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#15: Status.Inactive
+         └─ Stmt[5]: Return (span: 24:5-24:25)
+            └─ Expr: expr#20: (((c1 + c2)) + c3)

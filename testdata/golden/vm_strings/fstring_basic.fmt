@@ -1,0 +1,11 @@
+@entrypoint
+fn main() -> int {
+    let name: string = "Bob";
+    let a: int = 1;
+    let b: int = 2;
+    print(f"Hello, {name}!");
+    print(f"{a} + {b} = {a + b}");
+    print(f"{{}}");
+    print(f"x{{}}y");
+    return 0;
+}

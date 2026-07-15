@@ -1,0 +1,11 @@
+// Test: @entrypoint returning custom type without __to(int) is invalid
+// Expected: SEM3123
+
+type MyType = {
+    value: int,
+};
+
+@entrypoint
+fn main() -> MyType {
+    return MyType { value: 42 };
+}

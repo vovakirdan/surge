@@ -1,0 +1,13 @@
+// scenario: Clone for Copy type just returns a copy
+fn test_clone_copy() -> int32 {
+    let x: int32 = 5;
+    let y: int32 = clone(&x);  // ok, just copy
+    let z: int32 = x;          // x still usable
+    return x + y + z;
+}
+
+fn test_clone_bool() -> bool {
+    let a: bool = true;
+    let b: bool = clone(&a);  // ok, just copy
+    return a && b;
+}

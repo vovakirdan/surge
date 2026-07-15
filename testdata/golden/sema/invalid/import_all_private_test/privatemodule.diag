@@ -1,0 +1,2 @@
+warning SEM3055 testdata/golden/sema/invalid/import_all_private_test/privatemodule.sg:10:1 @hidden makes the declaration file-private; remove 'pub' or '@hidden'
+warning SEM3055 testdata/golden/sema/invalid/import_all_private_test/privatemodule.sg:11:1 @hidden makes the declaration file-private; remove 'pub' or '@hidden'

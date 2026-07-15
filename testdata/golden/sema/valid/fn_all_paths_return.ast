@@ -1,0 +1,36 @@
+fn_all_paths_return.sg (span: 1:1-17:1)
+├─ Item[0]: Fn (span: 1:1-10:2)
+│  ├─ Name: all_paths
+│  ├─ Params: (flag: bool, n: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:41-10:2)
+│        └─ Stmt[0]: If (span: 2:5-9:6)
+│           ├─ Cond: expr#1: flag
+│           ├─ Then:
+Block (span: 2:15-4:6)
+│           │  └─ Stmt[0]: Return (span: 3:9-3:18)
+│           │     └─ Expr: expr#2: n
+│           └─ Else:
+Block (span: 4:12-9:6)
+│              ├─ Stmt[0]: If (span: 5:9-7:10)
+│              │  ├─ Cond: expr#5: (n > 0)
+│              │  ├─ Then:
+Block (span: 5:20-7:10)
+│              │  │  └─ Stmt[0]: Return (span: 6:13-6:26)
+│              │  │     └─ Expr: expr#8: (n - 1)
+│              │  └─ Else: <none>
+│              └─ Stmt[1]: Return (span: 8:9-8:18)
+│                 └─ Expr: expr#9: 0
+└─ Item[1]: Fn (span: 12:1-16:2)
+   ├─ Name: loop_returns_always
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:33-16:2)
+         └─ Stmt[0]: While (span: 13:5-15:6)
+            ├─ Cond: expr#10: true
+            └─ Body:
+Block (span: 13:18-15:6)
+               └─ Stmt[0]: Return (span: 14:9-14:18)
+                  └─ Expr: expr#11: 1

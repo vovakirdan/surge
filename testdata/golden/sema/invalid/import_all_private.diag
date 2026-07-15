@@ -1,0 +1,8 @@
+error SEM3005 testdata/golden/sema/invalid/import_all_private.sg:11:27 cannot resolve 'PRIVATE_CONST'
+error SEM3026 testdata/golden/sema/invalid/import_all_private.sg:11:27 const 'priv_val' initializer must be a compile-time constant
+error SEM3005 testdata/golden/sema/invalid/import_all_private.sg:12:28 cannot resolve 'privateFunc'
+error SEM3046 testdata/golden/sema/invalid/import_all_private.sg:12:28 no matching overload for privateFunc
+error SEM3005 testdata/golden/sema/invalid/import_all_private.sg:15:29 cannot resolve 'HIDDEN_CONST'
+error SEM3026 testdata/golden/sema/invalid/import_all_private.sg:15:29 const 'hidden_val' initializer must be a compile-time constant
+error SEM3005 testdata/golden/sema/invalid/import_all_private.sg:16:30 cannot resolve 'hiddenFunc'
+error SEM3046 testdata/golden/sema/invalid/import_all_private.sg:16:30 no matching overload for hiddenFunc

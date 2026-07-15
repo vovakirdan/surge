@@ -1,0 +1,21 @@
+let_default_init.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-7:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:16)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: <none>
+         ├─ Stmt[1]: Expr (span: 4:5-4:24)
+         │  └─ Expr: expr#4: print(x to string)
+         ├─ Stmt[2]: Let (span: 5:5-5:16)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: <none>
+         └─ Stmt[3]: Return (span: 6:5-6:14)
+            └─ Expr: expr#5: 0

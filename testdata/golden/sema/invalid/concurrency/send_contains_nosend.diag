@@ -1,0 +1,1 @@
+error SEM3113 testdata/golden/sema/invalid/concurrency/send_contains_nosend.sg:6:1 type marked as @send but field 'handle' has non-sendable type 'FileHandle'

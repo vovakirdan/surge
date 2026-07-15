@@ -1,0 +1,42 @@
+clone_copy_type.sg (span: 2:1-14:1)
+├─ Item[0]: Fn (span: 2:1-7:2)
+│  ├─ Name: test_clone_copy
+│  ├─ Params: ()
+│  ├─ Return: int32
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:31-7:2)
+│        ├─ Stmt[0]: Let (span: 3:5-3:22)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#1: 5
+│        ├─ Stmt[1]: Let (span: 4:5-4:30)
+│        │  ├─ Name: y
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#5: clone(&x)
+│        ├─ Stmt[2]: Let (span: 5:5-5:22)
+│        │  ├─ Name: z
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#6: x
+│        └─ Stmt[3]: Return (span: 6:5-6:22)
+│           └─ Expr: expr#11: (((x + y)) + z)
+└─ Item[1]: Fn (span: 9:1-13:2)
+   ├─ Name: test_clone_bool
+   ├─ Params: ()
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:30-13:2)
+         ├─ Stmt[0]: Let (span: 10:5-10:24)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#12: true
+         ├─ Stmt[1]: Let (span: 11:5-11:29)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#16: clone(&a)
+         └─ Stmt[2]: Return (span: 12:5-12:19)
+            └─ Expr: expr#19: (a && b)

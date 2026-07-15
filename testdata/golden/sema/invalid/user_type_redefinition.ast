@@ -1,0 +1,12 @@
+user_type_redefinition.sg (span: 2:1-7:1)
+├─ Item[0]: Type (span: 2:1-4:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: x: int
+└─ Item[1]: Type (span: 6:1-6:18)
+   ├─ Name: Point
+   ├─ Kind: Alias
+   ├─ Visibility: private
+   └─ Target: int

@@ -1,0 +1,33 @@
+only.sg (span: 3:1-23:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: fast_compute
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:19-5:2)
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: cpu_only
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:15-9:2)
+├─ Item[2]: Fn (span: 11:1-13:2)
+│  ├─ Name: gpu_accelerated
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 12:22-13:2)
+├─ Item[3]: Fn (span: 15:1-17:2)
+│  ├─ Name: wasm_target
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:18-17:2)
+└─ Item[4]: Fn (span: 19:1-22:2)
+   ├─ Name: no_side_effects
+   ├─ Params: (x: int32)
+   ├─ Return: int32
+   └─ Body:
+      └─ Stmt[0]: Block (span: 20:39-22:2)
+         └─ Stmt[0]: Return (span: 21:5-21:26)
+            └─ Expr: expr#8: ((x * 2)) to int32

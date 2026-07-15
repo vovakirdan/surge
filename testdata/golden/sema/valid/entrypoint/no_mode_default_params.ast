@@ -1,0 +1,7 @@
+no_mode_default_params.sg (span: 2:1-5:1)
+└─ Item[0]: Fn (span: 2:1-4:2)
+   ├─ Name: main
+   ├─ Params: (x: int = 10, y: string = "hello")
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:43-4:2)

@@ -1,0 +1,18 @@
+@entrypoint
+fn main() -> int {
+    let a = spawn async {
+        print("A1");
+        checkpoint().await();
+        print("A2");
+        return 0;
+    };
+    let b = spawn async {
+        print("B1");
+        checkpoint().await();
+        print("B2");
+        return 0;
+    };
+    let _ = a.await();
+    let _ = b.await();
+    return 0;
+}

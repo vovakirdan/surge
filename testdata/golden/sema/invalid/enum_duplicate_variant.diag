@@ -1,0 +1,1 @@
+error SEM3096 testdata/golden/sema/invalid/enum_duplicate_variant.sg:7:5 duplicate variant 'Started' in enum

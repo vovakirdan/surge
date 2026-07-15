@@ -1,0 +1,23 @@
+compare_arm_control_flow_block.sg (span: 2:1-18:1)
+└─ Item[0]: Fn (span: 2:1-17:2)
+   ├─ Name: demo
+   ├─ Params: (flag: bool)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:32-17:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:35)
+         │  ├─ Name: updated
+         │  ├─ Mutable: true
+         │  ├─ Type: bool
+         │  └─ Value: expr#1: false
+         ├─ Stmt[1]: Expr (span: 4:5-12:7)
+         │  └─ Expr: expr#14: compare flag { 2 arms }
+         ├─ Stmt[2]: If (span: 13:5-15:6)
+         │  ├─ Cond: expr#15: updated
+         │  ├─ Then:
+Block (span: 13:16-15:6)
+         │  │  └─ Stmt[0]: Expr (span: 14:9-14:21)
+         │  │     └─ Expr: expr#18: print("ok")
+         │  └─ Else: <none>
+         └─ Stmt[3]: Return (span: 16:5-16:20)
+            └─ Expr: expr#19: nothing

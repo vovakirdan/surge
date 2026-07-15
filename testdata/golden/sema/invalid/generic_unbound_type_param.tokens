@@ -1,0 +1,10 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "use_unknown" at 2:4-2:15 (leading: Space)
+  3: LParen          "(" at 2:15-2:16
+  4: Ident           "t" at 2:16-2:17
+  5: Colon           ":" at 2:17-2:18
+  6: Ident           "T" at 2:19-2:20 (leading: Space)
+  7: RParen          ")" at 2:20-2:21
+  8: LBrace          "{" at 2:22-2:23 (leading: Space)
+  9: RBrace          "}" at 2:23-2:24
+ 10: EOF             at 3:1-3:1

@@ -1,0 +1,11 @@
+main.sg (span: 3:1-9:1)
+├─ Item[0]: Import (span: 3:1-3:20)
+│  └─ Module: stdlib::time
+└─ Item[1]: Fn (span: 8:1-8:40)
+   ├─ Name: foo
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:21-8:40)
+         └─ Stmt[0]: Return (span: 8:23-8:38)
+            └─ Expr: expr#1: nothing

@@ -1,0 +1,8 @@
+// scenario: duplicate extern<int> blocks declaring the same method
+extern<int> {
+    fn halve(self: int) -> int { return self / 2; }
+}
+
+extern<int> {
+    fn halve(self: int) -> int { return self / 2; }
+}

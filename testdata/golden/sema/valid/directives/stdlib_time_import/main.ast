@@ -1,0 +1,11 @@
+main.sg (span: 3:1-8:1)
+├─ Item[0]: Import (span: 3:1-3:20)
+│  └─ Module: stdlib::time
+└─ Item[1]: Fn (span: 5:1-7:2)
+   ├─ Name: measure
+   ├─ Params: ()
+   ├─ Return: time.Duration
+   └─ Body:
+      └─ Stmt[0]: Block (span: 5:31-7:2)
+         └─ Stmt[0]: Return (span: 6:5-6:33)
+            └─ Expr: expr#3: time.monotonic_now()

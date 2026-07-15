@@ -1,0 +1,10 @@
+signal_not_supported.sg (span: 3:1-6:1)
+└─ Item[0]: Fn (span: 3:1-5:2)
+   ├─ Name: test_signal
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:18-5:2)
+         └─ Stmt[0]: Signal (span: 4:5-4:20)
+            ├─ Name: x
+            └─ Value: expr#1: 42

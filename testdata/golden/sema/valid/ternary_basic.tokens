@@ -1,0 +1,74 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "basic" at 2:4-2:9 (leading: Space)
+  3: LParen          "(" at 2:9-2:10
+  4: Ident           "flag" at 2:10-2:14
+  5: Colon           ":" at 2:14-2:15
+  6: Ident           "bool" at 2:16-2:20 (leading: Space)
+  7: RParen          ")" at 2:20-2:21
+  8: Arrow           "->" at 2:22-2:24 (leading: Space)
+  9: Ident           "int" at 2:25-2:28 (leading: Space)
+ 10: LBrace          "{" at 2:29-2:30 (leading: Space)
+ 11: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 12: Ident           "result" at 3:9-3:15 (leading: Space)
+ 13: Colon           ":" at 3:15-3:16
+ 14: Ident           "int" at 3:17-3:20 (leading: Space)
+ 15: Assign          "=" at 3:21-3:22 (leading: Space)
+ 16: Ident           "flag" at 3:23-3:27 (leading: Space)
+ 17: Question        "?" at 3:28-3:29 (leading: Space)
+ 18: IntLit          "1" at 3:30-3:31 (leading: Space)
+ 19: Colon           ":" at 3:32-3:33 (leading: Space)
+ 20: IntLit          "0" at 3:34-3:35 (leading: Space)
+ 21: Semicolon       ";" at 3:35-3:36
+ 22: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 23: Ident           "result" at 4:12-4:18 (leading: Space)
+ 24: Semicolon       ";" at 4:18-4:19
+ 25: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 26: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 27: Ident           "in_return" at 7:4-7:13 (leading: Space)
+ 28: LParen          "(" at 7:13-7:14
+ 29: Ident           "cond" at 7:14-7:18
+ 30: Colon           ":" at 7:18-7:19
+ 31: Ident           "bool" at 7:20-7:24 (leading: Space)
+ 32: RParen          ")" at 7:24-7:25
+ 33: Arrow           "->" at 7:26-7:28 (leading: Space)
+ 34: Ident           "string" at 7:29-7:35 (leading: Space)
+ 35: LBrace          "{" at 7:36-7:37 (leading: Space)
+ 36: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 37: Ident           "cond" at 8:12-8:16 (leading: Space)
+ 38: Question        "?" at 8:17-8:18 (leading: Space)
+ 39: StringLit       "\"yes\"" at 8:19-8:24 (leading: Space)
+ 40: Colon           ":" at 8:25-8:26 (leading: Space)
+ 41: StringLit       "\"no\"" at 8:27-8:31 (leading: Space)
+ 42: Semicolon       ";" at 8:31-8:32
+ 43: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 44: KwFn            "fn" at 11:1-11:3 (leading: Newline)
+ 45: Ident           "with_expressions" at 11:4-11:20 (leading: Space)
+ 46: LParen          "(" at 11:20-11:21
+ 47: Ident           "a" at 11:21-11:22
+ 48: Colon           ":" at 11:22-11:23
+ 49: Ident           "int" at 11:24-11:27 (leading: Space)
+ 50: Comma           "," at 11:27-11:28
+ 51: Ident           "b" at 11:29-11:30 (leading: Space)
+ 52: Colon           ":" at 11:30-11:31
+ 53: Ident           "int" at 11:32-11:35 (leading: Space)
+ 54: Comma           "," at 11:35-11:36
+ 55: Ident           "flag" at 11:37-11:41 (leading: Space)
+ 56: Colon           ":" at 11:41-11:42
+ 57: Ident           "bool" at 11:43-11:47 (leading: Space)
+ 58: RParen          ")" at 11:47-11:48
+ 59: Arrow           "->" at 11:49-11:51 (leading: Space)
+ 60: Ident           "int" at 11:52-11:55 (leading: Space)
+ 61: LBrace          "{" at 11:56-11:57 (leading: Space)
+ 62: KwReturn        "return" at 12:5-12:11 (leading: Newline, Space)
+ 63: Ident           "flag" at 12:12-12:16 (leading: Space)
+ 64: Question        "?" at 12:17-12:18 (leading: Space)
+ 65: Ident           "a" at 12:19-12:20 (leading: Space)
+ 66: Plus            "+" at 12:21-12:22 (leading: Space)
+ 67: Ident           "b" at 12:23-12:24 (leading: Space)
+ 68: Colon           ":" at 12:25-12:26 (leading: Space)
+ 69: Ident           "a" at 12:27-12:28 (leading: Space)
+ 70: Star            "*" at 12:29-12:30 (leading: Space)
+ 71: Ident           "b" at 12:31-12:32 (leading: Space)
+ 72: Semicolon       ";" at 12:32-12:33
+ 73: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 74: EOF             at 14:1-14:1

@@ -1,0 +1,9 @@
+// scenario: empty struct literal in return for struct with fields
+type Foo = {
+    value: int,
+    name: string
+}
+
+fn test_empty_for_nonempty() -> Foo {
+    return {};  // ERROR: Foo is missing required field value and name
+}

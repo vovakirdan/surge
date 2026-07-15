@@ -1,0 +1,16 @@
+@packed
+type S = {
+    a: uint8,
+    b: uint64,
+}
+
+@entrypoint
+fn main() -> int {
+    let size_s: uint = size_of::<S>();
+    let align_s: uint = align_of::<S>();
+
+    if (!(size_s == 9:uint)) { return 1; }
+    if (!(align_s == 1:uint)) { return 2; }
+    return 0;
+}
+

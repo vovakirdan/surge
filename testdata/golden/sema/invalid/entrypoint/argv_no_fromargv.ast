@@ -1,0 +1,16 @@
+argv_no_fromargv.sg (span: 4:1-13:1)
+├─ Item[0]: Type (span: 4:1-7:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+└─ Item[1]: Fn (span: 9:1-12:2)
+   ├─ Name: main
+   ├─ Params: (p: Point)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:26-12:2)
+         └─ Stmt[0]: Return (span: 11:5-11:16)
+            └─ Expr: expr#3: p.x

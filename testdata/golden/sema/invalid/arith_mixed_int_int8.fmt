@@ -1,0 +1,6 @@
+fn main() -> int {
+    let a: int = 1;
+    let b: int8 = 2;
+    let _ = a + b;
+    return 0;
+}

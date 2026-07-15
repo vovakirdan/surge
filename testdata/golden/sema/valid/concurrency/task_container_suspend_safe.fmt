@@ -1,0 +1,16 @@
+// Task container can live across await when SuspendSafe
+
+async fn work() -> int {
+    return 1;
+}
+
+pub async fn test_suspend_safe_container() {
+    let mut q: Task<int>[] = [];
+    q.push(spawn work());
+    sleep(1).await();
+
+    while q.__len() != 0:uint {
+        let t = q.pop().safe();
+        let _ = t.await();
+    }
+}

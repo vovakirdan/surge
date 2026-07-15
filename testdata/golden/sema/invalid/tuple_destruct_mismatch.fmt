@@ -1,0 +1,5 @@
+// scenario: tuple destructure arity mismatch
+fn bad_destruct() {
+    let pair = (1, 2);
+    let (x, y, z) = pair;  // error: pattern has 3 elements but tuple has 2
+}

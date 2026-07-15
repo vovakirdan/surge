@@ -1,0 +1,126 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "pure" at 4:2-4:6
+  3: KwFn            "fn" at 5:1-5:3 (leading: Newline)
+  4: Ident           "add" at 5:4-5:7 (leading: Space)
+  5: LParen          "(" at 5:7-5:8
+  6: Ident           "x" at 5:8-5:9
+  7: Colon           ":" at 5:9-5:10
+  8: Ident           "int" at 5:11-5:14 (leading: Space)
+  9: Comma           "," at 5:14-5:15
+ 10: Ident           "y" at 5:16-5:17 (leading: Space)
+ 11: Colon           ":" at 5:17-5:18
+ 12: Ident           "int" at 5:19-5:22 (leading: Space)
+ 13: RParen          ")" at 5:22-5:23
+ 14: Arrow           "->" at 5:24-5:26 (leading: Space)
+ 15: Ident           "int" at 5:27-5:30 (leading: Space)
+ 16: LBrace          "{" at 5:31-5:32 (leading: Space)
+ 17: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 18: Ident           "x" at 6:12-6:13 (leading: Space)
+ 19: Plus            "+" at 6:14-6:15 (leading: Space)
+ 20: Ident           "y" at 6:16-6:17 (leading: Space)
+ 21: Semicolon       ";" at 6:17-6:18
+ 22: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 23: KwFn            "fn" at 10:1-10:3 (leading: Newline, LineComment, Newline)
+ 24: Ident           "process" at 10:4-10:11 (leading: Space)
+ 25: LParen          "(" at 10:11-10:12
+ 26: Ident           "x" at 10:12-10:13
+ 27: Colon           ":" at 10:13-10:14
+ 28: Ident           "int" at 10:15-10:18 (leading: Space)
+ 29: RParen          ")" at 10:18-10:19
+ 30: Arrow           "->" at 10:20-10:22 (leading: Space)
+ 31: Ident           "int" at 10:23-10:26 (leading: Space)
+ 32: LBrace          "{" at 10:27-10:28 (leading: Space)
+ 33: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space)
+ 34: Ident           "x" at 11:12-11:13 (leading: Space)
+ 35: Star            "*" at 11:14-11:15 (leading: Space)
+ 36: IntLit          "2" at 11:16-11:17 (leading: Space)
+ 37: Semicolon       ";" at 11:17-11:18
+ 38: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 39: At              "@" at 14:1-14:2 (leading: Newline)
+ 40: Ident           "overload" at 14:2-14:10
+ 41: KwFn            "fn" at 15:1-15:3 (leading: Newline)
+ 42: Ident           "process" at 15:4-15:11 (leading: Space)
+ 43: LParen          "(" at 15:11-15:12
+ 44: Ident           "x" at 15:12-15:13
+ 45: Colon           ":" at 15:13-15:14
+ 46: Ident           "int" at 15:15-15:18 (leading: Space)
+ 47: Comma           "," at 15:18-15:19
+ 48: Ident           "y" at 15:20-15:21 (leading: Space)
+ 49: Colon           ":" at 15:21-15:22
+ 50: Ident           "int" at 15:23-15:26 (leading: Space)
+ 51: RParen          ")" at 15:26-15:27
+ 52: Arrow           "->" at 15:28-15:30 (leading: Space)
+ 53: Ident           "int" at 15:31-15:34 (leading: Space)
+ 54: LBrace          "{" at 15:35-15:36 (leading: Space)
+ 55: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space)
+ 56: Ident           "x" at 16:12-16:13 (leading: Space)
+ 57: Plus            "+" at 16:14-16:15 (leading: Space)
+ 58: Ident           "y" at 16:16-16:17 (leading: Space)
+ 59: Semicolon       ";" at 16:17-16:18
+ 60: RBrace          "}" at 17:1-17:2 (leading: Newline)
+ 61: At              "@" at 20:1-20:2 (leading: Newline, LineComment, Newline)
+ 62: Ident           "entrypoint" at 20:2-20:12
+ 63: KwFn            "fn" at 21:1-21:3 (leading: Newline)
+ 64: Ident           "main" at 21:4-21:8 (leading: Space)
+ 65: LParen          "(" at 21:8-21:9
+ 66: RParen          ")" at 21:9-21:10
+ 67: LBrace          "{" at 21:11-21:12 (leading: Space)
+ 68: RBrace          "}" at 22:1-22:2 (leading: Newline)
+ 69: At              "@" at 25:1-25:2 (leading: Newline, LineComment, Newline)
+ 70: Ident           "backend" at 25:2-25:9
+ 71: LParen          "(" at 25:9-25:10
+ 72: StringLit       "\"cpu\"" at 25:10-25:15
+ 73: RParen          ")" at 25:15-25:16
+ 74: KwFn            "fn" at 26:1-26:3 (leading: Newline)
+ 75: Ident           "cpu_work" at 26:4-26:12 (leading: Space)
+ 76: LParen          "(" at 26:12-26:13
+ 77: RParen          ")" at 26:13-26:14
+ 78: LBrace          "{" at 26:15-26:16 (leading: Space)
+ 79: RBrace          "}" at 27:1-27:2 (leading: Newline)
+ 80: At              "@" at 29:1-29:2 (leading: Newline)
+ 81: Ident           "backend" at 29:2-29:9
+ 82: LParen          "(" at 29:9-29:10
+ 83: StringLit       "\"gpu\"" at 29:10-29:15
+ 84: RParen          ")" at 29:15-29:16
+ 85: KwFn            "fn" at 30:1-30:3 (leading: Newline)
+ 86: Ident           "gpu_accelerated" at 30:4-30:19 (leading: Space)
+ 87: LParen          "(" at 30:19-30:20
+ 88: RParen          ")" at 30:20-30:21
+ 89: LBrace          "{" at 30:22-30:23 (leading: Space)
+ 90: RBrace          "}" at 31:1-31:2 (leading: Newline)
+ 91: At              "@" at 33:1-33:2 (leading: Newline)
+ 92: Ident           "backend" at 33:2-33:9
+ 93: LParen          "(" at 33:9-33:10
+ 94: StringLit       "\"wasm\"" at 33:10-33:16
+ 95: RParen          ")" at 33:16-33:17
+ 96: KwFn            "fn" at 34:1-34:3 (leading: Newline)
+ 97: Ident           "wasm_function" at 34:4-34:17 (leading: Space)
+ 98: LParen          "(" at 34:17-34:18
+ 99: RParen          ")" at 34:18-34:19
+100: LBrace          "{" at 34:20-34:21 (leading: Space)
+101: RBrace          "}" at 35:1-35:2 (leading: Newline)
+102: At              "@" at 38:1-38:2 (leading: Newline, LineComment, Newline)
+103: Ident           "nonblocking" at 38:2-38:13
+104: KwFn            "fn" at 39:1-39:3 (leading: Newline)
+105: Ident           "quick_calculation" at 39:4-39:21 (leading: Space)
+106: LParen          "(" at 39:21-39:22
+107: RParen          ")" at 39:22-39:23
+108: LBrace          "{" at 39:24-39:25 (leading: Space)
+109: RBrace          "}" at 40:1-40:2 (leading: Newline)
+110: At              "@" at 43:1-43:2 (leading: Newline, LineComment, Newline)
+111: Ident           "deprecated" at 43:2-43:12
+112: KwFn            "fn" at 44:1-44:3 (leading: Newline)
+113: Ident           "old_api" at 44:4-44:11 (leading: Space)
+114: LParen          "(" at 44:11-44:12
+115: RParen          ")" at 44:12-44:13
+116: LBrace          "{" at 44:14-44:15 (leading: Space)
+117: RBrace          "}" at 45:1-45:2 (leading: Newline)
+118: At              "@" at 48:1-48:2 (leading: Newline, LineComment, Newline)
+119: Ident           "hidden" at 48:2-48:8
+120: KwFn            "fn" at 49:1-49:3 (leading: Newline)
+121: Ident           "internal_helper" at 49:4-49:19 (leading: Space)
+122: LParen          "(" at 49:19-49:20
+123: RParen          ")" at 49:20-49:21
+124: LBrace          "{" at 49:22-49:23 (leading: Space)
+125: RBrace          "}" at 50:1-50:2 (leading: Newline)
+126: EOF             at 51:1-51:1

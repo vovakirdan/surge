@@ -1,0 +1,26 @@
+// scenario: user-defined __to for struct -> string
+
+type Point = {
+    x: int,
+    y: int,
+}
+
+extern<Point> {
+    fn __to(self: Point, _: string) -> string {
+        let prefix: string = "Point(";
+        let mid: string = ", ";
+        let suffix: string = ")";
+        let x_str: string = self.x to string;
+        let y_str: string = self.y to string;
+        let mut out: string = prefix + x_str;
+        out = out + mid;
+        out = out + y_str;
+        return out + suffix;
+    }
+}
+
+@entrypoint
+fn main() {
+    let p: Point = Point { 1, 2 };
+    print(p to string);
+}

@@ -1,0 +1,29 @@
+loop_lock_leak.sg (span: 4:1-21:1)
+├─ Item[0]: Type (span: 4:1-7:2)
+│  ├─ Name: LoopResource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: items: int
+└─ Item[1]: Extern (span: 9:1-20:2)
+   ├─ Target: LoopResource
+   ├─ Members:
+   │  └─ Fn[0]: search_with_leak
+   │     ├─ Params: (self: &mut LoopResource)
+   │     ├─ Return: int
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 11:57-19:6)
+   │        ├─ Stmt[0]: Expr (span: 12:9-12:26)
+   │        │  └─ Expr: expr#4: self.lock.lock()
+   │        ├─ Stmt[1]: If (span: 13:9-16:10)
+   │        │  ├─ Cond: expr#8: (self.items > 5)
+   │        │  ├─ Then:
+Block (span: 13:27-16:10)
+   │        │  │  └─ Stmt[0]: Return (span: 15:13-15:31)
+   │        │  │     └─ Expr: expr#10: self.items
+   │        │  └─ Else: <none>
+   │        ├─ Stmt[2]: Expr (span: 17:9-17:28)
+   │        │  └─ Expr: expr#14: self.lock.unlock()
+   │        └─ Stmt[3]: Return (span: 18:9-18:18)
+   │           └─ Expr: expr#15: 0

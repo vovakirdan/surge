@@ -1,0 +1,44 @@
+fn write_line(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let slen = rt_string_len(&s);
+    rt_write_stdout(ptr, slen);
+    let newline = "\n";
+    rt_write_stdout(rt_string_ptr(&newline), 1:uint);
+}
+
+@entrypoint
+fn main() -> int {
+    let i8a: int8 = 120;
+    let i8b: int8 = 7;
+    write_line(((i8a + i8b) to int) to string);
+    let i8and: int8 = (-1:int8) & (15:int8);
+    write_line(((i8and) to int) to string);
+    let i8shr: int8 = (-2:int8) >> (1:int8);
+    write_line(((i8shr) to int) to string);
+    let i8cmp: bool = i8a > i8b;
+    write_line(i8cmp to string);
+
+    let u8a: uint8 = 250;
+    let u8b: uint8 = 5;
+    write_line(((u8a + u8b) to uint) to string);
+    let u8or: uint8 = (0xF0:uint8) | (0x0F:uint8);
+    write_line(((u8or) to uint) to string);
+    let u8shl: uint8 = (1:uint8) << (4:uint8);
+    write_line(((u8shl) to uint) to string);
+    let u8cmp: bool = u8a > u8b;
+    write_line(u8cmp to string);
+
+    let cast_i8: int8 = (123:int) to int8;
+    write_line(((cast_i8) to int) to string);
+    let cast_u8: uint8 = (250:uint) to uint8;
+    write_line(((cast_u8) to uint) to string);
+
+    let f16_sum: float16 = (1.5:float16) + (0.5:float16);
+    write_line(((f16_sum to float) to string));
+    let f32_mul: float32 = (1.25:float32) * (4.0:float32);
+    write_line(((f32_mul to float) to string));
+    let f64_div: float64 = (8.0:float64) / (2.0:float64);
+    write_line(((f64_div to float) to string));
+
+    return 0;
+}

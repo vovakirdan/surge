@@ -1,0 +1,153 @@
+t15_fairness_round_robin.sg (span: 1:1-51:1)
+├─ Item[0]: Fn (span: 1:1-9:2)
+│  ├─ Name: worker
+│  ├─ Params: (ch: own Channel<int>, id: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:55-9:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:15)
+│        │  ├─ Name: i
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: 0
+│        ├─ Stmt[1]: While (span: 3:5-7:6)
+│        │  ├─ Cond: expr#4: (i < 3)
+│        │  └─ Body:
+Block (span: 3:17-7:6)
+│        │     ├─ Stmt[0]: Expr (span: 4:9-4:21)
+│        │     │  └─ Expr: expr#8: ch.send(id)
+│        │     ├─ Stmt[1]: Expr (span: 5:9-5:30)
+│        │     │  └─ Expr: expr#12: checkpoint().await()
+│        │     └─ Stmt[2]: Expr (span: 6:9-6:19)
+│        │        └─ Expr: expr#17: (i = ((i + 1)))
+│        └─ Stmt[2]: Return (span: 8:5-8:14)
+│           └─ Expr: expr#18: 0
+└─ Item[1]: Fn (span: 11:1-50:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:18-50:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:37)
+         │  ├─ Name: ch
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#21: make_channel(0)
+         ├─ Stmt[1]: Let (span: 15:5-15:18)
+         │  ├─ Name: ch0
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#22: ch
+         ├─ Stmt[2]: Let (span: 16:5-16:18)
+         │  ├─ Name: ch1
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#23: ch
+         ├─ Stmt[3]: Let (span: 17:5-17:18)
+         │  ├─ Name: ch2
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#24: ch
+         ├─ Stmt[4]: Let (span: 18:5-18:18)
+         │  ├─ Name: ch3
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#25: ch
+         ├─ Stmt[5]: Let (span: 19:5-19:18)
+         │  ├─ Name: ch4
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#26: ch
+         ├─ Stmt[6]: Let (span: 21:5-21:35)
+         │  ├─ Name: w0
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#31: spawn worker(ch0, 0)
+         ├─ Stmt[7]: Let (span: 22:5-22:35)
+         │  ├─ Name: w1
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#36: spawn worker(ch1, 1)
+         ├─ Stmt[8]: Let (span: 23:5-23:35)
+         │  ├─ Name: w2
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#41: spawn worker(ch2, 2)
+         ├─ Stmt[9]: Let (span: 24:5-24:35)
+         │  ├─ Name: w3
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#46: spawn worker(ch3, 3)
+         ├─ Stmt[10]: Let (span: 25:5-25:35)
+         │  ├─ Name: w4
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#51: spawn worker(ch4, 4)
+         ├─ Stmt[11]: Let (span: 27:5-27:20)
+         │  ├─ Name: total
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#52: 15
+         ├─ Stmt[12]: Let (span: 28:5-28:17)
+         │  ├─ Name: got
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#53: 0
+         ├─ Stmt[13]: Let (span: 29:5-29:22)
+         │  ├─ Name: done
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#54: false
+         ├─ Stmt[14]: While (span: 30:5-42:6)
+         │  ├─ Cond: expr#60: (((got < total)) && !done)
+         │  └─ Body:
+Block (span: 30:32-42:6)
+         │     ├─ Stmt[0]: Let (span: 31:9-31:27)
+         │     │  ├─ Name: v
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: <inferred>
+         │     │  └─ Value: expr#63: ch.recv()
+         │     ├─ Stmt[1]: Let (span: 32:9-35:11)
+         │     │  ├─ Name: pair
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: (bool, int)
+         │     │  └─ Value: expr#75: compare v { 2 arms }
+         │     └─ Stmt[2]: If (span: 36:9-41:10)
+         │        ├─ Cond: expr#77: pair.0
+         │        ├─ Then:
+Block (span: 36:19-39:10)
+         │        │  ├─ Stmt[0]: Expr (span: 37:13-37:46)
+         │        │  │  └─ Expr: expr#85: print(("v=" + (pair.1 to string)))
+         │        │  └─ Stmt[1]: Expr (span: 38:13-38:27)
+         │        │     └─ Expr: expr#90: (got = ((got + 1)))
+         │        └─ Else:
+Block (span: 39:16-41:10)
+         │           └─ Stmt[0]: Expr (span: 40:13-40:25)
+         │              └─ Expr: expr#93: (done = true)
+         ├─ Stmt[15]: Let (span: 44:5-44:24)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#96: w0.await()
+         ├─ Stmt[16]: Let (span: 45:5-45:24)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#99: w1.await()
+         ├─ Stmt[17]: Let (span: 46:5-46:24)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#102: w2.await()
+         ├─ Stmt[18]: Let (span: 47:5-47:24)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#105: w3.await()
+         ├─ Stmt[19]: Let (span: 48:5-48:24)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#108: w4.await()
+         └─ Stmt[20]: Return (span: 49:5-49:14)
+            └─ Expr: expr#109: 0

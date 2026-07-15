@@ -1,0 +1,28 @@
+// Invalid: lock acquired but not released before function exit
+
+pub fn test_lock_not_released() -> nothing {
+    let mut mtx: Mutex = Mutex.new();
+    mtx.lock();
+    // Error: lock not released before function exit
+}
+
+pub fn test_partial_release() -> nothing {
+    let mut m1: Mutex = Mutex.new();
+    let mut m2: Mutex = Mutex.new();
+
+    m1.lock();
+    m2.lock();
+    m2.unlock();
+    // Error: m1 not released before function exit
+}
+
+type Resource = {
+    lock: Mutex,
+}
+
+extern<Resource> {
+    pub fn bad_no_release(self: &mut Resource) -> nothing {
+        self.lock.lock();
+        // Error: lock not released before function exit
+    }
+}

@@ -1,0 +1,23 @@
+// Test: Break paths with different lock states - must detect inconsistency
+// This tests that PathBreaks merges lock states from both break paths
+
+type BreakMixedResource = {
+    lock: Mutex,
+    value: int
+}
+
+extern<BreakMixedResource> {
+    fn break_mixed_states(self: &mut BreakMixedResource) {
+        while self.value > 0 {
+            if self.value > 10 {
+                self.lock.lock();  // Lock acquired in then branch
+                break;
+            } else {
+                // No lock acquired in else branch
+                break;
+            }
+        }
+        // After loop: inconsistent lock state from break paths
+        // ERROR: lock held on one path but not other
+    }
+}

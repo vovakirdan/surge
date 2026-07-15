@@ -1,0 +1,22 @@
+// Test: Valid function attributes
+
+@nonblocking
+fn fast_compute() {
+}
+
+@backend("cpu")
+fn cpu_only() {
+}
+
+@backend("gpu")
+fn gpu_accelerated() {
+}
+
+@backend("wasm")
+fn wasm_target() {
+}
+
+@pure
+fn no_side_effects(x: int32) -> int32 {
+    return (x * 2):int32;
+}

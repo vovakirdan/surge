@@ -1,0 +1,1 @@
+error SEM3051 testdata/golden/sema/invalid/extern_missing_return.sg:8:43 function returning Point is missing a return

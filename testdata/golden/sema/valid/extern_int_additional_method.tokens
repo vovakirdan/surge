@@ -1,0 +1,41 @@
+  1: KwExtern        "extern" at 2:1-2:7 (leading: LineComment, Newline)
+  2: Lt              "<" at 2:7-2:8
+  3: Ident           "int" at 2:8-2:11
+  4: Gt              ">" at 2:11-2:12
+  5: LBrace          "{" at 2:13-2:14 (leading: Space)
+  6: KwFn            "fn" at 3:5-3:7 (leading: Newline, Space)
+  7: Ident           "is_positive" at 3:8-3:19 (leading: Space)
+  8: LParen          "(" at 3:19-3:20
+  9: Ident           "self" at 3:20-3:24
+ 10: Colon           ":" at 3:24-3:25
+ 11: Ident           "int" at 3:26-3:29 (leading: Space)
+ 12: RParen          ")" at 3:29-3:30
+ 13: Arrow           "->" at 3:31-3:33 (leading: Space)
+ 14: Ident           "bool" at 3:34-3:38 (leading: Space)
+ 15: LBrace          "{" at 3:39-3:40 (leading: Space)
+ 16: KwReturn        "return" at 4:9-4:15 (leading: Newline, Space)
+ 17: Ident           "self" at 4:16-4:20 (leading: Space)
+ 18: Gt              ">" at 4:21-4:22 (leading: Space)
+ 19: IntLit          "0" at 4:23-4:24 (leading: Space)
+ 20: Semicolon       ";" at 4:24-4:25
+ 21: RBrace          "}" at 5:5-5:6 (leading: Newline, Space)
+ 22: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 23: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 24: Ident           "check_number" at 8:4-8:16 (leading: Space)
+ 25: LParen          "(" at 8:16-8:17
+ 26: Ident           "n" at 8:17-8:18
+ 27: Colon           ":" at 8:18-8:19
+ 28: Ident           "int" at 8:20-8:23 (leading: Space)
+ 29: RParen          ")" at 8:23-8:24
+ 30: Arrow           "->" at 8:25-8:27 (leading: Space)
+ 31: Ident           "bool" at 8:28-8:32 (leading: Space)
+ 32: LBrace          "{" at 8:33-8:34 (leading: Space)
+ 33: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 34: Ident           "n" at 9:12-9:13 (leading: Space)
+ 35: Dot             "." at 9:13-9:14
+ 36: Ident           "is_positive" at 9:14-9:25
+ 37: LParen          "(" at 9:25-9:26
+ 38: RParen          ")" at 9:26-9:27
+ 39: Semicolon       ";" at 9:27-9:28
+ 40: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 41: EOF             at 11:1-11:1

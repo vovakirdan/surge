@@ -1,0 +1,4 @@
+// scenario: ternary branches have incompatible types
+fn mismatch(flag: bool) -> int {
+    return flag ? 1 : "zero";
+}

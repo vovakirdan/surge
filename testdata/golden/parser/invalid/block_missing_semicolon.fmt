@@ -1,0 +1,12 @@
+// Test: parser should not hang on missing semicolon in block
+// This tests the infinite loop protection in parseBlock
+
+fn test_missing_semi() {
+    let x: int = 1
+    let y: int = 2;
+}
+
+fn test_expression_no_semi() {
+    x + y
+    let z: int = 3;
+}

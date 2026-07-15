@@ -1,0 +1,117 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Foo" at 3:6-3:9 (leading: Space)
+  3: Lt              "<" at 3:9-3:10
+  4: Ident           "T" at 3:10-3:11
+  5: Gt              ">" at 3:11-3:12
+  6: Assign          "=" at 3:13-3:14 (leading: Space)
+  7: LBrace          "{" at 3:15-3:16 (leading: Space)
+  8: RBrace          "}" at 3:16-3:17
+  9: Semicolon       ";" at 3:17-3:18
+ 10: KwExtern        "extern" at 5:1-5:7 (leading: Newline)
+ 11: Lt              "<" at 5:7-5:8
+ 12: Ident           "Foo" at 5:8-5:11
+ 13: Lt              "<" at 5:11-5:12
+ 14: Ident           "T" at 5:12-5:13
+ 15: Shr             ">>" at 5:13-5:15
+ 16: LBrace          "{" at 5:16-5:17 (leading: Space)
+ 17: KwFn            "fn" at 7:5-7:7 (leading: Newline, Space, LineComment, Newline, Space)
+ 18: Ident           "bad" at 7:8-7:11 (leading: Space)
+ 19: Lt              "<" at 7:11-7:12
+ 20: Ident           "T" at 7:12-7:13
+ 21: Gt              ">" at 7:13-7:14
+ 22: LParen          "(" at 7:14-7:15
+ 23: Ident           "t" at 7:15-7:16
+ 24: Colon           ":" at 7:16-7:17
+ 25: Ident           "T" at 7:18-7:19 (leading: Space)
+ 26: RParen          ")" at 7:19-7:20
+ 27: Arrow           "->" at 7:21-7:23 (leading: Space)
+ 28: Ident           "Foo" at 7:24-7:27 (leading: Space)
+ 29: Lt              "<" at 7:27-7:28
+ 30: Ident           "T" at 7:28-7:29
+ 31: Gt              ">" at 7:29-7:30
+ 32: Semicolon       ";" at 7:30-7:31
+ 33: KwFn            "fn" at 10:5-10:7 (leading: Newline, Space, LineComment, Newline, Space)
+ 34: Ident           "ok" at 10:8-10:10 (leading: Space)
+ 35: Lt              "<" at 10:10-10:11
+ 36: Ident           "U" at 10:11-10:12
+ 37: Gt              ">" at 10:12-10:13
+ 38: LParen          "(" at 10:13-10:14
+ 39: Ident           "u" at 10:14-10:15
+ 40: Colon           ":" at 10:15-10:16
+ 41: Ident           "U" at 10:17-10:18 (leading: Space)
+ 42: RParen          ")" at 10:18-10:19
+ 43: Arrow           "->" at 10:20-10:22 (leading: Space)
+ 44: Ident           "Foo" at 10:23-10:26 (leading: Space)
+ 45: Lt              "<" at 10:26-10:27
+ 46: Ident           "U" at 10:27-10:28
+ 47: Gt              ">" at 10:28-10:29
+ 48: Semicolon       ";" at 10:29-10:30
+ 49: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 50: KwType          "type" at 13:1-13:5 (leading: Newline)
+ 51: Ident           "Pair" at 13:6-13:10 (leading: Space)
+ 52: Lt              "<" at 13:10-13:11
+ 53: Ident           "A" at 13:11-13:12
+ 54: Comma           "," at 13:12-13:13
+ 55: Ident           "B" at 13:14-13:15 (leading: Space)
+ 56: Gt              ">" at 13:15-13:16
+ 57: Assign          "=" at 13:17-13:18 (leading: Space)
+ 58: LBrace          "{" at 13:19-13:20 (leading: Space)
+ 59: Ident           "a" at 13:21-13:22 (leading: Space)
+ 60: Colon           ":" at 13:22-13:23
+ 61: Ident           "A" at 13:24-13:25 (leading: Space)
+ 62: Comma           "," at 13:25-13:26
+ 63: Ident           "b" at 13:27-13:28 (leading: Space)
+ 64: Colon           ":" at 13:28-13:29
+ 65: Ident           "B" at 13:30-13:31 (leading: Space)
+ 66: RBrace          "}" at 13:32-13:33 (leading: Space)
+ 67: Semicolon       ";" at 13:33-13:34
+ 68: KwExtern        "extern" at 15:1-15:7 (leading: Newline)
+ 69: Lt              "<" at 15:7-15:8
+ 70: Ident           "Pair" at 15:8-15:12
+ 71: Lt              "<" at 15:12-15:13
+ 72: Ident           "A" at 15:13-15:14
+ 73: Comma           "," at 15:14-15:15
+ 74: Ident           "B" at 15:16-15:17 (leading: Space)
+ 75: Shr             ">>" at 15:17-15:19
+ 76: LBrace          "{" at 15:20-15:21 (leading: Space)
+ 77: KwFn            "fn" at 17:5-17:7 (leading: Newline, Space, LineComment, Newline, Space)
+ 78: Ident           "shadow_a" at 17:8-17:16 (leading: Space)
+ 79: Lt              "<" at 17:16-17:17
+ 80: Ident           "A" at 17:17-17:18
+ 81: Gt              ">" at 17:18-17:19
+ 82: LParen          "(" at 17:19-17:20
+ 83: Ident           "a" at 17:20-17:21
+ 84: Colon           ":" at 17:21-17:22
+ 85: Ident           "A" at 17:23-17:24 (leading: Space)
+ 86: RParen          ")" at 17:24-17:25
+ 87: Arrow           "->" at 17:26-17:28 (leading: Space)
+ 88: Ident           "A" at 17:29-17:30 (leading: Space)
+ 89: Semicolon       ";" at 17:30-17:31
+ 90: KwFn            "fn" at 20:5-20:7 (leading: Newline, Space, LineComment, Newline, Space)
+ 91: Ident           "shadow_b" at 20:8-20:16 (leading: Space)
+ 92: Lt              "<" at 20:16-20:17
+ 93: Ident           "B" at 20:17-20:18
+ 94: Gt              ">" at 20:18-20:19
+ 95: LParen          "(" at 20:19-20:20
+ 96: Ident           "b" at 20:20-20:21
+ 97: Colon           ":" at 20:21-20:22
+ 98: Ident           "B" at 20:23-20:24 (leading: Space)
+ 99: RParen          ")" at 20:24-20:25
+100: Arrow           "->" at 20:26-20:28 (leading: Space)
+101: Ident           "B" at 20:29-20:30 (leading: Space)
+102: Semicolon       ";" at 20:30-20:31
+103: KwFn            "fn" at 23:5-23:7 (leading: Newline, Space, LineComment, Newline, Space)
+104: Ident           "no_shadow" at 23:8-23:17 (leading: Space)
+105: Lt              "<" at 23:17-23:18
+106: Ident           "C" at 23:18-23:19
+107: Gt              ">" at 23:19-23:20
+108: LParen          "(" at 23:20-23:21
+109: Ident           "c" at 23:21-23:22
+110: Colon           ":" at 23:22-23:23
+111: Ident           "C" at 23:24-23:25 (leading: Space)
+112: RParen          ")" at 23:25-23:26
+113: Arrow           "->" at 23:27-23:29 (leading: Space)
+114: Ident           "C" at 23:30-23:31 (leading: Space)
+115: Semicolon       ";" at 23:31-23:32
+116: RBrace          "}" at 24:1-24:2 (leading: Newline)
+117: EOF             at 25:1-25:1

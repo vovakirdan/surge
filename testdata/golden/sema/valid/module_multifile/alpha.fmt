@@ -1,0 +1,5 @@
+pragma module;
+
+pub fn alpha(x: int) -> int {
+    return x + 1;
+}

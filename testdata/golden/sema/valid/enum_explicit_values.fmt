@@ -1,0 +1,12 @@
+// Enum with explicit values
+
+enum HttpCode: int = {
+    Ok = 200,
+    Created = 201,
+    NotFound = 404,
+    ServerError = 500
+}
+
+fn test() {
+    let code: int = HttpCode::NotFound;
+}

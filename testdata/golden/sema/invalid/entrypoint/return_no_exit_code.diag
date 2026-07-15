@@ -1,0 +1,1 @@
+error SEM3123 testdata/golden/sema/invalid/entrypoint/return_no_exit_code.sg:9:11 @entrypoint return type must be 'nothing', 'int', or implement ExitCode contract (have __to(self, int) -> int); got 'MyType'

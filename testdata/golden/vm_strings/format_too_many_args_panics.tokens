@@ -1,0 +1,32 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Underscore      "_" at 3:9-3:10 (leading: Space)
+ 12: Assign          "=" at 3:11-3:12 (leading: Space)
+ 13: Ident           "format" at 3:13-3:19 (leading: Space)
+ 14: LParen          "(" at 3:19-3:20
+ 15: StringLit       "\"{}\"" at 3:20-3:24
+ 16: Comma           "," at 3:24-3:25
+ 17: Ident           "fmt_arg_int" at 3:26-3:37 (leading: Space)
+ 18: LParen          "(" at 3:37-3:38
+ 19: IntLit          "1" at 3:38-3:39
+ 20: RParen          ")" at 3:39-3:40
+ 21: Comma           "," at 3:40-3:41
+ 22: Ident           "fmt_arg_int" at 3:42-3:53 (leading: Space)
+ 23: LParen          "(" at 3:53-3:54
+ 24: IntLit          "2" at 3:54-3:55
+ 25: RParen          ")" at 3:55-3:56
+ 26: RParen          ")" at 3:56-3:57
+ 27: Semicolon       ";" at 3:57-3:58
+ 28: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 29: IntLit          "0" at 4:12-4:13 (leading: Space)
+ 30: Semicolon       ";" at 4:13-4:14
+ 31: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 32: EOF             at 6:1-6:1

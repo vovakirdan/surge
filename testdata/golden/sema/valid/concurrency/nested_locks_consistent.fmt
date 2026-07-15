@@ -1,0 +1,46 @@
+// Test: Nested lock acquisition with consistent ordering
+// Multiple locks acquired in same order across functions
+
+type Database = {
+    table_lock: Mutex,
+    index_lock: Mutex,
+    cache_lock: Mutex,
+    data: int
+}
+
+extern<Database> {
+    // Table -> Index -> Cache (consistent order)
+    fn full_update(self: &mut Database) {
+        self.table_lock.lock();
+        self.index_lock.lock();
+        self.cache_lock.lock();
+
+        self.data = 100;
+
+        self.cache_lock.unlock();
+        self.index_lock.unlock();
+        self.table_lock.unlock();
+    }
+
+    // Table -> Index (subset, same order)
+    fn partial_update(self: &mut Database) {
+        self.table_lock.lock();
+        self.index_lock.lock();
+
+        self.data = 50;
+
+        self.index_lock.unlock();
+        self.table_lock.unlock();
+    }
+
+    // Index -> Cache (different subset, still consistent)
+    fn index_cache_update(self: &mut Database) {
+        self.index_lock.lock();
+        self.cache_lock.lock();
+
+        self.data = 25;
+
+        self.cache_lock.unlock();
+        self.index_lock.unlock();
+    }
+}

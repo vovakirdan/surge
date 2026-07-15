@@ -1,0 +1,12 @@
+// ERROR: Task container cannot escape its scope
+
+async fn work() -> int {
+    return 1;
+}
+
+pub fn return_container() -> Task<int>[] {
+    let mut q: Task<int>[] = [];
+    q.push(spawn work());
+    // ERROR SEM3110: task container cannot escape its scope
+    return q;
+}

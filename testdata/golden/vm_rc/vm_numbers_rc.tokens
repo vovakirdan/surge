@@ -1,0 +1,46 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Ident           "a" at 3:9-3:10 (leading: Space)
+ 12: Colon           ":" at 3:10-3:11
+ 13: Ident           "int" at 3:12-3:15 (leading: Space)
+ 14: Assign          "=" at 3:16-3:17 (leading: Space)
+ 15: IntLit          "100000000000000000000" at 3:18-3:39 (leading: Space)
+ 16: Semicolon       ";" at 3:39-3:40
+ 17: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 18: Ident           "b" at 4:9-4:10 (leading: Space)
+ 19: Assign          "=" at 4:11-4:12 (leading: Space)
+ 20: Ident           "a" at 4:13-4:14 (leading: Space)
+ 21: Semicolon       ";" at 4:14-4:15
+ 22: KwLet           "let" at 6:5-6:8 (leading: Space, LineComment, Newline, Space)
+ 23: Ident           "c" at 6:9-6:10 (leading: Space)
+ 24: Colon           ":" at 6:10-6:11
+ 25: Ident           "float" at 6:12-6:17 (leading: Space)
+ 26: Assign          "=" at 6:18-6:19 (leading: Space)
+ 27: FloatLit        "1.234567890123456789" at 6:20-6:40 (leading: Space)
+ 28: Semicolon       ";" at 6:40-6:41
+ 29: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 30: Ident           "d" at 7:9-7:10 (leading: Space)
+ 31: Assign          "=" at 7:11-7:12 (leading: Space)
+ 32: Ident           "c" at 7:13-7:14 (leading: Space)
+ 33: Semicolon       ";" at 7:14-7:15
+ 34: At              "@" at 9:5-9:6 (leading: Space, LineComment, Newline, Space)
+ 35: Ident           "drop" at 9:6-9:10
+ 36: Ident           "b" at 9:11-9:12 (leading: Space)
+ 37: Semicolon       ";" at 9:12-9:13
+ 38: At              "@" at 10:5-10:6 (leading: Newline, Space)
+ 39: Ident           "drop" at 10:6-10:10
+ 40: Ident           "d" at 10:11-10:12 (leading: Space)
+ 41: Semicolon       ";" at 10:12-10:13
+ 42: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space)
+ 43: IntLit          "0" at 11:12-11:13 (leading: Space)
+ 44: Semicolon       ";" at 11:13-11:14
+ 45: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 46: EOF             at 13:1-13:1

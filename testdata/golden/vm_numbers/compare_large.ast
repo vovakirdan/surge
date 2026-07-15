@@ -1,0 +1,53 @@
+compare_large.sg (span: 1:1-20:1)
+├─ Item[0]: Fn (span: 1:1-7:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-7:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:34)
+│        │  ├─ Name: slen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len(&s)
+│        ├─ Stmt[2]: Expr (span: 4:5-4:32)
+│        │  └─ Expr: expr#12: rt_write_stdout(ptr, slen)
+│        ├─ Stmt[3]: Let (span: 5:5-5:24)
+│        │  ├─ Name: newline
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#13: "\n"
+│        └─ Stmt[4]: Expr (span: 6:5-6:54)
+│           └─ Expr: expr#21: rt_write_stdout(rt_string_ptr(&newline), 1 to uint)
+└─ Item[1]: Fn (span: 9:1-19:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:18-19:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:326)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#22: 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+         ├─ Stmt[1]: Let (span: 12:5-12:325)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#23: 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+         ├─ Stmt[2]: If (span: 14:5-17:6)
+         │  ├─ Cond: expr#26: (a > b)
+         │  ├─ Then:
+Block (span: 14:16-17:6)
+         │  │  ├─ Stmt[0]: Expr (span: 15:9-15:24)
+         │  │  │  └─ Expr: expr#29: write_line("")
+         │  │  └─ Stmt[1]: Return (span: 16:9-16:18)
+         │  │     └─ Expr: expr#30: 0
+         │  └─ Else: <none>
+         └─ Stmt[3]: Return (span: 18:5-18:14)
+            └─ Expr: expr#31: 1

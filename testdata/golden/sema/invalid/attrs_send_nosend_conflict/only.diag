@@ -1,0 +1,1 @@
+error SEM3062 testdata/golden/sema/invalid/attrs_send_nosend_conflict/only.sg:5:1 attribute '@nosend' conflicts with '@send'

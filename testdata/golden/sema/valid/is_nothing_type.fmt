@@ -1,0 +1,32 @@
+// Test: 'is' operator with 'nothing' type operand
+// Issue #28: 'x is nothing' should work without parentheses
+
+fn test_is_nothing() {
+    let x = nothing;
+    if x is nothing {
+        return;
+    }
+}
+
+type MyNothing = nothing;
+
+fn test_is_type_alias() {
+    let x: MyNothing = nothing;
+    if x is MyNothing {
+        return;
+    }
+}
+
+fn test_is_with_parens() {
+    let x = nothing;
+    if (x is nothing) {
+        return;
+    }
+}
+
+fn test_is_builtin_types() {
+    let x: int = 42;
+    if x is int {
+        return;
+    }
+}

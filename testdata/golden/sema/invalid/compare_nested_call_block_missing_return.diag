@@ -1,0 +1,2 @@
+warning SEM3135 testdata/golden/sema/invalid/compare_nested_call_block_missing_return.sg:8:13 legacy implicit block value should use 'ret'; insert 'ret' for an explicit block exit
+error SEM3015 testdata/golden/sema/invalid/compare_nested_call_block_missing_return.sg:10:18 cannot assign nothing to int

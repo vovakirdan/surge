@@ -1,0 +1,1 @@
+error SEM3022 testdata/golden/sema/invalid/ownership/index_set_requires_mut.sg:3:5 cannot take mutable borrow of 'xs'

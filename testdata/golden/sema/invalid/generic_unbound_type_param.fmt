@@ -1,0 +1,2 @@
+// scenario: bare type parameter used without being declared
+fn use_unknown(t: T) {}

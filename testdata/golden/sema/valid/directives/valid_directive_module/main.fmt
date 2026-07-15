@@ -1,0 +1,8 @@
+// Test: valid directive namespace with pragma directive module
+// Expected: No errors
+import test_dir;
+
+/// test_dir:
+/// test_dir.eq(1, 1);
+
+fn add(a: int, b: int) -> int { return a + b; }

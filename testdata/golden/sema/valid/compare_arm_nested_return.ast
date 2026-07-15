@@ -1,0 +1,9 @@
+compare_arm_nested_return.sg (span: 1:1-13:1)
+└─ Item[0]: Fn (span: 1:1-12:2)
+   ├─ Name: main
+   ├─ Params: (flag: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:28-12:2)
+         └─ Stmt[0]: Return (span: 2:5-11:7)
+            └─ Expr: expr#9: compare flag { 2 arms }

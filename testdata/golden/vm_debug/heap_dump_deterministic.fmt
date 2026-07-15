@@ -1,0 +1,21 @@
+@entrypoint
+fn main() -> int {
+    let mut s: string = "";
+    let mut i: int = 0;
+    while i < 8 {
+        s = s + "abcdefghij";
+        i = i + 1;
+    }
+    let t: string = s + s;
+    let u: string = t[[0..10]];
+
+    let a: int[] = [1, 2, 3, 4];
+    let v: int[] = a[[1..3]];
+
+    let dump: string = rt_heap_dump();
+    rt_write_stdout(rt_string_ptr(&dump), rt_string_len_bytes(&dump));
+
+    let _ = u;
+    let _ = v;
+    return 0;
+}

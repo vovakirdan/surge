@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/struct_literal_return_generic_extra.sg:7:12 Box<int> literal expects 1 fields, got 3

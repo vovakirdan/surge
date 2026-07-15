@@ -1,0 +1,8 @@
+pragma module;
+
+@entrypoint
+@overload
+fn main() {}
+
+@overload
+fn main(x: int) {}

@@ -1,0 +1,14 @@
+index_set_requires_mut.sg (span: 1:1-5:1)
+└─ Item[0]: Fn (span: 1:1-4:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:11-4:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:24)
+         │  ├─ Name: xs
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: <ExprKind(8)>
+         └─ Stmt[1]: Expr (span: 3:5-3:15)
+            └─ Expr: expr#9: (xs[0] = 9)

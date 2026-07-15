@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let i = 42;
+    let f = 1.0;
+    return 0;
+}

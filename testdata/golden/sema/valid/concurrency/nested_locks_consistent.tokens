@@ -1,0 +1,190 @@
+  1: KwType          "type" at 4:1-4:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Database" at 4:6-4:14 (leading: Space)
+  3: Assign          "=" at 4:15-4:16 (leading: Space)
+  4: LBrace          "{" at 4:17-4:18 (leading: Space)
+  5: Ident           "table_lock" at 5:5-5:15 (leading: Newline, Space)
+  6: Colon           ":" at 5:15-5:16
+  7: Ident           "Mutex" at 5:17-5:22 (leading: Space)
+  8: Comma           "," at 5:22-5:23
+  9: Ident           "index_lock" at 6:5-6:15 (leading: Newline, Space)
+ 10: Colon           ":" at 6:15-6:16
+ 11: Ident           "Mutex" at 6:17-6:22 (leading: Space)
+ 12: Comma           "," at 6:22-6:23
+ 13: Ident           "cache_lock" at 7:5-7:15 (leading: Newline, Space)
+ 14: Colon           ":" at 7:15-7:16
+ 15: Ident           "Mutex" at 7:17-7:22 (leading: Space)
+ 16: Comma           "," at 7:22-7:23
+ 17: Ident           "data" at 8:5-8:9 (leading: Newline, Space)
+ 18: Colon           ":" at 8:9-8:10
+ 19: Ident           "int" at 8:11-8:14 (leading: Space)
+ 20: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 21: KwExtern        "extern" at 11:1-11:7 (leading: Newline)
+ 22: Lt              "<" at 11:7-11:8
+ 23: Ident           "Database" at 11:8-11:16
+ 24: Gt              ">" at 11:16-11:17
+ 25: LBrace          "{" at 11:18-11:19 (leading: Space)
+ 26: KwFn            "fn" at 13:5-13:7 (leading: Newline, Space, LineComment, Newline, Space)
+ 27: Ident           "full_update" at 13:8-13:19 (leading: Space)
+ 28: LParen          "(" at 13:19-13:20
+ 29: Ident           "self" at 13:20-13:24
+ 30: Colon           ":" at 13:24-13:25
+ 31: Amp             "&" at 13:26-13:27 (leading: Space)
+ 32: KwMut           "mut" at 13:27-13:30
+ 33: Ident           "Database" at 13:31-13:39 (leading: Space)
+ 34: RParen          ")" at 13:39-13:40
+ 35: LBrace          "{" at 13:41-13:42 (leading: Space)
+ 36: Ident           "self" at 14:9-14:13 (leading: Newline, Space)
+ 37: Dot             "." at 14:13-14:14
+ 38: Ident           "table_lock" at 14:14-14:24
+ 39: Dot             "." at 14:24-14:25
+ 40: Ident           "lock" at 14:25-14:29
+ 41: LParen          "(" at 14:29-14:30
+ 42: RParen          ")" at 14:30-14:31
+ 43: Semicolon       ";" at 14:31-14:32
+ 44: Ident           "self" at 15:9-15:13 (leading: Newline, Space)
+ 45: Dot             "." at 15:13-15:14
+ 46: Ident           "index_lock" at 15:14-15:24
+ 47: Dot             "." at 15:24-15:25
+ 48: Ident           "lock" at 15:25-15:29
+ 49: LParen          "(" at 15:29-15:30
+ 50: RParen          ")" at 15:30-15:31
+ 51: Semicolon       ";" at 15:31-15:32
+ 52: Ident           "self" at 16:9-16:13 (leading: Newline, Space)
+ 53: Dot             "." at 16:13-16:14
+ 54: Ident           "cache_lock" at 16:14-16:24
+ 55: Dot             "." at 16:24-16:25
+ 56: Ident           "lock" at 16:25-16:29
+ 57: LParen          "(" at 16:29-16:30
+ 58: RParen          ")" at 16:30-16:31
+ 59: Semicolon       ";" at 16:31-16:32
+ 60: Ident           "self" at 18:9-18:13 (leading: Newline, Space)
+ 61: Dot             "." at 18:13-18:14
+ 62: Ident           "data" at 18:14-18:18
+ 63: Assign          "=" at 18:19-18:20 (leading: Space)
+ 64: IntLit          "100" at 18:21-18:24 (leading: Space)
+ 65: Semicolon       ";" at 18:24-18:25
+ 66: Ident           "self" at 20:9-20:13 (leading: Newline, Space)
+ 67: Dot             "." at 20:13-20:14
+ 68: Ident           "cache_lock" at 20:14-20:24
+ 69: Dot             "." at 20:24-20:25
+ 70: Ident           "unlock" at 20:25-20:31
+ 71: LParen          "(" at 20:31-20:32
+ 72: RParen          ")" at 20:32-20:33
+ 73: Semicolon       ";" at 20:33-20:34
+ 74: Ident           "self" at 21:9-21:13 (leading: Newline, Space)
+ 75: Dot             "." at 21:13-21:14
+ 76: Ident           "index_lock" at 21:14-21:24
+ 77: Dot             "." at 21:24-21:25
+ 78: Ident           "unlock" at 21:25-21:31
+ 79: LParen          "(" at 21:31-21:32
+ 80: RParen          ")" at 21:32-21:33
+ 81: Semicolon       ";" at 21:33-21:34
+ 82: Ident           "self" at 22:9-22:13 (leading: Newline, Space)
+ 83: Dot             "." at 22:13-22:14
+ 84: Ident           "table_lock" at 22:14-22:24
+ 85: Dot             "." at 22:24-22:25
+ 86: Ident           "unlock" at 22:25-22:31
+ 87: LParen          "(" at 22:31-22:32
+ 88: RParen          ")" at 22:32-22:33
+ 89: Semicolon       ";" at 22:33-22:34
+ 90: RBrace          "}" at 23:5-23:6 (leading: Newline, Space)
+ 91: KwFn            "fn" at 26:5-26:7 (leading: Newline, Space, LineComment, Newline, Space)
+ 92: Ident           "partial_update" at 26:8-26:22 (leading: Space)
+ 93: LParen          "(" at 26:22-26:23
+ 94: Ident           "self" at 26:23-26:27
+ 95: Colon           ":" at 26:27-26:28
+ 96: Amp             "&" at 26:29-26:30 (leading: Space)
+ 97: KwMut           "mut" at 26:30-26:33
+ 98: Ident           "Database" at 26:34-26:42 (leading: Space)
+ 99: RParen          ")" at 26:42-26:43
+100: LBrace          "{" at 26:44-26:45 (leading: Space)
+101: Ident           "self" at 27:9-27:13 (leading: Newline, Space)
+102: Dot             "." at 27:13-27:14
+103: Ident           "table_lock" at 27:14-27:24
+104: Dot             "." at 27:24-27:25
+105: Ident           "lock" at 27:25-27:29
+106: LParen          "(" at 27:29-27:30
+107: RParen          ")" at 27:30-27:31
+108: Semicolon       ";" at 27:31-27:32
+109: Ident           "self" at 28:9-28:13 (leading: Newline, Space)
+110: Dot             "." at 28:13-28:14
+111: Ident           "index_lock" at 28:14-28:24
+112: Dot             "." at 28:24-28:25
+113: Ident           "lock" at 28:25-28:29
+114: LParen          "(" at 28:29-28:30
+115: RParen          ")" at 28:30-28:31
+116: Semicolon       ";" at 28:31-28:32
+117: Ident           "self" at 30:9-30:13 (leading: Newline, Space)
+118: Dot             "." at 30:13-30:14
+119: Ident           "data" at 30:14-30:18
+120: Assign          "=" at 30:19-30:20 (leading: Space)
+121: IntLit          "50" at 30:21-30:23 (leading: Space)
+122: Semicolon       ";" at 30:23-30:24
+123: Ident           "self" at 32:9-32:13 (leading: Newline, Space)
+124: Dot             "." at 32:13-32:14
+125: Ident           "index_lock" at 32:14-32:24
+126: Dot             "." at 32:24-32:25
+127: Ident           "unlock" at 32:25-32:31
+128: LParen          "(" at 32:31-32:32
+129: RParen          ")" at 32:32-32:33
+130: Semicolon       ";" at 32:33-32:34
+131: Ident           "self" at 33:9-33:13 (leading: Newline, Space)
+132: Dot             "." at 33:13-33:14
+133: Ident           "table_lock" at 33:14-33:24
+134: Dot             "." at 33:24-33:25
+135: Ident           "unlock" at 33:25-33:31
+136: LParen          "(" at 33:31-33:32
+137: RParen          ")" at 33:32-33:33
+138: Semicolon       ";" at 33:33-33:34
+139: RBrace          "}" at 34:5-34:6 (leading: Newline, Space)
+140: KwFn            "fn" at 37:5-37:7 (leading: Newline, Space, LineComment, Newline, Space)
+141: Ident           "index_cache_update" at 37:8-37:26 (leading: Space)
+142: LParen          "(" at 37:26-37:27
+143: Ident           "self" at 37:27-37:31
+144: Colon           ":" at 37:31-37:32
+145: Amp             "&" at 37:33-37:34 (leading: Space)
+146: KwMut           "mut" at 37:34-37:37
+147: Ident           "Database" at 37:38-37:46 (leading: Space)
+148: RParen          ")" at 37:46-37:47
+149: LBrace          "{" at 37:48-37:49 (leading: Space)
+150: Ident           "self" at 38:9-38:13 (leading: Newline, Space)
+151: Dot             "." at 38:13-38:14
+152: Ident           "index_lock" at 38:14-38:24
+153: Dot             "." at 38:24-38:25
+154: Ident           "lock" at 38:25-38:29
+155: LParen          "(" at 38:29-38:30
+156: RParen          ")" at 38:30-38:31
+157: Semicolon       ";" at 38:31-38:32
+158: Ident           "self" at 39:9-39:13 (leading: Newline, Space)
+159: Dot             "." at 39:13-39:14
+160: Ident           "cache_lock" at 39:14-39:24
+161: Dot             "." at 39:24-39:25
+162: Ident           "lock" at 39:25-39:29
+163: LParen          "(" at 39:29-39:30
+164: RParen          ")" at 39:30-39:31
+165: Semicolon       ";" at 39:31-39:32
+166: Ident           "self" at 41:9-41:13 (leading: Newline, Space)
+167: Dot             "." at 41:13-41:14
+168: Ident           "data" at 41:14-41:18
+169: Assign          "=" at 41:19-41:20 (leading: Space)
+170: IntLit          "25" at 41:21-41:23 (leading: Space)
+171: Semicolon       ";" at 41:23-41:24
+172: Ident           "self" at 43:9-43:13 (leading: Newline, Space)
+173: Dot             "." at 43:13-43:14
+174: Ident           "cache_lock" at 43:14-43:24
+175: Dot             "." at 43:24-43:25
+176: Ident           "unlock" at 43:25-43:31
+177: LParen          "(" at 43:31-43:32
+178: RParen          ")" at 43:32-43:33
+179: Semicolon       ";" at 43:33-43:34
+180: Ident           "self" at 44:9-44:13 (leading: Newline, Space)
+181: Dot             "." at 44:13-44:14
+182: Ident           "index_lock" at 44:14-44:24
+183: Dot             "." at 44:24-44:25
+184: Ident           "unlock" at 44:25-44:31
+185: LParen          "(" at 44:31-44:32
+186: RParen          ")" at 44:32-44:33
+187: Semicolon       ";" at 44:33-44:34
+188: RBrace          "}" at 45:5-45:6 (leading: Newline, Space)
+189: RBrace          "}" at 46:1-46:2 (leading: Newline)
+190: EOF             at 47:1-47:1

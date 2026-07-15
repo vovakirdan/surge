@@ -1,0 +1,33 @@
+fn write_str(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let slen = rt_string_len_bytes(&s);
+    rt_write_stdout(ptr, slen);
+}
+
+fn write_line(s: string) -> nothing {
+    write_str(s);
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_int(n: int) -> nothing {
+    write_line(n to string);
+}
+
+fn unwrap_or_zero(x: &Option<int>) -> int {
+    return compare x {
+        Some(v) => v;
+        nothing => 0;
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let arr: Option<int>[2][2] = [
+        [nothing, nothing],
+        [nothing, nothing],
+    ];
+    let val = unwrap_or_zero(arr[0][0]);
+    print_int(val);
+    return 0;
+}

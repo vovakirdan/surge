@@ -1,0 +1,1 @@
+error FUT7005 testdata/golden/parser/invalid/null_coalescing_not_supported.sg:2:25 null coalescing '??' is not supported in the language

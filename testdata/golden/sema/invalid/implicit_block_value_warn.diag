@@ -1,0 +1,1 @@
+warning SEM3135 testdata/golden/sema/invalid/implicit_block_value_warn.sg:4:9 legacy implicit block value should use 'ret'; insert 'ret' for an explicit block exit

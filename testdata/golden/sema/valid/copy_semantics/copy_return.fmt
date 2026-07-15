@@ -1,0 +1,22 @@
+// scenario: Return values of Copy types can be used multiple times
+fn get_int() -> int32 {
+    return 42;
+}
+
+fn get_bool() -> bool {
+    return true;
+}
+
+fn test_copy_return() -> int32 {
+    let a: int32 = get_int();
+    let b: int32 = a;  // copy
+    let c: int32 = a;  // still ok
+    return a + b + c;
+}
+
+fn test_copy_return_bool() -> bool {
+    let x: bool = get_bool();
+    let y: bool = x;  // copy
+    let z: bool = x;  // still ok
+    return x && y && z;
+}

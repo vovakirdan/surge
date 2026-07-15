@@ -1,0 +1,21 @@
+array_get_mut_conflict.sg (span: 3:1-9:1)
+└─ Item[0]: Fn (span: 3:1-8:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:11-8:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:35)
+         │  ├─ Name: xs
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#4: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 5:5-5:27)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#8: xs.get_mut(0)
+         ├─ Stmt[2]: Expr (span: 6:5-6:16)
+         │  └─ Expr: expr#12: xs.push(4)
+         └─ Stmt[3]: Expr (span: 7:5-7:12)
+            └─ Expr: expr#16: (*r = 9)

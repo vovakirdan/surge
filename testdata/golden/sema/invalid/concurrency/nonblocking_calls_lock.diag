@@ -1,0 +1,2 @@
+error SEM3081 testdata/golden/sema/invalid/concurrency/nonblocking_calls_lock.sg:4:5 lock '' acquired here but not released before function exit
+error SEM3084 testdata/golden/sema/invalid/concurrency/nonblocking_calls_lock.sg:4:5 @nonblocking function cannot call blocking method Mutex.lock

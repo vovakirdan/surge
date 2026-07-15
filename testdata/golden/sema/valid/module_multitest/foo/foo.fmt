@@ -1,0 +1,5 @@
+pragma module::bar; // foo/foo.sg -> bar should be imported as bar
+
+pub fn hello() -> string {
+    return "hello";
+}

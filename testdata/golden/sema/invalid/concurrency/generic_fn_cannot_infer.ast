@@ -1,0 +1,26 @@
+generic_fn_cannot_infer.sg (span: 1:1-13:1)
+├─ Item[0]: Type (span: 1:1-4:3)
+│  ├─ Name: TestChannel
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __opaque: *byte
+├─ Item[1]: Fn (span: 6:1-7:63)
+│  ├─ Name: make_test_channel
+│  ├─ Generics: <T>
+│  ├─ Params: (capacity: uint)
+│  ├─ Return: own TestChannel<T>
+│  └─ Body: <none>
+└─ Item[2]: Fn (span: 9:1-12:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:11-12:2)
+         └─ Stmt[0]: Let (span: 11:5-11:36)
+            ├─ Name: ch
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#3: make_test_channel(10)

@@ -1,0 +1,23 @@
+// scenario: contract long-form bound with two type parameters
+contract PairOps<A, B> {
+    fn swap(self: A, other: B) -> B;
+}
+
+type NumberBox = {
+    value: int,
+};
+
+extern<NumberBox> {
+    fn swap(self: NumberBox, other: string) -> string {
+        return other;
+    }
+}
+
+fn apply_swap<T>(item: T, text: string) -> string {
+    return item.swap(text);
+}
+
+fn demo() -> string {
+    let box: NumberBox = { value: 1 };
+    return apply_swap::<NumberBox>(box, "ok");
+}

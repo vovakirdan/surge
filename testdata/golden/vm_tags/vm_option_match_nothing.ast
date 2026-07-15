@@ -1,0 +1,22 @@
+vm_option_match_nothing.sg (span: 1:1-13:1)
+├─ Item[0]: Fn (span: 1:1-6:2)
+│  ├─ Name: unwrap_or_zero
+│  ├─ Params: (x: <unknown-type>)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:35-6:2)
+│        └─ Stmt[0]: Return (span: 2:5-5:7)
+│           └─ Expr: expr#8: compare x { 2 arms }
+└─ Item[1]: Fn (span: 8:1-12:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:18-12:2)
+         ├─ Stmt[0]: Let (span: 10:5-10:27)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <unknown-type>
+         │  └─ Value: expr#9: nothing
+         └─ Stmt[1]: Return (span: 11:5-11:30)
+            └─ Expr: expr#12: unwrap_or_zero(x)

@@ -1,0 +1,1 @@
+error SEM3120 testdata/golden/sema/invalid/directives/time_not_directive_module/main.sg:5:1 module 'time' does not have 'pragma directive'

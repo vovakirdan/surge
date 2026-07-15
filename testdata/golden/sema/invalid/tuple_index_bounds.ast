@@ -1,0 +1,17 @@
+tuple_index_bounds.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: bad_index
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:16-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:23)
+         │  ├─ Name: pair
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: (1, 2)
+         └─ Stmt[1]: Let (span: 4:5-4:20)
+            ├─ Name: x
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#5: pair.5

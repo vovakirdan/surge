@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/struct_literal_return_generic_missing.sg:8:12 Pair<int, string> is missing required field second

@@ -1,0 +1,1 @@
+error PRJ5010 testdata/golden/sema/invalid/relative_import_explicit_module_same_name/caller/main.sg:1:1 module is named "testdata/golden/sema/invalid/relative_import_explicit_module_same_name/actual/chess", not "testdata/golden/sema/invalid/relative_import_explicit_module_same_name/caller/actual/chess"

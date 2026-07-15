@@ -1,0 +1,5 @@
+fn main() {
+    let mut xs = [1, 2, 3];
+    let r: &mut int = xs.get_mut(1);
+    *r = 9;
+}

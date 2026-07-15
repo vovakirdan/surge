@@ -1,0 +1,17 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "main" at 1:4-1:8 (leading: Space)
+  3: LParen          "(" at 1:8-1:9
+  4: RParen          ")" at 1:9-1:10
+  5: LBrace          "{" at 1:11-1:12 (leading: Space)
+  6: KwLet           "let" at 2:5-2:8 (leading: Newline, Space)
+  7: Underscore      "_" at 2:9-2:10 (leading: Space)
+  8: Assign          "=" at 2:11-2:12 (leading: Space)
+  9: Ident           "int" at 2:13-2:16 (leading: Space)
+ 10: Dot             "." at 2:16-2:17
+ 11: Ident           "from_str" at 2:17-2:25
+ 12: LParen          "(" at 2:25-2:26
+ 13: StringLit       "\"42\"" at 2:26-2:30
+ 14: RParen          ")" at 2:30-2:31
+ 15: Semicolon       ";" at 2:31-2:32
+ 16: RBrace          "}" at 3:1-3:2 (leading: Newline)
+ 17: EOF             at 4:1-4:1

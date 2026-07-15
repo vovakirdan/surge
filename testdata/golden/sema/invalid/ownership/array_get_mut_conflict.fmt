@@ -1,0 +1,8 @@
+// Cannot mutate array while an element is mutably borrowed.
+
+fn main() {
+    let mut xs: int[] = [1, 2, 3];
+    let r = xs.get_mut(0);
+    xs.push(4);
+    *r = 9;
+}

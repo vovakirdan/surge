@@ -1,0 +1,1 @@
+error SEM3006 testdata/golden/sema/invalid/extern_duplicate_block.sg:7:5 function 'halve' redeclared without @overload or @override

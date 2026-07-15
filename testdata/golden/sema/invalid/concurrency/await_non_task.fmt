@@ -1,0 +1,26 @@
+// ERROR: await requires Task<T> type
+
+fn get_int() -> int {
+    return 42;
+}
+
+// ERROR SEM3015: await expects Task<T>, got int
+pub async fn await_int() {
+    let x: int = 42;
+    let y: int = x.await();
+}
+
+// ERROR: await on function result that returns non-Task
+pub async fn await_fn_result() {
+    let result: int = get_int().await();
+}
+
+// ERROR: await on string literal
+pub async fn await_string() {
+    let s: string = "hello".await();
+}
+
+// ERROR: await on bool
+pub async fn await_bool() {
+    let b: bool = true.await();
+}

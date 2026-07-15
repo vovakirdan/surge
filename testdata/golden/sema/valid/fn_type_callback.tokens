@@ -1,0 +1,49 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "accepts_mapper" at 2:4-2:18 (leading: Space)
+  3: LParen          "(" at 2:18-2:19
+  4: Ident           "arr" at 2:19-2:22
+  5: Colon           ":" at 2:22-2:23
+  6: Ident           "int" at 2:24-2:27 (leading: Space)
+  7: LBracket        "[" at 2:27-2:28
+  8: RBracket        "]" at 2:28-2:29
+  9: Comma           "," at 2:29-2:30
+ 10: Ident           "mapper" at 2:31-2:37 (leading: Space)
+ 11: Colon           ":" at 2:37-2:38
+ 12: KwFn            "fn" at 2:39-2:41 (leading: Space)
+ 13: LParen          "(" at 2:41-2:42
+ 14: Ident           "int" at 2:42-2:45
+ 15: RParen          ")" at 2:45-2:46
+ 16: Arrow           "->" at 2:47-2:49 (leading: Space)
+ 17: Ident           "int" at 2:50-2:53 (leading: Space)
+ 18: RParen          ")" at 2:53-2:54
+ 19: LBrace          "{" at 2:55-2:56 (leading: Space)
+ 20: KwLet           "let" at 4:5-4:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 21: Ident           "copy" at 4:9-4:13 (leading: Space)
+ 22: Colon           ":" at 4:13-4:14
+ 23: KwFn            "fn" at 4:15-4:17 (leading: Space)
+ 24: LParen          "(" at 4:17-4:18
+ 25: Ident           "int" at 4:18-4:21
+ 26: RParen          ")" at 4:21-4:22
+ 27: Arrow           "->" at 4:23-4:25 (leading: Space)
+ 28: Ident           "int" at 4:26-4:29 (leading: Space)
+ 29: Assign          "=" at 4:30-4:31 (leading: Space)
+ 30: Ident           "mapper" at 4:32-4:38 (leading: Space)
+ 31: Semicolon       ";" at 4:38-4:39
+ 32: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 33: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 34: Ident           "add_one" at 7:4-7:11 (leading: Space)
+ 35: LParen          "(" at 7:11-7:12
+ 36: Ident           "x" at 7:12-7:13
+ 37: Colon           ":" at 7:13-7:14
+ 38: Ident           "int" at 7:15-7:18 (leading: Space)
+ 39: RParen          ")" at 7:18-7:19
+ 40: Arrow           "->" at 7:20-7:22 (leading: Space)
+ 41: Ident           "int" at 7:23-7:26 (leading: Space)
+ 42: LBrace          "{" at 7:27-7:28 (leading: Space)
+ 43: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 44: Ident           "x" at 8:12-8:13 (leading: Space)
+ 45: Plus            "+" at 8:14-8:15 (leading: Space)
+ 46: IntLit          "1" at 8:16-8:17 (leading: Space)
+ 47: Semicolon       ";" at 8:17-8:18
+ 48: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 49: EOF             at 10:1-10:1

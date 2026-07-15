@@ -1,0 +1,40 @@
+break_both_branches_lock_released.sg (span: 4:1-28:1)
+├─ Item[0]: Type (span: 4:1-7:2)
+│  ├─ Name: BreakReleasedResource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int
+└─ Item[1]: Extern (span: 9:1-27:2)
+   ├─ Target: BreakReleasedResource
+   ├─ Members:
+   │  └─ Fn[0]: both_branches_break_released
+   │     ├─ Params: (self: &mut BreakReleasedResource)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 10:71-26:6)
+   │        ├─ Stmt[0]: While (span: 11:9-20:10)
+   │        │  ├─ Cond: expr#4: (self.value > 0)
+   │        │  └─ Body:
+Block (span: 11:30-20:10)
+   │        │     ├─ Stmt[0]: Expr (span: 12:13-12:30)
+   │        │     │  └─ Expr: expr#8: self.lock.lock()
+   │        │     └─ Stmt[1]: If (span: 13:13-19:14)
+   │        │        ├─ Cond: expr#12: (self.value > 10)
+   │        │        ├─ Then:
+Block (span: 13:32-16:14)
+   │        │        │  ├─ Stmt[0]: Expr (span: 14:17-14:36)
+   │        │        │  │  └─ Expr: expr#16: self.lock.unlock()
+   │        │        │  └─ Stmt[1]: Break (span: 15:17-15:23)
+   │        │        │     └─ (no additional data)
+   │        │        └─ Else:
+Block (span: 16:20-19:14)
+   │        │           ├─ Stmt[0]: Expr (span: 17:17-17:36)
+   │        │           │  └─ Expr: expr#20: self.lock.unlock()
+   │        │           └─ Stmt[1]: Break (span: 18:17-18:23)
+   │        │              └─ (no additional data)
+   │        ├─ Stmt[1]: Expr (span: 24:9-24:26)
+   │        │  └─ Expr: expr#24: self.lock.lock()
+   │        └─ Stmt[2]: Expr (span: 25:9-25:28)
+   │           └─ Expr: expr#28: self.lock.unlock()

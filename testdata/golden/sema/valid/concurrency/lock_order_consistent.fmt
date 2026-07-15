@@ -1,0 +1,28 @@
+// Test: Consistent lock ordering - no deadlock potential
+// Both functions acquire locks in the same order (A then B)
+
+type SafeResource = {
+    lock_a: Mutex,
+    lock_b: Mutex,
+    data: int
+}
+
+extern<SafeResource> {
+    // Function that acquires A then B
+    fn operation1(self: &mut SafeResource) {
+        self.lock_a.lock();
+        self.lock_b.lock();  // Edge: lock_a -> lock_b
+        self.data = 1;
+        self.lock_b.unlock();
+        self.lock_a.unlock();
+    }
+
+    // Another function also acquires A then B - consistent ordering!
+    fn operation2(self: &mut SafeResource) {
+        self.lock_a.lock();
+        self.lock_b.lock();  // Edge: lock_a -> lock_b (same direction)
+        self.data = 2;
+        self.lock_b.unlock();
+        self.lock_a.unlock();
+    }
+}

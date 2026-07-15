@@ -1,0 +1,15 @@
+only.sg (span: 3:1-12:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: Base
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @sealed
+│  └─ Struct:
+│     └─ Field[0]: x: int
+└─ Item[1]: Type (span: 9:1-11:2)
+   ├─ Name: Derived
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   └─ Struct:
+      ├─ Base: Base
+      └─ Field[0]: y: int

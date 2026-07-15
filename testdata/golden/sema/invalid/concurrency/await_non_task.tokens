@@ -1,0 +1,97 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline)
+  2: Ident           "get_int" at 3:4-3:11 (leading: Space)
+  3: LParen          "(" at 3:11-3:12
+  4: RParen          ")" at 3:12-3:13
+  5: Arrow           "->" at 3:14-3:16 (leading: Space)
+  6: Ident           "int" at 3:17-3:20 (leading: Space)
+  7: LBrace          "{" at 3:21-3:22 (leading: Space)
+  8: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+  9: IntLit          "42" at 4:12-4:14 (leading: Space)
+ 10: Semicolon       ";" at 4:14-4:15
+ 11: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 12: KwPub           "pub" at 8:1-8:4 (leading: Newline, LineComment, Newline)
+ 13: KwAsync         "async" at 8:5-8:10 (leading: Space)
+ 14: KwFn            "fn" at 8:11-8:13 (leading: Space)
+ 15: Ident           "await_int" at 8:14-8:23 (leading: Space)
+ 16: LParen          "(" at 8:23-8:24
+ 17: RParen          ")" at 8:24-8:25
+ 18: LBrace          "{" at 8:26-8:27 (leading: Space)
+ 19: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 20: Ident           "x" at 9:9-9:10 (leading: Space)
+ 21: Colon           ":" at 9:10-9:11
+ 22: Ident           "int" at 9:12-9:15 (leading: Space)
+ 23: Assign          "=" at 9:16-9:17 (leading: Space)
+ 24: IntLit          "42" at 9:18-9:20 (leading: Space)
+ 25: Semicolon       ";" at 9:20-9:21
+ 26: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 27: Ident           "y" at 10:9-10:10 (leading: Space)
+ 28: Colon           ":" at 10:10-10:11
+ 29: Ident           "int" at 10:12-10:15 (leading: Space)
+ 30: Assign          "=" at 10:16-10:17 (leading: Space)
+ 31: Ident           "x" at 10:18-10:19 (leading: Space)
+ 32: Dot             "." at 10:19-10:20
+ 33: Ident           "await" at 10:20-10:25
+ 34: LParen          "(" at 10:25-10:26
+ 35: RParen          ")" at 10:26-10:27
+ 36: Semicolon       ";" at 10:27-10:28
+ 37: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 38: KwPub           "pub" at 14:1-14:4 (leading: Newline, LineComment, Newline)
+ 39: KwAsync         "async" at 14:5-14:10 (leading: Space)
+ 40: KwFn            "fn" at 14:11-14:13 (leading: Space)
+ 41: Ident           "await_fn_result" at 14:14-14:29 (leading: Space)
+ 42: LParen          "(" at 14:29-14:30
+ 43: RParen          ")" at 14:30-14:31
+ 44: LBrace          "{" at 14:32-14:33 (leading: Space)
+ 45: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 46: Ident           "result" at 15:9-15:15 (leading: Space)
+ 47: Colon           ":" at 15:15-15:16
+ 48: Ident           "int" at 15:17-15:20 (leading: Space)
+ 49: Assign          "=" at 15:21-15:22 (leading: Space)
+ 50: Ident           "get_int" at 15:23-15:30 (leading: Space)
+ 51: LParen          "(" at 15:30-15:31
+ 52: RParen          ")" at 15:31-15:32
+ 53: Dot             "." at 15:32-15:33
+ 54: Ident           "await" at 15:33-15:38
+ 55: LParen          "(" at 15:38-15:39
+ 56: RParen          ")" at 15:39-15:40
+ 57: Semicolon       ";" at 15:40-15:41
+ 58: RBrace          "}" at 16:1-16:2 (leading: Newline)
+ 59: KwPub           "pub" at 19:1-19:4 (leading: Newline, LineComment, Newline)
+ 60: KwAsync         "async" at 19:5-19:10 (leading: Space)
+ 61: KwFn            "fn" at 19:11-19:13 (leading: Space)
+ 62: Ident           "await_string" at 19:14-19:26 (leading: Space)
+ 63: LParen          "(" at 19:26-19:27
+ 64: RParen          ")" at 19:27-19:28
+ 65: LBrace          "{" at 19:29-19:30 (leading: Space)
+ 66: KwLet           "let" at 20:5-20:8 (leading: Newline, Space)
+ 67: Ident           "s" at 20:9-20:10 (leading: Space)
+ 68: Colon           ":" at 20:10-20:11
+ 69: Ident           "string" at 20:12-20:18 (leading: Space)
+ 70: Assign          "=" at 20:19-20:20 (leading: Space)
+ 71: StringLit       "\"hello\"" at 20:21-20:28 (leading: Space)
+ 72: Dot             "." at 20:28-20:29
+ 73: Ident           "await" at 20:29-20:34
+ 74: LParen          "(" at 20:34-20:35
+ 75: RParen          ")" at 20:35-20:36
+ 76: Semicolon       ";" at 20:36-20:37
+ 77: RBrace          "}" at 21:1-21:2 (leading: Newline)
+ 78: KwPub           "pub" at 24:1-24:4 (leading: Newline, LineComment, Newline)
+ 79: KwAsync         "async" at 24:5-24:10 (leading: Space)
+ 80: KwFn            "fn" at 24:11-24:13 (leading: Space)
+ 81: Ident           "await_bool" at 24:14-24:24 (leading: Space)
+ 82: LParen          "(" at 24:24-24:25
+ 83: RParen          ")" at 24:25-24:26
+ 84: LBrace          "{" at 24:27-24:28 (leading: Space)
+ 85: KwLet           "let" at 25:5-25:8 (leading: Newline, Space)
+ 86: Ident           "b" at 25:9-25:10 (leading: Space)
+ 87: Colon           ":" at 25:10-25:11
+ 88: Ident           "bool" at 25:12-25:16 (leading: Space)
+ 89: Assign          "=" at 25:17-25:18 (leading: Space)
+ 90: KwTrue          "true" at 25:19-25:23 (leading: Space)
+ 91: Dot             "." at 25:23-25:24
+ 92: Ident           "await" at 25:24-25:29
+ 93: LParen          "(" at 25:29-25:30
+ 94: RParen          ")" at 25:30-25:31
+ 95: Semicolon       ";" at 25:31-25:32
+ 96: RBrace          "}" at 26:1-26:2 (leading: Newline)
+ 97: EOF             at 27:1-27:1

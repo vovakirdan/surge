@@ -1,0 +1,24 @@
+// Test: One branch returns, other breaks with lock held
+// This tests that when return vs break, the break path's lock state is used
+
+type ReturnBreakResource = {
+    lock: Mutex,
+    value: int
+}
+
+extern<ReturnBreakResource> {
+    fn return_vs_break(self: &mut ReturnBreakResource) {
+        while self.value > 0 {
+            if self.value > 10 {
+                return;  // Returns - exits function
+            } else {
+                self.lock.lock();  // Lock acquired
+                break;  // Breaks with lock held
+            }
+        }
+        // After loop: only break path reaches here
+        // Lock IS held (from break path)
+        self.lock.lock();  // ERROR: double-lock
+        self.lock.unlock();
+    }
+}

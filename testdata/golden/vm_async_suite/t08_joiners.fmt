@@ -1,0 +1,24 @@
+async fn joiner(label: string, t: Task<int>) -> int {
+    let result = t.await();
+    compare result {
+        Success(v) => print(label + "=" + (v to string));
+        Cancelled() => print(label + "=cancelled");
+    };
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let worker = spawn async {
+        checkpoint().await();
+        return 9;
+    };
+    let worker_clone = worker.clone();
+
+    let j1 = spawn joiner("j1", worker);
+    let j2 = spawn joiner("j2", worker_clone);
+
+    let _ = j1.await();
+    let _ = j2.await();
+    return 0;
+}

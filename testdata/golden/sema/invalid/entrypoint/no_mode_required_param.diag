@@ -1,0 +1,1 @@
+error SEM3122 testdata/golden/sema/invalid/entrypoint/no_mode_required_param.sg:4:9 @entrypoint without mode requires all parameters to have default values; parameter 'x' has no default

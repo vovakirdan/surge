@@ -1,0 +1,14 @@
+  1: KwPragma        "pragma" at 1:1-1:7
+  2: Ident           "directive" at 1:8-1:17 (leading: Space)
+  3: KwFn            "fn" at 4:1-4:3 (leading: Newline, LineComment, Newline)
+  4: Ident           "directive_stub" at 4:4-4:18 (leading: Space)
+  5: LParen          "(" at 4:18-4:19
+  6: RParen          ")" at 4:19-4:20
+  7: Arrow           "->" at 4:21-4:23 (leading: Space)
+  8: NothingLit      "nothing" at 4:24-4:31 (leading: Space)
+  9: LBrace          "{" at 4:32-4:33 (leading: Space)
+ 10: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 11: NothingLit      "nothing" at 5:12-5:19 (leading: Space)
+ 12: Semicolon       ";" at 5:19-5:20
+ 13: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 14: EOF             at 7:1-7:1

@@ -1,0 +1,56 @@
+rwlock_basic.sg (span: 3:1-25:1)
+├─ Item[0]: Fn (span: 3:1-8:2)
+│  ├─ Name: test_rwlock_read
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:38-8:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:39)
+│        │  ├─ Name: rw
+│        │  ├─ Mutable: true
+│        │  ├─ Type: RwLock
+│        │  └─ Value: expr#3: RwLock.new()
+│        ├─ Stmt[1]: Expr (span: 5:5-5:20)
+│        │  └─ Expr: expr#6: rw.read_lock()
+│        └─ Stmt[2]: Expr (span: 7:5-7:22)
+│           └─ Expr: expr#9: rw.read_unlock()
+├─ Item[1]: Fn (span: 10:1-15:2)
+│  ├─ Name: test_rwlock_write
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:39-15:2)
+│        ├─ Stmt[0]: Let (span: 11:5-11:39)
+│        │  ├─ Name: rw
+│        │  ├─ Mutable: true
+│        │  ├─ Type: RwLock
+│        │  └─ Value: expr#12: RwLock.new()
+│        ├─ Stmt[1]: Expr (span: 12:5-12:21)
+│        │  └─ Expr: expr#15: rw.write_lock()
+│        └─ Stmt[2]: Expr (span: 14:5-14:23)
+│           └─ Expr: expr#18: rw.write_unlock()
+└─ Item[2]: Fn (span: 17:1-24:2)
+   ├─ Name: test_rwlock_try_locks
+   ├─ Params: ()
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:40-24:2)
+         ├─ Stmt[0]: Let (span: 18:5-18:39)
+         │  ├─ Name: rw
+         │  ├─ Mutable: true
+         │  ├─ Type: RwLock
+         │  └─ Value: expr#21: RwLock.new()
+         ├─ Stmt[1]: Let (span: 19:5-19:45)
+         │  ├─ Name: can_read
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#24: rw.try_read_lock()
+         ├─ Stmt[2]: If (span: 20:5-22:6)
+         │  ├─ Cond: expr#25: can_read
+         │  ├─ Then:
+Block (span: 20:17-22:6)
+         │  │  └─ Stmt[0]: Expr (span: 21:9-21:26)
+         │  │     └─ Expr: expr#28: rw.read_unlock()
+         │  └─ Else: <none>
+         └─ Stmt[3]: Return (span: 23:5-23:32)
+            └─ Expr: expr#31: rw.try_write_lock()

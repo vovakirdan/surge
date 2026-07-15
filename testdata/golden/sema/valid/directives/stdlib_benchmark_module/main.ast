@@ -1,0 +1,11 @@
+main.sg (span: 3:1-9:1)
+├─ Item[0]: Import (span: 3:1-3:36)
+│  └─ Module: stdlib::directives::benchmark
+└─ Item[1]: Fn (span: 8:1-8:44)
+   ├─ Name: do_work
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:25-8:44)
+         └─ Stmt[0]: Return (span: 8:27-8:42)
+            └─ Expr: expr#1: nothing

@@ -1,0 +1,16 @@
+// Test I/O functions
+
+fn test_print() {
+    print("Hello, World!");
+    print("Testing print function");
+}
+
+fn test_readline() {
+    let line = readline();
+    print(line);
+}
+
+@entrypoint
+fn main() {
+    test_print();
+}

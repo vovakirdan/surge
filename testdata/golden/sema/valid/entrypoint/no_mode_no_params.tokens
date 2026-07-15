@@ -1,0 +1,9 @@
+  1: At              "@" at 2:1-2:2 (leading: LineComment, Newline)
+  2: Ident           "entrypoint" at 2:2-2:12
+  3: KwFn            "fn" at 3:1-3:3 (leading: Newline)
+  4: Ident           "main" at 3:4-3:8 (leading: Space)
+  5: LParen          "(" at 3:8-3:9
+  6: RParen          ")" at 3:9-3:10
+  7: LBrace          "{" at 3:11-3:12 (leading: Space)
+  8: RBrace          "}" at 4:1-4:2 (leading: Newline)
+  9: EOF             at 5:1-5:1

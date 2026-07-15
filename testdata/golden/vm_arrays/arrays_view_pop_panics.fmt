@@ -1,0 +1,44 @@
+fn print_int(n: int) -> nothing {
+    print(n to string);
+}
+
+fn print_uint(n: uint) -> nothing {
+    print(n to string);
+}
+
+fn print_bool(b: bool) -> nothing {
+    print(b to string);
+}
+
+fn print_opt_uint(v: uint?) -> nothing {
+    compare v {
+        Some(x) => print_uint(x);
+        nothing => print("nothing");
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let a: int[] = [10, 20, 30, 40];
+    let needle: int = 20;
+    let miss: int = 99;
+    let find_me: int = 30;
+    print_bool(a.contains(&needle));
+    print_bool(a.contains(&miss));
+    print_opt_uint(a.find(&find_me));
+    print_opt_uint(a.find(&miss));
+
+    let s: string[] = ["a", "bb", "ccc"];
+    let needle_s: string = "bb";
+    let miss_s: string = "z";
+    print_bool(s.contains(&needle_s));
+    print_opt_uint(s.find(&needle_s));
+    print_bool(s.contains(&miss_s));
+
+    let f: int[3] = [7, 8, 9];
+    let mut dyn = f.to_array();
+    { dyn.push(10); }
+    print_int(dyn.__len() to int);
+    print_int(dyn[3]);
+    return 0;
+}

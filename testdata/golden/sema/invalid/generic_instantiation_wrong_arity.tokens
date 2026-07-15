@@ -1,0 +1,44 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Pair" at 2:6-2:10 (leading: Space)
+  3: Lt              "<" at 2:10-2:11
+  4: Ident           "T" at 2:11-2:12
+  5: Comma           "," at 2:12-2:13
+  6: Ident           "U" at 2:14-2:15 (leading: Space)
+  7: Gt              ">" at 2:15-2:16
+  8: Assign          "=" at 2:17-2:18 (leading: Space)
+  9: LBrace          "{" at 2:19-2:20 (leading: Space)
+ 10: Ident           "first" at 3:5-3:10 (leading: Newline, Space)
+ 11: Colon           ":" at 3:10-3:11
+ 12: Ident           "T" at 3:12-3:13 (leading: Space)
+ 13: Comma           "," at 3:13-3:14
+ 14: Ident           "second" at 4:5-4:11 (leading: Newline, Space)
+ 15: Colon           ":" at 4:11-4:12
+ 16: Ident           "U" at 4:13-4:14 (leading: Space)
+ 17: Comma           "," at 4:14-4:15
+ 18: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 19: Semicolon       ";" at 5:2-5:3
+ 20: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 21: Ident           "wrong_arity" at 7:4-7:15 (leading: Space)
+ 22: LParen          "(" at 7:15-7:16
+ 23: RParen          ")" at 7:16-7:17
+ 24: LBrace          "{" at 7:18-7:19 (leading: Space)
+ 25: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 26: Ident           "bad" at 8:9-8:12 (leading: Space)
+ 27: Colon           ":" at 8:12-8:13
+ 28: Ident           "Pair" at 8:14-8:18 (leading: Space)
+ 29: Lt              "<" at 8:18-8:19
+ 30: Ident           "int" at 8:19-8:22
+ 31: Gt              ">" at 8:22-8:23
+ 32: Assign          "=" at 8:24-8:25 (leading: Space)
+ 33: LBrace          "{" at 8:26-8:27 (leading: Space)
+ 34: Ident           "first" at 8:28-8:33 (leading: Space)
+ 35: Colon           ":" at 8:33-8:34
+ 36: IntLit          "1" at 8:35-8:36 (leading: Space)
+ 37: Comma           "," at 8:36-8:37
+ 38: Ident           "second" at 8:38-8:44 (leading: Space)
+ 39: Colon           ":" at 8:44-8:45
+ 40: IntLit          "2" at 8:46-8:47 (leading: Space)
+ 41: RBrace          "}" at 8:48-8:49 (leading: Space)
+ 42: Semicolon       ";" at 8:49-8:50
+ 43: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 44: EOF             at 10:1-10:1

@@ -1,0 +1,27 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "test_missing_return" at 2:4-2:23 (leading: Space)
+  3: LParen          "(" at 2:23-2:24
+  4: RParen          ")" at 2:24-2:25
+  5: Arrow           "->" at 2:26-2:28 (leading: Space)
+  6: Ident           "int" at 2:29-2:32 (leading: Space)
+  7: LBrace          "{" at 2:33-2:34 (leading: Space)
+  8: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  9: Ident           "x" at 3:9-3:10 (leading: Space)
+ 10: Colon           ":" at 3:10-3:11
+ 11: Ident           "int" at 3:12-3:15 (leading: Space)
+ 12: Assign          "=" at 3:16-3:17 (leading: Space)
+ 13: LBrace          "{" at 3:18-3:19 (leading: Space)
+ 14: KwLet           "let" at 4:9-4:12 (leading: Newline, Space)
+ 15: Ident           "a" at 4:13-4:14 (leading: Space)
+ 16: Colon           ":" at 4:14-4:15
+ 17: Ident           "int" at 4:16-4:19 (leading: Space)
+ 18: Assign          "=" at 4:20-4:21 (leading: Space)
+ 19: IntLit          "10" at 4:22-4:24 (leading: Space)
+ 20: Semicolon       ";" at 4:24-4:25
+ 21: RBrace          "}" at 6:5-6:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 22: Semicolon       ";" at 6:6-6:7
+ 23: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 24: Ident           "x" at 7:12-7:13 (leading: Space)
+ 25: Semicolon       ";" at 7:13-7:14
+ 26: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 27: EOF             at 9:1-9:1

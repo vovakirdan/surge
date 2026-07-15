@@ -1,0 +1,11 @@
+@entrypoint
+fn main() -> int {
+    let mut m = { "x" => 1 };
+    let v = m.get_mut(&"x");
+    compare v {
+        Some(p) => { *p = *p + 1; }
+        _ => {}
+    }
+    print((m["x"]) to string);
+    return 0;
+}

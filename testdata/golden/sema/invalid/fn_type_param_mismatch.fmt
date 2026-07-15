@@ -1,0 +1,5 @@
+// scenario: function type parameter mismatch
+fn test_assign(f: fn(int) -> int, g: fn(string) -> int) {
+    // Error: cannot assign fn(string) -> int to fn(int) -> int
+    let x: fn(int) -> int = g;
+}

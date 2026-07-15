@@ -1,0 +1,19 @@
+@entrypoint
+fn main() -> int {
+    let x: int = compare (async {
+        let flag = true;
+        let a = 10;
+        if flag {
+            checkpoint().await();
+            return a + 1;
+        } else {
+            checkpoint().await();
+            return a + 2;
+        }
+    }).await() {
+        Success(v) => v;
+        Cancelled() => 0;
+    };
+    print(x to string);
+    return 0;
+}

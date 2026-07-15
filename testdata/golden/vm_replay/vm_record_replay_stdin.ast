@@ -1,0 +1,9 @@
+vm_record_replay_stdin.sg (span: 1:1-4:1)
+└─ Item[0]: Fn (span: 1:1-2:37)
+   ├─ Name: main
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:24-2:37)
+         └─ Stmt[0]: Return (span: 2:26-2:35)
+            └─ Expr: expr#2: x

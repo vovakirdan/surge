@@ -1,0 +1,394 @@
+stable64_frames.sg (span: 1:1-151:1)
+├─ Item[0]: Import (span: 1:1-1:28)
+│  ├─ Module: stdlib::hash
+│  └─ Alias: hash
+├─ Item[1]: Fn (span: 3:1-11:2)
+│  ├─ Name: push_le_uint
+│  ├─ Params: (out: &mut byte[], value: uint64, width: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:73-11:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:24)
+│        │  ├─ Name: i
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#1: 0
+│        ├─ Stmt[1]: While (span: 5:5-9:6)
+│        │  ├─ Cond: expr#4: (i < width)
+│        │  └─ Body:
+Block (span: 5:21-9:6)
+│        │     ├─ Stmt[0]: Let (span: 6:9-6:47)
+│        │     │  ├─ Name: shift
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: uint64
+│        │     │  └─ Value: expr#9: ((i * 8)) to uint64
+│        │     ├─ Stmt[1]: Expr (span: 7:9-7:60)
+│        │     │  └─ Expr: expr#21: out.push(((((value >> shift)) & (0xFF to uint64))) to byte)
+│        │     └─ Stmt[2]: Expr (span: 8:9-8:19)
+│        │        └─ Expr: expr#26: (i = ((i + 1)))
+│        └─ Stmt[2]: Return (span: 10:5-10:20)
+│           └─ Expr: expr#27: nothing
+├─ Item[2]: Fn (span: 13:1-16:2)
+│  ├─ Name: push_le_u64
+│  ├─ Params: (out: &mut byte[], value: uint64)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:60-16:2)
+│        ├─ Stmt[0]: Expr (span: 14:5-14:33)
+│        │  └─ Expr: expr#32: push_le_uint(out, value, 8)
+│        └─ Stmt[1]: Return (span: 15:5-15:20)
+│           └─ Expr: expr#33: nothing
+├─ Item[3]: Fn (span: 18:1-27:2)
+│  ├─ Name: push_raw_bytes
+│  ├─ Params: (out: &mut byte[], value: &byte[])
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 18:64-27:2)
+│        ├─ Stmt[0]: Expr (span: 19:5-19:47)
+│        │  └─ Expr: expr#40: push_le_u64(out, value.__len() to uint64)
+│        ├─ Stmt[1]: Let (span: 20:5-20:24)
+│        │  ├─ Name: i
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#41: 0
+│        ├─ Stmt[2]: Let (span: 21:5-21:43)
+│        │  ├─ Name: count
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#45: value.__len() to int
+│        ├─ Stmt[3]: While (span: 22:5-25:6)
+│        │  ├─ Cond: expr#48: (i < count)
+│        │  └─ Body:
+Block (span: 22:21-25:6)
+│        │     ├─ Stmt[0]: Expr (span: 23:9-23:35)
+│        │     │  └─ Expr: expr#56: out.push(clone(value[i]))
+│        │     └─ Stmt[1]: Expr (span: 24:9-24:19)
+│        │        └─ Expr: expr#61: (i = ((i + 1)))
+│        └─ Stmt[4]: Return (span: 26:5-26:20)
+│           └─ Expr: expr#62: nothing
+├─ Item[4]: Fn (span: 29:1-39:2)
+│  ├─ Name: push_raw_string
+│  ├─ Params: (out: &mut byte[], value: &string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 29:65-39:2)
+│        ├─ Stmt[0]: Let (span: 30:5-30:30)
+│        │  ├─ Name: view
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#65: value.bytes()
+│        ├─ Stmt[1]: Expr (span: 31:5-31:46)
+│        │  └─ Expr: expr#72: push_le_u64(out, view.__len() to uint64)
+│        ├─ Stmt[2]: Let (span: 32:5-32:24)
+│        │  ├─ Name: i
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#73: 0
+│        ├─ Stmt[3]: Let (span: 33:5-33:42)
+│        │  ├─ Name: count
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#77: view.__len() to int
+│        ├─ Stmt[4]: While (span: 34:5-37:6)
+│        │  ├─ Cond: expr#80: (i < count)
+│        │  └─ Body:
+Block (span: 34:21-37:6)
+│        │     ├─ Stmt[0]: Expr (span: 35:9-35:35)
+│        │     │  └─ Expr: expr#87: out.push(view[i] to byte)
+│        │     └─ Stmt[1]: Expr (span: 36:9-36:19)
+│        │        └─ Expr: expr#92: (i = ((i + 1)))
+│        └─ Stmt[5]: Return (span: 38:5-38:20)
+│           └─ Expr: expr#93: nothing
+├─ Item[5]: Fn (span: 41:1-43:2)
+│  ├─ Name: same_digest
+│  ├─ Params: (a: hash.Hash64, b: hash.Hash64)
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 41:56-43:2)
+│        └─ Stmt[0]: Return (span: 42:5-42:37)
+│           └─ Expr: expr#100: (a.as_u64() == b.as_u64())
+└─ Item[6]: Fn (span: 45:1-150:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 46:18-150:2)
+         ├─ Stmt[0]: Let (span: 47:5-47:42)
+         │  ├─ Name: record_name
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#101: "CacheKey"
+         ├─ Stmt[1]: Let (span: 48:5-48:41)
+         │  ├─ Name: field_tenant
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#102: "tenant"
+         ├─ Stmt[2]: Let (span: 49:5-49:43)
+         │  ├─ Name: field_payload
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#103: "payload"
+         ├─ Stmt[3]: Let (span: 50:5-50:33)
+         │  ├─ Name: tenant
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#104: "acme"
+         ├─ Stmt[4]: Let (span: 51:5-51:52)
+         │  ├─ Name: payload
+         │  ├─ Mutable: false
+         │  ├─ Type: byte[]
+         │  └─ Value: expr#111: <ExprKind(8)>
+         ├─ Stmt[5]: Let (span: 53:5-53:63)
+         │  ├─ Name: record_hash
+         │  ├─ Mutable: true
+         │  ├─ Type: hash.Stable64
+         │  └─ Value: expr#115: hash.Stable64.new()
+         ├─ Stmt[6]: Expr (span: 54:5-54:52)
+         │  └─ Expr: expr#122: record_hash.begin_record(&record_name, 2 to uint)
+         ├─ Stmt[7]: Expr (span: 55:5-55:44)
+         │  └─ Expr: expr#127: record_hash.write_field(&field_tenant)
+         ├─ Stmt[8]: Expr (span: 56:5-56:39)
+         │  └─ Expr: expr#132: record_hash.write_string(&tenant)
+         ├─ Stmt[9]: Expr (span: 57:5-57:45)
+         │  └─ Expr: expr#137: record_hash.write_field(&field_payload)
+         ├─ Stmt[10]: Expr (span: 58:5-58:39)
+         │  └─ Expr: expr#142: record_hash.write_bytes(&payload)
+         ├─ Stmt[11]: Let (span: 60:5-60:39)
+         │  ├─ Name: record_frame
+         │  ├─ Mutable: true
+         │  ├─ Type: byte[]
+         │  └─ Value: expr#143: <ExprKind(8)>
+         ├─ Stmt[12]: Expr (span: 61:5-61:34)
+         │  └─ Expr: expr#148: record_frame.push(0x31 to byte)
+         ├─ Stmt[13]: Expr (span: 62:5-62:54)
+         │  └─ Expr: expr#154: push_raw_string(&mut record_frame, &record_name)
+         ├─ Stmt[14]: Expr (span: 63:5-63:46)
+         │  └─ Expr: expr#160: push_le_u64(&mut record_frame, 2 to uint64)
+         ├─ Stmt[15]: Expr (span: 64:5-64:34)
+         │  └─ Expr: expr#165: record_frame.push(0x32 to byte)
+         ├─ Stmt[16]: Expr (span: 65:5-65:55)
+         │  └─ Expr: expr#171: push_raw_string(&mut record_frame, &field_tenant)
+         ├─ Stmt[17]: Expr (span: 66:5-66:34)
+         │  └─ Expr: expr#176: record_frame.push(0x21 to byte)
+         ├─ Stmt[18]: Expr (span: 67:5-67:49)
+         │  └─ Expr: expr#182: push_raw_string(&mut record_frame, &tenant)
+         ├─ Stmt[19]: Expr (span: 68:5-68:34)
+         │  └─ Expr: expr#187: record_frame.push(0x32 to byte)
+         ├─ Stmt[20]: Expr (span: 69:5-69:56)
+         │  └─ Expr: expr#193: push_raw_string(&mut record_frame, &field_payload)
+         ├─ Stmt[21]: Expr (span: 70:5-70:34)
+         │  └─ Expr: expr#198: record_frame.push(0x20 to byte)
+         ├─ Stmt[22]: Expr (span: 71:5-71:49)
+         │  └─ Expr: expr#204: push_raw_bytes(&mut record_frame, &payload)
+         ├─ Stmt[23]: Let (span: 73:5-73:92)
+         │  ├─ Name: expected_record
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#211: hash.xxh64_bytes(&record_frame, hash.STABLE64_SEED)
+         ├─ Stmt[24]: Let (span: 74:5-74:59)
+         │  ├─ Name: actual_record
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#214: record_hash.finish()
+         ├─ Stmt[25]: If (span: 75:5-77:6)
+         │  ├─ Cond: expr#219: !same_digest(actual_record, expected_record)
+         │  ├─ Then:
+Block (span: 75:53-77:6)
+         │  │  └─ Stmt[0]: Return (span: 76:9-76:18)
+         │  │     └─ Expr: expr#220: 1
+         │  └─ Else: <none>
+         ├─ Stmt[26]: Let (span: 79:5-79:25)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#221: "a"
+         ├─ Stmt[27]: Let (span: 80:5-80:27)
+         │  ├─ Name: bc
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#222: "bc"
+         ├─ Stmt[28]: Let (span: 81:5-81:27)
+         │  ├─ Name: ab
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#223: "ab"
+         ├─ Stmt[29]: Let (span: 82:5-82:25)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#224: "c"
+         ├─ Stmt[30]: Let (span: 83:5-83:56)
+         │  ├─ Name: left
+         │  ├─ Mutable: true
+         │  ├─ Type: hash.Stable64
+         │  └─ Value: expr#228: hash.Stable64.new()
+         ├─ Stmt[31]: Expr (span: 84:5-84:27)
+         │  └─ Expr: expr#233: left.write_string(&a)
+         ├─ Stmt[32]: Expr (span: 85:5-85:28)
+         │  └─ Expr: expr#238: left.write_string(&bc)
+         ├─ Stmt[33]: Let (span: 86:5-86:50)
+         │  ├─ Name: left_digest
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#241: left.finish()
+         ├─ Stmt[34]: Let (span: 87:5-87:57)
+         │  ├─ Name: right
+         │  ├─ Mutable: true
+         │  ├─ Type: hash.Stable64
+         │  └─ Value: expr#245: hash.Stable64.new()
+         ├─ Stmt[35]: Expr (span: 88:5-88:29)
+         │  └─ Expr: expr#250: right.write_string(&ab)
+         ├─ Stmt[36]: Expr (span: 89:5-89:28)
+         │  └─ Expr: expr#255: right.write_string(&c)
+         ├─ Stmt[37]: Let (span: 90:5-90:52)
+         │  ├─ Name: right_digest
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#258: right.finish()
+         ├─ Stmt[38]: If (span: 91:5-93:6)
+         │  ├─ Cond: expr#262: same_digest(left_digest, right_digest)
+         │  ├─ Then:
+Block (span: 91:47-93:6)
+         │  │  └─ Stmt[0]: Return (span: 92:9-92:18)
+         │  │     └─ Expr: expr#263: 2
+         │  └─ Else: <none>
+         ├─ Stmt[39]: Let (span: 95:5-95:40)
+         │  ├─ Name: option_type
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#264: "Option"
+         ├─ Stmt[40]: Let (span: 96:5-96:39)
+         │  ├─ Name: some_variant
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#265: "Some"
+         ├─ Stmt[41]: Let (span: 97:5-97:39)
+         │  ├─ Name: value_field
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#266: "value"
+         ├─ Stmt[42]: Let (span: 98:5-98:64)
+         │  ├─ Name: variant_hash
+         │  ├─ Mutable: true
+         │  ├─ Type: hash.Stable64
+         │  └─ Value: expr#270: hash.Stable64.new()
+         ├─ Stmt[43]: Expr (span: 99:5-99:77)
+         │  └─ Expr: expr#281: variant_hash.begin_variant(&option_type, &some_variant, 1 to uint, 1 to uint)
+         ├─ Stmt[44]: Expr (span: 100:5-100:44)
+         │  └─ Expr: expr#286: variant_hash.write_field(&value_field)
+         ├─ Stmt[45]: Expr (span: 101:5-101:39)
+         │  └─ Expr: expr#291: variant_hash.write_u64(42 to uint64)
+         ├─ Stmt[46]: Let (span: 103:5-103:40)
+         │  ├─ Name: variant_frame
+         │  ├─ Mutable: true
+         │  ├─ Type: byte[]
+         │  └─ Value: expr#292: <ExprKind(8)>
+         ├─ Stmt[47]: Expr (span: 104:5-104:35)
+         │  └─ Expr: expr#297: variant_frame.push(0x33 to byte)
+         ├─ Stmt[48]: Expr (span: 105:5-105:55)
+         │  └─ Expr: expr#303: push_raw_string(&mut variant_frame, &option_type)
+         ├─ Stmt[49]: Expr (span: 106:5-106:56)
+         │  └─ Expr: expr#309: push_raw_string(&mut variant_frame, &some_variant)
+         ├─ Stmt[50]: Expr (span: 107:5-107:47)
+         │  └─ Expr: expr#315: push_le_u64(&mut variant_frame, 1 to uint64)
+         ├─ Stmt[51]: Expr (span: 108:5-108:47)
+         │  └─ Expr: expr#321: push_le_u64(&mut variant_frame, 1 to uint64)
+         ├─ Stmt[52]: Expr (span: 109:5-109:35)
+         │  └─ Expr: expr#326: variant_frame.push(0x32 to byte)
+         ├─ Stmt[53]: Expr (span: 110:5-110:55)
+         │  └─ Expr: expr#332: push_raw_string(&mut variant_frame, &value_field)
+         ├─ Stmt[54]: Expr (span: 111:5-111:35)
+         │  └─ Expr: expr#337: variant_frame.push(0x10 to byte)
+         ├─ Stmt[55]: Expr (span: 112:5-112:32)
+         │  └─ Expr: expr#342: variant_frame.push(8 to byte)
+         ├─ Stmt[56]: Expr (span: 113:5-113:48)
+         │  └─ Expr: expr#348: push_le_u64(&mut variant_frame, 42 to uint64)
+         ├─ Stmt[57]: Let (span: 115:5-115:94)
+         │  ├─ Name: expected_variant
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#355: hash.xxh64_bytes(&variant_frame, hash.STABLE64_SEED)
+         ├─ Stmt[58]: Let (span: 116:5-116:61)
+         │  ├─ Name: actual_variant
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#358: variant_hash.finish()
+         ├─ Stmt[59]: If (span: 117:5-119:6)
+         │  ├─ Cond: expr#363: !same_digest(actual_variant, expected_variant)
+         │  ├─ Then:
+Block (span: 117:55-119:6)
+         │  │  └─ Stmt[0]: Return (span: 118:9-118:18)
+         │  │     └─ Expr: expr#364: 3
+         │  └─ Else: <none>
+         ├─ Stmt[60]: Let (span: 121:5-121:61)
+         │  ├─ Name: list_hash
+         │  ├─ Mutable: true
+         │  ├─ Type: hash.Stable64
+         │  └─ Value: expr#368: hash.Stable64.new()
+         ├─ Stmt[61]: Expr (span: 122:5-122:34)
+         │  └─ Expr: expr#373: list_hash.begin_list(2 to uint)
+         ├─ Stmt[62]: Expr (span: 123:5-123:33)
+         │  └─ Expr: expr#378: list_hash.write_u8(1 to uint8)
+         ├─ Stmt[63]: Expr (span: 124:5-124:33)
+         │  └─ Expr: expr#383: list_hash.write_u8(2 to uint8)
+         ├─ Stmt[64]: Let (span: 125:5-125:55)
+         │  ├─ Name: list_digest
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#386: list_hash.finish()
+         ├─ Stmt[65]: Let (span: 127:5-127:37)
+         │  ├─ Name: list_frame
+         │  ├─ Mutable: true
+         │  ├─ Type: byte[]
+         │  └─ Value: expr#387: <ExprKind(8)>
+         ├─ Stmt[66]: Expr (span: 128:5-128:32)
+         │  └─ Expr: expr#392: list_frame.push(0x30 to byte)
+         ├─ Stmt[67]: Expr (span: 129:5-129:44)
+         │  └─ Expr: expr#398: push_le_u64(&mut list_frame, 2 to uint64)
+         ├─ Stmt[68]: Expr (span: 130:5-130:32)
+         │  └─ Expr: expr#403: list_frame.push(0x10 to byte)
+         ├─ Stmt[69]: Expr (span: 131:5-131:29)
+         │  └─ Expr: expr#408: list_frame.push(1 to byte)
+         ├─ Stmt[70]: Expr (span: 132:5-132:29)
+         │  └─ Expr: expr#413: list_frame.push(1 to byte)
+         ├─ Stmt[71]: Expr (span: 133:5-133:32)
+         │  └─ Expr: expr#418: list_frame.push(0x10 to byte)
+         ├─ Stmt[72]: Expr (span: 134:5-134:29)
+         │  └─ Expr: expr#423: list_frame.push(1 to byte)
+         ├─ Stmt[73]: Expr (span: 135:5-135:29)
+         │  └─ Expr: expr#428: list_frame.push(2 to byte)
+         ├─ Stmt[74]: Let (span: 136:5-136:88)
+         │  ├─ Name: expected_list
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#435: hash.xxh64_bytes(&list_frame, hash.STABLE64_SEED)
+         ├─ Stmt[75]: If (span: 137:5-139:6)
+         │  ├─ Cond: expr#440: !same_digest(list_digest, expected_list)
+         │  ├─ Then:
+Block (span: 137:49-139:6)
+         │  │  └─ Stmt[0]: Return (span: 138:9-138:18)
+         │  │     └─ Expr: expr#441: 4
+         │  └─ Else: <none>
+         ├─ Stmt[76]: Let (span: 141:5-141:61)
+         │  ├─ Name: flat_hash
+         │  ├─ Mutable: true
+         │  ├─ Type: hash.Stable64
+         │  └─ Value: expr#445: hash.Stable64.new()
+         ├─ Stmt[77]: Expr (span: 142:5-142:33)
+         │  └─ Expr: expr#450: flat_hash.write_u8(1 to uint8)
+         ├─ Stmt[78]: Expr (span: 143:5-143:33)
+         │  └─ Expr: expr#455: flat_hash.write_u8(2 to uint8)
+         ├─ Stmt[79]: Let (span: 144:5-144:55)
+         │  ├─ Name: flat_digest
+         │  ├─ Mutable: false
+         │  ├─ Type: hash.Hash64
+         │  └─ Value: expr#458: flat_hash.finish()
+         ├─ Stmt[80]: If (span: 145:5-147:6)
+         │  ├─ Cond: expr#462: same_digest(list_digest, flat_digest)
+         │  ├─ Then:
+Block (span: 145:46-147:6)
+         │  │  └─ Stmt[0]: Return (span: 146:9-146:18)
+         │  │     └─ Expr: expr#463: 5
+         │  └─ Else: <none>
+         └─ Stmt[81]: Return (span: 149:5-149:14)
+            └─ Expr: expr#464: 0

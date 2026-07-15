@@ -1,0 +1,8 @@
+// Test: directive namespace module lacks pragma directive
+// Expected: SEM3120 error
+import helper;
+
+/// helper:
+/// helper.do_something();
+
+fn foo() -> int { return 1; }

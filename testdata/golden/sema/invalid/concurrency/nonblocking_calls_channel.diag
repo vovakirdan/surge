@@ -1,0 +1,3 @@
+error SEM3106 testdata/golden/sema/invalid/concurrency/nonblocking_calls_channel.sg:4:5 @nonblocking function cannot call blocking channel method Channel.send
+error SEM3106 testdata/golden/sema/invalid/concurrency/nonblocking_calls_channel.sg:5:13 @nonblocking function cannot call blocking channel method Channel.recv
+error SEM3106 testdata/golden/sema/invalid/concurrency/nonblocking_calls_channel.sg:6:5 @nonblocking function cannot call blocking channel method Channel.close

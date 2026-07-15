@@ -1,0 +1,25 @@
+main.sg (span: 1:1-12:1)
+├─ Item[0]: Import (span: 1:1-1:31)
+│  ├─ Module: scripts
+│  └─ Group:
+│     ├─ [0] alpha
+│     └─ [1] beta
+├─ Item[1]: Import (span: 2:1-2:19)
+│  ├─ Module: bar
+│  └─ One: hello
+├─ Item[2]: Import (span: 3:1-3:14)
+│  └─ Module: point
+└─ Item[3]: Fn (span: 5:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:11-11:2)
+         ├─ Stmt[0]: Expr (span: 7:5-7:20)
+         │  └─ Expr: expr#4: print(alpha())
+         ├─ Stmt[1]: Expr (span: 8:5-8:19)
+         │  └─ Expr: expr#8: print(beta())
+         ├─ Stmt[2]: Expr (span: 9:5-9:20)
+         │  └─ Expr: expr#12: print(hello())
+         └─ Stmt[3]: Expr (span: 10:5-10:26)
+            └─ Expr: expr#17: print(point.point())

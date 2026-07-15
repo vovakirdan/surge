@@ -1,0 +1,86 @@
+size_align_struct.sg (span: 1:1-30:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: align_up
+│  ├─ Params: (x: uint, align: uint)
+│  ├─ Return: uint
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:43-3:2)
+│        └─ Stmt[0]: Return (span: 2:5-2:49)
+│           └─ Expr: expr#11: (((((((x + align)) - (1 to uint))) / align)) * align)
+├─ Item[1]: Type (span: 5:1-9:2)
+│  ├─ Name: S
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: a: uint8
+│     ├─ Field[1]: b: uint64
+│     └─ Field[2]: c: uint16
+├─ Item[2]: Type (span: 12:1-12:23)
+│  ├─ Name: S0
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: a: uint8
+├─ Item[3]: Type (span: 13:1-13:34)
+│  ├─ Name: S1
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: a: uint8
+│     └─ Field[1]: b: uint64
+└─ Item[4]: Fn (span: 15:1-29:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:18-29:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:39)
+         │  ├─ Name: size_s
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#13: size_of()
+         ├─ Stmt[1]: Let (span: 18:5-18:41)
+         │  ├─ Name: align_s
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#15: align_of()
+         ├─ Stmt[2]: Let (span: 20:5-20:71)
+         │  ├─ Name: off_b
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#21: align_up(size_of(), align_of())
+         ├─ Stmt[3]: Let (span: 21:5-21:71)
+         │  ├─ Name: off_c
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#27: align_up(size_of(), align_of())
+         ├─ Stmt[4]: If (span: 23:5-23:42)
+         │  ├─ Cond: expr#33: !((off_b == (8 to uint)))
+         │  ├─ Then:
+Block (span: 23:29-23:42)
+         │  │  └─ Stmt[0]: Return (span: 23:31-23:40)
+         │  │     └─ Expr: expr#34: 1
+         │  └─ Else: <none>
+         ├─ Stmt[5]: If (span: 24:5-24:43)
+         │  ├─ Cond: expr#40: !((off_c == (16 to uint)))
+         │  ├─ Then:
+Block (span: 24:30-24:43)
+         │  │  └─ Stmt[0]: Return (span: 24:32-24:41)
+         │  │     └─ Expr: expr#41: 2
+         │  └─ Else: <none>
+         ├─ Stmt[6]: If (span: 25:5-25:44)
+         │  ├─ Cond: expr#47: !((align_s == (8 to uint)))
+         │  ├─ Then:
+Block (span: 25:31-25:44)
+         │  │  └─ Stmt[0]: Return (span: 25:33-25:42)
+         │  │     └─ Expr: expr#48: 3
+         │  └─ Else: <none>
+         ├─ Stmt[7]: If (span: 26:5-26:44)
+         │  ├─ Cond: expr#54: !((size_s == (24 to uint)))
+         │  ├─ Then:
+Block (span: 26:31-26:44)
+         │  │  └─ Stmt[0]: Return (span: 26:33-26:42)
+         │  │     └─ Expr: expr#55: 4
+         │  └─ Else: <none>
+         └─ Stmt[8]: Return (span: 28:5-28:14)
+            └─ Expr: expr#56: 0

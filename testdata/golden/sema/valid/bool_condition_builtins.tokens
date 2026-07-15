@@ -1,0 +1,93 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "builtin_conditions" at 2:4-2:22 (leading: Space)
+  3: LParen          "(" at 2:22-2:23
+  4: Ident           "i" at 3:5-3:6 (leading: Newline, Space)
+  5: Colon           ":" at 3:6-3:7
+  6: Ident           "int" at 3:8-3:11 (leading: Space)
+  7: Comma           "," at 3:11-3:12
+  8: Ident           "u" at 4:5-4:6 (leading: Newline, Space)
+  9: Colon           ":" at 4:6-4:7
+ 10: Ident           "uint" at 4:8-4:12 (leading: Space)
+ 11: Comma           "," at 4:12-4:13
+ 12: Ident           "f" at 5:5-5:6 (leading: Newline, Space)
+ 13: Colon           ":" at 5:6-5:7
+ 14: Ident           "float" at 5:8-5:13 (leading: Space)
+ 15: Comma           "," at 5:13-5:14
+ 16: Ident           "s" at 6:5-6:6 (leading: Newline, Space)
+ 17: Colon           ":" at 6:6-6:7
+ 18: Ident           "string" at 6:8-6:14 (leading: Space)
+ 19: Comma           "," at 6:14-6:15
+ 20: Ident           "b" at 7:5-7:6 (leading: Newline, Space)
+ 21: Colon           ":" at 7:6-7:7
+ 22: Ident           "bool" at 7:8-7:12 (leading: Space)
+ 23: Comma           "," at 7:12-7:13
+ 24: Ident           "i8" at 8:5-8:7 (leading: Newline, Space)
+ 25: Colon           ":" at 8:7-8:8
+ 26: Ident           "int8" at 8:9-8:13 (leading: Space)
+ 27: Comma           "," at 8:13-8:14
+ 28: Ident           "u16" at 9:5-9:8 (leading: Newline, Space)
+ 29: Colon           ":" at 9:8-9:9
+ 30: Ident           "uint16" at 9:10-9:16 (leading: Space)
+ 31: Comma           "," at 9:16-9:17
+ 32: Ident           "f32" at 10:5-10:8 (leading: Newline, Space)
+ 33: Colon           ":" at 10:8-10:9
+ 34: Ident           "float32" at 10:10-10:17 (leading: Space)
+ 35: Comma           "," at 10:17-10:18
+ 36: RParen          ")" at 11:1-11:2 (leading: Newline)
+ 37: LBrace          "{" at 11:3-11:4 (leading: Space)
+ 38: KwIf            "if" at 12:5-12:7 (leading: Newline, Space)
+ 39: LParen          "(" at 12:8-12:9 (leading: Space)
+ 40: Ident           "i" at 12:9-12:10
+ 41: RParen          ")" at 12:10-12:11
+ 42: LBrace          "{" at 12:12-12:13 (leading: Space)
+ 43: RBrace          "}" at 12:13-12:14
+ 44: KwIf            "if" at 13:5-13:7 (leading: Newline, Space)
+ 45: LParen          "(" at 13:8-13:9 (leading: Space)
+ 46: Ident           "u" at 13:9-13:10
+ 47: RParen          ")" at 13:10-13:11
+ 48: LBrace          "{" at 13:12-13:13 (leading: Space)
+ 49: RBrace          "}" at 13:13-13:14
+ 50: KwIf            "if" at 14:5-14:7 (leading: Newline, Space)
+ 51: LParen          "(" at 14:8-14:9 (leading: Space)
+ 52: Ident           "f" at 14:9-14:10
+ 53: RParen          ")" at 14:10-14:11
+ 54: LBrace          "{" at 14:12-14:13 (leading: Space)
+ 55: RBrace          "}" at 14:13-14:14
+ 56: KwIf            "if" at 15:5-15:7 (leading: Newline, Space)
+ 57: LParen          "(" at 15:8-15:9 (leading: Space)
+ 58: Ident           "s" at 15:9-15:10
+ 59: RParen          ")" at 15:10-15:11
+ 60: LBrace          "{" at 15:12-15:13 (leading: Space)
+ 61: RBrace          "}" at 15:13-15:14
+ 62: KwIf            "if" at 16:5-16:7 (leading: Newline, Space)
+ 63: LParen          "(" at 16:8-16:9 (leading: Space)
+ 64: Ident           "b" at 16:9-16:10
+ 65: RParen          ")" at 16:10-16:11
+ 66: LBrace          "{" at 16:12-16:13 (leading: Space)
+ 67: RBrace          "}" at 16:13-16:14
+ 68: KwIf            "if" at 17:5-17:7 (leading: Newline, Space)
+ 69: LParen          "(" at 17:8-17:9 (leading: Space)
+ 70: NothingLit      "nothing" at 17:9-17:16
+ 71: RParen          ")" at 17:16-17:17
+ 72: LBrace          "{" at 17:18-17:19 (leading: Space)
+ 73: RBrace          "}" at 17:19-17:20
+ 74: KwIf            "if" at 18:5-18:7 (leading: Newline, Space)
+ 75: LParen          "(" at 18:8-18:9 (leading: Space)
+ 76: Ident           "i8" at 18:9-18:11
+ 77: RParen          ")" at 18:11-18:12
+ 78: LBrace          "{" at 18:13-18:14 (leading: Space)
+ 79: RBrace          "}" at 18:14-18:15
+ 80: KwIf            "if" at 19:5-19:7 (leading: Newline, Space)
+ 81: LParen          "(" at 19:8-19:9 (leading: Space)
+ 82: Ident           "u16" at 19:9-19:12
+ 83: RParen          ")" at 19:12-19:13
+ 84: LBrace          "{" at 19:14-19:15 (leading: Space)
+ 85: RBrace          "}" at 19:15-19:16
+ 86: KwIf            "if" at 20:5-20:7 (leading: Newline, Space)
+ 87: LParen          "(" at 20:8-20:9 (leading: Space)
+ 88: Ident           "f32" at 20:9-20:12
+ 89: RParen          ")" at 20:12-20:13
+ 90: LBrace          "{" at 20:14-20:15 (leading: Space)
+ 91: RBrace          "}" at 20:15-20:16
+ 92: RBrace          "}" at 21:1-21:2 (leading: Newline)
+ 93: EOF             at 22:1-22:1

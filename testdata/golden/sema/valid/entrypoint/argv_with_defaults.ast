@@ -1,0 +1,9 @@
+argv_with_defaults.sg (span: 3:1-7:1)
+└─ Item[0]: Fn (span: 3:1-6:2)
+   ├─ Name: main
+   ├─ Params: (x: int, y: int = 5)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:36-6:2)
+         └─ Stmt[0]: Return (span: 5:5-5:18)
+            └─ Expr: expr#5: (x + y)

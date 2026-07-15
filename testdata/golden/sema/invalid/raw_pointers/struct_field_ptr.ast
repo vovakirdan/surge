@@ -1,0 +1,15 @@
+struct_field_ptr.sg (span: 1:1-6:1)
+├─ Item[0]: Type (span: 1:1-1:25)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: p: *byte
+└─ Item[1]: Fn (span: 3:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:18-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:14)
+            └─ Expr: expr#1: 0

@@ -1,0 +1,17 @@
+tuple_destruct_mismatch.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: bad_destruct
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:19-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:23)
+         │  ├─ Name: pair
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: (1, 2)
+         └─ Stmt[1]: Let (span: 4:5-4:26)
+            ├─ Name: <anon>
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#8: pair

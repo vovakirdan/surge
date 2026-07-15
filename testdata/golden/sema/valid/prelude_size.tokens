@@ -1,0 +1,172 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Point" at 3:6-3:11 (leading: Space)
+  3: Assign          "=" at 3:12-3:13 (leading: Space)
+  4: LBrace          "{" at 3:14-3:15 (leading: Space)
+  5: Ident           "x" at 4:5-4:6 (leading: Newline, Space)
+  6: Colon           ":" at 4:6-4:7
+  7: Ident           "int" at 4:8-4:11 (leading: Space)
+  8: Comma           "," at 4:11-4:12
+  9: Ident           "y" at 5:5-5:6 (leading: Newline, Space)
+ 10: Colon           ":" at 5:6-5:7
+ 11: Ident           "int" at 5:8-5:11 (leading: Space)
+ 12: Comma           "," at 5:11-5:12
+ 13: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 14: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 15: Ident           "test_size_of" at 8:4-8:16 (leading: Space)
+ 16: LParen          "(" at 8:16-8:17
+ 17: RParen          ")" at 8:17-8:18
+ 18: LBrace          "{" at 8:19-8:20 (leading: Space)
+ 19: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 20: Ident           "int_size" at 9:9-9:17 (leading: Space)
+ 21: Colon           ":" at 9:17-9:18
+ 22: Ident           "uint" at 9:19-9:23 (leading: Space)
+ 23: Assign          "=" at 9:24-9:25 (leading: Space)
+ 24: Ident           "size_of" at 9:26-9:33 (leading: Space)
+ 25: ColonColon      "::" at 9:33-9:35
+ 26: Lt              "<" at 9:35-9:36
+ 27: Ident           "int" at 9:36-9:39
+ 28: Gt              ">" at 9:39-9:40
+ 29: LParen          "(" at 9:40-9:41
+ 30: RParen          ")" at 9:41-9:42
+ 31: Semicolon       ";" at 9:42-9:43
+ 32: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 33: Ident           "uint_size" at 10:9-10:18 (leading: Space)
+ 34: Colon           ":" at 10:18-10:19
+ 35: Ident           "uint" at 10:20-10:24 (leading: Space)
+ 36: Assign          "=" at 10:25-10:26 (leading: Space)
+ 37: Ident           "size_of" at 10:27-10:34 (leading: Space)
+ 38: ColonColon      "::" at 10:34-10:36
+ 39: Lt              "<" at 10:36-10:37
+ 40: Ident           "uint" at 10:37-10:41
+ 41: Gt              ">" at 10:41-10:42
+ 42: LParen          "(" at 10:42-10:43
+ 43: RParen          ")" at 10:43-10:44
+ 44: Semicolon       ";" at 10:44-10:45
+ 45: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
+ 46: Ident           "float_size" at 11:9-11:19 (leading: Space)
+ 47: Colon           ":" at 11:19-11:20
+ 48: Ident           "uint" at 11:21-11:25 (leading: Space)
+ 49: Assign          "=" at 11:26-11:27 (leading: Space)
+ 50: Ident           "size_of" at 11:28-11:35 (leading: Space)
+ 51: ColonColon      "::" at 11:35-11:37
+ 52: Lt              "<" at 11:37-11:38
+ 53: Ident           "float" at 11:38-11:43
+ 54: Gt              ">" at 11:43-11:44
+ 55: LParen          "(" at 11:44-11:45
+ 56: RParen          ")" at 11:45-11:46
+ 57: Semicolon       ";" at 11:46-11:47
+ 58: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
+ 59: Ident           "bool_size" at 12:9-12:18 (leading: Space)
+ 60: Colon           ":" at 12:18-12:19
+ 61: Ident           "uint" at 12:20-12:24 (leading: Space)
+ 62: Assign          "=" at 12:25-12:26 (leading: Space)
+ 63: Ident           "size_of" at 12:27-12:34 (leading: Space)
+ 64: ColonColon      "::" at 12:34-12:36
+ 65: Lt              "<" at 12:36-12:37
+ 66: Ident           "bool" at 12:37-12:41
+ 67: Gt              ">" at 12:41-12:42
+ 68: LParen          "(" at 12:42-12:43
+ 69: RParen          ")" at 12:43-12:44
+ 70: Semicolon       ";" at 12:44-12:45
+ 71: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 72: Ident           "point_size" at 13:9-13:19 (leading: Space)
+ 73: Colon           ":" at 13:19-13:20
+ 74: Ident           "uint" at 13:21-13:25 (leading: Space)
+ 75: Assign          "=" at 13:26-13:27 (leading: Space)
+ 76: Ident           "size_of" at 13:28-13:35 (leading: Space)
+ 77: ColonColon      "::" at 13:35-13:37
+ 78: Lt              "<" at 13:37-13:38
+ 79: Ident           "Point" at 13:38-13:43
+ 80: Gt              ">" at 13:43-13:44
+ 81: LParen          "(" at 13:44-13:45
+ 82: RParen          ")" at 13:45-13:46
+ 83: Semicolon       ";" at 13:46-13:47
+ 84: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 85: KwFn            "fn" at 16:1-16:3 (leading: Newline)
+ 86: Ident           "test_align_of" at 16:4-16:17 (leading: Space)
+ 87: LParen          "(" at 16:17-16:18
+ 88: RParen          ")" at 16:18-16:19
+ 89: LBrace          "{" at 16:20-16:21 (leading: Space)
+ 90: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
+ 91: Ident           "int_align" at 17:9-17:18 (leading: Space)
+ 92: Colon           ":" at 17:18-17:19
+ 93: Ident           "uint" at 17:20-17:24 (leading: Space)
+ 94: Assign          "=" at 17:25-17:26 (leading: Space)
+ 95: Ident           "align_of" at 17:27-17:35 (leading: Space)
+ 96: ColonColon      "::" at 17:35-17:37
+ 97: Lt              "<" at 17:37-17:38
+ 98: Ident           "int" at 17:38-17:41
+ 99: Gt              ">" at 17:41-17:42
+100: LParen          "(" at 17:42-17:43
+101: RParen          ")" at 17:43-17:44
+102: Semicolon       ";" at 17:44-17:45
+103: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
+104: Ident           "uint_align" at 18:9-18:19 (leading: Space)
+105: Colon           ":" at 18:19-18:20
+106: Ident           "uint" at 18:21-18:25 (leading: Space)
+107: Assign          "=" at 18:26-18:27 (leading: Space)
+108: Ident           "align_of" at 18:28-18:36 (leading: Space)
+109: ColonColon      "::" at 18:36-18:38
+110: Lt              "<" at 18:38-18:39
+111: Ident           "uint" at 18:39-18:43
+112: Gt              ">" at 18:43-18:44
+113: LParen          "(" at 18:44-18:45
+114: RParen          ")" at 18:45-18:46
+115: Semicolon       ";" at 18:46-18:47
+116: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
+117: Ident           "float_align" at 19:9-19:20 (leading: Space)
+118: Colon           ":" at 19:20-19:21
+119: Ident           "uint" at 19:22-19:26 (leading: Space)
+120: Assign          "=" at 19:27-19:28 (leading: Space)
+121: Ident           "align_of" at 19:29-19:37 (leading: Space)
+122: ColonColon      "::" at 19:37-19:39
+123: Lt              "<" at 19:39-19:40
+124: Ident           "float" at 19:40-19:45
+125: Gt              ">" at 19:45-19:46
+126: LParen          "(" at 19:46-19:47
+127: RParen          ")" at 19:47-19:48
+128: Semicolon       ";" at 19:48-19:49
+129: KwLet           "let" at 20:5-20:8 (leading: Newline, Space)
+130: Ident           "bool_align" at 20:9-20:19 (leading: Space)
+131: Colon           ":" at 20:19-20:20
+132: Ident           "uint" at 20:21-20:25 (leading: Space)
+133: Assign          "=" at 20:26-20:27 (leading: Space)
+134: Ident           "align_of" at 20:28-20:36 (leading: Space)
+135: ColonColon      "::" at 20:36-20:38
+136: Lt              "<" at 20:38-20:39
+137: Ident           "bool" at 20:39-20:43
+138: Gt              ">" at 20:43-20:44
+139: LParen          "(" at 20:44-20:45
+140: RParen          ")" at 20:45-20:46
+141: Semicolon       ";" at 20:46-20:47
+142: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
+143: Ident           "point_align" at 21:9-21:20 (leading: Space)
+144: Colon           ":" at 21:20-21:21
+145: Ident           "uint" at 21:22-21:26 (leading: Space)
+146: Assign          "=" at 21:27-21:28 (leading: Space)
+147: Ident           "align_of" at 21:29-21:37 (leading: Space)
+148: ColonColon      "::" at 21:37-21:39
+149: Lt              "<" at 21:39-21:40
+150: Ident           "Point" at 21:40-21:45
+151: Gt              ">" at 21:45-21:46
+152: LParen          "(" at 21:46-21:47
+153: RParen          ")" at 21:47-21:48
+154: Semicolon       ";" at 21:48-21:49
+155: RBrace          "}" at 22:1-22:2 (leading: Newline)
+156: At              "@" at 24:1-24:2 (leading: Newline)
+157: Ident           "entrypoint" at 24:2-24:12
+158: KwFn            "fn" at 25:1-25:3 (leading: Newline)
+159: Ident           "main" at 25:4-25:8 (leading: Space)
+160: LParen          "(" at 25:8-25:9
+161: RParen          ")" at 25:9-25:10
+162: LBrace          "{" at 25:11-25:12 (leading: Space)
+163: Ident           "test_size_of" at 26:5-26:17 (leading: Newline, Space)
+164: LParen          "(" at 26:17-26:18
+165: RParen          ")" at 26:18-26:19
+166: Semicolon       ";" at 26:19-26:20
+167: Ident           "test_align_of" at 27:5-27:18 (leading: Newline, Space)
+168: LParen          "(" at 27:18-27:19
+169: RParen          ")" at 27:19-27:20
+170: Semicolon       ";" at 27:20-27:21
+171: RBrace          "}" at 28:1-28:2 (leading: Newline)
+172: EOF             at 29:1-29:1

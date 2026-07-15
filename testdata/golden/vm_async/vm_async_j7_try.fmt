@@ -1,0 +1,42 @@
+@entrypoint
+fn main() -> int {
+    let ch0 = make_channel::<int>(0);
+    let r0 = ch0.try_recv();
+    compare r0 {
+        Some(x) => print("r0=" + (x to string));
+        nothing => print("r0=nothing");
+    };
+    let s0 = ch0.try_send(1);
+    if s0 {
+        print("s0=true");
+    } else {
+        print("s0=false");
+    }
+
+    let ch1 = make_channel::<int>(1);
+    let s1a = ch1.try_send(10);
+    if s1a {
+        print("s1a=true");
+    } else {
+        print("s1a=false");
+    }
+    let s1b = ch1.try_send(20);
+    if s1b {
+        print("s1b=true");
+    } else {
+        print("s1b=false");
+    }
+
+    let r1a = ch1.try_recv();
+    compare r1a {
+        Some(x) => print("r1a=" + (x to string));
+        nothing => print("r1a=nothing");
+    };
+    let r1b = ch1.try_recv();
+    compare r1b {
+        Some(x) => print("r1b=" + (x to string));
+        nothing => print("r1b=nothing");
+    };
+
+    return 0;
+}

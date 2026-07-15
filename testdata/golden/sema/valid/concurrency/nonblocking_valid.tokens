@@ -1,0 +1,50 @@
+  1: At              "@" at 2:1-2:2 (leading: LineComment, Newline)
+  2: Ident           "nonblocking" at 2:2-2:13
+  3: KwPub           "pub" at 3:1-3:4 (leading: Newline)
+  4: KwFn            "fn" at 3:5-3:7 (leading: Space)
+  5: Ident           "fast_compute" at 3:8-3:20 (leading: Space)
+  6: LParen          "(" at 3:20-3:21
+  7: Ident           "x" at 3:21-3:22
+  8: Colon           ":" at 3:22-3:23
+  9: Ident           "int" at 3:24-3:27 (leading: Space)
+ 10: RParen          ")" at 3:27-3:28
+ 11: Arrow           "->" at 3:29-3:31 (leading: Space)
+ 12: Ident           "int" at 3:32-3:35 (leading: Space)
+ 13: LBrace          "{" at 3:36-3:37 (leading: Space)
+ 14: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 15: Ident           "x" at 4:12-4:13 (leading: Space)
+ 16: Star            "*" at 4:14-4:15 (leading: Space)
+ 17: IntLit          "2" at 4:16-4:17 (leading: Space)
+ 18: Semicolon       ";" at 4:17-4:18
+ 19: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 20: At              "@" at 7:1-7:2 (leading: Newline)
+ 21: Ident           "nonblocking" at 7:2-7:13
+ 22: KwPub           "pub" at 8:1-8:4 (leading: Newline)
+ 23: KwFn            "fn" at 8:5-8:7 (leading: Space)
+ 24: Ident           "add_numbers" at 8:8-8:19 (leading: Space)
+ 25: LParen          "(" at 8:19-8:20
+ 26: Ident           "a" at 8:20-8:21
+ 27: Colon           ":" at 8:21-8:22
+ 28: Ident           "int" at 8:23-8:26 (leading: Space)
+ 29: Comma           "," at 8:26-8:27
+ 30: Ident           "b" at 8:28-8:29 (leading: Space)
+ 31: Colon           ":" at 8:29-8:30
+ 32: Ident           "int" at 8:31-8:34 (leading: Space)
+ 33: RParen          ")" at 8:34-8:35
+ 34: Arrow           "->" at 8:36-8:38 (leading: Space)
+ 35: Ident           "int" at 8:39-8:42 (leading: Space)
+ 36: LBrace          "{" at 8:43-8:44 (leading: Space)
+ 37: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 38: Ident           "result" at 9:9-9:15 (leading: Space)
+ 39: Colon           ":" at 9:15-9:16
+ 40: Ident           "int" at 9:17-9:20 (leading: Space)
+ 41: Assign          "=" at 9:21-9:22 (leading: Space)
+ 42: Ident           "a" at 9:23-9:24 (leading: Space)
+ 43: Plus            "+" at 9:25-9:26 (leading: Space)
+ 44: Ident           "b" at 9:27-9:28 (leading: Space)
+ 45: Semicolon       ";" at 9:28-9:29
+ 46: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 47: Ident           "result" at 10:12-10:18 (leading: Space)
+ 48: Semicolon       ";" at 10:18-10:19
+ 49: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 50: EOF             at 12:1-12:1

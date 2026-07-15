@@ -1,0 +1,9 @@
+compare_arm_implicit_block_value_warn.sg (span: 1:1-10:1)
+└─ Item[0]: Fn (span: 1:1-9:2)
+   ├─ Name: main
+   ├─ Params: (flag: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:28-9:2)
+         └─ Stmt[0]: Return (span: 2:5-8:7)
+            └─ Expr: expr#8: compare flag { 2 arms }

@@ -1,0 +1,11 @@
+// ERROR: @send type contains nested non-sendable field
+
+@nosend
+type Connection = { socket: int };
+
+type Client = { conn: Connection };
+
+@send
+type Service = {
+    client: Client,  // ERROR: contains nested @nosend type
+};

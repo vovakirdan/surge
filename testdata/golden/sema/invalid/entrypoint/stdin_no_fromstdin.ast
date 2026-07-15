@@ -1,0 +1,15 @@
+stdin_no_fromstdin.sg (span: 4:1-12:1)
+├─ Item[0]: Type (span: 4:1-6:3)
+│  ├─ Name: Data
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int
+└─ Item[1]: Fn (span: 8:1-11:2)
+   ├─ Name: main
+   ├─ Params: (d: Data)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:25-11:2)
+         └─ Stmt[0]: Return (span: 10:5-10:20)
+            └─ Expr: expr#3: d.value

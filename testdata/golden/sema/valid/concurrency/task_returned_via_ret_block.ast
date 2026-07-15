@@ -1,0 +1,17 @@
+task_returned_via_ret_block.sg (span: 1:1-10:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:24-3:2)
+│        └─ Stmt[0]: Return (span: 2:5-2:15)
+│           └─ Expr: expr#1: 42
+└─ Item[1]: Fn (span: 5:1-9:2)
+   ├─ Name: start
+   ├─ Params: ()
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 5:29-9:2)
+         └─ Stmt[0]: Return (span: 6:5-8:7)
+            └─ Expr: expr#5: <ExprKind(25)>

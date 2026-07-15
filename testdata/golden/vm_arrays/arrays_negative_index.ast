@@ -1,0 +1,63 @@
+arrays_negative_index.sg (span: 1:1-26:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_str
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:36-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:40)
+│        │  ├─ Name: slen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len_bytes(&s)
+│        └─ Stmt[2]: Expr (span: 4:5-4:32)
+│           └─ Expr: expr#12: rt_write_stdout(ptr, slen)
+├─ Item[1]: Fn (span: 7:1-11:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:37-11:2)
+│        ├─ Stmt[0]: Expr (span: 8:5-8:18)
+│        │  └─ Expr: expr#15: write_str(s)
+│        ├─ Stmt[1]: Let (span: 9:5-9:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#16: "\n"
+│        └─ Stmt[2]: Expr (span: 10:5-10:49)
+│           └─ Expr: expr#24: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+├─ Item[2]: Fn (span: 13:1-15:2)
+│  ├─ Name: print_int
+│  ├─ Params: (n: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:33-15:2)
+│        └─ Stmt[0]: Expr (span: 14:5-14:29)
+│           └─ Expr: expr#28: write_line(n to string)
+└─ Item[3]: Fn (span: 17:1-25:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:18-25:2)
+         ├─ Stmt[0]: Let (span: 19:5-19:37)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#33: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 20:5-20:22)
+         │  └─ Expr: expr#39: print_int(a[-1])
+         ├─ Stmt[2]: Expr (span: 21:5-21:22)
+         │  └─ Expr: expr#45: print_int(a[-2])
+         ├─ Stmt[3]: Expr (span: 22:5-22:16)
+         │  └─ Expr: expr#51: (a[-1] = 99)
+         ├─ Stmt[4]: Expr (span: 23:5-23:21)
+         │  └─ Expr: expr#56: print_int(a[3])
+         └─ Stmt[5]: Return (span: 24:5-24:14)
+            └─ Expr: expr#57: 0

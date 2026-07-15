@@ -1,0 +1,29 @@
+// Test redundant finally clause warnings (SEM3054)
+
+tag A();
+type U = A | nothing;
+
+// WARNING SEM3054: all variants already covered
+fn test_redundant_after_explicit(x: U) -> int {
+    return compare x {
+        A => 1;
+        nothing => 0;
+        finally => 99;
+    };
+}
+
+// WARNING SEM3054: wildcard covers all
+fn test_redundant_after_wildcard(x: U) -> int {
+    return compare x {
+        _ => 0;
+        finally => 99;
+    };
+}
+
+// WARNING SEM3054: named binding covers all
+fn test_redundant_after_binding(x: U) -> int {
+    return compare x {
+        other => 0;
+        finally => 99;
+    };
+}

@@ -1,0 +1,6 @@
+// Test: @nonblocking and @waits_on conflict on function
+
+@nonblocking
+@waits_on("cond")
+fn conflicting_attrs() {
+}

@@ -1,0 +1,43 @@
+array_field_mut_ref_reborrow.sg (span: 1:1-21:1)
+├─ Item[0]: Type (span: 1:1-3:3)
+│  ├─ Name: Entry
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: borrowers: string[]
+├─ Item[1]: Fn (span: 5:1-10:2)
+│  ├─ Name: add_borrower
+│  ├─ Params: (entry: &mut Entry, client_id: &string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:67-10:2)
+│        ├─ Stmt[0]: If (span: 6:5-8:6)
+│        │  ├─ Cond: expr#6: !entry.borrowers.contains(client_id)
+│        │  ├─ Then:
+Block (span: 6:45-8:6)
+│        │  │  └─ Stmt[0]: Expr (span: 7:9-7:51)
+│        │  │     └─ Expr: expr#13: entry.borrowers.push(client_id.__clone())
+│        │  └─ Else: <none>
+│        └─ Stmt[1]: Return (span: 9:5-9:20)
+│           └─ Expr: expr#14: nothing
+└─ Item[2]: Fn (span: 12:1-20:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:18-20:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:47)
+         │  ├─ Name: entry
+         │  ├─ Mutable: true
+         │  ├─ Type: Entry
+         │  └─ Value: expr#17: <ExprKind(22)>
+         ├─ Stmt[1]: Expr (span: 15:5-15:43)
+         │  └─ Expr: expr#23: add_borrower(&mut entry, &"client-a")
+         ├─ Stmt[2]: Expr (span: 16:5-16:43)
+         │  └─ Expr: expr#29: add_borrower(&mut entry, &"client-a")
+         ├─ Stmt[3]: Expr (span: 17:5-17:46)
+         │  └─ Expr: expr#36: print(entry.borrowers.__len() to string)
+         ├─ Stmt[4]: Expr (span: 18:5-18:17)
+         │  └─ Expr: expr#39: print("\n")
+         └─ Stmt[5]: Return (span: 19:5-19:14)
+            └─ Expr: expr#40: 0

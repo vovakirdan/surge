@@ -1,0 +1,5 @@
+// Test: @entrypoint("argv") with built-in types that have from_str is valid
+@entrypoint("argv")
+fn main(x: int, y: string) -> int {
+    return x;
+}

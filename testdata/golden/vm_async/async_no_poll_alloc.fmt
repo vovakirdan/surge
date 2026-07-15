@@ -1,0 +1,13 @@
+@entrypoint
+fn main() -> int {
+    let s0 = rt_heap_stats();
+    let _ = (async {
+        checkpoint().await();
+        checkpoint().await();
+        return 0;
+    }).await();
+    let s1 = rt_heap_stats();
+    let delta = s1.alloc_count - s0.alloc_count;
+    print(delta to string);
+    return 0;
+}

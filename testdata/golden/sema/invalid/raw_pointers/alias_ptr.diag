@@ -1,0 +1,2 @@
+error SEM3129 testdata/golden/sema/invalid/raw_pointers/alias_ptr.sg:1:12 raw pointers are backend-only; use ownership/borrows or expose an intrinsic/extern API
+error SEM3015 testdata/golden/sema/invalid/raw_pointers/alias_ptr.sg:4:18 cannot assign nothing to Ptr

@@ -1,0 +1,1 @@
+error SEM3086 testdata/golden/sema/invalid/concurrency/local_task_in_spawn.sg:9:17 cannot send local task handle 't' to spawn; use @local spawn

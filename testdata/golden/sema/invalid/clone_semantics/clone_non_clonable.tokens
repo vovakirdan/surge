@@ -1,0 +1,38 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "NonClone" at 2:6-2:14 (leading: Space)
+  3: Assign          "=" at 2:15-2:16 (leading: Space)
+  4: LBrace          "{" at 2:17-2:18 (leading: Space)
+  5: Ident           "x" at 2:19-2:20 (leading: Space)
+  6: Colon           ":" at 2:20-2:21
+  7: Ident           "int" at 2:22-2:25 (leading: Space)
+  8: RBrace          "}" at 2:26-2:27 (leading: Space)
+  9: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+ 10: Ident           "test_non_clone" at 4:4-4:18 (leading: Space)
+ 11: LParen          "(" at 4:18-4:19
+ 12: RParen          ")" at 4:19-4:20
+ 13: Arrow           "->" at 4:21-4:23 (leading: Space)
+ 14: NothingLit      "nothing" at 4:24-4:31 (leading: Space)
+ 15: LBrace          "{" at 4:32-4:33 (leading: Space)
+ 16: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 17: Ident           "n" at 5:9-5:10 (leading: Space)
+ 18: Colon           ":" at 5:10-5:11
+ 19: Ident           "NonClone" at 5:12-5:20 (leading: Space)
+ 20: Assign          "=" at 5:21-5:22 (leading: Space)
+ 21: Ident           "NonClone" at 5:23-5:31 (leading: Space)
+ 22: LBrace          "{" at 5:32-5:33 (leading: Space)
+ 23: Ident           "x" at 5:34-5:35 (leading: Space)
+ 24: Colon           ":" at 5:35-5:36
+ 25: IntLit          "1" at 5:37-5:38 (leading: Space)
+ 26: RBrace          "}" at 5:39-5:40 (leading: Space)
+ 27: Semicolon       ";" at 5:40-5:41
+ 28: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 29: Ident           "m" at 6:9-6:10 (leading: Space)
+ 30: Assign          "=" at 6:11-6:12 (leading: Space)
+ 31: Ident           "clone" at 6:13-6:18 (leading: Space)
+ 32: LParen          "(" at 6:18-6:19
+ 33: Amp             "&" at 6:19-6:20
+ 34: Ident           "n" at 6:20-6:21
+ 35: RParen          ")" at 6:21-6:22
+ 36: Semicolon       ";" at 6:22-6:23
+ 37: RBrace          "}" at 7:1-7:2 (leading: Space, LineComment, Newline)
+ 38: EOF             at 8:1-8:1

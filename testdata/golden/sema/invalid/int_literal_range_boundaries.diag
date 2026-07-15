@@ -1,0 +1,4 @@
+error SEM3128 testdata/golden/sema/invalid/int_literal_range_boundaries.sg:4:19 integer literal out of range for int8: 128 (allowed -128..127)
+error SEM3128 testdata/golden/sema/invalid/int_literal_range_boundaries.sg:6:19 integer literal out of range for int8: -129 (allowed -128..127)
+error SEM3128 testdata/golden/sema/invalid/int_literal_range_boundaries.sg:8:20 integer literal out of range for uint8: 256 (allowed 0..255)
+error SEM3128 testdata/golden/sema/invalid/int_literal_range_boundaries.sg:9:20 integer literal out of range for uint8: -1 (allowed 0..255)

@@ -1,0 +1,22 @@
+spawn_basic.sg (span: 2:1-11:1)
+├─ Item[0]: Fn (span: 2:1-2:36)
+│  ├─ Name: foo
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:23-2:36)
+│        └─ Stmt[0]: Return (span: 2:25-2:34)
+│           └─ Expr: expr#1: 1
+└─ Item[1]: Fn (span: 4:1-10:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:23-10:2)
+         ├─ Stmt[0]: Let (span: 5:5-5:25)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: spawn foo()
+         └─ Stmt[1]: Expr (span: 6:5-9:7)
+            └─ Expr: expr#15: compare t.await() { 2 arms }

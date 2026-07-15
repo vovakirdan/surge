@@ -1,0 +1,24 @@
+mut_ref_local_conflict.sg (span: 2:1-8:1)
+└─ Item[0]: Fn (span: 2:1-7:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:22-7:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 4:5-4:30)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut int
+         │  └─ Value: expr#3: &mut x
+         ├─ Stmt[2]: Let (span: 5:5-5:22)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: &int
+         │  └─ Value: expr#5: &x
+         └─ Stmt[3]: Return (span: 6:5-6:12)
+            └─ Expr: <none>

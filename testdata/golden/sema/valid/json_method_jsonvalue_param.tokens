@@ -1,0 +1,90 @@
+  1: KwImport        "import" at 1:1-1:7
+  2: Ident           "stdlib" at 1:8-1:14 (leading: Space)
+  3: Slash           "/" at 1:14-1:15
+  4: Ident           "json" at 1:15-1:19
+  5: KwAs            "as" at 1:20-1:22 (leading: Space)
+  6: Ident           "json" at 1:23-1:27 (leading: Space)
+  7: Semicolon       ";" at 1:27-1:28
+  8: KwPub           "pub" at 3:1-3:4 (leading: Newline)
+  9: KwType          "type" at 3:5-3:9 (leading: Space)
+ 10: Ident           "Ctx" at 3:10-3:13 (leading: Space)
+ 11: Assign          "=" at 3:14-3:15 (leading: Space)
+ 12: LBrace          "{" at 3:16-3:17 (leading: Space)
+ 13: RBrace          "}" at 3:17-3:18
+ 14: Semicolon       ";" at 3:18-3:19
+ 15: KwExtern        "extern" at 5:1-5:7 (leading: Newline)
+ 16: Lt              "<" at 5:7-5:8
+ 17: Ident           "Ctx" at 5:8-5:11
+ 18: Gt              ">" at 5:11-5:12
+ 19: LBrace          "{" at 5:13-5:14 (leading: Space)
+ 20: KwPub           "pub" at 6:5-6:8 (leading: Newline, Space)
+ 21: KwFn            "fn" at 6:9-6:11 (leading: Space)
+ 22: Ident           "json_response" at 6:12-6:25 (leading: Space)
+ 23: LParen          "(" at 6:25-6:26
+ 24: Ident           "self" at 6:26-6:30
+ 25: Colon           ":" at 6:30-6:31
+ 26: Amp             "&" at 6:32-6:33 (leading: Space)
+ 27: KwMut           "mut" at 6:33-6:36
+ 28: Ident           "Ctx" at 6:37-6:40 (leading: Space)
+ 29: Comma           "," at 6:40-6:41
+ 30: Ident           "value" at 6:42-6:47 (leading: Space)
+ 31: Colon           ":" at 6:47-6:48
+ 32: Ident           "json" at 6:49-6:53 (leading: Space)
+ 33: Dot             "." at 6:53-6:54
+ 34: Ident           "JsonValue" at 6:54-6:63
+ 35: RParen          ")" at 6:63-6:64
+ 36: Arrow           "->" at 6:65-6:67 (leading: Space)
+ 37: Ident           "int" at 6:68-6:71 (leading: Space)
+ 38: LBrace          "{" at 6:72-6:73 (leading: Space)
+ 39: KwLet           "let" at 7:9-7:12 (leading: Newline, Space)
+ 40: Underscore      "_" at 7:13-7:14 (leading: Space)
+ 41: Assign          "=" at 7:15-7:16 (leading: Space)
+ 42: Ident           "value" at 7:17-7:22 (leading: Space)
+ 43: Semicolon       ";" at 7:22-7:23
+ 44: KwReturn        "return" at 8:9-8:15 (leading: Newline, Space)
+ 45: IntLit          "0" at 8:16-8:17 (leading: Space)
+ 46: Semicolon       ";" at 8:17-8:18
+ 47: RBrace          "}" at 9:5-9:6 (leading: Newline, Space)
+ 48: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 49: At              "@" at 12:1-12:2 (leading: Newline)
+ 50: Ident           "entrypoint" at 12:2-12:12
+ 51: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 52: Ident           "main" at 13:4-13:8 (leading: Space)
+ 53: LParen          "(" at 13:8-13:9
+ 54: RParen          ")" at 13:9-13:10
+ 55: Arrow           "->" at 13:11-13:13 (leading: Space)
+ 56: Ident           "int" at 13:14-13:17 (leading: Space)
+ 57: LBrace          "{" at 13:18-13:19 (leading: Space)
+ 58: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 59: KwMut           "mut" at 14:9-14:12 (leading: Space)
+ 60: Ident           "ctx" at 14:13-14:16 (leading: Space)
+ 61: Colon           ":" at 14:16-14:17
+ 62: Ident           "Ctx" at 14:18-14:21 (leading: Space)
+ 63: Assign          "=" at 14:22-14:23 (leading: Space)
+ 64: LBrace          "{" at 14:24-14:25 (leading: Space)
+ 65: RBrace          "}" at 14:25-14:26
+ 66: Semicolon       ";" at 14:26-14:27
+ 67: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 68: Ident           "value" at 15:9-15:14 (leading: Space)
+ 69: Colon           ":" at 15:14-15:15
+ 70: Ident           "json" at 15:16-15:20 (leading: Space)
+ 71: Dot             "." at 15:20-15:21
+ 72: Ident           "JsonValue" at 15:21-15:30
+ 73: Assign          "=" at 15:31-15:32 (leading: Space)
+ 74: Ident           "json" at 15:33-15:37 (leading: Space)
+ 75: Dot             "." at 15:37-15:38
+ 76: Ident           "JsonString" at 15:38-15:48
+ 77: LParen          "(" at 15:48-15:49
+ 78: StringLit       "\"x\"" at 15:49-15:52
+ 79: RParen          ")" at 15:52-15:53
+ 80: Semicolon       ";" at 15:53-15:54
+ 81: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space)
+ 82: Ident           "ctx" at 16:12-16:15 (leading: Space)
+ 83: Dot             "." at 16:15-16:16
+ 84: Ident           "json_response" at 16:16-16:29
+ 85: LParen          "(" at 16:29-16:30
+ 86: Ident           "value" at 16:30-16:35
+ 87: RParen          ")" at 16:35-16:36
+ 88: Semicolon       ";" at 16:36-16:37
+ 89: RBrace          "}" at 17:1-17:2 (leading: Newline)
+ 90: EOF             at 18:1-18:1

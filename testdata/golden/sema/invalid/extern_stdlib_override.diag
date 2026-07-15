@@ -1,0 +1,2 @@
+error SEM3006 testdata/golden/sema/invalid/extern_stdlib_override.sg:3:8 invalid override for '__add': function already defined in core/stdlib (overrides are forbidden)
+error SEM3006 testdata/golden/sema/invalid/extern_stdlib_override.sg:4:18 invalid override for '__sub': function already defined in core/stdlib (overrides are forbidden)

@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/ternary_type_mismatch.sg:3:12 ternary branches have incompatible types: int and string

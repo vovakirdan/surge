@@ -1,0 +1,26 @@
+t06_early_exit_cancel.sg (span: 1:1-31:1)
+└─ Item[0]: Fn (span: 1:1-30:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-30:2)
+         ├─ Stmt[0]: Let (span: 3:5-16:16)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#21: (async { 3 stmt(s) }).await()
+         ├─ Stmt[1]: Expr (span: 18:5-21:7)
+         │  └─ Expr: expr#38: compare r { 2 arms }
+         ├─ Stmt[2]: Let (span: 23:5-26:7)
+         │  ├─ Name: guard
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#46: spawn async { 2 stmt(s) }
+         ├─ Stmt[3]: Let (span: 27:5-27:27)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#49: guard.await()
+         └─ Stmt[4]: Return (span: 29:5-29:14)
+            └─ Expr: expr#50: 0

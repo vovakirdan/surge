@@ -1,0 +1,15 @@
+// Invalid: calling @acquires_lock when already held
+type Resource = { lock: Mutex }
+
+extern<Resource> {
+    @acquires_lock("lock")
+    fn acquire(self: &mut Resource) -> nothing {
+        self.lock.lock();
+    }
+
+    pub fn double_acquire(self: &mut Resource) -> nothing {
+        self.lock.lock();
+        self.acquire();  // ERROR: lock already held
+        self.lock.unlock();
+    }
+}

@@ -1,0 +1,12 @@
+// __bool exists but returns a non-bool type
+type Flag = { value: int }
+
+extern<Flag> {
+    fn __bool(self: Flag) -> int;
+}
+
+fn invalid_bool_return(f: Flag) {
+    if (f) {
+        return;
+    }
+}

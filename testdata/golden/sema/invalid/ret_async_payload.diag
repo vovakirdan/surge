@@ -1,0 +1,1 @@
+error SEM3134 testdata/golden/sema/invalid/ret_async_payload.sg:3:9 'ret' is not supported inside async/blocking payloads; use 'return' for now

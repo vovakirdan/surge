@@ -1,0 +1,34 @@
+arith_explicit_casts.sg (span: 1:1-9:1)
+└─ Item[0]: Fn (span: 1:1-8:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:18-8:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:20)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 3:5-3:21)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#2: 2
+         ├─ Stmt[2]: Let (span: 4:5-4:33)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#7: (a + (b to int))
+         ├─ Stmt[3]: Let (span: 5:5-5:39)
+         │  ├─ Name: d
+         │  ├─ Mutable: false
+         │  ├─ Type: float
+         │  └─ Value: expr#12: ((a to float) + 0.1)
+         ├─ Stmt[4]: Let (span: 6:5-6:62)
+         │  ├─ Name: e
+         │  ├─ Mutable: false
+         │  ├─ Type: int16
+         │  └─ Value: expr#23: (((1 to int8) to int16) + ((2 to int8) to int16))
+         └─ Stmt[5]: Return (span: 7:5-7:42)
+            └─ Expr: expr#33: ((((c + (d to int))) + (e to int)))

@@ -1,0 +1,10 @@
+// Test: `is`/`heir` require a value on the left-hand side.
+
+type Foo = { value: int };
+
+fn test_left_type_usage() {
+    let a: bool = Foo is Foo;
+    let b: bool = Foo heir Foo;
+    let _ = a;
+    let _ = b;
+}

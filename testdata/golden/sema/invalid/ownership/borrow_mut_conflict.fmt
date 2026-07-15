@@ -1,0 +1,7 @@
+// Cannot create multiple mutable borrows of the same value.
+
+fn main() {
+    let mut x: int = 1;
+    let a: &mut int = &mut x;
+    let b: &mut int = &mut x;
+}

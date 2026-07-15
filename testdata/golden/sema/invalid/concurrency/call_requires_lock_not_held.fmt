@@ -1,0 +1,13 @@
+// Invalid: calling @requires_lock without holding the lock
+type Counter = { lock: Mutex, value: int }
+
+extern<Counter> {
+    @requires_lock("lock")
+    fn get_value(self: &Counter) -> int {
+        return self.value;
+    }
+
+    pub fn unsafe_get(self: &Counter) -> int {
+        return self.get_value();  // ERROR: lock not held
+    }
+}

@@ -1,0 +1,1 @@
+error SEM3129 testdata/golden/sema/invalid/raw_pointers/struct_field_ptr.sg:1:17 raw pointers are backend-only; use ownership/borrows or expose an intrinsic/extern API

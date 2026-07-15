@@ -1,0 +1,7 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "missing" at 1:4-1:11 (leading: Space)
+  3: LParen          "(" at 1:11-1:12
+  4: RParen          ")" at 1:12-1:13
+  5: LBrace          "{" at 1:14-1:15 (leading: Space)
+  6: RBrace          "}" at 1:15-1:16
+  7: EOF             at 2:1-2:1

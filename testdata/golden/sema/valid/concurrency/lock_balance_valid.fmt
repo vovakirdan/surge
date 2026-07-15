@@ -1,0 +1,46 @@
+// Valid lock/unlock balance patterns
+
+// Simple lock/unlock on local variable
+pub fn test_simple_lock() -> nothing {
+    let mut mtx: Mutex = Mutex.new();
+    mtx.lock();
+    // critical section
+    mtx.unlock();
+}
+
+// Multiple locks acquired and released
+pub fn test_multiple_locks() -> nothing {
+    let mut m1: Mutex = Mutex.new();
+    let mut m2: Mutex = Mutex.new();
+
+    m1.lock();
+    m2.lock();
+    // critical section with both locks
+    m2.unlock();
+    m1.unlock();
+}
+
+// RwLock read/write patterns
+pub fn test_rwlock_patterns() -> nothing {
+    let mut rw: RwLock = RwLock.new();
+
+    rw.read_lock();
+    rw.read_unlock();
+
+    rw.write_lock();
+    rw.write_unlock();
+}
+
+// Lock in struct field
+type Counter = {
+    lock: Mutex,
+    value: int,
+}
+
+extern<Counter> {
+    pub fn increment(self: &mut Counter) -> nothing {
+        self.lock.lock();
+        self.value = self.value + 1;
+        self.lock.unlock();
+    }
+}

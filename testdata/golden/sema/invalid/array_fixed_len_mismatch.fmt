@@ -1,0 +1,4 @@
+fn main() -> int {
+    let xs: int[2] = [1, 2, 3];
+    return xs[0];
+}

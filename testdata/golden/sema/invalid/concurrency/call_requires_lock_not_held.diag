@@ -1,0 +1,1 @@
+error SEM3078 testdata/golden/sema/invalid/concurrency/call_requires_lock_not_held.sg:11:16 calling function requires holding lock 'lock'

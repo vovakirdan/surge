@@ -1,0 +1,30 @@
+fn align_up(x: uint, align: uint) -> uint {
+    return (x + align - 1:uint) / align * align;
+}
+
+type A = int32[3];
+
+type S = {
+    x: uint8,
+    a: A,
+    y: uint16,
+}
+
+type S0 = { x: uint8 }
+type S1 = { x: uint8, a: A }
+
+@entrypoint
+fn main() -> int {
+    if (!(size_of::<A>() == 12:uint)) { return 1; }
+    if (!(align_of::<A>() == 4:uint)) { return 2; }
+
+    let off_a: uint = align_up(size_of::<S0>(), align_of::<A>());
+    let off_y: uint = align_up(size_of::<S1>(), align_of::<uint16>());
+    if (!(off_a == 4:uint)) { return 3; }
+    if (!(off_y == 16:uint)) { return 4; }
+
+    if (!(align_of::<S>() == 4:uint)) { return 5; }
+    if (!(size_of::<S>() == 20:uint)) { return 6; }
+
+    return 0;
+}

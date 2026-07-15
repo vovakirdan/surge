@@ -1,0 +1,1 @@
+error SEM3110 testdata/golden/sema/invalid/concurrency/task_container_live_across_await.sg:15:5 task container cannot live across await

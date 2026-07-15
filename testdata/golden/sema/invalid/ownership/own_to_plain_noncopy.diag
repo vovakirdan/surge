@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/ownership/own_to_plain_noncopy.sg:5:21 cannot assign own string to string

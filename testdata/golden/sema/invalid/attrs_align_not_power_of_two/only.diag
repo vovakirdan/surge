@@ -1,0 +1,2 @@
+error SEM3064 testdata/golden/sema/invalid/attrs_align_not_power_of_two/only.sg:4:8 @align argument must be a positive power of 2 (1, 2, 4, 8, 16, ...); got 7
+error SEM3064 testdata/golden/sema/invalid/attrs_align_not_power_of_two/only.sg:10:8 @align argument must be a positive power of 2 (1, 2, 4, 8, 16, ...); got 3

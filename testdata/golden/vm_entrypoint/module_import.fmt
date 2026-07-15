@@ -1,0 +1,8 @@
+import testdata/golden/vm_entrypoint/modules/adder;
+
+@entrypoint
+fn main() -> int {
+    let sum = adder::add(2, 3);
+    print(sum to string);
+    return 0;
+}

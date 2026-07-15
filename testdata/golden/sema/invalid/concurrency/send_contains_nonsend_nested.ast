@@ -1,0 +1,21 @@
+send_contains_nonsend_nested.sg (span: 3:1-12:1)
+├─ Item[0]: Type (span: 3:1-4:35)
+│  ├─ Name: Connection
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: socket: int
+├─ Item[1]: Type (span: 6:1-6:36)
+│  ├─ Name: Client
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: conn: Connection
+└─ Item[2]: Type (span: 8:1-11:3)
+   ├─ Name: Service
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @send
+   └─ Struct:
+      └─ Field[0]: client: Client

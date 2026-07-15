@@ -1,0 +1,27 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "accepts_action" at 2:4-2:18 (leading: Space)
+  3: LParen          "(" at 2:18-2:19
+  4: Ident           "action" at 2:19-2:25
+  5: Colon           ":" at 2:25-2:26
+  6: KwFn            "fn" at 2:27-2:29 (leading: Space)
+  7: LParen          "(" at 2:29-2:30
+  8: RParen          ")" at 2:30-2:31
+  9: RParen          ")" at 2:31-2:32
+ 10: LBrace          "{" at 2:33-2:34 (leading: Space)
+ 11: KwLet           "let" at 4:5-4:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 12: Ident           "a" at 4:9-4:10 (leading: Space)
+ 13: Colon           ":" at 4:10-4:11
+ 14: KwFn            "fn" at 4:12-4:14 (leading: Space)
+ 15: LParen          "(" at 4:14-4:15
+ 16: RParen          ")" at 4:15-4:16
+ 17: Assign          "=" at 4:17-4:18 (leading: Space)
+ 18: Ident           "action" at 4:19-4:25 (leading: Space)
+ 19: Semicolon       ";" at 4:25-4:26
+ 20: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 21: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 22: Ident           "do_nothing" at 7:4-7:14 (leading: Space)
+ 23: LParen          "(" at 7:14-7:15
+ 24: RParen          ")" at 7:15-7:16
+ 25: LBrace          "{" at 7:17-7:18 (leading: Space)
+ 26: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 27: EOF             at 9:1-9:1

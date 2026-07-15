@@ -1,0 +1,13 @@
+fn main(flag: bool) -> string {
+    let s: string = "x";
+    let out = {
+        if flag {
+            ret s;
+        } else {
+            ret "y";
+        }
+        let y = s;
+        ret y;
+    };
+    return out;
+}

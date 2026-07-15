@@ -1,0 +1,25 @@
+@entrypoint
+fn main() -> int {
+    let r = (@failfast async {
+        let slow = spawn async {
+            sleep(100).await();
+            print("slow");
+            return 1;
+        };
+        let fast = spawn async {
+            checkpoint().await();
+            return 2;
+        };
+
+        fast.cancel();
+        let _ = fast.await();
+        let _ = slow.await();
+        return 0;
+    }).await();
+
+    compare r {
+        Success(v) => print("parent=" + (v to string));
+        Cancelled() => print("parent=cancelled");
+    };
+    return 0;
+}

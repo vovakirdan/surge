@@ -1,0 +1,23 @@
+// compare arm with explicit return should not move values on other paths.
+
+type Box = { v: int }
+
+type MaybeBox = Box?;
+
+fn test(flag: bool) -> Box[] {
+    let mut moves: Box[] = [];
+    let value: MaybeBox = compare flag {
+        true => nothing;
+        false => Some(Box { v = 1 });
+    };
+    let _ = compare value {
+        nothing => return moves;
+        Some(b) => b;
+    };
+    return moves;
+}
+
+fn main() -> uint {
+    let xs = test(false);
+    return len(xs);
+}

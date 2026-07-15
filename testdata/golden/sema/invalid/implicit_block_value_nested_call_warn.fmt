@@ -1,0 +1,11 @@
+fn consume(x: int) -> nothing {
+    return nothing;
+}
+
+fn main() -> nothing {
+    consume({
+        let y = 1;
+        y;
+    });
+    return nothing;
+}

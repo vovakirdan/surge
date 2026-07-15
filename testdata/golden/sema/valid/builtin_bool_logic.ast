@@ -1,0 +1,33 @@
+builtin_bool_logic.sg (span: 2:1-13:1)
+└─ Item[0]: Fn (span: 2:1-12:2)
+   ├─ Name: bool_logic
+   ├─ Params: (a: bool, b: bool)
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:41-12:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:29)
+         │  ├─ Name: both
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#3: (a && b)
+         ├─ Stmt[1]: Let (span: 4:5-4:31)
+         │  ├─ Name: either
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#6: (a || b)
+         ├─ Stmt[2]: If (span: 5:5-7:6)
+         │  ├─ Cond: expr#10: (both && !either)
+         │  ├─ Then:
+Block (span: 5:26-7:6)
+         │  │  └─ Stmt[0]: Return (span: 6:9-6:22)
+         │  │     └─ Expr: expr#11: false
+         │  └─ Else: <none>
+         ├─ Stmt[3]: If (span: 8:5-10:6)
+         │  ├─ Cond: expr#15: (either || !b)
+         │  ├─ Then:
+Block (span: 8:23-10:6)
+         │  │  └─ Stmt[0]: Return (span: 9:9-9:21)
+         │  │     └─ Expr: expr#16: true
+         │  └─ Else: <none>
+         └─ Stmt[4]: Return (span: 11:5-11:17)
+            └─ Expr: expr#17: both

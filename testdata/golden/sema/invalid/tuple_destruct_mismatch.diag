@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/tuple_destruct_mismatch.sg:4:9 pattern has 3 elements but tuple has 2

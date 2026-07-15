@@ -1,0 +1,39 @@
+builtin_comparisons.sg (span: 2:1-11:1)
+└─ Item[0]: Fn (span: 2:1-10:2)
+   ├─ Name: compare_values
+   ├─ Params: (i: int, j: int, f: float)
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:53-10:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:26)
+         │  ├─ Name: lt
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#3: (i < j)
+         ├─ Stmt[1]: Let (span: 4:5-4:27)
+         │  ├─ Name: le
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#6: (i <= j)
+         ├─ Stmt[2]: Let (span: 5:5-5:28)
+         │  ├─ Name: gt
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#9: (f > 1.0)
+         ├─ Stmt[3]: Let (span: 6:5-6:29)
+         │  ├─ Name: ge
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#12: (f >= 0.5)
+         ├─ Stmt[4]: Let (span: 7:5-7:27)
+         │  ├─ Name: eq
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#15: (i == j)
+         ├─ Stmt[5]: Let (span: 8:5-8:29)
+         │  ├─ Name: ne
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#18: (f != 0.0)
+         └─ Stmt[6]: Return (span: 9:5-9:45)
+            └─ Expr: expr#29: (((((((((lt || le)) || gt)) || ge)) || eq)) || ne)

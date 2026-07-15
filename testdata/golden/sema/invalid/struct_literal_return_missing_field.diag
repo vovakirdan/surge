@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/struct_literal_return_missing_field.sg:8:12 Foo is missing required field name

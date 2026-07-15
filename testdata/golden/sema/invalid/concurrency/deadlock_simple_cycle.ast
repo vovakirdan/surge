@@ -1,0 +1,42 @@
+deadlock_simple_cycle.sg (span: 4:1-29:1)
+├─ Item[0]: Type (span: 4:1-8:2)
+│  ├─ Name: Resource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock_a: Mutex
+│     ├─ Field[1]: lock_b: Mutex
+│     └─ Field[2]: data: int
+└─ Item[1]: Extern (span: 10:1-28:2)
+   ├─ Target: Resource
+   ├─ Members:
+   │  ├─ Fn[0]: acquire_ab
+   │  │  ├─ Params: (self: &mut Resource)
+   │  │  ├─ Return: nothing
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 12:40-18:6)
+   │  │     ├─ Stmt[0]: Expr (span: 13:9-13:28)
+   │  │     │  └─ Expr: expr#4: self.lock_a.lock()
+   │  │     ├─ Stmt[1]: Expr (span: 14:9-14:28)
+   │  │     │  └─ Expr: expr#8: self.lock_b.lock()
+   │  │     ├─ Stmt[2]: Expr (span: 15:9-15:23)
+   │  │     │  └─ Expr: expr#12: (self.data = 1)
+   │  │     ├─ Stmt[3]: Expr (span: 16:9-16:30)
+   │  │     │  └─ Expr: expr#16: self.lock_b.unlock()
+   │  │     └─ Stmt[4]: Expr (span: 17:9-17:30)
+   │  │        └─ Expr: expr#20: self.lock_a.unlock()
+   │  └─ Fn[1]: acquire_ba
+   │     ├─ Params: (self: &mut Resource)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 21:40-27:6)
+   │        ├─ Stmt[0]: Expr (span: 22:9-22:28)
+   │        │  └─ Expr: expr#24: self.lock_b.lock()
+   │        ├─ Stmt[1]: Expr (span: 23:9-23:28)
+   │        │  └─ Expr: expr#28: self.lock_a.lock()
+   │        ├─ Stmt[2]: Expr (span: 24:9-24:23)
+   │        │  └─ Expr: expr#32: (self.data = 2)
+   │        ├─ Stmt[3]: Expr (span: 25:9-25:30)
+   │        │  └─ Expr: expr#36: self.lock_a.unlock()
+   │        └─ Stmt[4]: Expr (span: 26:9-26:30)
+   │           └─ Expr: expr#40: self.lock_b.unlock()

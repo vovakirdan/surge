@@ -1,0 +1,43 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Point" at 2:6-2:11 (leading: Space)
+  3: Assign          "=" at 2:12-2:13 (leading: Space)
+  4: LBrace          "{" at 2:14-2:15 (leading: Space)
+  5: Ident           "x" at 3:5-3:6 (leading: Newline, Space)
+  6: Colon           ":" at 3:6-3:7
+  7: Ident           "int" at 3:8-3:11 (leading: Space)
+  8: Comma           "," at 3:11-3:12
+  9: Ident           "y" at 4:5-4:6 (leading: Newline, Space)
+ 10: Colon           ":" at 4:6-4:7
+ 11: Ident           "int" at 4:8-4:11 (leading: Space)
+ 12: Comma           "," at 4:11-4:12
+ 13: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 14: Semicolon       ";" at 5:2-5:3
+ 15: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 16: Ident           "bad_access" at 7:4-7:14 (leading: Space)
+ 17: LParen          "(" at 7:14-7:15
+ 18: RParen          ")" at 7:15-7:16
+ 19: Arrow           "->" at 7:17-7:19 (leading: Space)
+ 20: Ident           "int" at 7:20-7:23 (leading: Space)
+ 21: LBrace          "{" at 7:24-7:25 (leading: Space)
+ 22: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 23: Ident           "p" at 8:9-8:10 (leading: Space)
+ 24: Colon           ":" at 8:10-8:11
+ 25: Ident           "Point" at 8:12-8:17 (leading: Space)
+ 26: Assign          "=" at 8:18-8:19 (leading: Space)
+ 27: LBrace          "{" at 8:20-8:21 (leading: Space)
+ 28: Ident           "x" at 8:22-8:23 (leading: Space)
+ 29: Colon           ":" at 8:23-8:24
+ 30: IntLit          "0" at 8:25-8:26 (leading: Space)
+ 31: Comma           "," at 8:26-8:27
+ 32: Ident           "y" at 8:28-8:29 (leading: Space)
+ 33: Colon           ":" at 8:29-8:30
+ 34: IntLit          "1" at 8:31-8:32 (leading: Space)
+ 35: RBrace          "}" at 8:33-8:34 (leading: Space)
+ 36: Semicolon       ";" at 8:34-8:35
+ 37: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 38: Ident           "p" at 9:12-9:13 (leading: Space)
+ 39: Dot             "." at 9:13-9:14
+ 40: Ident           "z" at 9:14-9:15
+ 41: Semicolon       ";" at 9:15-9:16
+ 42: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 43: EOF             at 11:1-11:1

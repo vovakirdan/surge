@@ -1,0 +1,2 @@
+error SEM3015 testdata/golden/sema/invalid/struct_literal_return_empty_for_nonempty.sg:8:12 Foo is missing required field name
+error SEM3015 testdata/golden/sema/invalid/struct_literal_return_empty_for_nonempty.sg:8:12 Foo is missing required field value

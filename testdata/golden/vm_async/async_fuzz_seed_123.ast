@@ -1,0 +1,29 @@
+async_fuzz_seed_123.sg (span: 1:1-19:1)
+└─ Item[0]: Fn (span: 1:1-18:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-18:2)
+         ├─ Stmt[0]: Let (span: 3:5-8:7)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#13: spawn async { 4 stmt(s) }
+         ├─ Stmt[1]: Let (span: 9:5-14:7)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#26: spawn async { 4 stmt(s) }
+         ├─ Stmt[2]: Let (span: 15:5-15:23)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#29: a.await()
+         ├─ Stmt[3]: Let (span: 16:5-16:23)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#32: b.await()
+         └─ Stmt[4]: Return (span: 17:5-17:14)
+            └─ Expr: expr#33: 0

@@ -1,0 +1,9 @@
+// Module with public exports for testing import::*
+pragma module;
+
+pub const MODULE_CONST: int = 42;
+pub fn moduleFunc() -> int { return 100; }
+pub type ModuleType = { value: int };
+
+// Private symbol - should not be imported
+const privateConst: int = 99;

@@ -1,0 +1,9 @@
+pragma_directive_simple.sg (span: 1:1-7:1)
+└─ Item[0]: Fn (span: 4:1-6:2)
+   ├─ Name: directive_stub
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:32-6:2)
+         └─ Stmt[0]: Return (span: 5:5-5:20)
+            └─ Expr: expr#1: nothing

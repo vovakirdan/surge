@@ -1,0 +1,7 @@
+// Cannot move a value while it is borrowed.
+
+fn main() {
+    let s: string = "hi";
+    let r: &string = &s;
+    let os: own string = own s;
+}

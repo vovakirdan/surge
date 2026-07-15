@@ -1,0 +1,14 @@
+ret_block_fallthrough.sg (span: 2:1-10:1)
+└─ Item[0]: Fn (span: 2:1-9:2)
+   ├─ Name: main
+   ├─ Params: (flag: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:28-9:2)
+         ├─ Stmt[0]: Let (span: 3:5-7:7)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: <ExprKind(25)>
+         └─ Stmt[1]: Return (span: 8:5-8:14)
+            └─ Expr: expr#4: x

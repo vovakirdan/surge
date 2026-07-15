@@ -1,0 +1,22 @@
+for_in_no_iterator.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
+   ├─ Name: test_invalid
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:19-7:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:21)
+         │  ├─ Name: n
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 42
+         └─ Stmt[1]: ForIn (span: 4:5-6:6)
+            ├─ Pattern: x
+            ├─ Iterable: expr#2: n
+            └─ Body:
+Block (span: 4:16-6:6)
+               └─ Stmt[0]: Let (span: 5:9-5:24)
+                  ├─ Name: y
+                  ├─ Mutable: false
+                  ├─ Type: int
+                  └─ Value: expr#3: x

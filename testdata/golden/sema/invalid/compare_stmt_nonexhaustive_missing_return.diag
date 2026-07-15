@@ -1,0 +1,2 @@
+error SEM3051 testdata/golden/sema/invalid/compare_stmt_nonexhaustive_missing_return.sg:5:39 function returning int is missing a return
+error SEM3053 testdata/golden/sema/invalid/compare_stmt_nonexhaustive_missing_return.sg:6:5 non-exhaustive pattern match: missing patterns for type string

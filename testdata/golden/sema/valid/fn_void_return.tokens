@@ -1,0 +1,53 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "log_value" at 2:4-2:13 (leading: Space)
+  3: LParen          "(" at 2:13-2:14
+  4: Ident           "x" at 2:14-2:15
+  5: Colon           ":" at 2:15-2:16
+  6: Ident           "int" at 2:17-2:20 (leading: Space)
+  7: RParen          ")" at 2:20-2:21
+  8: Arrow           "->" at 2:22-2:24 (leading: Space)
+  9: NothingLit      "nothing" at 2:25-2:32 (leading: Space)
+ 10: LBrace          "{" at 2:33-2:34 (leading: Space)
+ 11: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 12: Ident           "copy" at 3:9-3:13 (leading: Space)
+ 13: Colon           ":" at 3:13-3:14
+ 14: Ident           "int" at 3:15-3:18 (leading: Space)
+ 15: Assign          "=" at 3:19-3:20 (leading: Space)
+ 16: Ident           "x" at 3:21-3:22 (leading: Space)
+ 17: Semicolon       ";" at 3:22-3:23
+ 18: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 19: KwFn            "fn" at 6:1-6:3 (leading: Newline)
+ 20: Ident           "return_nothing_no_type" at 6:4-6:26 (leading: Space)
+ 21: LParen          "(" at 6:26-6:27
+ 22: RParen          ")" at 6:27-6:28
+ 23: LBrace          "{" at 6:29-6:30 (leading: Space)
+ 24: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 25: NothingLit      "nothing" at 7:12-7:19 (leading: Space)
+ 26: Semicolon       ";" at 7:19-7:20
+ 27: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 28: KwFn            "fn" at 10:1-10:3 (leading: Newline)
+ 29: Ident           "return_nothing_no_return" at 10:4-10:28 (leading: Space)
+ 30: LParen          "(" at 10:28-10:29
+ 31: RParen          ")" at 10:29-10:30
+ 32: LBrace          "{" at 10:31-10:32 (leading: Space)
+ 33: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 34: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 35: Ident           "return_nothing_with_type" at 13:4-13:28 (leading: Space)
+ 36: LParen          "(" at 13:28-13:29
+ 37: RParen          ")" at 13:29-13:30
+ 38: Arrow           "->" at 13:31-13:33 (leading: Space)
+ 39: NothingLit      "nothing" at 13:34-13:41 (leading: Space)
+ 40: LBrace          "{" at 13:42-13:43 (leading: Space)
+ 41: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 42: KwFn            "fn" at 16:1-16:3 (leading: Newline)
+ 43: Ident           "return_nothing_with_type_and_return" at 16:4-16:39 (leading: Space)
+ 44: LParen          "(" at 16:39-16:40
+ 45: RParen          ")" at 16:40-16:41
+ 46: Arrow           "->" at 16:42-16:44 (leading: Space)
+ 47: NothingLit      "nothing" at 16:45-16:52 (leading: Space)
+ 48: LBrace          "{" at 16:53-16:54 (leading: Space)
+ 49: KwReturn        "return" at 17:5-17:11 (leading: Newline, Space)
+ 50: NothingLit      "nothing" at 17:12-17:19 (leading: Space)
+ 51: Semicolon       ";" at 17:19-17:20
+ 52: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 53: EOF             at 19:1-19:1

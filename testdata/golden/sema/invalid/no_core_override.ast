@@ -1,0 +1,88 @@
+no_core_override.sg (span: 3:1-33:1)
+├─ Item[0]: Type (span: 3:1-3:38)
+│  ├─ Name: Error
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: foo: int
+│     └─ Field[1]: bar: float
+├─ Item[1]: Fn (span: 5:1-5:32)
+│  ├─ Name: exit
+│  ├─ Params: (e: Error)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:30-5:32)
+├─ Item[2]: Fn (span: 7:1-7:25)
+│  ├─ Name: panic
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:23-7:25)
+├─ Item[3]: Fn (span: 9:1-9:24)
+│  ├─ Name: default
+│  ├─ Generics: <T>
+│  ├─ Params: ()
+│  ├─ Return: T
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:22-9:24)
+├─ Item[4]: Fn (span: 11:1-11:17)
+│  ├─ Name: rt_alloc
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:15-11:17)
+├─ Item[5]: Fn (span: 13:1-13:16)
+│  ├─ Name: rt_free
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:14-13:16)
+├─ Item[6]: Fn (span: 15:1-15:19)
+│  ├─ Name: rt_realloc
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 15:17-15:19)
+├─ Item[7]: Fn (span: 17:1-17:18)
+│  ├─ Name: rt_memcpy
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 17:16-17:18)
+├─ Item[8]: Fn (span: 19:1-19:19)
+│  ├─ Name: rt_memmove
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 19:17-19:19)
+├─ Item[9]: Contract (span: 21:1-24:2)
+├─ Item[10]: Tag (span: 26:1-26:16)
+│  ├─ Name: Some
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[11]: Type (span: 28:1-28:36)
+│  ├─ Name: Option
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Union:
+│     ├─ Member[0]: Some(T)
+│     └─ Member[1]: nothing
+├─ Item[12]: Type (span: 30:1-30:24)
+│  ├─ Name: Task
+│  ├─ Kind: Alias
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Target: nothing
+├─ Item[13]: Type (span: 31:1-31:25)
+│  ├─ Name: Range
+│  ├─ Kind: Alias
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Target: nothing
+└─ Item[14]: Type (span: 32:1-32:24)
+   ├─ Name: byte
+   ├─ Kind: Alias
+   ├─ Visibility: public
+   └─ Target: string

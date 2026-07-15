@@ -1,0 +1,19 @@
+type Point = {
+    x: int,
+    y: int,
+};
+
+extern<Point> {
+    fn __to(self: &Point, _: string) -> string {
+        let x_str: string = self.x to string;
+        let y_str: string = self.y to string;
+        return "Point { x: " + x_str + ", y: " + y_str + " }";
+    }
+}
+
+@entrypoint
+fn main() -> int {
+    let p: Point = { x: 1, y: 2 };
+    print(p to string);
+    return 0;
+}

@@ -1,0 +1,38 @@
+async fn producer(ch: own Channel<int>) -> int {
+    ch.send(1);
+    ch.send(2);
+    ch.send(3);
+    ch.close();
+    return 0;
+}
+
+async fn consumer(ch: own Channel<int>) -> int {
+    let sum = 0;
+    let done = false;
+    while !done {
+        let v = ch.recv();
+        let inc = compare v {
+            Some(x) => x;
+            nothing => 0;
+        };
+        sum = sum + inc;
+        if inc == 0 {
+            done = true;
+        }
+    }
+    print("sum=" + (sum to string));
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let ch = make_channel::<int>(0);
+    let prod_ch = ch;
+    let cons_ch = ch;
+    let prod = spawn producer(prod_ch);
+    let cons = spawn consumer(cons_ch);
+
+    let _ = prod.await();
+    let _ = cons.await();
+    return 0;
+}

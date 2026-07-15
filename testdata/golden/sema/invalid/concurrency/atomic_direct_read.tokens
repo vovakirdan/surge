@@ -1,0 +1,39 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Counter" at 3:6-3:13 (leading: Space)
+  3: Assign          "=" at 3:14-3:15 (leading: Space)
+  4: LBrace          "{" at 3:16-3:17 (leading: Space)
+  5: At              "@" at 4:5-4:6 (leading: Newline, Space)
+  6: Ident           "atomic" at 4:6-4:12
+  7: Ident           "value" at 4:13-4:18 (leading: Space)
+  8: Colon           ":" at 4:18-4:19
+  9: Ident           "int" at 4:20-4:23 (leading: Space)
+ 10: Comma           "," at 4:23-4:24
+ 11: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 12: Semicolon       ";" at 5:2-5:3
+ 13: KwPub           "pub" at 7:1-7:4 (leading: Newline)
+ 14: KwFn            "fn" at 7:5-7:7 (leading: Space)
+ 15: Ident           "bad_read" at 7:8-7:16 (leading: Space)
+ 16: LParen          "(" at 7:16-7:17
+ 17: RParen          ")" at 7:17-7:18
+ 18: Arrow           "->" at 7:19-7:21 (leading: Space)
+ 19: Ident           "int" at 7:22-7:25 (leading: Space)
+ 20: LBrace          "{" at 7:26-7:27 (leading: Space)
+ 21: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 22: Ident           "c" at 8:9-8:10 (leading: Space)
+ 23: Colon           ":" at 8:10-8:11
+ 24: Ident           "Counter" at 8:12-8:19 (leading: Space)
+ 25: Assign          "=" at 8:20-8:21 (leading: Space)
+ 26: Ident           "Counter" at 8:22-8:29 (leading: Space)
+ 27: LBrace          "{" at 8:30-8:31 (leading: Space)
+ 28: Ident           "value" at 8:32-8:37 (leading: Space)
+ 29: Colon           ":" at 8:37-8:38
+ 30: IntLit          "0" at 8:39-8:40 (leading: Space)
+ 31: RBrace          "}" at 8:41-8:42 (leading: Space)
+ 32: Semicolon       ";" at 8:42-8:43
+ 33: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 34: Ident           "c" at 9:12-9:13 (leading: Space)
+ 35: Dot             "." at 9:13-9:14
+ 36: Ident           "value" at 9:14-9:19
+ 37: Semicolon       ";" at 9:19-9:20
+ 38: RBrace          "}" at 10:1-10:2 (leading: Space, LineComment, Newline)
+ 39: EOF             at 11:1-11:1

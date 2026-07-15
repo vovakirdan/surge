@@ -1,0 +1,6 @@
+// Non-Copy types cannot implicitly drop ownership.
+
+fn main() {
+    let s: own string = own "hi";
+    let t: string = s;
+}

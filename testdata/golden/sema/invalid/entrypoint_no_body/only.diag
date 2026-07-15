@@ -1,0 +1,1 @@
+error SEM3058 testdata/golden/sema/invalid/entrypoint_no_body/only.sg:4:4 @entrypoint function must have a body

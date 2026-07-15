@@ -1,0 +1,29 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Node" at 2:6-2:10 (leading: Space)
+  3: Assign          "=" at 2:11-2:12 (leading: Space)
+  4: LBrace          "{" at 2:13-2:14 (leading: Space)
+  5: Ident           "next" at 3:5-3:9 (leading: Newline, Space)
+  6: Colon           ":" at 3:9-3:10
+  7: Ident           "Option" at 3:11-3:17 (leading: Space)
+  8: Lt              "<" at 3:17-3:18
+  9: KwOwn           "own" at 3:18-3:21
+ 10: Ident           "Node" at 3:22-3:26 (leading: Space)
+ 11: Gt              ">" at 3:26-3:27
+ 12: Comma           "," at 3:27-3:28
+ 13: Ident           "data" at 4:5-4:9 (leading: Newline, Space)
+ 14: Colon           ":" at 4:9-4:10
+ 15: Ident           "int" at 4:11-4:14 (leading: Space)
+ 16: Comma           "," at 4:14-4:15
+ 17: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 18: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 19: Ident           "main" at 7:4-7:8 (leading: Space)
+ 20: LParen          "(" at 7:8-7:9
+ 21: RParen          ")" at 7:9-7:10
+ 22: Arrow           "->" at 7:11-7:13 (leading: Space)
+ 23: Ident           "int" at 7:14-7:17 (leading: Space)
+ 24: LBrace          "{" at 7:18-7:19 (leading: Space)
+ 25: KwReturn        "return" at 7:20-7:26 (leading: Space)
+ 26: IntLit          "0" at 7:27-7:28 (leading: Space)
+ 27: Semicolon       ";" at 7:28-7:29
+ 28: RBrace          "}" at 7:30-7:31 (leading: Space)
+ 29: EOF             at 8:1-8:1

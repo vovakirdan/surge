@@ -1,0 +1,14 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "usage" at 2:4-2:9 (leading: Space)
+  3: LParen          "(" at 2:9-2:10
+  4: RParen          ")" at 2:10-2:11
+  5: LBrace          "{" at 2:12-2:13 (leading: Space)
+  6: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  7: Ident           "a" at 3:9-3:10 (leading: Space)
+  8: Assign          "=" at 3:11-3:12 (leading: Space)
+  9: Ident           "default" at 3:13-3:20 (leading: Space)
+ 10: LParen          "(" at 3:20-3:21
+ 11: RParen          ")" at 3:21-3:22
+ 12: Semicolon       ";" at 3:22-3:23
+ 13: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 14: EOF             at 5:1-5:1

@@ -1,0 +1,38 @@
+// Test: Deadlock detection - three-lock cycle A->B->C->A
+// Three functions create a circular dependency
+
+type ThreeLocks = {
+    lock_a: Mutex,
+    lock_b: Mutex,
+    lock_c: Mutex,
+    data: int
+}
+
+extern<ThreeLocks> {
+    // A -> B
+    fn func_ab(self: &mut ThreeLocks) {
+        self.lock_a.lock();
+        self.lock_b.lock();
+        self.data = 1;
+        self.lock_b.unlock();
+        self.lock_a.unlock();
+    }
+
+    // B -> C
+    fn func_bc(self: &mut ThreeLocks) {
+        self.lock_b.lock();
+        self.lock_c.lock();
+        self.data = 2;
+        self.lock_c.unlock();
+        self.lock_b.unlock();
+    }
+
+    // C -> A - completes the cycle!
+    fn func_ca(self: &mut ThreeLocks) {
+        self.lock_c.lock();
+        self.lock_a.lock();  // DEADLOCK: C -> A closes A->B->C->A cycle
+        self.data = 3;
+        self.lock_a.unlock();
+        self.lock_c.unlock();
+    }
+}

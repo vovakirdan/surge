@@ -1,0 +1,12 @@
+// scenario: boolean logic operators in conditions
+fn bool_logic(a: bool, b: bool) -> bool {
+    let both: bool = a && b;
+    let either: bool = a || b;
+    if (both && !either) {
+        return false;
+    }
+    if (either || !b) {
+        return true;
+    }
+    return both;
+}

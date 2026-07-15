@@ -1,0 +1,12 @@
+fn main() {
+    let s = "hi";
+    let a = s + "!";
+    let b = s * 2;
+    let c = s * (2:uint);
+    let d = s == "hi";
+    let e = s != "bye";
+    let i: int = s to int;
+    let u: uint = s to uint;
+    let f: float = s to float;
+    let s2 = s + s;
+}

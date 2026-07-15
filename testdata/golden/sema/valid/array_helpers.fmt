@@ -1,0 +1,34 @@
+type Foo = { x: int }
+
+extern<Foo> {
+    fn __to(self: &Foo, _: string) -> string {
+        return "Foo";
+    }
+}
+
+fn test_array_constructors() {
+    let a: int[] = Array::<int>::with_len(3:uint);
+    let b: int[] = Array::<int>::with_len_value(2:uint, 7);
+    let c: int[] = Array::<int>::from_range(0..3);
+    let s1: string = a to string;
+    let s2: string = b to string;
+    let s3: string = c to string;
+    let _ = s1;
+    let _ = s2;
+    let _ = s3;
+}
+
+fn test_array_fixed_constructors() {
+    let f: ArrayFixed<int, 3> = ArrayFixed::<int, 3>::with_len(3:uint);
+    let g: ArrayFixed<int, 3> = ArrayFixed::<int, 3>::with_len_value(3:uint, 9);
+    let s1: string = f to string;
+    let s2: string = g to string;
+    let _ = s1;
+    let _ = s2;
+}
+
+fn test_array_printable_elem() {
+    let fa: Foo[] = Array::<Foo>::with_len(2:uint);
+    let s: string = fa to string;
+    let _ = s;
+}

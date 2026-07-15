@@ -1,0 +1,25 @@
+enum_basic.sg (span: 3:1-19:1)
+├─ Item[0]: Type (span: 3:1-7:2)
+│  ├─ Name: Color
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+├─ Item[1]: Type (span: 9:1-13:2)
+│  ├─ Name: Status
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+└─ Item[2]: Fn (span: 15:1-18:2)
+   ├─ Name: test
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 15:11-18:2)
+         ├─ Stmt[0]: Let (span: 16:5-16:29)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#5: Color.Red
+         └─ Stmt[1]: Let (span: 17:5-17:33)
+            ├─ Name: s
+            ├─ Mutable: false
+            ├─ Type: uint8
+            └─ Value: expr#7: Status.Done

@@ -1,0 +1,1 @@
+error SEM3018 testdata/golden/sema/invalid/ref_result_keeps_borrow.sg:11:5 cannot take mutable borrow of 'a' while a shared borrow is active

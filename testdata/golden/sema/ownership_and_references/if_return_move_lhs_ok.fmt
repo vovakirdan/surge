@@ -1,0 +1,14 @@
+// Returning from a branch should not mark locals as moved on the other path.
+
+fn early_return(flag: bool) -> int[] {
+    let mut xs: int[] = [];
+    if flag {
+        return xs;
+    }
+    return xs;
+}
+
+fn main() -> int {
+    let a = early_return(false);
+    return len(a) to int;
+}

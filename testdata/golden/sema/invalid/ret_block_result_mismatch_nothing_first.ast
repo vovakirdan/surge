@@ -1,0 +1,16 @@
+ret_block_result_mismatch_nothing_first.sg (span: 1:1-11:1)
+└─ Item[0]: Fn (span: 1:1-10:2)
+   ├─ Name: main
+   ├─ Params: (flag: bool)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:32-10:2)
+         ├─ Stmt[0]: Let (span: 2:5-7:7)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: <ExprKind(25)>
+         ├─ Stmt[1]: Expr (span: 8:5-8:7)
+         │  └─ Expr: expr#5: x
+         └─ Stmt[2]: Return (span: 9:5-9:20)
+            └─ Expr: expr#6: nothing

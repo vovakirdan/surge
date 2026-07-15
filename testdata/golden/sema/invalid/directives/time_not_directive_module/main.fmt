@@ -1,0 +1,8 @@
+// Test: Using stdlib/time (non-directive) as directive namespace
+// Expected: Error SEM3120 - module does not have 'pragma directive'
+import stdlib/time;
+
+/// time:
+/// time.monotonic_now();
+
+fn foo() -> nothing { return nothing; }

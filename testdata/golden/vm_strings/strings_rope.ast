@@ -1,0 +1,172 @@
+strings_rope.sg (span: 1:1-67:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_str
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:36-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:37)
+│        │  ├─ Name: n
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len_bytes(&s)
+│        └─ Stmt[2]: Expr (span: 4:5-4:29)
+│           └─ Expr: expr#12: rt_write_stdout(ptr, n)
+├─ Item[1]: Fn (span: 7:1-11:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:37-11:2)
+│        ├─ Stmt[0]: Expr (span: 8:5-8:18)
+│        │  └─ Expr: expr#15: write_str(s)
+│        ├─ Stmt[1]: Let (span: 9:5-9:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#16: "\n"
+│        └─ Stmt[2]: Expr (span: 10:5-10:49)
+│           └─ Expr: expr#24: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+├─ Item[2]: Fn (span: 13:1-15:2)
+│  ├─ Name: print_uint
+│  ├─ Params: (u: uint)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:35-15:2)
+│        └─ Stmt[0]: Expr (span: 14:5-14:29)
+│           └─ Expr: expr#28: write_line(u to string)
+└─ Item[3]: Fn (span: 17:1-66:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:18-66:2)
+         ├─ Stmt[0]: Let (span: 19:5-19:28)
+         │  ├─ Name: s
+         │  ├─ Mutable: true
+         │  ├─ Type: string
+         │  └─ Value: expr#29: ""
+         ├─ Stmt[1]: Let (span: 20:5-20:24)
+         │  ├─ Name: i
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#30: 0
+         ├─ Stmt[2]: While (span: 21:5-24:6)
+         │  ├─ Cond: expr#33: (i < 200)
+         │  └─ Body:
+Block (span: 21:19-24:6)
+         │     ├─ Stmt[0]: Expr (span: 22:9-22:21)
+         │     │  └─ Expr: expr#38: (s = ((s + "a")))
+         │     └─ Stmt[1]: Expr (span: 23:9-23:19)
+         │        └─ Expr: expr#43: (i = ((i + 1)))
+         ├─ Stmt[3]: Expr (span: 26:5-26:27)
+         │  └─ Expr: expr#51: write_line(s[[0..3]])
+         ├─ Stmt[4]: Expr (span: 27:5-27:27)
+         │  └─ Expr: expr#58: write_line(s[[-3..]])
+         ├─ Stmt[5]: Let (span: 28:5-28:27)
+         │  ├─ Name: mid
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#64: s[[10..20]]
+         ├─ Stmt[6]: Expr (span: 29:5-29:29)
+         │  └─ Expr: expr#72: write_line(s[[10..20]])
+         ├─ Stmt[7]: Expr (span: 30:5-30:28)
+         │  └─ Expr: expr#80: write_line(s[[0..=1]])
+         ├─ Stmt[8]: Let (span: 32:5-32:39)
+         │  ├─ Name: bv
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#84: rt_string_bytes_view(&s)
+         ├─ Stmt[9]: Expr (span: 33:5-33:28)
+         │  └─ Expr: expr#89: print_uint(bv.__len())
+         ├─ Stmt[10]: Let (span: 34:5-34:34)
+         │  ├─ Name: b0
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#93: bv[0] to uint
+         ├─ Stmt[11]: Expr (span: 35:5-35:20)
+         │  └─ Expr: expr#96: print_uint(b0)
+         ├─ Stmt[12]: Expr (span: 36:5-36:35)
+         │  └─ Expr: expr#102: print_uint(rt_string_len(&s))
+         ├─ Stmt[13]: Let (span: 38:5-38:22)
+         │  ├─ Name: u
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#103: "a🙂b"
+         ├─ Stmt[14]: Let (span: 39:5-39:35)
+         │  ├─ Name: u_cp
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#107: u[1] to uint
+         ├─ Stmt[15]: Expr (span: 40:5-40:22)
+         │  └─ Expr: expr#110: print_uint(u_cp)
+         ├─ Stmt[16]: Let (span: 41:5-41:29)
+         │  ├─ Name: u_slice
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#116: u[[1..2]]
+         ├─ Stmt[17]: Expr (span: 42:5-42:41)
+         │  └─ Expr: expr#122: print_uint(rt_string_len(&u_slice))
+         ├─ Stmt[18]: Expr (span: 43:5-43:47)
+         │  └─ Expr: expr#128: print_uint(rt_string_len_bytes(&u_slice))
+         ├─ Stmt[19]: Let (span: 44:5-44:47)
+         │  ├─ Name: u_slice_cp
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#132: u_slice[0] to uint
+         ├─ Stmt[20]: Expr (span: 45:5-45:28)
+         │  └─ Expr: expr#135: print_uint(u_slice_cp)
+         ├─ Stmt[21]: Let (span: 46:5-46:42)
+         │  ├─ Name: last_c
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#140: "abc"[-1] to uint
+         ├─ Stmt[22]: Expr (span: 47:5-47:24)
+         │  └─ Expr: expr#143: print_uint(last_c)
+         ├─ Stmt[23]: Expr (span: 48:5-48:34)
+         │  └─ Expr: expr#150: write_line("abcdef"[[..-1]])
+         ├─ Stmt[24]: Expr (span: 49:5-49:35)
+         │  └─ Expr: expr#158: write_line("abcdef"[[1..=3]])
+         ├─ Stmt[25]: Expr (span: 50:5-50:31)
+         │  └─ Expr: expr#166: write_line("abc"[[2..1]])
+         ├─ Stmt[26]: Expr (span: 52:5-52:33)
+         │  └─ Expr: expr#170: rt_string_force_flatten(&s)
+         ├─ Stmt[27]: Let (span: 53:5-53:21)
+         │  ├─ Name: s2
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#173: (s + "")
+         ├─ Stmt[28]: Expr (span: 54:5-54:28)
+         │  └─ Expr: expr#181: write_line(s2[[0..3]])
+         ├─ Stmt[29]: Expr (span: 55:5-55:42)
+         │  └─ Expr: expr#187: print_uint(rt_string_len_bytes(&s2))
+         ├─ Stmt[30]: Let (span: 56:5-56:41)
+         │  ├─ Name: bv2
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#191: rt_string_bytes_view(&s2)
+         ├─ Stmt[31]: Expr (span: 57:5-57:29)
+         │  └─ Expr: expr#196: print_uint(bv2.__len())
+         ├─ Stmt[32]: Let (span: 58:5-58:55)
+         │  ├─ Name: last_idx
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#204: ((bv2.__len() - (1 to uint))) to int
+         ├─ Stmt[33]: Let (span: 59:5-59:49)
+         │  ├─ Name: last_byte
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#208: bv2[last_idx] to uint
+         ├─ Stmt[34]: Expr (span: 60:5-60:27)
+         │  └─ Expr: expr#211: print_uint(last_byte)
+         ├─ Stmt[35]: Expr (span: 62:5-62:35)
+         │  └─ Expr: expr#215: rt_string_force_flatten(&mid)
+         ├─ Stmt[36]: Expr (span: 63:5-63:43)
+         │  └─ Expr: expr#221: print_uint(rt_string_len_bytes(&mid))
+         └─ Stmt[37]: Return (span: 65:5-65:14)
+            └─ Expr: expr#222: 0

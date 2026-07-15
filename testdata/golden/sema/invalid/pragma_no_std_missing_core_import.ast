@@ -1,0 +1,12 @@
+pragma_no_std_missing_core_import.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 3:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:11-5:2)
+         └─ Stmt[0]: Let (span: 4:5-4:30)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#2: default()

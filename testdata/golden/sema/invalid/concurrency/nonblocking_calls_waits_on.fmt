@@ -1,0 +1,14 @@
+// Invalid: @nonblocking function calls @waits_on function
+type Worker = { cond: Condition }
+
+extern<Worker> {
+    @waits_on("cond")
+    fn wait_signal(self: &mut Worker, mtx: &mut Mutex) -> nothing {
+        self.cond.wait(mtx);
+    }
+}
+
+@nonblocking
+pub fn bad_wait(w: &mut Worker, mtx: &mut Mutex) -> nothing {
+    w.wait_signal(mtx);  // ERROR: @nonblocking calls @waits_on
+}

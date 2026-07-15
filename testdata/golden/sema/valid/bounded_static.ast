@@ -1,0 +1,18 @@
+bounded_static.sg (span: 3:1-10:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: generic_min
+│  ├─ Generics: <T>
+│  ├─ Params: ()
+│  ├─ Return: T
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:38-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:28)
+│           └─ Expr: expr#3: T.__min_value()
+└─ Item[1]: Fn (span: 7:1-9:2)
+   ├─ Name: concrete_max
+   ├─ Params: ()
+   ├─ Return: int16
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:28-9:2)
+         └─ Stmt[0]: Return (span: 8:5-8:32)
+            └─ Expr: expr#6: int16.__max_value()

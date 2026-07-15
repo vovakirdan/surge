@@ -1,0 +1,11 @@
+// scenario: stdlib entropy public API typechecks
+import stdlib/entropy as entropy;
+
+fn use_entropy_fill() -> Erring<nothing, Error> {
+    let mut scratch: byte[] = Array::<byte>.with_len(8:uint);
+    return entropy.fill(&mut scratch);
+}
+
+fn use_entropy_bytes() -> Erring<byte[], Error> {
+    return entropy.bytes(16:uint);
+}

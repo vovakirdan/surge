@@ -1,0 +1,35 @@
+redundant_finally.sg (span: 3:1-30:1)
+├─ Item[0]: Tag (span: 3:1-3:9)
+│  ├─ Name: A
+│  └─ Visibility: private
+├─ Item[1]: Type (span: 4:1-4:22)
+│  ├─ Name: U
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  └─ Union:
+│     ├─ Member[0]: A
+│     └─ Member[1]: nothing
+├─ Item[2]: Fn (span: 7:1-13:2)
+│  ├─ Name: test_redundant_after_explicit
+│  ├─ Params: (x: U)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:47-13:2)
+│        └─ Stmt[0]: Return (span: 8:5-12:7)
+│           └─ Expr: expr#7: compare x { 3 arms }
+├─ Item[3]: Fn (span: 16:1-21:2)
+│  ├─ Name: test_redundant_after_wildcard
+│  ├─ Params: (x: U)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:47-21:2)
+│        └─ Stmt[0]: Return (span: 17:5-20:7)
+│           └─ Expr: expr#12: compare x { 2 arms }
+└─ Item[4]: Fn (span: 24:1-29:2)
+   ├─ Name: test_redundant_after_binding
+   ├─ Params: (x: U)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 24:46-29:2)
+         └─ Stmt[0]: Return (span: 25:5-28:7)
+            └─ Expr: expr#17: compare x { 2 arms }

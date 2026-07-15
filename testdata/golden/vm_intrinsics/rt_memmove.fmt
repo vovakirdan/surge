@@ -1,0 +1,16 @@
+fn write_line(s: string) -> nothing {
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s));
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+@entrypoint
+fn main() -> int {
+    let src = "move";
+    let p = rt_alloc(4:uint, 1:uint);
+    rt_memmove(p, rt_string_ptr(&src), 4:uint);
+    let out = rt_string_from_bytes(p, 4:uint);
+    rt_free(p, 4:uint, 1:uint);
+    write_line(out);
+    return 0;
+}

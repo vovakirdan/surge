@@ -1,0 +1,1 @@
+error SEM3121 testdata/golden/sema/invalid/entrypoint/mode_unknown.sg:3:1 unknown @entrypoint mode "foobar"; valid modes are 'argv', 'stdin'

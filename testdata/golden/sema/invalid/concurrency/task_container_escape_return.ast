@@ -1,0 +1,24 @@
+task_container_escape_return.sg (span: 3:1-13:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:24-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:14)
+│           └─ Expr: expr#1: 1
+└─ Item[1]: Fn (span: 7:1-12:2)
+   ├─ Name: return_container
+   ├─ Params: ()
+   ├─ Return: Task<int>[]
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:42-12:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:33)
+         │  ├─ Name: q
+         │  ├─ Mutable: true
+         │  ├─ Type: Task<int>[]
+         │  └─ Value: expr#2: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 9:5-9:26)
+         │  └─ Expr: expr#8: q.push(spawn work())
+         └─ Stmt[2]: Return (span: 11:5-11:14)
+            └─ Expr: expr#9: q

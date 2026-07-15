@@ -1,0 +1,2 @@
+error SEM3077 testdata/golden/sema/invalid/concurrency/guarded_access_no_lock.sg:10:18 reading @guarded_by field 'value' requires holding lock 'lock'
+error SEM3077 testdata/golden/sema/invalid/concurrency/guarded_access_no_lock.sg:15:5 writing to @guarded_by field 'value' requires holding lock 'lock' (mutex or write lock)

@@ -1,0 +1,7 @@
+fn main(flag: bool) -> int {
+    let x = compare flag {
+        true => { ret 1; }
+        false => { ret 2; }
+    };
+    return x;
+}

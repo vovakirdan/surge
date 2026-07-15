@@ -1,0 +1,19 @@
+// ERROR: local task handle cannot be captured by send spawn
+
+async fn work() -> int { return 1; }
+
+@entrypoint fn main() {
+    let t = @local spawn work();
+    let s = spawn async {
+        // ERROR SEM3086: cannot send local task handle 't' to spawn; use @local spawn
+        compare t.await() {
+            Success(_) => nothing;
+            Cancelled() => nothing;
+        };
+        return 0;
+    };
+    compare s.await() {
+        Success(_) => nothing;
+        Cancelled() => nothing;
+    };
+}

@@ -1,0 +1,1 @@
+error SEM3023 testdata/golden/sema/invalid/non_string_temp_borrow.sg:13:13 cannot take reference to temporary value; bind it to a variable first

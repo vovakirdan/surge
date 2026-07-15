@@ -1,0 +1,66 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "packed" at 4:2-4:8
+  3: At              "@" at 5:1-5:2 (leading: Newline)
+  4: Ident           "align" at 5:2-5:7
+  5: LParen          "(" at 5:7-5:8
+  6: IntLit          "16" at 5:8-5:10
+  7: RParen          ")" at 5:10-5:11
+  8: KwType          "type" at 6:1-6:5 (leading: Newline)
+  9: Ident           "Conflict1" at 6:6-6:15 (leading: Space)
+ 10: Assign          "=" at 6:16-6:17 (leading: Space)
+ 11: LBrace          "{" at 6:18-6:19 (leading: Space)
+ 12: Ident           "x" at 7:5-7:6 (leading: Newline, Space)
+ 13: Colon           ":" at 7:6-7:7
+ 14: Ident           "int" at 7:8-7:11 (leading: Space)
+ 15: Comma           "," at 7:11-7:12
+ 16: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 17: Semicolon       ";" at 8:2-8:3
+ 18: At              "@" at 11:1-11:2 (leading: Newline, LineComment, Newline)
+ 19: Ident           "send" at 11:2-11:6
+ 20: At              "@" at 12:1-12:2 (leading: Newline)
+ 21: Ident           "nosend" at 12:2-12:8
+ 22: KwType          "type" at 13:1-13:5 (leading: Newline)
+ 23: Ident           "Conflict2" at 13:6-13:15 (leading: Space)
+ 24: Assign          "=" at 13:16-13:17 (leading: Space)
+ 25: LBrace          "{" at 13:18-13:19 (leading: Space)
+ 26: Ident           "data" at 14:5-14:9 (leading: Newline, Space)
+ 27: Colon           ":" at 14:9-14:10
+ 28: Ident           "int" at 14:11-14:14 (leading: Space)
+ 29: Comma           "," at 14:14-14:15
+ 30: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 31: Semicolon       ";" at 15:2-15:3
+ 32: KwType          "type" at 18:1-18:5 (leading: Newline, LineComment, Newline)
+ 33: Ident           "Container" at 18:6-18:15 (leading: Space)
+ 34: Assign          "=" at 18:16-18:17 (leading: Space)
+ 35: LBrace          "{" at 18:18-18:19 (leading: Space)
+ 36: Ident           "condition" at 19:5-19:14 (leading: Newline, Space)
+ 37: Colon           ":" at 19:14-19:15
+ 38: Ident           "Condition" at 19:16-19:25 (leading: Space)
+ 39: Comma           "," at 19:25-19:26
+ 40: RBrace          "}" at 20:1-20:2 (leading: Newline)
+ 41: Semicolon       ";" at 20:2-20:3
+ 42: KwExtern        "extern" at 22:1-22:7 (leading: Newline)
+ 43: Lt              "<" at 22:7-22:8
+ 44: Ident           "Container" at 22:8-22:17
+ 45: Gt              ">" at 22:17-22:18
+ 46: LBrace          "{" at 22:19-22:20 (leading: Space)
+ 47: At              "@" at 23:5-23:6 (leading: Newline, Space)
+ 48: Ident           "nonblocking" at 23:6-23:17
+ 49: At              "@" at 24:5-24:6 (leading: Newline, Space)
+ 50: Ident           "waits_on" at 24:6-24:14
+ 51: LParen          "(" at 24:14-24:15
+ 52: StringLit       "\"condition\"" at 24:15-24:26
+ 53: RParen          ")" at 24:26-24:27
+ 54: KwFn            "fn" at 25:5-25:7 (leading: Newline, Space)
+ 55: Ident           "conflicting_method" at 25:8-25:26 (leading: Space)
+ 56: LParen          "(" at 25:26-25:27
+ 57: Ident           "self" at 25:27-25:31
+ 58: Colon           ":" at 25:31-25:32
+ 59: Amp             "&" at 25:33-25:34 (leading: Space)
+ 60: KwMut           "mut" at 25:34-25:37
+ 61: Ident           "Container" at 25:38-25:47 (leading: Space)
+ 62: RParen          ")" at 25:47-25:48
+ 63: LBrace          "{" at 25:49-25:50 (leading: Space)
+ 64: RBrace          "}" at 26:5-26:6 (leading: Newline, Space)
+ 65: RBrace          "}" at 27:1-27:2 (leading: Newline)
+ 66: EOF             at 28:1-28:1

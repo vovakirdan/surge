@@ -1,0 +1,25 @@
+// Test enum usage with Type::Variant syntax
+pragma no_std;
+
+enum Color: int = {
+    Red = 1,
+    Green = 2,
+    Blue = 3
+}
+
+enum Status: string = {
+    Active = "active",
+    Inactive = "inactive"
+}
+
+fn main() -> int {
+    // Use enum variants with qualified names
+    let c1: int = Color::Red;
+    let c2: int = Color::Green;
+    let c3: int = Color::Blue;
+
+    let s1: string = Status::Active;
+    let s2: string = Status::Inactive;
+
+    return c1 + c2 + c3;
+}

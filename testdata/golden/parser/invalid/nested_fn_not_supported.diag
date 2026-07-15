@@ -1,0 +1,1 @@
+error FUT7006 testdata/golden/parser/invalid/nested_fn_not_supported.sg:3:5 nested function declarations are not supported yet

@@ -1,0 +1,10 @@
+// scenario: generic identity function with inference and explicit type args
+fn id<T>(value: T) -> T {
+    return value;
+}
+
+fn use_id() {
+    let a: int = id(1);
+    let b: int = id::<int>(1);
+    let _s: string = id::<string>("ok");
+}

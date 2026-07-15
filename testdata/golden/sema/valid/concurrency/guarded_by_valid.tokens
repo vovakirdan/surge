@@ -1,0 +1,93 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Counter" at 3:6-3:13 (leading: Space)
+  3: Assign          "=" at 3:14-3:15 (leading: Space)
+  4: LBrace          "{" at 3:16-3:17 (leading: Space)
+  5: Ident           "lock" at 4:5-4:9 (leading: Newline, Space)
+  6: Colon           ":" at 4:9-4:10
+  7: Ident           "Mutex" at 4:11-4:16 (leading: Space)
+  8: Comma           "," at 4:16-4:17
+  9: At              "@" at 5:5-5:6 (leading: Newline, Space)
+ 10: Ident           "guarded_by" at 5:6-5:16
+ 11: LParen          "(" at 5:16-5:17
+ 12: StringLit       "\"lock\"" at 5:17-5:23
+ 13: RParen          ")" at 5:23-5:24
+ 14: Ident           "value" at 5:25-5:30 (leading: Space)
+ 15: Colon           ":" at 5:30-5:31
+ 16: Ident           "int" at 5:32-5:35 (leading: Space)
+ 17: Comma           "," at 5:35-5:36
+ 18: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 19: KwType          "type" at 8:1-8:5 (leading: Newline)
+ 20: Ident           "SharedData" at 8:6-8:16 (leading: Space)
+ 21: Assign          "=" at 8:17-8:18 (leading: Space)
+ 22: LBrace          "{" at 8:19-8:20 (leading: Space)
+ 23: Ident           "rw" at 9:5-9:7 (leading: Newline, Space)
+ 24: Colon           ":" at 9:7-9:8
+ 25: Ident           "RwLock" at 9:9-9:15 (leading: Space)
+ 26: Comma           "," at 9:15-9:16
+ 27: At              "@" at 10:5-10:6 (leading: Newline, Space)
+ 28: Ident           "guarded_by" at 10:6-10:16
+ 29: LParen          "(" at 10:16-10:17
+ 30: StringLit       "\"rw\"" at 10:17-10:21
+ 31: RParen          ")" at 10:21-10:22
+ 32: Ident           "data" at 10:23-10:27 (leading: Space)
+ 33: Colon           ":" at 10:27-10:28
+ 34: Ident           "string" at 10:29-10:35 (leading: Space)
+ 35: Comma           "," at 10:35-10:36
+ 36: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 37: KwPub           "pub" at 13:1-13:4 (leading: Newline)
+ 38: KwFn            "fn" at 13:5-13:7 (leading: Space)
+ 39: Ident           "test_counter" at 13:8-13:20 (leading: Space)
+ 40: LParen          "(" at 13:20-13:21
+ 41: RParen          ")" at 13:21-13:22
+ 42: Arrow           "->" at 13:23-13:25 (leading: Space)
+ 43: NothingLit      "nothing" at 13:26-13:33 (leading: Space)
+ 44: LBrace          "{" at 13:34-13:35 (leading: Space)
+ 45: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 46: KwMut           "mut" at 14:9-14:12 (leading: Space)
+ 47: Ident           "c" at 14:13-14:14 (leading: Space)
+ 48: Colon           ":" at 14:14-14:15
+ 49: Ident           "Counter" at 14:16-14:23 (leading: Space)
+ 50: Assign          "=" at 14:24-14:25 (leading: Space)
+ 51: Ident           "Counter" at 14:26-14:33 (leading: Space)
+ 52: LBrace          "{" at 14:34-14:35 (leading: Space)
+ 53: Ident           "lock" at 14:36-14:40 (leading: Space)
+ 54: Colon           ":" at 14:40-14:41
+ 55: Ident           "Mutex" at 14:42-14:47 (leading: Space)
+ 56: Dot             "." at 14:47-14:48
+ 57: Ident           "new" at 14:48-14:51
+ 58: LParen          "(" at 14:51-14:52
+ 59: RParen          ")" at 14:52-14:53
+ 60: Comma           "," at 14:53-14:54
+ 61: Ident           "value" at 14:55-14:60 (leading: Space)
+ 62: Colon           ":" at 14:60-14:61
+ 63: IntLit          "0" at 14:62-14:63 (leading: Space)
+ 64: RBrace          "}" at 14:64-14:65 (leading: Space)
+ 65: Semicolon       ";" at 14:65-14:66
+ 66: Ident           "c" at 15:5-15:6 (leading: Newline, Space)
+ 67: Dot             "." at 15:6-15:7
+ 68: Ident           "lock" at 15:7-15:11
+ 69: Dot             "." at 15:11-15:12
+ 70: Ident           "lock" at 15:12-15:16
+ 71: LParen          "(" at 15:16-15:17
+ 72: RParen          ")" at 15:17-15:18
+ 73: Semicolon       ";" at 15:18-15:19
+ 74: Ident           "c" at 16:5-16:6 (leading: Newline, Space)
+ 75: Dot             "." at 16:6-16:7
+ 76: Ident           "value" at 16:7-16:12
+ 77: Assign          "=" at 16:13-16:14 (leading: Space)
+ 78: Ident           "c" at 16:15-16:16 (leading: Space)
+ 79: Dot             "." at 16:16-16:17
+ 80: Ident           "value" at 16:17-16:22
+ 81: Plus            "+" at 16:23-16:24 (leading: Space)
+ 82: IntLit          "1" at 16:25-16:26 (leading: Space)
+ 83: Semicolon       ";" at 16:26-16:27
+ 84: Ident           "c" at 17:5-17:6 (leading: Newline, Space)
+ 85: Dot             "." at 17:6-17:7
+ 86: Ident           "lock" at 17:7-17:11
+ 87: Dot             "." at 17:11-17:12
+ 88: Ident           "unlock" at 17:12-17:18
+ 89: LParen          "(" at 17:18-17:19
+ 90: RParen          ")" at 17:19-17:20
+ 91: Semicolon       ";" at 17:20-17:21
+ 92: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 93: EOF             at 19:1-19:1

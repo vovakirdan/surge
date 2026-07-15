@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/range_literal_bounds.sg:2:16 range bound must be int, got uint

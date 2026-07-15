@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/is_tag_requires_union.sg:7:13 tag Foo requires a union value, got int

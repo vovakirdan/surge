@@ -1,0 +1,15 @@
+// Test: @local spawn allows capturing @nosend values
+
+@nosend
+pub type LocalConn = {
+    id: int,
+};
+
+@entrypoint fn main() {
+    let conn: LocalConn = { id: 1 };
+    let t = @local spawn async { return conn.id; };
+    compare t.await() {
+        Success(_) => nothing;
+        Cancelled() => nothing;
+    };
+}

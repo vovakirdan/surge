@@ -1,0 +1,62 @@
+nested_locks_consistent.sg (span: 4:1-47:1)
+├─ Item[0]: Type (span: 4:1-9:2)
+│  ├─ Name: Database
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: table_lock: Mutex
+│     ├─ Field[1]: index_lock: Mutex
+│     ├─ Field[2]: cache_lock: Mutex
+│     └─ Field[3]: data: int
+└─ Item[1]: Extern (span: 11:1-46:2)
+   ├─ Target: Database
+   ├─ Members:
+   │  ├─ Fn[0]: full_update
+   │  │  ├─ Params: (self: &mut Database)
+   │  │  ├─ Return: nothing
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 13:41-23:6)
+   │  │     ├─ Stmt[0]: Expr (span: 14:9-14:32)
+   │  │     │  └─ Expr: expr#4: self.table_lock.lock()
+   │  │     ├─ Stmt[1]: Expr (span: 15:9-15:32)
+   │  │     │  └─ Expr: expr#8: self.index_lock.lock()
+   │  │     ├─ Stmt[2]: Expr (span: 16:9-16:32)
+   │  │     │  └─ Expr: expr#12: self.cache_lock.lock()
+   │  │     ├─ Stmt[3]: Expr (span: 18:9-18:25)
+   │  │     │  └─ Expr: expr#16: (self.data = 100)
+   │  │     ├─ Stmt[4]: Expr (span: 20:9-20:34)
+   │  │     │  └─ Expr: expr#20: self.cache_lock.unlock()
+   │  │     ├─ Stmt[5]: Expr (span: 21:9-21:34)
+   │  │     │  └─ Expr: expr#24: self.index_lock.unlock()
+   │  │     └─ Stmt[6]: Expr (span: 22:9-22:34)
+   │  │        └─ Expr: expr#28: self.table_lock.unlock()
+   │  ├─ Fn[1]: partial_update
+   │  │  ├─ Params: (self: &mut Database)
+   │  │  ├─ Return: nothing
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 26:44-34:6)
+   │  │     ├─ Stmt[0]: Expr (span: 27:9-27:32)
+   │  │     │  └─ Expr: expr#32: self.table_lock.lock()
+   │  │     ├─ Stmt[1]: Expr (span: 28:9-28:32)
+   │  │     │  └─ Expr: expr#36: self.index_lock.lock()
+   │  │     ├─ Stmt[2]: Expr (span: 30:9-30:24)
+   │  │     │  └─ Expr: expr#40: (self.data = 50)
+   │  │     ├─ Stmt[3]: Expr (span: 32:9-32:34)
+   │  │     │  └─ Expr: expr#44: self.index_lock.unlock()
+   │  │     └─ Stmt[4]: Expr (span: 33:9-33:34)
+   │  │        └─ Expr: expr#48: self.table_lock.unlock()
+   │  └─ Fn[2]: index_cache_update
+   │     ├─ Params: (self: &mut Database)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 37:48-45:6)
+   │        ├─ Stmt[0]: Expr (span: 38:9-38:32)
+   │        │  └─ Expr: expr#52: self.index_lock.lock()
+   │        ├─ Stmt[1]: Expr (span: 39:9-39:32)
+   │        │  └─ Expr: expr#56: self.cache_lock.lock()
+   │        ├─ Stmt[2]: Expr (span: 41:9-41:24)
+   │        │  └─ Expr: expr#60: (self.data = 25)
+   │        ├─ Stmt[3]: Expr (span: 43:9-43:34)
+   │        │  └─ Expr: expr#64: self.cache_lock.unlock()
+   │        └─ Stmt[4]: Expr (span: 44:9-44:34)
+   │           └─ Expr: expr#68: self.index_lock.unlock()

@@ -1,0 +1,5 @@
+pragma module; // scripts/beta.sg -> beta should be imported as scripts
+
+pub fn beta() -> string {
+    return "beta";
+}

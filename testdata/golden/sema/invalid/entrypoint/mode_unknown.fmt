@@ -1,0 +1,6 @@
+// Test: @entrypoint with unknown mode is invalid
+// Expected: SEM3121
+@entrypoint("foobar")
+fn main() -> int {
+    return 0;
+}

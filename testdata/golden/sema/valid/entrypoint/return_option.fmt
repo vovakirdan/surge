@@ -1,0 +1,5 @@
+// Test: @entrypoint returning Option<int> is valid (has __to(int))
+@entrypoint
+fn main() -> int? {
+    return nothing;
+}

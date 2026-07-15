@@ -1,0 +1,18 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "main" at 1:4-1:8 (leading: Space)
+  3: LParen          "(" at 1:8-1:9
+  4: RParen          ")" at 1:9-1:10
+  5: Arrow           "->" at 1:11-1:13 (leading: Space)
+  6: NothingLit      "nothing" at 1:14-1:21 (leading: Space)
+  7: LBrace          "{" at 1:22-1:23 (leading: Space)
+  8: Ident           "println" at 2:5-2:12 (leading: Newline, Space)
+  9: Bang            "!" at 2:12-2:13
+ 10: LParen          "(" at 2:13-2:14
+ 11: StringLit       "\"hi\"" at 2:14-2:18
+ 12: RParen          ")" at 2:18-2:19
+ 13: Semicolon       ";" at 2:19-2:20
+ 14: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 15: NothingLit      "nothing" at 3:12-3:19 (leading: Space)
+ 16: Semicolon       ";" at 3:19-3:20
+ 17: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 18: EOF             at 5:1-5:1

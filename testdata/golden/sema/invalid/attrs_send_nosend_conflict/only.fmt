@@ -1,0 +1,8 @@
+// Test: @send and @nosend conflict
+
+// This should fail with SEM3062
+@send
+@nosend
+type ConflictType = {
+    x: int
+}

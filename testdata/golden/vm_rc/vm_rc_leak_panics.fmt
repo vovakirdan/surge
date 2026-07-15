@@ -1,0 +1,16 @@
+type Node = { next: Node[] };
+
+@entrypoint
+fn main() -> int {
+    let mut a: Node[] = [ { next: [] } ];
+    let mut b: Node[] = [ { next: [] } ];
+    let a_ref = &a;
+    let a_copy: Node[] = *a_ref;
+    @drop a_ref;
+    let b_ref = &b;
+    let b_copy: Node[] = *b_ref;
+    @drop b_ref;
+    a[0].next = b_copy;
+    b[0].next = a_copy;
+    return 0;
+}

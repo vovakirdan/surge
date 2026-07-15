@@ -1,0 +1,16 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 11: IntLit          "9223372036854775807" at 3:12-3:31 (leading: Space)
+ 12: Plus            "+" at 3:32-3:33 (leading: Space)
+ 13: IntLit          "1" at 3:34-3:35 (leading: Space)
+ 14: Semicolon       ";" at 3:35-3:36
+ 15: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 16: EOF             at 6:1-6:1

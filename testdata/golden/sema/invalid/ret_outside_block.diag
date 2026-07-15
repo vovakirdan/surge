@@ -1,0 +1,1 @@
+error SEM3134 testdata/golden/sema/invalid/ret_outside_block.sg:2:5 'ret' can only be used inside value-producing blocks

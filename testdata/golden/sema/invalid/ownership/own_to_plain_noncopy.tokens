@@ -1,0 +1,23 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline)
+  2: Ident           "main" at 3:4-3:8 (leading: Space)
+  3: LParen          "(" at 3:8-3:9
+  4: RParen          ")" at 3:9-3:10
+  5: LBrace          "{" at 3:11-3:12 (leading: Space)
+  6: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+  7: Ident           "s" at 4:9-4:10 (leading: Space)
+  8: Colon           ":" at 4:10-4:11
+  9: KwOwn           "own" at 4:12-4:15 (leading: Space)
+ 10: Ident           "string" at 4:16-4:22 (leading: Space)
+ 11: Assign          "=" at 4:23-4:24 (leading: Space)
+ 12: KwOwn           "own" at 4:25-4:28 (leading: Space)
+ 13: StringLit       "\"hi\"" at 4:29-4:33 (leading: Space)
+ 14: Semicolon       ";" at 4:33-4:34
+ 15: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 16: Ident           "t" at 5:9-5:10 (leading: Space)
+ 17: Colon           ":" at 5:10-5:11
+ 18: Ident           "string" at 5:12-5:18 (leading: Space)
+ 19: Assign          "=" at 5:19-5:20 (leading: Space)
+ 20: Ident           "s" at 5:21-5:22 (leading: Space)
+ 21: Semicolon       ";" at 5:22-5:23
+ 22: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 23: EOF             at 7:1-7:1

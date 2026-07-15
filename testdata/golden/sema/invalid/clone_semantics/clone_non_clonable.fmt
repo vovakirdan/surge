@@ -1,0 +1,7 @@
+// scenario: Type without __clone method cannot be cloned
+type NonClone = { x: int }
+
+fn test_non_clone() -> nothing {
+    let n: NonClone = NonClone { x: 1 };
+    let m = clone(&n);  // ERROR: type NonClone is not clonable
+}

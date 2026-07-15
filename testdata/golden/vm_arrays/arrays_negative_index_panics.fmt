@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let a: int[] = [1, 2, 3, 4];
+    let _ = a[-5];
+    return 0;
+}

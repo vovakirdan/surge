@@ -1,0 +1,14 @@
+// A generic function that returns a reference into its argument keeps the
+// borrow alive; mutating the argument while the result is live must still be
+// rejected (guards against over-releasing the generic-ref-param fix).
+fn ident<T>(x: &T) -> &T { return x; }
+
+@entrypoint
+fn main() -> int {
+    let mut a: int[] = [];
+    a.push(1);
+    let r: &int[] = ident(&a);
+    a.push(2);
+    print(r[0] to string);
+    return 0;
+}

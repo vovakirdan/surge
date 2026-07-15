@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/array_fixed_len_mismatch.sg:2:22 array literal length 3 does not match expected length 2

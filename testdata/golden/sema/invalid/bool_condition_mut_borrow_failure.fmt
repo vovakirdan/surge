@@ -1,0 +1,15 @@
+// __bool requiring a mutable receiver should report the borrow failure only.
+type Flag = { value: int };
+
+extern<Flag> {
+    fn __bool(self: &mut Flag) -> bool {
+        return self.value != 0;
+    }
+}
+
+fn bad() {
+    let flag: Flag = { value = 1 };
+    if flag {
+        return;
+    }
+}

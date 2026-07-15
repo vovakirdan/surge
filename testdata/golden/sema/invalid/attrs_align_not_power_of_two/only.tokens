@@ -1,0 +1,27 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "align" at 4:2-4:7
+  3: LParen          "(" at 4:7-4:8
+  4: IntLit          "7" at 4:8-4:9
+  5: RParen          ")" at 4:9-4:10
+  6: KwType          "type" at 5:1-5:5 (leading: Newline)
+  7: Ident           "InvalidAlign1" at 5:6-5:19 (leading: Space)
+  8: Assign          "=" at 5:20-5:21 (leading: Space)
+  9: LBrace          "{" at 5:22-5:23 (leading: Space)
+ 10: Ident           "x" at 6:5-6:6 (leading: Newline, Space)
+ 11: Colon           ":" at 6:6-6:7
+ 12: Ident           "int" at 6:8-6:11 (leading: Space)
+ 13: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 14: At              "@" at 10:1-10:2 (leading: Newline, LineComment, Newline)
+ 15: Ident           "align" at 10:2-10:7
+ 16: LParen          "(" at 10:7-10:8
+ 17: IntLit          "3" at 10:8-10:9
+ 18: RParen          ")" at 10:9-10:10
+ 19: KwType          "type" at 11:1-11:5 (leading: Newline)
+ 20: Ident           "InvalidAlign2" at 11:6-11:19 (leading: Space)
+ 21: Assign          "=" at 11:20-11:21 (leading: Space)
+ 22: LBrace          "{" at 11:22-11:23 (leading: Space)
+ 23: Ident           "x" at 12:5-12:6 (leading: Newline, Space)
+ 24: Colon           ":" at 12:6-12:7
+ 25: Ident           "int" at 12:8-12:11 (leading: Space)
+ 26: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 27: EOF             at 14:1-14:1

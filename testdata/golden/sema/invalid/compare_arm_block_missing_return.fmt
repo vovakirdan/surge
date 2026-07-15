@@ -1,0 +1,22 @@
+// scenario: compare arm block used as value but falling through without return
+fn source(flag: bool) -> Erring<string, Error> {
+    if flag {
+        return Success("hello");
+    }
+    return Error { message = "missing", code = 1:uint };
+}
+
+fn recover(flag: bool) -> Erring<string, Error> {
+    let res = source(flag);
+    return compare res {
+        Success(text) => Success(text);
+        err => {
+            if err.code == 1:uint {
+                let empty: string = "";
+                Success(empty);
+            } else {
+                err;
+            }
+        }
+    };
+}

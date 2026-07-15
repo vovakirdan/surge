@@ -1,0 +1,7 @@
+// Test: directive namespace is not an imported module
+// Expected: SEM3119 error
+
+/// my_directive:
+/// my_directive.stuff();
+
+fn foo() -> int { return 1; }

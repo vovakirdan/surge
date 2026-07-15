@@ -1,0 +1,31 @@
+only.sg (span: 3:1-24:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: SealedType
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @sealed
+│  └─ Struct:
+│     └─ Field[0]: x: int
+├─ Item[1]: Type (span: 8:1-11:2)
+│  ├─ Name: SendType
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @send
+│  └─ Struct:
+│     └─ Field[0]: x: int
+├─ Item[2]: Type (span: 13:1-17:2)
+│  ├─ Name: PackedType
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @packed
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+└─ Item[3]: Type (span: 19:1-23:2)
+   ├─ Name: AlignedType
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @align(16)
+   └─ Struct:
+      ├─ Field[0]: x: int
+      └─ Field[1]: y: int

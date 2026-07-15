@@ -1,0 +1,38 @@
+default_nested_uninit_ref.sg (span: 1:1-21:1)
+├─ Item[0]: Type (span: 1:1-3:3)
+│  ├─ Name: Leaf
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: ref: &int
+├─ Item[1]: Type (span: 5:1-7:3)
+│  ├─ Name: Branch
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: leaves: Leaf[]
+├─ Item[2]: Type (span: 9:1-11:3)
+│  ├─ Name: Root
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: branch: Branch
+├─ Item[3]: Type (span: 13:1-15:3)
+│  ├─ Name: Forest
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: roots: Root[]
+└─ Item[4]: Fn (span: 17:1-20:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:18-20:2)
+         ├─ Stmt[0]: Let (span: 18:5-18:23)
+         │  ├─ Name: value
+         │  ├─ Mutable: false
+         │  ├─ Type: Forest
+         │  └─ Value: <none>
+         └─ Stmt[1]: Return (span: 19:5-19:14)
+            └─ Expr: expr#1: 0

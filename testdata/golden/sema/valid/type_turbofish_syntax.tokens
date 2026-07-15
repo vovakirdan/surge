@@ -1,0 +1,289 @@
+  1: KwType          "type" at 4:1-4:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Box" at 4:6-4:9 (leading: Space)
+  3: Lt              "<" at 4:9-4:10
+  4: Ident           "T" at 4:10-4:11
+  5: Gt              ">" at 4:11-4:12
+  6: Assign          "=" at 4:13-4:14 (leading: Space)
+  7: LBrace          "{" at 4:15-4:16 (leading: Space)
+  8: Ident           "value" at 5:5-5:10 (leading: Newline, Space)
+  9: Colon           ":" at 5:10-5:11
+ 10: Ident           "T" at 5:12-5:13 (leading: Space)
+ 11: Comma           "," at 5:13-5:14
+ 12: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 13: Semicolon       ";" at 6:2-6:3
+ 14: KwType          "type" at 8:1-8:5 (leading: Newline)
+ 15: Ident           "Pair" at 8:6-8:10 (leading: Space)
+ 16: Lt              "<" at 8:10-8:11
+ 17: Ident           "A" at 8:11-8:12
+ 18: Comma           "," at 8:12-8:13
+ 19: Ident           "B" at 8:14-8:15 (leading: Space)
+ 20: Gt              ">" at 8:15-8:16
+ 21: Assign          "=" at 8:17-8:18 (leading: Space)
+ 22: LBrace          "{" at 8:19-8:20 (leading: Space)
+ 23: Ident           "first" at 9:5-9:10 (leading: Newline, Space)
+ 24: Colon           ":" at 9:10-9:11
+ 25: Ident           "A" at 9:12-9:13 (leading: Space)
+ 26: Comma           "," at 9:13-9:14
+ 27: Ident           "second" at 10:5-10:11 (leading: Newline, Space)
+ 28: Colon           ":" at 10:11-10:12
+ 29: Ident           "B" at 10:13-10:14 (leading: Space)
+ 30: Comma           "," at 10:14-10:15
+ 31: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 32: Semicolon       ";" at 11:2-11:3
+ 33: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 34: Ident           "use_standard_syntax" at 13:4-13:23 (leading: Space)
+ 35: LParen          "(" at 13:23-13:24
+ 36: RParen          ")" at 13:24-13:25
+ 37: LBrace          "{" at 13:26-13:27 (leading: Space)
+ 38: KwLet           "let" at 15:5-15:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 39: Ident           "box1" at 15:9-15:13 (leading: Space)
+ 40: Colon           ":" at 15:13-15:14
+ 41: Ident           "Box" at 15:15-15:18 (leading: Space)
+ 42: Lt              "<" at 15:18-15:19
+ 43: Ident           "int" at 15:19-15:22
+ 44: Gt              ">" at 15:22-15:23
+ 45: Assign          "=" at 15:24-15:25 (leading: Space)
+ 46: LBrace          "{" at 15:26-15:27 (leading: Space)
+ 47: Ident           "value" at 15:28-15:33 (leading: Space)
+ 48: Colon           ":" at 15:33-15:34
+ 49: IntLit          "42" at 15:35-15:37 (leading: Space)
+ 50: RBrace          "}" at 15:38-15:39 (leading: Space)
+ 51: Semicolon       ";" at 15:39-15:40
+ 52: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
+ 53: Ident           "pair1" at 16:9-16:14 (leading: Space)
+ 54: Colon           ":" at 16:14-16:15
+ 55: Ident           "Pair" at 16:16-16:20 (leading: Space)
+ 56: Lt              "<" at 16:20-16:21
+ 57: Ident           "int" at 16:21-16:24
+ 58: Comma           "," at 16:24-16:25
+ 59: Ident           "string" at 16:26-16:32 (leading: Space)
+ 60: Gt              ">" at 16:32-16:33
+ 61: Assign          "=" at 16:34-16:35 (leading: Space)
+ 62: LBrace          "{" at 16:36-16:37 (leading: Space)
+ 63: Ident           "first" at 16:38-16:43 (leading: Space)
+ 64: Colon           ":" at 16:43-16:44
+ 65: IntLit          "1" at 16:45-16:46 (leading: Space)
+ 66: Comma           "," at 16:46-16:47
+ 67: Ident           "second" at 16:48-16:54 (leading: Space)
+ 68: Colon           ":" at 16:54-16:55
+ 69: StringLit       "\"a\"" at 16:56-16:59 (leading: Space)
+ 70: RBrace          "}" at 16:60-16:61 (leading: Space)
+ 71: Semicolon       ";" at 16:61-16:62
+ 72: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
+ 73: Ident           "_v1" at 17:9-17:12 (leading: Space)
+ 74: Colon           ":" at 17:12-17:13
+ 75: Ident           "int" at 17:14-17:17 (leading: Space)
+ 76: Assign          "=" at 17:18-17:19 (leading: Space)
+ 77: Ident           "box1" at 17:20-17:24 (leading: Space)
+ 78: Dot             "." at 17:24-17:25
+ 79: Ident           "value" at 17:25-17:30
+ 80: Semicolon       ";" at 17:30-17:31
+ 81: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
+ 82: Ident           "_p1" at 18:9-18:12 (leading: Space)
+ 83: Colon           ":" at 18:12-18:13
+ 84: Ident           "int" at 18:14-18:17 (leading: Space)
+ 85: Assign          "=" at 18:18-18:19 (leading: Space)
+ 86: Ident           "pair1" at 18:20-18:25 (leading: Space)
+ 87: Dot             "." at 18:25-18:26
+ 88: Ident           "first" at 18:26-18:31
+ 89: Semicolon       ";" at 18:31-18:32
+ 90: RBrace          "}" at 19:1-19:2 (leading: Newline)
+ 91: KwFn            "fn" at 21:1-21:3 (leading: Newline)
+ 92: Ident           "use_turbofish_syntax" at 21:4-21:24 (leading: Space)
+ 93: LParen          "(" at 21:24-21:25
+ 94: RParen          ")" at 21:25-21:26
+ 95: LBrace          "{" at 21:27-21:28 (leading: Space)
+ 96: KwLet           "let" at 23:5-23:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 97: Ident           "box2" at 23:9-23:13 (leading: Space)
+ 98: Colon           ":" at 23:13-23:14
+ 99: Ident           "Box" at 23:15-23:18 (leading: Space)
+100: ColonColon      "::" at 23:18-23:20
+101: Lt              "<" at 23:20-23:21
+102: Ident           "int" at 23:21-23:24
+103: Gt              ">" at 23:24-23:25
+104: Assign          "=" at 23:26-23:27 (leading: Space)
+105: LBrace          "{" at 23:28-23:29 (leading: Space)
+106: Ident           "value" at 23:30-23:35 (leading: Space)
+107: Colon           ":" at 23:35-23:36
+108: IntLit          "42" at 23:37-23:39 (leading: Space)
+109: RBrace          "}" at 23:40-23:41 (leading: Space)
+110: Semicolon       ";" at 23:41-23:42
+111: KwLet           "let" at 24:5-24:8 (leading: Newline, Space)
+112: Ident           "pair2" at 24:9-24:14 (leading: Space)
+113: Colon           ":" at 24:14-24:15
+114: Ident           "Pair" at 24:16-24:20 (leading: Space)
+115: ColonColon      "::" at 24:20-24:22
+116: Lt              "<" at 24:22-24:23
+117: Ident           "int" at 24:23-24:26
+118: Comma           "," at 24:26-24:27
+119: Ident           "string" at 24:28-24:34 (leading: Space)
+120: Gt              ">" at 24:34-24:35
+121: Assign          "=" at 24:36-24:37 (leading: Space)
+122: LBrace          "{" at 24:38-24:39 (leading: Space)
+123: Ident           "first" at 24:40-24:45 (leading: Space)
+124: Colon           ":" at 24:45-24:46
+125: IntLit          "1" at 24:47-24:48 (leading: Space)
+126: Comma           "," at 24:48-24:49
+127: Ident           "second" at 24:50-24:56 (leading: Space)
+128: Colon           ":" at 24:56-24:57
+129: StringLit       "\"a\"" at 24:58-24:61 (leading: Space)
+130: RBrace          "}" at 24:62-24:63 (leading: Space)
+131: Semicolon       ";" at 24:63-24:64
+132: KwLet           "let" at 25:5-25:8 (leading: Newline, Space)
+133: Ident           "_v2" at 25:9-25:12 (leading: Space)
+134: Colon           ":" at 25:12-25:13
+135: Ident           "int" at 25:14-25:17 (leading: Space)
+136: Assign          "=" at 25:18-25:19 (leading: Space)
+137: Ident           "box2" at 25:20-25:24 (leading: Space)
+138: Dot             "." at 25:24-25:25
+139: Ident           "value" at 25:25-25:30
+140: Semicolon       ";" at 25:30-25:31
+141: KwLet           "let" at 26:5-26:8 (leading: Newline, Space)
+142: Ident           "_p2" at 26:9-26:12 (leading: Space)
+143: Colon           ":" at 26:12-26:13
+144: Ident           "int" at 26:14-26:17 (leading: Space)
+145: Assign          "=" at 26:18-26:19 (leading: Space)
+146: Ident           "pair2" at 26:20-26:25 (leading: Space)
+147: Dot             "." at 26:25-26:26
+148: Ident           "first" at 26:26-26:31
+149: Semicolon       ";" at 26:31-26:32
+150: RBrace          "}" at 27:1-27:2 (leading: Newline)
+151: KwFn            "fn" at 29:1-29:3 (leading: Newline)
+152: Ident           "use_nested_turbofish" at 29:4-29:24 (leading: Space)
+153: LParen          "(" at 29:24-29:25
+154: RParen          ")" at 29:25-29:26
+155: LBrace          "{" at 29:27-29:28 (leading: Space)
+156: KwLet           "let" at 31:5-31:8 (leading: Newline, Space, LineComment, Newline, Space)
+157: Ident           "nested" at 31:9-31:15 (leading: Space)
+158: Colon           ":" at 31:15-31:16
+159: Ident           "Box" at 31:17-31:20 (leading: Space)
+160: ColonColon      "::" at 31:20-31:22
+161: Lt              "<" at 31:22-31:23
+162: Ident           "Box" at 31:23-31:26
+163: ColonColon      "::" at 31:26-31:28
+164: Lt              "<" at 31:28-31:29
+165: Ident           "int" at 31:29-31:32
+166: Shr             ">>" at 31:32-31:34
+167: Assign          "=" at 31:35-31:36 (leading: Space)
+168: LBrace          "{" at 31:37-31:38 (leading: Space)
+169: Ident           "value" at 31:39-31:44 (leading: Space)
+170: Colon           ":" at 31:44-31:45
+171: LBrace          "{" at 31:46-31:47 (leading: Space)
+172: Ident           "value" at 31:48-31:53 (leading: Space)
+173: Colon           ":" at 31:53-31:54
+174: IntLit          "42" at 31:55-31:57 (leading: Space)
+175: RBrace          "}" at 31:58-31:59 (leading: Space)
+176: RBrace          "}" at 31:60-31:61 (leading: Space)
+177: Semicolon       ";" at 31:61-31:62
+178: KwLet           "let" at 32:5-32:8 (leading: Newline, Space)
+179: Ident           "_inner" at 32:9-32:15 (leading: Space)
+180: Colon           ":" at 32:15-32:16
+181: Ident           "Box" at 32:17-32:20 (leading: Space)
+182: ColonColon      "::" at 32:20-32:22
+183: Lt              "<" at 32:22-32:23
+184: Ident           "int" at 32:23-32:26
+185: Gt              ">" at 32:26-32:27
+186: Assign          "=" at 32:28-32:29 (leading: Space)
+187: Ident           "nested" at 32:30-32:36 (leading: Space)
+188: Dot             "." at 32:36-32:37
+189: Ident           "value" at 32:37-32:42
+190: Semicolon       ";" at 32:42-32:43
+191: KwLet           "let" at 33:5-33:8 (leading: Newline, Space)
+192: Ident           "_val" at 33:9-33:13 (leading: Space)
+193: Colon           ":" at 33:13-33:14
+194: Ident           "int" at 33:15-33:18 (leading: Space)
+195: Assign          "=" at 33:19-33:20 (leading: Space)
+196: Ident           "_inner" at 33:21-33:27 (leading: Space)
+197: Dot             "." at 33:27-33:28
+198: Ident           "value" at 33:28-33:33
+199: Semicolon       ";" at 33:33-33:34
+200: RBrace          "}" at 34:1-34:2 (leading: Newline)
+201: KwFn            "fn" at 36:1-36:3 (leading: Newline)
+202: Ident           "use_mixed_syntax" at 36:4-36:20 (leading: Space)
+203: LParen          "(" at 36:20-36:21
+204: RParen          ")" at 36:21-36:22
+205: LBrace          "{" at 36:23-36:24 (leading: Space)
+206: KwLet           "let" at 38:5-38:8 (leading: Newline, Space, LineComment, Newline, Space)
+207: Ident           "mixed1" at 38:9-38:15 (leading: Space)
+208: Colon           ":" at 38:15-38:16
+209: Ident           "Box" at 38:17-38:20 (leading: Space)
+210: ColonColon      "::" at 38:20-38:22
+211: Lt              "<" at 38:22-38:23
+212: Ident           "Pair" at 38:23-38:27
+213: Lt              "<" at 38:27-38:28
+214: Ident           "int" at 38:28-38:31
+215: Comma           "," at 38:31-38:32
+216: Ident           "int" at 38:33-38:36 (leading: Space)
+217: Shr             ">>" at 38:36-38:38
+218: Assign          "=" at 38:39-38:40 (leading: Space)
+219: LBrace          "{" at 38:41-38:42 (leading: Space)
+220: Ident           "value" at 38:43-38:48 (leading: Space)
+221: Colon           ":" at 38:48-38:49
+222: LBrace          "{" at 38:50-38:51 (leading: Space)
+223: Ident           "first" at 38:52-38:57 (leading: Space)
+224: Colon           ":" at 38:57-38:58
+225: IntLit          "1" at 38:59-38:60 (leading: Space)
+226: Comma           "," at 38:60-38:61
+227: Ident           "second" at 38:62-38:68 (leading: Space)
+228: Colon           ":" at 38:68-38:69
+229: IntLit          "2" at 38:70-38:71 (leading: Space)
+230: RBrace          "}" at 38:72-38:73 (leading: Space)
+231: RBrace          "}" at 38:74-38:75 (leading: Space)
+232: Semicolon       ";" at 38:75-38:76
+233: KwLet           "let" at 39:5-39:8 (leading: Newline, Space)
+234: Ident           "mixed2" at 39:9-39:15 (leading: Space)
+235: Colon           ":" at 39:15-39:16
+236: Ident           "Pair" at 39:17-39:21 (leading: Space)
+237: Lt              "<" at 39:21-39:22
+238: Ident           "Box" at 39:22-39:25
+239: ColonColon      "::" at 39:25-39:27
+240: Lt              "<" at 39:27-39:28
+241: Ident           "int" at 39:28-39:31
+242: Gt              ">" at 39:31-39:32
+243: Comma           "," at 39:32-39:33
+244: Ident           "string" at 39:34-39:40 (leading: Space)
+245: Gt              ">" at 39:40-39:41
+246: Assign          "=" at 39:42-39:43 (leading: Space)
+247: LBrace          "{" at 39:44-39:45 (leading: Space)
+248: Ident           "first" at 39:46-39:51 (leading: Space)
+249: Colon           ":" at 39:51-39:52
+250: LBrace          "{" at 39:53-39:54 (leading: Space)
+251: Ident           "value" at 39:55-39:60 (leading: Space)
+252: Colon           ":" at 39:60-39:61
+253: IntLit          "42" at 39:62-39:64 (leading: Space)
+254: RBrace          "}" at 39:65-39:66 (leading: Space)
+255: Comma           "," at 39:66-39:67
+256: Ident           "second" at 39:68-39:74 (leading: Space)
+257: Colon           ":" at 39:74-39:75
+258: StringLit       "\"hi\"" at 39:76-39:80 (leading: Space)
+259: RBrace          "}" at 39:81-39:82 (leading: Space)
+260: Semicolon       ";" at 39:82-39:83
+261: KwLet           "let" at 40:5-40:8 (leading: Newline, Space)
+262: Ident           "_m1" at 40:9-40:12 (leading: Space)
+263: Colon           ":" at 40:12-40:13
+264: Ident           "Pair" at 40:14-40:18 (leading: Space)
+265: Lt              "<" at 40:18-40:19
+266: Ident           "int" at 40:19-40:22
+267: Comma           "," at 40:22-40:23
+268: Ident           "int" at 40:24-40:27 (leading: Space)
+269: Gt              ">" at 40:27-40:28
+270: Assign          "=" at 40:29-40:30 (leading: Space)
+271: Ident           "mixed1" at 40:31-40:37 (leading: Space)
+272: Dot             "." at 40:37-40:38
+273: Ident           "value" at 40:38-40:43
+274: Semicolon       ";" at 40:43-40:44
+275: KwLet           "let" at 41:5-41:8 (leading: Newline, Space)
+276: Ident           "_m2" at 41:9-41:12 (leading: Space)
+277: Colon           ":" at 41:12-41:13
+278: Ident           "Box" at 41:14-41:17 (leading: Space)
+279: ColonColon      "::" at 41:17-41:19
+280: Lt              "<" at 41:19-41:20
+281: Ident           "int" at 41:20-41:23
+282: Gt              ">" at 41:23-41:24
+283: Assign          "=" at 41:25-41:26 (leading: Space)
+284: Ident           "mixed2" at 41:27-41:33 (leading: Space)
+285: Dot             "." at 41:33-41:34
+286: Ident           "first" at 41:34-41:39
+287: Semicolon       ";" at 41:39-41:40
+288: RBrace          "}" at 42:1-42:2 (leading: Newline)
+289: EOF             at 43:1-43:1

@@ -1,0 +1,23 @@
+waits_on_valid.sg (span: 3:1-19:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: Monitor
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: cond: Condition
+│     └─ Field[1]: sem: Semaphore
+└─ Item[1]: Extern (span: 8:1-18:2)
+   ├─ Target: Monitor
+   ├─ Members:
+   │  ├─ Fn[0]: wait_for_condition
+   │  │  ├─ Params: (self: &mut Monitor)
+   │  │  ├─ Return: nothing
+   │  │  ├─ Attributes: @waits_on("cond")
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 10:62-12:6)
+   │  └─ Fn[1]: wait_for_semaphore
+   │     ├─ Params: (self: &mut Monitor)
+   │     ├─ Return: nothing
+   │     ├─ Attributes: @waits_on("sem")
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 15:62-17:6)

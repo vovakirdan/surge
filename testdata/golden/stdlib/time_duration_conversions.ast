@@ -1,0 +1,52 @@
+time_duration_conversions.sg (span: 1:1-14:1)
+├─ Item[0]: Import (span: 1:1-1:28)
+│  ├─ Module: stdlib::time
+│  └─ Alias: time
+└─ Item[1]: Fn (span: 3:1-13:2)
+   ├─ Name: duration_total
+   ├─ Params: ()
+   ├─ Return: int64
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:30-13:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:52)
+         │  ├─ Name: d
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#6: time.Duration.new(1_234_567_890 to int64)
+         ├─ Stmt[1]: Let (span: 5:5-5:20)
+         │  ├─ Name: copied
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: d
+         ├─ Stmt[2]: Let (span: 6:5-6:56)
+         │  ├─ Name: earlier
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#13: time.Duration.new(234_567_890 to int64)
+         ├─ Stmt[3]: Let (span: 7:5-7:31)
+         │  ├─ Name: diff
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#17: d.sub(earlier)
+         ├─ Stmt[4]: Let (span: 8:5-8:41)
+         │  ├─ Name: copy_diff
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#21: copied.sub(earlier)
+         ├─ Stmt[5]: Let (span: 9:5-9:39)
+         │  ├─ Name: started
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#25: time.Duration.now()
+         ├─ Stmt[6]: Let (span: 10:5-10:40)
+         │  ├─ Name: finished
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#29: time.Duration.now()
+         ├─ Stmt[7]: Let (span: 11:5-11:41)
+         │  ├─ Name: elapsed
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#33: finished.sub(started)
+         └─ Stmt[8]: Return (span: 12:5-12:132)
+            └─ Expr: expr#56: (((((((((diff.as_seconds() + diff.as_millis())) + diff.as_micros())) + diff.as_nanos())) + copy_diff.as_seconds())) + elapsed.as_nanos())

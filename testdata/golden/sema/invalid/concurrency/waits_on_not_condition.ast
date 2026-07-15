@@ -1,0 +1,23 @@
+waits_on_not_condition.sg (span: 3:1-19:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: BadMonitor
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: counter: int
+└─ Item[1]: Extern (span: 8:1-18:2)
+   ├─ Target: BadMonitor
+   ├─ Members:
+   │  ├─ Fn[0]: wait_on_mutex
+   │  │  ├─ Params: (self: &mut BadMonitor)
+   │  │  ├─ Return: nothing
+   │  │  ├─ Attributes: @waits_on("lock")
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 10:60-12:6)
+   │  └─ Fn[1]: wait_on_int
+   │     ├─ Params: (self: &mut BadMonitor)
+   │     ├─ Return: nothing
+   │     ├─ Attributes: @waits_on("counter")
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 15:58-17:6)

@@ -1,0 +1,25 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "intrinsic" at 1:2-1:11
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "rt_alloc" at 2:4-2:12 (leading: Space)
+  5: LParen          "(" at 2:12-2:13
+  6: Ident           "n" at 2:13-2:14
+  7: Colon           ":" at 2:14-2:15
+  8: Ident           "uint" at 2:16-2:20 (leading: Space)
+  9: RParen          ")" at 2:20-2:21
+ 10: Arrow           "->" at 2:22-2:24 (leading: Space)
+ 11: Star            "*" at 2:25-2:26 (leading: Space)
+ 12: Ident           "byte" at 2:26-2:30
+ 13: Semicolon       ";" at 2:30-2:31
+ 14: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+ 15: Ident           "main" at 4:4-4:8 (leading: Space)
+ 16: LParen          "(" at 4:8-4:9
+ 17: RParen          ")" at 4:9-4:10
+ 18: Arrow           "->" at 4:11-4:13 (leading: Space)
+ 19: Ident           "int" at 4:14-4:17 (leading: Space)
+ 20: LBrace          "{" at 4:18-4:19 (leading: Space)
+ 21: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 22: IntLit          "0" at 5:12-5:13 (leading: Space)
+ 23: Semicolon       ";" at 5:13-5:14
+ 24: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 25: EOF             at 7:1-7:1

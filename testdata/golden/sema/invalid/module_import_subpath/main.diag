@@ -1,0 +1,2 @@
+error SEM3005 testdata/golden/sema/invalid/module_import_subpath/main.sg:4:13 cannot resolve 'scripts'
+error SEM3005 testdata/golden/sema/invalid/module_import_subpath/main.sg:4:13 unknown has no method foo

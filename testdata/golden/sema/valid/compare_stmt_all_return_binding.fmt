@@ -1,0 +1,14 @@
+// scenario: statement-level compare with catch-all binding closes control flow
+tag ResOk<T>(T);
+type Result<T, E> = ResOk(T) | E;
+
+fn classify(res: Result<int, string>) -> int {
+    compare res {
+        ResOk(value) => {
+            return value;
+        }
+        err => {
+            return 0;
+        }
+    };
+}

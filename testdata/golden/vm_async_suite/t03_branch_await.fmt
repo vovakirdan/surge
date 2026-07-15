@@ -1,0 +1,19 @@
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let flag = true;
+        if flag {
+            checkpoint().await();
+            return 11;
+        } else {
+            checkpoint().await();
+            return 12;
+        }
+    }).await();
+
+    compare r {
+        Success(v) => print("v=" + (v to string));
+        Cancelled() => print("cancelled");
+    };
+    return 0;
+}

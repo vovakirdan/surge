@@ -1,0 +1,5 @@
+@entrypoint fn main() -> int {
+    let a: int = 1;
+    let b: int = 2;
+    return a + b;
+}

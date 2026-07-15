@@ -1,0 +1,90 @@
+  1: KwType          "type" at 1:1-1:5
+  2: Ident           "Leaf" at 1:6-1:10 (leading: Space)
+  3: Assign          "=" at 1:11-1:12 (leading: Space)
+  4: LBrace          "{" at 1:13-1:14 (leading: Space)
+  5: Ident           "id" at 2:5-2:7 (leading: Newline, Space)
+  6: Colon           ":" at 2:7-2:8
+  7: Ident           "int" at 2:9-2:12 (leading: Space)
+  8: Comma           "," at 2:12-2:13
+  9: Ident           "label" at 3:5-3:10 (leading: Newline, Space)
+ 10: Colon           ":" at 3:10-3:11
+ 11: Ident           "string" at 3:12-3:18 (leading: Space)
+ 12: Comma           "," at 3:18-3:19
+ 13: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 14: Semicolon       ";" at 4:2-4:3
+ 15: KwType          "type" at 6:1-6:5 (leading: Newline)
+ 16: Ident           "Branch" at 6:6-6:12 (leading: Space)
+ 17: Assign          "=" at 6:13-6:14 (leading: Space)
+ 18: LBrace          "{" at 6:15-6:16 (leading: Space)
+ 19: Ident           "leaves" at 7:5-7:11 (leading: Newline, Space)
+ 20: Colon           ":" at 7:11-7:12
+ 21: Ident           "Leaf" at 7:13-7:17 (leading: Space)
+ 22: LBracket        "[" at 7:17-7:18
+ 23: RBracket        "]" at 7:18-7:19
+ 24: Comma           "," at 7:19-7:20
+ 25: Ident           "fixed" at 8:5-8:10 (leading: Newline, Space)
+ 26: Colon           ":" at 8:10-8:11
+ 27: Ident           "Leaf" at 8:12-8:16 (leading: Space)
+ 28: LBracket        "[" at 8:16-8:17
+ 29: IntLit          "2" at 8:17-8:18
+ 30: RBracket        "]" at 8:18-8:19
+ 31: Comma           "," at 8:19-8:20
+ 32: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 33: Semicolon       ";" at 9:2-9:3
+ 34: KwType          "type" at 11:1-11:5 (leading: Newline)
+ 35: Ident           "Root" at 11:6-11:10 (leading: Space)
+ 36: Assign          "=" at 11:11-11:12 (leading: Space)
+ 37: LBrace          "{" at 11:13-11:14 (leading: Space)
+ 38: Ident           "branch" at 12:5-12:11 (leading: Newline, Space)
+ 39: Colon           ":" at 12:11-12:12
+ 40: Ident           "Branch" at 12:13-12:19 (leading: Space)
+ 41: Comma           "," at 12:19-12:20
+ 42: Ident           "flags" at 13:5-13:10 (leading: Newline, Space)
+ 43: Colon           ":" at 13:10-13:11
+ 44: Ident           "bool" at 13:12-13:16 (leading: Space)
+ 45: LBracket        "[" at 13:16-13:17
+ 46: IntLit          "3" at 13:17-13:18
+ 47: RBracket        "]" at 13:18-13:19
+ 48: Comma           "," at 13:19-13:20
+ 49: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 50: Semicolon       ";" at 14:2-14:3
+ 51: KwType          "type" at 16:1-16:5 (leading: Newline)
+ 52: Ident           "Forest" at 16:6-16:12 (leading: Space)
+ 53: Assign          "=" at 16:13-16:14 (leading: Space)
+ 54: LBrace          "{" at 16:15-16:16 (leading: Space)
+ 55: Ident           "roots" at 17:5-17:10 (leading: Newline, Space)
+ 56: Colon           ":" at 17:10-17:11
+ 57: Ident           "Root" at 17:12-17:16 (leading: Space)
+ 58: LBracket        "[" at 17:16-17:17
+ 59: RBracket        "]" at 17:17-17:18
+ 60: Comma           "," at 17:18-17:19
+ 61: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 62: Semicolon       ";" at 18:2-18:3
+ 63: KwType          "type" at 20:1-20:5 (leading: Newline)
+ 64: Ident           "ForestAlias" at 20:6-20:17 (leading: Space)
+ 65: Assign          "=" at 20:18-20:19 (leading: Space)
+ 66: Ident           "Forest" at 20:20-20:26 (leading: Space)
+ 67: Semicolon       ";" at 20:26-20:27
+ 68: KwFn            "fn" at 22:1-22:3 (leading: Newline)
+ 69: Ident           "main" at 22:4-22:8 (leading: Space)
+ 70: LParen          "(" at 22:8-22:9
+ 71: RParen          ")" at 22:9-22:10
+ 72: LBrace          "{" at 22:11-22:12 (leading: Space)
+ 73: KwLet           "let" at 23:5-23:8 (leading: Newline, Space)
+ 74: Underscore      "_" at 23:9-23:10 (leading: Space)
+ 75: Assign          "=" at 23:11-23:12 (leading: Space)
+ 76: Ident           "default" at 23:13-23:20 (leading: Space)
+ 77: ColonColon      "::" at 23:20-23:22
+ 78: Lt              "<" at 23:22-23:23
+ 79: Ident           "ForestAlias" at 23:23-23:34
+ 80: Gt              ">" at 23:34-23:35
+ 81: LParen          "(" at 23:35-23:36
+ 82: RParen          ")" at 23:36-23:37
+ 83: Semicolon       ";" at 23:37-23:38
+ 84: KwLet           "let" at 24:5-24:8 (leading: Newline, Space)
+ 85: Ident           "_root" at 24:9-24:14 (leading: Space)
+ 86: Colon           ":" at 24:14-24:15
+ 87: Ident           "Forest" at 24:16-24:22 (leading: Space)
+ 88: Semicolon       ";" at 24:22-24:23
+ 89: RBrace          "}" at 25:1-25:2 (leading: Newline)
+ 90: EOF             at 26:1-26:1

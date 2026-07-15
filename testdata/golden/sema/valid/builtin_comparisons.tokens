@@ -1,0 +1,87 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "compare_values" at 2:4-2:18 (leading: Space)
+  3: LParen          "(" at 2:18-2:19
+  4: Ident           "i" at 2:19-2:20
+  5: Colon           ":" at 2:20-2:21
+  6: Ident           "int" at 2:22-2:25 (leading: Space)
+  7: Comma           "," at 2:25-2:26
+  8: Ident           "j" at 2:27-2:28 (leading: Space)
+  9: Colon           ":" at 2:28-2:29
+ 10: Ident           "int" at 2:30-2:33 (leading: Space)
+ 11: Comma           "," at 2:33-2:34
+ 12: Ident           "f" at 2:35-2:36 (leading: Space)
+ 13: Colon           ":" at 2:36-2:37
+ 14: Ident           "float" at 2:38-2:43 (leading: Space)
+ 15: RParen          ")" at 2:43-2:44
+ 16: Arrow           "->" at 2:45-2:47 (leading: Space)
+ 17: Ident           "bool" at 2:48-2:52 (leading: Space)
+ 18: LBrace          "{" at 2:53-2:54 (leading: Space)
+ 19: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 20: Ident           "lt" at 3:9-3:11 (leading: Space)
+ 21: Colon           ":" at 3:11-3:12
+ 22: Ident           "bool" at 3:13-3:17 (leading: Space)
+ 23: Assign          "=" at 3:18-3:19 (leading: Space)
+ 24: Ident           "i" at 3:20-3:21 (leading: Space)
+ 25: Lt              "<" at 3:22-3:23 (leading: Space)
+ 26: Ident           "j" at 3:24-3:25 (leading: Space)
+ 27: Semicolon       ";" at 3:25-3:26
+ 28: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 29: Ident           "le" at 4:9-4:11 (leading: Space)
+ 30: Colon           ":" at 4:11-4:12
+ 31: Ident           "bool" at 4:13-4:17 (leading: Space)
+ 32: Assign          "=" at 4:18-4:19 (leading: Space)
+ 33: Ident           "i" at 4:20-4:21 (leading: Space)
+ 34: LtEq            "<=" at 4:22-4:24 (leading: Space)
+ 35: Ident           "j" at 4:25-4:26 (leading: Space)
+ 36: Semicolon       ";" at 4:26-4:27
+ 37: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 38: Ident           "gt" at 5:9-5:11 (leading: Space)
+ 39: Colon           ":" at 5:11-5:12
+ 40: Ident           "bool" at 5:13-5:17 (leading: Space)
+ 41: Assign          "=" at 5:18-5:19 (leading: Space)
+ 42: Ident           "f" at 5:20-5:21 (leading: Space)
+ 43: Gt              ">" at 5:22-5:23 (leading: Space)
+ 44: FloatLit        "1.0" at 5:24-5:27 (leading: Space)
+ 45: Semicolon       ";" at 5:27-5:28
+ 46: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 47: Ident           "ge" at 6:9-6:11 (leading: Space)
+ 48: Colon           ":" at 6:11-6:12
+ 49: Ident           "bool" at 6:13-6:17 (leading: Space)
+ 50: Assign          "=" at 6:18-6:19 (leading: Space)
+ 51: Ident           "f" at 6:20-6:21 (leading: Space)
+ 52: GtEq            ">=" at 6:22-6:24 (leading: Space)
+ 53: FloatLit        "0.5" at 6:25-6:28 (leading: Space)
+ 54: Semicolon       ";" at 6:28-6:29
+ 55: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 56: Ident           "eq" at 7:9-7:11 (leading: Space)
+ 57: Colon           ":" at 7:11-7:12
+ 58: Ident           "bool" at 7:13-7:17 (leading: Space)
+ 59: Assign          "=" at 7:18-7:19 (leading: Space)
+ 60: Ident           "i" at 7:20-7:21 (leading: Space)
+ 61: EqEq            "==" at 7:22-7:24 (leading: Space)
+ 62: Ident           "j" at 7:25-7:26 (leading: Space)
+ 63: Semicolon       ";" at 7:26-7:27
+ 64: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 65: Ident           "ne" at 8:9-8:11 (leading: Space)
+ 66: Colon           ":" at 8:11-8:12
+ 67: Ident           "bool" at 8:13-8:17 (leading: Space)
+ 68: Assign          "=" at 8:18-8:19 (leading: Space)
+ 69: Ident           "f" at 8:20-8:21 (leading: Space)
+ 70: BangEq          "!=" at 8:22-8:24 (leading: Space)
+ 71: FloatLit        "0.0" at 8:25-8:28 (leading: Space)
+ 72: Semicolon       ";" at 8:28-8:29
+ 73: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 74: Ident           "lt" at 9:12-9:14 (leading: Space)
+ 75: OrOr            "||" at 9:15-9:17 (leading: Space)
+ 76: Ident           "le" at 9:18-9:20 (leading: Space)
+ 77: OrOr            "||" at 9:21-9:23 (leading: Space)
+ 78: Ident           "gt" at 9:24-9:26 (leading: Space)
+ 79: OrOr            "||" at 9:27-9:29 (leading: Space)
+ 80: Ident           "ge" at 9:30-9:32 (leading: Space)
+ 81: OrOr            "||" at 9:33-9:35 (leading: Space)
+ 82: Ident           "eq" at 9:36-9:38 (leading: Space)
+ 83: OrOr            "||" at 9:39-9:41 (leading: Space)
+ 84: Ident           "ne" at 9:42-9:44 (leading: Space)
+ 85: Semicolon       ";" at 9:44-9:45
+ 86: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 87: EOF             at 11:1-11:1

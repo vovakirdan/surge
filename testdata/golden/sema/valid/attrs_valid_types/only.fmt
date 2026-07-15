@@ -1,0 +1,23 @@
+// Test: valid type attributes
+
+@sealed
+type SealedType = {
+    x: int
+}
+
+@send
+type SendType = {
+    x: int
+}
+
+@packed
+type PackedType = {
+    x: int,
+    y: int
+}
+
+@align(16)
+type AlignedType = {
+    x: int,
+    y: int
+}

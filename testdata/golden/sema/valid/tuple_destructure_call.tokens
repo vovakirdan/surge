@@ -1,0 +1,64 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "produce" at 2:4-2:11 (leading: Space)
+  3: LParen          "(" at 2:11-2:12
+  4: RParen          ")" at 2:12-2:13
+  5: Arrow           "->" at 2:14-2:16 (leading: Space)
+  6: LParen          "(" at 2:17-2:18 (leading: Space)
+  7: Ident           "int" at 2:18-2:21
+  8: Comma           "," at 2:21-2:22
+  9: Ident           "string" at 2:23-2:29 (leading: Space)
+ 10: Comma           "," at 2:29-2:30
+ 11: Ident           "bool" at 2:31-2:35 (leading: Space)
+ 12: RParen          ")" at 2:35-2:36
+ 13: LBrace          "{" at 2:37-2:38 (leading: Space)
+ 14: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 15: LParen          "(" at 3:12-3:13 (leading: Space)
+ 16: IntLit          "1" at 3:13-3:14
+ 17: Comma           "," at 3:14-3:15
+ 18: StringLit       "\"hello\"" at 3:16-3:23 (leading: Space)
+ 19: Comma           "," at 3:23-3:24
+ 20: KwTrue          "true" at 3:25-3:29 (leading: Space)
+ 21: RParen          ")" at 3:29-3:30
+ 22: Semicolon       ";" at 3:30-3:31
+ 23: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 24: KwFn            "fn" at 6:1-6:3 (leading: Newline)
+ 25: Ident           "main" at 6:4-6:8 (leading: Space)
+ 26: LParen          "(" at 6:8-6:9
+ 27: RParen          ")" at 6:9-6:10
+ 28: LBrace          "{" at 6:11-6:12 (leading: Space)
+ 29: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 30: LParen          "(" at 7:9-7:10 (leading: Space)
+ 31: Ident           "a" at 7:10-7:11
+ 32: Comma           "," at 7:11-7:12
+ 33: Ident           "b" at 7:13-7:14 (leading: Space)
+ 34: Comma           "," at 7:14-7:15
+ 35: Ident           "c" at 7:16-7:17 (leading: Space)
+ 36: RParen          ")" at 7:17-7:18
+ 37: Assign          "=" at 7:19-7:20 (leading: Space)
+ 38: Ident           "produce" at 7:21-7:28 (leading: Space)
+ 39: LParen          "(" at 7:28-7:29
+ 40: RParen          ")" at 7:29-7:30
+ 41: Semicolon       ";" at 7:30-7:31
+ 42: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 43: Ident           "a_val" at 8:9-8:14 (leading: Space)
+ 44: Colon           ":" at 8:14-8:15
+ 45: Ident           "int" at 8:16-8:19 (leading: Space)
+ 46: Assign          "=" at 8:20-8:21 (leading: Space)
+ 47: Ident           "a" at 8:22-8:23 (leading: Space)
+ 48: Semicolon       ";" at 8:23-8:24
+ 49: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 50: Ident           "b_val" at 9:9-9:14 (leading: Space)
+ 51: Colon           ":" at 9:14-9:15
+ 52: Ident           "string" at 9:16-9:22 (leading: Space)
+ 53: Assign          "=" at 9:23-9:24 (leading: Space)
+ 54: Ident           "b" at 9:25-9:26 (leading: Space)
+ 55: Semicolon       ";" at 9:26-9:27
+ 56: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 57: Ident           "c_val" at 10:9-10:14 (leading: Space)
+ 58: Colon           ":" at 10:14-10:15
+ 59: Ident           "bool" at 10:16-10:20 (leading: Space)
+ 60: Assign          "=" at 10:21-10:22 (leading: Space)
+ 61: Ident           "c" at 10:23-10:24 (leading: Space)
+ 62: Semicolon       ";" at 10:24-10:25
+ 63: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 64: EOF             at 12:1-12:1

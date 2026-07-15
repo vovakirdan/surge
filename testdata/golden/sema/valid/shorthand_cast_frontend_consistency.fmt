@@ -1,0 +1,15 @@
+// Sema scenario: shorthand casts work in const initializers and nested call args.
+const ONE: uint = 1:uint;
+const TWO: uint = 2 to uint;
+
+fn take(a: uint, b: uint) -> uint {
+    return a + b;
+}
+
+@entrypoint
+fn main() {
+    let base: uint = 0:uint;
+    let left: uint = take(ONE, base + 1:uint);
+    let right: uint = take(1:uint, TWO + 1:uint);
+    print((left + right) to string);
+}

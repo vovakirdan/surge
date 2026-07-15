@@ -1,0 +1,95 @@
+size_align_array_fixed.sg (span: 1:1-31:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: align_up
+│  ├─ Params: (x: uint, align: uint)
+│  ├─ Return: uint
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:43-3:2)
+│        └─ Stmt[0]: Return (span: 2:5-2:49)
+│           └─ Expr: expr#11: (((((((x + align)) - (1 to uint))) / align)) * align)
+├─ Item[1]: Type (span: 5:1-5:19)
+│  ├─ Name: A
+│  ├─ Kind: Alias
+│  ├─ Visibility: private
+│  └─ Target: int32[3]
+├─ Item[2]: Type (span: 7:1-11:2)
+│  ├─ Name: S
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: uint8
+│     ├─ Field[1]: a: A
+│     └─ Field[2]: y: uint16
+├─ Item[3]: Type (span: 13:1-13:23)
+│  ├─ Name: S0
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: x: uint8
+├─ Item[4]: Type (span: 14:1-14:29)
+│  ├─ Name: S1
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: uint8
+│     └─ Field[1]: a: A
+└─ Item[5]: Fn (span: 16:1-30:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:18-30:2)
+         ├─ Stmt[0]: If (span: 18:5-18:52)
+         │  ├─ Cond: expr#18: !((size_of() == (12 to uint)))
+         │  ├─ Then:
+Block (span: 18:39-18:52)
+         │  │  └─ Stmt[0]: Return (span: 18:41-18:50)
+         │  │     └─ Expr: expr#19: 1
+         │  └─ Else: <none>
+         ├─ Stmt[1]: If (span: 19:5-19:52)
+         │  ├─ Cond: expr#26: !((align_of() == (4 to uint)))
+         │  ├─ Then:
+Block (span: 19:39-19:52)
+         │  │  └─ Stmt[0]: Return (span: 19:41-19:50)
+         │  │     └─ Expr: expr#27: 2
+         │  └─ Else: <none>
+         ├─ Stmt[2]: Let (span: 21:5-21:66)
+         │  ├─ Name: off_a
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#33: align_up(size_of(), align_of())
+         ├─ Stmt[3]: Let (span: 22:5-22:71)
+         │  ├─ Name: off_y
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#39: align_up(size_of(), align_of())
+         ├─ Stmt[4]: If (span: 23:5-23:42)
+         │  ├─ Cond: expr#45: !((off_a == (4 to uint)))
+         │  ├─ Then:
+Block (span: 23:29-23:42)
+         │  │  └─ Stmt[0]: Return (span: 23:31-23:40)
+         │  │     └─ Expr: expr#46: 3
+         │  └─ Else: <none>
+         ├─ Stmt[5]: If (span: 24:5-24:43)
+         │  ├─ Cond: expr#52: !((off_y == (16 to uint)))
+         │  ├─ Then:
+Block (span: 24:30-24:43)
+         │  │  └─ Stmt[0]: Return (span: 24:32-24:41)
+         │  │     └─ Expr: expr#53: 4
+         │  └─ Else: <none>
+         ├─ Stmt[6]: If (span: 26:5-26:52)
+         │  ├─ Cond: expr#60: !((align_of() == (4 to uint)))
+         │  ├─ Then:
+Block (span: 26:39-26:52)
+         │  │  └─ Stmt[0]: Return (span: 26:41-26:50)
+         │  │     └─ Expr: expr#61: 5
+         │  └─ Else: <none>
+         ├─ Stmt[7]: If (span: 27:5-27:52)
+         │  ├─ Cond: expr#68: !((size_of() == (20 to uint)))
+         │  ├─ Then:
+Block (span: 27:39-27:52)
+         │  │  └─ Stmt[0]: Return (span: 27:41-27:50)
+         │  │     └─ Expr: expr#69: 6
+         │  └─ Else: <none>
+         └─ Stmt[8]: Return (span: 29:5-29:14)
+            └─ Expr: expr#70: 0

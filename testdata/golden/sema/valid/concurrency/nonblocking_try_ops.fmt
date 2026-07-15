@@ -1,0 +1,38 @@
+// Valid: @nonblocking function using only non-blocking try_* operations
+// try_* methods don't block, so they're safe to call from @nonblocking functions
+
+@nonblocking
+pub fn try_mutex_test(mtx: &mut Mutex) -> bool {
+    if mtx.try_lock() {
+        mtx.unlock();
+        return true;
+    }
+    return false;
+}
+
+@nonblocking
+pub fn try_rwlock_read_test(rw: &mut RwLock) -> bool {
+    if rw.try_read_lock() {
+        rw.read_unlock();
+        return true;
+    }
+    return false;
+}
+
+@nonblocking
+pub fn try_rwlock_write_test(rw: &mut RwLock) -> bool {
+    if rw.try_write_lock() {
+        rw.write_unlock();
+        return true;
+    }
+    return false;
+}
+
+@nonblocking
+pub fn try_semaphore_test(sem: &mut Semaphore) -> bool {
+    if sem.try_acquire() {
+        sem.release();
+        return true;
+    }
+    return false;
+}

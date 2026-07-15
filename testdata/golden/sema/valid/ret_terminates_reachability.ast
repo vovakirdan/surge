@@ -1,0 +1,19 @@
+ret_terminates_reachability.sg (span: 1:1-14:1)
+└─ Item[0]: Fn (span: 1:1-13:2)
+   ├─ Name: main
+   ├─ Params: (flag: bool)
+   ├─ Return: string
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:31-13:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:25)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "x"
+         ├─ Stmt[1]: Let (span: 3:5-11:7)
+         │  ├─ Name: out
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: <ExprKind(25)>
+         └─ Stmt[2]: Return (span: 12:5-12:16)
+            └─ Expr: expr#8: out

@@ -1,0 +1,3 @@
+error FUT7001 testdata/golden/sema/invalid/parallel_not_supported.sg:5:12 'parallel' requires multi-threading (v2+)
+error SEM3005 testdata/golden/sema/invalid/parallel_not_supported.sg:5:36 cannot resolve 'x'
+error SEM3005 testdata/golden/sema/invalid/parallel_not_supported.sg:5:42 cannot resolve 'x'

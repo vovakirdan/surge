@@ -1,0 +1,88 @@
+arrays_push_pop.sg (span: 1:1-31:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_str
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:36-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:40)
+│        │  ├─ Name: slen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len_bytes(&s)
+│        └─ Stmt[2]: Expr (span: 4:5-4:32)
+│           └─ Expr: expr#12: rt_write_stdout(ptr, slen)
+├─ Item[1]: Fn (span: 7:1-11:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:37-11:2)
+│        ├─ Stmt[0]: Expr (span: 8:5-8:18)
+│        │  └─ Expr: expr#15: write_str(s)
+│        ├─ Stmt[1]: Let (span: 9:5-9:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#16: "\n"
+│        └─ Stmt[2]: Expr (span: 10:5-10:49)
+│           └─ Expr: expr#24: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+├─ Item[2]: Fn (span: 13:1-23:2)
+│  ├─ Name: main
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 14:18-23:2)
+│        ├─ Stmt[0]: Let (span: 15:5-15:37)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: string[]
+│        │  └─ Value: expr#26: rt_argv()
+│        ├─ Stmt[1]: Block (span: 16:5-16:42)
+│        │  └─ Stmt[0]: Expr (span: 16:7-16:40)
+│        │     └─ Expr: expr#32: rt_array_reserve(&mut a, 4 to uint)
+│        ├─ Stmt[2]: Block (span: 17:5-17:38)
+│        │  └─ Stmt[0]: Expr (span: 17:7-17:36)
+│        │     └─ Expr: expr#37: rt_array_push(&mut a, "one")
+│        ├─ Stmt[3]: Block (span: 18:5-18:38)
+│        │  └─ Stmt[0]: Expr (span: 18:7-18:36)
+│        │     └─ Expr: expr#42: rt_array_push(&mut a, "two")
+│        ├─ Stmt[4]: Block (span: 19:5-19:61)
+│        │  ├─ Stmt[0]: Let (span: 19:7-19:45)
+│        │  │  ├─ Name: v
+│        │  │  ├─ Mutable: false
+│        │  │  ├─ Type: <unknown-type>
+│        │  │  └─ Value: expr#46: rt_array_pop(&mut a)
+│        │  └─ Stmt[1]: Expr (span: 19:46-19:59)
+│        │     └─ Expr: expr#49: print_opt(v)
+│        ├─ Stmt[5]: Block (span: 20:5-20:61)
+│        │  ├─ Stmt[0]: Let (span: 20:7-20:45)
+│        │  │  ├─ Name: v
+│        │  │  ├─ Mutable: false
+│        │  │  ├─ Type: <unknown-type>
+│        │  │  └─ Value: expr#53: rt_array_pop(&mut a)
+│        │  └─ Stmt[1]: Expr (span: 20:46-20:59)
+│        │     └─ Expr: expr#56: print_opt(v)
+│        ├─ Stmt[6]: Block (span: 21:5-21:61)
+│        │  ├─ Stmt[0]: Let (span: 21:7-21:45)
+│        │  │  ├─ Name: v
+│        │  │  ├─ Mutable: false
+│        │  │  ├─ Type: <unknown-type>
+│        │  │  └─ Value: expr#60: rt_array_pop(&mut a)
+│        │  └─ Stmt[1]: Expr (span: 21:46-21:59)
+│        │     └─ Expr: expr#63: print_opt(v)
+│        └─ Stmt[7]: Return (span: 22:5-22:14)
+│           └─ Expr: expr#64: 0
+└─ Item[3]: Fn (span: 25:1-30:2)
+   ├─ Name: print_opt
+   ├─ Params: (v: <unknown-type>)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 25:37-30:2)
+         └─ Stmt[0]: Expr (span: 26:5-29:7)
+            └─ Expr: expr#76: compare v { 2 arms }

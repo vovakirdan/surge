@@ -1,0 +1,1 @@
+error SEM3018 testdata/golden/sema/invalid/ownership/borrow_mut_conflict.sg:6:23 cannot take mutable borrow of 'x' while another mutable borrow is active

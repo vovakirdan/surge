@@ -1,0 +1,7 @@
+type Foo = { x: int }
+
+fn main() {
+    let f: Foo[] = [Foo { x: 1 }];
+    let s: string = f to string;
+    let _ = s;
+}

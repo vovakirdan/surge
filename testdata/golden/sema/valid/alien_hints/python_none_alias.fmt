@@ -1,0 +1,8 @@
+// Alien hints: Python-ish None alias (valid).
+
+type None = nothing;
+
+fn foo() -> None {
+    let x: None = nothing;
+    return x;
+}

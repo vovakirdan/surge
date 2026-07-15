@@ -1,0 +1,6 @@
+// scenario: duplicate type declaration in the same module
+type Point = {
+    x: int,
+};
+
+type Point = int;

@@ -1,0 +1,15 @@
+// Test importing enum types from other modules
+pragma no_std;
+import ./enum_import_test/colors::{Color, Status};
+
+fn main() -> int {
+    // Use imported enum variants with qualified names
+    let c1: int = Color::Red;
+    let c2: int = Color::Green;
+    let c3: int = Color::Blue;
+
+    let s1: string = Status::Active;
+    let s2: string = Status::Inactive;
+
+    return c1 + c2 + c3;
+}

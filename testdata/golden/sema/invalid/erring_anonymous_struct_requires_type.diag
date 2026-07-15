@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/erring_anonymous_struct_requires_type.sg:3:38 struct literal requires explicit type when assigning to Erring<int, Error>

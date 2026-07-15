@@ -1,0 +1,11 @@
+// scenario: statement-level compare with exhaustive bool arms closes control flow
+fn classify(flag: bool) -> int {
+    compare flag {
+        true => {
+            return 1;
+        }
+        false => {
+            return 0;
+        }
+    };
+}

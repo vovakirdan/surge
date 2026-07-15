@@ -1,0 +1,5 @@
+@entrypoint
+fn main() -> int {
+    let _ = format("{}", fmt_arg_int(1), fmt_arg_int(2));
+    return 0;
+}

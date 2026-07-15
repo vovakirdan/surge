@@ -1,0 +1,19 @@
+vm_trace_smoke.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:30-5:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:20)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 3:5-3:20)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#2: 2
+         └─ Stmt[2]: Return (span: 4:5-4:18)
+            └─ Expr: expr#5: (a + b)

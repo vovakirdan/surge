@@ -1,0 +1,1 @@
+warning SEM3055 testdata/golden/sema/invalid/hidden_pub/only.sg:3:1 @hidden makes the declaration file-private; remove 'pub' or '@hidden'

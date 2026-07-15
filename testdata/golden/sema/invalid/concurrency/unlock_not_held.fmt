@@ -1,0 +1,23 @@
+// Invalid: unlock without prior lock
+
+pub fn test_unlock_not_held() -> nothing {
+    let mut mtx: Mutex = Mutex.new();
+    mtx.unlock();  // Error: lock not held
+}
+
+pub fn test_double_unlock() -> nothing {
+    let mut mtx: Mutex = Mutex.new();
+    mtx.lock();
+    mtx.unlock();
+    mtx.unlock();  // Error: lock not held (already unlocked)
+}
+
+type Container = {
+    lock: Mutex,
+}
+
+extern<Container> {
+    pub fn bad_unlock(self: &mut Container) -> nothing {
+        self.lock.unlock();  // Error: lock not held
+    }
+}

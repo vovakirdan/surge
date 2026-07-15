@@ -1,0 +1,1 @@
+error SEM3046 testdata/golden/sema/invalid/fn_type_call_arity.sg:4:18 function expects 2 argument(s), got 1

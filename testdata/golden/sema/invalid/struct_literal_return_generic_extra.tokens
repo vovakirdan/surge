@@ -1,0 +1,32 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Box" at 2:6-2:9 (leading: Space)
+  3: Lt              "<" at 2:9-2:10
+  4: Ident           "T" at 2:10-2:11
+  5: Gt              ">" at 2:11-2:12
+  6: Assign          "=" at 2:13-2:14 (leading: Space)
+  7: LBrace          "{" at 2:15-2:16 (leading: Space)
+  8: Ident           "value" at 3:5-3:10 (leading: Newline, Space)
+  9: Colon           ":" at 3:10-3:11
+ 10: Ident           "T" at 3:12-3:13 (leading: Space)
+ 11: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 12: KwFn            "fn" at 6:1-6:3 (leading: Newline)
+ 13: Ident           "test_generic_extra" at 6:4-6:22 (leading: Space)
+ 14: LParen          "(" at 6:22-6:23
+ 15: RParen          ")" at 6:23-6:24
+ 16: Arrow           "->" at 6:25-6:27 (leading: Space)
+ 17: Ident           "Box" at 6:28-6:31 (leading: Space)
+ 18: Lt              "<" at 6:31-6:32
+ 19: Ident           "int" at 6:32-6:35
+ 20: Gt              ">" at 6:35-6:36
+ 21: LBrace          "{" at 6:37-6:38 (leading: Space)
+ 22: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 23: LBrace          "{" at 7:12-7:13 (leading: Space)
+ 24: IntLit          "1" at 7:13-7:14
+ 25: Comma           "," at 7:14-7:15
+ 26: IntLit          "2" at 7:16-7:17 (leading: Space)
+ 27: Comma           "," at 7:17-7:18
+ 28: IntLit          "3" at 7:19-7:20 (leading: Space)
+ 29: RBrace          "}" at 7:20-7:21
+ 30: Semicolon       ";" at 7:21-7:22
+ 31: RBrace          "}" at 8:1-8:2 (leading: Space, LineComment, Newline)
+ 32: EOF             at 9:1-9:1

@@ -1,0 +1,27 @@
+// Test: Both branches break after releasing lock - lock state correctly merged
+// This tests that PathBreaks properly propagates merged lock state
+
+type BreakReleasedResource = {
+    lock: Mutex,
+    value: int
+}
+
+extern<BreakReleasedResource> {
+    fn both_branches_break_released(self: &mut BreakReleasedResource) {
+        while self.value > 0 {
+            self.lock.lock();  // Lock acquired inside loop
+            if self.value > 10 {
+                self.lock.unlock();  // Released in then branch
+                break;
+            } else {
+                self.lock.unlock();  // Released in else branch
+                break;
+            }
+        }
+        // After loop: both break paths released the lock
+        // Loop may execute 0 times (no lock acquired)
+        // Merged state should have lock NOT held
+        self.lock.lock();  // OK: lock not held on any path
+        self.lock.unlock();
+    }
+}

@@ -1,0 +1,40 @@
+fn_void_return.sg (span: 2:1-19:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: log_value
+│  ├─ Params: (x: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:33-4:2)
+│        └─ Stmt[0]: Let (span: 3:5-3:23)
+│           ├─ Name: copy
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#1: x
+├─ Item[1]: Fn (span: 6:1-8:2)
+│  ├─ Name: return_nothing_no_type
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:29-8:2)
+│        └─ Stmt[0]: Return (span: 7:5-7:20)
+│           └─ Expr: expr#2: nothing
+├─ Item[2]: Fn (span: 10:1-11:2)
+│  ├─ Name: return_nothing_no_return
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:31-11:2)
+├─ Item[3]: Fn (span: 13:1-14:2)
+│  ├─ Name: return_nothing_with_type
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:42-14:2)
+└─ Item[4]: Fn (span: 16:1-18:2)
+   ├─ Name: return_nothing_with_type_and_return
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:53-18:2)
+         └─ Stmt[0]: Return (span: 17:5-17:20)
+            └─ Expr: expr#3: nothing

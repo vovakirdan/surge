@@ -1,0 +1,38 @@
+// Compare on &union with tag payload bindings.
+
+tag VInt(int);
+tag VPair(Pair);
+tag VGroup(Group);
+tag VStr(string);
+type Pair = { left: int, right: int };
+type Group = { items: Pair[], labels: string[] };
+type Value = VInt(int) | VPair(Pair) | VGroup(Group) | VStr(string);
+
+fn match_ref(v: &Value) -> int {
+    return compare v {
+        VInt(x) => clone(x);
+        VPair(p) => p.left + p.right;
+        VGroup(g) => len(g.items) to int + len(g.labels) to int;
+        VStr(s) => len(s) to int;
+    };
+}
+
+fn match_ref_literal(v: &Value) -> bool {
+    return compare v {
+        VInt(1) => true;
+        finally => false;
+    };
+}
+
+fn match_ref_nested(v: &Value) -> int {
+    return compare v {
+        VPair(p) => {
+            let inner: Value = VInt(p.left);
+            return compare &inner {
+                VInt(x) => clone(x);
+                finally => 0;
+            };
+        }
+        finally => 0;
+    };
+}

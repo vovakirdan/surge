@@ -1,0 +1,28 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Ident           "a" at 3:9-3:10 (leading: Space)
+ 12: Assign          "=" at 3:11-3:12 (leading: Space)
+ 13: StringLit       "\"hello\"" at 3:13-3:20 (leading: Space)
+ 14: Semicolon       ";" at 3:20-3:21
+ 15: At              "@" at 4:5-4:6 (leading: Newline, Space)
+ 16: Ident           "drop" at 4:6-4:10
+ 17: Ident           "a" at 4:11-4:12 (leading: Space)
+ 18: Semicolon       ";" at 4:12-4:13
+ 19: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 20: Ident           "b" at 5:9-5:10 (leading: Space)
+ 21: Assign          "=" at 5:11-5:12 (leading: Space)
+ 22: Ident           "a" at 5:13-5:14 (leading: Space)
+ 23: Semicolon       ";" at 5:14-5:15
+ 24: KwReturn        "return" at 6:5-6:11 (leading: Space, LineComment, Newline, Space)
+ 25: IntLit          "0" at 6:12-6:13 (leading: Space)
+ 26: Semicolon       ";" at 6:13-6:14
+ 27: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 28: EOF             at 8:1-8:1

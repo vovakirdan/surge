@@ -1,0 +1,6 @@
+// scenario: struct literal with fields in return for empty struct
+type Empty = {}
+
+fn test_fields_for_empty() -> Empty {
+    return {1, 2};  // ERROR: Empty literal expects 0 fields, got 2
+}

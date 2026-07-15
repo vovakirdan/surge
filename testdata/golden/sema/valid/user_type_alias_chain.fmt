@@ -1,0 +1,8 @@
+// scenario: chained aliases usable where base int is expected
+type A = int;
+type B = A;
+type C = B;
+
+fn add_with_alias(value: C) -> int {
+    return value + 1;
+}

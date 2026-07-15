@@ -1,0 +1,14 @@
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let a = 2;
+        let b = 2;
+        return a + b;
+    }).await();
+
+    compare r {
+        Success(v) => print("v=" + (v to string));
+        Cancelled() => print("v=cancelled");
+    };
+    return 0;
+}

@@ -1,0 +1,41 @@
+layout_align_type.sg (span: 1:1-17:1)
+├─ Item[0]: Type (span: 1:1-5:2)
+│  ├─ Name: S
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @align(16)
+│  └─ Struct:
+│     ├─ Field[0]: a: uint8
+│     └─ Field[1]: b: uint64
+└─ Item[1]: Fn (span: 7:1-15:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:18-15:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:39)
+         │  ├─ Name: size_s
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#3: size_of()
+         ├─ Stmt[1]: Let (span: 10:5-10:41)
+         │  ├─ Name: align_s
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#5: align_of()
+         ├─ Stmt[2]: If (span: 12:5-12:45)
+         │  ├─ Cond: expr#11: !((align_s == (16 to uint)))
+         │  ├─ Then:
+Block (span: 12:32-12:45)
+         │  │  └─ Stmt[0]: Return (span: 12:34-12:43)
+         │  │     └─ Expr: expr#12: 1
+         │  └─ Else: <none>
+         ├─ Stmt[3]: If (span: 13:5-13:67)
+         │  ├─ Cond: expr#25: !((((((size_s / (16 to uint))) * (16 to uint))) == size_s))
+         │  ├─ Then:
+Block (span: 13:54-13:67)
+         │  │  └─ Stmt[0]: Return (span: 13:56-13:65)
+         │  │     └─ Expr: expr#26: 2
+         │  └─ Else: <none>
+         └─ Stmt[4]: Return (span: 14:5-14:14)
+            └─ Expr: expr#27: 0

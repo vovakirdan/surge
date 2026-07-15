@@ -1,0 +1,30 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 1:13-1:15 (leading: Space)
+  4: Ident           "main" at 1:16-1:20 (leading: Space)
+  5: LParen          "(" at 1:20-1:21
+  6: RParen          ")" at 1:21-1:22
+  7: Arrow           "->" at 1:23-1:25 (leading: Space)
+  8: Ident           "int" at 1:26-1:29 (leading: Space)
+  9: LBrace          "{" at 1:30-1:31 (leading: Space)
+ 10: KwLet           "let" at 2:5-2:8 (leading: Newline, Space)
+ 11: Ident           "a" at 2:9-2:10 (leading: Space)
+ 12: Colon           ":" at 2:10-2:11
+ 13: Ident           "int" at 2:12-2:15 (leading: Space)
+ 14: Assign          "=" at 2:16-2:17 (leading: Space)
+ 15: IntLit          "1" at 2:18-2:19 (leading: Space)
+ 16: Semicolon       ";" at 2:19-2:20
+ 17: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 18: Ident           "b" at 3:9-3:10 (leading: Space)
+ 19: Colon           ":" at 3:10-3:11
+ 20: Ident           "int" at 3:12-3:15 (leading: Space)
+ 21: Assign          "=" at 3:16-3:17 (leading: Space)
+ 22: IntLit          "2" at 3:18-3:19 (leading: Space)
+ 23: Semicolon       ";" at 3:19-3:20
+ 24: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 25: Ident           "a" at 4:12-4:13 (leading: Space)
+ 26: Plus            "+" at 4:14-4:15 (leading: Space)
+ 27: Ident           "b" at 4:16-4:17 (leading: Space)
+ 28: Semicolon       ";" at 4:17-4:18
+ 29: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 30: EOF             at 6:1-6:1

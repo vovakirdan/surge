@@ -1,0 +1,8 @@
+// scenario: block expression missing return
+fn test_missing_return() -> int {
+    let x: int = {
+        let a: int = 10;
+        // ERROR: block expression must end with return
+    };
+    return x;
+}

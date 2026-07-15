@@ -1,0 +1,16 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Point" at 2:6-2:11 (leading: Space)
+  3: Assign          "=" at 2:12-2:13 (leading: Space)
+  4: LBrace          "{" at 2:14-2:15 (leading: Space)
+  5: Ident           "x" at 3:5-3:6 (leading: Newline, Space)
+  6: Colon           ":" at 3:6-3:7
+  7: Ident           "int" at 3:8-3:11 (leading: Space)
+  8: Comma           "," at 3:11-3:12
+  9: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 10: Semicolon       ";" at 4:2-4:3
+ 11: KwType          "type" at 6:1-6:5 (leading: Newline)
+ 12: Ident           "Point" at 6:6-6:11 (leading: Space)
+ 13: Assign          "=" at 6:12-6:13 (leading: Space)
+ 14: Ident           "int" at 6:14-6:17 (leading: Space)
+ 15: Semicolon       ";" at 6:17-6:18
+ 16: EOF             at 7:1-7:1

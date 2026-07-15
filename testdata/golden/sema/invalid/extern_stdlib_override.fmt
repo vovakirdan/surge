@@ -1,0 +1,5 @@
+// scenario: attempt to override a sealed stdlib method on int
+extern<int> {
+    fn __add(self: int, other: int) -> int { return 0; }
+    @override fn __sub(self: int, other: int) -> int { return 0; }
+}

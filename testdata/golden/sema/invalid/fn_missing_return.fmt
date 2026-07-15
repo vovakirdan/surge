@@ -1,0 +1,7 @@
+// scenario: function declares int return but misses a return on some paths
+fn missing_return(flag: bool) -> int {
+    if (flag) {
+        return 1;
+    }
+    let value: int = 2;
+}

@@ -1,0 +1,62 @@
+// Test @deprecated attribute warnings on usage
+
+// Deprecated function without message
+@deprecated fn old_func() {}
+
+// Deprecated function with message
+@deprecated("Use new_func instead") fn old_func_msg() {}
+
+// Deprecated type without message
+@deprecated type OldType = { x: int };
+
+// Deprecated type with message
+@deprecated("Use NewType instead") type OldTypeMsg = { y: int };
+
+// Deprecated field without message
+type ContainerNoMsg = {
+    @deprecated field1: int,
+    normal: int,
+};
+
+// Deprecated field with message
+type ContainerWithMsg = {
+    @deprecated("Use field2 instead") old_field: int,
+    field2: int,
+};
+
+// Deprecated let without message
+@deprecated let OLD_VAR: int = 1;
+
+// Deprecated let with message
+@deprecated("Use NEW_VAR instead") let OLD_VAR_MSG: int = 2;
+
+// Deprecated const without message
+@deprecated const OLD_CONST: int = 10;
+
+// Deprecated const with message
+@deprecated("Use NEW_CONST instead") const OLD_CONST_MSG: int = 20;
+
+fn main() {
+    // Function calls
+    old_func();           // warning: function 'old_func' deprecated.
+    old_func_msg();       // warning: function 'old_func_msg' deprecated. Use new_func instead
+
+    // Type usage
+    let _: OldType = OldType { x: 1 };       // warning x2: type 'OldType' deprecated.
+    let _: OldTypeMsg = OldTypeMsg { y: 2 }; // warning x2: type 'OldTypeMsg' deprecated. Use NewType instead
+
+    // Field access
+    let c1 = ContainerNoMsg { field1: 1, normal: 2 };
+    let _ = c1.field1;    // warning: field 'field1' deprecated.
+
+    let c2 = ContainerWithMsg { old_field: 1, field2: 2 };
+    let _ = c2.old_field; // warning: field 'old_field' deprecated. Use field2 instead
+
+    // Let variable usage
+    let _ = OLD_VAR;      // warning: variable 'OLD_VAR' deprecated.
+    let _ = OLD_VAR_MSG;  // warning: variable 'OLD_VAR_MSG' deprecated. Use NEW_VAR instead
+
+    // Const usage
+    let _ = OLD_CONST;    // warning: constant 'OLD_CONST' deprecated.
+    let _ = OLD_CONST_MSG; // warning: constant 'OLD_CONST_MSG' deprecated. Use NEW_CONST instead
+}

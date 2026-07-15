@@ -1,0 +1,8 @@
+copy_non_copy_field.sg (span: 2:1-4:1)
+└─ Item[0]: Type (span: 2:1-3:34)
+   ├─ Name: BadConfig
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @copy
+   └─ Struct:
+      └─ Field[0]: name: string

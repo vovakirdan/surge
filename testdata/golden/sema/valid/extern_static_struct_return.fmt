@@ -1,0 +1,14 @@
+// scenario: static extern method returns struct via bare literal
+
+type Point = { x: int, y: int }
+
+extern<Point> {
+    fn origin() -> Point {
+        return { x: 1, y: 2 };
+    }
+}
+
+fn sum_origin() -> int {
+    let p: Point = Point.origin();
+    return p.x + p.y;
+}

@@ -1,0 +1,17 @@
+import stdlib/json as json;
+
+pub type Ctx = {};
+
+extern<Ctx> {
+    pub fn json_response(self: &mut Ctx, value: json.JsonValue) -> int {
+        let _ = value;
+        return 0;
+    }
+}
+
+@entrypoint
+fn main() -> int {
+    let mut ctx: Ctx = {};
+    let value: json.JsonValue = json.JsonString("x");
+    return ctx.json_response(value);
+}

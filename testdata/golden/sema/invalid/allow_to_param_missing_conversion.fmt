@@ -1,0 +1,8 @@
+type Bar = { value: int }
+
+fn takes_string(@allow_to s: string) -> int { return 0; }
+
+fn test_allow_to_param_missing() -> int {
+    let b: Bar = Bar { 1 };
+    return takes_string(b);
+}

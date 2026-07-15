@@ -1,0 +1,5 @@
+fn f(p: *int) -> *int { return p; }
+
+fn main() -> int {
+    return 0;
+}

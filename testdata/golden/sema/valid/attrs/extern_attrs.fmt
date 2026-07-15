@@ -1,0 +1,52 @@
+// Valid extern block and method attributes
+
+type Counter = {
+    value: int,
+};
+
+extern<Counter> {
+    // @overload - overloaded method
+    fn increment(self: &mut Counter) {
+        self.value = self.value + 1;
+    }
+
+    @overload
+    fn increment(self: &mut Counter, amount: int) {
+        self.value = self.value + amount;
+    }
+
+    // @pure - method has no side effects
+    @pure
+    fn double_value(self: &Counter) -> int {
+        return self.value * 2;
+    }
+
+    // @nonblocking - method does not block
+    @nonblocking
+    fn try_increment(self: &mut Counter) -> bool {
+        return true;
+    }
+
+    // @backend - specify backend
+    @backend("cpu")
+    fn cpu_process(self: &Counter) {
+    }
+
+    // @hidden - hide from API
+    @hidden
+    fn internal_method(self: &Counter) {
+    }
+
+    // @deprecated - mark as deprecated
+    @deprecated
+    fn old_method(self: &Counter) {
+    }
+}
+
+// @backend on extern block
+@backend("gpu")
+extern<Counter> {
+    fn gpu_accelerated_increment(self: &mut Counter) {
+        self.value = self.value + 1;
+    }
+}

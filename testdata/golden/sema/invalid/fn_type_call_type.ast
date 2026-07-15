@@ -1,0 +1,12 @@
+fn_type_call_type.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: test
+   ├─ Params: (f: fn(int) -> int)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:28-5:2)
+         └─ Stmt[0]: Let (span: 4:5-4:29)
+            ├─ Name: x
+            ├─ Mutable: false
+            ├─ Type: int
+            └─ Value: expr#3: f("hello")

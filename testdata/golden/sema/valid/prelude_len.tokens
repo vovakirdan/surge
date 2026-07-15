@@ -1,0 +1,72 @@
+  1: At              "@" at 8:1-8:2 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "entrypoint" at 8:2-8:12
+  3: KwFn            "fn" at 9:1-9:3 (leading: Newline)
+  4: Ident           "main" at 9:4-9:8 (leading: Space)
+  5: LParen          "(" at 9:8-9:9
+  6: RParen          ")" at 9:9-9:10
+  7: LBrace          "{" at 9:11-9:12 (leading: Space)
+  8: KwLet           "let" at 12:5-12:8 (leading: Newline, Space, LineComment, Newline, Space, LineComment, Newline, Space)
+  9: Ident           "s" at 12:9-12:10 (leading: Space)
+ 10: Assign          "=" at 12:11-12:12 (leading: Space)
+ 11: StringLit       "\"test\"" at 12:13-12:19 (leading: Space)
+ 12: Semicolon       ";" at 12:19-12:20
+ 13: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 14: Ident           "len_s" at 13:9-13:14 (leading: Space)
+ 15: Assign          "=" at 13:15-13:16 (leading: Space)
+ 16: Ident           "len" at 13:17-13:20 (leading: Space)
+ 17: LParen          "(" at 13:20-13:21
+ 18: Ident           "s" at 13:21-13:22
+ 19: RParen          ")" at 13:22-13:23
+ 20: Semicolon       ";" at 13:23-13:24
+ 21: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 22: Ident           "arr" at 14:9-14:12 (leading: Space)
+ 23: Colon           ":" at 14:12-14:13
+ 24: Ident           "Array" at 14:14-14:19 (leading: Space)
+ 25: Lt              "<" at 14:19-14:20
+ 26: Ident           "int" at 14:20-14:23
+ 27: Gt              ">" at 14:23-14:24
+ 28: Assign          "=" at 14:25-14:26 (leading: Space)
+ 29: LBracket        "[" at 14:27-14:28 (leading: Space)
+ 30: IntLit          "1" at 14:28-14:29
+ 31: Comma           "," at 14:29-14:30
+ 32: IntLit          "2" at 14:31-14:32 (leading: Space)
+ 33: Comma           "," at 14:32-14:33
+ 34: IntLit          "3" at 14:34-14:35 (leading: Space)
+ 35: RBracket        "]" at 14:35-14:36
+ 36: Semicolon       ";" at 14:36-14:37
+ 37: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 38: Ident           "len_arr" at 15:9-15:16 (leading: Space)
+ 39: Assign          "=" at 15:17-15:18 (leading: Space)
+ 40: Ident           "len" at 15:19-15:22 (leading: Space)
+ 41: LParen          "(" at 15:22-15:23
+ 42: Ident           "arr" at 15:23-15:26
+ 43: RParen          ")" at 15:26-15:27
+ 44: Semicolon       ";" at 15:27-15:28
+ 45: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
+ 46: Ident           "arr_fixed" at 16:9-16:18 (leading: Space)
+ 47: Colon           ":" at 16:18-16:19
+ 48: Ident           "ArrayFixed" at 16:20-16:30 (leading: Space)
+ 49: Lt              "<" at 16:30-16:31
+ 50: Ident           "int" at 16:31-16:34
+ 51: Comma           "," at 16:34-16:35
+ 52: IntLit          "3" at 16:36-16:37 (leading: Space)
+ 53: Gt              ">" at 16:37-16:38
+ 54: Assign          "=" at 16:39-16:40 (leading: Space)
+ 55: LBracket        "[" at 16:41-16:42 (leading: Space)
+ 56: IntLit          "1" at 16:42-16:43
+ 57: Comma           "," at 16:43-16:44
+ 58: IntLit          "2" at 16:45-16:46 (leading: Space)
+ 59: Comma           "," at 16:46-16:47
+ 60: IntLit          "3" at 16:48-16:49 (leading: Space)
+ 61: RBracket        "]" at 16:49-16:50
+ 62: Semicolon       ";" at 16:50-16:51
+ 63: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
+ 64: Ident           "len_arr_fixed" at 17:9-17:22 (leading: Space)
+ 65: Assign          "=" at 17:23-17:24 (leading: Space)
+ 66: Ident           "len" at 17:25-17:28 (leading: Space)
+ 67: LParen          "(" at 17:28-17:29
+ 68: Ident           "arr_fixed" at 17:29-17:38
+ 69: RParen          ")" at 17:38-17:39
+ 70: Semicolon       ";" at 17:39-17:40
+ 71: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 72: EOF             at 19:1-19:1

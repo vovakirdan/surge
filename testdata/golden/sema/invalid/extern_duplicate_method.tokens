@@ -1,0 +1,35 @@
+  1: KwExtern        "extern" at 2:1-2:7 (leading: LineComment, Newline)
+  2: Lt              "<" at 2:7-2:8
+  3: Ident           "int" at 2:8-2:11
+  4: Gt              ">" at 2:11-2:12
+  5: LBrace          "{" at 2:13-2:14 (leading: Space)
+  6: KwFn            "fn" at 3:5-3:7 (leading: Newline, Space)
+  7: Ident           "touch" at 3:8-3:13 (leading: Space)
+  8: LParen          "(" at 3:13-3:14
+  9: Ident           "self" at 3:14-3:18
+ 10: Colon           ":" at 3:18-3:19
+ 11: Ident           "int" at 3:20-3:23 (leading: Space)
+ 12: RParen          ")" at 3:23-3:24
+ 13: Arrow           "->" at 3:25-3:27 (leading: Space)
+ 14: Ident           "int" at 3:28-3:31 (leading: Space)
+ 15: LBrace          "{" at 3:32-3:33 (leading: Space)
+ 16: KwReturn        "return" at 3:34-3:40 (leading: Space)
+ 17: Ident           "self" at 3:41-3:45 (leading: Space)
+ 18: Semicolon       ";" at 3:45-3:46
+ 19: RBrace          "}" at 3:47-3:48 (leading: Space)
+ 20: KwFn            "fn" at 4:5-4:7 (leading: Newline, Space)
+ 21: Ident           "touch" at 4:8-4:13 (leading: Space)
+ 22: LParen          "(" at 4:13-4:14
+ 23: Ident           "self" at 4:14-4:18
+ 24: Colon           ":" at 4:18-4:19
+ 25: Ident           "int" at 4:20-4:23 (leading: Space)
+ 26: RParen          ")" at 4:23-4:24
+ 27: Arrow           "->" at 4:25-4:27 (leading: Space)
+ 28: Ident           "int" at 4:28-4:31 (leading: Space)
+ 29: LBrace          "{" at 4:32-4:33 (leading: Space)
+ 30: KwReturn        "return" at 4:34-4:40 (leading: Space)
+ 31: Ident           "self" at 4:41-4:45 (leading: Space)
+ 32: Semicolon       ";" at 4:45-4:46
+ 33: RBrace          "}" at 4:47-4:48 (leading: Space)
+ 34: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 35: EOF             at 6:1-6:1

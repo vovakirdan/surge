@@ -1,0 +1,36 @@
+  1: KwType          "type" at 4:1-4:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Point" at 4:6-4:11 (leading: Space)
+  3: Assign          "=" at 4:12-4:13 (leading: Space)
+  4: LBrace          "{" at 4:14-4:15 (leading: Space)
+  5: Ident           "x" at 5:5-5:6 (leading: Newline, Space)
+  6: Colon           ":" at 5:6-5:7
+  7: Ident           "int" at 5:8-5:11 (leading: Space)
+  8: Comma           "," at 5:11-5:12
+  9: Ident           "y" at 6:5-6:6 (leading: Newline, Space)
+ 10: Colon           ":" at 6:6-6:7
+ 11: Ident           "int" at 6:8-6:11 (leading: Space)
+ 12: Comma           "," at 6:11-6:12
+ 13: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 14: Semicolon       ";" at 7:2-7:3
+ 15: At              "@" at 9:1-9:2 (leading: Newline)
+ 16: Ident           "entrypoint" at 9:2-9:12
+ 17: LParen          "(" at 9:12-9:13
+ 18: StringLit       "\"argv\"" at 9:13-9:19
+ 19: RParen          ")" at 9:19-9:20
+ 20: KwFn            "fn" at 10:1-10:3 (leading: Newline)
+ 21: Ident           "main" at 10:4-10:8 (leading: Space)
+ 22: LParen          "(" at 10:8-10:9
+ 23: Ident           "p" at 10:9-10:10
+ 24: Colon           ":" at 10:10-10:11
+ 25: Ident           "Point" at 10:12-10:17 (leading: Space)
+ 26: RParen          ")" at 10:17-10:18
+ 27: Arrow           "->" at 10:19-10:21 (leading: Space)
+ 28: Ident           "int" at 10:22-10:25 (leading: Space)
+ 29: LBrace          "{" at 10:26-10:27 (leading: Space)
+ 30: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space)
+ 31: Ident           "p" at 11:12-11:13 (leading: Space)
+ 32: Dot             "." at 11:13-11:14
+ 33: Ident           "x" at 11:14-11:15
+ 34: Semicolon       ";" at 11:15-11:16
+ 35: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 36: EOF             at 13:1-13:1

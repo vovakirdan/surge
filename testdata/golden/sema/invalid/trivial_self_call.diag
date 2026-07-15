@@ -1,0 +1,1 @@
+error SEM3131 testdata/golden/sema/invalid/trivial_self_call.sg:2:12 obvious infinite recursion: this expression resolves to a call to the same function with the same arguments; rewrite the call to target a different overload or change the arguments

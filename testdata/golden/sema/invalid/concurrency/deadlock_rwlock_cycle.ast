@@ -1,0 +1,42 @@
+deadlock_rwlock_cycle.sg (span: 4:1-29:1)
+├─ Item[0]: Type (span: 4:1-8:2)
+│  ├─ Name: RwResource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: rw_a: RwLock
+│     ├─ Field[1]: rw_b: RwLock
+│     └─ Field[2]: data: int
+└─ Item[1]: Extern (span: 10:1-28:2)
+   ├─ Target: RwResource
+   ├─ Members:
+   │  ├─ Fn[0]: reader_then_writer
+   │  │  ├─ Params: (self: &mut RwResource)
+   │  │  ├─ Return: nothing
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 12:50-18:6)
+   │  │     ├─ Stmt[0]: Expr (span: 13:9-13:31)
+   │  │     │  └─ Expr: expr#4: self.rw_a.read_lock()
+   │  │     ├─ Stmt[1]: Expr (span: 14:9-14:32)
+   │  │     │  └─ Expr: expr#8: self.rw_b.write_lock()
+   │  │     ├─ Stmt[2]: Expr (span: 15:9-15:23)
+   │  │     │  └─ Expr: expr#12: (self.data = 1)
+   │  │     ├─ Stmt[3]: Expr (span: 16:9-16:34)
+   │  │     │  └─ Expr: expr#16: self.rw_b.write_unlock()
+   │  │     └─ Stmt[4]: Expr (span: 17:9-17:33)
+   │  │        └─ Expr: expr#20: self.rw_a.read_unlock()
+   │  └─ Fn[1]: writer_then_reader
+   │     ├─ Params: (self: &mut RwResource)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 21:50-27:6)
+   │        ├─ Stmt[0]: Expr (span: 22:9-22:32)
+   │        │  └─ Expr: expr#24: self.rw_b.write_lock()
+   │        ├─ Stmt[1]: Expr (span: 23:9-23:31)
+   │        │  └─ Expr: expr#28: self.rw_a.read_lock()
+   │        ├─ Stmt[2]: Expr (span: 24:9-24:23)
+   │        │  └─ Expr: expr#32: (self.data = 2)
+   │        ├─ Stmt[3]: Expr (span: 25:9-25:33)
+   │        │  └─ Expr: expr#36: self.rw_a.read_unlock()
+   │        └─ Stmt[4]: Expr (span: 26:9-26:34)
+   │           └─ Expr: expr#40: self.rw_b.write_unlock()

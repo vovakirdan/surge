@@ -1,0 +1,27 @@
+// scenario: Copy primitives - all uses valid (no move errors)
+fn test_copy_int() -> int32 {
+    let a: int32 = 10;
+    let b: int32 = a;  // copy
+    let c: int32 = a;  // still ok, a is Copy
+    return a + b + c;
+}
+
+fn test_copy_bool() -> bool {
+    let x: bool = true;
+    let y: bool = x;   // copy
+    let z: bool = x;   // still ok
+    return x && y && z;
+}
+
+fn test_copy_float() -> float64 {
+    let f: float64 = 3.14;
+    let g: float64 = f;  // copy
+    let h: float64 = f;  // still ok
+    return f + g + h;
+}
+
+fn test_copy_unit() {
+    let u: () = ();
+    let v: () = u;  // copy
+    let w: () = u;  // still ok
+}

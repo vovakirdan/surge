@@ -1,0 +1,1 @@
+error SEM3019 testdata/golden/sema/invalid/ownership/borrow_mutation_under_shared.sg:6:5 cannot mutate 'x' while it is shared-borrowed

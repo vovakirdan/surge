@@ -1,0 +1,7 @@
+fn main() -> nothing {
+    let t = async {
+        ret 1;
+    };
+    t;
+    return nothing;
+}

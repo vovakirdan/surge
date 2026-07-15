@@ -1,0 +1,13 @@
+// custom __bool makes non-bool type usable in conditions
+type Light = { on: bool }
+
+extern<Light> {
+    fn __bool(self: Light) -> bool;
+}
+
+fn to_int(l: Light) -> int {
+    if (l) {
+        return 1;
+    }
+    return 0;
+}

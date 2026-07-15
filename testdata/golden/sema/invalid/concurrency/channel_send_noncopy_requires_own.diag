@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/concurrency/channel_send_noncopy_requires_own.sg:9:13 expected own Item, got Item

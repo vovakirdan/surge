@@ -1,0 +1,34 @@
+ref_result_keeps_borrow.sg (span: 4:1-15:1)
+├─ Item[0]: Fn (span: 4:1-4:39)
+│  ├─ Name: ident
+│  ├─ Generics: <T>
+│  ├─ Params: (x: &T)
+│  ├─ Return: &T
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:26-4:39)
+│        └─ Stmt[0]: Return (span: 4:28-4:37)
+│           └─ Expr: expr#1: x
+└─ Item[1]: Fn (span: 6:1-14:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:18-14:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:27)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#2: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 9:5-9:15)
+         │  └─ Expr: expr#6: a.push(1)
+         ├─ Stmt[2]: Let (span: 10:5-10:31)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &int[]
+         │  └─ Value: expr#10: ident(&a)
+         ├─ Stmt[3]: Expr (span: 11:5-11:15)
+         │  └─ Expr: expr#14: a.push(2)
+         ├─ Stmt[4]: Expr (span: 12:5-12:27)
+         │  └─ Expr: expr#20: print(r[0] to string)
+         └─ Stmt[5]: Return (span: 13:5-13:14)
+            └─ Expr: expr#21: 0

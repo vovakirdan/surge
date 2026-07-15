@@ -1,0 +1,16 @@
+enum_float_base.sg (span: 2:1-12:1)
+├─ Item[0]: Type (span: 4:1-7:2)
+│  ├─ Name: Mass
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+└─ Item[1]: Fn (span: 9:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:11-11:2)
+         └─ Stmt[0]: Let (span: 10:5-10:35)
+            ├─ Name: m
+            ├─ Mutable: false
+            ├─ Type: float
+            └─ Value: expr#4: Mass.KILOGRAM

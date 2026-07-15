@@ -1,0 +1,8 @@
+const BASE: int = 40;
+const ANSWER: int = BASE + 2;
+
+@entrypoint
+fn main() -> int {
+    print(ANSWER to string);
+    return 0;
+}

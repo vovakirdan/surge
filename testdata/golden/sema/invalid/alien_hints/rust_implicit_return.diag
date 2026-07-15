@@ -1,0 +1,3 @@
+error SEM3051 testdata/golden/sema/invalid/alien_hints/rust_implicit_return.sg:2:22 function returning int is missing a return
+info ALN8006 testdata/golden/sema/invalid/alien_hints/rust_implicit_return.sg:2:22 Ah, a fellow Rustacean! That looks like Rust implicit return without ';'. Surge requires an explicit `return` (with a semicolon) for function results. ```sg fn foo() -> int { return 1; } ```
+error SYN2012 testdata/golden/sema/invalid/alien_hints/rust_implicit_return.sg:6:6 expected ';' after expression statement

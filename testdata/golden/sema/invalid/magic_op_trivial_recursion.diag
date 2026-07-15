@@ -1,0 +1,1 @@
+error SEM3131 testdata/golden/sema/invalid/magic_op_trivial_recursion.sg:5:16 obvious infinite recursion: this expression resolves to a call to the same function with the same arguments; rewrite the call to target a different overload or change the arguments

@@ -1,0 +1,40 @@
+tuple_access.sg (span: 2:1-16:1)
+├─ Item[0]: Fn (span: 2:1-5:2)
+│  ├─ Name: get_first
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:23-5:2)
+│        ├─ Stmt[0]: Let (span: 3:5-3:23)
+│        │  ├─ Name: pair
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#3: (1, 2)
+│        └─ Stmt[1]: Return (span: 4:5-4:19)
+│           └─ Expr: expr#5: pair.0
+├─ Item[1]: Fn (span: 7:1-10:2)
+│  ├─ Name: get_second
+│  ├─ Params: ()
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:27-10:2)
+│        ├─ Stmt[0]: Let (span: 8:5-8:42)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: (int, string)
+│        │  └─ Value: expr#8: (42, "hello")
+│        └─ Stmt[1]: Return (span: 9:5-9:16)
+│           └─ Expr: expr#10: t.1
+└─ Item[2]: Fn (span: 12:1-15:2)
+   ├─ Name: nested_access
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:27-15:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:25)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#15: ((1, 2), 3)
+         └─ Stmt[1]: Return (span: 14:5-14:18)
+            └─ Expr: expr#18: t.0.1

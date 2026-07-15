@@ -1,0 +1,8 @@
+// ERROR: Task<T> in module-level variable
+
+async fn work() -> int {
+    return 42;
+}
+
+// ERROR SEM3108: cannot store Task<T> in module-level variable
+pub let GLOBAL_TASK: Task<int> = spawn work();

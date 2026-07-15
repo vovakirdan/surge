@@ -1,0 +1,1 @@
+error SEM3005 testdata/golden/sema/invalid/module_hidden_cross_file/second.sg:4:12 cannot resolve 'secret'

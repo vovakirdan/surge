@@ -1,0 +1,5 @@
+// Test that macro is rejected as v2+ feature
+
+macro test_macro(x: int) {
+    return x * 2;
+}

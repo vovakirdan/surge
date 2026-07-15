@@ -1,0 +1,72 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "test_clone_copy" at 2:4-2:19 (leading: Space)
+  3: LParen          "(" at 2:19-2:20
+  4: RParen          ")" at 2:20-2:21
+  5: Arrow           "->" at 2:22-2:24 (leading: Space)
+  6: Ident           "int32" at 2:25-2:30 (leading: Space)
+  7: LBrace          "{" at 2:31-2:32 (leading: Space)
+  8: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  9: Ident           "x" at 3:9-3:10 (leading: Space)
+ 10: Colon           ":" at 3:10-3:11
+ 11: Ident           "int32" at 3:12-3:17 (leading: Space)
+ 12: Assign          "=" at 3:18-3:19 (leading: Space)
+ 13: IntLit          "5" at 3:20-3:21 (leading: Space)
+ 14: Semicolon       ";" at 3:21-3:22
+ 15: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 16: Ident           "y" at 4:9-4:10 (leading: Space)
+ 17: Colon           ":" at 4:10-4:11
+ 18: Ident           "int32" at 4:12-4:17 (leading: Space)
+ 19: Assign          "=" at 4:18-4:19 (leading: Space)
+ 20: Ident           "clone" at 4:20-4:25 (leading: Space)
+ 21: LParen          "(" at 4:25-4:26
+ 22: Amp             "&" at 4:26-4:27
+ 23: Ident           "x" at 4:27-4:28
+ 24: RParen          ")" at 4:28-4:29
+ 25: Semicolon       ";" at 4:29-4:30
+ 26: KwLet           "let" at 5:5-5:8 (leading: Space, LineComment, Newline, Space)
+ 27: Ident           "z" at 5:9-5:10 (leading: Space)
+ 28: Colon           ":" at 5:10-5:11
+ 29: Ident           "int32" at 5:12-5:17 (leading: Space)
+ 30: Assign          "=" at 5:18-5:19 (leading: Space)
+ 31: Ident           "x" at 5:20-5:21 (leading: Space)
+ 32: Semicolon       ";" at 5:21-5:22
+ 33: KwReturn        "return" at 6:5-6:11 (leading: Space, LineComment, Newline, Space)
+ 34: Ident           "x" at 6:12-6:13 (leading: Space)
+ 35: Plus            "+" at 6:14-6:15 (leading: Space)
+ 36: Ident           "y" at 6:16-6:17 (leading: Space)
+ 37: Plus            "+" at 6:18-6:19 (leading: Space)
+ 38: Ident           "z" at 6:20-6:21 (leading: Space)
+ 39: Semicolon       ";" at 6:21-6:22
+ 40: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 41: KwFn            "fn" at 9:1-9:3 (leading: Newline)
+ 42: Ident           "test_clone_bool" at 9:4-9:19 (leading: Space)
+ 43: LParen          "(" at 9:19-9:20
+ 44: RParen          ")" at 9:20-9:21
+ 45: Arrow           "->" at 9:22-9:24 (leading: Space)
+ 46: Ident           "bool" at 9:25-9:29 (leading: Space)
+ 47: LBrace          "{" at 9:30-9:31 (leading: Space)
+ 48: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 49: Ident           "a" at 10:9-10:10 (leading: Space)
+ 50: Colon           ":" at 10:10-10:11
+ 51: Ident           "bool" at 10:12-10:16 (leading: Space)
+ 52: Assign          "=" at 10:17-10:18 (leading: Space)
+ 53: KwTrue          "true" at 10:19-10:23 (leading: Space)
+ 54: Semicolon       ";" at 10:23-10:24
+ 55: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
+ 56: Ident           "b" at 11:9-11:10 (leading: Space)
+ 57: Colon           ":" at 11:10-11:11
+ 58: Ident           "bool" at 11:12-11:16 (leading: Space)
+ 59: Assign          "=" at 11:17-11:18 (leading: Space)
+ 60: Ident           "clone" at 11:19-11:24 (leading: Space)
+ 61: LParen          "(" at 11:24-11:25
+ 62: Amp             "&" at 11:25-11:26
+ 63: Ident           "a" at 11:26-11:27
+ 64: RParen          ")" at 11:27-11:28
+ 65: Semicolon       ";" at 11:28-11:29
+ 66: KwReturn        "return" at 12:5-12:11 (leading: Space, LineComment, Newline, Space)
+ 67: Ident           "a" at 12:12-12:13 (leading: Space)
+ 68: AndAnd          "&&" at 12:14-12:16 (leading: Space)
+ 69: Ident           "b" at 12:17-12:18 (leading: Space)
+ 70: Semicolon       ";" at 12:18-12:19
+ 71: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 72: EOF             at 14:1-14:1

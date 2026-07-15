@@ -1,0 +1,1 @@
+error SEM3005 testdata/golden/sema/invalid/struct_literal_return_unknown_field.sg:7:12 Bar has no field other_field

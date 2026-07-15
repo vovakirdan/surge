@@ -1,0 +1,29 @@
+return_with_lock_held.sg (span: 4:1-20:1)
+├─ Item[0]: Type (span: 4:1-7:2)
+│  ├─ Name: Counter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int
+└─ Item[1]: Extern (span: 9:1-19:2)
+   ├─ Target: Counter
+   ├─ Members:
+   │  └─ Fn[0]: bad_early_return
+   │     ├─ Params: (self: &mut Counter)
+   │     ├─ Return: int
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 11:52-18:6)
+   │        ├─ Stmt[0]: Expr (span: 12:9-12:26)
+   │        │  └─ Expr: expr#4: self.lock.lock()
+   │        ├─ Stmt[1]: If (span: 13:9-15:10)
+   │        │  ├─ Cond: expr#8: (self.value > 0)
+   │        │  ├─ Then:
+Block (span: 13:27-15:10)
+   │        │  │  └─ Stmt[0]: Return (span: 14:13-14:31)
+   │        │  │     └─ Expr: expr#10: self.value
+   │        │  └─ Else: <none>
+   │        ├─ Stmt[2]: Expr (span: 16:9-16:28)
+   │        │  └─ Expr: expr#14: self.lock.unlock()
+   │        └─ Stmt[3]: Return (span: 17:9-17:18)
+   │           └─ Expr: expr#15: 0

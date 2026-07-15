@@ -1,0 +1,21 @@
+generic_call_angle_brackets.sg (span: 2:1-9:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: id
+│  ├─ Generics: <T>
+│  ├─ Params: (value: T)
+│  ├─ Return: T
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:25-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#1: value
+└─ Item[1]: Fn (span: 6:1-8:2)
+   ├─ Name: usage
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:12-8:2)
+         └─ Stmt[0]: Let (span: 7:5-7:29)
+            ├─ Name: a
+            ├─ Mutable: false
+            ├─ Type: int
+            └─ Value: expr#7: (((id < int)) > (1))

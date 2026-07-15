@@ -1,0 +1,4 @@
+fn main() -> int[] {
+    let xs: int[] = { ret []; };
+    return xs;
+}

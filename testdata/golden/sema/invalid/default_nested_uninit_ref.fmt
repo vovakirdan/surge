@@ -1,0 +1,20 @@
+type Leaf = {
+    ref: &int,
+};
+
+type Branch = {
+    leaves: Leaf[],
+};
+
+type Root = {
+    branch: Branch,
+};
+
+type Forest = {
+    roots: Root[],
+};
+
+fn main() -> int {
+    let value: Forest;
+    return 0;
+}

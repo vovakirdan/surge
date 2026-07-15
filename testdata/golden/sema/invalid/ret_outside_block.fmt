@@ -1,0 +1,4 @@
+fn main() -> nothing {
+    ret;
+    return nothing;
+}

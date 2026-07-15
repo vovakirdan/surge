@@ -1,0 +1,37 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Ident           "x" at 3:9-3:10 (leading: Space)
+ 12: Colon           ":" at 3:10-3:11
+ 13: Ident           "int" at 3:12-3:15 (leading: Space)
+ 14: Assign          "=" at 3:16-3:17 (leading: Space)
+ 15: IntLit          "1" at 3:18-3:19 (leading: Space)
+ 16: Semicolon       ";" at 3:19-3:20
+ 17: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 18: Ident           "y" at 4:9-4:10 (leading: Space)
+ 19: Colon           ":" at 4:10-4:11
+ 20: Ident           "int" at 4:12-4:15 (leading: Space)
+ 21: Assign          "=" at 4:16-4:17 (leading: Space)
+ 22: IntLit          "2" at 4:18-4:19 (leading: Space)
+ 23: Semicolon       ";" at 4:19-4:20
+ 24: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 25: Ident           "z" at 5:9-5:10 (leading: Space)
+ 26: Colon           ":" at 5:10-5:11
+ 27: Ident           "int" at 5:12-5:15 (leading: Space)
+ 28: Assign          "=" at 5:16-5:17 (leading: Space)
+ 29: Ident           "x" at 5:18-5:19 (leading: Space)
+ 30: Plus            "+" at 5:20-5:21 (leading: Space)
+ 31: Ident           "y" at 5:22-5:23 (leading: Space)
+ 32: Semicolon       ";" at 5:23-5:24
+ 33: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 34: Ident           "z" at 6:12-6:13 (leading: Space)
+ 35: Semicolon       ";" at 6:13-6:14
+ 36: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 37: EOF             at 9:1-9:1

@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/block_expr_missing_return.sg:3:18 cannot assign nothing to int

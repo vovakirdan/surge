@@ -1,0 +1,130 @@
+  1: At              "@" at 2:1-2:2 (leading: LineComment, Newline)
+  2: Ident           "copy" at 2:2-2:6
+  3: KwType          "type" at 3:1-3:5 (leading: Newline)
+  4: Ident           "Point" at 3:6-3:11 (leading: Space)
+  5: Assign          "=" at 3:12-3:13 (leading: Space)
+  6: LBrace          "{" at 3:14-3:15 (leading: Space)
+  7: Ident           "x" at 3:16-3:17 (leading: Space)
+  8: Colon           ":" at 3:17-3:18
+  9: Ident           "int32" at 3:19-3:24 (leading: Space)
+ 10: Comma           "," at 3:24-3:25
+ 11: Ident           "y" at 3:26-3:27 (leading: Space)
+ 12: Colon           ":" at 3:27-3:28
+ 13: Ident           "int32" at 3:29-3:34 (leading: Space)
+ 14: RBrace          "}" at 3:35-3:36 (leading: Space)
+ 15: At              "@" at 5:1-5:2 (leading: Newline)
+ 16: Ident           "copy" at 5:2-5:6
+ 17: KwType          "type" at 6:1-6:5 (leading: Newline)
+ 18: Ident           "Color" at 6:6-6:11 (leading: Space)
+ 19: Assign          "=" at 6:12-6:13 (leading: Space)
+ 20: LBrace          "{" at 6:14-6:15 (leading: Space)
+ 21: Ident           "r" at 6:16-6:17 (leading: Space)
+ 22: Colon           ":" at 6:17-6:18
+ 23: Ident           "uint8" at 6:19-6:24 (leading: Space)
+ 24: Comma           "," at 6:24-6:25
+ 25: Ident           "g" at 6:26-6:27 (leading: Space)
+ 26: Colon           ":" at 6:27-6:28
+ 27: Ident           "uint8" at 6:29-6:34 (leading: Space)
+ 28: Comma           "," at 6:34-6:35
+ 29: Ident           "b" at 6:36-6:37 (leading: Space)
+ 30: Colon           ":" at 6:37-6:38
+ 31: Ident           "uint8" at 6:39-6:44 (leading: Space)
+ 32: Comma           "," at 6:44-6:45
+ 33: Ident           "a" at 6:46-6:47 (leading: Space)
+ 34: Colon           ":" at 6:47-6:48
+ 35: Ident           "uint8" at 6:49-6:54 (leading: Space)
+ 36: RBrace          "}" at 6:55-6:56 (leading: Space)
+ 37: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 38: Ident           "test_copy_point" at 8:4-8:19 (leading: Space)
+ 39: LParen          "(" at 8:19-8:20
+ 40: RParen          ")" at 8:20-8:21
+ 41: Arrow           "->" at 8:22-8:24 (leading: Space)
+ 42: Ident           "int32" at 8:25-8:30 (leading: Space)
+ 43: LBrace          "{" at 8:31-8:32 (leading: Space)
+ 44: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 45: Ident           "p1" at 9:9-9:11 (leading: Space)
+ 46: Colon           ":" at 9:11-9:12
+ 47: Ident           "Point" at 9:13-9:18 (leading: Space)
+ 48: Assign          "=" at 9:19-9:20 (leading: Space)
+ 49: Ident           "Point" at 9:21-9:26 (leading: Space)
+ 50: LBrace          "{" at 9:27-9:28 (leading: Space)
+ 51: Ident           "x" at 9:29-9:30 (leading: Space)
+ 52: Colon           ":" at 9:30-9:31
+ 53: IntLit          "10" at 9:32-9:34 (leading: Space)
+ 54: Comma           "," at 9:34-9:35
+ 55: Ident           "y" at 9:36-9:37 (leading: Space)
+ 56: Colon           ":" at 9:37-9:38
+ 57: IntLit          "20" at 9:39-9:41 (leading: Space)
+ 58: RBrace          "}" at 9:42-9:43 (leading: Space)
+ 59: Semicolon       ";" at 9:43-9:44
+ 60: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 61: Ident           "p2" at 10:9-10:11 (leading: Space)
+ 62: Assign          "=" at 10:12-10:13 (leading: Space)
+ 63: Ident           "p1" at 10:14-10:16 (leading: Space)
+ 64: Semicolon       ";" at 10:16-10:17
+ 65: KwLet           "let" at 11:5-11:8 (leading: Space, LineComment, Newline, Space)
+ 66: Ident           "p3" at 11:9-11:11 (leading: Space)
+ 67: Assign          "=" at 11:12-11:13 (leading: Space)
+ 68: Ident           "p1" at 11:14-11:16 (leading: Space)
+ 69: Semicolon       ";" at 11:16-11:17
+ 70: KwReturn        "return" at 12:5-12:11 (leading: Space, LineComment, Newline, Space)
+ 71: Ident           "p1" at 12:12-12:14 (leading: Space)
+ 72: Dot             "." at 12:14-12:15
+ 73: Ident           "x" at 12:15-12:16
+ 74: Plus            "+" at 12:17-12:18 (leading: Space)
+ 75: Ident           "p2" at 12:19-12:21 (leading: Space)
+ 76: Dot             "." at 12:21-12:22
+ 77: Ident           "x" at 12:22-12:23
+ 78: Plus            "+" at 12:24-12:25 (leading: Space)
+ 79: Ident           "p3" at 12:26-12:28 (leading: Space)
+ 80: Dot             "." at 12:28-12:29
+ 81: Ident           "x" at 12:29-12:30
+ 82: Semicolon       ";" at 12:30-12:31
+ 83: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 84: KwFn            "fn" at 15:1-15:3 (leading: Newline)
+ 85: Ident           "test_copy_color" at 15:4-15:19 (leading: Space)
+ 86: LParen          "(" at 15:19-15:20
+ 87: RParen          ")" at 15:20-15:21
+ 88: Arrow           "->" at 15:22-15:24 (leading: Space)
+ 89: Ident           "uint8" at 15:25-15:30 (leading: Space)
+ 90: LBrace          "{" at 15:31-15:32 (leading: Space)
+ 91: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
+ 92: Ident           "c1" at 16:9-16:11 (leading: Space)
+ 93: Colon           ":" at 16:11-16:12
+ 94: Ident           "Color" at 16:13-16:18 (leading: Space)
+ 95: Assign          "=" at 16:19-16:20 (leading: Space)
+ 96: Ident           "Color" at 16:21-16:26 (leading: Space)
+ 97: LBrace          "{" at 16:27-16:28 (leading: Space)
+ 98: Ident           "r" at 16:29-16:30 (leading: Space)
+ 99: Colon           ":" at 16:30-16:31
+100: IntLit          "255" at 16:32-16:35 (leading: Space)
+101: Comma           "," at 16:35-16:36
+102: Ident           "g" at 16:37-16:38 (leading: Space)
+103: Colon           ":" at 16:38-16:39
+104: IntLit          "128" at 16:40-16:43 (leading: Space)
+105: Comma           "," at 16:43-16:44
+106: Ident           "b" at 16:45-16:46 (leading: Space)
+107: Colon           ":" at 16:46-16:47
+108: IntLit          "64" at 16:48-16:50 (leading: Space)
+109: Comma           "," at 16:50-16:51
+110: Ident           "a" at 16:52-16:53 (leading: Space)
+111: Colon           ":" at 16:53-16:54
+112: IntLit          "255" at 16:55-16:58 (leading: Space)
+113: RBrace          "}" at 16:59-16:60 (leading: Space)
+114: Semicolon       ";" at 16:60-16:61
+115: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
+116: Ident           "c2" at 17:9-17:11 (leading: Space)
+117: Assign          "=" at 17:12-17:13 (leading: Space)
+118: Ident           "c1" at 17:14-17:16 (leading: Space)
+119: Semicolon       ";" at 17:16-17:17
+120: KwReturn        "return" at 18:5-18:11 (leading: Space, LineComment, Newline, Space)
+121: Ident           "c1" at 18:12-18:14 (leading: Space)
+122: Dot             "." at 18:14-18:15
+123: Ident           "r" at 18:15-18:16
+124: Plus            "+" at 18:17-18:18 (leading: Space)
+125: Ident           "c2" at 18:19-18:21 (leading: Space)
+126: Dot             "." at 18:21-18:22
+127: Ident           "r" at 18:22-18:23
+128: Semicolon       ";" at 18:23-18:24
+129: RBrace          "}" at 19:1-19:2 (leading: Newline)
+130: EOF             at 20:1-20:1

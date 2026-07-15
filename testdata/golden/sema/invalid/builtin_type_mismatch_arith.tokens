@@ -1,0 +1,21 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "bad_addition" at 2:4-2:16 (leading: Space)
+  3: LParen          "(" at 2:16-2:17
+  4: RParen          ")" at 2:17-2:18
+  5: Arrow           "->" at 2:19-2:21 (leading: Space)
+  6: Ident           "int" at 2:22-2:25 (leading: Space)
+  7: LBrace          "{" at 2:26-2:27 (leading: Space)
+  8: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  9: Ident           "bad" at 3:9-3:12 (leading: Space)
+ 10: Colon           ":" at 3:12-3:13
+ 11: Ident           "int" at 3:14-3:17 (leading: Space)
+ 12: Assign          "=" at 3:18-3:19 (leading: Space)
+ 13: IntLit          "1" at 3:20-3:21 (leading: Space)
+ 14: Plus            "+" at 3:22-3:23 (leading: Space)
+ 15: StringLit       "\"one\"" at 3:24-3:29 (leading: Space)
+ 16: Semicolon       ";" at 3:29-3:30
+ 17: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 18: Ident           "bad" at 4:12-4:15 (leading: Space)
+ 19: Semicolon       ";" at 4:15-4:16
+ 20: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 21: EOF             at 6:1-6:1

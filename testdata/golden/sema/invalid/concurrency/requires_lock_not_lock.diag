@@ -1,0 +1,3 @@
+error SEM3085 testdata/golden/sema/invalid/concurrency/requires_lock_not_lock.sg:9:20 @requires_lock field must be of type Mutex or RwLock, got 'int'
+error SEM3085 testdata/golden/sema/invalid/concurrency/requires_lock_not_lock.sg:14:20 @acquires_lock field must be of type Mutex or RwLock, got 'Condition'
+error SEM3085 testdata/golden/sema/invalid/concurrency/requires_lock_not_lock.sg:19:20 @releases_lock field must be of type Mutex or RwLock, got 'int'

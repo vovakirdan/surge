@@ -1,0 +1,13 @@
+// scenario: basic ternary expression
+fn basic(flag: bool) -> int {
+    let result: int = flag ? 1 : 0;
+    return result;
+}
+
+fn in_return(cond: bool) -> string {
+    return cond ? "yes" : "no";
+}
+
+fn with_expressions(a: int, b: int, flag: bool) -> int {
+    return flag ? a + b : a * b;
+}

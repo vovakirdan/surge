@@ -1,0 +1,35 @@
+tuple_destructure_call.sg (span: 2:1-12:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: produce
+│  ├─ Params: ()
+│  ├─ Return: (int, string, bool)
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:37-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:31)
+│           └─ Expr: expr#4: (1, "hello", true)
+└─ Item[1]: Fn (span: 6:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:11-11:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:31)
+         │  ├─ Name: <anon>
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: produce()
+         ├─ Stmt[1]: Let (span: 8:5-8:24)
+         │  ├─ Name: a_val
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#11: a
+         ├─ Stmt[2]: Let (span: 9:5-9:27)
+         │  ├─ Name: b_val
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#12: b
+         └─ Stmt[3]: Let (span: 10:5-10:25)
+            ├─ Name: c_val
+            ├─ Mutable: false
+            ├─ Type: bool
+            └─ Value: expr#13: c

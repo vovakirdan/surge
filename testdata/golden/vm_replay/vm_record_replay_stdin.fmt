@@ -1,0 +1,3 @@
+@entrypoint("stdin")
+fn main(x: int) -> int { return x; }
+

@@ -1,0 +1,17 @@
+// &mut self should allow taking &mut field and mutating through it.
+
+type Board = { cells: int[2][2] }
+
+extern<Board> {
+    fn set_via_ref(self: &mut Board, r: int, c: int, v: int) -> nothing {
+        let cells = &mut self.cells;
+        cells[r][c] = v;
+        return nothing;
+    }
+}
+
+fn main() -> int {
+    let mut b: Board = Board { cells = [[1, 2], [3, 4]] };
+    b.set_via_ref(0, 1, 9);
+    return b.cells[0][1];
+}

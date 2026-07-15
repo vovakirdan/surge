@@ -1,0 +1,12 @@
+@intrinsic
+type TestChannel<T> = {
+    __opaque: *byte,
+};
+
+@intrinsic
+fn make_test_channel<T>(capacity: uint) -> own TestChannel<T>;
+
+fn main() {
+    // T cannot be inferred from arguments - should error
+    let ch = make_test_channel(10);
+}

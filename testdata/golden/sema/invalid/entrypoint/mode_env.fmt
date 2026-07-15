@@ -1,0 +1,6 @@
+// Test: @entrypoint("env") is reserved for future use
+// Expected: FUT7003
+@entrypoint("env")
+fn main() -> int {
+    return 0;
+}

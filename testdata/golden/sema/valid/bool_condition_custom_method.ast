@@ -1,0 +1,28 @@
+bool_condition_custom_method.sg (span: 2:1-14:1)
+├─ Item[0]: Type (span: 2:1-2:26)
+│  ├─ Name: Light
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: on: bool
+├─ Item[1]: Extern (span: 4:1-6:2)
+│  ├─ Target: Light
+│  ├─ Members:
+│  │  └─ Fn[0]: __bool
+│  │     ├─ Params: (self: Light)
+│  │     └─ Return: bool
+└─ Item[2]: Fn (span: 8:1-13:2)
+   ├─ Name: to_int
+   ├─ Params: (l: Light)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:28-13:2)
+         ├─ Stmt[0]: If (span: 9:5-11:6)
+         │  ├─ Cond: expr#1: l
+         │  ├─ Then:
+Block (span: 9:12-11:6)
+         │  │  └─ Stmt[0]: Return (span: 10:9-10:18)
+         │  │     └─ Expr: expr#2: 1
+         │  └─ Else: <none>
+         └─ Stmt[1]: Return (span: 12:5-12:14)
+            └─ Expr: expr#3: 0

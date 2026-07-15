@@ -1,0 +1,34 @@
+builtin_int_arith.sg (span: 2:1-10:1)
+└─ Item[0]: Fn (span: 2:1-9:2)
+   ├─ Name: int_arith
+   ├─ Params: (a: int, b: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:37-9:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:26)
+         │  ├─ Name: sum
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#3: (a + b)
+         ├─ Stmt[1]: Let (span: 4:5-4:27)
+         │  ├─ Name: diff
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#6: (a - b)
+         ├─ Stmt[2]: Let (span: 5:5-5:27)
+         │  ├─ Name: prod
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#9: (a * b)
+         ├─ Stmt[3]: Let (span: 6:5-6:27)
+         │  ├─ Name: quot
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#12: (a / b)
+         ├─ Stmt[4]: Let (span: 7:5-7:26)
+         │  ├─ Name: rem
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#15: (a % b)
+         └─ Stmt[5]: Return (span: 8:5-8:43)
+            └─ Expr: expr#24: (((((((sum + diff)) + prod)) + quot)) + rem)

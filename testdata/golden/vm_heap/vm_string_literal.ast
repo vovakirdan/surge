@@ -1,0 +1,14 @@
+vm_string_literal.sg (span: 1:1-7:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:25)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "x"
+         └─ Stmt[1]: Return (span: 4:5-4:14)
+            └─ Expr: expr#2: 0

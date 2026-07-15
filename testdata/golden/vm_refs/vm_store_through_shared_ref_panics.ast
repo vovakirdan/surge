@@ -1,0 +1,26 @@
+vm_store_through_shared_ref_panics.sg (span: 1:1-12:1)
+├─ Item[0]: Fn (span: 1:1-4:2)
+│  ├─ Name: set
+│  ├─ Params: (x: &int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:28-4:2)
+│        ├─ Stmt[0]: Expr (span: 2:5-2:12)
+│        │  └─ Expr: expr#4: (*x = 2)
+│        └─ Stmt[1]: Return (span: 3:5-3:12)
+│           └─ Expr: <none>
+└─ Item[1]: Fn (span: 6:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:18-11:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:20)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#5: 1
+         ├─ Stmt[1]: Expr (span: 9:5-9:13)
+         │  └─ Expr: expr#9: set(&x)
+         └─ Stmt[2]: Return (span: 10:5-10:14)
+            └─ Expr: expr#10: 0

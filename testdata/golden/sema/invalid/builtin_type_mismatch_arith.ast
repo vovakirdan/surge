@@ -1,0 +1,14 @@
+builtin_type_mismatch_arith.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: bad_addition
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:26-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:30)
+         │  ├─ Name: bad
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#3: (1 + "one")
+         └─ Stmt[1]: Return (span: 4:5-4:16)
+            └─ Expr: expr#4: bad

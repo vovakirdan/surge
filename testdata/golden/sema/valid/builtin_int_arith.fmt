@@ -1,0 +1,9 @@
+// scenario: integer arithmetic with core operators
+fn int_arith(a: int, b: int) -> int {
+    let sum: int = a + b;
+    let diff: int = a - b;
+    let prod: int = a * b;
+    let quot: int = a / b;
+    let rem: int = a % b;
+    return sum + diff + prod + quot + rem;
+}

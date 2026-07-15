@@ -1,0 +1,18 @@
+fn_type_no_return.sg (span: 2:1-9:1)
+├─ Item[0]: Fn (span: 2:1-5:2)
+│  ├─ Name: accepts_action
+│  ├─ Params: (action: fn() -> nothing)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:33-5:2)
+│        └─ Stmt[0]: Let (span: 4:5-4:26)
+│           ├─ Name: a
+│           ├─ Mutable: false
+│           ├─ Type: fn() -> nothing
+│           └─ Value: expr#1: action
+└─ Item[1]: Fn (span: 7:1-8:2)
+   ├─ Name: do_nothing
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:17-8:2)

@@ -1,0 +1,2 @@
+error SEM3101 testdata/golden/sema/invalid/concurrency/atomic_invalid_type.sg:4:5 @atomic field must be of type int, uint, bool, or *T; got 'string'
+error SEM3101 testdata/golden/sema/invalid/concurrency/atomic_invalid_type.sg:5:5 @atomic field must be of type int, uint, bool, or *T; got 'float'

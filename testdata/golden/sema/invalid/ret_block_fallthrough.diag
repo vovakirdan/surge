@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/ret_block_fallthrough.sg:3:13 block result type mismatch: expected int, got nothing

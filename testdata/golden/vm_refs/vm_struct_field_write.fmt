@@ -1,0 +1,13 @@
+type S = { a: int, b: int }
+
+fn set(x: &mut int) -> nothing {
+    *x = 10;
+    return;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut s: S = S { a = 1, b = 2 };
+    set(&mut s.a);
+    return s.a;
+}

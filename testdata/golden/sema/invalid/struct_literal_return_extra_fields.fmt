@@ -1,0 +1,9 @@
+// scenario: struct literal in return statement with too many positional fields
+type Foo = {
+    value: int,
+    name: string
+}
+
+fn test_extra_positional_field() -> Foo {
+    return {1, "hello", 2};  // ERROR: Foo literal expects 2 fields, got 3
+}

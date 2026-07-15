@@ -1,0 +1,7 @@
+// Tests that writing through a &mut local reference is allowed.
+fn main() -> nothing {
+    let mut x: int = 1;
+    let r: &mut int = &mut x;
+    *r = 2;
+    return;
+}

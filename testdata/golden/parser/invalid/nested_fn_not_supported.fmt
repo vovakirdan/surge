@@ -1,0 +1,5 @@
+@entrypoint
+fn main() {
+    fn inner() -> int;
+    print("ok");
+}

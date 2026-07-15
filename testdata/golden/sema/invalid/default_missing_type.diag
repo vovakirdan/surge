@@ -1,0 +1,1 @@
+error SEM3046 testdata/golden/sema/invalid/default_missing_type.sg:3:13 cannot infer type parameter T for default; use default::<T>(...)

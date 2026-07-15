@@ -1,0 +1,11 @@
+ret_outside_block.sg (span: 1:1-5:1)
+└─ Item[0]: Fn (span: 1:1-4:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:22-4:2)
+         ├─ Stmt[0]: Ret (span: 2:5-2:9)
+         │  └─ Expr: <none>
+         └─ Stmt[1]: Return (span: 3:5-3:20)
+            └─ Expr: expr#1: nothing

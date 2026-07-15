@@ -1,0 +1,1 @@
+error SEM3077 testdata/golden/sema/invalid/concurrency/guarded_write_read_lock.sg:11:5 writing to @guarded_by field 'data' requires holding lock 'rw' (mutex or write lock)

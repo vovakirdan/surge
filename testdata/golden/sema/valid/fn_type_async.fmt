@@ -1,0 +1,17 @@
+// scenario: async function type alias and usage
+
+type AsyncAdder = async fn(int, int) -> int;
+
+async fn add(a: int, b: int) -> int {
+    return a + b;
+}
+
+pub async fn test_async_fn_type() -> int {
+    let f: AsyncAdder = add;
+    let t = f(1, 2);
+    let out: int = compare t.await() {
+        Success(v) => v;
+        Cancelled() => 0;
+    };
+    return out;
+}

@@ -1,0 +1,25 @@
+// Test: Both branches break with lock held - lock state must be merged
+// This tests that PathBreaks is properly propagated from mergePathsAtJoin
+
+type BreakBothResource = {
+    lock: Mutex,
+    value: int
+}
+
+extern<BreakBothResource> {
+    fn both_branches_break(self: &mut BreakBothResource) {
+        while self.value > 0 {
+            if self.value > 10 {
+                self.lock.lock();  // Lock acquired in then branch
+                break;
+            } else {
+                self.lock.lock();  // Lock acquired in else branch
+                break;
+            }
+        }
+        // After loop: both branches broke with lock held
+        // Merged state should have lock held
+        self.lock.lock();  // ERROR: double-lock (lock is held from break paths)
+        self.lock.unlock();
+    }
+}

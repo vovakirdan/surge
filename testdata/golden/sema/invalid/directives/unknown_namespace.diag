@@ -1,0 +1,1 @@
+error SEM3119 testdata/golden/sema/invalid/directives/unknown_namespace.sg:4:1 directive namespace 'my_directive' is not an imported module

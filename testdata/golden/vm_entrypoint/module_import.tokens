@@ -1,0 +1,44 @@
+  1: KwImport        "import" at 1:1-1:7
+  2: Ident           "testdata" at 1:8-1:16 (leading: Space)
+  3: Slash           "/" at 1:16-1:17
+  4: Ident           "golden" at 1:17-1:23
+  5: Slash           "/" at 1:23-1:24
+  6: Ident           "vm_entrypoint" at 1:24-1:37
+  7: Slash           "/" at 1:37-1:38
+  8: Ident           "modules" at 1:38-1:45
+  9: Slash           "/" at 1:45-1:46
+ 10: Ident           "adder" at 1:46-1:51
+ 11: Semicolon       ";" at 1:51-1:52
+ 12: At              "@" at 3:1-3:2 (leading: Newline)
+ 13: Ident           "entrypoint" at 3:2-3:12
+ 14: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+ 15: Ident           "main" at 4:4-4:8 (leading: Space)
+ 16: LParen          "(" at 4:8-4:9
+ 17: RParen          ")" at 4:9-4:10
+ 18: Arrow           "->" at 4:11-4:13 (leading: Space)
+ 19: Ident           "int" at 4:14-4:17 (leading: Space)
+ 20: LBrace          "{" at 4:18-4:19 (leading: Space)
+ 21: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 22: Ident           "sum" at 5:9-5:12 (leading: Space)
+ 23: Assign          "=" at 5:13-5:14 (leading: Space)
+ 24: Ident           "adder" at 5:15-5:20 (leading: Space)
+ 25: ColonColon      "::" at 5:20-5:22
+ 26: Ident           "add" at 5:22-5:25
+ 27: LParen          "(" at 5:25-5:26
+ 28: IntLit          "2" at 5:26-5:27
+ 29: Comma           "," at 5:27-5:28
+ 30: IntLit          "3" at 5:29-5:30 (leading: Space)
+ 31: RParen          ")" at 5:30-5:31
+ 32: Semicolon       ";" at 5:31-5:32
+ 33: Ident           "print" at 6:5-6:10 (leading: Newline, Space)
+ 34: LParen          "(" at 6:10-6:11
+ 35: Ident           "sum" at 6:11-6:14
+ 36: KwTo            "to" at 6:15-6:17 (leading: Space)
+ 37: Ident           "string" at 6:18-6:24 (leading: Space)
+ 38: RParen          ")" at 6:24-6:25
+ 39: Semicolon       ";" at 6:25-6:26
+ 40: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 41: IntLit          "0" at 7:12-7:13 (leading: Space)
+ 42: Semicolon       ";" at 7:13-7:14
+ 43: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 44: EOF             at 9:1-9:1
