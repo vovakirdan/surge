@@ -34,7 +34,15 @@ func (vm *VM) bytesViewLayout(typeID types.TypeID) (bytesViewLayoutInfo, *VMErro
 	}
 
 	builtins := vm.Types.Builtins()
-	if vm.valueType(layout.FieldTypes[ownerIdx]) != builtins.String {
+	// owner is a non-owning `*byte` back-reference to the source string's
+	// storage (see core/intrinsics.sg): it pins the lifetime for readers but
+	// never owns or frees it, so drop glue skips it. It used to be a `string`;
+	// keep the validator in step with the type or bytes() panics VM1003.
+	ownerType, ok := vm.Types.Lookup(layout.FieldTypes[ownerIdx])
+	if !ok || ownerType.Kind != types.KindPointer {
+		return bytesViewLayoutInfo{layout: layout}, nil
+	}
+	if vm.valueType(ownerType.Elem) != builtins.Uint8 {
 		return bytesViewLayoutInfo{layout: layout}, nil
 	}
 	if vm.valueType(layout.FieldTypes[lenIdx]) != builtins.Uint {

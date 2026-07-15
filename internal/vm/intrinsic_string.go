@@ -454,16 +454,15 @@ func (vm *VM) handleStringBytesView(frame *Frame, call *mir.CallInstr, writes *[
 		return vm.eb.makeError(PanicTypeMismatch, "invalid BytesView layout")
 	}
 	fields := make([]Value, len(info.layout.FieldNames))
-	ownerVal, vmErr := vm.cloneForShare(strVal)
-	if vmErr != nil {
-		return vmErr
-	}
-	fields[info.ownerIdx] = ownerVal
+	// owner is a non-owning `*byte` back-reference to the source string's
+	// bytes (matching the native ABI): it must not take a share, or drop glue
+	// would double-free the borrowed source. The source string is kept alive by
+	// the caller's local for the borrow's duration, exactly as `ptr` relies on.
+	fields[info.ownerIdx] = MakePtr(Location{Kind: LKStringBytes, Handle: strVal.H}, info.layout.FieldTypes[info.ownerIdx])
 	fields[info.ptrIdx] = MakePtr(Location{Kind: LKStringBytes, Handle: strVal.H}, info.layout.FieldTypes[info.ptrIdx])
 	length := vm.stringByteLen(vm.Heap.Get(strVal.H))
 	u64, err := safecast.Conv[uint64](length)
 	if err != nil {
-		vm.dropValue(ownerVal)
 		return vm.eb.invalidNumericConversion("bytes view length out of range")
 	}
 	fields[info.lenIdx] = vm.makeBigUint(info.layout.FieldTypes[info.lenIdx], bignum.UintFromUint64(u64))

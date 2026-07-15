@@ -289,7 +289,7 @@ func registerBytesViewType(t *testing.T, vm *VM) types.TypeID {
 	if vm.Files == nil {
 		vm.Files = source.NewFileSet()
 	}
-	content := []byte("type BytesView = { owner: string, ptr: *byte, len: uint, };")
+	content := []byte("type BytesView = { owner: *byte, ptr: *byte, len: uint, };")
 	fileID := vm.Files.AddVirtual("bytes_view.sg", content)
 	end, err := safecast.Conv[uint32](len(content))
 	if err != nil {
@@ -307,7 +307,7 @@ func registerBytesViewType(t *testing.T, vm *VM) types.TypeID {
 	builtins := vm.Types.Builtins()
 	ptrType := vm.Types.Intern(types.MakePointer(builtins.Uint8))
 	vm.Types.SetStructFields(typeID, []types.StructField{
-		{Name: ownerName, Type: builtins.String},
+		{Name: ownerName, Type: ptrType},
 		{Name: ptrName, Type: ptrType},
 		{Name: lenName, Type: builtins.Uint},
 	})
@@ -354,11 +354,13 @@ func TestStringSliceAndBytesViewOwnership(t *testing.T) {
 		vmInstance.dropValue(base)
 		t.Fatalf("bytes view failed: %v", vmErr)
 	}
+	// A bytes view is a NON-OWNING borrow: it does not take a share, so the
+	// source refcount stays 1 (drop glue skips its `*byte` owner/ptr fields).
 	baseObj = vmInstance.Heap.Get(base.H)
-	if baseObj.RefCount != 2 {
+	if baseObj.RefCount != 1 {
 		vmInstance.dropValue(bvVal)
 		vmInstance.dropValue(base)
-		t.Fatalf("expected base refcount 2 after bytes view, got %d", baseObj.RefCount)
+		t.Fatalf("expected base refcount 1 after bytes view (non-owning), got %d", baseObj.RefCount)
 	}
 	info, vmErr := vmInstance.bytesViewLayout(bytesViewType)
 	if vmErr != nil {
@@ -371,9 +373,11 @@ func TestStringSliceAndBytesViewOwnership(t *testing.T) {
 		vmInstance.dropValue(base)
 		t.Fatal("bytes view layout invalid")
 	}
+	// owner is a non-owning back-pointer into the source string's bytes, not a
+	// string share: a VKPtr at the source handle, mirroring ptr.
 	bvObj := vmInstance.Heap.Get(bvVal.H)
 	ownerVal := bvObj.Fields[info.ownerIdx]
-	if ownerVal.Kind != VKHandleString || ownerVal.H != base.H {
+	if ownerVal.Kind != VKPtr || ownerVal.Loc.Kind != LKStringBytes || ownerVal.Loc.Handle != base.H {
 		vmInstance.dropValue(bvVal)
 		vmInstance.dropValue(base)
 		t.Fatalf("bytes view owner mismatch")
