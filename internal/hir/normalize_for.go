@@ -110,25 +110,58 @@ func normalizeForIn(ctx *normCtx, span source.Span, data ForData) ([]Stmt, error
 }
 
 func isNumericRangeFor(ctx *normCtx, iterable *Expr, elemTy types.TypeID) bool {
-	if ctx == nil || iterable == nil || iterable.Kind != ExprBinaryOp || elemTy == types.NoTypeID {
+	if ctx == nil || iterable == nil {
+		return false
+	}
+	// Drop-emission wraps an owned range value in ExprOwnedTemp before the loop
+	// is normalized; peel it so the range binary-op shape is visible. Without
+	// this the fast path never matched and every integer `for i in a..=b` fell
+	// into the generic iterator protocol.
+	iterable = unwrapOwnedTemp(iterable)
+	if iterable.Kind != ExprBinaryOp {
 		return false
 	}
 	bin := iterable.Data.(BinaryOpData)
 	if bin.Op != ast.ExprBinaryRange && bin.Op != ast.ExprBinaryRangeInclusive {
 		return false
 	}
-	if ctx.mod == nil || ctx.mod.TypeInterner == nil {
+	// A finite numeric range desugars to a `while` loop, so both bounds must be
+	// present; open-bounded ranges keep the iterator protocol.
+	if bin.Left == nil || bin.Right == nil {
 		return false
 	}
-	tt, ok := ctx.mod.TypeInterner.Lookup(elemTy)
+	// Prefer the loop variable's type; fall back to the range bound types.
+	return isIntOrUintKind(ctx, elemTy) ||
+		isIntOrUintKind(ctx, bin.Left.Type) ||
+		isIntOrUintKind(ctx, bin.Right.Type)
+}
+
+func isIntOrUintKind(ctx *normCtx, ty types.TypeID) bool {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
+		return false
+	}
+	tt, ok := ctx.mod.TypeInterner.Lookup(ty)
 	if !ok {
 		return false
 	}
 	return tt.Kind == types.KindInt || tt.Kind == types.KindUint
 }
 
+// unwrapOwnedTemp peels drop-emission's owned-temporary wrapper so range-shape
+// checks and the range desugar see the underlying expression.
+func unwrapOwnedTemp(e *Expr) *Expr {
+	for e != nil && e.Kind == ExprOwnedTemp {
+		od, ok := e.Data.(OwnedTempData)
+		if !ok || od.Inner == nil {
+			return e
+		}
+		e = od.Inner
+	}
+	return e
+}
+
 func normalizeNumericRangeFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, error) {
-	iterable := data.Iterable
+	iterable := unwrapOwnedTemp(data.Iterable)
 	if iterable == nil || iterable.Kind != ExprBinaryOp {
 		return normalizeIterFor(ctx, span, data)
 	}
