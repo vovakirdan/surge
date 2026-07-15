@@ -25,6 +25,7 @@ fn main:
     L0 = copy L1
     L3 = call wrap::<string>(const "\"x\"")
     L2 = move L3
+    drop L2
     return
 
 fn wrap::<int>:

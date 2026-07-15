@@ -1,9 +1,5 @@
 
 == MIR ==
-globals=3
-  G0: string name=strlit$0
-  G1: string name=strlit$1
-  G2: string name=strlit$2
 funcs=4
 
 fn __add:
@@ -83,11 +79,15 @@ fn main:
     L6: type#1504 name=neg
     L7: type#1504 name=tmp_call4
     L8: string name=s
-    L9: string name=tmp_call5
-    L10: string name=tmp_ref6
+    L9: string name=tmp_owned_temp5
+    L10: string name=tmp_owned_temp6
     L11: string name=tmp_call7
-    L12: int [copy] name=tmp_call8
-    L13: int [copy] name=tmp_call9
+    L12: string name=tmp_owned_temp8
+    L13: string name=tmp_owned_temp9
+    L14: string name=tmp_call10
+    L15: int [copy] name=tmp_call11
+    L16: int [copy] name=tmp_call12
+    L17: int [copy] name=tmp_retval13
   bb0:
     L1 = struct_lit type#1504 {x=const 1, y=const 2}
     L0 = move L1
@@ -97,10 +97,23 @@ fn main:
     L4 = move L5
     L7 = call __neg(addr_of L4)
     L6 = move L7
-    L9 = call __add(addr_of G0, addr_of G1)
-    L10 = copy L9
-    L11 = call __add(addr_of L10, addr_of G2)
-    L8 = move L11
-    L12 = call default()
-    L13 = call __to(addr_of L6, copy L12)
-    return copy L13
+    L9 = const "\"a\""
+    L10 = const "\"b\""
+    L11 = call __add(addr_of L9, addr_of L10)
+    L12 = move L11
+    L13 = const "\"c\""
+    L14 = call __add(addr_of L12, addr_of L13)
+    L8 = move L14
+    drop L13
+    drop L12
+    drop L10
+    drop L9
+    L15 = call default()
+    L16 = call __to(addr_of L6, copy L15)
+    L17 = copy L16
+    drop L8
+    drop L6
+    drop L4
+    drop L2
+    drop L0
+    return copy L17

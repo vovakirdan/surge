@@ -9,6 +9,12 @@ fn make_ranges() -> nothing (id=1, sym=1421) {
   let d: type#190 = rt_range_int_to_end(3, false): type#190
   let e: type#190 = rt_range_int_to_end(3, true): type#190
   let f: type#190 = rt_range_int_full(false): type#190
+  drop f
+  drop e
+  drop d
+  drop c
+  drop b
+  drop a
   return
 }
 

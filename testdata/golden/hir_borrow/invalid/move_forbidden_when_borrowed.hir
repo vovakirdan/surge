@@ -7,6 +7,8 @@ fn t() -> nothing (id=1, sym=1421) {
   let x: string = "\"hi\""
   let r: &string [&] = (& x): &string
   let y: string = x
+  drop y
+  drop x
   return
 }
 

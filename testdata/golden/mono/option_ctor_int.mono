@@ -3,6 +3,7 @@
 funcs=2 types=2
 fn main() -> nothing (id=2147483649, sym=2415919105) {
   let x: type#1505 = Some(1): type#1506 to type#1505: type#1505
+  drop x
   return
 }
 fn Some::<int> (sym=2415919106)

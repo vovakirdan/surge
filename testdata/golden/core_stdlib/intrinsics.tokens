@@ -8690,1113 +8690,1114 @@
 8690: Ident           "BytesView" at 726:10-726:19 (leading: Space)
 8691: Assign          "=" at 726:20-726:21 (leading: Space)
 8692: LBrace          "{" at 726:22-726:23 (leading: Space)
-8693: Ident           "owner" at 727:5-727:10 (leading: Newline, Space)
-8694: Colon           ":" at 727:10-727:11
-8695: Ident           "string" at 727:12-727:18 (leading: Space)
-8696: Comma           "," at 727:18-727:19
-8697: Ident           "ptr" at 728:5-728:8 (leading: Newline, Space)
-8698: Colon           ":" at 728:8-728:9
-8699: Star            "*" at 728:10-728:11 (leading: Space)
-8700: Ident           "byte" at 728:11-728:15
-8701: Comma           "," at 728:15-728:16
-8702: Ident           "len" at 729:5-729:8 (leading: Newline, Space)
-8703: Colon           ":" at 729:8-729:9
-8704: Ident           "uint" at 729:10-729:14 (leading: Space)
-8705: Comma           "," at 729:14-729:15
-8706: RBrace          "}" at 730:1-730:2 (leading: Newline)
-8707: Semicolon       ";" at 730:2-730:3
-8708: KwExtern        "extern" at 732:1-732:7 (leading: Newline)
-8709: Lt              "<" at 732:7-732:8
-8710: Ident           "BytesView" at 732:8-732:17
-8711: Gt              ">" at 732:17-732:18
-8712: LBrace          "{" at 732:19-732:20 (leading: Space)
-8713: At              "@" at 733:5-733:6 (leading: Newline, Space)
-8714: Ident           "intrinsic" at 733:6-733:15
-8715: KwFn            "fn" at 733:16-733:18 (leading: Space)
-8716: Ident           "__len" at 733:19-733:24 (leading: Space)
-8717: LParen          "(" at 733:24-733:25
-8718: Ident           "self" at 733:25-733:29
-8719: Colon           ":" at 733:29-733:30
-8720: Amp             "&" at 733:31-733:32 (leading: Space)
-8721: Ident           "BytesView" at 733:32-733:41
-8722: RParen          ")" at 733:41-733:42
-8723: Arrow           "->" at 733:43-733:45 (leading: Space)
-8724: Ident           "uint" at 733:46-733:50 (leading: Space)
-8725: Semicolon       ";" at 733:50-733:51
-8726: At              "@" at 734:5-734:6 (leading: Newline, Space)
-8727: Ident           "intrinsic" at 734:6-734:15
-8728: KwFn            "fn" at 734:16-734:18 (leading: Space)
-8729: Ident           "__index" at 734:19-734:26 (leading: Space)
-8730: LParen          "(" at 734:26-734:27
-8731: Ident           "self" at 734:27-734:31
-8732: Colon           ":" at 734:31-734:32
-8733: Amp             "&" at 734:33-734:34 (leading: Space)
-8734: Ident           "BytesView" at 734:34-734:43
-8735: Comma           "," at 734:43-734:44
-8736: Ident           "index" at 734:45-734:50 (leading: Space)
-8737: Colon           ":" at 734:50-734:51
-8738: Ident           "int" at 734:52-734:55 (leading: Space)
-8739: RParen          ")" at 734:55-734:56
-8740: Arrow           "->" at 734:57-734:59 (leading: Space)
-8741: Ident           "uint8" at 734:60-734:65 (leading: Space)
-8742: Semicolon       ";" at 734:65-734:66
-8743: At              "@" at 735:5-735:6 (leading: Newline, Space)
-8744: Ident           "intrinsic" at 735:6-735:15
-8745: At              "@" at 735:16-735:17 (leading: Space)
-8746: Ident           "overload" at 735:17-735:25
-8747: KwFn            "fn" at 735:26-735:28 (leading: Space)
-8748: Ident           "__index" at 735:29-735:36 (leading: Space)
-8749: LParen          "(" at 735:36-735:37
-8750: Ident           "self" at 735:37-735:41
-8751: Colon           ":" at 735:41-735:42
-8752: Amp             "&" at 735:43-735:44 (leading: Space)
-8753: Ident           "BytesView" at 735:44-735:53
-8754: Comma           "," at 735:53-735:54
-8755: Ident           "index" at 735:55-735:60 (leading: Space)
-8756: Colon           ":" at 735:60-735:61
-8757: Ident           "int64" at 735:62-735:67 (leading: Space)
-8758: RParen          ")" at 735:67-735:68
-8759: Arrow           "->" at 735:69-735:71 (leading: Space)
-8760: Ident           "uint8" at 735:72-735:77 (leading: Space)
-8761: Semicolon       ";" at 735:77-735:78
-8762: RBrace          "}" at 736:1-736:2 (leading: Newline)
-8763: KwExtern        "extern" at 738:1-738:7 (leading: Newline)
-8764: Lt              "<" at 738:7-738:8
-8765: Ident           "bool" at 738:8-738:12
-8766: Gt              ">" at 738:12-738:13
-8767: LBrace          "{" at 738:14-738:15 (leading: Space)
-8768: At              "@" at 739:5-739:6 (leading: Newline, Space)
-8769: Ident           "intrinsic" at 739:6-739:15
-8770: KwFn            "fn" at 739:16-739:18 (leading: Space)
-8771: Ident           "__eq" at 739:19-739:23 (leading: Space)
-8772: LParen          "(" at 739:23-739:24
-8773: Ident           "self" at 739:24-739:28
-8774: Colon           ":" at 739:28-739:29
-8775: Ident           "bool" at 739:30-739:34 (leading: Space)
-8776: Comma           "," at 739:34-739:35
-8777: Ident           "other" at 739:36-739:41 (leading: Space)
-8778: Colon           ":" at 739:41-739:42
-8779: Ident           "bool" at 739:43-739:47 (leading: Space)
-8780: RParen          ")" at 739:47-739:48
-8781: Arrow           "->" at 739:49-739:51 (leading: Space)
-8782: Ident           "bool" at 739:52-739:56 (leading: Space)
-8783: Semicolon       ";" at 739:56-739:57
-8784: At              "@" at 740:5-740:6 (leading: Newline, Space)
-8785: Ident           "intrinsic" at 740:6-740:15
-8786: KwFn            "fn" at 740:16-740:18 (leading: Space)
-8787: Ident           "__ne" at 740:19-740:23 (leading: Space)
-8788: LParen          "(" at 740:23-740:24
-8789: Ident           "self" at 740:24-740:28
-8790: Colon           ":" at 740:28-740:29
-8791: Ident           "bool" at 740:30-740:34 (leading: Space)
-8792: Comma           "," at 740:34-740:35
-8793: Ident           "other" at 740:36-740:41 (leading: Space)
-8794: Colon           ":" at 740:41-740:42
-8795: Ident           "bool" at 740:43-740:47 (leading: Space)
-8796: RParen          ")" at 740:47-740:48
-8797: Arrow           "->" at 740:49-740:51 (leading: Space)
-8798: Ident           "bool" at 740:52-740:56 (leading: Space)
-8799: Semicolon       ";" at 740:56-740:57
-8800: At              "@" at 741:5-741:6 (leading: Newline, Space)
-8801: Ident           "intrinsic" at 741:6-741:15
-8802: KwFn            "fn" at 741:16-741:18 (leading: Space)
-8803: Ident           "__not" at 741:19-741:24 (leading: Space)
-8804: LParen          "(" at 741:24-741:25
-8805: Ident           "self" at 741:25-741:29
-8806: Colon           ":" at 741:29-741:30
-8807: Ident           "bool" at 741:31-741:35 (leading: Space)
-8808: RParen          ")" at 741:35-741:36
-8809: Arrow           "->" at 741:37-741:39 (leading: Space)
-8810: Ident           "bool" at 741:40-741:44 (leading: Space)
-8811: Semicolon       ";" at 741:44-741:45
-8812: At              "@" at 742:5-742:6 (leading: Newline, Space)
-8813: Ident           "intrinsic" at 742:6-742:15
-8814: KwFn            "fn" at 742:16-742:18 (leading: Space)
-8815: Ident           "__to" at 742:19-742:23 (leading: Space)
-8816: LParen          "(" at 742:23-742:24
-8817: Ident           "self" at 742:24-742:28
-8818: Colon           ":" at 742:28-742:29
-8819: Ident           "bool" at 742:30-742:34 (leading: Space)
-8820: Comma           "," at 742:34-742:35
-8821: Ident           "target" at 742:36-742:42 (leading: Space)
-8822: Colon           ":" at 742:42-742:43
-8823: Ident           "string" at 742:44-742:50 (leading: Space)
-8824: RParen          ")" at 742:50-742:51
-8825: Arrow           "->" at 742:52-742:54 (leading: Space)
-8826: Ident           "string" at 742:55-742:61 (leading: Space)
-8827: Semicolon       ";" at 742:61-742:62
-8828: At              "@" at 743:5-743:6 (leading: Newline, Space)
-8829: Ident           "overload" at 743:6-743:14
-8830: KwPub           "pub" at 743:15-743:18 (leading: Space)
-8831: KwFn            "fn" at 743:19-743:21 (leading: Space)
-8832: Ident           "__to" at 743:22-743:26 (leading: Space)
-8833: LParen          "(" at 743:26-743:27
-8834: Ident           "self" at 743:27-743:31
-8835: Colon           ":" at 743:31-743:32
-8836: Amp             "&" at 743:33-743:34 (leading: Space)
-8837: Ident           "bool" at 743:34-743:38
-8838: Comma           "," at 743:38-743:39
-8839: Underscore      "_" at 743:40-743:41 (leading: Space)
-8840: Colon           ":" at 743:41-743:42
-8841: Ident           "string" at 743:43-743:49 (leading: Space)
-8842: RParen          ")" at 743:49-743:50
-8843: Arrow           "->" at 743:51-743:53 (leading: Space)
-8844: Ident           "string" at 743:54-743:60 (leading: Space)
-8845: LBrace          "{" at 743:61-743:62 (leading: Space)
-8846: KwReturn        "return" at 744:9-744:15 (leading: Newline, Space)
-8847: LParen          "(" at 744:16-744:17 (leading: Space)
-8848: Star            "*" at 744:17-744:18
-8849: Ident           "self" at 744:18-744:22
-8850: RParen          ")" at 744:22-744:23
-8851: KwTo            "to" at 744:24-744:26 (leading: Space)
-8852: Ident           "string" at 744:27-744:33 (leading: Space)
-8853: Semicolon       ";" at 744:33-744:34
-8854: RBrace          "}" at 745:5-745:6 (leading: Newline, Space)
-8855: At              "@" at 746:5-746:6 (leading: Newline, Space)
-8856: Ident           "intrinsic" at 746:6-746:15
-8857: At              "@" at 746:16-746:17 (leading: Space)
-8858: Ident           "overload" at 746:17-746:25
-8859: KwFn            "fn" at 746:26-746:28 (leading: Space)
-8860: Ident           "__to" at 746:29-746:33 (leading: Space)
-8861: LParen          "(" at 746:33-746:34
-8862: Ident           "self" at 746:34-746:38
-8863: Colon           ":" at 746:38-746:39
-8864: Ident           "bool" at 746:40-746:44 (leading: Space)
-8865: Comma           "," at 746:44-746:45
-8866: Ident           "target" at 746:46-746:52 (leading: Space)
-8867: Colon           ":" at 746:52-746:53
-8868: Ident           "int" at 746:54-746:57 (leading: Space)
-8869: RParen          ")" at 746:57-746:58
-8870: Arrow           "->" at 746:59-746:61 (leading: Space)
-8871: Ident           "int" at 746:62-746:65 (leading: Space)
-8872: Semicolon       ";" at 746:65-746:66
-8873: At              "@" at 748:5-748:6 (leading: Newline, Space, LineComment, Newline, Space)
-8874: Ident           "intrinsic" at 748:6-748:15
-8875: KwPub           "pub" at 748:16-748:19 (leading: Space)
-8876: KwFn            "fn" at 748:20-748:22 (leading: Space)
-8877: Ident           "from_str" at 748:23-748:31 (leading: Space)
-8878: LParen          "(" at 748:31-748:32
-8879: Ident           "s" at 748:32-748:33
-8880: Colon           ":" at 748:33-748:34
-8881: Amp             "&" at 748:35-748:36 (leading: Space)
-8882: Ident           "string" at 748:36-748:42
-8883: RParen          ")" at 748:42-748:43
-8884: Arrow           "->" at 748:44-748:46 (leading: Space)
-8885: Ident           "Erring" at 748:47-748:53 (leading: Space)
-8886: Lt              "<" at 748:53-748:54
-8887: Ident           "bool" at 748:54-748:58
-8888: Comma           "," at 748:58-748:59
-8889: Ident           "Error" at 748:60-748:65 (leading: Space)
-8890: Gt              ">" at 748:65-748:66
-8891: Semicolon       ";" at 748:66-748:67
-8892: RBrace          "}" at 749:1-749:2 (leading: Newline)
-8893: KwExtern        "extern" at 751:1-751:7 (leading: Newline)
-8894: Lt              "<" at 751:7-751:8
-8895: Ident           "Array" at 751:8-751:13
-8896: Lt              "<" at 751:13-751:14
-8897: Ident           "T" at 751:14-751:15
-8898: Shr             ">>" at 751:15-751:17
-8899: LBrace          "{" at 751:18-751:19 (leading: Space)
-8900: At              "@" at 752:5-752:6 (leading: Newline, Space)
-8901: Ident           "intrinsic" at 752:6-752:15
-8902: KwFn            "fn" at 752:16-752:18 (leading: Space)
-8903: Ident           "__add" at 752:19-752:24 (leading: Space)
-8904: LParen          "(" at 752:24-752:25
-8905: Ident           "self" at 752:25-752:29
-8906: Colon           ":" at 752:29-752:30
-8907: Amp             "&" at 752:31-752:32 (leading: Space)
-8908: Ident           "Array" at 752:32-752:37
-8909: Lt              "<" at 752:37-752:38
-8910: Ident           "T" at 752:38-752:39
-8911: Gt              ">" at 752:39-752:40
-8912: Comma           "," at 752:40-752:41
-8913: Ident           "other" at 752:42-752:47 (leading: Space)
-8914: Colon           ":" at 752:47-752:48
-8915: Amp             "&" at 752:49-752:50 (leading: Space)
-8916: Ident           "Array" at 752:50-752:55
-8917: Lt              "<" at 752:55-752:56
-8918: Ident           "T" at 752:56-752:57
-8919: Gt              ">" at 752:57-752:58
-8920: RParen          ")" at 752:58-752:59
-8921: Arrow           "->" at 752:60-752:62 (leading: Space)
-8922: Ident           "Array" at 752:63-752:68 (leading: Space)
-8923: Lt              "<" at 752:68-752:69
-8924: Ident           "T" at 752:69-752:70
-8925: Gt              ">" at 752:70-752:71
-8926: Semicolon       ";" at 752:71-752:72
-8927: At              "@" at 753:5-753:6 (leading: Newline, Space)
-8928: Ident           "intrinsic" at 753:6-753:15
-8929: KwFn            "fn" at 753:16-753:18 (leading: Space)
-8930: Ident           "__index" at 753:19-753:26 (leading: Space)
-8931: LParen          "(" at 753:26-753:27
-8932: Ident           "self" at 753:27-753:31
-8933: Colon           ":" at 753:31-753:32
-8934: Amp             "&" at 753:33-753:34 (leading: Space)
-8935: Ident           "Array" at 753:34-753:39
-8936: Lt              "<" at 753:39-753:40
-8937: Ident           "T" at 753:40-753:41
-8938: Gt              ">" at 753:41-753:42
-8939: Comma           "," at 753:42-753:43
-8940: Ident           "index" at 753:44-753:49 (leading: Space)
-8941: Colon           ":" at 753:49-753:50
-8942: Ident           "int" at 753:51-753:54 (leading: Space)
-8943: RParen          ")" at 753:54-753:55
-8944: Arrow           "->" at 753:56-753:58 (leading: Space)
-8945: Amp             "&" at 753:59-753:60 (leading: Space)
-8946: Ident           "T" at 753:60-753:61
-8947: Semicolon       ";" at 753:61-753:62
-8948: At              "@" at 754:5-754:6 (leading: Newline, Space)
-8949: Ident           "intrinsic" at 754:6-754:15
-8950: At              "@" at 754:16-754:17 (leading: Space)
-8951: Ident           "overload" at 754:17-754:25
-8952: KwFn            "fn" at 754:26-754:28 (leading: Space)
-8953: Ident           "__index" at 754:29-754:36 (leading: Space)
-8954: LParen          "(" at 754:36-754:37
-8955: Ident           "self" at 754:37-754:41
-8956: Colon           ":" at 754:41-754:42
-8957: Amp             "&" at 754:43-754:44 (leading: Space)
-8958: Ident           "Array" at 754:44-754:49
-8959: Lt              "<" at 754:49-754:50
-8960: Ident           "T" at 754:50-754:51
-8961: Gt              ">" at 754:51-754:52
-8962: Comma           "," at 754:52-754:53
-8963: Ident           "index" at 754:54-754:59 (leading: Space)
-8964: Colon           ":" at 754:59-754:60
-8965: Ident           "Range" at 754:61-754:66 (leading: Space)
-8966: Lt              "<" at 754:66-754:67
-8967: Ident           "int" at 754:67-754:70
-8968: Gt              ">" at 754:70-754:71
-8969: RParen          ")" at 754:71-754:72
-8970: Arrow           "->" at 754:73-754:75 (leading: Space)
-8971: Ident           "Array" at 754:76-754:81 (leading: Space)
-8972: Lt              "<" at 754:81-754:82
-8973: Ident           "T" at 754:82-754:83
-8974: Gt              ">" at 754:83-754:84
-8975: Semicolon       ";" at 754:84-754:85
-8976: At              "@" at 755:5-755:6 (leading: Newline, Space)
-8977: Ident           "intrinsic" at 755:6-755:15
-8978: KwFn            "fn" at 755:16-755:18 (leading: Space)
-8979: Ident           "__index_set" at 755:19-755:30 (leading: Space)
-8980: LParen          "(" at 755:30-755:31
-8981: Ident           "self" at 755:31-755:35
-8982: Colon           ":" at 755:35-755:36
-8983: Amp             "&" at 755:37-755:38 (leading: Space)
-8984: KwMut           "mut" at 755:38-755:41
-8985: Ident           "Array" at 755:42-755:47 (leading: Space)
-8986: Lt              "<" at 755:47-755:48
-8987: Ident           "T" at 755:48-755:49
-8988: Gt              ">" at 755:49-755:50
-8989: Comma           "," at 755:50-755:51
-8990: Ident           "index" at 755:52-755:57 (leading: Space)
-8991: Colon           ":" at 755:57-755:58
-8992: Ident           "int" at 755:59-755:62 (leading: Space)
-8993: Comma           "," at 755:62-755:63
-8994: Ident           "value" at 755:64-755:69 (leading: Space)
-8995: Colon           ":" at 755:69-755:70
-8996: Ident           "T" at 755:71-755:72 (leading: Space)
-8997: RParen          ")" at 755:72-755:73
-8998: Arrow           "->" at 755:74-755:76 (leading: Space)
-8999: NothingLit      "nothing" at 755:77-755:84 (leading: Space)
-9000: Semicolon       ";" at 755:84-755:85
-9001: At              "@" at 756:5-756:6 (leading: Newline, Space)
-9002: Ident           "intrinsic" at 756:6-756:15
-9003: KwFn            "fn" at 756:16-756:18 (leading: Space)
-9004: Ident           "__range" at 756:19-756:26 (leading: Space)
-9005: LParen          "(" at 756:26-756:27
-9006: Ident           "self" at 756:27-756:31
-9007: Colon           ":" at 756:31-756:32
-9008: Amp             "&" at 756:33-756:34 (leading: Space)
-9009: Ident           "Array" at 756:34-756:39
-9010: Lt              "<" at 756:39-756:40
-9011: Ident           "T" at 756:40-756:41
-9012: Gt              ">" at 756:41-756:42
-9013: RParen          ")" at 756:42-756:43
-9014: Arrow           "->" at 756:44-756:46 (leading: Space)
-9015: Ident           "Range" at 756:47-756:52 (leading: Space)
-9016: Lt              "<" at 756:52-756:53
-9017: Ident           "T" at 756:53-756:54
-9018: Gt              ">" at 756:54-756:55
-9019: Semicolon       ";" at 756:55-756:56
-9020: At              "@" at 757:5-757:6 (leading: Newline, Space)
-9021: Ident           "intrinsic" at 757:6-757:15
-9022: KwFn            "fn" at 757:16-757:18 (leading: Space)
-9023: Ident           "__len" at 757:19-757:24 (leading: Space)
-9024: LParen          "(" at 757:24-757:25
-9025: Ident           "self" at 757:25-757:29
-9026: Colon           ":" at 757:29-757:30
-9027: Amp             "&" at 757:31-757:32 (leading: Space)
-9028: Ident           "Array" at 757:32-757:37
-9029: Lt              "<" at 757:37-757:38
-9030: Ident           "T" at 757:38-757:39
-9031: Gt              ">" at 757:39-757:40
-9032: RParen          ")" at 757:40-757:41
-9033: Arrow           "->" at 757:42-757:44 (leading: Space)
-9034: Ident           "uint" at 757:45-757:49 (leading: Space)
-9035: Semicolon       ";" at 757:49-757:50
-9036: RBrace          "}" at 758:1-758:2 (leading: Newline)
-9037: KwExtern        "extern" at 760:1-760:7 (leading: Newline)
-9038: Lt              "<" at 760:7-760:8
-9039: Ident           "ArrayFixed" at 760:8-760:18
-9040: Lt              "<" at 760:18-760:19
-9041: Ident           "T" at 760:19-760:20
-9042: Comma           "," at 760:20-760:21
-9043: Ident           "N" at 760:22-760:23 (leading: Space)
-9044: Shr             ">>" at 760:23-760:25
-9045: LBrace          "{" at 760:26-760:27 (leading: Space)
-9046: At              "@" at 761:5-761:6 (leading: Newline, Space)
-9047: Ident           "intrinsic" at 761:6-761:15
-9048: KwFn            "fn" at 761:16-761:18 (leading: Space)
-9049: Ident           "__add" at 761:19-761:24 (leading: Space)
-9050: LParen          "(" at 761:24-761:25
-9051: Ident           "self" at 761:25-761:29
-9052: Colon           ":" at 761:29-761:30
-9053: Amp             "&" at 761:31-761:32 (leading: Space)
-9054: Ident           "ArrayFixed" at 761:32-761:42
-9055: Lt              "<" at 761:42-761:43
-9056: Ident           "T" at 761:43-761:44
-9057: Comma           "," at 761:44-761:45
-9058: Ident           "N" at 761:46-761:47 (leading: Space)
-9059: Gt              ">" at 761:47-761:48
-9060: Comma           "," at 761:48-761:49
-9061: Ident           "other" at 761:50-761:55 (leading: Space)
-9062: Colon           ":" at 761:55-761:56
-9063: Amp             "&" at 761:57-761:58 (leading: Space)
-9064: Ident           "ArrayFixed" at 761:58-761:68
-9065: Lt              "<" at 761:68-761:69
-9066: Ident           "T" at 761:69-761:70
-9067: Comma           "," at 761:70-761:71
-9068: Ident           "N" at 761:72-761:73 (leading: Space)
-9069: Gt              ">" at 761:73-761:74
-9070: RParen          ")" at 761:74-761:75
-9071: Arrow           "->" at 761:76-761:78 (leading: Space)
-9072: Ident           "ArrayFixed" at 761:79-761:89 (leading: Space)
-9073: Lt              "<" at 761:89-761:90
-9074: Ident           "T" at 761:90-761:91
-9075: Comma           "," at 761:91-761:92
-9076: Ident           "N" at 761:93-761:94 (leading: Space)
-9077: Gt              ">" at 761:94-761:95
-9078: Semicolon       ";" at 761:95-761:96
-9079: At              "@" at 762:5-762:6 (leading: Newline, Space)
-9080: Ident           "intrinsic" at 762:6-762:15
-9081: KwFn            "fn" at 762:16-762:18 (leading: Space)
-9082: Ident           "__index" at 762:19-762:26 (leading: Space)
-9083: LParen          "(" at 762:26-762:27
-9084: Ident           "self" at 762:27-762:31
-9085: Colon           ":" at 762:31-762:32
-9086: Amp             "&" at 762:33-762:34 (leading: Space)
-9087: Ident           "ArrayFixed" at 762:34-762:44
-9088: Lt              "<" at 762:44-762:45
-9089: Ident           "T" at 762:45-762:46
-9090: Comma           "," at 762:46-762:47
-9091: Ident           "N" at 762:48-762:49 (leading: Space)
-9092: Gt              ">" at 762:49-762:50
-9093: Comma           "," at 762:50-762:51
-9094: Ident           "index" at 762:52-762:57 (leading: Space)
-9095: Colon           ":" at 762:57-762:58
-9096: Ident           "int" at 762:59-762:62 (leading: Space)
-9097: RParen          ")" at 762:62-762:63
-9098: Arrow           "->" at 762:64-762:66 (leading: Space)
-9099: Amp             "&" at 762:67-762:68 (leading: Space)
-9100: Ident           "T" at 762:68-762:69
-9101: Semicolon       ";" at 762:69-762:70
-9102: At              "@" at 763:5-763:6 (leading: Newline, Space)
-9103: Ident           "intrinsic" at 763:6-763:15
-9104: At              "@" at 763:16-763:17 (leading: Space)
-9105: Ident           "overload" at 763:17-763:25
-9106: KwFn            "fn" at 763:26-763:28 (leading: Space)
-9107: Ident           "__index" at 763:29-763:36 (leading: Space)
-9108: LParen          "(" at 763:36-763:37
-9109: Ident           "self" at 763:37-763:41
-9110: Colon           ":" at 763:41-763:42
-9111: Amp             "&" at 763:43-763:44 (leading: Space)
-9112: Ident           "ArrayFixed" at 763:44-763:54
-9113: Lt              "<" at 763:54-763:55
-9114: Ident           "T" at 763:55-763:56
-9115: Comma           "," at 763:56-763:57
-9116: Ident           "N" at 763:58-763:59 (leading: Space)
-9117: Gt              ">" at 763:59-763:60
-9118: Comma           "," at 763:60-763:61
-9119: Ident           "index" at 763:62-763:67 (leading: Space)
-9120: Colon           ":" at 763:67-763:68
-9121: Ident           "Range" at 763:69-763:74 (leading: Space)
-9122: Lt              "<" at 763:74-763:75
-9123: Ident           "int" at 763:75-763:78
-9124: Gt              ">" at 763:78-763:79
-9125: RParen          ")" at 763:79-763:80
-9126: Arrow           "->" at 763:81-763:83 (leading: Space)
-9127: Ident           "Array" at 763:84-763:89 (leading: Space)
-9128: Lt              "<" at 763:89-763:90
-9129: Ident           "T" at 763:90-763:91
-9130: Gt              ">" at 763:91-763:92
-9131: Semicolon       ";" at 763:92-763:93
-9132: At              "@" at 764:5-764:6 (leading: Newline, Space)
-9133: Ident           "intrinsic" at 764:6-764:15
-9134: KwFn            "fn" at 764:16-764:18 (leading: Space)
-9135: Ident           "__index_set" at 764:19-764:30 (leading: Space)
-9136: LParen          "(" at 764:30-764:31
-9137: Ident           "self" at 764:31-764:35
-9138: Colon           ":" at 764:35-764:36
-9139: Amp             "&" at 764:37-764:38 (leading: Space)
-9140: KwMut           "mut" at 764:38-764:41
-9141: Ident           "ArrayFixed" at 764:42-764:52 (leading: Space)
-9142: Lt              "<" at 764:52-764:53
-9143: Ident           "T" at 764:53-764:54
-9144: Comma           "," at 764:54-764:55
-9145: Ident           "N" at 764:56-764:57 (leading: Space)
-9146: Gt              ">" at 764:57-764:58
-9147: Comma           "," at 764:58-764:59
-9148: Ident           "index" at 764:60-764:65 (leading: Space)
-9149: Colon           ":" at 764:65-764:66
-9150: Ident           "int" at 764:67-764:70 (leading: Space)
-9151: Comma           "," at 764:70-764:71
-9152: Ident           "value" at 764:72-764:77 (leading: Space)
-9153: Colon           ":" at 764:77-764:78
-9154: Ident           "T" at 764:79-764:80 (leading: Space)
-9155: RParen          ")" at 764:80-764:81
-9156: Arrow           "->" at 764:82-764:84 (leading: Space)
-9157: NothingLit      "nothing" at 764:85-764:92 (leading: Space)
-9158: Semicolon       ";" at 764:92-764:93
-9159: At              "@" at 765:5-765:6 (leading: Newline, Space)
-9160: Ident           "intrinsic" at 765:6-765:15
-9161: KwFn            "fn" at 765:16-765:18 (leading: Space)
-9162: Ident           "__range" at 765:19-765:26 (leading: Space)
-9163: LParen          "(" at 765:26-765:27
-9164: Ident           "self" at 765:27-765:31
-9165: Colon           ":" at 765:31-765:32
-9166: Amp             "&" at 765:33-765:34 (leading: Space)
-9167: Ident           "ArrayFixed" at 765:34-765:44
-9168: Lt              "<" at 765:44-765:45
-9169: Ident           "T" at 765:45-765:46
-9170: Comma           "," at 765:46-765:47
-9171: Ident           "N" at 765:48-765:49 (leading: Space)
-9172: Gt              ">" at 765:49-765:50
-9173: RParen          ")" at 765:50-765:51
-9174: Arrow           "->" at 765:52-765:54 (leading: Space)
-9175: Ident           "Range" at 765:55-765:60 (leading: Space)
-9176: Lt              "<" at 765:60-765:61
-9177: Ident           "T" at 765:61-765:62
-9178: Gt              ">" at 765:62-765:63
-9179: Semicolon       ";" at 765:63-765:64
-9180: At              "@" at 766:5-766:6 (leading: Newline, Space)
-9181: Ident           "intrinsic" at 766:6-766:15
-9182: KwFn            "fn" at 766:16-766:18 (leading: Space)
-9183: Ident           "__len" at 766:19-766:24 (leading: Space)
-9184: LParen          "(" at 766:24-766:25
-9185: Ident           "self" at 766:25-766:29
-9186: Colon           ":" at 766:29-766:30
-9187: Amp             "&" at 766:31-766:32 (leading: Space)
-9188: Ident           "ArrayFixed" at 766:32-766:42
-9189: Lt              "<" at 766:42-766:43
-9190: Ident           "T" at 766:43-766:44
-9191: Comma           "," at 766:44-766:45
-9192: Ident           "N" at 766:46-766:47 (leading: Space)
-9193: Gt              ">" at 766:47-766:48
-9194: RParen          ")" at 766:48-766:49
-9195: Arrow           "->" at 766:50-766:52 (leading: Space)
-9196: Ident           "uint" at 766:53-766:57 (leading: Space)
-9197: Semicolon       ";" at 766:57-766:58
-9198: RBrace          "}" at 767:1-767:2 (leading: Newline)
-9199: At              "@" at 769:1-769:2 (leading: Newline)
-9200: Ident           "intrinsic" at 769:2-769:11
-9201: KwPub           "pub" at 770:1-770:4 (leading: Newline)
-9202: KwFn            "fn" at 770:5-770:7 (leading: Space)
-9203: Ident           "default" at 770:8-770:15 (leading: Space)
-9204: Lt              "<" at 770:15-770:16
-9205: Ident           "T" at 770:16-770:17
-9206: Gt              ">" at 770:17-770:18
-9207: LParen          "(" at 770:18-770:19
-9208: RParen          ")" at 770:19-770:20
-9209: Arrow           "->" at 770:21-770:23 (leading: Space)
-9210: Ident           "T" at 770:24-770:25 (leading: Space)
-9211: Semicolon       ";" at 770:25-770:26
-9212: At              "@" at 772:1-772:2 (leading: Newline)
-9213: Ident           "intrinsic" at 772:2-772:11
-9214: KwPub           "pub" at 773:1-773:4 (leading: Newline)
-9215: KwFn            "fn" at 773:5-773:7 (leading: Space)
-9216: Ident           "size_of" at 773:8-773:15 (leading: Space)
-9217: Lt              "<" at 773:15-773:16
-9218: Ident           "T" at 773:16-773:17
-9219: Gt              ">" at 773:17-773:18
-9220: LParen          "(" at 773:18-773:19
-9221: RParen          ")" at 773:19-773:20
-9222: Arrow           "->" at 773:21-773:23 (leading: Space)
-9223: Ident           "uint" at 773:24-773:28 (leading: Space)
-9224: Semicolon       ";" at 773:28-773:29
-9225: At              "@" at 775:1-775:2 (leading: Newline)
-9226: Ident           "intrinsic" at 775:2-775:11
-9227: KwPub           "pub" at 776:1-776:4 (leading: Newline)
-9228: KwFn            "fn" at 776:5-776:7 (leading: Space)
-9229: Ident           "align_of" at 776:8-776:16 (leading: Space)
-9230: Lt              "<" at 776:16-776:17
-9231: Ident           "T" at 776:17-776:18
-9232: Gt              ">" at 776:18-776:19
-9233: LParen          "(" at 776:19-776:20
-9234: RParen          ")" at 776:20-776:21
-9235: Arrow           "->" at 776:22-776:24 (leading: Space)
-9236: Ident           "uint" at 776:25-776:29 (leading: Space)
-9237: Semicolon       ";" at 776:29-776:30
-9238: KwPub           "pub" at 778:1-778:4 (leading: Newline)
-9239: KwContract      "contract" at 778:5-778:13 (leading: Space)
-9240: Ident           "ErrorLike" at 778:14-778:23 (leading: Space)
-9241: LBrace          "{" at 778:23-778:24
-9242: KwField         "field" at 779:5-779:10 (leading: Newline, Space)
-9243: Ident           "message" at 779:11-779:18 (leading: Space)
-9244: Colon           ":" at 779:18-779:19
-9245: Ident           "string" at 779:20-779:26 (leading: Space)
-9246: Semicolon       ";" at 779:26-779:27
-9247: KwField         "field" at 780:5-780:10 (leading: Newline, Space)
-9248: Ident           "code" at 780:11-780:15 (leading: Space)
-9249: Colon           ":" at 780:15-780:16
-9250: Ident           "uint" at 780:17-780:21 (leading: Space)
-9251: Semicolon       ";" at 780:21-780:22
-9252: RBrace          "}" at 781:1-781:2 (leading: Newline)
-9253: At              "@" at 783:1-783:2 (leading: Newline)
-9254: Ident           "intrinsic" at 783:2-783:11
-9255: KwPub           "pub" at 784:1-784:4 (leading: Newline)
-9256: KwFn            "fn" at 784:5-784:7 (leading: Space)
-9257: Ident           "exit" at 784:8-784:12 (leading: Space)
-9258: Lt              "<" at 784:12-784:13
-9259: Ident           "E" at 784:13-784:14
-9260: Colon           ":" at 784:14-784:15
-9261: Ident           "ErrorLike" at 784:16-784:25 (leading: Space)
-9262: Gt              ">" at 784:25-784:26
-9263: LParen          "(" at 784:26-784:27
-9264: Ident           "e" at 784:27-784:28
-9265: Colon           ":" at 784:28-784:29
-9266: Ident           "E" at 784:30-784:31 (leading: Space)
-9267: RParen          ")" at 784:31-784:32
-9268: Arrow           "->" at 784:33-784:35 (leading: Space)
-9269: NothingLit      "nothing" at 784:36-784:43 (leading: Space)
-9270: Semicolon       ";" at 784:43-784:44
-9271: At              "@" at 786:1-786:2 (leading: Newline)
-9272: Ident           "intrinsic" at 786:2-786:11
-9273: KwPub           "pub" at 787:1-787:4 (leading: Newline)
-9274: KwFn            "fn" at 787:5-787:7 (leading: Space)
-9275: Ident           "rt_panic" at 787:8-787:16 (leading: Space)
-9276: LParen          "(" at 787:16-787:17
-9277: Ident           "ptr" at 787:17-787:20
-9278: Colon           ":" at 787:20-787:21
-9279: Star            "*" at 787:22-787:23 (leading: Space)
-9280: Ident           "byte" at 787:23-787:27
-9281: Comma           "," at 787:27-787:28
-9282: Ident           "length" at 787:29-787:35 (leading: Space)
-9283: Colon           ":" at 787:35-787:36
-9284: Ident           "uint" at 787:37-787:41 (leading: Space)
-9285: RParen          ")" at 787:41-787:42
-9286: Arrow           "->" at 787:43-787:45 (leading: Space)
-9287: NothingLit      "nothing" at 787:46-787:53 (leading: Space)
-9288: Semicolon       ";" at 787:53-787:54
-9289: KwPub           "pub" at 789:1-789:4 (leading: Newline)
-9290: KwFn            "fn" at 789:5-789:7 (leading: Space)
-9291: Ident           "panic" at 789:8-789:13 (leading: Space)
-9292: LParen          "(" at 789:13-789:14
-9293: Ident           "msg" at 789:14-789:17
-9294: Colon           ":" at 789:17-789:18
-9295: Ident           "string" at 789:19-789:25 (leading: Space)
-9296: RParen          ")" at 789:25-789:26
-9297: Arrow           "->" at 789:27-789:29 (leading: Space)
-9298: NothingLit      "nothing" at 789:30-789:37 (leading: Space)
-9299: LBrace          "{" at 789:38-789:39 (leading: Space)
-9300: KwLet           "let" at 790:5-790:8 (leading: Newline, Space)
-9301: Ident           "ptr" at 790:9-790:12 (leading: Space)
-9302: Assign          "=" at 790:13-790:14 (leading: Space)
-9303: Ident           "rt_string_ptr" at 790:15-790:28 (leading: Space)
-9304: LParen          "(" at 790:28-790:29
-9305: Amp             "&" at 790:29-790:30
-9306: Ident           "msg" at 790:30-790:33
-9307: RParen          ")" at 790:33-790:34
-9308: Semicolon       ";" at 790:34-790:35
-9309: KwLet           "let" at 791:5-791:8 (leading: Newline, Space)
-9310: Ident           "length" at 791:9-791:15 (leading: Space)
-9311: Assign          "=" at 791:16-791:17 (leading: Space)
-9312: Ident           "rt_string_len_bytes" at 791:18-791:37 (leading: Space)
-9313: LParen          "(" at 791:37-791:38
-9314: Amp             "&" at 791:38-791:39
-9315: Ident           "msg" at 791:39-791:42
-9316: RParen          ")" at 791:42-791:43
-9317: Semicolon       ";" at 791:43-791:44
-9318: Ident           "rt_panic" at 792:5-792:13 (leading: Newline, Space)
-9319: LParen          "(" at 792:13-792:14
-9320: Ident           "ptr" at 792:14-792:17
-9321: Comma           "," at 792:17-792:18
-9322: Ident           "length" at 792:19-792:25 (leading: Space)
-9323: RParen          ")" at 792:25-792:26
-9324: Semicolon       ";" at 792:26-792:27
-9325: RBrace          "}" at 793:1-793:2 (leading: Newline)
-9326: At              "@" at 795:1-795:2 (leading: Newline)
-9327: Ident           "intrinsic" at 795:2-795:11
-9328: KwPub           "pub" at 796:1-796:4 (leading: Newline)
-9329: KwType          "type" at 796:5-796:9 (leading: Space)
-9330: Ident           "RwLock" at 796:10-796:16 (leading: Space)
-9331: Assign          "=" at 796:17-796:18 (leading: Space)
-9332: LBrace          "{" at 796:19-796:20 (leading: Space)
-9333: Ident           "__opaque" at 797:5-797:13 (leading: Newline, Space)
-9334: Colon           ":" at 797:13-797:14
-9335: Star            "*" at 797:15-797:16 (leading: Space)
-9336: Ident           "byte" at 797:16-797:20
-9337: Comma           "," at 797:20-797:21
-9338: RBrace          "}" at 798:1-798:2 (leading: Newline)
-9339: Semicolon       ";" at 798:2-798:3
-9340: KwExtern        "extern" at 800:1-800:7 (leading: Newline)
-9341: Lt              "<" at 800:7-800:8
-9342: Ident           "RwLock" at 800:8-800:14
-9343: Gt              ">" at 800:14-800:15
-9344: LBrace          "{" at 800:16-800:17 (leading: Space)
-9345: At              "@" at 801:5-801:6 (leading: Newline, Space)
-9346: Ident           "intrinsic" at 801:6-801:15
-9347: KwPub           "pub" at 801:16-801:19 (leading: Space)
-9348: KwFn            "fn" at 801:20-801:22 (leading: Space)
-9349: Ident           "new" at 801:23-801:26 (leading: Space)
-9350: LParen          "(" at 801:26-801:27
-9351: RParen          ")" at 801:27-801:28
-9352: Arrow           "->" at 801:29-801:31 (leading: Space)
-9353: Ident           "RwLock" at 801:32-801:38 (leading: Space)
-9354: Semicolon       ";" at 801:38-801:39
-9355: At              "@" at 802:5-802:6 (leading: Newline, Space)
-9356: Ident           "intrinsic" at 802:6-802:15
-9357: KwPub           "pub" at 802:16-802:19 (leading: Space)
-9358: KwFn            "fn" at 802:20-802:22 (leading: Space)
-9359: Ident           "read_lock" at 802:23-802:32 (leading: Space)
-9360: LParen          "(" at 802:32-802:33
-9361: Ident           "self" at 802:33-802:37
-9362: Colon           ":" at 802:37-802:38
-9363: Amp             "&" at 802:39-802:40 (leading: Space)
-9364: KwMut           "mut" at 802:40-802:43
-9365: Ident           "RwLock" at 802:44-802:50 (leading: Space)
-9366: RParen          ")" at 802:50-802:51
-9367: Arrow           "->" at 802:52-802:54 (leading: Space)
-9368: NothingLit      "nothing" at 802:55-802:62 (leading: Space)
-9369: Semicolon       ";" at 802:62-802:63
-9370: At              "@" at 803:5-803:6 (leading: Newline, Space)
-9371: Ident           "intrinsic" at 803:6-803:15
-9372: KwPub           "pub" at 803:16-803:19 (leading: Space)
-9373: KwFn            "fn" at 803:20-803:22 (leading: Space)
-9374: Ident           "read_unlock" at 803:23-803:34 (leading: Space)
-9375: LParen          "(" at 803:34-803:35
-9376: Ident           "self" at 803:35-803:39
-9377: Colon           ":" at 803:39-803:40
-9378: Amp             "&" at 803:41-803:42 (leading: Space)
-9379: KwMut           "mut" at 803:42-803:45
-9380: Ident           "RwLock" at 803:46-803:52 (leading: Space)
-9381: RParen          ")" at 803:52-803:53
-9382: Arrow           "->" at 803:54-803:56 (leading: Space)
-9383: NothingLit      "nothing" at 803:57-803:64 (leading: Space)
-9384: Semicolon       ";" at 803:64-803:65
-9385: At              "@" at 804:5-804:6 (leading: Newline, Space)
-9386: Ident           "intrinsic" at 804:6-804:15
-9387: KwPub           "pub" at 804:16-804:19 (leading: Space)
-9388: KwFn            "fn" at 804:20-804:22 (leading: Space)
-9389: Ident           "write_lock" at 804:23-804:33 (leading: Space)
-9390: LParen          "(" at 804:33-804:34
-9391: Ident           "self" at 804:34-804:38
-9392: Colon           ":" at 804:38-804:39
-9393: Amp             "&" at 804:40-804:41 (leading: Space)
-9394: KwMut           "mut" at 804:41-804:44
-9395: Ident           "RwLock" at 804:45-804:51 (leading: Space)
-9396: RParen          ")" at 804:51-804:52
-9397: Arrow           "->" at 804:53-804:55 (leading: Space)
-9398: NothingLit      "nothing" at 804:56-804:63 (leading: Space)
-9399: Semicolon       ";" at 804:63-804:64
-9400: At              "@" at 805:5-805:6 (leading: Newline, Space)
-9401: Ident           "intrinsic" at 805:6-805:15
-9402: KwPub           "pub" at 805:16-805:19 (leading: Space)
-9403: KwFn            "fn" at 805:20-805:22 (leading: Space)
-9404: Ident           "write_unlock" at 805:23-805:35 (leading: Space)
-9405: LParen          "(" at 805:35-805:36
-9406: Ident           "self" at 805:36-805:40
-9407: Colon           ":" at 805:40-805:41
-9408: Amp             "&" at 805:42-805:43 (leading: Space)
-9409: KwMut           "mut" at 805:43-805:46
-9410: Ident           "RwLock" at 805:47-805:53 (leading: Space)
-9411: RParen          ")" at 805:53-805:54
-9412: Arrow           "->" at 805:55-805:57 (leading: Space)
-9413: NothingLit      "nothing" at 805:58-805:65 (leading: Space)
-9414: Semicolon       ";" at 805:65-805:66
-9415: At              "@" at 806:5-806:6 (leading: Newline, Space)
-9416: Ident           "intrinsic" at 806:6-806:15
-9417: KwPub           "pub" at 806:16-806:19 (leading: Space)
-9418: KwFn            "fn" at 806:20-806:22 (leading: Space)
-9419: Ident           "try_read_lock" at 806:23-806:36 (leading: Space)
-9420: LParen          "(" at 806:36-806:37
-9421: Ident           "self" at 806:37-806:41
-9422: Colon           ":" at 806:41-806:42
-9423: Amp             "&" at 806:43-806:44 (leading: Space)
-9424: KwMut           "mut" at 806:44-806:47
-9425: Ident           "RwLock" at 806:48-806:54 (leading: Space)
-9426: RParen          ")" at 806:54-806:55
-9427: Arrow           "->" at 806:56-806:58 (leading: Space)
-9428: Ident           "bool" at 806:59-806:63 (leading: Space)
-9429: Semicolon       ";" at 806:63-806:64
-9430: At              "@" at 807:5-807:6 (leading: Newline, Space)
-9431: Ident           "intrinsic" at 807:6-807:15
-9432: KwPub           "pub" at 807:16-807:19 (leading: Space)
-9433: KwFn            "fn" at 807:20-807:22 (leading: Space)
-9434: Ident           "try_write_lock" at 807:23-807:37 (leading: Space)
-9435: LParen          "(" at 807:37-807:38
-9436: Ident           "self" at 807:38-807:42
-9437: Colon           ":" at 807:42-807:43
-9438: Amp             "&" at 807:44-807:45 (leading: Space)
-9439: KwMut           "mut" at 807:45-807:48
-9440: Ident           "RwLock" at 807:49-807:55 (leading: Space)
-9441: RParen          ")" at 807:55-807:56
-9442: Arrow           "->" at 807:57-807:59 (leading: Space)
-9443: Ident           "bool" at 807:60-807:64 (leading: Space)
-9444: Semicolon       ";" at 807:64-807:65
-9445: RBrace          "}" at 808:1-808:2 (leading: Newline)
-9446: At              "@" at 816:1-816:2 (leading: Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
-9447: Ident           "intrinsic" at 816:2-816:11
-9448: KwPub           "pub" at 817:1-817:4 (leading: Newline)
-9449: KwFn            "fn" at 817:5-817:7 (leading: Space)
-9450: Ident           "atomic_load" at 817:8-817:19 (leading: Space)
-9451: LParen          "(" at 817:19-817:20
-9452: Ident           "ptr" at 817:20-817:23
-9453: Colon           ":" at 817:23-817:24
-9454: Amp             "&" at 817:25-817:26 (leading: Space)
-9455: Ident           "int" at 817:26-817:29
-9456: RParen          ")" at 817:29-817:30
-9457: Arrow           "->" at 817:31-817:33 (leading: Space)
-9458: Ident           "int" at 817:34-817:37 (leading: Space)
-9459: Semicolon       ";" at 817:37-817:38
-9460: At              "@" at 819:1-819:2 (leading: Newline)
-9461: Ident           "intrinsic" at 819:2-819:11
-9462: At              "@" at 820:1-820:2 (leading: Newline)
-9463: Ident           "overload" at 820:2-820:10
-9464: KwPub           "pub" at 821:1-821:4 (leading: Newline)
-9465: KwFn            "fn" at 821:5-821:7 (leading: Space)
-9466: Ident           "atomic_load" at 821:8-821:19 (leading: Space)
-9467: LParen          "(" at 821:19-821:20
-9468: Ident           "ptr" at 821:20-821:23
-9469: Colon           ":" at 821:23-821:24
-9470: Amp             "&" at 821:25-821:26 (leading: Space)
-9471: Ident           "uint" at 821:26-821:30
-9472: RParen          ")" at 821:30-821:31
-9473: Arrow           "->" at 821:32-821:34 (leading: Space)
-9474: Ident           "uint" at 821:35-821:39 (leading: Space)
-9475: Semicolon       ";" at 821:39-821:40
-9476: At              "@" at 823:1-823:2 (leading: Newline)
-9477: Ident           "intrinsic" at 823:2-823:11
-9478: At              "@" at 824:1-824:2 (leading: Newline)
-9479: Ident           "overload" at 824:2-824:10
-9480: KwPub           "pub" at 825:1-825:4 (leading: Newline)
-9481: KwFn            "fn" at 825:5-825:7 (leading: Space)
-9482: Ident           "atomic_load" at 825:8-825:19 (leading: Space)
-9483: LParen          "(" at 825:19-825:20
-9484: Ident           "ptr" at 825:20-825:23
-9485: Colon           ":" at 825:23-825:24
-9486: Amp             "&" at 825:25-825:26 (leading: Space)
-9487: Ident           "bool" at 825:26-825:30
-9488: RParen          ")" at 825:30-825:31
-9489: Arrow           "->" at 825:32-825:34 (leading: Space)
-9490: Ident           "bool" at 825:35-825:39 (leading: Space)
-9491: Semicolon       ";" at 825:39-825:40
-9492: At              "@" at 828:1-828:2 (leading: Newline, LineComment, Newline)
-9493: Ident           "intrinsic" at 828:2-828:11
-9494: KwPub           "pub" at 829:1-829:4 (leading: Newline)
-9495: KwFn            "fn" at 829:5-829:7 (leading: Space)
-9496: Ident           "atomic_store" at 829:8-829:20 (leading: Space)
-9497: LParen          "(" at 829:20-829:21
-9498: Ident           "ptr" at 829:21-829:24
-9499: Colon           ":" at 829:24-829:25
-9500: Amp             "&" at 829:26-829:27 (leading: Space)
-9501: KwMut           "mut" at 829:27-829:30
-9502: Ident           "int" at 829:31-829:34 (leading: Space)
-9503: Comma           "," at 829:34-829:35
-9504: Ident           "value" at 829:36-829:41 (leading: Space)
-9505: Colon           ":" at 829:41-829:42
-9506: Ident           "int" at 829:43-829:46 (leading: Space)
-9507: RParen          ")" at 829:46-829:47
-9508: Arrow           "->" at 829:48-829:50 (leading: Space)
-9509: NothingLit      "nothing" at 829:51-829:58 (leading: Space)
-9510: Semicolon       ";" at 829:58-829:59
-9511: At              "@" at 831:1-831:2 (leading: Newline)
-9512: Ident           "intrinsic" at 831:2-831:11
-9513: At              "@" at 832:1-832:2 (leading: Newline)
-9514: Ident           "overload" at 832:2-832:10
-9515: KwPub           "pub" at 833:1-833:4 (leading: Newline)
-9516: KwFn            "fn" at 833:5-833:7 (leading: Space)
-9517: Ident           "atomic_store" at 833:8-833:20 (leading: Space)
-9518: LParen          "(" at 833:20-833:21
-9519: Ident           "ptr" at 833:21-833:24
-9520: Colon           ":" at 833:24-833:25
-9521: Amp             "&" at 833:26-833:27 (leading: Space)
-9522: KwMut           "mut" at 833:27-833:30
-9523: Ident           "uint" at 833:31-833:35 (leading: Space)
-9524: Comma           "," at 833:35-833:36
-9525: Ident           "value" at 833:37-833:42 (leading: Space)
-9526: Colon           ":" at 833:42-833:43
-9527: Ident           "uint" at 833:44-833:48 (leading: Space)
-9528: RParen          ")" at 833:48-833:49
-9529: Arrow           "->" at 833:50-833:52 (leading: Space)
-9530: NothingLit      "nothing" at 833:53-833:60 (leading: Space)
-9531: Semicolon       ";" at 833:60-833:61
-9532: At              "@" at 835:1-835:2 (leading: Newline)
-9533: Ident           "intrinsic" at 835:2-835:11
-9534: At              "@" at 836:1-836:2 (leading: Newline)
-9535: Ident           "overload" at 836:2-836:10
-9536: KwPub           "pub" at 837:1-837:4 (leading: Newline)
-9537: KwFn            "fn" at 837:5-837:7 (leading: Space)
-9538: Ident           "atomic_store" at 837:8-837:20 (leading: Space)
-9539: LParen          "(" at 837:20-837:21
-9540: Ident           "ptr" at 837:21-837:24
-9541: Colon           ":" at 837:24-837:25
-9542: Amp             "&" at 837:26-837:27 (leading: Space)
-9543: KwMut           "mut" at 837:27-837:30
-9544: Ident           "bool" at 837:31-837:35 (leading: Space)
-9545: Comma           "," at 837:35-837:36
-9546: Ident           "value" at 837:37-837:42 (leading: Space)
-9547: Colon           ":" at 837:42-837:43
-9548: Ident           "bool" at 837:44-837:48 (leading: Space)
-9549: RParen          ")" at 837:48-837:49
-9550: Arrow           "->" at 837:50-837:52 (leading: Space)
-9551: NothingLit      "nothing" at 837:53-837:60 (leading: Space)
-9552: Semicolon       ";" at 837:60-837:61
-9553: At              "@" at 840:1-840:2 (leading: Newline, LineComment, Newline)
-9554: Ident           "intrinsic" at 840:2-840:11
-9555: KwPub           "pub" at 841:1-841:4 (leading: Newline)
-9556: KwFn            "fn" at 841:5-841:7 (leading: Space)
-9557: Ident           "atomic_exchange" at 841:8-841:23 (leading: Space)
-9558: LParen          "(" at 841:23-841:24
-9559: Ident           "ptr" at 841:24-841:27
-9560: Colon           ":" at 841:27-841:28
-9561: Amp             "&" at 841:29-841:30 (leading: Space)
-9562: KwMut           "mut" at 841:30-841:33
-9563: Ident           "int" at 841:34-841:37 (leading: Space)
-9564: Comma           "," at 841:37-841:38
-9565: Ident           "new_val" at 841:39-841:46 (leading: Space)
-9566: Colon           ":" at 841:46-841:47
-9567: Ident           "int" at 841:48-841:51 (leading: Space)
-9568: RParen          ")" at 841:51-841:52
-9569: Arrow           "->" at 841:53-841:55 (leading: Space)
-9570: Ident           "int" at 841:56-841:59 (leading: Space)
-9571: Semicolon       ";" at 841:59-841:60
-9572: At              "@" at 843:1-843:2 (leading: Newline)
-9573: Ident           "intrinsic" at 843:2-843:11
-9574: At              "@" at 844:1-844:2 (leading: Newline)
-9575: Ident           "overload" at 844:2-844:10
-9576: KwPub           "pub" at 845:1-845:4 (leading: Newline)
-9577: KwFn            "fn" at 845:5-845:7 (leading: Space)
-9578: Ident           "atomic_exchange" at 845:8-845:23 (leading: Space)
-9579: LParen          "(" at 845:23-845:24
-9580: Ident           "ptr" at 845:24-845:27
-9581: Colon           ":" at 845:27-845:28
-9582: Amp             "&" at 845:29-845:30 (leading: Space)
-9583: KwMut           "mut" at 845:30-845:33
-9584: Ident           "uint" at 845:34-845:38 (leading: Space)
-9585: Comma           "," at 845:38-845:39
-9586: Ident           "new_val" at 845:40-845:47 (leading: Space)
-9587: Colon           ":" at 845:47-845:48
-9588: Ident           "uint" at 845:49-845:53 (leading: Space)
-9589: RParen          ")" at 845:53-845:54
-9590: Arrow           "->" at 845:55-845:57 (leading: Space)
-9591: Ident           "uint" at 845:58-845:62 (leading: Space)
-9592: Semicolon       ";" at 845:62-845:63
-9593: At              "@" at 847:1-847:2 (leading: Newline)
-9594: Ident           "intrinsic" at 847:2-847:11
-9595: At              "@" at 848:1-848:2 (leading: Newline)
-9596: Ident           "overload" at 848:2-848:10
-9597: KwPub           "pub" at 849:1-849:4 (leading: Newline)
-9598: KwFn            "fn" at 849:5-849:7 (leading: Space)
-9599: Ident           "atomic_exchange" at 849:8-849:23 (leading: Space)
-9600: LParen          "(" at 849:23-849:24
-9601: Ident           "ptr" at 849:24-849:27
-9602: Colon           ":" at 849:27-849:28
-9603: Amp             "&" at 849:29-849:30 (leading: Space)
-9604: KwMut           "mut" at 849:30-849:33
-9605: Ident           "bool" at 849:34-849:38 (leading: Space)
-9606: Comma           "," at 849:38-849:39
-9607: Ident           "new_val" at 849:40-849:47 (leading: Space)
-9608: Colon           ":" at 849:47-849:48
-9609: Ident           "bool" at 849:49-849:53 (leading: Space)
-9610: RParen          ")" at 849:53-849:54
-9611: Arrow           "->" at 849:55-849:57 (leading: Space)
-9612: Ident           "bool" at 849:58-849:62 (leading: Space)
-9613: Semicolon       ";" at 849:62-849:63
-9614: At              "@" at 853:1-853:2 (leading: Newline, LineComment, Newline, LineComment, Newline)
-9615: Ident           "intrinsic" at 853:2-853:11
-9616: KwPub           "pub" at 854:1-854:4 (leading: Newline)
-9617: KwFn            "fn" at 854:5-854:7 (leading: Space)
-9618: Ident           "atomic_compare_exchange" at 854:8-854:31 (leading: Space)
-9619: LParen          "(" at 854:31-854:32
-9620: Ident           "ptr" at 854:32-854:35
-9621: Colon           ":" at 854:35-854:36
-9622: Amp             "&" at 854:37-854:38 (leading: Space)
-9623: KwMut           "mut" at 854:38-854:41
-9624: Ident           "int" at 854:42-854:45 (leading: Space)
-9625: Comma           "," at 854:45-854:46
-9626: Ident           "expected" at 854:47-854:55 (leading: Space)
-9627: Colon           ":" at 854:55-854:56
-9628: Ident           "int" at 854:57-854:60 (leading: Space)
-9629: Comma           "," at 854:60-854:61
-9630: Ident           "desired" at 854:62-854:69 (leading: Space)
-9631: Colon           ":" at 854:69-854:70
-9632: Ident           "int" at 854:71-854:74 (leading: Space)
-9633: RParen          ")" at 854:74-854:75
-9634: Arrow           "->" at 854:76-854:78 (leading: Space)
-9635: Ident           "bool" at 854:79-854:83 (leading: Space)
-9636: Semicolon       ";" at 854:83-854:84
-9637: At              "@" at 856:1-856:2 (leading: Newline)
-9638: Ident           "intrinsic" at 856:2-856:11
-9639: At              "@" at 857:1-857:2 (leading: Newline)
-9640: Ident           "overload" at 857:2-857:10
-9641: KwPub           "pub" at 858:1-858:4 (leading: Newline)
-9642: KwFn            "fn" at 858:5-858:7 (leading: Space)
-9643: Ident           "atomic_compare_exchange" at 858:8-858:31 (leading: Space)
-9644: LParen          "(" at 858:31-858:32
-9645: Ident           "ptr" at 858:32-858:35
-9646: Colon           ":" at 858:35-858:36
-9647: Amp             "&" at 858:37-858:38 (leading: Space)
-9648: KwMut           "mut" at 858:38-858:41
-9649: Ident           "uint" at 858:42-858:46 (leading: Space)
-9650: Comma           "," at 858:46-858:47
-9651: Ident           "expected" at 858:48-858:56 (leading: Space)
-9652: Colon           ":" at 858:56-858:57
-9653: Ident           "uint" at 858:58-858:62 (leading: Space)
-9654: Comma           "," at 858:62-858:63
-9655: Ident           "desired" at 858:64-858:71 (leading: Space)
-9656: Colon           ":" at 858:71-858:72
-9657: Ident           "uint" at 858:73-858:77 (leading: Space)
-9658: RParen          ")" at 858:77-858:78
-9659: Arrow           "->" at 858:79-858:81 (leading: Space)
-9660: Ident           "bool" at 858:82-858:86 (leading: Space)
-9661: Semicolon       ";" at 858:86-858:87
-9662: At              "@" at 860:1-860:2 (leading: Newline)
-9663: Ident           "intrinsic" at 860:2-860:11
-9664: At              "@" at 861:1-861:2 (leading: Newline)
-9665: Ident           "overload" at 861:2-861:10
-9666: KwPub           "pub" at 862:1-862:4 (leading: Newline)
-9667: KwFn            "fn" at 862:5-862:7 (leading: Space)
-9668: Ident           "atomic_compare_exchange" at 862:8-862:31 (leading: Space)
-9669: LParen          "(" at 862:31-862:32
-9670: Ident           "ptr" at 862:32-862:35
-9671: Colon           ":" at 862:35-862:36
-9672: Amp             "&" at 862:37-862:38 (leading: Space)
-9673: KwMut           "mut" at 862:38-862:41
-9674: Ident           "bool" at 862:42-862:46 (leading: Space)
-9675: Comma           "," at 862:46-862:47
-9676: Ident           "expected" at 862:48-862:56 (leading: Space)
-9677: Colon           ":" at 862:56-862:57
-9678: Ident           "bool" at 862:58-862:62 (leading: Space)
-9679: Comma           "," at 862:62-862:63
-9680: Ident           "desired" at 862:64-862:71 (leading: Space)
-9681: Colon           ":" at 862:71-862:72
-9682: Ident           "bool" at 862:73-862:77 (leading: Space)
-9683: RParen          ")" at 862:77-862:78
-9684: Arrow           "->" at 862:79-862:81 (leading: Space)
-9685: Ident           "bool" at 862:82-862:86 (leading: Space)
-9686: Semicolon       ";" at 862:86-862:87
-9687: At              "@" at 865:1-865:2 (leading: Newline, LineComment, Newline)
-9688: Ident           "intrinsic" at 865:2-865:11
-9689: KwPub           "pub" at 866:1-866:4 (leading: Newline)
-9690: KwFn            "fn" at 866:5-866:7 (leading: Space)
-9691: Ident           "atomic_fetch_add" at 866:8-866:24 (leading: Space)
-9692: LParen          "(" at 866:24-866:25
-9693: Ident           "ptr" at 866:25-866:28
-9694: Colon           ":" at 866:28-866:29
-9695: Amp             "&" at 866:30-866:31 (leading: Space)
-9696: KwMut           "mut" at 866:31-866:34
-9697: Ident           "int" at 866:35-866:38 (leading: Space)
-9698: Comma           "," at 866:38-866:39
-9699: Ident           "delta" at 866:40-866:45 (leading: Space)
-9700: Colon           ":" at 866:45-866:46
-9701: Ident           "int" at 866:47-866:50 (leading: Space)
-9702: RParen          ")" at 866:50-866:51
-9703: Arrow           "->" at 866:52-866:54 (leading: Space)
-9704: Ident           "int" at 866:55-866:58 (leading: Space)
-9705: Semicolon       ";" at 866:58-866:59
-9706: At              "@" at 868:1-868:2 (leading: Newline)
-9707: Ident           "intrinsic" at 868:2-868:11
-9708: At              "@" at 869:1-869:2 (leading: Newline)
-9709: Ident           "overload" at 869:2-869:10
-9710: KwPub           "pub" at 870:1-870:4 (leading: Newline)
-9711: KwFn            "fn" at 870:5-870:7 (leading: Space)
-9712: Ident           "atomic_fetch_add" at 870:8-870:24 (leading: Space)
-9713: LParen          "(" at 870:24-870:25
-9714: Ident           "ptr" at 870:25-870:28
-9715: Colon           ":" at 870:28-870:29
-9716: Amp             "&" at 870:30-870:31 (leading: Space)
-9717: KwMut           "mut" at 870:31-870:34
-9718: Ident           "uint" at 870:35-870:39 (leading: Space)
-9719: Comma           "," at 870:39-870:40
-9720: Ident           "delta" at 870:41-870:46 (leading: Space)
-9721: Colon           ":" at 870:46-870:47
-9722: Ident           "uint" at 870:48-870:52 (leading: Space)
-9723: RParen          ")" at 870:52-870:53
-9724: Arrow           "->" at 870:54-870:56 (leading: Space)
-9725: Ident           "uint" at 870:57-870:61 (leading: Space)
-9726: Semicolon       ";" at 870:61-870:62
-9727: At              "@" at 873:1-873:2 (leading: Newline, LineComment, Newline)
-9728: Ident           "intrinsic" at 873:2-873:11
-9729: KwPub           "pub" at 874:1-874:4 (leading: Newline)
-9730: KwFn            "fn" at 874:5-874:7 (leading: Space)
-9731: Ident           "atomic_fetch_sub" at 874:8-874:24 (leading: Space)
-9732: LParen          "(" at 874:24-874:25
-9733: Ident           "ptr" at 874:25-874:28
-9734: Colon           ":" at 874:28-874:29
-9735: Amp             "&" at 874:30-874:31 (leading: Space)
-9736: KwMut           "mut" at 874:31-874:34
-9737: Ident           "int" at 874:35-874:38 (leading: Space)
-9738: Comma           "," at 874:38-874:39
-9739: Ident           "delta" at 874:40-874:45 (leading: Space)
-9740: Colon           ":" at 874:45-874:46
-9741: Ident           "int" at 874:47-874:50 (leading: Space)
-9742: RParen          ")" at 874:50-874:51
-9743: Arrow           "->" at 874:52-874:54 (leading: Space)
-9744: Ident           "int" at 874:55-874:58 (leading: Space)
-9745: Semicolon       ";" at 874:58-874:59
-9746: At              "@" at 876:1-876:2 (leading: Newline)
-9747: Ident           "intrinsic" at 876:2-876:11
-9748: At              "@" at 877:1-877:2 (leading: Newline)
-9749: Ident           "overload" at 877:2-877:10
-9750: KwPub           "pub" at 878:1-878:4 (leading: Newline)
-9751: KwFn            "fn" at 878:5-878:7 (leading: Space)
-9752: Ident           "atomic_fetch_sub" at 878:8-878:24 (leading: Space)
-9753: LParen          "(" at 878:24-878:25
-9754: Ident           "ptr" at 878:25-878:28
-9755: Colon           ":" at 878:28-878:29
-9756: Amp             "&" at 878:30-878:31 (leading: Space)
-9757: KwMut           "mut" at 878:31-878:34
-9758: Ident           "uint" at 878:35-878:39 (leading: Space)
-9759: Comma           "," at 878:39-878:40
-9760: Ident           "delta" at 878:41-878:46 (leading: Space)
-9761: Colon           ":" at 878:46-878:47
-9762: Ident           "uint" at 878:48-878:52 (leading: Space)
-9763: RParen          ")" at 878:52-878:53
-9764: Arrow           "->" at 878:54-878:56 (leading: Space)
-9765: Ident           "uint" at 878:57-878:61 (leading: Space)
-9766: Semicolon       ";" at 878:61-878:62
-9767: At              "@" at 883:1-883:2 (leading: Newline, LineComment, Newline, LineComment, Newline)
-9768: Ident           "intrinsic" at 883:2-883:11
-9769: KwPub           "pub" at 884:1-884:4 (leading: Newline)
-9770: KwFn            "fn" at 884:5-884:7 (leading: Space)
-9771: Ident           "rt_argv" at 884:8-884:15 (leading: Space)
-9772: LParen          "(" at 884:15-884:16
-9773: RParen          ")" at 884:16-884:17
-9774: Arrow           "->" at 884:18-884:20 (leading: Space)
-9775: Ident           "string" at 884:21-884:27 (leading: Space)
-9776: LBracket        "[" at 884:27-884:28
-9777: RBracket        "]" at 884:28-884:29
-9778: Semicolon       ";" at 884:29-884:30
-9779: At              "@" at 887:1-887:2 (leading: Newline, LineComment, Newline)
-9780: Ident           "intrinsic" at 887:2-887:11
-9781: KwPub           "pub" at 888:1-888:4 (leading: Newline)
-9782: KwFn            "fn" at 888:5-888:7 (leading: Space)
-9783: Ident           "rt_stdin_read_all" at 888:8-888:25 (leading: Space)
-9784: LParen          "(" at 888:25-888:26
-9785: RParen          ")" at 888:26-888:27
-9786: Arrow           "->" at 888:28-888:30 (leading: Space)
-9787: Ident           "string" at 888:31-888:37 (leading: Space)
-9788: Semicolon       ";" at 888:37-888:38
-9789: At              "@" at 891:1-891:2 (leading: Newline, LineComment, Newline)
-9790: Ident           "intrinsic" at 891:2-891:11
-9791: KwPub           "pub" at 892:1-892:4 (leading: Newline)
-9792: KwFn            "fn" at 892:5-892:7 (leading: Space)
-9793: Ident           "rt_exit" at 892:8-892:15 (leading: Space)
-9794: LParen          "(" at 892:15-892:16
-9795: Ident           "code" at 892:16-892:20
-9796: Colon           ":" at 892:20-892:21
-9797: Ident           "int" at 892:22-892:25 (leading: Space)
-9798: RParen          ")" at 892:25-892:26
-9799: Arrow           "->" at 892:27-892:29 (leading: Space)
-9800: NothingLit      "nothing" at 892:30-892:37 (leading: Space)
-9801: Semicolon       ";" at 892:37-892:38
-9802: EOF             at 893:1-893:1
+8693: Ident           "owner" at 731:5-731:10 (leading: Newline, Space, LineComment, Newline, Space, LineComment, Newline, Space, LineComment, Newline, Space, LineComment, Newline, Space)
+8694: Colon           ":" at 731:10-731:11
+8695: Star            "*" at 731:12-731:13 (leading: Space)
+8696: Ident           "byte" at 731:13-731:17
+8697: Comma           "," at 731:17-731:18
+8698: Ident           "ptr" at 732:5-732:8 (leading: Newline, Space)
+8699: Colon           ":" at 732:8-732:9
+8700: Star            "*" at 732:10-732:11 (leading: Space)
+8701: Ident           "byte" at 732:11-732:15
+8702: Comma           "," at 732:15-732:16
+8703: Ident           "len" at 733:5-733:8 (leading: Newline, Space)
+8704: Colon           ":" at 733:8-733:9
+8705: Ident           "uint" at 733:10-733:14 (leading: Space)
+8706: Comma           "," at 733:14-733:15
+8707: RBrace          "}" at 734:1-734:2 (leading: Newline)
+8708: Semicolon       ";" at 734:2-734:3
+8709: KwExtern        "extern" at 736:1-736:7 (leading: Newline)
+8710: Lt              "<" at 736:7-736:8
+8711: Ident           "BytesView" at 736:8-736:17
+8712: Gt              ">" at 736:17-736:18
+8713: LBrace          "{" at 736:19-736:20 (leading: Space)
+8714: At              "@" at 737:5-737:6 (leading: Newline, Space)
+8715: Ident           "intrinsic" at 737:6-737:15
+8716: KwFn            "fn" at 737:16-737:18 (leading: Space)
+8717: Ident           "__len" at 737:19-737:24 (leading: Space)
+8718: LParen          "(" at 737:24-737:25
+8719: Ident           "self" at 737:25-737:29
+8720: Colon           ":" at 737:29-737:30
+8721: Amp             "&" at 737:31-737:32 (leading: Space)
+8722: Ident           "BytesView" at 737:32-737:41
+8723: RParen          ")" at 737:41-737:42
+8724: Arrow           "->" at 737:43-737:45 (leading: Space)
+8725: Ident           "uint" at 737:46-737:50 (leading: Space)
+8726: Semicolon       ";" at 737:50-737:51
+8727: At              "@" at 738:5-738:6 (leading: Newline, Space)
+8728: Ident           "intrinsic" at 738:6-738:15
+8729: KwFn            "fn" at 738:16-738:18 (leading: Space)
+8730: Ident           "__index" at 738:19-738:26 (leading: Space)
+8731: LParen          "(" at 738:26-738:27
+8732: Ident           "self" at 738:27-738:31
+8733: Colon           ":" at 738:31-738:32
+8734: Amp             "&" at 738:33-738:34 (leading: Space)
+8735: Ident           "BytesView" at 738:34-738:43
+8736: Comma           "," at 738:43-738:44
+8737: Ident           "index" at 738:45-738:50 (leading: Space)
+8738: Colon           ":" at 738:50-738:51
+8739: Ident           "int" at 738:52-738:55 (leading: Space)
+8740: RParen          ")" at 738:55-738:56
+8741: Arrow           "->" at 738:57-738:59 (leading: Space)
+8742: Ident           "uint8" at 738:60-738:65 (leading: Space)
+8743: Semicolon       ";" at 738:65-738:66
+8744: At              "@" at 739:5-739:6 (leading: Newline, Space)
+8745: Ident           "intrinsic" at 739:6-739:15
+8746: At              "@" at 739:16-739:17 (leading: Space)
+8747: Ident           "overload" at 739:17-739:25
+8748: KwFn            "fn" at 739:26-739:28 (leading: Space)
+8749: Ident           "__index" at 739:29-739:36 (leading: Space)
+8750: LParen          "(" at 739:36-739:37
+8751: Ident           "self" at 739:37-739:41
+8752: Colon           ":" at 739:41-739:42
+8753: Amp             "&" at 739:43-739:44 (leading: Space)
+8754: Ident           "BytesView" at 739:44-739:53
+8755: Comma           "," at 739:53-739:54
+8756: Ident           "index" at 739:55-739:60 (leading: Space)
+8757: Colon           ":" at 739:60-739:61
+8758: Ident           "int64" at 739:62-739:67 (leading: Space)
+8759: RParen          ")" at 739:67-739:68
+8760: Arrow           "->" at 739:69-739:71 (leading: Space)
+8761: Ident           "uint8" at 739:72-739:77 (leading: Space)
+8762: Semicolon       ";" at 739:77-739:78
+8763: RBrace          "}" at 740:1-740:2 (leading: Newline)
+8764: KwExtern        "extern" at 742:1-742:7 (leading: Newline)
+8765: Lt              "<" at 742:7-742:8
+8766: Ident           "bool" at 742:8-742:12
+8767: Gt              ">" at 742:12-742:13
+8768: LBrace          "{" at 742:14-742:15 (leading: Space)
+8769: At              "@" at 743:5-743:6 (leading: Newline, Space)
+8770: Ident           "intrinsic" at 743:6-743:15
+8771: KwFn            "fn" at 743:16-743:18 (leading: Space)
+8772: Ident           "__eq" at 743:19-743:23 (leading: Space)
+8773: LParen          "(" at 743:23-743:24
+8774: Ident           "self" at 743:24-743:28
+8775: Colon           ":" at 743:28-743:29
+8776: Ident           "bool" at 743:30-743:34 (leading: Space)
+8777: Comma           "," at 743:34-743:35
+8778: Ident           "other" at 743:36-743:41 (leading: Space)
+8779: Colon           ":" at 743:41-743:42
+8780: Ident           "bool" at 743:43-743:47 (leading: Space)
+8781: RParen          ")" at 743:47-743:48
+8782: Arrow           "->" at 743:49-743:51 (leading: Space)
+8783: Ident           "bool" at 743:52-743:56 (leading: Space)
+8784: Semicolon       ";" at 743:56-743:57
+8785: At              "@" at 744:5-744:6 (leading: Newline, Space)
+8786: Ident           "intrinsic" at 744:6-744:15
+8787: KwFn            "fn" at 744:16-744:18 (leading: Space)
+8788: Ident           "__ne" at 744:19-744:23 (leading: Space)
+8789: LParen          "(" at 744:23-744:24
+8790: Ident           "self" at 744:24-744:28
+8791: Colon           ":" at 744:28-744:29
+8792: Ident           "bool" at 744:30-744:34 (leading: Space)
+8793: Comma           "," at 744:34-744:35
+8794: Ident           "other" at 744:36-744:41 (leading: Space)
+8795: Colon           ":" at 744:41-744:42
+8796: Ident           "bool" at 744:43-744:47 (leading: Space)
+8797: RParen          ")" at 744:47-744:48
+8798: Arrow           "->" at 744:49-744:51 (leading: Space)
+8799: Ident           "bool" at 744:52-744:56 (leading: Space)
+8800: Semicolon       ";" at 744:56-744:57
+8801: At              "@" at 745:5-745:6 (leading: Newline, Space)
+8802: Ident           "intrinsic" at 745:6-745:15
+8803: KwFn            "fn" at 745:16-745:18 (leading: Space)
+8804: Ident           "__not" at 745:19-745:24 (leading: Space)
+8805: LParen          "(" at 745:24-745:25
+8806: Ident           "self" at 745:25-745:29
+8807: Colon           ":" at 745:29-745:30
+8808: Ident           "bool" at 745:31-745:35 (leading: Space)
+8809: RParen          ")" at 745:35-745:36
+8810: Arrow           "->" at 745:37-745:39 (leading: Space)
+8811: Ident           "bool" at 745:40-745:44 (leading: Space)
+8812: Semicolon       ";" at 745:44-745:45
+8813: At              "@" at 746:5-746:6 (leading: Newline, Space)
+8814: Ident           "intrinsic" at 746:6-746:15
+8815: KwFn            "fn" at 746:16-746:18 (leading: Space)
+8816: Ident           "__to" at 746:19-746:23 (leading: Space)
+8817: LParen          "(" at 746:23-746:24
+8818: Ident           "self" at 746:24-746:28
+8819: Colon           ":" at 746:28-746:29
+8820: Ident           "bool" at 746:30-746:34 (leading: Space)
+8821: Comma           "," at 746:34-746:35
+8822: Ident           "target" at 746:36-746:42 (leading: Space)
+8823: Colon           ":" at 746:42-746:43
+8824: Ident           "string" at 746:44-746:50 (leading: Space)
+8825: RParen          ")" at 746:50-746:51
+8826: Arrow           "->" at 746:52-746:54 (leading: Space)
+8827: Ident           "string" at 746:55-746:61 (leading: Space)
+8828: Semicolon       ";" at 746:61-746:62
+8829: At              "@" at 747:5-747:6 (leading: Newline, Space)
+8830: Ident           "overload" at 747:6-747:14
+8831: KwPub           "pub" at 747:15-747:18 (leading: Space)
+8832: KwFn            "fn" at 747:19-747:21 (leading: Space)
+8833: Ident           "__to" at 747:22-747:26 (leading: Space)
+8834: LParen          "(" at 747:26-747:27
+8835: Ident           "self" at 747:27-747:31
+8836: Colon           ":" at 747:31-747:32
+8837: Amp             "&" at 747:33-747:34 (leading: Space)
+8838: Ident           "bool" at 747:34-747:38
+8839: Comma           "," at 747:38-747:39
+8840: Underscore      "_" at 747:40-747:41 (leading: Space)
+8841: Colon           ":" at 747:41-747:42
+8842: Ident           "string" at 747:43-747:49 (leading: Space)
+8843: RParen          ")" at 747:49-747:50
+8844: Arrow           "->" at 747:51-747:53 (leading: Space)
+8845: Ident           "string" at 747:54-747:60 (leading: Space)
+8846: LBrace          "{" at 747:61-747:62 (leading: Space)
+8847: KwReturn        "return" at 748:9-748:15 (leading: Newline, Space)
+8848: LParen          "(" at 748:16-748:17 (leading: Space)
+8849: Star            "*" at 748:17-748:18
+8850: Ident           "self" at 748:18-748:22
+8851: RParen          ")" at 748:22-748:23
+8852: KwTo            "to" at 748:24-748:26 (leading: Space)
+8853: Ident           "string" at 748:27-748:33 (leading: Space)
+8854: Semicolon       ";" at 748:33-748:34
+8855: RBrace          "}" at 749:5-749:6 (leading: Newline, Space)
+8856: At              "@" at 750:5-750:6 (leading: Newline, Space)
+8857: Ident           "intrinsic" at 750:6-750:15
+8858: At              "@" at 750:16-750:17 (leading: Space)
+8859: Ident           "overload" at 750:17-750:25
+8860: KwFn            "fn" at 750:26-750:28 (leading: Space)
+8861: Ident           "__to" at 750:29-750:33 (leading: Space)
+8862: LParen          "(" at 750:33-750:34
+8863: Ident           "self" at 750:34-750:38
+8864: Colon           ":" at 750:38-750:39
+8865: Ident           "bool" at 750:40-750:44 (leading: Space)
+8866: Comma           "," at 750:44-750:45
+8867: Ident           "target" at 750:46-750:52 (leading: Space)
+8868: Colon           ":" at 750:52-750:53
+8869: Ident           "int" at 750:54-750:57 (leading: Space)
+8870: RParen          ")" at 750:57-750:58
+8871: Arrow           "->" at 750:59-750:61 (leading: Space)
+8872: Ident           "int" at 750:62-750:65 (leading: Space)
+8873: Semicolon       ";" at 750:65-750:66
+8874: At              "@" at 752:5-752:6 (leading: Newline, Space, LineComment, Newline, Space)
+8875: Ident           "intrinsic" at 752:6-752:15
+8876: KwPub           "pub" at 752:16-752:19 (leading: Space)
+8877: KwFn            "fn" at 752:20-752:22 (leading: Space)
+8878: Ident           "from_str" at 752:23-752:31 (leading: Space)
+8879: LParen          "(" at 752:31-752:32
+8880: Ident           "s" at 752:32-752:33
+8881: Colon           ":" at 752:33-752:34
+8882: Amp             "&" at 752:35-752:36 (leading: Space)
+8883: Ident           "string" at 752:36-752:42
+8884: RParen          ")" at 752:42-752:43
+8885: Arrow           "->" at 752:44-752:46 (leading: Space)
+8886: Ident           "Erring" at 752:47-752:53 (leading: Space)
+8887: Lt              "<" at 752:53-752:54
+8888: Ident           "bool" at 752:54-752:58
+8889: Comma           "," at 752:58-752:59
+8890: Ident           "Error" at 752:60-752:65 (leading: Space)
+8891: Gt              ">" at 752:65-752:66
+8892: Semicolon       ";" at 752:66-752:67
+8893: RBrace          "}" at 753:1-753:2 (leading: Newline)
+8894: KwExtern        "extern" at 755:1-755:7 (leading: Newline)
+8895: Lt              "<" at 755:7-755:8
+8896: Ident           "Array" at 755:8-755:13
+8897: Lt              "<" at 755:13-755:14
+8898: Ident           "T" at 755:14-755:15
+8899: Shr             ">>" at 755:15-755:17
+8900: LBrace          "{" at 755:18-755:19 (leading: Space)
+8901: At              "@" at 756:5-756:6 (leading: Newline, Space)
+8902: Ident           "intrinsic" at 756:6-756:15
+8903: KwFn            "fn" at 756:16-756:18 (leading: Space)
+8904: Ident           "__add" at 756:19-756:24 (leading: Space)
+8905: LParen          "(" at 756:24-756:25
+8906: Ident           "self" at 756:25-756:29
+8907: Colon           ":" at 756:29-756:30
+8908: Amp             "&" at 756:31-756:32 (leading: Space)
+8909: Ident           "Array" at 756:32-756:37
+8910: Lt              "<" at 756:37-756:38
+8911: Ident           "T" at 756:38-756:39
+8912: Gt              ">" at 756:39-756:40
+8913: Comma           "," at 756:40-756:41
+8914: Ident           "other" at 756:42-756:47 (leading: Space)
+8915: Colon           ":" at 756:47-756:48
+8916: Amp             "&" at 756:49-756:50 (leading: Space)
+8917: Ident           "Array" at 756:50-756:55
+8918: Lt              "<" at 756:55-756:56
+8919: Ident           "T" at 756:56-756:57
+8920: Gt              ">" at 756:57-756:58
+8921: RParen          ")" at 756:58-756:59
+8922: Arrow           "->" at 756:60-756:62 (leading: Space)
+8923: Ident           "Array" at 756:63-756:68 (leading: Space)
+8924: Lt              "<" at 756:68-756:69
+8925: Ident           "T" at 756:69-756:70
+8926: Gt              ">" at 756:70-756:71
+8927: Semicolon       ";" at 756:71-756:72
+8928: At              "@" at 757:5-757:6 (leading: Newline, Space)
+8929: Ident           "intrinsic" at 757:6-757:15
+8930: KwFn            "fn" at 757:16-757:18 (leading: Space)
+8931: Ident           "__index" at 757:19-757:26 (leading: Space)
+8932: LParen          "(" at 757:26-757:27
+8933: Ident           "self" at 757:27-757:31
+8934: Colon           ":" at 757:31-757:32
+8935: Amp             "&" at 757:33-757:34 (leading: Space)
+8936: Ident           "Array" at 757:34-757:39
+8937: Lt              "<" at 757:39-757:40
+8938: Ident           "T" at 757:40-757:41
+8939: Gt              ">" at 757:41-757:42
+8940: Comma           "," at 757:42-757:43
+8941: Ident           "index" at 757:44-757:49 (leading: Space)
+8942: Colon           ":" at 757:49-757:50
+8943: Ident           "int" at 757:51-757:54 (leading: Space)
+8944: RParen          ")" at 757:54-757:55
+8945: Arrow           "->" at 757:56-757:58 (leading: Space)
+8946: Amp             "&" at 757:59-757:60 (leading: Space)
+8947: Ident           "T" at 757:60-757:61
+8948: Semicolon       ";" at 757:61-757:62
+8949: At              "@" at 758:5-758:6 (leading: Newline, Space)
+8950: Ident           "intrinsic" at 758:6-758:15
+8951: At              "@" at 758:16-758:17 (leading: Space)
+8952: Ident           "overload" at 758:17-758:25
+8953: KwFn            "fn" at 758:26-758:28 (leading: Space)
+8954: Ident           "__index" at 758:29-758:36 (leading: Space)
+8955: LParen          "(" at 758:36-758:37
+8956: Ident           "self" at 758:37-758:41
+8957: Colon           ":" at 758:41-758:42
+8958: Amp             "&" at 758:43-758:44 (leading: Space)
+8959: Ident           "Array" at 758:44-758:49
+8960: Lt              "<" at 758:49-758:50
+8961: Ident           "T" at 758:50-758:51
+8962: Gt              ">" at 758:51-758:52
+8963: Comma           "," at 758:52-758:53
+8964: Ident           "index" at 758:54-758:59 (leading: Space)
+8965: Colon           ":" at 758:59-758:60
+8966: Ident           "Range" at 758:61-758:66 (leading: Space)
+8967: Lt              "<" at 758:66-758:67
+8968: Ident           "int" at 758:67-758:70
+8969: Gt              ">" at 758:70-758:71
+8970: RParen          ")" at 758:71-758:72
+8971: Arrow           "->" at 758:73-758:75 (leading: Space)
+8972: Ident           "Array" at 758:76-758:81 (leading: Space)
+8973: Lt              "<" at 758:81-758:82
+8974: Ident           "T" at 758:82-758:83
+8975: Gt              ">" at 758:83-758:84
+8976: Semicolon       ";" at 758:84-758:85
+8977: At              "@" at 759:5-759:6 (leading: Newline, Space)
+8978: Ident           "intrinsic" at 759:6-759:15
+8979: KwFn            "fn" at 759:16-759:18 (leading: Space)
+8980: Ident           "__index_set" at 759:19-759:30 (leading: Space)
+8981: LParen          "(" at 759:30-759:31
+8982: Ident           "self" at 759:31-759:35
+8983: Colon           ":" at 759:35-759:36
+8984: Amp             "&" at 759:37-759:38 (leading: Space)
+8985: KwMut           "mut" at 759:38-759:41
+8986: Ident           "Array" at 759:42-759:47 (leading: Space)
+8987: Lt              "<" at 759:47-759:48
+8988: Ident           "T" at 759:48-759:49
+8989: Gt              ">" at 759:49-759:50
+8990: Comma           "," at 759:50-759:51
+8991: Ident           "index" at 759:52-759:57 (leading: Space)
+8992: Colon           ":" at 759:57-759:58
+8993: Ident           "int" at 759:59-759:62 (leading: Space)
+8994: Comma           "," at 759:62-759:63
+8995: Ident           "value" at 759:64-759:69 (leading: Space)
+8996: Colon           ":" at 759:69-759:70
+8997: Ident           "T" at 759:71-759:72 (leading: Space)
+8998: RParen          ")" at 759:72-759:73
+8999: Arrow           "->" at 759:74-759:76 (leading: Space)
+9000: NothingLit      "nothing" at 759:77-759:84 (leading: Space)
+9001: Semicolon       ";" at 759:84-759:85
+9002: At              "@" at 760:5-760:6 (leading: Newline, Space)
+9003: Ident           "intrinsic" at 760:6-760:15
+9004: KwFn            "fn" at 760:16-760:18 (leading: Space)
+9005: Ident           "__range" at 760:19-760:26 (leading: Space)
+9006: LParen          "(" at 760:26-760:27
+9007: Ident           "self" at 760:27-760:31
+9008: Colon           ":" at 760:31-760:32
+9009: Amp             "&" at 760:33-760:34 (leading: Space)
+9010: Ident           "Array" at 760:34-760:39
+9011: Lt              "<" at 760:39-760:40
+9012: Ident           "T" at 760:40-760:41
+9013: Gt              ">" at 760:41-760:42
+9014: RParen          ")" at 760:42-760:43
+9015: Arrow           "->" at 760:44-760:46 (leading: Space)
+9016: Ident           "Range" at 760:47-760:52 (leading: Space)
+9017: Lt              "<" at 760:52-760:53
+9018: Ident           "T" at 760:53-760:54
+9019: Gt              ">" at 760:54-760:55
+9020: Semicolon       ";" at 760:55-760:56
+9021: At              "@" at 761:5-761:6 (leading: Newline, Space)
+9022: Ident           "intrinsic" at 761:6-761:15
+9023: KwFn            "fn" at 761:16-761:18 (leading: Space)
+9024: Ident           "__len" at 761:19-761:24 (leading: Space)
+9025: LParen          "(" at 761:24-761:25
+9026: Ident           "self" at 761:25-761:29
+9027: Colon           ":" at 761:29-761:30
+9028: Amp             "&" at 761:31-761:32 (leading: Space)
+9029: Ident           "Array" at 761:32-761:37
+9030: Lt              "<" at 761:37-761:38
+9031: Ident           "T" at 761:38-761:39
+9032: Gt              ">" at 761:39-761:40
+9033: RParen          ")" at 761:40-761:41
+9034: Arrow           "->" at 761:42-761:44 (leading: Space)
+9035: Ident           "uint" at 761:45-761:49 (leading: Space)
+9036: Semicolon       ";" at 761:49-761:50
+9037: RBrace          "}" at 762:1-762:2 (leading: Newline)
+9038: KwExtern        "extern" at 764:1-764:7 (leading: Newline)
+9039: Lt              "<" at 764:7-764:8
+9040: Ident           "ArrayFixed" at 764:8-764:18
+9041: Lt              "<" at 764:18-764:19
+9042: Ident           "T" at 764:19-764:20
+9043: Comma           "," at 764:20-764:21
+9044: Ident           "N" at 764:22-764:23 (leading: Space)
+9045: Shr             ">>" at 764:23-764:25
+9046: LBrace          "{" at 764:26-764:27 (leading: Space)
+9047: At              "@" at 765:5-765:6 (leading: Newline, Space)
+9048: Ident           "intrinsic" at 765:6-765:15
+9049: KwFn            "fn" at 765:16-765:18 (leading: Space)
+9050: Ident           "__add" at 765:19-765:24 (leading: Space)
+9051: LParen          "(" at 765:24-765:25
+9052: Ident           "self" at 765:25-765:29
+9053: Colon           ":" at 765:29-765:30
+9054: Amp             "&" at 765:31-765:32 (leading: Space)
+9055: Ident           "ArrayFixed" at 765:32-765:42
+9056: Lt              "<" at 765:42-765:43
+9057: Ident           "T" at 765:43-765:44
+9058: Comma           "," at 765:44-765:45
+9059: Ident           "N" at 765:46-765:47 (leading: Space)
+9060: Gt              ">" at 765:47-765:48
+9061: Comma           "," at 765:48-765:49
+9062: Ident           "other" at 765:50-765:55 (leading: Space)
+9063: Colon           ":" at 765:55-765:56
+9064: Amp             "&" at 765:57-765:58 (leading: Space)
+9065: Ident           "ArrayFixed" at 765:58-765:68
+9066: Lt              "<" at 765:68-765:69
+9067: Ident           "T" at 765:69-765:70
+9068: Comma           "," at 765:70-765:71
+9069: Ident           "N" at 765:72-765:73 (leading: Space)
+9070: Gt              ">" at 765:73-765:74
+9071: RParen          ")" at 765:74-765:75
+9072: Arrow           "->" at 765:76-765:78 (leading: Space)
+9073: Ident           "ArrayFixed" at 765:79-765:89 (leading: Space)
+9074: Lt              "<" at 765:89-765:90
+9075: Ident           "T" at 765:90-765:91
+9076: Comma           "," at 765:91-765:92
+9077: Ident           "N" at 765:93-765:94 (leading: Space)
+9078: Gt              ">" at 765:94-765:95
+9079: Semicolon       ";" at 765:95-765:96
+9080: At              "@" at 766:5-766:6 (leading: Newline, Space)
+9081: Ident           "intrinsic" at 766:6-766:15
+9082: KwFn            "fn" at 766:16-766:18 (leading: Space)
+9083: Ident           "__index" at 766:19-766:26 (leading: Space)
+9084: LParen          "(" at 766:26-766:27
+9085: Ident           "self" at 766:27-766:31
+9086: Colon           ":" at 766:31-766:32
+9087: Amp             "&" at 766:33-766:34 (leading: Space)
+9088: Ident           "ArrayFixed" at 766:34-766:44
+9089: Lt              "<" at 766:44-766:45
+9090: Ident           "T" at 766:45-766:46
+9091: Comma           "," at 766:46-766:47
+9092: Ident           "N" at 766:48-766:49 (leading: Space)
+9093: Gt              ">" at 766:49-766:50
+9094: Comma           "," at 766:50-766:51
+9095: Ident           "index" at 766:52-766:57 (leading: Space)
+9096: Colon           ":" at 766:57-766:58
+9097: Ident           "int" at 766:59-766:62 (leading: Space)
+9098: RParen          ")" at 766:62-766:63
+9099: Arrow           "->" at 766:64-766:66 (leading: Space)
+9100: Amp             "&" at 766:67-766:68 (leading: Space)
+9101: Ident           "T" at 766:68-766:69
+9102: Semicolon       ";" at 766:69-766:70
+9103: At              "@" at 767:5-767:6 (leading: Newline, Space)
+9104: Ident           "intrinsic" at 767:6-767:15
+9105: At              "@" at 767:16-767:17 (leading: Space)
+9106: Ident           "overload" at 767:17-767:25
+9107: KwFn            "fn" at 767:26-767:28 (leading: Space)
+9108: Ident           "__index" at 767:29-767:36 (leading: Space)
+9109: LParen          "(" at 767:36-767:37
+9110: Ident           "self" at 767:37-767:41
+9111: Colon           ":" at 767:41-767:42
+9112: Amp             "&" at 767:43-767:44 (leading: Space)
+9113: Ident           "ArrayFixed" at 767:44-767:54
+9114: Lt              "<" at 767:54-767:55
+9115: Ident           "T" at 767:55-767:56
+9116: Comma           "," at 767:56-767:57
+9117: Ident           "N" at 767:58-767:59 (leading: Space)
+9118: Gt              ">" at 767:59-767:60
+9119: Comma           "," at 767:60-767:61
+9120: Ident           "index" at 767:62-767:67 (leading: Space)
+9121: Colon           ":" at 767:67-767:68
+9122: Ident           "Range" at 767:69-767:74 (leading: Space)
+9123: Lt              "<" at 767:74-767:75
+9124: Ident           "int" at 767:75-767:78
+9125: Gt              ">" at 767:78-767:79
+9126: RParen          ")" at 767:79-767:80
+9127: Arrow           "->" at 767:81-767:83 (leading: Space)
+9128: Ident           "Array" at 767:84-767:89 (leading: Space)
+9129: Lt              "<" at 767:89-767:90
+9130: Ident           "T" at 767:90-767:91
+9131: Gt              ">" at 767:91-767:92
+9132: Semicolon       ";" at 767:92-767:93
+9133: At              "@" at 768:5-768:6 (leading: Newline, Space)
+9134: Ident           "intrinsic" at 768:6-768:15
+9135: KwFn            "fn" at 768:16-768:18 (leading: Space)
+9136: Ident           "__index_set" at 768:19-768:30 (leading: Space)
+9137: LParen          "(" at 768:30-768:31
+9138: Ident           "self" at 768:31-768:35
+9139: Colon           ":" at 768:35-768:36
+9140: Amp             "&" at 768:37-768:38 (leading: Space)
+9141: KwMut           "mut" at 768:38-768:41
+9142: Ident           "ArrayFixed" at 768:42-768:52 (leading: Space)
+9143: Lt              "<" at 768:52-768:53
+9144: Ident           "T" at 768:53-768:54
+9145: Comma           "," at 768:54-768:55
+9146: Ident           "N" at 768:56-768:57 (leading: Space)
+9147: Gt              ">" at 768:57-768:58
+9148: Comma           "," at 768:58-768:59
+9149: Ident           "index" at 768:60-768:65 (leading: Space)
+9150: Colon           ":" at 768:65-768:66
+9151: Ident           "int" at 768:67-768:70 (leading: Space)
+9152: Comma           "," at 768:70-768:71
+9153: Ident           "value" at 768:72-768:77 (leading: Space)
+9154: Colon           ":" at 768:77-768:78
+9155: Ident           "T" at 768:79-768:80 (leading: Space)
+9156: RParen          ")" at 768:80-768:81
+9157: Arrow           "->" at 768:82-768:84 (leading: Space)
+9158: NothingLit      "nothing" at 768:85-768:92 (leading: Space)
+9159: Semicolon       ";" at 768:92-768:93
+9160: At              "@" at 769:5-769:6 (leading: Newline, Space)
+9161: Ident           "intrinsic" at 769:6-769:15
+9162: KwFn            "fn" at 769:16-769:18 (leading: Space)
+9163: Ident           "__range" at 769:19-769:26 (leading: Space)
+9164: LParen          "(" at 769:26-769:27
+9165: Ident           "self" at 769:27-769:31
+9166: Colon           ":" at 769:31-769:32
+9167: Amp             "&" at 769:33-769:34 (leading: Space)
+9168: Ident           "ArrayFixed" at 769:34-769:44
+9169: Lt              "<" at 769:44-769:45
+9170: Ident           "T" at 769:45-769:46
+9171: Comma           "," at 769:46-769:47
+9172: Ident           "N" at 769:48-769:49 (leading: Space)
+9173: Gt              ">" at 769:49-769:50
+9174: RParen          ")" at 769:50-769:51
+9175: Arrow           "->" at 769:52-769:54 (leading: Space)
+9176: Ident           "Range" at 769:55-769:60 (leading: Space)
+9177: Lt              "<" at 769:60-769:61
+9178: Ident           "T" at 769:61-769:62
+9179: Gt              ">" at 769:62-769:63
+9180: Semicolon       ";" at 769:63-769:64
+9181: At              "@" at 770:5-770:6 (leading: Newline, Space)
+9182: Ident           "intrinsic" at 770:6-770:15
+9183: KwFn            "fn" at 770:16-770:18 (leading: Space)
+9184: Ident           "__len" at 770:19-770:24 (leading: Space)
+9185: LParen          "(" at 770:24-770:25
+9186: Ident           "self" at 770:25-770:29
+9187: Colon           ":" at 770:29-770:30
+9188: Amp             "&" at 770:31-770:32 (leading: Space)
+9189: Ident           "ArrayFixed" at 770:32-770:42
+9190: Lt              "<" at 770:42-770:43
+9191: Ident           "T" at 770:43-770:44
+9192: Comma           "," at 770:44-770:45
+9193: Ident           "N" at 770:46-770:47 (leading: Space)
+9194: Gt              ">" at 770:47-770:48
+9195: RParen          ")" at 770:48-770:49
+9196: Arrow           "->" at 770:50-770:52 (leading: Space)
+9197: Ident           "uint" at 770:53-770:57 (leading: Space)
+9198: Semicolon       ";" at 770:57-770:58
+9199: RBrace          "}" at 771:1-771:2 (leading: Newline)
+9200: At              "@" at 773:1-773:2 (leading: Newline)
+9201: Ident           "intrinsic" at 773:2-773:11
+9202: KwPub           "pub" at 774:1-774:4 (leading: Newline)
+9203: KwFn            "fn" at 774:5-774:7 (leading: Space)
+9204: Ident           "default" at 774:8-774:15 (leading: Space)
+9205: Lt              "<" at 774:15-774:16
+9206: Ident           "T" at 774:16-774:17
+9207: Gt              ">" at 774:17-774:18
+9208: LParen          "(" at 774:18-774:19
+9209: RParen          ")" at 774:19-774:20
+9210: Arrow           "->" at 774:21-774:23 (leading: Space)
+9211: Ident           "T" at 774:24-774:25 (leading: Space)
+9212: Semicolon       ";" at 774:25-774:26
+9213: At              "@" at 776:1-776:2 (leading: Newline)
+9214: Ident           "intrinsic" at 776:2-776:11
+9215: KwPub           "pub" at 777:1-777:4 (leading: Newline)
+9216: KwFn            "fn" at 777:5-777:7 (leading: Space)
+9217: Ident           "size_of" at 777:8-777:15 (leading: Space)
+9218: Lt              "<" at 777:15-777:16
+9219: Ident           "T" at 777:16-777:17
+9220: Gt              ">" at 777:17-777:18
+9221: LParen          "(" at 777:18-777:19
+9222: RParen          ")" at 777:19-777:20
+9223: Arrow           "->" at 777:21-777:23 (leading: Space)
+9224: Ident           "uint" at 777:24-777:28 (leading: Space)
+9225: Semicolon       ";" at 777:28-777:29
+9226: At              "@" at 779:1-779:2 (leading: Newline)
+9227: Ident           "intrinsic" at 779:2-779:11
+9228: KwPub           "pub" at 780:1-780:4 (leading: Newline)
+9229: KwFn            "fn" at 780:5-780:7 (leading: Space)
+9230: Ident           "align_of" at 780:8-780:16 (leading: Space)
+9231: Lt              "<" at 780:16-780:17
+9232: Ident           "T" at 780:17-780:18
+9233: Gt              ">" at 780:18-780:19
+9234: LParen          "(" at 780:19-780:20
+9235: RParen          ")" at 780:20-780:21
+9236: Arrow           "->" at 780:22-780:24 (leading: Space)
+9237: Ident           "uint" at 780:25-780:29 (leading: Space)
+9238: Semicolon       ";" at 780:29-780:30
+9239: KwPub           "pub" at 782:1-782:4 (leading: Newline)
+9240: KwContract      "contract" at 782:5-782:13 (leading: Space)
+9241: Ident           "ErrorLike" at 782:14-782:23 (leading: Space)
+9242: LBrace          "{" at 782:23-782:24
+9243: KwField         "field" at 783:5-783:10 (leading: Newline, Space)
+9244: Ident           "message" at 783:11-783:18 (leading: Space)
+9245: Colon           ":" at 783:18-783:19
+9246: Ident           "string" at 783:20-783:26 (leading: Space)
+9247: Semicolon       ";" at 783:26-783:27
+9248: KwField         "field" at 784:5-784:10 (leading: Newline, Space)
+9249: Ident           "code" at 784:11-784:15 (leading: Space)
+9250: Colon           ":" at 784:15-784:16
+9251: Ident           "uint" at 784:17-784:21 (leading: Space)
+9252: Semicolon       ";" at 784:21-784:22
+9253: RBrace          "}" at 785:1-785:2 (leading: Newline)
+9254: At              "@" at 787:1-787:2 (leading: Newline)
+9255: Ident           "intrinsic" at 787:2-787:11
+9256: KwPub           "pub" at 788:1-788:4 (leading: Newline)
+9257: KwFn            "fn" at 788:5-788:7 (leading: Space)
+9258: Ident           "exit" at 788:8-788:12 (leading: Space)
+9259: Lt              "<" at 788:12-788:13
+9260: Ident           "E" at 788:13-788:14
+9261: Colon           ":" at 788:14-788:15
+9262: Ident           "ErrorLike" at 788:16-788:25 (leading: Space)
+9263: Gt              ">" at 788:25-788:26
+9264: LParen          "(" at 788:26-788:27
+9265: Ident           "e" at 788:27-788:28
+9266: Colon           ":" at 788:28-788:29
+9267: Ident           "E" at 788:30-788:31 (leading: Space)
+9268: RParen          ")" at 788:31-788:32
+9269: Arrow           "->" at 788:33-788:35 (leading: Space)
+9270: NothingLit      "nothing" at 788:36-788:43 (leading: Space)
+9271: Semicolon       ";" at 788:43-788:44
+9272: At              "@" at 790:1-790:2 (leading: Newline)
+9273: Ident           "intrinsic" at 790:2-790:11
+9274: KwPub           "pub" at 791:1-791:4 (leading: Newline)
+9275: KwFn            "fn" at 791:5-791:7 (leading: Space)
+9276: Ident           "rt_panic" at 791:8-791:16 (leading: Space)
+9277: LParen          "(" at 791:16-791:17
+9278: Ident           "ptr" at 791:17-791:20
+9279: Colon           ":" at 791:20-791:21
+9280: Star            "*" at 791:22-791:23 (leading: Space)
+9281: Ident           "byte" at 791:23-791:27
+9282: Comma           "," at 791:27-791:28
+9283: Ident           "length" at 791:29-791:35 (leading: Space)
+9284: Colon           ":" at 791:35-791:36
+9285: Ident           "uint" at 791:37-791:41 (leading: Space)
+9286: RParen          ")" at 791:41-791:42
+9287: Arrow           "->" at 791:43-791:45 (leading: Space)
+9288: NothingLit      "nothing" at 791:46-791:53 (leading: Space)
+9289: Semicolon       ";" at 791:53-791:54
+9290: KwPub           "pub" at 793:1-793:4 (leading: Newline)
+9291: KwFn            "fn" at 793:5-793:7 (leading: Space)
+9292: Ident           "panic" at 793:8-793:13 (leading: Space)
+9293: LParen          "(" at 793:13-793:14
+9294: Ident           "msg" at 793:14-793:17
+9295: Colon           ":" at 793:17-793:18
+9296: Ident           "string" at 793:19-793:25 (leading: Space)
+9297: RParen          ")" at 793:25-793:26
+9298: Arrow           "->" at 793:27-793:29 (leading: Space)
+9299: NothingLit      "nothing" at 793:30-793:37 (leading: Space)
+9300: LBrace          "{" at 793:38-793:39 (leading: Space)
+9301: KwLet           "let" at 794:5-794:8 (leading: Newline, Space)
+9302: Ident           "ptr" at 794:9-794:12 (leading: Space)
+9303: Assign          "=" at 794:13-794:14 (leading: Space)
+9304: Ident           "rt_string_ptr" at 794:15-794:28 (leading: Space)
+9305: LParen          "(" at 794:28-794:29
+9306: Amp             "&" at 794:29-794:30
+9307: Ident           "msg" at 794:30-794:33
+9308: RParen          ")" at 794:33-794:34
+9309: Semicolon       ";" at 794:34-794:35
+9310: KwLet           "let" at 795:5-795:8 (leading: Newline, Space)
+9311: Ident           "length" at 795:9-795:15 (leading: Space)
+9312: Assign          "=" at 795:16-795:17 (leading: Space)
+9313: Ident           "rt_string_len_bytes" at 795:18-795:37 (leading: Space)
+9314: LParen          "(" at 795:37-795:38
+9315: Amp             "&" at 795:38-795:39
+9316: Ident           "msg" at 795:39-795:42
+9317: RParen          ")" at 795:42-795:43
+9318: Semicolon       ";" at 795:43-795:44
+9319: Ident           "rt_panic" at 796:5-796:13 (leading: Newline, Space)
+9320: LParen          "(" at 796:13-796:14
+9321: Ident           "ptr" at 796:14-796:17
+9322: Comma           "," at 796:17-796:18
+9323: Ident           "length" at 796:19-796:25 (leading: Space)
+9324: RParen          ")" at 796:25-796:26
+9325: Semicolon       ";" at 796:26-796:27
+9326: RBrace          "}" at 797:1-797:2 (leading: Newline)
+9327: At              "@" at 799:1-799:2 (leading: Newline)
+9328: Ident           "intrinsic" at 799:2-799:11
+9329: KwPub           "pub" at 800:1-800:4 (leading: Newline)
+9330: KwType          "type" at 800:5-800:9 (leading: Space)
+9331: Ident           "RwLock" at 800:10-800:16 (leading: Space)
+9332: Assign          "=" at 800:17-800:18 (leading: Space)
+9333: LBrace          "{" at 800:19-800:20 (leading: Space)
+9334: Ident           "__opaque" at 801:5-801:13 (leading: Newline, Space)
+9335: Colon           ":" at 801:13-801:14
+9336: Star            "*" at 801:15-801:16 (leading: Space)
+9337: Ident           "byte" at 801:16-801:20
+9338: Comma           "," at 801:20-801:21
+9339: RBrace          "}" at 802:1-802:2 (leading: Newline)
+9340: Semicolon       ";" at 802:2-802:3
+9341: KwExtern        "extern" at 804:1-804:7 (leading: Newline)
+9342: Lt              "<" at 804:7-804:8
+9343: Ident           "RwLock" at 804:8-804:14
+9344: Gt              ">" at 804:14-804:15
+9345: LBrace          "{" at 804:16-804:17 (leading: Space)
+9346: At              "@" at 805:5-805:6 (leading: Newline, Space)
+9347: Ident           "intrinsic" at 805:6-805:15
+9348: KwPub           "pub" at 805:16-805:19 (leading: Space)
+9349: KwFn            "fn" at 805:20-805:22 (leading: Space)
+9350: Ident           "new" at 805:23-805:26 (leading: Space)
+9351: LParen          "(" at 805:26-805:27
+9352: RParen          ")" at 805:27-805:28
+9353: Arrow           "->" at 805:29-805:31 (leading: Space)
+9354: Ident           "RwLock" at 805:32-805:38 (leading: Space)
+9355: Semicolon       ";" at 805:38-805:39
+9356: At              "@" at 806:5-806:6 (leading: Newline, Space)
+9357: Ident           "intrinsic" at 806:6-806:15
+9358: KwPub           "pub" at 806:16-806:19 (leading: Space)
+9359: KwFn            "fn" at 806:20-806:22 (leading: Space)
+9360: Ident           "read_lock" at 806:23-806:32 (leading: Space)
+9361: LParen          "(" at 806:32-806:33
+9362: Ident           "self" at 806:33-806:37
+9363: Colon           ":" at 806:37-806:38
+9364: Amp             "&" at 806:39-806:40 (leading: Space)
+9365: KwMut           "mut" at 806:40-806:43
+9366: Ident           "RwLock" at 806:44-806:50 (leading: Space)
+9367: RParen          ")" at 806:50-806:51
+9368: Arrow           "->" at 806:52-806:54 (leading: Space)
+9369: NothingLit      "nothing" at 806:55-806:62 (leading: Space)
+9370: Semicolon       ";" at 806:62-806:63
+9371: At              "@" at 807:5-807:6 (leading: Newline, Space)
+9372: Ident           "intrinsic" at 807:6-807:15
+9373: KwPub           "pub" at 807:16-807:19 (leading: Space)
+9374: KwFn            "fn" at 807:20-807:22 (leading: Space)
+9375: Ident           "read_unlock" at 807:23-807:34 (leading: Space)
+9376: LParen          "(" at 807:34-807:35
+9377: Ident           "self" at 807:35-807:39
+9378: Colon           ":" at 807:39-807:40
+9379: Amp             "&" at 807:41-807:42 (leading: Space)
+9380: KwMut           "mut" at 807:42-807:45
+9381: Ident           "RwLock" at 807:46-807:52 (leading: Space)
+9382: RParen          ")" at 807:52-807:53
+9383: Arrow           "->" at 807:54-807:56 (leading: Space)
+9384: NothingLit      "nothing" at 807:57-807:64 (leading: Space)
+9385: Semicolon       ";" at 807:64-807:65
+9386: At              "@" at 808:5-808:6 (leading: Newline, Space)
+9387: Ident           "intrinsic" at 808:6-808:15
+9388: KwPub           "pub" at 808:16-808:19 (leading: Space)
+9389: KwFn            "fn" at 808:20-808:22 (leading: Space)
+9390: Ident           "write_lock" at 808:23-808:33 (leading: Space)
+9391: LParen          "(" at 808:33-808:34
+9392: Ident           "self" at 808:34-808:38
+9393: Colon           ":" at 808:38-808:39
+9394: Amp             "&" at 808:40-808:41 (leading: Space)
+9395: KwMut           "mut" at 808:41-808:44
+9396: Ident           "RwLock" at 808:45-808:51 (leading: Space)
+9397: RParen          ")" at 808:51-808:52
+9398: Arrow           "->" at 808:53-808:55 (leading: Space)
+9399: NothingLit      "nothing" at 808:56-808:63 (leading: Space)
+9400: Semicolon       ";" at 808:63-808:64
+9401: At              "@" at 809:5-809:6 (leading: Newline, Space)
+9402: Ident           "intrinsic" at 809:6-809:15
+9403: KwPub           "pub" at 809:16-809:19 (leading: Space)
+9404: KwFn            "fn" at 809:20-809:22 (leading: Space)
+9405: Ident           "write_unlock" at 809:23-809:35 (leading: Space)
+9406: LParen          "(" at 809:35-809:36
+9407: Ident           "self" at 809:36-809:40
+9408: Colon           ":" at 809:40-809:41
+9409: Amp             "&" at 809:42-809:43 (leading: Space)
+9410: KwMut           "mut" at 809:43-809:46
+9411: Ident           "RwLock" at 809:47-809:53 (leading: Space)
+9412: RParen          ")" at 809:53-809:54
+9413: Arrow           "->" at 809:55-809:57 (leading: Space)
+9414: NothingLit      "nothing" at 809:58-809:65 (leading: Space)
+9415: Semicolon       ";" at 809:65-809:66
+9416: At              "@" at 810:5-810:6 (leading: Newline, Space)
+9417: Ident           "intrinsic" at 810:6-810:15
+9418: KwPub           "pub" at 810:16-810:19 (leading: Space)
+9419: KwFn            "fn" at 810:20-810:22 (leading: Space)
+9420: Ident           "try_read_lock" at 810:23-810:36 (leading: Space)
+9421: LParen          "(" at 810:36-810:37
+9422: Ident           "self" at 810:37-810:41
+9423: Colon           ":" at 810:41-810:42
+9424: Amp             "&" at 810:43-810:44 (leading: Space)
+9425: KwMut           "mut" at 810:44-810:47
+9426: Ident           "RwLock" at 810:48-810:54 (leading: Space)
+9427: RParen          ")" at 810:54-810:55
+9428: Arrow           "->" at 810:56-810:58 (leading: Space)
+9429: Ident           "bool" at 810:59-810:63 (leading: Space)
+9430: Semicolon       ";" at 810:63-810:64
+9431: At              "@" at 811:5-811:6 (leading: Newline, Space)
+9432: Ident           "intrinsic" at 811:6-811:15
+9433: KwPub           "pub" at 811:16-811:19 (leading: Space)
+9434: KwFn            "fn" at 811:20-811:22 (leading: Space)
+9435: Ident           "try_write_lock" at 811:23-811:37 (leading: Space)
+9436: LParen          "(" at 811:37-811:38
+9437: Ident           "self" at 811:38-811:42
+9438: Colon           ":" at 811:42-811:43
+9439: Amp             "&" at 811:44-811:45 (leading: Space)
+9440: KwMut           "mut" at 811:45-811:48
+9441: Ident           "RwLock" at 811:49-811:55 (leading: Space)
+9442: RParen          ")" at 811:55-811:56
+9443: Arrow           "->" at 811:57-811:59 (leading: Space)
+9444: Ident           "bool" at 811:60-811:64 (leading: Space)
+9445: Semicolon       ";" at 811:64-811:65
+9446: RBrace          "}" at 812:1-812:2 (leading: Newline)
+9447: At              "@" at 820:1-820:2 (leading: Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+9448: Ident           "intrinsic" at 820:2-820:11
+9449: KwPub           "pub" at 821:1-821:4 (leading: Newline)
+9450: KwFn            "fn" at 821:5-821:7 (leading: Space)
+9451: Ident           "atomic_load" at 821:8-821:19 (leading: Space)
+9452: LParen          "(" at 821:19-821:20
+9453: Ident           "ptr" at 821:20-821:23
+9454: Colon           ":" at 821:23-821:24
+9455: Amp             "&" at 821:25-821:26 (leading: Space)
+9456: Ident           "int" at 821:26-821:29
+9457: RParen          ")" at 821:29-821:30
+9458: Arrow           "->" at 821:31-821:33 (leading: Space)
+9459: Ident           "int" at 821:34-821:37 (leading: Space)
+9460: Semicolon       ";" at 821:37-821:38
+9461: At              "@" at 823:1-823:2 (leading: Newline)
+9462: Ident           "intrinsic" at 823:2-823:11
+9463: At              "@" at 824:1-824:2 (leading: Newline)
+9464: Ident           "overload" at 824:2-824:10
+9465: KwPub           "pub" at 825:1-825:4 (leading: Newline)
+9466: KwFn            "fn" at 825:5-825:7 (leading: Space)
+9467: Ident           "atomic_load" at 825:8-825:19 (leading: Space)
+9468: LParen          "(" at 825:19-825:20
+9469: Ident           "ptr" at 825:20-825:23
+9470: Colon           ":" at 825:23-825:24
+9471: Amp             "&" at 825:25-825:26 (leading: Space)
+9472: Ident           "uint" at 825:26-825:30
+9473: RParen          ")" at 825:30-825:31
+9474: Arrow           "->" at 825:32-825:34 (leading: Space)
+9475: Ident           "uint" at 825:35-825:39 (leading: Space)
+9476: Semicolon       ";" at 825:39-825:40
+9477: At              "@" at 827:1-827:2 (leading: Newline)
+9478: Ident           "intrinsic" at 827:2-827:11
+9479: At              "@" at 828:1-828:2 (leading: Newline)
+9480: Ident           "overload" at 828:2-828:10
+9481: KwPub           "pub" at 829:1-829:4 (leading: Newline)
+9482: KwFn            "fn" at 829:5-829:7 (leading: Space)
+9483: Ident           "atomic_load" at 829:8-829:19 (leading: Space)
+9484: LParen          "(" at 829:19-829:20
+9485: Ident           "ptr" at 829:20-829:23
+9486: Colon           ":" at 829:23-829:24
+9487: Amp             "&" at 829:25-829:26 (leading: Space)
+9488: Ident           "bool" at 829:26-829:30
+9489: RParen          ")" at 829:30-829:31
+9490: Arrow           "->" at 829:32-829:34 (leading: Space)
+9491: Ident           "bool" at 829:35-829:39 (leading: Space)
+9492: Semicolon       ";" at 829:39-829:40
+9493: At              "@" at 832:1-832:2 (leading: Newline, LineComment, Newline)
+9494: Ident           "intrinsic" at 832:2-832:11
+9495: KwPub           "pub" at 833:1-833:4 (leading: Newline)
+9496: KwFn            "fn" at 833:5-833:7 (leading: Space)
+9497: Ident           "atomic_store" at 833:8-833:20 (leading: Space)
+9498: LParen          "(" at 833:20-833:21
+9499: Ident           "ptr" at 833:21-833:24
+9500: Colon           ":" at 833:24-833:25
+9501: Amp             "&" at 833:26-833:27 (leading: Space)
+9502: KwMut           "mut" at 833:27-833:30
+9503: Ident           "int" at 833:31-833:34 (leading: Space)
+9504: Comma           "," at 833:34-833:35
+9505: Ident           "value" at 833:36-833:41 (leading: Space)
+9506: Colon           ":" at 833:41-833:42
+9507: Ident           "int" at 833:43-833:46 (leading: Space)
+9508: RParen          ")" at 833:46-833:47
+9509: Arrow           "->" at 833:48-833:50 (leading: Space)
+9510: NothingLit      "nothing" at 833:51-833:58 (leading: Space)
+9511: Semicolon       ";" at 833:58-833:59
+9512: At              "@" at 835:1-835:2 (leading: Newline)
+9513: Ident           "intrinsic" at 835:2-835:11
+9514: At              "@" at 836:1-836:2 (leading: Newline)
+9515: Ident           "overload" at 836:2-836:10
+9516: KwPub           "pub" at 837:1-837:4 (leading: Newline)
+9517: KwFn            "fn" at 837:5-837:7 (leading: Space)
+9518: Ident           "atomic_store" at 837:8-837:20 (leading: Space)
+9519: LParen          "(" at 837:20-837:21
+9520: Ident           "ptr" at 837:21-837:24
+9521: Colon           ":" at 837:24-837:25
+9522: Amp             "&" at 837:26-837:27 (leading: Space)
+9523: KwMut           "mut" at 837:27-837:30
+9524: Ident           "uint" at 837:31-837:35 (leading: Space)
+9525: Comma           "," at 837:35-837:36
+9526: Ident           "value" at 837:37-837:42 (leading: Space)
+9527: Colon           ":" at 837:42-837:43
+9528: Ident           "uint" at 837:44-837:48 (leading: Space)
+9529: RParen          ")" at 837:48-837:49
+9530: Arrow           "->" at 837:50-837:52 (leading: Space)
+9531: NothingLit      "nothing" at 837:53-837:60 (leading: Space)
+9532: Semicolon       ";" at 837:60-837:61
+9533: At              "@" at 839:1-839:2 (leading: Newline)
+9534: Ident           "intrinsic" at 839:2-839:11
+9535: At              "@" at 840:1-840:2 (leading: Newline)
+9536: Ident           "overload" at 840:2-840:10
+9537: KwPub           "pub" at 841:1-841:4 (leading: Newline)
+9538: KwFn            "fn" at 841:5-841:7 (leading: Space)
+9539: Ident           "atomic_store" at 841:8-841:20 (leading: Space)
+9540: LParen          "(" at 841:20-841:21
+9541: Ident           "ptr" at 841:21-841:24
+9542: Colon           ":" at 841:24-841:25
+9543: Amp             "&" at 841:26-841:27 (leading: Space)
+9544: KwMut           "mut" at 841:27-841:30
+9545: Ident           "bool" at 841:31-841:35 (leading: Space)
+9546: Comma           "," at 841:35-841:36
+9547: Ident           "value" at 841:37-841:42 (leading: Space)
+9548: Colon           ":" at 841:42-841:43
+9549: Ident           "bool" at 841:44-841:48 (leading: Space)
+9550: RParen          ")" at 841:48-841:49
+9551: Arrow           "->" at 841:50-841:52 (leading: Space)
+9552: NothingLit      "nothing" at 841:53-841:60 (leading: Space)
+9553: Semicolon       ";" at 841:60-841:61
+9554: At              "@" at 844:1-844:2 (leading: Newline, LineComment, Newline)
+9555: Ident           "intrinsic" at 844:2-844:11
+9556: KwPub           "pub" at 845:1-845:4 (leading: Newline)
+9557: KwFn            "fn" at 845:5-845:7 (leading: Space)
+9558: Ident           "atomic_exchange" at 845:8-845:23 (leading: Space)
+9559: LParen          "(" at 845:23-845:24
+9560: Ident           "ptr" at 845:24-845:27
+9561: Colon           ":" at 845:27-845:28
+9562: Amp             "&" at 845:29-845:30 (leading: Space)
+9563: KwMut           "mut" at 845:30-845:33
+9564: Ident           "int" at 845:34-845:37 (leading: Space)
+9565: Comma           "," at 845:37-845:38
+9566: Ident           "new_val" at 845:39-845:46 (leading: Space)
+9567: Colon           ":" at 845:46-845:47
+9568: Ident           "int" at 845:48-845:51 (leading: Space)
+9569: RParen          ")" at 845:51-845:52
+9570: Arrow           "->" at 845:53-845:55 (leading: Space)
+9571: Ident           "int" at 845:56-845:59 (leading: Space)
+9572: Semicolon       ";" at 845:59-845:60
+9573: At              "@" at 847:1-847:2 (leading: Newline)
+9574: Ident           "intrinsic" at 847:2-847:11
+9575: At              "@" at 848:1-848:2 (leading: Newline)
+9576: Ident           "overload" at 848:2-848:10
+9577: KwPub           "pub" at 849:1-849:4 (leading: Newline)
+9578: KwFn            "fn" at 849:5-849:7 (leading: Space)
+9579: Ident           "atomic_exchange" at 849:8-849:23 (leading: Space)
+9580: LParen          "(" at 849:23-849:24
+9581: Ident           "ptr" at 849:24-849:27
+9582: Colon           ":" at 849:27-849:28
+9583: Amp             "&" at 849:29-849:30 (leading: Space)
+9584: KwMut           "mut" at 849:30-849:33
+9585: Ident           "uint" at 849:34-849:38 (leading: Space)
+9586: Comma           "," at 849:38-849:39
+9587: Ident           "new_val" at 849:40-849:47 (leading: Space)
+9588: Colon           ":" at 849:47-849:48
+9589: Ident           "uint" at 849:49-849:53 (leading: Space)
+9590: RParen          ")" at 849:53-849:54
+9591: Arrow           "->" at 849:55-849:57 (leading: Space)
+9592: Ident           "uint" at 849:58-849:62 (leading: Space)
+9593: Semicolon       ";" at 849:62-849:63
+9594: At              "@" at 851:1-851:2 (leading: Newline)
+9595: Ident           "intrinsic" at 851:2-851:11
+9596: At              "@" at 852:1-852:2 (leading: Newline)
+9597: Ident           "overload" at 852:2-852:10
+9598: KwPub           "pub" at 853:1-853:4 (leading: Newline)
+9599: KwFn            "fn" at 853:5-853:7 (leading: Space)
+9600: Ident           "atomic_exchange" at 853:8-853:23 (leading: Space)
+9601: LParen          "(" at 853:23-853:24
+9602: Ident           "ptr" at 853:24-853:27
+9603: Colon           ":" at 853:27-853:28
+9604: Amp             "&" at 853:29-853:30 (leading: Space)
+9605: KwMut           "mut" at 853:30-853:33
+9606: Ident           "bool" at 853:34-853:38 (leading: Space)
+9607: Comma           "," at 853:38-853:39
+9608: Ident           "new_val" at 853:40-853:47 (leading: Space)
+9609: Colon           ":" at 853:47-853:48
+9610: Ident           "bool" at 853:49-853:53 (leading: Space)
+9611: RParen          ")" at 853:53-853:54
+9612: Arrow           "->" at 853:55-853:57 (leading: Space)
+9613: Ident           "bool" at 853:58-853:62 (leading: Space)
+9614: Semicolon       ";" at 853:62-853:63
+9615: At              "@" at 857:1-857:2 (leading: Newline, LineComment, Newline, LineComment, Newline)
+9616: Ident           "intrinsic" at 857:2-857:11
+9617: KwPub           "pub" at 858:1-858:4 (leading: Newline)
+9618: KwFn            "fn" at 858:5-858:7 (leading: Space)
+9619: Ident           "atomic_compare_exchange" at 858:8-858:31 (leading: Space)
+9620: LParen          "(" at 858:31-858:32
+9621: Ident           "ptr" at 858:32-858:35
+9622: Colon           ":" at 858:35-858:36
+9623: Amp             "&" at 858:37-858:38 (leading: Space)
+9624: KwMut           "mut" at 858:38-858:41
+9625: Ident           "int" at 858:42-858:45 (leading: Space)
+9626: Comma           "," at 858:45-858:46
+9627: Ident           "expected" at 858:47-858:55 (leading: Space)
+9628: Colon           ":" at 858:55-858:56
+9629: Ident           "int" at 858:57-858:60 (leading: Space)
+9630: Comma           "," at 858:60-858:61
+9631: Ident           "desired" at 858:62-858:69 (leading: Space)
+9632: Colon           ":" at 858:69-858:70
+9633: Ident           "int" at 858:71-858:74 (leading: Space)
+9634: RParen          ")" at 858:74-858:75
+9635: Arrow           "->" at 858:76-858:78 (leading: Space)
+9636: Ident           "bool" at 858:79-858:83 (leading: Space)
+9637: Semicolon       ";" at 858:83-858:84
+9638: At              "@" at 860:1-860:2 (leading: Newline)
+9639: Ident           "intrinsic" at 860:2-860:11
+9640: At              "@" at 861:1-861:2 (leading: Newline)
+9641: Ident           "overload" at 861:2-861:10
+9642: KwPub           "pub" at 862:1-862:4 (leading: Newline)
+9643: KwFn            "fn" at 862:5-862:7 (leading: Space)
+9644: Ident           "atomic_compare_exchange" at 862:8-862:31 (leading: Space)
+9645: LParen          "(" at 862:31-862:32
+9646: Ident           "ptr" at 862:32-862:35
+9647: Colon           ":" at 862:35-862:36
+9648: Amp             "&" at 862:37-862:38 (leading: Space)
+9649: KwMut           "mut" at 862:38-862:41
+9650: Ident           "uint" at 862:42-862:46 (leading: Space)
+9651: Comma           "," at 862:46-862:47
+9652: Ident           "expected" at 862:48-862:56 (leading: Space)
+9653: Colon           ":" at 862:56-862:57
+9654: Ident           "uint" at 862:58-862:62 (leading: Space)
+9655: Comma           "," at 862:62-862:63
+9656: Ident           "desired" at 862:64-862:71 (leading: Space)
+9657: Colon           ":" at 862:71-862:72
+9658: Ident           "uint" at 862:73-862:77 (leading: Space)
+9659: RParen          ")" at 862:77-862:78
+9660: Arrow           "->" at 862:79-862:81 (leading: Space)
+9661: Ident           "bool" at 862:82-862:86 (leading: Space)
+9662: Semicolon       ";" at 862:86-862:87
+9663: At              "@" at 864:1-864:2 (leading: Newline)
+9664: Ident           "intrinsic" at 864:2-864:11
+9665: At              "@" at 865:1-865:2 (leading: Newline)
+9666: Ident           "overload" at 865:2-865:10
+9667: KwPub           "pub" at 866:1-866:4 (leading: Newline)
+9668: KwFn            "fn" at 866:5-866:7 (leading: Space)
+9669: Ident           "atomic_compare_exchange" at 866:8-866:31 (leading: Space)
+9670: LParen          "(" at 866:31-866:32
+9671: Ident           "ptr" at 866:32-866:35
+9672: Colon           ":" at 866:35-866:36
+9673: Amp             "&" at 866:37-866:38 (leading: Space)
+9674: KwMut           "mut" at 866:38-866:41
+9675: Ident           "bool" at 866:42-866:46 (leading: Space)
+9676: Comma           "," at 866:46-866:47
+9677: Ident           "expected" at 866:48-866:56 (leading: Space)
+9678: Colon           ":" at 866:56-866:57
+9679: Ident           "bool" at 866:58-866:62 (leading: Space)
+9680: Comma           "," at 866:62-866:63
+9681: Ident           "desired" at 866:64-866:71 (leading: Space)
+9682: Colon           ":" at 866:71-866:72
+9683: Ident           "bool" at 866:73-866:77 (leading: Space)
+9684: RParen          ")" at 866:77-866:78
+9685: Arrow           "->" at 866:79-866:81 (leading: Space)
+9686: Ident           "bool" at 866:82-866:86 (leading: Space)
+9687: Semicolon       ";" at 866:86-866:87
+9688: At              "@" at 869:1-869:2 (leading: Newline, LineComment, Newline)
+9689: Ident           "intrinsic" at 869:2-869:11
+9690: KwPub           "pub" at 870:1-870:4 (leading: Newline)
+9691: KwFn            "fn" at 870:5-870:7 (leading: Space)
+9692: Ident           "atomic_fetch_add" at 870:8-870:24 (leading: Space)
+9693: LParen          "(" at 870:24-870:25
+9694: Ident           "ptr" at 870:25-870:28
+9695: Colon           ":" at 870:28-870:29
+9696: Amp             "&" at 870:30-870:31 (leading: Space)
+9697: KwMut           "mut" at 870:31-870:34
+9698: Ident           "int" at 870:35-870:38 (leading: Space)
+9699: Comma           "," at 870:38-870:39
+9700: Ident           "delta" at 870:40-870:45 (leading: Space)
+9701: Colon           ":" at 870:45-870:46
+9702: Ident           "int" at 870:47-870:50 (leading: Space)
+9703: RParen          ")" at 870:50-870:51
+9704: Arrow           "->" at 870:52-870:54 (leading: Space)
+9705: Ident           "int" at 870:55-870:58 (leading: Space)
+9706: Semicolon       ";" at 870:58-870:59
+9707: At              "@" at 872:1-872:2 (leading: Newline)
+9708: Ident           "intrinsic" at 872:2-872:11
+9709: At              "@" at 873:1-873:2 (leading: Newline)
+9710: Ident           "overload" at 873:2-873:10
+9711: KwPub           "pub" at 874:1-874:4 (leading: Newline)
+9712: KwFn            "fn" at 874:5-874:7 (leading: Space)
+9713: Ident           "atomic_fetch_add" at 874:8-874:24 (leading: Space)
+9714: LParen          "(" at 874:24-874:25
+9715: Ident           "ptr" at 874:25-874:28
+9716: Colon           ":" at 874:28-874:29
+9717: Amp             "&" at 874:30-874:31 (leading: Space)
+9718: KwMut           "mut" at 874:31-874:34
+9719: Ident           "uint" at 874:35-874:39 (leading: Space)
+9720: Comma           "," at 874:39-874:40
+9721: Ident           "delta" at 874:41-874:46 (leading: Space)
+9722: Colon           ":" at 874:46-874:47
+9723: Ident           "uint" at 874:48-874:52 (leading: Space)
+9724: RParen          ")" at 874:52-874:53
+9725: Arrow           "->" at 874:54-874:56 (leading: Space)
+9726: Ident           "uint" at 874:57-874:61 (leading: Space)
+9727: Semicolon       ";" at 874:61-874:62
+9728: At              "@" at 877:1-877:2 (leading: Newline, LineComment, Newline)
+9729: Ident           "intrinsic" at 877:2-877:11
+9730: KwPub           "pub" at 878:1-878:4 (leading: Newline)
+9731: KwFn            "fn" at 878:5-878:7 (leading: Space)
+9732: Ident           "atomic_fetch_sub" at 878:8-878:24 (leading: Space)
+9733: LParen          "(" at 878:24-878:25
+9734: Ident           "ptr" at 878:25-878:28
+9735: Colon           ":" at 878:28-878:29
+9736: Amp             "&" at 878:30-878:31 (leading: Space)
+9737: KwMut           "mut" at 878:31-878:34
+9738: Ident           "int" at 878:35-878:38 (leading: Space)
+9739: Comma           "," at 878:38-878:39
+9740: Ident           "delta" at 878:40-878:45 (leading: Space)
+9741: Colon           ":" at 878:45-878:46
+9742: Ident           "int" at 878:47-878:50 (leading: Space)
+9743: RParen          ")" at 878:50-878:51
+9744: Arrow           "->" at 878:52-878:54 (leading: Space)
+9745: Ident           "int" at 878:55-878:58 (leading: Space)
+9746: Semicolon       ";" at 878:58-878:59
+9747: At              "@" at 880:1-880:2 (leading: Newline)
+9748: Ident           "intrinsic" at 880:2-880:11
+9749: At              "@" at 881:1-881:2 (leading: Newline)
+9750: Ident           "overload" at 881:2-881:10
+9751: KwPub           "pub" at 882:1-882:4 (leading: Newline)
+9752: KwFn            "fn" at 882:5-882:7 (leading: Space)
+9753: Ident           "atomic_fetch_sub" at 882:8-882:24 (leading: Space)
+9754: LParen          "(" at 882:24-882:25
+9755: Ident           "ptr" at 882:25-882:28
+9756: Colon           ":" at 882:28-882:29
+9757: Amp             "&" at 882:30-882:31 (leading: Space)
+9758: KwMut           "mut" at 882:31-882:34
+9759: Ident           "uint" at 882:35-882:39 (leading: Space)
+9760: Comma           "," at 882:39-882:40
+9761: Ident           "delta" at 882:41-882:46 (leading: Space)
+9762: Colon           ":" at 882:46-882:47
+9763: Ident           "uint" at 882:48-882:52 (leading: Space)
+9764: RParen          ")" at 882:52-882:53
+9765: Arrow           "->" at 882:54-882:56 (leading: Space)
+9766: Ident           "uint" at 882:57-882:61 (leading: Space)
+9767: Semicolon       ";" at 882:61-882:62
+9768: At              "@" at 887:1-887:2 (leading: Newline, LineComment, Newline, LineComment, Newline)
+9769: Ident           "intrinsic" at 887:2-887:11
+9770: KwPub           "pub" at 888:1-888:4 (leading: Newline)
+9771: KwFn            "fn" at 888:5-888:7 (leading: Space)
+9772: Ident           "rt_argv" at 888:8-888:15 (leading: Space)
+9773: LParen          "(" at 888:15-888:16
+9774: RParen          ")" at 888:16-888:17
+9775: Arrow           "->" at 888:18-888:20 (leading: Space)
+9776: Ident           "string" at 888:21-888:27 (leading: Space)
+9777: LBracket        "[" at 888:27-888:28
+9778: RBracket        "]" at 888:28-888:29
+9779: Semicolon       ";" at 888:29-888:30
+9780: At              "@" at 891:1-891:2 (leading: Newline, LineComment, Newline)
+9781: Ident           "intrinsic" at 891:2-891:11
+9782: KwPub           "pub" at 892:1-892:4 (leading: Newline)
+9783: KwFn            "fn" at 892:5-892:7 (leading: Space)
+9784: Ident           "rt_stdin_read_all" at 892:8-892:25 (leading: Space)
+9785: LParen          "(" at 892:25-892:26
+9786: RParen          ")" at 892:26-892:27
+9787: Arrow           "->" at 892:28-892:30 (leading: Space)
+9788: Ident           "string" at 892:31-892:37 (leading: Space)
+9789: Semicolon       ";" at 892:37-892:38
+9790: At              "@" at 895:1-895:2 (leading: Newline, LineComment, Newline)
+9791: Ident           "intrinsic" at 895:2-895:11
+9792: KwPub           "pub" at 896:1-896:4 (leading: Newline)
+9793: KwFn            "fn" at 896:5-896:7 (leading: Space)
+9794: Ident           "rt_exit" at 896:8-896:15 (leading: Space)
+9795: LParen          "(" at 896:15-896:16
+9796: Ident           "code" at 896:16-896:20
+9797: Colon           ":" at 896:20-896:21
+9798: Ident           "int" at 896:22-896:25 (leading: Space)
+9799: RParen          ")" at 896:25-896:26
+9800: Arrow           "->" at 896:27-896:29 (leading: Space)
+9801: NothingLit      "nothing" at 896:30-896:37 (leading: Space)
+9802: Semicolon       ";" at 896:37-896:38
+9803: EOF             at 897:1-897:1

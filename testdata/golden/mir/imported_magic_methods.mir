@@ -1,7 +1,5 @@
 
 == MIR ==
-globals=1
-  G0: string name=strlit$0
 funcs=2
 
 fn __surge_start:
@@ -9,7 +7,6 @@ fn __surge_start:
     L0: int name=entry_ret
     L1: int [copy] name=code
   bb0:
-    G0 = const "\"ok\""
     L0 = call main()
     L1 = copy L0
     call rt_exit(copy L1)
@@ -25,43 +22,44 @@ fn main:
     L5: type#1504 name=tmp_struct4
     L6: type#1504 name=cloned
     L7: type#1504 name=tmp_call5
-    L8: bool [copy] name=tmp_call6
-    L9: type#1505 name=flag
-    L10: type#1505 name=tmp_struct7
-    L11: bool [copy] name=tmp_call8
-    L12: int [copy] name=tmp_cast9
-    L13: int [copy] name=converted
-    L14: int [copy] name=tmp_call10
+    L8: string name=tmp_owned_temp6
+    L9: bool [copy] name=tmp_call7
+    L10: type#1505 name=flag
+    L11: type#1505 name=tmp_struct8
+    L12: bool [copy] name=tmp_call9
+    L13: int [copy] name=tmp_cast10
+    L14: int [copy] name=converted
     L15: int [copy] name=tmp_call11
-    L16: bool [copy] name=tmp_call12
-    L17: type#1506 name=bag
-    L18: type#79 name=tmp_arr13
-    L19: type#1506 name=tmp_struct14
-    L20: int [copy] name=tmp_call15
+    L16: int [copy] name=tmp_call12
+    L17: bool [copy] name=tmp_call13
+    L18: type#1506 name=bag
+    L19: type#79 name=tmp_arr14
+    L20: type#1506 name=tmp_struct15
     L21: int [copy] name=tmp_call16
-    L22: bool [copy] name=tmp_call17
-    L23: int [copy] name=sum
-    L24: type#190 name=__iter1
-    L25: type#190 name=tmp_call18
-    L26: type#190 name=tmp_iter19
-    L27: type#1521 name=__next2
-    L28: type#1521 name=tmp_next20
-    L29: bool [copy] name=tmp_tagtest21
-    L30: int [copy] name=v
-    L31: int [copy] name=tmp_payload22
-    L32: int [copy] name=tmp_call23
-    L33: bool [copy] name=tmp_call24
-    L34: int [copy] name=typed_sum
-    L35: type#190 name=__iter3
-    L36: type#190 name=tmp_call25
-    L37: type#190 name=tmp_iter26
-    L38: type#1521 name=__next4
-    L39: type#1521 name=tmp_next27
-    L40: bool [copy] name=tmp_tagtest28
-    L41: int [copy] name=typed
-    L42: int [copy] name=tmp_payload29
-    L43: int [copy] name=tmp_call30
-    L44: bool [copy] name=tmp_call31
+    L22: int [copy] name=tmp_call17
+    L23: bool [copy] name=tmp_call18
+    L24: int [copy] name=sum
+    L25: type#190 name=__iter1
+    L26: type#190 name=tmp_call19
+    L27: type#190 name=tmp_iter20
+    L28: type#1521 name=__next2
+    L29: type#1521 name=tmp_next21
+    L30: bool [copy] name=tmp_tagtest22
+    L31: int [copy] name=v
+    L32: int [copy] name=tmp_payload23
+    L33: int [copy] name=tmp_call24
+    L34: bool [copy] name=tmp_call25
+    L35: int [copy] name=typed_sum
+    L36: type#190 name=__iter3
+    L37: type#190 name=tmp_call26
+    L38: type#190 name=tmp_iter27
+    L39: type#1521 name=__next4
+    L40: type#1521 name=tmp_next28
+    L41: bool [copy] name=tmp_tagtest29
+    L42: int [copy] name=typed
+    L43: int [copy] name=tmp_payload30
+    L44: int [copy] name=tmp_call31
+    L45: bool [copy] name=tmp_call32
   bb0:
     L1 = struct_lit type#1504 {value=const "\"\""}
     L0 = move L1
@@ -71,91 +69,125 @@ fn main:
     L3 = cast const 0 to int
     goto bb3
   bb2:
+    drop L0
     return const 1
   bb3:
     L5 = struct_lit type#1504 {value=const "\"ok\""}
     L4 = move L5
     L7 = call __clone(addr_of L4)
     L6 = move L7
-    L8 = call __ne(addr_of L6.value, addr_of G0)
-    if copy L8 then bb4 else bb5
+    L8 = const "\"ok\""
+    L9 = call __ne(addr_of L6.value, addr_of L8)
+    drop L8
+    if copy L9 then bb4 else bb5
   bb4:
+    drop L6
+    drop L4
+    drop L0
     return const 2
   bb5:
-    L10 = struct_lit type#1505 {value=const 1}
-    L9 = move L10
-    L11 = call __bool(addr_of L9)
-    if copy L11 then bb6 else bb7
+    L11 = struct_lit type#1505 {value=const 1}
+    L10 = move L11
+    L12 = call __bool(addr_of L10)
+    if copy L12 then bb6 else bb7
   bb6:
-    L12 = cast const 0 to int
+    L13 = cast const 0 to int
     goto bb8
   bb7:
+    drop L10
+    drop L6
+    drop L4
+    drop L0
     return const 3
   bb8:
-    L14 = call default()
-    L15 = call __to(addr_of L4, copy L14)
-    L13 = copy L15
-    L16 = call __ne(copy L13, const 7)
-    if copy L16 then bb9 else bb10
+    L15 = call default()
+    L16 = call __to(addr_of L4, copy L15)
+    L14 = copy L16
+    L17 = call __ne(copy L14, const 7)
+    if copy L17 then bb9 else bb10
   bb9:
+    drop L10
+    drop L6
+    drop L4
+    drop L0
     return const 4
   bb10:
-    L18 = array_lit [const 1, const 2, const 3]
-    L19 = struct_lit type#1506 {values=move L18}
-    L17 = move L19
-    L20 = call __index_set(addr_of_mut L17, const 1, const 9)
-    L21 = call __index(addr_of L17, const 1)
-    L22 = call __ne(copy L21, const 9)
-    if copy L22 then bb11 else bb12
+    L19 = array_lit [const 1, const 2, const 3]
+    L20 = struct_lit type#1506 {values=move L19}
+    L18 = move L20
+    L21 = call __index_set(addr_of_mut L18, const 1, const 9)
+    L22 = call __index(addr_of L18, const 1)
+    L23 = call __ne(copy L22, const 9)
+    if copy L23 then bb11 else bb12
   bb11:
+    drop L18
+    drop L10
+    drop L6
+    drop L4
+    drop L0
     return const 5
   bb12:
-    L23 = const 0
-    L25 = call __range(addr_of L17)
-    L26 = iter_init copy L25
-    L24 = move L26
+    L24 = const 0
+    L26 = call __range(addr_of L18)
+    L27 = iter_init copy L26
+    L25 = move L27
     goto bb13
   bb13:
     if const true then bb14 else bb15
   bb14:
-    L28 = iter_next copy L24
-    L27 = move L28
-    L29 = tag_test copy L27 is nothing
-    if copy L29 then bb15 else bb16
+    L29 = iter_next copy L25
+    L28 = move L29
+    L30 = tag_test copy L28 is nothing
+    if copy L30 then bb15 else bb16
   bb15:
-    L33 = call __ne(copy L23, const 13)
-    if copy L33 then bb17 else bb18
+    L34 = call __ne(copy L24, const 13)
+    if copy L34 then bb17 else bb18
   bb16:
-    L31 = tag_payload copy L27.Some[0]
-    L30 = copy L31
-    L32 = call __add(copy L23, copy L30)
-    L23 = copy L32
+    L32 = tag_payload copy L28.Some[0]
+    L31 = copy L32
+    L33 = call __add(copy L24, copy L31)
+    L24 = copy L33
     goto bb13
   bb17:
+    drop L18
+    drop L10
+    drop L6
+    drop L4
+    drop L0
     return const 6
   bb18:
-    L34 = const 0
-    L36 = call __range(addr_of L17)
-    L37 = iter_init copy L36
-    L35 = move L37
+    L35 = const 0
+    L37 = call __range(addr_of L18)
+    L38 = iter_init copy L37
+    L36 = move L38
     goto bb19
   bb19:
     if const true then bb20 else bb21
   bb20:
-    L39 = iter_next copy L35
-    L38 = move L39
-    L40 = tag_test copy L38 is nothing
-    if copy L40 then bb21 else bb22
+    L40 = iter_next copy L36
+    L39 = move L40
+    L41 = tag_test copy L39 is nothing
+    if copy L41 then bb21 else bb22
   bb21:
-    L44 = call __ne(copy L34, const 13)
-    if copy L44 then bb23 else bb24
+    L45 = call __ne(copy L35, const 13)
+    if copy L45 then bb23 else bb24
   bb22:
-    L42 = tag_payload copy L38.Some[0]
-    L41 = copy L42
-    L43 = call __add(copy L34, copy L41)
-    L34 = copy L43
+    L43 = tag_payload copy L39.Some[0]
+    L42 = copy L43
+    L44 = call __add(copy L35, copy L42)
+    L35 = copy L44
     goto bb19
   bb23:
+    drop L18
+    drop L10
+    drop L6
+    drop L4
+    drop L0
     return const 7
   bb24:
+    drop L18
+    drop L10
+    drop L6
+    drop L4
+    drop L0
     return const 0

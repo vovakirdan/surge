@@ -42,6 +42,7 @@ fn main:
     L6: int [copy] name=tmp_field4
     L7: int [copy] name=tmp_field5
     L8: int [copy] name=tmp_call6
+    L9: int [copy] name=tmp_retval7
   bb0:
     L1 = struct_lit type#1504 {x=const 1, y=const 2}
     L0 = move L1
@@ -52,4 +53,8 @@ fn main:
     L6 = field copy L4.x
     L7 = field copy L4.y
     L8 = call __add(copy L6, copy L7)
-    return copy L8
+    L9 = copy L8
+    drop L4
+    drop L2
+    drop L0
+    return copy L9

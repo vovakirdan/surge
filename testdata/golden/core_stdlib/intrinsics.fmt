@@ -724,7 +724,11 @@ extern<string> {
 
 @intrinsic
 pub type BytesView = {
-    owner: string,
+    // A non-owning back-reference to the source string's storage: the
+    // runtime stores the source pointer to pin its lifetime, but the
+    // view never owns (or frees) it. Typed as a raw pointer so drop
+    // glue does not reclaim the borrowed source.
+    owner: *byte,
     ptr: *byte,
     len: uint,
 };

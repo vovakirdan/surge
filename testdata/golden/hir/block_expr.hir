@@ -16,6 +16,7 @@ async fn with_async_block() -> nothing (id=2, sym=1422) {
     let x: int [copy] = 1
     let y: int [copy] = __add(x, 1): int
   }: type#718
+  drop t
   return
 }
 

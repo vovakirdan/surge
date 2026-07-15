@@ -58,8 +58,10 @@ fn main:
   bb9:
     if copy L13 then bb10 else bb11
   bb10:
+    drop L0
     return const 1
   bb11:
+    drop L0
     return const 0
 
 fn rhs:
