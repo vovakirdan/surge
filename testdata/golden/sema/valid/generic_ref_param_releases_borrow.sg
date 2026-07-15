@@ -1,0 +1,16 @@
+// A generic reference parameter (len<T: HasLength<T>>(self: &T) -> uint) must
+// release the implicit shared borrow of its argument when it returns, so a
+// following mutation is allowed. Regression for the SEM3018 false positive on
+// the ubiquitous len-then-push pattern.
+@entrypoint
+fn main() -> int {
+    let mut a: int[] = [];
+    a.push(1);
+    let n: uint = len(a);
+    a.push(2);
+    let mut s: string = "hi";
+    let m: uint = len(s);
+    s = s + "!";
+    if n + m == 0:uint { return 1; }
+    return 0;
+}

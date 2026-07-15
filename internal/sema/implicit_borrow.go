@@ -185,11 +185,16 @@ func (tc *typeChecker) dropImplicitBorrowsForCall(sym *symbols.Symbol, args []ca
 		if paramIndex >= len(sig.Params) {
 			continue
 		}
+		// A generic reference parameter (`&T`) resolves to NoTypeID here, but
+		// the ref/value releases below key off the parameter's string form, not
+		// the resolved type — only the copy-from-ref release needs a resolved
+		// type. Skipping the whole argument on NoTypeID is what left generic
+		// `&T` arguments (e.g. `len<T: HasLength<T>>(self: &T)`) shared-borrowed
+		// until scope end, falsely blocking a following mutation (SEM3018).
 		expectedType := tc.typeFromKey(sig.Params[paramIndex])
-		if expectedType == types.NoTypeID {
-			continue
+		if expectedType != types.NoTypeID {
+			tc.dropImplicitBorrow(arg.expr, expectedType, arg.ty, tc.exprSpan(arg.expr))
 		}
-		tc.dropImplicitBorrow(arg.expr, expectedType, arg.ty, tc.exprSpan(arg.expr))
 		tc.dropImplicitBorrowForRefParam(arg.expr, sig.Params[paramIndex], arg.ty, result, tc.exprSpan(arg.expr))
 		tc.dropImplicitBorrowForValueParam(arg.expr, sig.Params[paramIndex], arg.ty, tc.exprSpan(arg.expr))
 	}
