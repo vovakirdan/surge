@@ -518,6 +518,25 @@ int32_t rt_bigfloat_cmp(const void* a, const void* b) {
     return (int32_t)bf_cmp((const SurgeBigFloat*)a, (const SurgeBigFloat*)b);
 }
 
+void* rt_bigfloat_clone(const void* a) {
+    if (a == NULL) {
+        return NULL; // NULL is the zero float; nothing to allocate.
+    }
+    bn_err err = BN_OK;
+    SurgeBigFloat* out = bf_clone((const SurgeBigFloat*)a, &err);
+    if (err != BN_OK) {
+        bignum_panic_err(err);
+    }
+    return (void*)out;
+}
+
+void rt_bigfloat_free(void* a) {
+    if (a == NULL) {
+        return;
+    }
+    bf_free((SurgeBigFloat*)a);
+}
+
 // ---- conversions --------------------------------------------------------
 
 void* rt_bigint_to_biguint(const void* a) {

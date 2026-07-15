@@ -29,7 +29,7 @@ bool bf_is_zero(const SurgeBigFloat* f) {
     return bu_is_zero(f->mant);
 }
 
-static SurgeBigFloat* bf_clone(const SurgeBigFloat* f, bn_err* err) {
+SurgeBigFloat* bf_clone(const SurgeBigFloat* f, bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;
     }

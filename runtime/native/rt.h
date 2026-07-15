@@ -179,6 +179,12 @@ void* rt_bigfloat_mod(const void* a, const void* b);
 void* rt_bigfloat_neg(const void* a);
 void* rt_bigfloat_abs(const void* a);
 int32_t rt_bigfloat_cmp(const void* a, const void* b);
+// Deep-copy / free a heap bigfloat (WidthAny `float`). Both are NULL-safe
+// (NULL is the zero float and needs no allocation). Emitted by the compiler
+// so a Copy-semantics float value is cloned when duplicated and freed on
+// scope exit, matching the string/composite reclamation model.
+void* rt_bigfloat_clone(const void* a);
+void rt_bigfloat_free(void* a);
 void* rt_bigint_to_biguint(const void* a);
 void* rt_biguint_to_bigint(const void* a);
 void* rt_bigint_to_bigfloat(const void* a);

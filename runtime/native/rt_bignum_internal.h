@@ -175,6 +175,7 @@ SurgeBigInt* bi_shr(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err);
 
 // BigFloat helpers.
 bool bf_is_zero(const SurgeBigFloat* f);
+SurgeBigFloat* bf_clone(const SurgeBigFloat* f, bn_err* err);
 SurgeBigFloat* bf_from_uint(const SurgeBigUint* u, bn_err* err);
 SurgeBigFloat* bf_from_int(const SurgeBigInt* i, bn_err* err);
 SurgeBigFloat* bf_add(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* err);
