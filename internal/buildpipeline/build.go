@@ -339,7 +339,7 @@ func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]
 	for _, src := range sources {
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
 		obj := filepath.Join(runtimeDir, base+".o")
-		args := []string{"-c", "-std=c11"}
+		args := []string{"-c", "-std=c11", "-g"}
 		if runtime.GOOS != "windows" {
 			args = append(args, "-pthread")
 		}

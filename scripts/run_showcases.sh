@@ -58,10 +58,17 @@ run_with_stdin() {
 	local exit_file="$4"
 	shift 4
 	local exit_code=0
+	# Bounded execution (RV2-DEBT-046 follow-up): one hung showcase must fail
+	# its own run instead of stalling the whole differential suite. timeout's
+	# exit 124 lands in the exit-code file and mismatches the expectation.
+	local run_timeout="${SHOWCASE_RUN_TIMEOUT:-120}"
 	if [[ -n "$stdin_payload" ]]; then
-		printf "%s" "$stdin_payload" | "$@" >"$stdout_file" 2>"$stderr_file" || exit_code=$?
+		printf "%s" "$stdin_payload" | timeout --foreground "$run_timeout" "$@" >"$stdout_file" 2>"$stderr_file" || exit_code=$?
 	else
-		"$@" >"$stdout_file" 2>"$stderr_file" || exit_code=$?
+		timeout --foreground "$run_timeout" "$@" >"$stdout_file" 2>"$stderr_file" || exit_code=$?
+	fi
+	if [[ "$exit_code" -eq 124 ]]; then
+		echo "TIMEOUT after ${run_timeout}s" >>"$stderr_file"
 	fi
 	echo "$exit_code" >"$exit_file"
 	return "$exit_code"
