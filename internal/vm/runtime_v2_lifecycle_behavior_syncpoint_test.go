@@ -144,6 +144,44 @@ func TestRuntimeV2LifecycleDebt022ExternalAwaitMatrix(t *testing.T) {
 	}
 }
 
+func TestRuntimeV2LifecycleDebt046JoinStaleRemovalProof(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt046(t, false)
+	for _, shards := range []string{"1", "2", "8"} {
+		shards := shards
+		t.Run("positive-shards-"+shards, func(t *testing.T) {
+			threads := map[string]string{"1": "4", "2": "2", "8": "8"}[shards]
+			env := lifecycleEnv(
+				"SURGE_SHARDS="+shards,
+				"SURGE_THREADS="+threads,
+				"SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_WAKE_BEFORE_STALE_REMOVAL:block")
+			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt046-join-stale-removal-proof", env)
+			if exitCode != 0 {
+				t.Fatalf("DEBT-046 positive proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					shards, exitCode, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestRuntimeV2LifecycleDebt046JoinStaleRemovalNegativeControl(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt046(t, true)
+	env := lifecycleEnv(
+		"SURGE_SHARDS=1",
+		"SURGE_THREADS=4",
+		"SURGE_BLOCKING_THREADS=1",
+		"SURGE_SYNC_POINT=SP_WAKE_BEFORE_STALE_REMOVAL:block")
+	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt046-join-stale-removal-proof", env)
+	if exitCode == 0 {
+		t.Fatalf("DEBT-046 negative-control proof unexpectedly passed\nstdout:\n%s\nstderr:\n%s",
+			stdout, stderr)
+	}
+	if !strings.Contains(stderr, "debt046 joiner stranded after stale removal") {
+		t.Fatalf("DEBT-046 negative-control failed for the wrong reason (code=%d)\nstdout:\n%s\nstderr:\n%s",
+			exitCode, stdout, stderr)
+	}
+}
+
 const lifecycleHarnessSyncPointModes = `
 #ifdef RT_TEST_SYNC_POINTS
 #define POLL_CANCEL_PARK_PROOF 4031
@@ -628,6 +666,103 @@ static int mode_debt023_cancel_park_proof(rt_executor* ex) {
         return fail("debt023 proof target stranded after release");
     }
     if (!await_expect(ex, proof, 2, 0, "debt023 cancelled park proof")) {
+        return 1;
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// RV2-DEBT-046 proof: a spurious wake_task(remove_waiter_flag=1) consumes a
+// join park and defers the stale-key removal; the woken joiner re-polls and
+// re-parks on the SAME join key inside that window. The deferred removal is
+// unqualified for join keys (their entries carry no park generation), so the
+// pre-fix behavior sweeps the fresh registration too and the joiner never
+// hears the target's completion (join wakes are store-driven).
+static _Atomic uint32_t g_debt046_wake_done;
+
+static void* debt046_wake_thread(void* arg) {
+    rt_executor* ex = ensure_exec();
+    wake_task(ex, (uint64_t)(uintptr_t)arg, 1);
+    atomic_fetch_add_explicit(&g_debt046_wake_done, 1, memory_order_acq_rel);
+    return NULL;
+}
+
+static void poll_debt046_joiner(void) {
+    void* target = __task_state();
+    uint64_t bits = 0;
+    uint8_t st = rt_task_poll(target, &bits);
+    if (st == 0) {
+        rt_async_yield(target);
+        return;
+    }
+    rt_async_return(NULL, st == 1 && bits == 77 ? 77 : 0);
+}
+
+static int mode_debt046_join_stale_removal_proof(rt_executor* ex) {
+    unsigned sp_before =
+        rt_sync_point_reached_count(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
+    atomic_store_explicit(&g_debt022_target_gate, 0, memory_order_release);
+    atomic_store_explicit(&g_debt046_wake_done, 0, memory_order_release);
+
+    rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 0);
+    void* join_handle = target != NULL ? rt_task_clone(target) : NULL;
+    if (target == NULL || join_handle == NULL) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt046 target allocation failed");
+    }
+    rt_control_lock(ex);
+    rt_task* joiner = alloc_ready_task(ex, POLL_DEBT046_JOINER);
+    if (joiner != NULL) {
+        joiner->state = join_handle;
+        rt_task_set_placement(joiner, pin_shard(ex, 0), TASK_PLACEMENT_GENERIC);
+        ready_push(ex, joiner->id);
+    }
+    rt_control_unlock(ex);
+    if (joiner == NULL) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt046 joiner allocation failed");
+    }
+    if (!wait_task_status(joiner, TASK_WAITING, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt046 joiner did not park on the join key");
+    }
+
+    pthread_t waker;
+    if (pthread_create(&waker, NULL, debt046_wake_thread, (void*)(uintptr_t)joiner->id) != 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt046 wake thread create failed");
+    }
+    if (!wait_sync_point_count(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL, sp_before, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        rt_sync_point_open();
+        pthread_join(waker, NULL);
+        return fail("debt046 proof did not reach SP_WAKE_BEFORE_STALE_REMOVAL");
+    }
+    // The spurious wake consumed the park; the joiner must re-poll and
+    // re-park on the same join key while the removal is still held.
+    if (!wait_task_status(joiner, TASK_WAITING, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        rt_sync_point_open();
+        pthread_join(waker, NULL);
+        return fail("debt046 joiner did not re-park inside the removal window");
+    }
+    rt_sync_point_open();
+    pthread_join(waker, NULL);
+    if (atomic_load_explicit(&g_debt046_wake_done, memory_order_acquire) == 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt046 wake thread did not finish");
+    }
+
+    atomic_store_explicit(&g_debt022_target_gate, 1, memory_order_release);
+    if (!wait_task_status(target, TASK_DONE, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt046 target did not complete");
+    }
+    if (!wait_task_status(joiner, TASK_DONE, 1500)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt046 joiner stranded after stale removal");
+    }
+    if (!await_expect(ex, joiner, 1, 77, "debt046 joiner")) {
         return 1;
     }
     (void)rt_executor_request_shutdown(ex);

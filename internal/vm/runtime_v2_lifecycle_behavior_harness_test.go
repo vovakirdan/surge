@@ -54,6 +54,17 @@ func buildRuntimeV2LifecycleHarnessDebt020(t *testing.T, negativeControl bool) s
 	return buildRuntimeV2LifecycleHarnessWithFlags(t, name, flags)
 }
 
+func buildRuntimeV2LifecycleHarnessDebt046(t *testing.T, negativeControl bool) string {
+	t.Helper()
+	name := "lifecycle_harness_debt046"
+	flags := []string{"-DRT_TEST_SYNC_POINTS"}
+	if negativeControl {
+		name += "_negative"
+		flags = append(flags, "-DRV2_DEBT_046_NEGATIVE_CONTROL")
+	}
+	return buildRuntimeV2LifecycleHarnessWithFlags(t, name, flags)
+}
+
 func buildRuntimeV2LifecycleHarnessDebt022(t *testing.T, negativeControl bool) string {
 	t.Helper()
 	name := "lifecycle_harness_debt022"
@@ -215,7 +226,9 @@ enum {
     POLL_XOWNER_OWNER = 4028,
     POLL_DEBT020_ADOPT_JOINER = 4029,
     POLL_DEBT020_GAP_JOINER = 4030,
-    POLL_DEBT022_GATED_TARGET = 4032
+    POLL_DEBT022_GATED_TARGET = 4032,
+    // 4033 is POLL_READY_REQUEUE_PROBE (defined in the ready-requeue modes).
+    POLL_DEBT046_JOINER = 4034
 	};
 
 enum { BLOCKING_FN_SLOW = 5001 };

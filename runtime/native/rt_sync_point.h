@@ -96,6 +96,12 @@ typedef enum rt_sync_point_id {
     // re-validation must then refuse the duplicate push, or its READY store
     // overwrites RUNNING under a live poll and a second worker double-polls.
     RT_SYNC_POINT_SP_READY_REQUEUE_BEFORE_LOCK,
+    // wake_task_with_policy: reached after the owner lock is released with a
+    // captured stale park key, before the deferred waiter removal. The woken
+    // task can re-poll and re-park on the SAME key in this window; an
+    // unqualified removal here sweeps the fresh registration too and strands
+    // a store-driven (join) park forever (RV2-DEBT-046).
+    RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -151,6 +157,22 @@ void rt_sync_point_open(void);
     } while (0)
 #else
 #define RT_DEBT023_CANCEL_WAKE(ex, task) wake_task((ex), (task)->id, 1)
+#endif
+
+// RV2-DEBT-046 negative-control toggle. Default (the fix): a consumed park's
+// stale JOIN key is exempt from the deferred waiter removal — join entries
+// carry no park generation, so the removal is unqualified and sweeps a fresh
+// re-registration made in the post-unlock window, stranding the joiner (join
+// wakes are store-driven). The stale entry is self-cleaning instead: the join
+// target completes exactly once and its completion drain pops every entry for
+// the key; a stale pop is absorbed as one spurious wake by the wake token.
+// A build defining RV2_DEBT_046_NEGATIVE_CONTROL restores the pre-fix
+// remove-every-kind behavior, which MUST strand the deterministic
+// wake-vs-repark proof (the non-vacuity check).
+#ifdef RV2_DEBT_046_NEGATIVE_CONTROL
+#define RT_DEBT046_STALE_KEY_REMOVABLE(key) 1
+#else
+#define RT_DEBT046_STALE_KEY_REMOVABLE(key) ((key).kind != WAKER_JOIN)
 #endif
 
 #endif // RT_SYNC_POINT_H

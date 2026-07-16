@@ -50,6 +50,7 @@ declare -A WINDOW_FILE=(
     [SP_REMOTE_SPAWN_BEFORE_ACK]="rt_remote_spawn.c"
     [SP_IMMEDIATE_ON_BEFORE_PUBLISH]="rt_immediate_on.c"
     [SP_READY_REQUEUE_BEFORE_LOCK]="rt_ready_queue.c"
+    [SP_WAKE_BEFORE_STALE_REMOVAL]="rt_task_park.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in
