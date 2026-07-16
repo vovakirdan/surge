@@ -1,0 +1,5 @@
+fn main() {
+    let l = "x";
+    let arr = [&l];
+    print("ok");
+}

@@ -1,0 +1,11 @@
+tag R(&string);
+
+fn make() -> R {
+    let l = "x";
+    return R(&l);
+}
+
+fn main() {
+    let r = make();
+    print("made");
+}

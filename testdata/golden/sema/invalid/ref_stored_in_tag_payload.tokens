@@ -1,0 +1,46 @@
+  1: KwTag           "tag" at 1:1-1:4
+  2: Ident           "R" at 1:5-1:6 (leading: Space)
+  3: LParen          "(" at 1:6-1:7
+  4: Amp             "&" at 1:7-1:8
+  5: Ident           "string" at 1:8-1:14
+  6: RParen          ")" at 1:14-1:15
+  7: Semicolon       ";" at 1:15-1:16
+  8: KwFn            "fn" at 3:1-3:3 (leading: Newline)
+  9: Ident           "make" at 3:4-3:8 (leading: Space)
+ 10: LParen          "(" at 3:8-3:9
+ 11: RParen          ")" at 3:9-3:10
+ 12: Arrow           "->" at 3:11-3:13 (leading: Space)
+ 13: Ident           "R" at 3:14-3:15 (leading: Space)
+ 14: LBrace          "{" at 3:16-3:17 (leading: Space)
+ 15: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 16: Ident           "l" at 4:9-4:10 (leading: Space)
+ 17: Assign          "=" at 4:11-4:12 (leading: Space)
+ 18: StringLit       "\"x\"" at 4:13-4:16 (leading: Space)
+ 19: Semicolon       ";" at 4:16-4:17
+ 20: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 21: Ident           "R" at 5:12-5:13 (leading: Space)
+ 22: LParen          "(" at 5:13-5:14
+ 23: Amp             "&" at 5:14-5:15
+ 24: Ident           "l" at 5:15-5:16
+ 25: RParen          ")" at 5:16-5:17
+ 26: Semicolon       ";" at 5:17-5:18
+ 27: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 28: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 29: Ident           "main" at 8:4-8:8 (leading: Space)
+ 30: LParen          "(" at 8:8-8:9
+ 31: RParen          ")" at 8:9-8:10
+ 32: LBrace          "{" at 8:11-8:12 (leading: Space)
+ 33: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 34: Ident           "r" at 9:9-9:10 (leading: Space)
+ 35: Assign          "=" at 9:11-9:12 (leading: Space)
+ 36: Ident           "make" at 9:13-9:17 (leading: Space)
+ 37: LParen          "(" at 9:17-9:18
+ 38: RParen          ")" at 9:18-9:19
+ 39: Semicolon       ";" at 9:19-9:20
+ 40: Ident           "print" at 10:5-10:10 (leading: Newline, Space)
+ 41: LParen          "(" at 10:10-10:11
+ 42: StringLit       "\"made\"" at 10:11-10:17
+ 43: RParen          ")" at 10:17-10:18
+ 44: Semicolon       ";" at 10:18-10:19
+ 45: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 46: EOF             at 12:1-12:1

@@ -1,0 +1,53 @@
+ref_return_escapes_local.sg (span: 1:1-20:1)
+├─ Item[0]: Fn (span: 1:1-4:2)
+│  ├─ Name: make_local
+│  ├─ Params: ()
+│  ├─ Return: &string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:28-4:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:17)
+│        │  ├─ Name: l
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: "x"
+│        └─ Stmt[1]: Return (span: 3:5-3:15)
+│           └─ Expr: expr#3: &l
+├─ Item[1]: Fn (span: 6:1-10:2)
+│  ├─ Name: launder
+│  ├─ Params: ()
+│  ├─ Return: &string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:25-10:2)
+│        ├─ Stmt[0]: Let (span: 7:5-7:17)
+│        │  ├─ Name: l
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: "x"
+│        ├─ Stmt[1]: Let (span: 8:5-8:16)
+│        │  ├─ Name: r
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#6: &l
+│        └─ Stmt[2]: Return (span: 9:5-9:14)
+│           └─ Expr: expr#7: r
+├─ Item[2]: Fn (span: 12:1-14:2)
+│  ├─ Name: from_owned_param
+│  ├─ Params: (x: string)
+│  ├─ Return: &string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 12:43-14:2)
+│        └─ Stmt[0]: Return (span: 13:5-13:15)
+│           └─ Expr: expr#9: &x
+└─ Item[3]: Fn (span: 16:1-19:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:11-19:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:26)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#11: make_local()
+         └─ Stmt[1]: Expr (span: 18:5-18:24)
+            └─ Expr: expr#16: print(r.__clone())

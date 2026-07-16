@@ -1,0 +1,33 @@
+ref_stored_in_struct_field.sg (span: 1:1-12:1)
+├─ Item[0]: Type (span: 1:1-1:27)
+│  ├─ Name: View
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: s: &string
+├─ Item[1]: Fn (span: 3:1-6:2)
+│  ├─ Name: make
+│  ├─ Params: ()
+│  ├─ Return: View
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:19-6:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:17)
+│        │  ├─ Name: l
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: "x"
+│        └─ Stmt[1]: Return (span: 5:5-5:23)
+│           └─ Expr: expr#4: <ExprKind(22)>
+└─ Item[2]: Fn (span: 8:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:11-11:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:20)
+         │  ├─ Name: v
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#6: make()
+         └─ Stmt[1]: Expr (span: 10:5-10:19)
+            └─ Expr: expr#9: print("made")

@@ -1,0 +1,1 @@
+error SEM3138 testdata/golden/sema/invalid/ref_stored_in_struct_field.sg:1:18 a struct field cannot hold a reference (&string)

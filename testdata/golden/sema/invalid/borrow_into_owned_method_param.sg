@@ -1,0 +1,16 @@
+type Box = { v: int }
+
+extern<Box> {
+    pub fn eat(self: &Box, x: string) -> int {
+        return len(x) to int;
+    }
+}
+
+fn main() {
+    let b = Box{ 1 };
+    let needle = "ell";
+    let n = b.eat(&needle);
+    if n > 0 {
+        print("done");
+    }
+}

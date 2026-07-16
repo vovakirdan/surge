@@ -1,1 +1,2 @@
+error SEM3138 testdata/golden/sema/invalid/default_nested_uninit_ref.sg:2:10 a struct field cannot hold a reference (&int)
 error SEM3015 testdata/golden/sema/invalid/default_nested_uninit_ref.sg:18:16 default is not defined for Forest: type Forest contains field 'roots' -> array element -> field 'branch' -> field 'leaves' -> array element -> field 'ref' that does not have a default value (reference type &int)

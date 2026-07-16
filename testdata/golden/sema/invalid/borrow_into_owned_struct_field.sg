@@ -1,0 +1,9 @@
+type Box2 = { v: string }
+
+fn main() {
+    let l = "hello world";
+    let b = Box2{ &l };
+    if len(b.v) > 0 {
+        print("done");
+    }
+}

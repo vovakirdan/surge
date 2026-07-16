@@ -1,0 +1,2 @@
+error SEM3138 testdata/golden/sema/invalid/ref_stored_in_tag_payload.sg:1:7 a tag payload cannot hold a reference (&string)
+error SEM3046 testdata/golden/sema/invalid/ref_stored_in_tag_payload.sg:5:12 no matching overload for R

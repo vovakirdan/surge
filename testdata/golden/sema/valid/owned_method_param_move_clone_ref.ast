@@ -1,0 +1,67 @@
+owned_method_param_move_clone_ref.sg (span: 1:1-23:1)
+├─ Item[0]: Type (span: 1:1-1:22)
+│  ├─ Name: Box
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: v: int
+├─ Item[1]: Extern (span: 3:1-10:2)
+│  ├─ Target: Box
+│  ├─ Members:
+│  │  ├─ Fn[0]: eat
+│  │  │  ├─ Params: (self: &Box, x: string)
+│  │  │  ├─ Return: int
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 4:46-6:6)
+│  │  │     └─ Stmt[0]: Return (span: 5:9-5:30)
+│  │  │        └─ Expr: expr#4: len(x) to int
+│  │  └─ Fn[1]: peek
+│  │     ├─ Params: (self: &Box, x: &string)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 7:48-9:6)
+│  │        └─ Stmt[0]: Return (span: 8:9-8:30)
+│  │           └─ Expr: expr#8: len(x) to int
+└─ Item[2]: Fn (span: 12:1-22:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:11-22:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:22)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: <ExprKind(22)>
+         ├─ Stmt[1]: Let (span: 14:5-14:24)
+         │  ├─ Name: needle
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#11: "ell"
+         ├─ Stmt[2]: Let (span: 15:5-15:30)
+         │  ├─ Name: n1
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#16: b.peek(&needle)
+         ├─ Stmt[3]: Let (span: 16:5-16:29)
+         │  ├─ Name: n2
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#20: b.peek(needle)
+         ├─ Stmt[4]: Let (span: 17:5-17:38)
+         │  ├─ Name: n3
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#26: b.eat(needle.__clone())
+         ├─ Stmt[5]: Let (span: 18:5-18:28)
+         │  ├─ Name: n4
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#30: b.eat(needle)
+         └─ Stmt[6]: If (span: 19:5-21:6)
+            ├─ Cond: expr#39: (((((((n1 + n2)) + n3)) + n4)) > 0)
+            ├─ Then:
+Block (span: 19:30-21:6)
+            │  └─ Stmt[0]: Expr (span: 20:9-20:21)
+            │     └─ Expr: expr#42: print("ok")
+            └─ Else: <none>

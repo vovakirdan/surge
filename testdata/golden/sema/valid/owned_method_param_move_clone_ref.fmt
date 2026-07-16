@@ -1,0 +1,22 @@
+type Box = { v: int }
+
+extern<Box> {
+    pub fn eat(self: &Box, x: string) -> int {
+        return len(x) to int;
+    }
+    pub fn peek(self: &Box, x: &string) -> int {
+        return len(x) to int;
+    }
+}
+
+fn main() {
+    let b = Box{ 1 };
+    let needle = "ell";
+    let n1 = b.peek(&needle);
+    let n2 = b.peek(needle);
+    let n3 = b.eat(needle.__clone());
+    let n4 = b.eat(needle);
+    if n1 + n2 + n3 + n4 > 0 {
+        print("ok");
+    }
+}

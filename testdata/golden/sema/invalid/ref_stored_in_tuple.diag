@@ -1,0 +1,3 @@
+error SEM3138 testdata/golden/sema/invalid/ref_stored_in_tuple.sg:1:15 a tuple element cannot hold a reference (&string)
+error SEM3015 testdata/golden/sema/invalid/ref_stored_in_tuple.sg:3:5 function returning nothing cannot return a value
+error SEM3138 testdata/golden/sema/invalid/ref_stored_in_tuple.sg:3:13 a tuple element cannot hold a reference (&string)

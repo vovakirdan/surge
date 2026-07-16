@@ -1,0 +1,11 @@
+type View = { s: &string }
+
+fn make() -> View {
+    let l = "x";
+    return View{ &l };
+}
+
+fn main() {
+    let v = make();
+    print("made");
+}

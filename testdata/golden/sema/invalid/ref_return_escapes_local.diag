@@ -1,0 +1,3 @@
+error SEM3139 testdata/golden/sema/invalid/ref_return_escapes_local.sg:3:12 cannot return a borrow of local 'l': it is freed when the function returns
+error SEM3139 testdata/golden/sema/invalid/ref_return_escapes_local.sg:9:12 cannot return a borrow of local 'l': it is freed when the function returns
+error SEM3139 testdata/golden/sema/invalid/ref_return_escapes_local.sg:13:12 cannot return a borrow of by-value parameter 'x': it is freed when the function returns

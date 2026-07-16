@@ -1,0 +1,45 @@
+  1: KwType          "type" at 1:1-1:5
+  2: Ident           "Box2" at 1:6-1:10 (leading: Space)
+  3: Assign          "=" at 1:11-1:12 (leading: Space)
+  4: LBrace          "{" at 1:13-1:14 (leading: Space)
+  5: Ident           "v" at 1:15-1:16 (leading: Space)
+  6: Colon           ":" at 1:16-1:17
+  7: Ident           "string" at 1:18-1:24 (leading: Space)
+  8: RBrace          "}" at 1:25-1:26 (leading: Space)
+  9: KwFn            "fn" at 3:1-3:3 (leading: Newline)
+ 10: Ident           "main" at 3:4-3:8 (leading: Space)
+ 11: LParen          "(" at 3:8-3:9
+ 12: RParen          ")" at 3:9-3:10
+ 13: LBrace          "{" at 3:11-3:12 (leading: Space)
+ 14: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 15: Ident           "l" at 4:9-4:10 (leading: Space)
+ 16: Assign          "=" at 4:11-4:12 (leading: Space)
+ 17: StringLit       "\"hello world\"" at 4:13-4:26 (leading: Space)
+ 18: Semicolon       ";" at 4:26-4:27
+ 19: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 20: Ident           "b" at 5:9-5:10 (leading: Space)
+ 21: Assign          "=" at 5:11-5:12 (leading: Space)
+ 22: Ident           "Box2" at 5:13-5:17 (leading: Space)
+ 23: LBrace          "{" at 5:17-5:18
+ 24: Amp             "&" at 5:19-5:20 (leading: Space)
+ 25: Ident           "l" at 5:20-5:21
+ 26: RBrace          "}" at 5:22-5:23 (leading: Space)
+ 27: Semicolon       ";" at 5:23-5:24
+ 28: KwIf            "if" at 6:5-6:7 (leading: Newline, Space)
+ 29: Ident           "len" at 6:8-6:11 (leading: Space)
+ 30: LParen          "(" at 6:11-6:12
+ 31: Ident           "b" at 6:12-6:13
+ 32: Dot             "." at 6:13-6:14
+ 33: Ident           "v" at 6:14-6:15
+ 34: RParen          ")" at 6:15-6:16
+ 35: Gt              ">" at 6:17-6:18 (leading: Space)
+ 36: IntLit          "0" at 6:19-6:20 (leading: Space)
+ 37: LBrace          "{" at 6:21-6:22 (leading: Space)
+ 38: Ident           "print" at 7:9-7:14 (leading: Newline, Space)
+ 39: LParen          "(" at 7:14-7:15
+ 40: StringLit       "\"done\"" at 7:15-7:21
+ 41: RParen          ")" at 7:21-7:22
+ 42: Semicolon       ";" at 7:22-7:23
+ 43: RBrace          "}" at 8:5-8:6 (leading: Newline, Space)
+ 44: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 45: EOF             at 10:1-10:1

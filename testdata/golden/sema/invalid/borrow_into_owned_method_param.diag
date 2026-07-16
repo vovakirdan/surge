@@ -1,0 +1,1 @@
+error SEM3137 testdata/golden/sema/invalid/borrow_into_owned_method_param.sg:12:19 this parameter takes ownership of a string, but the value provided is only a borrow (&string)

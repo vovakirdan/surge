@@ -1,0 +1,9 @@
+fn make() -> (&string, int) {
+    let l = "x";
+    return (&l, 1);
+}
+
+fn main() {
+    let t = make();
+    print("made");
+}

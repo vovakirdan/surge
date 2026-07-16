@@ -1,0 +1,1 @@
+error SEM3138 testdata/golden/sema/invalid/ref_stored_in_array.sg:3:16 an array element cannot hold a reference (&string)

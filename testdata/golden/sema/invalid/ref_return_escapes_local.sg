@@ -1,0 +1,19 @@
+fn make_local() -> &string {
+    let l = "x";
+    return &l;
+}
+
+fn launder() -> &string {
+    let l = "x";
+    let r = &l;
+    return r;
+}
+
+fn from_owned_param(x: string) -> &string {
+    return &x;
+}
+
+fn main() {
+    let r = make_local();
+    print(r.__clone());
+}
