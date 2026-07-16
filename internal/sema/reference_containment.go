@@ -94,6 +94,156 @@ func (tc *typeChecker) checkBorrowEscapeOnReturn(expr ast.ExprID, ty types.TypeI
 	b.Emit()
 }
 
+// checkTaskBorrowEscapeOnReturn rejects returning a task handle whose spawn
+// borrowed frame-local storage: the caller can await the task after this
+// frame's locals are freed, so the task would read dangling memory (the VM
+// panics VM3301; native reads freed memory silently). Awaiting the task in
+// this function, or spawning with an owned value/clone, stays legal.
+func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.TypeID, span source.Span) {
+	if tc.taskTracker == nil || tc.borrow == nil {
+		return
+	}
+	if !tc.isTaskType(ty) && !tc.isFarTaskType(ty) {
+		return
+	}
+	inner := tc.unwrapGroupExpr(expr)
+	node := tc.builder.Exprs.Get(inner)
+	if node == nil {
+		return
+	}
+	spawnExpr := ast.NoExprID
+	if id, ok := tc.taskTracker.exprTasks[inner]; ok && int(id) < len(tc.taskTracker.tasks) {
+		spawnExpr = tc.taskTracker.tasks[id].SpawnExpr
+	}
+	if !spawnExpr.IsValid() && node.Kind == ast.ExprIdent {
+		if symID := tc.symbolForExpr(inner); symID.IsValid() {
+			if id, ok := tc.taskTracker.bindingTasks[symID]; ok && int(id) < len(tc.taskTracker.tasks) {
+				spawnExpr = tc.taskTracker.tasks[id].SpawnExpr
+			}
+		}
+	}
+	if !spawnExpr.IsValid() {
+		switch node.Kind {
+		case ast.ExprSpawn, ast.ExprTask, ast.ExprCall:
+			spawnExpr = inner
+		default:
+			return
+		}
+	}
+	payload := spawnExpr
+	if spawnNode := tc.builder.Exprs.Get(spawnExpr); spawnNode != nil {
+		switch spawnNode.Kind {
+		case ast.ExprSpawn:
+			if d, ok := tc.builder.Exprs.Spawn(spawnExpr); ok && d != nil {
+				payload = d.Value
+			}
+		case ast.ExprTask:
+			if d, ok := tc.builder.Exprs.Task(spawnExpr); ok && d != nil {
+				payload = d.Value
+			}
+		}
+	}
+	call, ok := tc.builder.Exprs.Call(tc.unwrapGroupExpr(payload))
+	if !ok || call == nil {
+		return
+	}
+	for _, arg := range call.Args {
+		base := tc.borrowedFrameLocalBase(arg.Value)
+		if !base.IsValid() {
+			continue
+		}
+		sym := tc.symbolFromID(base)
+		if sym == nil {
+			continue
+		}
+		name := tc.lookupName(sym.Name)
+		argSpan := tc.exprSpan(arg.Value)
+		if tc.reporter == nil {
+			tc.report(diag.SemaBorrowEscapesReturn, span,
+				"cannot return this task: it borrows '%s', which is freed when the function returns while the task may still be running", name)
+			return
+		}
+		b := diag.ReportError(tc.reporter, diag.SemaBorrowEscapesReturn, span,
+			fmt.Sprintf("cannot return this task: it borrows '%s', which is freed when the function returns while the task may still be running", name))
+		if b != nil {
+			if argSpan != (source.Span{}) {
+				b.WithNote(argSpan, fmt.Sprintf("the task borrowed '%s' here", name))
+			}
+			b.WithNote(span, fmt.Sprintf(
+				"hint: await the task inside this function, or spawn it with an owned value: pass %s itself or %s.__clone()", name, name))
+			b.Emit()
+		}
+		return
+	}
+}
+
+// borrowedFrameLocalBase classifies an argument expression: when it lends
+// frame-local storage — `&local` / `&mut local` (or a projection of one), or
+// an ident bound to such a borrow — it returns the borrowed base symbol.
+// Borrows of reference parameters (the caller's storage) return invalid.
+func (tc *typeChecker) borrowedFrameLocalBase(argExpr ast.ExprID) symbols.SymbolID {
+	argExpr = tc.unwrapGroupExpr(argExpr)
+	node := tc.builder.Exprs.Get(argExpr)
+	if node == nil {
+		return symbols.NoSymbolID
+	}
+	var operand ast.ExprID
+	switch node.Kind {
+	case ast.ExprUnary:
+		unary := tc.builder.Exprs.Unaries.Get(uint32(node.Payload))
+		if unary == nil || (unary.Op != ast.ExprUnaryRef && unary.Op != ast.ExprUnaryRefMut) {
+			return symbols.NoSymbolID
+		}
+		operand = unary.Operand
+	case ast.ExprIdent:
+		// An ident argument lends frame storage only when it is itself a
+		// reference binding whose loan the table still roots in this frame.
+		symID := tc.symbolForExpr(argExpr)
+		if !symID.IsValid() || tc.bindingBorrow == nil || tc.borrow == nil {
+			return symbols.NoSymbolID
+		}
+		bid := tc.bindingBorrow[symID]
+		if bid == NoBorrowID {
+			return symbols.NoSymbolID
+		}
+		info := tc.borrow.Info(bid)
+		if info == nil || !info.Place.Base.IsValid() {
+			return symbols.NoSymbolID
+		}
+		if tc.isFrameLocalStorage(info.Place.Base) {
+			return info.Place.Base
+		}
+		return symbols.NoSymbolID
+	default:
+		return symbols.NoSymbolID
+	}
+	desc, ok := tc.resolvePlace(tc.unwrapGroupExpr(operand))
+	if !ok || !desc.Base.IsValid() {
+		return symbols.NoSymbolID
+	}
+	if tc.isFrameLocalStorage(desc.Base) {
+		return desc.Base
+	}
+	return symbols.NoSymbolID
+}
+
+// isFrameLocalStorage reports whether the symbol's storage dies with the
+// current call frame: a local binding, or an owned (by-value) parameter.
+func (tc *typeChecker) isFrameLocalStorage(base symbols.SymbolID) bool {
+	sym := tc.symbolFromID(base)
+	if sym == nil {
+		return false
+	}
+	switch sym.Kind {
+	case symbols.SymbolLet:
+		return true
+	case symbols.SymbolParam:
+		return !tc.isReferenceType(tc.bindingType(base))
+	default:
+		return false
+	}
+}
+
 func (tc *typeChecker) reportRefInAggregate(label, elemLabel string, span source.Span, container string) {
 	article := "a"
 	if container != "" {

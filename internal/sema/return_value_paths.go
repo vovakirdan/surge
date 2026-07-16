@@ -80,6 +80,7 @@ func (tc *typeChecker) applyReturnPathChecks(expr ast.ExprID) {
 				"local task handle cannot be returned from function")
 		}
 		tc.checkBorrowEscapeOnReturn(candidate, candidateType, candidateSpan)
+		tc.checkTaskBorrowEscapeOnReturn(candidate, candidateType, candidateSpan)
 		tc.checkTaskContainerEscape(candidate, candidateType, candidateSpan)
 		tc.trackTaskReturn(candidate)
 		tc.checkTrivialReturnRecursion(candidate)

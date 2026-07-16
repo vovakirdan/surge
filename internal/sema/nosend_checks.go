@@ -66,6 +66,16 @@ func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.S
 		return false
 	}
 
+	// A borrow is never sendable: the receiving task can outlive the
+	// borrowed value's scope, and the loan table cannot follow the
+	// reference across the channel.
+	if info, ok := tc.types.Lookup(tc.resolveAlias(valueType)); ok && info.Kind == types.KindReference {
+		tc.report(diag.SemaChannelNosendValue, span,
+			"cannot send a borrow (%s) through a channel: the receiving task can outlive the borrowed value; send the value itself to give it away, or a copy via .__clone()",
+			tc.typeLabel(valueType))
+		return true
+	}
+
 	// Strip ownership/reference modifiers to get base type
 	baseType := tc.valueType(valueType)
 
