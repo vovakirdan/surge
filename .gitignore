@@ -56,3 +56,4 @@ surge
 *.o
 
 .security-key
+.claude-flow/

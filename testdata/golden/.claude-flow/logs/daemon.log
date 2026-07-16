@@ -1,4 +1,0 @@
-[2026-07-16T10:23:30.297Z] [INFO] Starting worker: optimize (1/2 concurrent)
-[2026-07-16T10:23:30.298Z] [INFO] Worker optimize completed in 1ms
-[2026-07-16T10:26:30.236Z] [INFO] Starting worker: audit (1/2 concurrent)
-[2026-07-16T10:26:30.236Z] [INFO] Worker audit completed in 1ms
