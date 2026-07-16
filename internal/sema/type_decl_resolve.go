@@ -55,25 +55,7 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 			}
 		}
 	case ast.TypeExprArray:
-		if arr, ok := tc.builder.Types.Array(id); ok && arr != nil {
-			elem := tc.resolveTypeExprWithScope(arr.Elem, scope)
-			if elem != types.NoTypeID {
-				if tc.isFarType(elem) {
-					tc.report(diag.FutFarLocalArrayPostponed, expr.Span, "local arrays of `far` handles are not supported yet")
-					break
-				}
-				if arr.Kind == ast.ArraySized {
-					lengthArg := tc.resolveArrayLengthArg(arr, expr.Span)
-					if lengthArg == types.NoTypeID {
-						tc.report(diag.SemaTypeMismatch, expr.Span, "array length must be a constant")
-						break
-					}
-					result = tc.instantiateArrayFixedWithArg(elem, lengthArg)
-				} else {
-					result = tc.instantiateArrayType(elem)
-				}
-			}
-		}
+		result = tc.resolveArrayTypeExpr(id, expr.Span, scope)
 	case ast.TypeExprOptional:
 		if opt, ok := tc.builder.Types.Optional(id); ok && opt != nil {
 			inner := tc.resolveTypeExprWithScope(opt.Inner, scope)
@@ -101,26 +83,7 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 			}
 		}
 	case ast.TypeExprTuple:
-		if tup, ok := tc.builder.Types.Tuple(id); ok && tup != nil {
-			// Empty tuple is unit type
-			if len(tup.Elems) == 0 {
-				result = tc.types.Builtins().Unit
-				break
-			}
-			elems := make([]types.TypeID, 0, len(tup.Elems))
-			allValid := true
-			for _, elem := range tup.Elems {
-				resolved := tc.resolveTypeExprWithScope(elem, scope)
-				if resolved == types.NoTypeID {
-					allValid = false
-					break
-				}
-				elems = append(elems, resolved)
-			}
-			if allValid {
-				result = tc.types.RegisterTuple(elems)
-			}
-		}
+		result = tc.resolveTupleTypeExpr(id, scope)
 	case ast.TypeExprFn:
 		if fnType, ok := tc.builder.Types.Fn(id); ok && fnType != nil {
 			// Resolve parameter types

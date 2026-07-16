@@ -215,9 +215,19 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 
 	argCopy := tc.isCopyType(arg)
 	argOwnNonCopy := false
+	argRefNonCopyElem := false
 	if tc.types != nil {
-		if tt, ok := tc.types.Lookup(tc.resolveAlias(arg)); ok && tt.Kind == types.KindOwn && !argCopy {
-			argOwnNonCopy = true
+		if tt, ok := tc.types.Lookup(tc.resolveAlias(arg)); ok {
+			switch tt.Kind {
+			case types.KindOwn:
+				if !argCopy {
+					argOwnNonCopy = true
+				}
+			case types.KindReference:
+				if !tc.isCopyType(tt.Elem) {
+					argRefNonCopyElem = true
+				}
+			}
 		}
 	}
 
@@ -229,6 +239,14 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 	for _, cand := range tc.typeKeyCandidates(arg) {
 		if typeKeyEqual(cand.key, substituted) {
 			if argOwnNonCopy && !strings.HasPrefix(substitutedStr, "own ") {
+				continue
+			}
+			// The candidate list for `&T` includes the bare `T` (so `&Foo`
+			// receivers find `extern<Foo>` methods). Letting that candidate
+			// satisfy an OWNED non-Copy parameter would hand the callee an
+			// aliasing copy it later frees — the caller frees the same value
+			// again (double-free on the native backend).
+			if argRefNonCopyElem && !strings.HasPrefix(substitutedStr, "&") {
 				continue
 			}
 			return true

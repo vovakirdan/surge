@@ -19,7 +19,8 @@ func (tc *typeChecker) checkTag(id ast.ItemID, tag *ast.TagItem) {
 		tc.applyTypeParamBounds(symID)
 	}
 	for _, payload := range tag.Payload {
-		tc.resolveTypeExprWithScope(payload, scope)
+		resolved := tc.resolveTypeExprWithScope(payload, scope)
+		tc.rejectRefInAggregate(resolved, tc.typeSpan(payload), "tag payload")
 	}
 	if pushed {
 		tc.popTypeParams()

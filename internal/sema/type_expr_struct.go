@@ -363,6 +363,10 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 		}
 		actual = tc.result.ExprTypes[value]
 	}
+	fieldRole := fmt.Sprintf("field '%s'", tc.lookupName(name))
+	if tc.reportBorrowIntoOwned(expected, actual, value, fieldRole, "the aggregate's drop") {
+		return
+	}
 	if tc.valueType(actual) == tc.valueType(expected) {
 		return
 	}

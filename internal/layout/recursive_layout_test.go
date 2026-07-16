@@ -79,12 +79,17 @@ fn main() -> int { return 0; }
 }
 
 func TestLayoutEngine_RecursiveReferenceStructIsSized(t *testing.T) {
+	// Sema rejects reference fields in user aggregates (they escape borrow
+	// tracking), but core @intrinsic views still declare them, so the layout
+	// engine must keep sizing a reference field as a pointer — that is what
+	// makes this recursive struct finite. allowErrors tolerates the sema
+	// rejection while the layout is computed.
 	sourceCode := `type Node = { next: &Node }
 
 @entrypoint
 fn main() -> int { return 0; }
 `
-	res := diagnoseSemaFromSource(t, sourceCode, false)
+	res := diagnoseSemaFromSource(t, sourceCode, true)
 	nodeType := resolveTypeSymbol(t, res, "Node")
 
 	le := layout.New(layout.X86_64LinuxGNU(), res.Sema.TypeInterner)

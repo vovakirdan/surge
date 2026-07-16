@@ -111,6 +111,9 @@ func (tc *typeChecker) typeExprArray(id ast.ExprID, span source.Span) types.Type
 		if tc.isTaskType(elemTy) {
 			tc.trackTaskPassedAsArg(elem)
 		}
+		if tc.rejectRefInAggregate(elemTy, tc.exprSpan(elem), "array element") {
+			return types.NoTypeID
+		}
 		if elemType == types.NoTypeID {
 			elemType = elemTy
 			continue
@@ -151,6 +154,10 @@ func (tc *typeChecker) typeExprMap(id ast.ExprID, span source.Span) types.TypeID
 		tc.consumeTempCandidate(entry.Value)
 		if tc.isTaskType(vType) {
 			tc.trackTaskPassedAsArg(entry.Value)
+		}
+		if tc.rejectRefInAggregate(kType, tc.exprSpan(entry.Key), "map key") ||
+			tc.rejectRefInAggregate(vType, tc.exprSpan(entry.Value), "map value") {
+			return types.NoTypeID
 		}
 		if keyType == types.NoTypeID {
 			keyType = kType
@@ -203,6 +210,9 @@ func (tc *typeChecker) typeExprTuple(id ast.ExprID) types.TypeID {
 		elemType := tc.typeExpr(elem)
 		tc.consumeTempCandidate(elem)
 		if elemType == types.NoTypeID {
+			allValid = false
+		}
+		if tc.rejectRefInAggregate(elemType, tc.exprSpan(elem), "tuple element") {
 			allValid = false
 		}
 		elems = append(elems, elemType)

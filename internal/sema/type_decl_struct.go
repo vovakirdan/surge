@@ -226,6 +226,9 @@ func (tc *typeChecker) resolveOwnStructFields(structDecl *ast.TypeStructDecl, sc
 			continue
 		}
 		fieldType := tc.resolveTypeExprWithScopeAllowPointer(field.Type, scope, allowRawPointer)
+		if !allowRawPointer {
+			tc.rejectRefInAggregate(fieldType, tc.typeSpan(field.Type), "struct field")
+		}
 		infos := tc.collectAttrs(field.AttrStart, field.AttrCount)
 		fields = append(fields, types.StructField{
 			Name:   field.Name,

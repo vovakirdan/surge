@@ -313,6 +313,9 @@ func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.Typ
 	span := tc.exprSpan(expr)
 	expectedLabel := tc.typeLabel(expected)
 	actualLabel := tc.typeLabel(actual)
+	if tc.reportBorrowIntoOwnedParam(expected, actual, expr) {
+		return
+	}
 	if !allowImplicitTo {
 		tc.report(diag.SemaTypeMismatch, span, "expected %s, got %s", expectedLabel, actualLabel)
 		return
@@ -328,6 +331,71 @@ func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.Typ
 	tc.report(diag.SemaTypeMismatch, span,
 		"expected %s, got %s; no implicit __to(%s, %s) -> %s",
 		expectedLabel, actualLabel, actualLabel, expectedLabel, expectedLabel)
+}
+
+// reportBorrowIntoOwnedParam explains the one mismatch a plain "expected X,
+// got &X" line hides: the parameter takes OWNERSHIP, so binding a borrow to it
+// would let callee and caller free the same value. Reports and returns true
+// only for that shape (borrow of a non-Copy value against its owned type).
+func (tc *typeChecker) reportBorrowIntoOwnedParam(expected, actual types.TypeID, expr ast.ExprID) bool {
+	return tc.reportBorrowIntoOwned(expected, actual, expr, "this parameter", "the callee")
+}
+
+// reportBorrowIntoOwned is the shared engine: role names the owning
+// destination ("this parameter", "field 'x'"), freer names who frees it.
+func (tc *typeChecker) reportBorrowIntoOwned(expected, actual types.TypeID, expr ast.ExprID, role, freer string) bool {
+	if tc.types == nil || expected == types.NoTypeID || actual == types.NoTypeID {
+		return false
+	}
+	actInfo, ok := tc.types.Lookup(tc.resolveAlias(actual))
+	if !ok || actInfo.Kind != types.KindReference {
+		return false
+	}
+	elem := tc.resolveAlias(actInfo.Elem)
+	if tc.isCopyType(elem) {
+		return false
+	}
+	expectedResolved := tc.resolveAlias(expected)
+	if expInfo, ok := tc.types.Lookup(expectedResolved); ok && expInfo.Kind == types.KindOwn {
+		expectedResolved = tc.resolveAlias(expInfo.Elem)
+	}
+	if expectedResolved != elem {
+		return false
+	}
+	span := tc.exprSpan(expr)
+	name := ""
+	inner := tc.unwrapGroupExpr(expr)
+	if node := tc.builder.Exprs.Get(inner); node != nil && node.Kind == ast.ExprUnary {
+		if unary := tc.builder.Exprs.Unaries.Get(uint32(node.Payload)); unary != nil {
+			if ident, ok := tc.builder.Exprs.Ident(unary.Operand); ok && ident != nil {
+				name = tc.lookupName(ident.Name)
+			}
+		}
+	}
+	elemLabel := tc.typeLabel(elem)
+	if tc.reporter == nil {
+		tc.report(diag.SemaBorrowIntoOwnedParam, span,
+			"%s takes ownership of a %s, but the value provided is only a borrow (%s)",
+			role, elemLabel, tc.typeLabel(actual))
+		return true
+	}
+	b := diag.ReportError(tc.reporter, diag.SemaBorrowIntoOwnedParam, span,
+		fmt.Sprintf("%s takes ownership of a %s, but the value provided is only a borrow (%s)",
+			role, elemLabel, tc.typeLabel(actual)))
+	if b == nil {
+		return true
+	}
+	b.WithNote(span, fmt.Sprintf(
+		"an owned value is freed by %s; binding a borrow to it would free the borrowed value twice", freer))
+	if name != "" {
+		b.WithNote(span, fmt.Sprintf(
+			"hint: pass '%s' itself to give the value away, or keep yours and pass a copy: %s.__clone()",
+			name, name))
+	} else {
+		b.WithNote(span, "hint: pass the value itself to give it away, or pass a copy via .__clone()")
+	}
+	b.Emit()
+	return true
 }
 
 func (tc *typeChecker) recordCallSymbol(callID ast.ExprID, symID symbols.SymbolID) {

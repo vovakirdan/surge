@@ -287,6 +287,9 @@ const (
 	SemaRetOutsideBlock                Code = 3134 // ret used outside block expression / async payload
 	SemaImplicitBlockValue             Code = 3135 // legacy implicit block value should use ret
 	SemaPartialPathMove                Code = 3136 // droppable value moved on some paths but not others
+	SemaBorrowIntoOwnedParam           Code = 3137 // borrow passed where the parameter takes ownership
+	SemaRefInAggregate                 Code = 3138 // reference stored in a struct field / tag payload / tuple / array
+	SemaBorrowEscapesReturn            Code = 3139 // borrow of a local returned from its function
 
 	// Ошибки I/O
 
@@ -533,6 +536,9 @@ var ( // todo расширить описания и использовать к
 		SemaLocalTaskNotSendable:           "local task handle is not sendable",
 		SemaImplicitBlockValue:             "legacy implicit block value should use 'ret'",
 		SemaPartialPathMove:                "droppable value moved on some paths but not others",
+		SemaBorrowIntoOwnedParam:           "borrow passed where the parameter takes ownership",
+		SemaRefInAggregate:                 "references cannot be stored in aggregates",
+		SemaBorrowEscapesReturn:            "borrow of a local escapes through return",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",
