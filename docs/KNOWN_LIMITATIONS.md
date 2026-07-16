@@ -15,6 +15,30 @@ See also:
 - `mut` in function parameters is not supported: `fn foo(mut a: int)` is rejected. Use a mutable local inside the function (`let mut x = a;`) or take a mutable reference (`a: &mut T`).
 - `parallel` and `signal` keywords are reserved but not supported yet (compile-time error).
 
+## References / Borrows
+
+References (`&T`, `&mut T`) are second-class values: they live in locals,
+parameters, and returns, never inside data. With lexical lifetimes and no
+lifetime parameters, a reference stored in data could outlive the value it
+borrows, so the compiler rejects (kindness-first diagnostics with owned/
+`.__clone()` alternatives):
+
+- Reference types in aggregates — struct fields, tag payloads, tuple/array
+  element types, and tuple/array/map literal elements (`SEM3138`). Store an
+  owned value instead, or pass the reference as a function parameter.
+  (`@intrinsic` core types such as `BytesView` are exempt; the runtime pins
+  their storage.)
+- Binding a borrow to an owned non-Copy destination — an owned function/method
+  parameter (`b.eat(&needle)` where `eat` takes `x: string`) or an owned
+  struct-literal field (`Box{ &l }`) (`SEM3137`). Both would make the callee
+  (or the aggregate's drop) and the caller free the same value.
+- Returning a borrow that roots in frame-local storage — `return &local`,
+  laundered `let r = &l; return r`, or `return &owned_param` (`SEM3139`).
+  Returning a `&T` parameter as `&T` stays legal.
+
+Not yet caught (future escape analysis): a local borrow deep-laundered through
+several call frames before being returned.
+
 ## Arrays
 
 - Nested arrays and multi-dimensional arrays are currently unreliable. Examples: `T[][]`, `T[N][M]`. Symptoms can include unexpected aliasing or incorrect copies. Prefer flattening (`T[N*M]` or `T[]`) with manual indexing.
