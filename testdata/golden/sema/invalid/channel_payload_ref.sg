@@ -1,0 +1,10 @@
+async fn sender(ch: &Channel<&string>) -> nothing {
+    let l = "inner".__clone();
+    ch.send(&l);
+    ch.close();
+}
+
+fn main() {
+    let ch = make_channel::<&string>(4:uint);
+    print("made");
+}

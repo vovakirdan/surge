@@ -1,0 +1,11 @@
+async fn worker(x: &string) -> int {
+    return len(x) to int;
+}
+
+@entrypoint
+fn main() {
+    let l = "x";
+    let t = spawn worker(&l);
+    let res = t.await();
+    print("ok");
+}

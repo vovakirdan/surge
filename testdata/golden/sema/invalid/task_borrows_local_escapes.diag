@@ -1,0 +1,2 @@
+error SEM3139 testdata/golden/sema/invalid/task_borrows_local_escapes.sg:7:12 cannot return this task: it borrows 'l', which is freed when the function returns while the task may still be running
+error SEM3139 testdata/golden/sema/invalid/task_borrows_local_escapes.sg:13:12 cannot return this task: it borrows 'l', which is freed when the function returns while the task may still be running

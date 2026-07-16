@@ -1,0 +1,21 @@
+async fn worker(x: &string) -> int {
+    return len(x) to int;
+}
+
+fn direct() -> Task<int> {
+    let l = "inner".__clone();
+    return spawn worker(&l);
+}
+
+fn laundered() -> Task<int> {
+    let l = "inner".__clone();
+    let t = spawn worker(&l);
+    return t;
+}
+
+@entrypoint
+fn main() {
+    let t = direct();
+    let res = t.await();
+    print("done");
+}
