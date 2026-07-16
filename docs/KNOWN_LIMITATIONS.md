@@ -35,9 +35,15 @@ borrows, so the compiler rejects (kindness-first diagnostics with owned/
 - Returning a borrow that roots in frame-local storage — `return &local`,
   laundered `let r = &l; return r`, or `return &owned_param` (`SEM3139`).
   Returning a `&T` parameter as `&T` stays legal.
+- References crossing task boundaries — `Channel<&T>` cannot be formed
+  ("channel payload"), a borrow cannot be sent through a channel, and a task
+  handle whose spawn borrowed frame-locals cannot be returned
+  (`return spawn worker(&l)` — the caller could await it after the local is
+  freed). Spawning with borrows and awaiting in the same function stays legal.
 
 Not yet caught (future escape analysis): a local borrow deep-laundered through
-several call frames before being returned.
+several call frames before being returned, and a local-borrowing task handle
+escaping via an argument or container rather than `return`.
 
 ## Arrays
 
