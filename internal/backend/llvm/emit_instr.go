@@ -63,7 +63,21 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	isString := isStringLike(typesIn, baseType)
 	elemType, dynamic, isArray := arrayElemType(typesIn, baseType)
 	dynArray := isArray && dynamic
-	composite := fe.emitter.isBoxedComposite(baseType) && fe.emitter.typeOwnsHeap(baseType)
+	composite := false
+	if fe.emitter.isBoxedComposite(baseType) {
+		composite = fe.emitter.typeOwnsHeap(baseType)
+		if !composite && isUnionValueType(typesIn, baseType) {
+			// A tag-union value with no heap-owning payload still owns its
+			// heap box: without this branch every discarded union temp (an
+			// awaited TaskResult, an Option<int> iterator step, ...) leaks
+			// its box. The glue for such a type is a null check plus the
+			// box free. Skip types whose layout the backend cannot size —
+			// their drop stays the historical no-op.
+			if _, layoutErr := fe.emitter.layoutOf(resolveValueType(typesIn, baseType)); layoutErr == nil {
+				composite = true
+			}
+		}
+	}
 	if !isString && !dynArray && !composite {
 		return nil
 	}

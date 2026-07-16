@@ -10,6 +10,52 @@ import (
 	"surge/internal/types"
 )
 
+// emitAsyncStateFreeIntrinsic lowers mir.AsyncStateFreeBuiltin: free the
+// consumed async resume boxes (payload union box + state struct box) and
+// null their slots so later reads of the same slot hand the runtime a null
+// it never dereferences. Frees are shallow by design — the payload's fields
+// were already unpacked (copied) into locals, so only the boxes themselves
+// are dead.
+func (fe *funcEmitter) emitAsyncStateFreeIntrinsic(call *mir.CallInstr) (bool, error) {
+	if call == nil || call.Callee.Kind != mir.CalleeValue || call.Callee.Name != mir.AsyncStateFreeBuiltin {
+		return false, nil
+	}
+	for i := range call.Args {
+		arg := &call.Args[i]
+		if arg.Kind != mir.OperandCopy && arg.Kind != mir.OperandMove {
+			continue
+		}
+		baseType, err := fe.placeBaseType(arg.Place)
+		if err != nil || baseType == types.NoTypeID {
+			continue
+		}
+		layoutInfo, err := fe.emitter.layoutOf(resolveValueType(fe.emitter.types, baseType))
+		if err != nil {
+			continue
+		}
+		size := layoutInfo.Size
+		align := layoutInfo.Align
+		if size <= 0 {
+			size = 1
+		}
+		if align <= 0 {
+			align = 1
+		}
+		ptr, ptrTy, err := fe.emitPlacePtr(arg.Place)
+		if err != nil {
+			return true, err
+		}
+		if ptrTy != "ptr" {
+			continue
+		}
+		handle := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
+		fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
+	}
+	return true, nil
+}
+
 func (fe *funcEmitter) taskResultInfo(resultType types.TypeID) (successIdx int, payloadType types.TypeID, err error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return -1, types.NoTypeID, fmt.Errorf("missing type info")

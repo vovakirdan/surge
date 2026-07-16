@@ -9,6 +9,28 @@ import (
 	"surge/internal/types"
 )
 
+// AsyncStateFreeBuiltin releases a consumed async resume frame: the state
+// box handed out by __task_state plus the payload box its locals were
+// unpacked from. The native backend lowers it to rt_free of both boxes; the
+// VM's garbage collector reclaims them automatically, so it treats the call
+// as a no-op. Without this release every suspend leaks one state+payload
+// pair per poll.
+const AsyncStateFreeBuiltin = "__async_state_free"
+
+// asyncStateFreeInstr builds the release call for the current invocation's
+// state and payload boxes. Operands are copies: the VM must keep its
+// bookkeeping untouched (the call is a no-op there), and the native backend
+// nulls the slots itself after freeing.
+func asyncStateFreeInstr(payloadLocal, stateLocal LocalID) Instr {
+	return Instr{Kind: InstrCall, Call: CallInstr{
+		Callee: Callee{Kind: CalleeValue, Name: AsyncStateFreeBuiltin},
+		Args: []Operand{
+			{Kind: OperandCopy, Place: Place{Local: payloadLocal}},
+			{Kind: OperandCopy, Place: Place{Local: stateLocal}},
+		},
+	}}
+}
+
 // stateVariant describes one variant of the async state union.
 type stateVariant struct {
 	name     string
@@ -121,6 +143,11 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 		pendingBB := newBlock(f)
 		sites[i].pendingBB = pendingBB
 
+		// The boxes this invocation resumed from are dead once the live
+		// locals are repacked below; release them before the rebuild
+		// overwrites the only remaining handles.
+		appendInstr(f, pendingBB, asyncStateFreeInstr(payloadLocal, stateLocal))
+
 		args := make([]Operand, 0, len(variants[variantIdx].locals))
 		for _, localID := range variants[variantIdx].locals {
 			args = append(args, operandForLocal(f, localID))
@@ -189,7 +216,7 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 }
 
 // rewriteAsyncReturns transforms return terminators into AsyncReturn.
-func rewriteAsyncReturns(f *Func, stateLocal LocalID) {
+func rewriteAsyncReturns(f *Func, stateLocal, payloadLocal LocalID) {
 	if f == nil {
 		return
 	}
@@ -199,11 +226,20 @@ func rewriteAsyncReturns(f *Func, stateLocal LocalID) {
 			continue
 		}
 		if bb.Term.Return.Cancelled {
+			// A cancelled return's state may be re-parked and re-entered by
+			// the runtime while scope children drain (apply_poll_outcome
+			// stores it back into task->state), so its boxes must stay
+			// alive; the pair is abandoned once the task completes.
 			bb.Term = Terminator{Kind: TermAsyncReturnCancelled, AsyncReturnCancelled: AsyncReturnCancelledTerm{
 				State: operandForLocal(f, stateLocal),
 			}}
 			continue
 		}
+		// A successful completion never re-enters this state: mark_done
+		// clears task->state without reading the returned pointer. Release
+		// the resume boxes; the native lowering nulls the state slot, so the
+		// AsyncReturn terminator hands the runtime a null it never reads.
+		bb.Instrs = append(bb.Instrs, asyncStateFreeInstr(payloadLocal, stateLocal))
 		newTerm := Terminator{Kind: TermAsyncReturn, AsyncReturn: AsyncReturnTerm{
 			State: operandForLocal(f, stateLocal),
 		}}

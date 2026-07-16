@@ -95,6 +95,18 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	}
 }
 
+// isUnionValueType reports whether the value type is a tag union (whose
+// runtime representation is always a heap box, even when no payload owns
+// further heap).
+func isUnionValueType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	id = resolveValueType(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	return ok && tt.Kind == types.KindUnion
+}
+
 // isBoxedComposite reports whether the type is a heap-boxed composite
 // whose drop is a generated glue function (as opposed to a leaf).
 func (e *Emitter) isBoxedComposite(id types.TypeID) bool {
