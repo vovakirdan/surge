@@ -53,6 +53,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 				}
 			}
 			methodName := tc.lookupName(member.Field)
+			twoPhase := tc.beginTwoPhaseArgs(call.Args)
 			argTypes := make([]types.TypeID, 0, len(call.Args))
 			argExprs := make([]ast.ExprID, 0, len(call.Args))
 			for _, arg := range call.Args {
@@ -60,6 +61,10 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 				argExprs = append(argExprs, arg.Value)
 				tc.trackTaskPassedAsArg(arg.Value)
 			}
+			// All method arguments are evaluated; reserved `&mut` argument
+			// borrows become exclusive before the receiver takes its own
+			// borrow, so receiver-vs-argument aliasing still reports.
+			tc.activateTwoPhaseArgs(twoPhase)
 			if !receiverIsType && methodName == "clone" && len(call.Args) == 0 {
 				payload := tc.taskPayloadType(receiverType)
 				if tc.isFarTaskType(payload) {

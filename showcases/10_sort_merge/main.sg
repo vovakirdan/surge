@@ -53,14 +53,11 @@ fn arr_to_str(a: &int[]) -> string {
 @entrypoint
 fn main() {
     let mut a: int[] = [9, 1, 8, 2, 7, 3, 6, 4, 5];
-    let n = len(a) to int;
-    let mut tmp: int[] = Array::<int>::with_len(n to uint);
+    let mut tmp: int[] = Array::<int>::with_len(len(a));
 
     print("Before:");
     print(arr_to_str(&a));
-    // `len(a)` is read into `n` first: the borrow checker rejects a shared
-    // borrow (`len(a)`) sharing a call with the `&mut a` argument.
-    merge_sort(&mut a, &mut tmp, 0, n);
+    merge_sort(&mut a, &mut tmp, 0, len(a) to int);
     print("After:");
     print(arr_to_str(&a));
 }

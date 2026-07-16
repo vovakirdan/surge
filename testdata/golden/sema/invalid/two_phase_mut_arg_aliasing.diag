@@ -1,0 +1,5 @@
+error SEM3018 testdata/golden/sema/invalid/two_phase_mut_arg_aliasing.sg:19:15 cannot take mutable borrow of 'a' while a shared borrow is active
+error SEM3018 testdata/golden/sema/invalid/two_phase_mut_arg_aliasing.sg:20:23 cannot take mutable borrow of 'a' while another mutable borrow is active
+error SEM3018 testdata/golden/sema/invalid/two_phase_mut_arg_aliasing.sg:21:15 cannot take mutable borrow of 'a' while a shared borrow is active
+error SEM3018 testdata/golden/sema/invalid/two_phase_mut_arg_aliasing.sg:22:14 cannot take mutable borrow of 'a' while a shared borrow is active
+error SEM3020 testdata/golden/sema/invalid/two_phase_mut_arg_aliasing.sg:22:22 cannot move 'a' while it is shared-borrowed

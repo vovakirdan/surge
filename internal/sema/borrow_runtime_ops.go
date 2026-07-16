@@ -202,6 +202,30 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 		}
 		kind = BorrowMut
 	}
+	// A direct `&mut` call argument reserves instead of activating: sibling
+	// arguments may still read the place until the whole list is evaluated
+	// (two_phase_borrow.go). Activation runs when the call's arguments end.
+	if kind == BorrowMut {
+		if frame := tc.reserveTwoPhaseBorrow(exprID); frame != nil {
+			bid, issue := tc.borrow.BeginBorrowReserved(exprID, span, place, scope, parent)
+			tc.recordBorrowEvent(&BorrowEvent{
+				Kind:        BorrowEvBorrowStart,
+				Borrow:      bid,
+				BorrowKind:  kind,
+				Place:       place,
+				Span:        span,
+				Scope:       scope,
+				Issue:       issue.Kind,
+				IssueBorrow: issue.Borrow,
+			})
+			if issue.Kind != BorrowIssueNone {
+				tc.reportBorrowConflict(place, span, issue, kind)
+				return
+			}
+			frame.reserved = append(frame.reserved, bid)
+			return
+		}
+	}
 	bid, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope, parent)
 	tc.recordBorrowEvent(&BorrowEvent{
 		Kind:        BorrowEvBorrowStart,

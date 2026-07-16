@@ -1,0 +1,24 @@
+fn take_refs(dst: &mut int[], src: &int[]) -> nothing {
+    dst[0] = src[1];
+}
+
+fn take_muts(x: &mut int[], y: &mut int[]) -> nothing {
+    x[0] = 1;
+}
+
+fn take_mix(dst: &mut int[], src: int[]) -> nothing {
+    dst[0] = src[0];
+}
+
+fn ident(x: &int[]) -> &int[] {
+    return x;
+}
+
+fn main() {
+    let mut a: int[] = [1, 2, 3];
+    take_refs(&mut a, &a);
+    take_muts(&mut a, &mut a);
+    take_refs(&mut a, ident(&a));
+    take_mix(&mut a, a);
+    print("bad");
+}

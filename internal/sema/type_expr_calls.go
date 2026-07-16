@@ -35,6 +35,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		return types.NoTypeID
 	}
 	tc.typeExpr(call.Target)
+	twoPhase := tc.beginTwoPhaseArgs(call.Args)
 	args := make([]callArg, 0, len(call.Args))
 	for _, arg := range call.Args {
 		argTy := tc.typeExpr(arg.Value)
@@ -46,6 +47,10 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		})
 		tc.trackTaskPassedAsArg(arg.Value) // Track Task ownership transfer to callee
 	}
+	// Every argument is evaluated: reserved `&mut` argument borrows become
+	// exclusive here, and anything still borrowing their places is a real
+	// conflict with the callee's access.
+	tc.activateTwoPhaseArgs(twoPhase)
 	if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
 		if module := tc.moduleSymbolForExpr(member.Target); module != nil {
 			typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)

@@ -1,0 +1,76 @@
+two_phase_mut_arg_sibling_reads.sg (span: 1:1-33:1)
+├─ Item[0]: Type (span: 1:1-1:22)
+│  ├─ Name: Box
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: v: int
+├─ Item[1]: Extern (span: 3:1-7:2)
+│  ├─ Target: Box
+│  ├─ Members:
+│  │  └─ Fn[0]: fill
+│  │     ├─ Params: (self: &Box, dst: &mut int[], n: int)
+│  │     ├─ Return: nothing
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 4:65-6:6)
+│  │        └─ Stmt[0]: Expr (span: 5:9-5:20)
+│  │           └─ Expr: expr#5: (dst[0] = n)
+├─ Item[2]: Fn (span: 9:1-11:2)
+│  ├─ Name: take_two
+│  ├─ Params: (dst: &mut int[], n: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:49-11:2)
+│        └─ Stmt[0]: Expr (span: 10:5-10:16)
+│           └─ Expr: expr#10: (dst[0] = n)
+├─ Item[3]: Fn (span: 13:1-15:2)
+│  ├─ Name: twice
+│  ├─ Params: (n: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:25-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:18)
+│           └─ Expr: expr#13: (n * 2)
+├─ Item[4]: Fn (span: 17:1-20:2)
+│  ├─ Name: merge
+│  ├─ Params: (dst: &mut int[], tmp: &mut int[], lo: int, hi: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 17:73-20:2)
+│        ├─ Stmt[0]: Expr (span: 18:5-18:22)
+│        │  └─ Expr: expr#20: (dst[0] = ((lo + hi)))
+│        └─ Stmt[1]: Expr (span: 19:5-19:16)
+│           └─ Expr: expr#25: (tmp[0] = 1)
+└─ Item[5]: Fn (span: 22:1-32:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 22:11-32:2)
+         ├─ Stmt[0]: Let (span: 23:5-23:34)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#29: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 24:5-24:34)
+         │  ├─ Name: t
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#33: <ExprKind(8)>
+         ├─ Stmt[2]: Expr (span: 25:5-25:37)
+         │  └─ Expr: expr#41: take_two(&mut a, len(a) to int)
+         ├─ Stmt[3]: Expr (span: 26:5-26:44)
+         │  └─ Expr: expr#51: take_two(&mut a, twice(len(a) to int))
+         ├─ Stmt[4]: Expr (span: 27:5-27:45)
+         │  └─ Expr: expr#62: merge(&mut a, &mut t, 0, len(a) to int)
+         ├─ Stmt[5]: Expr (span: 28:5-28:27)
+         │  └─ Expr: expr#69: a.push(len(a) to int)
+         ├─ Stmt[6]: Let (span: 29:5-29:22)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#71: <ExprKind(22)>
+         ├─ Stmt[7]: Expr (span: 30:5-30:35)
+         │  └─ Expr: expr#80: b.fill(&mut a, len(a) to int)
+         └─ Stmt[8]: Expr (span: 31:5-31:17)
+            └─ Expr: expr#83: print("ok")

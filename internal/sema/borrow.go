@@ -72,6 +72,11 @@ type BorrowInfo struct {
 	Place Place
 	Span  source.Span
 	Life  Interval
+	// Reserved marks a two-phase mutable ARGUMENT borrow: until Activate
+	// upgrades it, the borrow lives in the place's shared list and conflicts
+	// like a shared borrow (blocks other muts, writes, and moves; coexists
+	// with shared reads), so a sibling argument may still read the place.
+	Reserved bool
 }
 
 type borrowState struct {
@@ -213,6 +218,98 @@ func (bt *BorrowTable) BeginBorrow(expr ast.ExprID, span source.Span, kind Borro
 	return id, BorrowIssue{}
 }
 
+// BeginBorrowReserved registers a two-phase mutable argument borrow. Until
+// Activate runs, the borrow is held in the shared list (so writes, moves,
+// and other mutable borrows of the place are blocked, while shared reads
+// stay legal). Admission still rejects an active mutable borrow and any
+// other reservation of an overlapping place — two `&mut` arguments to one
+// call alias the moment the callee runs.
+func (bt *BorrowTable) BeginBorrowReserved(expr ast.ExprID, span source.Span, place Place, scope symbols.ScopeID, parent BorrowID) (BorrowID, BorrowIssue) {
+	if bt == nil || !place.IsValid() || !scope.IsValid() || !expr.IsValid() {
+		return NoBorrowID, BorrowIssue{}
+	}
+	combined := bt.combinedState(place)
+	if combined.mut != NoBorrowID && combined.mut != parent {
+		return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
+	}
+	for _, sid := range combined.shared {
+		if info := bt.Info(sid); info != nil && info.Reserved {
+			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: sid}
+		}
+	}
+	state := bt.placeState[place]
+	value, err := safecast.Conv[uint32](len(bt.infos))
+	if err != nil {
+		panic(fmt.Errorf("borrow table overflow: %w", err))
+	}
+	id := BorrowID(value)
+	info := BorrowInfo{
+		ID:    id,
+		Kind:  BorrowMut,
+		Place: place,
+		Span:  span,
+		Life: Interval{
+			FromExpr: expr,
+			ToScope:  scope,
+		},
+		Reserved: true,
+	}
+	bt.infos = append(bt.infos, info)
+	state.shared = append(state.shared, id)
+	bt.placeState[place] = state
+	bt.exprBorrow[expr] = id
+	bt.scopeBorrows[scope] = append(bt.scopeBorrows[scope], id)
+	return id, BorrowIssue{}
+}
+
+// Activate upgrades a reserved two-phase borrow to a live exclusive borrow.
+// It runs when every argument of the reserving call has been evaluated:
+// sibling temporaries have released their loans by then, so any borrow the
+// check still sees is genuinely alive at the call and must reject the
+// exclusive hand-off.
+func (bt *BorrowTable) Activate(id BorrowID) BorrowIssue {
+	if bt == nil || id == NoBorrowID || int(id) >= len(bt.infos) {
+		return BorrowIssue{}
+	}
+	info := &bt.infos[id]
+	if !info.Reserved || !info.Place.IsValid() {
+		return BorrowIssue{}
+	}
+	state := bt.placeState[info.Place]
+	state.shared = dropBorrowID(state.shared, id)
+	bt.placeState[info.Place] = state
+	combined := bt.combinedState(info.Place)
+	if combined.mut != NoBorrowID {
+		// Leave the reservation dissolved; the conflict is reported and the
+		// exclusive slot stays with its current holder.
+		bt.detachBorrow(id)
+		return BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
+	}
+	if len(combined.shared) > 0 {
+		bt.detachBorrow(id)
+		return BorrowIssue{Kind: BorrowIssueConflictShared, Borrow: combined.shared[0]}
+	}
+	info.Reserved = false
+	state = bt.placeState[info.Place]
+	state.mut = id
+	bt.placeState[info.Place] = state
+	return BorrowIssue{}
+}
+
+// detachBorrow removes a dissolved reservation's bookkeeping (expr and scope
+// registrations) after Activate failed, so scope teardown does not double-
+// remove it.
+func (bt *BorrowTable) detachBorrow(id BorrowID) {
+	info := bt.Info(id)
+	if info == nil {
+		return
+	}
+	delete(bt.exprBorrow, info.Life.FromExpr)
+	if scopeList := bt.scopeBorrows[info.Life.ToScope]; len(scopeList) > 0 {
+		bt.scopeBorrows[info.Life.ToScope] = dropBorrowID(scopeList, id)
+	}
+}
+
 // MutationAllowed verifies whether the place can be mutated.
 func (bt *BorrowTable) MutationAllowed(place Place) BorrowIssue {
 	if bt == nil || !place.IsValid() {
@@ -264,10 +361,13 @@ func (bt *BorrowTable) EndScope(scope symbols.ScopeID) {
 			continue
 		}
 		state := bt.placeState[info.Place]
-		switch info.Kind {
-		case BorrowShared:
+		switch {
+		case info.Reserved:
+			// A never-activated reservation still lives in the shared list.
 			state.shared = dropBorrowID(state.shared, id)
-		case BorrowMut:
+		case info.Kind == BorrowShared:
+			state.shared = dropBorrowID(state.shared, id)
+		case info.Kind == BorrowMut:
 			if state.mut == id {
 				state.mut = NoBorrowID
 			}
@@ -429,10 +529,13 @@ func (bt *BorrowTable) DropBorrow(id BorrowID) {
 		return
 	}
 	state := bt.placeState[info.Place]
-	switch info.Kind {
-	case BorrowShared:
+	switch {
+	case info.Reserved:
+		// A never-activated reservation still lives in the shared list.
 		state.shared = dropBorrowID(state.shared, id)
-	case BorrowMut:
+	case info.Kind == BorrowShared:
+		state.shared = dropBorrowID(state.shared, id)
+	case info.Kind == BorrowMut:
 		if state.mut == id {
 			state.mut = NoBorrowID
 		}

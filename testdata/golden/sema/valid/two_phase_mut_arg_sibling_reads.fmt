@@ -1,0 +1,32 @@
+type Box = { v: int }
+
+extern<Box> {
+    pub fn fill(self: &Box, dst: &mut int[], n: int) -> nothing {
+        dst[0] = n;
+    }
+}
+
+fn take_two(dst: &mut int[], n: int) -> nothing {
+    dst[0] = n;
+}
+
+fn twice(n: int) -> int {
+    return n * 2;
+}
+
+fn merge(dst: &mut int[], tmp: &mut int[], lo: int, hi: int) -> nothing {
+    dst[0] = lo + hi;
+    tmp[0] = 1;
+}
+
+fn main() {
+    let mut a: int[] = [1, 2, 3];
+    let mut t: int[] = [0, 0, 0];
+    take_two(&mut a, len(a) to int);
+    take_two(&mut a, twice(len(a) to int));
+    merge(&mut a, &mut t, 0, len(a) to int);
+    a.push(len(a) to int);
+    let b = Box{ 1 };
+    b.fill(&mut a, len(a) to int);
+    print("ok");
+}

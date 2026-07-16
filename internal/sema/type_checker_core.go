@@ -44,8 +44,12 @@ type typeChecker struct {
 	borrow         *BorrowTable
 	borrowEvents   []BorrowEvent
 	borrowBindings map[BorrowID]symbols.SymbolID
-	copyTypes      map[types.TypeID]struct{}
-	insts          InstantiationRecorder
+	// twoPhaseEligible marks direct `&mut` argument expressions of the call
+	// whose argument list is currently being checked; their borrows reserve
+	// instead of activating (see two_phase_borrow.go).
+	twoPhaseEligible map[ast.ExprID]*twoPhaseFrame
+	copyTypes        map[types.TypeID]struct{}
+	insts            InstantiationRecorder
 
 	tracer    trace.Tracer // трассировщик для отладки
 	exprDepth int          // глубина рекурсии для typeExpr

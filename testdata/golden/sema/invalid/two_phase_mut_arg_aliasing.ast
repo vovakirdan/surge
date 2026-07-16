@@ -1,0 +1,54 @@
+two_phase_mut_arg_aliasing.sg (span: 1:1-25:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: take_refs
+│  ├─ Params: (dst: &mut int[], src: &int[])
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:55-3:2)
+│        └─ Stmt[0]: Expr (span: 2:5-2:21)
+│           └─ Expr: expr#7: (dst[0] = src[1])
+├─ Item[1]: Fn (span: 5:1-7:2)
+│  ├─ Name: take_muts
+│  ├─ Params: (x: &mut int[], y: &mut int[])
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:55-7:2)
+│        └─ Stmt[0]: Expr (span: 6:5-6:14)
+│           └─ Expr: expr#12: (x[0] = 1)
+├─ Item[2]: Fn (span: 9:1-11:2)
+│  ├─ Name: take_mix
+│  ├─ Params: (dst: &mut int[], src: int[])
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:53-11:2)
+│        └─ Stmt[0]: Expr (span: 10:5-10:21)
+│           └─ Expr: expr#19: (dst[0] = src[0])
+├─ Item[3]: Fn (span: 13:1-15:2)
+│  ├─ Name: ident
+│  ├─ Params: (x: &int[])
+│  ├─ Return: &int[]
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:31-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:14)
+│           └─ Expr: expr#20: x
+└─ Item[4]: Fn (span: 17:1-24:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:11-24:2)
+         ├─ Stmt[0]: Let (span: 18:5-18:34)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#24: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 19:5-19:27)
+         │  └─ Expr: expr#30: take_refs(&mut a, &a)
+         ├─ Stmt[2]: Expr (span: 20:5-20:31)
+         │  └─ Expr: expr#36: take_muts(&mut a, &mut a)
+         ├─ Stmt[3]: Expr (span: 21:5-21:34)
+         │  └─ Expr: expr#44: take_refs(&mut a, ident(&a))
+         ├─ Stmt[4]: Expr (span: 22:5-22:25)
+         │  └─ Expr: expr#49: take_mix(&mut a, a)
+         └─ Stmt[5]: Expr (span: 23:5-23:18)
+            └─ Expr: expr#52: print("bad")
