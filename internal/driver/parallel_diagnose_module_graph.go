@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -91,6 +92,13 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 
 	handledFiles := make(map[string]struct{})
 	records := make(map[string]*moduleRecord, len(results))
+	// One physical directory must compile into ONE record: the walk keys a
+	// module relative to the walk root ("time") while an import spells it
+	// from the repo root ("stdlib/time"). Compiling both re-registers every
+	// exported type in the shared interner, and consumers end up holding two
+	// TypeIDs for one nominal type ("expected Duration, got Duration").
+	moduleDirOwner := make(map[string]string)
+	dirIdentity := moduleIdentityForFiles
 
 	dirKeys := make([]string, 0, len(moduleDirs))
 	for dirKey := range moduleDirs {
@@ -124,6 +132,9 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 		}
 		rec.Broken, rec.FirstErr = moduleStatus(bag)
 		records[meta.Path] = rec
+		if id := dirIdentity(files); id != "" {
+			moduleDirOwner[id] = meta.Path
+		}
 		cache.Put(meta, rec.Broken, rec.FirstErr)
 		for _, file := range files {
 			if file == nil {
@@ -168,6 +179,11 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 		rec.Broken, rec.FirstErr = moduleStatus(bag)
 		if _, exists := records[meta.Path]; !exists {
 			records[meta.Path] = rec
+			if id := dirIdentity(rec.Files); id != "" {
+				if _, owned := moduleDirOwner[id]; !owned {
+					moduleDirOwner[id] = meta.Path
+				}
+			}
 		}
 		cache.Put(meta, rec.Broken, rec.FirstErr)
 	}
@@ -208,6 +224,23 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 			if _, miss := missing[imp.Path]; miss {
 				continue
 			}
+			// A differently-spelled import of an already-compiled module
+			// reuses that record instead of compiling the module again.
+			if id := moduleImportIdentity(imp.Path, baseDir, stdlibRoot); id != "" {
+				if owner, ok := moduleDirOwner[id]; ok && owner != "" {
+					importedPath := normalizeExportsKey(imp.Path)
+					if importedPath != "" && importedPath != normalizeExportsKey(owner) {
+						aliasExports[importedPath] = owner
+						rec.Meta.Imports[i].Path = owner
+					}
+					// No processedImports mark: EVERY importer of this
+					// directory needs its own import-path rewrite.
+					if _, ok := seen[owner]; !ok {
+						queue = append(queue, owner)
+					}
+					continue
+				}
+			}
 			depRec, err := analyzeDependencyModule(ctx, fileSet, imp.Path, baseDir, stdlibRoot, opts, cache, sharedStrings)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
@@ -241,6 +274,11 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 			}
 			processedImports[imp.Path] = struct{}{}
 			records[depRec.Meta.Path] = depRec
+			if id := dirIdentity(depRec.Files); id != "" {
+				if _, ok := moduleDirOwner[id]; !ok {
+					moduleDirOwner[id] = depRec.Meta.Path
+				}
+			}
 			if _, ok := seen[depRec.Meta.Path]; !ok {
 				queue = append(queue, depRec.Meta.Path)
 			}
@@ -294,7 +332,7 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 	}
 	dag.ReportBrokenDeps(idx, slots)
 
-	exports := collectModuleExports(ctx, records, idx, topo, baseDir, "", typeInterner, opts)
+	exports := collectModuleExports(ctx, records, idx, topo, baseDir, "", typeInterner, opts, aliasExports)
 	for alias, target := range aliasExports {
 		if exp, ok := exports[normalizeExportsKey(target)]; ok {
 			exports[normalizeExportsKey(alias)] = exp
@@ -362,6 +400,88 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 	}
 
 	return nil
+}
+
+// moduleIdentityForFiles keys a module record by its physical location, so
+// two spellings of one module ("time" from the walk root, "stdlib/time" from
+// an import) are recognized as the same module. A directory-shaped module is
+// keyed by its directory; a FILE-shaped module (one .sg among siblings, e.g.
+// main.sg importing ./point) is keyed by its file, or sibling file-modules
+// in one directory would collapse into each other.
+func moduleIdentityForFiles(files []*source.File) string {
+	var first string
+	count := 0
+	for _, f := range files {
+		if f == nil || f.Path == "" {
+			continue
+		}
+		if first == "" {
+			first = f.Path
+		}
+		count++
+	}
+	if first == "" {
+		return ""
+	}
+	dir := filepath.Dir(first)
+	if count == 1 && !dirHasSingleSurgeFile(dir) {
+		return absSlashPath(first)
+	}
+	return absSlashPath(dir)
+}
+
+// moduleImportIdentity computes the same identity for an IMPORT path, using
+// the same base ordering as resolveModuleDir (stdlib root first for stdlib
+// paths, then the graph base). Empty means "unknown — compile normally".
+func moduleImportIdentity(modulePath, baseDir, stdlibRoot string) string {
+	bases := make([]string, 0, 2)
+	if stdlibRoot != "" && isStdlibModulePath(modulePath) {
+		bases = append(bases, stdlibRoot)
+	}
+	bases = append(bases, baseDir)
+	for _, base := range bases {
+		filePath := modulePathToFilePath(base, modulePath)
+		if st, err := os.Stat(filePath); err == nil && !st.IsDir() {
+			dir := filepath.Dir(filePath)
+			if dirHasSingleSurgeFile(dir) {
+				return absSlashPath(dir)
+			}
+			return absSlashPath(filePath)
+		}
+		dirCandidate := filepath.FromSlash(modulePath)
+		if base != "" {
+			dirCandidate = filepath.Join(base, dirCandidate)
+		}
+		if st, err := os.Stat(dirCandidate); err == nil && st.IsDir() {
+			return absSlashPath(dirCandidate)
+		}
+	}
+	return ""
+}
+
+func absSlashPath(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		return filepath.ToSlash(abs)
+	}
+	return filepath.ToSlash(p)
+}
+
+func dirHasSingleSurgeFile(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	count := 0
+	for _, ent := range entries {
+		if ent.IsDir() || filepath.Ext(ent.Name()) != ".sg" {
+			continue
+		}
+		count++
+		if count > 1 {
+			return false
+		}
+	}
+	return count == 1
 }
 
 func resultPath(fileSet *source.FileSet, res *DiagnoseDirResult) string {

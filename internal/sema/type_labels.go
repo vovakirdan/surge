@@ -550,12 +550,7 @@ func (tc *typeChecker) resolveQualifiedTypeKey(key string) types.TypeID {
 		}
 	}
 	if modulePath == "" {
-		for key := range tc.exports {
-			if strings.HasSuffix(key, "/"+moduleName) || key == moduleName {
-				modulePath = key
-				break
-			}
-		}
+		modulePath = tc.moduleKeyByAliasSuffix(moduleName)
 	}
 	if modulePath == "" {
 		return types.NoTypeID

@@ -260,10 +260,30 @@ func collectModuleExports(
 	rootPath string,
 	typeInterner *types.Interner,
 	opts *DiagnoseOptions,
+	aliases map[string]string,
 ) map[string]*symbols.ModuleExports {
 	exports := collectedExports(records)
 	if exports == nil {
 		exports = make(map[string]*symbols.ModuleExports, len(records))
+	}
+	// Alternate spellings of a module ("stdlib/time" for "time") must see the
+	// exports as soon as the owning module is compiled, or consumers compiled
+	// later in topo order fail with "module has no exports".
+	aliasesFor := make(map[string][]string, len(aliases))
+	for alias, target := range aliases {
+		key := normalizeExportsKey(target)
+		aliasesFor[key] = append(aliasesFor[key], normalizeExportsKey(alias))
+	}
+	applyAliases := func(norm string) {
+		exp := exports[norm]
+		if exp == nil {
+			return
+		}
+		for _, alias := range aliasesFor[norm] {
+			if alias != "" && alias != norm {
+				exports[alias] = exp
+			}
+		}
 	}
 	if len(records) > 0 {
 		coreRecords := make(map[string]*moduleRecord)
@@ -294,6 +314,7 @@ func collectModuleExports(
 				}
 				if exp := resolveModuleRecord(ctx, rec, baseDir, exports, typeInterner, opts, nil); exp != nil {
 					exports[key] = exp
+					applyAliases(key)
 				}
 			}
 		}
@@ -313,6 +334,7 @@ func collectModuleExports(
 			}
 			if exp := resolveModuleRecord(ctx, rec, baseDir, exports, typeInterner, opts, nil); exp != nil {
 				exports[normPath] = exp
+				applyAliases(normPath)
 			}
 		}
 	}
@@ -324,6 +346,7 @@ func collectModuleExports(
 		}
 		if rec != nil && rec.Exports != nil {
 			exports[normPath] = rec.Exports
+			applyAliases(normPath)
 		}
 	}
 	markRuntimePlacementType(exports, typeInterner)

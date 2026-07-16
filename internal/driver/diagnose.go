@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"surge/internal/ast"
@@ -560,6 +559,13 @@ func runModuleGraph(
 	seen := make(map[string]struct{})
 	processedImports := make(map[string]struct{})
 	aliasExports := make(map[string]string)
+	// One physical directory compiles into ONE record even when imports
+	// spell its path differently; recompiling re-registers exported types
+	// in the shared interner and splits one nominal type into two TypeIDs.
+	moduleDirOwner := make(map[string]string)
+	if id := moduleIdentityForFiles(rootFiles); id != "" {
+		moduleDirOwner[id] = meta.Path
+	}
 	queue := []string{meta.Path}
 
 	for len(queue) > 0 {
@@ -582,6 +588,21 @@ func runModuleGraph(
 			}
 			if _, miss := missing[imp.Path]; miss {
 				continue
+			}
+			if id := moduleImportIdentity(imp.Path, baseDir, stdlibRoot); id != "" {
+				if owner, ok := moduleDirOwner[id]; ok && owner != "" {
+					importedPath := normalizeExportsKey(imp.Path)
+					if importedPath != "" && importedPath != normalizeExportsKey(owner) {
+						aliasExports[importedPath] = owner
+						rec.Meta.Imports[i].Path = owner
+					}
+					// No processedImports mark: every importer needs its
+					// own import-path rewrite.
+					if _, ok := seen[owner]; !ok {
+						queue = append(queue, owner)
+					}
+					continue
+				}
 			}
 
 			depRec, err := analyzeDependencyModule(ctx, fs, imp.Path, baseDir, stdlibRoot, opts, cache, strs)
@@ -674,7 +695,7 @@ func runModuleGraph(
 	}
 	dag.ReportBrokenDeps(idx, slots)
 
-	exports = collectModuleExports(ctx, records, idx, topo, baseDir, meta.Path, typeInterner, opts)
+	exports = collectModuleExports(ctx, records, idx, topo, baseDir, meta.Path, typeInterner, opts, aliasExports)
 	for alias, target := range aliasExports {
 		if exp, ok := exports[normalizeExportsKey(target)]; ok {
 			exports[normalizeExportsKey(alias)] = exp
@@ -682,43 +703,6 @@ func runModuleGraph(
 	}
 
 	return exports, records[meta.Path], records, nil
-}
-
-func markSymbolsBuiltin(res *symbols.Result) {
-	if res == nil || res.Table == nil || res.Table.Symbols == nil {
-		return
-	}
-	count := res.Table.Symbols.Len()
-	for i := 1; i <= count; i++ {
-		value, convErr := safecast.Conv[uint32](i)
-		if convErr != nil {
-			panic(fmt.Errorf("symbol id overflow: %w", convErr))
-		}
-		id := symbols.SymbolID(value)
-		if sym := res.Table.Symbols.Get(id); sym != nil {
-			sym.Flags |= symbols.SymbolFlagBuiltin
-		}
-	}
-}
-
-func validateCoreModule(meta *project.ModuleMeta, file *source.File, stdlibRoot string, reporter diag.Reporter) bool {
-	if meta == nil || file == nil {
-		return true
-	}
-	if meta.Path != "core" && !strings.HasPrefix(meta.Path, "core/") {
-		return true
-	}
-	if stdlibRoot != "" && pathWithin(stdlibRoot, file.Path) {
-		return true
-	}
-	if reporter != nil {
-		msg := fmt.Sprintf("module %q is reserved for the standard library", meta.Path)
-		span := source.Span{File: file.ID}
-		if b := diag.ReportError(reporter, diag.ProjInvalidModulePath, span, msg); b != nil {
-			b.Emit()
-		}
-	}
-	return false
 }
 
 func fallbackModuleMeta(file *source.File, baseDir string, mapping *project.ModuleMapping) *project.ModuleMeta {

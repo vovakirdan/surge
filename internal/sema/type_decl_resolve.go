@@ -335,12 +335,7 @@ func (tc *typeChecker) resolveQualifiedTypePath(path *ast.TypePath, span source.
 	}
 	if modulePath == "" {
 		if alias := tc.lookupName(first.Name); alias != "" {
-			for key := range tc.exports {
-				if strings.HasSuffix(key, "/"+alias) || key == alias {
-					modulePath = key
-					break
-				}
-			}
+			modulePath = tc.moduleKeyByAliasSuffix(alias)
 		}
 	}
 	if modulePath == "" {
@@ -403,12 +398,7 @@ func (tc *typeChecker) resolveQualifiedContract(path *ast.TypePath, span source.
 	}
 	if modulePath == "" {
 		if alias := tc.lookupName(first.Name); alias != "" {
-			for key := range tc.exports {
-				if strings.HasSuffix(key, "/"+alias) || key == alias {
-					modulePath = key
-					break
-				}
-			}
+			modulePath = tc.moduleKeyByAliasSuffix(alias)
 		}
 	}
 	if modulePath == "" {
@@ -671,4 +661,28 @@ func (tc *typeChecker) constUintFromSymbol(symID symbols.SymbolID) (uint64, bool
 	}
 	_, exprID, _, _ := tc.constBinding(symID)
 	return tc.constUintValue(exprID, nil)
+}
+
+// moduleKeyByAliasSuffix picks the exports key matching a module alias
+// ("time" matches "time" or ".../time"). Iteration over the exports map is
+// randomized by Go, so candidates are collected and the choice is made
+// deterministically: an exact key wins, then the lexicographically smallest
+// suffix match.
+func (tc *typeChecker) moduleKeyByAliasSuffix(alias string) string {
+	if alias == "" {
+		return ""
+	}
+	best := ""
+	for key := range tc.exports {
+		if key == alias {
+			return key
+		}
+		if !strings.HasSuffix(key, "/"+alias) {
+			continue
+		}
+		if best == "" || key < best {
+			best = key
+		}
+	}
+	return best
 }
