@@ -758,16 +758,22 @@ surface.
 
 ### Phase 4: Cross-Shard Messaging And Shard-Movable Values
 
-Status (2026-07-10): the first executable vertical is live on the
-LLVM/native backend — the inbound transport spine (bounded two-lane queues,
+Status (2026-07-17): most of Phase 4 executes in production on the
+LLVM/native backend. The inbound transport spine (bounded two-lane queues,
 PARKED-wake protocol), placement resolution for `shard(id)`/`distributed`,
 and the placement task crossings `spawn on`, `far Task.await()/.cancel()`,
-and immediate `on` (dedicated execute/reply category) execute in production
-with generation-token discipline and trace counters
-(`13-phase4-transport-spine-and-placement-task-lowering.md` Closeout, gate
-`runtime-v2-transport-check`). Remote channels, remote `select`, distributed
-scopes, migration, `pool` execution, credits/data-lane accounting, and any
-VM transport remain future work; their forms keep deterministic diagnostics.
+and immediate `on` shipped first (gate `runtime-v2-transport-check`).
+Since then: remote channels including anchored `on ch` bodies (Epic 14),
+sibling `share()` leases for fan-out (Epic 16), remote `select` as the
+single-owner Model C proxy selector (Epic 17), and migration as the
+capture lift with dormant drop-obligation plumbing (Epic 18). The language
+side now emits real drops locally (Epic 19: scope-exit emission plus
+recursive composite glue), and wiring those compiled drop functions into
+the crossing abandon paths is IN PROGRESS as Epic 20
+(`20-crossing-drop-activation.md`) — until it lands, abandoned crossing
+payloads still leak by design. Distributed scopes, `pool` execution,
+credit/data-lane accounting, and any VM transport remain future work;
+their forms keep deterministic diagnostics.
 
 - Add per-shard inbound queues and wake fds.
 - Signal a target shard according to the PARKED-state wake protocol, not by a

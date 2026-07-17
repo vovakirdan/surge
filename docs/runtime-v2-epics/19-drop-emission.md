@@ -1,12 +1,23 @@
-# Epic 19: Drop Emission (local owned-value reclamation) — DRAFT
+# Epic 19: Drop Emission (local owned-value reclamation)
 
-**Status:** IN EXECUTION — semantics approved 2026-07-14 (scope-exit
-drops; partial-path-move rejection; eval-then-suppressible-drop
-reassignment order; @raii stays reserved). Task index:
-`19-tasks/README.md`. Direction B from
-`19-candidates.md`, approved as the next major arc (this epic is
-vertical 1 of a 2-3 epic arc: local emission → crossing activation
-(RV2-DEBT-034) → owner-routed frees).
+**Status:** CLOSED 2026-07-17. Tasks 1-4 shipped 2026-07-14 (leaf
+frees, scope-exit synthesis, statement temporaries, per-arm drops,
+recursive composite glue); the closeout bench and doc sync ran as
+Epic 20 Task 1 (`20-tasks/01-epic19-closeout.md`): drop machinery
+alone costs ~3-11% wall time on allocation-extreme micro loops, and
+the completed arc (with fixnum) is NET FASTER than the leak model
+with exactly balanced alloc/free (6.5M/6.5M) and ~1.7 MB flat peak
+RSS. Vertical 2 (crossing activation, RV2-DEBT-034) is Epic 20
+(`20-crossing-drop-activation.md`). Reclamation tails stay ledgered:
+RV2-DEBT-040 (for-loop iterator), 035/036 (bignum), 038 (bigfloat),
+048 (select send arms — soundness, found at Epic 20 prep).
+
+Original approval: semantics approved 2026-07-14 (scope-exit drops;
+partial-path-move rejection; eval-then-suppressible-drop reassignment
+order; @raii stays reserved). Task index: `19-tasks/README.md`.
+Direction B from `19-candidates.md`, approved as the next major arc
+(this epic is vertical 1 of a 2-3 epic arc: local emission →
+crossing activation (RV2-DEBT-034) → owner-routed frees).
 
 ## Why This Epic Exists
 
