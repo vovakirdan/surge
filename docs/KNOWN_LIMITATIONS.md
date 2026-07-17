@@ -41,11 +41,6 @@ borrows, so the compiler rejects (kindness-first diagnostics with owned/
   (`return spawn worker(&l)` — the caller could await it after the local is
   freed). Spawning with borrows and awaiting in the same function stays legal.
 
-Mutable borrows in call arguments are two-phase: `f(&mut a, len(a))` and
-`v.push(len(v))` compile (the `&mut` is only reserved while sibling arguments
-are evaluated), while anything still borrowing the place when the call starts
-— `f(&mut a, &a)`, `f(&mut a, ident(&a))` — is rejected.
-
 Not yet caught (future escape analysis): a local borrow deep-laundered through
 several call frames before being returned, a local-borrowing task handle
 escaping via an argument or container rather than `return`, aliasing through

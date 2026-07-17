@@ -626,6 +626,32 @@ let r: &int = &y;          // ERROR: cannot take shared borrow while mutable bor
 let r: &int = &y;          // OK
 ```
 
+**Two-Phase Argument Borrows:**
+
+A `&mut x` written directly as a call argument is *two-phase*: it is only
+**reserved** while the sibling arguments are evaluated, and **activated** into
+a full exclusive borrow when the call begins. Arguments are always fully
+evaluated before the callee runs, so a sibling that merely *reads* the place
+to produce a value has finished before the callee ever holds the exclusive
+reference. While reserved, the place still cannot be written, moved, or
+mutably borrowed a second time.
+
+```sg
+fn fill(dst: &mut int[], n: int) { ... }
+fn view(dst: &mut int[], src: &int[]) { ... }
+
+let mut a: int[] = [1, 2, 3];
+fill(&mut a, len(a) to int);   // OK: len(a)'s read ends before the call
+a.push(len(a) to int);         // OK: same rule for method receivers
+view(&mut a, &a);              // ERROR: &a is still alive when the call starts
+view(&mut a, ident(&a));       // ERROR: the loan lives on through ident's &-result
+fill(&mut a, { a[0] });        // reads are fine; writes/moves of `a` are not
+```
+
+The two laws are unchanged — the callee never observes aliasing. Two-phase
+only moves the *activation point* of an argument borrow to the moment the
+callee actually starts.
+
 **Places and Projections:**
 
 The borrow checker tracks not just bindings, but *places*—addressable locations that may be projections of a base binding (fields, array indices, dereferences). Borrowing `&x.field` creates a borrow on a sub-place of `x`. Conflicting access to overlapping places is detected:
