@@ -54,11 +54,32 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
   immediate-on request + far-channel select request, then calls
   `rt_remote_spawn_fail_all_pending`; assert no panic + payloads
   released). Close 047 only after that row.
-- Rows 2-7 pending. Row 2 (RV2-DEBT-051) starts at the pack/unpack
-  seam: `emitStructLit` field order at the capture site vs the
-  body-side unpack in `lower_expr_crossing_spawn_poll.go`
-  (`__task_state` reads); repro program shape recorded in the debt row
-  (mixed `{ id: int, note: string }` capture, body reads `j.id`).
+- Row 2 (RV2-DEBT-051) CLOSED — see the ledger row for the full
+  record. Two fixes: (a) sema — `own` now consumes its temp
+  candidate (`ExprUnaryOwn` + `consumeTempCandidate`), killing the
+  caller-side statement-end drop of the very box the own binding
+  aliases (both backends lower `own` as identity; all-Copy structs
+  were masked because they are not droppable). The suspected
+  pack/unpack arity mismatch was a misread — `own T` layout resolves
+  to T's layout, so the 16B state box has one slack slot, but both
+  sides agree on one pointer field at offset 0. (b) MIR — crossing
+  poll bodies (`rewriteSpawnOnPollReturns`) release the state
+  envelope box via `__async_state_free` before AsyncReturn, matching
+  the local-async resume-frame model; the pending-side
+  `__surge_drop_call` covers only never-handed-off states, so this
+  IS the row-3 linearization in code. Proof: arrival e2e
+  (`TestRuntimeV2CrossingHeapCaptureArrivesIntact`, content-checked
+  mixed capture, shards 1/2/8, transport gate) + census e2e
+  (`TestRuntimeV2CrossingHeapCaptureCensusBalanced`, per-iteration
+  far growth == local spawn/await growth, 1 shard, drop gate).
+  Found + split out: RV2-DEBT-052 (compare over an owned union leaks
+  the scrutinee box, local and far alike; the census row cancels it
+  by comparing far vs local). The Task 4 census row is satisfied by
+  the census e2e above.
+- Rows 3-7 pending. Row 3 note: the named linearization point now
+  has its compiled half (envelope release in the body); the row
+  should document the contract in-code at the publish seam and the
+  drop registration.
 
 ## Status
 

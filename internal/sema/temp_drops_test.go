@@ -144,3 +144,24 @@ fn f() -> nothing {
 		t.Fatalf("expected exactly the async-body concat operands flagged, got %v", res.TempDrops)
 	}
 }
+
+func TestOwnOperandTransfersIntoBox(t *testing.T) {
+	// `own` boxes its operand: both backends lower it as identity over
+	// the boxed value, so the wrapped producer TRANSFERS into the own
+	// binding. A statement-end drop of the operand would free the very
+	// box the own value aliases (the caller-side heap-capture UAF).
+	count := tempDropCount(t, `
+type Job = { id: int, note: string }
+
+fn make() -> string {
+    return "x";
+}
+
+fn f() -> nothing {
+    let j: own Job = own Job{ id: 1, note: make() };
+}
+`)
+	if count != 0 {
+		t.Fatalf("expected own to consume its operand, got %d", count)
+	}
+}

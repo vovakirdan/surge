@@ -108,6 +108,16 @@ func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID) {
 			continue
 		}
 		term := bb.Term.Return
+		// A completed body never re-enters this state: the captures were
+		// unpacked into locals at entry, so only the envelope box itself is
+		// dead. Release it shallowly (the native lowering nulls the slot,
+		// handing the runtime a null it never reads); the pending-side
+		// __surge_drop_call path only runs for states that were never
+		// handed off, so no state sees both releases.
+		bb.Instrs = append(bb.Instrs, Instr{Kind: InstrCall, Call: CallInstr{
+			Callee: Callee{Kind: CalleeValue, Name: AsyncStateFreeBuiltin},
+			Args:   []Operand{{Kind: OperandCopy, Place: Place{Local: stateLocal}}},
+		}})
 		bb.Term = Terminator{Kind: TermAsyncReturn, AsyncReturn: AsyncReturnTerm{
 			State: Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 		}}

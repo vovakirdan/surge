@@ -89,6 +89,11 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 		}
 		return tc.taskResultType(payload, span)
 	case ast.ExprUnaryOwn:
+		// The own box takes over the operand's value: backends lower `own`
+		// as identity over the boxed representation, so a statement-end
+		// temp drop of the operand would free the box the own value
+		// aliases.
+		tc.consumeTempCandidate(data.Operand)
 		if operandType == types.NoTypeID || tc.types == nil {
 			return types.NoTypeID
 		}
