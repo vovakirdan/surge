@@ -423,15 +423,33 @@ void rt_remote_spawn_fail_all_pending(rt_executor* ex, rt_remote_spawn_status st
             if (rt_transport_try_drain_one(shard, &msg) != RT_TRANSPORT_STATUS_OK) {
                 break;
             }
-            if (msg.kind != RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST &&
-                msg.kind != RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK &&
-                msg.kind != RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST &&
-                msg.kind != RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION &&
-                msg.kind != RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST &&
-                msg.kind != RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK &&
-                msg.kind != RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST &&
-                msg.kind != RT_TRANSPORT_MSG_NONE) {
-                panic_msg("remote spawn: unsupported transport message kind during shutdown");
+            // Every kind production can enqueue must RELEASE here, never
+            // panic: a message parked between the last steady-state drain
+            // and shutdown is valid traffic. The switch is the static
+            // exhaustiveness guard — a new kind fails the -Wswitch build
+            // until it takes a release stance.
+            switch (msg.kind) {
+                case RT_TRANSPORT_MSG_NONE:
+                case RT_TRANSPORT_MSG_SHUTDOWN_WAKE:
+                case RT_TRANSPORT_MSG_CREDIT_CONTROL:
+                case RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST:
+                case RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK:
+                case RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST:
+                case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
+                case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST:
+                case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK:
+                case RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST:
+                case RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST:
+                case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
+                case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST:
+                case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
+                case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST:
+                case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
+                case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST:
+                case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY:
+                    break;
+                default:
+                    panic_msg("remote spawn: unknown transport message kind during shutdown");
             }
             remote_spawn_release_msg_payload(&msg);
             rt_remote_task_release_msg_payload(&msg);

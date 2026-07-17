@@ -156,9 +156,26 @@ func TestRuntimeV2RemotePublicationFailurePathStaticGuards(t *testing.T) {
 	if !strings.Contains(source, `panic_msg("remote spawn: unsupported transport message kind")`) {
 		t.Fatal("drain must fail closed for transport kinds it does not handle")
 	}
+	// The shutdown drain releases every kind production can enqueue and
+	// fails closed only for truly unknown kinds (RV2-DEBT-047): a message
+	// parked between the last steady-state drain and shutdown is valid
+	// traffic, and its payload releases through the kind-complete switch.
 	if !strings.Contains(
-		source, `panic_msg("remote spawn: unsupported transport message kind during shutdown")`) {
-		t.Fatal("shutdown drain must fail closed for transport kinds it does not handle")
+		source, `panic_msg("remote spawn: unknown transport message kind during shutdown")`) {
+		t.Fatal("shutdown drain must fail closed for unknown transport kinds")
+	}
+	for _, kind := range []string{
+		"RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST",
+		"RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY",
+		"RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST",
+		"RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST",
+		"RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST",
+		"RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY",
+		"RT_TRANSPORT_MSG_CREDIT_CONTROL",
+	} {
+		if !strings.Contains(source, "case "+kind+":") {
+			t.Fatalf("shutdown drain release switch must cover %s (RV2-DEBT-047)", kind)
+		}
 	}
 }
 
