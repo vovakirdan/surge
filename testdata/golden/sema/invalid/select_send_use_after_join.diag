@@ -1,0 +1,1 @@
+error SEM3130 testdata/golden/sema/invalid/select_send_use_after_join.sg:10:11 use of moved value 's'

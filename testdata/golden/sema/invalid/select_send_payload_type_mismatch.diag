@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/select_send_payload_type_mismatch.sg:6:17 select send arm payload: expected string, got own int

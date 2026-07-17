@@ -4,6 +4,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -42,7 +43,16 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	armTypes := make([]types.TypeID, len(data.Arms))
 	defaultCount := 0
 
+	// Exactly one arm wins at runtime, so each arm is a branch for move
+	// tracking: a send arm's payload moves only where that arm won, stays
+	// owned inside the other arms' bodies, and is maybe-moved after the
+	// join (same discipline as compare arms).
+	movedBefore := tc.snapshotMovedBindings()
+	movedArms := make([]map[symbols.SymbolID]source.Span, len(data.Arms))
+	armClosed := make([]bool, len(data.Arms))
+
 	for i, arm := range data.Arms {
+		tc.restoreMovedBindings(movedBefore)
 		if arm.IsDefault {
 			defaultCount++
 			if i != len(data.Arms)-1 {
@@ -57,6 +67,8 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 		}
 
 		armResult := tc.typeExpr(arm.Result)
+		armClosed[i] = tc.compareArmAbruptExit(arm.Result)
+		movedArms[i] = tc.snapshotMovedBindings()
 		armTypes[i] = armResult
 		if armResult != types.NoTypeID {
 			switch {
@@ -75,6 +87,40 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 				tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "select arm type mismatch: expected %s, got %s", tc.typeLabel(resultType), tc.typeLabel(armResult))
 			}
 		}
+	}
+
+	var mergedMoves map[symbols.SymbolID]source.Span
+	for i := range data.Arms {
+		if armClosed[i] {
+			continue
+		}
+		if mergedMoves == nil {
+			mergedMoves = movedArms[i]
+			continue
+		}
+		mergedMoves = mergeMovedBindings(mergedMoves, movedArms[i])
+	}
+	if mergedMoves != nil {
+		// Per-arm drop synthesis: a payload delivered by the winning send
+		// arm is reclaimed at the end of every arm that did not deliver
+		// it; after the join every such binding is in the union moved-set,
+		// so using it stays a use-of-moved error.
+		for i := range data.Arms {
+			if armClosed[i] {
+				continue
+			}
+			drops := tc.oneSidedDroppables(movedArms[i], mergedMoves)
+			if len(drops) == 0 {
+				continue
+			}
+			if tc.result.ArmDropsExpr == nil {
+				tc.result.ArmDropsExpr = make(map[ast.ExprID][]symbols.SymbolID)
+			}
+			tc.result.ArmDropsExpr[data.Arms[i].Result] = drops
+		}
+		tc.movedBindings = mergedMoves
+	} else {
+		tc.movedBindings = movedBefore
 	}
 
 	if defaultCount > 1 {
@@ -294,6 +340,9 @@ func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
 				if len(call.Args) > 0 {
 					tc.typeExpr(call.Args[0].Value)
 					tc.checkChannelSendValue(call.Args[0].Value, tc.exprSpan(call.Args[0].Value))
+					if tc.isChannelType(recvType) {
+						tc.checkSelectSendPayloadOwnership(recvType, call.Args[0].Value)
+					}
 				}
 			}
 			return
@@ -337,6 +386,47 @@ func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
 			}
 		}
 	}
+}
+
+// checkSelectSendPayloadOwnership applies direct-send ownership rules to a
+// local select send arm. The winning arm delivers the payload, so ownership
+// visibly leaves the caller: the payload must match the channel payload
+// type, a non-copy payload must be spelled `own <binding>`, and the move is
+// observed in the current arm's moved-set so the losing arms reclaim the
+// value and any use after the select join is a use-of-moved error.
+func (tc *typeChecker) checkSelectSendPayloadOwnership(chanType types.TypeID, valueExpr ast.ExprID) {
+	if !valueExpr.IsValid() || tc.builder == nil {
+		return
+	}
+	payloadType := tc.channelPayloadType(chanType)
+	span := tc.exprSpan(valueExpr)
+	valueType := tc.result.ExprTypes[valueExpr]
+	if payloadType != types.NoTypeID && valueType != types.NoTypeID &&
+		!tc.typesAssignable(payloadType, tc.valueType(valueType), true) &&
+		!tc.typesAssignable(tc.valueType(payloadType), tc.valueType(valueType), true) {
+		tc.report(diag.SemaTypeMismatch, span, "select send arm payload: expected %s, got %s",
+			tc.typeLabel(payloadType), tc.typeLabel(valueType))
+		return
+	}
+	checkType := valueType
+	if checkType == types.NoTypeID {
+		checkType = payloadType
+	}
+	if checkType == types.NoTypeID || tc.isCopyType(tc.valueType(checkType)) {
+		return
+	}
+	unary, isUnary := tc.builder.Exprs.Unary(valueExpr)
+	if !isUnary || unary == nil || unary.Op != ast.ExprUnaryOwn {
+		tc.report(diag.SemaSelectSendOwnMarker, span,
+			"select send arm takes ownership of its payload: write `send(own ...)`; if this arm loses, the value is reclaimed in the other arms and cannot be used after the select")
+		return
+	}
+	if desc, ok := tc.resolvePlace(unary.Operand); !ok || !desc.Base.IsValid() || len(desc.Segments) != 0 {
+		tc.report(diag.SemaSelectSendPayloadNotBinding, span,
+			"select send payload must be a whole owned binding so the losing arms can reclaim it: bind the value first (`let job = ...;` then `send(own job)`)")
+		return
+	}
+	tc.observeMove(valueExpr, span)
 }
 
 func (tc *typeChecker) unwrapSelectAwaitExpr(exprID ast.ExprID) ast.ExprID {

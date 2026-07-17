@@ -1,0 +1,62 @@
+select_send_own_binding.sg (span: 1:1-30:1)
+├─ Item[0]: Fn (span: 1:1-15:2)
+│  ├─ Name: straight_line
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-15:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:40)
+│        │  ├─ Name: ch
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#3: make_channel(1)
+│        ├─ Stmt[1]: Let (span: 3:5-3:39)
+│        │  ├─ Name: stop
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#6: make_channel(1)
+│        ├─ Stmt[2]: Let (span: 4:5-4:26)
+│        │  ├─ Name: job
+│        │  ├─ Mutable: true
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#7: "job-"
+│        ├─ Stmt[3]: Expr (span: 5:5-5:27)
+│        │  └─ Expr: expr#12: (job = ((job + "payload")))
+│        ├─ Stmt[4]: Let (span: 6:5-13:7)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#27: <ExprKind(20)>
+│        └─ Stmt[5]: Expr (span: 14:5-14:21)
+│           └─ Expr: expr#30: print("done\n")
+└─ Item[1]: Fn (span: 17:1-29:2)
+   ├─ Name: retry_until_sent
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:40-29:2)
+         ├─ Stmt[0]: Let (span: 18:5-18:40)
+         │  ├─ Name: ch
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#33: make_channel(1)
+         ├─ Stmt[1]: Let (span: 19:5-19:39)
+         │  ├─ Name: stop
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#36: make_channel(1)
+         ├─ Stmt[2]: While (span: 20:5-27:6)
+         │  ├─ Cond: expr#37: true
+         │  └─ Body:
+Block (span: 20:16-27:6)
+         │     ├─ Stmt[0]: Let (span: 21:9-21:30)
+         │     │  ├─ Name: job
+         │     │  ├─ Mutable: true
+         │     │  ├─ Type: <inferred>
+         │     │  └─ Value: expr#38: "job-"
+         │     ├─ Stmt[1]: Expr (span: 22:9-22:31)
+         │     │  └─ Expr: expr#43: (job = ((job + "payload")))
+         │     └─ Stmt[2]: Expr (span: 23:9-26:11)
+         │        └─ Expr: expr#54: <ExprKind(20)>
+         └─ Stmt[3]: Expr (span: 28:5-28:21)
+            └─ Expr: expr#57: print("sent\n")

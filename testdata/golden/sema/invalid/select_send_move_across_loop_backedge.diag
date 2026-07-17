@@ -1,0 +1,1 @@
+error SEM3130 testdata/golden/sema/invalid/select_send_move_across_loop_backedge.sg:8:21 value 'job' is declared outside this while loop but moved inside its body; the next iteration would use a moved value — move it outside the loop or recreate it each iteration

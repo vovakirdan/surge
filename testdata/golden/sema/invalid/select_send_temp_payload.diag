@@ -1,0 +1,1 @@
+error SEM3141 testdata/golden/sema/invalid/select_send_temp_payload.sg:11:17 select send payload must be a whole owned binding so the losing arms can reclaim it: bind the value first (`let job = ...;` then `send(own job)`)

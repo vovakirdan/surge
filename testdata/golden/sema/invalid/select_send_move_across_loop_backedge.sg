@@ -1,0 +1,13 @@
+async fn pump() -> nothing {
+    let ch = make_channel::<string>(1);
+    let stop = make_channel::<int>(1);
+    let mut job = "job-";
+    job = job + "payload";
+    while true {
+        select {
+            ch.send(own job) => { break; };
+            stop.recv() => { continue; };
+        };
+    }
+    print("sent\n");
+}

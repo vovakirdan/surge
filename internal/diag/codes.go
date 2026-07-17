@@ -290,6 +290,8 @@ const (
 	SemaBorrowIntoOwnedParam           Code = 3137 // borrow passed where the parameter takes ownership
 	SemaRefInAggregate                 Code = 3138 // reference stored in a struct field / tag payload / tuple / array
 	SemaBorrowEscapesReturn            Code = 3139 // borrow of a local returned from its function
+	SemaSelectSendOwnMarker            Code = 3140 // select send arm takes ownership of its payload; own marker required
+	SemaSelectSendPayloadNotBinding    Code = 3141 // select send payload must be a whole owned binding
 
 	// Ошибки I/O
 
@@ -539,6 +541,8 @@ var ( // todo расширить описания и использовать к
 		SemaBorrowIntoOwnedParam:           "borrow passed where the parameter takes ownership",
 		SemaRefInAggregate:                 "references cannot be stored in aggregates",
 		SemaBorrowEscapesReturn:            "borrow of a local escapes through return",
+		SemaSelectSendOwnMarker:            "select send arm takes ownership of its payload",
+		SemaSelectSendPayloadNotBinding:    "select send payload must be a whole owned binding",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

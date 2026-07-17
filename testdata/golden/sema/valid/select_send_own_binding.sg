@@ -1,0 +1,29 @@
+async fn straight_line() -> nothing {
+    let ch = make_channel::<string>(1);
+    let stop = make_channel::<int>(1);
+    let mut job = "job-";
+    job = job + "payload";
+    let v = select {
+        ch.send(own job) => 1;
+        stop.recv() => {
+            // The losing arm still owns the payload and may use it.
+            print(job);
+            ret 2;
+        };
+    };
+    print("done\n");
+}
+
+async fn retry_until_sent() -> nothing {
+    let ch = make_channel::<string>(1);
+    let stop = make_channel::<int>(1);
+    while true {
+        let mut job = "job-";
+        job = job + "payload";
+        select {
+            ch.send(own job) => { break; };
+            stop.recv() => { continue; };
+        };
+    }
+    print("sent\n");
+}
