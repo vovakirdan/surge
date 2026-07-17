@@ -45,15 +45,11 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
 
 ## Progress
 
-- Row 1 (RV2-DEBT-047) fix LANDED (commit `9f27d86d`): kind-complete
-  release switch with `-Wswitch` exhaustiveness; static-shape row pins
-  the new fail-closed message and post-Epic-13 kind coverage.
-  REMAINING for row 1: the deterministic queued-message-at-shutdown
-  BEHAVIOR row per family (extend `remotePublicationHarness` in
-  `runtime_v2_remote_publication_test.go` with a mode that enqueues an
-  immediate-on request + far-channel select request, then calls
-  `rt_remote_spawn_fail_all_pending`; assert no panic + payloads
-  released). Close 047 only after that row.
+- Row 1 (RV2-DEBT-047) CLOSED: kind-complete release switch (commit
+  `9f27d86d`) + the `shutdown-queued-kinds` harness row (commit
+  `5de8d250`) — every post-Epic-13 kind enqueued, drained without
+  panic, both lanes empty; static guards pin the release switch and
+  the fail-closed unknown-kind message.
 - Row 2 (RV2-DEBT-051) CLOSED — see the ledger row for the full
   record. Two fixes: (a) sema — `own` now consumes its temp
   candidate (`ExprUnaryOwn` + `consumeTempCandidate`), killing the
@@ -76,10 +72,24 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
   the scrutinee box, local and far alike; the census row cancels it
   by comparing far vs local). The Task 4 census row is satisfied by
   the census e2e above.
-- Rows 3-7 pending. Row 3 note: the named linearization point now
-  has its compiled half (envelope release in the body); the row
-  should document the contract in-code at the publish seam and the
-  drop registration.
+- Row 3 DONE — the linearization point is NAMED in code: the
+  PUBLICATION-ACCEPTED HANDOFF, the dispatch-lane `state_owned = 0`
+  store immediately after `rt_remote_spawn_publish_body_task`
+  succeeds. Contract documented once on the spawn pending's drop
+  fields (`rt_remote_spawn_internal.h`, twin pointer in
+  `rt_remote_task_internal.h`), with the no-double-release argument
+  (the dispatch lane still holds a pending reference when it clears
+  the flag, so the plain store orders before the final acq_rel
+  refcount drop). All three dispatch sites carry the name (anchored
+  hands off through the shared immediate-on dispatch).
+  `TestRuntimeV2RemoteStateHandoffStaticContract` pins: 4 publish
+  sites record the obligation, exactly one handoff per dispatch
+  family AFTER the accepted publication, no anchored second handoff,
+  and both final-release drop sites stay gated on `state_owned`.
+- Rows 4-7 pending. Next = row 4 (spawn-on abandon edges: cancel
+  before dispatch / after creation / after publication, refusal,
+  ACK-enqueue failure, forced races — each with a dispatch-hit count
+  AND a census row).
 
 ## Status
 

@@ -71,8 +71,10 @@ struct rt_remote_task_pending {
     uint64_t caller_task_id;
     uint64_t body_poll_fn_id;
     void* body_state;
-    // Drop obligation for a droppable shipped body state (see the spawn
-    // pending twin): final release is the single drop site while owned.
+    // Drop obligation for a droppable shipped body state: the
+    // publication-accepted handoff contract is documented on the spawn
+    // pending twin (rt_remote_spawn_internal.h). Final release is the
+    // single drop site while owned.
     uint64_t state_drop_fn_id;
     uint8_t state_owned;
     rt_far_task_handle anchor;

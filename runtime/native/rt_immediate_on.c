@@ -265,8 +265,8 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
         return;
     }
-    // The drop obligation hands off with the published body (the
-    // remote-owner half of the matrix owns it from here).
+    // PUBLICATION-ACCEPTED HANDOFF (contract: rt_remote_spawn_internal.h);
+    // anchored bodies hand off here too — this dispatch is shared.
     pending->state_owned = 0;
     // Drop the creation reference: no far handle exists for an immediate
     // execute, so the owner registration (released by the owner-done reply)

@@ -184,6 +184,56 @@ func TestRuntimeV2RemotePublicationFailurePathStaticGuards(t *testing.T) {
 	}
 }
 
+// The shipped-state ownership contract (rt_remote_spawn_internal.h):
+// pending owns -> body owns, linearized at the publication-accepted
+// handoff. Every family records the obligation when it publishes, each
+// dispatch clears it exactly once immediately after the accepted
+// publication, and the final pending release stays the single
+// pre-handoff drop site.
+func TestRuntimeV2RemoteStateHandoffStaticContract(t *testing.T) {
+	root := repoRoot(t)
+	for path, record := range map[string]string{
+		"runtime/native/rt_remote_spawn.c":          "req->state_owned = state_drop_fn_id != 0;",
+		"runtime/native/rt_immediate_on.c":          "request->state_owned = state_drop_fn_id != 0;",
+		"runtime/native/rt_immediate_on_anchored.c": "request->state_owned = state_drop_fn_id != 0;",
+		"runtime/native/rt_far_channel_select.c":    "request->state_owned = state_drop_fn_id != 0;",
+	} {
+		if !strings.Contains(readTransportContractFile(t, root, path), record) {
+			t.Fatalf("%s must record the shipped-state drop obligation at publish", path)
+		}
+	}
+	for path, handoff := range map[string]string{
+		"runtime/native/rt_remote_spawn.c":       "req->state_owned = 0;",
+		"runtime/native/rt_immediate_on.c":       "pending->state_owned = 0;",
+		"runtime/native/rt_far_channel_select.c": "pending->state_owned = 0;",
+	} {
+		dispatch := readTransportContractFile(t, root, path)
+		if strings.Count(dispatch, handoff) != 1 {
+			t.Fatalf("%s must clear the obligation at exactly one publication-accepted handoff", path)
+		}
+		publish := strings.Index(dispatch, "rt_remote_spawn_publish_body_task")
+		if publish < 0 || strings.Index(dispatch, handoff) < publish {
+			t.Fatalf("%s handoff must follow the accepted publication", path)
+		}
+	}
+	// Anchored bodies dispatch through the shared immediate-on path; a
+	// second handoff site would split the linearization point.
+	if strings.Contains(
+		readTransportContractFile(t, root, "runtime/native/rt_immediate_on_anchored.c"),
+		"state_owned = 0") {
+		t.Fatal("anchored dispatch must reuse the immediate-on handoff, not add a second one")
+	}
+	// Pre-handoff drops stay gated on the owned flag at the final release.
+	for path, guard := range map[string]string{
+		"runtime/native/rt_remote_spawn_pending.c": "pending->state_owned != 0",
+		"runtime/native/rt_remote_task_pending.c":  "pending->state_owned != 0",
+	} {
+		if !strings.Contains(readTransportContractFile(t, root, path), guard) {
+			t.Fatalf("%s final release must drop only while the pending still owns the state", path)
+		}
+	}
+}
+
 func buildRemotePublicationHarness(t *testing.T) string {
 	t.Helper()
 	clang, err := exec.LookPath("clang")

@@ -226,7 +226,7 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
         select_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
         return;
     }
-    // The drop obligation hands off with the published body.
+    // PUBLICATION-ACCEPTED HANDOFF (contract: rt_remote_spawn_internal.h).
     pending->state_owned = 0;
     task_release_lane_aware(ex, task);
 }

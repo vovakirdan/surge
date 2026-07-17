@@ -8,10 +8,21 @@ struct rt_remote_spawn_pending {
     uint64_t request_id;
     uint64_t poll_fn_id;
     void* state;
-    // Drop obligation for a droppable shipped state: the id names the
-    // compiled drop function; state_owned is set while THIS pending owns
-    // the obligation (cleared at the body handoff). The final release is
-    // the single drop site.
+    // Drop obligation for a droppable shipped state. The ownership
+    // contract for every crossing family (spawn-on, immediate-on,
+    // anchored, remote select — the remote-task pending carries the twin
+    // fields): pending owns -> body owns, linearized at the
+    // PUBLICATION-ACCEPTED HANDOFF, the dispatch-lane store that clears
+    // state_owned immediately after rt_remote_spawn_publish_body_task
+    // succeeds. Every exit BEFORE the handoff leaves state_owned set, so
+    // the final pending release is the single pre-handoff drop site
+    // (__surge_drop_call frees captures and envelope together). Every
+    // exit AFTER the handoff reclaims compiled-side: the body unpacks
+    // the captures at entry and releases the envelope at its return. No
+    // path sees both releases because the dispatch lane still holds a
+    // pending reference when it clears the flag: the plain store is
+    // ordered before that reference's acq_rel refcount drop, so whichever
+    // release ends up final observes the cleared flag.
     uint64_t state_drop_fn_id;
     uint8_t state_owned;
     uint64_t caller_task_id;

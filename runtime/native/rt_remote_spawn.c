@@ -336,9 +336,9 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
         remote_spawn_pending_release(req);
         return;
     }
-    // The drop obligation hands off with the published body: from here the
-    // task family owns the shipped state (its rows live in the
-    // remote-owner half of the matrix).
+    // PUBLICATION-ACCEPTED HANDOFF (contract: rt_remote_spawn_internal.h):
+    // from here the body owns the shipped state; the pending's final
+    // release must no longer drop it.
     req->state_owned = 0;
 
     rt_shard* source = rt_runtime_shard(rt_executor_runtime(ex), req->source_shard_id);
