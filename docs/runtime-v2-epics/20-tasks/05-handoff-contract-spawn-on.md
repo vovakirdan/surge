@@ -86,10 +86,27 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
   sites record the obligation, exactly one handoff per dispatch
   family AFTER the accepted publication, no anchored second handoff,
   and both final-release drop sites stay gated on `state_owned`.
-- Rows 4-7 pending. Next = row 4 (spawn-on abandon edges: cancel
-  before dispatch / after creation / after publication, refusal,
-  ACK-enqueue failure, forced races — each with a dispatch-hit count
-  AND a census row).
+- Row 4 PARTIAL (`TestRuntimeV2RemoteSpawnAbandonEdges`, transport
+  gate): all rows publish a DROPPABLE state (harness drop stub = the
+  exactly-once census). Landed: refusal x2 (queue-full and
+  destination-shutdown both drop exactly once, no body); abandon x3
+  at armed windows — two NEW spawn-on sync points
+  (`SP_REMOTE_SPAWN_BEFORE_DISPATCH` at dispatch entry,
+  `SP_REMOTE_SPAWN_BEFORE_BODY_PUBLISH` between body creation and
+  publication, twin of the immediate-on window) plus the existing
+  `SP_REMOTE_SPAWN_BEFORE_ACK`. Semantics pinned: an abandon while
+  the request is in flight still runs the body (the state hands off;
+  drop count stays 0) and the ack resolves as an owner-routed
+  release. Harness gotcha recorded in-code: after abandoning, the
+  caller task must never touch the pending again (finish under
+  abandoned releases the caller's reference).
+  REMAINING for row 4: ACK-enqueue-failure after publication
+  (needs deterministic control-lane saturation at ack time);
+  cancel-after-publication-before-first-poll (needs a first-poll
+  window); e2e-level caller-cancel integration through the lease
+  route (rt_far_task_lease_release_route) rather than direct
+  abandon.
+- Rows 5-7 pending.
 
 ## Status
 

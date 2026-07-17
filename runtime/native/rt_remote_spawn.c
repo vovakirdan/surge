@@ -306,6 +306,7 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
     if (ex == NULL || req == NULL) {
         return;
     }
+    RT_SYNC_POINT(SP_REMOTE_SPAWN_BEFORE_DISPATCH);
     if (remote_spawn_pending_snapshot(req, NULL) != RT_REMOTE_SPAWN_STATUS_PENDING) {
         remote_spawn_pending_release(req);
         return;
@@ -329,6 +330,7 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
 
     req->handle = handle;
 
+    RT_SYNC_POINT(SP_REMOTE_SPAWN_BEFORE_BODY_PUBLISH);
     status = rt_remote_spawn_publish_body_task(ex, task);
     if (status != RT_REMOTE_SPAWN_STATUS_OK) {
         rt_remote_spawn_free_unpublished_task(ex, task);

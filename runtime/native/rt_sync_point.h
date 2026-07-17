@@ -80,6 +80,17 @@ typedef enum rt_sync_point_id {
     // pinning the task, before the DONE re-check. A test completes the task in
     // this window to prove both the re-check and the task-lifetime pin.
     RT_SYNC_POINT_SP_REMOTE_TASK_AFTER_OWNER_REGISTER,
+    // remote spawn destination: reached at dispatch entry, before the pending
+    // snapshot that gates body creation. A test abandons the caller-owned
+    // handle in this window to prove a pre-dispatch abandon still hands the
+    // shipped state to exactly one owner (the published body) and turns the
+    // eventual ack into an owner-routed release.
+    RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_DISPATCH,
+    // remote spawn destination: reached after the body task exists and the
+    // pending carries its handle, before the body is published (the
+    // spawn-on twin of SP_IMMEDIATE_ON_BEFORE_PUBLISH). An abandon in this
+    // window must neither leak nor double-drop the shipped state.
+    RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_BODY_PUBLISH,
     // remote spawn destination: reached after the child is published, before
     // its ack is enqueued. Cancellation here must abandon the caller-owned
     // lease and turn the eventual ack into an owner-routed release.

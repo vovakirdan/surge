@@ -139,6 +139,61 @@ func TestRuntimeV2RemotePublicationBehavior(t *testing.T) {
 	}
 }
 
+// Spawn-on abandon and refusal edges over a DROPPABLE shipped state: every
+// row asserts the exactly-once census (the harness drop stub) on top of the
+// edge it forces. Refusals drop through the pending exactly once; abandons
+// land while the dispatch lane is held at an armed window, and because the
+// request is already in flight the body still runs and owns the state — the
+// abandoned pending must not drop it, and the ack resolves as an
+// owner-routed release.
+func TestRuntimeV2RemoteSpawnAbandonEdges(t *testing.T) {
+	bin := buildRemotePublicationHarness(t)
+	rows := []struct {
+		name string
+		mode string
+		env  []string
+	}{
+		{
+			name: "refusal-queue-full-drops-once",
+			mode: "refusal-drop-queue-full",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			name: "refusal-shutdown-drops-once",
+			mode: "refusal-drop-shutdown",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			name: "abandon-before-dispatch",
+			mode: "abandon-before-dispatch",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_DISPATCH:block"),
+		},
+		{
+			name: "abandon-before-body-publish",
+			mode: "abandon-before-body-publish",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_BODY_PUBLISH:block"),
+		},
+		{
+			name: "abandon-before-ack",
+			mode: "abandon-before-ack",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
+		},
+	}
+	for _, row := range rows {
+		row := row
+		t.Run(row.name, func(t *testing.T) {
+			stdout, stderr, code := runRemotePublicationHarness(t, bin, row.mode, row.env)
+			if code != 0 {
+				t.Fatalf("abandon edge %q failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					row.mode, code, stdout, stderr)
+			}
+		})
+	}
+}
+
 func TestRuntimeV2RemotePublicationFailurePathStaticGuards(t *testing.T) {
 	root := repoRoot(t)
 	source := readTransportContractFile(t, root, "runtime/native/rt_remote_spawn.c")
@@ -317,7 +372,8 @@ char** rt_argv_raw = NULL;
 
 enum {
     POLL_REMOTE_PUBLISHER = 7001,
-    POLL_REMOTE_CHILD = 7002
+    POLL_REMOTE_CHILD = 7002,
+    DROP_REMOTE_STATE = 7003
 };
 
 typedef struct remote_child_state {
@@ -333,6 +389,8 @@ typedef struct remote_publish_state {
     uint32_t dst;
     uint32_t fill_queue;
     uint32_t shutdown_first;
+    uint32_t droppable;
+    uint32_t abandon_mode;
     uint32_t filled;
     uint32_t shutdown_done;
     uint32_t saw_pending;
@@ -402,11 +460,28 @@ static int fill_data_lane(rt_executor* ex, uint32_t dst) {
     return rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK;
 }
 
-// Drop-dispatch stub: no harness state struct carries a drop obligation
-// (drop-fn id 0 never dispatches), so reaching this is a test bug.
+// Drop-dispatch stub: the abandon/refusal rows publish a droppable state
+// (DROP_REMOTE_STATE) and count releases here — the exactly-once census
+// for the shipped-state ownership contract. Any other id is a test bug.
+static _Atomic uint32_t drop_calls;
+static void* drop_expected_state;
 void __surge_drop_call(uint64_t id, void* state) {
-    (void)id;
-    (void)state;
+    if (id == DROP_REMOTE_STATE && state == drop_expected_state) {
+        atomic_fetch_add_explicit(&drop_calls, 1, memory_order_acq_rel);
+        return;
+    }
+    fputs("unexpected __surge_drop_call\n", stderr);
+    exit(97);
+}
+
+static int wait_reached(rt_sync_point_id id, uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        if (rt_sync_point_reached_count(id) > 0) {
+            return 1;
+        }
+        sleep_us(1000);
+    }
+    return 0;
 }
 
 void __surge_poll_call(uint64_t id) {
@@ -424,6 +499,13 @@ void __surge_poll_call(uint64_t id) {
     if (id == POLL_REMOTE_PUBLISHER) {
         remote_publish_state* st = (remote_publish_state*)__task_state();
         rt_executor* ex = ensure_exec();
+        if (st->abandon_mode && st->saw_pending) {
+            // The abandon rows model a departed caller: after the driver
+            // abandons the handle the pending may be freed at any moment,
+            // so this task must never touch it again.
+            rt_async_yield(st);
+            return;
+        }
         if (st->shutdown_first && !st->shutdown_done) {
             st->shutdown_done = 1;
             (void)rt_executor_request_shutdown(ex);
@@ -436,7 +518,8 @@ void __surge_poll_call(uint64_t id) {
             }
         }
         rt_remote_spawn_status status = rt_remote_spawn_publish(
-            st->dst, 0, POLL_REMOTE_CHILD, st->child, &st->pending, &st->handle);
+            st->dst, st->droppable ? DROP_REMOTE_STATE : 0, POLL_REMOTE_CHILD,
+            st->child, &st->pending, &st->handle);
         if (status == RT_REMOTE_SPAWN_STATUS_PENDING) {
             st->saw_pending = 1;
             st->request_id = rt_remote_spawn_pending_request_id(st->pending);
@@ -574,6 +657,73 @@ static int run_shutdown(void) {
     return 0;
 }
 
+// Refusal edges with a droppable shipped state: the publish is refused
+// (queue full or destination shutdown), so the pending — or the pre-link
+// path — is the sole owner and must drop the state exactly once, before
+// the caller observes the refusal.
+static int run_refusal_drop(int shutdown_first) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    remote_publish_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.dst = 0;
+    st.fill_queue = shutdown_first ? 0 : 1;
+    st.shutdown_first = shutdown_first ? 1 : 0;
+    st.droppable = 1;
+    drop_expected_state = &child;
+    if (!await_parent(&st)) return fail("refusal publisher await failed");
+    rt_remote_spawn_status want = shutdown_first ? RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN
+                                                 : RT_REMOTE_SPAWN_STATUS_QUEUE_FULL;
+    if (st.status != want) return fail("refusal status mismatch");
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 1) {
+        return fail("refused publish must drop the shipped state exactly once");
+    }
+    if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
+        return fail("refused publish must not run a body");
+    }
+    if (!shutdown_first) {
+        (void)rt_executor_request_shutdown(ex);
+    }
+    return 0;
+}
+
+// Abandon edges: the caller-owned handle is abandoned while the dispatch
+// lane is held at an armed window (dispatch entry / created-but-unpublished
+// / published-but-unacked). In every window the request is already in
+// flight, so the body still runs and owns the shipped state — the pending
+// must NOT drop it (drop count stays zero), and the resolved-while-abandoned
+// ack turns into an owner-routed release instead of waking a caller.
+static int run_abandon_window(rt_sync_point_id window) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    remote_publish_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.dst = pin_shard(ex, 1);
+    st.droppable = 1;
+    st.abandon_mode = 1;
+    drop_expected_state = &child;
+    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st);
+    if (publisher == NULL) return fail("publisher task create failed");
+    if (!wait_reached(window, 5000)) return fail("armed window was never reached");
+    if (!rt_remote_spawn_abandon_handle(&st.handle)) {
+        return fail("abandon did not find the listed pending");
+    }
+    rt_sync_point_open();
+    if (!wait_child(&child, 5000)) return fail("abandoned spawn body did not run");
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("handed-off state must not drop through the abandoned pending");
+    }
+    if (rt_sync_point_reached_count(window) == 0) {
+        return fail("window count vanished");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return fail("usage: remote_publication_harness <mode>");
     if (strcmp(argv[1], "publish-other") == 0) return run_publish(1, 0);
@@ -582,6 +732,17 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "queue-full") == 0) return run_queue_full();
     if (strcmp(argv[1], "shutdown") == 0) return run_shutdown();
     if (strcmp(argv[1], "shutdown-queued-kinds") == 0) return run_shutdown_queued_kinds();
+    if (strcmp(argv[1], "refusal-drop-queue-full") == 0) return run_refusal_drop(0);
+    if (strcmp(argv[1], "refusal-drop-shutdown") == 0) return run_refusal_drop(1);
+    if (strcmp(argv[1], "abandon-before-dispatch") == 0) {
+        return run_abandon_window(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_DISPATCH);
+    }
+    if (strcmp(argv[1], "abandon-before-body-publish") == 0) {
+        return run_abandon_window(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_BODY_PUBLISH);
+    }
+    if (strcmp(argv[1], "abandon-before-ack") == 0) {
+        return run_abandon_window(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK);
+    }
     return fail("unknown mode");
 }
 `
