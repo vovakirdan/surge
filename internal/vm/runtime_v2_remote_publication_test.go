@@ -117,6 +117,11 @@ func TestRuntimeV2RemotePublicationBehavior(t *testing.T) {
 			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
+			name: "shutdown-queued-kinds",
+			mode: "shutdown-queued-kinds",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
 			name: "stale-token",
 			mode: "stale-token",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
@@ -473,6 +478,37 @@ static int run_queue_full(void) {
     return 0;
 }
 
+// RV2-DEBT-047: messages parked between the last steady-state drain and
+// shutdown are valid traffic for every production kind — the shutdown
+// drain must release them, never panic.
+static int run_shutdown_queued_kinds(void) {
+    rt_executor* ex = ensure_exec();
+    rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), 0);
+    const rt_transport_msg_kind kinds[] = {
+        RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST,
+        RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY,
+        RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST,
+        RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST,
+        RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST,
+        RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY,
+        RT_TRANSPORT_MSG_CREDIT_CONTROL,
+    };
+    for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
+        rt_transport_msg msg = {0};
+        msg.kind = kinds[i];
+        msg.target_shard_id = 0;
+        if (rt_transport_enqueue(shard, &msg) != RT_TRANSPORT_STATUS_OK) {
+            return fail("queued-kind enqueue failed");
+        }
+    }
+    rt_remote_spawn_fail_all_pending(ex, RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN);
+    struct rt_transport_debug_snapshot snap = rt_transport_debug_snapshot(shard);
+    if (snap.data_len != 0 || snap.control_len != 0) {
+        return fail("shutdown drain left queued messages behind");
+    }
+    return 0;
+}
+
 static int run_shutdown(void) {
     remote_child_state child;
     memset(&child, 0, sizeof(child));
@@ -495,6 +531,7 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "stale-token") == 0) return run_publish(1, 1);
     if (strcmp(argv[1], "queue-full") == 0) return run_queue_full();
     if (strcmp(argv[1], "shutdown") == 0) return run_shutdown();
+    if (strcmp(argv[1], "shutdown-queued-kinds") == 0) return run_shutdown_queued_kinds();
     return fail("unknown mode");
 }
 `

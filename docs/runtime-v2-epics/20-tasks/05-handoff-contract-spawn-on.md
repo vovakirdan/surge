@@ -43,6 +43,24 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
 7. Gates: `make check`, transport suites, Sentrux comparison; new
    tagged tests wired per gatecheck.
 
+## Progress
+
+- Row 1 (RV2-DEBT-047) fix LANDED (commit `9f27d86d`): kind-complete
+  release switch with `-Wswitch` exhaustiveness; static-shape row pins
+  the new fail-closed message and post-Epic-13 kind coverage.
+  REMAINING for row 1: the deterministic queued-message-at-shutdown
+  BEHAVIOR row per family (extend `remotePublicationHarness` in
+  `runtime_v2_remote_publication_test.go` with a mode that enqueues an
+  immediate-on request + far-channel select request, then calls
+  `rt_remote_spawn_fail_all_pending`; assert no panic + payloads
+  released). Close 047 only after that row.
+- Rows 2-7 pending. Row 2 (RV2-DEBT-051) starts at the pack/unpack
+  seam: `emitStructLit` field order at the capture site vs the
+  body-side unpack in `lower_expr_crossing_spawn_poll.go`
+  (`__task_state` reads); repro program shape recorded in the debt row
+  (mixed `{ id: int, note: string }` capture, body reads `j.id`).
+
 ## Status
 
-IN PROGRESS (2026-07-17).
+IN PROGRESS (2026-07-17). Row 1 code landed; behavior row + rows 2-7
+remain.
