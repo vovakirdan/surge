@@ -74,14 +74,28 @@ func (e *Emitter) emitPollDispatch() error {
 	fmt.Fprintf(&e.buf, "}\n\n")
 
 	// The drop dispatch: the runtime's abandon paths destruct a shipped
-	// crossing state without running its body through this switch. Drop
-	// functions arrive with the migration surface; until a module emits
-	// one, the dispatch is the default panic only (drop-fn id 0 is never
-	// dispatched by the runtime).
+	// crossing state without running its body through this switch. Every
+	// crossing that ships an owned state registered its body FuncID as
+	// the drop-fn id; the arm frees the state through its recursive
+	// glue. Unregistered ids (and id 0, which the runtime never passes)
+	// keep the panic arm as the negative control.
+	dropIDs := make([]mir.FuncID, 0, len(e.crossingDropStates))
+	for id := range e.crossingDropStates {
+		dropIDs = append(dropIDs, id)
+	}
+	sort.Slice(dropIDs, func(i, j int) bool { return dropIDs[i] < dropIDs[j] })
 	fmt.Fprintf(&e.buf, "define void @__surge_drop_call(i64 %%id, ptr %%state) {\n")
 	fmt.Fprintf(&e.buf, "entry:\n")
 	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%drop_default [\n")
+	for _, id := range dropIDs {
+		fmt.Fprintf(&e.buf, "    i64 %d, label %%drop.%d\n", id, id)
+	}
 	fmt.Fprintf(&e.buf, "  ]\n")
+	for _, id := range dropIDs {
+		fmt.Fprintf(&e.buf, "drop.%d:\n", id)
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", dropGlueName(e.crossingDropStates[id]))
+		fmt.Fprintf(&e.buf, "  ret void\n")
+	}
 	fmt.Fprintf(&e.buf, "drop_default:\n")
 	if sc, ok := e.stringConsts["missing drop function"]; ok && sc.globalName != "" {
 		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)

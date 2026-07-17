@@ -3,6 +3,7 @@ package llvm
 import (
 	"fmt"
 
+	"surge/internal/mir"
 	"surge/internal/types"
 )
 
@@ -142,6 +143,23 @@ func (e *Emitter) requireDropGlue(id types.TypeID) string {
 	}
 	e.dropGlueNeeded[id] = struct{}{}
 	return dropGlueName(id)
+}
+
+// registerCrossingDropState records that the crossing body `bodyID` ships
+// an owned state of type `stateType`: the body FuncID doubles as the
+// drop-fn id the runtime's abandon paths pass to `__surge_drop_call`,
+// and the dispatch routes it to the state's recursive glue.
+func (e *Emitter) registerCrossingDropState(bodyID mir.FuncID, stateType types.TypeID) error {
+	resolved := resolveValueType(e.types, stateType)
+	if e.crossingDropStates == nil {
+		e.crossingDropStates = make(map[mir.FuncID]types.TypeID)
+	}
+	if prev, ok := e.crossingDropStates[bodyID]; ok && prev != resolved {
+		return fmt.Errorf("crossing body %d registered two state types (%d, %d)", bodyID, prev, resolved)
+	}
+	e.crossingDropStates[bodyID] = resolved
+	e.requireDropGlue(resolved)
+	return nil
 }
 
 func (e *Emitter) requireDropElemGlue(id types.TypeID) string {

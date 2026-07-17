@@ -142,6 +142,7 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		return fmt.Errorf("spawn_on placement must lower as i64, got %s", placementTy)
 	}
 	stateVal := "null"
+	stateDropID := mir.FuncID(0)
 	if len(ins.State.Fields) > 0 {
 		stateVal, placementTy, err = fe.emitStructLit(&ins.State)
 		if err != nil {
@@ -150,12 +151,17 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		if placementTy != "ptr" {
 			return fmt.Errorf("spawn_on state must lower as ptr, got %s", placementTy)
 		}
+		if regErr := fe.emitter.registerCrossingDropState(ins.BodyFuncID, ins.State.TypeID); regErr != nil {
+			return regErr
+		}
+		stateDropID = ins.BodyFuncID
 	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_remote_spawn_publish_placement(i64 %s, i64 0, i64 %d, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_remote_spawn_publish_placement(i64 %s, i64 %d, i64 %d, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		placementVal,
+		stateDropID,
 		ins.BodyFuncID,
 		stateVal,
 		pendingPtr,

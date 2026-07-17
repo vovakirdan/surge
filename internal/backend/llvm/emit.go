@@ -44,6 +44,10 @@ type Emitter struct {
 	// Recursive drop glue generated on demand (emit_drop_glue.go).
 	dropGlueNeeded     map[types.TypeID]struct{}
 	dropElemGlueNeeded map[types.TypeID]struct{}
+	// Crossing states that ship with a drop obligation: the crossing
+	// body's FuncID doubles as the drop-fn id, and the dispatch routes
+	// it to the state struct's recursive glue (emit_async.go).
+	crossingDropStates map[mir.FuncID]types.TypeID
 }
 
 type funcEmitter struct {
