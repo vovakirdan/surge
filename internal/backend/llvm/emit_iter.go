@@ -335,6 +335,61 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	return iterPtr, "ptr", nil
 }
 
+// emitInstrIterRelease frees a for-loop iterator protocol envelope
+// (mir.InstrIterRelease), null-guarded the same way emitInstrDrop is:
+// load the handle, free it, null the slot so a stale read can never
+// free twice (rt_free itself is also null-safe).
+//
+// Cursor selects a FIXED-size free using the iterator's own runtime
+// layout (iterStructSize/iterStructAlign): the place's declared type is
+// a type-checking fiction (see the kind-word comment at the top of this
+// file) and must never be consulted for size/align here — for a bignum
+// element type it would describe Range<T>'s real fields, not this
+// opaque cursor's byte layout, and freeing by the wrong shape would
+// dereference garbage.
+//
+// The step (non-cursor) envelope instead uses ITS OWN declared type's
+// layout: that type IS the concrete Option<T> the box was allocated
+// as, so its layout matches exactly. The free is shallow by
+// construction — it must never recurse into the payload, which has
+// already moved into the loop binding (a recursive drop here would
+// free that value a second time).
+func (fe *funcEmitter) emitInstrIterRelease(ins *mir.Instr) error {
+	if ins == nil {
+		return nil
+	}
+	size, align := iterStructSize, iterStructAlign
+	if !ins.IterRelease.Cursor {
+		baseType, err := fe.placeBaseType(ins.IterRelease.Place)
+		if err != nil || baseType == types.NoTypeID {
+			return nil
+		}
+		layoutInfo, layoutErr := fe.emitter.layoutOf(resolveValueType(fe.emitter.types, baseType))
+		if layoutErr != nil {
+			return nil
+		}
+		size, align = layoutInfo.Size, layoutInfo.Align
+		if size <= 0 {
+			size = 1
+		}
+		if align <= 0 {
+			align = 1
+		}
+	}
+	ptr, ptrTy, err := fe.emitPlacePtr(ins.IterRelease.Place)
+	if err != nil {
+		return err
+	}
+	if ptrTy != "ptr" {
+		return nil
+	}
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
+	return nil
+}
+
 func rangeElemType(typesIn *types.Interner, id types.TypeID) (types.TypeID, bool) {
 	if typesIn == nil || typesIn.Strings == nil || id == types.NoTypeID {
 		return types.NoTypeID, false

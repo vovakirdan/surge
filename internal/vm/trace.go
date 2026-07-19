@@ -297,6 +297,12 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 		)
 	case mir.InstrNop:
 		return "nop"
+	case mir.InstrIterRelease:
+		kind := "step"
+		if instr.IterRelease.Cursor {
+			kind = "cursor"
+		}
+		return fmt.Sprintf("iter_release_%s %s", kind, t.formatPlace(instr.IterRelease.Place))
 	default:
 		return fmt.Sprintf("<?instr:%d>", instr.Kind)
 	}

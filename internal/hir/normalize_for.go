@@ -314,11 +314,6 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		},
 	}
 
-	breakIfNothing := mkIf(span,
-		&Expr{Kind: ExprTagTest, Type: ctx.boolType(), Span: span, Data: TagTestData{Value: nextRef, TagName: "nothing"}},
-		&Block{Span: span, Stmts: []Stmt{{Kind: StmtBreak, Span: span, Data: BreakData{}}}},
-	)
-
 	var bindVarStmt *Stmt
 	if data.VarName != "" && data.VarName != "_" && data.VarSym.IsValid() {
 		bindTy := data.VarType
@@ -340,15 +335,72 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		}
 	}
 
+	// Free the per-step Option<T> box. If its payload was bound to the
+	// loop variable, the box frees shallow (the payload now belongs to
+	// that binding — a recursive drop here would free it a second
+	// time). If the payload was discarded (`for _ in ...`), nothing else
+	// owns it, so a full drop is correct and necessary. The exhausted
+	// ("nothing") case carries no payload either way, so reusing the
+	// same release in breakIfNothing's block below is safe regardless of
+	// which form this is — a shallow release only ever skips a payload
+	// that isn't there.
+	var stepRelease Stmt
+	if bindVarStmt != nil {
+		stepRelease = Stmt{Kind: StmtIterRelease, Span: span, Data: IterReleaseData{Value: nextRef, Cursor: false}}
+	} else {
+		stepRelease = Stmt{Kind: StmtDrop, Span: span, Data: DropData{Value: nextRef}}
+	}
+
+	// The exhausted case never reaches the Some-path release below (the
+	// break exits the iteration immediately), so its own (payload-free)
+	// box needs releasing right here.
+	breakIfNothing := mkIf(span,
+		&Expr{Kind: ExprTagTest, Type: ctx.boolType(), Span: span, Data: TagTestData{Value: nextRef, TagName: "nothing"}},
+		&Block{Span: span, Stmts: []Stmt{
+			stepRelease,
+			{Kind: StmtBreak, Span: span, Data: BreakData{}},
+		}},
+	)
+
+	// Free the iterator cursor (array or range state). Every exit from
+	// this loop must free it exactly once: natural exhaustion and any
+	// `break` both fall through to right after the while statement, so
+	// one release placed there covers both; a `return` from inside the
+	// body escapes without passing through that point, so it needs its
+	// own release injected directly before it.
 	if data.Body == nil {
 		data.Body = &Block{Span: span}
 	}
 
-	prefix := make([]Stmt, 0, 3)
+	// An array iteration always allocates a real, fixed-shape cursor
+	// (emitArrayIterInit never takes a shortcut). A Range<T> iteration
+	// only does when T is pointer-shaped at the backend (the default,
+	// unsized int/uint, or another bignum-style type); a FIXED-WIDTH
+	// int/uint element (i32, u8, ...) makes the backend hand back the
+	// original SurgeRange pointer instead of allocating a cursor (see
+	// emit_iter.go's range/array iterator layout notes). That pointer is
+	// owned by the range value itself, not by this loop, so freeing it
+	// here would double-free it. When this can't be proven safe, skip
+	// the cursor release entirely: the historical leak for
+	// that narrow case is unchanged, which is the safe direction — a
+	// wrong free is not.
+	var cursorRelease Stmt
+	hasCursorRelease := iterCursorReleaseIsSafe(ctx, data.Iterable, elemTy)
+	if hasCursorRelease {
+		cursorRelease = Stmt{
+			Kind: StmtIterRelease,
+			Span: span,
+			Data: IterReleaseData{Value: ctx.varRef(iterName, iterSym, iterTy, span), Cursor: true},
+		}
+		injectIterCursorReleaseBeforeReturns(data.Body, cursorRelease)
+	}
+
+	prefix := make([]Stmt, 0, 4)
 	prefix = append(prefix, nextLet, breakIfNothing)
 	if bindVarStmt != nil {
 		prefix = append(prefix, *bindVarStmt)
 	}
+	prefix = append(prefix, stepRelease)
 	data.Body.Stmts = append(prefix, data.Body.Stmts...)
 
 	whileStmt := Stmt{
@@ -362,6 +414,9 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 
 	outer := &Block{Span: span}
 	outer.Stmts = append(outer.Stmts, iterLet, whileStmt)
+	if hasCursorRelease {
+		outer.Stmts = append(outer.Stmts, cursorRelease)
+	}
 	return []Stmt{{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: outer}}}, nil
 }
 

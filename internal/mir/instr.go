@@ -43,6 +43,9 @@ const (
 	InstrSelect
 	// InstrNop represents a no-op instruction.
 	InstrNop
+	// InstrIterRelease frees a for-loop iterator protocol envelope (the
+	// per-step Option<T> box or the iterator cursor). See IterReleaseInstr.
+	InstrIterRelease
 )
 
 func (k InstrKind) String() string {
@@ -79,6 +82,8 @@ func (k InstrKind) String() string {
 		return "Select"
 	case InstrNop:
 		return "Nop"
+	case InstrIterRelease:
+		return "IterRelease"
 	default:
 		return "Unknown"
 	}
@@ -88,21 +93,22 @@ func (k InstrKind) String() string {
 type Instr struct {
 	Kind InstrKind
 
-	Assign    AssignInstr
-	Call      CallInstr
-	Drop      DropInstr
-	EndBorrow EndBorrowInstr
-	Await     AwaitInstr
-	Spawn     SpawnInstr
-	Crossing  CrossingInstr
-	Blocking  BlockingInstr
-	Poll      PollInstr
-	JoinAll   JoinAllInstr
-	ChanSend  ChanSendInstr
-	ChanRecv  ChanRecvInstr
-	NetWait   NetWaitInstr
-	Timeout   TimeoutInstr
-	Select    SelectInstr
+	Assign      AssignInstr
+	Call        CallInstr
+	Drop        DropInstr
+	EndBorrow   EndBorrowInstr
+	Await       AwaitInstr
+	Spawn       SpawnInstr
+	Crossing    CrossingInstr
+	Blocking    BlockingInstr
+	Poll        PollInstr
+	JoinAll     JoinAllInstr
+	ChanSend    ChanSendInstr
+	ChanRecv    ChanRecvInstr
+	NetWait     NetWaitInstr
+	Timeout     TimeoutInstr
+	Select      SelectInstr
+	IterRelease IterReleaseInstr
 }
 
 // AssignInstr represents an assignment instruction.
@@ -151,6 +157,16 @@ type CallInstr struct {
 // DropInstr represents a drop instruction.
 type DropInstr struct {
 	Place Place
+}
+
+// IterReleaseInstr frees a for-loop iterator protocol envelope. Unlike
+// DropInstr, it is emitted unconditionally (never gated on the place's
+// declared type being Copy): the envelope is always a heap box on the
+// LLVM backend regardless of what the iteration element type is.
+// Cursor selects the fixed-shape free (see IterReleaseData).
+type IterReleaseInstr struct {
+	Place  Place
+	Cursor bool
 }
 
 // EndBorrowInstr represents an end borrow instruction.

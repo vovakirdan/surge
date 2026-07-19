@@ -382,6 +382,24 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		// else: copy type → emit nothing
 		return nil
 
+	case hir.StmtIterRelease:
+		data, ok := st.Data.(hir.IterReleaseData)
+		if !ok {
+			return fmt.Errorf("mir: iter_release: unexpected payload %T", st.Data)
+		}
+		if data.Value == nil {
+			return nil
+		}
+		place, err := l.lowerPlace(data.Value)
+		if err != nil {
+			return err
+		}
+		// Unconditional: the envelope is always a heap box regardless of
+		// whether the declared element type is Copy (unlike InstrDrop,
+		// which a Copy type would suppress above).
+		l.emit(&Instr{Kind: InstrIterRelease, IterRelease: IterReleaseInstr{Place: place, Cursor: data.Cursor}})
+		return nil
+
 	default:
 		return nil
 	}

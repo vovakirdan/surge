@@ -149,6 +149,13 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 	case mir.InstrNop:
 		// Nothing to do
 
+	case mir.InstrIterRelease:
+		// The VM's iterator step/cursor values are ordinary heap-managed
+		// objects (see eval_iter.go) with their own refcount lifecycle —
+		// there is no separate raw envelope box to free here, so this is
+		// a genuine no-op on this backend (the LLVM-only leak it patches
+		// does not exist in the VM's representation).
+
 	default:
 		return false, nil, vm.eb.unimplemented(fmt.Sprintf("instruction kind %d", instr.Kind))
 	}

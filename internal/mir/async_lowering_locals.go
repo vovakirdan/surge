@@ -245,6 +245,8 @@ func collectLocalsInInstr(ins *Instr, set localSet) {
 		collectLocalsFromPlace(ins.Drop.Place, set)
 	case InstrEndBorrow:
 		collectLocalsFromPlace(ins.EndBorrow.Place, set)
+	case InstrIterRelease:
+		collectLocalsFromPlace(ins.IterRelease.Place, set)
 	case InstrAwait:
 		collectLocalsFromOperand(&ins.Await.Task, set)
 	case InstrSpawn:

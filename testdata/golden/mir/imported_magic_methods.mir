@@ -138,53 +138,63 @@ fn main:
     L29 = iter_next copy L25
     L28 = move L29
     L30 = tag_test copy L28 is nothing
-    if copy L30 then bb15 else bb16
+    if copy L30 then bb16 else bb17
   bb15:
+    iter_release_cursor L25
     L34 = call __ne(copy L24, const 13)
-    if copy L34 then bb17 else bb18
+    if copy L34 then bb18 else bb19
   bb16:
+    iter_release_step L28
+    goto bb15
+  bb17:
     L32 = tag_payload copy L28.Some[0]
     L31 = copy L32
+    iter_release_step L28
     L33 = call __add(copy L24, copy L31)
     L24 = copy L33
     goto bb13
-  bb17:
+  bb18:
     drop L18
     drop L10
     drop L6
     drop L4
     drop L0
     return const 6
-  bb18:
+  bb19:
     L35 = const 0
     L37 = call __range(addr_of L18)
     L38 = iter_init copy L37
     L36 = move L38
-    goto bb19
-  bb19:
-    if const true then bb20 else bb21
+    goto bb20
   bb20:
+    if const true then bb21 else bb22
+  bb21:
     L40 = iter_next copy L36
     L39 = move L40
     L41 = tag_test copy L39 is nothing
-    if copy L41 then bb21 else bb22
-  bb21:
-    L45 = call __ne(copy L35, const 13)
-    if copy L45 then bb23 else bb24
+    if copy L41 then bb23 else bb24
   bb22:
+    iter_release_cursor L36
+    L45 = call __ne(copy L35, const 13)
+    if copy L45 then bb25 else bb26
+  bb23:
+    iter_release_step L39
+    goto bb22
+  bb24:
     L43 = tag_payload copy L39.Some[0]
     L42 = copy L43
+    iter_release_step L39
     L44 = call __add(copy L35, copy L42)
     L35 = copy L44
-    goto bb19
-  bb23:
+    goto bb20
+  bb25:
     drop L18
     drop L10
     drop L6
     drop L4
     drop L0
     return const 7
-  bb24:
+  bb26:
     drop L18
     drop L10
     drop L6
