@@ -58,9 +58,21 @@ still runs its body.
   completions are legal per the cancel-route contract), the reply
   edge resolves with no caller to wake, and the handed-off state
   never drops through the pending.
-- Rows 3-5 pending (redelivery; anchored stale/pin-unpin/reply
-  cancellation; gates).
+- Row 3 DONE (same test): redelivery after resolution. A duplicate of
+  the ORIGINAL execute request carries the request-scoped token while
+  the pending's handle was rebound to the body task's generation at
+  the bind — the token match fails, exactly one stale drop is counted
+  (`remote_task_stale_drops`, the dispatch-hit assertion), the
+  stale-token answer flows into the already-resolved (hence no-op)
+  reply edge, and only the message reference is released. A
+  redelivered REPLY matches the resolved pending: finish no-ops,
+  reference released. Completion signal = the pending's refcount
+  falling back to the driver's own reference (same technique as the
+  spawn-on rows); the immediate pending got its own release/acquire
+  twin pointer.
+- Rows 4-5 pending (anchored stale/pin-unpin/reply cancellation;
+  gates).
 
 ## Status
 
-IN PROGRESS (2026-07-19). Rows 1-2 landed.
+IN PROGRESS (2026-07-19). Rows 1-3 landed.

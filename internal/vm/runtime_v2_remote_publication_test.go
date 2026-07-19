@@ -244,6 +244,26 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
 		},
+		{
+			// A duplicate of the ORIGINAL request still carries the
+			// request-scoped token while the pending was rebound to the
+			// body task at the bind: the token match fails, exactly one
+			// stale drop is counted, and only the message reference is
+			// released — no drop, no second body.
+			name: "duplicate-request-fails-token-match",
+			mode: "immediate-duplicate-request",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
+		},
+		{
+			// A redelivered reply matches the already-resolved pending:
+			// the finish is a no-op and only the message reference is
+			// released.
+			name: "stale-reply-releases-reference-only",
+			mode: "immediate-stale-reply",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
+		},
 	}
 	for _, row := range rows {
 		row := row
@@ -465,6 +485,7 @@ const remotePublicationHarness = `
 #include "rt_remote_spawn.h"
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task.h"
+#include "rt_remote_task_internal.h"
 #include "rt_sync_point.h"
 #include "rt_transport.h"
 
@@ -516,6 +537,9 @@ typedef struct remote_publish_state {
 
 typedef struct immediate_exec_state {
     rt_remote_task_pending* pending;
+    // Release/acquire twin of the pending pointer for driver threads
+    // (the sync-point counters alone give no happens-before edge).
+    _Atomic(rt_remote_task_pending*) pending_shared;
     remote_child_state* child;
     uint64_t placement;
     uint32_t fill_queue;
@@ -655,6 +679,29 @@ static int wait_refs(rt_remote_spawn_pending* req, uint32_t want, uint32_t attem
     return 0;
 }
 
+static rt_remote_task_pending* wait_task_pending_shared(immediate_exec_state* st,
+                                                        uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        rt_remote_task_pending* req =
+            atomic_load_explicit(&st->pending_shared, memory_order_acquire);
+        if (req != NULL) {
+            return req;
+        }
+        sleep_us(1000);
+    }
+    return NULL;
+}
+
+static int wait_task_refs(rt_remote_task_pending* req, uint32_t want, uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        if (atomic_load_explicit(&req->refs, memory_order_acquire) == want) {
+            return 1;
+        }
+        sleep_us(1000);
+    }
+    return 0;
+}
+
 static rt_remote_spawn_pending* wait_pending_shared(remote_publish_state* st, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
         rt_remote_spawn_pending* req =
@@ -701,6 +748,7 @@ void __surge_poll_call(uint64_t id) {
             st->child, &st->pending, &st->out_kind, &st->out_bits);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
             st->saw_pending = 1;
+            atomic_store_explicit(&st->pending_shared, st->pending, memory_order_release);
             rt_async_yield(st);
             return;
         }
@@ -1197,6 +1245,90 @@ static int run_immediate_cancel(rt_sync_point_id window, int expect_body) {
     return 0;
 }
 
+// Immediate-on redelivery after resolution. A duplicate of the ORIGINAL
+// execute request still carries the request-scoped token, while the
+// pending's handle was rebound to the body task's generation at the
+// bind — so the duplicate must fail the token match, count one stale
+// drop, answer stale-token into the (already resolved, hence no-op)
+// reply edge, and release only its own message reference. A redelivered
+// REPLY matches the resolved pending and must equally release only its
+// reference. Neither may drop the body-owned state or create a second
+// body.
+static int run_immediate_redelivery(int redeliver_reply) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    immediate_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    uint32_t dst = pin_shard(ex, 1);
+    st.placement = rt_placement_shard(dst);
+    st.droppable = 1;
+    drop_expected_state = &child;
+    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st);
+    if (caller == NULL) return fail("immediate caller create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH, 5000)) {
+        return fail("immediate publish window was never reached");
+    }
+    rt_remote_task_pending* req = wait_task_pending_shared(&st, 5000);
+    if (req == NULL) return fail("pending missing in publish window");
+    rt_remote_task_pending_add_ref(req);
+    rt_remote_task_pending_add_ref(req);
+    uint64_t request_id = req->request_id;
+    uint32_t source_shard = req->source_shard_id;
+    rt_shard* dst_shard = rt_runtime_shard(rt_executor_runtime(ex), dst);
+    uint64_t stale_before = rt_transport_debug_snapshot(dst_shard).remote_task_stale_drops;
+    rt_sync_point_open();
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (kind != 1 || st.status != RT_REMOTE_TASK_STATUS_OK || st.out_kind != 1 ||
+        st.out_bits != 77) {
+        return fail("immediate execute must resolve OK before the redelivery");
+    }
+    if (!wait_child(&child, 5000)) return fail("body did not run before the redelivery");
+    rt_transport_msg dup = {0};
+    if (redeliver_reply) {
+        dup.kind = RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY;
+        dup.source_shard_id = req->handle.owner_shard_id;
+        dup.target_shard_id = source_shard;
+        dup.route_id = request_id;
+        dup.generation = req->handle.generation;
+    } else {
+        dup.kind = RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST;
+        dup.source_shard_id = source_shard;
+        dup.target_shard_id = dst;
+        dup.route_id = request_id;
+        // The original request's token: request-scoped generation, minted
+        // before the bind rebound the handle to the body task.
+        dup.generation = request_id;
+    }
+    rt_shard* target_shard =
+        rt_runtime_shard(rt_executor_runtime(ex), dup.target_shard_id);
+    dup.payload = req;
+    if (rt_transport_enqueue(target_shard, &dup) != RT_TRANSPORT_STATUS_OK) {
+        return fail("redelivery enqueue failed");
+    }
+    if (!wait_task_refs(req, 1, 5000)) {
+        return fail("redelivered message was never fully released");
+    }
+    if (!redeliver_reply) {
+        uint64_t stale_after = rt_transport_debug_snapshot(dst_shard).remote_task_stale_drops;
+        if (stale_after != stale_before + 1) {
+            return fail("duplicate request must count exactly one stale drop");
+        }
+    }
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("redelivery must not drop the body-owned state");
+    }
+    if (atomic_load_explicit(&child.ran, memory_order_acquire) != 1) {
+        return fail("redelivery must not create a second body");
+    }
+    rt_remote_task_pending_release(req);
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return fail("usage: remote_publication_harness <mode>");
     if (strcmp(argv[1], "publish-other") == 0) return run_publish(1, 0);
@@ -1228,6 +1360,8 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "immediate-cancel-bound") == 0) {
         return run_immediate_cancel(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH, 1);
     }
+    if (strcmp(argv[1], "immediate-duplicate-request") == 0) return run_immediate_redelivery(0);
+    if (strcmp(argv[1], "immediate-stale-reply") == 0) return run_immediate_redelivery(1);
     return fail("unknown mode");
 }
 `
