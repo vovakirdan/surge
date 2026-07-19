@@ -22,7 +22,7 @@ Task 3 (semantics) and Task 5 (contract). Task 8 needs all.
 | 5 | `05-handoff-contract-spawn-on.md` | Complete | DEBT-047+051 closed; PUBLICATION-ACCEPTED HANDOFF named + static contract; abandon/refusal/stale rows (2 new sync points); DEBT-052/053 opened; 2 row-4 follow-ups carried to Task 8 | 4 |
 | 6 | `06-immediate-on-activation.md` | Complete | refusal/cancel-split/redelivery/anchored rows (9) on the Task 5 contract; NEW SP_IMMEDIATE_ON_BEFORE_DISPATCH window; FIXED: anchored executes joined the caller-teardown sweep (unbound-cancel contract violation, negative-control pinned); pin balance via registry reclaim rule | 5 |
 | 7 | `07-remote-select-symmetry.md` | Complete | sema symmetry (far arms get SEM3140/3141 + ArmDrops); 4 race rows over Copy payloads (2 new far-select windows) pin one-lock commit atomicity, sweep refusal, cancel_routed idempotency, unpin-prefix; vertical-3 deferral recorded (abandon reconciliation + non-copy e2e ride the ChannelCreate gate opening) | 3, 5 |
-| 8 | `08-bench-census-closeout.md` | In Progress | user decision: DEBT-052 FIXED FIRST (honest strict zero) — row 1 in flight; then strict-zero census 1/2/8 + carried Task-5 e2e + bench + debt closeout + vertical-3 scoping | all |
+| 8 | `08-bench-census-closeout.md` | Complete (pending Sentrux word) | DEBT-052 fixed + guards-only-borrow rule; strict census (migration = true zero; 059/060 opened); carried e2e (composed lease route); bench (drop cost ~0 wall, -44% RSS, kickoff retroactively unsound); 034 closed; vertical-3 charter recorded | all |
 
 Rules: the established task rules apply unchanged (expand only the
 next task, test-first rows, per-task gates incl. committed-tree
