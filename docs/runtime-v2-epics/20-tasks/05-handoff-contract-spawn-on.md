@@ -100,13 +100,37 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
   release. Harness gotcha recorded in-code: after abandoning, the
   caller task must never touch the pending again (finish under
   abandoned releases the caller's reference).
-  REMAINING for row 4: ACK-enqueue-failure after publication
-  (needs deterministic control-lane saturation at ack time);
+  Row 4 addendum (ack edge): the planned ACK-enqueue-FAILURE row
+  turned out to be pinning the wrong thing — `try_drain_one` pops
+  CONTROL-FIRST, so the rescue drain in
+  `rt_remote_spawn_enqueue_with_drain` always frees control room and
+  a saturated lane CANNOT fail the ack (the failure branch is
+  reachable only through transport shutdown; its handle-release
+  ordering stays pinned by the FailurePathStaticGuards row). What
+  the runtime actually guarantees is now the row:
+  `ack-rescue-drain-after-handoff` — control lane saturated at the
+  ack window, publication still resolves OK, body runs, handed-off
+  state untouched. Harness gotcha: at 1 shard the MAIN thread drives
+  execution inside rt_task_await, so the mid-window driver must be a
+  helper pthread.
+  REMAINING for row 4 (unchanged):
   cancel-after-publication-before-first-poll (needs a first-poll
   window); e2e-level caller-cancel integration through the lease
   route (rt_far_task_lease_release_route) rather than direct
   abandon.
-- Rows 5-7 pending.
+- Row 5 DONE (`TestRuntimeV2RemoteSpawnStaleGenerationRows`,
+  transport gate; droppable state, drop stub = census):
+  stale-request-before-body (pending resolved via fail-all while the
+  request is held at the dispatch-entry window → no body, sole-owner
+  pending drops exactly once); duplicate-request-after-handoff and
+  stale-ack-after-resolution (an extra pending reference taken in the
+  ack window models the redelivered copy's payload reference; after
+  OK the redelivered message is drained → releases only its own
+  message reference, drop count stays 0, `child.ran` stays 1 — the
+  child flag became a counter for exactly this assertion).
+- Rows 6-7 pending. Row 6 opens with the owned-results reply-edge
+  investigation (does any reclamation obligation exist for a
+  heap-carried result when the caller never consumes the reply).
 
 ## Status
 

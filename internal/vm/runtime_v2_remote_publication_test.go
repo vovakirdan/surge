@@ -181,6 +181,15 @@ func TestRuntimeV2RemoteSpawnAbandonEdges(t *testing.T) {
 			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
 		},
+		{
+			// Saturated source control lane at ack time: the dispatch
+			// rescue-drains (control-first) and the ack still lands — a
+			// full lane can never orphan the handle or the shipped state.
+			name: "ack-rescue-drain-after-handoff",
+			mode: "ack-rescue-drain",
+			env: remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
+		},
 	}
 	for _, row := range rows {
 		row := row
@@ -188,6 +197,49 @@ func TestRuntimeV2RemoteSpawnAbandonEdges(t *testing.T) {
 			stdout, stderr, code := runRemotePublicationHarness(t, bin, row.mode, row.env)
 			if code != 0 {
 				t.Fatalf("abandon edge %q failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					row.mode, code, stdout, stderr)
+			}
+		})
+	}
+}
+
+// Stale-generation rows for the shipped-state contract: a pending that
+// resolves before its request dispatches is the sole owner and drops the
+// state exactly once (no body); a redelivered request or ack arriving
+// after resolution releases only its own message reference — the
+// body-owned state never drops through it and no second body is created.
+func TestRuntimeV2RemoteSpawnStaleGenerationRows(t *testing.T) {
+	bin := buildRemotePublicationHarness(t)
+	rows := []struct {
+		name string
+		mode string
+		env  []string
+	}{
+		{
+			name: "stale-request-before-body",
+			mode: "stale-request-before-body",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_DISPATCH:block"),
+		},
+		{
+			name: "duplicate-request-after-handoff",
+			mode: "duplicate-request-after-handoff",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
+		},
+		{
+			name: "stale-ack-after-resolution",
+			mode: "stale-ack-after-resolution",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
+		},
+	}
+	for _, row := range rows {
+		row := row
+		t.Run(row.name, func(t *testing.T) {
+			stdout, stderr, code := runRemotePublicationHarness(t, bin, row.mode, row.env)
+			if code != 0 {
+				t.Fatalf("stale row %q failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					row.mode, code, stdout, stderr)
 			}
 		})
@@ -356,10 +408,12 @@ const remotePublicationHarness = `
 #define _POSIX_C_SOURCE 199309L
 #include "rt_async_internal.h"
 #include "rt_remote_spawn.h"
+#include "rt_remote_spawn_internal.h"
 #include "rt_remote_task.h"
 #include "rt_sync_point.h"
 #include "rt_transport.h"
 
+#include <pthread.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -484,6 +538,45 @@ static int wait_reached(rt_sync_point_id id, uint32_t attempts) {
     return 0;
 }
 
+static int wait_drops(uint32_t want, uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        if (atomic_load_explicit(&drop_calls, memory_order_acquire) == want) {
+            return 1;
+        }
+        sleep_us(1000);
+    }
+    return 0;
+}
+
+// Saturate the shard's control lane so the NEXT control-kind enqueue
+// (an ack) fails deterministically. NULL-payload acks are harmless to
+// drain later (the ack dispatcher ignores them).
+static int fill_control_lane(rt_shard* shard, uint32_t shard_id) {
+    if (shard == NULL) {
+        return 0;
+    }
+    rt_transport_msg ack = {0};
+    ack.kind = RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK;
+    ack.target_shard_id = shard_id;
+    for (size_t i = 0; i < RT_TRANSPORT_CONTROL_QUEUE_CAP * 2; i++) {
+        if (rt_transport_enqueue(shard, &ack) == RT_TRANSPORT_STATUS_QUEUE_FULL) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int wait_lanes_empty(rt_shard* shard, uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        struct rt_transport_debug_snapshot snap = rt_transport_debug_snapshot(shard);
+        if (snap.data_len == 0 && snap.control_len == 0) {
+            return 1;
+        }
+        sleep_us(1000);
+    }
+    return 0;
+}
+
 void __surge_poll_call(uint64_t id) {
     if (id == POLL_REMOTE_CHILD) {
         remote_child_state* child = (remote_child_state*)__task_state();
@@ -492,7 +585,9 @@ void __surge_poll_call(uint64_t id) {
                               task != NULL ? task->owner_shard_id : UINT32_MAX,
                               memory_order_release);
         atomic_store_explicit(&child->worker, rt_debug_current_worker_shard_id(), memory_order_release);
-        atomic_store_explicit(&child->ran, 1, memory_order_release);
+        // A counter, not a flag: the duplicate/stale rows assert that a
+        // redelivered request never creates a SECOND body.
+        atomic_fetch_add_explicit(&child->ran, 1, memory_order_acq_rel);
         rt_async_return(child, 77);
         return;
     }
@@ -724,6 +819,167 @@ static int run_abandon_window(rt_sync_point_id window) {
     return 0;
 }
 
+// Row-4 remainder, pinned as what the runtime actually guarantees: an
+// ack facing a SATURATED control lane does not fail the publication —
+// enqueue_with_drain rescue-drains (control-first) and the ack lands, so
+// a full lane can never orphan the handle or the handed-off state. The
+// failure branch below the rescue is reachable only through transport
+// shutdown; its release ordering stays pinned by the static guards.
+// Single-shard execution is driven by the main thread inside
+// rt_task_await, so the lane fill runs on a helper thread while main is
+// held at the armed window.
+typedef struct ack_failure_driver {
+    rt_executor* ex;
+    _Atomic uint32_t failed;
+} ack_failure_driver;
+
+static void* ack_failure_driver_main(void* arg) {
+    ack_failure_driver* drv = (ack_failure_driver*)arg;
+    if (!wait_reached(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK, 5000)) {
+        atomic_store_explicit(&drv->failed, 1, memory_order_release);
+        rt_sync_point_open();
+        return NULL;
+    }
+    rt_shard* source = rt_runtime_shard(rt_executor_runtime(drv->ex), 0);
+    if (!fill_control_lane(source, 0)) {
+        atomic_store_explicit(&drv->failed, 2, memory_order_release);
+    }
+    rt_sync_point_open();
+    return NULL;
+}
+
+static int run_ack_rescue_drain(void) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    remote_publish_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.dst = 0;
+    st.droppable = 1;
+    drop_expected_state = &child;
+    ack_failure_driver drv;
+    memset(&drv, 0, sizeof(drv));
+    drv.ex = ex;
+    pthread_t driver;
+    if (pthread_create(&driver, NULL, ack_failure_driver_main, &drv) != 0) {
+        return fail("driver thread create failed");
+    }
+    remote_publish_state* stp = &st;
+    if (!await_parent(stp)) {
+        (void)pthread_join(driver, NULL);
+        return fail("ack-failure publisher await failed");
+    }
+    (void)pthread_join(driver, NULL);
+    if (atomic_load_explicit(&drv.failed, memory_order_acquire) != 0) {
+        return fail(atomic_load_explicit(&drv.failed, memory_order_acquire) == 1
+                        ? "ack window was never reached"
+                        : "control lane did not saturate");
+    }
+    if (st.status != RT_REMOTE_SPAWN_STATUS_OK) {
+        return fail("saturated control lane must not fail the publication (rescue drain)");
+    }
+    if (!wait_child(&child, 5000)) return fail("published body did not run");
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("handed-off state must not drop across the ack rescue");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Stale request before body creation: the pending resolves while its
+// request message is still waiting at dispatch entry. The dispatch must
+// step aside (no body), leaving the pending the sole owner — the state
+// drops exactly once through the final pending release.
+static int run_stale_request_before_body(void) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    remote_publish_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.dst = pin_shard(ex, 1);
+    st.droppable = 1;
+    drop_expected_state = &child;
+    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st);
+    if (publisher == NULL) return fail("publisher task create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_DISPATCH, 5000)) {
+        return fail("dispatch window was never reached");
+    }
+    rt_remote_spawn_fail_all_pending(ex, RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN);
+    rt_sync_point_open();
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(publisher, &kind, &bits);
+    if (kind != 1 || st.status != RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN) {
+        return fail("resolved-before-dispatch must surface the failure status");
+    }
+    if (!wait_drops(1, 5000)) {
+        return fail("sole-owner pending must drop the state exactly once");
+    }
+    if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
+        return fail("stale request must not create a body");
+    }
+    return 0;
+}
+
+// Duplicate/stale delivery after resolution: a second copy of an already
+// resolved request (or its ack) must release only its own message
+// reference — never drop the body-owned state, never create a second
+// body. The extra pending reference taken in the ack window models the
+// redelivered copy's payload reference.
+static int run_stale_redelivery(int redeliver_ack) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    remote_publish_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.dst = pin_shard(ex, 1);
+    st.droppable = 1;
+    drop_expected_state = &child;
+    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st);
+    if (publisher == NULL) return fail("publisher task create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK, 5000)) {
+        return fail("ack window was never reached");
+    }
+    rt_remote_spawn_pending* req = st.pending;
+    if (req == NULL) return fail("pending missing in ack window");
+    remote_spawn_pending_add_ref(req);
+    uint32_t source_shard = req->source_shard_id;
+    rt_sync_point_open();
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(publisher, &kind, &bits);
+    if (kind != 1 || st.status != RT_REMOTE_SPAWN_STATUS_OK) {
+        return fail("publication must resolve OK before the redelivery");
+    }
+    uint32_t target = redeliver_ack ? source_shard : st.dst;
+    rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), target);
+    rt_transport_msg dup = {0};
+    dup.kind = redeliver_ack ? RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK
+                             : RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST;
+    dup.source_shard_id = source_shard;
+    dup.target_shard_id = target;
+    dup.route_id = rt_remote_spawn_pending_request_id(req);
+    dup.payload = req;
+    if (rt_transport_enqueue(shard, &dup) != RT_TRANSPORT_STATUS_OK) {
+        return fail("redelivery enqueue failed");
+    }
+    if (!wait_lanes_empty(shard, 5000)) {
+        return fail("redelivered message was never drained");
+    }
+    sleep_us(20000);
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("redelivery must not drop the body-owned state");
+    }
+    if (atomic_load_explicit(&child.ran, memory_order_acquire) != 1) {
+        return fail("redelivery must not create a second body");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return fail("usage: remote_publication_harness <mode>");
     if (strcmp(argv[1], "publish-other") == 0) return run_publish(1, 0);
@@ -743,6 +999,10 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "abandon-before-ack") == 0) {
         return run_abandon_window(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK);
     }
+    if (strcmp(argv[1], "ack-rescue-drain") == 0) return run_ack_rescue_drain();
+    if (strcmp(argv[1], "stale-request-before-body") == 0) return run_stale_request_before_body();
+    if (strcmp(argv[1], "duplicate-request-after-handoff") == 0) return run_stale_redelivery(0);
+    if (strcmp(argv[1], "stale-ack-after-resolution") == 0) return run_stale_redelivery(1);
     return fail("unknown mode");
 }
 `
