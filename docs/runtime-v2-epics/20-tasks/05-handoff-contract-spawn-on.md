@@ -128,9 +128,20 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
   OK the redelivered message is drained → releases only its own
   message reference, drop count stays 0, `child.ran` stays 1 — the
   child flag became a counter for exactly this assertion).
-- Rows 6-7 pending. Row 6 opens with the owned-results reply-edge
-  investigation (does any reclamation obligation exist for a
-  heap-carried result when the caller never consumes the reply).
+- Row 6 RESOLVED AS LEDGERED DEBT: the owned-results reply-edge
+  investigation (codex deep-dive, claims verified by direct read)
+  confirmed NO reclamation obligation exists for a heap-carried
+  result when the caller abandons the reply — two silent-leak paths
+  (release-while-DONE discards `task->result_bits` unseen; a landed
+  reply strands in the orphaned caller pending, whose
+  `caller_task_id` is a dead field for AWAIT/CANCEL). Opened
+  RV2-DEBT-053 with the full trace and the preferred fix shape
+  (populate `caller_task_id` + widen the existing
+  `rt_immediate_on_release_owned` sweep, then thread a
+  `result_drop_fn_id` like the state's). The fix is a design-slot
+  item, not a row-sized change — out of this task per the
+  no-fix-without-design rule.
+- Row 7 pending (final gates + doc sync).
 
 ## Status
 
