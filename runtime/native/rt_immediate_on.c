@@ -294,6 +294,7 @@ void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller) {
         pthread_mutex_lock(&state->lock);
         for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
             if ((it->op == RT_REMOTE_TASK_OP_EXECUTE ||
+                 it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED ||
                  it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) &&
                 it->caller_task_id == caller->id) {
                 pending = it;

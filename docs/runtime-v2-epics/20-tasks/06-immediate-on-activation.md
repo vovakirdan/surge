@@ -70,9 +70,47 @@ still runs its body.
   falling back to the driver's own reference (same technique as the
   spawn-on rows); the immediate pending got its own release/acquire
   twin pointer.
-- Rows 4-5 pending (anchored stale/pin-unpin/reply cancellation;
-  gates).
+- Row 4 DONE (same test): the anchored rows. (a) Stale anchor: a
+  corrupted-generation copy of a minted anchor answers STALE_TOKEN at
+  dispatch entry (`rt_far_channel_pin` fails before any body exists),
+  the pending is the sole owner and drops the shipped state exactly
+  once, no body runs, and the failed pin attempt never touches the
+  entry's in-flight count (proved by releasing the original,
+  still-active lease and observing the registry entry reclaim
+  immediately). (b) Happy path: the execute completes, the body runs
+  without touching the channel, drop count stays 0, and releasing the
+  driver's own lease afterward reclaims the entry at once — proving
+  the dispatch-time pin was already released at the reply edge
+  (`rt_remote_task_reply_owner_done` unpins before answering OK).
+  (c) Cancel-bound: caller cancelled at
+  `SP_IMMEDIATE_ON_BEFORE_PUBLISH` (anchor pinned, body created,
+  unpublished) — the body still runs, the reply edge resolves with no
+  caller to wake, the handed-off state never drops, and the pin
+  releases exactly once at that same reply edge. No direct pin
+  counter exists on the entry, so pin balance is proved through the
+  far-channel registry's own reclaim rule instead
+  (`rt_far_channel.c`: an entry reclaims only once it has both zero
+  active leases and zero in-flight pins) — the driver mints the
+  anchor, lets the scenario run, then releases its own lease last;
+  a leaked dispatch-side pin would leave the entry live after that
+  release, and none of the three rows do.
+  BUG FOUND AND FIXED IN-TASK: the caller-teardown sweep
+  `rt_immediate_on_release_owned` filtered on
+  `op == EXECUTE || op == CHANNEL_SELECT` and omitted
+  `EXECUTE_ANCHORED`, unlike every sibling site that branches on this
+  op triple (`rt_remote_task_dispatch.c` ~160,
+  `rt_remote_task_completion.c` ~48, `rt_remote_task_deadlock.c`
+  ~146) — so a cancelled caller with an UNBOUND anchored execute
+  never resolved the pending, the late dispatch created the body
+  anyway, and the family contract ("unbound abandoned request must be
+  refused, no body") was silently violated for exactly the anchored
+  variant. One-line fix: the anchored op joins the sweep filter (the
+  anchored request path already sets `caller_task_id`). Pinned by the
+  `anchored-cancel-unbound-refuses-body` row (drop x1, no body, no
+  pin — refusal happens at the snapshot check BEFORE the pin);
+  negative control verified — the row fails on the pre-fix runtime.
 
 ## Status
 
-IN PROGRESS (2026-07-19). Rows 1-3 landed.
+IN PROGRESS (2026-07-19). Rows 1-4 landed (incl. the anchored sweep
+fix). Row 5 (gates) pending.

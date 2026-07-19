@@ -264,6 +264,45 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
 		},
+		{
+			// A stale-generation anchor refuses the execute at dispatch
+			// entry, before any body exists: the pending is the sole owner
+			// of the shipped state and drops it exactly once, no body runs,
+			// and the failed pin attempt leaks nothing (checked through the
+			// registry's own reclaim rule).
+			name: "anchored-stale-anchor-refuses",
+			mode: "anchored-stale-anchor",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			// Happy path: the anchored execute completes, the reply carries
+			// the result, and the dispatch-time pin is already released at
+			// the reply edge (proven by releasing the driver's own lease
+			// afterward and observing immediate reclaim).
+			name: "anchored-happy-path-pin-balance",
+			mode: "anchored-happy-path",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			// The anchored twin of the unbound teardown row: the sweep must
+			// treat an anchored execute like a placement one — refused at
+			// the snapshot check before the pin, no body, one drop.
+			name: "anchored-cancel-unbound-refuses-body",
+			mode: "anchored-cancel-unbound",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_DISPATCH:block"),
+		},
+		{
+			// Caller cancelled while the anchored execute is BOUND (anchor
+			// pinned, body created, held at SP_IMMEDIATE_ON_BEFORE_PUBLISH):
+			// the reply edge resolves with no caller to wake, the
+			// handed-off state never drops, and the pin releases exactly
+			// once at that same reply edge.
+			name: "anchored-cancel-bound-reply-resolves-once",
+			mode: "anchored-cancel-bound",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
+		},
 	}
 	for _, row := range rows {
 		row := row
@@ -481,6 +520,7 @@ func remotePublicationEnv(values ...string) []string {
 const remotePublicationHarness = `
 #define _POSIX_C_SOURCE 199309L
 #include "rt_async_internal.h"
+#include "rt_far_channel.h"
 #include "rt_placement.h"
 #include "rt_remote_spawn.h"
 #include "rt_remote_spawn_internal.h"
@@ -548,6 +588,10 @@ typedef struct immediate_exec_state {
     uint32_t filled;
     uint32_t shutdown_done;
     uint32_t saw_pending;
+    // Anchored rows: route through rt_immediate_on_execute_anchored against
+    // this token instead of rt_immediate_on_execute against a placement.
+    uint32_t anchored;
+    rt_far_task_handle anchor;
     uint8_t out_kind;
     uint64_t out_bits;
     rt_remote_task_status status;
@@ -743,9 +787,13 @@ void __surge_poll_call(uint64_t id) {
                 return;
             }
         }
-        rt_remote_task_status status = rt_immediate_on_execute(
-            st->placement, st->droppable ? DROP_REMOTE_STATE : 0, POLL_REMOTE_CHILD,
-            st->child, &st->pending, &st->out_kind, &st->out_bits);
+        rt_remote_task_status status = st->anchored
+            ? rt_immediate_on_execute_anchored(
+                  &st->anchor, st->droppable ? DROP_REMOTE_STATE : 0, POLL_REMOTE_CHILD,
+                  st->child, &st->pending, &st->out_kind, &st->out_bits)
+            : rt_immediate_on_execute(
+                  st->placement, st->droppable ? DROP_REMOTE_STATE : 0, POLL_REMOTE_CHILD,
+                  st->child, &st->pending, &st->out_kind, &st->out_bits);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
             st->saw_pending = 1;
             atomic_store_explicit(&st->pending_shared, st->pending, memory_order_release);
@@ -1329,6 +1377,208 @@ static int run_immediate_redelivery(int redeliver_reply) {
     return 0;
 }
 
+// Anchored immediate-on rows. The dispatch entry (rt_immediate_on_dispatch_execute)
+// pins the anchor before a body exists (rt_immediate_on.c); a stale generation
+// answers STALE_TOKEN without ever incrementing the entry's in-flight pin
+// count, and every later exit (create-fail, teardown re-check, publish-fail,
+// the owner-done reply edge) unpins exactly once. There is no counter the
+// harness can read directly, so pin balance is proven through the registry's
+// own reclaim rule (rt_far_channel.c: an entry with no active leases and no
+// in-flight pins is freed): the driver mints the anchor (one lease, live
+// count 1), lets the scenario run, then releases its own lease last. If a
+// dispatch-side pin were still outstanding, the entry's in-flight count
+// would be nonzero and the release would NOT bring the live count to zero;
+// if the anchored path leaked no pin, the release is the final one and the
+// entry reclaims immediately.
+static int mint_anchor(rt_executor* ex, uint32_t owner_shard_id, rt_far_task_handle* out) {
+    void* channel = rt_channel_new(0);
+    if (channel == NULL) {
+        return 0;
+    }
+    rt_channel_bind_owner_shard(channel, owner_shard_id);
+    return rt_far_channel_mint(ex, channel, owner_shard_id, out) == RT_REMOTE_TASK_STATUS_OK;
+}
+
+// Row A: a stale-generation anchor refuses the execute before any body
+// exists. The pending is the sole owner of the shipped state (dispatch bails
+// at the pin check, well before the publication-accepted handoff), so it
+// drops exactly once; the failed pin attempt never touches the entry's
+// in-flight count, so releasing the original (still-active) lease reclaims
+// the entry immediately.
+static int run_anchored_stale_anchor(void) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    immediate_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.droppable = 1;
+    st.anchored = 1;
+    drop_expected_state = &child;
+
+    rt_far_task_handle anchor = {0};
+    if (!mint_anchor(ex, 0, &anchor)) return fail("anchor mint failed");
+    st.anchor = anchor;
+    st.anchor.generation++;  // corrupt a COPY; the original lease stays valid below
+
+    if (!await_immediate(&st)) return fail("stale anchor await failed");
+    if (st.status != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {
+        return fail("stale anchor execute must answer STALE_TOKEN");
+    }
+    if (!wait_drops(1, 5000)) {
+        return fail("stale anchor path must drop the shipped state exactly once");
+    }
+    if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
+        return fail("stale anchor must not run a body");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 1) return fail("mint left no live entry to check");
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("original anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("stale-anchor dispatch attempt leaked a pin on the entry");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Row B: the happy path. Execute against a live anchor, let the body run
+// (it does not touch the channel), and prove the dispatch-time pin was
+// already released at the reply edge (rt_remote_task_reply_owner_done unpins
+// before answering OK) by releasing the driver's own lease afterward and
+// checking the entry reclaims immediately.
+static int run_anchored_happy_path(void) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    immediate_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.droppable = 1;
+    st.anchored = 1;
+    drop_expected_state = &child;
+
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor = {0};
+    if (!mint_anchor(ex, dst, &anchor)) return fail("anchor mint failed");
+    st.anchor = anchor;
+
+    if (!await_immediate(&st)) return fail("anchored happy-path await failed");
+    if (st.status != RT_REMOTE_TASK_STATUS_OK || st.out_kind != 1 || st.out_bits != 77) {
+        return fail("anchored happy path did not resolve OK");
+    }
+    if (!wait_child(&child, 5000)) return fail("anchored body did not run");
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("handed-off state must not drop on the anchored happy path");
+    }
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("anchored happy path leaked the dispatch-time pin");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Row C: caller cancelled while the anchored execute is BOUND (anchor
+// pinned, body created, held at SP_IMMEDIATE_ON_BEFORE_PUBLISH before its
+// publication). Mirrors the placement family's cancel-bound row: the body
+// still runs (no suspension points; both completions are legal per the
+// cancel-route contract), the reply edge resolves with no caller to wake,
+// the handed-off state never drops through the pending, and the
+// dispatch-time pin is released exactly once at that same reply edge.
+static int run_anchored_cancel_bound(void) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    immediate_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.droppable = 1;
+    st.anchored = 1;
+    drop_expected_state = &child;
+
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor = {0};
+    if (!mint_anchor(ex, dst, &anchor)) return fail("anchor mint failed");
+    st.anchor = anchor;
+
+    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st);
+    if (caller == NULL) return fail("anchored caller create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH, 5000)) {
+        return fail("anchored publish window was never reached");
+    }
+    rt_task_cancel(caller);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (kind == 1) return fail("cancelled anchored caller must not resolve successfully");
+    rt_sync_point_open();
+    if (!wait_child(&child, 5000)) return fail("bound anchored body did not run");
+    // The reply edge (and its unpin) resolves behind the body completion;
+    // give the release chain a settle window before pinning the census.
+    sleep_us(50000);
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("handed-off state must not drop after the anchored bind");
+    }
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("anchored cancel-bound path leaked the dispatch-time pin");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// The anchored twin of the unbound caller-teardown row: the sweep must
+// resolve an UNBOUND anchored execute exactly like a placement one, so
+// the late dispatch refuses at its snapshot check BEFORE the anchor pin
+// — no body, no pin, the sole-owner pending drops the state once.
+static int run_anchored_cancel_unbound(void) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    immediate_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.droppable = 1;
+    st.anchored = 1;
+    drop_expected_state = &child;
+
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor = {0};
+    if (!mint_anchor(ex, dst, &anchor)) return fail("anchor mint failed");
+    st.anchor = anchor;
+
+    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st);
+    if (caller == NULL) return fail("anchored caller create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_DISPATCH, 5000)) {
+        return fail("anchored dispatch window was never reached");
+    }
+    rt_task_cancel(caller);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (kind == 1) return fail("cancelled anchored caller must not resolve successfully");
+    rt_sync_point_open();
+    if (!wait_drops(1, 5000)) {
+        return fail("unbound anchored cancel must drop the state exactly once");
+    }
+    if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
+        return fail("unbound anchored cancel must refuse body creation");
+    }
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("refused anchored dispatch must not touch the pin");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return fail("usage: remote_publication_harness <mode>");
     if (strcmp(argv[1], "publish-other") == 0) return run_publish(1, 0);
@@ -1362,6 +1612,10 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "immediate-duplicate-request") == 0) return run_immediate_redelivery(0);
     if (strcmp(argv[1], "immediate-stale-reply") == 0) return run_immediate_redelivery(1);
+    if (strcmp(argv[1], "anchored-stale-anchor") == 0) return run_anchored_stale_anchor();
+    if (strcmp(argv[1], "anchored-happy-path") == 0) return run_anchored_happy_path();
+    if (strcmp(argv[1], "anchored-cancel-bound") == 0) return run_anchored_cancel_bound();
+    if (strcmp(argv[1], "anchored-cancel-unbound") == 0) return run_anchored_cancel_unbound();
     return fail("unknown mode");
 }
 `
