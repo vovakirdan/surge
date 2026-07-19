@@ -78,8 +78,14 @@ same change.
 
 ## Status
 
-IN PROGRESS (2026-07-19). Reconnaissance complete (runtime half by
-codex, sema/gate half by lead); scope split recorded.
+COMPLETE (2026-07-19). Row 1 (sema symmetry) landed as `94a2561b`;
+rows 2-5 as `035550b1`. Row 6 gates: full transport gate green (6/6
+suites, `TestRuntimeV2RemoteSelectAbandonEdges` wired into the
+remote-task acceptance line), `check_sync_points.sh` green (two far-
+select windows allowlisted), `make check` in pre-commit on both
+commits, root `sentrux check` 10 rules pass. The vertical-3 deferral
+(abandon-time commit-bit reconciliation, non-copy e2e) is recorded in
+the scope split above and rides with opening the ChannelCreate gate.
 
 Rows 2-5 (deterministic runtime races, Copy payloads) DONE (2026-07-19):
 new sync points `SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY` (row 2, in
