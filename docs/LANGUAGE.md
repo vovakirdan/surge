@@ -975,6 +975,7 @@ Notes:
 - `=>` separates pattern from result expression and is only valid within `compare` arms, `select`/`race` arms, and parallel constructs.
 - Exhaustiveness for tagged unions is enforced: arms must cover all variants or include `finally`. Redundant `finally` emits `SemaRedundantFinally`. Untagged unions are not supported.
 - If both a tag constructor and a function named `Ident` are in scope, using `Ident(...)` emits `SemaAmbiguousCtorOrFn`.
+- Guards only borrow: a guard expression cannot move a pattern binding introduced by its own arm out by value (`Payload(x) if consume(x)` where `consume` takes `string` by value emits `SemaCompareGuardMovesBinding`). A failed guard falls through to the next arm with the compared value expected intact, so consuming it inside the guard would leave later arms reading freed memory. Borrowing (`check(&x)`), equality against literals, and Copy-typed bindings are unaffected.
 
 ---
 

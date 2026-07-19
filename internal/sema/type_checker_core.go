@@ -96,6 +96,7 @@ type typeChecker struct {
 	expectedExpr                ast.ExprID
 	expectedType                types.TypeID
 	discardedExprs              []ast.ExprID
+	compareGuardBindings        [][]symbols.SymbolID
 	blockResultExprs            map[ast.ExprID][]ast.ExprID
 	arrayName                   source.StringID
 	arraySymbol                 symbols.SymbolID

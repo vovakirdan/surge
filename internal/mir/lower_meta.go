@@ -196,7 +196,7 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					// place type is already on locals
 				case InstrEndBorrow:
 					// place type is already on locals
-				case InstrIterRelease:
+				case InstrEnvelopeRelease:
 					// place type is already on locals
 				case InstrAwait:
 					visitOperand(&ins.Await.Task)

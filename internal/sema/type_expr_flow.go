@@ -35,9 +35,18 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		if narrowed := tc.narrowCompareSubjectType(valueType, remainingMembers); narrowed != types.NoTypeID {
 			armSubject = narrowed
 		}
-		tc.inferComparePatternTypes(arm.Pattern, armSubject)
+		var armBindings []symbols.SymbolID
+		tc.inferComparePatternTypes(arm.Pattern, armSubject, &armBindings)
 		if arm.Guard.IsValid() {
+			// A guard runs BEFORE this arm commits (payload extraction
+			// already ran, but a failed guard falls through to the next
+			// arm against the SAME scrutinee) — moving one of this arm's
+			// own pattern bindings out of the guard would free storage
+			// the next arm (or this fix's own deep-drop release) still
+			// needs. Guards may only borrow; see reportCompareGuardMove.
+			tc.pushCompareGuardBindings(armBindings)
 			tc.ensureBoolContext(arm.Guard, tc.exprSpan(arm.Guard))
+			tc.popCompareGuardBindings(armBindings)
 		}
 		if compareDiscarded {
 			tc.pushDiscardedExpr(arm.Result)

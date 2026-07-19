@@ -74,5 +74,6 @@ fn main:
     L12 = move L2
     return const 1
   bb6:
+    drop L2
     call print(const "\"none\"")
     return const 0

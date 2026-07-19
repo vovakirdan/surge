@@ -9,14 +9,14 @@ fn sum(arr: type#1503) -> int (id=1, sym=1421) {
     while true {
       let __next2: type#1505 = iter_next(__iter1): type#1505
       if tag_test(__next2, nothing): bool {
-        iter_release_step __next2
+        release_box __next2
         break
       }
       let x: int [copy] = tag_payload(__next2, Some, 0): int
-      iter_release_step __next2
+      release_box __next2
       (total = __add(total, x)): int
     }
-    iter_release_cursor __iter1
+    release_cursor __iter1
   }
   return total
 }

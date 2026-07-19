@@ -40,8 +40,8 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 		return fe.emitInstrSelect(ins)
 	case mir.InstrDrop:
 		return fe.emitInstrDrop(ins)
-	case mir.InstrIterRelease:
-		return fe.emitInstrIterRelease(ins)
+	case mir.InstrEnvelopeRelease:
+		return fe.emitInstrEnvelopeRelease(ins)
 	case mir.InstrEndBorrow, mir.InstrNop:
 		return nil
 	default:

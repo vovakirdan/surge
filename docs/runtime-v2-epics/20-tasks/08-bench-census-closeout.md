@@ -36,6 +36,32 @@ of weakening the epic's bar to the far==local differential form.
    the next epic — carries DEBT-053, the select vertical-3 deferral
    (Task 7 doc), and 054/055/056 dispositions.
 
+## Progress
+
+- Row 1 DONE (RV2-DEBT-052 CLOSED — see the ledger row for the full
+  record). Two rounds: the fix (per-arm scrutinee release in the
+  normalize pass, the DEBT-040 channel renamed to the shared
+  `EnvelopeRelease`), then the adversarial-review blocker — a
+  PRE-EXISTING guard-fallthrough UAF (extraction precedes the guard;
+  a by-value consuming guard freed the payload later arms re-extract)
+  that the fix's deep-drop would have turned into a double-free.
+  Root-cause remedy: guards only borrow — moving a current-arm
+  pattern binding inside its guard is rejected
+  (`SemaCompareGuardMovesBinding`, kindness-first wording; LANGUAGE.md
+  updated). Census: 6-probe strict-zero row incl. the previously
+  undodgeable extraction/borrow-guard-fail/deep-drop path; the
+  crossing census tightened to independent d8==d1 and b8==b1;
+  valgrind control 32B/2 blocks -> 0/0 (retroactively re-attributing
+  the two 16B blocks the DEBT-051/053 investigations called entry
+  states — they were TaskResult scrutinee boxes). Await-in-arm MIR
+  golden pins the release riding post-resume with the scrutinee
+  persisted across suspension. Found en route: RV2-DEBT-057
+  (union-cast source box leak), RV2-DEBT-058 (compare-arm payload
+  bindings never get scope-exit drops — also the recorded reason the
+  mixed-payload and whole-value-binding arm shapes keep pre-fix
+  leak-over-wrong-free behavior).
+- Rows 2-5 pending.
+
 ## Status
 
-IN PROGRESS (2026-07-19). Row 1 in flight.
+IN PROGRESS (2026-07-19). Row 1 landed.

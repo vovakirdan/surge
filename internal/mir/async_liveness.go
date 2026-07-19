@@ -85,9 +85,9 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 		case InstrDrop:
 			addUsesFromPlace(ins.Drop.Place, addUse)
 			addDefFromPlace(ins.Drop.Place, addDef)
-		case InstrIterRelease:
-			addUsesFromPlace(ins.IterRelease.Place, addUse)
-			addDefFromPlace(ins.IterRelease.Place, addDef)
+		case InstrEnvelopeRelease:
+			addUsesFromPlace(ins.EnvelopeRelease.Place, addUse)
+			addDefFromPlace(ins.EnvelopeRelease.Place, addDef)
 		case InstrEndBorrow:
 			addUsesFromPlace(ins.EndBorrow.Place, addUse)
 			addDefFromPlace(ins.EndBorrow.Place, addDef)

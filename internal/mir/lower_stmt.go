@@ -382,10 +382,10 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		// else: copy type → emit nothing
 		return nil
 
-	case hir.StmtIterRelease:
-		data, ok := st.Data.(hir.IterReleaseData)
+	case hir.StmtEnvelopeRelease:
+		data, ok := st.Data.(hir.EnvelopeReleaseData)
 		if !ok {
-			return fmt.Errorf("mir: iter_release: unexpected payload %T", st.Data)
+			return fmt.Errorf("mir: envelope_release: unexpected payload %T", st.Data)
 		}
 		if data.Value == nil {
 			return nil
@@ -397,7 +397,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		// Unconditional: the envelope is always a heap box regardless of
 		// whether the declared element type is Copy (unlike InstrDrop,
 		// which a Copy type would suppress above).
-		l.emit(&Instr{Kind: InstrIterRelease, IterRelease: IterReleaseInstr{Place: place, Cursor: data.Cursor}})
+		l.emit(&Instr{Kind: InstrEnvelopeRelease, EnvelopeRelease: EnvelopeReleaseInstr{Place: place, Cursor: data.Cursor}})
 		return nil
 
 	default:

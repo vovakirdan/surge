@@ -1,0 +1,340 @@
+
+== MIR ==
+funcs=6
+
+fn inc:
+  locals:
+    L0: int [copy] name=x
+    L1: uint [copy] name=__scope
+    L2: int [copy] name=tmp_call1
+    L3: type#1510 name=__state_init
+    L4: type#1509 name=__payload_init
+    L5: type#1502 name=__task
+  bb0:
+    L4 = call Pc0(copy L0)
+    L3 = struct_lit type#1510 {__pc=const 0, __payload=move L4}
+    L5 = call const 0(const 4, move L3)
+    return move L5
+
+fn inc$poll:
+  locals:
+    L0: int [copy] name=x
+    L1: uint [copy] name=__scope
+    L2: int [copy] name=tmp_call1
+    L3: bool [copy] name=__scope_join_failed
+    L4: type#1510 name=__state
+    L5: int [copy] name=__pc
+    L6: type#1509 name=__payload
+    L7: bool [copy] name=__pc_match
+  bb0:
+    L2 = call __add(copy L0, const 1)
+    goto bb1
+  bb1:
+    L3 = join_all copy L1 ? bb2 : bb11
+    unreachable
+  bb2:
+    call const 0(copy L1)
+    if copy L3 then bb4 else bb3
+  bb3:
+    call const 0(copy L6, copy L4)
+    async_return move L4, copy L2
+  bb4:
+    async_cancel move L4
+  bb5:
+    L4 = call const 0()
+    L5 = field copy L4.__pc
+    L6 = field copy L4.__payload
+    goto bb10
+  bb6:
+    unreachable
+  bb7:
+    L1 = tag_payload copy L6.Pc1[0]
+    L2 = tag_payload copy L6.Pc1[1]
+    goto bb1
+  bb8:
+    L7 = (copy L5 == const 1)
+    if copy L7 then bb7 else bb6
+  bb9:
+    L0 = tag_payload copy L6.Pc0[0]
+    L1 = call const 0(const false)
+    goto bb0
+  bb10:
+    L7 = (copy L5 == const 0)
+    if copy L7 then bb9 else bb8
+  bb11:
+    call const 0(copy L6, copy L4)
+    L6 = call Pc1(copy L1, copy L2)
+    L4 = struct_lit type#1510 {__pc=const 1, __payload=move L6}
+    async_yield move L4
+
+fn slow:
+  locals:
+    L0: int [copy] name=n
+    L1: uint [copy] name=__scope
+    L2: bool [copy] name=tmp_call1
+    L3: type#1512 name=__state_init
+    L4: type#1511 name=__payload_init
+    L5: type#1504 name=__task
+  bb0:
+    L4 = call Pc0(copy L0)
+    L3 = struct_lit type#1512 {__pc=const 0, __payload=move L4}
+    L5 = call const 0(const 5, move L3)
+    return move L5
+
+fn slow$poll:
+  locals:
+    L0: int [copy] name=n
+    L1: uint [copy] name=__scope
+    L2: bool [copy] name=tmp_call1
+    L3: bool [copy] name=__scope_join_failed
+    L4: type#1512 name=__state
+    L5: int [copy] name=__pc
+    L6: type#1511 name=__payload
+    L7: bool [copy] name=__pc_match
+  bb0:
+    L2 = call __gt(copy L0, const 0)
+    goto bb1
+  bb1:
+    L3 = join_all copy L1 ? bb2 : bb11
+    unreachable
+  bb2:
+    call const 0(copy L1)
+    if copy L3 then bb4 else bb3
+  bb3:
+    call const 0(copy L6, copy L4)
+    async_return move L4, copy L2
+  bb4:
+    async_cancel move L4
+  bb5:
+    L4 = call const 0()
+    L5 = field copy L4.__pc
+    L6 = field copy L4.__payload
+    goto bb10
+  bb6:
+    unreachable
+  bb7:
+    L1 = tag_payload copy L6.Pc1[0]
+    L2 = tag_payload copy L6.Pc1[1]
+    goto bb1
+  bb8:
+    L7 = (copy L5 == const 1)
+    if copy L7 then bb7 else bb6
+  bb9:
+    L0 = tag_payload copy L6.Pc0[0]
+    L1 = call const 0(const false)
+    goto bb0
+  bb10:
+    L7 = (copy L5 == const 0)
+    if copy L7 then bb9 else bb8
+  bb11:
+    call const 0(copy L6, copy L4)
+    L6 = call Pc1(copy L1, copy L2)
+    L4 = struct_lit type#1512 {__pc=const 1, __payload=move L6}
+    async_yield move L4
+
+fn test:
+  locals:
+    L0: uint [copy] name=__scope
+    L1: type#1502 name=a
+    L2: type#1502 name=tmp_call1
+    L3: type#1502 name=tmp_spawn2
+    L4: type#1504 name=b
+    L5: type#1504 name=tmp_call3
+    L6: type#1504 name=tmp_spawn4
+    L7: int [copy] name=tmp_block5
+    L8: type#1507 name=__cmp2
+    L9: type#1507 name=tmp_await6
+    L10: bool [copy] name=tmp_tagtest7
+    L11: int [copy] name=x
+    L12: int [copy] name=tmp_payload8
+    L13: bool [copy] name=tmp_block9
+    L14: type#1508 name=__cmp1
+    L15: type#1508 name=tmp_await10
+    L16: bool [copy] name=tmp_tagtest11
+    L17: bool [copy] name=v
+    L18: bool [copy] name=tmp_payload12
+    L19: bool [copy] name=tmp_tagtest13
+    L20: bool [copy] name=tmp_tagtest14
+    L21: int [copy] name=tmp_block15
+    L22: int [copy] name=tmp_call16
+    L23: type#1514 name=__state_init
+    L24: type#1513 name=__payload_init
+    L25: type#1502 name=__task
+  bb0:
+    L24 = call Pc0()
+    L23 = struct_lit type#1514 {__pc=const 0, __payload=move L24}
+    L25 = call const 0(const 6, move L23)
+    return move L25
+
+fn test$poll:
+  locals:
+    L0: uint [copy] name=__scope
+    L1: type#1502 name=a
+    L2: type#1502 name=tmp_call1
+    L3: type#1502 name=tmp_spawn2
+    L4: type#1504 name=b
+    L5: type#1504 name=tmp_call3
+    L6: type#1504 name=tmp_spawn4
+    L7: int [copy] name=tmp_block5
+    L8: type#1507 name=__cmp2
+    L9: type#1507 name=tmp_await6
+    L10: bool [copy] name=tmp_tagtest7
+    L11: int [copy] name=x
+    L12: int [copy] name=tmp_payload8
+    L13: bool [copy] name=tmp_block9
+    L14: type#1508 name=__cmp1
+    L15: type#1508 name=tmp_await10
+    L16: bool [copy] name=tmp_tagtest11
+    L17: bool [copy] name=v
+    L18: bool [copy] name=tmp_payload12
+    L19: bool [copy] name=tmp_tagtest13
+    L20: bool [copy] name=tmp_tagtest14
+    L21: int [copy] name=tmp_block15
+    L22: int [copy] name=tmp_call16
+    L23: bool [copy] name=__scope_join_failed
+    L24: type#1514 name=__state
+    L25: int [copy] name=__pc
+    L26: type#1513 name=__payload
+    L27: bool [copy] name=__pc_match
+  bb0:
+    L2 = call inc(const 5)
+    L3 = spawn move L2
+    call const 0(copy L0, copy L3)
+    L1 = move L3
+    L5 = call slow(const 1)
+    L6 = spawn move L5
+    call const 0(copy L0, copy L6)
+    L4 = move L6
+    goto bb14
+  bb1:
+    L12 = tag_payload copy L8.Success[0]
+    L11 = copy L12
+    goto bb16
+  bb2:
+    L20 = tag_test copy L8 is Cancelled
+    if copy L20 then bb8 else bb9
+  bb3:
+    if copy L13 then bb7 else bb2
+  bb4:
+    L18 = tag_payload copy L14.Success[0]
+    L17 = copy L18
+    release_box L14
+    L13 = copy L17
+    goto bb3
+  bb5:
+    drop L14
+    L13 = const false
+    goto bb3
+  bb6:
+    unreachable
+  bb7:
+    release_box L8
+    L7 = copy L11
+    goto bb17
+  bb8:
+    drop L8
+    drop L4
+    L21 = const 0
+    goto bb10
+  bb9:
+    drop L8
+    L22 = call default()
+    L7 = copy L22
+    goto bb17
+  bb10:
+    L7 = copy L21
+    goto bb17
+  bb11:
+    L8 = move L9
+    switch_tag copy L8 { Success -> bb1; Cancelled -> bb8; default -> bb9; }
+  bb12:
+    L9 = poll copy L1 ? bb11 : bb33
+    unreachable
+  bb13:
+    L8 = move L9
+    switch_tag copy L8 { Success -> bb1; Cancelled -> bb8; default -> bb9; }
+  bb14:
+    L9 = poll copy L1 ? bb13 : bb34
+    unreachable
+  bb15:
+    L14 = move L15
+    switch_tag copy L14 { Success -> bb4; Cancelled -> bb5; default -> bb6; }
+  bb16:
+    L15 = poll copy L4 ? bb15 : bb35
+    unreachable
+  bb17:
+    L23 = join_all copy L0 ? bb18 : bb36
+    unreachable
+  bb18:
+    call const 0(copy L0)
+    if copy L23 then bb20 else bb19
+  bb19:
+    call const 0(copy L26, copy L24)
+    async_return move L24, copy L7
+  bb20:
+    async_cancel move L24
+  bb21:
+    L24 = call const 0()
+    L25 = field copy L24.__pc
+    L26 = field copy L24.__payload
+    goto bb32
+  bb22:
+    unreachable
+  bb23:
+    L0 = tag_payload copy L26.Pc18[0]
+    L7 = tag_payload copy L26.Pc18[1]
+    goto bb17
+  bb24:
+    L27 = (copy L25 == const 18)
+    if copy L27 then bb23 else bb22
+  bb25:
+    L0 = tag_payload copy L26.Pc17[0]
+    L4 = tag_payload copy L26.Pc17[1]
+    L8 = tag_payload copy L26.Pc17[2]
+    L11 = tag_payload copy L26.Pc17[3]
+    goto bb16
+  bb26:
+    L27 = (copy L25 == const 17)
+    if copy L27 then bb25 else bb24
+  bb27:
+    L0 = tag_payload copy L26.Pc15[0]
+    L1 = tag_payload copy L26.Pc15[1]
+    L4 = tag_payload copy L26.Pc15[2]
+    goto bb14
+  bb28:
+    L27 = (copy L25 == const 15)
+    if copy L27 then bb27 else bb26
+  bb29:
+    L0 = tag_payload copy L26.Pc13[0]
+    L1 = tag_payload copy L26.Pc13[1]
+    L4 = tag_payload copy L26.Pc13[2]
+    goto bb12
+  bb30:
+    L27 = (copy L25 == const 13)
+    if copy L27 then bb29 else bb28
+  bb31:
+    L0 = call const 0(const false)
+    goto bb0
+  bb32:
+    L27 = (copy L25 == const 0)
+    if copy L27 then bb31 else bb30
+  bb33:
+    call const 0(copy L26, copy L24)
+    L26 = call Pc13(copy L0, move L1, move L4)
+    L24 = struct_lit type#1514 {__pc=const 13, __payload=move L26}
+    async_yield move L24
+  bb34:
+    call const 0(copy L26, copy L24)
+    L26 = call Pc15(copy L0, move L1, move L4)
+    L24 = struct_lit type#1514 {__pc=const 15, __payload=move L26}
+    async_yield move L24
+  bb35:
+    call const 0(copy L26, copy L24)
+    L26 = call Pc17(copy L0, move L4, move L8, copy L11)
+    L24 = struct_lit type#1514 {__pc=const 17, __payload=move L26}
+    async_yield move L24
+  bb36:
+    call const 0(copy L26, copy L24)
+    L26 = call Pc18(copy L0, copy L7)
+    L24 = struct_lit type#1514 {__pc=const 18, __payload=move L26}
+    async_yield move L24

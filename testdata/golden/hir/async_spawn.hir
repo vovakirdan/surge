@@ -12,9 +12,11 @@ async fn test() -> int (id=2, sym=1422) {
     let __cmp1: type#1505 = await(t): type#1505
     if tag_test(__cmp1, Success): bool {
       let v: int [copy] = tag_payload(__cmp1, Success, 0): int
+      release_box __cmp1
       return v
     }
     if tag_test(__cmp1, Cancelled): bool {
+      drop __cmp1
       return 0
     }
   }: int

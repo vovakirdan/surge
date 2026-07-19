@@ -327,12 +327,12 @@ func (p *Printer) printStmt(s *Stmt) {
 		p.printExpr(data.Value)
 		p.printf("\n")
 
-	case StmtIterRelease:
-		data := s.Data.(IterReleaseData)
+	case StmtEnvelopeRelease:
+		data := s.Data.(EnvelopeReleaseData)
 		if data.Cursor {
-			p.printf("iter_release_cursor ")
+			p.printf("release_cursor ")
 		} else {
-			p.printf("iter_release_step ")
+			p.printf("release_box ")
 		}
 		p.printExpr(data.Value)
 		p.printf("\n")

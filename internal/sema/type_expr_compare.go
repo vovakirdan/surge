@@ -11,7 +11,12 @@ import (
 	"surge/internal/types"
 )
 
-func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject types.TypeID) {
+// inferComparePatternTypes type-checks pattern (an arm's compare
+// pattern) against subject, and appends the SymbolID of every
+// identifier binding it introduces to *bound — the caller uses this to
+// forbid the guard from moving them (see pushCompareGuardBindings).
+// bound may be nil when the caller has no such need.
+func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject types.TypeID, bound *[]symbols.SymbolID) {
 	if !pattern.IsValid() || tc.builder == nil {
 		return
 	}
@@ -36,6 +41,9 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 	case ast.ExprIdent:
 		symID := tc.symbolForExpr(pattern)
 		tc.setBindingType(symID, subject)
+		if bound != nil && symID.IsValid() {
+			*bound = append(*bound, symID)
+		}
 	case ast.ExprMember:
 		if member, ok := tc.builder.Exprs.Member(pattern); ok && member != nil {
 			if enumType := tc.enumTypeForExpr(member.Target); enumType != types.NoTypeID {
@@ -64,7 +72,7 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 			if i < len(argTypes) {
 				argType = argTypes[i]
 			}
-			tc.inferComparePatternTypes(arg.Value, argType)
+			tc.inferComparePatternTypes(arg.Value, argType, bound)
 		}
 	case ast.ExprTuple:
 		tuple, _ := tc.builder.Exprs.Tuple(pattern)
@@ -82,7 +90,7 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 			if i < len(elemTypes) {
 				elemType = elemTypes[i]
 			}
-			tc.inferComparePatternTypes(elem, elemType)
+			tc.inferComparePatternTypes(elem, elemType, bound)
 		}
 	}
 }

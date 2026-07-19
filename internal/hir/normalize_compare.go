@@ -60,12 +60,25 @@ func normalizeCompareExpr(ctx *normCtx, e *Expr) error {
 		},
 	})
 
+	// Ownership only transferred into cmpRef when sema's move tracking
+	// would have moved the original scrutinee binding (RV2-DEBT-052) —
+	// see compareScrutineeReleaseSafe. A Copy, borrowed, or non-union
+	// scrutinee gets no release at all, leaving the pre-existing
+	// behavior (no release, matching what sema's obligations imply)
+	// unchanged.
+	releaseSafe := compareScrutineeReleaseSafe(ctx, valueTy)
+
 	for _, arm := range data.Arms {
-		armStmts := lowerCompareArm(ctx, cmpRef, valueTy, arm)
+		armStmts := lowerCompareArm(ctx, cmpRef, valueTy, arm, releaseSafe)
 		stmts = append(stmts, armStmts...)
 	}
 
 	if !compareExhaustive(ctx, valueTy, data.Arms) {
+		// No arm matched: the scrutinee was only ever read for tag
+		// tests, never consumed, so it still needs reclaiming here.
+		if releaseSafe {
+			stmts = append(stmts, deepDropStmt(cmpRef))
+		}
 		// When no arm matches, fall back to a default value of the compare expression type.
 		// This keeps the normalized HIR well-typed without introducing new semantic checks.
 		stmts = append(stmts, Stmt{
@@ -98,7 +111,7 @@ func normalizeCompareExpr(ctx *normCtx, e *Expr) error {
 	return nil
 }
 
-func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm CompareArm) []Stmt {
+func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm CompareArm, releaseSafe bool) []Stmt {
 	if ctx == nil {
 		return nil
 	}
@@ -110,20 +123,30 @@ func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm Co
 		span = ctx.fn.Span
 	}
 
+	// A wildcard/finally/nothing/literal-equality arm only ever READS the
+	// scrutinee (tag test or comparison) — it never extracts a payload
+	// binding, so any heap-owning payload is only reachable through this
+	// box and needs a full drop, not a shallow envelope free.
+	var deepRelease *Stmt
+	if releaseSafe {
+		r := deepDropStmt(subject)
+		deepRelease = &r
+	}
+
 	// `finally` is a wildcard default arm.
 	if arm.IsFinally || isWildcardPattern(arm.Pattern) {
 		if arm.Guard == nil {
-			return []Stmt{mkReturn(span, arm.Result)}
+			return armReturnStmts(span, deepRelease, arm.Result)
 		}
-		return []Stmt{mkIf(span, arm.Guard, &Block{Stmts: []Stmt{mkReturn(span, arm.Result)}, Span: span})}
+		return []Stmt{mkIf(span, arm.Guard, &Block{Stmts: armReturnStmts(span, deepRelease, arm.Result), Span: span})}
 	}
 
 	if isNothingPattern(arm.Pattern) {
-		return []Stmt{mkMatchIf(span, &Expr{Kind: ExprTagTest, Type: ctx.boolType(), Span: span, Data: TagTestData{Value: subject, TagName: "nothing"}}, nil, arm.Guard, arm.Result)}
+		return []Stmt{mkMatchIf(span, &Expr{Kind: ExprTagTest, Type: ctx.boolType(), Span: span, Data: TagTestData{Value: subject, TagName: "nothing"}}, nil, arm.Guard, arm.Result, deepRelease)}
 	}
 
 	if tagName, payloadPats, ok := tagPattern(ctx, arm.Pattern); ok {
-		return []Stmt{lowerTagArm(ctx, span, subject, tagName, payloadPats, arm.Guard, arm.Result)}
+		return []Stmt{lowerTagArm(ctx, span, subject, tagName, payloadPats, arm.Guard, arm.Result, releaseSafe)}
 	}
 
 	if tupleElems, ok := tuplePattern(arm.Pattern); ok {
@@ -159,7 +182,7 @@ func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm Co
 
 	// Fallback: treat the pattern as a literal equality check.
 	cond := ctx.binary(ast.ExprBinaryEq, subject, arm.Pattern, ctx.boolType(), span)
-	return []Stmt{mkMatchIf(span, cond, nil, arm.Guard, arm.Result)}
+	return []Stmt{mkMatchIf(span, cond, nil, arm.Guard, arm.Result, deepRelease)}
 }
 
 func isWildcardPattern(p *Expr) bool {
@@ -445,19 +468,25 @@ func mkIf(span source.Span, cond *Expr, thenB *Block) Stmt {
 
 // mkMatchIf builds:
 //
-//	if cond { <bindings>; if guard { return result } }.
-func mkMatchIf(span source.Span, cond *Expr, bindings []Stmt, guard, result *Expr) Stmt {
+//	if cond { <bindings>; [release;] if guard { [release;] return result } }.
+//
+// release (may be nil) is placed immediately before whichever return is
+// actually reachable: inside the guard when there is one (a failed guard
+// falls through past this whole arm, so the scrutinee's box must stay
+// alive for the next arm's own tag test), directly before the
+// unconditional return otherwise.
+func mkMatchIf(span source.Span, cond *Expr, bindings []Stmt, guard, result *Expr, release *Stmt) Stmt {
 	thenB := &Block{Span: span}
 	thenB.Stmts = append(thenB.Stmts, bindings...)
 	if guard == nil {
-		thenB.Stmts = append(thenB.Stmts, mkReturn(span, result))
+		thenB.Stmts = append(thenB.Stmts, armReturnStmts(span, release, result)...)
 	} else {
-		thenB.Stmts = append(thenB.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: []Stmt{mkReturn(span, result)}}))
+		thenB.Stmts = append(thenB.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: armReturnStmts(span, release, result)}))
 	}
 	return mkIf(span, cond, thenB)
 }
 
-func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payload []*Expr, guard, result *Expr) Stmt {
+func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payload []*Expr, guard, result *Expr, releaseSafe bool) Stmt {
 	cond := &Expr{
 		Kind: ExprTagTest,
 		Type: ctx.boolType(),
@@ -487,10 +516,27 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 		}
 	}
 
+	// The release, if any, goes AFTER every payload extraction above (so
+	// a bound field's own copy is already taken before the envelope
+	// frees) and BEFORE the return (so it fires on every path that
+	// actually leaves this arm).
+	var release *Stmt
+	if releaseSafe {
+		if shallow, safe := tagPayloadReleaseShape(ctx, payload); safe {
+			var r Stmt
+			if shallow {
+				r = envelopeReleaseStmt(subject)
+			} else {
+				r = deepDropStmt(subject)
+			}
+			release = &r
+		}
+	}
+
 	if guard == nil {
-		current.Stmts = append(current.Stmts, mkReturn(span, result))
+		current.Stmts = append(current.Stmts, armReturnStmts(span, release, result)...)
 	} else {
-		current.Stmts = append(current.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: []Stmt{mkReturn(span, result)}}))
+		current.Stmts = append(current.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: armReturnStmts(span, release, result)}))
 	}
 
 	return mkIf(span, cond, thenB)

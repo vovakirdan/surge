@@ -346,7 +346,7 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 	// that isn't there.
 	var stepRelease Stmt
 	if bindVarStmt != nil {
-		stepRelease = Stmt{Kind: StmtIterRelease, Span: span, Data: IterReleaseData{Value: nextRef, Cursor: false}}
+		stepRelease = Stmt{Kind: StmtEnvelopeRelease, Span: span, Data: EnvelopeReleaseData{Value: nextRef, Cursor: false}}
 	} else {
 		stepRelease = Stmt{Kind: StmtDrop, Span: span, Data: DropData{Value: nextRef}}
 	}
@@ -388,9 +388,9 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 	hasCursorRelease := iterCursorReleaseIsSafe(ctx, data.Iterable, elemTy)
 	if hasCursorRelease {
 		cursorRelease = Stmt{
-			Kind: StmtIterRelease,
+			Kind: StmtEnvelopeRelease,
 			Span: span,
-			Data: IterReleaseData{Value: ctx.varRef(iterName, iterSym, iterTy, span), Cursor: true},
+			Data: EnvelopeReleaseData{Value: ctx.varRef(iterName, iterSym, iterTy, span), Cursor: true},
 		}
 		injectIterCursorReleaseBeforeReturns(data.Body, cursorRelease)
 	}

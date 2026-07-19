@@ -335,10 +335,12 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	return iterPtr, "ptr", nil
 }
 
-// emitInstrIterRelease frees a for-loop iterator protocol envelope
-// (mir.InstrIterRelease), null-guarded the same way emitInstrDrop is:
-// load the handle, free it, null the slot so a stale read can never
-// free twice (rt_free itself is also null-safe).
+// emitInstrEnvelopeRelease frees a synthesized-after-sema heap box
+// (mir.InstrEnvelopeRelease) — a for-loop iterator protocol envelope
+// (step box or cursor) or a `compare` expression's boxed-union
+// scrutinee — null-guarded the same way emitInstrDrop is: load the
+// handle, free it, null the slot so a stale read can never free twice
+// (rt_free itself is also null-safe).
 //
 // Cursor selects a FIXED-size free using the iterator's own runtime
 // layout (iterStructSize/iterStructAlign): the place's declared type is
@@ -346,21 +348,23 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 // file) and must never be consulted for size/align here — for a bignum
 // element type it would describe Range<T>'s real fields, not this
 // opaque cursor's byte layout, and freeing by the wrong shape would
-// dereference garbage.
+// dereference garbage. Only the for-loop cursor ever sets Cursor=true.
 //
-// The step (non-cursor) envelope instead uses ITS OWN declared type's
-// layout: that type IS the concrete Option<T> the box was allocated
-// as, so its layout matches exactly. The free is shallow by
-// construction — it must never recurse into the payload, which has
-// already moved into the loop binding (a recursive drop here would
+// The non-cursor case instead uses the place's OWN declared type's
+// layout: for a for-loop step, that type IS the concrete Option<T> the
+// box was allocated as; for a compare scrutinee, it IS the concrete
+// union type the scrutinee temp was allocated as. Either way the
+// layout matches the real allocation exactly, and the free is shallow
+// by construction — it must never recurse into the payload, which has
+// already moved into a binding elsewhere (a recursive drop here would
 // free that value a second time).
-func (fe *funcEmitter) emitInstrIterRelease(ins *mir.Instr) error {
+func (fe *funcEmitter) emitInstrEnvelopeRelease(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
 	size, align := iterStructSize, iterStructAlign
-	if !ins.IterRelease.Cursor {
-		baseType, err := fe.placeBaseType(ins.IterRelease.Place)
+	if !ins.EnvelopeRelease.Cursor {
+		baseType, err := fe.placeBaseType(ins.EnvelopeRelease.Place)
 		if err != nil || baseType == types.NoTypeID {
 			return nil
 		}
@@ -376,7 +380,7 @@ func (fe *funcEmitter) emitInstrIterRelease(ins *mir.Instr) error {
 			align = 1
 		}
 	}
-	ptr, ptrTy, err := fe.emitPlacePtr(ins.IterRelease.Place)
+	ptr, ptrTy, err := fe.emitPlacePtr(ins.EnvelopeRelease.Place)
 	if err != nil {
 		return err
 	}

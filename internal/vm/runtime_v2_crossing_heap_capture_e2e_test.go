@@ -69,14 +69,16 @@ fn main() -> int {
 }
 `
 
-// The census twin: the far loop's per-iteration heap growth must equal a
-// local spawn/await loop's, i.e. the crossing machinery itself (capture
-// box, shipped state envelope, publish request, handle, reply) is
-// reclaimed exactly once per crossing on the happy path. Comparing far
-// against local cancels the per-await residue both shapes share (the
-// consumed TaskResult box, see the union-scrutinee reclamation debt row)
-// and the window-edge constants, so the row stays exact without magic
-// allowances and tightens automatically when that residue is fixed.
+// The census twin: with RV2-DEBT-052 fixed (the consumed TaskResult box
+// no longer leaks), the far loop's per-iteration heap growth is exactly
+// zero — d(8) == d(1) — and so is the local loop's — b(8) == b(1) —
+// checked independently rather than merely equal to each other, a
+// strictly stronger claim than the original cross-comparison (that form
+// would still pass if both sides leaked the SAME nonzero amount per
+// iteration). Measured with RV2-DEBT-052 fixed: d(1)=d(8)=1,
+// b(1)=b(8)=3 — both flat (not growing with n), but not literally zero;
+// each is a fixed, n-independent window-edge/setup cost (unrelated to
+// this row, and NOT re-introduced by this fix), left unpinned here.
 const runtimeV2CrossingHeapCaptureCensusSource = `
 @shard_movable
 type Job = { id: int, note: string };
@@ -142,12 +144,19 @@ async fn run() -> int {
         print("FAIL result");
         return 1;
     }
-    if d8 - d1 != b8 - b1 {
-        print("FAIL census far=");
-        print((d8 - d1) to string);
-        print(" local=");
-        print((b8 - b1) to string);
+    if d8 != d1 {
+        print("FAIL census far growth d1=");
+        print(d1 to string);
+        print(" d8=");
+        print(d8 to string);
         return 2;
+    }
+    if b8 != b1 {
+        print("FAIL census local growth b1=");
+        print(b1 to string);
+        print(" b8=");
+        print(b8 to string);
+        return 3;
     }
     print("crossing-heap-capture-census-ok");
     return 0;

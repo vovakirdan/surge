@@ -35,12 +35,19 @@ const (
 	StmtBlock
 	// StmtDrop represents explicit drop (@drop expr).
 	StmtDrop
-	// StmtIterRelease frees a for-loop iterator protocol envelope: the
-	// per-step Option<T> box (its payload already moved out, so the box
-	// frees shallow, never recursing into the payload) or the iterator
-	// cursor (array/range state, freed by its own fixed layout regardless
-	// of what its declared type claims — see IterReleaseData).
-	StmtIterRelease
+	// StmtEnvelopeRelease frees a heap box synthesized AFTER sema computed
+	// drop obligations, so the box never acquires a normal scope-exit
+	// drop: a for-loop's per-step Option<T> envelope, its iterator cursor
+	// (array/range state), or a `compare` expression's boxed-union
+	// scrutinee temp. Two shapes selected by EnvelopeReleaseData.Cursor:
+	// a SHALLOW free of the box using its own declared type's layout
+	// (payload already moved out elsewhere, never recursed into — for-loop
+	// step envelope, compare scrutinee whose arm bound the payload out),
+	// or the iterator's FIXED protocol layout (cursor, independent of the
+	// declared type). A `compare` scrutinee whose arm did NOT move the
+	// payload out uses StmtDrop instead (deep drop through the union's
+	// drop glue), not this channel.
+	StmtEnvelopeRelease
 )
 
 // String returns a human-readable name for the statement kind.
@@ -70,8 +77,8 @@ func (k StmtKind) String() string {
 		return "Block"
 	case StmtDrop:
 		return "Drop"
-	case StmtIterRelease:
-		return "IterRelease"
+	case StmtEnvelopeRelease:
+		return "EnvelopeRelease"
 	default:
 		return "Unknown"
 	}
@@ -222,19 +229,21 @@ type DropData struct {
 
 func (DropData) stmtData() {}
 
-// IterReleaseData holds data for StmtIterRelease. Value must be a
+// EnvelopeReleaseData holds data for StmtEnvelopeRelease. Value must be a
 // variable reference to the local being released. Cursor selects which
 // fixed-shape free the backend performs:
-//   - false: the iterator-protocol step envelope (an Option<T> box) —
-//     freed using ITS OWN declared type's layout, box only, no payload
-//     recursion (the payload already moved to the loop binding).
+//   - false: a shallow box-only free using the value's OWN declared
+//     type's layout, never recursing into the payload — the
+//     iterator-protocol step envelope (an Option<T> box, payload already
+//     moved to the loop binding) or a `compare` scrutinee whose taken
+//     arm bound the payload out (payload now owned by that binding).
 //   - true: the iterator cursor (array or range state) — freed using
 //     the iterator protocol's fixed struct layout, independent of
 //     Value's declared type (which only exists to type-check and does
 //     not describe the runtime cursor's real shape).
-type IterReleaseData struct {
+type EnvelopeReleaseData struct {
 	Value  *Expr
 	Cursor bool
 }
 
-func (IterReleaseData) stmtData() {}
+func (EnvelopeReleaseData) stmtData() {}

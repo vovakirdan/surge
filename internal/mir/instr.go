@@ -43,9 +43,12 @@ const (
 	InstrSelect
 	// InstrNop represents a no-op instruction.
 	InstrNop
-	// InstrIterRelease frees a for-loop iterator protocol envelope (the
-	// per-step Option<T> box or the iterator cursor). See IterReleaseInstr.
-	InstrIterRelease
+	// InstrEnvelopeRelease frees a heap box that never acquired a normal
+	// scope-exit drop because it was synthesized after sema ran: a
+	// for-loop's per-step Option<T> box, its iterator cursor, or a
+	// `compare` expression's boxed-union scrutinee temp. See
+	// EnvelopeReleaseInstr.
+	InstrEnvelopeRelease
 )
 
 func (k InstrKind) String() string {
@@ -82,8 +85,8 @@ func (k InstrKind) String() string {
 		return "Select"
 	case InstrNop:
 		return "Nop"
-	case InstrIterRelease:
-		return "IterRelease"
+	case InstrEnvelopeRelease:
+		return "EnvelopeRelease"
 	default:
 		return "Unknown"
 	}
@@ -93,22 +96,22 @@ func (k InstrKind) String() string {
 type Instr struct {
 	Kind InstrKind
 
-	Assign      AssignInstr
-	Call        CallInstr
-	Drop        DropInstr
-	EndBorrow   EndBorrowInstr
-	Await       AwaitInstr
-	Spawn       SpawnInstr
-	Crossing    CrossingInstr
-	Blocking    BlockingInstr
-	Poll        PollInstr
-	JoinAll     JoinAllInstr
-	ChanSend    ChanSendInstr
-	ChanRecv    ChanRecvInstr
-	NetWait     NetWaitInstr
-	Timeout     TimeoutInstr
-	Select      SelectInstr
-	IterRelease IterReleaseInstr
+	Assign          AssignInstr
+	Call            CallInstr
+	Drop            DropInstr
+	EndBorrow       EndBorrowInstr
+	Await           AwaitInstr
+	Spawn           SpawnInstr
+	Crossing        CrossingInstr
+	Blocking        BlockingInstr
+	Poll            PollInstr
+	JoinAll         JoinAllInstr
+	ChanSend        ChanSendInstr
+	ChanRecv        ChanRecvInstr
+	NetWait         NetWaitInstr
+	Timeout         TimeoutInstr
+	Select          SelectInstr
+	EnvelopeRelease EnvelopeReleaseInstr
 }
 
 // AssignInstr represents an assignment instruction.
@@ -159,12 +162,16 @@ type DropInstr struct {
 	Place Place
 }
 
-// IterReleaseInstr frees a for-loop iterator protocol envelope. Unlike
-// DropInstr, it is emitted unconditionally (never gated on the place's
-// declared type being Copy): the envelope is always a heap box on the
-// LLVM backend regardless of what the iteration element type is.
-// Cursor selects the fixed-shape free (see IterReleaseData).
-type IterReleaseInstr struct {
+// EnvelopeReleaseInstr frees a synthesized-after-sema heap box: a for-loop
+// iterator protocol envelope (step box or cursor) or a `compare`
+// expression's boxed-union scrutinee. Unlike DropInstr, the for-loop
+// envelope is emitted unconditionally (never gated on the place's declared
+// type being Copy — it is always a heap box on the LLVM backend
+// regardless of what the iteration element type is); the compare-scrutinee
+// case is gated by the HIR normalize pass on ownership actually having
+// transferred into the scrutinee (see compareScrutineeReleaseSafe).
+// Cursor selects the fixed-shape free (see EnvelopeReleaseData).
+type EnvelopeReleaseInstr struct {
 	Place  Place
 	Cursor bool
 }

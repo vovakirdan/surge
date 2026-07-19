@@ -292,6 +292,7 @@ const (
 	SemaBorrowEscapesReturn            Code = 3139 // borrow of a local returned from its function
 	SemaSelectSendOwnMarker            Code = 3140 // select send arm takes ownership of its payload; own marker required
 	SemaSelectSendPayloadNotBinding    Code = 3141 // select send payload must be a whole owned binding
+	SemaCompareGuardMovesBinding       Code = 3142 // compare-arm guard moves one of the arm's own pattern bindings
 
 	// Ошибки I/O
 
@@ -543,6 +544,7 @@ var ( // todo расширить описания и использовать к
 		SemaBorrowEscapesReturn:            "borrow of a local escapes through return",
 		SemaSelectSendOwnMarker:            "select send arm takes ownership of its payload",
 		SemaSelectSendPayloadNotBinding:    "select send payload must be a whole owned binding",
+		SemaCompareGuardMovesBinding:       "compare-arm guard cannot move a value out of its own pattern binding",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

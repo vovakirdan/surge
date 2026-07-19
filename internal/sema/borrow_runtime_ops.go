@@ -85,6 +85,16 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	}
 	base := desc.Base
 	direct := len(desc.Segments) == 0
+	// A compare-arm guard runs before the arm commits; a failed guard
+	// falls through to the NEXT arm's tag test against the same
+	// scrutinee, and this fix's own deep-drop release for a later
+	// no-payload/wildcard arm still expects this arm's extracted payload
+	// to be intact. Moving it out from inside the guard would free it
+	// early on both counts, so it is rejected here rather than tracked.
+	if base.IsValid() && tc.isCompareGuardBinding(base) {
+		tc.reportCompareGuardMove(base, span)
+		return
+	}
 	desc, _ = tc.expandPlaceDescriptor(desc)
 	place := tc.canonicalPlace(desc)
 	if !place.IsValid() {

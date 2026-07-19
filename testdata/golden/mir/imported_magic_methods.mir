@@ -140,16 +140,16 @@ fn main:
     L30 = tag_test copy L28 is nothing
     if copy L30 then bb16 else bb17
   bb15:
-    iter_release_cursor L25
+    release_cursor L25
     L34 = call __ne(copy L24, const 13)
     if copy L34 then bb18 else bb19
   bb16:
-    iter_release_step L28
+    release_box L28
     goto bb15
   bb17:
     L32 = tag_payload copy L28.Some[0]
     L31 = copy L32
-    iter_release_step L28
+    release_box L28
     L33 = call __add(copy L24, copy L31)
     L24 = copy L33
     goto bb13
@@ -174,16 +174,16 @@ fn main:
     L41 = tag_test copy L39 is nothing
     if copy L41 then bb23 else bb24
   bb22:
-    iter_release_cursor L36
+    release_cursor L36
     L45 = call __ne(copy L35, const 13)
     if copy L45 then bb25 else bb26
   bb23:
-    iter_release_step L39
+    release_box L39
     goto bb22
   bb24:
     L43 = tag_payload copy L39.Some[0]
     L42 = copy L43
-    iter_release_step L39
+    release_box L39
     L44 = call __add(copy L35, copy L42)
     L35 = copy L44
     goto bb20
