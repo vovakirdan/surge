@@ -203,6 +203,40 @@ func TestRuntimeV2RemoteSpawnAbandonEdges(t *testing.T) {
 	}
 }
 
+// Immediate-on edges on the same shipped-state contract: the family has
+// no publicly observable far Task handle, so refusals resolve entirely
+// through the pending — the sole owner drops the droppable state exactly
+// once and no body runs.
+func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
+	bin := buildRemotePublicationHarness(t)
+	rows := []struct {
+		name string
+		mode string
+		env  []string
+	}{
+		{
+			name: "refusal-queue-full-drops-once",
+			mode: "immediate-refusal-queue-full",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			name: "refusal-shutdown-drops-once",
+			mode: "immediate-refusal-shutdown",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+	}
+	for _, row := range rows {
+		row := row
+		t.Run(row.name, func(t *testing.T) {
+			stdout, stderr, code := runRemotePublicationHarness(t, bin, row.mode, row.env)
+			if code != 0 {
+				t.Fatalf("immediate-on edge %q failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					row.mode, code, stdout, stderr)
+			}
+		})
+	}
+}
+
 // Stale-generation rows for the shipped-state contract: a pending that
 // resolves before its request dispatches is the sole owner and drops the
 // state exactly once (no body); a redelivered request or ack arriving
@@ -407,6 +441,7 @@ func remotePublicationEnv(values ...string) []string {
 const remotePublicationHarness = `
 #define _POSIX_C_SOURCE 199309L
 #include "rt_async_internal.h"
+#include "rt_placement.h"
 #include "rt_remote_spawn.h"
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task.h"
@@ -427,7 +462,8 @@ char** rt_argv_raw = NULL;
 enum {
     POLL_REMOTE_PUBLISHER = 7001,
     POLL_REMOTE_CHILD = 7002,
-    DROP_REMOTE_STATE = 7003
+    DROP_REMOTE_STATE = 7003,
+    POLL_IMMEDIATE_CALLER = 7004
 };
 
 typedef struct remote_child_state {
@@ -457,6 +493,21 @@ typedef struct remote_publish_state {
     rt_remote_spawn_status validate_status;
     size_t children_after;
 } remote_publish_state;
+
+typedef struct immediate_exec_state {
+    rt_remote_task_pending* pending;
+    remote_child_state* child;
+    uint64_t placement;
+    uint32_t fill_queue;
+    uint32_t shutdown_first;
+    uint32_t droppable;
+    uint32_t filled;
+    uint32_t shutdown_done;
+    uint32_t saw_pending;
+    uint8_t out_kind;
+    uint64_t out_bits;
+    rt_remote_task_status status;
+} immediate_exec_state;
 
 uint64_t __surge_blocking_call(uint64_t id, void* state) {
     (void)id;
@@ -608,6 +659,33 @@ void __surge_poll_call(uint64_t id) {
         // redelivered request never creates a SECOND body.
         atomic_fetch_add_explicit(&child->ran, 1, memory_order_acq_rel);
         rt_async_return(child, 77);
+        return;
+    }
+    if (id == POLL_IMMEDIATE_CALLER) {
+        immediate_exec_state* st = (immediate_exec_state*)__task_state();
+        rt_executor* ex = ensure_exec();
+        if (st->shutdown_first && !st->shutdown_done) {
+            st->shutdown_done = 1;
+            (void)rt_executor_request_shutdown(ex);
+        }
+        if (st->fill_queue && !st->filled) {
+            st->filled = 1;
+            if (!fill_data_lane(ex, 0)) {
+                st->status = RT_REMOTE_TASK_STATUS_REFUSED;
+                rt_async_return(st, (uint64_t)st->status);
+                return;
+            }
+        }
+        rt_remote_task_status status = rt_immediate_on_execute(
+            st->placement, st->droppable ? DROP_REMOTE_STATE : 0, POLL_REMOTE_CHILD,
+            st->child, &st->pending, &st->out_kind, &st->out_bits);
+        if (status == RT_REMOTE_TASK_STATUS_PENDING) {
+            st->saw_pending = 1;
+            rt_async_yield(st);
+            return;
+        }
+        st->status = status;
+        rt_async_return(st, (uint64_t)status);
         return;
     }
     if (id == POLL_REMOTE_PUBLISHER) {
@@ -1009,6 +1087,49 @@ static int run_stale_redelivery(int redeliver_ack) {
     return 0;
 }
 
+static int await_immediate(immediate_exec_state* st) {
+    void* task = __task_create(POLL_IMMEDIATE_CALLER, st);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(task, &kind, &bits);
+    if (kind != 1) {
+        return 0;
+    }
+    return bits == (uint64_t)st->status;
+}
+
+// Immediate-on refusal edges: no far handle exists for the execute/reply
+// category, so the pending (or the pre-link path) is the sole owner of the
+// shipped state — it drops exactly once, no body runs, and the caller
+// resumes with the refusal status.
+static int run_immediate_refusal_drop(int shutdown_first) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    immediate_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.placement = rt_placement_shard(0);
+    st.fill_queue = shutdown_first ? 0 : 1;
+    st.shutdown_first = shutdown_first ? 1 : 0;
+    st.droppable = 1;
+    drop_expected_state = &child;
+    if (!await_immediate(&st)) return fail("immediate refusal await failed");
+    rt_remote_task_status want = shutdown_first ? RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN
+                                                : RT_REMOTE_TASK_STATUS_QUEUE_FULL;
+    if (st.status != want) return fail("immediate refusal status mismatch");
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 1) {
+        return fail("refused immediate execute must drop the shipped state exactly once");
+    }
+    if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
+        return fail("refused immediate execute must not run a body");
+    }
+    if (!shutdown_first) {
+        (void)rt_executor_request_shutdown(ex);
+    }
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return fail("usage: remote_publication_harness <mode>");
     if (strcmp(argv[1], "publish-other") == 0) return run_publish(1, 0);
@@ -1032,6 +1153,8 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "stale-request-before-body") == 0) return run_stale_request_before_body();
     if (strcmp(argv[1], "duplicate-request-after-handoff") == 0) return run_stale_redelivery(0);
     if (strcmp(argv[1], "stale-ack-after-resolution") == 0) return run_stale_redelivery(1);
+    if (strcmp(argv[1], "immediate-refusal-queue-full") == 0) return run_immediate_refusal_drop(0);
+    if (strcmp(argv[1], "immediate-refusal-shutdown") == 0) return run_immediate_refusal_drop(1);
     return fail("unknown mode");
 }
 `
