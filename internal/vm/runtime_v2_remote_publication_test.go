@@ -438,6 +438,10 @@ typedef struct remote_child_state {
 
 typedef struct remote_publish_state {
     rt_remote_spawn_pending* pending;
+    // Release/acquire twin of the pending pointer for driver threads: the publisher
+    // stores it after publish returns PENDING, giving a cross-thread
+    // happens-before edge the sync-point counters (relaxed) do not.
+    _Atomic(rt_remote_spawn_pending*) pending_shared;
     remote_child_state* child;
     rt_far_task_handle handle;
     uint32_t dst;
@@ -566,15 +570,30 @@ static int fill_control_lane(rt_shard* shard, uint32_t shard_id) {
     return 0;
 }
 
-static int wait_lanes_empty(rt_shard* shard, uint32_t attempts) {
+// Dispatch-completion signal for the redelivery rows: the redelivered
+// message's pending_release is the LAST step of its dispatch path, so an
+// acquire-load seeing the reference count fall to the wanted value happens-after
+// everything that dispatch did (or erroneously did) with the pending.
+static int wait_refs(rt_remote_spawn_pending* req, uint32_t want, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
-        struct rt_transport_debug_snapshot snap = rt_transport_debug_snapshot(shard);
-        if (snap.data_len == 0 && snap.control_len == 0) {
+        if (atomic_load_explicit(&req->refs, memory_order_acquire) == want) {
             return 1;
         }
         sleep_us(1000);
     }
     return 0;
+}
+
+static rt_remote_spawn_pending* wait_pending_shared(remote_publish_state* st, uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        rt_remote_spawn_pending* req =
+            atomic_load_explicit(&st->pending_shared, memory_order_acquire);
+        if (req != NULL) {
+            return req;
+        }
+        sleep_us(1000);
+    }
+    return NULL;
 }
 
 void __surge_poll_call(uint64_t id) {
@@ -618,6 +637,7 @@ void __surge_poll_call(uint64_t id) {
         if (status == RT_REMOTE_SPAWN_STATUS_PENDING) {
             st->saw_pending = 1;
             st->request_id = rt_remote_spawn_pending_request_id(st->pending);
+            atomic_store_explicit(&st->pending_shared, st->pending, memory_order_release);
             rt_async_yield(st);
             return;
         }
@@ -943,8 +963,13 @@ static int run_stale_redelivery(int redeliver_ack) {
     if (!wait_reached(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK, 5000)) {
         return fail("ack window was never reached");
     }
-    rt_remote_spawn_pending* req = st.pending;
+    rt_remote_spawn_pending* req = wait_pending_shared(&st, 5000);
     if (req == NULL) return fail("pending missing in ack window");
+    // Two references while the window pins the pending alive: one models
+    // the redelivered copy's payload reference (consumed by its dispatch),
+    // one keeps this driver's view of the refcount valid until the final
+    // assertions are done.
+    remote_spawn_pending_add_ref(req);
     remote_spawn_pending_add_ref(req);
     uint32_t source_shard = req->source_shard_id;
     rt_sync_point_open();
@@ -954,6 +979,7 @@ static int run_stale_redelivery(int redeliver_ack) {
     if (kind != 1 || st.status != RT_REMOTE_SPAWN_STATUS_OK) {
         return fail("publication must resolve OK before the redelivery");
     }
+    if (!wait_child(&child, 5000)) return fail("body did not run before the redelivery");
     uint32_t target = redeliver_ack ? source_shard : st.dst;
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), target);
     rt_transport_msg dup = {0};
@@ -966,16 +992,19 @@ static int run_stale_redelivery(int redeliver_ack) {
     if (rt_transport_enqueue(shard, &dup) != RT_TRANSPORT_STATUS_OK) {
         return fail("redelivery enqueue failed");
     }
-    if (!wait_lanes_empty(shard, 5000)) {
-        return fail("redelivered message was never drained");
+    // The redelivery's own pending_release is the last step of its
+    // dispatch: refs falling back to the driver's single reference
+    // happens-after everything that dispatch did with the pending.
+    if (!wait_refs(req, 1, 5000)) {
+        return fail("redelivered message was never dispatched");
     }
-    sleep_us(20000);
     if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
         return fail("redelivery must not drop the body-owned state");
     }
     if (atomic_load_explicit(&child.ran, memory_order_acquire) != 1) {
         return fail("redelivery must not create a second body");
     }
+    remote_spawn_pending_release(req);
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }

@@ -141,9 +141,22 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
   `result_drop_fn_id` like the state's). The fix is a design-slot
   item, not a row-sized change — out of this task per the
   no-fix-without-design rule.
-- Row 7 pending (final gates + doc sync).
+- Row 7 gates (2026-07-19): `make check` green (runs in pre-commit on
+  every task commit); `make runtime-v2-transport-check` green with the
+  new rows wired (`SpawnAbandonEdges`, `SpawnStaleGenerationRows`,
+  `StateHandoffStaticContract` in the remote-task acceptance line);
+  `./check_sync_points.sh` green (two spawn-on windows allowlisted).
+  Sentrux (paths named per policy): root `sentrux check` = 10 rules,
+  all pass; root `sentrux gate` = DEGRADED on complex functions
+  (533 -> 571) against the stale baseline saved at `063d9d56` — the
+  drift accumulated across Epics 16-20, not this task; rebaselining
+  is a separate debt decision.
 
 ## Status
 
-IN PROGRESS (2026-07-17). Row 1 code landed; behavior row + rows 2-7
-remain.
+IN PROGRESS (2026-07-19). Rows 1, 2, 3, 5 closed; row 4 landed except
+two recorded follow-ups (first-poll window,
+lease-route caller-cancel e2e); row 6 resolved as RV2-DEBT-053
+(design-slot fix); row 7 gate evidence recorded above. An external
+adversarial review of the row-4/5 harness is in flight — its findings
+land here before the task closes.
