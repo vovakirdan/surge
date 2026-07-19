@@ -340,9 +340,7 @@ func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
 				if len(call.Args) > 0 {
 					tc.typeExpr(call.Args[0].Value)
 					tc.checkChannelSendValue(call.Args[0].Value, tc.exprSpan(call.Args[0].Value))
-					if tc.isChannelType(recvType) {
-						tc.checkSelectSendPayloadOwnership(recvType, call.Args[0].Value)
-					}
+					tc.checkSelectSendPayloadOwnership(recvType, call.Args[0].Value)
 				}
 			}
 			return
@@ -389,16 +387,21 @@ func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
 }
 
 // checkSelectSendPayloadOwnership applies direct-send ownership rules to a
-// local select send arm. The winning arm delivers the payload, so ownership
-// visibly leaves the caller: the payload must match the channel payload
-// type, a non-copy payload must be spelled `own <binding>`, and the move is
-// observed in the current arm's moved-set so the losing arms reclaim the
-// value and any use after the select join is a use-of-moved error.
+// select send arm, local or far. The winning arm delivers the payload, so
+// ownership visibly leaves the caller: the payload must match the channel
+// payload type, a non-copy payload must be spelled `own <binding>`, and the
+// move is observed in the current arm's moved-set so the losing arms
+// reclaim the value and any use after the select join is a use-of-moved
+// error. chanType may be a local Channel<T> or a far channel wrapping one;
+// the payload resolves through whichever shape applies.
 func (tc *typeChecker) checkSelectSendPayloadOwnership(chanType types.TypeID, valueExpr ast.ExprID) {
 	if !valueExpr.IsValid() || tc.builder == nil {
 		return
 	}
 	payloadType := tc.channelPayloadType(chanType)
+	if payloadType == types.NoTypeID {
+		payloadType = tc.channelPayloadType(tc.farInner(chanType))
+	}
 	span := tc.exprSpan(valueExpr)
 	valueType := tc.result.ExprTypes[valueExpr]
 	if payloadType != types.NoTypeID && valueType != types.NoTypeID &&

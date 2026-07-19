@@ -1,0 +1,9 @@
+async fn pump(ch: far Channel<string>, rx: far Channel<int>) -> nothing {
+    let mut s = "seed-";
+    s = s + "x";
+    let v = select {
+        ch.send(own s) => 1;
+        rx.recv() => 2;
+    };
+    print(s);
+}

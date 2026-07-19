@@ -1,0 +1,13 @@
+async fn straight_line(ch: far Channel<string>, stop: far Channel<int>) -> nothing {
+    let mut job = "job-";
+    job = job + "payload";
+    let v = select {
+        ch.send(own job) => 1;
+        stop.recv() => {
+            // The losing arm still owns the payload and may use it.
+            print(job);
+            ret 2;
+        };
+    };
+    print("done\n");
+}

@@ -162,6 +162,15 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"select_far_default_rejected", `async fn f(a: far Channel<int>) -> int { let w: int = select { a.recv() => 1; default => 2; }; return w; }`, "SEM3176"},
 		{"select_far_task_arm_rejected", `async fn f(a: far Channel<int>, t: Task<int>) -> int { let w: int = select { a.recv() => 1; t.await() => 2; }; return w; }`, "SEM3176"},
 
+		// Far send arms get the local send-arm ownership discipline too
+		// (Task 3's rules, applied through the far inner channel's payload
+		// type): a non-copy payload needs the `own` marker, must be a
+		// whole binding, and the move is visible after the select join.
+		{"select_far_send_missing_own", `async fn f(a: far Channel<string>, b: far Channel<int>, msg: string) -> int { let w: int = select { a.send(msg) => 1; b.recv() => 2; }; return w; }`, "SEM3140"},
+		{"select_far_send_temp_payload_rejected", `fn mk() -> string { return "x"; } async fn f(a: far Channel<string>, b: far Channel<int>) -> int { let w: int = select { a.send(own mk()) => 1; b.recv() => 2; }; return w; }`, "SEM3141"},
+		{"select_far_send_own_binding_ok", `async fn f(a: far Channel<string>, b: far Channel<int>, msg: string) -> int { let w: int = select { a.send(own msg) => 1; b.recv() => 2; }; return w; }`, ""},
+		{"select_far_send_use_after_join_rejected", `async fn f(a: far Channel<string>, b: far Channel<int>, msg: string) -> string { let w: int = select { a.send(own msg) => 1; b.recv() => 2; }; return msg; }`, "SEM3130"},
+
 		// Effect + structure (ON-NEST). The `crosses` requirement (SEM3162) is
 		// retired: `on dst { }` is valid without a `crosses` marker (the effect is
 		// inferred).
@@ -238,4 +247,40 @@ func onCrossingBagCodes(bag *diag.Bag) map[string]bool {
 		codes[d.Code.ID()] = true
 	}
 	return codes
+}
+
+// TestFarSelectSendArmDropsSynthesizeOnLoser pins that a far select send
+// arm rides the same per-arm drop synthesis as a local one: HIR only
+// special-cases non-ChannelSelect crossings when lowering a select
+// (internal/hir/lower_expr.go), so every arm.Result still lowers through
+// l.lowerExpr and picks up the ArmDropsExpr tag the sema walker recorded
+// here — the losing recv arm must carry the reclaim for the payload the
+// winning send arm would have delivered.
+func TestFarSelectSendArmDropsSynthesizeOnLoser(t *testing.T) {
+	src := onCrossingPrelude + `
+async fn f(a: far Channel<string>, b: far Channel<int>, msg: string) -> int {
+    let w: int = select {
+        a.send(own msg) => 1;
+        b.recv() => 2;
+    };
+    return w;
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.HasErrors() {
+		t.Fatalf("parse errors: %v", parseBag.Items())
+	}
+	symRes := resolveSymbols(t, builder, fileID)
+	semaBag := diag.NewBag(64)
+	res := Check(context.Background(), builder, fileID, Options{
+		Reporter:   &diag.BagReporter{Bag: semaBag},
+		Symbols:    symRes,
+		ModulePath: builder.StringsInterner.Intern("core"),
+	})
+	if semaBag.HasErrors() {
+		t.Fatalf("unexpected sema diagnostics: %s", diagnosticsSummary(semaBag))
+	}
+	if len(res.ArmDropsExpr) != 1 {
+		t.Fatalf("expected exactly one arm-drop entry for the losing recv arm, got %d: %v", len(res.ArmDropsExpr), res.ArmDropsExpr)
+	}
 }

@@ -1,0 +1,1 @@
+error SEM3140 testdata/golden/sema/invalid/select_send_far_missing_own.sg:5:17 select send arm takes ownership of its payload: write `send(own ...)`; if this arm loses, the value is reclaimed in the other arms and cannot be used after the select

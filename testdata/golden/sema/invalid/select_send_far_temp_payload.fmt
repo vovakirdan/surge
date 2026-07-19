@@ -1,0 +1,13 @@
+fn build() -> string {
+    let mut s = "seed-";
+    s = s + "x";
+    return s;
+}
+
+async fn pump(ch: far Channel<string>, rx: far Channel<int>) -> nothing {
+    let v = select {
+        ch.send(own build()) => 1;
+        rx.recv() => 2;
+    };
+    print("done\n");
+}
