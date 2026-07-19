@@ -110,7 +110,15 @@ still runs its body.
   pin — refusal happens at the snapshot check BEFORE the pin);
   negative control verified — the row fails on the pre-fix runtime.
 
+- Row 5 gates (2026-07-19): `make check` green (pre-commit on every
+  task commit); `make runtime-v2-transport-check` green with
+  `TestRuntimeV2ImmediateOnAbandonEdges` (9 rows) wired into the
+  remote-task acceptance line; `./check_sync_points.sh` green
+  (`SP_IMMEDIATE_ON_BEFORE_DISPATCH` allowlisted); root
+  `sentrux check` = 10 rules, all pass (gate-vs-stale-baseline note
+  unchanged from Task 5's evidence).
+
 ## Status
 
-IN PROGRESS (2026-07-19). Rows 1-4 landed (incl. the anchored sweep
-fix). Row 5 (gates) pending.
+COMPLETE (2026-07-19). All five rows landed, including the anchored
+caller-teardown sweep fix with its negative-control row.
