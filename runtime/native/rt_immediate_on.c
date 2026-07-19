@@ -204,6 +204,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         rt_remote_task_pending_release(pending);
         return;
     }
+    RT_SYNC_POINT(SP_IMMEDIATE_ON_BEFORE_DISPATCH);
     if (!immediate_on_request_matches(msg, pending)) {
         rt_runtime* runtime = rt_executor_runtime(ex);
         rt_transport_record_remote_task_stale(

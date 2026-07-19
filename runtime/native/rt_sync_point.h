@@ -95,6 +95,12 @@ typedef enum rt_sync_point_id {
     // its ack is enqueued. Cancellation here must abandon the caller-owned
     // lease and turn the eventual ack into an owner-routed release.
     RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK,
+    // immediate on destination: reached at execute-dispatch entry, before
+    // the token match and pending snapshot that gate body creation. A test
+    // cancels the caller in this window to prove the teardown sweep
+    // resolves the UNBOUND request and the late dispatch refuses to create
+    // a body (the pending stays the state's sole owner and drops once).
+    RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_DISPATCH,
     // immediate on destination: reached after the execute pending is bound to
     // the created body task and owner-registered, before the body task is
     // published. A test cancels the caller in this window to prove the

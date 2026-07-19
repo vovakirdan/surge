@@ -224,6 +224,26 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			mode: "immediate-refusal-shutdown",
 			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
+		{
+			// Caller cancelled while the request is UNBOUND: the teardown
+			// sweep resolves the pending, the late dispatch refuses to
+			// create a body, and the sole-owner pending drops the state
+			// exactly once.
+			name: "cancel-unbound-refuses-body",
+			mode: "immediate-cancel-unbound",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_DISPATCH:block"),
+		},
+		{
+			// Caller cancelled while the request is BOUND (created but
+			// unpublished): exactly one routed cancel, the reply edge
+			// resolves with no caller to wake, and the state handed off
+			// with the publication never drops through the pending.
+			name: "cancel-bound-reply-resolves-once",
+			mode: "immediate-cancel-bound",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
+		},
 	}
 	for _, row := range rows {
 		row := row
@@ -1130,6 +1150,53 @@ static int run_immediate_refusal_drop(int shutdown_first) {
     return 0;
 }
 
+// Immediate-on caller-teardown split. Cancelling the caller while its
+// execute request is UNBOUND (held at dispatch entry) must resolve the
+// pending through the teardown sweep so the late dispatch refuses to
+// create a body — the pending stays the state's sole owner and drops it
+// exactly once. Cancelling while the request is BOUND (held between the
+// body bind and its publication) routes exactly one cancel; the state
+// handed off with the publication, so it must never drop through the
+// pending, and the reply edge resolves once with no caller to wake.
+static int run_immediate_cancel(rt_sync_point_id window, int expect_body) {
+    rt_executor* ex = ensure_exec();
+    remote_child_state child;
+    memset(&child, 0, sizeof(child));
+    immediate_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.child = &child;
+    st.placement = rt_placement_shard(pin_shard(ex, 1));
+    st.droppable = 1;
+    drop_expected_state = &child;
+    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st);
+    if (caller == NULL) return fail("immediate caller create failed");
+    if (!wait_reached(window, 5000)) return fail("immediate window was never reached");
+    rt_task_cancel(caller);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (kind == 1) return fail("cancelled immediate caller must not resolve successfully");
+    rt_sync_point_open();
+    if (expect_body) {
+        if (!wait_child(&child, 5000)) return fail("bound execute body did not run");
+        // The reply edge resolves behind the body completion; give the
+        // release chain a settle window before pinning the no-drop census.
+        sleep_us(50000);
+        if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+            return fail("handed-off state must not drop after bind");
+        }
+    } else {
+        if (!wait_drops(1, 5000)) {
+            return fail("unbound cancel must drop the state exactly once through the pending");
+        }
+        if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
+            return fail("unbound cancel must refuse body creation");
+        }
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return fail("usage: remote_publication_harness <mode>");
     if (strcmp(argv[1], "publish-other") == 0) return run_publish(1, 0);
@@ -1155,6 +1222,12 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "stale-ack-after-resolution") == 0) return run_stale_redelivery(1);
     if (strcmp(argv[1], "immediate-refusal-queue-full") == 0) return run_immediate_refusal_drop(0);
     if (strcmp(argv[1], "immediate-refusal-shutdown") == 0) return run_immediate_refusal_drop(1);
+    if (strcmp(argv[1], "immediate-cancel-unbound") == 0) {
+        return run_immediate_cancel(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_DISPATCH, 0);
+    }
+    if (strcmp(argv[1], "immediate-cancel-bound") == 0) {
+        return run_immediate_cancel(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH, 1);
+    }
     return fail("unknown mode");
 }
 `

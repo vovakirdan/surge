@@ -39,6 +39,28 @@ still runs its body.
    `make check`; sync-point allowlist updated if row 2a needs an
    immediate-on dispatch-entry window; scoped Sentrux note.
 
+## Progress
+
+- Row 1 DONE (`TestRuntimeV2ImmediateOnAbandonEdges`, transport gate):
+  refusal x2 (queue-full via data-lane fill, destination shutdown) —
+  the sole-owner pending drops the droppable state exactly once, no
+  body, caller resumes with the refusal status.
+- Row 2 DONE (same test): the caller-teardown split. UNBOUND —
+  caller cancelled while the execute request is held at the NEW
+  `SP_IMMEDIATE_ON_BEFORE_DISPATCH` window: the teardown sweep
+  resolves the pending (REFUSED), the late dispatch steps aside at
+  its snapshot check, no body, state drops exactly once (the
+  bound/unbound fork keys off `handle.task_id`, still 0 before the
+  bind). BOUND — caller cancelled at
+  `SP_IMMEDIATE_ON_BEFORE_PUBLISH` (body created + owner-registered,
+  unpublished): exactly one routed cancel (`cancel_routed`), the
+  body still runs (the harness body has no suspension points — both
+  completions are legal per the cancel-route contract), the reply
+  edge resolves with no caller to wake, and the handed-off state
+  never drops through the pending.
+- Rows 3-5 pending (redelivery; anchored stale/pin-unpin/reply
+  cancellation; gates).
+
 ## Status
 
-IN PROGRESS (2026-07-19).
+IN PROGRESS (2026-07-19). Rows 1-2 landed.

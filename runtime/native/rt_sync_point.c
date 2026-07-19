@@ -99,6 +99,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_REMOTE_SPAWN_BEFORE_BODY_PUBLISH";
         case RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK:
             return "SP_REMOTE_SPAWN_BEFORE_ACK";
+        case RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_DISPATCH:
+            return "SP_IMMEDIATE_ON_BEFORE_DISPATCH";
         case RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH:
             return "SP_IMMEDIATE_ON_BEFORE_PUBLISH";
         case RT_SYNC_POINT_SP_READY_REQUEUE_BEFORE_LOCK:
