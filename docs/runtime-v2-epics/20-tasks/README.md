@@ -22,7 +22,7 @@ Task 3 (semantics) and Task 5 (contract). Task 8 needs all.
 | 5 | `05-handoff-contract-spawn-on.md` | Complete | DEBT-047+051 closed; PUBLICATION-ACCEPTED HANDOFF named + static contract; abandon/refusal/stale rows (2 new sync points); DEBT-052/053 opened; 2 row-4 follow-ups carried to Task 8 | 4 |
 | 6 | `06-immediate-on-activation.md` | Complete | refusal/cancel-split/redelivery/anchored rows (9) on the Task 5 contract; NEW SP_IMMEDIATE_ON_BEFORE_DISPATCH window; FIXED: anchored executes joined the caller-teardown sweep (unbound-cancel contract violation, negative-control pinned); pin balance via registry reclaim rule | 5 |
 | 7 | `07-remote-select-symmetry.md` | Complete | sema symmetry (far arms get SEM3140/3141 + ArmDrops); 4 race rows over Copy payloads (2 new far-select windows) pin one-lock commit atomicity, sweep refusal, cancel_routed idempotency, unpin-prefix; vertical-3 deferral recorded (abandon reconciliation + non-copy e2e ride the ChannelCreate gate opening) | 3, 5 |
-| 8 | Bench + census e2e (`SURGE_SHARDS=1,2,8`, strict-zero, execution witnesses) + debt closeout (034, 047, 048) + vertical 3 scoping; CARRIES from Task 5: first-poll-window cancel e2e + lease-route caller-cancel e2e; strict-zero needs a DEBT-052 decision (fix vs far==local form) | Pending | gates + closeout | all |
+| 8 | `08-bench-census-closeout.md` | In Progress | user decision: DEBT-052 FIXED FIRST (honest strict zero) — row 1 in flight; then strict-zero census 1/2/8 + carried Task-5 e2e + bench + debt closeout + vertical-3 scoping | all |
 
 Rules: the established task rules apply unchanged (expand only the
 next task, test-first rows, per-task gates incl. committed-tree
