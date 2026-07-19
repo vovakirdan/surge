@@ -60,7 +60,25 @@ of weakening the epic's bar to the far==local differential form.
   bindings never get scope-exit drops — also the recorded reason the
   mixed-payload and whole-value-binding arm shapes keep pre-fix
   leak-over-wrong-free behavior).
-- Rows 2-5 pending.
+- Row 3 DONE (`TestRuntimeV2FarTaskCallerCancel`, transport gate):
+  both carried Task-5 follow-ups as Surge-level e2e over the COMPOSED
+  caller-cancel route (local `Task.cancel()` on the awaiting caller →
+  `rt_far_task_release_owned` → lease route → abandon — the path the
+  direct-abandon harness rows bypassed). The
+  cancel-after-publication-before-first-poll window is reliably hit
+  at 2+ shards with zero yields (15/15); at 1 shard the window is
+  sub-scheduler-tick (one yield already completes the whole round
+  trip synchronously) — asserted as the shard-dependent split rather
+  than forced. Phase sweep (0/1/6 yields x3): the far body runs in
+  all 9 invocations at every shard count — in-flight semantics hold
+  regardless of cancel timing. Valgrind census pins SAFE-AND-BOUNDED
+  (no crash-class errors; loss a clean multiple of the
+  per-occurrence unit) instead of zero, because the e2e FOUND
+  RV2-DEBT-059: any task cancelled before its body ran leaks its
+  init state+payload pair (minimal local repro, no far machinery) —
+  the deferred-abandon path never drains. First Go test in the repo
+  to drive valgrind directly (self-skips without it).
+- Rows 2, 4, 5 pending.
 
 ## Status
 
