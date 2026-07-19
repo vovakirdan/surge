@@ -78,7 +78,23 @@ of weakening the epic's bar to the far==local differential form.
   init state+payload pair (minimal local repro, no far machinery) —
   the deferred-abandon path never drains. First Go test in the repo
   to drive valgrind directly (self-skips without it).
-- Rows 2, 4, 5 pending.
+- Row 2 DONE (`TestRuntimeV2CrossingStrictCensus{Balanced,ValgrindBounded}`,
+  heap-check gate): the Epics 16-18 verticals under the two-tier
+  discipline — in-program HeapStats windows at 1 shard, valgrind
+  definitely-lost as the shard-independent witness at 1/2/8. The
+  MIGRATION vertical is genuinely strict zero (flat 1 = the known
+  window-edge constant) — everything this epic's drop activation
+  owns reclaims exactly. Share/select verticals are NOT zero and the
+  census pins their exact documented bounds instead: the bisection
+  found RV2-DEBT-060 — every channel_on/share leaks its caller-side
+  far-channel handle box (rt_far_channel_release exists and is never
+  called from compiled code; far Task handles retire on await, far
+  Channel handles have no consuming operation and no drop glue — the
+  pre-arc channel model, DEBT-048's residual class, now precisely
+  measured at 1,280B/52 blocks shard-independent). Fix = channel
+  drop glue, vertical-3 scope, not row-sized here. Any magnitude
+  change trips the pinned bounds.
+- Rows 4, 5 pending.
 
 ## Status
 
