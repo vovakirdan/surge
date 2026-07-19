@@ -19,10 +19,10 @@ Task 3 (semantics) and Task 5 (contract). Task 8 needs all.
 | 2 | RV2-DEBT-040: for-loop Option-box + iterator-cursor reclamation; fixed-width `Range<T>` residual verified or re-ledgered | Pending | backend + census rows (parallel lane) | none |
 | 3 | `03-select-send-arm-ownership.md` | Complete | sema-only fix (per-branch moves via compare machinery + SEM3140/3141); DEBT-048 closed; heap-check rows; DEBT-049 escalated + DEBT-050 opened en route | none |
 | 4 | `04-drop-fn-registration.md` | Complete | backend: BodyFuncID = drop id, sorted dispatch switch → state glue, retry (0,null) kept; static IR rows; census row moved to Task 5 (RV2-DEBT-051 found: heap-bearing captures corrupt + leak, pre-existing) | none (glue shipped by Epic 19) |
-| 5 | Handoff contract + spawn-on activation: RV2-DEBT-047 fix first; named linearization point; abandon edges with dispatch-hit + census rows; three stale-generation rows | Pending | runtime + rows | 4 |
+| 5 | `05-handoff-contract-spawn-on.md` | Complete | DEBT-047+051 closed; PUBLICATION-ACCEPTED HANDOFF named + static contract; abandon/refusal/stale rows (2 new sync points); DEBT-052/053 opened; 2 row-4 follow-ups carried to Task 8 | 4 |
 | 6 | Immediate-on activation: placement `on` + anchored `on ch` on the Task 5 contract; anchor stale/pin/unpin and reply-cancellation rows | Pending | runtime + rows | 5 |
 | 7 | Remote select symmetry + abandon coverage: commit bit through reply/cancel-ack, caller-held payload obligation, cancel-vs-commit races, plumbing census | Pending | sema + backend + runtime rows | 3, 5 |
-| 8 | Bench + census e2e (`SURGE_SHARDS=1,2,8`, strict-zero, execution witnesses) + debt closeout (034, 047, 048) + vertical 3 scoping | Pending | gates + closeout | all |
+| 8 | Bench + census e2e (`SURGE_SHARDS=1,2,8`, strict-zero, execution witnesses) + debt closeout (034, 047, 048) + vertical 3 scoping; CARRIES from Task 5: first-poll-window cancel e2e + lease-route caller-cancel e2e; strict-zero needs a DEBT-052 decision (fix vs far==local form) | Pending | gates + closeout | all |
 
 Rules: the established task rules apply unchanged (expand only the
 next task, test-first rows, per-task gates incl. committed-tree

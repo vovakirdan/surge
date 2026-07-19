@@ -154,9 +154,15 @@ and prove the spawn-on abandon edges with dispatch-hit + census rows.
 
 ## Status
 
-IN PROGRESS (2026-07-19). Rows 1, 2, 3, 5 closed; row 4 landed except
-two recorded follow-ups (first-poll window,
-lease-route caller-cancel e2e); row 6 resolved as RV2-DEBT-053
-(design-slot fix); row 7 gate evidence recorded above. An external
-adversarial review of the row-4/5 harness is in flight — its findings
-land here before the task closes.
+COMPLETE (2026-07-19). Rows 1, 2, 3, 5 closed; row 4 landed with two
+follow-ups CARRIED TO TASK 8 (both are e2e-shaped census rows, Task
+8's subject): (a) cancel-after-publication-before-first-poll —
+prefer the Surge-level e2e form over a poll-path sync point (steady
+path, fires for every task); (b) caller-cancel through the lease
+route (`rt_far_task_release_owned` → `rt_far_task_lease_release_route`
+→ abandon), the composed path the direct-abandon harness rows do not
+exercise. Row 6 resolved as RV2-DEBT-053 (design-slot fix). Row 7
+gate evidence recorded above. The external adversarial review's three
+should-fix findings landed as commit `293ea6fa` (release/acquire
+pending handoff, refcount-based dispatch-completion signal,
+deterministic body wait).
