@@ -1,6 +1,7 @@
 #include "rt_far_channel.h"
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task_internal.h"
+#include "rt_sync_point.h"
 
 #include <string.h>
 
@@ -177,6 +178,7 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
         rt_remote_task_pending_release(pending);
         return;
     }
+    RT_SYNC_POINT(SP_FAR_SELECT_BEFORE_DISPATCH);
     if (!select_request_matches(msg, pending)) {
         rt_runtime* runtime = rt_executor_runtime(ex);
         rt_transport_record_remote_task_stale(
@@ -300,5 +302,10 @@ uint64_t rt_anchored_channel_select(void) {
     if (winner < 0) {
         rt_async_yield(state);
     }
+    // rt_select_poll's control-lock critical section (the commit) has
+    // already released by the time it returns a winner >= 0; this window
+    // sits strictly after that commit and before the value reaches the
+    // caller's async-return/reply (Epic 20 Task 7 row 2).
+    RT_SYNC_POINT(SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY);
     return (uint64_t)winner;
 }

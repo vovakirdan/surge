@@ -54,6 +54,8 @@ declare -A WINDOW_FILE=(
     [SP_IMMEDIATE_ON_BEFORE_PUBLISH]="rt_immediate_on.c"
     [SP_READY_REQUEUE_BEFORE_LOCK]="rt_ready_queue.c"
     [SP_WAKE_BEFORE_STALE_REMOVAL]="rt_task_park.c"
+    [SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY]="rt_far_channel_select.c"
+    [SP_FAR_SELECT_BEFORE_DISPATCH]="rt_far_channel_select.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in

@@ -316,6 +316,57 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 	}
 }
 
+// Remote select abandon/race edges (Epic 20 Task 7 rows 2-5), deterministic
+// over Copy payloads: cancel-vs-commit (the winner ships as success even
+// though a cancel races in right after the commit), cancel-before-dispatch
+// (the select twin of the immediate-on unbound teardown row), double-cancel
+// idempotency (a third, independent cancel route is a pure no-op once
+// cancel_routed is set), and the refusal-after-shipped regression guard (a
+// stale mid-pin arm unpins the already-pinned prefix and never reaches
+// rt_select_poll).
+func TestRuntimeV2RemoteSelectAbandonEdges(t *testing.T) {
+	bin := buildRemotePublicationHarness(t)
+	rows := []struct {
+		name string
+		mode string
+		env  []string
+	}{
+		{
+			name: "cancel-vs-commit-ships-winner",
+			mode: "far-select-cancel-vs-commit",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:block"),
+		},
+		{
+			name: "cancel-before-dispatch-refuses-body",
+			mode: "far-select-cancel-before-dispatch",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_FAR_SELECT_BEFORE_DISPATCH:block"),
+		},
+		{
+			name: "double-cancel-is-idempotent",
+			mode: "far-select-double-cancel",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:block"),
+		},
+		{
+			name: "refusal-after-shipped-unpins-prefix",
+			mode: "far-select-refusal-after-shipped",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+		},
+	}
+	for _, row := range rows {
+		row := row
+		t.Run(row.name, func(t *testing.T) {
+			stdout, stderr, code := runRemotePublicationHarness(t, bin, row.mode, row.env)
+			if code != 0 {
+				t.Fatalf("remote select edge %q failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					row.mode, code, stdout, stderr)
+			}
+		})
+	}
+}
+
 // Stale-generation rows for the shipped-state contract: a pending that
 // resolves before its request dispatches is the sole owner and drops the
 // state exactly once (no body); a redelivered request or ack arriving
@@ -544,7 +595,9 @@ enum {
     POLL_REMOTE_PUBLISHER = 7001,
     POLL_REMOTE_CHILD = 7002,
     DROP_REMOTE_STATE = 7003,
-    POLL_IMMEDIATE_CALLER = 7004
+    POLL_IMMEDIATE_CALLER = 7004,
+    POLL_SELECT_CALLER = 7005,
+    POLL_SELECT_BODY = 7006
 };
 
 typedef struct remote_child_state {
@@ -596,6 +649,28 @@ typedef struct immediate_exec_state {
     uint64_t out_bits;
     rt_remote_task_status status;
 } immediate_exec_state;
+
+// Remote select rows (Epic 20 Task 7 rows 2-5). The caller side wraps
+// rt_far_channel_select the same way immediate_exec_state wraps
+// rt_immediate_on_execute_anchored; the body side is minimal, since the
+// real work (rt_anchored_channel_select) is production runtime code, not
+// harness code -- the body poll function only has to hand the winner
+// index to rt_async_return, mirroring the compiled select lowering.
+typedef struct select_exec_state {
+    rt_remote_task_pending* pending;
+    _Atomic(rt_remote_task_pending*) pending_shared;
+    void* body_state;
+    uint32_t droppable;
+    uint32_t saw_pending;
+    rt_far_task_handle anchors[2];
+    const rt_far_task_handle* anchor_ptrs[2];
+    uint8_t kinds[2];
+    uint64_t send_bits[2];
+    uint64_t count;
+    uint8_t out_kind;
+    uint64_t out_bits;
+    rt_remote_task_status status;
+} select_exec_state;
 
 uint64_t __surge_blocking_call(uint64_t id, void* state) {
     (void)id;
@@ -746,6 +821,44 @@ static int wait_task_refs(rt_remote_task_pending* req, uint32_t want, uint32_t a
     return 0;
 }
 
+static rt_remote_task_pending* wait_select_pending_shared(select_exec_state* st,
+                                                          uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        rt_remote_task_pending* req =
+            atomic_load_explicit(&st->pending_shared, memory_order_acquire);
+        if (req != NULL) {
+            return req;
+        }
+        sleep_us(1000);
+    }
+    return NULL;
+}
+
+// Non-blocking, driver-thread-safe channel probes for the select rows: the
+// driver runs outside any task, so the task-context channel API
+// (rt_channel_recv/rt_channel_try_send) is unavailable; the control-locked
+// status wrappers used by the select slow lane work from any thread.
+static int channel_recv_once(rt_executor* ex, void* channel, uint64_t want_bits) {
+    rt_control_lock(ex);
+    uint64_t bits = 0;
+    uint8_t status = rt_channel_try_recv_status_locked(ex, channel, &bits);
+    rt_control_unlock(ex);
+    if (status != 1 || bits != want_bits) {
+        return 0;
+    }
+    rt_control_lock(ex);
+    uint8_t empty_status = rt_channel_try_recv_status_locked(ex, channel, NULL);
+    rt_control_unlock(ex);
+    return empty_status == 0;
+}
+
+static int channel_is_empty(rt_executor* ex, void* channel) {
+    rt_control_lock(ex);
+    uint8_t status = rt_channel_try_recv_status_locked(ex, channel, NULL);
+    rt_control_unlock(ex);
+    return status == 0;
+}
+
 static rt_remote_spawn_pending* wait_pending_shared(remote_publish_state* st, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
         rt_remote_spawn_pending* req =
@@ -802,6 +915,31 @@ void __surge_poll_call(uint64_t id) {
         }
         st->status = status;
         rt_async_return(st, (uint64_t)status);
+        return;
+    }
+    if (id == POLL_SELECT_CALLER) {
+        select_exec_state* st = (select_exec_state*)__task_state();
+        rt_remote_task_status status = rt_far_channel_select(
+            st->anchor_ptrs, st->kinds, st->send_bits, st->count,
+            st->droppable ? DROP_REMOTE_STATE : 0, POLL_SELECT_BODY, st->body_state,
+            &st->pending, &st->out_kind, &st->out_bits);
+        if (status == RT_REMOTE_TASK_STATUS_PENDING) {
+            st->saw_pending = 1;
+            atomic_store_explicit(&st->pending_shared, st->pending, memory_order_release);
+            rt_async_yield(st);
+            return;
+        }
+        st->status = status;
+        rt_async_return(st, (uint64_t)status);
+        return;
+    }
+    if (id == POLL_SELECT_BODY) {
+        // The compiled lowering calls rt_anchored_channel_select and stores
+        // the winner into the block's select_index destination; the
+        // harness body mirrors that exactly, since the select machinery
+        // itself is production runtime code under test, not a stand-in.
+        uint64_t winner = rt_anchored_channel_select();
+        rt_async_return(__task_state(), winner);
         return;
     }
     if (id == POLL_REMOTE_PUBLISHER) {
@@ -1214,6 +1352,17 @@ static int await_immediate(immediate_exec_state* st) {
     return bits == (uint64_t)st->status;
 }
 
+static int await_select(select_exec_state* st) {
+    void* task = __task_create(POLL_SELECT_CALLER, st);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(task, &kind, &bits);
+    if (kind != 1) {
+        return 0;
+    }
+    return bits == (uint64_t)st->status;
+}
+
 // Immediate-on refusal edges: no far handle exists for the execute/reply
 // category, so the pending (or the pre-link path) is the sole owner of the
 // shipped state — it drops exactly once, no body runs, and the caller
@@ -1399,6 +1548,25 @@ static int mint_anchor(rt_executor* ex, uint32_t owner_shard_id, rt_far_task_han
     return rt_far_channel_mint(ex, channel, owner_shard_id, out) == RT_REMOTE_TASK_STATUS_OK;
 }
 
+// Select-row variant: returns the local channel pointer too (the select
+// rows drive/observe the channel directly from the driver thread to prove
+// exactly-once delivery) and takes a capacity so a SEND arm can commit
+// deterministically against a buffered channel with room.
+static void* mint_channel_anchor(rt_executor* ex,
+                                 uint32_t owner_shard_id,
+                                 uint64_t capacity,
+                                 rt_far_task_handle* out) {
+    void* channel = rt_channel_new(capacity);
+    if (channel == NULL) {
+        return NULL;
+    }
+    rt_channel_bind_owner_shard(channel, owner_shard_id);
+    if (rt_far_channel_mint(ex, channel, owner_shard_id, out) != RT_REMOTE_TASK_STATUS_OK) {
+        return NULL;
+    }
+    return channel;
+}
+
 // Row A: a stale-generation anchor refuses the execute before any body
 // exists. The pending is the sole owner of the shipped state (dispatch bails
 // at the pin check, well before the publication-accepted handoff), so it
@@ -1579,6 +1747,275 @@ static int run_anchored_cancel_unbound(void) {
     return 0;
 }
 
+// Remote select rows (Epic 20 Task 7 rows 2-5): deterministic runtime races
+// over Copy payloads on the same execute/reply pending discipline the
+// anchored rows already prove. Every row uses a SEND arm into a freshly
+// minted, buffered (capacity-1) far channel: rt_select_poll's SEND case
+// pushes the value into the channel AS PART of committing the winner, so
+// the commit is deterministic on the body's first poll (no parking), and
+// the driver can verify exactly-once delivery afterward straight off the
+// local channel object (mint_channel_anchor hands back both the far handle
+// and the local pointer).
+
+// Row 2: cancel-vs-commit race. The body is held at the new
+// SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY window with the winner already
+// committed (the send already landed in the channel). Cancelling the
+// caller from there races a caller-side cancel against the still-unsent
+// reply. The caller resolves as Cancelled immediately (rt_async_yield's
+// own cancelled check short-circuits its retry poll -- the pending stays
+// alive, still owner-registered, so the eventual reply is unaffected) --
+// so the row tracks the PENDING directly (an extra driver-held reference)
+// rather than trusting the caller's own outcome.
+static int run_far_select_cancel_vs_commit(void) {
+    rt_executor* ex = ensure_exec();
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor = {0};
+    void* channel = mint_channel_anchor(ex, dst, 1, &anchor);
+    if (channel == NULL) return fail("select channel mint failed");
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = anchor;
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.send_bits[0] = 42;
+    st.count = 1;
+    st.droppable = 1;
+    int state_marker = 0;
+    st.body_state = &state_marker;
+    drop_expected_state = &state_marker;
+
+    void* caller = __task_create(POLL_SELECT_CALLER, &st);
+    if (caller == NULL) return fail("select caller create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY, 5000)) {
+        return fail("commit window was never reached");
+    }
+    rt_remote_task_pending* req = wait_select_pending_shared(&st, 5000);
+    if (req == NULL) return fail("select pending missing at commit window");
+    rt_remote_task_pending_add_ref(req);
+
+    rt_task_cancel(caller);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (kind == 1) return fail("cancelled select caller must not resolve successfully");
+    rt_sync_point_open();
+
+    if (!wait_task_refs(req, 1, 5000)) return fail("select reply never resolved");
+    uint8_t result_kind = 0;
+    uint64_t result_bits = 0;
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(req, &result_kind, &result_bits);
+    if (status != RT_REMOTE_TASK_STATUS_OK || result_kind != 1 || result_bits != 0) {
+        return fail("commit-vs-cancel race must still resolve kind=1 with the committed winner");
+    }
+    if (!channel_recv_once(ex, channel, 42)) {
+        return fail("committed send must land in the channel exactly once");
+    }
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("handed-off select state must not drop across the commit race");
+    }
+    rt_remote_task_pending_release(req);
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("select anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("commit-vs-cancel race leaked a pin");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Row 3: cancel-before-dispatch. The select request is cancelled while
+// still UNBOUND, held at the new SP_FAR_SELECT_BEFORE_DISPATCH entry
+// window (the select twin of SP_IMMEDIATE_ON_BEFORE_DISPATCH). The
+// cancelled caller's own completion resolves the pending through the
+// teardown sweep (rt_immediate_on_release_owned, which lists
+// RT_REMOTE_TASK_OP_CHANNEL_SELECT) before the late dispatch ever reaches
+// the pin loop -- no arm is touched.
+static int run_far_select_cancel_before_dispatch(void) {
+    rt_executor* ex = ensure_exec();
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor = {0};
+    void* channel = mint_channel_anchor(ex, dst, 1, &anchor);
+    if (channel == NULL) return fail("select channel mint failed");
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = anchor;
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.send_bits[0] = 55;
+    st.count = 1;
+    st.droppable = 1;
+    int state_marker = 0;
+    st.body_state = &state_marker;
+    drop_expected_state = &state_marker;
+
+    void* caller = __task_create(POLL_SELECT_CALLER, &st);
+    if (caller == NULL) return fail("select caller create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_FAR_SELECT_BEFORE_DISPATCH, 5000)) {
+        return fail("dispatch window was never reached");
+    }
+    rt_task_cancel(caller);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (kind == 1) return fail("cancelled select caller must not resolve successfully");
+    rt_sync_point_open();
+
+    if (!wait_drops(1, 5000)) {
+        return fail("unbound select cancel must drop the state exactly once");
+    }
+    if (!channel_is_empty(ex, channel)) {
+        return fail("unbound select cancel must never touch the arm");
+    }
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("select anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("refused select dispatch must not touch the pin");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Row 4: double-cancel idempotency. The first cancel route runs through
+// rt_task_cancel: the caller's own retry poll routes it, and (since the
+// caller resolves as Cancelled through the same yield short-circuit as
+// row 2) its own teardown immediately re-attempts the same route --
+// cancel_routed already absorbs that inner duplicate. This row adds a
+// THIRD, fully independent route: the driver, holding its own reference
+// on the same pending, calls rt_immediate_on_cancel_inflight directly.
+// The owner shard's single worker is still parked at the armed window
+// (the sync point is not opened until after this check), so the first
+// route's in-flight cancel-request message cannot possibly be drained
+// out from under the before/after snapshot below -- nothing else can be
+// touching refs at that instant, a clean proof that the third route is a
+// pure no-op once cancel_routed is set.
+static int run_far_select_double_cancel(void) {
+    rt_executor* ex = ensure_exec();
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor = {0};
+    void* channel = mint_channel_anchor(ex, dst, 1, &anchor);
+    if (channel == NULL) return fail("select channel mint failed");
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = anchor;
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.send_bits[0] = 91;
+    st.count = 1;
+    st.droppable = 1;
+    int state_marker = 0;
+    st.body_state = &state_marker;
+    drop_expected_state = &state_marker;
+
+    void* caller = __task_create(POLL_SELECT_CALLER, &st);
+    if (caller == NULL) return fail("select caller create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY, 5000)) {
+        return fail("commit window was never reached");
+    }
+    rt_remote_task_pending* req = wait_select_pending_shared(&st, 5000);
+    if (req == NULL) return fail("select pending missing at commit window");
+    rt_remote_task_pending_add_ref(req);
+
+    rt_task_cancel(caller);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (kind == 1) return fail("cancelled select caller must not resolve successfully");
+
+    uint32_t refs_before = atomic_load_explicit(&req->refs, memory_order_acquire);
+    rt_immediate_on_cancel_inflight(ex, req);
+    uint32_t refs_after = atomic_load_explicit(&req->refs, memory_order_acquire);
+    if (refs_after != refs_before) {
+        return fail("a second cancel route must not land once cancel_routed is set");
+    }
+
+    rt_sync_point_open();
+
+    if (!wait_task_refs(req, 1, 5000)) return fail("select reply never resolved");
+    uint8_t result_kind = 0;
+    uint64_t result_bits = 0;
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(req, &result_kind, &result_bits);
+    if (status != RT_REMOTE_TASK_STATUS_OK || result_kind != 1 || result_bits != 0) {
+        return fail("double-cancel must still resolve exactly once with the committed winner");
+    }
+    if (!channel_recv_once(ex, channel, 91)) {
+        return fail("committed send must land exactly once under double-cancel");
+    }
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("handed-off select state must not drop under double-cancel");
+    }
+    rt_remote_task_pending_release(req);
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("select anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("double-cancel leaked a pin");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Row 5: refusal-after-shipped regression guard. Two arms share the same
+// owner shard; arm 0 pins cleanly, arm 1 carries a corrupted (stale)
+// anchor generation COPY -- its original lease stays valid, so the
+// mint-side registry entry is untouched. The dispatch-time pin loop pins
+// arm 0, fails on arm 1, unpins the already-pinned prefix (arm 0), and
+// answers STALE_TOKEN before any body exists: the request never reaches
+// rt_select_poll, so neither channel is ever touched despite both arms
+// carrying live SEND payloads, and the sole-owner pending drops the
+// shipped poll state exactly once.
+static int run_far_select_refusal_after_shipped(void) {
+    rt_executor* ex = ensure_exec();
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor0 = {0};
+    void* channel0 = mint_channel_anchor(ex, dst, 1, &anchor0);
+    if (channel0 == NULL) return fail("select channel 0 mint failed");
+    rt_far_task_handle anchor1 = {0};
+    void* channel1 = mint_channel_anchor(ex, dst, 1, &anchor1);
+    if (channel1 == NULL) return fail("select channel 1 mint failed");
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = anchor0;
+    st.anchors[1] = anchor1;
+    st.anchors[1].generation++;  // corrupt a COPY; the original lease stays valid
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.anchor_ptrs[1] = &st.anchors[1];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.kinds[1] = SELECT_CHAN_SEND;
+    st.send_bits[0] = 12;
+    st.send_bits[1] = 34;
+    st.count = 2;
+    st.droppable = 1;
+    int state_marker = 0;
+    st.body_state = &state_marker;
+    drop_expected_state = &state_marker;
+
+    if (!await_select(&st)) return fail("refusal-after-shipped await failed");
+    if (st.status != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {
+        return fail("stale mid-pin arm must answer STALE_TOKEN");
+    }
+    if (!wait_drops(1, 5000)) {
+        return fail("refused select must drop the shipped poll state exactly once");
+    }
+    if (!channel_is_empty(ex, channel0) || !channel_is_empty(ex, channel1)) {
+        return fail("refused select must never touch send_bits on either arm");
+    }
+    if (rt_far_channel_release(ex, &anchor0) != RT_REMOTE_TASK_STATUS_OK ||
+        rt_far_channel_release(ex, &anchor1) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("select anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("refusal-after-shipped leaked a pin on one of the arms");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return fail("usage: remote_publication_harness <mode>");
     if (strcmp(argv[1], "publish-other") == 0) return run_publish(1, 0);
@@ -1616,6 +2053,16 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "anchored-happy-path") == 0) return run_anchored_happy_path();
     if (strcmp(argv[1], "anchored-cancel-bound") == 0) return run_anchored_cancel_bound();
     if (strcmp(argv[1], "anchored-cancel-unbound") == 0) return run_anchored_cancel_unbound();
+    if (strcmp(argv[1], "far-select-cancel-vs-commit") == 0) {
+        return run_far_select_cancel_vs_commit();
+    }
+    if (strcmp(argv[1], "far-select-cancel-before-dispatch") == 0) {
+        return run_far_select_cancel_before_dispatch();
+    }
+    if (strcmp(argv[1], "far-select-double-cancel") == 0) return run_far_select_double_cancel();
+    if (strcmp(argv[1], "far-select-refusal-after-shipped") == 0) {
+        return run_far_select_refusal_after_shipped();
+    }
     return fail("unknown mode");
 }
 `

@@ -107,6 +107,10 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_READY_REQUEUE_BEFORE_LOCK";
         case RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL:
             return "SP_WAKE_BEFORE_STALE_REMOVAL";
+        case RT_SYNC_POINT_SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:
+            return "SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY";
+        case RT_SYNC_POINT_SP_FAR_SELECT_BEFORE_DISPATCH:
+            return "SP_FAR_SELECT_BEFORE_DISPATCH";
         default:
             return "";
     }

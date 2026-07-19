@@ -119,6 +119,20 @@ typedef enum rt_sync_point_id {
     // unqualified removal here sweeps the fresh registration too and strands
     // a store-driven (join) park forever (RV2-DEBT-046).
     RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL,
+    // remote select owner body (rt_anchored_channel_select): reached after
+    // rt_select_poll has committed a winner (its control-lock critical
+    // section already released) and before the winner value returns to
+    // the caller's async-return/reply. A test cancels the caller in this
+    // window to prove the one-lock commit ships as success even though a
+    // cancel races in after the commit (Epic 20 Task 7 row 2).
+    RT_SYNC_POINT_SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY,
+    // remote select destination dispatch entry (rt_far_channel_dispatch_select):
+    // reached before the pending snapshot that gates the arm pin loop, the
+    // select twin of SP_IMMEDIATE_ON_BEFORE_DISPATCH. A test cancels the
+    // caller in this window to prove the teardown sweep resolves the
+    // UNBOUND request and the late dispatch refuses to pin any arm (Epic
+    // 20 Task 7 row 3).
+    RT_SYNC_POINT_SP_FAR_SELECT_BEFORE_DISPATCH,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

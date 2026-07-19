@@ -80,3 +80,24 @@ same change.
 
 IN PROGRESS (2026-07-19). Reconnaissance complete (runtime half by
 codex, sema/gate half by lead); scope split recorded.
+
+Rows 2-5 (deterministic runtime races, Copy payloads) DONE (2026-07-19):
+new sync points `SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY` (row 2, in
+`rt_anchored_channel_select`, strictly after `rt_select_poll` releases its
+control-lock critical section and returns a winner) and
+`SP_FAR_SELECT_BEFORE_DISPATCH` (row 3, at `rt_far_channel_dispatch_select`
+entry, the select twin of `SP_IMMEDIATE_ON_BEFORE_DISPATCH`), both
+three-file allowlisted (`rt_sync_point.h`, `rt_sync_point.c`,
+`check_sync_points.sh`). Row 4 reuses row 2's commit window and adds a
+third, independent `rt_immediate_on_cancel_inflight` call from the driver
+against `cancel_routed`. Row 5 corrupts one arm's anchor generation copy
+mid-array to force the dispatch-time pin loop to unpin an already-pinned
+prefix. New Go test `TestRuntimeV2RemoteSelectAbandonEdges` (2 shards, one
+row per sync point where applicable) in
+`internal/vm/runtime_v2_remote_publication_test.go`; wired into the
+Makefile's remote-task acceptance line (`SelectAbandonEdges` alternative).
+Verified: standalone harness build + 20x per row, `go test` x3,
+`check_sync_points.sh`, `make c-check`, and the full remote-task
+acceptance regex together — all clean, no regressions. No runtime bugs
+found; all four rows confirm the one-lock atomicity and idempotency
+claims hold as designed.
