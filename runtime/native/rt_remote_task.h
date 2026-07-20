@@ -22,10 +22,12 @@ typedef enum rt_remote_task_status {
 } rt_remote_task_status;
 
 rt_remote_task_status rt_far_task_await(const rt_far_task_handle* handle,
+                                        uint64_t result_drop_fn_id,
                                         rt_remote_task_pending** pending,
                                         uint8_t* out_kind,
                                         uint64_t* out_bits);
 rt_remote_task_status rt_far_task_cancel(const rt_far_task_handle* handle,
+                                         uint64_t result_drop_fn_id,
                                          rt_remote_task_pending** pending,
                                          uint8_t* out_kind,
                                          uint64_t* out_bits);
@@ -65,6 +67,7 @@ int rt_remote_task_dispatch_message(rt_executor* ex, const rt_transport_msg* msg
 void rt_remote_task_release_msg_payload(const rt_transport_msg* msg);
 void rt_remote_task_on_owner_done(rt_executor* ex, rt_task* task);
 void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller);
+void rt_remote_task_release_owned(rt_executor* ex, const rt_task* caller);
 void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status status);
 // Idle-park-edge self-deadlock detection for suspended execute blocks.
 void rt_remote_task_deadlock_check(rt_executor* ex);

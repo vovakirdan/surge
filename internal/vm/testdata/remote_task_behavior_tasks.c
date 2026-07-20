@@ -127,8 +127,9 @@ static void poll_lifecycle(rtb_lifecycle_state* state) {
         owner->transport.control_len = RT_TRANSPORT_CONTROL_QUEUE_CAP;
         rt_shard_unlock(owner);
     }
-    state->status = state->cancel != 0 ? rt_far_task_cancel(handle, &state->pending, &kind, &bits)
-                                       : rt_far_task_await(handle, &state->pending, &kind, &bits);
+    state->status = state->cancel != 0
+                        ? rt_far_task_cancel(handle, 0, &state->pending, &kind, &bits)
+                        : rt_far_task_await(handle, 0, &state->pending, &kind, &bits);
     if (state->phase == 0) {
         state->phase = 1;
         rt_far_task_handle_free(state->handle);

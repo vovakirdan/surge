@@ -115,6 +115,17 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
             __surge_drop_call(pending->state_drop_fn_id, pending->body_state);
             pending->body_state = NULL;
         }
+        // A landed AWAIT reply nobody consumed (the caller tore down
+        // before its next poll, or after the reply already resolved and
+        // dropped the last ref). result_bits stays 0 for a Cancelled
+        // reply and for every non-terminal status, so the nonzero check
+        // alone gates this to a genuine, un-consumed Success payload —
+        // mirrors free_task's owner-side result-drop check
+        // (rt_task_lifetime.c) exactly.
+        if (pending->result_drop_fn_id != 0 && pending->result_bits != 0) {
+            __surge_drop_result_call(pending->result_drop_fn_id, (void*)pending->result_bits);
+            pending->result_bits = 0;
+        }
         if (pending->select_arms != NULL) {
             rt_free((uint8_t*)pending->select_arms,
                     pending->select_count * sizeof(rt_far_channel_select_arm),

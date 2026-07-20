@@ -24,6 +24,11 @@ static rt_remote_task_status
 finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {
     rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind, out_bits);
     if (status != RT_REMOTE_TASK_STATUS_PENDING) {
+        // Compiled code is about to take ownership of out_bits (or there
+        // is nothing to take for a non-success status) -- clear the drop
+        // obligation before consume's free path can see it, so a
+        // consumed result is never also dropped.
+        (*slot)->result_drop_fn_id = 0;
         rt_remote_task_pending_consume(*slot);
         *slot = NULL;
     }
@@ -32,6 +37,7 @@ finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bit
 
 static rt_remote_task_status start_remote_task(rt_remote_task_op op,
                                                const rt_far_task_handle* handle,
+                                               uint64_t result_drop_fn_id,
                                                rt_remote_task_pending** pending,
                                                uint8_t* out_kind,
                                                uint64_t* out_bits) {
@@ -76,6 +82,13 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
         rt_far_task_lease_restore(handle);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
+    // Identifies this pending to the caller-teardown sweep
+    // (rt_task_complete.c's mark_done) so a caller that dies mid-poll
+    // releases its own reference instead of leaking it forever -- AWAIT/
+    // CANCEL previously never set this field at all (unlike EXECUTE/
+    // EXECUTE_ANCHORED/CHANNEL_SELECT, which already do).
+    request->caller_task_id = current->id;
+    request->result_drop_fn_id = result_drop_fn_id;
     *pending = request;
     (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
@@ -105,17 +118,21 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
 }
 
 rt_remote_task_status rt_far_task_await(const rt_far_task_handle* handle,
+                                        uint64_t result_drop_fn_id,
                                         rt_remote_task_pending** pending,
                                         uint8_t* out_kind,
                                         uint64_t* out_bits) {
-    return start_remote_task(RT_REMOTE_TASK_OP_AWAIT, handle, pending, out_kind, out_bits);
+    return start_remote_task(
+        RT_REMOTE_TASK_OP_AWAIT, handle, result_drop_fn_id, pending, out_kind, out_bits);
 }
 
 rt_remote_task_status rt_far_task_cancel(const rt_far_task_handle* handle,
+                                         uint64_t result_drop_fn_id,
                                          rt_remote_task_pending** pending,
                                          uint8_t* out_kind,
                                          uint64_t* out_bits) {
-    return start_remote_task(RT_REMOTE_TASK_OP_CANCEL, handle, pending, out_kind, out_bits);
+    return start_remote_task(
+        RT_REMOTE_TASK_OP_CANCEL, handle, result_drop_fn_id, pending, out_kind, out_bits);
 }
 
 rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle) {
@@ -148,4 +165,52 @@ rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle) {
         rt_remote_task_pending_release(request);
     }
     return status;
+}
+
+// Caller-teardown sweep for AWAIT/CANCEL pendings. Unlike
+// rt_immediate_on_release_owned's EXECUTE-family sweep, this does NOT route
+// a cancel to the owner: consume_handle (rt_remote_task_dispatch.c) is a
+// one-shot OPEN->state CAS that the original .await()/.cancel() already
+// consumed, so a second, routed cancel request would fail that CAS and
+// produce a bogus CONSUMED reply while leaking the far task's own
+// reference -- confirmed by direct trace, not assumed. The correct
+// teardown is simpler: this caller's own reference (one of exactly two
+// refs a pending carries -- the other is the in-flight-request ref
+// dispatch_reply or shutdown-drain releases) is simply given up via
+// consume (unlink, then release): unlinking is safe regardless of
+// whether this ends up being the last reference, because nothing else
+// ever finds a pending through the registry scan by caller_task_id
+// once that field is cleared here, and dispatch_reply finds its
+// pending through the pointer the message itself carries, never
+// through the registry list. If the reply already landed, this may be
+// the ref that drops the pending to zero, freeing it right here
+// through the normal free path (which now drops an unconsumed heap
+// result via result_drop_fn_id) -- correctly unlinked first, so a
+// later shutdown-time registry walk never dereferences the freed
+// block. If the reply hasn't landed yet, the pending stays alive on
+// its remaining ref and resolves exactly as it would have otherwise,
+// just no longer discoverable by caller_task_id (nothing needs it to
+// be).
+void rt_remote_task_release_owned(rt_executor* ex, const rt_task* caller) {
+    rt_remote_task_state* state = rt_remote_task_state_get(ex);
+    if (state == NULL || caller == NULL) {
+        return;
+    }
+    for (;;) {
+        rt_remote_task_pending* pending = NULL;
+        pthread_mutex_lock(&state->lock);
+        for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
+            if ((it->op == RT_REMOTE_TASK_OP_AWAIT || it->op == RT_REMOTE_TASK_OP_CANCEL) &&
+                it->caller_task_id == caller->id) {
+                pending = it;
+                it->caller_task_id = 0;
+                break;
+            }
+        }
+        pthread_mutex_unlock(&state->lock);
+        if (pending == NULL) {
+            return;
+        }
+        rt_remote_task_pending_consume(pending);
+    }
 }

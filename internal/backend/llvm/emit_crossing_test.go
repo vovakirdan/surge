@@ -109,12 +109,12 @@ async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 	waitPoll := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mirMod, "wait_remote$poll").ID))
 	cancelPoll := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mirMod, "cancel_remote$poll").ID))
 	for _, want := range []string{
-		"declare i32 @rt_far_task_await(ptr, ptr, ptr, ptr)",
-		"declare i32 @rt_far_task_cancel(ptr, ptr, ptr, ptr)",
+		"declare i32 @rt_far_task_await(ptr, i64, ptr, ptr, ptr)",
+		"declare i32 @rt_far_task_cancel(ptr, i64, ptr, ptr, ptr)",
 		"call i32 @rt_far_task_await(",
 		"call i32 @rt_far_task_cancel(",
-		"call i32 @rt_far_task_await(ptr null,",
-		"call i32 @rt_far_task_cancel(ptr null,",
+		"call i32 @rt_far_task_await(ptr null, i64 0,",
+		"call i32 @rt_far_task_cancel(ptr null, i64 0,",
 	} {
 		if !strings.Contains(ir, want) {
 			t.Fatalf("far Task lifecycle LLVM IR missing %q:\n%s", want, ir)

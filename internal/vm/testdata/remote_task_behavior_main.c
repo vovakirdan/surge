@@ -137,5 +137,15 @@ int main(int argc, char** argv) {
         return rtb_mode_result_copy_inert();
     if (strcmp(argv[1], "result-consumed-no-double-drop") == 0)
         return rtb_mode_result_consumed_no_double_drop();
+    if (strcmp(argv[1], "caller-abandon-drops-landed-result") == 0)
+        return rtb_mode_caller_abandon_drops_landed_result();
+    if (strcmp(argv[1], "caller-abandon-copy-inert") == 0)
+        return rtb_mode_caller_abandon_copy_inert();
+    if (strcmp(argv[1], "caller-abandon-consumed-no-double-drop") == 0)
+        return rtb_mode_caller_abandon_consumed_no_double_drop();
+    if (strcmp(argv[1], "caller-abandon-filters-by-op-and-caller") == 0)
+        return rtb_mode_caller_abandon_filters_by_op_and_caller();
+    if (strcmp(argv[1], "caller-abandon-in-flight-survives") == 0)
+        return rtb_mode_caller_abandon_in_flight_survives();
     return rtb_fail("unknown mode");
 }

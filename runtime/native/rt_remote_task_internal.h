@@ -86,6 +86,19 @@ struct rt_remote_task_pending {
     rt_far_channel_select_arm* select_arms;
     uint64_t select_count;
     uint64_t result_bits;
+    // Drop obligation for a landed, heap-carried AWAIT reply the caller
+    // never consumed. Threaded from the far Task<T> await/cancel
+    // lowering site (the payload type is known there, mirroring
+    // result_drop_fn_id on rt_task's own owner-side release path);
+    // cleared the moment compiled code actually reads result_bits out
+    // of a resolved pending (rt_remote_task_api.c's finish_retry), so a
+    // consumed result is never dropped twice. The free path
+    // (rt_remote_task_pending_release) is the single drop site while
+    // owned, reached either by the normal reply-delivery consume
+    // (dispatch_reply) or by the caller-teardown release
+    // (rt_remote_task_release_owned) — same function, two possible
+    // callers, exactly-once by construction.
+    uint64_t result_drop_fn_id;
     _Atomic uint32_t refs;
     uint8_t listed;
     struct rt_remote_task_pending* next;

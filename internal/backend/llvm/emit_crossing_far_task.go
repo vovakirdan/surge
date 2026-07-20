@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, method, runtimeFn string) error {
@@ -20,6 +21,31 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 	}
 	if pendingTy != "ptr" {
 		return fmt.Errorf("far Task.%s pending slot must lower as ptr, got %s", method, pendingTy)
+	}
+
+	// A heap-carried reply the caller never consumes must reclaim
+	// exactly once (rt_remote_task_pending_release's free path). The
+	// payload type is known here, at the await/cancel lowering site,
+	// the same way the owner-side result_drop_fn_id is known at the
+	// spawn-on lowering site (emit_crossing.go) -- mirrors that
+	// registration exactly, just keyed off this call's own result type
+	// instead of the body's declared return type. Both far Task.await()
+	// and far Task.cancel() register it: a cancelled caller's body may
+	// still run to completion and land a result nobody will ever read.
+	resultType := ins.ResultType
+	if resultType == types.NoTypeID {
+		resultType, err = fe.placeBaseType(ins.Dst)
+		if err != nil {
+			return err
+		}
+	}
+	_, resultPayloadType, err := fe.taskResultInfo(resultType)
+	if err != nil {
+		return err
+	}
+	resultDropID := types.TypeID(0)
+	if fe.emitter.typeOwnsHeap(resultPayloadType) {
+		resultDropID = fe.emitter.registerCrossingDropResult(resultPayloadType)
 	}
 
 	kindPtr := fe.nextTemp()
@@ -52,10 +78,11 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @%s(ptr %s, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @%s(ptr %s, i64 %d, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		runtimeFn,
 		receiverVal,
+		resultDropID,
 		pendingPtr,
 		kindPtr,
 		bitsPtr)
@@ -66,7 +93,7 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", retryBB)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @%s(ptr null, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @%s(ptr null, i64 0, ptr %s, ptr %s, ptr %s)\n",
 		retryStatus,
 		runtimeFn,
 		pendingPtr,

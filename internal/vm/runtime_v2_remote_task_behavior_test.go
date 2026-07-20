@@ -431,6 +431,45 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			mode: "result-consumed-no-double-drop",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
+		{
+			// A landed AWAIT reply nobody consumed is reclaimed exactly
+			// once when the caller-teardown sweep
+			// (rt_remote_task_release_owned) releases the caller's last
+			// reference.
+			name: "caller-abandon-drops-landed-result-exactly-once",
+			mode: "caller-abandon-drops-landed-result",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			// Negative control: a Copy result (id 0) never reaches the
+			// result-drop dispatch, even when abandoned.
+			name: "caller-abandon-copy-inert-never-reaches-result-drop",
+			mode: "caller-abandon-copy-inert",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			// Negative control: a result already consumed before the sweep
+			// runs must not be double-dropped.
+			name: "caller-abandon-consumed-does-not-double-drop",
+			mode: "caller-abandon-consumed-no-double-drop",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			// The sweep's op+caller_task_id filter is exact: an EXECUTE-op
+			// pending and a different caller's AWAIT pending are both left
+			// untouched.
+			name: "caller-abandon-filters-by-op-and-caller",
+			mode: "caller-abandon-filters-by-op-and-caller",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			// When the reply hasn't landed yet, the sweep releases only the
+			// caller's own reference and leaves the pending listed to
+			// resolve normally later.
+			name: "caller-abandon-in-flight-pending-survives",
+			mode: "caller-abandon-in-flight-survives",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

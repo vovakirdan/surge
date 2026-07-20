@@ -234,6 +234,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     task->result_bits = result_bits;
     rt_far_task_release_owned(ex, task);
     rt_immediate_on_release_owned(ex, task);
+    rt_remote_task_release_owned(ex, task);
     rt_task_status_store_done_for_external_awaiters(task);
     rt_remote_task_on_owner_done(ex, task);
     RT_SYNC_POINT(SP_MARKDONE_BEFORE_DONEWAITERS_LOAD);

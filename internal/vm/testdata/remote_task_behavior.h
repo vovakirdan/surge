@@ -180,6 +180,11 @@ int rtb_mode_drop_bound_cancel_no_pending_drop(void);
 int rtb_mode_result_owner_release(void);
 int rtb_mode_result_copy_inert(void);
 int rtb_mode_result_consumed_no_double_drop(void);
+int rtb_mode_caller_abandon_drops_landed_result(void);
+int rtb_mode_caller_abandon_copy_inert(void);
+int rtb_mode_caller_abandon_consumed_no_double_drop(void);
+int rtb_mode_caller_abandon_filters_by_op_and_caller(void);
+int rtb_mode_caller_abandon_in_flight_survives(void);
 
 void rtb_share_poll_dispatch(uint64_t id);
 int rtb_mode_share_round_trip(void);

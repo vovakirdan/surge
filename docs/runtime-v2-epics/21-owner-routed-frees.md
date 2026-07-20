@@ -454,29 +454,51 @@ owns). All census rows carry execution witnesses.
      confirmed by reading `rt_remote_task_pending_new`), so a sweep
      can find these pendings by caller.
   2. A caller-teardown sweep for AWAIT/CANCEL pendings does exactly
-     ONE thing: `rt_remote_task_pending_release(pending)` — drop the
+     ONE thing: `rt_remote_task_pending_consume(pending)` — drop the
      caller's own ref, single-shot (clear `caller_task_id`), nothing
-     else. No cancel routed, no owner-side state touched. If the
-     reply hasn't landed yet, the pending survives on its remaining
-     (in-flight) ref and resolves normally later via `dispatch_reply`
-     exactly as today. If the reply already landed and this is the
-     LAST ref, the pending frees here instead of in `dispatch_reply`
-     — same free path either way.
+     else. No cancel routed, no owner-side state touched.
+     IMPLEMENTATION CORRECTION (found by the harness rows, not by
+     inspection): the draft above initially reached for plain
+     `..._release`, reasoning that staying registry-linked let the
+     pending "survive" for the not-yet-landed case. That reasoning
+     was backwards — if this release IS the last ref (the landed
+     case), `..._release` frees the struct while it is STILL LINKED
+     into the registry, leaving a dangling pointer for the next
+     registry walk to dereference (a real double-free, caught by the
+     new negative-control rows before commit). `..._consume` (unlink,
+     then release) is correct unconditionally: unlinking is always
+     safe, because nothing else ever finds a pending through the
+     registry scan by `caller_task_id` once this sweep has cleared
+     it, and `dispatch_reply` finds its pending through the pointer
+     the message itself carries, never through the registry list —
+     matching `dispatch_reply`'s own existing code comment, which
+     already says a landed reply "must not leave a freed pending
+     linked in the list" for exactly this reason. If the reply hasn't
+     landed yet, the pending survives (unlinked, still alive) on its
+     remaining in-flight ref and resolves normally later via
+     `dispatch_reply` exactly as today.
   3. `result_drop_fn_id` on `rt_remote_task_pending` (v1's design,
      unchanged): mirrors 053a's `task->result_drop_fn_id`, threaded
      from the AWAIT/select crossing lowering site, cleared wherever
      compiled code actually consumes `result_bits` (the `finish_retry`
      success path). `rt_remote_task_pending_release`'s free path
-     (the SAME function whether reached via `dispatch_reply` or the
-     new caller-teardown sweep) gains the drop call. One free path,
-     two possible callers, exactly-once by construction.
-  Whether the sweep in point 2 needs its OWN small function or can
-  ride a widened `rt_immediate_on_release_owned` IF that function's
-  op filter grows an AWAIT/CANCEL branch that does ONLY the plain
-  release (no `cancel_inflight`, no bound/unbound branching) is an
-  implementation-detail choice, not a design risk — both shapes are
-  equally safe; prefer whichever reads more clearly against the
-  existing EXECUTE-family branches.
+     (the SAME function whether reached via `dispatch_reply`'s consume
+     or the new caller-teardown sweep's consume) gains the drop call.
+     One free path, two possible callers, exactly-once by
+     construction.
+  **053b IMPLEMENTED 2026-07-20.** Landed as its own small function
+  (`rt_remote_task_release_owned`, `rt_remote_task_api.c`) rather than
+  widening `rt_immediate_on_release_owned` — clearer against the
+  EXECUTE-family branches' bound/unbound logic, which this sweep
+  deliberately does not share. Five deterministic harness rows
+  (`internal/vm/testdata/remote_task_behavior_caller_abandon.c`, run
+  through the existing `TestRuntimeV2RemoteTaskBehavior` table, gated
+  by `runtime-v2-transport-check`): drops-landed-result-exactly-once,
+  copy-inert negative control, consumed negative control, an
+  op+caller filter row (proves an EXECUTE-op pending and a different
+  caller's AWAIT pending are both left untouched), and an
+  in-flight-survives row. The filter and consumed rows caught the
+  release-vs-consume bug above before commit.
 
   **059 v2 (abandoned init frame) — relocated to the actual leak
   site.** v1 anchored at `TermAsyncReturnCancelled`

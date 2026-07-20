@@ -26,9 +26,9 @@ rt_remote_spawn_status (*check_validate)(rt_executor*, const rt_far_task_handle*
     rt_remote_spawn_handle_validate;
 size_t (*check_drain)(rt_executor*, rt_shard*, size_t) =
     rt_remote_spawn_drain_inbound_locked;
-rt_remote_task_status (*check_far_await)(const rt_far_task_handle*,
+rt_remote_task_status (*check_far_await)(const rt_far_task_handle*, uint64_t,
     rt_remote_task_pending**, uint8_t*, uint64_t*) = rt_far_task_await;
-rt_remote_task_status (*check_far_cancel)(const rt_far_task_handle*,
+rt_remote_task_status (*check_far_cancel)(const rt_far_task_handle*, uint64_t,
     rt_remote_task_pending**, uint8_t*, uint64_t*) = rt_far_task_cancel;
 rt_remote_task_status (*check_far_release)(const rt_far_task_handle*) =
     rt_far_task_release;
