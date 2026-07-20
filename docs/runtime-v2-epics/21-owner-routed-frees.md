@@ -396,7 +396,116 @@ owns). All census rows carry execution witnesses.
   (053b + 059, forks 2-3):** the design row lands FIRST and names
   the single abandon-time reconciliation point, its ownership
   states, and the seam d2 consumes (Task 8 depends on this row,
-  not on the impl). Then: caller identity (`caller_task_id` for
+  not on the impl).
+
+  **DESIGN ROW COMPLETE (2026-07-20, code-traced, not yet
+  reviewed or implemented — see "Design review needed" below).**
+
+  **The reconciliation point.** `mark_done`
+  (`runtime/native/rt_task_complete.c`, immediately before
+  `task->state = NULL`) already IS the established single point
+  where a task's ownership sweeps run: `rt_far_task_release_owned`
+  (unconsumed lease cleanup) and `rt_immediate_on_release_owned`
+  (unconsumed pending cleanup) both fire there today, back to back,
+  on every completion path (normal or cancelled) — the one place
+  a task's death is unconditionally observed exactly once. Both
+  053b and 059 hook into this SAME point; forks 2-3's "design once,
+  build once" mandate is satisfied by construction, not by
+  convention.
+
+  **053b (orphaned landed reply).** Two code-confirmed prerequisites,
+  both narrower than the ledger's investigation assumed:
+  1. `rt_immediate_on_cancel_inflight` and the bound/unbound branches
+     of `rt_immediate_on_release_owned` (`rt_immediate_on.c`) are
+     written entirely against `rt_remote_task_pending`/
+     `rt_far_task_handle` — nothing immediate-on-specific in their
+     logic (the cancel message they route is the identical
+     `RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST` `start_remote_task`
+     already sends for a direct `.cancel()`). The op filter
+     (`rt_immediate_on.c` ~296-298, today EXECUTE/EXECUTE_ANCHORED/
+     CHANNEL_SELECT only) is the ONLY thing excluding AWAIT/CANCEL —
+     widening it plus populating `caller_task_id` in
+     `start_remote_task` (`rt_remote_task_api.c`, currently never
+     set for these two ops, confirmed by reading
+     `rt_remote_task_pending_new`) should route AWAIT/CANCEL through
+     the existing sweep unchanged. This is the "should," not "is,"
+     part of the design — Task 6's own rows must adversarially prove
+     the generic logic really does hold for these two ops, not just
+     assume it from code shape.
+  2. The landed-but-unconsumed case (reply already resolved when the
+     caller tears down) needs a NEW field: `rt_remote_task_pending`
+     has `body_state`/`state_drop_fn_id` (the crossing's shipped
+     STATE, already dropped in `rt_remote_task_pending_release`'s
+     free path) but nothing for `result_bits` — confirmed by reading
+     the struct and the free path directly. Add
+     `result_drop_fn_id` to `rt_remote_task_pending`, threaded from
+     the AWAIT/select crossing lowering site (the `far Task<T>`
+     payload type is known wherever `.await()` is lowered), mirroring
+     053a's `task->result_drop_fn_id` exactly — same single-shot
+     clear-on-consume discipline, cleared at whatever site currently
+     reads `result_bits` out of a resolved pending (the `finish_retry`
+     success path). `rt_remote_task_pending_release`'s free path
+     gains the drop call, gated the same way 053a gates `free_task`.
+
+  **059 (abandoned init frame).** Root cause, precisely: the SUCCESS
+  return path frees state+payload INLINE in compiled code
+  (`emitAsyncStateFreeIntrinsic`, `emit_async_helpers.go`) via a
+  compile-time-known shallow `rt_free(ptr, size, align)` — no runtime
+  dispatch, because the compiler knows the exact type at that exact
+  call site (fields already unpacked into locals; the box itself is
+  the only thing left to free). The CANCELLED return path
+  (`TermAsyncReturnCancelled`, `rewriteAsyncReturns` in
+  `async_codegen.go`) deliberately skips this free — the runtime may
+  re-park and re-enter the state while scope children drain — but
+  nothing frees it LATER either, at the point re-parking is finally
+  ruled out. `mark_done` is generic C that cannot know a specific
+  task's frame type, so a raw shallow free can't be inlined there the
+  way the success path inlines it. Design: mirror 053a's dispatch
+  idiom rather than invent a third one — generate a small per-
+  (state-type, payload-type) abandon-drop wrapper (two shallow
+  `rt_free` calls, the same shape `emitAsyncStateFreeIntrinsic`
+  already emits inline, just packaged as a callable function),
+  registered through the SAME `__surge_drop_call`-style dispatch
+  053a's `drop_result.typeN` family already built. At the
+  `TermAsyncReturnCancelled` site, stash the wrapper's id plus the
+  state/payload pointers onto `rt_task` (new fields). `mark_done`
+  checks the id, calls the wrapper if nonzero, clears it. THE OPEN
+  ADVERSARIAL QUESTION (must be the review's primary focus): every
+  path where a re-parked cancelled state gets RE-ENTERED and
+  eventually reaches the SUCCESS terminator must clear the stashed
+  id (that path's own inline free already handles the boxes; the
+  stashed abandon-fn would double-free them if left set) — and any
+  path that re-parks AGAIN via a SECOND `TermAsyncReturnCancelled`
+  must correctly overwrite (not stack) the stash. This is exactly
+  the class of exit-path-coverage gap that made RV2-DEBT-052's guard
+  fallthrough a real UAF, not a hypothetical, so it is not assumed
+  safe by shape alone here either.
+
+  **Neighborhood hazard.** `mark_done`, `rt_immediate_on_finish_retry`,
+  and `rt_remote_task_pending_release` are the exact functions RV2-DEBT-061
+  (a pre-existing, intermittent invalid-free found during Task 7) sits
+  in. Task 6's implementation touches this same fragile neighborhood
+  and must not be rushed past that fact — the design review and the
+  implementation rows should both budget for it, and any row here
+  that reproduces 061-shaped symptoms must be triaged as 061, not
+  folded silently into this task's own proof.
+
+  **The d2 seam.** The widened `rt_immediate_on_release_owned`
+  (AWAIT/CANCEL included) is the exact abandon-time reconciliation
+  point Task 8's design d2 needs: gating a cancelled far-select
+  caller's deferred drop on reply resolution is the CHANNEL_SELECT
+  op already going through this same sweep today, so d2 is additive
+  scope on an existing, now-generalized mechanism, not a new one.
+
+  **Design review needed before implementation** (adversarial,
+  ideally a second pass independent of this trace): confirm the
+  "should route unchanged" claim in 053b point 1 by direct testing,
+  not code-shape inference; confirm the 059 re-entry/re-park clear
+  discipline covers every actual exit path (enumerate them, don't
+  assume); confirm no interaction with RV2-DEBT-061 makes either fix
+  harder to verify or accidentally paper over that race.
+
+  Then, once reviewed: caller identity (`caller_task_id` for
   AWAIT/CANCEL, single-shot discipline mirroring `consume_handle`)
   + widened teardown sweep + landed-reply disposal (053b); the
   frame-pair drain at the same point (059) —
