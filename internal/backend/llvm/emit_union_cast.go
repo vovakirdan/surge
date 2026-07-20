@@ -124,8 +124,8 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 		// The new box (built above from copied-out payload values) fully
 		// replaces this one; every field it needs is already read into
 		// SSA temps, so the old envelope is dead from here and frees
-		// exactly once per arm (RV2-DEBT-057). A borrowed source (&T)
-		// is never owned here and must not be freed.
+		// exactly once per arm. A borrowed source (&T) is never owned
+		// here and must not be freed.
 		if srcOwned {
 			fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", val, srcFreeSize, srcFreeAlign)
 		}

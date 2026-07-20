@@ -9,8 +9,7 @@ import (
 	"time"
 )
 
-// RV2-DEBT-060 + the RV2-DEBT-048 residual's FAR half: every
-// `channel_on(...)`/`.share()` allocated a caller-side handle box
+// Every `channel_on(...)`/`.share()` allocated a caller-side handle box
 // (`rt_far_channel_handle_alloc`) that no generated code path ever freed
 // (`rt_far_channel_release`/`rt_far_channel_handle_drop` existed in the
 // runtime but had zero compiled callers), and the owner-side `rt_channel`
@@ -29,10 +28,10 @@ import (
 // This program deliberately only creates and shares a far channel — it
 // never sends or receives through it. `on ch { ... }` (the only surface
 // for actual channel operations) exercises the immediate-on/anchored
-// retry machinery, which carries a PRE-EXISTING, unrelated race
-// (intermittent invalid-free/invalid-write under valgrind, reproduces on
-// unmodified HEAD before this fix at a similar rate — see RV2-DEBT-061)
-// that has nothing to do with this fix but would make a census built on
+// retry machinery, which carries a PRE-EXISTING, unrelated, separately
+// tracked race (intermittent invalid-free/invalid-write under valgrind,
+// reproduces on unmodified HEAD before this fix at a similar rate) that
+// has nothing to do with this fix but would make a census built on
 // top of it flaky. Handle+object lifecycle is fully exercised without
 // touching that machinery: create, four independent share() leases
 // (each spawned into its own task and consumed), and scope exit.
@@ -42,7 +41,7 @@ import (
 // program (1 channel_on + 4 share() handles, matching
 // rt_far_task_handle's 24-byte size); with the fix, 0 bytes in 0 blocks
 // across 10/10 runs, and 18/20 clean plus 2/20 hitting the unrelated
-// RV2-DEBT-061 race on the fuller send/recv repro used during
+// race noted above on the fuller send/recv repro used during
 // investigation (not this file's narrower, race-free program).
 const runtimeV2DropFarChannelSource = `
 async fn hold(ch: far Channel<int>) -> int {
@@ -95,7 +94,7 @@ func TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero(t *testing.T) {
 			}
 			if bytesLost != 0 || blocksLost != 0 {
 				t.Fatalf(
-					"far-channel handle+object leak regressed at shards=%s: got %d bytes in %d blocks, want strict zero (RV2-DEBT-060 closed this to 0/0)\nstderr:\n%s",
+					"far-channel handle+object leak regressed at shards=%s: got %d bytes in %d blocks, want strict zero\nstderr:\n%s",
 					shardCount, bytesLost, blocksLost, stderr,
 				)
 			}

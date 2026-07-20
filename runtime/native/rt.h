@@ -228,9 +228,8 @@ void rt_channel_close(void* channel);
 // channel: buffered Copy-payload bits need no separate release (raw bits
 // own no heap state), but the caller is responsible for having drained
 // any owned/heap-carrying buffered payloads first if the element type is
-// not Copy (RV2-DEBT-048's residual, non-Copy buffer draining, is not
-// handled here). Never call this on a channel another live handle can
-// still resolve.
+// not Copy (non-Copy buffer draining is not handled here). Never call
+// this on a channel another live handle can still resolve.
 void rt_channel_free(void* channel);
 
 void* rt_map_new(uint64_t key_kind);

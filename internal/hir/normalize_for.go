@@ -166,7 +166,7 @@ func unwrapOwnedTemp(e *Expr) *Expr {
 // generic struct instance (Range<T> is the only such iterable this
 // protocol currently builds) yields that argument. Used as the
 // element-type fallback when the loop pattern binds no symbol (`for _
-// in ...`) — RV2-DEBT-055's normalizeIterFor never fell back past
+// in ...`) — normalizeIterFor previously never fell back past
 // VarType/VarSym, so a discarded loop variable failed MIR validation
 // with an "unknown type" error on the synthesized iterator locals.
 func iterableElementType(ctx *normCtx, iterable *Expr) types.TypeID {

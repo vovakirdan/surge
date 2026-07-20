@@ -214,9 +214,9 @@ static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* ent
         rt_free((uint8_t*)lease, sizeof(*lease), _Alignof(rt_far_channel_lease));
         lease = next;
     }
-    // RV2-DEBT-060 / the RV2-DEBT-048 residual: this is the single choke
-    // point every reclaim path (release, release_all's shutdown sweep,
-    // unpin-drops-to-zero) already routes through, and by the time an
+    // This is the single choke point every reclaim path (release,
+    // release_all's shutdown sweep, unpin-drops-to-zero) already routes
+    // through, and by the time an
     // entry gets here no lease or pin can resolve it anymore (this
     // function unlinked it above, under the same lock every resolve/pin
     // takes) -- so the owner-side channel object has exactly one path
@@ -228,9 +228,9 @@ static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* ent
 // Invalidates the token (generation can never be reissued: ids are
 // allocator-unique) and reclaims the entry, AND the owner-side channel
 // object it points at (release_entry), once no operation is in flight
-// and no lease remains (RV2-DEBT-060 / RV2-DEBT-048 residual: this
-// registry is the channel's only owner from the mint site on, per
-// rt_far_channel_dispatch_create, so freeing here is exactly-once).
+// and no lease remains (this registry is the channel's only owner from
+// the mint site on, per rt_far_channel_dispatch_create, so freeing here
+// is exactly-once).
 rt_remote_task_status rt_far_channel_release(rt_executor* ex, const rt_far_task_handle* handle) {
     rt_far_channel_state* state = rt_far_channel_state_get(ex);
     if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {

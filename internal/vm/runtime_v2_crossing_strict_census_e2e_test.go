@@ -230,9 +230,9 @@ async fn run() -> int {
     // window-edge residual the heap-capture census already documents.
     if mg8v != mg1v { return fail_growth("migration", mg1v, mg8v); }
 
-    // SHARE and SELECT are NOT strict zero, though RV2-DEBT-060 (Epic 21
-    // Task 7, 2026-07-20) closed the larger of the two per-call costs:
-    // every channel_on(...) and every .share() call emits a caller-side
+    // SHARE and SELECT are NOT strict zero, though the larger of the two
+    // per-call costs is now closed: every channel_on(...) and every
+    // .share() call emits a caller-side
     // rt_far_channel_handle_alloc box (internal/backend/llvm/
     // emit_crossing_channel_create.go, emit_crossing_share.go) to hold
     // the returned far Channel<T> value, and it now frees at the
@@ -249,9 +249,8 @@ async fn run() -> int {
     // itself, created outside the measured c0..c1 window, is what
     // eventually triggers that reclaim) -- so within the window, each
     // .share() call's lease struct accumulates as still-reachable, not
-    // yet freed, the RV2-DEBT-048-class residual RV2-DEBT-060's own
-    // closure note already flagged as out of scope (buffered/internal
-    // bookkeeping, not the handle box or the channel object). Every
+    // yet freed — an already-flagged, out-of-scope residual (buffered/
+    // internal bookkeeping, not the handle box or the channel object). Every
     // window function's OWN growth arithmetic (declared once, verified by
     // the differential itself) drops by 1 unit per .share() call:
     // share_window's 4 calls/iteration take the baseline from 11 to 7 and
@@ -265,9 +264,10 @@ async fn run() -> int {
     // TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero for the
     // strict-zero valgrind confirmation of the handle+object class this
     // reduction reflects (a narrower create+share-only program, since
-    // this file's on-ch-heavy windows hit an unrelated, pre-existing race
-    // under valgrind -- RV2-DEBT-061). The remaining lease-struct residual
-    // rides the sibling-lease reclaim design, not row-sized here.
+    // this file's on-ch-heavy windows hit an unrelated, pre-existing,
+    // separately-tracked race under valgrind). The remaining
+    // lease-struct residual rides the sibling-lease reclaim design, not
+    // row-sized here.
     if sh1v != 7 { return fail_growth("share-baseline", sh1v, sh8v); }
     if sh8v != 35 { return fail_growth("share-growth", sh1v, sh8v); }
     if se1v != 9 { return fail_growth("select-baseline", se1v, se8v); }
@@ -437,8 +437,8 @@ func hasValgrindMemcheckError(stderr string) bool {
 // here made the wrapped program itself fail at SHARDS=2/8, which is a
 // different failure than a real memcheck/leak regression and must not be
 // conflated with one). This test does NOT assert definitely-lost == 0.
-// RV2-DEBT-060 (Epic 21 Task 7, 2026-07-20) closed the larger of two
-// per-call costs the share/select verticals used to carry (see the
+// The larger of two per-call costs the share/select verticals used to
+// carry is now closed (see the
 // runtimeV2CrossingStrictCensusSource comment above the pinned
 // sh1v/sh8v/se1v/se8v checks for the full writeup): every far Channel<T>
 // value returned by channel_on(...) or .share() used to allocate a
@@ -453,9 +453,9 @@ func hasValgrindMemcheckError(stderr string) bool {
 // .share() call accumulates in the registry: release_entry frees every
 // lease struct together, but only once the registry entry's own last
 // lease releases, which these programs' own channel bindings may not
-// reach by process exit in every path -- the RV2-DEBT-048-class residual
-// RV2-DEBT-060's closure note already scoped out (buffered/internal
-// bookkeeping, not the handle box or the channel object; see
+// reach by process exit in every path -- an already-scoped-out residual
+// (buffered/internal bookkeeping, not the handle box or the channel
+// object; see
 // TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero for a narrower
 // program that DOES reach strict zero for the handle+object class this
 // fix targets). Once the lease-struct residual is separately addressed,

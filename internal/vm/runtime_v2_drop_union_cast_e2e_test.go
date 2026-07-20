@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// RV2-DEBT-057: casting a union value between two structurally-identical
-// but distinctly-interned union type IDs leaked the source box on the LLVM
+// Casting a union value between two structurally-identical but
+// distinctly-interned union type IDs leaked the source box on the LLVM
 // backend. `emitUnionCast` (internal/backend/llvm/emit_union_cast.go)
 // always allocates a fresh box for the retagged value but never freed the
 // one it replaced. The site fires on the ordinary tag-constructor-to-

@@ -55,7 +55,7 @@ void* rt_channel_new(uint64_t capacity) {
 // capacity, the same way emitTagValueFromValues-style leaf frees elsewhere
 // in the runtime recompute their own allocation size. See rt.h for the
 // caller-responsibility contract (no other live holder, Copy payloads
-// only for now — RV2-DEBT-048's residual).
+// only for now).
 void rt_channel_free(void* channel) {
     rt_channel* ch = channel_from_handle(channel);
     uint64_t bytes = channel_alloc_size(ch->capacity);

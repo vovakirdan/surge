@@ -30,11 +30,11 @@ import (
 // an "unknown type" MIR validation error: normalizeIterFor's element-type
 // resolution (VarType, falling back to the bound symbol's type) never
 // falls back further when the pattern binds no symbol at all, so the
-// synthesized iterator/next locals got no type (RV2-DEBT-055, found
-// during this investigation, fixed separately in Epic 21 Task 1 —
-// normalizeIterFor now falls back to the iterable's own element type via
-// ArrayInfo/ArrayFixedInfo/a single-type-argument struct instance). Now
-// reachable, array_for_discard_n_times below exercises the discarded-
+// synthesized iterator/next locals got no type — found during this
+// investigation, fixed separately: normalizeIterFor now falls back to
+// the iterable's own element type via ArrayInfo/ArrayFixedInfo/a
+// single-type-argument struct instance. Now reachable,
+// array_for_discard_n_times below exercises the discarded-
 // payload release branch (a full drop of the unconsumed Option box) this
 // same investigation found correct but dead code until that fix landed.
 const runtimeV2IterProtocolReclamationSource = `
