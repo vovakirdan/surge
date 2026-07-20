@@ -31,6 +31,7 @@ void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg)
 rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
                                             const uint64_t* send_bits,
+                                            const uint64_t* send_drop_fn_ids,
                                             uint64_t count,
                                             uint64_t state_drop_fn_id,
                                             int64_t poll_fn_id,
@@ -58,6 +59,7 @@ void rt_far_channel_handle_free(const rt_far_task_handle* handle);
 void rt_far_channel_handle_drop(const rt_far_task_handle* handle);
 rt_remote_task_status rt_far_channel_create(uint64_t placement,
                                             uint64_t capacity,
+                                            uint64_t payload_drop_fn_id,
                                             rt_remote_task_pending** pending,
                                             rt_far_task_handle* out_handle,
                                             uint8_t* out_kind,

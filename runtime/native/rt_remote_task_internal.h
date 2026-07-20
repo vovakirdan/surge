@@ -25,12 +25,24 @@ typedef struct rt_far_channel_select_arm {
     rt_far_task_handle anchor;
     void* channel;
     uint64_t send_bits;
+    // Drop obligation for a heap-carried SEND arm's payload (0 for Copy/
+    // inert elements or RECV arms, never dispatched). Per-arm, not
+    // per-pending: a select's arms may span channels of different element
+    // types. Dropped for every SEND arm except the one
+    // rt_remote_task_pending.select_committed_index names, at whichever
+    // free site reclaims the pending.
+    uint64_t payload_drop_fn_id;
     uint8_t kind;
 } rt_far_channel_select_arm;
 
 // Arm-count cap for one remote select: source-level selects are small, and
 // the cap keeps the dispatch pin loop and the body's stack arrays bounded.
 #define RT_FAR_CHANNEL_SELECT_MAX_ARMS 16U
+
+// select_committed_index sentinel: no arm has committed (yet, or the
+// pending never reaches a select commit at all, e.g. a channel_on/execute
+// op reusing this same struct). Any real committed index is < the arm cap.
+#define RT_FAR_CHANNEL_SELECT_NO_COMMIT UINT64_MAX
 
 enum {
     RT_REMOTE_TASK_HANDLE_OPEN = 0,
@@ -85,6 +97,19 @@ struct rt_remote_task_pending {
     // pending, freed with it); channels filled by the dispatch-time pins.
     rt_far_channel_select_arm* select_arms;
     uint64_t select_count;
+    // Remote select only: the arm index rt_select_poll's commit chose,
+    // written once inside that same critical section
+    // (rt_far_channel_select.c) and RT_FAR_CHANNEL_SELECT_NO_COMMIT until
+    // then. Immutable after that single write — in particular, the
+    // shutdown/cancel-inflight sweep that stomps result_kind/result_bits on
+    // any still-pending entry (rt_remote_task_wait.c) must never touch this
+    // field, or the free path could wrongly skip-or-drop the wrong arm.
+    uint64_t select_committed_index;
+    // Channel-create only: drop obligation for the channel's own element
+    // type (0 for Copy/inert elements, never dispatched), threaded from the
+    // channel_on::<T> crossing lowering site to rt_channel_new on the
+    // owner shard.
+    uint64_t payload_drop_fn_id;
     uint64_t result_bits;
     // Drop obligation for a landed, heap-carried AWAIT reply the caller
     // never consumed. Threaded from the far Task<T> await/cancel

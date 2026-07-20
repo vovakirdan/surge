@@ -771,6 +771,266 @@ owns). All census rows carry execution witnesses.
   reclaimed once, abandoned caller skips exactly the committed
   arm; teardown-with-buffered-payloads census; the Epic 20
   Copy-payload race rows rerun unchanged as regression guards.
+
+  **Task 8 design v1 (2026-07-20), under review before implementation.**
+  Direct code read confirmed all four enumerated ownership sites still
+  hold exactly as described, with concrete locations:
+
+  1. **Buffer entries** (`rt_channel.buf`, `runtime/native/rt_channel_lane.h`):
+     `rt_channel` carries no payload type info at all. `rt_channel_free`
+     (`rt_async_channel.c`) is a bare `rt_free`, no drain.
+  2. **Owner-object teardown** (`release_entry`, `rt_far_channel.c`):
+     calls `rt_channel_free` at the same choke point RV2-DEBT-060 already
+     proved exactly-once — the drain just needs to happen INSIDE that
+     call, not a new choke point.
+  3. **Parked-sender resume slot** (`task->resume_bits`,
+     `rt_async_channel.c`/`rt_channel_sync.c`): a sender parked waiting
+     for buffer space or a direct rendezvous holds its value in
+     `resume_bits` with `resume_kind == RESUME_NONE` until delivery sets
+     `resume_kind = RESUME_CHAN_SEND_ACK` and clears `resume_bits` to 0.
+     OPEN QUESTION (not resolved by this read): `RESUME_NONE` is also
+     the default state for a task that has never touched a channel at
+     all — `resume_kind == RESUME_NONE && resume_bits != 0` is the only
+     signal that distinguishes "parked sender holding an undelivered
+     non-copy value" from "ordinary task, nothing to drop," and I have
+     not yet traced whether that combination is reachable from any OTHER
+     state a task can be cancelled in. Needs verification, not assumed.
+  4. **`select_arms[].send_bits`** (`rt_remote_task_pending`,
+     `rt_far_channel_select.c`): `rt_remote_task_pending_release`'s free
+     path already frees the `select_arms` ARRAY (`rt_free` on the
+     block) but never touches individual entries' `send_bits`. The
+     commit is already atomic and identifiable (`kind=1/bits=K` per the
+     Task 7 deferral note); design d2 is precisely: the free path must
+     know which arm (if any) committed, so it drops every OTHER send
+     arm's payload exactly once and skips the committed one (already
+     delivered/consumed elsewhere).
+
+  **Proposed mechanism (draft, not yet implemented):**
+  - Caller compile site (`channel_on::<T>(...)`, the `ChannelCreate`
+    crossing lowering) computes a `payload_drop_fn_id` from `T` the same
+    way 053a computed `resultDropID` — `registerCrossingDropResult`
+    gated on `typeOwnsHeap(T)`, 0 for Copy T.
+  - Threaded across the (same-process, pointer-payload, not
+    serialized — confirmed by reading `rt_far_channel_create`/
+    `rt_far_channel_dispatch_create`, so no wire-format concern) shard
+    hop via a NEW `rt_remote_task_pending` field (capacity already
+    overloads `body_poll_fn_id`; drop id needs its own field), stored
+    onto the owner-side `rt_far_channel_entry` at mint time AND onto
+    `rt_channel` itself (buffer drain needs it at `rt_channel_free`
+    time; `release_entry` always has the entry in hand when it calls
+    free, so either storage location works — TBD which is cleaner).
+  - Buffer drain: `rt_channel_free` walks `buf_head..buf_head+buf_len`
+    (mod capacity) and calls `__surge_drop_result_call(payload_drop_fn_id,
+    (void*)bits)` per live entry before freeing the block — each
+    buffered `uint64_t` for a non-copy `T` IS already the value's raw
+    pointer bits, the same convention `result_bits`/`abandoned_state`
+    already use.
+  - Parked-sender resume slot: pending verification above; if reachable,
+    needs its own abandon-time check (plausibly in `mark_done`,
+    mirroring the abandoned-state-box pattern from RV2-DEBT-059 — a
+    task-level drop obligation set when parked, consumed once at
+    completion).
+  - `select_arms`: `rt_remote_task_pending_release`'s free path gains a
+    loop over `select_arms[0..select_count)`, dropping each SEND arm's
+    `send_bits` via `payload_drop_fn_id` (per-arm, not per-pending, since
+    a select can mix channels of different element types) EXCEPT the
+    committed index — needs the pending to record which index committed
+    (or derive it from the existing `result_kind`/`result_bits` the
+    commit already writes).
+
+  **Not yet done:** an adversarial review pass (mirroring Task 6's
+  v1→v2 correction) before any of this is implemented — the resume-slot
+  ambiguity above and the select commit-index plumbing are exactly the
+  kind of assumption that refuted 053b v1 and 059 v1 on inspection.
+  Proceeding to review, not implementation, next.
+
+  **Task 8 design v1 REFUTED (2026-07-20), by adversarial review
+  (codex) before any code was written.** Verdict on each item:
+
+  1. **Buffer drain** — sound as designed, one addition: it must run
+     under the same quiescence guarantee `release_entry` already
+     provides (`rt_far_channel.c`, the RV2-DEBT-060 choke point), not
+     inside `rt_channel_free` standalone (`rt_channel_free` today takes
+     no lock).
+  2. **Parked-sender resume slot — the v1 claim was WRONG, not just
+     unverified.** `resume_kind == RESUME_NONE && resume_bits != 0` is
+     NOT sender-park-specific: it is the state of ANY task immediately
+     after attempting a send, successful or not (`rt_channel_send_inner`
+     sets exactly this pair before delivery, `rt_async_channel.c`
+     ~109-110, and a completed send returns without clearing it). There
+     is no existing disambiguator between "parked sender holding an
+     undelivered value" and "task that just finished sending
+     successfully." Worse than the v1 framing: `mark_done`
+     (`rt_task_complete.c`) never reads `resume_bits`/`resume_kind` at
+     all — an undelivered non-copy send value is SILENTLY LOST on
+     cancellation today, already, for any task in this window (invisible
+     today only because every payload is Copy).
+  3. **`select_arms[].send_bits` — the "kind=1/bits=K IS the commit bit"
+     claim (borrowed from the Task 7 deferral note) is UNSAFE.** No
+     field on `rt_remote_task_pending` records which arm committed
+     after the fact; the winner index lives only as a stack local
+     inside the commit's own critical section
+     (`rt_far_channel_select.c`) and becomes the generic task result.
+     Worse: a shutdown/cancel-inflight sweep
+     (`rt_remote_task_wait.c` ~46-54) unconditionally overwrites
+     `result_kind=2/result_bits=0` on ANY still-pending entry regardless
+     of op — erasing the very field an inference scheme would need.
+     `rt_remote_task_pending_release`'s free path only ever touches the
+     generic `result_bits`/`result_drop_fn_id`, never per-arm
+     `send_bits`.
+  4. **Transport payload** — confirmed exactly as designed: in-process
+     pointer via `rt_transport_msg.payload`, no serialization, no
+     wire-format work needed for a new drop-fn-id field.
+  5. **TWO ownership sites the v1 enumeration missed entirely:**
+     (a) a parked RECEIVER's delivered-but-unconsumed value — send-side
+     delivery writes `RESUME_CHAN_RECV_VALUE` + bits straight into the
+     receiver's `resume_bits`; if that receiver is cancelled before its
+     next poll, the identical `mark_done` gap loses it — the mirror
+     image of item 2 on the recv side; (b) the pre-pending allocation-
+     failure path in `rt_far_channel_select.c` (~100-123): if
+     `rt_remote_task_pending_new` fails AFTER `arms[]` is already
+     populated with live SEND `send_bits`, that failure path does a
+     bare `rt_free` on the arm array with zero per-arm drops — a "drop
+     loop lives in `rt_remote_task_pending_release`" design cannot reach
+     this path at all, since no pending exists yet.
+
+  **v2 direction (not yet implemented):** replace the inferred
+  `resume_kind`/`resume_bits` signal with an EXPLICIT, unambiguous
+  task-level drop obligation for BOTH the send and recv mailbox
+  (mirroring the `abandoned_state`/`abandoned_state_drop_fn_id` pattern
+  RV2-DEBT-059 already added to `rt_task`: set once at park/delivery,
+  consumed exactly once by `mark_done`). Add an immutable
+  `select_committed_index` (sentinel = no-commit) to
+  `rt_remote_task_pending`, written once at the select commit and
+  EXCLUDED from whatever the shutdown/cancel sweep in
+  `rt_remote_task_wait.c` overwrites, plus per-arm drop-fn bookkeeping
+  used at every free site — including the pre-pending allocation-failure
+  path found above, not just `rt_remote_task_pending_release`. This is a
+  materially larger design surface than v1 assumed (new task-level
+  fields for two mailboxes, not one; a new pending field with a
+  shutdown-sweep exclusion; a free-site audit beyond the one choke point
+  v1 targeted) — narrow verification on each of these three additions
+  individually before implementing, same discipline as 053b/059.
+
+  **Narrow verification (2026-07-20), one review recommendation
+  corrected.**
+
+  1. **Send mailbox — the review's proposed new task-level field is
+     WRONG, would double-drop.** Direct trace of `emitInstrChanSend`
+     (`internal/backend/llvm/emit_channel.go`) plus the async suspend
+     rewriting (`buildAsyncPendingBlocks`, `internal/mir/async_codegen.go`):
+     a parked send's value is an ordinary live local at the `InstrChanSend`
+     instruction (`async_liveness.go` marks `ChanSend.Value` as a use
+     there); on resume, the pc-dispatch jumps back to the SAME block and
+     RE-EXECUTES the instruction with the value reconstructed from the
+     packed suspend state — meaning the value is ALREADY protected by
+     RV2-DEBT-059's `abandoned_state` mechanism when a parked sender is
+     cancelled. `task->resume_bits` briefly mirrors the same bits inside
+     `rt_channel_send_inner`'s attempt loop, but only as a transient
+     scratch value for the "was my last attempt already ACKed" check —
+     not an independent ownership location. EMPIRICALLY CONFIRMED: a
+     local (non-far) `Channel<string>` probe — sender parks on a
+     zero-capacity channel holding a live heap string, caller cancels the
+     sender before its first poll — leaked ONLY the channel object
+     (40B, matching the already-known RV2-DEBT-062 handle-in-composite
+     gap), zero bytes attributable to the string. Adding a
+     `resume_bits`-keyed drop obligation for the send mailbox would drop
+     the same string a second time. Do NOT add it.
+  2. **Recv mailbox — review's finding CONFIRMED, and the fix is
+     simpler than "add a task-level field."** `rt_channel_recv`
+     (`runtime/native/rt_async_channel.c` ~190-194) unconditionally
+     clears `resume_kind`/`resume_bits` to `RESUME_NONE`/0 the moment it
+     sees the calling task cancelled — with NO check for whether
+     `resume_kind == RESUME_CHAN_RECV_VALUE` (a value a sender already
+     delivered into this exact mailbox, injected externally by the
+     sender's own delivery call, bypassing the receiver's packed suspend
+     state entirely — genuinely NOT covered by RV2-DEBT-059). No new
+     `rt_task` field needed: `rt_channel` already has `ch` in scope at
+     this call site, and Task 8's own planned `payload_drop_fn_id` field
+     on `rt_channel` (for buffer draining) is exactly what this site
+     needs too — drop `task->resume_bits` via `ch->payload_drop_fn_id`
+     when `resume_kind == RESUME_CHAN_RECV_VALUE`, before clearing.
+  3. **`select_committed_index` — CONFIRMED necessary, and the second
+     found free-site is real.** Traced the full lifecycle:
+     `rt_far_channel_select` (caller side, `rt_far_channel_select.c`
+     ~44-140) allocates `arms[]` with live `send_bits` populated BEFORE
+     `rt_remote_task_pending_new` is even called (~100-111); the
+     `request == NULL` failure branch (~118-124) frees `arms` with a bare
+     `rt_free`, exactly as the review found — confirmed directly, not
+     assumed. On the winning side, `rt_anchored_channel_select`
+     (owner-shard body, same file, ~277-314) determines `winner` as a
+     plain local and returns it; the compiled anchored body
+     (`emitCrossingSelectCancelledOrWinner`-ish, actually
+     `internal/backend/llvm/emit_crossing_select.go` ~150-170) consumes
+     `winnerBits` for its own dispatch but NEVER touches `arms[]`/
+     `send_bits` at all — confirmed by reading the emission directly,
+     no clearing, no marking. There is no implicit "already consumed"
+     sentinel to lean on (a 0 `send_bits` isn't reliably distinguishable
+     from a genuine already-live value some other way). An explicit
+     `select_committed_index` field on `rt_remote_task_pending`
+     (sentinel = no-commit, e.g. `UINT64_MAX` or count-out-of-range) is
+     the only sound way to make the info survive to `rt_remote_task_pending_release`'s
+     free path — matches the review's recommendation, now independently
+     confirmed rather than taken on trust.
+
+  **Consolidated v2 direction:** one new `rt_channel` field
+  (`payload_drop_fn_id`, threaded from the caller's `channel_on::<T>`
+  compile site through the in-process pending message, same as v1) used
+  at THREE sites: buffer drain in `rt_channel_free` (v1, unchanged),
+  the `rt_channel_recv` cancellation early-return (new, corrects the
+  review's over-broad "two new task fields" suggestion down to zero new
+  task fields), and per-arm select drops keyed by the NEW
+  `select_committed_index` on `rt_remote_task_pending`, applied at BOTH
+  free sites (`rt_remote_task_pending_release` AND the pre-pending
+  allocation-failure path in `rt_far_channel_select.c`). No new
+  `rt_task` fields at all — smaller surface than either v1 or the
+  review's v2 recommendation. Ready to implement.
+
+  **Task 8 IMPLEMENTED 2026-07-20, gate opened, one fork deferred.**
+  `payload_drop_fn_id` (`rt_channel`, threaded from the caller's
+  `channel_on::<T>`/`make_channel::<T>` compile sites via
+  `registerCrossingDropResult` gated on `typeOwnsHeap`, mirroring 053a's
+  `resultDropID` pattern) now drains the buffer at `rt_channel_free`
+  (inherits `release_entry`'s existing quiescence guarantee — no new
+  lock) and reclaims a sender-delivered-but-uncollected value at
+  `rt_channel_recv`'s cancellation early-return (a gap RV2-DEBT-059's
+  own mechanism can't see, since the value lands via a PEER's delivery
+  call, bypassing this task's own suspend-state entirely). The
+  `ChannelCreate` crossing guard is open (`crossingRecordExecutable`
+  AND `classifyCrossingPayload` — both needed; the first is the actual
+  executable-or-not gate, the second only the diagnostic wording, a
+  distinction the first attempt at opening this missed and had to
+  correct via a second fix). Proof: `TestRuntimeV2FarChannelNonCopyRoundTrip`
+  (create/send/recv a non-Copy `far Channel<string>`, valgrind-pinned to
+  exactly the pre-existing, Copy-and-non-Copy-agnostic 8B/1blk channel-
+  object baseline — confirmed via A/B with a Copy `int` element on the
+  identical shape, not this task's residual to fix). Every existing
+  Copy-payload channel/select row reruns clean as a regression guard
+  (`TestRuntimeV2DropSelectSendArm`, `TestRuntimeV2ChannelGenesis*`,
+  `TestRuntimeV2OnChAnchoredOpsAcrossShards`,
+  `TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero`).
+
+  **Select fork deferred — RV2-DEBT-064, found by this task's own e2e
+  attempt.** `select_committed_index` and the per-arm
+  `payload_drop_fn_id` (`rt_far_channel_select_arm`) were implemented
+  per the design above and independently verified CORRECT by direct
+  instrumentation (traced winner/loser indices and the skip/drop
+  decision at the free site — exactly right every time). The e2e proof
+  around them still crashes deterministically (`double free detected in
+  tcache 2`), root-caused to a genuinely separate, pre-existing bug in
+  `emitChannelSelectCrossing`: unlike `emitChannelCreateCrossing`'s
+  deliberate init/retry block split, the select crossing has ONE call
+  site shared by the true first attempt and every retry, so a SEND
+  arm's owned payload expression gets re-evaluated (rebuilt, then
+  silently discarded by the C function's own retry branch) on every
+  retry — invisible until now because every existing select arm was
+  Copy. Filed as RV2-DEBT-064 with the full trace; not fixed here — it
+  touches the shared select lowering (Copy and non-Copy arms both) and
+  needs its own narrow verification, not a rushed addition to an
+  already-large change. The non-copy select e2e row was written, hit
+  this, and was removed rather than left permanently red; whoever picks
+  up RV2-DEBT-064 has a working `select_committed_index` mechanism
+  waiting for it.
 - **Task 9 — Bench + debt + closeout:** bench per the Task-1 recipe
   (worktree per commit, release build, time x5, valgrind totals,
   checksum witness) incl. a non-copy channel program; the NAMED

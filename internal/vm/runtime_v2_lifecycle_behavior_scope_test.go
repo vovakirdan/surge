@@ -321,7 +321,7 @@ static void poll_timer_park(void) {
 }
 
 static void poll_make_chan(void) {
-    atomic_store_explicit(&g_chan_a, rt_channel_new(0), memory_order_release);
+    atomic_store_explicit(&g_chan_a, rt_channel_new(0, 0), memory_order_release);
     rt_async_return(NULL, 0);
 }
 

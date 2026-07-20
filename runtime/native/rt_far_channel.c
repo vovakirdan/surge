@@ -386,6 +386,7 @@ void rt_far_channel_handle_free(const rt_far_task_handle* handle) {
 // entry, binds the token into the shared pending, and replies exactly once.
 rt_remote_task_status rt_far_channel_create(uint64_t placement,
                                             uint64_t capacity,
+                                            uint64_t payload_drop_fn_id,
                                             rt_remote_task_pending** pending,
                                             rt_far_task_handle* out_handle,
                                             uint8_t* out_kind,
@@ -444,6 +445,7 @@ rt_remote_task_status rt_far_channel_create(uint64_t placement,
     request->handle.generation = request->request_id;
     request->caller_task_id = current->id;
     request->body_poll_fn_id = capacity;
+    request->payload_drop_fn_id = payload_drop_fn_id;
     *pending = request;
     (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
@@ -498,7 +500,7 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
         rt_remote_task_pending_release(pending);
         return;
     }
-    void* channel = rt_channel_new(pending->body_poll_fn_id);
+    void* channel = rt_channel_new(pending->body_poll_fn_id, pending->payload_drop_fn_id);
     if (channel != NULL) {
         rt_channel_bind_owner_shard(channel, msg->target_shard_id);
     }

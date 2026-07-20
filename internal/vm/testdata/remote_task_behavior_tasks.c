@@ -167,7 +167,7 @@ static void poll_rtb_channel_create(rtb_create_state* state) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     state->status = rt_far_channel_create(
-        state->placement, state->capacity, &state->pending, &state->handle, &kind, &bits);
+        state->placement, state->capacity, 0, &state->pending, &state->handle, &kind, &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state, 0);
     }

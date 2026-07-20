@@ -58,6 +58,41 @@ func isFarChannelType(typesIn *types.Interner, typeID types.TypeID) bool {
 	return isChannelType(typesIn, tt.Elem)
 }
 
+// channelElemType extracts T from Channel<T> (any wrapping the resolved
+// struct/alias node itself does not already strip — callers pass a
+// resolveValueType'd id), mirroring sema's channelPayloadType.
+func channelElemType(typesIn *types.Interner, channelType types.TypeID) types.TypeID {
+	if typesIn == nil || channelType == types.NoTypeID {
+		return types.NoTypeID
+	}
+	if info, ok := typesIn.StructInfo(channelType); ok && info != nil && typesIn.Strings != nil {
+		if name, nameOK := typesIn.Strings.Lookup(info.Name); nameOK && name == "Channel" {
+			if args := typesIn.StructArgs(channelType); len(args) == 1 {
+				return args[0]
+			}
+		}
+	}
+	if info, ok := typesIn.AliasInfo(channelType); ok && info != nil && typesIn.Strings != nil {
+		if name, nameOK := typesIn.Strings.Lookup(info.Name); nameOK && name == "Channel" && len(info.TypeArgs) == 1 {
+			return info.TypeArgs[0]
+		}
+	}
+	return types.NoTypeID
+}
+
+// channelPayloadDropID resolves the drop-fn id a channel of element type T
+// needs for its buffered/mailbox payload reclamation: 0 for Copy/inert T
+// (never dispatched), matching the same gate 053a's task-result drop-fn id
+// uses (a raw uint64_t bits value that may or may not be a real pointer,
+// not an unconditionally-boxed envelope the way an async suspend state is).
+func (fe *funcEmitter) channelPayloadDropID(channelDstType types.TypeID) types.TypeID {
+	elem := channelElemType(fe.emitter.types, resolveValueType(fe.emitter.types, channelDstType))
+	if elem == types.NoTypeID || !fe.emitter.typeOwnsHeap(elem) {
+		return types.NoTypeID
+	}
+	return fe.emitter.registerCrossingDropResult(elem)
+}
+
 func (fe *funcEmitter) emitChannelHandle(op *mir.Operand) (string, error) {
 	if fe == nil || op == nil {
 		return "", fmt.Errorf("missing channel operand")
@@ -98,8 +133,16 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		if err != nil {
 			return true, err
 		}
+		dropID := types.TypeID(0)
+		if call.HasDst {
+			dstType, err := fe.placeBaseType(call.Dst)
+			if err != nil {
+				return true, err
+			}
+			dropID = fe.channelPayloadDropID(dstType)
+		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_channel_new(i64 %s)\n", tmp, cap64)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_channel_new(i64 %s, i64 %d)\n", tmp, cap64, dropID)
 		if call.HasDst {
 			ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
 			if err != nil {

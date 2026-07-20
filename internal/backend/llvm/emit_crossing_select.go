@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"surge/internal/mir"
+	"surge/internal/types"
 )
 
 // emitChannelSelectCrossing lowers a remote select: build the arm tables
@@ -42,12 +43,14 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	anchorsPtr := fe.nextTemp()
 	armKindsPtr := fe.nextTemp()
 	armBitsPtr := fe.nextTemp()
+	armDropIDsPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", kindPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32\n", statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr]\n", anchorsPtr, armCount)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i8]\n", armKindsPtr, armCount)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", armBitsPtr, armCount)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", armDropIDsPtr, armCount)
 
 	for i := range ins.RemoteOps {
 		op := &ins.RemoteOps[i]
@@ -78,6 +81,10 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		fmt.Fprintf(&fe.emitter.buf,
 			"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n",
 			bitsSlot, armCount, armBitsPtr, i)
+		dropIDSlot := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf,
+			"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n",
+			dropIDSlot, armCount, armDropIDsPtr, i)
 		if op.Method == "send" {
 			val, valTy, valErr := fe.emitValueOperand(&op.Value)
 			if valErr != nil {
@@ -89,8 +96,14 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 				return bitsErr
 			}
 			fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", bitsVal, bitsSlot)
+			dropID := types.TypeID(0)
+			if fe.emitter.typeOwnsHeap(valueType) {
+				dropID = fe.emitter.registerCrossingDropResult(valueType)
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", dropID, dropIDSlot)
 		} else {
 			fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", bitsSlot)
+			fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", dropIDSlot)
 		}
 	}
 	anchorsBase := fe.nextTemp()
@@ -105,15 +118,20 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf,
 		"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n",
 		bitsBase, armCount, armBitsPtr)
+	dropIDsBase := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf,
+		"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n",
+		dropIDsBase, armCount, armDropIDsPtr)
 
 	statusVal0 := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_far_channel_select(ptr %s, ptr %s, ptr %s, i64 %d, i64 0, i64 %d, "+
-			"ptr null, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_far_channel_select(ptr %s, ptr %s, ptr %s, ptr %s, i64 %d, i64 0, "+
+			"i64 %d, ptr null, ptr %s, ptr %s, ptr %s)\n",
 		statusVal0,
 		anchorsBase,
 		kindsBase,
 		bitsBase,
+		dropIDsBase,
 		armCount,
 		ins.BodyFuncID,
 		pendingPtr,

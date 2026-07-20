@@ -14,6 +14,7 @@ static void poll_rtb_select_caller(rtb_select_state* state) {
     state->status = rt_far_channel_select(state->anchors,
                                           state->kinds,
                                           state->bits,
+                                          NULL,
                                           state->count,
                                           0,
                                           POLL_RTB_SELECT_BODY,

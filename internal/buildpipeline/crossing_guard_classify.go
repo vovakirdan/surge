@@ -104,17 +104,6 @@ func classifyCrossingPayload(
 					nonCopyDetail(semaRes, strings, info.PayloadType)),
 			}, true
 		}
-	case sema.CrossingLoweringChannelCreate:
-		if !semaRes.IsCopyType(info.PayloadType) {
-			return crossingGuardFinding{
-				Code: diag.FutCrossingPayloadNotShippable,
-				Span: info.Span,
-				Message: fmt.Sprintf(
-					"channel element `%s` must be plain-copy data to cross shards%s; "+
-						"a channel whose values cannot cross must stay local",
-					label(info.PayloadType), nonCopyDetail(semaRes, strings, info.PayloadType)),
-			}, true
-		}
 	}
 	return crossingGuardFinding{}, false
 }

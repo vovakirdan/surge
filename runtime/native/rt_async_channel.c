@@ -30,7 +30,7 @@ static int prepare_channel_send_yield(rt_task* task) {
     return 1;
 }
 
-void* rt_channel_new(uint64_t capacity) {
+void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id) {
     uint64_t bytes = channel_alloc_size(capacity);
     rt_channel* ch = (rt_channel*)rt_alloc(bytes, _Alignof(rt_channel));
     if (ch == NULL) {
@@ -39,6 +39,7 @@ void* rt_channel_new(uint64_t capacity) {
     }
     memset(ch, 0, sizeof(rt_channel));
     ch->capacity = capacity;
+    ch->payload_drop_fn_id = payload_drop_fn_id;
     const rt_task* creator = rt_current_task();
     ch->owner_shard_id =
         creator != NULL && creator->owner_shard_valid != 0 ? creator->owner_shard_id : 0;
@@ -54,10 +55,20 @@ void* rt_channel_new(uint64_t capacity) {
 // buffer): the size is reconstructed deterministically from the stored
 // capacity, the same way emitTagValueFromValues-style leaf frees elsewhere
 // in the runtime recompute their own allocation size. See rt.h for the
-// caller-responsibility contract (no other live holder, Copy payloads
-// only for now).
+// caller-responsibility contract (no other live holder). Drains every
+// still-buffered entry through payload_drop_fn_id first (a no-op walk when
+// it's 0, the Copy/inert case): the only caller today, release_entry
+// (rt_far_channel.c), only reaches this after confirming no lease or pin
+// can resolve the channel anymore, so the buffer is quiescent here without
+// this function taking any lock of its own.
 void rt_channel_free(void* channel) {
     rt_channel* ch = channel_from_handle(channel);
+    if (ch->payload_drop_fn_id != 0) {
+        for (size_t i = 0; i < ch->buf_len; i++) {
+            size_t idx = (ch->buf_head + i) % ch->capacity;
+            __surge_drop_result_call(ch->payload_drop_fn_id, (void*)ch->buf[idx]);
+        }
+    }
     uint64_t bytes = channel_alloc_size(ch->capacity);
     rt_async_debug_printf(
         "async chan free ch=%p cap=%llu\n", (void*)ch, (unsigned long long)ch->capacity);
@@ -188,6 +199,16 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
         return 2;
     }
     if (task_cancelled_load(task) != 0) {
+        // A sender may already have delivered a value into this mailbox
+        // (channel_deliver_same_shard_locked/channel_deliver_foreign) before
+        // this task's cancellation landed: candidate validation only blocks
+        // FUTURE deliveries to an already-cancelled peer, not one already in
+        // flight. That delivery bypassed this task's own compiled suspend
+        // state entirely (RV2-DEBT-059's abandoned-state mechanism never
+        // sees it), so this is the only place left to reclaim it.
+        if (task->resume_kind == RESUME_CHAN_RECV_VALUE && ch->payload_drop_fn_id != 0) {
+            __surge_drop_result_call(ch->payload_drop_fn_id, (void*)task->resume_bits);
+        }
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;
         return 0;

@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/sema"
+	"surge/internal/types"
 )
 
 // emitChannelCreateCrossing lowers `channel_on(dst, capacity)`: allocate the
@@ -83,12 +84,17 @@ func (fe *funcEmitter) emitChannelCreateCrossing(ins *mir.CrossingInstr) error {
 	if err != nil {
 		return err
 	}
+	dropID := types.TypeID(0)
+	if fe.emitter.typeOwnsHeap(ins.PayloadType) {
+		dropID = fe.emitter.registerCrossingDropResult(ins.PayloadType)
+	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_far_channel_create(i64 %s, i64 %s, ptr %s, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_far_channel_create(i64 %s, i64 %s, i64 %d, ptr %s, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		placementVal,
 		capacityVal,
+		dropID,
 		pendingPtr,
 		handlePtr,
 		kindPtr,
@@ -101,7 +107,7 @@ func (fe *funcEmitter) emitChannelCreateCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", retryHandlePtr, handleSlot)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_far_channel_create(i64 0, i64 0, ptr %s, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_far_channel_create(i64 0, i64 0, i64 0, ptr %s, ptr %s, ptr %s, ptr %s)\n",
 		retryStatus,
 		pendingPtr,
 		retryHandlePtr,

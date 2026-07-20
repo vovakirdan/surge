@@ -104,9 +104,12 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		// construction; the async context is the sole shape requirement.
 		return true
 	case sema.CrossingLoweringChannelCreate:
-		// The element type is the channel's payload boundary: a channel whose
-		// values cannot cross shards must not be mintable remotely.
-		return res.IsCopyType(info.PayloadType)
+		// The element type was the channel's payload boundary while the
+		// runtime moved only raw bits (RV2-DEBT-059/062's investigation).
+		// The buffer, the parked-receiver mailbox, and each remote-select
+		// SEND arm now carry a payload_drop_fn_id (Task 8), so a non-Copy
+		// element reclaims correctly; any element type may mint remotely.
+		return true
 	case sema.CrossingLoweringChannelSelect:
 		// The reply is the winner index (plain bits); the arms' send payloads
 		// are plain-copy by channel construction. Async context is the sole

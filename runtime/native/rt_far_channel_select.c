@@ -44,6 +44,7 @@ static void select_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) 
 rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
                                             const uint64_t* send_bits,
+                                            const uint64_t* send_drop_fn_ids,
                                             uint64_t count,
                                             uint64_t state_drop_fn_id,
                                             int64_t poll_fn_id,
@@ -108,6 +109,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         arms[i].anchor = *anchors[i];
         arms[i].kind = kinds[i];
         arms[i].send_bits = send_bits != NULL ? send_bits[i] : 0;
+        arms[i].payload_drop_fn_id = send_drop_fn_ids != NULL ? send_drop_fn_ids[i] : 0;
     }
     rt_far_task_handle route = {.task_id = 0,
                                 .generation = 0,
@@ -116,6 +118,13 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
     rt_remote_task_pending* request = rt_remote_task_pending_new(
         ex, &route, rt_immediate_on_source_shard(current), RT_REMOTE_TASK_OP_CHANNEL_SELECT, 1);
     if (request == NULL) {
+        // No pending was ever created, so nothing committed: every SEND
+        // arm's payload (if heap-carried) is still fully owned right here.
+        for (uint64_t i = 0; i < count; i++) {
+            if (arms[i].payload_drop_fn_id != 0) {
+                __surge_drop_result_call(arms[i].payload_drop_fn_id, (void*)arms[i].send_bits);
+            }
+        }
         rt_free((uint8_t*)arms,
                 count * sizeof(rt_far_channel_select_arm),
                 _Alignof(rt_far_channel_select_arm));
@@ -269,6 +278,35 @@ int rt_remote_task_select_binding_current(rt_far_channel_select_arm** out_arms,
     return bound;
 }
 
+// Records which arm rt_select_poll committed, under the same lock the
+// shutdown/cancel-inflight sweep (rt_remote_task_wait.c) uses to stomp
+// result_kind/result_bits on a pending — that sweep never touches
+// select_committed_index, but the write itself still needs the lock to
+// avoid racing a concurrent unlink/free of the same pending. Called once,
+// immediately after rt_select_poll's own critical section has already
+// released (the window rt_anchored_channel_select's caller-facing comment
+// already documents), so there is nothing left to race on the commit
+// itself — only the registry lookup needs synchronizing.
+static void record_select_commit(int64_t winner) {
+    rt_executor* ex = ensure_exec();
+    rt_remote_task_state* state = rt_remote_task_state_get(ex);
+    const rt_task* current = rt_current_task();
+    if (state == NULL || current == NULL) {
+        return;
+    }
+    pthread_mutex_lock(&state->lock);
+    for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
+        if (it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT &&
+            it->status == RT_REMOTE_TASK_STATUS_PENDING && it->handle.task_id == current->id &&
+            it->handle.generation == current->generation &&
+            it->handle.owner_shard_id == current->owner_shard_id) {
+            it->select_committed_index = (uint64_t)winner;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&state->lock);
+}
+
 // The selector body's single operation: runs the local select over the
 // bound channels and returns the winner index. The parked path yields with
 // rt_select_poll's registrations in place and the wake re-enters the body
@@ -311,5 +349,10 @@ uint64_t rt_anchored_channel_select(void) {
     // sits strictly after that commit and before the value reaches the
     // caller's async-return/reply (Epic 20 Task 7 row 2).
     RT_SYNC_POINT(SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY);
+    // The commit is final the moment rt_select_poll returns a non-negative
+    // winner (see above); record it so a teardown that reaches the pending
+    // before this reply lands knows exactly which SEND arm's payload was
+    // consumed and must be skipped, not dropped.
+    record_select_commit(winner);
     return (uint64_t)winner;
 }

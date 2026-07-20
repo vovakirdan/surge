@@ -112,6 +112,7 @@ static void poll_rtb_drop_select(rtb_drop_state* state) {
     state->status = rt_far_channel_select(state->anchors,
                                           state->kinds,
                                           state->bits,
+                                          NULL,
                                           2,
                                           RTB_DROP_MARK_ID,
                                           (int64_t)POLL_RTB_DROP_BODY,

@@ -44,17 +44,6 @@ async fn start(dst: Placement, task: far Task<int>) -> far Task<int> {
 			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
 		},
 		{
-			name: "heap element channel mint",
-			src: `
-async fn produce(dst: Placement) -> int {
-    let ch: far Channel<string> = channel_on::<string>(dst, 4);
-    let _ = ch;
-    return 0;
-}
-`,
-			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
-		},
-		{
 			name: "union reply through anchored block",
 			src: `
 async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {

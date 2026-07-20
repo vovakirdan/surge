@@ -18,6 +18,15 @@ struct rt_channel {
     uint64_t* buf;
     size_t buf_len;
     size_t buf_head;
+    // Drop obligation for a heap-carried element type (0 for Copy/inert
+    // elements, never dispatched). Every buffered uint64_t is that element's
+    // raw pointer bits for a non-copy element; rt_channel_free drains the
+    // live entries through this before freeing the block, and
+    // rt_channel_recv uses it to reclaim a value a sender already delivered
+    // into a receiver's resume mailbox if that receiver is cancelled before
+    // consuming it (the mailbox write bypasses the receiver's own compiled
+    // suspend-state entirely, so nothing else owns it).
+    uint64_t payload_drop_fn_id;
 };
 
 // Channel lane (peel B2): a channel's buffer and its two waiter keys live

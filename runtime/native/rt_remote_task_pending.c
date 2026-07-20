@@ -89,6 +89,7 @@ rt_remote_task_pending* rt_remote_task_pending_new(rt_executor* ex,
     pending->status = RT_REMOTE_TASK_STATUS_PENDING;
     pending->reply_status = RT_REMOTE_TASK_STATUS_PENDING;
     pending->result_kind = 2;
+    pending->select_committed_index = RT_FAR_CHANNEL_SELECT_NO_COMMIT;
     atomic_store_explicit(&pending->refs, 1, memory_order_relaxed);
     if (listed) {
         pthread_mutex_lock(&state->lock);
@@ -127,6 +128,19 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
             pending->result_bits = 0;
         }
         if (pending->select_arms != NULL) {
+            // Every SEND arm's payload is still owned here except the one
+            // select_committed_index names (already delivered/consumed via
+            // the winner path); RECV arms and the committed index itself
+            // carry no drop obligation of their own.
+            for (uint64_t i = 0; i < pending->select_count; i++) {
+                if (i == pending->select_committed_index) {
+                    continue;
+                }
+                rt_far_channel_select_arm* arm = &pending->select_arms[i];
+                if (arm->payload_drop_fn_id != 0) {
+                    __surge_drop_result_call(arm->payload_drop_fn_id, (void*)arm->send_bits);
+                }
+            }
             rt_free((uint8_t*)pending->select_arms,
                     pending->select_count * sizeof(rt_far_channel_select_arm),
                     _Alignof(rt_far_channel_select_arm));
