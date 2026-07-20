@@ -1,6 +1,10 @@
 # Epic 20: Crossing Drop Activation (vertical 2 of the reclamation arc)
 
-**Status:** IN EXECUTION — design review passed 2026-07-17: direction
+**Status:** CLOSED (2026-07-20) — all 8 tasks complete; the Sentrux
+rebaseline decision (the last open item) landed: user approved,
+baseline re-saved, gate + rules green (`20-tasks/08-bench-census-closeout.md`).
+Vertical-3 charter (owner-routed frees) recorded in Task 8.
+Design review passed 2026-07-17: direction
 and the FULL+expanded scope approved (Epic 19 closeout, RV2-DEBT-040,
 local select send-arm ownership RV2-DEBT-048, crossing drop
 activation RV2-DEBT-034 incl. remote send-arm symmetry, crossing

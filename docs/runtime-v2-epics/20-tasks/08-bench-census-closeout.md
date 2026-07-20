@@ -105,12 +105,13 @@ of weakening the epic's bar to the far==local differential form.
   local control included) is not crossing-attributable; candidates
   are the ledgered RV2-DEBT-057 class (the explicitly-typed
   TaskResult let is the exact union-cast confound shape).
-- Row 5 DONE except one pending decision: RV2-DEBT-034 closed
-  (activation delivered; owned-results tail superseded by
-  RV2-DEBT-053); vertical-3 scope recorded below; the Sentrux gate
-  rebaseline awaits the user's word (the baseline predates five
-  epics; rules pass 10/10 throughout — the gate metric drift is
-  533->571 complex functions accumulated over gated, shipped work).
+- Row 5 DONE: RV2-DEBT-034 closed (activation delivered;
+  owned-results tail superseded by RV2-DEBT-053); vertical-3 scope
+  recorded below; the Sentrux gate rebaseline approved by the user
+  2026-07-20 and executed (`sentrux gate --save`; the old baseline
+  predated five epics; rules passed 10/10 throughout — the gate
+  metric drift was 533->571 complex functions accumulated over
+  gated, shipped work).
 
 ## Vertical 3 scope (owner-routed frees — the next epic's charter)
 
@@ -265,5 +266,9 @@ tracked files touched besides this section.
 
 ## Status
 
-ROWS 1-5 COMPLETE (2026-07-20) except the recorded Sentrux
-rebaseline decision. Epic 20 closes when that word lands.
+ROWS 1-5 COMPLETE (2026-07-20). The Sentrux rebaseline decision
+landed the same day: the user approved rebaselining, the baseline
+was re-saved (`sentrux gate --save`, complex_fn_count 533 -> 573 on
+the working tree; the committed-tree figure was 571), and both
+`sentrux gate` (no degradation) and `sentrux check` (10/10 rules)
+are green against the new baseline. Epic 20 is CLOSED.
