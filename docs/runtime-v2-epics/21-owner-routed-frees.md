@@ -558,23 +558,57 @@ owns). All census rows carry execution witnesses.
   drop on reply resolution is additive scope on this same mechanism,
   not a new one.
 
-  **Design review status:** v2 above is lead-verified against every
-  cited line (independently re-read, not taken on the reviewer's
-  word) for the 053b routing claim, the 059 terminator/re-entry
-  claims, and the 061 lock-scope claim. The one item NOT yet
-  independently re-derived: the exact `dispatch_reply` refcount
-  story's completeness (that exactly two refs exist and no third
-  path touches them) rests on reading the two allocation sites, not
-  on tracing every consumer — recommend a narrow, fast follow-up
-  check (not a full re-investigation) specifically on that point
-  before writing the caller-teardown sweep, since a miscount there
-  would reintroduce either a leak (ref never reaches zero) or a
-  premature free (double-drop). The `rt_async_yield` parameter-vs-
-  task-field mechanical choice for 059 also wants a quick sanity
-  pass once drafted, given it touches every suspend-point call site
-  across the compiler.
+  **Narrow follow-up (2026-07-20), both items resolved, no new
+  gaps found:**
+  1. **`dispatch_reply` refcount completeness — CONFIRMED.**
+     Exhaustive grep of every `rt_remote_task_pending_add_ref`/
+     `_release`/`_consume` call site in `runtime/native/`, traced
+     per op-kind. An AWAIT/CANCEL pending carries exactly two refs
+     (creation in `rt_remote_task_pending_new`, plus
+     `start_remote_task`'s own `add_ref`), released by exactly two
+     mutually-exclusive-where-relevant paths each: the "in-flight"
+     ref by whichever of {`dispatch_reply` on normal delivery,
+     `rt_remote_task_release_msg_payload` on shutdown-drain} applies
+     (`rt_remote_task_completion.c` confirms AWAIT/CANCEL message
+     kinds are covered there too); the "caller-slot" ref by whichever
+     of {the caller's own `finish_retry` consume,
+     the new caller-teardown sweep's release} applies. No third path
+     touches either ref for these two ops. The 053b v2 design stands
+     as specified.
+  2. **`rt_async_yield` stash mechanism — RESOLVED, and it changes
+     the free shape.** `rt_async_yield` has exactly ONE emission site
+     in the entire backend (`emitTermAsyncYield`,
+     `internal/backend/llvm/emit_async.go`) — adding parameters is a
+     single-site change, not a sprawl across every suspend point.
+     But: the follow-up also found the design's assumed free shape
+     was wrong. `emitAsyncStateFreeIntrinsic`'s shallow
+     `rt_free(ptr,size,align)` is safe on the SUCCESS path
+     specifically because that path runs AFTER the state's fields
+     have already been unpacked into separately-drop-obligated
+     locals (own comment: "the payload's fields were already
+     unpacked... only the boxes themselves are dead") — ownership of
+     any nested heap-owned field has already moved out. The state
+     value `emitTermAsyncYield` hands to `rt_async_yield` is the
+     OPPOSITE: freshly packed by the variant constructor
+     (`buildAsyncPendingBlocks`, `async_codegen.go` ~151-159) for the
+     NEXT poll to unpack — nothing has been transferred out of it
+     yet. A shallow free here would silently leak any nested
+     heap-owned field the state box points to (exactly the ledger's
+     "24B indirect" component, most likely). Fix: use a RECURSIVE
+     drop, the same composite drop-glue every other owned value in
+     this codebase gets (`requireDropGlue`/`__surge_drop_call`,
+     `emit_drop_glue.go`), not a flat size/align free. This is v1's
+     original "mirror 053a's dispatch idiom" instinct, correctly
+     anchored this time: `emitTermAsyncYield` already has
+     `term.AsyncYield.State`'s exact compile-time type, calls
+     `requireDropGlue` on it there, and passes the resulting id
+     alongside the state pointer as new `rt_async_yield` arguments,
+     stashed onto `task` for `mark_done` to consume via
+     `__surge_drop_call`.
 
-  Then, once that narrow follow-up lands: implement both fixes,
+  Both follow-ups clean. Proceeding to implementation.
+
+  Then: implement both fixes,
   `TestRuntimeV2FarTaskCallerCancel`'s LOCAL/deterministic 059 row
   tightens from safe-and-bounded to ZERO (the bounded-multiple
   assertion is deleted, not relaxed) while its far-task/multi-shard
