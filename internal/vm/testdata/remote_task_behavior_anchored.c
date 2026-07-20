@@ -14,7 +14,7 @@
 static void poll_anchored_send(rtb_anchored_state* state) {
     rt_executor* ex = ensure_exec();
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     void* channel = rt_far_channel_resolve(ex, &state->anchor);
     if (channel == NULL) {
@@ -24,7 +24,7 @@ static void poll_anchored_send(rtb_anchored_state* state) {
     // A false send means "parked on capacity": yield and re-enter; the
     // re-poll consumes the handoff ack and returns true.
     if (!rt_channel_send(channel, state->value)) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     rt_async_return(state, 1);
 }
@@ -35,7 +35,7 @@ static void poll_anchored_send(rtb_anchored_state* state) {
 static void poll_anchored_recv(rtb_anchored_state* state) {
     rt_executor* ex = ensure_exec();
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     void* channel = rt_far_channel_resolve(ex, &state->anchor);
     if (channel == NULL) {
@@ -45,7 +45,7 @@ static void poll_anchored_recv(rtb_anchored_state* state) {
     uint64_t received = 0;
     uint8_t status = rt_channel_recv(channel, &received);
     if (status == 0) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     rt_async_return(state, (uint64_t)status);
 }
@@ -59,7 +59,7 @@ static void poll_anchored_recv(rtb_anchored_state* state) {
 static void poll_anchored_pinned_send(rtb_anchored_state* state) {
     rt_executor* ex = ensure_exec();
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     if (state->channel == NULL) {
         void* channel = rt_far_channel_resolve(ex, &state->anchor);
@@ -70,7 +70,7 @@ static void poll_anchored_pinned_send(rtb_anchored_state* state) {
         atomic_store_explicit(&state->body_ran, 1, memory_order_release);
     }
     if (atomic_load_explicit(&state->proceed, memory_order_acquire) == 0) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     // The dispatch-cached pointer must match the body's own resolve and must
     // still be served after the release (the pin holds it to the reply edge).
@@ -78,7 +78,7 @@ static void poll_anchored_pinned_send(rtb_anchored_state* state) {
         rt_async_return(state, 0);
     }
     if (!rt_channel_send(state->channel, state->value)) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     rt_async_return(state, 1);
 }
@@ -88,7 +88,7 @@ static void poll_anchored_pinned_send(rtb_anchored_state* state) {
 static void poll_anchored_helper_send(rtb_anchored_state* state) {
     rt_executor* ex = ensure_exec();
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     atomic_store_explicit(&state->body_ran, 1, memory_order_release);
     rt_anchored_channel_send(state->value);
@@ -98,7 +98,7 @@ static void poll_anchored_helper_send(rtb_anchored_state* state) {
 static void poll_anchored_helper_recv(rtb_anchored_state* state) {
     rt_executor* ex = ensure_exec();
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     uint64_t bits = 0;
     uint8_t status = rt_anchored_channel_recv(&bits);
@@ -108,7 +108,7 @@ static void poll_anchored_helper_recv(rtb_anchored_state* state) {
 static void poll_anchored_helper_close(rtb_anchored_state* state) {
     rt_executor* ex = ensure_exec();
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     rt_anchored_channel_close();
     rt_async_return(state, 1);
@@ -121,7 +121,7 @@ static void poll_anchored_caller(rtb_anchored_state* state) {
     state->status = rt_immediate_on_execute_anchored(
         &state->anchor, 0, (int64_t)state->body_poll_id, state, &state->pending, &kind, &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     state->result_kind = kind;
     state->result_bits = bits;

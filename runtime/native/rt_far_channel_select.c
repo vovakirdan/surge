@@ -283,8 +283,12 @@ uint64_t rt_anchored_channel_select(void) {
         panic_msg("anchored select outside a remote-select block body");
         return 0;
     }
+    // See the matching note in rt_immediate_on_anchored.c: this state's drop
+    // obligation already transferred onto the body task's ordinary state
+    // lifecycle at the publication-accepted handoff; passing 0 here
+    // deliberately leaves the abandoned-suspend-state stash untouched.
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     uint8_t kinds[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     void* handles[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
@@ -300,7 +304,7 @@ uint64_t rt_anchored_channel_select(void) {
     }
     int64_t winner = rt_select_poll(count, kinds, handles, values, NULL, -1);
     if (winner < 0) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     // rt_select_poll's control-lock critical section (the commit) has
     // already released by the time it returns a winner >= 0; this window

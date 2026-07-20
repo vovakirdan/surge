@@ -79,7 +79,7 @@ static void poll_adopt_joiner(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(target, &bits);
     if (st == 0) {
-        rt_async_yield(target);
+        rt_async_yield(target, 0);
         return;
     }
     const rt_task* self = rt_current_task();
@@ -177,14 +177,14 @@ static void poll_xowner_grandchild(void) {
 // so a not-yet-DONE first poll can yield and retry safely.
 static void poll_xowner_scope_child(void) {
     if (atomic_load_explicit(&g_xowner_go, memory_order_acquire) == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     void* gc = atomic_load_explicit(&g_xowner_grandchild, memory_order_acquire);
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(gc, &bits);
     if (st == 0) {
-        rt_async_yield(gc);
+        rt_async_yield(gc, 0);
         return;
     }
     const rt_task* self = rt_current_task();
@@ -205,7 +205,7 @@ static void poll_xowner_owner(void) {
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_xowner_registered, 1, memory_order_release);
         atomic_store_explicit(&g_scope_owner_phase, 1, memory_order_release);
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     void* handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
@@ -213,7 +213,7 @@ static void poll_xowner_owner(void) {
     bool failfast = false;
     bool done = rt_scope_join_all(handle, &pending, &failfast);
     if (!done) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_scope_exit(handle);

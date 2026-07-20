@@ -232,6 +232,17 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // field, so the reorder is behavior-preserving.
     task->result_kind = result_kind;
     task->result_bits = result_bits;
+    // A suspend-point or scope-join state box a cancellation abandoned
+    // without ever resuming compiled code (rt_async_yield/
+    // rt_async_return_cancelled stash it here before completing the task by
+    // this same route). Every completion funnels through mark_done exactly
+    // once per task, regardless of how many scope-drain re-parks deferred
+    // getting here, so this is the one place that can drop it exactly once.
+    if (task->abandoned_state_drop_fn_id != 0) {
+        __surge_drop_abandoned_state_call(task->abandoned_state_drop_fn_id, task->abandoned_state);
+        task->abandoned_state = NULL;
+        task->abandoned_state_drop_fn_id = 0;
+    }
     rt_far_task_release_owned(ex, task);
     rt_immediate_on_release_owned(ex, task);
     rt_remote_task_release_owned(ex, task);

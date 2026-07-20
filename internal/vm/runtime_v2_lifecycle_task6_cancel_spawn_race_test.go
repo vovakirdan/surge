@@ -240,7 +240,7 @@ static void poll_race_parent(void) {
             st->spawned++;
             atomic_fetch_add_explicit(&g_race_children_total, 1, memory_order_relaxed);
         }
-        rt_async_yield(st);
+        rt_async_yield(st, 0);
         return;
     }
     free(st);
@@ -271,6 +271,11 @@ void __surge_drop_call(uint64_t id, void* state) {
 void __surge_drop_result_call(uint64_t id, void* value) {
     (void)id;
     (void)value;
+}
+
+void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
 }
 
 void __surge_poll_call(uint64_t id) {

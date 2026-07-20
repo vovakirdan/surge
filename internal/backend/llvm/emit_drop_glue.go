@@ -202,6 +202,23 @@ func (e *Emitter) emitResultDropDispatch() {
 // TypeID doubles as the drop-fn id the runtime's owner-side release path
 // passes to `__surge_drop_result_call`. Callers gate on typeOwnsHeap, so
 // id 0 (a Copy/inert result) is never registered and never dispatched.
+// registerAbandonedStateDrop records that a suspend-point/scope-join state
+// box may need reclaiming if a cancellation abandons it. The resolved
+// TypeID doubles as the drop-fn id __surge_drop_abandoned_state_call
+// dispatches on, routed to the state struct's recursive box-freeing glue
+// (dropGlueName) — unlike registerCrossingDropResult, there is no inert/
+// Copy case to gate callers on: the box always exists, so it always needs
+// freeing, whether or not any of its fields separately own heap.
+func (e *Emitter) registerAbandonedStateDrop(stateType types.TypeID) types.TypeID {
+	resolved := resolveValueType(e.types, stateType)
+	if e.abandonedStateDrops == nil {
+		e.abandonedStateDrops = make(map[types.TypeID]struct{})
+	}
+	e.abandonedStateDrops[resolved] = struct{}{}
+	e.requireDropGlue(resolved)
+	return resolved
+}
+
 func (e *Emitter) registerCrossingDropResult(resultType types.TypeID) types.TypeID {
 	resolved := resolveValueType(e.types, resultType)
 	if e.crossingDropResults == nil {

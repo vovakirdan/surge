@@ -14,7 +14,7 @@
 // non-quiescent — the false-negative guard for the deadlock detector.
 static void poll_rtb_spinner(rtb_share_state* state) {
     if (atomic_load_explicit(&state->spin_gate, memory_order_acquire) == 0) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     rt_async_return(state, 1);
 }
@@ -25,7 +25,7 @@ static void poll_rtb_channel_share(rtb_share_state* state) {
     state->status =
         rt_far_channel_share(&state->source, &state->pending, &state->sibling, &kind, &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     rt_async_return(state, (uint64_t)state->status);
 }

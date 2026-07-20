@@ -104,7 +104,41 @@ func (e *Emitter) emitPollDispatch() error {
 	fmt.Fprintf(&e.buf, "}\n\n")
 
 	e.emitResultDropDispatch()
+	e.emitAbandonedStateDropDispatch()
 	return nil
+}
+
+// emitAbandonedStateDropDispatch emits `__surge_drop_abandoned_state_call`:
+// mark_done's abandoned-suspend-state consume dispatches here. Every
+// registered id routes to the state struct's recursive box-freeing glue
+// (dropGlueName) — every registration always needs a real arm, since the
+// box always exists regardless of field composition (see
+// registerAbandonedStateDrop). Unregistered ids keep the panic arm as the
+// negative control.
+func (e *Emitter) emitAbandonedStateDropDispatch() {
+	ids := make([]types.TypeID, 0, len(e.abandonedStateDrops))
+	for id := range e.abandonedStateDrops {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	fmt.Fprintf(&e.buf, "define void @__surge_drop_abandoned_state_call(i64 %%id, ptr %%state) {\n")
+	fmt.Fprintf(&e.buf, "entry:\n")
+	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%drop_abandoned_default [\n")
+	for _, id := range ids {
+		fmt.Fprintf(&e.buf, "    i64 %d, label %%drop_abandoned.%d\n", id, id)
+	}
+	fmt.Fprintf(&e.buf, "  ]\n")
+	for _, id := range ids {
+		fmt.Fprintf(&e.buf, "drop_abandoned.%d:\n", id)
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", dropGlueName(id))
+		fmt.Fprintf(&e.buf, "  ret void\n")
+	}
+	fmt.Fprintf(&e.buf, "drop_abandoned_default:\n")
+	if sc, ok := e.stringConsts["missing drop function"]; ok && sc.globalName != "" {
+		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)
+	}
+	fmt.Fprintf(&e.buf, "  unreachable\n")
+	fmt.Fprintf(&e.buf, "}\n\n")
 }
 
 func (e *Emitter) emitBlockingDispatch() error {
@@ -653,6 +687,21 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 	return nil
 }
 
+// abandonedStateDropID resolves the drop-fn id the runtime passes to
+// __surge_drop_abandoned_state_call if a cancellation abandons this
+// suspend-point state box without ever resuming compiled code to free it.
+// The state is always a heap-boxed struct (buildAsyncPendingBlocks packs
+// live locals into one every time), so — unlike a task result, which may be
+// inert Copy bits with no box at all — there is always something to
+// register here.
+func (fe *funcEmitter) abandonedStateDropID(state *mir.Operand) (types.TypeID, error) {
+	stateType, err := fe.placeBaseType(state.Place)
+	if err != nil || stateType == types.NoTypeID {
+		return types.NoTypeID, fmt.Errorf("async state missing type info")
+	}
+	return fe.emitter.registerAbandonedStateDrop(stateType), nil
+}
+
 func (fe *funcEmitter) emitTermAsyncYield(term *mir.Terminator) error {
 	if term == nil {
 		return nil
@@ -664,7 +713,11 @@ func (fe *funcEmitter) emitTermAsyncYield(term *mir.Terminator) error {
 	if stateTy != "ptr" {
 		return fmt.Errorf("async_yield expects state pointer, got %s", stateTy)
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_yield(ptr %s)\n", stateVal)
+	dropID, err := fe.abandonedStateDropID(&term.AsyncYield.State)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_yield(ptr %s, i64 %d)\n", stateVal, dropID)
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil
 }
@@ -714,7 +767,11 @@ func (fe *funcEmitter) emitTermAsyncReturnCancelled(term *mir.Terminator) error 
 	if stateTy != "ptr" {
 		return fmt.Errorf("async_cancel expects state pointer, got %s", stateTy)
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_return_cancelled(ptr %s)\n", stateVal)
+	dropID, err := fe.abandonedStateDropID(&term.AsyncReturnCancelled.State)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_return_cancelled(ptr %s, i64 %d)\n", stateVal, dropID)
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil
 }

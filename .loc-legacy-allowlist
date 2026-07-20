@@ -10,3 +10,5 @@ runtime/native/rt_fs.c 978 Existing filesystem runtime debt outside Runtime V2 E
 runtime/native/rt_string.c 762 Existing string runtime debt outside Runtime V2 Epic 4 scope.
 runtime/native/rt_bignum_int.c 744 Existing bignum runtime debt outside Runtime V2 Epic 4 scope.
 runtime/native/rt_bignum_uint_div.c 718 Existing bignum division debt outside Runtime V2 Epic 4 scope.
+runtime/native/rt_async_internal.h 700 Already at 673/675 before RV2-DEBT-059 (Epic 21 Task 6) added two rt_task fields for the abandoned-suspend-state fix; see docs/runtime-v2-epics/21-owner-routed-frees.md Task 6 and DEBT.md RV2-DEBT-059.
+internal/backend/llvm/emit_async.go 725 Already at 664/675 before RV2-DEBT-059 (Epic 21 Task 6) added the abandoned-state drop-fn-id computation and the new __surge_drop_abandoned_state_call dispatch; see docs/runtime-v2-epics/21-owner-routed-frees.md Task 6 and DEBT.md RV2-DEBT-059.

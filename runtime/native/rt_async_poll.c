@@ -292,7 +292,26 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
     }
 }
 
-void rt_async_yield(void* state) {
+// Stashes a suspend-point/scope-join state box onto the current task before
+// a cancellation completes it. This runs at most once per task lifetime
+// (poll_task's TASK_DONE fast path and cancel_pending short-circuit both
+// prevent compiled code from ever running again for a task that has already
+// taken this branch once), so there is no overwrite/re-entry hazard to guard
+// against; mark_done is the sole consumer, exactly once, on every path that
+// can reach it.
+static void stash_abandoned_state(void* state, uint64_t state_drop_fn_id) {
+    if (state_drop_fn_id == 0) {
+        return;
+    }
+    rt_task* current = rt_current_task();
+    if (current == NULL) {
+        return;
+    }
+    current->abandoned_state = state;
+    current->abandoned_state_drop_fn_id = state_drop_fn_id;
+}
+
+void rt_async_yield(void* state, uint64_t state_drop_fn_id) {
     if (!poll_active || poll_env == NULL) {
         panic_msg("async_yield outside poll");
         return;
@@ -300,6 +319,7 @@ void rt_async_yield(void* state) {
     poll_result.state = state;
     poll_result.value_bits = 0;
     if (current_task_cancelled(&exec_state)) {
+        stash_abandoned_state(state, state_drop_fn_id);
         poll_result.kind = POLL_DONE_CANCELLED;
         poll_result.park_key = waker_none();
         pending_key = waker_none();
@@ -329,7 +349,7 @@ void rt_async_return(void* state, uint64_t bits) {
     longjmp(*poll_env, 1);
 }
 
-void rt_async_return_cancelled(void* state) {
+void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id) {
     if (!poll_active || poll_env == NULL) {
         panic_msg("async_cancel outside poll");
         return;
@@ -339,5 +359,6 @@ void rt_async_return_cancelled(void* state) {
     poll_result.kind = POLL_DONE_CANCELLED;
     poll_result.park_key = waker_none();
     pending_key = waker_none();
+    stash_abandoned_state(state, state_drop_fn_id);
     longjmp(*poll_env, 1);
 }

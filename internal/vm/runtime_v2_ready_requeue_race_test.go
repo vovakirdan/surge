@@ -75,7 +75,7 @@ static _Atomic uint32_t g_requeue_probe_release;
 static void poll_ready_requeue_probe(void) {
     uint32_t step = atomic_fetch_add_explicit(&g_requeue_probe_steps, 1, memory_order_acq_rel);
     if (step == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     while (atomic_load_explicit(&g_requeue_probe_release, memory_order_acquire) == 0) {

@@ -53,7 +53,7 @@ static void poll_rtb_drop_execute(rtb_drop_state* state) {
                                             &kind,
                                             &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     state->result_kind = kind;
     state->result_bits = bits;
@@ -74,7 +74,7 @@ static void poll_rtb_drop_anchored_recv(rtb_drop_state* state) {
                                                      &bits);
     atomic_store_explicit(&state->visible_pending, state->pending, memory_order_release);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     state->result_kind = kind;
     state->result_bits = bits;
@@ -101,7 +101,7 @@ static void poll_rtb_drop_anchored(rtb_drop_state* state) {
                                                      &kind,
                                                      &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     state->result_kind = kind;
     state->result_bits = bits;
@@ -120,7 +120,7 @@ static void poll_rtb_drop_select(rtb_drop_state* state) {
                                           &state->result_kind,
                                           &state->result_bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     rt_async_return(state, (uint64_t)state->status);
 }

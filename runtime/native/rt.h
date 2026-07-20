@@ -210,9 +210,9 @@ int64_t rt_select_poll(uint64_t count,
                        const uint64_t* values,
                        const uint64_t* ms,
                        int64_t default_index);
-void rt_async_yield(void* state);
+void rt_async_yield(void* state, uint64_t state_drop_fn_id);
 void rt_async_return(void* state, uint64_t bits);
-void rt_async_return_cancelled(void* state);
+void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id);
 
 void* rt_channel_new(uint64_t capacity);
 bool rt_channel_send(void* channel, uint64_t value_bits);

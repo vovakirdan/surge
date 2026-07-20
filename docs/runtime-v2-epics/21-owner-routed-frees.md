@@ -636,6 +636,57 @@ owns). All census rows carry execution witnesses.
   assertion is deleted, not relaxed) while its far-task/multi-shard
   row stays bounded pending RV2-DEBT-061; separate close conditions
   per debt.
+
+  **059 IMPLEMENTED 2026-07-20, two findings changed the plan.**
+  Second-opinion design consult (Codex, cross-checked against a direct
+  code trace) confirmed the task-level-stash mechanism is safe (no
+  re-entry, no double-consume) and additionally found: (a)
+  `rt_async_return_cancelled` (the scope-join/`TermAsyncReturnCancelled`
+  twin of `rt_async_yield`) needed the identical fix — same leak class,
+  reached via a different terminator; both are now covered, both new
+  `rt_task` fields (`abandoned_state`/`abandoned_state_drop_fn_id`) set
+  once at either origin, consumed once in `mark_done`, cleared after; (b)
+  `run_ready_one` bypasses `apply_poll_outcome` entirely in single-worker
+  mode, a separate structured-concurrency correctness gap — filed as
+  RV2-DEBT-063, not fixed here. Dispatch mechanism differs from the
+  original sketch: the state box is ALWAYS heap-allocated (unlike a task
+  RESULT, which may be inert Copy bits with no box at all), so gating on
+  `typeOwnsHeap` before registering would skip freeing the box itself for
+  a no-heap-fields state — confirmed empirically (an unconditionally-
+  registered id via `registerCrossingDropResult` produced an EMPTY glue
+  body for such a state, leaking the box). Fixed with a THIRD, dedicated
+  TypeID-keyed dispatch, `__surge_drop_abandoned_state_call`
+  (`registerAbandonedStateDrop`/`emitAbandonedStateDropDispatch`,
+  `emit_drop_glue.go`/`emit_async.go`), routing to the SAME composite
+  box-freeing glue (`dropGlueName`/`emitDropGlueBody`) the FuncID-keyed
+  crossing-state mechanism already uses — that glue unconditionally frees
+  the box after any field recursion, which the result mechanism's
+  `emitDropValue`-based glue does not.
+
+  `TestRuntimeV2FarTaskCallerCancel`'s LOCAL row plan (tighten to
+  zero) did NOT hold: a NEW, unrelated-to-059 gap surfaced while
+  proving it (RV2-DEBT-062 — the recursive composite drop-glue walk
+  silently skips handle-shaped types, Task<T>/Channel<T> confirmed,
+  nested as a field/element; they need their own release call, not a
+  raw `rt_free`, and `typeOwnsHeapRec`'s default case never routes to
+  one). A git-stash A/B on the row's own minimal repro proved 059's
+  real effect precisely: 32B direct + 24B indirect before, 24B direct
+  + 0 indirect after — the state box itself (32B) is gone; the
+  remaining 24B is one abandoned `Task<T>` local from
+  `checkpoint().await()`, RV2-DEBT-062's residual, not 059's. Added
+  `TestRuntimeV2CancelledSuspendStateReclaimed`
+  (`internal/vm/runtime_v2_cancelled_suspend_state_e2e_test.go`) as the
+  local/deterministic proof instead, with a bounded (not zero)
+  assertion documenting exactly this split. The existing far-task
+  census (`runFarTaskCallerCancelValgrindCensus`) also measures
+  differently now — its per-occurrence unit dropped from 40B to a
+  clean 32B (0 indirect), because `t.await()`'s crossing consumes the
+  far-task handle before suspending, so no Task<T>-shaped local
+  survives into that particular payload; the remaining 32B is
+  plausibly RV2-DEBT-061, not diagnosed further, per that debt row's
+  own "do not tighten to strict zero" guidance. Comment and constant
+  updated to match; assertion structure (bounded multiple, not zero)
+  intentionally unchanged.
 - **Task 7 — Far-channel lifecycle: handle glue + owner-object
   finalization (060 + the 048 residual's FAR half, fork 4; local
   scope removed 2026-07-20, see the execution finding above):**

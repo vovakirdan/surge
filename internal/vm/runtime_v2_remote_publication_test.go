@@ -755,6 +755,15 @@ void __surge_drop_result_call(uint64_t id, void* value) {
     exit(97);
 }
 
+// No row here threads a nonzero abandoned-state drop id through
+// rt_async_yield/rt_async_return_cancelled, so reaching this is a test bug.
+void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
+    fputs("unexpected __surge_drop_abandoned_state_call\n", stderr);
+    exit(97);
+}
+
 static int wait_reached(rt_sync_point_id id, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
         if (rt_sync_point_reached_count(id) > 0) {
@@ -919,7 +928,7 @@ void __surge_poll_call(uint64_t id) {
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
             st->saw_pending = 1;
             atomic_store_explicit(&st->pending_shared, st->pending, memory_order_release);
-            rt_async_yield(st);
+            rt_async_yield(st, 0);
             return;
         }
         st->status = status;
@@ -935,7 +944,7 @@ void __surge_poll_call(uint64_t id) {
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
             st->saw_pending = 1;
             atomic_store_explicit(&st->pending_shared, st->pending, memory_order_release);
-            rt_async_yield(st);
+            rt_async_yield(st, 0);
             return;
         }
         st->status = status;
@@ -958,7 +967,7 @@ void __surge_poll_call(uint64_t id) {
             // The abandon rows model a departed caller: after the driver
             // abandons the handle the pending may be freed at any moment,
             // so this task must never touch it again.
-            rt_async_yield(st);
+            rt_async_yield(st, 0);
             return;
         }
         if (st->shutdown_first && !st->shutdown_done) {
@@ -979,7 +988,7 @@ void __surge_poll_call(uint64_t id) {
             st->saw_pending = 1;
             st->request_id = rt_remote_spawn_pending_request_id(st->pending);
             atomic_store_explicit(&st->pending_shared, st->pending, memory_order_release);
-            rt_async_yield(st);
+            rt_async_yield(st, 0);
             return;
         }
         st->status = status;

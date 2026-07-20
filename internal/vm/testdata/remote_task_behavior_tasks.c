@@ -77,13 +77,13 @@ static void poll_child(rtb_child_state* child) {
     if (current_task_cancelled(ensure_exec())) {
         atomic_store_explicit(&child->cancelled, 1, memory_order_release);
         atomic_store_explicit(&child->done, 1, memory_order_release);
-        rt_async_return_cancelled(child);
+        rt_async_return_cancelled(child, 0);
     }
     if (atomic_load_explicit(&child->gate, memory_order_acquire) != 0) {
         atomic_store_explicit(&child->done, 1, memory_order_release);
         rt_async_return(child, 91);
     }
-    rt_async_yield(child);
+    rt_async_yield(child, 0);
 }
 
 static void poll_publisher(rtb_publish_state* state) {
@@ -102,7 +102,7 @@ static void poll_publisher(rtb_publish_state* state) {
                                             state->handle);
     if (state->status == RT_REMOTE_SPAWN_STATUS_PENDING) {
         atomic_store_explicit(&state->saw_pending, 1, memory_order_release);
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     if (state->status == RT_REMOTE_SPAWN_STATUS_OK) {
         state->published_task_id = state->handle->task_id;
@@ -137,7 +137,7 @@ static void poll_lifecycle(rtb_lifecycle_state* state) {
     }
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         atomic_store_explicit(&state->visible_pending, state->pending, memory_order_release);
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     state->result_kind = kind;
     state->result_bits = bits;
@@ -156,7 +156,7 @@ static void poll_rtb_execute(rtb_execute_state* state) {
                                             &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         atomic_store_explicit(&state->visible_pending, state->pending, memory_order_release);
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     state->result_kind = kind;
     state->result_bits = bits;
@@ -169,7 +169,7 @@ static void poll_rtb_channel_create(rtb_create_state* state) {
     state->status = rt_far_channel_create(
         state->placement, state->capacity, &state->pending, &state->handle, &kind, &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     rt_async_return(state, (uint64_t)state->status);
 }
@@ -210,6 +210,15 @@ void __surge_drop_result_call(uint64_t id, void* value) {
     if (value != NULL) {
         rt_free((uint8_t*)value, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
     }
+}
+
+// This harness family never threads a nonzero abandoned-state drop id
+// through rt_async_yield/rt_async_return_cancelled, so mark_done's call
+// here is always a no-op in practice; the stub exists only to satisfy the
+// link (the real definition lives in compiled Surge output).
+void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
 }
 
 void __surge_poll_call(uint64_t id) {

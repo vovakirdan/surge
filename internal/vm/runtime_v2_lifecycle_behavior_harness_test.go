@@ -388,7 +388,7 @@ static _Atomic uint32_t g_join_spin_steps;
 static void poll_join_target_spin(void) {
     uint32_t step = atomic_fetch_add_explicit(&g_join_spin_steps, 1, memory_order_acq_rel);
     if (step < 3) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, 42);
@@ -407,7 +407,7 @@ static _Atomic uint32_t g_join_target_release;
 // joiner is ever scheduled once).
 static void poll_join_target_gated(void) {
     if (atomic_load_explicit(&g_join_target_release, memory_order_acquire) == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, 42);
@@ -440,7 +440,7 @@ static void poll_park_forever(void) {
     uint64_t bits = 0;
     uint8_t st = rt_channel_recv(ch, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, 99);
@@ -450,7 +450,7 @@ static void poll_joiner(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(g_join_target, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, st == 1 ? bits : 0);
@@ -492,7 +492,7 @@ static void poll_clone_racer(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(cloned, &bits);
     if (st == 0) {
-        rt_async_yield(cloned);
+        rt_async_yield(cloned, 0);
         return;
     }
     if (st != 1 || bits != 1) {
@@ -526,7 +526,7 @@ static void poll_pin_joiner(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(target, &bits);
     if (st == 0) {
-        rt_async_yield(target);
+        rt_async_yield(target, 0);
         return;
     }
     rt_async_return(NULL, st == 1 && bits == 99 ? 1 : 0);

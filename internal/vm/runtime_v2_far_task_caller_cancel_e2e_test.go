@@ -330,23 +330,30 @@ func runFarTaskCallerCancelValgrindCensus(t *testing.T, bin string, baseEnv []st
 				"valgrind census (shards=%d): definitely_lost=%dB/%dblk indirectly_lost=%dB/%dblk far_body_witnesses=%d exit=%d",
 				shardCount, definiteBytes, definiteBlocks, indirectBytes, indirectBlocks, witnessCount, exitCode,
 			)
-			// KNOWN RESIDUAL (reported here, not fixed — candidate new
-			// debt row, lead's call): definitely/indirectly lost bytes
-			// are attributable one-for-one to cancelled callers whose
-			// body parked on an internal .await() before its own
-			// checkpoint ever ran — a minimal, far-task-free repro
-			// (spawn a child that does `helper().await()` then returns;
-			// cancel it from the parent immediately after spawn) leaks
-			// 32B direct + 24B indirect EXACTLY once, and leaks 0 when
-			// the cancel call is removed. The far-task shape here adds
-			// its own capture/task-handle state on top (72B/occurrence
-			// observed). This matches the "abandon path never draining
-			// post-shutdown" cancelled-frame gap flagged as a
-			// possibility for this row: assert only that the loss is a
-			// clean multiple of the smallest observed per-occurrence
-			// direct-leak unit (40B for this far-task shape) rather than
-			// growing unboundedly or including corruption-class errors.
-			const perOccurrenceDirectBytes = 40
+			// KNOWN RESIDUAL, UPDATED after the abandoned-suspend-state fix
+			// (rt_async_yield/rt_async_return_cancelled now stash and drop
+			// the state box a cancellation abandons before compiled code
+			// ever resumes it — see TestRuntimeV2CancelledSuspendStateReclaimed).
+			// That fix reclaims the state box itself: this row's own
+			// minimal, far-task-free repro went from 32B direct + 24B
+			// indirect to 24B direct + 0 indirect (the remaining 24B is a
+			// separate, pre-existing gap — handle-shaped locals like
+			// Task<T>/Channel<T> packed live into an abandoned suspend
+			// payload aren't reclaimed by the generic recursive drop glue,
+			// which needs their own dedicated release call, not a raw
+			// rt_free; see that test's KNOWN RESIDUAL note). The far-task
+			// shape here measures differently again (indirect now 0, direct
+			// a clean 32B/occurrence) because `t.await()`'s crossing
+			// consumes the far-task handle before suspending, so no
+			// Task<T>-shaped local survives into ITS payload — what remains
+			// here is plausibly RV2-DEBT-061 (the pending free-path race
+			// this row's own multi-shard traffic exercises), not diagnosed
+			// further per that debt row's own "do not tighten to strict
+			// zero" guidance: assert only that the loss is a clean multiple
+			// of the smallest observed per-occurrence direct-leak unit
+			// (32B for this far-task shape) rather than growing unboundedly
+			// or including corruption-class errors.
+			const perOccurrenceDirectBytes = 32
 			if definiteBytes%perOccurrenceDirectBytes != 0 {
 				t.Fatalf(
 					"definitely-lost bytes (%d) is not a multiple of the known per-cancelled-caller unit (%d); this looks like a NEW leak shape, not the documented residual",

@@ -217,6 +217,17 @@ typedef struct rt_task {
     // take_result), so the owner-side drop and the consume path are
     // mutually exclusive by construction (RV2-DEBT-053a).
     uint64_t result_drop_fn_id;
+    // A suspend-point or scope-join state box abandoned by a cancellation
+    // that completes the task without ever resuming compiled code (the
+    // ordinary path frees the INCOMING resumed state box at the START of
+    // the NEXT poll; a task that never polls again never reaches that
+    // free). Set once, from inside rt_async_yield/rt_async_return_cancelled
+    // before any re-park bookkeeping can touch it, so a state that gets
+    // deferred across one or more scope-drain re-parks is still found here
+    // when mark_done finally runs, regardless of how many hops the deferral
+    // took. mark_done consumes this pair exactly once and clears both.
+    void* abandoned_state;
+    uint64_t abandoned_state_drop_fn_id;
     uint8_t result_kind;
     atomic_u8 status;
     uint8_t kind;
@@ -668,6 +679,13 @@ extern void __surge_drop_call(uint64_t id, void* state);
 // result_bits pointer (string, boxed composite, or dynamic array).
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern void __surge_drop_result_call(uint64_t id, void* value);
+// Destructs a suspend-point/scope-join state box a cancellation abandoned
+// without ever resuming compiled code to unpack it: keyed by the state
+// struct's own type (id 0 never dispatched). Frees the box itself plus any
+// owned fields, unlike __surge_drop_result_call, which may see inert bits
+// with nothing to free at all.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern void __surge_drop_abandoned_state_call(uint64_t id, void* state);
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern uint64_t __surge_blocking_call(uint64_t id, void* state);
 

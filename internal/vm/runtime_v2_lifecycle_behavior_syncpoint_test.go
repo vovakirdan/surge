@@ -198,7 +198,7 @@ static _Atomic uint64_t g_debt022_expected_bits;
 
 static void poll_debt022_gated_target(void) {
     if (atomic_load_explicit(&g_debt022_target_gate, memory_order_acquire) == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, 77);
@@ -226,7 +226,7 @@ static void poll_cancel_park_proof(void) {
         return;
     }
     if (task_cancelled_load(self) != 0) {
-        rt_async_return_cancelled(NULL);
+        rt_async_return_cancelled(NULL, 0);
         return;
     }
     void* ch = atomic_load_explicit(&g_park_forever_chan, memory_order_acquire);
@@ -236,7 +236,7 @@ static void poll_cancel_park_proof(void) {
         rt_async_return(NULL, 0);
         return;
     }
-    rt_async_yield(NULL);
+    rt_async_yield(NULL, 0);
 }
 
 static void poll_debt020_adopt_joiner(void) {
@@ -244,7 +244,7 @@ static void poll_debt020_adopt_joiner(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(target, &bits);
     if (st == 0) {
-        rt_async_yield(target);
+        rt_async_yield(target, 0);
         return;
     }
     rt_async_return(NULL, st == 1 && bits == 55 ? 55 : 0);
@@ -253,7 +253,7 @@ static void poll_debt020_adopt_joiner(void) {
 static void poll_debt020_gap_joiner(void) {
     void* target = __task_state();
     if (atomic_load_explicit(&g_debt020_gap_joiner_enabled, memory_order_acquire) == 0) {
-        rt_async_yield(target);
+        rt_async_yield(target, 0);
         return;
     }
     if (atomic_load_explicit(&g_debt020_gap_joiner_registered, memory_order_acquire) == 0) {
@@ -268,13 +268,13 @@ static void poll_debt020_gap_joiner(void) {
         prepare_park(ex, self, key, 0);
         pending_key = key;
         atomic_store_explicit(&g_debt020_gap_joiner_registered, 1, memory_order_release);
-        rt_async_yield(target);
+        rt_async_yield(target, 0);
         return;
     }
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(target, &bits);
     if (st == 0) {
-        rt_async_yield(target);
+        rt_async_yield(target, 0);
         return;
     }
     rt_async_return(NULL, st == 1 ? 1 : 2);
@@ -692,7 +692,7 @@ static void poll_debt046_joiner(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(target, &bits);
     if (st == 0) {
-        rt_async_yield(target);
+        rt_async_yield(target, 0);
         return;
     }
     rt_async_return(NULL, st == 1 && bits == 77 ? 77 : 0);

@@ -26,7 +26,7 @@ static void poll_anchored_flooded_caller(rtb_anchored_state* state) {
     state->status = rt_immediate_on_execute_anchored(
         &state->anchor, 0, (int64_t)state->body_poll_id, state, &state->pending, &kind, &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     state->result_kind = kind;
     state->result_bits = bits;

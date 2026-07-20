@@ -113,16 +113,25 @@ static void anchored_binding_or_die(void** out_channel, void** out_state) {
     }
 }
 
+// The state passed to rt_async_yield/rt_async_return_cancelled below is the
+// anchored pending's body_state, not a freshly-built per-suspend-point box:
+// its drop obligation already transferred onto the body task's ordinary
+// task->state lifecycle at the publication-accepted handoff
+// (rt_immediate_on.c), which is a separate mechanism from the abandoned-
+// suspend-state stash these two runtime calls otherwise populate. Passing 0
+// here deliberately leaves that stash untouched for anchored bodies; wiring
+// a real id needs the anchored body's own per-suspend-point drop-fn id
+// threaded through the binding lookup, not yet done.
 void rt_anchored_channel_send(uint64_t value_bits) {
     rt_executor* ex = ensure_exec();
     void* channel = NULL;
     void* state = NULL;
     anchored_binding_or_die(&channel, &state);
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     if (!rt_channel_send(channel, value_bits)) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
 }
 
@@ -134,11 +143,11 @@ uint8_t rt_anchored_channel_recv(uint64_t* out_bits) {
     void* state = NULL;
     anchored_binding_or_die(&channel, &state);
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state);
+        rt_async_return_cancelled(state, 0);
     }
     uint8_t status = rt_channel_recv(channel, out_bits);
     if (status == 0) {
-        rt_async_yield(state);
+        rt_async_yield(state, 0);
     }
     return status;
 }

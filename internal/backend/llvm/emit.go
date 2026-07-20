@@ -57,6 +57,18 @@ type Emitter struct {
 	// drop wrapper (emit_async.go).
 	crossingDropResults  map[types.TypeID]struct{}
 	dropResultGlueNeeded map[types.TypeID]struct{}
+	// Suspend-point/scope-join state boxes a cancellation may abandon with
+	// nothing left to unpack them (the abandoned-suspend-state fix). Keyed
+	// by the state struct's own TypeID (its own id space, like results, not
+	// state's FuncID space): every yield/return-cancelled site in every
+	// function can build a differently-typed state, so there is no single
+	// natural FuncID to key on the way a crossing body has. Unlike a
+	// result, this box always exists (built fresh at every suspend, never
+	// inert/Copy), so every registration always needs the box-freeing
+	// struct glue (dropGlueName), not the value-drop wrapper results use.
+	// The dispatch (__surge_drop_abandoned_state_call) routes the id to
+	// that struct glue (emit_async.go).
+	abandonedStateDrops map[types.TypeID]struct{}
 }
 
 type funcEmitter struct {

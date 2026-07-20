@@ -149,7 +149,7 @@ static _Atomic uint32_t g_scope_spin_steps;
 static void poll_scope_child_spin(void) {
     uint32_t step = atomic_fetch_add_explicit(&g_scope_spin_steps, 1, memory_order_acq_rel);
     if (step < 3) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, 1);
@@ -163,7 +163,7 @@ static void poll_scope_child_spin(void) {
 // await_shutdown_test.go) as a generic "runs until cancelled or shutdown"
 // task.
 static void poll_spin_forever(void) {
-    rt_async_yield(NULL);
+    rt_async_yield(NULL, 0);
 }
 
 static _Atomic uint32_t g_scope_owner_phase;
@@ -183,7 +183,7 @@ static void poll_scope_owner(void) {
         rt_scope_register_child(handle, child_a);
         rt_scope_register_child(handle, child_b);
         atomic_store_explicit(&g_scope_owner_phase, 1, memory_order_release);
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     void* handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
@@ -191,7 +191,7 @@ static void poll_scope_owner(void) {
     bool failfast = false;
     bool done = rt_scope_join_all(handle, &pending, &failfast);
     if (!done) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_scope_exit(handle);
@@ -216,7 +216,7 @@ static void poll_scope_cancel_owner(void) {
     // the harness driver surfaces here via rt_async_yield's own cancelled
     // check, producing POLL_DONE_CANCELLED and driving apply_poll_outcome's
     // cancelled-with-owned-scope branch (rt_async_state.c:1585-1613).
-    rt_async_yield(NULL);
+    rt_async_yield(NULL, 0);
 }
 
 static _Atomic uint32_t g_failfast_owner_phase;
@@ -242,19 +242,19 @@ static void poll_scope_owner_failfast(void) {
         atomic_store_explicit(&g_failfast_victim, victim, memory_order_release);
         rt_scope_register_child(handle, sibling);
         atomic_store_explicit(&g_failfast_owner_phase, 1, memory_order_release);
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     if (phase == 1) {
         rt_task* victim = (rt_task*)atomic_load_explicit(&g_failfast_victim, memory_order_acquire);
         if (task_status_load(victim) != TASK_DONE) {
-            rt_async_yield(NULL);
+            rt_async_yield(NULL, 0);
             return;
         }
         void* handle = atomic_load_explicit(&g_failfast_scope_handle, memory_order_acquire);
         rt_scope_register_child(handle, victim);
         atomic_store_explicit(&g_failfast_owner_phase, 2, memory_order_release);
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     void* handle = atomic_load_explicit(&g_failfast_scope_handle, memory_order_acquire);
@@ -262,7 +262,7 @@ static void poll_scope_owner_failfast(void) {
     bool failfast = false;
     bool done = rt_scope_join_all(handle, &pending, &failfast);
     if (!done) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_scope_exit(handle);
@@ -291,7 +291,7 @@ static void poll_scope_owner_forever(void) {
     uint64_t pending = 0;
     bool failfast = false;
     (void)rt_scope_join_all(handle, &pending, &failfast);
-    rt_async_yield(NULL);
+    rt_async_yield(NULL, 0);
 }
 
 // --- Timer/channel/blocking park (shutdown-with-parked-tasks scenario) ---
@@ -314,7 +314,7 @@ static void poll_timer_park(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(handle, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, 0);
@@ -330,7 +330,7 @@ static void poll_channel_park(void) {
     uint64_t bits = 0;
     uint8_t st = rt_channel_recv(ch, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, st);
@@ -351,7 +351,7 @@ static void poll_blocking_park(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(handle, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, 0);
@@ -364,7 +364,7 @@ static _Atomic uint32_t g_external_await_steps;
 static void poll_external_await_target(void) {
     uint32_t step = atomic_fetch_add_explicit(&g_external_await_steps, 1, memory_order_acq_rel);
     if (step < 5) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
         return;
     }
     rt_async_return(NULL, 123);

@@ -120,7 +120,7 @@ static void sleep_us(unsigned long micros) {
 static void poll_yielder(void) {
     uint32_t step = atomic_fetch_add_explicit(&g_yielder_steps, 1, memory_order_acq_rel);
     if (step < 3) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
     }
     rt_async_return(NULL, 7);
 }
@@ -129,7 +129,7 @@ static void poll_joiner(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(g_join_target, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
     }
     rt_async_return(NULL, st == 1 ? bits : 0);
 }
@@ -140,7 +140,7 @@ static void poll_park_recv(void) {
     uint64_t bits = 0;
     uint8_t st = rt_channel_recv(ch, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
     }
     rt_async_return(NULL, st);
 }
@@ -154,7 +154,7 @@ static void poll_sender(void) {
             rt_async_return(NULL, 0);
         }
         if (!rt_channel_send(ch, (uint64_t)sent + 1)) {
-            rt_async_yield(NULL);
+            rt_async_yield(NULL, 0);
         }
         atomic_fetch_add_explicit(&g_send_count, 1, memory_order_acq_rel);
     }
@@ -166,7 +166,7 @@ static void poll_receiver_fifo(void) {
         uint64_t bits = 0;
         uint8_t st = rt_channel_recv(ch, &bits);
         if (st == 0) {
-            rt_async_yield(NULL);
+            rt_async_yield(NULL, 0);
         }
         if (st == 2) {
             atomic_store_explicit(&g_recv_closed, 1, memory_order_release);
@@ -197,7 +197,7 @@ static void poll_blocking_awaiter(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(handle, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
     }
     rt_async_return(NULL, st == 1 ? bits : 0);
 }
@@ -214,7 +214,7 @@ static void poll_sleeper(void) {
     uint64_t bits = 0;
     uint8_t st = rt_task_poll(handle, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
     }
     rt_async_return(NULL, 9);
 }
@@ -223,7 +223,7 @@ static void poll_selector_tasks(void) {
     void* arms[2] = {g_select_arm0, g_select_arm1};
     int64_t idx = rt_select_poll_tasks(2, arms, -1);
     if (idx < 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
     }
     rt_async_return(NULL, (uint64_t)idx);
 }
@@ -232,7 +232,7 @@ static void poll_timeout_awaiter(void) {
     uint64_t bits = 0;
     uint8_t st = rt_timeout_poll(g_join_target, 3, &bits);
     if (st == 0) {
-        rt_async_yield(NULL);
+        rt_async_yield(NULL, 0);
     }
     rt_async_return(NULL, st);
 }
@@ -247,6 +247,11 @@ void __surge_drop_call(uint64_t id, void* state) {
 void __surge_drop_result_call(uint64_t id, void* value) {
     (void)id;
     (void)value;
+}
+
+void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
+    (void)id;
+    (void)state;
 }
 
 void __surge_poll_call(uint64_t id) {
