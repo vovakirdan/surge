@@ -25,7 +25,8 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 	if err != nil {
 		return "", "", err
 	}
-	if isRefType(fe.emitter.types, srcType) {
+	srcOwned := !isRefType(fe.emitter.types, srcType)
+	if !srcOwned {
 		deref := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, val)
 		val = deref
@@ -48,6 +49,14 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 	srcLayout, err := fe.emitter.layoutOf(srcResolved)
 	if err != nil {
 		return "", "", err
+	}
+	srcFreeSize := srcLayout.Size
+	if srcFreeSize <= 0 {
+		srcFreeSize = 1
+	}
+	srcFreeAlign := srcLayout.Align
+	if srcFreeAlign <= 0 {
+		srcFreeAlign = 1
 	}
 	for i, srcCase := range srcCases {
 		fmt.Fprintf(&fe.emitter.buf, "tagcast%d.%d:\n", castID, i)
@@ -111,6 +120,14 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 		newTag, err := fe.emitTagValueFromValues(dstResolved, dstIdx, dstCase.PayloadTypes, payloadVals, payloadLLVM)
 		if err != nil {
 			return "", "", err
+		}
+		// The new box (built above from copied-out payload values) fully
+		// replaces this one; every field it needs is already read into
+		// SSA temps, so the old envelope is dead from here and frees
+		// exactly once per arm (RV2-DEBT-057). A borrowed source (&T)
+		// is never owned here and must not be freed.
+		if srcOwned {
+			fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", val, srcFreeSize, srcFreeAlign)
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", newTag, resPtr)
 		fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", cont)
