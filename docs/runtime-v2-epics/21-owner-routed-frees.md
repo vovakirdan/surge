@@ -1,6 +1,20 @@
 # Epic 21: Owner-Routed Frees (vertical 3 of the reclamation arc)
 
-**Status:** DRAFT v2 — design review before Task 1. Charter source:
+**Status:** IN EXECUTION — Task 1 COMPLETE (2026-07-20, RV2-DEBT-057
++ 055 both closed). Design review concluded 2026-07-20 via a
+tier-based sequencing decision (user-approved): Tier 0 first (057,
+055 — census-poisoning and compile-breaking bugs, independent of
+crossing), then Tier 1 in dependency order (060+048-residual →
+053a ∥ the abandon-reconciliation design → 053b/059 → the non-copy
+gate + d2, last). This ratifies forks 1 (Phase 5 stays a successor
+epic) and 5 (the gate opens last, after the reconciliation design
+and channel lifecycle land) explicitly; forks 2-4 and 6 stand at
+their recorded leanings (no objection raised). Tier 2 (058, 054+056,
+the 052 residual) and Tier 3 (allocator Phase 5, the 001-026 ledger
+revision) proceed as scheduling allows without blocking Tier 0/1.
+RV2-DEBT-049/050 (async-entrypoint harness reliability) stays a
+separate discussion outside this epic, per the user's standing
+preference recorded at the Epic 20 closeout. Charter source:
 `20-tasks/08-bench-census-closeout.md` (the Epic 20 closeout duty).
 Arc plan: `19-candidates.md` (local emission → crossing activation →
 owner-routed frees). Carries RV2-DEBT-053, 059, 060, the Epic 20
@@ -291,12 +305,22 @@ Dependency edges (everything else may overlap):
 (T5 is owner-side-only and touches nothing the caller-abandon design
 owns). All census rows carry execution witnesses.
 
-- **Task 1 — Census-confound burndown (parallel lane):**
-  RV2-DEBT-057 — `emitUnionCast` frees the source box exactly once;
-  cast-heavy loop census at strict zero; re-attribute or shrink the
-  heap-capture census residual constants (d=1, b=3) with evidence.
-  RV2-DEBT-055 — `for _ in` element-type fallback; the
-  discarded-payload release branch gets its census row.
+- **Task 1 — Census-confound burndown (parallel lane): COMPLETE
+  2026-07-20.** RV2-DEBT-057 CLOSED (commit 925cf534): `emitUnionCast`
+  frees the source box exactly once, guarded by the function's
+  existing `isRefType` ownership check; negative-control-verified;
+  new gate row `TestRuntimeV2DropUnionCastReclamation` (single-window
+  exact free-count + n=1/n=500 loop differential). The heap-capture
+  census residual constants (d=1, b=3) were NOT re-attributed by this
+  fix — confirmed unchanged, so they are a different cause (left open,
+  candidate: RV2-DEBT-058's class). RV2-DEBT-055 CLOSED (commit
+  8b8ca4cd): `normalizeIterFor` falls back to the iterable's own
+  element type (`iterableElementType`: ArrayInfo / ArrayFixedInfo /
+  single-type-arg struct instance) when the loop pattern binds no
+  symbol; negative-control-verified on both backends; new probe
+  `array_for_discard_n_times` added to the existing iterator-protocol
+  census (n=1/n=2000 differential) exercises the discarded-payload
+  release branch, confirmed no leak.
 - **Task 2 — Compare-arm binding obligations (parallel lane):**
   RV2-DEBT-058 registration ONLY — arm payload bindings reach
   `registerDroppableBinding`; an arm-bound heap payload consumed
