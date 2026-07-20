@@ -26,11 +26,17 @@ import (
 // SAME iterable instance across all outer passes keeps that gap out of the
 // measured window instead of silently laundering it into this gate.
 //
-// A discarded loop variable (`for _ in arr`) is deliberately NOT covered
-// here: it fails to compile today with an unrelated, pre-existing "unknown
-// type" MIR validation error (normalizeIterFor's element-type resolution
-// never falls back to the iterable's element type when the pattern has no
-// symbol) — independent of this fix, see the report.
+// A discarded loop variable (`for _ in arr`) used to fail to compile with
+// an "unknown type" MIR validation error: normalizeIterFor's element-type
+// resolution (VarType, falling back to the bound symbol's type) never
+// falls back further when the pattern binds no symbol at all, so the
+// synthesized iterator/next locals got no type (RV2-DEBT-055, found
+// during this investigation, fixed separately in Epic 21 Task 1 —
+// normalizeIterFor now falls back to the iterable's own element type via
+// ArrayInfo/ArrayFixedInfo/a single-type-argument struct instance). Now
+// reachable, array_for_discard_n_times below exercises the discarded-
+// payload release branch (a full drop of the unconsumed Option box) this
+// same investigation found correct but dead code until that fix landed.
 const runtimeV2IterProtocolReclamationSource = `
 type Point = { x: int, y: int }
 
@@ -109,6 +115,19 @@ fn array_for_expr_return_n_times(n: int) -> int {
         i = i + 1;
     }
     return total;
+}
+
+fn array_for_discard_n_times(n: int) -> int {
+    let arr: int[] = [1, 2, 3];
+    let mut count: int = 0;
+    let mut i: int = 0;
+    while i < n {
+        for _ in arr {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
 }
 
 fn range_for_n_times(n: int) -> int {
@@ -239,6 +258,24 @@ fn main() -> int {
     }
     let r8: int = diff_check("array-for-expr-return", &x1_before, &x1_after, &x2000_before, &x2000_after);
     if r8 != 0 { return 80 + r8; }
+
+    // array-for with a discarded loop variable: the discarded-payload
+    // release branch (full drop of the unconsumed Option box, unlike the
+    // shallow step release the bound-variable probes above exercise).
+    let d1_before: HeapStats = rt_heap_stats();
+    let d1: int = array_for_discard_n_times(1);
+    let d1_after: HeapStats = rt_heap_stats();
+    let d2000_before: HeapStats = rt_heap_stats();
+    let d2000: int = array_for_discard_n_times(2000);
+    let d2000_after: HeapStats = rt_heap_stats();
+    if d1 != 3 || d2000 != 6000 {
+        print("array-for-discard value mismatch");
+        print(d1 to string);
+        print(d2000 to string);
+        return 9;
+    }
+    let r9: int = diff_check("array-for-discard", &d1_before, &d1_after, &d2000_before, &d2000_after);
+    if r9 != 0 { return 90 + r9; }
 
     // range-for over a STORED Range<int> (the generic iterator protocol's
     // range-cursor path, distinct from the fast-pathed literal for-head).

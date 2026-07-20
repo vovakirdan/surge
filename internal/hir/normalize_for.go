@@ -160,6 +160,40 @@ func unwrapOwnedTemp(e *Expr) *Expr {
 	return e
 }
 
+// iterableElementType resolves the element type an iterable itself
+// produces, independent of the loop variable: an array (dynamic or
+// fixed-size) yields its element type, and a single-type-argument
+// generic struct instance (Range<T> is the only such iterable this
+// protocol currently builds) yields that argument. Used as the
+// element-type fallback when the loop pattern binds no symbol (`for _
+// in ...`) — RV2-DEBT-055's normalizeIterFor never fell back past
+// VarType/VarSym, so a discarded loop variable failed MIR validation
+// with an "unknown type" error on the synthesized iterator locals.
+func iterableElementType(ctx *normCtx, iterable *Expr) types.TypeID {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || iterable == nil {
+		return types.NoTypeID
+	}
+	in := ctx.mod.TypeInterner
+	ty := unwrapOwnedTemp(iterable).Type
+	for ty != types.NoTypeID {
+		tt, ok := in.Lookup(ty)
+		if !ok || (tt.Kind != types.KindReference && tt.Kind != types.KindOwn && tt.Kind != types.KindPointer) {
+			break
+		}
+		ty = tt.Elem
+	}
+	if elem, ok := in.ArrayInfo(ty); ok {
+		return elem
+	}
+	if elem, _, ok := in.ArrayFixedInfo(ty); ok {
+		return elem
+	}
+	if args := in.StructArgs(ty); len(args) == 1 {
+		return args[0]
+	}
+	return types.NoTypeID
+}
+
 func normalizeNumericRangeFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, error) {
 	iterable := unwrapOwnedTemp(data.Iterable)
 	if iterable == nil || iterable.Kind != ExprBinaryOp {
@@ -277,6 +311,9 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 	elemTy := data.VarType
 	if elemTy == types.NoTypeID && data.VarSym.IsValid() {
 		elemTy = ctx.bindingType(data.VarSym)
+	}
+	if elemTy == types.NoTypeID {
+		elemTy = iterableElementType(ctx, data.Iterable)
 	}
 
 	iterTy := iterRangeType(ctx, elemTy)
