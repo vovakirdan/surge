@@ -1,7 +1,11 @@
 # Epic 21: Owner-Routed Frees (vertical 3 of the reclamation arc)
 
 **Status:** IN EXECUTION — Task 1 COMPLETE (2026-07-20, RV2-DEBT-057
-+ 055 both closed). Design review concluded 2026-07-20 via a
++ 055 both closed); Task 5 COMPLETE (2026-07-20, RV2-DEBT-053a
+closed, codex-implemented); Task 7 COMPLETE (2026-07-20, RV2-DEBT-060
+closed for far channels, RV2-DEBT-048's far residual closed;
+RV2-DEBT-061 opened as bycatch — a pre-existing, unrelated race,
+not blocking). Design review concluded 2026-07-20 via a
 tier-based sequencing decision (user-approved): Tier 0 first (057,
 055 — census-poisoning and compile-breaking bugs, independent of
 crossing), then Tier 1 in dependency order (060+048-residual →
@@ -135,6 +139,44 @@ authors to dodge whole program shapes.
   The registry's reclaim predicate (entry frees only at zero active
   leases AND zero in-flight pins) is already the row-proven
   pin-balance observable from Epic 20 Task 6.
+- **Task 7 execution finding (2026-07-20): local `Channel<T>` object
+  lifecycle is OUT OF REACH for this task, and that's fine — the FAR
+  side already has everything it needs.** `core/intrinsics.sg`
+  declares `Channel<T>` `@copy`; `isDroppableType`
+  (`internal/sema/drop_obligations.go`) excludes Copy types before
+  anything else, so a LOCAL (non-crossing) `own Channel<T>` binding
+  never gets a scope-exit drop obligation synthesized at all — this
+  is not a "leaf-gated, missing backend case" like the far handle;
+  there is no obligation to hook into. Confirmed empirically:
+  `let sender_ch = ch; let recv_ch = ch;` (the golden
+  `vm_async_j7_buffered.sg` shape) relies on Copy semantics to hand
+  one channel to two independent task closures with no ownership
+  tracking, and `struct rt_channel` carries no refcount field —
+  `rt_channel_close` only sets a flag and wakes waiters, never frees.
+  Making local channels droppable would mean adding refcounting to a
+  type kept Copy on purpose for this exact fan-out convenience, or
+  making it affine like `far Channel<T>` with its own `.share()`
+  equivalent — either is a language-semantics change breaking working
+  programs, not a backend/runtime task. SCOPED OUT of Task 7;
+  recorded as its own residual below. The FAR side is unaffected by
+  any of this and is fully achievable: `rt_far_channel_dispatch_create`
+  (`rt_far_channel.c`) mints the registry entry as the OWNER-SIDE
+  `rt_channel` object's only reference from creation on (confirmed by
+  reading the mint call site directly — nothing else holds
+  `entry->channel`), so the SAME `active_leases`/`inflight` predicate
+  that already reclaims the registry entry safely reclaims the
+  channel object too, at the same choke point (`release_entry`).
+- **RV2-DEBT-048's LOCAL scope, now precisely bounded:** the residual
+  this row already named ("runtime-backed Channel values have no drop
+  glue") is broader than the far-handle gap RV2-DEBT-060 covers — it
+  is EVERY channel, local or far, because `rt_channel_new`
+  (`rt_async_channel.c`) is a bare `rt_alloc` with no `rt_free` call
+  anywhere in the runtime for it, confirmed by grep. Task 7 closes
+  the far half completely (handle box + owner object). The local half
+  stays open under this row, now scoped precisely to "local
+  `Channel<T>` needs either refcounting or an affine redesign before
+  it can be droppable at all" — a design question for a future epic,
+  not a Task 7 gap.
 - **Task 7 deferral (design d2):** the select winner commit is
   already atomic and authoritative (one-lock critical section covers
   cancel check + arm-scan delivery; kind=1/bits=K IS the commit bit;
@@ -362,21 +404,76 @@ owns). All census rows carry execution witnesses.
   far shapes. `TestRuntimeV2FarTaskCallerCancel` census tightens
   from safe-and-bounded to ZERO (the bounded-multiple assertion is
   deleted, not relaxed). Separate close conditions per debt.
-- **Task 7 — Channel lifecycle: handle glue + owner-side
-  finalization (060 + the 048 residual, fork 4):**
+- **Task 7 — Far-channel lifecycle: handle glue + owner-object
+  finalization (060 + the 048 residual's FAR half, fork 4; local
+  scope removed 2026-07-20, see the execution finding above):**
   `rt_far_channel_release` gains its compiled caller via the glue
-  family; a handle binding's death releases exactly once — with the
-  exactly-once physical-box rows (moves, async-frame persistence,
-  returns, error paths) guarding the known
-  `rt_far_channel_handle_drop` double-free hazard; sibling leases
-  retire with their entries (registry reclaim predicate hits zero).
-  Owner-side: the `rt_channel` OBJECT frees at last-owner release —
-  far via registry entry retirement, local via binding drop glue —
-  incl. Copy-payload buffer draining; the local-select census
-  retires its two-object residual. Share/select census tiers
-  tighten from documented bounds to ZERO at 1, 2, and 8 shards,
-  with channel-object and handle/lease reclamation censused
-  SEPARATELY.
+  family (new `isFarChannelType` leaf case in `emitInstrDrop`
+  dispatching to `rt_far_channel_handle_drop`); a handle binding's
+  death releases exactly once — with the exactly-once physical-box
+  rows (moves, async-frame persistence, returns, error paths)
+  guarding the known `rt_far_channel_handle_drop` double-free hazard;
+  sibling leases retire with their entries (registry reclaim
+  predicate hits zero). Owner-side: the `rt_channel` OBJECT frees at
+  the SAME choke point (`release_entry`) once the registry's existing
+  `active_leases`/`inflight` predicate hits zero — a single
+  `rt_free` of the struct+buffer block (`rt_channel_free`), since
+  `rt_channel_new` allocates both in one block. HONEST SCOPE (codex
+  double-checked, 2026-07-20): this reclaims the channel OBJECT for
+  any element type, but does NOT drain buffered-but-unreceived
+  payloads — buffer entries are raw bits with no destructor path
+  (fork 5's own finding). For `Channel<int>`/fixnum T (every row this
+  task's programs use; ChannelCreate is Copy-only until fork 5 opens
+  it) this is a complete fix, no payload can leak. A heap-carried
+  payload still sitting in the buffer at retirement would still leak
+  alongside it — not a regression (it leaked before too, as part of
+  the whole unreclaimed struct), but the closeout text must say
+  "channel object reclaimed; buffered-payload destruction is fork 5's
+  non-copy work," never "fully reclaimed for all T." Local `Channel<T>`
+  object finalization is OUT OF SCOPE (language-semantics question,
+  not this task's — see the execution finding above; forks 4-5
+  already anticipated this exact contingency, so no new DEBT row) and
+  the local-select census's two-object
+  residual is UNCHANGED by this task. Share/select census tiers
+  tighten from documented bounds toward zero at 1, 2, and 8 shards
+  for the FAR handle+object class specifically.
+  **COMPLETE 2026-07-20.** Both fixes landed exactly where fork 4
+  anticipated them: `isFarChannelType` (new helper,
+  `internal/backend/llvm/emit_channel.go`) gates a new case in
+  `emitInstrDrop` (`emit_instr.go`, NOT `emitDropValue` — an
+  attempted composite-field-drop addition there was tried, found to
+  race an unrelated pre-existing bug during investigation, and
+  reverted; the top-level scope-exit path was always the right and
+  sufficient hook), dispatching to `rt_far_channel_handle_drop`. A
+  new `rt_channel_free` (`runtime/native/rt_async_channel.c`) is
+  called from `release_entry` (`rt_far_channel.c`) once
+  `active_leases==0 && inflight==0`. New gate row
+  `TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero`: strict
+  zero at 1/2/8 shards (create + four independent `.share()` leases
+  + scope exit; deliberately avoids `on ch {...}` send/recv — see
+  below). Existing census tests updated to their new, lower,
+  measured values (not re-derived): `TestRuntimeV2CrossingStrictCensusBalanced`'s
+  share/select growth figures (11→7, 67→35, 14→9, 91→51, matching
+  exactly 1 fewer unit per `.share()` call × call count × iteration
+  count) and `TestRuntimeV2CrossingStrictCensusValgrindBounded`'s
+  documented bound (1,280B/52blk → 344B/13blk) — both still
+  nonzero, pinned to the KNOWN, deferred lease-struct residual (each
+  `.share()`'s `rt_far_channel_lease` record accumulates until the
+  entry's own last lease releases, which these programs' own channel
+  bindings do not always reach within the measured window or by
+  process exit — not the handle box or channel object this task
+  targets).
+  **BYCATCH: RV2-DEBT-061 opened.** Building this task's fuller,
+  send/recv-exercising reproducer surfaced a PRE-EXISTING, unrelated,
+  intermittent (~10-25% of runs) invalid-free/invalid-write under
+  valgrind in the immediate-on/anchored retry path
+  (`rt_immediate_on_finish_retry`/`rt_remote_task_pending_release`) —
+  confirmed present on unmodified pre-Epic-21 HEAD at a matching
+  rate, confirmed absent from every one of this task's own code
+  paths (neither the far-channel drop fix nor the reverted
+  composite-field attempt changed the rate). Not fixed here — the
+  gate test above avoids `on ch {...}` specifically to stay
+  race-free; RV2-DEBT-061 needs its own root-cause investigation.
 - **Task 8 — Non-copy far channels + commit-bit reconciliation
   (the Task 7 deferral, fork 5; needs T6 design + T7):** first a
   payload-destructor path into the owner-side channel (creation

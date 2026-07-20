@@ -230,38 +230,48 @@ async fn run() -> int {
     // window-edge residual the heap-capture census already documents.
     if mg8v != mg1v { return fail_growth("migration", mg1v, mg8v); }
 
-    // SHARE and SELECT are NOT strict zero, and this is a genuine,
-    // newly-found gap, not RV2-DEBT-052/058 (both already dodged by this
-    // file's moving compare-arm discipline): every channel_on(...) and
-    // every .share() call emits a caller-side rt_far_channel_handle_alloc
-    // box (internal/backend/llvm/emit_crossing_channel_create.go,
-    // emit_crossing_share.go) to hold the returned far Channel<T> value,
-    // and NO generated code path ever frees it or calls the matching
-    // rt_far_channel_release (defined in runtime/native/rt_far_channel.c,
-    // never referenced from the LLVM backend) -- unlike far Task<T>, a
-    // far Channel<T> has no consuming operation that could retire the
-    // box, so it leaks deterministically once per channel-producing call.
-    // Bisected with isolated probes (not checked in): a bare repeated
-    // ch.share() alone costs exactly 2 HeapStats units/call (the 24-byte
-    // caller box, definitely-lost, plus the dispatch-side sibling lease
-    // lease_new/rt_far_channel_mint_sibling, still-reachable via the
-    // registry -- the RV2-DEBT-048-class residual). share_window makes 4
-    // .share() calls/iteration (two producer sends, two drains) and
-    // select_window makes 5 (two arms x two picks, one feeder) plus a
-    // small select-construct residual, which is why growth isn't a clean
-    // multiple of 2/call for select. These exact figures are pinned
-    // in-program (not merely asserted flat) so a real fix collapses this
-    // check loudly; see TestRuntimeV2CrossingStrictCensusValgrindBounded for
-    // the timing-independent valgrind confirmation (definitely-lost is
-    // driven by the same handle_alloc call sites and is ALSO shard-count
-    // independent). This is a NEW, distinct finding needing its own ledger
-    // row (RV2-DEBT-059 is already spoken for by the cancelled-before-
-    // first-run init frame pair leak from the parallel Task 8 row; this
-    // gap gets whatever id the lead assigns next).
-    if sh1v != 11 { return fail_growth("share-baseline", sh1v, sh8v); }
-    if sh8v != 67 { return fail_growth("share-growth", sh1v, sh8v); }
-    if se1v != 14 { return fail_growth("select-baseline", se1v, se8v); }
-    if se8v != 91 { return fail_growth("select-growth", se1v, se8v); }
+    // SHARE and SELECT are NOT strict zero, though RV2-DEBT-060 (Epic 21
+    // Task 7, 2026-07-20) closed the larger of the two per-call costs:
+    // every channel_on(...) and every .share() call emits a caller-side
+    // rt_far_channel_handle_alloc box (internal/backend/llvm/
+    // emit_crossing_channel_create.go, emit_crossing_share.go) to hold
+    // the returned far Channel<T> value, and it now frees at the
+    // binding's ordinary scope exit (isFarChannelType's case in
+    // emitInstrDrop dispatches to rt_far_channel_handle_drop). Bisected
+    // with isolated probes (not checked in): a bare repeated ch.share()
+    // used to cost exactly 2 HeapStats units/call (the 24-byte caller
+    // box, definitely-lost -- now freed) plus the dispatch-side sibling
+    // lease (lease_new/rt_far_channel_mint_sibling) -- that lease STRUCT
+    // is the remaining 1 unit/call residual pinned below: release_entry
+    // frees every accumulated lease struct together, but only once the
+    // registry entry's LAST lease releases and its active_leases/inflight
+    // predicate hits zero, which happens after this window closes (ch
+    // itself, created outside the measured c0..c1 window, is what
+    // eventually triggers that reclaim) -- so within the window, each
+    // .share() call's lease struct accumulates as still-reachable, not
+    // yet freed, the RV2-DEBT-048-class residual RV2-DEBT-060's own
+    // closure note already flagged as out of scope (buffered/internal
+    // bookkeeping, not the handle box or the channel object). Every
+    // window function's OWN growth arithmetic (declared once, verified by
+    // the differential itself) drops by 1 unit per .share() call:
+    // share_window's 4 calls/iteration take the baseline from 11 to 7 and
+    // the eight-iteration figure from 67 to 35 (4 fewer/iteration x 8);
+    // select_window's 5 calls/iteration take 14 to 9 and 91 to 51 (5
+    // fewer/iteration x 8) -- both differences land exactly on the
+    // call-count x iteration-count arithmetic, confirming the fix's
+    // effect is precisely the handle box and nothing else. These exact
+    // figures are pinned in-program (not merely asserted flat) so a real
+    // fix collapses this check loudly; see
+    // TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero for the
+    // strict-zero valgrind confirmation of the handle+object class this
+    // reduction reflects (a narrower create+share-only program, since
+    // this file's on-ch-heavy windows hit an unrelated, pre-existing race
+    // under valgrind -- RV2-DEBT-061). The remaining lease-struct residual
+    // rides the sibling-lease reclaim design, not row-sized here.
+    if sh1v != 7 { return fail_growth("share-baseline", sh1v, sh8v); }
+    if sh8v != 35 { return fail_growth("share-growth", sh1v, sh8v); }
+    if se1v != 9 { return fail_growth("select-baseline", se1v, se8v); }
+    if se8v != 51 { return fail_growth("select-growth", se1v, se8v); }
 
     print("crossing-strict-census-ok");
     return 0;
@@ -426,31 +436,38 @@ func hasValgrindMemcheckError(stderr string) bool {
 // sh1v/sh8v/se1v/se8v exit-code checks are NOT shard-agnostic -- reusing it
 // here made the wrapped program itself fail at SHARDS=2/8, which is a
 // different failure than a real memcheck/leak regression and must not be
-// conflated with one). This test does NOT assert definitely-lost == 0: the
-// share/select verticals carry a genuine, newly-found leak (see the
+// conflated with one). This test does NOT assert definitely-lost == 0.
+// RV2-DEBT-060 (Epic 21 Task 7, 2026-07-20) closed the larger of two
+// per-call costs the share/select verticals used to carry (see the
 // runtimeV2CrossingStrictCensusSource comment above the pinned
-// sh1v/sh8v/se1v/se8v checks for the full writeup) -- every far Channel<T>
-// value returned by channel_on(...) or .share() allocates a caller-side
-// handle box (rt_far_channel_handle_alloc) that no generated code path ever
-// frees. Measured directly (manual valgrind, not derived) against THIS
+// sh1v/sh8v/se1v/se8v checks for the full writeup): every far Channel<T>
+// value returned by channel_on(...) or .share() used to allocate a
+// caller-side handle box (rt_far_channel_handle_alloc) that no generated
+// code path ever freed -- it now frees at the binding's ordinary scope
+// exit. Measured directly (manual valgrind, not derived) against THIS
 // leaner program (each window function called once, at n=4, no HeapStats
-// comparisons): definitely-lost is EXACTLY 1,280 bytes in 52 blocks,
-// identical byte-for-byte at SURGE_SHARDS=1, 2, and 8 -- the leak is purely
-// a per-call cost, not shard-topology dependent, so pinning the exact
-// figure here is as timing-independent as asserting zero would be, and it
-// still catches any regression that changes the leak's magnitude in either
-// direction. This is a distinct finding from RV2-DEBT-059 (that id is the
-// cancelled-before-first-run init frame pair leak from the parallel Task 8
-// row) -- this handle_alloc gap needs its own id. Once fixed, this
-// constant should collapse to 0/0 and this test should be tightened to
-// match TestRuntimeV2CrossingStrictCensusBalanced's strict-zero migration
-// check.
+// comparisons): definitely-lost dropped from 1,280 bytes/52 blocks to 344
+// bytes/13 blocks, identical byte-for-byte at SURGE_SHARDS=1, 2, and 8 --
+// still shard-topology independent. The residual is the dispatch-side
+// sibling lease struct (lease_new/rt_far_channel_mint_sibling) each
+// .share() call accumulates in the registry: release_entry frees every
+// lease struct together, but only once the registry entry's own last
+// lease releases, which these programs' own channel bindings may not
+// reach by process exit in every path -- the RV2-DEBT-048-class residual
+// RV2-DEBT-060's closure note already scoped out (buffered/internal
+// bookkeeping, not the handle box or the channel object; see
+// TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero for a narrower
+// program that DOES reach strict zero for the handle+object class this
+// fix targets). Once the lease-struct residual is separately addressed,
+// this constant should collapse further and this test should be
+// tightened to match TestRuntimeV2CrossingStrictCensusBalanced's
+// strict-zero migration check.
 func TestRuntimeV2CrossingStrictCensusValgrindBounded(t *testing.T) {
 	if _, err := exec.LookPath("valgrind"); err != nil {
 		t.Skip("valgrind not installed; skipping valgrind leak-check census")
 	}
-	const wantDefinitelyLostBytes = 1280
-	const wantDefinitelyLostBlocks = 52
+	const wantDefinitelyLostBytes = 344
+	const wantDefinitelyLostBlocks = 13
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2CrossingStrictCensusValgrindSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	for _, shardCount := range []int{1, 2, 8} {

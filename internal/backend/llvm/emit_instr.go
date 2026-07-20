@@ -63,6 +63,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	}
 	typesIn := fe.emitter.types
 	isString := isStringLike(typesIn, baseType)
+	isFarChan := isFarChannelType(typesIn, baseType)
 	elemType, dynamic, isArray := arrayElemType(typesIn, baseType)
 	dynArray := isArray && dynamic
 	composite := false
@@ -80,7 +81,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 			}
 		}
 	}
-	if !isString && !dynArray && !composite {
+	if !isString && !dynArray && !composite && !isFarChan {
 		return nil
 	}
 	ptr, ptrTy, err := fe.emitPlacePtr(ins.Drop.Place)
@@ -95,6 +96,8 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	switch {
 	case isString:
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", handle)
+	case isFarChan:
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_far_channel_handle_drop(ptr %s)\n", handle)
 	case dynArray:
 		fe.emitter.emitDropDynArray(handle, elemType)
 	default: // boxed composite that owns heap

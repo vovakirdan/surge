@@ -223,6 +223,15 @@ uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits);
 bool rt_channel_try_send(void* channel, uint64_t value_bits);
 bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
 void rt_channel_close(void* channel);
+// Reclaims a channel object's memory (header + inline buffer, one
+// allocation). Callers must already know no other holder can reach this
+// channel: buffered Copy-payload bits need no separate release (raw bits
+// own no heap state), but the caller is responsible for having drained
+// any owned/heap-carrying buffered payloads first if the element type is
+// not Copy (RV2-DEBT-048's residual, non-Copy buffer draining, is not
+// handled here). Never call this on a channel another live handle can
+// still resolve.
+void rt_channel_free(void* channel);
 
 void* rt_map_new(uint64_t key_kind);
 uint64_t rt_map_len(const void* map);

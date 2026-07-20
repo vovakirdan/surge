@@ -37,6 +37,27 @@ func isChannelType(typesIn *types.Interner, typeID types.TypeID) bool {
 	}
 }
 
+// isFarChannelType reports whether typeID is `far Channel<T>` (any
+// wrapping of &/own/* around the far qualifier is stripped by
+// resolveValueType first, matching isChannelType's own unwrap). Used to
+// route a far-channel-typed binding's scope-exit drop to the runtime's
+// far-handle release instead of the ordinary local-channel leaf path,
+// which isFarChannelType-gated callers never reach: resolveValueType
+// stops at a KindFar node (it does not unwrap the far qualifier itself,
+// only Alias/Own/Reference/Pointer), so a local Channel<T> and a far
+// Channel<T> are never confused here.
+func isFarChannelType(typesIn *types.Interner, typeID types.TypeID) bool {
+	if typesIn == nil || typeID == types.NoTypeID {
+		return false
+	}
+	typeID = resolveValueType(typesIn, typeID)
+	tt, ok := typesIn.Lookup(typeID)
+	if !ok || tt.Kind != types.KindFar {
+		return false
+	}
+	return isChannelType(typesIn, tt.Elem)
+}
+
 func (fe *funcEmitter) emitChannelHandle(op *mir.Operand) (string, error) {
 	if fe == nil || op == nil {
 		return "", fmt.Errorf("missing channel operand")

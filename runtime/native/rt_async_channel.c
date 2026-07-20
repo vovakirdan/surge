@@ -50,6 +50,20 @@ void* rt_channel_new(uint64_t capacity) {
     return ch;
 }
 
+// Reclaims the single rt_alloc block rt_channel_new made (header + inline
+// buffer): the size is reconstructed deterministically from the stored
+// capacity, the same way emitTagValueFromValues-style leaf frees elsewhere
+// in the runtime recompute their own allocation size. See rt.h for the
+// caller-responsibility contract (no other live holder, Copy payloads
+// only for now — RV2-DEBT-048's residual).
+void rt_channel_free(void* channel) {
+    rt_channel* ch = channel_from_handle(channel);
+    uint64_t bytes = channel_alloc_size(ch->capacity);
+    rt_async_debug_printf(
+        "async chan free ch=%p cap=%llu\n", (void*)ch, (unsigned long long)ch->capacity);
+    rt_free((uint8_t*)ch, bytes, _Alignof(rt_channel));
+}
+
 static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_after_handoff) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);
