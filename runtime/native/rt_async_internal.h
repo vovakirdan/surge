@@ -209,6 +209,14 @@ typedef struct rt_task {
     int64_t poll_fn_id;
     void* state;
     uint64_t result_bits;
+    // Owner-side drop obligation for a heap-carried remote-body RESULT
+    // (threaded from the spawn-on crossing like state_drop_fn_id; 0 for a
+    // Copy/inert result or a non-far task). Nonzero means this task still
+    // owns result_bits: free_task drops it exactly once. Cleared to 0 at
+    // the single point a consumer takes the result (reply shipped or local
+    // take_result), so the owner-side drop and the consume path are
+    // mutually exclusive by construction (RV2-DEBT-053a).
+    uint64_t result_drop_fn_id;
     uint8_t result_kind;
     atomic_u8 status;
     uint8_t kind;
@@ -654,6 +662,12 @@ __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl3
 // drop; never dispatched).
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern void __surge_drop_call(uint64_t id, void* state);
+// Destructs an owner-held remote-body RESULT that no consumer took: the
+// reply-edge twin of __surge_drop_call keyed by the result payload type
+// (id 0 = inert/Copy bits, never dispatched). The value is the raw
+// result_bits pointer (string, boxed composite, or dynamic array).
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern void __surge_drop_result_call(uint64_t id, void* value);
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern uint64_t __surge_blocking_call(uint64_t id, void* state);
 
@@ -853,6 +867,7 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);
 bool rt_channel_try_send(void* channel, uint64_t value_bits);
 bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
 void rt_channel_close(void* channel);
+void rt_channel_free(void* channel);
 
 int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);

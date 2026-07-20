@@ -38,6 +38,15 @@ static void free_task(rt_executor* ex, rt_task* task) {
                 _Alignof(uint64_t));
     }
     rt_far_task_release_result(ex, task);
+    // Owner-side result reclamation (RV2-DEBT-053a): a heap-carried body
+    // RESULT that no consumer took (release-while-DONE, cancel-after-done)
+    // is dropped here exactly once. A consumed result cleared the id when
+    // ownership transferred to the caller, so this is mutually exclusive
+    // with the compiled consume path. Copy/inert results keep id 0.
+    if (task->result_drop_fn_id != 0 && task->result_bits != 0) {
+        __surge_drop_result_call(task->result_drop_fn_id, (void*)task->result_bits);
+        task->result_drop_fn_id = 0;
+    }
     rt_task_slot_store(ex, task->id, NULL);
     rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
 }

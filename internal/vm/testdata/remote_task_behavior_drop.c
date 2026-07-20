@@ -376,6 +376,110 @@ int rtb_mode_drop_bound_cancel_no_pending_drop(void) {
     return 0;
 }
 
+// RV2-DEBT-053a owner-side result reclamation rows. These bypass the async
+// scheduler and drive free_task directly on a body task that completed with a
+// heap-carried RESULT, which is the exact leak site: a completed owner task
+// freed (release-while-DONE / cancel-after-done) before any consumer took its
+// reply. A real far-task heap result is unreachable from compiled Surge today
+// (the non-copy reply gate is still closed), so a direct free-path drive is
+// the deterministic proof of the owner-side machinery.
+enum { RTB_RESULT_DROP_MARK_ID = 53 };
+
+static void rtb_result_drop_reset(void) {
+    atomic_store_explicit(&rtb_result_drop_calls, 0, memory_order_release);
+    atomic_store_explicit(&rtb_result_drop_last_id, 0, memory_order_release);
+    atomic_store_explicit(&rtb_result_drop_last_value, NULL, memory_order_release);
+}
+
+// Row: a DONE owner task whose heap result nobody consumed is reclaimed by
+// free_task exactly once, with the registered id and the actual result_bits
+// pointer.
+int rtb_mode_result_owner_release(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_result_drop_reset();
+    rt_task* task = NULL;
+    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, &task) !=
+            RT_REMOTE_SPAWN_STATUS_OK ||
+        task == NULL) {
+        return rtb_fail("result-owner-release: body task creation failed");
+    }
+    void* block = rt_alloc(RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
+    if (block == NULL) {
+        return rtb_fail("result-owner-release: block alloc failed");
+    }
+    task->result_kind = 1;
+    task->result_bits = (uint64_t)(uintptr_t)block;
+    task->result_drop_fn_id = RTB_RESULT_DROP_MARK_ID;
+    task_status_store(task, TASK_DONE);
+    // The create-time reference is the only one: releasing it frees the DONE
+    // task through free_task, which owns the unconsumed-result drop.
+    task_release_lane_aware(ex, task);
+    if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 1) {
+        return rtb_fail("result-owner-release: result not dropped exactly once");
+    }
+    if (atomic_load_explicit(&rtb_result_drop_last_id, memory_order_acquire) !=
+            RTB_RESULT_DROP_MARK_ID ||
+        atomic_load_explicit(&rtb_result_drop_last_value, memory_order_acquire) != block) {
+        return rtb_fail("result-owner-release: drop carried the wrong id or value");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Negative control: a Copy result keeps result_drop_fn_id 0, so inert bits are
+// never handed to the result-drop dispatch.
+int rtb_mode_result_copy_inert(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_result_drop_reset();
+    rt_task* task = NULL;
+    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, &task) !=
+            RT_REMOTE_SPAWN_STATUS_OK ||
+        task == NULL) {
+        return rtb_fail("result-copy-inert: body task creation failed");
+    }
+    task->result_kind = 1;
+    task->result_bits = 42; // inert Copy bits (fixnum-shaped), not a heap pointer
+    task->result_drop_fn_id = 0;
+    task_status_store(task, TASK_DONE);
+    task_release_lane_aware(ex, task);
+    if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {
+        return rtb_fail("result-copy-inert: inert Copy result reached the drop dispatch");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// Negative control: a consumed result cleared the obligation when ownership
+// transferred to the caller; free_task must NOT drop again (no double-free).
+int rtb_mode_result_consumed_no_double_drop(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_result_drop_reset();
+    rt_task* task = NULL;
+    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, &task) !=
+            RT_REMOTE_SPAWN_STATUS_OK ||
+        task == NULL) {
+        return rtb_fail("result-consumed: body task creation failed");
+    }
+    void* block = rt_alloc(RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
+    if (block == NULL) {
+        return rtb_fail("result-consumed: block alloc failed");
+    }
+    task->result_kind = 1;
+    task->result_bits = (uint64_t)(uintptr_t)block;
+    task->result_drop_fn_id = RTB_RESULT_DROP_MARK_ID;
+    task_status_store(task, TASK_DONE);
+    // Simulate the compiled consume path: ownership moves to the caller, which
+    // clears the owner-side obligation and frees the value itself.
+    task->result_drop_fn_id = 0;
+    rt_free((uint8_t*)block, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
+    task_release_lane_aware(ex, task);
+    if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {
+        return rtb_fail("result-consumed: free_task double-dropped a consumed result");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 // Negative control: drop-fn id 0 never dispatches on any edge.
 int rtb_mode_drop_zero_id_never_dispatches(void) {
     rt_executor* ex = ensure_exec();

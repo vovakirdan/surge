@@ -95,6 +95,7 @@ static void poll_publisher(rtb_publish_state* state) {
     }
     state->status = rt_remote_spawn_publish(state->destination,
                                             0,
+                                            state->result_drop_fn_id,
                                             (int64_t)state->poll_id,
                                             state->task_state,
                                             &state->pending,
@@ -190,6 +191,24 @@ void __surge_drop_call(uint64_t id, void* state) {
     atomic_fetch_add_explicit(&rtb_drop_calls, 1, memory_order_acq_rel);
     atomic_store_explicit(&rtb_drop_last_id, id, memory_order_release);
     atomic_store_explicit(&rtb_drop_last_state, state, memory_order_release);
+}
+
+// Owner-side result-drop census (RV2-DEBT-053a): the release-while-DONE row
+// installs a nonzero result_drop_fn_id and a heap result_bits; free_task
+// routes the reclamation here. The stub frees the block (mimicking the
+// compiled drop wrapper) so heap accounting balances and counts calls so
+// the row can assert exactly-once with the right id and pointer.
+_Atomic uint64_t rtb_result_drop_calls;
+_Atomic uint64_t rtb_result_drop_last_id;
+_Atomic(void*) rtb_result_drop_last_value;
+
+void __surge_drop_result_call(uint64_t id, void* value) {
+    atomic_fetch_add_explicit(&rtb_result_drop_calls, 1, memory_order_acq_rel);
+    atomic_store_explicit(&rtb_result_drop_last_id, id, memory_order_release);
+    atomic_store_explicit(&rtb_result_drop_last_value, value, memory_order_release);
+    if (value != NULL) {
+        rt_free((uint8_t*)value, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
+    }
 }
 
 void __surge_poll_call(uint64_t id) {

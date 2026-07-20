@@ -38,7 +38,8 @@ async fn run(dst: Placement) -> far Task<int> {
 	if !strings.Contains(ir, firstAttempt) {
 		t.Fatalf("missing state-shipping publish call:\n%s", ir)
 	}
-	wantIDs := fmt.Sprintf(", i64 %d, i64 %d, ptr %%", bodyID, bodyID)
+	// (state_drop_id == body_id, result_drop_id == 0 for a Copy result, poll == body_id).
+	wantIDs := fmt.Sprintf(", i64 %d, i64 0, i64 %d, ptr %%", bodyID, bodyID)
 	if !strings.Contains(ir, wantIDs) {
 		t.Fatalf("state-shipping publish must pass drop id == body id (%d):\n%s", bodyID, ir)
 	}
@@ -57,6 +58,55 @@ async fn run(dst: Placement) -> far Task<int> {
 	}
 	if !strings.Contains(dispatch, "drop_default:") {
 		t.Fatalf("dispatch must keep the default panic arm for unregistered ids:\n%s", dispatch)
+	}
+}
+
+// RV2-DEBT-053a: a spawn_on whose body returns a heap-carried RESULT
+// registers the result payload type as a result-drop-fn id: the publish call
+// carries a nonzero result drop id in its dedicated slot, the
+// __surge_drop_result_call switch routes that id to a per-type drop wrapper,
+// and the wrapper frees the value through its leaf/glue (here rt_string_free).
+// (The buildpipeline non-copy reply gate blocks this from compiled source
+// today; the MIR-level lowering used here bypasses that gate so the owner-side
+// codegen can be proven ahead of the gate opening.)
+func TestEmitSpawnOnRegistersResultDropFn(t *testing.T) {
+	sourceCode := `
+async fn run(dst: Placement) -> far Task<string> {
+    return spawn on dst { ret "shipped-result"; };
+}
+`
+
+	mirMod, result := lowerCrossingMIRFromSource(t, sourceCode, sema.CrossingLoweringSpawnOn)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+
+	// (i64 placement, i64 state_drop, i64 result_drop, i64 poll, ptr state, ...)
+	re := regexp.MustCompile(`@rt_remote_spawn_publish_placement\(i64 %[^,]+, i64 \d+, i64 (\d+), i64 \d+, ptr`)
+	m := re.FindStringSubmatch(ir)
+	if m == nil {
+		t.Fatalf("missing state-shipping publish call with a result-drop slot:\n%s", ir)
+	}
+	if m[1] == "0" {
+		t.Fatalf("result drop id must be nonzero for a heap string result:\n%s", ir)
+	}
+
+	dispatch := findLLVMFuncBody(t, ir, "__surge_drop_result_call")
+	armLabel := fmt.Sprintf("i64 %s, label %%drop_result.%s", m[1], m[1])
+	if !strings.Contains(dispatch, armLabel) {
+		t.Fatalf("__surge_drop_result_call switch missing the registered arm %q:\n%s", armLabel, dispatch)
+	}
+	if !strings.Contains(dispatch, fmt.Sprintf("call void @drop_result.type%s(ptr %%value)", m[1])) {
+		t.Fatalf("dispatch arm must call the result's drop wrapper:\n%s", dispatch)
+	}
+	if !strings.Contains(dispatch, "drop_result_default:") {
+		t.Fatalf("result dispatch must keep the default panic arm for unregistered ids:\n%s", dispatch)
+	}
+
+	glue := findLLVMFuncBody(t, ir, fmt.Sprintf("drop_result.type%s", m[1]))
+	if !strings.Contains(glue, "call void @rt_string_free(ptr %val)") {
+		t.Fatalf("result drop wrapper must free the heap string result:\n%s", glue)
 	}
 }
 

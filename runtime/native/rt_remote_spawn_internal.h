@@ -25,6 +25,11 @@ struct rt_remote_spawn_pending {
     // release ends up final observes the cleared flag.
     uint64_t state_drop_fn_id;
     uint8_t state_owned;
+    // Owner-side drop obligation for the body's heap-carried RESULT,
+    // carried from the crossing to the created body task (0 = Copy/inert).
+    // Stamped onto task->result_drop_fn_id at the publication-accepted
+    // handoff; never a caller-side drop site (RV2-DEBT-053a).
+    uint64_t result_drop_fn_id;
     uint64_t caller_task_id;
     uint32_t source_shard_id;
     uint32_t target_shard_id;

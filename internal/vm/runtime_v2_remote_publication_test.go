@@ -18,9 +18,9 @@ func TestRuntimeV2RemotePublicationAPIShape(t *testing.T) {
 #include "rt_remote_spawn.h"
 #include "rt_remote_task.h"
 
-rt_remote_spawn_status (*check_publish)(uint32_t, uint64_t, int64_t, void*,
+rt_remote_spawn_status (*check_publish)(uint32_t, uint64_t, uint64_t, int64_t, void*,
     rt_remote_spawn_pending**, rt_far_task_handle*) = rt_remote_spawn_publish;
-rt_remote_spawn_status (*check_publish_placement)(rt_placement, uint64_t, int64_t, void*,
+rt_remote_spawn_status (*check_publish_placement)(rt_placement, uint64_t, uint64_t, int64_t, void*,
     rt_remote_spawn_pending**, rt_far_task_handle*) = rt_remote_spawn_publish_placement;
 rt_remote_spawn_status (*check_validate)(rt_executor*, const rt_far_task_handle*) =
     rt_remote_spawn_handle_validate;
@@ -746,6 +746,15 @@ void __surge_drop_call(uint64_t id, void* state) {
     exit(97);
 }
 
+// No far-task heap RESULT is installed by these rows, so free_task never
+// dispatches an owner-side result drop; the reference just needs a definition.
+void __surge_drop_result_call(uint64_t id, void* value) {
+    (void)id;
+    (void)value;
+    fputs("unexpected __surge_drop_result_call\n", stderr);
+    exit(97);
+}
+
 static int wait_reached(rt_sync_point_id id, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
         if (rt_sync_point_reached_count(id) > 0) {
@@ -964,7 +973,7 @@ void __surge_poll_call(uint64_t id) {
             }
         }
         rt_remote_spawn_status status = rt_remote_spawn_publish(
-            st->dst, st->droppable ? DROP_REMOTE_STATE : 0, POLL_REMOTE_CHILD,
+            st->dst, st->droppable ? DROP_REMOTE_STATE : 0, 0, POLL_REMOTE_CHILD,
             st->child, &st->pending, &st->handle);
         if (status == RT_REMOTE_SPAWN_STATUS_PENDING) {
             st->saw_pending = 1;

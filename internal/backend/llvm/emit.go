@@ -48,6 +48,15 @@ type Emitter struct {
 	// body's FuncID doubles as the drop-fn id, and the dispatch routes
 	// it to the state struct's recursive glue (emit_async.go).
 	crossingDropStates map[mir.FuncID]types.TypeID
+	// Remote-body RESULT payload types that ship over the reply edge with
+	// an owner-side drop obligation (RV2-DEBT-053a). Keyed by the result
+	// payload TypeID (its own id space, distinct from state's FuncID
+	// space) because a result may be a heap leaf — string or dynamic
+	// array — needing full value-drop, not just struct-box glue. The
+	// dispatch (__surge_drop_result_call) routes the id to the value's
+	// drop wrapper (emit_async.go).
+	crossingDropResults  map[types.TypeID]struct{}
+	dropResultGlueNeeded map[types.TypeID]struct{}
 }
 
 type funcEmitter struct {

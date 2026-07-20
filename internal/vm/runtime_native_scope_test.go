@@ -79,6 +79,11 @@ void __surge_drop_call(uint64_t id, void* state) {
     (void)state;
 }
 
+void __surge_drop_result_call(uint64_t id, void* value) {
+    (void)id;
+    (void)value;
+}
+
 void __surge_poll_call(uint64_t id) {
     (void)id;
 }

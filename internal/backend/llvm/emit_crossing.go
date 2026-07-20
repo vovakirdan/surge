@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/sema"
+	"surge/internal/types"
 )
 
 const (
@@ -156,12 +157,22 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		}
 		stateDropID = ins.BodyFuncID
 	}
+	// Owner-side result drop obligation (RV2-DEBT-053a): a heap-carried
+	// body RESULT is reclaimed by free_task on the owner shard when the
+	// caller abandons the reply. PayloadType is the body's returned reply
+	// value (ResultType is the far Task<T> handle); a Copy result keeps id 0
+	// (no drop). Independent of whether the body ships captured state.
+	resultDropID := types.TypeID(0)
+	if fe.emitter.typeOwnsHeap(ins.PayloadType) {
+		resultDropID = fe.emitter.registerCrossingDropResult(ins.PayloadType)
+	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_remote_spawn_publish_placement(i64 %s, i64 %d, i64 %d, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_remote_spawn_publish_placement(i64 %s, i64 %d, i64 %d, i64 %d, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		placementVal,
 		stateDropID,
+		resultDropID,
 		ins.BodyFuncID,
 		stateVal,
 		pendingPtr,
@@ -174,7 +185,7 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", retryHandlePtr, handleSlot)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_remote_spawn_publish_placement(i64 0, i64 0, i64 %d, ptr null, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_remote_spawn_publish_placement(i64 0, i64 0, i64 0, i64 %d, ptr null, ptr %s, ptr %s)\n",
 		retryStatus,
 		ins.BodyFuncID,
 		pendingPtr,

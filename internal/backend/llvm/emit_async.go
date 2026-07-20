@@ -102,6 +102,8 @@ func (e *Emitter) emitPollDispatch() error {
 	}
 	fmt.Fprintf(&e.buf, "  unreachable\n")
 	fmt.Fprintf(&e.buf, "}\n\n")
+
+	e.emitResultDropDispatch()
 	return nil
 }
 

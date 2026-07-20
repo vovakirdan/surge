@@ -177,6 +177,12 @@ static void dispatch_request(rt_executor* ex, const rt_transport_msg* msg, rt_re
     }
     if (task_status_load(task) == TASK_DONE) {
         uint64_t bits = op == RT_REMOTE_TASK_OP_AWAIT ? task->result_bits : 0;
+        if (op == RT_REMOTE_TASK_OP_AWAIT) {
+            // Result ownership transfers to the caller with this reply; drop
+            // the owner-side obligation so free_task does not double-free
+            // (RV2-DEBT-053a).
+            task->result_drop_fn_id = 0;
+        }
         rt_remote_task_reply_or_finish(ex,
                                        pending,
                                        RT_REMOTE_TASK_STATUS_OK,

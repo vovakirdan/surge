@@ -410,6 +410,27 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 				// The parked body's counterparty is the harness main thread.
 				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
+		{
+			// RV2-DEBT-053a: a DONE owner task whose heap RESULT nobody
+			// consumed is reclaimed by free_task exactly once.
+			name: "result-owner-release-drops-heap-result-exactly-once",
+			mode: "result-owner-release",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			// Negative control: a Copy result (id 0) never reaches the
+			// result-drop dispatch.
+			name: "result-copy-inert-never-reaches-result-drop",
+			mode: "result-copy-inert",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
+			// Negative control: a consumed result cleared the obligation, so
+			// free_task must not double-drop.
+			name: "result-consumed-does-not-double-drop",
+			mode: "result-consumed-no-double-drop",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

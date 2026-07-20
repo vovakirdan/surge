@@ -131,5 +131,11 @@ int main(int argc, char** argv) {
         return rtb_mode_drop_zero_id_never_dispatches();
     if (strcmp(argv[1], "drop-bound-cancel-no-pending-drop") == 0)
         return rtb_mode_drop_bound_cancel_no_pending_drop();
+    if (strcmp(argv[1], "result-owner-release") == 0)
+        return rtb_mode_result_owner_release();
+    if (strcmp(argv[1], "result-copy-inert") == 0)
+        return rtb_mode_result_copy_inert();
+    if (strcmp(argv[1], "result-consumed-no-double-drop") == 0)
+        return rtb_mode_result_consumed_no_double_drop();
     return rtb_fail("unknown mode");
 }

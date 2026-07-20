@@ -39,6 +39,9 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                        0,
                                        RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK);
     } else if (pending->op == RT_REMOTE_TASK_OP_AWAIT) {
+        // Result ownership transfers to the caller with this reply
+        // (RV2-DEBT-053a); the owner-side drop obligation is cleared.
+        task->result_drop_fn_id = 0;
         rt_remote_task_reply_or_finish(ex,
                                        pending,
                                        RT_REMOTE_TASK_STATUS_OK,
@@ -50,6 +53,7 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
         if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
             rt_far_channel_unpin(ex, &pending->anchor);
         }
+        task->result_drop_fn_id = 0;
         rt_remote_task_reply_or_finish(ex,
                                        pending,
                                        RT_REMOTE_TASK_STATUS_OK,
@@ -58,6 +62,7 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                        RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
     } else if (pending->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) {
         rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
+        task->result_drop_fn_id = 0;
         rt_remote_task_reply_or_finish(ex,
                                        pending,
                                        RT_REMOTE_TASK_STATUS_OK,

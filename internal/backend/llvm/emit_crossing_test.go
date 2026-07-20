@@ -37,7 +37,7 @@ async fn run(dst: Placement, n: int) -> far Task<int> {
 	spawnPollBody := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(spawnPoll.ID))
 
 	for _, want := range []string{
-		"declare i32 @rt_remote_spawn_publish_placement(i64, i64, i64, ptr, ptr, ptr)",
+		"declare i32 @rt_remote_spawn_publish_placement(i64, i64, i64, i64, ptr, ptr, ptr)",
 		"declare i32 @rt_far_task_handle_alloc(ptr)",
 		"call i32 @rt_far_task_handle_alloc(ptr ",
 		"call i32 @rt_remote_spawn_publish_placement(",

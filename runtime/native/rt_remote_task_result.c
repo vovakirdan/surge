@@ -74,6 +74,12 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, uint64_t* ou
     if (kind == 1 && !rt_far_task_adopt_result(producer, holder)) {
         kind = 2;
     }
+    if (kind == 1) {
+        // Local consume: result_bits is handed to the holder, which now owns
+        // it and drops it at scope exit. Clear the owner-side obligation so
+        // free_task does not double-free (RV2-DEBT-053a).
+        producer->result_drop_fn_id = 0;
+    }
     if (out_bits != NULL) {
         *out_bits = kind == 1 ? producer->result_bits : 0;
     }

@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"fmt"
+	"sort"
 
 	"surge/internal/mir"
 	"surge/internal/types"
@@ -162,6 +163,58 @@ func (e *Emitter) registerCrossingDropState(bodyID mir.FuncID, stateType types.T
 	return nil
 }
 
+func dropResultGlueName(id types.TypeID) string { return fmt.Sprintf("drop_result.type%d", id) }
+
+// emitResultDropDispatch emits `__surge_drop_result_call` (RV2-DEBT-053a):
+// the owner-side release path reclaims a heap-carried body RESULT that no
+// consumer took. Every crossing that ships a droppable result registered its
+// result payload TypeID as the drop-fn id; the arm frees the raw result_bits
+// through the value's drop wrapper. Copy/inert results keep id 0 (never
+// dispatched), and the panic arm is the negative control.
+func (e *Emitter) emitResultDropDispatch() {
+	resultDropIDs := make([]types.TypeID, 0, len(e.crossingDropResults))
+	for id := range e.crossingDropResults {
+		resultDropIDs = append(resultDropIDs, id)
+	}
+	sort.Slice(resultDropIDs, func(i, j int) bool { return resultDropIDs[i] < resultDropIDs[j] })
+	fmt.Fprintf(&e.buf, "define void @__surge_drop_result_call(i64 %%id, ptr %%value) {\n")
+	fmt.Fprintf(&e.buf, "entry:\n")
+	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%drop_result_default [\n")
+	for _, id := range resultDropIDs {
+		fmt.Fprintf(&e.buf, "    i64 %d, label %%drop_result.%d\n", id, id)
+	}
+	fmt.Fprintf(&e.buf, "  ]\n")
+	for _, id := range resultDropIDs {
+		fmt.Fprintf(&e.buf, "drop_result.%d:\n", id)
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%value)\n", dropResultGlueName(id))
+		fmt.Fprintf(&e.buf, "  ret void\n")
+	}
+	fmt.Fprintf(&e.buf, "drop_result_default:\n")
+	if sc, ok := e.stringConsts["missing drop function"]; ok && sc.globalName != "" {
+		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)
+	}
+	fmt.Fprintf(&e.buf, "  unreachable\n")
+	fmt.Fprintf(&e.buf, "}\n\n")
+}
+
+// registerCrossingDropResult records that a crossing ships a heap-carried
+// RESULT of type `resultType` over the reply edge: the resolved payload
+// TypeID doubles as the drop-fn id the runtime's owner-side release path
+// passes to `__surge_drop_result_call`. Callers gate on typeOwnsHeap, so
+// id 0 (a Copy/inert result) is never registered and never dispatched.
+func (e *Emitter) registerCrossingDropResult(resultType types.TypeID) types.TypeID {
+	resolved := resolveValueType(e.types, resultType)
+	if e.crossingDropResults == nil {
+		e.crossingDropResults = make(map[types.TypeID]struct{})
+	}
+	e.crossingDropResults[resolved] = struct{}{}
+	if e.dropResultGlueNeeded == nil {
+		e.dropResultGlueNeeded = make(map[types.TypeID]struct{})
+	}
+	e.dropResultGlueNeeded[resolved] = struct{}{}
+	return resolved
+}
+
 func (e *Emitter) requireDropElemGlue(id types.TypeID) string {
 	id = resolveValueType(e.types, id)
 	if e.dropElemGlueNeeded == nil {
@@ -231,6 +284,7 @@ func (e *Emitter) elemStrideAlign(elem types.TypeID) (stride, align int, ok bool
 func (e *Emitter) emitDropGlue() error {
 	done := make(map[types.TypeID]struct{})
 	doneElem := make(map[types.TypeID]struct{})
+	doneResult := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
 		for id := range e.dropGlueNeeded {
@@ -251,11 +305,36 @@ func (e *Emitter) emitDropGlue() error {
 			e.emitDropElemGlueBody(id)
 			progressed = true
 		}
+		for id := range e.dropResultGlueNeeded {
+			if _, ok := doneResult[id]; ok {
+				continue
+			}
+			doneResult[id] = struct{}{}
+			e.emitDropResultGlueBody(id)
+			progressed = true
+		}
 		if !progressed {
 			break
 		}
 	}
 	return nil
+}
+
+// emitDropResultGlueBody emits `@drop_result.typeN(ptr %val)`: drop a
+// heap-carried reply-edge RESULT loaded as its raw bits pointer. Reuses
+// emitDropValue, so a string frees via rt_string_free, a dynamic array
+// via rt_array_free(_elems), and a boxed composite via its recursive
+// glue — recording any nested glue the fixpoint then emits.
+func (e *Emitter) emitDropResultGlueBody(id types.TypeID) {
+	fmt.Fprintf(&e.buf, "define void @%s(ptr %%val) {\n", dropResultGlueName(id))
+	fmt.Fprintf(&e.buf, "entry:\n")
+	fmt.Fprintf(&e.buf, "  %%isnull = icmp eq ptr %%val, null\n")
+	fmt.Fprintf(&e.buf, "  br i1 %%isnull, label %%ret, label %%body\n")
+	fmt.Fprintf(&e.buf, "body:\n")
+	e.emitDropValue("%val", id)
+	fmt.Fprintf(&e.buf, "  br label %%ret\n")
+	fmt.Fprintf(&e.buf, "ret:\n")
+	fmt.Fprintf(&e.buf, "  ret void\n}\n")
 }
 
 // emitDropElemGlueBody emits `@drop_elem.typeN(ptr %slot)`: load the

@@ -50,6 +50,7 @@ typedef struct rtb_publish_state {
     rt_far_task_handle* handle;
     void* task_state;
     uint64_t poll_id;
+    uint64_t result_drop_fn_id;
     uint32_t destination;
     uint32_t return_handle;
     _Atomic uint32_t saw_pending;
@@ -72,6 +73,15 @@ typedef struct rtb_lifecycle_state {
 extern _Atomic uint64_t rtb_drop_calls;
 extern _Atomic uint64_t rtb_drop_last_id;
 extern _Atomic(void*) rtb_drop_last_state;
+
+// Owner-side result-drop census (RV2-DEBT-053a): a heap-carried body RESULT
+// that no consumer took is reclaimed by free_task through
+// __surge_drop_result_call. The stub frees a block of this fixed size.
+#define RTB_RESULT_BLOCK_SIZE 64
+#define RTB_RESULT_BLOCK_ALIGN 16
+extern _Atomic uint64_t rtb_result_drop_calls;
+extern _Atomic uint64_t rtb_result_drop_last_id;
+extern _Atomic(void*) rtb_result_drop_last_value;
 
 int rtb_fail(const char* message);
 void rtb_sleep_us(unsigned long micros);
@@ -167,6 +177,9 @@ int rtb_mode_drop_select_mixed_owners(void);
 int rtb_mode_drop_handoff_not_dropped(void);
 int rtb_mode_drop_zero_id_never_dispatches(void);
 int rtb_mode_drop_bound_cancel_no_pending_drop(void);
+int rtb_mode_result_owner_release(void);
+int rtb_mode_result_copy_inert(void);
+int rtb_mode_result_consumed_no_double_drop(void);
 
 void rtb_share_poll_dispatch(uint64_t id);
 int rtb_mode_share_round_trip(void);

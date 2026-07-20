@@ -96,6 +96,7 @@ static void remote_spawn_drop_unshipped_state(uint64_t state_drop_fn_id, void* s
 
 rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
                                                uint64_t state_drop_fn_id,
+                                               uint64_t result_drop_fn_id,
                                                int64_t poll_fn_id,
                                                void* state,
                                                rt_remote_spawn_pending** pending,
@@ -148,6 +149,7 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
     req->state = state;
     req->state_drop_fn_id = state_drop_fn_id;
     req->state_owned = state_drop_fn_id != 0;
+    req->result_drop_fn_id = result_drop_fn_id;
     req->caller_task_id = current->id;
     req->source_shard_id = remote_spawn_current_source_shard(current);
     req->target_shard_id = dst_shard_id;
@@ -183,6 +185,7 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
 
 rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
                                                          uint64_t state_drop_fn_id,
+                                                         uint64_t result_drop_fn_id,
                                                          int64_t poll_fn_id,
                                                          void* state,
                                                          rt_remote_spawn_pending** pending,
@@ -191,7 +194,8 @@ rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
         return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        return rt_remote_spawn_publish(0, state_drop_fn_id, poll_fn_id, state, pending, out_handle);
+        return rt_remote_spawn_publish(
+            0, state_drop_fn_id, result_drop_fn_id, poll_fn_id, state, pending, out_handle);
     }
 
     rt_executor* ex = ensure_exec();
@@ -210,8 +214,13 @@ rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
         remote_spawn_drop_unshipped_state(state_drop_fn_id, state);
         return remote_spawn_placement_status(resolved.status);
     }
-    return rt_remote_spawn_publish(
-        resolved.shard_id, state_drop_fn_id, poll_fn_id, state, pending, out_handle);
+    return rt_remote_spawn_publish(resolved.shard_id,
+                                   state_drop_fn_id,
+                                   result_drop_fn_id,
+                                   poll_fn_id,
+                                   state,
+                                   pending,
+                                   out_handle);
 }
 
 rt_remote_spawn_status rt_remote_spawn_create_body_task(rt_executor* ex,
@@ -317,6 +326,9 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
     rt_remote_spawn_status status = rt_remote_spawn_create_body_task(
         ex, req->poll_fn_id, req->state, req->target_shard_id, &task);
     if (status == RT_REMOTE_SPAWN_STATUS_OK) {
+        // Publication-accepted handoff: the body task now owns the reply-edge
+        // result drop obligation (RV2-DEBT-053a).
+        task->result_drop_fn_id = req->result_drop_fn_id;
         handle = (rt_far_task_handle){.task_id = task->id,
                                       .generation = task->generation,
                                       .owner_shard_id = req->target_shard_id,
