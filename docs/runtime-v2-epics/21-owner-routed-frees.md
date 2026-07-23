@@ -1031,6 +1031,76 @@ owns). All census rows carry execution witnesses.
   this, and was removed rather than left permanently red; whoever picks
   up RV2-DEBT-064 has a working `select_committed_index` mechanism
   waiting for it.
+
+  **Select fork CLOSED 2026-07-23 — RV2-DEBT-064 fixed, and its recorded
+  mechanism corrected.** The crash was real and reproduced immediately;
+  the cause was NOT the retry re-evaluation the row blamed. Valgrind
+  captured both frees and their order: the runtime drops every
+  non-committed arm in `rt_remote_task_pending_release`'s `select_arms`
+  loop, and compiled code then drops the SAME pointer again through
+  sema's per-arm drop synthesis in the winning arm's block
+  (`internal/sema/type_expr_select.go` — the moved-set union shared
+  verbatim with `compare` and with LOCAL select, no far-specific
+  branch). Two owners on the normal path. The fix hands the arm table's
+  ownership back to the caller exactly when a winner reply reaches
+  compiled code (`select_finish_retry`/`select_disown_arms`,
+  `rt_far_channel_select.c`), mirroring the `result_drop_fn_id`
+  clear-on-consume idiom but GATED where that one is unconditional — an
+  arm payload stays alive on a Cancelled reply, and the compiled
+  cancelled path re-enters the pend edge without running any arm block,
+  so an unconditional clear would leak. The `select_committed_index`
+  mechanism Task 8 left waiting was correct and is now load-bearing on
+  the abandon path exactly as designed.
+
+  **The init/retry split is also real, but only for CONST operands —
+  and that took an adversarial review to establish.** Three first probes
+  (a marker-printing Copy payload in a send arm; the same through a
+  select with no ready arm so it genuinely parks and resumes through a
+  real retry round; and a lease-minting arm RECEIVER `b.share().recv()`)
+  all measured byte-identical with and without the split, and the split
+  was briefly reverted as unfalsifiable. The probe set had a HOLE: all
+  three are PLACE operands, which `splitAsyncAwaits` temps into a
+  preceding block, so a resumed retry only re-loads them. A CONST
+  operand is embedded in the crossing instruction and lowers INLINE in
+  the crossing block — and a bignum literal allocates right there.
+  Measured A/B: `72 bytes/2 blocks` without the split versus `36/1`
+  with it, leak stack through `rt_bigint_from_literal`. The split is
+  kept, with the accurate mechanism in its code comment so the next
+  reader does not repeat the place-operand probe and revert it again.
+  Method note worth carrying: a negative control that cannot fail is
+  not a negative control — the first three probes all "passed" while
+  proving nothing, and only enumerating the operand FORMS (place vs
+  const) found the one that discriminates.
+
+  Proof rows: `TestRuntimeV2FarSelectConstArmEvaluatedOnce` pins the
+  split (one un-reclaimed bigint, not two — the single remaining block
+  is a separate pre-existing gap: `typeOwnsHeap` is false for a bignum
+  int, so a delivered bignum payload gets drop-fn id 0 and the
+  channel-teardown drain never reclaims it; stated, not fixed here).
+  `TestRuntimeV2FarSelectNonCopySendArm` — three far
+  channels, a winning SEND arm buffered then reclaimed at channel
+  teardown, a losing SEND arm reclaimed by the winning arm's compiled
+  drop; exit-code rows at 1/2/8 shards plus a valgrind row at STRICT
+  ZERO. It deliberately avoids `on ch {...}` so RV2-DEBT-061's
+  intermittent race cannot be confused for this row's subject.
+  HARNESS GOTCHA worth carrying forward: the exit-code rows are not the
+  gate — glibc's tcache double-free detector is probabilistic, and the
+  pre-fix binary passed them outright on some runs while valgrind
+  reported the invalid free on that same binary.
+
+  **Two adjacent finds, both repaired here.** (1) The LLVM collect pass
+  never collected `Crossing.RemoteOps[k].Value` (`emit_collect.go`),
+  although the local `InstrSelect` case collects `arm.Value` right
+  beside it — a far-select SEND arm carrying any non-trivial constant
+  failed to COMPILE. (2) `runtime-v2-transport-check` was RED at HEAD
+  (`db8e10a4`): that commit added `rt_far_channel_select`'s
+  `send_drop_fn_ids` parameter without updating the C harness fixture in
+  `runtime_v2_remote_publication_test.go`, so five rows failed to build.
+  A broken gate hides regressions, so it is repaired as part of this
+  work. Residual, pre-existing and NOT from this change: the
+  `TestRuntimeV2RemoteTaskBehavior/shutdown-wakes-reply-waiters-on-all-shards`
+  row flakes at roughly 1-in-8 on a clean tree as well (measured both
+  ways).
 - **Task 9 — Bench + debt + closeout:** bench per the Task-1 recipe
   (worktree per commit, release build, time x5, valgrind totals,
   checksum witness) incl. a non-copy channel program; the NAMED
