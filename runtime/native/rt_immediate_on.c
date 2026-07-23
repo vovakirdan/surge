@@ -278,6 +278,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         rt_remote_task_pending_release(pending);
         return;
     }
+    RT_SYNC_POINT(SP_IMMEDIATE_ON_AFTER_PUBLISH);
     // PUBLICATION-ACCEPTED HANDOFF (contract: rt_remote_spawn_internal.h);
     // anchored bodies hand off here too — this dispatch is shared.
     pending->state_owned = 0;

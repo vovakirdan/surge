@@ -106,6 +106,17 @@ typedef enum rt_sync_point_id {
     // published. A test cancels the caller in this window to prove the
     // caller-cancel route and the reply edge resolve exactly once.
     RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH,
+    // immediate on destination: reached AFTER the body task is published and
+    // before the publication-accepted handoff store clears state_owned.
+    // Publishing makes the body runnable, so in this window another thread
+    // can complete it, consume the owner registration, drop the last pending
+    // reference and free the pending -- while this thread is still about to
+    // write into it. A test holds the dispatch here, drains the body and
+    // resolves the caller, then releases: without the dispatch's own pending
+    // reference the store lands in freed memory (RV2-DEBT-061 shape (b)), and
+    // the free path can read a stale state_owned and drop body_state a second
+    // time (shape (a)).
+    RT_SYNC_POINT_SP_IMMEDIATE_ON_AFTER_PUBLISH,
     // ready_push_with_policy (force-inject requeue: yielded tasks, net
     // wakes): reached after the unlocked status/enqueued pre-checks pass,
     // before the owner shard lock. A wake in this window can enqueue the
