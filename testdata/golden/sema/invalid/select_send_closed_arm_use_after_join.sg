@@ -1,0 +1,13 @@
+async fn pump() -> int {
+    let ch = make_channel::<string>(1);
+    let rx = make_channel::<int>(1);
+    let mut s = "seed-";
+    s = s + "x";
+    let v = select {
+        ch.send(own s) => { return 5; };
+        rx.recv() => 2;
+    };
+    let _ = v;
+    print(s);
+    return 0;
+}

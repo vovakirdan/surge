@@ -1,0 +1,33 @@
+type Holder = { name: string };
+
+fn build(prefix: string) -> string {
+    let mut s = prefix;
+    let mut i = 0;
+    while i < 4 {
+        s = s + "x";
+        i = i + 1;
+    }
+    return s;
+}
+
+async fn run() -> int {
+    let ch = make_channel::<string>(1);
+    let rx = make_channel::<int>(1);
+    let blocker = build("b-");
+    ch.send(own blocker);
+    rx.send(7);
+    let h: Holder = Holder { name: build("h-") };
+    // x ALIASES h's field: the container still owns the string.
+    let x: string = h.name;
+    let v = select {
+        ch.send(own x) => 1;
+        rx.recv() => 2;
+    };
+    print("v=");
+    print(v to string);
+    print("\n");
+    print(h.name);
+    print("\n");
+    return 0;
+}
+

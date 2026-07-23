@@ -50,6 +50,17 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	movedBefore := tc.snapshotMovedBindings()
 	movedArms := make([]map[symbols.SymbolID]source.Span, len(data.Arms))
 	armClosed := make([]bool, len(data.Arms))
+	// Moves made while evaluating an arm's AWAIT expression, snapshotted
+	// separately from the arm's full moved-set. Every arm's await is
+	// evaluated before the select runs, so a move there — a send arm's
+	// `own` payload above all — happens before any winner exists and is
+	// unconditional, unlike a move in the arm's body.
+	//
+	// LOAD-BEARING ORDER: this is sound only because the await is typed
+	// strictly BEFORE the arm body below. Fuse or reorder those two and
+	// the snapshot silently starts capturing body moves, at which point
+	// merging it for a closed arm stops meaning anything.
+	movedAwait := make([]map[symbols.SymbolID]source.Span, len(data.Arms))
 
 	for i, arm := range data.Arms {
 		tc.restoreMovedBindings(movedBefore)
@@ -65,6 +76,8 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 				tc.typeSelectAwaitExpr(arm.Await)
 			}
 		}
+
+		movedAwait[i] = tc.snapshotMovedBindings()
 
 		armResult := tc.typeExpr(arm.Result)
 		armClosed[i] = tc.compareArmAbruptExit(arm.Result)
@@ -100,12 +113,37 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 		}
 		mergedMoves = mergeMovedBindings(mergedMoves, movedArms[i])
 	}
+	// A CLOSED arm (one whose body exits the FUNCTION — `return`, `panic`,
+	// `exit`; note `break` leaves an arm OPEN) contributes nothing from its
+	// body, because control never reaches the join through it. But its
+	// await already ran: a `send(own x)` payload left the caller when the
+	// select ran, before any winner existed. Without merging that back, the
+	// binding stays live past the join, so the contract `send(own x)` states
+	// — "if this arm loses, the value is reclaimed in the other arms and
+	// cannot be used after the select" — silently did not hold for closed
+	// arms, and no open arm was given the reclaim drop for that payload
+	// either. Nothing merges when every arm is closed: the join is
+	// unreachable, so the post-join set is moot.
+	if mergedMoves != nil {
+		for i := range data.Arms {
+			if !armClosed[i] {
+				continue
+			}
+			mergedMoves = mergeMovedBindings(mergedMoves, movedAwait[i])
+		}
+	}
 	if mergedMoves != nil {
 		// Per-arm drop synthesis: a payload delivered by the winning send
 		// arm is reclaimed at the end of every arm that did not deliver
 		// it; after the join every such binding is in the union moved-set,
 		// so using it stays a use-of-moved error.
 		for i := range data.Arms {
+			// LOAD-BEARING: a closed arm must never receive arm drops.
+			// Its own abrupt exit already runs recordEarlyExitDrops
+			// against this arm's moved-set, so adding an ArmDrops entry
+			// here would drop the other arms' payloads a second time.
+			// The merge above deliberately DOES read closed arms (their
+			// await half only) while this loop deliberately does not.
 			if armClosed[i] {
 				continue
 			}
@@ -424,11 +462,31 @@ func (tc *typeChecker) checkSelectSendPayloadOwnership(chanType types.TypeID, va
 			"select send arm takes ownership of its payload: write `send(own ...)`; if this arm loses, the value is reclaimed in the other arms and cannot be used after the select")
 		return
 	}
-	if desc, ok := tc.resolvePlace(unary.Operand); !ok || !desc.Base.IsValid() || len(desc.Segments) != 0 {
+	desc, ok := tc.resolvePlace(unary.Operand)
+	if !ok || !desc.Base.IsValid() || len(desc.Segments) != 0 {
 		tc.report(diag.SemaSelectSendPayloadNotBinding, span,
 			"select send payload must be a whole owned binding so the losing arms can reclaim it: bind the value first (`let job = ...;` then `send(own job)`)")
 		return
 	}
+	// A binding that merely ALIASES container-owned state (its value came
+	// from a field, element, or deref read) is not this arm's to give away.
+	// Both outcomes corrupt: if the arm wins, the payload is delivered while
+	// the container still owns it; if it loses, the reclaim drop synthesized
+	// into the other arms frees memory the container still owns. Rejected
+	// here for the same reason a projection is rejected just above — this is
+	// that hazard one binding removed.
+	if tc.isAliasedBinding(desc.Base) {
+		tc.report(diag.SemaSelectSendPayloadNotBinding, span,
+			"select send payload is borrowed from a container and cannot be given away: "+
+				"this binding reads out of a field, element, or deref, so the container still owns "+
+				"the value — copy or move it out of the container first, then `send(own ...)` that")
+		return
+	}
+	// This move happens while the arm's AWAIT is being typed, which is
+	// what makes it unconditional: the payload is handed to rt_select_poll
+	// (or shipped in the far arm table) before any winner exists. The arm
+	// merge in typeSelectExpr relies on that position to honour the move
+	// even for an arm whose body exits abruptly.
 	tc.observeMove(valueExpr, span)
 }
 
