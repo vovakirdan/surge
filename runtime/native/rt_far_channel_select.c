@@ -276,6 +276,10 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
     pthread_mutex_unlock(&state->lock);
     task_add_ref(task);
     rt_remote_task_pending_set_owner_registered(pending, 1);
+    // Same publication window as the immediate-on dispatch: hold the pending
+    // across it so the state_owned store below cannot land in memory a
+    // completing body already freed (contract: rt_remote_spawn_internal.h).
+    rt_remote_task_pending_add_ref(pending);
     rt_remote_spawn_status published = rt_remote_spawn_publish_body_task(ex, task);
     if (published != RT_REMOTE_SPAWN_STATUS_OK) {
         rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
@@ -283,10 +287,12 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
         task_release_lane_aware(ex, task);
         rt_remote_spawn_free_unpublished_task(ex, task);
         select_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
+        rt_remote_task_pending_release(pending);
         return;
     }
     // PUBLICATION-ACCEPTED HANDOFF (contract: rt_remote_spawn_internal.h).
     pending->state_owned = 0;
+    rt_remote_task_pending_release(pending);
     task_release_lane_aware(ex, task);
 }
 
