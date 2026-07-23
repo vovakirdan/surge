@@ -59,8 +59,13 @@ async fn run() -> int {
     @drop got;
     let a3: HeapStats = rt_heap_stats();
     if v != 1 { print("FAIL winner-arm\n"); return 11; }
-    // The select window must NOT free the delivered payload.
-    let r1: int = check_frees("winner-select", &a0, &a1, 2:uint);
+    // The select window must NOT free the delivered payload, so it frees
+    // nothing here. (This was 2 before RV2-DEBT-036: the two arm-result
+    // literals were each a re-parsed heap bignum freed in this window.
+    // Folding in-range literals to inline words removed that churn;
+    // winner-drop-got below staying at 2 proves the real payload
+    // reclamation is unchanged.)
+    let r1: int = check_frees("winner-select", &a0, &a1, 0:uint);
     if r1 != 0 { return 12; }
     let r2: int = check_frees("winner-recv", &a1, &a2, 0:uint);
     if r2 != 0 { return 13; }
@@ -83,7 +88,10 @@ async fn run() -> int {
     };
     let b1: HeapStats = rt_heap_stats();
     if v2 != 2 { print("FAIL loser-arm\n"); return 21; }
-    let r4: int = check_frees("loser-select", &b0, &b1, 3:uint);
+    // 1 (the losing send arm's payload, reclaimed in the winning arm).
+    // Was 3 before RV2-DEBT-036: the two arm-result literals added two
+    // bignum frees of their own that the literal fold removed.
+    let r4: int = check_frees("loser-select", &b0, &b1, 1:uint);
     if r4 != 0 { return 22; }
 
     print("select-send-drop-ok");

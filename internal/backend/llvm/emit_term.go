@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"surge/internal/mir"
+	"surge/internal/numlit"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -164,6 +165,73 @@ func (fe *funcEmitter) emitOperandAddr(op *mir.Operand) (string, error) {
 	}
 }
 
+// Fixnum inline range (rt_bignum_tag.h): int fits [-2^62, 2^62-1], uint
+// fits [0, 2^63-1]. A literal in range is a tagged word known entirely at
+// compile time, so it needs no runtime materialization at all — folding it
+// here replaces the per-use rt_big*_from_literal decimal parse
+// (RV2-DEBT-036: two heap allocations per digit, every evaluation).
+const (
+	fixiMin = -(int64(1) << 62)
+	fixiMax = (int64(1) << 62) - 1
+	fixuMax = (uint64(1) << 63) - 1
+)
+
+// inlineFixnumWord renders a fixnum value as an LLVM ptr operand using the
+// rt_bignum_tag.h encoding: 0 is NULL (the canonical zero), otherwise
+// (v<<1)|1 carried in a pointer. The shift is computed on the unsigned bit
+// pattern so a negative int encodes the same way fixi_box builds it.
+func inlineFixnumWord(bits uint64) string {
+	if bits == 0 {
+		return "null"
+	}
+	word := (bits << 1) | 1
+	// The word is a bit pattern, not an arithmetic value; reinterpret it as
+	// a signed i64 for LLVM's textual integer literal exactly as fixi_box
+	// builds the tag. A high-bit-set uint fixnum prints as a negative
+	// literal, which is the same 64-bit pattern.
+	return fmt.Sprintf("inttoptr (i64 %d to ptr)", int64(word)) //nolint:gosec // intentional bit reinterpretation
+}
+
+// fixnumBits reinterprets a signed inline value as the unsigned bit pattern
+// fixi_box shifts, matching the runtime's `(uintptr_t)(uint64_t)v` step.
+func fixnumBits(v int64) uint64 {
+	return uint64(v) //nolint:gosec // intentional bit reinterpretation, matches fixi_box
+}
+
+// inRangeBigIntLiteral reports the fixnum-foldable value of a ConstInt whose
+// type is a big int. The literal text is the source of truth (IntValue is 0
+// when the literal overflowed int64); a compiler-synthesized const with no
+// text falls back to IntValue.
+func inRangeBigIntLiteral(c *mir.Const) (int64, bool) {
+	v := c.IntValue
+	if c.Text != "" {
+		parsed, ok := numlit.ParseInt64(c.Text)
+		if !ok {
+			return 0, false // beyond int64, so beyond the inline range
+		}
+		v = parsed
+	}
+	if v < fixiMin || v > fixiMax {
+		return 0, false
+	}
+	return v, true
+}
+
+func inRangeBigUintLiteral(c *mir.Const) (uint64, bool) {
+	v := c.UintValue
+	if c.Text != "" {
+		parsed, ok := numlit.ParseUint64(c.Text)
+		if !ok {
+			return 0, false
+		}
+		v = parsed
+	}
+	if v > fixuMax {
+		return 0, false
+	}
+	return v, true
+}
+
 func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 	if c == nil {
 		return "", "", fmt.Errorf("nil const")
@@ -171,6 +239,13 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 	switch c.Kind {
 	case mir.ConstInt:
 		if isBigIntType(fe.emitter.types, c.Type) {
+			// A literal whose value fits the inline range folds to a tagged
+			// word with no runtime call. The text carries full precision
+			// (IntValue is 0 on overflow), so parse it rather than trusting
+			// IntValue for the in-range test.
+			if v, ok := inRangeBigIntLiteral(c); ok {
+				return inlineFixnumWord(fixnumBits(v)), "ptr", nil
+			}
 			if c.Text != "" {
 				ptrTmp, dataLen, err := fe.emitBytesConst(c.Text)
 				if err != nil {
@@ -197,6 +272,9 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 		return fmt.Sprintf("%d", c.IntValue), ty, nil
 	case mir.ConstUint:
 		if isBigUintType(fe.emitter.types, c.Type) {
+			if v, ok := inRangeBigUintLiteral(c); ok {
+				return inlineFixnumWord(v), "ptr", nil
+			}
 			if c.Text != "" {
 				ptrTmp, dataLen, err := fe.emitBytesConst(c.Text)
 				if err != nil {

@@ -233,7 +233,13 @@ fn main() -> int {
     let w8: HeapStats = rt_heap_stats();
     let deferred_after: uint = rt_array_debug_deferred_base_drops();
 
-    let r1: int = check_frees("scope-end window", &w0, &w1, 6:uint);
+    // scope-end and view-order dropped by the arm/leaf int literals they
+    // contained: those were re-parsed heap bignums freed in-window before
+    // RV2-DEBT-036, now folded to inline words. Both the free AND the alloc
+    // fell by the same amount (balanced churn, verified: this test's own
+    // valgrind runs stay definitely-lost zero), so no reclamation was lost
+    // — the other six windows are unchanged.
+    let r1: int = check_frees("scope-end window", &w0, &w1, 4:uint);
     if r1 != 0 { return 11; }
     let r2: int = check_frees("early-return window", &w1, &w2, 1:uint);
     if r2 != 0 { return 12; }
@@ -247,7 +253,7 @@ fn main() -> int {
     if r6 != 0 { return 16; }
     let r7: int = check_frees("reassign-suppressed window", &w6, &w7, 1:uint);
     if r7 != 0 { return 17; }
-    let r8: int = check_frees("view-order window", &w7, &w8, 9:uint);
+    let r8: int = check_frees("view-order window", &w7, &w8, 5:uint);
     if r8 != 0 { return 18; }
     if deferred_after != deferred_before {
         print("view dropped after its base: deferral counter moved");

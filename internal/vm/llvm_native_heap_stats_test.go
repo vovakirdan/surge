@@ -33,8 +33,11 @@ func TestLLVMNativeBufferedChannelAllocatesSingleBlock(t *testing.T) {
 	ensureLLVMToolchain(t)
 
 	// The public LLVM path includes fixed HeapStats/native wrapper allocations around
-	// make_channel. With the native buffer co-allocated into rt_channel, capacity=1
-	// should add three more allocations than capacity=0; a separate buffer would add four.
+	// make_channel. The native buffer is co-allocated into the rt_channel block
+	// (rt_channel_new makes exactly one rt_alloc, sizing it for the ring buffer),
+	// so a buffered channel adds ZERO extra allocation BLOCKS over an unbuffered
+	// one — only the size of that single block grows. The functional half below
+	// (cap=0 send fails, cap=1 send succeeds) proves the buffer is really there.
 	source := `@entrypoint
 fn main() -> int {
     // Warm both channel paths first: the measured windows must contain
@@ -43,12 +46,14 @@ fn main() -> int {
     // when scope-exit drop synthesis landed) and is not this test's
     // subject. The buffered-vs-unbuffered relation below is what's pinned.
     //
-    // The pinned delta is the buffered channel's co-allocated ring buffer:
-    // two blocks. It was three until small ints became inline (fixnum) —
-    // the buffered window evaluates the capacity literal 1:uint, which used
-    // to heap-allocate a bignum, while the unbuffered window's 0:uint is the
-    // canonical zero (never allocated). That one-block asymmetry was folded
-    // into the old +3 and is gone now that 1:uint is an inline value.
+    // The buffered and unbuffered windows now allocate the SAME number of
+    // blocks. The whole historical difference (+3, then +2) was literal
+    // churn: the buffered window's capacity literal 1:uint was re-parsed into
+    // a transient heap bignum on evaluation, while the unbuffered window's
+    // 0:uint is the canonical zero that never allocates. RV2-DEBT-036 folds
+    // an in-range literal to an inline word, so 1:uint no longer allocates
+    // and the accounting difference collapses to zero — which is what "single
+    // block" meant all along.
     let warm0 = make_channel::<int>(0:uint);
     let warm1 = make_channel::<int>(1:uint);
     let s0: HeapStats = rt_heap_stats();
@@ -58,7 +63,7 @@ fn main() -> int {
     let s2: HeapStats = rt_heap_stats();
     let unbuffered_delta = s1.alloc_count - s0.alloc_count;
     let buffered_delta = s2.alloc_count - s1.alloc_count;
-    let expected_buffered_delta = unbuffered_delta + 2:uint;
+    let expected_buffered_delta = unbuffered_delta;
     if buffered_delta != expected_buffered_delta { return 1; }
     if ch0.try_send(1) { return 2; }
     let sent1 = ch1.try_send(42);
