@@ -173,7 +173,8 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 		}
 	}
 
-	for _, fn := range m.Funcs {
+	for _, __id := range m.SortedFuncIDs() {
+		fn := m.Funcs[__id]
 		if fn == nil {
 			continue
 		}
@@ -386,7 +387,8 @@ func buildTagAliases(mm *mono.MonoModule) map[symbols.SymbolID]symbols.SymbolID 
 	}
 	syms := mm.Source.Symbols.Table.Symbols
 	out := make(map[symbols.SymbolID]symbols.SymbolID)
-	for _, mf := range mm.Funcs {
+	for _, __k := range mm.SortedFuncKeys() {
+		mf := mm.Funcs[__k]
 		if mf == nil || !mf.InstanceSym.IsValid() || !mf.OrigSym.IsValid() {
 			continue
 		}

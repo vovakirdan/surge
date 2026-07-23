@@ -42,7 +42,8 @@ func findEntrypoint(mm *mono.MonoModule) *mono.MonoFunc {
 	if mm == nil {
 		return nil
 	}
-	for _, mf := range mm.Funcs {
+	for _, __k := range mm.SortedFuncKeys() {
+		mf := mm.Funcs[__k]
 		if mf == nil || mf.Func == nil {
 			continue
 		}

@@ -60,7 +60,9 @@ func LowerAsyncSingleSuspend(m *Module, semaRes *sema.Result, symTable *symbols.
 		return fmt.Errorf("mir: async lowering requires type interner")
 	}
 
-	for _, f := range m.Funcs {
+	for _, __id := range m.SortedFuncIDs() {
+
+		f := m.Funcs[__id]
 		if f == nil || !f.IsAsync {
 			continue
 		}
@@ -280,7 +282,7 @@ func allocAsyncPollFunc(m *Module) (FuncID, error) {
 		return NoFuncID, fmt.Errorf("mir: async: missing module")
 	}
 	maxID := FuncID(0)
-	for id := range m.Funcs {
+	for _, id := range m.SortedFuncIDs() {
 		if id > maxID {
 			maxID = id
 		}

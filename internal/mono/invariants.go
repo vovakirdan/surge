@@ -40,7 +40,8 @@ func validateMonoModuleNoTypeParams(mm *MonoModule, typesIn *types.Interner) err
 		return nil
 	}
 
-	for _, mf := range mm.Funcs {
+	for _, __k := range mm.SortedFuncKeys() {
+		mf := mm.Funcs[__k]
 		if mf == nil {
 			continue
 		}

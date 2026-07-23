@@ -90,7 +90,9 @@ func (l *funcLowerer) ensureSelectBodyPollFunc(span source.Span) (FuncID, error)
 	if l == nil || l.out == nil {
 		return NoFuncID, fmt.Errorf("mir: remote select: missing module output")
 	}
-	for id, fn := range l.out.Funcs {
+	for _, __id := range l.out.SortedFuncIDs() {
+		id := __id
+		fn := l.out.Funcs[__id]
 		if fn != nil && fn.Name == selectBodyPollName {
 			return id, nil
 		}

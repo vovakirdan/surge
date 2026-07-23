@@ -36,7 +36,8 @@ func (e *Emitter) emitFunctions() error {
 	}
 	reachable := e.reachableFuncs()
 	funcs := make([]*mir.Func, 0, len(e.mod.Funcs))
-	for _, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		f := e.mod.Funcs[__id]
 		if f != nil {
 			if _, ok := reachable[f.ID]; !ok {
 				continue
@@ -61,18 +62,22 @@ func (e *Emitter) reachableFuncs() map[mir.FuncID]struct{} {
 		return reachable
 	}
 	var roots []mir.FuncID
-	for id, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		id := __id
+		f := e.mod.Funcs[__id]
 		if isPollFunc(f) {
 			roots = append(roots, id)
 		}
 	}
-	for id, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		id := __id
+		f := e.mod.Funcs[__id]
 		if f != nil && f.Name == "__surge_start" {
 			roots = append(roots, id)
 		}
 	}
 	if len(roots) == 0 {
-		for id := range e.mod.Funcs {
+		for _, id := range e.mod.SortedFuncIDs() {
 			reachable[id] = struct{}{}
 		}
 		return reachable

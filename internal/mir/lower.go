@@ -50,7 +50,8 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 	}
 
 	funcTypeArgs := make(map[symbols.SymbolID][]types.TypeID, len(mm.Funcs))
-	for _, mf := range mm.Funcs {
+	for _, __k := range mm.SortedFuncKeys() {
+		mf := mm.Funcs[__k]
 		if mf == nil || !mf.InstanceSym.IsValid() || len(mf.TypeArgs) == 0 {
 			continue
 		}
@@ -58,7 +59,8 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 	}
 
 	monoFuncs := make([]*mono.MonoFunc, 0, len(mm.Funcs))
-	for _, mf := range mm.Funcs {
+	for _, __k := range mm.SortedFuncKeys() {
+		mf := mm.Funcs[__k]
 		if mf != nil && mf.Func != nil {
 			monoFuncs = append(monoFuncs, mf)
 		}

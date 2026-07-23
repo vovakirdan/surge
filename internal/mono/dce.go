@@ -38,7 +38,8 @@ func (b *monoBuilder) applyDCE() {
 		}
 	}
 
-	for k, mf := range b.mm.Funcs {
+	for _, k := range b.mm.SortedFuncKeys() {
+		mf := b.mm.Funcs[k]
 		if mf == nil {
 			delete(b.mm.Funcs, k)
 			continue

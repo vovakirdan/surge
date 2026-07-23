@@ -29,7 +29,9 @@ func (e *Emitter) emitPollDispatch() error {
 		return nil
 	}
 	pollIDs := make([]mir.FuncID, 0)
-	for id, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		id := __id
+		f := e.mod.Funcs[__id]
 		if isPollFunc(f) {
 			pollIDs = append(pollIDs, id)
 		}
@@ -146,7 +148,9 @@ func (e *Emitter) emitBlockingDispatch() error {
 		return nil
 	}
 	blockIDs := make([]mir.FuncID, 0)
-	for id, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		id := __id
+		f := e.mod.Funcs[__id]
 		if isBlockingFunc(f) {
 			blockIDs = append(blockIDs, id)
 		}

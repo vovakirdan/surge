@@ -1,6 +1,8 @@
 package mir
 
 import (
+	"sort"
+
 	"surge/internal/layout"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -43,4 +45,26 @@ type Module struct {
 	FuncBySym map[symbols.SymbolID]FuncID
 	Globals   []Global
 	Meta      *ModuleMeta
+}
+
+// SortedFuncIDs returns the module's function ids in ascending order.
+//
+// Funcs is a map, and Go randomises map iteration. Several passes walk it
+// while ALLOCATING identifiers — async lowering interns state types, the
+// LLVM backend assigns drop-function ids — so ranging over it directly
+// makes those ids depend on iteration order and the compiler stops being
+// reproducible: the same input yields different (still correct) output run
+// to run, which defeats golden comparison, IR diffing, and bisecting a
+// codegen regression. Every walk that allocates, emits, or otherwise
+// affects output must go through this.
+func (m *Module) SortedFuncIDs() []FuncID {
+	if m == nil || len(m.Funcs) == 0 {
+		return nil
+	}
+	ids := make([]FuncID, 0, len(m.Funcs))
+	for id := range m.Funcs {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(a, b int) bool { return ids[a] < ids[b] })
+	return ids
 }

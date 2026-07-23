@@ -37,7 +37,8 @@ func DumpMonoModule(w io.Writer, mm *MonoModule, opts MonoDumpOptions) error {
 	}
 
 	funcs := make([]*MonoFunc, 0, len(mm.Funcs))
-	for _, f := range mm.Funcs {
+	for _, __k := range mm.SortedFuncKeys() {
+		f := mm.Funcs[__k]
 		if f != nil {
 			funcs = append(funcs, f)
 		}
@@ -53,7 +54,8 @@ func DumpMonoModule(w io.Writer, mm *MonoModule, opts MonoDumpOptions) error {
 	})
 
 	typesList := make([]*MonoType, 0, len(mm.Types))
-	for _, t := range mm.Types {
+	for _, __k := range mm.SortedTypeKeys() {
+		t := mm.Types[__k]
 		if t != nil {
 			typesList = append(typesList, t)
 		}

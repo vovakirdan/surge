@@ -584,7 +584,8 @@ func (b *monoBuilder) collectTypesFromFuncs() {
 		return
 	}
 	seen := make(map[types.TypeID]struct{})
-	for _, mf := range b.mm.Funcs {
+	for _, __k := range b.mm.SortedFuncKeys() {
+		mf := b.mm.Funcs[__k]
 		if mf == nil || mf.Func == nil {
 			continue
 		}

@@ -11,7 +11,8 @@ func (e *Emitter) collectStringConsts() {
 	if e.mod == nil {
 		return
 	}
-	for _, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		f := e.mod.Funcs[__id]
 		if f == nil {
 			continue
 		}

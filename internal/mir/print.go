@@ -35,7 +35,8 @@ func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, _ DumpOptions) 
 	}
 
 	funcs := make([]*Func, 0, len(m.Funcs))
-	for _, f := range m.Funcs {
+	for _, __id := range m.SortedFuncIDs() {
+		f := m.Funcs[__id]
 		if f != nil {
 			funcs = append(funcs, f)
 		}

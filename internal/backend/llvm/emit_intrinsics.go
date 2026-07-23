@@ -13,7 +13,9 @@ func (e *Emitter) funcByName(name string) (mir.FuncID, bool) {
 		return mir.NoFuncID, false
 	}
 	base := stripGenericSuffix(name)
-	for id, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		id := __id
+		f := e.mod.Funcs[__id]
 		if f == nil {
 			continue
 		}
@@ -28,7 +30,9 @@ func (e *Emitter) funcByExactName(name string) (mir.FuncID, bool) {
 	if e == nil || e.mod == nil || name == "" {
 		return mir.NoFuncID, false
 	}
-	for id, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		id := __id
+		f := e.mod.Funcs[__id]
 		if f == nil {
 			continue
 		}
@@ -97,7 +101,9 @@ func (e *Emitter) collectFuncCandidates(name string, exact bool) []mir.FuncID {
 		return nil
 	}
 	candidates := make([]mir.FuncID, 0, 4)
-	for id, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		id := __id
+		f := e.mod.Funcs[__id]
 		if f == nil {
 			continue
 		}

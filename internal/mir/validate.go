@@ -32,7 +32,8 @@ func ValidateWithOptions(m *Module, typesIn *types.Interner, opts ValidateOption
 	if err := validateGlobalTypes(m.Globals, typesIn); err != nil {
 		errs = append(errs, err)
 	}
-	for _, f := range m.Funcs {
+	for _, __id := range m.SortedFuncIDs() {
+		f := m.Funcs[__id]
 		if f == nil {
 			continue
 		}

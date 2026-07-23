@@ -21,7 +21,9 @@ func LowerAsyncStateMachine(m *Module, semaRes *sema.Result, symTable *symbols.T
 		return fmt.Errorf("mir: async lowering requires type interner")
 	}
 
-	for _, f := range m.Funcs {
+	for _, __id := range m.SortedFuncIDs() {
+
+		f := m.Funcs[__id]
 		if f == nil || !f.IsAsync {
 			continue
 		}

@@ -27,7 +27,8 @@ func (e *Emitter) prepareFunctions() error {
 		return nil
 	}
 	funcs := make([]*mir.Func, 0, len(e.mod.Funcs))
-	for _, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		f := e.mod.Funcs[__id]
 		if f != nil {
 			funcs = append(funcs, f)
 		}
@@ -112,12 +113,15 @@ func (e *Emitter) collectParamCounts() error {
 	}
 	counts := make(map[mir.FuncID]int)
 	nameToID := make(map[string]mir.FuncID, len(e.mod.Funcs))
-	for id, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		id := __id
+		f := e.mod.Funcs[__id]
 		if f != nil && f.Name != "" {
 			nameToID[f.Name] = mir.FuncID(id)
 		}
 	}
-	for _, f := range e.mod.Funcs {
+	for _, __id := range e.mod.SortedFuncIDs() {
+		f := e.mod.Funcs[__id]
 		if f == nil {
 			continue
 		}
