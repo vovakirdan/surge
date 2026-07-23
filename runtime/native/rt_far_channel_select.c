@@ -41,6 +41,54 @@ static void select_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) 
     }
 }
 
+// A winner reply hands the arm table's payload ownership BACK to compiled
+// code: the caller's own arm dispatch reclaims every losing SEND payload
+// through sema's per-arm drop synthesis, the same machinery a local select
+// uses (internal/sema/type_expr_select.go merges the arms' moved-sets and
+// gives each arm the drops the others made). If the pending's free path
+// also dropped them, both owners would fire on the normal path — the
+// double free RV2-DEBT-064 records.
+//
+// This is where select DIVERGES from the result obligation's clear in
+// rt_remote_task_api.c's finish_retry, which clears unconditionally. That
+// is safe there because a non-success reply leaves result_bits at 0, so
+// there is nothing to take. An arm payload is the opposite: it stays fully
+// alive on a Cancelled reply, and the compiled cancelled path re-enters the
+// pend edge instead of running any arm block
+// (internal/backend/llvm/emit_crossing_select.go), so nothing caller-side
+// would ever reclaim it. The clear is therefore gated on a genuine winner
+// reply; every other outcome — cancelled, failed, or a teardown that never
+// reaches the caller at all — leaves the obligation with the free path.
+//
+// The caller still holds its own pending ref here, so the free path cannot
+// be running concurrently with this write. The lock is taken anyway, to stay
+// symmetric with record_select_commit, which writes the neighbouring
+// select_committed_index under it — one writer arguing from a liveness
+// invariant and the other from a lock is the kind of asymmetry that decays.
+static void select_disown_arms(rt_remote_task_pending* pending) {
+    rt_remote_task_state* state =
+        pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
+    if (pending == NULL || pending->select_arms == NULL || state == NULL) {
+        return;
+    }
+    pthread_mutex_lock(&state->lock);
+    for (uint64_t i = 0; i < pending->select_count; i++) {
+        pending->select_arms[i].payload_drop_fn_id = 0;
+    }
+    pthread_mutex_unlock(&state->lock);
+}
+
+static rt_remote_task_status
+select_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {
+    uint8_t kind = 0;
+    if (*slot != NULL &&
+        rt_remote_task_pending_snapshot(*slot, &kind, NULL) == RT_REMOTE_TASK_STATUS_OK &&
+        kind == RT_REMOTE_TASK_REPLY_KIND_SUCCESS) {
+        select_disown_arms(*slot);
+    }
+    return rt_immediate_on_finish_retry(slot, out_kind, out_bits);
+}
+
 rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
                                             const uint64_t* send_bits,
@@ -61,13 +109,13 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         rt_remote_task_status status =
             rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-            return rt_immediate_on_finish_retry(pending, out_kind, out_bits);
+            return select_finish_retry(pending, out_kind, out_bits);
         }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
-            return rt_immediate_on_finish_retry(pending, out_kind, out_bits);
+            return select_finish_retry(pending, out_kind, out_bits);
         }
         return RT_REMOTE_TASK_STATUS_PENDING;
     }

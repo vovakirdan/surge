@@ -52,6 +52,9 @@ func (e *Emitter) collectStringConsts() {
 					}
 					for k := range ins.Crossing.RemoteOps {
 						e.collectOperand(&ins.Crossing.RemoteOps[k].Receiver)
+						// A send arm ships a value too — the same operand
+						// the local select collects for SelectArmChanSend.
+						e.collectOperand(&ins.Crossing.RemoteOps[k].Value)
 					}
 				case mir.InstrSelect:
 					for k := range ins.Select.Arms {

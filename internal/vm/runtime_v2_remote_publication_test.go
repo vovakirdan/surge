@@ -938,7 +938,7 @@ void __surge_poll_call(uint64_t id) {
     if (id == POLL_SELECT_CALLER) {
         select_exec_state* st = (select_exec_state*)__task_state();
         rt_remote_task_status status = rt_far_channel_select(
-            st->anchor_ptrs, st->kinds, st->send_bits, st->count,
+            st->anchor_ptrs, st->kinds, st->send_bits, NULL, st->count,
             st->droppable ? DROP_REMOTE_STATE : 0, POLL_SELECT_BODY, st->body_state,
             &st->pending, &st->out_kind, &st->out_bits);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {

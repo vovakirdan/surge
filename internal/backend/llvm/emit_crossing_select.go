@@ -52,6 +52,37 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", armBitsPtr, armCount)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", armDropIDsPtr, armCount)
 
+	// The arm tables are built ONCE, on the true first attempt. A resumed
+	// retry re-enters this same block, and rt_far_channel_select's own retry
+	// branch returns on `*pending != NULL` before it reads anchors, kinds,
+	// send_bits, or send_drop_fn_ids at all — so anything re-evaluated here
+	// per round is silently discarded.
+	//
+	// What actually gets re-evaluated is narrower than it looks, and the
+	// distinction is worth stating so nobody re-derives it and deletes this
+	// split: a PLACE operand (a call result, a binding, a lease-minting
+	// receiver) is temp'd into a preceding block by splitAsyncAwaits, so
+	// re-entry only re-loads it and costs nothing. A CONST operand is
+	// embedded in the crossing instruction itself and lowers inline, right
+	// here — and several const kinds ALLOCATE: a `int`/`uint`/`float`
+	// literal outside the fixnum inline range calls rt_bigint_from_literal
+	// and friends, a string const calls rt_string_from_bytes. Measured: a
+	// bignum-literal send arm leaks exactly one orphaned bigint per retry
+	// round without this split (72 bytes/2 blocks vs 36/1 with it).
+	//
+	// That makes this the same category as emitChannelCreateCrossing's
+	// split, whose initBB allocates a handle — conditional on operand form
+	// here rather than unconditional, but the same hazard.
+	statusBB := fe.nextInlineBlock()
+	initBB := fe.nextInlineBlock()
+	retryBB := fe.nextInlineBlock()
+	pendingVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", pendingVal, pendingPtr)
+	isRetry := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne ptr %s, null\n", isRetry, pendingVal)
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isRetry, retryBB, initBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", initBB)
 	for i := range ins.RemoteOps {
 		op := &ins.RemoteOps[i]
 		anchorSlot := fe.nextTemp()
@@ -123,11 +154,11 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n",
 		dropIDsBase, armCount, armDropIDsPtr)
 
-	statusVal0 := fe.nextTemp()
+	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
 		"  %s = call i32 @rt_far_channel_select(ptr %s, ptr %s, ptr %s, ptr %s, i64 %d, i64 0, "+
 			"i64 %d, ptr null, ptr %s, ptr %s, ptr %s)\n",
-		statusVal0,
+		initStatus,
 		anchorsBase,
 		kindsBase,
 		bitsBase,
@@ -137,13 +168,27 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		pendingPtr,
 		kindPtr,
 		bitsPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", statusVal0, statusSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", initStatus, statusSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
-	statusBB := fe.nextInlineBlock()
+	// Retry: the pending already owns the shipped arm table (payloads
+	// included), so every arm-describing argument is passed inert — matching
+	// the C retry branch, which reads none of them.
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", retryBB)
+	retryStatus := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf,
+		"  %s = call i32 @rt_far_channel_select(ptr null, ptr null, ptr null, ptr null, i64 0, i64 0, "+
+			"i64 0, ptr null, ptr %s, ptr %s, ptr %s)\n",
+		retryStatus,
+		pendingPtr,
+		kindPtr,
+		bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", retryStatus, statusSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
+
 	pendingBB := fe.nextInlineBlock()
 	doneBB := fe.nextInlineBlock()
 	errBB := fe.nextInlineBlock()
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", statusBB)
 	statusVal := fe.nextTemp()

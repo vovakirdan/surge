@@ -138,8 +138,15 @@ struct rt_remote_task_state {
 };
 
 // Result-kind byte for TaskResult<T> replies: 2 = Cancelled, 1 = Success.
+// Compiled code tests the same two values on the reply edge (the crossing
+// emitters compare the reply kind against 1 to pick the success branch).
+#define RT_REMOTE_TASK_REPLY_KIND_SUCCESS 1
+#define RT_REMOTE_TASK_REPLY_KIND_CANCELLED 2
+
 static inline uint8_t rt_remote_task_result_kind(const rt_task* task) {
-    return task != NULL && task->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
+    return task != NULL && task->result_kind == TASK_RESULT_CANCELLED
+               ? RT_REMOTE_TASK_REPLY_KIND_CANCELLED
+               : RT_REMOTE_TASK_REPLY_KIND_SUCCESS;
 }
 
 rt_remote_task_state* rt_remote_task_state_get(rt_executor* ex);
