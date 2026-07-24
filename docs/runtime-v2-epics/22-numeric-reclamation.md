@@ -530,14 +530,36 @@ whole run). **Do not benchmark this epic against anything older than commit
   is the computed VALUE (a freed payload reads as garbage), with a negative
   control that reproduces the memcheck error.
 
-  **Remaining residual: one block per compare-arm payload extraction.** The
-  binding a compare arm introduces is never released: `inferComparePatternTypes`
-  types pattern bindings without registering them as droppable, and compare arms
-  push no drop scope to register them into. Registering into the ENCLOSING scope
-  would repeat the domination mistake — the binding is initialized only on its
-  own arm's path — so this needs an arm-scoped release, most likely in MIR where
-  the arm is an explicit single-entry region. The residual is pinned (not
-  silenced) by the same gate, which fails if it grows.
+  **Compare-arm payload bindings — FIXED, and the mechanism already existed.**
+  The binding a compare arm introduces was never released. Three approaches
+  were tried and two were wrong, which is worth recording because each failure
+  named a real constraint:
+
+  1. Registering it in a MIR temp-drop frame releases it at the end of its own
+     LET STATEMENT, not its scope — the value is freed before the arm body
+     reads it. Symptom: the program ran clean under valgrind and printed the
+     WRONG ANSWER. A leak census alone would have called that a success.
+  2. Wrapping the arm result in a synthesized `let` so the drops could run
+     after it just moves the problem: that binding is synthesized after sema
+     too, so it has no obligation either.
+  3. What works: `ReturnData.DropsAfterValue` already carries exactly this
+     contract — "free AFTER the return value evaluates (it may borrow them)
+     and before the terminator". A compare arm's `ret` is a `StmtReturn` with
+     `IsImplicit`, and MIR's implicit-return path **carried the field but
+     never emitted it**. Normalization now attaches the payload bindings there
+     and MIR emits them, one `emitExitDrops` call.
+
+  Restricted to reference-counted scalars deliberately: those are Copy, so an
+  arm can never move one out, and the binding's initialization retains — it is
+  a genuine second owner. For every other droppable type a payload binding
+  ALIASES storage the union still owns, so releasing it would be a double free.
+
+  **Reply edge measured again after the fix: definitely-lost ZERO at 1, 2 and
+  8 shards** for a bare `float` result over 16 crossings. The transfer argument
+  holds and the edge is ready to reopen. A COMPOSITE result carrying floats
+  (`@copy type P = { a: float, b: float }`) still leaks 32 blocks, so the gate
+  stays closed rather than reopening on a split rule ("a float may cross but a
+  struct of floats may not") that would then have to change again.
 
 - **Phase 1 remainder — the six crossing barriers.** Install a deep copy
   (`rt_bigfloat_clone`, recursive for composites — the mirror of the drop-glue

@@ -144,6 +144,11 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 				}
 			}
 
+			// Same contract the explicit-return path honours: these free AFTER
+			// the value evaluated (it may read them) and before the terminator.
+			// This path carried them unemitted, so a binding a compare arm
+			// introduced was never released.
+			l.emitExitDrops(data.DropsAfterValue)
 			l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: ctx.exit}})
 			return nil
 		}

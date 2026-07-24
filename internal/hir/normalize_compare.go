@@ -136,9 +136,9 @@ func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm Co
 	// `finally` is a wildcard default arm.
 	if arm.IsFinally || isWildcardPattern(arm.Pattern) {
 		if arm.Guard == nil {
-			return armReturnStmts(span, deepRelease, arm.Result)
+			return armReturnStmts(span, deepRelease, arm.Result, nil)
 		}
-		return []Stmt{mkIf(span, arm.Guard, &Block{Stmts: armReturnStmts(span, deepRelease, arm.Result), Span: span})}
+		return []Stmt{mkIf(span, arm.Guard, &Block{Stmts: armReturnStmts(span, deepRelease, arm.Result, nil), Span: span})}
 	}
 
 	if isNothingPattern(arm.Pattern) {
@@ -459,7 +459,13 @@ func stripOwnType(typesIn *types.Interner, id types.TypeID) types.TypeID {
 }
 
 func mkReturn(span source.Span, value *Expr) Stmt {
-	return Stmt{Kind: StmtReturn, Span: span, Data: ReturnData{Value: value, IsTail: false, IsImplicit: true}}
+	return mkReturnWithDrops(span, value, nil)
+}
+
+func mkReturnWithDrops(span source.Span, value *Expr, drops []DropLocal) Stmt {
+	return Stmt{Kind: StmtReturn, Span: span, Data: ReturnData{
+		Value: value, IsTail: false, IsImplicit: true, DropsAfterValue: drops,
+	}}
 }
 
 func mkIf(span source.Span, cond *Expr, thenB *Block) Stmt {
@@ -479,9 +485,9 @@ func mkMatchIf(span source.Span, cond *Expr, bindings []Stmt, guard, result *Exp
 	thenB := &Block{Span: span}
 	thenB.Stmts = append(thenB.Stmts, bindings...)
 	if guard == nil {
-		thenB.Stmts = append(thenB.Stmts, armReturnStmts(span, release, result)...)
+		thenB.Stmts = append(thenB.Stmts, armReturnStmts(span, release, result, nil)...)
 	} else {
-		thenB.Stmts = append(thenB.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: armReturnStmts(span, release, result)}))
+		thenB.Stmts = append(thenB.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: armReturnStmts(span, release, result, nil)}))
 	}
 	return mkIf(span, cond, thenB)
 }
@@ -499,6 +505,7 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 
 	thenB := &Block{Span: span}
 	current := thenB
+	var ownedBindings []DropLocal
 	for i, pat := range payload {
 		if pat == nil {
 			continue
@@ -510,7 +517,7 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 			Span: span,
 			Data: TagPayloadData{Value: subject, TagName: tag, Index: i},
 		}
-		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current)
+		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current, &ownedBindings)
 		if current == nil {
 			current = &Block{Span: span}
 		}
@@ -534,15 +541,15 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 	}
 
 	if guard == nil {
-		current.Stmts = append(current.Stmts, armReturnStmts(span, release, result)...)
+		current.Stmts = append(current.Stmts, armReturnStmts(span, release, result, ownedBindings)...)
 	} else {
-		current.Stmts = append(current.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: armReturnStmts(span, release, result)}))
+		current.Stmts = append(current.Stmts, mkIf(span, guard, &Block{Span: span, Stmts: armReturnStmts(span, release, result, ownedBindings)}))
 	}
 
 	return mkIf(span, cond, thenB)
 }
 
-func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, pat *Expr, body *Block) *Block {
+func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, pat *Expr, body *Block, owned *[]DropLocal) *Block {
 	if ctx == nil || subject == nil || body == nil || pat == nil {
 		return body
 	}
@@ -578,7 +585,7 @@ func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subje
 				Span: span,
 				Data: TagPayloadData{Value: subject, TagName: tagName, Index: i},
 			}
-			thenB = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, subPat, thenB)
+			thenB = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, subPat, thenB, owned)
 			if thenB == nil {
 				thenB = &Block{Span: span}
 			}
@@ -603,6 +610,14 @@ func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subje
 				Ownership: ctx.inferOwnership(ty),
 			},
 		})
+		// A pattern binding is introduced HERE, long after sema, so it carries
+		// no scope-exit obligation. For a reference-counted scalar its
+		// initialization RETAINS — it is a genuine second owner — and the
+		// reference would otherwise never be given back. Hand it to the arm's
+		// return, which frees it after the result has been evaluated.
+		if owned != nil && ctx.isRefCountedScalar(ty) {
+			*owned = append(*owned, DropLocal{SymbolID: sym, Type: ty, Span: span})
+		}
 		return body
 	}
 
@@ -703,4 +718,13 @@ func lowerTupleArm(ctx *normCtx, span source.Span, subject *Expr, subjectTy type
 	}
 
 	return Stmt{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: body}}
+}
+
+// isRefCountedScalar reports whether values of this type carry a reference
+// count, i.e. whether a binding of it owns something to give back.
+func (ctx *normCtx) isRefCountedScalar(ty types.TypeID) bool {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
+		return false
+	}
+	return ctx.mod.TypeInterner.IsRefCountedScalar(resolveAlias(ctx.mod.TypeInterner, ty, 0))
 }

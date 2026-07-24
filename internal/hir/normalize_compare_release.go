@@ -128,8 +128,8 @@ func deepDropStmt(subject *Expr) Stmt {
 // scrutinee, or an arm that aliased the WHOLE scrutinee box into a live
 // binding — see the bindingPattern case in lowerCompareArm, which never
 // calls this helper with a non-nil release for exactly that reason).
-func armReturnStmts(span source.Span, release *Stmt, result *Expr) []Stmt {
-	ret := mkReturn(span, result)
+func armReturnStmts(span source.Span, release *Stmt, result *Expr, owned []DropLocal) []Stmt {
+	ret := mkReturnWithDrops(span, result, owned)
 	if release == nil {
 		return []Stmt{ret}
 	}
