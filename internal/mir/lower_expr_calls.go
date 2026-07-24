@@ -9,7 +9,7 @@ import (
 	"surge/internal/types"
 )
 
-func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID) (Operand, error) {
+func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID, calleeStores bool) (Operand, error) {
 	if op, ok := l.lowerSharedRefReborrowArg(argExpr, paramType); ok {
 		return op, nil
 	}
@@ -22,10 +22,27 @@ func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID
 	// This is also what keeps the arithmetic honest: `a + b` lowers to a magic
 	// call whose runtime implementation takes `const void*` and frees nothing.
 	// A retain here would leak on every operation.
-	if argExpr != nil && l.isRefCountedScalar(argExpr.Type) {
+	//
+	// `calleeStores` is the exception: a tag constructor looks like a call but
+	// is a STORE — `Some(x)` keeps the payload inside the union it builds,
+	// which outlives the call, so the union needs its own reference exactly
+	// like a struct-literal field does.
+	if !calleeStores && argExpr != nil && l.isRefCountedScalar(argExpr.Type) {
 		return l.lowerExpr(argExpr, false)
 	}
 	return l.lowerExpr(argExpr, true)
+}
+
+// calleeStoresArguments reports whether the call target keeps its arguments
+// beyond the call rather than borrowing them for its duration. Tag
+// constructors do: the value they build owns the payload.
+func (l *funcLowerer) calleeStoresArguments(symID symbols.SymbolID) bool {
+	if l == nil || !symID.IsValid() || l.symbols == nil ||
+		l.symbols.Table == nil || l.symbols.Table.Symbols == nil {
+		return false
+	}
+	sym := l.symbols.Table.Symbols.Get(symID)
+	return sym != nil && sym.Kind == symbols.SymbolTag
 }
 
 func (l *funcLowerer) lowerSharedRefReborrowArg(argExpr *hir.Expr, paramType types.TypeID) (Operand, bool) {
@@ -66,6 +83,7 @@ func (l *funcLowerer) calleeFunc(symID symbols.SymbolID) *hir.Func {
 
 func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, error) {
 	fn := l.calleeFunc(data.SymbolID)
+	stores := l.calleeStoresArguments(data.SymbolID)
 	if fn == nil || fn.IsIntrinsic() || len(data.Args) >= len(fn.Params) {
 		args := make([]Operand, 0, len(data.Args))
 		for i, a := range data.Args {
@@ -73,7 +91,7 @@ func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, 
 			if fn != nil && i < len(fn.Params) {
 				paramType = fn.Params[i].Type
 			}
-			op, err := l.lowerCallArgExpr(a, paramType)
+			op, err := l.lowerCallArgExpr(a, paramType, stores)
 			if err != nil {
 				return nil, err
 			}
@@ -135,7 +153,7 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 
 	args := make([]Operand, 0, len(params))
 	for i, argExpr := range data.Args {
-		op, err := l.lowerCallArgExpr(argExpr, params[i].Type)
+		op, err := l.lowerCallArgExpr(argExpr, params[i].Type, l.calleeStoresArguments(data.SymbolID))
 		if err != nil {
 			return nil, err
 		}

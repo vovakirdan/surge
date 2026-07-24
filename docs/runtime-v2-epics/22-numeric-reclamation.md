@@ -504,12 +504,40 @@ whole run). **Do not benchmark this epic against anything older than commit
   `lower_temp_drops.go` states; the naive flush violated it.
 
   Still open after those fixes: **1 block per crossing**, from the union
-  payload path on the CALLER side. `tag_payload` extracts the word without
-  retaining, `release_box` frees the box without releasing the payload, and the
-  compare-arm binding that receives it is never registered as droppable
-  (`inferComparePatternTypes` types pattern bindings but does not register
-  them). The three interlock, so the reply barrier needs that path settled
-  before the gate reopens.
+  payload path on the CALLER side — see the next entry, which chased it.
+
+- **Union payload path (partly fixed).** Chasing that residual found a
+  USE-AFTER-FREE the reclamation vertical had introduced, not just a leak.
+  `Option<float>` produced garbage and panicked with "numeric size limit
+  exceeded" — the corrupted word being read as a bignum length. Bisected to the
+  reclamation commit.
+
+  Cause: **a tag constructor looks like a call but is a STORE.**
+  `Some(x)` lowers to `call Some(...)`, so it took the "reference-counted
+  scalar arguments BORROW" rule that is correct for real calls — and is what
+  keeps `a + b` from leaking on every operation. But the union it builds keeps
+  the payload past the call, so the producer's `drop` freed a block the union
+  still pointed at:
+
+      L4 = call __add(...)      ; rc=1
+      L5 = call Some(copy L4)   ; union takes the word, no reference
+      drop L4                   ; rc=0 -> FREED, union now dangles
+      return move L6
+
+  Fix: `calleeStoresArguments` marks a `symbols.SymbolTag` callee, and its
+  arguments retain like struct-literal fields do. Gate:
+  `TestRuntimeV2FloatUnionPayloadSurvivesItsConstructor`, whose sharpest check
+  is the computed VALUE (a freed payload reads as garbage), with a negative
+  control that reproduces the memcheck error.
+
+  **Remaining residual: one block per compare-arm payload extraction.** The
+  binding a compare arm introduces is never released: `inferComparePatternTypes`
+  types pattern bindings without registering them as droppable, and compare arms
+  push no drop scope to register them into. Registering into the ENCLOSING scope
+  would repeat the domination mistake — the binding is initialized only on its
+  own arm's path — so this needs an arm-scoped release, most likely in MIR where
+  the arm is an explicit single-entry region. The residual is pinned (not
+  silenced) by the same gate, which fails if it grows.
 
 - **Phase 1 remainder — the six crossing barriers.** Install a deep copy
   (`rt_bigfloat_clone`, recursive for composites — the mirror of the drop-glue

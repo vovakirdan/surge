@@ -108,3 +108,68 @@ func TestRuntimeV2FloatReclamationValgrindZero(t *testing.T) {
 		)
 	}
 }
+
+// A tag constructor LOOKS like a call but is a STORE: the union it builds keeps
+// the payload, which outlives the call. Passing the payload as a borrowing
+// argument — correct for a real call, and what keeps the arithmetic from
+// leaking — released the source while the union still pointed at it, so the
+// value read back was freed memory. Symptom: "numeric size limit exceeded",
+// because the corrupted word was then parsed as a bignum length.
+//
+// This row's gate is USE-AFTER-FREE plus the computed value, not zero leak: the
+// payload a compare arm binds is still not released, because pattern bindings
+// carry no drop obligation (`inferComparePatternTypes` types them without
+// registering them) and compare arms push no drop scope to register them into.
+// The residual is exactly one block per extraction and is pinned here so it
+// cannot grow silently; it goes to zero when that binding gains a release.
+const runtimeV2FloatUnionPayloadSource = `
+fn boxed(k: int) -> float? {
+    if k == 0 { return nothing; }
+    return 1.5 + 2.5;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut acc: float = 0.0;
+    let mut k: int = 1;
+    while k < 21 {
+        let o: float? = boxed(k);
+        let v: float = compare o { Some(x) => x; nothing => 0.0; };
+        acc = acc + v;
+        k = k + 1;
+    }
+    print(acc to string);
+    print("float-union-payload-witness");
+    return 0;
+}
+`
+
+func TestRuntimeV2FloatUnionPayloadSurvivesItsConstructor(t *testing.T) {
+	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2FloatUnionPayloadSource, nil)
+	env := envWithStdlib(repoRoot(t))
+	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 120*time.Second)
+	if hasValgrindMemcheckError(stderr) {
+		t.Fatalf("valgrind reported a real memcheck error — the boxed payload was freed while the union still held it\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if exitCode != 0 {
+		t.Fatalf("float union payload e2e failed (exit=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "float-union-payload-witness") {
+		t.Fatalf("missing completion marker; stdout=%q", stdout)
+	}
+	// 20 iterations x (1.5 + 2.5) = 80. A freed payload reads as garbage and
+	// either panics or prints something else, so the value is the sharpest
+	// check that the union really carried a live block.
+	if !strings.HasPrefix(stdout, "80\n") {
+		t.Fatalf("boxed float payload did not survive its constructor; want the sum 80 first, stdout=%q", stdout)
+	}
+	bytesLost, blocksLost, err := parseValgrindDefinitelyLost(stderr)
+	if err != nil {
+		t.Fatalf("parse valgrind leak summary: %v\nstderr:\n%s", err, stderr)
+	}
+	const knownResidualBlocks = 20 // one per compare-arm payload extraction
+	if blocksLost > knownResidualBlocks {
+		t.Fatalf("union payload leak GREW past the recorded residual: %d bytes in %d blocks, want at most %d blocks\nstderr:\n%s",
+			bytesLost, blocksLost, knownResidualBlocks, stderr)
+	}
+}
