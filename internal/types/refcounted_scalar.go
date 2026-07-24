@@ -14,7 +14,7 @@ package types
 // they carry an inline fixnum form (odd low bit) that a count must skip, so
 // they add a branch to a mechanism rather than a mechanism.
 //
-// The fixed-width types are deliberately NOT included: `f32`/`f64`, `i8..i64`
+// The fixed-width types are deliberately NOT included: `f32`/`float64`, `i8..i64`
 // and `u8..u64` are machine words with no heap behind them and must keep
 // costing a register move.
 func (in *Interner) IsRefCountedScalar(id TypeID) bool {

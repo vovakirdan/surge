@@ -202,6 +202,21 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 				"blocking captures must be by value; cannot capture reference %s", tc.typeLabel(capType))
 			continue
 		}
+		// `blocking` ships its state to a worker thread while this one keeps
+		// running, so a captured arbitrary-precision value would leave both
+		// threads pointing at one counted block. The count is deliberately not
+		// atomic, so that is a race, not just a sharing question. A Copy
+		// capture cannot be made exclusive either — the caller keeps its
+		// binding by definition. Refuse until the boundary deep-copies.
+		if tc.result != nil && tc.result.ContainsRefCountedScalar(capType) && tc.isCopyType(capType) {
+			tc.report(diag.SemaCrossNotShardMovable, cap.span,
+				"`%s` cannot be captured into `blocking` yet: it carries an arbitrary-precision "+
+					"value, which is a reference into a counted heap block, and the count is not "+
+					"safe to share with the worker thread. Use a fixed-width type (`float64`) for the "+
+					"captured value",
+				tc.typeLabel(capType))
+			continue
+		}
 		tc.checkSpawnSendability(cap.symID, cap.span)
 		tc.observeMove(cap.exprID, cap.span)
 	}

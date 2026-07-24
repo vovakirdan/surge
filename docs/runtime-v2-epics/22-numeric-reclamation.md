@@ -444,20 +444,44 @@ whole run). **Do not benchmark this epic against anything older than commit
 
   **Cross-shard paths are CLOSED, not solved.** A non-atomic count is only
   sound while a block stays on one shard, and the barriers do not exist yet, so
-  the gate now REFUSES a refcounted scalar at a crossing: as a reply/await
-  payload (`TriviallyTransportableBits`) and as a capture
-  (`classifyOnCapture`). Both diagnostics name the real reason rather than
-  saying "not plain-copy data", which would be false — `float` IS Copy. This is
-  a deliberate, temporary narrowing: before this work a float crossing compiled
-  and leaked; now it does not compile. It reopens when the barriers land.
+  every path that would hand a second shard the same word is now REFUSED. This
+  is a deliberate, temporary narrowing: before this work a float crossing
+  compiled and leaked, and after the count landed it would have RACED. It
+  reopens when the barriers land.
+
+  Four gates, each with a diagnostic that names the real reason rather than
+  saying "not plain-copy data" — which would be false, since `float` IS Copy:
+
+  - reply / `far Task.await()` payload — `TriviallyTransportableBits`
+  - `on` / `spawn on` capture — `classifyOnCapture`
+  - `blocking` capture — `typeExprBlocking`
+  - remote channel element — `crossingRecordExecutable` +
+    `classifyCrossingPayload` at `CrossingLoweringChannelCreate`, so the
+    diagnostic lands where the element type was chosen rather than at each send
+
+  **The test is RECURSIVE** (`Result.ContainsRefCountedScalar`), and that is
+  load-bearing rather than defensive: `@copy type P = { v: float }` is itself
+  Copy — `@copy` requires all fields Copy, and `float` IS Copy — so it shipped
+  as plain bits and carried the block one level down. Verified reachable before
+  the fix. Unions are deliberately not walked: a union is not Copy, so it can
+  only cross as an owned `@shard_movable` MOVE, which transfers references
+  instead of sharing them.
+
+  Gate: `TestRefCountedScalarCrossingsAreRefused` pins all four refusals, with
+  `TestFixedWidthFloatStillCrosses` as the control — `float64` must keep
+  crossing, and that row asserts the program compiles with NO errors, not just
+  without this one code, so it cannot pass vacuously. (It did pass vacuously
+  first: the fixed-width float is spelled `float64`, not `f64`, and every
+  diagnostic's "use a fixed-width type" advice named a type that does not
+  exist. Corrected.)
 
 - **Phase 1 remainder — the six crossing barriers.** Install a deep copy
-  (`rt_bigfloat_clone`, recursive for composites) at: `on`/`spawn on` captures,
-  `blocking`, far channel send, crossing reply / `far Task.await()`, remote
-  select SEND arms. Then reopen the two gates above. Note the reply edge is a
-  TRANSFER rather than sharing (the producing shard keeps no reference), so it
-  may need only the handoff barrier, while captures and sends are genuine
-  sharing and need the copy.
+  (`rt_bigfloat_clone`, recursive for composites — the mirror of the drop-glue
+  walk) at: `on`/`spawn on` captures, `blocking`, far channel send, crossing
+  reply / `far Task.await()`, remote select SEND arms. Then reopen the four
+  gates above. Note the reply edge is a TRANSFER rather than sharing (the
+  producing shard keeps no reference), so it may need only the handoff barrier,
+  while captures and sends are genuine sharing and need the copy.
 
 - **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
   already proven by float.

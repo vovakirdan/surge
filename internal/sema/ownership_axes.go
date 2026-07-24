@@ -106,9 +106,77 @@ func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
 	// A reference-counted scalar is Copy, but its bits are a pointer to a
 	// counted block, and the count is non-atomic. Letting the raw word cross
 	// would put two shards on one counter. It becomes shippable again once the
-	// boundary installs a deep copy.
-	if r.TypeInterner.IsRefCountedScalar(resolveAlias(r.TypeInterner, id)) {
+	// boundary installs a deep copy. The test is RECURSIVE because a `@copy`
+	// struct of floats is Copy as a whole and would otherwise carry them across
+	// one level down.
+	if r.ContainsRefCountedScalar(id) {
 		return false
 	}
 	return r.IsCopyType(id)
+}
+
+// ContainsRefCountedScalar reports whether a value of this type holds, at any
+// depth, an arbitrary-precision scalar — i.e. whether copying its bits would
+// duplicate a reference into a counted heap block without touching the count.
+//
+// This is the crossing question, not the drop question: a `@copy` struct of
+// floats is itself Copy, ships as plain bits today, and would hand a second
+// shard a pointer into the same counted block.
+//
+// Unions are deliberately not walked. A union is not Copy, so it can only
+// cross as an owned `@shard_movable` MOVE, which transfers the references
+// rather than sharing them and needs no copy at the boundary.
+func (r *Result) ContainsRefCountedScalar(id types.TypeID) bool {
+	if r == nil || r.TypeInterner == nil {
+		return false
+	}
+	return r.containsRefCountedScalar(id, make(map[types.TypeID]struct{}))
+}
+
+func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID]struct{}) bool {
+	if id == types.NoTypeID {
+		return false
+	}
+	in := r.TypeInterner
+	id = resolveAlias(in, id)
+	if in.IsRefCountedScalar(id) {
+		return true
+	}
+	if _, ok := seen[id]; ok {
+		// A recursive type reached itself; this edge contributes nothing and
+		// the answer comes from its other members.
+		return false
+	}
+	seen[id] = struct{}{}
+
+	tt, ok := in.Lookup(id)
+	if !ok {
+		return false
+	}
+	switch tt.Kind {
+	case types.KindOwn, types.KindArray:
+		return r.containsRefCountedScalar(tt.Elem, seen)
+	case types.KindReference, types.KindPointer:
+		// A borrow names storage it does not carry; the pointee crosses (or
+		// fails to) on its own terms, and borrows cannot cross at all.
+		return false
+	case types.KindStruct:
+		for _, f := range in.StructFields(id) {
+			if r.containsRefCountedScalar(f.Type, seen) {
+				return true
+			}
+		}
+		return false
+	case types.KindTuple:
+		if info, ok := in.TupleInfo(id); ok && info != nil {
+			for _, el := range info.Elems {
+				if r.containsRefCountedScalar(el, seen) {
+					return true
+				}
+			}
+		}
+		return false
+	default:
+		return false
+	}
 }

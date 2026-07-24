@@ -63,6 +63,19 @@ func classifyCrossingPayload(
 ) (crossingGuardFinding, bool) {
 	label := func(t types.TypeID) string { return types.Label(semaRes.TypeInterner, t) }
 	switch info.Kind {
+	case sema.CrossingLoweringChannelCreate:
+		if semaRes.ContainsRefCountedScalar(info.PayloadType) {
+			return crossingGuardFinding{
+				Code: diag.FutCrossingPayloadNotShippable,
+				Span: info.Span,
+				Message: fmt.Sprintf(
+					"a remote channel cannot carry `%s` yet: it holds an arbitrary-precision "+
+						"value, which is a reference into a counted heap block. A send leaves the "+
+						"sender's copy alive, so both shards would share one count, and the count "+
+						"is not safe to share. Use a fixed-width element type (`float64`)",
+					label(info.PayloadType)),
+			}, true
+		}
 	case sema.CrossingLoweringSpawnOn, sema.CrossingLoweringOnPlacement,
 		sema.CrossingLoweringOnFarHandle:
 		for i := range info.Captures {
@@ -210,7 +223,7 @@ func refCountedCrossingMessage(semaRes *sema.Result, t types.TypeID, subject str
 	return fmt.Sprintf(
 		"%s `%s` cannot cross a shard boundary yet: it is arbitrary-precision, so the "+
 			"value is a reference into a counted heap block, and the count is not safe to "+
-			"share between shards. Convert to a fixed-width type (`f64`) for the crossing, "+
+			"share between shards. Convert to a fixed-width type (`float64`) for the crossing, "+
 			"or keep the value on one shard and cross a result derived from it",
 		subject, types.Label(semaRes.TypeInterner, t)), true
 }

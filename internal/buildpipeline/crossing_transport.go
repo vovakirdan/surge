@@ -109,7 +109,14 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		// The buffer, the parked-receiver mailbox, and each remote-select
 		// SEND arm now carry a payload_drop_fn_id (Task 8), so a non-Copy
 		// element reclaims correctly; any element type may mint remotely.
-		return true
+		//
+		// The exception is an element carrying an arbitrary-precision value.
+		// It is Copy, so a send leaves the sender's binding alive while the
+		// receiving shard takes the same word — one counted block, two shards,
+		// and the count is not atomic. Refuse the channel at its creation
+		// rather than at each send, so the diagnostic lands where the element
+		// type was chosen.
+		return !res.ContainsRefCountedScalar(info.PayloadType)
 	case sema.CrossingLoweringChannelSelect:
 		// The reply is the winner index (plain bits); the arms' send payloads
 		// are plain-copy by channel construction. Async context is the sole
