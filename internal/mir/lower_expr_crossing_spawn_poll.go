@@ -67,9 +67,10 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 		resultLocal = addLocal(l.f, "__result", result, localFlagsFor(l.types, l.sema, result))
 	}
 	l.returnStack = append(l.returnStack, returnCtx{
-		exit:      exitBB,
-		hasResult: hasResult,
-		result:    Place{Local: resultLocal},
+		exit:           exitBB,
+		hasResult:      hasResult,
+		result:         Place{Local: resultLocal},
+		tempFrameDepth: len(l.tempDropFrames),
 	})
 	if body != nil {
 		if err := l.lowerBlock(body); err != nil {

@@ -475,6 +475,42 @@ whole run). **Do not benchmark this epic against anything older than commit
   diagnostic's "use a fixed-width type" advice named a type that does not
   exist. Corrected.)
 
+- **Reply-edge probe (done; result: NOT free).** The design note guessed the
+  reply edge might need no copy because it is a transfer rather than sharing.
+  Measured by temporarily reopening the gate and running 16 `on distributed`
+  crossings under valgrind at 1/2/8 shards: **48 blocks leaked, 3 per
+  crossing.** The transfer reasoning holds — nothing double-freed — but the
+  crossing BODY leaked everything it built: both literals and the arithmetic
+  result. Two causes, both now fixed and both wider than float:
+
+  1. `ret` reached the block's exit by a goto WITHOUT flushing the temp-drop
+     frames of the regions it skipped. `return` had always flushed; `ret` never
+     did, because before refcounted scalars the only frame contents were
+     sema-flagged owned temps, and `dropObligationsSuppressed` records none
+     inside a crossing body — so the gap was invisible.
+  2. The block-expression result slot was read with a retain while `ret` had
+     already stored a retained reference into it, so the slot's own reference
+     was never given back — one leak per block expression that yields a
+     refcounted scalar.
+
+  **The first fix is bounded on purpose, and the obvious version is wrong.**
+  Flushing ALL open frames at `ret` segfaults: a frame opened BEFORE the block
+  expression can hold a temp this path never materialized (the block's own
+  result slot is exactly that), and releasing one reads an uninitialized word.
+  Verified — SIGSEGV in `rt_bigfloat_release` on an address that was never
+  allocated. `returnCtx` therefore records the frame depth at push, and `ret`
+  flushes only the frames above it, which are entirely inside the block and so
+  dominated by the `ret`. This is the invariant the head of
+  `lower_temp_drops.go` states; the naive flush violated it.
+
+  Still open after those fixes: **1 block per crossing**, from the union
+  payload path on the CALLER side. `tag_payload` extracts the word without
+  retaining, `release_box` frees the box without releasing the payload, and the
+  compare-arm binding that receives it is never registered as droppable
+  (`inferComparePatternTypes` types pattern bindings but does not register
+  them). The three interlock, so the reply barrier needs that path settled
+  before the gate reopens.
+
 - **Phase 1 remainder — the six crossing barriers.** Install a deep copy
   (`rt_bigfloat_clone`, recursive for composites — the mirror of the drop-glue
   walk) at: `on`/`spawn on` captures, `blocking`, far channel send, crossing

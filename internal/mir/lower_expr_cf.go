@@ -226,14 +226,18 @@ func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consum
 	hasResult := e.Type != types.NoTypeID && !l.isNothingType(e.Type)
 	resultLocal := NoLocalID
 	if hasResult {
-		resultLocal = l.newTemp(e.Type, "block", e.Span)
+		// The result slot is a TRANSFER: `ret` stores a reference into it and
+		// the consumer takes that reference, so it must not also be released
+		// here — see the read at the end of this function.
+		resultLocal = l.newTransferTemp(e.Type, "block", e.Span)
 	}
 
 	exitBB := l.newBlock()
 	l.returnStack = append(l.returnStack, returnCtx{
-		exit:      exitBB,
-		hasResult: hasResult,
-		result:    Place{Local: resultLocal},
+		exit:           exitBB,
+		hasResult:      hasResult,
+		result:         Place{Local: resultLocal},
+		tempFrameDepth: len(l.tempDropFrames),
 	})
 	if err := l.lowerBlock(data.Block); err != nil {
 		return Operand{}, err
@@ -252,6 +256,11 @@ func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consum
 	l.startBlock(exitBB)
 	if !hasResult {
 		return l.constNothing(e.Type), nil
+	}
+	// Reading the transfer slot must not retain again: `ret` already gave it
+	// the reference the consumer receives.
+	if l.isRefCountedScalar(e.Type) {
+		return l.placeOperand(Place{Local: resultLocal}, e.Type, false), nil
 	}
 	return l.placeOperand(Place{Local: resultLocal}, e.Type, consume), nil
 }

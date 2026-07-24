@@ -64,7 +64,19 @@ fn main() -> int {
     let echoed: float = echo(made);
     let ratio: float = 1.0 / 3.0;
 
-    if acc > 0.0 && sum > 0.0 && walked > 0.0 && echoed > 0.0 && ratio > 0.0 {
+    // A block expression whose value leaves through ret. That edge reaches
+    // the block's exit by a jump, so the regions it skips never run the flush
+    // they would have run on normal completion — their temps have to be freed
+    // on the jump instead. Run it in a loop so a per-iteration leak is loud.
+    let mut branched: float = 0.0;
+    let mut j: int = 0;
+    while j < 20 {
+        let picked: float = compare j { 0 => { ret 1.5 + 2.5; }; _ => { ret 0.25 + 0.75; }; };
+        branched = branched + picked;
+        j = j + 1;
+    }
+
+    if acc > 0.0 && sum > 0.0 && walked > 0.0 && echoed > 0.0 && ratio > 0.0 && branched > 0.0 {
         print("float-reclamation-witness");
         return 0;
     }

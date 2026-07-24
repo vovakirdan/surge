@@ -213,6 +213,10 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 				return err
 			}
 		}
+		// The regions between here and the block's exit are skipped by the
+		// goto below and never run their own flush, so their temps are freed
+		// on this edge.
+		l.flushTempDropsForRet(ctx.tempFrameDepth, ctx.result.Local)
 		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: ctx.exit}})
 		return nil
 

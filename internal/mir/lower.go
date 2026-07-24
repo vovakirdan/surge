@@ -182,6 +182,13 @@ type returnCtx struct {
 	exit      BlockID
 	hasResult bool
 	result    Place
+	// tempFrameDepth is how many temp-drop frames were open when this block
+	// expression started. A `ret` inside it reaches the exit by a goto, so the
+	// regions it skips never run their own flush; their temps are the frames
+	// ABOVE this depth, and only those — a frame opened before the block began
+	// may hold a temp this path never materialized, and releasing that reads
+	// an uninitialized slot.
+	tempFrameDepth int
 }
 
 type funcLowerer struct {
