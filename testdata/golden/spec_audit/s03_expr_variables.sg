@@ -1,7 +1,6 @@
 // §3.1 Variables Audit
 
 const CONSTANT: int = 42;
-let top_level: int = 10;
 
 @entrypoint
 fn main() {
@@ -20,12 +19,11 @@ fn main() {
 
     // Constant value
     print("const: " + CONSTANT to string);
-    print("top-level let: " + top_level to string);
 
     print("§3.1 Variables: PASS");
     print("  - let: PASS");
     print("  - let mut: PASS");
     print("  - default init: PASS");
     print("  - const: PASS");
-    print("  - top-level let: PASS");
+    print("  - const is the only module-level declaration: PASS");
 }

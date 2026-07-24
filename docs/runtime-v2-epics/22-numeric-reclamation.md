@@ -166,6 +166,21 @@ sema fixtures such as `testdata/test_let/*` and
 `testdata/golden/mir/toplevel_globals.sg`) which will need rewriting or
 reclassifying as invalid.
 
+**Two further costs found while landing the ban, not visible at design time:**
+
+- **`@deprecated` on a binding becomes unreachable.** A `let` STATEMENT carries
+  no attributes (`Stmts.NewLet` has no attrs parameter), so a module-level
+  `let` was the only deprecable variable. `checkDeprecatedSymbol(symID,
+  "variable", ...)` (`internal/sema/type_expr_values.go` ~42) can no longer
+  fire; `"constant"` and `"function"` are unaffected. The two cases were
+  removed from `testdata/golden/sema/invalid/attrs/deprecated_usage.sg`.
+- **SEM3108 (`SemaTaskEscapesScope`) is no longer reachable alone.** Its only
+  emission site is the module-scope `ItemLet` arm, so every program that
+  triggers it now triggers SEM3177 on the same line. Left in place
+  deliberately — it still names a second, more specific problem, and retiring a
+  diagnostic is its own decision. `task_escape_global.diag` records all three
+  codes.
+
 ## Do NOT Flip `IsCopy`
 
 RV2-DEBT-038's sketch (M4) says to make these types non-Copy. **That cannot
@@ -291,11 +306,41 @@ whole run). **Do not benchmark this epic against anything older than commit
 
 ## Phases
 
-- **Phase 0a — ban module-level `let`.** A sema diagnostic refusing
-  `ast.ItemLet` at module scope, pointing the user at `const`. Rewrite or
-  reclassify the 17 fixtures. This is the one step that DOES change language
-  semantics, so it lands on its own and is separately reviewable. It is a
-  prerequisite for the non-atomic refcount, not a cleanup.
+- **Phase 0a — ban module-level `let`. DONE.** A sema diagnostic refusing
+  `ast.ItemLet` at module scope, pointing the user at `const`. This is the one
+  step that DOES change language semantics, so it lands on its own and is
+  separately reviewable. It is a prerequisite for the non-atomic refcount, not
+  a cleanup.
+
+  As landed: `SemaModuleLevelLet` = SEM3177, reported from
+  `internal/sema/module_level_let.go` off the `ItemLet` arm of `walkItem`
+  (`type_checker_walk.go`), which only ever sees module-scope items. The item
+  is reported and then checked as before — deliberately, so a use site of the
+  banned global does not cascade into unrelated type errors. Verified: a
+  program declaring and USING a global emits exactly one diagnostic.
+
+  Fixture count correction: only THREE of the 17 were live. `testdata/test_let/*`
+  (13 files) and `testdata/test_fixes/let_fixes/*` (2) have NO consumer in the
+  tree — no Go test, script, or Makefile target reads them — and they exercise
+  type-expression PARSING, which the ban does not touch (it is a sema rule by
+  design, per the kindness-first placement). They were left alone. The live
+  three: `testdata/golden/mir/toplevel_globals.*` DELETED (its subject, MIR
+  global lowering, is now unreachable from source);
+  `testdata/golden/spec_audit/s03_expr_variables.sg` rewritten to drop its
+  top-level `let` and its "top-level let: PASS" claim;
+  `testdata/golden/sema/invalid/attrs/deprecated_usage.sg` rewritten (see the
+  `@deprecated` cost above). A fourth, `.../attrs/deprecated_usage.sg`, was
+  invisible to a `^let` grep because the declaration begins with its attribute
+  — grep for `\blet\b` at column 0, not `^let`. New golden
+  `testdata/golden/sema/invalid/module_level_let.sg` pins both `let` and
+  `let mut`.
+
+  **Dead code this leaves, for a later cleanup (deliberately NOT in this
+  commit, to keep the ban separately reviewable):** `hir.Module.Globals` is fed
+  only by `ItemLet` (`internal/hir/lower.go` ~189), so the whole globals path —
+  HIR globals, the MIR `globals=` section, and the `__surge_start` global
+  stores in `internal/mir/entrypoint.go` — is now unreachable from valid
+  source, and is no longer covered by any golden.
 - **Phase 0b — predicate split, no behavior change.** Introduce `OwnsHeap` and
   `TriviallyTransportableBits` as independent axes, defined so every current
   answer is preserved. Land green with `IsCopy` untouched. Separately

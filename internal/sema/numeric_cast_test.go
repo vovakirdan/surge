@@ -18,40 +18,12 @@ func TestImplicitWidenFixedToDynamic(t *testing.T) {
 
 	one := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
 	smallName := intern(builder, "small")
-	small := builder.Items.NewLet(
-		smallName,
-		int8Type,
-		one,
-		false,
-		ast.VisPrivate,
-		nil,
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-	)
-	builder.PushItem(fileID, small)
+	small := builder.Stmts.NewLet(source.Span{}, smallName, ast.NoExprID, int8Type, one, false)
 
 	identSmall := builder.Exprs.NewIdent(source.Span{}, smallName)
-	wide := builder.Items.NewLet(
-		intern(builder, "wide"),
-		intType,
-		identSmall,
-		false,
-		ast.VisPrivate,
-		nil,
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-	)
-	builder.PushItem(fileID, wide)
+	wide := builder.Stmts.NewLet(source.Span{}, intern(builder, "wide"), ast.NoExprID, intType, identSmall, false)
+
+	addFunction(builder, fileID, "widen", []ast.StmtID{small, wide})
 
 	diags := runSema(t, builder, fileID)
 	if got := len(diags.Items()); got != 0 {
@@ -68,22 +40,8 @@ func TestNumericCastAllowsCheckedNarrowing(t *testing.T) {
 	value := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "300"))
 	castExpr := builder.Exprs.NewCast(source.Span{}, value, int8Type, ast.NoExprID)
 
-	item := builder.Items.NewLet(
-		intern(builder, "narrow"),
-		int8Type,
-		castExpr,
-		false,
-		ast.VisPrivate,
-		nil,
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-	)
-	builder.PushItem(fileID, item)
+	narrow := builder.Stmts.NewLet(source.Span{}, intern(builder, "narrow"), ast.NoExprID, int8Type, castExpr, false)
+	addFunction(builder, fileID, "narrowing", []ast.StmtID{narrow})
 
 	diags := runSema(t, builder, fileID)
 	if got := len(diags.Items()); got != 0 {

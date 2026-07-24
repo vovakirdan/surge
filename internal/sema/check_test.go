@@ -28,7 +28,7 @@ func TestBinaryLiteralTypeInference(t *testing.T) {
 	one := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("1"))
 	two := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("2"))
 	sum := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAdd, one, two)
-	addTopLevelLet(builder, file, sum)
+	addCheckedExpr(builder, file, sum)
 
 	res := Check(context.Background(), builder, file, Options{})
 	got := res.ExprTypes[sum]
@@ -45,7 +45,7 @@ func TestBinaryTypeMismatchEmitsDiagnostic(t *testing.T) {
 	intLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("1"))
 	boolLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitTrue, builder.StringsInterner.Intern("true"))
 	expr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAdd, intLit, boolLit)
-	addTopLevelLet(builder, file, expr)
+	addCheckedExpr(builder, file, expr)
 
 	bag := diag.NewBag(4)
 	Check(context.Background(), builder, file, Options{Reporter: &diag.BagReporter{Bag: bag}})
@@ -58,24 +58,12 @@ func TestBinaryTypeMismatchEmitsDiagnostic(t *testing.T) {
 	}
 }
 
-func addTopLevelLet(builder *ast.Builder, file ast.FileID, expr ast.ExprID) {
-	name := builder.StringsInterner.Intern("tmp")
-	itemID := builder.Items.NewLet(
-		name,
-		ast.NoTypeID,
-		expr,
-		false,
-		ast.VisPrivate,
-		nil,
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-		source.Span{},
-	)
-	builder.PushItem(file, itemID)
+// addCheckedExpr puts expr where the type checker will reach it: bound to a
+// local inside a function. A module-level `let` would be rejected outright
+// (SEM3177), which would mask whatever the caller is actually asserting.
+func addCheckedExpr(builder *ast.Builder, file ast.FileID, expr ast.ExprID) {
+	stmt := builder.Stmts.NewLet(source.Span{}, builder.StringsInterner.Intern("tmp"), ast.NoExprID, ast.NoTypeID, expr, false)
+	addFunction(builder, file, "check_expr", []ast.StmtID{stmt})
 }
 
 func TestTypeCheckerStructFieldAccess(t *testing.T) {
@@ -108,69 +96,16 @@ func TestTypeCheckerStructFieldAccess(t *testing.T) {
 	}, nil, false, false)
 
 	pName := builder.StringsInterner.Intern("p")
-	letPersonID := builder.Items.NewLet(pName, ast.NoTypeID, structExpr, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{})
-	builder.PushItem(file, letPersonID)
+	letPerson := builder.Stmts.NewLet(source.Span{}, pName, ast.NoExprID, ast.NoTypeID, structExpr, false)
 
 	pIdent := builder.Exprs.NewIdent(source.Span{}, pName)
 	memberExpr := builder.Exprs.NewMember(source.Span{}, pIdent, ageField)
 	ageBinding := builder.StringsInterner.Intern("age_var")
-	letAgeID := builder.Items.NewLet(ageBinding, ast.NoTypeID, memberExpr, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{})
-	builder.PushItem(file, letAgeID)
+	letAge := builder.Stmts.NewLet(source.Span{}, ageBinding, ast.NoExprID, ast.NoTypeID, memberExpr, false)
 
-	table := symbols.NewTable(symbols.Hints{}, builder.StringsInterner)
-	fileScope := table.FileRoot(builder.Files.Get(file).Span.File, builder.Files.Get(file).Span)
+	addFunction(builder, file, "field_access", []ast.StmtID{letPerson, letAge})
 
-	registerSymbol := func(sym *symbols.Symbol) symbols.SymbolID {
-		sym.Scope = fileScope
-		id := table.Symbols.New(sym)
-		scope := table.Scopes.Get(fileScope)
-		scope.Symbols = append(scope.Symbols, id)
-		scope.NameIndex[sym.Name] = append(scope.NameIndex[sym.Name], id)
-		return id
-	}
-
-	typeSymID := registerSymbol(&symbols.Symbol{
-		Name: personName,
-		Kind: symbols.SymbolType,
-		Span: builder.Files.Get(file).Span,
-		Decl: symbols.SymbolDecl{
-			ASTFile: file,
-			Item:    typeItemID,
-		},
-	})
-	pSymID := registerSymbol(&symbols.Symbol{
-		Name: pName,
-		Kind: symbols.SymbolLet,
-		Span: source.Span{},
-		Decl: symbols.SymbolDecl{
-			ASTFile: file,
-			Item:    letPersonID,
-		},
-	})
-	ageSymID := registerSymbol(&symbols.Symbol{
-		Name: ageBinding,
-		Kind: symbols.SymbolLet,
-		Span: source.Span{},
-		Decl: symbols.SymbolDecl{
-			ASTFile: file,
-			Item:    letAgeID,
-		},
-	})
-
-	symRes := symbols.Result{
-		Table:     table,
-		File:      file,
-		FileScope: fileScope,
-		ItemSymbols: map[ast.ItemID][]symbols.SymbolID{
-			typeItemID:  {typeSymID},
-			letPersonID: {pSymID},
-			letAgeID:    {ageSymID},
-		},
-		ExprSymbols: map[ast.ExprID]symbols.SymbolID{
-			pIdent: pSymID,
-		},
-	}
-
+	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{})
 	res := Check(context.Background(), builder, file, Options{Symbols: &symRes})
 	memberType := res.ExprTypes[memberExpr]
 	if memberType == types.NoTypeID {
@@ -256,7 +191,7 @@ func TestStringMulIntrinsicAvailable(t *testing.T) {
 	intID := builder.StringsInterner.Intern("2")
 	intLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intID)
 	mul := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryMul, strLit, intLit)
-	addTopLevelLet(builder, file, mul)
+	addCheckedExpr(builder, file, mul)
 
 	bag := diag.NewBag(2)
 	res := Check(context.Background(), builder, file, Options{Reporter: &diag.BagReporter{Bag: bag}})
@@ -277,7 +212,7 @@ func TestCastIntToStringUsesMagic(t *testing.T) {
 	intLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("42"))
 	stringPath := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: builder.StringsInterner.Intern("string")}})
 	castExpr := builder.Exprs.NewCast(source.Span{}, intLit, stringPath, ast.NoExprID)
-	addTopLevelLet(builder, file, castExpr)
+	addCheckedExpr(builder, file, castExpr)
 
 	res, _, bag := checkWithSymbols(t, builder, file)
 	if bag.HasErrors() {
@@ -300,7 +235,7 @@ func TestCastPreservesAliasTarget(t *testing.T) {
 	value := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
 	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
 	castExpr := builder.Exprs.NewCast(source.Span{}, value, gasType, ast.NoExprID)
-	addTopLevelLet(builder, fileID, castExpr)
+	addCheckedExpr(builder, fileID, castExpr)
 
 	res, symRes, bag := checkWithSymbols(t, builder, fileID)
 	if bag.HasErrors() {
@@ -320,7 +255,7 @@ func TestCastReportsMissingMethod(t *testing.T) {
 	boolLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitTrue, builder.StringsInterner.Intern("true"))
 	floatType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: builder.StringsInterner.Intern("float")}})
 	castExpr := builder.Exprs.NewCast(source.Span{}, boolLit, floatType, ast.NoExprID)
-	addTopLevelLet(builder, file, castExpr)
+	addCheckedExpr(builder, file, castExpr)
 
 	_, _, bag := checkWithSymbols(t, builder, file)
 	items := bag.Items()
@@ -355,7 +290,7 @@ func TestBinaryIsRequiresTypeOperand(t *testing.T) {
 	left := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("1"))
 	right := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("2"))
 	isExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryIs, left, right)
-	addTopLevelLet(builder, file, isExpr)
+	addCheckedExpr(builder, file, isExpr)
 
 	_, _, bag := checkWithSymbols(t, builder, file)
 	items := bag.Items()
@@ -371,7 +306,7 @@ func TestBinaryHeirRequiresTypeOperand(t *testing.T) {
 	left := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("1"))
 	right := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, builder.StringsInterner.Intern("\"s\""))
 	heirExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryHeir, left, right)
-	addTopLevelLet(builder, file, heirExpr)
+	addCheckedExpr(builder, file, heirExpr)
 
 	_, _, bag := checkWithSymbols(t, builder, file)
 	items := bag.Items()

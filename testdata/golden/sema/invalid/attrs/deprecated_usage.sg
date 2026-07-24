@@ -24,11 +24,8 @@ type ContainerWithMsg = {
     field2: int,
 };
 
-// Deprecated let without message
-@deprecated let OLD_VAR: int = 1;
-
-// Deprecated let with message
-@deprecated("Use NEW_VAR instead") let OLD_VAR_MSG: int = 2;
+// A module declares only `const`, so there is no deprecable module variable;
+// `@deprecated` on a binding is unreachable and is not covered here.
 
 // Deprecated const without message
 @deprecated const OLD_CONST: int = 10;
@@ -51,10 +48,6 @@ fn main() {
 
     let c2 = ContainerWithMsg { old_field: 1, field2: 2 };
     let _ = c2.old_field; // warning: field 'old_field' deprecated. Use field2 instead
-
-    // Let variable usage
-    let _ = OLD_VAR;      // warning: variable 'OLD_VAR' deprecated.
-    let _ = OLD_VAR_MSG;  // warning: variable 'OLD_VAR_MSG' deprecated. Use NEW_VAR instead
 
     // Const usage
     let _ = OLD_CONST;    // warning: constant 'OLD_CONST' deprecated.

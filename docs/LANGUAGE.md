@@ -854,7 +854,7 @@ Contracts with zero parameters can still be used in short form: `fn tick<T: Cloc
 * Const declaration: `const NAME: Type = expr;` initializer is required and must be a compile-time constant; `pub const` exports it from the module.
 * Mutability: `let mut x: Type = expr;` allows assignment `x = expr;` and in-place updates.
 * Declaration without an initializer: `let x: Type;` (see default-initialisation rules below).
-* Top-level `let` is allowed as an item; items are private by default and can be exported with `pub let`.
+* `let` is a statement only. A module-level `let` or `let mut` is rejected (`SemaModuleLevelLet`); `const` is the only declaration a module may hold.
 
 **Default initialisation rules:**
 
@@ -863,10 +863,11 @@ Contracts with zero parameters can still be used in short form: `fn tick<T: Cloc
 - Structs → allowed only when every field type is defaultable (field defaults are optional; non-defaultable fields make `let x: Struct;` an error).
 - Tagged unions → defaultable only if the union includes `nothing` (e.g., `Option<T>`). Others require an explicit initializer.
 
-Top-level `let` initialization and cycles:
+Why a module holds only `const`:
 
-* Top-level `let` items are executed at module initialization time in textual order within a module.
-* Cyclic initialization among top-level `let`s is a compile-time error.
+* A module-level binding would be one storage slot, written once at startup and read by every shard, with no boundary at which each shard could be handed its own copy.
+* `const` is a different mechanism despite the similar surface: it is inlined at each use site, so each use materializes its own value inside the shard that runs the code and nothing is shared. Its initializer must be a compile-time constant (`SemaConstNotConstant`), which limits it to numbers and strings.
+* The cost is deliberate and stated: a program cannot declare a global array, a global struct, or global mutable state. Move the state into the function that uses it, or pass it explicitly.
 
 ### 3.2. Control Flow
 
@@ -1970,7 +1971,7 @@ blocking {
 - Tasks created in a normal scope must be awaited or returned before leaving
   the scope (`SemaTaskNotAwaited`).
 - Returning or passing a `Task<T>` transfers responsibility for awaiting it.
-- `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`).
+- `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`). Since a module holds only `const`, this is now reached only alongside `SemaModuleLevelLet`.
 
 #### `@failfast` Attribute
 

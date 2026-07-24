@@ -1,0 +1,2 @@
+error SEM3177 testdata/golden/sema/invalid/module_level_let.sg:5:1 module-level `let` is not allowed; `const` is the only declaration a module may hold
+error SEM3177 testdata/golden/sema/invalid/module_level_let.sg:6:1 module-level `let mut` is not allowed; `const` is the only declaration a module may hold

@@ -14,6 +14,7 @@ See also:
 
 - `mut` in function parameters is not supported: `fn foo(mut a: int)` is rejected. Use a mutable local inside the function (`let mut x = a;`) or take a mutable reference (`a: &mut T`).
 - `parallel` and `signal` keywords are reserved but not supported yet (compile-time error).
+- A module declares only `const`. Module-level `let` and `let mut` are rejected (`SEM3177`), so there are no global arrays, global structs, or global mutable state. `const` accepts compile-time numbers and strings only; anything else moves into the function that uses it, or is passed explicitly. The reason is ownership: a module-level binding would be one slot every shard reads, with no boundary at which each shard could be given its own copy, whereas `const` is inlined per use site and shares nothing.
 
 ## References / Borrows
 

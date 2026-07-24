@@ -77,146 +77,115 @@
  77: Comma           "," at 24:16-24:17
  78: RBrace          "}" at 25:1-25:2 (leading: Newline)
  79: Semicolon       ";" at 25:2-25:3
- 80: At              "@" at 28:1-28:2 (leading: Newline, LineComment, Newline)
- 81: Ident           "deprecated" at 28:2-28:12
- 82: KwLet           "let" at 28:13-28:16 (leading: Space)
- 83: Ident           "OLD_VAR" at 28:17-28:24 (leading: Space)
- 84: Colon           ":" at 28:24-28:25
- 85: Ident           "int" at 28:26-28:29 (leading: Space)
- 86: Assign          "=" at 28:30-28:31 (leading: Space)
- 87: IntLit          "1" at 28:32-28:33 (leading: Space)
- 88: Semicolon       ";" at 28:33-28:34
- 89: At              "@" at 31:1-31:2 (leading: Newline, LineComment, Newline)
- 90: Ident           "deprecated" at 31:2-31:12
- 91: LParen          "(" at 31:12-31:13
- 92: StringLit       "\"Use NEW_VAR instead\"" at 31:13-31:34
- 93: RParen          ")" at 31:34-31:35
- 94: KwLet           "let" at 31:36-31:39 (leading: Space)
- 95: Ident           "OLD_VAR_MSG" at 31:40-31:51 (leading: Space)
- 96: Colon           ":" at 31:51-31:52
- 97: Ident           "int" at 31:53-31:56 (leading: Space)
- 98: Assign          "=" at 31:57-31:58 (leading: Space)
- 99: IntLit          "2" at 31:59-31:60 (leading: Space)
-100: Semicolon       ";" at 31:60-31:61
-101: At              "@" at 34:1-34:2 (leading: Newline, LineComment, Newline)
-102: Ident           "deprecated" at 34:2-34:12
-103: KwConst         "const" at 34:13-34:18 (leading: Space)
-104: Ident           "OLD_CONST" at 34:19-34:28 (leading: Space)
-105: Colon           ":" at 34:28-34:29
-106: Ident           "int" at 34:30-34:33 (leading: Space)
-107: Assign          "=" at 34:34-34:35 (leading: Space)
-108: IntLit          "10" at 34:36-34:38 (leading: Space)
-109: Semicolon       ";" at 34:38-34:39
-110: At              "@" at 37:1-37:2 (leading: Newline, LineComment, Newline)
-111: Ident           "deprecated" at 37:2-37:12
-112: LParen          "(" at 37:12-37:13
-113: StringLit       "\"Use NEW_CONST instead\"" at 37:13-37:36
-114: RParen          ")" at 37:36-37:37
-115: KwConst         "const" at 37:38-37:43 (leading: Space)
-116: Ident           "OLD_CONST_MSG" at 37:44-37:57 (leading: Space)
-117: Colon           ":" at 37:57-37:58
-118: Ident           "int" at 37:59-37:62 (leading: Space)
-119: Assign          "=" at 37:63-37:64 (leading: Space)
-120: IntLit          "20" at 37:65-37:67 (leading: Space)
-121: Semicolon       ";" at 37:67-37:68
-122: KwFn            "fn" at 39:1-39:3 (leading: Newline)
-123: Ident           "main" at 39:4-39:8 (leading: Space)
-124: LParen          "(" at 39:8-39:9
-125: RParen          ")" at 39:9-39:10
-126: LBrace          "{" at 39:11-39:12 (leading: Space)
-127: Ident           "old_func" at 41:5-41:13 (leading: Newline, Space, LineComment, Newline, Space)
-128: LParen          "(" at 41:13-41:14
-129: RParen          ")" at 41:14-41:15
-130: Semicolon       ";" at 41:15-41:16
-131: Ident           "old_func_msg" at 42:5-42:17 (leading: Space, LineComment, Newline, Space)
-132: LParen          "(" at 42:17-42:18
-133: RParen          ")" at 42:18-42:19
-134: Semicolon       ";" at 42:19-42:20
-135: KwLet           "let" at 45:5-45:8 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
-136: Underscore      "_" at 45:9-45:10 (leading: Space)
-137: Colon           ":" at 45:10-45:11
-138: Ident           "OldType" at 45:12-45:19 (leading: Space)
-139: Assign          "=" at 45:20-45:21 (leading: Space)
-140: Ident           "OldType" at 45:22-45:29 (leading: Space)
-141: LBrace          "{" at 45:30-45:31 (leading: Space)
-142: Ident           "x" at 45:32-45:33 (leading: Space)
-143: Colon           ":" at 45:33-45:34
-144: IntLit          "1" at 45:35-45:36 (leading: Space)
-145: RBrace          "}" at 45:37-45:38 (leading: Space)
-146: Semicolon       ";" at 45:38-45:39
-147: KwLet           "let" at 46:5-46:8 (leading: Space, LineComment, Newline, Space)
-148: Underscore      "_" at 46:9-46:10 (leading: Space)
-149: Colon           ":" at 46:10-46:11
-150: Ident           "OldTypeMsg" at 46:12-46:22 (leading: Space)
-151: Assign          "=" at 46:23-46:24 (leading: Space)
-152: Ident           "OldTypeMsg" at 46:25-46:35 (leading: Space)
-153: LBrace          "{" at 46:36-46:37 (leading: Space)
-154: Ident           "y" at 46:38-46:39 (leading: Space)
-155: Colon           ":" at 46:39-46:40
-156: IntLit          "2" at 46:41-46:42 (leading: Space)
-157: RBrace          "}" at 46:43-46:44 (leading: Space)
-158: Semicolon       ";" at 46:44-46:45
-159: KwLet           "let" at 49:5-49:8 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
-160: Ident           "c1" at 49:9-49:11 (leading: Space)
+ 80: At              "@" at 31:1-31:2 (leading: Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+ 81: Ident           "deprecated" at 31:2-31:12
+ 82: KwConst         "const" at 31:13-31:18 (leading: Space)
+ 83: Ident           "OLD_CONST" at 31:19-31:28 (leading: Space)
+ 84: Colon           ":" at 31:28-31:29
+ 85: Ident           "int" at 31:30-31:33 (leading: Space)
+ 86: Assign          "=" at 31:34-31:35 (leading: Space)
+ 87: IntLit          "10" at 31:36-31:38 (leading: Space)
+ 88: Semicolon       ";" at 31:38-31:39
+ 89: At              "@" at 34:1-34:2 (leading: Newline, LineComment, Newline)
+ 90: Ident           "deprecated" at 34:2-34:12
+ 91: LParen          "(" at 34:12-34:13
+ 92: StringLit       "\"Use NEW_CONST instead\"" at 34:13-34:36
+ 93: RParen          ")" at 34:36-34:37
+ 94: KwConst         "const" at 34:38-34:43 (leading: Space)
+ 95: Ident           "OLD_CONST_MSG" at 34:44-34:57 (leading: Space)
+ 96: Colon           ":" at 34:57-34:58
+ 97: Ident           "int" at 34:59-34:62 (leading: Space)
+ 98: Assign          "=" at 34:63-34:64 (leading: Space)
+ 99: IntLit          "20" at 34:65-34:67 (leading: Space)
+100: Semicolon       ";" at 34:67-34:68
+101: KwFn            "fn" at 36:1-36:3 (leading: Newline)
+102: Ident           "main" at 36:4-36:8 (leading: Space)
+103: LParen          "(" at 36:8-36:9
+104: RParen          ")" at 36:9-36:10
+105: LBrace          "{" at 36:11-36:12 (leading: Space)
+106: Ident           "old_func" at 38:5-38:13 (leading: Newline, Space, LineComment, Newline, Space)
+107: LParen          "(" at 38:13-38:14
+108: RParen          ")" at 38:14-38:15
+109: Semicolon       ";" at 38:15-38:16
+110: Ident           "old_func_msg" at 39:5-39:17 (leading: Space, LineComment, Newline, Space)
+111: LParen          "(" at 39:17-39:18
+112: RParen          ")" at 39:18-39:19
+113: Semicolon       ";" at 39:19-39:20
+114: KwLet           "let" at 42:5-42:8 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
+115: Underscore      "_" at 42:9-42:10 (leading: Space)
+116: Colon           ":" at 42:10-42:11
+117: Ident           "OldType" at 42:12-42:19 (leading: Space)
+118: Assign          "=" at 42:20-42:21 (leading: Space)
+119: Ident           "OldType" at 42:22-42:29 (leading: Space)
+120: LBrace          "{" at 42:30-42:31 (leading: Space)
+121: Ident           "x" at 42:32-42:33 (leading: Space)
+122: Colon           ":" at 42:33-42:34
+123: IntLit          "1" at 42:35-42:36 (leading: Space)
+124: RBrace          "}" at 42:37-42:38 (leading: Space)
+125: Semicolon       ";" at 42:38-42:39
+126: KwLet           "let" at 43:5-43:8 (leading: Space, LineComment, Newline, Space)
+127: Underscore      "_" at 43:9-43:10 (leading: Space)
+128: Colon           ":" at 43:10-43:11
+129: Ident           "OldTypeMsg" at 43:12-43:22 (leading: Space)
+130: Assign          "=" at 43:23-43:24 (leading: Space)
+131: Ident           "OldTypeMsg" at 43:25-43:35 (leading: Space)
+132: LBrace          "{" at 43:36-43:37 (leading: Space)
+133: Ident           "y" at 43:38-43:39 (leading: Space)
+134: Colon           ":" at 43:39-43:40
+135: IntLit          "2" at 43:41-43:42 (leading: Space)
+136: RBrace          "}" at 43:43-43:44 (leading: Space)
+137: Semicolon       ";" at 43:44-43:45
+138: KwLet           "let" at 46:5-46:8 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
+139: Ident           "c1" at 46:9-46:11 (leading: Space)
+140: Assign          "=" at 46:12-46:13 (leading: Space)
+141: Ident           "ContainerNoMsg" at 46:14-46:28 (leading: Space)
+142: LBrace          "{" at 46:29-46:30 (leading: Space)
+143: Ident           "field1" at 46:31-46:37 (leading: Space)
+144: Colon           ":" at 46:37-46:38
+145: IntLit          "1" at 46:39-46:40 (leading: Space)
+146: Comma           "," at 46:40-46:41
+147: Ident           "normal" at 46:42-46:48 (leading: Space)
+148: Colon           ":" at 46:48-46:49
+149: IntLit          "2" at 46:50-46:51 (leading: Space)
+150: RBrace          "}" at 46:52-46:53 (leading: Space)
+151: Semicolon       ";" at 46:53-46:54
+152: KwLet           "let" at 47:5-47:8 (leading: Newline, Space)
+153: Underscore      "_" at 47:9-47:10 (leading: Space)
+154: Assign          "=" at 47:11-47:12 (leading: Space)
+155: Ident           "c1" at 47:13-47:15 (leading: Space)
+156: Dot             "." at 47:15-47:16
+157: Ident           "field1" at 47:16-47:22
+158: Semicolon       ";" at 47:22-47:23
+159: KwLet           "let" at 49:5-49:8 (leading: Space, LineComment, Newline, Space)
+160: Ident           "c2" at 49:9-49:11 (leading: Space)
 161: Assign          "=" at 49:12-49:13 (leading: Space)
-162: Ident           "ContainerNoMsg" at 49:14-49:28 (leading: Space)
-163: LBrace          "{" at 49:29-49:30 (leading: Space)
-164: Ident           "field1" at 49:31-49:37 (leading: Space)
-165: Colon           ":" at 49:37-49:38
-166: IntLit          "1" at 49:39-49:40 (leading: Space)
-167: Comma           "," at 49:40-49:41
-168: Ident           "normal" at 49:42-49:48 (leading: Space)
-169: Colon           ":" at 49:48-49:49
-170: IntLit          "2" at 49:50-49:51 (leading: Space)
-171: RBrace          "}" at 49:52-49:53 (leading: Space)
-172: Semicolon       ";" at 49:53-49:54
+162: Ident           "ContainerWithMsg" at 49:14-49:30 (leading: Space)
+163: LBrace          "{" at 49:31-49:32 (leading: Space)
+164: Ident           "old_field" at 49:33-49:42 (leading: Space)
+165: Colon           ":" at 49:42-49:43
+166: IntLit          "1" at 49:44-49:45 (leading: Space)
+167: Comma           "," at 49:45-49:46
+168: Ident           "field2" at 49:47-49:53 (leading: Space)
+169: Colon           ":" at 49:53-49:54
+170: IntLit          "2" at 49:55-49:56 (leading: Space)
+171: RBrace          "}" at 49:57-49:58 (leading: Space)
+172: Semicolon       ";" at 49:58-49:59
 173: KwLet           "let" at 50:5-50:8 (leading: Newline, Space)
 174: Underscore      "_" at 50:9-50:10 (leading: Space)
 175: Assign          "=" at 50:11-50:12 (leading: Space)
-176: Ident           "c1" at 50:13-50:15 (leading: Space)
+176: Ident           "c2" at 50:13-50:15 (leading: Space)
 177: Dot             "." at 50:15-50:16
-178: Ident           "field1" at 50:16-50:22
-179: Semicolon       ";" at 50:22-50:23
-180: KwLet           "let" at 52:5-52:8 (leading: Space, LineComment, Newline, Space)
-181: Ident           "c2" at 52:9-52:11 (leading: Space)
-182: Assign          "=" at 52:12-52:13 (leading: Space)
-183: Ident           "ContainerWithMsg" at 52:14-52:30 (leading: Space)
-184: LBrace          "{" at 52:31-52:32 (leading: Space)
-185: Ident           "old_field" at 52:33-52:42 (leading: Space)
-186: Colon           ":" at 52:42-52:43
-187: IntLit          "1" at 52:44-52:45 (leading: Space)
-188: Comma           "," at 52:45-52:46
-189: Ident           "field2" at 52:47-52:53 (leading: Space)
-190: Colon           ":" at 52:53-52:54
-191: IntLit          "2" at 52:55-52:56 (leading: Space)
-192: RBrace          "}" at 52:57-52:58 (leading: Space)
-193: Semicolon       ";" at 52:58-52:59
-194: KwLet           "let" at 53:5-53:8 (leading: Newline, Space)
-195: Underscore      "_" at 53:9-53:10 (leading: Space)
-196: Assign          "=" at 53:11-53:12 (leading: Space)
-197: Ident           "c2" at 53:13-53:15 (leading: Space)
-198: Dot             "." at 53:15-53:16
-199: Ident           "old_field" at 53:16-53:25
-200: Semicolon       ";" at 53:25-53:26
-201: KwLet           "let" at 56:5-56:8 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
-202: Underscore      "_" at 56:9-56:10 (leading: Space)
-203: Assign          "=" at 56:11-56:12 (leading: Space)
-204: Ident           "OLD_VAR" at 56:13-56:20 (leading: Space)
-205: Semicolon       ";" at 56:20-56:21
-206: KwLet           "let" at 57:5-57:8 (leading: Space, LineComment, Newline, Space)
-207: Underscore      "_" at 57:9-57:10 (leading: Space)
-208: Assign          "=" at 57:11-57:12 (leading: Space)
-209: Ident           "OLD_VAR_MSG" at 57:13-57:24 (leading: Space)
-210: Semicolon       ";" at 57:24-57:25
-211: KwLet           "let" at 60:5-60:8 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
-212: Underscore      "_" at 60:9-60:10 (leading: Space)
-213: Assign          "=" at 60:11-60:12 (leading: Space)
-214: Ident           "OLD_CONST" at 60:13-60:22 (leading: Space)
-215: Semicolon       ";" at 60:22-60:23
-216: KwLet           "let" at 61:5-61:8 (leading: Space, LineComment, Newline, Space)
-217: Underscore      "_" at 61:9-61:10 (leading: Space)
-218: Assign          "=" at 61:11-61:12 (leading: Space)
-219: Ident           "OLD_CONST_MSG" at 61:13-61:26 (leading: Space)
-220: Semicolon       ";" at 61:26-61:27
-221: RBrace          "}" at 62:1-62:2 (leading: Space, LineComment, Newline)
-222: EOF             at 63:1-63:1
+178: Ident           "old_field" at 50:16-50:25
+179: Semicolon       ";" at 50:25-50:26
+180: KwLet           "let" at 53:5-53:8 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
+181: Underscore      "_" at 53:9-53:10 (leading: Space)
+182: Assign          "=" at 53:11-53:12 (leading: Space)
+183: Ident           "OLD_CONST" at 53:13-53:22 (leading: Space)
+184: Semicolon       ";" at 53:22-53:23
+185: KwLet           "let" at 54:5-54:8 (leading: Space, LineComment, Newline, Space)
+186: Underscore      "_" at 54:9-54:10 (leading: Space)
+187: Assign          "=" at 54:11-54:12 (leading: Space)
+188: Ident           "OLD_CONST_MSG" at 54:13-54:26 (leading: Space)
+189: Semicolon       ";" at 54:26-54:27
+190: RBrace          "}" at 55:1-55:2 (leading: Space, LineComment, Newline)
+191: EOF             at 56:1-56:1

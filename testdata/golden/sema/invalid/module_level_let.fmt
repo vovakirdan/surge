@@ -1,0 +1,11 @@
+// EXPECT-DIAG: SEM3177
+// negative: a module may only declare `const`, never `let` or `let mut`
+const LIMIT: int = 10;
+
+let shared: int = 1;
+let mut counter: int = 0;
+
+@entrypoint
+fn main() -> int {
+    return LIMIT;
+}

@@ -294,6 +294,14 @@ const (
 	SemaSelectSendPayloadNotBinding    Code = 3141 // select send payload must be a whole owned binding
 	SemaCompareGuardMovesBinding       Code = 3142 // compare-arm guard moves one of the arm's own pattern bindings
 
+	// Numbers up to 3176 are taken; the crossing blocks live in codes_crossing.go.
+
+	// SemaModuleLevelLet rejects `let` / `let mut` declared at module scope.
+	// A module-level binding is one slot every shard reads, which is exactly
+	// the sharing a per-shard ownership model has no boundary to copy at.
+	// `const` is the supported global: it is inlined at each use site.
+	SemaModuleLevelLet Code = 3177
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -545,6 +553,7 @@ var ( // todo расширить описания и использовать к
 		SemaSelectSendOwnMarker:            "select send arm takes ownership of its payload",
 		SemaSelectSendPayloadNotBinding:    "select send payload must be a whole owned binding",
 		SemaCompareGuardMovesBinding:       "compare-arm guard cannot move a value out of its own pattern binding",
+		SemaModuleLevelLet:                 "module-level `let` is not allowed; use `const`",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

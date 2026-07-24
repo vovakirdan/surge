@@ -31,6 +31,11 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		if !ok || letItem == nil {
 			return
 		}
+		// walkItem only ever sees module-scope items, so any `let` reaching
+		// here is a global. Report it and keep checking: the binding still
+		// resolves, which keeps its use sites from cascading into unrelated
+		// unknown-symbol errors.
+		tc.reportModuleLevelLet(letItem)
 		scope := tc.scopeForItem(id)
 		symID := tc.typeSymbolForItem(id)
 		// Validate and record let item attributes

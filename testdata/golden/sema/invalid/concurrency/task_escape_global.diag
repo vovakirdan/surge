@@ -1,2 +1,3 @@
+error SEM3177 testdata/golden/sema/invalid/concurrency/task_escape_global.sg:8:5 module-level `let` is not allowed; `const` is the only declaration a module may hold
 error SEM3107 testdata/golden/sema/invalid/concurrency/task_escape_global.sg:8:34 task is neither awaited nor returned
 error SEM3108 testdata/golden/sema/invalid/concurrency/task_escape_global.sg:8:34 cannot store Task<T> or task containers in module-level variables - tasks must be scoped to functions or async blocks
