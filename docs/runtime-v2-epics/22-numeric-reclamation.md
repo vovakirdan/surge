@@ -1,0 +1,332 @@
+# Epic 22 — Numeric Reclamation (heap bignum ownership)
+
+Status: designed, not started. This document is the onboarding brief — read
+it end to end before touching anything; it is written so a reader with no
+prior context can start work without reconstructing the discussion.
+
+## Why This Epic Exists
+
+`int`, `uint` and `float` are arbitrary-precision. A value crosses the
+runtime boundary as one machine word, tagged (`runtime/native/rt_bignum_tag.h`):
+
+- low bit 1 → inline "fixnum", payload in the upper 63 bits. No heap.
+- low bit 0 → an aligned `SurgeBigInt*` / `SurgeBigUint*` / `SurgeBigFloat*`,
+  or NULL. NULL is the canonical zero and is never produced inline.
+
+These three types are builtin **Copy** (`internal/sema/type_expr_utils.go`,
+`isCopyType` → `tc.types.IsCopy`). Because they are Copy, the drop system
+never reclaims the heap half. So:
+
+- **`int`/`uint`** leak only a value beyond the inline range (int ±2^62, uint
+  0..2^63−1) that is retained to scope exit. Measured: a plain local with a
+  60-digit literal leaks 36 bytes in 1 block, stack `bi_alloc`. Arithmetic
+  intermediates already free themselves (`bi_finish` demotes a result that
+  fits back into a word), so hot loops are balanced.
+- **`float`** is much worse: it has NO inline form at all, so every value is
+  heap and every operation leaks. Measured: 100 float additions leak 3,216
+  bytes in 201 blocks — roughly two blocks per operation, growing linearly.
+  An f64 inline form is ruled out on purpose (`float` keeps full arbitrary
+  precision — `1.0/3.0` prints ~250 digits — and an f64 inline would change
+  program output and break the VM↔LLVM differential). See RV2-DEBT-038.
+
+This is a pre-existing defect with no Runtime V2 connection; it predates the
+refactor and would survive it untouched. Per the project's priority rule,
+that is the class not to carry forward.
+
+## The Decision, And Why
+
+**Direction: reference-counted immutable values with value semantics** —
+Swift's model. The heap block carries a count, `let b = a` keeps both usable
+with no move errors and no surface-language change, a borrowing read never
+clones, drop obligations extend to these scalars, the block frees at zero.
+
+Two framing facts decided it.
+
+**The survey.** Every language offering a seamless dynamic int has a garbage
+collector. Ruby, OCaml, Lisp and Smalltalk use the *identical* tagged
+fixnum/bignum representation Surge uses and simply GC the heap half.
+Languages without a GC drop a different leg: Rust makes big numbers an
+explicit non-Copy type (`BigInt`), Go/C/Java/Swift fix the width. The
+combination Surge wants — seamless dynamic int, value semantics, no GC — is
+implemented by nobody. So this is a choice of which leg to release.
+
+**No GC is a hard project constraint**, stated by the owner as a principle.
+Treat "add a GC" as out of scope in every form, including narrow ones (a
+collector for only the bignum heap, a scoped/generational pass, deferred
+sweep). Swift and Rust are the reference models.
+
+**Why refcounting is COMPLETE here, not an approximation.** Refcounting's
+classic weakness is uncollectable cycles. Verified structurally by reading
+`runtime/native/rt_bignum_internal.h`: there is exactly ONE pointer field in
+the whole family — `SurgeBigFloat::mant` → `SurgeBigUint`, which is a leaf
+(`limbs[]` is an inline flexible array). `SurgeBigInt` and `SurgeBigUint` are
+leaves. Max depth 2, and **no field can hold a back-edge**, so a cycle is
+impossible by type, not by convention. Nothing a programmer writes can create
+one, and a bignum block can never transitively own a user aggregate. This is
+exactly why the objection that pushes Ruby/OCaml/Lisp toward a collector does
+not apply: their heaps are general object graphs, Surge's bignum heap is not.
+
+**Copy-on-write is NOT needed — the design is smaller than it sounds.**
+Nothing mutates a bignum in place: every `rt_big*` entry takes `const void*`
+and returns a fresh pointer, and every field write targets a freshly
+allocated `out` (`rt_bignum_int.c`, `rt_bignum_float_core.c`; `bf_neg`
+mutates only after `bf_clone`). So these are refcounted **immutable** values.
+There is no detach-on-mutation clone, and sema never has to answer the
+question RV2-DEBT-038 called hard ("`let b = a` must clone while
+`rt_bigfloat_add(a,b)` must not") — with immutability, `let b = a` is just a
+retain.
+
+## Owner Decisions (settled — do not relitigate)
+
+1. **The refcount is NON-ATOMIC from the start.** The alternative (ship
+   atomic, flip later behind a measurement) was considered and rejected: the
+   owner chose to do the barrier work up front rather than carry an
+   intermediate state. Consequence: the cross-shard barriers and the globals
+   rule below are Phase 1 work, not a later phase.
+
+2. **Globals: immortalize the immutable ones.** Recommended and pending final
+   confirmation only on the `let mut` half (see Open Questions).
+
+## The Load-Bearing Claim, And Where It Breaks
+
+The non-atomic count is only sound if a bignum block is never shared between
+shards. Shards are OS threads in ONE address space (`docs/RUNTIME_V2.md`), so
+a copied pointer is always dereferenceable by the other side — **only a clone
+at each boundary prevents sharing**.
+
+**Six paths have a clone point** (work is real but bounded). Each ships a raw
+pointer word today and needs a deep copy inserted:
+
+- `on` / `spawn on` captures — `internal/mir/lower_expr_crossing.go` lowers
+  `CrossingCaptureCopy` with `consume=false`, and
+  `runtime/native/rt_immediate_on.c` ships `body_state` by pointer.
+  `spawn on` is the sharpest case: it returns `far Task<T>` and does not
+  suspend the caller, so two shards hold independently-droppable refs.
+- `blocking { }` — `internal/mir/lower_blocking.go` passes `consume=true`, but
+  `placeOperand` (`internal/mir/lower_expr_helpers.go`) downgrades to
+  `OperandCopy` for Copy types, neutering the flag. State goes to a
+  `pthread_create`'d worker.
+- far channel send — `rt_channel_send(void*, uint64_t value_bits)`.
+- crossing reply / `far Task.await()` — result crosses as raw `result_bits`.
+- remote select SEND arms — `rt_far_channel_select.c`, `send_bits` and
+  `body_state` both by pointer.
+- (`@shard_movable` owned moves need no clone — exclusive transfer.
+  `share()` publishes only a sibling handle, no payload.)
+
+**One path has NO clone point, and it decides the design: module-level
+globals.** `ast.ItemLet` at module scope becomes a global
+(`internal/hir/lower.go` ~189-191), initialized in `__surge_start`. Any shard
+can then load that global into a local — a retain of a shared block from an
+arbitrary shard, with no crossing involved and nowhere to install a copy.
+
+**Measured scope of the globals problem (this is what makes it cheap):**
+
+- ZERO module-level `let` in `stdlib/` and `core/` — globals appear only in
+  test fixtures.
+- The only `let mut` global in the entire tree is `let mut y: nothing;` — not
+  numeric.
+- Every numeric global is tiny (`1`, `a + 2`, `10`, `42`), i.e. inline, i.e.
+  never heap.
+
+So today **no global is a heap bignum at all**. The hole is real but
+currently unexercised.
+
+**Why immortalization is the cheap answer.** An *immutable* global's value is
+created once in `__surge_start` and must stay reachable for the whole
+program — there is nothing to reclaim, so a sentinel refcount that makes
+retain/release no-ops loses nothing. It is correct lifetime, not a leak. The
+only genuine loss is a `let mut` global reassigned at runtime: the old block
+is immortal and stranded.
+
+**A second, larger reason globals are worth handling rather than dodging:**
+`internal/mir/entrypoint.go` also stores globals, so `let mut` globals are a
+second publication point, not just a read path.
+
+## Do NOT Flip `IsCopy`
+
+RV2-DEBT-038's sketch (M4) says to make these types non-Copy. **That cannot
+ship.** `IsCopy` currently means three things at once — surface
+duplicability, plain-bits shippability, and non-droppability — and flipping
+breaks all three. Verified breakage:
+
+- stdlib stops compiling: `@copy` requires all fields Copy
+  (`internal/sema/attr_validation_types.go`), and `@copy` types with numeric
+  fields are widespread — `stdlib/bytes/bytes.sg` (`ByteRange` = `{start:
+  uint, end: uint}`, `ByteLine`), plus `stdlib/hash`, `stdlib/time`,
+  `stdlib/term` and `core/sync.sg`. Note the attribute sits on its own line
+  above the type, so a single-line grep for `@copy pub type` finds nothing —
+  search for `@copy` alone.
+- golden fixtures invert, e.g.
+  `testdata/golden/crossing/block04/valid/locality_positive_copy_and_movable_on.sg`
+  is `@copy @shard_movable type Point = { x: int, y: int }`.
+- every scalar crossing is rejected: `internal/buildpipeline/crossing_guard_classify.go`
+  and `crossing_transport.go` gate shippability on `IsCopyType`, so
+  `on dst { ret 3 }` would emit a not-shippable diagnostic.
+- captures fall through to an error arm in
+  `internal/sema/on_crossing_capture.go`.
+- move errors everywhere: `internal/sema/borrow_runtime_ops.go` short-circuits
+  move tracking for Copy types, so `let b = a` becomes a move and `a` is
+  unusable — exactly what "keep value semantics" forbids.
+
+**Instead split off two independent axes, leaving `IsCopy` untouched:**
+
+- `OwnsHeap(T)` — replaces the `!isCopyType` definition of droppability
+  (`internal/sema/drop_obligations.go`, `internal/mir/lower_stmt.go`,
+  `internal/mir/lower.go`) and joins the recursive walk in
+  `internal/backend/llvm/emit_drop_glue.go`. True for the three WidthAny types.
+- `TriviallyTransportableBits(T)` — replaces `IsCopyType` at the four
+  crossing-gate sites. False for the three, which become "shippable WITH a
+  cross-clone".
+
+Blast radius is exactly three TypeIDs: `int`/`uint`/`float` are WidthAny
+(`internal/types/interner.go`); `i8..i64`, `u8..u64`, `f32`/`f64` are separate
+types and are untouched.
+
+## Machinery That Already Exists (reuse, do not reinvent)
+
+- **The VM already implements this design.** `internal/vm/heap.go` has a full
+  non-atomic refcounted heap: `Retain` (~:295), `Release` (~:322) freeing at
+  zero, use-after-free detection (`PanicRCUseAfterFree`), refcount-overflow
+  detection, and `AllocBigInt`/`AllocBigUint`/`AllocBigFloat`. Retains already
+  fire on value loads (`eval.go`, `eval_data.go`, `eval_ops.go`, `tag.go`).
+  **LLVM leads; the VM's existing retain sites are the checklist for where
+  LLVM needs them, and the differential converges rather than diverges.**
+- **The deep clone is the mirror image of drop glue.**
+  `internal/backend/llvm/emit_drop_glue.go` already has recursive per-type
+  glue, TypeID-keyed dispatch (`__surge_drop_result_call`,
+  `registerCrossingDropState`, `registerCrossingDropResult`) and
+  reference/pointer exclusions that were debugged the hard way. A symmetric
+  `clone_result.type<ID>` family is a structural analog, not new invention.
+  NOT covered by that walk: maps.
+- The clone must be RECURSIVE — structs, tuples, fixed arrays and union
+  payloads can all carry int/float fields.
+
+## Traps To Know Before Writing Code
+
+1. **`bi_as_uint` layout trap.** `runtime/native/rt_bignum_internal.h`
+   reinterprets a `SurgeBigInt`'s tail as a `SurgeBigUint` via
+   `(const SurgeBigUint*)&i->len`, relying on `SurgeBigUint` being exactly
+   `{len, limbs[]}`. There are 20+ call sites. **Putting a refcount BEFORE
+   `len` silently breaks all of them.** Two safe repairs: a suffix-compatible
+   layout (`BigUint{len,rc,limbs[]}` / `BigInt{neg,pad,len,rc,limbs[]}`) so the
+   alias survives, or a prefix header reached at `ptr[-1]`. Also: alloc/free
+   size arithmetic adjusts automatically only if every allocation and release
+   routes through `bu_alloc`/`bi_alloc`/`bu_free`/`bi_free`.
+2. **Nested ownership is real.** A bigfloat POINTS TO its mantissa, and today
+   owns it exclusively (`bf_normalize_mantissa` never returns its input; every
+   `out->mant = mant` transfers a fresh block; `bf_clone` deep-copies). Choose
+   deliberately: refcount the float only and keep deep-copying the mantissa
+   (simplest), or refcount both levels (makes `bf_clone` O(1) and cross-shard
+   clones cheaper; still a DAG). Do the single-level version first. The trap:
+   the mantissa must be released exactly once, at the float's final release.
+   Note the VM EMBEDS the mantissa by value (`internal/vm/bignum/float.go`), so
+   VM bignums are pure leaves — the VM is a spec for retain/release PLACEMENT
+   but NOT for mantissa ownership.
+3. **BLOCKER to schedule, not discover.** `internal/sema/drop_obligations.go`
+   (~56-63) SUPPRESSES drop obligations inside `on` / `spawn on` / `blocking`
+   bodies, pending RV2-DEBT-034. Today that is free because scalars are not
+   droppable. The moment they are, **every bignum created inside a crossing
+   body leaks** — and crossing bodies are where server loops live. RV2-DEBT-034
+   must land with or before Phase 1.
+4. **`OperandCopy` cannot express "retain".** `internal/mir/lower_expr_helpers.go`
+   makes a raw bit copy and cannot distinguish storing `a` into `b` (retain)
+   from passing `a` to `rt_bigint_add(const void*,...)` (borrow). No type
+   predicate can decide this — it is a property of the USE SITE. A new operand
+   kind (`OperandRetain`) is needed, emitted at: let-init from a place,
+   assignment RHS, struct-literal fields, array element stores, by-value
+   argument passing, return materialization, channel send payloads, and
+   capture-state fields. Missing one is a leak; a spurious one on a borrowing
+   argument is also a leak. **This is the main correctness surface of the
+   epic.**
+5. **Retain/release must be inlineable IR, not opaque runtime calls.** The
+   natural follow-on optimisation is emitting the arithmetic fast path as IR
+   at the call site (the algorithm already exists in `rt_bigint_add` — two
+   inline operands are added in registers and only promoted on overflow; what
+   is missing is that every add is still an out-of-line call). If retain and
+   release are builtins in the `rt.h` table, every copy pays a call and eats
+   that win. Expose them as emitter-generated IR from day one:
+   `if (!(w&1) && w) ...`. The "is it inline" bit test is ALREADY load-bearing
+   for representation, so making it gate ownership too reuses the same test
+   rather than adding one — they compose cleanly.
+
+## Cost Model
+
+Retain/release on an inline fixnum is one predictable, not-taken branch — no
+call, no allocation, and the counter is never touched. So this does not make
+the common integer path expensive. Where the cost genuinely lands is **code
+size / IR size**: every int copy grows from a register move to a
+test-and-branch, at every let-init, argument pass, return, struct-field init
+and array store. Treat that as scope, not as a veto.
+
+Note the baseline is now clean: RV2-DEBT-036 (literal churn) was fixed first,
+precisely so that reclamation measurements mean what they appear to. Before
+that fix a hot loop's allocation traffic was dominated by re-parsing decimal
+literals (1,400,015 allocations in a 100,000-iteration loop, now 3 for the
+whole run). **Do not benchmark this epic against anything older than commit
+`e9fb6713`.**
+
+## Phases
+
+- **Phase 0 — predicate split, no behavior change.** Introduce `OwnsHeap` and
+  `TriviallyTransportableBits` as independent axes, defined so every current
+  answer is preserved. Land green with `IsCopy` untouched. Separately
+  reviewable; this is what makes everything after it safe.
+- **Phase 1 — float vertical, LLVM only, non-atomic from the start.** Float
+  first: ~90% shared machinery so this is risk reduction rather than cost
+  reduction, but the risk reduction is real — float has no fixnum tag (only
+  `NULL == zero`) so retain/release is one branch simpler, its type-system
+  radius is smaller (the stdlib `@copy` structs use uint/uint64/int64 and the
+  crossing fixtures use int, so float touches neither), and float is the
+  unbounded per-operation leak. Order within the phase: refcount field +
+  layout repair → `OperandRetain` emission → drop-obligation rewiring →
+  cross-clone glue → **the six crossing barriers and the globals rule**
+  (these are in Phase 1 because the count is non-atomic from day one).
+  RV2-DEBT-034 must be resolved by here.
+- **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
+  already proven by float.
+- **Phase 3 — inline arithmetic in IR.** Independent of this epic; see trap 5
+  for the one constraint it places on Phase 1.
+
+## Verification
+
+- **Leak witnesses, the primary gate.** Per phase, a valgrind row asserting
+  `definitely lost` zero on: a retained out-of-range literal in a plain local;
+  a float loop (the current 201-block leak must go to zero); a value crossing
+  each of the six boundaries; a bignum created inside a crossing body.
+- **Exactly-once, not just zero.** Reverting the fix must reproduce the leak
+  (negative control) — a row that passes both ways proves nothing. This
+  session was burned by exactly that twice.
+- **Differential.** LLVM output must match the VM byte-for-byte on the numeric
+  fixtures, including the fixnum boundaries (2^62−1 inline vs 2^62 heap;
+  2^63−1 inline uint vs 2^63 heap).
+- **Existing gates.** `make check`, then `make runtime-v2-transport-check`,
+  `runtime-v2-crossing-check`, `runtime-v2-heap-check`, `make golden-check`.
+- **Heap-census recalibration is expected.** Several tests assert exact
+  alloc/free deltas (`TestRuntimeV2DropSelectSendArm`,
+  `TestRuntimeV2DropScopeExit`, `TestLLVMNativeBufferedChannelAllocatesSingleBlock`,
+  the crossing censuses). When a delta moves, PROVE the change is balanced
+  churn — allocations falling with frees, valgrind A/B byte-identical — before
+  updating the number. Do not silence a census.
+- **Known flake, not yours:**
+  `TestRuntimeV2RemoteTaskBehavior/shutdown-wakes-reply-waiters-on-all-shards`
+  fails roughly 1 run in 8 on a clean tree, measured both ways.
+
+## Open Questions
+
+1. **`let mut` numeric globals.** Immortalization is correct and free for
+   immutable globals (the value must live for the whole program anyway), but a
+   reassigned `let mut` global strands its old block. Options: clone-on-read
+   for mut globals, or a sema diagnostic refusing a numeric module-level
+   `let mut` until it is needed. There are none in the tree today, so either
+   is currently free. Owner to confirm.
+2. **Mantissa refcounting** — single-level first (see trap 2); revisit after
+   the single-level version is green.
+
+## Related Ledger Rows
+
+`docs/runtime-v2-epics/DEBT.md`: RV2-DEBT-068 (this epic's parent row, scope
+corrected to language-wide), RV2-DEBT-038 (the float half, with the M4
+`IsCopy` flip that must NOT be taken literally), RV2-DEBT-035 (the fixnum work
+that removed the common-case allocation and left this tail), RV2-DEBT-034 (the
+crossing-body drop suppression, a Phase 1 blocker), RV2-DEBT-036 (literal
+churn — CLOSED, and the reason the baseline is now trustworthy).
