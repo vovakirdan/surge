@@ -537,6 +537,34 @@ void rt_bigfloat_free(void* a) {
     bf_free((SurgeBigFloat*)a);
 }
 
+void rt_bigfloat_retain(void* a) {
+    if (a == NULL) {
+        return; // NULL is the zero float: no block, nothing to count.
+    }
+    SurgeBigFloat* f = (SurgeBigFloat*)a;
+    if (f->rc == UINT32_MAX) {
+        // Saturating at the ceiling would leak the block instead of freeing it
+        // early; a program reaching 2^32 live references to one float has a
+        // defect worth naming rather than papering over.
+        bignum_panic("bigfloat reference count overflow");
+    }
+    f->rc++;
+}
+
+void rt_bigfloat_release(void* a) {
+    if (a == NULL) {
+        return;
+    }
+    SurgeBigFloat* f = (SurgeBigFloat*)a;
+    if (f->rc == 0) {
+        bignum_panic("bigfloat release below zero");
+    }
+    f->rc--;
+    if (f->rc == 0) {
+        bf_free(f);
+    }
+}
+
 // ---- conversions --------------------------------------------------------
 
 void* rt_bigint_to_biguint(const void* a) {

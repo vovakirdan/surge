@@ -16,6 +16,7 @@ static SurgeBigFloat* bf_alloc(bn_err* err) {
         }
         return NULL;
     }
+    out->rc = 1;
     out->neg = 0;
     out->exp = 0;
     out->mant = NULL;

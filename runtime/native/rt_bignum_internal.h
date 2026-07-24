@@ -36,9 +36,25 @@ typedef struct SurgeBigInt {
     uint32_t limbs[];
 } SurgeBigInt;
 
+// A bigfloat block is reference counted: compiled code retains on every copy
+// that outlives its source and releases at scope exit, and the block frees when
+// the count reaches zero. `rc` sits FIRST and its offset is asserted below,
+// because the LLVM backend emits the retain/release as inline IR at the use
+// site rather than paying a call for every float copy — offset zero lets it
+// address the counter without computing a field offset.
+//
+// Unlike the int/uint pair, nothing reinterprets a `SurgeBigFloat`'s tail as
+// another struct (`bi_as_uint` aliases only `SurgeBigInt` -> `SurgeBigUint`),
+// so a prefix field is safe here in a way it would not be there.
+//
+// The count is NON-ATOMIC. That is sound only while a block is never reachable
+// from two shards at once, which every crossing upholds by deep-copying at the
+// boundary and which module-level `let` would have broken (it is banned).
 typedef struct SurgeBigFloat {
-    uint8_t neg;
+    uint32_t rc;
     int32_t exp;
+    uint8_t neg;
+    uint8_t _pad[7];
     SurgeBigUint* mant;
 } SurgeBigFloat;
 
@@ -47,6 +63,15 @@ typedef struct SurgeBigFloat {
 // alignment in practice; assert the invariant the tagging depends on.
 _Static_assert(alignof(SurgeBigInt) >= 2, "SurgeBigInt must leave the low bit free for tagging");
 _Static_assert(alignof(SurgeBigUint) >= 2, "SurgeBigUint must leave the low bit free for tagging");
+_Static_assert(alignof(SurgeBigFloat) >= 2,
+               "SurgeBigFloat must leave the low bit free for tagging");
+
+// The LLVM backend emits `retain` and `release` as inline IR that loads and
+// stores the counter through the block pointer with no offset. Moving `rc`
+// silently miscompiles every float copy, so pin it here rather than in a
+// comment on the emitter.
+_Static_assert(offsetof(SurgeBigFloat, rc) == 0, "bigfloat refcount must stay at offset 0");
+_Static_assert(sizeof(((SurgeBigFloat*)0)->rc) == 4, "bigfloat refcount must stay a 32-bit word");
 
 #include "rt_bignum_tag.h"
 

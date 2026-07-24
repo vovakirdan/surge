@@ -179,12 +179,29 @@ void* rt_bigfloat_mod(const void* a, const void* b);
 void* rt_bigfloat_neg(const void* a);
 void* rt_bigfloat_abs(const void* a);
 int32_t rt_bigfloat_cmp(const void* a, const void* b);
-// Deep-copy / free a heap bigfloat (WidthAny `float`). Both are NULL-safe
-// (NULL is the zero float and needs no allocation). Emitted by the compiler
-// so a Copy-semantics float value is cloned when duplicated and freed on
-// scope exit, matching the string/composite reclamation model.
+// Deep-copy a heap bigfloat (WidthAny `float`). NULL-safe: NULL is the zero
+// float and needs no allocation. The copy starts at count 1 and shares nothing
+// with its source, which is what makes it usable as the deep copy a crossing
+// installs at a shard boundary.
 void* rt_bigfloat_clone(const void* a);
+
+// Destroy a bigfloat block unconditionally, IGNORING its count. This is the
+// zero-count tail of a release, not an ownership operation: the runtime's own
+// arithmetic uses it on temporaries it exclusively owns, and the compiled
+// release path calls it once the count reaches zero. Compiled code must not
+// call it to give up a reference — that is what rt_bigfloat_release is for.
 void rt_bigfloat_free(void* a);
+
+// Ownership operations on a reference-counted bigfloat. Both are NULL-safe.
+// The count is NON-ATOMIC, so these are sound only while a block stays within
+// one shard; every crossing deep-copies at the boundary to keep that true.
+//
+// The LLVM backend inlines both as IR at the use site rather than calling
+// these, so that a float copy costs a predictable not-taken branch instead of
+// a call (the whole point of counting rather than cloning). These entry points
+// are the reference semantics and the out-of-line form.
+void rt_bigfloat_retain(void* a);
+void rt_bigfloat_release(void* a);
 void* rt_bigint_to_biguint(const void* a);
 void* rt_biguint_to_bigint(const void* a);
 void* rt_bigint_to_bigfloat(const void* a);
