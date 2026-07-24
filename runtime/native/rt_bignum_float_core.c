@@ -52,8 +52,21 @@ SurgeBigFloat* bf_clone(const SurgeBigFloat* f, bn_err* err) {
 }
 
 int bf_cmp(const SurgeBigFloat* a, const SurgeBigFloat* b) {
-    if (bf_is_zero(a) && bf_is_zero(b)) {
+    bool a_zero = bf_is_zero(a);
+    bool b_zero = bf_is_zero(b);
+    if (a_zero && b_zero) {
         return 0;
+    }
+    // Zero has to be answered before the exponent comparison below. Zero is
+    // carried as NULL, whose exponent reads as 0, while a normalized non-zero
+    // value keeps its mantissa scaled to the full 256 bits and so has a large
+    // NEGATIVE exponent. Falling through would compare those exponents and
+    // conclude that every positive value is smaller than zero.
+    if (a_zero) {
+        return b->neg ? 1 : -1;
+    }
+    if (b_zero) {
+        return a->neg ? -1 : 1;
     }
     uint8_t a_neg = a ? a->neg : 0;
     uint8_t b_neg = b ? b->neg : 0;

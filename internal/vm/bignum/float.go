@@ -26,8 +26,25 @@ func (f BigFloat) IsZero() bool {
 
 // Cmp compares two BigFloat values.
 func (f BigFloat) Cmp(g BigFloat) int {
-	if f.IsZero() && g.IsZero() {
+	fZero, gZero := f.IsZero(), g.IsZero()
+	if fZero && gZero {
 		return 0
+	}
+	// Zero has to be answered before the exponent ordering below. A zero keeps
+	// the zero-value exponent, while a normalized non-zero value scales its
+	// mantissa to full precision and so carries a large NEGATIVE exponent.
+	// Falling through would order every positive value below zero.
+	if fZero {
+		if g.Neg {
+			return 1
+		}
+		return -1
+	}
+	if gZero {
+		if f.Neg {
+			return -1
+		}
+		return 1
 	}
 	if f.Neg != g.Neg {
 		if f.Neg {
