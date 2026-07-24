@@ -131,7 +131,11 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 	case mir.OperandConst:
 		return vm.evalConst(&op.Const), nil
 
-	case mir.OperandCopy:
+	// OperandRetain names in MIR what the VM's heap has always done on a read:
+	// every copy of a heap value bumps its count. The distinction exists for
+	// the native backend, where a plain copy is a bare word move and the bump
+	// has to be emitted; here both kinds are the same operation.
+	case mir.OperandCopy, mir.OperandRetain:
 		if len(op.Place.Proj) == 0 {
 			switch op.Place.Kind {
 			case mir.PlaceGlobal:

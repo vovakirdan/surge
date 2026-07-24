@@ -449,6 +449,38 @@ func (l *funcLowerer) newTemp(ty types.TypeID, hint string, span source.Span) Lo
 		Name:  name,
 		Span:  span,
 	})
+	// A temp holding a reference-counted scalar owns a reference like any
+	// other place: a call result arrives at count 1, and a `retain` read gives
+	// the temp its own. Register it for the region's flush so that reference
+	// is given back. Named bindings get the same service from sema's
+	// scope-exit obligations; temps have no symbol, so they are registered
+	// here at the single point where every temp is born.
+	l.registerRefCountedTemp(id, ty)
+	return id
+}
+
+// registerRefCountedTemp adds a refcounted-scalar temp to the innermost
+// temp-drop frame so it releases at the end of its evaluation region.
+//
+// The one place that must NOT go through here is the return-value temp: its
+// reference is handed to the caller rather than released, which is exactly
+// what makes `return` a transfer (see detachFromExitDrops).
+func (l *funcLowerer) registerRefCountedTemp(id LocalID, ty types.TypeID) {
+	if id == NoLocalID || !l.isRefCountedScalar(ty) || len(l.tempDropFrames) == 0 {
+		return
+	}
+	top := len(l.tempDropFrames) - 1
+	l.tempDropFrames[top] = append(l.tempDropFrames[top], id)
+}
+
+// newTransferTemp creates a temp whose value is handed onward rather than
+// released in this function, so it is deliberately left out of the temp-drop
+// frames.
+func (l *funcLowerer) newTransferTemp(ty types.TypeID, hint string, span source.Span) LocalID {
+	frames := l.tempDropFrames
+	l.tempDropFrames = nil
+	id := l.newTemp(ty, hint, span)
+	l.tempDropFrames = frames
 	return id
 }
 

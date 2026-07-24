@@ -13,6 +13,18 @@ func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID
 	if op, ok := l.lowerSharedRefReborrowArg(argExpr, paramType); ok {
 		return op, nil
 	}
+	// Ownership transfers on a move, not on a copy. A by-value `string` param
+	// is owned because passing it moved it; a by-value reference-counted
+	// scalar is BORROWED, because passing it copied it and the caller stayed
+	// the owner for the whole call. So the argument must not retain, and the
+	// callee must not drop the parameter (sema's paramTransfersOwnership).
+	//
+	// This is also what keeps the arithmetic honest: `a + b` lowers to a magic
+	// call whose runtime implementation takes `const void*` and frees nothing.
+	// A retain here would leak on every operation.
+	if argExpr != nil && l.isRefCountedScalar(argExpr.Type) {
+		return l.lowerExpr(argExpr, false)
+	}
 	return l.lowerExpr(argExpr, true)
 }
 

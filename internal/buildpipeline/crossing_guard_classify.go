@@ -79,6 +79,9 @@ func classifyCrossingPayload(
 			}
 		}
 		if !semaRes.TriviallyTransportableBits(info.PayloadType) {
+			if msg, ok := refCountedCrossingMessage(semaRes, info.PayloadType, "the crossing result"); ok {
+				return crossingGuardFinding{Code: diag.FutCrossingPayloadNotShippable, Span: info.Span, Message: msg}, true
+			}
 			hint := "return plain-copy data from the block"
 			if info.Kind == sema.CrossingLoweringOnFarHandle {
 				hint = "unwrap it inside the block before `ret` " +
@@ -95,6 +98,9 @@ func classifyCrossingPayload(
 		}
 	case sema.CrossingLoweringFarTaskAwait:
 		if !semaRes.TriviallyTransportableBits(info.PayloadType) {
+			if msg, ok := refCountedCrossingMessage(semaRes, info.PayloadType, "the awaited result"); ok {
+				return crossingGuardFinding{Code: diag.FutCrossingPayloadNotShippable, Span: info.Span, Message: msg}, true
+			}
 			return crossingGuardFinding{
 				Code: diag.FutCrossingPayloadNotShippable,
 				Span: info.Span,
@@ -189,4 +195,22 @@ func dedupeCrossingGuardFindings(in []crossingGuardFinding) []crossingGuardFindi
 		out = append(out, finding)
 	}
 	return out
+}
+
+// refCountedCrossingMessage names the real reason an arbitrary-precision scalar
+// cannot cross yet. Saying "not plain-copy data" would be wrong and confusing
+// here: `float` IS a Copy type and behaves like one everywhere else in the
+// language. What stops it is its representation — the word is a pointer into a
+// block whose reference count is not atomic, so letting the raw bits cross
+// would put two shards on one counter.
+func refCountedCrossingMessage(semaRes *sema.Result, t types.TypeID, subject string) (string, bool) {
+	if semaRes == nil || semaRes.TypeInterner == nil || !semaRes.TypeInterner.IsRefCountedScalar(t) {
+		return "", false
+	}
+	return fmt.Sprintf(
+		"%s `%s` cannot cross a shard boundary yet: it is arbitrary-precision, so the "+
+			"value is a reference into a counted heap block, and the count is not safe to "+
+			"share between shards. Convert to a fixed-width type (`f64`) for the crossing, "+
+			"or keep the value on one shard and cross a result derived from it",
+		subject, types.Label(semaRes.TypeInterner, t)), true
 }

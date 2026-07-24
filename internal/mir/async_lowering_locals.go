@@ -363,7 +363,7 @@ func collectLocalsFromOperand(op *Operand, set localSet) {
 		return
 	}
 	switch op.Kind {
-	case OperandCopy, OperandMove, OperandAddrOf, OperandAddrOfMut:
+	case OperandCopy, OperandRetain, OperandMove, OperandAddrOf, OperandAddrOfMut:
 		collectLocalsFromPlace(op.Place, set)
 	}
 }

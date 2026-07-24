@@ -475,10 +475,14 @@ func (l *funcLowerer) detachFromExitDrops(op *Operand, drops []hir.DropLocal, sp
 	if len(drops) == 0 && !l.hasPendingTempDrops() {
 		return *op
 	}
-	if op.Kind != OperandCopy && op.Kind != OperandMove {
+	if op.Kind != OperandCopy && op.Kind != OperandMove && op.Kind != OperandRetain {
 		return *op
 	}
-	tmp := l.newTemp(op.Type, "retval", span)
+	// The temp is a TRANSFER: its reference leaves with the return value, so
+	// it is kept out of the temp-drop frames the flush below walks. The
+	// materialization has to happen HERE, before the exit drops, or a returned
+	// binding would be read after its own release.
+	tmp := l.newTransferTemp(op.Type, "retval", span)
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{
@@ -486,6 +490,11 @@ func (l *funcLowerer) detachFromExitDrops(op *Operand, drops []hir.DropLocal, sp
 			Src: RValue{Kind: RValueUse, Use: *op},
 		},
 	})
+	// Reading the transfer temp must not retain again: the reference it holds
+	// is the one the caller receives.
+	if l.isRefCountedScalar(op.Type) {
+		return l.placeOperand(Place{Local: tmp}, op.Type, false)
+	}
 	return l.placeOperand(Place{Local: tmp}, op.Type, true)
 }
 

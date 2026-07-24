@@ -75,13 +75,76 @@ func (l *funcLowerer) constNothing(ty types.TypeID) Operand {
 	return Operand{Kind: OperandConst, Type: ty, Const: Const{Kind: ConstNothing, Type: ty}}
 }
 
-// placeOperand creates an operand for a place.
+// placeOperand creates an operand for a place. `consume` marks a read whose
+// value outlives the expression — it is being stored, returned or handed on —
+// as opposed to a borrowing read that only feeds the current operation.
 func (l *funcLowerer) placeOperand(place Place, ty types.TypeID, consume bool) Operand {
 	kind := OperandCopy
-	if consume && !l.isCopyType(ty) {
+	switch {
+	case consume && l.isRefCountedScalar(ty):
+		// Copy at the surface, counted underneath: the source stays usable, so
+		// this cannot be a move, and the destination needs its own reference,
+		// so it cannot be a bare copy.
+		kind = OperandRetain
+	case consume && !l.isCopyType(ty):
 		kind = OperandMove
 	}
 	return Operand{Kind: kind, Type: ty, Place: place}
+}
+
+// materializeOwnedConst binds a reference-counted scalar constant to a temp so
+// that the block it allocates has an owner.
+//
+// A `float` literal is not a compile-time word the way an in-range `int` is:
+// `float` has no inline form, so evaluating one ALLOCATES. Left as a bare
+// constant operand it would be a block with no place holding it and therefore
+// no release — a leak per evaluation, which in a loop grows without bound.
+// Routing it through a temp gives it exactly the ownership every other float
+// value has.
+func (l *funcLowerer) materializeOwnedConst(op *Operand, span source.Span, consume bool) Operand {
+	if op.Kind != OperandConst || !l.isRefCountedScalar(op.Type) {
+		return *op
+	}
+	tmp := l.newTemp(op.Type, "const", span)
+	l.emit(&Instr{
+		Kind: InstrAssign,
+		Assign: AssignInstr{
+			Dst: Place{Local: tmp},
+			Src: RValue{Kind: RValueUse, Use: *op},
+		},
+	})
+	return l.placeOperand(Place{Local: tmp}, op.Type, consume)
+}
+
+// retainExtractedValue gives a temp holding a value read OUT of a container its
+// own reference.
+//
+// A field or element read copies the bare word; the container keeps its
+// reference and knows nothing about the copy. Without this the temp would be
+// released at the end of its region while the container still points at the
+// block — a double release — and reading through the temp after the container
+// was dropped would be a use-after-free. Retaining makes the temp a real owner,
+// which its own release then balances.
+func (l *funcLowerer) retainExtractedValue(local LocalID, ty types.TypeID) {
+	if local == NoLocalID || !l.isRefCountedScalar(ty) {
+		return
+	}
+	l.emit(&Instr{
+		Kind: InstrAssign,
+		Assign: AssignInstr{
+			Dst: Place{Local: local},
+			Src: RValue{Kind: RValueUse, Use: Operand{Kind: OperandRetain, Type: ty, Place: Place{Local: local}}},
+		},
+	})
+}
+
+// isRefCountedScalar reports whether the type is one of the arbitrary-precision
+// scalars whose heap block carries a reference count.
+func (l *funcLowerer) isRefCountedScalar(ty types.TypeID) bool {
+	if l == nil || l.types == nil || ty == types.NoTypeID {
+		return false
+	}
+	return l.types.IsRefCountedScalar(resolveAlias(l.types, ty))
 }
 
 func (l *funcLowerer) unwrapReferenceType(id types.TypeID) types.TypeID {

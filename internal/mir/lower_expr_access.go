@@ -48,6 +48,7 @@ func (l *funcLowerer) lowerFieldAccessExpr(e *hir.Expr, consume bool) (Operand, 
 			},
 		},
 	})
+	l.retainExtractedValue(tmp, e.Type)
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 
@@ -124,6 +125,7 @@ func (l *funcLowerer) lowerIndexExpr(e *hir.Expr, consume bool) (Operand, error)
 			Src: RValue{Kind: RValueIndex, Index: IndexAccess{Object: obj, Index: idx}},
 		},
 	})
+	l.retainExtractedValue(tmp, e.Type)
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 

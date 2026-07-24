@@ -112,6 +112,15 @@ func (fe *funcEmitter) emitOperand(op *mir.Operand) (val, ty string, err error) 
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
 		return tmp, ty, nil
+	case mir.OperandRetain:
+		ptr, ty, err := fe.emitPlacePtr(op.Place)
+		if err != nil {
+			return "", "", err
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
+		fe.emitRetainValue(tmp, ty)
+		return tmp, ty, nil
 	case mir.OperandAddrOf, mir.OperandAddrOfMut:
 		ptr, _, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
@@ -145,7 +154,7 @@ func (fe *funcEmitter) emitOperandAddr(op *mir.Operand) (string, error) {
 		return "", fmt.Errorf("nil operand")
 	}
 	switch op.Kind {
-	case mir.OperandAddrOf, mir.OperandAddrOfMut, mir.OperandCopy, mir.OperandMove:
+	case mir.OperandAddrOf, mir.OperandAddrOfMut, mir.OperandCopy, mir.OperandRetain, mir.OperandMove:
 		ptr, _, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
 			return "", err

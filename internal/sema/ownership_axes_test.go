@@ -6,16 +6,19 @@ import (
 	"surge/internal/types"
 )
 
-// The two ownership axes are introduced as NAMES for questions `IsCopy` used
-// to answer alone, so today they must reproduce its answers exactly. This
-// walks every type the snippet's interner holds and pins both invariants:
+// The ownership axes were introduced as NAMES for questions `IsCopy` used to
+// answer alone. They still track it everywhere EXCEPT the reference-counted
+// scalars, which are the whole reason the axes are separate: those are Copy at
+// the surface and heap-owning underneath. This walks every type the snippet's
+// interner holds and pins the invariants:
 //
-//	TriviallyTransportableBits(T) == IsCopy(T)
-//	OwnsHeap(T)                   == !IsCopy(T), except borrows, which own nothing
+//	OwnsHeap(T) == true                 for a reference-counted scalar
+//	OwnsHeap(T) == false                for a borrow, which owns nothing
+//	OwnsHeap(T) == !IsCopy(T)           everywhere else
 //
-// When the arbitrary-precision scalars become reclaimable, `int`, `uint` and
-// `float` are what breaks the OwnsHeap row — deliberately. Anything ELSE
-// breaking means the widening reached a type shape it was not meant to.
+// `float` is the only type in the first row today. When `int` and `uint`
+// follow, they join it — and NOTHING ELSE may move. Another shape breaking
+// this means the widening reached a type it was not meant to.
 func TestOwnershipAxesAgreeWithCopyToday(t *testing.T) {
 	src := `
 type Plain = { a: int, b: int };
@@ -48,13 +51,25 @@ fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, o: Owning, w: W
 		checked++
 
 		copyable := res.IsCopyType(id)
-		if got := res.TriviallyTransportableBits(id); got != copyable {
+		// A reference-counted scalar is Copy but ships a pointer to a block
+		// with a non-atomic count, so it is not raw-bits transportable until
+		// the boundary installs a deep copy.
+		wantBits := copyable && !res.TypeInterner.IsRefCountedScalar(id)
+		if got := res.TriviallyTransportableBits(id); got != wantBits {
 			t.Errorf("type %d (%v): TriviallyTransportableBits=%v, want %v",
-				id, tt.Kind, got, copyable)
+				id, tt.Kind, got, wantBits)
 		}
 
 		want := !copyable
-		if tt.Kind == types.KindReference || tt.Kind == types.KindPointer {
+		switch {
+		case res.TypeInterner.IsRefCountedScalar(id):
+			// Copy at the surface, heap-owning underneath: `let b = a` leaves
+			// both usable, and the block still has to be reclaimed.
+			want = true
+			if !copyable {
+				t.Errorf("type %d (%v): a reference-counted scalar must stay Copy", id, tt.Kind)
+			}
+		case tt.Kind == types.KindReference || tt.Kind == types.KindPointer:
 			// A borrow names storage it does not own. `&mut T` is the shape
 			// that makes this its own clause rather than a restatement of
 			// IsCopy: it is NOT Copy, yet dropping it would free a value the
@@ -91,13 +106,15 @@ fn probe(r: &int, m: &mut int, o: Owning) -> int {
 		t.Fatalf("expected a sema result")
 	}
 
-	var sawCopyBorrow, sawNonCopyBorrow, sawOwningComposite bool
+	var sawCopyBorrow, sawNonCopyBorrow, sawOwningComposite, sawRefCountedScalar bool
 	for id := types.TypeID(1); ; id++ {
 		tt, ok := res.TypeInterner.Lookup(id)
 		if !ok {
 			break
 		}
 		switch {
+		case res.TypeInterner.IsRefCountedScalar(id):
+			sawRefCountedScalar = true
 		case tt.Kind == types.KindReference && res.IsCopyType(id):
 			sawCopyBorrow = true
 		case tt.Kind == types.KindReference && !res.IsCopyType(id):
@@ -105,6 +122,9 @@ fn probe(r: &int, m: &mut int, o: Owning) -> int {
 		case tt.Kind == types.KindStruct && res.OwnsHeap(id):
 			sawOwningComposite = true
 		}
+	}
+	if !sawRefCountedScalar {
+		t.Errorf("interner holds no reference-counted scalar — the shape the axes exist for")
 	}
 	if !sawCopyBorrow {
 		t.Errorf("snippet produced no Copy borrow (&T)")

@@ -51,24 +51,42 @@ func (tc *typeChecker) pushDropScope(functionRoot bool) {
 	tc.dropScopes = append(tc.dropScopes, dropScope{functionRoot: functionRoot})
 }
 
-// registerDroppableParams registers a function's by-value non-copy
-// params (including a by-value self) into the function-root drop scope:
-// the callee owns them and drops them on every exit unless it moved
-// them onward.
+// paramTransfersOwnership reports whether passing a by-value argument of this
+// type HANDED the value to the callee, making the callee responsible for
+// dropping it.
+//
+// Ownership transfers on a move, not on a copy. A `string` param is owned
+// because passing a string by value moves it and the caller's binding dies. A
+// reference-counted scalar is Copy, so the caller keeps its binding AND its
+// reference for the whole call — the parameter merely borrows, and dropping it
+// in the callee would release a reference the callee never acquired.
+//
+// This is why the predicate is `!isCopyType` rather than `ownsHeap`: those two
+// answer the same for every other type, and differ exactly here.
+func (tc *typeChecker) paramTransfersOwnership(id types.TypeID) bool {
+	return tc.isDroppableType(id) && !tc.isCopyType(id)
+}
+
+// registerDroppableParams registers a function's by-value owned params
+// (including a by-value self) into the function-root drop scope: the callee
+// owns them and drops them on every exit unless it moved them onward.
 func (tc *typeChecker) registerDroppableParams(fn *ast.FnItem, scope symbols.ScopeID) {
 	if tc.builder == nil || fn == nil {
 		return
 	}
-	if selfSym := tc.findSelfSymbol(fn, scope); selfSym.IsValid() {
-		tc.registerDroppableBinding(selfSym)
+	register := func(symID symbols.SymbolID) {
+		if !symID.IsValid() || !tc.paramTransfersOwnership(tc.bindingType(symID)) {
+			return
+		}
+		tc.registerDroppableBinding(symID)
 	}
+	register(tc.findSelfSymbol(fn, scope))
 	for _, pid := range tc.builder.Items.GetFnParamIDs(fn) {
 		param := tc.builder.Items.FnParam(pid)
 		if param == nil || param.Name == source.NoStringID {
 			continue
 		}
-		symID := tc.symbolInScope(scope, param.Name, symbols.SymbolParam)
-		tc.registerDroppableBinding(symID)
+		register(tc.symbolInScope(scope, param.Name, symbols.SymbolParam))
 	}
 }
 

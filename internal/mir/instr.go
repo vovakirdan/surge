@@ -388,6 +388,21 @@ const (
 	OperandAddrOf
 	// OperandAddrOfMut represents a mutable address-of operand.
 	OperandAddrOfMut
+	// OperandRetain reads a place whose value is a reference-counted scalar
+	// and gives the destination its OWN reference to the same block.
+	//
+	// It exists because neither Copy nor Move can express this. Copy would
+	// leave two owners sharing one reference, so whichever released first
+	// would free the block under the other. Move would end the source's
+	// ownership, which is exactly what these types must not do — they are
+	// Copy at the surface, so `let b = a` has to leave `a` usable.
+	//
+	// Whether a read retains is a property of the USE SITE, not of the type:
+	// storing `a` into `b` creates an owner, while handing `a` to an
+	// arithmetic entry point that borrows it does not. No type predicate can
+	// decide that, which is why this is a distinct operand kind rather than a
+	// flag derived from the operand's type.
+	OperandRetain
 )
 
 func (k OperandKind) String() string {
@@ -402,6 +417,8 @@ func (k OperandKind) String() string {
 		return "AddrOf"
 	case OperandAddrOfMut:
 		return "AddrOfMut"
+	case OperandRetain:
+		return "Retain"
 	default:
 		return "Unknown"
 	}

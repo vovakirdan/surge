@@ -56,6 +56,9 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	}
 	seen[id] = struct{}{}
 
+	if e.types.IsRefCountedScalar(id) {
+		return true
+	}
 	if isStringLike(e.types, id) {
 		return true
 	}
@@ -259,6 +262,12 @@ func (g *glueTmp) next() string { g.n++; return fmt.Sprintf("%%g%d", g.n) }
 // pointer-shaped owning types) of type `ty`. Records nested glue needs.
 func (e *Emitter) emitDropValue(val string, ty types.TypeID) {
 	ty = resolveValueType(e.types, ty)
+	if e.types.IsRefCountedScalar(ty) {
+		// The container is giving back the reference it held. Whether the block
+		// dies here depends on who else still points at it.
+		fmt.Fprintf(&e.buf, "  call void @rt_bigfloat_release(ptr %s)\n", val)
+		return
+	}
 	if isStringLike(e.types, ty) {
 		fmt.Fprintf(&e.buf, "  call void @rt_string_free(ptr %s)\n", val)
 		return

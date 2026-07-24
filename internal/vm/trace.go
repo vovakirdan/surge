@@ -382,6 +382,8 @@ func (t *Tracer) formatOperand(op *mir.Operand) string {
 		return fmt.Sprintf("copy %s", t.formatPlace(op.Place))
 	case mir.OperandMove:
 		return fmt.Sprintf("move %s", t.formatPlace(op.Place))
+	case mir.OperandRetain:
+		return fmt.Sprintf("retain %s", t.formatPlace(op.Place))
 	case mir.OperandAddrOf:
 		return fmt.Sprintf("addr_of %s", t.formatPlace(op.Place))
 	case mir.OperandAddrOfMut:

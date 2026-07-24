@@ -182,7 +182,7 @@ func operandsEqual(a, b *Operand) bool {
 		return false
 	}
 	switch a.Kind {
-	case OperandCopy, OperandMove:
+	case OperandCopy, OperandRetain, OperandMove:
 		return placesEqual(a.Place, b.Place)
 	default:
 		return false

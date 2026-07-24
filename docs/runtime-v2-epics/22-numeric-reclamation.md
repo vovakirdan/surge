@@ -399,6 +399,66 @@ whole run). **Do not benchmark this epic against anything older than commit
   cross-clone glue → **the six crossing barriers and the globals rule**
   (these are in Phase 1 because the count is non-atomic from day one).
   RV2-DEBT-034 must be resolved by here.
+  **Landed so far: the LOCAL vertical.** A `float` value now carries a
+  reference count end to end within one shard, and the reclamation gate
+  (`TestRuntimeV2FloatReclamationValgrindZero`) is strict zero across
+  reassignment loops, struct fields, array elements, `for ... in`, a function
+  returning a fresh value, and a function returning its own parameter.
+  Negative control: disabling the retain emission fails it.
+
+  The shape that fell out, and the rule that made it simple: **ownership
+  transfers on a move, not on a copy.** A `string` parameter is owned because
+  passing it moved it; a `float` parameter is BORROWED because passing it
+  copied it and the caller kept both its binding and its reference for the
+  whole call. So arguments never retain and parameters never drop — which also
+  makes the arithmetic correct for free, since `a + b` lowers to a magic call
+  whose runtime implementation takes `const void*` and frees nothing. A retain
+  at argument sites would have leaked on every operation. Concretely:
+
+  - `placeOperand` yields `OperandRetain` for a consuming read of a
+    refcounted scalar (`internal/mir/lower_expr_helpers.go`); every MIR place
+    holding one owns exactly one reference over its live range.
+  - `newTemp` registers refcounted-scalar temps in the temp-drop frames
+    (`internal/mir/lower.go`), because a call result arrives owning and a temp
+    has no symbol for sema to hang an obligation on. The RETURN-value temp is
+    the one exception (`newTransferTemp`): its reference leaves with the value.
+  - `detachFromExitDrops` now accepts `OperandRetain`, so the returned value is
+    materialized BEFORE the exit drops. Without that, `return z` emitted
+    `drop z; return retain z` — a read of a released block.
+  - Float literals materialize through an owned temp (`materializeOwnedConst`).
+    Unlike an in-range `int`, a `float` literal is not a compile-time word:
+    evaluating one ALLOCATES, so a bare const operand was a block with no owner
+    and no release — a leak per evaluation, unbounded in a loop.
+  - Field and element reads retain (`retainExtractedValue`): the read copies a
+    bare word while the container keeps its own reference, so without this the
+    temp's release would be a second one.
+  - Drop glue releases refcounted-scalar fields (`emitDropValue`).
+  - The LLVM retain is BRANCHLESS inline IR (`emit_refcount.go`): rather than
+    branching over the NULL zero, it `select`s the read-modify-write onto a
+    thread-local scratch word. That keeps a float copy straight-line and avoids
+    splitting the enclosing basic block mid-expression. Release stays an
+    out-of-line call — once per place at scope exit, and it has to branch into
+    the destructor anyway.
+  - MIR's `validate.go` drop-on-copy-local check gained the refcounted-scalar
+    exception, one of the three legs Phase 0b flagged.
+
+  **Cross-shard paths are CLOSED, not solved.** A non-atomic count is only
+  sound while a block stays on one shard, and the barriers do not exist yet, so
+  the gate now REFUSES a refcounted scalar at a crossing: as a reply/await
+  payload (`TriviallyTransportableBits`) and as a capture
+  (`classifyOnCapture`). Both diagnostics name the real reason rather than
+  saying "not plain-copy data", which would be false — `float` IS Copy. This is
+  a deliberate, temporary narrowing: before this work a float crossing compiled
+  and leaked; now it does not compile. It reopens when the barriers land.
+
+- **Phase 1 remainder — the six crossing barriers.** Install a deep copy
+  (`rt_bigfloat_clone`, recursive for composites) at: `on`/`spawn on` captures,
+  `blocking`, far channel send, crossing reply / `far Task.await()`, remote
+  select SEND arms. Then reopen the two gates above. Note the reply edge is a
+  TRANSFER rather than sharing (the producing shard keeps no reference), so it
+  may need only the handoff barrier, while captures and sends are genuine
+  sharing and need the copy.
+
 - **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
   already proven by float.
 - **Phase 3 — inline arithmetic in IR.** Independent of this epic; see trap 5
@@ -424,9 +484,28 @@ whole run). **Do not benchmark this epic against anything older than commit
   the crossing censuses). When a delta moves, PROVE the change is balanced
   churn — allocations falling with frees, valgrind A/B byte-identical — before
   updating the number. Do not silence a census.
-- **Known flake, not yours:**
+- **Known flakes, not yours:**
   `TestRuntimeV2RemoteTaskBehavior/shutdown-wakes-reply-waiters-on-all-shards`
   fails roughly 1 run in 8 on a clean tree, measured both ways.
+  `TestRuntimeV2FarTaskCallerCancel/cancel_after_publication_before_first_poll`
+  fails roughly 1 run in 10 with "missing far-body witness", at a varying shard
+  count; reproduced on an unmodified worktree at the same rate 2026-07-24.
+  Both are timing witnesses, and both surface under full-suite load far more
+  often than in a dedicated run — check a suspected regression with `-count=10`
+  on the test alone AND on a clean worktree before believing it.
+
+## Defects Found While Building This (fixed, not part of the design)
+
+- **Comparing a `float` against zero was inverted, in BOTH backends.** `bf_cmp`
+  (`runtime/native/rt_bignum_float_core.c`) and `BigFloat.Cmp`
+  (`internal/vm/bignum/float.go`) answered the all-zero case, then fell through
+  to exponent ordering. Zero is carried as NULL/zero-value with exponent 0,
+  while a normalized non-zero value scales its mantissa to the full 256 bits
+  and so carries a large NEGATIVE exponent — so every positive value compared
+  BELOW zero. `1.5 > 0.0` was false. The differential could not catch it
+  because both backends had the identical bug, which is worth remembering: a
+  VM/LLVM match proves agreement, not correctness. Found only because a leak
+  witness used `acc > 0.0` as its liveness condition.
 
 ## Open Questions
 

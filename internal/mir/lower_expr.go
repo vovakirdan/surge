@@ -23,7 +23,8 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		if !ok {
 			return Operand{}, fmt.Errorf("mir: literal: unexpected payload %T", e.Data)
 		}
-		return l.lowerLiteral(e.Type, data), nil
+		lit := l.lowerLiteral(e.Type, data)
+		return l.materializeOwnedConst(&lit, e.Span, consume), nil
 
 	case hir.ExprOwnedTemp:
 		data, ok := e.Data.(hir.OwnedTempData)

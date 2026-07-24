@@ -172,6 +172,19 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 	if tc.isFarType(capType) {
 		return CrossingCaptureMoveFarHandle, CrossingCaptureFarHandle, true
 	}
+	// An arbitrary-precision scalar is Copy, but its word is a reference into a
+	// counted heap block. Copying it into the crossing state would leave the
+	// caller's binding and the body's state pointing at one block from two
+	// shards, racing a count that is deliberately not atomic. Refuse until the
+	// boundary installs a deep copy.
+	if tc.types != nil && tc.types.IsRefCountedScalar(tc.resolveAlias(tc.valueType(capType))) {
+		tc.report(diag.SemaCrossNotShardMovable, span,
+			"`%s` cannot cross a shard boundary yet: it is arbitrary-precision, so the value "+
+				"is a reference into a counted heap block, and the count is not safe to share "+
+				"between shards. Use a fixed-width type (`f64`) for the value that crosses",
+			types.Label(tc.types, tc.valueType(capType)))
+		return 0, 0, false
+	}
 	owned := tc.isOwnType(capType)
 	// Copy values, including `Placement`, may cross freely (ON-CAP-V001/V004).
 	if !owned && tc.result != nil && tc.result.IsCopyType(capType) {

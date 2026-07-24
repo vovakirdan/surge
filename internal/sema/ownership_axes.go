@@ -45,10 +45,16 @@ func (tc *typeChecker) ownsHeap(id types.TypeID) bool {
 	if id == types.NoTypeID || tc.types == nil {
 		return false
 	}
+	resolved := tc.resolveAlias(id)
+	// A reference-counted scalar is Copy AND heap-owning at once — the whole
+	// reason these are separate axes. Ask first, so the Copy answer below does
+	// not swallow it.
+	if tc.types.IsRefCountedScalar(resolved) {
+		return true
+	}
 	if tc.isCopyType(id) {
 		return false
 	}
-	resolved := tc.resolveAlias(id)
 	tt, ok := tc.types.Lookup(resolved)
 	if !ok {
 		return false
@@ -66,10 +72,13 @@ func (r *Result) OwnsHeap(id types.TypeID) bool {
 	if r == nil || r.TypeInterner == nil || id == types.NoTypeID {
 		return false
 	}
+	resolved := resolveAlias(r.TypeInterner, id)
+	if r.TypeInterner.IsRefCountedScalar(resolved) {
+		return true
+	}
 	if r.IsCopyType(id) {
 		return false
 	}
-	resolved := resolveAlias(r.TypeInterner, id)
 	tt, ok := r.TypeInterner.Lookup(resolved)
 	if !ok {
 		return false
@@ -91,5 +100,15 @@ func (r *Result) OwnsHeap(id types.TypeID) bool {
 // "not heap-owning" and "safe to memcpy across a shard" are different claims,
 // and a `&T` satisfies the first but never the second.
 func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
+	if r == nil || r.TypeInterner == nil {
+		return false
+	}
+	// A reference-counted scalar is Copy, but its bits are a pointer to a
+	// counted block, and the count is non-atomic. Letting the raw word cross
+	// would put two shards on one counter. It becomes shippable again once the
+	// boundary installs a deep copy.
+	if r.TypeInterner.IsRefCountedScalar(resolveAlias(r.TypeInterner, id)) {
+		return false
+	}
 	return r.IsCopyType(id)
 }

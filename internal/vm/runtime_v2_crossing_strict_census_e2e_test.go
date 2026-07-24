@@ -354,6 +354,13 @@ var valgrindDefinitelyLostRE = regexp.MustCompile(`definitely lost:\s*([\d,]+)\s
 func parseValgrindDefinitelyLost(stderr string) (bytesLost, blocksLost int, err error) {
 	m := valgrindDefinitelyLostRE.FindStringSubmatch(stderr)
 	if m == nil {
+		// Valgrind prints the LEAK SUMMARY breakdown only when something was
+		// still reachable at exit. A run that freed everything replaces it with
+		// this line, which is the strongest possible answer to "did anything
+		// leak" — read it as a clean zero rather than a parse failure.
+		if strings.Contains(stderr, "All heap blocks were freed -- no leaks are possible") {
+			return 0, 0, nil
+		}
 		return 0, 0, fmt.Errorf("no \"definitely lost\" summary line found in valgrind output")
 	}
 	b, convErr := strconv.Atoi(strings.ReplaceAll(m[1], ",", ""))

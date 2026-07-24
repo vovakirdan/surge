@@ -62,6 +62,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		return nil
 	}
 	typesIn := fe.emitter.types
+	isRefCounted := typesIn.IsRefCountedScalar(resolveValueType(typesIn, baseType))
 	isString := isStringLike(typesIn, baseType)
 	isFarChan := isFarChannelType(typesIn, baseType)
 	elemType, dynamic, isArray := arrayElemType(typesIn, baseType)
@@ -81,7 +82,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 			}
 		}
 	}
-	if !isString && !dynArray && !composite && !isFarChan {
+	if !isRefCounted && !isString && !dynArray && !composite && !isFarChan {
 		return nil
 	}
 	ptr, ptrTy, err := fe.emitPlacePtr(ins.Drop.Place)
@@ -94,6 +95,11 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	handle := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
 	switch {
+	case isRefCounted:
+		// Giving back this place's reference, not destroying the block: the
+		// same block may still be reachable from another binding, and only the
+		// last release frees it.
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_bigfloat_release(ptr %s)\n", handle)
 	case isString:
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", handle)
 	case isFarChan:

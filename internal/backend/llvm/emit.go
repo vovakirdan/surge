@@ -248,7 +248,17 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 
 func (e *Emitter) emitPreamble() {
 	e.buf.WriteString("target triple = \"x86_64-linux-gnu\"\n\n")
+	// Landing pad for a retain on the NULL float — the canonical zero, which
+	// has no block behind it. Retaining is branchless (see emitRetainOperand):
+	// the NULL case is redirected onto this word instead of jumping over the
+	// bump, so duplicating a float stays straight-line code. Thread-local
+	// because shards are OS threads, and the counter is written by whichever
+	// shard runs the copy; nothing ever reads it back.
+	fmt.Fprintf(&e.buf, "@%s = thread_local global i32 0\n\n", retainScratchGlobal)
 }
+
+// retainScratchGlobal is the module-level sink a NULL retain bumps instead.
+const retainScratchGlobal = "__surge_rc_scratch"
 
 func (e *Emitter) emitRuntimeDecls() {
 	for _, decl := range runtimeDecls() {
