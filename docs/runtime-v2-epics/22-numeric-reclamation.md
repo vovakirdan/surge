@@ -84,8 +84,13 @@ retain.
    intermediate state. Consequence: the cross-shard barriers and the globals
    rule below are Phase 1 work, not a later phase.
 
-2. **Globals: immortalize the immutable ones.** Recommended and pending final
-   confirmation only on the `let mut` half (see Open Questions).
+2. **Module-level `let` is BANNED outright** — both `let` and `let mut`. The
+   only globals a program may declare are `const`, i.e. compile-time numbers
+   and strings. Rationale from the owner: needing a global array or struct is
+   rare, and "declare a global array and work with it concurrently" is a
+   pattern worth refusing at the language level rather than supporting. This
+   supersedes the immortalization proposal — no sentinel refcount, no
+   clone-on-read, no exception for `mut`.
 
 ## The Load-Bearing Claim, And Where It Breaks
 
@@ -113,8 +118,9 @@ pointer word today and needs a deep copy inserted:
 - (`@shard_movable` owned moves need no clone — exclusive transfer.
   `share()` publishes only a sibling handle, no payload.)
 
-**One path has NO clone point, and it decides the design: module-level
-globals.** `ast.ItemLet` at module scope becomes a global
+**One path had NO clone point, and it is now closed by banning module-level
+`let` (see Owner Decisions). Recorded here because it is the reason for the
+ban:** `ast.ItemLet` at module scope becomes a global
 (`internal/hir/lower.go` ~189-191), initialized in `__surge_start`. Any shard
 can then load that global into a local — a retain of a shared block from an
 arbitrary shard, with no crossing involved and nowhere to install a copy.
@@ -131,16 +137,34 @@ arbitrary shard, with no crossing involved and nowhere to install a copy.
 So today **no global is a heap bignum at all**. The hole is real but
 currently unexercised.
 
-**Why immortalization is the cheap answer.** An *immutable* global's value is
-created once in `__surge_start` and must stay reachable for the whole
-program — there is nothing to reclaim, so a sentinel refcount that makes
-retain/release no-ops loses nothing. It is correct lifetime, not a leak. The
-only genuine loss is a `let mut` global reassigned at runtime: the old block
-is immortal and stranded.
+**Why the ban is the right answer rather than a workaround.** The decisive
+fact is that `const` and a global `let` are NOT the same mechanism:
 
-**A second, larger reason globals are worth handling rather than dodging:**
-`internal/mir/entrypoint.go` also stores globals, so `let mut` globals are a
-second publication point, not just a read path.
+- `const` is INLINED at each use site (`lowerConstValue`,
+  `internal/mir/lower_expr_helpers.go` calls `lowerExpr(decl.Value)`), so it
+  never creates a shared slot. Each use materializes its own block inside the
+  shard that runs the code. Measured: a big `const` used twice leaks 72 bytes
+  in 2 blocks — one per use — so it is an ordinary per-use value that Phase
+  1/2's normal drop machinery reclaims, and it is structurally safe for a
+  non-atomic count because nothing is shared.
+- a global `let` creates ONE block in `__surge_start` that every shard reads.
+  That is the shared block, and there is no crossing at which to clone it.
+  `internal/mir/entrypoint.go` also STORES globals, so `let mut` is a second
+  publication point on top of the read path.
+
+Narrowing the ban to numeric globals would NOT close the hole: a global
+`int[]` holding out-of-range values is the same shared block one level down.
+So the ban has to cover module-level `let` entirely.
+
+**What the ban costs, stated honestly.** `const` only accepts compile-time
+numbers and strings — arrays and structs are rejected with SEM3026
+("initializer must be a compile-time constant"), verified. A global `let`
+accepts all of those plus `let mut`. So the language loses global arrays,
+global structs and global mutable state outright. There are ZERO of these in
+`stdlib/` and `core/`, and 17 test fixtures use module-level `let` (parser and
+sema fixtures such as `testdata/test_let/*` and
+`testdata/golden/mir/toplevel_globals.sg`) which will need rewriting or
+reclassifying as invalid.
 
 ## Do NOT Flip `IsCopy`
 
@@ -267,7 +291,12 @@ whole run). **Do not benchmark this epic against anything older than commit
 
 ## Phases
 
-- **Phase 0 — predicate split, no behavior change.** Introduce `OwnsHeap` and
+- **Phase 0a — ban module-level `let`.** A sema diagnostic refusing
+  `ast.ItemLet` at module scope, pointing the user at `const`. Rewrite or
+  reclassify the 17 fixtures. This is the one step that DOES change language
+  semantics, so it lands on its own and is separately reviewable. It is a
+  prerequisite for the non-atomic refcount, not a cleanup.
+- **Phase 0b — predicate split, no behavior change.** Introduce `OwnsHeap` and
   `TriviallyTransportableBits` as independent axes, defined so every current
   answer is preserved. Land green with `IsCopy` untouched. Separately
   reviewable; this is what makes everything after it safe.
@@ -313,13 +342,7 @@ whole run). **Do not benchmark this epic against anything older than commit
 
 ## Open Questions
 
-1. **`let mut` numeric globals.** Immortalization is correct and free for
-   immutable globals (the value must live for the whole program anyway), but a
-   reassigned `let mut` global strands its old block. Options: clone-on-read
-   for mut globals, or a sema diagnostic refusing a numeric module-level
-   `let mut` until it is needed. There are none in the tree today, so either
-   is currently free. Owner to confirm.
-2. **Mantissa refcounting** — single-level first (see trap 2); revisit after
+1. **Mantissa refcounting** — single-level first (see trap 2); revisit after
    the single-level version is green.
 
 ## Related Ledger Rows
