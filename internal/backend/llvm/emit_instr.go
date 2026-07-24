@@ -70,13 +70,16 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	composite := false
 	if fe.emitter.isBoxedComposite(baseType) {
 		composite = fe.emitter.typeOwnsHeap(baseType)
-		if !composite && isUnionValueType(typesIn, baseType) {
-			// A tag-union value with no heap-owning payload still owns its
-			// heap box: without this branch every discarded union temp (an
-			// awaited TaskResult, an Option<int> iterator step, ...) leaks
-			// its box. The glue for such a type is a null check plus the
-			// box free. Skip types whose layout the backend cannot size —
-			// their drop stays the historical no-op.
+		if !composite {
+			// A boxed composite with no heap-owning field still owns its BOX.
+			// Without this every such value leaks one block per construction —
+			// `type R = { a: int, b: int }` lost 16 bytes per `R` built. The
+			// exception used to be spelled for tag unions only, which is why
+			// discarded union temps were reclaimed while plain structs and
+			// tuples were not; the box is the same in all three cases and the
+			// glue for such a type is a null check plus the free. Skip types
+			// whose layout the backend cannot size — their drop stays the
+			// historical no-op.
 			if _, layoutErr := fe.emitter.layoutOf(resolveValueType(typesIn, baseType)); layoutErr == nil {
 				composite = true
 			}

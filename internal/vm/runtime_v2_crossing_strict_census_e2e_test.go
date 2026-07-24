@@ -473,8 +473,17 @@ func TestRuntimeV2CrossingStrictCensusValgrindBounded(t *testing.T) {
 	if _, err := exec.LookPath("valgrind"); err != nil {
 		t.Skip("valgrind not installed; skipping valgrind leak-check census")
 	}
-	const wantDefinitelyLostBytes = 344
-	const wantDefinitelyLostBlocks = 13
+	// Recalibrated 2026-07-24, DOWN from 344 bytes in 13 blocks. A boxed
+	// composite with no heap-owning field now frees its box, where the
+	// exception used to be spelled for tag unions only — so six of the blocks
+	// this row recorded were struct/tuple boxes and are now reclaimed.
+	//
+	// Proven a real reduction rather than balanced churn: the change only ADDS
+	// drop-glue calls and can never remove an allocation, and the direct probe
+	// went from 51 allocs / 35 frees to 51 allocs / 51 frees — allocations
+	// identical, frees up by exactly the leaked count.
+	const wantDefinitelyLostBytes = 56
+	const wantDefinitelyLostBlocks = 7
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2CrossingStrictCensusValgrindSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	for _, shardCount := range []int{1, 2, 8} {
