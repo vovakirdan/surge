@@ -78,7 +78,7 @@ func classifyCrossingPayload(
 				}, true
 			}
 		}
-		if !semaRes.IsCopyType(info.PayloadType) {
+		if !semaRes.TriviallyTransportableBits(info.PayloadType) {
 			hint := "return plain-copy data from the block"
 			if info.Kind == sema.CrossingLoweringOnFarHandle {
 				hint = "unwrap it inside the block before `ret` " +
@@ -94,7 +94,7 @@ func classifyCrossingPayload(
 			}, true
 		}
 	case sema.CrossingLoweringFarTaskAwait:
-		if !semaRes.IsCopyType(info.PayloadType) {
+		if !semaRes.TriviallyTransportableBits(info.PayloadType) {
 			return crossingGuardFinding{
 				Code: diag.FutCrossingPayloadNotShippable,
 				Span: info.Span,

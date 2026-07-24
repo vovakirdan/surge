@@ -221,6 +221,47 @@ Blast radius is exactly three TypeIDs: `int`/`uint`/`float` are WidthAny
 (`internal/types/interner.go`); `i8..i64`, `u8..u64`, `f32`/`f64` are separate
 types and are untouched.
 
+**As landed (Phase 0b).** Both axes live in `internal/sema/ownership_axes.go`:
+`typeChecker.ownsHeap` for in-pass use, `Result.OwnsHeap` and
+`Result.TriviallyTransportableBits` for MIR and the build pipeline. `IsCopy` is
+untouched. Routed: `isDroppableType` (`drop_obligations.go`) is now a one-line
+delegate to `ownsHeap`; the two MIR drop sites (`lower_stmt.go` — explicit
+`@drop` lowering and `emitExitDrops`) go through a new `funcLowerer.ownsHeap`;
+the four crossing-gate sites read `TriviallyTransportableBits`.
+
+**OwnsHeap is NOT simply `!IsCopy`, and the difference is load-bearing.**
+`&mut T` is not Copy (`internal/types/interner.go` — `&T` is Copy, `&mut T` is
+not), so a plain negation would make a mutable borrow droppable and free
+storage the holder never owned. Both legs therefore carry an explicit
+reference/pointer clause. This was already true of `isDroppableType`; naming
+the axis makes it visible instead of incidental.
+
+**The legs that did NOT move in 0b, and must move together in Phase 1** — all
+three are recorded in the `ownership_axes.go` header so they are found from the
+predicate rather than by memory:
+
+- `Emitter.typeOwnsHeap` (`internal/backend/llvm/emit_drop_glue.go`) — the
+  backend's STRUCTURAL leg: it walks composites for a heap-bearing leaf instead
+  of asking about Copy. Sema decides whether a value carries a drop obligation;
+  this decides whether that drop has glue to call. Widening one alone either
+  drops nothing or calls a function that was never emitted.
+- `funcLowerer.localFlags` (`internal/mir/lower.go`) sets `LocalFlagCopy`, and
+  `internal/mir/validate.go` (~524) REJECTS `InstrDrop` on a local carrying it
+  ("drop on copy local"). A droppable Copy scalar trips that validator on the
+  first Phase 1 program.
+- `funcLowerer.placeOperand` (`internal/mir/lower_expr_helpers.go`) bit-copies
+  Copy operands rather than moving them — trap 4's `OperandRetain` lands here.
+
+**Gate.** `TestOwnershipAxesAgreeWithCopyToday` walks every type in a snippet's
+interner and pins both invariants against `IsCopy`, with a companion row
+asserting the snippet actually contains a Copy borrow, a non-Copy borrow and a
+heap-owning struct (so the walk cannot pass over an empty universe). Phase 1
+should see `int`/`uint`/`float` and NOTHING ELSE break the OwnsHeap row.
+Negative control: deleting the borrow clause from `Result.OwnsHeap` fails it on
+the `&mut int` row. Zero golden diff across the whole tree is the second
+witness that 0b changed no behavior — MIR goldens print every drop instruction
+and the crossing goldens print the shippability diagnostics.
+
 ## Machinery That Already Exists (reuse, do not reinvent)
 
 - **The VM already implements this design.** `internal/vm/heap.go` has a full
@@ -341,10 +382,12 @@ whole run). **Do not benchmark this epic against anything older than commit
   HIR globals, the MIR `globals=` section, and the `__surge_start` global
   stores in `internal/mir/entrypoint.go` — is now unreachable from valid
   source, and is no longer covered by any golden.
-- **Phase 0b — predicate split, no behavior change.** Introduce `OwnsHeap` and
-  `TriviallyTransportableBits` as independent axes, defined so every current
-  answer is preserved. Land green with `IsCopy` untouched. Separately
-  reviewable; this is what makes everything after it safe.
+- **Phase 0b — predicate split, no behavior change. DONE.** Introduce
+  `OwnsHeap` and `TriviallyTransportableBits` as independent axes, defined so
+  every current answer is preserved. Land green with `IsCopy` untouched.
+  Separately reviewable; this is what makes everything after it safe. See "As
+  landed (Phase 0b)" under "Do NOT Flip `IsCopy`" for the shipped shape, the
+  three legs still to move, and the gate.
 - **Phase 1 — float vertical, LLVM only, non-atomic from the start.** Float
   first: ~90% shared machinery so this is risk reduction rather than cost
   reduction, but the risk reduction is real — float has no fixnum tag (only

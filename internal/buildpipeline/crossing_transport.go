@@ -94,9 +94,9 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 				return false
 			}
 		}
-		return res.IsCopyType(info.PayloadType)
+		return res.TriviallyTransportableBits(info.PayloadType)
 	case sema.CrossingLoweringFarTaskAwait:
-		return res.IsCopyType(info.PayloadType)
+		return res.TriviallyTransportableBits(info.PayloadType)
 	case sema.CrossingLoweringFarTaskCancel:
 		return true
 	case sema.CrossingLoweringChannelShare:

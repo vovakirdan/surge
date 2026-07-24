@@ -18,6 +18,15 @@ import (
 
 // typeOwnsHeap reports whether a value of this type (transitively) owns
 // heap storage that a drop must reclaim.
+//
+// This is the backend's structural leg of the OwnsHeap axis that sema names
+// in `internal/sema/ownership_axes.go`. The two legs answer the same question
+// by different means — sema asks whether the type is Copy, this one walks the
+// composite and looks for a heap-bearing leaf — and they must stay in
+// agreement: sema decides WHETHER a value carries a drop obligation, this
+// decides whether that drop has any glue to call. Widening one without the
+// other either drops nothing or drops through a function that was never
+// emitted.
 func (e *Emitter) typeOwnsHeap(id types.TypeID) bool {
 	return e.typeOwnsHeapRec(id, map[types.TypeID]struct{}{})
 }

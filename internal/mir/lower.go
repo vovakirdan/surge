@@ -503,6 +503,21 @@ func (l *funcLowerer) isCopyType(ty types.TypeID) bool {
 	return l.types.IsCopy(resolveAlias(l.types, ty))
 }
 
+// ownsHeap is the lowering-side leg of sema's OwnsHeap axis
+// (`internal/sema/ownership_axes.go`): does scope exit have to reclaim
+// something for this type? It gates every InstrDrop this package emits.
+// Without a sema result it falls back to the interner's Copy bit, which is
+// what the drop sites read before this axis was named.
+func (l *funcLowerer) ownsHeap(ty types.TypeID) bool {
+	if l == nil || ty == types.NoTypeID {
+		return false
+	}
+	if l.sema != nil {
+		return l.sema.OwnsHeap(ty)
+	}
+	return !l.isCopyType(ty)
+}
+
 func (l *funcLowerer) isNothingType(ty types.TypeID) bool {
 	if l == nil || l.types == nil || ty == types.NoTypeID {
 		return false

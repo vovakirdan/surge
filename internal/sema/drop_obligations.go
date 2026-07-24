@@ -23,27 +23,12 @@ type dropScope struct {
 	functionRoot bool
 }
 
-// isDroppableType reports whether a value of this type owns heap state
-// that scope exit must reclaim: non-copy, not a reference, not a raw
-// pointer. Emission stays leaf-gated in the backend; obligations are
-// type-agnostic beyond this predicate.
+// isDroppableType reports whether scope exit must reclaim a value of this
+// type. Droppability IS the OwnsHeap axis (`ownership_axes.go`); emission
+// stays leaf-gated in the backend, and obligations are type-agnostic beyond
+// this predicate.
 func (tc *typeChecker) isDroppableType(id types.TypeID) bool {
-	if id == types.NoTypeID || tc.types == nil {
-		return false
-	}
-	if tc.isCopyType(id) {
-		return false
-	}
-	resolved := tc.resolveAlias(id)
-	tt, ok := tc.types.Lookup(resolved)
-	if !ok {
-		return false
-	}
-	switch tt.Kind {
-	case types.KindReference, types.KindPointer:
-		return false
-	}
-	return true
+	return tc.ownsHeap(id)
 }
 
 func (tc *typeChecker) isDroppableBinding(symID symbols.SymbolID) bool {

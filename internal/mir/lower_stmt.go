@@ -364,8 +364,8 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 
 		// Determine instruction based on type:
 		// - &T or &mut T → EndBorrow
-		// - non-copy → Drop
-		// - copy → nothing
+		// - owns heap → Drop
+		// - anything else → nothing
 		isRef := false
 		if l.types != nil && ty != types.NoTypeID {
 			resolved := resolveAlias(l.types, ty)
@@ -376,10 +376,10 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 
 		if isRef {
 			l.emit(&Instr{Kind: InstrEndBorrow, EndBorrow: EndBorrowInstr{Place: place}})
-		} else if !l.isCopyType(ty) {
+		} else if l.ownsHeap(ty) {
 			l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: place}})
 		}
-		// else: copy type → emit nothing
+		// else: nothing to reclaim → emit nothing
 		return nil
 
 	case hir.StmtEnvelopeRelease:
@@ -499,13 +499,14 @@ func (l *funcLowerer) emitExitDrops(drops []hir.DropLocal) {
 		if !ok {
 			continue
 		}
-		// Generic bodies carry obligations for T-typed params; a copy
-		// instantiation has nothing to free — mirror StmtDrop lowering.
+		// Generic bodies carry obligations for T-typed params; an
+		// instantiation that owns no heap has nothing to free — mirror
+		// StmtDrop lowering.
 		ty := drops[i].Type
 		if int(local) < len(l.f.Locals) {
 			ty = l.f.Locals[local].Type
 		}
-		if l.isCopyType(ty) {
+		if !l.ownsHeap(ty) {
 			continue
 		}
 		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: local}}})
