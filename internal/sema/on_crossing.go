@@ -65,10 +65,10 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	tc.pushReturnContext(returnCtxOnCrossing, types.NoTypeID, span, &returns, &bareRet)
 	tc.onCrossingStack = append(tc.onCrossingStack, frame)
 	// The body's exits stop at this boundary rather than at the enclosing
-	// function. The moved-in captures are deliberately not this scope's
-	// obligations: they are reclaimed elsewhere and a drop here double-frees
-	// them (RV2-DEBT-079).
+	// function, and the body owns what moved into it — the caller's binding is
+	// marked moved by checkOnCaptures, so nobody else will release it.
 	tc.pushDropScope(true)
+	tc.registerCrossingBodyOwnership(data.Body)
 	tc.walkStmt(data.Body)
 	tc.popDropScope()
 	last := len(tc.onCrossingStack) - 1

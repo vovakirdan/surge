@@ -313,10 +313,44 @@ not become per-field until a backend can act on one.
 
    This is the same defect class this epic exists to fix — an ownership rule
    sema does not track — and it decides the generated protocol rather than
-   being decided by it. If a capture becomes a real move, the caller stops
-   dropping it and the BODY must, which is precisely the change that
-   double-frees today. So the transfer invariant cannot be written until
-   RV2-DEBT-081 settles who owns a capture.
+   being decided by it.
+
+0b. **Make the capture a real move.** Both ledger rows closed together, because
+   the ownership had to move as one piece: `checkOnCaptures` now calls
+   `observeMove` for a `CrossingCaptureMoveOwned` capture, and
+   `registerCrossingBodyOwnership` gives the crossing body the drop obligation
+   the caller just gave up. Either half alone is broken — the caller's drop
+   without the body's is the old hole, the body's without the caller's is the
+   double free that stopped the first attempt.
+
+   Rejected now, each with a positive control beside it: reading the binding
+   after the capture, moving it a second time, and capturing one owned value
+   into TWO crossings. Still accepted: a Copy capture (the caller keeps its
+   binding by definition) and an owned capture the caller never touches again.
+
+   Reclamation proven by valgrind across eight shapes — unconsumed capture,
+   consumed capture, mixed-branch, body-local live at `ret`, loop and non-loop,
+   the immediate `on` form, and a CANCELLED far task whose body never runs.
+   Zero definitely-lost and zero invalid accesses in all eight.
+
+   Far-handle captures are deliberately untouched: the anchored form USES the
+   destination handle inside the body it was captured for, so consuming it
+   would reject every anchored channel operation. Review was right that this is
+   a workaround for symbol-granular move tracking rather than an ownership
+   model — the handle currently has two owners or a lease, and nothing says
+   which. Filed as RV2-DEBT-082, and it gets cheaper once move tracking is
+   place-granular.
+
+   **Residual, and it is not crossing-specific:** a field WRITE after a move is
+   still unchecked. `j.id = 99` after the capture is accepted, exactly as
+   `consume(own j); j.note = "z";` is accepted with no crossing in sight — the
+   moved-set is symbol-keyed and the write goes through a projection. Steps 3
+   and 5 close it, and `TestCrossingCaptureFieldWriteIsNotYetCaught` is the
+   tripwire that fails when they do.
+
+   **What this unblocks:** the transfer invariant now has an owner to name.
+   Writing it is still the step-0 tail, and still wants the explicit
+   `FieldReadMoveOut` versus `FieldReadCopy` mode first.
 
    **Two defects found and FIXED here, both pre-existing and unrelated to
    partial moves** (`ret` discharged no ownership obligations at all):

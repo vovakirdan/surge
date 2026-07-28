@@ -58,11 +58,10 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	tc.pushReturnContext(returnCtxOnCrossing, types.NoTypeID, span, &returns, &bareRet)
 	tc.onCrossingStack = append(tc.onCrossingStack, onAnchorFrame{isSpawn: true})
 	// The body's exits stop at this boundary rather than at the enclosing
-	// function: a `ret` frees what the BODY built, never the caller's
-	// bindings. The moved-in CAPTURES are deliberately not this scope's
-	// obligations — they are already reclaimed by a site RV2-DEBT-079 could
-	// not identify, and adding the obvious drop here double-frees them.
+	// function: a `ret` frees what the BODY built and what MOVED into it,
+	// never the caller's bindings.
 	tc.pushDropScope(true)
+	tc.registerCrossingBodyOwnership(data.Body)
 	tc.walkStmt(data.Body)
 	tc.popDropScope()
 	last := len(tc.onCrossingStack) - 1

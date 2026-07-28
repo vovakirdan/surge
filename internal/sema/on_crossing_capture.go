@@ -145,6 +145,22 @@ func (tc *typeChecker) checkOnCaptures(body ast.StmtID) ([]CrossingCaptureInfo, 
 			ok = false
 			continue
 		}
+		// An owned capture MOVES across the boundary, and until this was
+		// written that was true of the lowering only: the state took the
+		// value, the body unpacked it, and the caller's binding stayed live
+		// anyway. So the caller could still read it, mutate it — giving two
+		// answers for one value — or move it a second time, all without a
+		// diagnostic, and it was the caller's scope-exit drop that happened to
+		// reclaim the capture.
+		//
+		// Restricted to owned moves. A Copy capture leaves the caller's
+		// binding intact by definition. A far handle is affine, but the `on ch`
+		// anchor form USES the destination handle inside the body it was
+		// captured for, so consuming it here would reject every anchored
+		// channel operation; that case is left alone.
+		if mode == CrossingCaptureMoveOwned {
+			tc.observeMove(cap.exprID, cap.span)
+		}
 		name := ""
 		if sym := tc.symbolFromID(cap.symID); sym != nil {
 			name = tc.lookupName(sym.Name)
@@ -230,6 +246,31 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 		tc.report(diag.SemaCrossNotShardMovable, span,
 			"this owned value is not shard-movable; mark its type `@shard_movable` to cross it")
 		return 0, 0, false
+	}
+}
+
+// registerCrossingBodyOwnership makes the crossing body the owner of every
+// capture that MOVED into it, which is the other half of marking the caller's
+// binding moved in checkOnCaptures: someone has to drop the value, and the
+// caller has just stopped.
+//
+// Only owned moves qualify, matching the move marking exactly. A Copy capture
+// leaves the caller's binding intact and its duplicate is reclaimed by the
+// unpacking site (`rewriteSpawnOnPollReturns`); a far handle's lease travels
+// with the handle.
+//
+// This must run BEFORE the body is walked so a `ret` inside it collects the
+// capture as a live obligation. The capture set is recomputed here rather than
+// threaded from checkOnCaptures, which runs after the walk: collectBlockingCaptures
+// is a pure syntactic scan, and moving the classification earlier would reorder
+// its diagnostics.
+func (tc *typeChecker) registerCrossingBodyOwnership(body ast.StmtID) {
+	for _, cap := range tc.collectBlockingCaptures(body) {
+		capType := tc.bindingType(cap.symID)
+		if !tc.isOwnType(capType) || !tc.paramTransfersOwnership(capType) {
+			continue
+		}
+		tc.registerDroppableBinding(cap.symID)
 	}
 }
 
