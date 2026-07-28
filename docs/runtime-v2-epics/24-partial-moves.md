@@ -286,12 +286,37 @@ not become per-field until a backend can act on one.
    `internal/mir/async_lowering_locals.go:128`) with per-field
    initialized/moved bits and union at joins.
 
-   **Why it is blocked.** RV2-DEBT-079: an owned capture that the body neither
-   consumes nor hands on is NOT leaked, and no site in the compiler explains
-   why. Registering it as an obligation of the crossing body — the obvious fix
-   — produces an invalid read and an invalid free instead. Until the
-   reclaiming site is identified, an invariant over the crossing protocol
-   would assert an ownership fact nothing implements.
+   **Why it is blocked — and the answer, found the same day.** RV2-DEBT-079
+   asked what reclaims an owned capture, since the body plainly does not and
+   adding a body-side drop double-frees. Valgrind's free'd-at stack names it:
+   the CALLER's own scope-exit drop of the captured binding.
+
+   That drop exists because **a crossing capture is not a move for the
+   caller** — no site calls `observeMove` on an `on`/`spawn on` capture, so
+   the binding stays live and drops at scope end. Which means the ownership
+   rule the crossing surface advertises is not enforced at all, and all three
+   of these compile with no diagnostic (RV2-DEBT-081, measured):
+
+   - reading the binding after the crossing;
+   - MUTATING it — `j.id = 99` after `spawn on distributed { ret j.id * 100 + 6; }`
+     gives caller 99 and body 406, two answers for one value;
+   - MOVING IT AGAIN — `consume(own j)` after the capture, so one owned value
+     moves twice.
+
+   Replacing a captured heap field in the caller abandons the old block (219
+   bytes, measured), because the shipped state still references it. No
+   use-after-free was produced: the affine must-await rule keeps the await
+   inside the capture's scope, which orders the caller's drop after the body's
+   last read, and deferring the await past that scope is rejected by the
+   must-await-or-return check. **The current safety rests on a lifecycle rule,
+   not on ownership.**
+
+   This is the same defect class this epic exists to fix — an ownership rule
+   sema does not track — and it decides the generated protocol rather than
+   being decided by it. If a capture becomes a real move, the caller stops
+   dropping it and the BODY must, which is precisely the change that
+   double-frees today. So the transfer invariant cannot be written until
+   RV2-DEBT-081 settles who owns a capture.
 
    **Two defects found and FIXED here, both pre-existing and unrelated to
    partial moves** (`ret` discharged no ownership obligations at all):
