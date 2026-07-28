@@ -1,0 +1,413 @@
+# Epic 24 — Partial Moves (moving a field out of a live composite)
+
+Status: designed, not started. DIRECTION SETTLED 2026-07-28 by the owner —
+implement FULL partial-move tracking, no interim narrowing of the language. The
+"reject instead" option this document used to weigh is retained only as
+temporary scaffolding (see Phase 1), not as a destination.
+
+This is the onboarding brief — read it end to end before touching anything.
+
+## Why This Epic Exists
+
+Reading a MOVE-ONLY composite field out of a container yields an ALIAS, not a
+value, and the container stays usable beside it (RV2-DEBT-077):
+
+```sg
+type Inner = { x: int };
+type Outer = { inner: Inner, label: int };
+
+let o = Outer { inner = Inner { x = 1 }, label = 7 };
+let mut e = o.inner;      // partial move out of a live binding
+e.x = 99;
+o.inner.x                 // also 99 — `e` is a second name, not a value
+```
+
+Measured 2026-07-28 on both backends, identical, and PRE-EXISTING. The `@copy`
+case was fixed by Epic 23 (a Copy composite duplicates); this is the move-only
+case, and it is not a representation defect at all. Moving a field out of a live
+struct is a PARTIAL MOVE, and sema does not track partially-moved bindings, so
+the program is neither rejected nor made independent — it silently aliases.
+
+**Nobody writes this today.** Surveyed the whole golden corpus and all 30
+showcases by matching the shape in MIR (a named non-Copy local receiving a
+`field` read): 252 occurrences, and every single one is compiler-synthesized —
+`__cap0` (crossing capture unpacking) and `__payload` (async state). User code:
+**zero**. So this epic buys new expressiveness; it does not rescue existing
+programs.
+
+## The Sequencing Question, Answered Honestly
+
+**Full partial moves are NOT required before Epic 23 Phase 2.** What Phase 2
+requires is that the SEMANTICS be settled — and a rejection settles them just as
+firmly as tracking does.
+
+What is true is that Phase 2 makes the current silence WORSE, not better. Today
+the symptom is two names for one box. With inline storage the extraction copies
+the BITS, so the symptom becomes a silent bitwise duplicate of a move-only
+value: two independent records, each believing it owns whatever heap the fields
+hold. A double free instead of an alias.
+
+So the ordering constraint is:
+
+- settle the GENERATED protocol before Epic 23 Phase 2 — **required**;
+- implement full user-facing tracking before Epic 23 Phase 2 — **not required
+  for safety**, but it is what we are doing, by decision.
+
+Rejection would have been the cheap settlement and is wideable later; the
+reverse direction breaks code. It is NOT the chosen path — it survives in this
+plan only as a temporary gate while the tracking lands (Phase 1), and is lifted
+by the last step.
+
+**But "reject user-written partial moves" does NOT settle it on its own, and
+this is the hole an adversarial review found in the first draft.** The survey
+above is a double-edged fact: user code writes this shape zero times, and the
+COMPILER writes it 252 times. Both generated sites are real ownership protocols
+that inline storage will change under them:
+
+- crossing capture unpacking (`internal/mir/lower_expr_crossing_spawn_poll.go`)
+  reads each capture out of the state struct into a synthetic local with a bare
+  `RValueField` — literally the partial-move shape. Epic 23 step 7 had to bolt a
+  reclamation rule onto it (drop COPY captures at the body's returns, never
+  owned ones, because the body may consume those) and that rule is stated in
+  comments, not in a checkable invariant.
+- async save/restore (`internal/mir/async_lowering_single.go`) reads saved
+  locals out of the state at resume and writes them back at suspend, with the
+  same shape in both directions.
+
+Under a heap box, a field read hands over a pointer and the protocol works by
+convention. Under inline storage it copies BITS, and the convention stops being
+expressible: the local and the state field become two independent records of the
+same value. So the required settlement before Phase 2 is **the generated
+protocol**, not the user-facing rule — and rejecting user syntax says nothing
+about it.
+
+The honest ordering is therefore:
+
+1. specify what a field read out of a compiler-built state MEANS under inline
+   storage (transfer, with the source field marked uninitialized — or copy, with
+   a stated owner). **Required before Epic 23 Phase 2.**
+2. track user-written partial moves. **Independent of Epic 23 Phase 2** in
+   safety terms; scheduled first by decision, because the expressiveness is
+   wanted and because doing it after inline storage means doing it against a
+   representation that is itself new.
+
+That fork is the first decision this document asks for, and it is recorded in
+Open Questions rather than assumed.
+
+## What Already Exists — and what only looks like it does
+
+An earlier draft of this document claimed the borrow checker already covered
+"the expensive half" and lowered the estimate on that basis. **That was wrong,
+and the correction is the main thing a reader should take from this section.**
+
+Genuinely reusable:
+
+- `Place{Base symbols.SymbolID, Path placeKey}` (`internal/sema/borrow.go:52`) —
+  a binding plus an interned field path.
+- `placesOverlap(a, b)` (`:459`) — the prefix/overlap relation, so `o` overlaps
+  `o.inner` while `o.left` and `o.right` do not. This is the predicate a
+  path-keyed moved-set needs, and it is written and exercised.
+- `resolvePlace` / `expandPlaceDescriptor` / `canonicalPlace`
+  (`internal/sema/borrow_runtime.go`) already turn `o.inner.x` into such a place.
+- `rejectLoopBackEdgeMoves` (`internal/sema/drop_obligations.go:293`, called from
+  `type_checker_walk.go:370,393`) — the loop POLICY is already chosen and
+  shipped: reject a move across a back edge rather than compute a fixpoint. So
+  loops need widening, not a new dataflow.
+
+NOT what it looks like:
+
+- `placeState` is a **live borrow table**, not a moved-place lattice. Its value
+  type is `borrowState{shared []BorrowID, mut BorrowID}` (`:82`) and entries
+  expire by lexical scope in `EndScope` (`:350`). `MoveAllowed(place)` (`:332`)
+  asks only "does an ACTIVE BORROW conflict with this move" — it never consults
+  moved state at all.
+- Moves are recorded at place granularity only as an EVENT for HIR to consume
+  (`BorrowEvMove`). The DECISION state — what `checkUseAfterMove` reads — is
+  `movedBindings map[symbols.SymbolID]source.Span`
+  (`internal/sema/type_checker_core.go:120`), whole-binding, and `observeMove`
+  only writes to it when the place has no path at all
+  (`internal/sema/borrow_runtime_ops.go`, the `direct := len(desc.Segments) == 0`
+  branch).
+
+So what exists is the path representation and the overlap predicate. What does
+not exist is a moved-set at path granularity, and every flow and drop operation
+that reads it is symbol-shaped. That is the expensive half, and it is ahead of
+us, not behind.
+
+One small saving found while checking this: `intersectMovedBindings`
+(`internal/sema/move_tracking.go:87`) is computed at
+`internal/sema/type_expr_flow.go:110` and **never read** — only the union is
+assigned to `tc.movedBindings`. Decide whether to delete it rather than port it.
+
+## What Is Missing, By Layer
+
+**1. The moved-set is symbol-keyed.** `movedBindings map[symbols.SymbolID]Span`
+(`internal/sema/type_checker_core.go:120`), with ~50 references across 16 sema
+files. Its helpers — `markBindingMoved`, `checkUseAfterMove`,
+`snapshotMovedBindings`, `intersectMovedBindings`, `mergeMovedBindings`
+(`internal/sema/move_tracking.go`) — are all symbol-shaped. They become
+place-shaped, and `placesOverlap` supplies the relation they need.
+
+**2. Use-after-move must answer per place.** With `o.inner` moved: reading
+`o.label` is fine, reading `o.inner` is an error, reading `o` whole is an error.
+Today the question is only "is this symbol moved".
+
+**3. Branch joins must merge places, not symbols.** The merge/intersect helpers
+exist; the subtlety they gain is that a field moved on one branch and the WHOLE
+value moved on the other must join to "whole moved", which is the overlap
+relation applied to the join.
+
+**4. Loop-carried moves must be rejected.** Moving out of a field inside a loop
+body moves it twice. This has no analogue in the current symbol-level tracking,
+because a whole-binding move in a loop is already rejected by the use-after-move
+check on the next iteration; a field move needs the same answer through the
+overlap relation.
+
+**5. Drop obligations must carry a path.** `DropLocal{SymbolID, Type, Span}`
+(`internal/hir/stmt.go:130`) flows HIR → MIR. A partially-moved binding must
+drop only the fields it still holds, so the obligation stops being "drop this
+binding" and becomes "drop these places".
+
+**5b. Generated ownership protocols must become checkable.** The crossing and
+async paths above already perform field reads with hand-written reclamation
+rules. Whatever this epic decides about a field read has to cover them, or the
+compiler will keep emitting the one shape the language forbids.
+
+**6. The backends cannot express a projected drop.** This is the part with no
+existing machinery at all:
+
+- the VM's `execInstrDrop` (`internal/vm/vm_dispatch.go:222`) IGNORES
+  projections — it drops the whole local
+  (`vm.execDrop(frame, instr.Drop.Place.Local)`);
+- `validateDrop` (`internal/mir/validate.go`) checks the LOCAL's flags for a
+  projected place, which is the wrong granularity once fields drop
+  independently;
+- LLVM is not closer — it is blind in a WORSE way. `placeBaseType`
+  (`internal/backend/llvm/emit_helpers_place.go:305`) returns
+  `unsupported projected destination` for any projection, and `emitInstrDrop`
+  (`internal/backend/llvm/emit_instr.go:60`) swallows that error with a bare
+  `return nil`. A projected drop on the native backend is a SILENT no-op today.
+  (`emitPlacePtr` does resolve projections for other instructions, so the
+  capability exists — the drop entry point just refuses to reach it.)
+
+## Contract (frozen tests — the semantics, not the representation)
+
+1. a field moved out is independent: mutating it is not visible through the
+   container;
+2. reading the moved FIELD after the move is rejected;
+3. reading the WHOLE binding after a field move is rejected;
+4. reading a SIBLING field after the move is accepted;
+5. a partially-moved binding drops only the fields it still holds — exactly
+   once each, no double free;
+6. a field move inside a loop is rejected;
+7. a field moved on one branch and not the other joins to moved (reading it
+   after the join is rejected);
+8. a field moved on one branch and the WHOLE value on the other joins to whole;
+9. nested paths: moving `o.inner.deep` leaves `o.inner.other` and `o.label`
+   readable;
+10. a `@copy` field is unaffected — it duplicates, and the container stays whole;
+11. `f().inner` — a field read from a TEMPORARY — stays accepted;
+12. a field read that feeds a BORROW stays accepted.
+
+POSITIVE controls are mandatory beside rows 2 and 3, and this is not
+boilerplate: an implementation that rejects EVERY field read, or that marks the
+whole binding moved at any join, passes rows 2, 3, 7 and 8 for entirely the
+wrong reason. Each must be paired:
+
+- row 4's sibling must itself be MOVE-ONLY, not an `int` — otherwise it proves
+  only that primitives survive;
+- `f().inner` must stay accepted (row 11);
+- a borrowed field read must stay accepted (row 12);
+- for rows 7-8, assert what remains USABLE on each branch, and add the opposite
+  case — arm A moves `inner`, arm B moves `label` — which is what separates a
+  path union from whole-binding invalidation.
+
+Row 5 cannot be pinned by output assertions at all. The VM hides ownership
+mistakes twice over — `execInstrDrop` ignores projections and frame teardown
+sweeps whatever explicit drops missed — and the native backend turns a projected
+drop into a silent no-op. It needs an allocation census plus valgrind on a
+nested heap-owning composite: move one field, drop the residual, assert no leak
+and no double free. This is Epic 23's recurring lesson, and here it applies to
+the majority of the table.
+
+Additional rows the review named as missing: reinitialization (`o.inner = v`
+revives only that field), explicit `@drop o.inner`, loop-local versus
+loop-external bindings, dynamic array indices, and the generated crossing/async
+shapes.
+
+## Steps
+
+Numbered rather than phased, because every one of them lands on its own and is
+gated on its own. The order is not cosmetic: the moved-set has to be
+path-shaped before anything reads it that way, and the drop obligations must
+not become per-field until a backend can act on one.
+
+0. **Specify the GENERATED protocol.** State what a field read out of a
+   compiler-built state struct means — crossing capture unpacking
+   (`internal/mir/lower_expr_crossing_spawn_poll.go`) and async save/restore
+   (`internal/mir/async_lowering_single.go`) — and make it a checkable invariant
+   rather than a comment. This is the step Epic 23 Phase 2 actually depends on,
+   so it goes first even though the user-facing work does not need it.
+   Gate: the invariant is asserted by a test, not by prose; corpus unchanged.
+
+1. **Temporary gate: refuse the bare form, and refuse `own` too, for now.** In
+   `observeMove`, refuse a move whose resolved place has a non-empty path from a
+   named base and whose moved type is non-Copy — with a diagnostic that names
+   `own o.inner` as the intended spelling once tracking lands.
+
+   Both spellings are refused at this step, which is the point: the explicit
+   form is the DESTINATION, and letting it through before the tracking exists
+   would ship exactly the unsound state this gate is here to prevent.
+
+   This is SCAFFOLDING, not the destination — step 8 removes it. Its purpose is
+   that steps 2-7 land incrementally, and a half-migrated tracker is worse than
+   either end state: a place-aware moved-set with symbol-granular drops will
+   drop a field that moved. The rejection makes that window unreachable from
+   user code. It costs one sitting and breaks nothing (measured: zero
+   user-written partial moves in the corpus).
+   Gate: the diagnostic fires on `let e = o.inner`; `f().inner`, a borrowed
+   field read, and a `@copy` field all stay accepted.
+
+2. **Moved-set becomes place-keyed.** `movedBindings` goes from
+   `map[SymbolID]Span` to a place-keyed set, using `Place{Base, Path}` and
+   `placesOverlap`. Every helper in `internal/sema/move_tracking.go` follows.
+   NO behavior change: whole-binding moves must answer exactly as today.
+   Gate: full corpus identical, and `intersectMovedBindings` either ported or
+   deleted (it is currently computed and never read).
+
+3. **Use-after-move answers per place.** With `o.inner` moved: `o.label` reads,
+   `o.inner` and `o` do not. Still no partial moves reachable — step 1's gate
+   is still up — so this is verified by unit-level probes on the analysis, not
+   by programs.
+
+4. **Branch joins and loops go place-aware.** Union at joins, and the case that
+   distinguishes a real implementation from a conservative one: a field moved on
+   one branch and the WHOLE value on the other joins to whole. Loops reuse the
+   shipped policy (`rejectLoopBackEdgeMoves` — reject on the back edge, no
+   fixpoint), widened to paths.
+
+5. **Reinitialization.** `o.inner = v` revives that field and nothing else;
+   `handleAssignment` currently clears moved state for whole bindings only.
+   Decide and implement the same question for `@drop o.inner`.
+
+6. **Drop obligations carry paths.** `DropLocal{SymbolID, Type, Span}` gains a
+   path, HIR → MIR. A partially-moved binding drops the fields it still holds.
+   Must NOT land before step 7 — a per-field obligation with a projection-blind
+   backend drops the wrong thing.
+
+7. **Projected `InstrDrop` in the backends.** VM (`execInstrDrop` currently
+   ignores projections), `validateDrop` (currently checks the LOCAL's flags),
+   and LLVM (`placeBaseType` refuses projections and `emitInstrDrop` swallows
+   the error — a SILENT no-op today). All three together.
+   Gate: a projected drop frees the field and only the field, proven by
+   allocation census plus valgrind, on both backends.
+
+8. **Lift the step-1 rejection and land the contract.** Partial moves become
+   legal, rows 1-12 land as the frozen set with their positive controls.
+
+9. **Monomorphization and generated-path audit.** Any new ownership metadata
+   must survive `internal/mono` cloning and substitution, and the step-0
+   protocol must still hold once fields drop independently.
+
+## Traps To Know Before Writing Code
+
+1. **Do not widen the moved-set and the drop obligations in separate steps.** A
+   place-aware moved-set with symbol-granular drops will drop a moved field; a
+   path-carrying obligation with a projection-blind VM will drop the whole
+   binding. Either is a double free.
+2. **The VM forgives what the native backend does not**, and did so twice in
+   Epic 23: frame teardown sweeps what explicit drops missed. A leak that only
+   the native backend shows is the normal case, not an anomaly.
+3. **`f().inner` must stay legal.** The base is a temporary the lowering itself
+   materialized and is spending; rejecting it would be a regression. Epic 23's
+   owning-temp marking is the existing answer.
+4. **A negative control must run in BOTH directions.** Epic 23 hit this three
+   times: reverting a fix proves the fix does something, not that it does the
+   right thing. Rows 4 and 10 are the "must still be accepted" side.
+5. **Compare-arm bindings are already a partial-move-shaped path** and interact
+   with RV2-DEBT-052/075/078. A payload binding extracted from a union is
+   morally a field move; whatever this epic decides has to agree with what the
+   compare release model decides, or the two will drift.
+
+## Cost Note
+
+The first draft claimed this was SMALLER than Epic 23 Phase 1, on the strength
+of the borrow checker's place machinery. Review corrected that, and the
+correction is worth keeping visible:
+
+- **Reject-only (Phase 1)**: clearly smaller than Epic 23 Phase 1. A syntactic
+  refusal in `observeMove`, plus fixtures.
+- **Full tracking (Phase 2 of this epic)**: comparable to Epic 23 Phase 1, or
+  larger. Every symbol-granular operation becomes path-granular — the moved-set,
+  use-after-move, branch joins, reinitialization, scope/early/arm/reassignment
+  drops, HIR `DropLocal`, MIR validation, the VM's projected drop, native drop
+  glue, the generated crossing and async protocols, and monomorphization of any
+  new ownership metadata. Epic 23 had more clone mechanics; this has far more
+  flow and drop STATE.
+- **Doing it concurrently with Epic 23 Phase 2**: a multiplier, not a sum.
+  Inline storage needs per-field initialized/drop bits, which is the same state
+  this epic introduces — attractive to merge, and exactly the kind of merge that
+  makes both undebuggable.
+
+What genuinely saves work: the path representation, the overlap predicate, and
+the already-chosen loop policy (reject on the back edge, no fixpoint).
+
+## Settled Decisions (owner, 2026-07-28 — do not relitigate)
+
+These four had to be answered before step 2, because step 2 changes the shape of
+the moved-set and every one of them changes what that set must hold. All four
+are now decided, and the reasoning is kept because it is what a later reader
+will want when the answer looks arbitrary.
+
+1. **EXPLICIT.** `let e = own o.inner` is the partial move; the bare
+   `let e = o.inner` is not one and stays an error (its diagnostic redirects to
+   the `own` form). Rationale: The language already has `own` as a
+   move-intent marker at crossings and call sites, so an explicit form is
+   consistent rather than novel; it makes the destructive read visible at the
+   use site, which matters more here than in Rust because Surge has no
+   `#[derive(Clone)]` escape hatch; and it makes step 1's rejection a REDIRECT
+   ("write `own o.inner`") instead of a refusal. Cost is the same either way —
+   the tracking is identical, only the trigger differs.
+
+2. **REINITIALIZATION REVIVES.** After `o.inner` moves, `o.inner = v` makes
+   `o` whole again and readable as a whole. Rationale: Rust does this, it falls out of a place-keyed set
+   (remove the place and any prefix that was only invalidated by it), and the
+   alternative — a binding that can never be made whole — is surprising.
+
+3. **CONSTANT ARRAY INDEX YES, COMPUTED INDEX REJECTED.**
+   `let e = own arr[0]` is a partial move; `let e = own arr[i]` is an error.
+   Rationale: This is
+   Rust's answer and the reason is the same: a computed index cannot be tracked
+   statically, so accepting it would need a runtime drop flag per element —
+   real cost, and Surge has no such machinery. NOTE this is the one question
+   whose answer changes the DATA: sema's canonical path already collapses an
+   index to a generic `i:;` segment (`internal/sema/borrow.go`), so a
+   constant-index partial move needs the index VALUE in the path, which the
+   borrow checker currently discards.
+
+4. **`@drop o.inner` BECOMES LEGAL.** Explicit drop of a projected place is
+   rejected today (`handleDrop` requires a whole symbol); with partial moves it
+   falls out of the same machinery — an explicit drop of a place is a move into
+   nothing. Cheap once places are tracked.
+
+## Open Questions (non-blocking)
+
+- **Is the survey reproducible?** The "zero user-written partial moves" claim
+  rests on matching a MIR shape and reading synthesized names (`__cap0`,
+  `__payload`), which does not formally prove source provenance. Check the
+  survey script in as a gate rather than repeating it by hand.
+- Does a partially-moved binding remain capturable by a crossing or a closure,
+  or is that rejected until it is whole?
+
+## Out Of Scope
+
+- Anything about `@copy` composites: they duplicate, Epic 23 settled it.
+- The compare-scrutinee leak (RV2-DEBT-078) — adjacent and separately filed.
+- Epic 23 Phase 2's inline representation. This epic changes what a partial move
+  MEANS; that one changes where a composite lives.
+
+## Related Ledger Rows
+
+`docs/runtime-v2-epics/DEBT.md`: RV2-DEBT-077 (this epic closes it). Adjacent:
+RV2-DEBT-052, RV2-DEBT-075, RV2-DEBT-078 — all in the compare-arm binding path,
+which is partial-move-shaped.

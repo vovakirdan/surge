@@ -316,6 +316,30 @@ pub type TcpConn = { __opaque: int };
 Marks a struct or union as Copy if all fields/members are Copy. Cycles are
 rejected. When valid, the type becomes Copy-capable.
 
+`@copy` answers whether a value may be DUPLICATED. It says nothing about how
+the value is stored: a struct, tuple, tagged union or fixed array is a value
+either way, and `@copy` only decides whether `let b = a` leaves `a` usable.
+
+Copying one produces an INDEPENDENT value, at every depth:
+
+```sg
+@copy type Point = { x: int, y: int };
+
+let p = Point { x = 1, y = 2 };
+let mut q = p;
+q.x = 99;        // p.x is still 1
+```
+
+The same holds through a by-value argument, a return, a field or element read,
+and a tagged-union payload binding. A copy is reclaimed on its own; two copies
+free exactly twice.
+
+A `@copy` composite may also cross a shard boundary — the destination receives
+its own value — with one exception: a composite carrying an
+arbitrary-precision `int`, `uint` or `float` is refused there, because such a
+field is shared by counting and the count is not safe across shards. Use a
+fixed-width field type (`int64`, `float64`) for the value that crosses.
+
 ### `@sealed` / `@noinherit`
 
 - `@sealed`: cannot be extended via inheritance or `extern<T>`.

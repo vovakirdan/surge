@@ -172,6 +172,54 @@ Every epic should move the runtime toward these goals:
 | 11 | `11-explicit-crossing-language-surface.md` | Complete. Accepted and implemented the Draft 9 compile-time crossing surface: `far`, contextual `on`, `spawn on`, inferred crossing effects, and shard movement attributes. No Phase 4 transport. |
 | 12 | `12-crossing-surface-integration-and-lowering-readiness.md` | Complete. Preserved crossing meaning through sema readiness metadata, enforced deterministic backend-unavailable behavior, promoted `runtime-v2-crossing-check`, reconciled backend-test debt, and prepared the Phase 4 transport/lowering handoff. |
 | 13 | `13-phase4-transport-spine-and-placement-task-lowering.md` | Active. Implement the first real Phase 4 execution vertical: OS-neutral inbound transport spine plus placement task lowering for `spawn on shard/distributed`, `far Task.await/cancel`, and immediate `on shard/distributed`; Task 6's runtime-native remote publication API and Task 7's backend-neutral compiler representation are complete, while executable crossing backend lowering, await/cancel routing, remote channels, remote `select`, Tier 2 `pool`, migration, and remote-free stay out of this task. |
+| 14 | `14-phase4-remote-channels.md` | Complete. Remote channels: `channel_on`, cross-shard send/recv, per-payload drop functions. |
+| 15 | `15-structural-cleanup.md` | Complete. Structural cleanup and gate integrity; `gatecheck` folded into `make check`. |
+| 16 | `16-far-copy.md` (`16-candidates.md`) | Complete. `share()` sibling leases for far channels. |
+| 17 | `17-remote-select.md` | Complete. Remote `select` via the proxy-selector model. |
+| 18 | `18-migration.md` | Complete. Owned `@shard_movable` capture migration (capture lift). |
+| 19 | `19-drop-emission.md` (`19-candidates.md`) | Complete. Drop emission for non-Copy owned values. |
+| 20 | `20-crossing-drop-activation.md` | Complete. Crossing drop activation. |
+| 21 | `21-owner-routed-frees.md` | Complete. Owner-routed frees, vertical 3 of the reclamation arc. |
+| 22 | `22-numeric-reclamation.md` | **PARTIAL — parked.** Phases 0a/0b/1 shipped: the ownership axes were split out of `IsCopy`, and `float` became a reference-counted scalar with a strict-zero valgrind gate. NOT done: the six crossing deep-copy barriers (the runtime helper `rt_bigfloat_clone` exists but is unwired — crossings still REFUSE a composite carrying a `float`), and Phase 2, `int`/`uint`, not started. Parked to take Epic 23; see the detour chain below. |
+| 23 | `23-value-composites.md` | **Phase 1 COMPLETE, Phase 2 not started.** A struct/tuple/union/fixed-array is a value: copy now duplicates, the box is reclaimed, and every crossing route carries one again. Phase 2 — inline representation instead of a heap box — is the remaining half. Parked to take Epic 24; see below. |
+| 24 | `24-partial-moves.md` | **Designed, direction settled, not started.** Full partial-move tracking: `let e = o.inner` on a move-only field currently ALIASES (RV2-DEBT-077). Blocks nothing by itself, but Epic 23 Phase 2 depends on its step 0 (the generated field-read protocol). |
+
+
+## Detour Chain — what is parked, and why
+
+Epics 22-24 were each interrupted by the next, for the same reason every time:
+the work uncovered a defect underneath it that made finishing pointless until
+the defect was fixed. This section exists because that chain was not written
+down anywhere, and a reader arriving at Epic 24 could not tell what was waiting
+behind it.
+
+```
+22 numeric reclamation  ──parked──▶  23 value composites  ──parked──▶  24 partial moves
+   float shipped;                       Phase 1 shipped;                 not started
+   crossing barriers open;              inline (Phase 2) open
+   int/uint not started
+```
+
+- **22 → 23.** Epic 22 made `float` a counted scalar and needed to install deep
+  copies at the six crossing barriers. Doing that for a COMPOSITE carrying a
+  float required knowing what copying a composite means — and it turned out
+  copying one did not duplicate it at all: `let mut q = p; q.a = 99` mutated
+  `p`, on both backends. That is Epic 23.
+- **23 → 24.** Epic 23 Phase 1 fixed the `@copy` case. The move-only case is a
+  different question — reading a field out of a live struct is a PARTIAL MOVE,
+  which sema does not track, so it silently aliases (RV2-DEBT-077). Epic 23
+  Phase 2 (inline storage) makes that worse rather than better: the alias
+  becomes a bitwise duplicate with two owners. That is Epic 24.
+
+**Resumption order, once Epic 24 lands:** Epic 23 Phase 2 (inline
+representation), then Epic 22's crossing barriers and `int`/`uint`. Epic 22 is
+last on purpose — its remaining work is the one most simplified by inline
+composites, because a composite then crosses as inline bits plus its
+refcounted-scalar fields rather than as a box.
+
+Debt rows carrying the parked work: RV2-DEBT-035/036/037/038 (Epic 22 tails),
+RV2-DEBT-077 (Epic 24's subject), RV2-DEBT-078 (adjacent, compare-scrutinee
+leak, not blocking).
 
 ## Language Syntax Gate
 

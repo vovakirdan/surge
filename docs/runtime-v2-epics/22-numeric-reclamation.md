@@ -1,8 +1,19 @@
 # Epic 22 — Numeric Reclamation (heap bignum ownership)
 
-Status: designed, not started. This document is the onboarding brief — read
-it end to end before touching anything; it is written so a reader with no
-prior context can start work without reconstructing the discussion.
+Status: PARTIAL — PARKED. Phases 0a, 0b and 1 shipped: the ownership axes were
+split out of `IsCopy`, and `float` is a reference-counted scalar with a
+strict-zero valgrind gate (`TestRuntimeV2FloatReclamationValgrindZero`). NOT
+done: the six crossing deep-copy barriers listed under "Phase 1 remainder" — the
+runtime helper `rt_bigfloat_clone` exists but is unwired, and crossings still
+REFUSE a composite carrying a `float` — and Phase 2 (`int`/`uint`), not started.
+
+Parked to take Epic 23, then Epic 24. See the detour chain in `README.md` for
+why, and for the resumption order: this epic resumes LAST, because inline
+composites (Epic 23 Phase 2) simplify exactly the barriers it has left.
+
+This document is the onboarding brief — read it end to end before touching
+anything; it is written so a reader with no prior context can start work
+without reconstructing the discussion.
 
 ## Why This Epic Exists
 
