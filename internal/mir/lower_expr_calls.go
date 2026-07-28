@@ -495,7 +495,11 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 		return l.constNothing(e.Type), nil
 	}
 
-	tmp := l.newTemp(e.Type, "call", e.Span)
+	// A call RESULT is materialized by the call: the callee handed it over and
+	// nothing else holds it, so consuming this temp transfers rather than
+	// duplicating. Unmarked, a composite result would be cloned into its
+	// binding and the temp'"'"'s own box left with no one to reclaim it.
+	tmp := l.markOwningTemp(l.newTemp(e.Type, "call", e.Span))
 	l.emit(&Instr{
 		Kind: InstrCall,
 		Call: CallInstr{

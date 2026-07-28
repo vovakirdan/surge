@@ -112,6 +112,33 @@ func (fe *funcEmitter) emitOperand(op *mir.Operand) (val, ty string, err error) 
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
 		return tmp, ty, nil
+	// OperandCopyValue is where a composite read stops being a pointer load.
+	// The loaded word is the SOURCE's box, so handing it on would give two
+	// bindings one box — the aliasing this kind exists to end. The generated
+	// glue returns a box of its own, owned by whoever receives it.
+	case mir.OperandCopyValue:
+		ptr, ty, err := fe.emitPlacePtr(op.Place)
+		if err != nil {
+			return "", "", err
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
+		cloneTy := op.Type
+		if cloneTy == types.NoTypeID {
+			if base, baseErr := fe.placeBaseType(op.Place); baseErr == nil {
+				cloneTy = base
+			}
+		}
+		if ty != "ptr" || !fe.emitter.isCloneableComposite(resolveValueType(fe.emitter.types, cloneTy)) {
+			// Not a boxed composite after all — an unresolved type, or a shape
+			// the backend keeps flat. Duplicating the word IS the value then,
+			// which is what the load already produced.
+			return tmp, ty, nil
+		}
+		cloned := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(ptr %s)\n",
+			cloned, fe.emitter.requireCloneGlue(resolveValueType(fe.emitter.types, cloneTy)), tmp)
+		return cloned, ty, nil
 	case mir.OperandRetain:
 		ptr, ty, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
@@ -154,7 +181,7 @@ func (fe *funcEmitter) emitOperandAddr(op *mir.Operand) (string, error) {
 		return "", fmt.Errorf("nil operand")
 	}
 	switch op.Kind {
-	case mir.OperandAddrOf, mir.OperandAddrOfMut, mir.OperandCopy, mir.OperandRetain, mir.OperandMove:
+	case mir.OperandAddrOf, mir.OperandAddrOfMut, mir.OperandCopy, mir.OperandCopyValue, mir.OperandRetain, mir.OperandMove:
 		ptr, _, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
 			return "", err

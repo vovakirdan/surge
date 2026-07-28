@@ -14,8 +14,8 @@ fn __surge_start:
 
 fn main:
   locals:
-    L0: type#1503 name=x
-    L1: type#1503 name=tmp_struct1
+    L0: type#1503 [owns_heap] name=x
+    L1: type#1503 [owns_heap] name=tmp_struct1
     L2: bool [copy] name=a
     L3: bool [copy] name=tmp_is2
     L4: bool [copy] name=b

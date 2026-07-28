@@ -321,6 +321,8 @@ func formatOperand(op *Operand) string {
 		return fmt.Sprintf("addr_of_mut %s", formatPlace(op.Place))
 	case OperandRetain:
 		return fmt.Sprintf("retain %s", formatPlace(op.Place))
+	case OperandCopyValue:
+		return fmt.Sprintf("copy_value %s", formatPlace(op.Place))
 	default:
 		return "<op?>"
 	}

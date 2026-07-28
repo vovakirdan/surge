@@ -61,10 +61,20 @@ func (tc *typeChecker) pushDropScope(functionRoot bool) {
 // reference for the whole call — the parameter merely borrows, and dropping it
 // in the callee would release a reference the callee never acquired.
 //
-// This is why the predicate is `!isCopyType` rather than `ownsHeap`: those two
-// answer the same for every other type, and differ exactly here.
+// The exception is written as "reference-counted scalar", not "Copy", and the
+// difference became load-bearing when value composites became droppable. A
+// composite argument is CLONED at the call — the caller keeps its own value and
+// the callee receives an independent one — so the callee genuinely owns what it
+// was handed and must drop it. Excluding it as merely-Copy would abandon that
+// clone on every call, silently, in a way no test of independence can see.
 func (tc *typeChecker) paramTransfersOwnership(id types.TypeID) bool {
-	return tc.isDroppableType(id) && !tc.isCopyType(id)
+	if !tc.isDroppableType(id) {
+		return false
+	}
+	if tc.types == nil {
+		return true
+	}
+	return !tc.types.IsRefCountedScalar(tc.resolveAlias(id))
 }
 
 // registerDroppableParams registers a function's by-value owned params

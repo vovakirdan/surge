@@ -1,0 +1,13 @@
+// positive: MOVE-ONLY composite as a remote channel element
+// The neighbour of `_channel_negative_copy_composite_element.sg`, and the
+// reason the transport asks whether the element is a COPY composite rather
+// than whether it is a composite at all: a move-only element transfers its box
+// to exactly one shard, so nothing is shared and nothing is freed twice.
+type Token = {
+    value: uint64,
+};
+
+async fn run() -> int {
+    let ch: far Channel<Token> = channel_on::<Token>(pool, 1);
+    return 0;
+}

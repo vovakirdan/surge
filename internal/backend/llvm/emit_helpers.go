@@ -79,7 +79,7 @@ func (fe *funcEmitter) operandIsRef(op *mir.Operand, opType types.TypeID) bool {
 	switch op.Kind {
 	case mir.OperandAddrOf, mir.OperandAddrOfMut:
 		return true
-	case mir.OperandCopy, mir.OperandRetain, mir.OperandMove:
+	case mir.OperandCopy, mir.OperandCopyValue, mir.OperandRetain, mir.OperandMove:
 		if op.Place.Kind == mir.PlaceLocal && int(op.Place.Local) >= 0 && int(op.Place.Local) < len(fe.f.Locals) {
 			if len(op.Place.Proj) == 0 || op.Place.Proj[0].Kind != mir.PlaceProjDeref {
 				flags := fe.f.Locals[op.Place.Local].Flags
@@ -97,7 +97,7 @@ func (fe *funcEmitter) emitHandleOperandPtr(op *mir.Operand) (string, error) {
 		return "", fmt.Errorf("nil operand")
 	}
 	opType := op.Type
-	if op.Kind == mir.OperandCopy || op.Kind == mir.OperandMove {
+	if op.Kind == mir.OperandCopy || op.Kind == mir.OperandCopyValue || op.Kind == mir.OperandMove {
 		if base, err := fe.placeBaseType(op.Place); err == nil {
 			opType = base
 		}

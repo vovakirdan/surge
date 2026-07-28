@@ -66,7 +66,7 @@ func (fe *funcEmitter) emitLenIntrinsic(call *mir.CallInstr) (bool, error) {
 	targetType := operandValueType(fe.emitter.types, &call.Args[0])
 	if call.Args[0].Kind != mir.OperandConst {
 		if call.Args[0].Kind == mir.OperandAddrOf || call.Args[0].Kind == mir.OperandAddrOfMut ||
-			((call.Args[0].Kind == mir.OperandCopy || call.Args[0].Kind == mir.OperandMove) &&
+			((call.Args[0].Kind == mir.OperandCopy || call.Args[0].Kind == mir.OperandCopyValue || call.Args[0].Kind == mir.OperandMove) &&
 				fe.operandIsRef(&call.Args[0], call.Args[0].Type)) {
 			if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
 				targetType = baseType

@@ -88,8 +88,69 @@ func (l *funcLowerer) placeOperand(place Place, ty types.TypeID, consume bool) O
 		kind = OperandRetain
 	case consume && !l.isCopyType(ty):
 		kind = OperandMove
+	case consume && l.isValueComposite(ty) && l.ownsItsValue(place):
+		// A composite the lowering itself materialized and is spending here —
+		// a literal, a call result. It has exactly one holder, so consuming it
+		// TRANSFERS. Duplicating instead would allocate a second box and
+		// abandon the first, which is a leak wherever there is no frame
+		// teardown to sweep it up.
+		kind = OperandMove
+	case consume && l.isValueComposite(ty):
+		// A Copy value composite consumed here: the destination must get an
+		// INDEPENDENT value, not a second name for the same storage. Reached
+		// only after the move case above, so this is exactly the Copy
+		// composites — a move-only one transfers instead.
+		//
+		// The borrowing read (consume == false) keeps OperandCopy and must:
+		// it looks through to storage someone else owns and has to keep seeing
+		// later writes to it. That difference is the whole reason this kind
+		// exists — both spellings were OperandCopy, so no backend could tell a
+		// duplication from a look.
+		kind = OperandCopyValue
 	}
 	return Operand{Kind: kind, Type: ty, Place: place}
+}
+
+// markOwningTemp records that a temp holds a value the lowering materialized,
+// so consuming it transfers rather than duplicates. Callers are the sites that
+// CREATE a value; everything else stays an alias by default.
+func (l *funcLowerer) markOwningTemp(local LocalID) LocalID {
+	if l == nil || local == NoLocalID {
+		return local
+	}
+	if l.owningTemps == nil {
+		l.owningTemps = make(map[LocalID]struct{})
+	}
+	l.owningTemps[local] = struct{}{}
+	return local
+}
+
+// ownsItsValue reports whether consuming this place TRANSFERS a value rather
+// than duplicating one.
+func (l *funcLowerer) ownsItsValue(place Place) bool {
+	if l == nil || place.Kind != PlaceLocal || len(place.Proj) != 0 || place.Local == NoLocalID {
+		return false
+	}
+	if l.f == nil || int(place.Local) < 0 || int(place.Local) >= len(l.f.Locals) {
+		return false
+	}
+	// A named binding stays live and readable after this use, whatever else is
+	// true of it.
+	if l.f.Locals[place.Local].Sym != symbols.NoSymbolID {
+		return false
+	}
+	_, owns := l.owningTemps[place.Local]
+	return owns
+}
+
+// isValueComposite reports whether the type is stored inline — a struct,
+// tuple, tagged union or fixed array — as opposed to a handle-backed type that
+// names runtime-owned storage.
+func (l *funcLowerer) isValueComposite(ty types.TypeID) bool {
+	if l == nil || l.types == nil || ty == types.NoTypeID {
+		return false
+	}
+	return l.types.IsValueComposite(resolveAlias(l.types, ty))
 }
 
 // materializeOwnedConst binds a reference-counted scalar constant to a temp so
@@ -126,7 +187,10 @@ func (l *funcLowerer) materializeOwnedConst(op *Operand, span source.Span, consu
 // was dropped would be a use-after-free. Retaining makes the temp a real owner,
 // which its own release then balances.
 func (l *funcLowerer) retainExtractedValue(local LocalID, ty types.TypeID) {
-	if local == NoLocalID || !l.isRefCountedScalar(ty) {
+	if local == NoLocalID {
+		return
+	}
+	if !l.isRefCountedScalar(ty) {
 		return
 	}
 	l.emit(&Instr{
@@ -568,7 +632,7 @@ func (l *funcLowerer) unionCastOperand(op *Operand, target types.TypeID, span so
 	if !l.needsUnionCast(op.Type, target) {
 		return *op
 	}
-	tmp := l.newTemp(target, "cast", span)
+	tmp := l.markOwningTemp(l.newTemp(target, "cast", span))
 	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
 		Dst: Place{Local: tmp},
 		Src: RValue{Kind: RValueCast, Cast: CastOp{Value: *op, TargetTy: target}},

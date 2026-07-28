@@ -209,6 +209,21 @@ type funcLowerer struct {
 	f   *Func
 	cur BlockID
 
+	// owningTemps are temps holding a value the lowering itself MATERIALIZED —
+	// a literal, a call result. Consuming one transfers it, because nothing
+	// else holds it.
+	//
+	// The marking is opt-IN, and the polarity is the point. Most temps alias
+	// something: a field read, an element read, a union payload, the pointee of
+	// a deref all produce a temp beside a container that keeps the original.
+	// Treating an unmarked temp as owning meant every missed shape became a
+	// transfer of someone else's value — measured, that took a `&Semaphore`
+	// deref and handed its box away while the borrow still pointed at it.
+	// Missing a mark in this direction costs a wasted duplicate, which the
+	// reclamation census reports as a leak; missing one in the other direction
+	// is a use-after-free.
+	owningTemps map[LocalID]struct{}
+
 	symToLocal  map[symbols.SymbolID]LocalID
 	symToGlobal map[symbols.SymbolID]GlobalID
 	nextTemp    uint32
@@ -504,6 +519,9 @@ func (l *funcLowerer) localFlags(ty types.TypeID) LocalFlags {
 	var out LocalFlags
 	if l.isCopyType(ty) {
 		out |= LocalFlagCopy
+	}
+	if l.ownsHeap(ty) {
+		out |= LocalFlagOwnsHeap
 	}
 	if l.types == nil || ty == types.NoTypeID {
 		return out

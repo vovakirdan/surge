@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"surge/internal/hir"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -17,10 +18,11 @@ func (l *funcLowerer) spawnOnCaptureInfo(captures []CrossingCapture) []spawnOnCa
 	for i := range captures {
 		field := fmt.Sprintf("__cap%d", i)
 		out = append(out, spawnOnCaptureInfo{
-			SymbolID:  captures[i].Symbol,
-			Name:      l.symbolName(captures[i].Symbol, field),
-			Type:      captures[i].Type,
-			FieldName: field,
+			SymbolID:    captures[i].Symbol,
+			Name:        l.symbolName(captures[i].Symbol, field),
+			Type:        captures[i].Type,
+			FieldName:   field,
+			CopyCapture: captures[i].Mode == sema.CrossingCaptureCopy,
 		})
 	}
 	return out
@@ -49,6 +51,7 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 		Dst:    Place{Local: stateLocal},
 		Callee: Callee{Kind: CalleeValue, Name: "__task_state"},
 	}})
+	var ownedCaptures []LocalID
 	for _, cap := range captures {
 		localID := l.ensureLocal(cap.SymbolID, cap.Name, cap.Type, span)
 		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
@@ -58,6 +61,25 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 				FieldName: cap.FieldName,
 			}},
 		}})
+		// Unpacking moves the capture's ownership from the state's field into
+		// this local, and for a COPY capture the local is the only holder from
+		// here on: the envelope is released shallowly at every return, on the
+		// stated assumption that nothing but the box is left, and that stops
+		// being true unless the local reclaims what it holds. The local has no
+		// scope-exit obligation of its own — sema knows the symbol as a binding
+		// of the ENCLOSING function, not of this synthetic body — so the drop
+		// is synthesized here, at the returns.
+		//
+		// Restricted to COPY captures on purpose. An owned capture may be
+		// CONSUMED by the body (`take(own x)` is the whole point of moving one
+		// in), and a synthesized drop cannot see that: move tracking is sema's,
+		// and this local was never sema's to track. Dropping it unconditionally
+		// double-frees whatever the body handed on. A Copy capture cannot be
+		// consumed in that sense — a Copy read duplicates and leaves the source
+		// intact — so nothing can have taken it away by the time this runs.
+		if cap.CopyCapture && l.ownsHeap(cap.Type) {
+			ownedCaptures = append(ownedCaptures, localID)
+		}
 	}
 
 	exitBB := l.newBlock()
@@ -90,7 +112,7 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 	} else {
 		l.setTerm(&Terminator{Kind: TermReturn})
 	}
-	rewriteSpawnOnPollReturns(l.f, stateLocal)
+	rewriteSpawnOnPollReturns(l.f, stateLocal, ownedCaptures)
 	for i := range l.f.Blocks {
 		if l.f.Blocks[i].Term.Kind == TermNone {
 			l.f.Blocks[i].Term.Kind = TermUnreachable
@@ -99,7 +121,7 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 	return l.f, nil
 }
 
-func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID) {
+func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []LocalID) {
 	if f == nil {
 		return
 	}
@@ -115,6 +137,14 @@ func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID) {
 		// handing the runtime a null it never reads); the pending-side
 		// __surge_drop_call path only runs for states that were never
 		// handed off, so no state sees both releases.
+		//
+		// "Only the envelope is dead" holds because the unpacked locals are
+		// reclaimed FIRST, right here. A capture that carries storage arrived
+		// as this crossing's own copy, and the shallow release below would
+		// abandon it.
+		for _, localID := range ownedCaptures {
+			bb.Instrs = append(bb.Instrs, Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: localID}}})
+		}
 		bb.Instrs = append(bb.Instrs, Instr{Kind: InstrCall, Call: CallInstr{
 			Callee: Callee{Kind: CalleeValue, Name: AsyncStateFreeBuiltin},
 			Args:   []Operand{{Kind: OperandCopy, Place: Place{Local: stateLocal}}},

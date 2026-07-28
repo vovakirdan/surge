@@ -43,6 +43,21 @@ const (
 	LocalFlagRefMut
 	// LocalFlagPtr indicates a pointer local flag.
 	LocalFlagPtr
+	// LocalFlagOwnsHeap indicates the local carries a drop obligation: scope
+	// exit has to reclaim something for it.
+	//
+	// This is the OTHER half of what LocalFlagCopy was answering alone.
+	// LocalFlagCopy says a value is duplicable; it used to double as "so there
+	// is nothing to reclaim", which held for every type until a value could be
+	// duplicable AND owned at once — a reference-counted scalar today, a Copy
+	// value composite next. Those two answers now live in two flags, and
+	// LocalFlagCopy is back to meaning only what its name says.
+	//
+	// It exists as a FLAG rather than a question the validator asks about the
+	// type because `Validate` receives only a `*types.Interner`, while the
+	// ownership axis lives on sema's result. The lowerer has that result at
+	// hand where it builds locals, so the answer travels with the local.
+	LocalFlagOwnsHeap
 )
 
 // Local represents a local variable in MIR.

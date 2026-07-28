@@ -4,7 +4,7 @@ funcs=2
 
 fn main:
   locals:
-    L0: string name=s
+    L0: string [owns_heap] name=s
     L1: int [copy] name=i
     L2: bool [copy] name=guarded
     L3: bool [copy] name=tmp_logic1

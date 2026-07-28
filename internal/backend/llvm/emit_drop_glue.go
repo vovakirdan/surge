@@ -62,6 +62,15 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	if isStringLike(e.types, id) {
 		return true
 	}
+	// A VALUE COMPOSITE owns its box, whatever its fields hold. Asked before
+	// the structural walk below, which answers a narrower question — "does a
+	// field own heap" — and therefore said no for the shape that leaks most
+	// visibly: a struct of plain scalars, whose box nothing ever freed. It is
+	// also what reaches a NESTED composite whose own fields own nothing, the
+	// inner box that the field walk skipped (RV2-DEBT-072).
+	if e.types.IsValueComposite(id) && e.isBoxedComposite(id) {
+		return true
+	}
 	if _, dynamic, isArray := arrayElemType(e.types, id); isArray && dynamic {
 		return true
 	}
@@ -442,7 +451,7 @@ func (e *Emitter) emitFieldDrop(g *glueTmp, fieldType types.TypeID, offsets []in
 // emitFieldDropAt drops a pointer-shaped owning field/element stored at
 // byte offset `off` within the box `%p`.
 func (e *Emitter) emitFieldDropAt(g *glueTmp, fieldType types.TypeID, off int) {
-	if off < 0 || !e.typeOwnsHeap(fieldType) {
+	if off < 0 || !e.typeOwnsHeap(fieldType) || !e.fieldDropIsExclusive(fieldType) {
 		return
 	}
 	fp := g.next()
@@ -524,4 +533,39 @@ func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, payloadOffs
 		fmt.Fprintf(&e.buf, "  br label %%%s\n", freebox)
 	}
 	fmt.Fprintf(&e.buf, "%s:\n", freebox)
+}
+
+// fieldDropIsExclusive reports whether freeing this member as part of its
+// container's drop is safe — that is, whether the container is the member's
+// only holder.
+//
+// It exists because a COPY composite's members are, by definition, not
+// exclusively held: a type is Copy only when its members are, and duplicating
+// the composite duplicates them by sharing. The clone glue reflects that — it
+// gives the fresh box its own claim on a reference-counted scalar and its own
+// box for a nested composite, and SHARES anything else, because there is
+// nothing else it could safely do. A drop that then freed those shared members
+// would break the invariant the two glues exist to keep: clone and drop must
+// walk the same members, or a copy outlives the thing it points at.
+//
+// `@copy type Semaphore = { permits: Channel<nothing> }` is the shape that
+// found this. Two semaphores share one channel, and freeing it once per
+// semaphore is a use-after-free in the second one.
+//
+// This is also where the backend's structural leg and sema's answer are
+// reconciled: sema says a Copy channel owns nothing to reclaim, while the
+// structural walk sees a handle to runtime storage and says it does. Sema is
+// right about the OBLIGATION, the walk is right about the STORAGE, and the
+// obligation is what a drop acts on.
+func (e *Emitter) fieldDropIsExclusive(fieldType types.TypeID) bool {
+	if e == nil || e.types == nil {
+		return true
+	}
+	id := resolveValueType(e.types, fieldType)
+	if !e.types.IsCopy(id) {
+		// Move-only: the container is the sole holder and must reclaim it.
+		return true
+	}
+	// The two Copy families the clone DOES duplicate, so each copy owns one.
+	return e.types.IsRefCountedScalar(id) || e.types.IsValueComposite(id)
 }

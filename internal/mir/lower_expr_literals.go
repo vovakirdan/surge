@@ -48,7 +48,7 @@ func (l *funcLowerer) lowerStructLitExpr(e *hir.Expr, consume bool) (Operand, er
 		}
 		fields = append(fields, StructLitField{Name: f.Name, Value: val})
 	}
-	tmp := l.newTemp(e.Type, "struct", e.Span)
+	tmp := l.markOwningTemp(l.newTemp(e.Type, "struct", e.Span))
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{
@@ -92,7 +92,7 @@ func (l *funcLowerer) lowerArrayLitExpr(e *hir.Expr, consume bool) (Operand, err
 		}
 		elems = append(elems, op)
 	}
-	tmp := l.newTemp(e.Type, "arr", e.Span)
+	tmp := l.markOwningTemp(l.newTemp(e.Type, "arr", e.Span))
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{
@@ -177,7 +177,7 @@ func (l *funcLowerer) lowerTupleLitExpr(e *hir.Expr, consume bool) (Operand, err
 		}
 		elems = append(elems, op)
 	}
-	tmp := l.newTemp(e.Type, "tup", e.Span)
+	tmp := l.markOwningTemp(l.newTemp(e.Type, "tup", e.Span))
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{

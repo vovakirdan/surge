@@ -20,6 +20,9 @@ func formatLocalFlags(f LocalFlags) string {
 	if f&LocalFlagPtr != 0 {
 		parts = append(parts, "ptr")
 	}
+	if f&LocalFlagOwnsHeap != 0 {
+		parts = append(parts, "owns_heap")
+	}
 	if len(parts) == 0 {
 		return ""
 	}

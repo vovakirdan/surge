@@ -403,6 +403,25 @@ const (
 	// decide that, which is why this is a distinct operand kind rather than a
 	// flag derived from the operand's type.
 	OperandRetain
+	// OperandCopyValue reads a place holding a VALUE COMPOSITE for consumption
+	// and gives the destination an INDEPENDENT value — a struct, tuple, tagged
+	// union or fixed array duplicated so that mutating one does not touch the
+	// other.
+	//
+	// It exists for the same reason OperandRetain does, one type-category over:
+	// whether a read duplicates is a property of the USE SITE, and OperandCopy
+	// cannot carry that. A composite read for CONSUMPTION must produce a second
+	// independent value; the same composite read for BORROWING must not, since
+	// the reader is only looking through to storage someone else owns and has
+	// to keep seeing later writes to it. Both are OperandCopy today, so the
+	// backend sees one kind and cannot tell them apart — which is why copying a
+	// composite copies its box pointer and `let mut q = p; q.a = 99` mutates
+	// `p`.
+	//
+	// The distinction is permanent; how the backend PRODUCES the independent
+	// value is not. It clones a heap box today and copies inline bits later,
+	// behind an unchanged operand kind.
+	OperandCopyValue
 )
 
 func (k OperandKind) String() string {
@@ -419,6 +438,8 @@ func (k OperandKind) String() string {
 		return "AddrOfMut"
 	case OperandRetain:
 		return "Retain"
+	case OperandCopyValue:
+		return "CopyValue"
 	default:
 		return "Unknown"
 	}

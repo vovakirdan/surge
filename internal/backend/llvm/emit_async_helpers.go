@@ -22,7 +22,7 @@ func (fe *funcEmitter) emitAsyncStateFreeIntrinsic(call *mir.CallInstr) (bool, e
 	}
 	for i := range call.Args {
 		arg := &call.Args[i]
-		if arg.Kind != mir.OperandCopy && arg.Kind != mir.OperandMove {
+		if arg.Kind != mir.OperandCopy && arg.Kind != mir.OperandCopyValue && arg.Kind != mir.OperandMove {
 			continue
 		}
 		baseType, err := fe.placeBaseType(arg.Place)

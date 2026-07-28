@@ -13,12 +13,19 @@ import (
 // interner holds and pins the invariants:
 //
 //	OwnsHeap(T) == true                 for a reference-counted scalar
+//	OwnsHeap(T) == true                 for a value composite, Copy or not
 //	OwnsHeap(T) == false                for a borrow, which owns nothing
 //	OwnsHeap(T) == !IsCopy(T)           everywhere else
 //
 // `float` is the only type in the first row today. When `int` and `uint`
 // follow, they join it — and NOTHING ELSE may move. Another shape breaking
 // this means the widening reached a type it was not meant to.
+//
+// TriviallyTransportableBits tracks `IsCopy` minus the reference-counted
+// scalars, and ONLY those: a composite was excluded too while no crossing route
+// gave the far side an owner, and rejoined once they did. What keeps the
+// scalars out is that the crossing copy RETAINS such a field rather than
+// deep-copying it, and the count is not atomic.
 func TestOwnershipAxesAgreeWithCopyToday(t *testing.T) {
 	src := `
 type Plain = { a: int, b: int };
@@ -54,6 +61,12 @@ fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, o: Owning, w: W
 		// A reference-counted scalar is Copy but ships a pointer to a block
 		// with a non-atomic count, so it is not raw-bits transportable until
 		// the boundary installs a deep copy.
+		//
+		// A value composite rides again: its bits are still a box pointer, but
+		// each crossing route now gives the far side an owner — a capture is
+		// duplicated at its operand, a channel element at the send, and a
+		// RESULT is a transfer with one owner at a time and needs no copy.
+		// This axis only says whether the bits may travel.
 		wantBits := copyable && !res.TypeInterner.IsRefCountedScalar(id)
 		if got := res.TriviallyTransportableBits(id); got != wantBits {
 			t.Errorf("type %d (%v): TriviallyTransportableBits=%v, want %v",
@@ -69,6 +82,13 @@ fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, o: Owning, w: W
 			if !copyable {
 				t.Errorf("type %d (%v): a reference-counted scalar must stay Copy", id, tt.Kind)
 			}
+		case res.TypeInterner.IsValueComposite(id):
+			// The second family in that row, and the one that made the axes
+			// worth splitting twice: a struct, tuple, union or fixed array is a
+			// value the language stores in a heap box. Whether it is Copy says
+			// nothing about who frees the box — every holder does, which is
+			// why a Copy composite is droppable and a Copy scalar is not.
+			want = true
 		case tt.Kind == types.KindReference || tt.Kind == types.KindPointer:
 			// A borrow names storage it does not own. `&mut T` is the shape
 			// that makes this its own clause rather than a restatement of

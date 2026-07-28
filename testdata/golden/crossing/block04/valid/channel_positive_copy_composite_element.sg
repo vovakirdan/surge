@@ -1,0 +1,14 @@
+// positive: `@copy` value composite as a remote channel's ELEMENT type
+// The send duplicates the element, so the channel carries a box of its own and
+// the sender keeps its binding on a different one. Sits beside
+// `channel_positive_move_only_composite_element.sg`, which ships for the
+// opposite reason — a move-only element TRANSFERS, so its box has one holder.
+@copy
+type Digest = {
+    value: uint64,
+};
+
+async fn run() -> int {
+    let ch: far Channel<Digest> = channel_on::<Digest>(pool, 1);
+    return 0;
+}

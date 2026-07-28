@@ -38,9 +38,17 @@ import "surge/internal/types"
 // ownsHeap reports whether a value of this type carries heap storage that scope
 // exit must reclaim. Answers question 3 above.
 //
-// Present definition: a non-Copy value that is not a borrow. A reference or raw
-// pointer names storage it does not own, so dropping one would free a value the
-// holder never owned.
+// Present definition: a value that is not a borrow. A reference or raw pointer
+// names storage it does not own, so dropping one would free a value the holder
+// never owned.
+//
+// Being Copy is NOT an answer to this question, and two type families prove it:
+// a reference-counted scalar and a VALUE COMPOSITE are both duplicable at the
+// surface and both carry storage underneath. For the composite that is a
+// property of the implementation rather than the language — a struct, tuple,
+// union or fixed array is a value and should live inline — but while it is a
+// heap box, the box has to be reclaimed by whoever holds it, and there are as
+// many holders as there are copies.
 func (tc *typeChecker) ownsHeap(id types.TypeID) bool {
 	if id == types.NoTypeID || tc.types == nil {
 		return false
@@ -50,6 +58,11 @@ func (tc *typeChecker) ownsHeap(id types.TypeID) bool {
 	// reason these are separate axes. Ask first, so the Copy answer below does
 	// not swallow it.
 	if tc.types.IsRefCountedScalar(resolved) {
+		return true
+	}
+	// Asked before the Copy answer for the same reason: a Copy composite owns
+	// its box, and letting `IsCopy` answer would leak one per value.
+	if tc.types.IsValueComposite(resolved) {
 		return true
 	}
 	if tc.isCopyType(id) {
@@ -74,6 +87,9 @@ func (r *Result) OwnsHeap(id types.TypeID) bool {
 	}
 	resolved := resolveAlias(r.TypeInterner, id)
 	if r.TypeInterner.IsRefCountedScalar(resolved) {
+		return true
+	}
+	if r.TypeInterner.IsValueComposite(resolved) {
 		return true
 	}
 	if r.IsCopyType(id) {
@@ -112,7 +128,44 @@ func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
 	if r.ContainsRefCountedScalar(id) {
 		return false
 	}
+	// A value composite rides again, and what changed is not the
+	// representation — it is still a heap box — but who owns it on each side.
+	//
+	// The three crossing shapes reach that differently, which is why no test
+	// here can say "clone it": a CAPTURE is duplicated at its operand, so the
+	// destination's state holds a box of its own; a RESULT is produced by the
+	// body and handed to the caller, which is a transfer with one owner at a
+	// time and needs no copy at all; a channel ELEMENT is duplicated at the
+	// send. This axis only answers whether the bits may travel, and once each
+	// route has an owner on the far side, they may.
+	//
+	// What still may NOT travel is a composite carrying a reference-counted
+	// scalar — `ContainsRefCountedScalar` above turns that away, because the
+	// count is non-atomic and the copy these routes perform RETAINS such a
+	// field rather than deep-copying it. Right on one shard, wrong across two.
 	return r.IsCopyType(id)
+}
+
+// IsCopyValueComposite reports the one combination whose machine word is a
+// SHARED box pointer: a struct, tuple, union or fixed array that is also
+// duplicable.
+//
+// Both halves are load-bearing, which is why this is its own question rather
+// than either predicate alone. A move-only composite is equally boxed, but it
+// crosses by transfer, so exactly one shard ends up holding the box. A Copy
+// SCALAR is equally duplicable, but its word is the value. Only their
+// intersection leaves two shards writing one box.
+//
+// It is stated here, next to the axes, because several crossing routes need the
+// same answer and each had been deriving it differently.
+func (r *Result) IsCopyValueComposite(id types.TypeID) bool {
+	if r == nil || r.TypeInterner == nil || id == types.NoTypeID {
+		return false
+	}
+	if !r.IsCopyType(id) {
+		return false
+	}
+	return r.TypeInterner.IsValueComposite(resolveAlias(r.TypeInterner, id))
 }
 
 // ContainsRefCountedScalar reports whether a value of this type holds, at any

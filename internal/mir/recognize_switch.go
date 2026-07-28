@@ -163,7 +163,7 @@ func isOperandForLocal(op *Operand, local LocalID) bool {
 	if op == nil {
 		return false
 	}
-	if op.Kind != OperandCopy && op.Kind != OperandMove {
+	if op.Kind != OperandCopy && op.Kind != OperandCopyValue && op.Kind != OperandMove {
 		return false
 	}
 	if len(op.Place.Proj) != 0 {
@@ -182,7 +182,7 @@ func operandsEqual(a, b *Operand) bool {
 		return false
 	}
 	switch a.Kind {
-	case OperandCopy, OperandRetain, OperandMove:
+	case OperandCopy, OperandCopyValue, OperandRetain, OperandMove:
 		return placesEqual(a.Place, b.Place)
 	default:
 		return false

@@ -203,7 +203,7 @@ func addUsesFromOperand(op *Operand, addUse, addDef func(LocalID)) {
 		return
 	}
 	switch op.Kind {
-	case OperandCopy, OperandRetain, OperandMove, OperandAddrOf, OperandAddrOfMut:
+	case OperandCopy, OperandCopyValue, OperandRetain, OperandMove, OperandAddrOf, OperandAddrOfMut:
 		addUsesFromPlace(op.Place, addUse)
 		if op.Kind == OperandMove && addDef != nil {
 			addDefFromMovePlace(op.Place, addDef)

@@ -76,7 +76,18 @@ func (l *funcLowerer) lowerCrossingExpr(e *hir.Expr, consume bool) (Operand, err
 		ins.Destination.Value = op
 	}
 	for i := range data.Captures {
-		capOp, err := l.lowerExpr(data.Captures[i].Value, data.Captures[i].Mode != sema.CrossingCaptureCopy)
+		// Every capture is a CONSUMING read, including a copy capture. The
+		// crossing state outlives this expression and travels to another
+		// shard, so whatever the state holds has to be the destination's own —
+		// a borrowing read would put the caller's binding and the body's state
+		// on one box, in two threads.
+		//
+		// A copy capture consumes without ending the source: the caller keeps
+		// its binding by definition, and consuming a Copy composite duplicates
+		// rather than transfers. Blocking captures have always read this way
+		// (`captureOperand`); the two mechanisms disagreed, and this settles it
+		// in favour of the one that was right.
+		capOp, err := l.lowerExpr(data.Captures[i].Value, true)
 		if err != nil {
 			return Operand{}, err
 		}
@@ -141,6 +152,10 @@ type spawnOnCaptureInfo struct {
 	Name      string
 	Type      types.TypeID
 	FieldName string
+	// CopyCapture marks a capture the crossing DUPLICATED rather than took:
+	// the caller kept its binding, and the body's unpacked local is this
+	// crossing's own copy, so the body cannot have handed it on.
+	CopyCapture bool
 }
 
 func (l *funcLowerer) prepareSpawnOnCrossing(ins *CrossingInstr, body *hir.Block, span source.Span) error {

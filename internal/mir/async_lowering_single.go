@@ -492,6 +492,11 @@ func addLocal(f *Func, name string, ty types.TypeID, flags LocalFlags) LocalID {
 	return id
 }
 
+// localFlagsFor is the async/crossing lowering's flag computation, for locals
+// built outside a funcLowerer (a poll function's state and result slots). It
+// must answer the same way `funcLowerer.localFlags` does — the two flag the same
+// axes for the same types, and a local that disagrees with its own type is how a
+// drop goes missing or lands twice.
 func localFlagsFor(typesIn *types.Interner, semaRes *sema.Result, ty types.TypeID) LocalFlags {
 	var out LocalFlags
 	isCopy := false
@@ -502,6 +507,9 @@ func localFlagsFor(typesIn *types.Interner, semaRes *sema.Result, ty types.TypeI
 	}
 	if isCopy {
 		out |= LocalFlagCopy
+	}
+	if ownsHeapFor(typesIn, semaRes, ty) {
+		out |= LocalFlagOwnsHeap
 	}
 	if typesIn == nil || ty == types.NoTypeID {
 		return out
@@ -610,4 +618,21 @@ func wrapPollReturns(f *Func, retLocal LocalID, pendingBB BlockID, someTagSym sy
 		bb.Instrs = append(bb.Instrs, Instr{Kind: InstrCall, Call: CallInstr{HasDst: true, Dst: Place{Local: retLocal}, Callee: Callee{Kind: CalleeSym, Sym: someTagSym, Name: "Some"}, Args: []Operand{arg}}})
 		bb.Term = Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: Operand{Kind: OperandCopy, Place: Place{Local: retLocal}}}}
 	}
+}
+
+// ownsHeapFor is the sema-free leg of the OwnsHeap axis, matching
+// `funcLowerer.ownsHeap` including its no-sema fallback: without a sema result
+// the interner's Copy bit is the answer the drop sites read before the axis was
+// named.
+func ownsHeapFor(typesIn *types.Interner, semaRes *sema.Result, ty types.TypeID) bool {
+	if ty == types.NoTypeID {
+		return false
+	}
+	if semaRes != nil {
+		return semaRes.OwnsHeap(ty)
+	}
+	if typesIn == nil {
+		return false
+	}
+	return !typesIn.IsCopy(ty)
 }

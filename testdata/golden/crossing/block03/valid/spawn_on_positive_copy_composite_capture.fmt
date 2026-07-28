@@ -1,0 +1,19 @@
+// positive: `@copy` value composite captured by copy into a `spawn on` body
+// Was a NEGATIVE while the crossing shipped the capture's box pointer, which
+// put the caller's binding and the body's state on one box in two threads.
+// The capture is now duplicated at its operand, so the destination's state
+// holds a box of its own and the caller keeps writing to a different one.
+//
+// A composite carrying an arbitrary-precision value is still refused: its
+// block has a non-atomic count, and the duplication here RETAINS such a field
+// rather than deep-copying it — right on one shard, wrong across two.
+@copy
+type Digest = {
+    value: uint64,
+};
+
+fn start(d: Digest) -> far Task<int> {
+    return spawn on pool {
+        ret d.value to int;
+    };
+}

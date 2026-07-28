@@ -135,7 +135,22 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 	// every copy of a heap value bumps its count. The distinction exists for
 	// the native backend, where a plain copy is a bare word move and the bump
 	// has to be emitted; here both kinds are the same operation.
-	case mir.OperandCopy, mir.OperandRetain:
+	//
+	// OperandCopyValue is where they part. It names a composite read that must
+	// produce an INDEPENDENT value, and a retain does not: it would leave two
+	// bindings naming one object, so a write through either is visible through
+	// the other. That is the aliasing defect this kind exists to fix, so this
+	// case clones instead of counting.
+	case mir.OperandCopy, mir.OperandRetain, mir.OperandCopyValue:
+		duplicate := func(val Value) (Value, *VMError) {
+			if op.Kind == mir.OperandCopyValue {
+				return vm.cloneValueComposite(val)
+			}
+			if val.IsHeap() && val.H != 0 {
+				vm.Heap.Retain(val.H)
+			}
+			return val, nil
+		}
 		if len(op.Place.Proj) == 0 {
 			switch op.Place.Kind {
 			case mir.PlaceGlobal:
@@ -143,19 +158,13 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 				if vmErr != nil {
 					return Value{}, vmErr
 				}
-				if val.IsHeap() && val.H != 0 {
-					vm.Heap.Retain(val.H)
-				}
-				return val, nil
+				return duplicate(val)
 			default:
 				val, vmErr := vm.readLocal(frame, op.Place.Local)
 				if vmErr != nil {
 					return Value{}, vmErr
 				}
-				if val.IsHeap() && val.H != 0 {
-					vm.Heap.Retain(val.H)
-				}
-				return val, nil
+				return duplicate(val)
 			}
 		}
 		loc, vmErr := vm.EvalPlace(frame, op.Place)
@@ -166,10 +175,7 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		if val.IsHeap() && val.H != 0 {
-			vm.Heap.Retain(val.H)
-		}
-		return val, nil
+		return duplicate(val)
 
 	case mir.OperandMove:
 		if len(op.Place.Proj) == 0 {

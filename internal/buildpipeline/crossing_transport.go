@@ -116,6 +116,10 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		// and the count is not atomic. Refuse the channel at its creation
 		// rather than at each send, so the diagnostic lands where the element
 		// type was chosen.
+		//
+		// A COPY value composite element ships again: the send duplicates it,
+		// so the channel carries a box of its own and the sender keeps its
+		// binding on a different one.
 		return !res.ContainsRefCountedScalar(info.PayloadType)
 	case sema.CrossingLoweringChannelSelect:
 		// The reply is the winner index (plain bits); the arms' send payloads

@@ -173,6 +173,12 @@ func (b *surgeStartBuilder) localFlags(ty types.TypeID) LocalFlags {
 	if b.isCopyType(ty) {
 		out |= LocalFlagCopy
 	}
+	// The entrypoint builder has no sema result, so it uses the same fallback
+	// `funcLowerer.ownsHeap` uses without one: the interner's Copy bit, which
+	// is the answer the drop sites read before the ownership axis was named.
+	if ty != types.NoTypeID && !b.isCopyType(ty) {
+		out |= LocalFlagOwnsHeap
+	}
 	return out
 }
 

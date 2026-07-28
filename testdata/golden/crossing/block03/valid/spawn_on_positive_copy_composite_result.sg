@@ -1,0 +1,15 @@
+// positive: `@copy` value composite returned as the crossing RESULT
+// The reply edge needs no duplication at all, which is why it was the route
+// that reads differently from the captures: the body BUILDS the box and the
+// caller receives it, so there is one owner at a time. Adding a copy here
+// would allocate a box per reply that nobody asked for.
+@copy
+type Digest = {
+    value: uint64,
+};
+
+async fn start() -> far Task<Digest> {
+    return spawn on pool {
+        ret Digest { value = 7:uint64 };
+    };
+}

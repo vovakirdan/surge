@@ -194,7 +194,8 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 			}
 		}
 	}
-	tmp := l.newTemp(resultTy, "bin", e.Span)
+	// A binary operation MATERIALIZES its result; nothing else holds it.
+	tmp := l.markOwningTemp(l.newTemp(resultTy, "bin", e.Span))
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{
@@ -232,7 +233,11 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 	if err != nil {
 		return Operand{}, err
 	}
-	tmp := l.newTemp(resultTy, "cast", e.Span)
+	// A cast that changes representation builds a new value — a tag cast
+	// allocates a fresh box and frees the source. Deliberately NOT extended to
+	// the unary temp above: a deref temp ALIASES its pointee, and treating one
+	// as owned hands away storage the borrow still points at.
+	tmp := l.markOwningTemp(l.newTemp(resultTy, "cast", e.Span))
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{

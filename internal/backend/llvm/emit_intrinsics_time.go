@@ -97,7 +97,7 @@ func (fe *funcEmitter) emitDurationUnit(call *mir.CallInstr, name string, diviso
 
 func (fe *funcEmitter) emitDurationNanosOperand(op *mir.Operand) (nanos string, ok bool, err error) {
 	typeID := operandValueType(fe.emitter.types, op)
-	if typeID == types.NoTypeID && op != nil && (op.Kind == mir.OperandCopy || op.Kind == mir.OperandMove) {
+	if typeID == types.NoTypeID && op != nil && (op.Kind == mir.OperandCopy || op.Kind == mir.OperandCopyValue || op.Kind == mir.OperandMove) {
 		var placeErr error
 		typeID, placeErr = fe.placeBaseType(op.Place)
 		if placeErr != nil {

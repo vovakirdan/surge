@@ -417,6 +417,46 @@ func TestValidate_DropOnCopy(t *testing.T) {
 	}
 }
 
+// A local that is BOTH duplicable and heap-owning is droppable, and this is
+// the combination the two flags exist to express. A reference-counted scalar
+// is one today and a Copy value composite is one next; before the axes were
+// split, saying so took a hardcoded type test inside the validator, and every
+// new type wanting the combination would have needed another one.
+func TestValidate_DropOnCopyThatOwnsHeap(t *testing.T) {
+	typeInterner := types.NewInterner()
+	floatType := typeInterner.Intern(types.Type{Kind: types.KindFloat, Width: types.WidthAny})
+
+	mod := &mir.Module{
+		Funcs: map[mir.FuncID]*mir.Func{
+			0: {
+				Name:   "test",
+				Result: types.NoTypeID,
+				Locals: []mir.Local{
+					{Name: "x", Type: floatType, Flags: mir.LocalFlagCopy | mir.LocalFlagOwnsHeap},
+				},
+				Blocks: []mir.Block{
+					{
+						Instrs: []mir.Instr{
+							{
+								Kind: mir.InstrDrop,
+								Drop: mir.DropInstr{Place: mir.Place{Local: 0}},
+							},
+						},
+						Term: mir.Terminator{
+							Kind:   mir.TermReturn,
+							Return: mir.ReturnTerm{HasValue: false},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := mir.Validate(mod, typeInterner); err != nil {
+		t.Errorf("drop on a Copy local that owns heap must be accepted, got: %v", err)
+	}
+}
+
 // TestValidate_DropOnRef tests Drop on reference local (should use end_borrow).
 func TestValidate_DropOnRef(t *testing.T) {
 	typeInterner := types.NewInterner()

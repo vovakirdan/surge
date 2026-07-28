@@ -3,6 +3,7 @@ package mir
 import (
 	"surge/internal/ast"
 	"surge/internal/hir"
+	"surge/internal/source"
 	"surge/internal/types"
 )
 
@@ -24,8 +25,17 @@ func (l *funcLowerer) lowerAssignExpr(e *hir.Expr, data hir.BinaryOpData, consum
 		return Operand{}, err
 	}
 	if data.DropOverwritten {
-		// The approved reassignment order: RHS fully evaluated, THEN
-		// the overwritten value frees, then the store lands.
+		// The approved reassignment order: RHS fully evaluated, THEN the
+		// overwritten value frees, then the store lands.
+		//
+		// "Fully evaluated" is the load-bearing half, and an operand alone does
+		// not satisfy it: an operand naming a PLACE is a lazy read, performed
+		// by the store below rather than by the call above. When the source
+		// place is the destination — `x = x`, `p.inner = p.inner` — the drop
+		// would then free the very storage the store is about to read. Pin the
+		// value into a temp first, so the drop frees what the temp no longer
+		// needs to look at.
+		rhs = l.materializeBeforeOverwrite(&rhs, data.Right)
 		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: dst}})
 	}
 	l.emit(&Instr{
@@ -117,4 +127,44 @@ func assignmentBaseOp(op ast.ExprBinaryOp) (ast.ExprBinaryOp, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// materializeBeforeOverwrite pins a place-reading operand into a temp so the
+// overwrite's drop cannot free storage the pending store still has to read.
+//
+// It fires only when the operand actually reads a place and the value carries a
+// drop obligation — a constant or a plain scalar has nothing to lose by the
+// drop, and forcing every reassignment through a temp would add a copy to code
+// that never needed one.
+func (l *funcLowerer) materializeBeforeOverwrite(rhs *Operand, src *hir.Expr) Operand {
+	if l == nil {
+		return *rhs
+	}
+	switch rhs.Kind {
+	case OperandCopy, OperandCopyValue, OperandMove, OperandRetain:
+	default:
+		return *rhs
+	}
+	if rhs.Type == types.NoTypeID || !l.ownsHeap(rhs.Type) {
+		return *rhs
+	}
+	span := source.Span{}
+	if src != nil {
+		span = src.Span
+	}
+	// A TRANSFER temp: its value leaves in the store below, so it must not
+	// also be registered for the region flush. A refcounted scalar would
+	// otherwise be released twice — moved out and swept up — which reads back
+	// as a use-after-free rather than a leak.
+	tmp := l.newTransferTemp(rhs.Type, "reassign", span)
+	l.emit(&Instr{
+		Kind: InstrAssign,
+		Assign: AssignInstr{
+			Dst: Place{Local: tmp},
+			Src: RValue{Kind: RValueUse, Use: *rhs},
+		},
+	})
+	// The temp now holds the value outright, so handing it on transfers rather
+	// than duplicating: it is exactly the spent-temp case placeOperand names.
+	return Operand{Kind: OperandMove, Type: rhs.Type, Place: Place{Local: tmp}}
 }

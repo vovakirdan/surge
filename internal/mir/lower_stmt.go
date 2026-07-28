@@ -484,14 +484,19 @@ func (l *funcLowerer) detachFromExitDrops(op *Operand, drops []hir.DropLocal, sp
 	if len(drops) == 0 && !l.hasPendingTempDrops() {
 		return *op
 	}
-	if op.Kind != OperandCopy && op.Kind != OperandMove && op.Kind != OperandRetain {
+	if op.Kind != OperandCopy && op.Kind != OperandCopyValue && op.Kind != OperandMove && op.Kind != OperandRetain {
 		return *op
 	}
 	// The temp is a TRANSFER: its reference leaves with the return value, so
 	// it is kept out of the temp-drop frames the flush below walks. The
 	// materialization has to happen HERE, before the exit drops, or a returned
 	// binding would be read after its own release.
-	tmp := l.newTransferTemp(op.Type, "retval", span)
+	// Marked as OWNING its value, which is the same statement the comment
+	// above makes: consuming this temp transfers what it holds to the caller
+	// rather than duplicating it. Without the mark a composite return would
+	// clone here and leave the temp's own box with no one to reclaim it — the
+	// temp is deliberately outside the drop frames, so nothing sweeps it up.
+	tmp := l.markOwningTemp(l.newTransferTemp(op.Type, "retval", span))
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{

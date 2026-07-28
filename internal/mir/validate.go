@@ -82,7 +82,7 @@ func validateFunc(f *Func, typesIn *types.Interner, globals []Global, opts Valid
 	}
 
 	// 8. Check Drop validity
-	if err := validateDrop(f, typesIn, globals); err != nil {
+	if err := validateDrop(f, globals); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -253,7 +253,7 @@ func validateLocalIDs(f *Func, globals []Global) error {
 
 	checkOperand := func(op Operand, context string) {
 		switch op.Kind {
-		case OperandCopy, OperandRetain, OperandMove, OperandAddrOf, OperandAddrOfMut:
+		case OperandCopy, OperandCopyValue, OperandRetain, OperandMove, OperandAddrOf, OperandAddrOfMut:
 			checkPlace(op.Place, context)
 		}
 	}
@@ -496,11 +496,17 @@ func validateEndBorrow(f *Func, globals []Global) error {
 }
 
 // validateDrop checks that Drop only targets locals that own something to
-// reclaim: never a borrow, and never a plain Copy local — with one exception.
-// A reference-counted scalar is Copy AND heap-owning, so dropping one is the
-// release that gives its reference back. That exception is the whole reason
-// the ownership axes are separate from IsCopy.
-func validateDrop(f *Func, typesIn *types.Interner, globals []Global) error {
+// reclaim: never a borrow, and never a local carrying no drop obligation.
+//
+// The rule reads the two ownership axes as two flags. A local is undroppable
+// when it is duplicable and owns nothing — LocalFlagCopy without
+// LocalFlagOwnsHeap. Being Copy is NOT on its own disqualifying: a
+// reference-counted scalar is duplicable AND owned, and dropping one is the
+// release that gives its reference back. It used to take a hardcoded
+// type test to say so; now it is just a local that carries both flags, and the
+// next type to want that combination — a Copy value composite — needs no
+// second exception here.
+func validateDrop(f *Func, globals []Global) error {
 	var errs []error
 
 	for i := range f.Blocks {
@@ -525,8 +531,8 @@ func validateDrop(f *Func, typesIn *types.Interner, globals []Global) error {
 			}
 
 			loc := f.Locals[localID]
-			if loc.Flags&LocalFlagCopy != 0 && !typesIn.IsRefCountedScalar(resolveAlias(typesIn, loc.Type)) {
-				errs = append(errs, fmt.Errorf("bb%d instr %d: drop on copy local L%d (%s)",
+			if loc.Flags&LocalFlagCopy != 0 && loc.Flags&LocalFlagOwnsHeap == 0 {
+				errs = append(errs, fmt.Errorf("bb%d instr %d: drop on copy local L%d (%s) that owns nothing",
 					i, j, localID, loc.Name))
 			}
 			if loc.Flags&(LocalFlagRef|LocalFlagRefMut) != 0 {

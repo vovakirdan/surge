@@ -229,7 +229,7 @@ func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consum
 		// The result slot is a TRANSFER: `ret` stores a reference into it and
 		// the consumer takes that reference, so it must not also be released
 		// here — see the read at the end of this function.
-		resultLocal = l.newTransferTemp(e.Type, "block", e.Span)
+		resultLocal = l.markOwningTemp(l.newTransferTemp(e.Type, "block", e.Span))
 	}
 
 	exitBB := l.newBlock()

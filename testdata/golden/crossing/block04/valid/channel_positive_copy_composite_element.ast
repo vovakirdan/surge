@@ -1,0 +1,21 @@
+channel_positive_copy_composite_element.sg (span: 6:1-15:1)
+├─ Item[0]: Type (span: 6:1-9:3)
+│  ├─ Name: Digest
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     └─ Field[0]: value: uint64
+└─ Item[1]: Fn (span: 11:1-14:2)
+   ├─ Name: run
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:23-14:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:65)
+         │  ├─ Name: ch
+         │  ├─ Mutable: false
+         │  ├─ Type: far Channel<Digest>
+         │  └─ Value: expr#4: channel_on(pool, 1)
+         └─ Stmt[1]: Return (span: 13:5-13:14)
+            └─ Expr: expr#5: 0
