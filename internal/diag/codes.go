@@ -294,6 +294,16 @@ const (
 	SemaSelectSendPayloadNotBinding    Code = 3141 // select send payload must be a whole owned binding
 	SemaCompareGuardMovesBinding       Code = 3142 // compare-arm guard moves one of the arm's own pattern bindings
 
+	// SemaPartialMoveUnsupported rejects moving a field, element, or other
+	// projection OUT of a live binding. Doing so is a PARTIAL MOVE: the
+	// container keeps the rest of its value and gives one place away. Sema
+	// tracks moves per BINDING, not per place, so it can neither invalidate
+	// just that place nor drop only the fields that remain — and without both
+	// the extraction silently aliases the container instead of taking from it.
+	// Lifted once partial moves are tracked, when `own o.inner` becomes the
+	// spelling that performs one.
+	SemaPartialMoveUnsupported Code = 3143
+
 	// Numbers up to 3176 are taken; the crossing blocks live in codes_crossing.go.
 
 	// SemaModuleLevelLet rejects `let` / `let mut` declared at module scope.
@@ -553,6 +563,7 @@ var ( // todo расширить описания и использовать к
 		SemaSelectSendOwnMarker:            "select send arm takes ownership of its payload",
 		SemaSelectSendPayloadNotBinding:    "select send payload must be a whole owned binding",
 		SemaCompareGuardMovesBinding:       "compare-arm guard cannot move a value out of its own pattern binding",
+		SemaPartialMoveUnsupported:         "moving a field out of a live value is not supported yet",
 		SemaModuleLevelLet:                 "module-level `let` is not allowed; use `const`",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",

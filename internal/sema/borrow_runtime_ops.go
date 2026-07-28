@@ -95,6 +95,26 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 		tc.reportCompareGuardMove(base, span)
 		return
 	}
+	// Taking a PROJECTION out of a live binding is a partial move, and sema
+	// tracks moves per binding rather than per place. It can therefore neither
+	// invalidate just the place that left nor drop only the places that stayed,
+	// so the extraction silently ALIASES the container instead of taking from
+	// it: mutating the extracted value is visible through the original.
+	//
+	// The segments are read BEFORE expandPlaceDescriptor on purpose. Expansion
+	// rewrites a place through the borrow its base came from, which manufactures
+	// segments the source never wrote; the question here is what the PROGRAM
+	// said, not where the value ultimately lives.
+	//
+	// Scaffolding, and removed once the moved-set is place-keyed and drop
+	// obligations carry paths. It exists so those two can land in separate
+	// steps: a place-aware moved-set with binding-granular drops would release a
+	// field that had already moved, and this keeps that window unreachable from
+	// user code. Nothing in the corpus writes this shape today.
+	if !direct && base.IsValid() {
+		tc.reportPartialMove(desc, expr, span)
+		return
+	}
 	desc, _ = tc.expandPlaceDescriptor(desc)
 	place := tc.canonicalPlace(desc)
 	if !place.IsValid() {

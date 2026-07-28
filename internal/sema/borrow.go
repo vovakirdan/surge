@@ -480,7 +480,16 @@ func (bt *BorrowTable) formatPlaceLabel(place Place, base string, interner *sour
 	if base == "" {
 		base = "value"
 	}
-	segs := bt.placeSegments(place)
+	return formatPlaceSegments(base, bt.placeSegments(place), interner)
+}
+
+// formatPlaceSegments renders a base name plus a projection path. Split out of
+// formatPlaceLabel so a caller holding raw segments — one that has not interned
+// a path, and does not want to — can render the same text.
+func formatPlaceSegments(base string, segs []PlaceSegment, interner *source.Interner) string {
+	if base == "" {
+		base = "value"
+	}
 	if len(segs) == 0 {
 		return base
 	}

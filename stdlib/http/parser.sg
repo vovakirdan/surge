@@ -222,12 +222,12 @@ pub fn parse_request(raw: &string) -> Erring<Request, HttpError> {
     }
 
     return Success(Request {
-        method: parsed_head.method,
-        target: parsed_head.target,
-        path: parsed_head.path,
-        query: parsed_head.query,
-        version: parsed_head.version,
-        headers: parsed_head.headers,
+        method: clone(parsed_head.method),
+        target: clone(parsed_head.target),
+        path: clone(parsed_head.path),
+        query: clone(parsed_head.query),
+        version: clone(parsed_head.version),
+        headers: copy_headers(parsed_head.headers),
         body: body
     });
 }
@@ -384,12 +384,12 @@ fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
         body = body_reader_length(body_bytes);
     }
     let req: Request = {
-        method: parsed_head.method,
-        target: parsed_head.target,
-        path: parsed_head.path,
-        query: parsed_head.query,
-        version: parsed_head.version,
-        headers: parsed_head.headers,
+        method: clone(parsed_head.method),
+        target: clone(parsed_head.target),
+        path: clone(parsed_head.path),
+        query: clone(parsed_head.query),
+        version: clone(parsed_head.version),
+        headers: copy_headers(parsed_head.headers),
         body: body
     };
     let parsed: ParsedRequest = { req: req, consumed: total_len to uint, close: parsed_head.meta.close };
@@ -398,13 +398,12 @@ fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
 
 extern<ByteStream> {
     pub fn next(self: &mut ByteStream) -> Option<byte[]> {
-        let chunks = self.chunks;
-        let count: int = chunks.__len() to int;
+        let count: int = self.chunks.__len() to int;
         let idx: int = self.index to int;
         if idx >= count {
             return nothing;
         }
-        let src: &byte[] = chunks[idx];
+        let src: &byte[] = self.chunks[idx];
         let length: uint = src.__len();
         let mut chunk: byte[] = [];
         if length != 0:uint {

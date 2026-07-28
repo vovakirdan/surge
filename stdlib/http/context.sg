@@ -17,7 +17,11 @@ pub fn context_with_response(req: Request, resp: Response) -> Context {
 }
 
 pub fn into_response(ctx: Context) -> Response {
-    return ctx.resp;
+    // RV2-DEBT-077: taking a field out of a value that dies here is a PARTIAL
+    // MOVE, which sema does not track yet — reading it directly aliases the
+    // container and the container's drop then frees what this value holds.
+    // The clone is the interim price; Epic 24 step 8 replaces it with `own`.
+    return copy_response(ctx.resp);
 }
 
 fn context_remove_content_type(ctx: &mut Context) -> nothing {

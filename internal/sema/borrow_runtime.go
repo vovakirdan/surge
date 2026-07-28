@@ -101,6 +101,21 @@ func (tc *typeChecker) resolvePlace(expr ast.ExprID) (placeDescriptor, bool) {
 			Name: member.Field,
 		})
 		return desc, true
+	case ast.ExprTupleIndex:
+		// A tuple element is a projection like any other. Without this case
+		// `resolvePlace` gives up on `p.0`, and every rule that reasons about
+		// places — the borrow table and the partial-move gate alike — simply
+		// never sees it.
+		tup, ok := tc.builder.Exprs.TupleIndex(expr)
+		if !ok || tup == nil {
+			return placeDescriptor{}, false
+		}
+		desc, ok := tc.resolvePlace(tup.Target)
+		if !ok {
+			return placeDescriptor{}, false
+		}
+		desc.Segments = append(desc.Segments, PlaceSegment{Kind: PlaceSegmentIndex})
+		return desc, true
 	case ast.ExprIndex:
 		index, ok := tc.builder.Exprs.Index(expr)
 		if !ok || index == nil {

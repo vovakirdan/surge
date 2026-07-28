@@ -3,6 +3,7 @@ package sema
 import (
 	"fmt"
 
+	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -108,4 +109,42 @@ func (tc *typeChecker) emitBorrowDiag(code diag.Code, span source.Span, msg stri
 		}
 	}
 	builder.Emit()
+}
+
+// reportPartialMove rejects taking a projection out of a live binding.
+//
+// The diagnostic has to carry the whole explanation, because the thing that
+// goes wrong is invisible from the program text: without this rejection the
+// extraction compiles and produces a second NAME for the container's field
+// rather than a value, so writing through it is visible through the original.
+// Naming the eventual spelling matters too — this is a "not yet", not a "no",
+// and a reader who is told only that the move is unsupported has no way to
+// tell which.
+func (tc *typeChecker) reportPartialMove(desc placeDescriptor, expr ast.ExprID, span source.Span) {
+	if span == (source.Span{}) {
+		span = tc.exprSpan(expr)
+	}
+	strs := tc.builder.StringsInterner
+	if strs == nil && tc.symbols != nil && tc.symbols.Table != nil {
+		strs = tc.symbols.Table.Strings
+	}
+	base := tc.bindingName(desc.Base)
+	label := formatPlaceSegments(base, desc.Segments, strs)
+	if tc.reporter == nil {
+		return
+	}
+	b := diag.ReportError(tc.reporter, diag.SemaPartialMoveUnsupported, span,
+		fmt.Sprintf("cannot move `%s` out of `%s`: `%s` would stay usable beside it", label, base, base))
+	if b == nil {
+		return
+	}
+	b.WithNote(span, fmt.Sprintf(
+		"moving one place out of a live value is a PARTIAL move, and moves are tracked per binding rather than per place, "+
+			"so `%s` can be neither invalidated on its own nor left holding only what remains",
+		label))
+	b.WithNote(span, fmt.Sprintf(
+		"hint: borrow it instead (`&%s`), copy the whole value, or move `%s` itself if you are finished with it; "+
+			"`own %s` becomes the way to take just this place once partial moves are tracked",
+		label, base, label))
+	b.Emit()
 }

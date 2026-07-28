@@ -275,13 +275,15 @@ fn body_next_sync(reader: &mut BodyReader) -> Erring<byte[], HttpError> {
         }
         let start: int = reader.cursor to int;
         let end: int = start + (reader.remaining to int);
-        let raw = reader.raw;
-        let raw_len: int = raw.__len() to int;
+        // `reader` outlives this read, so the field is BORROWED at each use
+        // rather than bound: binding it would take a move-only value out of a
+        // live struct, which aliases the container instead of taking from it.
+        let raw_len: int = reader.raw.__len() to int;
         if end > raw_len {
             reader.done = true;
             return http_error(HTTP_ERR_BODY, "body truncated");
         }
-        let slice = copy_bytes_range(raw, start, end);
+        let slice = copy_bytes_range(reader.raw, start, end);
         reader.cursor = end to uint;
         reader.remaining = 0:uint;
         reader.done = true;
@@ -289,8 +291,7 @@ fn body_next_sync(reader: &mut BodyReader) -> Erring<byte[], HttpError> {
     }
     if mode == mode_chunked {
         let mut cur: uint = reader.cursor;
-        let raw_scan = reader.raw;
-        let len_res = parse_chunk_size(raw_scan, cur);
+        let len_res = parse_chunk_size(reader.raw, cur);
         let mut out: BodyResult = http_error(HTTP_ERR_BODY, "invalid chunk size");
         let mut size: uint = 0:uint;
         let mut has_size: bool = false;
@@ -312,15 +313,14 @@ fn body_next_sync(reader: &mut BodyReader) -> Erring<byte[], HttpError> {
         if reader.limit_remaining != 0:uint && size > reader.limit_remaining {
             return http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large");
         }
-        let raw = reader.raw;
         if size == 0:uint {
-            let raw_len: int = raw.__len() to int;
+            let raw_len: int = reader.raw.__len() to int;
             let end: int = cur to int;
             if end + 1 >= raw_len {
                 return http_error(HTTP_ERR_BODY, "missing final chunk terminator");
             }
-            let term1: byte = clone(raw[end]);
-            let term2: byte = clone(raw[end + 1]);
+            let term1: byte = clone(reader.raw[end]);
+            let term2: byte = clone(reader.raw[end + 1]);
             let term1_u: uint = term1 to uint;
             let term2_u: uint = term2 to uint;
             if term1_u != 13:uint {
@@ -336,15 +336,15 @@ fn body_next_sync(reader: &mut BodyReader) -> Erring<byte[], HttpError> {
         }
         let start: int = cur to int;
         let end: int = start + (size to int);
-        let raw_len: int = raw.__len() to int;
+        let raw_len: int = reader.raw.__len() to int;
         if end > raw_len {
             return http_error(HTTP_ERR_BODY, "chunk exceeds body");
         }
         if end + 1 >= raw_len {
             return http_error(HTTP_ERR_BODY, "missing chunk terminator");
         }
-        let term1: byte = clone(raw[end]);
-        let term2: byte = clone(raw[end + 1]);
+        let term1: byte = clone(reader.raw[end]);
+        let term2: byte = clone(reader.raw[end + 1]);
         let term1_u: uint = term1 to uint;
         let term2_u: uint = term2 to uint;
         if term1_u != 13:uint {
@@ -353,7 +353,7 @@ fn body_next_sync(reader: &mut BodyReader) -> Erring<byte[], HttpError> {
         if term2_u != 10:uint {
             return http_error(HTTP_ERR_BODY, "invalid chunk terminator");
         }
-        let slice = copy_bytes_range(raw, start, end);
+        let slice = copy_bytes_range(reader.raw, start, end);
         if reader.limit_remaining != 0:uint {
             reader.limit_remaining = reader.limit_remaining - size;
         }

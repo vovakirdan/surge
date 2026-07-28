@@ -236,7 +236,7 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
                             buffer = buffer_drop_prefix(&buffer, parsed.consumed);
                             pending_in.push(QueueItem {
                                 kind: QUEUE_KIND_REQ,
-                                req: parsed.req,
+                                req: copy_request(parsed.req),
                                 resp: dummy_response(),
                                 close: parsed.close
                             });
@@ -370,10 +370,10 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
                 compare item_opt {
                     Some(item) => {
                         if item.kind == QUEUE_KIND_REQ {
-                            let task = spawn_handler_task(handler, item.req, item.close);
+                            let task = spawn_handler_task(handler, copy_request(item.req), item.close);
                             pending_out.push(task);
                         } else {
-                            let task = spawn_response_task(item.resp, item.close);
+                            let task = spawn_response_task(copy_response(item.resp), item.close);
                             pending_out.push(task);
                         }
                     }

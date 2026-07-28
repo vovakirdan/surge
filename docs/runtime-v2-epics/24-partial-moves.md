@@ -35,6 +35,26 @@ showcases by matching the shape in MIR (a named non-Copy local receiving a
 **zero**. So this epic buys new expressiveness; it does not rescue existing
 programs.
 
+> **THAT CLAIM IS FALSE, corrected 2026-07-28 at step 1.** The survey searched
+> the golden corpus and the showcases. It never searched `stdlib/`, and the
+> stdlib has **20** sites — all in `stdlib/http/` (`body.sg`, `context.sg`,
+> `parser.sg`, `response.sg`, `server.sg`); `core/` and the showcases really are
+> clean. It also matched only a named local receiving a field read, so it missed
+> `return o.field`, `let _ = o.field`, and a struct literal built from another
+> value's fields — the same partial move, and the shape the HTTP request parser
+> used on every request.
+>
+> The consequence is worse than a miscount. Two of those shapes CORRUPT MEMORY
+> today rather than aliasing (RV2-DEBT-083): a by-value receiver returning a
+> heap field, and a value built from a dying value's fields, both measured as
+> invalid reads plus invalid frees while printing the right answer. The alias
+> symptom this document opens with is the *benign* case — it is protected by
+> `markAliasedBinding`, which never drops a projection-read binding. Nothing
+> protects a value that ESCAPES by return or into a literal.
+>
+> So this epic does rescue existing programs, and step 1 was costed as "breaks
+> nothing" on the strength of a survey that had not looked in the right place.
+
 ## The Sequencing Question, Answered Honestly
 
 **Full partial moves are NOT required before Epic 23 Phase 2.** What Phase 2
@@ -402,6 +422,47 @@ not become per-field until a backend can act on one.
    Gate: the diagnostic fires on `let e = o.inner`; `f().inner`, a borrowed
    field read, and a `@copy` field all stay accepted.
 
+   **DONE 2026-07-28, and it cost more than one sitting.** `SEM3143`, raised in
+   `observeMove` for any move whose resolved place has a non-empty path from a
+   named base. The segments are read BEFORE `expandPlaceDescriptor`, because
+   expansion rewrites a place through the borrow its base came from and
+   manufactures segments the source never wrote.
+
+   "Breaks nothing" was wrong — see the correction above. The gate rejected 20
+   stdlib sites and two sema fixtures on the first run, and the shapes it
+   rejected were corrupting memory (RV2-DEBT-083), so the rejection is doing
+   real work rather than merely deferring expressiveness.
+
+   Those sites were rewritten in two ways, and the split matters because only
+   one of them is throwaway:
+   - **borrow at the use site** where the container outlives the read
+     (`let raw = reader.raw;` → use `reader.raw` directly, since every consumer
+     already takes `&byte[]`). Permanent improvement, no cost, no revert.
+   - **copy explicitly** where the container dies immediately — the genuine
+     partial move. `clone()` covers a `string` but there is no `__clone` for a
+     composite, an array or a union, so `stdlib/http/interim_copy.sg` spells out
+     the six needed copies. That file exists to be DELETED at step 8, and every
+     caller then goes back to reading the field directly.
+
+   Gated shapes, verified: a bound field read, `own o.field`, a nested path
+   `o.a.b`, a by-value receiver returning a heap field, a struct literal built
+   from a dying value, a discarded read, and — after review found it missing —
+   a TUPLE element, which `resolvePlace` had no case for at all. Adding it
+   closes a hole in the borrow table too, not only in this gate.
+
+   **Not gated, and the boundary is the same one in every case: `resolvePlace`
+   cannot resolve a CALL as a place.** So any projection whose base is a call
+   escapes — `f().inner`, `make_array()[i]`, `obj.method().field`. The first of
+   those segfaults (RV2-DEBT-084), which makes the epic's "must stay accepted"
+   for `f().inner` mean "accepts a use-after-free" today. The others are
+   unverified and may be safe when the call returns a borrow; the gate cannot
+   tell the two apart, because it cannot see through the call at all.
+
+   Also outside the gate: a projection of a `const`. `resolvePlace` accepts only
+   `SymbolLet` and `SymbolParam`. Module-level `let` is banned and a `const` is
+   restricted to compile-time numbers and strings, so a move-only composite
+   should not be reachable there — but that is an argument, not a measurement.
+
 2. **Moved-set becomes place-keyed.** `movedBindings` goes from
    `map[SymbolID]Span` to a place-keyed set, using `Place{Base, Path}` and
    `placesOverlap`. Every helper in `internal/sema/move_tracking.go` follows.
@@ -438,6 +499,16 @@ not become per-field until a backend can act on one.
 
 8. **Lift the step-1 rejection and land the contract.** Partial moves become
    legal, rows 1-12 land as the frozen set with their positive controls.
+   Three cleanups are part of this step, not follow-ups, because each is
+   interim cost that becomes permanent if forgotten:
+   - DELETE `stdlib/http/interim_copy.sg` and restore the direct field reads at
+     its callers (`context.sg`, `parser.sg`, `response.sg`, `server.sg`). Those
+     copies are per-request allocations on the HTTP path that exist only
+     because `own o.field` did not.
+   - delete the `SemaPartialMoveUnsupported` gate and its diagnostic code;
+   - delete the two debt sentinels (`TestPartialMoveOutOfTemporaryIsNotGated`,
+     `TestCrossingCaptureFieldWriteIsNotYetCaught`) rather than adjusting them —
+     each asserts behaviour that is wrong.
 
 9. **Monomorphization and generated-path audit.** Any new ownership metadata
    must survive `internal/mono` cloning and substitution, and the step-0

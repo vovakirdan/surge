@@ -220,7 +220,7 @@ contract ErrorLike {
 }
 
 fn print_err<E: ErrorLike>(e: E) {
-    let _ = e.msg;
+    let _ = &e.msg;
 }
 `
 	tc, _, _ := newContractChecker(t, src)
@@ -275,12 +275,12 @@ type Error2 = {
 }
 
 // stub for test (this test runs without stdlib)
-fn print(s: string) {
+fn print(s: &string) {
     return nothing;
 }
 
 fn print_err<E: ErrorLike>(e: E) {
-    print(e.msg);
+    print(&e.msg);
 }
 
 fn foo<H: Hashable<H>>(h: H) -> uint {
@@ -288,7 +288,7 @@ fn foo<H: Hashable<H>>(h: H) -> uint {
 }
 
 fn bar(e: Error0) -> nothing {
-    print(e.msg);
+    print(&e.msg);
 }
 
 fn main() {
@@ -383,16 +383,16 @@ func TestContractMatching_ShortFormFunctionCall(t *testing.T) {
 type Foo = { bar: string }
 
 extern<Foo> {
-    fn Bar(self: Foo) -> string { return self.bar; }
+    fn Bar(self: Foo) -> int { return 1; }
 }
 
 contract FooLike<T> {
     field bar: string;
-    fn Bar(self: T) -> string;
+    fn Bar(self: T) -> int;
 }
 
-fn join<T: FooLike>(x: T) -> string {
-    let _ = x.bar;
+fn join<T: FooLike>(x: T) -> int {
+    let _ = &x.bar;
     return x.Bar();
 }
 
