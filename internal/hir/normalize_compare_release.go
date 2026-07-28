@@ -1,6 +1,7 @@
 package hir
 
 import (
+	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/types"
 )
@@ -32,8 +33,16 @@ import (
 // tag/payload structure the shallow-vs-deep decision below depends on.
 // A tuple, string, or struct scrutinee compare is left as a separate,
 // unfiled gap.
-func compareScrutineeReleaseSafe(ctx *normCtx, ty types.TypeID) bool {
+func compareScrutineeReleaseSafe(ctx *normCtx, value *Expr, ty types.TypeID) bool {
 	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
+		return false
+	}
+	if scrutineeReadsThroughBorrow(value) {
+		// `compare *r { ... }` where `r` borrows: the deref STRIPS the
+		// reference, so the type test below sees the pointee — a plain
+		// union — and would wrongly conclude this compare owns the box.
+		// It owns nothing; the borrow's referent belongs to someone else,
+		// who will drop it again.
 		return false
 	}
 	typesIn := ctx.mod.TypeInterner
@@ -57,6 +66,39 @@ func compareScrutineeReleaseSafe(ctx *normCtx, ty types.TypeID) bool {
 	unwrapped := stripOwnType(typesIn, resolved)
 	tt, ok := typesIn.Lookup(unwrapped)
 	return ok && tt.Kind == types.KindUnion
+}
+
+// scrutineeReadsThroughBorrow reports whether the scrutinee expression only
+// READS a value someone else owns, so that no ownership reached the compare's
+// temp however the expression's type reads.
+//
+// The type test alone is not enough. `*r` on an `&FmtArg` has type `FmtArg`,
+// not `&FmtArg` — the deref already stripped the reference — so a type-only
+// check sees a bare union and concludes the compare may free its box. It may
+// not: the box belongs to whoever the borrow points at, and they free it too.
+// That is a double free on the native backend (the VM survives it only because
+// its heap is counted, which is why this never showed in the differential).
+//
+// Parenthesised and `own`-wrapped forms are unwrapped so the check cannot be
+// dodged by spelling. `&x` / `&mut x` are not scrutinee reads-through: taking a
+// reference produces a reference-typed value, which the type test below already
+// refuses.
+func scrutineeReadsThroughBorrow(value *Expr) bool {
+	for value != nil {
+		data, ok := value.Data.(UnaryOpData)
+		if !ok {
+			return false
+		}
+		switch data.Op {
+		case ast.ExprUnaryDeref:
+			return true
+		case ast.ExprUnaryOwn:
+			value = data.Operand
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 // tagPayloadReleaseShape classifies a tag arm's payload patterns for

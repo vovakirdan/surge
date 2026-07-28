@@ -66,7 +66,7 @@ func normalizeCompareExpr(ctx *normCtx, e *Expr) error {
 	// scrutinee gets no release at all, leaving the pre-existing
 	// behavior (no release, matching what sema's obligations imply)
 	// unchanged.
-	releaseSafe := compareScrutineeReleaseSafe(ctx, valueTy)
+	releaseSafe := compareScrutineeReleaseSafe(ctx, data.Value, valueTy)
 
 	for _, arm := range data.Arms {
 		armStmts := lowerCompareArm(ctx, cmpRef, valueTy, arm, releaseSafe)
@@ -515,9 +515,9 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 			Kind: ExprTagPayload,
 			Type: payloadType,
 			Span: span,
-			Data: TagPayloadData{Value: subject, TagName: tag, Index: i},
+			Data: TagPayloadData{Value: subject, TagName: tag, Index: i, SubjectBorrowed: !releaseSafe},
 		}
-		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current, &ownedBindings)
+		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current, &ownedBindings, !releaseSafe)
 		if current == nil {
 			current = &Block{Span: span}
 		}
@@ -549,7 +549,10 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 	return mkIf(span, cond, thenB)
 }
 
-func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, pat *Expr, body *Block, owned *[]DropLocal) *Block {
+// subjectBorrowed propagates the enclosing compare's ownership answer down
+// through nested tag patterns: a payload read out of a borrowed union is
+// itself borrowed, however deep the pattern nests.
+func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, pat *Expr, body *Block, owned *[]DropLocal, subjectBorrowed bool) *Block {
 	if ctx == nil || subject == nil || body == nil || pat == nil {
 		return body
 	}
@@ -583,9 +586,9 @@ func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subje
 				Kind: ExprTagPayload,
 				Type: payloadType,
 				Span: span,
-				Data: TagPayloadData{Value: subject, TagName: tagName, Index: i},
+				Data: TagPayloadData{Value: subject, TagName: tagName, Index: i, SubjectBorrowed: subjectBorrowed},
 			}
-			thenB = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, subPat, thenB, owned)
+			thenB = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, subPat, thenB, owned, subjectBorrowed)
 			if thenB == nil {
 				thenB = &Block{Span: span}
 			}

@@ -45,6 +45,20 @@ func (l *funcLowerer) lowerTagPayloadExpr(e *hir.Expr, consume bool) (Operand, e
 			Src: RValue{Kind: RValueTagPayload, TagPayload: TagPayload{Value: val, TagName: data.TagName, Index: data.Index}},
 		},
 	})
+	if data.SubjectBorrowed {
+		// The union outlives this read and keeps its own reference, so the
+		// temp needs one of its own — the same repair a field or element
+		// read gets. Without it the temp's release takes the union's
+		// reference away, and the union's real owner then reads freed
+		// memory.
+		//
+		// Deliberately NOT done when the union is owned: there the single
+		// reference transfers through this temp into the binding, and the
+		// envelope release skips the payload because the binding holds it.
+		// Retaining unconditionally balances the borrowed case and leaks
+		// the owned one.
+		l.retainExtractedValue(tmp, e.Type)
+	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 

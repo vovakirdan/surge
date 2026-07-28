@@ -88,6 +88,10 @@ tag Payload(string);
 tag Empty();
 type Outcome = Payload(string) | Empty;
 
+tag Reading(float);
+tag NoReading();
+type Measure = Reading(float) | NoReading;
+
 fn build_tag(prefix: string) -> string {
     let mut s = prefix;
     let mut i = 0;
@@ -136,6 +140,95 @@ fn bound_once() -> string {
         Payload(s) => s;
         _ => "";
     };
+}
+
+// A compare whose scrutinee is a DEREFERENCED BORROW owns nothing: the
+// box belongs to the caller, who frees it on its own scope exit. The
+// deref strips the reference, so the scrutinee's TYPE is a bare union
+// and a type-only ownership test concludes this compare may free the
+// box — it may not, and doing so frees the caller's storage a second
+// time. The payload pattern is a wildcard so that no binding aliases
+// anything: that isolates the SCRUTINEE's release from the payload
+// lifecycle, and it is the arm shape that would take the deep-drop path.
+//
+// This is what made every formatted print with a non-string argument a
+// double free on the native backend: core/format.sg's append_fmt_arg
+// takes an &FmtArg and compares through a deref of it. The VM survived
+// it because its heap is reference-counted, which is exactly why the
+// VM/LLVM differential could not see this and a census had to.
+fn borrowed_read(arg: &Outcome) -> int {
+    return compare *arg {
+        Payload(_) => 1;
+        _ => 0;
+    };
+}
+
+fn borrowed_once() -> int {
+    let owned: Outcome = Payload(build_tag("b-"));
+    return borrowed_read(&owned);
+}
+
+// The payload half of the same question, and the one that needs OPPOSITE
+// instructions from the owned case. A binding that extracts a
+// reference-counted scalar out of a BORROWED union must take a reference
+// of its own, because the union keeps its own and outlives the arm; a
+// binding extracting from an OWNED union must not, because there the
+// single reference transfers into the binding and the envelope release
+// leaves the payload alone. Both spell the same tag_payload read, so the
+// ownership answer has to be carried down from the compare.
+//
+// Getting it wrong in either direction is a memory error, which is why
+// this probe and float_owned_n_times below must BOTH stay balanced: an
+// unconditional retain balances this one and leaks that one.
+fn borrowed_float_read(arg: &Measure) -> float {
+    return compare *arg {
+        Reading(v) => v;
+        _ => 0.0;
+    };
+}
+
+fn borrowed_float_once() -> float {
+    let owned: Measure = Reading(1.5 + 0.25);
+    return borrowed_float_read(&owned);
+}
+
+fn borrowed_float_n_times(n: int) -> int {
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        let v: float = borrowed_float_once();
+        if v > 1.0 { total = total + 1; }
+        i = i + 1;
+    }
+    return total;
+}
+
+fn owned_float_once() -> float {
+    return compare Reading(1.5 + 0.25) {
+        Reading(v) => v;
+        _ => 0.0;
+    };
+}
+
+fn owned_float_n_times(n: int) -> int {
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        let v: float = owned_float_once();
+        if v > 1.0 { total = total + 1; }
+        i = i + 1;
+    }
+    return total;
+}
+
+fn borrowed_n_times(n: int) -> int {
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        total = total + borrowed_once();
+        i = i + 1;
+    }
+    return total;
 }
 
 fn bound_n_times(n: int) -> int {
@@ -335,6 +428,51 @@ fn main() -> int {
     }
     let r5: int = diff_check("nested", &ns1_before, &ns1_after, &ns2000_before, &ns2000_after);
     if r5 != 0 { return 50 + r5; }
+
+    let bw1_before: HeapStats = rt_heap_stats();
+    let bw1: int = borrowed_n_times(1);
+    let bw1_after: HeapStats = rt_heap_stats();
+    let bw2000_before: HeapStats = rt_heap_stats();
+    let bw2000: int = borrowed_n_times(2000);
+    let bw2000_after: HeapStats = rt_heap_stats();
+    if bw1 != 1 || bw2000 != 2000 {
+        print("borrowed value mismatch");
+        print(bw1 to string);
+        print(bw2000 to string);
+        return 6;
+    }
+    let r7: int = diff_check("borrowed", &bw1_before, &bw1_after, &bw2000_before, &bw2000_after);
+    if r7 != 0 { return 60 + r7; }
+
+    let bf1_before: HeapStats = rt_heap_stats();
+    let bf1: int = borrowed_float_n_times(1);
+    let bf1_after: HeapStats = rt_heap_stats();
+    let bf2000_before: HeapStats = rt_heap_stats();
+    let bf2000: int = borrowed_float_n_times(2000);
+    let bf2000_after: HeapStats = rt_heap_stats();
+    if bf1 != 1 || bf2000 != 2000 {
+        print("borrowed-float value mismatch");
+        print(bf1 to string);
+        print(bf2000 to string);
+        return 7;
+    }
+    let r8: int = diff_check("borrowed-float", &bf1_before, &bf1_after, &bf2000_before, &bf2000_after);
+    if r8 != 0 { return 70 + r8; }
+
+    let of1_before: HeapStats = rt_heap_stats();
+    let of1: int = owned_float_n_times(1);
+    let of1_after: HeapStats = rt_heap_stats();
+    let of2000_before: HeapStats = rt_heap_stats();
+    let of2000: int = owned_float_n_times(2000);
+    let of2000_after: HeapStats = rt_heap_stats();
+    if of1 != 1 || of2000 != 2000 {
+        print("owned-float value mismatch");
+        print(of1 to string);
+        print(of2000 to string);
+        return 8;
+    }
+    let r9: int = diff_check("owned-float", &of1_before, &of1_after, &of2000_before, &of2000_after);
+    if r9 != 0 { return 80 + r9; }
 
     print("compare-scrutinee-release-ok");
     return 0;

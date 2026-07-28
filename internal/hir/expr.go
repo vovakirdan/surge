@@ -328,6 +328,21 @@ type TagPayloadData struct {
 	Value   *Expr
 	TagName string // e.g. "Some"
 	Index   int    // payload slot
+
+	// SubjectBorrowed reports that the union this payload is read out of is
+	// only BORROWED here, so it keeps its own reference and outlives the
+	// read. The extraction must then acquire a reference of its own, exactly
+	// like a field or element read does.
+	//
+	// When the union is owned instead, the extraction deliberately does NOT
+	// take one: the payload's single reference TRANSFERS to the binding, and
+	// the envelope release that follows leaves the payload alone precisely
+	// because the binding now holds it. Retaining in that case leaks.
+	//
+	// So this is not a hint — the two cases need opposite instructions, and
+	// the lowering cannot tell them apart on its own: both spell the same
+	// `tag_payload` read of the same union type.
+	SubjectBorrowed bool
 }
 
 func (TagPayloadData) exprData() {}
