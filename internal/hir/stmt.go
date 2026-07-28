@@ -149,6 +149,12 @@ func (ReturnData) stmtData() {}
 // RetData holds data for StmtRet.
 type RetData struct {
 	Value *Expr // nil for bare ret
+	// DropsAfterValue lists live droppable bindings this ret exits, with
+	// the same contract StmtReturn carries: they free AFTER the value
+	// evaluates (it may read them) and before the jump to the block's
+	// exit. A crossing body reaches its exit through `ret` and nothing
+	// else, so without this list nothing it still owns is ever released.
+	DropsAfterValue []DropLocal
 }
 
 func (RetData) stmtData() {}

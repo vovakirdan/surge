@@ -250,6 +250,81 @@ not become per-field until a backend can act on one.
    so it goes first even though the user-facing work does not need it.
    Gate: the invariant is asserted by a test, not by prose; corpus unchanged.
 
+   **PARTIALLY DONE 2026-07-28. The semantics are settled; the invariant is
+   BLOCKED on RV2-DEBT-079, and the step turned up two defects on the way.**
+
+   Settled by the owner — the protocol is TRANSFER:
+
+   > Restoring a local or unpacking an owned capture performs a MoveOut from
+   > the state field. The destination becomes initialized and the state field
+   > becomes uninitialized. A state field may be moved out only while
+   > initialized and at most once until it is explicitly reinitialized by a
+   > later suspension. State cleanup drops only initialized fields.
+   > Transferred fields must never be dropped by the state again. Once all
+   > fields have been transferred, the envelope may be released shallowly.
+
+   Also settled: **capture by place, not by binding** — a partially-moved
+   binding cannot be captured whole; a closure, crossing or suspension may
+   capture individual non-overlapping projections that are DEFINITELY
+   initialized at the capture site; maybe-initialized projections are
+   rejected; capturing a projection by ownership moves it out of the source.
+   That lands as step 9, because "definitely initialized" is not answerable
+   until the join lattice of step 4 exists. It needs no third lattice value:
+   under union-at-join a maybe-moved place is in the moved set, so the capture
+   rule rejects it for free.
+
+   **What the checkable invariant cannot be.** The first formulation — "on any
+   acyclic path from entry, a heap-owning state field is read at most once as
+   an `RValueField` source" — is a syntactic count, not an ownership
+   invariant, and an adversarial review was right to reject it. `RValueField`
+   carries no transfer mode and its object operand is always `OperandCopy`, so
+   the same MIR shape means "duplicate" or "MoveOut" purely by convention. The
+   invariant needs an explicit `FieldReadMoveOut` versus `FieldReadCopy` mode
+   first (NOT expressed by moving the object operand, which would move the
+   whole state). Path enumeration is also the wrong tool: use a forward
+   worklist over the existing successor walk (`reachableBlocksFrom`,
+   `internal/mir/async_lowering_locals.go:128`) with per-field
+   initialized/moved bits and union at joins.
+
+   **Why it is blocked.** RV2-DEBT-079: an owned capture that the body neither
+   consumes nor hands on is NOT leaked, and no site in the compiler explains
+   why. Registering it as an obligation of the crossing body — the obvious fix
+   — produces an invalid read and an invalid free instead. Until the
+   reclaiming site is identified, an invariant over the crossing protocol
+   would assert an ownership fact nothing implements.
+
+   **Two defects found and FIXED here, both pre-existing and unrelated to
+   partial moves** (`ret` discharged no ownership obligations at all):
+
+   - `dropObligationsSuppressed` (`internal/sema/drop_obligations.go`) switched
+     off every drop recording inside a crossing body, on the authority of
+     RV2-DEBT-034 — a row that CLOSED at the Epic 20 closeout. A stale guard.
+   - `hir.RetData` carried no drop list and MIR's `StmtRet` never called
+     `emitExitDrops`. `StmtReturn` had both; `ret` had neither.
+
+   Together: anything a crossing body allocated and still held at its `ret` was
+   abandoned — measured at 16 blocks over 8 crossings (a bound local plus a
+   comparison temporary), valgrind, native backend. Fixed by lifting the stale
+   guard for crossings, giving the crossing body a `functionRoot` drop scope so
+   its exits stop at the boundary rather than at the enclosing function, and
+   plumbing `DropsAfterValue` through `RetData` with the same
+   `detachFromExitDrops` contract `return` honours. Pinned by
+   `TestRuntimeV2CrossingRetDischargesBodyDrops` (red before, green after) with
+   `TestRuntimeV2CrossingRetDropsDoNotStealMovedValues` as the must-still-work
+   control. Blocking bodies KEEP the suppression, and that is a PARKED
+   question rather than a proven boundary — their release path is a separate
+   shallow free on the pool side, and they lose a constant 219 bytes
+   independent of iteration count, which is a different mechanism and is
+   unprobed (RV2-DEBT-080).
+
+   **A measurement trap worth carrying forward.** The first version of the
+   test used a 6-character string, passed, and proved nothing — a short string
+   is stored INLINE and owns no block, so there is nothing to lose. The second
+   version lengthened the string AND moved a comparison from a global constant
+   to an in-body call, which introduced the allocation that actually leaked;
+   attributing that block to the capture was wrong. A census is only
+   trustworthy paired with the leaked block's allocation stack.
+
 1. **Temporary gate: refuse the bare form, and refuse `own` too, for now.** In
    `observeMove`, refuse a move whose resolved place has a non-empty path from a
    named base and whose moved type is non-Copy — with a diagnostic that names
@@ -410,4 +485,6 @@ will want when the answer looks arbitrary.
 
 `docs/runtime-v2-epics/DEBT.md`: RV2-DEBT-077 (this epic closes it). Adjacent:
 RV2-DEBT-052, RV2-DEBT-075, RV2-DEBT-078 — all in the compare-arm binding path,
-which is partial-move-shaped.
+which is partial-move-shaped. RV2-DEBT-079 — opened by step 0; crossing capture
+ownership across the transport edge, and the blocker on stating the generated
+protocol as a checkable invariant.

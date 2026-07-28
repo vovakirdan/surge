@@ -315,6 +315,19 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
 			}
 			tc.validateRet(stmt.Span, ret.Expr, valueType)
+			// A crossing body's ONLY exit is `ret`, and the body owns what it
+			// was handed: the captures moved across the boundary and anything
+			// it built itself. Without this the obligations were collected by
+			// nobody — the block's normal end is unreachable past a `ret`, and
+			// the unpacked captures were never released at all.
+			//
+			// Restricted to crossings on purpose. A `ret` in an ordinary block
+			// expression yields to the enclosing block, whose own scope still
+			// closes normally around it, and collecting out to the function
+			// root there would free the enclosing function's live bindings.
+			if tc.insideOnCrossing() {
+				tc.recordEarlyExitDrops(id, false)
+			}
 		}
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {

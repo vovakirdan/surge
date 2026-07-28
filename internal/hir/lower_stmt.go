@@ -88,7 +88,10 @@ func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
 		return &Stmt{
 			Kind: StmtRet,
 			Span: stmt.Span,
-			Data: RetData{Value: value},
+			Data: RetData{
+				Value:           value,
+				DropsAfterValue: l.dropLocalsFor(stmtID, stmt.Span),
+			},
 		}
 
 	case ast.StmtBreak:

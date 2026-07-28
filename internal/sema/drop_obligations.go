@@ -38,13 +38,29 @@ func (tc *typeChecker) isDroppableBinding(symID symbols.SymbolID) bool {
 	return tc.isDroppableType(tc.bindingType(symID))
 }
 
-// dropObligationsSuppressed gates the recording paths: crossing bodies
-// (`on`/spawn frames) and blocking bodies ship their state to a runtime
-// that has its own release discipline (RV2-DEBT-034 activates it) —
-// synthesized drops there would race the runtime's ownership. Local
-// synthesis stays out until that vertical.
+// dropObligationsSuppressed gates the recording paths for bodies that ship
+// their state to a runtime with its own release discipline, where a
+// synthesized drop would race that runtime's ownership.
+//
+// Crossing bodies used to be suppressed here too, on the authority of
+// RV2-DEBT-034. That row CLOSED at the Epic 20 closeout: the crossing side now
+// has compiled per-state drop functions with real ids at every publish site
+// and drop-count censuses across the refusal, abandon, stale and cancel edges.
+// The runtime's discipline covers the STATE and the edges into it — it never
+// covered what the BODY allocates after unpacking, and with the row closed the
+// suppression was reclaiming nothing and abandoning every droppable the body
+// built and still held at its `ret`. Measured at 16 blocks over 8 crossings,
+// valgrind, native backend.
+//
+// This says nothing about the moved-in CAPTURES, which are reclaimed by a site
+// this epic could not identify — see RV2-DEBT-079. They do not leak; adding a
+// body-side drop for them double-frees.
+//
+// Blocking bodies keep the suppression, and that is a parked question rather
+// than a proven boundary: their release path is a separate shallow free on the
+// pool side, unprobed here (RV2-DEBT-080).
 func (tc *typeChecker) dropObligationsSuppressed() bool {
-	return len(tc.onCrossingStack) > 0 || tc.blockingDepth > 0
+	return tc.blockingDepth > 0
 }
 
 func (tc *typeChecker) pushDropScope(functionRoot bool) {
