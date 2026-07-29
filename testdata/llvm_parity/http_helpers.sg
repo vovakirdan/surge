@@ -39,8 +39,10 @@ fn main() -> int {
                 Some(n) => print("content_length=" + (n to string));
                 nothing => print("content_length=<none>");
             };
-            let mut body = req.body;
-            let body_task = http.read_body_text(&mut body, 32:uint);
+            // The body reader is advanced in place: taking it out of `req`
+            // would be a partial move, and `req` is read again below.
+            let mut req = req;
+            let body_task = http.read_body_text(&mut req.body, 32:uint);
             compare body_task.await() {
                 Success(body_res) => {
                     compare body_res {

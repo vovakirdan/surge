@@ -127,9 +127,13 @@ func (tc *typeChecker) moduleFunctionResult(callID ast.ExprID, module *symbols.S
 		if exp == nil || (exp.Kind != symbols.SymbolFunction && exp.Kind != symbols.SymbolTag) {
 			continue
 		}
-		if tc.receiverBoundModuleExport(exp) {
-			continue
-		}
+		// Receiver-bound exports are NOT filtered here. publicModuleValueExports
+		// has already made that choice: it returns free functions when there
+		// are any and falls back to methods when there are none, which is what
+		// lets `http.next(&mut body)` call a method with an explicit receiver.
+		// Dropping them again here discarded exactly the fallback the helper
+		// had just selected, so a module whose only export of that name is a
+		// method reported it as "not public or not a function".
 		symID := tc.ensureImportedModuleExportSymbol(module.ModulePath, name, exp, span)
 		sym := tc.symbolFromID(symID)
 		if sym == nil {

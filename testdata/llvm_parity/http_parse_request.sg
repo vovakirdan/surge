@@ -25,6 +25,9 @@ fn main() -> int {
             if req.version == (HttpVersion::Http11) {
                 print("version=HTTP/1.1");
             }
+            // The body reader is advanced in place: taking it out of `req`
+            // would be a partial move, and `req` is read again below.
+            let mut req = req;
             let count: int = req.headers.__len() to int;
             print("headers=" + (count to string));
             let mut i: int = 0;
@@ -34,9 +37,8 @@ fn main() -> int {
                 print("header=" + key + ":" + value);
                 i = i + 1;
             }
-            let mut body = req.body;
             {
-                let body_task = http.next(&mut body);
+                let body_task = http.next(&mut req.body);
                 compare body_task.await() {
                     Success(body_res) => {
                         compare body_res {
@@ -60,7 +62,7 @@ fn main() -> int {
                 };
             }
             {
-                let body_task = http.next(&mut body);
+                let body_task = http.next(&mut req.body);
                 compare body_task.await() {
                     Success(body_res) => {
                         compare body_res {

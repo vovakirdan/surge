@@ -20,7 +20,9 @@ async fn respond_for_path(path: string) -> http.Response {
 }
 
 async fn handle(req: http.Request) -> http.Response {
-    let path: string = req.path;
+    // A copy until Epic 24 step 8 makes `own req.path` a real partial move:
+    // reading the field out of a live `req` would alias it, not take it.
+    let path: string = clone(req.path);
     let cancel_resp: http.Response = { status = 500, headers = [], body = http.Empty() };
     let res = respond_for_path(path).await();
     return compare res {
