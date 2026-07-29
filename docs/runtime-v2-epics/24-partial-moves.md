@@ -662,6 +662,55 @@ not become per-field until a backend can act on one.
    Must NOT land before step 7 — a per-field obligation with a projection-blind
    backend drops the wrong thing.
 
+   **DONE 2026-07-29, together with step 7.** Not a path on the obligation but a
+   PLAN, because a residual is several actions of two kinds. The real output for
+   `@drop o.mid.deep.a` on a three-deep value:
+
+   ```
+   drop         o.label
+   drop         o.mid.note
+   drop         o.mid.deep.b
+   drop_shallow o.mid.deep
+   drop_shallow o.mid
+   drop_shallow o
+   ```
+
+   Post-order, live siblings in reverse declaration order, each container's own
+   storage after its contents, innermost first.
+
+   Computed in sema, where the moved-set, the type layout, the branch state and
+   the reinitialization rules already are — MIR is not asked to rediscover field
+   layout from a moved-set. Keyed by `DropSite{Stmt, Expr, Symbol}`, because one
+   binding needs different residuals at different exits. A binding absent from
+   the map drops whole, which is every case reachable while the gate is up, so
+   corpus diagnostics and MIR stay byte-identical.
+
+   **A step is emitted for every live place, not only for places sema calls
+   droppable.** The backends disagree about what owns storage — an `int` is an
+   immediate natively and a reference-counted object in the VM — and a
+   whole-value drop hid that by walking every field regardless. A residual drop
+   stops walking, so a place skipped on sema's predicate is a place nobody
+   releases: measured as 8 leaked VM objects from a struct whose only surviving
+   field was an `int`.
+
+   A plan that cannot be expressed is REFUSED rather than guessed: an array
+   element or a union payload cannot be enumerated from a type alone, and a
+   shallow free of such a container would abandon whatever is still live inside
+   it. Step 8 must enumerate those shapes or keep rejecting the moves that
+   create them.
+
+   **Acceptance** was taken by temporarily lifting the step-5 refusal so
+   `@drop o.inner` could produce a plan, then removing it again. Native: "All
+   heap blocks were freed — no leaks are possible", 0 errors, on a flat and a
+   three-deep shape. VM: clean on both, after fixing a double release — the
+   shallow drop released the container and then cleared the slot holding it, and
+   a store releases what it overwrites. Same trap the projected drop hit earlier;
+   it only reappears once a residual drop NESTS, which is why the nested shape
+   had to be measured rather than reasoned about.
+
+   The MIR printer showed a shallow drop as an ordinary one, so a dump of a
+   residual drop looked wrong while being right. It prints `drop_shallow` now.
+
 7. **Projected `InstrDrop` in the backends.** VM (`execInstrDrop` currently
    ignores projections), `validateDrop` (currently checks the LOCAL's flags),
    and LLVM (`placeBaseType` refuses projections and `emitInstrDrop` swallows
