@@ -160,6 +160,18 @@ type CallInstr struct {
 // DropInstr represents a drop instruction.
 type DropInstr struct {
 	Place Place
+	// Shallow frees the place's own storage and leaves whatever it still
+	// contains alone. It is what closes a RESIDUAL drop: a partially-moved
+	// value has its live fields dropped one at a time first, and the container
+	// box is then released without a field walk, because the only fields still
+	// present are the ones that moved away and are no longer this value's to
+	// release.
+	//
+	// Deliberately not "null the moved slot and deep-drop as usual". That works
+	// while composites are boxed and stops working the moment a field is stored
+	// INLINE, because an inline field has no null to write — which is exactly
+	// the representation this epic is clearing the way for.
+	Shallow bool
 }
 
 // EnvelopeReleaseInstr frees a synthesized-after-sema heap box: a for-loop

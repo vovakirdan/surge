@@ -149,3 +149,59 @@ func retargetDropToField(fn *mir.Func, local mir.LocalID, field string) bool {
 	}
 	return false
 }
+
+// A SHALLOW drop frees the container's own box and calls no glue: the fields
+// still in it moved away, and the glue would free them along with everything
+// else. This is the closing move of a residual drop, and the reason one can be
+// expressed without writing a sentinel into the moved field.
+func TestEmitShallowDropFreesTheBoxWithoutTheGlue(t *testing.T) {
+	const src = `
+type Holder = { note: string, id: int }
+
+fn build() -> int {
+	let h: Holder = Holder{ note: "kept", id: 1 };
+	return h.id;
+}
+
+@entrypoint
+fn main() -> int { return build(); }
+`
+	mirMod, result := lowerMIRFromSource(t, src)
+	fn := findFuncByName(t, mirMod, "build")
+	local, ok := findLocalByName(fn, "h")
+	if !ok {
+		t.Fatalf("no local named `h` in the lowered function")
+	}
+
+	if !markDropShallow(fn, local) {
+		t.Fatalf("no drop of `h` found to mark shallow")
+	}
+
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	if err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	body := functionBody(t, ir, fn.ID)
+
+	if strings.Contains(body, "call void @drop.type") {
+		t.Fatalf("a shallow drop still called the recursive glue:\n%s", body)
+	}
+	if !strings.Contains(body, "call void @rt_free") {
+		t.Fatalf("a shallow drop freed no box:\n%s", body)
+	}
+}
+
+// markDropShallow flags the first whole-local drop of local as shallow.
+func markDropShallow(fn *mir.Func, local mir.LocalID) bool {
+	for b := range fn.Blocks {
+		for i := range fn.Blocks[b].Instrs {
+			ins := &fn.Blocks[b].Instrs[i]
+			if ins.Kind != mir.InstrDrop || ins.Drop.Place.Local != local || len(ins.Drop.Place.Proj) != 0 {
+				continue
+			}
+			ins.Drop.Shallow = true
+			return true
+		}
+	}
+	return false
+}

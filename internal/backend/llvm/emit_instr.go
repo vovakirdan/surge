@@ -66,6 +66,9 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	if err != nil || baseType == types.NoTypeID {
 		return nil
 	}
+	if ins.Drop.Shallow {
+		return fe.emitShallowDrop(ins.Drop.Place, baseType)
+	}
 	typesIn := fe.emitter.types
 	isRefCounted := typesIn.IsRefCountedScalar(resolveValueType(typesIn, baseType))
 	isString := isStringLike(typesIn, baseType)
@@ -242,4 +245,41 @@ func (fe *funcEmitter) droppedPlaceType(place mir.Place) (types.TypeID, error) {
 		return fe.placeBaseType(place)
 	}
 	return fe.projectedPlaceTypeWithTargets(place, nil)
+}
+
+// emitShallowDrop frees a place's own box and leaves its contents alone. The
+// fields still sitting in it are the ones that moved away, and releasing them
+// here would free storage this value no longer owns.
+//
+// Same shape as the envelope release, which frees a synthesized box the same
+// way; the difference is only which box and why.
+func (fe *funcEmitter) emitShallowDrop(place mir.Place, baseType types.TypeID) error {
+	if !fe.emitter.isBoxedComposite(baseType) {
+		// Nothing of its own to free: a leaf's storage IS its value, and a
+		// shallow drop of one would be a deep drop by another name.
+		return nil
+	}
+	layoutInfo, layoutErr := fe.emitter.layoutOf(resolveValueType(fe.emitter.types, baseType))
+	if layoutErr != nil {
+		return nil
+	}
+	size, align := layoutInfo.Size, layoutInfo.Align
+	if size <= 0 {
+		size = 1
+	}
+	if align <= 0 {
+		align = 1
+	}
+	ptr, ptrTy, err := fe.emitPlacePtr(place)
+	if err != nil {
+		return err
+	}
+	if ptrTy != "ptr" {
+		return nil
+	}
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
+	return nil
 }

@@ -220,6 +220,9 @@ func (vm *VM) execInstrAssign(frame *Frame, instr *mir.Instr, writes []LocalWrit
 }
 
 func (vm *VM) execInstrDrop(frame *Frame, instr *mir.Instr) *VMError {
+	if instr.Drop.Shallow {
+		return vm.execDropShallow(frame, instr.Drop.Place)
+	}
 	// A PROJECTED drop releases one place, not the whole binding. Falling
 	// through to execDrop here dropped the entire local, so `@drop o.inner`
 	// took `o` with it and the next read of `o` panicked use-after-free.
@@ -283,6 +286,43 @@ func (vm *VM) execInstrEndBorrow(frame *Frame, instr *mir.Instr) *VMError {
 		slot.IsInit = false
 		slot.IsMoved = false
 		slot.IsDropped = false
+	}
+	return nil
+}
+
+// execDropShallow releases a container's own storage and leaves its contents
+// alone — the closing move of a residual drop, after the live fields have been
+// dropped one at a time.
+//
+// "Leaves them alone" needs doing rather than saying here: releasing a struct
+// walks its fields and releases each (Heap.Free), so the fields still present —
+// the ones that moved away — would be released as well. They are cleared first,
+// which makes the release touch nothing but the container itself.
+func (vm *VM) execDropShallow(frame *Frame, place mir.Place) *VMError {
+	loc, vmErr := vm.EvalPlace(frame, place)
+	if vmErr != nil {
+		return vmErr
+	}
+	val, vmErr := vm.loadLocationRaw(loc)
+	if vmErr != nil {
+		return vmErr
+	}
+	if !val.IsHeap() || val.H == 0 {
+		return nil
+	}
+	if obj, ok := vm.Heap.lookup(val.H); ok && obj != nil {
+		for i := range obj.Fields {
+			obj.Fields[i] = Value{}
+		}
+	}
+	vm.dropValue(val)
+	// The place itself is cleared for the same reason a projected drop clears
+	// its slot: whatever holds this container must not release it again.
+	if len(place.Proj) != 0 {
+		return vm.storeLocation(loc, Value{})
+	}
+	if place.Kind != mir.PlaceGlobal {
+		frame.Locals[place.Local].IsDropped = true
 	}
 	return nil
 }
