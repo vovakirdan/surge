@@ -53,11 +53,16 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 // types (string, dynamic array) and nulls the slot so a stale handle can
 // never free twice. Composite types wait for the recursive drop glue;
 // until then their drops stay no-ops, exactly as before.
+//
+// A PROJECTED place is resolved through the same walk every other instruction
+// uses. It used to be refused by `placeBaseType` and the error swallowed just
+// below, which made `drop o.inner` a silent no-op — the statement compiled,
+// emitted nothing, and freed nothing.
 func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
-	baseType, err := fe.placeBaseType(ins.Drop.Place)
+	baseType, err := fe.droppedPlaceType(ins.Drop.Place)
 	if err != nil || baseType == types.NoTypeID {
 		return nil
 	}
@@ -227,4 +232,14 @@ func (fe *funcEmitter) emitRValue(rv *mir.RValue) (val, ty string, err error) {
 	default:
 		return "", "", fmt.Errorf("unsupported rvalue kind %v", rv.Kind)
 	}
+}
+
+// droppedPlaceType resolves the type a drop acts on, projections included.
+// `placeBaseType` answers only for a whole local or global by design — it is
+// the ENTRY to the projection walk, not a substitute for it.
+func (fe *funcEmitter) droppedPlaceType(place mir.Place) (types.TypeID, error) {
+	if len(place.Proj) == 0 {
+		return fe.placeBaseType(place)
+	}
+	return fe.projectedPlaceTypeWithTargets(place, nil)
 }
