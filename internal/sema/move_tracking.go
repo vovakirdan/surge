@@ -3,6 +3,7 @@ package sema
 import (
 	"fmt"
 
+	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -74,11 +75,101 @@ func (tc *typeChecker) bindingMovedPlace(symID symbols.SymbolID) bool {
 	return symID.IsValid() && tc.placeMoved(wholePlace(symID))
 }
 
+// movedPlaceCovering finds a moved place that OVERLAPS the one being read, and
+// overlap is the right relation in both directions:
+//
+//   - `o.inner` moved, reading `o.inner` — the same place, gone;
+//   - `o.inner` moved, reading `o` — `o` is no longer whole, so reading it
+//     whole is reading something partly given away;
+//   - `o.inner` moved, reading `o.label` — disjoint, and still there;
+//   - `o` moved whole, reading `o.label` — the container went, so did the field.
+//
+// Linear in the moved-set, which holds only the values given away and still in
+// scope. If that ever stops being small, index it by base rather than making
+// the relation cheaper — the relation is the part that has to stay exact.
+func (tc *typeChecker) movedPlaceCovering(place Place) (Place, source.Span, bool) {
+	if !place.IsValid() || tc.movedPlaces == nil {
+		return Place{}, source.Span{}, false
+	}
+	// Exact match first: when a place was moved as itself, that is the span the
+	// reader wants, even if a wider place also covers it.
+	if span, ok := tc.movedPlaces[place]; ok {
+		return place, span, true
+	}
+	var (
+		best     Place
+		bestSpan source.Span
+		found    bool
+	)
+	for candidate, span := range tc.movedPlaces {
+		if !placesOverlap(candidate, place) {
+			continue
+		}
+		// Map order is random, so the choice has to be TOTAL, not merely
+		// usually-stable: earliest move, then shortest path, then the path key
+		// itself. Spans can tie — synthesized and shared spans do — and two
+		// candidates left to map order would move the diagnostic between
+		// identical compiles.
+		if !found || lessMovedCandidate(span, candidate, bestSpan, best) {
+			best, bestSpan, found = candidate, span, true
+		}
+	}
+	return best, bestSpan, found
+}
+
+// lessMovedCandidate totally orders the moved places covering one read, so the
+// reported move is a function of the program rather than of map iteration.
+func lessMovedCandidate(aSpan source.Span, a Place, bSpan source.Span, b Place) bool {
+	if aSpan.Start != bSpan.Start {
+		return aSpan.Start < bSpan.Start
+	}
+	if aSpan.End != bSpan.End {
+		return aSpan.End < bSpan.End
+	}
+	if len(a.Path) != len(b.Path) {
+		return len(a.Path) < len(b.Path)
+	}
+	return a.Path < b.Path
+}
+
+// checkPlaceUseAfterMove reports reading a place whose storage has been given
+// away, whole or in part.
+func (tc *typeChecker) checkPlaceUseAfterMove(expr ast.ExprID, span source.Span) {
+	if len(tc.movedPlaces) == 0 {
+		return
+	}
+	desc, ok := tc.resolvePlace(expr)
+	if !ok || !desc.Base.IsValid() {
+		return
+	}
+	// Expanded the same way observeMove expands before RECORDING a move: a
+	// binding that came from a borrow stands for the place it borrowed, so a
+	// read through it has to ask about that place. Asking about the unexpanded
+	// place would look up a key no move ever writes.
+	desc, _ = tc.expandPlaceDescriptor(desc)
+	place := tc.canonicalPlace(desc)
+	if !place.IsValid() {
+		return
+	}
+	moved, moveSpan, found := tc.movedPlaceCovering(place)
+	if !found {
+		return
+	}
+	// A whole-binding move reported against a projection read is the ordinary
+	// use-after-move the binding-level check already words well; only route the
+	// PARTIAL cases through the place-aware diagnostic.
+	if moved.Path == "" && place.Path == "" {
+		tc.checkUseAfterMove(desc.Base, span)
+		return
+	}
+	tc.reportPlaceUseAfterMove(place, moved, span, moveSpan)
+}
+
 func (tc *typeChecker) checkUseAfterMove(symID symbols.SymbolID, span source.Span) {
 	if !symID.IsValid() || tc.movedPlaces == nil {
 		return
 	}
-	moveSpan, moved := tc.movedPlaces[wholePlace(symID)]
+	_, moveSpan, moved := tc.movedPlaceCovering(wholePlace(symID))
 	if !moved {
 		return
 	}

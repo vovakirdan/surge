@@ -21,6 +21,22 @@ func (tc *typeChecker) placeLabel(place Place) string {
 	return tc.borrow.formatPlaceLabel(place, base, strings)
 }
 
+// plainPlaceLabel renders a place the way source spells it — `o.inner`, with no
+// quoting. placeLabel quotes the base (`'o'`) because the borrow diagnostics it
+// serves read that way; a message that wraps its own labels in backticks would
+// print `'o'.inner`.
+func (tc *typeChecker) plainPlaceLabel(place Place) string {
+	base := tc.bindingName(place.Base)
+	if tc.borrow == nil {
+		return base
+	}
+	strs := tc.builder.StringsInterner
+	if strs == nil && tc.symbols != nil && tc.symbols.Table != nil {
+		strs = tc.symbols.Table.Strings
+	}
+	return formatPlaceSegments(base, tc.borrow.placeSegments(place), strs)
+}
+
 func (tc *typeChecker) symbolLabel(symID symbols.SymbolID) string {
 	sym := tc.symbolFromID(symID)
 	if sym == nil {
@@ -146,5 +162,44 @@ func (tc *typeChecker) reportPartialMove(desc placeDescriptor, expr ast.ExprID, 
 		"hint: borrow it instead (`&%s`), copy the whole value, or move `%s` itself if you are finished with it; "+
 			"`own %s` becomes the way to take just this place once partial moves are tracked",
 		label, base, label))
+	b.Emit()
+}
+
+// reportPlaceUseAfterMove reports reading a place that a PARTIAL move emptied.
+//
+// Worth its own wording rather than reusing the binding-level message: the
+// value that went and the value being read are different names, and a reader
+// told only "use of moved value 'o'" would go looking for a move of `o` that
+// is not in the source. The two spans plus both labels are the whole
+// explanation — this place went, that one is what you asked for.
+func (tc *typeChecker) reportPlaceUseAfterMove(read, moved Place, span, moveSpan source.Span) {
+	if tc.reporter == nil {
+		return
+	}
+	readLabel := tc.plainPlaceLabel(read)
+	movedLabel := tc.plainPlaceLabel(moved)
+	var msg string
+	switch {
+	case read == moved:
+		msg = fmt.Sprintf("use of moved value `%s`", readLabel)
+	case len(read.Path) < len(moved.Path):
+		// Reading a container part of which has gone.
+		msg = fmt.Sprintf("cannot use `%s` as a whole: `%s` was moved out of it", readLabel, movedLabel)
+	default:
+		// Reading something under a place that has gone.
+		msg = fmt.Sprintf("cannot use `%s`: `%s` was moved", readLabel, movedLabel)
+	}
+	b := diag.ReportError(tc.reporter, diag.SemaUseAfterMove, span, msg)
+	if b == nil {
+		return
+	}
+	if moveSpan != (source.Span{}) {
+		b.WithNote(moveSpan, fmt.Sprintf("`%s` gave its value away here", movedLabel))
+	}
+	if read != moved && len(read.Path) < len(moved.Path) {
+		b.WithNote(span, fmt.Sprintf(
+			"hint: the fields `%s` still holds can be read individually; reading `%s` whole needs `%s` back",
+			readLabel, readLabel, movedLabel))
+	}
 	b.Emit()
 }

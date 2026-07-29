@@ -117,6 +117,11 @@ type typeChecker struct {
 	arrayViewExprs              map[ast.ExprID]struct{}
 	arrayViewBindings           map[symbols.SymbolID]struct{}
 	assignmentLHSDepth          int
+	// placeBaseDepth counts how deep we are inside the BASE CHAIN of a
+	// projection being read. `o` in `o.label` is not a value read — only the
+	// projection is — so the use-after-move question is asked once, about the
+	// whole place, rather than about every binding the path walks through.
+	placeBaseDepth int
 	// movedPlaces records where each moved PLACE gave its value away. Keyed by
 	// place rather than by binding so a field can be tracked apart from its
 	// container; at present only whole-binding places (empty path) are

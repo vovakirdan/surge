@@ -511,6 +511,43 @@ not become per-field until a backend can act on one.
    is still up — so this is verified by unit-level probes on the analysis, not
    by programs.
 
+   **DONE 2026-07-29.** The decision lives in `movedPlaceCovering`: find a moved
+   place that OVERLAPS the place being read. Overlap answers both directions at
+   once — a container is no longer readable whole once part of it has gone, a
+   sibling is untouched — so the four contract rows fall out of one relation
+   rather than four rules.
+
+   The structural change is that a projection's BASE CHAIN stopped being a value
+   read. `o` in `o.label` is walked to reach a place; only the projection is
+   read. Without that, typing `o.label` would type `o` as an identifier and
+   reject it for a move of `o.inner`. `placeBaseDepth` marks the base chain,
+   `typeExprAsPlaceBase` wraps only the TARGET of member/index/tuple-index/deref
+   typing — `o.field[idx]` must still check `idx`, an ordinary value read that
+   happens to sit inside a projection — and the outermost projection asks once.
+
+   Method calls are unaffected and stay on the binding-level wording: the call
+   path types its receiver through `memberReceiverType`, not through member
+   typing, so the receiver is a value read as before. A bare method VALUE
+   (`let m = o.method;`) does not exist in the language, which is what would
+   otherwise reach place-shaped reporting for a non-field.
+
+   The reported move is a function of the program, not of map order: exact match
+   first, then a TOTAL order — span start, span end, path length, path key.
+   Spans do tie, so "usually stable" is not enough.
+
+   Evidence: corpus diagnostics and MIR both byte-identical across all 76
+   buildable corpus programs — which proves only that reachable whole-binding
+   behaviour did not move, since the gate makes the new states unreachable. The
+   feature evidence is the unit tests, and the two behaviour tests carry
+   negative controls that were RUN: reading a field of a wholly moved binding
+   fails without the projection check, and a moved value used as an index
+   operand fails if the base-chain suppression is wrongly extended to it.
+
+   Carried forward: `checkPlaceUseAfterMove` expands through borrows exactly as
+   `observeMove` does before recording, so a read through a borrowed alias asks
+   about the place the move wrote. That symmetry is untested end to end for the
+   same reason as everything else in this step.
+
 4. **Branch joins and loops go place-aware.** Union at joins, and the case that
    distinguishes a real implementation from a conservative one: a field moved on
    one branch and the WHOLE value on the other joins to whole. Loops reuse the

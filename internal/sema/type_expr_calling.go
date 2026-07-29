@@ -168,7 +168,7 @@ func (tc *typeChecker) typeExprIndex(id ast.ExprID, span source.Span) types.Type
 	if !ok || idx == nil {
 		return types.NoTypeID
 	}
-	container := tc.typeExpr(idx.Target)
+	container := tc.typeExprAsPlaceBase(idx.Target)
 	indexType := tc.typeExpr(idx.Index)
 	if tc.reportFarLocalOp(container, span) {
 		return types.NoTypeID

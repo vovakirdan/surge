@@ -35,7 +35,7 @@ func (tc *typeChecker) typeExprIdent(id ast.ExprID, span source.Span) types.Type
 		return types.NoTypeID
 	case sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam:
 		ty := tc.bindingType(symID)
-		if tc.assignmentLHSDepth == 0 {
+		if tc.assignmentLHSDepth == 0 && tc.placeBaseDepth == 0 {
 			tc.checkUseAfterMove(symID, span)
 		}
 		if sym.Kind == symbols.SymbolLet {
@@ -237,7 +237,7 @@ func (tc *typeChecker) typeExprMember(id ast.ExprID, span source.Span) types.Typ
 	if enumType := tc.enumTypeForExpr(member.Target); enumType != types.NoTypeID {
 		return tc.typeOfEnumVariant(enumType, member.Field, span)
 	}
-	targetType := tc.typeExpr(member.Target)
+	targetType := tc.typeExprAsPlaceBase(member.Target)
 	if tc.reportFarLocalOp(targetType, span) {
 		return types.NoTypeID
 	}
@@ -252,7 +252,7 @@ func (tc *typeChecker) typeExprTupleIndex(id ast.ExprID, span source.Span) types
 	if !ok || data == nil {
 		return types.NoTypeID
 	}
-	targetType := tc.typeExpr(data.Target)
+	targetType := tc.typeExprAsPlaceBase(data.Target)
 	return tc.tupleIndexResultType(targetType, data.Index, span)
 }
 

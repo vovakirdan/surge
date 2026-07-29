@@ -123,8 +123,41 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	default:
 	}
 
+	// A projection READ asks about the place it names, not about its base: with
+	// `o.inner` given away, `o.label` is still there to read. Only the
+	// outermost projection asks — inner levels are the base chain of this one —
+	// and an assignment target is not a read at all.
+	switch expr.Kind {
+	case ast.ExprMember, ast.ExprIndex, ast.ExprTupleIndex:
+		if tc.placeBaseDepth == 0 && tc.assignmentLHSDepth == 0 {
+			tc.checkPlaceUseAfterMove(id, expr.Span)
+		}
+	case ast.ExprUnary:
+		// A dereference is a projection too — `resolvePlace` has always
+		// resolved it — so `*p` asks about the place it names rather than
+		// relying on `p` being checked as a value.
+		if unary, ok := tc.builder.Exprs.Unary(id); ok && unary != nil &&
+			unary.Op == ast.ExprUnaryDeref &&
+			tc.placeBaseDepth == 0 && tc.assignmentLHSDepth == 0 {
+			tc.checkPlaceUseAfterMove(id, expr.Span)
+		}
+	}
+
 	tc.result.ExprTypes[id] = ty
 	tc.noteTempCandidate(id, expr.Kind, ty)
+	return ty
+}
+
+// typeExprAsPlaceBase types the TARGET of a projection. The target is walked to
+// reach a place, not read as a value, so the move checks inside it stay quiet
+// and the enclosing projection asks the question once for the whole path.
+//
+// Scoped to the target alone on purpose: `o.field[idx]` must still check `idx`,
+// which is an ordinary value read that happens to sit inside a projection.
+func (tc *typeChecker) typeExprAsPlaceBase(id ast.ExprID) types.TypeID {
+	tc.placeBaseDepth++
+	ty := tc.typeExpr(id)
+	tc.placeBaseDepth--
 	return ty
 }
 
