@@ -554,6 +554,65 @@ not become per-field until a backend can act on one.
    shipped policy (`rejectLoopBackEdgeMoves` — reject on the back edge, no
    fixpoint), widened to paths.
 
+   **DONE 2026-07-29.** The union was already place-keyed after step 2, so the
+   work was making the joined set CANONICAL. The moved-set is now an ANTICHAIN:
+   no entry covers another. `insertMovedPlace` skips a place an existing entry
+   already covers and deletes the entries a new place covers; `markPlaceMoved`
+   and `mergeMovedPlaces` both go through it. Alongside the symmetric
+   `placesOverlap` there is now a directed `placeCovers`, which is the relation
+   "makes redundant".
+
+   Row 8 is why. One arm moving `o.inner` and the other moving `o` whole unions
+   to `{o.inner, o}`, and the answer the language wants is that `o` went.
+   Collapsing at insert makes the join say that once instead of leaving every
+   reader to re-derive it, and makes the set independent of the order the moves
+   were seen — which a join has no right to depend on.
+
+   Row 7's opposite case is the one a conservative implementation fails, and it
+   is tested with a negative control that was RUN: arm A moves `inner`, arm B
+   moves `label`, and a third field survives both. Forcing the insert to
+   collapse to the whole binding makes exactly those sibling-survival
+   assertions fail.
+
+   The loop policy keeps the place rather than only the span, so a field move
+   inside a loop can name `o.inner` instead of just `o`, and skips a place
+   COVERED by the pre-loop snapshot rather than one merely equal to an entry in
+   it — the set collapses, so the entry seen after the body may be wider than
+   the one recorded before it.
+
+   Two tests written in steps 2 and 3 had to be rewritten: they asserted
+   recording `o.inner` beside an already-moved `o`, which the antichain makes
+   unreachable. They were pinning an artifact, not the invariant.
+
+   Evidence: corpus diagnostics and MIR byte-identical across all 76 buildable
+   corpus programs — again proving only that reachable whole-binding behaviour
+   held still, since the gate keeps the new states out of reach. The join
+   behaviour is pinned by unit tests on the relation.
+
+   **What the antichain IS, and what it is not.** It is the read-rejection
+   projection: a may-moved set, where every later read covered by any entry is
+   invalid. That is exactly the question steps 3 and 4 answer, and collapsing is
+   sound for it.
+
+   It is NOT the complete ownership state, and steps 5 and 6 cannot be built
+   from it alone. After `{o}` and `o.inner = v`, the state means "`o.inner` is
+   initialized, everything else under `o` is still gone" — and an antichain has
+   no way to say that without either expanding `o` through its type layout or
+   carrying a separate reinitialized-exception set. Step 6 has the same problem
+   from the other side: a joined antichain cannot describe which fields a
+   partially-moved binding still holds, though each arm's own set can, before
+   the join.
+
+   So collapsing does not make step 5 harder — reviving `o.inner` out of `{o}`
+   needs that expansion whether or not the field was ever recorded separately,
+   since nothing marked `o.inner` in that scenario to begin with — but step 5
+   must decide the representation, not inherit this one.
+
+   Cost note: `insertMovedPlace` scans the set twice, so a merge is quadratic in
+   the number of moved places. Irrelevant at present sizes and compile-time
+   only; if the antichain outlives this epic, index by base and use a prefix
+   structure rather than a flat scan.
+
 5. **Reinitialization.** `o.inner = v` revives that field and nothing else;
    `handleAssignment` currently clears moved state for whole bindings only.
    Decide and implement the same question for `@drop o.inner`.

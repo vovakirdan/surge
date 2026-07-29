@@ -160,11 +160,61 @@ func TestMovedSetSnapshotRestoreAndMerge(t *testing.T) {
 		t.Fatalf("the pre-branch snapshot was mutated by later marks: %d entries", len(before))
 	}
 
-	// Clearing is exact: a projected place of the same base is untouched.
+	// The set is an ANTICHAIN: once the whole binding has gone, recording a
+	// field of it adds nothing, so there is no projected entry left to clear.
 	field := bt.CanonicalPlace(a, []PlaceSegment{{Kind: PlaceSegmentField, Name: source.StringID(5)}})
 	tc.markPlaceMoved(field, spanB)
-	tc.clearBindingMoved(a)
-	if !tc.placeMoved(field) {
-		t.Fatalf("clearing the whole binding also cleared a projected place")
+	if tc.placeMoved(field) {
+		t.Fatalf("a field was recorded beside the whole binding that already covered it")
 	}
+	tc.clearBindingMoved(a)
+	if _, _, found := tc.movedPlaceCovering(field); found {
+		t.Fatalf("a field still read as moved after its container was revived")
+	}
+}
+
+// The antichain has to hold whichever order the moves arrive in, because branch
+// joins have no order to rely on: a field moved on one arm and the whole value
+// on the other must join to the whole value either way round.
+func TestMovedSetCollapsesCoveredPlaces(t *testing.T) {
+	bt := NewBorrowTable()
+	o := symbols.SymbolID(1)
+	inner := bt.CanonicalPlace(o, []PlaceSegment{{Kind: PlaceSegmentField, Name: source.StringID(1)}})
+	whole := wholePlace(o)
+	fieldSpan := source.Span{Start: 10, End: 11}
+	wholeSpan := source.Span{Start: 20, End: 21}
+
+	t.Run("field first, then whole", func(t *testing.T) {
+		tc := &typeChecker{}
+		tc.markPlaceMoved(inner, fieldSpan)
+		tc.markPlaceMoved(whole, wholeSpan)
+		if len(tc.movedPlaces) != 1 {
+			t.Fatalf("expected the container alone, got %d entries", len(tc.movedPlaces))
+		}
+		if !tc.placeMoved(whole) {
+			t.Fatalf("the container was not recorded")
+		}
+	})
+
+	t.Run("whole first, then field", func(t *testing.T) {
+		tc := &typeChecker{}
+		tc.markPlaceMoved(whole, wholeSpan)
+		tc.markPlaceMoved(inner, fieldSpan)
+		if len(tc.movedPlaces) != 1 {
+			t.Fatalf("expected the container alone, got %d entries", len(tc.movedPlaces))
+		}
+		if !tc.placeMoved(whole) {
+			t.Fatalf("the container was not recorded")
+		}
+	})
+
+	t.Run("siblings do not collapse", func(t *testing.T) {
+		tc := &typeChecker{}
+		label := bt.CanonicalPlace(o, []PlaceSegment{{Kind: PlaceSegmentField, Name: source.StringID(2)}})
+		tc.markPlaceMoved(inner, fieldSpan)
+		tc.markPlaceMoved(label, wholeSpan)
+		if len(tc.movedPlaces) != 2 {
+			t.Fatalf("two disjoint fields collapsed into %d entries", len(tc.movedPlaces))
+		}
+	})
 }

@@ -480,6 +480,17 @@ func (bt *BorrowTable) placesOverlap(a, b Place) bool {
 // The prefix test is exact rather than approximate because `internPath`
 // terminates every segment with `;`: `f:1;` is not a prefix of `f:12;`, so no
 // two distinct fields can be confused for a prefix pair.
+// placeCovers reports whether a NAMES b or contains it: `o` covers `o.inner`,
+// and every place covers itself. Overlap is this relation in either direction;
+// covering is the directed one, and the moved-set needs the direction to know
+// which of two entries makes the other redundant.
+func placeCovers(a, b Place) bool {
+	if !a.IsValid() || !b.IsValid() || a.Base != b.Base {
+		return false
+	}
+	return strings.HasPrefix(string(b.Path), string(a.Path))
+}
+
 func placesOverlap(a, b Place) bool {
 	if !a.IsValid() || !b.IsValid() || a.Base != b.Base {
 		return false

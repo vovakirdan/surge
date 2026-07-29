@@ -130,10 +130,14 @@ func TestMovedPlaceCoveringPrefersTheExactMove(t *testing.T) {
 	o := symbols.SymbolID(1)
 	inner := bt.CanonicalPlace(o, []PlaceSegment{{Kind: PlaceSegmentField, Name: source.StringID(1)}})
 
+	label := bt.CanonicalPlace(o, []PlaceSegment{{Kind: PlaceSegmentField, Name: source.StringID(2)}})
+
 	tc := &typeChecker{}
-	wholeSpan := source.Span{Start: 1, End: 2}
+	labelSpan := source.Span{Start: 1, End: 2}
 	innerSpan := source.Span{Start: 30, End: 31}
-	tc.markBindingMoved(o, wholeSpan)
+	// A sibling moved EARLIER: without the exact-match preference the earliest
+	// span would win and the message would name the wrong field.
+	tc.markPlaceMoved(label, labelSpan)
 	tc.markPlaceMoved(inner, innerSpan)
 
 	got, span, found := tc.movedPlaceCovering(inner)

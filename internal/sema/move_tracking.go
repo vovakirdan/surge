@@ -24,10 +24,37 @@ func (tc *typeChecker) markPlaceMoved(place Place, span source.Span) {
 	if tc.movedPlaces == nil {
 		tc.movedPlaces = make(map[Place]source.Span)
 	}
-	// First move wins: the diagnostic wants the span where the value LEFT,
-	// and a later move of the same place is itself the error being reported.
-	if _, exists := tc.movedPlaces[place]; !exists {
-		tc.movedPlaces[place] = span
+	insertMovedPlace(tc.movedPlaces, place, span)
+}
+
+// insertMovedPlace keeps the moved-set an ANTICHAIN: no entry covers another.
+// Once `o` has gone whole, recording `o.inner` beside it adds nothing — every
+// query that overlaps the field already overlaps the container — and leaving
+// both in place makes the set's shape depend on the order moves were seen,
+// which then leaks into which entry a diagnostic names.
+//
+// Joining two branches is where this earns its keep: one arm moving `o.inner`
+// and the other moving `o` whole unions to `{o.inner, o}`, and the answer the
+// language wants is that `o` went. Collapsing at insert makes the join say so
+// rather than relying on every reader to work it out again.
+func insertMovedPlace(set map[Place]source.Span, place Place, span source.Span) {
+	for existing := range set {
+		// Something already recorded covers this: nothing to add.
+		if placeCovers(existing, place) {
+			return
+		}
+	}
+	for existing := range set {
+		// This covers entries already recorded: they are now redundant.
+		if placeCovers(place, existing) {
+			delete(set, existing)
+		}
+	}
+	// First move wins for an exact repeat: the diagnostic wants the span where
+	// the value LEFT, and a later move of the same place is itself the error
+	// being reported.
+	if _, exists := set[place]; !exists {
+		set[place] = span
 	}
 }
 
@@ -230,12 +257,10 @@ func (tc *typeChecker) restoreMovedPlaces(snapshot map[Place]source.Span) {
 func mergeMovedPlaces(a, b map[Place]source.Span) map[Place]source.Span {
 	out := make(map[Place]source.Span, len(a)+len(b))
 	for key, value := range a {
-		out[key] = value
+		insertMovedPlace(out, key, value)
 	}
 	for key, value := range b {
-		if _, exists := out[key]; !exists {
-			out[key] = value
-		}
+		insertMovedPlace(out, key, value)
 	}
 	return out
 }

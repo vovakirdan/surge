@@ -311,27 +311,41 @@ func (tc *typeChecker) rejectLoopBackEdgeMoves(before map[Place]source.Span, loo
 		return
 	}
 	floor := tc.loopDropMarks[len(tc.loopDropMarks)-1]
-	// The diagnostic names a BINDING, but the moved-set is keyed by place, so
-	// several moved places can share one base and would each report it. Fold
-	// them to one entry per base first.
+	// One report per BINDING even though the moved-set is keyed by place:
+	// several places can share a base, and the back edge is a property of the
+	// binding the loop re-enters. The place is kept so the message can name
+	// what actually went — `o.inner`, not just `o`.
 	//
-	// The span is the earliest of the folded set rather than whichever the map
-	// happened to yield: map iteration order is random, and picking arbitrarily
-	// makes the diagnostic's location vary between identical compiles the
-	// moment a second place per base becomes reachable. Ties break on the end
-	// offset; two moves of the same base at the SAME span are indistinguishable
-	// and it does not matter which is reported.
-	firstMove := make(map[symbols.SymbolID]source.Span)
+	// The kept place is the earliest move rather than whichever the map yields:
+	// iteration order is random, so an arbitrary pick moves the diagnostic
+	// between identical compiles once a base has more than one moved place.
+	type loopMove struct {
+		place Place
+		span  source.Span
+	}
+	firstMove := make(map[symbols.SymbolID]loopMove)
 	for place, span := range tc.movedPlaces {
-		if _, was := before[place]; was {
+		// A place already implied before the loop is not something the body
+		// did. Covered rather than equal: the set collapses a field into its
+		// container, so the entry seen now may be wider than the one recorded
+		// in the snapshot.
+		alreadyMoved := false
+		for prior := range before {
+			if placeCovers(prior, place) {
+				alreadyMoved = true
+				break
+			}
+		}
+		if alreadyMoved {
 			continue
 		}
 		prev, seen := firstMove[place.Base]
-		if !seen || span.Start < prev.Start || (span.Start == prev.Start && span.End < prev.End) {
-			firstMove[place.Base] = span
+		if !seen || lessMovedCandidate(span, place, prev.span, prev.place) {
+			firstMove[place.Base] = loopMove{place: place, span: span}
 		}
 	}
-	for symID, span := range firstMove {
+	for symID, move := range firstMove {
+		span := move.span
 		if !tc.isDroppableBinding(symID) {
 			continue
 		}
@@ -341,7 +355,7 @@ func (tc *typeChecker) rejectLoopBackEdgeMoves(before map[Place]source.Span, loo
 		if !tc.bindingDeclaredAtOrAbove(symID, 0) || tc.bindingDeclaredAtOrAbove(symID, floor) {
 			continue
 		}
-		name := tc.bindingName(symID)
+		name := tc.plainPlaceLabel(move.place)
 		tc.report(diag.SemaUseAfterMove, span,
 			"value '%s' is declared outside this %s but moved inside its body; the next iteration would use a moved value — move it outside the loop or recreate it each iteration",
 			name, loopLabel)
