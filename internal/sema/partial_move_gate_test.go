@@ -178,16 +178,17 @@ fn f(i: Inner) -> int {
 	}
 }
 
-// DEBT SENTINEL, not a contract: a field read whose BASE is a temporary is not
-// gated, because `resolvePlace` does not resolve a call as a place. The epic
-// wants that shape to stay legal — nobody else can be using the temporary — but
-// it does not merely alias today, it CRASHES: `let e = mk().inner;` segfaults on
-// the native backend, with invalid reads and invalid frees under valgrind,
-// because the temporary's drop takes the field the binding now holds.
+// Taking a field out of a TEMPORARY is refused, and the reason is worth keeping
+// beside the test: the ownership argument for allowing it is good — the base is
+// a temporary the lowering materialized, nobody else can be using it — but the
+// temporary is dropped WHOLE at the end of the statement, so it takes the field
+// with it and the binding frees the same storage again. Measured as a segfault
+// on the native backend (RV2-DEBT-084).
 //
-// So "stays accepted" currently means "accepts a use-after-free". Delete this
-// test when RV2-DEBT-084 is fixed and assert the real behaviour instead.
-func TestPartialMoveOutOfTemporaryIsNotGated(t *testing.T) {
+// This lifts with steps 6 and 7, which is where a value learns to drop its
+// residual instead of all of itself. It is the same mechanism, not a separate
+// fix.
+func TestPartialMoveOutOfTemporaryIsRefused(t *testing.T) {
 	parseBag, semaBag := runSemaOnSnippet(t, `
 type Inner = { tail: string }
 type Outer = { inner: Inner, label: int }
@@ -200,8 +201,75 @@ fn f() -> Inner {
 	if parseBag.HasErrors() {
 		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
 	}
-	if hasCode(semaBag, diag.SemaPartialMoveUnsupported) {
-		t.Fatalf("a temporary-based field read is now gated; RV2-DEBT-084 may be fixed, " +
-			"in which case delete this sentinel rather than adjusting it")
+	if !hasCode(semaBag, diag.SemaPartialMoveUnsupported) {
+		t.Fatalf("taking a field out of a temporary was accepted: %s", diagnosticsSummary(semaBag))
+	}
+}
+
+// The controls, and they carry the weight: refusing every read off a temporary
+// would pass the row above for the wrong reason and break ordinary code.
+func TestTemporaryProjectionGateKeepsNonMovesLegal(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			// A Copy field off a temporary duplicates; the temporary's drop
+			// takes nothing the reader is holding.
+			name: "copy_field_of_temporary",
+			src: `
+type Outer = { inner: int, label: int }
+fn mk() -> Outer { return Outer { inner = 1, label = 7 }; }
+fn f() -> int {
+	let e = mk().label;
+	return e;
+}
+`,
+		},
+		{
+			// A Copy COMPOSITE off a temporary duplicates, so the statement-end
+			// drop takes nothing the reader is holding. A gate keyed on "is
+			// this a composite" rather than "does this take ownership" would
+			// reject it.
+			//
+			// Borrowing a field off a temporary — `peek(&mk().inner)` — is NOT
+			// a control here: it is rejected as non-addressable, which predates
+			// this gate and is a separate question.
+			name: "copy_composite_field_of_temporary",
+			src: `
+@copy
+type CInner = { x: int }
+type COuter = { c: CInner, label: int }
+fn mk() -> COuter { return COuter { c = CInner { x = 1 }, label = 7 }; }
+fn f() -> int {
+	let e = mk().c;
+	return e.x;
+}
+`,
+		},
+		{
+			// The whole temporary moved onward is the ordinary case and must
+			// not be caught by a gate aimed at its fields.
+			name: "whole_temporary_moved",
+			src: `
+type Inner = { tail: string }
+fn mk() -> Inner { return Inner { tail = "t" }; }
+fn take(i: Inner) -> int { return 1; }
+fn f() -> int {
+	return take(mk());
+}
+`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			parseBag, semaBag := runSemaOnSnippet(t, tc.src)
+			if parseBag.HasErrors() {
+				t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+			}
+			if semaBag.HasErrors() {
+				t.Fatalf("a legal read off a temporary was rejected: %s", diagnosticsSummary(semaBag))
+			}
+		})
 	}
 }

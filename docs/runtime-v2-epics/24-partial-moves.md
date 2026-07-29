@@ -450,13 +450,24 @@ not become per-field until a backend can act on one.
    a TUPLE element, which `resolvePlace` had no case for at all. Adding it
    closes a hole in the borrow table too, not only in this gate.
 
-   **Not gated, and the boundary is the same one in every case: `resolvePlace`
-   cannot resolve a CALL as a place.** So any projection whose base is a call
-   escapes — `f().inner`, `make_array()[i]`, `obj.method().field`. The first of
-   those segfaults (RV2-DEBT-084), which makes the epic's "must stay accepted"
-   for `f().inner` mean "accepts a use-after-free" today. The others are
-   unverified and may be safe when the call returns a borrow; the gate cannot
-   tell the two apart, because it cannot see through the call at all.
+   **A projection whose base is a CALL was not gated at first**, because
+   `resolvePlace` cannot resolve a call as a place — so `f().inner`,
+   `make_array()[i]` and `obj.method().field` all escaped it. The first of those
+   SEGFAULTS (RV2-DEBT-084), which made the epic's "`f().inner` must stay
+   accepted" mean "accepts a use-after-free".
+
+   **Closed 2026-07-29** by walking the base chain syntactically instead of
+   through `resolvePlace`, and refusing when it bottoms out in something that is
+   not a named binding. Measured before gating: ONE corpus site, itself a false
+   positive, so the corpus is byte-identical with the gate in. The refusal
+   explains the real cause — the temporary is released at the end of the
+   statement and takes the field with it — and points at binding the whole value
+   first.
+
+   This is a mitigation, not the fix. The fix is step 6's mechanism applied to a
+   temporary: `drop tmp` must release the temporary's RESIDUAL rather than all
+   of it, exactly as a partially-moved binding must. So 084 does not block steps
+   6 and 7 — it consumes them — and the gate lifts with the rest at step 8.
 
    Also outside the gate: a projection of a `const`. `resolvePlace` accepts only
    `SymbolLet` and `SymbolParam`. Module-level `let` is banned and a `const` is

@@ -79,6 +79,14 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 		return
 	}
 
+	// A projection whose base is a TEMPORARY never reaches `resolvePlace` — a
+	// call is not a place — so the partial-move gate below cannot see it. It is
+	// the same partial move and, today, the worst-behaved one: see
+	// rejectTemporaryProjectionMove.
+	if tc.rejectTemporaryProjectionMove(expr, exprType, span) {
+		return
+	}
+
 	desc, ok := tc.resolvePlace(expr)
 	if !ok {
 		return
@@ -453,4 +461,95 @@ func (tc *typeChecker) rejectProjectionDrop(expr ast.ExprID, span source.Span) b
 		"cannot drop `%s` on its own yet: releasing one field and keeping the rest needs a drop neither backend can perform, so it would do nothing here and free the whole value elsewhere; drop `%s` instead",
 		label, tc.bindingName(desc.Base))
 	return true
+}
+
+// rejectTemporaryProjectionMove refuses taking a field out of a value that
+// nothing holds — `let e = mk().inner`.
+//
+// The ownership argument for allowing it is good: the base is a temporary the
+// lowering itself materialized, nobody else can be using it, so handing one of
+// its fields onward should be the easy case. It is not what happens. The
+// temporary is dropped WHOLE at the end of the statement, which frees the field
+// the binding just took, and the binding then drops it again:
+//
+//	L2 = move L1              // the temporary
+//	L3 = field copy L2.inner  // the field is taken
+//	L0 = move L3              // ...and bound
+//	drop L2                   // the temporary goes, taking the field's storage
+//	drop L0                   // the binding frees it a second time
+//
+// Measured as a segfault on the native backend, invalid reads and invalid frees
+// under valgrind (RV2-DEBT-084). So "stays accepted" meant "accepts a
+// use-after-free", and refusing is strictly better until the drop of that
+// temporary can leave the taken field alone.
+//
+// That is step 6's mechanism — an obligation that drops the RESIDUAL of a value
+// rather than all of it — applied to a temporary instead of a named binding. So
+// this refusal lifts with steps 6 and 7, alongside the rest of the gate, rather
+// than needing a fix of its own.
+//
+// Reports whether it refused, so the caller can stop.
+func (tc *typeChecker) rejectTemporaryProjectionMove(expr ast.ExprID, exprType types.TypeID, span source.Span) bool {
+	// An unresolved type means the expression is already broken; adding a
+	// second opinion about it only buries the real diagnostic.
+	if exprType == types.NoTypeID || tc.builder == nil {
+		return false
+	}
+	if !tc.projectionOverTemporary(expr) {
+		return false
+	}
+	tc.report(diag.SemaPartialMoveUnsupported, span,
+		"cannot take a field out of a temporary value yet: the temporary is released at the end of this statement and would take the field with it; bind the whole value first (`let tmp = ...;`) and read the field from it")
+	return true
+}
+
+// projectionOverTemporary reports whether expr projects out of something that is
+// not a named binding — a call result, a literal — walking the base chain the
+// same way resolvePlace does, and parting company with it exactly where
+// resolvePlace gives up.
+func (tc *typeChecker) projectionOverTemporary(expr ast.ExprID) bool {
+	cur := expr
+	projections := 0
+	// Bounded rather than `for {}`: a malformed tree must not hang the checker.
+	for range 64 {
+		node := tc.builder.Exprs.Get(cur)
+		if node == nil {
+			return false
+		}
+		switch node.Kind {
+		case ast.ExprMember:
+			data, ok := tc.builder.Exprs.Member(cur)
+			if !ok || data == nil {
+				return false
+			}
+			cur = data.Target
+			projections++
+		case ast.ExprIndex:
+			data, ok := tc.builder.Exprs.Index(cur)
+			if !ok || data == nil {
+				return false
+			}
+			cur = data.Target
+			projections++
+		case ast.ExprTupleIndex:
+			data, ok := tc.builder.Exprs.TupleIndex(cur)
+			if !ok || data == nil {
+				return false
+			}
+			cur = data.Target
+			projections++
+		case ast.ExprGroup:
+			data, ok := tc.builder.Exprs.Group(cur)
+			if !ok || data == nil {
+				return false
+			}
+			cur = data.Inner
+		case ast.ExprIdent:
+			// A named base is the gate's own case, handled with a place.
+			return false
+		default:
+			return projections > 0
+		}
+	}
+	return false
 }
