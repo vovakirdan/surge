@@ -137,19 +137,15 @@ fn f() -> int {
 	}
 }
 
-// DEBT SENTINEL, not a semantic contract: this asserts behaviour that is WRONG,
-// and exists only so the gap stays recorded and announces itself when it
-// closes. Delete it — do not "fix" it — once Epic 24 steps 3 and 5 land.
+// A field WRITE after the capture is rejected too, and it took until Epic 24
+// step 5 to say so. `j.id = 99` after `j` crossed used to be accepted, leaving
+// the caller and the body disagreeing about one value — measured at caller 99
+// against body 406 across a shard boundary.
 //
-// A field WRITE after a move is not caught. `j.id = 99` after the capture is
-// accepted, and the two sides then disagree about one value: measured at caller
-// 99 against body 406 across a shard boundary.
-//
-// It is not crossing-specific, which is why step 0b did not fix it: a field
-// write after ANY move is accepted, including `consume(own j); j.id = 99;` with
-// no crossing in sight. The moved-set is symbol-keyed and the write goes
-// through a projection, so nothing consults it.
-func TestCrossingCaptureFieldWriteIsNotYetCaught(t *testing.T) {
+// It was never crossing-specific: a field write after ANY whole move landed in
+// storage the binding no longer owned. Reinitialization is what decides it —
+// assigning into a value that has gone whole has nothing to assign into.
+func TestCrossingCaptureFieldWriteIsRejected(t *testing.T) {
 	codes := onCrossingCodes(t, `fn f() -> int {
 	let mut j: own Movable = own Movable{ id: 4 };
 	let t: far Task<int> = spawn on distributed { ret j.id; };
@@ -157,8 +153,7 @@ func TestCrossingCaptureFieldWriteIsNotYetCaught(t *testing.T) {
 	let got: TaskResult<int> = t.await();
 	return compare got { Success(x) => x; Cancelled() => 0; };
 }`)
-	if codes["SEM3130"] {
-		t.Fatalf("a field write after a capture is now diagnosed — good news, but this test "+
-			"asserts the old gap and must be DELETED rather than fixed: %v", codes)
+	if !codes["SEM3130"] {
+		t.Fatalf("writing to a field of a captured binding was accepted, got %v", codes)
 	}
 }

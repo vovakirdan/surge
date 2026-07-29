@@ -77,6 +77,35 @@ func (tc *typeChecker) clearPlaceMoved(place Place) {
 	delete(tc.movedPlaces, place)
 }
 
+// revivePlace reinitializes a place: the store puts a value back, so this place
+// and everything under it are live again.
+//
+// It answers "was this a legal reinitialization" rather than doing it blindly,
+// because the two failing shapes are different. If a WIDER place is moved —
+// `o` went whole and the program assigns `o.inner` — this is not a
+// reinitialization at all: the container has no storage to assign into, and the
+// state it would produce ("`o` moved except `o.inner`") is one the moved-set
+// cannot represent. Rust rejects the same shape, and rejecting it is what keeps
+// the set an antichain.
+func (tc *typeChecker) revivePlace(place Place) (blockedBy Place, blockedSpan source.Span, ok bool) {
+	if !place.IsValid() {
+		return Place{}, source.Span{}, true
+	}
+	for existing, span := range tc.movedPlaces {
+		if existing != place && placeCovers(existing, place) {
+			return existing, span, false
+		}
+	}
+	// Everything this place covers comes back with it: assigning `o` revives
+	// `o.inner`, and assigning `o.inner` revives `o.inner.deep`.
+	for existing := range tc.movedPlaces {
+		if placeCovers(place, existing) {
+			delete(tc.movedPlaces, existing)
+		}
+	}
+	return Place{}, source.Span{}, true
+}
+
 func (tc *typeChecker) clearBindingMoved(symID symbols.SymbolID) {
 	if !symID.IsValid() {
 		return

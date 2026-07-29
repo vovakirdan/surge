@@ -203,3 +203,30 @@ func (tc *typeChecker) reportPlaceUseAfterMove(read, moved Place, span, moveSpan
 	}
 	b.Emit()
 }
+
+// reportAssignIntoMovedValue rejects storing into part of a value that has
+// already been given away whole.
+//
+// The store has nowhere to land: `o` is gone, so `o.inner` names storage that
+// is no longer this binding's. The way out is to reinitialize the whole value,
+// and saying so is the point of the message — the reader's next question is
+// always "then how do I fix it".
+func (tc *typeChecker) reportAssignIntoMovedValue(target, movedWhole Place, span, moveSpan source.Span) {
+	if tc.reporter == nil {
+		return
+	}
+	targetLabel := tc.plainPlaceLabel(target)
+	movedLabel := tc.plainPlaceLabel(movedWhole)
+	b := diag.ReportError(tc.reporter, diag.SemaUseAfterMove, span,
+		fmt.Sprintf("cannot assign to `%s`: `%s` was moved, so there is nothing to assign into", targetLabel, movedLabel))
+	if b == nil {
+		return
+	}
+	if moveSpan != (source.Span{}) {
+		b.WithNote(moveSpan, fmt.Sprintf("`%s` gave its value away here", movedLabel))
+	}
+	b.WithNote(span, fmt.Sprintf(
+		"hint: give `%s` a whole value first (`%s = ...`), then its fields can be assigned individually",
+		movedLabel, movedLabel))
+	b.Emit()
+}

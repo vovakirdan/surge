@@ -296,6 +296,23 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 		} else {
 			tc.clearAliasedBinding(desc.Base)
 		}
+	} else if desc.Base.IsValid() {
+		// Assigning INTO a place reinitializes it. A field that was given away
+		// comes back, and with nothing else moved under the binding the whole
+		// value is readable again.
+		//
+		// The store's own drop obligation for the overwritten field is NOT
+		// recorded here: obligations are still binding-shaped, and a per-field
+		// one has no way to reach a backend that cannot drop a projection yet.
+		reviveTarget := desc
+		if !tc.isWriteThroughMutRef(desc) {
+			reviveTarget, _ = tc.expandPlaceDescriptor(desc)
+		}
+		if target := tc.canonicalPlace(reviveTarget); target.IsValid() {
+			if blockedBy, blockedSpan, revived := tc.revivePlace(target); !revived {
+				tc.reportAssignIntoMovedValue(target, blockedBy, span, blockedSpan)
+			}
+		}
 	}
 
 	// Check if this is a write through a mutable reference binding (*r = value).
@@ -352,6 +369,9 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 	exprType := tc.typeExpr(expr)
 	symID := tc.symbolForExpr(expr)
 	if !symID.IsValid() {
+		if tc.rejectProjectionDrop(expr, span) {
+			return
+		}
 		tc.report(diag.SemaBorrowNonAddressable, span, "drop target must be a binding")
 		return
 	}
@@ -401,4 +421,36 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 		Scope:   tc.currentScope(),
 		Note:    "drop",
 	})
+}
+
+// rejectProjectionDrop refuses `@drop o.inner` and says why, instead of letting
+// it fall into "drop target must be a binding" — the target IS addressable, and
+// a reader told otherwise has no way to find the real reason.
+//
+// Epic 24's settled decisions make this legal, and sema is ready for it: the
+// moved-set can name a field, so releasing one and leaving the siblings
+// readable is expressible. NEITHER BACKEND CAN PERFORM IT. A projected
+// `InstrDrop` is a silent no-op on the native backend, and the VM's
+// `execInstrDrop` ignores the projection and drops the WHOLE local — measured,
+// `@drop o.inner; return o.label;` panics with a use-after-free on the next
+// line. So accepting it here would ship a statement that does nothing on one
+// backend and corrupts on the other.
+//
+// Lifted by step 7, which teaches both backends a projected drop, together with
+// step 6, which stops the binding's own scope-exit drop from releasing a field
+// that has already gone.
+func (tc *typeChecker) rejectProjectionDrop(expr ast.ExprID, span source.Span) bool {
+	desc, ok := tc.resolvePlace(expr)
+	if !ok || !desc.Base.IsValid() || len(desc.Segments) == 0 {
+		return false
+	}
+	strs := tc.builder.StringsInterner
+	if strs == nil && tc.symbols != nil && tc.symbols.Table != nil {
+		strs = tc.symbols.Table.Strings
+	}
+	label := formatPlaceSegments(tc.bindingName(desc.Base), desc.Segments, strs)
+	tc.report(diag.SemaPartialMoveUnsupported, span,
+		"cannot drop `%s` on its own yet: releasing one field and keeping the rest needs a drop neither backend can perform, so it would do nothing here and free the whole value elsewhere; drop `%s` instead",
+		label, tc.bindingName(desc.Base))
+	return true
 }

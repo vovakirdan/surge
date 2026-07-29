@@ -617,6 +617,35 @@ not become per-field until a backend can act on one.
    `handleAssignment` currently clears moved state for whole bindings only.
    Decide and implement the same question for `@drop o.inner`.
 
+   **DONE 2026-07-29, and it answered step 4's representation question by
+   REMOVING it.** Assigning into a place revives that place and everything it
+   covers. The shape that would have forced a richer representation — `o` moved
+   whole, then `o.inner = v`, needing the state "`o` moved except `o.inner`" —
+   is REJECTED instead. There is no storage to assign into, Rust rejects the
+   same shape, and refusing it is what lets the moved-set stay an antichain. So
+   no type-layout expansion and no reinitialized-exception set are needed after
+   all.
+
+   `@drop o.inner` is settled as legal and sema is ready for it — the moved-set
+   can name a field. It stays REJECTED until step 7, and that is not caution:
+   implementing it here and then measuring showed a projected `InstrDrop` is a
+   silent no-op on the native backend and drops the WHOLE local on the VM, where
+   `@drop o.inner; return o.label;` panics `use-after-free` on the next line.
+   One statement, doing nothing on one backend and corrupting on the other
+   (RV2-DEBT-086). The refusal now names that reason; it used to fall into
+   "drop target must be a binding", which was true of nothing.
+
+   A side effect worth noting: this closed RV2-DEBT-081's residual. A field
+   WRITE after a whole move — `j.id = 99` after `j` crossed a shard boundary —
+   is now rejected, because assigning into a moved value is exactly that shape.
+   The step-0b debt sentinel fired to announce it and was replaced by a contract
+   test, which is what a sentinel is for.
+
+   Evidence: corpus diagnostics and MIR byte-identical across all 76 buildable
+   corpus programs; the refusal and the ordinary field-assignment control are
+   source-level tests; the revive itself is unit-tested, since a partial move is
+   still unreachable from source.
+
 6. **Drop obligations carry paths.** `DropLocal{SymbolID, Type, Span}` gains a
    path, HIR → MIR. A partially-moved binding drops the fields it still holds.
    Must NOT land before step 7 — a per-field obligation with a projection-blind
