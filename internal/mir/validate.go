@@ -531,6 +531,16 @@ func validateDrop(f *Func, globals []Global) error {
 			}
 
 			loc := f.Locals[localID]
+			// A PROJECTED drop acts on a field, not on the binding, so the
+			// local's own flags say nothing about it: a Copy local can hold an
+			// owning field, and a reference local is projected THROUGH rather
+			// than dropped. Judging the projection needs the field's type,
+			// which this pass does not have — so it checks what it can, which
+			// is that the base is addressable at all, and leaves the rest to
+			// the emitters that do resolve the projection.
+			if len(place.Proj) != 0 {
+				continue
+			}
 			if loc.Flags&LocalFlagCopy != 0 && loc.Flags&LocalFlagOwnsHeap == 0 {
 				errs = append(errs, fmt.Errorf("bb%d instr %d: drop on copy local L%d (%s) that owns nothing",
 					i, j, localID, loc.Name))

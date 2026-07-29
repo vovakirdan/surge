@@ -220,12 +220,45 @@ func (vm *VM) execInstrAssign(frame *Frame, instr *mir.Instr, writes []LocalWrit
 }
 
 func (vm *VM) execInstrDrop(frame *Frame, instr *mir.Instr) *VMError {
+	// A PROJECTED drop releases one place, not the whole binding. Falling
+	// through to execDrop here dropped the entire local, so `@drop o.inner`
+	// took `o` with it and the next read of `o` panicked use-after-free.
+	if len(instr.Drop.Place.Proj) != 0 {
+		return vm.execDropProjected(frame, instr.Drop.Place)
+	}
 	switch instr.Drop.Place.Kind {
 	case mir.PlaceGlobal:
 		return vm.execDropGlobal(instr.Drop.Place.Global)
 	default:
 		return vm.execDrop(frame, instr.Drop.Place.Local)
 	}
+}
+
+// execDropProjected releases the value at a projection and CLEARS the slot.
+//
+// Clearing is not tidiness. Freeing a struct releases every field it still
+// holds (Heap.Free walks obj.Fields), so a field released here and left in
+// place would be released a second time when its container goes — which the
+// refcount catches as a use-after-free panic rather than as silent corruption,
+// but a panic all the same. This mirrors the native backend, which stores null
+// into the slot after freeing for the same reason.
+func (vm *VM) execDropProjected(frame *Frame, place mir.Place) *VMError {
+	loc, vmErr := vm.EvalPlace(frame, place)
+	if vmErr != nil {
+		return vmErr
+	}
+	val, vmErr := vm.loadLocationRaw(loc)
+	if vmErr != nil {
+		return vmErr
+	}
+	if !val.IsHeap() || val.H == 0 {
+		// Nothing owned here: a Copy field, or a place already released.
+		return nil
+	}
+	// Storing the empty value IS the release: a store releases whatever it
+	// overwrites. Releasing first and storing after releases twice, which the
+	// refcount catches as a use-after-free — measured while writing this.
+	return vm.storeLocation(loc, Value{})
 }
 
 func (vm *VM) execInstrEndBorrow(frame *Frame, instr *mir.Instr) *VMError {
