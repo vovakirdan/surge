@@ -44,7 +44,19 @@ fn main() -> int {
 }
 `
 
+// TODO(runtime-v2 cleanup): DELETE this test, do not repair it.
+//
+// It pins the ALIASING model — a field read yielding a second name for the
+// container's storage, which must therefore never be dropped — and Epic 24
+// replaces that model with real partial moves. Its program (`let alias =
+// h.label;`) is rejected by the partial-move gate, so it can no longer build.
+//
+// Superseded, not broken. Skipped rather than rewritten, because rewriting it
+// would preserve the semantics the refactor exists to remove; it goes with the
+// rest of the pre-V2 suite at the end of Runtime V2.
 func TestRuntimeV2DropFieldAliasDoesNotDoubleFree(t *testing.T) {
+	t.Skip("superseded by Epic 24 partial moves; delete at the Runtime V2 suite cleanup")
+
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2DropFieldAliasSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	for _, threads := range []string{"1", "2"} {
