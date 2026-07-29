@@ -47,8 +47,8 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	// tracking: a send arm's payload moves only where that arm won, stays
 	// owned inside the other arms' bodies, and is maybe-moved after the
 	// join (same discipline as compare arms).
-	movedBefore := tc.snapshotMovedBindings()
-	movedArms := make([]map[symbols.SymbolID]source.Span, len(data.Arms))
+	movedBefore := tc.snapshotMovedPlaces()
+	movedArms := make([]map[Place]source.Span, len(data.Arms))
 	armClosed := make([]bool, len(data.Arms))
 	// Moves made while evaluating an arm's AWAIT expression, snapshotted
 	// separately from the arm's full moved-set. Every arm's await is
@@ -60,10 +60,10 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	// strictly BEFORE the arm body below. Fuse or reorder those two and
 	// the snapshot silently starts capturing body moves, at which point
 	// merging it for a closed arm stops meaning anything.
-	movedAwait := make([]map[symbols.SymbolID]source.Span, len(data.Arms))
+	movedAwait := make([]map[Place]source.Span, len(data.Arms))
 
 	for i, arm := range data.Arms {
-		tc.restoreMovedBindings(movedBefore)
+		tc.restoreMovedPlaces(movedBefore)
 		if arm.IsDefault {
 			defaultCount++
 			if i != len(data.Arms)-1 {
@@ -77,11 +77,11 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 			}
 		}
 
-		movedAwait[i] = tc.snapshotMovedBindings()
+		movedAwait[i] = tc.snapshotMovedPlaces()
 
 		armResult := tc.typeExpr(arm.Result)
 		armClosed[i] = tc.compareArmAbruptExit(arm.Result)
-		movedArms[i] = tc.snapshotMovedBindings()
+		movedArms[i] = tc.snapshotMovedPlaces()
 		armTypes[i] = armResult
 		if armResult != types.NoTypeID {
 			switch {
@@ -102,7 +102,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 		}
 	}
 
-	var mergedMoves map[symbols.SymbolID]source.Span
+	var mergedMoves map[Place]source.Span
 	for i := range data.Arms {
 		if armClosed[i] {
 			continue
@@ -111,7 +111,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 			mergedMoves = movedArms[i]
 			continue
 		}
-		mergedMoves = mergeMovedBindings(mergedMoves, movedArms[i])
+		mergedMoves = mergeMovedPlaces(mergedMoves, movedArms[i])
 	}
 	// A CLOSED arm (one whose body exits the FUNCTION — `return`, `panic`,
 	// `exit`; note `break` leaves an arm OPEN) contributes nothing from its
@@ -129,7 +129,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 			if !armClosed[i] {
 				continue
 			}
-			mergedMoves = mergeMovedBindings(mergedMoves, movedAwait[i])
+			mergedMoves = mergeMovedPlaces(mergedMoves, movedAwait[i])
 		}
 	}
 	if mergedMoves != nil {
@@ -156,9 +156,9 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 			}
 			tc.result.ArmDropsExpr[data.Arms[i].Result] = drops
 		}
-		tc.movedBindings = mergedMoves
+		tc.movedPlaces = mergedMoves
 	} else {
-		tc.movedBindings = movedBefore
+		tc.movedPlaces = movedBefore
 	}
 
 	if defaultCount > 1 {

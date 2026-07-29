@@ -457,23 +457,35 @@ func (bt *BorrowTable) combinedState(place Place) borrowState {
 }
 
 func (bt *BorrowTable) placesOverlap(a, b Place) bool {
-	if bt == nil || !a.IsValid() || !b.IsValid() || a.Base != b.Base {
+	// The nil guard is kept even though the answer no longer needs the table:
+	// this method used to return false for a nil receiver, and preserving that
+	// is the point of this step.
+	if bt == nil {
 		return false
 	}
-	aSegs := bt.placeSegments(a)
-	bSegs := bt.placeSegments(b)
-	limit := aSegs
-	if len(bSegs) < len(limit) {
-		limit = bSegs
+	return placesOverlap(a, b)
+}
+
+// placesOverlap reports whether two places name storage that can be the same:
+// one path is a prefix of the other, so `o` overlaps `o.inner` while `o.left`
+// and `o.right` do not.
+//
+// Deliberately a free function that reads only the interned key. The table-bound
+// version decoded each key back into segments through `BorrowTable.paths`, which
+// made the answer depend on WHICH table was asked — a place interned by one
+// table and queried through another lost its path and read as a whole-binding
+// place. The moved-set is keyed by Place and outlives any single query, so that
+// dependency had to go.
+//
+// The prefix test is exact rather than approximate because `internPath`
+// terminates every segment with `;`: `f:1;` is not a prefix of `f:12;`, so no
+// two distinct fields can be confused for a prefix pair.
+func placesOverlap(a, b Place) bool {
+	if !a.IsValid() || !b.IsValid() || a.Base != b.Base {
+		return false
 	}
-	for i := range limit {
-		aSeg := aSegs[i]
-		bSeg := bSegs[i]
-		if aSeg.Kind != bSeg.Kind || aSeg.Name != bSeg.Name {
-			return false
-		}
-	}
-	return true
+	return strings.HasPrefix(string(a.Path), string(b.Path)) ||
+		strings.HasPrefix(string(b.Path), string(a.Path))
 }
 
 func (bt *BorrowTable) formatPlaceLabel(place Place, base string, interner *source.Interner) string {

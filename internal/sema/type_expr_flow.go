@@ -13,12 +13,12 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	if !ok || cmp == nil {
 		return types.NoTypeID
 	}
-	movedBefore := tc.snapshotMovedBindings()
-	movedArms := make([]map[symbols.SymbolID]source.Span, len(cmp.Arms))
+	movedBefore := tc.snapshotMovedPlaces()
+	movedArms := make([]map[Place]source.Span, len(cmp.Arms))
 	armClosed := make([]bool, len(cmp.Arms))
 	valueType := tc.typeExpr(cmp.Value)
 	tc.observeMove(cmp.Value, tc.exprSpan(cmp.Value))
-	movedAfterValue := tc.snapshotMovedBindings()
+	movedAfterValue := tc.snapshotMovedPlaces()
 	expectedCompare := tc.expectedTypeForExpr(id)
 	resultType := expectedCompare
 	remainingMembers := tc.unionMembers(valueType)
@@ -30,7 +30,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	compareDiscarded := tc.isExprDiscarded(id)
 
 	for i, arm := range cmp.Arms {
-		tc.restoreMovedBindings(movedAfterValue)
+		tc.restoreMovedPlaces(movedAfterValue)
 		armSubject := valueType
 		if narrowed := tc.narrowCompareSubjectType(valueType, remainingMembers); narrowed != types.NoTypeID {
 			armSubject = narrowed
@@ -80,7 +80,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		if len(remainingMembers) > 0 {
 			remainingMembers = tc.consumeCompareMembers(remainingMembers, arm)
 		}
-		movedArms[i] = tc.snapshotMovedBindings()
+		movedArms[i] = tc.snapshotMovedPlaces()
 	}
 
 	targetCompare := resultType
@@ -96,19 +96,21 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		}
 	}
 
-	var mergedMoves map[symbols.SymbolID]source.Span
-	var intersectMoves map[symbols.SymbolID]source.Span
+	// Union across the arms: a value moved on ANY reachable arm is moved after
+	// the compare, because a later use has to be rejected if some path gave it
+	// away. An intersection was computed here alongside the union and never
+	// read; it encoded "moved on every arm", which is not the condition a use
+	// is checked against, so it was deleted rather than carried to places.
+	var mergedMoves map[Place]source.Span
 	for i := range cmp.Arms {
 		if armClosed[i] {
 			continue
 		}
 		if mergedMoves == nil {
 			mergedMoves = movedArms[i]
-			intersectMoves = movedArms[i]
 			continue
 		}
-		intersectMoves = intersectMovedBindings(intersectMoves, movedArms[i])
-		mergedMoves = mergeMovedBindings(mergedMoves, movedArms[i])
+		mergedMoves = mergeMovedPlaces(mergedMoves, movedArms[i])
 	}
 	if mergedMoves != nil {
 		// Per-arm drop synthesis: a droppable moved on some arms but live
@@ -130,9 +132,9 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		}
 	}
 	if mergedMoves == nil {
-		tc.movedBindings = movedBefore
+		tc.movedPlaces = movedBefore
 	} else {
-		tc.movedBindings = mergedMoves
+		tc.movedPlaces = mergedMoves
 	}
 	if expectedCompare == types.NoTypeID && resultType != types.NoTypeID {
 		for i, arm := range cmp.Arms {

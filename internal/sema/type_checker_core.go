@@ -117,15 +117,19 @@ type typeChecker struct {
 	arrayViewExprs              map[ast.ExprID]struct{}
 	arrayViewBindings           map[symbols.SymbolID]struct{}
 	assignmentLHSDepth          int
-	movedBindings               map[symbols.SymbolID]source.Span
-	dropScopes                  []dropScope                   // lexical scopes' droppable bindings (drop obligations)
-	loopDropMarks               []int                         // dropScopes depth at each enclosing loop body
-	tempFrames                  []tempFrame                   // per-statement owned-rvalue candidates (temp drops)
-	aliasedBindings             map[symbols.SymbolID]struct{} // bindings holding container-owned handles (never drop)
-	blockingDepth               int                           // nesting depth of `blocking { }` bodies (suspension illegal inside)
-	onCrossingStack             []onAnchorFrame               // active `on dst { ... }` crossing frames
-	directFunctionCrossing      map[symbols.SymbolID]struct{}
-	functionCrossingEdges       map[symbols.SymbolID]map[symbols.SymbolID]struct{}
+	// movedPlaces records where each moved PLACE gave its value away. Keyed by
+	// place rather than by binding so a field can be tracked apart from its
+	// container; at present only whole-binding places (empty path) are
+	// reachable, because the partial-move gate rejects the rest.
+	movedPlaces            map[Place]source.Span
+	dropScopes             []dropScope                   // lexical scopes' droppable bindings (drop obligations)
+	loopDropMarks          []int                         // dropScopes depth at each enclosing loop body
+	tempFrames             []tempFrame                   // per-statement owned-rvalue candidates (temp drops)
+	aliasedBindings        map[symbols.SymbolID]struct{} // bindings holding container-owned handles (never drop)
+	blockingDepth          int                           // nesting depth of `blocking { }` bodies (suspension illegal inside)
+	onCrossingStack        []onAnchorFrame               // active `on dst { ... }` crossing frames
+	directFunctionCrossing map[symbols.SymbolID]struct{}
+	functionCrossingEdges  map[symbols.SymbolID]map[symbols.SymbolID]struct{}
 }
 
 type diagnosticCountingReporter struct {
@@ -274,7 +278,7 @@ func (tc *typeChecker) run() {
 	tc.blockResultExprs = make(map[ast.ExprID][]ast.ExprID)
 	tc.arrayViewExprs = make(map[ast.ExprID]struct{})
 	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
-	tc.movedBindings = make(map[symbols.SymbolID]source.Span)
+	tc.movedPlaces = make(map[Place]source.Span)
 	tc.taskContainers = make(map[Place]*taskContainerInfo)
 	tc.directFunctionCrossing = make(map[symbols.SymbolID]struct{})
 	tc.functionCrossingEdges = make(map[symbols.SymbolID]map[symbols.SymbolID]struct{})

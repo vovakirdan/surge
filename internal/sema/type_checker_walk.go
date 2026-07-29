@@ -332,47 +332,47 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {
 			tc.ensureBoolContext(ifStmt.Cond, tc.exprSpan(ifStmt.Cond))
-			movedBefore := tc.snapshotMovedBindings()
+			movedBefore := tc.snapshotMovedPlaces()
 			tc.walkStmt(ifStmt.Then)
-			movedThen := tc.snapshotMovedBindings()
+			movedThen := tc.snapshotMovedPlaces()
 			thenClosed := tc.returnStatus(ifStmt.Then) == returnClosed
 			if ifStmt.Else.IsValid() {
-				tc.restoreMovedBindings(movedBefore)
+				tc.restoreMovedPlaces(movedBefore)
 				tc.walkStmt(ifStmt.Else)
-				movedElse := tc.snapshotMovedBindings()
+				movedElse := tc.snapshotMovedPlaces()
 				elseClosed := tc.returnStatus(ifStmt.Else) == returnClosed
 				switch {
 				case thenClosed && elseClosed:
 					// Both branches return; state after if is unreachable.
-					tc.movedBindings = movedBefore
+					tc.movedPlaces = movedBefore
 				case thenClosed:
-					tc.movedBindings = movedElse
+					tc.movedPlaces = movedElse
 				case elseClosed:
-					tc.movedBindings = movedThen
+					tc.movedPlaces = movedThen
 				default:
-					union := mergeMovedBindings(movedThen, movedElse)
+					union := mergeMovedPlaces(movedThen, movedElse)
 					tc.recordIfArmDrops(ifStmt.Then, movedThen, union)
 					tc.recordIfArmDrops(ifStmt.Else, movedElse, union)
-					tc.movedBindings = union
+					tc.movedPlaces = union
 				}
 			} else {
 				if thenClosed {
-					tc.movedBindings = movedBefore
+					tc.movedPlaces = movedBefore
 				} else {
-					union := mergeMovedBindings(movedThen, movedBefore)
+					union := mergeMovedPlaces(movedThen, movedBefore)
 					if drops := tc.oneSidedDroppables(movedBefore, union); len(drops) > 0 {
 						if tc.result.IfSyntheticElseDrops == nil {
 							tc.result.IfSyntheticElseDrops = make(map[ast.StmtID][]symbols.SymbolID)
 						}
 						tc.result.IfSyntheticElseDrops[id] = drops
 					}
-					tc.movedBindings = union
+					tc.movedPlaces = union
 				}
 			}
 		}
 	case ast.StmtWhile:
 		if whileStmt := tc.builder.Stmts.While(id); whileStmt != nil {
-			movedBeforeLoop := tc.snapshotMovedBindings()
+			movedBeforeLoop := tc.snapshotMovedPlaces()
 			tc.ensureBoolContext(whileStmt.Cond, tc.exprSpan(whileStmt.Cond))
 			loopPlace, loopOK := tc.taskContainerDrainLoop(whileStmt.Cond)
 			if loopOK {
@@ -398,7 +398,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if forStmt.Init.IsValid() {
 				tc.walkStmt(forStmt.Init)
 			}
-			movedBeforeLoop := tc.snapshotMovedBindings()
+			movedBeforeLoop := tc.snapshotMovedPlaces()
 			tc.ensureBoolContext(forStmt.Cond, tc.exprSpan(forStmt.Cond))
 			tc.typeExpr(forStmt.Post)
 			tc.enterLoopDropScope()

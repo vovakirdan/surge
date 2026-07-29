@@ -190,7 +190,7 @@ func (tc *typeChecker) liveDroppables(scope *dropScope) []symbols.SymbolID {
 	var out []symbols.SymbolID
 	for i := len(scope.bindings) - 1; i >= 0; i-- {
 		symID := scope.bindings[i]
-		if _, moved := tc.movedBindings[symID]; moved {
+		if tc.bindingMovedPlace(symID) {
 			continue
 		}
 		if tc.isAliasedBinding(symID) {
@@ -306,15 +306,32 @@ func (tc *typeChecker) bindingDeclaredAtOrAbove(symID symbols.SymbolID, floor in
 // a loop that were moved INSIDE its body: the second iteration would use
 // (and later drop) a moved value. before is the moved snapshot taken
 // before the body walk; the loop mark must still be on the stack.
-func (tc *typeChecker) rejectLoopBackEdgeMoves(before map[symbols.SymbolID]source.Span, loopLabel string) {
+func (tc *typeChecker) rejectLoopBackEdgeMoves(before map[Place]source.Span, loopLabel string) {
 	if len(tc.loopDropMarks) == 0 {
 		return
 	}
 	floor := tc.loopDropMarks[len(tc.loopDropMarks)-1]
-	for symID, span := range tc.movedBindings {
-		if _, was := before[symID]; was {
+	// The diagnostic names a BINDING, but the moved-set is keyed by place, so
+	// several moved places can share one base and would each report it. Fold
+	// them to one entry per base first.
+	//
+	// The span is the earliest of the folded set rather than whichever the map
+	// happened to yield: map iteration order is random, and picking arbitrarily
+	// makes the diagnostic's location vary between identical compiles the
+	// moment a second place per base becomes reachable. Ties break on the end
+	// offset; two moves of the same base at the SAME span are indistinguishable
+	// and it does not matter which is reported.
+	firstMove := make(map[symbols.SymbolID]source.Span)
+	for place, span := range tc.movedPlaces {
+		if _, was := before[place]; was {
 			continue
 		}
+		prev, seen := firstMove[place.Base]
+		if !seen || span.Start < prev.Start || (span.Start == prev.Start && span.End < prev.End) {
+			firstMove[place.Base] = span
+		}
+	}
+	for symID, span := range firstMove {
 		if !tc.isDroppableBinding(symID) {
 			continue
 		}
@@ -339,7 +356,7 @@ func (tc *typeChecker) rejectLoopBackEdgeMoves(before map[symbols.SymbolID]sourc
 // recordIfArmDrops records the droppables to free at the end of one
 // if-statement branch block (those moved in the sibling branch but live
 // here), keyed by the branch's block statement.
-func (tc *typeChecker) recordIfArmDrops(branch ast.StmtID, branchMoved, union map[symbols.SymbolID]source.Span) {
+func (tc *typeChecker) recordIfArmDrops(branch ast.StmtID, branchMoved, union map[Place]source.Span) {
 	if !branch.IsValid() {
 		return
 	}
@@ -353,10 +370,18 @@ func (tc *typeChecker) recordIfArmDrops(branch ast.StmtID, branchMoved, union ma
 	tc.result.ArmDropsStmt[branch] = drops
 }
 
-func (tc *typeChecker) oneSidedDroppables(moved, other map[symbols.SymbolID]source.Span) []symbols.SymbolID {
+func (tc *typeChecker) oneSidedDroppables(moved, other map[Place]source.Span) []symbols.SymbolID {
 	var out []symbols.SymbolID
-	for symID := range other {
-		if _, both := moved[symID]; both {
+	// One entry per base: the obligation list is symbol-shaped (it becomes
+	// path-shaped in a later step), so two moved places sharing a base must not
+	// produce two drops of the same binding.
+	seen := make(map[symbols.SymbolID]struct{}, len(other))
+	for place := range other {
+		symID := place.Base
+		if _, dup := seen[symID]; dup {
+			continue
+		}
+		if _, both := moved[wholePlace(symID)]; both {
 			continue
 		}
 		if !tc.isDroppableBinding(symID) {
@@ -365,6 +390,7 @@ func (tc *typeChecker) oneSidedDroppables(moved, other map[symbols.SymbolID]sour
 		if !tc.bindingDeclaredAtOrAbove(symID, 0) {
 			continue
 		}
+		seen[symID] = struct{}{}
 		out = append(out, symID)
 	}
 	return out
@@ -392,7 +418,7 @@ func (tc *typeChecker) recordReassignOldDrop(exprID ast.ExprID, symID symbols.Sy
 	if tc.isAliasedBinding(symID) {
 		return
 	}
-	if _, moved := tc.movedBindings[symID]; moved {
+	if tc.bindingMovedPlace(symID) {
 		return
 	}
 	if tc.result.ReassignOldDrops == nil {

@@ -470,6 +470,42 @@ not become per-field until a backend can act on one.
    Gate: full corpus identical, and `intersectMovedBindings` either ported or
    deleted (it is currently computed and never read).
 
+   **DONE 2026-07-29.** `movedPlaces map[Place]source.Span`, renamed rather than
+   retyped so the compiler forced every call site to be revisited. The reference
+   count was 30 across 7 files, not the ~50 across 16 this document estimated.
+
+   Membership stays EXACT, not overlap, and that is the whole discipline of this
+   step: answering by overlap here would quietly implement part of step 3 while
+   the gate is "the corpus is identical" — precisely the change such a gate
+   cannot see. `placeMoved` says so at the point where step 3 will widen it.
+
+   `placesOverlap` became a free function reading only the interned key. It used
+   to decode each key back through the `BorrowTable` that interned it, so the
+   answer depended on WHICH table was asked — and the moved-set outlives any one
+   query. The prefix test is exact because `internPath` terminates every segment
+   with `;`, so `f:1;` cannot prefix `f:12;`.
+
+   Both iteration sites fold to one entry per base before applying their
+   symbol-shaped filters, and `rejectLoopBackEdgeMoves` picks the earliest span
+   of the folded set: map order is random, so an arbitrary pick would make a
+   diagnostic's location vary between identical compiles once several places
+   share a base.
+
+   `intersectMovedBindings` deleted. The union is the right join — a use must be
+   rejected if ANY reachable path moved the value — and "moved on every path" is
+   not that condition.
+
+   Evidence: corpus diagnostics byte-identical (22,980 lines over `stdlib`,
+   `core`, `showcases`, `testdata/llvm_parity`), and MIR byte-identical for all
+   **76** buildable corpus programs. The MIR half is the one that matters:
+   diagnostics cannot see a changed drop obligation, and review was right that
+   the six-program sample this step started with was smoke coverage rather than
+   a migration proof.
+
+   Carried into step 3, deliberately not fixed here: `oneSidedDroppables` still
+   asks `moved[wholePlace(base)]` and returns a symbol-shaped obligation list.
+   Correct under the gate, not future-ready.
+
 3. **Use-after-move answers per place.** With `o.inner` moved: `o.label` reads,
    `o.inner` and `o` do not. Still no partial moves reachable — step 1's gate
    is still up — so this is verified by unit-level probes on the analysis, not

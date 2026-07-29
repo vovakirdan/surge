@@ -369,11 +369,7 @@ func (tc *typeChecker) taskContainerLoopAllowsAwait(info *taskContainerInfo) boo
 }
 
 func (tc *typeChecker) bindingMoved(symID symbols.SymbolID) bool {
-	if !symID.IsValid() || tc.movedBindings == nil {
-		return false
-	}
-	_, ok := tc.movedBindings[symID]
-	return ok
+	return tc.bindingMovedPlace(symID)
 }
 
 func (tc *typeChecker) enterTaskContainerLoop(place Place) {

@@ -41,7 +41,7 @@ func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 	}
 
 	movedBefore := tc.bindingMoved(loopSym)
-	movedBeforeLoop := tc.snapshotMovedBindings()
+	movedBeforeLoop := tc.snapshotMovedPlaces()
 	tc.enterLoopDropScope()
 	tc.walkStmt(forIn.Body)
 	tc.rejectLoopBackEdgeMoves(movedBeforeLoop, "for-in loop")
