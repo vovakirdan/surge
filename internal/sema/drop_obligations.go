@@ -224,6 +224,7 @@ func (tc *typeChecker) recordScopeEndDrops(id ast.StmtID) {
 		tc.result.ScopeEndDrops = make(map[ast.StmtID][]symbols.SymbolID)
 	}
 	tc.result.ScopeEndDrops[id] = drops
+	tc.recordResidualDrops(DropSite{Stmt: id}, drops)
 }
 
 // recordEarlyExitDrops captures obligations for a return/ret/break/
@@ -246,6 +247,7 @@ func (tc *typeChecker) recordBlockExprEndDrops(id ast.ExprID) {
 		tc.result.BlockExprEndDrops = make(map[ast.ExprID][]symbols.SymbolID)
 	}
 	tc.result.BlockExprEndDrops[id] = drops
+	tc.recordResidualDrops(DropSite{Expr: id}, drops)
 }
 
 func (tc *typeChecker) recordEarlyExitDrops(id ast.StmtID, toLoop bool) {
@@ -275,6 +277,7 @@ func (tc *typeChecker) recordEarlyExitDrops(id ast.StmtID, toLoop bool) {
 		tc.result.EarlyExitDrops = make(map[ast.StmtID][]symbols.SymbolID)
 	}
 	tc.result.EarlyExitDrops[id] = drops
+	tc.recordResidualDrops(DropSite{Stmt: id}, drops)
 }
 
 func (tc *typeChecker) enterLoopDropScope() {

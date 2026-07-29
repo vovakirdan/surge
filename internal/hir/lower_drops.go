@@ -1,6 +1,7 @@
 package hir
 
 import (
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 
@@ -49,10 +50,17 @@ func (l *lowerer) bindingDropName(symID symbols.SymbolID) string {
 // synthDropStmt builds the drop of one binding — identical in shape to
 // an explicit `@drop`, so MIR and the backend treat both the same way.
 func (l *lowerer) synthDropStmt(symID symbols.SymbolID, span source.Span) Stmt {
+	return l.synthDropStmtWithPlan(symID, span, nil)
+}
+
+// synthDropStmtWithPlan is synthDropStmt carrying a residual plan: the binding
+// is only partly moved here, so it reclaims the places it still holds instead
+// of all of itself.
+func (l *lowerer) synthDropStmtWithPlan(symID symbols.SymbolID, span source.Span, steps []sema.DropStep) Stmt {
 	return Stmt{
 		Kind: StmtDrop,
 		Span: span,
-		Data: DropData{Value: &Expr{
+		Data: DropData{Steps: steps, Value: &Expr{
 			Kind: ExprVarRef,
 			Type: l.bindingDropType(symID),
 			Span: span,
@@ -74,7 +82,8 @@ func (l *lowerer) appendScopeEndDrops(block *Block, stmtID ast.StmtID, span sour
 		}
 	}
 	for _, symID := range l.scopeEndDropSymbols(stmtID) {
-		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, span))
+		block.Stmts = append(block.Stmts, l.synthDropStmtWithPlan(
+			symID, span, l.residualSteps(sema.DropSite{Stmt: stmtID, Symbol: symID})))
 	}
 }
 
@@ -87,7 +96,12 @@ func (l *lowerer) dropLocalsFor(stmtID ast.StmtID, span source.Span) []DropLocal
 	}
 	out := make([]DropLocal, 0, len(syms))
 	for _, symID := range syms {
-		out = append(out, DropLocal{SymbolID: symID, Type: l.bindingDropType(symID), Span: span})
+		out = append(out, DropLocal{
+			SymbolID: symID,
+			Type:     l.bindingDropType(symID),
+			Span:     span,
+			Steps:    l.residualSteps(sema.DropSite{Stmt: stmtID, Symbol: symID}),
+		})
 	}
 	return out
 }
@@ -175,4 +189,14 @@ func (l *lowerer) syntheticElseDrops(ifStmt ast.StmtID) []symbols.SymbolID {
 		return nil
 	}
 	return l.semaRes.IfSyntheticElseDrops[ifStmt]
+}
+
+// residualSteps looks up the plan for one binding at one exit. Absent means the
+// binding drops whole, which is the ordinary case and the only one reachable
+// while partial moves are gated.
+func (l *lowerer) residualSteps(site sema.DropSite) []sema.DropStep {
+	if l.semaRes == nil || l.semaRes.ResidualDrops == nil {
+		return nil
+	}
+	return l.semaRes.ResidualDrops[site]
 }

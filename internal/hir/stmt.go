@@ -1,6 +1,7 @@
 package hir
 
 import (
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -131,6 +132,11 @@ type DropLocal struct {
 	SymbolID symbols.SymbolID
 	Type     types.TypeID
 	Span     source.Span
+	// Steps is the RESIDUAL plan for a binding only partly moved at this exit:
+	// which of its places to reclaim and in what order. Empty means the whole
+	// binding drops, which is every case reachable while the partial-move gate
+	// is up.
+	Steps []sema.DropStep
 }
 
 // ReturnData holds data for StmtReturn.
@@ -231,6 +237,11 @@ func (BlockStmtData) stmtData() {}
 // DropData holds data for StmtDrop.
 type DropData struct {
 	Value *Expr
+	// Steps is the RESIDUAL plan when this drop reclaims a binding that is
+	// only partly moved: which places to release and in what order. Empty
+	// means the value drops whole, which is what an explicit `@drop` and
+	// every currently reachable scope-exit drop do.
+	Steps []sema.DropStep
 }
 
 func (DropData) stmtData() {}

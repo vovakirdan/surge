@@ -315,12 +315,16 @@ func (vm *VM) execDropShallow(frame *Frame, place mir.Place) *VMError {
 			obj.Fields[i] = Value{}
 		}
 	}
-	vm.dropValue(val)
-	// The place itself is cleared for the same reason a projected drop clears
-	// its slot: whatever holds this container must not release it again.
+	// A PROJECTED container is released BY the store that clears its slot — a
+	// store releases whatever it overwrites — so releasing it here as well
+	// frees it twice. Same trap the projected drop above already fell into
+	// once, and it reappears the moment a residual drop nests: freeing
+	// `o.mid.deep` and then clearing the slot inside `o.mid` is two releases of
+	// one object.
 	if len(place.Proj) != 0 {
 		return vm.storeLocation(loc, Value{})
 	}
+	vm.dropValue(val)
 	if place.Kind != mir.PlaceGlobal {
 		frame.Locals[place.Local].IsDropped = true
 	}

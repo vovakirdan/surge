@@ -686,6 +686,24 @@ not become per-field until a backend can act on one.
    must survive `internal/mono` cloning and substitution, and the step-0
    protocol must still hold once fields drop independently.
 
+## Tests This Epic Supersedes
+
+Not defects, and not to be rescued by rewriting their programs — they assert the
+model the epic replaces. Cleaned up at the END of Runtime V2, with the rest of
+the pre-V2 suite.
+
+- `TestRuntimeV2DropFieldAliasDoesNotDoubleFree` (`internal/vm`). Its program
+  does `let alias: string = h.label;` and asserts that the ALIAS does not double
+  free. That aliasing — a field read yielding a second name for the container's
+  storage — is exactly what this epic removes, so the step-1 gate rejects the
+  program and the test can no longer build. Superseded, not broken.
+
+Worth knowing while reading any "green" claim in this document: `make check`
+runs with `SURGE_SKIP_TIMEOUT_TESTS=1`, which skips much of `internal/vm`'s e2e
+suite. Where evidence in this epic says the gate was green, it means `make check`
+plus the corpus and MIR diffs; the unfiltered `go test ./...` carries a set of
+pre-V2 failures that predate this work.
+
 ## Traps To Know Before Writing Code
 
 1. **Do not widen the moved-set and the drop obligations in separate steps.** A

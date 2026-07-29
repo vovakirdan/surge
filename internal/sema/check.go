@@ -63,6 +63,12 @@ type Result struct {
 	// scope first. ReassignOldDrops: whole-binding assignments whose
 	// overwritten value is live after the RHS evaluated (RHS-moved
 	// targets are suppressed by construction), keyed by the assign expr.
+	// ResidualDrops holds the plan for a binding that is only PARTIALLY moved
+	// at one exit: which of its places to reclaim and in what order. A binding
+	// absent from this map drops whole, which is every case reachable while the
+	// partial-move gate is up.
+	ResidualDrops map[DropSite][]DropStep
+
 	ScopeEndDrops    map[ast.StmtID][]symbols.SymbolID
 	EarlyExitDrops   map[ast.StmtID][]symbols.SymbolID
 	ReassignOldDrops map[ast.ExprID]symbols.SymbolID

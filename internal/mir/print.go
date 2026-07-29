@@ -114,6 +114,12 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 		}
 		return fmt.Sprintf("%scall %s(%s)", dst, formatCallee(&ins.Call.Callee), formatOperands(ins.Call.Args))
 	case InstrDrop:
+		// The flag changes what the instruction DOES — a shallow drop frees the
+		// place's own storage and leaves its contents — so a dump that hid it
+		// showed a residual drop as an ordinary one.
+		if ins.Drop.Shallow {
+			return fmt.Sprintf("drop_shallow %s", formatPlace(ins.Drop.Place))
+		}
 		return fmt.Sprintf("drop %s", formatPlace(ins.Drop.Place))
 	case InstrEnvelopeRelease:
 		kind := "box"

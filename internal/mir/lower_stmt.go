@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"surge/internal/hir"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/types"
 )
@@ -363,6 +364,15 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if data.Value == nil {
 			return nil
 		}
+		if len(data.Steps) > 0 {
+			// A RESIDUAL drop: reclaim the places this binding still holds.
+			place, err := l.lowerPlace(data.Value)
+			if err != nil {
+				return err
+			}
+			l.emitResidualDropAt(place, data.Steps)
+			return nil
+		}
 
 		// Get the type of the value being dropped
 		ty := data.Value.Type
@@ -547,9 +557,67 @@ func (l *funcLowerer) emitExitDrops(drops []hir.DropLocal) {
 		if int(local) < len(l.f.Locals) {
 			ty = l.f.Locals[local].Type
 		}
+		if len(drops[i].Steps) > 0 {
+			// A RESIDUAL drop: this binding is only partly moved, so it
+			// reclaims the places it still holds instead of all of itself.
+			// The plan already carries the order — contents before the
+			// container that holds them — so it is emitted as it stands.
+			l.emitResidualDrop(local, drops[i].Steps)
+			continue
+		}
 		if !l.ownsHeap(ty) {
 			continue
 		}
 		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: local}}})
 	}
+}
+
+// emitResidualDrop lowers a residual plan into the drops the backends perform:
+// a deep drop for each live place and a shallow free for each container that
+// survives only in part.
+func (l *funcLowerer) emitResidualDrop(local LocalID, steps []sema.DropStep) {
+	l.emitResidualDropAt(Place{Local: local}, steps)
+}
+
+// emitResidualDropAt emits a residual plan against an already-resolved base
+// place, so both the obligation path and an explicit drop statement lower the
+// same plan the same way.
+func (l *funcLowerer) emitResidualDropAt(base Place, steps []sema.DropStep) {
+	for _, step := range steps {
+		place := base
+		place.Proj = append(append([]PlaceProj(nil), base.Proj...), l.placeProjFromSteps(step.Path)...)
+		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: place, Shallow: step.Shallow}})
+	}
+}
+
+// placeProjFromSteps converts sema's projection path into MIR's. Field indices
+// are left unresolved (-1) exactly as every other projected place does it — the
+// emitters resolve a field by name against the container's type.
+func (l *funcLowerer) placeProjFromSteps(path []sema.PlaceSegment) []PlaceProj {
+	if len(path) == 0 {
+		return nil
+	}
+	out := make([]PlaceProj, 0, len(path))
+	for _, seg := range path {
+		switch seg.Kind {
+		case sema.PlaceSegmentField:
+			out = append(out, PlaceProj{Kind: PlaceProjField, FieldName: l.lookupFieldName(seg.Name), FieldIdx: -1})
+		case sema.PlaceSegmentIndex:
+			out = append(out, PlaceProj{Kind: PlaceProjIndex})
+		case sema.PlaceSegmentDeref:
+			out = append(out, PlaceProj{Kind: PlaceProjDeref})
+		}
+	}
+	return out
+}
+
+// lookupFieldName resolves an interned field name for a projection. The
+// emitters match a field by name, so the plan's StringID has to become text
+// here, where the interner is still in reach.
+func (l *funcLowerer) lookupFieldName(id source.StringID) string {
+	if l == nil || l.symbols == nil || l.symbols.Table == nil || l.symbols.Table.Strings == nil {
+		return ""
+	}
+	name, _ := l.symbols.Table.Strings.Lookup(id)
+	return name
 }
