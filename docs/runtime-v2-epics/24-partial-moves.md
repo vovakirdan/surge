@@ -720,6 +720,19 @@ not become per-field until a backend can act on one.
 
 8. **Lift the step-1 rejection and land the contract.** Partial moves become
    legal, rows 1-12 land as the frozen set with their positive controls.
+
+   **SCOPE, settled 2026-07-29 (owner): STRUCT FIELDS ONLY.** `own o.inner` to
+   any depth, plus everything that shape unblocks — the by-value getter, a
+   value built from a dying value's fields, `@drop o.inner`, and a field taken
+   out of a temporary. Moves out of an ARRAY element and out of a UNION payload
+   stay rejected, with a diagnostic that names why; see the reopened settled
+   decision 3 for the reasoning and for what would have to be decided first.
+
+   What that scope still closes: RV2-DEBT-077 (the aliasing this epic opens
+   with), RV2-DEBT-083 (the getter use-after-free and the struct-literal double
+   free, both live in stdlib), RV2-DEBT-084 (the segfault on a temporary),
+   RV2-DEBT-086 (`@drop o.inner`). It does not close anything array- or
+   union-shaped, and does not claim to.
    Three cleanups are part of this step, not follow-ups, because each is
    interim cost that becomes permanent if forgotten:
    - DELETE `stdlib/http/interim_copy.sg` and restore the direct field reads at
@@ -818,16 +831,45 @@ will want when the answer looks arbitrary.
    (remove the place and any prefix that was only invalidated by it), and the
    alternative — a binding that can never be made whole — is surprising.
 
-3. **CONSTANT ARRAY INDEX YES, COMPUTED INDEX REJECTED.**
-   `let e = own arr[0]` is a partial move; `let e = own arr[i]` is an error.
-   Rationale: This is
-   Rust's answer and the reason is the same: a computed index cannot be tracked
-   statically, so accepting it would need a runtime drop flag per element —
-   real cost, and Surge has no such machinery. NOTE this is the one question
-   whose answer changes the DATA: sema's canonical path already collapses an
-   index to a generic `i:;` segment (`internal/sema/borrow.go`), so a
-   constant-index partial move needs the index VALUE in the path, which the
-   borrow checker currently discards.
+3. **~~CONSTANT ARRAY INDEX YES, COMPUTED INDEX REJECTED.~~ REOPENED AND
+   DEFERRED 2026-07-29 by the owner — this epic covers STRUCT FIELDS ONLY.**
+
+   The original decision read: `let e = own arr[0]` is a partial move,
+   `let e = own arr[i]` is an error, on Rust's reasoning that a computed index
+   cannot be tracked statically and would need a runtime drop flag per element,
+   which Surge has no machinery for. It also noted that a constant-index move
+   needs the index VALUE in the path, which the borrow checker discards.
+
+   Two facts found while implementing steps 6 and 7 change the answer:
+
+   - **`own arr[0]` is not a shape the language has.** Indexing yields a
+     REFERENCE: `let j = arr[0];` on a move-only element type reports
+     "this parameter takes ownership of a Job, but the value provided is only a
+     borrow (&Job)". So the decision described a form that does not exist yet,
+     and enabling it means first deciding whether indexing can yield ownership
+     at all — a separate language question, not a detail of this epic.
+   - **The cost argument applies to the CONSTANT index too.** Rejecting the
+     computed index was justified by drop flags being unavailable. But a
+     residual drop must ENUMERATE what survives, so a constant-index move out
+     of `[Job; N]` costs N-1 drop instructions AT EVERY EXIT — which is why
+     Rust uses a drop flag here rather than enumeration. The reason that
+     defeated the computed index defeats the constant one from the other side.
+
+   So the epic delivers partial moves for STRUCT FIELDS, to any depth, and
+   keeps rejecting moves out of arrays and out of union payloads with a
+   diagnostic that names the reason. `residualDropPlan` already refuses to
+   build a plan it cannot enumerate, which is what keeps those shapes on the
+   whole-binding drop rather than on a shallow free that abandons the live
+   remainder.
+
+   **Nothing that works today stops working.** Reading an element is
+   unaffected: `let arr = [1, 2, 3]; let a = arr[1];` is a Copy read that
+   duplicates, verified running and printing `2`. A move-only element read is
+   a borrow, and was already a borrow before this epic.
+
+   Reopening rather than quietly widening the scope: the original decision was
+   taken without either fact, and a settled decision that turns out to rest on
+   a wrong premise is worth re-taking in the open.
 
 4. **`@drop o.inner` BECOMES LEGAL.** Explicit drop of a projected place is
    rejected today (`handleDrop` requires a whole symbol); with partial moves it
