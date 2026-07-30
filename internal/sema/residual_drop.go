@@ -120,8 +120,8 @@ func (tc *typeChecker) appendResidualSteps(out *[]DropStep, probe residualProbe,
 	}
 
 	// Partially moved: reclaim what remains, then the container's own storage.
-	fields := tc.types.StructFields(tc.resolveAlias(tc.valueType(ty)))
-	if len(fields) == 0 {
+	parts := tc.enumerableParts(ty)
+	if len(parts) == 0 {
 		// Something is moved UNDER this place, but its parts cannot be
 		// enumerated — an array element, a union payload. Refusing here is what
 		// keeps the caller on the whole-value drop rather than emitting a
@@ -130,17 +130,55 @@ func (tc *typeChecker) appendResidualSteps(out *[]DropStep, probe residualProbe,
 		// second line of defence rather than the first.
 		return false
 	}
-	for i := len(fields) - 1; i >= 0; i-- {
-		child := append(clonePlacePath(path), PlaceSegment{
-			Kind: PlaceSegmentField,
-			Name: fields[i].Name,
-		})
-		if !tc.appendResidualSteps(out, probe, child, fields[i].Type) {
+	for i := len(parts) - 1; i >= 0; i-- {
+		child := append(clonePlacePath(path), parts[i].segment)
+		if !tc.appendResidualSteps(out, probe, child, parts[i].ty) {
 			return false
 		}
 	}
 	*out = append(*out, DropStep{Path: clonePlacePath(path), Shallow: true})
 	return true
+}
+
+// enumerablePart is one statically nameable piece of a container, in
+// declaration order.
+type enumerablePart struct {
+	segment PlaceSegment
+	ty      types.TypeID
+}
+
+// enumerableParts lists the pieces a container is made of, or nothing when the
+// pieces cannot be named. A struct answers with its fields and a TUPLE with its
+// elements — a tuple has a fixed arity and is only ever indexed by a literal, so
+// its parts are as statically known as a struct's, and it is only the syntax that
+// makes it look like an array. An array answers with nothing: its length is not
+// part of the question and its index is chosen at runtime.
+func (tc *typeChecker) enumerableParts(ty types.TypeID) []enumerablePart {
+	if tc.types == nil {
+		return nil
+	}
+	resolved := tc.resolveAlias(tc.valueType(ty))
+	if fields := tc.types.StructFields(resolved); len(fields) > 0 {
+		out := make([]enumerablePart, 0, len(fields))
+		for _, f := range fields {
+			out = append(out, enumerablePart{
+				segment: PlaceSegment{Kind: PlaceSegmentField, Name: f.Name},
+				ty:      f.Type,
+			})
+		}
+		return out
+	}
+	if info, ok := tc.types.TupleInfo(resolved); ok && info != nil && len(info.Elems) > 0 {
+		out := make([]enumerablePart, 0, len(info.Elems))
+		for i, elem := range info.Elems {
+			out = append(out, enumerablePart{
+				segment: PlaceSegment{Kind: PlaceSegmentTupleIndex, Elem: uint32(i)},
+				ty:      elem,
+			})
+		}
+		return out
+	}
+	return nil
 }
 
 // temporaryResidualPlan returns the steps that reclaim what is left of a

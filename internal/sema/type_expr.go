@@ -42,6 +42,21 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	}()
 
+	// A projection READ asks about the place it names, not about its base: with
+	// `o.inner` given away, `o.label` is still there to read. Only the outermost
+	// projection asks — inner levels are the base chain of this one — and an
+	// assignment target is not a read at all.
+	//
+	// Asked BEFORE the expression is typed, because typing it can perform the
+	// very move being asked about. An index whose `__index` takes `self` by value
+	// consumes its receiver while being typed, so a check afterwards found the
+	// move this expression had just made and reported the expression as a use of
+	// what it was itself giving away — `b[0]` on such a type was rejected outright
+	// (RV2-DEBT-090). Reading before typing also matches evaluation order: the
+	// place is read at this point, and whatever the operation then does with it
+	// happens after.
+	tc.checkProjectionReadBeforeEvaluation(id, expr.Kind, expr.Span)
+
 	switch expr.Kind {
 	case ast.ExprIdent:
 		ty = tc.typeExprIdent(id, expr.Span)
@@ -123,29 +138,29 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	default:
 	}
 
-	// A projection READ asks about the place it names, not about its base: with
-	// `o.inner` given away, `o.label` is still there to read. Only the
-	// outermost projection asks — inner levels are the base chain of this one —
-	// and an assignment target is not a read at all.
-	switch expr.Kind {
-	case ast.ExprMember, ast.ExprIndex, ast.ExprTupleIndex:
-		if tc.placeBaseDepth == 0 && tc.assignmentLHSDepth == 0 {
-			tc.checkPlaceUseAfterMove(id, expr.Span)
-		}
-	case ast.ExprUnary:
-		// A dereference is a projection too — `resolvePlace` has always
-		// resolved it — so `*p` asks about the place it names rather than
-		// relying on `p` being checked as a value.
-		if unary, ok := tc.builder.Exprs.Unary(id); ok && unary != nil &&
-			unary.Op == ast.ExprUnaryDeref &&
-			tc.placeBaseDepth == 0 && tc.assignmentLHSDepth == 0 {
-			tc.checkPlaceUseAfterMove(id, expr.Span)
-		}
-	}
-
 	tc.result.ExprTypes[id] = ty
 	tc.noteTempCandidate(id, expr.Kind, ty)
 	return ty
+}
+
+// checkProjectionReadBeforeEvaluation asks the use-after-move question for a
+// projection READ, before the expression it names is evaluated. See the call
+// site for why the order matters.
+func (tc *typeChecker) checkProjectionReadBeforeEvaluation(id ast.ExprID, kind ast.ExprKind, span source.Span) {
+	if tc.placeBaseDepth != 0 || tc.assignmentLHSDepth != 0 {
+		return
+	}
+	switch kind {
+	case ast.ExprMember, ast.ExprIndex, ast.ExprTupleIndex:
+		tc.checkPlaceUseAfterMove(id, span)
+	case ast.ExprUnary:
+		// A dereference is a projection too — `resolvePlace` has always resolved
+		// it — so `*p` asks about the place it names rather than relying on `p`
+		// being checked as a value.
+		if unary, ok := tc.builder.Exprs.Unary(id); ok && unary != nil && unary.Op == ast.ExprUnaryDeref {
+			tc.checkPlaceUseAfterMove(id, span)
+		}
+	}
 }
 
 // typeExprAsPlaceBase types the TARGET of a projection. The target is walked to

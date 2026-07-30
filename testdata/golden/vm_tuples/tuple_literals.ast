@@ -80,37 +80,37 @@ tuple_literals.sg (span: 3:1-35:1)
          │  ├─ Mutable: false
          │  ├─ Type: ((int, int), int)
          │  └─ Value: expr#55: ((2, 3), 4)
-         ├─ Stmt[18]: Let (span: 25:5-25:38)
+         ├─ Stmt[18]: Let (span: 25:5-25:42)
          │  ├─ Name: inner
          │  ├─ Mutable: false
          │  ├─ Type: (int, int)
-         │  └─ Value: expr#57: nested.0
+         │  └─ Value: expr#58: own nested.0
          ├─ Stmt[19]: Let (span: 26:5-26:42)
          │  ├─ Name: inner_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#58: "inner.0="
+         │  └─ Value: expr#59: "inner.0="
          ├─ Stmt[20]: Let (span: 27:5-27:48)
          │  ├─ Name: inner0_str
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#61: inner.0 to string
+         │  └─ Value: expr#62: inner.0 to string
          ├─ Stmt[21]: Expr (span: 28:5-28:37)
-         │  └─ Expr: expr#66: print((inner_label + inner0_str))
+         │  └─ Expr: expr#67: print((inner_label + inner0_str))
          ├─ Stmt[22]: Let (span: 30:5-30:32)
          │  ├─ Name: single
          │  ├─ Mutable: false
          │  ├─ Type: (int)
-         │  └─ Value: expr#68: (42,)
+         │  └─ Value: expr#69: (42,)
          ├─ Stmt[23]: Let (span: 31:5-31:42)
          │  ├─ Name: single_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#69: "single="
+         │  └─ Value: expr#70: "single="
          ├─ Stmt[24]: Let (span: 32:5-32:49)
          │  ├─ Name: single_str
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#72: single.0 to string
+         │  └─ Value: expr#73: single.0 to string
          └─ Stmt[25]: Expr (span: 33:5-33:38)
-            └─ Expr: expr#77: print((single_label + single_str))
+            └─ Expr: expr#78: print((single_label + single_str))

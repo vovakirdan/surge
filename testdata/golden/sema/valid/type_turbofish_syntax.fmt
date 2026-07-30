@@ -29,7 +29,7 @@ fn use_turbofish_syntax() {
 fn use_nested_turbofish() {
     // Nested generic types with turbofish
     let nested: Box::<Box::<int>> = { value: { value: 42 } };
-    let _inner: Box::<int> = nested.value;
+    let _inner: Box::<int> = own nested.value;
     let _val: int = _inner.value;
 }
 
@@ -37,6 +37,6 @@ fn use_mixed_syntax() {
     // Mix standard and turbofish
     let mixed1: Box::<Pair<int, int>> = { value: { first: 1, second: 2 } };
     let mixed2: Pair<Box::<int>, string> = { first: { value: 42 }, second: "hi" };
-    let _m1: Pair<int, int> = mixed1.value;
-    let _m2: Box::<int> = mixed2.first;
+    let _m1: Pair<int, int> = own mixed1.value;
+    let _m2: Box::<int> = own mixed2.first;
 }

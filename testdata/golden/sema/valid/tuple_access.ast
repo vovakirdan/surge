@@ -23,8 +23,8 @@ tuple_access.sg (span: 2:1-16:1)
 │        │  ├─ Mutable: false
 │        │  ├─ Type: (int, string)
 │        │  └─ Value: expr#8: (42, "hello")
-│        └─ Stmt[1]: Return (span: 9:5-9:16)
-│           └─ Expr: expr#10: t.1
+│        └─ Stmt[1]: Return (span: 9:5-9:20)
+│           └─ Expr: expr#11: own t.1
 └─ Item[2]: Fn (span: 12:1-15:2)
    ├─ Name: nested_access
    ├─ Params: ()
@@ -35,6 +35,6 @@ tuple_access.sg (span: 2:1-16:1)
          │  ├─ Name: t
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#15: ((1, 2), 3)
+         │  └─ Value: expr#16: ((1, 2), 3)
          └─ Stmt[1]: Return (span: 14:5-14:18)
-            └─ Expr: expr#18: t.0.1
+            └─ Expr: expr#19: t.0.1

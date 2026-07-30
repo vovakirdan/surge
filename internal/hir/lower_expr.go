@@ -199,7 +199,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerBlockExpr(exprID, expr, ty)
 
 	case ast.ExprTupleIndex:
-		return l.lowerTupleIndexExpr(expr, ty)
+		return l.lowerTupleIndexExpr(exprID, expr, ty)
 
 	case ast.ExprSpread:
 		// Spread is typically inlined at the call/array site
@@ -556,8 +556,10 @@ func (l *lowerer) lowerTupleExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 	}
 }
 
-// lowerTupleIndexExpr lowers a tuple index expression.
-func (l *lowerer) lowerTupleIndexExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+// lowerTupleIndexExpr lowers a tuple index expression. A tuple element is a
+// field named by POSITION, so it carries the same transfer mode a named field
+// read does — without it a taken element would be counted as a second holder.
+func (l *lowerer) lowerTupleIndexExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	tupleIdxData := l.builder.Exprs.TupleIndices.Get(uint32(expr.Payload))
 	if tupleIdxData == nil {
 		return nil
@@ -570,6 +572,7 @@ func (l *lowerer) lowerTupleIndexExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 		Data: FieldAccessData{
 			Object:   l.lowerExpr(tupleIdxData.Target),
 			FieldIdx: int(tupleIdxData.Index),
+			MoveOut:  l.isPartialMoveRead(exprID),
 		},
 	}
 }

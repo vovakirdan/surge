@@ -721,6 +721,16 @@ not become per-field until a backend can act on one.
 8. **Lift the step-1 rejection and land the contract.** Partial moves become
    legal, rows 1-12 land as the frozen set with their positive controls.
 
+   **SCOPE CORRECTION, 2026-07-30: STRUCT FIELDS *AND TUPLE ELEMENTS*.** A tuple
+   was refused alongside arrays because `resolvePlace` mapped both to one segment
+   kind, and that was a mistake rather than a decision. Variant A's reasoning is
+   that the survivors of one place leaving must be listable; a tuple's arity is
+   fixed and it is only ever indexed by a literal, so its parts are as statically
+   known as a struct's — it is a struct with positional names. Refusing the move
+   AND having no accepted form left `let s: string = t.1;` unwritable, which is
+   ordinary code that compiled on main. Arrays and union payloads stay refused,
+   for the reason that does apply to them. See RV2-DEBT-091.
+
    **SCOPE, settled 2026-07-29 (owner): STRUCT FIELDS ONLY.** `own o.inner` to
    any depth, plus everything that shape unblocks — the by-value getter, a
    value built from a dying value's fields, `@drop o.inner`, and a field taken

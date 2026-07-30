@@ -7,5 +7,5 @@ fn make_boxes() {
     let int_box: Box<int> = { value: 1 };
     let str_box: Box<string> = { value: "hi" };
     let _value_int: int = int_box.value;
-    let _value_str: string = str_box.value;
+    let _value_str: string = own str_box.value;
 }

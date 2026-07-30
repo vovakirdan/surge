@@ -116,7 +116,15 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	// rewrites a place through the borrow its base came from, which manufactures
 	// segments the source never wrote; the question here is what the PROGRAM
 	// said, not where the value ultimately lives.
-	if !direct && base.IsValid() {
+	// An UNRESOLVED type is not an answer, and the gate must not read it as one.
+	// Whether this read takes the value or duplicates it is decided by asking
+	// whether the type is Copy, and `isCopyType` answers false for a type it does
+	// not know — so an unresolved read looks exactly like a move of a move-only
+	// value. Member access on an ANONYMOUS record records no type here, which is
+	// how a plain `let p = { x: 1 }; let a = p.x;` came to be reported as a
+	// partial move of an `int` (RV2-DEBT-089). The whole-binding path below is
+	// unaffected: it needs no type to know a binding went.
+	if !direct && base.IsValid() && exprType != types.NoTypeID {
 		// Enumerability is asked FIRST, and the order is the diagnostic. Telling
 		// someone to write `own a[0]` when `own a[0]` is refused too would send
 		// them to a second error for a different reason; the shape they cannot
@@ -125,6 +133,13 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 			return
 		}
 		if !tc.writtenAsOwn(expr) {
+			// A place that has ALREADY gone gets no advice about how to take it.
+			// The read has just been reported as a use-after-move, which is the
+			// real problem; adding "write `own`" on top would tell the reader to
+			// take a value that is not there, and following it changes nothing.
+			if expanded, _ := tc.expandPlaceDescriptor(desc); tc.placeAlreadyGone(expanded) {
+				return
+			}
 			tc.reportPartialMoveNeedsOwn(desc, expr, span)
 			return
 		}
@@ -166,6 +181,18 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 		// ever looks up.
 		tc.markPlaceMoved(place, evSpan)
 	}
+}
+
+// placeAlreadyGone reports whether this place, or something covering it, has
+// already been given away — so a diagnostic about how to take it would be
+// advice about a value that is not there.
+func (tc *typeChecker) placeAlreadyGone(desc placeDescriptor) bool {
+	place := tc.canonicalPlace(desc)
+	if !place.IsValid() {
+		return false
+	}
+	_, _, found := tc.movedPlaceCovering(place)
+	return found
 }
 
 // writtenAsOwn reports whether the source spelled `own` on this expression.
@@ -280,7 +307,7 @@ func (tc *typeChecker) partialMoveRead(expr ast.ExprID) bool {
 		return false
 	}
 	for _, seg := range desc.Segments {
-		if seg.Kind != PlaceSegmentField {
+		if !placeSegmentEnumerable(seg.Kind) {
 			return false
 		}
 	}
@@ -304,13 +331,21 @@ func (tc *typeChecker) partialMoveRead(expr ast.ExprID) bool {
 // and emit a drop of the whole container over a field that has left.
 func (tc *typeChecker) rejectUnnameableResidual(desc placeDescriptor, expr ast.ExprID, span source.Span) bool {
 	for _, seg := range desc.Segments {
-		if seg.Kind == PlaceSegmentField {
+		if placeSegmentEnumerable(seg.Kind) {
 			continue
 		}
 		tc.reportUnnameableResidual(desc, seg.Kind, expr, span)
 		return true
 	}
 	return false
+}
+
+// placeSegmentEnumerable reports whether the survivors of this projection step
+// can be listed. A struct field and a tuple element both name their container's
+// parts statically; an array element does not, and a place behind a reference is
+// not this value's to give away at all.
+func placeSegmentEnumerable(kind PlaceSegmentKind) bool {
+	return kind == PlaceSegmentField || kind == PlaceSegmentTupleIndex
 }
 
 func (tc *typeChecker) isSharedRefDeref(expr ast.ExprID) bool {
@@ -673,11 +708,11 @@ func (tc *typeChecker) handleTemporaryProjectionMove(expr ast.ExprID, exprType t
 		return true
 	}
 	for _, seg := range path {
-		if seg.Kind == PlaceSegmentField {
+		if placeSegmentEnumerable(seg.Kind) {
 			continue
 		}
 		// Same rule as a named binding, and for the same reason: what survives
-		// has to be listable, and an element is chosen by position.
+		// has to be listable, and an array element is chosen at runtime.
 		tc.reportUnnameableResidual(placeDescriptor{}, seg.Kind, expr, span)
 		return true
 	}
@@ -719,7 +754,7 @@ func (tc *typeChecker) temporaryProjectionBase(expr ast.ExprID) (ast.ExprID, []P
 			if !ok || data == nil {
 				return ast.NoExprID, nil, false
 			}
-			reversed = append(reversed, PlaceSegment{Kind: PlaceSegmentIndex})
+			reversed = append(reversed, PlaceSegment{Kind: PlaceSegmentTupleIndex, Elem: uint32(data.Index)})
 			cur = data.Target
 		case ast.ExprGroup:
 			data, ok := tc.builder.Exprs.Group(cur)

@@ -40,12 +40,22 @@ const (
 	PlaceSegmentIndex
 	// PlaceSegmentDeref represents a dereference segment.
 	PlaceSegmentDeref
+	// PlaceSegmentTupleIndex represents a tuple element, named by POSITION.
+	//
+	// Kept apart from PlaceSegmentIndex, which it looks like, because the two
+	// answer the one question a partial move has to ask differently: what
+	// SURVIVES this place leaving. A tuple has a fixed arity and its index is
+	// always a literal, so the survivors are a static list — exactly as a
+	// struct's fields are. An array element is chosen at runtime and its
+	// container may be any length, so there is no list to name.
+	PlaceSegmentTupleIndex
 )
 
 // PlaceSegment stores one projection step (field/index/deref).
 type PlaceSegment struct {
 	Kind PlaceSegmentKind
 	Name source.StringID // only for fields
+	Elem uint32          // only for tuple elements: the position
 }
 
 // Place describes an addressable location participating in borrows.
@@ -150,6 +160,8 @@ func (bt *BorrowTable) internPath(segments []PlaceSegment) placeKey {
 			fmt.Fprintf(&b, "f:%d;", seg.Name)
 		case PlaceSegmentIndex:
 			b.WriteString("i:;")
+		case PlaceSegmentTupleIndex:
+			fmt.Fprintf(&b, "t:%d;", seg.Elem)
 		case PlaceSegmentDeref:
 			b.WriteString("d:;")
 		default:
@@ -529,6 +541,8 @@ func formatPlaceSegments(base string, segs []PlaceSegment, interner *source.Inte
 			}
 		case PlaceSegmentIndex:
 			b.WriteString("[?]")
+		case PlaceSegmentTupleIndex:
+			fmt.Fprintf(&b, ".%d", seg.Elem)
 		case PlaceSegmentDeref:
 			b.WriteString(".*")
 		default:

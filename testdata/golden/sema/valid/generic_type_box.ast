@@ -27,8 +27,8 @@ generic_type_box.sg (span: 2:1-12:1)
          │  ├─ Mutable: false
          │  ├─ Type: int
          │  └─ Value: expr#8: int_box.value
-         └─ Stmt[3]: Let (span: 10:5-10:44)
+         └─ Stmt[3]: Let (span: 10:5-10:48)
             ├─ Name: _value_str
             ├─ Mutable: false
             ├─ Type: string
-            └─ Value: expr#10: str_box.value
+            └─ Value: expr#11: own str_box.value

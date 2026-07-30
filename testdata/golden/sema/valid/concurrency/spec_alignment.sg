@@ -160,7 +160,7 @@ type RwGuardedStruct = {
 pub fn test_rwlock_guarded_read() {
     let mut s: RwGuardedStruct = RwGuardedStruct { rw: RwLock.new(), data: "hello" };
     s.rw.read_lock();
-    let v: string = s.data;
+    let v: string = own s.data;
     s.rw.read_unlock();
 }
 

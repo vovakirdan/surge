@@ -290,13 +290,13 @@ Block (span: 68:24-70:10)
 │        │  └─ Value: expr#171: <ExprKind(22)>
 │        ├─ Stmt[1]: Expr (span: 162:5-162:22)
 │        │  └─ Expr: expr#175: s.rw.read_lock()
-│        ├─ Stmt[2]: Let (span: 163:5-163:28)
+│        ├─ Stmt[2]: Let (span: 163:5-163:32)
 │        │  ├─ Name: v
 │        │  ├─ Mutable: false
 │        │  ├─ Type: string
-│        │  └─ Value: expr#177: s.data
+│        │  └─ Value: expr#178: own s.data
 │        └─ Stmt[3]: Expr (span: 164:5-164:24)
-│           └─ Expr: expr#181: s.rw.read_unlock()
+│           └─ Expr: expr#182: s.rw.read_unlock()
 ├─ Item[22]: Fn (span: 167:1-172:2)
 │  ├─ Name: test_rwlock_guarded_write
 │  ├─ Params: ()
@@ -307,13 +307,13 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: s
 │        │  ├─ Mutable: true
 │        │  ├─ Type: RwGuardedStruct
-│        │  └─ Value: expr#188: <ExprKind(22)>
+│        │  └─ Value: expr#189: <ExprKind(22)>
 │        ├─ Stmt[1]: Expr (span: 169:5-169:23)
-│        │  └─ Expr: expr#192: s.rw.write_lock()
+│        │  └─ Expr: expr#193: s.rw.write_lock()
 │        ├─ Stmt[2]: Expr (span: 170:5-170:22)
-│        │  └─ Expr: expr#196: (s.data = "world")
+│        │  └─ Expr: expr#197: (s.data = "world")
 │        └─ Stmt[3]: Expr (span: 171:5-171:25)
-│           └─ Expr: expr#200: s.rw.write_unlock()
+│           └─ Expr: expr#201: s.rw.write_unlock()
 ├─ Item[23]: Type (span: 176:1-179:3)
 │  ├─ Name: ContractStruct
 │  ├─ Kind: Struct
@@ -331,7 +331,7 @@ Block (span: 68:24-70:10)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 183:56-185:6)
 │  │  │     └─ Stmt[0]: Return (span: 184:9-184:27)
-│  │  │        └─ Expr: expr#203: self.value
+│  │  │        └─ Expr: expr#204: self.value
 │  │  ├─ Fn[1]: acquires_test
 │  │  │  ├─ Params: (self: &mut ContractStruct)
 │  │  │  ├─ Return: nothing
@@ -339,7 +339,7 @@ Block (span: 68:24-70:10)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 188:53-190:6)
 │  │  │     └─ Stmt[0]: Expr (span: 189:9-189:26)
-│  │  │        └─ Expr: expr#208: self.lock.lock()
+│  │  │        └─ Expr: expr#209: self.lock.lock()
 │  │  └─ Fn[2]: releases_test
 │  │     ├─ Params: (self: &mut ContractStruct)
 │  │     ├─ Return: nothing
@@ -347,7 +347,7 @@ Block (span: 68:24-70:10)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 193:53-195:6)
 │  │        └─ Stmt[0]: Expr (span: 194:9-194:28)
-│  │           └─ Expr: expr#213: self.lock.unlock()
+│  │           └─ Expr: expr#214: self.lock.unlock()
 ├─ Item[25]: Type (span: 200:1-204:3)
 │  ├─ Name: WaiterStruct
 │  ├─ Kind: Struct
@@ -372,7 +372,7 @@ Block (span: 68:24-70:10)
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 217:32-219:2)
 │        └─ Stmt[0]: Return (span: 218:5-218:15)
-│           └─ Expr: expr#215: 42
+│           └─ Expr: expr#216: 42
 ├─ Item[28]: Type (span: 229:1-233:3)
 │  ├─ Name: AtomicStruct
 │  ├─ Kind: Struct
@@ -391,9 +391,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: false
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#222: <ExprKind(22)>
+│        │  └─ Value: expr#223: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 237:5-237:36)
-│           └─ Expr: expr#227: atomic_load(&a.counter)
+│           └─ Expr: expr#228: atomic_load(&a.counter)
 ├─ Item[30]: Fn (span: 240:1-243:2)
 │  ├─ Name: test_atomic_store
 │  ├─ Params: ()
@@ -404,9 +404,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#234: <ExprKind(22)>
+│        │  └─ Value: expr#235: <ExprKind(22)>
 │        └─ Stmt[1]: Expr (span: 242:5-242:39)
-│           └─ Expr: expr#240: atomic_store(&mut a.counter, 100)
+│           └─ Expr: expr#241: atomic_store(&mut a.counter, 100)
 ├─ Item[31]: Fn (span: 245:1-248:2)
 │  ├─ Name: test_atomic_exchange
 │  ├─ Params: ()
@@ -417,9 +417,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#247: <ExprKind(22)>
+│        │  └─ Value: expr#248: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 247:5-247:48)
-│           └─ Expr: expr#253: atomic_exchange(&mut a.counter, 50)
+│           └─ Expr: expr#254: atomic_exchange(&mut a.counter, 50)
 ├─ Item[32]: Fn (span: 250:1-253:2)
 │  ├─ Name: test_atomic_compare_exchange
 │  ├─ Params: ()
@@ -430,9 +430,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#260: <ExprKind(22)>
+│        │  └─ Value: expr#261: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 252:5-252:58)
-│           └─ Expr: expr#267: atomic_compare_exchange(&mut a.counter, 0, 1)
+│           └─ Expr: expr#268: atomic_compare_exchange(&mut a.counter, 0, 1)
 ├─ Item[33]: Fn (span: 255:1-258:2)
 │  ├─ Name: test_atomic_fetch_add
 │  ├─ Params: ()
@@ -443,9 +443,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#274: <ExprKind(22)>
+│        │  └─ Value: expr#275: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 257:5-257:49)
-│           └─ Expr: expr#280: atomic_fetch_add(&mut a.counter, 10)
+│           └─ Expr: expr#281: atomic_fetch_add(&mut a.counter, 10)
 ├─ Item[34]: Fn (span: 260:1-263:2)
 │  ├─ Name: test_atomic_fetch_sub
 │  ├─ Params: ()
@@ -456,9 +456,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#287: <ExprKind(22)>
+│        │  └─ Value: expr#288: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 262:5-262:48)
-│           └─ Expr: expr#293: atomic_fetch_sub(&mut a.counter, 5)
+│           └─ Expr: expr#294: atomic_fetch_sub(&mut a.counter, 5)
 ├─ Item[35]: Type (span: 267:1-272:3)
 │  ├─ Name: SendableData
 │  ├─ Kind: Struct
@@ -490,7 +490,7 @@ Block (span: 68:24-70:10)
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 289:44-296:2)
 │        └─ Stmt[0]: Expr (span: 290:5-295:7)
-│           └─ Expr: expr#306: async { 4 stmt(s) }
+│           └─ Expr: expr#307: async { 4 stmt(s) }
 └─ Item[39]: Fn (span: 299:1-301:2)
    ├─ Name: transfer_task_ownership
    ├─ Params: ()
@@ -498,4 +498,4 @@ Block (span: 68:24-70:10)
    └─ Body:
       └─ Stmt[0]: Block (span: 299:47-301:2)
          └─ Stmt[0]: Return (span: 300:5-300:36)
-            └─ Expr: expr#309: spawn simple_async_fn()
+            └─ Expr: expr#310: spawn simple_async_fn()

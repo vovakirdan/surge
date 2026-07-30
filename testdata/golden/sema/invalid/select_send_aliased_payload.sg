@@ -17,8 +17,11 @@ async fn run() -> int {
     ch.send(own blocker);
     rx.send(7);
     let h: Holder = Holder { name: build("h-") };
-    // x ALIASES h's field: the container still owns the string.
-    let x: string = h.name;
+    // x TAKES h's field, so `h` is no longer whole and reading it below is a
+    // use-after-move. This fixture used to assert the opposite — that the read
+    // aliased and the container kept ownership — which is the model partial
+    // moves replace.
+    let x: string = own h.name;
     let v = select {
         ch.send(own x) => 1;
         rx.recv() => 2;

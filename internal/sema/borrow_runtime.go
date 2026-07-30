@@ -114,7 +114,7 @@ func (tc *typeChecker) resolvePlace(expr ast.ExprID) (placeDescriptor, bool) {
 		if !ok {
 			return placeDescriptor{}, false
 		}
-		desc.Segments = append(desc.Segments, PlaceSegment{Kind: PlaceSegmentIndex})
+		desc.Segments = append(desc.Segments, PlaceSegment{Kind: PlaceSegmentTupleIndex, Elem: uint32(tup.Index)})
 		return desc, true
 	case ast.ExprIndex:
 		index, ok := tc.builder.Exprs.Index(expr)

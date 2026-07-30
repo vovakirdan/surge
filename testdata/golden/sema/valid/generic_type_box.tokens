@@ -58,9 +58,10 @@
  58: Colon           ":" at 10:19-10:20
  59: Ident           "string" at 10:21-10:27 (leading: Space)
  60: Assign          "=" at 10:28-10:29 (leading: Space)
- 61: Ident           "str_box" at 10:30-10:37 (leading: Space)
- 62: Dot             "." at 10:37-10:38
- 63: Ident           "value" at 10:38-10:43
- 64: Semicolon       ";" at 10:43-10:44
- 65: RBrace          "}" at 11:1-11:2 (leading: Newline)
- 66: EOF             at 12:1-12:1
+ 61: KwOwn           "own" at 10:30-10:33 (leading: Space)
+ 62: Ident           "str_box" at 10:34-10:41 (leading: Space)
+ 63: Dot             "." at 10:41-10:42
+ 64: Ident           "value" at 10:42-10:47
+ 65: Semicolon       ";" at 10:47-10:48
+ 66: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 67: EOF             at 12:1-12:1

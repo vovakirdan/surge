@@ -10,7 +10,7 @@ type Console = {
 
 extern<Console> {
     fn print(self: Console) {
-        let label: string = self.label;
+        let label: string = own self.label;
     }
 }
 

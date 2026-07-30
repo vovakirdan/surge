@@ -602,6 +602,12 @@ func (l *funcLowerer) placeProjFromSteps(path []sema.PlaceSegment) []PlaceProj {
 		switch seg.Kind {
 		case sema.PlaceSegmentField:
 			out = append(out, PlaceProj{Kind: PlaceProjField, FieldName: l.lookupFieldName(seg.Name), FieldIdx: -1})
+		case sema.PlaceSegmentTupleIndex:
+			// A tuple element is a field named by POSITION, which is how the rest
+			// of the lowering already reaches one — `t.1` is a field access with
+			// an index and no name. Dropping this case would silently shorten the
+			// path and turn a residual step into a drop of the whole container.
+			out = append(out, PlaceProj{Kind: PlaceProjField, FieldIdx: int(seg.Elem)})
 		case sema.PlaceSegmentIndex:
 			out = append(out, PlaceProj{Kind: PlaceProjIndex})
 		case sema.PlaceSegmentDeref:

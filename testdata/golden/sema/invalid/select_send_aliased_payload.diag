@@ -1,1 +1,1 @@
-error SEM3141 testdata/golden/sema/invalid/select_send_aliased_payload.sg:23:17 select send payload is borrowed from a container and cannot be given away: this binding reads out of a field, element, or deref, so the container still owns the value — copy or move it out of the container first, then `send(own ...)` that
+error SEM3130 testdata/golden/sema/invalid/select_send_aliased_payload.sg:32:11 use of moved value `h.name`

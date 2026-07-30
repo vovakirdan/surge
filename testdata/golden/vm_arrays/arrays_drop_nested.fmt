@@ -29,7 +29,7 @@ extern<Foo> {
 
 fn print_foo_opt(v: Foo?) -> nothing {
     compare v {
-        Some(x) => write_line(x.name);
+        Some(x) => write_line(own x.name);
         _ => write_line("<nothing>");
     };
 }

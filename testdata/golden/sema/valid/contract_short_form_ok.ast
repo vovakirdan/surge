@@ -14,11 +14,11 @@ contract_short_form_ok.sg (span: 2:1-25:1)
 │  │     ├─ Return: nothing
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 12:29-14:6)
-│  │        └─ Stmt[0]: Let (span: 13:9-13:40)
+│  │        └─ Stmt[0]: Let (span: 13:9-13:44)
 │  │           ├─ Name: label
 │  │           ├─ Mutable: false
 │  │           ├─ Type: string
-│  │           └─ Value: expr#2: self.label
+│  │           └─ Value: expr#3: own self.label
 ├─ Item[3]: Fn (span: 17:1-19:2)
 │  ├─ Name: show
 │  ├─ Generics: <T>
@@ -27,7 +27,7 @@ contract_short_form_ok.sg (span: 2:1-25:1)
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 17:43-19:2)
 │        └─ Stmt[0]: Expr (span: 18:5-18:19)
-│           └─ Expr: expr#5: value.print()
+│           └─ Expr: expr#6: value.print()
 └─ Item[4]: Fn (span: 21:1-24:2)
    ├─ Name: use_console
    ├─ Params: ()
@@ -38,6 +38,6 @@ contract_short_form_ok.sg (span: 2:1-25:1)
          │  ├─ Name: c
          │  ├─ Mutable: false
          │  ├─ Type: Console
-         │  └─ Value: expr#8: <ExprKind(22)>
+         │  └─ Value: expr#9: <ExprKind(22)>
          └─ Stmt[1]: Expr (span: 23:5-23:13)
-            └─ Expr: expr#11: show(c)
+            └─ Expr: expr#12: show(c)

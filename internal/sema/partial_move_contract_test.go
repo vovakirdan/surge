@@ -258,11 +258,15 @@ fn f(t: Top) -> int {
 	}
 }
 
-// Moves out of an ARRAY or TUPLE element stay refused, and the reason is the
-// remainder: releasing what survives means listing it, and elements are chosen
-// by position rather than by name. The alternative is a runtime drop flag per
-// element, which this language does not have.
-func TestTakingAnElementIsRejected(t *testing.T) {
+// A move out of an ARRAY element stays refused, and the reason is the
+// remainder: releasing what survives means listing it, and an array's index is
+// chosen at runtime over a container whose length is not part of the question.
+// The alternative is a runtime drop flag per element, which this language does
+// not have.
+//
+// A TUPLE is deliberately NOT in this group — see the row below it. Sharing the
+// refusal with arrays was a mistake that made `let s: string = t.1;` unwritable.
+func TestTakingAnArrayElementIsRejected(t *testing.T) {
 	cases := []struct {
 		name string
 		src  string
@@ -274,16 +278,6 @@ type Inner = { tail: string }
 fn take(i: own Inner) -> int { return 1; }
 fn f(a: Inner[3]) -> int {
 	return take(own a[0]);
-}
-`,
-		},
-		{
-			name: "tuple_element",
-			src: `
-type Inner = { tail: string }
-fn take(i: own Inner) -> int { return 1; }
-fn f(p: (Inner, Inner)) -> int {
-	return take(own p.0);
 }
 `,
 		},
@@ -310,6 +304,87 @@ fn f(a: Inner[3]) -> int {
 				t.Fatalf("expected %v, got %s", diag.SemaPartialMoveNotEnumerable, diagnosticsSummary(semaBag))
 			}
 		})
+	}
+}
+
+// A TUPLE element can be taken, because a tuple's parts CAN be listed: its
+// arity is fixed and it is only ever indexed by a literal, so the survivors of
+// one element leaving are as statically known as a struct's fields. Only the
+// syntax makes it look like an array.
+//
+// This row exists because the two were once refused together, which left an
+// ordinary `let s: string = t.1;` with no spelling at all — the move was refused
+// and the plain read was refused, so a tuple holding anything move-only became
+// unreadable.
+func TestTakingATupleElementIsAccepted(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "move_only_element",
+			src: `
+type Inner = { tail: string }
+fn take(i: own Inner) -> int { return 1; }
+fn f(p: (Inner, Inner)) -> int {
+	return take(own p.0);
+}
+`,
+		},
+		{
+			// The sibling survives, which is the whole point of enumerating.
+			name: "sibling_survives",
+			src: `
+type Inner = { tail: string }
+fn take(i: own Inner) -> int { return 1; }
+fn f(p: (Inner, Inner)) -> int {
+	let a = take(own p.0);
+	return take(own p.1);
+}
+`,
+		},
+		{
+			// A field UNDER a tuple element, and an element under a field: the
+			// path mixes the two kinds freely because both are enumerable.
+			name: "mixed_path",
+			src: `
+type Inner = { tail: string }
+type Holder = { pair: (Inner, Inner) }
+fn take(s: own string) -> int { return 1; }
+fn f(h: Holder) -> int {
+	return take(own h.pair.0.tail);
+}
+`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			parseBag, semaBag := runSemaOnSnippet(t, tc.src)
+			if parseBag.HasErrors() {
+				t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+			}
+			if semaBag.HasErrors() {
+				t.Fatalf("taking a tuple element was rejected: %s", diagnosticsSummary(semaBag))
+			}
+		})
+	}
+}
+
+// The negative control beside it: what left a tuple is gone.
+func TestReadingATakenTupleElementIsRejected(t *testing.T) {
+	parseBag, semaBag := runSemaOnSnippet(t, `
+type Inner = { tail: string }
+fn take(i: own Inner) -> int { return 1; }
+fn f(p: (Inner, Inner)) -> int {
+	let a = take(own p.0);
+	return take(own p.0);
+}
+`)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	if !hasCode(semaBag, diag.SemaUseAfterMove) {
+		t.Fatalf("a tuple element was still readable after being taken: %s", diagnosticsSummary(semaBag))
 	}
 }
 

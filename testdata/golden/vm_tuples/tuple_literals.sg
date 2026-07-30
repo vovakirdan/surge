@@ -22,7 +22,7 @@ fn main() {
     print(out);
 
     let nested: ((int, int), int) = ((2, 3), 4);
-    let inner: (int, int) = nested.0;
+    let inner: (int, int) = own nested.0;
     let inner_label: string = "inner.0=";
     let inner0_str: string = inner.0 to string;
     print(inner_label + inner0_str);

@@ -211,10 +211,17 @@ func (tc *typeChecker) checkPlaceUseAfterMove(expr ast.ExprID, span source.Span)
 	if !found {
 		return
 	}
-	// A whole-binding move reported against a projection read is the ordinary
-	// use-after-move the binding-level check already words well; only route the
-	// PARTIAL cases through the place-aware diagnostic.
-	if moved.Path == "" && place.Path == "" {
+	// A WHOLE-binding move is the ordinary use-after-move however it is read, and
+	// the binding-level check already words it well: "use of moved value 'b'"
+	// names what went and where it went. The place-aware wording is for the
+	// PARTIAL case, where the value that went and the value being read are
+	// different names and a reader told only about the binding would go looking
+	// for a move that is not in the source.
+	//
+	// Keyed on the MOVE alone, not on the read too. Asking that the read also be
+	// whole sent `b[0]` after `b` had gone entirely through the place-aware
+	// wording, which explained a partial move that had not happened.
+	if moved.Path == "" {
 		tc.checkUseAfterMove(desc.Base, span)
 		return
 	}

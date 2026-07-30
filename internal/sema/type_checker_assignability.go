@@ -54,7 +54,13 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 			// which is why the backends lower `own` as identity. Keeping this
 			// Copy-only would make `own o.field`, the way a field is taken out of
 			// a live value, unusable in a return or an initializer.
-			if actInfo.Kind == types.KindOwn && expectedResolved == actInfo.Elem {
+			//
+			// Asked by ASSIGNABILITY of the marked type, not by identity of its
+			// id. Two structurally identical tuples can be interned separately,
+			// so `own (int, int)` reached a declared `(int, int)` with a different
+			// id and the marker looked like a type error. The recursion
+			// terminates: the inner type is never itself an `own`.
+			if actInfo.Kind == types.KindOwn && tc.typesAssignable(expectedResolved, actInfo.Elem, allowAlias) {
 				return true
 			}
 			if actInfo.Kind == types.KindReference {

@@ -6,7 +6,7 @@ fn get_first() -> int {
 
 fn get_second() -> string {
     let t: (int, string) = (42, "hello");
-    return t.1;
+    return own t.1;
 }
 
 fn nested_access() -> int {

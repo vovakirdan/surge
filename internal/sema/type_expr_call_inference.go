@@ -413,7 +413,10 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, 
 			// which is why the backends lower `own` as identity. Restricting this
 			// to Copy types would make `own o.field`, the way a field is taken out
 			// of a live value, unusable at every ordinary call.
-			if actInfo.Kind == types.KindOwn && expected == actInfo.Elem {
+			// Asked by assignability rather than by identity of the id, for the
+			// same reason typesAssignable does: two structurally identical
+			// tuples can be interned separately.
+			if actInfo.Kind == types.KindOwn && tc.typesAssignable(expected, actInfo.Elem, true) {
 				return 1, true
 			}
 			if actInfo.Kind == types.KindReference {

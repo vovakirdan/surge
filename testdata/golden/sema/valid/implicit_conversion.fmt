@@ -9,7 +9,7 @@ extern<MyInt> {
 
 extern<Wrapper> {
     fn __to(self: Wrapper, _: string) -> string {
-        return self.data;
+        return own self.data;
     }
 }
 

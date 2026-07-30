@@ -33,6 +33,7 @@ type Top = { mid: Mid, label: string };
 type Inner = { note: string };
 type Holder = { status: int, body: Inner };
 type Tagged = { status: int, body: Payload };
+type Paired = { pair: (Inner, Inner), label: string };
 
 fn sink_str(s: own string) -> int { return 1; }
 fn sink_inner(i: own Inner) -> int { return 1; }
@@ -150,6 +151,38 @@ fn mk_outer() -> Holder {
     return Holder { status = 1, body = Inner { note = "temporary note long enough" } };
 }
 
+// A TUPLE element taken out, with its sibling surviving. A tuple's parts CAN be
+// listed — fixed arity, literal index — so its residual is enumerable exactly as
+// a struct's is, and this row is what says the enumeration is right rather than
+// merely accepted. It was refused alongside array elements at first, which left
+// an ordinary read of a move-only tuple element with no spelling at all.
+fn tuple_element(n: int) -> int {
+    let mut i = 0;
+    let mut acc = 0;
+    while i < n {
+        let t: (string, string) = ("tuple first long enough", "tuple second long enough");
+        acc = acc + sink_str(own t.0);
+        i = i + 1;
+    }
+    return acc;
+}
+
+// A path that MIXES the two enumerable kinds, because the residual walk has to
+// descend through both: a field of a tuple element of a field.
+fn tuple_in_struct(n: int) -> int {
+    let mut i = 0;
+    let mut acc = 0;
+    while i < n {
+        let h = Paired {
+            pair = (Inner { note = "pair left long enough" }, Inner { note = "pair right long enough" }),
+            label = "paired label long enough"
+        };
+        acc = acc + sink_str(own h.pair.0.note);
+        i = i + 1;
+    }
+    return acc;
+}
+
 // A partial move on ONE branch only. The branch that did not move it owes a
 // drop of that PLACE, and folding that obligation to the whole binding frees
 // what the exit still owns.
@@ -184,6 +217,14 @@ fn main() -> int {
     if explicit_drop(16) != 48 {
         print("explicit_drop computed the wrong value");
         return 4;
+    }
+    if tuple_element(16) != 16 {
+        print("tuple_element computed the wrong value");
+        return 9;
+    }
+    if tuple_in_struct(16) != 16 {
+        print("tuple_in_struct computed the wrong value");
+        return 10;
     }
     if from_temporary(16) != 16 {
         print("from_temporary computed the wrong value");
