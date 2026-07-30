@@ -17,55 +17,91 @@ import (
 // RV2-DEBT-040's for-loop iterator envelope: synthesize the release
 // ourselves, per arm, right before that arm's `return`.
 
-// compareScrutineeReleaseSafe reports whether normalizeCompareExpr may
-// synthesize ANY release of its `__cmpN` scrutinee temp. Errs toward
-// false: a caller that can't prove ownership genuinely transferred into
-// the temp keeps the pre-existing (leaky) behavior rather than risk
-// freeing storage someone else still owns.
+// scrutineeOwnership says what `__cmpN` holds once `let __cmpN = v` has
+// run, which is the only thing that decides whether this compare may free
+// it and how.
 //
-// Ownership only transfers when sema's move tracking would mark the
-// original scrutinee binding moved (observeMove skips move-tracking, and
-// leaves the original binding valid, exactly when the value is Copy) —
-// so a Copy or borrowed/pointer scrutinee must get no release at all. The
-// fix is additionally scoped to union-typed scrutinees: that is the
-// shape RV2-DEBT-052 observed leaking (every `TaskResult` consumed from
-// `t.await()`), and it is the only shape whose arms carry the
-// tag/payload structure the shallow-vs-deep decision below depends on.
-// A tuple, string, or struct scrutinee compare is left as a separate,
+// The question is NOT what type the scrutinee has. MIR decides whether a
+// consuming read transfers or duplicates at the USE SITE (see
+// placeOperand): a non-Copy value MOVES, while a Copy value composite is
+// heap-boxed underneath and DUPLICATES into an independent clone. Both
+// leave this compare owning something it has to reclaim; only a read that
+// did neither leaves it owning nothing.
+type scrutineeOwnership int
+
+const (
+	// scrutineeBorrowed: the read only LOOKED at storage someone else
+	// owns and still holds. Freeing anything here would reclaim it out
+	// from under its real owner, who frees it again.
+	scrutineeBorrowed scrutineeOwnership = iota
+	// scrutineeMoved: the read TRANSFERRED the original's box. The
+	// payload comes with it, so an arm that binds every payload position
+	// takes the payload away and leaves only the envelope to free.
+	scrutineeMoved
+	// scrutineeDuplicated: the read produced an INDEPENDENT clone. The
+	// original is untouched and stays usable — and the clone's payload
+	// stays inside the clone, because the arm's binding duplicates it
+	// again rather than taking it out.
+	scrutineeDuplicated
+)
+
+// compareScrutineeOwnership classifies how the scrutinee reached
+// normalizeCompareExpr's `__cmpN` temp. Errs toward scrutineeBorrowed: a
+// caller that cannot prove this compare owns the value keeps the
+// pre-existing (leaky) behavior rather than risk freeing storage someone
+// else still owns.
+//
+// Scoped to union-typed scrutinees, because that is the only shape whose
+// arms carry the tag/payload structure the release decisions depend on. A
+// tuple, string, or struct scrutinee compare is left as a separate,
 // unfiled gap.
-func compareScrutineeReleaseSafe(ctx *normCtx, value *Expr, ty types.TypeID) bool {
+func compareScrutineeOwnership(ctx *normCtx, value *Expr, ty types.TypeID) scrutineeOwnership {
 	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
-		return false
-	}
-	if scrutineeReadsThroughBorrow(value) {
-		// `compare *r { ... }` where `r` borrows: the deref STRIPS the
-		// reference, so the type test below sees the pointee — a plain
-		// union — and would wrongly conclude this compare owns the box.
-		// It owns nothing; the borrow's referent belongs to someone else,
-		// who will drop it again.
-		return false
+		return scrutineeBorrowed
 	}
 	typesIn := ctx.mod.TypeInterner
 	resolved := resolveAlias(typesIn, ty, 0)
 	if tt, ok := typesIn.Lookup(resolved); ok {
 		switch tt.Kind {
 		case types.KindReference, types.KindPointer:
-			// Borrowed or raw-pointer scrutinee: this compare never took
-			// ownership of the box, so freeing it here would reclaim
-			// storage its actual owner still holds.
-			return false
+			// A reference-typed scrutinee is a POINTER value: reading it
+			// copies the pointer, never the pointee, so this compare
+			// holds nothing of its own.
+			return scrutineeBorrowed
 		}
-	}
-	if typesIn.IsCopy(resolved) {
-		// Copy scrutinee: sema's observeMove never marks the original
-		// binding moved for a Copy type, so it stays valid (and
-		// re-usable) after the compare — releasing __cmpN's box would
-		// free storage the original owner can still read.
-		return false
 	}
 	unwrapped := stripOwnType(typesIn, resolved)
 	tt, ok := typesIn.Lookup(unwrapped)
-	return ok && tt.Kind == types.KindUnion
+	if !ok || tt.Kind != types.KindUnion {
+		return scrutineeBorrowed
+	}
+
+	if typesIn.IsCopy(resolved) {
+		// Copy at the surface. If it is ALSO a value composite it is
+		// heap-boxed underneath, and consuming it duplicates the box —
+		// this compare owns that clone and nothing else refers to it.
+		// Freeing it cannot disturb the original, which is exactly why
+		// the deref below does not disqualify this case.
+		if typesIn.IsValueComposite(resolved) {
+			return scrutineeDuplicated
+		}
+		// Copy and not boxed: there is no allocation to reclaim, and
+		// sema leaves the original binding usable.
+		return scrutineeBorrowed
+	}
+
+	if scrutineeReadsThroughBorrow(value) {
+		// `compare *r { ... }` where `r` borrows a MOVE-ONLY union: the
+		// deref STRIPS the reference, so the type test above sees a plain
+		// union and would wrongly conclude this compare owns the box.
+		// Moving out of a borrow is not this pass's to do — the referent
+		// belongs to someone else, who drops it again.
+		//
+		// Only the moving case is disqualified. A duplicating read
+		// through the same deref is fine, and returned above.
+		return scrutineeBorrowed
+	}
+	return scrutineeMoved
 }
 
 // scrutineeReadsThroughBorrow reports whether the scrutinee expression only
@@ -113,7 +149,19 @@ func scrutineeReadsThroughBorrow(value *Expr) bool {
 // bound one) — safe is false in that case and the caller must skip
 // release entirely for this arm, matching the errs-toward-false
 // direction used by RV2-DEBT-040's cursor-release safety gate.
-func tagPayloadReleaseShape(ctx *normCtx, payload []*Expr) (shallow, safe bool) {
+func tagPayloadReleaseShape(ctx *normCtx, payload []*Expr, owned scrutineeOwnership) (shallow, safe bool) {
+	if owned == scrutineeDuplicated {
+		// The scrutinee is a clone, so an arm's payload binding CLONES
+		// AGAIN rather than taking the payload out (placeOperand answers
+		// CopyValue for a Copy value composite, and a payload that is a
+		// plain scalar is copied outright). Either way this clone keeps
+		// its own payload, so the only correct release is the deep one —
+		// a shallow envelope free would abandon the payload box.
+		//
+		// No arm shape escapes this: nothing was taken out, so there is
+		// nothing a deep drop could double-free.
+		return false, true
+	}
 	if len(payload) == 0 {
 		return false, true
 	}

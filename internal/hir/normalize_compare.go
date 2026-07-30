@@ -60,23 +60,22 @@ func normalizeCompareExpr(ctx *normCtx, e *Expr) error {
 		},
 	})
 
-	// Ownership only transferred into cmpRef when sema's move tracking
-	// would have moved the original scrutinee binding (RV2-DEBT-052) —
-	// see compareScrutineeReleaseSafe. A Copy, borrowed, or non-union
-	// scrutinee gets no release at all, leaving the pre-existing
-	// behavior (no release, matching what sema's obligations imply)
-	// unchanged.
-	releaseSafe := compareScrutineeReleaseSafe(ctx, data.Value, valueTy)
+	// What cmpRef HOLDS decides everything below: whether this compare
+	// may free it at all, and whether an arm's binding took the payload
+	// out of it. See compareScrutineeOwnership. A scrutinee this compare
+	// does not own gets no release, leaving the pre-existing behavior
+	// (no release, matching what sema's obligations imply) unchanged.
+	owned := compareScrutineeOwnership(ctx, data.Value, valueTy)
 
 	for _, arm := range data.Arms {
-		armStmts := lowerCompareArm(ctx, cmpRef, valueTy, arm, releaseSafe)
+		armStmts := lowerCompareArm(ctx, cmpRef, valueTy, arm, owned)
 		stmts = append(stmts, armStmts...)
 	}
 
 	if !compareExhaustive(ctx, valueTy, data.Arms) {
 		// No arm matched: the scrutinee was only ever read for tag
 		// tests, never consumed, so it still needs reclaiming here.
-		if releaseSafe {
+		if owned != scrutineeBorrowed {
 			stmts = append(stmts, deepDropStmt(cmpRef))
 		}
 		// When no arm matches, fall back to a default value of the compare expression type.
@@ -111,7 +110,7 @@ func normalizeCompareExpr(ctx *normCtx, e *Expr) error {
 	return nil
 }
 
-func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm CompareArm, releaseSafe bool) []Stmt {
+func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm CompareArm, owned scrutineeOwnership) []Stmt {
 	if ctx == nil {
 		return nil
 	}
@@ -128,7 +127,7 @@ func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm Co
 	// binding, so any heap-owning payload is only reachable through this
 	// box and needs a full drop, not a shallow envelope free.
 	var deepRelease *Stmt
-	if releaseSafe {
+	if owned != scrutineeBorrowed {
 		r := deepDropStmt(subject)
 		deepRelease = &r
 	}
@@ -146,7 +145,7 @@ func lowerCompareArm(ctx *normCtx, subject *Expr, subjectTy types.TypeID, arm Co
 	}
 
 	if tagName, payloadPats, ok := tagPattern(ctx, arm.Pattern); ok {
-		return []Stmt{lowerTagArm(ctx, span, subject, tagName, payloadPats, arm.Guard, arm.Result, releaseSafe)}
+		return []Stmt{lowerTagArm(ctx, span, subject, tagName, payloadPats, arm.Guard, arm.Result, owned)}
 	}
 
 	if tupleElems, ok := tuplePattern(arm.Pattern); ok {
@@ -492,7 +491,7 @@ func mkMatchIf(span source.Span, cond *Expr, bindings []Stmt, guard, result *Exp
 	return mkIf(span, cond, thenB)
 }
 
-func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payload []*Expr, guard, result *Expr, releaseSafe bool) Stmt {
+func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payload []*Expr, guard, result *Expr, owned scrutineeOwnership) Stmt {
 	cond := &Expr{
 		Kind: ExprTagTest,
 		Type: ctx.boolType(),
@@ -515,9 +514,9 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 			Kind: ExprTagPayload,
 			Type: payloadType,
 			Span: span,
-			Data: TagPayloadData{Value: subject, TagName: tag, Index: i, SubjectBorrowed: !releaseSafe},
+			Data: TagPayloadData{Value: subject, TagName: tag, Index: i, SubjectBorrowed: owned != scrutineeMoved},
 		}
-		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current, &ownedBindings, !releaseSafe)
+		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current, &ownedBindings, owned != scrutineeMoved)
 		if current == nil {
 			current = &Block{Span: span}
 		}
@@ -528,8 +527,8 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 	// frees) and BEFORE the return (so it fires on every path that
 	// actually leaves this arm).
 	var release *Stmt
-	if releaseSafe {
-		if shallow, safe := tagPayloadReleaseShape(ctx, payload); safe {
+	if owned != scrutineeBorrowed {
+		if shallow, safe := tagPayloadReleaseShape(ctx, payload, owned); safe {
 			var r Stmt
 			if shallow {
 				r = envelopeReleaseStmt(subject)

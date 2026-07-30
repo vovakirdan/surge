@@ -88,6 +88,11 @@ tag Payload(string);
 tag Empty();
 type Outcome = Payload(string) | Empty;
 
+@copy type Cell = { a: int, b: int };
+tag Held(Cell);
+tag Absent();
+@copy type Holder = Held(Cell) | Absent;
+
 tag Reading(float);
 tag NoReading();
 type Measure = Reading(float) | NoReading;
@@ -320,6 +325,56 @@ fn nested_n_times(n: int) -> int {
     return total;
 }
 
+// A COPY VALUE COMPOSITE scrutinee, read through a borrow. This is the
+// shape whose clone nobody freed: comparing *h DUPLICATES the union into
+// the compare's temp rather than moving it, so the temp holds an
+// independent box that is the compare's to reclaim while the original
+// stays untouched -- which is why releasing it is safe here and would
+// not be for a move-only union behind the same deref.
+//
+// Both arm shapes are probed because they reclaim for OPPOSITE reasons
+// and a fix that handles one can miss the other: the wildcard arm never
+// took anything out of the clone, and the binding arm's c is itself a
+// CLONE of the payload, so the envelope keeps its own payload and needs
+// the same deep release rather than a shallow envelope free.
+//
+// The scrutinee is built ONCE, outside the loop, so the differential over
+// n measures only the per-evaluation clone.
+fn composite_bound_once(h: &Holder) -> int {
+    return compare *h {
+        Held(c) => c.a;
+        _ => 0 - 1;
+    };
+}
+
+fn composite_bound_n_times(n: int) -> int {
+    let h: Holder = Held(Cell { a = 1, b = 2 });
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        total = total + composite_bound_once(&h);
+        i = i + 1;
+    }
+    return total;
+}
+
+fn composite_wildcard_once(h: &Holder) -> int {
+    return compare *h {
+        _ => 1;
+    };
+}
+
+fn composite_wildcard_n_times(n: int) -> int {
+    let h: Holder = Held(Cell { a = 1, b = 2 });
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        total = total + composite_wildcard_once(&h);
+        i = i + 1;
+    }
+    return total;
+}
+
 fn diff_check(label: string, before1: &HeapStats, after1: &HeapStats, before2: &HeapStats, after2: &HeapStats) -> int {
     let allocs1: uint = after1.alloc_count - before1.alloc_count;
     let frees1: uint = after1.free_count - before1.free_count;
@@ -473,6 +528,36 @@ fn main() -> int {
     }
     let r9: int = diff_check("owned-float", &of1_before, &of1_after, &of2000_before, &of2000_after);
     if r9 != 0 { return 80 + r9; }
+
+    let cb1_before: HeapStats = rt_heap_stats();
+    let cb1: int = composite_bound_n_times(1);
+    let cb1_after: HeapStats = rt_heap_stats();
+    let cb2000_before: HeapStats = rt_heap_stats();
+    let cb2000: int = composite_bound_n_times(2000);
+    let cb2000_after: HeapStats = rt_heap_stats();
+    if cb1 != 1 || cb2000 != 2000 {
+        print("composite-bound value mismatch");
+        print(cb1 to string);
+        print(cb2000 to string);
+        return 9;
+    }
+    let r10: int = diff_check("composite-bound", &cb1_before, &cb1_after, &cb2000_before, &cb2000_after);
+    if r10 != 0 { return 90 + r10; }
+
+    let cw1_before: HeapStats = rt_heap_stats();
+    let cw1: int = composite_wildcard_n_times(1);
+    let cw1_after: HeapStats = rt_heap_stats();
+    let cw2000_before: HeapStats = rt_heap_stats();
+    let cw2000: int = composite_wildcard_n_times(2000);
+    let cw2000_after: HeapStats = rt_heap_stats();
+    if cw1 != 1 || cw2000 != 2000 {
+        print("composite-wildcard value mismatch");
+        print(cw1 to string);
+        print(cw2000 to string);
+        return 11;
+    }
+    let r11: int = diff_check("composite-wildcard", &cw1_before, &cw1_after, &cw2000_before, &cw2000_after);
+    if r11 != 0 { return 110 + r11; }
 
     print("compare-scrutinee-release-ok");
     return 0;
