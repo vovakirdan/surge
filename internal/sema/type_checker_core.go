@@ -127,12 +127,13 @@ type typeChecker struct {
 	// container; at present only whole-binding places (empty path) are
 	// reachable, because the partial-move gate rejects the rest.
 	movedPlaces            map[Place]source.Span
-	dropScopes             []dropScope                   // lexical scopes' droppable bindings (drop obligations)
-	loopDropMarks          []int                         // dropScopes depth at each enclosing loop body
-	tempFrames             []tempFrame                   // per-statement owned-rvalue candidates (temp drops)
-	aliasedBindings        map[symbols.SymbolID]struct{} // bindings holding container-owned handles (never drop)
-	blockingDepth          int                           // nesting depth of `blocking { }` bodies (suspension illegal inside)
-	onCrossingStack        []onAnchorFrame               // active `on dst { ... }` crossing frames
+	dropScopes             []dropScope                     // lexical scopes' droppable bindings (drop obligations)
+	loopDropMarks          []int                           // dropScopes depth at each enclosing loop body
+	tempFrames             []tempFrame                     // per-statement owned-rvalue candidates (temp drops)
+	tempTaken              map[ast.ExprID][][]PlaceSegment // paths moved OUT of a statement-end temporary, so its release can be narrowed to the remainder
+	aliasedBindings        map[symbols.SymbolID]struct{}   // bindings holding container-owned handles (never drop)
+	blockingDepth          int                             // nesting depth of `blocking { }` bodies (suspension illegal inside)
+	onCrossingStack        []onAnchorFrame                 // active `on dst { ... }` crossing frames
 	directFunctionCrossing map[symbols.SymbolID]struct{}
 	functionCrossingEdges  map[symbols.SymbolID]map[symbols.SymbolID]struct{}
 }

@@ -606,6 +606,11 @@ type FieldAccess struct {
 	Object    Operand
 	FieldName string
 	FieldIdx  int
+	// MoveOut takes the field's value out of the container instead of
+	// producing a second holder of it. A plain read counts the new holder;
+	// this one must not, because the container's drop has been narrowed to
+	// the places that stayed and will never release what left.
+	MoveOut bool
 }
 
 // IndexAccess represents an index access.

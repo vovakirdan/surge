@@ -44,11 +44,17 @@ func (l *funcLowerer) lowerFieldAccessExpr(e *hir.Expr, consume bool) (Operand, 
 					Object:    obj,
 					FieldName: data.FieldName,
 					FieldIdx:  data.FieldIdx,
+					MoveOut:   data.MoveOut,
 				},
 			},
 		},
 	})
-	l.retainExtractedValue(tmp, e.Type)
+	if !data.MoveOut {
+		// An ordinary read leaves the container owning the field, so the count
+		// records the second holder. A move-out has no second holder: the
+		// container gave the place away, and its drop now skips it.
+		l.retainExtractedValue(tmp, e.Type)
+	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 

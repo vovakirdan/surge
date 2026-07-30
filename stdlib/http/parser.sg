@@ -227,7 +227,7 @@ pub fn parse_request(raw: &string) -> Erring<Request, HttpError> {
         path: clone(parsed_head.path),
         query: clone(parsed_head.query),
         version: clone(parsed_head.version),
-        headers: copy_headers(parsed_head.headers),
+        headers: own parsed_head.headers,
         body: body
     });
 }
@@ -389,7 +389,7 @@ fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
         path: clone(parsed_head.path),
         query: clone(parsed_head.query),
         version: clone(parsed_head.version),
-        headers: copy_headers(parsed_head.headers),
+        headers: own parsed_head.headers,
         body: body
     };
     let parsed: ParsedRequest = { req: req, consumed: total_len to uint, close: parsed_head.meta.close };

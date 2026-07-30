@@ -80,10 +80,10 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	}
 
 	// A projection whose base is a TEMPORARY never reaches `resolvePlace` — a
-	// call is not a place — so the partial-move gate below cannot see it. It is
-	// the same partial move and, today, the worst-behaved one: see
-	// rejectTemporaryProjectionMove.
-	if tc.rejectTemporaryProjectionMove(expr, exprType, span) {
+	// call is not a place — so the gate below cannot see it. It is the same
+	// partial move against a value identified differently: see
+	// handleTemporaryProjectionMove.
+	if tc.handleTemporaryProjectionMove(expr, exprType, span) {
 		return
 	}
 
@@ -103,25 +103,32 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 		tc.reportCompareGuardMove(base, span)
 		return
 	}
-	// Taking a PROJECTION out of a live binding is a partial move, and sema
-	// tracks moves per binding rather than per place. It can therefore neither
-	// invalidate just the place that left nor drop only the places that stayed,
-	// so the extraction silently ALIASES the container instead of taking from
-	// it: mutating the extracted value is visible through the original.
+	// Taking a PROJECTION out of a live binding is a partial move: the place that
+	// left is gone, the places beside it stay, and the binding now drops only
+	// what it still holds.
+	//
+	// Two shapes are refused rather than tracked. A plain read is refused because
+	// the marker is the only thing at the use site that says the value was
+	// emptied. A path through an element is refused because the remainder cannot
+	// be named — see rejectUnnameableResidual.
 	//
 	// The segments are read BEFORE expandPlaceDescriptor on purpose. Expansion
 	// rewrites a place through the borrow its base came from, which manufactures
 	// segments the source never wrote; the question here is what the PROGRAM
 	// said, not where the value ultimately lives.
-	//
-	// Scaffolding, and removed once the moved-set is place-keyed and drop
-	// obligations carry paths. It exists so those two can land in separate
-	// steps: a place-aware moved-set with binding-granular drops would release a
-	// field that had already moved, and this keeps that window unreachable from
-	// user code. Nothing in the corpus writes this shape today.
 	if !direct && base.IsValid() {
-		tc.reportPartialMove(desc, expr, span)
-		return
+		// Enumerability is asked FIRST, and the order is the diagnostic. Telling
+		// someone to write `own a[0]` when `own a[0]` is refused too would send
+		// them to a second error for a different reason; the shape they cannot
+		// write at all is the thing to say.
+		if tc.rejectUnnameableResidual(desc, expr, span) {
+			return
+		}
+		if !tc.writtenAsOwn(expr) {
+			tc.reportPartialMoveNeedsOwn(desc, expr, span)
+			return
+		}
+		tc.recordPartialMoveRead(expr)
 	}
 	desc, _ = tc.expandPlaceDescriptor(desc)
 	place := tc.canonicalPlace(desc)
@@ -148,9 +155,162 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 		tc.reportBorrowMove(place, span, issue)
 		return
 	}
-	if direct && base.IsValid() {
+	switch {
+	case direct && base.IsValid():
 		tc.markBindingMoved(base, evSpan)
+	case base.IsValid():
+		// A partial move records the PLACE, so the sibling beside it stays
+		// readable and the binding's own drop can be narrowed to the remainder.
+		// The expanded place is the one to record: a read asks about the same
+		// expansion, so recording the unexpanded one would store a key no query
+		// ever looks up.
+		tc.markPlaceMoved(place, evSpan)
 	}
+}
+
+// writtenAsOwn reports whether the source spelled `own` on this expression.
+//
+// It has to be read off the SYNTAX: resolvePlace looks through `own`, because
+// the place is the same either way, so by the time there is a place the marker
+// is gone. Groups are transparent — `own (o.inner)` and `(own o.inner)` both
+// say it.
+func (tc *typeChecker) writtenAsOwn(expr ast.ExprID) bool {
+	if tc.builder == nil {
+		return false
+	}
+	cur := expr
+	// Bounded rather than `for {}`: a malformed tree must not hang the checker.
+	for range 64 {
+		node := tc.builder.Exprs.Get(cur)
+		if node == nil {
+			return false
+		}
+		switch node.Kind {
+		case ast.ExprUnary:
+			unary, ok := tc.builder.Exprs.Unary(cur)
+			if !ok || unary == nil {
+				return false
+			}
+			return unary.Op == ast.ExprUnaryOwn
+		case ast.ExprGroup:
+			group, ok := tc.builder.Exprs.Group(cur)
+			if !ok || group == nil {
+				return false
+			}
+			cur = group.Inner
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+// recordPartialMoveRead flags the field read that performs a partial move, so
+// the lowering can take the value instead of duplicating it.
+//
+// The `own` marker and any parentheses are stripped first: they carry the
+// intent, but the expression the lowering will turn into a field read is the
+// projection underneath, and that is the one the flag has to name.
+func (tc *typeChecker) recordPartialMoveRead(expr ast.ExprID) {
+	projection := tc.unwrapOwnMarker(expr)
+	if !projection.IsValid() || tc.result == nil {
+		return
+	}
+	if tc.result.PartialMoveReads == nil {
+		tc.result.PartialMoveReads = make(map[ast.ExprID]struct{})
+	}
+	tc.result.PartialMoveReads[projection] = struct{}{}
+}
+
+// unwrapOwnMarker strips `own` and grouping parentheses to reach the projection
+// the marker was written on.
+func (tc *typeChecker) unwrapOwnMarker(expr ast.ExprID) ast.ExprID {
+	if tc.builder == nil {
+		return expr
+	}
+	cur := expr
+	// Bounded rather than `for {}`: a malformed tree must not hang the checker.
+	for range 64 {
+		node := tc.builder.Exprs.Get(cur)
+		if node == nil {
+			return cur
+		}
+		switch node.Kind {
+		case ast.ExprGroup:
+			group, ok := tc.builder.Exprs.Group(cur)
+			if !ok || group == nil || !group.Inner.IsValid() {
+				return cur
+			}
+			cur = group.Inner
+		case ast.ExprUnary:
+			unary, ok := tc.builder.Exprs.Unary(cur)
+			if !ok || unary == nil || unary.Op != ast.ExprUnaryOwn || !unary.Operand.IsValid() {
+				return cur
+			}
+			cur = unary.Operand
+		default:
+			return cur
+		}
+	}
+	return cur
+}
+
+// partialMoveRead reports whether this expression TAKES a place out of a live
+// value, rather than reading one the container keeps owning.
+//
+// It is the question that decides who drops the result. A plain field read
+// yields interior state its container still owns, so the binding receiving it
+// must never drop — that is what markAliasedBinding records. A partial move is
+// the opposite: the place has LEFT the container, the container's own drop is
+// narrowed to the remainder, and the binding is a real owner whose drop nobody
+// else will perform.
+//
+// Kept in step with observeMove's own refusals on purpose — same `own` marker,
+// same Copy question, same field-only paths — because a read those two disagree
+// about is either dropped twice or not at all.
+func (tc *typeChecker) partialMoveRead(expr ast.ExprID) bool {
+	if !expr.IsValid() || tc.result == nil || !tc.writtenAsOwn(expr) {
+		return false
+	}
+	if tc.isCopyType(tc.result.ExprTypes[expr]) {
+		return false
+	}
+	desc, ok := tc.resolvePlace(expr)
+	if !ok || !desc.Base.IsValid() || len(desc.Segments) == 0 {
+		return false
+	}
+	for _, seg := range desc.Segments {
+		if seg.Kind != PlaceSegmentField {
+			return false
+		}
+	}
+	return true
+}
+
+// rejectUnnameableResidual refuses a partial move whose remainder cannot be
+// listed, and reports whether it refused.
+//
+// After `own o.inner` the binding still holds its other fields, and releasing
+// them at scope exit means naming them one at a time. A struct's fields come
+// from its type, so that list exists. An array or tuple ELEMENT is chosen by
+// position: naming the survivors of `[T; N]` costs N-1 drops at every exit, and
+// for a computed index there is no static list at all. A tag payload needs the
+// runtime tag to know which variant is even there.
+//
+// The alternative both shapes really want is a runtime drop flag per element,
+// which is how Rust answers this and which this language has decided against.
+// So they stay on the whole-binding drop, and the refusal says so at the point
+// the move is written rather than leaving residualDropPlan to silently decline
+// and emit a drop of the whole container over a field that has left.
+func (tc *typeChecker) rejectUnnameableResidual(desc placeDescriptor, expr ast.ExprID, span source.Span) bool {
+	for _, seg := range desc.Segments {
+		if seg.Kind == PlaceSegmentField {
+			continue
+		}
+		tc.reportUnnameableResidual(desc, seg.Kind, expr, span)
+		return true
+	}
+	return false
 }
 
 func (tc *typeChecker) isSharedRefDeref(expr ast.ExprID) bool {
@@ -299,7 +459,7 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 		// Ownership of the NEW value: a projection read stays with its
 		// container (the binding becomes an alias); anything else makes
 		// the binding a fresh owner again.
-		if tc.isProjectionRead(right) {
+		if tc.isProjectionRead(right) && !tc.partialMoveRead(right) {
 			tc.markAliasedBinding(desc.Base)
 		} else {
 			tc.clearAliasedBinding(desc.Base)
@@ -377,7 +537,7 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 	exprType := tc.typeExpr(expr)
 	symID := tc.symbolForExpr(expr)
 	if !symID.IsValid() {
-		if tc.rejectProjectionDrop(expr, span) {
+		if tc.handleProjectionDrop(expr, span) {
 			return
 		}
 		tc.report(diag.SemaBorrowNonAddressable, span, "drop target must be a binding")
@@ -431,125 +591,161 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 	})
 }
 
-// rejectProjectionDrop refuses `@drop o.inner` and says why, instead of letting
-// it fall into "drop target must be a binding" — the target IS addressable, and
-// a reader told otherwise has no way to find the real reason.
+// handleProjectionDrop performs `@drop o.inner` — releasing one place and
+// leaving the rest of the binding readable. Reports whether the target was a
+// projection, so the caller can fall through to its own error for a target that
+// is no place at all.
 //
-// Epic 24's settled decisions make this legal, and sema is ready for it: the
-// moved-set can name a field, so releasing one and leaving the siblings
-// readable is expressible. NEITHER BACKEND CAN PERFORM IT. A projected
-// `InstrDrop` is a silent no-op on the native backend, and the VM's
-// `execInstrDrop` ignores the projection and drops the WHOLE local — measured,
-// `@drop o.inner; return o.label;` panics with a use-after-free on the next
-// line. So accepting it here would ship a statement that does nothing on one
-// backend and corrupts on the other.
+// An explicit drop of a place IS a move: the value goes somewhere it can never
+// come back from. So it records exactly what a move records, and everything
+// downstream follows from that — reading `o.inner` afterwards is a
+// use-after-move, reading `o` whole is too, the sibling is untouched, and the
+// binding's own scope-exit drop reclaims the remainder rather than the whole.
 //
-// Lifted by step 7, which teaches both backends a projected drop, together with
-// step 6, which stops the binding's own scope-exit drop from releasing a field
-// that has already gone.
-func (tc *typeChecker) rejectProjectionDrop(expr ast.ExprID, span source.Span) bool {
+// No `own` marker is wanted here, unlike a move into a binding: `@drop` already
+// says the value is being disposed of, and the read cannot be mistaken for a
+// borrow or a copy.
+func (tc *typeChecker) handleProjectionDrop(expr ast.ExprID, span source.Span) bool {
 	desc, ok := tc.resolvePlace(expr)
 	if !ok || !desc.Base.IsValid() || len(desc.Segments) == 0 {
 		return false
 	}
-	strs := tc.builder.StringsInterner
-	if strs == nil && tc.symbols != nil && tc.symbols.Table != nil {
-		strs = tc.symbols.Table.Strings
+	if tc.rejectUnnameableResidual(desc, expr, span) {
+		return true
 	}
-	label := formatPlaceSegments(tc.bindingName(desc.Base), desc.Segments, strs)
-	tc.report(diag.SemaPartialMoveUnsupported, span,
-		"cannot drop `%s` on its own yet: releasing one field and keeping the rest needs a drop neither backend can perform, so it would do nothing here and free the whole value elsewhere; drop `%s` instead",
-		label, tc.bindingName(desc.Base))
+	// Reading it is checked before it is emptied: `@drop o.inner` twice is a
+	// use-after-move on the second, and so is dropping a field of a value that
+	// has already gone whole.
+	tc.checkPlaceUseAfterMove(expr, span)
+	expanded, _ := tc.expandPlaceDescriptor(desc)
+	place := tc.canonicalPlace(expanded)
+	if !place.IsValid() {
+		return true
+	}
+	tc.recordBorrowEvent(&BorrowEvent{
+		Kind:  BorrowEvDrop,
+		Place: place,
+		Span:  span,
+		Scope: tc.currentScope(),
+		Note:  "drop",
+	})
+	tc.markPlaceMoved(place, span)
 	return true
 }
 
-// rejectTemporaryProjectionMove refuses taking a field out of a value that
-// nothing holds — `let e = mk().inner`.
+// handleTemporaryProjectionMove takes a field out of a value nothing holds —
+// `let e = mk().inner`. Reports whether it handled the expression.
 //
-// The ownership argument for allowing it is good: the base is a temporary the
-// lowering itself materialized, nobody else can be using it, so handing one of
-// its fields onward should be the easy case. It is not what happens. The
-// temporary is dropped WHOLE at the end of the statement, which frees the field
-// the binding just took, and the binding then drops it again:
+// The base is a temporary the lowering itself materialized, so nobody else can
+// be using it and handing one of its fields onward ought to be the easy case.
+// It was the worst one: the temporary was released WHOLE at the end of the
+// statement, which freed the field the binding had just taken, and the binding
+// then freed it again — a segfault on the native backend, invalid reads and
+// invalid frees under valgrind (RV2-DEBT-084).
 //
-//	L2 = move L1              // the temporary
-//	L3 = field copy L2.inner  // the field is taken
-//	L0 = move L3              // ...and bound
-//	drop L2                   // the temporary goes, taking the field's storage
-//	drop L0                   // the binding frees it a second time
+// The fix is the residual drop applied to a value identified by an EXPRESSION
+// instead of by a symbol. What makes that answerable is that a temporary cannot
+// outlive its statement and cannot be named again, so the paths taken out of it
+// inside this statement are all the paths there will ever be — the plan is
+// complete at the point the statement's temp frame closes.
 //
-// Measured as a segfault on the native backend, invalid reads and invalid frees
-// under valgrind (RV2-DEBT-084). So "stays accepted" meant "accepts a
-// use-after-free", and refusing is strictly better until the drop of that
-// temporary can leave the taken field alone.
-//
-// That is step 6's mechanism — an obligation that drops the RESIDUAL of a value
-// rather than all of it — applied to a temporary instead of a named binding. So
-// this refusal lifts with steps 6 and 7, alongside the rest of the gate, rather
-// than needing a fix of its own.
-//
-// Reports whether it refused, so the caller can stop.
-func (tc *typeChecker) rejectTemporaryProjectionMove(expr ast.ExprID, exprType types.TypeID, span source.Span) bool {
+// No `own` marker is required, unlike a move out of a live binding. The marker
+// is there so a reader can see that the container was emptied and that reading
+// it afterwards will fail; here there is no container left to read and no later
+// line that could be surprised.
+func (tc *typeChecker) handleTemporaryProjectionMove(expr ast.ExprID, exprType types.TypeID, span source.Span) bool {
 	// An unresolved type means the expression is already broken; adding a
 	// second opinion about it only buries the real diagnostic.
 	if exprType == types.NoTypeID || tc.builder == nil {
 		return false
 	}
-	if !tc.projectionOverTemporary(expr) {
+	base, path, ok := tc.temporaryProjectionBase(expr)
+	if !ok {
 		return false
 	}
-	tc.report(diag.SemaPartialMoveUnsupported, span,
-		"cannot take a field out of a temporary value yet: the temporary is released at the end of this statement and would take the field with it; bind the whole value first (`let tmp = ...;`) and read the field from it")
+	// Only a PENDING temp candidate is ours to narrow. An evaluation something
+	// else already consumed has an owner who will release it whole, and taking
+	// a field out from under that owner is the double free this refusal exists
+	// to prevent.
+	if !tc.pendingTempCandidate(base) {
+		tc.report(diag.SemaPartialMoveFromTemporary, span,
+			"cannot take a field out of this value: it is released as a whole by whoever owns it, and would take the field with it; bind the value first (`let tmp = ...;`) and take the field from that")
+		return true
+	}
+	for _, seg := range path {
+		if seg.Kind == PlaceSegmentField {
+			continue
+		}
+		// Same rule as a named binding, and for the same reason: what survives
+		// has to be listable, and an element is chosen by position.
+		tc.reportUnnameableResidual(placeDescriptor{}, seg.Kind, expr, span)
+		return true
+	}
+	tc.recordTemporaryTaken(base, path)
+	tc.recordPartialMoveRead(expr)
 	return true
 }
 
-// projectionOverTemporary reports whether expr projects out of something that is
-// not a named binding — a call result, a literal — walking the base chain the
-// same way resolvePlace does, and parting company with it exactly where
-// resolvePlace gives up.
-func (tc *typeChecker) projectionOverTemporary(expr ast.ExprID) bool {
+// temporaryProjectionBase walks the projection chain to the evaluation it reads
+// out of, returning that expression and the path taken. It parts company with
+// resolvePlace exactly where resolvePlace gives up: at a base that is not a
+// named binding.
+func (tc *typeChecker) temporaryProjectionBase(expr ast.ExprID) (ast.ExprID, []PlaceSegment, bool) {
 	cur := expr
-	projections := 0
+	var reversed []PlaceSegment
 	// Bounded rather than `for {}`: a malformed tree must not hang the checker.
 	for range 64 {
 		node := tc.builder.Exprs.Get(cur)
 		if node == nil {
-			return false
+			return ast.NoExprID, nil, false
 		}
 		switch node.Kind {
 		case ast.ExprMember:
 			data, ok := tc.builder.Exprs.Member(cur)
 			if !ok || data == nil {
-				return false
+				return ast.NoExprID, nil, false
 			}
+			reversed = append(reversed, PlaceSegment{Kind: PlaceSegmentField, Name: data.Field})
 			cur = data.Target
-			projections++
 		case ast.ExprIndex:
 			data, ok := tc.builder.Exprs.Index(cur)
 			if !ok || data == nil {
-				return false
+				return ast.NoExprID, nil, false
 			}
+			reversed = append(reversed, PlaceSegment{Kind: PlaceSegmentIndex})
 			cur = data.Target
-			projections++
 		case ast.ExprTupleIndex:
 			data, ok := tc.builder.Exprs.TupleIndex(cur)
 			if !ok || data == nil {
-				return false
+				return ast.NoExprID, nil, false
 			}
+			reversed = append(reversed, PlaceSegment{Kind: PlaceSegmentIndex})
 			cur = data.Target
-			projections++
 		case ast.ExprGroup:
 			data, ok := tc.builder.Exprs.Group(cur)
 			if !ok || data == nil {
-				return false
+				return ast.NoExprID, nil, false
 			}
 			cur = data.Inner
+		case ast.ExprUnary:
+			data, ok := tc.builder.Exprs.Unary(cur)
+			if !ok || data == nil || data.Op != ast.ExprUnaryOwn {
+				return ast.NoExprID, nil, false
+			}
+			cur = data.Operand
 		case ast.ExprIdent:
 			// A named base is the gate's own case, handled with a place.
-			return false
+			return ast.NoExprID, nil, false
 		default:
-			return projections > 0
+			if len(reversed) == 0 {
+				return ast.NoExprID, nil, false
+			}
+			path := make([]PlaceSegment, len(reversed))
+			for i, seg := range reversed {
+				path[len(reversed)-1-i] = seg
+			}
+			return cur, path, true
 		}
 	}
-	return false
+	return ast.NoExprID, nil, false
 }

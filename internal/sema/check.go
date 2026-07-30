@@ -72,9 +72,18 @@ type Result struct {
 	ScopeEndDrops    map[ast.StmtID][]symbols.SymbolID
 	EarlyExitDrops   map[ast.StmtID][]symbols.SymbolID
 	ReassignOldDrops map[ast.ExprID]symbols.SymbolID
-	// TempDrops flags evaluations producing an owned value that nothing
-	// consumes; they free at their evaluation region's end.
-	TempDrops map[ast.ExprID]struct{}
+	// TempDrops holds the evaluations producing an owned value that nothing
+	// consumes; they free at their evaluation region's end. The value is the
+	// plan for what is LEFT of one after fields were taken out of it — nil for
+	// the ordinary case where the whole value is released.
+	TempDrops map[ast.ExprID][]DropStep
+	// PartialMoveReads flags the field reads that TAKE their place out of the
+	// container rather than duplicating it. The two are the same shape in MIR
+	// and mean opposite things about who owns the result, so the mode has to be
+	// carried rather than inferred: an ordinary read bumps the value's count for
+	// the second holder, and a read that took the value must not, because the
+	// container's own drop no longer releases what left it.
+	PartialMoveReads map[ast.ExprID]struct{}
 	// BlockExprEndDrops: block-expression locals live at the block's
 	// normal end (keyed by the block expression).
 	BlockExprEndDrops map[ast.ExprID][]symbols.SymbolID

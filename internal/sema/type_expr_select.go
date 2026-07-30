@@ -147,7 +147,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 			if armClosed[i] {
 				continue
 			}
-			drops := tc.oneSidedDroppables(movedArms[i], mergedMoves)
+			drops, plans := tc.oneSidedObligations(movedArms[i], mergedMoves)
 			if len(drops) == 0 {
 				continue
 			}
@@ -155,6 +155,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 				tc.result.ArmDropsExpr = make(map[ast.ExprID][]symbols.SymbolID)
 			}
 			tc.result.ArmDropsExpr[data.Arms[i].Result] = drops
+			tc.recordOneSidedDrops(DropSite{Expr: data.Arms[i].Result}, plans)
 		}
 		tc.movedPlaces = mergedMoves
 	} else {

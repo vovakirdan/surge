@@ -423,10 +423,17 @@ func formatRValue(typesIn *types.Interner, rv *RValue) string {
 		out += ")"
 		return out
 	case RValueField:
-		if rv.Field.FieldName != "" {
-			return fmt.Sprintf("field %s.%s", formatOperand(&rv.Field.Object), rv.Field.FieldName)
+		// A move-out and an ordinary read differ only in who owns the result,
+		// so a dump that showed them alike would make the one bug this
+		// distinction exists to prevent invisible.
+		verb := "field"
+		if rv.Field.MoveOut {
+			verb = "field_move"
 		}
-		return fmt.Sprintf("field %s.%d", formatOperand(&rv.Field.Object), rv.Field.FieldIdx)
+		if rv.Field.FieldName != "" {
+			return fmt.Sprintf("%s %s.%s", verb, formatOperand(&rv.Field.Object), rv.Field.FieldName)
+		}
+		return fmt.Sprintf("%s %s.%d", verb, formatOperand(&rv.Field.Object), rv.Field.FieldIdx)
 	case RValueIndex:
 		return fmt.Sprintf("index %s[%s]", formatOperand(&rv.Index.Object), formatOperand(&rv.Index.Index))
 	case RValueTagTest:

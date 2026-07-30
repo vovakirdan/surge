@@ -53,7 +53,11 @@ func (l *lowerer) wrapArmDrops(exprID ast.ExprID, result *Expr) *Expr {
 	}
 	block := &Block{Span: result.Span}
 	for _, symID := range syms {
-		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, result.Span))
+		// The plan matters here as much as at a scope end: what this arm owes
+		// may be one PLACE the sibling arm gave away, not the whole binding,
+		// and dropping the binding whole would free what the exit still owns.
+		block.Stmts = append(block.Stmts, l.synthDropStmtWithPlan(
+			symID, result.Span, l.residualSteps(sema.DropSite{Expr: exprID, Symbol: symID})))
 	}
 	block.Stmts = append(block.Stmts, Stmt{
 		Kind: StmtRet,
@@ -74,7 +78,8 @@ func (l *lowerer) wrapOwnedTemp(exprID ast.ExprID, result *Expr) *Expr {
 	if result == nil || l.semaRes == nil || l.semaRes.TempDrops == nil {
 		return result
 	}
-	if _, ok := l.semaRes.TempDrops[exprID]; !ok {
+	steps, ok := l.semaRes.TempDrops[exprID]
+	if !ok {
 		return result
 	}
 
@@ -82,7 +87,7 @@ func (l *lowerer) wrapOwnedTemp(exprID ast.ExprID, result *Expr) *Expr {
 		Kind: ExprOwnedTemp,
 		Type: result.Type,
 		Span: result.Span,
-		Data: OwnedTempData{Inner: result},
+		Data: OwnedTempData{Inner: result, Steps: steps},
 	}
 }
 
@@ -443,8 +448,20 @@ func (l *lowerer) lowerMemberExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 			Object:    l.lowerExpr(memberData.Target),
 			FieldName: l.lookupString(memberData.Field),
 			FieldIdx:  -1,
+			MoveOut:   l.isPartialMoveRead(exprID),
 		},
 	}
+}
+
+// isPartialMoveRead reports whether sema decided this read TAKES the field out
+// of its container. See Result.PartialMoveReads for why it cannot be inferred
+// from the shape here.
+func (l *lowerer) isPartialMoveRead(exprID ast.ExprID) bool {
+	if l.semaRes == nil || l.semaRes.PartialMoveReads == nil || !exprID.IsValid() {
+		return false
+	}
+	_, ok := l.semaRes.PartialMoveReads[exprID]
+	return ok
 }
 
 func (l *lowerer) enumVariantLiteral(member *ast.ExprMemberData, ty types.TypeID, span source.Span) *Expr {

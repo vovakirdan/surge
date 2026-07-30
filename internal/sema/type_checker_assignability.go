@@ -42,10 +42,19 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 		expInfo, okExp := tc.types.Lookup(expectedResolved)
 		actInfo, okAct := tc.types.Lookup(actualResolved)
 		if okExp && okAct {
+			// A plain value satisfies a demand for ownership only when the
+			// marker changes nothing, which is to say for a Copy type. For
+			// anything else the giving-away has to be written.
 			if expInfo.Kind == types.KindOwn && actualResolved == expInfo.Elem && tc.isCopyType(expInfo.Elem) {
 				return true
 			}
-			if actInfo.Kind == types.KindOwn && expectedResolved == actInfo.Elem && tc.isCopyType(expectedResolved) {
+			// The other direction always holds. `own x` says the value is being
+			// given away and the destination is taking ownership of what it is
+			// handed, so the marker describes what the assignment already does —
+			// which is why the backends lower `own` as identity. Keeping this
+			// Copy-only would make `own o.field`, the way a field is taken out of
+			// a live value, unusable in a return or an initializer.
+			if actInfo.Kind == types.KindOwn && expectedResolved == actInfo.Elem {
 				return true
 			}
 			if actInfo.Kind == types.KindReference {

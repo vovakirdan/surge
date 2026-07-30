@@ -744,6 +744,76 @@ not become per-field until a backend can act on one.
      `TestCrossingCaptureFieldWriteIsNotYetCaught`) rather than adjusting them —
      each asserts behaviour that is wrong.
 
+   **DONE 2026-07-29 for named bindings; the TEMPORARY is not done and is the
+   one piece of the declared scope left open (see the end of this entry).**
+
+   The gate SPLIT rather than lifted, which is what settled decision 1 asks for.
+   A bare projection move is still refused and now says what to write
+   (`SEM3178`); `own o.field` to any depth is tracked; a path through an array,
+   tuple or deref segment is refused with the reason that decides it —
+   the survivors cannot be listed (`SEM3143`, reworded). Enumerability is asked
+   FIRST, because telling someone to write `own a[0]` when that is refused too
+   sends them to a second error for a different reason.
+
+   **`own T` had to become assignable to `T`.** The marker produces an `own T`,
+   and that type was accepted where a plain `T` was expected only for COPY
+   types — which made the chosen spelling unusable at every ordinary call,
+   return and initializer, `print(own o.label)` included. Relaxed in the three
+   places that decide it (`conversionCost`, `typesAssignable`,
+   `methodParamMatchesWithSubst`). The opposite direction stays Copy-only: a
+   plain value must not silently satisfy a demand for ownership, which is the
+   rule that makes the marker mean anything. One golden fixture pinned the
+   removed direction and was rewritten to pin the one that survives.
+
+   **Three defects found by implementing it, none of them anticipated:**
+
+   - **The receiving binding was marked an ALIAS.** `markAliasedBinding` — the
+     rule that a projection-read binding never drops, which is the aliasing
+     model this epic replaces — swallowed the moved value's drop. A partial
+     move is the one projection read whose result has a new owner.
+   - **The field read RETAINED.** `evalFieldAccess` counts a second holder, and
+     the container's residual drop no longer releases what left, so every
+     partial move leaked exactly one reference. Fixed by carrying the mode the
+     step-0 note predicted would be needed: `FieldAccessData.MoveOut`, sema →
+     HIR → MIR, printed as `field_move`. The VM also clears the source slot, so
+     a value that has gone is not still reachable from where it left.
+   - **Branch obligations folded a moved PLACE to its whole BINDING.**
+     `oneSidedDroppables` asked only whether the whole binding had moved, so a
+     container with one field taken BEFORE a branch looked like a binding the
+     other side had disposed of, and every arm dropped it whole on top of the
+     residual drop at the exit. Double free natively, use-after-free in the VM,
+     and reachable from `compare` over a field taken out of a live value —
+     which is exactly what `stdlib/http`'s response writer does. Step 2's own
+     record predicted this ("correct under the gate, not future-ready"). The
+     condition is now per place, and a branch that genuinely owes a PROJECTION
+     carries a plan naming it rather than dropping the binding.
+
+   **Acceptance.** `TestRuntimeV2PartialMoveReclaimsOnlyWhatItStillHolds`:
+   valgrind on the native backend, strict zero definitely-lost and zero
+   memcheck errors, over seven shapes — flat, three-deep, fully drained,
+   `@drop o.inner`, a union-typed field destructured by `compare`, a field
+   taken out of a TEMPORARY, and a one-sided move across a branch with both
+   branch values as controls. That test caught two of the three defects above;
+   neither is visible from output, because every shape printed the right answer
+   while corrupting memory.
+   Corpus diagnostics: three errors REMOVED (programs the step-1 gate had
+   broken and this step repairs), three messages reworded, none added.
+
+   `stdlib/http/interim_copy.sg` is DELETED and its six callers take their
+   fields directly. The two debt sentinels no longer existed — step 5 had
+   already replaced one with a contract test, and the other lived in the gate
+   test file this step rewrote into the contract.
+
+   **NOT DONE: the temporary (contract row 11, RV2-DEBT-084).** `f().inner` is
+   still refused, now under its own code (`SEM3179`) so it is not confused with
+   the two rules that are permanent. The mechanism it needs is real and
+   separable: a temporary has no name, so its statement-end release cannot be
+   narrowed the way a binding's can — `TempDrops` would have to carry a plan
+   the way `DropLocal` now does, and sema would have to compute a residual from
+   an expression's type rather than from a symbol's moved-set. The refusal is
+   SAFE (a compile error, not a miscompile) and it names the way around it, so
+   this is a missing feature rather than a live hazard.
+
 9. **Monomorphization and generated-path audit.** Any new ownership metadata
    must survive `internal/mono` cloning and substitution, and the step-0
    protocol must still hold once fields drop independently.

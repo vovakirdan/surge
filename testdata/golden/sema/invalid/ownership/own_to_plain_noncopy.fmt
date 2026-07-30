@@ -1,6 +1,16 @@
-// Non-Copy types cannot implicitly drop ownership.
+// A non-Copy value cannot silently satisfy a demand for OWNERSHIP.
+//
+// The other direction is legal, and deliberately: `own x` says the value is
+// being given away and a plain binding takes ownership of what it is handed, so
+// `let t: string = own s;` is the marker describing what the assignment already
+// does. That direction is what makes `own o.field` — the way a field is taken
+// out of a live value — usable at an ordinary binding, and it is pinned by the
+// partial-move contract in sema.
+//
+// This direction stays refused: handing a plain non-Copy value where ownership
+// is demanded would transfer it with nothing at the use site saying so.
 
 fn main() {
-    let s: own string = own "hi";
-    let t: string = s;
+    let s: string = "hi";
+    let t: own string = s;
 }

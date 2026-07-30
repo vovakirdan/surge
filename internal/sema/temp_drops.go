@@ -27,7 +27,14 @@ func (tc *typeChecker) pushTempFrame() {
 	tc.tempFrames = append(tc.tempFrames, tempFrame{})
 }
 
-// popTempFrame publishes the frame's surviving flags unless tainted.
+// popTempFrame publishes the frame's surviving flags unless tainted, each with
+// the plan that reclaims what is LEFT of it.
+//
+// The plan is computed here rather than at the move because this is the point
+// where the answer is complete: a temporary cannot be named again, so every
+// path that will ever be taken out of it was taken inside the region now
+// closing. A temporary nothing was taken from carries no plan, which is the
+// ordinary whole release and every case there was before fields could move.
 func (tc *typeChecker) popTempFrame() {
 	if len(tc.tempFrames) == 0 {
 		return
@@ -38,11 +45,42 @@ func (tc *typeChecker) popTempFrame() {
 		return
 	}
 	if tc.result.TempDrops == nil {
-		tc.result.TempDrops = make(map[ast.ExprID]struct{})
+		tc.result.TempDrops = make(map[ast.ExprID][]DropStep)
 	}
 	for id := range frame.flags {
-		tc.result.TempDrops[id] = struct{}{}
+		tc.result.TempDrops[id] = tc.temporaryResidualPlan(tc.result.ExprTypes[id], tc.tempTaken[id])
 	}
+}
+
+// recordTemporaryTaken notes that a path was moved out of an evaluation nothing
+// holds, so its statement-end release can be narrowed to the remainder.
+func (tc *typeChecker) recordTemporaryTaken(base ast.ExprID, path []PlaceSegment) {
+	if !base.IsValid() || len(path) == 0 {
+		return
+	}
+	if tc.tempTaken == nil {
+		tc.tempTaken = make(map[ast.ExprID][][]PlaceSegment)
+	}
+	tc.tempTaken[base] = append(tc.tempTaken[base], path)
+}
+
+// pendingTempCandidate reports whether this evaluation is still an owned
+// temporary nobody has consumed — the only kind whose release this pass may
+// narrow, since anything else already has an owner that frees it whole.
+func (tc *typeChecker) pendingTempCandidate(exprID ast.ExprID) bool {
+	if !exprID.IsValid() {
+		return false
+	}
+	exprID = tc.unwrapTempCandidate(exprID)
+	for i := len(tc.tempFrames) - 1; i >= 0; i-- {
+		if tc.tempFrames[i].flags == nil {
+			continue
+		}
+		if _, ok := tc.tempFrames[i].flags[exprID]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (tc *typeChecker) taintTempFrame() {

@@ -2,6 +2,7 @@ package hir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/sema"
 	"surge/internal/types"
 )
 
@@ -277,7 +278,8 @@ func (l *lowerer) lowerIfStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 		// synthesize an else block dropping it on the fall-through.
 		block := &Block{Span: stmt.Span}
 		for _, symID := range drops {
-			block.Stmts = append(block.Stmts, l.synthDropStmt(symID, stmt.Span))
+			block.Stmts = append(block.Stmts, l.synthDropStmtWithPlan(
+				symID, stmt.Span, l.residualSteps(sema.DropSite{Stmt: stmtID, Symbol: symID})))
 		}
 		data.Else = block
 	}

@@ -143,13 +143,10 @@ fn f(o: Outer) -> int {
 	}
 }
 
-// `@drop o.inner` is settled as legal for this epic and sema is ready for it —
-// the moved-set can name a field. It stays REJECTED until the backends can
-// perform a projected drop, because accepting it now ships a statement that
-// does nothing on the native backend and drops the WHOLE local on the VM: with
-// the rejection lifted, `@drop o.inner; return o.label;` panics with
-// use-after-free on the next line. Step 7 lifts this, together with step 6.
-func TestProjectedDropIsRefusedUntilTheBackendsCanDoIt(t *testing.T) {
+// Dropping one field explicitly releases that field and leaves the rest of the
+// binding readable. It is a move into nothing, so it answers like one: the
+// sibling survives, and the dropped place does not.
+func TestProjectedDropReleasesOneFieldAndKeepsTheRest(t *testing.T) {
 	parseBag, semaBag := runSemaOnSnippet(t, `
 type Inner = { tail: string }
 type Outer = { inner: Inner, label: int }
@@ -161,13 +158,33 @@ fn f(o: Outer) -> int {
 	if parseBag.HasErrors() {
 		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
 	}
-	if !hasCode(semaBag, diag.SemaPartialMoveUnsupported) {
-		t.Fatalf("a projected drop was accepted before either backend could perform it: %s",
-			diagnosticsSummary(semaBag))
+	if semaBag.HasErrors() {
+		t.Fatalf("dropping one field and reading its sibling was rejected: %s", diagnosticsSummary(semaBag))
 	}
-	// The old message claimed the target was not addressable, which sent the
-	// reader looking for the wrong problem.
+	// The refusal this replaced used to claim the target was not addressable,
+	// which sent the reader looking for the wrong problem.
 	if got := diagnosticsSummary(semaBag); strings.Contains(got, "must be a binding") {
 		t.Fatalf("projected drop still reports the misleading addressability error: %s", got)
+	}
+}
+
+// The negative control beside it: what was dropped is gone. Without this the
+// row above passes for an implementation that accepts the drop and then forgets
+// it happened.
+func TestProjectedDropEmptiesThePlaceItNames(t *testing.T) {
+	parseBag, semaBag := runSemaOnSnippet(t, `
+type Inner = { tail: string }
+type Outer = { inner: Inner, label: int }
+fn take(i: own Inner) -> int { return 1; }
+fn f(o: Outer) -> int {
+	@drop o.inner;
+	return take(own o.inner);
+}
+`)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	if !hasCode(semaBag, diag.SemaUseAfterMove) {
+		t.Fatalf("a field was still readable after being dropped: %s", diagnosticsSummary(semaBag))
 	}
 }

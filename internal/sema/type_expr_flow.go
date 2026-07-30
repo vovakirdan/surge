@@ -121,7 +121,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			if armClosed[i] {
 				continue
 			}
-			drops := tc.oneSidedDroppables(movedArms[i], mergedMoves)
+			drops, plans := tc.oneSidedObligations(movedArms[i], mergedMoves)
 			if len(drops) == 0 {
 				continue
 			}
@@ -129,6 +129,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 				tc.result.ArmDropsExpr = make(map[ast.ExprID][]symbols.SymbolID)
 			}
 			tc.result.ArmDropsExpr[cmp.Arms[i].Result] = drops
+			tc.recordOneSidedDrops(DropSite{Expr: cmp.Arms[i].Result}, plans)
 		}
 	}
 	if mergedMoves == nil {

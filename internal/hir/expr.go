@@ -224,6 +224,12 @@ type FieldAccessData struct {
 	Object    *Expr
 	FieldName string
 	FieldIdx  int // Struct field index, -1 if unknown
+	// MoveOut marks a read that TAKES the field out of its container: the
+	// place leaves, the container drops only what remains, and this read is
+	// the value's transfer rather than a second holder of it. An ordinary
+	// read is the opposite on every count, and the two lower to the same
+	// shape, so the mode has to travel with the read.
+	MoveOut bool
 }
 
 func (FieldAccessData) exprData() {}
@@ -487,6 +493,10 @@ func (BlockExprData) exprData() {}
 // OwnedTempData holds data for ExprOwnedTemp.
 type OwnedTempData struct {
 	Inner *Expr
+	// Steps reclaims what is LEFT of the temporary after fields were taken out
+	// of it. Empty means the whole value is released, which is the ordinary
+	// case and the only one there was before a field could move on its own.
+	Steps []sema.DropStep
 }
 
 func (OwnedTempData) exprData() {}

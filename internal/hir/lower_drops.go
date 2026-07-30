@@ -47,15 +47,10 @@ func (l *lowerer) bindingDropName(symID symbols.SymbolID) string {
 	return ""
 }
 
-// synthDropStmt builds the drop of one binding — identical in shape to
-// an explicit `@drop`, so MIR and the backend treat both the same way.
-func (l *lowerer) synthDropStmt(symID symbols.SymbolID, span source.Span) Stmt {
-	return l.synthDropStmtWithPlan(symID, span, nil)
-}
-
-// synthDropStmtWithPlan is synthDropStmt carrying a residual plan: the binding
-// is only partly moved here, so it reclaims the places it still holds instead
-// of all of itself.
+// synthDropStmtWithPlan builds the drop of one binding — identical in shape to
+// an explicit `@drop`, so MIR and the backend treat both the same way — carrying
+// the plan that narrows it. An empty plan drops the whole binding; a non-empty
+// one reclaims the places it still holds after part of it moved.
 func (l *lowerer) synthDropStmtWithPlan(symID symbols.SymbolID, span source.Span, steps []sema.DropStep) Stmt {
 	return Stmt{
 		Kind: StmtDrop,
@@ -115,7 +110,8 @@ func (l *lowerer) wrapExitWithDrops(exit *Stmt, stmtID ast.StmtID, span source.S
 	}
 	block := &Block{Span: span}
 	for _, symID := range syms {
-		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, span))
+		block.Stmts = append(block.Stmts, l.synthDropStmtWithPlan(
+			symID, span, l.residualSteps(sema.DropSite{Stmt: stmtID, Symbol: symID})))
 	}
 	block.Stmts = append(block.Stmts, *exit)
 	return &Stmt{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: block}}
@@ -132,7 +128,8 @@ func (l *lowerer) wrapLoopWithScopeDrops(loop *Stmt, stmtID ast.StmtID, span sou
 	block := &Block{Span: span}
 	block.Stmts = append(block.Stmts, *loop)
 	for _, symID := range syms {
-		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, span))
+		block.Stmts = append(block.Stmts, l.synthDropStmtWithPlan(
+			symID, span, l.residualSteps(sema.DropSite{Stmt: stmtID, Symbol: symID})))
 	}
 	return &Stmt{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: block}}
 }
@@ -157,7 +154,8 @@ func (l *lowerer) appendBlockExprEndDrops(block *Block, exprID ast.ExprID, span 
 		}
 	}
 	for _, symID := range syms {
-		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, span))
+		block.Stmts = append(block.Stmts, l.synthDropStmtWithPlan(
+			symID, span, l.residualSteps(sema.DropSite{Expr: exprID, Symbol: symID})))
 	}
 }
 
@@ -180,7 +178,8 @@ func (l *lowerer) appendArmDrops(block *Block, branch ast.StmtID, span source.Sp
 		}
 	}
 	for _, symID := range syms {
-		block.Stmts = append(block.Stmts, l.synthDropStmt(symID, span))
+		block.Stmts = append(block.Stmts, l.synthDropStmtWithPlan(
+			symID, span, l.residualSteps(sema.DropSite{Stmt: branch, Symbol: symID})))
 	}
 }
 

@@ -330,6 +330,20 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 	if idx < 0 || idx >= len(sobj.Fields) {
 		return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("field index %d out of bounds for type#%d", idx, sobj.TypeID))
 	}
+	if fa.MoveOut {
+		// The field is being TAKEN. Counting a second holder here is what makes
+		// it leak: the container's drop has been narrowed to the places that
+		// stayed, so nothing will ever release the count this read would add.
+		//
+		// The slot is cleared for the same reason from the other side. Nothing
+		// walks a container past a shallow free today, so leaving the handle
+		// behind would not be dereferenced — but a value that has gone must not
+		// still be reachable from where it left, or the next reader of this
+		// struct decides which of two owners is real.
+		taken := sobj.Fields[idx]
+		sobj.Fields[idx] = Value{}
+		return taken, nil
+	}
 	return vm.cloneForShare(sobj.Fields[idx])
 }
 

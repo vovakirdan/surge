@@ -214,19 +214,11 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 	substitutedStr := string(substituted)
 
 	argCopy := tc.isCopyType(arg)
-	argOwnNonCopy := false
 	argRefNonCopyElem := false
 	if tc.types != nil {
 		if tt, ok := tc.types.Lookup(tc.resolveAlias(arg)); ok {
-			switch tt.Kind {
-			case types.KindOwn:
-				if !argCopy {
-					argOwnNonCopy = true
-				}
-			case types.KindReference:
-				if !tc.isCopyType(tt.Elem) {
-					argRefNonCopyElem = true
-				}
+			if tt.Kind == types.KindReference && !tc.isCopyType(tt.Elem) {
+				argRefNonCopyElem = true
 			}
 		}
 	}
@@ -238,9 +230,6 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 
 	for _, cand := range tc.typeKeyCandidates(arg) {
 		if typeKeyEqual(cand.key, substituted) {
-			if argOwnNonCopy && !strings.HasPrefix(substitutedStr, "own ") {
-				continue
-			}
 			// The candidate list for `&T` includes the bare `T` (so `&Foo`
 			// receivers find `extern<Foo>` methods). Letting that candidate
 			// satisfy an OWNED non-Copy parameter would hand the callee an
@@ -257,8 +246,15 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 	}
 
 	if expectedType := tc.typeFromKey(substituted); expectedType != types.NoTypeID {
+		// `own x` satisfies a by-value parameter. The marker says the value is
+		// being given away and a by-value parameter takes ownership of what it
+		// is handed, so the two agree; the direction that stays restricted is
+		// the other one, where a plain value must not silently satisfy a demand
+		// for ownership. Both were once Copy-only, which made `own o.field` —
+		// the way a field is taken out of a live value — unusable at any call
+		// whose parameter was written without the marker, `push` included.
 		if tc.methodResolvedTypeMatches(expectedType, arg) {
-			return !argOwnNonCopy || strings.HasPrefix(substitutedStr, "own ")
+			return true
 		}
 		if tc.isUnionMember(expectedType, arg) {
 			return true

@@ -401,10 +401,19 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, 
 		expInfo, okExp := tc.types.Lookup(expected)
 		actInfo, okAct := tc.types.Lookup(actual)
 		if okExp && okAct {
+			// Passing a plain value where ownership is demanded is allowed only
+			// for a Copy type, where the marker changes nothing. For anything
+			// else the marker is the point: the giving-away has to be written.
 			if expInfo.Kind == types.KindOwn && actual == expInfo.Elem && tc.isCopyType(actual) {
 				return 1, true
 			}
-			if actInfo.Kind == types.KindOwn && expected == actInfo.Elem && tc.isCopyType(expected) {
+			// The other direction always holds. `own x` says the value is being
+			// given away, and a by-value parameter takes ownership of what it is
+			// handed, so the marker is describing what the call already does —
+			// which is why the backends lower `own` as identity. Restricting this
+			// to Copy types would make `own o.field`, the way a field is taken out
+			// of a live value, unusable at every ordinary call.
+			if actInfo.Kind == types.KindOwn && expected == actInfo.Elem {
 				return 1, true
 			}
 			if actInfo.Kind == types.KindReference {

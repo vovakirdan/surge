@@ -197,7 +197,7 @@ type funcLowerer struct {
 	mono *mono.MonoModule
 	// tempDropFrames scope statement-end temporaries to single-entry
 	// evaluation regions (see lower_temp_drops.go).
-	tempDropFrames [][]LocalID
+	tempDropFrames [][]tempDropEntry
 	// anchoredBody marks the forked lowerer of an `on far_handle` block body:
 	// anchored channel operations lower to the runtime helpers that park by
 	// re-entering the body from the top.
@@ -492,7 +492,7 @@ func (l *funcLowerer) registerRefCountedTemp(id LocalID, ty types.TypeID) {
 		return
 	}
 	top := len(l.tempDropFrames) - 1
-	l.tempDropFrames[top] = append(l.tempDropFrames[top], id)
+	l.tempDropFrames[top] = append(l.tempDropFrames[top], tempDropEntry{local: id})
 }
 
 // newTransferTemp creates a temp whose value is handed onward rather than

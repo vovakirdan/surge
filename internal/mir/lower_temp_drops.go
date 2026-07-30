@@ -2,8 +2,28 @@ package mir
 
 import (
 	"surge/internal/hir"
+	"surge/internal/sema"
 	"surge/internal/source"
 )
+
+// tempDropEntry is one statement-end temporary and the plan that reclaims it.
+// A nil plan is the whole release, which is every temporary nothing was taken
+// out of — that is, all of them until a field could move on its own.
+type tempDropEntry struct {
+	local LocalID
+	steps []sema.DropStep
+}
+
+// emitTempDrop releases one temporary, narrowed to its remainder when part of
+// it was taken. Whoever took a field owns that field now, so releasing it here
+// would free storage this value no longer holds.
+func (l *funcLowerer) emitTempDrop(entry tempDropEntry) {
+	if len(entry.steps) > 0 {
+		l.emitResidualDropAt(Place{Local: entry.local}, entry.steps)
+		return
+	}
+	l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: entry.local}}})
+}
 
 // Statement-end temporaries: sema flags owned evaluations nothing
 // consumes; HIR wraps them in ExprOwnedTemp; here each wrapped value
@@ -52,7 +72,7 @@ func (l *funcLowerer) flushTempDropFrame() {
 		return
 	}
 	for i := len(frame) - 1; i >= 0; i-- {
-		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: frame[i]}}})
+		l.emitTempDrop(frame[i])
 	}
 }
 
@@ -64,7 +84,7 @@ func (l *funcLowerer) flushTempDropsForExit() {
 	for f := len(l.tempDropFrames) - 1; f >= 0; f-- {
 		frame := l.tempDropFrames[f]
 		for i := len(frame) - 1; i >= 0; i-- {
-			l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: frame[i]}}})
+			l.emitTempDrop(frame[i])
 		}
 	}
 }
@@ -88,10 +108,10 @@ func (l *funcLowerer) flushTempDropsForRet(depth int, keep LocalID) {
 	for f := len(l.tempDropFrames) - 1; f >= depth; f-- {
 		frame := l.tempDropFrames[f]
 		for i := len(frame) - 1; i >= 0; i-- {
-			if frame[i] == keep {
+			if frame[i].local == keep {
 				continue
 			}
-			l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: frame[i]}}})
+			l.emitTempDrop(frame[i])
 		}
 	}
 }
@@ -113,7 +133,7 @@ func (l *funcLowerer) lowerOwnedTempExpr(e *hir.Expr, data hir.OwnedTempData, sp
 	})
 	if len(l.tempDropFrames) > 0 {
 		top := len(l.tempDropFrames) - 1
-		l.tempDropFrames[top] = append(l.tempDropFrames[top], tmp)
+		l.tempDropFrames[top] = append(l.tempDropFrames[top], tempDropEntry{local: tmp, steps: data.Steps})
 	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, false), nil
 }

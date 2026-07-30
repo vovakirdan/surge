@@ -1,6 +1,10 @@
 package sema
 
 import (
+	"fmt"
+	"slices"
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -123,13 +127,16 @@ func (tc *typeChecker) popDropScope() {
 	tc.dropScopes = tc.dropScopes[:len(tc.dropScopes)-1]
 }
 
-// registerDroppableBinding adds a freshly declared binding to the current
-// scope. Shadowing needs no special case: each shadow is its own symbol
-// and registers separately, so a still-live shadowed value still drops.
 // markAliasedBinding records that a binding currently holds a handle its
-// CONTAINER still owns (its value came from a field/element/deref read —
-// sema does not track partial moves yet, so the container keeps
-// ownership and the alias must never drop: leak over double free).
+// CONTAINER still owns, so it must never drop: its value came from a field,
+// element or deref read that TOOK nothing, which leaves the container the only
+// owner and makes a drop here a double free.
+//
+// The one projection read this must not cover is a partial move, where the
+// place has left the container and this binding is its only owner — suppressing
+// its drop there abandons the value. `partialMoveRead` is the predicate that
+// separates them, and the two have to agree: a read they disagree about is
+// either dropped twice or not at all.
 func (tc *typeChecker) markAliasedBinding(symID symbols.SymbolID) {
 	if !symID.IsValid() {
 		return
@@ -169,6 +176,9 @@ func (tc *typeChecker) isProjectionRead(expr ast.ExprID) bool {
 	return len(desc.Segments) > 0
 }
 
+// registerDroppableBinding adds a freshly declared binding to the current
+// scope. Shadowing needs no special case: each shadow is its own symbol and
+// registers separately, so a still-live shadowed value still drops.
 func (tc *typeChecker) registerDroppableBinding(symID symbols.SymbolID) {
 	if len(tc.dropScopes) == 0 || !tc.isDroppableBinding(symID) {
 		return
@@ -377,7 +387,7 @@ func (tc *typeChecker) recordIfArmDrops(branch ast.StmtID, branchMoved, union ma
 	if !branch.IsValid() {
 		return
 	}
-	drops := tc.oneSidedDroppables(branchMoved, union)
+	drops, plans := tc.oneSidedObligations(branchMoved, union)
 	if len(drops) == 0 {
 		return
 	}
@@ -385,32 +395,116 @@ func (tc *typeChecker) recordIfArmDrops(branch ast.StmtID, branchMoved, union ma
 		tc.result.ArmDropsStmt = make(map[ast.StmtID][]symbols.SymbolID)
 	}
 	tc.result.ArmDropsStmt[branch] = drops
+	tc.recordOneSidedDrops(DropSite{Stmt: branch}, plans)
 }
 
-func (tc *typeChecker) oneSidedDroppables(moved, other map[Place]source.Span) []symbols.SymbolID {
-	var out []symbols.SymbolID
-	// One entry per base: the obligation list is symbol-shaped (it becomes
-	// path-shaped in a later step), so two moved places sharing a base must not
-	// produce two drops of the same binding.
-	seen := make(map[symbols.SymbolID]struct{}, len(other))
+// oneSidedObligations answers what this side of a branch still owes, given what
+// the other side gave away. It returns the bindings to drop, and for a binding
+// only PARTLY affected, the plan naming which places to drop.
+//
+// The condition is per PLACE, not per binding. A place given away on the other
+// side and still held here has to be reclaimed here, because the join says it
+// went and the exit will not reclaim it. A place given away on BOTH sides is
+// nobody's obligation, and this is the case that made a partial move fatal:
+// folding every moved place to its base and asking only whether the WHOLE
+// binding had moved, a container with one field taken before the branch looked
+// like a binding the other side had disposed of. Every arm then dropped it
+// whole, on top of the residual drop at the exit — a double free on the native
+// backend, a use-after-free in the VM, and both of them reachable from
+// `compare` over a field taken out of a live value.
+//
+// The plan is empty for a binding whose WHOLE value is one-sided, which is the
+// only shape that existed before places could move on their own; those keep
+// dropping whole.
+func (tc *typeChecker) oneSidedObligations(moved, other map[Place]source.Span) (owing []symbols.SymbolID, plans map[symbols.SymbolID][]DropStep) {
+	// One entry per base: two places sharing a base owe one drop of that
+	// binding, carrying a plan that names both.
+	owed := make(map[symbols.SymbolID][]Place, len(other))
 	for place := range other {
+		if tc.placeCoveredBy(moved, place) {
+			// Gone on this side too: neither side is holding it.
+			continue
+		}
 		symID := place.Base
-		if _, dup := seen[symID]; dup {
+		if !tc.isDroppableBinding(symID) || !tc.bindingDeclaredAtOrAbove(symID, 0) {
 			continue
 		}
-		if _, both := moved[wholePlace(symID)]; both {
-			continue
+		if _, dup := owed[symID]; !dup {
+			owing = append(owing, symID)
 		}
-		if !tc.isDroppableBinding(symID) {
-			continue
-		}
-		if !tc.bindingDeclaredAtOrAbove(symID, 0) {
-			continue
-		}
-		seen[symID] = struct{}{}
-		out = append(out, symID)
+		owed[symID] = append(owed[symID], place)
 	}
-	return out
+	if len(owing) == 0 {
+		return nil, nil
+	}
+	plans = make(map[symbols.SymbolID][]DropStep, len(owing))
+	for symID, places := range owed {
+		if steps := tc.placeDropSteps(places); len(steps) > 0 {
+			plans[symID] = steps
+		}
+	}
+	if len(plans) == 0 {
+		plans = nil
+	}
+	return owing, plans
+}
+
+// placeCoveredBy reports whether a moved-set already accounts for this place,
+// through the same covering relation a read is judged by: a container that went
+// whole takes its fields with it.
+func (tc *typeChecker) placeCoveredBy(set map[Place]source.Span, place Place) bool {
+	if _, exact := set[place]; exact {
+		return true
+	}
+	for existing := range set {
+		if placeCovers(existing, place) {
+			return true
+		}
+	}
+	return false
+}
+
+// placeSegments decodes an interned place back into the projection steps that
+// reach it.
+func (tc *typeChecker) placeSegments(place Place) []PlaceSegment {
+	if tc.borrow == nil {
+		return nil
+	}
+	return tc.borrow.placeSegments(place)
+}
+
+// placeStepKey orders drop steps by the field names on their path, so the plan
+// a branch records does not depend on map iteration.
+func placeStepKey(step DropStep) string {
+	var b strings.Builder
+	for _, seg := range step.Path {
+		fmt.Fprintf(&b, "%d:%d;", seg.Kind, seg.Name)
+	}
+	return b.String()
+}
+
+// placeDropSteps turns the places one arm owes into a drop plan, or nil when
+// the obligation is the whole binding and an ordinary drop is right.
+func (tc *typeChecker) placeDropSteps(places []Place) []DropStep {
+	var steps []DropStep
+	for _, place := range places {
+		if place.Path == "" {
+			// The whole binding is owed; a plan would only restate the
+			// ordinary drop, and any place beside it is covered by it.
+			return nil
+		}
+		segments := tc.placeSegments(place)
+		if len(segments) == 0 {
+			return nil
+		}
+		steps = append(steps, DropStep{Path: segments})
+	}
+	// Deepest first, then by path, so the order is a function of the program
+	// rather than of map iteration.
+	slices.SortFunc(steps, func(a, b DropStep) int {
+		return strings.Compare(placeStepKey(a), placeStepKey(b))
+	})
+	return steps
 }
 
 func (tc *typeChecker) bindingName(symID symbols.SymbolID) string {

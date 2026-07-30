@@ -51,12 +51,39 @@ func (tc *typeChecker) residualDropPlan(symID symbols.SymbolID) []DropStep {
 		return nil
 	}
 	var steps []DropStep
-	if !tc.appendResidualSteps(&steps, symID, nil, tc.bindingType(symID)) {
+	if !tc.appendResidualSteps(&steps, tc.bindingResidualProbe(symID), nil, tc.bindingType(symID)) {
 		// The residual could not be expressed — see appendResidualSteps. The
 		// caller keeps the whole-binding drop, which is what happens today.
 		return nil
 	}
 	return steps
+}
+
+// residualProbe answers what the moved-set says about one path inside the value
+// being reclaimed: `gone` when this place or an ancestor was given away,
+// `partial` when something strictly UNDER it was, and `ok` false when the
+// question cannot be answered at all.
+//
+// It exists because the same walk serves two callers that identify a value
+// differently. A BINDING is a symbol with an interned moved-set; a TEMPORARY has
+// no name at all, only the paths the statement took out of it. The plan they
+// need is identical, so only the question differs.
+type residualProbe func(path []PlaceSegment) (gone, partial, ok bool)
+
+// bindingResidualProbe reads the answer out of the moved-set, through the same
+// covering relation a read is judged by.
+func (tc *typeChecker) bindingResidualProbe(base symbols.SymbolID) residualProbe {
+	return func(path []PlaceSegment) (bool, bool, bool) {
+		place := tc.canonicalPlace(placeDescriptor{Base: base, Segments: path})
+		if !place.IsValid() {
+			return false, false, false
+		}
+		moved, _, found := tc.movedPlaceCovering(place)
+		if !found {
+			return false, false, true
+		}
+		return placeCovers(moved, place), true, true
+	}
 }
 
 // appendResidualSteps walks the value post-order, emitting a deep drop for each
@@ -66,13 +93,16 @@ func (tc *typeChecker) residualDropPlan(symID symbols.SymbolID) []DropStep {
 // Post-order because a container's own storage must go AFTER the fields inside
 // it, and live siblings keep reverse declaration order, which is the order the
 // whole-value glue already uses.
-func (tc *typeChecker) appendResidualSteps(out *[]DropStep, base symbols.SymbolID, path []PlaceSegment, ty types.TypeID) bool {
-	place := tc.canonicalPlace(placeDescriptor{Base: base, Segments: path})
-	if !place.IsValid() {
+func (tc *typeChecker) appendResidualSteps(out *[]DropStep, probe residualProbe, path []PlaceSegment, ty types.TypeID) bool {
+	gone, partial, ok := probe(path)
+	if !ok {
 		return false
 	}
-	moved, _, found := tc.movedPlaceCovering(place)
-	if !found {
+	if gone {
+		// This place itself went. Nothing here is ours to release.
+		return true
+	}
+	if !partial {
 		// Wholly live: a deep drop reclaims it.
 		//
 		// Emitted for EVERY live place, not only those sema calls droppable.
@@ -88,22 +118,16 @@ func (tc *typeChecker) appendResidualSteps(out *[]DropStep, base symbols.SymbolI
 		*out = append(*out, DropStep{Path: clonePlacePath(path)})
 		return true
 	}
-	if placeCovers(moved, place) {
-		// This place itself went. Nothing here is ours to release.
-		return true
-	}
 
 	// Partially moved: reclaim what remains, then the container's own storage.
 	fields := tc.types.StructFields(tc.resolveAlias(tc.valueType(ty)))
 	if len(fields) == 0 {
 		// Something is moved UNDER this place, but its parts cannot be
 		// enumerated — an array element, a union payload. Refusing here is what
-		// keeps the caller on the whole-binding drop rather than emitting a
-		// shallow free that abandons the live remainder.
-		//
-		// Unreachable while the gate is up. Step 8 must either enumerate these
-		// shapes or keep rejecting the moves that create them: a constant array
-		// index is enumerable, a computed one is not, and a union needs the tag.
+		// keeps the caller on the whole-value drop rather than emitting a
+		// shallow free that abandons the live remainder. The moves that create
+		// these shapes are refused at the point they are written, so this is the
+		// second line of defence rather than the first.
 		return false
 	}
 	for i := len(fields) - 1; i >= 0; i-- {
@@ -111,11 +135,66 @@ func (tc *typeChecker) appendResidualSteps(out *[]DropStep, base symbols.SymbolI
 			Kind: PlaceSegmentField,
 			Name: fields[i].Name,
 		})
-		if !tc.appendResidualSteps(out, base, child, fields[i].Type) {
+		if !tc.appendResidualSteps(out, probe, child, fields[i].Type) {
 			return false
 		}
 	}
 	*out = append(*out, DropStep{Path: clonePlacePath(path), Shallow: true})
+	return true
+}
+
+// temporaryResidualPlan returns the steps that reclaim what is left of a
+// statement-end temporary after the paths in `taken` were moved out of it, or
+// nil when it should be released whole.
+//
+// A temporary is reclaimed by the same rule as a binding and identified by a
+// different thing. It has no name, so there is no moved-set entry to look up
+// and no way for a later statement to refer to it — which is also why the
+// answer is complete here: everything that will ever be taken out of this value
+// was taken inside the statement that produced it.
+func (tc *typeChecker) temporaryResidualPlan(ty types.TypeID, taken [][]PlaceSegment) []DropStep {
+	if len(taken) == 0 || ty == types.NoTypeID {
+		return nil
+	}
+	var steps []DropStep
+	if !tc.appendResidualSteps(&steps, temporaryResidualProbe(taken), nil, ty) {
+		// Inexpressible: the caller keeps the whole release, which is what
+		// happened before any of it could be taken apart.
+		return nil
+	}
+	return steps
+}
+
+// temporaryResidualProbe answers from the paths taken out of the value, since a
+// temporary has no interned places to consult.
+func temporaryResidualProbe(taken [][]PlaceSegment) residualProbe {
+	return func(path []PlaceSegment) (gone, partial, ok bool) {
+		for _, t := range taken {
+			switch {
+			case pathPrefixes(t, path):
+				// This place, or something it sits inside, was taken.
+				return true, false, true
+			case pathPrefixes(path, t):
+				// Something strictly under it was taken; keep looking, because
+				// a later entry may still cover this place outright.
+				partial = true
+			}
+		}
+		return false, partial, true
+	}
+}
+
+// pathPrefixes reports whether `outer` names `inner` or an ancestor of it —
+// the path-level form of the covering relation places use.
+func pathPrefixes(outer, inner []PlaceSegment) bool {
+	if len(outer) > len(inner) {
+		return false
+	}
+	for i, seg := range outer {
+		if seg != inner[i] {
+			return false
+		}
+	}
 	return true
 }
 
@@ -128,6 +207,25 @@ func clonePlacePath(path []PlaceSegment) []PlaceSegment {
 	out := make([]PlaceSegment, len(path))
 	copy(out, path)
 	return out
+}
+
+// recordOneSidedDrops stores the plans a BRANCH owes: not "what this binding
+// still holds" but "which of its places the other side gave away and this side
+// must therefore reclaim". The two are different questions, so this cannot go
+// through residualDropPlan — here the binding is still whole on this path, and
+// the plan names exactly the places the join will declare gone.
+func (tc *typeChecker) recordOneSidedDrops(site DropSite, plans map[symbols.SymbolID][]DropStep) {
+	for symID, steps := range plans {
+		if len(steps) == 0 {
+			continue
+		}
+		if tc.result.ResidualDrops == nil {
+			tc.result.ResidualDrops = make(map[DropSite][]DropStep)
+		}
+		key := site
+		key.Symbol = symID
+		tc.result.ResidualDrops[key] = steps
+	}
 }
 
 // recordResidualDrops stores the non-trivial plans for one obligation list.

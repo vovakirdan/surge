@@ -127,16 +127,16 @@ func (tc *typeChecker) emitBorrowDiag(code diag.Code, span source.Span, msg stri
 	builder.Emit()
 }
 
-// reportPartialMove rejects taking a projection out of a live binding.
+// reportPartialMoveNeedsOwn rejects taking a projection out of a live binding
+// when the source wrote a plain read.
 //
-// The diagnostic has to carry the whole explanation, because the thing that
-// goes wrong is invisible from the program text: without this rejection the
-// extraction compiles and produces a second NAME for the container's field
-// rather than a value, so writing through it is visible through the original.
-// Naming the eventual spelling matters too — this is a "not yet", not a "no",
-// and a reader who is told only that the move is unsupported has no way to
-// tell which.
-func (tc *typeChecker) reportPartialMove(desc placeDescriptor, expr ast.ExprID, span source.Span) {
+// The read is accepted in every other position — as a borrow, as a copy — so
+// the text alone cannot say which one this is, and the consequence is
+// invisible: `o` is no longer whole afterwards, and the next line that reads it
+// fails for a reason nothing at this line announced. `own` is the marker that
+// already means "I am taking this" at call sites and crossings, so the fix is
+// to say it here too rather than to learn a new rule.
+func (tc *typeChecker) reportPartialMoveNeedsOwn(desc placeDescriptor, expr ast.ExprID, span source.Span) {
 	if span == (source.Span{}) {
 		span = tc.exprSpan(expr)
 	}
@@ -149,19 +149,60 @@ func (tc *typeChecker) reportPartialMove(desc placeDescriptor, expr ast.ExprID, 
 	if tc.reporter == nil {
 		return
 	}
-	b := diag.ReportError(tc.reporter, diag.SemaPartialMoveUnsupported, span,
-		fmt.Sprintf("cannot move `%s` out of `%s`: `%s` would stay usable beside it", label, base, base))
+	b := diag.ReportError(tc.reporter, diag.SemaPartialMoveNeedsOwn, span,
+		fmt.Sprintf("taking `%s` out of `%s` empties it, so write `own %s`", label, base, label))
 	if b == nil {
 		return
 	}
 	b.WithNote(span, fmt.Sprintf(
-		"moving one place out of a live value is a PARTIAL move, and moves are tracked per binding rather than per place, "+
-			"so `%s` can be neither invalidated on its own nor left holding only what remains",
-		label))
+		"this hands the value in `%s` to its new owner: `%s` keeps its other fields and can still be read, "+
+			"but reading `%s` or `%s` as a whole after this is an error",
+		label, base, label, base))
 	b.WithNote(span, fmt.Sprintf(
-		"hint: borrow it instead (`&%s`), copy the whole value, or move `%s` itself if you are finished with it; "+
-			"`own %s` becomes the way to take just this place once partial moves are tracked",
-		label, base, label))
+		"hint: if you did not mean to empty it, borrow the field instead (`&%s`) or clone what you need",
+		label))
+	b.Emit()
+}
+
+// reportUnnameableResidual rejects a partial move out of a place the compiler
+// cannot list the survivors of. See rejectUnnameableResidual for why the list
+// is what decides this.
+func (tc *typeChecker) reportUnnameableResidual(desc placeDescriptor, kind PlaceSegmentKind, expr ast.ExprID, span source.Span) {
+	if span == (source.Span{}) {
+		span = tc.exprSpan(expr)
+	}
+	strs := tc.builder.StringsInterner
+	if strs == nil && tc.symbols != nil && tc.symbols.Table != nil {
+		strs = tc.symbols.Table.Strings
+	}
+	base := tc.bindingName(desc.Base)
+	label := formatPlaceSegments(base, desc.Segments, strs)
+	if tc.reporter == nil {
+		return
+	}
+	what := "an element"
+	if kind == PlaceSegmentDeref {
+		what = "a place behind a reference"
+	}
+	b := diag.ReportError(tc.reporter, diag.SemaPartialMoveNotEnumerable, span,
+		fmt.Sprintf("cannot take `%s` out of `%s`: it names %s, and what would be left cannot be listed", label, base, what))
+	if b == nil {
+		return
+	}
+	if kind == PlaceSegmentDeref {
+		b.WithNote(span, "a reference borrows what it points at, so there is no value here to give away")
+		b.WithNote(span, fmt.Sprintf("hint: move the value that `%s` refers to, at the place that owns it", base))
+		b.Emit()
+		return
+	}
+	b.WithNote(span,
+		"emptying one place means releasing the rest one at a time at every exit, and elements are chosen by "+
+			"position rather than by name, so there is no list to release — a struct field has one, an array or "+
+			"tuple element does not")
+	b.WithNote(span, fmt.Sprintf(
+		"hint: move `%s` as a whole, or take a field of it if that is what you need; taking an element out "+
+			"and leaving a hole is not expressible",
+		base))
 	b.Emit()
 }
 

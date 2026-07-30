@@ -294,15 +294,14 @@ const (
 	SemaSelectSendPayloadNotBinding    Code = 3141 // select send payload must be a whole owned binding
 	SemaCompareGuardMovesBinding       Code = 3142 // compare-arm guard moves one of the arm's own pattern bindings
 
-	// SemaPartialMoveUnsupported rejects moving a field, element, or other
-	// projection OUT of a live binding. Doing so is a PARTIAL MOVE: the
-	// container keeps the rest of its value and gives one place away. Sema
-	// tracks moves per BINDING, not per place, so it can neither invalidate
-	// just that place nor drop only the fields that remain — and without both
-	// the extraction silently aliases the container instead of taking from it.
-	// Lifted once partial moves are tracked, when `own o.inner` becomes the
-	// spelling that performs one.
-	SemaPartialMoveUnsupported Code = 3143
+	// SemaPartialMoveNotEnumerable rejects a partial move whose remainder cannot
+	// be named. Giving one place away leaves the container holding the rest, and
+	// releasing that rest means listing it: a struct's fields are known from its
+	// type, but an array or tuple element is chosen by position and a tag
+	// payload by a runtime tag, so neither can be enumerated. Naming what
+	// survives is the only alternative to a runtime drop flag per element, which
+	// this language does not have.
+	SemaPartialMoveNotEnumerable Code = 3143
 
 	// Numbers up to 3176 are taken; the crossing blocks live in codes_crossing.go.
 
@@ -311,6 +310,20 @@ const (
 	// the sharing a per-shard ownership model has no boundary to copy at.
 	// `const` is the supported global: it is inlined at each use site.
 	SemaModuleLevelLet Code = 3177
+
+	// SemaPartialMoveNeedsOwn rejects taking a field out of a live value written
+	// as a plain read. The read looks like every other field read and the
+	// container is left standing, so nothing at the use site says the value was
+	// emptied — and after it, reading the container is an error. `own` is the
+	// marker that already means "I am taking this", and requiring it here makes
+	// the destructive read visible where it happens.
+	SemaPartialMoveNeedsOwn Code = 3178
+
+	// SemaPartialMoveFromTemporary rejects taking a field out of a value nothing
+	// holds — `mk().inner`. The temporary is released at the end of its
+	// statement and, unlike a binding, has no name whose remainder can be
+	// narrowed, so the release takes the extracted field with it.
+	SemaPartialMoveFromTemporary Code = 3179
 
 	// Ошибки I/O
 
@@ -563,7 +576,9 @@ var ( // todo расширить описания и использовать к
 		SemaSelectSendOwnMarker:            "select send arm takes ownership of its payload",
 		SemaSelectSendPayloadNotBinding:    "select send payload must be a whole owned binding",
 		SemaCompareGuardMovesBinding:       "compare-arm guard cannot move a value out of its own pattern binding",
-		SemaPartialMoveUnsupported:         "moving a field out of a live value is not supported yet",
+		SemaPartialMoveNotEnumerable:       "what would remain after this move cannot be named",
+		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
+		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaModuleLevelLet:                 "module-level `let` is not allowed; use `const`",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",

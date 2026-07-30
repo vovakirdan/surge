@@ -1,2 +1,1 @@
-error SEM3015 testdata/golden/crossing/block01/invalid/far_negative_copy_handle.sg:9:30 cannot assign own far TcpConn to far TcpConn
 error SEM3130 testdata/golden/crossing/block01/invalid/far_negative_copy_handle.sg:9:30 use of moved value 'h'

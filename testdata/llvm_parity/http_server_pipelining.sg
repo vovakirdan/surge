@@ -13,7 +13,7 @@ async fn respond_for_path(path: string) -> http.Response {
 }
 
 async fn handle(req: http.Request) -> http.Response {
-    let path: string = req.path;
+    let path: string = own req.path;
     let cancel_resp: http.Response = { status = 500, headers = [], body = http.Empty() };
     let res = respond_for_path(path).await();
     return compare res {

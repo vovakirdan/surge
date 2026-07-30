@@ -252,7 +252,12 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					tc.updateLocalTaskBindingFromExpr(symID, letStmt.Value)
 					tc.trackTaskContainerPopBinding(symID, letStmt.Value)
 					tc.registerDroppableBinding(symID)
-					if tc.isProjectionRead(letStmt.Value) {
+					// A projection read leaves ownership with the container, so
+					// the binding holding it must never drop. A partial move is
+					// the one projection read that does NOT: the place has left
+					// the container, so this binding is its only owner and a
+					// suppressed drop here abandons it.
+					if tc.isProjectionRead(letStmt.Value) && !tc.partialMoveRead(letStmt.Value) {
 						tc.markAliasedBinding(symID)
 					}
 				}
@@ -360,11 +365,12 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					tc.movedPlaces = movedBefore
 				} else {
 					union := mergeMovedPlaces(movedThen, movedBefore)
-					if drops := tc.oneSidedDroppables(movedBefore, union); len(drops) > 0 {
+					if drops, plans := tc.oneSidedObligations(movedBefore, union); len(drops) > 0 {
 						if tc.result.IfSyntheticElseDrops == nil {
 							tc.result.IfSyntheticElseDrops = make(map[ast.StmtID][]symbols.SymbolID)
 						}
 						tc.result.IfSyntheticElseDrops[id] = drops
+						tc.recordOneSidedDrops(DropSite{Stmt: id}, plans)
 					}
 					tc.movedPlaces = union
 				}

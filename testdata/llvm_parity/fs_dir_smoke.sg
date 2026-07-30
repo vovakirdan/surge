@@ -49,7 +49,7 @@ fn main(dir: string) -> int {
         Success(entries) => {
             let mut names: string[] = [];
             for e in entries {
-                names.push(e.name);
+                names.push(own e.name);
             }
             sort_strings(&mut names);
             print("count=" + (names.__len() to string));

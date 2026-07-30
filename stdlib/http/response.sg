@@ -121,12 +121,9 @@ fn hex_string(n: uint) -> string {
 
 pub fn write_response(resp: Response) -> byte[] {
     let status: int = resp.status;
-    // RV2-DEBT-077: taking a field out of a value that dies here is a PARTIAL
-    // MOVE, which sema does not track yet — reading it directly aliases the
-    // container and the container's drop then frees what this value holds.
-    // The clone is the interim price; Epic 24 step 8 replaces it with `own`.
-    let body = copy_response_body(resp.body);
-    let headers = copy_headers(resp.headers);
+    // `resp` dies here, so its body and headers are TAKEN rather than copied.
+    let body = own resp.body;
+    let headers = own resp.headers;
 
     let mut out: byte[] = [];
     append_string_bytes(&mut out, "HTTP/1.1 ");
