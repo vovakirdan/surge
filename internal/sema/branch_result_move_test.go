@@ -23,20 +23,39 @@ type Held = { v: int };
 fn consumed(cond: bool, a: Held, b: Held) -> Held {
     return cond ? a : b;
 }
+
+fn take(x: Held) -> Held {
+    return x;
+}
+
+fn moved_while_typed(cond: bool, a: Held, b: Held) -> Held {
+    return cond ? take(a) : b;
+}
 `)
 	requireNoSemaErrors(t, parseBag, semaBag)
 	if res == nil {
 		t.Fatal("no sema result")
 	}
 
-	// `consumed` gives one branch away on each path, so each of its two
-	// branches owes exactly one drop: the sibling's binding, which that path
-	// did not take and which therefore has nobody else to reclaim it.
+	// Two functions, two ways a branch can give something away, one drop owed
+	// per branch in both:
 	//
-	// Two branches owing one each is what makes this pin the SHAPE rather than
-	// a count. A fix that moved both operands and stopped would leave zero here
-	// and leak; one that moved neither — the state this test was written
-	// against — would also leave zero, and double-free instead.
+	//   consumed          the branch RESULT is handed onward when the ternary
+	//                     is consumed, so each branch owes the sibling's
+	//                     binding — the one that path did not take and that
+	//                     therefore has nobody else to reclaim it;
+	//   moved_while_typed the true branch moves `a` while it is EVALUATED, so
+	//                     the false branch owes `a`; the false branch hands `b`
+	//                     onward, so the true branch owes `b`.
+	//
+	// The second is the shape a review caught: the branches used to be typed
+	// without isolating their moved-sets, so the false branch inherited the
+	// true branch's move of `a` and nobody reclaimed it on the path where
+	// `take` never ran.
+	//
+	// One drop per branch is what makes this pin the SHAPE rather than a count.
+	// A fix that moves nothing leaves zero here and double-frees; one that
+	// moves everything and compensates nothing also leaves zero, and leaks.
 	total := 0
 	for branch, drops := range res.ArmDropsExpr {
 		if len(drops) != 1 {
@@ -44,10 +63,11 @@ fn consumed(cond: bool, a: Held, b: Held) -> Held {
 		}
 		total += len(drops)
 	}
-	if total != 2 {
+	if total != 4 {
 		t.Fatalf(
-			"expected the two consumed ternary branches to owe one drop each, got %d across %d branches; "+
-				"a branch that is not taken still holds its operand",
+			"expected four ternary branches to owe one drop each, got %d across %d branches; "+
+				"a branch that is not taken still holds its operand, whether the sibling gave it away "+
+				"by being evaluated or by being handed onward",
 			total, len(res.ArmDropsExpr),
 		)
 	}

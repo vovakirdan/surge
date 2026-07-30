@@ -205,12 +205,33 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 		return types.NoTypeID
 	}
 	tc.ensureBoolContext(tern.Cond, tc.exprSpan(tern.Cond))
+
+	// The branches are typed in ISOLATION from each other, because only one of
+	// them runs. Evaluating a branch can itself move something — `cond ?
+	// pass(a) : b` hands `a` to a by-value parameter — and without the restore
+	// between them the second branch inherits the first's moves, so nothing
+	// notices that `a` is still live on the path where `pass` was never
+	// called. That is a leak of `a` on exactly the untaken path, and the
+	// compensating drops below are what reclaim it: each branch owes what the
+	// OTHER branch's evaluation gave away.
+	//
+	// The same reasoning a compare applies across its arms, which restores
+	// before each one for exactly this reason.
+	before := tc.snapshotMovedPlaces()
 	trueType := tc.typeExpr(tern.TrueExpr)
-	falseType := tc.typeExpr(tern.FalseExpr)
 	// The arms transfer into the ternary's own result value; the outer
 	// expression carries the drop candidacy from here.
 	tc.consumeTempCandidate(tern.TrueExpr)
+	movedTrue := tc.snapshotMovedPlaces()
+
+	tc.restoreMovedPlaces(before)
+	falseType := tc.typeExpr(tern.FalseExpr)
 	tc.consumeTempCandidate(tern.FalseExpr)
+	movedFalse := tc.snapshotMovedPlaces()
+
+	tc.recordBranchOneSidedDrops(tern.TrueExpr, movedTrue, movedFalse)
+	tc.recordBranchOneSidedDrops(tern.FalseExpr, movedFalse, movedTrue)
+	tc.restoreMovedPlaces(mergeMovedPlaces(movedTrue, movedFalse))
 	resultType := tc.unifyTernaryBranches(trueType, falseType, span)
 	if resultType != types.NoTypeID {
 		tc.recordNumericWidening(tern.TrueExpr, trueType, resultType)
