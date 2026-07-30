@@ -115,6 +115,16 @@ func cloneStmt(s hir.Stmt) hir.Stmt {
 		if data.Value != nil {
 			data.Value = cloneExpr(data.Value)
 		}
+		// The drop list gets a slice of its own, exactly as StmtReturn's does.
+		// Sharing it means every instantiation writes its own type substitution
+		// into one list, so the last one instantiated decides which drop glue
+		// all of them use. A crossing body reaches its exit through `ret` and
+		// nothing else, which is where this list is not empty.
+		if len(data.DropsAfterValue) > 0 {
+			drops := make([]hir.DropLocal, len(data.DropsAfterValue))
+			copy(drops, data.DropsAfterValue)
+			data.DropsAfterValue = drops
+		}
 		out.Data = data
 	case hir.StmtIf:
 		data, ok := s.Data.(hir.IfStmtData)

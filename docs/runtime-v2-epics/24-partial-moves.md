@@ -818,6 +818,57 @@ not become per-field until a backend can act on one.
    must survive `internal/mono` cloning and substitution, and the step-0
    protocol must still hold once fields drop independently.
 
+   **DONE 2026-07-29. The new metadata was fine; the audit found a THREE-SITE
+   omission around `ret` that predates this epic entirely.**
+
+   The metadata this epic added rides along for free, and the reason is worth
+   knowing rather than rechecking: every mono pass takes a struct COPY of the
+   payload (`data, ok := e.Data.(hir.FieldAccessData)`), mutates only the child
+   pointers, and reassigns. So `FieldAccessData.MoveOut`, `OwnedTempData.Steps`
+   and `DropData.Steps` travel by value with no change at any site.
+
+   What is NOT fine is `RetData.DropsAfterValue`. `return` and `ret` are
+   separate statement kinds with separate handling everywhere, `ret` acquired a
+   drop list later (step 0b), and three sites that maintain `return`'s list were
+   never told:
+
+   - `cloneStmt` did not copy the slice, so every instantiation of a generic
+     function SHARED one drop list — and the substitution below writes into it,
+     so the last instantiation would decide which drop glue all of them use;
+   - `ApplyStmt` never substituted the drop TYPES, which is what picks the glue;
+   - `remapStmt` in the stdlib HIR import did not remap the drop SYMBOLS, so an
+     imported `ret` would drop whatever now occupies those slots.
+
+   All three are latent rather than live today, and the audit had to be written
+   as a unit test to find them at all. Reaching them from source needs a
+   non-empty drop list on a `ret` inside a generic or imported function, and the
+   two shapes that produce one are hard to combine: a value-producing block
+   expression records NO drops (its locals leak by design — the recorded
+   safe-direction bound in `appendBlockExprEndDrops`, measured here at 392 bytes
+   over 8 iterations and identical on the tree before this epic), and a crossing
+   body records them but could not be given a type-parameter-typed local.
+   `internal/mono/ownership_metadata_test.go` asserts the two operations
+   directly instead, with `return` as the row that must always pass — it is what
+   says the test measures a real difference — and negative controls that fire on
+   each half of the `ret` gap separately.
+
+   **The step-0 protocol still holds, and it holds because nothing moved under
+   it.** Every compiler-generated field read — crossing capture unpacking, async
+   save and restore, the blocking and poll paths — constructs its `FieldAccess`
+   with `MoveOut` at its zero value, so all of them keep the copy semantics they
+   had. Measured rather than reasoned: the crossing capture censuses stay green,
+   a crossing body inside a GENERIC function reports zero definitely-lost, and a
+   heap local live across a suspension reports zero definitely-lost and zero
+   indirect with no invalid access (valgrind, native).
+
+   **What this unblocks and does not do.** Step 0 said its transfer invariant
+   needed an explicit `FieldReadMoveOut` versus `FieldReadCopy` mode before it
+   could be written, because the same MIR shape meant either one by convention.
+   That mode now exists. Writing the invariant still means first converting the
+   generated reads to it — a change to the crossing and async ownership
+   protocol, which is step 0's tail rather than this step's text, and which
+   should be measured on its own rather than folded in here.
+
 ## Tests This Epic Supersedes
 
 Not defects, and not to be rescued by rewriting their programs — they assert the

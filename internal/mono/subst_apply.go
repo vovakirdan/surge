@@ -84,6 +84,19 @@ func (s *Subst) ApplyStmt(st *hir.Stmt) error {
 				return err
 			}
 		}
+		// A drop's TYPE is what picks its glue, so an unsubstituted type
+		// parameter here reclaims the wrong thing — or nothing. StmtReturn has
+		// always done this; `ret` is the exit a crossing body uses, so leaving
+		// it out abandoned whatever such a body held in exactly the generic
+		// case that is hardest to write a program for.
+		if len(data.DropsAfterValue) > 0 {
+			drops := make([]hir.DropLocal, len(data.DropsAfterValue))
+			copy(drops, data.DropsAfterValue)
+			for i := range drops {
+				drops[i].Type = s.Type(drops[i].Type)
+			}
+			data.DropsAfterValue = drops
+		}
 		st.Data = data
 	case hir.StmtIf:
 		data, ok := st.Data.(hir.IfStmtData)

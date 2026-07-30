@@ -425,6 +425,14 @@ func remapStmt(st *hir.Stmt, mapping map[symbols.SymbolID]symbols.SymbolID, stat
 			return
 		}
 		remapExpr(data.Value, mapping, state)
+		// Its drop list needs remapping for the same reason StmtReturn's does:
+		// an un-remapped symbol names whatever now occupies that slot, so the
+		// exit drops something it was never given. `ret` acquired a drop list
+		// later than `return` did, and this was one of the sites that did not
+		// hear about it.
+		for i := range data.DropsAfterValue {
+			data.DropsAfterValue[i].SymbolID = remapSymbol(data.DropsAfterValue[i].SymbolID, mapping)
+		}
 		st.Data = data
 	case hir.StmtIf:
 		data, ok := st.Data.(hir.IfStmtData)
