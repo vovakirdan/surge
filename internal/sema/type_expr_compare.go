@@ -115,6 +115,59 @@ func (tc *typeChecker) registerComparePayloadDroppables(bindings []symbols.Symbo
 	}
 }
 
+// releaseArmResultObligations takes back the obligation an arm earned for a
+// payload binding it RETURNED, once the compare's own value turns out to be
+// consumed.
+//
+// Whether an arm handed its payload onward is not knowable while the arm is
+// being typed. `let out = compare v { Payload(s) => s; ... }` consumes the
+// result and the binding must NOT also drop it; `peek(compare v { ... })` with
+// a `&string` parameter only borrows it, and then the binding's drop is the
+// only thing that reclaims it; a discarded compare is the same. The arm is
+// typed before any of those are known.
+//
+// So the arm keeps the obligation by default and the consuming context takes
+// it away here — the leak-over-double-free direction while the answer is
+// unknown, which is the direction the rest of this file errs in too. This runs
+// from observeMove, which is exactly the set of positions that consume a
+// value.
+//
+// Nested compares recurse: an arm whose result is itself a compare hands ITS
+// arms' results onward by the same argument. An arm whose result is a BLOCK
+// needs nothing here — a block's tail expression already observes its own move
+// while the arm is being typed, so the binding never earned the obligation.
+func (tc *typeChecker) releaseArmResultObligations(expr ast.ExprID) {
+	if tc.builder == nil || tc.result == nil || len(tc.result.ArmDropsExpr) == 0 {
+		return
+	}
+	cmp, ok := tc.builder.Exprs.Compare(expr)
+	if !ok || cmp == nil {
+		return
+	}
+	for _, arm := range cmp.Arms {
+		if !arm.Result.IsValid() {
+			continue
+		}
+		tc.releaseArmResultObligations(arm.Result)
+		symID := tc.symbolForExpr(arm.Result)
+		if !symID.IsValid() {
+			continue
+		}
+		drops := tc.result.ArmDropsExpr[arm.Result]
+		kept := drops[:0:0]
+		for _, owed := range drops {
+			if owed != symID {
+				kept = append(kept, owed)
+			}
+		}
+		if len(kept) == 0 {
+			delete(tc.result.ArmDropsExpr, arm.Result)
+			continue
+		}
+		tc.result.ArmDropsExpr[arm.Result] = kept
+	}
+}
+
 func (tc *typeChecker) unionTagPayloadTypes(subject types.TypeID, tag source.StringID) []types.TypeID {
 	if tag == source.NoStringID || tc.types == nil {
 		return nil

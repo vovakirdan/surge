@@ -69,20 +69,6 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		}
 		armAbrupt := tc.compareArmAbruptExit(arm.Result)
 		armClosed[i] = armAbrupt
-		if !armAbrupt && !compareDiscarded {
-			// The result BECOMES the compare's value, so an arm whose
-			// result is one of its own payload bindings hands that
-			// binding onward and must not also owe a drop on it. Nothing
-			// else observed this: a block's tail expression and a
-			// `return` operand each mark their move, and an arm's result
-			// is the same position, but no walk reached it — so
-			// `Payload(s) => s` both returned the payload and freed it.
-			//
-			// Skipped when the compare's value is DISCARDED: then the
-			// result goes nowhere, nobody downstream owns it, and the
-			// binding's own obligation is what reclaims it.
-			tc.observeMove(arm.Result, tc.exprSpan(arm.Result))
-		}
 		armTypes[i] = armResult
 		if !armAbrupt && armResult != types.NoTypeID {
 			if expectedCompare != types.NoTypeID {

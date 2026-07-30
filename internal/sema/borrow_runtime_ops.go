@@ -17,6 +17,13 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	// value owns its drop from here.
 	tc.consumeTempCandidate(expr)
 
+	// A compare hands its arms' results onward, so consuming the compare
+	// consumes those too: an arm that returned one of its own payload
+	// bindings no longer owes a drop on it. Done HERE rather than while the
+	// arm is typed, because only the consuming context knows this — a
+	// borrowed or discarded compare result leaves the obligation in place.
+	tc.releaseArmResultObligations(expr)
+
 	// Skip move tracking for Copy types - they can be implicitly copied
 	// and the original value remains valid after the "copy".
 	exprType := tc.result.ExprTypes[expr]

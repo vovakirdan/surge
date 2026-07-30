@@ -40,17 +40,35 @@ fn uses_payload(v: Outcome) -> int {
         Empty() => 0;
     };
 }
+
+fn borrows_result(v: Outcome) -> int {
+    return peek(compare v {
+        Payload(s) => s;
+        Empty() => "";
+    });
+}
 `)
 	requireNoSemaErrors(t, parseBag, semaBag)
 	if res == nil {
 		t.Fatal("no sema result")
 	}
 
-	// `uses_payload` keeps its payload to the end of its arm and owes exactly
-	// one drop; `returns_payload` gave its payload away and owes none. The
-	// control matters: without it an assertion of "no obligations" would also
-	// pass if arm obligations stopped being recorded at all, which is the
-	// leak this machinery exists to prevent.
+	// Three shapes, and the obligation turns on WHO ends up owning the value,
+	// not on how the arm is written:
+	//
+	//   returns_payload  the `return` consumes the compare, so the payload has
+	//                    a new owner and the arm owes nothing;
+	//   uses_payload     the payload never leaves its arm, so the arm owes it;
+	//   borrows_result   the compare's value is only BORROWED by peek, so
+	//                    nobody downstream owns the payload and the arm still
+	//                    owes it — the case a review caught after the first
+	//                    version of this fix moved unconditionally and leaked
+	//                    one string per evaluation here.
+	//
+	// The two owing arms are also what stops this from passing vacuously: an
+	// assertion of "no obligations" would hold just as well if arm obligations
+	// stopped being recorded at all, which is the leak the machinery exists to
+	// prevent.
 	total := 0
 	for expr, drops := range res.ArmDropsExpr {
 		if len(drops) == 0 {
@@ -61,10 +79,11 @@ fn uses_payload(v: Outcome) -> int {
 			t.Fatalf("arm %v: expected at most one payload obligation, got %d", expr, len(drops))
 		}
 	}
-	if total != 1 {
+	if total != 2 {
 		t.Fatalf(
-			"expected exactly the locally-used payload to owe a drop, got %d obligations across %d arms; "+
-				"an arm that RETURNS its payload binding must not also drop it",
+			"expected exactly the locally-used and the borrowed-result payloads to owe a drop, got %d "+
+				"obligations across %d arms; an arm that RETURNS its payload into a CONSUMING context must "+
+				"not also drop it, and one whose result is only borrowed must",
 			total, len(res.ArmDropsExpr),
 		)
 	}
