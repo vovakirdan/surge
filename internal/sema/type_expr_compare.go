@@ -95,6 +95,26 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 	}
 }
 
+// registerComparePayloadDroppables gives an arm's pattern bindings the
+// scope-exit obligation every other binding has.
+//
+// A payload extracted into a binding is that binding's to release: for an OWNED
+// scrutinee the payload's reference moves out of the envelope, which is then
+// freed shallowly on exactly that premise, and for a BORROWED one the extraction
+// retains so the binding holds a reference of its own. Either way one release is
+// owed, and nothing owed it — only the `let` walk reaches
+// registerDroppableBinding, so a heap payload bound and used locally inside its
+// arm was simply abandoned.
+//
+// A binding the arm moves ONWARD is skipped later by liveDroppables, which is
+// why the ubiquitous `Success(x) => x` shape hid this for so long: it moves, so
+// it never needed the obligation that was missing.
+func (tc *typeChecker) registerComparePayloadDroppables(bindings []symbols.SymbolID) {
+	for _, symID := range bindings {
+		tc.registerDroppableBinding(symID)
+	}
+}
+
 func (tc *typeChecker) unionTagPayloadTypes(subject types.TypeID, tag source.StringID) []types.TypeID {
 	if tag == source.NoStringID || tc.types == nil {
 		return nil

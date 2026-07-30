@@ -37,7 +37,6 @@ type Paired = { pair: (Inner, Inner), label: string };
 
 fn sink_str(s: own string) -> int { return 1; }
 fn sink_inner(i: own Inner) -> int { return 1; }
-fn sink_bytes(b: own byte[]) -> int { return 2; }
 
 // The flat shape: one field leaves, the sibling stays, the container's own
 // storage goes last.
@@ -104,12 +103,13 @@ fn explicit_drop(n: int) -> int {
 // taken from — on top of the residual drop at the exit. Double free on the
 // native backend, use-after-free in the VM, and both printed the right answer.
 //
-// The arm hands its payload ON to a sink that takes ownership, and that is not
-// decoration. A payload binding left to fall off the end of its arm is never
-// dropped at all — measured identically on the tree before any of this work, so
-// it belongs to the compare-arm release model rather than to partial moves
-// (RV2-DEBT-052/075/078). Consuming it keeps this row measuring the double free
-// it exists for instead of failing on a leak it does not own.
+// The arm binds its payload and USES it locally, which is the shape that had no
+// owner at all: a payload bound and not moved onward was abandoned, because only
+// the let-binding walk gave a binding its scope-exit obligation (RV2-DEBT-087).
+// This
+// row used to hand the payload to a sink to dodge that; it reads it directly
+// now, so it covers both the double free it was written for and the leak beside
+// it.
 fn union_field(n: int) -> int {
     let mut i = 0;
     let mut acc = 0;
@@ -121,7 +121,7 @@ fn union_field(n: int) -> int {
         let body = own h.body;
         let got = compare body {
             Empty() => 0;
-            Bytes(b) => sink_bytes(own b);
+            Bytes(b) => b.__len() to int;
         };
         acc = acc + got + h.status;
         i = i + 1;

@@ -27,6 +27,12 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		nothingType = tc.types.Builtins().Nothing
 	}
 	armTypes := make([]types.TypeID, len(cmp.Arms))
+	// A payload BOUND by an arm's pattern is a droppable this arm owns, and
+	// until now nobody owned it: only the `let` walk reaches
+	// registerDroppableBinding, so a heap payload bound and used locally was
+	// abandoned. It is collected per arm rather than per function because that
+	// is where it dies — see armPayloadDroppables.
+	armPayloadDrops := make([][]symbols.SymbolID, len(cmp.Arms))
 	compareDiscarded := tc.isExprDiscarded(id)
 
 	for i, arm := range cmp.Arms {
@@ -36,7 +42,12 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			armSubject = narrowed
 		}
 		var armBindings []symbols.SymbolID
+		// The scope opens BEFORE the pattern is typed so the bindings it
+		// introduces land in it, and closes after the arm's result so anything
+		// the result moved out is already recorded when the obligations are read.
+		tc.pushDropScope(false)
 		tc.inferComparePatternTypes(arm.Pattern, armSubject, &armBindings)
+		tc.registerComparePayloadDroppables(armBindings)
 		if arm.Guard.IsValid() {
 			// A guard runs BEFORE this arm commits (payload extraction
 			// already ran, but a failed guard falls through to the next
@@ -80,6 +91,14 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		if len(remainingMembers) > 0 {
 			remainingMembers = tc.consumeCompareMembers(remainingMembers, arm)
 		}
+		// Read before the scope closes, and only what the arm still holds: a
+		// payload the result moved onward has a new owner and is skipped by
+		// liveDroppables. An arm that exits abruptly has already had these
+		// collected by its own return/ret, which walks the open scopes.
+		if !armAbrupt {
+			armPayloadDrops[i] = tc.liveDroppables(&tc.dropScopes[len(tc.dropScopes)-1])
+		}
+		tc.popDropScope()
 		movedArms[i] = tc.snapshotMovedPlaces()
 	}
 
@@ -112,25 +131,32 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		}
 		mergedMoves = mergeMovedPlaces(mergedMoves, movedArms[i])
 	}
-	if mergedMoves != nil {
-		// Per-arm drop synthesis: a droppable moved on some arms but live
-		// on this one drops at this arm's end (not a hard error). After
-		// the join every such binding is in the union moved-set, so using
-		// it stays a use-of-moved error.
-		for i := range cmp.Arms {
-			if armClosed[i] {
-				continue
-			}
-			drops, plans := tc.oneSidedObligations(movedArms[i], mergedMoves)
-			if len(drops) == 0 {
-				continue
-			}
-			if tc.result.ArmDropsExpr == nil {
-				tc.result.ArmDropsExpr = make(map[ast.ExprID][]symbols.SymbolID)
-			}
-			tc.result.ArmDropsExpr[cmp.Arms[i].Result] = drops
-			tc.recordOneSidedDrops(DropSite{Expr: cmp.Arms[i].Result}, plans)
+	// Per-arm drop synthesis, of two kinds that land on the same channel.
+	//
+	// The arm's own PAYLOAD bindings die here whatever the other arms did, so
+	// they are emitted even when no arm moved anything. On top of that, a
+	// droppable moved on some arms but live on this one drops at this arm's end
+	// rather than being an error; after the join every such binding is in the
+	// union moved-set, so using it stays a use-of-moved.
+	for i := range cmp.Arms {
+		if armClosed[i] {
+			continue
 		}
+		drops := armPayloadDrops[i]
+		var plans map[symbols.SymbolID][]DropStep
+		if mergedMoves != nil {
+			oneSided, oneSidedPlans := tc.oneSidedObligations(movedArms[i], mergedMoves)
+			drops = append(drops, oneSided...)
+			plans = oneSidedPlans
+		}
+		if len(drops) == 0 {
+			continue
+		}
+		if tc.result.ArmDropsExpr == nil {
+			tc.result.ArmDropsExpr = make(map[ast.ExprID][]symbols.SymbolID)
+		}
+		tc.result.ArmDropsExpr[cmp.Arms[i].Result] = drops
+		tc.recordOneSidedDrops(DropSite{Expr: cmp.Arms[i].Result}, plans)
 	}
 	if mergedMoves == nil {
 		tc.movedPlaces = movedBefore

@@ -39,10 +39,18 @@ func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
 	return l.wrapArmDrops(exprID, result)
 }
 
-// wrapArmDrops injects per-arm drop synthesis: an arm result carrying
-// live droppables (a partial-path move that this arm did not perform)
-// becomes a block that frees them, then yields the original value —
-// `{ @drop b...; ret <result> }`.
+// wrapArmDrops injects per-arm drop synthesis: an arm result carrying live
+// droppables becomes a block that yields the value and frees them —
+// `{ ret <result> after dropping b... }`.
+//
+// The drops ride on the `ret` as DropsAfterValue rather than preceding it, and
+// the difference is not cosmetic. Two kinds of obligation land here: a binding a
+// SIBLING arm moved and this one did not, which the result never touches, and
+// this arm's OWN pattern payload, which the result usually reads — an arm like
+// `Bytes(b) => b.__len()` uses the very binding it owes. Emitted before the
+// value, that freed the payload and then read it: an invalid read of a null
+// slot, measured. After the value is the contract `return` already carries for
+// exactly this reason.
 func (l *lowerer) wrapArmDrops(exprID ast.ExprID, result *Expr) *Expr {
 	if result == nil || l.semaRes == nil || l.semaRes.ArmDropsExpr == nil {
 		return result
@@ -51,18 +59,23 @@ func (l *lowerer) wrapArmDrops(exprID ast.ExprID, result *Expr) *Expr {
 	if len(syms) == 0 {
 		return result
 	}
-	block := &Block{Span: result.Span}
+	drops := make([]DropLocal, 0, len(syms))
 	for _, symID := range syms {
 		// The plan matters here as much as at a scope end: what this arm owes
 		// may be one PLACE the sibling arm gave away, not the whole binding,
 		// and dropping the binding whole would free what the exit still owns.
-		block.Stmts = append(block.Stmts, l.synthDropStmtWithPlan(
-			symID, result.Span, l.residualSteps(sema.DropSite{Expr: exprID, Symbol: symID})))
+		drops = append(drops, DropLocal{
+			SymbolID: symID,
+			Type:     l.bindingDropType(symID),
+			Span:     result.Span,
+			Steps:    l.residualSteps(sema.DropSite{Expr: exprID, Symbol: symID}),
+		})
 	}
+	block := &Block{Span: result.Span}
 	block.Stmts = append(block.Stmts, Stmt{
 		Kind: StmtRet,
 		Span: result.Span,
-		Data: RetData{Value: result},
+		Data: RetData{Value: result, DropsAfterValue: drops},
 	})
 	return &Expr{
 		Kind: ExprBlock,

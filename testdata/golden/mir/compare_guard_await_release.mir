@@ -233,8 +233,8 @@ fn test$poll:
     goto bb17
   bb8:
     drop L8
-    drop L4
     L21 = const 0
+    drop L4
     goto bb10
   bb9:
     drop L8
