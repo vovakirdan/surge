@@ -649,3 +649,51 @@ fn f() -> int {
 		})
 	}
 }
+
+// The refusal carries a FIX, and this is the one diagnostic in the family where a
+// compiler can offer one without guessing. It is reached only after the path is
+// known enumerable, the place is known to be still present, and the read is known
+// to be a projection of a named binding at a resolved move-only type — so `own` in
+// front of the expression is exactly the form that would have been accepted, which
+// is why it is marked always-safe and swept by `surge fix --all`.
+//
+// A newcomer from a language without this rule meets an error whose headline says
+// what to write and whose fix writes it; the notes explain the consequence and the
+// alternative, and an editor surfaces those through the language server.
+func TestTakingAFieldWithoutOwnOffersTheOwnMarkerAsAFix(t *testing.T) {
+	_, semaBag := runSemaOnSnippet(t, `
+type Head = { method: string, target: string }
+type Req = { method: string, target: string }
+fn to_req(head: Head) -> Req {
+	return Req { method = head.method, target = head.target };
+}
+`)
+	var offered int
+	for _, item := range semaBag.Items() {
+		if item.Code != diag.SemaPartialMoveNeedsOwn {
+			continue
+		}
+		for _, f := range item.Fixes {
+			if len(f.Edits) != 1 || f.Edits[0].NewText != "own " {
+				t.Fatalf("fix does not insert the marker: %+v", f.Edits)
+			}
+			// Always-safe is what lets `--all` sweep a file clean in one pass; a
+			// heuristic applicability would leave every site to be applied by
+			// hand, which for a rule this common is the difference between a
+			// friendly surface and a chore.
+			if f.Applicability != diag.FixApplicabilityAlwaysSafe {
+				t.Fatalf("fix applicability is %v, want always-safe", f.Applicability)
+			}
+			if !f.IsPreferred {
+				t.Fatal("fix is not marked preferred, so an editor has no reason to lead with it")
+			}
+			offered++
+		}
+	}
+	// BOTH reads, not just the first: a file with several of these should come
+	// out clean in one `surge fix --all`, and a fix attached to only the first
+	// diagnostic would still pass a weaker assertion.
+	if offered != 2 {
+		t.Fatalf("expected a fix on each of the two reads, got %d", offered)
+	}
+}

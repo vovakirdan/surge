@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/trace"
@@ -321,6 +322,9 @@ func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.Typ
 	if tc.reportBorrowIntoOwnedParam(expected, actual, expr) {
 		return
 	}
+	if tc.reportOwnedParamNeedsMarker(expected, actual, expr) {
+		return
+	}
 	if !allowImplicitTo {
 		tc.report(diag.SemaTypeMismatch, span, "expected %s, got %s", expectedLabel, actualLabel)
 		return
@@ -342,6 +346,58 @@ func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.Typ
 // got &X" line hides: the parameter takes OWNERSHIP, so binding a borrow to it
 // would let callee and caller free the same value. Reports and returns true
 // only for that shape (borrow of a non-Copy value against its owned type).
+// reportOwnedParamNeedsMarker explains a parameter that demands OWNERSHIP being
+// handed a plain value, and reports whether it did.
+//
+// "expected own Inner, got Inner" is true and tells a newcomer nothing: the two
+// labels differ by a word they have not met, and nothing says the word is theirs
+// to write. This is the direction the language keeps deliberately — a plain value
+// must not silently satisfy a demand for ownership, or the giving-away happens
+// with nothing at the use site saying so — so the message names the marker and
+// the alternative to it.
+//
+// The fix is offered but NOT always-safe, and the difference from the
+// partial-move marker is real. There, `own` was the only thing missing and the
+// read was already a move. Here the author has a genuine choice: give the value
+// away, or clone it and keep theirs. A compiler that swept `own` in
+// automatically would decide that for them, so this one waits to be asked.
+func (tc *typeChecker) reportOwnedParamNeedsMarker(expected, actual types.TypeID, expr ast.ExprID) bool {
+	if tc.types == nil || tc.reporter == nil || expected == types.NoTypeID || actual == types.NoTypeID {
+		return false
+	}
+	expInfo, ok := tc.types.Lookup(tc.resolveAlias(expected))
+	if !ok || expInfo.Kind != types.KindOwn {
+		return false
+	}
+	// Only when the marker alone would close the gap: the value already has the
+	// type the parameter wants underneath its `own`.
+	if !tc.typesAssignable(tc.resolveAlias(expInfo.Elem), actual, true) {
+		return false
+	}
+	if tc.isCopyType(actual) {
+		// A Copy value satisfies an owned parameter as it stands; if it reached
+		// here the mismatch is something else and this is not the explanation.
+		return false
+	}
+	span := tc.exprSpan(expr)
+	label := tc.typeLabel(expInfo.Elem)
+	b := diag.ReportError(tc.reporter, diag.SemaTypeMismatch, span,
+		fmt.Sprintf("this parameter takes ownership of %s, so the value has to be given away: write `own`", label))
+	if b == nil {
+		return false
+	}
+	b.WithNote(span,
+		"passing it by ownership ends your use of it: the callee frees it, and reading it here afterwards is an error")
+	b.WithNote(span, fmt.Sprintf(
+		"hint: to keep the %s you have, pass a clone instead", label))
+	b.WithFixSuggestion(fix.InsertText(
+		"insert `own` to give the value away",
+		span.ZeroideToStart(), "own ", "",
+		fix.WithApplicability(diag.FixApplicabilitySafeWithHeuristics)))
+	b.Emit()
+	return true
+}
+
 func (tc *typeChecker) reportBorrowIntoOwnedParam(expected, actual types.TypeID, expr ast.ExprID) bool {
 	return tc.reportBorrowIntoOwned(expected, actual, expr, "this parameter", "the callee")
 }

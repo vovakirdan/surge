@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/symbols"
 )
@@ -161,6 +162,16 @@ func (tc *typeChecker) reportPartialMoveNeedsOwn(desc placeDescriptor, expr ast.
 	b.WithNote(span, fmt.Sprintf(
 		"hint: if you did not mean to empty it, borrow the field instead (`&%s`) or clone what you need",
 		label))
+	// The marker is the ONLY thing missing, so this is one of the few fixes a
+	// compiler can offer without guessing: this diagnostic is reached after the
+	// path is known enumerable, the place is known still present, and the read is
+	// known to be a projection of a named binding at a resolved move-only type.
+	// `own` in front of it is exactly the form that would have been accepted —
+	// which is why the applicability is the always-safe default rather than a
+	// heuristic.
+	b.WithFixSuggestion(fix.InsertText(
+		fmt.Sprintf("insert `own` to take `%s` out of `%s`", label, base),
+		span.ZeroideToStart(), "own ", "", fix.Preferred()))
 	b.Emit()
 }
 
