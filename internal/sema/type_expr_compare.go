@@ -137,18 +137,37 @@ func (tc *typeChecker) registerComparePayloadDroppables(bindings []symbols.Symbo
 // needs nothing here — a block's tail expression already observes its own move
 // while the arm is being typed, so the binding never earned the obligation.
 func (tc *typeChecker) releaseArmResultObligations(expr ast.ExprID) {
-	if tc.builder == nil || tc.result == nil || len(tc.result.ArmDropsExpr) == 0 {
+	if tc.builder == nil || tc.result == nil {
 		return
 	}
-	cmp, ok := tc.builder.Exprs.Compare(expr)
+	cmp, ok := tc.builder.Exprs.Compare(tc.unwrapGroups(expr))
 	if !ok || cmp == nil {
+		return
+	}
+
+	// The arms are branches of one choice, exactly as a ternary's two are: one
+	// runs and hands its result onward. An arm returning a binding declared
+	// OUTSIDE the compare needs that whole treatment — the move, so the
+	// binding's scope-exit drop stands down, and a drop on every sibling arm,
+	// which still holds it.
+	results := make([]ast.ExprID, 0, len(cmp.Arms))
+	for _, arm := range cmp.Arms {
+		if !arm.Result.IsValid() || tc.compareArmAbruptExit(arm.Result) {
+			// An arm that exits abruptly hands nothing to the compare; its own
+			// `return` already accounted for what it moved.
+			continue
+		}
+		results = append(results, arm.Result)
+	}
+	tc.consumeBranchResults(results)
+
+	if len(tc.result.ArmDropsExpr) == 0 {
 		return
 	}
 	for _, arm := range cmp.Arms {
 		if !arm.Result.IsValid() {
 			continue
 		}
-		tc.releaseArmResultObligations(arm.Result)
 		symID := tc.symbolForExpr(arm.Result)
 		if !symID.IsValid() {
 			continue

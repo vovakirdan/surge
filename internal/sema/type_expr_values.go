@@ -79,6 +79,126 @@ func (tc *typeChecker) typeExprGroup(id ast.ExprID) types.TypeID {
 	return tc.typeExpr(group.Inner)
 }
 
+// consumeExprValue propagates "this expression's value is consumed" into the
+// constructs that hand a subexpression's value outward rather than producing
+// one themselves.
+//
+// The two differ in which direction they need it. A compare ARM keeps a drop
+// obligation it may turn out not to owe, and consumption RETRACTS it; a ternary
+// BRANCH has no obligation to begin with, and consumption ADDS the move plus
+// the sibling's drop. Both are wrong to decide while the expression is typed,
+// because the answer belongs to whoever receives the value.
+func (tc *typeChecker) consumeExprValue(expr ast.ExprID) {
+	tc.releaseArmResultObligations(expr)
+	tc.observeTernaryBranchMoves(expr)
+}
+
+// observeTernaryBranchMoves settles a CONSUMED ternary's move.
+//
+// `let picked = cond ? a : b` hands one of the two bindings onward, and nothing
+// used to say so: a ternary is not a place, so observeMove on it resolved
+// nothing and both bindings kept an obligation one of them had given away.
+// Measured as a double free and a read of freed memory on both.
+func (tc *typeChecker) observeTernaryBranchMoves(expr ast.ExprID) {
+	if tc.builder == nil {
+		return
+	}
+	tern, ok := tc.builder.Exprs.Ternary(tc.unwrapGroups(expr))
+	if !ok || tern == nil {
+		return
+	}
+	tc.consumeBranchResults([]ast.ExprID{tern.TrueExpr, tern.FalseExpr})
+}
+
+// consumeBranchResults settles the move a CONSUMED many-branch expression
+// makes. A ternary and a compare are the same shape for this: several branches,
+// exactly ONE of which runs, and whichever it is hands its result outward.
+//
+// It cannot be settled while the expression is TYPED, because only the context
+// knows whether the value is consumed at all — `peek(cond ? a : b)` with a `&T`
+// parameter borrows it, and there every branch keeps what it holds. So this
+// runs from observeMove, which is exactly the set of consuming positions.
+//
+// Marking every branch's operand moved and stopping there would LEAK whichever
+// branch did not run. Each branch therefore also owes what the others gave
+// away — the one-sided obligation a compare arm already carries for a binding a
+// sibling arm moved, computed by the same function and landing on the same
+// channel, which `wrapArmDrops` applies to any expression.
+//
+// Branches are walked through observeMove rather than marked directly, so a
+// nested ternary or compare settles its own branches first and this one sees
+// the result.
+func (tc *typeChecker) consumeBranchResults(results []ast.ExprID) {
+	if len(results) == 0 {
+		return
+	}
+	before := tc.snapshotMovedPlaces()
+	moved := make([]map[Place]source.Span, len(results))
+	for i, result := range results {
+		tc.restoreMovedPlaces(before)
+		// observeMove settles a nested ternary or compare on its way through,
+		// so a branch that is itself a choice is already resolved here.
+		tc.observeMove(result, tc.exprSpan(result))
+		moved[i] = tc.snapshotMovedPlaces()
+	}
+
+	merged := before
+	for _, m := range moved {
+		merged = mergeMovedPlaces(merged, m)
+	}
+	for i, result := range results {
+		var others map[Place]source.Span
+		for j, m := range moved {
+			if j == i {
+				continue
+			}
+			others = mergeMovedPlaces(others, m)
+		}
+		tc.recordBranchOneSidedDrops(result, moved[i], others)
+	}
+	// A binding ANY branch gave away is moved after the expression: a later use
+	// has to be rejected, because some path did hand it on.
+	tc.restoreMovedPlaces(merged)
+}
+
+// unwrapGroups peels parentheses off an expression.
+//
+// They are transparent to every question asked here — `(cond ? a : b)` moves
+// exactly what `cond ? a : b` moves — but they are NOT transparent to the
+// payload accessors, so a nested ternary written the way people write one went
+// unrecognised and its branches kept the obligations they had given away.
+func (tc *typeChecker) unwrapGroups(expr ast.ExprID) ast.ExprID {
+	if tc.builder == nil {
+		return expr
+	}
+	// Bounded rather than `for {}`: a malformed tree must not hang the checker.
+	for range 64 {
+		group, ok := tc.builder.Exprs.Group(expr)
+		if !ok || group == nil || !group.Inner.IsValid() {
+			return expr
+		}
+		expr = group.Inner
+	}
+	return expr
+}
+
+// recordBranchOneSidedDrops gives one branch the obligations the other
+// branches' moves left it holding.
+func (tc *typeChecker) recordBranchOneSidedDrops(branch ast.ExprID, mine, others map[Place]source.Span) {
+	if !branch.IsValid() {
+		return
+	}
+	owing, plans := tc.oneSidedObligations(mine, others)
+	if len(owing) == 0 {
+		return
+	}
+	if tc.result.ArmDropsExpr == nil {
+		tc.result.ArmDropsExpr = make(map[ast.ExprID][]symbols.SymbolID)
+	}
+	tc.result.ArmDropsExpr[branch] = append(tc.result.ArmDropsExpr[branch], owing...)
+	tc.recordOneSidedDrops(DropSite{Expr: branch}, plans)
+}
+
 func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.TypeID {
 	tern, ok := tc.builder.Exprs.Ternary(id)
 	if !ok || tern == nil {
