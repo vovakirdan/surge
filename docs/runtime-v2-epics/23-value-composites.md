@@ -1063,10 +1063,11 @@ than renaming.
 - **`make golden-check` per step that can change compiler output.** `go test
   ./internal/...` does NOT cover the golden corpus — it is
   `scripts/golden_update.sh` plus a `!golden` build tag on several suites — and
-  missing that was a real gap for the first steps of this epic. Because
-  RV2-DEBT-070 makes regeneration nondeterministic (MIR type and drop-fn id
-  renumbering out of Go map iteration), one run cannot tell a regression from a
-  flake. The protocol: regenerate on the stashed baseline twice, restore and
+  missing that was a real gap for the first steps of this epic. Regeneration
+  itself is reproducible again since RV2-DEBT-070 closed, so a single run no
+  longer conflates a regression with a renumbering flake — but a diff still has
+  to be READ, because a wrong answer regenerates just as stably as a right one.
+  The protocol: regenerate on the stashed baseline, restore and
   regenerate, then DECOMPOSE the diff — every changed line must be explained by
   an intended shape, with zero unexplained lines — then regenerate again and
   diff run-against-run to show determinism, then read at least one fixture for

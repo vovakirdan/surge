@@ -1,6 +1,9 @@
 package symbols
 
 import (
+	"sort"
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/types"
@@ -29,6 +32,45 @@ type ModuleExports struct {
 	Path        string
 	Symbols     map[string][]ExportedSymbol
 	PragmaFlags ast.PragmaFlags // Pragma flags from the module (e.g., PragmaFlagDirective)
+}
+
+// SortedNames returns the exported names in a stable order.
+//
+// Callers declare symbols as they walk these names, and a declared symbol gets
+// the next id from a bump allocator. Symbols is a map and Go randomises map
+// iteration, so walking it directly would make the ids — and everything
+// ordered by them — depend on run order rather than on the source.
+func (m *ModuleExports) SortedNames() []string {
+	if m == nil || len(m.Symbols) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(m.Symbols))
+	for name := range m.Symbols {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// sortedCoreModulePaths returns the paths of the core modules in exports, in a
+// stable order and for the same reason SortedNames sorts.
+func sortedCoreModulePaths(exports map[string]*ModuleExports) []string {
+	if len(exports) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(exports))
+	for modulePath, moduleExports := range exports {
+		if moduleExports == nil {
+			continue
+		}
+		trimmed := strings.Trim(modulePath, "/")
+		if trimmed != "core" && !strings.HasPrefix(trimmed, "core/") {
+			continue
+		}
+		paths = append(paths, modulePath)
+	}
+	sort.Strings(paths)
+	return paths
 }
 
 // NewModuleExports creates an exports container for the given module path.

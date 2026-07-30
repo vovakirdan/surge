@@ -133,7 +133,10 @@ func (fr *fileResolver) declareImportAll(itemID ast.ItemID, module []source.Stri
 
 	// Импортируем все публичные символы
 	// @hidden символы уже отфильтрованы в CollectExports
-	for name := range exports.Symbols {
+	//
+	// Обход отсортирован, потому что declareImportName ВЫДАЁТ новый
+	// SymbolID на каждое имя — см. ModuleExports.SortedNames.
+	for _, name := range exports.SortedNames() {
 		// Импортируем символ
 		nameID := fr.builder.StringsInterner.Intern(name)
 		fr.declareImportName(itemID, nameID, nameID, module, modulePath, span)

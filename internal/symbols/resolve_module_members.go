@@ -2,7 +2,6 @@ package symbols
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"surge/internal/ast"
@@ -171,12 +170,14 @@ func (fr *fileResolver) injectCoreExports() {
 	if file := fr.builder.Files.Get(fr.fileID); file != nil {
 		fileSpan = file.Span
 	}
-	for modulePath, exports := range fr.moduleExports {
-		trimmed := strings.Trim(modulePath, "/")
-		if trimmed != "core" && !strings.HasPrefix(trimmed, "core/") {
-			continue
-		}
-		for name, overloads := range exports.Symbols {
+	// Обход отсортирован, потому что syntheticSymbolForExport ВЫДАЁТ новый
+	// SymbolID на каждый экспорт: без этого core отдавал свои ~700 символов
+	// в разном порядке от запуска к запуску, и всё, что упорядочено по
+	// SymbolID, переставлялось вместе с ними.
+	for _, modulePath := range sortedCoreModulePaths(fr.moduleExports) {
+		exports := fr.moduleExports[modulePath]
+		for _, name := range exports.SortedNames() {
+			overloads := exports.Symbols[name]
 			for i := range overloads {
 				exp := &overloads[i]
 				if exp.Flags&SymbolFlagPublic == 0 && exp.Flags&SymbolFlagBuiltin == 0 {
@@ -226,29 +227,9 @@ func exportsPrelude(exports map[string]*ModuleExports) []PreludeEntry {
 		return nil
 	}
 	entries := make([]PreludeEntry, 0, 8)
-	modulePaths := make([]string, 0, len(exports))
-	for modulePath, moduleExports := range exports {
-		if moduleExports == nil {
-			continue
-		}
-		trimmed := strings.Trim(modulePath, "/")
-		if trimmed != "core" && !strings.HasPrefix(trimmed, "core/") {
-			continue
-		}
-		modulePaths = append(modulePaths, modulePath)
-	}
-	sort.Strings(modulePaths)
-	for _, modulePath := range modulePaths {
+	for _, modulePath := range sortedCoreModulePaths(exports) {
 		moduleExports := exports[modulePath]
-		if moduleExports == nil {
-			continue
-		}
-		names := make([]string, 0, len(moduleExports.Symbols))
-		for name := range moduleExports.Symbols {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
+		for _, name := range moduleExports.SortedNames() {
 			for i := range moduleExports.Symbols[name] {
 				exp := &moduleExports.Symbols[name][i]
 				if exp.Flags&SymbolFlagPublic == 0 && exp.Flags&SymbolFlagBuiltin == 0 {
