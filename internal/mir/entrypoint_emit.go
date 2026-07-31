@@ -149,6 +149,11 @@ func (b *surgeStartBuilder) emitTagPayload(dst, val LocalID, tag string, index i
 			Value:   Operand{Kind: OperandCopy, Place: Place{Local: val}},
 			TagName: tag,
 			Index:   index,
+			// Both callers extract the ok-path payload out of a single-use,
+			// synthetic parse-result local that is never read again — the
+			// envelope's own (shallow) release is what reclaims its box, so
+			// the extracted value transfers rather than aliasing.
+			MoveOut: true,
 		},
 	})
 }

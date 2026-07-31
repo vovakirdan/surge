@@ -48,14 +48,14 @@ fn inc$poll:
   bb6:
     unreachable
   bb7:
-    L1 = tag_payload copy L6.Pc1[0]
-    L2 = tag_payload copy L6.Pc1[1]
+    L1 = tag_payload_move copy L6.Pc1[0]
+    L2 = tag_payload_move copy L6.Pc1[1]
     goto bb1
   bb8:
     L7 = (copy L5 == const 1)
     if copy L7 then bb7 else bb6
   bb9:
-    L0 = tag_payload copy L6.Pc0[0]
+    L0 = tag_payload_move copy L6.Pc0[0]
     L1 = call const 0(const false)
     goto bb0
   bb10:
@@ -113,14 +113,14 @@ fn slow$poll:
   bb6:
     unreachable
   bb7:
-    L1 = tag_payload copy L6.Pc1[0]
-    L2 = tag_payload copy L6.Pc1[1]
+    L1 = tag_payload_move copy L6.Pc1[0]
+    L2 = tag_payload_move copy L6.Pc1[1]
     goto bb1
   bb8:
     L7 = (copy L5 == const 1)
     if copy L7 then bb7 else bb6
   bb9:
-    L0 = tag_payload copy L6.Pc0[0]
+    L0 = tag_payload_move copy L6.Pc0[0]
     L1 = call const 0(const false)
     goto bb0
   bb10:
@@ -281,33 +281,33 @@ fn test$poll:
   bb22:
     unreachable
   bb23:
-    L0 = tag_payload copy L26.Pc18[0]
-    L7 = tag_payload copy L26.Pc18[1]
+    L0 = tag_payload_move copy L26.Pc18[0]
+    L7 = tag_payload_move copy L26.Pc18[1]
     goto bb17
   bb24:
     L27 = (copy L25 == const 18)
     if copy L27 then bb23 else bb22
   bb25:
-    L0 = tag_payload copy L26.Pc17[0]
-    L4 = tag_payload copy L26.Pc17[1]
-    L8 = tag_payload copy L26.Pc17[2]
-    L11 = tag_payload copy L26.Pc17[3]
+    L0 = tag_payload_move copy L26.Pc17[0]
+    L4 = tag_payload_move copy L26.Pc17[1]
+    L8 = tag_payload_move copy L26.Pc17[2]
+    L11 = tag_payload_move copy L26.Pc17[3]
     goto bb16
   bb26:
     L27 = (copy L25 == const 17)
     if copy L27 then bb25 else bb24
   bb27:
-    L0 = tag_payload copy L26.Pc15[0]
-    L1 = tag_payload copy L26.Pc15[1]
-    L4 = tag_payload copy L26.Pc15[2]
+    L0 = tag_payload_move copy L26.Pc15[0]
+    L1 = tag_payload_move copy L26.Pc15[1]
+    L4 = tag_payload_move copy L26.Pc15[2]
     goto bb14
   bb28:
     L27 = (copy L25 == const 15)
     if copy L27 then bb27 else bb26
   bb29:
-    L0 = tag_payload copy L26.Pc13[0]
-    L1 = tag_payload copy L26.Pc13[1]
-    L4 = tag_payload copy L26.Pc13[2]
+    L0 = tag_payload_move copy L26.Pc13[0]
+    L1 = tag_payload_move copy L26.Pc13[1]
+    L4 = tag_payload_move copy L26.Pc13[2]
     goto bb12
   bb30:
     L27 = (copy L25 == const 13)

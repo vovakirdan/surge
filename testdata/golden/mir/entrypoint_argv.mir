@@ -34,7 +34,7 @@ fn __surge_start:
     call rt_exit(copy L9)
     return
   bb4:
-    L2 = tag_payload copy L5.Success[0]
+    L2 = tag_payload_move copy L5.Success[0]
     goto bb3
   bb5:
     call exit(move L5)

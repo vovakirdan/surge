@@ -16,7 +16,7 @@ fn __surge_start:
     L3 = tag_test copy L2 is Success
     if copy L3 then bb1 else bb2
   bb1:
-    L1 = tag_payload copy L2.Success[0]
+    L1 = tag_payload_move copy L2.Success[0]
     goto bb3
   bb2:
     call exit(move L2)

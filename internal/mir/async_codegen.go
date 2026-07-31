@@ -108,6 +108,11 @@ func buildAsyncPollEntry(f *Func, stateLocal, pcLocal, payloadLocal LocalID, var
 					Value:   Operand{Kind: OperandCopy, Place: Place{Local: payloadLocal}},
 					TagName: variant.name,
 					Index:   idx,
+					// The resume envelope is shallow-freed by
+					// __async_state_free once these fields are unpacked into
+					// the resumed locals, so the fields transfer out rather
+					// than aliasing an envelope that outlives this unpack.
+					MoveOut: true,
 				}},
 			}})
 		}
