@@ -70,11 +70,13 @@ fn nested_inner_forwards(cond: bool, other: bool, a: string) -> int {
 	//   every branch FORWARDS   owns nothing, releases nothing.
 	//
 	// all_mint and nested_all_mint are unconditional. one_forwards is guarded.
-	// nested_inner_forwards is guarded TWICE: the inner mixed ternary keeps its
-	// own guarded release rather than handing it up — the outer cannot know
-	// which inner path ran — and the outer is mixed in turn, because a guarded
-	// branch counts as forwarding. Claiming it instead is a double free, which
-	// is what an earlier version of this did.
+	// nested_inner_forwards is guarded ONCE, at the OUTER ternary: a nested
+	// choice hands its value up to the outer join, so whoever owns the result
+	// owns what the inner built, and the inner's own minting branches raise the
+	// OUTER's guard rather than earning a release of their own. Giving the
+	// inner its own frees at the end of the outer branch, before the join
+	// copies the result — a read of freed storage, which is what an earlier
+	// version of this did and a review caught.
 	guarded := 0
 	for exprID := range res.TempDrops {
 		if _, isGuarded := res.ChoiceReleaseGuards[exprID]; isGuarded {
@@ -82,9 +84,9 @@ fn nested_inner_forwards(cond: bool, other: bool, a: string) -> int {
 		}
 	}
 	unconditional := len(res.TempDrops) - guarded
-	if unconditional != 2 || guarded != 3 {
+	if unconditional != 2 || guarded != 2 {
 		t.Fatalf(
-			"expected 2 unconditional and 3 guarded choice releases, got %d and %d across %d "+
+			"expected 2 unconditional and 2 guarded choice releases, got %d and %d across %d "+
 				"statement-end temporaries; a branch that forwards a place — including a nested "+
 				"choice that only sometimes mints — leaves that value someone else's to release",
 			unconditional, guarded, len(res.TempDrops),

@@ -55,12 +55,19 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 	l.setTerm(&Terminator{Kind: TermIf, If: IfTerm{Cond: cond, Then: thenBB, Else: elseBB}})
 
 	// A guarded release asks the branch that RAN whether what reaches the join
-	// is this expression's to free. Read before the branches are lowered and
-	// cleared for them, so a nested choice raises its own guard and not this
-	// one — the value it hands up is already accounted for by its own release.
+	// is this expression's to free.
+	//
+	// The guard stays live across the branches on purpose. A branch that is
+	// itself a choice hands its value UP to this join, so whoever owns the
+	// result owns what the inner built — and the inner's own minting branches
+	// are the ones that know it happened, so they raise this guard. Giving the
+	// inner a release of its own instead frees at the end of THIS branch,
+	// before the join copies the result: a read of freed storage, measured.
+	//
+	// A nested choice that owns its value independently does not reach here
+	// with this guard: `lowerOwnedTempExpr` sets its own before lowering it and
+	// restores after.
 	releaseGuard := l.pendingReleaseGuard
-	l.pendingReleaseGuard = NoLocalID
-	defer func() { l.pendingReleaseGuard = releaseGuard }()
 
 	l.startBlock(thenBB)
 	l.pushTempDropFrame()

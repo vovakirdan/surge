@@ -182,25 +182,6 @@ func (tc *typeChecker) unwrapGroups(expr ast.ExprID) ast.ExprID {
 	return expr
 }
 
-// consumeBranchCandidacy takes a branch's drop candidacy for the enclosing
-// choice — unless the branch is itself a choice with a GUARDED release, which
-// keeps its own.
-//
-// Such a branch releases on exactly the paths where it built something, and the
-// enclosing choice cannot improve on that: it does not know which of the inner
-// paths ran. Taking the candidacy would throw that answer away and leave the
-// inner value to whichever release the outer emits, which is right on some
-// paths and a double free on others.
-func (tc *typeChecker) consumeBranchCandidacy(branch ast.ExprID) {
-	if !branch.IsValid() {
-		return
-	}
-	if _, guarded := tc.result.ChoiceReleaseGuards[tc.unwrapTempCandidate(branch)]; guarded {
-		return
-	}
-	tc.consumeTempCandidate(branch)
-}
-
 // recordBranchOneSidedDrops gives one branch the obligations the other
 // branches' moves left it holding.
 func (tc *typeChecker) recordBranchOneSidedDrops(branch ast.ExprID, mine, others map[Place]source.Span) {
@@ -262,8 +243,8 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 	}
 
 	tc.noteChoiceOwnsItsValue(id, []ast.ExprID{tern.TrueExpr, tern.FalseExpr})
-	tc.consumeBranchCandidacy(tern.TrueExpr)
-	tc.consumeBranchCandidacy(tern.FalseExpr)
+	tc.consumeTempCandidate(tern.TrueExpr)
+	tc.consumeTempCandidate(tern.FalseExpr)
 
 	tc.recordBranchOneSidedDrops(tern.TrueExpr, movedTrue, movedFalse)
 	tc.recordBranchOneSidedDrops(tern.FalseExpr, movedFalse, movedTrue)
