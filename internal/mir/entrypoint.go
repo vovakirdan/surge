@@ -232,6 +232,8 @@ func (b *surgeStartBuilder) emitGlobalInits() error {
 		consts = buildConstMap(b.mm.Source)
 	}
 	fl := &funcLowerer{
+		// NoLocalID is -1, so the zero value would name a real local.
+		pendingReleaseGuard: NoLocalID,
 		out:                 &Module{Globals: b.globals},
 		sema:                b.sema,
 		types:               b.typesIn,

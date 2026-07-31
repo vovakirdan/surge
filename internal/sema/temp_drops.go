@@ -83,9 +83,15 @@ func (tc *typeChecker) pendingTempCandidate(exprID ast.ExprID) bool {
 	return false
 }
 
-// noteChoiceOwnsItsValue records that EVERY branch of a control-flow
-// expression handed it a freshly produced owned value, so the value it yields
-// is its own to release and no branch forwarded a place into it.
+// noteChoiceOwnsItsValue decides who releases a control-flow expression's
+// value, from what each branch handed it.
+//
+// Three answers. Every branch FORWARDED a place: nothing here is this
+// expression's to free, and releasing would be a use-after-free through the
+// owner. Every branch MINTED one: the release is this expression's and
+// unconditional. They disagree: the release is still this expression's, but
+// only on the paths that built something, so the minting branches are recorded
+// and the drop is emitted under a guard they set.
 //
 // Asked before the branch candidacies are consumed, because consuming is what
 // erases the evidence: `pendingTempCandidate` answers "still an owned temporary
@@ -94,12 +100,30 @@ func (tc *typeChecker) noteChoiceOwnsItsValue(exprID ast.ExprID, branches []ast.
 	if !exprID.IsValid() || len(branches) == 0 {
 		return
 	}
+	minting := make([]ast.ExprID, 0, len(branches))
 	for _, branch := range branches {
-		if !tc.branchMintsItsValue(branch) {
-			return
+		if tc.branchMintsItsValue(branch) {
+			minting = append(minting, branch)
 		}
 	}
+	if len(minting) == 0 {
+		// Every branch forwards: the value belongs to whoever owns the place,
+		// and this expression releases nothing.
+		return
+	}
 	tc.markChoiceOwnsItsValue(exprID)
+	if len(minting) == len(branches) {
+		// Every branch built one, so the release is unconditional.
+		return
+	}
+	// The branches DISAGREE, so the release has to ask which one ran. Recorded
+	// against the same TempDrops entry `markChoiceOwnsItsValue` just earned, so
+	// a context that turns out to CONSUME the value removes both at once and no
+	// guarded drop is left behind.
+	if tc.result.ChoiceReleaseGuards == nil {
+		tc.result.ChoiceReleaseGuards = make(map[ast.ExprID][]ast.ExprID)
+	}
+	tc.result.ChoiceReleaseGuards[exprID] = minting
 }
 
 // branchMintsItsValue reports whether a branch handed this expression a value
@@ -135,7 +159,17 @@ func (tc *typeChecker) branchMintsItsValue(branch ast.ExprID) bool {
 		// the value. Inner choices are settled first, so the answer is here by
 		// the time the outer one asks. Without this, `a ? (b ? make() : make())
 		// : (c ? make() : make())` leaves the outer unflagged and leaks.
-		_, proven := tc.choiceOwnsItsValue[tc.unwrapTempCandidate(branch)]
+		//
+		// A nested choice whose OWN release is guarded does not qualify: it
+		// mints on some of its paths and forwards on others, so claiming it
+		// would raise this expression's guard where nothing was built and free
+		// a place its owner still holds. It keeps its own guarded release
+		// instead, and this branch counts as forwarding.
+		inner := tc.unwrapTempCandidate(branch)
+		if _, guarded := tc.result.ChoiceReleaseGuards[inner]; guarded {
+			return false
+		}
+		_, proven := tc.choiceOwnsItsValue[inner]
 		return proven
 	case ast.ExprBinary:
 		data, ok := tc.builder.Exprs.Binary(tc.unwrapTempCandidate(branch))

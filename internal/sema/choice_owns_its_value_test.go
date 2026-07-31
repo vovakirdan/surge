@@ -61,20 +61,33 @@ fn nested_inner_forwards(cond: bool, other: bool, a: string) -> int {
 	// already; a DISCARDED one is reclaimed branch by branch, which
 	// TestDiscardedChoiceIsReclaimedBranchByBranch covers.)
 	//
-	// TempDrops is the published set: evaluations producing an owned value
-	// nothing consumes, which HIR wraps and MIR frees at the region end. Every
-	// other owned value in this snippet is consumed by a `return` or by an
-	// enclosing ternary, so its size is the count of ternaries that own their
-	// value. Two qualify: the flat all-minting one and the nested one whose
-	// inner choice PROVED every one of its own branches minted. The two
-	// forwarding shapes do not, and the nested forwarding one is what stops
-	// "recurse into nested choices" from being read as "always recurse".
-	if got := len(res.TempDrops); got != 2 {
+	// Three outcomes, and the test is that each shape lands in the right one:
+	//
+	//   every branch MINTS      owns its value, released UNCONDITIONALLY;
+	//   branches DISAGREE       owns it, released under a GUARD the minting
+	//                           branches raise, because the forwarded value is
+	//                           not this expression's to free;
+	//   every branch FORWARDS   owns nothing, releases nothing.
+	//
+	// all_mint and nested_all_mint are unconditional. one_forwards is guarded.
+	// nested_inner_forwards is guarded TWICE: the inner mixed ternary keeps its
+	// own guarded release rather than handing it up — the outer cannot know
+	// which inner path ran — and the outer is mixed in turn, because a guarded
+	// branch counts as forwarding. Claiming it instead is a double free, which
+	// is what an earlier version of this did.
+	guarded := 0
+	for exprID := range res.TempDrops {
+		if _, isGuarded := res.ChoiceReleaseGuards[exprID]; isGuarded {
+			guarded++
+		}
+	}
+	unconditional := len(res.TempDrops) - guarded
+	if unconditional != 2 || guarded != 3 {
 		t.Fatalf(
-			"expected exactly the flat and nested all-minting ternaries to own their value, got %d "+
-				"statement-end temporaries; a branch that forwards a place leaves the value someone "+
-				"else's to release, at any depth",
-			got,
+			"expected 2 unconditional and 3 guarded choice releases, got %d and %d across %d "+
+				"statement-end temporaries; a branch that forwards a place — including a nested "+
+				"choice that only sometimes mints — leaves that value someone else's to release",
+			unconditional, guarded, len(res.TempDrops),
 		)
 	}
 }

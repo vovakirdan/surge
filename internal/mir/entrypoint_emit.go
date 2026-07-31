@@ -236,6 +236,8 @@ func (b *surgeStartBuilder) lowerDefaultExpr(expr *hir.Expr, expected types.Type
 		return Operand{}, fmt.Errorf("nil default expression")
 	}
 	lowerer := &funcLowerer{
+		// NoLocalID is -1, so the zero value would name a real local.
+		pendingReleaseGuard: NoLocalID,
 		f:                   b.f,
 		sema:                b.sema,
 		types:               b.typesIn,

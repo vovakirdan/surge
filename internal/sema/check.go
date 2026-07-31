@@ -77,6 +77,16 @@ type Result struct {
 	// plan for what is LEFT of one after fields were taken out of it — nil for
 	// the ordinary case where the whole value is released.
 	TempDrops map[ast.ExprID][]DropStep
+	// ChoiceReleaseGuards names, for a choice expression whose branches DISAGREE
+	// about whether they built their value, the branches that built one.
+	//
+	// Such a choice cannot be released unconditionally — a forwarding branch
+	// yields a place its owner still holds — and cannot be left alone either,
+	// or whatever the minting branch built is abandoned. The release is
+	// therefore emitted under a guard the minting branches set, so it fires on
+	// exactly the paths that produced something to free. Entries exist only
+	// while the choice is still in TempDrops: consumption removes it from both.
+	ChoiceReleaseGuards map[ast.ExprID][]ast.ExprID
 	// PartialMoveReads flags the field reads that TAKE their place out of the
 	// container rather than duplicating it. The two are the same shape in MIR
 	// and mean opposite things about who owns the result, so the mode has to be

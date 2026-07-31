@@ -95,12 +95,13 @@ func (l *lowerer) wrapOwnedTemp(exprID ast.ExprID, result *Expr) *Expr {
 	if !ok {
 		return result
 	}
+	_, guarded := l.semaRes.ChoiceReleaseGuards[exprID]
 
 	return &Expr{
 		Kind: ExprOwnedTemp,
 		Type: result.Type,
 		Span: result.Span,
-		Data: OwnedTempData{Inner: result, Steps: steps},
+		Data: OwnedTempData{Inner: result, Steps: steps, Guarded: guarded},
 	}
 }
 
@@ -172,7 +173,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerStructExpr(expr, ty)
 
 	case ast.ExprTernary:
-		return l.lowerTernaryExpr(expr, ty)
+		return l.lowerTernaryExpr(exprID, expr, ty)
 
 	case ast.ExprCompare:
 		return l.lowerCompareExpr(expr, ty)
@@ -658,22 +659,43 @@ func (l *lowerer) lowerStructExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 }
 
 // lowerTernaryExpr lowers a ternary expression to ExprIf.
-func (l *lowerer) lowerTernaryExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerTernaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	ternData := l.builder.Exprs.Ternaries.Get(uint32(expr.Payload))
 	if ternData == nil {
 		return nil
 	}
 
+	thenMints, elseMints := l.ternaryMintingBranches(exprID, ternData)
 	return &Expr{
 		Kind: ExprIf,
 		Type: ty,
 		Span: expr.Span,
 		Data: IfData{
-			Cond: l.lowerExpr(ternData.Cond),
-			Then: l.lowerExpr(ternData.TrueExpr),
-			Else: l.lowerExpr(ternData.FalseExpr),
+			Cond:           l.lowerExpr(ternData.Cond),
+			Then:           l.lowerExpr(ternData.TrueExpr),
+			Else:           l.lowerExpr(ternData.FalseExpr),
+			ThenMintsValue: thenMints,
+			ElseMintsValue: elseMints,
 		},
 	}
+}
+
+// ternaryMintingBranches reports which branches BUILT the value, for a ternary
+// whose release is guarded. Both false for every other ternary, which releases
+// unconditionally or not at all.
+func (l *lowerer) ternaryMintingBranches(exprID ast.ExprID, ternData *ast.ExprTernaryData) (thenMints, elseMints bool) {
+	if l.semaRes == nil || len(l.semaRes.ChoiceReleaseGuards) == 0 || ternData == nil {
+		return false, false
+	}
+	for _, branch := range l.semaRes.ChoiceReleaseGuards[exprID] {
+		switch branch {
+		case ternData.TrueExpr:
+			thenMints = true
+		case ternData.FalseExpr:
+			elseMints = true
+		}
+	}
+	return thenMints, elseMints
 }
 
 // lowerCompareExpr lowers a compare expression (pattern matching).

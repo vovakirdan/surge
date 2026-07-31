@@ -4,6 +4,7 @@ import (
 	"surge/internal/hir"
 	"surge/internal/sema"
 	"surge/internal/source"
+	"surge/internal/types"
 )
 
 // tempDropEntry is one statement-end temporary and the plan that reclaims it.
@@ -12,17 +13,84 @@ import (
 type tempDropEntry struct {
 	local LocalID
 	steps []sema.DropStep
+	// guarded says the release fires only where `guard` is raised: a bool local
+	// the producing paths set, assigned BEFORE the branch that may raise it, so
+	// the read is dominated exactly like the value's own. See
+	// hir.OwnedTempData.Guarded.
+	//
+	// It is a separate bool rather than a NoLocalID sentinel in `guard` because
+	// NoLocalID is -1 while a struct literal's zero value is 0 — a REAL local.
+	// An entry built without naming the field would otherwise read local 0 as
+	// its guard, which is how this first shipped: a bool store into a string
+	// slot, and an `if` on a pointer.
+	guarded bool
+	guard   LocalID
 }
 
 // emitTempDrop releases one temporary, narrowed to its remainder when part of
 // it was taken. Whoever took a field owns that field now, so releasing it here
 // would free storage this value no longer holds.
 func (l *funcLowerer) emitTempDrop(entry tempDropEntry) {
+	if entry.guarded {
+		l.emitGuardedTempDrop(entry)
+		return
+	}
 	if len(entry.steps) > 0 {
 		l.emitResidualDropAt(Place{Local: entry.local}, entry.steps)
 		return
 	}
 	l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: entry.local}}})
+}
+
+// boolType is the interner's bool, for the guard locals this file mints.
+func (l *funcLowerer) boolType() types.TypeID {
+	if l == nil || l.types == nil {
+		return types.NoTypeID
+	}
+	return l.types.Builtins().Bool
+}
+
+// emitBoolConst assigns a literal bool to a local.
+func (l *funcLowerer) emitBoolConst(local LocalID, value bool) {
+	l.emit(&Instr{
+		Kind: InstrAssign,
+		Assign: AssignInstr{
+			Dst: Place{Local: local},
+			Src: RValue{Kind: RValueUse, Use: Operand{
+				Kind:  OperandConst,
+				Type:  l.boolType(),
+				Const: Const{Kind: ConstBool, Type: l.boolType(), BoolValue: value},
+			}},
+		},
+	})
+}
+
+// emitGuardedTempDrop releases a temporary only on the paths that produced it.
+//
+// The guard is a plain bool the producing branches raise, rather than a null
+// value in the slot: the VM refuses to drop an uninitialized slot, so a
+// sentinel would need an empty representative for every droppable type, while a
+// bool needs nothing new. The temporary itself is assigned on every path — it
+// is the expression's own result — so only WHO OWNS it varies, which is exactly
+// what the guard records.
+func (l *funcLowerer) emitGuardedTempDrop(entry tempDropEntry) {
+	dropBB := l.newBlock()
+	joinBB := l.newBlock()
+	l.setTerm(&Terminator{Kind: TermIf, If: IfTerm{
+		Cond: Operand{Kind: OperandCopy, Type: l.boolType(), Place: Place{Local: entry.guard}},
+		Then: dropBB,
+		Else: joinBB,
+	}})
+
+	l.startBlock(dropBB)
+	plain := entry
+	plain.guarded = false
+	l.emitTempDrop(plain)
+	if !l.curBlock().Terminated() {
+		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}})
+	}
+
+	l.startBlock(joinBB)
 }
 
 // Statement-end temporaries: sema flags owned evaluations nothing
@@ -119,7 +187,17 @@ func (l *funcLowerer) flushTempDropsForRet(depth int, keep LocalID) {
 // lowerOwnedTempExpr materializes the wrapped evaluation and registers
 // it for its region's flush.
 func (l *funcLowerer) lowerOwnedTempExpr(e *hir.Expr, data hir.OwnedTempData, span source.Span) (Operand, error) {
+	guard := NoLocalID
+	if data.Guarded {
+		// Raised inside the producing branches, so it has to exist and read
+		// false before the branch runs.
+		guard = l.newTemp(l.boolType(), "owns_temp", span)
+		l.emitBoolConst(guard, false)
+	}
+	saved := l.pendingReleaseGuard
+	l.pendingReleaseGuard = guard
 	inner, err := l.lowerExprForType(data.Inner, e.Type)
+	l.pendingReleaseGuard = saved
 	if err != nil {
 		return Operand{}, err
 	}
@@ -133,7 +211,7 @@ func (l *funcLowerer) lowerOwnedTempExpr(e *hir.Expr, data hir.OwnedTempData, sp
 	})
 	if len(l.tempDropFrames) > 0 {
 		top := len(l.tempDropFrames) - 1
-		l.tempDropFrames[top] = append(l.tempDropFrames[top], tempDropEntry{local: tmp, steps: data.Steps})
+		l.tempDropFrames[top] = append(l.tempDropFrames[top], tempDropEntry{local: tmp, steps: data.Steps, guarded: data.Guarded, guard: guard})
 	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, false), nil
 }

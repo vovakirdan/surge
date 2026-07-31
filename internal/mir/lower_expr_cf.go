@@ -54,6 +54,14 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 
 	l.setTerm(&Terminator{Kind: TermIf, If: IfTerm{Cond: cond, Then: thenBB, Else: elseBB}})
 
+	// A guarded release asks the branch that RAN whether what reaches the join
+	// is this expression's to free. Read before the branches are lowered and
+	// cleared for them, so a nested choice raises its own guard and not this
+	// one — the value it hands up is already accounted for by its own release.
+	releaseGuard := l.pendingReleaseGuard
+	l.pendingReleaseGuard = NoLocalID
+	defer func() { l.pendingReleaseGuard = releaseGuard }()
+
 	l.startBlock(thenBB)
 	l.pushTempDropFrame()
 	if data.Then != nil {
@@ -61,6 +69,9 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 			op, err := l.lowerExpr(data.Then, true)
 			if err != nil {
 				return Operand{}, err
+			}
+			if releaseGuard != NoLocalID && data.ThenMintsValue {
+				l.emitBoolConst(releaseGuard, true)
 			}
 			l.emit(&Instr{
 				Kind: InstrAssign,
@@ -89,6 +100,9 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 			op, err := l.lowerExpr(data.Else, true)
 			if err != nil {
 				return Operand{}, err
+			}
+			if releaseGuard != NoLocalID && data.ElseMintsValue {
+				l.emitBoolConst(releaseGuard, true)
 			}
 			l.emit(&Instr{
 				Kind: InstrAssign,

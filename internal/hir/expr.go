@@ -372,6 +372,15 @@ type IfData struct {
 	Cond *Expr
 	Then *Expr
 	Else *Expr // nil if no else branch
+
+	// ThenMintsValue and ElseMintsValue mark the branches that BUILT the value
+	// this expression yields, when the branches disagree about it. They exist
+	// only for a ternary whose release is guarded (see OwnedTempData.Guarded):
+	// the branch that ran has to say so, because only it knows whether what
+	// reaches the join is this expression's to free or a place someone else
+	// owns.
+	ThenMintsValue bool
+	ElseMintsValue bool
 }
 
 func (IfData) exprData() {}
@@ -497,6 +506,12 @@ type OwnedTempData struct {
 	// of it. Empty means the whole value is released, which is the ordinary
 	// case and the only one there was before a field could move on its own.
 	Steps []sema.DropStep
+	// Guarded says the release fires only on the paths that produced something
+	// to free. A choice expression whose branches disagree — one building a
+	// value, another forwarding a place — yields something owned on some paths
+	// and borrowed on others, and a single unconditional drop is wrong either
+	// way round: it abandons the built value or frees the forwarded one.
+	Guarded bool
 }
 
 func (OwnedTempData) exprData() {}

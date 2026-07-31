@@ -107,6 +107,8 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 		id := nextID
 		nextID++
 		fl := &funcLowerer{
+			// NoLocalID is -1, so the zero value would name a real local.
+			pendingReleaseGuard: NoLocalID,
 			out:                 out,
 			mf:                  mf,
 			mono:                mm,
@@ -198,6 +200,11 @@ type funcLowerer struct {
 	// tempDropFrames scope statement-end temporaries to single-entry
 	// evaluation regions (see lower_temp_drops.go).
 	tempDropFrames [][]tempDropEntry
+	// pendingReleaseGuard is the bool the branches of the choice being lowered
+	// raise when they BUILT the value it yields, for a guarded release. It is
+	// set only across that choice's own lowering, so a nested one cannot raise
+	// its parent's.
+	pendingReleaseGuard LocalID
 	// anchoredBody marks the forked lowerer of an `on far_handle` block body:
 	// anchored channel operations lower to the runtime helpers that park by
 	// re-entering the body from the top.
@@ -362,6 +369,8 @@ func (l *funcLowerer) forkLowerer() *funcLowerer {
 		return nil
 	}
 	return &funcLowerer{
+		// NoLocalID is -1, so the zero value would name a real local.
+		pendingReleaseGuard: NoLocalID,
 		out:                 l.out,
 		mf:                  l.mf,
 		mono:                l.mono,
