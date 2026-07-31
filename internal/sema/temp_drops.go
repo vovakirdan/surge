@@ -100,19 +100,27 @@ func (tc *typeChecker) noteChoiceOwnsItsValue(exprID ast.ExprID, branches []ast.
 	if !exprID.IsValid() || len(branches) == 0 {
 		return
 	}
+	// Three answers per branch, not two. A branch that is itself a GUARDED
+	// choice mints on SOME of its paths: enough that this expression must own
+	// and release the value, and not enough for this branch to raise the guard,
+	// which its own minting branches do instead once the guard reaches them.
 	minting := make([]ast.ExprID, 0, len(branches))
+	sometimes := 0
 	for _, branch := range branches {
-		if tc.branchMintsItsValue(branch) {
+		switch {
+		case tc.branchMintsItsValue(branch):
 			minting = append(minting, branch)
+		case tc.branchSometimesMintsItsValue(branch):
+			sometimes++
 		}
 	}
-	if len(minting) == 0 {
+	if len(minting)+sometimes == 0 {
 		// Every branch forwards: the value belongs to whoever owns the place,
 		// and this expression releases nothing.
 		return
 	}
 	tc.markChoiceOwnsItsValue(exprID)
-	if len(minting) == len(branches) {
+	if sometimes == 0 && len(minting) == len(branches) {
 		// Every branch built one, so the release is unconditional.
 		return
 	}
@@ -126,8 +134,25 @@ func (tc *typeChecker) noteChoiceOwnsItsValue(exprID ast.ExprID, branches []ast.
 	tc.result.ChoiceReleaseGuards[exprID] = minting
 }
 
+// branchSometimesMintsItsValue reports whether a branch is itself a choice that
+// builds on some of its paths and forwards on others.
+//
+// Such a branch is why the enclosing choice needs a guard AND cannot raise it
+// here: the value is this expression's to release when the inner built one, and
+// nobody else's business when it forwarded, and only the inner branches know
+// which. They raise the guard themselves once it reaches them. Left out of the
+// count entirely — as an earlier version had it — a choice with such a branch on
+// EVERY side owns nothing at all, and every path that built something leaks.
+func (tc *typeChecker) branchSometimesMintsItsValue(branch ast.ExprID) bool {
+	if !tc.pendingTempCandidate(branch) {
+		return false
+	}
+	_, guarded := tc.result.ChoiceReleaseGuards[tc.unwrapTempCandidate(branch)]
+	return guarded
+}
+
 // branchMintsItsValue reports whether a branch handed this expression a value
-// it BUILT, rather than one it forwarded.
+// it BUILT on every path, rather than one it forwarded.
 //
 // Being a pending temp candidate is necessary and not sufficient. The flag says
 // "nothing has consumed this", not "this is the only reference": a cast is

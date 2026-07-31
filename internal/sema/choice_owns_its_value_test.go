@@ -42,6 +42,10 @@ fn nested_all_mint(cond: bool, other: bool) -> int {
 fn nested_inner_forwards(cond: bool, other: bool, a: string) -> int {
     return peek(cond ? (other ? build() : a) : build());
 }
+
+fn both_branches_nested_mixed(cond: bool, other: bool, a: string) -> int {
+    return peek(cond ? (other ? build() : a) : (other ? build() : a));
+}
 `)
 	requireNoSemaErrors(t, parseBag, semaBag)
 	if res == nil {
@@ -77,6 +81,14 @@ fn nested_inner_forwards(cond: bool, other: bool, a: string) -> int {
 	// inner its own frees at the end of the outer branch, before the join
 	// copies the result — a read of freed storage, which is what an earlier
 	// version of this did and a review caught.
+	//
+	// both_branches_nested_mixed is guarded once for the same reason, and is
+	// here because it is the shape that falls through a rule with only two
+	// answers. Neither branch mints on EVERY path, so a yes/no test says "no"
+	// twice and the outer owns nothing — while both inner values were already
+	// taken as branch values, so nobody releases them and every building path
+	// leaks. It needs the third answer: SOMETIMES mints, which makes the outer
+	// own and guard without raising the guard itself.
 	guarded := 0
 	for exprID := range res.TempDrops {
 		if _, isGuarded := res.ChoiceReleaseGuards[exprID]; isGuarded {
@@ -84,9 +96,9 @@ fn nested_inner_forwards(cond: bool, other: bool, a: string) -> int {
 		}
 	}
 	unconditional := len(res.TempDrops) - guarded
-	if unconditional != 2 || guarded != 2 {
+	if unconditional != 2 || guarded != 3 {
 		t.Fatalf(
-			"expected 2 unconditional and 2 guarded choice releases, got %d and %d across %d "+
+			"expected 2 unconditional and 3 guarded choice releases, got %d and %d across %d "+
 				"statement-end temporaries; a branch that forwards a place — including a nested "+
 				"choice that only sometimes mints — leaves that value someone else's to release",
 			unconditional, guarded, len(res.TempDrops),
