@@ -147,6 +147,35 @@ fn main() -> int {
 	}
 }
 
+// TestCallArgContractsSkipUserFunctionsSharingAnIntrinsicName pins the guard on
+// the audited name table: `__index_set` is a magic method any type may
+// implement, and a hand-written one is owed whatever its own parameters say. A
+// name-only upgrade would report it as a consuming sink it is not.
+func TestCallArgContractsSkipUserFunctionsSharingAnIntrinsicName(t *testing.T) {
+	compiled := compileCrossingMIR(t, `
+type Counter = { seen: int };
+extern<Counter> {
+    pub fn __index_set(self: &mut Counter, index: int, value: &string) -> nothing {
+        self.seen = index;
+        return nothing;
+    }
+}
+fn main() -> int {
+    let mut c = Counter { seen: 0 };
+    let held = "borrowed";
+    c.__index_set(1, &held);
+    return 0;
+}`, nil)
+
+	call := findCall(t, compiled.mod, "__index_set")
+	for i, got := range call.ArgContracts {
+		if got == mir.ArgContractStore {
+			t.Errorf("user-defined __index_set position %d = store, want no upgrade (all: %s)",
+				i, contractNames(call.ArgContracts))
+		}
+	}
+}
+
 // TestCallArgContractsSplitBorrowFromOwned pins the ordinary-parameter fork the
 // contract records: a reference position lends, an owned by-value position
 // hands over, and a tag constructor's payload is kept past the call.

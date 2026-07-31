@@ -525,9 +525,14 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 
 	// A named runtime sink stores an argument the callee's own parameter list
 	// cannot express, so the audited table has the last word on those
-	// positions. It runs here, once the callee's final name is known.
-	applyStoringIntrinsicContracts(callee.Name, contracts)
-	l.applyChannelSendContracts(callee.Name, args, contracts)
+	// positions. It runs here, once the callee's final name is known, and only
+	// where the name is not an ordinary function's: a program may define its
+	// own `__index_set` or `send`, and that definition is owed what its own
+	// parameters say, not what the intrinsic sharing the name would be.
+	if !l.calleeIsUserFunc(data.SymbolID) {
+		applyStoringIntrinsicContracts(callee.Name, contracts)
+		l.applyChannelSendContracts(callee.Name, args, contracts)
+	}
 
 	if e.Type == types.NoTypeID || l.isNothingType(e.Type) {
 		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{

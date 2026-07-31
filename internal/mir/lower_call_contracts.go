@@ -2,6 +2,7 @@ package mir
 
 import (
 	"surge/internal/sema"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -68,9 +69,9 @@ func (l *funcLowerer) byValueArgContract(ty types.TypeID, stores bool) ArgContra
 //     bytes through a pointer/slice. Nothing owning is retained.
 //   - rt_scope_register_child — the scope records the child's numeric task id
 //     and the executor's own task table owns the task (runtime/native/
-//     rt_async_scope.c: scope_add_child stores a uint64, and no reference
-//     count exists on rt_task at all). The scope never releases the task, so
-//     this borrows.
+//     rt_async_scope.c: scope_add_child stores a uint64). rt_task does carry a
+//     handle_refs count, but registration neither increments nor later
+//     releases it, so this borrows.
 //   - rt_far_task_begin_transfer / rt_far_task_finish_transfer — bookkeeping
 //     around a handoff; they read the handles and store nothing.
 //   - timeout, await, rt_fs_close, rt_net_close_* — these consume an owned
@@ -97,6 +98,17 @@ var storingIntrinsicArgs = map[string][]int{
 	"__task_create": {1},
 }
 
+// calleeIsUserFunc reports whether the call resolves to an ordinary Surge
+// function rather than an intrinsic or a runtime helper called by name. Such a
+// function is owed whatever its OWN parameters say, even when it is spelled
+// like one of the tables below: `__index_set` in particular is a magic method
+// any type may implement, and a hand-written one may well only read the value
+// it is passed.
+func (l *funcLowerer) calleeIsUserFunc(symID symbols.SymbolID) bool {
+	fn := l.calleeFunc(symID)
+	return fn != nil && !fn.IsIntrinsic()
+}
+
 // applyStoringIntrinsicContracts overlays the audited table above onto a
 // call's contracts. It runs after the ordinary per-parameter classification
 // because a stored position is a sink whatever its type is, so it can only
@@ -110,10 +122,11 @@ func applyStoringIntrinsicContracts(name string, contracts []ArgContract) {
 }
 
 // applyChannelSendContracts marks the value handed to Channel.send/try_send as
-// STORE. It is kept out of the name table because `send` is an ordinary
-// identifier a program may use for its own function: the receiver's type is
-// what makes this the channel operation, exactly as the async-lowering
-// intercept in lowerCallExpr already decides it.
+// STORE. It is kept out of the name table because it needs the extra receiver
+// check: the caller has already established this is not a user-defined
+// function, and the receiver's type is what makes it the channel operation
+// rather than some other intrinsic sharing the name, exactly as the
+// async-lowering intercept in lowerCallExpr already decides it.
 func (l *funcLowerer) applyChannelSendContracts(name string, args []Operand, contracts []ArgContract) {
 	switch baseSymbolName(name) {
 	case "send", "try_send":
