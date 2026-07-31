@@ -34,6 +34,16 @@ fn one_branch_forwards(cond: bool, a: Held) -> int {
     cond ? make() : a;
     return 1;
 }
+
+fn nested_all_mint(cond: bool, other: bool) -> int {
+    cond ? (other ? make() : make()) : make();
+    return 1;
+}
+
+fn nested_inner_forwards(cond: bool, other: bool, a: Held) -> int {
+    cond ? (other ? make() : a) : make();
+    return 1;
+}
 `)
 	requireNoSemaErrors(t, parseBag, semaBag)
 	if res == nil {
@@ -50,12 +60,17 @@ fn one_branch_forwards(cond: bool, a: Held) -> int {
 	// TempDrops is the published set: the evaluations that produce an owned
 	// value nothing consumes, which HIR wraps and MIR frees at the region end.
 	// In this snippet only a ternary can be in it — every other owned value
-	// here is consumed by a `return` or by the ternary itself — so its size is
-	// the count of ternaries that own their value.
-	if got := len(res.TempDrops); got != 1 {
+	// here is consumed by a `return` or by an enclosing ternary — so its size
+	// is the count of ternaries that own their value. Two qualify: the flat
+	// all-minting one and the nested one whose inner choice PROVED every one of
+	// its own branches minted. The two forwarding shapes do not, and the nested
+	// forwarding one is what stops "recurse into nested choices" from being
+	// read as "always recurse".
+	if got := len(res.TempDrops); got != 2 {
 		t.Fatalf(
-			"expected exactly the all-minting ternary to own its value, got %d statement-end "+
-				"temporaries; a branch that forwards a place leaves the value someone else's to release",
+			"expected exactly the flat and nested all-minting ternaries to own their value, got %d "+
+				"statement-end temporaries; a branch that forwards a place leaves the value someone "+
+				"else's to release, at any depth",
 			got,
 		)
 	}

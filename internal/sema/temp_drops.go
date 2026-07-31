@@ -129,6 +129,14 @@ func (tc *typeChecker) branchMintsItsValue(branch ast.ExprID) bool {
 	switch node.Kind {
 	case ast.ExprCall, ast.ExprStruct, ast.ExprArray, ast.ExprMap, ast.ExprTuple, ast.ExprLit:
 		return true
+	case ast.ExprTernary, ast.ExprCompare:
+		// A nested choice that already PROVED every one of its own branches
+		// minted has the same standing as a call: whichever branch ran built
+		// the value. Inner choices are settled first, so the answer is here by
+		// the time the outer one asks. Without this, `a ? (b ? make() : make())
+		// : (c ? make() : make())` leaves the outer unflagged and leaks.
+		_, proven := tc.choiceOwnsItsValue[tc.unwrapTempCandidate(branch)]
+		return proven
 	case ast.ExprBinary:
 		data, ok := tc.builder.Exprs.Binary(tc.unwrapTempCandidate(branch))
 		if !ok || data == nil {
