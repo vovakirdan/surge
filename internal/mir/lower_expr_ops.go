@@ -223,12 +223,6 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 	if targetTy == types.NoTypeID {
 		targetTy = resultTy
 	}
-	valueExpr := data.Value
-	if valueExpr != nil && valueExpr.Type == types.NoTypeID && targetTy != types.NoTypeID && valueExpr.Kind == hir.ExprLiteral {
-		clone := *valueExpr
-		clone.Type = targetTy
-		valueExpr = &clone
-	}
 	// A cast between one type and itself changes NOTHING: every backend hands
 	// the source value straight back. Routing it through a temp anyway would
 	// give that temp a release — refcounted scalars get one the moment they are
@@ -236,7 +230,21 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 	// read from, so the release frees storage that binding still holds. Read
 	// the source the way the CALLER asked instead, which makes `a to float`
 	// exactly as owned, and as cheap, as `a`.
-	if l.castKeepsRepresentation(valueExpr, targetTy) {
+	//
+	// Asked against `resultTy`, the type SEMA gave this expression, and against
+	// the operand BEFORE the literal retyping below. Sema decides the same
+	// question from the same two types, and the two answers must never differ:
+	// sema saying "produces a value" while this says "produces nothing" is a
+	// release with no owner. `data.TargetTy` is deliberately not the one asked,
+	// because it comes from a different lookup that may answer differently.
+	identity := l.castKeepsRepresentation(data.Value, resultTy)
+	valueExpr := data.Value
+	if valueExpr != nil && valueExpr.Type == types.NoTypeID && targetTy != types.NoTypeID && valueExpr.Kind == hir.ExprLiteral {
+		clone := *valueExpr
+		clone.Type = targetTy
+		valueExpr = &clone
+	}
+	if identity {
 		return l.lowerCastAsAlias(valueExpr, resultTy, consume)
 	}
 	value, err := l.lowerValueExpr(valueExpr, false)
@@ -273,6 +281,10 @@ func (l *funcLowerer) castKeepsRepresentation(value *hir.Expr, target types.Type
 	if l == nil || l.types == nil || value == nil {
 		return false
 	}
+	// An unknown type on either side answers NO, which keeps the temp and its
+	// release. Both of this question's defaults must fall that way: an extra
+	// release is a use-after-free, a spare one is a leak, and only the leak is
+	// survivable.
 	if value.Type == types.NoTypeID || target == types.NoTypeID {
 		return false
 	}

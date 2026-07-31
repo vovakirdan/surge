@@ -261,6 +261,14 @@ func (l *lowerer) lookupTypeFromAST(_ ast.TypeID) types.TypeID {
 	// to be resolved through the type checker's type expressions
 	// This is a simplification - in a full implementation,
 	// we'd need to map AST type expressions to resolved types
+	//
+	// One caller depends on the answer being ABSENT rather than merely
+	// approximate: a cast's `TargetTy`. MIR decides from a cast's types whether
+	// it converts anything at all, and sema decides the same thing from the
+	// types it recorded; they must agree, or a value gets released with no
+	// owner. MIR therefore asks with the cast's own sema type today. Anyone
+	// implementing this must re-check that pair together — a second source of
+	// truth for a cast's target is exactly how the two could start disagreeing.
 	return types.NoTypeID
 }
 
