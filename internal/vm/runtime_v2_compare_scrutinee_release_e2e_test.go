@@ -107,6 +107,17 @@ tag Both(string, int);
 tag Neither();
 type Duo = Both(string, int) | Neither;
 
+// A union that MOVES carrying a payload that CLONES. The two halves are
+// deliberately opposite: Carrier has no @copy, so the compare owns its
+// scrutinee, while Cell does, so reading the payload duplicates it and
+// leaves the original inside the envelope. An arm that ignores such a
+// payload therefore must NOT be treated as having taken it out — doing
+// that frees the envelope shallowly and abandons the original box, which
+// is a leak a string-payload probe cannot see, because a string moves.
+tag Boxed(Cell);
+tag Unboxed();
+type Carrier = Boxed(Cell) | Unboxed;
+
 fn build_tag(prefix: string) -> string {
     let mut s = prefix;
     let mut i = 0;
@@ -283,6 +294,44 @@ fn mixed_ignored_owner_n_times(n: int) -> int {
     let mut i = 0;
     while i < n {
         total = total + mixed_ignored_owner_once();
+        i = i + 1;
+    }
+    return total;
+}
+
+// The ignored payload CLONES when read, so only a deep drop reclaims the
+// original. Two spellings, because the second is where the abandoned
+// clone would land instead: a guard that never passes still runs the
+// extraction, and its drop lives on the return the guard skips.
+fn copy_payload_ignored_once() -> int {
+    return compare Boxed(Cell { a = 1, b = 2 }) {
+        Boxed(_) => 1;
+        _ => 0;
+    };
+}
+
+fn copy_payload_ignored_n_times(n: int) -> int {
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        total = total + copy_payload_ignored_once();
+        i = i + 1;
+    }
+    return total;
+}
+
+fn copy_payload_guard_once() -> int {
+    return compare Boxed(Cell { a = 1, b = 2 }) {
+        Boxed(_) if false => 1;
+        _ => 0;
+    };
+}
+
+fn copy_payload_guard_n_times(n: int) -> int {
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        total = total + copy_payload_guard_once();
         i = i + 1;
     }
     return total;
@@ -640,6 +689,36 @@ fn main() -> int {
     }
     let r13: int = diff_check("mixed-ignored-owner", &mo1_before, &mo1_after, &mo2000_before, &mo2000_after);
     if r13 != 0 { return 130 + r13; }
+
+    let ci1_before: HeapStats = rt_heap_stats();
+    let ci1: int = copy_payload_ignored_n_times(1);
+    let ci1_after: HeapStats = rt_heap_stats();
+    let ci2000_before: HeapStats = rt_heap_stats();
+    let ci2000: int = copy_payload_ignored_n_times(2000);
+    let ci2000_after: HeapStats = rt_heap_stats();
+    if ci1 != 1 || ci2000 != 2000 {
+        print("copy-payload-ignored value mismatch");
+        print(ci1 to string);
+        print(ci2000 to string);
+        return 14;
+    }
+    let r14: int = diff_check("copy-payload-ignored", &ci1_before, &ci1_after, &ci2000_before, &ci2000_after);
+    if r14 != 0 { return 140 + r14; }
+
+    let cg1_before: HeapStats = rt_heap_stats();
+    let cg1: int = copy_payload_guard_n_times(1);
+    let cg1_after: HeapStats = rt_heap_stats();
+    let cg2000_before: HeapStats = rt_heap_stats();
+    let cg2000: int = copy_payload_guard_n_times(2000);
+    let cg2000_after: HeapStats = rt_heap_stats();
+    if cg1 != 0 || cg2000 != 0 {
+        print("copy-payload-guard value mismatch");
+        print(cg1 to string);
+        print(cg2000 to string);
+        return 15;
+    }
+    let r15: int = diff_check("copy-payload-guard", &cg1_before, &cg1_after, &cg2000_before, &cg2000_after);
+    if r15 != 0 { return 150 + r15; }
 
     print("compare-scrutinee-release-ok");
     return 0;

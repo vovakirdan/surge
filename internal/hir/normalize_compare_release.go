@@ -254,6 +254,19 @@ func claimIgnoredPayloads(
 			takenOut[i] = true
 			continue
 		}
+		if ctx.clonesWhenRead(payloadType) {
+			// A `@copy` composite DUPLICATES when it is read, so a binding here
+			// would hold a clone while the original stayed in the envelope —
+			// and calling the position "taken out" would then free that
+			// envelope shallowly and abandon the original. Left untouched, so
+			// the arm keeps the classification it had: all-unbound still
+			// deep-drops, which reclaims the payload correctly, and a mixed arm
+			// stays refused. Measured after a review caught it: 16 bytes per
+			// evaluation of `compare Hold(Pair{...}) { Hold(_) => 1; ... }`,
+			// where `Pair` is `@copy` — a shape the string-payload censuses
+			// could not see.
+			continue
+		}
 		sym, name := ctx.newTemp("ignored_payload")
 		body.Stmts = append(body.Stmts, Stmt{
 			Kind: StmtLet,
@@ -274,6 +287,20 @@ func claimIgnoredPayloads(
 		*owned = append(*owned, DropLocal{SymbolID: sym, Type: payloadType, Span: span})
 		takenOut[i] = true
 	}
+}
+
+// clonesWhenRead reports whether reading a value of this type DUPLICATES it
+// rather than taking it out of where it was.
+//
+// That is the Copy side of the ownership axes: a `@copy` composite is
+// heap-boxed and its read allocates a second box (`OperandCopyValue`), so the
+// original never leaves its container. Anything that transfers answers false.
+func (ctx *normCtx) clonesWhenRead(ty types.TypeID) bool {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
+		return false
+	}
+	typesIn := ctx.mod.TypeInterner
+	return typesIn.IsCopy(resolveAlias(typesIn, ty, 0))
 }
 
 // ownsHeap reports whether a value of this type has something to reclaim. It
