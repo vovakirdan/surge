@@ -149,7 +149,11 @@ func scrutineeReadsThroughBorrow(value *Expr) bool {
 // bound one) — safe is false in that case and the caller must skip
 // release entirely for this arm, matching the errs-toward-false
 // direction used by RV2-DEBT-040's cursor-release safety gate.
-func tagPayloadReleaseShape(ctx *normCtx, payload []*Expr, owned scrutineeOwnership) (shallow, safe bool) {
+// takenOut marks the positions something already took out of the envelope,
+// whether the pattern named them or `claimIgnoredPayloads` gave them a binding
+// of their own. A MIXED arm becomes all-bound that way, and the one shape left
+// unsafe is a nested pattern, whose disposition is still unknown.
+func tagPayloadReleaseShape(ctx *normCtx, payload []*Expr, owned scrutineeOwnership, takenOut []bool) (shallow, safe bool) {
 	if owned == scrutineeDuplicated {
 		// The scrutinee is a clone, so an arm's payload binding CLONES
 		// AGAIN rather than taking the payload out (placeOperand answers
@@ -167,7 +171,13 @@ func tagPayloadReleaseShape(ctx *normCtx, payload []*Expr, owned scrutineeOwners
 	}
 	allBound := true
 	allUnbound := true
-	for _, pat := range payload {
+	for i, pat := range payload {
+		if i < len(takenOut) && takenOut[i] {
+			// Named by the pattern, or claimed by a binding synthesized for
+			// it: either way this field has an owner outside the envelope.
+			allUnbound = false
+			continue
+		}
 		if pat == nil {
 			allBound = false
 			continue
@@ -194,6 +204,101 @@ func tagPayloadReleaseShape(ctx *normCtx, payload []*Expr, owned scrutineeOwners
 	default:
 		return false, false
 	}
+}
+
+// claimIgnoredPayloads gives every payload position the pattern ignored a
+// binding of its own, so an arm that bound SOME of its fields ends up having
+// taken out all of them.
+//
+// That is the whole mixed-arm residual: the envelope could not be freed either
+// way while one field was still inside it and its siblings were not. The
+// binding is the same `let` a named position gets, dropped by the same
+// arm-return drop list, so nothing new decides ownership — the pattern's
+// silence stops meaning "leave it in the box".
+//
+// Positions that own no heap are skipped: they need no owner, and adding one
+// would put a drop on a machine word. Positions whose type is unknown are
+// skipped too, which leaves the arm exactly as unsafe as it was.
+func claimIgnoredPayloads(
+	ctx *normCtx,
+	span source.Span,
+	subject *Expr,
+	tag string,
+	payload []*Expr,
+	takenOut []bool,
+	body *Block,
+	owned *[]DropLocal,
+) {
+	if ctx == nil || subject == nil || body == nil || owned == nil {
+		return
+	}
+	for i, pat := range payload {
+		if i < len(takenOut) && takenOut[i] {
+			continue
+		}
+		// Only a position the pattern IGNORED. A nested pattern already took
+		// parts of this field out, and a literal one compares it in place —
+		// binding either here would claim what somebody else holds.
+		if pat != nil && !isWildcardPattern(pat) {
+			continue
+		}
+		payloadType := tagPayloadType(ctx, subject.Type, tag, i)
+		if payloadType == types.NoTypeID {
+			continue
+		}
+		if !ctx.ownsHeap(payloadType) {
+			// Bits, not storage: nothing to give an owner, and nothing the
+			// envelope's shallow free could abandon. Counted as taken out so a
+			// field like the `int` in `Pair(s, _)` stops blocking the release
+			// of the box around it.
+			takenOut[i] = true
+			continue
+		}
+		sym, name := ctx.newTemp("ignored_payload")
+		body.Stmts = append(body.Stmts, Stmt{
+			Kind: StmtLet,
+			Span: span,
+			Data: LetData{
+				Name:     name,
+				SymbolID: sym,
+				Type:     payloadType,
+				Value: &Expr{
+					Kind: ExprTagPayload,
+					Type: payloadType,
+					Span: span,
+					Data: TagPayloadData{Value: subject, TagName: tag, Index: i, SubjectBorrowed: false},
+				},
+				Ownership: ctx.inferOwnership(payloadType),
+			},
+		})
+		*owned = append(*owned, DropLocal{SymbolID: sym, Type: payloadType, Span: span})
+		takenOut[i] = true
+	}
+}
+
+// ownsHeap reports whether a value of this type has something to reclaim. It
+// answers from the interner alone — the normalize pass runs past sema's
+// checker — and errs toward YES, so an unknown shape keeps whatever release it
+// had rather than losing one.
+func (ctx *normCtx) ownsHeap(ty types.TypeID) bool {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
+		return false
+	}
+	typesIn := ctx.mod.TypeInterner
+	resolved := resolveAlias(typesIn, ty, 0)
+	if typesIn.IsRefCountedScalar(resolved) || typesIn.IsValueComposite(resolved) {
+		return true
+	}
+	if typesIn.IsCopy(resolved) {
+		return false
+	}
+	if tt, ok := typesIn.Lookup(resolved); ok {
+		switch tt.Kind {
+		case types.KindReference, types.KindPointer:
+			return false
+		}
+	}
+	return true
 }
 
 // envelopeReleaseStmt builds a shallow, own-declared-type box free of

@@ -97,6 +97,16 @@ tag Reading(float);
 tag NoReading();
 type Measure = Reading(float) | NoReading;
 
+// A TWO-slot payload, for the arm shape that binds one field and ignores
+// the other. That shape used to leave the envelope with no release at
+// all — a shallow free would have abandoned the ignored field, a deep
+// drop would have freed the bound one twice — so it leaked one box per
+// evaluation. The ignored field now gets a binding of its own, which
+// makes the arm all-bound and the shallow release correct again.
+tag Both(string, int);
+tag Neither();
+type Duo = Both(string, int) | Neither;
+
 fn build_tag(prefix: string) -> string {
     let mut s = prefix;
     let mut i = 0;
@@ -231,6 +241,48 @@ fn borrowed_n_times(n: int) -> int {
     let mut i = 0;
     while i < n {
         total = total + borrowed_once();
+        i = i + 1;
+    }
+    return total;
+}
+
+// One field bound, the other ignored: the MIXED arm. Both fields of the
+// envelope must be accounted for — the string by the binding that names
+// it, the ignored one by a binding synthesized for it — before the box
+// itself can be freed shallowly.
+fn mixed_once() -> string {
+    return compare Both(build_tag("m-"), 7) {
+        Both(s, _) => s;
+        _ => "";
+    };
+}
+
+fn mixed_n_times(n: int) -> int {
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        let r: string = mixed_once();
+        total = total + (len(r) to int);
+        i = i + 1;
+    }
+    return total;
+}
+
+// The mirror image: the field that OWNS something is the ignored one, so
+// the synthesized binding is what reclaims it. A shallow free without it
+// abandons the string.
+fn mixed_ignored_owner_once() -> int {
+    return compare Both(build_tag("g-"), 7) {
+        Both(_, n) => n;
+        _ => 0 - 1;
+    };
+}
+
+fn mixed_ignored_owner_n_times(n: int) -> int {
+    let mut total = 0;
+    let mut i = 0;
+    while i < n {
+        total = total + mixed_ignored_owner_once();
         i = i + 1;
     }
     return total;
@@ -558,6 +610,36 @@ fn main() -> int {
     }
     let r11: int = diff_check("composite-wildcard", &cw1_before, &cw1_after, &cw2000_before, &cw2000_after);
     if r11 != 0 { return 110 + r11; }
+
+    let mx1_before: HeapStats = rt_heap_stats();
+    let mx1: int = mixed_n_times(1);
+    let mx1_after: HeapStats = rt_heap_stats();
+    let mx2000_before: HeapStats = rt_heap_stats();
+    let mx2000: int = mixed_n_times(2000);
+    let mx2000_after: HeapStats = rt_heap_stats();
+    if mx1 != 6 || mx2000 != 12000 {
+        print("mixed value mismatch");
+        print(mx1 to string);
+        print(mx2000 to string);
+        return 12;
+    }
+    let r12: int = diff_check("mixed", &mx1_before, &mx1_after, &mx2000_before, &mx2000_after);
+    if r12 != 0 { return 120 + r12; }
+
+    let mo1_before: HeapStats = rt_heap_stats();
+    let mo1: int = mixed_ignored_owner_n_times(1);
+    let mo1_after: HeapStats = rt_heap_stats();
+    let mo2000_before: HeapStats = rt_heap_stats();
+    let mo2000: int = mixed_ignored_owner_n_times(2000);
+    let mo2000_after: HeapStats = rt_heap_stats();
+    if mo1 != 7 || mo2000 != 14000 {
+        print("mixed-ignored-owner value mismatch");
+        print(mo1 to string);
+        print(mo2000 to string);
+        return 13;
+    }
+    let r13: int = diff_check("mixed-ignored-owner", &mo1_before, &mo1_after, &mo2000_before, &mo2000_after);
+    if r13 != 0 { return 130 + r13; }
 
     print("compare-scrutinee-release-ok");
     return 0;

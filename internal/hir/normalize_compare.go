@@ -505,6 +505,7 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 	thenB := &Block{Span: span}
 	current := thenB
 	var ownedBindings []DropLocal
+	takenOut := make([]bool, len(payload))
 	for i, pat := range payload {
 		if pat == nil {
 			continue
@@ -520,6 +521,23 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 		if current == nil {
 			current = &Block{Span: span}
 		}
+		// Only a plain binding takes the field OUT. A wildcard reads nothing, a
+		// nested pattern takes out parts of it, and a literal only compares —
+		// calling any of those "taken" would leave the envelope free to drop a
+		// field nobody else holds.
+		if _, _, isBinding := bindingPattern(ctx, pat); isBinding {
+			takenOut[i] = true
+		}
+	}
+	// A position the pattern IGNORED still holds something, and an arm that
+	// binds its siblings leaves the envelope in the one shape no release
+	// covered: a shallow free abandons this field, a deep drop frees the bound
+	// ones twice. Giving it a binding of its own — the same one the pattern
+	// would have written — makes the arm all-bound, which the shallow release
+	// already handles. Only where the arm really OWNS what it takes; a borrowed
+	// or cloned scrutinee keeps its payload and needs no owner here.
+	if owned == scrutineeMoved {
+		claimIgnoredPayloads(ctx, span, subject, tag, payload, takenOut, current, &ownedBindings)
 	}
 
 	// The release, if any, goes AFTER every payload extraction above (so
@@ -528,7 +546,7 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 	// actually leaves this arm).
 	var release *Stmt
 	if owned != scrutineeBorrowed {
-		if shallow, safe := tagPayloadReleaseShape(ctx, payload, owned); safe {
+		if shallow, safe := tagPayloadReleaseShape(ctx, payload, owned, takenOut); safe {
 			var r Stmt
 			if shallow {
 				r = envelopeReleaseStmt(subject)
