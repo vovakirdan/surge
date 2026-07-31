@@ -153,6 +153,8 @@ func (l *funcLowerer) lowerSelectArmDispatch(
 					Args: []Operand{
 						l.placeOperand(Place{Local: taskLocal}, l.f.Locals[taskLocal].Type, false),
 					},
+					// `cancel` signals a task it still does not own.
+					ArgContracts: borrowArgContracts(1),
 				}})
 			}
 		}

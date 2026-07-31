@@ -45,12 +45,12 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 	// L_argv = call rt_argv()
 	argvType := b.stringArrayType()
 	argvLocal := b.newLocal("argv", argvType, LocalFlags(0))
-	b.emitCallIntrinsic(argvLocal, "rt_argv", nil)
+	b.emitCallIntrinsic(argvLocal, "rt_argv", nil, nil)
 
 	argvLenLocal := b.newLocal("argv_len", b.uintType(), LocalFlagCopy)
 	b.emitCallIntrinsic(argvLenLocal, "__len", []Operand{
 		{Kind: OperandCopy, Place: Place{Local: argvLocal}},
-	})
+	}, borrowArgContracts(1))
 
 	args := make([]Operand, 0, len(params))
 	for i, param := range params {
@@ -124,7 +124,8 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		b.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: nextBB}})
 
 		b.startBlock(errBB)
-		b.emitCallIntrinsic(NoLocalID, "exit", []Operand{{Kind: OperandMove, Place: Place{Local: parseLocal}}})
+		b.emitCallIntrinsic(NoLocalID, "exit", []Operand{{Kind: OperandMove, Place: Place{Local: parseLocal}}},
+			[]ArgContract{ArgContractTransferOwned})
 		b.setTerm(&Terminator{Kind: TermReturn})
 
 		b.startBlock(noArgBB)
@@ -161,7 +162,7 @@ func (b *surgeStartBuilder) prepareArgsStdin() []Operand {
 
 	// L_stdin = call rt_stdin_read_all()
 	stdinLocal := b.newLocal("stdin", b.stringType(), LocalFlags(0))
-	b.emitCallIntrinsic(stdinLocal, "rt_stdin_read_all", nil)
+	b.emitCallIntrinsic(stdinLocal, "rt_stdin_read_all", nil, nil)
 
 	param := params[0]
 	argLocal := b.newLocal(param.Name, param.Type, b.localFlags(param.Type))
@@ -196,7 +197,8 @@ func (b *surgeStartBuilder) prepareArgsStdin() []Operand {
 	b.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: nextBB}})
 
 	b.startBlock(errBB)
-	b.emitCallIntrinsic(NoLocalID, "exit", []Operand{{Kind: OperandMove, Place: Place{Local: parseLocal}}})
+	b.emitCallIntrinsic(NoLocalID, "exit", []Operand{{Kind: OperandMove, Place: Place{Local: parseLocal}}},
+		[]ArgContract{ArgContractTransferOwned})
 	b.setTerm(&Terminator{Kind: TermReturn})
 
 	b.startBlock(nextBB)

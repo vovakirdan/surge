@@ -149,12 +149,83 @@ type Callee struct {
 	Value Operand
 }
 
+// ArgContract records what a call-argument POSITION is owed, as decided by
+// the lowering that emitted the call — independent of which operand kind the
+// caller happened to supply for it.
+//
+// The two are deliberately separate facts. If a lowering bug hands an
+// unretained alias to a position that stores it, the position is still a
+// consuming sink; a design that recognized sinks by "the operand is already a
+// move" would stop looking at exactly the position the bug broke. Recording
+// the contract makes the DISAGREEMENT between what the position was owed and
+// what reached it expressible, which is the finding.
+//
+// The fact cannot be soundly re-derived later, either: a direct
+// Module.FuncBySym-resolvable callee exposes its parameter types, but an
+// extern/intrinsic call by name and an indirect function value do not, and
+// CallInstr carries only callee identity otherwise. So lowering records it at
+// the moment it already knows, the same "carry the fact forward instead of
+// re-deriving it" move TagPayload.MoveOut makes.
+type ArgContract uint8
+
+const (
+	// ArgContractBorrow is a position the callee never owns: the caller holds
+	// its reference alive for the whole call and keeps it afterward. An
+	// ordinary reference-counted-scalar by-value parameter, a `&`/`&mut`
+	// reference parameter, and any non-heap-owning type are all borrows. It is
+	// NOT a sink — an unretained alias here is correct, not a defect.
+	ArgContractBorrow ArgContract = iota
+	// ArgContractTransferOwned is a by-value parameter the callee becomes
+	// responsible for dropping, mirroring sema's paramTransfersOwnership
+	// exactly: droppable AND not a reference-counted scalar. The exclusion is
+	// written as "reference-counted scalar" rather than "Copy" for the same
+	// reason it is there — a `@copy` value composite is CLONED at the call and
+	// the callee genuinely owns that clone.
+	ArgContractTransferOwned
+	// ArgContractStore is a position whose value is kept in a container that
+	// outlives the call, released later by a drop of that container: a tag
+	// constructor's payload, a value pushed into an array or inserted into a
+	// map, a value queued in a channel, an async resume state handed to a task.
+	//
+	// STORE is a SEMANTIC category defined by the destination outliving the
+	// operation, not a syntactic one defined by which callee shape is being
+	// called. It is separate from TRANSFER-OWNED because the exclusion above
+	// does NOT apply here: a reference-counted scalar stored past the call
+	// needs its own retained reference exactly like any other stored value, so
+	// this stays a sink for types TRANSFER-OWNED deliberately excludes.
+	ArgContractStore
+	// ArgContractUnresolved marks a position the lowering could not classify.
+	// It exists so that gap is expressible rather than silently defaulting to
+	// the permissive answer; a verifier treats it as a finding, never a skip.
+	ArgContractUnresolved
+)
+
+func (c ArgContract) String() string {
+	switch c {
+	case ArgContractBorrow:
+		return "borrow"
+	case ArgContractTransferOwned:
+		return "transfer_owned"
+	case ArgContractStore:
+		return "store"
+	case ArgContractUnresolved:
+		return "unresolved"
+	default:
+		return "unknown"
+	}
+}
+
 // CallInstr represents a function call instruction.
 type CallInstr struct {
 	HasDst bool
 	Dst    Place
 	Callee Callee
 	Args   []Operand
+	// ArgContracts is parallel to Args: entry i is what argument position i
+	// was owed. Every construction site must fill it —
+	// len(ArgContracts) == len(Args) is a checked MIR invariant (validate.go),
+	// so a new call site cannot quietly leave its positions unclassified.
+	ArgContracts []ArgContract
 }
 
 // DropInstr represents a drop instruction.

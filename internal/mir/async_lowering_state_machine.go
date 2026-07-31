@@ -227,6 +227,8 @@ func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID) {
 				HasDst: false,
 				Callee: Callee{Kind: CalleeValue, Name: "rt_scope_cancel_all"},
 				Args:   []Operand{operandForLocal(f, scopeLocal)},
+				// The scope handle is a numeric id the executor owns.
+				ArgContracts: borrowArgContracts(1),
 			}})
 		}
 		appendInstr(f, joinBB, Instr{Kind: InstrJoinAll, JoinAll: JoinAllInstr{
@@ -241,6 +243,8 @@ func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID) {
 			HasDst: false,
 			Callee: Callee{Kind: CalleeValue, Name: "rt_scope_exit"},
 			Args:   []Operand{operandForLocal(f, scopeLocal)},
+			// The scope handle is a numeric id the executor owns.
+			ArgContracts: borrowArgContracts(1),
 		}})
 		setBlockTerm(f, doneBB, Terminator{Kind: TermIf, If: IfTerm{
 			Cond: operandForLocal(f, joinResultLocal),

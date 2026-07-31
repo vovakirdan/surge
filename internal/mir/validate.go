@@ -321,6 +321,13 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				for i := range ins.Call.Args {
 					checkOperand(ins.Call.Args[i], ctx)
 				}
+				// The per-argument ownership contract is only usable if it
+				// covers every position, so a new call site cannot leave one
+				// unclassified by omission.
+				if len(ins.Call.ArgContracts) != len(ins.Call.Args) {
+					errs = append(errs, fmt.Errorf("%s: call has %d args but %d arg contracts",
+						ctx, len(ins.Call.Args), len(ins.Call.ArgContracts)))
+				}
 			case InstrDrop:
 				checkPlace(ins.Drop.Place, ctx)
 			case InstrEndBorrow:

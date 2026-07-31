@@ -28,6 +28,11 @@ func asyncStateFreeInstr(payloadLocal, stateLocal LocalID) Instr {
 			{Kind: OperandCopy, Place: Place{Local: payloadLocal}},
 			{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 		},
+		// This call IS the release of both boxes, so each position must have
+		// been handed something the caller genuinely owned — the copies above
+		// are how the backend gets to null the slots itself, not a sign the
+		// boxes are borrowed.
+		ArgContracts: []ArgContract{ArgContractTransferOwned, ArgContractTransferOwned},
 	}}
 }
 
@@ -116,6 +121,7 @@ func buildAsyncPollEntry(f *Func, stateLocal, pcLocal, payloadLocal LocalID, var
 					Type:  boolType,
 					Const: Const{Kind: ConstBool, Type: boolType, BoolValue: failfast},
 				}},
+				ArgContracts: borrowArgContracts(1),
 			}})
 		}
 		setBlockTerm(f, caseBB, Terminator{Kind: TermGoto, Goto: GotoTerm{Target: variant.resumeBB}})
@@ -157,6 +163,9 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 			Dst:    Place{Local: payloadLocal},
 			Callee: Callee{Kind: CalleeSym, Sym: variants[variantIdx].tagSym, Name: variants[variantIdx].name},
 			Args:   args,
+			// A tag constructor: the resume payload union keeps every live
+			// local across the suspension and is what releases them later.
+			ArgContracts: storeArgContracts(len(args)),
 		}})
 		stateType := types.NoTypeID
 		if int(stateLocal) >= 0 && int(stateLocal) < len(f.Locals) {
@@ -276,6 +285,8 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 		appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
 			Callee: Callee{Kind: CalleeValue, Name: "rt_far_task_begin_transfer"},
 			Args:   []Operand{{Kind: OperandCopy, Place: Place{Local: localID}}},
+			// Handoff bookkeeping around the handle; it stores nothing.
+			ArgContracts: borrowArgContracts(1),
 		}})
 	}
 
@@ -284,6 +295,9 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 		Dst:    Place{Local: payloadTmp},
 		Callee: Callee{Kind: CalleeSym, Sym: startVariant.tagSym, Name: startVariant.name},
 		Args:   args,
+		// A tag constructor: the start payload union keeps the captured
+		// locals for the task's whole life.
+		ArgContracts: storeArgContracts(len(args)),
 	}})
 	appendInstr(f, entry, Instr{Kind: InstrAssign, Assign: AssignInstr{
 		Dst: Place{Local: stateTmp},
@@ -313,6 +327,9 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 			Kind:  OperandMove,
 			Place: Place{Local: stateTmp},
 		}},
+		// The poll id is a plain number; the state box moves into the task,
+		// which frees it later (AsyncStateFreeBuiltin).
+		ArgContracts: []ArgContract{ArgContractBorrow, ArgContractStore},
 	}})
 	for _, localID := range farTaskParams {
 		appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
@@ -321,6 +338,8 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 				{Kind: OperandCopy, Place: Place{Local: localID}},
 				{Kind: OperandCopy, Place: Place{Local: taskTmp}},
 			},
+			// Handoff bookkeeping around both handles; it stores neither.
+			ArgContracts: borrowArgContracts(2),
 		}})
 	}
 	setBlockTerm(f, entry, Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: Operand{Kind: OperandMove, Place: Place{Local: taskTmp}}}})

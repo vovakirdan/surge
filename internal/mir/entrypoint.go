@@ -159,7 +159,18 @@ func (b *surgeStartBuilder) build() error {
 		retLocal = b.newLocal("entry_ret", entryReturnType, LocalFlags(0))
 	}
 
-	b.emitCall(retLocal, b.entryMF.Func.SymbolID, b.entryMF.Func.Name, argOperands)
+	// The entrypoint's parameters are ordinary by-value parameters, so they are
+	// owed exactly what any other call's are.
+	entryContracts := make([]ArgContract, 0, len(argOperands))
+	entryParams := b.entryMF.Func.Params
+	for i := range argOperands {
+		paramType := types.NoTypeID
+		if i < len(entryParams) {
+			paramType = entryParams[i].Type
+		}
+		entryContracts = append(entryContracts, byValueArgContract(b.typesIn, b.sema, paramType, false))
+	}
+	b.emitCall(retLocal, b.entryMF.Func.SymbolID, b.entryMF.Func.Name, argOperands, entryContracts)
 
 	// Convert return to exit code
 	codeLocal := b.newLocal("code", b.intType(), LocalFlagCopy)
@@ -195,7 +206,7 @@ func (b *surgeStartBuilder) build() error {
 			// Emit: code = call __to(move entry_ret)
 			b.emitCall(codeLocal, toSymID, "__to", []Operand{
 				{Kind: OperandMove, Place: Place{Local: retLocal}},
-			})
+			}, []ArgContract{byValueArgContract(b.typesIn, b.sema, entryReturnType, false)})
 		} else {
 			// Fallback: no __to found, use 0
 			b.emitAssign(codeLocal, &RValue{

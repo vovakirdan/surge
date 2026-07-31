@@ -160,6 +160,9 @@ func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []Loca
 		bb.Instrs = append(bb.Instrs, Instr{Kind: InstrCall, Call: CallInstr{
 			Callee: Callee{Kind: CalleeValue, Name: AsyncStateFreeBuiltin},
 			Args:   []Operand{{Kind: OperandCopy, Place: Place{Local: stateLocal}}},
+			// This call IS the envelope's release, so the position must have
+			// been handed a box the caller owned.
+			ArgContracts: []ArgContract{ArgContractTransferOwned},
 		}})
 		bb.Term = Terminator{Kind: TermAsyncReturn, AsyncReturn: AsyncReturnTerm{
 			State: Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},

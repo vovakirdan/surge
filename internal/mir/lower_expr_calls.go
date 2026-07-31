@@ -9,10 +9,20 @@ import (
 	"surge/internal/types"
 )
 
-func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID, calleeStores bool) (Operand, error) {
+// lowerCallArgExpr lowers one argument and, at the same fork, records what the
+// position it fills was owed. The contract is a property of the POSITION, so
+// it reads the parameter's type where one is known and falls back to the
+// argument's own type only for callee shapes that expose no parameters.
+func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID, calleeStores bool) (Operand, ArgContract, error) {
 	if op, ok := l.lowerSharedRefReborrowArg(argExpr, paramType); ok {
-		return op, nil
+		// A `&mut` reborrowed down to `&`: a reference position, never owned.
+		return op, ArgContractBorrow, nil
 	}
+	positionType := paramType
+	if positionType == types.NoTypeID && argExpr != nil {
+		positionType = argExpr.Type
+	}
+	contract := l.byValueArgContract(positionType, calleeStores)
 	// Ownership transfers on a move, not on a copy. A by-value `string` param
 	// is owned because passing it moved it; a by-value reference-counted
 	// scalar is BORROWED, because passing it copied it and the caller stayed
@@ -28,14 +38,20 @@ func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID
 	// which outlives the call, so the union needs its own reference exactly
 	// like a struct-literal field does.
 	if !calleeStores && argExpr != nil && l.isRefCountedScalar(argExpr.Type) {
-		return l.lowerExpr(argExpr, false)
+		op, err := l.lowerExpr(argExpr, false)
+		return op, contract, err
 	}
-	return l.lowerExpr(argExpr, true)
+	op, err := l.lowerExpr(argExpr, true)
+	return op, contract, err
 }
 
 // calleeStoresArguments reports whether the call target keeps its arguments
 // beyond the call rather than borrowing them for its duration. Tag
 // constructors do: the value they build owns the payload.
+//
+// It covers only the callee shapes whose SYMBOL says so. A runtime intrinsic
+// that stores one argument while borrowing another has no symbol to ask, and
+// is classified per position by storingIntrinsicArgs instead.
 func (l *funcLowerer) calleeStoresArguments(symID symbols.SymbolID) bool {
 	if l == nil || !symID.IsValid() || l.symbols == nil ||
 		l.symbols.Table == nil || l.symbols.Table.Symbols == nil {
@@ -81,19 +97,20 @@ func (l *funcLowerer) calleeFunc(symID symbols.SymbolID) *hir.Func {
 	return mf.Func
 }
 
-func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, error) {
+func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, []ArgContract, error) {
 	fn := l.calleeFunc(data.SymbolID)
 	stores := l.calleeStoresArguments(data.SymbolID)
 	if fn == nil || fn.IsIntrinsic() || len(data.Args) >= len(fn.Params) {
 		args := make([]Operand, 0, len(data.Args))
+		contracts := make([]ArgContract, 0, len(data.Args))
 		for i, a := range data.Args {
 			paramType := types.NoTypeID
 			if fn != nil && i < len(fn.Params) {
 				paramType = fn.Params[i].Type
 			}
-			op, err := l.lowerCallArgExpr(a, paramType, stores)
+			op, contract, err := l.lowerCallArgExpr(a, paramType, stores)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if fn != nil && i < len(fn.Params) && fn.Params[i].Type != types.NoTypeID {
 				span := e.Span
@@ -103,27 +120,33 @@ func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, 
 				op = l.unionCastOperand(&op, fn.Params[i].Type, span)
 			}
 			args = append(args, op)
+			contracts = append(contracts, contract)
 		}
-		return args, nil
+		return args, contracts, nil
 	}
 	return l.lowerCallArgsWithDefaults(e, data, fn)
 }
 
-func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, fn *hir.Func) ([]Operand, error) {
+func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, fn *hir.Func) ([]Operand, []ArgContract, error) {
 	if l == nil || fn == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	params := fn.Params
 	if len(data.Args) > len(params) {
 		args := make([]Operand, 0, len(data.Args))
+		contracts := make([]ArgContract, 0, len(data.Args))
 		for _, a := range data.Args {
 			op, err := l.lowerExpr(a, true)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			args = append(args, op)
+			// More arguments than the callee has parameters: there is no
+			// position to read a contract off, and guessing the permissive
+			// answer would hide whatever produced the mismatch.
+			contracts = append(contracts, ArgContractUnresolved)
 		}
-		return args, nil
+		return args, contracts, nil
 	}
 
 	added := make([]symbols.SymbolID, 0, len(params))
@@ -152,10 +175,11 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 	defer restore()
 
 	args := make([]Operand, 0, len(params))
+	contracts := make([]ArgContract, 0, len(params))
 	for i, argExpr := range data.Args {
-		op, err := l.lowerCallArgExpr(argExpr, params[i].Type, l.calleeStoresArguments(data.SymbolID))
+		op, contract, err := l.lowerCallArgExpr(argExpr, params[i].Type, l.calleeStoresArguments(data.SymbolID))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		span := e.Span
 		if argExpr != nil {
@@ -176,6 +200,7 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 		}})
 		bind(params[i].SymbolID, tmp)
 		args = append(args, l.placeOperand(Place{Local: tmp}, paramType, true))
+		contracts = append(contracts, contract)
 	}
 
 	for i := len(data.Args); i < len(params); i++ {
@@ -185,11 +210,11 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 			if name == "" {
 				name = fmt.Sprintf("#%d", i)
 			}
-			return nil, fmt.Errorf("mir: call: missing default for parameter %q", name)
+			return nil, nil, fmt.Errorf("mir: call: missing default for parameter %q", name)
 		}
 		op, err := l.lowerExprForType(param.Default, param.Type)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		paramType := param.Type
 		if paramType == types.NoTypeID {
@@ -206,9 +231,12 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 		}})
 		bind(param.SymbolID, tmp)
 		args = append(args, l.placeOperand(Place{Local: tmp}, paramType, true))
+		// A default's value fills the same parameter position an explicit
+		// argument would have, so it is owed the same thing.
+		contracts = append(contracts, l.byValueArgContract(paramType, l.calleeStoresArguments(data.SymbolID)))
 	}
 
-	return args, nil
+	return args, contracts, nil
 }
 
 // lowerCallExpr lowers a HIR call expression to MIR.
@@ -247,14 +275,17 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 			l.isFarChannelType(fa.Object.Type) {
 			switch fa.FieldName {
 			case "send":
-				opArgs, argErr := l.lowerCallArgs(e, data)
+				opArgs, opContracts, argErr := l.lowerCallArgs(e, data)
 				if argErr != nil {
 					return Operand{}, argErr
 				}
 				if len(opArgs) == 1 {
+					// The value is queued in the channel and outlives the call.
+					applyStoringIntrinsicContracts("rt_anchored_channel_send", opContracts)
 					l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
-						Callee: Callee{Kind: CalleeValue, Name: "rt_anchored_channel_send"},
-						Args:   opArgs,
+						Callee:       Callee{Kind: CalleeValue, Name: "rt_anchored_channel_send"},
+						Args:         opArgs,
+						ArgContracts: opContracts,
 					}})
 					return l.constNothing(e.Type), nil
 				}
@@ -276,7 +307,7 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 		}
 	}
 
-	args, err := l.lowerCallArgs(e, data)
+	args, contracts, err := l.lowerCallArgs(e, data)
 	if err != nil {
 		return Operand{}, err
 	}
@@ -383,6 +414,8 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 							recvOp = Operand{Kind: OperandAddrOf, Type: refType, Place: place}
 						}
 						args = append([]Operand{recvOp}, args...)
+						// `__len` reads its receiver through a reference.
+						contracts = append([]ArgContract{ArgContractBorrow}, contracts...)
 						name = fa.FieldName
 					}
 				case hir.ExprVarRef:
@@ -490,8 +523,19 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 		}
 	}
 
+	// A named runtime sink stores an argument the callee's own parameter list
+	// cannot express, so the audited table has the last word on those
+	// positions. It runs here, once the callee's final name is known.
+	applyStoringIntrinsicContracts(callee.Name, contracts)
+	l.applyChannelSendContracts(callee.Name, args, contracts)
+
 	if e.Type == types.NoTypeID || l.isNothingType(e.Type) {
-		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{HasDst: false, Callee: callee, Args: args}})
+		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
+			HasDst:       false,
+			Callee:       callee,
+			Args:         args,
+			ArgContracts: contracts,
+		}})
 		return l.constNothing(e.Type), nil
 	}
 
@@ -503,10 +547,11 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 	l.emit(&Instr{
 		Kind: InstrCall,
 		Call: CallInstr{
-			HasDst: true,
-			Dst:    Place{Local: tmp},
-			Callee: callee,
-			Args:   args,
+			HasDst:       true,
+			Dst:          Place{Local: tmp},
+			Callee:       callee,
+			Args:         args,
+			ArgContracts: contracts,
 		},
 	})
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil

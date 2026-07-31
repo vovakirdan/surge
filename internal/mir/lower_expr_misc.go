@@ -149,6 +149,10 @@ func (l *funcLowerer) lowerTaskExpr(e *hir.Expr, consume bool) (Operand, error) 
 				{Kind: OperandCopy, Place: Place{Local: l.scopeLocal}},
 				{Kind: OperandCopy, Place: Place{Local: tmp}},
 			},
+			// Both borrow: the scope records the child's numeric task id and
+			// the executor's task table keeps owning the task itself, so the
+			// scope releases nothing later (runtime/native/rt_async_scope.c).
+			ArgContracts: borrowArgContracts(2),
 		}})
 	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
@@ -174,6 +178,10 @@ func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error)
 				{Kind: OperandCopy, Place: Place{Local: l.scopeLocal}},
 				{Kind: OperandCopy, Place: Place{Local: tmp}},
 			},
+			// Both borrow: the scope records the child's numeric task id and
+			// the executor's task table keeps owning the task itself, so the
+			// scope releases nothing later (runtime/native/rt_async_scope.c).
+			ArgContracts: borrowArgContracts(2),
 		}})
 	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil

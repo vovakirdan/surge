@@ -142,6 +142,9 @@ func (l *funcLowerer) lowerMapLitExpr(e *hir.Expr, consume bool) (Operand, error
 				HasDst: false,
 				Callee: Callee{Kind: CalleeSym, Name: "rt_map_insert"},
 				Args:   []Operand{mapRef, keyOp, valOp},
+				// The map borrows through its `&mut` receiver and keeps both
+				// the key and the value.
+				ArgContracts: []ArgContract{ArgContractBorrow, ArgContractStore, ArgContractStore},
 			},
 		})
 	}

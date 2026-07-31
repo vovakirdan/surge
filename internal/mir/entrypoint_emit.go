@@ -78,7 +78,7 @@ func (b *surgeStartBuilder) emitAssign(dst LocalID, src *RValue) {
 	})
 }
 
-func (b *surgeStartBuilder) emitCall(dst LocalID, sym symbols.SymbolID, name string, args []Operand) {
+func (b *surgeStartBuilder) emitCall(dst LocalID, sym symbols.SymbolID, name string, args []Operand, contracts []ArgContract) {
 	hasDst := dst != NoLocalID
 	b.emit(&Instr{
 		Kind: InstrCall,
@@ -90,12 +90,13 @@ func (b *surgeStartBuilder) emitCall(dst LocalID, sym symbols.SymbolID, name str
 				Sym:  sym,
 				Name: name,
 			},
-			Args: args,
+			Args:         args,
+			ArgContracts: contracts,
 		},
 	})
 }
 
-func (b *surgeStartBuilder) emitCallIntrinsic(dst LocalID, name string, args []Operand) {
+func (b *surgeStartBuilder) emitCallIntrinsic(dst LocalID, name string, args []Operand, contracts []ArgContract) {
 	hasDst := dst != NoLocalID
 	b.emit(&Instr{
 		Kind: InstrCall,
@@ -107,7 +108,8 @@ func (b *surgeStartBuilder) emitCallIntrinsic(dst LocalID, name string, args []O
 				Sym:  symbols.NoSymbolID, // intrinsics don't have symbols
 				Name: name,
 			},
-			Args: args,
+			Args:         args,
+			ArgContracts: contracts,
 		},
 	})
 }
@@ -153,15 +155,17 @@ func (b *surgeStartBuilder) emitTagPayload(dst, val LocalID, tag string, index i
 
 func (b *surgeStartBuilder) emitFromStrCall(dst, strLocal LocalID, targetType types.TypeID) {
 	arg := Operand{Kind: OperandAddrOf, Type: b.refType(b.stringType(), false), Place: Place{Local: strLocal}}
+	// `from_str` parses through a `&string`; the caller keeps the string.
+	contracts := borrowArgContracts(1)
 	if b.isBuiltinFromStrType(targetType) {
-		b.emitCallIntrinsic(dst, "from_str", []Operand{arg})
+		b.emitCallIntrinsic(dst, "from_str", []Operand{arg}, contracts)
 		return
 	}
 	if sym := b.findFromStrMethod(targetType); sym.IsValid() {
-		b.emitCall(dst, sym, "from_str", []Operand{arg})
+		b.emitCall(dst, sym, "from_str", []Operand{arg}, contracts)
 		return
 	}
-	b.emitCallIntrinsic(dst, "from_str", []Operand{arg})
+	b.emitCallIntrinsic(dst, "from_str", []Operand{arg}, contracts)
 }
 
 func (b *surgeStartBuilder) emitExitWithMessage(msg string, code uint64) {
@@ -210,7 +214,8 @@ func (b *surgeStartBuilder) emitExitWithMessage(msg string, code uint64) {
 			},
 		},
 	})
-	b.emitCallIntrinsic(NoLocalID, "exit", []Operand{{Kind: OperandMove, Place: Place{Local: errLocal}}})
+	b.emitCallIntrinsic(NoLocalID, "exit", []Operand{{Kind: OperandMove, Place: Place{Local: errLocal}}},
+		[]ArgContract{ArgContractTransferOwned})
 	b.setTerm(&Terminator{Kind: TermReturn})
 }
 
@@ -227,6 +232,7 @@ func (b *surgeStartBuilder) emitExitCall(codeLocal LocalID) {
 			Args: []Operand{
 				{Kind: OperandCopy, Place: Place{Local: codeLocal}},
 			},
+			ArgContracts: borrowArgContracts(1),
 		},
 	})
 }
