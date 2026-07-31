@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/sema"
+	"surge/internal/source"
 	"surge/internal/types"
 )
 
@@ -22,11 +23,15 @@ type ownershipTestTypes struct {
 	strRef   types.TypeID
 	strOwn   types.TypeID
 	strArray types.TypeID
+	rangeTy  types.TypeID
 }
 
 func newOwnershipTestTypes(t *testing.T) ownershipTestTypes {
 	t.Helper()
 	in := types.NewInterner()
+	if in.Strings == nil {
+		in.Strings = source.NewInterner()
+	}
 	b := in.Builtins()
 	ot := ownershipTestTypes{
 		in:       in,
@@ -37,6 +42,7 @@ func newOwnershipTestTypes(t *testing.T) ownershipTestTypes {
 		strRef:   in.Intern(types.MakeReference(b.String, false)),
 		strOwn:   in.Intern(types.MakeOwn(b.String)),
 		strArray: in.Intern(types.MakeArray(b.String, 2)),
+		rangeTy:  in.RegisterStruct(in.Strings.Intern("Range"), source.Span{}),
 	}
 	// The rows below are only meaningful if these premises hold; a change to
 	// what owns heap must fail here rather than silently make cases redundant.
@@ -54,6 +60,9 @@ func newOwnershipTestTypes(t *testing.T) ownershipTestTypes {
 	}
 	if !ownsHeapFor(in, ot.sema, ot.strOwn) || !ownsHeapFor(in, ot.sema, ot.strArray) {
 		t.Fatalf("own string and string[2] must own heap")
+	}
+	if !indexIsView(in, &IndexAccess{Index: copyOf(ot.rangeTy)}) {
+		t.Fatalf("a Range-typed index must read as a view")
 	}
 	return ot
 }
@@ -146,13 +155,16 @@ func TestClassifyRValueCoversEveryKind(t *testing.T) {
 			}}, resultTy: ot.str, want: ownershipTransfers,
 		},
 		{
-			name: "magic_binary_operator", kind: RValueBinaryOp,
+			// The shape that actually reaches RValueBinaryOp with an owning
+			// result: an INTRINSIC operator that allocates. A resolved magic
+			// operator never gets here at all — HIR turns it into a call.
+			name: "bignum_arithmetic", kind: RValueBinaryOp,
 			rv: RValue{Kind: RValueBinaryOp, Binary: BinaryOp{
-				Op: ast.ExprBinaryAdd, Left: copyOf(ot.str), Right: copyOf(ot.str),
-			}}, resultTy: ot.str, want: ownershipMints,
+				Op: ast.ExprBinaryAdd, Left: copyOf(ot.flt), Right: copyOf(ot.flt),
+			}}, resultTy: ot.flt, want: ownershipMints,
 		},
 		{
-			name: "primitive_binary_operator", kind: RValueBinaryOp,
+			name: "machine_word_arithmetic", kind: RValueBinaryOp,
 			rv: RValue{Kind: RValueBinaryOp, Binary: BinaryOp{
 				Op: ast.ExprBinaryAdd, Left: copyOf(ot.plain), Right: copyOf(ot.plain),
 			}}, resultTy: ot.plain, want: ownershipNotApplicable,
@@ -225,6 +237,15 @@ func TestClassifyRValueCoversEveryKind(t *testing.T) {
 			}}, resultTy: ot.plain, want: ownershipNotApplicable,
 		},
 		{
+			// A slice allocates a header of its own, and only the INDEX
+			// operand's type says so — `arr[1..3]` and `arr[1]` on a string
+			// array both produce something owning.
+			name: "range_view", kind: RValueIndex,
+			rv: RValue{Kind: RValueIndex, Index: IndexAccess{
+				Object: copyOf(ot.strArray), Index: copyOf(ot.rangeTy),
+			}}, resultTy: ot.strArray, want: ownershipMints,
+		},
+		{
 			name: "tag_test", kind: RValueTagTest,
 			rv: RValue{Kind: RValueTagTest, TagTest: TagTest{
 				Value: copyOf(ot.str), TagName: "Some",
@@ -281,6 +302,55 @@ func TestClassifyRValueCoversEveryKind(t *testing.T) {
 		if !covered[k] {
 			t.Errorf("RValueKind %d has no classification case", k)
 		}
+	}
+}
+
+// TestClassifyUnaryOpCoversEveryOperator is the branch gate the RValueKind walk
+// cannot be: RValueUnaryOp is one kind with one answer PER OPERATOR, and two of
+// them are pass-throughs the others are not.
+func TestClassifyUnaryOpCoversEveryOperator(t *testing.T) {
+	ot := newOwnershipTestTypes(t)
+
+	cases := []struct {
+		op        ast.ExprUnaryOp
+		operandTy types.TypeID
+		want      ownershipClass
+	}{
+		{ast.ExprUnaryPlus, ot.flt, ownershipTransfers},
+		{ast.ExprUnaryMinus, ot.flt, ownershipMints},
+		{ast.ExprUnaryNot, ot.in.Builtins().Bool, ownershipNotApplicable},
+		{ast.ExprUnaryDeref, ot.strRef, ownershipAliases},
+		{ast.ExprUnaryDeref, ot.strOwn, ownershipTransfers},
+		// Never built as an RValueUnaryOp: lowerUnaryOpExpr answers with an
+		// AddrOf operand before any RValue exists.
+		{ast.ExprUnaryRef, ot.str, ownershipNotApplicable},
+		{ast.ExprUnaryRefMut, ot.str, ownershipNotApplicable},
+		{ast.ExprUnaryOwn, ot.str, ownershipTransfers},
+		// No backend's emitUnary handles these, so MIR carrying one is already
+		// a gap to report rather than an ownership question to answer.
+		{ast.ExprUnaryFar, ot.str, ownershipUnclassified},
+		{ast.ExprUnaryAwait, ot.str, ownershipUnclassified},
+	}
+
+	covered := map[ast.ExprUnaryOp]bool{}
+	for _, tc := range cases {
+		t.Run(tc.op.String(), func(t *testing.T) {
+			op := UnaryOp{Op: tc.op, Operand: copyOf(tc.operandTy)}
+			if got := classifyUnaryOp(&op, ot.in); got != tc.want {
+				t.Errorf("classifyUnaryOp(%s) = %s, want %s", tc.op, got, tc.want)
+			}
+		})
+		covered[tc.op] = true
+	}
+	// ExprUnaryOp has no *Count sentinel of its own, so the bound is String():
+	// an operator added to ast without a row here fails on the name it gains.
+	for i := 0; ast.ExprUnaryOp(i).String() != "?"; i++ {
+		if op := ast.ExprUnaryOp(i); !covered[op] {
+			t.Errorf("unary operator %s has no classification case", op)
+		}
+	}
+	if got := classifyUnaryOp(nil, ot.in); got != ownershipUnclassified {
+		t.Errorf("classifyUnaryOp(nil) = %s, want unclassified", got)
 	}
 }
 
@@ -434,33 +504,36 @@ func TestInstrMintsDestCoversEveryKind(t *testing.T) {
 	}
 }
 
+// sentinelScan is how far past a *Count sentinel the check below looks for a
+// kind that slipped in behind it. Checking only the sentinel's own value cannot
+// see one: appending `InstrFoo` after `instrKindCount` leaves the sentinel
+// itself unnamed and every walk bounded by it still stops short.
+const sentinelScan = 8
+
 // TestKindCountSentinelsStayLast pins the one way the three walks above can go
 // blind: a kind appended AFTER a sentinel is never reached by an iteration
 // bounded by it. String() names every real kind and nothing else, so the kind
-// below each sentinel must name itself and the sentinel must not.
+// below each sentinel must name itself and NOTHING at or above it may.
 func TestKindCountSentinelsStayLast(t *testing.T) {
-	if got := InstrKind(instrKindCount).String(); got != "Unknown" {
-		t.Errorf("a kind exists at instrKindCount (%s); the sentinel is no longer last", got)
-	}
 	if got := (instrKindCount - 1).String(); got == "Unknown" {
 		t.Errorf("instrKindCount overshoots the last real InstrKind")
 	}
-	if got := OperandKind(operandKindCount).String(); got != "Unknown" {
-		t.Errorf("a kind exists at operandKindCount (%s); the sentinel is no longer last", got)
-	}
-	if got := (operandKindCount - 1).String(); got == "Unknown" {
+	if got := OperandKind(operandKindCount - 1).String(); got == "Unknown" {
 		t.Errorf("operandKindCount overshoots the last real OperandKind")
 	}
-	// RValueKind has no String(); classifyRValue is the equivalent oracle. A
-	// value past the end matches no row and falls through to unclassified.
-	ot := newOwnershipTestTypes(t)
-	past := RValue{Kind: rvalueKindCount}
-	if got := classifyRValue(&past, ot.str, ot.in, ot.sema); got != ownershipUnclassified {
-		t.Errorf("a kind exists at rvalueKindCount (classified %s); the sentinel is no longer last", got)
-	}
-	last := RValue{Kind: rvalueKindCount - 1, HeirTest: HeirTest{Value: copyOf(ot.str)}}
-	if got := classifyRValue(&last, ot.in.Builtins().Bool, ot.in, ot.sema); got == ownershipUnclassified {
+	if got := RValueKind(rvalueKindCount - 1).String(); got == "Unknown" {
 		t.Errorf("rvalueKindCount overshoots the last real RValueKind")
+	}
+	for i := range sentinelScan {
+		if got := InstrKind(int(instrKindCount) + i).String(); got != "Unknown" {
+			t.Errorf("InstrKind %s sits at or after instrKindCount; move the sentinel back to last and give the kind a classification", got)
+		}
+		if got := OperandKind(int(operandKindCount) + i).String(); got != "Unknown" {
+			t.Errorf("OperandKind %s sits at or after operandKindCount; move the sentinel back to last and give the kind a classification", got)
+		}
+		if got := RValueKind(int(rvalueKindCount) + i).String(); got != "Unknown" {
+			t.Errorf("RValueKind %s sits at or after rvalueKindCount; move the sentinel back to last and give the kind a classification", got)
+		}
 	}
 }
 

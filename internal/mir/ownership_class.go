@@ -109,17 +109,18 @@ func classifyRValue(rv *RValue, resultTy types.TypeID, typesIn *types.Interner, 
 	case RValueUnaryOp:
 		return classifyUnaryOp(&rv.Unary, typesIn)
 	case RValueBinaryOp:
-		// Reached only for an ordinary binary operator: `is`, `heir`,
-		// assignment, compound assignment and the short-circuiting logicals
-		// are each peeled off into their own RValue kind before this one is
-		// built (lowerBinaryOpExpr). What is left is either a primitive
-		// arithmetic/comparison op or a MAGIC operator that resolves to a real
-		// call underneath, and BinaryOp carries no marker separating them.
+		// BinaryOp carries no marker naming what built it, and it does not need
+		// one. A magic operator never reaches here at all: sema resolves it and
+		// HIR turns it into an ordinary call (magicCallExpr, lowerBinaryExpr),
+		// which lowers to an InstrCall. `is`, `heir`, assignment, compound
+		// assignment and the short-circuiting logicals are likewise peeled into
+		// their own kinds first (lowerBinaryOpExpr).
 		//
-		// The result type is the discriminant, and not merely as a proxy: a
-		// primitive op on machine words produces a machine word, so reaching
-		// here at all with an owning result type means a real call built a
-		// fresh value. Either way the answer is the same one.
+		// What is left is the intrinsic operators, and for those the RESULT TYPE
+		// is a real discriminant rather than a proxy: an intrinsic op on machine
+		// words produces a machine word, so an owning result means the operator
+		// allocated one — a range construction (`a..b`) building its Range, or a
+		// bignum op building its block.
 		return ownershipMints
 	case RValueCast:
 		if castIsIdentity(typesIn, &rv.Cast) {
@@ -146,10 +147,17 @@ func classifyRValue(rv *RValue, resultTy types.TypeID, typesIn *types.Interner, 
 		// A plain read counts no new holder: the container still owns it.
 		return ownershipAliases
 	case RValueIndex:
-		// A plain element read, which is the only shape that reaches here — an
-		// index expression whose result type is a reference never becomes an
-		// RValueIndex at all (lowerIndexExpr returns an AddrOf operand for it),
-		// and IndexAccess has no other form to distinguish.
+		if indexIsView(typesIn, &rv.Index) {
+			// A RANGE index is a slice, and a slice allocates a header of its
+			// own that something must free — emitArrayFixedSlice and the
+			// string/array slice paths on the LLVM side (emit_access.go),
+			// AllocArraySlice on the VM's (eval_data.go). It shares the buffer
+			// underneath, but the header it hands back is genuinely fresh.
+			return ownershipMints
+		}
+		// A plain element read: the container still owns what was read. An index
+		// whose RESULT is a reference never reaches here at all — lowerIndexExpr
+		// returns an AddrOf operand for that before any RValue exists.
 		return ownershipAliases
 	case RValueTagPayload:
 		// Reads its OWN flag, exactly like RValueField, because the question
@@ -325,6 +333,27 @@ func instrMintsDest(ins *Instr) (Place, bool) {
 		return Place{}, false
 	}
 	return Place{}, false
+}
+
+// indexIsView reports whether an index reads a SLICE rather than one element,
+// which both backends decide the same way: from the INDEX operand's type being
+// a Range (isRangeType in emit_helpers_types.go, VKHandleRange in the VM). The
+// result type cannot answer it — `arr[1..3]` and `arr[1]` on a `string[]` both
+// produce something owning.
+func indexIsView(typesIn *types.Interner, idx *IndexAccess) bool {
+	if typesIn == nil || idx == nil || typesIn.Strings == nil {
+		return false
+	}
+	ty := resolveAliasType(typesIn, idx.Index.Type)
+	if ty == types.NoTypeID {
+		return false
+	}
+	info, ok := typesIn.StructInfo(ty)
+	if !ok || info == nil {
+		return false
+	}
+	name, ok := typesIn.Strings.Lookup(info.Name)
+	return ok && name == "Range"
 }
 
 // castIsIdentity reports whether a cast converts nothing, asked the way

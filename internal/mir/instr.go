@@ -621,6 +621,43 @@ const (
 	rvalueKindCount
 )
 
+func (k RValueKind) String() string {
+	switch k {
+	case RValueUse:
+		return "Use"
+	case RValueUnaryOp:
+		return "UnaryOp"
+	case RValueBinaryOp:
+		return "BinaryOp"
+	case RValueCast:
+		return "Cast"
+	case RValueStructLit:
+		return "StructLit"
+	case RValueArrayLit:
+		return "ArrayLit"
+	case RValueTupleLit:
+		return "TupleLit"
+	case RValueField:
+		return "Field"
+	case RValueIndex:
+		return "Index"
+	case RValueTagTest:
+		return "TagTest"
+	case RValueTagPayload:
+		return "TagPayload"
+	case RValueIterInit:
+		return "IterInit"
+	case RValueIterNext:
+		return "IterNext"
+	case RValueTypeTest:
+		return "TypeTest"
+	case RValueHeirTest:
+		return "HeirTest"
+	default:
+		return "Unknown"
+	}
+}
+
 // RValue represents a right-hand value in MIR.
 type RValue struct {
 	Kind RValueKind
