@@ -54,11 +54,23 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 	var ownedCaptures []LocalID
 	for _, cap := range captures {
 		localID := l.ensureLocal(cap.SymbolID, cap.Name, cap.Type, span)
+		// An OWNED capture was moved into the state, and this unpack is where
+		// that ownership continues into the body: the state keeps nothing, the
+		// envelope is released shallowly, and the body is free to consume what
+		// it got. That is a transfer, and the read now SAYS so instead of
+		// leaving it to the comment below — a plain read would count a second
+		// holder for a reference-counted capture, and nothing gives that one
+		// back.
+		//
+		// A COPY capture is the opposite and stays a plain read: the local is a
+		// second holder by design, which is exactly why one of the drops below
+		// is synthesized for it.
 		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
 			Dst: Place{Local: localID},
 			Src: RValue{Kind: RValueField, Field: FieldAccess{
 				Object:    Operand{Kind: OperandCopy, Type: stateType, Place: Place{Local: stateLocal}},
 				FieldName: cap.FieldName,
+				MoveOut:   !cap.CopyCapture,
 			}},
 		}})
 		// Unpacking moves the capture's ownership from the state's field into
