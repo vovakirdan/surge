@@ -53,22 +53,24 @@ fn borrows_result(v: Outcome) -> int {
 		t.Fatal("no sema result")
 	}
 
-	// Three shapes, and the obligation turns on WHO ends up owning the value,
-	// not on how the arm is written:
+	// Three shapes, and the obligation turns on whether the payload LEAVES its
+	// arm, not on what the receiver does with it:
 	//
-	//   returns_payload  the `return` consumes the compare, so the payload has
-	//                    a new owner and the arm owes nothing;
-	//   uses_payload     the payload never leaves its arm, so the arm owes it;
-	//   borrows_result   the compare's value is only BORROWED by peek, so
-	//                    nobody downstream owns the payload and the arm still
-	//                    owes it — the case a review caught after the first
-	//                    version of this fix moved unconditionally and leaked
-	//                    one string per evaluation here.
+	//   returns_payload  the arm answers with the payload, so the compare's
+	//                    value is the payload and the arm owes nothing;
+	//   uses_payload     the payload never leaves its arm — the result is an
+	//                    int computed from a borrow — so the arm owes it;
+	//   borrows_result   the arm answers with the payload again, and the
+	//                    compare's value is only BORROWED. The arm still owes
+	//                    nothing; the COMPARE owns the value and releases it
+	//                    when the statement ends.
 	//
-	// The two owing arms are also what stops this from passing vacuously: an
-	// assertion of "no obligations" would hold just as well if arm obligations
-	// stopped being recorded at all, which is the leak the machinery exists to
-	// prevent.
+	// That last row is the whole point, and it is asserted from both sides. The
+	// arm keeping the obligation used to be the answer here, and it freed the
+	// payload while the borrower was still reading it. Simply dropping the
+	// obligation is not the answer either — an earlier attempt did exactly that
+	// and leaked one string per evaluation, which is why the compare's own
+	// ownership is asserted rather than assumed.
 	total := 0
 	for expr, drops := range res.ArmDropsExpr {
 		if len(drops) == 0 {
@@ -79,12 +81,27 @@ fn borrows_result(v: Outcome) -> int {
 			t.Fatalf("arm %v: expected at most one payload obligation, got %d", expr, len(drops))
 		}
 	}
-	if total != 2 {
+	if total != 1 {
 		t.Fatalf(
-			"expected exactly the locally-used and the borrowed-result payloads to owe a drop, got %d "+
-				"obligations across %d arms; an arm that RETURNS its payload into a CONSUMING context must "+
-				"not also drop it, and one whose result is only borrowed must",
+			"expected exactly the locally-used payload to owe a drop, got %d obligations across %d "+
+				"arms; an arm that ANSWERS with its payload hands it to the compare and must not also "+
+				"drop it, whether the result is consumed or only borrowed",
 			total, len(res.ArmDropsExpr),
+		)
+	}
+
+	// The other side of the same contract: the borrowed compare is the one
+	// evaluation here nothing consumes, so it must be the one statement-end
+	// release the snippet records. Every other candidate in it is consumed —
+	// the arm literals by their compare, the compare in `returns_payload` by
+	// the return — so a count of one IS that compare, and a count of zero is
+	// the leak this fix must not reintroduce.
+	if len(res.TempDrops) != 1 {
+		t.Fatalf(
+			"expected exactly one statement-end release — the borrowed compare's own value — got %d; "+
+				"an arm that hands its payload to a compare nobody consumes leaks it unless the compare "+
+				"owns it",
+			len(res.TempDrops),
 		)
 	}
 }

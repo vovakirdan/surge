@@ -118,6 +118,18 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		// collected by its own return/ret, which walks the open scopes.
 		if !armAbrupt {
 			armPayloadDrops[i] = tc.liveDroppables(&tc.dropScopes[len(tc.dropScopes)-1])
+			// An arm whose result IS one of its own payload bindings hands that
+			// value to the compare, so the arm must not also free it — and the
+			// compare must, which is what MINTING says here. Both halves are
+			// required together: leaving the drop behind frees the value while
+			// the compare's own reader still holds it, and dropping it without
+			// the mint abandons the value on that path.
+			if kept, handedOut := tc.armHandsOutItsPayload(arm.Result, armBindings, armPayloadDrops[i]); handedOut {
+				armPayloadDrops[i] = kept
+				if !armMints && !armSometimesMints {
+					mintingArms = append(mintingArms, arm.Result)
+				}
+			}
 		}
 		tc.popDropScope()
 		movedArms[i] = tc.snapshotMovedPlaces()

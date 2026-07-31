@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"surge/internal/ast"
@@ -113,6 +114,41 @@ func (tc *typeChecker) registerComparePayloadDroppables(bindings []symbols.Symbo
 	for _, symID := range bindings {
 		tc.registerDroppableBinding(symID)
 	}
+}
+
+// armHandsOutItsPayload reports whether this arm's result names a payload
+// binding of its OWN pattern, and returns the arm's obligations without it.
+//
+// That value leaves the arm: the compare's result is the only thing holding it
+// once the arm is done, so the arm's own release would free it while the
+// compare's reader still points at it — measured as an invalid read per
+// iteration where the compare's result was BORROWED, since a borrow never
+// consumes and the retraction below never ran.
+//
+// Answered from the arm's OBLIGATIONS rather than from the pattern alone, which
+// is what keeps a borrowed subject out of it: `compare *arg { Payload(s) => s }`
+// binds a payload the union still owns, that binding earns no obligation, and
+// nothing here is its to hand out.
+func (tc *typeChecker) armHandsOutItsPayload(
+	result ast.ExprID,
+	bindings []symbols.SymbolID,
+	drops []symbols.SymbolID,
+) ([]symbols.SymbolID, bool) {
+	if !result.IsValid() || len(bindings) == 0 || len(drops) == 0 {
+		return drops, false
+	}
+	symID := tc.symbolForExpr(tc.unwrapGroups(result))
+	if !symID.IsValid() || !slices.Contains(bindings, symID) {
+		return drops, false
+	}
+	idx := slices.Index(drops, symID)
+	if idx < 0 {
+		return drops, false
+	}
+	kept := make([]symbols.SymbolID, 0, len(drops)-1)
+	kept = append(kept, drops[:idx]...)
+	kept = append(kept, drops[idx+1:]...)
+	return kept, true
 }
 
 // releaseArmResultObligations takes back the obligation an arm earned for a
