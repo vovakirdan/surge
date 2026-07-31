@@ -155,12 +155,14 @@ func (tc *typeChecker) branchSometimesMintsItsValue(branch ast.ExprID) bool {
 // it BUILT on every path, rather than one it forwarded.
 //
 // Being a pending temp candidate is necessary and not sufficient. The flag says
-// "nothing has consumed this", not "this is the only reference": a cast is
-// flagged, yet it reads its source without consuming and an identity cast
-// lowers to the same pointer, so `c ? (a to float) : (b to float)` would look
-// like two fresh values while both alias a live binding. Releasing that is a
+// "nothing has consumed this", not "this is the only reference": a unary or an
+// index expression is flagged, yet each has a spelling that reads through to
+// storage its container still owns, so `c ? (a[i]) : (b[i])` would look like two
+// fresh values while both alias a live binding. Releasing that is a
 // use-after-free through the binding, which is the exact hazard the blanket
-// never-produce rule was avoiding.
+// never-produce rule was avoiding. (A cast that converts NOTHING no longer
+// reaches here as a cast at all — it is transparent, and the question lands on
+// the operand it forwards, which is the expression that really answers it.)
 //
 // So the kind has to say the value was MINTED. Call, aggregate literal and
 // string-literal evaluations allocate their result; a non-assigning binary is a
@@ -244,19 +246,39 @@ func (tc *typeChecker) consumeTempCandidate(exprID ast.ExprID) {
 	}
 }
 
-// unwrapTempCandidate sees through grouping parentheses so consumption
-// reaches the flagged node.
+// unwrapTempCandidate sees through the wrappers that pass a value along
+// unchanged, so consumption reaches the flagged node.
+//
+// Grouping parentheses are one. A cast from a type to ITSELF is the other: it
+// converts nothing and builds nothing, so the value it hands on is still the
+// one its operand produced — and it is that operand which carries the
+// candidacy. Without this, `let x = 1.5 to float` would leave the literal's
+// candidacy unconsumed and release the very block the binding just took.
 func (tc *typeChecker) unwrapTempCandidate(exprID ast.ExprID) ast.ExprID {
 	for {
 		node := tc.builder.Exprs.Get(exprID)
-		if node == nil || node.Kind != ast.ExprGroup {
+		if node == nil {
 			return exprID
 		}
-		group, ok := tc.builder.Exprs.Group(exprID)
-		if !ok || group == nil || !group.Inner.IsValid() {
+		switch node.Kind {
+		case ast.ExprGroup:
+			group, ok := tc.builder.Exprs.Group(exprID)
+			if !ok || group == nil || !group.Inner.IsValid() {
+				return exprID
+			}
+			exprID = group.Inner
+		case ast.ExprCast:
+			cast, ok := tc.builder.Exprs.Cast(exprID)
+			if !ok || cast == nil || !cast.Value.IsValid() {
+				return exprID
+			}
+			if tc.castProducesItsValue(exprID, tc.result.ExprTypes[exprID]) {
+				return exprID
+			}
+			exprID = cast.Value
+		default:
 			return exprID
 		}
-		exprID = group.Inner
 	}
 }
 
@@ -283,9 +305,11 @@ func (tc *typeChecker) noteTempCandidate(exprID ast.ExprID, kind ast.ExprKind, t
 
 	producer := false
 	switch kind {
-	case ast.ExprCall, ast.ExprCast, ast.ExprStruct, ast.ExprArray,
+	case ast.ExprCall, ast.ExprStruct, ast.ExprArray,
 		ast.ExprMap, ast.ExprTuple:
 		producer = true
+	case ast.ExprCast:
+		producer = tc.castProducesItsValue(exprID, ty)
 	// A control-flow expression produces only when EVERY branch handed it a
 	// freshly produced owned value — see noteChoiceOwnsItsValue. It cannot be
 	// flagged unconditionally, because its value can forward a PLACE from any
@@ -327,4 +351,35 @@ func (tc *typeChecker) noteTempCandidate(exprID ast.ExprID, kind ast.ExprKind, t
 		top.flags = make(map[ast.ExprID]struct{})
 	}
 	top.flags[exprID] = struct{}{}
+}
+
+// castProducesItsValue answers the producer question for `to`, whose two
+// lowerings own their result differently:
+//
+//   - a `to` that resolved to a `__to` method is a CALL, and its result is a
+//     freshly produced value like any other call's;
+//   - an INTRINSIC cast produces one only when it changes representation.
+//     Casting a type to itself hands the source straight back, so the result is
+//     a second name for storage its owner still holds — flagging it would
+//     release that storage out from under the owner.
+//
+// The identity question is settled here for good: `to` on a type PARAMETER is
+// rejected (SEM3015), so no cast can become an identity only after
+// monomorphization.
+func (tc *typeChecker) castProducesItsValue(exprID ast.ExprID, ty types.TypeID) bool {
+	if tc.result == nil || tc.result.ExprTypes == nil || ty == types.NoTypeID {
+		return true
+	}
+	if _, isCall := tc.result.ToSymbols[exprID]; isCall {
+		return true
+	}
+	cast, ok := tc.builder.Exprs.Cast(exprID)
+	if !ok || cast == nil || !cast.Value.IsValid() {
+		return true
+	}
+	sourceTy, ok := tc.result.ExprTypes[cast.Value]
+	if !ok || sourceTy == types.NoTypeID {
+		return true
+	}
+	return tc.resolveAlias(sourceTy) != tc.resolveAlias(ty)
 }

@@ -229,6 +229,16 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 		clone.Type = targetTy
 		valueExpr = &clone
 	}
+	// A cast between one type and itself changes NOTHING: every backend hands
+	// the source value straight back. Routing it through a temp anyway would
+	// give that temp a release — refcounted scalars get one the moment they are
+	// born — while the source it aliases is still owned by the binding it was
+	// read from, so the release frees storage that binding still holds. Read
+	// the source the way the CALLER asked instead, which makes `a to float`
+	// exactly as owned, and as cheap, as `a`.
+	if l.castKeepsRepresentation(valueExpr, targetTy) {
+		return l.lowerCastAsAlias(valueExpr, resultTy, consume)
+	}
 	value, err := l.lowerValueExpr(valueExpr, false)
 	if err != nil {
 		return Operand{}, err
@@ -246,6 +256,44 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 		},
 	})
 	return l.placeOperand(Place{Local: tmp}, resultTy, consume), nil
+}
+
+// castKeepsRepresentation reports whether a cast leaves the value alone: its
+// source and target name the same type, so nothing is built and nothing is
+// converted.
+//
+// It answers only for the INTRINSIC cast, which is the only thing that reaches
+// here — a `to` that resolves to a user `__to` is already a call by the time
+// HIR is built, and a call's result is a fresh value it really does own.
+//
+// Aliases resolve, so `type Celsius = float` is the same representation as
+// `float`. `own` and `&` deliberately do NOT: they say something about who
+// holds the value, which is the very question this predicate feeds.
+func (l *funcLowerer) castKeepsRepresentation(value *hir.Expr, target types.TypeID) bool {
+	if l == nil || l.types == nil || value == nil {
+		return false
+	}
+	if value.Type == types.NoTypeID || target == types.NoTypeID {
+		return false
+	}
+	return resolveAlias(l.types, value.Type) == resolveAlias(l.types, target)
+}
+
+// lowerCastAsAlias lowers a cast that converts nothing as the read it really
+// is. The result carries the cast's own type so later stages see the name the
+// source wrote, which for an alias type is the only thing the cast changed.
+func (l *funcLowerer) lowerCastAsAlias(value *hir.Expr, resultTy types.TypeID, consume bool) (Operand, error) {
+	op, err := l.lowerValueExpr(value, consume)
+	if err != nil {
+		return Operand{}, err
+	}
+	if resultTy != types.NoTypeID {
+		op.Type = resultTy
+		if op.Kind == OperandConst {
+			op.Const.Type = resultTy
+		}
+	}
+	return op, nil
 }
 
 // lowerFieldAccessExpr lowers a field access expression.

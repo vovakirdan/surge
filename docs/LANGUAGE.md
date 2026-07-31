@@ -1374,6 +1374,8 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 3. Otherwise the compiler looks for `__to` on the left operand’s type whose second parameter matches the resolved target type. Alias names participate in the lookup, so `type Gasoline = string` inherits `string -> string` conversions automatically. Any `__to` that adds extra parameters or returns anything other than the target type is rejected with a semantic error.
 4. Multiple matches yield `SemaAmbiguousConversion`; no match yields `SemaTypeMismatch` for explicit casts (or `SemaNoConversion` at implicit-conversion sites).
 
+**A no-op cast produces no value.** Rule 1 is about ownership as much as cost: when `From` and `To` resolve to the same type, the compiler emits nothing at all, so `x to T` reads exactly like `x` — the same value, still owned by whoever owned it before, with no copy and no extra release. This is deliberately asymmetric with a user `__to(Foo, Foo)`, which stays a real call returning a value of its own, because a user overload may carry normalization logic the compiler cannot see. The asymmetry is intended: primitive conversions are allowed to be cheaper at runtime than user-defined ones.
+
 **Restrictions:**
 * Direct calls to `__to` are forbidden; only `expr to Type` or implicit conversion may invoke it.
 * Reference types cannot define or consume casts; raw pointers `*T` are backend-only and not part of the cast system.
