@@ -49,6 +49,11 @@ const (
 	// `compare` expression's boxed-union scrutinee temp. See
 	// EnvelopeReleaseInstr.
 	InstrEnvelopeRelease
+	// instrKindCount bounds the enum so a test can walk every kind by value
+	// and fail on one no ownership classification covers. It must stay LAST;
+	// the same test pins that by checking the kind before it names itself and
+	// this one does not.
+	instrKindCount
 )
 
 func (k InstrKind) String() string {
@@ -505,6 +510,9 @@ const (
 	// value is not. It clones a heap box today and copies inline bits later,
 	// behind an unchanged operand kind.
 	OperandCopyValue
+	// operandKindCount bounds the enum, for the same reason instrKindCount
+	// does, and must stay LAST for the same reason.
+	operandKindCount
 )
 
 func (k OperandKind) String() string {
@@ -608,6 +616,9 @@ const (
 	RValueTypeTest
 	// RValueHeirTest represents an heir test.
 	RValueHeirTest
+	// rvalueKindCount bounds the enum, for the same reason instrKindCount
+	// does, and must stay LAST for the same reason.
+	rvalueKindCount
 )
 
 // RValue represents a right-hand value in MIR.

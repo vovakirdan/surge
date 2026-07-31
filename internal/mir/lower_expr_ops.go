@@ -106,10 +106,19 @@ func (l *funcLowerer) lowerUnaryOpExpr(e *hir.Expr, consume bool) (Operand, erro
 // pointee somebody else owns — as opposed to an owning pointer whose value
 // transfers.
 func (l *funcLowerer) derefsABorrow(operandTy types.TypeID) bool {
-	if l == nil || l.types == nil || operandTy == types.NoTypeID {
+	if l == nil {
 		return false
 	}
-	tt, ok := l.types.Lookup(resolveAlias(l.types, operandTy))
+	return derefsABorrow(l.types, operandTy)
+}
+
+// derefsABorrow is the same question asked without a lowerer, so the ownership
+// classification can ask it of an already-built RValueUnaryOp.
+func derefsABorrow(typesIn *types.Interner, operandTy types.TypeID) bool {
+	if typesIn == nil || operandTy == types.NoTypeID {
+		return false
+	}
+	tt, ok := typesIn.Lookup(resolveAlias(typesIn, operandTy))
 	return ok && tt.Kind == types.KindReference
 }
 
