@@ -257,7 +257,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					// the one projection read that does NOT: the place has left
 					// the container, so this binding is its only owner and a
 					// suppressed drop here abandons it.
-					if tc.isProjectionRead(letStmt.Value) && !tc.partialMoveRead(letStmt.Value) {
+					if tc.projectionReadAliasesItsSource(letStmt.Value, tc.bindingType(symID)) {
 						tc.markAliasedBinding(symID)
 					}
 				}

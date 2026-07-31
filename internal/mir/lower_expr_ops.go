@@ -86,7 +86,31 @@ func (l *funcLowerer) lowerUnaryOpExpr(e *hir.Expr, consume bool) (Operand, erro
 			Src: RValue{Kind: RValueUnaryOp, Unary: UnaryOp{Op: data.Op, Operand: operand}},
 		},
 	})
+	if data.Op == ast.ExprUnaryDeref && l.derefsABorrow(operand.Type) {
+		// Reading THROUGH a borrow copies the bare handle; the owner on the
+		// other side of the reference keeps its own and knows nothing about this
+		// one. The temp is registered for a release the moment it is born, so
+		// without a reference of its own it gives away the OWNER's — which is
+		// how `fn peek(v: &float) -> int { if v > 0.0 { ... } }` freed the
+		// caller's value just by looking at it. Same repair a field, an element
+		// and a borrowed union payload already take.
+		//
+		// Only through a REFERENCE. A deref of an owning pointer TRANSFERS the
+		// single reference through this temp, and retaining there would leak it.
+		l.retainExtractedValue(tmp, resultTy)
+	}
 	return l.placeOperand(Place{Local: tmp}, resultTy, consume), nil
+}
+
+// derefsABorrow reports whether this deref reads through a reference — a
+// pointee somebody else owns — as opposed to an owning pointer whose value
+// transfers.
+func (l *funcLowerer) derefsABorrow(operandTy types.TypeID) bool {
+	if l == nil || l.types == nil || operandTy == types.NoTypeID {
+		return false
+	}
+	tt, ok := l.types.Lookup(resolveAlias(l.types, operandTy))
+	return ok && tt.Kind == types.KindReference
 }
 
 // lowerBinaryOpExpr lowers a binary operation expression.

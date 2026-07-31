@@ -500,7 +500,7 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 		// Ownership of the NEW value: a projection read stays with its
 		// container (the binding becomes an alias); anything else makes
 		// the binding a fresh owner again.
-		if tc.isProjectionRead(right) && !tc.partialMoveRead(right) {
+		if tc.projectionReadAliasesItsSource(right, tc.bindingType(desc.Base)) {
 			tc.markAliasedBinding(desc.Base)
 		} else {
 			tc.clearAliasedBinding(desc.Base)

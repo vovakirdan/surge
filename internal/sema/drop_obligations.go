@@ -176,6 +176,28 @@ func (tc *typeChecker) isProjectionRead(expr ast.ExprID) bool {
 	return len(desc.Segments) > 0
 }
 
+// projectionReadAliasesItsSource reports whether a binding taking this
+// projection read must stay out of the drop obligations because the container
+// still owns what it read.
+//
+// It does for the values that live INSIDE their container: a field of a struct,
+// an element of an array. It does NOT for a reference-counted scalar, and that
+// exception is what keeps sema in step with the lowering. Such a value is a
+// COPY at the surface and a counted block underneath, so the read takes a
+// reference of its own (`retainExtractedValue`, which every projection read
+// emits) and the binding holding it is a real owner. Marked as an alias, the
+// binding kept that reference and released nothing — `let f = b.value` on a
+// `float` field leaked one block per evaluation.
+func (tc *typeChecker) projectionReadAliasesItsSource(expr ast.ExprID, ty types.TypeID) bool {
+	if !tc.isProjectionRead(expr) || tc.partialMoveRead(expr) {
+		return false
+	}
+	if tc.types != nil && tc.types.IsRefCountedScalar(tc.resolveAlias(ty)) {
+		return false
+	}
+	return true
+}
+
 // registerDroppableBinding adds a freshly declared binding to the current
 // scope. Shadowing needs no special case: each shadow is its own symbol and
 // registers separately, so a still-live shadowed value still drops.
