@@ -201,7 +201,13 @@ func (l *funcLowerer) lowerOwnedTempExpr(e *hir.Expr, data hir.OwnedTempData, sp
 	if err != nil {
 		return Operand{}, err
 	}
-	tmp := l.newTemp(e.Type, "owned_temp", span)
+	// Minted OUT of the automatic registration every refcounted-scalar temp
+	// gets, because this temp gets its own entry below — one that carries the
+	// residual plan and the guard. Registered twice, it was released twice: the
+	// automatic entry is the whole value unconditionally, so a `float` statement
+	// temporary was freed once by its plan and once again by the duplicate, and
+	// a GUARDED temp would have been freed on the paths that never produced it.
+	tmp := l.newTransferTemp(e.Type, "owned_temp", span)
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{
