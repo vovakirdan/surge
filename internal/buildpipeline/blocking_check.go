@@ -133,6 +133,10 @@ func collectBlockingSpans(mod *hir.Module) []source.Span {
 			if data, ok := e.Data.(hir.IterNextData); ok {
 				scanExpr(data.Iter)
 			}
+		case hir.ExprRaiseReleaseGuard:
+			if data, ok := e.Data.(hir.RaiseReleaseGuardData); ok {
+				scanExpr(data.Inner)
+			}
 		case hir.ExprIf:
 			if data, ok := e.Data.(hir.IfData); ok {
 				scanExpr(data.Cond)

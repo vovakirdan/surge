@@ -202,6 +202,12 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 			walkExpr(data.Cond)
 			walkExpr(data.Then)
 			walkExpr(data.Else)
+		case hir.ExprRaiseReleaseGuard:
+			data, ok := e.Data.(hir.RaiseReleaseGuardData)
+			if !ok {
+				return
+			}
+			walkExpr(data.Inner)
 		case hir.ExprAwait:
 			data, ok := e.Data.(hir.AwaitData)
 			if !ok {
