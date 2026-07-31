@@ -439,7 +439,15 @@ func formatRValue(typesIn *types.Interner, rv *RValue) string {
 	case RValueTagTest:
 		return fmt.Sprintf("tag_test %s is %s", formatOperand(&rv.TagTest.Value), rv.TagTest.TagName)
 	case RValueTagPayload:
-		return fmt.Sprintf("tag_payload %s.%s[%d]", formatOperand(&rv.TagPayload.Value), rv.TagPayload.TagName, rv.TagPayload.Index)
+		// Same reasoning as RValueField just above: a move-out and an
+		// ordinary read differ only in who owns the result, and hiding that
+		// in the dump would hide the one distinction RV2-DEBT-097/100 turned
+		// on.
+		verb := "tag_payload"
+		if rv.TagPayload.MoveOut {
+			verb = "tag_payload_move"
+		}
+		return fmt.Sprintf("%s %s.%s[%d]", verb, formatOperand(&rv.TagPayload.Value), rv.TagPayload.TagName, rv.TagPayload.Index)
 	case RValueIterInit:
 		return fmt.Sprintf("iter_init %s", formatOperand(&rv.IterInit.Iterable))
 	case RValueIterNext:

@@ -17,7 +17,7 @@ fn unwrap_or_zero:
   bb1:
     return copy L1
   bb2:
-    L5 = tag_payload copy L2.Some[0]
+    L5 = tag_payload_move copy L2.Some[0]
     L4 = copy L5
     release_box L2
     L1 = copy L4

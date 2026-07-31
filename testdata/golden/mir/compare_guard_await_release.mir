@@ -207,7 +207,7 @@ fn test$poll:
     L4 = move L6
     goto bb14
   bb1:
-    L12 = tag_payload copy L8.Success[0]
+    L12 = tag_payload_move copy L8.Success[0]
     L11 = copy L12
     goto bb16
   bb2:
@@ -216,7 +216,7 @@ fn test$poll:
   bb3:
     if copy L13 then bb7 else bb2
   bb4:
-    L18 = tag_payload copy L14.Success[0]
+    L18 = tag_payload_move copy L14.Success[0]
     L17 = copy L18
     release_box L14
     L13 = copy L17

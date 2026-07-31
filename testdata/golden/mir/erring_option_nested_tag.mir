@@ -54,20 +54,20 @@ fn main:
     L3 = tag_test copy L2 is Success
     if copy L3 then bb1 else bb2
   bb1:
-    L4 = tag_payload copy L2.Success[0]
+    L4 = tag_payload_move copy L2.Success[0]
     L5 = tag_test copy L4 is Some
     if copy L5 then bb3 else bb2
   bb2:
     L9 = tag_test copy L2 is Success
     if copy L9 then bb4 else bb5
   bb3:
-    L7 = tag_payload copy L2.Success[0]
-    L8 = tag_payload copy L7.Some[0]
+    L7 = tag_payload_move copy L2.Success[0]
+    L8 = tag_payload_move copy L7.Some[0]
     L6 = move L8
     call print(move L6)
     return const 0
   bb4:
-    L10 = tag_payload copy L2.Success[0]
+    L10 = tag_payload_move copy L2.Success[0]
     L11 = tag_test copy L10 is nothing
     if copy L11 then bb6 else bb5
   bb5:

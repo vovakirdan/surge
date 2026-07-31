@@ -630,6 +630,23 @@ type TagPayload struct {
 	Value   Operand
 	TagName string
 	Index   int
+	// MoveOut takes the payload's value out of the union instead of producing
+	// a second holder of it, mirroring FieldAccess.MoveOut exactly and for the
+	// same reason: a plain read counts a new holder, and this one must not,
+	// because the union's own release has already been narrowed around it.
+	//
+	// This is NOT the same question as "is the subject owned or borrowed" —
+	// HIR's SubjectBorrowed (hir.TagPayloadData) is true for BOTH a borrowed
+	// subject AND a `@copy` subject read through a deref (scrutineeDuplicated):
+	// the duplicated envelope is a genuine, freshly minted clone, but it is
+	// still deep-dropped as an ordinary composite afterward, so its payload
+	// must still retain — only a MOVED subject's envelope gets the narrowed
+	// shallow release that makes an unretained extraction safe. MoveOut is
+	// exactly the inverse of SubjectBorrowed (set false for the same two cases
+	// SubjectBorrowed is true for, true only for the moved case), carried one
+	// field further into MIR instead of being consumed and discarded after
+	// deciding whether to emit a trailing retain.
+	MoveOut bool
 }
 
 // TypeTest represents a type test.

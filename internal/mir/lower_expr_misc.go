@@ -42,7 +42,17 @@ func (l *funcLowerer) lowerTagPayloadExpr(e *hir.Expr, consume bool) (Operand, e
 		Kind: InstrAssign,
 		Assign: AssignInstr{
 			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueTagPayload, TagPayload: TagPayload{Value: val, TagName: data.TagName, Index: data.Index}},
+			Src: RValue{Kind: RValueTagPayload, TagPayload: TagPayload{
+				Value:   val,
+				TagName: data.TagName,
+				Index:   data.Index,
+				// The inverse of SubjectBorrowed, carried into MIR instead of
+				// being consumed here and discarded: a moved subject's single
+				// reference transfers through this read (MoveOut), while a
+				// borrowed OR duplicated subject's does not (see TagPayload's
+				// own doc comment for why those two share SubjectBorrowed).
+				MoveOut: !data.SubjectBorrowed,
+			}},
 		},
 	})
 	if data.SubjectBorrowed {

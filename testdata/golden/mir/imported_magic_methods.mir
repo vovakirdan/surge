@@ -139,7 +139,7 @@ fn main:
     release_box L26
     goto bb13
   bb15:
-    L30 = tag_payload copy L26.Some[0]
+    L30 = tag_payload_move copy L26.Some[0]
     L29 = copy L30
     release_box L26
     L31 = call __add(copy L22, copy L29)
@@ -173,7 +173,7 @@ fn main:
     release_box L37
     goto bb20
   bb22:
-    L41 = tag_payload copy L37.Some[0]
+    L41 = tag_payload_move copy L37.Some[0]
     L40 = copy L41
     release_box L37
     L42 = call __add(copy L33, copy L40)
