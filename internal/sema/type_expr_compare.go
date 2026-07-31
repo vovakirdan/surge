@@ -110,10 +110,98 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 // A binding the arm moves ONWARD is skipped later by liveDroppables, which is
 // why the ubiquitous `Success(x) => x` shape hid this for so long: it moves, so
 // it never needed the obligation that was missing.
-func (tc *typeChecker) registerComparePayloadDroppables(bindings []symbols.SymbolID) {
+// The BORROWED half of that sentence is only true of a reference-counted
+// scalar, whose extraction really does take a reference of its own. Nothing
+// else does: a string payload read out of a borrowed union is the union's
+// storage under another name, and an obligation on it frees what the borrow
+// points at — `compare *arg { FmtStr(s) => out + s; ... }`, which is every
+// formatted print with a string argument.
+func (tc *typeChecker) registerComparePayloadDroppables(bindings []symbols.SymbolID, subjectBorrowed bool) {
 	for _, symID := range bindings {
+		if subjectBorrowed && !tc.payloadTakesItsOwnReference(symID) {
+			continue
+		}
 		tc.registerDroppableBinding(symID)
 	}
+}
+
+// payloadTakesItsOwnReference reports whether extracting this binding out of a
+// BORROWED union gives it a reference the arm must give back. Only the
+// reference-counted scalars do — the extraction retains them, which is the
+// whole reason `TagPayloadData.SubjectBorrowed` exists.
+func (tc *typeChecker) payloadTakesItsOwnReference(symID symbols.SymbolID) bool {
+	if tc.types == nil {
+		return false
+	}
+	return tc.types.IsRefCountedScalar(tc.resolveAlias(tc.bindingType(symID)))
+}
+
+// compareSubjectIsBorrowed reports whether the compare only READS a union
+// somebody else owns, so its payloads are that owner's too.
+//
+// Deliberately the same classification HIR's `compareScrutineeOwnership` makes
+// of the same subject, in the same order: the two decide one value's ownership
+// one pass apart, and an answer they disagree about is either freed twice or
+// not at all. The order is what carries the Copy case — a `@copy` union is
+// CLONED into the compare even through a deref, so the compare owns what it
+// takes out and the payload binding earns its obligation like any other.
+func (tc *typeChecker) compareSubjectIsBorrowed(value ast.ExprID, ty types.TypeID) bool {
+	if tc.types == nil || ty == types.NoTypeID {
+		return true
+	}
+	resolved := tc.resolveAlias(ty)
+	if tt, ok := tc.types.Lookup(resolved); ok {
+		switch tt.Kind {
+		case types.KindReference, types.KindPointer:
+			// Reading a reference copies the pointer, never the pointee. Its
+			// payload bindings are references too and own nothing anyway.
+			return true
+		}
+	}
+	unwrapped := tc.resolveAlias(tc.stripOwnType(resolved))
+	if tt, ok := tc.types.Lookup(unwrapped); !ok || tt.Kind != types.KindUnion {
+		// NOT the same answer its HIR counterpart gives, and deliberately so:
+		// there the question is whether to free an envelope BOX, which a
+		// non-union has none of. Here it is who owns what the pattern bound,
+		// and a non-union subject is MOVED into its binding — `compare text {
+		// s => ... }` makes `s` the only owner of that string, so taking its
+		// obligation away leaks one per evaluation. Measured, after a review
+		// caught it: 20 strings over 20 iterations.
+		return false
+	}
+	if tc.types.IsCopy(resolved) {
+		// Copy AND boxed: the read duplicates the box, so this compare owns the
+		// clone and everything it takes out of it. Copy and unboxed: there is
+		// no allocation to own in the first place.
+		return !tc.types.IsValueComposite(resolved)
+	}
+	return tc.subjectReadsThroughBorrow(value)
+}
+
+// subjectReadsThroughBorrow reports whether the subject EXPRESSION only reads a
+// value someone else owns, whatever its type says. The deref in `compare *arg`
+// strips the reference, so the type alone reads as an owned union.
+//
+// `own` and parentheses are unwrapped so the answer cannot be changed by
+// spelling — the same unwrapping its HIR counterpart does.
+func (tc *typeChecker) subjectReadsThroughBorrow(value ast.ExprID) bool {
+	expr := tc.unwrapGroups(value)
+	// Bounded rather than `for {}`: a malformed tree must not hang the checker.
+	for range 64 {
+		data, ok := tc.builder.Exprs.Unary(expr)
+		if !ok || data == nil {
+			return false
+		}
+		switch data.Op {
+		case ast.ExprUnaryDeref:
+			return true
+		case ast.ExprUnaryOwn:
+			expr = tc.unwrapGroups(data.Operand)
+		default:
+			return false
+		}
+	}
+	return false
 }
 
 // armHandsOutItsPayload reports whether this arm's result names a payload

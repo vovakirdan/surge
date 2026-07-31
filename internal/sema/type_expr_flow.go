@@ -33,6 +33,9 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	// abandoned. It is collected per arm rather than per function because that
 	// is where it dies — see armPayloadDroppables.
 	armPayloadDrops := make([][]symbols.SymbolID, len(cmp.Arms))
+	// Asked once, of the subject, because it decides the same thing for every
+	// arm: a compare that only READS its union owns none of what it takes out.
+	subjectBorrowed := tc.compareSubjectIsBorrowed(cmp.Value, valueType)
 	compareDiscarded := tc.isExprDiscarded(id)
 	// Who releases the compare's own value, by the same three answers a ternary
 	// asks of its branches — see noteChoiceOwnsItsValue. Arms that MINT on
@@ -54,7 +57,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		// the result moved out is already recorded when the obligations are read.
 		tc.pushDropScope(false)
 		tc.inferComparePatternTypes(arm.Pattern, armSubject, &armBindings)
-		tc.registerComparePayloadDroppables(armBindings)
+		tc.registerComparePayloadDroppables(armBindings, subjectBorrowed)
 		if arm.Guard.IsValid() {
 			// A guard runs BEFORE this arm commits (payload extraction
 			// already ran, but a failed guard falls through to the next
