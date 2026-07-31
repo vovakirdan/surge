@@ -1,9 +1,33 @@
 # Epic 24 — Partial Moves (moving a field out of a live composite)
 
-Status: designed, not started. DIRECTION SETTLED 2026-07-28 by the owner —
-implement FULL partial-move tracking, no interim narrowing of the language. The
-"reject instead" option this document used to weigh is retained only as
-temporary scaffolding (see Phase 1), not as a destination.
+Status: **COMPLETE 2026-07-29**, steps 0-9, with the two residuals named below.
+DIRECTION SETTLED 2026-07-28 by the owner — implement FULL partial-move
+tracking, no interim narrowing of the language. The "reject instead" option this
+document used to weigh was retained only as temporary scaffolding (step 1) and
+is gone.
+
+What shipped: the moved-set is keyed by PLACE rather than by binding,
+use-after-move answers per place, a partially-moved value drops only what it
+still holds (residual drops, projected drops through both backends), a
+reinitialized place comes back, and a capture takes a projection rather than a
+binding. `RV2-DEBT-077` — a field read that takes ownership is a real transfer —
+is closed, as are the nine defects the steps turned up on the way
+(`RV2-DEBT-083/084/086/087/058/088/090/091`).
+
+Two residuals, both deliberate and both recorded where they belong:
+
+- **Step 8 covers STRUCT FIELDS only.** Moving out of an array element or a
+  union payload stays rejected: an owning read of `arr[0]` is not a shape the
+  language has, and a residual there would cost N-1 drops per exit. Settled with
+  the owner on 2026-07-29.
+- **Step 0's tail is open, and Epic 23 Phase 2 depends on it.** The transfer
+  protocol for compiler-GENERATED field reads is specified, and step 9 built the
+  explicit `FieldReadMoveOut` / `FieldReadCopy` mode the invariant needs. What
+  has not happened is converting the generated reads — crossing capture
+  unpacking, async save/restore, the blocking and poll paths — to that mode and
+  asserting the invariant as a test. They all still construct their reads with
+  the mode at its zero value, so they keep the copy semantics they had; nothing
+  is broken, and nothing is checked either.
 
 This is the onboarding brief — read it end to end before touching anything.
 

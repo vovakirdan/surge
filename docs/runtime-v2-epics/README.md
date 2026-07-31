@@ -181,8 +181,8 @@ Every epic should move the runtime toward these goals:
 | 20 | `20-crossing-drop-activation.md` | Complete. Crossing drop activation. |
 | 21 | `21-owner-routed-frees.md` | Complete. Owner-routed frees, vertical 3 of the reclamation arc. |
 | 22 | `22-numeric-reclamation.md` | **PARTIAL — parked.** Phases 0a/0b/1 shipped: the ownership axes were split out of `IsCopy`, and `float` became a reference-counted scalar with a strict-zero valgrind gate. NOT done: the six crossing deep-copy barriers (the runtime helper `rt_bigfloat_clone` exists but is unwired — crossings still REFUSE a composite carrying a `float`), and Phase 2, `int`/`uint`, not started. Parked to take Epic 23; see the detour chain below. |
-| 23 | `23-value-composites.md` | **Phase 1 COMPLETE, Phase 2 not started.** A struct/tuple/union/fixed-array is a value: copy now duplicates, the box is reclaimed, and every crossing route carries one again. Phase 2 — inline representation instead of a heap box — is the remaining half. Parked to take Epic 24; see below. |
-| 24 | `24-partial-moves.md` | **Designed, direction settled, not started.** Full partial-move tracking: `let e = o.inner` on a move-only field currently ALIASES (RV2-DEBT-077). Blocks nothing by itself, but Epic 23 Phase 2 depends on its step 0 (the generated field-read protocol). |
+| 23 | `23-value-composites.md` | **Phase 1 COMPLETE, Phase 2 is the next epic.** A struct/tuple/union/fixed-array is a value: copy now duplicates, the box is reclaimed, and every crossing route carries one again. Phase 2 — inline representation instead of a heap box — is the remaining half, and it is now unparked: Epic 24 landed. Two things must precede the work itself: Epic 24's step-0 tail (convert the compiler-generated field reads to the explicit transfer mode and assert the invariant) and the places/frame-slot storage-model document, which does not exist yet. |
+| 24 | `24-partial-moves.md` | **Complete 2026-07-29** (steps 0-9). Full partial-move tracking: the moved-set is keyed by PLACE, use-after-move answers per place, a partially-moved value drops only what it still holds, a reinitialized place comes back, and a capture takes a projection. `RV2-DEBT-077` closed, with nine defects found and closed on the way. Residuals: step 8 covers STRUCT FIELDS only (array elements and union payloads stay rejected, settled with the owner), and step 0's tail — converting the compiler-generated field reads to the explicit transfer mode — is open and is what Epic 23 Phase 2 depends on. |
 
 
 ## Detour Chain — what is parked, and why
@@ -195,10 +195,13 @@ behind it.
 
 ```
 22 numeric reclamation  ──parked──▶  23 value composites  ──parked──▶  24 partial moves
-   float shipped;                       Phase 1 shipped;                 not started
-   crossing barriers open;              inline (Phase 2) open
+   float shipped;                       Phase 1 shipped;                 COMPLETE 2026-07-29
+   crossing barriers open;              inline (Phase 2) NEXT   ◀──resumes here──┘
    int/uint not started
 ```
+
+The chain has unwound one link: Epic 24 landed on 2026-07-29, so Epic 23 Phase 2
+is the head of the queue again rather than something waiting behind a defect.
 
 - **22 → 23.** Epic 22 made `float` a counted scalar and needed to install deep
   copies at the six crossing barriers. Doing that for a COMPOSITE carrying a
@@ -211,15 +214,28 @@ behind it.
   Phase 2 (inline storage) makes that worse rather than better: the alias
   becomes a bitwise duplicate with two owners. That is Epic 24.
 
-**Resumption order, once Epic 24 lands:** Epic 23 Phase 2 (inline
-representation), then Epic 22's crossing barriers and `int`/`uint`. Epic 22 is
-last on purpose — its remaining work is the one most simplified by inline
-composites, because a composite then crosses as inline bits plus its
-refcounted-scalar fields rather than as a box.
+**Resumption order, now live:** Epic 23 Phase 2 (inline representation), then
+Epic 22's crossing barriers and `int`/`uint`. Epic 22 is last on purpose — its
+remaining work is the one most simplified by inline composites, because a
+composite then crosses as inline bits plus its refcounted-scalar fields rather
+than as a box.
 
-Debt rows carrying the parked work: RV2-DEBT-035/036/037/038 (Epic 22 tails),
-RV2-DEBT-077 (Epic 24's subject), RV2-DEBT-078 (adjacent, compare-scrutinee
-leak, not blocking).
+Two things stand between here and Phase 2's first line of code, and both are
+named in Phase 2's own scope section rather than being surprises:
+
+1. **Epic 24's step-0 tail.** The generated field reads (crossing capture
+   unpacking, async save/restore) still carry the copy convention; the explicit
+   transfer mode now exists, and converting them to it — with the invariant
+   asserted as a test — is what Phase 2 was said to depend on.
+2. **The storage-model document.** Phase 2's scope section requires the
+   places/references and frame-slot model to be designed as its own document
+   before the work starts, and that document does not exist. The Phase 1
+   boundary was deliberately representation-independent so this design stays
+   unconstrained.
+
+Debt rows carrying the parked work: RV2-DEBT-035/036/037/038 (Epic 22 tails).
+RV2-DEBT-077 (Epic 24's subject) and RV2-DEBT-078 (compare-scrutinee leak) are
+closed.
 
 ## Language Syntax Gate
 

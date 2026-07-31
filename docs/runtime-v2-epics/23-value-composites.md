@@ -1,9 +1,13 @@
 # Epic 23 — Value Composites (inline representation, correct copy/move/drop)
 
-Status: PHASE 1 COMPLETE (steps 0-8). Phase 2 — inline representation — PARKED
-behind Epic 24 (partial moves): Phase 2 depends on Epic 24's step 0, which
-specifies what a field read out of a compiler-built state struct means once
-storage is inline. See the detour chain in `README.md`.
+Status: PHASE 1 COMPLETE (steps 0-8). Phase 2 — inline representation — is
+UNPARKED as of 2026-07-29: Epic 24 (partial moves) landed. Two preflight items
+remain before Phase 2's own work begins, both of them already named in the Phase
+2 scope section below: Epic 24's step-0 TAIL (the compiler-generated field reads
+still carry the copy convention; the explicit transfer mode exists and they have
+not been converted to it, and the invariant is unasserted), and the
+places/references and frame-slot storage-model document, which does not exist
+yet. See the detour chain in `README.md`.
 This is the onboarding brief — read it end to end before touching anything.
 
 Revision note (2026-07-27, after two rounds of adversarial design review).
