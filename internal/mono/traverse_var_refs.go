@@ -167,6 +167,14 @@ func rewriteVarRefsInExpr(e *hir.Expr, f varRefRewriteFunc) error {
 		if err := rewriteVarRefsInExpr(data.Inner, f); err != nil {
 			return err
 		}
+	case hir.ExprRaiseReleaseGuard:
+		data, ok := e.Data.(hir.RaiseReleaseGuardData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteVarRefsInExpr(data.Inner, f); err != nil {
+			return err
+		}
 		e.Data = data
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)

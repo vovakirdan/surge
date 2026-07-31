@@ -72,6 +72,12 @@ const (
 	// nothing consumes: MIR materializes it into a temp local and frees
 	// it when its evaluation region ends.
 	ExprOwnedTemp
+	// ExprRaiseReleaseGuard marks a branch value as one this expression BUILT,
+	// for a choice whose release is guarded. It evaluates to its operand and
+	// additionally raises the guard, which is how a compare arm says so: a
+	// compare is normalized into a block whose arms deliver by `ret`, so there
+	// is no branch body left for the lowering to annotate by position.
+	ExprRaiseReleaseGuard
 )
 
 // String returns a human-readable name for the expression kind.
@@ -133,6 +139,8 @@ func (k ExprKind) String() string {
 		return "Block"
 	case ExprOwnedTemp:
 		return "OwnedTemp"
+	case ExprRaiseReleaseGuard:
+		return "RaiseReleaseGuard"
 	default:
 		return "Unknown"
 	}
@@ -515,3 +523,10 @@ type OwnedTempData struct {
 }
 
 func (OwnedTempData) exprData() {}
+
+// RaiseReleaseGuardData holds data for ExprRaiseReleaseGuard.
+type RaiseReleaseGuardData struct {
+	Inner *Expr
+}
+
+func (RaiseReleaseGuardData) exprData() {}

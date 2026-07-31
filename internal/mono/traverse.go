@@ -161,6 +161,14 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 		if err := rewriteCallsInExpr(data.Inner, f); err != nil {
 			return err
 		}
+	case hir.ExprRaiseReleaseGuard:
+		data, ok := e.Data.(hir.RaiseReleaseGuardData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteCallsInExpr(data.Inner, f); err != nil {
+			return err
+		}
 		e.Data = data
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)

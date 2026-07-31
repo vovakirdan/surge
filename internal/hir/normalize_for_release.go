@@ -217,6 +217,12 @@ func injectIterCursorReleaseInExpr(e *Expr, release Stmt) {
 			return
 		}
 		injectIterCursorReleaseInExpr(data.Inner, release)
+	case ExprRaiseReleaseGuard:
+		data, ok := e.Data.(RaiseReleaseGuardData)
+		if !ok {
+			return
+		}
+		injectIterCursorReleaseInExpr(data.Inner, release)
 	case ExprUnaryOp:
 		data, ok := e.Data.(UnaryOpData)
 		if !ok {

@@ -34,9 +34,12 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	// is where it dies — see armPayloadDroppables.
 	armPayloadDrops := make([][]symbols.SymbolID, len(cmp.Arms))
 	compareDiscarded := tc.isExprDiscarded(id)
-	// Whether the compare's own value is ITS to release: true only when every
-	// arm that yields one built it fresh. See noteChoiceOwnsItsValue.
-	everyArmOwnsItsValue := true
+	// Who releases the compare's own value, by the same three answers a ternary
+	// asks of its branches — see noteChoiceOwnsItsValue. Arms that MINT on
+	// every path are collected because they raise the guard where they stand;
+	// an arm that mints only SOMETIMES obliges the guard without raising it.
+	mintingArms := make([]ast.ExprID, 0, len(cmp.Arms))
+	sometimesMintingArms := 0
 	valueArms := 0
 
 	for i, arm := range cmp.Arms {
@@ -70,7 +73,8 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		// Asked BEFORE consuming, because consuming is what erases the evidence:
 		// an arm that FORWARDS a place was never a temp candidate, and one such
 		// arm is enough to leave the compare's value someone else's to release.
-		armProducedOwned := tc.branchMintsItsValue(arm.Result)
+		armMints := tc.branchMintsItsValue(arm.Result)
+		armSometimesMints := !armMints && tc.branchSometimesMintsItsValue(arm.Result)
 		tc.consumeTempCandidate(arm.Result)
 		if compareDiscarded {
 			tc.popDiscardedExpr()
@@ -79,8 +83,11 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		armClosed[i] = armAbrupt
 		if !armAbrupt {
 			valueArms++
-			if !armProducedOwned {
-				everyArmOwnsItsValue = false
+			switch {
+			case armMints:
+				mintingArms = append(mintingArms, arm.Result)
+			case armSometimesMints:
+				sometimesMintingArms++
 			}
 		}
 		armTypes[i] = armResult
@@ -116,8 +123,15 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		movedArms[i] = tc.snapshotMovedPlaces()
 	}
 
-	if valueArms > 0 && everyArmOwnsItsValue {
+	if owned := len(mintingArms) + sometimesMintingArms; owned > 0 {
 		tc.markChoiceOwnsItsValue(id)
+		if sometimesMintingArms > 0 || len(mintingArms) != valueArms {
+			// The arms disagree, so the release has to ask which one ran.
+			if tc.result.ChoiceReleaseGuards == nil {
+				tc.result.ChoiceReleaseGuards = make(map[ast.ExprID][]ast.ExprID)
+			}
+			tc.result.ChoiceReleaseGuards[id] = mintingArms
+		}
 	}
 
 	targetCompare := resultType

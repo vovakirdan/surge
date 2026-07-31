@@ -176,7 +176,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerTernaryExpr(exprID, expr, ty)
 
 	case ast.ExprCompare:
-		return l.lowerCompareExpr(expr, ty)
+		return l.lowerCompareExpr(exprID, expr, ty)
 
 	case ast.ExprSelect:
 		return l.lowerSelectExpr(exprID, expr, ty, false)
@@ -698,19 +698,48 @@ func (l *lowerer) ternaryMintingBranches(exprID ast.ExprID, ternData *ast.ExprTe
 	return thenMints, elseMints
 }
 
+// mintingArmResults indexes the arm results that BUILT their value, for a
+// compare whose release is guarded. Empty for every other compare.
+func (l *lowerer) mintingArmResults(exprID ast.ExprID) map[ast.ExprID]bool {
+	if l.semaRes == nil || len(l.semaRes.ChoiceReleaseGuards) == 0 {
+		return nil
+	}
+	results := l.semaRes.ChoiceReleaseGuards[exprID]
+	if len(results) == 0 {
+		return nil
+	}
+	out := make(map[ast.ExprID]bool, len(results))
+	for _, result := range results {
+		out[result] = true
+	}
+	return out
+}
+
 // lowerCompareExpr lowers a compare expression (pattern matching).
-func (l *lowerer) lowerCompareExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerCompareExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	cmpData := l.builder.Exprs.Compares.Get(uint32(expr.Payload))
 	if cmpData == nil {
 		return nil
 	}
 
+	minting := l.mintingArmResults(exprID)
 	arms := make([]CompareArm, len(cmpData.Arms))
 	for i, arm := range cmpData.Arms {
+		result := l.lowerExpr(arm.Result)
+		if result != nil && minting[arm.Result] {
+			// This arm BUILT what it delivers, so it is the one that knows the
+			// guarded release has something to free.
+			result = &Expr{
+				Kind: ExprRaiseReleaseGuard,
+				Type: result.Type,
+				Span: result.Span,
+				Data: RaiseReleaseGuardData{Inner: result},
+			}
+		}
 		arms[i] = CompareArm{
 			Pattern:   l.lowerExpr(arm.Pattern),
 			Guard:     l.lowerExpr(arm.Guard),
-			Result:    l.lowerExpr(arm.Result),
+			Result:    result,
 			IsFinally: arm.IsFinally,
 			Span:      arm.PatternSpan,
 		}

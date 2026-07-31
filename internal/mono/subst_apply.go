@@ -203,6 +203,17 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 			}
 		}
 		e.Data = data
+	case hir.ExprRaiseReleaseGuard:
+		data, ok := e.Data.(hir.RaiseReleaseGuardData)
+		if !ok {
+			return nil
+		}
+		if data.Inner != nil {
+			if err := s.ApplyExpr(data.Inner); err != nil {
+				return err
+			}
+		}
+		e.Data = data
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)
 		if !ok {

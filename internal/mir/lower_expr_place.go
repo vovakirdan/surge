@@ -14,6 +14,22 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got <nil>")
 	}
 	switch e.Kind {
+	case hir.ExprRaiseReleaseGuard:
+		// Same as below, one wrapper out: the guard says who owns the value,
+		// not where it lives, so the place is the inner expression's.
+		data, ok := e.Data.(hir.RaiseReleaseGuardData)
+		if !ok {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: raise release guard: unexpected payload %T", e.Data)
+		}
+		place, err := l.lowerPlace(data.Inner)
+		if err != nil {
+			return place, err
+		}
+		if l.pendingReleaseGuard != NoLocalID {
+			l.emitBoolConst(l.pendingReleaseGuard, true)
+		}
+		return place, nil
+
 	case hir.ExprOwnedTemp:
 		// A borrowed temporary used in place position (a method receiver
 		// on a fresh value): materialize it — the temp local is the

@@ -648,6 +648,11 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 		p.printf("owned_temp(")
 		p.printExpr(data.Inner)
 		p.printf(")")
+	case ExprRaiseReleaseGuard:
+		data := e.Data.(RaiseReleaseGuardData)
+		p.printf("raise_release_guard(")
+		p.printExpr(data.Inner)
+		p.printf(")")
 
 	default:
 		p.printf("<%s>", e.Kind)

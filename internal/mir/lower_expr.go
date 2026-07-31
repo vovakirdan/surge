@@ -26,6 +26,22 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		lit := l.lowerLiteral(e.Type, data)
 		return l.materializeOwnedConst(&lit, e.Span, consume), nil
 
+	case hir.ExprRaiseReleaseGuard:
+		data, ok := e.Data.(hir.RaiseReleaseGuardData)
+		if !ok {
+			return Operand{}, fmt.Errorf("mir: raise release guard: unexpected payload %T", e.Data)
+		}
+		op, err := l.lowerExprForType(data.Inner, e.Type)
+		if err != nil {
+			return Operand{}, err
+		}
+		// Raised AFTER the value is lowered, so a nested choice inside this arm
+		// has already settled its own share of the guard.
+		if l.pendingReleaseGuard != NoLocalID {
+			l.emitBoolConst(l.pendingReleaseGuard, true)
+		}
+		return op, nil
+
 	case hir.ExprOwnedTemp:
 		data, ok := e.Data.(hir.OwnedTempData)
 		if !ok {

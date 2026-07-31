@@ -122,6 +122,12 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 			return
 		}
 		collectTypesFromExpr(data.Inner, visit)
+	case hir.ExprRaiseReleaseGuard:
+		data, ok := e.Data.(hir.RaiseReleaseGuardData)
+		if !ok {
+			return
+		}
+		collectTypesFromExpr(data.Inner, visit)
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)
 		if !ok {

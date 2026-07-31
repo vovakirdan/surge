@@ -428,6 +428,13 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 		}
 		data.Inner = cloneExpr(data.Inner)
 		out.Data = data
+	case hir.ExprRaiseReleaseGuard:
+		data, ok := e.Data.(hir.RaiseReleaseGuardData)
+		if !ok {
+			break
+		}
+		data.Inner = cloneExpr(data.Inner)
+		out.Data = data
 	default:
 		out.Data = e.Data
 	}

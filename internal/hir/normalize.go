@@ -209,6 +209,15 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 		}
 		e.Data = data
 		return nil
+	case ExprRaiseReleaseGuard:
+		data := e.Data.(RaiseReleaseGuardData)
+		if data.Inner != nil {
+			if err := normalizeExpr(ctx, data.Inner); err != nil {
+				return err
+			}
+		}
+		e.Data = data
+		return nil
 
 	case ExprUnaryOp:
 		data := e.Data.(UnaryOpData)

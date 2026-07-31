@@ -46,6 +46,13 @@ fn nested_inner_forwards(cond: bool, other: bool, a: string) -> int {
 fn both_branches_nested_mixed(cond: bool, other: bool, a: string) -> int {
     return peek(cond ? (other ? build() : a) : (other ? build() : a));
 }
+
+fn compare_mixed(cond: bool, a: string) -> int {
+    return peek(compare cond {
+        true => a;
+        _ => build();
+    });
+}
 `)
 	requireNoSemaErrors(t, parseBag, semaBag)
 	if res == nil {
@@ -82,6 +89,11 @@ fn both_branches_nested_mixed(cond: bool, other: bool, a: string) -> int {
 	// copies the result — a read of freed storage, which is what an earlier
 	// version of this did and a review caught.
 	//
+	// compare_mixed is guarded too, and is here because a compare reaches the
+	// guard by a different road: it normalizes into a block whose arms deliver
+	// by `ret`, so there is no branch body to annotate by position and the arm
+	// says it in the tree instead. The count is what checks that road exists.
+	//
 	// both_branches_nested_mixed is guarded once for the same reason, and is
 	// here because it is the shape that falls through a rule with only two
 	// answers. Neither branch mints on EVERY path, so a yes/no test says "no"
@@ -96,9 +108,9 @@ fn both_branches_nested_mixed(cond: bool, other: bool, a: string) -> int {
 		}
 	}
 	unconditional := len(res.TempDrops) - guarded
-	if unconditional != 2 || guarded != 3 {
+	if unconditional != 2 || guarded != 4 {
 		t.Fatalf(
-			"expected 2 unconditional and 3 guarded choice releases, got %d and %d across %d "+
+			"expected 2 unconditional and 4 guarded choice releases, got %d and %d across %d "+
 				"statement-end temporaries; a branch that forwards a place — including a nested "+
 				"choice that only sometimes mints — leaves that value someone else's to release",
 			unconditional, guarded, len(res.TempDrops),
