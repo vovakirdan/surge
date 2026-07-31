@@ -20,14 +20,18 @@ Two residuals, both deliberate and both recorded where they belong:
   union payload stays rejected: an owning read of `arr[0]` is not a shape the
   language has, and a residual there would cost N-1 drops per exit. Settled with
   the owner on 2026-07-29.
-- **Step 0's tail is open, and Epic 23 Phase 2 depends on it.** The transfer
-  protocol for compiler-GENERATED field reads is specified, and step 9 built the
-  explicit `FieldReadMoveOut` / `FieldReadCopy` mode the invariant needs. What
-  has not happened is converting the generated reads — crossing capture
-  unpacking, async save/restore, the blocking and poll paths — to that mode and
-  asserting the invariant as a test. They all still construct their reads with
-  the mode at its zero value, so they keep the copy semantics they had; nothing
-  is broken, and nothing is checked either.
+- **Step 0's tail is DONE as of 2026-07-31, and it was smaller than this
+  document says.** Three of the four generated-read sites it names lived in
+  `async_lowering_single.go`, a single-suspend lowering NO CALLER EVER REACHED;
+  it and the analysis only it used are deleted (730 lines). The live async path
+  never read fields for save/restore at all — it packs locals into a payload
+  union and takes them back out through the TAG-PAYLOAD channel, which is the
+  step-0 protocol already implemented. The one real site was the crossing
+  capture unpack, which now carries the mode: an owned capture reads as a
+  transfer, a copy capture as a plain read. Both halves are asserted at the MIR
+  level in `internal/crossinggate`, where they gate a commit — the native
+  censuses that would notice the consequence need `SURGE_SKIP_TIMEOUT_TESTS=0`,
+  which `make check` does not set.
 
 This is the onboarding brief — read it end to end before touching anything.
 

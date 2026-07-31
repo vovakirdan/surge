@@ -220,13 +220,14 @@ remaining work is the one most simplified by inline composites, because a
 composite then crosses as inline bits plus its refcounted-scalar fields rather
 than as a box.
 
-Two things stand between here and Phase 2's first line of code, and both are
-named in Phase 2's own scope section rather than being surprises:
+One thing now stands between here and Phase 2's first line of code; the other
+is done:
 
-1. **Epic 24's step-0 tail.** The generated field reads (crossing capture
-   unpacking, async save/restore) still carry the copy convention; the explicit
-   transfer mode now exists, and converting them to it — with the invariant
-   asserted as a test — is what Phase 2 was said to depend on.
+1. ~~Epic 24's step-0 tail.~~ **DONE 2026-07-31.** It was one real site, not
+   three: the crossing capture unpack now declares whether it takes its value,
+   and both it and the async state-envelope protocol are asserted at the MIR
+   level in `internal/crossinggate`. The single-suspend async lowering those
+   sites were attributed to had no caller and is deleted.
 2. **The storage-model document.** Phase 2's scope section requires the
    places/references and frame-slot model to be designed as its own document
    before the work starts, and that document does not exist. The Phase 1
