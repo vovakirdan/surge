@@ -34,6 +34,10 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	// is where it dies — see armPayloadDroppables.
 	armPayloadDrops := make([][]symbols.SymbolID, len(cmp.Arms))
 	compareDiscarded := tc.isExprDiscarded(id)
+	// Whether the compare's own value is ITS to release: true only when every
+	// arm that yields one built it fresh. See noteChoiceOwnsItsValue.
+	everyArmOwnsItsValue := true
+	valueArms := 0
 
 	for i, arm := range cmp.Arms {
 		tc.restoreMovedPlaces(movedAfterValue)
@@ -63,12 +67,22 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			tc.pushDiscardedExpr(arm.Result)
 		}
 		armResult := tc.typeExprWithExpected(arm.Result, expectedCompare)
+		// Asked BEFORE consuming, because consuming is what erases the evidence:
+		// an arm that FORWARDS a place was never a temp candidate, and one such
+		// arm is enough to leave the compare's value someone else's to release.
+		armProducedOwned := tc.branchMintsItsValue(arm.Result)
 		tc.consumeTempCandidate(arm.Result)
 		if compareDiscarded {
 			tc.popDiscardedExpr()
 		}
 		armAbrupt := tc.compareArmAbruptExit(arm.Result)
 		armClosed[i] = armAbrupt
+		if !armAbrupt {
+			valueArms++
+			if !armProducedOwned {
+				everyArmOwnsItsValue = false
+			}
+		}
 		armTypes[i] = armResult
 		if !armAbrupt && armResult != types.NoTypeID {
 			if expectedCompare != types.NoTypeID {
@@ -100,6 +114,10 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		}
 		tc.popDropScope()
 		movedArms[i] = tc.snapshotMovedPlaces()
+	}
+
+	if valueArms > 0 && everyArmOwnsItsValue {
+		tc.markChoiceOwnsItsValue(id)
 	}
 
 	targetCompare := resultType

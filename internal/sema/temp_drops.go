@@ -83,6 +83,77 @@ func (tc *typeChecker) pendingTempCandidate(exprID ast.ExprID) bool {
 	return false
 }
 
+// noteChoiceOwnsItsValue records that EVERY branch of a control-flow
+// expression handed it a freshly produced owned value, so the value it yields
+// is its own to release and no branch forwarded a place into it.
+//
+// Asked before the branch candidacies are consumed, because consuming is what
+// erases the evidence: `pendingTempCandidate` answers "still an owned temporary
+// nobody took" and the transfer into this expression is exactly the taking.
+func (tc *typeChecker) noteChoiceOwnsItsValue(exprID ast.ExprID, branches []ast.ExprID) {
+	if !exprID.IsValid() || len(branches) == 0 {
+		return
+	}
+	for _, branch := range branches {
+		if !tc.branchMintsItsValue(branch) {
+			return
+		}
+	}
+	tc.markChoiceOwnsItsValue(exprID)
+}
+
+// branchMintsItsValue reports whether a branch handed this expression a value
+// it BUILT, rather than one it forwarded.
+//
+// Being a pending temp candidate is necessary and not sufficient. The flag says
+// "nothing has consumed this", not "this is the only reference": a cast is
+// flagged, yet it reads its source without consuming and an identity cast
+// lowers to the same pointer, so `c ? (a to float) : (b to float)` would look
+// like two fresh values while both alias a live binding. Releasing that is a
+// use-after-free through the binding, which is the exact hazard the blanket
+// never-produce rule was avoiding.
+//
+// So the kind has to say the value was MINTED. Call, aggregate literal and
+// string-literal evaluations allocate their result; a non-assigning binary is a
+// magic-operator call and does too. Cast, unary and index are excluded because
+// each has a spelling that forwards its operand, and being wrong there costs a
+// double free while being wrong the other way costs a leak.
+func (tc *typeChecker) branchMintsItsValue(branch ast.ExprID) bool {
+	if !tc.pendingTempCandidate(branch) {
+		return false
+	}
+	node := tc.builder.Exprs.Get(tc.unwrapTempCandidate(branch))
+	if node == nil {
+		return false
+	}
+	switch node.Kind {
+	case ast.ExprCall, ast.ExprStruct, ast.ExprArray, ast.ExprMap, ast.ExprTuple, ast.ExprLit:
+		return true
+	case ast.ExprBinary:
+		data, ok := tc.builder.Exprs.Binary(tc.unwrapTempCandidate(branch))
+		if !ok || data == nil {
+			return false
+		}
+		_, isAssign := tc.assignmentBaseOp(data.Op)
+		return !isAssign && data.Op != ast.ExprBinaryAssign
+	default:
+		return false
+	}
+}
+
+// markChoiceOwnsItsValue is noteChoiceOwnsItsValue for a caller that already
+// knows the answer — a compare, which must ask arm by arm as it types them and
+// cannot hand over a branch list after the fact.
+func (tc *typeChecker) markChoiceOwnsItsValue(exprID ast.ExprID) {
+	if !exprID.IsValid() {
+		return
+	}
+	if tc.choiceOwnsItsValue == nil {
+		tc.choiceOwnsItsValue = make(map[ast.ExprID]struct{})
+	}
+	tc.choiceOwnsItsValue[exprID] = struct{}{}
+}
+
 func (tc *typeChecker) taintTempFrame() {
 	if len(tc.tempFrames) == 0 {
 		return
@@ -148,13 +219,21 @@ func (tc *typeChecker) noteTempCandidate(exprID ast.ExprID, kind ast.ExprKind, t
 	case ast.ExprCall, ast.ExprCast, ast.ExprStruct, ast.ExprArray,
 		ast.ExprMap, ast.ExprTuple:
 		producer = true
-	// Control-flow expressions (ternary/compare/block) NEVER produce:
-	// their value can forward a PLACE from any arm (an assignment arm
-	// yields its target's live value — dropping that is a use-after-
-	// free through the binding, caught by the VM sanitizer on the
-	// compare-arm-mutation row). Their arm results stay consumed, so
-	// fresh values built in arms leak when the outer value is
-	// discarded — the safe direction, recorded as a bound.
+	// A control-flow expression produces only when EVERY branch handed it a
+	// freshly produced owned value — see noteChoiceOwnsItsValue. It cannot be
+	// flagged unconditionally, because its value can forward a PLACE from any
+	// branch (an assignment arm yields its target's live value, and a branch
+	// that names a binding yields the binding's), and releasing that is a
+	// use-after-free through the owner — caught by the VM sanitizer on the
+	// compare-arm-mutation row.
+	//
+	// The all-branches test is what separates the two: a branch that forwards a
+	// place was never a temp candidate, so one such branch is enough to leave
+	// this unflagged and keep the old, safe behavior. MIXED branches therefore
+	// still leak whatever the producing side built, which is the remaining
+	// bound.
+	case ast.ExprTernary, ast.ExprCompare:
+		_, producer = tc.choiceOwnsItsValue[exprID]
 	case ast.ExprLit:
 		producer = true // string literals heap-allocate per use
 	case ast.ExprBinary:

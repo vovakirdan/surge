@@ -219,15 +219,18 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 	// before each one for exactly this reason.
 	before := tc.snapshotMovedPlaces()
 	trueType := tc.typeExpr(tern.TrueExpr)
-	// The arms transfer into the ternary's own result value; the outer
-	// expression carries the drop candidacy from here.
-	tc.consumeTempCandidate(tern.TrueExpr)
 	movedTrue := tc.snapshotMovedPlaces()
 
 	tc.restoreMovedPlaces(before)
 	falseType := tc.typeExpr(tern.FalseExpr)
-	tc.consumeTempCandidate(tern.FalseExpr)
 	movedFalse := tc.snapshotMovedPlaces()
+
+	// The branches transfer into the ternary's own result value, so the outer
+	// expression carries the drop candidacy from here. Asked BEFORE consuming,
+	// because consuming is what erases the evidence of who produced what.
+	tc.noteChoiceOwnsItsValue(id, []ast.ExprID{tern.TrueExpr, tern.FalseExpr})
+	tc.consumeTempCandidate(tern.TrueExpr)
+	tc.consumeTempCandidate(tern.FalseExpr)
 
 	tc.recordBranchOneSidedDrops(tern.TrueExpr, movedTrue, movedFalse)
 	tc.recordBranchOneSidedDrops(tern.FalseExpr, movedFalse, movedTrue)

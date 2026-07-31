@@ -131,6 +131,7 @@ type typeChecker struct {
 	loopDropMarks          []int                           // dropScopes depth at each enclosing loop body
 	tempFrames             []tempFrame                     // per-statement owned-rvalue candidates (temp drops)
 	tempTaken              map[ast.ExprID][][]PlaceSegment // paths moved OUT of a statement-end temporary, so its release can be narrowed to the remainder
+	choiceOwnsItsValue     map[ast.ExprID]struct{}         // control-flow expressions every branch of which produced a fresh owned value, so the result is theirs to release
 	aliasedBindings        map[symbols.SymbolID]struct{}   // bindings holding container-owned handles (never drop)
 	blockingDepth          int                             // nesting depth of `blocking { }` bodies (suspension illegal inside)
 	onCrossingStack        []onAnchorFrame                 // active `on dst { ... }` crossing frames
