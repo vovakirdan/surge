@@ -228,6 +228,20 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 	// The branches transfer into the ternary's own result value, so the outer
 	// expression carries the drop candidacy from here. Asked BEFORE consuming,
 	// because consuming is what erases the evidence of who produced what.
+	//
+	// Unless the value goes NOWHERE. A discarded ternary has no consumer to
+	// carry anything, so each branch keeps its own candidacy and frees what it
+	// built at its own region's end — which is where it was materialized, so
+	// the drop is dominated. That is the only shape where a MIXED ternary can
+	// be reclaimed without duplicating a consumer into the branches: the
+	// forwarding branch was never a candidate and keeps forwarding.
+	if tc.isExprDiscarded(id) {
+		tc.recordBranchOneSidedDrops(tern.TrueExpr, movedTrue, movedFalse)
+		tc.recordBranchOneSidedDrops(tern.FalseExpr, movedFalse, movedTrue)
+		tc.restoreMovedPlaces(mergeMovedPlaces(movedTrue, movedFalse))
+		return tc.unifyTernaryBranches(trueType, falseType, span)
+	}
+
 	tc.noteChoiceOwnsItsValue(id, []ast.ExprID{tern.TrueExpr, tern.FalseExpr})
 	tc.consumeTempCandidate(tern.TrueExpr)
 	tc.consumeTempCandidate(tern.FalseExpr)
