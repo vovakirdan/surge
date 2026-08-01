@@ -458,7 +458,7 @@ func TestInstrMintsDestCoversEveryKind(t *testing.T) {
 		{kind: InstrDrop, instr: Instr{Kind: InstrDrop, Drop: DropInstr{Place: dst}}, wantDst: false},
 		{kind: InstrEndBorrow, instr: Instr{Kind: InstrEndBorrow, EndBorrow: EndBorrowInstr{Place: dst}}, wantDst: false},
 		{kind: InstrAwait, instr: Instr{Kind: InstrAwait, Await: AwaitInstr{Dst: dst}}, wantDst: true},
-		{kind: InstrSpawn, instr: Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: dst}}, wantDst: true},
+		{kind: InstrSpawn, instr: Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: dst}}, wantDst: false},
 		{kind: InstrCrossing, instr: Instr{Kind: InstrCrossing, Crossing: CrossingInstr{Dst: dst}}, wantDst: true},
 		{kind: InstrBlocking, instr: Instr{Kind: InstrBlocking, Blocking: BlockingInstr{Dst: dst}}, wantDst: true},
 		{kind: InstrPoll, instr: Instr{Kind: InstrPoll, Poll: PollInstr{Dst: dst}}, wantDst: true},
@@ -501,6 +501,39 @@ func TestInstrMintsDestCoversEveryKind(t *testing.T) {
 	noDst := Instr{Kind: InstrCall, Call: CallInstr{Dst: dst}}
 	if _, ok := instrMintsDest(&noDst); ok {
 		t.Errorf("instrMintsDest reported a destination for a call with HasDst false")
+	}
+}
+
+// TestClassifySpawnDest pins InstrSpawn.Dst to Value's own answer, not a
+// blanket MINTS: the backend hands the exact same Task handle through
+// (emitTaskHandleOperand), so a plain OperandCopy of an unowned handle must
+// read as ALIASES here, the same as anywhere else Table B applies.
+func TestClassifySpawnDest(t *testing.T) {
+	ot := newOwnershipTestTypes(t)
+	taskTy := ot.strOwn // any owns-heap type stands in for Task here
+	cases := []struct {
+		name  string
+		value Operand
+		want  ownershipClass
+	}{
+		{name: "move_transfers", value: Operand{Kind: OperandMove, Type: taskTy, Place: Place{Local: 1}}, want: ownershipTransfers},
+		{name: "copy_aliases", value: Operand{Kind: OperandCopy, Type: taskTy, Place: Place{Local: 1}}, want: ownershipAliases},
+		{name: "retain_mints", value: Operand{Kind: OperandRetain, Type: taskTy, Place: Place{Local: 1}}, want: ownershipMints},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ins := Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: Place{Local: 2}, Value: tc.value}}
+			if got := classifySpawnDest(&ins, ot.in, ot.sema); got != tc.want {
+				t.Errorf("classifySpawnDest(%s) = %s, want %s", tc.name, got, tc.want)
+			}
+		})
+	}
+	if got := classifySpawnDest(nil, ot.in, ot.sema); got != ownershipUnclassified {
+		t.Errorf("classifySpawnDest(nil) = %s, want unclassified", got)
+	}
+	nonSpawn := Instr{Kind: InstrAwait}
+	if got := classifySpawnDest(&nonSpawn, ot.in, ot.sema); got != ownershipUnclassified {
+		t.Errorf("classifySpawnDest(non-spawn) = %s, want unclassified", got)
 	}
 }
 

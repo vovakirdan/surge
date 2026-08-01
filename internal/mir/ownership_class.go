@@ -295,11 +295,15 @@ func classifyParamAtEntry(ty types.TypeID, typesIn *types.Interner, semaRes *sem
 }
 
 // instrMintsDest reports the destination place an instruction defines WITHOUT
-// going through an RValue, all of which are call-shaped operations producing a
-// value nothing else holds, and so classify ownershipMints.
+// going through an RValue, for the kinds that are genuinely call-shaped
+// operations producing a value nothing else holds, and so classify
+// ownershipMints unconditionally.
 //
 // InstrAssign is excluded rather than unhandled: its destination is governed
-// entirely by classifyRValue against its right-hand side.
+// entirely by classifyRValue against its right-hand side. InstrSpawn is
+// excluded for a different reason — see classifySpawnDest — despite carrying
+// a Dst: it is NOT unconditionally fresh, so lumping it in here would be
+// wrong, not merely incomplete.
 func instrMintsDest(ins *Instr) (Place, bool) {
 	if ins == nil {
 		return Place{}, false
@@ -312,8 +316,6 @@ func instrMintsDest(ins *Instr) (Place, bool) {
 		return ins.Call.Dst, true
 	case InstrAwait:
 		return ins.Await.Dst, true
-	case InstrSpawn:
-		return ins.Spawn.Dst, true
 	case InstrCrossing:
 		return ins.Crossing.Dst, true
 	case InstrBlocking:
@@ -328,11 +330,26 @@ func instrMintsDest(ins *Instr) (Place, bool) {
 		return ins.Timeout.Dst, true
 	case InstrSelect:
 		return ins.Select.Dst, true
-	case InstrAssign, InstrDrop, InstrEndBorrow, InstrChanSend, InstrNetWait,
-		InstrNop, InstrEnvelopeRelease:
+	case InstrAssign, InstrDrop, InstrEndBorrow, InstrSpawn, InstrChanSend,
+		InstrNetWait, InstrNop, InstrEnvelopeRelease:
 		return Place{}, false
 	}
 	return Place{}, false
+}
+
+// classifySpawnDest answers InstrSpawn.Dst's ownership, which instrMintsDest
+// deliberately does not: the LLVM backend's emitInstrSpawn resolves the exact
+// same Task handle SpawnInstr.Value already names and stores it straight into
+// Dst (emitTaskHandleOperand, internal/backend/llvm/emit_async.go) — nothing
+// is allocated or retained on the way. Dst's ownership is therefore whatever
+// Value's own read already is, which Table B already answers; a caller
+// treating this as unconditional MINTS would let a plain OperandCopy of an
+// unowned handle launder into a terminal root.
+func classifySpawnDest(ins *Instr, typesIn *types.Interner, semaRes *sema.Result) ownershipClass {
+	if ins == nil || ins.Kind != InstrSpawn {
+		return ownershipUnclassified
+	}
+	return classifyOperand(&ins.Spawn.Value, typesIn, semaRes)
 }
 
 // indexIsView reports whether an index reads a SLICE rather than one element,
