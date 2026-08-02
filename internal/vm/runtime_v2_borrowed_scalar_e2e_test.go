@@ -2,11 +2,7 @@
 
 package vm_test
 
-import (
-	"strings"
-	"testing"
-	"time"
-)
+import "testing"
 
 // Reading a value THROUGH a borrow must leave the owner's value alone, and
 // copying one OUT of a container must leave the copy with an owner.
@@ -25,6 +21,65 @@ import (
 // in different columns of the same report.
 const runtimeV2BorrowedScalarSource = `
 type Box = { value: float };
+@copy type CopyCell = { left: int, right: int };
+
+fn build_text(prefix: string) -> string {
+    let mut text = prefix;
+    let mut i = 0;
+    while i < 4 {
+        text = text + "x";
+        i = i + 1;
+    }
+    return text;
+}
+
+fn reads_text(v: &string) -> int {
+    return len(v) to int;
+}
+
+fn borrows_runtime_text() -> int {
+    let text = build_text("v-");
+    let mut i = 0;
+    let mut total = 0;
+    while i < 8 {
+        total = total + reads_text(&text);
+        i = i + 1;
+    }
+    if total != 48 {
+        return 11;
+    }
+    if len(text) != 6 {
+        return 12;
+    }
+    return 0;
+}
+
+fn copies_cell(v: &CopyCell) -> CopyCell {
+    return *v;
+}
+
+fn borrows_copy_composite() -> int {
+    let original = CopyCell { left = 1, right = 2 };
+    let mut duplicate = copies_cell(&original);
+    duplicate.left = 9;
+    if original.left != 1 || duplicate.left != 9 || duplicate.right != 2 {
+        return 21;
+    }
+    return 0;
+}
+
+fn reads_fixnum(v: &int) -> int {
+    return *v;
+}
+
+fn borrows_non_owning() -> int {
+    let original: int = 7;
+    let duplicate = reads_fixnum(&original);
+    if original != 7 || duplicate != 7 {
+        return 31;
+    }
+    return 0;
+}
 
 // The whole defect, in the smallest shape that has it: a callee that only
 // LOOKS at its borrowed argument.
@@ -109,6 +164,20 @@ fn borrows_repeatedly(v: &float, n: int) -> int {
 
 @entrypoint
 fn main() -> int {
+    let move_only_code = borrows_runtime_text();
+    if move_only_code != 0 {
+        print("a borrowed runtime-built string did not survive its readers");
+        return move_only_code;
+    }
+    print("borrowed-scalar-axis-move-only");
+
+    let copy_code = borrows_copy_composite();
+    if copy_code != 0 {
+        print("a borrowed @copy composite did not produce an independent duplicate");
+        return copy_code;
+    }
+    print("borrowed-scalar-axis-copy-composite");
+
     let a: float = 5.5;
     if compares(&a) != 1 {
         print("comparing a borrowed value went wrong");
@@ -153,45 +222,25 @@ fn main() -> int {
         print("the owner's value did not survive its borrows");
         return 10;
     }
-    print("borrowed-scalar-ok");
+    print("borrowed-scalar-axis-refcounted-scalar");
+
+    let non_owning_code = borrows_non_owning();
+    if non_owning_code != 0 {
+        print("a borrowed non-owning fixnum went wrong");
+        return non_owning_code;
+    }
+    print("borrowed-scalar-axis-non-owning");
     return 0;
 }
 `
 
 func TestRuntimeV2BorrowedScalarSurvivesItsReaders(t *testing.T) {
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2BorrowedScalarSource, nil)
-	env := envWithStdlib(repoRoot(t))
-	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 120*time.Second)
-	if hasValgrindMemcheckError(stderr) {
-		t.Fatalf("reading a borrowed scalar hit a memcheck error (invalid read / invalid free)\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
-	}
-	if exitCode != 0 {
-		t.Fatalf("borrowed-scalar probe failed (exit=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
-	}
-	if !strings.Contains(stdout, "borrowed-scalar-ok") {
-		t.Fatalf("borrowed-scalar probe missing completion marker; stdout=%q", stdout)
-	}
-	// Strict zero, and it is the half that a use-after-free fix can silently
-	// trade for: a read that stops stealing a reference has to take its own.
-	lostBytes, lostBlocks, err := parseValgrindDefinitelyLost(stderr)
-	if err != nil {
-		t.Fatalf("borrowed scalar: %v\nstderr:\n%s", err, stderr)
-	}
-	if lostBytes != 0 || lostBlocks != 0 {
-		t.Fatalf("borrowed scalar leaked %d bytes in %d blocks; want strict zero\nstderr:\n%s",
-			lostBytes, lostBlocks, stderr)
-	}
-}
-
-// The interpreter half: it refuses a read of a released slot instead of nulling
-// the handle, so it names an over-release that the native backend can only show
-// as a corrupted value.
-func TestBorrowedScalarSurvivesTheHeapSanitizer(t *testing.T) {
-	res := runProgramFromSource(t, runtimeV2BorrowedScalarSource, runOptions{})
-	if res.exitCode != 0 {
-		t.Fatalf("borrowed-scalar probe failed (exit=%d)\nstderr:\n%s", res.exitCode, res.stderr)
-	}
-	if strings.TrimSpace(res.stderr) != "" {
-		t.Fatalf("borrowed-scalar probe reported a runtime error:\n%s", res.stderr)
-	}
+	ownershipGate(
+		t,
+		runtimeV2BorrowedScalarSource,
+		moveOnlyHeapMarker("borrowed-scalar-axis-move-only"),
+		copyValueCompositeMarker("borrowed-scalar-axis-copy-composite"),
+		referenceCountedScalarMarker("borrowed-scalar-axis-refcounted-scalar"),
+		nonOwningMarker("borrowed-scalar-axis-non-owning"),
+	)
 }

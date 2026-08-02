@@ -2,11 +2,7 @@
 
 package vm_test
 
-import (
-	"strings"
-	"testing"
-	"time"
-)
+import "testing"
 
 // An arm that answers with its OWN payload binding hands that value to the
 // compare, and the compare's reader is the one that decides when it dies.
@@ -28,6 +24,19 @@ const runtimeV2ComparePayloadHandoffSource = `
 tag Payload(string);
 tag Empty();
 type Slot = Payload(string) | Empty;
+
+@copy type CopyCell = { left: int, right: int };
+tag CopyPayload(CopyCell);
+tag NoCopyPayload();
+type CopySlot = CopyPayload(CopyCell) | NoCopyPayload;
+
+tag Reading(float);
+tag NoReading();
+type Measure = Reading(float) | NoReading;
+
+tag Count(int);
+tag NoCount();
+type Counter = Count(int) | NoCount;
 
 // Built at runtime rather than written as a literal, so every payload is its
 // own block and a missing release cannot hide behind a shared one.
@@ -135,6 +144,45 @@ fn derived(n: int) -> int {
     return acc;
 }
 
+fn copy_payload_axis() -> int {
+    let original = CopyCell { left = 1, right = 2 };
+    let mut duplicate = original;
+    duplicate.left = 9;
+    if original.left != 1 || duplicate.left != 9 || duplicate.right != 2 {
+        return 21;
+    }
+    // The direct scrutinee avoids an unrelated structural-to-nominal union
+    // conversion; its wildcard arm still has to reclaim the copied payload.
+    if compare CopyPayload(duplicate) {
+        CopyPayload(_) => 1;
+        _ => 0;
+    } != 1 {
+        return 22;
+    }
+    return 0;
+}
+
+fn float_payload_handoff(n: int) -> float {
+    let mut i = 0;
+    let mut total: float = 0.0;
+    while i < n {
+        let value = compare Reading(1.5 + 0.25) {
+            Reading(v) => v;
+            _ => 0.0;
+        };
+        total = total + value;
+        i = i + 1;
+    }
+    return total;
+}
+
+fn fixnum_payload_handoff() -> int {
+    return compare Count(7) {
+        Count(v) => v;
+        _ => 0 - 1;
+    };
+}
+
 @entrypoint
 fn main() -> int {
     if borrowed(16) != 96 {
@@ -157,42 +205,37 @@ fn main() -> int {
         print("a derived compare result went wrong");
         return 5;
     }
-    print("compare-payload-ok");
+    print("compare-payload-axis-move-only");
+
+    let copy_code = copy_payload_axis();
+    if copy_code != 0 {
+        print("an @copy compare payload was not independent");
+        return copy_code;
+    }
+    print("compare-payload-axis-copy-composite");
+
+    if float_payload_handoff(16) != 28.0 {
+        print("a reference-counted compare payload handoff went wrong");
+        return 31;
+    }
+    print("compare-payload-axis-refcounted-scalar");
+
+    if fixnum_payload_handoff() != 7 {
+        print("a non-owning compare payload handoff went wrong");
+        return 41;
+    }
+    print("compare-payload-axis-non-owning");
     return 0;
 }
 `
 
 func TestRuntimeV2ComparePayloadOutlivesItsArm(t *testing.T) {
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2ComparePayloadHandoffSource, nil)
-	env := envWithStdlib(repoRoot(t))
-	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 120*time.Second)
-	if hasValgrindMemcheckError(stderr) {
-		t.Fatalf("a compare arm's payload hit a memcheck error (invalid read / invalid free)\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
-	}
-	if exitCode != 0 {
-		t.Fatalf("compare-payload probe failed (exit=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
-	}
-	if !strings.Contains(stdout, "compare-payload-ok") {
-		t.Fatalf("compare-payload probe missing completion marker; stdout=%q", stdout)
-	}
-	// The other half of the same contract: moving a release later must not lose
-	// it. Strict zero, so a payload nobody frees fails this row too.
-	lostBytes, lostBlocks, err := parseValgrindDefinitelyLost(stderr)
-	if err != nil {
-		t.Fatalf("compare payload: %v\nstderr:\n%s", err, stderr)
-	}
-	if lostBytes != 0 || lostBlocks != 0 {
-		t.Fatalf("compare payload leaked %d bytes in %d blocks; want strict zero\nstderr:\n%s",
-			lostBytes, lostBlocks, stderr)
-	}
-}
-
-func TestComparePayloadSurvivesTheHeapSanitizer(t *testing.T) {
-	res := runProgramFromSource(t, runtimeV2ComparePayloadHandoffSource, runOptions{})
-	if res.exitCode != 0 {
-		t.Fatalf("compare-payload probe failed (exit=%d)\nstderr:\n%s", res.exitCode, res.stderr)
-	}
-	if strings.TrimSpace(res.stderr) != "" {
-		t.Fatalf("compare-payload probe reported a runtime error:\n%s", res.stderr)
-	}
+	ownershipGate(
+		t,
+		runtimeV2ComparePayloadHandoffSource,
+		moveOnlyHeapMarker("compare-payload-axis-move-only"),
+		copyValueCompositeMarker("compare-payload-axis-copy-composite"),
+		referenceCountedScalarMarker("compare-payload-axis-refcounted-scalar"),
+		nonOwningMarker("compare-payload-axis-non-owning"),
+	)
 }

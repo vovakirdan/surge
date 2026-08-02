@@ -2,11 +2,7 @@
 
 package vm_test
 
-import (
-	"strings"
-	"testing"
-	"time"
-)
+import "testing"
 
 // A cast from a type to ITSELF hands the source value straight back, so the
 // result is a second name for storage the source's owner still holds. Nothing
@@ -24,6 +20,50 @@ import (
 // values AFTER the cast, which is the only way an over-release shows up as
 // anything but a leak.
 const runtimeV2IdentityCastSource = `
+@copy type CopyCell = { left: int, right: int };
+
+// This axis must allocate at runtime: a literal alone can hide a missing move
+// or release behind shared/static storage.
+fn build_text(prefix: string) -> string {
+    let mut text = prefix;
+    let mut i = 0;
+    while i < 4 {
+        text = text + "x";
+        i = i + 1;
+    }
+    return text;
+}
+
+fn move_only_axis() -> int {
+    let built = build_text("id-");
+    let text = built;
+    if len(text) != 7 {
+        return 11;
+    }
+    return 0;
+}
+
+// The binding must receive a real independent @copy duplicate, not a second
+// name for the original composite.
+fn copy_composite_axis() -> int {
+    let original = CopyCell { left = 1, right = 2 };
+    let mut duplicate = original;
+    duplicate.left = 9;
+    if original.left != 1 || duplicate.left != 9 || duplicate.right != 2 {
+        return 21;
+    }
+    return 0;
+}
+
+fn non_owning_identity() -> int {
+    let original: int = 7;
+    let duplicate = original to int;
+    if original + duplicate != 14 {
+        return 31;
+    }
+    return 0;
+}
+
 fn take(v: float) -> float {
     return v + 1.0;
 }
@@ -128,6 +168,20 @@ fn repeated(n: int) -> int {
 
 @entrypoint
 fn main() -> int {
+    let move_only_code = move_only_axis();
+    if move_only_code != 0 {
+        print("a move-only runtime-built string move went wrong");
+        return move_only_code;
+    }
+    print("identity-cast-axis-move-only");
+
+    let copy_code = copy_composite_axis();
+    if copy_code != 0 {
+        print("an @copy duplicate was not independent");
+        return copy_code;
+    }
+    print("identity-cast-axis-copy-composite");
+
     let discarded_code = discarded(true);
     if discarded_code != 0 {
         print("discarded identity cast released its source");
@@ -173,49 +227,25 @@ fn main() -> int {
         print("repeated identity cast computed the wrong value");
         return repeated_code;
     }
-    print("identity-cast-ok");
+    print("identity-cast-axis-refcounted-scalar");
+
+    let non_owning_code = non_owning_identity();
+    if non_owning_code != 0 {
+        print("a non-owning identity cast computed the wrong value");
+        return non_owning_code;
+    }
+    print("identity-cast-axis-non-owning");
     return 0;
 }
 `
 
-// The same program on the interpreter, whose reclamation is CHECKED rather
-// than merely performed: it refuses a read of a released slot instead of
-// nulling the handle the way the native backend does. A release too many is
-// invisible natively when nothing reads the slot again, and this is the row
-// that sees it.
-func TestIdentityCastSurvivesTheHeapSanitizer(t *testing.T) {
-	// The exit code carries the verdict here: the interpreter's stdout is the
-	// test process's own, so the completion marker is not readable back. Every
-	// row returns its own non-zero code, and a released-slot read fails the run
-	// outright.
-	res := runProgramFromSource(t, runtimeV2IdentityCastSource, runOptions{})
-	if res.exitCode != 0 {
-		t.Fatalf("identity-cast probe failed (exit=%d)\nstderr:\n%s", res.exitCode, res.stderr)
-	}
-	if strings.TrimSpace(res.stderr) != "" {
-		t.Fatalf("identity-cast probe reported a runtime error:\n%s", res.stderr)
-	}
-}
-
 func TestRuntimeV2IdentityCastKeepsItsSourceOwned(t *testing.T) {
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2IdentityCastSource, nil)
-	env := envWithStdlib(repoRoot(t))
-	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 120*time.Second)
-	if hasValgrindMemcheckError(stderr) {
-		t.Fatalf("an identity cast hit a memcheck error (invalid read / invalid free)\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
-	}
-	if exitCode != 0 {
-		t.Fatalf("identity-cast probe failed (exit=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
-	}
-	if !strings.Contains(stdout, "identity-cast-ok") {
-		t.Fatalf("identity-cast probe missing completion marker; stdout=%q", stdout)
-	}
-	lostBytes, lostBlocks, err := parseValgrindDefinitelyLost(stderr)
-	if err != nil {
-		t.Fatalf("identity cast: %v\nstderr:\n%s", err, stderr)
-	}
-	if lostBytes != 0 || lostBlocks != 0 {
-		t.Fatalf("identity cast leaked %d bytes in %d blocks; want strict zero\nstderr:\n%s",
-			lostBytes, lostBlocks, stderr)
-	}
+	ownershipGate(
+		t,
+		runtimeV2IdentityCastSource,
+		moveOnlyHeapMarker("identity-cast-axis-move-only"),
+		copyValueCompositeMarker("identity-cast-axis-copy-composite"),
+		referenceCountedScalarMarker("identity-cast-axis-refcounted-scalar"),
+		nonOwningMarker("identity-cast-axis-non-owning"),
+	)
 }

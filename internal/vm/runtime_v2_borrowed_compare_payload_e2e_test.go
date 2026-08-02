@@ -2,11 +2,7 @@
 
 package vm_test
 
-import (
-	"strings"
-	"testing"
-	"time"
-)
+import "testing"
 
 // A compare that only READS its union owns nothing it takes out of it.
 //
@@ -44,6 +40,10 @@ tag Absent();
 tag Reading(float);
 tag NoReading();
 type Measure = Reading(float) | NoReading;
+
+tag Count(int);
+tag NoCount();
+type Counter = Count(int) | NoCount;
 
 fn build(prefix: string) -> string {
     let mut s = prefix;
@@ -95,6 +95,13 @@ fn reads_float_payload(m: &Measure) -> float {
     };
 }
 
+fn reads_fixnum_payload(c: &Counter) -> int {
+    return compare *c {
+        Count(v) => v;
+        _ => 0 - 1;
+    };
+}
+
 // A compare over something that is NOT a union at all: the subject moves into
 // the pattern's binding, which is then its only owner. The borrowed-union rule
 // must not reach this — a review caught exactly that, one leaked string per
@@ -138,30 +145,6 @@ fn main() -> int {
         return 1;
     }
 
-    let held: Holder = Held(Cell { a = 1, b = 2 });
-    let mut copies = 0;
-    i = 0;
-    while i < 16 {
-        copies = copies + reads_copy_payload(&held);
-        i = i + 1;
-    }
-    if copies != 16 {
-        print("a cloned payload went wrong");
-        return 2;
-    }
-
-    let measure: Measure = Reading(1.5 + 0.25);
-    let mut total: float = 0.0;
-    i = 0;
-    while i < 16 {
-        total = total + reads_float_payload(&measure);
-        i = i + 1;
-    }
-    if total != 28.0 {
-        print("a borrowed float payload went wrong");
-        return 3;
-    }
-
     if owns_its_subject(0) != 6 {
         print("an owned subject went wrong");
         return 4;
@@ -177,43 +160,60 @@ fn main() -> int {
         print("a plain bound subject went wrong");
         return 5;
     }
+    print("borrowed-compare-payload-axis-move-only");
 
-    print("borrowed-compare-payload-ok");
+    let held: Holder = Held(Cell { a = 1, b = 2 });
+    let mut copies = 0;
+    i = 0;
+    while i < 16 {
+        copies = copies + reads_copy_payload(&held);
+        i = i + 1;
+    }
+    let original = Cell { a = 1, b = 2 };
+    let mut duplicate = original;
+    duplicate.a = 9;
+    if copies != 16 || original.a != 1 || duplicate.a != 9 || duplicate.b != 2 {
+        print("a cloned payload was not independent");
+        return 2;
+    }
+    print("borrowed-compare-payload-axis-copy-composite");
+
+    let measure: Measure = Reading(1.5 + 0.25);
+    let mut total: float = 0.0;
+    i = 0;
+    while i < 16 {
+        total = total + reads_float_payload(&measure);
+        i = i + 1;
+    }
+    if total != 28.0 {
+        print("a borrowed float payload went wrong");
+        return 3;
+    }
+    print("borrowed-compare-payload-axis-refcounted-scalar");
+
+    let counter: Counter = Count(7);
+    let mut counts = 0;
+    i = 0;
+    while i < 16 {
+        counts = counts + reads_fixnum_payload(&counter);
+        i = i + 1;
+    }
+    if counts != 112 || reads_fixnum_payload(&counter) != 7 {
+        print("a borrowed fixnum payload went wrong");
+        return 6;
+    }
+    print("borrowed-compare-payload-axis-non-owning");
     return 0;
 }
 `
 
 func TestRuntimeV2BorrowedComparePayloadStaysTheOwners(t *testing.T) {
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2BorrowedComparePayloadSource, nil)
-	env := envWithStdlib(repoRoot(t))
-	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 120*time.Second)
-	if hasValgrindMemcheckError(stderr) {
-		t.Fatalf("a borrowed compare payload hit a memcheck error (invalid read / invalid free)\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
-	}
-	if exitCode != 0 {
-		t.Fatalf("borrowed-compare-payload probe failed (exit=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
-	}
-	if !strings.Contains(stdout, "borrowed-compare-payload-ok") {
-		t.Fatalf("borrowed-compare-payload probe missing completion marker; stdout=%q", stdout)
-	}
-	// The rows that KEEP their obligation are what this column watches: drop it
-	// for them and the payload they really own is abandoned.
-	lostBytes, lostBlocks, err := parseValgrindDefinitelyLost(stderr)
-	if err != nil {
-		t.Fatalf("borrowed compare payload: %v\nstderr:\n%s", err, stderr)
-	}
-	if lostBytes != 0 || lostBlocks != 0 {
-		t.Fatalf("borrowed compare payload leaked %d bytes in %d blocks; want strict zero\nstderr:\n%s",
-			lostBytes, lostBlocks, stderr)
-	}
-}
-
-func TestBorrowedComparePayloadSurvivesTheHeapSanitizer(t *testing.T) {
-	res := runProgramFromSource(t, runtimeV2BorrowedComparePayloadSource, runOptions{})
-	if res.exitCode != 0 {
-		t.Fatalf("borrowed-compare-payload probe failed (exit=%d)\nstderr:\n%s", res.exitCode, res.stderr)
-	}
-	if strings.TrimSpace(res.stderr) != "" {
-		t.Fatalf("borrowed-compare-payload probe reported a runtime error:\n%s", res.stderr)
-	}
+	ownershipGate(
+		t,
+		runtimeV2BorrowedComparePayloadSource,
+		moveOnlyHeapMarker("borrowed-compare-payload-axis-move-only"),
+		copyValueCompositeMarker("borrowed-compare-payload-axis-copy-composite"),
+		referenceCountedScalarMarker("borrowed-compare-payload-axis-refcounted-scalar"),
+		nonOwningMarker("borrowed-compare-payload-axis-non-owning"),
+	)
 }
