@@ -228,8 +228,9 @@ This is tooling and analysis. It must not change what compiled programs do.
   run standalone: `runtime-v2-accept-check`, `runtime-v2-lock-check`,
   `runtime-v2-lifecycle-check`, `runtime-v2-perf-check`,
   `runtime-v2-syncpoint-check`, and `runtime-v2-transport-check` pass; the
-  base-identical net-handle failure and intermittent HTTP-owner reset are
-  tracked by RV2-DEBT-123/124. Outside the exact reviewed results in
+  base-identical net-handle failure and comparable-stress base-reproduced
+  HTTP-owner reset tuple are tracked by RV2-DEBT-123/124. Outside the exact
+  reviewed results in
   RV2-DEBT-122/123/124, any new stage or test, extra failure, formerly-green
   layer, or changed/worse normalized signature blocks completion. These
   external network debts do not widen Epic 25 into a runtime repair.
@@ -1352,10 +1353,11 @@ aborts there, its later targets were also run standalone:
 `runtime-v2-lifecycle-check`, `runtime-v2-perf-check`,
 `runtime-v2-syncpoint-check`, and `runtime-v2-transport-check` pass. Net-handle
 reproduces the same shards-1/2/8 exit-32 failure at `bf543542` and current,
-while HTTP-owner is intermittent on current; these external network results
-are tracked by RV2-DEBT-123/124 and do not expand the ownership epic into
-runtime repair. At the governed `internal/` scope, exact-base Sentrux is stable
-against `bf543542`: quality
+while comparable stress reproduces HTTP-owner's normalized connection-reset
+tuple on both trees. These external network results are tracked by
+RV2-DEBT-123/124 and do not expand the ownership epic into runtime repair. At
+the governed `internal/` scope, exact-base Sentrux is stable against
+`bf543542`: quality
 `6517 -> 6517`, files `1056 -> 1056`, import edges `2158 -> 2158`, complex
 functions unchanged, all seven rules pass, and `session_end` passes. Serena
 diagnostics are empty, and the final commit-scoped Codex and independent

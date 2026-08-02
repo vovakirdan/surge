@@ -5822,3 +5822,26 @@ close only with or after its parent plus the exact five-test CI matrix; the
 step attribution is corrected. This follow-up changes only Epic 25, DEBT, and
 NOTES documentation; README status, code, STATS, goldens, and prior Sentrux
 evidence remain unchanged.
+
+## 2026-08-02 — Epic 25 Closeout Review: HTTP Baseline Stress Resolution
+
+Commit-scoped Codex and independent immutable reviews of `cc2176d` returned
+`REQUEST_CHANGES` with one P1: the first RV2-DEBT-124 record had current HTTP
+resets but only one green `bf543542` run, so it could not yet be admitted by an
+exact no-regression closeout rule. Comparable baseline stress now supplies the
+missing evidence. Exact `bf543542` `make runtime-v2-http-owner-check` runs 1-14
+pass; run 15 fails in `TestRuntimeV2HTTPOwnerLocalBehavior/shards-8` when load
+client `4` reads its response and receives `connection reset by peer`, with
+empty stdout/stderr. Additional current-tree stress passes 9/10; run 7 fails at
+shards 2 during warmup client `-1` with the same terminal class and empty
+streams.
+
+RV2-DEBT-124 therefore uses the shared normalized tuple
+`(target=runtime-v2-http-owner-check,
+test=TestRuntimeV2HTTPOwnerLocalBehavior, operation=client read response,
+terminal_class=connection reset by peer)`. Shard, client id,
+warmup-versus-load wrapper, endpoint addresses, checkout/artifact paths, and
+run index are schedule-dependent or ephemeral and are not signature fields.
+The comparable base reproduction resolves the review P1 without closing the
+debt or expanding Epic 25 into HTTP/network runtime repair; the earlier
+single-base-run note remains intact as the chronology before stress evidence.
