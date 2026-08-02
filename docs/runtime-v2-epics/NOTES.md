@@ -5845,3 +5845,14 @@ run index are schedule-dependent or ephemeral and are not signature fields.
 The comparable base reproduction resolves the review P1 without closing the
 debt or expanding Epic 25 into HTTP/network runtime repair; the earlier
 single-base-run note remains intact as the chronology before stress evidence.
+
+The completed matched window corrects the preceding interim current count:
+current and exact `bf543542` each pass 14/15, with the single current failure
+at run 7 and the single base failure at run 15. The initial current
+`FAIL, PASS, PASS, FAIL` sequence remains discovery history; the normative
+no-regression comparison is the symmetric 15-run window, which shows no
+failure-frequency worsening. Because the baseline flake appeared only on run
+15, a chance 10/10 green window cannot close RV2-DEBT-124. Closure now requires
+a deterministic reset reproducer and root-cause fix with failing-before and
+passing-after proof, followed by a green repeated bounded stress target and a
+composed gate that reaches and passes it.
