@@ -5753,3 +5753,26 @@ times out while draining 33,554,432 bytes, and
 EOF after `double free or corruption (out)`. Every remaining fd-registry row
 passes. Epic 25 changes no fd-registry/runtime code, so these failures remain
 external debt and are not repaired here.
+
+## 2026-08-02 — Epic 25 Closeout Review: Baseline Gate Contract
+
+Commit-scoped Codex review of docs closeout `3eb4d2d4` found one P2: marking the
+epic complete while recording a non-green `make runtime-v2-check` contradicted
+the earlier absolute-green wording in "What We May Not Lose." The corrected
+contract is exact-command execution plus no regression against a detached,
+verified pre-epic baseline. A baseline-green target must remain green, green
+remains the objective for inherited failures, and any newly failing stage or
+test, extra failure, formerly-green earlier layer, or changed or worse failure
+signature blocks completion.
+
+Fresh A/B evidence at immutable Step 5 base
+`bf543542e18f625d8ec94501ee784bee04757bcd` passes liveness, the exact
+`1046/575/390/81` ownership census, crossing, heap/reclamation/Valgrind,
+fixnum/range, and waiter before failing only the two fd-registry rows now
+tracked by RV2-DEBT-122. The read/write row times out draining 33,554,432 bytes
+with `TCP i/o timeout` (`64.83s`); the cancelled-read row reaches EOF on the
+same drain after `double free or corruption (out)` (`6.23s`); every other
+selected fd row passes. Step 1 had already recorded both and reproduced the
+cancellation row at detached `15c23f9e`, and Step 2 recorded both again before
+Step 5 began. This correction changes no README status, code, STATS, golden, or
+Sentrux result.

@@ -204,13 +204,20 @@ This is tooling and analysis. It must not change what compiled programs do.
   it does not invent a new one. If implementation surfaces a case where the
   cleanest fix would touch the language surface, STOP and ask — this is
   exactly the class of decision reserved for the owner.
-- **Existing gates keep passing as they are, checked by name, not by
-  assumption.** `make check`, `make golden-check`, and `make runtime-v2-check`
-  (which is what actually composes `runtime-v2-crossing-check`,
-  `-heap-check`, `-waiter-check`, `-fd-registry-check`, and the rest — `make
-  check` alone does not invoke it, so "existing gates" means running this
-  target explicitly, not assuming `make check`'s green covers it) all stay
-  green before any step in this epic is called done. `internal/gatecheck`
+- **Existing gates are executed by exact name and may not regress against a
+  verified pre-epic baseline.** `make check`, `make golden-check`, and
+  `make runtime-v2-check` (which composes `runtime-v2-crossing-check`,
+  `-heap-check`, `-waiter-check`, `-fd-registry-check`, and the rest) must each
+  be run explicitly; `make check` alone does not cover the composed target. A
+  baseline-green target must remain green, and green remains the closure target
+  for every recorded baseline failure. Epic 25's sole closeout exception is
+  frozen to immutable Step 5 baseline
+  `bf543542e18f625d8ec94501ee784bee04757bcd`: after liveness, ownership,
+  crossing, heap/reclamation/Valgrind, fixnum/range, and waiter pass,
+  `make runtime-v2-check` may remain non-green only on the two exact
+  fd-registry tests and failure signatures recorded in RV2-DEBT-122. Any newly
+  failing stage or test, any extra failure, any formerly-green earlier layer,
+  or any changed or worse signature blocks completion. `internal/gatecheck`
   itself (which keeps the Makefile's gates honest) must still pass after any
   new gate is added, including the new ones this epic adds in Step 2/3.
 
@@ -1317,8 +1324,8 @@ ownership, crossing, heap/reclamation/Valgrind, fixnum/range, and waiter, then
 exits only on the two known fd-registry rows
 `TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow` and
 `TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest`; this
-ownership closeout adds no duplicate network debt. At the governed `internal/`
-scope, exact-base Sentrux is stable against `bf543542`: quality
+inherited baseline is tracked explicitly by RV2-DEBT-122. At the governed
+`internal/` scope, exact-base Sentrux is stable against `bf543542`: quality
 `6517 -> 6517`, files `1056 -> 1056`, import edges `2158 -> 2158`, complex
 functions unchanged, all seven rules pass, and `session_end` passes. Serena
 diagnostics are empty, and the final commit-scoped Codex and independent
