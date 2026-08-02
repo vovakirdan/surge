@@ -204,22 +204,38 @@ This is tooling and analysis. It must not change what compiled programs do.
   it does not invent a new one. If implementation surfaces a case where the
   cleanest fix would touch the language surface, STOP and ask — this is
   exactly the class of decision reserved for the owner.
-- **Existing gates are executed by exact name and may not regress against a
-  verified exact pre-change baseline.** `make check`, `make golden-check`, and
-  `make runtime-v2-check` (which composes `runtime-v2-crossing-check`,
-  `-heap-check`, `-waiter-check`, `-fd-registry-check`, and the rest) must each
-  be run explicitly; `make check` alone does not cover the composed target. A
-  baseline-green target must remain green, and green remains the closure target
-  for every recorded baseline failure. Epic 25's sole closeout exception is
-  frozen to immutable Step 5 baseline
-  `bf543542e18f625d8ec94501ee784bee04757bcd`: after liveness, ownership,
+- **Existing gates are executed by exact name and may not regress against an
+  immutable exact pre-change baseline.** Every implementation step is compared
+  with its own base; a later step's baseline cannot excuse an earlier
+  regression. `make check`, `make golden-check`, and `make runtime-v2-check`
+  (which composes `runtime-v2-crossing-check`, `-heap-check`, `-waiter-check`,
+  `-fd-registry-check`, and the rest) must each be run explicitly; `make check`
+  alone does not cover the composed target. A baseline-green target must remain
+  green, and green remains the closure target for every recorded baseline
+  failure. For Step 5 closeout only, the immutable pre-Step-5 A/B base is
+  `bf543542e18f625d8ec94501ee784bee04757bcd`. After liveness, ownership,
   crossing, heap/reclamation/Valgrind, fixnum/range, and waiter pass,
-  `make runtime-v2-check` may remain non-green only on the two exact
-  fd-registry tests and failure signatures recorded in RV2-DEBT-122. Any newly
-  failing stage or test, any extra failure, any formerly-green earlier layer,
-  or any changed or worse signature blocks completion. `internal/gatecheck`
-  itself (which keeps the Makefile's gates honest) must still pass after any
-  new gate is added, including the new ones this epic adds in Step 2/3.
+  `make runtime-v2-check` may stop only on RV2-DEBT-122's two normalized
+  tuples: `(target=runtime-v2-fd-registry-check,
+  test=TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow, operation=drain,
+  bytes=33554432, terminal_class=i/o timeout)` and
+  `(target=runtime-v2-fd-registry-check,
+  test=TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest,
+  operation=drain, bytes=33554432, terminal_class=EOF,
+  stderr_token=double free or corruption (out))`. Endpoint addresses, checkout
+  paths, and durations are deliberately excluded from signature matching.
+  Because the aggregate aborts at the fd target, every post-fd target is also
+  run standalone: `runtime-v2-accept-check`, `runtime-v2-lock-check`,
+  `runtime-v2-lifecycle-check`, `runtime-v2-perf-check`,
+  `runtime-v2-syncpoint-check`, and `runtime-v2-transport-check` pass; the
+  base-identical net-handle failure and intermittent HTTP-owner reset are
+  tracked by RV2-DEBT-123/124. Outside the exact reviewed results in
+  RV2-DEBT-122/123/124, any new stage or test, extra failure, formerly-green
+  layer, or changed/worse normalized signature blocks completion. These
+  external network debts do not widen Epic 25 into a runtime repair.
+  `internal/gatecheck` itself (which keeps the Makefile's gates honest) must
+  still pass after any new gate is added, including the new ones this epic adds
+  in Step 2/3.
 
 ## Steps
 
@@ -1164,12 +1180,14 @@ are: swap a MINTS-classified definition for an ALIASES one reaching the same
 release (e.g. replace a `StructLit` with a bare field read of the same
 type), or delete a compiler-inserted retain that an ALIASES read depends on.
 Then run `make check`, `make golden-check`, and `make runtime-v2-check` by exact
-name on the real corpus. `make check` and `make golden-check` must be green;
-`make runtime-v2-check` must conform to the centralized frozen-baseline rule in
-"What We May Not Lose" and may remain non-green only on the exact
-RV2-DEBT-122 rows and signatures recorded at the immutable Step 5 baseline.
-Any other failure blocks completion, and the native e2e baseline
-(worktree-verified, not remembered) must remain unchanged.
+name on the real corpus. Step 3 compares against its own immutable exact
+pre-change base, `f247a4c7ffdcf13d6afef3b91d76ce37f2463c6e`, not the later Step 5
+base. `make check` and `make golden-check` must be green;
+`make runtime-v2-check` may reproduce no more than that base's exact normalized
+failure set. If the aggregate stops early, any later target relevant to the
+step's change surface must run standalone. Any new failure or changed/worse
+signature blocks completion, and the native e2e baseline (worktree-verified,
+not remembered) must remain unchanged.
 
 #### Step 3 completion evidence (2026-08-02)
 
@@ -1328,8 +1346,16 @@ ownership, crossing, heap/reclamation/Valgrind, fixnum/range, and waiter, then
 exits only on the two known fd-registry rows
 `TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow` and
 `TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest`; this
-inherited baseline is tracked explicitly by RV2-DEBT-122. At the governed
-`internal/` scope, exact-base Sentrux is stable against `bf543542`: quality
+inherited baseline is tracked explicitly by RV2-DEBT-122. Since the aggregate
+aborts there, its later targets were also run standalone:
+`runtime-v2-accept-check`, `runtime-v2-lock-check`,
+`runtime-v2-lifecycle-check`, `runtime-v2-perf-check`,
+`runtime-v2-syncpoint-check`, and `runtime-v2-transport-check` pass. Net-handle
+reproduces the same shards-1/2/8 exit-32 failure at `bf543542` and current,
+while HTTP-owner is intermittent on current; these external network results
+are tracked by RV2-DEBT-123/124 and do not expand the ownership epic into
+runtime repair. At the governed `internal/` scope, exact-base Sentrux is stable
+against `bf543542`: quality
 `6517 -> 6517`, files `1056 -> 1056`, import edges `2158 -> 2158`, complex
 functions unchanged, all seven rules pass, and `session_end` passes. Serena
 diagnostics are empty, and the final commit-scoped Codex and independent

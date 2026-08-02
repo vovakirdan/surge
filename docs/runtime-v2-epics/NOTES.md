@@ -5758,9 +5758,10 @@ external debt and are not repaired here.
 
 Commit-scoped Codex review of docs closeout `3eb4d2d4` found one P2: marking the
 epic complete while recording a non-green `make runtime-v2-check` contradicted
-the earlier absolute-green wording in "What We May Not Lose." The corrected
-contract is exact-command execution plus no regression against the verified
-exact Step 5 baseline. A baseline-green target must remain green, green
+the earlier absolute-green wording in "What We May Not Lose." For the Step 5
+closeout, the corrected contract is exact-command execution
+plus no regression against the verified exact pre-Step-5 baseline. A
+baseline-green target must remain green, green
 remains the objective for inherited failures, and any newly failing stage or
 test, extra failure, formerly-green earlier layer, or changed or worse failure
 signature blocks completion.
@@ -5779,11 +5780,45 @@ Step 5 began. This correction changes no README status, code, STATS, golden, or
 Sentrux result.
 
 Commit-scoped Codex review of the first correction, `5e61ceca`, found a second
-P2: Step 2 still required the composed Runtime V2 gate to be entirely green,
-contradicting the centralized frozen-baseline exception. The Step 2 gate now
+P2: Step 3 still required the composed Runtime V2 gate to be entirely green,
+contradicting the centralized frozen-baseline exception. The Step 3 gate now
 requires exact execution, keeps `make check` and `make golden-check` green, and
 allows `make runtime-v2-check` to remain non-green only on the exact
 RV2-DEBT-122 rows and literal signatures; every other failure blocks. This
 follow-up also names `bf543542` accurately as the exact Step 5 pre-change
 baseline and records the literal read timeout while omitting variable endpoint
 addresses explicitly.
+
+## 2026-08-02 — Epic 25 Closeout Review: Per-Step And Post-FD Correction
+
+Immutable review of `374bfd0f` found that the residual Step 3 gate had been
+bound to a later Step 5 baseline and that a fail-fast composed run did not
+execute any targets after fd-registry. The normative contract now compares
+every implementation step with its own immutable exact pre-change base. Step
+3 uses `f247a4c7ffdcf13d6afef3b91d76ce37f2463c6e`; only Step 5 closeout uses
+`bf543542e18f625d8ec94501ee784bee04757bcd` as its pre-change A/B base.
+RV2-DEBT-122 now defines its two known fd failures as structured normalized
+tuples: target, exact test, drain operation and `33554432` bytes, plus stable
+terminal class/tokens. Endpoint addresses, checkout paths, and durations are
+evidence noise, not signature fields.
+
+Because `make runtime-v2-check` exits at `runtime-v2-fd-registry-check`, root
+ran the later targets standalone. `runtime-v2-accept-check`,
+`runtime-v2-lock-check`, `runtime-v2-lifecycle-check`,
+`runtime-v2-perf-check`, `runtime-v2-syncpoint-check`, and
+`runtime-v2-transport-check` pass. `runtime-v2-net-handle-check` passes its
+static row but the stale-copy behavior row exits `32` with empty streams at
+shards 1/2/8 on both current and `bf543542`; RV2-DEBT-123 records this
+recurrence of the proof that closed RV2-DEBT-010. Four current
+`runtime-v2-http-owner-check` runs are `FAIL, PASS, PASS, FAIL`, with client-read
+connection resets at shards 2 and 8; one `bf543542` run passes, so
+RV2-DEBT-124 records the intermittent result without claiming an identical
+baseline signature. Neither result expands Epic 25 into network-runtime repair.
+
+The same review found that RV2-DEBT-118 duplicated the mechanism already owned
+by RV2-DEBT-094 and that the previous review note mislabeled a Step 3 gate as
+Step 2. RV2-DEBT-118 is now explicitly the narrow Step-5 child of 094 and can
+close only with or after its parent plus the exact five-test CI matrix; the
+step attribution is corrected. This follow-up changes only Epic 25, DEBT, and
+NOTES documentation; README status, code, STATS, goldens, and prior Sentrux
+evidence remain unchanged.
