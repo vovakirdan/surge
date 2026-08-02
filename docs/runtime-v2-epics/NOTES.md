@@ -5584,3 +5584,172 @@ obligation. Real build API, build CLI, and diagnose CLI paths are covered in
 temporary directories. `make check` passes, and two serialized
 `make golden-check` runs leave every regenerated AST/MIR golden byte-identical.
 The final independent combined review is CLEAN with no P0-P3 findings.
+
+## 2026-08-02 — Epic 25 Step 5 Start: Typed Four-Axis E2E Gate
+
+Step 4 landed as `bf543542`; its commit-scoped Codex review found no actionable
+correctness issue and confirmed default MIR stability. Step 5 starts from that
+exact SHA in two temporary worktrees: one owns only the new typed
+`ownershipGate` plus its compile-time arity proof, and one owns only the four
+named source/test migrations. Both agents must submit a plan-only pass before
+editing; their commits will be independently reviewed before integration.
+
+The settled contract has four distinct, required nominal marker types for
+move-only heap, `@copy` value-composite, reference-counted scalar, and
+non-owning probes. VM and LLVM+Valgrind run as sibling subtests so a native
+timeout skip cannot suppress VM evidence. Native success requires exit zero,
+all four unique markers, no Memcheck invalid access/free, and strict zero
+definitely-lost bytes and blocks. The compile-time negative uses a Go overlay
+that calls the real helper with only three axes. No runtime/compiler behavior
+changes, broad e2e retrofit, or CI/Make expansion is in Step 5; missing
+automated Valgrind selection is non-blocking debt unless the focused gate
+cannot be run. Golden generation remains root-only and serialized after the
+integrated diff.
+
+Both writer plan-only passes are complete and recorded in AgentMemory as
+`mem_msc5ktio_58836561ad36` (typed harness) and
+`mem_msc5ko9h_903d9ed669fb` (four-file matrix). Before implementation, Sentrux
+records root quality `6212` and scoped `internal/vm` quality `7068`; the final
+comparison session is based on that scoped scan. The harness commit must be
+reviewed first, then cherry-picked into the matrix worktree so the migration
+agent compiles against the exact nominal types and argument order. Only the
+reviewed harness and matrix commits may then be cherry-picked into the primary
+worktree.
+
+Live Make/CI inspection confirms the known selection gap: ordinary `make test`
+and CI set `SURGE_SKIP_TIMEOUT_TESTS=1`, so they can exercise each helper's VM
+sibling but skip LLVM+Valgrind, while no explicit Runtime V2 target names the
+four Step 5 tests. The focused `SURGE_SKIP_TIMEOUT_TESTS=0 go test` invocation
+is therefore the strict native evidence for this step. Wiring that invocation
+into Make/CI is non-blocking debt, not implementation scope.
+
+The harness pre-commit hook passed `make check` and, by repository convention,
+also regenerated `STATS.md`. Its clean-worktree count corrects a prior polluted
+value: the stats script excludes `.claude/` and `target/` but not untracked
+`.serena/` Go cache files present in the primary dirty worktree, so the earlier
+main-Go count included one 560-line non-product file. Keep the hook-generated
+clean-worktree stats; hardening `scripts/code_stats_md.sh` against other agent
+metadata is non-blocking tooling debt and is outside Epic 25.
+
+Commit-scoped Codex review of the intentionally harness-only `02d6474d`
+reported one P1: the helper cannot enforce the four axes until the four named
+tests call it. This is the expected boundary between the two isolated writer
+commits, but it is a real Step 5 completion condition. Therefore the harness
+must not land alone: the P1 is resolved only after the reviewed matrix commit
+uses the helper in all four tests and the combined range is reviewed clean.
+
+Independent harness review is `APPROVE-WITH-DEBT` (P0/P1 none). The accepted
+P2 is pre-existing VM test-infrastructure portability: `repoRoot(t)` derives
+the root from `runtime.Caller`, so `-trimpath` turns it into module-relative
+`surge`. Consequently the overlay cannot open its source, and the native path
+builds beneath `internal/vm/surge` before Valgrind exits 127 on a relative
+binary path. Exact reproducers are
+`go test -trimpath ./internal/vm -run '^TestOwnershipGateMissingFourthAxisDoesNotCompile$' -count=1 -v`
+and
+`SURGE_SKIP_TIMEOUT_TESTS=0 go test -trimpath ./internal/vm -run '^TestRuntimeV2OwnershipGateFourAxisSelfProof$' -count=1 -v`.
+Normal Step 5 commands and current CI do not use `-trimpath` and are green;
+fixing the shared root/path infrastructure is therefore durable debt, not a
+Step 5 code change. Review evidence is `mem_msc63wvl_a612ca556251`.
+
+The first four-test strict run found a new non-blocking ownership row while
+constructing the identity-cast file's missing string axis: identity-casting a
+runtime-built string (`runtimeBuilt() to string`) exits successfully but loses
+17 bytes in one Valgrind block. Three other migrated files already passed both
+VM and LLVM+Valgrind. Step 5 does not repair this newly exposed compiler/runtime
+behavior: the move-only axis will use a real runtime-built string move, while
+the file retains its complete historical float identity-cast regression. The
+exact string-cast reproducer, Valgrind evidence, and dev-verifier result must be
+recorded as separate debt before closeout. A same-type `@copy` cast was also
+rejected by the language, so that axis uses the supported real duplicate plus
+mutation/unchanged-original proof instead of inventing syntax.
+
+The adjusted exact four-test gate is green: four VM siblings and four
+LLVM+Valgrind siblings, each native row strict `0/0`; the skip control executes
+all four VM siblings and explicitly skips all four native siblings. The string
+identity-cast row was minimized separately: Valgrind reports 11 allocations,
+10 frees, and definitely-lost `17 B / 1 block`, while
+`surge build --backend=vm --dev` exits zero, so the current verifier does not
+catch this missing-release class. Reproducer/evidence is in AgentMemory
+`mem_msc6ezwt_8a9f44caf25c`; closure needs both the ownership fix and a
+regression that prevents the verifier/tooling blind spot from returning.
+
+Commit-scoped Codex review of matrix commit `3d87afb6` found one blocking P2:
+the new harness explicitly skipped its native sibling when `valgrind` was not
+installed, whereas each replaced test previously attempted Valgrind and failed
+closed. That weakens the mandatory memory gate and is not accepted debt. The
+bounded review fix keeps timeout-policy skip local to the native sibling, but
+with timeout tests enabled it must compile LLVM and then fail explicitly if
+Valgrind is unavailable. A no-Valgrind negative proof is required before a new
+immutable matrix SHA is reviewed.
+
+The bounded fix landed in the isolated matrix worktree as `401c74e7`: missing
+Valgrind now fails explicitly after LLVM build, and the child negative exits 1
+with the exact requirement and no SKIP. Commit-scoped Codex review is clean;
+independent combined review is CLEAN for new P0-P3, with only the accepted
+`-trimpath` P2 debt. Review/evidence is in `mem_msc6yv21_f2a2cb46a130` and
+`mem_msc6vjf3_03aac99daa43`. The reviewed series was then cherry-picked into
+the primary branch as `a5f4acd3`, `04d03f9e`, and `9697a566`; no user-owned
+dirty artifact was staged or modified. Root-owned broad checks, Sentrux, and
+serialized golden stability are next.
+
+Post-integration Serena diagnostics are empty for the harness and all four
+migrated files. Sentrux's narrow `internal/vm` observation is `7068 -> 7066`,
+but that directory has no own rules file; the exact-base comparison was
+therefore repeated at the nearest governed scope, `internal/`, using a detached
+`bf543542` worktree. It reports quality `6517 -> 6516`, seven rules passing,
+and one newly complex function (`562 -> 563`). RULES makes that -1 blocking,
+so it is not accepted as debt: a separate worktree owns a behavior-preserving
+split of the test-only harness's VM/native assertion paths. Root will rerun the
+same exact-base Sentrux comparison before broad/golden closeout.
+
+The first backend split was independently behavior-clean but did not repair the
+metric (`6517 -> 6516`, complex functions `562 -> 563`), so it was not
+integrated. The successful structural recovery folds the gate into the existing
+crossing-source build helper, removes the extra file node, and extracts only the
+missing-axis diagnostic tail. Commit-scoped Codex review then found that Go
+`%q` is not full JSON escaping for control characters in valid paths; the
+follow-up removes absolute paths from the overlay JSON entirely and uses only
+validated root-relative ASCII artifact paths. The reviewed commits landed as
+`5041d843` and `86adb946`. Exact governed `internal/` Sentrux is stable against
+`bf543542`: quality `6517 -> 6517`, files `1056 -> 1056`, import edges
+`2158 -> 2158`, complex functions unchanged, all seven rules pass, and
+`session_end` passes. Serena diagnostics are empty after the cherry-pick.
+
+The root strict focused matrix then passed on the integrated tree:
+`SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run
+'^(TestRuntimeV2OwnershipGateFourAxisSelfProof|TestRuntimeV2IdentityCastKeepsItsSourceOwned|TestRuntimeV2BorrowedScalarSurvivesItsReaders|TestRuntimeV2ComparePayloadOutlivesItsArm|TestRuntimeV2BorrowedComparePayloadStaysTheOwners)$'
+-count=1 -parallel=1 -p=1 -v --timeout 300s` completed in 28.035s. All five VM
+siblings and all five LLVM/Valgrind siblings passed; no native skip occurred.
+
+The integrated-tree `make check` gate passes: all Go packages, lint (zero
+issues), strict C formatting/compilation, and the file-size command are green.
+The file-size command reports no applicable uncommitted code files because the
+reviewed Step 5 code is already committed; both isolated writer pre-commit
+runs checked the changed files before integration.
+
+Serialized root `make golden-check` pass 1 completed successfully. The
+generator rebuilt its normal AST/MIR sidecars and the subsequent explicit
+`git diff --quiet -- testdata/golden` check returned zero; no golden file is
+modified or untracked.
+
+Serialized root `make golden-check` pass 2 also completed successfully, and a
+second explicit `git diff --quiet -- testdata/golden` returned zero with empty
+golden status. The two independent regenerations therefore confirm stable
+AST/MIR golden output on the integrated Step 5 tree.
+
+The final `make runtime-v2-ownership-check` passes in 121.292s. Its canonical
+census is unchanged: `1046 attempted = 575 MIR + 390 invalid + 81 exact-ledger
+non-invalid failures`, with exactly the two pinned projected-assignment
+findings in `vm_rc_leak_panics.sg`; the deterministic report was rewritten at
+`target/runtime-v2/ownership-corpus-census.json` without contract drift.
+
+The final composed `make runtime-v2-check` follows the established baseline.
+Liveness, ownership corpus, crossing, heap/reclamation/Valgrind, fixnum/range,
+and waiter gates all pass. It then exits 2 only in
+`runtime-v2-fd-registry-check`, reproducing the same two unrelated network
+rows recorded before Step 5: `TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow`
+times out while draining 33,554,432 bytes, and
+`TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest` reaches
+EOF after `double free or corruption (out)`. Every remaining fd-registry row
+passes. Epic 25 changes no fd-registry/runtime code, so these failures remain
+external debt and are not repaired here.

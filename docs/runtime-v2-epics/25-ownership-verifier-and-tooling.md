@@ -1,7 +1,8 @@
 # Epic 25 — Ownership Verifier And Investigation Tooling
 
-Status: in progress. Steps 0-4 are complete; Step 5 ownership e2e harness is next
-as of 2026-08-02. Drafted 2026-07-31 after a single
+Status: complete 2026-08-02. Steps 0-5 shipped; optional Step 6 is deferred
+as RV2-DEBT-120 under this epic's explicit lowest-priority/highest-risk clause.
+Drafted 2026-07-31 after a single
 session closed five ownership rows (RV2-DEBT-097/098/099/100 and
 RV2-DEBT-052's mixed-arm residual) that were all one shape of defect, found and
 fixed the slow way — valgrind, MIR read by eye, minimal reproducers built by
@@ -1287,7 +1288,52 @@ use the helper going forward by convention, not by a mass rewrite.
 compile or fails at test setup, not merely "would have been nice to
 notice."
 
+#### Step 5 completion evidence (2026-08-02)
+
+The reviewed Step 5 series is `a5f4acd3`, `04d03f9e`, `9697a566`,
+`5041d843`, and `86adb946`. `ownershipGate` requires four distinct nominal
+marker arguments — move-only heap, `@copy` value-composite,
+reference-counted scalar, and non-owning — and is used by the four named
+regression tests plus its own self-proof. The strict focused selection passed
+exactly five VM and five LLVM/Valgrind sibling subtests in `28.035s`; every
+native row required a clean exit, all exact marker lines, no Memcheck error,
+and strict `0 B / 0 blocks` definitely lost. The timeout-policy control keeps
+the VM evidence when native siblings are skipped, while an enabled native run
+fails closed after LLVM build if Valgrind is unavailable.
+
+The compile-time negative removes the fourth argument from the real helper
+through a Go overlay and requires the exact arity diagnostic. Its overlay file,
+target, and replacement are validated root-relative ASCII paths under the
+test-artifact directory, so valid control characters in an absolute checkout
+path cannot turn Go quoting into invalid JSON. Passing tests remove those
+artifacts; a failure retains them under the existing VM artifact policy.
+
+Final gates preserve the wider tree. `make check` is green, and two serialized
+`make golden-check` runs each leave `testdata/golden` byte-identical. The
+ownership census remains exactly `1046 attempted = 575 MIR + 390 invalid + 81
+exact-ledger non-invalid failures`, with only `OWN-001`/`OWN-002`. The composed
+`make runtime-v2-check` is explicitly **not green**: it passes liveness,
+ownership, crossing, heap/reclamation/Valgrind, fixnum/range, and waiter, then
+exits only on the two known fd-registry rows
+`TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow` and
+`TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest`; this
+ownership closeout adds no duplicate network debt. At the governed `internal/`
+scope, exact-base Sentrux is stable against `bf543542`: quality
+`6517 -> 6517`, files `1056 -> 1056`, import edges `2158 -> 2158`, complex
+functions unchanged, all seven rules pass, and `session_end` passes. Serena
+diagnostics are empty, and the final commit-scoped Codex and independent
+reviews are clean with no P0-P3 findings.
+
 ### Step 6 — Per-site heap allocation census (dev-only)
+
+**Deferred at Epic 25 closeout (2026-08-02).** Steps 0-5 already meet the
+epic's measurable definition of done. Implementing TLS heap-site attribution
+now would expand scope into this document's highest-risk, lowest-priority
+runtime instrumentation while still requiring an explicit answer for
+allocations that cross suspension or worker boundaries. Under the clause
+below, this is non-blocking RV2-DEBT-120, not an incomplete Step 5 or a reason
+to keep the epic open. Reopen it only when a real investigation shows that the
+verifier, annotated MIR, and four-axis Valgrind harness are insufficient.
 
 Make a leak or double-free report name `main.sg:42:9` instead of an
 anonymous `fn.63` in a stack trace read by hand — without editing
