@@ -34,6 +34,9 @@ type CompileRequest struct {
 	// requiring an executable entrypoint. Diagnostics remain fatal and are
 	// returned in Diagnose, but their messages are not echoed to stderr.
 	Analysis bool
+	// Dev enables development-only compiler checks. Its zero value preserves
+	// the release/default pipeline and adds no ownership-verifier work.
+	Dev      bool
 	Progress ProgressSink
 	Files    []string
 	Backend  Backend
@@ -230,6 +233,13 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		err = fmt.Errorf("MIR validation failed: %w", err)
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
 		return result, err
+	}
+	if req.Dev {
+		if findings := mir.VerifyOwnership(mirMod, diagRes.Sema.TypeInterner, diagRes.Sema); len(findings) != 0 {
+			ownershipErr := newOwnershipVerificationError(findings)
+			emitStage(req.Progress, req.Files, StageLower, StatusError, ownershipErr, 0)
+			return result, ownershipErr
+		}
 	}
 
 	result.MIR = mirMod

@@ -5542,3 +5542,28 @@ Sentrux `internal/` quality improves `6504 -> 6506`, all seven rules pass with
 zero violations, and health still names modularity as the bottleneck;
 `session_end` additionally records the non-blocking complex-function count
 change `541 -> 547`. Steps 0-2 are complete and Step 3 is next.
+
+## 2026-08-02 — Epic 25 Step 3: Development Hard Gate
+
+The ownership verifier is now wired only into `surge build --dev`, through a
+zero-value-safe `CompileRequest.Dev` field. It runs after async lowering and
+MIR validation, before the result publishes MIR, and reports a typed,
+deterministic `StageLower` error while preserving diagnose/sema context.
+Default builds still compile the RV2-DEBT-102 negative control, `build --dev`
+rejects it, and `surge run` is unchanged.
+
+The fast untagged gate compiles 22 pinned representative fixtures sequentially
+inside ordinary `make check`; the full corpus separately retains the exact
+Step 2 census (`1046 attempted`, `575 MIR`, `390 invalid`, `81` exact-ledger
+non-invalid failures, and only `OWN-001`/`OWN-002`). `make check` passes. Two
+serialized `make golden-check` runs also pass with zero `testdata/golden` diff,
+so neither MIR nor AST goldens drifted. A concurrent-golden experiment exposed
+that updater processes race in one shared worktree; all future golden gates
+must therefore be serialized. The independent Step 3 review is CLEAN with no
+P0-P3 findings, and Sentrux finds zero violations in eight checked rules. Its
+existing modularity score is recorded as non-blocking debt, not changed here.
+The composed `make runtime-v2-check` passes through liveness, ownership,
+crossing, heap/Valgrind, and waiter, then reproduces only the already-recorded
+`TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow` timeout. That unrelated
+network-runtime baseline remains outside the ownership epic and was not
+changed.

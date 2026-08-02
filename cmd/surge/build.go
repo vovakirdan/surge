@@ -13,12 +13,25 @@ import (
 	"surge/internal/project"
 )
 
-var buildCmd = &cobra.Command{
-	Use:   "build [flags] [path]",
-	Short: "Build a surge project",
-	Long:  "Build a surge project using surge.toml as the entrypoint definition.",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  buildExecution,
+var buildCmd = newBuildCommand()
+
+func newBuildCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "build [flags] [path]",
+		Short: "Build a surge project",
+		Long:  "Build a surge project using surge.toml as the entrypoint definition.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  buildExecution,
+	}
+	cmd.Flags().Bool("release", false, "optimize for release")
+	cmd.Flags().Bool("dev", false, "development build with extra checks")
+	cmd.Flags().String("backend", string(buildpipeline.BackendLLVM), "build backend (vm, llvm)")
+	cmd.Flags().String("ui", "auto", "user interface (auto|on|off)")
+	cmd.Flags().Bool("emit-mir", false, "emit MIR dump to target/.tmp")
+	cmd.Flags().Bool("emit-llvm", false, "emit LLVM IR to target/.tmp (llvm backend only)")
+	cmd.Flags().Bool("keep-tmp", false, "preserve target/.tmp contents")
+	cmd.Flags().Bool("print-commands", false, "print LLVM build commands")
+	return cmd
 }
 
 func buildExecution(cmd *cobra.Command, args []string) error {
@@ -126,6 +139,7 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 		DirInfo:        toPipelineDirInfo(dirInfo),
 		Files:          displayFiles,
 		Backend:        buildpipeline.Backend(backendValue),
+		Dev:            dev,
 	}
 
 	buildReq := buildpipeline.BuildRequest{
@@ -181,15 +195,4 @@ func formatPathForOutput(root, path string) string {
 		return path
 	}
 	return filepath.ToSlash(rel)
-}
-
-func init() {
-	buildCmd.Flags().Bool("release", false, "optimize for release")
-	buildCmd.Flags().Bool("dev", false, "development build with extra checks")
-	buildCmd.Flags().String("backend", string(buildpipeline.BackendLLVM), "build backend (vm, llvm)")
-	buildCmd.Flags().String("ui", "auto", "user interface (auto|on|off)")
-	buildCmd.Flags().Bool("emit-mir", false, "emit MIR dump to target/.tmp")
-	buildCmd.Flags().Bool("emit-llvm", false, "emit LLVM IR to target/.tmp (llvm backend only)")
-	buildCmd.Flags().Bool("keep-tmp", false, "preserve target/.tmp contents")
-	buildCmd.Flags().Bool("print-commands", false, "print LLVM build commands")
 }

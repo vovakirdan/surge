@@ -1,6 +1,6 @@
 # Epic 25 — Ownership Verifier And Investigation Tooling
 
-Status: in progress. Steps 0-2 are complete; Step 3 hard-gate promotion is next
+Status: in progress. Steps 0-3 are complete; Step 4 annotated MIR is next
 as of 2026-08-02. Drafted 2026-07-31 after a single
 session closed five ownership rows (RV2-DEBT-097/098/099/100 and
 RV2-DEBT-052's mixed-arm residual) that were all one shape of defect, found and
@@ -1158,6 +1158,42 @@ type), or delete a compiler-inserted retain that an ALIASES read depends on.
 Then confirm `make check`, `make golden-check`, and `make runtime-v2-check`
 are all green on the real corpus, and the native e2e baseline
 (worktree-verified, not remembered) is unchanged.
+
+#### Step 3 completion evidence (2026-08-02)
+
+`CompileRequest.Dev` now carries the existing CLI `build --dev` flag into the
+compiler. After async lowering and `mir.ValidateWithOptions`, but before MIR is
+published to callers, development builds run `mir.VerifyOwnership` and return a
+typed, deterministic `OwnershipVerificationError` as a `StageLower` failure.
+The failed result keeps `Diagnose`/sema context for tooling and publishes no
+MIR. The zero-value/default build path is unchanged, and `surge run` does not
+enable the verifier.
+
+The negative control is the real RV2-DEBT-102 recursive optional-loop alias
+shape: report-only verification proves it has findings, a default VM build
+still succeeds, and `build --dev` rejects it through the CLI with the typed
+error. The ordinary untagged `make check` suite now also compiles a pinned,
+duplicate-checked sample of 22 representative fixtures sequentially through
+the development gate. That sample covers fresh/alias/transfer effects,
+retain/clone/constant/address definitions, aggregate and projected stores,
+returns, calls, channels, local/far select, task consumption, timeout, and
+crossing state.
+
+Closeout gates are stable: `make check` passes; two deliberately serialized
+`make golden-check` runs pass with an empty `testdata/golden` diff after each;
+and the full ownership corpus remains exactly `1046 attempted = 575 MIR + 390
+invalid + 81 exact-ledger non-invalid failures`, with only the two pinned
+`OWN-001`/`OWN-002` findings. Golden generation must stay serialized in a
+shared worktree because concurrent updater processes race over generated
+files; the collision was reproduced, stopped, cleaned by the generator, and
+left no golden drift. Independent review is CLEAN with no P0-P3 findings.
+Sentrux reports zero violations across all eight checked architectural rules;
+its existing modularity bottleneck is non-blocking and remains outside this
+epic's bug-fix scope. The composed `make runtime-v2-check` passes liveness,
+ownership, crossing, heap/Valgrind, and waiter gates before reproducing only
+the already-recorded fd-registry timeout in
+`TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow`; no fd-registry code is
+part of Step 3.
 
 ### Step 4 — MIR dump ownership annotation (opt-in)
 
