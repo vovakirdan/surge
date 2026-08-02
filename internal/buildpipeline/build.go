@@ -23,16 +23,17 @@ import (
 // BuildRequest configures output generation for a compilation.
 type BuildRequest struct {
 	CompileRequest
-	OutputName    string
-	OutputRoot    string
-	Profile       string
-	Backend       Backend
-	EmitMIR       bool
-	EmitLLVM      bool
-	KeepTmp       bool
-	PrintCommands bool
-	ManifestRoot  string
-	ManifestFound bool
+	OutputName       string
+	OutputRoot       string
+	Profile          string
+	Backend          Backend
+	EmitMIR          bool
+	EmitMIRAnnotated bool
+	EmitLLVM         bool
+	KeepTmp          bool
+	PrintCommands    bool
+	ManifestRoot     string
+	ManifestFound    bool
 }
 
 // BuildResult captures build artefacts and timings.
@@ -93,16 +94,21 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 		return result, fmt.Errorf("failed to create output dir: %w", err)
 	}
 
-	keepTmp := req.KeepTmp || req.EmitMIR || req.EmitLLVM
+	emitMIR := req.EmitMIR || req.EmitMIRAnnotated
+	keepTmp := req.KeepTmp || emitMIR || req.EmitLLVM
 	if req.Backend == BackendLLVM || keepTmp {
 		if err := os.MkdirAll(tmpDir, 0o750); err != nil {
 			return result, fmt.Errorf("failed to create tmp dir: %w", err)
 		}
 	}
 
-	if req.EmitMIR {
+	if emitMIR {
 		mirPath := filepath.Join(tmpDir, "out.mir")
-		if err := writeMIRDump(mirPath, compileRes.MIR, compileRes.Diagnose); err != nil {
+		dumpOpts := mir.DumpOptions{AnnotateOwnership: req.EmitMIRAnnotated}
+		if compileRes.Diagnose != nil {
+			dumpOpts.Sema = compileRes.Diagnose.Sema
+		}
+		if err := writeMIRDump(mirPath, compileRes.MIR, compileRes.Diagnose, dumpOpts); err != nil {
 			emitStage(req.Progress, req.Files, StageBuild, StatusError, err, 0)
 			return result, err
 		}
@@ -165,7 +171,7 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 	return result, nil
 }
 
-func writeMIRDump(targetPath string, mod *mir.Module, result *driver.DiagnoseResult) error {
+func writeMIRDump(targetPath string, mod *mir.Module, result *driver.DiagnoseResult, opts mir.DumpOptions) error {
 	if mod == nil || result == nil || result.Sema == nil {
 		return fmt.Errorf("missing MIR or type information")
 	}
@@ -180,7 +186,7 @@ func writeMIRDump(targetPath string, mod *mir.Module, result *driver.DiagnoseRes
 			_ = closeErr
 		}
 	}()
-	if err := mir.DumpModule(file, mod, result.Sema.TypeInterner, mir.DumpOptions{}); err != nil {
+	if err := mir.DumpModule(file, mod, result.Sema.TypeInterner, opts); err != nil {
 		return fmt.Errorf("failed to dump MIR: %w", err)
 	}
 	return nil

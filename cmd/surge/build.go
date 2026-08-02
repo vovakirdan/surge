@@ -28,6 +28,7 @@ func newBuildCommand() *cobra.Command {
 	cmd.Flags().String("backend", string(buildpipeline.BackendLLVM), "build backend (vm, llvm)")
 	cmd.Flags().String("ui", "auto", "user interface (auto|on|off)")
 	cmd.Flags().Bool("emit-mir", false, "emit MIR dump to target/.tmp")
+	cmd.Flags().Bool("emit-mir-annotated", false, "emit MIR dump with ownership annotations to target/.tmp")
 	cmd.Flags().Bool("emit-llvm", false, "emit LLVM IR to target/.tmp (llvm backend only)")
 	cmd.Flags().Bool("keep-tmp", false, "preserve target/.tmp contents")
 	cmd.Flags().Bool("print-commands", false, "print LLVM build commands")
@@ -48,6 +49,10 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	emitMIR, err := cmd.Flags().GetBool("emit-mir")
+	if err != nil {
+		return err
+	}
+	emitMIRAnnotated, err := cmd.Flags().GetBool("emit-mir-annotated")
 	if err != nil {
 		return err
 	}
@@ -143,15 +148,16 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	buildReq := buildpipeline.BuildRequest{
-		CompileRequest: compileReq,
-		OutputName:     outputName,
-		OutputRoot:     outputRoot,
-		Profile:        profile,
-		Backend:        buildpipeline.Backend(backendValue),
-		EmitMIR:        emitMIR,
-		EmitLLVM:       emitLLVM,
-		KeepTmp:        keepTmpFlag,
-		PrintCommands:  printCommands,
+		CompileRequest:   compileReq,
+		OutputName:       outputName,
+		OutputRoot:       outputRoot,
+		Profile:          profile,
+		Backend:          buildpipeline.Backend(backendValue),
+		EmitMIR:          emitMIR,
+		EmitMIRAnnotated: emitMIRAnnotated,
+		EmitLLVM:         emitLLVM,
+		KeepTmp:          keepTmpFlag,
+		PrintCommands:    printCommands,
 	}
 	if selected.usesManifest {
 		buildReq.ManifestRoot = selected.manifestRoot

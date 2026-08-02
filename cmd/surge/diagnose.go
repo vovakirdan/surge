@@ -21,38 +21,38 @@ import (
 	"surge/internal/trace"
 )
 
-var diagCmd = &cobra.Command{
-	Use:   "diag [flags] <file.sg|directory>",
-	Short: "Run diagnostics on a surge source file or directory",
-	Long:  `Run diagnostics to find syntax and semantic issues in surge source files or all *.sg files within a directory`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  runDiagnose,
-}
+var diagCmd = newDiagnoseCommand()
 
-// init registers CLI flags for the diag command used by runDiagnose.
-// It configures output format, diagnostic stages, warning handling, concurrency,
-// note/suggestion inclusion, and whether to emit absolute file paths.
-func init() {
-	diagCmd.Flags().String("format", "pretty", "output format (pretty|json|sarif|short)")
-	diagCmd.Flags().String("stages", "all", "diagnostic stages to run (tokenize|syntax|sema|all)")
-	diagCmd.Flags().Bool("no-warnings", false, "ignore warnings in diagnostics")
-	diagCmd.Flags().Bool("warnings-as-errors", false, "treat warnings as errors")
-	diagCmd.Flags().Bool("no-alien-hints", false, "disable extra alien-hint diagnostics (enabled by default)")
-	diagCmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")
-	diagCmd.Flags().Bool("with-notes", false, "include diagnostic notes in output")
-	diagCmd.Flags().Bool("suggest", false, "include fix suggestions in output")
-	diagCmd.Flags().Bool("preview", false, "preview changes without modifying files")
-	diagCmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
-	diagCmd.Flags().Bool("disk-cache", false, "enable persistent disk cache for module metadata (experimental)")
-	diagCmd.Flags().String("directives", "off", "directive processing mode (off|collect|gen|run)")
-	diagCmd.Flags().String("directives-filter", "test", "comma-separated directive namespaces to process")
-	diagCmd.Flags().Bool("emit-hir", false, "emit HIR (High-level IR) representation after successful analysis")
-	diagCmd.Flags().Bool("emit-borrow", false, "emit borrow graph + move plan (requires HIR)")
-	diagCmd.Flags().Bool("emit-instantiations", false, "emit generic instantiation map (requires sema)")
-	diagCmd.Flags().Bool("emit-mono", false, "emit monomorphized HIR (requires sema)")
-	diagCmd.Flags().Bool("emit-mir", false, "emit MIR (Mid-level IR) for monomorphized program (requires sema)")
-	diagCmd.Flags().Bool("mono-dce", false, "enable DCE for monomorphized output (experimental)")
-	diagCmd.Flags().Int("mono-max-depth", 64, "max monomorphization recursion depth")
+func newDiagnoseCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "diag [flags] <file.sg|directory>",
+		Short: "Run diagnostics on a surge source file or directory",
+		Long:  `Run diagnostics to find syntax and semantic issues in surge source files or all *.sg files within a directory`,
+		Args:  cobra.ExactArgs(1),
+		RunE:  runDiagnose,
+	}
+	cmd.Flags().String("format", "pretty", "output format (pretty|json|sarif|short)")
+	cmd.Flags().String("stages", "all", "diagnostic stages to run (tokenize|syntax|sema|all)")
+	cmd.Flags().Bool("no-warnings", false, "ignore warnings in diagnostics")
+	cmd.Flags().Bool("warnings-as-errors", false, "treat warnings as errors")
+	cmd.Flags().Bool("no-alien-hints", false, "disable extra alien-hint diagnostics (enabled by default)")
+	cmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")
+	cmd.Flags().Bool("with-notes", false, "include diagnostic notes in output")
+	cmd.Flags().Bool("suggest", false, "include fix suggestions in output")
+	cmd.Flags().Bool("preview", false, "preview changes without modifying files")
+	cmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
+	cmd.Flags().Bool("disk-cache", false, "enable persistent disk cache for module metadata (experimental)")
+	cmd.Flags().String("directives", "off", "directive processing mode (off|collect|gen|run)")
+	cmd.Flags().String("directives-filter", "test", "comma-separated directive namespaces to process")
+	cmd.Flags().Bool("emit-hir", false, "emit HIR (High-level IR) representation after successful analysis")
+	cmd.Flags().Bool("emit-borrow", false, "emit borrow graph + move plan (requires HIR)")
+	cmd.Flags().Bool("emit-instantiations", false, "emit generic instantiation map (requires sema)")
+	cmd.Flags().Bool("emit-mono", false, "emit monomorphized HIR (requires sema)")
+	cmd.Flags().Bool("emit-mir", false, "emit MIR (Mid-level IR) for monomorphized program (requires sema)")
+	cmd.Flags().Bool("emit-mir-annotated", false, "emit MIR with ownership annotations (requires sema)")
+	cmd.Flags().Bool("mono-dce", false, "enable DCE for monomorphized output (experimental)")
+	cmd.Flags().Int("mono-max-depth", 64, "max monomorphization recursion depth")
+	return cmd
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -167,6 +167,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get emit-mir flag: %w", err)
 	}
+	emitMIRAnnotated, err := cmd.Flags().GetBool("emit-mir-annotated")
+	if err != nil {
+		return fmt.Errorf("failed to get emit-mir-annotated flag: %w", err)
+	}
+	emitMIR = emitMIR || emitMIRAnnotated
 	monoDCE, err := cmd.Flags().GetBool("mono-dce")
 	if err != nil {
 		return fmt.Errorf("failed to get mono-dce flag: %w", err)
@@ -445,7 +450,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			if printErr != nil {
 				return 0, fmt.Errorf("failed to print MIR: %w", printErr)
 			}
-			if dumpErr := mir.DumpModule(os.Stdout, mirMod, result.Sema.TypeInterner, mir.DumpOptions{}); dumpErr != nil {
+			if dumpErr := mir.DumpModule(os.Stdout, mirMod, result.Sema.TypeInterner, mir.DumpOptions{
+				AnnotateOwnership: emitMIRAnnotated,
+				Sema:              result.Sema,
+			}); dumpErr != nil {
 				return 0, fmt.Errorf("failed to dump MIR: %w", dumpErr)
 			}
 		}

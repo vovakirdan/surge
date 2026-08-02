@@ -5567,3 +5567,20 @@ crossing, heap/Valgrind, and waiter, then reproduces only the already-recorded
 `TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow` timeout. That unrelated
 network-runtime baseline remains outside the ownership epic and was not
 changed.
+
+## 2026-08-02 — Epic 25 Step 4: Opt-In Annotated MIR
+
+Both `build` and `diag` now accept `--emit-mir-annotated`; it implies ordinary
+MIR emission without enabling the development verifier or changing `run`.
+The Build API carries the same implication and retains `out.mir`. Annotated
+locals receive `owes_release` only when a real `Drop` or `EnvelopeRelease`
+targets their base local, while only assignment RHS values receive one of the
+existing verifier classes `mint`, `alias`, or `transfer`.
+
+The printer tests pin byte-identical `DumpOptions{}` output before and after an
+annotated dump, keep Sema-only/non-opt-in output identical, reject annotated
+mode without sema before writing, and prove `OwnsHeap` alone is not a release
+obligation. Real build API, build CLI, and diagnose CLI paths are covered in
+temporary directories. `make check` passes, and two serialized
+`make golden-check` runs leave every regenerated AST/MIR golden byte-identical.
+The final independent combined review is CLEAN with no P0-P3 findings.

@@ -1,6 +1,6 @@
 # Epic 25 — Ownership Verifier And Investigation Tooling
 
-Status: in progress. Steps 0-3 are complete; Step 4 annotated MIR is next
+Status: in progress. Steps 0-4 are complete; Step 5 ownership e2e harness is next
 as of 2026-08-02. Drafted 2026-07-31 after a single
 session closed five ownership rows (RV2-DEBT-097/098/099/100 and
 RV2-DEBT-052's mixed-arm residual) that were all one shape of defect, found and
@@ -1212,6 +1212,33 @@ requiring it to be re-derived.
 **Gate:** `make golden-check` unchanged with zero new fixtures touched;
 a new, separate golden fixture (or inline test) for the annotated output
 path only.
+
+#### Step 4 completion evidence (2026-08-02)
+
+`--emit-mir-annotated` is now an opt-in flag on both `surge build` and
+`surge diag`. It implies ordinary MIR emission but neither `--dev` nor any
+runtime path. The implication also lives inside `BuildRequest`, so direct API
+callers get a retained `.tmp/<output>/out.mir` rather than depending on CLI
+normalization. `surge run` remains unchanged.
+
+Annotated dumps derive `owes_release` only from actual `InstrDrop` and
+`InstrEnvelopeRelease` roots, including projected, shallow, and conditional
+release sites; `LocalFlagOwnsHeap` is deliberately not treated as a release
+obligation. Only `InstrAssign` receives an RHS effect suffix, and that suffix
+reuses the verifier's effective-RValue normalization, map-aware destination
+type walk, and classifier to print exactly `mint`, `alias`, or `transfer`.
+Unclassified/not-applicable RValues and every non-assignment instruction remain
+unannotated. The annotated mode fails before writing when semantic analysis is
+missing.
+
+Inline tests freeze the old `DumpOptions{}` bytes, prove that supplying sema
+without opting in is also identical, and dump the same module again afterward
+to prove the annotation pass is read-only. Build API, build CLI, and diagnose
+CLI tests exercise annotated-only emission and the existing diagnose guards;
+plain `--emit-mir` is explicitly checked for absence of annotation tokens.
+`make check` passes. Two serialized `make golden-check` runs pass with an empty
+`testdata/golden` diff after each, covering regenerated AST and MIR sidecars.
+The final independent combined review is CLEAN with no P0-P3 findings.
 
 ### Step 5 — Shared ownership e2e harness + type matrix
 

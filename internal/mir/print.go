@@ -6,16 +6,23 @@ import (
 	"slices"
 	"strings"
 
+	"surge/internal/sema"
 	"surge/internal/types"
 )
 
 // DumpOptions configures MIR module dumping.
-type DumpOptions struct{}
+type DumpOptions struct {
+	AnnotateOwnership bool
+	Sema              *sema.Result
+}
 
 // DumpModule writes a human-readable representation of a MIR module.
-func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, _ DumpOptions) error {
+func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, opts DumpOptions) error {
 	if w == nil || m == nil {
 		return nil
+	}
+	if opts.AnnotateOwnership && opts.Sema == nil {
+		return fmt.Errorf("MIR ownership annotations require semantic analysis")
 	}
 
 	if len(m.Globals) > 0 {
@@ -59,14 +66,18 @@ func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, _ DumpOptions) 
 
 	fmt.Fprintf(w, "funcs=%d\n", len(funcs)) //nolint:errcheck
 	for _, f := range funcs {
-		if err := dumpFunc(w, f, typesIn); err != nil {
+		var ownership *ownershipDumpAnnotations
+		if opts.AnnotateOwnership {
+			ownership = newOwnershipDumpAnnotations(m, f, typesIn, opts.Sema)
+		}
+		if err := dumpFunc(w, f, typesIn, ownership); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func dumpFunc(w io.Writer, f *Func, typesIn *types.Interner) error {
+func dumpFunc(w io.Writer, f *Func, typesIn *types.Interner, ownership *ownershipDumpAnnotations) error {
 	if w == nil || f == nil {
 		return nil
 	}
@@ -76,6 +87,9 @@ func dumpFunc(w io.Writer, f *Func, typesIn *types.Interner) error {
 	for i := range f.Locals {
 		l := f.Locals[i]
 		flags := formatLocalFlags(l.Flags)
+		if ownership != nil {
+			flags = ownership.formatLocalFlags(LocalID(i), flags)
+		}
 		name := l.Name
 		if name == "" {
 			name = "_"
@@ -92,7 +106,11 @@ func dumpFunc(w io.Writer, f *Func, typesIn *types.Interner) error {
 		fmt.Fprintf(w, "  bb%d:\n", bb.ID) //nolint:errcheck
 		for j := range bb.Instrs {
 			ins := &bb.Instrs[j]
-			fmt.Fprintf(w, "    %s\n", formatInstr(typesIn, ins)) //nolint:errcheck
+			formatted := formatInstr(typesIn, ins)
+			if ownership != nil {
+				formatted = ownership.formatInstr(ins, formatted)
+			}
+			fmt.Fprintf(w, "    %s\n", formatted) //nolint:errcheck
 		}
 		fmt.Fprintf(w, "    %s\n", formatTerm(&bb.Term)) //nolint:errcheck
 	}
