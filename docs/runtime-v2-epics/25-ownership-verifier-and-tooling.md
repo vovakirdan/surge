@@ -1,10 +1,11 @@
 # Epic 25 — Ownership Verifier And Investigation Tooling
 
-Status: proposed, not started. Drafted 2026-07-31 after a single session closed
-five ownership rows (RV2-DEBT-097/098/099/100 and RV2-DEBT-052's mixed-arm
-residual) that were all one shape of defect, found and fixed the slow way —
-valgrind, MIR read by eye, minimal reproducers built by hand. This epic invests
-in not doing that again.
+Status: in progress. Steps 0-1 are complete; Step 2 corpus discovery and triage
+is next as of 2026-08-02. Drafted 2026-07-31 after a single
+session closed five ownership rows (RV2-DEBT-097/098/099/100 and
+RV2-DEBT-052's mixed-arm residual) that were all one shape of defect, found and
+fixed the slow way — valgrind, MIR read by eye, minimal reproducers built by
+hand. This epic invests in not doing that again.
 
 **Not part of the Epic 22→23→24 detour chain and does not block it.** Epic 23
 Phase 2 has exactly one preflight item left (the places/references and
@@ -794,11 +795,13 @@ operand. `classifyOperand`/`ownsHeapFor` only ever look at `Operand.Type`
 non-owning and the sink is skipped entirely — not a violation, a MISSING
 CHECK, which is worse. Every sink resolution in this step must therefore
 compute an EFFECTIVE type first: if `Operand.Type != types.NoTypeID`, use it
-as-is; otherwise, if the operand names a bare local place, look up
-`Func.Locals[place.Local].Type` and use THAT for the owns-heap gate and for
-every classification below. This is a single shared helper applied
-uniformly to every operand this step reads, not a special case for the two
-async-state rows that happened to surface it.
+as-is; otherwise, if the operand names a resolvable place, walk that place
+through locals/globals and its projections and use the resulting type for the
+owns-heap gate and every classification below. Map elements use the verifier's
+read-only map-aware place walk rather than changing lowering's deliberately
+different map-index rule. This is a single shared helper applied uniformly to
+every operand this step reads, not a special case for the two async-state rows
+that happened to surface it.
 
 **Sink enumeration, mapped to concrete MIR positions.** Every position below
 is a sink only where the position's own (effective) type owns heap (a
@@ -830,6 +833,16 @@ all:
   runtime now holds" shape as a return value, just on a different
   terminator, through the ordinary use-then-definition procedure once its
   effective type is resolved.
+- `InstrAwait.Task`, plus normalized `InstrPoll.Task` and
+  `InstrTimeout.Task` on their READY edge — the task handle is consumed when
+  the operation completes. `Poll`/`Timeout` deliberately spell the operand as
+  `OperandCopy` because the PENDING edge must keep the same handle alive for
+  suspend/retry; that spelling is not an ALIASES ownership contract. For a
+  canonical bare-local COPY, query the local's reaching definitions directly
+  at the poll point, exactly like a place release. This licenses only the
+  READY-edge consume and does not model a kill on the PENDING edge. Any
+  non-canonical global/projected/no-place COPY remains unresolved rather than
+  being silently trusted.
 - An `InstrCall` argument whose `ArgContracts[i]` is `ArgContractTransferOwned`
   or `ArgContractStore` — the `Args[i]` operand (an `ArgContractBorrow`
   position is never a sink by definition; `ArgContractUnresolved` is itself
@@ -838,11 +851,14 @@ all:
   through).
 - Each `StructLitField`/`ArrayLit.Elems`/`TupleLit.Elems` operand whose OWN
   type owns heap, inside an `RValueStructLit`/`ArrayLit`/`TupleLit`.
-- The right-hand side of a projected `InstrAssign` (`Dst.Proj` non-empty)
-  whose type owns heap — resolve `AssignInstr.Src` itself (an `RValue`, via
+- The right-hand side of an `InstrAssign` into persistent storage: either a
+  projected destination (`Dst.Proj` non-empty) or a bare `PlaceGlobal`, whose
+  stored type owns heap. Resolve `AssignInstr.Src` itself (an `RValue`, via
   `classifyRValue`, exactly like an ordinary assignment's right-hand side;
   NOT an operand, which is why this row cannot share the `classifyOperand`
-  shortcut every other row uses).
+  shortcut every other row uses). Findings distinguish `projected_assign`
+  from `global_assign`; only a bare local assignment is not itself a STORE
+  sink.
 - Each `CrossingCapture.Value` whose type owns heap, and the equivalent
   fields inside `CrossingInstr.State` / `BlockingInstr.State` (both
   `StructLit`, so already covered by the aggregate-literal rule above, but
@@ -884,27 +900,39 @@ recognizer does NOT rely on textual adjacency alone to find that
 assignment, precisely because textual adjacency is spoofable by a
 hand-built decoy (`G := true; decoy := retain(x); result := copy(alias)` —
 a decoy assignment sitting between the guard write and the real one). It
-instead asks the SAME reaching-definitions machinery already computed for
-the dropped local's ordinary (non-guarded) sink query which definitions of
-X TRUE actually belong to it, and only inspects the one that lives in each
-guard-true block — a decoy can never be picked, because a decoy is not
-part of X's own reaching-definition set no matter where it sits textually.
+instead asks the SAME reaching-definitions machinery already used for the
+dropped local's ordinary (non-guarded) sink query which definitions actually
+belong to it. Real `lowerOwnedTempExpr` inserts a join-block
+`bare dst = move bare source` between the choice result and the dropped temp,
+so the recognizer may peel only a singleton chain of exactly that canonical
+TRANSFER before selecting the first multi-definition arm frontier. It then
+correlates that WHOLE frontier in both directions with the guard definitions
+that reach the final branch. A decoy can never be picked because it is not a
+definition of the guarded value; a later overwrite cannot hide behind an
+earlier `G=true` write because it is itself a frontier definition and must see
+and satisfy that same true guard definition.
 
 1. The drop's block `B` contains EXACTLY one instruction (the `InstrDrop`
    itself, `Shallow: false`, no projection) and has exactly one predecessor
    edge, from a block `P` whose terminator is `TermIf{Cond: {Kind:
-   OperandCopy, Place: {Local: G}}, Then: B}` (`emitGuardedTempDrop`'s own
+   OperandCopy, Place: {Local: G}}, Then: B, Else: != B}`
+   (`emitGuardedTempDrop`'s own
    shape, `internal/mir/lower_temp_drops.go` — a freshly allocated block
    holding only the drop). If this structural shape does not match exactly
-   — including if `B` contains anything else at all — the recognizer does
+   — including if `B` contains anything else at all or both branch edges
+   enter `B` — the recognizer does
    not fire — fall through to ordinary resolution, which is expected to
    (correctly) surface a finding for any hand-built non-canonical "guard,"
    per the required negative fixture.
 2. Compute the dropped local `X`'s ORDINARY reaching-definition set at the
    drop's own program point — the exact same query the non-guarded
-   `InstrDrop` row runs — without yet resolving any of them. This is the
-   set the recognizer will select from in step 4; it is computed once, the
-   normal way, not re-derived per guard-write.
+   `InstrDrop` row runs — without yet resolving any of it. While that set has
+   exactly one definition and the definition is precisely
+   `bare dst = RValueUse(OperandMove(bare source))`, classified TRANSFERS,
+   query the source local at that definition's program point and repeat.
+   Empty sets, non-canonical transfers, and repeated `(local, program-point)`
+   pairs reject the shortcut; a multi-definition set is preserved whole as
+   the arm frontier. This is deliberately not a general transfer prover.
 3. Compute `G`'s own reaching definitions (a plain `bool` local, not
    heap-owning — the one deliberate exception the dataflow engine supports
    on request) at `P`'s terminator condition. Every one of them must be a
@@ -912,35 +940,37 @@ part of X's own reaching-definition set no matter where it sits textually.
    write — nothing else (not a copy, not a call result, not a retain). If
    any reaching definition of `G` is not a literal bool-const write, the
    recognizer does NOT fire (falls through, same as step 1's mismatch).
-4. For every `BoolValue: true` definition of `G`, found at some block `B'`:
-   find whichever member of X's reaching-definition set (from step 2) is
-   ITSELF located in `B'` — not "the first plain-use assignment textually
-   found there," but a definition already established, by the ordinary
-   dataflow fixpoint, to actually reach the drop. If X has no
-   reaching-definition member in `B'` at all, the recognizer does NOT fire
-   for this `true` definition — fall through, per the same rule as steps 1
-   and 3 (this is the failure mode a decoy assignment now hits: a decoy
-   defines some OTHER local, never `X`, so it is never a candidate here
-   regardless of where it sits in the block). Otherwise, resolve that ONE
-   definition of `X` via the ordinary DEFINITION-resolving procedure,
-   queried at its own program point. (A `BoolValue: false` definition of
-   `G` contributes nothing to check — it is the "nobody minted on this
-   path" case the guard exists to skip.)
-5. If EVERY `true` definition's selected member of X's reaching-def set
-   resolves as satisfied, the drop is ACCEPTED without requiring X's full
-   reaching-def set (across ALL predecessors, guarded or not) to
-   independently resolve at the drop itself — this is the one place in
-   Step 1 where a sink is satisfied by trusting a recognized construction
-   (that the guard correlates 1:1 with which reaching definition of `X`
-   is live) rather than by the drop's own unconditional query. If ANY
-   `true` definition's selected member fails to resolve, OR step 4 finds no
-   member of X's reaching-def set in some `true` block, the recognizer's
-   overall verdict is: do not accept via the guard shortcut; fall through
-   to the ordinary reaching-def query for `X` at the drop site — which is
-   exactly what makes the required negative fixture (a hand-built guard
-   raised on an aliasing path, AND a distracting-decoy fixture per the
-   attack described above) surface as a genuine finding rather than a
-   false accept.
+   There must be exactly one `false` initializer and at least one `true`
+   write. The false initializer must instruction-dominate both the final
+   branch and every true write, using the same CFG (including pending async
+   edges) as reaching definitions. This closes the may-analysis hole where
+   a path with no guard definition contributes no element to the union.
+4. For EVERY member of the value arm-frontier from step 2, query `G`'s
+   reaching definitions immediately before that value definition. A singleton
+   answer must be a member of the final guard-definition set from step 3. If it
+   is the unique false initializer, this is the "nobody minted on this path"
+   value and is deliberately skipped. If it is a true write, resolve THIS exact
+   value definition through the ordinary DEFINITION-resolving procedure and
+   count the correlation. A mixed guard answer is accepted only when the value
+   definition itself is the exact canonical `bare dst = move bare source`
+   TRANSFER used by nested choice joins: recursively query EVERY reaching
+   definition of that source at the transfer point until singleton guard leaves
+   are reached. Empty guard/source sets, a non-canonical transfer, or a repeated
+   `(source local, program point)` on the active recursion path reject the
+   shortcut. This recursive opening is what admits real nested mixed choices
+   without weakening the rule: a decoy never enters the source frontier, while
+   a post-true overwrite does and therefore cannot be hidden.
+5. Require every final `true` guard definition to correlate with exactly one
+   value-definition leaf reached from the frontier (directly or through the
+   recursive canonical transfers in step 4), and require every such leaf to
+   resolve as satisfied. Only then is the drop ACCEPTED without requiring
+   X's false-associated reaching definitions to resolve at the unconditional
+   drop site. An unknown/ambiguous guard state, parameter root, missing or
+   duplicated correlation, failed ownership resolution, or incomplete false
+   initialization rejects the shortcut and falls through to X's ordinary
+   EVERY-definition query. This is the one place in Step 1 where a sink trusts
+   a recognized compiler construction; the bidirectional proof is what keeps
+   that exception fail-closed.
 
 **Finding shape (report-only, no side effects):** `{Function, Local,
 DefSite (or "parameter"), ConsumingSite, ConsumingKind (one of the sink rows

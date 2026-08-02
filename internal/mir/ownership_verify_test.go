@@ -127,8 +127,11 @@ type ownershipEnv struct {
 	cell    types.TypeID // a @copy value composite
 	cellRef types.TypeID
 	dup     types.TypeID // a @copy union: the scrutineeDuplicated shape
+	dupRef  types.TypeID
 	boolTy  types.TypeID
 	holder  types.TypeID // a struct with a reference-counted-scalar field
+	strMap  types.TypeID // Map<string, string>, whose ELEMENT the lowering's own
+	// place walk deliberately does not resolve
 }
 
 const ownershipEnvSource = `
@@ -143,7 +146,7 @@ tag Absent();
 
 type Holder = { v: float };
 
-fn shapes(slot: Slot, borrowed: &Slot, s: string, f: float, fr: &float, cell: Cell, cr: &Cell, dup: Duplicable, holder: Holder) -> int {
+fn shapes(slot: Slot, borrowed: &Slot, s: string, f: float, fr: &float, cell: Cell, cr: &Cell, dup: Duplicable, dr: &Duplicable, holder: Holder, entries: Map<string, string>) -> int {
     return 0;
 }
 `
@@ -157,7 +160,7 @@ func newOwnershipEnv(t *testing.T) *ownershipEnv {
 			shapes = f
 		}
 	}
-	if shapes == nil || len(shapes.Locals) < 9 {
+	if shapes == nil || len(shapes.Locals) < 11 {
 		t.Fatalf("fixture env: `shapes` did not lower with its parameters")
 	}
 	return &ownershipEnv{
@@ -172,7 +175,9 @@ func newOwnershipEnv(t *testing.T) *ownershipEnv {
 		cell:    shapes.Locals[5].Type,
 		cellRef: shapes.Locals[6].Type,
 		dup:     shapes.Locals[7].Type,
-		holder:  shapes.Locals[8].Type,
+		dupRef:  shapes.Locals[8].Type,
+		holder:  shapes.Locals[9].Type,
+		strMap:  shapes.Locals[10].Type,
 	}
 }
 
@@ -239,11 +244,19 @@ func opCopyValue(l mir.LocalID, ty types.TypeID) mir.Operand {
 	return mir.Operand{Kind: mir.OperandCopyValue, Type: ty, Place: place(l)}
 }
 
-func opStr(ty types.TypeID, text string) mir.Operand {
+func opStr(ty types.TypeID) mir.Operand {
 	return mir.Operand{
 		Kind:  mir.OperandConst,
 		Type:  ty,
-		Const: mir.Const{Kind: mir.ConstString, Type: ty, StringValue: text},
+		Const: mir.Const{Kind: mir.ConstString, Type: ty, StringValue: "x"},
+	}
+}
+
+func opBool(ty types.TypeID, value bool) mir.Operand {
+	return mir.Operand{
+		Kind:  mir.OperandConst,
+		Type:  ty,
+		Const: mir.Const{Kind: mir.ConstBool, Type: ty, BoolValue: value},
 	}
 }
 
@@ -251,6 +264,10 @@ func useRV(op mir.Operand) mir.RValue { return mir.RValue{Kind: mir.RValueUse, U
 
 func assign(dst mir.LocalID, rv mir.RValue) mir.Instr {
 	return mir.Instr{Kind: mir.InstrAssign, Assign: mir.AssignInstr{Dst: place(dst), Src: rv}}
+}
+
+func assignTo(dst mir.Place, rv mir.RValue) mir.Instr {
+	return mir.Instr{Kind: mir.InstrAssign, Assign: mir.AssignInstr{Dst: dst, Src: rv}}
 }
 
 func dropL(l mir.LocalID) mir.Instr {

@@ -240,12 +240,12 @@ func TestOwnershipFlagsDuplicatedSubjectPayloadWithoutRetain(t *testing.T) {
 
 	build := func(moveOut bool) *mir.Func {
 		b := newFn("reads_copy_payload")
-		ref := b.param("h", env.cellRef, false)
+		ref := b.param("h", env.dupRef, false)
 		borrowed := b.local("tmp_deref", env.dup, true)
 		subject := b.local("tmp_clone", env.dup, true)
 		payload := b.local("tmp_payload", env.cell, true)
 		b.block([]mir.Instr{
-			assign(borrowed, derefRV(opCopy(ref, env.cellRef))),
+			assign(borrowed, derefRV(opCopy(ref, env.dupRef))),
 			// The clone: a genuinely fresh envelope, so the subject MINTS.
 			assign(subject, useRV(opCopyValue(borrowed, env.dup))),
 			assign(payload, tagPayloadRV(opCopy(subject, env.dup), "Held", moveOut)),
@@ -278,9 +278,11 @@ func TestOwnershipCallContractsAreCheckedPerArgument(t *testing.T) {
 
 	b := newFn("pushes")
 	ref := b.param("src", env.slotRef, false)
+	subject := b.local("tmp_deref", env.slot, true)
 	value := b.local("tmp_alias", env.str, true)
 	b.block([]mir.Instr{
-		assign(value, tagPayloadRV(opCopy(ref, env.slotRef), "Payload", false)),
+		assign(subject, derefRV(opCopy(ref, env.slotRef))),
+		assign(value, tagPayloadRV(opCopy(subject, env.slot), "Payload", false)),
 		{Kind: mir.InstrCall, Call: mir.CallInstr{
 			Callee: mir.Callee{Kind: mir.CalleeValue, Name: "rt_array_push"},
 			// The SAME aliasing operand at both positions, so the only thing
@@ -291,7 +293,7 @@ func TestOwnershipCallContractsAreCheckedPerArgument(t *testing.T) {
 	}, retTerm())
 
 	requireFindings(t, env.verify(b.done()),
-		"pushes: call_arg of L1(tmp_alias) (def use) at bb0#1")
+		"pushes: call_arg of L2(tmp_alias) (def use) at bb0#2")
 }
 
 // A reference-counted scalar in a STORAGE position is a sink, unlike the same

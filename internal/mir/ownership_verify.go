@@ -42,6 +42,11 @@ const (
 	OwnershipSinkChanSend
 	// OwnershipSinkSelectSend queues a value in a channel from a select arm.
 	OwnershipSinkSelectSend
+	// OwnershipSinkGlobalAssign stores a value in a bare global place.
+	OwnershipSinkGlobalAssign
+	// OwnershipSinkTaskConsume is the task handle consumed by await, or by the
+	// ready edge of poll/timeout. Pending retains the handle for the retry.
+	OwnershipSinkTaskConsume
 )
 
 func (k OwnershipSinkKind) String() string {
@@ -72,6 +77,10 @@ func (k OwnershipSinkKind) String() string {
 		return "chan_send"
 	case OwnershipSinkSelectSend:
 		return "select_send"
+	case OwnershipSinkGlobalAssign:
+		return "global_assign"
+	case OwnershipSinkTaskConsume:
+		return "task_consume"
 	default:
 		return "unknown"
 	}
@@ -164,6 +173,12 @@ func (v *ownershipFuncVerifier) checkInstr(ins *Instr, at ownershipPoint) []Owne
 		return v.checkReleasedPlace(ins.Drop.Place, ins.Drop.Shallow, at, OwnershipSinkDrop)
 	case InstrEnvelopeRelease:
 		return v.checkReleasedPlace(ins.EnvelopeRelease.Place, false, at, OwnershipSinkEnvelopeRelease)
+	case InstrAwait:
+		return v.checkTaskConsume(&ins.Await.Task, at)
+	case InstrPoll:
+		return v.checkTaskConsume(&ins.Poll.Task, at)
+	case InstrTimeout:
+		return v.checkTaskConsume(&ins.Timeout.Task, at)
 	case InstrCall:
 		return v.checkCallArgs(&ins.Call, at)
 	case InstrAssign:
@@ -255,12 +270,16 @@ func (v *ownershipFuncVerifier) checkCallArgs(call *CallInstr, at ownershipPoint
 
 func (v *ownershipFuncVerifier) checkAssign(assign *AssignInstr, at ownershipPoint) []OwnershipFinding {
 	out := v.checkAggregateRValue(&assign.Src, at)
+	sinkKind := OwnershipSinkProjectedAssign
 	if len(assign.Dst.Proj) == 0 {
-		return out
+		if assign.Dst.Kind != PlaceGlobal {
+			return out
+		}
+		sinkKind = OwnershipSinkGlobalAssign
 	}
-	// A write into a place that is already inside a live container: the value
-	// written in is kept there and released by a later drop of the container.
-	ty, ok := placeTypeIn(v.typesIn, v.f, v.globals, assign.Dst)
+	// A write through a projection or into a bare global is a STORE: the
+	// destination keeps the value beyond this assignment.
+	ty, ok := placeTypeWithMapElems(v.typesIn, v.f, v.globals, assign.Dst)
 	if !ok || !ownsHeapFor(v.typesIn, v.semaRes, ty) {
 		return out
 	}
@@ -268,7 +287,7 @@ func (v *ownershipFuncVerifier) checkAssign(assign *AssignInstr, at ownershipPoi
 	if v.resolveRValueUse(&assign.Src, ty, at, st) {
 		return out
 	}
-	return append(out, v.finding(rvalueLocal(&assign.Src), st, at, OwnershipSinkProjectedAssign))
+	return append(out, v.finding(rvalueLocal(&assign.Src), st, at, sinkKind))
 }
 
 func (v *ownershipFuncVerifier) checkAggregateRValue(rv *RValue, at ownershipPoint) []OwnershipFinding {
@@ -320,6 +339,40 @@ func (v *ownershipFuncVerifier) checkOperandSink(op *Operand, at ownershipPoint,
 		return nil
 	}
 	return []OwnershipFinding{v.finding(operandLocal(op), st, at, kind)}
+}
+
+// checkTaskConsume verifies the handle an Await consumes unconditionally, or
+// a Poll/Timeout consumes on its ReadyBB edge. The check is made at the
+// instruction point, where the same reaching definitions feed both outgoing
+// edges; it does not kill the handle on PendBB, which must retain it for the
+// next poll and may store it in an async-state envelope.
+//
+// Task instructions spell their retryable handle as OperandCopy even though
+// successful completion transfers that handle to the runtime. That COPY is an
+// ABI/load spelling, not an aliasing ownership use, so the canonical bare-local
+// shape resolves the local's definitions directly. Other operand kinds keep
+// their ordinary use semantics. A projected, global, or absent COPY is not a
+// valid retryable task slot and fails closed instead of escaping the check.
+func (v *ownershipFuncVerifier) checkTaskConsume(op *Operand, at ownershipPoint) []OwnershipFinding {
+	eff := v.effectiveOperand(op)
+	ty := operandType(&eff)
+	if eff.Kind == OperandCopy && ty == types.NoTypeID {
+		return []OwnershipFinding{v.finding(operandLocal(&eff), newOwnershipResolveState(), at, OwnershipSinkTaskConsume)}
+	}
+	if !ownsHeapFor(v.typesIn, v.semaRes, ty) {
+		return nil
+	}
+	st := newOwnershipResolveState()
+	if eff.Kind == OperandCopy {
+		if eff.Place.Kind != PlaceLocal || len(eff.Place.Proj) != 0 || eff.Place.Local == NoLocalID {
+			return []OwnershipFinding{v.finding(operandLocal(&eff), st, at, OwnershipSinkTaskConsume)}
+		}
+		if v.resolvePlaceDefs(eff.Place.Local, at, st) {
+			return nil
+		}
+		return []OwnershipFinding{v.finding(eff.Place.Local, st, at, OwnershipSinkTaskConsume)}
+	}
+	return v.checkOperandSink(&eff, at, OwnershipSinkTaskConsume)
 }
 
 func operandLocal(op *Operand) LocalID {

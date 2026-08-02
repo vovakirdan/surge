@@ -9,6 +9,24 @@ import "surge/internal/types"
 // any pass reading a finished function that has to ask what a projected
 // destination holds.
 func placeTypeIn(typesIn *types.Interner, f *Func, globals []Global, place Place) (types.TypeID, bool) {
+	return placeTypeWalk(typesIn, f, globals, place, false)
+}
+
+// placeTypeWithMapElems answers the same question and additionally resolves a
+// MAP element, which the lowering's own walk does not.
+//
+// The distinction is deliberate rather than tidy. A projected assignment into a
+// map entry is a STORE sink — the map keeps the value and a later drop of the
+// map is what releases it — so a pass checking that obligation has to know the
+// element's type or it silently checks nothing. The lowering's single caller
+// (reborrowPlaceNeedsDeref) currently reads an unresolved map index as "needs a
+// deref", and quietly handing it a resolved answer instead would change what
+// gets lowered, which is not this pass's to change.
+func placeTypeWithMapElems(typesIn *types.Interner, f *Func, globals []Global, place Place) (types.TypeID, bool) {
+	return placeTypeWalk(typesIn, f, globals, place, true)
+}
+
+func placeTypeWalk(typesIn *types.Interner, f *Func, globals []Global, place Place, mapElems bool) (types.TypeID, bool) {
 	if typesIn == nil || !place.IsValid() {
 		return types.NoTypeID, false
 	}
@@ -32,7 +50,7 @@ func placeTypeIn(typesIn *types.Interner, f *Func, globals []Global, place Place
 	}
 
 	for _, proj := range place.Proj {
-		next, ok := projectedPlaceTypeIn(typesIn, cur, proj)
+		next, ok := projectedPlaceTypeIn(typesIn, cur, proj, mapElems)
 		if !ok {
 			return types.NoTypeID, false
 		}
@@ -41,14 +59,23 @@ func placeTypeIn(typesIn *types.Interner, f *Func, globals []Global, place Place
 	return cur, true
 }
 
-func projectedPlaceTypeIn(typesIn *types.Interner, cur types.TypeID, proj PlaceProj) (types.TypeID, bool) {
+func projectedPlaceTypeIn(typesIn *types.Interner, cur types.TypeID, proj PlaceProj, mapElems bool) (types.TypeID, bool) {
 	switch proj.Kind {
 	case PlaceProjDeref:
 		return derefPlaceTypeIn(typesIn, cur)
 	case PlaceProjField:
 		return fieldPlaceTypeIn(typesIn, cur, proj)
 	case PlaceProjIndex:
-		return indexPlaceTypeIn(typesIn, cur)
+		if ty, ok := indexPlaceTypeIn(typesIn, cur); ok {
+			return ty, true
+		}
+		if !mapElems {
+			return types.NoTypeID, false
+		}
+		if _, value, ok := typesIn.MapInfo(resolveAliasType(typesIn, cur)); ok {
+			return value, true
+		}
+		return types.NoTypeID, false
 	default:
 		return types.NoTypeID, false
 	}

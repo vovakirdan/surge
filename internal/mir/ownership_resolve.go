@@ -77,8 +77,41 @@ func (v *ownershipFuncVerifier) effectiveOperand(op *Operand) Operand {
 		}
 		return out
 	}
-	if ty, ok := placeTypeIn(v.typesIn, v.f, v.globals, out.Place); ok {
+	if ty, ok := placeTypeWithMapElems(v.typesIn, v.f, v.globals, out.Place); ok {
 		out.Type = ty
+	}
+	return out
+}
+
+// effectiveRValue is the same normalization one level up, applied to every
+// operand an RValue's own classification reads.
+//
+// Filling in only the operand a TRANSFERS answer later recurses into is not
+// enough, because the classification itself consults operand types BEFORE
+// producing an answer: castIsIdentity compares the cast's source type against
+// its target, derefsABorrow asks whether a unary's operand is a reference, and
+// indexIsView asks whether an index operand is a Range. An untyped source makes
+// castIsIdentity report "not identity", which classifies MINTS and accepts an
+// alias without ever tracing it — a false NEGATIVE, the one direction this pass
+// may not err in.
+//
+// Copied, like every other normalization here: the MIR is read, never written.
+func (v *ownershipFuncVerifier) effectiveRValue(rv *RValue) RValue {
+	out := *rv
+	switch out.Kind {
+	case RValueUse:
+		out.Use = v.effectiveOperand(&out.Use)
+	case RValueUnaryOp:
+		out.Unary.Operand = v.effectiveOperand(&out.Unary.Operand)
+	case RValueCast:
+		out.Cast.Value = v.effectiveOperand(&out.Cast.Value)
+	case RValueIndex:
+		out.Index.Object = v.effectiveOperand(&out.Index.Object)
+		out.Index.Index = v.effectiveOperand(&out.Index.Index)
+	case RValueField:
+		out.Field.Object = v.effectiveOperand(&out.Field.Object)
+	case RValueTagPayload:
+		out.TagPayload.Value = v.effectiveOperand(&out.TagPayload.Value)
 	}
 	return out
 }
@@ -116,16 +149,16 @@ func (v *ownershipFuncVerifier) resolveOperandUse(op *Operand, at ownershipPoint
 // than an operand — a projected assignment's right-hand side, and every
 // definition the recursion walks back through.
 func (v *ownershipFuncVerifier) resolveRValueUse(rv *RValue, resultTy types.TypeID, at ownershipPoint, st *ownershipResolveState) bool {
-	switch classifyRValue(rv, resultTy, v.typesIn, v.semaRes) {
+	eff := v.effectiveRValue(rv)
+	switch classifyRValue(&eff, resultTy, v.typesIn, v.semaRes) {
 	case ownershipMints, ownershipOwnedAtEntry:
 		return true
 	case ownershipTransfers:
-		src, ok := transferSourceOperand(rv)
+		src, ok := transferSourceOperand(&eff)
 		if !ok {
 			return false
 		}
-		eff := v.effectiveOperand(src)
-		return v.resolvePlace(eff.Place, at, st)
+		return v.resolvePlace(src.Place, at, st)
 	default:
 		return false
 	}
@@ -236,12 +269,15 @@ func (v *ownershipFuncVerifier) resolveDefInstr(d ownershipDefSite, st *ownershi
 	case InstrSpawn:
 		// Not unconditional MINTS: the backend stores the handle Value already
 		// names straight into Dst, so Dst's ownership is Value's own answer.
-		switch classifySpawnDest(ins, v.typesIn, v.semaRes) {
+		// Asked against a normalized COPY of the instruction, so that an
+		// untyped handle operand is classified on the same terms as any other.
+		eff := *ins
+		eff.Spawn.Value = v.effectiveOperand(&ins.Spawn.Value)
+		switch classifySpawnDest(&eff, v.typesIn, v.semaRes) {
 		case ownershipMints, ownershipOwnedAtEntry:
 			return true
 		case ownershipTransfers:
-			eff := v.effectiveOperand(&ins.Spawn.Value)
-			return v.resolvePlace(eff.Place, at, st)
+			return v.resolvePlace(eff.Spawn.Value.Place, at, st)
 		default:
 			return false
 		}

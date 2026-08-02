@@ -5363,3 +5363,104 @@ behind design review. Harness gotcha recorded: deadlock-panic rows must
 sequence main-thread releases BEFORE the parked producer starts — main
 is invisible to quiescence, so the panic can outrun a late release and
 change the lease-count wording.
+
+## 2026-08-02 — Epic 25 Resume: Step 1 Review Tail
+
+Resumed from `15c23f9e` on `codex/runtime-net-scheduler-refactor`, with Step 0
+and the report-only Step 1 verifier committed. The inherited worktree contains
+the post-review fixes for effective operand types inside RValues/spawn and map
+element STORE sinks, plus the guarded-drop regression tests; agent-generated
+`.claude*`, `.serena`, `.swarm`, AgentDB/RuVector files, and the tracked
+`.claude-flow/neural/stats.json` delta are explicitly outside the code commit.
+
+The remaining Step 1 blocker is concrete: the guarded-drop recognizer's
+hand-built test assigns the dropped local in each guard arm, while real
+`lowerOwnedTempExpr` inserts a join-block transfer into the dropped temp. The
+recognizer therefore does not yet accept the canonical real-lowering shape.
+The intended proof is a narrow, conservative singleton-TRANSFER chase with a
+real-lowering clean fixture and adversarial cycle/decoy coverage; it must keep
+the EVERY-reaching-definition rule and report-only/read-only MIR contract.
+
+Current checks: Serena 1.5.3 successfully activated this project and answered
+LSP/search calls; AgentMemory MCP successfully returned the `surge` session
+history; `go test ./internal/mir -count=1` and `git diff --check` pass before the
+guard fix. Sentrux baseline (taken from this inherited dirty state): repository
+quality `6194`; scoped `internal/mir` quality `6825`, with the scoped session
+started for final comparison. Before Step 2, finish the guard repair, rerun the
+Step 1 focused/full gates, review the intended diff, and commit only the MIR
+code/tests plus these owned notes.
+
+The real-lowering singleton-transfer guard repair now passes the focused and
+full `internal/mir` suites, but independent review found three further Step 1
+P1 gaps before closeout: a degenerate `if` whose true and false edges both enter
+the drop block can fool the predecessor-block recognizer; bare global writes are
+STORE sinks currently skipped with bare locals; and `Await`/normalized `Poll`
+plus `Timeout` eventually consume task handles even though retry-safe MIR keeps
+their operand as COPY, so the sink must trace the operand's definition under the
+instruction contract. These require adversarial tests and a small design-note
+correction before Step 1 can close. The first post-repair `make check` ran the
+entire Go suite green, then stopped at `golangci-lint`: `opStr`'s `text` test
+parameter is always `"x"` (`unparam`). That helper cleanup is part of the same
+review tail; C/file-size checks did not run because lint failed first.
+
+The three P1 rows are now implemented with focused tests: degenerate
+`Then == Else == drop` falls back to ordinary EVERY-def resolution; bare global
+STORE reports `global_assign`; and `Await`/`Poll`/`Timeout` report
+`task_consume`, with canonical COPY tracing the task local's definitions while
+pending retains the handle. The second `make check` again ran the whole Go suite
+green, then lint found three Go-1.22 `copyloopvar` redundancies in the new table
+tests; those redundant loop-variable copies were removed. Full check must be
+rerun from the top, since C/file-size gates again did not execute after lint
+stopped the command.
+
+The third `make check` is green end to end (all Go packages, zero lint issues,
+strict C compile, and file-size gate), and `make golden-check` is green.
+`make runtime-v2-check` reaches the pre-existing fd-registry suite and fails in
+`TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow` (payload-drain timeout)
+and `TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest`
+(native double-free). The latter reproduces unchanged in a detached worktree at
+the Step 1 base `15c23f9e`, so it is not introduced by the verifier diff; keep
+the failure explicit rather than relabelling the full Runtime V2 gate green.
+
+Final independent review then found two additional fail-open cases. First, the
+guard shortcut correlated each `G=true` write to one value definition but did
+not reject a later alias overwrite reachable while `G` remained true. The
+repair must prove a bidirectional frontier correlation, including one
+dominating false initializer, and retain the real-lowered singleton-transfer
+positive. Second, an untyped non-canonical task COPY could leave its effective
+type unknown and escape before the shape check; unknown task COPYs must fail
+closed while known non-owning operands remain outside ownership analysis. Both
+rows require adversarial Await/Poll/Timeout or nested-choice tests before the
+Step 1 commit.
+
+The next Sentrux comparison reported score `6825 -> 6826`, but correctly kept
+the session red because complex functions increased `37 -> 38`; the new guard
+correlation is being split into small proof helpers before closeout. The fresh
+independent re-review also found a distinct canonical-shape false positive:
+nested mixed choices raise the outer guard inside an inner branch and transfer
+the chosen value through the inner join, where the outer assignment sees both
+the false initializer and a true write. Real lowering for
+`nested_inner_forwards` and `both_branches_nested_mixed` therefore falls through
+to ordinary EVERY-def resolution and is reported even though the guarded drop
+is valid. The fix must recursively correlate only exact bare-local MOVE
+transfers at ambiguous frontier points; real-lowering nested positives join the
+flat positive, while the post-true alias overwrite, noncanonical transfer, and
+cycle negatives must stay red.
+
+The nested repair is now proven on the borrowed forms that actually exercise
+the recognizer (`a: &string`, branch `*a`): with recursive correlation disabled,
+`nested_inner_forwards` and `both_branches_nested_mixed` report at `bb7#0` and
+`bb10#0`; with the approved exact-MOVE recursion, both are clean. A nested
+post-true alias overwrite remains a finding, and a separate loop fixture hits
+the new active recursive-cycle rejection branch (targeted coverage count 1).
+The review's final P2 gap is also pinned: an untyped `Spawn.Value` now has both
+the minted clean case and the alias-traces-to-definition case.
+
+Final independent Step 1 re-review is CLEAN (no P0-P3). The post-fix
+`make check` is green end to end, `make golden-check` is green, and scoped
+Sentrux passes with quality `6825 -> 6831`, no violations; root quality is
+`6194 -> 6195` and all checked architectural rules pass. The only named broad
+gate still red is the already-recorded `runtime-v2-check` fd-registry failure;
+the reproduced base failure and the absence of runtime/C changes keep it out of
+this verifier commit rather than hiding it. Step 1 is ready for an owned-only
+commit and mandatory post-commit Codex review before the corpus gate begins.
