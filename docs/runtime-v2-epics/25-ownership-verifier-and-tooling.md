@@ -205,7 +205,7 @@ This is tooling and analysis. It must not change what compiled programs do.
   cleanest fix would touch the language surface, STOP and ask — this is
   exactly the class of decision reserved for the owner.
 - **Existing gates are executed by exact name and may not regress against a
-  verified pre-epic baseline.** `make check`, `make golden-check`, and
+  verified exact pre-change baseline.** `make check`, `make golden-check`, and
   `make runtime-v2-check` (which composes `runtime-v2-crossing-check`,
   `-heap-check`, `-waiter-check`, `-fd-registry-check`, and the rest) must each
   be run explicitly; `make check` alone does not cover the composed target. A
@@ -1163,9 +1163,13 @@ verifier pattern-matches against, so it would go quiet for the wrong reason
 are: swap a MINTS-classified definition for an ALIASES one reaching the same
 release (e.g. replace a `StructLit` with a bare field read of the same
 type), or delete a compiler-inserted retain that an ALIASES read depends on.
-Then confirm `make check`, `make golden-check`, and `make runtime-v2-check`
-are all green on the real corpus, and the native e2e baseline
-(worktree-verified, not remembered) is unchanged.
+Then run `make check`, `make golden-check`, and `make runtime-v2-check` by exact
+name on the real corpus. `make check` and `make golden-check` must be green;
+`make runtime-v2-check` must conform to the centralized frozen-baseline rule in
+"What We May Not Lose" and may remain non-green only on the exact
+RV2-DEBT-122 rows and signatures recorded at the immutable Step 5 baseline.
+Any other failure blocks completion, and the native e2e baseline
+(worktree-verified, not remembered) must remain unchanged.
 
 #### Step 3 completion evidence (2026-08-02)
 
