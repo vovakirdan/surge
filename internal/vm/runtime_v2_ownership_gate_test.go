@@ -61,12 +61,10 @@ func ownershipGate(
 	})
 
 	t.Run("llvm_valgrind", func(t *testing.T) {
-		// Build before the valgrind availability check: even on a host without
-		// valgrind, this sibling still proves that the LLVM backend compiles.
+		// The build helper owns the timeout-policy skip. Once it returns, the
+		// memory gate is mandatory and missing valgrind must fail closed.
 		outputPath := buildRuntimeV2CrossingSource(t, source, nil)
-		if _, lookupErr := exec.LookPath("valgrind"); lookupErr != nil {
-			t.Skip("valgrind not found on PATH; LLVM compile passed, leak census skipped")
-		}
+		requireOwnershipValgrind(t, exec.LookPath)
 
 		env := envWithStdlib(repoRoot(t))
 		stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 120*time.Second)
@@ -103,6 +101,16 @@ func ownershipGate(
 			)
 		}
 	})
+}
+
+func requireOwnershipValgrind(
+	t *testing.T,
+	lookPath func(string) (string, error),
+) {
+	t.Helper()
+	if _, err := lookPath("valgrind"); err != nil {
+		t.Fatalf("ownership gate requires valgrind on PATH after LLVM build: %v", err)
+	}
 }
 
 func validateOwnershipGateInput(
@@ -251,6 +259,40 @@ func TestOwnershipGateValidatesMarkerContract(t *testing.T) {
 				t.Fatalf("validation error = %v, want substring %q", err, test.wantErr)
 			}
 		})
+	}
+}
+
+func TestOwnershipGateMissingValgrindFailsClosed(t *testing.T) {
+	const childEnv = "SURGE_OWNERSHIP_GATE_MISSING_VALGRIND_CHILD"
+	if os.Getenv(childEnv) == "1" {
+		requireOwnershipValgrind(t, func(string) (string, error) {
+			return "", os.ErrNotExist
+		})
+		t.Fatal("missing-valgrind requirement unexpectedly returned")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(
+		ctx,
+		os.Args[0], "-test.run=^TestOwnershipGateMissingValgrindFailsClosed$", "-test.count=1",
+	)
+	cmd.Env = overrideEnvVar(os.Environ(), childEnv, "1")
+	output, runErr := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("missing-valgrind child timed out\noutput:\n%s", output)
+	}
+	if runErr == nil {
+		t.Fatalf("missing-valgrind child unexpectedly passed\noutput:\n%s", output)
+	}
+
+	text := string(output)
+	const want = "ownership gate requires valgrind on PATH after LLVM build: file does not exist"
+	if strings.Count(text, want) != 1 {
+		t.Fatalf("missing-valgrind child did not report the exact fail-closed error\noutput:\n%s", text)
+	}
+	if strings.Contains(text, "--- SKIP") {
+		t.Fatalf("missing-valgrind child skipped instead of failing\noutput:\n%s", text)
 	}
 }
 
