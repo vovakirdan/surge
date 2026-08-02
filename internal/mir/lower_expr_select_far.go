@@ -3,6 +3,7 @@ package mir
 import (
 	"fmt"
 
+	"surge/internal/ast"
 	"surge/internal/hir"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -40,6 +41,23 @@ func (l *funcLowerer) lowerRemoteSelect(
 		ReadyBB:     NoBlockID,
 		PendBB:      NoBlockID,
 	}
+	// A far select cannot know which `own binding` arm wins until the owner
+	// shard commits it. Identify the exact bare-local shapes up front so only
+	// UNIQUE roots enter the conditional-transfer protocol below. Reusing one
+	// root in multiple SEND arms needs ownership-group semantics in the runtime;
+	// leave that unsupported shape on the ordinary aliasing path so the
+	// ownership verifier keeps reporting it instead of silently blessing two
+	// pending owners of one value.
+	returnCandidates := make([]farSelectReturnCandidate, len(crossing.RemoteOps))
+	returnCounts := make(map[LocalID]int)
+	for i := range crossing.RemoteOps {
+		candidate, ok := l.farSelectReturnCandidate(crossing.RemoteOps[i].Value)
+		if !ok {
+			continue
+		}
+		returnCandidates[i] = candidate
+		returnCounts[candidate.place.Local]++
+	}
 	for i := range crossing.RemoteOps {
 		recv, err := l.lowerExpr(crossing.RemoteOps[i].Receiver, false)
 		if err != nil {
@@ -52,11 +70,18 @@ func (l *funcLowerer) lowerRemoteSelect(
 			ReceiverType:   crossing.RemoteOps[i].ReceiverType,
 		}
 		if crossing.RemoteOps[i].Value != nil {
-			val, err := l.lowerExpr(crossing.RemoteOps[i].Value, false)
-			if err != nil {
-				return err
+			candidate := returnCandidates[i]
+			if candidate.ok && returnCounts[candidate.place.Local] == 1 {
+				op.Value = candidate.value
+				returnPlace := candidate.place
+				op.ReturnPlace = &returnPlace
+			} else {
+				val, err := l.lowerExpr(crossing.RemoteOps[i].Value, false)
+				if err != nil {
+					return err
+				}
+				op.Value = val
 			}
-			op.Value = val
 		}
 		ins.RemoteOps = append(ins.RemoteOps, op)
 	}
@@ -82,6 +107,47 @@ func (l *funcLowerer) lowerRemoteSelect(
 	ins.Pending = Place{Local: pendingLocal}
 	l.emit(&Instr{Kind: InstrCrossing, Crossing: ins})
 	return nil
+}
+
+type farSelectReturnCandidate struct {
+	value Operand
+	place Place
+	ok    bool
+}
+
+// farSelectReturnCandidate recognizes only `own <bare local>` whose value has
+// a real heap ownership obligation. The special form is intentionally found
+// before generic unary lowering: generic `own` is representation-identity and
+// materializes an alias temp, while this crossing needs an explicit MOVE plus
+// success handback to model its conditional ownership truthfully.
+func (l *funcLowerer) farSelectReturnCandidate(value *hir.Expr) (farSelectReturnCandidate, bool) {
+	if l == nil || l.f == nil || value == nil || value.Kind != hir.ExprUnaryOp {
+		return farSelectReturnCandidate{}, false
+	}
+	unary, ok := value.Data.(hir.UnaryOpData)
+	if !ok || unary.Op != ast.ExprUnaryOwn || unary.Operand == nil || unary.Operand.Kind != hir.ExprVarRef {
+		return farSelectReturnCandidate{}, false
+	}
+	ref, ok := unary.Operand.Data.(hir.VarRefData)
+	if !ok || !ref.SymbolID.IsValid() {
+		return farSelectReturnCandidate{}, false
+	}
+	local, ok := l.symToLocal[ref.SymbolID]
+	if !ok || local == NoLocalID || int(local) < 0 || int(local) >= len(l.f.Locals) {
+		return farSelectReturnCandidate{}, false
+	}
+	localInfo := l.f.Locals[local]
+	localType := localInfo.Type
+	if localType == types.NoTypeID || localInfo.Flags&LocalFlagOwnsHeap == 0 ||
+		localInfo.Flags&LocalFlagCopy != 0 {
+		return farSelectReturnCandidate{}, false
+	}
+	place := Place{Local: local}
+	return farSelectReturnCandidate{
+		value: Operand{Kind: OperandMove, Type: localType, Place: place},
+		place: place,
+		ok:    true,
+	}, true
 }
 
 // ensureSelectBodyPollFunc creates (once per module) the canonical select

@@ -3,6 +3,7 @@ package mir
 import (
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 func paramLocalSet(f *Func, symTable *symbols.Table) localSet {
@@ -72,4 +73,37 @@ func operandForLocal(f *Func, id LocalID) Operand {
 		}
 	}
 	return Operand{Kind: kind, Place: Place{Local: id}}
+}
+
+// operandForAsyncStateStore hands a live local into the resume payload that
+// becomes its only owner while the function is suspended. A @copy value
+// composite still owns a heap box even though LocalFlagCopy is set; this
+// position transfers that already-owned box rather than duplicating it, so it
+// must use MOVE just like a move-only local. Source-level copies have already
+// been materialized as distinct owned locals before this synthetic handoff.
+func operandForAsyncStateStore(f *Func, id LocalID) Operand {
+	op := operandForLocal(f, id)
+	if f == nil || id == NoLocalID || int(id) < 0 || int(id) >= len(f.Locals) {
+		return op
+	}
+	if f.Locals[id].Flags&LocalFlagOwnsHeap != 0 {
+		op.Kind = OperandMove
+	}
+	return op
+}
+
+// operandForAsyncInitialStateStore is the constructor-side half of the frame
+// handoff. Unlike a resumed local, a reference-counted scalar parameter is
+// borrowed at function entry: its caller keeps the original reference. The
+// initial task frame therefore needs a RETAIN of its own. All other heap-owning
+// parameters are owned at entry and transfer their existing value with MOVE.
+func operandForAsyncInitialStateStore(f *Func, id LocalID, typesIn *types.Interner) Operand {
+	op := operandForAsyncStateStore(f, id)
+	if f == nil || typesIn == nil || id == NoLocalID || int(id) < 0 || int(id) >= len(f.Locals) {
+		return op
+	}
+	if typesIn.IsRefCountedScalar(resolveAlias(typesIn, f.Locals[id].Type)) {
+		op.Kind = OperandRetain
+	}
+	return op
 }

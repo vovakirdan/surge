@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -95,6 +95,7 @@ runtime-v2-check:
 	fi
 	@echo ">> Running Runtime V2 liveness gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=$(SURGE_MT_TIMEOUT_SCALE) $(GO) test ./internal/vm -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	$(MAKE) runtime-v2-ownership-check
 	$(MAKE) runtime-v2-crossing-check
 	$(MAKE) runtime-v2-heap-check
 	$(MAKE) runtime-v2-waiter-check
@@ -107,6 +108,10 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-perf-check
 	$(MAKE) runtime-v2-syncpoint-check
 	$(MAKE) runtime-v2-transport-check
+
+runtime-v2-ownership-check:
+	@echo ">> Running Runtime V2 ownership corpus gate"
+	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_ownership_corpus ./internal/ownershipgate -run '^Test(OwnershipCorpusCompileProfileContract|OwnershipCorpusInventoryDigestContract|OwnershipCorpusCensusReportContract|OwnershipCorpusCensusReportAccountingContract|OwnershipCorpusCensusReportInvalidationAndAtomicFailure|OwnershipCorpusFailureSignatureContract|OwnershipCorpusLLVMBackendContract|RuntimeV2OwnershipCorpus)$$' -count=1 -parallel=1 -p=1 -v --timeout 900s
 
 runtime-v2-crossing-check:
 	@echo ">> Running Runtime V2 crossing readiness gate"
@@ -130,7 +135,7 @@ runtime-v2-transport-contract-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Transport(SeamStaticShape|SpineBehavior|SyncPointAllowlistShape|ProbeRowsDocumented)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	@echo ">> Running Runtime V2 remote task acceptance gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Remote(TaskBehavior|TaskReplyValidationIsGenerationQualified|TaskSourcesRespectFileLimit|TaskStateHasInitRollbackPair|ChannelSelfDeadlockPanics|StateHandoffStaticContract|SpawnAbandonEdges|SpawnStaleGenerationRows|SelectAbandonEdges|Publication(APIShape|Behavior|FailurePathStaticGuards))$$|^TestRuntimeV2ImmediateOnAbandonEdges$$|^TestRuntimeV2TransportReplyWaitersHaveExplicitShardRouting$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Remote(TaskBehavior|TaskReplyValidationIsGenerationQualified|TaskSourcesRespectFileLimit|TaskStateHasInitRollbackPair|ChannelSelfDeadlockPanics|StateHandoffStaticContract|SpawnAbandonEdges|SpawnStaleGenerationRows|SelectAbandonEdges|Publication(APIShape|Behavior|FailurePathStaticGuards))$$|^TestRuntimeV2FarSelectInitialFailurePayloadOwnershipStaticContract$$|^TestRuntimeV2ImmediateOnAbandonEdges$$|^TestRuntimeV2TransportReplyWaitersHaveExplicitShardRouting$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2FarTaskSource(OverrideAcrossShards|ProductionCapability)$$|^TestRuntimeV2SpawnOnPoolProductionCapabilityFailsDeterministically$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 immediate-on acceptance gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2ImmediateOn(SourceOverrideAcrossShards|SourceProductionCapability|PoolProductionCapabilityFailsDeterministically)$$|^TestRuntimeV2ImportedCrossingProductionCapability$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
@@ -143,7 +148,7 @@ runtime-v2-heap-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2HeapAccounting(SequentialContracts|ConcurrentWorkersContract)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HeapAccountingStatic(PublicABI|ShardCellSkeletonShape|RecordMigrationShape|SnapshotAggregationShape)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
 	@echo ">> Running Runtime V2 drop reclamation gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2Drop(LeafReclamation|ScopeExit|FieldAliasDoesNotDoubleFree|ArmSynthesis|Composite|SelectSendArm|UnionCastReclamation)$$|^TestRuntimeV2CrossingHeapCaptureCensusBalanced$$|^TestRuntimeV2CrossingStrictCensusBalanced$$|^TestRuntimeV2IterProtocolReclamationCensusBalanced$$|^TestRuntimeV2CompareScrutineeReleaseCensusBalanced$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2Drop(LeafReclamation|ScopeExit|FieldAliasDoesNotDoubleFree|ArmSynthesis|Composite|SelectSendArm|UnionCastReclamation)$$|^TestRuntimeV2(FarSelectCancelNonCopySendArm|LocalSelectCancelNonCopySendArm)$$|^TestRuntimeV2CrossingHeapCaptureCensusBalanced$$|^TestRuntimeV2CrossingStrictCensusBalanced$$|^TestRuntimeV2IterProtocolReclamationCensusBalanced$$|^TestRuntimeV2CompareScrutineeReleaseCensusBalanced$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 strict-census valgrind gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2CrossingStrictCensusValgrindBounded$$|^TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 fixnum inline-int gate"

@@ -3,18 +3,37 @@ package gatecheck
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("cannot locate test source file")
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("gatecheck: get working directory: %v", err)
 	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	for {
+		goMod, readErr := os.ReadFile(filepath.Join(dir, "go.mod"))
+		makeInfo, statErr := os.Stat(filepath.Join(dir, "Makefile"))
+		if readErr == nil && statErr == nil && !makeInfo.IsDir() && hasModuleLine(string(goMod), "surge") {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("gatecheck: no repository root with module surge and Makefile above working directory")
+		}
+		dir = parent
+	}
+}
+
+func hasModuleLine(goMod, module string) bool {
+	for _, line := range strings.Split(goMod, "\n") {
+		if strings.TrimSpace(line) == "module "+module {
+			return true
+		}
+	}
+	return false
 }
 
 // The live integrity check: every gate selection matches at least one real
@@ -93,21 +112,29 @@ func TestGateSelectionsAreLiveAndComplete(t *testing.T) {
 			exemptTags[e.Name] = true
 		}
 	}
-	defaultInventory, defErr := ListTests(root, []string{"./internal/vm"}, "", ".*")
-	if defErr != nil {
-		t.Fatalf("default inventory: %v", defErr)
+	taggedInventories := []struct {
+		pkg  string
+		tags string
+	}{
+		{pkg: "./internal/vm", tags: "runtime_v2_pending"},
+		{pkg: "./internal/vm", tags: "runtime_v2_transport_spine"},
+		{pkg: "./internal/ownershipgate", tags: "runtime_v2_ownership_corpus"},
 	}
-	defaultSet := map[string]bool{}
-	for _, name := range defaultInventory {
-		defaultSet[name] = true
-	}
-	for _, tags := range []string{"runtime_v2_pending", "runtime_v2_transport_spine"} {
-		if exemptTags[tags] {
+	for _, inventory := range taggedInventories {
+		if exemptTags[inventory.tags] {
 			continue
 		}
-		tagged, invErr := ListTests(root, []string{"./internal/vm"}, tags, ".*")
+		defaultInventory, defErr := ListTests(root, []string{inventory.pkg}, "", ".*")
+		if defErr != nil {
+			t.Fatalf("default inventory %s: %v", inventory.pkg, defErr)
+		}
+		defaultSet := make(map[string]bool, len(defaultInventory))
+		for _, name := range defaultInventory {
+			defaultSet[name] = true
+		}
+		tagged, invErr := ListTests(root, []string{inventory.pkg}, inventory.tags, ".*")
 		if invErr != nil {
-			t.Fatalf("inventory -tags %s: %v", tags, invErr)
+			t.Fatalf("inventory %s -tags %s: %v", inventory.pkg, inventory.tags, invErr)
 		}
 		// A build tag ADDS files to the default set; only the tests that
 		// exist solely under the tag depend on explicit gates (the default
@@ -118,9 +145,10 @@ func TestGateSelectionsAreLiveAndComplete(t *testing.T) {
 				tagOnly = append(tagOnly, name)
 			}
 		}
-		key := "./internal/vm\x00" + tags
+		key := inventory.pkg + "\x00" + inventory.tags
 		for _, name := range UncoveredTests(tagOnly, matchedByKey[key], exemptions) {
-			t.Errorf("test %s (-tags %s) is not selected by any gate and has no owned exemption", name, tags)
+			t.Errorf("test %s in %s (-tags %s) is not selected by any gate and has no owned exemption",
+				name, inventory.pkg, inventory.tags)
 		}
 	}
 }
@@ -151,6 +179,29 @@ func TestGateRotNegativeControls(t *testing.T) {
 	orphans := UnreachableGates(gates, reachable, nil)
 	if len(orphans) != 1 {
 		t.Fatalf("unreachable-gate rot not flagged: %+v", orphans)
+	}
+}
+
+func TestListTestsOverridesAmbientInventoryFlags(t *testing.T) {
+	root := repoRoot(t)
+	t.Setenv("GOFLAGS", "-tags=runtime_v2_ownership_corpus -json")
+	packages := []string{"./internal/ownershipgate"}
+	pattern := "^TestRuntimeV2OwnershipCorpus$"
+
+	defaultTests, err := ListTests(root, packages, "", pattern)
+	if err != nil {
+		t.Fatalf("default inventory under ambient GOFLAGS: %v", err)
+	}
+	if len(defaultTests) != 0 {
+		t.Fatalf("ambient tag contaminated default inventory: %v", defaultTests)
+	}
+
+	taggedTests, err := ListTests(root, packages, "runtime_v2_ownership_corpus", pattern)
+	if err != nil {
+		t.Fatalf("tagged inventory under ambient GOFLAGS: %v", err)
+	}
+	if len(taggedTests) != 1 || taggedTests[0] != "TestRuntimeV2OwnershipCorpus" {
+		t.Fatalf("explicit tagged inventory = %v", taggedTests)
 	}
 }
 

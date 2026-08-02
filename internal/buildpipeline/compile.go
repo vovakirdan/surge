@@ -30,9 +30,13 @@ type CompileRequest struct {
 	MaxDiagnostics        int
 	DirInfo               *DirInfo
 	AllowDiagnosticsError bool
-	Progress              ProgressSink
-	Files                 []string
-	Backend               Backend
+	// Analysis lowers every otherwise-valid source through MIR without
+	// requiring an executable entrypoint. Diagnostics remain fatal and are
+	// returned in Diagnose, but their messages are not echoed to stderr.
+	Analysis bool
+	Progress ProgressSink
+	Files    []string
+	Backend  Backend
 	// CrossingFormsForTest is an internal executable-crossing override used by
 	// Runtime V2 proof tests before a backend capability is publicly flipped.
 	// CLI/env paths must leave it nil.
@@ -57,6 +61,9 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	}
 	if req.TargetPath == "" {
 		return result, fmt.Errorf("missing target path")
+	}
+	if req.Analysis && req.AllowDiagnosticsError {
+		return result, fmt.Errorf("analysis compilation requires diagnostics to remain fatal")
 	}
 
 	if req.Progress != nil && len(req.Files) > 0 {
@@ -102,11 +109,13 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	diagRes.MergeModuleDiagnostics()
 
 	if diagRes.Bag != nil && diagRes.Bag.HasErrors() {
-		for _, d := range diagRes.Bag.Items() {
-			if d.Severity != diag.SevError {
-				continue
+		if !req.Analysis {
+			for _, d := range diagRes.Bag.Items() {
+				if d.Severity != diag.SevError {
+					continue
+				}
+				fmt.Fprintln(os.Stderr, d.Message)
 			}
-			fmt.Fprintln(os.Stderr, d.Message)
 		}
 		if !req.AllowDiagnosticsError {
 			err = fmt.Errorf("diagnostics reported errors")
@@ -117,9 +126,11 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		return result, err
 	}
 
-	if validateErr := ValidateEntrypoints(diagRes); validateErr != nil {
-		emitStage(req.Progress, req.Files, StageDiagnose, StatusError, validateErr, 0)
-		return result, validateErr
+	if !req.Analysis {
+		if validateErr := ValidateEntrypoints(diagRes); validateErr != nil {
+			emitStage(req.Progress, req.Files, StageDiagnose, StatusError, validateErr, 0)
+			return result, validateErr
+		}
 	}
 	if req.DirInfo != nil && req.DirInfo.FileCount > 1 {
 		meta := diagRes.RootModuleMeta()

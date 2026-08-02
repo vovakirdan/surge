@@ -101,13 +101,16 @@ func ReachableTargets(makefile string, roots ...string) map[string]bool {
 // ListTests invokes `go test -list` from the repository root and returns
 // the matched test names — the gate's real selection under its own tags.
 func ListTests(repoRoot string, packages []string, tags, pattern string) ([]string, error) {
-	args := []string{"test"}
-	if tags != "" {
-		args = append(args, "-tags", tags)
-	}
+	// Spell every output- and inventory-shaping option explicitly. In
+	// particular, an ambient GOFLAGS=-tags=... must not contaminate the
+	// default inventory and make a tag-only test disappear from the set the
+	// integrity check compares. Likewise, JSON output is not line-oriented
+	// `go test -list` output and must not reach the parser below.
+	args := make([]string, 0, 5+len(packages)+2)
+	args = append(args, "test", "-tags", tags, "-json=false", "-v=false")
 	args = append(args, packages...)
 	args = append(args, "-list", pattern)
-	cmd := exec.Command("go", args...)
+	cmd := exec.Command("go", args...) // #nosec G204 -- executable is fixed; arguments are repository-owned gate metadata.
 	cmd.Dir = repoRoot
 	out, err := cmd.CombinedOutput()
 	if err != nil {

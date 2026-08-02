@@ -6,7 +6,7 @@ pub type Error = { message: string, code: uint };
 
 extern<Error> {
     pub fn __clone(self: &Error) -> Error {
-        return Error { message = *self.message, code = self.code };
+        return Error { message = self.message.__clone(), code = self.code };
     }
 }
 

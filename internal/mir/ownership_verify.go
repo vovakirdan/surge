@@ -1,10 +1,7 @@
 package mir
 
 import (
-	"fmt"
-
 	"surge/internal/sema"
-	"surge/internal/source"
 	"surge/internal/types"
 )
 
@@ -86,43 +83,6 @@ func (k OwnershipSinkKind) String() string {
 	}
 }
 
-// OwnershipFinding reports one consuming sink whose value this pass could not
-// establish as owned. It is DATA: the pass returns these and changes nothing.
-type OwnershipFinding struct {
-	Function string
-	FuncID   FuncID
-	// Local is the local whose value the sink consumes, or NoLocalID where the
-	// sink's operand names no place at all.
-	Local LocalID
-	// LocalName is the local's MIR name, for a message that reads without a
-	// dump next to it.
-	LocalName string
-	// DefSite names the definition that failed to resolve — "parameter" for an
-	// entry root, "bb2#1" for an instruction — or "use" when the operand
-	// occupying the sink was itself aliasing and no definition was ever
-	// queried.
-	DefSite string
-	// ConsumingSite is where the release or consumption happens.
-	ConsumingSite string
-	ConsumingKind OwnershipSinkKind
-	Span          source.Span
-}
-
-func (f OwnershipFinding) String() string {
-	return fmt.Sprintf("%s: %s of %s (def %s) at %s",
-		f.Function, f.ConsumingKind, f.localLabel(), f.DefSite, f.ConsumingSite)
-}
-
-func (f *OwnershipFinding) localLabel() string {
-	if f.Local == NoLocalID {
-		return "<no place>"
-	}
-	if f.LocalName == "" {
-		return fmt.Sprintf("L%d", f.Local)
-	}
-	return fmt.Sprintf("L%d(%s)", f.Local, f.LocalName)
-}
-
 // VerifyOwnership walks a module's MIR and reports every consuming sink whose
 // value it could not establish, recursively through any transfers, as freshly
 // minted or owned at entry.
@@ -170,9 +130,9 @@ func (v *ownershipFuncVerifier) verify() []OwnershipFinding {
 func (v *ownershipFuncVerifier) checkInstr(ins *Instr, at ownershipPoint) []OwnershipFinding {
 	switch ins.Kind {
 	case InstrDrop:
-		return v.checkReleasedPlace(ins.Drop.Place, ins.Drop.Shallow, at, OwnershipSinkDrop)
+		return v.checkReleasedPlace(ins.Drop.Place, ins.Drop.Shallow, at, OwnershipSinkDrop, "place")
 	case InstrEnvelopeRelease:
-		return v.checkReleasedPlace(ins.EnvelopeRelease.Place, false, at, OwnershipSinkEnvelopeRelease)
+		return v.checkReleasedPlace(ins.EnvelopeRelease.Place, false, at, OwnershipSinkEnvelopeRelease, "place")
 	case InstrAwait:
 		return v.checkTaskConsume(&ins.Await.Task, at)
 	case InstrPoll:
@@ -186,9 +146,9 @@ func (v *ownershipFuncVerifier) checkInstr(ins *Instr, at ownershipPoint) []Owne
 	case InstrCrossing:
 		return v.checkCrossing(&ins.Crossing, at)
 	case InstrBlocking:
-		return v.checkAggregateFields(ins.Blocking.State.Fields, nil, at)
+		return v.checkAggregateFields(ins.Blocking.State.Fields, nil, "state", at)
 	case InstrChanSend:
-		return v.checkOperandSink(&ins.ChanSend.Value, at, OwnershipSinkChanSend)
+		return v.checkOperandSink(&ins.ChanSend.Value, at, OwnershipSinkChanSend, "value")
 	case InstrSelect:
 		var out []OwnershipFinding
 		for i := range ins.Select.Arms {
@@ -196,7 +156,8 @@ func (v *ownershipFuncVerifier) checkInstr(ins *Instr, at ownershipPoint) []Owne
 			if arm.Kind != SelectArmChanSend {
 				continue
 			}
-			out = append(out, v.checkOperandSink(&arm.Value, at, OwnershipSinkSelectSend)...)
+			out = append(out, v.checkOperandSink(&arm.Value, at, OwnershipSinkSelectSend,
+				indexedOwnershipPosition("arm", i)+".value")...)
 		}
 		return out
 	}
@@ -209,16 +170,16 @@ func (v *ownershipFuncVerifier) checkTerm(term *Terminator, at ownershipPoint) [
 		if !term.Return.HasValue || !ownsHeapFor(v.typesIn, v.semaRes, v.f.Result) {
 			return nil
 		}
-		return v.checkOperandSink(&term.Return.Value, at, OwnershipSinkReturn)
+		return v.checkOperandSink(&term.Return.Value, at, OwnershipSinkReturn, "value")
 	case TermAsyncReturn:
 		if !term.AsyncReturn.HasValue || !ownsHeapFor(v.typesIn, v.semaRes, v.f.Result) {
 			return nil
 		}
-		return v.checkOperandSink(&term.AsyncReturn.Value, at, OwnershipSinkReturn)
+		return v.checkOperandSink(&term.AsyncReturn.Value, at, OwnershipSinkReturn, "value")
 	case TermAsyncYield:
-		return v.checkOperandSink(&term.AsyncYield.State, at, OwnershipSinkAsyncState)
+		return v.checkOperandSink(&term.AsyncYield.State, at, OwnershipSinkAsyncState, "state")
 	case TermAsyncReturnCancelled:
-		return v.checkOperandSink(&term.AsyncReturnCancelled.State, at, OwnershipSinkAsyncState)
+		return v.checkOperandSink(&term.AsyncReturnCancelled.State, at, OwnershipSinkAsyncState, "state")
 	}
 	return nil
 }
@@ -230,7 +191,13 @@ func (v *ownershipFuncVerifier) checkTerm(term *Terminator, at ownershipPoint) [
 // definition-resolving procedure for the released local. Modelling the release
 // as an implicit copy-read instead would read ALIASES unconditionally and fail
 // every unguarded drop in the corpus before a single definition was queried.
-func (v *ownershipFuncVerifier) checkReleasedPlace(p Place, shallow bool, at ownershipPoint, kind OwnershipSinkKind) []OwnershipFinding {
+func (v *ownershipFuncVerifier) checkReleasedPlace(
+	p Place,
+	shallow bool,
+	at ownershipPoint,
+	kind OwnershipSinkKind,
+	position string,
+) []OwnershipFinding {
 	if shallow || p.Kind != PlaceLocal || len(p.Proj) != 0 || p.Local == NoLocalID {
 		return nil
 	}
@@ -244,28 +211,62 @@ func (v *ownershipFuncVerifier) checkReleasedPlace(p Place, shallow bool, at own
 	if v.resolvePlaceDefs(p.Local, at, st) {
 		return nil
 	}
-	return []OwnershipFinding{v.finding(p.Local, st, at, kind)}
+	return v.findings(p.Local, st, at, kind, position)
 }
 
 func (v *ownershipFuncVerifier) checkCallArgs(call *CallInstr, at ownershipPoint) []OwnershipFinding {
 	var out []OwnershipFinding
+	asyncStateFree := isAsyncStateFreeCall(call)
 	for i, contract := range call.ArgContracts {
 		if i >= len(call.Args) {
 			break
 		}
 		arg := &call.Args[i]
+		position := indexedOwnershipPosition("arg", i)
 		switch contract {
 		case ArgContractUnresolved:
 			// A callee shape the lowering could not classify is reported
 			// directly, with no reaching-def query: the gap itself is the
 			// finding, and passing it through silently is the failure mode the
 			// marker exists to prevent.
-			out = append(out, v.finding(operandLocal(arg), nil, at, OwnershipSinkUnresolvedContract))
-		case ArgContractTransferOwned, ArgContractStore:
-			out = append(out, v.checkOperandSink(arg, at, OwnershipSinkCallArg)...)
+			out = append(out, v.findings(operandLocal(arg), nil, at, OwnershipSinkUnresolvedContract, position)...)
+		case ArgContractTransferOwned:
+			if asyncStateFree {
+				out = append(out, v.checkAsyncStateFreeArg(arg, at, position)...)
+				continue
+			}
+			out = append(out, v.checkOperandSink(arg, at, OwnershipSinkCallArg, position)...)
+		case ArgContractStore:
+			out = append(out, v.checkOperandSink(arg, at, OwnershipSinkCallArg, position)...)
 		}
 	}
 	return out
+}
+
+// isAsyncStateFreeCall recognizes exactly the compiler-generated one- or
+// two-box release ABI. Its operands are spelled COPY because the native
+// backend nulls the slots while freeing them; semantically this is a place
+// release, not an alias handed to an ordinary transfer-owned parameter.
+func isAsyncStateFreeCall(call *CallInstr) bool {
+	if call == nil || call.Callee.Kind != CalleeValue || call.Callee.Name != AsyncStateFreeBuiltin ||
+		call.HasDst || len(call.Args) == 0 || len(call.Args) > 2 || len(call.ArgContracts) != len(call.Args) {
+		return false
+	}
+	for _, contract := range call.ArgContracts {
+		if contract != ArgContractTransferOwned {
+			return false
+		}
+	}
+	return true
+}
+
+func (v *ownershipFuncVerifier) checkAsyncStateFreeArg(op *Operand, at ownershipPoint, position string) []OwnershipFinding {
+	eff := v.effectiveOperand(op)
+	if eff.Kind != OperandCopy || eff.Place.Kind != PlaceLocal || len(eff.Place.Proj) != 0 ||
+		eff.Place.Local == NoLocalID {
+		return v.checkOperandSink(&eff, at, OwnershipSinkCallArg, position)
+	}
+	return v.checkReleasedPlace(eff.Place, false, at, OwnershipSinkCallArg, position)
 }
 
 func (v *ownershipFuncVerifier) checkAssign(assign *AssignInstr, at ownershipPoint) []OwnershipFinding {
@@ -287,28 +288,35 @@ func (v *ownershipFuncVerifier) checkAssign(assign *AssignInstr, at ownershipPoi
 	if v.resolveRValueUse(&assign.Src, ty, at, st) {
 		return out
 	}
-	return append(out, v.finding(rvalueLocal(&assign.Src), st, at, sinkKind))
+	return append(out, v.findings(rvalueLocal(&assign.Src), st, at, sinkKind, "rhs")...)
 }
 
 func (v *ownershipFuncVerifier) checkAggregateRValue(rv *RValue, at ownershipPoint) []OwnershipFinding {
 	switch rv.Kind {
 	case RValueStructLit:
-		return v.checkAggregateFields(rv.StructLit.Fields, nil, at)
+		return v.checkAggregateFields(rv.StructLit.Fields, nil, "", at)
 	case RValueArrayLit:
-		return v.checkAggregateFields(nil, rv.ArrayLit.Elems, at)
+		return v.checkAggregateFields(nil, rv.ArrayLit.Elems, "", at)
 	case RValueTupleLit:
-		return v.checkAggregateFields(nil, rv.TupleLit.Elems, at)
+		return v.checkAggregateFields(nil, rv.TupleLit.Elems, "", at)
 	}
 	return nil
 }
 
-func (v *ownershipFuncVerifier) checkAggregateFields(fields []StructLitField, elems []Operand, at ownershipPoint) []OwnershipFinding {
+func (v *ownershipFuncVerifier) checkAggregateFields(
+	fields []StructLitField,
+	elems []Operand,
+	prefix string,
+	at ownershipPoint,
+) []OwnershipFinding {
 	out := make([]OwnershipFinding, 0, len(fields)+len(elems))
 	for i := range fields {
-		out = append(out, v.checkOperandSink(&fields[i].Value, at, OwnershipSinkAggregateField)...)
+		out = append(out, v.checkOperandSink(&fields[i].Value, at, OwnershipSinkAggregateField,
+			ownershipFieldPosition(prefix, i, fields[i].Name))...)
 	}
 	for i := range elems {
-		out = append(out, v.checkOperandSink(&elems[i], at, OwnershipSinkAggregateField)...)
+		out = append(out, v.checkOperandSink(&elems[i], at, OwnershipSinkAggregateField,
+			prefixedOwnershipPosition(prefix, indexedOwnershipPosition("elem", i)))...)
 	}
 	return out
 }
@@ -316,21 +324,28 @@ func (v *ownershipFuncVerifier) checkAggregateFields(fields []StructLitField, el
 func (v *ownershipFuncVerifier) checkCrossing(cr *CrossingInstr, at ownershipPoint) []OwnershipFinding {
 	var out []OwnershipFinding
 	for i := range cr.Captures {
-		out = append(out, v.checkOperandSink(&cr.Captures[i].Value, at, OwnershipSinkCrossingCapture)...)
+		out = append(out, v.checkOperandSink(&cr.Captures[i].Value, at, OwnershipSinkCrossingCapture,
+			indexedOwnershipPosition("capture", i))...)
 	}
-	out = append(out, v.checkAggregateFields(cr.State.Fields, nil, at)...)
+	out = append(out, v.checkAggregateFields(cr.State.Fields, nil, "state", at)...)
 	if cr.ConsumesHandle {
-		out = append(out, v.checkOperandSink(&cr.Receiver, at, OwnershipSinkCrossingReceiver)...)
+		out = append(out, v.checkOperandSink(&cr.Receiver, at, OwnershipSinkCrossingReceiver, "receiver")...)
 	}
 	for i := range cr.RemoteOps {
-		out = append(out, v.checkOperandSink(&cr.RemoteOps[i].Value, at, OwnershipSinkCrossingRemoteValue)...)
+		out = append(out, v.checkOperandSink(&cr.RemoteOps[i].Value, at, OwnershipSinkCrossingRemoteValue,
+			indexedOwnershipPosition("remote_op", i)+".value")...)
 	}
 	return out
 }
 
 // checkOperandSink is the ordinary row: gate on the position's own effective
 // type owning heap, then run the use-then-definition resolution on it.
-func (v *ownershipFuncVerifier) checkOperandSink(op *Operand, at ownershipPoint, kind OwnershipSinkKind) []OwnershipFinding {
+func (v *ownershipFuncVerifier) checkOperandSink(
+	op *Operand,
+	at ownershipPoint,
+	kind OwnershipSinkKind,
+	position string,
+) []OwnershipFinding {
 	if !v.operandOwnsHeap(op) {
 		return nil
 	}
@@ -338,7 +353,7 @@ func (v *ownershipFuncVerifier) checkOperandSink(op *Operand, at ownershipPoint,
 	if v.resolveOperandUse(op, at, st) {
 		return nil
 	}
-	return []OwnershipFinding{v.finding(operandLocal(op), st, at, kind)}
+	return v.findings(operandLocal(op), st, at, kind, position)
 }
 
 // checkTaskConsume verifies the handle an Await consumes unconditionally, or
@@ -357,7 +372,7 @@ func (v *ownershipFuncVerifier) checkTaskConsume(op *Operand, at ownershipPoint)
 	eff := v.effectiveOperand(op)
 	ty := operandType(&eff)
 	if eff.Kind == OperandCopy && ty == types.NoTypeID {
-		return []OwnershipFinding{v.finding(operandLocal(&eff), newOwnershipResolveState(), at, OwnershipSinkTaskConsume)}
+		return v.findings(operandLocal(&eff), newOwnershipResolveState(), at, OwnershipSinkTaskConsume, "task")
 	}
 	if !ownsHeapFor(v.typesIn, v.semaRes, ty) {
 		return nil
@@ -365,14 +380,14 @@ func (v *ownershipFuncVerifier) checkTaskConsume(op *Operand, at ownershipPoint)
 	st := newOwnershipResolveState()
 	if eff.Kind == OperandCopy {
 		if eff.Place.Kind != PlaceLocal || len(eff.Place.Proj) != 0 || eff.Place.Local == NoLocalID {
-			return []OwnershipFinding{v.finding(operandLocal(&eff), st, at, OwnershipSinkTaskConsume)}
+			return v.findings(operandLocal(&eff), st, at, OwnershipSinkTaskConsume, "task")
 		}
 		if v.resolvePlaceDefs(eff.Place.Local, at, st) {
 			return nil
 		}
-		return []OwnershipFinding{v.finding(eff.Place.Local, st, at, OwnershipSinkTaskConsume)}
+		return v.findings(eff.Place.Local, st, at, OwnershipSinkTaskConsume, "task")
 	}
-	return v.checkOperandSink(&eff, at, OwnershipSinkTaskConsume)
+	return v.checkOperandSink(&eff, at, OwnershipSinkTaskConsume, "task")
 }
 
 func operandLocal(op *Operand) LocalID {
@@ -388,44 +403,4 @@ func rvalueLocal(rv *RValue) LocalID {
 		return NoLocalID
 	}
 	return operandLocal(src)
-}
-
-func (v *ownershipFuncVerifier) finding(local LocalID, st *ownershipResolveState, at ownershipPoint, kind OwnershipSinkKind) OwnershipFinding {
-	def := "use"
-	if st != nil && st.hasBlame {
-		def = describeDefSite(st.blame)
-	}
-	if kind == OwnershipSinkUnresolvedContract {
-		def = "unresolved contract"
-	}
-	name := ""
-	span := v.f.Span
-	if local != NoLocalID && int(local) < len(v.f.Locals) {
-		name = v.f.Locals[local].Name
-		span = v.f.Locals[local].Span
-	}
-	return OwnershipFinding{
-		Function:      v.f.Name,
-		FuncID:        v.f.ID,
-		Local:         local,
-		LocalName:     name,
-		DefSite:       def,
-		ConsumingSite: describePoint(v.f, at),
-		ConsumingKind: kind,
-		Span:          span,
-	}
-}
-
-func describeDefSite(d ownershipDefSite) string {
-	if d.IsParamRoot() {
-		return "parameter"
-	}
-	return fmt.Sprintf("bb%d#%d", d.Block, d.Instr)
-}
-
-func describePoint(f *Func, at ownershipPoint) string {
-	if f != nil && int(at.Block) < len(f.Blocks) && at.Instr >= len(f.Blocks[at.Block].Instrs) {
-		return fmt.Sprintf("bb%d#term", at.Block)
-	}
-	return fmt.Sprintf("bb%d#%d", at.Block, at.Instr)
 }

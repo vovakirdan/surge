@@ -130,11 +130,11 @@ func TestOwnershipGuardedDropRecognizer(t *testing.T) {
 	// apart by resolving the definition rather than by recognizing the frame
 	// around it.
 	t.Run("guard_raised_on_an_aliasing_path_is_rejected", func(t *testing.T) {
-		// Blamed at the guard-true block's OWN assignment (bb1#1), which is the
-		// definition the recognizer selected and could not resolve — not at the
-		// forwarding arm, which the guard legitimately excuses.
+		// Once the guard proof fails, ordinary EVERY-definition resolution reports
+		// both aliasing roots: the guard-true assignment and the forwarding arm.
 		requireFindings(t, env.verify(build(aliasesBorrow(env), false)),
-			"guarded: drop of L4(tmp_value) (def bb1#1) at bb4#0")
+			"guarded: drop of L4(tmp_value) (def bb1#1) at bb4#0",
+			"guarded: drop of L4(tmp_value) (def bb2#0) at bb4#0")
 	})
 
 	// The decoy attack: a retain of something else, planted between the guard's
@@ -148,7 +148,8 @@ func TestOwnershipGuardedDropRecognizer(t *testing.T) {
 		// bb1#2 is the real assignment to the branch value; the decoy sits at
 		// bb1#1 and is never what gets checked.
 		requireFindings(t, env.verify(build(aliasesBorrow(env), true)),
-			"guarded: drop of L4(tmp_value) (def bb1#2) at bb4#0")
+			"guarded: drop of L4(tmp_value) (def bb1#2) at bb4#0",
+			"guarded: drop of L4(tmp_value) (def bb2#0) at bb4#0")
 	})
 
 	// And the decoy must not rescue the guard even when the ARM is fine either:

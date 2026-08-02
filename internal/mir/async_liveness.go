@@ -194,6 +194,12 @@ func addUsesFromCrossing(ins *CrossingInstr, addUse, addDef func(LocalID)) {
 	for i := range ins.RemoteOps {
 		addUsesFromOperand(&ins.RemoteOps[i].Receiver, addUse, addDef)
 		addUsesFromOperand(&ins.RemoteOps[i].Value, addUse, addDef)
+		if ins.RemoteOps[i].ReturnPlace != nil {
+			// A genuine winner reply defines this place again before ReadyBB.
+			// PendBB never reads it; async lowering removes it from that
+			// suspend variant while the runtime pending owns the payload.
+			addDefFromPlace(*ins.RemoteOps[i].ReturnPlace, addDef)
+		}
 	}
 	addUsesFromOperand(&ins.Receiver, addUse, addDef)
 }

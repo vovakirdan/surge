@@ -309,6 +309,15 @@ type CrossingRemoteOp struct {
 	ReceiverType   types.TypeID
 	// Value carries a remote-select send arm's payload; unset elsewhere.
 	Value Operand
+	// ReturnPlace marks the narrow remote-select conditional-transfer
+	// protocol. Value MOVE-s this exact bare local into the pending arm table;
+	// while the crossing is pending the runtime is its sole owner. A genuine
+	// winner reply returns every non-committed SEND payload and the backend
+	// restores this place before entering ReadyBB, where ordinary per-arm drop
+	// synthesis consumes the losing payloads. Nil means ordinary operand
+	// semantics. Validation deliberately accepts this only for a unique bare
+	// local on a ChannelSelect SEND arm.
+	ReturnPlace *Place
 }
 
 // CrossingInstr represents a crossing operation without backend execution

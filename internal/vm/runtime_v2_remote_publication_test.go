@@ -15,6 +15,7 @@ func TestRuntimeV2RemotePublicationAPIShape(t *testing.T) {
 	source := `
 #include <stdint.h>
 #include "rt_async_internal.h"
+#include "rt_far_channel.h"
 #include "rt_remote_spawn.h"
 #include "rt_remote_task.h"
 
@@ -36,6 +37,9 @@ rt_remote_spawn_status (*check_handle_alloc)(rt_far_task_handle**) =
     rt_far_task_handle_alloc;
 rt_runtime_status (*check_remote_task_state_destroy)(rt_executor*) =
     rt_remote_task_state_destroy;
+rt_remote_task_status (*check_far_channel_select)(const rt_far_task_handle* const*,
+    const uint8_t*, uint64_t*, const uint64_t*, uint64_t, uint64_t, int64_t, void*,
+    rt_remote_task_pending**, uint8_t*, uint64_t*) = rt_far_channel_select;
 
 _Static_assert(RT_REMOTE_SPAWN_STATUS_OK == 0, "OK status must stay zero");
 _Static_assert(RT_REMOTE_SPAWN_STATUS_PENDING != RT_REMOTE_SPAWN_STATUS_OK,
@@ -354,6 +358,26 @@ func TestRuntimeV2RemoteSelectAbandonEdges(t *testing.T) {
 			mode: "far-select-refusal-after-shipped",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
 		},
+		{
+			name: "initial-owner-mismatch-drops-payloads",
+			mode: "far-select-initial-owner-mismatch",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			name: "initial-null-anchor-array-drops-payload",
+			mode: "far-select-initial-null-anchors",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			name: "initial-enqueue-refusal-drops-payload-once",
+			mode: "far-select-enqueue-refusal",
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			name: "recv-winner-returns-losing-payload",
+			mode: "far-select-recv-winner-handback",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+		},
 	}
 	for _, row := range rows {
 		row := row
@@ -505,6 +529,43 @@ func TestRuntimeV2RemoteStateHandoffStaticContract(t *testing.T) {
 	}
 }
 
+func TestRuntimeV2FarSelectInitialFailurePayloadOwnershipStaticContract(t *testing.T) {
+	root := repoRoot(t)
+	source := readTransportContractFile(t, root, "runtime/native/rt_far_channel_select.c")
+
+	requestFailStart := strings.Index(source, "if (request == NULL) {")
+	requestFailEnd := strings.Index(source, "request->handle.generation = request->request_id;")
+	if requestFailStart < 0 || requestFailEnd <= requestFailStart {
+		t.Fatal("could not isolate far-select pending-allocation failure path")
+	}
+	requestFail := source[requestFailStart:requestFailEnd]
+	if strings.Count(requestFail, "__surge_drop_result_call(") != 1 {
+		t.Fatal("pending-allocation failure must have exactly one payload-drop loop")
+	}
+	if strings.Contains(requestFail, "select_drop_input_payloads(") {
+		t.Fatal("pending-allocation failure must not also run the pre-arm payload cleanup")
+	}
+
+	enqueueFailStart := strings.Index(source, "rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));")
+	enqueueFailEnd := strings.Index(source, "// Unpins every arm the dispatch pinned")
+	if enqueueFailStart < 0 || enqueueFailEnd <= enqueueFailStart {
+		t.Fatal("could not isolate far-select initial-enqueue failure path")
+	}
+	enqueueFail := source[enqueueFailStart:enqueueFailEnd]
+	for _, required := range []string{
+		"rt_remote_task_pending_consume(request);",
+		"rt_remote_task_pending_release(request);",
+	} {
+		if !strings.Contains(enqueueFail, required) {
+			t.Fatalf("initial-enqueue failure is missing pending-owned cleanup %q", required)
+		}
+	}
+	if strings.Contains(enqueueFail, "select_drop_input_payloads(") ||
+		strings.Contains(enqueueFail, "__surge_drop_result_call(") {
+		t.Fatal("initial-enqueue failure must release only through the pending, not a second direct payload drop")
+	}
+}
+
 func buildRemotePublicationHarness(t *testing.T) string {
 	t.Helper()
 	clang, err := exec.LookPath("clang")
@@ -597,7 +658,8 @@ enum {
     DROP_REMOTE_STATE = 7003,
     POLL_IMMEDIATE_CALLER = 7004,
     POLL_SELECT_CALLER = 7005,
-    POLL_SELECT_BODY = 7006
+    POLL_SELECT_BODY = 7006,
+    DROP_SELECT_PAYLOAD = 7007
 };
 
 typedef struct remote_child_state {
@@ -662,10 +724,14 @@ typedef struct select_exec_state {
     void* body_state;
     uint32_t droppable;
     uint32_t saw_pending;
+    uint32_t fill_queue;
+    uint32_t filled;
+	uint32_t null_anchor_array;
     rt_far_task_handle anchors[2];
     const rt_far_task_handle* anchor_ptrs[2];
     uint8_t kinds[2];
     uint64_t send_bits[2];
+    uint64_t send_drop_ids[2];
     uint64_t count;
     uint8_t out_kind;
     uint64_t out_bits;
@@ -736,6 +802,7 @@ static int fill_data_lane(rt_executor* ex, uint32_t dst) {
 // (DROP_REMOTE_STATE) and count releases here — the exactly-once census
 // for the shipped-state ownership contract. Any other id is a test bug.
 static _Atomic uint32_t drop_calls;
+static _Atomic uint32_t payload_drop_calls;
 static void* drop_expected_state;
 void __surge_drop_call(uint64_t id, void* state) {
     if (id == DROP_REMOTE_STATE && state == drop_expected_state) {
@@ -746,11 +813,12 @@ void __surge_drop_call(uint64_t id, void* state) {
     exit(97);
 }
 
-// No far-task heap RESULT is installed by these rows, so free_task never
-// dispatches an owner-side result drop; the reference just needs a definition.
 void __surge_drop_result_call(uint64_t id, void* value) {
-    (void)id;
     (void)value;
+    if (id == DROP_SELECT_PAYLOAD) {
+        atomic_fetch_add_explicit(&payload_drop_calls, 1, memory_order_acq_rel);
+        return;
+    }
     fputs("unexpected __surge_drop_result_call\n", stderr);
     exit(97);
 }
@@ -777,6 +845,16 @@ static int wait_reached(rt_sync_point_id id, uint32_t attempts) {
 static int wait_drops(uint32_t want, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
         if (atomic_load_explicit(&drop_calls, memory_order_acquire) == want) {
+            return 1;
+        }
+        sleep_us(1000);
+    }
+    return 0;
+}
+
+static int wait_payload_drops(uint32_t want, uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) == want) {
             return 1;
         }
         sleep_us(1000);
@@ -937,8 +1015,18 @@ void __surge_poll_call(uint64_t id) {
     }
     if (id == POLL_SELECT_CALLER) {
         select_exec_state* st = (select_exec_state*)__task_state();
-        rt_remote_task_status status = rt_far_channel_select(
-            st->anchor_ptrs, st->kinds, st->send_bits, NULL, st->count,
+        if (st->fill_queue && !st->filled) {
+            st->filled = 1;
+            if (!fill_data_lane(ensure_exec(), st->anchors[0].owner_shard_id)) {
+                st->status = RT_REMOTE_TASK_STATUS_REFUSED;
+                rt_async_return(st, (uint64_t)st->status);
+                return;
+            }
+        }
+		const rt_far_task_handle* const* anchors =
+			st->null_anchor_array ? NULL : st->anchor_ptrs;
+		rt_remote_task_status status = rt_far_channel_select(
+			anchors, st->kinds, st->send_bits, st->send_drop_ids, st->count,
             st->droppable ? DROP_REMOTE_STATE : 0, POLL_SELECT_BODY, st->body_state,
             &st->pending, &st->out_kind, &st->out_bits);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
@@ -1797,6 +1885,7 @@ static int run_far_select_cancel_vs_commit(void) {
     st.anchor_ptrs[0] = &st.anchors[0];
     st.kinds[0] = SELECT_CHAN_SEND;
     st.send_bits[0] = 42;
+    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
     int state_marker = 0;
@@ -1832,6 +1921,9 @@ static int run_far_select_cancel_vs_commit(void) {
     if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
         return fail("handed-off select state must not drop across the commit race");
     }
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 0) {
+        return fail("committed select payload must stay with its channel");
+    }
     rt_remote_task_pending_release(req);
     if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
         return fail("select anchor lease release failed");
@@ -1863,6 +1955,7 @@ static int run_far_select_cancel_before_dispatch(void) {
     st.anchor_ptrs[0] = &st.anchors[0];
     st.kinds[0] = SELECT_CHAN_SEND;
     st.send_bits[0] = 55;
+    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
     int state_marker = 0;
@@ -1883,6 +1976,9 @@ static int run_far_select_cancel_before_dispatch(void) {
 
     if (!wait_drops(1, 5000)) {
         return fail("unbound select cancel must drop the state exactly once");
+    }
+    if (!wait_payload_drops(1, 5000)) {
+        return fail("unbound select cancel must drop the pending payload exactly once");
     }
     if (!channel_is_empty(ex, channel)) {
         return fail("unbound select cancel must never touch the arm");
@@ -1923,6 +2019,7 @@ static int run_far_select_double_cancel(void) {
     st.anchor_ptrs[0] = &st.anchors[0];
     st.kinds[0] = SELECT_CHAN_SEND;
     st.send_bits[0] = 91;
+    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
     int state_marker = 0;
@@ -1966,6 +2063,9 @@ static int run_far_select_double_cancel(void) {
     if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
         return fail("handed-off select state must not drop under double-cancel");
     }
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 0) {
+        return fail("committed select payload must not drop under double-cancel");
+    }
     rt_remote_task_pending_release(req);
     if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
         return fail("select anchor lease release failed");
@@ -2007,6 +2107,8 @@ static int run_far_select_refusal_after_shipped(void) {
     st.kinds[1] = SELECT_CHAN_SEND;
     st.send_bits[0] = 12;
     st.send_bits[1] = 34;
+    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_drop_ids[1] = DROP_SELECT_PAYLOAD;
     st.count = 2;
     st.droppable = 1;
     int state_marker = 0;
@@ -2020,6 +2122,9 @@ static int run_far_select_refusal_after_shipped(void) {
     if (!wait_drops(1, 5000)) {
         return fail("refused select must drop the shipped poll state exactly once");
     }
+    if (!wait_payload_drops(2, 5000)) {
+        return fail("refused select must drop each shipped payload exactly once");
+    }
     if (!channel_is_empty(ex, channel0) || !channel_is_empty(ex, channel1)) {
         return fail("refused select must never touch send_bits on either arm");
     }
@@ -2029,6 +2134,165 @@ static int run_far_select_refusal_after_shipped(void) {
     }
     if (rt_far_channel_debug_live_count(ex) != 0) {
         return fail("refusal-after-shipped leaked a pin on one of the arms");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// A reachable synchronous failure before a pending exists: compiler-built
+// arms are well formed, but their far leases name different owners. The
+// conditional-transfer ABI has already consumed both SEND operands when the
+// call starts, so this status must drop each exactly once instead of leaving
+// ownership in caller slots that no longer exist in the async state.
+static int run_far_select_initial_owner_mismatch(void) {
+    rt_executor* ex = ensure_exec();
+    if (rt_runtime_shard_count(rt_executor_runtime(ex)) < 2) {
+        return fail("owner-mismatch row requires two shards");
+    }
+    rt_far_task_handle anchor0 = {0};
+    rt_far_task_handle anchor1 = {0};
+    void* channel0 = mint_channel_anchor(ex, 0, 1, &anchor0);
+    void* channel1 = mint_channel_anchor(ex, 1, 1, &anchor1);
+    if (channel0 == NULL || channel1 == NULL) return fail("owner-mismatch mint failed");
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = anchor0;
+    st.anchors[1] = anchor1;
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.anchor_ptrs[1] = &st.anchors[1];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.kinds[1] = SELECT_CHAN_SEND;
+    st.send_bits[0] = 101;
+    st.send_bits[1] = 202;
+    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_drop_ids[1] = DROP_SELECT_PAYLOAD;
+    st.count = 2;
+
+    if (!await_select(&st)) return fail("owner-mismatch await failed");
+    if (st.status != RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT) {
+        return fail("owner-mismatch select must fail synchronously");
+    }
+    if (!wait_payload_drops(2, 5000)) {
+        return fail("owner-mismatch failure must consume both payloads exactly once");
+    }
+    if (!channel_is_empty(ex, channel0) || !channel_is_empty(ex, channel1)) {
+        return fail("owner-mismatch failure must not touch either channel");
+    }
+    if (rt_far_channel_release(ex, &anchor0) != RT_REMOTE_TASK_STATUS_OK ||
+        rt_far_channel_release(ex, &anchor1) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("owner-mismatch lease release failed");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// The API has consumed the owned SEND operand before it validates the anchor
+// table. Even a wholly missing table must therefore reclaim every payload it
+// can describe instead of leaking the caller's now-unreachable owner.
+static int run_far_select_initial_null_anchors(void) {
+	select_exec_state st;
+	memset(&st, 0, sizeof(st));
+	st.null_anchor_array = 1;
+	st.kinds[0] = SELECT_CHAN_SEND;
+	st.send_bits[0] = 303;
+	st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+	st.count = 1;
+
+	if (!await_select(&st)) return fail("null-anchor select await failed");
+	if (st.status != RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT) {
+		return fail("null-anchor select must fail synchronously");
+	}
+	if (st.pending != NULL) return fail("null-anchor select must not create a pending");
+	if (!wait_payload_drops(1, 5000)) {
+		return fail("null-anchor failure must consume its payload exactly once");
+	}
+	(void)rt_executor_request_shutdown(ensure_exec());
+	return 0;
+}
+
+// The arm table and pending both exist before the initial transport enqueue.
+// A saturated destination must therefore release through the pending exactly
+// once; calling the earlier input-payload cleanup as well would double-drop.
+static int run_far_select_enqueue_refusal(void) {
+    rt_executor* ex = ensure_exec();
+    uint32_t dst = pin_shard(ex, 0);
+    rt_far_task_handle anchor = {0};
+    void* channel = mint_channel_anchor(ex, dst, 1, &anchor);
+    if (channel == NULL) return fail("enqueue-refusal mint failed");
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = anchor;
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.send_bits[0] = 505;
+    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.count = 1;
+    st.fill_queue = 1;
+
+    if (!await_select(&st)) return fail("enqueue-refusal await failed");
+    if (st.status != RT_REMOTE_TASK_STATUS_QUEUE_FULL) {
+        return fail("enqueue-refusal select must report QUEUE_FULL");
+    }
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 1) {
+        return fail("enqueue-refusal pending must consume the payload exactly once");
+    }
+    if (!channel_is_empty(ex, channel)) {
+        return fail("enqueue-refusal must not touch the channel");
+    }
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("enqueue-refusal lease release failed");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// A normal RECV winner returns the losing SEND payload to compiled code
+// before the pending disowns/frees its arm table. The harness observes the
+// raw handback buffer, then performs the one compiled losing-arm drop itself.
+static int run_far_select_recv_winner_handback(void) {
+    rt_executor* ex = ensure_exec();
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle send_anchor = {0};
+    rt_far_task_handle recv_anchor = {0};
+    void* send_channel = mint_channel_anchor(ex, dst, 0, &send_anchor);
+    void* recv_channel = mint_channel_anchor(ex, dst, 1, &recv_anchor);
+    if (send_channel == NULL || recv_channel == NULL) return fail("handback mint failed");
+    rt_channel_send_blocking(recv_channel, 303);
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = send_anchor;
+    st.anchors[1] = recv_anchor;
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.anchor_ptrs[1] = &st.anchors[1];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.kinds[1] = SELECT_CHAN_RECV;
+    st.send_bits[0] = 404;
+    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.count = 2;
+
+    if (!await_select(&st)) return fail("handback await failed");
+    if (st.status != RT_REMOTE_TASK_STATUS_OK || st.out_kind != 1 || st.out_bits != 1) {
+        return fail("handback row must choose the ready RECV arm");
+    }
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 0) {
+        return fail("pending must disown, not drop, a returned losing payload");
+    }
+    if (st.send_bits[0] != 404) {
+        return fail("losing SEND payload was not returned to caller buffer");
+    }
+    __surge_drop_result_call(DROP_SELECT_PAYLOAD, (void*)st.send_bits[0]);
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 1) {
+        return fail("compiled losing-arm drop must consume returned payload once");
+    }
+    if (!channel_is_empty(ex, send_channel) || !channel_is_empty(ex, recv_channel)) {
+        return fail("handback row left unexpected channel data");
+    }
+    if (rt_far_channel_release(ex, &send_anchor) != RT_REMOTE_TASK_STATUS_OK ||
+        rt_far_channel_release(ex, &recv_anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("handback lease release failed");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;
@@ -2080,6 +2344,18 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "far-select-double-cancel") == 0) return run_far_select_double_cancel();
     if (strcmp(argv[1], "far-select-refusal-after-shipped") == 0) {
         return run_far_select_refusal_after_shipped();
+    }
+    if (strcmp(argv[1], "far-select-initial-owner-mismatch") == 0) {
+        return run_far_select_initial_owner_mismatch();
+    }
+	if (strcmp(argv[1], "far-select-initial-null-anchors") == 0) {
+		return run_far_select_initial_null_anchors();
+	}
+    if (strcmp(argv[1], "far-select-enqueue-refusal") == 0) {
+        return run_far_select_enqueue_refusal();
+    }
+    if (strcmp(argv[1], "far-select-recv-winner-handback") == 0) {
+        return run_far_select_recv_winner_handback();
     }
     return fail("unknown mode");
 }

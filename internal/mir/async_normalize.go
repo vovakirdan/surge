@@ -38,8 +38,8 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 		split := false
 		for bi := range f.Blocks {
 			bb := &f.Blocks[bi]
-			for i := 0; i < len(bb.Instrs); i++ {
-				ins := &bb.Instrs[i]
+			for i := range len(bb.Instrs) {
+				ins := bb.Instrs[i]
 				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrNetWait && ins.Kind != InstrTimeout && ins.Kind != InstrSelect && ins.Kind != InstrCrossing {
 					continue
 				}
@@ -138,8 +138,10 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 				f.Blocks[pollBB].Instrs = []Instr{pollInstr}
 				f.Blocks[pollBB].Term = Terminator{Kind: TermUnreachable}
 
-				bb.Instrs = prelude
-				bb.Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: pollBB}}
+				// newBlock may reallocate f.Blocks, so the bb pointer captured
+				// above is no longer safe for writes after either append.
+				f.Blocks[bi].Instrs = prelude
+				f.Blocks[bi].Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: pollBB}}
 
 				sites = append(sites, awaitSite{
 					kind:      kind,

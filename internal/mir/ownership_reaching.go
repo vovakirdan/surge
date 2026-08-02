@@ -24,15 +24,21 @@ func paramRootDef(local LocalID) ownershipDefSite {
 // instruction.
 func (d ownershipDefSite) IsParamRoot() bool { return d.Block == NoBlockID }
 
-// definedLocal reports the BARE local an instruction defines, if any.
+// definedLocals reports the BARE locals an instruction defines.
 //
 // A write THROUGH a projection (`arr[i] = x`, `p.field = x`) deliberately does
 // not count: the base local's own heap reference is unchanged by a write into
 // what it points to, so such a write must not displace the definitions reaching
 // past it. The value being written in is separately a STORE sink.
-func definedLocal(ins *Instr) (LocalID, bool) {
+//
+// Most instructions define at most one local. ChannelSelect is the deliberate
+// exception: a success reply defines the winner destination plus every unique
+// ReturnPlace whose losing payload was handed back. Keeping those definitions
+// on the crossing itself makes the ownership fact visible to MIR rather than a
+// backend-only store the verifier could not prove.
+func definedLocals(ins *Instr) []LocalID {
 	if ins == nil {
-		return NoLocalID, false
+		return nil
 	}
 	var dst Place
 	switch ins.Kind {
@@ -43,14 +49,34 @@ func definedLocal(ins *Instr) (LocalID, bool) {
 	default:
 		p, ok := instrMintsDest(ins)
 		if !ok {
-			return NoLocalID, false
+			return nil
 		}
 		dst = p
 	}
-	if dst.Kind != PlaceLocal || len(dst.Proj) != 0 || dst.Local == NoLocalID {
-		return NoLocalID, false
+	out := make([]LocalID, 0, 1)
+	if dst.Kind == PlaceLocal && len(dst.Proj) == 0 && dst.Local != NoLocalID {
+		out = append(out, dst.Local)
 	}
-	return dst.Local, true
+	if ins.Kind != InstrCrossing {
+		return out
+	}
+	for i := range ins.Crossing.RemoteOps {
+		place := ins.Crossing.RemoteOps[i].ReturnPlace
+		if place == nil || place.Kind != PlaceLocal || len(place.Proj) != 0 || place.Local == NoLocalID {
+			continue
+		}
+		seen := false
+		for _, local := range out {
+			if local == place.Local {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			out = append(out, place.Local)
+		}
+	}
+	return out
 }
 
 // reachingDefs answers "which definitions of this local reach this program
@@ -142,11 +168,13 @@ func (r *reachingDefs) solve(local LocalID) *localReaching {
 	for bi := range r.f.Blocks {
 		instrs := r.f.Blocks[bi].Instrs
 		for ii := range instrs {
-			if got, ok := definedLocal(&instrs[ii]); ok && got == local {
-				// A later definition in the same block locally kills an earlier
-				// one: a MIR local is one storage slot, not an SSA name.
-				gen[bi] = ownershipDefSite{Block: BlockID(bi), Instr: ii, Local: local}
-				kills[bi] = true
+			for _, got := range definedLocals(&instrs[ii]) {
+				if got == local {
+					// A later definition in the same block locally kills an earlier
+					// one: a MIR local is one storage slot, not an SSA name.
+					gen[bi] = ownershipDefSite{Block: BlockID(bi), Instr: ii, Local: local}
+					kills[bi] = true
+				}
 			}
 		}
 	}
@@ -222,8 +250,10 @@ func (r *reachingDefs) ReachingAt(local LocalID, b BlockID, idx int) []ownership
 		limit = len(instrs)
 	}
 	for i := range limit {
-		if got, ok := definedLocal(&instrs[i]); ok && got == local {
-			cur = []ownershipDefSite{{Block: b, Instr: i, Local: local}}
+		for _, got := range definedLocals(&instrs[i]) {
+			if got == local {
+				cur = []ownershipDefSite{{Block: b, Instr: i, Local: local}}
+			}
 		}
 	}
 	return cur

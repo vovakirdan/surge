@@ -6,6 +6,7 @@ import (
 	"surge/internal/hir"
 	"surge/internal/mir"
 	"surge/internal/mono"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -41,6 +42,7 @@ func TestBuildSurgeStart_NoEntrypoint(t *testing.T) {
 func TestBuildSurgeStart_ReturnsNothing(t *testing.T) {
 	typeInterner := types.NewInterner()
 	nothingType := typeInterner.Builtins().Nothing
+	entrypointSpan := source.Span{File: 3, Start: 10, End: 20}
 
 	mm := &mono.MonoModule{
 		Source: &hir.Module{
@@ -61,6 +63,7 @@ func TestBuildSurgeStart_ReturnsNothing(t *testing.T) {
 			SymbolID: symbols.SymbolID(1),
 			Result:   nothingType,
 			Flags:    hir.FuncEntrypoint,
+			Span:     entrypointSpan,
 		},
 	}
 
@@ -76,6 +79,9 @@ func TestBuildSurgeStart_ReturnsNothing(t *testing.T) {
 	}
 	if f.ID != 1 {
 		t.Errorf("expected ID 1, got %d", f.ID)
+	}
+	if f.Span != entrypointSpan {
+		t.Errorf("expected entrypoint span %s, got %s", entrypointSpan, f.Span)
 	}
 	if len(f.Blocks) == 0 {
 		t.Error("expected at least one block")

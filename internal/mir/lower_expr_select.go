@@ -11,7 +11,7 @@ import (
 type loweredSelectArm struct {
 	arm          SelectArm
 	kind         SelectArmKind
-	taskLocal    LocalID
+	task         Operand
 	channelLocal LocalID
 	valueLocal   LocalID
 	msLocal      LocalID
@@ -143,16 +143,10 @@ func (l *funcLowerer) lowerSelectArmDispatch(
 				if lowered[j].kind != SelectArmTask {
 					continue
 				}
-				taskLocal := lowered[j].taskLocal
-				if taskLocal == NoLocalID {
-					continue
-				}
 				l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
 					HasDst: false,
 					Callee: Callee{Kind: CalleeSym, Name: "cancel"},
-					Args: []Operand{
-						l.placeOperand(Place{Local: taskLocal}, l.f.Locals[taskLocal].Type, false),
-					},
+					Args:   []Operand{lowered[j].task},
 					// `cancel` signals a task it still does not own.
 					ArgContracts: borrowArgContracts(1),
 				}})
@@ -204,17 +198,12 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 		if err != nil {
 			return SelectArm{}, loweredSelectArm{}, err
 		}
-		tmp := l.newTemp(task.Type, "select_task", expr.Span)
-		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
-			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueUse, Use: task},
-		}})
 		return SelectArm{
 				Kind: SelectArmTask,
-				Task: l.placeOperand(Place{Local: tmp}, task.Type, false),
+				Task: task,
 			}, loweredSelectArm{
-				kind:      SelectArmTask,
-				taskLocal: tmp,
+				kind: SelectArmTask,
+				task: task,
 			}, nil
 	case hir.ExprCall:
 		data, ok := expr.Data.(hir.CallData)
@@ -242,17 +231,12 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
 			}
-			tmp := l.newTemp(task.Type, "select_task", expr.Span)
-			l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
-				Dst: Place{Local: tmp},
-				Src: RValue{Kind: RValueUse, Use: task},
-			}})
 			return SelectArm{
 					Kind: SelectArmTask,
-					Task: l.placeOperand(Place{Local: tmp}, task.Type, false),
+					Task: task,
 				}, loweredSelectArm{
-					kind:      SelectArmTask,
-					taskLocal: tmp,
+					kind: SelectArmTask,
+					task: task,
 				}, nil
 		case "recv":
 			var chExpr *hir.Expr
@@ -267,21 +251,16 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 			default:
 				return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: recv expects 1 argument")
 			}
-			ch, err := l.lowerExpr(chExpr, false)
+			ch, chLocal, err := l.lowerLocalSelectChannelOperand(chExpr)
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
 			}
-			tmp := l.newTemp(ch.Type, "select_ch", expr.Span)
-			l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
-				Dst: Place{Local: tmp},
-				Src: RValue{Kind: RValueUse, Use: ch},
-			}})
 			return SelectArm{
 					Kind:    SelectArmChanRecv,
-					Channel: l.placeOperand(Place{Local: tmp}, ch.Type, false),
+					Channel: ch,
 				}, loweredSelectArm{
 					kind:         SelectArmChanRecv,
-					channelLocal: tmp,
+					channelLocal: chLocal,
 				}, nil
 		case "send":
 			var (
@@ -301,32 +280,31 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 			default:
 				return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: send expects 2 arguments")
 			}
-			ch, err := l.lowerExpr(chExpr, false)
+			ch, chLocal, err := l.lowerLocalSelectChannelOperand(chExpr)
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
 			}
-			chTmp := l.newTemp(ch.Type, "select_ch", expr.Span)
-			l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
-				Dst: Place{Local: chTmp},
-				Src: RValue{Kind: RValueUse, Use: ch},
-			}})
-			val, err := l.lowerExpr(valExpr, true)
-			if err != nil {
-				return SelectArm{}, loweredSelectArm{}, err
+			val, directOwnedBinding := l.localSelectOwnedBindingOperand(valExpr)
+			if !directOwnedBinding {
+				val, err = l.lowerExpr(valExpr, true)
+				if err != nil {
+					return SelectArm{}, loweredSelectArm{}, err
+				}
+				valTmp := l.newTemp(val.Type, "select_val", expr.Span)
+				l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+					Dst: Place{Local: valTmp},
+					Src: RValue{Kind: RValueUse, Use: val},
+				}})
+				val = l.placeOperand(Place{Local: valTmp}, val.Type, true)
 			}
-			valTmp := l.newTemp(val.Type, "select_val", expr.Span)
-			l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
-				Dst: Place{Local: valTmp},
-				Src: RValue{Kind: RValueUse, Use: val},
-			}})
 			return SelectArm{
 					Kind:    SelectArmChanSend,
-					Channel: l.placeOperand(Place{Local: chTmp}, ch.Type, false),
-					Value:   l.placeOperand(Place{Local: valTmp}, val.Type, true),
+					Channel: ch,
+					Value:   val,
 				}, loweredSelectArm{
 					kind:         SelectArmChanSend,
-					channelLocal: chTmp,
-					valueLocal:   valTmp,
+					channelLocal: chLocal,
+					valueLocal:   val.Place.Local,
 				}, nil
 		case "timeout":
 			if len(data.Args) != 2 {
@@ -336,11 +314,6 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
 			}
-			taskTmp := l.newTemp(task.Type, "select_task", expr.Span)
-			l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
-				Dst: Place{Local: taskTmp},
-				Src: RValue{Kind: RValueUse, Use: task},
-			}})
 			ms, err := l.lowerExpr(data.Args[1], false)
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
@@ -352,16 +325,82 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 			}})
 			return SelectArm{
 					Kind: SelectArmTimeout,
-					Task: l.placeOperand(Place{Local: taskTmp}, task.Type, false),
+					Task: task,
 					Ms:   l.placeOperand(Place{Local: msTmp}, ms.Type, false),
 				}, loweredSelectArm{
-					kind:      SelectArmTimeout,
-					taskLocal: taskTmp,
-					msLocal:   msTmp,
+					kind:    SelectArmTimeout,
+					task:    task,
+					msLocal: msTmp,
 				}, nil
 		}
 	}
 	return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: unsupported expression")
+}
+
+// lowerLocalSelectChannelOperand keeps an already-stable bare channel binding
+// as the select arm operand. A select only borrows the receiver while polling,
+// so copying that binding into tmp_select_ch manufactures an alias that the
+// pending async state later treats as an owner. Only the exact HIR VarRef plus
+// bare-local COPY shape takes this path; projections and all other expressions
+// retain the evaluate-once temp fallback.
+func (l *funcLowerer) lowerLocalSelectChannelOperand(receiver *hir.Expr) (Operand, LocalID, error) {
+	if receiver == nil {
+		return Operand{}, NoLocalID, fmt.Errorf("mir: local select channel receiver is missing")
+	}
+	ch, err := l.lowerExpr(receiver, false)
+	if err != nil {
+		return Operand{}, NoLocalID, err
+	}
+	if receiver.Kind == hir.ExprVarRef && ch.Kind == OperandCopy &&
+		ch.Place.Kind == PlaceLocal && len(ch.Place.Proj) == 0 && ch.Place.Local != NoLocalID {
+		return ch, ch.Place.Local, nil
+	}
+	tmp := l.newTemp(ch.Type, "select_ch", receiver.Span)
+	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: tmp},
+		Src: RValue{Kind: RValueUse, Use: ch},
+	}})
+	return l.placeOperand(Place{Local: tmp}, ch.Type, false), tmp, nil
+}
+
+// localSelectOwnedBindingOperand recognizes the one select-send shape whose
+// ownership is conditional on which arm wins. rt_select_poll only borrows the
+// bits while it is pending; a successful SEND transfers them to the channel,
+// while a losing arm keeps using the same binding. Generic unary lowering
+// would turn `own job` into an alias temp and the select lowering would then
+// add another value temp, putting multiple alleged owners in the cancelled
+// async state. Keep the exact bare local as the one MOVE operand instead.
+//
+// Sema already requires this shape for a non-Copy select payload. Staying
+// deliberately exact here makes projections and all other expressions retain
+// their ordinary lowering rather than silently widening the protocol.
+func (l *funcLowerer) localSelectOwnedBindingOperand(value *hir.Expr) (Operand, bool) {
+	if l == nil || l.f == nil || value == nil || value.Kind != hir.ExprUnaryOp {
+		return Operand{}, false
+	}
+	unary, ok := value.Data.(hir.UnaryOpData)
+	if !ok || unary.Op != ast.ExprUnaryOwn || unary.Operand == nil || unary.Operand.Kind != hir.ExprVarRef {
+		return Operand{}, false
+	}
+	ref, ok := unary.Operand.Data.(hir.VarRefData)
+	if !ok || !ref.SymbolID.IsValid() {
+		return Operand{}, false
+	}
+	local, ok := l.symToLocal[ref.SymbolID]
+	if !ok || local == NoLocalID || int(local) < 0 || int(local) >= len(l.f.Locals) {
+		return Operand{}, false
+	}
+	localInfo := l.f.Locals[local]
+	localType := localInfo.Type
+	if localType == types.NoTypeID || localInfo.Flags&LocalFlagOwnsHeap == 0 ||
+		localInfo.Flags&LocalFlagCopy != 0 {
+		return Operand{}, false
+	}
+	return Operand{
+		Kind:  OperandMove,
+		Type:  localType,
+		Place: Place{Local: local},
+	}, true
 }
 
 func (l *funcLowerer) unwrapSelectAwaitExpr(expr *hir.Expr) *hir.Expr {

@@ -41,13 +41,13 @@ static void select_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) 
     }
 }
 
-// A winner reply hands the arm table's payload ownership BACK to compiled
-// code: the caller's own arm dispatch reclaims every losing SEND payload
-// through sema's per-arm drop synthesis, the same machinery a local select
-// uses (internal/sema/type_expr_select.go merges the arms' moved-sets and
-// gives each arm the drops the others made). If the pending's free path
-// also dropped them, both owners would fire on the normal path — the
-// double free RV2-DEBT-064 records.
+// A winner reply hands each non-committed SEND payload BACK to compiled code:
+// copy its bits into the caller's retry buffer, then clear the pending's drop
+// obligation. The backend restores those bits into the explicit MIR
+// ReturnPlace before entering the winning arm, where ordinary ownership drop
+// synthesis reclaims every losing payload. The committed arm is already owned
+// by its channel and is therefore returned as zero. If the pending's free path
+// also dropped a returned loser, both owners would fire on the normal path.
 //
 // This is where select DIVERGES from the result obligation's clear in
 // rt_remote_task_api.c's finish_retry, which clears unconditionally. That
@@ -65,33 +65,63 @@ static void select_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) 
 // symmetric with record_select_commit, which writes the neighbouring
 // select_committed_index under it — one writer arguing from a liveness
 // invariant and the other from a lock is the kind of asymmetry that decays.
-static void select_disown_arms(rt_remote_task_pending* pending) {
+static int
+select_return_arms(rt_remote_task_pending* pending, uint64_t* out_send_bits, uint64_t out_count) {
     rt_remote_task_state* state =
         pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
-    if (pending == NULL || pending->select_arms == NULL || state == NULL) {
-        return;
+    if (pending == NULL || pending->select_arms == NULL || state == NULL || out_send_bits == NULL ||
+        out_count != pending->select_count) {
+        return 0;
     }
     pthread_mutex_lock(&state->lock);
     for (uint64_t i = 0; i < pending->select_count; i++) {
+        rt_far_channel_select_arm* arm = &pending->select_arms[i];
+        out_send_bits[i] = arm->kind == SELECT_CHAN_SEND && i != pending->select_committed_index
+                               ? arm->send_bits
+                               : 0;
         pending->select_arms[i].payload_drop_fn_id = 0;
     }
     pthread_mutex_unlock(&state->lock);
+    return 1;
 }
 
-static rt_remote_task_status
-select_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {
+static rt_remote_task_status select_finish_retry(rt_remote_task_pending** slot,
+                                                 uint64_t* out_send_bits,
+                                                 uint64_t out_count,
+                                                 uint8_t* out_kind,
+                                                 uint64_t* out_bits) {
     uint8_t kind = 0;
     if (*slot != NULL &&
         rt_remote_task_pending_snapshot(*slot, &kind, NULL) == RT_REMOTE_TASK_STATUS_OK &&
         kind == RT_REMOTE_TASK_REPLY_KIND_SUCCESS) {
-        select_disown_arms(*slot);
+        if (!select_return_arms(*slot, out_send_bits, out_count)) {
+            // A success without storage for the returned losing payloads
+            // cannot be exposed to compiled arm dispatch. Leave every drop
+            // obligation on the pending, consume it, and fail closed.
+            (void)rt_immediate_on_finish_retry(slot, out_kind, out_bits);
+            return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
+        }
     }
     return rt_immediate_on_finish_retry(slot, out_kind, out_bits);
 }
 
+static void select_drop_input_payloads(const uint8_t* kinds,
+                                       const uint64_t* send_bits,
+                                       const uint64_t* send_drop_fn_ids,
+                                       uint64_t count) {
+    if (kinds == NULL || send_bits == NULL || send_drop_fn_ids == NULL) {
+        return;
+    }
+    for (uint64_t i = 0; i < count; i++) {
+        if (kinds[i] == SELECT_CHAN_SEND && send_drop_fn_ids[i] != 0) {
+            __surge_drop_result_call(send_drop_fn_ids[i], (void*)send_bits[i]);
+        }
+    }
+}
+
 rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
-                                            const uint64_t* send_bits,
+                                            uint64_t* send_bits,
                                             const uint64_t* send_drop_fn_ids,
                                             uint64_t count,
                                             uint64_t state_drop_fn_id,
@@ -109,27 +139,36 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         rt_remote_task_status status =
             rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-            return select_finish_retry(pending, out_kind, out_bits);
+            return select_finish_retry(pending, send_bits, count, out_kind, out_bits);
         }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
-            return select_finish_retry(pending, out_kind, out_bits);
+            return select_finish_retry(pending, send_bits, count, out_kind, out_bits);
         }
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
     if (anchors == NULL || kinds == NULL || count == 0 || count > RT_FAR_CHANNEL_SELECT_MAX_ARMS) {
+        // The call boundary already consumed every well-described SEND payload.
+        // A missing anchor array is still enough information to reclaim them;
+        // cap the walk at the ABI arm limit so a malformed count cannot make
+        // failure cleanup read beyond the caller-provided arrays.
+        if (count > 0 && count <= RT_FAR_CHANNEL_SELECT_MAX_ARMS) {
+            select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
+        }
         select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     for (uint64_t i = 0; i < count; i++) {
         if (anchors[i] == NULL || anchors[i]->kind != RT_FAR_HANDLE_KIND_CHANNEL ||
             anchors[i]->owner_shard_id != anchors[0]->owner_shard_id) {
+            select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
             select_drop_unshipped_state(state_drop_fn_id, state);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
         if (kinds[i] != SELECT_CHAN_RECV && kinds[i] != SELECT_CHAN_SEND) {
+            select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
             select_drop_unshipped_state(state_drop_fn_id, state);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
@@ -137,18 +176,21 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
     rt_runtime* runtime = rt_executor_runtime(ex);
     rt_shard* destination = rt_runtime_shard(runtime, anchors[0]->owner_shard_id);
     if (destination == NULL) {
+        select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
         select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
     if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
         atomic_load_explicit(&destination->transport.park_state, memory_order_acquire) ==
             RT_TRANSPORT_SHARD_SHUTDOWN) {
+        select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
         select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
     rt_far_channel_select_arm* arms = (rt_far_channel_select_arm*)rt_alloc(
         count * sizeof(rt_far_channel_select_arm), _Alignof(rt_far_channel_select_arm));
     if (arms == NULL) {
+        select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
         select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }

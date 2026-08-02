@@ -454,11 +454,6 @@ func (l *funcLowerer) lowerLetPattern(span source.Span, data hir.LetData) error 
 		}
 		return nil
 	}
-	pat, ok := data.Pattern.Data.(hir.TupleLitData)
-	if !ok {
-		return fmt.Errorf("mir: let pattern: unexpected payload %T", data.Pattern.Data)
-	}
-
 	tupleTy := data.Value.Type
 	tupleTmp := l.newTemp(tupleTy, "tuple", span)
 	valOp, err := l.lowerExpr(data.Value, true)
@@ -472,33 +467,82 @@ func (l *funcLowerer) lowerLetPattern(span source.Span, data hir.LetData) error 
 			Src: RValue{Kind: RValueUse, Use: valOp},
 		},
 	})
+	return l.lowerTuplePatternFields(data.Pattern, tupleTy, tupleTmp)
+}
+
+// lowerTuplePatternFields consumes the fields of one already-owned tuple.
+// Nested tuple patterns recurse on a moved-out child envelope, matching sema's
+// recursive binding contract rather than treating a supported pattern as `_`.
+func (l *funcLowerer) lowerTuplePatternFields(pattern *hir.Expr, tupleTy types.TypeID, tupleTmp LocalID) error {
+	if pattern == nil || pattern.Kind != hir.ExprTupleLit {
+		return fmt.Errorf("mir: let pattern: expected tuple pattern")
+	}
+	pat, ok := pattern.Data.(hir.TupleLitData)
+	if !ok {
+		return fmt.Errorf("mir: let pattern: unexpected payload %T", pattern.Data)
+	}
+	tupleInfo, ok := l.types.TupleInfo(resolveAlias(l.types, tupleTy))
+	tupleElems := 0
+	if tupleInfo != nil {
+		tupleElems = len(tupleInfo.Elems)
+	}
+	if !ok || tupleInfo == nil || tupleElems != len(pat.Elements) {
+		return fmt.Errorf("mir: let pattern: tuple type has %d elements, pattern has %d", tupleElems, len(pat.Elements))
+	}
 	tupleOperand := Operand{Kind: OperandCopy, Type: tupleTy, Place: Place{Local: tupleTmp}}
 
 	for i, el := range pat.Elements {
+		elemTy := tupleInfo.Elems[i]
 		if el == nil {
-			continue
+			return fmt.Errorf("mir: let pattern: missing element %d", i)
 		}
-		if el.Kind != hir.ExprVarRef {
-			continue
+		switch el.Kind {
+		case hir.ExprTupleLit:
+			nestedTmp := l.newTemp(elemTy, "tuple", el.Span)
+			l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+				Dst: Place{Local: nestedTmp},
+				Src: RValue{Kind: RValueField, Field: FieldAccess{
+					Object: tupleOperand, FieldIdx: i, MoveOut: true,
+				}},
+			}})
+			if err := l.lowerTuplePatternFields(el, elemTy, nestedTmp); err != nil {
+				return err
+			}
+		case hir.ExprVarRef:
+			vr, valid := el.Data.(hir.VarRefData)
+			if !valid {
+				return fmt.Errorf("mir: let pattern: unexpected binding payload %T", el.Data)
+			}
+			if vr.Name != "_" && (!vr.SymbolID.IsValid() || vr.Name == "") {
+				return fmt.Errorf("mir: let pattern: invalid binding %q", vr.Name)
+			}
+			if vr.Name != "_" {
+				localID := l.ensureLocal(vr.SymbolID, vr.Name, el.Type, el.Span)
+				l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+					Dst: Place{Local: localID},
+					Src: RValue{Kind: RValueField, Field: FieldAccess{
+						Object: tupleOperand, FieldIdx: i, MoveOut: true,
+					}},
+				}})
+				continue
+			}
+			// The tuple is consumed as a whole. An ignored owning field stays in
+			// the envelope, so reclaim it before the envelope itself is freed.
+			if l.ownsHeap(elemTy) {
+				l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{
+					Local: tupleTmp,
+					Proj:  []PlaceProj{{Kind: PlaceProjField, FieldIdx: i}},
+				}}})
+			}
+		default:
+			return fmt.Errorf("mir: let pattern: unsupported element kind %s", el.Kind)
 		}
-		vr, ok := el.Data.(hir.VarRefData)
-		if !ok || !vr.SymbolID.IsValid() || vr.Name == "" || vr.Name == "_" {
-			continue
-		}
-		localID := l.ensureLocal(vr.SymbolID, vr.Name, el.Type, el.Span)
-		l.emit(&Instr{
-			Kind: InstrAssign,
-			Assign: AssignInstr{
-				Dst: Place{Local: localID},
-				Src: RValue{
-					Kind: RValueField,
-					Field: FieldAccess{
-						Object:   tupleOperand,
-						FieldIdx: i,
-					},
-				},
-			},
-		})
+	}
+	// Every field either moved into a binding or was reclaimed above. Only the
+	// synthesized tuple box remains; a deep drop here would release moved
+	// fields again and a missing drop would leak the envelope.
+	if l.ownsHeap(tupleTy) {
+		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: tupleTmp}, Shallow: true}})
 	}
 
 	return nil
@@ -533,9 +577,11 @@ func (l *funcLowerer) detachFromExitDrops(op *Operand, drops []hir.DropLocal, sp
 		},
 	})
 	// Reading the transfer temp must not retain again: the reference it holds
-	// is the one the caller receives.
+	// is the one the caller receives. A reference-counted scalar is Copy at the
+	// language level, but this synthesized temp is spent by the return, so its
+	// MIR read is an explicit move.
 	if l.isRefCountedScalar(op.Type) {
-		return l.placeOperand(Place{Local: tmp}, op.Type, false)
+		return Operand{Kind: OperandMove, Type: op.Type, Place: Place{Local: tmp}}
 	}
 	return l.placeOperand(Place{Local: tmp}, op.Type, true)
 }

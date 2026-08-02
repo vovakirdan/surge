@@ -5464,3 +5464,81 @@ gate still red is the already-recorded `runtime-v2-check` fd-registry failure;
 the reproduced base failure and the absence of runtime/C changes keep it out of
 this verifier commit rather than hiding it. Step 1 is ready for an owned-only
 commit and mandatory post-commit Codex review before the corpus gate begins.
+
+## 2026-08-02 — Epic 25 Step 2: Corpus Discovery And Triage
+
+Step 1 landed as `632ed9ed`; its commit-scoped Codex review is running while
+Step 2 starts on disjoint infrastructure. Step 2 will add an analysis-only
+buildpipeline mode whose zero value preserves executable compilation, plus a
+cycle-free `internal/ownershipgate` package and a tagged sequential corpus gate.
+The corpus is discovered by attempting every `.sg` under the four specified
+roots, not by treating directory names as proof that MIR exists. Exact compile
+failures, normalized ownership findings, stale allowlist entries, and DEBT
+cross-references all fail closed.
+
+The approved implementation plan is recorded in AgentMemory as
+`mem_msbv3x2k_bb0acb0d879b`. Independent review is required after the first
+green corpus run and before the Step 2 commit. Sentrux baseline for the new
+cross-package surface `/internal` is quality `6504` (1025 files, 234727 lines),
+with the comparison session started. First evidence target: focused
+buildpipeline/model tests, then the bounded full 1046-fixture census and
+classification of every result without blanket suppression.
+
+The final full census is green. Its schema-v2 report is
+`target/runtime-v2/ownership-corpus-census.json`; the pinned four-root path
+digest is
+`47b3f1e5dea9b27669b60c0036cb16651794067ffaa0b54230964a9b867acd10`, and the
+accounting closes exactly as `1046 attempted = 575 MIR + 390 invalid + 81
+exact-ledger non-invalid failures`. The 81 entries are grouped under
+`CF-001`..`CF-015`. The only ownership findings are category-3
+`OWN-001`/`OWN-002`, the two intentional cycle edges in the VM3302 positive
+fixture, both tied to `RV2-DEBT-114`; there are no normalization errors or
+untriaged results.
+
+Two corpus blockers required bounded select fixes. Local select now preserves
+exact bare receiver/payload places instead of packing synthesized owning
+aliases. Far select gives each unique bare `own` SEND root an explicit
+conditional-transfer `ReturnPlace`: pending owns the payload while suspended,
+and a non-SEND winner hands it back before the arm body. Duplicate far roots
+and computed local receivers stay fail-closed/deferred as `RV2-DEBT-113` and
+`RV2-DEBT-116`. Cancellation is pinned by Valgrind A/B controls: far select has
+the same 48 B / 2-block baseline for Copy and non-Copy payloads; local select
+has the same 96 B / 2-block baseline; both have zero indirect and zero
+incremental payload loss. Those visible baselines are the already-open nested
+handle drop-glue gap `RV2-DEBT-062`, not a Step 2 leak hidden by tolerance.
+
+The first final independent Step 2 review found one real P1: both new
+cancellation e2e tests were skipped by ordinary `make test` and unreachable
+from every explicit Runtime V2 target. The bounded fix added their exact names
+to `runtime-v2-heap-check`, whose environment sets
+`SURGE_SKIP_TIMEOUT_TESTS=0`. Focused execution and the full heap target now run
+(not skip) both rows and preserve the measured 48 B / 2-block far and 96 B /
+2-block local A/B baselines with zero indirect delta. `internal/gatecheck`
+passes, and the independent re-review is CLEAN with no remaining P0-P2.
+
+The first commit-scoped Codex review found one further blocking P2: the
+far-select boundary consumed an owned SEND payload but leaked it when the
+initial `anchors` array was null. The repair reclaims well-described SEND
+payloads before state on that synchronous invalid-argument path, bounded to
+`0 < count <= RT_FAR_CHANNEL_SELECT_MAX_ARMS` so malformed oversized counts do
+not read caller arrays. A new row reaches the real async caller and proves
+`pending == NULL` plus exactly one payload drop. Focused dynamic/static tests,
+strict C checks, and the full transport gate pass; independent re-review is
+CLEAN with no P0-P2 findings.
+
+Final Step 2 evidence: `make check`, `make golden-check`,
+`make runtime-v2-ownership-check`, `make runtime-v2-heap-check`,
+`make runtime-v2-transport-check`, `make c-check`, and `git diff --check` pass.
+The `make check` file-size phase reports 23/23 changed code files within policy.
+The composed `make runtime-v2-check` passes liveness, ownership, crossing,
+heap, and waiter before reaching the known fd-registry baseline:
+`TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow` times out draining 32 MiB
+and `TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest`
+reproduces its existing double-free path. These failures predate Step 2 and are
+outside the ownership epic, so no fd-registry code was changed. `make cppcheck`
+reports only existing style warnings in unchanged `rt_array_reclaim.c`,
+`rt_map.c`, and `rt_array.c`; the changed far-select C file is warning-free.
+Sentrux `internal/` quality improves `6504 -> 6506`, all seven rules pass with
+zero violations, and health still names modularity as the bottleneck;
+`session_end` additionally records the non-blocking complex-function count
+change `541 -> 547`. Steps 0-2 are complete and Step 3 is next.

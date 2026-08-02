@@ -1,0 +1,546 @@
+{
+  "version": 3,
+  "compile_failure_groups": [
+    {
+      "id": "CF-001",
+      "disposition": "expected_guard",
+      "reason": "Active crossing fixtures deliberately reach the synchronous crossing backend guard after passing their semantic assertions.",
+      "invalidated_when": "The FUT7019 synchronous-context guard is lifted or any fixture is moved to a supported asynchronous executable context."
+    },
+    {
+      "id": "CF-002",
+      "disposition": "expected_guard",
+      "reason": "The compare-on fixture deliberately reaches the transport payload guard because its unannotated composite response is not shippable.",
+      "invalidated_when": "The FUT7020 payload restriction is lifted for this response shape or the fixture changes to a transportable payload."
+    },
+    {
+      "id": "CF-003",
+      "disposition": "context_only",
+      "reason": "The crosses_deferred tree is historical keyword-era material that its README declares unwired and the golden scripts prune.",
+      "invalidated_when": "The historical tree is reactivated, migrated to the current syntax, or included in an executable golden contract."
+    },
+    {
+      "id": "CF-004",
+      "disposition": "context_only",
+      "reason": "module_multitest is a directory-shaped multi-module fixture, while the canonical corpus profile deliberately compiles each path without DirInfo.",
+      "invalidated_when": "The corpus learns the fixture's directory compilation context or the fixture becomes a valid standalone file target."
+    },
+    {
+      "id": "CF-005",
+      "disposition": "debt",
+      "reason": "Nested async-block lowering does not remap a captured enclosing local into the synthesized async function.",
+      "debt": "RV2-DEBT-103"
+    },
+    {
+      "id": "CF-006",
+      "disposition": "debt",
+      "reason": "Generic default, minimum, and maximum intrinsics reach MIR lowering with the type parameter T unresolved.",
+      "debt": "RV2-DEBT-104"
+    },
+    {
+      "id": "CF-007",
+      "disposition": "debt",
+      "reason": "Autoref overload materialization loses the resolved record type on its synthesized struct temporary.",
+      "debt": "RV2-DEBT-105"
+    },
+    {
+      "id": "CF-008",
+      "disposition": "debt",
+      "reason": "A nothing alias is not canonicalized consistently at the MIR return boundary.",
+      "debt": "RV2-DEBT-106"
+    },
+    {
+      "id": "CF-009",
+      "disposition": "debt",
+      "reason": "A public constant resolved through a relative glob import is not remapped into MIR lowering.",
+      "debt": "RV2-DEBT-107"
+    },
+    {
+      "id": "CF-010",
+      "disposition": "debt",
+      "reason": "Anonymous-record locals and member reads still carry unresolved types into MIR validation.",
+      "debt": "RV2-DEBT-089"
+    },
+    {
+      "id": "CF-011",
+      "disposition": "debt",
+      "reason": "The generic-contract audit currently reports a duplicate-symbol diagnostic under the canonical profile.",
+      "debt": "RV2-DEBT-108"
+    },
+    {
+      "id": "CF-012",
+      "disposition": "debt",
+      "reason": "The tuple audit predates the settled explicit partial-move spelling for heap-owning tuple projections.",
+      "debt": "RV2-DEBT-109"
+    },
+    {
+      "id": "CF-013",
+      "disposition": "debt",
+      "reason": "The functions audit has no settled ownership-preserving spelling for reading its variadic string pack element.",
+      "debt": "RV2-DEBT-110"
+    },
+    {
+      "id": "CF-014",
+      "disposition": "debt",
+      "reason": "The heir audit reads a binding after explicitly moving it into an owned value.",
+      "debt": "RV2-DEBT-111"
+    },
+    {
+      "id": "CF-015",
+      "disposition": "debt",
+      "reason": "The stdlib audit deliberately exercises the currently unsupported multi-argument print surface.",
+      "debt": "RV2-DEBT-112"
+    }
+  ],
+  "compile_failures": [
+    {
+      "fixture": "stdlib/saturating_cast.sg",
+      "signature": "error:MIR lowering failed: mir: unsupported global value reference \"T\" (type ?)",
+      "group": "CF-006"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_compare_on.sg",
+      "signature": "diagnostics:FUT7020@testdata/golden/crossing/block02/valid/on_positive_compare_on.sg:20:13-22:6",
+      "group": "CF-002"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_copy_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_copy_capture.sg:8:12-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_crosses_fn.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_crosses_fn.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_distributed.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_distributed.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_far_channel_anchor.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_far_channel_anchor.sg:8:12-11:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_far_handle_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_far_handle_capture.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_far_tcpconn_close.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_far_tcpconn_close.sg:3:12-6:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_on_statement_discard.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_on_statement_discard.sg:7:5-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_placement_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_placement_capture.sg:7:12-11:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_placement_fn.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_placement_fn.sg:11:12-13:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_placement_var.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_placement_var.sg:8:12-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_pool.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_pool.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_ret_nothing_result.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_ret_nothing_result.sg:7:12-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_shard_call.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_shard_call.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_shard_movable_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_shard_movable_capture.sg:12:12-14:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_taskresult_binding.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_taskresult_binding.sg:7:30-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block02/valid/on_positive_taskresult_return.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block02/valid/on_positive_taskresult_return.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_copy_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_copy_capture.sg:8:12-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_copy_composite_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_copy_composite_capture.sg:16:12-18:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_distributed.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_distributed.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_far_handle_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_far_handle_capture.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_far_task_await_crosses.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_far_task_await_crosses.sg:3:30-3:39",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_far_task_cancel_crosses.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_far_task_cancel_crosses.sg:3:12-3:22",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_placement_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_placement_capture.sg:7:12-11:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_placement_var.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_placement_var.sg:8:12-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_pool.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_pool.sg:7:13-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_ret_nothing.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_ret_nothing.sg:7:12-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_return_far_task.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_return_far_task.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_route_fn.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_route_fn.sg:11:12-13:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_shard.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_shard.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_shard_movable_capture.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_shard_movable_capture.sg:12:12-14:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/capture_positive_copy_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/capture_positive_copy_on.sg:8:12-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/capture_positive_copy_spawn_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/capture_positive_copy_spawn_on.sg:8:12-10:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/capture_positive_far_handle_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/capture_positive_far_handle_on.sg:3:12-6:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/capture_positive_nosend_local_spawn.sg",
+      "signature": "error:MIR lowering failed: mir: unknown local symbol 2843 (v) in __async_block$84",
+      "group": "CF-005"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/capture_positive_shard_movable_dropped_on_dest.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/capture_positive_shard_movable_dropped_on_dest.sg:12:12-15:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/capture_positive_shard_movable_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/capture_positive_shard_movable_on.sg:12:12-14:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/capture_positive_shard_movable_spawn_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/capture_positive_shard_movable_spawn_on.sg:12:12-14:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/effect_positive_call_chain_inferred.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/effect_positive_call_chain_inferred.sg:3:12-5:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/effect_positive_far_task_await_inferred.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/effect_positive_far_task_await_inferred.sg:3:12-3:21",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/effect_positive_far_task_cancel_inferred.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/effect_positive_far_task_cancel_inferred.sg:3:12-3:22",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/effect_positive_on_inferred.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/effect_positive_on_inferred.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/effect_positive_spawn_on_inferred.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/effect_positive_spawn_on_inferred.sg:7:12-9:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/locality_positive_copy_and_movable_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/locality_positive_copy_and_movable_on.sg:14:12-16:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/locality_positive_nosend_local_spawn.sg",
+      "signature": "error:MIR lowering failed: mir: unknown local symbol 2843 (v) in __async_block$84",
+      "group": "CF-005"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/locality_positive_send_and_movable_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/locality_positive_send_and_movable_on.sg:13:12-15:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/block04/valid/pinned_positive_on_far_handle.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/pinned_positive_on_far_handle.sg:3:12-6:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/_spawn_on_negative_await_without_crosses.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/crosses_deferred/_spawn_on_negative_await_without_crosses.sg:6:12-6:21",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/_spawn_on_negative_cancel_without_crosses.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/crosses_deferred/_spawn_on_negative_cancel_without_crosses.sg:6:12-6:22",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/_spawn_on_negative_crosses_call_propagation.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/crosses_deferred/_spawn_on_negative_crosses_call_propagation.sg:10:12-12:6",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/_spawn_on_negative_without_crosses.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/crosses_deferred/_spawn_on_negative_without_crosses.sg:9:12-11:6",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg",
+      "signature": "diagnostics:SEM3005@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:8:20-8:21,SEM3015@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:8:20-8:21,SEM3148@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:7:30-9:6,SEM3177@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:7:5-7:8,SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:6:23-6:23,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:10:5-10:11,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:13:5-13:6,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:14:1-14:2,SYN2205@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_async_fn_on.sg:12:9-12:18",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_call_crosses_from_crosses.sg",
+      "signature": "diagnostics:SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_call_crosses_from_crosses.sg:12:17-12:17,SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_call_crosses_from_crosses.sg:6:17-6:17,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_call_crosses_from_crosses.sg:10:1-10:2,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_call_crosses_from_crosses.sg:14:1-14:2,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_call_crosses_from_crosses.sg:9:5-9:6",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_decl.sg",
+      "signature": "diagnostics:SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_decl.sg:2:38-2:38",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_no_return_type.sg",
+      "signature": "diagnostics:SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_no_return_type.sg:2:44-2:44,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_no_return_type.sg:5:9-5:12,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_no_return_type.sg:6:5-6:6,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_no_return_type.sg:7:5-7:11,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_no_return_type.sg:8:1-8:2",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_on.sg",
+      "signature": "diagnostics:SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_on.sg:6:17-6:17,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_on.sg:10:1-10:2,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_fn_on.sg:9:5-9:6",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_non_async_crosses_on.sg",
+      "signature": "diagnostics:SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_non_async_crosses_on.sg:6:17-6:17,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_non_async_crosses_on.sg:10:1-10:2,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_non_async_crosses_on.sg:9:5-9:6",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_return_far_task.sg",
+      "signature": "diagnostics:SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_return_far_task.sg:6:17-6:17,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_return_far_task.sg:10:1-10:2,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_return_far_task.sg:9:5-9:6",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_spawn_on_in_crosses_fn.sg",
+      "signature": "diagnostics:SYN2012@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_spawn_on_in_crosses_fn.sg:6:17-6:17,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_spawn_on_in_crosses_fn.sg:10:1-10:2,SYN2101@testdata/golden/crossing/crosses_deferred/block04/valid/_crosses_positive_spawn_on_in_crosses_fn.sg:9:5-9:6",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/crosses_deferred/on_negative_missing_crosses.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/crosses_deferred/on_negative_missing_crosses.sg:10:12-12:6",
+      "group": "CF-003"
+    },
+    {
+      "fixture": "testdata/golden/crossing/integration/valid/_integration_combined_on_spawn_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/integration/valid/_integration_combined_on_spawn_on.sg:12:12-14:6,FUT7019@testdata/golden/crossing/integration/valid/_integration_combined_on_spawn_on.sg:18:12-20:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/integration/valid/_integration_far_task_direct_call_chain.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/integration/valid/_integration_far_task_direct_call_chain.sg:11:12-13:6,FUT7019@testdata/golden/crossing/integration/valid/_integration_far_task_direct_call_chain.sg:3:12-3:21,FUT7019@testdata/golden/crossing/integration/valid/_integration_far_task_direct_call_chain.sg:7:12-7:22",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/integration/valid/_integration_generic_crossing_sites.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/integration/valid/_integration_generic_crossing_sites.sg:3:12-5:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/integration/valid/_integration_spawn_on_then_await.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/integration/valid/_integration_spawn_on_then_await.sg:3:31-5:6,FUT7019@testdata/golden/crossing/integration/valid/_integration_spawn_on_then_await.sg:6:12-6:24",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/crossing/integration/valid/_probe_far_channel_on_and_spawn_on.sg",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/integration/valid/_probe_far_channel_on_and_spawn_on.sg:15:12-17:6,FUT7019@testdata/golden/crossing/integration/valid/_probe_far_channel_on_and_spawn_on.sg:8:12-11:6",
+      "group": "CF-001"
+    },
+    {
+      "fixture": "testdata/golden/sema/ownership_and_references/overload_autoref_temp_error.sg",
+      "signature": "error:MIR validation failed: function main: local L2 (tmp_struct2): unknown type",
+      "group": "CF-007"
+    },
+    {
+      "fixture": "testdata/golden/sema/ownership_and_references/overload_autoref_temp_move.sg",
+      "signature": "error:MIR validation failed: function main: local L2 (tmp_struct2): unknown type",
+      "group": "CF-007"
+    },
+    {
+      "fixture": "testdata/golden/sema/valid/alien_hints/python_none_alias.sg",
+      "signature": "error:MIR validation failed: function foo: bb0: return without value in non-nothing function",
+      "group": "CF-008"
+    },
+    {
+      "fixture": "testdata/golden/sema/valid/concurrency/local_spawn_nosend.sg",
+      "signature": "error:MIR lowering failed: mir: unknown local symbol 2843 (conn) in __async_block$84",
+      "group": "CF-005"
+    },
+    {
+      "fixture": "testdata/golden/sema/valid/default_max_min_calls.sg",
+      "signature": "error:MIR lowering failed: mir: unsupported global value reference \"T\" (type ?)",
+      "group": "CF-006"
+    },
+    {
+      "fixture": "testdata/golden/sema/valid/import_all.sg",
+      "signature": "error:MIR lowering failed: mir: unknown local symbol 46 (MODULE_CONST) in main",
+      "group": "CF-009"
+    },
+    {
+      "fixture": "testdata/golden/sema/valid/module_multitest/main.sg",
+      "signature": "diagnostics:PRJ5002@testdata/golden/sema/valid/module_multitest/main.sg:2:1-2:19,SEM3013@testdata/golden/sema/valid/module_multitest/main.sg:9:11-9:16,SEM3015@testdata/golden/sema/valid/module_multitest/main.sg:9:11-9:18,SEM3046@testdata/golden/sema/valid/module_multitest/main.sg:9:11-9:18",
+      "group": "CF-004"
+    },
+    {
+      "fixture": "testdata/golden/sema/valid/user_record_type.sg",
+      "signature": "error:MIR validation failed: function anonymous_record: local L0 (p): unknown type\nlocal L1 (tmp_struct1): unknown type",
+      "group": "CF-010"
+    },
+    {
+      "fixture": "testdata/golden/spec_audit/s02_types_contracts.sg",
+      "signature": "diagnostics:SEM3002@testdata/golden/spec_audit/s02_types_contracts.sg:9:10-9:19",
+      "group": "CF-011"
+    },
+    {
+      "fixture": "testdata/golden/spec_audit/s02_types_tuples.sg",
+      "signature": "diagnostics:SEM3178@testdata/golden/spec_audit/s02_types_tuples.sg:23:26-23:34,SEM3178@testdata/golden/spec_audit/s02_types_tuples.sg:29:29-29:37",
+      "group": "CF-012"
+    },
+    {
+      "fixture": "testdata/golden/spec_audit/s04_functions.sg",
+      "signature": "diagnostics:SEM3015@testdata/golden/spec_audit/s04_functions.sg:23:28-23:35",
+      "group": "CF-013"
+    },
+    {
+      "fixture": "testdata/golden/spec_audit/s06_heir.sg",
+      "signature": "diagnostics:SEM3130@testdata/golden/spec_audit/s06_heir.sg:21:35-21:40",
+      "group": "CF-014"
+    },
+    {
+      "fixture": "testdata/golden/spec_audit/s10_stdlib.sg",
+      "signature": "diagnostics:SEM3046@testdata/golden/spec_audit/s10_stdlib.sg:7:5-7:35",
+      "group": "CF-015"
+    },
+    {
+      "fixture": "testdata/golden/vm_async_suite/t22_select_wait_recv.sg",
+      "signature": "error:MIR lowering failed: mir: unknown local symbol 2842 (ch) in __async_block$85",
+      "group": "CF-005"
+    },
+    {
+      "fixture": "testdata/golden/vm_async_suite/t23_select_wait_timer.sg",
+      "signature": "error:MIR lowering failed: mir: unknown local symbol 2842 (ch) in __async_block$85",
+      "group": "CF-005"
+    }
+  ],
+  "findings": [
+    {
+      "id": "OWN-001",
+      "match": {
+        "source": "testdata/golden/vm_rc/vm_rc_leak_panics.sg",
+        "function": "main",
+        "local_id": 9,
+        "local_name": "a_copy",
+        "consuming_kind": "projected_assign",
+        "consuming_position": "rhs",
+        "start_line": 8,
+        "start_column": 5,
+        "end_line": 8,
+        "end_column": 33,
+        "def_site": "bb0#9",
+        "consuming_site": "bb0#19"
+      },
+      "reason": "The fixture deliberately closes one half of a two-node reference-counted cycle so the VM leak detector has a positive panic case.",
+      "safe_because": "Only this exact assignment of a_copy into the cycle is allowed, and the fixture contract requires VM3302 with the intentionally leaked cycle instead of successful execution.",
+      "invalidated_when": "The fixture stops being the VM3302 cycle-leak positive control, its exact source/MIR site changes, or cyclic references gain a reclaiming ownership protocol.",
+      "debt": "RV2-DEBT-114"
+    },
+    {
+      "id": "OWN-002",
+      "match": {
+        "source": "testdata/golden/vm_rc/vm_rc_leak_panics.sg",
+        "function": "main",
+        "local_id": 12,
+        "local_name": "b_copy",
+        "consuming_kind": "projected_assign",
+        "consuming_position": "rhs",
+        "start_line": 11,
+        "start_column": 5,
+        "end_line": 11,
+        "end_column": 33,
+        "def_site": "bb0#13",
+        "consuming_site": "bb0#17"
+      },
+      "reason": "The fixture deliberately closes the other half of a two-node reference-counted cycle so the VM leak detector has a positive panic case.",
+      "safe_because": "Only this exact assignment of b_copy into the cycle is allowed, and the fixture contract requires VM3302 with the intentionally leaked cycle instead of successful execution.",
+      "invalidated_when": "The fixture stops being the VM3302 cycle-leak positive control, its exact source/MIR site changes, or cyclic references gain a reclaiming ownership protocol.",
+      "debt": "RV2-DEBT-114"
+    }
+  ]
+}

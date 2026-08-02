@@ -175,11 +175,17 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	// included), so every arm-describing argument is passed inert — matching
 	// the C retry branch, which reads none of them.
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", retryBB)
+	retryBitsBase := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf,
+		"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n",
+		retryBitsBase, armCount, armBitsPtr)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_far_channel_select(ptr null, ptr null, ptr null, ptr null, i64 0, i64 0, "+
+		"  %s = call i32 @rt_far_channel_select(ptr null, ptr null, ptr %s, ptr null, i64 %d, i64 0, "+
 			"i64 0, ptr null, ptr %s, ptr %s, ptr %s)\n",
 		retryStatus,
+		retryBitsBase,
+		armCount,
 		pendingPtr,
 		kindPtr,
 		bitsPtr)
@@ -225,6 +231,9 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", winnerBB)
 	winnerBits := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", winnerBits, bitsPtr)
+	if handbackErr := fe.emitChannelSelectHandback(ins, armBitsPtr, winnerBits); handbackErr != nil {
+		return handbackErr
+	}
 	dstType, err := fe.placeBaseType(ins.Dst)
 	if err != nil {
 		return err
@@ -276,4 +285,65 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		return err
 	}
 	return fe.emitPanicBlock(defaultBB, "remote select request failed")
+}
+
+// emitChannelSelectHandback materializes the MIR ReturnPlace definitions on a
+// genuine winner reply. The runtime has already copied every non-committed
+// SEND payload back into armBits and relinquished the pending's drop
+// obligations. A committed SEND stays with its channel and is deliberately
+// skipped; all other returned roots are restored before ReadyBB so sema's
+// ordinary losing-arm drops see exactly the owners MIR promises.
+func (fe *funcEmitter) emitChannelSelectHandback(
+	ins *mir.CrossingInstr,
+	armBitsPtr string,
+	winnerBits string,
+) error {
+	if ins == nil {
+		return nil
+	}
+	armCount := len(ins.RemoteOps)
+	for i := range ins.RemoteOps {
+		op := &ins.RemoteOps[i]
+		if op.ReturnPlace == nil {
+			continue
+		}
+		if op.Method != "send" || op.Value.Kind != mir.OperandMove ||
+			op.ReturnPlace.Kind != mir.PlaceLocal || len(op.ReturnPlace.Proj) != 0 ||
+			op.Value.Place.Kind != mir.PlaceLocal || len(op.Value.Place.Proj) != 0 ||
+			op.Value.Place.Local != op.ReturnPlace.Local {
+			return fmt.Errorf("channel_select return place %d is not an exact SEND MOVE", i)
+		}
+		restoreBB := fe.nextInlineBlock()
+		nextBB := fe.nextInlineBlock()
+		committed := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, %d\n", committed, winnerBits, i)
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", committed, nextBB, restoreBB)
+
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", restoreBB)
+		bitsSlot := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf,
+			"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n",
+			bitsSlot, armCount, armBitsPtr, i)
+		returnedBits := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", returnedBits, bitsSlot)
+		placeType, err := fe.placeBaseType(*op.ReturnPlace)
+		if err != nil {
+			return err
+		}
+		returned, returnedTy, err := fe.emitI64ToValue(returnedBits, placeType)
+		if err != nil {
+			return err
+		}
+		placePtr, placeTy, err := fe.emitPlacePtr(*op.ReturnPlace)
+		if err != nil {
+			return err
+		}
+		if placeTy != returnedTy {
+			return fmt.Errorf("channel_select return place %d lowers as %s, returned %s", i, placeTy, returnedTy)
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", placeTy, returned, placePtr)
+		fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", nextBB)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", nextBB)
+	}
+	return nil
 }

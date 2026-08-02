@@ -10,17 +10,20 @@ type Node = {
 type Nodes = Node[];
 
 fn walk(nodes: &Node[], start: NodeId?) -> nothing {
-    let mut id: NodeId? = start;
-    while true {
-        compare id {
-            Some(i) => {
-                let n: &Node = nodes[(i to int)];
+    compare start {
+        Some(first) => {
+            let mut id: NodeId = first;
+            while true {
+                let n: &Node = nodes[(id to int)];
                 print(n.data to string);
-                id = *n.next;
+                compare *n.next {
+                    Some(next) => { id = next; }
+                    nothing => { return nothing; }
+                };
             }
-            nothing => { return nothing; }
-        };
-    }
+        }
+        nothing => { return nothing; }
+    };
 }
 
 fn main() -> int {

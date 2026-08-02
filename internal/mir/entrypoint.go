@@ -98,6 +98,7 @@ func buildSurgeStartFunc(entryMF *mono.MonoFunc, mode symbols.EntrypointMode, ty
 			Sym:    symbols.NoSymbolID, // synthetic function
 			Name:   "__surge_start",
 			Result: types.NoTypeID, // returns nothing (via rt_exit)
+			Span:   entryMF.Func.Span,
 		},
 		paramLocals: make(map[symbols.SymbolID]LocalID),
 	}

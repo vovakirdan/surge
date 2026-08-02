@@ -72,6 +72,12 @@ func buildAsyncPollEntry(f *Func, stateLocal, pcLocal, payloadLocal LocalID, var
 		Src: RValue{Kind: RValueField, Field: FieldAccess{
 			Object:    Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 			FieldName: asyncStatePayloadField,
+			// The payload is unpacked into resumed locals before
+			// __async_state_free shallow-frees the old state and payload
+			// boxes. This handle therefore transfers out of the state; an
+			// alias here would leave every resumed local without an owned
+			// root in MIR even though the runtime protocol hands it over.
+			MoveOut: true,
 		}},
 	}})
 	setBlockTerm(f, entryBB, Terminator{Kind: TermGoto, Goto: GotoTerm{Target: dispatchBB}})
@@ -161,7 +167,7 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 
 		args := make([]Operand, 0, len(variants[variantIdx].locals))
 		for _, localID := range variants[variantIdx].locals {
-			args = append(args, operandForLocal(f, localID))
+			args = append(args, operandForAsyncStateStore(f, localID))
 		}
 		appendInstr(f, pendingBB, Instr{Kind: InstrCall, Call: CallInstr{
 			HasDst: true,
@@ -280,7 +286,7 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 	args := make([]Operand, 0, len(startVariant.locals))
 	farTaskParams := make([]LocalID, 0, len(startVariant.locals))
 	for _, localID := range startVariant.locals {
-		args = append(args, operandForLocal(f, localID))
+		args = append(args, operandForAsyncInitialStateStore(f, localID, typesIn))
 		if int(localID) >= 0 && int(localID) < len(f.Locals) &&
 			IsDirectFarTaskType(typesIn, f.Locals[localID].Type) {
 			farTaskParams = append(farTaskParams, localID)

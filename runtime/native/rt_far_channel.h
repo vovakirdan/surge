@@ -30,7 +30,7 @@ void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg)
 // owner-side dispatch.
 rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
-                                            const uint64_t* send_bits,
+                                            uint64_t* send_bits,
                                             const uint64_t* send_drop_fn_ids,
                                             uint64_t count,
                                             uint64_t state_drop_fn_id,

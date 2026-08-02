@@ -14,8 +14,8 @@ result.sg (span: 1:1-60:1)
 │  │     ├─ Return: Error
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 8:43-10:6)
-│  │        └─ Stmt[0]: Return (span: 9:9-9:68)
-│  │           └─ Expr: expr#8: <ExprKind(22)>
+│  │        └─ Stmt[0]: Return (span: 9:9-9:77)
+│  │           └─ Expr: expr#9: <ExprKind(22)>
 ├─ Item[2]: Tag (span: 13:1-13:23)
 │  ├─ Name: Success
 │  ├─ Visibility: public
@@ -38,39 +38,39 @@ result.sg (span: 1:1-60:1)
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 17:42-22:6)
    │  │     └─ Stmt[0]: Return (span: 18:9-21:11)
-   │  │        └─ Expr: expr#17: compare self { 2 arms }
+   │  │        └─ Expr: expr#18: compare self { 2 arms }
    │  ├─ Fn[1]: exit
    │  │  ├─ Params: (self: Erring<T, E>)
    │  │  ├─ Return: T
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 24:42-29:6)
    │  │     └─ Stmt[0]: Return (span: 25:9-28:11)
-   │  │        └─ Expr: expr#27: compare self { 2 arms }
+   │  │        └─ Expr: expr#28: compare self { 2 arms }
    │  ├─ Fn[2]: error
    │  │  ├─ Params: (self: Erring<T, E>)
    │  │  ├─ Return: Option<E>
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 31:51-36:6)
    │  │     └─ Stmt[0]: Return (span: 32:9-35:11)
-   │  │        └─ Expr: expr#37: compare self { 2 arms }
+   │  │        └─ Expr: expr#38: compare self { 2 arms }
    │  ├─ Fn[3]: is_success
    │  │  ├─ Params: (self: &Erring<T, E>)
    │  │  ├─ Return: bool
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 38:52-43:6)
    │  │     └─ Stmt[0]: Return (span: 39:9-42:11)
-   │  │        └─ Expr: expr#45: compare self { 2 arms }
+   │  │        └─ Expr: expr#46: compare self { 2 arms }
    │  ├─ Fn[4]: is_error
    │  │  ├─ Params: (self: &Erring<T, E>)
    │  │  ├─ Return: bool
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 45:50-50:6)
    │  │     └─ Stmt[0]: Return (span: 46:9-49:11)
-   │  │        └─ Expr: expr#53: compare self { 2 arms }
+   │  │        └─ Expr: expr#54: compare self { 2 arms }
    │  └─ Fn[5]: __to
    │     ├─ Params: (self: Erring<T, E>, target: int)
    │     ├─ Return: int
    │     └─ Body:
    │        Stmt[0]: Block (span: 53:57-58:6)
    │        └─ Stmt[0]: Return (span: 54:9-57:11)
-   │           └─ Expr: expr#63: compare self { 2 arms }
+   │           └─ Expr: expr#64: compare self { 2 arms }

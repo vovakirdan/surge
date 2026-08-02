@@ -174,7 +174,7 @@ func TestOwnershipFlagsBothHalvesOf099(t *testing.T) {
 		b.block([]mir.Instr{dropL(f)}, retTerm())
 
 		requireFindings(t, env.verify(b.done()),
-			"drops_its_float_param: drop of L0(f) (def parameter) at bb0#0")
+			"drops_its_float_param: drop of L0(f) (def parameter L0) at bb0#0")
 	})
 
 	// A by-value droppable parameter that is NOT a reference-counted scalar is

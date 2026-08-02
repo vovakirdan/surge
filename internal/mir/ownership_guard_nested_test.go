@@ -61,7 +61,8 @@ func TestOwnershipNestedGuardRejectsAliasOverwriteAfterTrue(t *testing.T) {
 	b.setTerm(dropBB, gotoTerm(join))
 
 	requireFindings(t, env.verify(b.done()),
-		"guarded_nested_overwrite: drop of L7(tmp_dropped) (def bb3#0) at bb8#0")
+		"guarded_nested_overwrite: drop of L7(tmp_dropped) (def bb3#0) at bb8#0",
+		"guarded_nested_overwrite: drop of L7(tmp_dropped) (def bb4#0) at bb8#0")
 }
 
 // This loop reaches the recursive correlation layer before it cycles: the
@@ -120,5 +121,6 @@ func TestOwnershipNestedGuardCorrelationRejectsCycles(t *testing.T) {
 	b.setTerm(dropBB, gotoTerm(join))
 
 	requireFindings(t, env.verify(b.done()),
-		"guarded_nested_cycle: drop of L7(tmp_dropped) (def bb3#0) at bb8#0")
+		"guarded_nested_cycle: drop of L7(tmp_dropped) (def bb3#0) at bb8#0",
+		"guarded_nested_cycle: drop of L7(tmp_dropped) (def bb4#0) at bb8#0")
 }

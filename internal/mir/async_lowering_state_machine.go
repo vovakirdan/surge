@@ -154,6 +154,18 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 						if ins.Crossing.Dst.Kind == PlaceLocal && len(ins.Crossing.Dst.Proj) == 0 {
 							readyLive.delete(ins.Crossing.Dst.Local)
 						}
+						if ins.Crossing.Kind == sema.CrossingLoweringChannelSelect {
+							for ri := range ins.Crossing.RemoteOps {
+								returnPlace := ins.Crossing.RemoteOps[ri].ReturnPlace
+								if returnPlace != nil && returnPlace.Kind == PlaceLocal && len(returnPlace.Proj) == 0 {
+									// The pending arm table owns this payload while suspended.
+									// A success retry materializes the definition again before
+									// ReadyBB; packing the stale caller slot here would create a
+									// second owner and cancellation would drop both.
+									readyLive.delete(returnPlace.Local)
+								}
+							}
+						}
 						sites[i].liveLocals = readyLive
 					}
 				}

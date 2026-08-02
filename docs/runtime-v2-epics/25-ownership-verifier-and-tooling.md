@@ -1,7 +1,7 @@
 # Epic 25 — Ownership Verifier And Investigation Tooling
 
-Status: in progress. Steps 0-1 are complete; Step 2 corpus discovery and triage
-is next as of 2026-08-02. Drafted 2026-07-31 after a single
+Status: in progress. Steps 0-2 are complete; Step 3 hard-gate promotion is next
+as of 2026-08-02. Drafted 2026-07-31 after a single
 session closed five ownership rows (RV2-DEBT-097/098/099/100 and
 RV2-DEBT-052's mixed-arm residual) that were all one shape of defect, found and
 fixed the slow way — valgrind, MIR read by eye, minimal reproducers built by
@@ -1050,6 +1050,67 @@ budget it was never sized for.
 **Gate:** zero un-triaged findings across the corpus; `DEBT.md` entries plus
 allowlist entries for every category-3 exclusion, both directions tested
 (suppresses what it should, flags what has gone stale).
+
+**Completion evidence (2026-08-02):** the final schema-v2 census at
+`target/runtime-v2/ownership-corpus-census.json` pins the canonical LLVM
+analysis profile and the four-root inventory digest
+`47b3f1e5dea9b27669b60c0036cb16651794067ffaa0b54230964a9b867acd10`.
+Its exact accounting is `1046 attempted = 575 MIR + 390 invalid failures + 81
+non-invalid failures`: all 81 non-invalid failures are exact entries in the
+`CF-001`..`CF-015` ledger, and there are zero unrecorded compile failures or
+finding-normalization errors. The only ownership findings are the two exact
+category-3 cycle edges `OWN-001`/`OWN-002`, both cross-referenced to
+`RV2-DEBT-114`; stale entries and either-direction ledger drift fail the gate.
+
+The corpus also exposed blocking local- and far-select ownership aliases. The
+bounded local repair keeps exact bare channel/payload bindings as the single
+pending owner instead of manufacturing `tmp_select_*` owners. The far repair
+models a unique bare `own` SEND root as a conditional transfer: the runtime
+pending owns it while suspended and an explicit MIR `ReturnPlace` restores it
+only when another arm wins. Duplicate far SEND roots remain fail-closed under
+`RV2-DEBT-113`, and computed local receivers remain recorded under
+`RV2-DEBT-116`. Cancellation Valgrind rows use Copy-payload A/B controls rather
+than hiding the pre-existing nested-handle drop-glue debt: far select is exactly
+48 B / 2 blocks and local select exactly 96 B / 2 blocks in both control and
+non-Copy binaries, with zero indirect loss and zero incremental payload loss;
+both baselines are explicitly tied to `RV2-DEBT-062`.
+
+The first final independent Step 2 review found one P1 gate-reachability gap:
+the two new select-cancellation A/B tests were skipped by ordinary `make test`
+and absent from the explicit Runtime V2 targets. They are now exact-name rows
+of `runtime-v2-heap-check`, which runs with `SURGE_SKIP_TIMEOUT_TESTS=0`; a
+focused run and the full target executed both tests (far 48 B / 2 blocks,
+local 96 B / 2 blocks, zero indirect delta), and the independent re-review is
+CLEAN with no remaining P0-P2. The only review follow-ups are the recorded
+non-blocking `RV2-DEBT-115`/`RV2-DEBT-116` rows.
+
+The mandatory commit-scoped Codex review then found one additional blocking P2
+at the far-select call boundary: an otherwise well-described owned SEND
+payload was not reclaimed when the initial `anchors` array itself was null.
+The bounded repair drops describable input payloads before the unshipped state
+on that synchronous `INVALID_ARGUMENT` path, but only when `0 < count <=
+RT_FAR_CHANNEL_SELECT_MAX_ARMS`; malformed oversized counts therefore never
+walk caller arrays. A real async-caller row pins `pending == NULL` and exactly
+one payload drop. The focused dynamic/static tests and the full
+`runtime-v2-transport-check` pass, and a separate independent re-review is
+CLEAN with no P0-P2 findings.
+
+Broad closeout evidence is explicit. `make check`, `make golden-check`,
+`make runtime-v2-ownership-check`, `make runtime-v2-heap-check`,
+`make runtime-v2-transport-check`, `make c-check`, `git diff --check`, and the
+file-size gate all pass; the file-size run reports all 23 changed code files
+within policy. The composed `make runtime-v2-check` passes liveness, ownership,
+crossing, heap, and waiter gates before reproducing only the already-recorded
+fd-registry baseline failures
+`TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow` and
+`TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest`; that
+unrelated network-runtime debt is not changed in this ownership step.
+`make cppcheck` likewise reports only existing style warnings in the unchanged
+`rt_array_reclaim.c`, `rt_map.c`, and `rt_array.c`; the changed far-select C
+surface is clean. Sentrux on `internal/` improves quality `6504 -> 6506`, all
+seven architectural rules pass with zero violations, and the recorded root
+cause remains modularity; `session_end` also records the non-blocking complex
+function count change `541 -> 547` rather than triggering out-of-scope churn.
 
 ### Step 3 — Promote to a hard gate
 

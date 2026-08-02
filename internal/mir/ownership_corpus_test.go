@@ -81,6 +81,11 @@ fn reads_float_payload(m: &Measure) -> float {
     };
 }
 
+// A return whose exit-drop detachment materializes a dedicated transfer temp.
+fn returns_float_cast(x: int) -> float {
+    return x to float;
+}
+
 // A compare over something that is not a union at all: the subject moves into
 // the binding, which is then its only owner.
 fn binds_a_plain_value() -> int {
@@ -123,6 +128,8 @@ func TestOwnershipCorpusIsCleanOnFixedShapes(t *testing.T) {
 		"reads_payload",
 		"appends_payload",
 		"reads_copy_payload",
+		"reads_float_payload",
+		"returns_float_cast",
 		"binds_a_plain_value",
 		"owns_its_subject",
 		"build",
@@ -134,28 +141,37 @@ func TestOwnershipCorpusIsCleanOnFixedShapes(t *testing.T) {
 	}
 }
 
-// One function in the corpus above is NOT clean, and pinning it here is the
-// point: it is the pass's first real candidate finding, held as a fact rather
-// than filed away.
-//
-// `reads_float_payload` returns its reference-counted scalar result as a bare
-// `copy` of a local that was correctly retained on both arms. Every DEFINITION
-// reaching that return mints; the USE occupying the sink is an unretained
-// alias. A string return at the same position lowers as `move`. Whether the
-// right answer is a lowering change or an allowlist entry is Step 2's call, not
-// this step's — Step 1 reports, and this test says exactly what it reports so
-// that the answer is a deliberate decision rather than a silent drift.
-func TestOwnershipCorpusReportsTheScalarReturnCandidate(t *testing.T) {
+// Reference-counted scalar transfer slots are already sole owners: the value
+// stored into a block-result slot or return-detachment temp is the reference
+// handed onward. Reading such a slot as COPY aliases it and leaves ownership
+// implicit; MOVE states the transfer directly and lets the verifier prove it.
+func TestOwnershipScalarTransferSlotsUseMove(t *testing.T) {
 	mod, typesIn, semaRes := lowerForOwnership(t, ownershipCorpusSource)
 	findings := mir.VerifyOwnership(mod, typesIn, semaRes)
 
-	got := findingsIn(findings, "reads_float_payload")
-	if len(got) != 1 {
-		t.Fatalf("expected exactly one candidate finding, got:\n%s", joinLines(got))
-	}
-	const want = "reads_float_payload: return of L1(tmp_block1) (def use) at bb1#term"
-	if got[0] != want {
-		t.Fatalf("candidate finding changed:\n  got  %s\n  want %s", got[0], want)
+	for _, name := range []string{"reads_float_payload", "returns_float_cast"} {
+		if got := findingsIn(findings, name); len(got) != 0 {
+			t.Errorf("%s should transfer its scalar return, got:\n%s", name, joinLines(got))
+		}
+		var returns int
+		for _, fn := range mod.Funcs {
+			if fn == nil || fn.Name != name {
+				continue
+			}
+			for i := range fn.Blocks {
+				term := &fn.Blocks[i].Term
+				if term.Kind != mir.TermReturn || !term.Return.HasValue {
+					continue
+				}
+				returns++
+				if term.Return.Value.Kind != mir.OperandMove {
+					t.Errorf("%s return operand = %s, want move", name, term.Return.Value.Kind)
+				}
+			}
+		}
+		if returns == 0 {
+			t.Errorf("%s has no value return in lowered MIR", name)
+		}
 	}
 }
 

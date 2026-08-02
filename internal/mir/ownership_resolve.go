@@ -1,6 +1,9 @@
 package mir
 
 import (
+	"sort"
+
+	"surge/internal/ast"
 	"surge/internal/sema"
 	"surge/internal/types"
 )
@@ -19,31 +22,64 @@ type ownershipResolveKey struct {
 	Point ownershipPoint
 }
 
+type ownershipResolveMemo struct {
+	owned  bool
+	blames []ownershipDefSite
+}
+
 // ownershipResolveState is one TOP-LEVEL sink query's bookkeeping. It is not
 // shared across sinks: a resolution is only ever valid relative to the query
 // that started it.
 type ownershipResolveState struct {
 	active map[ownershipResolveKey]bool
-	memo   map[ownershipResolveKey]bool
-	// blame is the innermost definition that failed to resolve, kept so a
-	// finding can name where the chain broke rather than only where it was
-	// consumed. Recorded once, on the first terminal failure.
-	blame    ownershipDefSite
-	hasBlame bool
+	memo   map[ownershipResolveKey]ownershipResolveMemo
+	// blameEvents records each terminal failure observation, including repeats
+	// replayed from memoized subqueries. The event boundary lets a failed
+	// wrapper definition tell whether its child already supplied a more exact
+	// cause; blames is the unique set eventually emitted as findings.
+	blameEvents []ownershipDefSite
+	blames      map[ownershipDefSite]struct{}
 }
 
 func (st *ownershipResolveState) note(d ownershipDefSite) {
-	if st == nil || st.hasBlame {
+	if st == nil {
 		return
 	}
-	st.blame = d
-	st.hasBlame = true
+	st.blameEvents = append(st.blameEvents, d)
+	st.blames[d] = struct{}{}
+}
+
+func (st *ownershipResolveState) replay(blames []ownershipDefSite) {
+	for _, blame := range blames {
+		st.note(blame)
+	}
+}
+
+func (st *ownershipResolveState) sortedBlames() []ownershipDefSite {
+	if st == nil || len(st.blames) == 0 {
+		return nil
+	}
+	out := make([]ownershipDefSite, 0, len(st.blames))
+	for blame := range st.blames {
+		out = append(out, blame)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Block != out[j].Block {
+			return out[i].Block < out[j].Block
+		}
+		if out[i].Instr != out[j].Instr {
+			return out[i].Instr < out[j].Instr
+		}
+		return out[i].Local < out[j].Local
+	})
+	return out
 }
 
 func newOwnershipResolveState() *ownershipResolveState {
 	return &ownershipResolveState{
 		active: map[ownershipResolveKey]bool{},
-		memo:   map[ownershipResolveKey]bool{},
+		memo:   map[ownershipResolveKey]ownershipResolveMemo{},
+		blames: map[ownershipDefSite]struct{}{},
 	}
 }
 
@@ -158,6 +194,26 @@ func (v *ownershipFuncVerifier) resolveRValueUse(rv *RValue, resultTy types.Type
 		if !ok {
 			return false
 		}
+		// Unary `+` and `own` pass the evaluated operand through unchanged.
+		// Preserve minting constants, retains, and value clones as such. The
+		// one deliberate exception is `own <place>`: real lowering represents
+		// its inner bare place as COPY because the unary operator itself is the
+		// explicit transfer boundary. Trace that place's definitions instead
+		// of rejecting every legitimate `take(own value)` as an alias. A place
+		// whose own definition is merely aliasing still fails, so `own` cannot
+		// launder an unowned chain.
+		if eff.Kind == RValueUnaryOp &&
+			(eff.Unary.Op == ast.ExprUnaryPlus || eff.Unary.Op == ast.ExprUnaryOwn) {
+			effSrc := v.effectiveOperand(src)
+			if eff.Unary.Op == ast.ExprUnaryOwn &&
+				effSrc.Kind == OperandCopy &&
+				classifyOperand(&effSrc, v.typesIn, v.semaRes) == ownershipAliases &&
+				effSrc.Place.Kind == PlaceLocal && effSrc.Place.Local != NoLocalID &&
+				len(effSrc.Place.Proj) == 0 {
+				return v.resolvePlace(effSrc.Place, at, st)
+			}
+			return v.resolveOperandUse(&effSrc, at, st)
+		}
 		return v.resolvePlace(src.Place, at, st)
 	default:
 		return false
@@ -206,8 +262,11 @@ func (v *ownershipFuncVerifier) resolvePlace(p Place, at ownershipPoint, st *own
 	// Memo first, active stack second — the same pair reached again by a second
 	// path through a diamond has a real answer already, and only a pair still
 	// being resolved is a cycle.
-	if answer, ok := st.memo[key]; ok {
-		return answer
+	if memo, ok := st.memo[key]; ok {
+		if !memo.owned {
+			st.replay(memo.blames)
+		}
+		return memo.owned
 	}
 	if st.active[key] {
 		// A cycle that never reached a terminal root. Deliberately UNRESOLVED,
@@ -217,9 +276,13 @@ func (v *ownershipFuncVerifier) resolvePlace(p Place, at ownershipPoint, st *own
 		return false
 	}
 	st.active[key] = true
+	mark := len(st.blameEvents)
 	answer := v.resolvePlaceDefs(p.Local, at, st)
 	delete(st.active, key)
-	st.memo[key] = answer
+	st.memo[key] = ownershipResolveMemo{
+		owned:  answer,
+		blames: append([]ownershipDefSite(nil), st.blameEvents[mark:]...),
+	}
 	return answer
 }
 
@@ -228,12 +291,13 @@ func (v *ownershipFuncVerifier) resolvePlaceDefs(local LocalID, at ownershipPoin
 	if len(defs) == 0 {
 		return false
 	}
+	allOwned := true
 	for _, d := range defs {
 		if !v.resolveDef(d, st) {
-			return false
+			allOwned = false
 		}
 	}
-	return true
+	return allOwned
 }
 
 // resolveDef resolves ONE definition: a parameter root terminally, and an
@@ -250,8 +314,9 @@ func (v *ownershipFuncVerifier) resolveDef(d ownershipDefSite, st *ownershipReso
 			return false
 		}
 	}
+	mark := len(st.blameEvents)
 	ok := v.resolveDefInstr(d, st)
-	if !ok {
+	if !ok && len(st.blameEvents) == mark {
 		st.note(d)
 	}
 	return ok
@@ -281,12 +346,43 @@ func (v *ownershipFuncVerifier) resolveDefInstr(d ownershipDefSite, st *ownershi
 		default:
 			return false
 		}
+	case InstrCrossing:
+		if v.validCrossingReturnDefinition(&ins.Crossing, d.Local) {
+			// The runtime pending was the sole owner while suspended. A genuine
+			// winner reply returned this non-committed payload before ReadyBB,
+			// so this instruction is a fresh owned root on every path that may
+			// subsequently consume the local. The exact MOVE/same-place/unique
+			// shape is rechecked here rather than trusting arbitrary metadata.
+			return true
+		}
 	}
 	if _, ok := instrMintsDest(ins); ok {
 		// Call-shaped: the operation produced a value nothing else holds.
 		return true
 	}
 	return false
+}
+
+func (v *ownershipFuncVerifier) validCrossingReturnDefinition(cr *CrossingInstr, local LocalID) bool {
+	if v == nil || v.f == nil || cr == nil || cr.Kind != sema.CrossingLoweringChannelSelect ||
+		local == NoLocalID || int(local) < 0 || int(local) >= len(v.f.Locals) {
+		return false
+	}
+	matches := 0
+	for i := range cr.RemoteOps {
+		op := &cr.RemoteOps[i]
+		if op.ReturnPlace == nil || op.ReturnPlace.Kind != PlaceLocal ||
+			len(op.ReturnPlace.Proj) != 0 || op.ReturnPlace.Local != local {
+			continue
+		}
+		matches++
+		if op.Method != "send" || op.Value.Kind != OperandMove ||
+			op.Value.Place.Kind != PlaceLocal || len(op.Value.Place.Proj) != 0 ||
+			op.Value.Place.Local != local || op.Value.Type != v.f.Locals[local].Type {
+			return false
+		}
+	}
+	return matches == 1
 }
 
 func (v *ownershipFuncVerifier) instrAt(d ownershipDefSite) *Instr {

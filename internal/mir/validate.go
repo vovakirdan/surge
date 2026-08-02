@@ -91,6 +91,13 @@ func validateFunc(f *Func, typesIn *types.Interner, globals []Global, opts Valid
 		errs = append(errs, err)
 	}
 
+	// 10. A remote-select success handback is accepted only in the exact
+	// compiler-generated conditional-transfer shape. This keeps ReturnPlace
+	// from becoming a general escape hatch for aliasing operands.
+	if err := validateCrossingReturnPlaces(f); err != nil {
+		errs = append(errs, err)
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -356,6 +363,9 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				for i := range ins.Crossing.RemoteOps {
 					checkOperand(ins.Crossing.RemoteOps[i].Receiver, ctx)
 					checkOperand(ins.Crossing.RemoteOps[i].Value, ctx)
+					if ins.Crossing.RemoteOps[i].ReturnPlace != nil {
+						checkPlace(*ins.Crossing.RemoteOps[i].ReturnPlace, ctx)
+					}
 				}
 				checkOperand(ins.Crossing.Receiver, ctx)
 			case InstrBlocking:
@@ -424,6 +434,57 @@ func validateLocalIDs(f *Func, globals []Global) error {
 		}
 	}
 
+	return errors.Join(errs...)
+}
+
+func validateCrossingReturnPlaces(f *Func) error {
+	if f == nil {
+		return nil
+	}
+	var errs []error
+	for bi := range f.Blocks {
+		for ii := range f.Blocks[bi].Instrs {
+			ins := &f.Blocks[bi].Instrs[ii]
+			if ins.Kind != InstrCrossing {
+				continue
+			}
+			seen := make(map[LocalID]int)
+			for oi := range ins.Crossing.RemoteOps {
+				op := &ins.Crossing.RemoteOps[oi]
+				if op.ReturnPlace == nil {
+					continue
+				}
+				ctx := fmt.Sprintf("bb%d instr %d remote op %d", bi, ii, oi)
+				if ins.Crossing.Kind != sema.CrossingLoweringChannelSelect || op.Method != "send" {
+					errs = append(errs, fmt.Errorf("%s: return place is only valid on a ChannelSelect send arm", ctx))
+					continue
+				}
+				place := *op.ReturnPlace
+				if place.Kind != PlaceLocal || place.Local == NoLocalID || len(place.Proj) != 0 {
+					errs = append(errs, fmt.Errorf("%s: return place must be a bare local", ctx))
+					continue
+				}
+				if prev, ok := seen[place.Local]; ok {
+					errs = append(errs, fmt.Errorf("%s: return place L%d duplicates remote op %d", ctx, place.Local, prev))
+				} else {
+					seen[place.Local] = oi
+				}
+				if op.Value.Kind != OperandMove {
+					errs = append(errs, fmt.Errorf("%s: return place requires MOVE of the exact place", ctx))
+					continue
+				}
+				if op.Value.Place.Kind != PlaceLocal || len(op.Value.Place.Proj) != 0 ||
+					op.Value.Place.Local != place.Local {
+					errs = append(errs, fmt.Errorf("%s: return place requires MOVE of the exact place", ctx))
+					continue
+				}
+				idx := int(place.Local)
+				if idx < 0 || idx >= len(f.Locals) || op.Value.Type != f.Locals[idx].Type {
+					errs = append(errs, fmt.Errorf("%s: return place type does not match MOVE value type", ctx))
+				}
+			}
+		}
+	}
 	return errors.Join(errs...)
 }
 
