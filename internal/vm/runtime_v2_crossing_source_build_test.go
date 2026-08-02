@@ -385,8 +385,9 @@ func TestOwnershipGateMissingValgrindFailsClosed(t *testing.T) {
 
 func TestOwnershipGateMissingFourthAxisDoesNotCompile(t *testing.T) {
 	root := repoRoot(t)
-	target := filepath.Join(root, "internal", "vm", "runtime_v2_crossing_source_build_test.go")
-	original, readErr := os.ReadFile(target)
+	const targetRel = "internal/vm/runtime_v2_crossing_source_build_test.go"
+	targetPath := filepath.Join(root, filepath.FromSlash(targetRel))
+	original, readErr := os.ReadFile(targetPath)
 	if readErr != nil {
 		t.Fatalf("read ownership gate source: %v", readErr)
 	}
@@ -396,22 +397,26 @@ func TestOwnershipGateMissingFourthAxisDoesNotCompile(t *testing.T) {
 	}
 	missingFourthAxis := strings.Replace(string(original), fourthAxisArgument, "", 1)
 
-	tempDir := t.TempDir()
-	replacement := filepath.Join(tempDir, "runtime_v2_crossing_source_build_missing_axis_test.go")
-	if writeErr := os.WriteFile(replacement, []byte(missingFourthAxis), 0o600); writeErr != nil {
+	artifacts, artifactDirRel := newOwnershipOverlayArtifacts(t, root)
+	const replacementName = "runtime_v2_crossing_source_build_missing_axis_test.go"
+	replacementPath := filepath.Join(artifacts.Dir, replacementName)
+	if writeErr := os.WriteFile(replacementPath, []byte(missingFourthAxis), 0o600); writeErr != nil {
 		t.Fatalf("write missing-axis replacement: %v", writeErr)
 	}
-	overlayBytes := []byte(fmt.Sprintf(`{"Replace":{%q:%q}}`, target, replacement))
-	overlayPath := filepath.Join(tempDir, "overlay.json")
+	replacementRel := artifactDirRel + "/" + replacementName
+	overlayBytes := []byte(`{"Replace":{"` + targetRel + `":"` + replacementRel + `"}}`)
+	const overlayName = "overlay.json"
+	overlayPath := filepath.Join(artifacts.Dir, overlayName)
 	if writeErr := os.WriteFile(overlayPath, overlayBytes, 0o600); writeErr != nil {
 		t.Fatalf("write go overlay: %v", writeErr)
 	}
+	overlayRel := artifactDirRel + "/" + overlayName
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(
 		ctx,
-		"go", "test", "-overlay="+overlayPath, "-run", "^$", "-count=1", "-p=1", "./internal/vm",
+		"go", "test", "-overlay="+overlayRel, "-run", "^$", "-count=1", "-p=1", "./internal/vm",
 	)
 	cmd.Dir = root
 	cmd.Env = overrideEnvVar(os.Environ(), "GOFLAGS", "")
@@ -424,6 +429,23 @@ func TestOwnershipGateMissingFourthAxisDoesNotCompile(t *testing.T) {
 	}
 
 	assertOwnershipGateMissingFourthAxisDiagnostic(t, string(output))
+}
+
+func newOwnershipOverlayArtifacts(t *testing.T, root string) (*testArtifacts, string) {
+	t.Helper()
+	artifacts := newTestArtifacts(t, root)
+	artifactDirRel, relErr := filepath.Rel(root, artifacts.Dir)
+	if relErr != nil {
+		t.Fatalf("make ownership overlay artifact path relative: %v", relErr)
+	}
+	artifactDirRel = filepath.ToSlash(artifactDirRel)
+	const artifactDirPrefix = "target/debug/.tests/"
+	const safeRelativePathCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/"
+	if !strings.HasPrefix(artifactDirRel, artifactDirPrefix) ||
+		strings.Trim(artifactDirRel, safeRelativePathCharacters) != "" {
+		t.Fatalf("ownership overlay artifact path is not safe ASCII under %s: %q", artifactDirPrefix, artifactDirRel)
+	}
+	return artifacts, artifactDirRel
 }
 
 func assertOwnershipGateMissingFourthAxisDiagnostic(t *testing.T, output string) {
