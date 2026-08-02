@@ -5856,3 +5856,31 @@ failure-frequency worsening. Because the baseline flake appeared only on run
 a deterministic reset reproducer and root-cause fix with failing-before and
 passing-after proof, followed by a green repeated bounded stress target and a
 composed gate that reaches and passes it.
+
+The matched windows are reproducible from these exact invocations. Baseline
+workdir `/tmp/surge-sentrux-baseline.n2oGgt` is checked out at exact
+`bf543542e18f625d8ec94501ee784bee04757bcd`:
+
+```bash
+for i in 1 2 3 4 5 6 7 8 9 10; do printf 'base_http_run %s start\n' "$i"; make runtime-v2-http-owner-check; rc=$?; printf 'base_http_run %s exit %s\n' "$i" "$rc"; done
+```
+
+```bash
+for i in 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do printf 'base_http_run %s start\n' "$i"; make runtime-v2-http-owner-check; rc=$?; printf 'base_http_run %s exit %s\n' "$i" "$rc"; if [ "$rc" -ne 0 ]; then break; fi; done
+```
+
+The second baseline loop terminates at run 15's failure. Current workdir
+`/tmp/surge-step5-postfd.xM9vmt` has docs HEAD `374bfd0f` and code exactly
+`86adb946`:
+
+```bash
+for i in 1 2 3 4 5 6 7 8 9 10; do printf 'current_http_run %s start\n' "$i"; make runtime-v2-http-owner-check; rc=$?; printf 'current_http_run %s exit %s\n' "$i" "$rc"; done
+```
+
+```bash
+for i in 11 12 13 14 15; do printf 'current_http_run %s start\n' "$i"; make runtime-v2-http-owner-check; rc=$?; printf 'current_http_run %s exit %s\n' "$i" "$rc"; done
+```
+
+The Make target itself pins `SURGE_BACKEND=llvm`,
+`SURGE_SKIP_TIMEOUT_TESTS=0`, the exact HTTP-owner tests, `-count=1`,
+`-parallel=1`, `-p=1`, and `--timeout 180s`.
