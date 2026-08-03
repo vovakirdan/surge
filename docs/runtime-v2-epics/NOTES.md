@@ -5908,9 +5908,14 @@ under RV2-DEBT-062 (and the independently scoped RV2-DEBT-061 remains open).
 Epic 21's owner-routed core vertical shipped, but Task 9 acceptance closeout
 was not executed and is now tracked by RV2-DEBT-125.
 
+Roadmap audit records RV2-DEBT-126 for status drift: README surfaces disagree
+on whether Epic 13 is active or complete, the Epic 13 header still says active,
+and `docs/RUNTIME_V2.md` still calls Epic 20 in progress after its closeout.
+The stale surfaces are intentionally unchanged in this factual triage pass.
+
 RV2-DEBT-124 is a matched baseline flake, not a deterministic regression:
 current and exact baseline each pass 14/15 under comparable serialized stress.
 Because the failure is schedule-dependent and appears on both sides, ordinary
 commit bisection cannot attribute it. The fix-now/defer classification for
-RV2-DEBT-122/123/124/125 remains pending the project owner's decision; this
+RV2-DEBT-122/123/124/125/126 remains pending the project owner's decision; this
 record contains evidence only and does not approve a repair policy.
