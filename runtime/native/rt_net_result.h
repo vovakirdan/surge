@@ -33,6 +33,7 @@ typedef struct SurgeArrayHeader {
 uint64_t net_error_code_from_errno(int err);
 void* net_make_error(uint64_t code);
 void* net_make_success_ptr(void* payload);
+void* net_make_success_handle(uint64_t handle_id);
 void* net_make_success_nothing(void);
 void* net_make_success_bytes(uint8_t* data, uint64_t len, uint64_t cap);
 char* net_copy_addr(void* addr, uint64_t* out_len, uint64_t* err_code);

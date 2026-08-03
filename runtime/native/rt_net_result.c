@@ -92,6 +92,19 @@ void* net_make_success_ptr(void* payload) {
     return mem;
 }
 
+void* net_make_success_handle(uint64_t handle_id) {
+    uint64_t* handle = (uint64_t*)rt_alloc((uint64_t)sizeof(uint64_t), (uint64_t)alignof(uint64_t));
+    if (handle == NULL) {
+        return NULL;
+    }
+    *handle = handle_id;
+    void* out = net_make_success_ptr(handle);
+    if (out == NULL) {
+        rt_free((uint8_t*)handle, (uint64_t)sizeof(uint64_t), (uint64_t)alignof(uint64_t));
+    }
+    return out;
+}
+
 void* net_make_success_nothing(void) {
     size_t payload_align = alignof(void*);
     size_t payload_size = sizeof(NetError);

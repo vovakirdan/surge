@@ -38,11 +38,12 @@ typedef struct NetListener {
 
 // Public handle-word contract (recovery): Surge intrinsic net
 // structs expose exactly one word, `__opaque`. That word is a runtime-generated
-// handle id, never an OS fd and never a pointer. Full runtime objects and
-// reconstructed `{ __opaque = id }` boxes both start with this word; every
-// native entrypoint must resolve it through the handle table before reading
-// fields at offset >= 8. The handle table is platform-neutral and owns stale
-// copy rejection independently of fd reuse behavior.
+// handle id, never an OS fd and never a pointer. Language-owned 8-byte boxes
+// and full runtime objects both start with this word, but they are distinct
+// allocations: dropping a public box must not free the registry's canonical
+// object. Every native entrypoint resolves the word through the handle table
+// before reading fields at offset >= 8. The handle table is platform-neutral
+// and owns stale copy rejection independently of fd reuse behavior.
 typedef struct NetConn {
     uint64_t handle_id;
     int fd;
@@ -69,6 +70,6 @@ int rt_net_listener_selected_member_const(const NetListener* listener, NetListen
 NetConn* rt_net_conn_alloc(int fd, uint32_t owner_shard_id, uint64_t generation);
 NetConn* rt_net_conn_canonical(const NetConn* conn);
 const NetConn* rt_net_conn_canonical_const(const NetConn* conn);
-void rt_net_conn_registry_remove(const NetConn* conn);
+void rt_net_conn_free(NetConn* conn);
 
 #endif

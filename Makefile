@@ -167,7 +167,7 @@ runtime-v2-fd-registry-check:
 
 runtime-v2-net-handle-check:
 	@echo ">> Running Runtime V2 net-handle guard gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetHandle(StaleCopyReusedFD|GuardStaticShape)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetHandle(StaleCopyReusedFD|GuardStaticShape|CanonicalOutlivesPublicBox)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-http-owner-check:
 	@echo ">> Running Runtime V2 HTTP owner-local gate"

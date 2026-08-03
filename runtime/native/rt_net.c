@@ -239,7 +239,7 @@ void* rt_net_listen(void* addr, uint64_t port) {
         rt_net_listener_free(listener);
         return net_make_error(NET_ERR_IO);
     }
-    return net_make_success_ptr(listener);
+    return net_make_success_handle(listener->handle_id);
 }
 
 void* rt_net_connect(void* addr, uint64_t port) {
@@ -299,7 +299,7 @@ void* rt_net_connect(void* addr, uint64_t port) {
         return net_make_error(NET_ERR_IO);
     }
     rt_net_place_current_task_on_owner(ex, owner_shard_id);
-    return net_make_success_ptr(conn);
+    return net_make_success_handle(conn->handle_id);
 }
 
 void* rt_net_close_listener(void* listener) {
@@ -313,7 +313,7 @@ void* rt_net_close_listener(void* listener) {
     }
     int close_errno = 0;
     rt_net_lifecycle_status status = rt_net_close_listener_members(ex, l, &close_errno);
-    rt_net_listener_registry_remove(l);
+    rt_net_listener_free(l);
     if (status != RT_NET_LIFECYCLE_OK) {
         return net_make_error(close_errno == 0 ? NET_ERR_IO
                                                : net_error_code_from_errno(close_errno));
@@ -338,7 +338,7 @@ void* rt_net_close_conn(void* conn) {
     rt_net_lifecycle_status status = rt_net_close_fd_on_owner(
         ex, c->owner_shard_id, &c->fd, &c->closed, c->generation, &close_errno);
     if (status == RT_NET_LIFECYCLE_OK) {
-        rt_net_conn_registry_remove(c);
+        rt_net_conn_free(c);
         return net_make_success_nothing();
     }
     return net_make_error(
@@ -424,7 +424,7 @@ void* rt_net_accept(const void* listener) {
         rt_async_debug_printf("net-accept-success fd=%d owner=%u\n", fd, member.owner_shard_id);
     }
     rt_net_trace_accept_owner(member.owner_shard_id);
-    return net_make_success_ptr(conn);
+    return net_make_success_handle(conn->handle_id);
 }
 
 void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap) {

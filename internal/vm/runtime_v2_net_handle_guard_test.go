@@ -176,13 +176,23 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 		return string(data)
 	}
 	handles := read("runtime/native/rt_net_handles.h")
-	for _, needle := range []string{"handle id", "never an OS fd", "rt_net_conn_canonical"} {
+	for _, needle := range []string{
+		"handle id",
+		"never an OS fd",
+		"dropping a public box",
+		"rt_net_conn_canonical",
+	} {
 		if !strings.Contains(handles, needle) {
 			t.Fatalf("rt_net_handles.h must document the handle-word contract; missing %q", needle)
 		}
 	}
 	handleSource := read("runtime/native/rt_net_handles.c")
-	for _, needle := range []string{"net_handle_registry_add", "net_handle_registry_lookup", "NET_HANDLE_CONN"} {
+	for _, needle := range []string{
+		"net_handle_registry_add",
+		"net_handle_registry_lookup",
+		"rt_net_conn_free",
+		"NET_HANDLE_CONN",
+	} {
 		if !strings.Contains(handleSource, needle) {
 			t.Fatalf("rt_net_handles.c must own the stable handle table; missing %q", needle)
 		}
@@ -210,6 +220,37 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 	if strings.Contains(netSource, "rt_net_conn_probe_open(") {
 		t.Fatal("rt_net.c must not use fd-scanning conn probes after stable handle ids")
 	}
+	for _, direct := range []string{
+		"net_make_success_ptr(listener)",
+		"net_make_success_ptr(conn)",
+	} {
+		if strings.Contains(netSource, direct) {
+			t.Fatalf("native canonical objects must not escape as language boxes: found %q", direct)
+		}
+	}
+	if strings.Count(netSource, "net_make_success_handle(conn->handle_id)") != 2 ||
+		strings.Count(netSource, "net_make_success_handle(listener->handle_id)") != 1 {
+		t.Fatal("listen/connect/accept must export separate language-owned handle boxes")
+	}
+	for fn, cleanup := range map[string]string{
+		"rt_net_close_listener": "rt_net_listener_free(l)",
+		"rt_net_close_conn":     "rt_net_conn_free(c)",
+	} {
+		body, ok := cFunctionBody(netSource, fn)
+		if !ok || !strings.Contains(body, cleanup) {
+			t.Fatalf("%s must release its registry-owned canonical object via %s", fn, cleanup)
+		}
+	}
+	resultSource := read("runtime/native/rt_net_result.c")
+	handleResult, ok := cFunctionBody(resultSource, "net_make_success_handle")
+	if !ok {
+		t.Fatal("net_make_success_handle not found")
+	}
+	for _, needle := range []string{"sizeof(uint64_t)", "net_make_success_ptr(handle)", "rt_free("} {
+		if !strings.Contains(handleResult, needle) {
+			t.Fatalf("handle result must own an independent one-word box; missing %q", needle)
+		}
+	}
 	lifecycle := read("runtime/native/rt_net_lifecycle.c")
 	for _, needle := range []string{"rt_fd_registry_handle_open"} {
 		if !strings.Contains(lifecycle, needle) {
@@ -228,4 +269,75 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 	if strings.Contains(registry, "rt_fd_registry_handle_check_open") {
 		t.Fatal("fd registry must not keep the removed 16-bit public-handle predicate")
 	}
+}
+
+// TestRuntimeV2NetHandleCanonicalOutlivesPublicBox proves the ownership half
+// of the handle-word ABI without sockets or scheduler timing: discarding an
+// 8-byte public box leaves the registry-owned canonical object live, explicit
+// canonical teardown rejects a reconstructed stale copy, and listener handles
+// follow the same split as connection handles.
+func TestRuntimeV2NetHandleCanonicalOutlivesPublicBox(t *testing.T) {
+	const source = `
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "rt_net_handles.c"
+
+void* rt_alloc(uint64_t size, uint64_t align) {
+    (void)align;
+    return malloc((size_t)(size == 0 ? 1 : size));
+}
+
+void rt_free(uint8_t* ptr, uint64_t size, uint64_t align) {
+    (void)size;
+    (void)align;
+    free(ptr);
+}
+
+void* rt_realloc(uint8_t* ptr, uint64_t old_size, uint64_t new_size, uint64_t align) {
+    (void)old_size;
+    (void)align;
+    return realloc(ptr, (size_t)(new_size == 0 ? 1 : new_size));
+}
+
+int main(void) {
+    NetConn* conn = rt_net_conn_alloc(17, 2, 41);
+    if (conn == NULL) return 1;
+    uint64_t conn_id = conn->handle_id;
+    uint64_t* conn_box = (uint64_t*)rt_alloc(sizeof(uint64_t), _Alignof(uint64_t));
+    if (conn_box == NULL) return 2;
+    *conn_box = conn_id;
+    if ((void*)conn_box == (void*)conn) return 3;
+    if (rt_net_conn_canonical((const NetConn*)conn_box) != conn) return 4;
+    rt_free((uint8_t*)conn_box, sizeof(uint64_t), _Alignof(uint64_t));
+
+    NetConn conn_copy;
+    memset(&conn_copy, 0, sizeof(conn_copy));
+    conn_copy.handle_id = conn_id;
+    if (rt_net_conn_canonical(&conn_copy) != conn) return 5;
+    rt_net_conn_free(conn);
+    if (rt_net_conn_canonical(&conn_copy) != NULL) return 6;
+
+    NetListener* listener = rt_net_listener_alloc(NET_LISTENER_SINGLE, 1, 0);
+    if (listener == NULL) return 7;
+    uint64_t listener_id = listener->handle_id;
+    uint64_t* listener_box = (uint64_t*)rt_alloc(sizeof(uint64_t), _Alignof(uint64_t));
+    if (listener_box == NULL) return 8;
+    *listener_box = listener_id;
+    if ((void*)listener_box == (void*)listener) return 9;
+    if (rt_net_listener_canonical((const NetListener*)listener_box) != listener) return 10;
+    rt_free((uint8_t*)listener_box, sizeof(uint64_t), _Alignof(uint64_t));
+
+    NetListener listener_copy;
+    memset(&listener_copy, 0, sizeof(listener_copy));
+    listener_copy.handle_id = listener_id;
+    if (rt_net_listener_canonical(&listener_copy) != listener) return 11;
+    rt_net_listener_free(listener);
+    if (rt_net_listener_canonical(&listener_copy) != NULL) return 12;
+    return 0;
+}
+`
+	runFDRegistryBehaviorCheck(t, "net handle box/canonical ownership", source)
 }

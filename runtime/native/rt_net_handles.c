@@ -363,9 +363,10 @@ const NetConn* rt_net_conn_canonical_const(const NetConn* conn) {
     return (const NetConn*)net_handle_registry_lookup(conn->handle_id, NET_HANDLE_CONN);
 }
 
-void rt_net_conn_registry_remove(const NetConn* conn) {
+void rt_net_conn_free(NetConn* conn) {
     if (conn == NULL) {
         return;
     }
     net_handle_registry_remove(conn->handle_id, NET_HANDLE_CONN, conn);
+    rt_free((uint8_t*)conn, (uint64_t)sizeof(NetConn), (uint64_t) _Alignof(NetConn));
 }
