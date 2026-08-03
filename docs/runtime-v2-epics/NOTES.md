@@ -5919,3 +5919,76 @@ Because the failure is schedule-dependent and appears on both sides, ordinary
 commit bisection cannot attribute it. The fix-now/defer classification for
 RV2-DEBT-122/123/124/125/126 remains pending the project owner's decision; this
 record contains evidence only and does not approve a repair policy.
+
+## 2026-08-03 — Blocking Debt Repair Pass
+
+The project owner approved a narrow pass over only the debts that block the
+Runtime V2 epic chain now. That pass closes RV2-DEBT-101, RV2-DEBT-122,
+RV2-DEBT-123, and RV2-DEBT-127. The matched-baseline HTTP reset remains the
+existing nonblocking RV2-DEBT-124; newly isolated RV2-DEBT-128 through
+RV2-DEBT-132 are also deferred. RV2-DEBT-125 and RV2-DEBT-126 retain their
+previously recorded owner-decision scope. No unrelated cleanup was folded into
+the blocker fixes.
+
+RV2-DEBT-101 is closed by integrated commits `b33d1db4` and `adaa1c37`.
+The sema/HIR/MIR matrix pins borrowed tuple elements at `0` drops, an owned
+tuple at `2`, direct/one-alias/two-alias `@copy` tuples at `2`, a non-Copy alias
+at `0`, and a value handed onward at `1`. The VM row passes and the exact
+LLVM/Valgrind row is strict `0/0`. The first independent review found a P1:
+Copy was checked before alias resolution, so an aliased `@copy` tuple incorrectly
+received zero drops. The follow-up fixed the bounded alias/`own` walk and the
+independent re-review returned APPROVE.
+
+RV2-DEBT-122 is closed by integrated commit `116e886b`. The compiler now keeps
+the ordinary successor of an unnormalized pre-async suspend until Ready/Pending
+continuation ids exist, with `simplify_cfg` reachability and `succBlocks` using
+the same rule. The direct MIR regression test is red on the parent and green on
+the fix; the two exact fd failures pass, and the full
+`SURGE_SKIP_TIMEOUT_TESTS=0 make runtime-v2-fd-registry-check` is green.
+Independent review returned APPROVE with no P0-P3 findings.
+
+RV2-DEBT-123 is closed by integrated commits `2dd7442b` and `db6bfad7`.
+Language values own a stable-id box separate from the registry's canonical
+`NetConn`/`NetListener`, and allocation failure before publication rolls back
+the canonical object and fd resources. The first independent review found two
+P1s in the initial candidate: immediate normal-close reclamation caused a
+use-after-free, and an OOM result-box path leaked unpublished resources. Both
+were fixed before landing. `make runtime-v2-net-handle-check` is green, and its
+stale-copy behavior row passed 10 consecutive serialized runs at each of
+`SURGE_SHARDS=1`, `2`, and `8`; independent re-review returned APPROVE.
+
+RV2-DEBT-127 is closed by `49f98908`. Matched stress distinguishes the old and
+current incidence: exact `5d190710` passed 18/20 with two logical failures;
+pre-fix `adaa1c37` passed 15/20 with four logical failures plus one already
+known empty-output `-1` transient. ASan then exposed the underlying test UAF and
+showed a pinned pending reference still `PENDING` after it had been unlisted.
+The shutdown path now sets shutdown and fails pending waiters before releasing
+reply-waiter leases, while the test pins references it inspects. Restoring the
+old compiled order is red with exit `23`; fixed ASan stress is 100/100 green,
+and `make check` passes. Independent code-review disposition for this commit is
+pending coordinator completion and is not claimed by this documentation commit.
+
+The composed gate before RV2-DEBT-127's repair passed liveness, ownership,
+crossing, heap/reclamation/Valgrind, fixnum/range, waiter, fd-registry, accept,
+lock, lifecycle, and performance, then reached the transport stage and failed
+on the reply-waiter shutdown race now assigned to RV2-DEBT-127. This was useful
+full-path evidence, but it is not presented as the final post-fix aggregate.
+
+Golden stability is already pinned for the integrated RV2-DEBT-101/122/123
+tree: serialized `make golden-check` passed twice. Each run was followed by an
+explicit tracked golden diff and untracked-golden inventory; both were empty,
+so normal AST/MIR regeneration caused zero golden drift.
+
+The deferred findings are intentionally separate: published canonical object
+reclamation needs a real lookup lifetime protocol (RV2-DEBT-128); registry
+capacity reads race resize outside the mutex (RV2-DEBT-129); close-error handle
+invalidation is unspecified (RV2-DEBT-130); alias -> `own` -> tuple pattern
+types are unresolved in sema and never reach runtime (RV2-DEBT-131); and a rare
+pre-shutdown setup/publication hang occurs before RV2-DEBT-127's changed path
+(RV2-DEBT-132). None blocks resuming the unfinished epic chain under the
+owner-approved policy.
+
+**Pending coordinator evidence:** the final post-`49f98908` composed
+`make runtime-v2-check`, the final integration-tree golden confirmation, and
+the final Sentrux comparison/session result are deliberately not claimed here;
+the coordinator will record or report their actual outcomes after integration.
