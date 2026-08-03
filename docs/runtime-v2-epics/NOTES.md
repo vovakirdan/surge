@@ -5884,3 +5884,33 @@ for i in 11 12 13 14 15; do printf 'current_http_run %s start\n' "$i"; make runt
 The Make target itself pins `SURGE_BACKEND=llvm`,
 `SURGE_SKIP_TIMEOUT_TESTS=0`, the exact HTTP-owner tests, `-count=1`,
 `-parallel=1`, `-p=1`, and `--timeout 180s`.
+
+## 2026-08-03 — Runtime V2 Regression And Closeout Triage
+
+History isolation excludes Epic 25 from the deterministic network failures.
+RV2-DEBT-122 first turns red at `575f075d` (direct parent `12d67483`):
+both fd rows pass 2/2 on the parent and fail 2/2 on the first-bad commit.
+They are two symptoms of one product compiler CFG regression in async lowering
+of `stdlib/net::write_all_owned$poll`: after `net_wait_writable`, the bad MIR
+takes an early `async_return` instead of continuing the post-wait write loop.
+The fd target, and therefore the composed `make runtime-v2-check`, remains red.
+
+RV2-DEBT-123 first turns red at `a8351f82` (direct parent `2df134e1`).
+The compare-arm drop added there is correct; it exposes an existing native /
+language ABI-lifetime mismatch. Native returns a canonical `NetConn*` as a
+language-owned eight-byte `TcpConn` box, so the new correct arm drop frees the
+registry object. The stable-id test fixture remains valid. The repair belongs
+at the ABI boundary and must not roll back compare-arm ownership.
+
+Ledger audit also confirms RV2-DEBT-059 was fixed by `bdcc0695`; its outer
+abandoned async state is reclaimed, while nested handle-shaped residuals stay
+under RV2-DEBT-062 (and the independently scoped RV2-DEBT-061 remains open).
+Epic 21's owner-routed core vertical shipped, but Task 9 acceptance closeout
+was not executed and is now tracked by RV2-DEBT-125.
+
+RV2-DEBT-124 is a matched baseline flake, not a deterministic regression:
+current and exact baseline each pass 14/15 under comparable serialized stress.
+Because the failure is schedule-dependent and appears on both sides, ordinary
+commit bisection cannot attribute it. The fix-now/defer classification for
+RV2-DEBT-122/123/124/125 remains pending the project owner's decision; this
+record contains evidence only and does not approve a repair policy.

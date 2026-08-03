@@ -1,11 +1,13 @@
 # Epic 21: Owner-Routed Frees (vertical 3 of the reclamation arc)
 
-**Status:** IN EXECUTION — Task 1 COMPLETE (2026-07-20, RV2-DEBT-057
-+ 055 both closed); Task 5 COMPLETE (2026-07-20, RV2-DEBT-053a
-closed, codex-implemented); Task 7 COMPLETE (2026-07-20, RV2-DEBT-060
-closed for far channels, RV2-DEBT-048's far residual closed;
-RV2-DEBT-061 opened as bycatch — a pre-existing, unrelated race,
-not blocking). Design review concluded 2026-07-20 via a
+**Status:** CORE VERTICAL COMPLETE; TASK 9 ACCEPTANCE CLOSEOUT OPEN
+(tracked by RV2-DEBT-125). The owner-routed reclamation path shipped,
+including RV2-DEBT-059's fix in `bdcc0695`;
+Task 9's benchmark, named probe matrix, Phase-5 seam, and final debt
+dispositions were not performed, and Task 4's RV2-DEBT-054/056 tails
+remain open. RV2-DEBT-061 and RV2-DEBT-062 also remain separate
+residuals, so this status must not be read as full charter closeout.
+Design review concluded 2026-07-20 via a
 tier-based sequencing decision (user-approved): Tier 0 first (057,
 055 — census-poisoning and compile-breaking bugs, independent of
 crossing), then Tier 1 in dependency order (060+048-residual →
