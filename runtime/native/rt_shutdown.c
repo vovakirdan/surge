@@ -44,9 +44,9 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     rt_control_lock(ex);
-    rt_shutdown_release_far_tasks(ex);
     ex->shutdown = 1;
     rt_remote_spawn_fail_all_pending(ex, RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN);
+    rt_shutdown_release_far_tasks(ex);
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
         (void)rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(

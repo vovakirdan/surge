@@ -163,22 +163,35 @@ int rtb_mode_shutdown_waiters(void) {
         rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), shard);
         before[shard] = rt_transport_debug_snapshot(owner);
     }
-    if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
-        return rtb_fail("executor shutdown failed");
-    }
     for (uint32_t shard = 0; shard < 2; shard++) {
+        // visible_pending is only a borrowed observation. Shutdown can let
+        // the caller consume its own reference before this thread inspects
+        // the terminal status, so hold one explicit test reference across
+        // the shutdown boundary.
+        rt_remote_task_pending_add_ref(pending[shard]);
+    }
+    const char* failure = NULL;
+    if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
+        failure = "executor shutdown failed";
+    }
+    for (uint32_t shard = 0; failure == NULL && shard < 2; shard++) {
         if (rt_remote_task_pending_snapshot(pending[shard], NULL, NULL) !=
             RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
-            return rtb_fail("shutdown did not fail remote reply waiter");
+            failure = "shutdown did not fail remote reply waiter";
+            break;
         }
         rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), shard);
         struct rt_transport_debug_snapshot after = rt_transport_debug_snapshot(owner);
         if (after.shutdown_wakes != before[shard].shutdown_wakes + 1 ||
             after.park_state != RT_TRANSPORT_SHARD_SHUTDOWN) {
-            return rtb_fail("shutdown did not wake every caller shard");
+            failure = "shutdown did not wake every caller shard";
         }
     }
-    if (!lease_registry_empty(ex))
-        return rtb_fail("shutdown retained far-task leases");
-    return 0;
+    if (failure == NULL && !lease_registry_empty(ex)) {
+        failure = "shutdown retained far-task leases";
+    }
+    for (uint32_t shard = 0; shard < 2; shard++) {
+        rt_remote_task_pending_release(pending[shard]);
+    }
+    return failure != NULL ? rtb_fail(failure) : 0;
 }

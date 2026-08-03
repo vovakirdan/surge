@@ -343,6 +343,11 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
 
 static uint32_t sched_broadcast_calls;
 static uint32_t transport_shutdown_wake_calls;
+static uint32_t shutdown_order;
+static uint32_t pending_fail_order;
+static uint32_t far_task_release_order;
+static uint32_t far_channel_release_order;
+static uint32_t pending_fail_saw_shutdown;
 
 uint64_t rt_transport_shutdown_wake_all(rt_executor* ex) {
     (void)ex;
@@ -381,10 +386,12 @@ void rt_shard_unlock(rt_shard* shard) {
 // fd-registry drain behavior, so both are no-ops here.
 void rt_far_task_release_all(rt_executor* ex) {
     (void)ex;
+    far_task_release_order = ++shutdown_order;
 }
 
 void rt_far_channel_release_all(rt_executor* ex) {
     (void)ex;
+    far_channel_release_order = ++shutdown_order;
 }
 
 size_t rt_remote_spawn_drain_inbound_locked(rt_executor* ex, rt_shard* shard, size_t limit) {
@@ -395,8 +402,10 @@ size_t rt_remote_spawn_drain_inbound_locked(rt_executor* ex, rt_shard* shard, si
 }
 
 void rt_remote_spawn_fail_all_pending(rt_executor* ex, rt_remote_spawn_status status) {
-    (void)ex;
     (void)status;
+    pending_fail_order = ++shutdown_order;
+    pending_fail_saw_shutdown =
+        atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0;
 }
 #include "rt_fd_registry.c"
 #include "rt_shutdown.c"
@@ -478,6 +487,11 @@ int main(void) {
     err = require_int(transport_shutdown_wake_calls == 1, 21);
     if (err != 0) return err;
     err = require_int(sched_broadcast_calls == 1, 22);
+    if (err != 0) return err;
+    err = require_int(pending_fail_saw_shutdown != 0 && pending_fail_order != 0 &&
+                          pending_fail_order < far_task_release_order &&
+                          pending_fail_order < far_channel_release_order,
+                      23);
     if (err != 0) return err;
 
     rt_fd_registry_free(&registries[0]);
