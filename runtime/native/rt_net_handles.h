@@ -54,7 +54,10 @@ typedef struct NetConn {
 
 NetListener*
 rt_net_listener_alloc(NetListenerKind kind, size_t member_count, uint32_t owner_shard_id);
-void rt_net_listener_free(NetListener* listener);
+// Roll back a listener that has never escaped to Surge code. This closes any
+// live member fds and frees the canonical object. Published canonicals are not
+// reclaimed here because handle-table lookup readers do not retain them yet.
+void rt_net_listener_rollback_unpublished(NetListener* listener);
 void rt_net_listener_release_members(NetListener* listener);
 int rt_net_listener_registry_add(NetListener* listener);
 void rt_net_listener_registry_remove(const NetListener* listener);
@@ -70,6 +73,10 @@ int rt_net_listener_selected_member_const(const NetListener* listener, NetListen
 NetConn* rt_net_conn_alloc(int fd, uint32_t owner_shard_id, uint64_t generation);
 NetConn* rt_net_conn_canonical(const NetConn* conn);
 const NetConn* rt_net_conn_canonical_const(const NetConn* conn);
-void rt_net_conn_free(NetConn* conn);
+void rt_net_conn_registry_remove(const NetConn* conn);
+// Free only a connection that has never escaped to Surge code. The caller must
+// first forget its fd-registry row and close its fd. Published canonicals are
+// invalidated but intentionally not reclaimed until lookup readers retain them.
+void rt_net_conn_free_unpublished(NetConn* conn);
 
 #endif

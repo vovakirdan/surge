@@ -110,6 +110,18 @@ static NetConn* net_conn_from_value(void* conn) {
     return rt_net_conn_canonical((NetConn*)conn);
 }
 
+// Roll back a canonical connection before its public handle box escapes. Once
+// published, lookup readers do not retain the canonical object, so close may
+// invalidate its registry row but must not reclaim it here.
+static void net_conn_rollback_unpublished(rt_executor* ex, NetConn* conn) {
+    if (conn == NULL) {
+        return;
+    }
+    rt_net_forget_registered_fd_on_owner(ex, conn->owner_shard_id, conn->fd);
+    (void)close(conn->fd);
+    rt_net_conn_free_unpublished(conn);
+}
+
 static int net_conn_owner_local(rt_executor* ex, const NetConn* c) {
     if (ex == NULL || c == NULL) {
         return 0;
@@ -210,36 +222,26 @@ void* rt_net_listen(void* addr, uint64_t port) {
         int fd = rt_net_create_listener_socket(
             &ip, (uint16_t)port, &bound_port, member_count > 1, &listener_errno);
         if (fd < 0) {
-            for (size_t j = 0; j < i; j++) {
-                if (listener->members[j].fd >= 0) {
-                    close(listener->members[j].fd);
-                }
-            }
-            rt_net_listener_free(listener);
+            rt_net_listener_rollback_unpublished(listener);
             return net_make_error(listener_errno == 0 ? NET_ERR_IO
                                                       : net_error_code_from_errno(listener_errno));
         }
         if (!rt_net_listener_set_member(listener, i, fd, (uint32_t)i)) {
             close(fd);
-            for (size_t j = 0; j < i; j++) {
-                if (listener->members[j].fd >= 0) {
-                    close(listener->members[j].fd);
-                }
-            }
-            rt_net_listener_free(listener);
+            rt_net_listener_rollback_unpublished(listener);
             return net_make_error(NET_ERR_IO);
         }
     }
     if (!rt_net_listener_registry_add(listener)) {
-        for (size_t j = 0; j < member_count; j++) {
-            if (listener->members[j].fd >= 0) {
-                close(listener->members[j].fd);
-            }
-        }
-        rt_net_listener_free(listener);
+        rt_net_listener_rollback_unpublished(listener);
         return net_make_error(NET_ERR_IO);
     }
-    return net_make_success_handle(listener->handle_id);
+    void* out = net_make_success_handle(listener->handle_id);
+    if (out == NULL) {
+        rt_net_listener_rollback_unpublished(listener);
+        return net_make_error(NET_ERR_IO);
+    }
+    return out;
 }
 
 void* rt_net_connect(void* addr, uint64_t port) {
@@ -298,8 +300,13 @@ void* rt_net_connect(void* addr, uint64_t port) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
+    void* out = net_make_success_handle(conn->handle_id);
+    if (out == NULL) {
+        net_conn_rollback_unpublished(ex, conn);
+        return net_make_error(NET_ERR_IO);
+    }
     rt_net_place_current_task_on_owner(ex, owner_shard_id);
-    return net_make_success_handle(conn->handle_id);
+    return out;
 }
 
 void* rt_net_close_listener(void* listener) {
@@ -313,7 +320,7 @@ void* rt_net_close_listener(void* listener) {
     }
     int close_errno = 0;
     rt_net_lifecycle_status status = rt_net_close_listener_members(ex, l, &close_errno);
-    rt_net_listener_free(l);
+    rt_net_listener_registry_remove(l);
     if (status != RT_NET_LIFECYCLE_OK) {
         return net_make_error(close_errno == 0 ? NET_ERR_IO
                                                : net_error_code_from_errno(close_errno));
@@ -338,7 +345,7 @@ void* rt_net_close_conn(void* conn) {
     rt_net_lifecycle_status status = rt_net_close_fd_on_owner(
         ex, c->owner_shard_id, &c->fd, &c->closed, c->generation, &close_errno);
     if (status == RT_NET_LIFECYCLE_OK) {
-        rt_net_conn_free(c);
+        rt_net_conn_registry_remove(c);
         return net_make_success_nothing();
     }
     return net_make_error(
@@ -419,12 +426,17 @@ void* rt_net_accept(const void* listener) {
         close(fd);
         return net_make_error(NET_ERR_IO);
     }
+    void* out = net_make_success_handle(conn->handle_id);
+    if (out == NULL) {
+        net_conn_rollback_unpublished(ex, conn);
+        return net_make_error(NET_ERR_IO);
+    }
     rt_net_place_current_task_on_owner(ex, member.owner_shard_id);
     if (rt_async_debug_enabled()) {
         rt_async_debug_printf("net-accept-success fd=%d owner=%u\n", fd, member.owner_shard_id);
     }
     rt_net_trace_accept_owner(member.owner_shard_id);
-    return net_make_success_handle(conn->handle_id);
+    return out;
 }
 
 void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap) {

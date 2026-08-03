@@ -190,7 +190,9 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 	for _, needle := range []string{
 		"net_handle_registry_add",
 		"net_handle_registry_lookup",
-		"rt_net_conn_free",
+		"rt_net_listener_rollback_unpublished",
+		"rt_net_conn_registry_remove",
+		"rt_net_conn_free_unpublished",
 		"NET_HANDLE_CONN",
 	} {
 		if !strings.Contains(handleSource, needle) {
@@ -233,12 +235,56 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 		t.Fatal("listen/connect/accept must export separate language-owned handle boxes")
 	}
 	for fn, cleanup := range map[string]string{
-		"rt_net_close_listener": "rt_net_listener_free(l)",
-		"rt_net_close_conn":     "rt_net_conn_free(c)",
+		"rt_net_close_listener": "rt_net_listener_registry_remove(l)",
+		"rt_net_close_conn":     "rt_net_conn_registry_remove(c)",
 	} {
 		body, ok := cFunctionBody(netSource, fn)
 		if !ok || !strings.Contains(body, cleanup) {
-			t.Fatalf("%s must release its registry-owned canonical object via %s", fn, cleanup)
+			t.Fatalf("%s must invalidate its canonical registry row via %s", fn, cleanup)
+		}
+		if strings.Contains(body, "free_unpublished(") || strings.Contains(body, "rollback_unpublished(") {
+			t.Fatalf("%s must not reclaim a published canonical", fn)
+		}
+	}
+	rollback, ok := cFunctionBody(netSource, "net_conn_rollback_unpublished")
+	if !ok {
+		t.Fatal("net_conn_rollback_unpublished not found")
+	}
+	rollbackCalls := []string{
+		"rt_net_forget_registered_fd_on_owner(",
+		"close(conn->fd)",
+		"rt_net_conn_free_unpublished(conn)",
+	}
+	last := -1
+	for _, call := range rollbackCalls {
+		at := strings.Index(rollback, call)
+		if at <= last {
+			t.Fatalf("unpublished conn rollback must forget, close, then free; bad %q", call)
+		}
+		last = at
+	}
+	for _, fn := range []string{"rt_net_listen", "rt_net_connect", "rt_net_accept"} {
+		body, found := cFunctionBody(netSource, fn)
+		publishAt := strings.Index(body, "net_make_success_handle(")
+		rollbackAt := strings.Index(body[publishAt+1:], "rollback_unpublished(")
+		if !found || publishAt < 0 || rollbackAt < 0 {
+			t.Fatalf("%s must roll back its unpublished canonical on handle-box failure", fn)
+		}
+	}
+	for fn, successMarkers := range map[string][]string{
+		"rt_net_connect": {"rt_net_place_current_task_on_owner("},
+		"rt_net_accept": {
+			"rt_net_place_current_task_on_owner(",
+			"net-accept-success",
+			"rt_net_trace_accept_owner(",
+		},
+	} {
+		body, _ := cFunctionBody(netSource, fn)
+		publishAt := strings.Index(body, "net_make_success_handle(")
+		for _, marker := range successMarkers {
+			if at := strings.Index(body, marker); at <= publishAt {
+				t.Fatalf("%s success effect %q must follow handle publication", fn, marker)
+			}
 		}
 	}
 	resultSource := read("runtime/native/rt_net_result.c")
@@ -278,12 +324,17 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 // follow the same split as connection handles.
 func TestRuntimeV2NetHandleCanonicalOutlivesPublicBox(t *testing.T) {
 	const source = `
+#include <errno.h>
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "rt_net_handles.c"
+
+static uint64_t free_calls;
 
 void* rt_alloc(uint64_t size, uint64_t align) {
     (void)align;
@@ -293,6 +344,7 @@ void* rt_alloc(uint64_t size, uint64_t align) {
 void rt_free(uint8_t* ptr, uint64_t size, uint64_t align) {
     (void)size;
     (void)align;
+    if (ptr != NULL) free_calls++;
     free(ptr);
 }
 
@@ -303,7 +355,7 @@ void* rt_realloc(uint8_t* ptr, uint64_t old_size, uint64_t new_size, uint64_t al
 }
 
 int main(void) {
-    NetConn* conn = rt_net_conn_alloc(17, 2, 41);
+    NetConn* conn = rt_net_conn_alloc(-1, 2, 41);
     if (conn == NULL) return 1;
     uint64_t conn_id = conn->handle_id;
     uint64_t* conn_box = (uint64_t*)rt_alloc(sizeof(uint64_t), _Alignof(uint64_t));
@@ -317,27 +369,130 @@ int main(void) {
     memset(&conn_copy, 0, sizeof(conn_copy));
     conn_copy.handle_id = conn_id;
     if (rt_net_conn_canonical(&conn_copy) != conn) return 5;
-    rt_net_conn_free(conn);
-    if (rt_net_conn_canonical(&conn_copy) != NULL) return 6;
+    rt_net_conn_free_unpublished(conn);
+    if (rt_net_conn_canonical(&conn_copy) != NULL || free_calls != 2) return 6;
 
     NetListener* listener = rt_net_listener_alloc(NET_LISTENER_SINGLE, 1, 0);
     if (listener == NULL) return 7;
+    int listener_pipe[2];
+    if (pipe(listener_pipe) != 0) return 8;
+    if (!rt_net_listener_set_member(listener, 0, listener_pipe[0], 0)) return 9;
     uint64_t listener_id = listener->handle_id;
     uint64_t* listener_box = (uint64_t*)rt_alloc(sizeof(uint64_t), _Alignof(uint64_t));
-    if (listener_box == NULL) return 8;
+    if (listener_box == NULL) return 10;
     *listener_box = listener_id;
-    if ((void*)listener_box == (void*)listener) return 9;
-    if (rt_net_listener_canonical((const NetListener*)listener_box) != listener) return 10;
+    if ((void*)listener_box == (void*)listener) return 11;
+    if (rt_net_listener_canonical((const NetListener*)listener_box) != listener) return 12;
     rt_free((uint8_t*)listener_box, sizeof(uint64_t), _Alignof(uint64_t));
 
     NetListener listener_copy;
     memset(&listener_copy, 0, sizeof(listener_copy));
     listener_copy.handle_id = listener_id;
-    if (rt_net_listener_canonical(&listener_copy) != listener) return 11;
-    rt_net_listener_free(listener);
-    if (rt_net_listener_canonical(&listener_copy) != NULL) return 12;
+    if (rt_net_listener_canonical(&listener_copy) != listener) return 13;
+    rt_net_listener_rollback_unpublished(listener);
+    if (rt_net_listener_canonical(&listener_copy) != NULL) return 14;
+    errno = 0;
+    if (fcntl(listener_pipe[0], F_GETFD) != -1 || errno != EBADF) return 15;
+    close(listener_pipe[1]);
     return 0;
 }
 `
 	runFDRegistryBehaviorCheck(t, "net handle box/canonical ownership", source)
+}
+
+// TestRuntimeV2NetHandleResultAllocationRollback injects failure into each
+// allocation performed by net_make_success_handle. The first failure returns
+// without ownership; the second frees the intermediate public handle box.
+func TestRuntimeV2NetHandleResultAllocationRollback(t *testing.T) {
+	const source = `
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "rt.h"
+
+static uint64_t alloc_calls;
+static uint64_t free_calls;
+static uint64_t fail_on_alloc;
+
+void* rt_alloc(uint64_t size, uint64_t align) {
+    (void)align;
+    alloc_calls++;
+    if (alloc_calls == fail_on_alloc) return NULL;
+    return malloc((size_t)(size == 0 ? 1 : size));
+}
+
+void rt_free(uint8_t* ptr, uint64_t size, uint64_t align) {
+    (void)size;
+    (void)align;
+    if (ptr != NULL) free_calls++;
+    free(ptr);
+}
+
+size_t rt_tag_payload_offset(size_t payload_align) {
+    size_t header = sizeof(uint32_t);
+    return (header + payload_align - 1U) & ~(payload_align - 1U);
+}
+
+void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size) {
+    size_t offset = rt_tag_payload_offset(payload_align);
+    uint8_t* out = (uint8_t*)rt_alloc(offset + payload_size, payload_align);
+    if (out != NULL) memcpy(out, &tag, sizeof(tag));
+    return out;
+}
+
+void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
+    (void)ptr;
+    (void)len;
+    return NULL;
+}
+
+void* rt_biguint_from_u64(uint64_t value) {
+    (void)value;
+    return NULL;
+}
+
+const uint8_t* rt_string_ptr(void* value) {
+    (void)value;
+    return NULL;
+}
+
+uint64_t rt_string_len_bytes(void* value) {
+    (void)value;
+    return 0;
+}
+
+#include "rt_net_result.c"
+
+static int run_failure(uint64_t fail_at, uint64_t want_allocs, uint64_t want_frees) {
+    alloc_calls = 0;
+    free_calls = 0;
+    fail_on_alloc = fail_at;
+    if (net_make_success_handle(73) != NULL) return 1;
+    if (alloc_calls != want_allocs) return 2;
+    if (free_calls != want_frees) return 3;
+    return 0;
+}
+
+int main(void) {
+    if (run_failure(1, 1, 0) != 0) return 1;
+    if (run_failure(2, 2, 1) != 0) return 2;
+
+    alloc_calls = 0;
+    free_calls = 0;
+    fail_on_alloc = 0;
+    void* result = net_make_success_handle(UINT64_C(0x123456789abcdef0));
+    if (result == NULL || alloc_calls != 2 || free_calls != 0) return 3;
+    size_t offset = rt_tag_payload_offset(_Alignof(void*));
+    void* handle = NULL;
+    memcpy(&handle, (uint8_t*)result + offset, sizeof(handle));
+    if (handle == NULL || *(uint64_t*)handle != UINT64_C(0x123456789abcdef0)) return 4;
+    rt_free((uint8_t*)handle, sizeof(uint64_t), _Alignof(uint64_t));
+    rt_free((uint8_t*)result, 1, _Alignof(void*));
+    if (free_calls != 2) return 5;
+    return 0;
+}
+`
+	runFDRegistryBehaviorCheck(t, "net handle result allocation rollback", source)
 }

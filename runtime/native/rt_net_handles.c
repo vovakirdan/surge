@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct {
     int fd;
@@ -258,9 +259,16 @@ void rt_net_listener_release_members(NetListener* listener) {
     listener->closed = true;
 }
 
-void rt_net_listener_free(NetListener* listener) {
+void rt_net_listener_rollback_unpublished(NetListener* listener) {
     if (listener == NULL) {
         return;
+    }
+    for (size_t i = 0; listener->members != NULL && i < listener->member_count; i++) {
+        if (listener->members[i].fd >= 0) {
+            (void)close(listener->members[i].fd);
+            listener->members[i].fd = -1;
+            listener->members[i].closed = true;
+        }
     }
     rt_net_listener_registry_remove(listener);
     net_handle_registry_remove(listener->handle_id, NET_HANDLE_LISTENER, listener);
@@ -363,10 +371,17 @@ const NetConn* rt_net_conn_canonical_const(const NetConn* conn) {
     return (const NetConn*)net_handle_registry_lookup(conn->handle_id, NET_HANDLE_CONN);
 }
 
-void rt_net_conn_free(NetConn* conn) {
+void rt_net_conn_registry_remove(const NetConn* conn) {
     if (conn == NULL) {
         return;
     }
     net_handle_registry_remove(conn->handle_id, NET_HANDLE_CONN, conn);
+}
+
+void rt_net_conn_free_unpublished(NetConn* conn) {
+    if (conn == NULL) {
+        return;
+    }
+    rt_net_conn_registry_remove(conn);
     rt_free((uint8_t*)conn, (uint64_t)sizeof(NetConn), (uint64_t) _Alignof(NetConn));
 }
