@@ -57,7 +57,11 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		// the result moved out is already recorded when the obligations are read.
 		tc.pushDropScope(false)
 		tc.inferComparePatternTypes(arm.Pattern, armSubject, &armBindings)
-		tc.registerComparePayloadDroppables(armBindings, subjectBorrowed)
+		tc.registerComparePayloadDroppables(
+			armBindings,
+			subjectBorrowed,
+			tc.compareTupleElementsAreBorrowed(cmp.Value, arm.Pattern, armSubject),
+		)
 		if arm.Guard.IsValid() {
 			// A guard runs BEFORE this arm commits (payload extraction
 			// already ran, but a failed guard falls through to the next

@@ -116,7 +116,14 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 // storage under another name, and an obligation on it frees what the borrow
 // points at — `compare *arg { FmtStr(s) => out + s; ... }`, which is every
 // formatted print with a string argument.
-func (tc *typeChecker) registerComparePayloadDroppables(bindings []symbols.SymbolID, subjectBorrowed bool) {
+func (tc *typeChecker) registerComparePayloadDroppables(
+	bindings []symbols.SymbolID,
+	subjectBorrowed bool,
+	tupleElementsBorrowed bool,
+) {
+	if tupleElementsBorrowed {
+		return
+	}
 	for _, symID := range bindings {
 		if subjectBorrowed && !tc.payloadTakesItsOwnReference(symID) {
 			continue
