@@ -5965,8 +5965,11 @@ showed a pinned pending reference still `PENDING` after it had been unlisted.
 The shutdown path now sets shutdown and fails pending waiters before releasing
 reply-waiter leases, while the test pins references it inspects. Restoring the
 old compiled order is red with exit `23`; fixed ASan stress is 100/100 green,
-and `make check` passes. Independent code-review disposition for this commit is
-pending coordinator completion and is not claimed by this documentation commit.
+and `make check` passes. Independent review returned APPROVE with no P0-P3
+findings. Its static ordering proof passed 10/10 while the parent control stayed
+red with exit `23`; the tagged behavior row passed 20/20; independent ASan+LSan
+stress passed 30/30; related shutdown rows passed 5/5; and the full fd-registry
+gate remained green.
 
 The composed gate before RV2-DEBT-127's repair passed liveness, ownership,
 crossing, heap/reclamation/Valgrind, fixnum/range, waiter, fd-registry, accept,
@@ -5988,7 +5991,17 @@ pre-shutdown setup/publication hang occurs before RV2-DEBT-127's changed path
 (RV2-DEBT-132). None blocks resuming the unfinished epic chain under the
 owner-approved policy.
 
-**Pending coordinator evidence:** the final post-`49f98908` composed
-`make runtime-v2-check`, the final integration-tree golden confirmation, and
-the final Sentrux comparison/session result are deliberately not claimed here;
-the coordinator will record or report their actual outcomes after integration.
+Final coordinator evidence is complete. The exact
+`SURGE_SKIP_TIMEOUT_TESTS=0 make runtime-v2-check` exits `0` end to end. The
+ownership corpus remains `1046/575/390/81` with exactly two pinned findings;
+fd-registry, net-handle, HTTP owner, accept, lifecycle, TSan, performance, and
+the full transport stage are all green. The shutdown reply-waiter row passes
+inside that aggregate rather than only as a focused probe.
+
+The final serialized `make golden-check` exits `0`. Explicit tracked and
+untracked golden inventories are empty, the worktree is clean, and `STATS.md`
+matches the exact generated statistics. Sentrux reports quality signal `6215`
+against baseline `6212` (`+3`), `check_rules` passes all eight rules with zero
+violations, and `session_end` classifies the result as stable/improved. The
+initial documentation commit also received independent review APPROVE before
+this confirmed-evidence follow-up.
