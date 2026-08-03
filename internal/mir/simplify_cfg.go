@@ -145,36 +145,63 @@ func computeReachability(f *Func) []bool {
 		term := &f.Blocks[id].Term
 		if len(f.Blocks[id].Instrs) > 0 {
 			last := &f.Blocks[id].Instrs[len(f.Blocks[id].Instrs)-1]
+			// Suspend-shaped instructions own the CFG only after async
+			// normalization assigns an explicit ready target. Before that, the
+			// ordinary terminator still carries their continuation.
 			switch last.Kind {
 			case InstrPoll:
+				if last.Poll.ReadyBB == NoBlockID {
+					break
+				}
 				visit(last.Poll.ReadyBB)
 				visit(last.Poll.PendBB)
 				return
 			case InstrJoinAll:
+				if last.JoinAll.ReadyBB == NoBlockID {
+					break
+				}
 				visit(last.JoinAll.ReadyBB)
 				visit(last.JoinAll.PendBB)
 				return
 			case InstrChanSend:
+				if last.ChanSend.ReadyBB == NoBlockID {
+					break
+				}
 				visit(last.ChanSend.ReadyBB)
 				visit(last.ChanSend.PendBB)
 				return
 			case InstrChanRecv:
+				if last.ChanRecv.ReadyBB == NoBlockID {
+					break
+				}
 				visit(last.ChanRecv.ReadyBB)
 				visit(last.ChanRecv.PendBB)
 				return
 			case InstrNetWait:
+				if last.NetWait.ReadyBB == NoBlockID {
+					break
+				}
 				visit(last.NetWait.ReadyBB)
 				visit(last.NetWait.PendBB)
 				return
 			case InstrTimeout:
+				if last.Timeout.ReadyBB == NoBlockID {
+					break
+				}
 				visit(last.Timeout.ReadyBB)
 				visit(last.Timeout.PendBB)
 				return
 			case InstrSelect:
+				if last.Select.ReadyBB == NoBlockID {
+					break
+				}
 				visit(last.Select.ReadyBB)
 				visit(last.Select.PendBB)
 				return
 			case InstrCrossing:
+				if last.Crossing.ReadyBB == NoBlockID {
+					break
+				}
 				visit(last.Crossing.ReadyBB)
 				visit(last.Crossing.PendBB)
 				return

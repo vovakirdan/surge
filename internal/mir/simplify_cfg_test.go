@@ -325,6 +325,100 @@ func TestSimplifyCFG_NilFunction(_ *testing.T) {
 	mir.SimplifyCFG(nil)
 }
 
+func TestSimplifyCFGUnnormalizedSuspendFollowsTerminatorContinuation(t *testing.T) {
+	typesIn := types.NewInterner()
+	intType := typesIn.Builtins().Int
+	f := &mir.Func{
+		Name:  "unnormalized_suspend",
+		Entry: 0,
+		Locals: []mir.Local{
+			{Name: "handle", Type: intType, Flags: mir.LocalFlagCopy},
+			{Name: "continued", Type: intType, Flags: mir.LocalFlagCopy},
+		},
+		Blocks: []mir.Block{
+			{
+				ID: 0,
+				Instrs: []mir.Instr{{
+					Kind: mir.InstrNetWait,
+					NetWait: mir.NetWaitInstr{
+						Kind:    mir.NetWaitWrite,
+						Handle:  mir.Operand{Kind: mir.OperandCopy, Type: intType, Place: mir.Place{Local: 0}},
+						ReadyBB: mir.NoBlockID,
+						PendBB:  mir.NoBlockID,
+					},
+				}},
+				Term: mir.Terminator{Kind: mir.TermGoto, Goto: mir.GotoTerm{Target: 1}},
+			},
+			{
+				ID: 1,
+				Instrs: []mir.Instr{{
+					Kind: mir.InstrAssign,
+					Assign: mir.AssignInstr{
+						Dst: mir.Place{Local: 1},
+						Src: mir.RValue{Kind: mir.RValueUse, Use: mir.Operand{
+							Kind:  mir.OperandConst,
+							Type:  intType,
+							Const: mir.Const{Kind: mir.ConstInt, Type: intType, IntValue: 1},
+						}},
+					},
+				}},
+				Term: mir.Terminator{Kind: mir.TermGoto, Goto: mir.GotoTerm{Target: 2}},
+			},
+			{ID: 2, Term: mir.Terminator{Kind: mir.TermGoto, Goto: mir.GotoTerm{Target: 3}}},
+			{ID: 3, Term: mir.Terminator{Kind: mir.TermReturn}},
+		},
+	}
+
+	mir.SimplifyCFG(f)
+
+	if len(f.Blocks) != 3 {
+		t.Fatalf("blocks after simplify = %d, want suspend + continuation + return", len(f.Blocks))
+	}
+	if target := f.Blocks[0].Term.Goto.Target; target != 1 {
+		t.Fatalf("unnormalized suspend continuation = bb%d, want bb1", target)
+	}
+	if got := f.Blocks[1].Instrs; len(got) != 1 || got[0].Kind != mir.InstrAssign {
+		t.Fatalf("continuation instruction lost: %+v", got)
+	}
+}
+
+func TestSimplifyCFGNormalizedSuspendUsesExplicitTargets(t *testing.T) {
+	typesIn := types.NewInterner()
+	intType := typesIn.Builtins().Int
+	f := &mir.Func{
+		Name:   "normalized_suspend",
+		Entry:  0,
+		Locals: []mir.Local{{Name: "handle", Type: intType, Flags: mir.LocalFlagCopy}},
+		Blocks: []mir.Block{
+			{
+				ID: 0,
+				Instrs: []mir.Instr{{
+					Kind: mir.InstrNetWait,
+					NetWait: mir.NetWaitInstr{
+						Kind:    mir.NetWaitWrite,
+						Handle:  mir.Operand{Kind: mir.OperandCopy, Type: intType, Place: mir.Place{Local: 0}},
+						ReadyBB: 1,
+						PendBB:  2,
+					},
+				}},
+				Term: mir.Terminator{Kind: mir.TermUnreachable},
+			},
+			{ID: 1, Term: mir.Terminator{Kind: mir.TermReturn}},
+			{ID: 2, Term: mir.Terminator{Kind: mir.TermReturn}},
+			{ID: 3, Term: mir.Terminator{Kind: mir.TermReturn}},
+		},
+	}
+
+	mir.SimplifyCFG(f)
+
+	if len(f.Blocks) != 3 {
+		t.Fatalf("blocks after simplify = %d, want normalized suspend + two explicit targets", len(f.Blocks))
+	}
+	if got := f.Blocks[0].Instrs[0].NetWait; got.ReadyBB != 1 || got.PendBB != 2 {
+		t.Fatalf("normalized targets = ready bb%d, pending bb%d", got.ReadyBB, got.PendBB)
+	}
+}
+
 // parseAndLowerMIRWithSimplify parses source code, lowers to MIR, and runs SimplifyCFG.
 func parseAndLowerMIRWithSimplify(t *testing.T, src string) (*mir.Module, *types.Interner, error) {
 	t.Helper()

@@ -292,8 +292,14 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 	bb := &f.Blocks[bbID]
 	if len(bb.Instrs) > 0 {
 		last := &bb.Instrs[len(bb.Instrs)-1]
+		// Suspend-shaped instructions own the CFG only after normalization
+		// assigns an explicit ready target. Unnormalized instructions still
+		// continue through the block terminator.
 		switch last.Kind {
 		case InstrPoll:
+			if last.Poll.ReadyBB == NoBlockID {
+				break
+			}
 			out := []BlockID{}
 			if last.Poll.ReadyBB != NoBlockID {
 				out = append(out, last.Poll.ReadyBB)
@@ -303,6 +309,9 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			return out
 		case InstrJoinAll:
+			if last.JoinAll.ReadyBB == NoBlockID {
+				break
+			}
 			out := []BlockID{}
 			if last.JoinAll.ReadyBB != NoBlockID {
 				out = append(out, last.JoinAll.ReadyBB)
@@ -312,6 +321,9 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			return out
 		case InstrChanSend:
+			if last.ChanSend.ReadyBB == NoBlockID {
+				break
+			}
 			out := []BlockID{}
 			if last.ChanSend.ReadyBB != NoBlockID {
 				out = append(out, last.ChanSend.ReadyBB)
@@ -321,6 +333,9 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			return out
 		case InstrChanRecv:
+			if last.ChanRecv.ReadyBB == NoBlockID {
+				break
+			}
 			out := []BlockID{}
 			if last.ChanRecv.ReadyBB != NoBlockID {
 				out = append(out, last.ChanRecv.ReadyBB)
@@ -330,6 +345,9 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			return out
 		case InstrNetWait:
+			if last.NetWait.ReadyBB == NoBlockID {
+				break
+			}
 			out := []BlockID{}
 			if last.NetWait.ReadyBB != NoBlockID {
 				out = append(out, last.NetWait.ReadyBB)
@@ -339,6 +357,9 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			return out
 		case InstrTimeout:
+			if last.Timeout.ReadyBB == NoBlockID {
+				break
+			}
 			out := []BlockID{}
 			if last.Timeout.ReadyBB != NoBlockID {
 				out = append(out, last.Timeout.ReadyBB)
@@ -348,6 +369,9 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			return out
 		case InstrSelect:
+			if last.Select.ReadyBB == NoBlockID {
+				break
+			}
 			out := []BlockID{}
 			if last.Select.ReadyBB != NoBlockID {
 				out = append(out, last.Select.ReadyBB)
@@ -357,6 +381,9 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			return out
 		case InstrCrossing:
+			if last.Crossing.ReadyBB == NoBlockID {
+				break
+			}
 			out := []BlockID{}
 			if last.Crossing.ReadyBB != NoBlockID {
 				out = append(out, last.Crossing.ReadyBB)
