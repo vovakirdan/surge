@@ -57,6 +57,56 @@ fn inspect(pair: &Pair) -> int {
 			wantDrops: 2,
 		},
 		{
+			name: "copy tuple alias decomposition owns its clone",
+			source: `
+@copy type CopyPair = (string, string);
+type PairAlias = CopyPair;
+
+fn peek(x: &string) -> int { return 1; }
+
+fn inspect(pair: &PairAlias) -> int {
+    return compare *pair {
+        (left, right) => peek(&left) + peek(&right);
+    };
+}
+`,
+			wantDrops: 2,
+		},
+		{
+			name: "copy tuple two-alias decomposition owns its clone",
+			source: `
+@copy type CopyPair = (string, string);
+type PairAlias = CopyPair;
+type PairAliasTwice = PairAlias;
+
+fn peek(x: &string) -> int { return 1; }
+
+fn inspect(pair: &PairAliasTwice) -> int {
+    return compare *pair {
+        (left, right) => peek(&left) + peek(&right);
+    };
+}
+`,
+			wantDrops: 2,
+		},
+		{
+			name: "noncopy tuple alias chain remains borrowed",
+			source: `
+type MovePair = (string, string);
+type PairAlias = MovePair;
+type PairAliasTwice = PairAlias;
+
+fn peek(x: &string) -> int { return 1; }
+
+fn inspect(pair: &PairAliasTwice) -> int {
+    return compare *pair {
+        (left, right) => peek(&left) + peek(&right);
+    };
+}
+`,
+			wantDrops: 0,
+		},
+		{
 			name: "owned tuple element handed onward",
 			source: `
 fn take_left(pair: (string, string)) -> string {

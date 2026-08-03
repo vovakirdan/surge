@@ -8,6 +8,11 @@ import (
 
 const compareBorrowedTupleMIRSource = `
 @copy type CopyPair = (string, string);
+type CopyPairAlias = CopyPair;
+type CopyPairAliasTwice = CopyPairAlias;
+type MovePair = (string, string);
+type MovePairAlias = MovePair;
+type MovePairAliasTwice = MovePairAlias;
 
 fn peek(x: &string) -> int { return 1; }
 
@@ -29,6 +34,24 @@ fn copied_tuple(pair: &CopyPair) -> int {
     };
 }
 
+fn copied_tuple_alias(pair: &CopyPairAlias) -> int {
+    return compare *pair {
+        (left, right) => peek(&left) + peek(&right);
+    };
+}
+
+fn copied_tuple_alias_twice(pair: &CopyPairAliasTwice) -> int {
+    return compare *pair {
+        (left, right) => peek(&left) + peek(&right);
+    };
+}
+
+fn borrowed_tuple_alias_twice(pair: &MovePairAliasTwice) -> int {
+    return compare *pair {
+        (left, right) => peek(&left) + peek(&right);
+    };
+}
+
 fn hand_left_onward(pair: (string, string)) -> string {
     return compare pair {
         (left, right) => left;
@@ -45,6 +68,9 @@ func TestMIRCompareTupleBindingDropsMatchSubjectOwnership(t *testing.T) {
 		{"borrowed_tuple", 0},
 		{"owned_tuple", 2},
 		{"copied_tuple", 2},
+		{"copied_tuple_alias", 2},
+		{"copied_tuple_alias_twice", 2},
+		{"borrowed_tuple_alias_twice", 0},
 		{"hand_left_onward", 1},
 	}
 	for _, tt := range tests {
@@ -60,7 +86,6 @@ func TestMIRCompareTupleBindingDropsMatchSubjectOwnership(t *testing.T) {
 			if fn == nil {
 				t.Fatalf("function %q did not reach MIR", tt.fn)
 			}
-
 			gotDrops := 0
 			for i := range fn.Blocks {
 				for _, ins := range fn.Blocks[i].Instrs {
