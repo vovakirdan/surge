@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -81,6 +82,23 @@ func TestLiveCarrierRatchetAgainstRepository(t *testing.T) {
 	}
 	if difference := Compare(&manifest, actual); !difference.Empty() {
 		t.Fatalf("live carrier ratchet failed:\n%s", FormatDifference(difference))
+	}
+}
+
+func TestExactBaseScanRejectsArchivedSymlink(t *testing.T) {
+	archiveFS := fstest.MapFS{}
+	for _, scope := range requiredScopes {
+		archiveFS[scope.Root] = &fstest.MapFile{Mode: fs.ModeDir | 0o755}
+	}
+	const linkPath = "runtime/native/linked.c"
+	archiveFS[linkPath] = &fstest.MapFile{
+		Data: []byte("../outside.c"),
+		Mode: fs.ModeSymlink | 0o777,
+	}
+	_, err := scanFS(archiveFS)
+	if err == nil || !strings.Contains(err.Error(), "symlink") ||
+		!strings.Contains(err.Error(), linkPath) {
+		t.Fatalf("archived symlink error = %v, want actionable path", err)
 	}
 }
 

@@ -73,22 +73,25 @@ func TestScanFailsClosedOnMalformedGo(t *testing.T) {
 	}
 }
 
-func TestScanDoesNotFollowSymlinks(t *testing.T) {
-	root := buildFixtureTree(t, nil, false)
-	target := filepath.Join(root, "outside.go")
-	if err := os.WriteFile(target, []byte("package vm\nvar _ = VKHandleStruct\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	link := filepath.Join(root, "internal", "vm", "linked.go")
-	if err := os.Symlink(target, link); err != nil {
-		t.Skipf("symlink unsupported: %v", err)
-	}
-	findings, err := Scan(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(findings) != 0 {
-		t.Fatalf("symlink yielded findings: %+v", findings)
+func TestScanRejectsSymlinksInProductionScopes(t *testing.T) {
+	for _, name := range []string{"linked.go", "linked.txt"} {
+		t.Run(name, func(t *testing.T) {
+			root := buildFixtureTree(t, nil, false)
+			target := filepath.Join(root, "outside.go")
+			if err := os.WriteFile(target, []byte("package vm\nvar _ = VKHandleStruct\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			relative := filepath.ToSlash(filepath.Join("internal", "vm", name))
+			link := filepath.Join(root, filepath.FromSlash(relative))
+			if err := os.Symlink(target, link); err != nil {
+				t.Skipf("symlink unsupported: %v", err)
+			}
+			_, err := Scan(root)
+			if err == nil || !strings.Contains(err.Error(), "symlink") ||
+				!strings.Contains(err.Error(), relative) {
+				t.Fatalf("symlink error = %v, want actionable path", err)
+			}
+		})
 	}
 }
 

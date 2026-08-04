@@ -85,7 +85,13 @@ func scanFS(rootFS fs.FS) ([]Finding, error) {
 			if walkErr != nil {
 				return walkErr
 			}
-			if entry.IsDir() || entry.Type()&fs.ModeSymlink != 0 || excludedPath(filePath) {
+			if entry.Type()&fs.ModeSymlink != 0 {
+				return fmt.Errorf(
+					"symlink %s is not allowed in a production carrier scope; replace it with a regular file or directory",
+					filePath,
+				)
+			}
+			if entry.IsDir() || excludedPath(filePath) {
 				return nil
 			}
 			if !hasExtension(filePath, scope.Extensions) {
