@@ -7,4 +7,4 @@
 #                 Makefile go-test surface.
 gate runtime-v2-liveness-stress runtime-maintainers quarantined RV2-DEBT-027 recurrence bound; manual by design, run at fix-epoch cadence
 gate bench bench-owner performance benchmark target, not a correctness gate
-tag golden golden.sh golden fixtures run through scripts/golden.sh, not a Makefile go-test line
+tag golden golden-maintainers run explicitly with go test -tags golden ./internal/goldencheck -run ^TestGoldenUpdateDeterminism$

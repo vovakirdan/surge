@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "golden_root": "testdata/golden",
+  "entry_count": 4862,
+  "corpus_sha256": "5a439d84647a456270d210dfd4e18e56133fbb5d2cc9b51d255d12a4f7410770",
+  "diagnostic_zero": [
+    "sema/invalid/attrs/deprecated_usage.sg",
+    "sema/invalid/compare_arm_implicit_block_value_warn.sg",
+    "sema/invalid/hidden_pub/only.sg",
+    "sema/invalid/implicit_block_value_nested_call_warn.sg",
+    "sema/invalid/implicit_block_value_warn.sg",
+    "sema/invalid/import_all_private_test/privatemodule.sg",
+    "sema/invalid/redundant_finally.sg"
+  ],
+  "formatter_failure": [
+    "crossing/block01/invalid/far_negative_grouping_unsupported.sg",
+    "crossing/block01/invalid/far_negative_item_modifier_fn.sg",
+    "crossing/block01/invalid/far_negative_item_modifier_type.sg",
+    "crossing/block01/invalid/far_negative_reserved_binding.sg",
+    "crossing/block01/invalid/far_negative_reserved_extern_target.sg",
+    "crossing/block01/invalid/far_negative_reserved_function.sg",
+    "crossing/block01/invalid/far_negative_reserved_type.sg",
+    "crossing/block02/invalid/on_negative_blocking_destination.sg",
+    "crossing/block03/invalid/spawn_on_negative_blocking_destination.sg",
+    "crossing/block03/invalid/spawn_on_negative_missing_block.sg",
+    "crossing/block03/invalid/spawn_on_negative_missing_destination.sg",
+    "crossing/block03/invalid/spawn_on_negative_missing_on.sg",
+    "crossing/block04/invalid/attr_negative_movable_block_target.sg",
+    "crossing/block04/invalid/attr_negative_pinned_block_target.sg",
+    "parser/invalid/block_missing_semicolon.sg",
+    "parser/invalid/nested_fn_not_supported.sg",
+    "parser/invalid/null_coalescing_not_supported.sg",
+    "parser/invalid/range_literal_inclusive_missing_end.sg",
+    "sema/invalid/alien_hints/rust_attribute_hash.sg",
+    "sema/invalid/alien_hints/rust_impl_modifier.sg",
+    "sema/invalid/alien_hints/rust_implicit_return.sg",
+    "sema/invalid/alien_hints/rust_println_macro.sg",
+    "sema/invalid/alien_hints/ts_interface_extends.sg",
+    "sema/invalid/enum_missing_body.sg",
+    "sema/invalid/enum_missing_equals.sg",
+    "sema/invalid/generic_call_angle_brackets.sg",
+    "sema/invalid/macro_not_supported.sg",
+    "sema/invalid/pragma_invalid_position.sg",
+    "sema/invalid/returning_anonymous_record.sg",
+    "sema/invalid/variadic_not_last.sg"
+  ],
+  "emit_failure": [
+    {
+      "phase": "hir_borrow",
+      "path": "hir_borrow/invalid/move_forbidden_when_borrowed.sg"
+    },
+    {
+      "phase": "hir_borrow",
+      "path": "hir_borrow/invalid/mut_borrow_excludes_other.sg"
+    },
+    {
+      "phase": "hir_borrow",
+      "path": "hir_borrow/invalid/shared_borrow_blocks_mutation.sg"
+    },
+    {
+      "phase": "hir_borrow",
+      "path": "hir_borrow/invalid/spawn_escape.sg"
+    }
+  ]
+}

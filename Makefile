@@ -212,14 +212,10 @@ fmt:
 golden: golden-check
 
 golden-update: build
-	@./scripts/golden_update.sh
+	@$(GO) run ./cmd/goldencheck update -- ./scripts/golden_update.sh
 
-golden-check: golden-update
-	@if ! git diff --quiet -- testdata/golden; then \
-		echo "Golden files are out of date. Run 'make golden-update' and commit changes."; \
-		git diff -- testdata/golden; \
-		exit 1; \
-	fi
+golden-check: build
+	@$(GO) run ./cmd/goldencheck check --runs 2 -- ./scripts/golden_update.sh
 
 check:
 	@echo ">> Checking code"
