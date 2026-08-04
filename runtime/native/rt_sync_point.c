@@ -57,6 +57,8 @@ static _Atomic unsigned rt_sp_reached[RT_SYNC_POINT_COUNT];
 static rt_sp_barrier rt_sp_barrier_state = {
     PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0, 0};
 static rt_sp_sem rt_sp_sem_state = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0};
+static pthread_mutex_t rt_sp_reached_mtx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t rt_sp_reached_cond = PTHREAD_COND_INITIALIZER;
 
 // Bounded so a mis-armed test fails loud instead of hanging the harness.
 #define RT_SP_TIMEOUT_SECS 10
@@ -73,6 +75,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_AWAIT_AFTER_INCREMENT";
         case RT_SYNC_POINT_SP_AWAIT_BEFORE_DONECV_WAIT:
             return "SP_AWAIT_BEFORE_DONECV_WAIT";
+        case RT_SYNC_POINT_SP_TASK_POLL_AFTER_JOIN_REGISTER:
+            return "SP_TASK_POLL_AFTER_JOIN_REGISTER";
         case RT_SYNC_POINT_SP_WAKEKEY_MID_DRAIN:
             return "SP_WAKEKEY_MID_DRAIN";
         case RT_SYNC_POINT_SP_MIGRATE_GAP:
@@ -224,7 +228,10 @@ void rt_sync_point_reach(rt_sync_point_id id) {
         return;
     }
     pthread_once(&rt_sp_once, rt_sp_init);
+    pthread_mutex_lock(&rt_sp_reached_mtx);
     atomic_fetch_add_explicit(&rt_sp_reached[id], 1u, memory_order_relaxed);
+    pthread_cond_broadcast(&rt_sp_reached_cond);
+    pthread_mutex_unlock(&rt_sp_reached_mtx);
     switch (rt_sp_armed[id]) {
         case RT_SP_ACTION_BARRIER:
             rt_sp_barrier_wait();
@@ -248,6 +255,26 @@ unsigned rt_sync_point_reached_count(rt_sync_point_id id) {
         return 0;
     }
     return atomic_load_explicit(&rt_sp_reached[id], memory_order_relaxed);
+}
+
+// Driver-side wait for a runtime thread to cross a point. This is a test-only
+// condition-variable rendezvous, not a sleep/poll loop; the timeout is only a
+// deadlock guard and never a success oracle.
+int rt_sync_point_wait_until_after(rt_sync_point_id id, unsigned before) {
+    if (id <= RT_SYNC_POINT_NONE || id >= RT_SYNC_POINT_COUNT) {
+        return 0;
+    }
+    struct timespec ts;
+    rt_sp_deadline(&ts);
+    pthread_mutex_lock(&rt_sp_reached_mtx);
+    while (atomic_load_explicit(&rt_sp_reached[id], memory_order_relaxed) <= before) {
+        if (pthread_cond_timedwait(&rt_sp_reached_cond, &rt_sp_reached_mtx, &ts) != 0) {
+            pthread_mutex_unlock(&rt_sp_reached_mtx);
+            return 0;
+        }
+    }
+    pthread_mutex_unlock(&rt_sp_reached_mtx);
+    return 1;
 }
 
 // Driver-callable release: grant one permit so one thread blocked at a `block`

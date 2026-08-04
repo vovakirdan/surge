@@ -216,6 +216,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         waker_key key = join_key(target->id);
         prepare_park(ex, current, key, 0);
         pending_key = key;
+        RT_SYNC_POINT(SP_TASK_POLL_AFTER_JOIN_REGISTER);
         // Register-then-verify: the target may complete on its own shard
         // between the DONE check above and the registration; its completion
         // drain and this insert serialize on the target owner's store lock,

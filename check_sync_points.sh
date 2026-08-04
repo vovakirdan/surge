@@ -37,6 +37,7 @@ declare -A WINDOW_FILE=(
     [SP_MARKDONE_BEFORE_DONEWAITERS_LOAD]="rt_task_complete.c"
     [SP_AWAIT_AFTER_INCREMENT]="rt_async_task.c"
     [SP_AWAIT_BEFORE_DONECV_WAIT]="rt_async_task.c"
+    [SP_TASK_POLL_AFTER_JOIN_REGISTER]="rt_async_task.c"
     [SP_WAKEKEY_MID_DRAIN]="rt_task_park.c"
     [SP_MIGRATE_GAP]="rt_scheduler_placement.c rt_waiter_route.c"
     [SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK]="rt_transport.c"
@@ -110,12 +111,12 @@ else
             cat "$tmp/err"
             continue
         fi
-        if nm "$obj" 2>/dev/null | grep -q 'rt_sync_point_reach'; then
-            note_fail "$(basename "$src") references rt_sync_point_reach in the tag-off build"
+        if nm "$obj" 2>/dev/null | grep -q 'rt_sync_point_'; then
+            note_fail "$(basename "$src") contains an rt_sync_point_* symbol in the tag-off build"
             sym_leak=1
         fi
     done
-    [ "$sym_leak" -eq 0 ] && note_ok "no rt_sync_point_reach symbol in the release (tag-off) build"
+    [ "$sym_leak" -eq 0 ] && note_ok "no rt_sync_point_* symbol in the release (tag-off) build"
 fi
 
 # Check 4: no default build arms the hooks. Only this gate's own Make target and

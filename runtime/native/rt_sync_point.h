@@ -46,6 +46,11 @@ typedef enum rt_sync_point_id {
     // with RV2_DEBT_022_NEGATIVE_CONTROL to prove unlocked done_cv broadcasts
     // can be lost when they race this final wait transition.
     RT_SYNC_POINT_SP_AWAIT_BEFORE_DONECV_WAIT,
+    // rt_task_poll: reached after prepare_park has published the current
+    // task's JOIN waiter and pending_key records that park, before the target
+    // DONE re-check. Tests can now cancel a proven registered joiner without
+    // relying on scheduler timing.
+    RT_SYNC_POINT_SP_TASK_POLL_AFTER_JOIN_REGISTER,
     // wake_key_all_with_policy: reached inside the batch drain loop, so a cancel
     // can race a mid-drain key wake (token vs batch-compaction ordering).
     RT_SYNC_POINT_SP_WAKEKEY_MID_DRAIN,
@@ -163,7 +168,12 @@ void rt_sync_point_reach(rt_sync_point_id id);
 //                                interleaving explicitly (block in runtime
 //                                code, release from the driver after it has
 //                                performed the racing action).
+//   rt_sync_point_wait_until_after
+//                                block the driver until a point's reached
+//                                count exceeds a captured value; returns zero
+//                                only on the bounded deadlock guard.
 unsigned rt_sync_point_reached_count(rt_sync_point_id id);
+int rt_sync_point_wait_until_after(rt_sync_point_id id, unsigned before);
 void rt_sync_point_open(void);
 
 #define RT_SYNC_POINT(name) rt_sync_point_reach(RT_SYNC_POINT_##name)

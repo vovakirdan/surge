@@ -8,72 +8,16 @@ import (
 )
 
 func TestRuntimeV2CancelledJoinWaiterDoesNotConsumeTaskCompletionWake(t *testing.T) {
-	ensureLLVMToolchain(t)
-
-	source := `async fn delayed_value() -> int {
-    sleep(20).await();
-    return 42;
-}
-
-async fn await_task(task: Task<int>) -> int {
-    let res = task.await();
-    return compare res {
-        Success(v) => v;
-        Cancelled() => -1;
-    };
-}
-
-@entrypoint
-fn main() -> int {
-    let r = (async {
-        let target = spawn delayed_value();
-        let first_target = target.clone();
-        let first = spawn await_task(first_target);
-        checkpoint().await();
-        checkpoint().await();
-
-        first.cancel();
-        let first_res = first.await();
-        let first_cancelled = compare first_res {
-            Cancelled() => true;
-            Success(_) => false;
-        };
-        if !first_cancelled {
-            return 1;
-        }
-
-        let second_target = target.clone();
-        let second = spawn await_task(second_target);
-        let second_res = second.await();
-        let second_ok = compare second_res {
-            Success(v) => v == 42;
-            Cancelled() => false;
-        };
-        if !second_ok {
-            return 2;
-        }
-
-        let target_res = target.await();
-        let target_ok = compare target_res {
-            Success(v) => v == 42;
-            Cancelled() => false;
-        };
-        if !target_ok {
-            return 3;
-        }
-
-        print("ok", "\n");
-        return 0;
-    }).await();
-
-    return compare r {
-        Success(v) => v;
-        Cancelled() => 99;
-    };
-}
-`
-
-	runMTSource(t, source, 10*time.Second)
+	t.Run("positive", func(t *testing.T) {
+		binPath := buildRuntimeV2CancelledJoinWaiterHarness(t, false)
+		stdout, stderr, exitCode := runRuntimeV2CancelledJoinWaiterHarness(t, binPath)
+		if exitCode != 0 {
+			t.Fatalf("cancelled join waiter proof failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
+				exitCode, stdout, stderr)
+		}
+	})
+	t.Run("negative-control", proveRuntimeV2CancelledJoinWaiterRegistrationNegativeControl)
+	t.Run("static-boundary", checkRuntimeV2CancelledJoinWaiterSyncPointStaticBoundary)
 }
 
 func TestRuntimeV2FailfastScopeCancellationWakesOwner(t *testing.T) {
