@@ -38,6 +38,7 @@ declare -A WINDOW_FILE=(
     [SP_AWAIT_AFTER_INCREMENT]="rt_async_task.c"
     [SP_AWAIT_BEFORE_DONECV_WAIT]="rt_async_task.c"
     [SP_TASK_POLL_AFTER_JOIN_REGISTER]="rt_async_task.c"
+    [SP_BLOCKING_POLL_BEFORE_WAIT_REGISTER]="rt_async_blocking.c"
     [SP_WAKEKEY_MID_DRAIN]="rt_task_park.c"
     [SP_MIGRATE_GAP]="rt_scheduler_placement.c rt_waiter_route.c"
     [SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK]="rt_transport.c"

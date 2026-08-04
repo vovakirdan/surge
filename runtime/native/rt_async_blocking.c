@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 #include <stdlib.h>
 
@@ -217,7 +218,9 @@ poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
-    uint8_t status = atomic_load_explicit(&job->status, memory_order_acquire);
+    uint8_t status;
+observe_terminal:
+    status = atomic_load_explicit(&job->status, memory_order_acquire);
     if (status == BLOCKING_JOB_DONE) {
         out.kind = POLL_DONE_SUCCESS;
         out.value_bits = job->result_bits;
@@ -232,7 +235,19 @@ poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task) {
         return out;
     }
     waker_key key = blocking_key(task->id);
+    RT_SYNC_POINT(SP_BLOCKING_POLL_BEFORE_WAIT_REGISTER);
     prepare_park(ex, task, key, 0);
+    // Register-then-verify: the blocking worker publishes the terminal job
+    // status before draining this key. If it completed after the first status
+    // check but before registration, its drain saw no waiter. Re-checking only
+    // after the waiter is visible makes either ordering safe.
+    status = atomic_load_explicit(&job->status, memory_order_acquire);
+    if (RT_DEBT143_POST_REGISTER_TERMINAL(status)) {
+        remove_waiter(ex, key, task->id);
+        task->park_prepared = 0;
+        task->park_key = waker_none();
+        goto observe_terminal;
+    }
     out.kind = POLL_PARKED;
     out.park_key = key;
     out.state = task->state;

@@ -51,6 +51,11 @@ typedef enum rt_sync_point_id {
     // DONE re-check. Tests can now cancel a proven registered joiner without
     // relying on scheduler timing.
     RT_SYNC_POINT_SP_TASK_POLL_AFTER_JOIN_REGISTER,
+    // blocking task poll: reached after observing a pending blocking job but
+    // before publishing its blocking-key waiter. The blocking worker can
+    // complete and drain the empty key while this point is held, proving the
+    // post-registration terminal re-check closes the lost-completion window.
+    RT_SYNC_POINT_SP_BLOCKING_POLL_BEFORE_WAIT_REGISTER,
     // wake_key_all_with_policy: reached inside the batch drain loop, so a cancel
     // can race a mid-drain key wake (token vs batch-compaction ordering).
     RT_SYNC_POINT_SP_WAKEKEY_MID_DRAIN,
@@ -229,6 +234,17 @@ void rt_sync_point_open(void);
 #define RT_DEBT046_STALE_KEY_REMOVABLE(key) 1
 #else
 #define RT_DEBT046_STALE_KEY_REMOVABLE(key) ((key).kind != WAKER_JOIN)
+#endif
+
+// RV2-DEBT-143 negative-control toggle. The fixed blocking poll publishes its
+// waiter and then treats a terminal re-check as authoritative. Defining the
+// negative control makes that post-registration observation inert, restoring
+// the old lost-completion path for the deterministic proof.
+#ifdef RV2_DEBT_143_NEGATIVE_CONTROL
+#define RT_DEBT143_POST_REGISTER_TERMINAL(status) 0
+#else
+#define RT_DEBT143_POST_REGISTER_TERMINAL(status)                                                  \
+    ((status) == BLOCKING_JOB_DONE || (status) == BLOCKING_JOB_CANCELLED)
 #endif
 
 #endif // RT_SYNC_POINT_H
