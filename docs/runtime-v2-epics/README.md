@@ -7,12 +7,17 @@ runtime to the Runtime V2 target architecture described in
 The working mode is real-time and evidence-driven:
 
 1. write the next epic as a standalone document;
-2. agree on its brief task list and acceptance gates;
-3. update `NOTES.md` with current context before starting the next task;
-4. expand only the next task into implementation detail;
-5. implement, verify, and update `NOTES.md` with the evidence;
-6. consolidate durable notes into the epic and linked docs before closing it;
-7. use the new evidence to shape the next epic.
+2. agree on its design, bounded workstreams, and acceptance gates;
+3. update `NOTES.md` with current context before starting a workstream;
+4. implement in isolated worktrees, review intended commits, and integrate only
+   non-overlapping or dependency-ordered changes;
+5. verify the integrated result and run independent non-author review;
+6. update `NOTES.md` with evidence and record nonblocking findings in `DEBT.md`;
+7. consolidate durable decisions into the epic and linked docs before closing;
+8. use the new evidence to shape the next epic.
+
+A task-document hierarchy is optional. Use one only when it reduces execution
+risk; a complete epic may be run directly through its workstreams and gates.
 
 Keep a short roadmap for the whole migration, but do not fully task every later
 epic before the earlier runtime facts are known.
@@ -70,9 +75,11 @@ with generation tokens, owner-routed cancellation, teardown release, and
 trace-counter proof. The negative space is matrix-owned
 (`13-tasks/11-unsupported-forms-matrix.md`), the stable gate is
 `runtime-v2-transport-check` (wired into `runtime-v2-check`), and
-`scripts/bench_crossing.py` records the crossing baseline. Remote
-channels/select, distributed scopes, `pool` execution, credits, and
-migration remain future epics
+`scripts/bench_crossing.py` records the crossing baseline. Later epics shipped
+remote channels, remote `select`, far-handle sharing, migration, crossing drop
+activation, and the owner-routed reclamation core. The current resumption head
+is Epic 23b: inline value storage plus the end-to-end typed-carrier ABI. The
+detailed current chain is maintained in the roadmap and Detour Chain below.
 
 ## Current Runtime V2 Artifacts
 
@@ -88,6 +95,10 @@ migration remain future epics
   structural `N=1` work.
 - `NOTES.md`: live handoff log; durable decisions must move into the owning
   document before an epic closes.
+- `23-storage-model-and-typed-carrier-abi.md`: accepted normative storage,
+  place, ordinary-call, carrier, `Task<T>.clone()`, and byte-credit design.
+- `23b-inline-storage-and-typed-carriers.md`: executable end-to-end Epic 23
+  Phase 2 workstreams and acceptance gates; no separate task hierarchy.
 - `02-evidence.md`: Epic 2 task evidence ledger.
 - `03-owner-local-waiters-and-runtime-refactor.md`: Epic 3 scope, closeout,
   remaining debt, and Epic 4 handoff.
@@ -134,8 +145,8 @@ migration remain future epics
   for backend-unavailable diagnostics, sema lowering-readiness records,
   matrix/debt reconciliation, `runtime-v2-crossing-check`, and Phase 4
   transport handoff.
-- `13-phase4-transport-spine-and-placement-task-lowering.md`: active Epic 13
-  boundary for the first executable Phase 4 transport/lowering vertical.
+- `13-phase4-transport-spine-and-placement-task-lowering.md`: completed first
+  executable Phase 4 transport/lowering vertical.
 
 Known backend-test debt remains accepted for now: the focused
 `go test ./internal/vm -run 'MT|Async|Net|LLVM'` baseline failure is outside
@@ -152,6 +163,10 @@ Every epic should move the runtime toward these goals:
 - use explicit status codes in new V2 C APIs instead of `panic_msg` for
   recoverable failures;
 - keep hot-path ownership, wakeup, cancellation, and cleanup paths legible;
+- emit precise diagnostics, notes, and only provably safe fixes when the
+  compiler can decide an invalid program;
+- keep compiler goldens reviewed and deterministic even when AST/MIR trees
+  legitimately rebuild;
 - keep `NOTES.md` current enough for fast task switching;
 - reduce or contain legacy files that exceed the 500-line Runtime V2 limit.
 
@@ -171,7 +186,7 @@ Every epic should move the runtime toward these goals:
 | 10 | `10-runtime-debt-burndown-and-owner-safety.md` | Complete. Closed `RV2-DEBT-003`, `RV2-DEBT-010`, and `RV2-DEBT-013`: dependency-aware runtime split, stable net handle ids, and owner-local stdlib HTTP server path. No syntax or Phase 4 transport work. |
 | 11 | `11-explicit-crossing-language-surface.md` | Complete. Accepted and implemented the Draft 9 compile-time crossing surface: `far`, contextual `on`, `spawn on`, inferred crossing effects, and shard movement attributes. No Phase 4 transport. |
 | 12 | `12-crossing-surface-integration-and-lowering-readiness.md` | Complete. Preserved crossing meaning through sema readiness metadata, enforced deterministic backend-unavailable behavior, promoted `runtime-v2-crossing-check`, reconciled backend-test debt, and prepared the Phase 4 transport/lowering handoff. |
-| 13 | `13-phase4-transport-spine-and-placement-task-lowering.md` | Active. Implement the first real Phase 4 execution vertical: OS-neutral inbound transport spine plus placement task lowering for `spawn on shard/distributed`, `far Task.await/cancel`, and immediate `on shard/distributed`; Task 6's runtime-native remote publication API and Task 7's backend-neutral compiler representation are complete, while executable crossing backend lowering, await/cancel routing, remote channels, remote `select`, Tier 2 `pool`, migration, and remote-free stay out of this task. |
+| 13 | `13-phase4-transport-spine-and-placement-task-lowering.md` | Complete. Shipped the first real Phase 4 execution vertical: inbound transport, placement task lowering, `spawn on shard/distributed`, `far Task.await/cancel`, and immediate `on shard/distributed`. Later carrier surfaces are owned by their later epics. |
 | 14 | `14-phase4-remote-channels.md` | Complete. Remote channels: `channel_on`, cross-shard send/recv, per-payload drop functions. |
 | 15 | `15-structural-cleanup.md` | Complete. Structural cleanup and gate integrity; `gatecheck` folded into `make check`. |
 | 16 | `16-far-copy.md` (`16-candidates.md`) | Complete. `share()` sibling leases for far channels. |
@@ -180,8 +195,9 @@ Every epic should move the runtime toward these goals:
 | 19 | `19-drop-emission.md` (`19-candidates.md`) | Complete. Drop emission for non-Copy owned values. |
 | 20 | `20-crossing-drop-activation.md` | Complete. Crossing drop activation. |
 | 21 | `21-owner-routed-frees.md` | **Core vertical complete; acceptance closeout open.** The owner-routed reclamation path shipped; RV2-DEBT-125 owns only the unperformed Task 9 bench/matrix/seam/debt closeout. Separate remaining tails stay under RV2-DEBT-054/056/061/062. |
-| 22 | `22-numeric-reclamation.md` | **PARTIAL — parked.** Phases 0a/0b/1 shipped: the ownership axes were split out of `IsCopy`, and `float` became a reference-counted scalar with a strict-zero valgrind gate. NOT done: the six crossing deep-copy barriers (the runtime helper `rt_bigfloat_clone` exists but is unwired — crossings still REFUSE a composite carrying a `float`), and Phase 2, `int`/`uint`, not started. Parked to take Epic 23; see the detour chain below. |
-| 23 | `23-value-composites.md` | **Phase 1 COMPLETE, Phase 2 is the next epic.** A struct/tuple/union/fixed-array is a value: copy now duplicates, the box is reclaimed, and every crossing route carries one again. Phase 2 — inline representation instead of a heap box — is the remaining half, and it is now unparked: Epic 24 landed. ONE thing precedes the work itself: the places/frame-slot storage-model document, which does not exist yet. Epic 24's step-0 tail, the other item this row used to name, closed 2026-07-31 — see Epic 24's own row and the Detour Chain section below. |
+| 22 | `22-numeric-reclamation.md` | **PARTIAL — parked.** Phases 0a/0b/1 shipped: the ownership axes were split out of `IsCopy`, and `float` became a reference-counted scalar with a strict-zero valgrind gate. The six `float`/composite crossing deep-copy barriers are now absorbed by Epic 23b's generic cross operations; after 23b, Epic 22 resumes with Phase 2 `int`/`uint` reclamation. |
+| 23 | `23-value-composites.md` | **Phase 1 COMPLETE.** A struct/tuple/union/fixed-array is a value: copy duplicates, the transitional box is reclaimed, and every crossing route carries one. Its former Phase 2 placeholder is superseded by the accepted storage design and executable Epic 23b. Phase 1 history and semantic tests remain authoritative. |
+| 23b | `23-storage-model-and-typed-carrier-abi.md`; `23b-inline-storage-and-typed-carriers.md` | **READY FOR IMPLEMENTATION.** Complete Phase 2 end to end: inline value storage, destination-oriented calls, typed arrays/maps/tasks/channels/select/blocking/far transport, generic `float`/composite cross-clone barriers, result-entitlement cloning, physical byte credits, diagnostics, and deletion of the old erased ABI. Independent ABI, diagnostics, and execution re-reviews approved the integrated design. |
 | 24 | `24-partial-moves.md` | **Complete 2026-07-29** (steps 0-9), residuals closed 2026-07-31. Full partial-move tracking: the moved-set is keyed by PLACE, use-after-move answers per place, a partially-moved value drops only what it still holds, a reinitialized place comes back, and a capture takes a projection. `RV2-DEBT-077` closed, with nine defects found and closed on the way. Step 8 covers STRUCT FIELDS only (array elements and union payloads stay rejected, settled with the owner) — that residual stands. Step 0's tail — converting the compiler-generated field reads to the explicit transfer mode — is CLOSED: it was one real site (the crossing capture unpack, not three), asserted at the MIR level in `internal/crossinggate`; the single-suspend async lowering the other two sites were attributed to had no caller and was deleted. |
 | 25 | `25-ownership-verifier-and-tooling.md` | **Complete 2026-08-02.** MIR ownership verification is live behind `build --dev`, with a fast `make check` sample, the exact 1046-fixture corpus gate, opt-in annotated MIR, and a typed four-axis VM+LLVM/Valgrind harness. Steps 0-5 shipped; the optional highest-risk/lowest-priority heap-site census is intentionally deferred as RV2-DEBT-120. This epic remains outside and does not block the 22→23→24 detour chain. |
 
@@ -197,12 +213,15 @@ behind it.
 ```
 22 numeric reclamation  ──parked──▶  23 value composites  ──parked──▶  24 partial moves
    float shipped;                       Phase 1 shipped;                 COMPLETE 2026-07-29
-   crossing barriers open;              inline (Phase 2) NEXT   ◀──resumes here──┘
+   barriers move to 23b;                 inline is Epic 23b      ◀──prerequisite closed──┘
    int/uint not started
 ```
 
 The chain has unwound one link: Epic 24 landed on 2026-07-29, so Epic 23 Phase 2
 is the head of the queue again rather than something waiting behind a defect.
+Its physical model is now accepted in
+`23-storage-model-and-typed-carrier-abi.md`, and execution is owned by
+`23b-inline-storage-and-typed-carriers.md`.
 
 - **22 → 23.** Epic 22 made `float` a counted scalar and needed to install deep
   copies at the six crossing barriers. Doing that for a COMPOSITE carrying a
@@ -215,29 +234,27 @@ is the head of the queue again rather than something waiting behind a defect.
   Phase 2 (inline storage) makes that worse rather than better: the alias
   becomes a bitwise duplicate with two owners. That is Epic 24.
 
-**Resumption order, now live:** Epic 23 Phase 2 (inline representation), then
-Epic 22's crossing barriers and `int`/`uint`. Epic 22 is last on purpose — its
-remaining work is the one most simplified by inline composites, because a
-composite then crosses as inline bits plus its refcounted-scalar fields rather
-than as a box.
+**Resumption order, now live:** Epic 23b (inline storage, all typed carriers,
+and the current `float`/composite cross-clone barriers), then Epic 22's
+`int`/`uint` reclamation. Epic 22 is last on purpose — its remaining work is
+simplified by one type-directed carrier model instead of having to support both
+composite boxes and inline values.
 
-One thing now stands between here and Phase 2's first line of code; the other
-is done:
+The two prerequisites previously recorded for Phase 2 are now both resolved:
 
 1. ~~Epic 24's step-0 tail.~~ **DONE 2026-07-31.** It was one real site, not
    three: the crossing capture unpack now declares whether it takes its value,
    and both it and the async state-envelope protocol are asserted at the MIR
    level in `internal/crossinggate`. The single-suspend async lowering those
    sites were attributed to had no caller and is deleted.
-2. **The storage-model document.** Phase 2's scope section requires the
-   places/references and frame-slot model to be designed as its own document
-   before the work starts, and that document does not exist. The Phase 1
-   boundary was deliberately representation-independent so this design stays
-   unconstrained.
+2. ~~The storage-model document.~~ **DONE 2026-08-04.** The accepted
+   places/references, frame-slot, ordinary-call, typed-carrier, task-clone, and
+   byte-credit model is `23-storage-model-and-typed-carrier-abi.md`; Epic 23b
+   implements it without a compatibility layer.
 
-Debt rows carrying the parked work: RV2-DEBT-035/036/037/038 (Epic 22 tails).
-RV2-DEBT-077 (Epic 24's subject) and RV2-DEBT-078 (compare-scrutinee leak) are
-closed.
+Debt disposition: Epic 23b absorbs the crossing-barrier portion of
+RV2-DEBT-038; RV2-DEBT-035/068 keep the later `int`/`uint` reclamation. The
+historical 036/037 rows and Epic 24's RV2-DEBT-077/078 are closed.
 
 ## Language Syntax Gate
 
@@ -262,6 +279,8 @@ Every epic must say which of these gates apply and record the exact evidence:
   cancellation changes
 - CI coverage for stable Runtime V2 liveness tests before an epic closes
 - `runtime-v2-crossing-check` for crossing compiler/backend readiness
+- for compiler-output work, the reviewed two-pass golden protocol in
+  `RULES.md`, including two serialized `make golden-check` closeout runs
 - a doc update that states which Runtime V2 contract was preserved, changed, or
   deliberately deferred
 

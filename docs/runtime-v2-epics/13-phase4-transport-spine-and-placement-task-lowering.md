@@ -1,5 +1,9 @@
 # Epic 13: Phase 4 Transport Spine And Placement Task Lowering
 
+Closeout annotation (2026-08-04): Epic 13 is complete per its task/evidence
+closeout and the Runtime V2 roadmap. The dated “active as of 2026-07-09”
+paragraph below is preserved as kickoff history, not current status.
+
 **Goal:** land the first real Runtime V2 Phase 4 execution vertical: an
 OS-neutral cross-shard transport spine plus backend lowering for placement task
 crossings. The target executable surface is `spawn on shard(id)` /

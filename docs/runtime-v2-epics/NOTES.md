@@ -6005,3 +6005,198 @@ against baseline `6212` (`+3`), `check_rules` passes all eight rules with zero
 violations, and `session_end` classifies the result as stable/improved. The
 initial documentation commit also received independent review APPROVE before
 this confirmed-evidence follow-up.
+
+## 2026-08-04 — Epic 23b Typed Storage And Carrier Design
+
+The owner accepted the full typed-carrier direction with no transitional final
+state and no compatibility obligation. The design must replace boxed value
+composites and every erased `uint64`/`i64` runtime carrier across ordinary
+calls, VM/native storage, task/channel/select/blocking/map/array paths, and
+cross-shard transport. Old generated objects, source behavior, and native ABI
+are not supported; no legacy wrapper survives acceptance. The version bump to
+`0.2.0` happens when the completed work merges to `main`.
+
+`Task<T>.clone()` is settled: it is legal iff `T` is clonable (`Copy` or a
+valid `__clone`). Each consuming handle owns one result entitlement and every
+successful await receives an independent `T`; non-clonable `Task<T>` is
+affine. The design must keep clone work outside runtime locks on the owner
+shard and prove VM/native/local/remote parity.
+
+Surge is a friendly language. Wherever the compiler can prove the cause or a
+safe repair, implementation must emit a precise diagnostic, a
+machine-applicable fix when the rewrite is unambiguous, and a useful note/help
+instead of a bare rejection.
+
+This pass writes one normative storage/ABI design and one executable Epic 23b
+document. It deliberately does not create a task-document hierarchy. Three
+independent read-only audits run from detached temporary worktrees: diagnostic
+surface, canonical-doc consistency, and carrier/acceptance coverage. No product
+implementation starts until the reviewed documents are ready.
+
+The live carrier census used Serena against the current tree. It found 25 LLVM
+call sites through `emitValueToI64`/`emitI64ToValue`, 133 payload-bit field uses
+across 22 native runtime files, VM async payload erasure through `any`, boxed VM
+struct/tag values, VM frame/call `[]Value`/`LocalSlot.V`, `Object.Arr []Value`,
+`MapEntries []mapEntry` with universal `Value` key/value fields, the `uint64_t`
+channel buffer, and the two-word `uint64` native map entry. The final gate
+therefore targets carrier symbols/signatures, type-aware VM owner storage, and
+emitted behavior; it deliberately does not ban legitimate scalar VM `Value`
+uses or 64-bit numerics, ids, generations, sizes, counters, and task-id queues.
+
+The diagnostic audit confirmed that `Diagnostic` already supports multiple
+notes and applicability-graded edits, but two user surfaces are incomplete:
+`surge build` currently prints only the message, and the LSP DTO drops Notes and
+Fixes. `fix once` can also choose a heuristic/manual edit when no AlwaysSafe edit
+exists. Epic 23b therefore requires type-directed clone advice, observable
+notes on supported CLI/LSP paths, and no speculative fix for non-clonable
+`Task<T>.clone()`. The accepted code is `SEM3116`; generic `T` needs a deferred
+`Clonable(T)` obligation rather than a raw monomorphization error.
+
+The design and execution documents now exist as
+`23-storage-model-and-typed-carrier-abi.md` and
+`23b-inline-storage-and-typed-carriers.md`. `RUNTIME_V2.md`, the epic index,
+Epic 23, `RULES.md`, and `DEBT.md` were reconciled around them without rewriting
+Phase 1 evidence. New debt `RV2-DEBT-133` records the current Task clone
+divergence. Epic 23b absorbs active close work for debts 031/056/062/080/082;
+061 stays a regression sentinel and 125 keeps its unperformed evidence.
+
+All three pre-draft independent research audits completed from clean detached
+worktrees, reported no owner-level open question, and removed their worktrees.
+Their findings were folded into the first review draft: full
+carrier/terminal-path coverage,
+physical byte credits with bounded metadata-only control lane, callbacks outside
+runtime locks, friendly diagnostic propagation, semantic absence gates,
+isolated worker worktrees, independent non-author review, and two-pass golden
+stability. Product code has not started and no code/test/golden command is
+claimed by this documentation pass yet.
+
+Cross-checking the Epic 22 boundary exposed one would-be half measure: leaving
+its six current `float`/composite deep-copy barriers until after 23b would retain
+the very fallback that the full typed-carrier cutover forbids. Epic 23b now owns
+those barriers through `plan_cross` plus recursive `cross_move`/`cross_clone`
+operations. Epic 22 resumes afterward with WidthAny `int`/`uint` reclamation;
+that COW/RC migration remains out of 23b.
+
+Documentation-pass golden evidence: an alternate-index snapshot containing
+only the intended docs was materialized as ephemeral commit
+`4d6a82a9ff03e7714c1e22044ff21f761cf8d8fd` in a detached temporary worktree.
+Two serialized `make golden-check` runs both exited zero; `git status --short --
+testdata/golden` was empty after each run, and `git diff --check` passed. The
+verification worktree was removed. Later changes in this pass remained
+documentation-only.
+
+The first independent review of the integrated draft used snapshot
+`7147a7a7190da261dcbc8d12a512a69519c3f815` and correctly returned BLOCK. The
+Epic 23b/README status was rolled back from READY while fixes are reviewed. The
+review found: a proving-wave dependency cycle; a golden protocol that ignored
+`golden-check -> golden-update`; heterogeneous select/resume descriptors; an
+underspecified ordinary ABI/manifest sentinel; unchecked layout arithmetic;
+Task clone failure/cancel semantics; dynamic cross-plan crediting; missing
+fail-closed sanitizer/file-size gates; no numeric benchmark threshold; unclear
+0.2.0 release boundary; diagnostic obligation/Help/LSP/fix-policy gaps; and
+unowned liveness/Sentrux/status debt.
+
+The integrated document now resolves those choices: verticals start only after
+their foundation wave; goldens use regenerate/diff/manifest/repeat semantics;
+descriptor tables cover heterogeneous arms/states; non-zero-sized composite
+results use uniform sret destinations and by-value composites use canonical
+argument slots, while ZSTs invent no payload; one generated manifest and
+versioned link sentinel prevent Go/C drift; target-width layout and envelope
+arithmetic is checked; returned internal Task-clone failures roll back exactly,
+while user panic/exit and allocator `NULL` remain non-unwinding terminal paths
+with no exact-drop claim and cancel stays task-global;
+compiler-generated CrossPlan/cross-clone never invokes user
+`__clone` and allocates under a fixed reservation; sanitizer and file-size
+targets fail on skips; benchmarks use 2 warmups + 7 measured runs with 5%/10%
+budgets; main version surfaces become 0.2.0 while the owner-triggered release
+workflow stays external; and shared post-sema diagnostics add explicit Help,
+AlwaysSafe-only fixes/Code Actions, and build/diag/LSP plus skewed-ABI tests.
+
+Liveness ownership, Sentrux serialization, and RV2-DEBT-125/126 ownership are
+now explicit. A new independent review snapshot is still required before the
+epic can be promoted back to READY.
+
+The independent re-review of snapshot
+`08ce9c687869da73912817140bccf62edcce8c74` again returned BLOCK and prevented a
+premature READY status. ABI review exposed that the draft promised cleanup
+after user panic/OOM even though Surge deliberately has no unwind, and that
+Task result entitlements, packed projections, and padding needed physical state
+rules. Execution review found a remaining P3 dependency cycle, fail-open
+untracked goldens, ambiguous benchmark aggregation/waiver authority, an empty
+clean-tree `git diff --check`, and stale live Phase-4 wording. Diagnostic review
+found hard-coded clone advice that could suggest an illegal spelling plus LSP
+Code Actions with no stale-document guard.
+
+The follow-up text now separates returned internal-status rollback from
+process-terminal `panic`/`exit` and allocator `NULL`; defines Task result and
+entitlement states, reader pins, last-consumer move, shutdown, and race probes;
+freezes deterministic padding and unaligned packed-reference behavior; and
+uses a resolver-backed clone capability. Ordinary advice spells the public
+`clone(&value)` route, `.clone()` remains the local Task operation, and sealed,
+far, structural, conflicting, or non-canonical targets never receive bogus
+implementation help. AlwaysSafe LSP actions are bound to a trusted multi-file
+snapshot, document versions, old text, and versioned edits.
+
+P3 is now a local Wave-D proof, P4 adds far transport, and independent P5/Wave F
+owns concrete/generic diagnostics. Golden acceptance requires zero tracked,
+untracked, ignored, or missing generated files and a full path/content manifest;
+the current docs worktree has empty golden status and an empty filesystem/index
+census. Performance uses one frozen Wave-A harness, paired alternating seven-run
+samples, explicit CV/median formulas, per-run absolute gates, and only the
+project owner can approve a prospective threshold or intentional regression.
+The final evidence compares `EPIC_BASE..HEAD`. A final independent delta review
+is still required before promotion to READY.
+
+Final-review candidate `69025d56077218a79c52d93bcbd2d109c16b68bb`
+received execution/process APPROVE but remained BLOCKED by ABI and diagnostics;
+the status therefore stayed in review. ABI found that two simultaneous awaits
+could both enter `CLAIMED_CLONE`, contradicting the documented final move, and
+that the absence census omitted current universal VM owner storage
+(`LocalSlot.V`/call `[]Value`, `Object.Arr []Value`, `MapEntries []mapEntry`,
+async/global/temp slots). Diagnostics found that optional generic advice could
+accidentally create a failing `Clonable(T)` obligation and that an LSP
+CodeAction debt escape contradicted the mandatory existing AlwaysSafe `own`
+fix.
+
+The next candidate adds a reserved `CLAIMED_MOVE_WAIT`: after the entitlement
+cohort closes, exactly one not-yet-cloning waiter waits for readers and moves the
+canonical result; all-awaited contention proves `N-1` duplications, while mixed
+await/drop stays bounded by the closed cohort. The VM absence gate now has
+source-shape, type-aware structural, and behavioral layers covering frame/call/
+global/temp/async, dynamic-array grow/slice/index/teardown, and full map
+lifecycle. Advice-only generic deferral is explicitly non-semantic and has a
+no-Help/no-`SEM3116` negative; every reachable AlwaysSafe 23b CodeAction is
+mandatory.
+
+Three nonblocking diagnostic findings were deliberately recorded instead of
+expanding blocker work: `RV2-DEBT-134` (tri-state/four-state naming),
+`RV2-DEBT-135` (disk-only LSP dependency invalidation), and `RV2-DEBT-136`
+(compiler-wide legacy fix-metadata audit). Execution review also left two
+status annotations under existing `RV2-DEBT-126`.
+
+The owner noticed that reviewers had relied on worktrees/`rg` while Serena and
+agentmemory were centralized in the lead. The reviews were not accepted until
+each reviewer repeated a focused Serena check, recalled memory, and saved its
+new result. Execution saved `mem_msertea6_3f3fdf273f6a`; ABI saved
+`mem_mserusgm_dd4e3b650a75`; diagnostics saved
+`mem_mserufvw_690625d9e467`. Each temporary worktree and its local Serena
+metadata was removed by its owner.
+
+Corrected integrated snapshot
+`aa5df892d7d114271c5131ab9cc36ab4c44bca00` received APPROVE from all three
+independent lenses. ABI used Serena against the live Task/VM symbols and approved
+the move-wait/cohort bound plus the expanded VM absence gate, saving resolution
+`mem_mses3z6h_57bfcdd5d1bd`. Diagnostics used Serena against extern resolution,
+clone emitters, safe-fix and LSP snapshot machinery; it approved obligation
+provenance and mandatory AlwaysSafe actions, saving
+`mem_mses434v_2a74bc4506c7`. Execution rechecked the acyclic waves, debt scope,
+evidence, worktree isolation, golden/performance rules, and status consistency;
+its earlier approved contract remains `mem_msertea6_3f3fdf273f6a`. Both
+`git diff --check 90a9b7ab..aa5df892` and the prior-candidate delta passed.
+Every reviewer removed its detached worktree and temporary Serena metadata.
+
+With no unresolved design blocker or owner-level product question, Epic 23b and
+the roadmap are promoted to READY FOR END-TO-END IMPLEMENTATION. Product code
+has not started in this documentation pass. Nonblocking review findings remain
+owned by `RV2-DEBT-126` and `RV2-DEBT-134..136` rather than expanding the epic's
+blocking scope.

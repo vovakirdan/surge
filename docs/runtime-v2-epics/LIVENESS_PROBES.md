@@ -25,6 +25,24 @@ the broad focused command as green. The debt is accepted for Epic 2 start and
 belongs to a later test/backend matrix epic, but new runtime tasks must still
 separate their own regressions from the recorded failure classes.
 
+## Epic 23b Ownership Override (2026-08-04)
+
+Epic 23b replaces the task/channel/select/blocking/far carrier representation
+and therefore owns the missing liveness rows that older entries below assign to
+generic future owners:
+
+- channel close and cancellation race matrix;
+- timer/timeout/shutdown drain insofar as typed carrier owners are involved;
+- cross-shard cancellation/completion/select generation rejection;
+- parked-with-work/control progress under byte-credit saturation;
+- benchmark timeout ownership for the new carrier benchmark harness.
+
+Before the affected wave begins, these rows must be made exact focused tests
+and wired into fail-closed `runtime-v2-carrier-check` or
+`runtime-v2-carrier-sanitizer-check`. Their older Future owner cells are
+historical; this override is authoritative for the Epic 23b surfaces. Missing
+or skipped carrier liveness evidence blocks 23b closeout.
+
 ## Existing Usable Probes
 
 These probes already exist and should be run when their surface is touched. A

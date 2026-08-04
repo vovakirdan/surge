@@ -161,10 +161,11 @@ New V2 C APIs MUST NOT:
 - add mutable global state on the hot path;
 - hide lifecycle work in helper side effects.
 
-`panic_msg` is reserved for violated internal invariants and temporary legacy
-boundary adapters where the current ABI cannot return a status yet. Such an
-adapter must be named in the epic evidence and must not become the V2 primitive
-contract.
+`panic_msg` is reserved for violated internal invariants. A proving spike may
+temporarily bridge an old boundary only when its pre-recorded rollback requires
+the bridge to be deleted before production integration. An accepted Runtime V2
+migration MUST NOT leave a compatibility adapter, dual ABI, or panic-based
+fallback in the final path.
 
 Implementation-level synchronization rules belong in the epic or task that
 introduces a concrete primitive. Global rules define the development contract,
@@ -188,6 +189,17 @@ until the plan is approved.
 
 Review subagents follow the same gate: they first propose the review surface and
 checks, then start the review after approval.
+
+Parallel implementers and reviewers MUST use separate temporary worktrees from
+an explicitly recorded base commit. Their plans must declare non-overlapping
+file/symbol ownership or the dependency that serializes overlapping work. They
+must not edit a shared dirty checkout or integrate one another's branches.
+
+The main agent reviews the intended commit/diff before integrating it. Every
+integration wave and final epic diff require review by a non-author from a clean
+worktree. Review findings are classified as blockers or durable debt; memory
+safety, ownership/lifetime, liveness, accepted semantics, required diagnostics,
+golden stability, and mandatory-gate failures are blockers.
 
 ## Global Rule 10: Keep Working Notes Current
 
@@ -217,3 +229,62 @@ Notes are a working memory, not final architecture documentation. At the end of
 each epic, consolidate the durable parts into the relevant epic document,
 `README.md`, `RULES.md`, `docs/RUNTIME_V2.md`, or another linked document. Do
 not leave important decisions only in notes.
+
+## Global Rule 11: Friendly Compiler Diagnostics
+
+Surge is a friendly language. When the compiler can prove an invalid program,
+it MUST reject it at the earliest reliable stage instead of selecting a runtime
+fallback. The diagnostic must use the facts the compiler already knows:
+
+- primary span at the operation the user can change;
+- concrete type and first relevant field/type path when available;
+- a note explaining the ownership, lifetime, layout, effect, or crossing rule;
+- actionable help;
+- a machine-applicable fix only when the compiler proves that edit preserves
+  intent.
+
+Ambiguous advice remains a note/help, never an automatically applicable edit.
+Generic checks that cannot be decided before monomorphization record a deferred
+obligation and report a source diagnostic at concrete instantiation; a raw
+internal/monomorphization error is not an acceptable user experience.
+Optional diagnostic advice is different: when a generic fact is unknown, defer
+only that advice text. It MUST NOT create a semantic constraint, reject an
+instantiation, or alter the primary diagnostic unless the source operation
+itself requires the property.
+Advice must also be syntactically and semantically callable at the reported
+site: a Copy fact must not become a fictitious `.__clone()` call, and an
+"implement this method" hint is legal only when the compiler proves the target
+type is extendable there. LSP edits carry the analyzed document version and an
+old-text guard; stale diagnostics expose no Code Action and trigger fresh
+diagnostics.
+
+Diagnostic evidence MUST exercise the user-facing compiler path, not only
+construct an internal `Diagnostic`. When ordinary goldens omit notes or fixes,
+add direct structure tests and apply-and-rediagnose tests for every safe fix.
+
+## Global Rule 12: Golden Stability
+
+Compiler-output work MUST start from a passing `make golden-check` baseline
+followed by zero output from
+`git status --porcelain=v1 --untracked-files=all -- testdata/golden` and a
+NUL-safe filesystem-versus-`git ls-files` census of every generated golden root,
+including ignored files. Any tracked, untracked, ignored, or missing entry
+blocks the baseline. This target runs `golden-update` before comparing with the
+checked-in corpus; it is an updating detector, not a read-only preflight. Before
+the first compiler-output wave, the target itself MUST gain the equivalent
+fail-closed post-generation status and filesystem/index checks.
+
+After each integration wave, run `make golden-check`. If output changes, the
+command fails and leaves the generated diff as a proposal. Inspect and explain
+every changed line and every new/deleted sidecar before accepting exactly that
+reviewed set. Blanket reblessing is forbidden. An untracked generated file
+remains a proposed update until reviewed and committed. Record a complete
+path-plus-content-hash manifest, regenerate again, and require byte-for-byte
+run-to-run identity plus zero status and filesystem/index differences. AST/MIR
+trees may rebuild or renumber only when the semantic reason is recorded and the
+resulting output is deterministic.
+
+After the reviewed goldens are integrated, epic closeout requires two
+serialized `make golden-check` runs on the same tree with no intervening source
+edit, zero tracked/untracked/ignored/missing status after each run, and an
+unchanged reviewed content manifest.

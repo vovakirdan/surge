@@ -202,7 +202,8 @@ The shard boundary is move-only, but move-only is not sufficient by itself.
 
 - `own T` may cross a shard boundary by move only if `T` is shard-movable.
 - `&T` and `&mut T` may not cross a shard boundary.
-- Copyable small values may cross by value.
+- Copyable values may cross by value when the crossing rules permit it. Their
+  size does not select a different ownership model.
 - shard-pinned values may not cross by ordinary value move.
 
 A borrow across shards would make the source shard's lifetime depend on another
@@ -217,13 +218,14 @@ fd registered on shard A. Sending it to shard B would leave readiness on A and
 logic on B. The compiler rejects that value move. The program must either keep a
 `far File` handle or invoke explicit migration, which re-registers the fd on B.
 
-Owned payloads have two runtime representations:
-
-- Small plain-data payloads can be copied into the message. The source shard can
-  drop or free the original before the message becomes visible to the receiver.
-- Heap-owned payloads move as a pointer plus type/drop metadata. The receiver
-  may run the destructor, but memory returns to the allocation owner through a
-  remote-free path.
+Owned payloads have one typed-carrier representation. The destination owner
+provides exact-sized, correctly aligned storage and the compiler supplies the
+monomorphic move/copy/clone/drop operations for the concrete type. Inline
+composites cross inline; handle-backed fields remain handles and keep their own
+allocation-owner/remote-free rules. No small-value word encoding or universal
+heap-pointer fallback exists. The normative storage, place, ordinary-call, and
+carrier contract is
+[`runtime-v2-epics/23-storage-model-and-typed-carrier-abi.md`](runtime-v2-epics/23-storage-model-and-typed-carrier-abi.md).
 
 This is the central place where V2 should differ from a plain Seastar or
 Glommio clone. The scheduler supplies shard locality, but the language supplies
@@ -240,8 +242,11 @@ Runtime V2 therefore makes crossing a distinct, visible construct.
 
 Epic 11 selected and implemented the compile-time crossing surface for parser
 and semantic analysis: `far T`, `on dst { ... }`, `spawn on dst { ... }`,
-inferred crossing effects, `@shard_movable`, and `@shard_pinned`. Backend
-lowering and Phase 4 transport are separate follow-up work.
+inferred crossing effects, `@shard_movable`, and `@shard_pinned`. Supported
+LLVM/native lowering and Phase 4 transport verticals subsequently landed and
+are indexed in `runtime-v2-epics/README.md`; unsupported forms remain
+deterministic diagnostics, and Epic 23b owns the remaining erased-carrier
+cutover.
 
 **Far handles.** A capability that targets another shard has a distinct type,
 written `far T`. `far Chan<T>` is a channel endpoint owned by another shard;
@@ -266,7 +271,8 @@ constructs:
   borrowed captures and shard-pinned captures do not type-check;
 - use `ret` inside the crossing block; `return` cannot escape through it;
 - infer a function-level crossing effect in semantic analysis;
-- will lower to distinct cross-shard resume kinds once Phase 4 transport lands.
+- lower supported forms to distinct cross-shard resume/message kinds;
+  unsupported forms remain deterministic diagnostics as indexed in the roadmap.
 
 Because every crossing is one of these constructs, every crossing is visible in
 source. Reading a function body, the programmer sees each point where work
@@ -324,8 +330,10 @@ boundary — two callers selecting over the same channels observe an owner-lane
 order, not their submission order. Timeout and default arms are evaluated on
 the caller's side in every lowering.
 
-The current sync channel compatibility path remains a fallback. Hot code should
-use direct async channel operations.
+The pre-Epic-23b implementation still contains a sync-channel compatibility
+fallback. It is current-state debt, not target architecture: Epic 23b deletes
+that carrier path rather than preserving it behind an adapter. Hot code uses
+direct async channel operations.
 
 ### 8. Cross-Shard Wakeups
 
@@ -368,12 +376,16 @@ writes` counter measures elision efficiency, not correctness. A lost wakeup
 shows up as a latency cliff or a hang, not in that counter. Add a debug
 invariant: no `PARKED` shard may have a non-empty inbound queue at a safepoint.
 
-The inbound transport queue is bounded. Data messages consume target-shard
-credits before enqueue; if no credit is available, the sender task parks on its
-own shard until the target returns credit. Credit-return, cancellation, and
-completion messages use a reserved control lane. Credit returns may be coalesced;
-cancellation and completion messages remain distinct and generation-checked.
-Backpressure must not block the messages that release backpressure.
+The inbound transport queue is bounded. Data messages reserve target-shard byte
+credits for their physical envelope, padding, exact payload, and transport-owned
+sidecars before enqueue; if no credit is available, the sender task parks on
+its own shard until the target returns credit. The reserved control lane carries
+bounded protocol metadata only. Credit-return and cancellation metadata may use
+it, but a completion or reply containing arbitrary `T` uses the data lane or a
+pre-reserved reply budget. Credit returns may be coalesced; cancellation and
+completion records remain distinct and generation-checked. Backpressure must
+not block the bounded messages that release backpressure. Exact accounting,
+jumbo reservations, and cleanup are specified by the typed-carrier design.
 
 ### 9. Structured Concurrency
 
@@ -635,12 +647,13 @@ should not promise forever.
 
 ## Migration Plan
 
-Note: from Phase 4 onward, V2 spans two workstreams. The runtime gains shard
-messaging and remote-free; the compiler already has the `far` qualifier,
-`on dst { ... }`, `spawn on dst { ... }`, move-only capture checks, and
-shard-movable validation at parser/sema level. Lowering still needs the
-cross-shard resume kind and transport integration. Neither half is complete
-without the other.
+Current note: Phase 4 crossed both workstreams. Parser/sema, LLVM/native
+lowering, shard messaging, remote tasks/channels/select, migration, crossing
+drop activation, and the owner-routed reclamation core now exist; current
+status is indexed in `runtime-v2-epics/README.md`. The next atomic cutover is
+Epic 23b's inline storage and typed-carrier ABI. Compiler and runtime still
+close together: neither half is accepted while the other retains an erased
+payload fallback.
 
 ### Phase 0: Contract And Structure
 
@@ -664,7 +677,11 @@ surface.
 - Add V2-shaped shard structs with `N=1`.
 - Move fields from `rt_executor` into `rt_runtime` and `rt_shard` without
   changing behavior.
-- Keep the current public ABI stable.
+- Keep the then-current behavior while the initial shard structure is moved.
+  This was a Phase 0 staging constraint, not a compatibility promise. The
+  pre-0.2 runtime API/ABI and generated objects are explicitly not preserved by
+  the later typed-carrier cutover: live in-tree callers migrate atomically and
+  obsolete entrypoints are deleted without wrappers or dual paths.
 
 ### Phase 1: Local Waiters With N=1
 
@@ -752,28 +769,24 @@ surface.
   connections owner-locally and the Runtime V2 HTTP owner gate covers
   `SURGE_SHARDS=1,2,8`. This is still Phase 3 owner-safety, not Phase 4
   cross-shard messaging or resource migration.
-- Cross-shard messaging, crossing lowering, remote-free routing, and alternate
-  I/O backends remain later phases. The explicit crossing syntax and semantic
-  surface are now Epic 11 compile-time work.
+- At this Phase 3 checkpoint, cross-shard messaging, crossing lowering,
+  remote-free routing, and alternate I/O backends were later phases. The live
+  production status is now indexed below and in
+  `runtime-v2-epics/README.md`; this dated checkpoint is not a current-state
+  claim.
 
 ### Phase 4: Cross-Shard Messaging And Shard-Movable Values
 
-Status (2026-07-17): most of Phase 4 executes in production on the
-LLVM/native backend. The inbound transport spine (bounded two-lane queues,
-PARKED-wake protocol), placement resolution for `shard(id)`/`distributed`,
-and the placement task crossings `spawn on`, `far Task.await()/.cancel()`,
-and immediate `on` shipped first (gate `runtime-v2-transport-check`).
-Since then: remote channels including anchored `on ch` bodies (Epic 14),
-sibling `share()` leases for fan-out (Epic 16), remote `select` as the
-single-owner Model C proxy selector (Epic 17), and migration as the
-capture lift with dormant drop-obligation plumbing (Epic 18). The language
-side now emits real drops locally (Epic 19: scope-exit emission plus
-recursive composite glue), and wiring those compiled drop functions into
-the crossing abandon paths is IN PROGRESS as Epic 20
-(`20-crossing-drop-activation.md`) — until it lands, abandoned crossing
-payloads still leak by design. Distributed scopes, `pool` execution,
-credit/data-lane accounting, and any VM transport remain future work;
-their forms keep deterministic diagnostics.
+Current status is maintained in `runtime-v2-epics/README.md`. The production
+LLVM/native vertical includes the inbound transport spine, placement task
+crossings, remote channels, far-handle sharing, remote `select`, migration,
+crossing drop activation, and the owner-routed reclamation core. The remaining
+one-word payload ABI and placeholder credit model are replaced end to end by
+Epic 23b, `runtime-v2-epics/23b-inline-storage-and-typed-carriers.md`; it owns
+typed task/channel/select/blocking/far payloads and physical byte credits.
+Distributed scopes, `pool` execution, and any VM transport not expressly
+implemented by an active epic remain future work with deterministic
+diagnostics.
 
 - Add per-shard inbound queues and wake fds.
 - Signal a target shard according to the PARKED-state wake protocol, not by a
@@ -792,8 +805,9 @@ their forms keep deterministic diagnostics.
   for CPU-bound placed work with internal stealing.
 - Implement the wake-elision park protocol with sequentially consistent
   enqueue/PARKED ordering and the PARKED-with-non-empty-queue debug invariant.
-- Implement bounded inbound transport queues with target credits and a reserved
-  control lane for credit-return, cancellation, and completion messages.
+- Implement bounded inbound transport queues with physical target byte credits
+  and a reserved control lane for bounded credit-return/cancellation/progress
+  metadata. Arbitrary typed completion/reply payloads use credited data storage.
 - Implement bounded remote send as receiver-owned request/ack.
 - Lower remote `select` to a slow coordinator with generation-based
   cancellation; remote `select` is not a compile error.

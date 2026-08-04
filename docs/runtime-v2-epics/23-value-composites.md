@@ -1,13 +1,13 @@
 # Epic 23 — Value Composites (inline representation, correct copy/move/drop)
 
-Status: PHASE 1 COMPLETE (steps 0-8). Phase 2 — inline representation — is
-UNPARKED as of 2026-07-29: Epic 24 (partial moves) landed. ONE preflight item remains: the
-places/references and frame-slot storage-model document, which does not exist
-yet and which the Phase 2 scope section below requires. The other — Epic 24's
-step-0 tail — is DONE as of 2026-07-31: the crossing capture unpack declares its
-transfer mode, the async state-envelope protocol is asserted at the MIR level in
-`internal/crossinggate`, and the single-suspend lowering that the step's text
-attributed three of its four sites to turned out to have no caller and is gone. See the detour chain in `README.md`.
+Status: PHASE 1 COMPLETE (steps 0-8). Phase 2 is fully designed and owned by
+`23b-inline-storage-and-typed-carriers.md`; its normative physical model is
+`23-storage-model-and-typed-carrier-abi.md`. Both former preflight items are
+closed: Epic 24 (partial moves) landed, its step-0 tail closed 2026-07-31, and
+the storage/carrier design was accepted 2026-08-04. Phase 1's history and
+semantic contract below remain authoritative; the new documents supersede only
+the future physical-representation placeholders. See the detour chain in
+`README.md`.
 This is the onboarding brief — read it end to end before touching anything.
 
 Revision note (2026-07-27, after two rounds of adversarial design review).
@@ -74,10 +74,10 @@ droppable. See "The Phase 1 crossing gate" — this is a blocker, not a test gap
 ## The Decision (settled)
 
 **Target: inline value composites.** A struct/tuple/fixed-array/union lives
-inline (frame slot on the VM, stack/register with a by-value ABI on LLVM), not
-in a heap box. Handle-backed types (`string`, dynamic array, map, range, task,
-channel) are unchanged. Copy duplicates the value, move transfers it, borrow
-references its place, drop reclaims its owned parts.
+inline (frame/owner slot on the VM, aligned destination with a canonical native
+ABI on LLVM), not in a heap box. Handle-backed types (`string`, dynamic array,
+map, range, task, channel) remain handles. Copy duplicates the value, move
+transfers it, borrow references its place, drop reclaims its owned parts.
 
 **This is reached behind a permanent type-directed copy/move/drop boundary, and
 only the STORAGE implementation behind it is ever thrown away.** The boundary,
@@ -237,8 +237,9 @@ types. Returns take an operand at the terminator
 (`internal/mir/lower_stmt.go:479,487`) and are materialized before scope drops;
 the detachment test there enumerates operand kinds and must learn the new one.
 On LLVM every composite is `ptr` in the signature
-(`internal/backend/llvm/types.go:39`, `emit_func.go:25`), so a by-value ABI is
-Phase 2 work — in Phase 1 the caller passes a pointer to an INDEPENDENT box.
+(`internal/backend/llvm/types.go:39`, `emit_func.go:25`), so the final
+destination-oriented ABI is Phase 2 work — in Phase 1 the caller passes a
+pointer to an INDEPENDENT box.
 
 **Crossing captures — the blocker.** `on` / `spawn on` lower a
 `CrossingCaptureCopy` with `consume=false`
@@ -820,10 +821,11 @@ Re-blessed.
    composite (duplication, not storage) and `docs/KNOWN_LIMITATIONS.md` carries
    the three residual limits, both with their `.ru.md` mirrors.
 
-### Phase 2 — inline representation (the throwaway swap)
+### Phase 2 — inline representation and typed carriers
 
-Replace the boxed body behind the boundary with inline storage. The contract
-tests do not change. Scoped separately below.
+Replace the boxed body and every one-word carrier with the accepted exact-sized
+typed model. The Phase 1 contract tests do not change. The executable scope and
+gates are now in `23b-inline-storage-and-typed-carriers.md`.
 
 ## Phase 2 scope
 
@@ -844,17 +846,20 @@ Answered from the code 2026-07-27, corrected by the review:
   tracing for it. Contained, but not small.
 - **LLVM: the heavy half.** Every composite maps to `ptr`
   (`internal/backend/llvm/types.go:39`), args/returns pass the box pointer
-  (`emit_func.go:25`), field access derefs. Inline needs a real by-value ABI
-  (byval/sret), stack slots, and field GEP — machinery that does not exist yet.
+  (`emit_func.go:25`), field access derefs. Inline needs the accepted
+  destination-oriented ABI, aligned slots, and field GEP — machinery that did
+  not exist when this Phase 2 census was written.
 - **Cross-cutting:** heap censuses shift wherever composites were boxed
   (expected recalibration); `AllocID`/use-after-free/tracing reasoning changes
-  for composites; crossing transport changes shape (a composite crosses as
-  inline bits + refcounted-scalar fields, which SIMPLIFIES the remaining
-  composite-crossing barriers — a Phase 2 property only).
+  for composites; crossing transport changes to exact typed storage plus
+  generated `ValueOps<T>`, which simplifies the remaining composite-crossing
+  barriers without assuming every field is plain bits or one current scalar
+  class.
 
-Before Phase 2 starts, the places/references and frame-slot storage model must
-be designed as its own document — it does not exist yet. The Phase 1 boundary is
-deliberately representation-independent so that design is unconstrained.
+The required places/references and frame-slot design now exists as
+`23-storage-model-and-typed-carrier-abi.md`. The Phase 1 boundary remained
+representation-independent, so Epic 23b can implement it without preserving a
+transitional box or erased ABI.
 
 ## Machinery That Already Exists (reuse, do not reinvent)
 
@@ -940,18 +945,21 @@ correctness:
 - a borrowing read costs what it costs today — zero. This is the whole point of
   preserving `consume`.
 
-Phase 2 removes the per-copy allocation entirely (inline copy is a memcpy of
-the aggregate plus retains for its refcounted-scalar fields). So the Phase 1
-cost is a known temporary, and benchmarking Phase 1 against Phase 0 will look
-bad on allocation count and should: the baseline was leaking. Benchmark
-correctness-preserving programs, not the leak.
+Phase 2 removes the per-copy allocation entirely. Copy/move/clone/drop are
+type-directed `ValueOps<T>` operations over destination storage; an operation
+may be optimized to byte copies plus field operations only when the compiler
+proves that exact shape. So the Phase 1 cost is a known temporary, and
+benchmarking Phase 1 against Phase 0 will look bad on allocation count and
+should: the baseline was leaking. Benchmark correctness-preserving programs,
+not the leak.
 
 ## Sequencing against Epic 22
 
 `float` is the only refcounted scalar today
-(`internal/types/refcounted_scalar.go`); `int`/`uint` are planned. **The two
-epics are independent and either order works**, provided this one's clone,
-drop and crossing logic is type-directed rather than hardcoded to the current
+(`internal/types/refcounted_scalar.go`); `int`/`uint` are planned. The live
+resumption order is now settled: Epic 23b completes inline storage and typed
+carriers first, then Epic 22 resumes its crossing barriers and `int`/`uint`.
+The operation model remains type-directed rather than hardcoded to the current
 membership of `IsRefCountedScalar`.
 
 They are not interaction-free, though. When `int`/`uint` join, an unchanged
@@ -1042,7 +1050,8 @@ than renaming.
 
 - Any inline representation work in Phase 1. If a change is only justified by
   Phase 2, it belongs in the Phase 2 document.
-- A by-value LLVM ABI (byval/sret). Phase 2.
+- A destination-oriented LLVM ABI (including byval/sret where the canonical
+  target ABI requires them). Owned by Epic 23b.
 - Copy-on-write with a refcount on the box. Evaluated and rejected: composites
   are MUTABLE, so COW needs a write barrier at every mutable field/index store
   and before every mutable borrow — the VM mutates `obj.Fields` directly through
