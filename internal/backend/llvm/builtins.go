@@ -2,13 +2,16 @@
 package llvm
 
 type builtinDecl struct {
-	name   string
-	ret    string
-	params []string
+	name       string
+	ret        string
+	retAttrs   []string
+	params     []string
+	paramAttrs [][]string
 }
 
 func runtimeDecls() []builtinDecl {
-	return []builtinDecl{
+	//nolint:prealloc // Generated ABI declarations follow the stable literal inventory.
+	decls := []builtinDecl{
 		{name: "rt_alloc", ret: "ptr", params: []string{"i64", "i64"}},
 		{name: "rt_free", ret: "void", params: []string{"ptr", "i64", "i64"}},
 		{name: "rt_realloc", ret: "ptr", params: []string{"ptr", "i64", "i64", "i64"}},
@@ -221,6 +224,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_range_int_to_end", ret: "ptr", params: []string{"ptr", "i1"}},
 		{name: "rt_range_int_full", ret: "ptr", params: []string{"i1"}},
 	}
+	return append(decls, typedCarrierRuntimeDecls()...)
 }
 
 func runtimeSigMap() map[string]funcSig {

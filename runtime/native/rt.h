@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "rt_typed_carrier_abi.generated.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

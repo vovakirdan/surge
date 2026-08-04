@@ -254,6 +254,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 
 func (e *Emitter) emitPreamble() {
 	e.buf.WriteString("target triple = \"x86_64-linux-gnu\"\n\n")
+	emitTypedCarrierABI(&e.buf)
 	// Landing pad for a retain on the NULL float — the canonical zero, which
 	// has no block behind it. Retaining is branchless (see emitRetainOperand):
 	// the NULL case is redirected onto this word instead of jumping over the
@@ -268,7 +269,8 @@ const retainScratchGlobal = "__surge_rc_scratch"
 
 func (e *Emitter) emitRuntimeDecls() {
 	for _, decl := range runtimeDecls() {
-		fmt.Fprintf(&e.buf, "declare %s @%s(%s)\n", decl.ret, decl.name, strings.Join(decl.params, ", "))
+		e.buf.WriteString(formatRuntimeDecl(&decl))
+		e.buf.WriteByte('\n')
 	}
 	e.buf.WriteString("\n")
 }

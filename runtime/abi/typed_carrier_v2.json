@@ -1,0 +1,1330 @@
+{
+  "schema": "surge.runtime.typed_carrier_abi",
+  "version": 2,
+  "sentinel_prefix": "__surge_runtime_abi_typed_carrier_v2_",
+  "semantics": "Runtime V2 process-local typed carriers use exact destination-owned storage, one descriptor per owner region, and fail-closed compiler/runtime identity.",
+  "enums": [
+    {
+      "name": "rt_value_flags",
+      "underlying": "u64",
+      "semantics": "Independent semantic capabilities attached to one monomorphic value descriptor.",
+      "values": [
+        {
+          "name": "RT_VALUE_FLAG_COPY",
+          "value": 1,
+          "semantics": "Ordinary copies may initialize an independent destination."
+        },
+        {
+          "name": "RT_VALUE_FLAG_CLONABLE",
+          "value": 2,
+          "semantics": "clone_init is present under the Copy-or-valid-__clone rule."
+        },
+        {
+          "name": "RT_VALUE_FLAG_DROPPABLE",
+          "value": 4,
+          "semantics": "drop_in_place is present and must run exactly once for an initialized obligation."
+        },
+        {
+          "name": "RT_VALUE_FLAG_TRACEABLE",
+          "value": 8,
+          "semantics": "trace is present and visits every live VM or GC root."
+        },
+        {
+          "name": "RT_VALUE_FLAG_SHARD_MOVABLE",
+          "value": 16,
+          "semantics": "cross_move_init may transfer the value between shards."
+        },
+        {
+          "name": "RT_VALUE_FLAG_CROSS_CLONABLE",
+          "value": 32,
+          "semantics": "cross_clone_init may create the design-defined crossing duplicate without invoking user __clone."
+        }
+      ]
+    },
+    {
+      "name": "rt_carrier_status",
+      "underlying": "u32",
+      "semantics": "Internal returning outcomes; allocator exhaustion and process-terminal panic are deliberately absent.",
+      "values": [
+        {
+          "name": "RT_CARRIER_STATUS_OK",
+          "value": 0,
+          "semantics": "The documented operation committed successfully."
+        },
+        {
+          "name": "RT_CARRIER_STATUS_OVERFLOW",
+          "value": 1,
+          "semantics": "Checked layout or byte planning overflowed; destination stays empty and source stays owned."
+        },
+        {
+          "name": "RT_CARRIER_STATUS_CAPACITY",
+          "value": 2,
+          "semantics": "The bounded destination or plan allocator refused capacity before publication."
+        },
+        {
+          "name": "RT_CARRIER_STATUS_STALE_GENERATION",
+          "value": 3,
+          "semantics": "A generation changed; no destination publication or source transfer occurred."
+        },
+        {
+          "name": "RT_CARRIER_STATUS_PUBLICATION_REJECTED",
+          "value": 4,
+          "semantics": "The owner rejected publication; partial destination state is rolled back to empty."
+        },
+        {
+          "name": "RT_CARRIER_STATUS_PLAN_MISMATCH",
+          "value": 5,
+          "semantics": "Cross initialization disagreed with its read-only plan and must follow the internal invariant path."
+        },
+        {
+          "name": "RT_CARRIER_STATUS_INVALID_STATE",
+          "value": 6,
+          "semantics": "A slot lifecycle precondition was violated and no ownership commit occurred."
+        }
+      ]
+    },
+    {
+      "name": "rt_slot_state",
+      "underlying": "u8",
+      "semantics": "One exact lifecycle state for each typed payload slot, including zero-sized values.",
+      "values": [
+        {
+          "name": "RT_SLOT_EMPTY",
+          "value": 0,
+          "semantics": "No initialized value obligation exists."
+        },
+        {
+          "name": "RT_SLOT_INITIALIZED",
+          "value": 1,
+          "semantics": "Exactly one initialized value obligation exists."
+        },
+        {
+          "name": "RT_SLOT_CLAIMED",
+          "value": 2,
+          "semantics": "Exclusive detached work owns the initialized obligation outside the owner lock."
+        },
+        {
+          "name": "RT_SLOT_MOVED",
+          "value": 3,
+          "semantics": "The obligation transferred to a destination."
+        },
+        {
+          "name": "RT_SLOT_DROPPED",
+          "value": 4,
+          "semantics": "The obligation was destroyed exactly once."
+        }
+      ]
+    },
+    {
+      "name": "rt_cross_mode",
+      "underlying": "u8",
+      "semantics": "Selects the compiler-generated ownership operation used by one immutable cross plan.",
+      "values": [
+        {
+          "name": "RT_CROSS_MOVE",
+          "value": 0,
+          "semantics": "Transfer one movable source obligation."
+        },
+        {
+          "name": "RT_CROSS_CLONE",
+          "value": 1,
+          "semantics": "Create the crossing-defined duplicate while retaining the source obligation."
+        }
+      ]
+    }
+  ],
+  "records": [
+    {
+      "name": "rt_value_layout",
+      "role": "layout",
+      "semantics": "Target-resolved physical facts and authoritative semantic flags for one concrete monomorphic value.",
+      "fields": [
+        {
+          "name": "size",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "ABI bytes including tail padding; zero is valid only for a real zero-sized value."
+        },
+        {
+          "name": "align",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Required base alignment and always at least one."
+        },
+        {
+          "name": "stride",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Repeated-element displacement; zero for a zero-sized value."
+        },
+        {
+          "name": "flags",
+          "type": {
+            "kind": "named",
+            "name": "rt_value_flags"
+          },
+          "semantics": "Capability bits derived by the semantic classifier, not guessed by layout."
+        }
+      ]
+    },
+    {
+      "name": "rt_cross_sidecar_shape",
+      "role": "cross_plan",
+      "semantics": "One newly allocated sidecar shape charged by a read-only cross plan.",
+      "fields": [
+        {
+          "name": "size",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Bytes in one sidecar instance."
+        },
+        {
+          "name": "align",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Required alignment for each sidecar instance."
+        },
+        {
+          "name": "count",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Number of identical newly owned sidecars."
+        }
+      ]
+    },
+    {
+      "name": "rt_cross_allocation",
+      "role": "cross_allocator",
+      "semantics": "One successful allocation returned by the plan-limited crossing allocator.",
+      "fields": [
+        {
+          "name": "storage",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": true
+          },
+          "semantics": "Allocated storage, null only when the status is not OK."
+        },
+        {
+          "name": "size",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Charged allocation bytes."
+        },
+        {
+          "name": "align",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Alignment satisfied by storage."
+        }
+      ]
+    },
+    {
+      "name": "rt_trace_visitor",
+      "role": "visitor",
+      "semantics": "Borrowed visitor state used only for the duration of one trace callback.",
+      "fields": [
+        {
+          "name": "context",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": true
+          },
+          "semantics": "Visitor-owned opaque context."
+        },
+        {
+          "name": "visit",
+          "type": {
+            "kind": "callback",
+            "name": "rt_trace_visit_fn",
+            "nullable": false
+          },
+          "semantics": "Non-null root visitor callback."
+        }
+      ]
+    },
+    {
+      "name": "rt_cross_allocator",
+      "role": "cross_allocator",
+      "semantics": "Mutable plan-limited allocator state; it cannot allocate outside the pre-reserved byte allowance.",
+      "fields": [
+        {
+          "name": "context",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": true
+          },
+          "semantics": "Allocator-owned opaque context."
+        },
+        {
+          "name": "allocate",
+          "type": {
+            "kind": "callback",
+            "name": "rt_cross_alloc_fn",
+            "nullable": false
+          },
+          "semantics": "Non-null bounded allocation callback."
+        },
+        {
+          "name": "remaining_bytes",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Unspent portion of the already reserved plan charge."
+        }
+      ]
+    },
+    {
+      "name": "rt_cross_plan",
+      "role": "cross_plan",
+      "semantics": "Immutable preflight result passed unchanged to cross initialization before publication.",
+      "fields": [
+        {
+          "name": "ops",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_value_ops",
+            "const": true,
+            "nullable": false
+          },
+          "semantics": "Whole-process descriptor for the planned value."
+        },
+        {
+          "name": "mode",
+          "type": {
+            "kind": "named",
+            "name": "rt_cross_mode"
+          },
+          "semantics": "Immutable requested mode; cross initialization rejects a move/clone mismatch before touching source or destination."
+        },
+        {
+          "name": "envelope_bytes",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Fixed envelope and header bytes charged to transport."
+        },
+        {
+          "name": "payload_offset",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Aligned byte offset of the exact inline payload."
+        },
+        {
+          "name": "payload_bytes",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Exact inline payload bytes."
+        },
+        {
+          "name": "payload_align",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Alignment required at payload_offset."
+        },
+        {
+          "name": "sidecar_bytes",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Total bytes of newly allocated transport-owned sidecars."
+        },
+        {
+          "name": "total_bytes",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Complete charge reserved before source ownership can change."
+        },
+        {
+          "name": "sidecars",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_cross_sidecar_shape",
+            "const": true,
+            "nullable": true
+          },
+          "semantics": "Read-only sidecar shape array, null exactly when sidecar_count is zero."
+        },
+        {
+          "name": "sidecar_count",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Number of entries in sidecars."
+        }
+      ]
+    },
+    {
+      "name": "rt_value_ops",
+      "role": "operations",
+      "semantics": "Immutable whole-process monomorphic operations for one homogeneous owner region.",
+      "fields": [
+        {
+          "name": "layout",
+          "type": {
+            "kind": "named",
+            "name": "rt_value_layout"
+          },
+          "semantics": "Exact target layout and semantic capabilities."
+        },
+        {
+          "name": "move_init",
+          "type": {
+            "kind": "callback",
+            "name": "rt_value_move_init_fn",
+            "nullable": false
+          },
+          "semantics": "Always-present transfer initializer."
+        },
+        {
+          "name": "copy_init",
+          "type": {
+            "kind": "callback",
+            "name": "rt_value_copy_init_fn",
+            "nullable": true
+          },
+          "semantics": "Present exactly when RT_VALUE_FLAG_COPY is set."
+        },
+        {
+          "name": "clone_init",
+          "type": {
+            "kind": "callback",
+            "name": "rt_value_clone_init_fn",
+            "nullable": true
+          },
+          "semantics": "Present exactly when RT_VALUE_FLAG_CLONABLE is set."
+        },
+        {
+          "name": "drop_in_place",
+          "type": {
+            "kind": "callback",
+            "name": "rt_value_drop_in_place_fn",
+            "nullable": true
+          },
+          "semantics": "Present exactly when RT_VALUE_FLAG_DROPPABLE is set."
+        },
+        {
+          "name": "trace",
+          "type": {
+            "kind": "callback",
+            "name": "rt_value_trace_fn",
+            "nullable": true
+          },
+          "semantics": "Present exactly when RT_VALUE_FLAG_TRACEABLE is set."
+        },
+        {
+          "name": "plan_cross",
+          "type": {
+            "kind": "callback",
+            "name": "rt_value_plan_cross_fn",
+            "nullable": false
+          },
+          "semantics": "Always-present read-only crossing preflight."
+        },
+        {
+          "name": "cross_move_init",
+          "type": {
+            "kind": "callback",
+            "name": "rt_value_cross_move_init_fn",
+            "nullable": true
+          },
+          "semantics": "Present exactly when RT_VALUE_FLAG_SHARD_MOVABLE is set."
+        },
+        {
+          "name": "cross_clone_init",
+          "type": {
+            "kind": "callback",
+            "name": "rt_value_cross_clone_init_fn",
+            "nullable": true
+          },
+          "semantics": "Present exactly when RT_VALUE_FLAG_CROSS_CLONABLE is set."
+        }
+      ]
+    },
+    {
+      "name": "rt_key_ops",
+      "role": "operations",
+      "semantics": "Monomorphic map-key operations; equality and hashing inspect fields and active arms rather than padding.",
+      "fields": [
+        {
+          "name": "value",
+          "type": {
+            "kind": "named",
+            "name": "rt_value_ops"
+          },
+          "semantics": "Complete key value operations embedded once per key region."
+        },
+        {
+          "name": "hash",
+          "type": {
+            "kind": "callback",
+            "name": "rt_key_hash_fn",
+            "nullable": false
+          },
+          "semantics": "Non-null deterministic key hash callback."
+        },
+        {
+          "name": "equal",
+          "type": {
+            "kind": "callback",
+            "name": "rt_key_equal_fn",
+            "nullable": false
+          },
+          "semantics": "Non-null key equality callback."
+        }
+      ]
+    },
+    {
+      "name": "rt_slot_header",
+      "role": "slot_header",
+      "semantics": "Lifecycle metadata stored beside exact owner-provided payload storage, never copied callback metadata.",
+      "fields": [
+        {
+          "name": "state",
+          "type": {
+            "kind": "named",
+            "name": "rt_slot_state"
+          },
+          "semantics": "Current exact lifecycle state, including for zero-sized payloads."
+        }
+      ]
+    },
+    {
+      "name": "rt_descriptor_table_entry",
+      "role": "descriptor_entry",
+      "semantics": "One immutable entry selected by a heterogeneous arm or state index.",
+      "fields": [
+        {
+          "name": "ops",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_value_ops",
+            "const": true,
+            "nullable": false
+          },
+          "semantics": "Descriptor valid for at least as long as every selected slot."
+        },
+        {
+          "name": "payload_offset",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Target-resolved offset within operation-owned storage."
+        },
+        {
+          "name": "payload_align",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Proven alignment at payload_offset."
+        }
+      ]
+    },
+    {
+      "name": "rt_envelope_header",
+      "role": "envelope_header",
+      "semantics": "Typed transport envelope metadata whose aligned tail or sidecar owns one exact payload.",
+      "fields": [
+        {
+          "name": "ops",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_value_ops",
+            "const": true,
+            "nullable": false
+          },
+          "semantics": "Descriptor retained while the envelope payload may be initialized."
+        },
+        {
+          "name": "total_bytes",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Complete physical transport charge held by the envelope."
+        },
+        {
+          "name": "payload_offset",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Aligned payload offset from the envelope base."
+        },
+        {
+          "name": "payload_bytes",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Exact inline payload bytes."
+        },
+        {
+          "name": "payload_align",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Required payload alignment."
+        },
+        {
+          "name": "generation",
+          "type": {
+            "kind": "u64"
+          },
+          "semantics": "Generation checked before late work may publish or clean storage."
+        },
+        {
+          "name": "owner_shard_id",
+          "type": {
+            "kind": "u32"
+          },
+          "semantics": "Shard that owns lifecycle transitions for the payload."
+        },
+        {
+          "name": "slot",
+          "type": {
+            "kind": "named",
+            "name": "rt_slot_header"
+          },
+          "semantics": "Single payload lifecycle state."
+        }
+      ]
+    },
+    {
+      "name": "rt_typed_carrier_handle",
+      "role": "handle",
+      "semantics": "One-word opaque language handle; exact typed payload storage remains in the referenced owner.",
+      "fields": [
+        {
+          "name": "opaque",
+          "type": {
+            "kind": "uintptr"
+          },
+          "semantics": "Opaque owner identity; not an erased payload and not a public descriptor identity."
+        }
+      ]
+    }
+  ],
+  "callbacks": [
+    {
+      "name": "rt_trace_visit_fn",
+      "semantics": "Visits one live handle or root without retaining the passed pointers.",
+      "result": {
+        "type": {
+          "kind": "void"
+        },
+        "ownership": "none",
+        "attributes": [],
+        "semantics": "No returning status."
+      },
+      "parameters": [
+        {
+          "name": "context",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": true
+          },
+          "ownership": "context",
+          "attributes": [
+            "nocapture"
+          ],
+          "semantics": "Borrowed visitor context."
+        },
+        {
+          "name": "root",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "Borrowed live root representation."
+        }
+      ],
+      "effects": [
+        "reads_source"
+      ]
+    },
+    {
+      "name": "rt_cross_alloc_fn",
+      "semantics": "Allocates only from bytes already reserved by the immutable cross plan.",
+      "result": {
+        "type": {
+          "kind": "named",
+          "name": "rt_carrier_status"
+        },
+        "ownership": "status",
+        "attributes": [
+          "zeroext"
+        ],
+        "semantics": "OK initializes out; a returned refusal leaves out storage null."
+      },
+      "parameters": [
+        {
+          "name": "context",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": true
+          },
+          "ownership": "context",
+          "attributes": [
+            "nocapture"
+          ],
+          "semantics": "Borrowed allocator context."
+        },
+        {
+          "name": "size",
+          "type": {
+            "kind": "usize"
+          },
+          "ownership": "value",
+          "attributes": [],
+          "semantics": "Requested charged bytes."
+        },
+        {
+          "name": "align",
+          "type": {
+            "kind": "usize"
+          },
+          "ownership": "value",
+          "attributes": [],
+          "semantics": "Requested supported alignment."
+        },
+        {
+          "name": "out",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_cross_allocation",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "output_empty",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias",
+            "writeonly"
+          ],
+          "semantics": "Empty allocation result initialized only on OK."
+        }
+      ],
+      "effects": [
+        "may_allocate",
+        "uses_plan_allocator",
+        "writes_destination"
+      ]
+    },
+    {
+      "name": "rt_value_move_init_fn",
+      "semantics": "Initializes an empty destination by transferring exactly one source obligation at the commit point.",
+      "result": {
+        "type": {
+          "kind": "void"
+        },
+        "ownership": "none",
+        "attributes": [],
+        "semantics": "This operation has no returning refusal path."
+      },
+      "parameters": [
+        {
+          "name": "dst",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "destination_empty",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias",
+            "writeonly"
+          ],
+          "semantics": "Exact aligned empty destination storage."
+        },
+        {
+          "name": "src",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "source_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias"
+          ],
+          "semantics": "Initialized source made logically empty after destination commit."
+        }
+      ],
+      "effects": [
+        "moves_source",
+        "reads_source",
+        "writes_destination"
+      ]
+    },
+    {
+      "name": "rt_value_copy_init_fn",
+      "semantics": "Initializes an independent destination only for a Copy value.",
+      "result": {
+        "type": {
+          "kind": "void"
+        },
+        "ownership": "none",
+        "attributes": [],
+        "semantics": "Copy has no returning refusal path."
+      },
+      "parameters": [
+        {
+          "name": "dst",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "destination_empty",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias",
+            "writeonly"
+          ],
+          "semantics": "Exact aligned empty destination storage."
+        },
+        {
+          "name": "src",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias",
+            "readonly"
+          ],
+          "semantics": "Borrowed initialized source remains owned by its caller."
+        }
+      ],
+      "effects": [
+        "reads_source",
+        "writes_destination"
+      ]
+    },
+    {
+      "name": "rt_value_clone_init_fn",
+      "semantics": "Initializes an independent destination under the Copy-or-valid-__clone rule outside runtime locks.",
+      "result": {
+        "type": {
+          "kind": "void"
+        },
+        "ownership": "none",
+        "attributes": [],
+        "semantics": "User panic and allocator exhaustion remain process-terminal rather than returned statuses."
+      },
+      "parameters": [
+        {
+          "name": "dst",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "destination_empty",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias",
+            "writeonly"
+          ],
+          "semantics": "Exact aligned empty destination storage."
+        },
+        {
+          "name": "src",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias",
+            "readonly"
+          ],
+          "semantics": "Pinned borrowed source retained for the clone duration."
+        }
+      ],
+      "effects": [
+        "calls_user_clone",
+        "may_allocate",
+        "reads_source",
+        "writes_destination"
+      ]
+    },
+    {
+      "name": "rt_value_drop_in_place_fn",
+      "semantics": "Destroys exactly one initialized obligation outside runtime owner locks.",
+      "result": {
+        "type": {
+          "kind": "void"
+        },
+        "ownership": "none",
+        "attributes": [],
+        "semantics": "Drop has no returning status."
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "source_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture"
+          ],
+          "semantics": "Initialized value storage made logically dropped on return."
+        }
+      ],
+      "effects": [
+        "reads_source",
+        "writes_destination"
+      ]
+    },
+    {
+      "name": "rt_value_trace_fn",
+      "semantics": "Visits every live root in one initialized value without changing ownership.",
+      "result": {
+        "type": {
+          "kind": "void"
+        },
+        "ownership": "none",
+        "attributes": [],
+        "semantics": "Trace has no returning status."
+      },
+      "parameters": [
+        {
+          "name": "value",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "Borrowed initialized value storage."
+        },
+        {
+          "name": "visitor",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_trace_visitor",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "Borrowed visitor valid for this call."
+        }
+      ],
+      "effects": [
+        "calls_visitor",
+        "reads_source"
+      ]
+    },
+    {
+      "name": "rt_value_plan_cross_fn",
+      "semantics": "Performs a read-only exact-byte preflight before any source ownership change.",
+      "result": {
+        "type": {
+          "kind": "named",
+          "name": "rt_carrier_status"
+        },
+        "ownership": "status",
+        "attributes": [
+          "zeroext"
+        ],
+        "semantics": "OK initializes out; every returned refusal leaves it empty and source owned."
+      },
+      "parameters": [
+        {
+          "name": "src",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "Exclusively movable or immutable pinned source."
+        },
+        {
+          "name": "mode",
+          "type": {
+            "kind": "named",
+            "name": "rt_cross_mode"
+          },
+          "ownership": "value",
+          "attributes": [
+            "zeroext"
+          ],
+          "semantics": "Requested crossing ownership mode."
+        },
+        {
+          "name": "out",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_cross_plan",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "output_empty",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias",
+            "writeonly"
+          ],
+          "semantics": "Empty plan destination initialized only on OK."
+        }
+      ],
+      "effects": [
+        "plans_crossing",
+        "reads_source",
+        "writes_destination"
+      ]
+    },
+    {
+      "name": "rt_value_cross_move_init_fn",
+      "semantics": "Applies one immutable plan and transfers a shard-movable source only after destination commit.",
+      "result": {
+        "type": {
+          "kind": "named",
+          "name": "rt_carrier_status"
+        },
+        "ownership": "status",
+        "attributes": [
+          "zeroext"
+        ],
+        "semantics": "A returned failure rolls destination back to empty and leaves source owned."
+      },
+      "parameters": [
+        {
+          "name": "dst",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "destination_empty",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias"
+          ],
+          "semantics": "Exact aligned destination covered by the plan."
+        },
+        {
+          "name": "src",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "source_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias"
+          ],
+          "semantics": "Initialized source emptied only after commit."
+        },
+        {
+          "name": "plan",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_cross_plan",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "Same immutable plan used for reservation."
+        },
+        {
+          "name": "allocator",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_cross_allocator",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "plan_limited_allocator",
+          "attributes": [
+            "nonnull",
+            "nocapture"
+          ],
+          "semantics": "Mutable allocator limited to the reserved plan allowance."
+        }
+      ],
+      "effects": [
+        "moves_source",
+        "reads_source",
+        "uses_plan_allocator",
+        "writes_destination"
+      ]
+    },
+    {
+      "name": "rt_value_cross_clone_init_fn",
+      "semantics": "Applies one immutable plan and performs compiler-generated crossing duplication without user __clone.",
+      "result": {
+        "type": {
+          "kind": "named",
+          "name": "rt_carrier_status"
+        },
+        "ownership": "status",
+        "attributes": [
+          "zeroext"
+        ],
+        "semantics": "A returned failure rolls destination back to empty and retains source ownership."
+      },
+      "parameters": [
+        {
+          "name": "dst",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "destination_empty",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias"
+          ],
+          "semantics": "Exact aligned destination covered by the plan."
+        },
+        {
+          "name": "src",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "noalias",
+            "readonly"
+          ],
+          "semantics": "Pinned source remains initialized and owned."
+        },
+        {
+          "name": "plan",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_cross_plan",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "Same immutable plan used for reservation."
+        },
+        {
+          "name": "allocator",
+          "type": {
+            "kind": "pointer",
+            "name": "rt_cross_allocator",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "plan_limited_allocator",
+          "attributes": [
+            "nonnull",
+            "nocapture"
+          ],
+          "semantics": "Mutable allocator limited to the reserved plan allowance."
+        }
+      ],
+      "effects": [
+        "reads_source",
+        "uses_plan_allocator",
+        "writes_destination"
+      ]
+    },
+    {
+      "name": "rt_key_hash_fn",
+      "semantics": "Hashes initialized key fields and the active union arm without reading padding.",
+      "result": {
+        "type": {
+          "kind": "u64"
+        },
+        "ownership": "hash",
+        "attributes": [],
+        "semantics": "Deterministic hash value."
+      },
+      "parameters": [
+        {
+          "name": "key",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "Borrowed initialized key."
+        }
+      ],
+      "effects": [
+        "reads_source"
+      ]
+    },
+    {
+      "name": "rt_key_equal_fn",
+      "semantics": "Compares initialized key fields and the active union arm without reading padding.",
+      "result": {
+        "type": {
+          "kind": "u8"
+        },
+        "ownership": "predicate",
+        "attributes": [
+          "zeroext"
+        ],
+        "semantics": "One for equal and zero for unequal."
+      },
+      "parameters": [
+        {
+          "name": "a",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "First borrowed initialized key."
+        },
+        {
+          "name": "b",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture",
+            "readonly"
+          ],
+          "semantics": "Second borrowed initialized key."
+        }
+      ],
+      "effects": [
+        "reads_source"
+      ]
+    }
+  ],
+  "runtime_functions": [
+    {
+      "name": "rt_typed_carrier_abi_manifest_hash",
+      "semantics": "Returns debug evidence for the runtime manifest identity and is never used to accept, negotiate, or select an ABI.",
+      "result": {
+        "type": {
+          "kind": "pointer",
+          "name": "u8",
+          "const": true,
+          "nullable": false
+        },
+        "ownership": "whole_program_borrow",
+        "attributes": [
+          "nonnull"
+        ],
+        "semantics": "Whole-process NUL-terminated lowercase SHA-256 text."
+      },
+      "parameters": [],
+      "effects": [
+        "returns_static_identity"
+      ]
+    }
+  ]
+}
