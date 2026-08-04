@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"surge/internal/driver"
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/mono"
 )
@@ -272,6 +273,9 @@ func lowerMIRFromSource(t *testing.T, sourceCode string) (*mir.Module, *driver.D
 	}
 	for _, f := range mirMod.Funcs {
 		mir.SimplifyCFG(f)
+	}
+	if finalizeErr := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU()); finalizeErr != nil {
+		t.Fatalf("finalize MIR layout metadata: %v", finalizeErr)
 	}
 	err = mir.Validate(mirMod, result.Sema.TypeInterner)
 	if err != nil {

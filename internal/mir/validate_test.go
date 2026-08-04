@@ -128,7 +128,7 @@ func TestValidate_ValidPrograms(t *testing.T) {
 				t.Fatal("MIR module is nil")
 			}
 
-			err = mir.Validate(mirMod, typeInterner)
+			err = mir.ValidateStructure(mirMod, typeInterner)
 			if err != nil {
 				t.Errorf("validation failed for valid program: %v", err)
 			}
@@ -152,7 +152,7 @@ func TestValidate_UnterminatedBlock(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, nil)
+	err := mir.ValidateStructure(mod, nil)
 	if err == nil {
 		t.Error("expected validation error for unterminated block")
 	} else if !strings.Contains(err.Error(), "unterminated") {
@@ -179,7 +179,7 @@ func TestValidate_InvalidBlockTarget(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, nil)
+	err := mir.ValidateStructure(mod, nil)
 	if err == nil {
 		t.Error("expected validation error for invalid block target")
 	} else if !strings.Contains(err.Error(), "does not exist") {
@@ -225,7 +225,7 @@ func TestValidate_InvalidLocalID(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, nil)
+	err := mir.ValidateStructure(mod, nil)
 	if err == nil {
 		t.Error("expected validation error for invalid local ID")
 	} else if !strings.Contains(err.Error(), "does not exist") {
@@ -255,7 +255,7 @@ func TestValidate_UnknownType(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, nil)
+	err := mir.ValidateStructure(mod, nil)
 	if err == nil {
 		t.Error("expected validation error for unknown type")
 	} else if !strings.Contains(err.Error(), "unknown type") {
@@ -295,7 +295,7 @@ func TestValidate_ReturnMismatch_ValueInNothing(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, typeInterner)
+	err := mir.ValidateStructure(mod, typeInterner)
 	if err == nil {
 		t.Error("expected validation error for return with value in nothing function")
 	} else if !strings.Contains(err.Error(), "return with value") {
@@ -327,7 +327,7 @@ func TestValidate_ReturnMismatch_NoValueInNonNothing(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, typeInterner)
+	err := mir.ValidateStructure(mod, typeInterner)
 	if err == nil {
 		t.Error("expected validation error for return without value in non-nothing function")
 	} else if !strings.Contains(err.Error(), "return without value") {
@@ -368,7 +368,7 @@ func TestValidate_EndBorrowOnNonRef(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, typeInterner)
+	err := mir.ValidateStructure(mod, typeInterner)
 	if err == nil {
 		t.Error("expected validation error for end_borrow on non-reference")
 	} else if !strings.Contains(err.Error(), "non-reference") {
@@ -409,7 +409,7 @@ func TestValidate_DropOnCopy(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, typeInterner)
+	err := mir.ValidateStructure(mod, typeInterner)
 	if err == nil {
 		t.Error("expected validation error for drop on copy local")
 	} else if !strings.Contains(err.Error(), "drop on copy") {
@@ -452,7 +452,7 @@ func TestValidate_DropOnCopyThatOwnsHeap(t *testing.T) {
 		},
 	}
 
-	if err := mir.Validate(mod, typeInterner); err != nil {
+	if err := mir.ValidateStructure(mod, typeInterner); err != nil {
 		t.Errorf("drop on a Copy local that owns heap must be accepted, got: %v", err)
 	}
 }
@@ -490,7 +490,7 @@ func TestValidate_DropOnRef(t *testing.T) {
 		},
 	}
 
-	err := mir.Validate(mod, typeInterner)
+	err := mir.ValidateStructure(mod, typeInterner)
 	if err == nil {
 		t.Error("expected validation error for drop on reference local")
 	} else if !strings.Contains(err.Error(), "use end_borrow") {
@@ -500,7 +500,7 @@ func TestValidate_DropOnRef(t *testing.T) {
 
 // TestValidate_NilModule tests that nil module doesn't panic.
 func TestValidate_NilModule(t *testing.T) {
-	err := mir.Validate(nil, nil)
+	err := mir.ValidateStructure(nil, nil)
 	if err != nil {
 		t.Errorf("expected nil error for nil module, got: %v", err)
 	}

@@ -329,10 +329,6 @@ func (tc *typeChecker) run() {
 	tc.mergeExternFieldsIntoStructs()
 	done()
 
-	done = phase("validate_layout")
-	tc.validateTypeLayouts()
-	done()
-
 	done = phase("validate_shard_movable")
 	tc.validateShardMovableTypes()
 	done()
@@ -367,4 +363,8 @@ func (tc *typeChecker) run() {
 	// Export binding types and scopes to result for use by HIR lowering
 	tc.result.BindingTypes = tc.bindingTypes
 	tc.result.ItemScopes = tc.scopeByItem
+
+	done = phase("validate_layout")
+	tc.validateTypeLayouts()
+	done()
 }

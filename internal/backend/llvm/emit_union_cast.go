@@ -71,9 +71,13 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 		payloadVals := make([]string, 0, len(srcCase.PayloadTypes))
 		payloadLLVM := make([]string, 0, len(srcCase.PayloadTypes))
 		if len(srcCase.PayloadTypes) > 0 {
-			offsets, err := fe.emitter.payloadOffsets(srcCase.PayloadTypes)
-			if err != nil {
-				return "", "", err
+			srcCaseLayout, ok := srcLayout.UnionCase(i)
+			if !ok {
+				return "", "", fmt.Errorf("missing finalized union case %d for type#%d", i, srcResolved)
+			}
+			offsets := srcCaseLayout.FieldOffsets()
+			if len(offsets) != len(srcCase.PayloadTypes) {
+				return "", "", fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", i, srcResolved, len(offsets), len(srcCase.PayloadTypes))
 			}
 			for j, payloadType := range srcCase.PayloadTypes {
 				srcPayload := resolveValueType(fe.emitter.types, payloadType)
@@ -100,7 +104,7 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 				if srcLLVM != dstLLVM {
 					return "", "", fmt.Errorf("union cast payload type mismatch for tag %q", srcCase.TagName)
 				}
-				off := srcLayout.PayloadOffset + offsets[j]
+				off := srcCaseLayout.PayloadOffset + offsets[j]
 				bytePtr := fe.nextTemp()
 				fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, val, off)
 				loaded := fe.nextTemp()
@@ -206,15 +210,19 @@ func (fe *funcEmitter) emitTagValueFromValues(typeID types.TypeID, tagIndex int,
 	if len(payloadTypes) == 0 {
 		return mem, nil
 	}
-	offsets, err := fe.emitter.payloadOffsets(payloadTypes)
-	if err != nil {
-		return "", err
+	unionCase, ok := layoutInfo.UnionCase(tagIndex)
+	if !ok {
+		return "", fmt.Errorf("missing finalized union case %d for type#%d", tagIndex, typeID)
+	}
+	offsets := unionCase.FieldOffsets()
+	if len(offsets) != len(payloadTypes) {
+		return "", fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", tagIndex, typeID, len(offsets), len(payloadTypes))
 	}
 	for i := range payloadTypes {
 		if isNothingType(fe.emitter.types, payloadTypes[i]) {
 			continue
 		}
-		off := layoutInfo.PayloadOffset + offsets[i]
+		off := unionCase.PayloadOffset + offsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", payloadLLVM[i], payloadVals[i], bytePtr)

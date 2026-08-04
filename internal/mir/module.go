@@ -15,8 +15,9 @@ type ModuleMeta struct {
 	TagNames   map[symbols.SymbolID]string
 	TagAliases map[symbols.SymbolID]symbols.SymbolID
 
-	// Layout is the single source of truth for ABI layout queries.
-	Layout *layout.LayoutEngine
+	// Layouts is the immutable, finalized source of truth for ABI layout
+	// queries. It is populated only after async lowering and final CFG cleanup.
+	Layouts *layout.Registry
 
 	// FuncTypeArgs maps instantiated symbols to their concrete type arguments.
 	// This is used by intrinsic implementations like size_of/align_of.

@@ -45,10 +45,13 @@ func (in *Interner) RegisterStruct(name source.StringID, decl source.Span) TypeI
 // RegisterStructInstance allocates a nominal struct instantiation with type arguments.
 func (in *Interner) RegisterStructInstance(name source.StringID, decl source.Span, args []TypeID) TypeID {
 	if existing, ok := in.FindStructInstanceWithDecl(name, decl, args); ok {
+		in.inheritRuntimeHandleFamily(existing, name, decl)
 		return existing
 	}
 	slot := in.appendStructInfo(&StructInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
-	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
+	id := in.internRaw(Type{Kind: KindStruct, Payload: slot})
+	in.inheritRuntimeHandleFamily(id, name, decl)
+	return id
 }
 
 // RegisterStructInstanceWithValues allocates a nominal struct instantiation with type and value arguments.
@@ -56,6 +59,7 @@ func (in *Interner) RegisterStructInstanceWithValues(name source.StringID, decl 
 	if in != nil {
 		if existing, ok := in.FindStructInstanceWithDecl(name, decl, args); ok {
 			if info, okInfo := in.StructInfo(existing); okInfo && info != nil && slices.Equal(info.ValueArgs, values) {
+				in.inheritRuntimeHandleFamily(existing, name, decl)
 				return existing
 			}
 		}
@@ -66,7 +70,9 @@ func (in *Interner) RegisterStructInstanceWithValues(name source.StringID, decl 
 		TypeArgs:  cloneTypeArgs(args),
 		ValueArgs: cloneValueArgs(values),
 	})
-	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
+	id := in.internRaw(Type{Kind: KindStruct, Payload: slot})
+	in.inheritRuntimeHandleFamily(id, name, decl)
+	return id
 }
 
 // SetStructFields stores the resolved field descriptors for the struct type.

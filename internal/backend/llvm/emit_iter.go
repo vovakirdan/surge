@@ -362,15 +362,18 @@ func (fe *funcEmitter) emitInstrEnvelopeRelease(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
-	size, align := iterStructSize, iterStructAlign
+	size, align := uint64(iterStructSize), uint64(iterStructAlign)
 	if !ins.EnvelopeRelease.Cursor {
 		baseType, err := fe.placeBaseType(ins.EnvelopeRelease.Place)
-		if err != nil || baseType == types.NoTypeID {
-			return nil
+		if err != nil {
+			return err
 		}
-		layoutInfo, layoutErr := fe.emitter.layoutOf(resolveValueType(fe.emitter.types, baseType))
+		if baseType == types.NoTypeID {
+			return fmt.Errorf("envelope release has no physical type")
+		}
+		layoutInfo, layoutErr := fe.emitter.layoutOf(baseType)
 		if layoutErr != nil {
-			return nil
+			return layoutErr
 		}
 		size, align = layoutInfo.Size, layoutInfo.Align
 		if size <= 0 {

@@ -70,10 +70,10 @@ fn main() -> int { return 0; }
 	if !errors.As(err, &lerr) {
 		t.Fatalf("expected *layout.LayoutError, got %T (%v)", err, err)
 	}
-	if lerr.Kind != layout.LayoutErrRecursiveUnsized {
-		t.Fatalf("expected LayoutErrRecursiveUnsized, got kind=%d (%v)", lerr.Kind, lerr)
+	if lerr.Kind != layout.ErrRecursiveUnsized {
+		t.Fatalf("expected ErrRecursiveUnsized, got kind=%d (%v)", lerr.Kind, lerr)
 	}
-	if len(lerr.Cycle) == 0 {
+	if len(lerr.Cycle()) == 0 {
 		t.Fatalf("expected non-empty cycle path, got %+v", lerr)
 	}
 }
@@ -97,8 +97,9 @@ fn main() -> int { return 0; }
 	if err != nil {
 		t.Fatalf("unexpected layout error: %v", err)
 	}
-	if l.Size != 8 || l.Align != 8 {
-		t.Fatalf("expected Node layout size=8 align=8, got size=%d align=%d", l.Size, l.Align)
+	facts, ok := l.Physical()
+	if !ok || facts.Size != 8 || facts.Align != 8 {
+		t.Fatalf("expected Node layout size=8 align=8, got %+v (physical=%t)", facts, ok)
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/hir"
-	"surge/internal/layout"
 	"surge/internal/mono"
 	"surge/internal/sema"
 	"surge/internal/source"
@@ -154,7 +153,6 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 	}
 
 	out.Meta = &ModuleMeta{
-		Layout:       layout.New(layout.X86_64LinuxGNU(), typesIn),
 		FuncTypeArgs: funcTypeArgs,
 	}
 

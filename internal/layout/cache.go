@@ -8,7 +8,7 @@ type cacheKey struct {
 }
 
 type cacheEntry struct {
-	Layout TypeLayout
+	Layout PhysicalLayout
 	Err    *LayoutError
 }
 
@@ -16,25 +16,27 @@ type cache struct {
 	byType map[cacheKey]cacheEntry
 }
 
-func newCache() *cache {
-	return &cache{byType: make(map[cacheKey]cacheEntry, 256)}
-}
+func newCache() *cache { return &cache{byType: make(map[cacheKey]cacheEntry, 256)} }
 
 func (c *cache) get(key cacheKey) (cacheEntry, bool) {
 	if c == nil {
 		return cacheEntry{}, false
 	}
 	e, ok := c.byType[key]
-	return e, ok
+	if !ok {
+		return cacheEntry{}, false
+	}
+	e.Layout = e.Layout.clone()
+	e.Err = e.Err.clone()
+	return e, true
 }
 
 func (c *cache) put(key cacheKey, entry *cacheEntry) {
-	if c == nil {
+	if c == nil || entry == nil {
 		return
 	}
-	if entry == nil {
-		delete(c.byType, key)
-		return
-	}
-	c.byType[key] = *entry
+	owned := *entry
+	owned.Layout = owned.Layout.clone()
+	owned.Err = owned.Err.clone()
+	c.byType[key] = owned
 }

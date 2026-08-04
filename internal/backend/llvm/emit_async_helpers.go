@@ -29,9 +29,9 @@ func (fe *funcEmitter) emitAsyncStateFreeIntrinsic(call *mir.CallInstr) (bool, e
 		if err != nil || baseType == types.NoTypeID {
 			continue
 		}
-		layoutInfo, err := fe.emitter.layoutOf(resolveValueType(fe.emitter.types, baseType))
+		layoutInfo, err := fe.emitter.layoutOf(baseType)
 		if err != nil {
-			continue
+			return true, err
 		}
 		size := layoutInfo.Size
 		align := layoutInfo.Align
@@ -46,7 +46,7 @@ func (fe *funcEmitter) emitAsyncStateFreeIntrinsic(call *mir.CallInstr) (bool, e
 			return true, err
 		}
 		if ptrTy != "ptr" {
-			continue
+			return true, fmt.Errorf("async state free expected ptr storage, got %s", ptrTy)
 		}
 		handle := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)

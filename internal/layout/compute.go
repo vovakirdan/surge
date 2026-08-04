@@ -1,373 +1,325 @@
 package layout
 
-import (
-	"fortio.org/safecast"
+import "surge/internal/types"
 
-	"surge/internal/types"
-)
-
-func canonicalType(typesIn *types.Interner, id types.TypeID) types.TypeID {
-	if typesIn == nil || id == types.NoTypeID {
-		return id
-	}
-	seen := make(map[types.TypeID]struct{}, 8)
-	for id != types.NoTypeID {
-		if _, ok := seen[id]; ok {
-			return id
-		}
-		seen[id] = struct{}{}
-		tt, ok := typesIn.Lookup(id)
-		if !ok {
-			return id
-		}
-		switch tt.Kind {
-		case types.KindAlias:
-			target, ok := typesIn.AliasTarget(id)
-			if !ok || target == types.NoTypeID {
-				return id
-			}
-			id = target
-		case types.KindOwn:
-			id = tt.Elem
-		default:
-			return id
-		}
-	}
-	return id
-}
-
-func (e *LayoutEngine) computeLayout(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
-	if id == types.NoTypeID {
-		return TypeLayout{Size: 0, Align: 1}, nil
-	}
-	if e == nil {
-		return TypeLayout{Size: 0, Align: 1}, nil
-	}
-	typesIn := e.Types
-	if typesIn == nil {
-		return TypeLayout{Size: 0, Align: 1}, nil
-	}
-	tt, ok := typesIn.Lookup(id)
+func (e *LayoutEngine) computeLayout(id types.TypeID, state *layoutState) (PhysicalLayout, *LayoutError) {
+	t, ok := e.Types.Lookup(id)
 	if !ok {
-		return TypeLayout{Size: 0, Align: 1}, nil
+		return errorLayout(), &LayoutError{Kind: ErrUnknownType, Type: id}
+	}
+	if _, handleBacked := e.Types.RuntimeHandlePayloads(id); handleBacked {
+		return e.pointerLayout(id)
 	}
 
-	switch tt.Kind {
+	switch t.Kind {
 	case types.KindUnit, types.KindNothing:
-		return TypeLayout{Size: 0, Align: 1}, nil
-
+		return makePhysical(e.Target, id, 0, 1, nil, nil, nil)
 	case types.KindBool:
-		return TypeLayout{Size: 1, Align: 1}, nil
-
-	case types.KindInt:
-		if tt.Width == types.WidthAny {
-			return e.ptrLayout(), nil
+		return makePhysical(e.Target, id, 1, 1, nil, nil, nil)
+	case types.KindInt, types.KindUint, types.KindFloat:
+		if t.Width == types.WidthAny {
+			return e.pointerLayout(id)
 		}
-		return scalarLayoutBytes(int(tt.Width) / 8), nil
-
-	case types.KindUint:
-		if tt.Width == types.WidthAny {
-			return e.ptrLayout(), nil
+		if t.Width == 0 || uint64(t.Width)%8 != 0 {
+			return errorLayout(), &LayoutError{Kind: ErrUnsupportedKind, Type: id, Operation: "numeric width"}
 		}
-		return scalarLayoutBytes(int(tt.Width) / 8), nil
-
-	case types.KindFloat:
-		if tt.Width == types.WidthAny {
-			return e.ptrLayout(), nil
-		}
-		return scalarLayoutBytes(int(tt.Width) / 8), nil
-
-	case types.KindString:
-		return e.ptrLayout(), nil
-
-	case types.KindPointer, types.KindReference, types.KindFar, types.KindFn:
-		return e.ptrLayout(), nil
-
+		return makePhysical(e.Target, id, uint64(t.Width)/8, uint64(t.Width)/8, nil, nil, nil)
+	case types.KindString, types.KindPointer, types.KindReference, types.KindFar, types.KindFn:
+		return e.pointerLayout(id)
 	case types.KindStruct:
-		if elem, length, ok := typesIn.ArrayFixedInfo(id); ok {
-			return e.arrayFixedLayout(elem, length, state)
+		if elem, length, ok := e.Types.ArrayFixedInfo(id); ok {
+			return e.arrayFixedLayout(id, elem, uint64(length), state)
 		}
-		if _, _, ok := typesIn.MapInfo(id); ok {
-			// Map<K, V> is a handle in the v1 VM/ABI contract.
-			return e.ptrLayout(), nil
-		}
-		if _, ok := typesIn.ArrayInfo(id); ok {
-			// Dynamic Array<T> is a handle in the v1 VM/ABI contract.
-			return e.ptrLayout(), nil
-		}
-		return e.structLayoutWithAttrs(id, state)
-
+		return e.structLayout(id, state)
 	case types.KindTuple:
 		return e.tupleLayout(id, state)
-
 	case types.KindUnion:
-		return e.tagUnionLayout(id, state)
-
+		return e.unionLayout(id, state)
 	case types.KindEnum:
-		if info, ok := typesIn.EnumInfo(id); ok && info != nil && info.BaseType != types.NoTypeID {
-			l, err := e.layoutOf(info.BaseType, state)
-			return l, err
+		if info, ok := e.Types.EnumInfo(id); ok && info != nil && info.BaseType != types.NoTypeID {
+			return e.childLayout(id, info.BaseType, state, PathElement{Kind: PathEnumBase})
 		}
-		return scalarLayoutBytes(4), nil // default v1: uint32
-
+		return makePhysical(e.Target, id, 4, 4, nil, nil, nil)
 	case types.KindConst, types.KindGenericParam:
-		return TypeLayout{Size: 0, Align: 1}, nil
-
+		return deferredLayout(), nil
 	case types.KindArray:
-		if tt.Count == types.ArrayDynamicLength {
-			return e.ptrLayout(), nil
-		}
-		return e.arrayFixedLayout(tt.Elem, tt.Count, state)
-
+		return e.arrayFixedLayout(id, t.Elem, uint64(t.Count), state)
+	case types.KindInvalid, types.KindAlias, types.KindOwn:
+		return errorLayout(), &LayoutError{Kind: ErrUnsupportedKind, Type: id, Operation: t.Kind.String()}
 	default:
-		return TypeLayout{Size: 0, Align: 1}, nil
+		return errorLayout(), &LayoutError{Kind: ErrUnsupportedKind, Type: id, Operation: t.Kind.String()}
 	}
 }
 
-func (e *LayoutEngine) ptrLayout() TypeLayout {
-	ptrSize := e.Target.PtrSize
-	ptrAlign := e.Target.PtrAlign
-	if ptrSize <= 0 {
-		ptrSize = 8
-	}
-	if ptrAlign <= 0 {
-		ptrAlign = ptrSize
-	}
-	return TypeLayout{Size: ptrSize, Align: ptrAlign}
+func (e *LayoutEngine) pointerLayout(id types.TypeID) (PhysicalLayout, *LayoutError) {
+	return makePhysical(e.Target, id, e.Target.PointerSize, e.Target.PointerAlign, nil, nil, nil)
 }
 
-func scalarLayoutBytes(size int) TypeLayout {
-	if size <= 0 {
-		return TypeLayout{Size: 0, Align: 1}
-	}
-	return TypeLayout{Size: size, Align: size}
-}
-
-func roundUp(n, align int) int {
-	if align <= 1 {
-		return n
-	}
-	r := n % align
-	if r == 0 {
-		return n
-	}
-	return n + (align - r)
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func (e *LayoutEngine) arrayFixedLayout(elem types.TypeID, length uint32, state *layoutState) (TypeLayout, *LayoutError) {
-	elemLayout, err := e.layoutOf(elem, state)
+func (e *LayoutEngine) childLayout(
+	root types.TypeID,
+	child types.TypeID,
+	state *layoutState,
+	path PathElement,
+) (PhysicalLayout, *LayoutError) {
+	l, err := e.layoutOf(child, state)
 	if err != nil {
-		return TypeLayout{Size: 0, Align: 1}, err
+		return errorLayout(), err.prepend(root, path)
 	}
-	elemSize := elemLayout.Size
-	elemAlign := elemLayout.Align
-	if elemAlign <= 0 {
-		elemAlign = 1
-	}
-	stride := roundUp(elemSize, elemAlign)
-	n, convErr := safecast.Conv[int](length)
-	if convErr != nil {
-		return TypeLayout{Size: 0, Align: 1}, &LayoutError{
-			Kind: LayoutErrLengthConversion,
-			Type: elem,
-			Err:  convErr,
-		}
-	}
-	if n < 0 {
-		return TypeLayout{Size: 0, Align: 1}, &LayoutError{
-			Kind:  LayoutErrNegativeLength,
-			Type:  elem,
-			Value: int64(n),
-		}
-	}
-	return TypeLayout{
-		Size:  stride * n,
-		Align: elemAlign,
-	}, nil
+	return l, nil
 }
 
-func (e *LayoutEngine) structLayoutWithAttrs(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
-	if e == nil || e.Types == nil {
-		return TypeLayout{Size: 0, Align: 1}, nil
+func (e *LayoutEngine) arrayFixedLayout(
+	id types.TypeID,
+	elem types.TypeID,
+	length uint64,
+	state *layoutState,
+) (PhysicalLayout, *LayoutError) {
+	elemLayout, err := e.childLayout(id, elem, state, PathElement{Kind: PathArrayElement})
+	if err != nil {
+		return errorLayout(), err
 	}
+	if elemLayout.state == StateDeferred {
+		return deferredLayout(), nil
+	}
+	size, mulErr := checkedMul(e.Target, id, elemLayout.facts.Stride, length, "array stride * length")
+	if mulErr != nil {
+		return errorLayout(), mulErr.prepend(id, PathElement{Kind: PathArrayElement})
+	}
+	return makePhysical(e.Target, id, size, elemLayout.facts.Align, nil, nil, nil)
+}
 
+func (e *LayoutEngine) structLayout(id types.TypeID, state *layoutState) (PhysicalLayout, *LayoutError) {
+	info, ok := e.Types.StructInfo(id)
+	if !ok || info == nil {
+		return errorLayout(), &LayoutError{Kind: ErrUnknownType, Type: id, Operation: "struct metadata"}
+	}
 	attrs, _ := e.Types.TypeLayoutAttrs(id)
 	if attrs.Packed && attrs.AlignOverride != nil {
-		panic("invalid layout attrs: @packed conflicts with @align")
+		return errorLayout(), &LayoutError{Kind: ErrUnsupportedAlignment, Type: id, Operation: "@packed with @align", Value: *attrs.AlignOverride, Limit: e.Target.MaxABIAlign}
 	}
 
-	info, ok := e.Types.StructInfo(id)
-	if !ok || info == nil || len(info.Fields) == 0 {
-		return TypeLayout{Size: 0, Align: 1}, nil
+	offsets := make([]uint64, len(info.Fields))
+	aligns := make([]uint64, len(info.Fields))
+	size := uint64(0)
+	align := uint64(1)
+	for i := range info.Fields {
+		field := &info.Fields[i]
+		path := PathElement{Kind: PathStructField, Index: uint32(i)} //nolint:gosec // field count is arena-bounded
+		fl, err := e.childLayout(id, field.Type, state, path)
+		if err != nil {
+			return errorLayout(), err
+		}
+		if fl.state == StateDeferred {
+			return deferredLayout(), nil
+		}
+		fieldAlign := fl.facts.Align
+		if field.Layout.AlignOverride != nil {
+			if attrs.Packed {
+				return errorLayout(), (&LayoutError{Kind: ErrUnsupportedAlignment, Type: id, Operation: "@packed field @align", Value: *field.Layout.AlignOverride, Limit: e.Target.MaxABIAlign}).prepend(id, path)
+			}
+			fieldAlign = maxU64(fieldAlign, *field.Layout.AlignOverride)
+		}
+		if err := validateAlign(e.Target, id, fieldAlign, "field alignment"); err != nil {
+			return errorLayout(), err.prepend(id, path)
+		}
+		if attrs.Packed {
+			fieldAlign = 1
+		} else {
+			var roundErr *LayoutError
+			size, roundErr = checkedRoundUp(e.Target, id, size, fieldAlign, "field offset round-up")
+			if roundErr != nil {
+				return errorLayout(), roundErr.prepend(id, path)
+			}
+			align = maxU64(align, fieldAlign)
+		}
+		offsets[i] = size
+		aligns[i] = fieldAlign
+		var addErr *LayoutError
+		size, addErr = checkedAdd(e.Target, id, size, fl.facts.Size, "field offset + size")
+		if addErr != nil {
+			return errorLayout(), addErr.prepend(id, path)
+		}
 	}
-	fields := info.Fields
-	offsets := make([]int, len(fields))
-	aligns := make([]int, len(fields))
 
 	if attrs.Packed {
-		size := 0
-		for i := range fields {
-			fl, err := e.layoutOf(fields[i].Type, state)
-			if err != nil {
-				return TypeLayout{Size: 0, Align: 1}, err
+		align = 1
+	} else {
+		if attrs.AlignOverride != nil {
+			if err := validateAlign(e.Target, id, *attrs.AlignOverride, "type alignment"); err != nil {
+				return errorLayout(), err
 			}
-			offsets[i] = size
-			aligns[i] = 1
-			size += fl.Size
+			align = maxU64(align, *attrs.AlignOverride)
 		}
-		return TypeLayout{
-			Size:         size,
-			Align:        1,
-			FieldOffsets: offsets,
-			FieldAligns:  aligns,
-		}, nil
+		var roundErr *LayoutError
+		size, roundErr = checkedRoundUp(e.Target, id, size, align, "struct tail padding")
+		if roundErr != nil {
+			return errorLayout(), roundErr
+		}
 	}
-
-	size := 0
-	align := 1
-	for i := range fields {
-		fl, err := e.layoutOf(fields[i].Type, state)
-		if err != nil {
-			return TypeLayout{Size: 0, Align: 1}, err
-		}
-		fAlign := fl.Align
-		if fields[i].Layout.AlignOverride != nil {
-			fAlign = maxInt(fAlign, *fields[i].Layout.AlignOverride)
-		}
-		if fAlign <= 0 {
-			fAlign = 1
-		}
-		size = roundUp(size, fAlign)
-		offsets[i] = size
-		aligns[i] = fAlign
-		size += fl.Size
-		align = maxInt(align, fAlign)
-	}
-	size = roundUp(size, align)
-
-	if attrs.AlignOverride != nil {
-		align = maxInt(align, *attrs.AlignOverride)
-		size = roundUp(size, align)
-	}
-	return TypeLayout{
-		Size:         size,
-		Align:        align,
-		FieldOffsets: offsets,
-		FieldAligns:  aligns,
-	}, nil
+	return makePhysical(e.Target, id, size, align, offsets, aligns, nil)
 }
 
-func (e *LayoutEngine) tupleLayout(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
-	if e == nil || e.Types == nil {
-		return TypeLayout{Size: 0, Align: 1}, nil
-	}
+func (e *LayoutEngine) tupleLayout(id types.TypeID, state *layoutState) (PhysicalLayout, *LayoutError) {
 	info, ok := e.Types.TupleInfo(id)
-	if !ok || info == nil || len(info.Elems) == 0 {
-		return TypeLayout{Size: 0, Align: 1}, nil
+	if !ok || info == nil {
+		return errorLayout(), &LayoutError{Kind: ErrUnknownType, Type: id, Operation: "tuple metadata"}
 	}
-	offsets := make([]int, len(info.Elems))
-	aligns := make([]int, len(info.Elems))
-	size := 0
-	align := 1
+	offsets := make([]uint64, len(info.Elems))
+	aligns := make([]uint64, len(info.Elems))
+	size := uint64(0)
+	align := uint64(1)
 	for i, elem := range info.Elems {
-		el, err := e.layoutOf(elem, state)
+		path := PathElement{Kind: PathTupleElement, Index: uint32(i)} //nolint:gosec // tuple count is arena-bounded
+		el, err := e.childLayout(id, elem, state, path)
 		if err != nil {
-			return TypeLayout{Size: 0, Align: 1}, err
+			return errorLayout(), err
 		}
-		a := el.Align
-		if a <= 0 {
-			a = 1
+		if el.state == StateDeferred {
+			return deferredLayout(), nil
 		}
-		size = roundUp(size, a)
+		var roundErr *LayoutError
+		size, roundErr = checkedRoundUp(e.Target, id, size, el.facts.Align, "tuple offset round-up")
+		if roundErr != nil {
+			return errorLayout(), roundErr.prepend(id, path)
+		}
 		offsets[i] = size
-		aligns[i] = a
-		size += el.Size
-		align = maxInt(align, a)
+		aligns[i] = el.facts.Align
+		var addErr *LayoutError
+		size, addErr = checkedAdd(e.Target, id, size, el.facts.Size, "tuple offset + size")
+		if addErr != nil {
+			return errorLayout(), addErr.prepend(id, path)
+		}
+		align = maxU64(align, el.facts.Align)
 	}
-	size = roundUp(size, align)
-	return TypeLayout{
-		Size:         size,
-		Align:        align,
-		FieldOffsets: offsets,
-		FieldAligns:  aligns,
-	}, nil
+	var roundErr *LayoutError
+	size, roundErr = checkedRoundUp(e.Target, id, size, align, "tuple tail padding")
+	if roundErr != nil {
+		return errorLayout(), roundErr
+	}
+	return makePhysical(e.Target, id, size, align, offsets, aligns, nil)
 }
 
-func (e *LayoutEngine) tagUnionLayout(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
-	if e == nil || e.Types == nil {
-		return TypeLayout{Size: 0, Align: 1}, nil
-	}
+type unionPayload struct {
+	size         uint64
+	align        uint64
+	fieldOffsets []uint64
+}
+
+func (e *LayoutEngine) unionLayout(id types.TypeID, state *layoutState) (PhysicalLayout, *LayoutError) {
 	info, ok := e.Types.UnionInfo(id)
 	if !ok || info == nil || len(info.Members) == 0 {
-		return TypeLayout{Size: 0, Align: 1}, nil
+		return errorLayout(), &LayoutError{Kind: ErrUnknownType, Type: id, Operation: "union metadata"}
 	}
-
-	maxPayloadSize := 0
-	payloadAlign := 1
-	for _, m := range info.Members {
-		switch m.Kind {
-		case types.UnionMemberNothing:
-			// payload: size 0 align 1
-		case types.UnionMemberType:
-			pl, err := e.layoutOf(m.Type, state)
-			if err != nil {
-				return TypeLayout{Size: 0, Align: 1}, err
-			}
-			maxPayloadSize = maxInt(maxPayloadSize, pl.Size)
-			payloadAlign = maxInt(payloadAlign, pl.Align)
-		case types.UnionMemberTag:
-			if len(m.TagArgs) == 0 {
-				continue
-			}
-			if len(m.TagArgs) == 1 {
-				pl, err := e.layoutOf(m.TagArgs[0], state)
-				if err != nil {
-					return TypeLayout{Size: 0, Align: 1}, err
-				}
-				maxPayloadSize = maxInt(maxPayloadSize, pl.Size)
-				payloadAlign = maxInt(payloadAlign, pl.Align)
-				continue
-			}
-			// Multiple payload values: lay them out like a tuple.
-			size := 0
-			align := 1
-			for _, a := range m.TagArgs {
-				al, err := e.layoutOf(a, state)
-				if err != nil {
-					return TypeLayout{Size: 0, Align: 1}, err
-				}
-				size = roundUp(size, maxInt(1, al.Align))
-				size += al.Size
-				align = maxInt(align, maxInt(1, al.Align))
-			}
-			size = roundUp(size, align)
-			maxPayloadSize = maxInt(maxPayloadSize, size)
-			payloadAlign = maxInt(payloadAlign, align)
-		default:
+	payloads := make([]unionPayload, len(info.Members))
+	payloadAlign := uint64(1)
+	for i := range info.Members {
+		path := PathElement{Kind: PathUnionCase, Index: uint32(i)} //nolint:gosec // member count is arena-bounded
+		payload, deferred, err := e.unionMemberPayload(id, &info.Members[i], state, path)
+		if err != nil {
+			return errorLayout(), err
 		}
+		if deferred {
+			return deferredLayout(), nil
+		}
+		payloads[i] = payload
+		payloadAlign = maxU64(payloadAlign, payload.align)
 	}
 
-	// v1 layout: tag:uint32 then payload aligned up to payloadAlign.
-	tagSize := 4
-	tagAlign := 4
-	if payloadAlign <= 0 {
-		payloadAlign = 1
+	const tagSize uint64 = 4
+	const tagAlign uint64 = 4
+	payloadOffset, err := checkedRoundUp(e.Target, id, tagSize, payloadAlign, "union payload offset")
+	if err != nil {
+		return errorLayout(), err
 	}
-	payloadOffset := roundUp(tagSize, payloadAlign)
-	overallAlign := maxInt(tagAlign, payloadAlign)
-	size := roundUp(payloadOffset+maxPayloadSize, overallAlign)
-	return TypeLayout{
-		Size:          size,
-		Align:         overallAlign,
-		TagSize:       tagSize,
-		TagAlign:      tagAlign,
-		PayloadOffset: payloadOffset,
-	}, nil
+	cases := make([]UnionCaseLayout, len(payloads))
+	maxEnd := tagSize
+	for i, payload := range payloads {
+		cases[i] = UnionCaseLayout{
+			PayloadOffset: payloadOffset,
+			PayloadSize:   payload.size,
+			PayloadAlign:  payload.align,
+			fieldOffsets:  append([]uint64(nil), payload.fieldOffsets...),
+		}
+		end, addErr := checkedAdd(e.Target, id, payloadOffset, payload.size, "union payload offset + size")
+		if addErr != nil {
+			return errorLayout(), addErr.prepend(id, PathElement{Kind: PathUnionCase, Index: uint32(i)}) //nolint:gosec
+		}
+		maxEnd = maxU64(maxEnd, end)
+	}
+	overallAlign := maxU64(tagAlign, payloadAlign)
+	size, roundErr := checkedRoundUp(e.Target, id, maxEnd, overallAlign, "union tail padding")
+	if roundErr != nil {
+		return errorLayout(), roundErr
+	}
+	l, makeErr := makePhysical(e.Target, id, size, overallAlign, nil, nil, cases)
+	if makeErr != nil {
+		return errorLayout(), makeErr
+	}
+	l.facts.TagSize = tagSize
+	l.facts.TagAlign = tagAlign
+	return l, nil
+}
+
+func (e *LayoutEngine) unionMemberPayload(
+	root types.TypeID,
+	member *types.UnionMember,
+	state *layoutState,
+	path PathElement,
+) (unionPayload, bool, *LayoutError) {
+	switch member.Kind {
+	case types.UnionMemberNothing:
+		return unionPayload{align: 1}, false, nil
+	case types.UnionMemberType:
+		l, err := e.childLayout(root, member.Type, state, path)
+		if err != nil {
+			return unionPayload{}, false, err
+		}
+		if l.state == StateDeferred {
+			return unionPayload{}, true, nil
+		}
+		return unionPayload{size: l.facts.Size, align: l.facts.Align, fieldOffsets: []uint64{0}}, false, nil
+	case types.UnionMemberTag:
+		return e.unionTagPayload(root, member.TagArgs, state, path)
+	default:
+		return unionPayload{}, false, (&LayoutError{Kind: ErrUnsupportedKind, Type: root, Operation: "union member"}).prepend(root, path)
+	}
+}
+
+func (e *LayoutEngine) unionTagPayload(
+	root types.TypeID,
+	args []types.TypeID,
+	state *layoutState,
+	casePath PathElement,
+) (unionPayload, bool, *LayoutError) {
+	size := uint64(0)
+	align := uint64(1)
+	offsets := make([]uint64, len(args))
+	for i, arg := range args {
+		path := PathElement{Kind: PathUnionPayload, Index: uint32(i)} //nolint:gosec // payload count is arena-bounded
+		l, err := e.childLayout(root, arg, state, path)
+		if err != nil {
+			return unionPayload{}, false, err.prepend(root, casePath)
+		}
+		if l.state == StateDeferred {
+			return unionPayload{}, true, nil
+		}
+		var roundErr *LayoutError
+		size, roundErr = checkedRoundUp(e.Target, root, size, l.facts.Align, "union tuple offset round-up")
+		if roundErr != nil {
+			return unionPayload{}, false, roundErr.prepend(root, path).prepend(root, casePath)
+		}
+		offsets[i] = size
+		var addErr *LayoutError
+		size, addErr = checkedAdd(e.Target, root, size, l.facts.Size, "union tuple offset + size")
+		if addErr != nil {
+			return unionPayload{}, false, addErr.prepend(root, path).prepend(root, casePath)
+		}
+		align = maxU64(align, l.facts.Align)
+	}
+	var roundErr *LayoutError
+	size, roundErr = checkedRoundUp(e.Target, root, size, align, "union tuple tail padding")
+	if roundErr != nil {
+		return unionPayload{}, false, roundErr.prepend(root, casePath)
+	}
+	return unionPayload{size: size, align: align, fieldOffsets: offsets}, false, nil
 }

@@ -3,6 +3,7 @@ package llvm
 import (
 	"fmt"
 
+	"surge/internal/layout"
 	"surge/internal/types"
 )
 
@@ -98,17 +99,28 @@ func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {
 	} else if tt, ok := e.types.Lookup(id); ok {
 		switch tt.Kind {
 		case types.KindStruct:
-			for _, f := range e.types.StructFields(id) {
-				e.emitFieldCloneAt(g, f.Type, offsetAt(layoutInfo.FieldOffsets, structFieldIndex(e, id, f)))
+			fields := e.types.StructFields(id)
+			fieldOffsets, err := requireAggregateFieldOffsets(e.types, &layoutInfo, len(fields), "struct", id)
+			if err != nil {
+				return err
+			}
+			for i, f := range fields {
+				e.emitFieldCloneAt(g, f.Type, fieldOffsets[i])
 			}
 		case types.KindTuple:
 			if info, ok := e.types.TupleInfo(id); ok && info != nil {
+				fieldOffsets, err := requireAggregateFieldOffsets(e.types, &layoutInfo, len(info.Elems), "tuple", id)
+				if err != nil {
+					return err
+				}
 				for i, el := range info.Elems {
-					e.emitFieldCloneAt(g, el, offsetAt(layoutInfo.FieldOffsets, i))
+					e.emitFieldCloneAt(g, el, fieldOffsets[i])
 				}
 			}
 		case types.KindUnion:
-			e.emitUnionPayloadClones(g, id, layoutInfo.PayloadOffset)
+			if err := e.emitUnionPayloadClones(g, id, &layoutInfo); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -120,10 +132,7 @@ func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {
 
 // emitFieldCloneAt fixes up one member of the freshly memcpy'd box at byte
 // offset `off`. A member the memcpy already finished emits nothing.
-func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, off int) {
-	if off < 0 {
-		return
-	}
+func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, off uint64) {
 	resolved := resolveValueType(e.types, fieldType)
 
 	switch {
@@ -165,22 +174,23 @@ func (e *Emitter) emitFixedArrayElemClones(g *glueTmp, elem types.TypeID, length
 		return
 	}
 	for i := range length {
-		e.emitFieldCloneAt(g, elem, i*stride)
+		e.emitFieldCloneAt(g, elem, uint64(i)*stride)
 	}
 }
 
 // emitUnionPayloadClones reads the discriminant — already carried over by the
 // memcpy — and fixes up only the ACTIVE arm's payload. Walking every arm would
 // read payload bytes that were never written for the arms that are not live.
-func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, payloadOffset int) {
+func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts) error {
 	cases, err := e.tagCases(id)
 	if err != nil {
-		return
+		return err
 	}
 	type cloneCase struct {
-		idx        int
-		offsets    []int
-		payloadTys []types.TypeID
+		idx           int
+		payloadOffset uint64
+		offsets       []uint64
+		payloadTys    []types.TypeID
 	}
 	var needsFixup []cloneCase
 	for ci, c := range cases {
@@ -198,14 +208,18 @@ func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, payloadOff
 		if !needsWork {
 			continue
 		}
-		offs, offErr := e.payloadOffsets(c.PayloadTypes)
-		if offErr != nil {
-			continue
+		caseLayout, ok := facts.UnionCase(ci)
+		if !ok {
+			return fmt.Errorf("missing finalized union case %d for type#%d", ci, id)
 		}
-		needsFixup = append(needsFixup, cloneCase{idx: ci, offsets: offs, payloadTys: c.PayloadTypes})
+		offs := caseLayout.FieldOffsets()
+		if len(offs) != len(c.PayloadTypes) {
+			return fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", ci, id, len(offs), len(c.PayloadTypes))
+		}
+		needsFixup = append(needsFixup, cloneCase{idx: ci, payloadOffset: caseLayout.PayloadOffset, offsets: offs, payloadTys: c.PayloadTypes})
 	}
 	if len(needsFixup) == 0 {
-		return
+		return nil
 	}
 
 	tag := g.next()
@@ -220,11 +234,12 @@ func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, payloadOff
 	for _, dc := range needsFixup {
 		fmt.Fprintf(&e.buf, "cl%d.c%d:\n", base, dc.idx)
 		for i, pt := range dc.payloadTys {
-			e.emitFieldCloneAt(g, pt, payloadOffset+offsetAt(dc.offsets, i))
+			e.emitFieldCloneAt(g, pt, dc.payloadOffset+dc.offsets[i])
 		}
 		fmt.Fprintf(&e.buf, "  br label %%%s\n", joinLabel)
 	}
 	fmt.Fprintf(&e.buf, "%s:\n", joinLabel)
+	return nil
 }
 
 // emitGlueRetain bumps a reference count from inside generated glue. The

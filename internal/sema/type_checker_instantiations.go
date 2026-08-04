@@ -35,4 +35,8 @@ func (tc *typeChecker) rememberFunctionInstantiation(symID symbols.SymbolID, arg
 		tc.result.FunctionInstantiations = make(map[symbols.SymbolID][][]types.TypeID)
 	}
 	tc.result.FunctionInstantiations[symID] = append(tc.result.FunctionInstantiations[symID], append([]types.TypeID(nil), args...))
+	if tc.result.FunctionInstantiationSites == nil {
+		tc.result.FunctionInstantiationSites = make(map[symbols.SymbolID][]source.Span)
+	}
+	tc.result.FunctionInstantiationSites[symID] = append(tc.result.FunctionInstantiationSites[symID], site)
 }

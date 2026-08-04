@@ -95,10 +95,11 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			if err != nil {
 				return "", "", err
 			}
-			if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
+			fieldOffsets := layoutInfo.FieldOffsets()
+			if fieldIdx < 0 || fieldIdx >= len(fieldOffsets) {
 				return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
 			}
-			off := layoutInfo.FieldOffsets[fieldIdx]
+			off := fieldOffsets[fieldIdx]
 			base := curPtr
 			if !curIsValue {
 				tmp := fe.nextTemp()
@@ -366,7 +367,7 @@ func (fe *funcEmitter) structFieldInfo(typeID types.TypeID, proj mir.PlaceProj) 
 	return fieldIdx, tupleInfo.Elems[fieldIdx], nil
 }
 
-func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (ptrOffset, lenOffset int, lenLLVM string, err error) {
+func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (ptrOffset, lenOffset uint64, lenLLVM string, err error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return 0, 0, "", fmt.Errorf("missing type interner")
 	}
@@ -383,7 +384,8 @@ func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (ptrOffset, lenOffs
 	if err != nil {
 		return 0, 0, "", err
 	}
-	if ptrIdx < 0 || ptrIdx >= len(layoutInfo.FieldOffsets) || lenIdx < 0 || lenIdx >= len(layoutInfo.FieldOffsets) {
+	fieldOffsets := layoutInfo.FieldOffsets()
+	if ptrIdx < 0 || ptrIdx >= len(fieldOffsets) || lenIdx < 0 || lenIdx >= len(fieldOffsets) {
 		return 0, 0, "", fmt.Errorf("bytes view layout mismatch")
 	}
 	lenLLVM, err = llvmValueType(fe.emitter.types, lenType)
@@ -393,5 +395,5 @@ func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (ptrOffset, lenOffs
 	if _, err = llvmValueType(fe.emitter.types, ptrType); err != nil {
 		return 0, 0, "", err
 	}
-	return layoutInfo.FieldOffsets[ptrIdx], layoutInfo.FieldOffsets[lenIdx], lenLLVM, nil
+	return fieldOffsets[ptrIdx], fieldOffsets[lenIdx], lenLLVM, nil
 }

@@ -350,7 +350,32 @@ func collectModuleExports(
 		}
 	}
 	markRuntimePlacementType(exports, typeInterner)
+	markRuntimeHandleTypes(exports, typeInterner)
 	return exports
+}
+
+func markRuntimeHandleTypes(exports map[string]*symbols.ModuleExports, typeInterner *types.Interner) {
+	if len(exports) == 0 || typeInterner == nil {
+		return
+	}
+	for modulePath, exp := range exports {
+		trimmed := strings.Trim(normalizeExportsKey(modulePath), "/")
+		if (trimmed != "core" && !strings.HasPrefix(trimmed, "core/")) || exp == nil {
+			continue
+		}
+		for _, name := range [...]string{"Task", "Channel", "Range"} {
+			candidates := exp.Lookup(name)
+			for i := range candidates {
+				candidate := &candidates[i]
+				if candidate.Kind != symbols.SymbolType || candidate.Type == types.NoTypeID {
+					continue
+				}
+				if candidate.Flags&symbols.SymbolFlagBuiltin != 0 {
+					typeInterner.MarkRuntimeHandleType(candidate.Type)
+				}
+			}
+		}
+	}
 }
 
 func markRuntimePlacementType(exports map[string]*symbols.ModuleExports, typeInterner *types.Interner) {

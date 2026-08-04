@@ -28,6 +28,23 @@ func ValidateWithOptions(m *Module, typesIn *types.Interner, opts ValidateOption
 	if m == nil {
 		return nil
 	}
+	return errors.Join(
+		ValidateStructureWithOptions(m, typesIn, opts),
+		validateFinalizedLayouts(m, typesIn),
+	)
+}
+
+// ValidateStructure checks structural MIR invariants without requiring
+// production-finalized metadata. Hand-built unit tests must opt into this API.
+func ValidateStructure(m *Module, typesIn *types.Interner) error {
+	return ValidateStructureWithOptions(m, typesIn, ValidateOptions{})
+}
+
+// ValidateStructureWithOptions is the explicit structural-only validator.
+func ValidateStructureWithOptions(m *Module, typesIn *types.Interner, opts ValidateOptions) error {
+	if m == nil {
+		return nil
+	}
 	var errs []error
 	if err := validateGlobalTypes(m.Globals, typesIn); err != nil {
 		errs = append(errs, err)

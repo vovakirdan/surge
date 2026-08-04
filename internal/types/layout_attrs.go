@@ -5,15 +5,15 @@ package types //nolint:revive
 // These attributes must be validated by sema; layout computation must not emit diagnostics.
 type LayoutAttrs struct {
 	Packed        bool
-	AlignOverride *int // nil when no @align(N) is present
+	AlignOverride *uint64 // nil when no @align(N) is present
 }
 
 // FieldLayoutAttrs describes layout-affecting attributes applied to a struct field.
 type FieldLayoutAttrs struct {
-	AlignOverride *int // nil when no @align(N) is present
+	AlignOverride *uint64 // nil when no @align(N) is present
 }
 
-func cloneIntPtr(p *int) *int {
+func cloneUint64Ptr(p *uint64) *uint64 {
 	if p == nil {
 		return nil
 	}
@@ -44,6 +44,6 @@ func (in *Interner) SetTypeLayoutAttrs(id TypeID, attrs LayoutAttrs) {
 	if in.typeLayoutAttrs == nil {
 		in.typeLayoutAttrs = make(map[TypeID]LayoutAttrs, 64)
 	}
-	attrs.AlignOverride = cloneIntPtr(attrs.AlignOverride)
+	attrs.AlignOverride = cloneUint64Ptr(attrs.AlignOverride)
 	in.typeLayoutAttrs[id] = attrs
 }

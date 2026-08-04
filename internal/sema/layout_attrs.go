@@ -3,8 +3,6 @@ package sema
 import (
 	"strconv"
 
-	"fortio.org/safecast"
-
 	"surge/internal/ast"
 	"surge/internal/types"
 )
@@ -32,7 +30,7 @@ func (tc *typeChecker) fieldLayoutAttrsFromInfos(infos []AttrInfo) types.FieldLa
 	return out
 }
 
-func (tc *typeChecker) parseAlignValue(info AttrInfo) (int, bool) {
+func (tc *typeChecker) parseAlignValue(info AttrInfo) (uint64, bool) {
 	if tc == nil || tc.builder == nil || len(info.Args) == 0 {
 		return 0, false
 	}
@@ -52,9 +50,5 @@ func (tc *typeChecker) parseAlignValue(info AttrInfo) (int, bool) {
 	if value == 0 || (value&(value-1)) != 0 {
 		return 0, false
 	}
-	n, err := safecast.Conv[int](value)
-	if err != nil {
-		return 0, false
-	}
-	return n, true
+	return value, true
 }

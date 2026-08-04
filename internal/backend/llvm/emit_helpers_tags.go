@@ -20,11 +20,11 @@ func (e *Emitter) symFor(symID symbols.SymbolID) *symbols.Symbol {
 	return e.syms.Symbols.Get(symID)
 }
 
-func (e *Emitter) layoutOf(id types.TypeID) (layout.TypeLayout, error) {
-	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Layout == nil {
-		return layout.TypeLayout{}, fmt.Errorf("missing layout engine")
+func (e *Emitter) layoutOf(id types.TypeID) (layout.PhysicalFacts, error) {
+	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Layouts == nil {
+		return layout.PhysicalFacts{}, fmt.Errorf("missing finalized layout registry")
 	}
-	return e.mod.Meta.Layout.LayoutOf(id)
+	return e.mod.Meta.Layouts.Require(id)
 }
 
 func (e *Emitter) hasTagLayout(id types.TypeID) bool {
@@ -104,25 +104,6 @@ func (e *Emitter) tagCaseIndex(id types.TypeID, tagName string, tagSym symbols.S
 	return idx, err
 }
 
-func (e *Emitter) payloadOffsets(payload []types.TypeID) ([]int, error) {
-	offsets := make([]int, len(payload))
-	size := 0
-	for i, t := range payload {
-		layoutInfo, err := e.layoutOf(t)
-		if err != nil {
-			return nil, err
-		}
-		align := layoutInfo.Align
-		if align <= 0 {
-			align = 1
-		}
-		size = roundUpInt(size, align)
-		offsets[i] = size
-		size += layoutInfo.Size
-	}
-	return offsets, nil
-}
-
 func (fe *funcEmitter) emitTagDiscriminant(op *mir.Operand) (string, error) {
 	if op == nil {
 		return "", fmt.Errorf("nil operand")
@@ -189,6 +170,10 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 	if align <= 0 {
 		align = 1
 	}
+	unionCase, ok := layoutInfo.UnionCase(caseIdx)
+	if !ok {
+		return "", fmt.Errorf("missing finalized union case %d for type#%d", caseIdx, typeID)
+	}
 
 	if len(meta.PayloadTypes) == 0 {
 		mem := fe.nextTemp()
@@ -196,26 +181,9 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 		fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", caseIdx, mem)
 		return mem, nil
 	}
-	offsets, err := fe.emitter.payloadOffsets(meta.PayloadTypes)
-	if err != nil {
-		return "", err
-	}
-	// The union layout can undersize when an instantiated union's members were
-	// not substituted with concrete payload types (payload sized as 0). Guard
-	// the allocation so no payload store runs past the block.
-	for i, payloadTy := range meta.PayloadTypes {
-		if isNothingType(fe.emitter.types, payloadTy) {
-			continue
-		}
-		payloadLLVM, llErr := llvmValueType(fe.emitter.types, payloadTy)
-		if llErr != nil {
-			continue
-		}
-		if plSize, _, plErr := llvmTypeSizeAlign(payloadLLVM); plErr == nil {
-			if need := layoutInfo.PayloadOffset + offsets[i] + plSize; need > size {
-				size = roundUpInt(need, align)
-			}
-		}
+	offsets := unionCase.FieldOffsets()
+	if len(offsets) != len(meta.PayloadTypes) {
+		return "", fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", caseIdx, typeID, len(offsets), len(meta.PayloadTypes))
 	}
 
 	mem := fe.nextTemp()
@@ -252,7 +220,7 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 		if valTy != payloadLLVM {
 			valTy = payloadLLVM
 		}
-		off := layoutInfo.PayloadOffset + offsets[i]
+		off := unionCase.PayloadOffset + offsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)

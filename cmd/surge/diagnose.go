@@ -14,6 +14,7 @@ import (
 	"surge/internal/driver"
 	driverdiag "surge/internal/driver/diagnose"
 	"surge/internal/hir"
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/mono"
 	"surge/internal/parser"
@@ -436,6 +437,9 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			}
 			for _, f := range mirMod.Funcs {
 				mir.SimplifyCFG(f)
+			}
+			if err := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU()); err != nil {
+				return 0, fmt.Errorf("failed to finalize MIR layouts: %w", err)
 			}
 
 			// Validate MIR before dumping

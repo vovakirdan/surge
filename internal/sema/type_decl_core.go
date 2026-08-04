@@ -64,7 +64,27 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 		if tc.isRuntimePlacementTypeDecl(itemID, typeItem) {
 			tc.types.MarkRuntimePlacementType(typeID)
 		}
+		if tc.isRuntimeHandleTypeDecl(itemID, typeItem) {
+			tc.types.MarkRuntimeHandleType(typeID)
+		}
 	}
+}
+
+func (tc *typeChecker) isRuntimeHandleTypeDecl(itemID ast.ItemID, typeItem *ast.TypeItem) bool {
+	if tc == nil || typeItem == nil || !isCoreRuntimeModulePath(tc.modulePath) {
+		return false
+	}
+	switch tc.lookupName(typeItem.Name) {
+	case "Task", "Channel", "Range":
+	default:
+		return false
+	}
+	symID := tc.typeSymbolForItem(itemID)
+	if !symID.IsValid() {
+		return false
+	}
+	sym := tc.symbolFromID(symID)
+	return sym != nil && sym.Kind == symbols.SymbolType && sym.Flags&symbols.SymbolFlagBuiltin != 0
 }
 
 func (tc *typeChecker) isRuntimePlacementTypeDecl(itemID ast.ItemID, typeItem *ast.TypeItem) bool {

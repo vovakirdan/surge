@@ -176,7 +176,7 @@ func (fe *funcEmitter) emitI64Result(dst mir.Place, value string) error {
 	return nil
 }
 
-func (fe *funcEmitter) durationLayoutForPlace(place mir.Place) (size, align, opaqueOffset int, ok bool, err error) {
+func (fe *funcEmitter) durationLayoutForPlace(place mir.Place) (size, align, opaqueOffset uint64, ok bool, err error) {
 	typeID, err := fe.placeBaseType(place)
 	if err != nil {
 		return 0, 0, 0, false, err
@@ -184,7 +184,7 @@ func (fe *funcEmitter) durationLayoutForPlace(place mir.Place) (size, align, opa
 	return fe.durationLayoutForType(typeID)
 }
 
-func (fe *funcEmitter) durationLayoutForType(typeID types.TypeID) (size, align, opaqueOffset int, ok bool, err error) {
+func (fe *funcEmitter) durationLayoutForType(typeID types.TypeID) (size, align, opaqueOffset uint64, ok bool, err error) {
 	typeID = resolveAliasAndOwn(fe.emitter.types, typeID)
 	if _, ok := fe.emitter.types.StructInfo(typeID); !ok {
 		return 0, 0, 0, false, nil
@@ -201,7 +201,8 @@ func (fe *funcEmitter) durationLayoutForType(typeID types.TypeID) (size, align, 
 	if err != nil {
 		return 0, 0, 0, false, nil
 	}
-	if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
+	fieldOffsets := layoutInfo.FieldOffsets()
+	if fieldIdx < 0 || fieldIdx >= len(fieldOffsets) {
 		return 0, 0, 0, false, fmt.Errorf("duration field index %d out of range", fieldIdx)
 	}
 	fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
@@ -219,5 +220,5 @@ func (fe *funcEmitter) durationLayoutForType(typeID types.TypeID) (size, align, 
 	if align <= 0 {
 		align = 1
 	}
-	return size, align, layoutInfo.FieldOffsets[fieldIdx], true, nil
+	return size, align, fieldOffsets[fieldIdx], true, nil
 }

@@ -12,6 +12,7 @@ import (
 
 	"surge/internal/driver"
 	"surge/internal/hir"
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/mono"
 	"surge/internal/sema"
@@ -257,6 +258,9 @@ func lowerCrossingMIRFromSource(t *testing.T, sourceCode string, forms ...sema.C
 	}
 	for _, f := range mirMod.Funcs {
 		mir.SimplifyCFG(f)
+	}
+	if err := mir.FinalizeModuleMeta(mirMod, res.Sema.TypeInterner, layout.X86_64LinuxGNU()); err != nil {
+		t.Fatalf("finalize crossing MIR layout metadata: %v", err)
 	}
 	if err := mir.ValidateWithOptions(mirMod, res.Sema.TypeInterner, mir.ValidateOptions{CrossingForms: enabled}); err != nil {
 		t.Fatalf("validate crossing MIR: %v", err)

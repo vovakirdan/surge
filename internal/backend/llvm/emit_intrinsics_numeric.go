@@ -603,23 +603,18 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 		align = 1
 	}
 
-	offsets, err := fe.emitter.payloadOffsets([]types.TypeID{payloadType})
-	if err != nil {
-		return "", err
+	unionCase, ok := layoutInfo.UnionCase(tagIndex)
+	if !ok {
+		return "", fmt.Errorf("missing finalized union case %d for type#%d", tagIndex, typeID)
+	}
+	payloadOffset, ok := unionCase.FieldOffset(0)
+	if !ok {
+		return "", fmt.Errorf("missing finalized payload offset for type#%d case %d", typeID, tagIndex)
 	}
 	payloadLLVM, err := llvmValueType(fe.emitter.types, payloadType)
 	if err != nil {
 		return "", err
 	}
-	// The union layout can undersize when an instantiated union's members were
-	// not substituted with concrete payload types (payload sized as 0). Guard
-	// the allocation so the payload store never runs past the block.
-	if plSize, _, plErr := llvmTypeSizeAlign(payloadLLVM); plErr == nil {
-		if need := layoutInfo.PayloadOffset + offsets[0] + plSize; need > size {
-			size = roundUpInt(need, align)
-		}
-	}
-
 	mem := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", tagIndex, mem)
@@ -634,7 +629,7 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if valTy != payloadLLVM {
 		return "", fmt.Errorf("tag payload type mismatch for type#%d tag %d: expected %s, got %s", typeID, tagIndex, payloadLLVM, valTy)
 	}
-	off := layoutInfo.PayloadOffset + offsets[0]
+	off := unionCase.PayloadOffset + payloadOffset
 	bytePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)

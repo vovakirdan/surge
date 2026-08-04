@@ -22,13 +22,14 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 	}
 	mem := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	fieldOffsets := layoutInfo.FieldOffsets()
 	for i := range lit.Fields {
 		field := &lit.Fields[i]
 		fieldIdx, fieldType, err := fe.structFieldInfo(lit.TypeID, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: field.Name, FieldIdx: -1})
 		if err != nil {
 			return "", "", err
 		}
-		if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
+		if fieldIdx < 0 || fieldIdx >= len(fieldOffsets) {
 			return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
 		}
 		op := field.Value
@@ -63,7 +64,7 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 		if valTy != fieldLLVM {
 			valTy = fieldLLVM
 		}
-		off := layoutInfo.FieldOffsets[fieldIdx]
+		off := fieldOffsets[fieldIdx]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
@@ -103,8 +104,9 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 	}
 	mem := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	fieldOffsets := layoutInfo.FieldOffsets()
 	for i := range lit.Elems {
-		if i >= len(layoutInfo.FieldOffsets) {
+		if i >= len(fieldOffsets) {
 			return "", "", fmt.Errorf("tuple field %d out of range", i)
 		}
 		op := lit.Elems[i]
@@ -140,7 +142,7 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 		if valTy != elemLLVM {
 			valTy = elemLLVM
 		}
-		off := layoutInfo.FieldOffsets[i]
+		off := fieldOffsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
@@ -161,18 +163,16 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 	if err != nil {
 		return "", "", err
 	}
-	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	elemLayout, err := fe.emitter.layoutOf(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	if elemAlign <= 0 {
-		elemAlign = 1
-	}
-	stride := roundUpInt(elemSize, elemAlign)
+	elemAlign := elemLayout.Align
+	stride := elemLayout.Stride
 	length := len(lit.Elems)
 
 	if dynamic {
-		dataSize := stride * length
+		dataSize := stride * uint64(length)
 
 		dataPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, elemAlign)
@@ -211,7 +211,7 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 			if valTy != elemLLVM {
 				valTy = elemLLVM
 			}
-			offset := i * stride
+			offset := uint64(i) * stride
 			elemPtr := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, dataPtr, offset)
 			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
@@ -248,14 +248,6 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 	if err != nil {
 		return "", "", err
 	}
-	elemSize, elemAlign, err = llvmTypeSizeAlign(elemLLVM)
-	if err != nil {
-		return "", "", err
-	}
-	if elemAlign <= 0 {
-		elemAlign = 1
-	}
-	stride = roundUpInt(elemSize, elemAlign)
 	for i := range lit.Elems {
 		val, valTy, emitErr := fe.emitValueOperand(&lit.Elems[i])
 		if emitErr != nil {
@@ -278,7 +270,7 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		if valTy != elemLLVM {
 			valTy = elemLLVM
 		}
-		offset := i * stride
+		offset := uint64(i) * stride
 		elemPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, mem, offset)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)

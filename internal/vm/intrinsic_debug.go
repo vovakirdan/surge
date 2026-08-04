@@ -75,7 +75,10 @@ func (vm *VM) handleHeapStats(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if !info.ok {
 		return vm.eb.makeError(PanicTypeMismatch, "invalid HeapStats layout")
 	}
-	snap := vm.heapStatsSnapshot()
+	snap, err := vm.heapStatsSnapshot()
+	if err != nil {
+		return vm.eb.makeError(PanicUnimplemented, "rt_heap_stats internal error: "+err.Error())
+	}
 
 	fields := make([]Value, len(info.layout.FieldNames))
 	fields[info.allocIdx] = vm.makeBigUint(info.layout.FieldTypes[info.allocIdx], bignum.UintFromUint64(snap.allocCount))
@@ -106,7 +109,10 @@ func (vm *VM) handleHeapDump(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 	if len(call.Args) != 0 {
 		return vm.eb.makeError(PanicTypeMismatch, "rt_heap_dump requires 0 arguments")
 	}
-	dump := vm.heapDumpString()
+	dump, err := vm.heapDumpString()
+	if err != nil {
+		return vm.eb.makeError(PanicUnimplemented, "rt_heap_dump internal error: "+err.Error())
+	}
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
 	h := vm.Heap.AllocString(dstType, dump)

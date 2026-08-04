@@ -46,7 +46,8 @@ func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, errTa
 	}
 	typeID = resolveValueType(fe.emitter.types, typeID)
 	var meta mir.TagCaseMeta
-	_, meta, errTagPayload = fe.emitter.tagCaseMeta(typeID, tp.TagName, symbols.NoSymbolID)
+	var caseIndex int
+	caseIndex, meta, errTagPayload = fe.emitter.tagCaseMeta(typeID, tp.TagName, symbols.NoSymbolID)
 	if errTagPayload != nil {
 		return "", "", errTagPayload
 	}
@@ -57,11 +58,15 @@ func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, errTa
 	if errLayout != nil {
 		return "", "", errLayout
 	}
-	payloadOffsets, errPayloadOffsets := fe.emitter.payloadOffsets(meta.PayloadTypes)
-	if errPayloadOffsets != nil {
-		return "", "", errPayloadOffsets
+	unionCase, ok := layoutInfo.UnionCase(caseIndex)
+	if !ok {
+		return "", "", fmt.Errorf("missing finalized union case %d for type#%d", caseIndex, typeID)
 	}
-	offset := layoutInfo.PayloadOffset + payloadOffsets[tp.Index]
+	payloadOffset, ok := unionCase.FieldOffset(tp.Index)
+	if !ok {
+		return "", "", fmt.Errorf("missing finalized payload offset %d for type#%d case %d", tp.Index, typeID, caseIndex)
+	}
+	offset := unionCase.PayloadOffset + payloadOffset
 	var (
 		basePtr string
 		baseTy  string

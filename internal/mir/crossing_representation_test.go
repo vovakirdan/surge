@@ -187,11 +187,11 @@ fn run(dst: Placement) -> TaskResult<int> {
 }
 `, crossingForms(sema.CrossingLoweringOnPlacement))
 
-	err := mir.Validate(compiled.mod, compiled.types)
+	err := mir.ValidateStructure(compiled.mod, compiled.types)
 	if err == nil || !strings.Contains(err.Error(), "crossing on is not enabled") {
 		t.Fatalf("expected default-closed crossing validation error, got %v", err)
 	}
-	if err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+	if err := mir.ValidateStructureWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
 		CrossingForms: crossingForms(sema.CrossingLoweringOnPlacement),
 	}); err != nil {
 		t.Fatalf("validate with explicit crossing capability: %v", err)
@@ -229,7 +229,7 @@ async fn run(dst: Placement) -> TaskResult<int> {
 	if ins.Pending.Kind != mir.PlaceLocal {
 		t.Fatalf("on crossing missing persisted pending slot")
 	}
-	if err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+	if err := mir.ValidateStructureWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
 		CrossingForms: crossingForms(sema.CrossingLoweringOnPlacement),
 	}); err != nil {
 		t.Fatalf("validate async crossing MIR: %v", err)
@@ -272,7 +272,7 @@ async fn run(dst: Placement, n: int) -> far Task<int> {
 	if !asyncPayloadHasLabels(compiled.types, "__AsyncPayload$run", "*uint8") {
 		t.Fatalf("spawn_on pending payload must preserve rt_remote_spawn_pending* retry state")
 	}
-	if err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+	if err := mir.ValidateStructureWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
 		CrossingForms: crossingForms(sema.CrossingLoweringSpawnOn),
 	}); err != nil {
 		t.Fatalf("validate async spawn_on crossing MIR: %v", err)
@@ -329,7 +329,7 @@ async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 			if !asyncPayloadHasLabels(compiled.types, "__AsyncPayload$"+tc.funcName, "*uint8") {
 				t.Fatalf("far Task lifecycle retry payload must preserve rt_remote_task_pending* state")
 			}
-			if err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+			if err := mir.ValidateStructureWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
 				CrossingForms: crossingForms(tc.form),
 			}); err != nil {
 				t.Fatalf("validate async far Task lifecycle crossing MIR: %v", err)

@@ -3,6 +3,7 @@ package vm
 import (
 	"testing"
 
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -21,7 +22,13 @@ import (
 // VM has to be right BEFORE anything is allowed to produce the shape.
 func TestVMDropOfProjectedPlaceReleasesOnlyThatField(t *testing.T) {
 	typesIn := types.NewInterner()
+	typesIn.Strings = source.NewInterner()
 	strTy := typesIn.Builtins().String
+	objTy := typesIn.RegisterStruct(typesIn.Strings.Intern("Object"), source.Span{})
+	typesIn.SetStructFields(objTy, []types.StructField{
+		{Name: typesIn.Strings.Intern("note"), Type: strTy},
+		{Name: typesIn.Strings.Intern("id"), Type: typesIn.Builtins().Int},
+	})
 
 	fn := &mir.Func{
 		ID:     1,
@@ -29,7 +36,7 @@ func TestVMDropOfProjectedPlaceReleasesOnlyThatField(t *testing.T) {
 		Name:   "projected_drop",
 		Result: types.NoTypeID,
 		Entry:  0,
-		Locals: []mir.Local{{Name: "o", Type: types.NoTypeID, Flags: mir.LocalFlagOwnsHeap}},
+		Locals: []mir.Local{{Name: "o", Type: objTy, Flags: mir.LocalFlagOwnsHeap}},
 		Blocks: []mir.Block{{
 			ID: 0,
 			Instrs: []mir.Instr{{
@@ -44,11 +51,15 @@ func TestVMDropOfProjectedPlaceReleasesOnlyThatField(t *testing.T) {
 		Span: source.Span{Start: 1, End: 1},
 	}
 
-	vmInstance := New(&mir.Module{}, NewTestRuntime(nil, ""), nil, typesIn, nil)
+	mod := &mir.Module{Funcs: map[mir.FuncID]*mir.Func{fn.ID: fn}, Meta: &mir.ModuleMeta{}}
+	if err := mir.FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU()); err != nil {
+		t.Fatalf("finalize layouts: %v", err)
+	}
+	vmInstance := New(mod, NewTestRuntime(nil, ""), nil, typesIn, nil)
 
 	// `o` is a struct { note: string, id: int } holding one heap string.
 	noteHandle := vmInstance.Heap.AllocString(strTy, "kept")
-	structHandle := vmInstance.Heap.AllocStruct(types.NoTypeID, []Value{
+	structHandle := vmInstance.Heap.AllocStruct(objTy, []Value{
 		{Kind: VKHandleString, H: noteHandle},
 		{Kind: VKInt, Int: 7},
 	})
@@ -56,7 +67,7 @@ func TestVMDropOfProjectedPlaceReleasesOnlyThatField(t *testing.T) {
 	frame := NewFrame(fn)
 	frame.Locals[0] = LocalSlot{
 		Name:   "o",
-		V:      Value{Kind: VKHandleStruct, H: structHandle},
+		V:      Value{Kind: VKHandleStruct, H: structHandle, TypeID: objTy},
 		IsInit: true,
 	}
 	vmInstance.Stack = []*Frame{frame}

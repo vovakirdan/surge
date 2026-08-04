@@ -170,8 +170,9 @@ func (fe *funcEmitter) emitDefaultStruct(typeID types.TypeID) (val, ty string, e
 	}
 	mem := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	fieldOffsets := layoutInfo.FieldOffsets()
 	for i, field := range info.Fields {
-		if i >= len(layoutInfo.FieldOffsets) {
+		if i >= len(fieldOffsets) {
 			return "", "", fmt.Errorf("struct field %d out of range", i)
 		}
 		val, valTy, err := fe.emitDefaultValue(field.Type)
@@ -185,7 +186,7 @@ func (fe *funcEmitter) emitDefaultStruct(typeID types.TypeID) (val, ty string, e
 		if valTy != fieldLLVM {
 			valTy = fieldLLVM
 		}
-		off := layoutInfo.FieldOffsets[i]
+		off := fieldOffsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
@@ -216,8 +217,9 @@ func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (val, ty string, er
 	}
 	mem := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	fieldOffsets := layoutInfo.FieldOffsets()
 	for i, elemType := range info.Elems {
-		if i >= len(layoutInfo.FieldOffsets) {
+		if i >= len(fieldOffsets) {
 			return "", "", fmt.Errorf("tuple field %d out of range", i)
 		}
 		val, valTy, err := fe.emitDefaultValue(elemType)
@@ -231,7 +233,7 @@ func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (val, ty string, er
 		if valTy != elemLLVM {
 			valTy = elemLLVM
 		}
-		off := layoutInfo.FieldOffsets[i]
+		off := fieldOffsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)

@@ -85,12 +85,11 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 			// exception used to be spelled for tag unions only, which is why
 			// discarded union temps were reclaimed while plain structs and
 			// tuples were not; the box is the same in all three cases and the
-			// glue for such a type is a null check plus the free. Skip types
-			// whose layout the backend cannot size — their drop stays the
-			// historical no-op.
-			if _, layoutErr := fe.emitter.layoutOf(resolveValueType(typesIn, baseType)); layoutErr == nil {
-				composite = true
+			// glue for such a type is a null check plus the free.
+			if _, layoutErr := fe.emitter.layoutOf(baseType); layoutErr != nil {
+				return layoutErr
 			}
+			composite = true
 		}
 	}
 	if !isRefCounted && !isString && !dynArray && !composite && !isFarChan {
@@ -259,9 +258,9 @@ func (fe *funcEmitter) emitShallowDrop(place mir.Place, baseType types.TypeID) e
 		// shallow drop of one would be a deep drop by another name.
 		return nil
 	}
-	layoutInfo, layoutErr := fe.emitter.layoutOf(resolveValueType(fe.emitter.types, baseType))
+	layoutInfo, layoutErr := fe.emitter.layoutOf(baseType)
 	if layoutErr != nil {
-		return nil
+		return layoutErr
 	}
 	size, align := layoutInfo.Size, layoutInfo.Align
 	if size <= 0 {

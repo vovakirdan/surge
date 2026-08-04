@@ -115,7 +115,7 @@ fn main() -> int {
 					}
 				}
 			}
-			if err := mir.Validate(compiled.mod, compiled.types); err != nil {
+			if err := mir.ValidateStructure(compiled.mod, compiled.types); err != nil {
 				t.Fatalf("validation failed: %v", err)
 			}
 		})

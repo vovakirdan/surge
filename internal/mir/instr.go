@@ -133,6 +133,8 @@ const (
 	CalleeSym CalleeKind = iota
 	// CalleeValue represents a value call target.
 	CalleeValue
+	// calleeKindCount bounds the enum for exhaustive walkers. Keep last.
+	calleeKindCount
 )
 
 func (k CalleeKind) String() string {
@@ -452,6 +454,8 @@ const (
 	SelectArmTimeout
 	// SelectArmDefault represents a default select arm.
 	SelectArmDefault
+	// selectArmKindCount bounds the enum for exhaustive walkers. Keep last.
+	selectArmKindCount
 )
 
 // SelectArm represents a select arm.

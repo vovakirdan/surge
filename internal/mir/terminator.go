@@ -22,6 +22,8 @@ const (
 	TermSwitchTag
 	// TermUnreachable indicates an unreachable terminator.
 	TermUnreachable
+	// termKindCount bounds the enum for exhaustive walkers. Keep last.
+	termKindCount
 )
 
 func (k TermKind) String() string {

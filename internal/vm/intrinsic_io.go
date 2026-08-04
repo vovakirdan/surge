@@ -17,8 +17,8 @@ func (vm *VM) handleSizeOfAlignOf(frame *Frame, call *mir.CallInstr, writes *[]L
 	if !call.HasDst {
 		return nil
 	}
-	if vm.Layout == nil {
-		return vm.eb.makeError(PanicUnimplemented, "no layout engine for size_of/align_of")
+	if vm.Layouts == nil {
+		return vm.eb.makeError(PanicUnimplemented, "missing finalized layout registry for size_of/align_of")
 	}
 	if vm.M == nil || vm.M.Meta == nil || len(vm.M.Meta.FuncTypeArgs) == 0 || !call.Callee.Sym.IsValid() {
 		return vm.eb.makeError(PanicUnimplemented, "missing type arguments for size_of/align_of")
@@ -29,12 +29,12 @@ func (vm *VM) handleSizeOfAlignOf(frame *Frame, call *mir.CallInstr, writes *[]L
 	}
 	tArg := typeArgs[0]
 
-	n := 0
+	var n uint64
 	var layoutErr error
 	if name == "size_of" {
-		n, layoutErr = vm.Layout.SizeOf(tArg)
+		n, layoutErr = vm.Layouts.SizeOf(tArg)
 	} else {
-		n, layoutErr = vm.Layout.AlignOf(tArg)
+		n, layoutErr = vm.Layouts.AlignOf(tArg)
 	}
 	if layoutErr != nil {
 		return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("layout error for type#%d: %v", tArg, layoutErr))
@@ -42,11 +42,7 @@ func (vm *VM) handleSizeOfAlignOf(frame *Frame, call *mir.CallInstr, writes *[]L
 
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
-	u64, err := safecast.Conv[uint64](n)
-	if err != nil {
-		return vm.eb.invalidNumericConversion("size/align out of range")
-	}
-	val := vm.makeBigUint(dstType, bignum.UintFromUint64(u64))
+	val := vm.makeBigUint(dstType, bignum.UintFromUint64(n))
 	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
 		return vmErr
 	}

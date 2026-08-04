@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"math"
 
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
@@ -31,9 +32,9 @@ func safeUint64FromInt(n int) uint64 {
 	return uint64(n)
 }
 
-func (vm *VM) heapStatsSnapshot() heapStatsSnapshot {
+func (vm *VM) heapStatsSnapshot() (heapStatsSnapshot, error) {
 	if vm == nil {
-		return heapStatsSnapshot{}
+		return heapStatsSnapshot{}, nil
 	}
 	snap := heapStatsSnapshot{
 		allocCount:  vm.heapCounters.allocCount,
@@ -48,8 +49,18 @@ func (vm *VM) heapStatsSnapshot() heapStatsSnapshot {
 			if !ok || obj == nil || obj.Freed || obj.RefCount == 0 {
 				continue
 			}
-			snap.liveBlocks++
-			snap.liveBytes += vm.heapObjectBytes(obj)
+			objectBytes, err := vm.heapObjectBytes(obj)
+			if err != nil {
+				return heapStatsSnapshot{}, fmt.Errorf("heap object %d: %w", h, err)
+			}
+			snap.liveBlocks, err = checkedHeapAdd(snap.liveBlocks, 1, "live block count")
+			if err != nil {
+				return heapStatsSnapshot{}, err
+			}
+			snap.liveBytes, err = checkedHeapAdd(snap.liveBytes, objectBytes, "live byte total")
+			if err != nil {
+				return heapStatsSnapshot{}, err
+			}
 		}
 	}
 
@@ -58,82 +69,132 @@ func (vm *VM) heapStatsSnapshot() heapStatsSnapshot {
 			if alloc == nil || alloc.freed {
 				continue
 			}
-			snap.liveBlocks++
-			snap.liveBytes += uint64(len(alloc.data))
+			var err error
+			snap.liveBlocks, err = checkedHeapAdd(snap.liveBlocks, 1, "live block count")
+			if err != nil {
+				return heapStatsSnapshot{}, err
+			}
+			snap.liveBytes, err = checkedHeapAdd(snap.liveBytes, safeUint64FromInt(len(alloc.data)), "live byte total")
+			if err != nil {
+				return heapStatsSnapshot{}, err
+			}
 		}
 	}
 
-	return snap
+	return snap, nil
 }
 
-func (vm *VM) heapObjectBytes(obj *Object) uint64 {
+func (vm *VM) heapObjectBytes(obj *Object) (uint64, error) {
 	if obj == nil {
-		return 0
+		return 0, nil
 	}
 	switch obj.Kind {
 	case OKString:
 		if vm != nil {
-			return safeUint64FromInt(vm.stringByteLen(obj))
+			return safeUint64FromInt(vm.stringByteLen(obj)), nil
 		}
-		return safeUint64FromInt(len(obj.Str))
+		return safeUint64FromInt(len(obj.Str)), nil
 	case OKArray:
-		elemSize := vm.arrayElemSize(obj)
-		if elemSize == 0 {
-			return 0
+		elemSize, err := vm.arrayElemSize(obj)
+		if err != nil {
+			return 0, err
 		}
-		return uint64(len(obj.Arr)) * elemSize
+		return checkedHeapMul(safeUint64FromInt(len(obj.Arr)), elemSize, "array length * element size")
 	case OKArraySlice:
-		return 0
+		return 0, nil
 	case OKMap:
-		if vm != nil && vm.Layout != nil && vm.Types != nil && obj.TypeID != types.NoTypeID {
-			keyType, valueType, ok := vm.Types.MapInfo(obj.TypeID)
-			if ok && keyType != types.NoTypeID && valueType != types.NoTypeID {
-				keySize, errKey := vm.Layout.SizeOf(keyType)
-				valSize, errVal := vm.Layout.SizeOf(valueType)
-				if errKey == nil && errVal == nil {
-					elemSize := safeUint64FromInt(keySize) + safeUint64FromInt(valSize)
-					return uint64(len(obj.MapEntries)) * elemSize
-				}
-			}
+		if obj.TypeID == types.NoTypeID {
+			return 0, nil
 		}
-		return 0
+		if vm == nil || vm.Layouts == nil || vm.Types == nil {
+			return 0, fmt.Errorf("typed map requires finalized layout registry and type interner")
+		}
+		keyType, valueType, ok := vm.Types.MapInfo(obj.TypeID)
+		if !ok || keyType == types.NoTypeID || valueType == types.NoTypeID {
+			return 0, fmt.Errorf("typed map %s has no key/value metadata", types.Label(vm.Types, obj.TypeID))
+		}
+		keySize, err := vm.Layouts.SizeOf(keyType)
+		if err != nil {
+			return 0, fmt.Errorf("map key layout: %w", err)
+		}
+		valueSize, err := vm.Layouts.SizeOf(valueType)
+		if err != nil {
+			return 0, fmt.Errorf("map value layout: %w", err)
+		}
+		entrySize, err := checkedHeapAdd(keySize, valueSize, "map key size + value size")
+		if err != nil {
+			return 0, err
+		}
+		return checkedHeapMul(safeUint64FromInt(len(obj.MapEntries)), entrySize, "map length * entry size")
 	case OKStruct, OKTag, OKRange:
-		if vm != nil && vm.Layout != nil && obj.TypeID != types.NoTypeID {
-			if size, err := vm.Layout.SizeOf(obj.TypeID); err == nil {
-				return safeUint64FromInt(size)
-			}
+		if obj.TypeID == types.NoTypeID {
+			return 0, nil
 		}
-		return 0
+		if vm == nil || vm.Layouts == nil {
+			return 0, fmt.Errorf("typed %s requires finalized layout registry", vm.objectKindLabel(obj.Kind))
+		}
+		size, err := vm.Layouts.SizeOf(obj.TypeID)
+		if err != nil {
+			return 0, fmt.Errorf("typed %s layout: %w", vm.objectKindLabel(obj.Kind), err)
+		}
+		return size, nil
 	case OKBigInt:
-		return uint64(len(obj.BigInt.Limbs)) * 4
+		return checkedHeapMul(safeUint64FromInt(len(obj.BigInt.Limbs)), 4, "bigint limb bytes")
 	case OKBigUint:
-		return uint64(len(obj.BigUint.Limbs)) * 4
+		return checkedHeapMul(safeUint64FromInt(len(obj.BigUint.Limbs)), 4, "biguint limb bytes")
 	case OKBigFloat:
-		return uint64(len(obj.BigFloat.Mant.Limbs)) * 4
+		return checkedHeapMul(safeUint64FromInt(len(obj.BigFloat.Mant.Limbs)), 4, "bigfloat limb bytes")
 	default:
-		return 0
+		return 0, nil
 	}
 }
 
-func (vm *VM) arrayElemSize(obj *Object) uint64 {
-	if vm == nil || vm.Layout == nil || obj == nil {
-		return 0
+func (vm *VM) arrayElemSize(obj *Object) (uint64, error) {
+	if obj == nil {
+		return 0, nil
 	}
-	elemType := vm.arrayElemType(obj)
-	if elemType != types.NoTypeID {
-		if size, err := vm.Layout.SizeOf(elemType); err == nil {
-			return safeUint64FromInt(size)
+	if obj.TypeID != types.NoTypeID {
+		if vm == nil || vm.Layouts == nil || vm.Types == nil {
+			return 0, fmt.Errorf("typed array requires finalized layout registry and type interner")
 		}
+		elemType := vm.arrayElemType(obj)
+		if elemType == types.NoTypeID {
+			return 0, fmt.Errorf("typed array %s has no element metadata", types.Label(vm.Types, obj.TypeID))
+		}
+		size, err := vm.Layouts.SizeOf(elemType)
+		if err != nil {
+			return 0, fmt.Errorf("array element layout: %w", err)
+		}
+		return size, nil
 	}
 	for i := range obj.Arr {
 		if obj.Arr[i].TypeID == types.NoTypeID {
 			continue
 		}
-		if size, err := vm.Layout.SizeOf(vm.valueType(obj.Arr[i].TypeID)); err == nil {
-			return safeUint64FromInt(size)
+		if vm == nil || vm.Layouts == nil {
+			return 0, fmt.Errorf("array element requires finalized layout registry")
 		}
+		size, err := vm.Layouts.SizeOf(vm.valueType(obj.Arr[i].TypeID))
+		if err != nil {
+			return 0, fmt.Errorf("array element layout: %w", err)
+		}
+		return size, nil
 	}
-	return 0
+	return 0, nil
+}
+
+func checkedHeapAdd(a, b uint64, operation string) (uint64, error) {
+	if a > math.MaxUint64-b {
+		return 0, fmt.Errorf("heap accounting overflow: %s", operation)
+	}
+	return a + b, nil
+}
+
+func checkedHeapMul(a, b uint64, operation string) (uint64, error) {
+	if a != 0 && b > math.MaxUint64/a {
+		return 0, fmt.Errorf("heap accounting overflow: %s", operation)
+	}
+	return a * b, nil
 }
 
 func (vm *VM) arrayElemType(obj *Object) types.TypeID {

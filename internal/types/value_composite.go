@@ -38,26 +38,9 @@ func (in *Interner) IsValueComposite(id TypeID) bool {
 		return false
 	}
 
-	// The handle-backed builtins are nominal STRUCTS, so `KindStruct` alone
-	// would sweep them in. They are excluded by identity where the interner
-	// tracks one, and by name where it does not — the same way the backends
-	// have always recognised them.
-	if _, isArray := in.ArrayInfo(resolved); isArray {
-		return false
-	}
-	if _, _, isMap := in.MapInfo(resolved); isMap {
-		return false
-	}
-	if in.isHandleBackedNominal(resolved) {
-		return false
-	}
-	// `Placement` is DECLARED as a struct and is not stored like one: it is an
-	// intrinsic whose runtime value is a tagged word — low bits the kind, upper
-	// bits the payload — so there is no box and nothing to lay out. Answering
-	// "yes" here would make it a composite for copy, drop and transport
-	// purposes and would, among other things, stop placements from crossing a
-	// shard boundary, which is the one thing they exist to do.
-	if in.IsRuntimePlacementType(resolved) {
+	// Runtime-owned handles are nominal structs (or dynamic arrays), so a bare
+	// kind switch would sweep them into inline aggregate storage.
+	if _, handleBacked := in.RuntimeHandlePayloads(resolved); handleBacked {
 		return false
 	}
 
@@ -76,27 +59,38 @@ func (in *Interner) IsValueComposite(id TypeID) bool {
 	}
 }
 
-// handleBackedNominals are the built-in generic structs whose value is a handle
-// to runtime-owned storage. The interner has no dedicated TypeID for these the
-// way it does for Array and Map, so they are matched by name.
-var handleBackedNominals = [...]string{"Range", "Task", "Channel"}
-
-func (in *Interner) isHandleBackedNominal(id TypeID) bool {
-	if in == nil || in.Strings == nil {
-		return false
+// RuntimeHandlePayloads reports whether id is a runtime-owned handle value and
+// returns the concrete type arguments whose values the handle may own. The
+// handle itself is pointer-sized; payloads remain separate layout roots for
+// generated element/result operations. Raw pointers, references, far handles,
+// and function pointers are intentionally not runtime owners and return false.
+func (in *Interner) RuntimeHandlePayloads(id TypeID) ([]TypeID, bool) {
+	if in == nil || id == NoTypeID {
+		return nil, false
 	}
-	info, ok := in.StructInfo(id)
-	if !ok || info == nil {
-		return false
-	}
-	name, ok := in.Strings.Lookup(info.Name)
+	resolved := resolveAliasAndOwn(in, id)
+	t, ok := in.Lookup(resolved)
 	if !ok {
-		return false
+		return nil, false
 	}
-	for _, h := range handleBackedNominals {
-		if name == h {
-			return true
-		}
+	if t.Kind == KindString {
+		return nil, true
 	}
-	return false
+	if t.Kind == KindArray && t.Count == ArrayDynamicLength {
+		return []TypeID{t.Elem}, true
+	}
+	if elem, ok := in.ArrayInfo(resolved); ok {
+		return []TypeID{elem}, true
+	}
+	if key, value, ok := in.MapInfo(resolved); ok {
+		return []TypeID{key, value}, true
+	}
+	if in.IsRuntimeHandleType(resolved) {
+		info, _ := in.StructInfo(resolved)
+		return cloneTypeArgs(info.TypeArgs), true
+	}
+	if in.IsRuntimePlacementType(resolved) {
+		return nil, true
+	}
+	return nil, false
 }

@@ -42,6 +42,8 @@ type Interner struct {
 	typeLayoutAttrs  map[TypeID]LayoutAttrs
 	copyTypes        map[TypeID]struct{}
 	placementTypes   map[TypeID]struct{}
+	runtimeHandles   map[TypeID]struct{}
+	runtimeFamilies  map[runtimeHandleFamily]struct{}
 	params           []TypeParamInfo
 	unions           []UnionInfo
 	enums            []EnumInfo
@@ -53,6 +55,11 @@ type Interner struct {
 	arrayFixedParams [2]TypeID
 	mapType          TypeID
 	mapParams        [2]TypeID
+}
+
+type runtimeHandleFamily struct {
+	name source.StringID
+	decl source.Span
 }
 
 // NewInterner constructs an interner seeded with built-in primitives.
@@ -225,4 +232,83 @@ func (in *Interner) IsRuntimePlacementType(id TypeID) bool {
 		id = target
 	}
 	return false
+}
+
+// MarkRuntimeHandleType records a core runtime-owned nominal handle family.
+// The family identity includes the declaration span, so an unrelated user type
+// with the same spelling is never classified as a runtime handle.
+func (in *Interner) MarkRuntimeHandleType(id TypeID) {
+	if in == nil || id == NoTypeID {
+		return
+	}
+	info, ok := in.StructInfo(id)
+	if !ok || info == nil {
+		return
+	}
+	if in.runtimeHandles == nil {
+		in.runtimeHandles = make(map[TypeID]struct{}, 16)
+	}
+	if in.runtimeFamilies == nil {
+		in.runtimeFamilies = make(map[runtimeHandleFamily]struct{}, 4)
+	}
+	family := runtimeHandleFamily{name: info.Name, decl: info.Decl}
+	in.runtimeFamilies[family] = struct{}{}
+	for candidate, descriptor := range in.types {
+		if descriptor.Kind != KindStruct {
+			continue
+		}
+		candidateInfo := in.structInfo(TypeID(candidate))
+		if candidateInfo != nil && candidateInfo.Name == family.name && candidateInfo.Decl == family.decl {
+			in.runtimeHandles[TypeID(candidate)] = struct{}{}
+		}
+	}
+}
+
+// IsRuntimeHandleType reports whether id belongs to an explicitly marked core
+// runtime-owned nominal handle family. It never infers ownership from a name.
+func (in *Interner) IsRuntimeHandleType(id TypeID) bool {
+	if in == nil || id == NoTypeID {
+		return false
+	}
+	const maxDepth = 32
+	for range maxDepth {
+		if in.runtimeHandles != nil {
+			if _, ok := in.runtimeHandles[id]; ok {
+				return true
+			}
+		}
+		t, ok := in.Lookup(id)
+		if !ok {
+			return false
+		}
+		switch t.Kind {
+		case KindAlias:
+			target, targetOK := in.AliasTarget(id)
+			if !targetOK || target == NoTypeID || target == id {
+				return false
+			}
+			id = target
+		case KindOwn:
+			if t.Elem == NoTypeID || t.Elem == id {
+				return false
+			}
+			id = t.Elem
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+func (in *Interner) inheritRuntimeHandleFamily(id TypeID, name source.StringID, decl source.Span) {
+	if in == nil || id == NoTypeID || in.runtimeFamilies == nil {
+		return
+	}
+	if _, ok := in.runtimeFamilies[runtimeHandleFamily{name: name, decl: decl}]; !ok {
+		return
+	}
+	if in.runtimeHandles == nil {
+		in.runtimeHandles = make(map[TypeID]struct{}, 16)
+	}
+	in.runtimeHandles[id] = struct{}{}
 }

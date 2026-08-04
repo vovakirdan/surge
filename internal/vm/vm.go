@@ -26,7 +26,7 @@ type VM struct {
 	Trace         *Tracer
 	Files         *source.FileSet
 	Types         *types.Interner
-	Layout        *layout.LayoutEngine
+	Layouts       *layout.Registry
 	Heap          *Heap
 	rawMem        *rawMemory
 	heapCounters  heapCounters
@@ -63,10 +63,8 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 		ExitCode: 0,
 		Halted:   false,
 	}
-	if m != nil && m.Meta != nil && m.Meta.Layout != nil {
-		vm.Layout = m.Meta.Layout
-	} else {
-		vm.Layout = layout.New(layout.X86_64LinuxGNU(), typeInterner)
+	if m != nil && m.Meta != nil {
+		vm.Layouts = m.Meta.Layouts
 	}
 	vm.eb = &errorBuilder{vm: vm}
 	vm.Heap = &Heap{

@@ -287,7 +287,7 @@ fn test(x: int) -> int {
 	}
 
 	// Validation should pass after simplification
-	err = mir.Validate(mirMod, typeInterner)
+	err = mir.ValidateStructure(mirMod, typeInterner)
 	if err != nil {
 		t.Errorf("validation failed after SimplifyCFG: %v", err)
 	}

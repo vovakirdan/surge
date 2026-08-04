@@ -9,6 +9,7 @@ import (
 	"surge/internal/diag"
 	"surge/internal/driver"
 	"surge/internal/hir"
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/mono"
 	"surge/internal/observ"
@@ -225,6 +226,11 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	}
 	for _, f := range mirMod.Funcs {
 		mir.SimplifyCFG(f)
+	}
+	if err := mir.FinalizeModuleMeta(mirMod, diagRes.Sema.TypeInterner, layout.X86_64LinuxGNU()); err != nil {
+		err = fmt.Errorf("MIR layout finalization failed: %w", err)
+		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
+		return result, err
 	}
 
 	if err := mir.ValidateWithOptions(mirMod, diagRes.Sema.TypeInterner, mir.ValidateOptions{

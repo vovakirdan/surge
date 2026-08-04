@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"math"
 
 	"fortio.org/safecast"
 
@@ -100,21 +101,20 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 				return Location{}, vm.eb.invalidLocation("field projection: index overflow")
 			}
 
-			var byteOffset int32
-			if vm.Layout != nil {
-				typeForOffset := v.TypeID
-				if typeForOffset == types.NoTypeID {
-					typeForOffset = obj.TypeID
-				}
-				off, err := vm.Layout.FieldOffset(typeForOffset, fieldIdx)
-				if err != nil {
-					return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection: %v", err))
-				}
-				bo, err := safecast.Conv[int32](off)
-				if err != nil {
-					return Location{}, vm.eb.invalidLocation("field projection: byte offset overflow")
-				}
-				byteOffset = bo
+			if vm.Layouts == nil {
+				return Location{}, vm.eb.invalidLocation("field projection: missing finalized layout registry")
+			}
+			typeForOffset := v.TypeID
+			if typeForOffset == types.NoTypeID {
+				typeForOffset = obj.TypeID
+			}
+			off, err := vm.Layouts.FieldOffset(typeForOffset, fieldIdx)
+			if err != nil {
+				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection: %v", err))
+			}
+			byteOffset, err := safecast.Conv[int32](off)
+			if err != nil {
+				return Location{}, vm.eb.invalidLocation("field projection: byte offset overflow")
 			}
 			loc = Location{
 				Kind:       LKStructField,
@@ -167,30 +167,36 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 				return Location{}, vm.eb.invalidLocation("index projection: index overflow")
 			}
 
-			var byteOffset int32
-			if vm.Layout != nil && vm.Types != nil {
-				elemType := types.NoTypeID
-				arrType := vm.valueType(v.TypeID)
-				if t, ok := vm.Types.ArrayInfo(arrType); ok {
-					elemType = t
-				} else if t, _, ok := vm.Types.ArrayFixedInfo(arrType); ok {
-					elemType = t
-				} else if tt, ok := vm.Types.Lookup(arrType); ok && tt.Kind == types.KindArray {
-					elemType = tt.Elem
-				}
-				if elemType != types.NoTypeID {
-					el, err := vm.Layout.LayoutOf(elemType)
-					if err != nil {
-						return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection: %v", err))
-					}
-					stride := roundUp(el.Size, maxIntValue(1, el.Align))
-					off := stride * baseIdx
-					bo, err := safecast.Conv[int32](off)
-					if err != nil {
-						return Location{}, vm.eb.invalidLocation("index projection: byte offset overflow")
-					}
-					byteOffset = bo
-				}
+			if vm.Layouts == nil || vm.Types == nil {
+				return Location{}, vm.eb.invalidLocation("index projection: missing finalized layout registry or type interner")
+			}
+			elemType := types.NoTypeID
+			arrType := vm.valueType(v.TypeID)
+			if t, ok := vm.Types.ArrayInfo(arrType); ok {
+				elemType = t
+			} else if t, _, ok := vm.Types.ArrayFixedInfo(arrType); ok {
+				elemType = t
+			} else if tt, ok := vm.Types.Lookup(arrType); ok && tt.Kind == types.KindArray {
+				elemType = tt.Elem
+			}
+			if elemType == types.NoTypeID {
+				return Location{}, vm.eb.invalidLocation("index projection: missing element type")
+			}
+			el, err := vm.Layouts.Require(elemType)
+			if err != nil {
+				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection: %v", err))
+			}
+			baseIndex, err := safecast.Conv[uint64](baseIdx)
+			if err != nil {
+				return Location{}, vm.eb.invalidLocation("index projection: negative byte offset")
+			}
+			if el.Stride != 0 && baseIndex > math.MaxUint64/el.Stride {
+				return Location{}, vm.eb.invalidLocation("index projection: byte offset overflow")
+			}
+			off := el.Stride * baseIndex
+			byteOffset, err := safecast.Conv[int32](off)
+			if err != nil {
+				return Location{}, vm.eb.invalidLocation("index projection: byte offset overflow")
 			}
 			loc = Location{
 				Kind:       LKArrayElem,
@@ -206,24 +212,6 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 	}
 
 	return loc, nil
-}
-
-func roundUp(n, align int) int {
-	if align <= 1 {
-		return n
-	}
-	r := n % align
-	if r == 0 {
-		return n
-	}
-	return n + (align - r)
-}
-
-func maxIntValue(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {

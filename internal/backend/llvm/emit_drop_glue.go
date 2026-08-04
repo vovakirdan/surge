@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -122,6 +123,9 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 // whose drop is a generated glue function (as opposed to a leaf).
 func (e *Emitter) isBoxedComposite(id types.TypeID) bool {
 	id = resolveValueType(e.types, id)
+	if e.types == nil || !e.types.IsValueComposite(id) {
+		return false
+	}
 	if isStringLike(e.types, id) {
 		return false
 	}
@@ -296,19 +300,12 @@ func (e *Emitter) emitDropDynArray(val string, elem types.TypeID) {
 		"  call void @rt_array_free(ptr %s, i64 %d, i64 %d)\n", val, stride, elemAlign)
 }
 
-func (e *Emitter) elemStrideAlign(elem types.TypeID) (stride, align int, ok bool) {
-	elemLLVM, err := llvmValueType(e.types, elem)
+func (e *Emitter) elemStrideAlign(elem types.TypeID) (stride, align uint64, ok bool) {
+	facts, err := e.layoutOf(elem)
 	if err != nil {
 		return 0, 0, false
 	}
-	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
-	if err != nil {
-		return 0, 0, false
-	}
-	if elemAlign <= 0 {
-		elemAlign = 1
-	}
-	return roundUpInt(elemSize, elemAlign), elemAlign, true
+	return facts.Stride, facts.Align, true
 }
 
 // emitDropGlue emits every needed glue function, processing to a
@@ -406,17 +403,28 @@ func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 	} else if tt, ok := e.types.Lookup(id); ok {
 		switch tt.Kind {
 		case types.KindStruct:
-			for _, f := range e.types.StructFields(id) {
-				e.emitFieldDrop(g, f.Type, layoutInfo.FieldOffsets, structFieldIndex(e, id, f))
+			fields := e.types.StructFields(id)
+			fieldOffsets, err := requireAggregateFieldOffsets(e.types, &layoutInfo, len(fields), "struct", id)
+			if err != nil {
+				return err
+			}
+			for i, f := range fields {
+				e.emitFieldDropAt(g, f.Type, fieldOffsets[i])
 			}
 		case types.KindTuple:
 			if info, ok := e.types.TupleInfo(id); ok && info != nil {
+				fieldOffsets, err := requireAggregateFieldOffsets(e.types, &layoutInfo, len(info.Elems), "tuple", id)
+				if err != nil {
+					return err
+				}
 				for i, el := range info.Elems {
-					e.emitFieldDropAt(g, el, offsetAt(layoutInfo.FieldOffsets, i))
+					e.emitFieldDropAt(g, el, fieldOffsets[i])
 				}
 			}
 		case types.KindUnion:
-			e.emitUnionPayloadDrops(g, id, layoutInfo.PayloadOffset)
+			if err := e.emitUnionPayloadDrops(g, id, &layoutInfo); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -427,31 +435,18 @@ func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 	return nil
 }
 
-func structFieldIndex(e *Emitter, id types.TypeID, target types.StructField) int {
-	for i, f := range e.types.StructFields(id) {
-		if f.Name == target.Name {
-			return i
-		}
+func requireAggregateFieldOffsets(typesIn *types.Interner, facts *layout.PhysicalFacts, want int, kind string, id types.TypeID) ([]uint64, error) {
+	offsets := facts.FieldOffsets()
+	if len(offsets) != want {
+		return nil, fmt.Errorf("finalized %s layout for %s has %d field offsets, want %d", kind, types.Label(typesIn, id), len(offsets), want)
 	}
-	return -1
-}
-
-func offsetAt(offsets []int, i int) int {
-	if i < 0 || i >= len(offsets) {
-		return -1
-	}
-	return offsets[i]
-}
-
-// emitFieldDrop drops one struct field (by index into FieldOffsets).
-func (e *Emitter) emitFieldDrop(g *glueTmp, fieldType types.TypeID, offsets []int, idx int) {
-	e.emitFieldDropAt(g, fieldType, offsetAt(offsets, idx))
+	return offsets, nil
 }
 
 // emitFieldDropAt drops a pointer-shaped owning field/element stored at
 // byte offset `off` within the box `%p`.
-func (e *Emitter) emitFieldDropAt(g *glueTmp, fieldType types.TypeID, off int) {
-	if off < 0 || !e.typeOwnsHeap(fieldType) || !e.fieldDropIsExclusive(fieldType) {
+func (e *Emitter) emitFieldDropAt(g *glueTmp, fieldType types.TypeID, off uint64) {
+	if !e.typeOwnsHeap(fieldType) || !e.fieldDropIsExclusive(fieldType) {
 		return
 	}
 	fp := g.next()
@@ -472,23 +467,24 @@ func (e *Emitter) emitFixedArrayElemDrops(g *glueTmp, elem types.TypeID, length 
 		return
 	}
 	for i := range length {
-		e.emitFieldDropAt(g, elem, i*stride)
+		e.emitFieldDropAt(g, elem, uint64(i)*stride)
 	}
 }
 
 // emitUnionPayloadDrops reads the tag and drops the active variant's
 // owning payload. A default (no droppable payload) falls straight to
 // freeing the box.
-func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, payloadOffset int) {
+func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts) error {
 	cases, err := e.tagCases(id)
 	if err != nil {
-		return
+		return err
 	}
 	// Collect cases with droppable payloads.
 	type dropCase struct {
-		idx        int
-		offsets    []int
-		payloadTys []types.TypeID
+		idx           int
+		payloadOffset uint64
+		offsets       []uint64
+		payloadTys    []types.TypeID
 	}
 	var droppable []dropCase
 	for ci, c := range cases {
@@ -505,14 +501,18 @@ func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, payloadOffs
 		if !anyOwns {
 			continue
 		}
-		offs, offErr := e.payloadOffsets(c.PayloadTypes)
-		if offErr != nil {
-			continue
+		caseLayout, ok := facts.UnionCase(ci)
+		if !ok {
+			return fmt.Errorf("missing finalized union case %d for type#%d", ci, id)
 		}
-		droppable = append(droppable, dropCase{idx: ci, offsets: offs, payloadTys: c.PayloadTypes})
+		offs := caseLayout.FieldOffsets()
+		if len(offs) != len(c.PayloadTypes) {
+			return fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", ci, id, len(offs), len(c.PayloadTypes))
+		}
+		droppable = append(droppable, dropCase{idx: ci, payloadOffset: caseLayout.PayloadOffset, offsets: offs, payloadTys: c.PayloadTypes})
 	}
 	if len(droppable) == 0 {
-		return
+		return nil
 	}
 	tag := g.next()
 	fmt.Fprintf(&e.buf, "  %s = load i32, ptr %%p\n", tag)
@@ -528,11 +528,12 @@ func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, payloadOffs
 	for _, dc := range droppable {
 		fmt.Fprintf(&e.buf, "u%d_c%d:\n", uid, dc.idx)
 		for i, pt := range dc.payloadTys {
-			e.emitFieldDropAt(g, pt, payloadOffset+dc.offsets[i])
+			e.emitFieldDropAt(g, pt, dc.payloadOffset+dc.offsets[i])
 		}
 		fmt.Fprintf(&e.buf, "  br label %%%s\n", freebox)
 	}
 	fmt.Fprintf(&e.buf, "%s:\n", freebox)
+	return nil
 }
 
 // fieldDropIsExclusive reports whether freeing this member as part of its

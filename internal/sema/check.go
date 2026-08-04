@@ -114,23 +114,24 @@ type Result struct {
 	IfSyntheticElseDrops map[ast.StmtID][]symbols.SymbolID
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
-	CopyTypes              map[types.TypeID]struct{}
-	FunctionInstantiations map[symbols.SymbolID][][]types.TypeID
-	ImplicitConversions    map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
-	ToSymbols              map[ast.ExprID]symbols.SymbolID   // Resolved __to symbols for casts/conversions
-	CloneSymbols           map[ast.ExprID]symbols.SymbolID   // Resolved __clone symbols for clone() calls
-	BoolSymbols            map[ast.ExprID]symbols.SymbolID   // Resolved __bool symbols for boolean contexts
-	BoolBoundMethods       map[ast.ExprID]struct{}           // Generic bound __bool calls resolved after monomorphization
-	RangeSymbols           map[ast.ExprID]symbols.SymbolID   // Resolved __range symbols for for-in iterables
-	RangeTypes             map[ast.ExprID]types.TypeID       // Result Range<T> types for __range symbols
-	MagicUnarySymbols      map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for unary operators
-	MagicBinarySymbols     map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for binary operators
-	IndexSymbols           map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for index expressions
-	IndexSetSymbols        map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for index assignment
-	BindingTypes           map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
-	ItemScopes             map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
-	BlockingCaptures       map[ast.ExprID][]symbols.SymbolID // Captures for blocking { ... } expressions
-	FunctionEffects        map[symbols.SymbolID]FunctionEffect
+	CopyTypes                  map[types.TypeID]struct{}
+	FunctionInstantiations     map[symbols.SymbolID][][]types.TypeID
+	FunctionInstantiationSites map[symbols.SymbolID][]source.Span
+	ImplicitConversions        map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
+	ToSymbols                  map[ast.ExprID]symbols.SymbolID   // Resolved __to symbols for casts/conversions
+	CloneSymbols               map[ast.ExprID]symbols.SymbolID   // Resolved __clone symbols for clone() calls
+	BoolSymbols                map[ast.ExprID]symbols.SymbolID   // Resolved __bool symbols for boolean contexts
+	BoolBoundMethods           map[ast.ExprID]struct{}           // Generic bound __bool calls resolved after monomorphization
+	RangeSymbols               map[ast.ExprID]symbols.SymbolID   // Resolved __range symbols for for-in iterables
+	RangeTypes                 map[ast.ExprID]types.TypeID       // Result Range<T> types for __range symbols
+	MagicUnarySymbols          map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for unary operators
+	MagicBinarySymbols         map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for binary operators
+	IndexSymbols               map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for index expressions
+	IndexSetSymbols            map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for index assignment
+	BindingTypes               map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
+	ItemScopes                 map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
+	BlockingCaptures           map[ast.ExprID][]symbols.SymbolID // Captures for blocking { ... } expressions
+	FunctionEffects            map[symbols.SymbolID]FunctionEffect
 	// FarTaskAwaitSpans / FarTaskCancelSpans record `far Task<T>` await/cancel
 	// call sites (Block 3) so the backend guard can emit FUT7016 /
 	// FUT7017 until the Phase 4 transport backend can lower them. They are
@@ -153,24 +154,25 @@ type FunctionEffect struct {
 // At this stage it handles literal typing and basic operator validation.
 func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Options) Result {
 	res := Result{
-		ExprTypes:              make(map[ast.ExprID]types.TypeID),
-		IsOperands:             make(map[ast.ExprID]IsOperand),
-		HeirOperands:           make(map[ast.ExprID]HeirOperand),
-		ExprBorrows:            make(map[ast.ExprID]BorrowID),
-		FunctionInstantiations: make(map[symbols.SymbolID][][]types.TypeID),
-		ImplicitConversions:    make(map[ast.ExprID]ImplicitConversion),
-		ToSymbols:              make(map[ast.ExprID]symbols.SymbolID),
-		CloneSymbols:           make(map[ast.ExprID]symbols.SymbolID),
-		BoolSymbols:            make(map[ast.ExprID]symbols.SymbolID),
-		BoolBoundMethods:       make(map[ast.ExprID]struct{}),
-		RangeSymbols:           make(map[ast.ExprID]symbols.SymbolID),
-		RangeTypes:             make(map[ast.ExprID]types.TypeID),
-		MagicUnarySymbols:      make(map[ast.ExprID]symbols.SymbolID),
-		MagicBinarySymbols:     make(map[ast.ExprID]symbols.SymbolID),
-		IndexSymbols:           make(map[ast.ExprID]symbols.SymbolID),
-		IndexSetSymbols:        make(map[ast.ExprID]symbols.SymbolID),
-		BlockingCaptures:       make(map[ast.ExprID][]symbols.SymbolID),
-		FunctionEffects:        make(map[symbols.SymbolID]FunctionEffect),
+		ExprTypes:                  make(map[ast.ExprID]types.TypeID),
+		IsOperands:                 make(map[ast.ExprID]IsOperand),
+		HeirOperands:               make(map[ast.ExprID]HeirOperand),
+		ExprBorrows:                make(map[ast.ExprID]BorrowID),
+		FunctionInstantiations:     make(map[symbols.SymbolID][][]types.TypeID),
+		FunctionInstantiationSites: make(map[symbols.SymbolID][]source.Span),
+		ImplicitConversions:        make(map[ast.ExprID]ImplicitConversion),
+		ToSymbols:                  make(map[ast.ExprID]symbols.SymbolID),
+		CloneSymbols:               make(map[ast.ExprID]symbols.SymbolID),
+		BoolSymbols:                make(map[ast.ExprID]symbols.SymbolID),
+		BoolBoundMethods:           make(map[ast.ExprID]struct{}),
+		RangeSymbols:               make(map[ast.ExprID]symbols.SymbolID),
+		RangeTypes:                 make(map[ast.ExprID]types.TypeID),
+		MagicUnarySymbols:          make(map[ast.ExprID]symbols.SymbolID),
+		MagicBinarySymbols:         make(map[ast.ExprID]symbols.SymbolID),
+		IndexSymbols:               make(map[ast.ExprID]symbols.SymbolID),
+		IndexSetSymbols:            make(map[ast.ExprID]symbols.SymbolID),
+		BlockingCaptures:           make(map[ast.ExprID][]symbols.SymbolID),
+		FunctionEffects:            make(map[symbols.SymbolID]FunctionEffect),
 	}
 	if opts.Types != nil {
 		res.TypeInterner = opts.Types

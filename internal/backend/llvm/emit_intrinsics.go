@@ -304,9 +304,6 @@ func (fe *funcEmitter) emitLayoutIntrinsic(call *mir.CallInstr) (bool, error) {
 	if name == "align_of" {
 		n = layoutInfo.Align
 	}
-	if n < 0 {
-		n = 0
-	}
 	dstType := types.NoTypeID
 	if call.Dst.Kind == mir.PlaceLocal && int(call.Dst.Local) < len(fe.f.Locals) {
 		dstType = fe.f.Locals[call.Dst.Local].Type

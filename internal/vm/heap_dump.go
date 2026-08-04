@@ -25,9 +25,9 @@ type heapDumpRecord struct {
 	line      string
 }
 
-func (vm *VM) heapDumpString() string {
+func (vm *VM) heapDumpString() (string, error) {
 	if vm == nil {
-		return ""
+		return "", nil
 	}
 	records := make([]heapDumpRecord, 0)
 	if vm.Heap != nil {
@@ -36,7 +36,11 @@ func (vm *VM) heapDumpString() string {
 			if !ok || obj == nil || obj.Freed || obj.RefCount == 0 {
 				continue
 			}
-			records = append(records, vm.heapDumpRecord(obj))
+			record, err := vm.heapDumpRecord(obj)
+			if err != nil {
+				return "", fmt.Errorf("heap object %d: %w", h, err)
+			}
+			records = append(records, record)
 		}
 	}
 	if vm.rawMem != nil {
@@ -49,7 +53,7 @@ func (vm *VM) heapDumpString() string {
 	}
 
 	if len(records) == 0 {
-		return ""
+		return "", nil
 	}
 
 	sort.Slice(records, func(i, j int) bool {
@@ -120,13 +124,17 @@ func (vm *VM) heapDumpString() string {
 		sb.WriteString("\n")
 		i += count
 	}
-	return sb.String()
+	return sb.String(), nil
 }
 
-func (vm *VM) heapDumpRecord(obj *Object) heapDumpRecord {
+func (vm *VM) heapDumpRecord(obj *Object) (heapDumpRecord, error) {
+	size, err := vm.heapObjectBytes(obj)
+	if err != nil {
+		return heapDumpRecord{}, err
+	}
 	rec := heapDumpRecord{
 		typeName: typeLabel(vm.Types, obj.TypeID),
-		size:     vm.heapObjectBytes(obj),
+		size:     size,
 		rc:       obj.RefCount,
 		refs:     vm.objectRefCount(obj),
 	}
@@ -169,7 +177,7 @@ func (vm *VM) heapDumpRecord(obj *Object) heapDumpRecord {
 		rec.kind = "object"
 	}
 	rec.line = rec.formatLine()
-	return rec
+	return rec, nil
 }
 
 func heapDumpRecordForRaw(alloc *rawAlloc) heapDumpRecord {

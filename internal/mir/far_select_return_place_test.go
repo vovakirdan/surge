@@ -52,7 +52,7 @@ func TestFarSelectOwnedBindingUsesExplicitReturnPlace(t *testing.T) {
 	for _, fn := range compiled.mod.Funcs {
 		mir.SimplifyCFG(fn)
 	}
-	if err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+	if err := mir.ValidateStructureWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
 		CrossingForms: crossingForms(sema.CrossingLoweringChannelSelect),
 	}); err != nil {
 		t.Fatalf("validate conditional-transfer MIR: %v", err)
@@ -91,7 +91,7 @@ func TestFarSelectReturnPlaceValidationFailsClosed(t *testing.T) {
 		old := send.Value.Kind
 		send.Value.Kind = mir.OperandCopy
 		defer func() { send.Value.Kind = old }()
-		err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+		err := mir.ValidateStructureWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
 			CrossingForms: crossingForms(sema.CrossingLoweringChannelSelect),
 		})
 		if err == nil || !strings.Contains(err.Error(), "return place requires MOVE") {
@@ -103,7 +103,7 @@ func TestFarSelectReturnPlaceValidationFailsClosed(t *testing.T) {
 		old := append([]mir.PlaceProj(nil), send.ReturnPlace.Proj...)
 		send.ReturnPlace.Proj = []mir.PlaceProj{{Kind: mir.PlaceProjField, FieldName: "x"}}
 		defer func() { send.ReturnPlace.Proj = old }()
-		err := mir.ValidateWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
+		err := mir.ValidateStructureWithOptions(compiled.mod, compiled.types, mir.ValidateOptions{
 			CrossingForms: crossingForms(sema.CrossingLoweringChannelSelect),
 		})
 		if err == nil || !strings.Contains(err.Error(), "return place must be a bare local") {

@@ -121,7 +121,7 @@ func loadABITypes(t *testing.T) (*types.Interner, *layout.LayoutEngine, abiTypeI
 	return typesIn, le, ids
 }
 
-func assertSizeAlign(t *testing.T, le *layout.LayoutEngine, id types.TypeID, wantSize, wantAlign int, label string) {
+func assertSizeAlign(t *testing.T, le *layout.LayoutEngine, id types.TypeID, wantSize, wantAlign uint64, label string) {
 	t.Helper()
 
 	size, err := le.SizeOf(id)
@@ -236,14 +236,19 @@ func TestABILayoutUnionTagLayout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("union layout: %v", err)
 	}
-	if layoutInfo.TagSize != 4 || layoutInfo.TagAlign != 4 {
-		t.Fatalf("union tag size/align want 4/4, got %d/%d", layoutInfo.TagSize, layoutInfo.TagAlign)
+	facts, ok := layoutInfo.Physical()
+	if !ok {
+		t.Fatalf("union layout state = %s, want physical", layoutInfo.State())
 	}
-	if layoutInfo.PayloadOffset != 8 {
-		t.Fatalf("union payload offset want 8, got %d", layoutInfo.PayloadOffset)
+	if facts.TagSize != 4 || facts.TagAlign != 4 {
+		t.Fatalf("union tag size/align want 4/4, got %d/%d", facts.TagSize, facts.TagAlign)
 	}
-	if layoutInfo.Size != 16 || layoutInfo.Align != 8 {
-		t.Fatalf("union size/align want 16/8, got %d/%d", layoutInfo.Size, layoutInfo.Align)
+	unionCase, ok := facts.UnionCase(0)
+	if !ok || unionCase.PayloadOffset != 8 {
+		t.Fatalf("union case 0 payload offset want 8, got %+v", unionCase)
+	}
+	if facts.Size != 16 || facts.Align != 8 {
+		t.Fatalf("union size/align want 16/8, got %d/%d", facts.Size, facts.Align)
 	}
 }
 
@@ -288,11 +293,13 @@ func appendSizeAlign(sb *strings.Builder, le *layout.LayoutEngine, id types.Type
 	}
 	size, err := le.SizeOf(id)
 	if err != nil {
-		size = -1
+		fmt.Fprintf(sb, "%s error=%v\n", name, err)
+		return
 	}
 	align, err := le.AlignOf(id)
 	if err != nil {
-		align = -1
+		fmt.Fprintf(sb, "%s error=%v\n", name, err)
+		return
 	}
 	fmt.Fprintf(sb, "%s size=%d align=%d\n", name, size, align)
 }
@@ -303,11 +310,13 @@ func appendStructSnapshot(sb *strings.Builder, le *layout.LayoutEngine, typesIn 
 	}
 	size, err := le.SizeOf(id)
 	if err != nil {
-		size = -1
+		fmt.Fprintf(sb, "%s error=%v\n", name, err)
+		return
 	}
 	align, err := le.AlignOf(id)
 	if err != nil {
-		align = -1
+		fmt.Fprintf(sb, "%s error=%v\n", name, err)
+		return
 	}
 	fmt.Fprintf(sb, "%s size=%d align=%d", name, size, align)
 
@@ -326,7 +335,8 @@ func appendStructSnapshot(sb *strings.Builder, le *layout.LayoutEngine, typesIn 
 			}
 			off, err := le.FieldOffset(id, i)
 			if err != nil {
-				off = -1
+				fmt.Fprintf(sb, "%s:error", fieldName)
+				continue
 			}
 			fmt.Fprintf(sb, "%s:%d", fieldName, off)
 		}
@@ -343,12 +353,22 @@ func appendUnionSnapshot(sb *strings.Builder, le *layout.LayoutEngine, id types.
 		fmt.Fprintf(sb, "%s error=%v\n", name, err)
 		return
 	}
+	facts, ok := layoutInfo.Physical()
+	if !ok {
+		fmt.Fprintf(sb, "%s state=%s\n", name, layoutInfo.State())
+		return
+	}
+	unionCase, ok := facts.UnionCase(0)
+	if !ok {
+		fmt.Fprintf(sb, "%s missing_union_case\n", name)
+		return
+	}
 	fmt.Fprintf(sb,
 		"%s size=%d align=%d tag=%d/%d payload_offset=%d\n",
 		name,
-		layoutInfo.Size,
-		layoutInfo.Align,
-		layoutInfo.TagSize,
-		layoutInfo.TagAlign,
-		layoutInfo.PayloadOffset)
+		facts.Size,
+		facts.Align,
+		facts.TagSize,
+		facts.TagAlign,
+		unionCase.PayloadOffset)
 }

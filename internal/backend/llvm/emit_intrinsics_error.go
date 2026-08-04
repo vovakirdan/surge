@@ -193,7 +193,8 @@ func (fe *funcEmitter) emitErrorLikeValue(errType types.TypeID, msgVal, msgTy, c
 	if err != nil {
 		return "", err
 	}
-	if msgIdx < 0 || msgIdx >= len(layoutInfo.FieldOffsets) || codeIdx < 0 || codeIdx >= len(layoutInfo.FieldOffsets) {
+	fieldOffsets := layoutInfo.FieldOffsets()
+	if msgIdx < 0 || msgIdx >= len(fieldOffsets) || codeIdx < 0 || codeIdx >= len(fieldOffsets) {
 		return "", fmt.Errorf("error-like layout mismatch")
 	}
 	msgLLVM, err := llvmValueType(fe.emitter.types, msgFieldType)
@@ -225,11 +226,11 @@ func (fe *funcEmitter) emitErrorLikeValue(errType types.TypeID, msgVal, msgTy, c
 		}
 	}
 	msgPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", msgPtr, mem, layoutInfo.FieldOffsets[msgIdx])
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", msgPtr, mem, fieldOffsets[msgIdx])
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", msgTy, msgVal, msgPtr)
 
 	codePtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", codePtr, mem, layoutInfo.FieldOffsets[codeIdx])
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", codePtr, mem, fieldOffsets[codeIdx])
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", codeTy, codeVal, codePtr)
 	return mem, nil
 }
@@ -247,7 +248,8 @@ func (fe *funcEmitter) emitErrorLikeFields(errPtr string, errType types.TypeID) 
 	if err != nil {
 		return "", "", "", types.NoTypeID, err
 	}
-	if msgIdx < 0 || msgIdx >= len(layoutInfo.FieldOffsets) || codeIdx < 0 || codeIdx >= len(layoutInfo.FieldOffsets) {
+	fieldOffsets := layoutInfo.FieldOffsets()
+	if msgIdx < 0 || msgIdx >= len(fieldOffsets) || codeIdx < 0 || codeIdx >= len(fieldOffsets) {
 		return "", "", "", types.NoTypeID, fmt.Errorf("error-like layout mismatch")
 	}
 	msgLLVM, err := llvmValueType(fe.emitter.types, msgFieldType)
@@ -259,12 +261,12 @@ func (fe *funcEmitter) emitErrorLikeFields(errPtr string, errType types.TypeID) 
 		return "", "", "", types.NoTypeID, err
 	}
 	msgPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", msgPtr, errPtr, layoutInfo.FieldOffsets[msgIdx])
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", msgPtr, errPtr, fieldOffsets[msgIdx])
 	msgVal = fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", msgVal, msgLLVM, msgPtr)
 
 	codePtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", codePtr, errPtr, layoutInfo.FieldOffsets[codeIdx])
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", codePtr, errPtr, fieldOffsets[codeIdx])
 	codeVal = fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", codeVal, codeLLVM, codePtr)
 	return msgVal, codeVal, codeLLVM, codeFieldType, nil

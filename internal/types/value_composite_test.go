@@ -53,26 +53,33 @@ func TestIsValueComposite(t *testing.T) {
 	}
 }
 
-// The handle-backed builtins are structs by construction, which is exactly why
-// they need naming out: `Range`, `Task` and `Channel` carry a handle to
-// runtime-owned storage and are duplicated on their own terms.
-func TestIsValueCompositeExcludesHandleBackedNominals(t *testing.T) {
+// Runtime handles are identified by their core declaration, never by spelling.
+// Marking a family covers instances created both before and after the marker.
+func TestIsValueCompositeUsesExplicitRuntimeHandleIdentity(t *testing.T) {
 	for _, name := range []string{"Range", "Task", "Channel"} {
 		in := NewInterner()
 		in.Strings = source.NewInterner()
-		id := in.RegisterStruct(in.Strings.Intern(name), source.Span{})
-		if in.IsValueComposite(id) {
-			t.Errorf("%s: IsValueComposite = true, want false (handle-backed)", name)
-		}
-	}
+		nameID := in.Strings.Intern(name)
+		builtinDecl := source.Span{File: 1, Start: 10, End: 20}
+		userDecl := source.Span{File: 2, Start: 10, End: 20}
+		payloadA := in.RegisterStruct(in.Strings.Intern("PayloadA"), source.Span{})
+		payloadB := in.RegisterStruct(in.Strings.Intern("PayloadB"), source.Span{})
 
-	// A user type that merely SHARES a prefix with one of those names is a
-	// value composite: the exclusion is by exact name, not by resemblance.
-	in := NewInterner()
-	in.Strings = source.NewInterner()
-	id := in.RegisterStruct(in.Strings.Intern("RangeStats"), source.Span{})
-	if !in.IsValueComposite(id) {
-		t.Errorf("RangeStats: IsValueComposite = false, want true")
+		base := in.RegisterStruct(nameID, builtinDecl)
+		beforeMark := in.RegisterStructInstance(nameID, builtinDecl, []TypeID{payloadA})
+		in.MarkRuntimeHandleType(base)
+		afterMark := in.RegisterStructInstance(nameID, builtinDecl, []TypeID{payloadB})
+		for _, id := range []TypeID{base, beforeMark, afterMark} {
+			if in.IsValueComposite(id) {
+				t.Errorf("marked %s family member: IsValueComposite = true, want false", name)
+			}
+		}
+
+		userType := in.RegisterStruct(nameID, userDecl)
+		in.SetStructFields(userType, []StructField{{Type: in.Builtins().Int32}})
+		if !in.IsValueComposite(userType) {
+			t.Errorf("user-defined %s: IsValueComposite = false, want true", name)
+		}
 	}
 }
 
@@ -111,5 +118,36 @@ func TestIsValueCompositeResolvesAliases(t *testing.T) {
 
 	if !in.IsValueComposite(alias) {
 		t.Errorf("alias of a struct: IsValueComposite = false, want true")
+	}
+}
+
+func TestRuntimeHandlePayloadsAreAuthoritativeAndOwned(t *testing.T) {
+	in := NewInterner()
+	in.Strings = source.NewInterner()
+	payload := in.RegisterStruct(in.Strings.Intern("Payload"), source.Span{})
+	for _, name := range []string{"Range", "Task", "Channel"} {
+		nameID := in.Strings.Intern(name)
+		decl := source.Span{File: 1, Start: 10, End: 20}
+		base := in.RegisterStruct(nameID, decl)
+		in.MarkRuntimeHandleType(base)
+		id := in.RegisterStructInstance(nameID, decl, []TypeID{payload})
+		got, ok := in.RuntimeHandlePayloads(id)
+		if !ok || len(got) != 1 || got[0] != payload {
+			t.Fatalf("%s payloads = %v, %t; want [%d], true", name, got, ok, payload)
+		}
+		got[0] = NoTypeID
+		again, _ := in.RuntimeHandlePayloads(id)
+		if again[0] != payload {
+			t.Fatalf("%s payload metadata escaped by mutable slice", name)
+		}
+	}
+
+	plain := in.RegisterStruct(in.Strings.Intern("Plain"), source.Span{})
+	if payloads, ok := in.RuntimeHandlePayloads(plain); ok || payloads != nil {
+		t.Fatalf("plain struct reported as runtime handle: %v, %t", payloads, ok)
+	}
+	ref := in.Intern(MakeReference(payload, false))
+	if payloads, ok := in.RuntimeHandlePayloads(ref); ok || payloads != nil {
+		t.Fatalf("reference reported as runtime owner: %v, %t", payloads, ok)
 	}
 }

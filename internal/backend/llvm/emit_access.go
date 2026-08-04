@@ -39,14 +39,15 @@ func (fe *funcEmitter) emitFieldAccess(fa *mir.FieldAccess) (val, ty string, err
 	if err != nil {
 		return "", "", err
 	}
-	if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
+	fieldOffsets := layoutInfo.FieldOffsets()
+	if fieldIdx < 0 || fieldIdx >= len(fieldOffsets) {
 		return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
 	}
 	fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
 	if err != nil {
 		return "", "", err
 	}
-	off := layoutInfo.FieldOffsets[fieldIdx]
+	off := fieldOffsets[fieldIdx]
 	bytePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, objVal, off)
 	val = fe.nextTemp()
