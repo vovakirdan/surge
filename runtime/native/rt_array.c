@@ -26,7 +26,7 @@ const SurgeArrayViewLink* rt_array_views_head_locked(void) {
     return array_views;
 }
 
-SurgeArrayHeader* rt_array_unlink_view_locked(SurgeArrayHeader* view,
+SurgeArrayHeader* rt_array_unlink_view_locked(const SurgeArrayHeader* view,
                                               SurgeArrayViewLink** out_link) {
     *out_link = NULL;
     SurgeArrayViewLink** cursor = &array_views;

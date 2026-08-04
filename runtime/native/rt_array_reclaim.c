@@ -150,7 +150,7 @@ void rt_array_free_elems(void* array_header,
 
     rt_array_registry_lock();
     if (rt_array_header_is_view(header)) {
-        SurgeArrayHeader* base = rt_array_unlink_view_locked(header, &detached_link);
+        const SurgeArrayHeader* base = rt_array_unlink_view_locked(header, &detached_link);
         if (base != NULL && !array_base_has_views_locked(base)) {
             taken_orphan = array_orphan_take_locked(base);
         }

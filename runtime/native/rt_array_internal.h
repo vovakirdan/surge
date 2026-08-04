@@ -37,7 +37,7 @@ const SurgeArrayViewLink* rt_array_views_head_locked(void);
 // NULL for an unregistered view (fixed-array slices register no link).
 // The detached link lands in *out_link; the caller frees it after
 // releasing the registry lock.
-SurgeArrayHeader* rt_array_unlink_view_locked(SurgeArrayHeader* view,
+SurgeArrayHeader* rt_array_unlink_view_locked(const SurgeArrayHeader* view,
                                               SurgeArrayViewLink** out_link);
 
 static inline bool rt_array_header_is_view(const SurgeArrayHeader* header) {

@@ -69,13 +69,13 @@ static bool map_key_eq(const SurgeMap* map, uint64_t key_bits, uint64_t entry_bi
         case MAP_KEY_UINT:
             return key_bits == entry_bits;
         case MAP_KEY_BIGINT: {
-            void* left = (void*)(uintptr_t)key_bits;
-            void* right = (void*)(uintptr_t)entry_bits;
+            const void* left = (void*)(uintptr_t)key_bits;
+            const void* right = (void*)(uintptr_t)entry_bits;
             return rt_bigint_cmp(left, right) == 0;
         }
         case MAP_KEY_BIGUINT: {
-            void* left = (void*)(uintptr_t)key_bits;
-            void* right = (void*)(uintptr_t)entry_bits;
+            const void* left = (void*)(uintptr_t)key_bits;
+            const void* right = (void*)(uintptr_t)entry_bits;
             return rt_biguint_cmp(left, right) == 0;
         }
         default:
