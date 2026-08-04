@@ -236,6 +236,7 @@ def _run_json(record: RunRecord) -> dict[str, Any]:
         "counters": dict(sorted(measured.counters.values.items())),
         "batches": [
             {
+                "nonce": batch.nonce,
                 "elapsed_ns": batch.elapsed_ns,
                 "operation_latencies_ns": list(batch.operation_latencies_ns),
                 "checksum": batch.checksum,

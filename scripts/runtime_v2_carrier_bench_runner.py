@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import shutil
 import stat
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ class BatchResult:
     operation_latencies_ns: tuple[int, ...]
     checksum: str
     counters: Mapping[str, int | None]
+    nonce: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,17 +99,26 @@ def execute_manifest(
     manifest: Manifest,
     binaries: Mapping[Side, Mapping[str, BuiltFixture]],
     events: list[dict[str, object]],
+    protocol_sha256: str,
 ) -> dict[str, dict[Side, tuple[RunRecord, ...]]]:
     records: dict[str, dict[Side, tuple[RunRecord, ...]]] = {}
     for row_index, row in enumerate(manifest.rows):
-        _run_warmups(manifest, row_index, row, binaries, events)
+        _run_warmups(
+            manifest, row_index, row, binaries, events, protocol_sha256
+        )
         per_side: dict[Side, list[RunRecord]] = {"base": [], "candidate": []}
         for pair_index in range(manifest.protocol.measured_pairs):
             for side in paired_order(row_index, pair_index):
                 fixture = binaries[side][row.fixture]
                 per_side[side].append(
                     _run_measured(
-                        manifest, row, side, pair_index, fixture, events
+                        manifest,
+                        row,
+                        side,
+                        pair_index,
+                        fixture,
+                        events,
+                        protocol_sha256,
                     )
                 )
         records[row.row_id] = {
@@ -123,6 +134,7 @@ def _run_warmups(
     row: Row,
     binaries: Mapping[Side, Mapping[str, BuiltFixture]],
     events: list[dict[str, object]],
+    protocol_sha256: str,
 ) -> None:
     for warmup_index in range(manifest.protocol.warmups):
         for side in paired_order(row_index, warmup_index):
@@ -137,6 +149,7 @@ def _run_warmups(
                     phase="warmup",
                     run_index=warmup_index,
                     batch_index=batch_index,
+                    protocol_sha256=protocol_sha256,
                 )
 
 
@@ -147,6 +160,7 @@ def _run_measured(
     pair_index: int,
     fixture: BuiltFixture,
     events: list[dict[str, object]],
+    protocol_sha256: str,
 ) -> RunRecord:
     batches = tuple(
         _run_recorded_batch(
@@ -158,6 +172,7 @@ def _run_measured(
             phase="measured",
             run_index=pair_index,
             batch_index=batch_index,
+            protocol_sha256=protocol_sha256,
         )
         for batch_index in range(row.batches)
     )
@@ -191,6 +206,7 @@ def _run_recorded_batch(
     phase: str,
     run_index: int,
     batch_index: int,
+    protocol_sha256: str,
 ) -> BatchResult:
     event: dict[str, object] = {
         "row": row.row_id,
@@ -206,7 +222,9 @@ def _run_recorded_batch(
         f"run={run_index} batch={batch_index}"
     )
     try:
-        result = _run_batch(manifest, row, side, fixture)
+        result = _run_batch(
+            manifest, row, side, fixture, protocol_sha256
+        )
     except GateFailure as err:
         event["status"] = "failed"
         event["failure"] = str(err)
@@ -216,14 +234,20 @@ def _run_recorded_batch(
         "elapsed_ns": result.elapsed_ns,
         "operation_latencies_ns": list(result.operation_latencies_ns),
         "checksum": result.checksum,
+        "nonce": result.nonce,
         "counters": dict(sorted(result.counters.items())),
     }
     return result
 
 
 def _run_batch(
-    manifest: Manifest, row: Row, side: Side, fixture: BuiltFixture
+    manifest: Manifest,
+    row: Row,
+    side: Side,
+    fixture: BuiltFixture,
+    protocol_sha256: str,
 ) -> BatchResult:
+    nonce = secrets.token_hex(16)
     command = [
         "taskset",
         "-c",
@@ -238,6 +262,8 @@ def _run_batch(
         environment={
             "SURGE_CARRIER_BENCH_COUNTERS": "1",
             "SURGE_CARRIER_BENCH_PROBE": row.probe,
+            "SURGE_CARRIER_BENCH_NONCE": nonce,
+            "SURGE_CARRIER_BENCH_PROTOCOL_SHA256": protocol_sha256,
             "SURGE_SHARDS": str(manifest.shards),
             "SURGE_THREADS": str(manifest.threads),
         },
@@ -246,7 +272,14 @@ def _run_batch(
         metric.name for metric in manifest.metrics if metric.source == "fixture"
     }
     parsed = _parse_result(result.stdout, row, fixture_metrics)
-    runtime_metrics = _parse_runtime_counters(result.stderr, row, manifest, side)
+    runtime_metrics = _parse_runtime_counters(
+        result.stderr,
+        row,
+        manifest,
+        side,
+        expected_nonce=nonce,
+        expected_protocol_sha256=protocol_sha256,
+    )
     counters = {**parsed.counters, **runtime_metrics}
     if set(counters) != set(row.required_metrics):
         raise GateFailure(f"{row.row_id} combined metric schema drifted")
@@ -255,6 +288,7 @@ def _run_batch(
             f"{row.row_id} checksum {parsed.checksum!r}, want {row.expected_checksum!r}"
         )
     return BatchResult(
+        nonce=nonce,
         elapsed_ns=parsed.elapsed_ns,
         operation_latencies_ns=parsed.operation_latencies_ns,
         checksum=parsed.checksum,
@@ -348,7 +382,13 @@ def _parse_result(
 
 
 def _parse_runtime_counters(
-    stderr: str, row: Row, manifest: Manifest, side: Side
+    stderr: str,
+    row: Row,
+    manifest: Manifest,
+    side: Side,
+    *,
+    expected_nonce: str,
+    expected_protocol_sha256: str,
 ) -> dict[str, int | None]:
     metrics = [metric for metric in manifest.metrics if metric.source == "runtime_exit"]
     expected_numeric = {
@@ -381,7 +421,15 @@ def _parse_runtime_counters(
         raise GateFailure(
             f"{row.row_id} emitted malformed runtime counter JSON: {err}"
         ) from err
-    expected_keys = {"schema_version", "probe", "metrics"}
+    expected_keys = {
+        "schema_version",
+        "status",
+        "probe",
+        "nonce",
+        "protocol_sha256",
+        "metrics",
+        "error",
+    }
     if not isinstance(raw, dict) or set(raw) != expected_keys:
         actual = set(raw) if isinstance(raw, dict) else set()
         raise GateFailure(
@@ -392,8 +440,17 @@ def _parse_runtime_counters(
     schema_version = _non_negative_integer(
         raw["schema_version"], f"{row.row_id}.runtime_schema_version"
     )
-    if schema_version != 1 or raw["probe"] != row.probe:
+    if (
+        schema_version != 1
+        or raw["status"] != "ok"
+        or raw["error"] is not None
+        or raw["probe"] != row.probe
+    ):
         raise GateFailure(f"{row.row_id} runtime counter schema/probe mismatch")
+    if raw["nonce"] != expected_nonce:
+        raise GateFailure(f"{row.row_id} runtime counter nonce mismatch")
+    if raw["protocol_sha256"] != expected_protocol_sha256:
+        raise GateFailure(f"{row.row_id} runtime counter protocol hash mismatch")
     values = raw["metrics"]
     if not isinstance(values, dict) or set(values) != expected_numeric:
         actual = set(values) if isinstance(values, dict) else set()

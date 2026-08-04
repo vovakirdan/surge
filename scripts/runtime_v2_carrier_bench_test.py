@@ -632,8 +632,14 @@ class ResultAndReportTests(unittest.TestCase):
     def test_runtime_exit_metrics_are_typed_by_side(self) -> None:
         manifest = make_manifest()
         row = manifest.rows[0]
+        nonce = "b" * 32
+        protocol_sha256 = "a" * 64
+        identity = {
+            "expected_nonce": nonce,
+            "expected_protocol_sha256": protocol_sha256,
+        }
         self.assertEqual(
-            _parse_runtime_counters("", row, manifest, "base"),
+            _parse_runtime_counters("", row, manifest, "base", **identity),
             {
                 "bytes_copied": None,
                 "bytes_moved": None,
@@ -644,7 +650,10 @@ class ResultAndReportTests(unittest.TestCase):
         )
         record = {
             "schema_version": 1,
+            "status": "ok",
             "probe": row.probe,
+            "nonce": nonce,
+            "protocol_sha256": protocol_sha256,
             "metrics": {
                 "bytes_copied": 42,
                 "bytes_moved": 41,
@@ -652,6 +661,7 @@ class ResultAndReportTests(unittest.TestCase):
                 "credit_stalls": 0,
                 "peak_transport_bytes": 4096,
             },
+            "error": None,
         }
         self.assertEqual(
             _parse_runtime_counters(
@@ -659,17 +669,19 @@ class ResultAndReportTests(unittest.TestCase):
                 row,
                 manifest,
                 "candidate",
+                **identity,
             ),
             record["metrics"],
         )
         with self.assertRaisesRegex(GateFailure, "no required runtime counter"):
-            _parse_runtime_counters("", row, manifest, "candidate")
+            _parse_runtime_counters("", row, manifest, "candidate", **identity)
         with self.assertRaisesRegex(GateFailure, "unexpected runtime counter"):
             _parse_runtime_counters(
                 RUNTIME_COUNTER_PREFIX + json.dumps(record),
                 row,
                 manifest,
                 "base",
+                **identity,
             )
         record["schema_version"] = True
         with self.assertRaisesRegex(GateFailure, "non-negative integer"):
@@ -678,6 +690,7 @@ class ResultAndReportTests(unittest.TestCase):
                 row,
                 manifest,
                 "candidate",
+                **identity,
             )
         record["schema_version"] = 1
         duplicate = json.dumps(record).replace(
@@ -691,6 +704,7 @@ class ResultAndReportTests(unittest.TestCase):
                 row,
                 manifest,
                 "candidate",
+                **identity,
             )
         with self.assertRaisesRegex(GateFailure, "runtime metrics mismatch"):
             record["metrics"] = {}
@@ -699,6 +713,34 @@ class ResultAndReportTests(unittest.TestCase):
                 row,
                 manifest,
                 "candidate",
+                **identity,
+            )
+
+        record["metrics"] = {
+            "bytes_copied": 42,
+            "bytes_moved": 41,
+            "callback_count": 7,
+            "credit_stalls": 0,
+            "peak_transport_bytes": 4096,
+        }
+        record["nonce"] = "c" * 32
+        with self.assertRaisesRegex(GateFailure, "nonce mismatch"):
+            _parse_runtime_counters(
+                RUNTIME_COUNTER_PREFIX + json.dumps(record),
+                row,
+                manifest,
+                "candidate",
+                **identity,
+            )
+        record["nonce"] = nonce
+        record["protocol_sha256"] = "d" * 64
+        with self.assertRaisesRegex(GateFailure, "protocol hash mismatch"):
+            _parse_runtime_counters(
+                RUNTIME_COUNTER_PREFIX + json.dumps(record),
+                row,
+                manifest,
+                "candidate",
+                **identity,
             )
 
     def test_batch_failure_records_exact_attempt_context(self) -> None:
@@ -723,6 +765,7 @@ class ResultAndReportTests(unittest.TestCase):
                     phase="measured",
                     run_index=3,
                     batch_index=1,
+                    protocol_sha256="a" * 64,
                 )
         self.assertEqual(events[0]["status"], "failed")
         self.assertIn("command timed out", events[0]["failure"])

@@ -134,6 +134,7 @@ def main() -> int:
                         candidate_root=candidate_build_root,
                         temporary=Path(temporary),
                         events=events,
+                        protocol_sha256=manifest_sha256,
                     )
         phase = "scoring"
         report, failure = render_report(
@@ -192,6 +193,7 @@ def _build_and_run(
     candidate_root: Path,
     temporary: Path,
     events: list[dict[str, object]],
+    protocol_sha256: str,
 ) -> dict[str, dict[Side, tuple[RunRecord, ...]]]:
     base_surge = temporary / "base" / "surge"
     candidate_surge = temporary / "candidate" / "surge"
@@ -213,7 +215,7 @@ def _build_and_run(
             build_root=temporary / "candidate" / "fixtures",
         ),
     }
-    return execute_manifest(manifest, binaries, events)
+    return execute_manifest(manifest, binaries, events, protocol_sha256)
 
 
 @contextmanager
