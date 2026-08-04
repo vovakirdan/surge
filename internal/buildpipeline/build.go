@@ -2,7 +2,9 @@
 package buildpipeline
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -14,9 +16,11 @@ import (
 	"strings"
 	"time"
 
+	"surge/internal/abimanifest"
 	"surge/internal/backend/llvm"
 	"surge/internal/driver"
 	"surge/internal/mir"
+	"surge/internal/trace"
 	runtimeembed "surge/runtime"
 )
 
@@ -154,7 +158,8 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 
 		linkStart := time.Now()
 		emitStage(req.Progress, req.Files, StageLink, StatusWorking, nil, 0)
-		if err := buildLLVMOutput(tmpDir, outputPath, req.PrintCommands); err != nil {
+		abiDebug := trace.FromContext(ctx).Level() >= trace.LevelDebug
+		if err := buildLLVMOutput(tmpDir, outputPath, req.PrintCommands, abiDebug); err != nil {
 			emitStage(req.Progress, req.Files, StageLink, StatusError, err, 0)
 			return result, err
 		}
@@ -216,7 +221,7 @@ func ensureClangAvailable() error {
 	return nil
 }
 
-func buildLLVMOutput(tmpDir, outputPath string, printCommands bool) error {
+func buildLLVMOutput(tmpDir, outputPath string, printCommands, abiDebug bool) error {
 	runtimeDir, runtimeSources, err := extractNativeRuntime(tmpDir)
 	if err != nil {
 		return err
@@ -239,6 +244,13 @@ func buildLLVMOutput(tmpDir, outputPath string, printCommands bool) error {
 		args = append(args, "-pthread")
 	}
 	if err := runCommand(printCommands, "clang", args...); err != nil {
+		if isMissingTypedCarrierSentinel(err) {
+			return &typedCarrierABIMismatchError{
+				expectedHash: abimanifest.GeneratedManifestHash,
+				actualHash:   discoverRuntimeABIHash(runtimeDir),
+				debug:        abiDebug,
+			}
+		}
 		return err
 	}
 	return nil
@@ -384,10 +396,96 @@ func runCommand(printCommands bool, name string, args ...string) error {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			return err
-		}
-		return fmt.Errorf("%s: %s", name, msg)
+		return &commandError{name: name, stderr: msg, cause: err}
 	}
 	return nil
+}
+
+const typedCarrierABIRebuildMessage = "internal compiler/runtime typed-carrier ABI mismatch; rebuild or reinstall Surge so the compiler and runtime come from one revision"
+
+type commandError struct {
+	name   string
+	stderr string
+	cause  error
+}
+
+func (err *commandError) Error() string {
+	if err.stderr == "" {
+		return err.cause.Error()
+	}
+	return fmt.Sprintf("%s: %s", err.name, err.stderr)
+}
+
+func (err *commandError) Unwrap() error {
+	return err.cause
+}
+
+type typedCarrierABIMismatchError struct {
+	expectedHash string
+	actualHash   string
+	debug        bool
+}
+
+func (err *typedCarrierABIMismatchError) Error() string {
+	if !err.debug {
+		return typedCarrierABIRebuildMessage
+	}
+	actual := err.actualHash
+	if actual == "" {
+		actual = "absent"
+	}
+	return fmt.Sprintf("%s\ntrace: typed-carrier ABI expected=%s actual=%s missing_symbol=%s", typedCarrierABIRebuildMessage, err.expectedHash, actual, abimanifest.SentinelPrefix+err.expectedHash)
+}
+
+func isMissingTypedCarrierSentinel(err error) bool {
+	var commandErr *commandError
+	if !errors.As(err, &commandErr) || commandErr.stderr == "" {
+		return false
+	}
+	lower := strings.ToLower(commandErr.stderr)
+	undefined := strings.Contains(lower, "undefined reference") ||
+		strings.Contains(lower, "undefined symbol") ||
+		strings.Contains(lower, "undefined symbols") ||
+		strings.Contains(lower, "unresolved external symbol")
+	if !undefined {
+		return false
+	}
+	return containsExactLinkSymbol(commandErr.stderr, abimanifest.GeneratedSentinelSymbol)
+}
+
+func containsExactLinkSymbol(output, symbol string) bool {
+	for _, token := range strings.FieldsFunc(output, func(r rune) bool {
+		return r != '_' && (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9')
+	}) {
+		if token == symbol || token == "_"+symbol {
+			return true
+		}
+	}
+	return false
+}
+
+func discoverRuntimeABIHash(runtimeDir string) string {
+	// #nosec G304 -- runtimeDir is the private extraction directory created by this build.
+	data, err := os.ReadFile(filepath.Join(runtimeDir, "rt_typed_carrier_abi.generated.h"))
+	if err != nil {
+		return ""
+	}
+	const marker = "#define SURGE_TYPED_CARRIER_ABI_MANIFEST_HASH \""
+	start := bytes.Index(data, []byte(marker))
+	if start < 0 {
+		return ""
+	}
+	start += len(marker)
+	rest := data[start:]
+	end := bytes.IndexByte(rest, '"')
+	if end != 64 {
+		return ""
+	}
+	hash := string(rest[:end])
+	for _, char := range hash {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return ""
+		}
+	}
+	return hash
 }
