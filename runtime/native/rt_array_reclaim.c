@@ -1,5 +1,6 @@
 #include "rt.h"
 #include "rt_array_internal.h"
+#include "rt_carrier_bench.h"
 
 #include <pthread.h>
 #include <stdalign.h>
@@ -48,6 +49,7 @@ static uint64_t array_deferred_base_drops = 0;
 // Debug observability for the deferred-reclamation float: tests assert the
 // counter moved (or stayed put in cleanly nested rows).
 uint64_t rt_array_debug_deferred_base_drops(void) {
+    rt_carrier_bench_marker();
     rt_array_registry_lock();
     uint64_t value = array_deferred_base_drops;
     rt_array_registry_unlock();

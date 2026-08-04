@@ -1,4 +1,5 @@
 #include "rt.h"
+#include "rt_carrier_bench.h"
 #include <stddef.h>
 
 void __surge_start(void); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
@@ -28,6 +29,9 @@ char** rt_argv_raw = NULL;
 int main(int argc, char** argv) {
     rt_argc = argc;
     rt_argv_raw = argv;
+    if (rt_carrier_bench_init() != 0) {
+        return 1;
+    }
     __surge_start();
-    return 0;
+    return rt_carrier_bench_finish();
 }
