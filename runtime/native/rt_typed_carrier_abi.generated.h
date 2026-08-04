@@ -6,9 +6,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define SURGE_TYPED_CARRIER_ABI_VERSION UINT32_C(2)
-#define SURGE_TYPED_CARRIER_ABI_MANIFEST_HASH "c5e3f0de9adff4f64e85a1858e0aa26fa89388ed6b0e6e32a3ad1b3f28379330"
-#define SURGE_TYPED_CARRIER_ABI_SENTINEL __surge_runtime_abi_typed_carrier_v2_c5e3f0de9adff4f64e85a1858e0aa26fa89388ed6b0e6e32a3ad1b3f28379330
+#define SURGE_TYPED_CARRIER_ABI_MANIFEST_HASH "5c95dc2f8fe5939fcd21ee528515403a3b5bc8c083fd002e3b40f968b9b389e6"
+#define SURGE_TYPED_CARRIER_ABI_SENTINEL __surge_runtime_abi_typed_carrier_v2_5c95dc2f8fe5939fcd21ee528515403a3b5bc8c083fd002e3b40f968b9b389e6
 
 typedef uint64_t rt_value_flags;
 #define RT_VALUE_FLAG_COPY UINT64_C(1)
@@ -39,7 +43,6 @@ typedef uint8_t rt_cross_mode;
 #define RT_CROSS_CLONE UINT8_C(1)
 
 typedef struct rt_value_layout rt_value_layout;
-typedef struct rt_cross_sidecar_shape rt_cross_sidecar_shape;
 typedef struct rt_cross_allocation rt_cross_allocation;
 typedef struct rt_trace_visitor rt_trace_visitor;
 typedef struct rt_cross_allocator rt_cross_allocator;
@@ -71,12 +74,6 @@ struct rt_value_layout {
     rt_value_flags flags;
 };
 
-struct rt_cross_sidecar_shape {
-    size_t size;
-    size_t align;
-    size_t count;
-};
-
 struct rt_cross_allocation {
     void* storage;
     size_t size;
@@ -92,6 +89,7 @@ struct rt_cross_allocator {
     void* context;
     rt_cross_alloc_fn allocate;
     size_t remaining_bytes;
+    size_t remaining_allocations;
 };
 
 struct rt_cross_plan {
@@ -103,7 +101,6 @@ struct rt_cross_plan {
     size_t payload_align;
     size_t sidecar_bytes;
     size_t total_bytes;
-    const rt_cross_sidecar_shape* sidecars;
     size_t sidecar_count;
 };
 
@@ -152,7 +149,11 @@ struct rt_typed_carrier_handle {
 
 const uint8_t* rt_typed_carrier_abi_manifest_hash(void);
 extern const uint8_t rt_typed_carrier_abi_manifest_identity[];
-void __surge_runtime_abi_typed_carrier_v2_c5e3f0de9adff4f64e85a1858e0aa26fa89388ed6b0e6e32a3ad1b3f28379330(void);
+void __surge_runtime_abi_typed_carrier_v2_5c95dc2f8fe5939fcd21ee528515403a3b5bc8c083fd002e3b40f968b9b389e6(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 // clang-format on

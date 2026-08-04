@@ -12,6 +12,7 @@ func renderCHeader(manifest *Manifest, hash string) []byte {
 	out.WriteString("#ifndef SURGE_RUNTIME_NATIVE_RT_TYPED_CARRIER_ABI_GENERATED_H\n")
 	out.WriteString("#define SURGE_RUNTIME_NATIVE_RT_TYPED_CARRIER_ABI_GENERATED_H\n\n")
 	out.WriteString("#include <stddef.h>\n#include <stdint.h>\n\n")
+	out.WriteString("#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n")
 	fmt.Fprintf(&out, "#define SURGE_TYPED_CARRIER_ABI_VERSION UINT32_C(%d)\n", manifest.Version)
 	fmt.Fprintf(&out, "#define SURGE_TYPED_CARRIER_ABI_MANIFEST_HASH \"%s\"\n", hash)
 	fmt.Fprintf(&out, "#define SURGE_TYPED_CARRIER_ABI_SENTINEL %s%s\n\n", manifest.SentinelPrefix, hash)
@@ -49,6 +50,7 @@ func renderCHeader(manifest *Manifest, hash string) []byte {
 	}
 	fmt.Fprintf(&out, "extern const uint8_t rt_typed_carrier_abi_manifest_identity[];\n")
 	fmt.Fprintf(&out, "void %s%s(void);\n\n", manifest.SentinelPrefix, hash)
+	out.WriteString("#ifdef __cplusplus\n}\n#endif\n\n")
 	out.WriteString("#endif\n// clang-format on\n")
 	return []byte(out.String())
 }

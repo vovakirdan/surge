@@ -171,34 +171,6 @@
       ]
     },
     {
-      "name": "rt_cross_sidecar_shape",
-      "role": "cross_plan",
-      "semantics": "One newly allocated sidecar shape charged by a read-only cross plan.",
-      "fields": [
-        {
-          "name": "size",
-          "type": {
-            "kind": "usize"
-          },
-          "semantics": "Bytes in one sidecar instance."
-        },
-        {
-          "name": "align",
-          "type": {
-            "kind": "usize"
-          },
-          "semantics": "Required alignment for each sidecar instance."
-        },
-        {
-          "name": "count",
-          "type": {
-            "kind": "usize"
-          },
-          "semantics": "Number of identical newly owned sidecars."
-        }
-      ]
-    },
-    {
       "name": "rt_cross_allocation",
       "role": "cross_allocator",
       "semantics": "One successful allocation returned by the plan-limited crossing allocator.",
@@ -258,7 +230,7 @@
     {
       "name": "rt_cross_allocator",
       "role": "cross_allocator",
-      "semantics": "Mutable plan-limited allocator state; it cannot allocate outside the pre-reserved byte allowance.",
+      "semantics": "Mutable plan-limited allocator state with exact byte and allocation-count allowances. A nonzero request consumes its exact bytes and one allocation only after the callback returns OK; refusal leaves both allowances unchanged. Zero-size requests and allowance mismatches return PLAN_MISMATCH.",
       "fields": [
         {
           "name": "context",
@@ -284,14 +256,21 @@
           "type": {
             "kind": "usize"
           },
-          "semantics": "Unspent portion of the already reserved plan charge."
+          "semantics": "Unspent exact bytes from sidecar_bytes; decremented by the nonzero requested size only after a successful allocation."
+        },
+        {
+          "name": "remaining_allocations",
+          "type": {
+            "kind": "usize"
+          },
+          "semantics": "Unspent exact successful sidecar allocation calls from sidecar_count; decremented once only after a successful nonzero allocation."
         }
       ]
     },
     {
       "name": "rt_cross_plan",
       "role": "cross_plan",
-      "semantics": "Immutable preflight result passed unchanged to cross initialization before publication.",
+      "semantics": "POD, self-contained immutable preflight result passed unchanged to cross initialization. It owns no storage and contains no instance-dependent pointer; ops is process-static. Copies are independently safe for concurrent or reentrant reservation/apply. Refusing a reservation requires no plan cleanup.",
       "fields": [
         {
           "name": "ops",
@@ -344,7 +323,7 @@
           "type": {
             "kind": "usize"
           },
-          "semantics": "Total bytes of newly allocated transport-owned sidecars."
+          "semantics": "Exact aggregate bytes consumed by all successful transport-owned sidecar allocator calls."
         },
         {
           "name": "total_bytes",
@@ -354,21 +333,11 @@
           "semantics": "Complete charge reserved before source ownership can change."
         },
         {
-          "name": "sidecars",
-          "type": {
-            "kind": "pointer",
-            "name": "rt_cross_sidecar_shape",
-            "const": true,
-            "nullable": true
-          },
-          "semantics": "Read-only sidecar shape array, null exactly when sidecar_count is zero."
-        },
-        {
           "name": "sidecar_count",
           "type": {
             "kind": "usize"
           },
-          "semantics": "Number of entries in sidecars."
+          "semantics": "Exact number of successful nonzero transport-owned sidecar allocator calls required by apply."
         }
       ]
     },
@@ -670,7 +639,7 @@
     },
     {
       "name": "rt_cross_alloc_fn",
-      "semantics": "Allocates only from bytes already reserved by the immutable cross plan.",
+      "semantics": "Allocates one nonzero sidecar only from bytes and allocation count already reserved by the immutable cross plan. OK must return exactly the requested size and a compatible alignment; the caller then consumes that exact size and one allocation. A refusal leaves both allowances unchanged.",
       "result": {
         "type": {
           "kind": "named",
@@ -680,7 +649,7 @@
         "attributes": [
           "zeroext"
         ],
-        "semantics": "OK initializes out; a returned refusal leaves out storage null."
+        "semantics": "OK initializes out with the exact nonzero request; a returned refusal leaves out storage null and the allocator allowances unchanged. A zero-size request is forbidden and reported as PLAN_MISMATCH before this callback is invoked."
       },
       "parameters": [
         {
@@ -704,7 +673,7 @@
           },
           "ownership": "value",
           "attributes": [],
-          "semantics": "Requested charged bytes."
+          "semantics": "Requested exact charged bytes; always greater than zero."
         },
         {
           "name": "align",
@@ -982,7 +951,7 @@
     },
     {
       "name": "rt_value_plan_cross_fn",
-      "semantics": "Performs a read-only exact-byte preflight before any source ownership change.",
+      "semantics": "Performs a read-only exact-byte and exact-allocation-count preflight before any source ownership change. The source remains exclusively movable for move mode or immutable and pinned for clone mode through both plan and apply.",
       "result": {
         "type": {
           "kind": "named",
@@ -992,7 +961,7 @@
         "attributes": [
           "zeroext"
         ],
-        "semantics": "OK initializes out; every returned refusal leaves it empty and source owned."
+        "semantics": "OK initializes a self-contained plan; every returned refusal leaves it empty and source owned, with no plan cleanup required."
       },
       "parameters": [
         {
@@ -1009,7 +978,7 @@
             "nocapture",
             "readonly"
           ],
-          "semantics": "Exclusively movable or immutable pinned source."
+          "semantics": "Source held exclusively movable for move mode or immutable and pinned for clone mode continuously through plan and apply."
         },
         {
           "name": "mode",
@@ -1049,7 +1018,7 @@
     },
     {
       "name": "rt_value_cross_move_init_fn",
-      "semantics": "Applies one immutable plan and transfers a shard-movable source only after destination commit.",
+      "semantics": "Applies one immutable plan by deterministically re-walking the same exclusively movable source. It rejects ops, mode, layout, or exact byte/count totals mismatch before source commit, consumes only the plan-limited allowances, and transfers the source only after destination commit.",
       "result": {
         "type": {
           "kind": "named",
@@ -1059,7 +1028,7 @@
         "attributes": [
           "zeroext"
         ],
-        "semantics": "A returned failure rolls destination back to empty and leaves source owned."
+        "semantics": "A returned failure, including PLAN_MISMATCH from re-walk or allowance disagreement, rolls destination back to empty by dropping every partial destination child and leaves source owned. Success requires both remaining_bytes and remaining_allocations to be zero."
       },
       "parameters": [
         {
@@ -1092,7 +1061,7 @@
             "nocapture",
             "noalias"
           ],
-          "semantics": "Initialized source emptied only after commit."
+          "semantics": "Initialized exclusively movable source retained unchanged from plan until it is emptied only after commit."
         },
         {
           "name": "plan",
@@ -1108,7 +1077,7 @@
             "nocapture",
             "readonly"
           ],
-          "semantics": "Same immutable plan used for reservation."
+          "semantics": "Same self-contained immutable plan used for reservation; its ops descriptor is process-static."
         },
         {
           "name": "allocator",
@@ -1123,7 +1092,7 @@
             "nonnull",
             "nocapture"
           ],
-          "semantics": "Mutable allocator limited to the reserved plan allowance."
+          "semantics": "Mutable allocator initialized from sidecar_bytes and sidecar_count; refusal leaves allowances unchanged and successful return is accepted only when both reach zero."
         }
       ],
       "effects": [
@@ -1135,7 +1104,7 @@
     },
     {
       "name": "rt_value_cross_clone_init_fn",
-      "semantics": "Applies one immutable plan and performs compiler-generated crossing duplication without user __clone.",
+      "semantics": "Applies one immutable plan by deterministically re-walking the same immutable pinned source and performs compiler-generated crossing duplication without user __clone. It rejects ops, mode, layout, or exact byte/count totals mismatch before source commit.",
       "result": {
         "type": {
           "kind": "named",
@@ -1145,7 +1114,7 @@
         "attributes": [
           "zeroext"
         ],
-        "semantics": "A returned failure rolls destination back to empty and retains source ownership."
+        "semantics": "A returned failure, including PLAN_MISMATCH from re-walk or allowance disagreement, rolls destination back to empty by dropping every partial destination child and retains source ownership. Success requires both remaining_bytes and remaining_allocations to be zero."
       },
       "parameters": [
         {
@@ -1179,7 +1148,7 @@
             "noalias",
             "readonly"
           ],
-          "semantics": "Pinned source remains initialized and owned."
+          "semantics": "Immutable pinned source retained unchanged and owned continuously through plan and apply."
         },
         {
           "name": "plan",
@@ -1195,7 +1164,7 @@
             "nocapture",
             "readonly"
           ],
-          "semantics": "Same immutable plan used for reservation."
+          "semantics": "Same self-contained immutable plan used for reservation; its ops descriptor is process-static."
         },
         {
           "name": "allocator",
@@ -1210,7 +1179,7 @@
             "nonnull",
             "nocapture"
           ],
-          "semantics": "Mutable allocator limited to the reserved plan allowance."
+          "semantics": "Mutable allocator initialized from sidecar_bytes and sidecar_count; refusal leaves allowances unchanged and successful return is accepted only when both reach zero."
         }
       ],
       "effects": [

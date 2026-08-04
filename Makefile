@@ -116,12 +116,16 @@ runtime-v2-abi-manifest-check:
 		echo "Error: clang is required for the typed-carrier strong-link ABI proof"; \
 		exit 1; \
 	}
+	@command -v clang++ >/dev/null 2>&1 || { \
+		echo "Error: clang++ is required for the typed-carrier C++ linkage proof"; \
+		exit 1; \
+	}
 	@command -v llvm-nm >/dev/null 2>&1 || command -v nm >/dev/null 2>&1 || { \
 		echo "Error: llvm-nm or nm is required for the typed-carrier strong-link ABI proof"; \
 		exit 1; \
 	}
 	$(GO) run ./cmd/abi-manifest-gen -check
-	$(GO) test ./internal/abimanifest -count=1 --timeout 60s
+	SURGE_REQUIRE_TYPED_CARRIER_ABI_TOOLS=1 $(GO) test ./internal/abimanifest -count=1 --timeout 60s
 	SURGE_REQUIRE_TYPED_CARRIER_ABI_TOOLS=1 $(GO) test ./internal/backend/llvm -run '^TestTypedCarrier' -count=1 --timeout 120s
 	$(GO) test ./internal/buildpipeline -run '^Test(TypedCarrier|DiscoverRuntimeABIHash)' -count=1 --timeout 60s
 	$(GO) test ./internal/vm -run '^TestRuntimeV2TypedCarrier' -count=1 --timeout 60s

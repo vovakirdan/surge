@@ -167,6 +167,14 @@ arbitrary `__clone`. A non-Copy value crosses by ownership move; if source code
 explicitly calls `__clone`, that ordinary clone completes and is charged to the
 source owner before the resulting value enters the crossing by move.
 
+`CrossPlan` is a self-contained POD value, not an owned heap object. Apart from
+its process-static `ValueOps` pointer it contains only scalar layout and budget
+facts; it never borrows instance-dependent sidecar arrays and has no capacity,
+lifetime, release, or cleanup protocol. Copies of a successful plan may be used
+concurrently or reentrantly because each apply receives independent allocator
+allowances. The source remains exclusively movable for move mode, or immutable
+and pinned for clone mode, continuously from `plan_cross` through apply.
+
 Recoverable internal refusals that actually return to their caller (checked
 layout/capacity failure, stale generation, or a rejected publication) leave the
 destination empty and the source obligation unchanged, rolling back any
@@ -310,6 +318,11 @@ generated views must reproduce byte-for-byte from that manifest. The C side
 uses `_Static_assert`/`offsetof` checks for descriptor, slot, envelope, and
 public carrier-boundary layouts; compiler tests compare the generated function
 signatures, parameter attributes, size, and alignment.
+
+The generated public C header is also a direct-include C++ boundary: it wraps
+all external declarations in its own `extern "C"` guard. Consumers must not
+need an out-of-band wrapper to obtain the manifest-hash function and exact
+sentinel with C linkage.
 
 The generator hashes the canonical manifest content. Every native module
 requires a link symbol with the generated shape
@@ -471,23 +484,33 @@ runtime box fallback.
 
 ## 12. Far Values, Transport, And Anchored Resources
 
-Crossing first creates a read-only `CrossPlan` from an exclusively movable or
-immutable/pinned source. The plan fixes the descriptor, exact physical byte
-charge, alignment, and any newly allocated sidecar shapes; that same plan is
-passed to initialization. The sender reserves a destination-owned
-pending/envelope for the complete charge, then moves or cross-clones into its
-exact aligned payload. Publication is the ownership commit point. A plan/actual
-size mismatch is an internal invariant failure before publication, never an
-uncredited top-up after the source moved. If reservation or publication fails,
-the sender still owns the source and unwinds any partial destination. Stale
-generations, rejected routes, cancellation, and shutdown use the same
-descriptor to drop pending payloads.
+Crossing first creates a read-only `CrossPlan` from a source held exclusively
+movable or immutable and pinned through both plan and apply. The POD plan fixes
+the process-static descriptor, mode, exact physical byte charge, layout, exact
+aggregate `sidecar_bytes`, and exact `sidecar_count`; it owns no storage and
+contains no instance-dependent pointer. Reservation refusal therefore requires
+no plan cleanup. The sender reserves a destination-owned pending/envelope for
+the complete charge, then moves or cross-clones into its exact aligned payload.
 
-Cross initialization allocates only through a plan-limited allocator whose
-remaining byte allowance is part of the reservation. Exhausting that allowance
-fails before publication and rolls back; it cannot silently allocate outside
-credits. Once adopted, storage retained by the destination leaves the transport
-budget and becomes destination-owner memory, as specified below.
+Cross initialization deterministically re-walks the same source. Before source
+commit it refuses any difference in operations, mode, layout, byte totals, or
+allocation count as `PLAN_MISMATCH`; it never performs an uncredited top-up.
+Publication is the ownership commit point. On reservation, re-walk, allocation,
+or publication refusal, the sender still owns the source and every partial
+destination is rolled back to `EMPTY`. Stale generations, rejected routes,
+cancellation, and shutdown use the same descriptor to drop pending payloads.
+
+Cross initialization allocates sidecars only through a plan-limited allocator
+initialized with `remaining_bytes = sidecar_bytes` and
+`remaining_allocations = sidecar_count`. Zero-size allocation requests are
+forbidden and return `PLAN_MISMATCH` before invoking the allocator callback.
+Each callback that returns `OK` must supply exactly the requested nonzero bytes
+at compatible alignment; only then are those bytes and one allocation consumed.
+A refused callback leaves both allowances unchanged. Apply succeeds only when
+both allowances reach exactly zero; under-consumption, over-consumption, or an
+extra allocation is `PLAN_MISMATCH` and rolls back before source commit. Once
+adopted, storage retained by the destination leaves the transport budget and
+becomes destination-owner memory, as specified below.
 
 An anchored far handle remains owned by the caller. The remote body receives a
 separate generation-checked pinned lease/capability. The lease cannot outlive

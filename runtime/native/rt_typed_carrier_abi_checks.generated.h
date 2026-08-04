@@ -47,15 +47,6 @@ _Static_assert(offsetof(rt_value_layout, flags) == SURGE_ABI_ALIGN_UP(offsetof(r
 _Static_assert(_Alignof(rt_value_layout) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(rt_value_flags)), "rt_value_layout alignment drift");
 _Static_assert(sizeof(rt_value_layout) == SURGE_ABI_ALIGN_UP(offsetof(rt_value_layout, flags) + sizeof(((rt_value_layout*)0)->flags), _Alignof(rt_value_layout)), "rt_value_layout size drift");
 
-_Static_assert(sizeof(((rt_cross_sidecar_shape*)0)->size) == sizeof(size_t), "rt_cross_sidecar_shape.size type drift");
-_Static_assert(offsetof(rt_cross_sidecar_shape, size) == 0u, "rt_cross_sidecar_shape.size offset drift");
-_Static_assert(sizeof(((rt_cross_sidecar_shape*)0)->align) == sizeof(size_t), "rt_cross_sidecar_shape.align type drift");
-_Static_assert(offsetof(rt_cross_sidecar_shape, align) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_sidecar_shape, size) + sizeof(((rt_cross_sidecar_shape*)0)->size), _Alignof(size_t)), "rt_cross_sidecar_shape.align offset drift");
-_Static_assert(sizeof(((rt_cross_sidecar_shape*)0)->count) == sizeof(size_t), "rt_cross_sidecar_shape.count type drift");
-_Static_assert(offsetof(rt_cross_sidecar_shape, count) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_sidecar_shape, align) + sizeof(((rt_cross_sidecar_shape*)0)->align), _Alignof(size_t)), "rt_cross_sidecar_shape.count offset drift");
-_Static_assert(_Alignof(rt_cross_sidecar_shape) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), "rt_cross_sidecar_shape alignment drift");
-_Static_assert(sizeof(rt_cross_sidecar_shape) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_sidecar_shape, count) + sizeof(((rt_cross_sidecar_shape*)0)->count), _Alignof(rt_cross_sidecar_shape)), "rt_cross_sidecar_shape size drift");
-
 _Static_assert(sizeof(((rt_cross_allocation*)0)->storage) == sizeof(void*), "rt_cross_allocation.storage type drift");
 _Static_assert(offsetof(rt_cross_allocation, storage) == 0u, "rt_cross_allocation.storage offset drift");
 _Static_assert(sizeof(((rt_cross_allocation*)0)->size) == sizeof(size_t), "rt_cross_allocation.size type drift");
@@ -78,8 +69,10 @@ _Static_assert(sizeof(((rt_cross_allocator*)0)->allocate) == sizeof(rt_cross_all
 _Static_assert(offsetof(rt_cross_allocator, allocate) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_allocator, context) + sizeof(((rt_cross_allocator*)0)->context), _Alignof(rt_cross_alloc_fn)), "rt_cross_allocator.allocate offset drift");
 _Static_assert(sizeof(((rt_cross_allocator*)0)->remaining_bytes) == sizeof(size_t), "rt_cross_allocator.remaining_bytes type drift");
 _Static_assert(offsetof(rt_cross_allocator, remaining_bytes) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_allocator, allocate) + sizeof(((rt_cross_allocator*)0)->allocate), _Alignof(size_t)), "rt_cross_allocator.remaining_bytes offset drift");
-_Static_assert(_Alignof(rt_cross_allocator) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(void*)), _Alignof(rt_cross_alloc_fn)), _Alignof(size_t)), "rt_cross_allocator alignment drift");
-_Static_assert(sizeof(rt_cross_allocator) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_allocator, remaining_bytes) + sizeof(((rt_cross_allocator*)0)->remaining_bytes), _Alignof(rt_cross_allocator)), "rt_cross_allocator size drift");
+_Static_assert(sizeof(((rt_cross_allocator*)0)->remaining_allocations) == sizeof(size_t), "rt_cross_allocator.remaining_allocations type drift");
+_Static_assert(offsetof(rt_cross_allocator, remaining_allocations) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_allocator, remaining_bytes) + sizeof(((rt_cross_allocator*)0)->remaining_bytes), _Alignof(size_t)), "rt_cross_allocator.remaining_allocations offset drift");
+_Static_assert(_Alignof(rt_cross_allocator) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(void*)), _Alignof(rt_cross_alloc_fn)), _Alignof(size_t)), _Alignof(size_t)), "rt_cross_allocator alignment drift");
+_Static_assert(sizeof(rt_cross_allocator) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_allocator, remaining_allocations) + sizeof(((rt_cross_allocator*)0)->remaining_allocations), _Alignof(rt_cross_allocator)), "rt_cross_allocator size drift");
 
 _Static_assert(sizeof(((rt_cross_plan*)0)->ops) == sizeof(const rt_value_ops*), "rt_cross_plan.ops type drift");
 _Static_assert(offsetof(rt_cross_plan, ops) == 0u, "rt_cross_plan.ops offset drift");
@@ -97,11 +90,9 @@ _Static_assert(sizeof(((rt_cross_plan*)0)->sidecar_bytes) == sizeof(size_t), "rt
 _Static_assert(offsetof(rt_cross_plan, sidecar_bytes) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_plan, payload_align) + sizeof(((rt_cross_plan*)0)->payload_align), _Alignof(size_t)), "rt_cross_plan.sidecar_bytes offset drift");
 _Static_assert(sizeof(((rt_cross_plan*)0)->total_bytes) == sizeof(size_t), "rt_cross_plan.total_bytes type drift");
 _Static_assert(offsetof(rt_cross_plan, total_bytes) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_plan, sidecar_bytes) + sizeof(((rt_cross_plan*)0)->sidecar_bytes), _Alignof(size_t)), "rt_cross_plan.total_bytes offset drift");
-_Static_assert(sizeof(((rt_cross_plan*)0)->sidecars) == sizeof(const rt_cross_sidecar_shape*), "rt_cross_plan.sidecars type drift");
-_Static_assert(offsetof(rt_cross_plan, sidecars) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_plan, total_bytes) + sizeof(((rt_cross_plan*)0)->total_bytes), _Alignof(const rt_cross_sidecar_shape*)), "rt_cross_plan.sidecars offset drift");
 _Static_assert(sizeof(((rt_cross_plan*)0)->sidecar_count) == sizeof(size_t), "rt_cross_plan.sidecar_count type drift");
-_Static_assert(offsetof(rt_cross_plan, sidecar_count) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_plan, sidecars) + sizeof(((rt_cross_plan*)0)->sidecars), _Alignof(size_t)), "rt_cross_plan.sidecar_count offset drift");
-_Static_assert(_Alignof(rt_cross_plan) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(const rt_value_ops*)), _Alignof(rt_cross_mode)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(const rt_cross_sidecar_shape*)), _Alignof(size_t)), "rt_cross_plan alignment drift");
+_Static_assert(offsetof(rt_cross_plan, sidecar_count) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_plan, total_bytes) + sizeof(((rt_cross_plan*)0)->total_bytes), _Alignof(size_t)), "rt_cross_plan.sidecar_count offset drift");
+_Static_assert(_Alignof(rt_cross_plan) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(const rt_value_ops*)), _Alignof(rt_cross_mode)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), "rt_cross_plan alignment drift");
 _Static_assert(sizeof(rt_cross_plan) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_plan, sidecar_count) + sizeof(((rt_cross_plan*)0)->sidecar_count), _Alignof(rt_cross_plan)), "rt_cross_plan size drift");
 
 _Static_assert(sizeof(((rt_value_ops*)0)->layout) == sizeof(rt_value_layout), "rt_value_ops.layout type drift");

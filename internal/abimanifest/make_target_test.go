@@ -35,6 +35,7 @@ func TestRuntimeV2ABIManifestMakeTargetIsExplicitAndPhony(t *testing.T) {
 	}
 	for _, required := range []string{
 		"command -v clang",
+		"command -v clang++",
 		"command -v llvm-nm",
 		"command -v nm",
 		"SURGE_REQUIRE_TYPED_CARRIER_ABI_TOOLS=1",

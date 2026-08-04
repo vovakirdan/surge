@@ -181,6 +181,153 @@ func TestLogicalViewPreservesResultAndStatusSemantics(t *testing.T) {
 	}
 }
 
+func TestCrossPlanIsSelfContained(t *testing.T) {
+	manifest := loadTestManifest(t)
+	for _, record := range manifest.Records {
+		if record.Name == "rt_cross_sidecar_shape" {
+			t.Fatal("cross plan still exposes an instance-dependent sidecar shape record")
+		}
+	}
+	plan := findRecord(t, manifest, "rt_cross_plan")
+	wantFields := []string{
+		"ops",
+		"mode",
+		"envelope_bytes",
+		"payload_offset",
+		"payload_bytes",
+		"payload_align",
+		"sidecar_bytes",
+		"total_bytes",
+		"sidecar_count",
+	}
+	gotFields := make([]string, 0, len(plan.Fields))
+	for _, field := range plan.Fields {
+		gotFields = append(gotFields, field.Name)
+		if field.Name == "ops" {
+			if field.Type.Kind != "pointer" || field.Type.Name != "rt_value_ops" || field.Type.Const == nil || !*field.Type.Const || field.Type.Nullable == nil || *field.Type.Nullable {
+				t.Fatalf("cross plan ops is not a non-null process-static descriptor: %#v", field)
+			}
+			continue
+		}
+		if field.Type.Kind == "pointer" {
+			t.Fatalf("cross plan contains an instance-dependent pointer: %#v", field)
+		}
+	}
+	if !slices.Equal(gotFields, wantFields) {
+		t.Fatalf("cross plan fields = %v, want self-contained POD fields %v", gotFields, wantFields)
+	}
+	for _, phrase := range []string{"pod", "self-contained", "no instance-dependent pointer", "concurrent or reentrant", "no plan cleanup"} {
+		if !strings.Contains(strings.ToLower(plan.Semantics), phrase) {
+			t.Fatalf("cross plan semantics do not freeze %q: %q", phrase, plan.Semantics)
+		}
+	}
+}
+
+func TestCrossAllocatorExactAllowanceContract(t *testing.T) {
+	tests := []struct {
+		name               string
+		plannedBytes       uintptr
+		plannedAllocations uintptr
+		attempts           []crossAllocationAttempt
+		want               crossContractStatus
+	}{
+		{name: "exact", plannedBytes: 8, plannedAllocations: 2, attempts: []crossAllocationAttempt{acceptedCrossAllocation(3), acceptedCrossAllocation(5)}, want: crossContractOK},
+		{name: "bytes under-consumed", plannedBytes: 8, plannedAllocations: 2, attempts: []crossAllocationAttempt{acceptedCrossAllocation(3), acceptedCrossAllocation(4)}, want: crossContractPlanMismatch},
+		{name: "bytes over-consumed", plannedBytes: 8, plannedAllocations: 2, attempts: []crossAllocationAttempt{acceptedCrossAllocation(3), acceptedCrossAllocation(6)}, want: crossContractPlanMismatch},
+		{name: "count under-consumed", plannedBytes: 8, plannedAllocations: 3, attempts: []crossAllocationAttempt{acceptedCrossAllocation(3), acceptedCrossAllocation(5)}, want: crossContractPlanMismatch},
+		{name: "count over-consumed", plannedBytes: 8, plannedAllocations: 1, attempts: []crossAllocationAttempt{acceptedCrossAllocation(8), acceptedCrossAllocation(1)}, want: crossContractPlanMismatch},
+		{name: "zero-size phantom", plannedBytes: 0, plannedAllocations: 0, attempts: []crossAllocationAttempt{acceptedCrossAllocation(0)}, want: crossContractPlanMismatch},
+		{name: "allocator refusal", plannedBytes: 8, plannedAllocations: 1, attempts: []crossAllocationAttempt{refusedCrossAllocation(8)}, want: crossContractCapacity},
+		{name: "allocator result size mismatch", plannedBytes: 8, plannedAllocations: 1, attempts: []crossAllocationAttempt{{size: 8, align: 1, accepted: true, returnedSize: 7, returnedAlign: 1}}, want: crossContractPlanMismatch},
+		{name: "allocator result alignment mismatch", plannedBytes: 8, plannedAllocations: 1, attempts: []crossAllocationAttempt{{size: 8, align: 8, accepted: true, returnedSize: 8, returnedAlign: 4}}, want: crossContractPlanMismatch},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := applyCrossAllowanceContract(test.plannedBytes, test.plannedAllocations, test.attempts)
+			if result.status != test.want {
+				t.Fatalf("status = %s, want %s", result.status, test.want)
+			}
+			if test.want != crossContractOK && (!result.sourceOwned || !result.destinationEmpty) {
+				t.Fatalf("failure did not preserve source and empty destination: %#v", result)
+			}
+			if test.name == "allocator refusal" {
+				if result.remainingBytes != test.plannedBytes || result.remainingAllocations != test.plannedAllocations {
+					t.Fatalf("refusal consumed allowance: %#v", result)
+				}
+			}
+			if strings.HasPrefix(test.name, "allocator result") && (result.remainingBytes != test.plannedBytes || result.remainingAllocations != test.plannedAllocations) {
+				t.Fatalf("invalid allocator result consumed allowance: %#v", result)
+			}
+			if test.name == "zero-size phantom" && result.callbackCalls != 0 {
+				t.Fatalf("zero-size request reached allocator callback: %#v", result)
+			}
+			if test.want == crossContractOK && (result.remainingBytes != 0 || result.remainingAllocations != 0) {
+				t.Fatalf("success retained allowance: %#v", result)
+			}
+			if test.want == crossContractOK && result.successfulCalls != test.plannedAllocations {
+				t.Fatalf("sidecar_count does not equal successful calls: %#v", result)
+			}
+		})
+	}
+
+	manifest := loadTestManifest(t)
+	allocator := findRecord(t, manifest, "rt_cross_allocator")
+	gotFields := make([]string, 0, len(allocator.Fields))
+	for _, field := range allocator.Fields {
+		gotFields = append(gotFields, field.Name)
+	}
+	if want := []string{"context", "allocate", "remaining_bytes", "remaining_allocations"}; !slices.Equal(gotFields, want) {
+		t.Fatalf("allocator fields = %v, want %v", gotFields, want)
+	}
+	for _, phrase := range []string{"only after", "refusal leaves both allowances unchanged", "zero-size", "plan_mismatch"} {
+		if !strings.Contains(strings.ToLower(allocator.Semantics), phrase) {
+			t.Fatalf("allocator semantics do not freeze %q: %q", phrase, allocator.Semantics)
+		}
+	}
+}
+
+func TestCrossCallbacksFreezePreflightRewalkAndRollbackContract(t *testing.T) {
+	manifest := loadTestManifest(t)
+	planCross := findCallback(t, manifest, "rt_value_plan_cross_fn")
+	if want := []string{"plans_crossing", "reads_source", "writes_destination"}; !slices.Equal(planCross.Effects, want) {
+		t.Fatalf("plan_cross must remain read-only and non-allocating: got effects %v, want %v", planCross.Effects, want)
+	}
+	assertSemanticsContains(t, "plan_cross", planCross.Semantics,
+		"exact-byte", "exact-allocation-count", "exclusively movable", "immutable and pinned", "through both plan and apply")
+	assertSemanticsContains(t, "plan_cross result", planCross.Result.Semantics,
+		"self-contained plan", "source owned", "no plan cleanup")
+	assertSemanticsContains(t, "plan_cross source", planCross.Parameters[0].Semantics,
+		"exclusively movable", "immutable and pinned", "continuously through plan and apply")
+
+	allocatorCallback := findCallback(t, manifest, "rt_cross_alloc_fn")
+	assertSemanticsContains(t, "cross allocator callback", allocatorCallback.Semantics,
+		"nonzero sidecar", "exactly the requested size", "one allocation", "refusal leaves both allowances unchanged")
+	assertSemanticsContains(t, "cross allocator result", allocatorCallback.Result.Semantics,
+		"exact nonzero request", "allowances unchanged", "zero-size request", "plan_mismatch", "before this callback is invoked")
+
+	for _, name := range []string{"rt_value_cross_move_init_fn", "rt_value_cross_clone_init_fn"} {
+		callback := findCallback(t, manifest, name)
+		assertSemanticsContains(t, name, callback.Semantics,
+			"deterministically re-walking", "same", "ops", "mode", "layout", "totals mismatch", "before source commit")
+		assertSemanticsContains(t, name+" result", callback.Result.Semantics,
+			"plan_mismatch", "partial destination", "empty", "source own", "remaining_bytes", "remaining_allocations", "zero")
+		allocator := callback.Parameters[len(callback.Parameters)-1]
+		assertSemanticsContains(t, name+" allocator", allocator.Semantics,
+			"sidecar_bytes", "sidecar_count", "refusal leaves allowances unchanged", "both reach zero")
+	}
+
+	plan := findRecord(t, manifest, "rt_cross_plan")
+	for _, fieldName := range []string{"sidecar_bytes", "sidecar_count"} {
+		for _, field := range plan.Fields {
+			if field.Name != fieldName {
+				continue
+			}
+			assertSemanticsContains(t, "rt_cross_plan."+fieldName, field.Semantics, "exact", "successful", "sidecar allocator calls")
+			break
+		}
+	}
+}
+
 func TestGeneratorIsDeterministicAndFailsOnStaleView(t *testing.T) {
 	root := testRepoRoot(t)
 	manifest, canonical, err := LoadCanonical(filepath.Join(root, ManifestPath))
@@ -229,6 +376,83 @@ func TestManifestHasNoTargetOrProgramTypePolicy(t *testing.T) {
 			t.Fatalf("target/program-specific policy %q leaked into process-wide manifest", forbidden)
 		}
 	}
+}
+
+type crossContractStatus string
+
+const (
+	crossContractOK           crossContractStatus = "OK"
+	crossContractCapacity     crossContractStatus = "CAPACITY"
+	crossContractPlanMismatch crossContractStatus = "PLAN_MISMATCH"
+)
+
+type crossAllocationAttempt struct {
+	size          uintptr
+	align         uintptr
+	accepted      bool
+	returnedSize  uintptr
+	returnedAlign uintptr
+}
+
+type crossAllowanceResult struct {
+	status               crossContractStatus
+	remainingBytes       uintptr
+	remainingAllocations uintptr
+	callbackCalls        uintptr
+	successfulCalls      uintptr
+	sourceOwned          bool
+	destinationEmpty     bool
+}
+
+func acceptedCrossAllocation(size uintptr) crossAllocationAttempt {
+	return crossAllocationAttempt{size: size, align: 1, accepted: true, returnedSize: size, returnedAlign: 1}
+}
+
+func refusedCrossAllocation(size uintptr) crossAllocationAttempt {
+	return crossAllocationAttempt{size: size, align: 1, accepted: false}
+}
+
+// applyCrossAllowanceContract is a small executable oracle for the canonical
+// manifest semantics. Production crossing arrives in a later Epic 23b wave;
+// this keeps byte/count rollback behavior testable at the ABI-contract layer.
+func applyCrossAllowanceContract(plannedBytes, plannedAllocations uintptr, attempts []crossAllocationAttempt) crossAllowanceResult {
+	result := crossAllowanceResult{
+		status:               crossContractOK,
+		remainingBytes:       plannedBytes,
+		remainingAllocations: plannedAllocations,
+		sourceOwned:          true,
+		destinationEmpty:     true,
+	}
+	rollback := func(status crossContractStatus) crossAllowanceResult {
+		result.status = status
+		result.sourceOwned = true
+		result.destinationEmpty = true
+		return result
+	}
+	for _, attempt := range attempts {
+		if attempt.size == 0 || attempt.align == 0 || attempt.size > result.remainingBytes || result.remainingAllocations == 0 {
+			return rollback(crossContractPlanMismatch)
+		}
+		result.callbackCalls++
+		if !attempt.accepted {
+			return rollback(crossContractCapacity)
+		}
+		if attempt.returnedSize != attempt.size {
+			return rollback(crossContractPlanMismatch)
+		}
+		if attempt.returnedAlign < attempt.align || attempt.returnedAlign%attempt.align != 0 {
+			return rollback(crossContractPlanMismatch)
+		}
+		result.remainingBytes -= attempt.size
+		result.remainingAllocations--
+		result.successfulCalls++
+		result.destinationEmpty = false
+	}
+	if result.remainingBytes != 0 || result.remainingAllocations != 0 {
+		return rollback(crossContractPlanMismatch)
+	}
+	result.sourceOwned = false
+	return result
 }
 
 func cloneManifest(t *testing.T, manifest Manifest) Manifest {
@@ -282,6 +506,27 @@ func findCallback(t *testing.T, manifest Manifest, name string) Function {
 	}
 	t.Fatalf("callback %q missing", name)
 	return Function{}
+}
+
+func findRecord(t *testing.T, manifest Manifest, name string) Record {
+	t.Helper()
+	for _, record := range manifest.Records {
+		if record.Name == name {
+			return record
+		}
+	}
+	t.Fatalf("record %q missing", name)
+	return Record{}
+}
+
+func assertSemanticsContains(t *testing.T, subject, semantics string, phrases ...string) {
+	t.Helper()
+	lower := strings.ToLower(semantics)
+	for _, phrase := range phrases {
+		if !strings.Contains(lower, strings.ToLower(phrase)) {
+			t.Fatalf("%s semantics do not freeze %q: %q", subject, phrase, semantics)
+		}
+	}
 }
 
 func findEnumView(t *testing.T, view SchemaView, name string) EnumView {
