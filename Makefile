@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -95,6 +95,7 @@ runtime-v2-check:
 		exit 1; \
 	fi
 	$(MAKE) runtime-v2-abi-manifest-check
+	$(MAKE) runtime-v2-slot-control-check
 	@echo ">> Running Runtime V2 liveness gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=$(SURGE_MT_TIMEOUT_SCALE) $(GO) test ./internal/vm -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	$(MAKE) runtime-v2-ownership-check
@@ -150,6 +151,10 @@ runtime-v2-carrier-baseline-capture:
 
 runtime-v2-carrier-bench-final:
 	@$(MAKE) runtime-v2-carrier-bench
+
+runtime-v2-slot-control-check:
+	@echo ">> Running Runtime V2 owner-private slot-control gate"
+	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(Protocol|AddressAndUndefinedSanitizers|ThreadSanitizer|IsOwnerPrivateAndCallbackFree|RequiredSanitizersFailClosed)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 
 runtime-v2-ownership-check:
 	@echo ">> Running Runtime V2 ownership corpus gate"

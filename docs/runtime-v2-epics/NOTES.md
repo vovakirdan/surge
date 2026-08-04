@@ -6324,3 +6324,69 @@ owner checkpoint. Python launcher/user-site hermeticity is still only
 nonblocking `RV2-DEBT-144` and received no partial implementation. The exact
 new delta still requires the same independent reviewer before Wave A is
 accepted.
+## 2026-08-05 — Epic 23b Wave B3 owner-private SlotControl
+
+Wave B3 workstream C was implemented in an isolated worktree from
+`0372c0b721c8e1790ff27772ba3419c39efb67d4`. The native control embeds the
+owner's sole authoritative `rt_slot_header`; the frozen B2 header remains
+state-only, while descriptor identity, physical storage, logical identity,
+generation, epochs, read pins, exclusive claims, and destination reservations
+remain owner-private. Every `_locked` entry point requires the caller's
+existing owner lock(s), acquires no lock, and invokes no `ValueOps` callback.
+
+Claims are detached immutable tokens. Caller-owned read registrations bind the
+exact source epoch, operation kind, and complete destination
+identity/generation/epoch, so a byte copy can complete the same entitlement
+once but cannot be retagged or redirected. Destination reservations also retain
+the exact source claim fields. After a read callback returns, source retirement
+and destination publish/release/reject may occur in either order; an unresolved
+reservation survives a later source move and generation advance, while a token
+rewritten to the live generation is rejected. Rejected initialized
+destinations stay in `CLEANUP` until their fully initialized mock value is
+dropped outside the owner lock. Move/drop acceptance changes the source to
+`CLAIMED` before the callback and has no recoverable post-callback refusal;
+only failed cross-move with explicit source-unchanged/destination-empty evidence
+restores the source.
+
+Two implementation-review findings were blocking and fixed in scope. First,
+opaque operation identity plus caller storage metadata could describe the wrong
+physical range. Controls and tokens now retain the concrete process-static
+`rt_value_ops` descriptor; init requires exact `layout.size` (including ZST), a
+valid supplied alignment satisfying `layout.align`, checked `uintptr_t`
+interval arithmetic, and overlap checks use the descriptor's canonical size.
+Second, a read token could previously change one read kind into another while
+retaining its epoch; the exact registration binding now rejects kind and
+destination mutation without decrementing the pin. No nonblocking product
+finding remained to add to `DEBT.md` in this workstream.
+
+The checked-in C/Go acceptance harness covers multiple/out-of-order readers,
+double retirement and double terminal commit, stale generations, terminal
+same-generation reuse rejection, epoch mutation/order, every legal read
+destination ordering, readers blocking move/drop/reuse, copy/clone cleanup,
+irrevocable move/drop, guarded cross-move rollback, logical self versus physical
+overlap, adjacent and wrapping ranges, descriptor size/alignment mismatch, and
+same-address zero-sized values aligned to 64/256/4096 without payload access.
+All mock callbacks use `pthread_mutex_trylock` to prove invocation outside the
+owner lock. `runtime-v2-slot-control-check` is explicit, fail-closed on missing
+ASan/UBSan/TSan support, reachable from `runtime-v2-check`, and covered by the
+gate-integrity test.
+
+Author evidence before independent non-author review:
+
+- `make runtime-v2-slot-control-check` — PASS, including normal,
+  ASan+UBSan, TSan, structural, and mandatory-sanitizer mutation rows;
+- `go test ./internal/gatecheck -run '^TestGateSelectionsAreLiveAndComplete$'
+  -count=1` — PASS;
+- `make c-check` and `make cppcheck` — PASS;
+- `make runtime-v2-abi-manifest-check` — PASS;
+- B2 manifest/generated hashes remain byte-identical:
+  `5c95dc2f...89e6`, `3a911480...58c7`, `cc205422...c88`, and
+  `75f9ab67...2896`; their focused `git diff --exit-code` is empty;
+- `make golden-check` — PASS for both serialized runs; afterward there are no
+  `.golden-update.*` directories and tracked, untracked, ignored, and content
+  diffs under `testdata/golden` are empty;
+- `make check` — PASS, including default tests, lint, strict C compilation, and
+  file-size enforcement.
+
+This is author evidence only. The workstream is not accepted until the planned
+independent non-author review completes.
