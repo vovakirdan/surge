@@ -135,17 +135,17 @@ runtime-v2-abi-manifest-check:
 
 runtime-v2-carrier-check:
 	@echo ">> Running Runtime V2 carrier harness and bridge gate"
-	$(PYTHON) -m unittest discover -s scripts -p 'runtime_v2_carrier_bench*_test.py'
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts -p 'runtime_v2_carrier_bench*_test.py'
 	$(GO) test ./internal/buildpipeline -run '^TestRuntimeTestSyncPointBuildFlag$$' -count=1
 	$(GO) test -race ./internal/vm -run '^TestRuntimeV2CarrierBench' -count=1 --timeout 120s
 
 runtime-v2-carrier-bench:
 	@echo ">> Running fail-closed Runtime V2 carrier benchmark"
-	taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=final
+	PYTHONDONTWRITEBYTECODE=1 taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=final
 
 runtime-v2-carrier-baseline-capture:
 	@echo ">> Capturing complete Wave-A carrier RED baseline"
-	taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=wave-a --capture-wave-a-baseline
+	PYTHONDONTWRITEBYTECODE=1 taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=wave-a --capture-wave-a-baseline
 
 runtime-v2-carrier-bench-final:
 	@$(MAKE) runtime-v2-carrier-bench

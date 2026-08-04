@@ -112,7 +112,7 @@
   "harness_files": [
     {
       "path": "scripts/runtime_v2_carrier_bench.py",
-      "sha256": "96f022bd47824e238c720d5dd541449ed105a3029f508d96e816887eac671b4f"
+      "sha256": "0e9863d03308e25b8257ed9dcd83cb6a160329627878d6c4ec122136b7d1224f"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_build_test.py",
@@ -136,7 +136,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
-      "sha256": "1d8cdeb6d422c935e36f7d1c0852e183b14f66fb6cb9a50d6946bc51a0576fb5"
+      "sha256": "396a410af9e09e6a89faac374f838aa937d1c7a728e825f65dedf08810e49872"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",

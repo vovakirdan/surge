@@ -82,6 +82,17 @@ class CanonicalManifestTests(unittest.TestCase):
         for output in (direct, alias):
             self.assertIn("--phase=final", output)
             self.assertNotIn("--phase=wave-a", output)
+            self.assertIn("PYTHONDONTWRITEBYTECODE=1", output)
+
+        baseline = subprocess.run(
+            ["make", "-n", "runtime-v2-carrier-baseline-capture"],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        self.assertIn("--phase=wave-a --capture-wave-a-baseline", baseline)
+        self.assertIn("PYTHONDONTWRITEBYTECODE=1", baseline)
 
 
 if __name__ == "__main__":
