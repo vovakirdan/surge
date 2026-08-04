@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	frozenBaseCount  = 588
-	frozenBaseDigest = "90c6a51ec4caf54e00079779cf5af7560ec540900e4a82c7ba61aafbf476f2ce"
+	frozenBaseCount  = 604
+	frozenBaseDigest = "2e3b26d837f5ad32f3df92305424ec4f3df1f9f79762ec40661a75500783ce7c"
 )
 
 func TestLegacyCarrierManifestMatchesExactBaseCensus(t *testing.T) {
@@ -62,8 +62,11 @@ func assertFrozenManifestCounts(t *testing.T, manifest Manifest) {
 			}
 		}
 	}
-	if categoryCounts[categoryLLVMWordBridge] != 25 || categoryCounts[categoryNativePayloadBits] != 134 || len(nativeFiles) != 21 {
-		t.Fatalf("frozen manifest census = llvm:%d native tokens/files:%d/%d", categoryCounts[categoryLLVMWordBridge], categoryCounts[categoryNativePayloadBits], len(nativeFiles))
+	if categoryCounts[categoryLLVMWordBridge] != 25 || categoryCounts[categoryNativePayloadBits] != 134 ||
+		categoryCounts[categoryNativeWord] != 85 || len(nativeFiles) != 21 {
+		t.Fatalf("frozen manifest census = llvm:%d native payload/word/files:%d/%d/%d",
+			categoryCounts[categoryLLVMWordBridge], categoryCounts[categoryNativePayloadBits],
+			categoryCounts[categoryNativeWord], len(nativeFiles))
 	}
 }
 
@@ -149,6 +152,7 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 	t.Helper()
 	llvmWords := 0
 	nativeTokens := 0
+	nativeWords := 0
 	lines := make(map[string]struct{})
 	files := make(map[string]struct{})
 	for _, finding := range findings {
@@ -159,11 +163,15 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 			nativeTokens++
 			lines[finding.Path+":"+strconv.Itoa(finding.Line)] = struct{}{}
 			files[finding.Path] = struct{}{}
+		case categoryNativeWord:
+			nativeWords++
 		}
 	}
 	// The earlier raw-regex census was 143/133/21. A lexical scan excludes its
 	// nine comment/string matches and freezes the actual source carrier sites.
-	if llvmWords != 25 || nativeTokens != 134 || len(lines) != 124 || len(files) != 21 {
-		t.Fatalf("known census = llvm:%d native tokens/lines/files:%d/%d/%d", llvmWords, nativeTokens, len(lines), len(files))
+	// Context/dataflow matching adds 16 native word aliases to the earlier 69.
+	if llvmWords != 25 || nativeTokens != 134 || nativeWords != 85 || len(lines) != 124 || len(files) != 21 {
+		t.Fatalf("known census = llvm:%d native payload/word/lines/files:%d/%d/%d/%d",
+			llvmWords, nativeTokens, nativeWords, len(lines), len(files))
 	}
 }

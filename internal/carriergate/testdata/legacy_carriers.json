@@ -2,8 +2,8 @@
   "version": 1,
   "base_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd",
   "digest_algorithm": "sha256-length-prefixed-v1",
-  "baseline_count": 588,
-  "baseline_digest": "90c6a51ec4caf54e00079779cf5af7560ec540900e4a82c7ba61aafbf476f2ce",
+  "baseline_count": 604,
+  "baseline_digest": "2e3b26d837f5ad32f3df92305424ec4f3df1f9f79762ec40661a75500783ce7c",
   "scope": [
     {
       "root": "internal/asyncrt",
@@ -1654,9 +1654,16 @@
     {
       "id": "native-word-carrier",
       "retire_to_zero": true,
-      "baseline_count": 69,
-      "baseline_digest": "3a7fe8e2de2d114438445da990e3f092778a3a3e97c009a1ed4086e058a5be4a",
+      "baseline_count": 85,
+      "baseline_digest": "f963745f35b13cdb09f6e7b04b9491267039708dd3adcf069ea2d8cd44728a9d",
       "legacy": [
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "bits",
+          "evidence": "void rt_async_return(void* state, uint64_t bits);",
+          "ordinal": 1
+        },
         {
           "category": "native-word-carrier",
           "path": "runtime/native/rt.h",
@@ -1751,8 +1758,43 @@
         {
           "category": "native-word-carrier",
           "path": "runtime/native/rt.h",
+          "token": "out_prev",
+          "evidence": "bool rt_map_insert(void* map, uint64_t key_bits, uint64_t value_bits, uint64_t* out_prev);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_prev",
+          "evidence": "bool rt_map_remove(void* map, uint64_t key_bits, uint64_t* out_prev);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
           "token": "values",
           "evidence": "const uint64_t* values,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "result",
+          "evidence": "uint64_t result = __surge_blocking_call(job-\u003efn_id, job-\u003estate);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "bits",
+          "evidence": "uint64_t bits = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "bits",
+          "evidence": "uint64_t bits = sender-\u003eresume_bits;",
           "ordinal": 1
         },
         {
@@ -1760,6 +1802,13 @@
           "path": "runtime/native/rt_async_channel.c",
           "token": "out_bits",
           "evidence": "uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "val",
+          "evidence": "uint64_t val = 0;",
           "ordinal": 1
         },
         {
@@ -1802,6 +1851,13 @@
           "path": "runtime/native/rt_async_internal.h",
           "token": "out_bits",
           "evidence": "void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "bits",
+          "evidence": "void rt_async_return(void* state, uint64_t bits) {",
           "ordinal": 1
         },
         {
@@ -1883,6 +1939,13 @@
         },
         {
           "category": "native-word-carrier",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "val",
+          "evidence": "uint64_t val = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
           "path": "runtime/native/rt_far_channel.c",
           "token": "out_bits",
           "evidence": "uint64_t* out_bits) {",
@@ -1932,6 +1995,27 @@
         },
         {
           "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "out_send_bits",
+          "evidence": "select_return_arms(rt_remote_task_pending* pending, uint64_t* out_send_bits, uint64_t out_count) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "out_send_bits",
+          "evidence": "uint64_t* out_send_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "values",
+          "evidence": "uint64_t values[RT_FAR_CHANNEL_SELECT_MAX_ARMS];",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
           "path": "runtime/native/rt_immediate_on.c",
           "token": "out_bits",
           "evidence": "rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {",
@@ -1956,6 +2040,13 @@
           "path": "runtime/native/rt_immediate_on_anchored.c",
           "token": "out_bits",
           "evidence": "uint8_t rt_anchored_channel_recv(uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "entry_bits",
+          "evidence": "static bool map_key_eq(const SurgeMap* map, uint64_t key_bits, uint64_t entry_bits) {",
           "ordinal": 1
         },
         {
@@ -2038,6 +2129,20 @@
         {
           "category": "native-word-carrier",
           "path": "runtime/native/rt_map.c",
+          "token": "out_prev",
+          "evidence": "bool rt_map_insert(void* map_ptr, uint64_t key_bits, uint64_t value_bits, uint64_t* out_prev) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "out_prev",
+          "evidence": "bool rt_map_remove(void* map_ptr, uint64_t key_bits, uint64_t* out_prev) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
           "token": "value",
           "evidence": "uint64_t value;",
           "ordinal": 1
@@ -2111,6 +2216,13 @@
           "token": "out_bits",
           "evidence": "uint64_t* out_bits) {",
           "ordinal": 3
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_dispatch.c",
+          "token": "bits",
+          "evidence": "uint64_t bits = op == RT_REMOTE_TASK_OP_AWAIT ? task-\u003eresult_bits : 0;",
+          "ordinal": 1
         },
         {
           "category": "native-word-carrier",

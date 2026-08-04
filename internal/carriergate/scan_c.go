@@ -17,6 +17,7 @@ func scanCFile(filePath string, data []byte) []rawFinding {
 	findings = appendCMatches(findings, categoryNativeWord, filePath, data, clean, nativeWordPointerRE)
 	findings = appendCMatches(findings, categoryNativeWord, filePath, data, clean, nativeMapKeyBitsRE)
 	findings = appendCMatches(findings, categoryNativeWord, filePath, data, clean, nativeMapEntryRE)
+	findings = appendNativeWordContextMatches(findings, filePath, data, clean)
 	findings = appendCMatches(findings, categoryNumericDrop, filePath, data, clean, nativeDropRE)
 	return findings
 }
