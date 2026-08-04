@@ -137,6 +137,7 @@ func enclosingCBlockEnd(clean []byte, offset int) int {
 	if depth == 0 {
 		return offset
 	}
+	declarationDepth := depth
 	for relative := range len(clean) - offset {
 		index := offset + relative
 		switch clean[index] {
@@ -144,7 +145,7 @@ func enclosingCBlockEnd(clean []byte, offset int) int {
 			depth++
 		case '}':
 			depth--
-			if depth == 0 {
+			if depth < declarationDepth {
 				return index
 			}
 		}

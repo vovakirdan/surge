@@ -80,6 +80,32 @@ values[i] = i;
 	}
 }
 
+func TestScanCFlowAliasesDoNotCrossSiblingBlocks(t *testing.T) {
+	source := `void f(void) {
+    {
+        uint64_t word = 0;
+        use(word);
+    }
+    {
+        uint64_t word = 0;
+        word = sender->resume_bits;
+    }
+}`
+	findings := scanCFile("runtime/native/example.c", []byte(source))
+	got := make([]rawFinding, 0, 1)
+	for _, finding := range findings {
+		if finding.Category == categoryNativeWord && finding.Token == "word" {
+			got = append(got, finding)
+		}
+	}
+	if len(got) != 1 {
+		t.Fatalf("word findings = %+v, want only the carrier redeclaration", got)
+	}
+	if got[0].Line != 7 || got[0].Evidence != "uint64_t word = 0;" {
+		t.Fatalf("word finding = %+v, want second sibling declaration on line 7", got[0])
+	}
+}
+
 func nativeWordTokens(findings []rawFinding) []string {
 	tokens := make([]string, 0)
 	for _, finding := range findings {
