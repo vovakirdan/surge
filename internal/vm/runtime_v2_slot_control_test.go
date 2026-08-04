@@ -6,11 +6,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
 
-var slotControlModes = []string{"read", "exclusive", "stale", "ordering", "storage", "zst"}
+var slotControlModes = []string{
+	"read", "exclusive", "stale", "ordering", "storage", "zst", "descriptor", "identity",
+}
 
 func TestRuntimeV2SlotControlProtocol(t *testing.T) {
 	bin := buildRuntimeV2SlotControlHarness(t, "slot-control", nil, false)
@@ -52,6 +55,9 @@ func TestRuntimeV2SlotControlIsOwnerPrivateAndCallbackFree(t *testing.T) {
 		t.Fatal("SlotControl must not erase the concrete B2 descriptor identity")
 	}
 
+	callbackCall := regexp.MustCompile(
+		`(\.|->)\s*(move_init|copy_init|clone_init|drop_in_place|trace|plan_cross|cross_move_init|cross_clone_init)\s*\(`,
+	)
 	for _, name := range []string{
 		"rt_slot_control.h",
 		"rt_slot_control_internal.h",
@@ -60,10 +66,11 @@ func TestRuntimeV2SlotControlIsOwnerPrivateAndCallbackFree(t *testing.T) {
 		"rt_slot_exclusive.c",
 	} {
 		source := readSlotControlFile(t, filepath.Join(root, "runtime", "native", name))
-		for _, forbidden := range []string{"pthread_", "->move_init", "->copy_init", "->clone_init", "->drop_in_place", "->trace", "->cross_move_init"} {
-			if strings.Contains(source, forbidden) {
-				t.Fatalf("%s must not lock or invoke ValueOps callbacks; found %q", name, forbidden)
-			}
+		if strings.Contains(source, "pthread_") {
+			t.Fatalf("%s must not acquire a pthread lock", name)
+		}
+		if callback := callbackCall.FindString(source); callback != "" {
+			t.Fatalf("%s must not invoke ValueOps callbacks; found %q", name, callback)
 		}
 	}
 }
@@ -131,6 +138,8 @@ func buildRuntimeV2SlotControlHarness(
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_protocol_cases.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_order_cases.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_edge_cases.c"),
+		filepath.Join(root, "internal", "vm", "testdata", "slot_control_descriptor_cases.c"),
+		filepath.Join(root, "internal", "vm", "testdata", "slot_control_identity_cases.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_control.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_claim.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_exclusive.c"),

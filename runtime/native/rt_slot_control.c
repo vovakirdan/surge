@@ -6,6 +6,59 @@ static int rt_slot_alignment_valid(size_t alignment) {
     return alignment != 0 && (alignment & (alignment - 1)) == 0 && alignment <= (size_t)UINTPTR_MAX;
 }
 
+static int
+rt_slot_flag_matches_callback(rt_value_flags flags, rt_value_flags flag, int callback_present) {
+    return ((flags & flag) != 0) == (callback_present != 0);
+}
+
+static rt_slot_control_status rt_slot_operations_preflight(const rt_value_ops* operations) {
+    const rt_value_flags known_flags = RT_VALUE_FLAG_COPY | RT_VALUE_FLAG_CLONABLE |
+                                       RT_VALUE_FLAG_DROPPABLE | RT_VALUE_FLAG_TRACEABLE |
+                                       RT_VALUE_FLAG_SHARD_MOVABLE | RT_VALUE_FLAG_CROSS_CLONABLE;
+    if ((operations->layout.flags & ~known_flags) != 0 ||
+        !rt_slot_alignment_valid(operations->layout.align)) {
+        return RT_SLOT_CONTROL_INVALID_OPERATIONS;
+    }
+    if (operations->layout.size == 0) {
+        if (operations->layout.stride != 0) {
+            return RT_SLOT_CONTROL_INVALID_OPERATIONS;
+        }
+    } else {
+        size_t padding = operations->layout.align - 1;
+        if (operations->layout.size > SIZE_MAX - padding) {
+            return RT_SLOT_CONTROL_INVALID_OPERATIONS;
+        }
+        size_t stride = (operations->layout.size + padding) & ~padding;
+        if (operations->layout.stride != stride) {
+            return RT_SLOT_CONTROL_INVALID_OPERATIONS;
+        }
+    }
+#if SIZE_MAX > UINTPTR_MAX
+    if (operations->layout.size > (size_t)UINTPTR_MAX ||
+        operations->layout.stride > (size_t)UINTPTR_MAX) {
+        return RT_SLOT_CONTROL_INVALID_OPERATIONS;
+    }
+#endif
+    if (operations->move_init == NULL || operations->plan_cross == NULL ||
+        !rt_slot_flag_matches_callback(
+            operations->layout.flags, RT_VALUE_FLAG_COPY, operations->copy_init != NULL) ||
+        !rt_slot_flag_matches_callback(
+            operations->layout.flags, RT_VALUE_FLAG_CLONABLE, operations->clone_init != NULL) ||
+        !rt_slot_flag_matches_callback(
+            operations->layout.flags, RT_VALUE_FLAG_DROPPABLE, operations->drop_in_place != NULL) ||
+        !rt_slot_flag_matches_callback(
+            operations->layout.flags, RT_VALUE_FLAG_TRACEABLE, operations->trace != NULL) ||
+        !rt_slot_flag_matches_callback(operations->layout.flags,
+                                       RT_VALUE_FLAG_SHARD_MOVABLE,
+                                       operations->cross_move_init != NULL) ||
+        !rt_slot_flag_matches_callback(operations->layout.flags,
+                                       RT_VALUE_FLAG_CROSS_CLONABLE,
+                                       operations->cross_clone_init != NULL)) {
+        return RT_SLOT_CONTROL_INVALID_OPERATIONS;
+    }
+    return RT_SLOT_CONTROL_OK;
+}
+
 rt_slot_control_status rt_slot_storage_preflight(const rt_value_ops* operations,
                                                  uintptr_t address,
                                                  size_t size,
@@ -14,8 +67,11 @@ rt_slot_control_status rt_slot_storage_preflight(const rt_value_ops* operations,
     if (operations == NULL || address == 0 || out_end == NULL) {
         return RT_SLOT_CONTROL_INVALID_ARGUMENT;
     }
-    if (!rt_slot_alignment_valid(operations->layout.align) || size != operations->layout.size ||
-        alignment < operations->layout.align) {
+    rt_slot_control_status operations_status = rt_slot_operations_preflight(operations);
+    if (operations_status != RT_SLOT_CONTROL_OK) {
+        return operations_status;
+    }
+    if (size != operations->layout.size || alignment < operations->layout.align) {
         return RT_SLOT_CONTROL_LAYOUT_MISMATCH;
     }
     if (!rt_slot_alignment_valid(alignment) || address % (uintptr_t)alignment != 0) {
@@ -154,5 +210,7 @@ rt_slot_control_status rt_slot_begin_generation_locked(rt_slot_control* control,
     control->storage_size = storage_size;
     control->storage_alignment = storage_alignment;
     control->generation = generation;
+    control->reservation_source_control = NULL;
+    control->reservation_destination_control = NULL;
     return RT_SLOT_CONTROL_OK;
 }

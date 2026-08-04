@@ -84,6 +84,54 @@ static rt_carrier_status harness_cross_move(void* destination,
     return RT_CARRIER_STATUS_CAPACITY;
 }
 
+void harness_noop_move(void* destination, void* source) {
+    (void)destination;
+    (void)source;
+}
+
+void harness_noop_copy(void* destination, const void* source) {
+    (void)destination;
+    (void)source;
+}
+
+void harness_noop_drop(void* value) {
+    (void)value;
+}
+
+void harness_noop_trace(const void* value, const rt_trace_visitor* visitor) {
+    (void)value;
+    (void)visitor;
+}
+
+rt_carrier_status harness_noop_plan(const void* source, rt_cross_mode mode, rt_cross_plan* out) {
+    (void)source;
+    (void)mode;
+    (void)out;
+    return RT_CARRIER_STATUS_INVALID_STATE;
+}
+
+rt_carrier_status harness_noop_cross_move(void* destination,
+                                          void* source,
+                                          const rt_cross_plan* plan,
+                                          rt_cross_allocator* allocator) {
+    (void)destination;
+    (void)source;
+    (void)plan;
+    (void)allocator;
+    return RT_CARRIER_STATUS_INVALID_STATE;
+}
+
+rt_carrier_status harness_noop_cross_clone(void* destination,
+                                           const void* source,
+                                           const rt_cross_plan* plan,
+                                           rt_cross_allocator* allocator) {
+    (void)destination;
+    (void)source;
+    (void)plan;
+    (void)allocator;
+    return RT_CARRIER_STATUS_INVALID_STATE;
+}
+
 const rt_value_ops harness_value_ops = {
     .layout =
         {
@@ -98,6 +146,7 @@ const rt_value_ops harness_value_ops = {
     .clone_init = harness_copy_init,
     .drop_in_place = harness_drop_in_place,
     .trace = harness_trace,
+    .plan_cross = harness_noop_plan,
     .cross_move_init = harness_cross_move,
 };
 
@@ -108,6 +157,8 @@ const rt_value_ops harness_other_ops = {
             .align = _Alignof(mock_value),
             .stride = sizeof(mock_value),
         },
+    .move_init = harness_noop_move,
+    .plan_cross = harness_noop_plan,
 };
 
 int harness_fail(const char* expression, const char* file, int line) {
@@ -155,6 +206,12 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "zst") == 0) {
         return harness_case_zst();
+    }
+    if (strcmp(argv[1], "descriptor") == 0) {
+        return harness_case_descriptor();
+    }
+    if (strcmp(argv[1], "identity") == 0) {
+        return harness_case_identity();
     }
     return harness_fail("unknown mode", __FILE__, __LINE__);
 }

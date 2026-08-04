@@ -61,6 +61,8 @@ int harness_case_storage(void) {
                                  _Alignof(mock_value)) == RT_SLOT_CONTROL_LAYOUT_MISMATCH);
     const rt_value_ops aligned_operations = {
         .layout = {.size = 8, .align = 16, .stride = 16},
+        .move_init = harness_noop_move,
+        .plan_cross = harness_noop_plan,
     };
     REQUIRE(rt_slot_control_init(&invalid, 36, &aligned_operations, 1, base + 32, 8, 8) ==
             RT_SLOT_CONTROL_LAYOUT_MISMATCH);
@@ -68,11 +70,15 @@ int harness_case_storage(void) {
             RT_SLOT_CONTROL_OK);
     const rt_value_ops invalid_descriptor = {
         .layout = {.size = 0, .align = 3, .stride = 0},
+        .move_init = harness_noop_move,
+        .plan_cross = harness_noop_plan,
     };
     REQUIRE(rt_slot_control_init(&invalid, 37, &invalid_descriptor, 1, base, 0, 4) ==
-            RT_SLOT_CONTROL_LAYOUT_MISMATCH);
+            RT_SLOT_CONTROL_INVALID_OPERATIONS);
     const rt_value_ops byte_operations = {
         .layout = {.size = 8, .align = 1, .stride = 8},
+        .move_init = harness_noop_move,
+        .plan_cross = harness_noop_plan,
     };
     REQUIRE(rt_slot_control_init(&invalid, 38, &byte_operations, 1, base, 8, 3) ==
             RT_SLOT_CONTROL_STORAGE_MISALIGNED);
@@ -96,9 +102,24 @@ int harness_case_zst(void) {
     const uintptr_t address = (uintptr_t)&owner_token[sizeof(owner_token)];
     const size_t alignments[] = {64, 256, 4096};
     const rt_value_ops operations[] = {
-        {.layout = {.size = 0, .align = 64, .stride = 0, .flags = RT_VALUE_FLAG_COPY}},
-        {.layout = {.size = 0, .align = 256, .stride = 0, .flags = RT_VALUE_FLAG_COPY}},
-        {.layout = {.size = 0, .align = 4096, .stride = 0, .flags = RT_VALUE_FLAG_COPY}},
+        {
+            .layout = {.size = 0, .align = 64, .stride = 0, .flags = RT_VALUE_FLAG_COPY},
+            .move_init = harness_noop_move,
+            .copy_init = harness_noop_copy,
+            .plan_cross = harness_noop_plan,
+        },
+        {
+            .layout = {.size = 0, .align = 256, .stride = 0, .flags = RT_VALUE_FLAG_COPY},
+            .move_init = harness_noop_move,
+            .copy_init = harness_noop_copy,
+            .plan_cross = harness_noop_plan,
+        },
+        {
+            .layout = {.size = 0, .align = 4096, .stride = 0, .flags = RT_VALUE_FLAG_COPY},
+            .move_init = harness_noop_move,
+            .copy_init = harness_noop_copy,
+            .plan_cross = harness_noop_plan,
+        },
     };
     harness_reset_callbacks();
     for (size_t index = 0; index < sizeof(alignments) / sizeof(alignments[0]); index++) {
@@ -132,6 +153,11 @@ int harness_case_zst(void) {
         REQUIRE(rt_slot_release_empty_destination_locked(&destination, &token) ==
                 RT_SLOT_CONTROL_OK);
         REQUIRE(rt_slot_retire_read_locked(&source, &token) == RT_SLOT_CONTROL_OK);
+        rt_claim_token drop_token;
+        REQUIRE(rt_slot_claim_exclusive_locked(
+                    &source, NULL, RT_SLOT_CLAIM_DROP, 1, 0, &drop_token) == RT_SLOT_CONTROL_OK);
+        REQUIRE(rt_slot_commit_drop_locked(&source, &drop_token) == RT_SLOT_CONTROL_OK);
+        REQUIRE(rt_slot_commit_drop_locked(&source, &drop_token) == RT_SLOT_CONTROL_INVARIANT);
         REQUIRE(pthread_mutex_unlock(&harness_owner_lock) == 0);
     }
     REQUIRE(harness_callback_calls == 0);

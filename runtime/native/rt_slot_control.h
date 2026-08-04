@@ -26,6 +26,8 @@ typedef enum {
     RT_SLOT_CONTROL_INVALID_TOKEN = 11,
     RT_SLOT_CONTROL_INVARIANT = 12,
     RT_SLOT_CONTROL_LAYOUT_MISMATCH = 13,
+    RT_SLOT_CONTROL_INVALID_OPERATIONS = 14,
+    RT_SLOT_CONTROL_UNSUPPORTED_OPERATION = 15,
 } rt_slot_control_status;
 
 typedef enum {
@@ -46,10 +48,14 @@ typedef enum {
     RT_SLOT_RESERVATION_CLEANUP = 3,
 } rt_slot_reservation_phase;
 
+typedef struct rt_slot_control rt_slot_control;
+
 // Allocation-free reader record supplied by the owner. Its address and fields
 // must remain stable while active; initialize it only before linking a claim.
 typedef struct rt_slot_read_claim {
     struct rt_slot_read_claim* next;
+    const rt_slot_control* source_control;
+    const rt_slot_control* destination_control;
     uint64_t epoch;
     uint64_t destination_identity;
     uint64_t destination_generation;
@@ -59,10 +65,13 @@ typedef struct rt_slot_read_claim {
     uint8_t active;
 } rt_slot_read_claim;
 
-// Written once by a successful claim operation. All completion APIs accept a
-// const token and never mutate it; copying a token cannot create another
-// entitlement because the owner validates its registered epoch exactly once.
+// Written once by a successful claim operation. A failed claim clears its
+// non-null output to a zero token. All completion APIs accept a const token and
+// never mutate it; copying a token cannot create another entitlement because
+// the owner validates its registered epoch exactly once.
 typedef struct {
+    const rt_slot_control* source_control;
+    const rt_slot_control* destination_control;
     const rt_value_ops* operations;
     uint64_t source_identity;
     uint64_t source_generation;
@@ -74,7 +83,7 @@ typedef struct {
     uint8_t has_destination;
 } rt_claim_token;
 
-typedef struct {
+struct rt_slot_control {
     rt_slot_header slot;
     // The process-static B2 descriptor outlives this control and every token.
     const rt_value_ops* operations;
@@ -86,6 +95,8 @@ typedef struct {
     uint64_t next_epoch;
     rt_slot_read_claim* readers;
     uint64_t exclusive_epoch;
+    const rt_slot_control* reservation_source_control;
+    const rt_slot_control* reservation_destination_control;
     uint64_t reservation_source_identity;
     uint64_t reservation_source_generation;
     uint64_t reservation_source_epoch;
@@ -94,7 +105,7 @@ typedef struct {
     rt_slot_claim_kind exclusive_kind;
     rt_slot_claim_kind reservation_kind;
     rt_slot_reservation_phase reservation_phase;
-} rt_slot_control;
+};
 
 rt_slot_control_status rt_slot_storage_preflight(const rt_value_ops* operations,
                                                  uintptr_t address,
@@ -115,6 +126,7 @@ void rt_slot_read_claim_init(rt_slot_read_claim* claim);
 
 // Every function suffixed _locked requires the owner lock(s) protecting all
 // supplied controls. No function here acquires a lock or invokes a callback.
+// Controls must stay at stable addresses while any claim token is live.
 rt_slot_control_status rt_slot_publish_initial_locked(rt_slot_control* control,
                                                       uint64_t generation);
 rt_slot_control_status rt_slot_begin_generation_locked(rt_slot_control* control,
@@ -161,6 +173,9 @@ rt_slot_control_status rt_slot_release_empty_destination_locked(rt_slot_control*
 rt_slot_control_status rt_slot_commit_move_locked(rt_slot_control* source,
                                                   rt_slot_control* destination,
                                                   const rt_claim_token* token);
+// DROP is a lifecycle transition for every initialized value. When the
+// descriptor is not DROPPABLE, the owner performs no callback and commits the
+// claim directly; trivial scalars and ZSTs therefore remain deletable.
 rt_slot_control_status rt_slot_commit_drop_locked(rt_slot_control* source,
                                                   const rt_claim_token* token);
 

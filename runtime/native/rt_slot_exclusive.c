@@ -11,6 +11,9 @@ static rt_slot_control_status rt_slot_validate_exclusive_begin(const rt_slot_con
     if (rt_slot_kind_has_destination(kind) != (destination != NULL)) {
         return RT_SLOT_CONTROL_INVALID_ARGUMENT;
     }
+    if (!rt_slot_operations_support_kind(source->operations, kind)) {
+        return RT_SLOT_CONTROL_UNSUPPORTED_OPERATION;
+    }
     if (source->generation != source_generation) {
         return RT_SLOT_CONTROL_STALE;
     }

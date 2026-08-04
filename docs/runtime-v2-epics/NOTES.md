@@ -6335,10 +6335,12 @@ remain owner-private. Every `_locked` entry point requires the caller's
 existing owner lock(s), acquires no lock, and invokes no `ValueOps` callback.
 
 Claims are detached immutable tokens. Caller-owned read registrations bind the
-exact source epoch, operation kind, and complete destination
-identity/generation/epoch, so a byte copy can complete the same entitlement
-once but cannot be retagged or redirected. Destination reservations also retain
-the exact source claim fields. After a read callback returns, source retirement
+exact stable source/destination controls, source epoch, operation kind, and
+complete destination identity/generation/epoch, so a byte copy can complete the
+same entitlement once but cannot be retagged, redirected, or replayed against a
+distinct control pair with identical scalar fields. Destination reservations
+retain the same exact control binding and source claim fields. After a read
+callback returns, source retirement
 and destination publish/release/reject may occur in either order; an unresolved
 reservation survives a later source move and generation advance, while a token
 rewritten to the live generation is rejected. Rejected initialized
@@ -6366,10 +6368,14 @@ destination ordering, readers blocking move/drop/reuse, copy/clone cleanup,
 irrevocable move/drop, guarded cross-move rollback, logical self versus physical
 overlap, adjacent and wrapping ranges, descriptor size/alignment mismatch, and
 same-address zero-sized values aligned to 64/256/4096 without payload access.
-All mock callbacks use `pthread_mutex_trylock` to prove invocation outside the
-owner lock. `runtime-v2-slot-control-check` is explicit, fail-closed on missing
-ASan/UBSan/TSan support, reachable from `runtime-v2-check`, and covered by the
-gate-integrity test.
+The production SlotControl headers and sources are structurally checked to
+contain no `ValueOps` call expression. The stateful single-thread mock callbacks
+also use `pthread_mutex_trylock` as a harness sequencing check, but that row and
+TSan instrumentation are not a behavioural proof against owner concurrency;
+the final OpTransaction/owner integration wave owns real lock-held and pthread
+negative controls. `runtime-v2-slot-control-check` is explicit, fail-closed on
+missing ASan/UBSan/TSan support, reachable from `runtime-v2-check`, and covered
+by the gate-integrity test.
 
 Author evidence before independent non-author review:
 
@@ -6390,3 +6396,52 @@ Author evidence before independent non-author review:
 
 This is author evidence only. The workstream is not accepted until the planned
 independent non-author review completes.
+
+### Independent-review correction
+
+The first independent review returned `REQUEST_CHANGES` with two P1 findings.
+First, init accepted malformed B2 operation descriptors and claims could start
+capabilities absent from their descriptor. Slot init now validates the complete
+frozen contract before mutating its output: only known flags; canonical checked
+size/alignment/stride including ZST; mandatory `move_init` and `plan_cross`;
+and each optional callback present if and only if its exact capability flag is
+set. Claim entry points reject unsupported copy/clone/trace/cross-move/
+cross-clone before owner state, epoch, reader, or reservation mutation, while
+still clearing the output token deterministically on failure. Move remains
+mandatory. Drop remains a lifecycle transition for every initialized value, so
+a trivial non-DROPPABLE scalar or ZST performs no callback and commits directly.
+
+Second, logical ids, generations, epochs, operation identity, and kind could be
+identical in two distinct control pairs. Tokens, read registrations, and
+destination reservations now also retain exact source/destination control
+pointers; controls are pinned at stable addresses while a token is live. The
+acceptance matrix constructs such scalar-identical pairs and proves cross-pair
+read publication, read retirement, and exclusive move commit are rejected
+without consuming either entitlement or mutating the target pair. Own-token
+completion remains exactly once.
+
+The correction adds exhaustive flag/callback polarity negatives, layout and
+mandatory-callback negatives, coherent ZST descriptors, unsupported-capability
+no-mutation rows, callback-free trivial drop, and scalar-collision replay rows.
+The proof boundary remains deliberately narrow: source inspection proves this
+component contains no callback invocation; actual owner-lock concurrency proof
+belongs to the final OpTransaction/owner integration wave.
+
+Correction author evidence:
+
+- `make runtime-v2-slot-control-check` — PASS for all eight modes under normal,
+  ASan+UBSan, and mandatory TSan runs, plus the structural and fail-closed rows;
+- `go test ./internal/gatecheck -run '^TestGateSelectionsAreLiveAndComplete$'
+  -count=1`, `make c-check`, and `make cppcheck` — PASS;
+- `make runtime-v2-abi-manifest-check` — PASS; the frozen manifest, C header,
+  C checks, and LLVM Go sidecar remain byte-identical at
+  `5c95dc2f...89e6`, `3a911480...58c7`, `cc205422...c88`, and
+  `75f9ab67...2896`, with an empty focused diff;
+- `make check` — PASS, including default tests, lint, strict C compilation, and
+  file-size enforcement;
+- `make golden-check` — PASS for both serialized runs; afterward no
+  `.golden-update.*` directory and no tracked, untracked, ignored, or content
+  diff exists under `testdata/golden`.
+
+This is correction-author evidence. Acceptance still requires a fresh
+independent non-author re-review of the corrected range.

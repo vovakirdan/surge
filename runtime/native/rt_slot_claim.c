@@ -13,6 +13,9 @@ static rt_slot_control_status rt_slot_validate_read_begin(const rt_slot_control*
     if (rt_slot_kind_has_destination(kind) != (destination != NULL)) {
         return RT_SLOT_CONTROL_INVALID_ARGUMENT;
     }
+    if (!rt_slot_operations_support_kind(source->operations, kind)) {
+        return RT_SLOT_CONTROL_UNSUPPORTED_OPERATION;
+    }
     if (source->generation != source_generation) {
         return RT_SLOT_CONTROL_STALE;
     }
@@ -61,6 +64,8 @@ rt_slot_control_status rt_slot_claim_read_locked(rt_slot_control* source,
     uint64_t source_epoch = rt_slot_take_epoch(source);
     uint64_t destination_epoch = 0;
     registration->active = 1;
+    registration->source_control = source;
+    registration->destination_control = destination;
     registration->epoch = source_epoch;
     registration->next = source->readers;
     source->readers = registration;
@@ -89,7 +94,7 @@ rt_slot_control_status rt_slot_retire_read_locked(rt_slot_control* source,
     if (source == NULL || token == NULL || !rt_slot_kind_is_read(token->kind)) {
         return RT_SLOT_CONTROL_INVALID_ARGUMENT;
     }
-    if (token->source_identity != source->logical_identity ||
+    if (token->source_control != source || token->source_identity != source->logical_identity ||
         token->operations != source->operations) {
         return RT_SLOT_CONTROL_INVALID_TOKEN;
     }
@@ -111,7 +116,10 @@ rt_slot_control_status rt_slot_retire_read_locked(rt_slot_control* source,
     if (registration->active == 0 || source->reader_pins == 0) {
         return RT_SLOT_CONTROL_INVARIANT;
     }
-    if (registration->kind != token->kind ||
+    if (registration->source_control != source ||
+        registration->source_control != token->source_control ||
+        registration->destination_control != token->destination_control ||
+        registration->kind != token->kind ||
         registration->has_destination != token->has_destination ||
         registration->destination_identity != token->destination_identity ||
         registration->destination_generation != token->destination_generation ||
