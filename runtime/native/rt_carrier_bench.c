@@ -13,6 +13,13 @@ struct rt_carrier_bench_state rt_carrier_bench_state = {
 _Atomic uint8_t rt_carrier_bench_fast_phase = RT_CARRIER_BENCH_DISABLED;
 static atomic_flag marker_active = ATOMIC_FLAG_INIT;
 
+#ifdef RT_CARRIER_BENCH_TESTING
+extern void rt_carrier_bench_test_before_event_lock(void);
+#define RT_CARRIER_BENCH_TEST_BEFORE_LOCK() rt_carrier_bench_test_before_event_lock()
+#else
+#define RT_CARRIER_BENCH_TEST_BEFORE_LOCK() ((void)0)
+#endif
+
 static bool checked_add(uint64_t* value, uint64_t delta) {
     if (UINT64_MAX - *value < delta) {
         return false;
@@ -31,11 +38,16 @@ void rt_carrier_bench_fail_locked(enum rt_carrier_bench_error error) {
     pthread_cond_broadcast(&rt_carrier_bench_state.drained);
 }
 
+// The relaxed phase read is only a disabled/setup rejection cache. A production
+// event is admitted when it acquires state.lock and still observes OPEN; the
+// complete counter update stays under that lock. Close takes the same lock, so
+// every admitted production hook is complete before it can transition state.
 static bool event_lock(void) {
     uint8_t phase = atomic_load_explicit(&rt_carrier_bench_fast_phase, memory_order_relaxed);
     if (phase == RT_CARRIER_BENCH_DISABLED || phase == RT_CARRIER_BENCH_EXPECT_OPEN) {
         return false;
     }
+    RT_CARRIER_BENCH_TEST_BEFORE_LOCK();
     pthread_mutex_lock(&rt_carrier_bench_state.lock);
     if (rt_carrier_bench_state.phase != RT_CARRIER_BENCH_OPEN) {
         if (rt_carrier_bench_state.phase != RT_CARRIER_BENCH_INVALID) {
@@ -142,6 +154,8 @@ int rt_carrier_bench_test_hook_enter(void) {
     if (!event_lock()) {
         return 0;
     }
+    // Test-only detached hooks model a future callback admitted under the lock
+    // whose body continues after admission; production record_* hooks do not.
     rt_carrier_bench_state.active_hooks++;
     pthread_mutex_unlock(&rt_carrier_bench_state.lock);
     return 1;

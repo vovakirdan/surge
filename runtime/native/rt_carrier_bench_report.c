@@ -66,6 +66,8 @@ const char* rt_carrier_bench_error_name(enum rt_carrier_bench_error error) {
             return "counter_overflow";
         case RT_CARRIER_BENCH_ERROR_TRANSPORT_UNDERFLOW:
             return "transport_underflow";
+        case RT_CARRIER_BENCH_ERROR_TRANSPORT_BALANCE:
+            return "transport_balance_not_restored";
         case RT_CARRIER_BENCH_ERROR_NONE:
             return "none";
     }
@@ -178,6 +180,10 @@ int rt_carrier_bench_finish(void) {
     if (rt_carrier_bench_state.phase != RT_CARRIER_BENCH_CLOSED ||
         rt_carrier_bench_state.active_hooks != 0) {
         rt_carrier_bench_fail_locked(RT_CARRIER_BENCH_ERROR_MISSING_MARKER);
+    }
+    if (rt_carrier_bench_state.error == RT_CARRIER_BENCH_ERROR_NONE &&
+        rt_carrier_bench_state.counters.transport_bytes != 0) {
+        rt_carrier_bench_fail_locked(RT_CARRIER_BENCH_ERROR_TRANSPORT_BALANCE);
     }
     rt_carrier_bench_state.emitted = true;
     enum rt_carrier_bench_error error = rt_carrier_bench_state.error;

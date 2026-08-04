@@ -20,9 +20,32 @@ const carrierBenchCounterHarness = `
 #include <stdlib.h>
 #include <string.h>
 
+static pthread_mutex_t event_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t event_cv = PTHREAD_COND_INITIALIZER;
+static int hold_before_event_lock = 0;
+static int before_event_lock_reached = 0;
+
+void rt_carrier_bench_test_before_event_lock(void) {
+    pthread_mutex_lock(&event_lock);
+    if (hold_before_event_lock) {
+        before_event_lock_reached = 1;
+        pthread_cond_broadcast(&event_cv);
+        while (hold_before_event_lock) {
+            pthread_cond_wait(&event_cv, &event_lock);
+        }
+    }
+    pthread_mutex_unlock(&event_lock);
+}
+
 static void* close_marker(void* unused) {
     (void)unused;
     rt_carrier_bench_marker();
+    return NULL;
+}
+
+static void* record_copy(void* unused) {
+    (void)unused;
+    rt_carrier_bench_record_copy(7);
     return NULL;
 }
 
@@ -46,6 +69,29 @@ int main(int argc, char** argv) {
         return rt_carrier_bench_finish();
     }
     rt_carrier_bench_marker();
+    if (strcmp(mode, "lock-loser") == 0) {
+        pthread_mutex_lock(&event_lock);
+        hold_before_event_lock = 1;
+        pthread_mutex_unlock(&event_lock);
+        pthread_t record_thread;
+        if (pthread_create(&record_thread, NULL, record_copy, NULL) != 0) {
+            return 81;
+        }
+        pthread_mutex_lock(&event_lock);
+        while (!before_event_lock_reached) {
+            pthread_cond_wait(&event_cv, &event_lock);
+        }
+        pthread_mutex_unlock(&event_lock);
+        rt_carrier_bench_marker();
+        pthread_mutex_lock(&event_lock);
+        hold_before_event_lock = 0;
+        pthread_cond_broadcast(&event_cv);
+        pthread_mutex_unlock(&event_lock);
+        if (pthread_join(record_thread, NULL) != 0) {
+            return 83;
+        }
+        return rt_carrier_bench_finish();
+    }
     if (strcmp(mode, "one") == 0) {
         return rt_carrier_bench_finish();
     }
@@ -54,6 +100,8 @@ int main(int argc, char** argv) {
         rt_carrier_bench_record_copy(1);
     } else if (strcmp(mode, "underflow") == 0) {
         rt_carrier_bench_transport_release(1);
+    } else if (strcmp(mode, "unbalanced") == 0) {
+        rt_carrier_bench_transport_acquire(1);
     } else if (strcmp(mode, "concurrent") == 0) {
         if (!rt_carrier_bench_test_hook_enter()) {
             return 91;
@@ -133,15 +181,16 @@ func TestRuntimeV2CarrierBenchCounterMatrix(t *testing.T) {
 	if !reflect.DeepEqual(valid.Metrics, wantMetrics) {
 		t.Fatalf("valid metrics = %v, want %v", valid.Metrics, wantMetrics)
 	}
-
 	for mode, wantError := range map[string]string{
 		"missing":    "missing_or_unclosed_marker",
 		"one":        "missing_or_unclosed_marker",
 		"extra":      "extra_marker",
 		"concurrent": "concurrent_marker",
 		"late":       "late_carrier_event",
+		"lock-loser": "late_carrier_event",
 		"overflow":   "counter_overflow",
 		"underflow":  "transport_underflow",
+		"unbalanced": "transport_balance_not_restored",
 		"exit-zero":  "missing_or_unclosed_marker",
 		"signal":     "abnormal_exit",
 	} {
