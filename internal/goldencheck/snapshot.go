@@ -33,11 +33,21 @@ type Change struct {
 	After  *Entry
 }
 
-// Scan snapshots every filesystem entry below root without following symlinks.
+// Scan snapshots the root and every entry below it, rejecting symlinks.
 func Scan(root string) (snapshot Snapshot, returnErr error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("absolute golden root: %w", err)
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("inspect golden root: %w", err)
+	}
+	if rootInfo.Mode()&os.ModeSymlink != 0 {
+		return Snapshot{}, fmt.Errorf("golden root %q is a symlink", root)
+	}
+	if !rootInfo.IsDir() {
+		return Snapshot{}, fmt.Errorf("golden root %q is not a directory", root)
 	}
 	rootHandle, err := os.OpenRoot(root)
 	if err != nil {
@@ -48,7 +58,13 @@ func Scan(root string) (snapshot Snapshot, returnErr error) {
 			returnErr = errors.Join(returnErr, fmt.Errorf("close golden root: %w", closeErr))
 		}
 	}()
-	var entries []Entry
+	emptySum := sha256.Sum256(nil)
+	entries := []Entry{{
+		Path:          ".",
+		Kind:          "directory",
+		Mode:          snapshotMode(rootInfo.Mode()),
+		ContentSHA256: hex.EncodeToString(emptySum[:]),
+	}}
 	err = fs.WalkDir(rootHandle.FS(), ".", func(relativePath string, dirent fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -60,7 +76,7 @@ func Scan(root string) (snapshot Snapshot, returnErr error) {
 		if statErr != nil {
 			return statErr
 		}
-		entry := Entry{Path: relativePath, Mode: uint32(info.Mode().Perm())}
+		entry := Entry{Path: relativePath, Mode: snapshotMode(info.Mode())}
 		var content []byte
 		var readErr error
 		switch {
@@ -68,10 +84,7 @@ func Scan(root string) (snapshot Snapshot, returnErr error) {
 			entry.Kind = "file"
 			content, readErr = rootHandle.ReadFile(relativePath)
 		case info.Mode()&os.ModeSymlink != 0:
-			entry.Kind = "symlink"
-			var target string
-			target, readErr = rootHandle.Readlink(relativePath)
-			content = []byte(target)
+			return fmt.Errorf("golden corpus contains symlink %q", relativePath)
 		case info.IsDir():
 			entry.Kind = "directory"
 		default:
@@ -90,6 +103,11 @@ func Scan(root string) (snapshot Snapshot, returnErr error) {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
 	return Snapshot{Entries: entries}, nil
+}
+
+func snapshotMode(mode fs.FileMode) uint32 {
+	const special = os.ModeSetuid | os.ModeSetgid | os.ModeSticky
+	return uint32(mode.Perm() | mode&special)
 }
 
 // Digest hashes length-framed entry fields, so path and content boundaries

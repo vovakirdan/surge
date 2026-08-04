@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
+umask 022
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
-
 LIVE_GOLDEN_DIR="${ROOT_DIR}/testdata/golden"
 SURGE_BIN="${SURGE_BIN:-${ROOT_DIR}/surge}"
 DIAG_EXPECTATIONS="${SURGE_GOLDEN_DIAG_ZERO_EXPECTATIONS:-}"
 FMT_EXPECTATIONS="${SURGE_GOLDEN_FMT_FAILURE_EXPECTATIONS:-}"
 EMIT_EXPECTATIONS="${SURGE_GOLDEN_EMIT_FAILURE_EXPECTATIONS:-}"
-
 if [[ ! -r "${DIAG_EXPECTATIONS}" || ! -r "${FMT_EXPECTATIONS}" || ! -r "${EMIT_EXPECTATIONS}" ]]; then
 	echo "golden expectation transport is missing; run 'make golden-update'" >&2
 	exit 1
@@ -22,9 +20,14 @@ if [[ ! -x "${SURGE_BIN}" ]]; then
 		exit 1
 	fi
 fi
-
+validate_corpus_tree() {
+	local scan_root="$1" unsafe
+	[[ ! -L "${scan_root}" && -d "${scan_root}" ]] || { echo "golden corpus root is not a real directory: ${scan_root}" >&2; exit 1; }
+	unsafe="$(find -P "${scan_root}" ! -type f ! -type d -print -quit)" || { echo "failed to validate golden corpus: ${scan_root}" >&2; exit 1; }
+	[[ -z "${unsafe}" ]] || { printf 'golden corpus contains unsafe filesystem entry: %s\n' "${unsafe}" >&2; exit 1; }
+}
+validate_corpus_tree "${LIVE_GOLDEN_DIR}"
 export SURGE_STDLIB="${ROOT_DIR}"
-
 declare -A EXPECT_DIAG_ZERO=()
 declare -A EXPECT_FMT_FAILURE=()
 declare -A EXPECT_EMIT_FAILURE=()
@@ -34,7 +37,6 @@ declare -A SEEN_EMIT_FAILURE=()
 declare -a DIAG_ZERO_PATHS=()
 declare -a FMT_FAILURE_PATHS=()
 declare -a EMIT_FAILURE_KEYS=()
-
 load_expectations() {
 	local filename="$1"
 	local -n expectation_map="$2"
@@ -49,7 +51,6 @@ load_expectations() {
 		expectation_paths+=("${golden_path}")
 	done < "${filename}"
 }
-
 load_expectations "${DIAG_EXPECTATIONS}" EXPECT_DIAG_ZERO DIAG_ZERO_PATHS
 load_expectations "${FMT_EXPECTATIONS}" EXPECT_FMT_FAILURE FMT_FAILURE_PATHS
 
@@ -62,15 +63,13 @@ while IFS= read -r -d '' phase && IFS= read -r -d '' golden_path; do
 	EXPECT_EMIT_FAILURE["${emit_key}"]=1
 	EMIT_FAILURE_KEYS+=("${emit_key}")
 done < "${EMIT_EXPECTATIONS}"
-
-TEMP_DIR="$(mktemp -d "${ROOT_DIR}/testdata/.golden-update.XXXXXX")"
-STAGED_ROOT="${TEMP_DIR}/worktree"
-STAGED_GOLDEN_DIR="${STAGED_ROOT}/testdata/golden"
-BACKUP_GOLDEN_DIR="${TEMP_DIR}/original"
-FAILED_GOLDEN_DIR="${TEMP_DIR}/failed"
-ERRORS_FILE="${TEMP_DIR}/errors"
-SOURCES_FILE="${TEMP_DIR}/sources"
-touch "${ERRORS_FILE}" "${SOURCES_FILE}"
+TEMP_DIR=""
+STAGED_ROOT=""
+STAGED_GOLDEN_DIR=""
+BACKUP_GOLDEN_DIR=""
+FAILED_GOLDEN_DIR=""
+ERRORS_FILE=""
+SOURCES_FILE=""
 cleanup() {
 	local status=$?
 	local remove_temp=1
@@ -96,11 +95,11 @@ cleanup() {
 			remove_temp=0
 		fi
 	fi
-	if [[ "${remove_temp}" -eq 1 ]]; then
+	if [[ "${remove_temp}" -eq 1 && -n "${TEMP_DIR}" ]]; then
 		if ! rm -rf "${TEMP_DIR}"; then
 			status=1
 		fi
-	else
+	elif [[ "${remove_temp}" -ne 1 ]]; then
 		echo "golden recovery data preserved at ${TEMP_DIR}" >&2
 	fi
 	exit "${status}"
@@ -109,7 +108,14 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
-
+TEMP_DIR="$(mktemp -d "${ROOT_DIR}/testdata/.golden-update.XXXXXX")"
+STAGED_ROOT="${TEMP_DIR}/worktree"
+STAGED_GOLDEN_DIR="${STAGED_ROOT}/testdata/golden"
+BACKUP_GOLDEN_DIR="${TEMP_DIR}/original"
+FAILED_GOLDEN_DIR="${TEMP_DIR}/failed"
+ERRORS_FILE="${TEMP_DIR}/errors"
+SOURCES_FILE="${TEMP_DIR}/sources"
+touch "${ERRORS_FILE}" "${SOURCES_FILE}"
 if ! mkdir -p "${STAGED_ROOT}/testdata" || ! cp -a "${LIVE_GOLDEN_DIR}" "${STAGED_GOLDEN_DIR}"; then
 	echo "failed to stage live golden corpus" >&2
 	exit 1
@@ -117,7 +123,6 @@ fi
 GOLDEN_DIR="${STAGED_GOLDEN_DIR}"
 CORE_GOLDEN_DIR="${GOLDEN_DIR}/core_stdlib"
 cd "${STAGED_ROOT}"
-
 record_error() {
 	printf '%s\n' "$1" >> "${ERRORS_FILE}"
 }
@@ -165,14 +170,16 @@ run_emit() {
 }
 
 generate_outputs() {
-	local src="$1"
-	local is_invalid="$2"
-	local directives_mode="$3"
-	local base name dir rel diag_path diag_status fmt_status
+	local rel="$1"
+	local src="${GOLDEN_DIR}/${rel}"
+	local fixture_path="/${rel}"
+	local is_invalid=0 directives_mode=off
+	local base name dir diag_path diag_status fmt_status
+	[[ "${fixture_path}" == *"/invalid/"* ]] && is_invalid=1
+	[[ "${fixture_path}" == *"/directives/"* ]] && directives_mode=collect
 	base="$(basename "${src}")"
 	name="${base%.sg}"
 	dir="$(dirname "${src}")"
-	rel="${src#${GOLDEN_DIR}/}"
 	diag_path="${dir}/${name}.diag"
 
 	if "${SURGE_BIN}" diag --format short --directives="${directives_mode}" "${src}" > "${diag_path}" 2>/dev/null; then
@@ -217,48 +224,45 @@ generate_outputs() {
 		record_error "unlisted formatter failure: ${rel}"
 	fi
 
-	if [[ "${src}" == *"/hir/"* ]]; then
+	if [[ "${fixture_path}" == *"/hir/"* ]]; then
 		run_emit "hir" "HIR" "${rel}" "${dir}/${name}.hir" "${SURGE_BIN}" diag --format short --emit-hir "${src}"
 	fi
-	if [[ "${src}" == *"/hir_borrow/"* ]]; then
+	if [[ "${fixture_path}" == *"/hir_borrow/"* ]]; then
 		run_emit "hir_borrow" "HIR borrow" "${rel}" "${dir}/${name}.hir" "${SURGE_BIN}" diag --format short --emit-hir --emit-borrow "${src}"
 	fi
-	if [[ "${src}" == *"/instantiations/"* ]]; then
+	if [[ "${fixture_path}" == *"/instantiations/"* ]]; then
 		run_emit "instantiations" "instantiations" "${rel}" "${dir}/${name}.inst" "${SURGE_BIN}" diag --format short --emit-instantiations "${src}"
 	fi
-	if [[ "${src}" == *"/mono/"* ]]; then
+	if [[ "${fixture_path}" == *"/mono/"* ]]; then
 		run_emit "mono" "monomorphization" "${rel}" "${dir}/${name}.mono" "${SURGE_BIN}" diag --format short --emit-mono "${src}"
 	fi
-	if [[ "${src}" == *"/mir/"* ]]; then
+	if [[ "${fixture_path}" == *"/mir/"* ]]; then
 		run_emit "mir" "MIR" "${rel}" "${dir}/${name}.mir" "${SURGE_BIN}" diag --format short --emit-mir "${src}"
 	fi
 	return 0
 }
 
-# Delete generated sidecars, retaining source and explicitly hand-authored files.
-find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -path "${GOLDEN_DIR}/crossing/crosses_deferred" -prune -o -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' ! -name '*.flags' -exec rm {} \;
-
+if ! (cd "${GOLDEN_DIR}" && find . ! -path './spec_audit/*' ! -path './crossing/crosses_deferred/*' -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' ! -name '*.flags' -delete); then
+	echo "failed to delete stale golden sidecars" >&2
+	exit 1
+fi
 rm -rf "${CORE_GOLDEN_DIR}"
 mkdir -p "${CORE_GOLDEN_DIR}"
 cp -a "${ROOT_DIR}/core/." "${CORE_GOLDEN_DIR}/"
-
-if ! find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -path "${GOLDEN_DIR}/crossing/crosses_deferred" -prune -o -type f -name '*.sg' -print0 | sort -z > "${SOURCES_FILE}"; then
+validate_corpus_tree "${GOLDEN_DIR}"
+if ! (cd "${GOLDEN_DIR}" && find . ! -path './spec_audit/*' ! -path './crossing/crosses_deferred/*' -type f -name '*.sg' -print0 | sort -z) > "${SOURCES_FILE}"; then
 	echo "failed to enumerate golden sources" >&2
 	exit 1
 fi
 
-while IFS= read -r -d '' src; do
-	base="$(basename "${src}")"
+while IFS= read -r -d '' rel; do
+	rel="${rel#./}"
+	base="$(basename "${rel}")"
 	if [[ "${base}" == _* ]]; then
 		continue
 	fi
-	is_invalid=0
-	[[ "${src}" == *"/invalid/"* ]] && is_invalid=1
-	directives_mode="off"
-	[[ "${src}" == *"/directives/"* ]] && directives_mode="collect"
-	generate_outputs "${src}" "${is_invalid}" "${directives_mode}"
+	generate_outputs "${rel}"
 done < "${SOURCES_FILE}"
-
 for rel in "${DIAG_ZERO_PATHS[@]}"; do
 	if [[ -z "${SEEN_DIAG_ZERO[${rel}]+present}" ]]; then
 		record_error "stale zero-status diagnostic expectation: ${rel}"
@@ -274,7 +278,7 @@ for emit_key in "${EMIT_FAILURE_KEYS[@]}"; do
 		record_error "stale emit-failure expectation: ${emit_key}"
 	fi
 done
-
+validate_corpus_tree "${GOLDEN_DIR}"
 if [[ -s "${ERRORS_FILE}" ]]; then
 	echo "Errors found during golden file generation:" >&2
 	while IFS= read -r error; do
@@ -282,7 +286,6 @@ if [[ -s "${ERRORS_FILE}" ]]; then
 	done < "${ERRORS_FILE}"
 	exit 1
 fi
-
 cd "${ROOT_DIR}"
 if ! mv "${LIVE_GOLDEN_DIR}" "${BACKUP_GOLDEN_DIR}"; then
 	echo "failed to stage the live corpus for replacement" >&2

@@ -18,8 +18,12 @@ type scriptFixture struct {
 
 func newScriptFixture(t *testing.T, sourceRel string) scriptFixture {
 	t.Helper()
+	return newScriptFixtureAt(t, t.TempDir(), sourceRel)
+}
+
+func newScriptFixtureAt(t *testing.T, root, sourceRel string) scriptFixture {
+	t.Helper()
 	repositoryRoot := testRepoRoot(t)
-	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "scripts"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -134,6 +138,13 @@ fi
 if [[ ",${FAIL_PHASES:-}," == *",${phase},"* ]]; then
 	printf 'fake %s failure\n' "${phase}"
 	exit 1
+fi
+if [[ "${REJECT_COLLECT_DIRECTIVES:-}" == "1" && "${arguments}" == *" --directives=collect "* ]]; then
+	printf 'unexpected collect directives\n'
+	exit 2
+fi
+if [[ -n "${CALL_MARKER:-}" ]]; then
+	printf called >> "${CALL_MARKER}"
 fi
 if [[ "${BLOCK_PHASE:-}" == "${phase}" ]]; then
 	printf blocked > "${BLOCK_MARKER:?}"

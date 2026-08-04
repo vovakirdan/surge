@@ -63,11 +63,13 @@ func TestGoldenScriptAcceptsCleanRequiredPhases(t *testing.T) {
 
 func assertNoGoldenStaging(t *testing.T, root string) {
 	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(root, "testdata", ".golden-update.*"))
+	entries, err := os.ReadDir(filepath.Join(root, "testdata"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(matches) != 0 {
-		t.Fatalf("staging paths remain: %v", matches)
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".golden-update.") {
+			t.Fatalf("staging path remains: %s", entry.Name())
+		}
 	}
 }

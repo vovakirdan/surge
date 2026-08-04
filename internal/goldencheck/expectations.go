@@ -13,7 +13,10 @@ import (
 	"strings"
 )
 
-const expectationVersion = 1
+const (
+	expectationVersion = 1
+	goldenRootPath     = "testdata/golden"
+)
 
 // Expectations freezes the corpus digest and every tolerated tool outcome.
 type Expectations struct {
@@ -51,8 +54,8 @@ func LoadExpectations(filename string) (Expectations, error) {
 	if expectations.Version != expectationVersion {
 		return Expectations{}, fmt.Errorf("expectations version is %d, want %d", expectations.Version, expectationVersion)
 	}
-	if err := validateRelativePath(expectations.GoldenRoot); err != nil {
-		return Expectations{}, fmt.Errorf("golden_root: %w", err)
+	if expectations.GoldenRoot != goldenRootPath {
+		return Expectations{}, fmt.Errorf("golden_root must be %q", goldenRootPath)
 	}
 	if expectations.CorpusSHA256 != "" {
 		digest, err := hex.DecodeString(expectations.CorpusSHA256)

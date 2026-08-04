@@ -64,6 +64,17 @@ func TestLoadExpectationsRejectsUnsafeAndAmbiguousPaths(t *testing.T) {
 	}
 }
 
+func TestLoadExpectationsRejectsAlternateGoldenRoot(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "expectations.json")
+	body := `{"version":1,"golden_root":"elsewhere","entry_count":0,"corpus_sha256":"","diagnostic_zero":[],"formatter_failure":[],"emit_failure":[]}`
+	if err := os.WriteFile(filename, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadExpectations(filename); err == nil || !strings.Contains(err.Error(), "testdata/golden") {
+		t.Fatalf("alternate golden_root error = %v", err)
+	}
+}
+
 func quoteJSON(value string) string {
 	var quoted strings.Builder
 	quoted.WriteByte('"')

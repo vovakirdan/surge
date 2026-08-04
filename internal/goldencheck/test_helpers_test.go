@@ -32,7 +32,7 @@ func newTestRepository(t *testing.T) testRepository {
 	}
 	expectations := Expectations{
 		Version:      expectationVersion,
-		GoldenRoot:   "testdata/golden",
+		GoldenRoot:   goldenRootPath,
 		EntryCount:   len(snapshot.Entries),
 		CorpusSHA256: snapshot.Digest(),
 	}

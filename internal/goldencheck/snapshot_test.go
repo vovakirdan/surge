@@ -18,10 +18,10 @@ func TestScanPreservesLexicalPathsAndDetectsContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(before.Entries) != len(paths) {
-		t.Fatalf("entry count = %d, want %d", len(before.Entries), len(paths))
+	if len(before.Entries) != len(paths)+1 {
+		t.Fatalf("entry count = %d, want %d", len(before.Entries), len(paths)+1)
 	}
-	if before.Entries[0].Path != "line\nbreak" || before.Entries[1].Path != "tab\tname" || before.Entries[2].Path != "雪" {
+	if before.Entries[0].Path != "." || before.Entries[1].Path != "line\nbreak" || before.Entries[2].Path != "tab\tname" || before.Entries[3].Path != "雪" {
 		t.Fatalf("lexical paths changed: %#v", before.Entries)
 	}
 	writeTestFile(t, filepath.Join(root, "tab\tname"), "changed", 0o644)
@@ -71,13 +71,8 @@ func TestScanRecordsModeAndType(t *testing.T) {
 	if symlinkErr := os.Symlink("target", filename); symlinkErr != nil {
 		t.Fatal(symlinkErr)
 	}
-	symlink, err := Scan(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	changes := Diff(executable, symlink)
-	if len(changes) != 1 || changes[0].After.Kind != "symlink" {
-		t.Fatalf("type changes = %#v", changes)
+	if _, err := Scan(root); err == nil {
+		t.Fatal("Scan accepted a symlink")
 	}
 }
 

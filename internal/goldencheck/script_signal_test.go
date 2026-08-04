@@ -3,7 +3,6 @@ package goldencheck
 import (
 	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -17,25 +16,7 @@ func TestGoldenScriptSignalAfterInstallRestoresLiveCorpus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	realMove, err := exec.LookPath("mv")
-	if err != nil {
-		t.Fatal(err)
-	}
-	fakeBin := filepath.Join(fixture.root, "fake-bin")
-	fakeMove := filepath.Join(fakeBin, "mv")
-	writeTestFile(t, fakeMove, `#!/usr/bin/env bash
-set -euo pipefail
-"${REAL_MV:?}" "$@"
-if [[ "${1:-}" == *'/worktree/testdata/golden' && "${2:-}" == "${LIVE_GOLDEN_DIR:?}" ]]; then
-	kill -TERM "${PPID}"
-fi
-`, 0o755)
-	cmd := fixture.command(t, "", nil, nil, nil)
-	cmd.Env = append(cmd.Env,
-		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"REAL_MV="+realMove,
-		"LIVE_GOLDEN_DIR="+goldenRoot,
-	)
+	cmd := commandWithMoveFault(t, fixture, "signal-after-install")
 	output, runErr := cmd.CombinedOutput()
 	if runErr == nil {
 		t.Fatalf("script accepted post-install TERM\n%s", output)
