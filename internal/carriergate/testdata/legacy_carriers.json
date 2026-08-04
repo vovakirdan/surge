@@ -1,0 +1,4310 @@
+{
+  "version": 1,
+  "base_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd",
+  "digest_algorithm": "sha256-length-prefixed-v1",
+  "baseline_count": 588,
+  "baseline_digest": "90c6a51ec4caf54e00079779cf5af7560ec540900e4a82c7ba61aafbf476f2ce",
+  "scope": [
+    {
+      "root": "internal/asyncrt",
+      "extensions": [
+        ".go"
+      ],
+      "excludes": [
+        "*_test.go",
+        "testdata/**"
+      ]
+    },
+    {
+      "root": "internal/backend/llvm",
+      "extensions": [
+        ".go"
+      ],
+      "excludes": [
+        "*_test.go",
+        "testdata/**"
+      ]
+    },
+    {
+      "root": "internal/vm",
+      "extensions": [
+        ".go"
+      ],
+      "excludes": [
+        "*_test.go",
+        "testdata/**"
+      ]
+    },
+    {
+      "root": "runtime/native",
+      "extensions": [
+        ".c",
+        ".h"
+      ],
+      "excludes": []
+    }
+  ],
+  "categories": [
+    {
+      "id": "composite-box-marker",
+      "retire_to_zero": true,
+      "baseline_count": 54,
+      "baseline_digest": "412736aa740c9ad0a78752fc8a671bc14139f12628bf7945f090c6a511d34c91",
+      "legacy": [
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_clone_glue.go",
+          "token": "emitCloneGlueBody",
+          "evidence": "func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_clone_glue.go",
+          "token": "emitCloneGlueBody",
+          "evidence": "if err := e.emitCloneGlueBody(id); err != nil {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_clone_glue.go",
+          "token": "isBoxedComposite",
+          "evidence": "return e.types.IsValueComposite(id) \u0026\u0026 e.isBoxedComposite(id)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "emitDropGlueBody",
+          "evidence": "func (e *Emitter) emitDropGlueBody(id types.TypeID) error {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "emitDropGlueBody",
+          "evidence": "if err := e.emitDropGlueBody(id); err != nil {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "isBoxedComposite",
+          "evidence": "func (e *Emitter) isBoxedComposite(id types.TypeID) bool {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "isBoxedComposite",
+          "evidence": "if e.isBoxedComposite(ty) \u0026\u0026 e.typeOwnsHeap(ty) {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "isBoxedComposite",
+          "evidence": "if e.types.IsValueComposite(id) \u0026\u0026 e.isBoxedComposite(id) {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_instr.go",
+          "token": "isBoxedComposite",
+          "evidence": "if !fe.emitter.isBoxedComposite(baseType) {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/backend/llvm/emit_instr.go",
+          "token": "isBoxedComposite",
+          "evidence": "if fe.emitter.isBoxedComposite(baseType) {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/async_runtime.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(typeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/async_runtime.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(typeID, fields)",
+          "ordinal": 2
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/async_runtime.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(resultType, tc.TagSym, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/async_runtime.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(resultType, tc.TagSym, nil)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/clone_value.go",
+          "token": "AllocStruct",
+          "evidence": "return MakeHandleStruct(vm.Heap.AllocStruct(obj.TypeID, fields), v.TypeID), nil",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/clone_value.go",
+          "token": "AllocTag",
+          "evidence": "return MakeHandleTag(vm.Heap.AllocTag(obj.TypeID, obj.Tag.TagSym, fields), v.TypeID), nil",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/clone_value.go",
+          "token": "cloneValueComposite",
+          "evidence": "cloned, vmErr := vm.cloneValueComposite(in[i])",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/clone_value.go",
+          "token": "cloneValueComposite",
+          "evidence": "func (vm *VM) cloneValueComposite(v Value) (Value, *VMError) {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/eval.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(c.Type, tc.TagSym, nil)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/eval.go",
+          "token": "cloneValueComposite",
+          "evidence": "return vm.cloneValueComposite(val)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/eval_data.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(layout.TypeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/eval_data.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(types.NoTypeID, elems)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/heap.go",
+          "token": "AllocStruct",
+          "evidence": "func (h *Heap) AllocStruct(typeID types.TypeID, fields []Value) Handle {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/heap.go",
+          "token": "AllocTag",
+          "evidence": "func (h *Heap) AllocTag(typeID types.TypeID, tagSym symbols.SymbolID, fields []Value) Handle {",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_array.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{elem})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_array.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, nil)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_debug.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(info.layout.TypeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_default.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(layout.TypeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_default.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, nil)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_entropy.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(dstType, tc.TagSym, []Value{errVal})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_entropy.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(dstType, tc.TagSym, []Value{payload})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_entrypoint.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(layout.TypeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_entrypoint.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(dstType, successCase.TagSym, []Value{parsed})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_fs.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(layout.TypeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_fs.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(layout.TypeID, fields)",
+          "ordinal": 2
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_fs.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(dstType, tc.TagSym, []Value{payload})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_fs_file_helpers.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(typeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_net_helpers.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(typeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_net_helpers.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(typeID, fields)",
+          "ordinal": 2
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_net_helpers.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(dstType, tc.TagSym, []Value{payload})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_string.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(info.layout.TypeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_string.go",
+          "token": "AllocTag",
+          "evidence": "tag := vm.Heap.AllocTag(dstType, successCase.TagSym, []Value{payload})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_term.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(typeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_term.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(typeID, fields)",
+          "ordinal": 2
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_term.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{colsVal, rowsVal})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_term.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{keyEventVal})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_term.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{payload})",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_term.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{payload})",
+          "ordinal": 2
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_term.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, nil)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_term.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tc.TagSym, nil)",
+          "ordinal": 2
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/intrinsic_time.go",
+          "token": "AllocStruct",
+          "evidence": "h := vm.Heap.AllocStruct(typeID, fields)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/tag.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(typeID, tagSym, args)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/vm_access.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(expectedType, tc.TagSym, nil)",
+          "ordinal": 1
+        },
+        {
+          "category": "composite-box-marker",
+          "path": "internal/vm/vm_access.go",
+          "token": "AllocTag",
+          "evidence": "h := vm.Heap.AllocTag(expectedType, tc.TagSym, nil)",
+          "ordinal": 2
+        }
+      ],
+      "allow": []
+    },
+    {
+      "id": "llvm-composite-to-ptr",
+      "retire_to_zero": true,
+      "baseline_count": 5,
+      "baseline_digest": "a1711017972bbe3920873ac79dbf7b26448881770a75b99938a71efc08ed03b9",
+      "legacy": [
+        {
+          "category": "llvm-composite-to-ptr",
+          "path": "internal/backend/llvm/types.go",
+          "token": "KindArray-\u003eptr",
+          "evidence": "return \"ptr\", nil",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-composite-to-ptr",
+          "path": "internal/backend/llvm/types.go",
+          "token": "KindEnum|KindTuple|KindUnion-\u003eptr",
+          "evidence": "return \"ptr\", nil",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-composite-to-ptr",
+          "path": "internal/backend/llvm/types.go",
+          "token": "KindStruct-\u003eptr",
+          "evidence": "return \"ptr\", nil",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-composite-to-ptr",
+          "path": "internal/backend/llvm/types.go",
+          "token": "KindStruct-\u003eptr",
+          "evidence": "return \"ptr\", nil",
+          "ordinal": 2
+        },
+        {
+          "category": "llvm-composite-to-ptr",
+          "path": "internal/backend/llvm/types.go",
+          "token": "KindStruct-\u003eptr",
+          "evidence": "return \"ptr\", nil",
+          "ordinal": 3
+        }
+      ],
+      "allow": []
+    },
+    {
+      "id": "llvm-erased-word-bridge",
+      "retire_to_zero": true,
+      "baseline_count": 25,
+      "baseline_digest": "ccfc53e84b9e71c71e75e1f920ad589cb713ee89b606f5159b7e1c247beab6e0",
+      "legacy": [
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 2
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 3
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "emitI64ToValue",
+          "evidence": "val, valTy, err := fe.emitI64ToValue(idxVal, dstType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "emitValueToI64",
+          "evidence": "bits, err := fe.emitValueToI64(tmp, sig.ret, f.Result)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "emitValueToI64",
+          "evidence": "bitsVal, err := fe.emitValueToI64(val, valTy, valueType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async_far_task.go",
+          "token": "emitValueToI64",
+          "evidence": "return fe.emitValueToI64(value, valueLLVMType, valueType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async_helpers.go",
+          "token": "emitI64ToValue",
+          "evidence": "func (fe *funcEmitter) emitI64ToValue(bits string, typeID types.TypeID) (value, valueTy string, err error) {",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_async_helpers.go",
+          "token": "emitValueToI64",
+          "evidence": "func (fe *funcEmitter) emitValueToI64(val, valTy string, typeID types.TypeID) (string, error) {",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 2
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 3
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "emitValueToI64",
+          "evidence": "bitsVal, err := fe.emitValueToI64(val, valTy, valueType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "emitValueToI64",
+          "evidence": "bitsVal, err := fe.emitValueToI64(val, valTy, valueType)",
+          "ordinal": 2
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "emitValueToI64",
+          "evidence": "bitsVal, err := fe.emitValueToI64(val, valTy, valueType)",
+          "ordinal": 3
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_crossing_anchored_on.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_crossing_far_task.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_crossing_select.go",
+          "token": "emitI64ToValue",
+          "evidence": "returned, returnedTy, err := fe.emitI64ToValue(returnedBits, placeType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_crossing_select.go",
+          "token": "emitI64ToValue",
+          "evidence": "val, valTy, err := fe.emitI64ToValue(winnerBits, dstType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_crossing_select.go",
+          "token": "emitValueToI64",
+          "evidence": "bitsVal, bitsErr := fe.emitValueToI64(val, valTy, valueType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_intrinsics_map.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_intrinsics_map.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 2
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_intrinsics_map.go",
+          "token": "emitI64ToValue",
+          "evidence": "payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)",
+          "ordinal": 3
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_intrinsics_map.go",
+          "token": "emitValueToI64",
+          "evidence": "return fe.emitValueToI64(val, valTy, valType)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-erased-word-bridge",
+          "path": "internal/backend/llvm/emit_intrinsics_map.go",
+          "token": "emitValueToI64",
+          "evidence": "valueBits, err := fe.emitValueToI64(val, valTy, valueType)",
+          "ordinal": 1
+        }
+      ],
+      "allow": []
+    },
+    {
+      "id": "llvm-pointer-word-ir",
+      "retire_to_zero": true,
+      "baseline_count": 3,
+      "baseline_digest": "a789e61c05d60fdd89471c35c3dfc0aeea2da0b0a5af59d8b2823126ebfbc739",
+      "legacy": [
+        {
+          "category": "llvm-pointer-word-ir",
+          "path": "internal/backend/llvm/emit_async_helpers.go",
+          "token": "inttoptr",
+          "evidence": "fmt.Fprintf(\u0026fe.emitter.buf, \"  %s = inttoptr i64 %s to ptr\\n\", out, bits)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-pointer-word-ir",
+          "path": "internal/backend/llvm/emit_async_helpers.go",
+          "token": "ptrtoint",
+          "evidence": "fmt.Fprintf(\u0026fe.emitter.buf, \"  %s = ptrtoint ptr %s to i64\\n\", out, val)",
+          "ordinal": 1
+        },
+        {
+          "category": "llvm-pointer-word-ir",
+          "path": "internal/backend/llvm/emit_term.go",
+          "token": "inttoptr",
+          "evidence": "return fmt.Sprintf(\"inttoptr (i64 %d to ptr)\", int64(word)) //nolint:gosec // intentional bit reinterpretation",
+          "ordinal": 1
+        }
+      ],
+      "allow": [
+        {
+          "id": "fixnum-inline-tagged-word",
+          "finding": {
+            "category": "llvm-pointer-word-ir",
+            "path": "internal/backend/llvm/emit_term.go",
+            "token": "inttoptr",
+            "evidence": "return fmt.Sprintf(\"inttoptr (i64 %d to ptr)\", int64(word)) //nolint:gosec // intentional bit reinterpretation",
+            "ordinal": 1
+          },
+          "reason": "LLVM fixnum constants use the runtime's tagged immediate pointer representation.",
+          "safe_because": "inlineFixnumWord constructs an immediate tag and never erases an owned composite.",
+          "invalidated_when": "fixnums stop using pointer-typed tagged immediates or this helper handles owned values."
+        }
+      ]
+    },
+    {
+      "id": "native-payload-bits",
+      "retire_to_zero": true,
+      "baseline_count": 134,
+      "baseline_digest": "c68aea0b166915bb26a71c24ec3de5f0730b043f7ac0815a289c89a337a5a973",
+      "legacy": [
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt.h",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_send(void* channel, uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt.h",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_send_yield(void* channel, uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt.h",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_try_send(void* channel, uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt.h",
+          "token": "value_bits",
+          "evidence": "bool rt_map_insert(void* map, uint64_t key_bits, uint64_t value_bits, uint64_t* out_prev);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt.h",
+          "token": "value_bits",
+          "evidence": "void rt_channel_send_blocking(void* channel, uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "result_bits",
+          "evidence": "job-\u003eresult_bits = result;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "result_bits",
+          "evidence": "out.value_bits = job-\u003eresult_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "value_bits",
+          "evidence": "out.value_bits = job-\u003eresult_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "*out_bits = task-\u003eresume_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "__surge_drop_result_call(ch-\u003epayload_drop_fn_id, (void*)task-\u003eresume_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "bits = sender-\u003eresume_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "if (buf_push(ch, sender-\u003eresume_bits)) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "sender-\u003eresume_bits = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "sender-\u003eresume_bits = 0;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "sender-\u003eresume_bits = 0;",
+          "ordinal": 3
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "task-\u003eresume_bits = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "task-\u003eresume_bits = 0;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "task-\u003eresume_bits = 0;",
+          "ordinal": 3
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "task-\u003eresume_bits = 0;",
+          "ordinal": 4
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "task-\u003eresume_bits = 0;",
+          "ordinal": 5
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "task-\u003eresume_bits = 0;",
+          "ordinal": 6
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "task-\u003eresume_bits = value_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "resume_bits",
+          "evidence": "uint64_t bits = sender-\u003eresume_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_send(void* channel, uint64_t value_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_send_yield(void* channel, uint64_t value_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "if (!channel_deliver_foreign(ex, \u0026cand, RESUME_CHAN_RECV_VALUE, value_bits)) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "if (ch-\u003ecapacity \u003e 0 \u0026\u0026 ch-\u003ebuf_len \u003c ch-\u003ecapacity \u0026\u0026 buf_push(ch, value_bits)) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "return rt_channel_send_inner(channel, value_bits, 0);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "return rt_channel_send_inner(channel, value_bits, 1);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_after_handoff) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "task-\u003eresume_bits = value_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "value_bits",
+          "evidence": "value_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "result_bits",
+          "evidence": "void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "resume_bits",
+          "evidence": "uint64_t resume_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_send(void* channel, uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_send_yield(void* channel, uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_try_send(void* channel, uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "value_bits",
+          "evidence": "uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "value_bits",
+          "evidence": "uint64_t value_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "value_bits",
+          "evidence": "uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "result_bits",
+          "evidence": "*out_bits = current-\u003eresult_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "result_bits",
+          "evidence": "out.value_bits = task-\u003eresult_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "value_bits",
+          "evidence": "mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "value_bits",
+          "evidence": "mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "value_bits",
+          "evidence": "out.value_bits = task-\u003eresult_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "value_bits",
+          "evidence": "poll_result.value_bits = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "value_bits",
+          "evidence": "poll_result.value_bits = 0;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "value_bits",
+          "evidence": "poll_result.value_bits = 0;",
+          "ordinal": 3
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "value_bits",
+          "evidence": "poll_result.value_bits = bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_select.c",
+          "token": "value_bits",
+          "evidence": "uint64_t value_bits = values != NULL ? values[i] : 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_async_select.c",
+          "token": "value_bits",
+          "evidence": "uint8_t status = rt_channel_try_send_status_locked(ex, handle, value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "resume_bits",
+          "evidence": "peer-\u003eresume_bits = resume_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "resume_bits",
+          "evidence": "peer-\u003eresume_bits = resume_bits;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "resume_bits",
+          "evidence": "peer-\u003eresume_bits = resume_bits;",
+          "ordinal": 3
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "resume_bits",
+          "evidence": "peer-\u003eresume_bits = resume_bits;",
+          "ordinal": 4
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "resume_bits",
+          "evidence": "uint64_t resume_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "resume_bits",
+          "evidence": "uint64_t resume_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "value_bits",
+          "evidence": "ch-\u003ebuf[idx] = value_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "value_bits",
+          "evidence": "static inline int buf_push(rt_channel* ch, uint64_t value_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "resume_bits",
+          "evidence": "*out_bits = sender-\u003eresume_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "resume_bits",
+          "evidence": "if (buf_push(ch, sender-\u003eresume_bits)) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "resume_bits",
+          "evidence": "sender-\u003eresume_bits = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "resume_bits",
+          "evidence": "sender-\u003eresume_bits = 0;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "\"async chan send start ch=%p bits=%llu\\n\", (void*)ch, (unsigned long long)value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "bool rt_channel_try_send(void* channel, uint64_t value_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "ex, ch_shard, \u0026cand, RESUME_CHAN_RECV_VALUE, value_bits, 1, \u0026pushed)) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "if (ch-\u003ecapacity \u003e 0 \u0026\u0026 ch-\u003ebuf_len \u003c ch-\u003ecapacity \u0026\u0026 buf_push(ch, value_bits)) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "int live = channel_deliver_foreign(ex, \u0026cand, RESUME_CHAN_RECV_VALUE, value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "uint64_t value_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "uint8_t status = rt_channel_try_send_status_locked(ex, channel, value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "uint8_t status = rt_channel_try_send_status_owner_locked(ex, ch_shard, ch, value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "uint8_t status = rt_channel_try_send_status_owner_locked(ex, ch_shard, ch, value_bits);",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "void rt_channel_send_blocking(void* channel, uint64_t value_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "value_bits",
+          "evidence": "while (!rt_channel_send(channel, value_bits)) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel.h",
+          "token": "send_bits",
+          "evidence": "uint64_t* send_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "? arm-\u003esend_bits",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "__surge_drop_result_call(arms[i].payload_drop_fn_id, (void*)arms[i].send_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "__surge_drop_result_call(send_drop_fn_ids[i], (void*)send_bits[i]);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "arms[i].send_bits = send_bits != NULL ? send_bits[i] : 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "arms[i].send_bits = send_bits != NULL ? send_bits[i] : 0;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "arms[i].send_bits = send_bits != NULL ? send_bits[i] : 0;",
+          "ordinal": 3
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "const uint64_t* send_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "if (kinds == NULL || send_bits == NULL || send_drop_fn_ids == NULL) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "return select_finish_retry(pending, send_bits, count, out_kind, out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "return select_finish_retry(pending, send_bits, count, out_kind, out_bits);",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 3
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 4
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 5
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 6
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "uint64_t* send_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_bits",
+          "evidence": "values[i] = arms[i].send_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "value_bits",
+          "evidence": "if (!rt_channel_send(channel, value_bits)) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "value_bits",
+          "evidence": "void rt_anchored_channel_send(uint64_t value_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_map.c",
+          "token": "value_bits",
+          "evidence": "bool rt_map_insert(void* map_ptr, uint64_t key_bits, uint64_t value_bits, uint64_t* out_prev) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_map.c",
+          "token": "value_bits",
+          "evidence": "map-\u003eentries[idx].value = value_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_map.c",
+          "token": "value_bits",
+          "evidence": "map-\u003eentries[map-\u003elen].value = value_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "value_bits",
+          "evidence": "void rt_anchored_channel_send(uint64_t value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_completion.c",
+          "token": "result_bits",
+          "evidence": "task-\u003eresult_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_completion.c",
+          "token": "result_bits",
+          "evidence": "task-\u003eresult_bits,",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_completion.c",
+          "token": "result_bits",
+          "evidence": "task-\u003eresult_bits,",
+          "ordinal": 3
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_dispatch.c",
+          "token": "result_bits",
+          "evidence": "pending-\u003eresult_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_dispatch.c",
+          "token": "result_bits",
+          "evidence": "rt_remote_task_pending_finish(ex, pending, status, result_kind, result_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_dispatch.c",
+          "token": "result_bits",
+          "evidence": "rt_remote_task_pending_set_reply(pending, status, result_kind, result_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_dispatch.c",
+          "token": "result_bits",
+          "evidence": "uint64_t bits = op == RT_REMOTE_TASK_OP_AWAIT ? task-\u003eresult_bits : 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_dispatch.c",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits);",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "send_bits",
+          "evidence": "uint64_t send_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "*out_bits = pending-\u003eresult_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "__surge_drop_result_call(pending-\u003eresult_drop_fn_id, (void*)pending-\u003eresult_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "if (pending-\u003eresult_drop_fn_id != 0 \u0026\u0026 pending-\u003eresult_bits != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "pending-\u003eresult_bits = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "pending-\u003eresult_bits = result_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "pending-\u003eresult_bits = result_bits;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "pending-\u003eresult_bits = result_bits;",
+          "ordinal": 3
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "pending-\u003eresult_bits = result_bits;",
+          "ordinal": 4
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_bits",
+          "evidence": "uint64_t result_bits) {",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "send_bits",
+          "evidence": "__surge_drop_result_call(arm-\u003epayload_drop_fn_id, (void*)arm-\u003esend_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_result.c",
+          "token": "result_bits",
+          "evidence": "*out_bits = kind == 1 ? producer-\u003eresult_bits : 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_remote_task_wait.c",
+          "token": "result_bits",
+          "evidence": "it-\u003eresult_bits = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "result_bits",
+          "evidence": "task-\u003eresult_bits = result_bits;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "result_bits",
+          "evidence": "task-\u003eresult_bits = result_bits;",
+          "ordinal": 2
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "result_bits",
+          "evidence": "void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "value_bits",
+          "evidence": "mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_task_lifetime.c",
+          "token": "result_bits",
+          "evidence": "__surge_drop_result_call(task-\u003eresult_drop_fn_id, (void*)task-\u003eresult_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-payload-bits",
+          "path": "runtime/native/rt_task_lifetime.c",
+          "token": "result_bits",
+          "evidence": "if (task-\u003eresult_drop_fn_id != 0 \u0026\u0026 task-\u003eresult_bits != 0) {",
+          "ordinal": 1
+        }
+      ],
+      "allow": []
+    },
+    {
+      "id": "native-word-carrier",
+      "retire_to_zero": true,
+      "baseline_count": 69,
+      "baseline_digest": "3a7fe8e2de2d114438445da990e3f092778a3a3e97c009a1ed4086e058a5be4a",
+      "legacy": [
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "key_bits",
+          "evidence": "bool rt_map_contains(const void* map, uint64_t key_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "key_bits",
+          "evidence": "bool rt_map_get_mut(void* map, uint64_t key_bits, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "key_bits",
+          "evidence": "bool rt_map_get_ref(void* map, uint64_t key_bits, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "key_bits",
+          "evidence": "bool rt_map_insert(void* map, uint64_t key_bits, uint64_t value_bits, uint64_t* out_prev);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "key_bits",
+          "evidence": "bool rt_map_remove(void* map, uint64_t key_bits, uint64_t* out_prev);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_bits",
+          "evidence": "bool rt_channel_try_recv(void* channel, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_bits",
+          "evidence": "bool rt_map_get_mut(void* map, uint64_t key_bits, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_bits",
+          "evidence": "bool rt_map_get_ref(void* map, uint64_t key_bits, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_task_poll(void* task, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "out_bits",
+          "evidence": "void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt.h",
+          "token": "values",
+          "evidence": "const uint64_t* values,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "buf",
+          "evidence": "uint64_t* buf;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "out_bits",
+          "evidence": "bool rt_channel_try_recv(void* channel, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "out_bits",
+          "evidence": "void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "out_bits",
+          "evidence": "void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_select.c",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_select.c",
+          "token": "values",
+          "evidence": "const uint64_t* values,",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_task.c",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_task_poll(void* task, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_async_task.c",
+          "token": "out_bits",
+          "evidence": "void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "buf",
+          "evidence": "uint64_t* buf;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "out_bits",
+          "evidence": "static inline int buf_pop(rt_channel* ch, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "out_bits",
+          "evidence": "bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_channel_sync.c",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 2
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 2
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 3
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 2
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "out_bits",
+          "evidence": "rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_anchored_channel_recv(uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key",
+          "evidence": "uint64_t key;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key_bits",
+          "evidence": "bool rt_map_contains(const void* map_ptr, uint64_t key_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key_bits",
+          "evidence": "bool rt_map_get_mut(void* map_ptr, uint64_t key_bits, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key_bits",
+          "evidence": "bool rt_map_get_ref(void* map_ptr, uint64_t key_bits, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key_bits",
+          "evidence": "bool rt_map_insert(void* map_ptr, uint64_t key_bits, uint64_t value_bits, uint64_t* out_prev) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key_bits",
+          "evidence": "bool rt_map_remove(void* map_ptr, uint64_t key_bits, uint64_t* out_prev) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key_bits",
+          "evidence": "static bool map_find(const SurgeMap* map, uint64_t key_bits, uint64_t* out_idx) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key_bits",
+          "evidence": "static bool map_key_eq(const SurgeMap* map, uint64_t key_bits, uint64_t entry_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "key_bits",
+          "evidence": "uint64_t key_bits = map-\u003eentries[i].key;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "out_bits",
+          "evidence": "bool rt_map_get_mut(void* map_ptr, uint64_t key_bits, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "out_bits",
+          "evidence": "bool rt_map_get_ref(void* map_ptr, uint64_t key_bits, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_map.c",
+          "token": "value",
+          "evidence": "uint64_t value;",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 2
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 3
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 4
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_anchored_channel_recv(uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "out_bits",
+          "evidence": "finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 2
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 3
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "out_bits",
+          "evidence": "rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "out_bits",
+          "evidence": "uint64_t* out_bits) {",
+          "ordinal": 1
+        },
+        {
+          "category": "native-word-carrier",
+          "path": "runtime/native/rt_remote_task_result.c",
+          "token": "out_bits",
+          "evidence": "uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, uint64_t* out_bits) {",
+          "ordinal": 1
+        }
+      ],
+      "allow": [
+        {
+          "id": "scheduler-deque-task-id-buffer",
+          "finding": {
+            "category": "native-word-carrier",
+            "path": "runtime/native/rt_async_internal.h",
+            "token": "buf",
+            "evidence": "uint64_t* buf;",
+            "ordinal": 1
+          },
+          "reason": "rt_deque stores scheduler task identifiers as machine words.",
+          "safe_because": "the buffer contains scheduler IDs, not erased language values or owned payloads.",
+          "invalidated_when": "rt_deque begins carrying language values, payload pointers, or ownership obligations."
+        }
+      ]
+    },
+    {
+      "id": "numeric-drop-dispatch",
+      "retire_to_zero": true,
+      "baseline_count": 188,
+      "baseline_digest": "cbaf3847dfed1193a530baa63059e85104dcfd8ac2e98b1a3e83b004766a2191",
+      "legacy": [
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit.go",
+          "token": "crossingDropResults",
+          "evidence": "crossingDropResults  map[types.TypeID]struct{}",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit.go",
+          "token": "crossingDropStates",
+          "evidence": "crossingDropStates map[mir.FuncID]types.TypeID",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "abandonedStateDropID",
+          "evidence": "dropID, err := fe.abandonedStateDropID(\u0026term.AsyncReturnCancelled.State)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "abandonedStateDropID",
+          "evidence": "dropID, err := fe.abandonedStateDropID(\u0026term.AsyncYield.State)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "abandonedStateDropID",
+          "evidence": "func (fe *funcEmitter) abandonedStateDropID(state *mir.Operand) (types.TypeID, error) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "crossingDropStates",
+          "evidence": "dropIDs := make([]mir.FuncID, 0, len(e.crossingDropStates))",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "crossingDropStates",
+          "evidence": "fmt.Fprintf(\u0026e.buf, \"  call void @%s(ptr %%state)\\n\", dropGlueName(e.crossingDropStates[id]))",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_async.go",
+          "token": "crossingDropStates",
+          "evidence": "for id := range e.crossingDropStates {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "channelPayloadDropID",
+          "evidence": "dropID = fe.channelPayloadDropID(dstType)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "channelPayloadDropID",
+          "evidence": "func (fe *funcEmitter) channelPayloadDropID(channelDstType types.TypeID) types.TypeID {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_channel.go",
+          "token": "registerCrossingDropResult",
+          "evidence": "return fe.emitter.registerCrossingDropResult(elem)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_crossing.go",
+          "token": "registerCrossingDropResult",
+          "evidence": "resultDropID = fe.emitter.registerCrossingDropResult(ins.PayloadType)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_crossing_channel_create.go",
+          "token": "registerCrossingDropResult",
+          "evidence": "dropID = fe.emitter.registerCrossingDropResult(ins.PayloadType)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_crossing_far_task.go",
+          "token": "registerCrossingDropResult",
+          "evidence": "resultDropID = fe.emitter.registerCrossingDropResult(resultPayloadType)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_crossing_select.go",
+          "token": "registerCrossingDropResult",
+          "evidence": "dropID = fe.emitter.registerCrossingDropResult(valueType)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropResults",
+          "evidence": "e.crossingDropResults = make(map[types.TypeID]struct{})",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropResults",
+          "evidence": "e.crossingDropResults[resolved] = struct{}{}",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropResults",
+          "evidence": "for id := range e.crossingDropResults {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropResults",
+          "evidence": "if e.crossingDropResults == nil {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropResults",
+          "evidence": "resultDropIDs := make([]types.TypeID, 0, len(e.crossingDropResults))",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropStates",
+          "evidence": "e.crossingDropStates = make(map[mir.FuncID]types.TypeID)",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropStates",
+          "evidence": "e.crossingDropStates[bodyID] = resolved",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropStates",
+          "evidence": "if e.crossingDropStates == nil {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "crossingDropStates",
+          "evidence": "if prev, ok := e.crossingDropStates[bodyID]; ok \u0026\u0026 prev != resolved {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "internal/backend/llvm/emit_drop_glue.go",
+          "token": "registerCrossingDropResult",
+          "evidence": "func (e *Emitter) registerCrossingDropResult(resultType types.TypeID) types.TypeID {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt.h",
+          "token": "payload_drop_fn_id",
+          "evidence": "void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt.h",
+          "token": "state_drop_fn_id",
+          "evidence": "void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt.h",
+          "token": "state_drop_fn_id",
+          "evidence": "void rt_async_yield(void* state, uint64_t state_drop_fn_id);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "__surge_drop_result_call",
+          "evidence": "__surge_drop_result_call(ch-\u003epayload_drop_fn_id, (void*)ch-\u003ebuf[idx]);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "__surge_drop_result_call",
+          "evidence": "__surge_drop_result_call(ch-\u003epayload_drop_fn_id, (void*)task-\u003eresume_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "__surge_drop_result_call(ch-\u003epayload_drop_fn_id, (void*)ch-\u003ebuf[idx]);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "__surge_drop_result_call(ch-\u003epayload_drop_fn_id, (void*)task-\u003eresume_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "ch-\u003epayload_drop_fn_id = payload_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "ch-\u003epayload_drop_fn_id = payload_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "if (ch-\u003epayload_drop_fn_id != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "if (task-\u003eresume_kind == RESUME_CHAN_RECV_VALUE \u0026\u0026 ch-\u003epayload_drop_fn_id != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "__surge_drop_abandoned_state_call",
+          "evidence": "extern void __surge_drop_abandoned_state_call(uint64_t id, void* state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "__surge_drop_call",
+          "evidence": "extern void __surge_drop_call(uint64_t id, void* state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "__surge_drop_result_call",
+          "evidence": "extern void __surge_drop_result_call(uint64_t id, void* value);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "abandoned_state_drop_fn_id",
+          "evidence": "uint64_t abandoned_state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "payload_drop_fn_id",
+          "evidence": "void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "abandoned_state_drop_fn_id",
+          "evidence": "current-\u003eabandoned_state_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "state_drop_fn_id",
+          "evidence": "current-\u003eabandoned_state_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "state_drop_fn_id",
+          "evidence": "if (state_drop_fn_id == 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "state_drop_fn_id",
+          "evidence": "stash_abandoned_state(state, state_drop_fn_id);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "state_drop_fn_id",
+          "evidence": "stash_abandoned_state(state, state_drop_fn_id);",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "state_drop_fn_id",
+          "evidence": "static void stash_abandoned_state(void* state, uint64_t state_drop_fn_id) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "state_drop_fn_id",
+          "evidence": "void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "state_drop_fn_id",
+          "evidence": "void rt_async_yield(void* state, uint64_t state_drop_fn_id) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_channel_lane.h",
+          "token": "payload_drop_fn_id",
+          "evidence": "uint64_t payload_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "request-\u003epayload_drop_fn_id = payload_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "request-\u003epayload_drop_fn_id = payload_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "uint64_t payload_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "void* channel = rt_channel_new(pending-\u003ebody_poll_fn_id, pending-\u003epayload_drop_fn_id);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel.h",
+          "token": "payload_drop_fn_id",
+          "evidence": "uint64_t payload_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel.h",
+          "token": "send_drop_fn_ids",
+          "evidence": "const uint64_t* send_drop_fn_ids,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel.h",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "__surge_drop_call",
+          "evidence": "__surge_drop_call(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "__surge_drop_result_call",
+          "evidence": "__surge_drop_result_call(arms[i].payload_drop_fn_id, (void*)arms[i].send_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "__surge_drop_result_call",
+          "evidence": "__surge_drop_result_call(send_drop_fn_ids[i], (void*)send_bits[i]);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "__surge_drop_result_call(arms[i].payload_drop_fn_id, (void*)arms[i].send_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "arms[i].payload_drop_fn_id = send_drop_fn_ids != NULL ? send_drop_fn_ids[i] : 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "if (arms[i].payload_drop_fn_id != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "pending-\u003eselect_arms[i].payload_drop_fn_id = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "__surge_drop_result_call(send_drop_fn_ids[i], (void*)send_bits[i]);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "arms[i].payload_drop_fn_id = send_drop_fn_ids != NULL ? send_drop_fn_ids[i] : 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "arms[i].payload_drop_fn_id = send_drop_fn_ids != NULL ? send_drop_fn_ids[i] : 0;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "const uint64_t* send_drop_fn_ids,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "const uint64_t* send_drop_fn_ids,",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "if (kinds == NULL || send_bits == NULL || send_drop_fn_ids == NULL) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "if (kinds[i] == SELECT_CHAN_SEND \u0026\u0026 send_drop_fn_ids[i] != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 3
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 4
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 5
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "send_drop_fn_ids",
+          "evidence": "select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);",
+          "ordinal": 6
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "__surge_drop_call(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "if (state_drop_fn_id != 0 \u0026\u0026 state != NULL) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_owned = state_drop_fn_id != 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "select_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "select_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "select_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 3
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "select_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 4
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "select_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 5
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "select_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 6
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "select_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 7
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "static void select_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_far_channel_select.c",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "__surge_drop_call",
+          "evidence": "__surge_drop_call(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "__surge_drop_call(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "if (state_drop_fn_id != 0 \u0026\u0026 state != NULL) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "immediate_on_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "immediate_on_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "immediate_on_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 3
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "immediate_on_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 4
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "immediate_on_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 5
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_owned = state_drop_fn_id != 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "static void immediate_on_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on.c",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "__surge_drop_call",
+          "evidence": "__surge_drop_call(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "__surge_drop_call(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "anchored_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "anchored_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "anchored_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 3
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "anchored_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 4
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "if (state_drop_fn_id != 0 \u0026\u0026 state != NULL) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "request-\u003estate_owned = state_drop_fn_id != 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "static void anchored_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_immediate_on_anchored.c",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "__surge_drop_call",
+          "evidence": "__surge_drop_call(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "result_drop_fn_id",
+          "evidence": "0, state_drop_fn_id, result_drop_fn_id, poll_fn_id, state, pending, out_handle);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "result_drop_fn_id",
+          "evidence": "req-\u003eresult_drop_fn_id = result_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "result_drop_fn_id",
+          "evidence": "req-\u003eresult_drop_fn_id = result_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "result_drop_fn_id",
+          "evidence": "result_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "result_drop_fn_id",
+          "evidence": "task-\u003eresult_drop_fn_id = req-\u003eresult_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "result_drop_fn_id",
+          "evidence": "task-\u003eresult_drop_fn_id = req-\u003eresult_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "0, state_drop_fn_id, result_drop_fn_id, poll_fn_id, state, pending, out_handle);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "__surge_drop_call(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "if (state_drop_fn_id != 0 \u0026\u0026 state != NULL) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "remote_spawn_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "remote_spawn_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "remote_spawn_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 3
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "remote_spawn_drop_unshipped_state(state_drop_fn_id, state);",
+          "ordinal": 4
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "req-\u003estate_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "req-\u003estate_drop_fn_id = state_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "req-\u003estate_owned = state_drop_fn_id != 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "state_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "static void remote_spawn_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.c",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.h",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.h",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.h",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn.h",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn_internal.h",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn_internal.h",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn_pending.c",
+          "token": "__surge_drop_call",
+          "evidence": "__surge_drop_call(pending-\u003estate_drop_fn_id, pending-\u003estate);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn_pending.c",
+          "token": "state_drop_fn_id",
+          "evidence": "__surge_drop_call(pending-\u003estate_drop_fn_id, pending-\u003estate);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_spawn_pending.c",
+          "token": "state_drop_fn_id",
+          "evidence": "if (pending-\u003estate_owned != 0 \u0026\u0026 pending-\u003estate_drop_fn_id != 0 \u0026\u0026 pending-\u003estate != NULL) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task.h",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id,",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "result_drop_fn_id",
+          "evidence": "(*slot)-\u003eresult_drop_fn_id = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "result_drop_fn_id",
+          "evidence": "RT_REMOTE_TASK_OP_AWAIT, handle, result_drop_fn_id, pending, out_kind, out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "result_drop_fn_id",
+          "evidence": "RT_REMOTE_TASK_OP_CANCEL, handle, result_drop_fn_id, pending, out_kind, out_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "result_drop_fn_id",
+          "evidence": "request-\u003eresult_drop_fn_id = result_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "result_drop_fn_id",
+          "evidence": "request-\u003eresult_drop_fn_id = result_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_api.c",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id,",
+          "ordinal": 3
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_completion.c",
+          "token": "result_drop_fn_id",
+          "evidence": "task-\u003eresult_drop_fn_id = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_completion.c",
+          "token": "result_drop_fn_id",
+          "evidence": "task-\u003eresult_drop_fn_id = 0;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_completion.c",
+          "token": "result_drop_fn_id",
+          "evidence": "task-\u003eresult_drop_fn_id = 0;",
+          "ordinal": 3
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_dispatch.c",
+          "token": "result_drop_fn_id",
+          "evidence": "task-\u003eresult_drop_fn_id = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "payload_drop_fn_id",
+          "evidence": "uint64_t payload_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "payload_drop_fn_id",
+          "evidence": "uint64_t payload_drop_fn_id;",
+          "ordinal": 2
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "result_drop_fn_id",
+          "evidence": "uint64_t result_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_internal.h",
+          "token": "state_drop_fn_id",
+          "evidence": "uint64_t state_drop_fn_id;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "__surge_drop_call",
+          "evidence": "__surge_drop_call(pending-\u003estate_drop_fn_id, pending-\u003ebody_state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "__surge_drop_result_call",
+          "evidence": "__surge_drop_result_call(arm-\u003epayload_drop_fn_id, (void*)arm-\u003esend_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "__surge_drop_result_call",
+          "evidence": "__surge_drop_result_call(pending-\u003eresult_drop_fn_id, (void*)pending-\u003eresult_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "__surge_drop_result_call(arm-\u003epayload_drop_fn_id, (void*)arm-\u003esend_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "payload_drop_fn_id",
+          "evidence": "if (arm-\u003epayload_drop_fn_id != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_drop_fn_id",
+          "evidence": "__surge_drop_result_call(pending-\u003eresult_drop_fn_id, (void*)pending-\u003eresult_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "result_drop_fn_id",
+          "evidence": "if (pending-\u003eresult_drop_fn_id != 0 \u0026\u0026 pending-\u003eresult_bits != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "state_drop_fn_id",
+          "evidence": "__surge_drop_call(pending-\u003estate_drop_fn_id, pending-\u003ebody_state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_pending.c",
+          "token": "state_drop_fn_id",
+          "evidence": "if (pending-\u003estate_owned != 0 \u0026\u0026 pending-\u003estate_drop_fn_id != 0 \u0026\u0026",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_remote_task_result.c",
+          "token": "result_drop_fn_id",
+          "evidence": "producer-\u003eresult_drop_fn_id = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "__surge_drop_abandoned_state_call",
+          "evidence": "__surge_drop_abandoned_state_call(task-\u003eabandoned_state_drop_fn_id, task-\u003eabandoned_state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "abandoned_state_drop_fn_id",
+          "evidence": "__surge_drop_abandoned_state_call(task-\u003eabandoned_state_drop_fn_id, task-\u003eabandoned_state);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "abandoned_state_drop_fn_id",
+          "evidence": "if (task-\u003eabandoned_state_drop_fn_id != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "abandoned_state_drop_fn_id",
+          "evidence": "task-\u003eabandoned_state_drop_fn_id = 0;",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_task_lifetime.c",
+          "token": "__surge_drop_result_call",
+          "evidence": "__surge_drop_result_call(task-\u003eresult_drop_fn_id, (void*)task-\u003eresult_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_task_lifetime.c",
+          "token": "result_drop_fn_id",
+          "evidence": "__surge_drop_result_call(task-\u003eresult_drop_fn_id, (void*)task-\u003eresult_bits);",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_task_lifetime.c",
+          "token": "result_drop_fn_id",
+          "evidence": "if (task-\u003eresult_drop_fn_id != 0 \u0026\u0026 task-\u003eresult_bits != 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "numeric-drop-dispatch",
+          "path": "runtime/native/rt_task_lifetime.c",
+          "token": "result_drop_fn_id",
+          "evidence": "task-\u003eresult_drop_fn_id = 0;",
+          "ordinal": 1
+        }
+      ],
+      "allow": []
+    },
+    {
+      "id": "vm-async-any-carrier",
+      "retire_to_zero": true,
+      "baseline_count": 23,
+      "baseline_digest": "de681941a0571ab43289e7e505e0da28e70b6fafb86678eccf9e100e87f47f38",
+      "legacy": [
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "ChannelPayloads []any",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "ResultValue      any",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "ResumeValue      any",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "State            any",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "func (e *Executor) MarkDone(id TaskID, kind TaskResultKind, result any) {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "func (e *Executor) Spawn(pollFuncID int64, state any) TaskID {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "func (e *Executor) drainChannelPayloads() []any {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "func (e *Executor) spawnBuiltin(kind TaskKind, state any, attach bool) TaskID {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "any",
+          "evidence": "payloads := make([]any, 0)",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "buf  []any",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "func (ch *Channel) bufPop() (any, bool) {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "func (ch *Channel) bufPush(value any) {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "func (e *Executor) ChanRecvOrPark(id ChannelID) (any, bool) {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "func (e *Executor) ChanSendOrPark(id ChannelID, value any) bool {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "func (e *Executor) ChanTryRecv(id ChannelID) (any, bool) {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "func (e *Executor) ChanTrySend(id ChannelID, value any) bool {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "remaining := append([]any(nil), ch.buf[ch.head:]...)",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "any",
+          "evidence": "value    any",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/task_sleep.go",
+          "token": "any",
+          "evidence": "func (e *Executor) SpawnSleep(state any) TaskID {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/task_timeout.go",
+          "token": "any",
+          "evidence": "func (e *Executor) SpawnTimeout(state any) TaskID {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/timer.go",
+          "token": "any",
+          "evidence": "func (h *timerHeap) Pop() any {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/timer.go",
+          "token": "any",
+          "evidence": "func (h *timerHeap) Push(x any) {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/waker.go",
+          "token": "any",
+          "evidence": "Value   any",
+          "ordinal": 1
+        }
+      ],
+      "allow": [
+        {
+          "id": "container-heap-pop-any",
+          "finding": {
+            "category": "vm-async-any-carrier",
+            "path": "internal/asyncrt/timer.go",
+            "token": "any",
+            "evidence": "func (h *timerHeap) Pop() any {",
+            "ordinal": 1
+          },
+          "reason": "container/heap requires Pop to return any.",
+          "safe_because": "timerHeap returns a *Timer scheduler record, not a language value payload.",
+          "invalidated_when": "Pop stops implementing container/heap or begins returning Runtime V2 values."
+        },
+        {
+          "id": "container-heap-push-any",
+          "finding": {
+            "category": "vm-async-any-carrier",
+            "path": "internal/asyncrt/timer.go",
+            "token": "any",
+            "evidence": "func (h *timerHeap) Push(x any) {",
+            "ordinal": 1
+          },
+          "reason": "container/heap requires Push to accept any.",
+          "safe_because": "Push immediately narrows the argument to a *Timer scheduler record.",
+          "invalidated_when": "Push stops implementing container/heap or accepts Runtime V2 value payloads."
+        }
+      ]
+    },
+    {
+      "id": "vm-boxed-composite-kind",
+      "retire_to_zero": true,
+      "baseline_count": 74,
+      "baseline_digest": "43e1d901265cbde8b74d6d50919db4d9de4177bb6a974f72621875a4c2eea644",
+      "legacy": [
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/async_runtime.go",
+          "token": "OKStruct",
+          "evidence": "if obj == nil || obj.Kind != OKStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/async_runtime.go",
+          "token": "OKStruct",
+          "evidence": "if obj == nil || obj.Kind != OKStruct {",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/async_runtime.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/async_runtime.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/clone_value.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/clone_value.go",
+          "token": "OKTag",
+          "evidence": "case OKTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/drop.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/drop.go",
+          "token": "OKTag",
+          "evidence": "case OKTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/eval_data.go",
+          "token": "OKStruct",
+          "evidence": "if sobj.Kind != OKStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/eval_data.go",
+          "token": "OKStruct",
+          "evidence": "if sobj.Kind != OKStruct {",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/eval_data.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/eval_data.go",
+          "token": "VKHandleStruct",
+          "evidence": "if target.Kind != VKHandleStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap.go",
+          "token": "OKStruct",
+          "evidence": "handle, obj := h.alloc(OKStruct, typeID)",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap.go",
+          "token": "OKTag",
+          "evidence": "case OKTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap.go",
+          "token": "OKTag",
+          "evidence": "handle, obj := h.alloc(OKTag, typeID)",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap.go",
+          "token": "VKHandleTag",
+          "evidence": "case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_debug.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct, OKTag, OKRange:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_debug.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_debug.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct:",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_debug.go",
+          "token": "OKTag",
+          "evidence": "case OKStruct, OKTag, OKRange:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_debug.go",
+          "token": "OKTag",
+          "evidence": "case OKTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_debug.go",
+          "token": "OKTag",
+          "evidence": "case OKTag:",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_debug.go",
+          "token": "OKTag",
+          "evidence": "if obj == nil || obj.Kind != OKTag || vm == nil || vm.tagLayouts == nil {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_dump.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/heap_dump.go",
+          "token": "OKTag",
+          "evidence": "case OKTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_entrypoint.go",
+          "token": "OKStruct",
+          "evidence": "if obj == nil || obj.Kind != OKStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_entrypoint.go",
+          "token": "VKHandleStruct",
+          "evidence": "if val.Kind != VKHandleStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_fs_file_helpers.go",
+          "token": "OKStruct",
+          "evidence": "if obj == nil || obj.Kind != OKStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_fs_file_helpers.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_net_helpers.go",
+          "token": "OKStruct",
+          "evidence": "if obj == nil || obj.Kind != OKStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_net_helpers.go",
+          "token": "OKStruct",
+          "evidence": "if obj == nil || obj.Kind != OKStruct {",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_net_helpers.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_net_helpers.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_ops.go",
+          "token": "OKStruct",
+          "evidence": "if obj.Kind != OKStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_ops.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_time.go",
+          "token": "OKStruct",
+          "evidence": "if obj.Kind != OKStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_time.go",
+          "token": "VKHandleStruct",
+          "evidence": "if value.Kind != VKHandleStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/intrinsic_to.go",
+          "token": "VKHandleStruct",
+          "evidence": "if dstValTy == vm.Types.Builtins().Int \u0026\u0026 src.Kind == VKHandleStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/object.go",
+          "token": "OKStruct",
+          "evidence": "OKStruct",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/object.go",
+          "token": "OKTag",
+          "evidence": "OKTag",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/place.go",
+          "token": "OKStruct",
+          "evidence": "if obj.Kind != OKStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/place.go",
+          "token": "OKStruct",
+          "evidence": "if obj.Kind != OKStruct {",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/place.go",
+          "token": "OKStruct",
+          "evidence": "if obj.Kind != OKStruct {",
+          "ordinal": 3
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/place.go",
+          "token": "OKTag",
+          "evidence": "if obj.Kind != OKTag {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/place.go",
+          "token": "OKTag",
+          "evidence": "if obj.Kind != OKTag {",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/place.go",
+          "token": "VKHandleStruct",
+          "evidence": "if v.Kind != VKHandleStruct {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/tag.go",
+          "token": "OKTag",
+          "evidence": "if fieldObj := vm.Heap.Get(field.H); fieldObj != nil \u0026\u0026 fieldObj.Kind == OKTag {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/tag.go",
+          "token": "OKTag",
+          "evidence": "if obj.Kind != OKTag {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/tag.go",
+          "token": "OKTag",
+          "evidence": "if obj.Kind != OKTag {",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/tag.go",
+          "token": "OKTag",
+          "evidence": "if obj.Kind != OKTag {",
+          "ordinal": 3
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/tag.go",
+          "token": "VKHandleTag",
+          "evidence": "if val.Kind != VKHandleTag {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/tag.go",
+          "token": "VKHandleTag",
+          "evidence": "if val.Kind != VKHandleTag {",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/tag.go",
+          "token": "VKHandleTag",
+          "evidence": "if val.Kind != VKHandleTag {",
+          "ordinal": 3
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/task_state_pins.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/task_state_pins.go",
+          "token": "OKTag",
+          "evidence": "case OKTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/trace.go",
+          "token": "OKStruct",
+          "evidence": "case OKStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/trace.go",
+          "token": "OKTag",
+          "evidence": "case OKTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/trace.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/trace.go",
+          "token": "VKHandleTag",
+          "evidence": "case VKHandleTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/type_checks.go",
+          "token": "OKTag",
+          "evidence": "if obj := vm.Heap.Get(val.H); obj != nil \u0026\u0026 obj.Kind == OKTag {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/type_checks.go",
+          "token": "OKTag",
+          "evidence": "if obj := vm.Heap.Get(val.H); obj != nil \u0026\u0026 obj.Kind == OKTag {",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/type_checks.go",
+          "token": "VKHandleTag",
+          "evidence": "if val.Kind != VKHandleTag {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleStruct",
+          "evidence": "Kind:   VKHandleStruct,",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleStruct",
+          "evidence": "VKHandleStruct",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleStruct",
+          "evidence": "case VKHandleStruct:",
+          "ordinal": 2
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleTag",
+          "evidence": "Kind:   VKHandleTag,",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleTag",
+          "evidence": "VKHandleTag",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleTag",
+          "evidence": "case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleTag",
+          "evidence": "case VKHandleTag:",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-boxed-composite-kind",
+          "path": "internal/vm/value.go",
+          "token": "VKHandleTag",
+          "evidence": "case VKHandleTag:",
+          "ordinal": 2
+        }
+      ],
+      "allow": []
+    },
+    {
+      "id": "vm-universal-owner",
+      "retire_to_zero": true,
+      "baseline_count": 13,
+      "baseline_digest": "4dd790d81ae265cccd12832c469b377dd71d6edaa98bdb1a096cb54edef4c9f5",
+      "legacy": [
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
+          "token": "state Value",
+          "evidence": "state   Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
+          "token": "state Value",
+          "evidence": "state Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
+          "token": "value Value",
+          "evidence": "func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKind, value Value) (Value, *VMError) {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
+          "token": "value Value",
+          "evidence": "value   Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/frame.go",
+          "token": "V Value",
+          "evidence": "V         Value        // Current value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/map_object.go",
+          "token": "Key Value",
+          "evidence": "Key   Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/map_object.go",
+          "token": "Value Value",
+          "evidence": "Value Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "Arr []Value",
+          "evidence": "Arr           []Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "Fields []Value",
+          "evidence": "Fields        []Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "Fields []Value",
+          "evidence": "Fields []Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/tag.go",
+          "token": "make([]Value)",
+          "evidence": "args := make([]Value, len(call.Args))",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm_dispatch_async_types.go",
+          "token": "storeVal Value",
+          "evidence": "storeVal Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm_dispatch_call.go",
+          "token": "make([]Value)",
+          "evidence": "args := make([]Value, len(call.Args))",
+          "ordinal": 1
+        }
+      ],
+      "allow": []
+    }
+  ]
+}

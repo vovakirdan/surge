@@ -1,0 +1,255 @@
+package carriergate
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+)
+
+const legacyManifestPath = "testdata/legacy_carriers.json"
+
+func TestLiveRatchetRejectsAddedAndChangedOccurrences(t *testing.T) {
+	base := []Finding{
+		{Category: categoryVMBoxKind, Path: "internal/vm/a.go", Token: "OKStruct", Evidence: "var _ = OKStruct", Ordinal: 1},
+		{Category: categoryVMBoxKind, Path: "internal/vm/b.go", Token: "OKTag", Evidence: "var _ = OKTag", Ordinal: 1},
+	}
+	manifest, err := newSnapshotManifest(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	added := append(append([]Finding(nil), base...), Finding{Category: categoryVMBoxKind, Path: "internal/vm/c.go", Token: "OKTag", Evidence: "var _ = OKTag", Ordinal: 1})
+	if difference := Compare(&manifest, added); len(difference.Unexpected) != 1 || len(difference.Stale) != 0 {
+		t.Fatalf("added difference = %+v", difference)
+	}
+	changed := append([]Finding(nil), base...)
+	changed[0].Evidence = "var renamed = OKStruct"
+	if difference := Compare(&manifest, changed); len(difference.Stale) != 0 || len(difference.Unexpected) != 1 {
+		t.Fatalf("changed difference = %+v", difference)
+	}
+}
+
+func TestLiveRatchetAllowsLegacyReduction(t *testing.T) {
+	base := []Finding{
+		{Category: categoryVMBoxKind, Path: "internal/vm/a.go", Token: "OKStruct", Evidence: "var _ = OKStruct", Ordinal: 1},
+		{Category: categoryVMBoxKind, Path: "internal/vm/b.go", Token: "OKTag", Evidence: "var _ = OKTag", Ordinal: 1},
+	}
+	manifest, err := newSnapshotManifest(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if difference := Compare(&manifest, base[:1]); !difference.Empty() {
+		t.Fatalf("live reduction rejected: %+v", difference)
+	}
+	if difference := CompareExact(&manifest, base[:1]); len(difference.Stale) != 1 {
+		t.Fatalf("exact-base reduction difference = %+v", difference)
+	}
+}
+
+func TestLiveRatchetRejectsStaleAllowance(t *testing.T) {
+	finding := Finding{Category: categoryLLVMPointerWord, Path: "internal/backend/llvm/a.go", Token: "inttoptr", Evidence: "return inttoptr", Ordinal: 1}
+	allowance := Allowance{ID: "test-allow", Finding: finding, Reason: "test", SafeBecause: "test", InvalidatedWhen: "removed"}
+	manifest, err := newSnapshotManifest([]Finding{finding}, []Allowance{allowance})
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := cloneManifest(t, manifest)
+	for categoryIndex := range invalid.Categories {
+		if len(invalid.Categories[categoryIndex].Allow) > 0 {
+			invalid.Categories[categoryIndex].Allow[0].Finding.Evidence = "not in frozen baseline"
+		}
+	}
+	if err := ValidateManifest(&invalid); err == nil {
+		t.Fatal("allowance outside frozen baseline was accepted")
+	}
+	difference := Compare(&manifest, nil)
+	if len(difference.StaleAllow) != 1 {
+		t.Fatalf("stale allowance difference = %+v", difference)
+	}
+	for categoryIndex := range manifest.Categories {
+		manifest.Categories[categoryIndex].Allow = []Allowance{}
+	}
+	if err := ValidateManifest(&manifest); err != nil {
+		t.Fatalf("remove stale allowance without changing baseline: %v", err)
+	}
+	if difference := Compare(&manifest, nil); !difference.Empty() {
+		t.Fatalf("retired allowed legacy rejected after allowance cleanup: %+v", difference)
+	}
+}
+
+func TestManifestRejectsSchemaScopeOrderAndPathDrift(t *testing.T) {
+	finding := Finding{Category: categoryVMBoxKind, Path: "internal/vm/a.go", Token: "OKStruct", Evidence: "OKStruct", Ordinal: 1}
+	manifest, err := newSnapshotManifest([]Finding{finding}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*Manifest)
+	}{
+		{name: "base", mutate: func(value *Manifest) { value.BaseCommit = strings.Repeat("0", 40) }},
+		{name: "scope", mutate: func(value *Manifest) { value.Scope[0].Root = "docs" }},
+		{name: "count", mutate: func(value *Manifest) { value.BaselineCount++ }},
+		{name: "category order", mutate: func(value *Manifest) {
+			value.Categories[0], value.Categories[1] = value.Categories[1], value.Categories[0]
+		}},
+		{name: "outside path", mutate: func(value *Manifest) {
+			for index := range value.Categories {
+				if len(value.Categories[index].Legacy) > 0 {
+					value.Categories[index].Legacy[0].Path = "../escape.go"
+					return
+				}
+			}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			copyValue := cloneManifest(t, manifest)
+			test.mutate(&copyValue)
+			if err := ValidateManifest(&copyValue); err == nil {
+				t.Fatal("drift accepted")
+			}
+		})
+	}
+	unknown := filepath.Join(t.TempDir(), "unknown.json")
+	if err := os.WriteFile(unknown, []byte(`{"version":1,"unknown":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadManifest(unknown); err == nil || !strings.Contains(err.Error(), "unknown field") {
+		t.Fatalf("unknown-field error = %v", err)
+	}
+}
+
+func TestExplicitMakeTargetProbeRejectsCatchAllFalseGreen(t *testing.T) {
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("make is unavailable")
+	}
+	makefile := filepath.Join(t.TempDir(), "Makefile")
+	catchAll := "all:\n\t@:\n%:\n\t@:\n"
+	if err := os.WriteFile(makefile, []byte(catchAll), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("make", "-s", "-f", filepath.Base(makefile), "runtime-v2-carrier-check")
+	command.Dir = filepath.Dir(makefile)
+	command.Env = []string{"LC_ALL=C", "PATH=" + os.Getenv("PATH")}
+	if err := command.Run(); err != nil {
+		t.Fatalf("catch-all did not reproduce false green: %v", err)
+	}
+	if explicit, err := HasExplicitMakeTarget(makefile, "runtime-v2-carrier-check"); err != nil || explicit {
+		t.Fatalf("catch-all explicit probe = %t, %v", explicit, err)
+	}
+	withTarget := catchAll + "runtime-v2-carrier-check:\n\t@:\n"
+	if err := os.WriteFile(makefile, []byte(withTarget), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if explicit, err := HasExplicitMakeTarget(makefile, "runtime-v2-carrier-check"); err != nil || !explicit {
+		t.Fatalf("explicit target probe = %t, %v", explicit, err)
+	}
+}
+
+func TestExplicitMakeTargetProbeOnRepositoryMakefile(t *testing.T) {
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("make is unavailable")
+	}
+	makefile := filepath.Join(repositoryRoot(t), "Makefile")
+	if explicit, err := HasExplicitMakeTarget(makefile, "check"); err != nil || !explicit {
+		t.Fatalf("live explicit target probe = %t, %v", explicit, err)
+	}
+	if explicit, err := HasExplicitMakeTarget(makefile, "definitely-not-an-explicit-target"); err != nil || explicit {
+		t.Fatalf("live catch-all target probe = %t, %v", explicit, err)
+	}
+}
+
+func cloneManifest(t *testing.T, manifest Manifest) Manifest {
+	t.Helper()
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cloned Manifest
+	if err := json.Unmarshal(data, &cloned); err != nil {
+		t.Fatal(err)
+	}
+	return cloned
+}
+
+func TestRequiredCategoriesAreCanonical(t *testing.T) {
+	copyValue := append([]string(nil), requiredCategories...)
+	slicesSort(copyValue)
+	if !reflect.DeepEqual(copyValue, requiredCategories) {
+		t.Fatalf("required categories are not sorted: %v", requiredCategories)
+	}
+}
+
+func newSnapshotManifest(findings []Finding, allowances []Allowance) (Manifest, error) {
+	actual := append([]Finding(nil), findings...)
+	for i := range actual {
+		actual[i].Line = 0
+	}
+	sortFindings(actual)
+	allowByKey := make(map[findingKey]Allowance, len(allowances))
+	actualByKey := make(map[findingKey]Finding, len(actual))
+	for i := range actual {
+		finding := &actual[i]
+		actualByKey[keyFor(finding)] = *finding
+	}
+	for _, allowance := range allowances {
+		allowance.Finding.Line = 0
+		key := keyFor(&allowance.Finding)
+		if _, exists := actualByKey[key]; !exists {
+			return Manifest{}, fmt.Errorf("snapshot allowance %s does not match an actual finding", allowance.ID)
+		}
+		allowByKey[key] = allowance
+	}
+	manifest := Manifest{
+		Version: ManifestVersion, BaseCommit: EpicBaseCommit, DigestAlgorithm: digestAlgorithm,
+		BaselineCount: len(actual), BaselineDigest: Digest(actual), Scope: cloneScopes(requiredScopes),
+		Categories: make([]CategoryManifest, 0, len(requiredCategories)),
+	}
+	for _, categoryID := range requiredCategories {
+		category := CategoryManifest{ID: categoryID, RetireToZero: true, Legacy: []Finding{}, Allow: []Allowance{}}
+		baseline := make([]Finding, 0)
+		for i := range actual {
+			finding := &actual[i]
+			if finding.Category != categoryID {
+				continue
+			}
+			baseline = append(baseline, *finding)
+			category.Legacy = append(category.Legacy, *finding)
+			if allowance, safe := allowByKey[keyFor(finding)]; safe {
+				category.Allow = append(category.Allow, allowance)
+			}
+		}
+		sort.Slice(category.Allow, func(i, j int) bool { return category.Allow[i].ID < category.Allow[j].ID })
+		category.BaselineCount = len(baseline)
+		category.BaselineDigest = Digest(baseline)
+		manifest.Categories = append(manifest.Categories, category)
+	}
+	return manifest, ValidateManifest(&manifest)
+}
+
+func cloneScopes(scopes []Scope) []Scope {
+	cloned := make([]Scope, len(scopes))
+	for i := range scopes {
+		cloned[i] = Scope{
+			Root:       scopes[i].Root,
+			Extensions: cloneStrings(scopes[i].Extensions),
+			Excludes:   cloneStrings(scopes[i].Excludes),
+		}
+	}
+	return cloned
+}
+
+func cloneStrings(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	cloned := make([]string, len(values))
+	copy(cloned, values)
+	return cloned
+}
