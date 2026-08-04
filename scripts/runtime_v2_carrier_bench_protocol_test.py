@@ -3,6 +3,229 @@
 from runtime_v2_carrier_bench_test_support import *
 
 class ProtocolTests(unittest.TestCase):
+    def test_main_capture_mode_completes_real_red_but_strict_mode_aborts(self) -> None:
+        manifest = load_manifest(
+            SCRIPT_DIR.parent / "testdata" / "runtime-v2-carrier-bench.json"
+        )
+        candidate_commit = "c" * 40
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate_root = root / "candidate"
+            base_root = root / "base"
+            detached_candidate = root / "detached-candidate"
+            for path in (candidate_root, base_root, detached_candidate):
+                path.mkdir()
+            manifest_path = (
+                candidate_root / "testdata" / "runtime-v2-carrier-bench.json"
+            )
+            timeline: list[tuple[str, str, str]] = []
+
+            @contextmanager
+            def fake_commit_root(
+                unused_repository: Path, unused_commit: str, label: str
+            ):
+                yield base_root if label == "base" else detached_candidate
+
+            def fake_git_commit(path: Path) -> str:
+                return manifest.epic_base if path == base_root else candidate_commit
+
+            def fake_build_fixtures(**kwargs: object) -> dict[str, BuiltFixture]:
+                capture_kind = str(kwargs["capture_kind"])
+                side_root = Path(kwargs["side_root"])
+                side = "base" if side_root == base_root else "candidate"
+                timeline.append(("build", capture_kind, side))
+                paths = {row.fixture for row in manifest.rows}
+                if kwargs.get("include_allocation_control"):
+                    paths.add(manifest.allocation_control.fixture)
+                return {
+                    path: BuiltFixture(
+                        root / f"{capture_kind}-{side}-{index}", path
+                    )
+                    for index, path in enumerate(sorted(paths))
+                }
+
+            def fake_run_batch(
+                unused_manifest: Manifest,
+                row: Row,
+                side: Side,
+                unused_fixture: BuiltFixture,
+                unused_protocol_sha256: str,
+                capture_kind: str,
+            ) -> BatchResult:
+                timeline.append(("run", capture_kind, side))
+                is_control = row.row_id == "allocation-control"
+                if is_control:
+                    allocation_count = 1
+                elif capture_kind == "timing" and side == "candidate":
+                    allocation_count = (
+                        row.candidate_structural_allocations_per_batch + 1
+                    )
+                else:
+                    allocation_count = 0
+                counters = {
+                    metric.name: (
+                        allocation_count
+                        if metric.source == "fixture"
+                        else (None if capture_kind == "timing" else 0)
+                    )
+                    for metric in manifest.metrics
+                }
+                return BatchResult(
+                    elapsed_ns=row.operations_per_batch * 1_000,
+                    operation_latencies_ns=(1_000,) * row.operations_per_batch,
+                    checksum=row.expected_checksum,
+                    counters=counters,
+                    nonce="f" * 32 if capture_kind == "resource" else "",
+                )
+
+            def run(capture: bool) -> tuple[int, dict[str, object], list[tuple[str, str, str]]]:
+                timeline.clear()
+                report_path = root / ("capture.json" if capture else "strict.json")
+                argv = [
+                    "runtime_v2_carrier_bench.py",
+                    "--candidate-root",
+                    str(candidate_root),
+                    "--manifest",
+                    str(manifest_path),
+                    "--report",
+                    str(report_path),
+                    "--phase",
+                    "wave-a",
+                ]
+                if capture:
+                    argv.append("--capture-wave-a-baseline")
+                with (
+                    mock.patch.object(sys, "argv", argv),
+                    mock.patch(
+                        "runtime_v2_carrier_bench._require_canonical_manifest"
+                    ),
+                    mock.patch(
+                        "runtime_v2_carrier_bench.load_manifest",
+                        return_value=manifest,
+                    ),
+                    mock.patch(
+                        "runtime_v2_carrier_bench.manifest_digest",
+                        return_value="a" * 64,
+                    ),
+                    mock.patch(
+                        "runtime_v2_carrier_bench.detect_host",
+                        return_value=manifest.reference,
+                    ),
+                    mock.patch(
+                        "runtime_v2_carrier_bench.require_reference_host"
+                    ),
+                    mock.patch(
+                        "runtime_v2_carrier_bench.require_clean_worktree"
+                    ),
+                    mock.patch(
+                        "runtime_v2_carrier_bench.git_commit",
+                        side_effect=fake_git_commit,
+                    ),
+                    mock.patch("runtime_v2_carrier_bench._require_descendant"),
+                    mock.patch("runtime_v2_carrier_bench._require_tracked_entries"),
+                    mock.patch("runtime_v2_carrier_bench.verify_file_digests"),
+                    mock.patch("runtime_v2_carrier_bench._verify_harness_inventory"),
+                    mock.patch("runtime_v2_carrier_bench._verify_fixture_inventory"),
+                    mock.patch(
+                        "runtime_v2_carrier_bench._commit_root",
+                        side_effect=fake_commit_root,
+                    ),
+                    mock.patch("runtime_v2_carrier_bench.build_surge"),
+                    mock.patch(
+                        "runtime_v2_carrier_bench.build_fixtures",
+                        side_effect=fake_build_fixtures,
+                    ),
+                    mock.patch(
+                        "runtime_v2_carrier_bench_runner._run_batch",
+                        side_effect=fake_run_batch,
+                    ),
+                ):
+                    result = bench_main()
+                return (
+                    result,
+                    json.loads(report_path.read_text(encoding="utf-8")),
+                    list(timeline),
+                )
+
+            capture_result, capture_report, capture_timeline = run(True)
+            self.assertEqual(capture_result, 0)
+            self.assertEqual(capture_report["status"], "failed")
+            self.assertEqual(capture_report["execution_mode"], "wave-a-baseline-capture")
+            self.assertEqual(capture_report["measurement_status"], "complete")
+            self.assertEqual(capture_report["protocol_status"], "passed")
+            self.assertEqual(capture_report["endpoint_invariant_status"], "failed")
+            self.assertEqual(capture_report["allocation_budget_status"], "failed")
+            self.assertEqual(capture_report["allocation_control_status"], "passed")
+            self.assertEqual(capture_report["attempt_sequence_status"], "passed")
+            self.assertEqual(len(capture_report["rows"]), len(manifest.rows))
+            self.assertEqual(
+                capture_report["row_count"], capture_report["expected_row_count"]
+            )
+            self.assertEqual(
+                capture_report["attempt_count"],
+                capture_report["expected_attempt_count"],
+            )
+            self.assertTrue(
+                all(
+                    len(row["base_runs"]) == manifest.protocol.measured_pairs
+                    and len(row["candidate_runs"])
+                    == manifest.protocol.measured_pairs
+                    for row in capture_report["rows"]
+                )
+            )
+            self.assertEqual(
+                [event["attempt"] for event in capture_report["attempts"]],
+                _expected_attempt_sequence(manifest),
+            )
+            expected_mismatches = sum(
+                (manifest.protocol.warmups + manifest.protocol.measured_pairs)
+                * row.batches
+                for row in manifest.rows
+            )
+            self.assertEqual(
+                len(capture_report["allocation_mismatches"]),
+                expected_mismatches,
+            )
+
+            first_timing_run = next(
+                index
+                for index, item in enumerate(capture_timeline)
+                if item[:2] == ("run", "timing")
+            )
+            last_timing_run = max(
+                index
+                for index, item in enumerate(capture_timeline)
+                if item[:2] == ("run", "timing")
+            )
+            resource_build = next(
+                index
+                for index, item in enumerate(capture_timeline)
+                if item[:2] == ("build", "resource")
+            )
+            first_resource_run = next(
+                index
+                for index, item in enumerate(capture_timeline)
+                if item[:2] == ("run", "resource")
+            )
+            self.assertTrue(
+                all(
+                    index < first_timing_run
+                    for index, item in enumerate(capture_timeline)
+                    if item[:2] == ("build", "timing")
+                )
+            )
+            self.assertLess(last_timing_run, resource_build)
+            self.assertLess(resource_build, first_resource_run)
+
+            strict_result, strict_report, strict_timeline = run(False)
+            self.assertEqual(strict_result, 1)
+            self.assertEqual(strict_report["status"], "aborted")
+            self.assertIn("want exact structural budget", strict_report["failure"])
+            self.assertFalse(
+                any(item[:2] == ("build", "resource") for item in strict_timeline)
+            )
+
     def test_execution_finishes_all_timing_before_candidate_resource_capture(self) -> None:
         manifest = make_manifest()
         row = manifest.rows[0]
@@ -138,6 +361,26 @@ class ProtocolTests(unittest.TestCase):
             ):
                 _validate_structural_allocation(row, uniformly_boxed, 0)
 
+    def test_capture_mode_rejects_missing_or_null_required_allocation_metric(self) -> None:
+        row = make_manifest().rows[0]
+        for counters in ({}, {"allocation_count": None}):
+            with self.subTest(counters=counters):
+                mismatches: list[AllocationMismatch] = []
+                with self.assertRaisesRegex(
+                    GateFailure,
+                    "required allocation_count must be a non-negative integer",
+                ):
+                    _capture_or_validate_structural_allocation(
+                        row,
+                        BatchResult(1, (1,), row.expected_checksum, counters),
+                        phase="warmup",
+                        run_index=0,
+                        batch_index=0,
+                        capture_expected_endpoint_red=True,
+                        allocation_mismatches=mismatches,
+                    )
+                self.assertEqual(mismatches, [])
+
     def test_attempt_identity_rejects_missing_duplicate_and_early_resource(self) -> None:
         manifest = make_manifest()
         expected = _expected_attempt_sequence(manifest)
@@ -151,6 +394,18 @@ class ProtocolTests(unittest.TestCase):
         for mutated in mutations:
             with self.assertRaisesRegex(GateFailure, "attempt sequence mismatch"):
                 _validate_attempt_sequence(manifest, mutated)
+        timing_events = [
+            {"attempt": item}
+            for item in _expected_timing_attempt_sequence(manifest)
+        ]
+        _validate_timing_attempt_sequence(manifest, timing_events)
+        for mutated in (
+            timing_events[:-1],
+            [timing_events[0], *timing_events],
+            [*timing_events[1:], timing_events[0]],
+        ):
+            with self.assertRaisesRegex(GateFailure, "attempt sequence mismatch"):
+                _validate_timing_attempt_sequence(manifest, mutated)
 
     def test_timing_execution_cannot_enable_resource_counters(self) -> None:
         manifest = make_manifest()

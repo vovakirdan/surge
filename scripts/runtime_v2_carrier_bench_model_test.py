@@ -6,6 +6,15 @@ class ModelTests(unittest.TestCase):
     def test_wave_a_baseline_capture_preserves_red_and_protocol_boundary(self) -> None:
         endpoint_red = {
             "status": "failed",
+            "execution_mode": "wave-a-baseline-capture",
+            "measurement_status": "complete",
+            "benchmark_phase": "wave-a",
+            "row_count": 1,
+            "expected_row_count": 1,
+            "attempt_count": 1,
+            "expected_attempt_count": 1,
+            "allocation_control_status": "passed",
+            "attempt_sequence_status": "passed",
             "protocol_status": "passed",
             "endpoint_invariant_status": "failed",
         }
@@ -25,6 +34,30 @@ class ModelTests(unittest.TestCase):
                     report, benchmark_phase=phase, requested=requested
                 )
             )
+        for field in (
+            "execution_mode",
+            "measurement_status",
+            "allocation_control_status",
+            "attempt_sequence_status",
+        ):
+            with self.subTest(field=field):
+                report = {**endpoint_red, field: "failed"}
+                self.assertFalse(
+                    _baseline_capture_accepts(
+                        report, benchmark_phase="wave-a", requested=True
+                    )
+                )
+        for actual_field, expected_field in (
+            ("row_count", "expected_row_count"),
+            ("attempt_count", "expected_attempt_count"),
+        ):
+            with self.subTest(actual_field=actual_field):
+                report = {**endpoint_red, actual_field: 0, expected_field: 1}
+                self.assertFalse(
+                    _baseline_capture_accepts(
+                        report, benchmark_phase="wave-a", requested=True
+                    )
+                )
 
     def test_pair_order_alternates_across_rows_and_pairs(self) -> None:
         self.assertEqual(paired_order(0, 0), ("base", "candidate"))

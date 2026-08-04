@@ -158,6 +158,19 @@ are frozen in `23b-wave-a-allocation-census.md`. The manifest is the executable
 copy of that census: a nonzero allocation control first proves the observer is
 live, then every candidate warmup and measured timing batch must equal its
 structural owner/container budget before any resource-capture binary runs.
+Both timing artifacts are built first; controls and the entire paired timing
+matrix run next; only then may the candidate resource artifacts be built and
+run, so candidate-only compilation cannot warm caches or alter thermal state
+before scoring.
+
+`make runtime-v2-carrier-bench` remains the strict final gate and aborts on an
+exact allocation mismatch. The separate
+`make runtime-v2-carrier-baseline-capture` command may collect numeric
+pre-cutover allocation/resource mismatches as endpoint RED only. It still
+aborts on dead controls, missing/null required metrics, identity/checksum
+drift, timeout, malformed or incomplete attempt order, and any other protocol
+corruption; it exits successfully only after writing a complete
+protocol-passed endpoint-RED report.
 
 ### Wave B — layout/operations foundation
 
@@ -606,6 +619,12 @@ per-run throughput, p50/p95 latency, allocation count, bytes copied/moved,
 callback count, credit stalls, and peak transport bytes. CPU affinity,
 shard/thread counts, payload sizes, compiler, and host identity are fixed in the
 report.
+
+The harness builds counter-free base/candidate timing artifacts, runs both
+allocation controls and every timing warmup/measured pair, and only afterward
+builds and runs the separately instrumented candidate resource artifacts.
+Resource-build cache effects therefore cannot bias the paired timing scores,
+and resource elapsed/latency samples never participate in scoring.
 
 For each row and for base and candidate independently, compute two coefficients
 of variation across the seven measured runs: one over throughput samples and

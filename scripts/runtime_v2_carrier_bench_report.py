@@ -7,7 +7,7 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from runtime_v2_carrier_bench_model import (
     GateFailure,
@@ -19,7 +19,11 @@ from runtime_v2_carrier_bench_model import (
     score_side,
     validate_row_protocol,
 )
-from runtime_v2_carrier_bench_runner import LivenessRecord, RunRecord
+from runtime_v2_carrier_bench_runner import (
+    AllocationMismatch,
+    LivenessRecord,
+    RunRecord,
+)
 from runtime_v2_carrier_bench_protocol import BatchResult
 
 
@@ -56,12 +60,23 @@ def render_report(
     benchmark_phase: str,
     liveness_records: tuple[LivenessRecord, ...],
     allocation_controls: Mapping[Side, BatchResult] | None = None,
+    allocation_mismatches: Sequence[AllocationMismatch] = (),
     events: list[dict[str, object]] | None = None,
+    execution_mode: str = "strict",
 ) -> tuple[dict[str, Any], GateFailure | None]:
     rows: list[dict[str, Any]] = []
     failure: GateFailure | None = None
     protocol_failed = False
     endpoint_failed = False
+    allocation_by_row: dict[str, list[AllocationMismatch]] = {
+        row.row_id: [] for row in manifest.rows
+    }
+    for mismatch in allocation_mismatches:
+        if mismatch.row_id not in allocation_by_row:
+            raise GateFailure(
+                f"allocation mismatch references unknown row {mismatch.row_id}"
+            )
+        allocation_by_row[mismatch.row_id].append(mismatch)
     for row in manifest.rows:
         row_records = records.get(row.row_id)
         if row_records is None or "base" not in row_records or "candidate" not in row_records:
@@ -96,10 +111,14 @@ def render_report(
                 [record.measured for record in candidate],
             )
         )
-        if invariant_failures:
+        row_allocation_mismatches = allocation_by_row[row.row_id]
+        allocation_failures = [
+            mismatch.message() for mismatch in row_allocation_mismatches
+        ]
+        if allocation_failures or invariant_failures:
             endpoint_failed = True
             if failure is None:
-                failure = GateFailure(invariant_failures[0])
+                failure = GateFailure((allocation_failures + invariant_failures)[0])
         rows.append(
             {
                 "id": row.row_id,
@@ -107,9 +126,21 @@ def render_report(
                 "fixture": row.fixture,
                 "payload_bytes": row.payload_bytes,
                 "relative_performance": row.relative_performance,
-                "failure": protocol_failure or next(iter(invariant_failures), None),
+                "failure": (
+                    protocol_failure
+                    or next(iter(allocation_failures), None)
+                    or next(iter(invariant_failures), None)
+                ),
                 "protocol_status": "failed" if protocol_failure else "passed",
                 "protocol_failure": protocol_failure,
+                "allocation_status": (
+                    "failed" if allocation_failures else "passed"
+                ),
+                "allocation_failures": allocation_failures,
+                "allocation_mismatches": [
+                    _allocation_mismatch_json(mismatch)
+                    for mismatch in row_allocation_mismatches
+                ],
                 "invariant_status": "failed" if invariant_failures else "passed",
                 "invariant_failures": invariant_failures,
                 "scores": scores,
@@ -131,13 +162,41 @@ def render_report(
         deferred_failure = GateFailure("final benchmark phase contains deferred liveness")
         if failure is None:
             failure = deferred_failure
+    attempt_count = sum(
+        1 for event in (events or []) if event.get("attempt") is not None
+    )
+    expected_attempt_count = 2 + sum(
+        (
+            2 * manifest.protocol.warmups
+            + 3 * manifest.protocol.measured_pairs
+        )
+        * row.batches
+        for row in manifest.rows
+    )
     report = {
         "schema_version": 1,
         "status": "failed" if failure is not None else "passed",
+        "execution_mode": execution_mode,
+        "measurement_status": "complete",
+        "row_count": len(rows),
+        "expected_row_count": len(manifest.rows),
+        "attempt_count": attempt_count,
+        "expected_attempt_count": expected_attempt_count,
         "benchmark_phase": benchmark_phase,
         "failure": str(failure) if failure is not None else None,
         "protocol_status": "failed" if protocol_failed else "passed",
         "endpoint_invariant_status": "failed" if endpoint_failed else "passed",
+        "allocation_budget_status": (
+            "failed" if allocation_mismatches else "passed"
+        ),
+        "allocation_control_status": (
+            "passed"
+            if set((allocation_controls or {}).keys()) == {"base", "candidate"}
+            else "not-recorded"
+        ),
+        "attempt_sequence_status": (
+            "passed" if events is not None else "not-recorded"
+        ),
         "attempt": {
             "id": attempt_id,
             "started_at": started_at,
@@ -202,6 +261,10 @@ def render_report(
             side: _raw_batch_json(batch)
             for side, batch in sorted((allocation_controls or {}).items())
         },
+        "allocation_mismatches": [
+            _allocation_mismatch_json(mismatch)
+            for mismatch in allocation_mismatches
+        ],
         "attempts": list(events or []),
         "rows": rows,
         "cross_row_invariants": comparison_reports,
@@ -484,6 +547,21 @@ def _raw_batch_json(batch: BatchResult) -> dict[str, Any]:
         "operation_latencies_ns": list(batch.operation_latencies_ns),
         "checksum": batch.checksum,
         "counters": dict(sorted(batch.counters.items())),
+    }
+
+
+def _allocation_mismatch_json(
+    mismatch: AllocationMismatch,
+) -> dict[str, Any]:
+    return {
+        "row": mismatch.row_id,
+        "phase": mismatch.phase,
+        "warmup_index": mismatch.warmup_index,
+        "pair_index": mismatch.pair_index,
+        "batch_index": mismatch.batch_index,
+        "actual": mismatch.actual,
+        "expected": mismatch.expected,
+        "failure": mismatch.message(),
     }
 
 

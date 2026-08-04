@@ -145,7 +145,7 @@ runtime-v2-carrier-bench:
 	PYTHONDONTWRITEBYTECODE=1 taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=final
 
 runtime-v2-carrier-baseline-capture:
-	@echo ">> Capturing complete Wave-A carrier RED baseline"
+	@echo ">> Capturing complete Wave-A endpoint RED baseline (protocol failures remain fatal)"
 	PYTHONDONTWRITEBYTECODE=1 taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=wave-a --capture-wave-a-baseline
 
 runtime-v2-carrier-bench-final:

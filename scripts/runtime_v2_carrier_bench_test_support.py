@@ -11,6 +11,7 @@ import tempfile
 import time
 import unittest
 from argparse import Namespace
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from unittest import mock
 
 from runtime_v2_carrier_bench import (
     _baseline_capture_accepts,
+    _build_and_run,
     _commit_root,
     _require_tracked_entries,
     _verify_harness_inventory,
@@ -67,6 +69,7 @@ from runtime_v2_carrier_bench_report import (
     write_report,
 )
 from runtime_v2_carrier_bench_runner import (
+    AllocationMismatch,
     BatchResult,
     BuiltFixture,
     LIVENESS_PREFIX,
@@ -76,6 +79,7 @@ from runtime_v2_carrier_bench_runner import (
     RunRecord,
     _allocation_control_row,
     _built_binary,
+    _capture_or_validate_structural_allocation,
     _verify_emitted_ir,
     _verify_carrier_binary,
     _verify_fixture_source,
@@ -86,12 +90,16 @@ from runtime_v2_carrier_bench_runner import (
     _run_batch,
     _validate_allocation_control,
     _validate_attempt_sequence,
+    _validate_timing_attempt_sequence,
     _expected_attempt_sequence,
+    _expected_timing_attempt_sequence,
     _validate_structural_allocation,
     build_fixtures,
     build_liveness_fixtures,
     build_surge,
     execute_manifest,
+    execute_resource_manifest,
+    execute_timing_manifest,
     _run_liveness_probe,
 )
 from runtime_v2_carrier_bench_ir import verify_carrier_symbols as _verify_carrier_symbols

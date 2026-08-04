@@ -6261,3 +6261,66 @@ Python launcher/user-site hermeticity remains nonblocking and is recorded only
 as `RV2-DEBT-144`; this hardening pass does not implement part of that debt.
 The exact review-fix delta still requires the same independent reviewer before
 Wave A can be considered accepted.
+
+## Epic 23b Wave-A Final Rereview Repair (2026-08-05)
+
+The same independent reviewer evaluated exact author commit `0d5adfcb` and
+returned REQUEST_CHANGES with two P1 findings and no P0/P2/P3. First,
+`_build_and_run` built the candidate-only resource artifacts before executing
+the paired timing matrix; attempt events covered run order but could not expose
+the asymmetric compiler/source/page-cache and thermal warmup from that build.
+Second, strict future allocation budgets made the explicit Wave-A RED capture
+unreachable on the pre-cutover runtime: the first real candidate warmup
+reported `array-grow-composite allocation_count=327` against target `7`, so the
+runner aborted with no rows instead of producing the promised complete RED
+report. The review records are `mem_msf71oca_8453a11b4281`,
+`mem_msf71of2_46f7bf4b9d9c`, and `mem_msf71oi4_349ea5b49a99`.
+
+The repaired orchestration is a hard phase boundary. It builds both timing
+artifacts, runs both live allocation controls and the complete counter-free
+timing matrix, and validates the entire timing attempt sequence. Only then does
+it build and run the candidate resource artifacts; the full combined sequence
+is validated again afterward. A canonical 46-row CLI/main/report test observes
+the actual `build_fixtures` and `_run_batch` calls and proves
+`timing builds -> all timing runs -> resource build -> resource runs`.
+
+`--phase=wave-a --capture-wave-a-baseline` is now an explicit execution mode,
+not a late exit-code exception. It may collect only valid numeric non-negative
+allocation-budget mismatches as typed endpoint RED records, including
+warmup/pair and batch identity. The strict/final path still aborts on the first
+such mismatch. Dead controls, missing/null/bool/invalid required allocation
+metrics, checksum or identity drift, malformed output, timeouts, missing,
+duplicate, or reordered attempts, and timing-protocol failures remain fatal.
+Root pre-review caught the `null` availability boundary before commit; a
+dedicated negative proves capture mode aborts and records no mismatch for both
+missing and null `allocation_count`.
+
+Baseline capture returns success only for a completed report whose actual and
+expected row/attempt counts match and are nonzero, both controls and attempt
+sequence passed, timing protocol passed, and endpoint status remains RED. A
+green, partial, protocol-failed, or aborted report returns nonzero. The same
+real `+1` allocation mutation produces all rows/all attempts and capture exit
+zero in baseline mode, but an aborted report, nonzero exit, and no resource
+build in strict mode. CLI `--help`, the Make echo, the allocation census, and
+Epic 23b now state this same boundary. Resolution is saved as
+`mem_msf7h3ej_15a492af853d`.
+
+Author-worktree evidence before the next independent rereview:
+
+- `make runtime-v2-carrier-check` passed 58 Python tests, the build-flag and
+  complete `internal/carriergate` gates, and the VM carrier tests under race.
+- `make check` passed repository Go tests, golangci with zero findings, strict C
+  formatting/warnings, and the applicable file-size gate.
+- Two serialized `make golden-check` runs exited zero. Staged and unstaged
+  golden diffs are empty; the filesystem inventory exactly matches 4,736
+  tracked files. HEAD and worktree path-plus-Git-blob corpus SHA-256 are both
+  `93167613eb88c606461c950877a876a066c40c19d25ef4f42744696aed32c4a1`;
+  the HEAD golden tree remains `faaf955c86b1be089c4e403be12f596241b35804`.
+
+Raw `EPIC_BASE` remains
+`7df10725e001ddf915d536aa58f880bd7e04aafd`; this repair neither overlays nor
+substitutes it, so the pre-existing blocking lost-wake remains an explicit
+owner checkpoint. Python launcher/user-site hermeticity is still only
+nonblocking `RV2-DEBT-144` and received no partial implementation. The exact
+new delta still requires the same independent reviewer before Wave A is
+accepted.

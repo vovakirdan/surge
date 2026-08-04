@@ -45,6 +45,7 @@ from runtime_v2_carrier_bench_report import (  # noqa: E402
     write_report,
 )
 from runtime_v2_carrier_bench_runner import (  # noqa: E402
+    AllocationMismatch,
     BatchResult,
     BuiltFixture,
     LivenessRecord,
@@ -52,8 +53,9 @@ from runtime_v2_carrier_bench_runner import (  # noqa: E402
     build_fixtures,
     build_liveness_fixtures,
     build_surge,
-    execute_manifest,
     execute_liveness_probes,
+    execute_resource_manifest,
+    execute_timing_manifest,
 )
 
 
@@ -139,7 +141,12 @@ def main() -> int:
                 with tempfile.TemporaryDirectory(
                     prefix="surge-carrier-bench-"
                 ) as temporary:
-                    records, liveness_records, allocation_controls = _build_and_run(
+                    (
+                        records,
+                        liveness_records,
+                        allocation_controls,
+                        allocation_mismatches,
+                    ) = _build_and_run(
                         manifest=manifest,
                         harness_root=candidate_build_root,
                         base_root=base_root,
@@ -148,6 +155,7 @@ def main() -> int:
                         events=events,
                         protocol_sha256=manifest_sha256,
                         benchmark_phase=benchmark_phase,
+                        capture_expected_endpoint_red=capture_wave_a_baseline,
                     )
         phase = "scoring"
         report, failure = render_report(
@@ -163,22 +171,34 @@ def main() -> int:
             benchmark_phase=benchmark_phase,
             liveness_records=liveness_records,
             allocation_controls=allocation_controls,
+            allocation_mismatches=allocation_mismatches,
             events=events,
+            execution_mode=(
+                "wave-a-baseline-capture"
+                if capture_wave_a_baseline
+                else "strict"
+            ),
         )
         phase = "report_write"
         write_report(report_path, report)
         print(f"carrier benchmark report: {report_path}")
         if failure is not None:
             print(f"runtime-v2 carrier benchmark failed: {failure}", file=sys.stderr)
+        if capture_wave_a_baseline:
             if _baseline_capture_accepts(
                 report,
                 benchmark_phase=benchmark_phase,
-                requested=capture_wave_a_baseline,
+                requested=True,
             ):
                 print("captured complete Wave-A RED baseline; report remains failed")
                 return 0
+            print(
+                "runtime-v2 carrier baseline capture did not produce a complete "
+                "protocol-passed endpoint-RED report",
+                file=sys.stderr,
+            )
             return 1
-        return 0
+        return 1 if failure is not None else 0
     except (GateFailure, ManifestError, OSError, json.JSONDecodeError) as err:
         try:
             write_report(
@@ -219,10 +239,12 @@ def _build_and_run(
     events: list[dict[str, object]],
     protocol_sha256: str,
     benchmark_phase: str,
+    capture_expected_endpoint_red: bool,
 ) -> tuple[
     dict[str, dict[Side, tuple[RunRecord, ...]]],
     tuple[LivenessRecord, ...],
     dict[Side, BatchResult],
+    tuple[AllocationMismatch, ...],
 ]:
     base_surge = temporary / "base" / "surge"
     candidate_surge = temporary / "candidate" / "surge"
@@ -248,6 +270,13 @@ def _build_and_run(
             include_allocation_control=True,
         ),
     }
+    timing = execute_timing_manifest(
+        manifest,
+        timing_binaries,
+        events,
+        protocol_sha256,
+        capture_expected_endpoint_red=capture_expected_endpoint_red,
+    )
     resource_binaries = build_fixtures(
         side_root=candidate_root,
         harness_root=harness_root,
@@ -256,9 +285,9 @@ def _build_and_run(
         build_root=temporary / "candidate" / "resource-fixtures",
         capture_kind="resource",
     )
-    records, allocation_controls = execute_manifest(
+    records = execute_resource_manifest(
         manifest,
-        timing_binaries,
+        timing,
         resource_binaries,
         events,
         protocol_sha256,
@@ -281,7 +310,12 @@ def _build_and_run(
         protocol_sha256,
         benchmark_phase,
     )
-    return records, liveness, allocation_controls
+    return (
+        records,
+        liveness,
+        timing.allocation_controls,
+        timing.allocation_mismatches,
+    )
 
 
 @contextmanager
@@ -464,8 +498,9 @@ def _arguments() -> argparse.Namespace:
         "--capture-wave-a-baseline",
         action="store_true",
         help=(
-            "return success only for a complete Wave-A report whose protocol passed "
-            "and whose endpoint invariants remain RED"
+            "capture expected pre-cutover allocation/resource mismatches as endpoint "
+            "RED; identity, control, checksum, timeout, attempt-order, and protocol "
+            "failures remain fatal"
         ),
     )
     return parser.parse_args()
@@ -477,6 +512,17 @@ def _baseline_capture_accepts(
     return (
         requested
         and benchmark_phase == "wave-a"
+        and report.get("benchmark_phase") == "wave-a"
+        and report.get("execution_mode") == "wave-a-baseline-capture"
+        and report.get("measurement_status") == "complete"
+        and report.get("row_count") == report.get("expected_row_count")
+        and type(report.get("row_count")) is int
+        and report.get("row_count", 0) > 0
+        and report.get("attempt_count") == report.get("expected_attempt_count")
+        and type(report.get("attempt_count")) is int
+        and report.get("attempt_count", 0) > 0
+        and report.get("allocation_control_status") == "passed"
+        and report.get("attempt_sequence_status") == "passed"
         and report.get("status") == "failed"
         and report.get("protocol_status") == "passed"
         and report.get("endpoint_invariant_status") == "failed"

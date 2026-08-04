@@ -53,6 +53,37 @@ class BuiltFixture:
     source_path: str
 
 
+@dataclass(frozen=True, slots=True)
+class AllocationMismatch:
+    row_id: str
+    phase: str
+    warmup_index: int | None
+    pair_index: int | None
+    batch_index: int
+    actual: int
+    expected: int
+
+    def message(self) -> str:
+        run_label = (
+            f"warmup {self.warmup_index}"
+            if self.phase == "warmup"
+            else f"pair {self.pair_index}"
+        )
+        return (
+            f"{self.row_id} candidate {run_label} batch {self.batch_index}: "
+            f"allocation_count={self.actual}, want exact structural budget {self.expected}"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TimingExecution:
+    records: dict[str, dict[Side, tuple[RunRecord, ...]]]
+    allocation_controls: dict[Side, BatchResult]
+    allocation_mismatches: tuple[AllocationMismatch, ...]
+    event_start: int
+    next_ordinal: int
+
+
 def build_surge(root: Path, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     run_checked(
@@ -173,8 +204,33 @@ def execute_manifest(
     dict[str, dict[Side, tuple[RunRecord, ...]]],
     dict[Side, BatchResult],
 ]:
+    timing = execute_timing_manifest(
+        manifest,
+        timing_binaries,
+        events,
+        protocol_sha256,
+    )
+    records = execute_resource_manifest(
+        manifest,
+        timing,
+        candidate_resource_binaries,
+        events,
+        protocol_sha256,
+    )
+    return records, timing.allocation_controls
+
+
+def execute_timing_manifest(
+    manifest: Manifest,
+    timing_binaries: Mapping[Side, Mapping[str, BuiltFixture]],
+    events: list[dict[str, object]],
+    protocol_sha256: str,
+    *,
+    capture_expected_endpoint_red: bool = False,
+) -> TimingExecution:
     event_start = len(events)
     ordinal = 0
+    allocation_mismatches: list[AllocationMismatch] = []
     control_row = _allocation_control_row(manifest)
     controls: dict[Side, BatchResult] = {}
     for side in ("base", "candidate"):
@@ -204,6 +260,8 @@ def execute_manifest(
             events,
             protocol_sha256,
             ordinal,
+            capture_expected_endpoint_red,
+            allocation_mismatches,
         )
         per_side: dict[Side, list[RunRecord]] = {"base": [], "candidate": []}
         for pair_index in range(manifest.protocol.measured_pairs):
@@ -219,6 +277,8 @@ def execute_manifest(
                         events,
                         protocol_sha256,
                         ordinal,
+                        capture_expected_endpoint_red,
+                        allocation_mismatches,
                     )
                 )
                 ordinal += row.batches
@@ -229,6 +289,34 @@ def execute_manifest(
             ),
             "candidate": tuple(per_side["candidate"]),
         }
+
+    _validate_timing_attempt_sequence(manifest, events[event_start:])
+    return TimingExecution(
+        records=records,
+        allocation_controls=controls,
+        allocation_mismatches=tuple(allocation_mismatches),
+        event_start=event_start,
+        next_ordinal=ordinal,
+    )
+
+
+def execute_resource_manifest(
+    manifest: Manifest,
+    timing: TimingExecution,
+    candidate_resource_binaries: Mapping[str, BuiltFixture],
+    events: list[dict[str, object]],
+    protocol_sha256: str,
+) -> dict[str, dict[Side, tuple[RunRecord, ...]]]:
+    expected_event_count = timing.event_start + len(
+        _expected_timing_attempt_sequence(manifest)
+    )
+    if len(events) != expected_event_count:
+        raise GateFailure("attempt events changed between timing and resource capture")
+    ordinal = timing.next_ordinal
+    records = {
+        row_id: {"base": sides["base"], "candidate": sides["candidate"]}
+        for row_id, sides in timing.records.items()
+    }
 
     for row in manifest.rows:
         merged: list[RunRecord] = []
@@ -258,8 +346,8 @@ def execute_manifest(
             )
         records[row.row_id]["candidate"] = tuple(merged)
 
-    _validate_attempt_sequence(manifest, events[event_start:])
-    return records, controls
+    _validate_attempt_sequence(manifest, events[timing.event_start:])
+    return records
 
 
 def _allocation_control_row(manifest: Manifest) -> Row:
@@ -388,6 +476,8 @@ def _run_warmups(
     events: list[dict[str, object]],
     protocol_sha256: str,
     ordinal: int,
+    capture_expected_endpoint_red: bool,
+    allocation_mismatches: list[AllocationMismatch],
 ) -> int:
     for warmup_index in range(manifest.protocol.warmups):
         for side in paired_order(row_index, warmup_index):
@@ -407,7 +497,15 @@ def _run_warmups(
                     ordinal=ordinal,
                 )
                 if side == "candidate":
-                    _validate_structural_allocation(row, batch, batch_index)
+                    _capture_or_validate_structural_allocation(
+                        row,
+                        batch,
+                        phase="warmup",
+                        run_index=warmup_index,
+                        batch_index=batch_index,
+                        capture_expected_endpoint_red=capture_expected_endpoint_red,
+                        allocation_mismatches=allocation_mismatches,
+                    )
                 ordinal += 1
     return ordinal
 
@@ -421,6 +519,8 @@ def _run_measured_timing(
     events: list[dict[str, object]],
     protocol_sha256: str,
     ordinal: int,
+    capture_expected_endpoint_red: bool,
+    allocation_mismatches: list[AllocationMismatch],
 ) -> RunRecord:
     batches = tuple(
         _run_recorded_batch(
@@ -440,7 +540,15 @@ def _run_measured_timing(
     )
     if side == "candidate":
         for batch_index, batch in enumerate(batches):
-            _validate_structural_allocation(row, batch, batch_index)
+            _capture_or_validate_structural_allocation(
+                row,
+                batch,
+                phase="measured",
+                run_index=pair_index,
+                batch_index=batch_index,
+                capture_expected_endpoint_red=capture_expected_endpoint_red,
+                allocation_mismatches=allocation_mismatches,
+            )
     measured = MeasuredRun(
         side=side,
         pair_index=pair_index,
@@ -479,10 +587,9 @@ def _merge_resource_record(
     if len(timing_record.batches) != row.batches or len(resource_batches) != row.batches:
         raise GateFailure(f"{row.row_id} timing/resource batch cardinality mismatch")
     merged_counters: list[Mapping[str, int | None]] = []
-    for batch_index, (timing, resource) in enumerate(
-        zip(timing_record.batches, resource_batches, strict=True)
+    for timing, resource in zip(
+        timing_record.batches, resource_batches, strict=True
     ):
-        _validate_structural_allocation(row, timing, batch_index)
         counters = {
             metric.name: (
                 timing.counters[metric.name]
@@ -507,13 +614,49 @@ def _merge_resource_record(
 def _validate_structural_allocation(
     row: Row, timing: BatchResult, batch_index: int
 ) -> None:
+    mismatches: list[AllocationMismatch] = []
+    _capture_or_validate_structural_allocation(
+        row,
+        timing,
+        phase="measured",
+        run_index=0,
+        batch_index=batch_index,
+        capture_expected_endpoint_red=False,
+        allocation_mismatches=mismatches,
+    )
+
+
+def _capture_or_validate_structural_allocation(
+    row: Row,
+    timing: BatchResult,
+    *,
+    phase: str,
+    run_index: int,
+    batch_index: int,
+    capture_expected_endpoint_red: bool,
+    allocation_mismatches: list[AllocationMismatch],
+) -> None:
     actual = timing.counters.get("allocation_count")
     expected = row.candidate_structural_allocations_per_batch
-    if actual != expected:
+    if type(actual) is not int or actual < 0:
         raise GateFailure(
-            f"{row.row_id} candidate batch {batch_index}: allocation_count={actual}, "
-            f"want exact structural budget {expected}"
+            f"{row.row_id} candidate {phase} batch {batch_index}: required "
+            "allocation_count must be a non-negative integer"
         )
+    if actual == expected:
+        return
+    mismatch = AllocationMismatch(
+        row_id=row.row_id,
+        phase=phase,
+        warmup_index=run_index if phase == "warmup" else None,
+        pair_index=run_index if phase == "measured" else None,
+        batch_index=batch_index,
+        actual=actual,
+        expected=expected,
+    )
+    if not capture_expected_endpoint_red:
+        raise GateFailure(mismatch.message())
+    allocation_mismatches.append(mismatch)
 
 
 def _run_recorded_batch(
@@ -663,20 +806,34 @@ def _run_batch(
 def _validate_attempt_sequence(
     manifest: Manifest, events: Sequence[Mapping[str, object]]
 ) -> None:
+    _validate_attempts(events, _expected_attempt_sequence(manifest))
+
+
+def _validate_timing_attempt_sequence(
+    manifest: Manifest, events: Sequence[Mapping[str, object]]
+) -> None:
+    _validate_attempts(events, _expected_timing_attempt_sequence(manifest))
+
+
+def _validate_attempts(
+    events: Sequence[Mapping[str, object]],
+    expected: Sequence[Mapping[str, object]],
+) -> None:
     actual = [event.get("attempt") for event in events]
-    expected = _expected_attempt_sequence(manifest)
-    if actual != expected:
+    expected_list = list(expected)
+    if actual != expected_list:
         mismatch = next(
             (
                 index
-                for index, (left, right) in enumerate(zip(actual, expected))
+                for index, (left, right) in enumerate(zip(actual, expected_list))
                 if left != right
             ),
-            min(len(actual), len(expected)),
+            min(len(actual), len(expected_list)),
         )
         raise GateFailure(
             f"attempt sequence mismatch at ordinal {mismatch}: "
-            f"actual={actual[mismatch:mismatch + 1]} expected={expected[mismatch:mismatch + 1]}"
+            f"actual={actual[mismatch:mismatch + 1]} "
+            f"expected={expected_list[mismatch:mismatch + 1]}"
         )
 
 
@@ -723,6 +880,16 @@ def _expected_attempt_sequence(manifest: Manifest) -> list[dict[str, object]]:
             for batch_index in range(row.batches):
                 add("resource", row.row_id, "candidate", "measured", pair_index, batch_index)
     return expected
+
+
+def _expected_timing_attempt_sequence(
+    manifest: Manifest,
+) -> list[dict[str, object]]:
+    return [
+        attempt
+        for attempt in _expected_attempt_sequence(manifest)
+        if attempt["capture_kind"] == "timing"
+    ]
 
 
 def _transport_environment(manifest: Manifest) -> dict[str, str]:

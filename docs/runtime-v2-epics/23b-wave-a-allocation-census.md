@@ -104,9 +104,9 @@ classification evidence only.
    one allocation on both sides; zero proves a dead observer and aborts.
 2. Timing binaries contain no `rt_carrier_bench_*` definition or callsite and do
    not receive counter/nonce environment variables.
-3. All `2` warmups plus all `7` measured pairs for all rows complete before the
-   first resource capture. Every candidate timing batch must equal the exact
-   target above.
+3. All `2` warmups plus all `7` measured pairs for all rows complete before any
+   resource artifact is built or run. Every candidate timing batch must equal
+   the exact target above.
 4. Candidate-only resource binaries are separately compiled with
    `RT_CARRIER_BENCH_ENABLED`. Their elapsed time and latency samples remain raw
    evidence and never enter `TimingSample` or performance scores.
@@ -119,6 +119,15 @@ observer fails the deliberate control, and adding one allocation uniformly to
 both a scalar and composite row fails both exact budgets. A paired
 “composite <= scalar” check alone would miss that mutation and is not accepted
 as the allocation oracle.
+
+The normal/final gate aborts on the first exact-budget mismatch. The explicit
+`make runtime-v2-carrier-baseline-capture` mode is narrower: after both live
+controls pass, it may retain numeric pre-cutover budget mismatches as endpoint
+RED evidence so the complete Wave-A matrix can be recorded. Missing/null
+required counters, checksum or identity drift, timeout, malformed output, and
+missing/duplicate/reordered attempts remain fatal and produce an aborted
+report. Baseline capture succeeds only for a complete, protocol-passed,
+endpoint-RED report; a green report is not a captured RED baseline.
 
 ## Boundary Still Requiring Owner Disposition
 

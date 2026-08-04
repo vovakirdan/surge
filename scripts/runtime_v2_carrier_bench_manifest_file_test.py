@@ -147,6 +147,9 @@ class CanonicalManifestTests(unittest.TestCase):
         ).stdout
         self.assertIn("--phase=wave-a --capture-wave-a-baseline", baseline)
         self.assertIn("PYTHONDONTWRITEBYTECODE=1", baseline)
+        self.assertIn(
+            "endpoint RED baseline (protocol failures remain fatal)", baseline
+        )
 
     def test_carrier_check_selects_the_live_carrier_census_gate(self) -> None:
         output = subprocess.run(
