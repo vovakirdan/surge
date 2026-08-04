@@ -1,0 +1,197 @@
+import shared/support as bench;
+
+@intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
+
+async fn run_task(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let task: far Task<uint64> = spawn on shard(1:ShardId) {
+            ret 37:uint64;
+        };
+        checksum = checksum + compare task.await() {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    return checksum;
+}
+
+async fn run_immediate(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let result: TaskResult<uint64> = on shard(1:ShardId) {
+            ret 37:uint64;
+        };
+        checksum = checksum + compare result {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    return checksum;
+}
+
+async fn run_channel(
+    ch: far Channel<uint64>,
+    samples: &mut ArrayFixed<int64, 64>,
+) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let sent: TaskResult<nothing> = on ch {
+            ch.send(37:uint64);
+            ret nothing;
+        };
+        checksum = checksum + compare sent {
+            Success(_) => 1:uint64;
+            Cancelled() => 0:uint64;
+        };
+        let got: TaskResult<uint64> = on ch {
+            let received: Option<uint64> = ch.recv();
+            ret compare received {
+                Some(value) => value;
+                nothing => 0:uint64;
+            };
+        };
+        checksum = checksum + compare got {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    @drop ch;
+    return checksum;
+}
+
+async fn run_select(
+    first: far Channel<uint64>,
+    second: far Channel<uint64>,
+    samples: &mut ArrayFixed<int64, 64>,
+) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let fed: TaskResult<nothing> = on second {
+            second.send(37:uint64);
+            ret nothing;
+        };
+        checksum = checksum + compare fed {
+            Success(_) => 1:uint64;
+            Cancelled() => 0:uint64;
+        };
+        checksum = checksum + select {
+            first.recv() => 10:uint64;
+            second.recv() => 20:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    @drop first;
+    @drop second;
+    return checksum;
+}
+
+async fn run_share(
+    ch: far Channel<uint64>,
+    samples: &mut ArrayFixed<int64, 64>,
+) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let sibling: far Channel<uint64> = ch.share();
+        checksum = checksum + 1:uint64;
+        @drop sibling;
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    @drop ch;
+    return checksum;
+}
+
+async fn dispatch(
+    row_code: int,
+    samples: &mut ArrayFixed<int64, 64>,
+) -> uint64 {
+    if row_code == 0 {
+        return compare run_task(samples).await() {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+    }
+    if row_code == 1 {
+        return compare run_immediate(samples).await() {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+    }
+    if row_code == 2 {
+        let ch: far Channel<uint64> =
+            channel_on::<uint64>(shard(1:ShardId), 4:uint);
+        return compare run_channel(ch, samples).await() {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+    }
+    if row_code == 3 {
+        let first: far Channel<uint64> =
+            channel_on::<uint64>(shard(1:ShardId), 4:uint);
+        let second: far Channel<uint64> =
+            channel_on::<uint64>(shard(1:ShardId), 4:uint);
+        return compare run_select(first, second, samples).await() {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+    }
+    let ch: far Channel<uint64> =
+        channel_on::<uint64>(shard(1:ShardId), 4:uint);
+    return compare run_share(ch, samples).await() {
+        Success(value) => value;
+        Cancelled() => 0:uint64;
+    };
+}
+
+@entrypoint("argv")
+fn main(probe: string) -> int {
+    let mut row_code: int = 0 - 1;
+    if probe == "far-task-scalar" { row_code = 0; }
+    else if probe == "far-immediate-scalar" { row_code = 1; }
+    else if probe == "far-channel-scalar" { row_code = 2; }
+    else if probe == "far-select-scalar" { row_code = 3; }
+    else if probe == "far-share-control" { row_code = 4; }
+    if row_code < 0 { return 92; }
+    let mut samples: int64[64] = default::<int64[64]>();
+    let _: uint64 = bench.allocation_observer();
+    let c0: uint64 = bench.allocation_observer();
+    let c1: uint64 = bench.allocation_observer();
+    if c1 < c0 { return 90; }
+    let observer_cost: uint64 = c1 - c0;
+    let before: uint64 = bench.allocation_observer();
+    if before < c1 || before - c1 != observer_cost { return 91; }
+    rt_array_debug_deferred_base_drops();
+    let batch_started: int64 = bench.now();
+    let checksum: uint64 = compare dispatch(row_code, &mut samples).await() {
+        Success(value) => value;
+        Cancelled() => { return 95; };
+    };
+    let batch_ended: int64 = bench.now();
+    let mut elapsed_ns: int64 = batch_ended - batch_started;
+    if elapsed_ns <= 0:int64 { elapsed_ns = 1:int64; }
+    rt_array_debug_deferred_base_drops();
+    let after: uint64 = bench.allocation_observer();
+    let after2: uint64 = bench.allocation_observer();
+    if after2 < after || after2 - after != observer_cost { return 93; }
+    if after < before || after - before < observer_cost { return 94; }
+    bench.emit_result(&probe, elapsed_ns, &samples, checksum, after - before - observer_cost);
+    return 0;
+}

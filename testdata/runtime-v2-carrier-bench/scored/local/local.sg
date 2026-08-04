@@ -1,0 +1,44 @@
+import shared/support as bench;
+
+fn argument_sum(value: bench.Payload64) -> uint64 {
+    return bench.sum64(&value);
+}
+
+fn returned_payload() -> bench.Payload64 {
+    return bench.payload64(1:uint64);
+}
+
+pub fn run(row_code: int, samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut index: int = 0;
+    while index < 64 {
+        let started: int64 = bench.now();
+        if row_code == 0 {
+            checksum = checksum + (0):uint64;
+        } else if row_code == 1 {
+            let value: uint64 = 37:uint64;
+            let copied: uint64 = value;
+            checksum = checksum + copied;
+        } else if row_code == 2 {
+            let original: bench.Payload64 = bench.payload64(1:uint64);
+            let mut copied: bench.Payload64 = original;
+            copied.a = 9:uint64;
+            checksum = checksum + bench.sum64(&original) + bench.sum64(&copied);
+        } else if row_code == 3 {
+            checksum = checksum + argument_sum(bench.payload64(1:uint64));
+        } else if row_code == 4 {
+            let value: bench.Payload64 = returned_payload();
+            checksum = checksum + bench.sum64(&value);
+        } else if row_code == 5 {
+            let values: bench.Payload64[2] = [
+                bench.payload64(1:uint64),
+                bench.payload64(2:uint64),
+            ];
+            let copied: bench.Payload64 = values[0];
+            checksum = checksum + bench.sum64(&copied);
+        }
+        bench.store_latency(samples, index, started);
+        index = index + 1;
+    }
+    return checksum;
+}

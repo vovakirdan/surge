@@ -1,0 +1,130 @@
+import shared/support as bench;
+
+@intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
+
+fn run(
+    row_code: int,
+    values: &mut Map<uint64, uint64>,
+    sets: &mut Map<uint64, uint64>[],
+    samples: &mut ArrayFixed<int64, 64>,
+) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let mut offset: int = 0;
+        if row_code == 1 { offset = 8; }
+        let key: uint64 = (i + offset) to uint64;
+        if row_code == 0 || row_code == 1 {
+            let _ = values.insert(key, key);
+            checksum = checksum + key;
+        } else if row_code == 2 {
+            let replacement: uint64 = key + 100:uint64;
+            checksum = checksum + compare values.insert(key, replacement) {
+                Some(value) => value;
+                nothing => 0:uint64;
+            } + replacement;
+        } else if row_code == 3 {
+            checksum = checksum + compare values.remove(&key) {
+                Some(value) => value;
+                nothing => 0:uint64;
+            };
+        } else {
+            let key_to_remove: uint64 = (63 - i) to uint64;
+            let inner_opt: Option<Map<uint64, uint64>> = sets.pop();
+            checksum = checksum + compare inner_opt {
+                Some(inner) => {
+                    let mut owned: Map<uint64, uint64> = inner;
+                    compare owned.remove(&key_to_remove) {
+                        Some(value) => value;
+                        nothing => 0:uint64;
+                    };
+                }
+                nothing => 0:uint64;
+            };
+        }
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    if row_code <= 2 {
+        let mut key: uint64 = 0:uint64;
+        let mut limit: uint64 = 64:uint64;
+        if row_code == 1 { limit = 72:uint64; }
+        while key < limit {
+            checksum = checksum + compare values.remove(&key) {
+                Some(value) => value;
+                nothing => 0:uint64;
+            };
+            key = key + 1:uint64;
+        }
+    }
+    return checksum;
+}
+
+@entrypoint("argv")
+fn main(probe: string) -> int {
+    let mut row_code: int = 0 - 1;
+    if probe == "map-insert-scalar" { row_code = 0; }
+    else if probe == "map-rehash-scalar" { row_code = 1; }
+    else if probe == "map-replace-scalar" { row_code = 2; }
+    else if probe == "map-remove-scalar" { row_code = 3; }
+    else if probe == "map-teardown-scalar" { row_code = 4; }
+    if row_code < 0 { return 92; }
+
+    let mut values: Map<uint64, uint64> = Map::<uint64, uint64>.new();
+    let mut sets: Map<uint64, uint64>[] = [];
+    if row_code == 0 {
+        let mut setup_index: int = 0;
+        while setup_index < 64 {
+            let key: uint64 = setup_index to uint64;
+            let _ = values.insert(key, key);
+            let _ = values.remove(&key);
+            setup_index = setup_index + 1;
+        }
+    } else if row_code == 1 {
+        let mut setup_index: int = 0;
+        while setup_index < 8 {
+            let key: uint64 = setup_index to uint64;
+            let _ = values.insert(key, key);
+            setup_index = setup_index + 1;
+        }
+    } else if row_code == 2 || row_code == 3 {
+        let mut setup_index: int = 0;
+        while setup_index < 64 {
+            let key: uint64 = setup_index to uint64;
+            let _ = values.insert(key, key);
+            setup_index = setup_index + 1;
+        }
+    } else {
+        let mut setup_index: int = 0;
+        while setup_index < 64 {
+            let key: uint64 = setup_index to uint64;
+            let mut inner: Map<uint64, uint64> = Map::<uint64, uint64>.new();
+            let _ = inner.insert(key, key);
+            sets.push(inner);
+            setup_index = setup_index + 1;
+        }
+    }
+
+    let mut samples: int64[64] = default::<int64[64]>();
+    let _: uint64 = bench.allocation_observer();
+    let c0: uint64 = bench.allocation_observer();
+    let c1: uint64 = bench.allocation_observer();
+    if c1 < c0 { return 90; }
+    let observer_cost: uint64 = c1 - c0;
+    let before: uint64 = bench.allocation_observer();
+    if before < c1 || before - c1 != observer_cost { return 91; }
+    rt_array_debug_deferred_base_drops();
+    let batch_started: int64 = bench.now();
+    let checksum: uint64 = run(row_code, &mut values, &mut sets, &mut samples);
+    let batch_ended: int64 = bench.now();
+    let mut elapsed_ns: int64 = batch_ended - batch_started;
+    if elapsed_ns <= 0:int64 { elapsed_ns = 1:int64; }
+    rt_array_debug_deferred_base_drops();
+    let after: uint64 = bench.allocation_observer();
+    let after2: uint64 = bench.allocation_observer();
+    if after2 < after || after2 - after != observer_cost { return 93; }
+    if after < before || after - before < observer_cost { return 94; }
+    bench.emit_result(&probe, elapsed_ns, &samples, checksum, after - before - observer_cost);
+    return 0;
+}

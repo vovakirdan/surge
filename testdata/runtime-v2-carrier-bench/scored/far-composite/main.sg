@@ -1,0 +1,174 @@
+import shared/support as bench;
+
+@intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
+
+async fn run_task(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let value: bench.Payload64 = bench.payload64(1:uint64);
+        let task: far Task<bench.Payload64> = spawn on shard(1:ShardId) {
+            ret value;
+        };
+        checksum = checksum + compare task.await() {
+            Success(result) => bench.sum64(&result);
+            Cancelled() => 0:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    return checksum;
+}
+
+async fn run_immediate(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let value: bench.Payload64 = bench.payload64(1:uint64);
+        let result: TaskResult<bench.Payload64> = on shard(1:ShardId) {
+            ret value;
+        };
+        checksum = checksum + compare result {
+            Success(answer) => bench.sum64(&answer);
+            Cancelled() => 0:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    return checksum;
+}
+
+async fn run_channel(
+    ch: far Channel<bench.Payload64>,
+    samples: &mut ArrayFixed<int64, 64>,
+) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let value: bench.Payload64 = bench.payload64(1:uint64);
+        let sent: TaskResult<nothing> = on ch {
+            ch.send(own value);
+            ret nothing;
+        };
+        checksum = checksum + compare sent {
+            Success(_) => 1:uint64;
+            Cancelled() => 0:uint64;
+        };
+        let got: TaskResult<uint64> = on ch {
+            let received: Option<bench.Payload64> = ch.recv();
+            ret compare received {
+                Some(received) => bench.sum64(&received);
+                nothing => 0:uint64;
+            };
+        };
+        checksum = checksum + compare got {
+            Success(answer) => answer;
+            Cancelled() => 0:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    @drop ch;
+    return checksum;
+}
+
+async fn run_select(
+    first: far Channel<bench.Payload64>,
+    second: far Channel<bench.Payload64>,
+    samples: &mut ArrayFixed<int64, 64>,
+) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let value: bench.Payload64 = bench.payload64(1:uint64);
+        let fed: TaskResult<nothing> = on second {
+            second.send(own value);
+            ret nothing;
+        };
+        checksum = checksum + compare fed {
+            Success(_) => 1:uint64;
+            Cancelled() => 0:uint64;
+        };
+        checksum = checksum + select {
+            first.recv() => 10:uint64;
+            second.recv() => 20:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    @drop first;
+    @drop second;
+    return checksum;
+}
+
+async fn dispatch(
+    row_code: int,
+    samples: &mut ArrayFixed<int64, 64>,
+) -> uint64 {
+    if row_code == 0 {
+        return compare run_task(samples).await() {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+    }
+    if row_code == 1 {
+        return compare run_immediate(samples).await() {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+    }
+    if row_code == 2 {
+        let ch: far Channel<bench.Payload64> =
+            channel_on::<bench.Payload64>(shard(1:ShardId), 4:uint);
+        return compare run_channel(ch, samples).await() {
+            Success(value) => value;
+            Cancelled() => 0:uint64;
+        };
+    }
+    let first: far Channel<bench.Payload64> =
+        channel_on::<bench.Payload64>(shard(1:ShardId), 4:uint);
+    let second: far Channel<bench.Payload64> =
+        channel_on::<bench.Payload64>(shard(1:ShardId), 4:uint);
+    return compare run_select(first, second, samples).await() {
+        Success(value) => value;
+        Cancelled() => 0:uint64;
+    };
+}
+
+@entrypoint("argv")
+fn main(probe: string) -> int {
+    let mut row_code: int = 0 - 1;
+    if probe == "far-task-composite" { row_code = 0; }
+    else if probe == "far-immediate-composite" { row_code = 1; }
+    else if probe == "far-channel-composite" { row_code = 2; }
+    else if probe == "far-select-composite" { row_code = 3; }
+    if row_code < 0 { return 92; }
+    let mut samples: int64[64] = default::<int64[64]>();
+    let _: uint64 = bench.allocation_observer();
+    let c0: uint64 = bench.allocation_observer();
+    let c1: uint64 = bench.allocation_observer();
+    if c1 < c0 { return 90; }
+    let observer_cost: uint64 = c1 - c0;
+    let before: uint64 = bench.allocation_observer();
+    if before < c1 || before - c1 != observer_cost { return 91; }
+    rt_array_debug_deferred_base_drops();
+    let batch_started: int64 = bench.now();
+    let checksum: uint64 = compare dispatch(row_code, &mut samples).await() {
+        Success(value) => value;
+        Cancelled() => { return 95; };
+    };
+    let batch_ended: int64 = bench.now();
+    let mut elapsed_ns: int64 = batch_ended - batch_started;
+    if elapsed_ns <= 0:int64 { elapsed_ns = 1:int64; }
+    rt_array_debug_deferred_base_drops();
+    let after: uint64 = bench.allocation_observer();
+    let after2: uint64 = bench.allocation_observer();
+    if after2 < after || after2 - after != observer_cost { return 93; }
+    if after < before || after - before < observer_cost { return 94; }
+    bench.emit_result(&probe, elapsed_ns, &samples, checksum, after - before - observer_cost);
+    return 0;
+}

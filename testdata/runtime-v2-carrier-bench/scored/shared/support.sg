@@ -1,0 +1,323 @@
+@intrinsic fn rt_monotonic_now() -> int64;
+
+@copy
+@shard_movable
+pub type Payload64 = {
+    a: uint64,
+    b: uint64,
+    c: uint64,
+    d: uint64,
+    e: uint64,
+    f: uint64,
+    g: uint64,
+    h: uint64,
+};
+
+@copy
+@shard_movable
+pub type Payload16 = { a: uint64, b: uint64 };
+
+@copy
+@shard_movable
+pub type Payload4096 = {
+    p000: Payload64,
+    p001: Payload64,
+    p002: Payload64,
+    p003: Payload64,
+    p004: Payload64,
+    p005: Payload64,
+    p006: Payload64,
+    p007: Payload64,
+    p008: Payload64,
+    p009: Payload64,
+    p010: Payload64,
+    p011: Payload64,
+    p012: Payload64,
+    p013: Payload64,
+    p014: Payload64,
+    p015: Payload64,
+    p016: Payload64,
+    p017: Payload64,
+    p018: Payload64,
+    p019: Payload64,
+    p020: Payload64,
+    p021: Payload64,
+    p022: Payload64,
+    p023: Payload64,
+    p024: Payload64,
+    p025: Payload64,
+    p026: Payload64,
+    p027: Payload64,
+    p028: Payload64,
+    p029: Payload64,
+    p030: Payload64,
+    p031: Payload64,
+    p032: Payload64,
+    p033: Payload64,
+    p034: Payload64,
+    p035: Payload64,
+    p036: Payload64,
+    p037: Payload64,
+    p038: Payload64,
+    p039: Payload64,
+    p040: Payload64,
+    p041: Payload64,
+    p042: Payload64,
+    p043: Payload64,
+    p044: Payload64,
+    p045: Payload64,
+    p046: Payload64,
+    p047: Payload64,
+    p048: Payload64,
+    p049: Payload64,
+    p050: Payload64,
+    p051: Payload64,
+    p052: Payload64,
+    p053: Payload64,
+    p054: Payload64,
+    p055: Payload64,
+    p056: Payload64,
+    p057: Payload64,
+    p058: Payload64,
+    p059: Payload64,
+    p060: Payload64,
+    p061: Payload64,
+    p062: Payload64,
+    p063: Payload64,
+};
+
+@copy
+@shard_movable
+pub type Payload8192 = {
+    p000: Payload64,
+    p001: Payload64,
+    p002: Payload64,
+    p003: Payload64,
+    p004: Payload64,
+    p005: Payload64,
+    p006: Payload64,
+    p007: Payload64,
+    p008: Payload64,
+    p009: Payload64,
+    p010: Payload64,
+    p011: Payload64,
+    p012: Payload64,
+    p013: Payload64,
+    p014: Payload64,
+    p015: Payload64,
+    p016: Payload64,
+    p017: Payload64,
+    p018: Payload64,
+    p019: Payload64,
+    p020: Payload64,
+    p021: Payload64,
+    p022: Payload64,
+    p023: Payload64,
+    p024: Payload64,
+    p025: Payload64,
+    p026: Payload64,
+    p027: Payload64,
+    p028: Payload64,
+    p029: Payload64,
+    p030: Payload64,
+    p031: Payload64,
+    p032: Payload64,
+    p033: Payload64,
+    p034: Payload64,
+    p035: Payload64,
+    p036: Payload64,
+    p037: Payload64,
+    p038: Payload64,
+    p039: Payload64,
+    p040: Payload64,
+    p041: Payload64,
+    p042: Payload64,
+    p043: Payload64,
+    p044: Payload64,
+    p045: Payload64,
+    p046: Payload64,
+    p047: Payload64,
+    p048: Payload64,
+    p049: Payload64,
+    p050: Payload64,
+    p051: Payload64,
+    p052: Payload64,
+    p053: Payload64,
+    p054: Payload64,
+    p055: Payload64,
+    p056: Payload64,
+    p057: Payload64,
+    p058: Payload64,
+    p059: Payload64,
+    p060: Payload64,
+    p061: Payload64,
+    p062: Payload64,
+    p063: Payload64,
+    p064: Payload64,
+    p065: Payload64,
+    p066: Payload64,
+    p067: Payload64,
+    p068: Payload64,
+    p069: Payload64,
+    p070: Payload64,
+    p071: Payload64,
+    p072: Payload64,
+    p073: Payload64,
+    p074: Payload64,
+    p075: Payload64,
+    p076: Payload64,
+    p077: Payload64,
+    p078: Payload64,
+    p079: Payload64,
+    p080: Payload64,
+    p081: Payload64,
+    p082: Payload64,
+    p083: Payload64,
+    p084: Payload64,
+    p085: Payload64,
+    p086: Payload64,
+    p087: Payload64,
+    p088: Payload64,
+    p089: Payload64,
+    p090: Payload64,
+    p091: Payload64,
+    p092: Payload64,
+    p093: Payload64,
+    p094: Payload64,
+    p095: Payload64,
+    p096: Payload64,
+    p097: Payload64,
+    p098: Payload64,
+    p099: Payload64,
+    p100: Payload64,
+    p101: Payload64,
+    p102: Payload64,
+    p103: Payload64,
+    p104: Payload64,
+    p105: Payload64,
+    p106: Payload64,
+    p107: Payload64,
+    p108: Payload64,
+    p109: Payload64,
+    p110: Payload64,
+    p111: Payload64,
+    p112: Payload64,
+    p113: Payload64,
+    p114: Payload64,
+    p115: Payload64,
+    p116: Payload64,
+    p117: Payload64,
+    p118: Payload64,
+    p119: Payload64,
+    p120: Payload64,
+    p121: Payload64,
+    p122: Payload64,
+    p123: Payload64,
+    p124: Payload64,
+    p125: Payload64,
+    p126: Payload64,
+    p127: Payload64,
+};
+
+pub fn payload64(value: uint64) -> Payload64 {
+    return Payload64 {
+        a = value,
+        b = 2:uint64,
+        c = 3:uint64,
+        d = 4:uint64,
+        e = 5:uint64,
+        f = 6:uint64,
+        g = 7:uint64,
+        h = 8:uint64,
+    };
+}
+
+pub fn sum64(value: &Payload64) -> uint64 {
+    return value.a + value.b + value.c + value.d
+        + value.e + value.f + value.g + value.h;
+}
+
+pub fn payload16(value: uint64) -> Payload16 {
+    return Payload16 { a = value, b = 2:uint64 };
+}
+
+pub fn sum16(value: &Payload16) -> uint64 {
+    return value.a + value.b;
+}
+
+pub fn payload4096(value: uint64) -> Payload4096 {
+    let mut result: Payload4096 = default::<Payload4096>();
+    result.p000.a = value;
+    result.p063.h = 7:uint64;
+    return result;
+}
+
+pub fn sum4096(value: &Payload4096) -> uint64 {
+    return value.p000.a + value.p063.h;
+}
+
+pub fn payload8192(value: uint64) -> Payload8192 {
+    let mut result: Payload8192 = default::<Payload8192>();
+    result.p000.a = value;
+    result.p127.h = 7:uint64;
+    return result;
+}
+
+pub fn sum8192(value: &Payload8192) -> uint64 {
+    return value.p000.a + value.p127.h;
+}
+
+pub fn now() -> int64 {
+    return rt_monotonic_now();
+}
+
+pub fn store_latency(
+    samples: &mut ArrayFixed<int64, 64>,
+    index: int,
+    started: int64,
+) -> nothing {
+    let ended: int64 = rt_monotonic_now();
+    let mut elapsed: int64 = ended - started;
+    if elapsed <= 0:int64 {
+        elapsed = 1:int64;
+    }
+    samples[index] = elapsed;
+}
+
+fn render_latencies(samples: &ArrayFixed<int64, 64>) -> string {
+    let mut result: string = "[";
+    let mut index: int = 0;
+    while index < 64 {
+        if index != 0 {
+            result = result + ",";
+        }
+        result = result + (samples[index] to string);
+        index = index + 1;
+    }
+    return result + "]";
+}
+
+pub fn allocation_observer() -> uint64 {
+    let stats: HeapStats = rt_heap_stats();
+    let value: uint64 = stats.alloc_count to uint64;
+    @drop stats;
+    return value;
+}
+
+pub fn emit_result(
+    probe: &string,
+    elapsed_ns: int64,
+    samples: &ArrayFixed<int64, 64>,
+    checksum: uint64,
+    allocations: uint64,
+) -> nothing {
+    let output: string = "SURGE_CARRIER_BENCH {\"schema_version\":1"
+        + ",\"probe\":\"" + probe.__clone() + "\""
+        + ",\"operations\":64"
+        + ",\"elapsed_ns\":" + (elapsed_ns to string)
+        + ",\"operation_latencies_ns\":" + render_latencies(samples)
+        + ",\"checksum\":\"" + (checksum to string) + "\""
+        + ",\"metrics\":{\"allocation_count\":" + (allocations to string)
+        + "}}";
+    print(output);
+}

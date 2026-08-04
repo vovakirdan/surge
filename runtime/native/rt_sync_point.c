@@ -115,6 +115,10 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY";
         case RT_SYNC_POINT_SP_FAR_SELECT_BEFORE_DISPATCH:
             return "SP_FAR_SELECT_BEFORE_DISPATCH";
+        case RT_SYNC_POINT_SP_CARRIER_JUMBO_ADMITTED:
+            return "SP_CARRIER_JUMBO_ADMITTED";
+        case RT_SYNC_POINT_SP_CARRIER_CREDIT_PARKED:
+            return "SP_CARRIER_CREDIT_PARKED";
         default:
             return "";
     }

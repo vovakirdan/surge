@@ -10,8 +10,12 @@ from typing import Literal, Mapping, Sequence
 
 Side = Literal["base", "candidate"]
 Operator = Literal["eq", "le", "ge"]
+Reduction = Literal["min", "max"]
+CrossRelation = Literal["paired_payload", "payload_proportional"]
+PayloadRole = Literal["zero", "scalar", "composite", "control"]
 Aggregation = Literal["sum", "max", "last"]
 AvailabilityStatus = Literal["required", "unsupported"]
+LivenessStatus = Literal["required", "deferred"]
 MetricSource = Literal["fixture", "runtime_exit"]
 
 
@@ -76,6 +80,14 @@ class Protocol:
 
 
 @dataclass(frozen=True, slots=True)
+class TransportBudget:
+    data_bytes: int
+    control_bytes: int
+    jumbo_threshold_bytes: int
+    max_inline_overhead_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
 class MetricAvailability:
     status: AvailabilityStatus
     reason: str | None = None
@@ -102,6 +114,8 @@ class Invariant:
 @dataclass(frozen=True, slots=True)
 class Row:
     row_id: str
+    workload_family: str
+    payload_role: PayloadRole
     fixture: str
     probe: str
     operations_per_batch: int
@@ -115,19 +129,59 @@ class Row:
 
 
 @dataclass(frozen=True, slots=True)
+class CrossRowInvariant:
+    invariant_id: str
+    relation: CrossRelation
+    metric: str
+    left_row: str
+    left_reduction: Reduction
+    operator: Operator
+    right_row: str
+    right_reduction: Reduction
+    side: Side
+
+
+@dataclass(frozen=True, slots=True)
+class LivenessAvailability:
+    status: LivenessStatus
+    reason: str | None = None
+    provenance_commit: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LivenessProbe:
+    probe_id: str
+    fixture: str
+    probe: str
+    syncpoint: str
+    payload_bytes: int
+    timeout_seconds: int
+    expected_credit_balance: int
+    min_peak_transport_bytes: int
+    max_peak_transport_bytes: int
+    expected_park_transitions: int
+    wave_a: LivenessAvailability
+    final: LivenessAvailability
+
+
+@dataclass(frozen=True, slots=True)
 class Manifest:
     schema_version: int
     epic_base: str
     reference: ReferenceHost
     protocol: Protocol
+    transport: TransportBudget
     backend: str
     profile: str
     shards: int
     threads: int
+    blocking_threads: int
     metrics: tuple[Metric, ...]
     harness_files: tuple[FileDigest, ...]
     fixtures: tuple[FileDigest, ...]
     rows: tuple[Row, ...]
+    cross_row_invariants: tuple[CrossRowInvariant, ...]
+    liveness_probes: tuple[LivenessProbe, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +275,16 @@ def score_side(runs: Sequence[MeasuredRun]) -> SideScore:
 def validate_row_results(
     manifest: Manifest, row: Row, base: Sequence[MeasuredRun], candidate: Sequence[MeasuredRun]
 ) -> tuple[SideScore, SideScore]:
+    scores = validate_row_protocol(manifest, row, base, candidate)
+    failures = row_invariant_failures(row, base, candidate)
+    if failures:
+        raise GateFailure(failures[0])
+    return scores
+
+
+def validate_row_protocol(
+    manifest: Manifest, row: Row, base: Sequence[MeasuredRun], candidate: Sequence[MeasuredRun]
+) -> tuple[SideScore, SideScore]:
     expected = manifest.protocol.measured_pairs
     _validate_run_set(row, "base", base, expected)
     _validate_run_set(row, "candidate", candidate, expected)
@@ -251,6 +315,21 @@ def validate_row_results(
                 f"{manifest.protocol.p95_max_ratio:.6f}"
             )
     return base_score, candidate_score
+
+
+def row_invariant_failures(
+    row: Row, base: Sequence[MeasuredRun], candidate: Sequence[MeasuredRun]
+) -> tuple[str, ...]:
+    failures: list[str] = []
+    for run in (*base, *candidate):
+        for invariant in row.invariants:
+            if invariant.side != run.side:
+                continue
+            try:
+                _check_invariant(row, run, invariant)
+            except GateFailure as err:
+                failures.append(str(err))
+    return tuple(failures)
 
 
 def aggregate_counters(
@@ -313,11 +392,6 @@ def _validate_run_set(row: Row, side: Side, runs: Sequence[MeasuredRun], expecte
                 f"{row.row_id} {side} metrics mismatch: missing={sorted(required - actual)} "
                 f"extra={sorted(actual - required)}"
             )
-        for invariant in row.invariants:
-            if invariant.side == side:
-                _check_invariant(row, run, invariant)
-
-
 def _check_invariant(row: Row, run: MeasuredRun, invariant: Invariant) -> None:
     actual = run.counters.values[invariant.metric]
     if actual is None:

@@ -2,6 +2,7 @@
 #include "rt_carrier_bench_internal.h"
 
 #include <limits.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct rt_carrier_bench_state rt_carrier_bench_state = {
@@ -28,6 +29,15 @@ static bool checked_add(uint64_t* value, uint64_t delta) {
     return true;
 }
 
+static void terminate_if_emitted_locked(void) {
+    if (rt_carrier_bench_state.emitted) {
+        // A successful record is irrevocable. Once later work linearizes,
+        // status zero would make that record a false pass. Terminate while
+        // holding the state lock and emit no contradictory second record.
+        _Exit(1);
+    }
+}
+
 void rt_carrier_bench_fail_locked(enum rt_carrier_bench_error error) {
     if (rt_carrier_bench_state.error == RT_CARRIER_BENCH_ERROR_NONE) {
         rt_carrier_bench_state.error = error;
@@ -38,17 +48,24 @@ void rt_carrier_bench_fail_locked(enum rt_carrier_bench_error error) {
     pthread_cond_broadcast(&rt_carrier_bench_state.drained);
 }
 
-// The relaxed phase read is only a disabled/setup rejection cache. A production
-// event is admitted when it acquires state.lock and still observes OPEN; the
-// complete counter update stays under that lock. Close takes the same lock, so
-// every admitted production hook is complete before it can transition state.
+// DISABLED is permanent for this process: init runs on the entry thread before
+// __surge_start can create workers, so that one relaxed fast rejection is safe.
+// Every enabled phase, including EXPECT_OPEN, takes state.lock. This makes the
+// mutex the admission point even when a relaxed read sees a stale EXPECT_OPEN
+// after the opening marker. Close takes the same lock, so every admitted
+// production hook is complete before it can transition state.
 static bool event_lock(void) {
     uint8_t phase = atomic_load_explicit(&rt_carrier_bench_fast_phase, memory_order_relaxed);
-    if (phase == RT_CARRIER_BENCH_DISABLED || phase == RT_CARRIER_BENCH_EXPECT_OPEN) {
+    if (phase == RT_CARRIER_BENCH_DISABLED) {
         return false;
     }
     RT_CARRIER_BENCH_TEST_BEFORE_LOCK();
     pthread_mutex_lock(&rt_carrier_bench_state.lock);
+    terminate_if_emitted_locked();
+    if (rt_carrier_bench_state.phase == RT_CARRIER_BENCH_EXPECT_OPEN) {
+        pthread_mutex_unlock(&rt_carrier_bench_state.lock);
+        return false;
+    }
     if (rt_carrier_bench_state.phase != RT_CARRIER_BENCH_OPEN) {
         if (rt_carrier_bench_state.phase != RT_CARRIER_BENCH_INVALID) {
             rt_carrier_bench_fail_locked(RT_CARRIER_BENCH_ERROR_LATE_EVENT);
@@ -82,6 +99,7 @@ void rt_carrier_bench_marker(void) {
     }
 
     pthread_mutex_lock(&rt_carrier_bench_state.lock);
+    terminate_if_emitted_locked();
     if (rt_carrier_bench_state.phase == RT_CARRIER_BENCH_EXPECT_OPEN) {
         memset(&rt_carrier_bench_state.counters, 0, sizeof(rt_carrier_bench_state.counters));
         rt_carrier_bench_state.phase = RT_CARRIER_BENCH_OPEN;

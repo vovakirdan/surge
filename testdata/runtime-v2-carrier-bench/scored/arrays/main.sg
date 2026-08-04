@@ -1,0 +1,156 @@
+import shared/support as bench;
+
+@intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
+
+fn push_scalar(values: &mut uint64[], samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        values.push(i to uint64);
+        checksum = checksum + values[i];
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    while values.__len() != 0:uint {
+        checksum = checksum + compare values.pop() {
+            Some(value) => value;
+            nothing => 0:uint64;
+        };
+    }
+    return checksum;
+}
+
+fn push_composite(values: &mut bench.Payload64[], samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        values.push(bench.payload64(i to uint64));
+        checksum = checksum + bench.sum64(&values[i]);
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    while values.__len() != 0:uint {
+        checksum = checksum + compare values.pop() {
+            Some(value) => bench.sum64(&value);
+            nothing => 0:uint64;
+        };
+    }
+    return checksum;
+}
+
+fn teardown_scalar(values: &mut uint64[][], samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        checksum = checksum + compare values.pop() {
+            Some(inner) => {
+                let mut owned: uint64[] = inner;
+                compare owned.pop() {
+                    Some(value) => value;
+                    nothing => 0:uint64;
+                };
+            }
+            nothing => 0:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    return checksum;
+}
+
+fn teardown_composite(values: &mut bench.Payload64[][], samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        checksum = checksum + compare values.pop() {
+            Some(inner) => {
+                let mut owned: bench.Payload64[] = inner;
+                compare owned.pop() {
+                    Some(value) => bench.sum64(&value);
+                    nothing => 0:uint64;
+                };
+            }
+            nothing => 0:uint64;
+        };
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    return checksum;
+}
+
+@entrypoint("argv")
+fn main(probe: string) -> int {
+    let mut row_code: int = 0 - 1;
+    if probe == "array-grow-scalar" { row_code = 0; }
+    else if probe == "array-grow-composite" { row_code = 1; }
+    else if probe == "array-steady-scalar" { row_code = 2; }
+    else if probe == "array-steady-composite" { row_code = 3; }
+    else if probe == "array-teardown-scalar" { row_code = 4; }
+    else if probe == "array-teardown-composite" { row_code = 5; }
+    if row_code < 0 { return 92; }
+
+    let mut scalar_values: uint64[] = [];
+    let mut composite_values: bench.Payload64[] = [];
+    let mut scalar_sets: uint64[][] = [];
+    let mut composite_sets: bench.Payload64[][] = [];
+    if row_code == 2 { scalar_values.reserve(64:uint); }
+    else if row_code == 3 { composite_values.reserve(64:uint); }
+    else if row_code == 4 || row_code == 5 {
+        let mut setup_index: int = 0;
+        while setup_index < 64 {
+            if row_code == 4 {
+                let mut inner: uint64[] = [];
+                inner.push(setup_index to uint64);
+                scalar_sets.push(inner);
+            } else {
+                let mut inner: bench.Payload64[] = [];
+                inner.push(bench.payload64(setup_index to uint64));
+                composite_sets.push(inner);
+            }
+            setup_index = setup_index + 1;
+        }
+    }
+
+    let mut samples: int64[64] = default::<int64[64]>();
+    let _: uint64 = bench.allocation_observer();
+    let c0: uint64 = bench.allocation_observer();
+    let c1: uint64 = bench.allocation_observer();
+    if c1 < c0 { return 90; }
+    let observer_cost: uint64 = c1 - c0;
+    let before: uint64 = bench.allocation_observer();
+    if before < c1 || before - c1 != observer_cost { return 91; }
+
+    rt_array_debug_deferred_base_drops();
+    let batch_started: int64 = bench.now();
+    let mut checksum: uint64 = 0:uint64;
+    if row_code == 0 || row_code == 2 {
+        checksum = push_scalar(&mut scalar_values, &mut samples);
+    } else if row_code == 1 || row_code == 3 {
+        checksum = push_composite(&mut composite_values, &mut samples);
+    } else if row_code == 4 {
+        checksum = teardown_scalar(&mut scalar_sets, &mut samples);
+    } else {
+        checksum = teardown_composite(&mut composite_sets, &mut samples);
+    }
+    let batch_ended: int64 = bench.now();
+    let mut elapsed_ns: int64 = batch_ended - batch_started;
+    if elapsed_ns <= 0:int64 { elapsed_ns = 1:int64; }
+    rt_array_debug_deferred_base_drops();
+
+    let after: uint64 = bench.allocation_observer();
+    let after2: uint64 = bench.allocation_observer();
+    if after2 < after || after2 - after != observer_cost { return 93; }
+    if after < before || after - before < observer_cost { return 94; }
+    bench.emit_result(
+        &probe,
+        elapsed_ns,
+        &samples,
+        checksum,
+        after - before - observer_cost,
+    );
+    return 0;
+}

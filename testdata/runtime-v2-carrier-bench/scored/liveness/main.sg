@@ -1,0 +1,54 @@
+import shared/support as bench;
+
+@intrinsic fn rt_carrier_liveness_jumbo_admitted() -> bool;
+@intrinsic fn rt_carrier_liveness_credit_parked() -> bool;
+@intrinsic fn rt_carrier_liveness_release_jumbo() -> nothing;
+@intrinsic fn rt_carrier_liveness_request_shutdown() -> bool;
+
+fn consume(value: own bench.Payload8192) -> uint64 {
+    return bench.sum8192(&value);
+}
+
+async fn run(probe: &string) -> bool {
+    let cancel_waiter: bool = probe == "jumbo-credit-cancel";
+    let first_value: bench.Payload8192 = bench.payload8192(1:uint64);
+    let first: far Task<uint64> = spawn on shard(1:ShardId) {
+        ret consume(own first_value);
+    };
+    while !rt_carrier_liveness_jumbo_admitted() {
+        let _ = checkpoint().await();
+    }
+
+    let second_value: bench.Payload8192 = bench.payload8192(2:uint64);
+    let second: far Task<uint64> = spawn on shard(1:ShardId) {
+        ret consume(own second_value);
+    };
+    while !rt_carrier_liveness_credit_parked() {
+        let _ = checkpoint().await();
+    }
+
+    if cancel_waiter {
+        let _ = second.cancel();
+    } else if !rt_carrier_liveness_request_shutdown() {
+        return false;
+    }
+    rt_carrier_liveness_release_jumbo();
+    if !cancel_waiter { return true; }
+    return compare first.await() {
+        Success(_) => true;
+        Cancelled() => false;
+    };
+}
+
+@entrypoint("argv")
+fn main(probe: string) -> int {
+    if probe != "jumbo-credit-cancel" && probe != "jumbo-global-shutdown" {
+        return 92;
+    }
+    let ok: bool = compare run(&probe).await() {
+        Success(value) => value;
+        Cancelled() => probe == "jumbo-global-shutdown";
+    };
+    if !ok { return 1; }
+    return 0;
+}

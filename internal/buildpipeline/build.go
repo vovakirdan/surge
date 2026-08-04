@@ -353,6 +353,10 @@ func runtimeFileAllowed(entryPath string) bool {
 }
 
 func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]string, error) {
+	testSyncPointFlags, err := runtimeTestSyncPointFlags()
+	if err != nil {
+		return nil, err
+	}
 	objs := make([]string, 0, len(sources))
 	for _, src := range sources {
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
@@ -361,6 +365,7 @@ func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]
 		if runtime.GOOS != "windows" {
 			args = append(args, "-pthread")
 		}
+		args = append(args, testSyncPointFlags...)
 		args = append(args, src, "-o", obj)
 		if err := runCommand(printCommands, "clang", args...); err != nil {
 			return nil, err
@@ -368,6 +373,20 @@ func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]
 		objs = append(objs, obj)
 	}
 	return objs, nil
+}
+
+func runtimeTestSyncPointFlags() ([]string, error) {
+	value := os.Getenv("SURGE_INTERNAL_TEST_SYNC_POINTS")
+	switch value {
+	case "":
+		return nil, nil
+	case "1":
+		return []string{"-DRT_TEST_SYNC_POINTS"}, nil
+	default:
+		return nil, fmt.Errorf(
+			"SURGE_INTERNAL_TEST_SYNC_POINTS must be unset or exactly 1",
+		)
+	}
 }
 
 func archiveRuntime(runtimeDir string, objs []string, printCommands bool) (string, error) {

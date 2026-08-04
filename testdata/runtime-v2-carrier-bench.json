@@ -1,0 +1,2361 @@
+{
+  "schema_version": 1,
+  "epic_base": "7df10725e001ddf915d536aa58f880bd7e04aafd",
+  "reference_host": {
+    "system": "Linux",
+    "machine": "x86_64",
+    "kernel_contains": "6.18.33.2-microsoft-standard-WSL2",
+    "cpu_model": "Intel(R) Core(TM) i9-14900K",
+    "logical_cpus": 32,
+    "cpuset": "0,2",
+    "go_version": "go version go1.26.1 linux/amd64",
+    "clang_version": "Ubuntu clang version 18.1.3 (1ubuntu1)"
+  },
+  "protocol": {
+    "warmups": 2,
+    "measured_pairs": 7,
+    "max_cv": 0.05,
+    "throughput_min_ratio": 0.95,
+    "p95_max_ratio": 1.1,
+    "percentile_method": "nearest-rank",
+    "cv_method": "sample-n-minus-1"
+  },
+  "transport_budget": {
+    "data_bytes": 4096,
+    "control_bytes": 1024,
+    "jumbo_threshold_bytes": 4096,
+    "max_inline_overhead_bytes": 256
+  },
+  "backend": "llvm",
+  "profile": "release",
+  "shards": 2,
+  "threads": 2,
+  "blocking_threads": 1,
+  "metrics": [
+    {
+      "name": "allocation_count",
+      "aggregation": "sum",
+      "source": "fixture",
+      "base": {
+        "status": "required"
+      },
+      "candidate": {
+        "status": "required"
+      }
+    },
+    {
+      "name": "bytes_copied",
+      "aggregation": "sum",
+      "source": "runtime_exit",
+      "base": {
+        "status": "unsupported",
+        "reason": "EPIC_BASE has no typed-carrier physical-copy counter",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+      },
+      "candidate": {
+        "status": "required"
+      }
+    },
+    {
+      "name": "bytes_moved",
+      "aggregation": "sum",
+      "source": "runtime_exit",
+      "base": {
+        "status": "unsupported",
+        "reason": "EPIC_BASE has no typed-carrier physical-move counter",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+      },
+      "candidate": {
+        "status": "required"
+      }
+    },
+    {
+      "name": "callback_count",
+      "aggregation": "sum",
+      "source": "runtime_exit",
+      "base": {
+        "status": "unsupported",
+        "reason": "EPIC_BASE has no monomorphic ValueOps callback counter",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+      },
+      "candidate": {
+        "status": "required"
+      }
+    },
+    {
+      "name": "credit_stalls",
+      "aggregation": "sum",
+      "source": "runtime_exit",
+      "base": {
+        "status": "unsupported",
+        "reason": "EPIC_BASE has no physical byte-credit park counter",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+      },
+      "candidate": {
+        "status": "required"
+      }
+    },
+    {
+      "name": "peak_transport_bytes",
+      "aggregation": "max",
+      "source": "runtime_exit",
+      "base": {
+        "status": "unsupported",
+        "reason": "EPIC_BASE has no physical carrier resident-byte counter",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+      },
+      "candidate": {
+        "status": "required"
+      }
+    }
+  ],
+  "harness_files": [
+    {
+      "path": "scripts/runtime_v2_carrier_bench.py",
+      "sha256": "96f022bd47824e238c720d5dd541449ed105a3029f508d96e816887eac671b4f"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_build_test.py",
+      "sha256": "e4f28897aee90daac22e803871f66395924f816b5fecf2ff195bdbf43cf35f92"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_host.py",
+      "sha256": "84b34f73165c2e57993b4fe9e880f3546f5facdea17d557633dce333346e2083"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_host_test.py",
+      "sha256": "68945fae468d6052d373cc7108195290f1bcbd91381a8eec145cf00ee0a66ae8"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_ir.py",
+      "sha256": "93b3943ca87aa9aca8182c4ad46d50c0a5a396df44e99062937fd183745d0906"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_manifest.py",
+      "sha256": "d8a5a814788d3765d3516f983e09350b16d917181fdba6d060b2b503cd8ab836"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
+      "sha256": "1d8cdeb6d422c935e36f7d1c0852e183b14f66fb6cb9a50d6946bc51a0576fb5"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
+      "sha256": "6a3391b1c0f3c4d8a5471d2d3509afc88fdb444bbed065257bcfc858ac48bcc5"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
+      "sha256": "c1cb3e42cf36252652b3dbe2dfcac3a04ea5dc2dc25c7718e4cf67059a939961"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_model.py",
+      "sha256": "06b2c3f4fa11ca1ac92255fa26d32516b184f8e41ce19f3c0134233f646df806"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_model_test.py",
+      "sha256": "26dabb9aacb977ffc5d5bcdf13e262f89778902d2e3f9deb40cfb58ce54d83cd"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_protocol.py",
+      "sha256": "44756c07ce7977b31fef06f29f151bba9fe12ee82103979774cebd7c472bc93b"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_protocol_test.py",
+      "sha256": "e544adc4112420616e6b2731fbf518ba7b189a05a305ff7d331acdb093f3ceda"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_report.py",
+      "sha256": "e44a4f9fb480aeb7846c5f33938eb91eb9be2617a9c7bb91f5b588193e58f690"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_report_test.py",
+      "sha256": "8fce23837875593c6906c6cb5328106f2c821003e80da3d39e0014b5e322e9bd"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_runner.py",
+      "sha256": "928ae69cbc3710d0885085403ebde6938e02aeec582dfad123ad1e48b0439c41"
+    },
+    {
+      "path": "scripts/runtime_v2_carrier_bench_test_support.py",
+      "sha256": "afae809e107e5cded14aa5125f9211599f1466e097c45cbc1574cf7054fdda6a"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
+      "sha256": "98ae9d367dfe6bc7209c7d7ba8030e403522e6219082f64a1da0c9b08c95997f"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/blocking-composite/main.sg",
+      "sha256": "9e6e45d9f2e37284dfa33db9b234ae9be4175546f89076c1ea6545b6f9aabdd6"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/blocking-scalar/main.sg",
+      "sha256": "7351dec1f8d1cc54600417f451dd8b0286b476c554da0dc552a2abd9356f5739"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-composite/main.sg",
+      "sha256": "fde79cc8532109bb7bc529bf5017910a27cb08fc0e7e05a99e99ffd994a0b87c"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-scalar/main.sg",
+      "sha256": "ea9d9449e70dbe42cf0347ae88e8e5bc2073dc2c3bfe1216c077e12419334e9e"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-composite/main.sg",
+      "sha256": "f9cff9f3829f07332bf047db524eae0cb104cbf73f0e0eeed2f87b45277e3927"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-scalar/main.sg",
+      "sha256": "4aa753fa3e5b07e36bbc9b8fee9e567c71703eff124b28f8d45bd88a6a31de09"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
+      "sha256": "bf89152afbc1d5d8b7182d4ebc414a5f1d83e3c8224b034b1519b9017296bda0"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/far-jumbo/main.sg",
+      "sha256": "12d8dbc547d3402c060d795aeea6fecfc29cf0e0a4198cfe9c94d1c494d77b97"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/far-large/main.sg",
+      "sha256": "87d991d13aa7d4a2f8b338dd8d796bd189783e213170936bcc5e36c741dc578c"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
+      "sha256": "85de16e42b9a706472ea56a49f5b2053a6fdc7f7b73dbec0c63be67fbb30a3fd"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
+      "sha256": "ad1af335b6e074c2756ad535269aff121301f51d2e0e0c15498fadc1463e3f97"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/local/local.sg",
+      "sha256": "b143cdaf384b1a372d6150ae48363d1dacbda27a4028976e21cd3dbb373063a8"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
+      "sha256": "8cd2165ae3f92fe233b12c3276898e644ebf181ce2ab427070c11f07428696d7"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
+      "sha256": "a218aa5de1da945344265e27a850389ce258ca6d038ee1ee91c09915fa3cf9d5"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
+      "sha256": "1d8314b5b6451790fcfef0cdcb5cb180f6b098000ccc6528135ecd4e0241be9e"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/select-send-composite/main.sg",
+      "sha256": "e8213dd6498c37cce39a6d0c190127b1c2403e144d39a13b2a1a3845bb5dc57d"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/select-send-scalar/main.sg",
+      "sha256": "ca0a9ad9f9277741dd6918d7dad2aa799e8f0896017337fe4f0cd64171b2699f"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/shared/support.sg",
+      "sha256": "2e2755c5808cc8a924df1f60a07949b37d98fcff8ddc1dfcd5830c562f04117c"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/task-composite/main.sg",
+      "sha256": "b2bcb9c369d91ba3079b6396ca781346cdf7ca84f2be74b072bb78616f90b99f"
+    },
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/task-scalar/main.sg",
+      "sha256": "20691f0999fdd159cf448cb4aa4529a12148281959e54154db71997f69a120c6"
+    }
+  ],
+  "rows": [
+    {
+      "id": "array-grow-composite",
+      "workload_family": "array-grow",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
+      "probe": "array-grow-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "8512",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "array-grow-scalar",
+      "workload_family": "array-grow",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
+      "probe": "array-grow-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "4032",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "array-steady-composite",
+      "workload_family": "array-steady",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
+      "probe": "array-steady-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "8512",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "array-steady-scalar",
+      "workload_family": "array-steady",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
+      "probe": "array-steady-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "4032",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "array-teardown-composite",
+      "workload_family": "array-teardown",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
+      "probe": "array-teardown-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "4256",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "array-teardown-scalar",
+      "workload_family": "array-teardown",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
+      "probe": "array-teardown-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "2016",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "blocking-composite",
+      "workload_family": "blocking",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/blocking-composite/main.sg",
+      "probe": "blocking-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "blocking-scalar",
+      "workload_family": "blocking",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/blocking-scalar/main.sg",
+      "probe": "blocking-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 20,
+      "relative_performance": true,
+      "expected_checksum": "2368",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "channel-buffered-composite",
+      "workload_family": "channel-buffered",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-composite/main.sg",
+      "probe": "channel-buffered-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 15,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "channel-buffered-scalar",
+      "workload_family": "channel-buffered",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-scalar/main.sg",
+      "probe": "channel-buffered-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 15,
+      "relative_performance": true,
+      "expected_checksum": "2368",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "channel-unbuffered-composite",
+      "workload_family": "channel-unbuffered",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-composite/main.sg",
+      "probe": "channel-unbuffered-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 15,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "channel-unbuffered-scalar",
+      "workload_family": "channel-unbuffered",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-scalar/main.sg",
+      "probe": "channel-unbuffered-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 15,
+      "relative_performance": true,
+      "expected_checksum": "2368",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-channel-composite",
+      "workload_family": "far-channel",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
+      "probe": "far-channel-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "2368",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 64,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1344,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-channel-scalar",
+      "workload_family": "far-channel",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
+      "probe": "far-channel-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 20,
+      "relative_performance": true,
+      "expected_checksum": "2432",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 8,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1288,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-immediate-composite",
+      "workload_family": "far-immediate",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
+      "probe": "far-immediate-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 64,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1344,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-immediate-scalar",
+      "workload_family": "far-immediate",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
+      "probe": "far-immediate-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 20,
+      "relative_performance": true,
+      "expected_checksum": "2368",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 8,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1288,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-jumbo-contention",
+      "workload_family": "far-dual-capture",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-jumbo/main.sg",
+      "probe": "far-jumbo-contention",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8192,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "68928",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "bytes_moved",
+          "operator": "eq",
+          "value": 2097152,
+          "side": "candidate"
+        },
+        {
+          "metric": "callback_count",
+          "operator": "eq",
+          "value": 256,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 128,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 8192,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 9472,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-large-capture",
+      "workload_family": "far-dual-capture",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-large/main.sg",
+      "probe": "far-large-capture",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 4096,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "68032",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "bytes_moved",
+          "operator": "eq",
+          "value": 1048576,
+          "side": "candidate"
+        },
+        {
+          "metric": "callback_count",
+          "operator": "eq",
+          "value": 256,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 4096,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 5376,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-large-result",
+      "workload_family": "far-large-result",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-large/main.sg",
+      "probe": "far-large-result",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 4096,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "68032",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "bytes_moved",
+          "operator": "eq",
+          "value": 524288,
+          "side": "candidate"
+        },
+        {
+          "metric": "callback_count",
+          "operator": "eq",
+          "value": 128,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 4096,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 5376,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-select-composite",
+      "workload_family": "far-select",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
+      "probe": "far-select-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "1344",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 64,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1344,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-select-scalar",
+      "workload_family": "far-select",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
+      "probe": "far-select-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 20,
+      "relative_performance": true,
+      "expected_checksum": "1344",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 8,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1288,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-share-control",
+      "workload_family": "far-share-control",
+      "payload_role": "control",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
+      "probe": "far-share-control",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 0,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "64",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1024,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-task-composite",
+      "workload_family": "far-task",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
+      "probe": "far-task-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 20,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 64,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1344,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "far-task-scalar",
+      "workload_family": "far-task",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
+      "probe": "far-task-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 20,
+      "relative_performance": true,
+      "expected_checksum": "2368",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "ge",
+          "value": 8,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "le",
+          "value": 1288,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "local-argument",
+      "workload_family": "local-argument",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
+      "probe": "local-argument",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "local-copy",
+      "workload_family": "local-copy",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
+      "probe": "local-copy",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "5120",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "bytes_copied",
+          "operator": "eq",
+          "value": 8192,
+          "side": "candidate"
+        },
+        {
+          "metric": "callback_count",
+          "operator": "eq",
+          "value": 128,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "local-fixed-array",
+      "workload_family": "local-fixed-array",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
+      "probe": "local-fixed-array",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "local-return",
+      "workload_family": "local-return",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
+      "probe": "local-return",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-insert-composite",
+      "workload_family": "map-insert",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
+      "probe": "map-insert-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "8512",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-insert-scalar",
+      "workload_family": "map-insert",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
+      "probe": "map-insert-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "4032",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-rehash-composite",
+      "workload_family": "map-rehash",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
+      "probe": "map-rehash-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "9844",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-rehash-scalar",
+      "workload_family": "map-rehash",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
+      "probe": "map-rehash-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "5084",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-remove-composite",
+      "workload_family": "map-remove",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
+      "probe": "map-remove-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "4256",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-remove-scalar",
+      "workload_family": "map-remove",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
+      "probe": "map-remove-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "2016",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-replace-composite",
+      "workload_family": "map-replace",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
+      "probe": "map-replace-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "25568",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-replace-scalar",
+      "workload_family": "map-replace",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
+      "probe": "map-replace-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "18848",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-teardown-composite",
+      "workload_family": "map-teardown",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
+      "probe": "map-teardown-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 10,
+      "relative_performance": false,
+      "expected_checksum": "4256",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "map-teardown-scalar",
+      "workload_family": "map-teardown",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
+      "probe": "map-teardown-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "2016",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "allocation_count",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "scalar",
+      "workload_family": "local-scalar",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
+      "probe": "scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "2368",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "select-send-composite",
+      "workload_family": "select-send",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/select-send-composite/main.sg",
+      "probe": "select-send-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 15,
+      "relative_performance": false,
+      "expected_checksum": "15947",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "bytes_moved",
+          "operator": "eq",
+          "value": 16512,
+          "side": "candidate"
+        },
+        {
+          "metric": "callback_count",
+          "operator": "eq",
+          "value": 386,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "select-send-scalar",
+      "workload_family": "select-send",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/select-send-scalar/main.sg",
+      "probe": "select-send-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 15,
+      "relative_performance": true,
+      "expected_checksum": "11432",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "bytes_moved",
+          "operator": "eq",
+          "value": 2064,
+          "side": "candidate"
+        },
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "task-clone-composite",
+      "workload_family": "task-clone",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/task-composite/main.sg",
+      "probe": "task-clone-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 15,
+      "relative_performance": false,
+      "expected_checksum": "4608",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "task-clone-scalar",
+      "workload_family": "task-clone",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/task-scalar/main.sg",
+      "probe": "task-clone-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 15,
+      "relative_performance": true,
+      "expected_checksum": "4736",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "task-composite",
+      "workload_family": "task-await",
+      "payload_role": "composite",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/task-composite/main.sg",
+      "probe": "task-composite",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 64,
+      "timeout_seconds": 15,
+      "relative_performance": false,
+      "expected_checksum": "2304",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "task-scalar",
+      "workload_family": "task-await",
+      "payload_role": "scalar",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/task-scalar/main.sg",
+      "probe": "task-scalar",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 8,
+      "timeout_seconds": 15,
+      "relative_performance": true,
+      "expected_checksum": "2368",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "zero",
+      "workload_family": "local-zero",
+      "payload_role": "zero",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
+      "probe": "zero",
+      "operations_per_batch": 64,
+      "batches": 2,
+      "payload_bytes": 0,
+      "timeout_seconds": 10,
+      "relative_performance": true,
+      "expected_checksum": "0",
+      "required_metrics": [
+        "allocation_count",
+        "bytes_copied",
+        "bytes_moved",
+        "callback_count",
+        "credit_stalls",
+        "peak_transport_bytes"
+      ],
+      "invariants": [
+        {
+          "metric": "credit_stalls",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        },
+        {
+          "metric": "peak_transport_bytes",
+          "operator": "eq",
+          "value": 0,
+          "side": "candidate"
+        }
+      ]
+    }
+  ],
+  "cross_row_invariants": [
+    {
+      "id": "allocation.array-grow",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "array-grow-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "array-grow-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.array-steady",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "array-steady-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "array-steady-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.array-teardown",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "array-teardown-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "array-teardown-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.blocking",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "blocking-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "blocking-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.channel-buffered",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "channel-buffered-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "channel-buffered-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.channel-unbuffered",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "channel-unbuffered-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "channel-unbuffered-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.far-channel",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "far-channel-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "far-channel-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.far-immediate",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "far-immediate-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "far-immediate-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.far-select",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "far-select-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "far-select-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.far-task",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "far-task-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "far-task-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.map-insert",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "map-insert-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "map-insert-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.map-rehash",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "map-rehash-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "map-rehash-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.map-remove",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "map-remove-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "map-remove-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.map-replace",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "map-replace-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "map-replace-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.map-teardown",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "map-teardown-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "map-teardown-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.select-send",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "select-send-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "select-send-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.task-await",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "task-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "task-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "allocation.task-clone",
+      "relation": "paired_payload",
+      "metric": "allocation_count",
+      "left_row": "task-clone-composite",
+      "left_reduction": "max",
+      "operator": "le",
+      "right_row": "task-clone-scalar",
+      "right_reduction": "min",
+      "side": "candidate"
+    },
+    {
+      "id": "bytes.far-dual-capture-proportional",
+      "relation": "payload_proportional",
+      "metric": "bytes_moved",
+      "left_row": "far-large-capture",
+      "left_reduction": "max",
+      "operator": "eq",
+      "right_row": "far-jumbo-contention",
+      "right_reduction": "max",
+      "side": "candidate"
+    }
+  ],
+  "liveness_probes": [
+    {
+      "id": "jumbo-credit-cancel",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
+      "probe": "jumbo-credit-cancel",
+      "syncpoint": "SP_CARRIER_CREDIT_PARKED",
+      "payload_bytes": 8192,
+      "timeout_seconds": 10,
+      "expected_credit_balance": 0,
+      "min_peak_transport_bytes": 8192,
+      "max_peak_transport_bytes": 9472,
+      "expected_park_transitions": 1,
+      "wave_a": {
+        "status": "deferred",
+        "reason": "Wave A has no byte-credit park transition; Wave E must reach the frozen sync point.",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+      },
+      "final": {
+        "status": "required"
+      }
+    },
+    {
+      "id": "jumbo-global-shutdown",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
+      "probe": "jumbo-global-shutdown",
+      "syncpoint": "SP_CARRIER_CREDIT_PARKED",
+      "payload_bytes": 8192,
+      "timeout_seconds": 10,
+      "expected_credit_balance": 0,
+      "min_peak_transport_bytes": 8192,
+      "max_peak_transport_bytes": 9472,
+      "expected_park_transitions": 1,
+      "wave_a": {
+        "status": "deferred",
+        "reason": "Wave A has no byte-credit shutdown drain; Wave E must reach the frozen sync point.",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+      },
+      "final": {
+        "status": "required"
+      }
+    }
+  ]
+}

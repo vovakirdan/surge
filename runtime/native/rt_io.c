@@ -3,6 +3,7 @@
 #endif
 
 #include "rt.h"
+#include "rt_carrier_bench.h"
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -173,6 +174,9 @@ void* rt_stdin_read_all(void) {
 void rt_exit(int64_t code) {
     rt_exec_trace_dump();
     rt_sched_trace_dump();
+    if (rt_carrier_bench_finish() != 0) {
+        exit(1);
+    }
     exit((int)code);
 }
 

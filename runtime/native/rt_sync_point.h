@@ -149,6 +149,10 @@ typedef enum rt_sync_point_id {
     // UNBOUND request and the late dispatch refuses to pin any arm (Epic
     // 20 Task 7 row 3).
     RT_SYNC_POINT_SP_FAR_SELECT_BEFORE_DISPATCH,
+    // Epic 23b final carrier liveness: hold the first exclusive jumbo
+    // reservation, then prove the competing sender reached PARKED_CREDIT.
+    RT_SYNC_POINT_SP_CARRIER_JUMBO_ADMITTED,
+    RT_SYNC_POINT_SP_CARRIER_CREDIT_PARKED,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

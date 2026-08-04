@@ -44,15 +44,20 @@ from runtime_v2_carrier_bench_report import (  # noqa: E402
 )
 from runtime_v2_carrier_bench_runner import (  # noqa: E402
     BuiltFixture,
+    LivenessRecord,
     RunRecord,
     build_fixtures,
+    build_liveness_fixtures,
     build_surge,
     execute_manifest,
+    execute_liveness_probes,
 )
 
 
 def main() -> int:
     args = _arguments()
+    benchmark_phase = getattr(args, "phase", "wave-a")
+    capture_wave_a_baseline = getattr(args, "capture_wave_a_baseline", False)
     started_at = _utc_now()
     attempt_id = f"{started_at.replace(':', '').replace('-', '')}-{uuid.uuid4().hex[:8]}"
     candidate_root = args.candidate_root.resolve()
@@ -74,6 +79,10 @@ def main() -> int:
     candidate_commit: str | None = None
     events: list[dict[str, object]] = []
     try:
+        if capture_wave_a_baseline and benchmark_phase != "wave-a":
+            raise ManifestError(
+                "--capture-wave-a-baseline is valid only with --phase=wave-a"
+            )
         _require_canonical_manifest(candidate_root, manifest_path)
         phase = "manifest_load"
         manifest_sha256 = manifest_digest(manifest_path)
@@ -127,7 +136,7 @@ def main() -> int:
                 with tempfile.TemporaryDirectory(
                     prefix="surge-carrier-bench-"
                 ) as temporary:
-                    records = _build_and_run(
+                    records, liveness_records = _build_and_run(
                         manifest=manifest,
                         harness_root=candidate_build_root,
                         base_root=base_root,
@@ -135,6 +144,7 @@ def main() -> int:
                         temporary=Path(temporary),
                         events=events,
                         protocol_sha256=manifest_sha256,
+                        benchmark_phase=benchmark_phase,
                     )
         phase = "scoring"
         report, failure = render_report(
@@ -147,12 +157,21 @@ def main() -> int:
             candidate_commit=candidate_commit,
             actual_host=actual_host,
             records=records,
+            benchmark_phase=benchmark_phase,
+            liveness_records=liveness_records,
         )
         phase = "report_write"
         write_report(report_path, report)
         print(f"carrier benchmark report: {report_path}")
         if failure is not None:
             print(f"runtime-v2 carrier benchmark failed: {failure}", file=sys.stderr)
+            if _baseline_capture_accepts(
+                report,
+                benchmark_phase=benchmark_phase,
+                requested=capture_wave_a_baseline,
+            ):
+                print("captured complete Wave-A RED baseline; report remains failed")
+                return 0
             return 1
         return 0
     except (GateFailure, ManifestError, OSError, json.JSONDecodeError) as err:
@@ -194,7 +213,11 @@ def _build_and_run(
     temporary: Path,
     events: list[dict[str, object]],
     protocol_sha256: str,
-) -> dict[str, dict[Side, tuple[RunRecord, ...]]]:
+    benchmark_phase: str,
+) -> tuple[
+    dict[str, dict[Side, tuple[RunRecord, ...]]],
+    tuple[LivenessRecord, ...],
+]:
     base_surge = temporary / "base" / "surge"
     candidate_surge = temporary / "candidate" / "surge"
     build_surge(base_root, base_surge)
@@ -215,7 +238,26 @@ def _build_and_run(
             build_root=temporary / "candidate" / "fixtures",
         ),
     }
-    return execute_manifest(manifest, binaries, events, protocol_sha256)
+    records = execute_manifest(manifest, binaries, events, protocol_sha256)
+    liveness_binaries = (
+        build_liveness_fixtures(
+            side_root=candidate_root,
+            harness_root=harness_root,
+            surge=candidate_surge,
+            manifest=manifest,
+            build_root=temporary / "candidate" / "liveness",
+        )
+        if benchmark_phase == "final"
+        else {}
+    )
+    liveness = execute_liveness_probes(
+        manifest,
+        liveness_binaries,
+        events,
+        protocol_sha256,
+        benchmark_phase,
+    )
+    return records, liveness
 
 
 @contextmanager
@@ -391,7 +433,30 @@ def _arguments() -> argparse.Namespace:
         type=Path,
     )
     parser.add_argument("--candidate-root", type=Path, default=repository)
+    parser.add_argument(
+        "--phase", choices=("wave-a", "final"), default="wave-a"
+    )
+    parser.add_argument(
+        "--capture-wave-a-baseline",
+        action="store_true",
+        help=(
+            "return success only for a complete Wave-A report whose protocol passed "
+            "and whose endpoint invariants remain RED"
+        ),
+    )
     return parser.parse_args()
+
+
+def _baseline_capture_accepts(
+    report: dict[str, object], *, benchmark_phase: str, requested: bool
+) -> bool:
+    return (
+        requested
+        and benchmark_phase == "wave-a"
+        and report.get("status") == "failed"
+        and report.get("protocol_status") == "passed"
+        and report.get("endpoint_invariant_status") == "failed"
+    )
 
 
 def _utc_now() -> str:

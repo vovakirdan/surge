@@ -1,0 +1,41 @@
+import shared/support as bench;
+import ./local as local_rows;
+
+@intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
+
+@entrypoint("argv")
+fn main(probe: string) -> int {
+    let mut row_code: int = 0 - 1;
+    if probe == "zero" { row_code = 0; }
+    else if probe == "scalar" { row_code = 1; }
+    else if probe == "local-copy" { row_code = 2; }
+    else if probe == "local-argument" { row_code = 3; }
+    else if probe == "local-return" { row_code = 4; }
+    else if probe == "local-fixed-array" { row_code = 5; }
+    if row_code < 0 { return 92; }
+
+    let mut samples: int64[64] = default::<int64[64]>();
+    let _: uint64 = bench.allocation_observer();
+    let c0: uint64 = bench.allocation_observer();
+    let c1: uint64 = bench.allocation_observer();
+    if c1 < c0 { return 90; }
+    let observer_cost: uint64 = c1 - c0;
+    let before: uint64 = bench.allocation_observer();
+    if before < c1 || before - c1 != observer_cost { return 91; }
+
+    rt_array_debug_deferred_base_drops();
+    let batch_started: int64 = bench.now();
+    let checksum: uint64 = local_rows.run(row_code, &mut samples);
+    let batch_ended: int64 = bench.now();
+    let mut elapsed_ns: int64 = batch_ended - batch_started;
+    if elapsed_ns <= 0:int64 { elapsed_ns = 1:int64; }
+    rt_array_debug_deferred_base_drops();
+
+    let after: uint64 = bench.allocation_observer();
+    let after2: uint64 = bench.allocation_observer();
+    if after2 < after || after2 - after != observer_cost { return 93; }
+    if after < before || after - before < observer_cost { return 94; }
+    let allocations: uint64 = after - before - observer_cost;
+    bench.emit_result(&probe, elapsed_ns, &samples, checksum, allocations);
+    return 0;
+}

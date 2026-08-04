@@ -1,0 +1,70 @@
+import shared/support as bench;
+
+@intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
+
+async fn receive(ch: own Channel<bench.Payload64>) -> uint64 {
+    let mut checksum: uint64 = 0:uint64;
+    let mut i: int = 0;
+    while i < 64 {
+        checksum = checksum + compare ch.recv() {
+            Some(value) => bench.sum64(&value);
+            nothing => 0:uint64;
+        };
+        i = i + 1;
+    }
+    @drop ch;
+    return checksum;
+}
+
+async fn send_all(
+    ch: own Channel<bench.Payload64>,
+    samples: &mut ArrayFixed<int64, 64>,
+) -> nothing {
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        let value: bench.Payload64 = bench.payload64(1:uint64);
+        ch.send(own value);
+        bench.store_latency(samples, i, started);
+        i = i + 1;
+    }
+    ch.close();
+    @drop ch;
+}
+
+@entrypoint("argv")
+fn main(probe: string) -> int {
+    if probe != "channel-unbuffered-composite" { return 92; }
+    let ch: own Channel<bench.Payload64> =
+        make_channel::<bench.Payload64>(0:uint);
+    let sender_ch: own Channel<bench.Payload64> = ch;
+    let receiver_ch: own Channel<bench.Payload64> = ch;
+    let receiver: Task<uint64> = spawn receive(receiver_ch);
+    let _ = checkpoint().await();
+    let _ = checkpoint().await();
+    let mut samples: int64[64] = default::<int64[64]>();
+    let _: uint64 = bench.allocation_observer();
+    let c0: uint64 = bench.allocation_observer();
+    let c1: uint64 = bench.allocation_observer();
+    if c1 < c0 { return 90; }
+    let observer_cost: uint64 = c1 - c0;
+    let before: uint64 = bench.allocation_observer();
+    if before < c1 || before - c1 != observer_cost { return 91; }
+    rt_array_debug_deferred_base_drops();
+    let batch_started: int64 = bench.now();
+    let _: TaskResult<nothing> = send_all(sender_ch, &mut samples).await();
+    let checksum: uint64 = compare receiver.await() {
+        Success(value) => value;
+        Cancelled() => { return 95; };
+    };
+    let batch_ended: int64 = bench.now();
+    let mut elapsed_ns: int64 = batch_ended - batch_started;
+    if elapsed_ns <= 0:int64 { elapsed_ns = 1:int64; }
+    rt_array_debug_deferred_base_drops();
+    let after: uint64 = bench.allocation_observer();
+    let after2: uint64 = bench.allocation_observer();
+    if after2 < after || after2 - after != observer_cost { return 93; }
+    if after < before || after - before < observer_cost { return 94; }
+    bench.emit_result(&probe, elapsed_ns, &samples, checksum, after - before - observer_cost);
+    return 0;
+}

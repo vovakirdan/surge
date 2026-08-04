@@ -12,6 +12,7 @@ import (
 
 const carrierBenchCounterHarness = `
 #include "rt_carrier_bench.h"
+#include "rt_carrier_bench_internal.h"
 
 #include <pthread.h>
 #include <sched.h>
@@ -68,7 +69,17 @@ int main(int argc, char** argv) {
     if (strcmp(mode, "missing") == 0) {
         return rt_carrier_bench_finish();
     }
+    if (strcmp(mode, "pre-open") == 0) {
+        rt_carrier_bench_record_copy(99);
+    }
     rt_carrier_bench_marker();
+    if (strcmp(mode, "stale-expect") == 0) {
+        atomic_store_explicit(
+            &rt_carrier_bench_fast_phase, RT_CARRIER_BENCH_EXPECT_OPEN, memory_order_relaxed);
+        rt_carrier_bench_record_copy(11);
+        atomic_store_explicit(
+            &rt_carrier_bench_fast_phase, RT_CARRIER_BENCH_OPEN, memory_order_relaxed);
+    }
     if (strcmp(mode, "lock-loser") == 0) {
         pthread_mutex_lock(&event_lock);
         hold_before_event_lock = 1;
@@ -120,7 +131,9 @@ int main(int argc, char** argv) {
         }
         return rt_carrier_bench_finish();
     } else {
-        rt_carrier_bench_record_copy(11);
+        if (strcmp(mode, "stale-expect") != 0) {
+            rt_carrier_bench_record_copy(11);
+        }
         rt_carrier_bench_record_move(12);
         rt_carrier_bench_record_callback();
         rt_carrier_bench_record_credit_stall();
@@ -128,6 +141,15 @@ int main(int argc, char** argv) {
         rt_carrier_bench_transport_release(9);
     }
     rt_carrier_bench_marker();
+    if (strcmp(mode, "post-finish") == 0 || strcmp(mode, "post-finish-marker") == 0) {
+        int status = rt_carrier_bench_finish();
+        if (strcmp(mode, "post-finish-marker") == 0) {
+            rt_carrier_bench_marker();
+        } else {
+            rt_carrier_bench_record_move(1);
+        }
+        return status;
+    }
     if (strcmp(mode, "extra") == 0) {
         rt_carrier_bench_marker();
     } else if (strcmp(mode, "late") == 0) {
@@ -170,7 +192,7 @@ func TestRuntimeV2CarrierBenchCounterMatrix(t *testing.T) {
 		t.Fatalf("compile carrier benchmark harness: %v\n%s", err, output)
 	}
 
-	valid := runCarrierBenchCounter(t, binary, "valid", true, true)
+	valid := runCarrierBenchCounter(t, binary, "valid", true)
 	wantMetrics := map[string]uint64{
 		"bytes_copied":         11,
 		"bytes_moved":          12,
@@ -180,6 +202,22 @@ func TestRuntimeV2CarrierBenchCounterMatrix(t *testing.T) {
 	}
 	if !reflect.DeepEqual(valid.Metrics, wantMetrics) {
 		t.Fatalf("valid metrics = %v, want %v", valid.Metrics, wantMetrics)
+	}
+	for _, mode := range []string{"pre-open", "stale-expect"} {
+		t.Run(mode, func(t *testing.T) {
+			record := runCarrierBenchCounter(t, binary, mode, true)
+			if !reflect.DeepEqual(record.Metrics, wantMetrics) {
+				t.Fatalf("%s metrics = %v, want %v", mode, record.Metrics, wantMetrics)
+			}
+		})
+	}
+	for _, mode := range []string{"post-finish", "post-finish-marker"} {
+		t.Run(mode, func(t *testing.T) {
+			record := runCarrierBenchCounter(t, binary, mode, false)
+			if record.Status != "ok" || record.Error != nil {
+				t.Fatalf("%s must terminate after its one irrevocable record: %+v", mode, record)
+			}
+		})
 	}
 	for mode, wantError := range map[string]string{
 		"missing":    "missing_or_unclosed_marker",
@@ -195,7 +233,7 @@ func TestRuntimeV2CarrierBenchCounterMatrix(t *testing.T) {
 		"signal":     "abnormal_exit",
 	} {
 		t.Run(mode, func(t *testing.T) {
-			record := runCarrierBenchCounter(t, binary, mode, true, false)
+			record := runCarrierBenchCounter(t, binary, mode, false)
 			if record.Error == nil || *record.Error != wantError {
 				t.Fatalf("error = %v, want %q", record.Error, wantError)
 			}
@@ -233,19 +271,16 @@ func TestRuntimeV2CarrierBenchCounterMatrix(t *testing.T) {
 }
 
 func runCarrierBenchCounter(
-	t *testing.T, binary string, mode string, enabled bool, wantSuccess bool,
+	t *testing.T, binary string, mode string, wantSuccess bool,
 ) carrierBenchCounterRecord {
 	t.Helper()
 	command := exec.Command(binary, mode)
-	command.Env = os.Environ()
-	if enabled {
-		command.Env = append(command.Env,
-			"SURGE_CARRIER_BENCH_COUNTERS=1",
-			"SURGE_CARRIER_BENCH_PROBE=probe",
-			"SURGE_CARRIER_BENCH_NONCE="+strings.Repeat("b", 32),
-			"SURGE_CARRIER_BENCH_PROTOCOL_SHA256="+strings.Repeat("a", 64),
-		)
-	}
+	command.Env = append(os.Environ(),
+		"SURGE_CARRIER_BENCH_COUNTERS=1",
+		"SURGE_CARRIER_BENCH_PROBE=probe",
+		"SURGE_CARRIER_BENCH_NONCE="+strings.Repeat("b", 32),
+		"SURGE_CARRIER_BENCH_PROTOCOL_SHA256="+strings.Repeat("a", 64),
+	)
 	output, err := command.CombinedOutput()
 	if wantSuccess && err != nil {
 		t.Fatalf("%s failed: %v\n%s", mode, err, output)
@@ -254,7 +289,7 @@ func runCarrierBenchCounter(
 		t.Fatalf("%s unexpectedly succeeded\n%s", mode, output)
 	}
 	record := parseCarrierBenchCounterRecord(t, string(output))
-	if enabled && record.Probe != "probe" {
+	if record.Probe != "probe" {
 		t.Fatalf("counter probe identity drifted: %+v", record)
 	}
 	return record
@@ -303,5 +338,13 @@ func TestRuntimeV2CarrierBenchBridgeHasNoHotPathEnvironmentLookup(t *testing.T) 
 		if strings.Count(string(entry), call) != 1 {
 			t.Fatalf("entry must call %s exactly once", call)
 		}
+	}
+
+	ioSource, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_io.c"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(ioSource), "rt_carrier_bench_finish()") != 1 {
+		t.Fatal("rt_exit must finalize the benchmark before process exit")
 	}
 }

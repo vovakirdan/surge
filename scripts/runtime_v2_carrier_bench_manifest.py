@@ -4,39 +4,48 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 from pathlib import Path
-from typing import Any, Mapping, Sequence, cast
+from typing import Any, Sequence, cast
 
 from runtime_v2_carrier_bench_model import (
     Aggregation,
     AvailabilityStatus,
+    CrossRelation,
+    CrossRowInvariant,
     FileDigest,
     Invariant,
+    LivenessAvailability,
+    LivenessProbe,
+    LivenessStatus,
     Manifest,
     ManifestError,
     Metric,
     MetricAvailability,
     MetricSource,
     Operator,
+    PayloadRole,
     Protocol,
     ReferenceHost,
+    Reduction,
     Row,
     Side,
     StrictJSONError,
+    TransportBudget,
     strict_json_loads,
 )
-
-FROZEN_METRIC_CONTRACT: dict[
-    str, tuple[MetricSource, Aggregation, AvailabilityStatus]
-] = {
-    "allocation_count": ("fixture", "sum", "required"),
-    "bytes_copied": ("runtime_exit", "sum", "unsupported"),
-    "bytes_moved": ("runtime_exit", "sum", "unsupported"),
-    "callback_count": ("runtime_exit", "sum", "unsupported"),
-    "credit_stalls": ("runtime_exit", "sum", "unsupported"),
-    "peak_transport_bytes": ("runtime_exit", "max", "unsupported"),
-}
+from runtime_v2_carrier_bench_manifest_validation import validate_manifest
+from runtime_v2_carrier_bench_manifest_values import (
+    _boolean,
+    _choice,
+    _commit,
+    _integer,
+    _keys,
+    _number,
+    _object,
+    _relative_path,
+    _string,
+    _unique_strings,
+)
 
 
 def load_manifest(path: Path) -> Manifest:
@@ -53,14 +62,18 @@ def load_manifest(path: Path) -> Manifest:
             "epic_base",
             "reference_host",
             "protocol",
+            "transport_budget",
             "backend",
             "profile",
             "shards",
             "threads",
+            "blocking_threads",
             "metrics",
             "harness_files",
             "fixtures",
             "rows",
+            "cross_row_invariants",
+            "liveness_probes",
         },
     )
     manifest = Manifest(
@@ -68,16 +81,22 @@ def load_manifest(path: Path) -> Manifest:
         epic_base=_commit(root["epic_base"], "epic_base"),
         reference=_reference(root["reference_host"]),
         protocol=_protocol(root["protocol"]),
+        transport=_transport_budget(root["transport_budget"]),
         backend=_choice(root["backend"], "backend", {"llvm"}),
         profile=_choice(root["profile"], "profile", {"release"}),
         shards=_integer(root["shards"], "shards", 1),
         threads=_integer(root["threads"], "threads", 1),
+        blocking_threads=_integer(
+            root["blocking_threads"], "blocking_threads", 1
+        ),
         metrics=_metrics(root["metrics"]),
         harness_files=_file_digests(root["harness_files"], "harness_files"),
         fixtures=_file_digests(root["fixtures"], "fixtures"),
         rows=_rows(root["rows"]),
+        cross_row_invariants=_cross_row_invariants(root["cross_row_invariants"]),
+        liveness_probes=_liveness_probes(root["liveness_probes"]),
     )
-    _validate_manifest(manifest)
+    validate_manifest(manifest)
     return manifest
 
 
@@ -151,6 +170,36 @@ def _protocol(raw: Any) -> Protocol:
     return protocol
 
 
+def _transport_budget(raw: Any) -> TransportBudget:
+    obj = _object(raw, "transport_budget")
+    _keys(
+        obj,
+        "transport_budget",
+        {
+            "data_bytes",
+            "control_bytes",
+            "jumbo_threshold_bytes",
+            "max_inline_overhead_bytes",
+        },
+    )
+    return TransportBudget(
+        data_bytes=_integer(obj["data_bytes"], "transport_budget.data_bytes", 1),
+        control_bytes=_integer(
+            obj["control_bytes"], "transport_budget.control_bytes", 1
+        ),
+        jumbo_threshold_bytes=_integer(
+            obj["jumbo_threshold_bytes"],
+            "transport_budget.jumbo_threshold_bytes",
+            1,
+        ),
+        max_inline_overhead_bytes=_integer(
+            obj["max_inline_overhead_bytes"],
+            "transport_budget.max_inline_overhead_bytes",
+            0,
+        ),
+    )
+
+
 def _rows(raw: Any) -> tuple[Row, ...]:
     if not isinstance(raw, list) or not raw:
         raise ManifestError("rows must be a non-empty array")
@@ -163,6 +212,8 @@ def _rows(raw: Any) -> tuple[Row, ...]:
             label,
             {
                 "id",
+                "workload_family",
+                "payload_role",
                 "fixture",
                 "probe",
                 "operations_per_batch",
@@ -178,6 +229,17 @@ def _rows(raw: Any) -> tuple[Row, ...]:
         rows.append(
             Row(
                 row_id=_string(obj["id"], f"{label}.id"),
+                workload_family=_string(
+                    obj["workload_family"], f"{label}.workload_family"
+                ),
+                payload_role=cast(
+                    PayloadRole,
+                    _choice(
+                        obj["payload_role"],
+                        f"{label}.payload_role",
+                        {"zero", "scalar", "composite", "control"},
+                    ),
+                ),
                 fixture=_string(obj["fixture"], f"{label}.fixture"),
                 probe=_string(obj["probe"], f"{label}.probe"),
                 operations_per_batch=_integer(
@@ -220,6 +282,154 @@ def _invariants(raw: Any, label: str) -> tuple[Invariant, ...]:
             )
         )
     return tuple(out)
+
+
+def _cross_row_invariants(raw: Any) -> tuple[CrossRowInvariant, ...]:
+    if not isinstance(raw, list):
+        raise ManifestError("cross_row_invariants must be an array")
+    out: list[CrossRowInvariant] = []
+    fields = {
+        "id",
+        "relation",
+        "metric",
+        "left_row",
+        "left_reduction",
+        "operator",
+        "right_row",
+        "right_reduction",
+        "side",
+    }
+    for index, value in enumerate(raw):
+        label = f"cross_row_invariants[{index}]"
+        item = _object(value, label)
+        _keys(item, label, fields)
+        out.append(
+            CrossRowInvariant(
+                invariant_id=_string(item["id"], f"{label}.id"),
+                relation=cast(
+                    CrossRelation,
+                    _choice(
+                        item["relation"],
+                        f"{label}.relation",
+                        {"paired_payload", "payload_proportional"},
+                    ),
+                ),
+                metric=_string(item["metric"], f"{label}.metric"),
+                left_row=_string(item["left_row"], f"{label}.left_row"),
+                left_reduction=cast(
+                    Reduction,
+                    _choice(
+                        item["left_reduction"],
+                        f"{label}.left_reduction",
+                        {"min", "max"},
+                    ),
+                ),
+                operator=cast(
+                    Operator,
+                    _choice(item["operator"], f"{label}.operator", {"eq", "le", "ge"}),
+                ),
+                right_row=_string(item["right_row"], f"{label}.right_row"),
+                right_reduction=cast(
+                    Reduction,
+                    _choice(
+                        item["right_reduction"],
+                        f"{label}.right_reduction",
+                        {"min", "max"},
+                    ),
+                ),
+                side=cast(
+                    Side,
+                    _choice(item["side"], f"{label}.side", {"base", "candidate"}),
+                ),
+            )
+        )
+    ids = tuple(item.invariant_id for item in out)
+    if len(set(ids)) != len(ids) or tuple(sorted(ids)) != ids:
+        raise ManifestError("cross_row_invariants ids must be unique and bytewise sorted")
+    return tuple(out)
+
+
+def _liveness_probes(raw: Any) -> tuple[LivenessProbe, ...]:
+    if not isinstance(raw, list) or not raw:
+        raise ManifestError("liveness_probes must be a non-empty array")
+    out: list[LivenessProbe] = []
+    fields = {
+        "id",
+        "fixture",
+        "probe",
+        "syncpoint",
+        "payload_bytes",
+        "timeout_seconds",
+        "expected_credit_balance",
+        "min_peak_transport_bytes",
+        "max_peak_transport_bytes",
+        "expected_park_transitions",
+        "wave_a",
+        "final",
+    }
+    for index, value in enumerate(raw):
+        label = f"liveness_probes[{index}]"
+        item = _object(value, label)
+        _keys(item, label, fields)
+        out.append(
+            LivenessProbe(
+                probe_id=_string(item["id"], f"{label}.id"),
+                fixture=_string(item["fixture"], f"{label}.fixture"),
+                probe=_string(item["probe"], f"{label}.probe"),
+                syncpoint=_string(item["syncpoint"], f"{label}.syncpoint"),
+                payload_bytes=_integer(
+                    item["payload_bytes"], f"{label}.payload_bytes", 1
+                ),
+                timeout_seconds=_integer(
+                    item["timeout_seconds"], f"{label}.timeout_seconds", 1
+                ),
+                expected_credit_balance=_integer(
+                    item["expected_credit_balance"],
+                    f"{label}.expected_credit_balance",
+                    0,
+                ),
+                min_peak_transport_bytes=_integer(
+                    item["min_peak_transport_bytes"],
+                    f"{label}.min_peak_transport_bytes",
+                    1,
+                ),
+                max_peak_transport_bytes=_integer(
+                    item["max_peak_transport_bytes"],
+                    f"{label}.max_peak_transport_bytes",
+                    1,
+                ),
+                expected_park_transitions=_integer(
+                    item["expected_park_transitions"],
+                    f"{label}.expected_park_transitions",
+                    1,
+                ),
+                wave_a=_liveness_availability(item["wave_a"], f"{label}.wave_a"),
+                final=_liveness_availability(item["final"], f"{label}.final"),
+            )
+        )
+    ids = tuple(item.probe_id for item in out)
+    if len(set(ids)) != len(ids) or tuple(sorted(ids)) != ids:
+        raise ManifestError("liveness_probes ids must be unique and bytewise sorted")
+    return tuple(out)
+
+
+def _liveness_availability(raw: Any, label: str) -> LivenessAvailability:
+    obj = _object(raw, label)
+    status = cast(
+        LivenessStatus,
+        _choice(obj.get("status"), f"{label}.status", {"required", "deferred"}),
+    )
+    if status == "required":
+        _keys(obj, label, {"status"})
+        return LivenessAvailability(status="required")
+    _keys(obj, label, {"status", "reason", "provenance_commit"})
+    return LivenessAvailability(
+        status="deferred",
+        reason=_string(obj["reason"], f"{label}.reason"),
+        provenance_commit=_commit(
+            obj["provenance_commit"], f"{label}.provenance_commit"
+        ),
+    )
 
 
 def _metrics(raw: Any) -> tuple[Metric, ...]:
@@ -285,137 +495,3 @@ def _file_digests(raw: Any, label: str) -> tuple[FileDigest, ...]:
     if len(set(paths)) != len(paths) or tuple(sorted(paths)) != paths:
         raise ManifestError(f"{label} paths must be unique and bytewise sorted")
     return tuple(out)
-
-
-def _validate_manifest(manifest: Manifest) -> None:
-    if manifest.schema_version != 1:
-        raise ManifestError(f"unsupported schema_version {manifest.schema_version}")
-    protocol = manifest.protocol
-    if protocol.warmups != 2 or protocol.measured_pairs != 7:
-        raise ManifestError("protocol must freeze exactly 2 warmups and 7 measured pairs")
-    if protocol.max_cv != 0.05:
-        raise ManifestError("protocol.max_cv must be exactly 0.05")
-    if protocol.throughput_min_ratio != 0.95 or protocol.p95_max_ratio != 1.10:
-        raise ManifestError("protocol relative budgets must be exactly 0.95 throughput / 1.10 p95")
-    metric_set = {metric.name for metric in manifest.metrics}
-    if metric_set != set(FROZEN_METRIC_CONTRACT):
-        raise ManifestError(
-            "metrics must match the frozen six-metric contract: "
-            f"missing={sorted(set(FROZEN_METRIC_CONTRACT) - metric_set)} "
-            f"extra={sorted(metric_set - set(FROZEN_METRIC_CONTRACT))}"
-        )
-    for metric in manifest.metrics:
-        source, aggregation, base_status = FROZEN_METRIC_CONTRACT[metric.name]
-        if metric.source != source or metric.aggregation != aggregation:
-            raise ManifestError(
-                f"metric {metric.name} must use source={source} aggregation={aggregation}"
-            )
-        if metric.base.status != base_status or metric.candidate.status != "required":
-            raise ManifestError(
-                f"metric {metric.name} availability must be "
-                f"base={base_status} candidate=required"
-            )
-        if (
-            metric.base.status == "unsupported"
-            and metric.base.provenance_commit != manifest.epic_base
-        ):
-            raise ManifestError(
-                f"metric {metric.name} unsupported provenance must equal epic_base"
-            )
-    harness_set = {entry.path for entry in manifest.harness_files}
-    if len(harness_set) != len(manifest.harness_files):
-        raise ManifestError("harness file paths must be unique")
-    fixture_set = {entry.path for entry in manifest.fixtures}
-    if len(fixture_set) != len(manifest.fixtures):
-        raise ManifestError("fixture paths must be unique")
-    row_ids: set[str] = set()
-    for row in manifest.rows:
-        if row.row_id in row_ids:
-            raise ManifestError(f"duplicate row id {row.row_id}")
-        row_ids.add(row.row_id)
-        if row.fixture not in fixture_set:
-            raise ManifestError(f"row {row.row_id} references unknown fixture {row.fixture}")
-        if set(row.required_metrics) != metric_set:
-            raise ManifestError(f"row {row.row_id} must require the complete metric schema")
-        for invariant in row.invariants:
-            if invariant.metric not in metric_set:
-                raise ManifestError(
-                    f"row {row.row_id} invariant references unknown metric {invariant.metric}"
-                )
-            metric = next(item for item in manifest.metrics if item.name == invariant.metric)
-            availability = metric.base if invariant.side == "base" else metric.candidate
-            if availability.status == "unsupported":
-                raise ManifestError(
-                    f"row {row.row_id} invariant references unsupported "
-                    f"{invariant.side} metric {invariant.metric}"
-                )
-
-
-def _object(raw: Any, label: str) -> dict[str, Any]:
-    if not isinstance(raw, dict):
-        raise ManifestError(f"{label} must be an object")
-    return raw
-
-
-def _keys(obj: Mapping[str, Any], label: str, expected: set[str]) -> None:
-    actual = set(obj)
-    if actual != expected:
-        raise ManifestError(
-            f"{label} fields mismatch: missing={sorted(expected - actual)} "
-            f"unknown={sorted(actual - expected)}"
-        )
-
-
-def _string(raw: Any, label: str) -> str:
-    if not isinstance(raw, str) or not raw:
-        raise ManifestError(f"{label} must be a non-empty string")
-    return raw
-
-
-def _relative_path(raw: Any, label: str) -> str:
-    value = _string(raw, label)
-    path = Path(value)
-    if path.is_absolute() or ".." in path.parts or value != path.as_posix():
-        raise ManifestError(f"{label} must be a canonical repository-relative path")
-    return value
-
-
-def _integer(raw: Any, label: str, minimum: int) -> int:
-    if isinstance(raw, bool) or not isinstance(raw, int) or raw < minimum:
-        raise ManifestError(f"{label} must be an integer >= {minimum}")
-    return raw
-
-
-def _number(raw: Any, label: str) -> float:
-    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
-        raise ManifestError(f"{label} must be a finite number")
-    return float(raw)
-
-
-def _boolean(raw: Any, label: str) -> bool:
-    if not isinstance(raw, bool):
-        raise ManifestError(f"{label} must be a boolean")
-    return raw
-
-
-def _choice(raw: Any, label: str, choices: set[str]) -> str:
-    value = _string(raw, label)
-    if value not in choices:
-        raise ManifestError(f"{label} must be one of {sorted(choices)}, got {value!r}")
-    return value
-
-
-def _unique_strings(raw: Any, label: str) -> tuple[str, ...]:
-    if not isinstance(raw, list) or not raw:
-        raise ManifestError(f"{label} must be a non-empty array")
-    values = tuple(_string(value, f"{label}[]") for value in raw)
-    if len(set(values)) != len(values) or tuple(sorted(values)) != values:
-        raise ManifestError(f"{label} must contain unique bytewise-sorted strings")
-    return values
-
-
-def _commit(raw: Any, label: str) -> str:
-    value = _string(raw, label)
-    if len(value) != 40 or any(ch not in "0123456789abcdef" for ch in value):
-        raise ManifestError(f"{label} must be a full lowercase commit SHA")
-    return value

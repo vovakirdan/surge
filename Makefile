@@ -1,9 +1,10 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
 # ===== Variables =====
 GO ?= go
+PYTHON ?= python3
 SURGE_SKIP_TIMEOUT_TESTS ?= 1
 SURGE_MT_TIMEOUT_SCALE ?= 3
 
@@ -108,6 +109,7 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-lifecycle-check
 	$(MAKE) runtime-v2-perf-check
 	$(MAKE) runtime-v2-syncpoint-check
+	$(MAKE) runtime-v2-carrier-check
 	$(MAKE) runtime-v2-transport-check
 
 runtime-v2-abi-manifest-check:
@@ -130,6 +132,23 @@ runtime-v2-abi-manifest-check:
 	$(GO) test ./internal/buildpipeline -run '^Test(TypedCarrier|DiscoverRuntimeABIHash)' -count=1 --timeout 60s
 	$(GO) test ./internal/vm -run '^TestRuntimeV2TypedCarrier' -count=1 --timeout 60s
 	$(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) -fsyntax-only runtime/native/rt_typed_carrier_abi.generated.c
+
+runtime-v2-carrier-check:
+	@echo ">> Running Runtime V2 carrier harness and bridge gate"
+	$(PYTHON) -m unittest discover -s scripts -p 'runtime_v2_carrier_bench*_test.py'
+	$(GO) test ./internal/buildpipeline -run '^TestRuntimeTestSyncPointBuildFlag$$' -count=1
+	$(GO) test -race ./internal/vm -run '^TestRuntimeV2CarrierBench' -count=1 --timeout 120s
+
+runtime-v2-carrier-bench:
+	@echo ">> Running fail-closed Runtime V2 carrier benchmark"
+	taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=final
+
+runtime-v2-carrier-baseline-capture:
+	@echo ">> Capturing complete Wave-A carrier RED baseline"
+	taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=wave-a --capture-wave-a-baseline
+
+runtime-v2-carrier-bench-final:
+	@$(MAKE) runtime-v2-carrier-bench
 
 runtime-v2-ownership-check:
 	@echo ">> Running Runtime V2 ownership corpus gate"

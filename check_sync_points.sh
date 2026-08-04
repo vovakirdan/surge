@@ -58,6 +58,8 @@ declare -A WINDOW_FILE=(
     [SP_WAKE_BEFORE_STALE_REMOVAL]="rt_task_park.c"
     [SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY]="rt_far_channel_select.c"
     [SP_FAR_SELECT_BEFORE_DISPATCH]="rt_far_channel_select.c"
+    [SP_CARRIER_JUMBO_ADMITTED]="rt_transport.c"
+    [SP_CARRIER_CREDIT_PARKED]="rt_transport.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in
@@ -111,12 +113,12 @@ else
             cat "$tmp/err"
             continue
         fi
-        if nm "$obj" 2>/dev/null | grep -q 'rt_sync_point_'; then
-            note_fail "$(basename "$src") contains an rt_sync_point_* symbol in the tag-off build"
+        if nm "$obj" 2>/dev/null | grep -Eq 'rt_sync_point_|rt_carrier_liveness_'; then
+            note_fail "$(basename "$src") contains a test rendezvous symbol in the tag-off build"
             sym_leak=1
         fi
     done
-    [ "$sym_leak" -eq 0 ] && note_ok "no rt_sync_point_* symbol in the release (tag-off) build"
+    [ "$sym_leak" -eq 0 ] && note_ok "no test rendezvous symbol in the release (tag-off) build"
 fi
 
 # Check 4: no default build arms the hooks. Only this gate's own Make target and
