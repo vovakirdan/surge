@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "epic_base": "7df10725e001ddf915d536aa58f880bd7e04aafd",
   "reference_host": {
     "system": "Linux",
@@ -109,14 +109,20 @@
       }
     }
   ],
+  "allocation_control": {
+    "fixture": "testdata/runtime-v2-carrier-bench/scored/allocation-control/main.sg",
+    "probe": "allocation-control",
+    "expected_checksum": "1",
+    "expected_allocation_count": 1
+  },
   "harness_files": [
     {
       "path": "scripts/runtime_v2_carrier_bench.py",
-      "sha256": "0e9863d03308e25b8257ed9dcd83cb6a160329627878d6c4ec122136b7d1224f"
+      "sha256": "e07015098b0649eaceb4af96cc88dc2d515fd4f6b911387553c7f8669a40451d"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_build_test.py",
-      "sha256": "e4f28897aee90daac22e803871f66395924f816b5fecf2ff195bdbf43cf35f92"
+      "sha256": "eedd9be654340e80382324cb78dbee2323cb4eb872b07cf1605511c3a546f482"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_host.py",
@@ -128,19 +134,19 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_ir.py",
-      "sha256": "93b3943ca87aa9aca8182c4ad46d50c0a5a396df44e99062937fd183745d0906"
+      "sha256": "cf3bad289b647713766a43a3f931c5bc817d6a524332ac8e83fb4dbf99515930"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest.py",
-      "sha256": "d8a5a814788d3765d3516f983e09350b16d917181fdba6d060b2b503cd8ab836"
+      "sha256": "e7312a8c1b6ea74e1c8d4b81657b6c909298a7ea348591ea4c7b35f6dacdde95"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
-      "sha256": "396a410af9e09e6a89faac374f838aa937d1c7a728e825f65dedf08810e49872"
+      "sha256": "42375ccbae9339e8e76a5d7f0d3c884e28c697c399c2a79ff2ed562473d89199"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "6a3391b1c0f3c4d8a5471d2d3509afc88fdb444bbed065257bcfc858ac48bcc5"
+      "sha256": "89d58b86b95748ae56cc9994a4060d354d8875543d2e08e09117d7d4974cb9ff"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -148,11 +154,11 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model.py",
-      "sha256": "06b2c3f4fa11ca1ac92255fa26d32516b184f8e41ce19f3c0134233f646df806"
+      "sha256": "5ab5e0ff8adf1581a4de3104d1774bb40bcf4964c8278fa262af01c4df5bf551"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "26dabb9aacb977ffc5d5bcdf13e262f89778902d2e3f9deb40cfb58ce54d83cd"
+      "sha256": "22156597bcacb5e1777ddf1a1319600eb8e387dbbc4b6674bed25b78d9d8fd34"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
@@ -160,26 +166,30 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol_test.py",
-      "sha256": "e544adc4112420616e6b2731fbf518ba7b189a05a305ff7d331acdb093f3ceda"
+      "sha256": "f6a2e024e5165ede689e20549b1f0c4f77930943c8fc6013b34ef38768ea2c39"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report.py",
-      "sha256": "e44a4f9fb480aeb7846c5f33938eb91eb9be2617a9c7bb91f5b588193e58f690"
+      "sha256": "e6ac34f1d59e593b1b30899de8582e93bc25bc0c9e37d6711cb9135612bb54bb"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report_test.py",
-      "sha256": "8fce23837875593c6906c6cb5328106f2c821003e80da3d39e0014b5e322e9bd"
+      "sha256": "a866d6839b42b5ce53f45ce48647c09e04455b3de24e704b3db0ed2c2b1f77e3"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_runner.py",
-      "sha256": "928ae69cbc3710d0885085403ebde6938e02aeec582dfad123ad1e48b0439c41"
+      "sha256": "8c5d716073a54042ba27f3817aa23df3ac6884a47857972dfbf675d46958bda4"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_test_support.py",
-      "sha256": "afae809e107e5cded14aa5125f9211599f1466e097c45cbc1574cf7054fdda6a"
+      "sha256": "0aed2fddb35b5b3902cd1b5a21f53ce3965135d0b0af205e9cb8f4589efa44ec"
     }
   ],
   "fixtures": [
+    {
+      "path": "testdata/runtime-v2-carrier-bench/scored/allocation-control/main.sg",
+      "sha256": "04686ddd7399d5ddf63aa9a1d70d5da6271e82a3f63e18a59b415ff6c6f88ff9"
+    },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
       "sha256": "98ae9d367dfe6bc7209c7d7ba8030e403522e6219082f64a1da0c9b08c95997f"
@@ -278,6 +288,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "8512",
+      "candidate_structural_allocations_per_batch": 7,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -313,6 +324,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "4032",
+      "candidate_structural_allocations_per_batch": 7,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -348,6 +360,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "8512",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -357,12 +370,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -389,6 +396,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "4032",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -398,12 +406,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -430,6 +432,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "4256",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -439,12 +442,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -471,6 +468,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "2016",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -480,12 +478,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -512,6 +504,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 278,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -547,6 +540,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "2368",
+      "candidate_structural_allocations_per_batch": 278,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -582,6 +576,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 15,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -617,6 +612,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "2368",
+      "candidate_structural_allocations_per_batch": 15,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -652,6 +648,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 130,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -687,6 +684,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "2368",
+      "candidate_structural_allocations_per_batch": 130,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -722,6 +720,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2368",
+      "candidate_structural_allocations_per_batch": 544,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -763,6 +762,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "2432",
+      "candidate_structural_allocations_per_batch": 544,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -804,6 +804,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 281,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -845,6 +846,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "2368",
+      "candidate_structural_allocations_per_batch": 281,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -886,6 +888,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "68928",
+      "candidate_structural_allocations_per_batch": 1042,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -939,6 +942,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "68032",
+      "candidate_structural_allocations_per_batch": 1049,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -992,6 +996,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "68032",
+      "candidate_structural_allocations_per_batch": 537,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1045,6 +1050,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "1344",
+      "candidate_structural_allocations_per_batch": 615,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1086,6 +1092,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "1344",
+      "candidate_structural_allocations_per_batch": 615,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1127,6 +1134,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "64",
+      "candidate_structural_allocations_per_batch": 351,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1162,6 +1170,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 537,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1203,6 +1212,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "2368",
+      "candidate_structural_allocations_per_batch": 537,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1244,6 +1254,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1253,12 +1264,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1285,6 +1290,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "5120",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1294,12 +1300,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "bytes_copied",
           "operator": "eq",
@@ -1338,6 +1338,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1347,12 +1348,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1379,6 +1374,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1388,12 +1384,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1420,6 +1410,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "8512",
+      "candidate_structural_allocations_per_batch": 4,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1429,12 +1420,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1461,6 +1446,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "4032",
+      "candidate_structural_allocations_per_batch": 4,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1470,12 +1456,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1502,6 +1482,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "9844",
+      "candidate_structural_allocations_per_batch": 4,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1537,6 +1518,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "5084",
+      "candidate_structural_allocations_per_batch": 4,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1572,6 +1554,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "4256",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1581,12 +1564,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1613,6 +1590,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "2016",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1622,12 +1600,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1654,6 +1626,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "25568",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1663,12 +1636,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1695,6 +1662,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "18848",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1704,12 +1672,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1736,6 +1698,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "4256",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1745,12 +1708,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1777,6 +1734,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "2016",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1786,12 +1744,6 @@
         "peak_transport_bytes"
       ],
       "invariants": [
-        {
-          "metric": "allocation_count",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
         {
           "metric": "credit_stalls",
           "operator": "eq",
@@ -1818,6 +1770,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "2368",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1853,6 +1806,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "15947",
+      "candidate_structural_allocations_per_batch": 7,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1900,6 +1854,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "11432",
+      "candidate_structural_allocations_per_batch": 7,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1941,6 +1896,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "4608",
+      "candidate_structural_allocations_per_batch": 278,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1976,6 +1932,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "4736",
+      "candidate_structural_allocations_per_batch": 278,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -2011,6 +1968,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "2304",
+      "candidate_structural_allocations_per_batch": 278,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -2046,6 +2004,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "2368",
+      "candidate_structural_allocations_per_batch": 278,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -2081,6 +2040,7 @@
       "timeout_seconds": 10,
       "relative_performance": true,
       "expected_checksum": "0",
+      "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -2106,204 +2066,6 @@
     }
   ],
   "cross_row_invariants": [
-    {
-      "id": "allocation.array-grow",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "array-grow-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "array-grow-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.array-steady",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "array-steady-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "array-steady-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.array-teardown",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "array-teardown-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "array-teardown-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.blocking",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "blocking-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "blocking-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.channel-buffered",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "channel-buffered-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "channel-buffered-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.channel-unbuffered",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "channel-unbuffered-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "channel-unbuffered-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.far-channel",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "far-channel-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "far-channel-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.far-immediate",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "far-immediate-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "far-immediate-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.far-select",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "far-select-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "far-select-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.far-task",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "far-task-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "far-task-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.map-insert",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "map-insert-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "map-insert-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.map-rehash",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "map-rehash-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "map-rehash-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.map-remove",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "map-remove-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "map-remove-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.map-replace",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "map-replace-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "map-replace-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.map-teardown",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "map-teardown-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "map-teardown-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.select-send",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "select-send-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "select-send-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.task-await",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "task-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "task-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
-    {
-      "id": "allocation.task-clone",
-      "relation": "paired_payload",
-      "metric": "allocation_count",
-      "left_row": "task-clone-composite",
-      "left_reduction": "max",
-      "operator": "le",
-      "right_row": "task-clone-scalar",
-      "right_reduction": "min",
-      "side": "candidate"
-    },
     {
       "id": "bytes.far-dual-capture-proportional",
       "relation": "payload_proportional",

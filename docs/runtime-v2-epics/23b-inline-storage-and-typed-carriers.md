@@ -153,6 +153,12 @@ overlap.
    fail-closed inventory check to `make golden-check` so an untracked, ignored,
    or missing generated sidecar makes the target fail.
 
+The classified allocation evidence and every exact per-batch candidate budget
+are frozen in `23b-wave-a-allocation-census.md`. The manifest is the executable
+copy of that census: a nonzero allocation control first proves the observer is
+live, then every candidate warmup and measured timing batch must equal its
+structural owner/container budget before any resource-capture binary runs.
+
 ### Wave B — layout/operations foundation
 
 1. Reuse `internal/layout` for size, align, stride, offsets, packed/over-aligned

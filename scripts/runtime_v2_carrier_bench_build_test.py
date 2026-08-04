@@ -3,6 +3,24 @@
 from runtime_v2_carrier_bench_test_support import *
 
 class BuildAndIRTests(unittest.TestCase):
+    def test_timing_and_resource_binary_symbol_contract_is_fail_closed(self) -> None:
+        symbols = """\
+00000000 T rt_carrier_bench_init
+00000001 T rt_carrier_bench_finish
+00000002 T rt_carrier_bench_marker
+00000003 T rt_carrier_bench_record_copy
+"""
+        _verify_carrier_symbols("", "fixture.sg", "timing")
+        _verify_carrier_symbols(symbols, "fixture.sg", "resource")
+        with self.assertRaisesRegex(GateFailure, "timing binary contains"):
+            _verify_carrier_symbols(symbols, "fixture.sg", "timing")
+        with self.assertRaisesRegex(GateFailure, "timing binary contains"):
+            _verify_carrier_symbols(
+                "00000004 t rt_carrier_bench_marker\n", "fixture.sg", "timing"
+            )
+        with self.assertRaisesRegex(GateFailure, "resource binary is missing"):
+            _verify_carrier_symbols("", "fixture.sg", "resource")
+
     def test_liveness_fixture_waits_on_reached_counts_before_actions(self) -> None:
         source = (
             SCRIPT_DIR.parent
@@ -116,7 +134,9 @@ class BuildAndIRTests(unittest.TestCase):
                 side_effect=fake_run_checked,
             ) as checked, mock.patch(
                 "runtime_v2_carrier_bench_runner._verify_fixture_source"
-            ), mock.patch("runtime_v2_carrier_bench_runner._verify_fixture_ir"):
+            ), mock.patch(
+                "runtime_v2_carrier_bench_runner._verify_fixture_ir"
+            ), mock.patch("runtime_v2_carrier_bench_runner._verify_carrier_binary"):
                 build_fixtures(
                     side_root=side_root,
                     harness_root=harness,
@@ -301,19 +321,58 @@ entry:
             relative_performance=False,
             expected_checksum="0",
         )
-        manifest = replace(manifest, rows=(row,))
+        manifest = replace(
+            manifest,
+            allocation_control=AllocationControl(
+                fixture=(
+                    "testdata/runtime-v2-carrier-bench/scored/"
+                    "allocation-control/main.sg"
+                ),
+                probe="allocation-control",
+                expected_checksum="1",
+                expected_allocation_count=1,
+            ),
+            rows=(row,),
+        )
         protocol_sha256 = "a" * 64
         nonce = "b" * 32
         with tempfile.TemporaryDirectory() as temporary:
             build_root = Path(temporary)
             surge = build_root / "surge"
             build_surge(root, surge)
+            timing_fixtures = build_fixtures(
+                side_root=root,
+                harness_root=root,
+                surge=surge,
+                manifest=manifest,
+                build_root=build_root / "timing-fixtures",
+                capture_kind="timing",
+                include_allocation_control=True,
+            )
             fixtures = build_fixtures(
                 side_root=root,
                 harness_root=root,
                 surge=surge,
                 manifest=manifest,
                 build_root=build_root / "fixtures",
+                capture_kind="resource",
+            )
+            timing_result = _run_batch(
+                manifest,
+                row,
+                "candidate",
+                timing_fixtures[row.fixture],
+                protocol_sha256,
+                "timing",
+            )
+            control_row = _allocation_control_row(manifest)
+            control_result = _run_batch(
+                manifest,
+                control_row,
+                "candidate",
+                timing_fixtures[control_row.fixture],
+                protocol_sha256,
+                "timing",
             )
             fixture = fixtures[row.fixture]
             result = run_checked(
@@ -339,5 +398,14 @@ entry:
                 expected_nonce=nonce,
                 expected_protocol_sha256=protocol_sha256,
             )
+        self.assertEqual(timing_result.counters["allocation_count"], 0)
+        self.assertTrue(
+            all(
+                value is None
+                for name, value in timing_result.counters.items()
+                if name != "allocation_count"
+            )
+        )
+        self.assertEqual(control_result.counters["allocation_count"], 1)
         self.assertEqual(parsed.counters, {"allocation_count": 0})
         self.assertEqual(set(counters.values()), {0})

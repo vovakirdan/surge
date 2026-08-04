@@ -1,3 +1,4 @@
+#define RT_CARRIER_BENCH_IMPLEMENTATION
 #include "rt_carrier_bench.h"
 #include "rt_carrier_bench_internal.h"
 

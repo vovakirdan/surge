@@ -20,6 +20,7 @@ from runtime_v2_carrier_bench_model import (
     validate_row_protocol,
 )
 from runtime_v2_carrier_bench_runner import LivenessRecord, RunRecord
+from runtime_v2_carrier_bench_protocol import BatchResult
 
 
 def manifest_digest(path: Path) -> str:
@@ -54,6 +55,8 @@ def render_report(
     records: Mapping[str, Mapping[Side, tuple[RunRecord, ...]]],
     benchmark_phase: str,
     liveness_records: tuple[LivenessRecord, ...],
+    allocation_controls: Mapping[Side, BatchResult] | None = None,
+    events: list[dict[str, object]] | None = None,
 ) -> tuple[dict[str, Any], GateFailure | None]:
     rows: list[dict[str, Any]] = []
     failure: GateFailure | None = None
@@ -195,6 +198,11 @@ def render_report(
             }
             for metric in manifest.metrics
         ],
+        "allocation_control": {
+            side: _raw_batch_json(batch)
+            for side, batch in sorted((allocation_controls or {}).items())
+        },
+        "attempts": list(events or []),
         "rows": rows,
         "cross_row_invariants": comparison_reports,
         "liveness_probes": [_liveness_json(record) for record in liveness_records],
@@ -462,16 +470,20 @@ def _run_json(record: RunRecord) -> dict[str, Any]:
         "operations": measured.timing.operations,
         "operation_latencies_ns": list(measured.timing.operation_latencies_ns),
         "counters": dict(sorted(measured.counters.values.items())),
-        "batches": [
-            {
-                "nonce": batch.nonce,
-                "elapsed_ns": batch.elapsed_ns,
-                "operation_latencies_ns": list(batch.operation_latencies_ns),
-                "checksum": batch.checksum,
-                "counters": dict(sorted(batch.counters.items())),
-            }
-            for batch in record.batches
+        "timing_batches": [_raw_batch_json(batch) for batch in record.batches],
+        "resource_batches": [
+            _raw_batch_json(batch) for batch in record.resource_batches
         ],
+    }
+
+
+def _raw_batch_json(batch: BatchResult) -> dict[str, Any]:
+    return {
+        "nonce": batch.nonce,
+        "elapsed_ns": batch.elapsed_ns,
+        "operation_latencies_ns": list(batch.operation_latencies_ns),
+        "checksum": batch.checksum,
+        "counters": dict(sorted(batch.counters.items())),
     }
 
 

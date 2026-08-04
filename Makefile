@@ -136,7 +136,8 @@ runtime-v2-abi-manifest-check:
 runtime-v2-carrier-check:
 	@echo ">> Running Runtime V2 carrier harness and bridge gate"
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts -p 'runtime_v2_carrier_bench*_test.py'
-	$(GO) test ./internal/buildpipeline -run '^TestRuntimeTestSyncPointBuildFlag$$' -count=1
+	$(GO) test ./internal/buildpipeline -run '^TestRuntime(TestSyncPoint|CarrierBench)BuildFlag$$' -count=1
+	$(GO) test ./internal/carriergate -count=1
 	$(GO) test -race ./internal/vm -run '^TestRuntimeV2CarrierBench' -count=1 --timeout 120s
 
 runtime-v2-carrier-bench:

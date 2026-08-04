@@ -36,6 +36,7 @@ from runtime_v2_carrier_bench_host import (
 from runtime_v2_carrier_bench_manifest import load_manifest, verify_file_digests
 from runtime_v2_carrier_bench_model import (
     Aggregation,
+    AllocationControl,
     CounterSample,
     CrossRowInvariant,
     FileDigest,
@@ -52,6 +53,7 @@ from runtime_v2_carrier_bench_model import (
     Protocol,
     ReferenceHost,
     Row,
+    Side,
     TimingSample,
     TransportBudget,
     aggregate_counters,
@@ -69,20 +71,30 @@ from runtime_v2_carrier_bench_runner import (
     BuiltFixture,
     LIVENESS_PREFIX,
     LivenessRecord,
+    RESULT_PREFIX,
     RUNTIME_COUNTER_PREFIX,
     RunRecord,
+    _allocation_control_row,
     _built_binary,
     _verify_emitted_ir,
+    _verify_carrier_binary,
     _verify_fixture_source,
     _parse_result,
     _parse_liveness_record,
     _parse_runtime_counters,
     _run_recorded_batch,
+    _run_batch,
+    _validate_allocation_control,
+    _validate_attempt_sequence,
+    _expected_attempt_sequence,
+    _validate_structural_allocation,
     build_fixtures,
     build_liveness_fixtures,
     build_surge,
+    execute_manifest,
     _run_liveness_probe,
 )
+from runtime_v2_carrier_bench_ir import verify_carrier_symbols as _verify_carrier_symbols
 
 
 def metric(
@@ -115,6 +127,7 @@ def make_manifest() -> Manifest:
         timeout_seconds=5,
         relative_performance=True,
         expected_checksum="42",
+        candidate_structural_allocations_per_batch=0,
         required_metrics=(
             "allocation_count",
             "bytes_copied",
@@ -123,10 +136,10 @@ def make_manifest() -> Manifest:
             "credit_stalls",
             "peak_transport_bytes",
         ),
-        invariants=(Invariant("allocation_count", "le", 0, "candidate"),),
+        invariants=(Invariant("credit_stalls", "le", 0, "candidate"),),
     )
     return Manifest(
-        schema_version=1,
+        schema_version=2,
         epic_base="0" * 40,
         reference=ReferenceHost("Linux", "x86_64", "kernel", "cpu", 4, "0,2", "go", "clang"),
         protocol=Protocol(2, 7, 0.05, 0.95, 1.10, "nearest-rank", "sample-n-minus-1"),
@@ -182,6 +195,9 @@ def make_manifest() -> Manifest:
                     "0" * 40,
                 ),
             ),
+        ),
+        allocation_control=AllocationControl(
+            "fixture.sg", "allocation-control", "1", 1
         ),
         harness_files=(),
         fixtures=(),
@@ -324,7 +340,7 @@ def deferred_liveness() -> LivenessRecord:
 
 def manifest_json() -> dict[str, object]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "epic_base": "0" * 40,
         "reference_host": {
             "system": "Linux",
@@ -356,6 +372,12 @@ def manifest_json() -> dict[str, object]:
         "shards": 2,
         "threads": 2,
         "blocking_threads": 1,
+        "allocation_control": {
+            "fixture": "fixture.sg",
+            "probe": "allocation-control",
+            "expected_checksum": "1",
+            "expected_allocation_count": 1,
+        },
         "metrics": [
             {
                 "name": "allocation_count",
@@ -435,6 +457,7 @@ def manifest_json() -> dict[str, object]:
                 "timeout_seconds": 5,
                 "relative_performance": True,
                 "expected_checksum": "42",
+                "candidate_structural_allocations_per_batch": 0,
                 "required_metrics": [
                     "allocation_count",
                     "bytes_copied",
@@ -445,7 +468,7 @@ def manifest_json() -> dict[str, object]:
                 ],
                 "invariants": [
                     {
-                        "metric": "allocation_count",
+                        "metric": "credit_stalls",
                         "operator": "le",
                         "value": 0,
                         "side": "candidate",

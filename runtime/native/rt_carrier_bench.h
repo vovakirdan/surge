@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 
-// The benchmark bridge is inert unless SURGE_CARRIER_BENCH_COUNTERS is exactly
-// "1". Initialization happens once at process entry; carrier hot paths never
-// inspect the environment.
+#if defined(RT_CARRIER_BENCH_ENABLED) || defined(RT_CARRIER_BENCH_TESTING) ||                      \
+    defined(RT_CARRIER_BENCH_IMPLEMENTATION)
+// Resource-capture builds define RT_CARRIER_BENCH_ENABLED. Timing builds use
+// the no-op definitions below, and do not link the bridge implementation, so
+// benchmark instrumentation cannot perturb their hot paths.
 int rt_carrier_bench_init(void);
 int rt_carrier_bench_finish(void);
 void rt_carrier_bench_marker(void);
@@ -18,6 +20,17 @@ void rt_carrier_bench_record_callback(void);
 void rt_carrier_bench_record_credit_stall(void);
 void rt_carrier_bench_transport_acquire(uint64_t bytes);
 void rt_carrier_bench_transport_release(uint64_t bytes);
+#else
+#define rt_carrier_bench_init() 0
+#define rt_carrier_bench_finish() 0
+#define rt_carrier_bench_marker() ((void)0)
+#define rt_carrier_bench_record_copy(bytes) ((void)0)
+#define rt_carrier_bench_record_move(bytes) ((void)0)
+#define rt_carrier_bench_record_callback() ((void)0)
+#define rt_carrier_bench_record_credit_stall() ((void)0)
+#define rt_carrier_bench_transport_acquire(bytes) ((void)0)
+#define rt_carrier_bench_transport_release(bytes) ((void)0)
+#endif
 
 #ifdef RT_CARRIER_BENCH_TESTING
 int rt_carrier_bench_test_hook_enter(void);

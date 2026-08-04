@@ -9,6 +9,7 @@ from typing import Any, Sequence, cast
 
 from runtime_v2_carrier_bench_model import (
     Aggregation,
+    AllocationControl,
     AvailabilityStatus,
     CrossRelation,
     CrossRowInvariant,
@@ -69,6 +70,7 @@ def load_manifest(path: Path) -> Manifest:
             "threads",
             "blocking_threads",
             "metrics",
+            "allocation_control",
             "harness_files",
             "fixtures",
             "rows",
@@ -90,6 +92,7 @@ def load_manifest(path: Path) -> Manifest:
             root["blocking_threads"], "blocking_threads", 1
         ),
         metrics=_metrics(root["metrics"]),
+        allocation_control=_allocation_control(root["allocation_control"]),
         harness_files=_file_digests(root["harness_files"], "harness_files"),
         fixtures=_file_digests(root["fixtures"], "fixtures"),
         rows=_rows(root["rows"]),
@@ -222,6 +225,7 @@ def _rows(raw: Any) -> tuple[Row, ...]:
                 "timeout_seconds",
                 "relative_performance",
                 "expected_checksum",
+                "candidate_structural_allocations_per_batch",
                 "required_metrics",
                 "invariants",
             },
@@ -254,6 +258,11 @@ def _rows(raw: Any) -> tuple[Row, ...]:
                 expected_checksum=_string(
                     obj["expected_checksum"], f"{label}.expected_checksum"
                 ),
+                candidate_structural_allocations_per_batch=_integer(
+                    obj["candidate_structural_allocations_per_batch"],
+                    f"{label}.candidate_structural_allocations_per_batch",
+                    0,
+                ),
                 required_metrics=_unique_strings(
                     obj["required_metrics"], f"{label}.required_metrics"
                 ),
@@ -261,6 +270,27 @@ def _rows(raw: Any) -> tuple[Row, ...]:
             )
         )
     return tuple(rows)
+
+
+def _allocation_control(raw: Any) -> AllocationControl:
+    obj = _object(raw, "allocation_control")
+    _keys(
+        obj,
+        "allocation_control",
+        {"fixture", "probe", "expected_checksum", "expected_allocation_count"},
+    )
+    return AllocationControl(
+        fixture=_string(obj["fixture"], "allocation_control.fixture"),
+        probe=_string(obj["probe"], "allocation_control.probe"),
+        expected_checksum=_string(
+            obj["expected_checksum"], "allocation_control.expected_checksum"
+        ),
+        expected_allocation_count=_integer(
+            obj["expected_allocation_count"],
+            "allocation_control.expected_allocation_count",
+            1,
+        ),
+    )
 
 
 def _invariants(raw: Any, label: str) -> tuple[Invariant, ...]:

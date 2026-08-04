@@ -357,15 +357,23 @@ func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]
 	if err != nil {
 		return nil, err
 	}
+	carrierBenchFlags, carrierBenchEnabled, err := runtimeCarrierBenchFlags()
+	if err != nil {
+		return nil, err
+	}
 	objs := make([]string, 0, len(sources))
 	for _, src := range sources {
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
+		if !carrierBenchEnabled && (base == "rt_carrier_bench" || base == "rt_carrier_bench_report") {
+			continue
+		}
 		obj := filepath.Join(runtimeDir, base+".o")
 		args := []string{"-c", "-std=c11", "-g"}
 		if runtime.GOOS != "windows" {
 			args = append(args, "-pthread")
 		}
 		args = append(args, testSyncPointFlags...)
+		args = append(args, carrierBenchFlags...)
 		args = append(args, src, "-o", obj)
 		if err := runCommand(printCommands, "clang", args...); err != nil {
 			return nil, err
@@ -373,6 +381,20 @@ func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]
 		objs = append(objs, obj)
 	}
 	return objs, nil
+}
+
+func runtimeCarrierBenchFlags() (flags []string, enabled bool, err error) {
+	value := os.Getenv("SURGE_INTERNAL_CARRIER_BENCH_COUNTERS")
+	switch value {
+	case "":
+		return nil, false, nil
+	case "1":
+		return []string{"-DRT_CARRIER_BENCH_ENABLED"}, true, nil
+	default:
+		return nil, false, fmt.Errorf(
+			"SURGE_INTERNAL_CARRIER_BENCH_COUNTERS must be unset or exactly 1",
+		)
+	}
 }
 
 func runtimeTestSyncPointFlags() ([]string, error) {

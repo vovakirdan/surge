@@ -124,8 +124,17 @@ class Row:
     timeout_seconds: int
     relative_performance: bool
     expected_checksum: str
+    candidate_structural_allocations_per_batch: int
     required_metrics: tuple[str, ...]
     invariants: tuple[Invariant, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AllocationControl:
+    fixture: str
+    probe: str
+    expected_checksum: str
+    expected_allocation_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +186,7 @@ class Manifest:
     threads: int
     blocking_threads: int
     metrics: tuple[Metric, ...]
+    allocation_control: AllocationControl
     harness_files: tuple[FileDigest, ...]
     fixtures: tuple[FileDigest, ...]
     rows: tuple[Row, ...]

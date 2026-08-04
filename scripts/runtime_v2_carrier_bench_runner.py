@@ -4,20 +4,22 @@ from __future__ import annotations
 
 import secrets
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping, Sequence
 
 from runtime_v2_carrier_bench_host import run_checked
 from runtime_v2_carrier_bench_ir import (
+    verify_carrier_binary as _verify_carrier_binary,
     verify_emitted_ir as _verify_emitted_ir,
     verify_fixture_ir as _verify_fixture_ir,
     verify_fixture_source as _verify_fixture_source,
 )
 from runtime_v2_carrier_bench_model import (
+    CounterSample,
     GateFailure,
-    Manifest,
     LivenessProbe,
+    Manifest,
     MeasuredRun,
     Row,
     Side,
@@ -42,6 +44,7 @@ from runtime_v2_carrier_bench_protocol import (
 class RunRecord:
     measured: MeasuredRun
     batches: tuple[BatchResult, ...]
+    resource_batches: tuple[BatchResult, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,9 +69,14 @@ def build_fixtures(
     surge: Path,
     manifest: Manifest,
     build_root: Path,
+    capture_kind: str = "timing",
+    include_allocation_control: bool = False,
 ) -> dict[str, BuiltFixture]:
     fixtures: dict[str, BuiltFixture] = {}
-    source_paths = sorted({row.fixture for row in manifest.rows})
+    source_paths = {row.fixture for row in manifest.rows}
+    if include_allocation_control:
+        source_paths.add(manifest.allocation_control.fixture)
+    source_paths = sorted(source_paths)
     for index, source_path in enumerate(source_paths):
         source = harness_root / source_path
         package_copy = build_root / f"fixture-{index:02d}"
@@ -89,10 +97,18 @@ def build_fixtures(
             ],
             cwd=package_copy,
             timeout_seconds=600,
-            environment={"SURGE_STDLIB": str(side_root)},
+            environment={
+                **(
+                    {"SURGE_INTERNAL_CARRIER_BENCH_COUNTERS": "1"}
+                    if capture_kind == "resource"
+                    else {}
+                ),
+                "SURGE_STDLIB": str(side_root),
+            },
         )
         binary = _built_binary(result.stdout, package_copy)
         _verify_fixture_ir(binary, source_path)
+        _verify_carrier_binary(binary, source_path, capture_kind)
         fixtures[source_path] = BuiltFixture(binary=binary, source_path=source_path)
     return fixtures
 
@@ -149,21 +165,52 @@ def _copy_fixture_package(source: Path, destination: Path) -> tuple[Path, Path]:
 
 def execute_manifest(
     manifest: Manifest,
-    binaries: Mapping[Side, Mapping[str, BuiltFixture]],
+    timing_binaries: Mapping[Side, Mapping[str, BuiltFixture]],
+    candidate_resource_binaries: Mapping[str, BuiltFixture],
     events: list[dict[str, object]],
     protocol_sha256: str,
-) -> dict[str, dict[Side, tuple[RunRecord, ...]]]:
+) -> tuple[
+    dict[str, dict[Side, tuple[RunRecord, ...]]],
+    dict[Side, BatchResult],
+]:
+    event_start = len(events)
+    ordinal = 0
+    control_row = _allocation_control_row(manifest)
+    controls: dict[Side, BatchResult] = {}
+    for side in ("base", "candidate"):
+        controls[side] = _run_recorded_batch(
+            manifest,
+            control_row,
+            side,
+            timing_binaries[side][control_row.fixture],
+            events,
+            phase="control",
+            run_index=0,
+            batch_index=0,
+            protocol_sha256=protocol_sha256,
+            capture_kind="timing",
+            ordinal=ordinal,
+        )
+        _validate_allocation_control(manifest, side, controls[side])
+        ordinal += 1
+
     records: dict[str, dict[Side, tuple[RunRecord, ...]]] = {}
     for row_index, row in enumerate(manifest.rows):
-        _run_warmups(
-            manifest, row_index, row, binaries, events, protocol_sha256
+        ordinal = _run_warmups(
+            manifest,
+            row_index,
+            row,
+            timing_binaries,
+            events,
+            protocol_sha256,
+            ordinal,
         )
         per_side: dict[Side, list[RunRecord]] = {"base": [], "candidate": []}
         for pair_index in range(manifest.protocol.measured_pairs):
             for side in paired_order(row_index, pair_index):
-                fixture = binaries[side][row.fixture]
+                fixture = timing_binaries[side][row.fixture]
                 per_side[side].append(
-                    _run_measured(
+                    _run_measured_timing(
                         manifest,
                         row,
                         side,
@@ -171,13 +218,79 @@ def execute_manifest(
                         fixture,
                         events,
                         protocol_sha256,
+                        ordinal,
                     )
                 )
+                ordinal += row.batches
         records[row.row_id] = {
-            "base": tuple(per_side["base"]),
+            "base": tuple(
+                _finalize_timing_record(manifest, record, "base")
+                for record in per_side["base"]
+            ),
             "candidate": tuple(per_side["candidate"]),
         }
-    return records
+
+    for row in manifest.rows:
+        merged: list[RunRecord] = []
+        for pair_index, timing_record in enumerate(records[row.row_id]["candidate"]):
+            resource_batches: list[BatchResult] = []
+            for batch_index in range(row.batches):
+                resource_batches.append(
+                    _run_recorded_batch(
+                        manifest,
+                        row,
+                        "candidate",
+                        candidate_resource_binaries[row.fixture],
+                        events,
+                        phase="measured",
+                        run_index=pair_index,
+                        batch_index=batch_index,
+                        protocol_sha256=protocol_sha256,
+                        capture_kind="resource",
+                        ordinal=ordinal,
+                    )
+                )
+                ordinal += 1
+            merged.append(
+                _merge_resource_record(
+                    manifest, row, timing_record, tuple(resource_batches)
+                )
+            )
+        records[row.row_id]["candidate"] = tuple(merged)
+
+    _validate_attempt_sequence(manifest, events[event_start:])
+    return records, controls
+
+
+def _allocation_control_row(manifest: Manifest) -> Row:
+    control = manifest.allocation_control
+    return Row(
+        row_id="allocation-control",
+        workload_family="allocation-control",
+        payload_role="control",
+        fixture=control.fixture,
+        probe=control.probe,
+        operations_per_batch=64,
+        batches=1,
+        payload_bytes=0,
+        timeout_seconds=30,
+        relative_performance=False,
+        expected_checksum=control.expected_checksum,
+        candidate_structural_allocations_per_batch=control.expected_allocation_count,
+        required_metrics=tuple(metric.name for metric in manifest.metrics),
+        invariants=(),
+    )
+
+
+def _validate_allocation_control(
+    manifest: Manifest, side: Side, result: BatchResult
+) -> None:
+    actual = result.counters.get("allocation_count")
+    expected = manifest.allocation_control.expected_allocation_count
+    if actual != expected:
+        raise GateFailure(
+            f"allocation control {side} allocation_count={actual}, want exact {expected}"
+        )
 
 
 def execute_liveness_probes(
@@ -274,12 +387,13 @@ def _run_warmups(
     binaries: Mapping[Side, Mapping[str, BuiltFixture]],
     events: list[dict[str, object]],
     protocol_sha256: str,
-) -> None:
+    ordinal: int,
+) -> int:
     for warmup_index in range(manifest.protocol.warmups):
         for side in paired_order(row_index, warmup_index):
             fixture = binaries[side][row.fixture]
             for batch_index in range(row.batches):
-                _run_recorded_batch(
+                batch = _run_recorded_batch(
                     manifest,
                     row,
                     side,
@@ -289,10 +403,16 @@ def _run_warmups(
                     run_index=warmup_index,
                     batch_index=batch_index,
                     protocol_sha256=protocol_sha256,
+                    capture_kind="timing",
+                    ordinal=ordinal,
                 )
+                if side == "candidate":
+                    _validate_structural_allocation(row, batch, batch_index)
+                ordinal += 1
+    return ordinal
 
 
-def _run_measured(
+def _run_measured_timing(
     manifest: Manifest,
     row: Row,
     side: Side,
@@ -300,6 +420,7 @@ def _run_measured(
     fixture: BuiltFixture,
     events: list[dict[str, object]],
     protocol_sha256: str,
+    ordinal: int,
 ) -> RunRecord:
     batches = tuple(
         _run_recorded_batch(
@@ -312,12 +433,14 @@ def _run_measured(
             run_index=pair_index,
             batch_index=batch_index,
             protocol_sha256=protocol_sha256,
+            capture_kind="timing",
+            ordinal=ordinal + batch_index,
         )
         for batch_index in range(row.batches)
     )
-    counters = aggregate_counters(
-        manifest.metrics, [batch.counters for batch in batches], side
-    )
+    if side == "candidate":
+        for batch_index, batch in enumerate(batches):
+            _validate_structural_allocation(row, batch, batch_index)
     measured = MeasuredRun(
         side=side,
         pair_index=pair_index,
@@ -330,9 +453,67 @@ def _run_measured(
             ),
             operations=row.operations_per_batch * row.batches,
         ),
-        counters=counters,
+        counters=CounterSample({}),
     )
     return RunRecord(measured=measured, batches=batches)
+
+
+def _finalize_timing_record(
+    manifest: Manifest, record: RunRecord, side: Side
+) -> RunRecord:
+    counters = aggregate_counters(
+        manifest.metrics, [batch.counters for batch in record.batches], side
+    )
+    return replace(
+        record,
+        measured=replace(record.measured, counters=counters),
+    )
+
+
+def _merge_resource_record(
+    manifest: Manifest,
+    row: Row,
+    timing_record: RunRecord,
+    resource_batches: tuple[BatchResult, ...],
+) -> RunRecord:
+    if len(timing_record.batches) != row.batches or len(resource_batches) != row.batches:
+        raise GateFailure(f"{row.row_id} timing/resource batch cardinality mismatch")
+    merged_counters: list[Mapping[str, int | None]] = []
+    for batch_index, (timing, resource) in enumerate(
+        zip(timing_record.batches, resource_batches, strict=True)
+    ):
+        _validate_structural_allocation(row, timing, batch_index)
+        counters = {
+            metric.name: (
+                timing.counters[metric.name]
+                if metric.source == "fixture"
+                else resource.counters[metric.name]
+            )
+            for metric in manifest.metrics
+        }
+        merged_counters.append(counters)
+    counters = aggregate_counters(
+        manifest.metrics,
+        merged_counters,
+        "candidate",
+    )
+    return RunRecord(
+        measured=replace(timing_record.measured, counters=counters),
+        batches=timing_record.batches,
+        resource_batches=resource_batches,
+    )
+
+
+def _validate_structural_allocation(
+    row: Row, timing: BatchResult, batch_index: int
+) -> None:
+    actual = timing.counters.get("allocation_count")
+    expected = row.candidate_structural_allocations_per_batch
+    if actual != expected:
+        raise GateFailure(
+            f"{row.row_id} candidate batch {batch_index}: allocation_count={actual}, "
+            f"want exact structural budget {expected}"
+        )
 
 
 def _run_recorded_batch(
@@ -346,23 +527,38 @@ def _run_recorded_batch(
     run_index: int,
     batch_index: int,
     protocol_sha256: str,
+    capture_kind: str = "timing",
+    ordinal: int = 0,
 ) -> BatchResult:
+    attempt = {
+        "capture_kind": capture_kind,
+        "row": row.row_id,
+        "side": side,
+        "phase": phase,
+        "warmup_index": run_index if phase == "warmup" else None,
+        "pair_index": run_index if phase == "measured" else None,
+        "batch_index": batch_index,
+        "ordinal": ordinal,
+    }
     event: dict[str, object] = {
         "row": row.row_id,
         "phase": phase,
         "side": side,
         "run_index": run_index,
         "batch_index": batch_index,
+        "capture_kind": capture_kind,
+        "ordinal": ordinal,
+        "attempt": attempt,
         "status": "started",
     }
     events.append(event)
     context = (
-        f"row={row.row_id} phase={phase} side={side} "
+        f"capture={capture_kind} row={row.row_id} phase={phase} side={side} "
         f"run={run_index} batch={batch_index}"
     )
     try:
         result = _run_batch(
-            manifest, row, side, fixture, protocol_sha256
+            manifest, row, side, fixture, protocol_sha256, capture_kind
         )
     except GateFailure as err:
         event["status"] = "failed"
@@ -385,8 +581,9 @@ def _run_batch(
     side: Side,
     fixture: BuiltFixture,
     protocol_sha256: str,
+    capture_kind: str = "timing",
 ) -> BatchResult:
-    nonce = secrets.token_hex(16)
+    nonce = secrets.token_hex(16) if capture_kind == "resource" else ""
     command = [
         "taskset",
         "-c",
@@ -403,12 +600,21 @@ def _run_batch(
         environment.update(
             {
                 **_transport_environment(manifest),
+            }
+        )
+    if capture_kind == "resource":
+        if side != "candidate":
+            raise GateFailure("resource capture is candidate-only")
+        environment.update(
+            {
                 "SURGE_CARRIER_BENCH_COUNTERS": "1",
                 "SURGE_CARRIER_BENCH_PROBE": row.probe,
                 "SURGE_CARRIER_BENCH_NONCE": nonce,
                 "SURGE_CARRIER_BENCH_PROTOCOL_SHA256": protocol_sha256,
             }
         )
+    elif capture_kind != "timing":
+        raise GateFailure(f"unknown capture kind {capture_kind!r}")
     result = run_checked(
         command,
         cwd=fixture.binary.parent,
@@ -419,14 +625,25 @@ def _run_batch(
         metric.name for metric in manifest.metrics if metric.source == "fixture"
     }
     parsed = _parse_result(result.stdout, row, fixture_metrics)
-    runtime_metrics = _parse_runtime_counters(
-        result.stderr,
-        row,
-        manifest,
-        side,
-        expected_nonce=nonce,
-        expected_protocol_sha256=protocol_sha256,
-    )
+    if capture_kind == "timing":
+        if result.stderr:
+            raise GateFailure(
+                f"{row.row_id} timing binary emitted unexpected stderr:\n{result.stderr}"
+            )
+        runtime_metrics = {
+            metric.name: None
+            for metric in manifest.metrics
+            if metric.source == "runtime_exit"
+        }
+    else:
+        runtime_metrics = _parse_runtime_counters(
+            result.stderr,
+            row,
+            manifest,
+            side,
+            expected_nonce=nonce,
+            expected_protocol_sha256=protocol_sha256,
+        )
     counters = {**parsed.counters, **runtime_metrics}
     if set(counters) != set(row.required_metrics):
         raise GateFailure(f"{row.row_id} combined metric schema drifted")
@@ -441,6 +658,71 @@ def _run_batch(
         checksum=parsed.checksum,
         counters=counters,
     )
+
+
+def _validate_attempt_sequence(
+    manifest: Manifest, events: Sequence[Mapping[str, object]]
+) -> None:
+    actual = [event.get("attempt") for event in events]
+    expected = _expected_attempt_sequence(manifest)
+    if actual != expected:
+        mismatch = next(
+            (
+                index
+                for index, (left, right) in enumerate(zip(actual, expected))
+                if left != right
+            ),
+            min(len(actual), len(expected)),
+        )
+        raise GateFailure(
+            f"attempt sequence mismatch at ordinal {mismatch}: "
+            f"actual={actual[mismatch:mismatch + 1]} expected={expected[mismatch:mismatch + 1]}"
+        )
+
+
+def _expected_attempt_sequence(manifest: Manifest) -> list[dict[str, object]]:
+    expected: list[dict[str, object]] = []
+    ordinal = 0
+
+    def add(
+        capture_kind: str,
+        row: str,
+        side: Side,
+        phase: str,
+        run_index: int,
+        batch_index: int,
+    ) -> None:
+        nonlocal ordinal
+        expected.append(
+            {
+                "capture_kind": capture_kind,
+                "row": row,
+                "side": side,
+                "phase": phase,
+                "warmup_index": run_index if phase == "warmup" else None,
+                "pair_index": run_index if phase == "measured" else None,
+                "batch_index": batch_index,
+                "ordinal": ordinal,
+            }
+        )
+        ordinal += 1
+
+    add("timing", "allocation-control", "base", "control", 0, 0)
+    add("timing", "allocation-control", "candidate", "control", 0, 0)
+    for row_index, row in enumerate(manifest.rows):
+        for warmup_index in range(manifest.protocol.warmups):
+            for side in paired_order(row_index, warmup_index):
+                for batch_index in range(row.batches):
+                    add("timing", row.row_id, side, "warmup", warmup_index, batch_index)
+        for pair_index in range(manifest.protocol.measured_pairs):
+            for side in paired_order(row_index, pair_index):
+                for batch_index in range(row.batches):
+                    add("timing", row.row_id, side, "measured", pair_index, batch_index)
+    for row in manifest.rows:
+        for pair_index in range(manifest.protocol.measured_pairs):
+            for batch_index in range(row.batches):
+                add("resource", row.row_id, "candidate", "measured", pair_index, batch_index)
+    return expected
 
 
 def _transport_environment(manifest: Manifest) -> dict[str, str]:

@@ -1,0 +1,44 @@
+import shared/support as bench;
+
+@intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
+
+@entrypoint("argv")
+fn main(probe: string) -> int {
+    if probe != "allocation-control" { return 92; }
+    let mut values: uint64[] = [];
+    let mut samples: int64[64] = default::<int64[64]>();
+    let _: uint64 = bench.allocation_observer();
+    let c0: uint64 = bench.allocation_observer();
+    let c1: uint64 = bench.allocation_observer();
+    if c1 < c0 { return 90; }
+    let observer_cost: uint64 = c1 - c0;
+    let before: uint64 = bench.allocation_observer();
+    if before < c1 || before - c1 != observer_cost { return 91; }
+
+    rt_array_debug_deferred_base_drops();
+    let batch_started: int64 = bench.now();
+    let mut i: int = 0;
+    while i < 64 {
+        let started: int64 = bench.now();
+        if i == 0 { values.reserve(1:uint); }
+        bench.store_latency(&mut samples, i, started);
+        i = i + 1;
+    }
+    let batch_ended: int64 = bench.now();
+    let mut elapsed_ns: int64 = batch_ended - batch_started;
+    if elapsed_ns <= 0:int64 { elapsed_ns = 1:int64; }
+    rt_array_debug_deferred_base_drops();
+
+    let after: uint64 = bench.allocation_observer();
+    let after2: uint64 = bench.allocation_observer();
+    if after2 < after || after2 - after != observer_cost { return 93; }
+    if after < before || after - before < observer_cost { return 94; }
+    bench.emit_result(
+        &probe,
+        elapsed_ns,
+        &samples,
+        1:uint64,
+        after - before - observer_cost,
+    );
+    return 0;
+}

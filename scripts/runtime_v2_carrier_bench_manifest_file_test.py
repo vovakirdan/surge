@@ -45,6 +45,60 @@ class CanonicalManifestTests(unittest.TestCase):
             {"jumbo-credit-cancel", "jumbo-global-shutdown"},
         )
 
+        nonzero_allocations = {
+            row.row_id: row.candidate_structural_allocations_per_batch
+            for row in self.manifest.rows
+            if row.candidate_structural_allocations_per_batch != 0
+        }
+        self.assertEqual(
+            nonzero_allocations,
+            {
+                "array-grow-composite": 7,
+                "array-grow-scalar": 7,
+                "blocking-composite": 278,
+                "blocking-scalar": 278,
+                "channel-buffered-composite": 15,
+                "channel-buffered-scalar": 15,
+                "channel-unbuffered-composite": 130,
+                "channel-unbuffered-scalar": 130,
+                "far-channel-composite": 544,
+                "far-channel-scalar": 544,
+                "far-immediate-composite": 281,
+                "far-immediate-scalar": 281,
+                "far-jumbo-contention": 1042,
+                "far-large-capture": 1049,
+                "far-large-result": 537,
+                "far-select-composite": 615,
+                "far-select-scalar": 615,
+                "far-share-control": 351,
+                "far-task-composite": 537,
+                "far-task-scalar": 537,
+                "map-insert-composite": 4,
+                "map-insert-scalar": 4,
+                "map-rehash-composite": 4,
+                "map-rehash-scalar": 4,
+                "select-send-composite": 7,
+                "select-send-scalar": 7,
+                "task-clone-composite": 278,
+                "task-clone-scalar": 278,
+                "task-composite": 278,
+                "task-scalar": 278,
+            },
+        )
+        self.assertFalse(
+            any(
+                invariant.metric == "allocation_count"
+                for row in self.manifest.rows
+                for invariant in row.invariants
+            )
+        )
+        self.assertFalse(
+            any(
+                invariant.metric == "allocation_count"
+                for invariant in self.manifest.cross_row_invariants
+            )
+        )
+
     def test_required_red_endpoints_are_machine_checked(self) -> None:
         rows = {row.row_id: row for row in self.manifest.rows}
         exact = {
@@ -93,6 +147,17 @@ class CanonicalManifestTests(unittest.TestCase):
         ).stdout
         self.assertIn("--phase=wave-a --capture-wave-a-baseline", baseline)
         self.assertIn("PYTHONDONTWRITEBYTECODE=1", baseline)
+
+    def test_carrier_check_selects_the_live_carrier_census_gate(self) -> None:
+        output = subprocess.run(
+            ["make", "-n", "runtime-v2-carrier-check"],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        self.assertIn("go test ./internal/carriergate -count=1", output)
+        self.assertIn("TestRuntime(TestSyncPoint|CarrierBench)BuildFlag", output)
 
 
 if __name__ == "__main__":

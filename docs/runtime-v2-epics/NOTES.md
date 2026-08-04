@@ -6200,3 +6200,64 @@ the roadmap are promoted to READY FOR END-TO-END IMPLEMENTATION. Product code
 has not started in this documentation pass. Nonblocking review findings remain
 owned by `RV2-DEBT-126` and `RV2-DEBT-134..136` rather than expanding the epic's
 blocking scope.
+
+## Epic 23b Wave-A Oracle Hardening (2026-08-04)
+
+The first independent implementation review correctly rejected the Wave-A
+benchmark gate as unsound. Timing binaries still linked the resource-counter
+bridge, allocation expectations could be vacuous or weakened by a second
+row/cross-row contract, `make runtime-v2-carrier-check` omitted the live
+carrier census, and the ambient Python launcher was not recorded as debt.
+
+The corrected harness compiles two physically distinct candidate artifacts.
+Timing binaries neither link nor contain any `rt_carrier_bench_*` symbol (the
+gate uses full `nm -a`, including local symbols); resource binaries are
+candidate-only and must contain the bridge. All base/candidate timing warmups
+and all seven measured pairs finish before the first resource capture. Resource
+elapsed/latency data is retained only as raw evidence and cannot enter
+`TimingSample` or the performance score. Every attempt records capture kind,
+row, side, phase, warmup/pair index, batch, and global ordinal; missing,
+duplicate, reordered, or early-resource sequences fail closed.
+
+The allocation oracle is fixture-owned, not bridge-owned. A real timing build
+with no carrier symbols reports `0` for the zero fixture and `1` for the
+deliberate `reserve(1)` allocation-control fixture through
+`rt_heap_stats().alloc_count`; runtime-exit bridge metrics are `None` in that
+binary. The control runs on both base and candidate before the matrix. Each of
+the 46 rows has one exact
+`candidate_structural_allocations_per_batch` value, checked on every candidate
+warmup and measured batch. Row and cross-row `allocation_count` invariants are
+schema errors, so paired scalar/composite rows remain classification evidence
+only. Stuck-zero and uniform added-box mutations both fail. The caller/IR census
+and every raw-to-structural classification are frozen in
+`23b-wave-a-allocation-census.md`; agentmemory records are
+`mem_msf5kyzx_8fc0fdbf696b` and `mem_msf6bcds_ee91d8b04952`.
+
+Final author-worktree evidence before independent re-review:
+
+- `make runtime-v2-carrier-check` passed: 56 Python harness tests,
+  `TestRuntime(TestSyncPoint|CarrierBench)BuildFlag`, the complete
+  `internal/carriergate` census, and the VM carrier tests under `-race`.
+- `cd scripts && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest
+  runtime_v2_carrier_bench_build_test.BuildAndIRTests.test_real_candidate_zero_fixture_contract
+  runtime_v2_carrier_bench_protocol_test.ProtocolTests.test_allocation_oracle_rejects_stuck_zero_and_uniform_boxing`
+  passed the real split/oracle proof and both allocation mutations.
+- Two serialized `make golden-check` runs exited zero. Their temporary
+  delete/regenerate phase was allowed to finish before inspection. Both tracked
+  and cached golden diffs were empty; the filesystem inventory exactly matched
+  all 4,736 tracked files. The sorted path-plus-Git-blob corpus SHA-256 matched
+  HEAD and the worktree at
+  `93167613eb88c606461c950877a876a066c40c19d25ef4f42744696aed32c4a1`;
+  the HEAD golden tree is `faaf955c86b1be089c4e403be12f596241b35804`.
+- `clang-format --dry-run --Werror` passed for the changed native bridge files;
+  `python3 -m py_compile scripts/runtime_v2_carrier_bench*.py` passed; the final
+  staged and unstaged diffs must still pass `git diff --check` at commit time.
+
+No benchmark overlay or base substitution was made. Raw `EPIC_BASE`
+`7df10725e001ddf915d536aa58f880bd7e04aafd` still predates the blocking
+register-then-verify lost-wake repair in `877e974c` and therefore requires an
+explicit owner disposition before a complete Wave-A capture is accepted.
+Python launcher/user-site hermeticity remains nonblocking and is recorded only
+as `RV2-DEBT-144`; this hardening pass does not implement part of that debt.
+The exact review-fix delta still requires the same independent reviewer before
+Wave A can be considered accepted.

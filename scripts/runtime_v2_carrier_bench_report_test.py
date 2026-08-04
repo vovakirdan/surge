@@ -3,6 +3,44 @@
 from runtime_v2_carrier_bench_test_support import *
 
 class ReportTests(unittest.TestCase):
+    def test_resource_capture_time_is_raw_and_cannot_change_score(self) -> None:
+        manifest = make_manifest()
+        row = manifest.rows[0]
+        base = make_records("base", [1000] * 7)
+        candidate = make_records("candidate", [1000] * 7)
+        with_resource = tuple(
+            replace(
+                record,
+                resource_batches=(
+                    BatchResult(
+                        elapsed_ns=10**18 + index,
+                        operation_latencies_ns=(10**15,) * 10,
+                        checksum="42",
+                        counters=counter_values("candidate"),
+                        nonce="f" * 32,
+                    ),
+                ),
+            )
+            for index, record in enumerate(candidate)
+        )
+        report, _ = render_report(
+            attempt_id="resource-raw",
+            started_at="2026-08-04T00:00:00.000000Z",
+            ended_at="2026-08-04T00:00:01.000000Z",
+            manifest=manifest,
+            manifest_sha256="a" * 64,
+            base_commit="1" * 40,
+            candidate_commit="2" * 40,
+            actual_host=manifest.reference,
+            records={row.row_id: {"base": base, "candidate": with_resource}},
+            benchmark_phase="wave-a",
+            liveness_records=(deferred_liveness(),),
+        )
+        candidate_report = report["rows"][0]["candidate_runs"]
+        self.assertEqual(candidate_report[0]["throughput"], 1_000_000.0)
+        self.assertEqual(candidate_report[0]["elapsed_ns"], 20_000)
+        self.assertEqual(candidate_report[0]["resource_batches"][0]["elapsed_ns"], 10**18)
+
     def test_failed_cv_session_still_renders_all_raw_runs(self) -> None:
         manifest = make_manifest()
         row = manifest.rows[0]

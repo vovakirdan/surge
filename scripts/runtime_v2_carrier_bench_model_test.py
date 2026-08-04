@@ -84,7 +84,9 @@ class ModelTests(unittest.TestCase):
         bad_counter = list(candidate)
         bad_counter[3] = replace(
             bad_counter[3],
-            counters=CounterSample(counter_values("candidate", allocation_count=1)),
+            counters=CounterSample(
+                {**counter_values("candidate"), "credit_stalls": 1}
+            ),
         )
         with self.assertRaisesRegex(GateFailure, "violates le 0"):
             validate_row_results(manifest, manifest.rows[0], base, bad_counter)
@@ -122,25 +124,27 @@ class ManifestTests(unittest.TestCase):
             second = json.loads(json.dumps(raw["rows"][0]))
             second["id"] = "composite.channel"
             second["payload_role"] = "composite"
-            second["payload_bytes"] = 64
+            second["payload_bytes"] = 8192
+            raw["rows"][0]["payload_role"] = "composite"
+            raw["rows"][0]["payload_bytes"] = 64
             raw["rows"].append(second)
             raw["cross_row_invariants"] = [
                 {
-                    "id": "channel-no-box",
-                    "relation": "paired_payload",
-                    "metric": "allocation_count",
-                    "left_row": "composite.channel",
+                    "id": "channel-byte-scaling",
+                    "relation": "payload_proportional",
+                    "metric": "bytes_moved",
+                    "left_row": "scalar.channel",
                     "left_reduction": "max",
-                    "operator": "le",
-                    "right_row": "scalar.channel",
-                    "right_reduction": "min",
+                    "operator": "eq",
+                    "right_row": "composite.channel",
+                    "right_reduction": "max",
                     "side": "candidate",
                 }
             ]
             return raw
 
         def same_row(raw: dict[str, object]) -> None:
-            raw["cross_row_invariants"][0]["right_row"] = "composite.channel"
+            raw["cross_row_invariants"][0]["right_row"] = "scalar.channel"
 
         def unknown_row(raw: dict[str, object]) -> None:
             raw["cross_row_invariants"][0]["right_row"] = "missing.channel"
@@ -168,32 +172,11 @@ class ManifestTests(unittest.TestCase):
                         load_manifest(path)
 
     def test_loader_freezes_cross_row_relation_shapes(self) -> None:
-        def paired() -> dict[str, object]:
-            raw = manifest_json()
-            composite = json.loads(json.dumps(raw["rows"][0]))
-            composite["id"] = "composite.channel"
-            composite["payload_role"] = "composite"
-            composite["payload_bytes"] = 64
-            raw["rows"].insert(0, composite)
-            raw["cross_row_invariants"] = [
-                {
-                    "id": "channel-no-box",
-                    "relation": "paired_payload",
-                    "metric": "allocation_count",
-                    "left_row": "composite.channel",
-                    "left_reduction": "max",
-                    "operator": "le",
-                    "right_row": "scalar.channel",
-                    "right_reduction": "min",
-                    "side": "candidate",
-                }
-            ]
-            return raw
-
         def proportional() -> dict[str, object]:
-            raw = paired()
+            raw = manifest_json()
             small = raw["rows"][0]
             small["id"] = "capture-small"
+            small["payload_role"] = "composite"
             small["payload_bytes"] = 16
             large = json.loads(json.dumps(small))
             large["id"] = "capture-large"
@@ -215,10 +198,6 @@ class ManifestTests(unittest.TestCase):
             return raw
 
         mutations = (
-            (paired, "left_reduction", "min", "paired_payload"),
-            (paired, "operator", "eq", "paired_payload"),
-            (paired, "right_reduction", "max", "paired_payload"),
-            (paired, "side", "base", "paired_payload"),
             (proportional, "left_reduction", "min", "payload_proportional"),
             (proportional, "operator", "le", "payload_proportional"),
             (proportional, "right_reduction", "min", "payload_proportional"),
@@ -232,6 +211,54 @@ class ManifestTests(unittest.TestCase):
                     raw["cross_row_invariants"][0][field] = value
                     path.write_text(json.dumps(raw), encoding="utf-8")
                     with self.assertRaisesRegex(ManifestError, expected):
+                        load_manifest(path)
+
+    def test_loader_rejects_second_allocation_count_contract(self) -> None:
+        def duplicate_row(raw: dict[str, object]) -> None:
+            raw["rows"][0]["invariants"].append(
+                {
+                    "metric": "allocation_count",
+                    "operator": "eq",
+                    "value": raw["rows"][0][
+                        "candidate_structural_allocations_per_batch"
+                    ],
+                    "side": "candidate",
+                }
+            )
+
+        def duplicate_cross_row(raw: dict[str, object]) -> None:
+            composite = json.loads(json.dumps(raw["rows"][0]))
+            composite["id"] = "composite.channel"
+            composite["payload_role"] = "composite"
+            composite["payload_bytes"] = 64
+            raw["rows"].append(composite)
+            raw["cross_row_invariants"] = [
+                {
+                    "id": "duplicate-allocation-contract",
+                    "relation": "paired_payload",
+                    "metric": "allocation_count",
+                    "left_row": "composite.channel",
+                    "left_reduction": "max",
+                    "operator": "le",
+                    "right_row": "scalar.channel",
+                    "right_reduction": "min",
+                    "side": "candidate",
+                }
+            ]
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "manifest.json"
+            for label, mutation in (
+                ("row", duplicate_row),
+                ("cross-row", duplicate_cross_row),
+            ):
+                with self.subTest(label=label):
+                    raw = manifest_json()
+                    mutation(raw)
+                    path.write_text(json.dumps(raw), encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        ManifestError, "duplicates the exact allocation_count contract"
+                    ):
                         load_manifest(path)
 
     def test_loader_freezes_transport_and_liveness_boundaries(self) -> None:
@@ -261,8 +288,8 @@ class ManifestTests(unittest.TestCase):
             path = Path(temporary) / "manifest.json"
             encoded = json.dumps(manifest_json())
             encoded = encoded.replace(
-                '"schema_version": 1',
-                '"schema_version": 1, "schema_version": 1',
+                '"schema_version": 2',
+                '"schema_version": 2, "schema_version": 2',
                 1,
             )
             path.write_text(encoded, encoding="utf-8")

@@ -45,6 +45,7 @@ from runtime_v2_carrier_bench_report import (  # noqa: E402
     write_report,
 )
 from runtime_v2_carrier_bench_runner import (  # noqa: E402
+    BatchResult,
     BuiltFixture,
     LivenessRecord,
     RunRecord,
@@ -138,7 +139,7 @@ def main() -> int:
                 with tempfile.TemporaryDirectory(
                     prefix="surge-carrier-bench-"
                 ) as temporary:
-                    records, liveness_records = _build_and_run(
+                    records, liveness_records, allocation_controls = _build_and_run(
                         manifest=manifest,
                         harness_root=candidate_build_root,
                         base_root=base_root,
@@ -161,6 +162,8 @@ def main() -> int:
             records=records,
             benchmark_phase=benchmark_phase,
             liveness_records=liveness_records,
+            allocation_controls=allocation_controls,
+            events=events,
         )
         phase = "report_write"
         write_report(report_path, report)
@@ -219,18 +222,21 @@ def _build_and_run(
 ) -> tuple[
     dict[str, dict[Side, tuple[RunRecord, ...]]],
     tuple[LivenessRecord, ...],
+    dict[Side, BatchResult],
 ]:
     base_surge = temporary / "base" / "surge"
     candidate_surge = temporary / "candidate" / "surge"
     build_surge(base_root, base_surge)
     build_surge(candidate_root, candidate_surge)
-    binaries: dict[Side, dict[str, BuiltFixture]] = {
+    timing_binaries: dict[Side, dict[str, BuiltFixture]] = {
         "base": build_fixtures(
             side_root=base_root,
             harness_root=harness_root,
             surge=base_surge,
             manifest=manifest,
             build_root=temporary / "base" / "fixtures",
+            capture_kind="timing",
+            include_allocation_control=True,
         ),
         "candidate": build_fixtures(
             side_root=candidate_root,
@@ -238,9 +244,25 @@ def _build_and_run(
             surge=candidate_surge,
             manifest=manifest,
             build_root=temporary / "candidate" / "fixtures",
+            capture_kind="timing",
+            include_allocation_control=True,
         ),
     }
-    records = execute_manifest(manifest, binaries, events, protocol_sha256)
+    resource_binaries = build_fixtures(
+        side_root=candidate_root,
+        harness_root=harness_root,
+        surge=candidate_surge,
+        manifest=manifest,
+        build_root=temporary / "candidate" / "resource-fixtures",
+        capture_kind="resource",
+    )
+    records, allocation_controls = execute_manifest(
+        manifest,
+        timing_binaries,
+        resource_binaries,
+        events,
+        protocol_sha256,
+    )
     liveness_binaries = (
         build_liveness_fixtures(
             side_root=candidate_root,
@@ -259,7 +281,7 @@ def _build_and_run(
         protocol_sha256,
         benchmark_phase,
     )
-    return records, liveness
+    return records, liveness, allocation_controls
 
 
 @contextmanager

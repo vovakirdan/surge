@@ -24,7 +24,7 @@ FROZEN_METRIC_CONTRACT: dict[
 
 
 def validate_manifest(manifest: Manifest) -> None:
-    if manifest.schema_version != 1:
+    if manifest.schema_version != 2:
         raise ManifestError(f"unsupported schema_version {manifest.schema_version}")
     protocol = manifest.protocol
     if protocol.warmups != 2 or protocol.measured_pairs != 7:
@@ -75,6 +75,10 @@ def validate_manifest(manifest: Manifest) -> None:
     fixture_set = {entry.path for entry in manifest.fixtures}
     if len(fixture_set) != len(manifest.fixtures):
         raise ManifestError("fixture paths must be unique")
+    if manifest.allocation_control.fixture not in fixture_set:
+        raise ManifestError("allocation_control references an unknown fixture")
+    if manifest.allocation_control.expected_allocation_count != 1:
+        raise ManifestError("allocation_control must freeze exactly one deliberate allocation")
     row_ids: set[str] = set()
     for row in manifest.rows:
         if row.row_id in row_ids:
@@ -91,6 +95,11 @@ def validate_manifest(manifest: Manifest) -> None:
         if set(row.required_metrics) != metric_set:
             raise ManifestError(f"row {row.row_id} must require the complete metric schema")
         for invariant in row.invariants:
+            if invariant.metric == "allocation_count":
+                raise ManifestError(
+                    f"row {row.row_id} duplicates the exact allocation_count contract; "
+                    "candidate_structural_allocations_per_batch is authoritative"
+                )
             if invariant.metric not in metric_set:
                 raise ManifestError(
                     f"row {row.row_id} invariant references unknown metric {invariant.metric}"
@@ -104,6 +113,11 @@ def validate_manifest(manifest: Manifest) -> None:
                 )
     rows_by_id = {row.row_id: row for row in manifest.rows}
     for invariant in manifest.cross_row_invariants:
+        if invariant.metric == "allocation_count":
+            raise ManifestError(
+                f"cross-row invariant {invariant.invariant_id} duplicates the exact "
+                "allocation_count contract; per-row structural budgets are authoritative"
+            )
         if invariant.left_row == invariant.right_row:
             raise ManifestError(
                 f"cross-row invariant {invariant.invariant_id} must compare distinct rows"

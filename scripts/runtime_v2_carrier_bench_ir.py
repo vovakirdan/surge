@@ -12,6 +12,7 @@ from runtime_v2_carrier_bench_model import GateFailure
 
 MARKER_SYMBOL = "rt_array_debug_deferred_base_drops"
 TIMER_SYMBOL = "rt_monotonic_now"
+CARRIER_SYMBOL_PREFIX = "rt_carrier_bench_"
 
 _IR_NAME = r'(?:"(?:[^"\\]|\\.)+"|[-$._A-Za-z0-9]+)'
 _IR_DEFINE_RE = re.compile(
@@ -72,6 +73,41 @@ def verify_fixture_ir(binary: Path, source_path: str) -> None:
         optimized_ir.read_text(encoding="utf-8"),
         source_path,
     )
+
+
+def verify_carrier_binary(binary: Path, source_path: str, capture_kind: str) -> None:
+    result = run_checked(
+        ["nm", "-a", str(binary)],
+        cwd=binary.parent,
+        timeout_seconds=30,
+    )
+    verify_carrier_symbols(result.stdout, source_path, capture_kind)
+
+
+def verify_carrier_symbols(symbols: str, source_path: str, capture_kind: str) -> None:
+    present = {
+        line.split()[-1]
+        for line in symbols.splitlines()
+        if line.split() and line.split()[-1].startswith(CARRIER_SYMBOL_PREFIX)
+    }
+    required = {
+        "rt_carrier_bench_init",
+        "rt_carrier_bench_finish",
+        "rt_carrier_bench_marker",
+        "rt_carrier_bench_record_copy",
+    }
+    if capture_kind == "timing" and present:
+        raise GateFailure(
+            f"{source_path} timing binary contains carrier benchmark symbols: "
+            f"{sorted(present)}"
+        )
+    if capture_kind == "resource" and not required <= present:
+        raise GateFailure(
+            f"{source_path} resource binary is missing carrier benchmark symbols: "
+            f"{sorted(required - present)}"
+        )
+    if capture_kind not in {"timing", "resource"}:
+        raise GateFailure(f"unknown carrier capture kind {capture_kind!r}")
 
 
 def verify_emitted_ir(llvm_ir: str, optimized_ir: str, source_path: str) -> None:

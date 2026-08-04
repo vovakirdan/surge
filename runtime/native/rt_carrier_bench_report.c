@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #endif
 
+#define RT_CARRIER_BENCH_IMPLEMENTATION
 #include "rt_carrier_bench.h"
 #include "rt_carrier_bench_internal.h"
 
