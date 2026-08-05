@@ -35,7 +35,7 @@ func (tc *typeChecker) ensureBoolContext(expr ast.ExprID, span source.Span) {
 			if sig == nil {
 				tc.recordBoolBoundMethod(expr)
 				_, requirement, _ := tc.boundMethodRequirement(ty, "__bool", nil)
-				tc.rememberDeferredCallable(DeferredBoolCall, ty, "__bool", nil, nil, boolType, false, span, expr, requirement)
+				tc.rememberDeferredCallable(DeferredBoolCall, ty, "__bool", nil, nil, boolType, false, span, expr, &requirement)
 				return
 			}
 			if len(sig.Params) > 0 {

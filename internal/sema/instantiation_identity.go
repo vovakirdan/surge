@@ -271,19 +271,6 @@ func isBuiltinNominalOwner(table *symbols.Table, sym *symbols.Symbol, wantName s
 	return ok && name == wantName
 }
 
-func describeBuiltinNominalOwner(table *symbols.Table, sym *symbols.Symbol) string {
-	if sym == nil {
-		return "missing symbol"
-	}
-	name := "<unknown>"
-	if table != nil && table.Strings != nil {
-		if resolved, ok := table.Strings.Lookup(sym.Name); ok {
-			name = resolved
-		}
-	}
-	return fmt.Sprintf("name=%q kind=%s module=%q flags=%d", name, sym.Kind, sym.ModulePath, sym.Flags)
-}
-
 func canonicalNominalIdentityRank(sym *symbols.Symbol, decl nominalInstantiationDecl, resolveSource func(source.FileID) (string, error)) int {
 	if sym == nil {
 		return 0

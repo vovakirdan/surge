@@ -44,7 +44,7 @@ type callableSpecificity struct {
 
 func resolveDeferredCallable(
 	useID DeferredUseID,
-	request DeferredCallableRequest,
+	request *DeferredCallableRequest,
 	candidates []CallableCandidate,
 	typesIn *types.Interner,
 	clones *cloneCanonicalSelector,
@@ -61,7 +61,7 @@ func resolveDeferredCallable(
 		if clones == nil {
 			clones = newCloneCanonicalSelector(candidates, typesIn)
 		}
-		return resolveDeferredCloneCall(&request, clones)
+		return resolveDeferredCloneCall(request, clones)
 	}
 
 	ordered := make([]CallableCandidate, len(candidates))
@@ -197,12 +197,12 @@ func callableCandidateRecordsEquivalent(a, b *CallableCandidate) bool {
 		slices.Equal(a.Attrs, b.Attrs)
 }
 
-func instantiateCallableSignature(candidate *CallableCandidate, typeArgs []types.TypeID, typesIn *types.Interner) ([]types.TypeID, types.TypeID, bool) {
+func instantiateCallableSignature(candidate *CallableCandidate, typeArgs []types.TypeID, typesIn *types.Interner) (params []types.TypeID, result types.TypeID, ok bool) {
 	if candidate == nil {
 		return nil, types.NoTypeID, false
 	}
-	params := slices.Clone(candidate.ParamTypes)
-	result := candidate.ResultType
+	params = slices.Clone(candidate.ParamTypes)
+	result = candidate.ResultType
 	if len(candidate.TemplateParams) == 0 {
 		return params, result, result != types.NoTypeID
 	}
@@ -223,7 +223,7 @@ func instantiateCallableSignature(candidate *CallableCandidate, typeArgs []types
 	return params, result, true
 }
 
-func matchDeferredCandidate(request DeferredCallableRequest, candidate *CallableCandidate, typesIn *types.Interner) ([]types.TypeID, callableSpecificity, bool) {
+func matchDeferredCandidate(request *DeferredCallableRequest, candidate *CallableCandidate, typesIn *types.Interner) ([]types.TypeID, callableSpecificity, bool) {
 	noSpecificity := callableSpecificity{}
 	if candidate == nil || len(candidate.ParamTypes) == 0 && candidate.HasSelf || candidate.ResultType == types.NoTypeID {
 		return nil, noSpecificity, false
@@ -292,7 +292,7 @@ func matchDeferredCandidate(request DeferredCallableRequest, candidate *Callable
 	if request.Kind == DeferredCloneCall && !callableTypesEqual(typesIn, result, request.Receiver) {
 		return nil, noSpecificity, false
 	}
-	if !callableRequirementMatches(request.Requirement, candidate, paramTypes, result, typesIn) {
+	if !callableRequirementMatches(&request.Requirement, candidate, paramTypes, result, typesIn) {
 		return nil, noSpecificity, false
 	}
 	return typeArgs, specificity, true
@@ -323,7 +323,7 @@ func validDeferredCloneShape(candidate *CallableCandidate, typesIn *types.Intern
 }
 
 func callableRequirementMatches(
-	requirement DeferredCallableRequirement,
+	requirement *DeferredCallableRequirement,
 	candidate *CallableCandidate,
 	paramTypes []types.TypeID,
 	resultType types.TypeID,
@@ -381,7 +381,7 @@ func callableABITypeEqual(typesIn *types.Interner, expected, actual types.TypeID
 	return matchCallableType(typesIn, expected, actual, nil, false, 0)
 }
 
-func callableCandidateAccessible(request DeferredCallableRequest, candidate *CallableCandidate) bool {
+func callableCandidateAccessible(request *DeferredCallableRequest, candidate *CallableCandidate) bool {
 	if candidate.Builtin {
 		return true
 	}

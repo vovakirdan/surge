@@ -10,16 +10,22 @@ import (
 	"surge/internal/types"
 )
 
+// EntrypointCallableRole names which synthetic startup call a request stands
+// for: the return conversion, or one parameter's argv/stdin parse.
 type EntrypointCallableRole uint8
 
+// Roles a synthetic startup call can play in the generated entry.
 const (
 	EntrypointReturnToInt EntrypointCallableRole = iota + 1
 	EntrypointParamFromArgv
 	EntrypointParamFromStdin
 )
 
+// EntrypointCallableOutcome says whether a resolved startup call landed on a
+// user-written callable or on a builtin/intrinsic one.
 type EntrypointCallableOutcome uint8
 
+// Outcomes a resolved startup call can have.
 const (
 	EntrypointCallableUser EntrypointCallableOutcome = iota + 1
 	EntrypointCallableBuiltin
@@ -44,6 +50,8 @@ type EntrypointCallableRequest struct {
 	SourceKey      string
 }
 
+// EntrypointCallableBinding is one resolved startup call: the callable mono
+// and MIR must emit for the request that produced it.
 type EntrypointCallableBinding struct {
 	Entrypoint     symbols.SymbolID
 	Role           EntrypointCallableRole
@@ -59,12 +67,14 @@ type EntrypointCallableBinding struct {
 	SourceKey      string
 }
 
-func (tc *typeChecker) recordEntrypointCallableRequest(request EntrypointCallableRequest) {
-	if tc == nil || tc.result == nil || !request.Entrypoint.IsValid() || request.Receiver == types.NoTypeID || request.Method == "" {
+func (tc *typeChecker) recordEntrypointCallableRequest(request *EntrypointCallableRequest) {
+	if tc == nil || tc.result == nil || request == nil || !request.Entrypoint.IsValid() ||
+		request.Receiver == types.NoTypeID || request.Method == "" {
 		return
 	}
-	request.Args = slices.Clone(request.Args)
-	tc.result.EntrypointCallableRequests = append(tc.result.EntrypointCallableRequests, request)
+	stored := *request
+	stored.Args = slices.Clone(request.Args)
+	tc.result.EntrypointCallableRequests = append(tc.result.EntrypointCallableRequests, stored)
 }
 
 func canonicalizeEntrypointCallableSources(result *Result, resolve func(source.FileID) (string, error)) error {
@@ -138,7 +148,7 @@ func (r *Result) FinalizeEntrypointCallables() error {
 				Name: request.Method, Params: slices.Clone(request.Args), Result: request.ExpectedResult, Public: true,
 			}
 		}
-		resolution, err := resolveDeferredCallable(useID, callRequest, r.CallableCandidates, r.TypeInterner, nil)
+		resolution, err := resolveDeferredCallable(useID, &callRequest, r.CallableCandidates, r.TypeInterner, nil)
 		if err != nil {
 			if request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin {
 				return newEntrypointCallableError(request, err, r.CallableCandidates, r.TypeInterner)

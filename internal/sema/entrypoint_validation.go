@@ -85,7 +85,7 @@ func (tc *typeChecker) validateEntrypointReturn(fnItem *ast.FnItem, symID symbol
 		if returnSpan == (source.Span{}) {
 			returnSpan = fnItem.Span
 		}
-		tc.recordEntrypointCallableRequest(EntrypointCallableRequest{
+		tc.recordEntrypointCallableRequest(&EntrypointCallableRequest{
 			Entrypoint:     symID,
 			Role:           EntrypointReturnToInt,
 			Receiver:       returnType,

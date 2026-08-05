@@ -426,7 +426,7 @@ func (g *InstantiationGraph) recordDeferredCallable(edge *DeferredCallableEdge) 
 			!slices.Equal(existing.ExplicitTypeArgs, cloned.ExplicitTypeArgs) ||
 			existing.ExpectedResult != cloned.ExpectedResult ||
 			existing.StaticReceiver != cloned.StaticReceiver || existing.AccessModule != cloned.AccessModule ||
-			!deferredRequirementsEqual(existing.Requirement, cloned.Requirement) {
+			!deferredRequirementsEqual(&existing.Requirement, &cloned.Requirement) {
 			continue
 		}
 		if compareInstantiationWitness(&cloned.Witness, &existing.Witness) == 0 {
@@ -586,7 +586,7 @@ func cloneDeferredCallableEdge(edge *DeferredCallableEdge) DeferredCallableEdge 
 	cloned.CallerBindings = slices.Clone(edge.CallerBindings)
 	cloned.Args = slices.Clone(edge.Args)
 	cloned.ExplicitTypeArgs = slices.Clone(edge.ExplicitTypeArgs)
-	cloned.Requirement = cloneDeferredCallableRequirement(edge.Requirement)
+	cloned.Requirement = cloneDeferredCallableRequirement(&edge.Requirement)
 	cloned.Witness = cloneInstantiationWitness(&edge.Witness)
 	return cloned
 }

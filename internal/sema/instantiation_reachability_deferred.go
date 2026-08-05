@@ -113,9 +113,13 @@ func (b *reachableClosureBuilder) index() error {
 	if b.graph == nil {
 		return nil
 	}
-	for _, root := range b.graph.Roots() {
+	// Roots and DeferredCallables each hand back a detached snapshot, so the
+	// loops below own their elements and may edit them in place.
+	roots := b.graph.Roots()
+	for i := range roots {
+		root := &roots[i]
 		b.generic[root.Template] = struct{}{}
-		b.rootsByCaller[root.Witness.Caller] = append(b.rootsByCaller[root.Witness.Caller], root)
+		b.rootsByCaller[root.Witness.Caller] = append(b.rootsByCaller[root.Witness.Caller], *root)
 	}
 	edges, err := closureEdges(b.graph, b.identity)
 	if err != nil {
@@ -128,16 +132,18 @@ func (b *reachableClosureBuilder) index() error {
 			b.generic[callerEdges[i].Callee] = struct{}{}
 		}
 	}
-	for _, edge := range b.graph.DeferredCallables() {
-		if err := validateDeferredCallableEdge(&edge); err != nil {
-			return err
+	deferred := b.graph.DeferredCallables()
+	for i := range deferred {
+		edge := &deferred[i]
+		if validateErr := validateDeferredCallableEdge(edge); validateErr != nil {
+			return validateErr
 		}
 		edge.Witness, err = canonicalInstantiationWitness(&edge.Witness, b.identity)
 		if err != nil {
 			return err
 		}
 		b.generic[edge.Caller] = struct{}{}
-		b.deferredByCaller[edge.Caller] = append(b.deferredByCaller[edge.Caller], edge)
+		b.deferredByCaller[edge.Caller] = append(b.deferredByCaller[edge.Caller], *edge)
 	}
 	for caller := range b.deferredByCaller {
 		sort.SliceStable(b.deferredByCaller[caller], func(i, j int) bool {

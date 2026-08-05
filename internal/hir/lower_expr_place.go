@@ -71,7 +71,11 @@ func (l *lowerer) lowerPlaceExpr(exprID ast.ExprID) *Expr {
 		if member == nil || result == nil || result.Kind != ExprFieldAccess {
 			return result
 		}
-		data := result.Data.(FieldAccessData)
+		data, ok := result.Data.(FieldAccessData)
+		if !ok {
+			l.setErrorf("internal compiler error: member place lowering produced ExprFieldAccess without FieldAccessData")
+			return nil
+		}
 		data.Object = l.lowerPlaceExpr(member.Target)
 		result.Data = data
 		return result
@@ -82,7 +86,11 @@ func (l *lowerer) lowerPlaceExpr(exprID ast.ExprID) *Expr {
 		if tupleIndex == nil || result == nil || result.Kind != ExprFieldAccess {
 			return result
 		}
-		data := result.Data.(FieldAccessData)
+		data, ok := result.Data.(FieldAccessData)
+		if !ok {
+			l.setErrorf("internal compiler error: tuple index place lowering produced ExprFieldAccess without FieldAccessData")
+			return nil
+		}
 		data.Object = l.lowerPlaceExpr(tupleIndex.Target)
 		result.Data = data
 		return result

@@ -27,6 +27,7 @@ type DeferredUseRef struct {
 // outcomes. Clone on a concrete Copy type is intentionally not a callable.
 type DeferredCallableOutcomeKind uint8
 
+// Outcomes a post-substitution deferred call can have.
 const (
 	DeferredCallableResolved DeferredCallableOutcomeKind = iota + 1
 	DeferredCallableBuiltinCopy
@@ -95,7 +96,7 @@ func (tc *typeChecker) rememberDeferredCallable(
 	staticReceiver bool,
 	site source.Span,
 	useExpr ast.ExprID,
-	requirement DeferredCallableRequirement,
+	requirement *DeferredCallableRequirement,
 ) {
 	if tc == nil || tc.result == nil || receiver == types.NoTypeID || method == "" {
 		return
@@ -120,8 +121,9 @@ func (tc *typeChecker) rememberDeferredCallable(
 		reason = "deferred clone call"
 	}
 	ordinal := uint32(0)
-	for _, existing := range tc.result.InstantiationGraph.deferredCallables {
-		if existing.Kind == kind && existing.Caller == caller && existing.Witness.Site == site {
+	edges := tc.result.InstantiationGraph.deferredCallables
+	for i := range edges {
+		if existing := &edges[i]; existing.Kind == kind && existing.Caller == caller && existing.Witness.Site == site {
 			ordinal++
 		}
 	}

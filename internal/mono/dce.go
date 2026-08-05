@@ -115,10 +115,6 @@ func (b *monoBuilder) dceRoots() ([]symbols.SymbolID, error) {
 	return roots, nil
 }
 
-func collectCallSyms(b *hir.Block) []symbols.SymbolID {
-	return collectCallSymsFrom(nil, b)
-}
-
 func collectFuncCallSyms(fn *hir.Func) []symbols.SymbolID {
 	if fn == nil {
 		return nil

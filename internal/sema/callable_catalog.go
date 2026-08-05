@@ -71,11 +71,15 @@ func canonicalDeferredUseID(sourceKey string, kind DeferredCallableKind, site so
 	return DeferredUseID(fmt.Sprintf("%s/%d:%d/%d/%d", sourceKey, site.Start, site.End, kind, ordinal))
 }
 
-func cloneDeferredCallableRequirement(req DeferredCallableRequirement) DeferredCallableRequirement {
-	req.Contracts = slices.Clone(req.Contracts)
-	req.Params = slices.Clone(req.Params)
-	req.Attrs = slices.Clone(req.Attrs)
-	return req
+func cloneDeferredCallableRequirement(req *DeferredCallableRequirement) DeferredCallableRequirement {
+	if req == nil {
+		return DeferredCallableRequirement{}
+	}
+	cloned := *req
+	cloned.Contracts = slices.Clone(req.Contracts)
+	cloned.Params = slices.Clone(req.Params)
+	cloned.Attrs = slices.Clone(req.Attrs)
+	return cloned
 }
 
 func cloneCallableCandidate(candidate *CallableCandidate) CallableCandidate {

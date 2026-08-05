@@ -219,7 +219,7 @@ func (tc *typeChecker) boundMethodRequirement(id types.TypeID, name string, args
 						found = true
 						continue
 					}
-					if !deferredRequirementShapesEqual(selected, candidate) {
+					if !deferredRequirementShapesEqual(&selected, &candidate) {
 						return types.NoTypeID, DeferredCallableRequirement{}, false
 					}
 					selected.Contracts = append(selected.Contracts, candidate.Contracts...)
@@ -235,11 +235,11 @@ func (tc *typeChecker) boundMethodRequirement(id types.TypeID, name string, args
 	return selected.Result, selected, true
 }
 
-func deferredRequirementsEqual(left, right DeferredCallableRequirement) bool {
+func deferredRequirementsEqual(left, right *DeferredCallableRequirement) bool {
 	return slices.Equal(left.Contracts, right.Contracts) && deferredRequirementShapesEqual(left, right)
 }
 
-func deferredRequirementShapesEqual(left, right DeferredCallableRequirement) bool {
+func deferredRequirementShapesEqual(left, right *DeferredCallableRequirement) bool {
 	return left.Name == right.Name && slices.Equal(left.Params, right.Params) && left.Result == right.Result &&
 		slices.Equal(left.Attrs, right.Attrs) && left.Public == right.Public && left.Async == right.Async
 }

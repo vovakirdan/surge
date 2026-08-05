@@ -158,13 +158,13 @@ func (b *surgeStartBuilder) emitTagPayload(dst, val LocalID, tag string, index i
 	})
 }
 
-func (b *surgeStartBuilder) emitExitWithMessage(msg string, code uint64) {
+// entrypointFailureExitCode is the status the generated entry reports for
+// every startup failure it can diagnose.
+const entrypointFailureExitCode = 1
+
+func (b *surgeStartBuilder) emitExitWithMessage(msg string) {
 	errType := b.errorType()
 	if errType == types.NoTypeID {
-		codeInt, err := safecast.Conv[int64](code)
-		if err != nil {
-			codeInt = 1
-		}
 		codeLocal := b.newLocal("exit_code", b.intType(), LocalFlagCopy)
 		b.emitAssign(codeLocal, &RValue{
 			Kind: RValueUse,
@@ -174,7 +174,7 @@ func (b *surgeStartBuilder) emitExitWithMessage(msg string, code uint64) {
 				Const: Const{
 					Kind:     ConstInt,
 					Type:     b.intType(),
-					IntValue: codeInt,
+					IntValue: entrypointFailureExitCode,
 				},
 			},
 		})
@@ -198,7 +198,7 @@ func (b *surgeStartBuilder) emitExitWithMessage(msg string, code uint64) {
 					Value: Operand{Kind: OperandConst, Type: b.uintType(), Const: Const{
 						Kind:      ConstUint,
 						Type:      b.uintType(),
-						UintValue: code,
+						UintValue: entrypointFailureExitCode,
 					}},
 				},
 			},

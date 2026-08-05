@@ -121,7 +121,7 @@ func (s *cloneCanonicalSelector) selectUncached(receiver types.TypeID) cloneSele
 	declared := 0
 	for i := range s.candidates {
 		candidate := &s.candidates[i]
-		args, specificity, ok := matchDeferredCandidate(request, candidate, s.types)
+		args, specificity, ok := matchDeferredCandidate(&request, candidate, s.types)
 		if !ok {
 			if cloneCandidateClaimsReceiver(candidate, receiver, s.types) {
 				declared++

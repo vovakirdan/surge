@@ -29,7 +29,7 @@ func (b *reachableClosureBuilder) addRoot(root *InstantiationRoot) error {
 		Kind: root.Kind, TemplateArgs: slices.Clone(root.TemplateArgs), Site: root.Witness.Site,
 		SourceKey: witness.SourceKey, Reason: root.Witness.Reason,
 	})
-	return b.addInstance(InstantiationInstance{
+	return b.addInstance(&InstantiationInstance{
 		Key: key, Template: root.Template, Kind: root.Kind, TemplateArgs: slices.Clone(root.TemplateArgs), Witness: witness,
 	})
 }
@@ -59,7 +59,7 @@ func (b *reachableClosureBuilder) expandEdge(current *InstantiationInstance, edg
 		Callee: key, CalleeTemplate: edge.Callee, Kind: edge.Kind, TemplateArgs: slices.Clone(args),
 		Site: edge.Witness.Site, SourceKey: edge.Witness.SourceKey, Reason: edge.Witness.Reason,
 	})
-	return b.addInstance(InstantiationInstance{
+	return b.addInstance(&InstantiationInstance{
 		Key: key, Template: edge.Callee, Kind: edge.Kind, TemplateArgs: args, Witness: witness, Depth: current.Depth + 1,
 	})
 }
@@ -88,7 +88,7 @@ func (b *reachableClosureBuilder) resolveDeferred(current *InstantiationInstance
 	if err != nil {
 		return fmt.Errorf("deferred callable %s result: %w", edge.UseID, err)
 	}
-	requirement := cloneDeferredCallableRequirement(edge.Requirement)
+	requirement := cloneDeferredCallableRequirement(&edge.Requirement)
 	requirement.Params, err = substituteConcreteTypes(subst, requirement.Params, b.identity.Types.Types)
 	if err != nil {
 		return fmt.Errorf("deferred callable %s contract parameters: %w", edge.UseID, err)
@@ -104,7 +104,7 @@ func (b *reachableClosureBuilder) resolveDeferred(current *InstantiationInstance
 		ExpectedResult: result, StaticReceiver: edge.StaticReceiver, AccessModule: edge.AccessModule,
 		SourceKey: edge.Witness.SourceKey, Site: edge.Witness.Site, Requirement: requirement,
 	}
-	resolution, err := resolveDeferredCallable(edge.UseID, request, b.candidates, b.identity.Types.Types, b.clones)
+	resolution, err := resolveDeferredCallable(edge.UseID, &request, b.candidates, b.identity.Types.Types, b.clones)
 	if err != nil {
 		return err
 	}
@@ -145,15 +145,15 @@ func (b *reachableClosureBuilder) resolveDeferred(current *InstantiationInstance
 		TemplateArgs: slices.Clone(resolution.TemplateArgs), Site: edge.Witness.Site,
 		SourceKey: edge.Witness.SourceKey, Reason: edge.Witness.Reason,
 	})
-	return b.addInstance(InstantiationInstance{
+	return b.addInstance(&InstantiationInstance{
 		Key: key, Template: resolution.Callee, Kind: InstantiationFunction,
 		TemplateArgs: slices.Clone(resolution.TemplateArgs), Witness: witness, Depth: current.Depth + 1,
 	})
 }
 
-func (b *reachableClosureBuilder) addInstance(instance InstantiationInstance) error {
+func (b *reachableClosureBuilder) addInstance(instance *InstantiationInstance) error {
 	if _, exists := b.discovered[instance.Key]; exists {
-		b.preferInstanceWitness(&instance)
+		b.preferInstanceWitness(instance)
 		return nil
 	}
 	if instance.Depth > b.limits.maxDepth {
@@ -163,7 +163,7 @@ func (b *reachableClosureBuilder) addInstance(instance InstantiationInstance) er
 		return &InstantiationBudgetError{Limit: b.limits.maxInstances, Instance: instance.Key, Witness: instance.Witness}
 	}
 	b.discovered[instance.Key] = struct{}{}
-	b.pending = append(b.pending, instance)
+	b.pending = append(b.pending, *instance)
 	return nil
 }
 

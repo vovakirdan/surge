@@ -63,7 +63,8 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 			return nil
 		}
 		var deferred *sema.ResolvedDeferredCall
-		if data.DeferredUseID != "" && b.closure != nil {
+		switch {
+		case data.DeferredUseID != "" && b.closure != nil:
 			resolved, ok, err := b.resolvedDeferredCall(callerSym, callerArgs, data.DeferredUseID)
 			if err != nil {
 				return err
@@ -80,10 +81,10 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 				// materializable generic callable in the authoritative closure.
 				return nil
 			}
-		} else if b.closure == nil {
+		case b.closure == nil:
 			// Compatibility for low-level embedders without the sema authority.
 			b.rewriteBoundMethodCall(call, data)
-		} else if unresolvedBoundMethodCall(data) {
+		case unresolvedBoundMethodCall(data):
 			return fmt.Errorf("mono: unresolved bound method at %s has no DeferredUseID", call.Span)
 		}
 		kind := InstFn

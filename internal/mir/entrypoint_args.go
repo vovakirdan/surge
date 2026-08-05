@@ -19,12 +19,12 @@ func (b *surgeStartBuilder) prepareArgsNone() []Operand {
 		argLocal := b.newLocal(param.Name, param.Type, b.localFlags(param.Type))
 		b.registerParamLocal(param, argLocal)
 		if !param.HasDefault || param.Default == nil {
-			b.emitExitWithMessage(fmt.Sprintf("missing default for parameter %q", param.Name), 1)
+			b.emitExitWithMessage(fmt.Sprintf("missing default for parameter %q", param.Name))
 			break
 		}
 		op, err := b.lowerDefaultExpr(param.Default, param.Type)
 		if err != nil {
-			b.emitExitWithMessage(fmt.Sprintf("failed to lower default for parameter %q", param.Name), 1)
+			b.emitExitWithMessage(fmt.Sprintf("failed to lower default for parameter %q", param.Name))
 			break
 		}
 		b.emitAssign(argLocal, &RValue{Kind: RValueUse, Use: op})
@@ -56,7 +56,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 	for i, param := range params {
 		argIdx, err := safecast.Conv[uint64](i)
 		if err != nil {
-			b.emitExitWithMessage("argv index overflow", 1)
+			b.emitExitWithMessage("argv index overflow")
 			break
 		}
 
@@ -65,7 +65,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 
 		erringType := b.erringType(param.Type)
 		if erringType == types.NoTypeID {
-			b.emitExitWithMessage("missing Erring type for entrypoint parsing", 1)
+			b.emitExitWithMessage("missing Erring type for entrypoint parsing")
 			break
 		}
 
@@ -103,7 +103,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		argStrLocal := b.newLocal(fmt.Sprintf("arg_str%d", i), b.stringType(), LocalFlags(0))
 		b.emitIndex(argStrLocal, argvLocal, i)
 		parseLocal := b.newLocal(fmt.Sprintf("arg_parsed%d", i), erringType, LocalFlags(0))
-		b.emitFromArgvCall(parseLocal, argStrLocal, uint32(i)) //nolint:gosec -- parameter count is bounded by the AST
+		b.emitFromArgvCall(parseLocal, argStrLocal, uint32(i)) //nolint:gosec // parameter count is bounded by the AST
 
 		okLocal := b.newLocal(fmt.Sprintf("arg_ok%d", i), b.boolType(), LocalFlagCopy)
 		b.emitTagTest(okLocal, parseLocal, "Success")
@@ -132,12 +132,12 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		if param.HasDefault && param.Default != nil {
 			op, err := b.lowerDefaultExpr(param.Default, param.Type)
 			if err != nil {
-				b.emitExitWithMessage(fmt.Sprintf("failed to lower default for parameter %q", param.Name), 1)
+				b.emitExitWithMessage(fmt.Sprintf("failed to lower default for parameter %q", param.Name))
 			} else {
 				b.emitAssign(argLocal, &RValue{Kind: RValueUse, Use: op})
 			}
 		} else {
-			b.emitExitWithMessage(fmt.Sprintf("missing argv argument %q", param.Name), 1)
+			b.emitExitWithMessage(fmt.Sprintf("missing argv argument %q", param.Name))
 		}
 		if !b.curBlock().Terminated() {
 			b.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: nextBB}})
@@ -163,7 +163,7 @@ func (b *surgeStartBuilder) prepareArgsStdin() []Operand {
 
 	erringType := b.erringType(param.Type)
 	if erringType == types.NoTypeID {
-		b.emitExitWithMessage("missing Erring type for entrypoint parsing", 1)
+		b.emitExitWithMessage("missing Erring type for entrypoint parsing")
 		return nil
 	}
 

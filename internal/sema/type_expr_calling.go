@@ -108,7 +108,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 					receiverIsType,
 					span,
 					id,
-					requirement,
+					&requirement,
 				)
 			}
 			tc.recordMethodCallInstantiation(symID, receiverType, explicitArgs, span)

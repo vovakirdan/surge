@@ -142,8 +142,9 @@ type Choice = Used(int) | Unused(int);
 	}
 	if result == nil || result.Bag == nil || result.Bag.HasErrors() || result.Sema == nil || result.Sema.InstantiationClosure == nil {
 		if result != nil && result.Bag != nil {
-			var details []string
-			for _, item := range result.Bag.Items() {
+			items := result.Bag.Items()
+			details := make([]string, 0, len(items))
+			for _, item := range items {
 				details = append(details, fmt.Sprintf("%s: %s", item.Code.ID(), item.Message))
 			}
 			t.Fatalf("tag reachability diagnostics: %v", details)

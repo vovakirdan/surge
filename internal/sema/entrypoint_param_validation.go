@@ -24,7 +24,7 @@ func (tc *typeChecker) validateEntrypointArgvParams(
 		if param == nil {
 			continue
 		}
-		tc.recordEntrypointParamRequest(entrypoint, uint32(i), param, scope, EntrypointParamFromArgv) //nolint:gosec -- AST parameter count is bounded
+		tc.recordEntrypointParamRequest(entrypoint, uint32(i), param, scope, EntrypointParamFromArgv) //nolint:gosec // AST parameter count is bounded
 	}
 }
 
@@ -81,7 +81,7 @@ func (tc *typeChecker) recordEntrypointParamRequest(
 		method = "from_stdin"
 		args[0] = tc.types.Builtins().String
 	}
-	tc.recordEntrypointCallableRequest(EntrypointCallableRequest{
+	tc.recordEntrypointCallableRequest(&EntrypointCallableRequest{
 		Entrypoint:     entrypoint,
 		Role:           role,
 		ParamIndex:     index,

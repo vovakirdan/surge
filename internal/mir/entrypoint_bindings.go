@@ -56,8 +56,8 @@ func (b *surgeStartBuilder) loadEntrypointCallables() error {
 				if b.returnToInt != nil && !entrypointCallableTargetsEqual(*b.returnToInt, target) {
 					return fmt.Errorf("entrypoint startup: conflicting __to bindings")
 				}
-				copy := target
-				b.returnToInt = &copy
+				returnTarget := target
+				b.returnToInt = &returnTarget
 			case sema.EntrypointParamFromArgv:
 				if previous, ok := b.fromArgv[binding.ParamIndex]; ok && !entrypointCallableTargetsEqual(previous, target) {
 					return fmt.Errorf("entrypoint startup: conflicting from_str bindings for parameter %d", binding.ParamIndex)
@@ -84,7 +84,7 @@ func (b *surgeStartBuilder) loadEntrypointCallables() error {
 	}
 	if b.mode == symbols.EntrypointModeArgv {
 		for i, param := range b.entryMF.Func.Params {
-			index := uint32(i) //nolint:gosec -- a function parameter slice cannot approach uint32 capacity
+			index := uint32(i) //nolint:gosec // a function parameter slice cannot approach uint32 capacity
 			if _, ok := b.fromArgv[index]; !ok {
 				return fmt.Errorf("entrypoint startup: parameter %q has no sema-resolved from_str binding", param.Name)
 			}

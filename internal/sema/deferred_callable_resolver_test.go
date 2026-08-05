@@ -22,8 +22,8 @@ func TestDeferredCallableResolverIsDeterministicUnderCandidateOrder(t *testing.T
 	left := deferredResolverMethod(10, "app|a.sg:1:2|Pick", "Pick", receiver, in.Builtins().Int)
 	right := deferredResolverMethod(20, "app|b.sg:1:2|Pick", "Pick", receiver, in.Builtins().Int)
 
-	_, forwardErr := resolveDeferredCallable("use", request, []CallableCandidate{left, right}, in, nil)
-	_, reverseErr := resolveDeferredCallable("use", request, []CallableCandidate{right, left}, in, nil)
+	_, forwardErr := resolveDeferredCallable("use", &request, []CallableCandidate{left, right}, in, nil)
+	_, reverseErr := resolveDeferredCallable("use", &request, []CallableCandidate{right, left}, in, nil)
 	if forwardErr == nil || reverseErr == nil || forwardErr.Error() != reverseErr.Error() {
 		t.Fatalf("candidate order changed ambiguity:\nforward=%v\nreverse=%v", forwardErr, reverseErr)
 	}
@@ -44,8 +44,8 @@ func TestDeferredCallableResolverRejectsConflictingCanonicalBodyRecords(t *testi
 	right.Symbol = 20
 	right.SourceKey = "other.sg"
 
-	_, forwardErr := resolveDeferredCallable("use", request, []CallableCandidate{left, right}, in, nil)
-	_, reverseErr := resolveDeferredCallable("use", request, []CallableCandidate{right, left}, in, nil)
+	_, forwardErr := resolveDeferredCallable("use", &request, []CallableCandidate{left, right}, in, nil)
+	_, reverseErr := resolveDeferredCallable("use", &request, []CallableCandidate{right, left}, in, nil)
 	if forwardErr == nil || reverseErr == nil || forwardErr.Error() != reverseErr.Error() {
 		t.Fatalf("conflicting aliases were order-dependent:\nforward=%v\nreverse=%v", forwardErr, reverseErr)
 	}
@@ -64,7 +64,7 @@ func TestDeferredCallableResolverKeepsSameBasenameNominalsDistinct(t *testing.T)
 	left.ModulePath, left.SourceKey = "left", "left/shared.sg"
 	right.ModulePath, right.SourceKey = "right", "right/shared.sg"
 
-	resolution, err := resolveDeferredCallable("use", DeferredCallableRequest{
+	resolution, err := resolveDeferredCallable("use", &DeferredCallableRequest{
 		Kind: DeferredMethodCall, Receiver: rightType, Method: "Pick",
 		ExpectedResult: in.Builtins().Int, AccessModule: "right", SourceKey: "right/shared.sg",
 	}, []CallableCandidate{left, right}, in, nil)
@@ -88,7 +88,7 @@ func TestDeferredCallableResolverInstantiatesGenericSignature(t *testing.T) {
 	candidate.TemplateParams = []types.TypeID{param}
 	candidate.TypeParams = []string{"U"}
 
-	resolution, err := resolveDeferredCallable("use", DeferredCallableRequest{
+	resolution, err := resolveDeferredCallable("use", &DeferredCallableRequest{
 		Kind: DeferredMethodCall, Receiver: receiver, Method: "Echo",
 		Args: []types.TypeID{in.Builtins().Int}, ExpectedResult: in.Builtins().Int,
 		AccessModule: "app", SourceKey: "main.sg",
@@ -111,7 +111,7 @@ func TestDeferredCallableResolverRejectsInvalidCloneShape(t *testing.T) {
 		Kind: DeferredCloneCall, Receiver: receiver, Method: "__clone",
 		ExpectedResult: receiver, AccessModule: "app", SourceKey: "main.sg",
 	}
-	if _, err := resolveDeferredCallable("use", request, []CallableCandidate{invalid}, in, nil); err == nil ||
+	if _, err := resolveDeferredCallable("use", &request, []CallableCandidate{invalid}, in, nil); err == nil ||
 		!strings.Contains(err.Error(), "has __clone but with invalid signature") {
 		t.Fatalf("by-value __clone shape error = %v", err)
 	}
@@ -120,7 +120,7 @@ func TestDeferredCallableResolverRejectsInvalidCloneShape(t *testing.T) {
 	valid.Symbol = 11
 	valid.BodyKey = "app|main.sg:3:4|__clone"
 	valid.ParamTypes = []types.TypeID{in.Intern(types.MakeReference(receiver, false))}
-	resolution, err := resolveDeferredCallable("use", request, []CallableCandidate{valid}, in, nil)
+	resolution, err := resolveDeferredCallable("use", &request, []CallableCandidate{valid}, in, nil)
 	if err != nil || resolution.Callee != valid.Symbol {
 		t.Fatalf("valid __clone resolution = %+v, err=%v", resolution, err)
 	}
@@ -138,7 +138,7 @@ func TestDeferredClonePrivateCanonicalHookIsNotVisibleCrossModule(t *testing.T) 
 		Kind: DeferredCloneCall, Receiver: receiver, Method: "__clone", ExpectedResult: receiver,
 		AccessModule: "consumer", SourceKey: "consumer/main.sg",
 	}
-	_, err := resolveDeferredCallable("use", request, []CallableCandidate{candidate}, in, nil)
+	_, err := resolveDeferredCallable("use", &request, []CallableCandidate{candidate}, in, nil)
 	if err == nil || !strings.Contains(err.Error(), "is not visible from module \"consumer\"") {
 		t.Fatalf("private canonical clone hook was reachable across modules: %v", err)
 	}
@@ -151,13 +151,13 @@ func TestDeferredClonePrivateCanonicalHookIsNotVisibleCrossModule(t *testing.T) 
 	sameModule := request
 	sameModule.AccessModule = "model"
 	sameModule.SourceKey = "model/other.sg"
-	resolution, err := resolveDeferredCallable("use", sameModule, []CallableCandidate{candidate}, in, nil)
+	resolution, err := resolveDeferredCallable("use", &sameModule, []CallableCandidate{candidate}, in, nil)
 	if err != nil || resolution.Callee != candidate.Symbol {
 		t.Fatalf("module-private clone hook rejected inside its own module: resolution=%+v err=%v", resolution, err)
 	}
 
 	request.Kind = DeferredMethodCall
-	if _, err := resolveDeferredCallable("ordinary", request, []CallableCandidate{candidate}, in, nil); err == nil || !strings.Contains(err.Error(), "not accessible") {
+	if _, err := resolveDeferredCallable("ordinary", &request, []CallableCandidate{candidate}, in, nil); err == nil || !strings.Contains(err.Error(), "not accessible") {
 		t.Fatalf("ordinary private method call bypassed visibility: %v", err)
 	}
 }
@@ -180,7 +180,7 @@ func TestDeferredCallableResolverBindsConstGenericReceiverValue(t *testing.T) {
 	candidate.ReceiverTemplateArity = 2
 	candidate.ParamTypes = []types.TypeID{in.Intern(types.MakeReference(pattern, false))}
 
-	resolution, err := resolveDeferredCallable("use", DeferredCallableRequest{
+	resolution, err := resolveDeferredCallable("use", &DeferredCallableRequest{
 		Kind: DeferredMethodCall, Receiver: actual, Method: "__len", ExpectedResult: in.Builtins().Uint,
 		AccessModule: "core", SourceKey: "main.sg",
 	}, []CallableCandidate{candidate}, in, nil)
@@ -202,7 +202,7 @@ func TestDeferredCallableResolverSeparatesStaticAndInstanceForms(t *testing.T) {
 	static.HasSelf = false
 	static.ParamTypes = nil
 
-	resolution, err := resolveDeferredCallable("use", DeferredCallableRequest{
+	resolution, err := resolveDeferredCallable("use", &DeferredCallableRequest{
 		Kind: DeferredMethodCall, Receiver: receiver, Method: "Build", StaticReceiver: true,
 		ExpectedResult: in.Builtins().Int, AccessModule: "app", SourceKey: "main.sg",
 	}, []CallableCandidate{instance, static}, in, nil)
@@ -210,7 +210,7 @@ func TestDeferredCallableResolverSeparatesStaticAndInstanceForms(t *testing.T) {
 		t.Fatalf("static resolution = %+v, err=%v", resolution, err)
 	}
 
-	resolution, err = resolveDeferredCallable("use", DeferredCallableRequest{
+	resolution, err = resolveDeferredCallable("use", &DeferredCallableRequest{
 		Kind: DeferredMethodCall, Receiver: receiver, Method: "Build",
 		ExpectedResult: in.Builtins().Int, AccessModule: "app", SourceKey: "main.sg",
 	}, []CallableCandidate{static, instance}, in, nil)
@@ -234,7 +234,7 @@ func TestDeferredCallableResolverBindsExplicitMethodArgsAfterReceiverArgs(t *tes
 	candidate.ReceiverTemplateArity = 1
 	candidate.TypeParams = []string{"T", "U"}
 
-	resolution, err := resolveDeferredCallable("use", DeferredCallableRequest{
+	resolution, err := resolveDeferredCallable("use", &DeferredCallableRequest{
 		Kind: DeferredMethodCall, Receiver: receiverConcrete, Method: "Echo",
 		Args: []types.TypeID{in.Builtins().String}, ExplicitTypeArgs: []types.TypeID{in.Builtins().String},
 		ExpectedResult: in.Builtins().String, AccessModule: "app", SourceKey: "main.sg",
@@ -263,7 +263,7 @@ func TestDeferredCallableResolverUsesExactContractABI(t *testing.T) {
 	borrowedDecoy.ReceiverType = refReceiver
 	borrowedDecoy.ParamTypes = []types.TypeID{refReceiver, refInt}
 
-	resolution, err := resolveDeferredCallable("use", DeferredCallableRequest{
+	resolution, err := resolveDeferredCallable("use", &DeferredCallableRequest{
 		Kind: DeferredMethodCall, Receiver: receiver, Method: "Pick",
 		Args: []types.TypeID{in.Builtins().Int}, ExpectedResult: in.Builtins().Int,
 		AccessModule: "app", SourceKey: "main.sg",
@@ -293,7 +293,7 @@ func TestDeferredCallableResolverTreatsVisibilityAndAttrsAsMinimumRequirements(t
 			Name: "Pick", Result: in.Builtins().Int, Attrs: []string{"cold"},
 		},
 	}
-	resolution, err := resolveDeferredCallable("use", request, []CallableCandidate{candidate}, in, nil)
+	resolution, err := resolveDeferredCallable("use", &request, []CallableCandidate{candidate}, in, nil)
 	if err != nil || resolution.Callee != candidate.Symbol {
 		t.Fatalf("more-visible intrinsic implementation should satisfy minimum contract requirements: resolution=%+v err=%v", resolution, err)
 	}
@@ -301,12 +301,12 @@ func TestDeferredCallableResolverTreatsVisibilityAndAttrsAsMinimumRequirements(t
 	request.Requirement.Public = true
 	private := candidate
 	private.Public = false
-	if _, err := resolveDeferredCallable("use", request, []CallableCandidate{private}, in, nil); err == nil {
+	if _, err := resolveDeferredCallable("use", &request, []CallableCandidate{private}, in, nil); err == nil {
 		t.Fatalf("private implementation satisfied public contract member")
 	}
 	missingAttr := candidate
 	missingAttr.Attrs = []string{"intrinsic"}
-	if _, err := resolveDeferredCallable("use", request, []CallableCandidate{missingAttr}, in, nil); err == nil {
+	if _, err := resolveDeferredCallable("use", &request, []CallableCandidate{missingAttr}, in, nil); err == nil {
 		t.Fatalf("implementation missing required contract attribute was accepted")
 	}
 }
@@ -326,7 +326,7 @@ func TestDeferredCallableResolverPrefersAliasOverride(t *testing.T) {
 	}
 
 	for _, candidates := range [][]CallableCandidate{{baseMethod, aliasMethod}, {aliasMethod, baseMethod}} {
-		resolution, err := resolveDeferredCallable("use", request, candidates, in, nil)
+		resolution, err := resolveDeferredCallable("use", &request, candidates, in, nil)
 		if err != nil {
 			t.Fatalf("resolve alias override: %v", err)
 		}
@@ -336,7 +336,7 @@ func TestDeferredCallableResolverPrefersAliasOverride(t *testing.T) {
 	}
 
 	request.Receiver = base
-	resolution, err := resolveDeferredCallable("use", request, []CallableCandidate{aliasMethod, baseMethod}, in, nil)
+	resolution, err := resolveDeferredCallable("use", &request, []CallableCandidate{aliasMethod, baseMethod}, in, nil)
 	if err != nil || resolution.Callee != baseMethod.Symbol {
 		t.Fatalf("base receiver selected %+v, err=%v", resolution, err)
 	}
@@ -356,12 +356,12 @@ func TestDeferredCallableResolverUsesStructBaseFallbackAndOverride(t *testing.T)
 		ExpectedResult: in.Builtins().Int, AccessModule: "app", SourceKey: "main.sg",
 	}
 
-	resolution, err := resolveDeferredCallable("use", request, []CallableCandidate{baseMethod}, in, nil)
+	resolution, err := resolveDeferredCallable("use", &request, []CallableCandidate{baseMethod}, in, nil)
 	if err != nil || resolution.Callee != baseMethod.Symbol {
 		t.Fatalf("base fallback selected %+v, err=%v", resolution, err)
 	}
 	for _, candidates := range [][]CallableCandidate{{baseMethod, derivedMethod}, {derivedMethod, baseMethod}} {
-		resolution, err = resolveDeferredCallable("use", request, candidates, in, nil)
+		resolution, err = resolveDeferredCallable("use", &request, candidates, in, nil)
 		if err != nil {
 			t.Fatalf("resolve derived override: %v", err)
 		}
@@ -381,7 +381,7 @@ func TestDeferredCallableResolverDoesNotBypassInaccessibleExactOverride(t *testi
 	privateOverride.FilePrivate = true
 	privateOverride.SourceKey = "private.sg"
 
-	_, err := resolveDeferredCallable("use", DeferredCallableRequest{
+	_, err := resolveDeferredCallable("use", &DeferredCallableRequest{
 		Kind: DeferredMethodCall, Receiver: derived, Method: "Pick",
 		ExpectedResult: in.Builtins().Int, AccessModule: "app", SourceKey: "main.sg",
 	}, []CallableCandidate{baseMethod, privateOverride}, in, nil)
@@ -399,12 +399,12 @@ func TestDeferredCallableResolverUsesNumericFamilyAndExactOverride(t *testing.T)
 		ExpectedResult: in.Builtins().Int, AccessModule: "app", SourceKey: "main.sg",
 	}
 
-	resolution, err := resolveDeferredCallable("use", request, []CallableCandidate{family}, in, nil)
+	resolution, err := resolveDeferredCallable("use", &request, []CallableCandidate{family}, in, nil)
 	if err != nil || resolution.Callee != family.Symbol {
 		t.Fatalf("numeric family fallback selected %+v, err=%v", resolution, err)
 	}
 	for _, candidates := range [][]CallableCandidate{{family, exact}, {exact, family}} {
-		resolution, err = resolveDeferredCallable("use", request, candidates, in, nil)
+		resolution, err = resolveDeferredCallable("use", &request, candidates, in, nil)
 		if err != nil || resolution.Callee != exact.Symbol {
 			t.Fatalf("numeric exact override selected %+v, err=%v", resolution, err)
 		}
@@ -425,7 +425,7 @@ func TestDeferredCallableResolverMatchesNormalAliasAndBaseDepth(t *testing.T) {
 		ExpectedResult: in.Builtins().Int, AccessModule: "app", SourceKey: "main.sg",
 	}
 
-	resolution, err := resolveDeferredCallable("use", request, []CallableCandidate{middleMethod, baseMethod}, in, nil)
+	resolution, err := resolveDeferredCallable("use", &request, []CallableCandidate{middleMethod, baseMethod}, in, nil)
 	if err != nil || resolution.Callee != baseMethod.Symbol {
 		t.Fatalf("terminal alias fallback selected %+v, err=%v", resolution, err)
 	}
@@ -435,7 +435,7 @@ func TestDeferredCallableResolverMatchesNormalAliasAndBaseDepth(t *testing.T) {
 	in.SetStructBase(middle, base)
 	in.SetStructBase(leaf, middle)
 	request.Receiver = leaf
-	if _, err = resolveDeferredCallable("use", request, []CallableCandidate{baseMethod}, in, nil); err == nil || !strings.Contains(err.Error(), "no exact implementation") {
+	if _, err = resolveDeferredCallable("use", &request, []CallableCandidate{baseMethod}, in, nil); err == nil || !strings.Contains(err.Error(), "no exact implementation") {
 		t.Fatalf("transitive base fallback drift error = %v", err)
 	}
 }

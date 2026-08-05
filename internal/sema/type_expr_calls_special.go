@@ -272,7 +272,7 @@ func (tc *typeChecker) handleCloneCall(callID ast.ExprID, args []callArg, span s
 	if tc.types != nil {
 		if tt, ok := tc.types.Lookup(tc.resolveAlias(innerType)); ok && tt.Kind == types.KindGenericParam {
 			// Defer clone validation for generic parameters to monomorphization.
-			tc.rememberDeferredCallable(DeferredCloneCall, innerType, "__clone", nil, nil, innerType, false, span, callID, DeferredCallableRequirement{})
+			tc.rememberDeferredCallable(DeferredCloneCall, innerType, "__clone", nil, nil, innerType, false, span, callID, &DeferredCallableRequirement{})
 			return innerType
 		}
 	}
