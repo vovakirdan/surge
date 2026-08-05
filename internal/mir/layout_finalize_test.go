@@ -219,7 +219,6 @@ func TestLayoutRootWalkerCoversEveryNodeKind(t *testing.T) {
 	collector := &layoutRootCollector{
 		types:         typesIn,
 		builder:       layout.New(layout.X86_64LinuxGNU(), typesIn),
-		exactSeen:     make(map[types.TypeID]struct{}),
 		canonicalSeen: make(map[types.TypeID]struct{}),
 	}
 	for kind := InstrKind(0); kind < instrKindCount; kind++ {

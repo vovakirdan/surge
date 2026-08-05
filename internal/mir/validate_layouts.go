@@ -21,11 +21,11 @@ func validateFinalizedLayouts(m *Module, typesIn *types.Interner) error {
 	if !ok {
 		return fmt.Errorf("mir: missing finalized layout target")
 	}
-	roots, err := collectLayoutRoots(m, typesIn, layout.New(target, typesIn))
+	census, err := collectOperationRoots(m, typesIn, layout.New(target, typesIn))
 	if err != nil {
 		return err
 	}
-	for _, id := range roots {
+	for _, id := range census.Values() {
 		physical, ok := m.Meta.Layouts.Lookup(id)
 		if !ok {
 			return fmt.Errorf("mir: finalized layout registry missing type#%d", id)

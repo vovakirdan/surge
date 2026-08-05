@@ -30,13 +30,13 @@ func (c *layoutRootCollector) walkInstr(instr *Instr) error { //nolint:gocyclo
 	case InstrSpawn:
 		return c.walkOperand(&instr.Spawn.Value)
 	case InstrCrossing:
-		if err := c.addType(instr.Crossing.Destination.Type); err != nil {
+		if err := c.addType(instr.Crossing.Destination.Type, RootValue); err != nil {
 			return err
 		}
 		if err := c.walkOperand(&instr.Crossing.Destination.Value); err != nil {
 			return err
 		}
-		if err := c.addType(instr.Crossing.State.TypeID); err != nil {
+		if err := c.addType(instr.Crossing.State.TypeID, RootValue); err != nil {
 			return err
 		}
 		for i := range instr.Crossing.State.Fields {
@@ -46,7 +46,7 @@ func (c *layoutRootCollector) walkInstr(instr *Instr) error { //nolint:gocyclo
 		}
 		for i := range instr.Crossing.Captures {
 			capture := &instr.Crossing.Captures[i]
-			if err := c.addType(capture.Type); err != nil {
+			if err := c.addType(capture.Type, RootValue); err != nil {
 				return err
 			}
 			if err := c.walkOperand(&capture.Value); err != nil {
@@ -55,7 +55,7 @@ func (c *layoutRootCollector) walkInstr(instr *Instr) error { //nolint:gocyclo
 		}
 		for i := range instr.Crossing.RemoteOps {
 			op := &instr.Crossing.RemoteOps[i]
-			if err := c.addType(op.ReceiverType); err != nil {
+			if err := c.addType(op.ReceiverType, RootValue); err != nil {
 				return err
 			}
 			if err := c.walkOperand(&op.Receiver); err != nil {
@@ -65,21 +65,21 @@ func (c *layoutRootCollector) walkInstr(instr *Instr) error { //nolint:gocyclo
 				return err
 			}
 		}
-		if err := c.addType(instr.Crossing.ReceiverType); err != nil {
+		if err := c.addType(instr.Crossing.ReceiverType, RootValue); err != nil {
 			return err
 		}
 		if err := c.walkOperand(&instr.Crossing.Receiver); err != nil {
 			return err
 		}
-		if err := c.addType(instr.Crossing.PayloadType); err != nil {
+		if err := c.addType(instr.Crossing.PayloadType, RootValue); err != nil {
 			return err
 		}
-		if err := c.addType(instr.Crossing.ResultType); err != nil {
+		if err := c.addType(instr.Crossing.ResultType, RootValue); err != nil {
 			return err
 		}
-		return c.addType(instr.Crossing.HandleType)
+		return c.addType(instr.Crossing.HandleType, RootValue)
 	case InstrBlocking:
-		if err := c.addType(instr.Blocking.State.TypeID); err != nil {
+		if err := c.addType(instr.Blocking.State.TypeID, RootValue); err != nil {
 			return err
 		}
 		for i := range instr.Blocking.State.Fields {
@@ -134,11 +134,11 @@ func (c *layoutRootCollector) walkOperand(operand *Operand) error {
 	default:
 		return fmt.Errorf("unsupported OperandKind %d", operand.Kind)
 	}
-	if err := c.addType(operand.Type); err != nil {
+	if err := c.addType(operand.Type, RootValue); err != nil {
 		return err
 	}
 	if operand.Kind == OperandConst {
-		return c.addType(operand.Const.Type)
+		return c.addType(operand.Const.Type, RootValue)
 	}
 	return nil
 }
@@ -161,9 +161,9 @@ func (c *layoutRootCollector) walkRValue(value *RValue) error { //nolint:gocyclo
 		if err := c.walkOperand(&value.Cast.Value); err != nil {
 			return err
 		}
-		return c.addType(value.Cast.TargetTy)
+		return c.addType(value.Cast.TargetTy, RootValue)
 	case RValueStructLit:
-		if err := c.addType(value.StructLit.TypeID); err != nil {
+		if err := c.addType(value.StructLit.TypeID, RootValue); err != nil {
 			return err
 		}
 		for i := range value.StructLit.Fields {
@@ -202,12 +202,12 @@ func (c *layoutRootCollector) walkRValue(value *RValue) error { //nolint:gocyclo
 		if err := c.walkOperand(&value.TypeTest.Value); err != nil {
 			return err
 		}
-		return c.addType(value.TypeTest.TargetTy)
+		return c.addType(value.TypeTest.TargetTy, RootValue)
 	case RValueHeirTest:
 		if err := c.walkOperand(&value.HeirTest.Value); err != nil {
 			return err
 		}
-		return c.addType(value.HeirTest.TargetTy)
+		return c.addType(value.HeirTest.TargetTy, RootValue)
 	default:
 		return fmt.Errorf("unsupported RValueKind %d", value.Kind)
 	}

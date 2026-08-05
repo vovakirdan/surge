@@ -9,12 +9,73 @@ import (
 	"surge/internal/types"
 )
 
+// RootRole records how an operation root was reached. Roles are bit flags so a
+// type reached through several uses carries every one of them.
+type RootRole uint8
+
+const (
+	// RootValue marks a root whose values are stored, moved or copied. Every
+	// root carries it.
+	RootValue RootRole = 1 << iota
+	// RootKey marks a root reached as a map key, which additionally needs
+	// hashing and equality.
+	RootKey
+)
+
+// RootCensus is the set of operation roots one module walk reached, in
+// discovery order, together with the roles each root was reached through.
+type RootCensus struct {
+	order []types.TypeID
+	roles map[types.TypeID]RootRole
+}
+
+// Values returns every root in discovery order.
+func (c *RootCensus) Values() []types.TypeID {
+	if c == nil {
+		return nil
+	}
+	return append([]types.TypeID(nil), c.order...)
+}
+
+// Keys returns, in discovery order, the roots that were reached as a map key.
+func (c *RootCensus) Keys() []types.TypeID {
+	if c == nil {
+		return nil
+	}
+	keys := make([]types.TypeID, 0, len(c.order))
+	for _, id := range c.order {
+		if c.roles[id]&RootKey != 0 {
+			keys = append(keys, id)
+		}
+	}
+	return keys
+}
+
+// Role returns the accumulated roles of id, or zero when id is not a root.
+func (c *RootCensus) Role(id types.TypeID) RootRole {
+	if c == nil {
+		return 0
+	}
+	return c.roles[id]
+}
+
+// record accumulates role for id, adding id to the order the first time it is
+// seen. Later sightings only widen the role, never reorder the census.
+func (c *RootCensus) record(id types.TypeID, role RootRole) {
+	if c.roles == nil {
+		c.roles = make(map[types.TypeID]RootRole, 256)
+	}
+	if _, seen := c.roles[id]; !seen {
+		c.order = append(c.order, id)
+	}
+	c.roles[id] |= role
+}
+
 type layoutRootCollector struct {
 	types         *types.Interner
 	builder       *layout.LayoutEngine
-	exactSeen     map[types.TypeID]struct{}
 	canonicalSeen map[types.TypeID]struct{}
-	roots         []types.TypeID
+	census        RootCensus
 }
 
 // FinalizeModuleMeta collects every final-MIR type root in deterministic order,
@@ -30,11 +91,11 @@ func FinalizeModuleMeta(m *Module, typesIn *types.Interner, target layout.Target
 		m.Meta = &ModuleMeta{}
 	}
 	builder := layout.New(target, typesIn)
-	roots, err := collectLayoutRoots(m, typesIn, builder)
+	census, err := collectOperationRoots(m, typesIn, builder)
 	if err != nil {
 		return err
 	}
-	registry, err := layout.FinalizeRegistry(builder, roots)
+	registry, err := layout.FinalizeRegistry(builder, census.Values())
 	if err != nil {
 		return fmt.Errorf("mir: finalize physical layouts: %w", err)
 	}
@@ -42,15 +103,14 @@ func FinalizeModuleMeta(m *Module, typesIn *types.Interner, target layout.Target
 	return nil
 }
 
-func collectLayoutRoots(m *Module, typesIn *types.Interner, builder *layout.LayoutEngine) ([]types.TypeID, error) {
+func collectOperationRoots(m *Module, typesIn *types.Interner, builder *layout.LayoutEngine) (*RootCensus, error) {
 	collector := &layoutRootCollector{
 		types:         typesIn,
 		builder:       builder,
-		exactSeen:     make(map[types.TypeID]struct{}, 256),
 		canonicalSeen: make(map[types.TypeID]struct{}, 256),
 	}
 	for i := range m.Globals {
-		if err := collector.addType(m.Globals[i].Type); err != nil {
+		if err := collector.addType(m.Globals[i].Type, RootValue); err != nil {
 			return nil, fmt.Errorf("mir: layout root global[%d]: %w", i, err)
 		}
 	}
@@ -83,19 +143,19 @@ func collectLayoutRoots(m *Module, typesIn *types.Interner, builder *layout.Layo
 		}
 		sort.Slice(tagTypes, func(i, j int) bool { return tagTypes[i] < tagTypes[j] })
 		for _, id := range tagTypes {
-			if err := collector.addType(id); err != nil {
+			if err := collector.addType(id, RootValue); err != nil {
 				return nil, fmt.Errorf("mir: layout root tag type#%d: %w", id, err)
 			}
 			for _, tagCase := range m.Meta.TagLayouts[id] {
 				for _, payload := range tagCase.PayloadTypes {
-					if err := collector.addType(payload); err != nil {
+					if err := collector.addType(payload, RootValue); err != nil {
 						return nil, fmt.Errorf("mir: layout root tag payload type#%d: %w", payload, err)
 					}
 				}
 			}
 		}
 	}
-	return append([]types.TypeID(nil), collector.roots...), nil
+	return &collector.census, nil
 }
 
 func (c *layoutRootCollector) addFunctionTypeArg(id types.TypeID) error {
@@ -113,17 +173,18 @@ func (c *layoutRootCollector) addFunctionTypeArg(id types.TypeID) error {
 	if t.Kind == types.KindConst {
 		return nil
 	}
-	return c.addType(id)
+	return c.addType(id, RootValue)
 }
 
-func (c *layoutRootCollector) addType(id types.TypeID) error {
+// addType records role for id and, the first time id's canonical form is seen,
+// walks its children. The role is recorded before the canonical guard below, so
+// a type first reached as a plain value still gains RootKey when a map later
+// reaches it as a key. Callers pass the role; they never write it themselves.
+func (c *layoutRootCollector) addType(id types.TypeID, role RootRole) error {
 	if id == types.NoTypeID {
 		return nil
 	}
-	if _, ok := c.exactSeen[id]; !ok {
-		c.exactSeen[id] = struct{}{}
-		c.roots = append(c.roots, id)
-	}
+	c.census.record(id, role)
 	canonical, err := c.builder.CanonicalType(id)
 	if err != nil {
 		return err
@@ -137,8 +198,15 @@ func (c *layoutRootCollector) addType(id types.TypeID) error {
 		return fmt.Errorf("unknown type#%d", canonical)
 	}
 	if payloads, handleBacked := c.types.RuntimeHandlePayloads(canonical); handleBacked {
-		for _, payload := range payloads {
-			if err := c.addType(payload); err != nil {
+		// A map's payloads are exactly {key, value}: payload 0 is additionally
+		// a key. Every other handle owns plain values.
+		_, _, isMap := c.types.MapInfo(canonical)
+		for i, payload := range payloads {
+			payloadRole := RootValue
+			if isMap && i == 0 {
+				payloadRole |= RootKey
+			}
+			if err := c.addType(payload, payloadRole); err != nil {
 				return err
 			}
 		}
@@ -148,14 +216,14 @@ func (c *layoutRootCollector) addType(id types.TypeID) error {
 	switch t.Kind {
 	case types.KindStruct:
 		if elem, _, ok := c.types.ArrayFixedInfo(canonical); ok {
-			return c.addType(elem)
+			return c.addType(elem, RootValue)
 		}
 		info, ok := c.types.StructInfo(canonical)
 		if !ok || info == nil {
 			return fmt.Errorf("type#%d missing struct metadata", canonical)
 		}
 		for _, field := range info.Fields {
-			if err := c.addType(field.Type); err != nil {
+			if err := c.addType(field.Type, RootValue); err != nil {
 				return err
 			}
 		}
@@ -165,7 +233,7 @@ func (c *layoutRootCollector) addType(id types.TypeID) error {
 			return fmt.Errorf("type#%d missing tuple metadata", canonical)
 		}
 		for _, elem := range info.Elems {
-			if err := c.addType(elem); err != nil {
+			if err := c.addType(elem, RootValue); err != nil {
 				return err
 			}
 		}
@@ -177,12 +245,12 @@ func (c *layoutRootCollector) addType(id types.TypeID) error {
 		for _, member := range info.Members {
 			switch member.Kind {
 			case types.UnionMemberType:
-				if err := c.addType(member.Type); err != nil {
+				if err := c.addType(member.Type, RootValue); err != nil {
 					return err
 				}
 			case types.UnionMemberTag:
 				for _, arg := range member.TagArgs {
-					if err := c.addType(arg); err != nil {
+					if err := c.addType(arg, RootValue); err != nil {
 						return err
 					}
 				}
@@ -196,14 +264,14 @@ func (c *layoutRootCollector) addType(id types.TypeID) error {
 		if !ok || info == nil {
 			return fmt.Errorf("type#%d missing enum metadata", canonical)
 		}
-		if err := c.addType(info.BaseType); err != nil {
+		if err := c.addType(info.BaseType, RootValue); err != nil {
 			return err
 		}
 	case types.KindFn, types.KindPointer, types.KindReference, types.KindFar:
 		// Opaque physical boundaries. Their pointee/signature children do not
 		// influence the handle layout and may remain generic indefinitely.
 	case types.KindArray:
-		if err := c.addType(t.Elem); err != nil {
+		if err := c.addType(t.Elem, RootValue); err != nil {
 			return err
 		}
 	case types.KindUnit, types.KindNothing, types.KindBool, types.KindString,
@@ -217,11 +285,11 @@ func (c *layoutRootCollector) addType(id types.TypeID) error {
 }
 
 func (c *layoutRootCollector) walkFunc(fn *Func) error {
-	if err := c.addType(fn.Result); err != nil {
+	if err := c.addType(fn.Result, RootValue); err != nil {
 		return err
 	}
 	for i := range fn.Locals {
-		if err := c.addType(fn.Locals[i].Type); err != nil {
+		if err := c.addType(fn.Locals[i].Type, RootValue); err != nil {
 			return fmt.Errorf("local[%d]: %w", i, err)
 		}
 	}
