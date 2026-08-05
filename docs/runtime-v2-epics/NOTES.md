@@ -6559,3 +6559,17 @@ lint, and `make golden-check` pass. Serena's Go LSP again retained stale old
 locations after the move, while repository search and the Go compiler each
 find one declaration; compiler results remain authoritative for this known
 tool-cache issue.
+
+The next non-overlapping file-size slice owns only whole mono symbol moves:
+authoritative closure seeding/use-site indexing leave `monomorphize.go`,
+crossing substitution leaves `subst_apply.go`, and the expanded invariant
+suite is grouped into authority, rewrite, and compile-helper files. No function
+body, behavior, diagnostic, or golden change is intended.
+
+Mono split evidence: all five old/new symbol groups compare byte-for-byte with
+matching SHA-256 pairs. `monomorphize.go` is 594 lines versus the accepted
+640-line base, `subst_apply.go` is 543 versus 546, and the original invariant
+suite is 215 versus 281; all five new files are 36--246 lines. `go test
+./internal/mono -count=1 -timeout 5m`, new-diff lint, and `make golden-check`
+pass. Serena again retained stale pre-move declaration locations, while the Go
+compiler accepted the single current definitions.
