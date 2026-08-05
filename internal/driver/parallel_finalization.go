@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"surge/internal/ast"
 	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -28,9 +29,9 @@ func finalizeParallelFileResults(ctx context.Context, fileSet *source.FileSet, r
 		if result.Sema == nil || result.Symbols == nil || result.Bag == nil || result.Bag.HasErrors() {
 			continue
 		}
-		var file *source.File
-		if fileSet.HasFile(result.FileID) {
-			file = fileSet.Get(result.FileID)
+		file, err := parallelResultOwner(fileSet, result)
+		if err != nil {
+			return fmt.Errorf("%s: %w", result.Path, err)
 		}
 		diagnosed := &DiagnoseResult{
 			FileSet: fileSet,
@@ -45,6 +46,33 @@ func finalizeParallelFileResults(ctx context.Context, fileSet *source.FileSet, r
 		}
 	}
 	return nil
+}
+
+// parallelResultOwner answers which source file owns one retained result's
+// finalization decisions.
+//
+// DiagnoseDirResult names its file twice, in two different id spaces: ASTFile
+// in the AST space and FileID in the source space. Only ASTFile is tied to the
+// semantic result being finalized, so its span settles the owning source
+// identity here — the same span the module-record publication path reads — and
+// both DiagnoseResult.File and DiagnoseResult.FileID derive from it. Deriving
+// the two fields separately let them name different files, and a result whose
+// source-space field had drifted then reached publication with no owner at all.
+func parallelResultOwner(fileSet *source.FileSet, result *DiagnoseDirResult) (*source.File, error) {
+	if result.Builder == nil || result.ASTFile == ast.NoFileID {
+		return nil, fmt.Errorf("retained semantic result names no AST file to identify its source")
+	}
+	node := result.Builder.Files.Get(result.ASTFile)
+	if node == nil {
+		return nil, fmt.Errorf("AST file %d is absent from its own builder", result.ASTFile)
+	}
+	if fileSet == nil || !fileSet.HasFile(node.Span.File) {
+		return nil, fmt.Errorf(
+			"AST file %d names source file %d, which this file set does not hold",
+			result.ASTFile, node.Span.File,
+		)
+	}
+	return fileSet.Get(node.Span.File), nil
 }
 
 // finalizeParallelModuleRecords finalizes one module-level authority per root

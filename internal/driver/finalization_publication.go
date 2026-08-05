@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"sort"
 
+	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/sema"
+	"surge/internal/source"
 	"surge/internal/symbols"
 )
 
@@ -126,10 +128,14 @@ func publishFinalizationDecisions(res *DiagnoseResult) error {
 	}
 	// A single-file build has no module record to walk, so the authority result
 	// is also the owner of its own decisions and must still receive them.
-	if _, seen := seenResults[res.Sema]; !seen && res.File != nil {
-		sourceKey, err := resolveSource(res.File.ID)
+	if _, seen := seenResults[res.Sema]; !seen {
+		ownerID, err := finalizationOwnerSource(res)
 		if err != nil {
-			return fmt.Errorf("finalization publication for %s: %w", res.File.Path, err)
+			return err
+		}
+		sourceKey, err := resolveSource(ownerID)
+		if err != nil {
+			return fmt.Errorf("finalization publication for source file %d: %w", ownerID, err)
 		}
 		if err := sema.PublishFinalizationDecisions(res.Sema, authority, sema.FinalizationPublication{
 			SourceKey: sourceKey,
@@ -138,6 +144,29 @@ func publishFinalizationDecisions(res *DiagnoseResult) error {
 		}
 	}
 	return nil
+}
+
+// finalizationOwnerSource answers which source file owns res.Sema's decisions.
+// The AST file the result was checked against is the authority, exactly as it
+// is for the module files publishRecord walks above: its span names the owning
+// source file. res.File is only a handle to that same file, kept here as the
+// answer for callers that carry no AST builder. Nothing keys off whether that
+// handle happens to be present, because an absent handle used to mean the
+// result silently received no decisions at all.
+func finalizationOwnerSource(res *DiagnoseResult) (source.FileID, error) {
+	if res.Builder != nil && res.FileID != ast.NoFileID {
+		if node := res.Builder.Files.Get(res.FileID); node != nil {
+			return node.Span.File, nil
+		}
+	}
+	if res.File != nil {
+		return res.File.ID, nil
+	}
+	return 0, fmt.Errorf(
+		"finalization publication: AST file %d names no owning source file; "+
+			"searched the AST builder file table (AST id space) and the diagnosed source file (source id space)",
+		res.FileID,
+	)
 }
 
 func snapshotFinalizationAuthority(src *sema.Result) *sema.Result {
