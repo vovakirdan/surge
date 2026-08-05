@@ -6623,3 +6623,36 @@ Gates: `golangci-lint` 0 issues; `runtime-v2-file-size-check
 EPIC_BASE=8512f4c1` PASS, 181 files, 0 violations; the eight-package battery
 green; `make check` green through the commit hook; `make golden-check` exit 0
 with a clean tree.
+
+## 2026-08-06 — B3A accepted and staged
+
+Corrections to the entry above: its gate figure was written mid-series — the
+file-size gate measured 181 files at `178565ed`, 183 after the quick-fix
+commit, and 185 after the budget repair `ea65c628`, with zero violations at
+every point; and the work landed on the integration branch, not the follow-ups
+branch it was drafted on.
+
+Acceptance at `ea65c628`: `make check`, `make lint`, two serialized
+`make golden-check` runs, `runtime-v2-file-size-check EPIC_BASE=8512f4c1`
+(185 files, 0 violations), and whole-range `git diff --check` are all green.
+The independent final range review of `8512f4c1..ea65c628` returned APPROVE
+with zero P0/P1/P2: all nine cherry-picked workstream commits have
+byte-identical `git patch-id --stable` values against their reviewed
+originals, the post-verdict lint/follow-up series were reviewed in full
+(pointer-wave aliasing hunt clean, splits proven move-only by AST
+declaration-body hashing), and the full `./internal/...` suite under the
+skip-timeout environment has an empty failure set.
+
+Because that environment skips the native rows, the recorded baseline set was
+rerun with `SURGE_SKIP_TIMEOUT_TESTS=0` at `ea65c628` and compared against
+the accepted-base audit: every accepted-PASS row still passes, every
+accepted-FAIL row fails unchanged, and `TestLLVMSmoke/array_element_ref_field`
+— a pre-existing native segfault at the accepted base — now passes, fixed by
+this range's shared-reborrow and index-place lowering corrections. No
+regression; one pre-existing defect closed as a side effect.
+
+The review's three P3s are closed in this commit: the two census/e2e test
+comments now describe behavior instead of naming the epic, the retained mono
+clone rediscovery scan is tracked as `RV2-DEBT-149` (owned by the
+operation-plan registry work), and this correction note fixes the stale
+figures. The staging branch advances to this commit.

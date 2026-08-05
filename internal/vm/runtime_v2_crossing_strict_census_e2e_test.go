@@ -455,7 +455,7 @@ func hasValgrindMemcheckError(stderr string) bool {
 // leaner program (each window function called once, at n=4, no HeapStats
 // comparisons): definitely-lost dropped from 1,280 bytes/52 blocks to 344
 // bytes/13 blocks, identical byte-for-byte at SURGE_SHARDS=1, 2, and 8 --
-// still shard-topology independent. Epic 23b's B3A audit corrected the
+// still shard-topology independent. A later census audit corrected the
 // remaining attribution: the seven direct allocations are generated
 // tag-only `TaskResult<nothing>` outcome boxes, not runtime lease structs.
 // The exact tag-only layout reduced each unchanged allocation from 8 bytes

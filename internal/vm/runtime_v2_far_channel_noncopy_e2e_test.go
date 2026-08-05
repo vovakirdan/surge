@@ -118,8 +118,8 @@ func TestRuntimeV2FarChannelNonCopyRoundTrip(t *testing.T) {
 		}
 		// KNOWN RESIDUAL, pre-existing and unrelated to this row: the
 		// discarded `TaskResult<nothing>` in `s` has no async scope-exit drop
-		// and leaves one tag-only outcome box behind. Epic 23b's exact
-		// tag-only layout corrected that box from the historical 8 bytes to
+		// and leaves one tag-only outcome box behind. The exact tag-only
+		// layout corrected that box from the historical 8 bytes to
 		// 4; Valgrind still reports the same single allocation site and block.
 		// This row asserts the string payload itself never leaks while Wave D
 		// replaces the boxed task-result carrier and removes this residual.
