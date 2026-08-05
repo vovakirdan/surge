@@ -6501,3 +6501,9 @@ Focused evidence retained from the recovered tree:
   B3A tree, including ten serialized runs, so the broad runtime-v2 package
   timeout remains the already recorded package-order/resource debt rather than
   a B3A regression.
+
+Combined-tree checkpoint at `4cea0865`: `go test ./internal/sema
+./internal/mono ./internal/mir ./internal/driver ./internal/buildpipeline
+./internal/backend/llvm -count=1 -timeout 10m` passed. This verifies the
+transplant together with the accepted Wave A/B3 tree before the strict-contract
+authors begin; lint and file-size remain the named blockers above.
