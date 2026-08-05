@@ -3,6 +3,35 @@ set -euo pipefail
 
 readonly LIMIT=500
 
+clear_repo_local_git_env() {
+    local name
+
+    unset GIT_ALTERNATE_OBJECT_DIRECTORIES \
+        GIT_CEILING_DIRECTORIES \
+        GIT_COMMON_DIR \
+        GIT_CONFIG \
+        GIT_CONFIG_COUNT \
+        GIT_CONFIG_PARAMETERS \
+        GIT_DIR \
+        GIT_DISCOVERY_ACROSS_FILESYSTEM \
+        GIT_GRAFT_FILE \
+        GIT_IMPLICIT_WORK_TREE \
+        GIT_INDEX_FILE \
+        GIT_INTERNAL_SUPER_PREFIX \
+        GIT_NAMESPACE \
+        GIT_NO_REPLACE_OBJECTS \
+        GIT_OBJECT_DIRECTORY \
+        GIT_PREFIX \
+        GIT_QUARANTINE_PATH \
+        GIT_REPLACE_REF_BASE \
+        GIT_SHALLOW_FILE \
+        GIT_WORK_TREE
+
+    for name in "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"; do
+        unset "$name"
+    done
+}
+
 die() {
     printf 'runtime-v2-file-size-check: error: %s\n' "$*" >&2
     exit 2
@@ -64,6 +93,7 @@ violation() {
     violations=$((violations + 1))
 }
 
+clear_repo_local_git_env
 command -v git >/dev/null 2>&1 || die "git is required"
 [[ -n "${EPIC_BASE:-}" ]] || die \
     "EPIC_BASE is required; fix: make runtime-v2-file-size-check EPIC_BASE=<ancestor-commit>"
@@ -118,6 +148,7 @@ while IFS= read -r -d '' metadata; do
     new_scoped=0
     [[ -n "$old_path" ]] && is_source_path "$old_path" && old_scoped=1
     [[ -n "$new_path" ]] && is_source_path "$new_path" && new_scoped=1
+    [[ "$code" == C ]] && (( ! new_scoped )) && continue
     (( old_scoped || new_scoped )) || continue
 
     is_new=0
