@@ -559,8 +559,6 @@ var ( // todo расширить описания и использовать к
 		SemaEntrypointReturnNotConvertible: "@entrypoint return type must be 'nothing' or convertible to int",
 		SemaEntrypointParamNoFromArgv:      "parameter type lacks exact public FromArgv parser",
 		SemaEntrypointParamNoFromStdin:     "parameter type lacks exact public FromStdin parser",
-		SemaEntrypointStdinArity:           "@entrypoint('stdin') requires exactly one parameter",
-		SemaEntrypointStdinDefault:         "@entrypoint('stdin') parameter cannot have a default",
 		SemaRecursiveUnsized:               "recursive value type has infinite size",
 		SemaDeprecatedUsage:                "usage of deprecated element",
 		SemaIntLiteralOutOfRange:           "integer literal out of range",
