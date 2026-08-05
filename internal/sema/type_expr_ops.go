@@ -65,36 +65,7 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 	operandType := tc.typeExpr(data.Operand)
 	switch data.Op {
 	case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
-		// An explicit borrow can escape the statement (into a binding,
-		// field, or argument that stores it); its operand must not drop
-		// at statement end. Leak over dangle.
-		tc.consumeTempCandidate(data.Operand)
-		if operandType == types.NoTypeID {
-			// Preserve the existing place/borrow recovery even when typing the
-			// operand failed; later statements may still need conflict diagnostics.
-			tc.handleBorrow(exprID, span, data.Op, data.Operand)
-			return types.NoTypeID
-		}
-		mutable := data.Op == ast.ExprUnaryRefMut
-		indexInfo, isIndex := tc.indexBorrowInfo(data.Operand, operandType)
-		if isIndex {
-			if !indexInfo.hasReferenceCarrier {
-				tc.reportBorrowNonAddressable(data.Operand, mutable)
-				return types.NoTypeID
-			}
-			if mutable && !indexInfo.physicalArray && !indexInfo.carrierMutable {
-				tc.reportSharedIndexMutableBorrow(span, indexInfo.expr, operandType)
-				// Recover with the requested shape so binding checks do not add a
-				// misleading "temporary value" diagnostic. The emitted SEM3022
-				// still stops every normal backend before lowering.
-				return tc.types.Intern(types.MakeReference(indexInfo.elem, true))
-			}
-		}
-		tc.handleBorrow(exprID, span, data.Op, data.Operand)
-		if isIndex {
-			return tc.types.Intern(types.MakeReference(indexInfo.elem, mutable))
-		}
-		return tc.types.Intern(types.MakeReference(operandType, mutable))
+		return tc.typeExplicitBorrow(exprID, span, data, operandType)
 	case ast.ExprUnaryDeref:
 		elem, ok := tc.elementType(operandType)
 		if !ok {
