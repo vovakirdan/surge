@@ -6534,3 +6534,12 @@ harness, one far-task witness failure, and finally a package timeout with the
 immediate-on test compiling while parallel MT tests waited. This run was not
 retried or hidden. Its changed-owner focused rows and the supported skip-timeout
 package command are green, so it does not block this symbol-only split.
+
+The next independent file-size slice split the new 762-line driver closure
+suite by responsibility without changing test bodies: alias/function-value
+authority moved to `instantiation_closure_aliases_test.go`, and deferred-call
+reachability/expansion stability moved to
+`deferred_callable_reachability_test.go`. The remaining suite is 419 lines;
+the new files are 225 and 142 lines. Byte-for-byte function comparisons passed,
+all four moved rows passed focused, and `go test ./internal/driver -count=1
+-timeout 5m` passed.
