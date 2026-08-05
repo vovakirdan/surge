@@ -78,6 +78,7 @@ func MergeInstantiationGraphs(dst, src *Result, mapping map[symbols.SymbolID]sym
 	sort.SliceStable(dst.CallableCandidates, func(i, j int) bool {
 		return dst.CallableCandidates[i].BodyKey < dst.CallableCandidates[j].BodyKey
 	})
+	dst.CallableCandidates = dedupeBuiltinOperations(dst.CallableCandidates)
 	mergeFinalizationRequests(dst, src, mapping)
 	dst.InstantiationClosure = nil
 	dst.rebuildFunctionInstantiations()
