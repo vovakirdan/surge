@@ -143,6 +143,15 @@ func rewriteCallsInStmt(st *hir.Stmt, f callRewriteFunc) error {
 			return err
 		}
 		st.Data = data
+	case hir.StmtEnvelopeRelease:
+		data, ok := st.Data.(hir.EnvelopeReleaseData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteCallsInExpr(data.Value, f); err != nil {
+			return err
+		}
+		st.Data = data
 	default:
 	}
 	return nil

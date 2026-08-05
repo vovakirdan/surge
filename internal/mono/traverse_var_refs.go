@@ -140,6 +140,15 @@ func rewriteVarRefsInStmt(st *hir.Stmt, f varRefRewriteFunc) error {
 			return err
 		}
 		st.Data = data
+	case hir.StmtEnvelopeRelease:
+		data, ok := st.Data.(hir.EnvelopeReleaseData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteVarRefsInExpr(data.Value, f); err != nil {
+			return err
+		}
+		st.Data = data
 	default:
 	}
 	return nil

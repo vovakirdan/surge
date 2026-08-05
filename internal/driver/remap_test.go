@@ -49,6 +49,82 @@ func TestRemapHIRModuleSharedExprRemappedOnce(t *testing.T) {
 	}
 }
 
+func TestRemapHIRModuleTraversesDefaultsSelectRaceAndCrossingValues(t *testing.T) {
+	oldSymbol := symbols.SymbolID(1)
+	newSymbol := symbols.SymbolID(2)
+	refs := make([]*hir.Expr, 0, 16)
+	newRef := func() *hir.Expr {
+		expr := &hir.Expr{Kind: hir.ExprVarRef, Data: hir.VarRefData{Name: "x", SymbolID: oldSymbol}}
+		refs = append(refs, expr)
+		return expr
+	}
+	newCrossing := func() hir.CrossingData {
+		return hir.CrossingData{
+			Destination: hir.CrossingDestination{AnchorSymbol: oldSymbol, Value: newRef()},
+			Captures:    []hir.CrossingCapture{{Symbol: oldSymbol, Value: newRef()}},
+			RemoteOps: []hir.CrossingRemoteOp{{
+				ReceiverSymbol: oldSymbol,
+				Receiver:       newRef(),
+				Value:          newRef(),
+			}},
+			ReceiverSymbol: oldSymbol,
+			Receiver:       newRef(),
+		}
+	}
+
+	selectCrossing := newCrossing()
+	selectExpr := &hir.Expr{Kind: hir.ExprSelect, Data: hir.SelectData{
+		Arms:     []hir.SelectArm{{Await: newRef(), Result: newRef()}},
+		Crossing: &selectCrossing,
+	}}
+	raceExpr := &hir.Expr{Kind: hir.ExprRace, Data: hir.SelectData{
+		Arms: []hir.SelectArm{{Await: newRef(), Result: newRef()}},
+	}}
+	directCrossingExpr := &hir.Expr{Kind: hir.ExprCrossing, Data: newCrossing()}
+	defaultExpr := newRef()
+	mod := &hir.Module{Funcs: []*hir.Func{{
+		Name:     "f",
+		SymbolID: symbols.SymbolID(10),
+		Params: []hir.Param{{
+			SymbolID:   oldSymbol,
+			HasDefault: true,
+			Default:    defaultExpr,
+		}},
+		Body: &hir.Block{Stmts: []hir.Stmt{
+			{Kind: hir.StmtExpr, Data: hir.ExprStmtData{Expr: selectExpr}},
+			{Kind: hir.StmtExpr, Data: hir.ExprStmtData{Expr: raceExpr}},
+			{Kind: hir.StmtExpr, Data: hir.ExprStmtData{Expr: directCrossingExpr}},
+			{Kind: hir.StmtEnvelopeRelease, Data: hir.EnvelopeReleaseData{Value: newRef()}},
+		}},
+	}}}
+
+	remapHIRModule(mod, map[symbols.SymbolID]symbols.SymbolID{oldSymbol: newSymbol})
+
+	if got := mod.Funcs[0].Params[0].SymbolID; got != newSymbol {
+		t.Fatalf("parameter symbol = %d, want %d", got, newSymbol)
+	}
+	for i, expr := range refs {
+		data, ok := expr.Data.(hir.VarRefData)
+		if !ok || data.SymbolID != newSymbol {
+			t.Fatalf("nested ref %d = %#v, want symbol %d", i, expr.Data, newSymbol)
+		}
+	}
+	for name, crossing := range map[string]*hir.CrossingData{
+		"select": &selectCrossing,
+		"direct": func() *hir.CrossingData {
+			data := directCrossingExpr.Data.(hir.CrossingData)
+			return &data
+		}(),
+	} {
+		if crossing.Destination.AnchorSymbol != newSymbol ||
+			crossing.Captures[0].Symbol != newSymbol ||
+			crossing.RemoteOps[0].ReceiverSymbol != newSymbol ||
+			crossing.ReceiverSymbol != newSymbol {
+			t.Fatalf("%s crossing symbols were not completely remapped: %#v", name, crossing)
+		}
+	}
+}
+
 func TestBuildCoreSymbolRemapIncludesLocals(t *testing.T) {
 	strings := source.NewInterner()
 	rootTable := symbols.NewTable(symbols.Hints{}, strings)

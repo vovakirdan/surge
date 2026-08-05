@@ -179,6 +179,17 @@ func (s *Subst) ApplyStmt(st *hir.Stmt) error {
 			}
 		}
 		st.Data = data
+	case hir.StmtEnvelopeRelease:
+		data, ok := st.Data.(hir.EnvelopeReleaseData)
+		if !ok {
+			return nil
+		}
+		if data.Value != nil {
+			if err := s.ApplyExpr(data.Value); err != nil {
+				return err
+			}
+		}
+		st.Data = data
 	default:
 	}
 	return nil

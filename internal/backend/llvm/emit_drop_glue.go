@@ -286,7 +286,7 @@ func (e *Emitter) emitDropValue(val string, ty types.TypeID) {
 // `elem`. Copyable elements use the leaf rt_array_free; droppable
 // elements route through rt_array_free_elems with a per-element drop fn.
 func (e *Emitter) emitDropDynArray(val string, elem types.TypeID) {
-	stride, elemAlign, ok := e.elemStrideAlign(elem)
+	stride, elemAlign, ok := e.emittedElemStrideAlign(elem)
 	if !ok {
 		return
 	}
@@ -300,7 +300,7 @@ func (e *Emitter) emitDropDynArray(val string, elem types.TypeID) {
 		"  call void @rt_array_free(ptr %s, i64 %d, i64 %d)\n", val, stride, elemAlign)
 }
 
-func (e *Emitter) elemStrideAlign(elem types.TypeID) (stride, align uint64, ok bool) {
+func (e *Emitter) emittedElemStrideAlign(elem types.TypeID) (stride, align uint64, ok bool) {
 	llvmTy, err := llvmValueType(e.types, elem)
 	if err != nil {
 		return 0, 0, false
@@ -466,10 +466,11 @@ func (e *Emitter) emitFixedArrayElemDrops(g *glueTmp, elem types.TypeID, length 
 	if length <= 0 || !e.typeOwnsHeap(elem) {
 		return
 	}
-	stride, _, ok := e.elemStrideAlign(elem)
-	if !ok {
+	elemLayout, err := e.layoutOf(elem)
+	if err != nil {
 		return
 	}
+	stride := elemLayout.Stride
 	for i := range length {
 		e.emitFieldDropAt(g, elem, uint64(i)*stride)
 	}

@@ -414,6 +414,12 @@ func collectCallSymsFrom(defaults []*hir.Expr, b *hir.Block) []symbols.SymbolID 
 				return
 			}
 			walkExpr(data.Value)
+		case hir.StmtEnvelopeRelease:
+			data, ok := st.Data.(hir.EnvelopeReleaseData)
+			if !ok {
+				return
+			}
+			walkExpr(data.Value)
 		default:
 		}
 	}

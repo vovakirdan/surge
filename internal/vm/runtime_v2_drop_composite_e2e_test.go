@@ -17,6 +17,7 @@ const runtimeV2DropCompositeSource = `
 type Inner = { label: string }
 type User = { name: string, note: string }
 type Outer = { inner: Inner, items: string[] }
+type FixedItem = { name: string, id: int }
 
 fn check_frees(win: string, before: &HeapStats, after: &HeapStats, want: uint) -> int {
     let f: uint = after.free_count - before.free_count;
@@ -67,6 +68,17 @@ fn fixed_array_drop() -> int {
     @drop a;                       // three element strings + box
     let after: HeapStats = rt_heap_stats();
     return check_frees("fixed-array", &before, &after, 4:uint);
+}
+
+fn fixed_composite_array_drop() -> int {
+    let a: FixedItem[2] = [
+        FixedItem { name: "left", id: 1 },
+        FixedItem { name: "right", id: 2 },
+    ];
+    let before: HeapStats = rt_heap_stats();
+    @drop a;                       // two (string + item) pairs + array box
+    let after: HeapStats = rt_heap_stats();
+    return check_frees("fixed-composite-array", &before, &after, 5:uint);
 }
 
 fn string_array_drop() -> int {
@@ -132,6 +144,8 @@ fn main() -> int {
     if r4 != 0 { return 40 + r4; }
     let r5: int = fixed_array_drop();
     if r5 != 0 { return 50 + r5; }
+    let r10: int = fixed_composite_array_drop();
+    if r10 != 0 { return 55 + r10; }
     let r6: int = string_array_drop();
     if r6 != 0 { return 60 + r6; }
     let r7: int = array_of_structs_drop();

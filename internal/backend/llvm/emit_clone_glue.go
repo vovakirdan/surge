@@ -169,10 +169,11 @@ func (e *Emitter) emitFixedArrayElemClones(g *glueTmp, elem types.TypeID, length
 	if !e.types.IsRefCountedScalar(resolved) && !e.isCloneableComposite(resolved) {
 		return
 	}
-	stride, _, ok := e.elemStrideAlign(elem)
-	if !ok {
+	elemLayout, err := e.layoutOf(elem)
+	if err != nil {
 		return
 	}
+	stride := elemLayout.Stride
 	for i := range length {
 		e.emitFieldCloneAt(g, elem, uint64(i)*stride)
 	}

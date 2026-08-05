@@ -48,6 +48,7 @@ func remapFunc(fn *hir.Func, mapping map[symbols.SymbolID]symbols.SymbolID, stat
 	fn.SymbolID = remapSymbol(fn.SymbolID, mapping)
 	for i := range fn.Params {
 		fn.Params[i].SymbolID = remapSymbol(fn.Params[i].SymbolID, mapping)
+		remapExpr(fn.Params[i].Default, mapping, state)
 	}
 	if fn.Body != nil {
 		remapBlock(fn.Body, mapping, state)
@@ -157,6 +158,13 @@ func remapStmt(st *hir.Stmt, mapping map[symbols.SymbolID]symbols.SymbolID, stat
 		st.Data = data
 	case hir.StmtDrop:
 		data, ok := st.Data.(hir.DropData)
+		if !ok {
+			return
+		}
+		remapExpr(data.Value, mapping, state)
+		st.Data = data
+	case hir.StmtEnvelopeRelease:
+		data, ok := st.Data.(hir.EnvelopeReleaseData)
 		if !ok {
 			return
 		}
@@ -288,6 +296,17 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID, st
 			remapExpr(data.Arms[i].Result, mapping, state)
 		}
 		expr.Data = data
+	case hir.ExprSelect, hir.ExprRace:
+		data, ok := expr.Data.(hir.SelectData)
+		if !ok {
+			return
+		}
+		for i := range data.Arms {
+			remapExpr(data.Arms[i].Await, mapping, state)
+			remapExpr(data.Arms[i].Result, mapping, state)
+		}
+		remapCrossingData(data.Crossing, mapping, state)
+		expr.Data = data
 	case hir.ExprTagTest:
 		data, ok := expr.Data.(hir.TagTestData)
 		if !ok {
@@ -368,19 +387,7 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID, st
 		if !ok {
 			return
 		}
-		data.Destination.AnchorSymbol = remapSymbol(data.Destination.AnchorSymbol, mapping)
-		remapExpr(data.Destination.Value, mapping, state)
-		remapBlock(data.Body, mapping, state)
-		for i := range data.Captures {
-			data.Captures[i].Symbol = remapSymbol(data.Captures[i].Symbol, mapping)
-			remapExpr(data.Captures[i].Value, mapping, state)
-		}
-		for i := range data.RemoteOps {
-			data.RemoteOps[i].ReceiverSymbol = remapSymbol(data.RemoteOps[i].ReceiverSymbol, mapping)
-			remapExpr(data.RemoteOps[i].Receiver, mapping, state)
-		}
-		data.ReceiverSymbol = remapSymbol(data.ReceiverSymbol, mapping)
-		remapExpr(data.Receiver, mapping, state)
+		remapCrossingData(&data, mapping, state)
 		expr.Data = data
 	case hir.ExprCast:
 		data, ok := expr.Data.(hir.CastData)
@@ -398,4 +405,24 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID, st
 		expr.Data = data
 	default:
 	}
+}
+
+func remapCrossingData(data *hir.CrossingData, mapping map[symbols.SymbolID]symbols.SymbolID, state *remapState) {
+	if data == nil {
+		return
+	}
+	data.Destination.AnchorSymbol = remapSymbol(data.Destination.AnchorSymbol, mapping)
+	remapExpr(data.Destination.Value, mapping, state)
+	remapBlock(data.Body, mapping, state)
+	for i := range data.Captures {
+		data.Captures[i].Symbol = remapSymbol(data.Captures[i].Symbol, mapping)
+		remapExpr(data.Captures[i].Value, mapping, state)
+	}
+	for i := range data.RemoteOps {
+		data.RemoteOps[i].ReceiverSymbol = remapSymbol(data.RemoteOps[i].ReceiverSymbol, mapping)
+		remapExpr(data.RemoteOps[i].Receiver, mapping, state)
+		remapExpr(data.RemoteOps[i].Value, mapping, state)
+	}
+	data.ReceiverSymbol = remapSymbol(data.ReceiverSymbol, mapping)
+	remapExpr(data.Receiver, mapping, state)
 }

@@ -237,3 +237,95 @@ func TestCloneAndSubstKeepExitDropListsOnBothExitKinds(t *testing.T) {
 		})
 	}
 }
+
+func TestEnvelopeReleaseParticipatesInEveryMonoStatementWalk(t *testing.T) {
+	typeParam := types.TypeID(101)
+	concrete := types.TypeID(202)
+	oldCall := symbols.SymbolID(11)
+	newCall := symbols.SymbolID(12)
+	oldVar := symbols.SymbolID(21)
+	newVar := symbols.SymbolID(22)
+	build := func() hir.Stmt {
+		return hir.Stmt{Kind: hir.StmtEnvelopeRelease, Data: hir.EnvelopeReleaseData{
+			Cursor: true,
+			Value: &hir.Expr{Kind: hir.ExprCall, Type: typeParam, Data: hir.CallData{
+				SymbolID: oldCall,
+				Args: []*hir.Expr{{Kind: hir.ExprVarRef, Type: typeParam, Data: hir.VarRefData{
+					SymbolID: oldVar,
+				}}},
+			}},
+		}}
+	}
+	read := func(t *testing.T, st hir.Stmt) (hir.EnvelopeReleaseData, hir.CallData, hir.VarRefData) {
+		t.Helper()
+		release, ok := st.Data.(hir.EnvelopeReleaseData)
+		if !ok || release.Value == nil {
+			t.Fatalf("envelope release payload = %#v", st.Data)
+		}
+		call, ok := release.Value.Data.(hir.CallData)
+		if !ok || len(call.Args) != 1 {
+			t.Fatalf("envelope call payload = %#v", release.Value.Data)
+		}
+		ref, ok := call.Args[0].Data.(hir.VarRefData)
+		if !ok {
+			t.Fatalf("envelope var payload = %#v", call.Args[0].Data)
+		}
+		return release, call, ref
+	}
+
+	original := build()
+	cloned := cloneStmt(original)
+	clonedRelease, _, _ := read(t, cloned)
+	originalRelease, _, _ := read(t, original)
+	if !clonedRelease.Cursor || clonedRelease.Value == originalRelease.Value {
+		t.Fatal("clone lost the envelope mode or aliased its child expression")
+	}
+
+	substituted := build()
+	subst := &Subst{Types: types.NewInterner()}
+	subst.cache = map[types.TypeID]types.TypeID{typeParam: concrete}
+	if err := subst.ApplyStmt(&substituted); err != nil {
+		t.Fatalf("ApplyStmt: %v", err)
+	}
+	if release, _, _ := read(t, substituted); release.Value.Type != concrete {
+		t.Fatalf("substituted envelope value type = %d, want %d", release.Value.Type, concrete)
+	}
+
+	walked := build()
+	if err := rewriteCallsInStmt(&walked, func(_ *hir.Expr, data *hir.CallData) error {
+		data.SymbolID = newCall
+		return nil
+	}); err != nil {
+		t.Fatalf("rewriteCallsInStmt: %v", err)
+	}
+	if err := rewriteVarRefsInStmt(&walked, func(_ *hir.Expr, data *hir.VarRefData) error {
+		data.SymbolID = newVar
+		return nil
+	}); err != nil {
+		t.Fatalf("rewriteVarRefsInStmt: %v", err)
+	}
+	_, call, ref := read(t, walked)
+	if call.SymbolID != newCall || ref.SymbolID != newVar {
+		t.Fatalf("walked envelope symbols = call %d, var %d; want %d/%d", call.SymbolID, ref.SymbolID, newCall, newVar)
+	}
+
+	seenType := false
+	collectTypesFromStmt(&walked, func(id types.TypeID) {
+		seenType = seenType || id == typeParam
+	})
+	if !seenType {
+		t.Fatal("type collection skipped the envelope child")
+	}
+	fn := &hir.Func{Body: &hir.Block{Stmts: []hir.Stmt{walked}}}
+	callees := collectFuncCallSyms(fn)
+	seenCall := false
+	for _, symID := range callees {
+		seenCall = seenCall || symID == newCall
+		if symID == oldCall || symID == oldVar {
+			t.Fatalf("DCE census retained stale envelope child %d: %v", symID, callees)
+		}
+	}
+	if !seenCall {
+		t.Fatalf("DCE call census skipped envelope call %d: %v", newCall, callees)
+	}
+}

@@ -106,6 +106,12 @@ func collectTypesFromStmt(st *hir.Stmt, visit func(id types.TypeID)) {
 			return
 		}
 		collectTypesFromExpr(data.Value, visit)
+	case hir.StmtEnvelopeRelease:
+		data, ok := st.Data.(hir.EnvelopeReleaseData)
+		if !ok {
+			return
+		}
+		collectTypesFromExpr(data.Value, visit)
 	default:
 	}
 }

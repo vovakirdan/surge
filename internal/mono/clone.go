@@ -183,6 +183,15 @@ func cloneStmt(s hir.Stmt) hir.Stmt {
 			data.Value = cloneExpr(data.Value)
 		}
 		out.Data = data
+	case hir.StmtEnvelopeRelease:
+		data, ok := s.Data.(hir.EnvelopeReleaseData)
+		if !ok {
+			return out
+		}
+		if data.Value != nil {
+			data.Value = cloneExpr(data.Value)
+		}
+		out.Data = data
 	default:
 		// break/continue etc: no payload.
 	}
