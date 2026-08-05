@@ -425,6 +425,26 @@ Run it like this:
 surge run greet.sg -- Alice 3
 ```
 
+Every parameter type must provide the exact public static callable
+`from_str(value: &string) -> Erring<T, Error>`. This includes `times`: its
+default is used only when the second argument is absent, while a supplied value
+is still parsed normally.
+
+To consume standard input as one value, use the distinct stdin contract:
+
+```surge
+@entrypoint("stdin")
+fn main(text: string) -> int {
+    print(text);
+    return 0;
+}
+```
+
+Stdin mode requires exactly one parameter without a default and calls the
+exact public static `from_stdin(text: string) -> Erring<T, Error>`. It receives
+the whole input as an owned string; EOF is an empty string. It does not fall
+back to `from_str`.
+
 ### Important note
 
 This is **just syntax sugar**.
@@ -440,8 +460,12 @@ Something like (pseudocode):
 ```
 __surge_start:
     let args = argv();
-    let name = args[0];
-    let times = args[1];
+    let name = string.from_str(&args[0])?;
+    let times = if args.len() > 1 {
+        int.from_str(&args[1])?
+    } else {
+        1
+    };
     main(name, times);
 ```
 

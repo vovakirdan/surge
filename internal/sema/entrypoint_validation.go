@@ -12,8 +12,8 @@ import (
 // Rules:
 // - No mode: all params must have defaults (callable with no args)
 // - Return type must be nothing, int, or implement ExitCode contract
-// - argv mode: params without defaults must implement FromArgv
-// - stdin mode: params without defaults must implement FromStdin
+// - argv mode: every parameter must implement FromArgv
+// - stdin mode: exactly one non-default parameter must implement FromStdin
 func (tc *typeChecker) validateEntrypoint(fnItem *ast.FnItem, symID symbols.SymbolID, sym *symbols.Symbol) {
 	if sym == nil || fnItem == nil {
 		return
@@ -36,9 +36,9 @@ func (tc *typeChecker) validateEntrypoint(fnItem *ast.FnItem, symID symbols.Symb
 	// 3. Check param contracts based on mode
 	switch mode {
 	case symbols.EntrypointModeArgv:
-		tc.validateEntrypointParams(fnItem, symID, sym, scope, "FromArgv", diag.SemaEntrypointParamNoFromArgv)
+		tc.validateEntrypointArgvParams(fnItem, symID, sym, scope)
 	case symbols.EntrypointModeStdin:
-		tc.validateEntrypointParams(fnItem, symID, sym, scope, "FromStdin", diag.SemaEntrypointParamNoFromStdin)
+		tc.validateEntrypointStdinParam(fnItem, symID, sym, scope)
 	}
 }
 
@@ -92,7 +92,6 @@ func (tc *typeChecker) validateEntrypointReturn(fnItem *ast.FnItem, symID symbol
 			Args:           []types.TypeID{intType},
 			ExpectedResult: intType,
 			Method:         "__to",
-			Builtin:        tc.entrypointToIntUsesBuiltin(returnType, intType),
 			AccessModule:   tc.modulePath,
 			Site:           returnSpan,
 		})
@@ -107,80 +106,6 @@ func (tc *typeChecker) validateEntrypointReturn(fnItem *ast.FnItem, symID symbol
 	tc.report(diag.SemaEntrypointReturnNotConvertible, returnSpan,
 		"@entrypoint return type must be 'nothing', 'int', or implement ExitCode contract (have __to(self, int) -> int); got '%s'",
 		tc.typeLabel(returnType))
-}
-
-// validateEntrypointParams checks that params without defaults implement the required contract.
-func (tc *typeChecker) validateEntrypointParams(fnItem *ast.FnItem, symID symbols.SymbolID, sym *symbols.Symbol, scope symbols.ScopeID, contractName string, errCode diag.Code) {
-	if sym.Signature == nil {
-		return
-	}
-	paramIDs := tc.builder.Items.GetFnParamIDs(fnItem)
-	for i, pid := range paramIDs {
-		param := tc.builder.Items.FnParam(pid)
-		if param == nil {
-			continue
-		}
-		hasDefault := i < len(sym.Signature.Defaults) && sym.Signature.Defaults[i]
-		paramType := tc.resolveTypeExprWithScope(param.Type, scope)
-		if paramType == types.NoTypeID {
-			continue
-		}
-		// All parseable parameters get an exact startup binding because argv may
-		// override a default. Only a non-default parameter is required to be
-		// parseable by the source-language contract.
-		if tc.typeHasFromStr(paramType) {
-			errType := tc.resolveErrorType(param.Span, scope)
-			expectedResult := tc.resolveResultType(paramType, errType, param.Span, scope)
-			tc.recordEntrypointCallableRequest(EntrypointCallableRequest{
-				Entrypoint:     symID,
-				Role:           EntrypointParamFromString,
-				ParamIndex:     uint32(i), //nolint:gosec -- an AST parameter slice cannot approach uint32 capacity
-				Receiver:       paramType,
-				Args:           []types.TypeID{tc.types.Intern(types.MakeReference(tc.types.Builtins().String, false))},
-				ExpectedResult: expectedResult,
-				Method:         "from_str",
-				Builtin:        tc.isBuiltinEntrypointFromStrType(paramType),
-				AccessModule:   tc.modulePath,
-				Site:           param.Span,
-			})
-			continue
-		}
-		if hasDefault {
-			continue
-		}
-		tc.report(errCode, param.Span,
-			"parameter '%s' of type '%s' does not implement %s contract (missing from_str method)",
-			tc.lookupName(param.Name), tc.typeLabel(paramType), contractName)
-	}
-}
-
-func (tc *typeChecker) entrypointToIntUsesBuiltin(sourceType, intType types.TypeID) bool {
-	userDefined := false
-	builtin := false
-	for _, sig := range tc.collectToMethods(sourceType, intType) {
-		if tc.magicSymbolForSignature(sig).IsValid() {
-			userDefined = true
-		} else {
-			builtin = true
-		}
-	}
-	return builtin && !userDefined
-}
-
-func (tc *typeChecker) isBuiltinEntrypointFromStrType(typeID types.TypeID) bool {
-	if tc == nil || tc.types == nil || typeID == types.NoTypeID {
-		return false
-	}
-	t, ok := tc.types.Lookup(tc.resolveAlias(typeID))
-	if !ok {
-		return false
-	}
-	switch t.Kind {
-	case types.KindInt, types.KindUint, types.KindFloat, types.KindBool, types.KindString:
-		return true
-	default:
-		return false
-	}
 }
 
 // typeHasToInt checks if a type has __to(self, int) -> int method (for ExitCode).
@@ -215,106 +140,4 @@ func (tc *typeChecker) typeHasToInt(typeID types.TypeID) bool {
 		}
 	}
 	return false
-}
-
-// typeHasFromStr checks if a type has from_str(&string) -> Erring<T, Error> static method (for FromArgv/FromStdin).
-func (tc *typeChecker) typeHasFromStr(typeID types.TypeID) bool {
-	if typeID == types.NoTypeID {
-		return false
-	}
-
-	// Resolve aliases
-	resolved := tc.resolveAlias(typeID)
-
-	// Get type key candidates for the target type
-	candidates := tc.typeKeyCandidates(resolved)
-	if len(candidates) == 0 {
-		return false
-	}
-
-	// Look for from_str static method in symbol table
-	fromStrLiteral := "from_str"
-	stringType := tc.types.Builtins().String
-
-	// Search through symbols for static method with matching ReceiverKey
-	if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Symbols != nil {
-		if data := tc.symbols.Table.Symbols.Data(); data != nil {
-			for i := range data {
-				sym := &data[i]
-				if sym.Kind != symbols.SymbolFunction || sym.Signature == nil {
-					continue
-				}
-				if sym.ReceiverKey == "" {
-					continue
-				}
-				if tc.symbolName(sym.Name) != fromStrLiteral {
-					continue
-				}
-				// Check if ReceiverKey matches any candidate
-				for _, cand := range candidates {
-					if !typeKeyEqual(sym.ReceiverKey, cand.key) {
-						continue
-					}
-					// Check signature: fn from_str(s: &string) -> Erring<T, Error>
-					if len(sym.Signature.Params) == 1 {
-						paramType := tc.typeFromKey(sym.Signature.Params[0])
-						if tc.isSharedStringRef(paramType, stringType) && sym.Signature.Result != "" {
-							return true
-						}
-					}
-					break
-				}
-			}
-		}
-	}
-
-	// Also check exported symbols from other modules
-	if tc.exports != nil {
-		for _, module := range tc.exports {
-			if module == nil {
-				continue
-			}
-			for _, list := range module.Symbols {
-				for i := range list {
-					exp := &list[i]
-					if exp.Kind != symbols.SymbolFunction || exp.Signature == nil {
-						continue
-					}
-					if exp.ReceiverKey == "" {
-						continue
-					}
-					if exp.Name != fromStrLiteral {
-						continue
-					}
-					// Check if ReceiverKey matches any candidate
-					for _, cand := range candidates {
-						if !typeKeyEqual(exp.ReceiverKey, cand.key) {
-							continue
-						}
-						// Check signature: fn from_str(s: &string) -> Erring<T, Error>
-						if len(exp.Signature.Params) == 1 {
-							paramType := tc.typeFromKey(exp.Signature.Params[0])
-							if tc.isSharedStringRef(paramType, stringType) && exp.Signature.Result != "" {
-								return true
-							}
-						}
-						break
-					}
-				}
-			}
-		}
-	}
-
-	return false
-}
-
-func (tc *typeChecker) isSharedStringRef(paramType, stringType types.TypeID) bool {
-	if paramType == types.NoTypeID || stringType == types.NoTypeID || tc.types == nil {
-		return false
-	}
-	tt, ok := tc.types.Lookup(tc.resolveAlias(paramType))
-	if !ok || tt.Kind != types.KindReference || tt.Mutable {
-		return false
-	}
-	return tt.Elem == stringType
 }

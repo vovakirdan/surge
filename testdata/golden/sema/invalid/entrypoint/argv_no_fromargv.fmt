@@ -1,4 +1,4 @@
-// Test: @entrypoint("argv") with custom type lacking from_str is invalid
+// Test: an argv default does not waive the exact FromArgv parser requirement
 // Expected: SEM3124
 
 type Point = {
@@ -7,6 +7,6 @@ type Point = {
 };
 
 @entrypoint("argv")
-fn main(p: Point) -> int {
+fn main(p: Point = Point { x = 0, y = 0 }) -> int {
     return p.x;
 }

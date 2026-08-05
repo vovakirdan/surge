@@ -1,0 +1,7 @@
+// Test: stdin entrypoints require exactly one parameter
+// Expected: SEM3183
+
+@entrypoint("stdin")
+fn main() -> int {
+    return 0;
+}

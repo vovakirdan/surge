@@ -14,7 +14,8 @@ type EntrypointCallableRole uint8
 
 const (
 	EntrypointReturnToInt EntrypointCallableRole = iota + 1
-	EntrypointParamFromString
+	EntrypointParamFromArgv
+	EntrypointParamFromStdin
 )
 
 type EntrypointCallableOutcome uint8
@@ -26,16 +27,17 @@ const (
 
 // EntrypointCallableRequest is recorded during per-file checking and resolved
 // once against the merged callable catalog. ParamIndex is meaningful only for
-// EntrypointParamFromString.
+// EntrypointParamFromArgv and EntrypointParamFromStdin.
 type EntrypointCallableRequest struct {
 	Entrypoint     symbols.SymbolID
 	Role           EntrypointCallableRole
 	ParamIndex     uint32
+	ParamName      string
+	TypeLabel      string
 	Receiver       types.TypeID
 	Args           []types.TypeID
 	ExpectedResult types.TypeID
 	Method         string
-	Builtin        bool
 	AccessModule   string
 	Site           source.Span
 	SourceKey      string
@@ -123,27 +125,41 @@ func (r *Result) FinalizeEntrypointCallables() error {
 			Receiver: request.Receiver, ExpectedResult: request.ExpectedResult,
 			Site: request.Site, SourceKey: request.SourceKey,
 		}
-		if request.Builtin {
+		useID := DeferredUseID(fmt.Sprintf("entry/%d/%d/%d/%s", request.Role, request.ParamIndex, request.Site.Start, request.SourceKey))
+		callRequest := DeferredCallableRequest{
+			Kind: DeferredMethodCall, Receiver: request.Receiver, Method: request.Method,
+			Args: request.Args, ExpectedResult: request.ExpectedResult,
+			StaticReceiver: request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin,
+			AccessModule:   request.AccessModule, SourceKey: request.SourceKey,
+		}
+		if request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin {
+			callRequest.Requirement = DeferredCallableRequirement{
+				Name: request.Method, Params: slices.Clone(request.Args), Result: request.ExpectedResult, Public: true,
+			}
+		}
+		resolution, err := resolveDeferredCallable(useID, callRequest, r.CallableCandidates, r.TypeInterner)
+		if err != nil {
+			if request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin {
+				return newEntrypointCallableError(request, err, r.CallableCandidates, r.TypeInterner)
+			}
+			return fmt.Errorf("entrypoint callable: %w", err)
+		}
+		if resolution.Outcome != DeferredCallableResolved || !resolution.Callee.IsValid() {
+			return fmt.Errorf("entrypoint callable %s did not resolve to a callable", useID)
+		}
+		candidate, ok := resolvedEntrypointCandidate(&resolution, r.CallableCandidates)
+		if !ok {
+			return fmt.Errorf("entrypoint callable %s resolved without a catalog candidate", useID)
+		}
+		binding.Outcome = EntrypointCallableUser
+		if candidate.Builtin || candidate.Intrinsic {
 			binding.Outcome = EntrypointCallableBuiltin
-		} else {
-			useID := DeferredUseID(fmt.Sprintf("entry/%d/%d/%d/%s", request.Role, request.ParamIndex, request.Site.Start, request.SourceKey))
-			resolution, err := resolveDeferredCallable(useID, DeferredCallableRequest{
-				Kind: DeferredMethodCall, Receiver: request.Receiver, Method: request.Method,
-				Args: request.Args, ExpectedResult: request.ExpectedResult,
-				StaticReceiver: request.Role == EntrypointParamFromString,
-				AccessModule:   request.AccessModule, SourceKey: request.SourceKey,
-			}, r.CallableCandidates, r.TypeInterner)
-			if err != nil {
-				return fmt.Errorf("entrypoint callable: %w", err)
-			}
-			if resolution.Outcome != DeferredCallableResolved || !resolution.Callee.IsValid() {
-				return fmt.Errorf("entrypoint callable %s did not resolve to a user callable", useID)
-			}
-			binding.Outcome = EntrypointCallableUser
-			binding.Callee = resolution.Callee
-			binding.CalleeKey = resolution.CalleeKey
-			binding.TemplateArgs = slices.Clone(resolution.TemplateArgs)
-			binding.ParamTypes = slices.Clone(resolution.ParamTypes)
+		}
+		binding.Callee = resolution.Callee
+		binding.CalleeKey = resolution.CalleeKey
+		binding.TemplateArgs = slices.Clone(resolution.TemplateArgs)
+		binding.ParamTypes = slices.Clone(resolution.ParamTypes)
+		if binding.Outcome == EntrypointCallableUser {
 			r.recordEntrypointReachability(request, &binding)
 		}
 		if len(bindings) > 0 && sameEntrypointBindingKey(&bindings[len(bindings)-1], &binding) {
@@ -156,6 +172,19 @@ func (r *Result) FinalizeEntrypointCallables() error {
 	}
 	r.EntrypointCallableBindings = bindings
 	return nil
+}
+
+func resolvedEntrypointCandidate(resolution *DeferredCallableResolution, candidates []CallableCandidate) (*CallableCandidate, bool) {
+	if resolution == nil {
+		return nil, false
+	}
+	for i := range candidates {
+		candidate := &candidates[i]
+		if callableCandidateKey(candidate) == resolution.CalleeKey && candidate.Symbol == resolution.Callee {
+			return candidate, true
+		}
+	}
+	return nil, false
 }
 
 func (r *Result) recordEntrypointReachability(request *EntrypointCallableRequest, binding *EntrypointCallableBinding) {

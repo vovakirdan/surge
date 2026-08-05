@@ -8,25 +8,60 @@
   8: Comma           "," at 5:15-5:16
   9: RBrace          "}" at 6:1-6:2 (leading: Newline)
  10: Semicolon       ";" at 6:2-6:3
- 11: At              "@" at 8:1-8:2 (leading: Newline)
- 12: Ident           "entrypoint" at 8:2-8:12
- 13: LParen          "(" at 8:12-8:13
- 14: StringLit       "\"stdin\"" at 8:13-8:20
- 15: RParen          ")" at 8:20-8:21
- 16: KwFn            "fn" at 9:1-9:3 (leading: Newline)
- 17: Ident           "main" at 9:4-9:8 (leading: Space)
- 18: LParen          "(" at 9:8-9:9
- 19: Ident           "d" at 9:9-9:10
- 20: Colon           ":" at 9:10-9:11
- 21: Ident           "Data" at 9:12-9:16 (leading: Space)
- 22: RParen          ")" at 9:16-9:17
- 23: Arrow           "->" at 9:18-9:20 (leading: Space)
- 24: Ident           "int" at 9:21-9:24 (leading: Space)
- 25: LBrace          "{" at 9:25-9:26 (leading: Space)
- 26: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
- 27: Ident           "d" at 10:12-10:13 (leading: Space)
- 28: Dot             "." at 10:13-10:14
- 29: Ident           "value" at 10:14-10:19
- 30: Semicolon       ";" at 10:19-10:20
- 31: RBrace          "}" at 11:1-11:2 (leading: Newline)
- 32: EOF             at 12:1-12:1
+ 11: KwExtern        "extern" at 8:1-8:7 (leading: Newline)
+ 12: Lt              "<" at 8:7-8:8
+ 13: Ident           "Data" at 8:8-8:12
+ 14: Gt              ">" at 8:12-8:13
+ 15: LBrace          "{" at 8:14-8:15 (leading: Space)
+ 16: KwPub           "pub" at 9:5-9:8 (leading: Newline, Space)
+ 17: KwFn            "fn" at 9:9-9:11 (leading: Space)
+ 18: Ident           "from_str" at 9:12-9:20 (leading: Space)
+ 19: LParen          "(" at 9:20-9:21
+ 20: Ident           "_text" at 9:21-9:26
+ 21: Colon           ":" at 9:26-9:27
+ 22: Amp             "&" at 9:28-9:29 (leading: Space)
+ 23: Ident           "string" at 9:29-9:35
+ 24: RParen          ")" at 9:35-9:36
+ 25: Arrow           "->" at 9:37-9:39 (leading: Space)
+ 26: Ident           "Erring" at 9:40-9:46 (leading: Space)
+ 27: Lt              "<" at 9:46-9:47
+ 28: Ident           "Data" at 9:47-9:51
+ 29: Comma           "," at 9:51-9:52
+ 30: Ident           "Error" at 9:53-9:58 (leading: Space)
+ 31: Gt              ">" at 9:58-9:59
+ 32: LBrace          "{" at 9:60-9:61 (leading: Space)
+ 33: KwReturn        "return" at 10:9-10:15 (leading: Newline, Space)
+ 34: Ident           "Success" at 10:16-10:23 (leading: Space)
+ 35: LParen          "(" at 10:23-10:24
+ 36: Ident           "Data" at 10:24-10:28
+ 37: LBrace          "{" at 10:29-10:30 (leading: Space)
+ 38: Ident           "value" at 10:31-10:36 (leading: Space)
+ 39: Assign          "=" at 10:37-10:38 (leading: Space)
+ 40: IntLit          "1" at 10:39-10:40 (leading: Space)
+ 41: RBrace          "}" at 10:41-10:42 (leading: Space)
+ 42: RParen          ")" at 10:42-10:43
+ 43: Semicolon       ";" at 10:43-10:44
+ 44: RBrace          "}" at 11:5-11:6 (leading: Newline, Space)
+ 45: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 46: At              "@" at 14:1-14:2 (leading: Newline)
+ 47: Ident           "entrypoint" at 14:2-14:12
+ 48: LParen          "(" at 14:12-14:13
+ 49: StringLit       "\"stdin\"" at 14:13-14:20
+ 50: RParen          ")" at 14:20-14:21
+ 51: KwFn            "fn" at 15:1-15:3 (leading: Newline)
+ 52: Ident           "main" at 15:4-15:8 (leading: Space)
+ 53: LParen          "(" at 15:8-15:9
+ 54: Ident           "d" at 15:9-15:10
+ 55: Colon           ":" at 15:10-15:11
+ 56: Ident           "Data" at 15:12-15:16 (leading: Space)
+ 57: RParen          ")" at 15:16-15:17
+ 58: Arrow           "->" at 15:18-15:20 (leading: Space)
+ 59: Ident           "int" at 15:21-15:24 (leading: Space)
+ 60: LBrace          "{" at 15:25-15:26 (leading: Space)
+ 61: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space)
+ 62: Ident           "d" at 16:12-16:13 (leading: Space)
+ 63: Dot             "." at 16:13-16:14
+ 64: Ident           "value" at 16:14-16:19
+ 65: Semicolon       ";" at 16:19-16:20
+ 66: RBrace          "}" at 17:1-17:2 (leading: Newline)
+ 67: EOF             at 18:1-18:1

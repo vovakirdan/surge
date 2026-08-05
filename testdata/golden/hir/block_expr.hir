@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn block_scope() -> int (id=1, sym=1421) {
+fn block_scope() -> int (id=1, sym=1453) {
   let x: int [copy] = 1
   {
     let y: int [copy] = 2
@@ -11,11 +11,11 @@ fn block_scope() -> int (id=1, sym=1421) {
   return x
 }
 
-async fn with_async_block() -> nothing (id=2, sym=1422) {
-  let t: type#718 = async {
+async fn with_async_block() -> nothing (id=2, sym=1454) {
+  let t: type#751 = async {
     let x: int [copy] = 1
     let y: int [copy] = __add(x, 1): int
-  }: type#718
+  }: type#751
   drop t
   return
 }

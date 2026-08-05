@@ -1,4 +1,4 @@
-// Test: @entrypoint("stdin") with string param is valid
+// Test: @entrypoint("stdin") uses the exact owned string FromStdin callable
 @entrypoint("stdin")
 fn main(text: string) -> int {
     return 0;

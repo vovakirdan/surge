@@ -18,7 +18,7 @@ func (b *surgeStartBuilder) loadEntrypointCallables() error {
 	if b == nil || b.entryMF == nil || b.entryMF.Func == nil {
 		return fmt.Errorf("entrypoint startup: missing entrypoint function")
 	}
-	b.fromString = make(map[uint32]entrypointCallableTarget)
+	b.fromArgv = make(map[uint32]entrypointCallableTarget)
 	entrypoint := b.entryMF.OrigSym
 	if !entrypoint.IsValid() {
 		entrypoint = b.entryMF.Func.SymbolID
@@ -58,11 +58,20 @@ func (b *surgeStartBuilder) loadEntrypointCallables() error {
 				}
 				copy := target
 				b.returnToInt = &copy
-			case sema.EntrypointParamFromString:
-				if previous, ok := b.fromString[binding.ParamIndex]; ok && !entrypointCallableTargetsEqual(previous, target) {
+			case sema.EntrypointParamFromArgv:
+				if previous, ok := b.fromArgv[binding.ParamIndex]; ok && !entrypointCallableTargetsEqual(previous, target) {
 					return fmt.Errorf("entrypoint startup: conflicting from_str bindings for parameter %d", binding.ParamIndex)
 				}
-				b.fromString[binding.ParamIndex] = target
+				b.fromArgv[binding.ParamIndex] = target
+			case sema.EntrypointParamFromStdin:
+				if binding.ParamIndex != 0 {
+					return fmt.Errorf("entrypoint startup: stdin binding has parameter index %d, want 0", binding.ParamIndex)
+				}
+				if b.fromStdin != nil && !entrypointCallableTargetsEqual(*b.fromStdin, target) {
+					return fmt.Errorf("entrypoint startup: conflicting from_stdin bindings")
+				}
+				stdinTarget := target
+				b.fromStdin = &stdinTarget
 			default:
 				return fmt.Errorf("entrypoint startup: callable binding has unknown role %d", binding.Role)
 			}
@@ -73,12 +82,20 @@ func (b *surgeStartBuilder) loadEntrypointCallables() error {
 	if result != types.NoTypeID && !b.isNothingType(result) && !b.isIntType(result) && b.returnToInt == nil {
 		return fmt.Errorf("entrypoint startup: non-int return type has no sema-resolved __to binding")
 	}
-	if b.mode == symbols.EntrypointModeArgv || b.mode == symbols.EntrypointModeStdin {
+	if b.mode == symbols.EntrypointModeArgv {
 		for i, param := range b.entryMF.Func.Params {
 			index := uint32(i) //nolint:gosec -- a function parameter slice cannot approach uint32 capacity
-			if _, ok := b.fromString[index]; !ok {
+			if _, ok := b.fromArgv[index]; !ok {
 				return fmt.Errorf("entrypoint startup: parameter %q has no sema-resolved from_str binding", param.Name)
 			}
+		}
+	}
+	if b.mode == symbols.EntrypointModeStdin {
+		if len(b.entryMF.Func.Params) != 1 {
+			return fmt.Errorf("entrypoint startup: stdin mode requires exactly one sema-approved parameter")
+		}
+		if b.fromStdin == nil {
+			return fmt.Errorf("entrypoint startup: stdin parameter has no sema-resolved from_stdin binding")
 		}
 	}
 	return nil

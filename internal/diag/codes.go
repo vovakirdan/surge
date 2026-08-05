@@ -269,13 +269,11 @@ const (
 	SemaDirectiveNotDirectiveModule Code = 3120 // Module lacks pragma directive
 
 	// Entrypoint validation errors (3121-3125)
-
-	// SemaEntrypointModeInvalid indicates invalid entrypoint mode.
 	SemaEntrypointModeInvalid          Code = 3121 // Unknown entrypoint mode string
 	SemaEntrypointNoModeRequiresNoArgs Code = 3122 // @entrypoint without mode requires 0 params or all defaults
 	SemaEntrypointReturnNotConvertible Code = 3123 // Return type not convertible to int (no ExitCode)
-	SemaEntrypointParamNoFromArgv      Code = 3124 // Parameter lacks FromArgv implementation
-	SemaEntrypointParamNoFromStdin     Code = 3125 // Parameter lacks FromStdin implementation
+	SemaEntrypointParamNoFromArgv      Code = 3124 // Parameter lacks exact public FromArgv parser
+	SemaEntrypointParamNoFromStdin     Code = 3125 // Parameter lacks exact public FromStdin parser
 	SemaRecursiveUnsized               Code = 3126 // Recursive value type has infinite size
 	SemaDeprecatedUsage                Code = 3127 // Usage of deprecated element (warning)
 	SemaIntLiteralOutOfRange           Code = 3128 // Integer literal out of range for target type
@@ -559,8 +557,10 @@ var ( // todo расширить описания и использовать к
 		SemaEntrypointModeInvalid:          "unknown @entrypoint mode; valid modes are 'argv', 'stdin'",
 		SemaEntrypointNoModeRequiresNoArgs: "@entrypoint without mode requires function callable with no arguments",
 		SemaEntrypointReturnNotConvertible: "@entrypoint return type must be 'nothing' or convertible to int",
-		SemaEntrypointParamNoFromArgv:      "parameter type does not implement FromArgv contract",
-		SemaEntrypointParamNoFromStdin:     "parameter type does not implement FromStdin contract",
+		SemaEntrypointParamNoFromArgv:      "parameter type lacks exact public FromArgv parser",
+		SemaEntrypointParamNoFromStdin:     "parameter type lacks exact public FromStdin parser",
+		SemaEntrypointStdinArity:           "@entrypoint('stdin') requires exactly one parameter",
+		SemaEntrypointStdinDefault:         "@entrypoint('stdin') parameter cannot have a default",
 		SemaRecursiveUnsized:               "recursive value type has infinite size",
 		SemaDeprecatedUsage:                "usage of deprecated element",
 		SemaIntLiteralOutOfRange:           "integer literal out of range",

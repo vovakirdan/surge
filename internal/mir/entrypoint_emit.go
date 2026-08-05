@@ -6,7 +6,6 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/hir"
-	"surge/internal/sema"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -157,31 +156,6 @@ func (b *surgeStartBuilder) emitTagPayload(dst, val LocalID, tag string, index i
 			MoveOut: true,
 		},
 	})
-}
-
-func (b *surgeStartBuilder) emitFromStrCall(dst, strLocal LocalID, targetType types.TypeID, paramIndex uint32) {
-	arg := Operand{Kind: OperandAddrOf, Type: b.refType(b.stringType(), false), Place: Place{Local: strLocal}}
-	// `from_str` parses through a `&string`; the caller keeps the string.
-	contracts := borrowArgContracts(1)
-	target, ok := b.fromString[paramIndex]
-	if !ok {
-		if b.err == nil {
-			b.err = fmt.Errorf("entrypoint startup: missing from_str binding for parameter %d", paramIndex)
-		}
-		return
-	}
-	if target.outcome == sema.EntrypointCallableBuiltin {
-		b.emitCallIntrinsic(dst, "from_str", []Operand{arg}, contracts)
-		return
-	}
-	if target.outcome != sema.EntrypointCallableUser || !target.instance.IsValid() || len(target.paramTypes) != 1 {
-		if b.err == nil {
-			b.err = fmt.Errorf("entrypoint startup: invalid from_str binding for parameter %d", paramIndex)
-		}
-		return
-	}
-	arg.Type = target.paramTypes[0]
-	b.emitCall(dst, target.instance, "from_str", []Operand{arg}, contracts)
 }
 
 func (b *surgeStartBuilder) emitExitWithMessage(msg string, code uint64) {

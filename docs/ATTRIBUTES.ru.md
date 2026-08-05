@@ -151,8 +151,10 @@ fn encode(buf: &byte[]) -> uint { return 0:uint; }
 
 Режимы:
 - Нет режима: `@entrypoint` требует, чтобы все параметры имели значения по умолчанию.
-- `@entrypoint("argv")`: парсинг позиционных аргументов через `T.from_str(&string)`.
-- `@entrypoint("stdin")`: парсинг одного параметра из stdin.
+- `@entrypoint("argv")`: парсинг позиционных аргументов через точную публичную
+  статическую функцию `T.from_str(value: &string) -> Erring<T, Error>`.
+- `@entrypoint("stdin")`: парсинг всего stdin через точную публичную статическую
+  функцию `T.from_stdin(text: string) -> Erring<T, Error>`.
 - `"env"` и `"config"` зарезервированы (`FutEntrypointModeEnv` / `FutEntrypointModeConfig`).
 
 Тип возврата:
@@ -160,14 +162,24 @@ fn encode(buf: &byte[]) -> uint { return 0:uint; }
 - `Option<T>` и `Erring<T, E>` реализуют это преобразование по умолчанию.
 
 Парсинг параметров:
-- `"argv"` требует, чтобы каждый тип параметра (без значения по умолчанию) реализовывал `FromArgv<T>`.
-- `"stdin"` требует единственного типа параметра, реализующего `FromStdin<T>`.
+- `"argv"` требует точную функцию `FromArgv<T>` для каждого параметра, включая
+  параметры со значением по умолчанию. Переданный аргумент всегда парсится;
+  значение по умолчанию используется только при отсутствии этой позиции.
+- `"stdin"` требует ровно один параметр, запрещает его значение по умолчанию и
+  передаёт точной функции `FromStdin<T>` владение полной строкой ввода. EOF
+  поставляет пустую строку.
+- `"stdin"` никогда не откатывается к `from_str`: владеющая
+  `from_stdin(string)` и заимствующая `from_str(&string)` — разные контракты.
 
-Контракты объявлены в `core/entrypoint.sg`.
+Контракты и встроенные реализации `FromStdin` объявлены в
+`core/entrypoint.sg`. Реализации есть для всех скалярных типов, которые уже
+можно парсить: `int`, `uint`, целых и вещественных типов фиксированной ширины,
+`float`, `bool` и `string`.
 
-Поведение рантайма (v1):
+Поведение рантайма:
 - `argv`: отсутствие обязательного аргумента завершает с кодом 1; ошибки парсинга вызывают `exit(err)`.
-- `stdin`: поддерживается только один параметр; несколько параметров завершают с кодом 7001.
+- `stdin`: неверное число параметров и значение по умолчанию компилятор
+  отклоняет до генерации кода; ошибка парсинга вызывает `exit(err)`.
 
 ```sg
 @entrypoint("argv")
@@ -442,7 +454,7 @@ let r = &mut value;
 - `SemaAttrAtomicInvalidType` `@atomic` неверный тип поля
 - `SemaAtomicDirectAccess` `@atomic` прямой доступ
 - `SemaAttrCopyNonCopyField` / `SemaAttrCopyCyclicDep` ошибки валидации `@copy`
-- `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` валидация entrypoint
+- `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` / `SemaEntrypointStdinArity` / `SemaEntrypointStdinDefault` валидация entrypoint
 - `FutEntrypointModeEnv` / `FutEntrypointModeConfig` зарезервированные режимы entrypoint
 
 См. `internal/diag/codes.go` для полного списка.

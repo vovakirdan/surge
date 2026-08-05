@@ -19,3 +19,67 @@ pub contract FromStdin<T> {
 pub contract ExitCode<T> {
     pub fn __to(self: T, target: int) -> int;
 }
+
+extern<int> {
+    pub fn from_stdin(text: string) -> Erring<int, Error> { return int.from_str(&text); }
+}
+
+extern<uint> {
+    pub fn from_stdin(text: string) -> Erring<uint, Error> { return uint.from_str(&text); }
+}
+
+extern<int8> {
+    pub fn from_stdin(text: string) -> Erring<int8, Error> { return int8.from_str(&text); }
+}
+
+extern<int16> {
+    pub fn from_stdin(text: string) -> Erring<int16, Error> { return int16.from_str(&text); }
+}
+
+extern<int32> {
+    pub fn from_stdin(text: string) -> Erring<int32, Error> { return int32.from_str(&text); }
+}
+
+extern<int64> {
+    pub fn from_stdin(text: string) -> Erring<int64, Error> { return int64.from_str(&text); }
+}
+
+extern<uint8> {
+    pub fn from_stdin(text: string) -> Erring<uint8, Error> { return uint8.from_str(&text); }
+}
+
+extern<uint16> {
+    pub fn from_stdin(text: string) -> Erring<uint16, Error> { return uint16.from_str(&text); }
+}
+
+extern<uint32> {
+    pub fn from_stdin(text: string) -> Erring<uint32, Error> { return uint32.from_str(&text); }
+}
+
+extern<uint64> {
+    pub fn from_stdin(text: string) -> Erring<uint64, Error> { return uint64.from_str(&text); }
+}
+
+extern<float16> {
+    pub fn from_stdin(text: string) -> Erring<float16, Error> { return float16.from_str(&text); }
+}
+
+extern<float32> {
+    pub fn from_stdin(text: string) -> Erring<float32, Error> { return float32.from_str(&text); }
+}
+
+extern<float64> {
+    pub fn from_stdin(text: string) -> Erring<float64, Error> { return float64.from_str(&text); }
+}
+
+extern<float> {
+    pub fn from_stdin(text: string) -> Erring<float, Error> { return float.from_str(&text); }
+}
+
+extern<bool> {
+    pub fn from_stdin(text: string) -> Erring<bool, Error> { return bool.from_str(&text); }
+}
+
+extern<string> {
+    pub fn from_stdin(text: string) -> Erring<string, Error> { return Success(text); }
+}

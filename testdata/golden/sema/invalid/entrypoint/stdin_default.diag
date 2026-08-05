@@ -1,0 +1,1 @@
+error SEM3184 testdata/golden/sema/invalid/entrypoint/stdin_default.sg:5:21 @entrypoint("stdin") parameter cannot have a default value

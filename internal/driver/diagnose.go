@@ -33,23 +33,6 @@ var (
 	errCoreNamespaceReserved = errors.New("core namespace reserved")
 )
 
-// DiagnoseResult encapsulates the artifacts and diagnostics from a compilation phase.
-type DiagnoseResult struct {
-	FileSet           *source.FileSet
-	File              *source.File
-	FileID            ast.FileID
-	Bag               *diag.Bag
-	Builder           *ast.Builder
-	Symbols           *symbols.Result
-	Sema              *sema.Result
-	Instantiations    *mono.InstantiationMap
-	DirectiveRegistry *directive.Registry // Collected directive scenarios
-	HIR               *hir.Module         // HIR module (if EmitHIR is enabled)
-	TimingReport      observ.Report       // Phase timing report (if enabled)
-	rootRecord        *moduleRecord
-	moduleRecords     map[string]*moduleRecord
-}
-
 // DiagnoseStage определяет уровень диагностики
 type DiagnoseStage string
 
@@ -345,15 +328,14 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 		rootRecord:        rootRec,
 		moduleRecords:     moduleRecords,
 	}
-	if semaRes != nil && symbolsRes != nil && !bag.HasErrors() {
-		if finalizeErr := FinalizeInstantiationClosure(ctx, result, 64); finalizeErr != nil {
-			return nil, fmt.Errorf("instantiation closure: %w", finalizeErr)
-		}
+	blockHIR, finalizeErr := finalizeDiagnoseResult(ctx, result)
+	if finalizeErr != nil {
+		return nil, finalizeErr
 	}
 
 	// Build HIR if requested and sema succeeded
 	var hirModule *hir.Module
-	if opts.EmitHIR && semaRes != nil && builder != nil && astFile != ast.NoFileID {
+	if opts.EmitHIR && semaRes != nil && builder != nil && astFile != ast.NoFileID && !blockHIR {
 		phaseBegin("hir")
 		hirIdx := begin("hir")
 		hirSpan := trace.Begin(tracer, trace.ScopePass, "hir", diagSpan.ID())

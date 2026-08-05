@@ -1,0 +1,1 @@
+error SEM3183 testdata/golden/sema/invalid/entrypoint/stdin_no_params.sg:5:8 @entrypoint("stdin") requires exactly one parameter; found 0

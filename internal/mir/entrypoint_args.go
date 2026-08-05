@@ -103,7 +103,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		argStrLocal := b.newLocal(fmt.Sprintf("arg_str%d", i), b.stringType(), LocalFlags(0))
 		b.emitIndex(argStrLocal, argvLocal, i)
 		parseLocal := b.newLocal(fmt.Sprintf("arg_parsed%d", i), erringType, LocalFlags(0))
-		b.emitFromStrCall(parseLocal, argStrLocal, param.Type, uint32(i)) //nolint:gosec -- parameter count is bounded by the AST
+		b.emitFromArgvCall(parseLocal, argStrLocal, uint32(i)) //nolint:gosec -- parameter count is bounded by the AST
 
 		okLocal := b.newLocal(fmt.Sprintf("arg_ok%d", i), b.boolType(), LocalFlagCopy)
 		b.emitTagTest(okLocal, parseLocal, "Success")
@@ -152,13 +152,6 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 
 func (b *surgeStartBuilder) prepareArgsStdin() []Operand {
 	params := b.entryMF.Func.Params
-	if len(params) == 0 {
-		return nil
-	}
-	if len(params) > 1 {
-		b.emitExitWithMessage("multiple stdin parameters are not supported yet", 7001)
-		return nil
-	}
 
 	// L_stdin = call rt_stdin_read_all()
 	stdinLocal := b.newLocal("stdin", b.stringType(), LocalFlags(0))
@@ -175,7 +168,7 @@ func (b *surgeStartBuilder) prepareArgsStdin() []Operand {
 	}
 
 	parseLocal := b.newLocal("stdin_parsed", erringType, LocalFlags(0))
-	b.emitFromStrCall(parseLocal, stdinLocal, param.Type, 0)
+	b.emitFromStdinCall(parseLocal, stdinLocal)
 
 	okLocal := b.newLocal("stdin_ok", b.boolType(), LocalFlagCopy)
 	b.emitTagTest(okLocal, parseLocal, "Success")

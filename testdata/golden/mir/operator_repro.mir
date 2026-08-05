@@ -4,8 +4,8 @@ funcs=2
 
 fn __eq:
   locals:
-    L0: type#1502 [copy,owns_heap] name=self
-    L1: type#1502 [copy,owns_heap] name=other
+    L0: type#1518 [copy,owns_heap] name=self
+    L1: type#1518 [copy,owns_heap] name=other
     L2: uint64 [copy] name=tmp_field1
     L3: uint64 [copy] name=tmp_field2
     L4: bool [copy] name=tmp_call3
@@ -21,8 +21,8 @@ fn __eq:
 
 fn __ne:
   locals:
-    L0: type#1502 [copy,owns_heap] name=self
-    L1: type#1502 [copy,owns_heap] name=other
+    L0: type#1518 [copy,owns_heap] name=self
+    L1: type#1518 [copy,owns_heap] name=other
     L2: uint64 [copy] name=tmp_field1
     L3: uint64 [copy] name=tmp_field2
     L4: bool [copy] name=tmp_call3

@@ -150,8 +150,10 @@ Marks the program entrypoint.
 
 Modes:
 - No mode: `@entrypoint` requires all parameters to have defaults.
-- `@entrypoint("argv")`: parse positional arguments via `T.from_str(&string)`.
-- `@entrypoint("stdin")`: parse a single parameter from stdin.
+- `@entrypoint("argv")`: parse positional arguments via an exact public static
+  `T.from_str(value: &string) -> Erring<T, Error>` callable.
+- `@entrypoint("stdin")`: parse all of stdin via an exact public static
+  `T.from_stdin(text: string) -> Erring<T, Error>` callable.
 - `"env"` and `"config"` are reserved (`FutEntrypointModeEnv` / `FutEntrypointModeConfig`).
 
 Return type:
@@ -159,14 +161,24 @@ Return type:
 - `Option<T>` and `Erring<T, E>` implement this conversion by default.
 
 Parameter parsing:
-- `"argv"` requires each non-default parameter type to implement `FromArgv<T>`.
-- `"stdin"` requires a single parameter type that implements `FromStdin<T>`.
+- `"argv"` requires the exact `FromArgv<T>` callable for every parameter,
+  including parameters with defaults. A supplied argument is always parsed;
+  the default is used only when that positional argument is absent.
+- `"stdin"` requires exactly one parameter, forbids a parameter default, and
+  passes ownership of the complete input string to the exact `FromStdin<T>`
+  callable. EOF supplies the empty string.
+- `"stdin"` never falls back to `from_str`; the owned `from_stdin(string)` and
+  borrowed `from_str(&string)` callables are distinct contracts.
 
-Contracts are declared in `core/entrypoint.sg`.
+Contracts and builtin `FromStdin` implementations are declared in
+`core/entrypoint.sg`. The builtin implementations cover all currently parseable
+scalar types: `int`, `uint`, the fixed-width integer and float types, `float`,
+`bool`, and `string`.
 
-Runtime behavior (v1):
+Runtime behavior:
 - `argv`: missing required arg exits with code 1; parse failures call `exit(err)`.
-- `stdin`: only one parameter is supported; multiple params exit with code 7001.
+- `stdin`: the compiler rejects the wrong arity or a default before code
+  generation; parse failures call `exit(err)`.
 
 ```sg
 @entrypoint("argv")
@@ -441,7 +453,7 @@ let r = &mut value;
 - `SemaAttrAtomicInvalidType` `@atomic` invalid field type
 - `SemaAtomicDirectAccess` `@atomic` direct access
 - `SemaAttrCopyNonCopyField` / `SemaAttrCopyCyclicDep` `@copy` validation failures
-- `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` entrypoint validation
+- `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` / `SemaEntrypointStdinArity` / `SemaEntrypointStdinDefault` entrypoint validation
 - `FutEntrypointModeEnv` / `FutEntrypointModeConfig` reserved entrypoint modes
 
 See `internal/diag/codes.go` for the full list.

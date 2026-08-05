@@ -1,0 +1,17 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "entrypoint" at 4:2-4:12
+  3: LParen          "(" at 4:12-4:13
+  4: StringLit       "\"stdin\"" at 4:13-4:20
+  5: RParen          ")" at 4:20-4:21
+  6: KwFn            "fn" at 5:1-5:3 (leading: Newline)
+  7: Ident           "main" at 5:4-5:8 (leading: Space)
+  8: LParen          "(" at 5:8-5:9
+  9: RParen          ")" at 5:9-5:10
+ 10: Arrow           "->" at 5:11-5:13 (leading: Space)
+ 11: Ident           "int" at 5:14-5:17 (leading: Space)
+ 12: LBrace          "{" at 5:18-5:19 (leading: Space)
+ 13: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 14: IntLit          "0" at 6:12-6:13 (leading: Space)
+ 15: Semicolon       ";" at 6:13-6:14
+ 16: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 17: EOF             at 8:1-8:1

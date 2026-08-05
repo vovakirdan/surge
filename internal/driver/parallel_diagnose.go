@@ -521,30 +521,8 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 			if err := resolveDirModuleGraph(ctx, fileSet, results, opts); err != nil {
 				return nil, nil, err
 			}
-		} else {
-			if err := enrichModuleResults(ctx, baseDir, fileSet, results, opts); err != nil {
-				return nil, nil, err
-			}
-			for i := range results {
-				result := &results[i]
-				if result.Sema == nil || result.Symbols == nil || result.Bag == nil || result.Bag.HasErrors() {
-					continue
-				}
-				var file *source.File
-				if fileSet.HasFile(result.FileID) {
-					file = fileSet.Get(result.FileID)
-				}
-				diagnosed := &DiagnoseResult{
-					FileSet: fileSet,
-					File:    file,
-					FileID:  result.ASTFile,
-					Symbols: result.Symbols,
-					Sema:    result.Sema,
-				}
-				if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
-					return nil, nil, fmt.Errorf("%s instantiation closure: %w", result.Path, err)
-				}
-			}
+		} else if err := prepareParallelFileResults(ctx, baseDir, fileSet, results, opts); err != nil {
+			return nil, nil, err
 		}
 	}
 

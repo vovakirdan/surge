@@ -1,0 +1,7 @@
+// Test: stdin entrypoints reject multiple parameters during semantic analysis
+// Expected: SEM3183
+
+@entrypoint("stdin")
+fn main(first: string, second: string) -> int {
+    return 0;
+}

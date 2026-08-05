@@ -419,6 +419,28 @@ fn main(name: string, times: int = 1) {
 surge run greet.sg -- Alice 3
 ```
 
+Тип каждого параметра должен предоставлять точную публичную статическую
+функцию `from_str(value: &string) -> Erring<T, Error>`. Это относится и к
+`times`: значение по умолчанию используется только при отсутствии второго
+аргумента, а переданное значение по-прежнему парсится обычным способом.
+
+Чтобы принять стандартный ввод как одно значение, используется отдельный
+stdin-контракт:
+
+```surge
+@entrypoint("stdin")
+fn main(text: string) -> int {
+    print(text);
+    return 0;
+}
+```
+
+Режим stdin требует ровно один параметр без значения по умолчанию и вызывает
+точную публичную статическую функцию
+`from_stdin(text: string) -> Erring<T, Error>`. Она получает весь ввод во
+владение одной строкой; EOF соответствует пустой строке. Отката к `from_str`
+нет.
+
 ### Важное замечание
 
 Это **просто синтаксический сахар**.
@@ -434,8 +456,12 @@ surge run greet.sg -- Alice 3
 ```
 __surge_start:
     let args = argv();
-    let name = args[0];
-    let times = args[1];
+    let name = string.from_str(&args[0])?;
+    let times = if args.len() > 1 {
+        int.from_str(&args[1])?
+    } else {
+        1
+    };
     main(name, times);
 ```
 

@@ -381,9 +381,15 @@ func finalizeInstantiationResult(res *DiagnoseResult, maxDepth int) error {
 	}
 	res.Sema.InstantiationIdentity = &identity
 	if err := res.Sema.FinalizeEntrypointCallables(); err != nil {
+		if consumeFinalizationDiagnostic(res, err) {
+			return nil
+		}
 		return err
 	}
 	if err := res.Sema.FinalizeInstantiationClosure(identity, maxDepth); err != nil {
+		return err
+	}
+	if err := publishFinalizationDecisions(res); err != nil {
 		return err
 	}
 	if res.Instantiations != nil {

@@ -122,12 +122,12 @@ type surgeStartBuilder struct {
 	staticStringInits   map[GlobalID]string
 	f                   *Func
 
-	// Current block being built
 	cur BlockID
 
 	paramLocals map[symbols.SymbolID]LocalID
 	returnToInt *entrypointCallableTarget
-	fromString  map[uint32]entrypointCallableTarget
+	fromArgv    map[uint32]entrypointCallableTarget
+	fromStdin   *entrypointCallableTarget
 	err         error
 }
 

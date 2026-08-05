@@ -1,0 +1,7 @@
+// Test: stdin always supplies a value, so its parameter cannot have a default
+// Expected: SEM3184 with a guarded removal fix
+
+@entrypoint("stdin")
+fn main(text: string = "fallback") -> int {
+    return 0;
+}

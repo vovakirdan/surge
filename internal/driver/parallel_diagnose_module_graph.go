@@ -14,9 +14,7 @@ import (
 	"surge/internal/fix"
 	"surge/internal/project"
 	"surge/internal/project/dag"
-	"surge/internal/sema"
 	"surge/internal/source"
-	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -344,112 +342,11 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 		*opts.ExportsOut = exports
 	}
 
-	// Finalize one module-level authority per root table, then attach it to
-	// every per-file sema result retained by the language-server snapshot.
-	finalizedRecords := make(map[*moduleRecord]struct{}, len(records))
-	for _, modulePath := range paths {
-		rec := records[modulePath]
-		if rec == nil || rec.Bag == nil || rec.Bag.HasErrors() {
-			continue
-		}
-		if _, done := finalizedRecords[rec]; done {
-			continue
-		}
-		finalizedRecords[rec] = struct{}{}
-		var aggregate *sema.Result
-		var aggregateSymbols *symbols.Result
-		var aggregateFile *source.File
-		for i, astFile := range rec.FileIDs {
-			candidate := rec.Sema[astFile]
-			sym, ok := rec.Symbols[astFile]
-			if candidate == nil || !ok {
-				continue
-			}
-			symCopy := sym
-			aggregate = candidate
-			aggregateSymbols = &symCopy
-			if i < len(rec.Files) {
-				aggregateFile = rec.Files[i]
-			}
-			break
-		}
-		if aggregate == nil || aggregateSymbols == nil {
-			continue
-		}
-		diagnosed := &DiagnoseResult{
-			FileSet:       fileSet,
-			File:          aggregateFile,
-			Symbols:       aggregateSymbols,
-			Sema:          aggregate,
-			rootRecord:    rec,
-			moduleRecords: records,
-		}
-		if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
-			return fmt.Errorf("%s instantiation closure: %w", modulePath, err)
-		}
-		for _, astFile := range rec.FileIDs {
-			if fileSema := rec.Sema[astFile]; fileSema != nil && fileSema != aggregate {
-				sema.CopyInstantiationAuthority(fileSema, aggregate)
-			}
-		}
+	if err := finalizeParallelModuleRecords(ctx, fileSet, paths, records); err != nil {
+		return err
 	}
 
-	for _, rec := range records {
-		if rec == nil || rec.Builder == nil || len(rec.FileIDs) == 0 {
-			continue
-		}
-		diagsByFile := splitDiagnosticsByFile(rec.Bag)
-		for i, astFile := range rec.FileIDs {
-			var file *source.File
-			if i < len(rec.Files) {
-				file = rec.Files[i]
-			}
-			if file == nil && rec.Builder != nil {
-				if node := rec.Builder.Files.Get(astFile); node != nil && fileSet.HasFile(node.Span.File) {
-					file = fileSet.Get(node.Span.File)
-				}
-			}
-			if file == nil {
-				continue
-			}
-			resIdx, ok := pathToIndex[normalizePathForIndex(file.Path)]
-			if !ok {
-				if absPath, absErr := filepath.Abs(file.Path); absErr == nil {
-					resIdx, ok = pathToIndex[normalizePathForIndex(absPath)]
-				}
-			}
-			if !ok {
-				if baseDir != "" {
-					if relPath, relErr := source.RelativePath(file.Path, baseDir); relErr == nil {
-						resIdx, ok = pathToIndex[normalizePathForIndex(relPath)]
-					}
-				}
-			}
-			if !ok {
-				resIdx, ok = fileIDToIndex[file.ID]
-				if !ok {
-					continue
-				}
-			}
-			res := &results[resIdx]
-			res.Path = file.Path
-			res.FileID = file.ID
-			res.ASTFile = astFile
-			res.Builder = rec.Builder
-			res.Bag = fileBagFromDiagnostics(diagsByFile[file.ID], opts.MaxDiagnostics)
-			res.Symbols = nil
-			if rec.Symbols != nil {
-				if sym, ok := rec.Symbols[astFile]; ok {
-					symCopy := sym
-					res.Symbols = &symCopy
-				}
-			}
-			res.Sema = nil
-			if rec.Sema != nil {
-				res.Sema = rec.Sema[astFile]
-			}
-		}
-	}
+	publishParallelModuleResults(fileSet, baseDir, results, opts, pathToIndex, fileIDToIndex, records, normalizePathForIndex)
 
 	return nil
 }
