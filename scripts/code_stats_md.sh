@@ -175,7 +175,6 @@ echo "## 📈 Total volume (code + tests)"
 echo ""
 echo "- **Files:** $(format_number $total_files)"
 echo "- **Lines of code:** $(format_number $total_lines)"
-echo ""
 
 # Процентное соотношение
 if [ $total_lines -gt 0 ]; then
@@ -183,9 +182,9 @@ if [ $total_lines -gt 0 ]; then
     main_c_percent=$((c_lines * 100 / total_lines))
     main_total_percent=$((main_with_c_lines * 100 / total_lines))
     test_percent=$((test_only_lines * 100 / total_lines))
+    echo ""
     echo "## 📊 Percentage breakdown"
     echo ""
     echo "- **Main code (Go + C):** ${main_total_percent}% (Go: ${main_go_percent}%, C: ${main_c_percent}%)"
     echo "- **Tests:** ${test_percent}%"
-    echo ""
 fi
