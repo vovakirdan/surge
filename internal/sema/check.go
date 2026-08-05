@@ -140,6 +140,11 @@ type Result struct {
 	CrossingDispatchCalls      map[ast.ExprID]struct{}
 	EntrypointCallableRequests []EntrypointCallableRequest
 	EntrypointCallableBindings []EntrypointCallableBinding
+	// DirectCloneRequests are `clone(&value)` uses on concrete non-Copy types.
+	// They are answered once against the merged callable catalog so that a type
+	// clones the same way everywhere, and published back as CloneSymbols.
+	DirectCloneRequests        []DirectCloneRequest
+	DirectCloneBindings        []DirectCloneBinding
 	FunctionInstantiations     map[symbols.SymbolID][][]types.TypeID
 	FunctionInstantiationSites map[symbols.SymbolID][]source.Span
 	ImplicitConversions        map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls

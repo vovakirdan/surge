@@ -13,6 +13,7 @@ type reachableClosureBuilder struct {
 	graph          *InstantiationGraph
 	callEdges      map[symbols.SymbolID]map[symbols.SymbolID]struct{}
 	candidates     []CallableCandidate
+	clones         *cloneCanonicalSelector
 	templateParams map[symbols.SymbolID][]types.TypeID
 	identity       InstantiationIdentity
 	limits         instantiationClosureLimits
@@ -42,6 +43,7 @@ func buildReachableInstantiationClosureWithDeferred(
 ) (InstantiationClosure, error) {
 	b := &reachableClosureBuilder{
 		graph: graph, callEdges: callEdges, candidates: candidates, templateParams: templateParams,
+		clones:   newCloneCanonicalSelector(candidates, identity.Types.Types),
 		identity: identity, limits: limits,
 		rootsByCaller:    make(map[symbols.SymbolID][]InstantiationRoot),
 		edgesByCaller:    make(map[symbols.SymbolID][]InstantiationEdge),

@@ -243,6 +243,9 @@ func CanonicalizeInstantiationGraphSources(result *Result, resolve func(source.F
 	if err := canonicalizeEntrypointCallableSources(result, resolve); err != nil {
 		return err
 	}
+	if err := canonicalizeDirectCloneSources(result, resolve); err != nil {
+		return err
+	}
 	result.InstantiationGraph = rebuilt
 	result.InstantiationClosure = nil
 	result.rebuildFunctionInstantiations()
@@ -312,6 +315,8 @@ func CopyInstantiationAuthority(dst, src *Result) {
 	}
 	dst.EntrypointCallableRequests = cloneEntrypointCallableRequests(src.EntrypointCallableRequests)
 	dst.EntrypointCallableBindings = cloneEntrypointCallableBindings(src.EntrypointCallableBindings)
+	dst.DirectCloneRequests = cloneDirectCloneRequests(src.DirectCloneRequests)
+	dst.DirectCloneBindings = cloneDirectCloneBindings(src.DirectCloneBindings)
 	dst.InstantiationGraph = graph
 	dst.InstantiationIdentity = src.InstantiationIdentity
 	dst.InstantiationClosure = nil
@@ -506,6 +511,7 @@ func MergeInstantiationGraphs(dst, src *Result, mapping map[symbols.SymbolID]sym
 		return dst.CallableCandidates[i].BodyKey < dst.CallableCandidates[j].BodyKey
 	})
 	mergeEntrypointCallableRequests(dst, src, mapping)
+	mergeDirectCloneRequests(dst, src, mapping)
 	dst.InstantiationClosure = nil
 	dst.rebuildFunctionInstantiations()
 }

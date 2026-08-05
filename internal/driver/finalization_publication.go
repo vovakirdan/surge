@@ -124,6 +124,19 @@ func publishFinalizationDecisions(res *DiagnoseResult) error {
 			return err
 		}
 	}
+	// A single-file build has no module record to walk, so the authority result
+	// is also the owner of its own decisions and must still receive them.
+	if _, seen := seenResults[res.Sema]; !seen && res.File != nil {
+		sourceKey, err := resolveSource(res.File.ID)
+		if err != nil {
+			return fmt.Errorf("finalization publication for %s: %w", res.File.Path, err)
+		}
+		if err := sema.PublishFinalizationDecisions(res.Sema, authority, sema.FinalizationPublication{
+			SourceKey: sourceKey,
+		}); err != nil {
+			return fmt.Errorf("finalization publication for %s: %w", sourceKey, err)
+		}
+	}
 	return nil
 }
 
@@ -134,6 +147,7 @@ func snapshotFinalizationAuthority(src *sema.Result) *sema.Result {
 	return &sema.Result{
 		CallableCandidates:         append([]sema.CallableCandidate(nil), src.CallableCandidates...),
 		EntrypointCallableBindings: append([]sema.EntrypointCallableBinding(nil), src.EntrypointCallableBindings...),
+		DirectCloneBindings:        append([]sema.DirectCloneBinding(nil), src.DirectCloneBindings...),
 	}
 }
 

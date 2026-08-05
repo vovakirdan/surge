@@ -131,14 +131,14 @@ func (r *Result) FinalizeEntrypointCallables() error {
 			Kind: DeferredMethodCall, Receiver: request.Receiver, Method: request.Method,
 			Args: request.Args, ExpectedResult: request.ExpectedResult,
 			StaticReceiver: request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin,
-			AccessModule:   request.AccessModule, SourceKey: request.SourceKey,
+			AccessModule:   request.AccessModule, SourceKey: request.SourceKey, Site: request.Site,
 		}
 		if request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin {
 			callRequest.Requirement = DeferredCallableRequirement{
 				Name: request.Method, Params: slices.Clone(request.Args), Result: request.ExpectedResult, Public: true,
 			}
 		}
-		resolution, err := resolveDeferredCallable(useID, callRequest, r.CallableCandidates, r.TypeInterner)
+		resolution, err := resolveDeferredCallable(useID, callRequest, r.CallableCandidates, r.TypeInterner, nil)
 		if err != nil {
 			if request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin {
 				return newEntrypointCallableError(request, err, r.CallableCandidates, r.TypeInterner)

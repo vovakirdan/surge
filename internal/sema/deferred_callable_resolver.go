@@ -47,12 +47,21 @@ func resolveDeferredCallable(
 	request DeferredCallableRequest,
 	candidates []CallableCandidate,
 	typesIn *types.Interner,
+	clones *cloneCanonicalSelector,
 ) (DeferredCallableResolution, error) {
 	if typesIn == nil || request.Receiver == types.NoTypeID || request.Method == "" {
 		return DeferredCallableResolution{}, &DeferredCallableResolutionError{UseID: useID, Method: request.Method, Reason: "incomplete concrete call shape"}
 	}
-	if request.Kind == DeferredCloneCall && typesIn.IsCopy(resolveCallableAlias(typesIn, request.Receiver)) {
-		return DeferredCallableResolution{Outcome: DeferredCallableBuiltinCopy, CalleeKey: "builtin/copy"}, nil
+	if request.Kind == DeferredCloneCall {
+		if typesIn.IsCopy(resolveCallableAlias(typesIn, request.Receiver)) {
+			return DeferredCallableResolution{Outcome: DeferredCallableBuiltinCopy, CalleeKey: "builtin/copy"}, nil
+		}
+		// An instantiated generic use of clone obeys the same program-wide
+		// selection as a direct one; only the requesting module differs.
+		if clones == nil {
+			clones = newCloneCanonicalSelector(candidates, typesIn)
+		}
+		return resolveDeferredCloneCall(&request, clones)
 	}
 
 	ordered := make([]CallableCandidate, len(candidates))
@@ -374,12 +383,6 @@ func callableABITypeEqual(typesIn *types.Interner, expected, actual types.TypeID
 
 func callableCandidateAccessible(request DeferredCallableRequest, candidate *CallableCandidate) bool {
 	if candidate.Builtin {
-		return true
-	}
-	if request.Kind == DeferredCloneCall {
-		// clone is a language value operation. Its canonical implementation
-		// belongs to the type even when the hook is not exported from the
-		// declaring module; ordinary method calls still obey visibility.
 		return true
 	}
 	if candidate.FilePrivate && candidate.SourceKey != request.SourceKey {

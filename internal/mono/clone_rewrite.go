@@ -46,6 +46,17 @@ func (b *monoBuilder) rewriteCloneCall(call *hir.Expr, data *hir.CallData, stack
 	if b.types.IsCopy(resolveAlias(b.types, recvType)) || b.isTaskType(recvType) {
 		return false, nil
 	}
+	if b.closure != nil {
+		// Under the whole-program authority every clone has an already-published
+		// implementation, so reaching here means the decision never arrived.
+		// Rediscovering one by scanning the symbol table could pick a different
+		// body than the rest of the program uses.
+		typeLabel := b.typeKeyForType(recvType)
+		if typeLabel == "" {
+			typeLabel = fmt.Sprintf("type#%d", recvType)
+		}
+		return true, fmt.Errorf("mono: clone of %s at %s has no authoritative implementation", typeLabel, call.Span)
+	}
 	cloneSym, matchType := b.cloneSymbolForType(recvType)
 	if !cloneSym.IsValid() {
 		typeLabel := b.typeKeyForType(recvType)

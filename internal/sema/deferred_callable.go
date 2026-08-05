@@ -44,7 +44,10 @@ type DeferredCallableRequest struct {
 	StaticReceiver   bool
 	AccessModule     string
 	SourceKey        string
-	Requirement      DeferredCallableRequirement
+	// Site is the requesting source span. It carries no resolution meaning and
+	// exists so a post-merge failure can be reported where the user wrote it.
+	Site        source.Span
+	Requirement DeferredCallableRequirement
 }
 
 // DeferredCallableResolution names either an exact callable and its

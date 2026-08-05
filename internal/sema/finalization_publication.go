@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"surge/internal/ast"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -44,7 +45,17 @@ func PublishFinalizationDecisions(dst, authority *Result, publication Finalizati
 	if err != nil {
 		return err
 	}
+	cloneSymbols, err := publishDirectCloneBindings(authority, publication)
+	if err != nil {
+		return err
+	}
 	dst.EntrypointCallableBindings = bindings
+	if len(cloneSymbols) > 0 && dst.CloneSymbols == nil {
+		dst.CloneSymbols = make(map[ast.ExprID]symbols.SymbolID, len(cloneSymbols))
+	}
+	for use, callee := range cloneSymbols {
+		dst.CloneSymbols[use] = callee
+	}
 	return nil
 }
 

@@ -394,7 +394,16 @@ func finalizeInstantiationResult(res *DiagnoseResult, maxDepth int) error {
 		}
 		return err
 	}
+	if err := res.Sema.FinalizeDirectCloneBindings(); err != nil {
+		if consumeFinalizationDiagnostic(res, err) {
+			return nil
+		}
+		return err
+	}
 	if err := res.Sema.FinalizeInstantiationClosure(identity, maxDepth); err != nil {
+		if consumeFinalizationDiagnostic(res, err) {
+			return nil
+		}
 		return err
 	}
 	if err := publishFinalizationDecisions(res); err != nil {

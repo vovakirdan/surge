@@ -102,9 +102,9 @@ func (b *reachableClosureBuilder) resolveDeferred(current *InstantiationInstance
 	request := DeferredCallableRequest{
 		Kind: edge.Kind, Receiver: receiver, Method: edge.Method, Args: args, ExplicitTypeArgs: explicit,
 		ExpectedResult: result, StaticReceiver: edge.StaticReceiver, AccessModule: edge.AccessModule,
-		SourceKey: edge.Witness.SourceKey, Requirement: requirement,
+		SourceKey: edge.Witness.SourceKey, Site: edge.Witness.Site, Requirement: requirement,
 	}
-	resolution, err := resolveDeferredCallable(edge.UseID, request, b.candidates, b.identity.Types.Types)
+	resolution, err := resolveDeferredCallable(edge.UseID, request, b.candidates, b.identity.Types.Types, b.clones)
 	if err != nil {
 		return err
 	}
