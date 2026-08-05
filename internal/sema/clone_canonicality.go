@@ -139,7 +139,7 @@ func (s *cloneCanonicalSelector) selectUncached(receiver types.TypeID) cloneSele
 		}
 		return cloneSelection{kind: cloneSelectionAbsent}
 	}
-	matches = collapseBuiltinOperations(reduceToMostSpecific(matches))
+	matches = reduceToMostSpecific(matches)
 	unique, err := dedupeCanonicalBodies(matches)
 	if err != nil {
 		return cloneSelection{internal: err}
@@ -235,45 +235,6 @@ func reduceToMostSpecific(matches []callableMatch) []callableMatch {
 		}
 	}
 	return preferred
-}
-
-// collapseBuiltinOperations folds the several declarations one compiler-provided
-// operation receives when the same builtin `extern` block is parsed under more
-// than one module path. They describe a single runtime operation on a single
-// builtin type, so they are not rival implementations of it. A user declaration
-// is never builtin and therefore never collapses here.
-//
-// The input is ordered by canonical body key, so the survivor is stable.
-func collapseBuiltinOperations(matches []callableMatch) []callableMatch {
-	if len(matches) <= 1 {
-		return matches
-	}
-	kept := matches[:0]
-	for i := range matches {
-		duplicate := false
-		for j := range kept {
-			if sameBuiltinOperation(&kept[j].candidate, &matches[i].candidate) {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate {
-			kept = append(kept, matches[i])
-		}
-	}
-	return kept
-}
-
-func sameBuiltinOperation(left, right *CallableCandidate) bool {
-	if !left.Builtin || !right.Builtin {
-		return false
-	}
-	return left.Name == right.Name && left.ReceiverKey == right.ReceiverKey &&
-		left.ReceiverType == right.ReceiverType && left.Result == right.Result &&
-		left.ResultType == right.ResultType && left.Intrinsic == right.Intrinsic &&
-		left.HasBody == right.HasBody && left.Async == right.Async &&
-		slices.Equal(left.Params, right.Params) && slices.Equal(left.ParamTypes, right.ParamTypes) &&
-		slices.Equal(left.Attrs, right.Attrs)
 }
 
 // dedupeCanonicalBodies collapses imported aliases of one declaration. The input
