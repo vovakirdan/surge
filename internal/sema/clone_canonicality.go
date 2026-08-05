@@ -34,6 +34,9 @@ type GlobalCloneHook struct {
 	ModulePath   string
 	SourceKey    string
 	Decl         source.Span
+	// DeclKeyword is where a `pub` modifier belongs, which is not where Decl
+	// points. See CallableCandidate.DeclKeyword.
+	DeclKeyword source.Span
 }
 
 func (h *GlobalCloneHook) visibleFrom(view CloneUseView) bool {
@@ -310,6 +313,7 @@ func newGlobalCloneHook(receiver types.TypeID, match *callableMatch, typesIn *ty
 		ModulePath:   match.candidate.ModulePath,
 		SourceKey:    match.candidate.SourceKey,
 		Decl:         match.candidate.Source,
+		DeclKeyword:  match.candidate.DeclKeyword,
 	}, true
 }
 

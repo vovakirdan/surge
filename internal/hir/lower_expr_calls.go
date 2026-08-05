@@ -96,6 +96,18 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 						},
 					}
 				}
+				// Sema asked the finalization seam which body clones this type and
+				// nothing answered. Lowering on would emit an ordinary call to a
+				// function named `clone`, which is not what the program means; the
+				// missing publication has to surface here rather than downstream.
+				if _, requested := l.cloneRequests[directCloneUse{File: expr.Span.File, Use: exprID}]; requested {
+					l.setErrorf(
+						"internal compiler error: clone at %s has no published implementation; "+
+							"the finalization seam must answer every direct clone request",
+						expr.Span,
+					)
+					return nil
+				}
 			}
 		}
 	}

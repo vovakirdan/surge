@@ -70,6 +70,7 @@ func LowerWithOptions(
 	}
 	l.stmtSymbols = buildStmtSymbolIndex(symRes, fileID)
 	l.crossingByExpr = buildCrossingLoweringIndex(semaRes)
+	l.cloneRequests = buildDirectCloneRequestIndex(semaRes)
 
 	l.lowerFile(fileID)
 	if l.err != nil {
@@ -102,6 +103,7 @@ type lowerer struct {
 	nextFnID       FuncID
 	stmtSymbols    map[ast.StmtID]symbols.SymbolID
 	crossingByExpr map[ast.ExprID]*sema.CrossingLoweringInfo
+	cloneRequests  map[directCloneUse]struct{}
 	err            error
 }
 
@@ -110,6 +112,33 @@ func (l *lowerer) setErrorf(format string, args ...any) {
 		return
 	}
 	l.err = fmt.Errorf(format, args...)
+}
+
+// directCloneUse identifies one `clone(&value)` across the several semantic
+// results a build merges. Expression ids are per-file, so the owning source file
+// is part of the identity: the merged authority carries requests from every file
+// and two of them may share an expression id.
+type directCloneUse struct {
+	File source.FileID
+	Use  ast.ExprID
+}
+
+// buildDirectCloneRequestIndex records which expressions sema asked the
+// finalization seam to answer. Lowering consults it only to fail closed when an
+// answer never arrived; the answers themselves live in CloneSymbols.
+func buildDirectCloneRequestIndex(semaRes *sema.Result) map[directCloneUse]struct{} {
+	if semaRes == nil || len(semaRes.DirectCloneRequests) == 0 {
+		return nil
+	}
+	out := make(map[directCloneUse]struct{}, len(semaRes.DirectCloneRequests))
+	for idx := range semaRes.DirectCloneRequests {
+		request := &semaRes.DirectCloneRequests[idx]
+		if !request.Use.IsValid() {
+			continue
+		}
+		out[directCloneUse{File: request.Site.File, Use: request.Use}] = struct{}{}
+	}
+	return out
 }
 
 func buildCrossingLoweringIndex(semaRes *sema.Result) map[ast.ExprID]*sema.CrossingLoweringInfo {

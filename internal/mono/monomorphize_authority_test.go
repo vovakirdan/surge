@@ -176,6 +176,38 @@ func TestCallableMapCanonicalizesNonGenericAliasesWithEmptyArgs(t *testing.T) {
 	}
 }
 
+// Under the whole-program authority, which body clones a type is already
+// decided; mono is not allowed to look for one. Its old scan picked whatever
+// __clone the symbol table happened to hold for the type name, which is exactly
+// how one program could end up cloning a value two different ways. Reaching this
+// point means a decision was lost upstream, so it is an error rather than a
+// second opinion.
+func TestCloneRewriteRefusesToRediscoverAnImplementation(t *testing.T) {
+	stringsIn := source.NewInterner()
+	in := types.NewInterner()
+	in.Strings = stringsIn
+	// A struct is not Copy, so this clone genuinely needs a chosen body.
+	holder := in.RegisterStruct(stringsIn.Intern("Holder"), source.Span{File: 1, Start: 1, End: 2})
+	b := &monoBuilder{
+		mod:     &hir.Module{},
+		types:   in,
+		closure: &sema.InstantiationClosure{},
+	}
+	call := &hir.Expr{Kind: hir.ExprCall, Type: holder, Span: source.Span{File: 1, Start: 10, End: 20}}
+	data := &hir.CallData{Args: []*hir.Expr{{Kind: hir.ExprVarRef, Type: holder}}}
+
+	handled, err := b.rewriteCloneCall(call, data, nil)
+	if !handled {
+		t.Fatal("a clone of a non-Copy type was passed through untouched")
+	}
+	if err == nil || !strings.Contains(err.Error(), "no authoritative implementation") {
+		t.Fatalf("clone rewrite error = %v", err)
+	}
+	if data.Callee != nil || data.SymbolID.IsValid() {
+		t.Fatalf("the refused clone was rewritten anyway: %+v", data)
+	}
+}
+
 func TestDCERootsRejectMissingSemaSelectedCallable(t *testing.T) {
 	in := types.NewInterner()
 	identity := testMonoInstantiationIdentity(in)

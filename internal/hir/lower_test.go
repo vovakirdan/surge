@@ -536,6 +536,62 @@ func requireCrossingExpr(t *testing.T, module *hir.Module, kind sema.CrossingLow
 	return found
 }
 
+// Which body clones a type is decided once for the whole program, after every
+// module has merged, and published back into the per-file result this lowering
+// reads. This harness runs sema alone, so it reproduces the state that gap
+// leaves behind: the request is recorded and the answer never arrives.
+//
+// Lowering on would emit an ordinary call to a function named `clone`, which is
+// not what the program means and which nothing downstream would recognise as
+// wrong. Refusing here keeps the seam closed.
+func TestLowerRefusesACloneThatWasNeverAnswered(t *testing.T) {
+	src := `
+type Box = { text: string }
+extern<Box> {
+    pub fn __clone(self: &Box) -> Box {
+        return Box { text = self.text };
+    }
+}
+fn duplicate(value: &Box) -> Box {
+    return clone(value);
+}
+`
+	_, _, err := parseAndLower(t, src)
+	if err == nil {
+		t.Fatal("an unanswered clone lowered as an ordinary call")
+	}
+	if !strings.Contains(err.Error(), "no published implementation") {
+		t.Fatalf("lowering error = %v", err)
+	}
+}
+
+// The refusal has to be narrow. A Copy value is duplicated without any
+// implementation to publish, and a clone inside a generic is answered by the
+// deferred mechanism instead — neither records a direct request, so neither may
+// be refused for lacking an answer to one.
+func TestLowerAcceptsClonesThatNeedNoPublishedImplementation(t *testing.T) {
+	cases := map[string]string{
+		"copy type": `
+@copy type Point = { x: int, y: int }
+fn duplicate(value: &Point) -> Point {
+    return clone(value);
+}
+`,
+		"generic body": `
+fn duplicate<T>(value: &T) -> T {
+    return clone(value);
+}
+`,
+	}
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := parseAndLower(t, src); err != nil {
+				t.Fatalf("lowering refused a clone that needs no publication: %v", err)
+			}
+		})
+	}
+}
+
 func parseAndLower(t *testing.T, src string) (*hir.Module, *types.Interner, error) {
 	t.Helper()
 	return parseAndLowerWithOptions(t, src, hir.LowerOptions{})

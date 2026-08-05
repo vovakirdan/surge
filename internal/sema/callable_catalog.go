@@ -60,7 +60,12 @@ type CallableCandidate struct {
 	Intrinsic             bool
 	ModulePath            string
 	Source                source.Span
-	SourceKey             string
+	// DeclKeyword covers the `fn` keyword of the declaration. Source names the
+	// method, which is where a reader looks, but a visibility modifier goes in
+	// front of `fn`; a quick fix that edits the declaration needs that position
+	// and must not widen Source, which existing diagnostics point at.
+	DeclKeyword source.Span
+	SourceKey   string
 }
 
 func localDeferredUseID(kind DeferredCallableKind, site source.Span, ordinal uint32) DeferredUseID {
@@ -165,6 +170,7 @@ func (tc *typeChecker) rememberCallableCandidate(symID symbols.SymbolID, fn *ast
 		Async:                 fn.Flags&ast.FnModifierAsync != 0,
 		ModulePath:            modulePath,
 		Source:                sym.Span,
+		DeclKeyword:           fn.FnKeywordSpan,
 	}
 	candidate.Intrinsic = slices.Contains(candidate.Attrs, "intrinsic")
 	for i := range tc.result.CallableCandidates {

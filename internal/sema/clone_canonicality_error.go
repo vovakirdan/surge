@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/source"
 )
 
@@ -103,20 +104,49 @@ func newCloneNotVisibleError(hook *GlobalCloneHook, view CloneUseView, site sour
 			Msg:  fmt.Sprintf("it is declared here in module %q", hook.ModulePath),
 		}},
 	}
-	// The declaration span covers the method name, not the position a `pub`
-	// keyword would occupy, so the edit is described rather than applied.
 	if hook.FilePrivate && hook.SourceKey != view.SourceKey {
+		// `pub` alone does not reach out of a file, so there is no one edit to
+		// offer: the author chooses between moving the declaration and exporting
+		// the file. Naming both is the whole help this case can carry.
 		diagnostic.Notes = append(diagnostic.Notes, diag.Note{
 			Span: hook.Decl,
 			Msg:  "help: this declaration is file-private; move it to a shared file or export it",
 		})
-	} else {
-		diagnostic.Notes = append(diagnostic.Notes, diag.Note{
-			Span: hook.Decl,
-			Msg:  "help: declare it `pub` so every user of the type clones it the same way",
-		})
+		return &CloneCanonicalityError{diagnostic: diagnostic}
+	}
+	diagnostic.Notes = append(diagnostic.Notes, diag.Note{
+		Span: hook.Decl,
+		Msg:  "help: declare it `pub` so every user of the type clones it the same way",
+	})
+	if edit := cloneVisibilityFix(hook, typeLabel); edit != nil {
+		diagnostic.Fixes = append(diagnostic.Fixes, edit)
 	}
 	return &CloneCanonicalityError{diagnostic: diagnostic}
+}
+
+// cloneVisibilityFix writes the `pub` the note asks for.
+//
+// The edit replaces the declaration's `fn` keyword rather than inserting at an
+// offset, so the guard text is exact: if the anchor ever stops naming that
+// keyword the edit is refused instead of landing somewhere arbitrary. When the
+// anchor is missing — a callable the compiler synthesized rather than parsed —
+// no fix is offered at all, because a heuristic position is worse than none.
+func cloneVisibilityFix(hook *GlobalCloneHook, typeLabel string) *diag.Fix {
+	if hook == nil || hook.Public || hook.Builtin {
+		return nil
+	}
+	anchor := hook.DeclKeyword
+	if anchor == (source.Span{}) || anchor.End <= anchor.Start || anchor.File != hook.Decl.File {
+		return nil
+	}
+	return fix.ReplaceSpan(
+		fmt.Sprintf("declare `__clone` for %s `pub`", typeLabel),
+		anchor,
+		"pub fn",
+		"fn",
+		fix.WithID(fix.MakeFixID(diag.SemaCloneHookNotVisible, anchor)),
+		fix.Preferred(),
+	)
 }
 
 func compareCloneHookDeclarations(left, right *GlobalCloneHook) int {
