@@ -5,9 +5,35 @@ import (
 	"sort"
 
 	"surge/internal/ast"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
+
+// canonicalizeFinalizationRequestSources stamps a portable source identity on
+// every request that is answered after the module graphs merge.
+func canonicalizeFinalizationRequestSources(result *Result, resolve func(source.FileID) (string, error)) error {
+	if err := canonicalizeEntrypointCallableSources(result, resolve); err != nil {
+		return err
+	}
+	return canonicalizeDirectCloneSources(result, resolve)
+}
+
+// mergeFinalizationRequests carries one file's unanswered requests into the
+// merged authority that will answer them.
+func mergeFinalizationRequests(dst, src *Result, mapping map[symbols.SymbolID]symbols.SymbolID) {
+	mergeEntrypointCallableRequests(dst, src, mapping)
+	mergeDirectCloneRequests(dst, src, mapping)
+}
+
+// copyFinalizationRequests shares one finalized authority's requests and
+// answers with another per-file result.
+func copyFinalizationRequests(dst, src *Result) {
+	dst.EntrypointCallableRequests = cloneEntrypointCallableRequests(src.EntrypointCallableRequests)
+	dst.EntrypointCallableBindings = cloneEntrypointCallableBindings(src.EntrypointCallableBindings)
+	dst.DirectCloneRequests = cloneDirectCloneRequests(src.DirectCloneRequests)
+	dst.DirectCloneBindings = cloneDirectCloneBindings(src.DirectCloneBindings)
+}
 
 // FinalizationPublication describes one owning per-file semantic result. The
 // symbol map translates merged/root symbols back into that file's vocabulary.
