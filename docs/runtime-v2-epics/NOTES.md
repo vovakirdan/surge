@@ -6445,3 +6445,59 @@ Correction author evidence:
 
 This is correction-author evidence. Acceptance still requires a fresh
 independent non-author re-review of the corrected range.
+
+## 2026-08-05 — B3A recovery and strict-contract closeout
+
+The damaged primary checkout was recovered without losing accepted work. A
+verified full copy and Git bundle were created under
+`/home/zov/projects/surge/recovery/`; the primary checkout now points at the
+accepted `8512f4c1` staging tree. B3A callable-closure work was recovered from
+its persistent writer worktree and transplanted onto a dedicated integration
+branch based on `8512f4c1`. Rescue refs remain pinned until the integrated tree
+passes final review and gates.
+
+The project owner approved the remaining entrypoint and clone semantics:
+
+- every argv parameter requires the exact public
+  `FromArgv.from_str(&string) -> Erring<T, Error>` contract, including a
+  parameter with a default; the default is used only when that runtime argument
+  is absent;
+- stdin accepts exactly one parameter with exact public
+  `FromStdin.from_stdin(string) -> Erring<T, Error>`; EOF is the empty string
+  and stdin defaults are forbidden;
+- there is one canonical clone implementation per `T` program-wide, while
+  every direct or deferred/generic source use is checked against the lexical
+  access module; process-static `ValueOps<T>` is not source-level visibility.
+
+No legacy ABI/API adapter, fallback, or compatibility wrapper is allowed.
+Compiler-proven violations require early source diagnostics with actionable
+notes/help.
+
+Current blocking closeout findings:
+
+- the recovered B3A tree introduces 32 `make lint` findings while the accepted
+  `8512f4c1` base is lint-clean;
+- 23 files violate Runtime V2 file-size/modularity rules: four new files exceed
+  500 lines and nineteen pre-existing over-limit files grew;
+- the Epic 23b-required
+  `make runtime-v2-file-size-check EPIC_BASE=<recorded-base>` target does not
+  exist; the old dirty-tree size script cannot prove the committed epic diff.
+
+An independent read-only symbol audit produced non-overlapping split ownership
+for sema graph/closure, driver integration, mono, HIR/symbols, driver pipeline,
+backend/VM/MIR, plus a fail-closed committed-diff gate. First implementation
+wave uses separate persistent worktrees for argv/stdin, clone visibility, and
+the file-size gate. File splitting follows only after those functional commits
+are integrated, so authors do not edit overlapping symbols.
+
+Focused evidence retained from the recovered tree:
+
+- sema/mono/MIR/driver/buildpipeline/LLVM package tests passed;
+- exact B3A VM/LLVM entrypoint/index/composite tests passed;
+- `make golden-check` passed from a clean baseline;
+- the isolated fixed-array stride correction and its degenerate length 0/1
+  follow-up passed independent review and focused/full LLVM tests;
+- the exact immediate-on source-override test passes on both `8512f4c1` and the
+  B3A tree, including ten serialized runs, so the broad runtime-v2 package
+  timeout remains the already recorded package-order/resource debt rather than
+  a B3A regression.
