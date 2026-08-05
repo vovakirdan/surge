@@ -10,17 +10,17 @@ import (
 
 const (
 	// A for-loop iterator is a heap struct whose leading word selects the
-	// body layout, so a bare Range<T> value and an array cursor can both flow
-	// through iter_next typed only as Range<T>. (Array iteration was the only
-	// shape the old code understood; a range value fell through and its
-	// SurgeRange was misread as an array cursor.)
+	// body layout. Bit 0 is the kind tag; array cursors pack their source
+	// representation stride into the remaining bits. A bare Range<T> value
+	// and an array cursor can therefore both flow through iter_next typed only
+	// as Range<T> without forcing fixed and dynamic arrays to share a stride.
 	iterStructSize  = 32
 	iterStructAlign = 8
 	iterKindOffset  = 0
-	iterKindArray   = 0
+	iterKindMask    = 1
 	iterKindRange   = 1
 
-	// Array body (kind == iterKindArray).
+	// Array body (kind bit == 0; higher bits carry stride).
 	arrayIterDataOff   = 8
 	arrayIterIndexOff  = 16
 	arrayIterLengthOff = 24
@@ -136,15 +136,6 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	if err != nil {
 		return "", "", err
 	}
-	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
-	if err != nil {
-		return "", "", err
-	}
-	if elemAlign <= 0 {
-		elemAlign = 1
-	}
-	stride := roundUpInt(elemSize, elemAlign)
-
 	someIndex, meta, err := fe.emitter.tagCaseMeta(optType, "Some", symbols.NoSymbolID)
 	if err != nil {
 		return "", "", err
@@ -163,8 +154,10 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", kindPtr, iterVal, iterKindOffset)
 	kindVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", kindVal, kindPtr)
+	kindTag := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = and i64 %s, %d\n", kindTag, kindVal, iterKindMask)
 	isRange := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, %d\n", isRange, kindVal, iterKindRange)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, %d\n", isRange, kindTag, iterKindRange)
 	rangeBB := fe.nextInlineBlock()
 	arrayBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
@@ -206,8 +199,10 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, iterVal, arrayIterDataOff)
 	dataPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", dataPtr, dataPtrPtr)
+	strideVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = lshr i64 %s, 1\n", strideVal, kindVal)
 	offset := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", offset, idxVal, stride)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %s\n", offset, idxVal, strideVal)
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, offset)
 	elemVal := fe.nextTemp()
@@ -296,6 +291,22 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	if op == nil {
 		return "", "", fmt.Errorf("nil iterable operand")
 	}
+	elemType, actualDynamic, ok := arrayElemType(fe.emitter.types, arrType)
+	if !ok || actualDynamic != dynamic {
+		return "", "", fmt.Errorf("array iter_init has inconsistent array type")
+	}
+	var stride uint64
+	if dynamic {
+		stride, err = fe.emittedArrayElemStride(elemType)
+	} else {
+		stride, err = fe.canonicalArrayElemStride(elemType)
+	}
+	if err != nil {
+		return "", "", err
+	}
+	if stride > (^uint64(0) >> 1) {
+		return "", "", fmt.Errorf("array iterator stride is too large")
+	}
 	handlePtr, err := fe.emitHandleOperandPtr(op)
 	if err != nil {
 		return "", "", err
@@ -327,7 +338,11 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	iterPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", iterPtr, iterStructSize, iterStructAlign)
 
-	fe.storeIterField(iterPtr, iterKindOffset, "i64", fmt.Sprintf("%d", iterKindArray))
+	// The cursor's leading word packs its dispatch tag in bit 0 and the
+	// source representation stride in the remaining bits. Range cursors use
+	// tag 1; array cursors use tag 0 and therefore preserve their fixed-vs-
+	// dynamic stride without growing the cursor allocation.
+	fe.storeIterField(iterPtr, iterKindOffset, "i64", fmt.Sprintf("%d", stride<<1))
 	fe.storeIterField(iterPtr, arrayIterDataOff, "ptr", dataPtr)
 	fe.storeIterField(iterPtr, arrayIterIndexOff, "i64", "0")
 	fe.storeIterField(iterPtr, arrayIterLengthOff, "i64", lenVal)

@@ -191,23 +191,35 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 	}
 }
 
-func (fe *funcEmitter) arrayElemStride(elemType types.TypeID) (int, error) {
+// emittedArrayElemStride is the storage stride of a dynamic-array element.
+// Dynamic arrays still store the LLVM value representation until Wave C
+// inlines aggregates, so a boxed composite occupies one pointer-sized slot.
+func (fe *funcEmitter) emittedArrayElemStride(elemType types.TypeID) (uint64, error) {
 	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
 	if err != nil {
 		return 0, err
 	}
-	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	stride, _, err := llvmTypeStrideAlign(elemLLVM)
 	if err != nil {
 		return 0, err
 	}
-	if elemAlign <= 0 {
-		elemAlign = 1
+	return stride, nil
+}
+
+// canonicalArrayElemStride is the authoritative storage stride of a fixed
+// array element. Fixed arrays allocate their finalized language layout, so
+// every producer and consumer must use this stride even when the emitted LLVM
+// value is currently pointer-shaped.
+func (fe *funcEmitter) canonicalArrayElemStride(elemType types.TypeID) (uint64, error) {
+	layoutInfo, err := fe.emitter.layoutOf(elemType)
+	if err != nil {
+		return 0, err
 	}
-	return roundUpInt(elemSize, elemAlign), nil
+	return layoutInfo.Stride, nil
 }
 
 func (fe *funcEmitter) emitArraySlice(handlePtr, rangeVal string, elemType types.TypeID) (string, error) {
-	stride, err := fe.arrayElemStride(elemType)
+	stride, err := fe.emittedArrayElemStride(elemType)
 	if err != nil {
 		return "", err
 	}
@@ -217,7 +229,10 @@ func (fe *funcEmitter) emitArraySlice(handlePtr, rangeVal string, elemType types
 }
 
 func (fe *funcEmitter) emitArrayFixedSlice(handlePtr, rangeVal string, elemType types.TypeID, length uint32) (string, error) {
-	stride, err := fe.arrayElemStride(elemType)
+	// A fixed slice crosses into the legacy stride-less dynamic Array header.
+	// Keep its pre-existing emitted-view behavior until Wave D replaces that
+	// boundary with a typed view descriptor carrying stride and backing owner.
+	stride, err := fe.emittedArrayElemStride(elemType)
 	if err != nil {
 		return "", err
 	}
@@ -265,14 +280,10 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 	if err != nil {
 		return "", "", err
 	}
-	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	stride, err := fe.emittedArrayElemStride(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	if elemAlign <= 0 {
-		elemAlign = 1
-	}
-	stride := roundUpInt(elemSize, elemAlign)
 	off := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", off, adjIdx, stride)
 	elemPtr := fe.nextTemp()
@@ -294,14 +305,10 @@ func (fe *funcEmitter) emitArrayFixedElemPtr(handlePtr, idxVal, idxTy string, id
 	if err != nil {
 		return "", "", err
 	}
-	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	stride, err := fe.canonicalArrayElemStride(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	if elemAlign <= 0 {
-		elemAlign = 1
-	}
-	stride := roundUpInt(elemSize, elemAlign)
 	off := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", off, adjIdx, stride)
 	elemPtr := fe.nextTemp()

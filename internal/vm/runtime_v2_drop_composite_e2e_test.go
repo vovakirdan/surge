@@ -18,6 +18,7 @@ type Inner = { label: string }
 type User = { name: string, note: string }
 type Outer = { inner: Inner, items: string[] }
 type FixedItem = { name: string, id: int }
+type FixedStrideItem = { left: int, right: int }
 
 fn check_frees(win: string, before: &HeapStats, after: &HeapStats, want: uint) -> int {
     let f: uint = after.free_count - before.free_count;
@@ -79,6 +80,28 @@ fn fixed_composite_array_drop() -> int {
     @drop a;                       // two (string + item) pairs + array box
     let after: HeapStats = rt_heap_stats();
     return check_frees("fixed-composite-array", &before, &after, 5:uint);
+}
+
+fn fixed_composite_array_default_drop() -> int {
+    let a: FixedItem[2] = default::<FixedItem[2]>();
+    let before: HeapStats = rt_heap_stats();
+    @drop a;                       // two (empty string + item) pairs + array box
+    let after: HeapStats = rt_heap_stats();
+    return check_frees("fixed-composite-array-default", &before, &after, 5:uint);
+}
+
+fn fixed_composite_array_index_iter() -> int {
+    let a: FixedStrideItem[2] = [
+        FixedStrideItem { left: 1, right: 2 },
+        FixedStrideItem { left: 3, right: 4 },
+    ];
+    if a[1].right != 4 { return 1; }
+    let mut sum: int = 0;
+    for item in a {
+        sum = sum + item.left;
+    }
+    if sum != 4 { return 2; }
+    return 0;
 }
 
 fn string_array_drop() -> int {
@@ -146,6 +169,10 @@ fn main() -> int {
     if r5 != 0 { return 50 + r5; }
     let r10: int = fixed_composite_array_drop();
     if r10 != 0 { return 55 + r10; }
+    let r11: int = fixed_composite_array_default_drop();
+    if r11 != 0 { return 57 + r11; }
+    let r12: int = fixed_composite_array_index_iter();
+    if r12 != 0 { return 58 + r12; }
     let r6: int = string_array_drop();
     if r6 != 0 { return 60 + r6; }
     let r7: int = array_of_structs_drop();

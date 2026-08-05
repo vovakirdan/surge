@@ -285,14 +285,10 @@ func (fe *funcEmitter) emitDefaultArrayFixed(typeID, elemType types.TypeID, leng
 	if err != nil {
 		return "", "", err
 	}
-	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	stride, err := fe.canonicalArrayElemStride(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	if elemAlign <= 0 {
-		elemAlign = 1
-	}
-	stride := roundUpInt(elemSize, elemAlign)
 	for i := range length {
 		val, valTy, err := fe.emitDefaultValue(elemType)
 		if err != nil {
@@ -301,7 +297,7 @@ func (fe *funcEmitter) emitDefaultArrayFixed(typeID, elemType types.TypeID, leng
 		if valTy != elemLLVM {
 			valTy = elemLLVM
 		}
-		offset := int(i) * stride
+		offset := uint64(i) * stride
 		elemPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, mem, offset)
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
