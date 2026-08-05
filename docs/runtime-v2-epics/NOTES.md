@@ -6543,3 +6543,19 @@ reachability/expansion stability moved to
 the new files are 225 and 142 lines. Byte-for-byte function comparisons passed,
 all four moved rows passed focused, and `go test ./internal/driver -count=1
 -timeout 5m` passed.
+
+The next non-overlapping file-size slice owns only whole-symbol moves in HIR
+and symbols: call/access expression payloads leave `hir/expr.go`, range-literal
+lowering leaves `hir/lower_expr.go`, and the concrete extern byte-receiver
+regression row leaves the legacy 1481-line symbols resolver suite. No body,
+behavior, diagnostic, or golden change is intended.
+
+HIR/symbols split evidence: the three moved declaration blocks compare
+byte-for-byte after excluding only their former inter-symbol separator newline;
+the old/new SHA-256 pairs are identical. `expr.go` is now exactly 500 lines,
+the other legacy files shrink, and the three new files are 38--53 lines.
+`go test ./internal/hir ./internal/symbols -count=1 -timeout 5m`, new-diff
+lint, and `make golden-check` pass. Serena's Go LSP again retained stale old
+locations after the move, while repository search and the Go compiler each
+find one declaration; compiler results remain authoritative for this known
+tool-cache issue.
