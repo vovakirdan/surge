@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,10 +45,14 @@ func TestEntrypointStdinDefaultFixIsGuardedAndRediagnoses(t *testing.T) {
 	result, path := diagnoseEntrypointContract(t, `
 @entrypoint("stdin")
 fn main(text: string = "fallback") -> int { return 0; }
+fn invoke_default() -> int { return main(); }
 `)
 	diagnostic := requireEntrypointDiagnostic(t, result, diag.SemaEntrypointStdinDefault)
 	if len(diagnostic.Fixes) != 1 {
 		t.Fatalf("fixes = %+v", diagnostic.Fixes)
+	}
+	if diagnostic.Fixes[0].Applicability != diag.FixApplicabilityManualReview || diagnostic.Fixes[0].IsPreferred {
+		t.Fatalf("stdin default fix must require manual review: %+v", diagnostic.Fixes[0])
 	}
 	materialized, err := diag.MaterializeFixes(diag.FixBuildContext{FileSet: result.FileSet}, diagnostic.Fixes)
 	if err != nil {
@@ -56,11 +61,30 @@ fn main(text: string = "fallback") -> int { return 0; }
 	if len(materialized) != 1 || len(materialized[0].Edits) != 1 {
 		t.Fatalf("materialized fixes = %+v", materialized)
 	}
+	if materialized[0].Applicability != diag.FixApplicabilityManualReview || materialized[0].IsPreferred {
+		t.Fatalf("materialized fix must require manual review: %+v", materialized[0])
+	}
 	edit := materialized[0].Edits[0]
 	if edit.OldText != ` = "fallback"` || edit.NewText != "" {
 		t.Fatalf("guarded deletion = %+v", edit)
 	}
-	if _, applyErr := fix.Apply(result.FileSet, result.Bag.Items(), fix.ApplyOptions{Mode: fix.ApplyModeOnce}); applyErr != nil {
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read source before automatic apply: %v", err)
+	}
+	if _, applyErr := fix.Apply(result.FileSet, result.Bag.Items(), fix.ApplyOptions{Mode: fix.ApplyModeAll}); !errors.Is(applyErr, fix.ErrNoFixes) {
+		t.Fatalf("automatic fix application error = %v, want ErrNoFixes", applyErr)
+	}
+	afterAuto, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read source after automatic apply: %v", err)
+	}
+	if string(afterAuto) != string(before) {
+		t.Fatalf("automatic apply changed a manual-review fix:\n%s", afterAuto)
+	}
+	if _, applyErr := fix.Apply(result.FileSet, result.Bag.Items(), fix.ApplyOptions{
+		Mode: fix.ApplyModeID, TargetID: "entrypoint.remove-stdin-default",
+	}); applyErr != nil {
 		t.Fatalf("apply fix: %v", applyErr)
 	}
 	fixed, err := os.ReadFile(path)
@@ -75,6 +99,9 @@ fn main(text: string = "fallback") -> int { return 0; }
 		if item.Code == diag.SemaEntrypointStdinDefault {
 			t.Fatalf("stdin default diagnostic remains after fix: %+v", item)
 		}
+	}
+	if !rediagnosed.Bag.HasErrors() {
+		t.Fatal("explicitly removing the default should expose the ordinary call that relied on it")
 	}
 }
 

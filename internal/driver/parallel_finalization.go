@@ -55,6 +55,11 @@ func finalizeParallelModuleRecords(
 	paths []string,
 	records map[string]*moduleRecord,
 ) error {
+	publicationSeed := &DiagnoseResult{FileSet: fileSet, moduleRecords: records}
+	publicationIndex, err := buildFinalizationPublicationIndex(publicationSeed)
+	if err != nil {
+		return err
+	}
 	finalized := make(map[*moduleRecord]struct{}, len(records))
 	for _, modulePath := range paths {
 		rec := records[modulePath]
@@ -72,7 +77,7 @@ func finalizeParallelModuleRecords(
 		diagnosed := &DiagnoseResult{
 			FileSet: fileSet, File: aggregateFile, Bag: rec.Bag,
 			Symbols: aggregateSymbols, Sema: aggregate,
-			rootRecord: rec, moduleRecords: records,
+			rootRecord: rec, moduleRecords: records, finalizationIndex: publicationIndex,
 		}
 		if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
 			return fmt.Errorf("%s instantiation closure: %w", modulePath, err)
@@ -81,6 +86,9 @@ func finalizeParallelModuleRecords(
 			if fileSema := rec.Sema[astFile]; fileSema != nil && fileSema != aggregate {
 				sema.CopyInstantiationAuthority(fileSema, aggregate)
 			}
+		}
+		if err := publishFinalizationDecisions(diagnosed); err != nil {
+			return fmt.Errorf("%s finalization publication: %w", modulePath, err)
 		}
 	}
 	return nil

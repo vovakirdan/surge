@@ -46,13 +46,17 @@ func consumeFinalizationDiagnostic(res *DiagnoseResult, err error) bool {
 // publishFinalizationDecisions is the single post-merge publication point for
 // decisions that per-file HIR lowering consumes. Feature-specific projection
 // belongs in sema.PublishFinalizationDecisions; the driver only supplies the
-// owning source identity and root-to-local symbol vocabulary.
+// owning source identity and canonical local callable vocabulary.
 func publishFinalizationDecisions(res *DiagnoseResult) error {
 	if res == nil || res.Sema == nil {
 		return nil
 	}
+	if res.finalizationOwner == nil {
+		res.finalizationOwner = snapshotFinalizationAuthority(res.Sema)
+	}
+	authority := res.finalizationOwner
 	resolveSource := canonicalInstantiationSourceResolver(res)
-	seenResults := map[*sema.Result]struct{}{res.Sema: {}}
+	seenResults := make(map[*sema.Result]struct{})
 	seenRecords := make(map[*moduleRecord]struct{})
 
 	publishRecord := func(rec *moduleRecord, rootToLocal map[symbols.SymbolID][]symbols.SymbolID) error {
@@ -75,8 +79,9 @@ func publishFinalizationDecisions(res *DiagnoseResult) error {
 			if err != nil {
 				return fmt.Errorf("finalization publication for file %d: %w", fileID, err)
 			}
-			if err := sema.PublishFinalizationDecisions(target, res.Sema, sema.FinalizationPublication{
+			if err := sema.PublishFinalizationDecisions(target, authority, sema.FinalizationPublication{
 				SourceKey: sourceKey, RootToLocalSymbols: rootToLocal,
+				LocalCallables: res.finalizationIndex[rec],
 			}); err != nil {
 				return fmt.Errorf("finalization publication for %s: %w", sourceKey, err)
 			}
@@ -120,6 +125,16 @@ func publishFinalizationDecisions(res *DiagnoseResult) error {
 		}
 	}
 	return nil
+}
+
+func snapshotFinalizationAuthority(src *sema.Result) *sema.Result {
+	if src == nil {
+		return nil
+	}
+	return &sema.Result{
+		CallableCandidates:         append([]sema.CallableCandidate(nil), src.CallableCandidates...),
+		EntrypointCallableBindings: append([]sema.EntrypointCallableBinding(nil), src.EntrypointCallableBindings...),
+	}
 }
 
 func invertFinalizationSymbolRemap(localToRoot map[symbols.SymbolID]symbols.SymbolID) map[symbols.SymbolID][]symbols.SymbolID {

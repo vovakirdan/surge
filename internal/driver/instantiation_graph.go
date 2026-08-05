@@ -24,6 +24,13 @@ func FinalizeInstantiationClosure(ctx context.Context, res *DiagnoseResult, maxD
 	if res.Sema.InstantiationIdentity != nil && res.Sema.InstantiationClosure != nil {
 		return nil
 	}
+	if res.finalizationIndex == nil {
+		publicationIndex, err := buildFinalizationPublicationIndex(res)
+		if err != nil {
+			return err
+		}
+		res.finalizationIndex = publicationIndex
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -322,6 +329,7 @@ func mergeInstantiationResult(
 		return err
 	}
 	if src != res.Sema {
+		mapping = sema.CanonicalizeInstantiationCallableAliases(res.Sema, src, mapping)
 		sema.MergeInstantiationGraphs(res.Sema, src, mapping)
 		sema.MergeFunctionCallEdges(res.Sema, src, mapping)
 		if err := sema.MergeInstantiationTemplateParams(res.Sema, src, mapping); err != nil {

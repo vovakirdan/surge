@@ -34,6 +34,7 @@ type EntrypointCallableRequest struct {
 	ParamIndex     uint32
 	ParamName      string
 	TypeLabel      string
+	CanDefineHere  bool
 	Receiver       types.TypeID
 	Args           []types.TypeID
 	ExpectedResult types.TypeID

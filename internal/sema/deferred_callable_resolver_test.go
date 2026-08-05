@@ -30,7 +30,7 @@ func TestDeferredCallableResolverIsDeterministicUnderCandidateOrder(t *testing.T
 	}
 }
 
-func TestDeferredCallableResolverRejectsConflictingCanonicalBodyAliases(t *testing.T) {
+func TestDeferredCallableResolverRejectsConflictingCanonicalBodyRecords(t *testing.T) {
 	in := deferredResolverTestInterner()
 	receiver := in.RegisterStruct(in.Strings.Intern("Value"), source.Span{File: 1, Start: 1, End: 2})
 	request := DeferredCallableRequest{
@@ -40,6 +40,7 @@ func TestDeferredCallableResolverRejectsConflictingCanonicalBodyAliases(t *testi
 	left := deferredResolverMethod(10, "app|shared.sg:1:2|Pick", "Pick", receiver, in.Builtins().Int)
 	right := left
 	right.Symbol = 20
+	right.SourceKey = "other.sg"
 
 	_, forwardErr := resolveDeferredCallable("use", request, []CallableCandidate{left, right}, in)
 	_, reverseErr := resolveDeferredCallable("use", request, []CallableCandidate{right, left}, in)

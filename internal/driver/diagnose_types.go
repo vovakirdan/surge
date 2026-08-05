@@ -27,4 +27,6 @@ type DiagnoseResult struct {
 	TimingReport      observ.Report
 	rootRecord        *moduleRecord
 	moduleRecords     map[string]*moduleRecord
+	finalizationIndex finalizationPublicationIndex
+	finalizationOwner *sema.Result
 }

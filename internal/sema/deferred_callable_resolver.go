@@ -168,7 +168,14 @@ func callableMatchesEquivalent(left, right *callableMatch) bool {
 		return left == right
 	}
 	a, b := &left.candidate, &right.candidate
-	return a.Symbol == b.Symbol && a.BodyKey == b.BodyKey && a.Name == b.Name &&
+	return callableCandidateRecordsEquivalent(a, b) && slices.Equal(left.typeArgs, right.typeArgs)
+}
+
+func callableCandidateRecordsEquivalent(a, b *CallableCandidate) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.BodyKey == b.BodyKey && a.Name == b.Name &&
 		a.ReceiverKey == b.ReceiverKey && a.Result == b.Result && a.ReceiverType == b.ReceiverType &&
 		a.ResultType == b.ResultType && a.ReceiverTemplateArity == b.ReceiverTemplateArity &&
 		a.HasSelf == b.HasSelf && a.HasBody == b.HasBody &&
@@ -178,7 +185,7 @@ func callableMatchesEquivalent(left, right *callableMatch) bool {
 		slices.Equal(a.Params, b.Params) && slices.Equal(a.ParamTypes, b.ParamTypes) &&
 		slices.Equal(a.TemplateParams, b.TemplateParams) && slices.Equal(a.TypeParams, b.TypeParams) &&
 		slices.Equal(a.Defaults, b.Defaults) && slices.Equal(a.Variadic, b.Variadic) &&
-		slices.Equal(a.Attrs, b.Attrs) && slices.Equal(left.typeArgs, right.typeArgs)
+		slices.Equal(a.Attrs, b.Attrs)
 }
 
 func instantiateCallableSignature(candidate *CallableCandidate, typeArgs []types.TypeID, typesIn *types.Interner) ([]types.TypeID, types.TypeID, bool) {

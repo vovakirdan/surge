@@ -87,6 +87,7 @@ func (tc *typeChecker) recordEntrypointParamRequest(
 		ParamIndex:     index,
 		ParamName:      tc.lookupName(param.Name),
 		TypeLabel:      tc.typeLabel(paramType),
+		CanDefineHere:  tc.canDefineEntrypointParserHere(paramType),
 		Receiver:       paramType,
 		Args:           args,
 		ExpectedResult: expected,
@@ -94,6 +95,26 @@ func (tc *typeChecker) recordEntrypointParamRequest(
 		AccessModule:   tc.modulePath,
 		Site:           param.Span,
 	})
+}
+
+func (tc *typeChecker) canDefineEntrypointParserHere(typeID types.TypeID) bool {
+	if tc == nil || tc.builder == nil || tc.typeIDItems == nil || typeID == types.NoTypeID {
+		return false
+	}
+	itemID := tc.typeIDItems[typeID]
+	if !itemID.IsValid() {
+		return false
+	}
+	typeItem, ok := tc.builder.Items.Type(itemID)
+	if !ok || typeItem == nil {
+		return false
+	}
+	switch typeItem.Kind {
+	case ast.TypeDeclStruct, ast.TypeDeclUnion, ast.TypeDeclEnum:
+		return true
+	default:
+		return false
+	}
 }
 
 func (tc *typeChecker) reportStdinDefault(param *ast.FnParam) {
@@ -131,8 +152,7 @@ func stdinDefaultRemovalFix(span source.Span) *diag.Fix {
 		ID:            "entrypoint.remove-stdin-default",
 		Title:         "remove stdin parameter default",
 		Kind:          diag.FixKindQuickFix,
-		Applicability: diag.FixApplicabilityAlwaysSafe,
-		IsPreferred:   true,
+		Applicability: diag.FixApplicabilityManualReview,
 		Thunk:         stdinDefaultFixThunk{span: span},
 	}
 }
@@ -154,8 +174,7 @@ func (f stdinDefaultFixThunk) Build(ctx diag.FixBuildContext) (diag.Fix, error) 
 		ID:            f.ID(),
 		Title:         "remove stdin parameter default",
 		Kind:          diag.FixKindQuickFix,
-		Applicability: diag.FixApplicabilityAlwaysSafe,
-		IsPreferred:   true,
+		Applicability: diag.FixApplicabilityManualReview,
 		Edits:         []diag.TextEdit{{Span: f.span, OldText: guard}},
 	}, nil
 }

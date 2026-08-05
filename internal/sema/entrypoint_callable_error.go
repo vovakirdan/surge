@@ -76,8 +76,18 @@ func newEntrypointCallableError(
 		Message:  fmt.Sprintf("parameter %q of type %q does not provide the exact public %s parser", paramLabel, typeLabel, contract),
 		Notes: []diag.Note{
 			{Span: request.Site, Msg: "required signature: " + required},
-			{Span: request.Site, Msg: fmt.Sprintf("help: add this exact public static method to %s", typeLabel)},
 		},
+	}
+	if request.CanDefineHere {
+		diagnostic.Notes = append(diagnostic.Notes, diag.Note{
+			Span: request.Site,
+			Msg:  fmt.Sprintf("help: add this exact public static method to %s", typeLabel),
+		})
+	} else {
+		diagnostic.Notes = append(diagnostic.Notes, diag.Note{
+			Span: request.Site,
+			Msg:  "the compiler cannot prove that this parameter type is locally extensible here",
+		})
 	}
 	var resolution *DeferredCallableResolutionError
 	if errors.As(cause, &resolution) && resolution.Reason != "" {

@@ -1,2 +1,36 @@
 warning SEM3004 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:5 declaration of 't' shadows previous binding
 error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:27 cannot send 'r' to a task
+
+== HIR ==
+module 
+
+async fn use_ref(x: &int [&]) -> nothing (id=1, sym=1453) {
+}
+
+borrow edges:
+  <none>
+events:
+  <none>
+move plan:
+  L2907(x): MoveCopy (copy type)
+
+async fn t() -> nothing (id=2, sym=1454) {
+  let mut x: int [copy] = 1
+  let r: &int [&] = (& x): &int
+  let t: type#751 = spawn use_ref(r): type#751: type#751
+  owned_temp(await(t): type#1519): type#1519
+  return
+}
+
+borrow edges:
+  L2909(r) (&) borrows L2908(x) at 0:87-89 scope=S5
+events:
+  borrow_start L2909(r) -> L2908(x) (&) at 0:87-89 scope=S5 note="B1"
+  spawn_escape L2909(r) -> L2908(x) at 0:117-118 scope=S5 note="B1"
+  move L2910(t) at 0:125-126 scope=S5
+  borrow_end L2909(r) -> L2908(x) scope=S5 note="scope_end B1"
+move plan:
+  L2908(x): MoveCopy (copy type)
+  L2909(r): MoveForbidden (task escape)
+  L2910(t): MoveNeedsDrop (non-copy (drop))
+
