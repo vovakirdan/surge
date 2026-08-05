@@ -22,7 +22,7 @@ type Foo = { name: string, n: int }
 type Bar = { items: string[], nums: int[] }
 
 extern<Foo> {
-    fn __clone(self: &Foo) -> Foo {
+    pub fn __clone(self: &Foo) -> Foo {
         return Foo { name = self.name.__clone(), n = self.n };
     }
 }
