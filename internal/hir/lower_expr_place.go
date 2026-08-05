@@ -1,11 +1,14 @@
 package hir
 
-import "surge/internal/ast"
+import (
+	"surge/internal/ast"
+	"surge/internal/types"
+)
 
 // lowerPlaceExpr preserves addressable syntax while lowering the operand of
 // `&` or `&mut`. In particular, an index selected by sema normally becomes an
-// exact `__index` call, but that call only returns `&T`; wrapping its temporary
-// in `&mut` would mutate the reference slot instead of the array element.
+// exact `__index` call, whose reference result carries the selected element
+// place. Physical projections remain reserved for Array/ArrayFixed storage.
 func (l *lowerer) lowerPlaceExpr(exprID ast.ExprID) *Expr {
 	if l == nil || !exprID.IsValid() {
 		return nil
@@ -27,13 +30,38 @@ func (l *lowerer) lowerPlaceExpr(exprID ast.ExprID) *Expr {
 		if index == nil {
 			return nil
 		}
+		if l.indexUsesPhysicalArrayPlace(exprID, index.Target) {
+			return &Expr{
+				Kind: ExprIndex,
+				Type: l.semaRes.ExprTypes[exprID],
+				Span: expr.Span,
+				Data: IndexData{
+					Object: l.lowerPlaceExpr(index.Target),
+					Index:  l.lowerExpr(index.Index),
+				},
+			}
+		}
+
+		// A custom index remains the exact selected callable. Its reference
+		// result is a carrier for the element place, so expose the pointee to
+		// the outer `&`/`&mut` as `*(call __index(...))` rather than projecting
+		// into storage whose representation the compiler does not own.
+		call := l.lowerExpr(exprID)
+		if call == nil {
+			return nil
+		}
+		carrierType := resolveAliasHIR(l.semaRes.TypeInterner, call.Type)
+		elem, ok, _ := l.referenceInfo(carrierType)
+		if !ok {
+			return call
+		}
 		return &Expr{
-			Kind: ExprIndex,
-			Type: l.semaRes.ExprTypes[exprID],
+			Kind: ExprUnaryOp,
+			Type: elem,
 			Span: expr.Span,
-			Data: IndexData{
-				Object: l.lowerPlaceExpr(index.Target),
-				Index:  l.lowerExpr(index.Index),
+			Data: UnaryOpData{
+				Op:      ast.ExprUnaryDeref,
+				Operand: call,
 			},
 		}
 
@@ -61,4 +89,19 @@ func (l *lowerer) lowerPlaceExpr(exprID ast.ExprID) *Expr {
 	}
 
 	return l.lowerExpr(exprID)
+}
+
+func (l *lowerer) indexUsesPhysicalArrayPlace(exprID, target ast.ExprID) bool {
+	if l == nil || l.semaRes == nil || l.semaRes.TypeInterner == nil || !target.IsValid() {
+		return false
+	}
+	typeID := resolveAliasHIR(l.semaRes.TypeInterner, l.semaRes.ExprTypes[target])
+	if tt, ok := l.semaRes.TypeInterner.Lookup(typeID); ok && tt.Kind == types.KindReference {
+		typeID = tt.Elem
+	}
+	if !l.isArrayType(typeID) {
+		return false
+	}
+	symID, selected := l.semaRes.IndexSymbols[exprID]
+	return !selected || l.isBuiltinSymbol(symID)
 }
