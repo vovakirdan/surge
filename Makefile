@@ -84,6 +84,10 @@ test:
 	@echo ">> Running tests"
 	SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 90s
 
+.PHONY: runtime-v2-file-size-check
+runtime-v2-file-size-check:
+	@./scripts/runtime_v2_file_size_check.sh
+
 runtime-v2-check:
 	@echo ">> Checking Runtime V2 LLVM toolchain"
 	@if ! command -v clang >/dev/null 2>&1; then \

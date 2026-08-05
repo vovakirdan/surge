@@ -19,6 +19,8 @@ EXTENSIONS="go,c,h"
 EXCLUDE_TESTS=true
 CHECK_ALL_FILES=false  # Если true, проверяет все файлы, иначе только незакоммиченные
 LEGACY_ALLOWLIST_FILE=".loc-legacy-allowlist"
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+EFFECTIVE_LOC_AWK="$SCRIPT_DIR/scripts/effective_loc.awk"
 
 normalize_path() {
     local file=$1
@@ -161,69 +163,7 @@ is_text_file() {
 
 count_source_lines() {
     local file=$1
-
-    awk '
-        function has_code(line,    i, ch, next_ch, out) {
-            out = ""
-            for (i = 1; i <= length(line); i++) {
-                ch = substr(line, i, 1)
-                next_ch = substr(line, i + 1, 1)
-
-                if (in_block_comment) {
-                    if (ch == "*" && next_ch == "/") {
-                        in_block_comment = 0
-                        i++
-                    }
-                    continue
-                }
-
-                if (quote != "") {
-                    out = out ch
-                    if (quote == "`") {
-                        if (ch == "`") {
-                            quote = ""
-                        }
-                    } else if (escaped) {
-                        escaped = 0
-                    } else if (ch == "\\") {
-                        escaped = 1
-                    } else if (ch == quote) {
-                        quote = ""
-                    }
-                    continue
-                }
-
-                if (ch == "\"" || ch == "\047" || ch == "`") {
-                    out = out ch
-                    quote = ch
-                    escaped = 0
-                    continue
-                }
-
-                if (ch == "/" && next_ch == "/") {
-                    break
-                }
-
-                if (ch == "/" && next_ch == "*") {
-                    in_block_comment = 1
-                    i++
-                    continue
-                }
-
-                out = out ch
-            }
-
-            if (quote != "`") {
-                quote = ""
-                escaped = 0
-            }
-
-            return out ~ /[^[:space:]]/
-        }
-
-        has_code($0) { c++ }
-        END { print c + 0 }
-    ' "$file" 2>/dev/null
+    awk -f "$EFFECTIVE_LOC_AWK" "$file" 2>/dev/null
 }
 
 # count_effective_lines counts source LOC for supported source formats.
