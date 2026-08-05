@@ -6507,3 +6507,30 @@ Combined-tree checkpoint at `4cea0865`: `go test ./internal/sema
 ./internal/backend/llvm -count=1 -timeout 10m` passed. This verifies the
 transplant together with the accepted Wave A/B3 tree before the strict-contract
 authors begin; lint and file-size remain the named blockers above.
+
+The first non-overlapping file-size batch owns only backend/VM/MIR extraction:
+fixed/dynamic array drop helpers leave `emit_drop_glue.go`; tag construction
+leaves `emit_intrinsics_numeric.go`; index operations leave
+`vm/intrinsic_ops.go`; and suite-local MIR compile helpers leave the three
+legacy oversized test files. This is a symbol move with no intended behavior or
+golden change. Proof is gofmt, exact package tests for LLVM/VM/MIR, focused
+fixed-array/index rows, diff inspection, and line counts against `8512f4c1`.
+
+Batch-8 evidence after the moves:
+
+- `go test ./internal/backend/llvm -count=1 -timeout 10m` passed;
+- `go test ./internal/mir -count=1 -timeout 2m` passed;
+- focused fixed-array stride/drop and VM index/reborrow rows passed;
+- `SURGE_SKIP_TIMEOUT_TESTS=1 go test ./internal/vm -count=1 -timeout
+  90s` passed in 26.5s;
+- the exact test that the broad package left running,
+  `TestRuntimeV2ImmediateOnPoolProductionCapabilityFailsDeterministically`,
+  passed serialized in 4.7s.
+
+The intentionally unfiltered `go test ./internal/backend/llvm ./internal/vm
+./internal/mir -count=1 -timeout 10m` is not a green gate and failed as the
+existing debt predicts: legacy LLVM parity/HTTP/fs rows, the stale native scope
+harness, one far-task witness failure, and finally a package timeout with the
+immediate-on test compiling while parallel MT tests waited. This run was not
+retried or hidden. Its changed-owner focused rows and the supported skip-timeout
+package command are green, so it does not block this symbol-only split.
