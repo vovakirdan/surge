@@ -284,6 +284,21 @@ func (fe *funcEmitter) emitRangeIterStep(iterVal string, elemType, optType types
 	return nil
 }
 
+func arrayIterKindWord(stride, fixedLength uint64, dynamic bool) (uint64, error) {
+	// A zero-length cursor never reaches element addressing, and a one-element
+	// cursor can only address offset zero. Encoding stride zero is exact for
+	// both. For length >= 2, a stride larger than MaxInt64 cannot survive the
+	// fixed layout's checked stride*length on a 64-bit target; keep the guard
+	// defensive for malformed or incomplete layout registries.
+	if !dynamic && fixedLength <= 1 {
+		return 0, nil
+	}
+	if stride > (^uint64(0) >> 1) {
+		return 0, fmt.Errorf("array iterator stride is too large")
+	}
+	return stride << 1, nil
+}
+
 func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, dynamic bool) (val, ty string, err error) {
 	if fe.emitter == nil || fe.emitter.types == nil {
 		return "", "", fmt.Errorf("missing type interner")
@@ -304,8 +319,19 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	if err != nil {
 		return "", "", err
 	}
-	if stride > (^uint64(0) >> 1) {
-		return "", "", fmt.Errorf("array iterator stride is too large")
+	var fixedLength uint64
+	if !dynamic {
+		if _, length, ok := arrayFixedInfo(fe.emitter.types, arrType); ok {
+			fixedLength = uint64(length)
+		} else if tt, ok := fe.emitter.types.Lookup(resolveValueType(fe.emitter.types, arrType)); ok && tt.Kind == types.KindArray && tt.Count != types.ArrayDynamicLength {
+			fixedLength = uint64(tt.Count)
+		} else {
+			return "", "", fmt.Errorf("missing fixed array length for iter_init")
+		}
+	}
+	kindWord, err := arrayIterKindWord(stride, fixedLength, dynamic)
+	if err != nil {
+		return "", "", err
 	}
 	handlePtr, err := fe.emitHandleOperandPtr(op)
 	if err != nil {
@@ -326,13 +352,7 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 		head := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", head, handlePtr)
 		dataPtr = head
-		if _, length, ok := arrayFixedInfo(fe.emitter.types, arrType); ok {
-			lenVal = fmt.Sprintf("%d", length)
-		} else if tt, ok := fe.emitter.types.Lookup(resolveValueType(fe.emitter.types, arrType)); ok && tt.Kind == types.KindArray && tt.Count != types.ArrayDynamicLength {
-			lenVal = fmt.Sprintf("%d", tt.Count)
-		} else {
-			return "", "", fmt.Errorf("missing fixed array length for iter_init")
-		}
+		lenVal = fmt.Sprintf("%d", fixedLength)
 	}
 
 	iterPtr := fe.nextTemp()
@@ -342,7 +362,7 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	// source representation stride in the remaining bits. Range cursors use
 	// tag 1; array cursors use tag 0 and therefore preserve their fixed-vs-
 	// dynamic stride without growing the cursor allocation.
-	fe.storeIterField(iterPtr, iterKindOffset, "i64", fmt.Sprintf("%d", stride<<1))
+	fe.storeIterField(iterPtr, iterKindOffset, "i64", fmt.Sprintf("%d", kindWord))
 	fe.storeIterField(iterPtr, arrayIterDataOff, "ptr", dataPtr)
 	fe.storeIterField(iterPtr, arrayIterIndexOff, "i64", "0")
 	fe.storeIterField(iterPtr, arrayIterLengthOff, "i64", lenVal)

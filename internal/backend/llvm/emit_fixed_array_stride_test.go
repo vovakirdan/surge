@@ -113,3 +113,37 @@ func TestFixedCompositeArrayStoragePathsUseCanonicalStride(t *testing.T) {
 	}
 
 }
+
+func TestArrayIterKindWordHandlesDegenerateFixedArrayStride(t *testing.T) {
+	const hugeStride = uint64(1) << 63
+
+	for _, length := range []uint64{0, 1} {
+		got, err := arrayIterKindWord(hugeStride, length, false)
+		if err != nil {
+			t.Fatalf("fixed length %d: %v", length, err)
+		}
+		if got != 0 {
+			t.Fatalf("fixed length %d kind word = %d, want 0", length, got)
+		}
+	}
+
+	got, err := arrayIterKindWord(16, 2, false)
+	if err != nil {
+		t.Fatalf("normal fixed stride: %v", err)
+	}
+	if got != 32 {
+		t.Fatalf("normal fixed kind word = %d, want 32", got)
+	}
+
+	if _, err = arrayIterKindWord(hugeStride, 2, false); err == nil {
+		t.Fatal("fixed length 2 accepted a stride larger than MaxInt64")
+	}
+
+	got, err = arrayIterKindWord(8, 0, true)
+	if err != nil {
+		t.Fatalf("dynamic stride: %v", err)
+	}
+	if got != 16 {
+		t.Fatalf("dynamic kind word = %d, want 16", got)
+	}
+}
