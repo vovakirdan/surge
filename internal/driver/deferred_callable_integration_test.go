@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"surge/internal/diag"
@@ -135,6 +136,17 @@ fn duplicate<T>(value: &T) -> T { return clone(value); }
 	}
 	if !seenCopy || !seenMethod {
 		t.Fatalf("clone outcomes: copy=%t method=%t", seenCopy, seenMethod)
+	}
+	// The `__clone` body itself clones a string directly; that concrete use goes
+	// through the same authority as the generic ones.
+	direct := 0
+	for _, binding := range result.Sema.DirectCloneBindings {
+		if binding.SourceKey == "main.sg" && strings.Contains(binding.CalleeKey, "|string|__clone|") {
+			direct++
+		}
+	}
+	if direct != 1 {
+		t.Fatalf("direct string clone bindings = %d, want one: %+v", direct, result.Sema.DirectCloneBindings)
 	}
 	requireClosureAndMonoNames(t, result, []string{"duplicate", "__clone"})
 }
