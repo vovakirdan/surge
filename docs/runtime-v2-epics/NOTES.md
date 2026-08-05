@@ -6573,3 +6573,53 @@ suite is 215 versus 281; all five new files are 36--246 lines. `go test
 ./internal/mono -count=1 -timeout 5m`, new-diff lint, and `make golden-check`
 pass. Serena again retained stale pre-move declaration locations, while the Go
 compiler accepted the single current definitions.
+
+## 2026-08-05 — B3A closeout and clone-review follow-ups
+
+B3A is complete on `codex/epic23b-b3a-followups-20260805`, based on the
+recovered staging tree `8512f4c1`. Four workstreams integrated:
+
+- entrypoint contract (`1ed48340`, `119e5fad`): exact public argv/stdin
+  parsers, and post-merge entrypoint decisions localized back into the
+  per-file result that owns them;
+- committed file-size gate (`b21ae83b`, `86cd168f`, `010cf014`);
+- clone canonicality (`adbcc682`, `d87c6680`, `99b3c536`, `4b1d3cb2`): one
+  canonical `__clone` body per concrete `T`, chosen program-wide after
+  specificity ranking, with the use site's lexical view applied only to the
+  winner. Two new codes: `SEM3185` equal-best conflict, `SEM3186` winner not
+  visible. `testdata/golden/vm_arrays/arrays_drop_nested.sg` is the one corpus
+  program the rule changed -- its `Foo.__clone` had to become `pub` because a
+  generic in `core/array` clones it -- and that is the sanctioned breaking
+  change: a module-private `__clone` reached through a cross-module generic
+  used to compile;
+- lint and file-size closeout (`ed176f57` through `a8aa2fce`).
+
+Two independent reviews approved with no P0/P1. The entrypoint review found
+the publication-order defect that `119e5fad` fixes. The clone review
+(`010cf014..4b1d3cb2`, seven lenses, all gates rerun green) raised three P2 and
+three P3.
+
+This wave answers them:
+
+- P2-1 docs (`178565ed`): `LANGUAGE.md` §6.8 Clone Protocol, mirrored in the
+  `.ru.md` twin, with the breaking change called out; the `@copy` sections of
+  `ATTRIBUTES.md`/`ATTRIBUTES.ru.md` point at it.
+- P2-2 quick fix (`87a1883e`): `SEM3186` now carries the edit instead of only
+  naming it. `CallableCandidate` gained a `DeclKeyword` anchor covering the
+  declaration's `fn` keyword -- `Source` is untouched, since existing
+  diagnostics and goldens consume it -- and the fix replaces that keyword with
+  `pub fn` under an exact `fn` guard. A file-private winner still gets no edit,
+  because `pub` does not fix it.
+- P2-3 fail-closed seam (`87a1883e`): HIR refused to lower a `clone` whose
+  request sema recorded and whose answer never arrived, instead of falling
+  through to an ordinary call. Keyed by owning file, so the merged authority's
+  foreign requests cannot misfire; Copy and generic clones record no request.
+- P3-3 (`87a1883e`): mono's "no authoritative implementation" refusal has a
+  test.
+- P3-1, P3-2, and P2-3's untouched root cause are `RV2-DEBT-146`, `-147`, and
+  `-148`.
+
+Gates: `golangci-lint` 0 issues; `runtime-v2-file-size-check
+EPIC_BASE=8512f4c1` PASS, 181 files, 0 violations; the eight-package battery
+green; `make check` green through the commit hook; `make golden-check` exit 0
+with a clean tree.
