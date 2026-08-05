@@ -1496,6 +1496,47 @@ let z: uint8 = saturating_cast(-5, 0:uint8); // 0
 
 If you need custom narrowing behaviour (rounding modes, error returns, etc.), write a dedicated helper; `__to` remains checked-and-trapping.
 
+### 6.8. Clone Protocol (`__clone`)
+
+A non-Copy type opts into duplication by supplying `__clone` inside an `extern<T>` block. The signature is strict: exactly one parameter (`self: &T`) and the return type must be the same `T`.
+
+```sg
+type Model = { text: string };
+
+extern<Model> {
+  pub fn __clone(self: &Model) -> Model {
+    return Model { text = clone(&self.text) };
+  }
+}
+```
+
+`clone(&value)` invokes it. For a `@copy` type there is no lookup at all — the value is duplicated bitwise (§`@copy` in [ATTRIBUTES.md](ATTRIBUTES.md)) — so `__clone` matters only for types that own something.
+
+**One implementation per type, chosen for the whole program.** Cloning is not per-call-site dispatch. After every module has been compiled and merged, the compiler ranks all `__clone` declarations that claim a given concrete `T` by the ordinary deterministic specificity ranking and keeps the single most specific body. That body is what every `clone` of that `T` calls, in every module, whether the call is written directly or reached through an instantiated generic. A type therefore cannot be duplicated two different ways in one program.
+
+Declarations that differ only by import path — a re-export, an alias of one declaration — collapse to one body and do not conflict. Compiler-provided operations on builtin types (the `@intrinsic` hooks in `core/intrinsics.sg`) describe a single runtime operation and likewise do not rival each other.
+
+**Resolution:**
+
+1. Collect every `__clone` declaration whose receiver matches `T`, ignoring where the use site is.
+2. Reduce to the most specific: the declaration whose receiver is nearest the requested type wins, and among equally near ones the declaration with fewer receiver type parameters wins — so a concrete `extern<Model>` body beats a generic `extern<Box<T>>` one that also matches. A uniquely more specific body wins even against a public rival.
+3. If more than one distinct body remains at the winning rank, the program is rejected with `SemaCloneHookConflict` (3185), with one note per rival declaration. There is no tie-break by proximity, import order, or visibility.
+4. Only now is the use site's lexical view applied. If the winner is not visible from the module the use is written in, the use is rejected with `SemaCloneHookNotVisible` (3186).
+5. A type with no `__clone` at all, or one whose only declarations have the wrong shape, is rejected with `SemaTypeNotClonable` (3116).
+
+**Visibility is checked last, and never widens the search.** Step 4 runs on the winner alone. A private winner is never quietly replaced by a visible-but-less-specific declaration, because that would let two modules clone the same value in two different ways; `SemaCloneHookNotVisible` names the winner and its module and does not offer an alternative. The `surge fix` attached to it inserts `pub` on the winning declaration.
+
+**Inside a generic, the lexical module is the generic's own.** A generic body is checked once, where it is written, so the module it can reach `__clone` from is the module that *declares* the generic — not the module that instantiates it. `core/array.sg`'s `to_array` cloning its elements reaches only what is visible from `core/array`, no matter who calls it. Instantiating a generic never grants it access to the instantiator's private declarations.
+
+The practical consequence: **`pub fn __clone` is the portable form.** A module-private `__clone` works for uses written inside its own module and nowhere else; the moment the type is cloned from another module, or handed to any generic declared elsewhere (including a stdlib helper), the declaration must be `pub`. Builtin core hooks such as `string.__clone` stay universally reachable and never need it.
+
+> **Breaking change (0.1.x → 0.2.x).** A module-private `__clone` reached through a cross-module generic used to compile — the generic path skipped the visibility check. It is now `SemaCloneHookNotVisible`. Adding `pub` to the declaration is the fix, and `surge fix` will write it.
+
+**Restrictions:**
+
+* The signature is exact: `self` must be a shared reference `&T`, there must be no further parameters, no defaults and no variadics, and the result must be `T`. A declaration named `__clone` that misses any of these is not a candidate, and a type whose only declarations miss them reports `SemaTypeNotClonable` rather than being silently skipped.
+* The `.__clone()` member form calls the method directly and follows ordinary method lookup; `clone(&value)` is the form that goes through canonical selection.
+
 ---
 
 ## 7. Literals & Inference

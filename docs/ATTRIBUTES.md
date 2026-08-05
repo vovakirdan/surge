@@ -352,6 +352,11 @@ arbitrary-precision `int`, `uint` or `float` is refused there, because such a
 field is shared by counting and the count is not safe across shards. Use a
 fixed-width field type (`int64`, `float64`) for the value that crosses.
 
+A type that is not `@copy` duplicates through a `__clone` implementation instead.
+Exactly one implementation is chosen for the whole program, and it must be `pub`
+to be reachable from another module or from a generic declared elsewhere — see
+§6.8 Clone Protocol in [LANGUAGE.md](LANGUAGE.md).
+
 ### `@sealed` / `@noinherit`
 
 - `@sealed`: cannot be extended via inheritance or `extern<T>`.
