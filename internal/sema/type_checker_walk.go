@@ -94,6 +94,10 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.attachTypeParamSymbols(symID, bounds)
 			tc.applyTypeParamBounds(symID)
 		}
+		tc.rememberInstantiationTemplateParams(symID)
+		if fnItem.Body.IsValid() {
+			tc.rememberInstantiationCallableSeed(symID)
+		}
 		returnType := tc.functionReturnType(fnItem, scope, allowRawPointer)
 		returnSpan := fnItem.ReturnSpan
 		if returnSpan == (source.Span{}) {
@@ -157,9 +161,10 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			}
 		}
 		tc.validateFunctionAttrs(fnItem, symID, types.NoTypeID)
+		tc.rememberCallableCandidate(symID, fnItem)
 		// Validate entrypoint constraints if this is an entrypoint function
 		if sym := tc.symbolFromID(symID); sym != nil && sym.Flags&symbols.SymbolFlagEntrypoint != 0 {
-			tc.validateEntrypoint(fnItem, sym)
+			tc.validateEntrypoint(fnItem, symID, sym)
 		}
 		if typeParamsPushed {
 			tc.popTypeParams()
@@ -521,14 +526,7 @@ func (tc *typeChecker) handleLetDefaultInit(scope symbols.ScopeID, typeExpr ast.
 		}
 		return
 	}
-	if tc.builder == nil {
-		return
-	}
-	nameID := tc.builder.StringsInterner.Intern("default")
-	symID := tc.symbolInScope(tc.scopeOrFile(scope), nameID, symbols.SymbolFunction)
-	if symID.IsValid() {
-		tc.rememberFunctionInstantiation(symID, []types.TypeID{declaredType}, span, "default-init")
-	}
+	tc.recordDefaultInstantiation(scope, declaredType, span, "default-init")
 }
 
 func (tc *typeChecker) symbolForStmt(id ast.StmtID) symbols.SymbolID {

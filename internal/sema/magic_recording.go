@@ -15,6 +15,7 @@ func (tc *typeChecker) recordMagicUnarySymbol(exprID ast.ExprID, symID symbols.S
 		tc.result.MagicUnarySymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
 	tc.result.MagicUnarySymbols[exprID] = symID
+	tc.recordFunctionCall(symID)
 }
 
 func (tc *typeChecker) recordMagicOpInstantiation(symID symbols.SymbolID, recv types.TypeID, span source.Span) {
@@ -40,6 +41,7 @@ func (tc *typeChecker) recordMagicBinarySymbol(exprID ast.ExprID, symID symbols.
 		tc.result.MagicBinarySymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
 	tc.result.MagicBinarySymbols[exprID] = symID
+	tc.recordFunctionCall(symID)
 }
 
 func (tc *typeChecker) recordBoolSymbol(exprID ast.ExprID, symID symbols.SymbolID) {
@@ -50,6 +52,7 @@ func (tc *typeChecker) recordBoolSymbol(exprID ast.ExprID, symID symbols.SymbolI
 		tc.result.BoolSymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
 	tc.result.BoolSymbols[exprID] = symID
+	tc.recordFunctionCall(symID)
 }
 
 func (tc *typeChecker) recordBoolBoundMethod(exprID ast.ExprID) {
@@ -73,6 +76,7 @@ func (tc *typeChecker) recordRangeSymbol(exprID ast.ExprID, symID symbols.Symbol
 		tc.result.RangeTypes = make(map[ast.ExprID]types.TypeID)
 	}
 	tc.result.RangeSymbols[exprID] = symID
+	tc.recordFunctionCall(symID)
 	tc.result.RangeTypes[exprID] = rangeType
 }
 
@@ -84,6 +88,7 @@ func (tc *typeChecker) recordIndexSymbol(exprID ast.ExprID, symID symbols.Symbol
 		tc.result.IndexSymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
 	tc.result.IndexSymbols[exprID] = symID
+	tc.recordFunctionCall(symID)
 }
 
 func (tc *typeChecker) recordIndexSetSymbol(exprID ast.ExprID, symID symbols.SymbolID) {
@@ -94,4 +99,5 @@ func (tc *typeChecker) recordIndexSetSymbol(exprID ast.ExprID, symID symbols.Sym
 		tc.result.IndexSetSymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
 	tc.result.IndexSetSymbols[exprID] = symID
+	tc.recordFunctionCall(symID)
 }

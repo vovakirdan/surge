@@ -73,23 +73,6 @@ func (in *Interner) RemapTypeParamOwners(mapping map[uint32]uint32) {
 	}
 }
 
-// RemapTypeParamOwnersFrom updates generic param owner IDs for params
-// registered at or after the provided start index.
-func (in *Interner) RemapTypeParamOwnersFrom(mapping map[uint32]uint32, start int) {
-	if in == nil || len(mapping) == 0 || start >= len(in.params) {
-		return
-	}
-	if start < 1 {
-		start = 1
-	}
-	for i := start; i < len(in.params); i++ {
-		owner := in.params[i].Owner
-		if mapped, ok := mapping[owner]; ok {
-			in.params[i].Owner = mapped
-		}
-	}
-}
-
 func (in *Interner) appendTypeParamInfo(info TypeParamInfo) uint32 {
 	if in.params == nil {
 		in.params = append(in.params, TypeParamInfo{})

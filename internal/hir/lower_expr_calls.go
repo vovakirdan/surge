@@ -2,6 +2,7 @@ package hir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -100,6 +101,16 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 	}
 
 	member, isMember := l.builder.Exprs.Member(callData.Target)
+	deferredUseID := sema.DeferredUseID("")
+	crossingDispatch := false
+	if l.semaRes != nil {
+		kind := sema.DeferredCloneCall
+		if isMember {
+			kind = sema.DeferredMethodCall
+		}
+		deferredUseID = l.semaRes.DeferredCallableUses[sema.DeferredUseRef{Expr: exprID, Kind: kind}]
+		_, crossingDispatch = l.semaRes.CrossingDispatchCalls[exprID]
+	}
 
 	args := make([]*Expr, len(callData.Args))
 	for i, arg := range callData.Args {
@@ -172,9 +183,11 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 		Type: ty,
 		Span: expr.Span,
 		Data: CallData{
-			Callee:   callee,
-			Args:     args,
-			SymbolID: symID,
+			Callee:           callee,
+			Args:             args,
+			SymbolID:         symID,
+			DeferredUseID:    deferredUseID,
+			CrossingDispatch: crossingDispatch,
 		},
 	}
 }

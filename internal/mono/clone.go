@@ -317,6 +317,20 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 			data.Arms = arms
 		}
 		out.Data = data
+	case hir.ExprSelect, hir.ExprRace:
+		data, ok := e.Data.(hir.SelectData)
+		if !ok {
+			break
+		}
+		if len(data.Arms) > 0 {
+			data.Arms = slices.Clone(data.Arms)
+			for i := range data.Arms {
+				data.Arms[i].Await = cloneExpr(data.Arms[i].Await)
+				data.Arms[i].Result = cloneExpr(data.Arms[i].Result)
+			}
+		}
+		data.Crossing = cloneCrossingData(data.Crossing)
+		out.Data = data
 	case hir.ExprTagTest:
 		data, ok := e.Data.(hir.TagTestData)
 		if !ok {
@@ -380,18 +394,7 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 		if !ok {
 			break
 		}
-		data.Destination.Value = cloneExpr(data.Destination.Value)
-		data.Body = cloneBlock(data.Body)
-		data.Captures = append([]hir.CrossingCapture(nil), data.Captures...)
-		for i := range data.Captures {
-			data.Captures[i].Value = cloneExpr(data.Captures[i].Value)
-		}
-		data.RemoteOps = append([]hir.CrossingRemoteOp(nil), data.RemoteOps...)
-		for i := range data.RemoteOps {
-			data.RemoteOps[i].Receiver = cloneExpr(data.RemoteOps[i].Receiver)
-		}
-		data.Receiver = cloneExpr(data.Receiver)
-		out.Data = data
+		out.Data = *cloneCrossingData(&data)
 	case hir.ExprAsync:
 		data, ok := e.Data.(hir.AsyncData)
 		if !ok {
@@ -438,5 +441,25 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 	default:
 		out.Data = e.Data
 	}
+	return &out
+}
+
+func cloneCrossingData(data *hir.CrossingData) *hir.CrossingData {
+	if data == nil {
+		return nil
+	}
+	out := *data
+	out.Destination.Value = cloneExpr(data.Destination.Value)
+	out.Body = cloneBlock(data.Body)
+	out.Captures = slices.Clone(data.Captures)
+	for i := range out.Captures {
+		out.Captures[i].Value = cloneExpr(out.Captures[i].Value)
+	}
+	out.RemoteOps = slices.Clone(data.RemoteOps)
+	for i := range out.RemoteOps {
+		out.RemoteOps[i].Receiver = cloneExpr(out.RemoteOps[i].Receiver)
+		out.RemoteOps[i].Value = cloneExpr(out.RemoteOps[i].Value)
+	}
+	out.Receiver = cloneExpr(data.Receiver)
 	return &out
 }

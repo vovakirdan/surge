@@ -455,20 +455,13 @@ func hasValgrindMemcheckError(stderr string) bool {
 // leaner program (each window function called once, at n=4, no HeapStats
 // comparisons): definitely-lost dropped from 1,280 bytes/52 blocks to 344
 // bytes/13 blocks, identical byte-for-byte at SURGE_SHARDS=1, 2, and 8 --
-// still shard-topology independent. The residual is the dispatch-side
-// sibling lease struct (lease_new/rt_far_channel_mint_sibling) each
-// .share() call accumulates in the registry: release_entry frees every
-// lease struct together, but only once the registry entry's own last
-// lease releases, which these programs' own channel bindings may not
-// reach by process exit in every path -- an already-scoped-out residual
-// (buffered/internal bookkeeping, not the handle box or the channel
-// object; see
-// TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero for a narrower
-// program that DOES reach strict zero for the handle+object class this
-// fix targets). Once the lease-struct residual is separately addressed,
-// this constant should collapse further and this test should be
-// tightened to match TestRuntimeV2CrossingStrictCensusBalanced's
-// strict-zero migration check.
+// still shard-topology independent. Epic 23b's B3A audit corrected the
+// remaining attribution: the seven direct allocations are generated
+// tag-only `TaskResult<nothing>` outcome boxes, not runtime lease structs.
+// The exact tag-only layout reduced each unchanged allocation from 8 bytes
+// to 4, hence 56/7 -> 28/7 with identical allocation count and stacks.
+// Wave D replaces this boxed task-result carrier; that migration must tighten
+// the row to strict zero rather than recalibrate it again.
 func TestRuntimeV2CrossingStrictCensusValgrindBounded(t *testing.T) {
 	if _, err := exec.LookPath("valgrind"); err != nil {
 		t.Skip("valgrind not installed; skipping valgrind leak-check census")
@@ -482,7 +475,7 @@ func TestRuntimeV2CrossingStrictCensusValgrindBounded(t *testing.T) {
 	// drop-glue calls and can never remove an allocation, and the direct probe
 	// went from 51 allocs / 35 frees to 51 allocs / 51 frees — allocations
 	// identical, frees up by exactly the leaked count.
-	const wantDefinitelyLostBytes = 56
+	const wantDefinitelyLostBytes = 28
 	const wantDefinitelyLostBlocks = 7
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2CrossingStrictCensusValgrindSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
@@ -507,7 +500,7 @@ func TestRuntimeV2CrossingStrictCensusValgrindBounded(t *testing.T) {
 			}
 			if bytesLost != wantDefinitelyLostBytes || blocksLost != wantDefinitelyLostBlocks {
 				t.Fatalf(
-					"valgrind definitely-lost drifted at shards=%d: got %d bytes in %d blocks, want the documented %d bytes in %d blocks (far Channel<T> handle_alloc gap, ledger id TBD; either the leak's magnitude changed or it was fixed -- tighten this test to 0/0 if so)\nstderr:\n%s",
+					"valgrind definitely-lost drifted at shards=%d: got %d bytes in %d blocks, want the documented tag-only TaskResult<nothing> residual %d bytes in %d blocks; Wave D must tighten this to 0/0\nstderr:\n%s",
 					shardCount, bytesLost, blocksLost, wantDefinitelyLostBytes, wantDefinitelyLostBlocks, stderr,
 				)
 			}

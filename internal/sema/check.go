@@ -114,7 +114,32 @@ type Result struct {
 	IfSyntheticElseDrops map[ast.StmtID][]symbols.SymbolID
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
-	CopyTypes                  map[types.TypeID]struct{}
+	CopyTypes map[types.TypeID]struct{}
+	// InstantiationGraph is the always-on authority for generic callable
+	// reachability. FunctionInstantiations and FunctionInstantiationSites are
+	// compatibility views derived from it.
+	InstantiationGraph    InstantiationGraph
+	InstantiationIdentity *InstantiationIdentity
+	InstantiationClosure  *InstantiationClosure
+	// FunctionCallEdges is the always-on, sema-resolved ordinary callable
+	// graph. Generic calls also have typed demands in InstantiationGraph;
+	// ordinary edges let reachability pass through non-generic helpers.
+	FunctionCallEdges map[symbols.SymbolID]map[symbols.SymbolID]struct{}
+	// InstantiationCallableSeeds is populated by the post-merge driver policy.
+	// Only root-module body-bearing functions belong here; dependencies become
+	// live through FunctionCallEdges, never merely because they were imported.
+	InstantiationCallableSeeds map[symbols.SymbolID]struct{}
+	// InstantiationTemplateParams keeps declaration-ordered exact TypeID
+	// descriptors for generic callables. Mono consumes this substitution ABI.
+	InstantiationTemplateParams map[symbols.SymbolID][]types.TypeID
+	// CallableCandidates is the detached, always-on semantic catalog used by
+	// post-merge deferred dispatch. DeferredCallableUses transfers its stable
+	// use identities into HIR.
+	CallableCandidates         []CallableCandidate
+	DeferredCallableUses       map[DeferredUseRef]DeferredUseID
+	CrossingDispatchCalls      map[ast.ExprID]struct{}
+	EntrypointCallableRequests []EntrypointCallableRequest
+	EntrypointCallableBindings []EntrypointCallableBinding
 	FunctionInstantiations     map[symbols.SymbolID][][]types.TypeID
 	FunctionInstantiationSites map[symbols.SymbolID][]source.Span
 	ImplicitConversions        map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
@@ -154,25 +179,30 @@ type FunctionEffect struct {
 // At this stage it handles literal typing and basic operator validation.
 func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Options) Result {
 	res := Result{
-		ExprTypes:                  make(map[ast.ExprID]types.TypeID),
-		IsOperands:                 make(map[ast.ExprID]IsOperand),
-		HeirOperands:               make(map[ast.ExprID]HeirOperand),
-		ExprBorrows:                make(map[ast.ExprID]BorrowID),
-		FunctionInstantiations:     make(map[symbols.SymbolID][][]types.TypeID),
-		FunctionInstantiationSites: make(map[symbols.SymbolID][]source.Span),
-		ImplicitConversions:        make(map[ast.ExprID]ImplicitConversion),
-		ToSymbols:                  make(map[ast.ExprID]symbols.SymbolID),
-		CloneSymbols:               make(map[ast.ExprID]symbols.SymbolID),
-		BoolSymbols:                make(map[ast.ExprID]symbols.SymbolID),
-		BoolBoundMethods:           make(map[ast.ExprID]struct{}),
-		RangeSymbols:               make(map[ast.ExprID]symbols.SymbolID),
-		RangeTypes:                 make(map[ast.ExprID]types.TypeID),
-		MagicUnarySymbols:          make(map[ast.ExprID]symbols.SymbolID),
-		MagicBinarySymbols:         make(map[ast.ExprID]symbols.SymbolID),
-		IndexSymbols:               make(map[ast.ExprID]symbols.SymbolID),
-		IndexSetSymbols:            make(map[ast.ExprID]symbols.SymbolID),
-		BlockingCaptures:           make(map[ast.ExprID][]symbols.SymbolID),
-		FunctionEffects:            make(map[symbols.SymbolID]FunctionEffect),
+		ExprTypes:                   make(map[ast.ExprID]types.TypeID),
+		IsOperands:                  make(map[ast.ExprID]IsOperand),
+		HeirOperands:                make(map[ast.ExprID]HeirOperand),
+		ExprBorrows:                 make(map[ast.ExprID]BorrowID),
+		FunctionInstantiations:      make(map[symbols.SymbolID][][]types.TypeID),
+		FunctionInstantiationSites:  make(map[symbols.SymbolID][]source.Span),
+		FunctionCallEdges:           make(map[symbols.SymbolID]map[symbols.SymbolID]struct{}),
+		InstantiationCallableSeeds:  make(map[symbols.SymbolID]struct{}),
+		InstantiationTemplateParams: make(map[symbols.SymbolID][]types.TypeID),
+		DeferredCallableUses:        make(map[DeferredUseRef]DeferredUseID),
+		CrossingDispatchCalls:       make(map[ast.ExprID]struct{}),
+		ImplicitConversions:         make(map[ast.ExprID]ImplicitConversion),
+		ToSymbols:                   make(map[ast.ExprID]symbols.SymbolID),
+		CloneSymbols:                make(map[ast.ExprID]symbols.SymbolID),
+		BoolSymbols:                 make(map[ast.ExprID]symbols.SymbolID),
+		BoolBoundMethods:            make(map[ast.ExprID]struct{}),
+		RangeSymbols:                make(map[ast.ExprID]symbols.SymbolID),
+		RangeTypes:                  make(map[ast.ExprID]types.TypeID),
+		MagicUnarySymbols:           make(map[ast.ExprID]symbols.SymbolID),
+		MagicBinarySymbols:          make(map[ast.ExprID]symbols.SymbolID),
+		IndexSymbols:                make(map[ast.ExprID]symbols.SymbolID),
+		IndexSetSymbols:             make(map[ast.ExprID]symbols.SymbolID),
+		BlockingCaptures:            make(map[ast.ExprID][]symbols.SymbolID),
+		FunctionEffects:             make(map[symbols.SymbolID]FunctionEffect),
 	}
 	if opts.Types != nil {
 		res.TypeInterner = opts.Types

@@ -58,6 +58,7 @@ func lowerForOwnership(t *testing.T, src string) (*mir.Module, *types.Interner, 
 		Instantiations: mono.NewInstantiationMapRecorder(instMap),
 	})
 	requireNoDiagErrors(t, bag, "sema")
+	finalizeTestInstantiationClosure(t, typeInterner, &symbolsRes, &semaRes)
 
 	hirModule, err := hir.Lower(context.Background(), builder, parsed.File, &semaRes, &symbolsRes)
 	if err != nil {

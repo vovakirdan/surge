@@ -3,7 +3,7 @@
 module 
 
 fn first(arr: type#1503) -> int (id=1, sym=1421) {
-  return arr[0]: &int
+  return __index((& arr), 0): &int
 }
 
 fn make_array() -> type#1503 (id=2, sym=1422) {

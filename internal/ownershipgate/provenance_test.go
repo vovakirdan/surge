@@ -2,6 +2,7 @@ package ownershipgate_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,8 +13,12 @@ import (
 
 func importedMutexPollProvenance(t *testing.T, root, fixture string) ownershipgate.FindingKey {
 	t.Helper()
+	target := fixture
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(root, filepath.FromSlash(fixture))
+	}
 	result, err := buildpipeline.Compile(context.Background(), &buildpipeline.CompileRequest{
-		TargetPath:     filepath.Join(root, filepath.FromSlash(fixture)),
+		TargetPath:     target,
 		BaseDir:        root,
 		MaxDiagnostics: 500,
 		Analysis:       true,
@@ -56,8 +61,34 @@ func importedMutexPollProvenance(t *testing.T, root, fixture string) ownershipga
 func TestImportedOwnershipFindingProvenanceDedupesAcrossRoots(t *testing.T) {
 	root := ownershipRepoRoot(t)
 	t.Setenv("SURGE_STDLIB", root)
-	first := importedMutexPollProvenance(t, root, "testdata/golden/vm_tuples/tuple_literals.sg")
-	second := importedMutexPollProvenance(t, root, "testdata/golden/vm_tags/vm_option_match_nothing.sg")
+	writeRoot := func(name, body string) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), name)
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatalf("write ownership root: %v", err)
+		}
+		return path
+	}
+	firstRoot := writeRoot("first.sg", `
+@entrypoint fn main() -> int {
+    let m = Mutex.new();
+    let _ = m.lock();
+    m.unlock();
+    return 0;
+}
+`)
+	secondRoot := writeRoot("second.sg", `
+@entrypoint fn main() -> int {
+    let m = Mutex.new();
+    let _ = m.lock();
+    let marker = 1;
+    let _ = marker;
+    m.unlock();
+    return 0;
+}
+`)
+	first := importedMutexPollProvenance(t, root, firstRoot)
+	second := importedMutexPollProvenance(t, root, secondRoot)
 	for _, finding := range []ownershipgate.FindingKey{first, second} {
 		if finding.Source != "core/sync.sg" {
 			t.Fatalf("imported poll source = %q, want core/sync.sg: %s", finding.Source, finding)

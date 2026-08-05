@@ -126,9 +126,15 @@ type surgeStartBuilder struct {
 	cur BlockID
 
 	paramLocals map[symbols.SymbolID]LocalID
+	returnToInt *entrypointCallableTarget
+	fromString  map[uint32]entrypointCallableTarget
+	err         error
 }
 
 func (b *surgeStartBuilder) build() error {
+	if err := b.loadEntrypointCallables(); err != nil {
+		return err
+	}
 	// Entry block
 	b.f.Entry = b.newBlock()
 	b.cur = b.f.Entry
@@ -152,6 +158,9 @@ func (b *surgeStartBuilder) build() error {
 		argOperands = b.prepareArgsStdin()
 	default:
 		return fmt.Errorf("unsupported entrypoint mode: %v", b.mode)
+	}
+	if b.err != nil {
+		return b.err
 	}
 
 	// Call entrypoint
@@ -201,26 +210,27 @@ func (b *surgeStartBuilder) build() error {
 			},
 		})
 	default:
-		// other -> code = call __to(ret, int)
-		toSymID := b.findToMethod(entryReturnType, b.intType())
-		if toSymID.IsValid() {
-			// Emit: code = call __to(move entry_ret)
-			b.emitCall(codeLocal, toSymID, "__to", []Operand{
-				{Kind: OperandMove, Place: Place{Local: retLocal}},
+		// Sema selected this exact startup conversion before mono. A builtin
+		// conversion is an intrinsic with one runtime operand; a user method
+		// receives its declared self plus the compile-time target marker.
+		target := *b.returnToInt
+		if target.outcome == sema.EntrypointCallableBuiltin {
+			b.emitCallIntrinsic(codeLocal, "__to", []Operand{
+				{Kind: OperandMove, Type: entryReturnType, Place: Place{Local: retLocal}},
 			}, []ArgContract{byValueArgContract(b.typesIn, b.sema, entryReturnType, false)})
 		} else {
-			// Fallback: no __to found, use 0
-			b.emitAssign(codeLocal, &RValue{
-				Kind: RValueUse,
-				Use: Operand{
-					Kind: OperandConst,
-					Type: b.intType(),
-					Const: Const{
-						Kind:     ConstInt,
-						Type:     b.intType(),
-						IntValue: 0,
-					},
-				},
+			if len(target.paramTypes) != 2 {
+				return fmt.Errorf("entrypoint startup: selected __to has %d parameters, want 2", len(target.paramTypes))
+			}
+			receiver := b.entrypointReceiverOperand(retLocal, target.paramTypes[0], entryReturnType)
+			targetMarker := Operand{
+				Kind:  OperandConst,
+				Type:  target.paramTypes[1],
+				Const: Const{Kind: ConstInt, Type: target.paramTypes[1], IntValue: 0},
+			}
+			b.emitCall(codeLocal, target.instance, "__to", []Operand{receiver, targetMarker}, []ArgContract{
+				byValueArgContract(b.typesIn, b.sema, target.paramTypes[0], false),
+				byValueArgContract(b.typesIn, b.sema, target.paramTypes[1], false),
 			})
 		}
 	}

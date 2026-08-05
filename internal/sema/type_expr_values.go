@@ -54,6 +54,9 @@ func (tc *typeChecker) typeExprIdent(id ast.ExprID, span source.Span) types.Type
 		tc.report(diag.SemaTypeMismatch, span, "type %s cannot be used as a value", name)
 		return types.NoTypeID
 	default:
+		if sym.Kind == symbols.SymbolFunction && tc.callTargetDepth == 0 {
+			tc.recordFunctionCall(symID)
+		}
 		if sym.Kind == symbols.SymbolFunction && len(sym.TypeParams) > 0 {
 			if expected := tc.expectedTypeForExpr(id); expected != types.NoTypeID && tc.tryBindGenericFnValue(id, expected) {
 				return expected
@@ -354,7 +357,29 @@ func (tc *typeChecker) typeExprRange(id ast.ExprID, span source.Span) types.Type
 				"range bound must be int, got %s", tc.typeLabel(endType))
 		}
 	}
+	tc.recordRangeLiteralCall(id, rng)
 	return tc.resolveRangeType(intType, span, tc.currentScope())
+}
+
+func (tc *typeChecker) recordRangeLiteralCall(id ast.ExprID, rng *ast.ExprRangeLitData) {
+	if tc == nil || tc.builder == nil || rng == nil {
+		return
+	}
+	name := "rt_range_int_full"
+	switch {
+	case rng.Start.IsValid() && rng.End.IsValid():
+		name = "rt_range_int_new"
+	case rng.Start.IsValid():
+		name = "rt_range_int_from_start"
+	case rng.End.IsValid():
+		name = "rt_range_int_to_end"
+	}
+	nameID := tc.builder.StringsInterner.Intern(name)
+	scope := tc.fileScope()
+	if !scope.IsValid() {
+		scope = tc.currentScope()
+	}
+	tc.recordCallSymbol(id, tc.symbolInScope(scope, nameID, symbols.SymbolFunction))
 }
 
 func (tc *typeChecker) typeExprTuple(id ast.ExprID) types.TypeID {
@@ -390,7 +415,19 @@ func (tc *typeChecker) typeExprMember(id ast.ExprID, span source.Span) types.Typ
 		return types.NoTypeID
 	}
 	if module := tc.moduleSymbolForExpr(member.Target); module != nil {
-		return tc.typeOfModuleMember(module, member.Field, span)
+		result := tc.typeOfModuleMember(module, member.Field, span)
+		if tc.callTargetDepth == 0 {
+			if symID := tc.symbolForExpr(id); symID.IsValid() {
+				if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolFunction {
+					if len(sym.TypeParams) == 0 {
+						tc.recordFunctionCall(symID)
+					} else if expected := tc.expectedTypeForExpr(id); expected != types.NoTypeID && tc.tryBindGenericFnValue(id, expected) {
+						return expected
+					}
+				}
+			}
+		}
+		return result
 	}
 	if enumType := tc.enumTypeForExpr(member.Target); enumType != types.NoTypeID {
 		return tc.typeOfEnumVariant(enumType, member.Field, span)

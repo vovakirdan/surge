@@ -167,15 +167,22 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 	if err != nil {
 		return "", "", err
 	}
-	elemAlign := elemLayout.Align
 	stride := elemLayout.Stride
 	length := len(lit.Elems)
 
 	if dynamic {
-		dataSize := stride * uint64(length)
+		// Dynamic arrays still store the emitted value representation.  Until
+		// Wave C inlines aggregates, a composite element is a pointer even when
+		// its canonical language layout is wider; using that language stride
+		// leaves holes that every array reader correctly interprets as elements.
+		emittedStride, emittedAlign, sizeErr := llvmTypeStrideAlign(elemLLVM)
+		if sizeErr != nil {
+			return "", "", sizeErr
+		}
+		dataSize := emittedStride * uint64(length)
 
 		dataPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, elemAlign)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, emittedAlign)
 		headPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
 
@@ -211,7 +218,7 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 			if valTy != elemLLVM {
 				valTy = elemLLVM
 			}
-			offset := uint64(i) * stride
+			offset := uint64(i) * emittedStride
 			elemPtr := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, dataPtr, offset)
 			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)

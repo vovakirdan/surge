@@ -220,9 +220,16 @@ func (BinaryOpData) exprData() {}
 
 // CallData holds data for ExprCall.
 type CallData struct {
-	Callee   *Expr   // The function/method being called
-	Args     []*Expr // Arguments
-	SymbolID symbols.SymbolID
+	Callee           *Expr   // The function/method being called
+	Args             []*Expr // Arguments
+	SymbolID         symbols.SymbolID
+	DeferredUseID    sema.DeferredUseID
+	CrossingDispatch bool
+	// SelectDispatch marks the outer send/recv/await/timeout-shaped call in
+	// a select/race arm header. It is a structural descriptor consumed by
+	// MIR, not an executable callable. Its receiver and arguments remain
+	// ordinary expressions and are still traversed by mono.
+	SelectDispatch bool
 }
 
 func (CallData) exprData() {}

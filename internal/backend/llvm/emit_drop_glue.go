@@ -301,11 +301,15 @@ func (e *Emitter) emitDropDynArray(val string, elem types.TypeID) {
 }
 
 func (e *Emitter) elemStrideAlign(elem types.TypeID) (stride, align uint64, ok bool) {
-	facts, err := e.layoutOf(elem)
+	llvmTy, err := llvmValueType(e.types, elem)
 	if err != nil {
 		return 0, 0, false
 	}
-	return facts.Stride, facts.Align, true
+	stride, align, err = llvmTypeStrideAlign(llvmTy)
+	if err != nil {
+		return 0, 0, false
+	}
+	return stride, align, true
 }
 
 // emitDropGlue emits every needed glue function, processing to a

@@ -487,6 +487,7 @@ func compileCrossingMIR(t *testing.T, src string, forms map[sema.CrossingLowerin
 	if bag.HasErrors() {
 		t.Fatalf("sema diagnostics: %s", crossingDiagSummary(bag))
 	}
+	finalizeTestInstantiationClosure(t, typesIn, &symbolsRes, &semaRes)
 
 	hirMod, err := hir.LowerWithOptions(context.Background(), builder, parsed.File, &semaRes, &symbolsRes, hir.LowerOptions{
 		CrossingForms: forms,

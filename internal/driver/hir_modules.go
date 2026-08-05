@@ -2,14 +2,11 @@ package driver
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
 	"fortio.org/safecast"
 
-	"surge/internal/diag"
 	"surge/internal/hir"
-	"surge/internal/mono"
 	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -38,6 +35,9 @@ func CombineHIRWithModulesWithOptions(ctx context.Context, res *DiagnoseResult, 
 	}
 	if res.Symbols == nil || res.Symbols.Table == nil || res.Symbols.Table.Symbols == nil {
 		return res.HIR, nil
+	}
+	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
+		return nil, err
 	}
 
 	base := res.HIR
@@ -148,19 +148,17 @@ func appendModuleRecordHIR(ctx context.Context, res *DiagnoseResult, rec *module
 	if rec == nil || rec.Builder == nil || rec.Table == nil || combined == nil || nextFnID == nil {
 		return nil
 	}
-	mapping := buildModuleSymbolRemap(res.Symbols, rec)
-	if rec.Meta != nil && isCoreModulePath(rec.Meta.Path) {
-		if coreMapping := buildCoreSymbolRemap(res.Symbols, rec); len(coreMapping) > 0 {
-			mapping = coreMapping
+	mapping, cachedMapping := cachedInstantiationSymbolRemap(rec, res.Symbols.Table)
+	if !cachedMapping {
+		mapping = buildModuleSymbolRemap(res.Symbols, rec)
+		if rec.Meta != nil && isCoreModulePath(rec.Meta.Path) {
+			if coreMapping := buildCoreSymbolRemap(res.Symbols, rec); len(coreMapping) > 0 {
+				mapping = coreMapping
+			}
 		}
 	}
-	if len(mapping) > 0 {
-		remapTypeParamOwners(res.Sema, mapping)
-	}
 	mergeCopyTypesFromRecord(res.Sema, rec)
-	if err := appendModuleInstantiations(ctx, res, rec, mapping); err != nil {
-		return err
-	}
+	cacheInstantiationSymbolRemap(rec, res.Symbols.Table, mapping)
 
 	for _, fileID := range rec.FileIDs {
 		semaRes := rec.Sema[fileID]
@@ -216,61 +214,6 @@ func mergeCopyTypesFromRecord(dst *sema.Result, rec *moduleRecord) {
 	}
 }
 
-func appendModuleInstantiations(ctx context.Context, res *DiagnoseResult, rec *moduleRecord, mapping map[symbols.SymbolID]symbols.SymbolID) error {
-	if res == nil || res.Instantiations == nil || res.Sema == nil || res.Sema.TypeInterner == nil || rec == nil || rec.Builder == nil {
-		return nil
-	}
-	if len(mapping) == 0 {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	inst := mono.NewInstantiationMap()
-	recorder := mono.NewInstantiationMapRecorder(inst)
-	exports := collectedExports(res.moduleRecords)
-	if exports == nil {
-		exports = make(map[string]*symbols.ModuleExports)
-	}
-
-	modulePath := ""
-	moduleLabel := "module"
-	if rec.Meta != nil && rec.Meta.Path != "" {
-		modulePath = rec.Meta.Path
-		moduleLabel = modulePath
-	}
-
-	paramStart := res.Sema.TypeInterner.TypeParamCount()
-	for _, fileID := range rec.FileIDs {
-		symRes, ok := rec.Symbols[fileID]
-		if !ok {
-			continue
-		}
-		bag := diag.NewBag(0)
-		sema.Check(ctx, rec.Builder, fileID, sema.Options{
-			Reporter:       &diag.BagReporter{Bag: bag},
-			Symbols:        &symRes,
-			Exports:        exports,
-			Types:          res.Sema.TypeInterner,
-			ModulePath:     semaModulePath(rec.Builder, modulePath),
-			AlienHints:     false,
-			Instantiations: recorder,
-		})
-		if bag.HasErrors() {
-			items := bag.Items()
-			if len(items) > 0 {
-				return fmt.Errorf("%s instantiation pass failed: %s", moduleLabel, items[0].Message)
-			}
-			return fmt.Errorf("%s instantiation pass failed", moduleLabel)
-		}
-	}
-
-	remapTypeParamOwnersFrom(res.Sema, mapping, paramStart)
-	mergeInstantiations(res.Instantiations, inst, mapping)
-	return nil
-}
-
 func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[symbols.SymbolID]symbols.SymbolID {
 	if rootSyms == nil || rootSyms.Table == nil || rootSyms.Table.Symbols == nil || rec == nil || rec.Table == nil || rec.Table.Symbols == nil {
 		return nil
@@ -285,7 +228,7 @@ func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[sym
 			continue
 		}
 		sym := rootTable.Symbols.Get(id)
-		if sym == nil || sym.Flags&symbols.SymbolFlagImported == 0 {
+		if sym == nil || sym.Flags&(symbols.SymbolFlagImported|symbols.SymbolFlagBuiltin) == 0 {
 			continue
 		}
 		if isLocalSymbol(sym, rootTable) {
@@ -297,6 +240,12 @@ func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[sym
 		}
 		key := moduleSymbolKey(modulePath, sym, rootTable.Strings)
 		if key != "" {
+			if sym.Kind == symbols.SymbolType && modulePath == "" && sym.Flags&symbols.SymbolFlagBuiltin != 0 {
+				if _, exists := rootMap[key]; !exists {
+					rootMap[key] = id
+				}
+				continue
+			}
 			rootMap[key] = id
 		}
 	}
@@ -362,7 +311,7 @@ func isPreludeSymbol(sym *symbols.Symbol) bool {
 	}
 	return sym.ModulePath == "" &&
 		sym.Flags&symbols.SymbolFlagBuiltin != 0 &&
-		sym.Flags&symbols.SymbolFlagImported != 0
+		(sym.Kind == symbols.SymbolType || sym.Flags&symbols.SymbolFlagImported != 0)
 }
 
 func moduleSymbolKey(modulePath string, sym *symbols.Symbol, strs *source.Interner) string {

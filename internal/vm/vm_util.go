@@ -44,9 +44,6 @@ func (vm *VM) resolveCallTarget(frame *Frame, call *mir.CallInstr) *mir.Func {
 	if name == "" {
 		return nil
 	}
-	if shouldDeferToIntrinsicFallback(name) {
-		return nil
-	}
 
 	argTypes := make([]types.TypeID, 0, len(call.Args))
 	for i := range call.Args {
@@ -59,7 +56,34 @@ func (vm *VM) resolveCallTarget(frame *Frame, call *mir.CallInstr) *mir.Func {
 		}
 	}
 
+	if shouldDeferToIntrinsicFallback(name) {
+		// Compiler-generated MIR functions share the intrinsic naming prefix.
+		// An exact, type-compatible in-module function wins; an unrelated user
+		// magic method with the same spelling must not shadow the intrinsic via
+		// the ordinary arity-only fallback.
+		return vm.pickTypedFunctionCandidate(vm.collectFunctionCandidates(name, true), argTypes, resultType)
+	}
 	return vm.findFunctionBySignature(name, argTypes, resultType)
+}
+
+func (vm *VM) pickTypedFunctionCandidate(candidates []*mir.Func, argTypes []types.TypeID, resultType types.TypeID) *mir.Func {
+	for _, wantedResult := range []types.TypeID{resultType, types.NoTypeID} {
+		var match *mir.Func
+		for _, fn := range candidates {
+			if !vm.functionSignatureMatches(fn, argTypes, wantedResult, true) {
+				continue
+			}
+			if match != nil {
+				match = nil
+				break
+			}
+			match = fn
+		}
+		if match != nil {
+			return match
+		}
+	}
+	return nil
 }
 
 func (vm *VM) findFunctionBySignature(name string, argTypes []types.TypeID, resultType types.TypeID) *mir.Func {

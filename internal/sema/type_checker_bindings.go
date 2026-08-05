@@ -512,6 +512,7 @@ func (tc *typeChecker) tryBindGenericFnValue(expr ast.ExprID, expected types.Typ
 		tc.result.ExprTypes[origExpr] = expected
 	}
 	tc.rememberFunctionInstantiation(symID, typeArgs, tc.exprSpan(expr), "fn-value")
+	tc.recordFunctionCall(symID)
 	return true
 }
 

@@ -607,6 +607,12 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if !ok {
 		return "", fmt.Errorf("missing finalized union case %d for type#%d", tagIndex, typeID)
 	}
+	mem := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", tagIndex, mem)
+	if isNothingType(fe.emitter.types, payloadType) {
+		return mem, nil
+	}
 	payloadOffset, ok := unionCase.FieldOffset(0)
 	if !ok {
 		return "", fmt.Errorf("missing finalized payload offset for type#%d case %d", typeID, tagIndex)
@@ -615,9 +621,6 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if err != nil {
 		return "", err
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", tagIndex, mem)
 	if valTy != payloadLLVM {
 		casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, payloadType)
 		if err != nil {

@@ -29,6 +29,9 @@ type ImplicitConversion struct {
 	Source types.TypeID           // Original type T
 	Target types.TypeID           // Target type U (Option<T> or Erring<T, E>)
 	Span   source.Span            // Location of the expression
+	// Callee is the exact tag constructor selected for implicit Some/Success
+	// injection. HIR must not repeat a scope lookup after module merging.
+	Callee symbols.SymbolID
 }
 
 // tryImplicitConversion attempts to find a __to conversion from source to target.
@@ -187,7 +190,7 @@ func (tc *typeChecker) recordImplicitConversionWithKind(expr ast.ExprID, src, ta
 	if tc.result.ImplicitConversions == nil {
 		tc.result.ImplicitConversions = make(map[ast.ExprID]ImplicitConversion)
 	}
-	tc.result.ImplicitConversions[expr] = ImplicitConversion{
+	conversion := ImplicitConversion{
 		Kind:   kind,
 		Source: src,
 		Target: target,
@@ -200,8 +203,9 @@ func (tc *typeChecker) recordImplicitConversionWithKind(expr ast.ExprID, src, ta
 	// For tag injection (Some/Success), we need to register the instantiation
 	// so that mono knows about this tag constructor call.
 	if kind == ImplicitConversionSome || kind == ImplicitConversionSuccess {
-		tc.recordTagInstantiationForInjection(kind, src, tc.exprSpan(expr))
+		conversion.Callee = tc.recordTagInstantiationForInjection(kind, src, tc.exprSpan(expr))
 	}
+	tc.result.ImplicitConversions[expr] = conversion
 }
 
 func (tc *typeChecker) recordTagUnionUpcast(expr ast.ExprID, src, target types.TypeID) bool {
@@ -249,8 +253,47 @@ func (tc *typeChecker) recordToSymbol(expr ast.ExprID, src, target types.TypeID)
 	symID := tc.resolveToSymbol(expr, src, target)
 	tc.result.ToSymbols[expr] = symID
 	if symID.IsValid() {
-		tc.recordMethodCallInstantiation(symID, src, nil, tc.exprSpan(expr))
+		tc.recordToCallAuthority(symID, src, target, tc.exprSpan(expr))
 	}
+}
+
+func (tc *typeChecker) recordToCallAuthority(symID symbols.SymbolID, src, target types.TypeID, span source.Span) {
+	if tc == nil || !symID.IsValid() {
+		return
+	}
+	tc.recordFunctionCall(symID)
+	tc.recordMethodCallInstantiation(symID, src, nil, span)
+	if tc.toCallNeedsTargetValue(symID) {
+		tc.recordDefaultInstantiation(tc.scopeOrFile(tc.currentScope()), target, span, "conversion-target")
+	}
+}
+
+func (tc *typeChecker) toCallNeedsTargetValue(symID symbols.SymbolID) bool {
+	sym := tc.symbolFromID(symID)
+	if sym == nil || sym.Flags&symbols.SymbolFlagBuiltin == 0 {
+		return true
+	}
+	return sym.Signature != nil && sym.Signature.HasBody
+}
+
+func (tc *typeChecker) recordDefaultInstantiation(scope symbols.ScopeID, target types.TypeID, span source.Span, reason string) {
+	if tc == nil || tc.builder == nil || target == types.NoTypeID {
+		return
+	}
+	nameID := tc.builder.StringsInterner.Intern("default")
+	// HIR's intrinsic callee is resolved from the file scope. Record the same
+	// symbol here rather than a nested-scope alias so the authority identity is
+	// exact after module merging.
+	lookupScope := tc.fileScope()
+	if !lookupScope.IsValid() {
+		lookupScope = tc.scopeOrFile(scope)
+	}
+	symID := tc.symbolInScope(lookupScope, nameID, symbols.SymbolFunction)
+	if !symID.IsValid() {
+		return
+	}
+	tc.recordFunctionCall(symID)
+	tc.rememberFunctionInstantiation(symID, []types.TypeID{target}, span, reason)
 }
 
 func (tc *typeChecker) resolveToSymbol(expr ast.ExprID, src, target types.TypeID) symbols.SymbolID {
@@ -384,9 +427,9 @@ func (tc *typeChecker) resolveToSymbolByMagicCost(expr ast.ExprID, src, target t
 
 // recordTagInstantiationForInjection registers a tag instantiation for implicit tag injection.
 // This ensures mono knows about the Some<T> or Success<T> call we'll generate.
-func (tc *typeChecker) recordTagInstantiationForInjection(kind ImplicitConversionKind, payloadType types.TypeID, span source.Span) {
+func (tc *typeChecker) recordTagInstantiationForInjection(kind ImplicitConversionKind, payloadType types.TypeID, span source.Span) symbols.SymbolID {
 	if tc.builder == nil || tc.builder.StringsInterner == nil {
-		return
+		return symbols.NoSymbolID
 	}
 
 	var tagName string
@@ -396,17 +439,18 @@ func (tc *typeChecker) recordTagInstantiationForInjection(kind ImplicitConversio
 	case ImplicitConversionSuccess:
 		tagName = "Success"
 	default:
-		return
+		return symbols.NoSymbolID
 	}
 
 	nameID := tc.builder.StringsInterner.Intern(tagName)
 	scope := tc.scopeOrFile(tc.currentScope())
 	tagSymID := tc.lookupTagSymbol(nameID, scope)
 	if !tagSymID.IsValid() {
-		return
+		return symbols.NoSymbolID
 	}
 
 	// Register the instantiation with the payload type as the type argument
 	args := []types.TypeID{payloadType}
 	tc.rememberFunctionInstantiation(tagSymID, args, span, "tag-injection")
+	return tagSymID
 }

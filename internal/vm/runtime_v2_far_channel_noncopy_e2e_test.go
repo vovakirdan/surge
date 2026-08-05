@@ -116,21 +116,18 @@ func TestRuntimeV2FarChannelNonCopyRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse valgrind leak summary: %v\nstderr:\n%s", err, stderr)
 		}
-		// KNOWN RESIDUAL, pre-existing and unrelated to this row: a
-		// channel_on'd far channel that is sent-to/received-from directly
-		// (never .share()'d) leaks exactly 8 bytes in 1 block at scope exit
-		// today — confirmed identical with a plain Copy `int` element on
-		// the same shape (create + one on-ch send + on-ch recv, no
-		// share()), so this is not a non-copy-payload issue this row's own
-		// fixes are responsible for. TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero
-		// achieves true zero via create+share()+consume, a different shape.
-		// This row asserts the payload itself never leaks (bytesLost stays
-		// pinned to exactly this known baseline, not a growing number).
-		const knownResidualBytes = 8
+		// KNOWN RESIDUAL, pre-existing and unrelated to this row: the
+		// discarded `TaskResult<nothing>` in `s` has no async scope-exit drop
+		// and leaves one tag-only outcome box behind. Epic 23b's exact
+		// tag-only layout corrected that box from the historical 8 bytes to
+		// 4; Valgrind still reports the same single allocation site and block.
+		// This row asserts the string payload itself never leaks while Wave D
+		// replaces the boxed task-result carrier and removes this residual.
+		const knownResidualBytes = 4
 		const knownResidualBlocks = 1
 		if bytesLost != knownResidualBytes || blocksLost != knownResidualBlocks {
 			t.Fatalf(
-				"non-copy far-channel round trip leaked %d bytes in %d blocks, want exactly the known pre-existing baseline (%d bytes in %d blocks); this looks like a NEW leak (the payload itself), not the documented residual\nstderr:\n%s",
+				"non-copy far-channel round trip leaked %d bytes in %d blocks, want exactly the documented discarded-outcome baseline (%d bytes in %d blocks); this looks like a NEW leak, not the known tag-only residual\nstderr:\n%s",
 				bytesLost, blocksLost, knownResidualBytes, knownResidualBlocks, stderr,
 			)
 		}

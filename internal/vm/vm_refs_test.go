@@ -262,3 +262,95 @@ fn main() -> nothing {
 		t.Fatalf("expected final projection to be deref, got %v", lastProj.Kind)
 	}
 }
+
+func TestVMRefsArrayIndexSharedReceiverUsesSharedReborrowInMIR(t *testing.T) {
+	sourceCode := `fn read_twice(xs: &mut string[], i: int) -> nothing {
+    let first = xs[i];
+    let second = xs[i];
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut xs: string[] = ["a"];
+    read_twice(&mut xs, 0);
+    return 0;
+}
+`
+
+	mirMod, _, _ := compileToMIRFromSource(t, sourceCode)
+
+	found := 0
+	for _, fn := range mirMod.Funcs {
+		if fn == nil || fn.Name != "read_twice" {
+			continue
+		}
+		for _, bb := range fn.Blocks {
+			for _, instr := range bb.Instrs {
+				if instr.Kind != mir.InstrCall || !strings.HasPrefix(instr.Call.Callee.Name, "__index") {
+					continue
+				}
+				found++
+				if len(instr.Call.Args) == 0 {
+					t.Fatal("expected __index receiver argument")
+				}
+				arg := instr.Call.Args[0]
+				if arg.Kind != mir.OperandAddrOf {
+					t.Fatalf("expected __index receiver to be addr_of reborrow, got %s", arg.Kind.String())
+				}
+				if len(arg.Place.Proj) == 0 || arg.Place.Proj[len(arg.Place.Proj)-1].Kind != mir.PlaceProjDeref {
+					t.Fatalf("expected __index receiver place to dereference mutable reference, got %+v", arg.Place)
+				}
+			}
+		}
+	}
+	if found != 2 {
+		t.Fatalf("found %d __index calls, want 2", found)
+	}
+}
+
+func TestVMRefsSharedReborrowOfProjectedFieldDoesNotDoubleDeref(t *testing.T) {
+	sourceCode := `type Holder = { data: string[] };
+
+fn inspect(data: &string[]) -> nothing { return nothing; }
+
+fn forward(holder: &mut Holder) -> nothing {
+    inspect(holder.data);
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut holder = Holder { data = ["a"] };
+    forward(&mut holder);
+    return 0;
+}
+`
+
+	mirMod, _, _ := compileToMIRFromSource(t, sourceCode)
+
+	for _, fn := range mirMod.Funcs {
+		if fn == nil || fn.Name != "forward" {
+			continue
+		}
+		for _, bb := range fn.Blocks {
+			for _, instr := range bb.Instrs {
+				if instr.Kind != mir.InstrCall || instr.Call.Callee.Name != "inspect" {
+					continue
+				}
+				if len(instr.Call.Args) != 1 {
+					t.Fatalf("inspect args = %d, want 1", len(instr.Call.Args))
+				}
+				arg := instr.Call.Args[0]
+				if arg.Kind != mir.OperandAddrOf {
+					t.Fatalf("inspect arg = %s, want shared AddrOf", arg.Kind.String())
+				}
+				if len(arg.Place.Proj) == 0 || arg.Place.Proj[len(arg.Place.Proj)-1].Kind != mir.PlaceProjField {
+					t.Fatalf("projected-field reborrow ends in %+v, want field projection without trailing deref", arg.Place.Proj)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("expected inspect call in forward")
+}

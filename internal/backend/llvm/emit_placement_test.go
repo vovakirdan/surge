@@ -75,18 +75,17 @@ func TestUserPlacementAliasDoesNotLowerAsRuntimePlacement(t *testing.T) {
 	sourceCode := `pragma no_std;
 
 type Placement = bool;
+@intrinsic fn default<T>() -> T;
 
-fn make_user_placement() -> Placement {
-    return true;
+fn make_user_placement(value: Placement) -> Placement {
+    return value;
 }
 
 @entrypoint
 fn main() -> int {
-    let p = make_user_placement();
-    if p {
-        return 0;
-    }
-    return 1;
+	let p: Placement = default::<Placement>();
+	let _ = make_user_placement(p);
+	return 0;
 }
 `
 
@@ -96,7 +95,7 @@ fn main() -> int {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
 	body := findLLVMFuncBody(t, ir, fmt.Sprintf("fn.%d", findMIRFunc(t, mirMod, "make_user_placement").ID))
-	if !regexp.MustCompile(`define i1 @fn\.\d+\(\)`).MatchString(body) {
+	if !regexp.MustCompile(`define i1 @fn\.[0-9]+\(i1 %p[0-9]+\)`).MatchString(body) {
 		t.Fatalf("user alias named Placement must lower as its target bool, not runtime i64:\n%s", body)
 	}
 }
@@ -114,7 +113,7 @@ fn call_user_shard() -> int64 {
 
 @entrypoint
 fn main() -> int {
-    return call_user_shard() as int;
+    return call_user_shard() to int;
 }
 `
 

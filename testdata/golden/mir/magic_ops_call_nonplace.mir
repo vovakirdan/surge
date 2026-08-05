@@ -108,7 +108,7 @@ fn main:
     drop L12
     drop L10
     drop L9
-    L15 = call default()
+    L15 = call default::<int>()
     L16 = call __to(addr_of L6, copy L15)
     L17 = copy L16
     drop L8

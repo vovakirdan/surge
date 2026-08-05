@@ -59,6 +59,22 @@ func TestDiagnoseMIRAnnotatedImpliesMIREmission(t *testing.T) {
 	}
 }
 
+func TestDiagnoseMIRAnnotatedMonomorphizesDirectStdlibJSONRoot(t *testing.T) {
+	repoRoot := surgeRepoRootForBuildTest(t)
+	t.Setenv("SURGE_STDLIB", repoRoot)
+	path := filepath.Join(repoRoot, "stdlib", "json", "stringify.sg")
+
+	root := newDiagnoseRootForTest()
+	root.SetArgs([]string{"diag", "--format=short", "--emit-mir-annotated", "--mono-dce", path})
+	output, err := captureStdoutForTest(t, root.Execute)
+	if err != nil {
+		t.Fatalf("diag direct stdlib JSON root: %v", err)
+	}
+	if !strings.Contains(output, "== MIR ==") || !strings.Contains(output, "fn stringify") {
+		t.Fatalf("direct stdlib JSON root did not emit monomorphized MIR:\n%s", output)
+	}
+}
+
 func TestBuildMIRAnnotatedFlagPropagatesToDump(t *testing.T) {
 	repoRoot := surgeRepoRootForBuildTest(t)
 	t.Setenv("SURGE_STDLIB", repoRoot)

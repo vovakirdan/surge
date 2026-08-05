@@ -204,6 +204,41 @@ func TestVMEntrypointArgvInt(t *testing.T) {
 	}
 }
 
+func TestVMEntrypointArgvUsesResolvedUserFromStr(t *testing.T) {
+	sourceCode := `type Wrapped = { value: int };
+extern<Wrapped> {
+    pub fn from_str(_text: &string) -> Erring<Wrapped, Error> {
+        return Success(Wrapped { value = 23 });
+    }
+}
+@entrypoint("argv") fn main(value: Wrapped) -> int { return value.value; }
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{argv: []string{"ignored"}})
+	if result.exitCode != 23 {
+		t.Errorf("expected exit code 23, got %d", result.exitCode)
+	}
+}
+
+func TestVMEntrypointOptionUsesResolvedGenericTo(t *testing.T) {
+	sourceCode := `@entrypoint fn main() -> Option<int> { return Some(7); }
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.exitCode)
+	}
+}
+
+func TestVMEntrypointErringUsesResolvedGenericTo(t *testing.T) {
+	sourceCode := `@entrypoint fn main() -> Erring<int, Error> {
+    return Error { message = "failed", code = 17:uint };
+}
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 17 {
+		t.Errorf("expected exit code 17, got %d", result.exitCode)
+	}
+}
+
 func TestVMEntrypointArgvDefault(t *testing.T) {
 	sourceCode := `@entrypoint("argv") fn main(port: uint = 7379:uint) -> int {
     if port == 7379:uint {

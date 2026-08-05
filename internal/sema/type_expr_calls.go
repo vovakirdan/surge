@@ -35,7 +35,9 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	if call == nil {
 		return types.NoTypeID
 	}
+	tc.callTargetDepth++
 	tc.typeExpr(call.Target)
+	tc.callTargetDepth--
 	twoPhase := tc.beginTwoPhaseArgs(call.Args)
 	args := make([]callArg, 0, len(call.Args))
 	for _, arg := range call.Args {
@@ -460,13 +462,17 @@ func (tc *typeChecker) reportBorrowIntoOwned(expected, actual types.TypeID, expr
 }
 
 func (tc *typeChecker) recordCallSymbol(callID ast.ExprID, symID symbols.SymbolID) {
-	if callID == ast.NoExprID || !symID.IsValid() || tc.symbols == nil || tc.symbols.ExprSymbols == nil {
+	if callID == ast.NoExprID || !symID.IsValid() {
 		return
 	}
 	if sym := tc.symbolFromID(symID); sym != nil {
 		if sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag {
 			return
 		}
+	}
+	tc.recordFunctionCall(symID)
+	if tc.symbols == nil || tc.symbols.ExprSymbols == nil {
+		return
 	}
 	tc.symbols.ExprSymbols[callID] = symID
 }

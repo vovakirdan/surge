@@ -3,6 +3,7 @@ package hir
 import (
 	"surge/internal/ast"
 	"surge/internal/numlit"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -147,13 +148,14 @@ func (l *lowerer) applyBoolMagic(exprID ast.ExprID, result *Expr) *Expr {
 	}
 	if l.semaRes.BoolBoundMethods != nil {
 		if _, ok := l.semaRes.BoolBoundMethods[exprID]; ok {
-			return l.boundBoolCallExpr(result)
+			useID := l.semaRes.DeferredCallableUses[sema.DeferredUseRef{Expr: exprID, Kind: sema.DeferredBoolCall}]
+			return l.boundBoolCallExpr(result, useID)
 		}
 	}
 	return result
 }
 
-func (l *lowerer) boundBoolCallExpr(result *Expr) *Expr {
+func (l *lowerer) boundBoolCallExpr(result *Expr, useID sema.DeferredUseID) *Expr {
 	if result == nil {
 		return nil
 	}
@@ -172,7 +174,8 @@ func (l *lowerer) boundBoolCallExpr(result *Expr) *Expr {
 		Type: l.boolType(),
 		Span: result.Span,
 		Data: CallData{
-			Callee: callee,
+			Callee:        callee,
+			DeferredUseID: useID,
 		},
 	}
 }

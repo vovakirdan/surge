@@ -143,3 +143,26 @@ func (in *Interner) FindAliasInstanceWithDecl(name source.StringID, decl source.
 	}
 	return NoTypeID, false
 }
+
+// FindEnumInstanceWithDecl returns an enum TypeID whose name, decl, and type arguments match args.
+func (in *Interner) FindEnumInstanceWithDecl(name source.StringID, decl source.Span, args []TypeID) (TypeID, bool) {
+	if in == nil || name == source.NoStringID {
+		return NoTypeID, false
+	}
+	for id := TypeID(1); int(id) < len(in.types); id++ {
+		if in.types[id].Kind != KindEnum {
+			continue
+		}
+		info, ok := in.EnumInfo(id)
+		if !ok || info == nil {
+			continue
+		}
+		if info.Name != name || info.Decl != decl {
+			continue
+		}
+		if slices.Equal(info.TypeArgs, args) {
+			return id, true
+		}
+	}
+	return NoTypeID, false
+}

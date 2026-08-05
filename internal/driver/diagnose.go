@@ -331,6 +331,25 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 		directiveRegistry = directive.NewRegistry()
 		directiveRegistry.CollectFromFile(builder, astFile, modulePath, filePath)
 	}
+	result := &DiagnoseResult{
+		FileSet:           fs,
+		File:              file,
+		FileID:            astFile,
+		Bag:               bag,
+		Builder:           builder,
+		Symbols:           symbolsRes,
+		Sema:              semaRes,
+		Instantiations:    instMap,
+		DirectiveRegistry: directiveRegistry,
+		TimingReport:      timingReport,
+		rootRecord:        rootRec,
+		moduleRecords:     moduleRecords,
+	}
+	if semaRes != nil && symbolsRes != nil && !bag.HasErrors() {
+		if finalizeErr := FinalizeInstantiationClosure(ctx, result, 64); finalizeErr != nil {
+			return nil, fmt.Errorf("instantiation closure: %w", finalizeErr)
+		}
+	}
 
 	// Build HIR if requested and sema succeeded
 	var hirModule *hir.Module
@@ -346,22 +365,8 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 	if opts.ExportsOut != nil {
 		*opts.ExportsOut = moduleExports
 	}
-
-	return &DiagnoseResult{
-		FileSet:           fs,
-		File:              file,
-		FileID:            astFile,
-		Bag:               bag,
-		Builder:           builder,
-		Symbols:           symbolsRes,
-		Sema:              semaRes,
-		Instantiations:    instMap,
-		DirectiveRegistry: directiveRegistry,
-		HIR:               hirModule,
-		TimingReport:      timingReport,
-		rootRecord:        rootRec,
-		moduleRecords:     moduleRecords,
-	}, nil
+	result.HIR = hirModule
+	return result, nil
 }
 
 func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, modulePath, filePath, baseDir string, exports map[string]*symbols.ModuleExports) *symbols.Result {
@@ -480,6 +485,7 @@ type moduleRecord struct {
 	Sema               map[ast.FileID]*sema.Result
 	Symbols            map[ast.FileID]symbols.Result
 	Exports            *symbols.ModuleExports
+	instantiationRemap map[*symbols.Table]map[symbols.SymbolID]symbols.SymbolID
 	checkedEntrypoints bool
 }
 

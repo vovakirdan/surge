@@ -103,7 +103,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		argStrLocal := b.newLocal(fmt.Sprintf("arg_str%d", i), b.stringType(), LocalFlags(0))
 		b.emitIndex(argStrLocal, argvLocal, i)
 		parseLocal := b.newLocal(fmt.Sprintf("arg_parsed%d", i), erringType, LocalFlags(0))
-		b.emitFromStrCall(parseLocal, argStrLocal, param.Type)
+		b.emitFromStrCall(parseLocal, argStrLocal, param.Type, uint32(i)) //nolint:gosec -- parameter count is bounded by the AST
 
 		okLocal := b.newLocal(fmt.Sprintf("arg_ok%d", i), b.boolType(), LocalFlagCopy)
 		b.emitTagTest(okLocal, parseLocal, "Success")
@@ -175,7 +175,7 @@ func (b *surgeStartBuilder) prepareArgsStdin() []Operand {
 	}
 
 	parseLocal := b.newLocal("stdin_parsed", erringType, LocalFlags(0))
-	b.emitFromStrCall(parseLocal, stdinLocal, param.Type)
+	b.emitFromStrCall(parseLocal, stdinLocal, param.Type, 0)
 
 	okLocal := b.newLocal("stdin_ok", b.boolType(), LocalFlagCopy)
 	b.emitTagTest(okLocal, parseLocal, "Success")

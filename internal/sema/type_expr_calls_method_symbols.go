@@ -29,6 +29,7 @@ func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.Exp
 	}
 	if symID.IsValid() {
 		tc.symbols.ExprSymbols[callID] = symID
+		tc.recordFunctionCall(symID)
 	}
 	return symID
 }
@@ -50,9 +51,6 @@ func (tc *typeChecker) ensureExportedMethodSymbol(name string, sig *symbols.Func
 		for i := range exported {
 			exp := &exported[i]
 			if exp.Kind != symbols.SymbolFunction || exp.ReceiverKey == "" {
-				continue
-			}
-			if exp.Flags&symbols.SymbolFlagBuiltin != 0 {
 				continue
 			}
 			if !functionSignaturesMatch(exp.Signature, sig) {

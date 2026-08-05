@@ -1,20 +1,25 @@
 package mono
 
 import (
+	"fmt"
 	"slices"
 
 	"surge/internal/hir"
+	"surge/internal/sema"
 	"surge/internal/symbols"
 )
 
-func (b *monoBuilder) applyDCE() {
+func (b *monoBuilder) applyDCE() error {
 	if b == nil || b.mm == nil {
-		return
+		return nil
 	}
 
-	roots := b.dceRoots()
+	roots, err := b.dceRoots()
+	if err != nil {
+		return err
+	}
 	if len(roots) == 0 {
-		return
+		return nil
 	}
 
 	reachable := make(map[symbols.SymbolID]struct{}, len(roots))
@@ -31,7 +36,7 @@ func (b *monoBuilder) applyDCE() {
 		if mf == nil || mf.Func == nil || mf.Func.Body == nil {
 			continue
 		}
-		for _, callee := range collectCallSyms(mf.Func.Body) {
+		for _, callee := range collectFuncCallSyms(mf.Func) {
 			if callee.IsValid() {
 				work = append(work, callee)
 			}
@@ -52,11 +57,20 @@ func (b *monoBuilder) applyDCE() {
 
 	b.mm.Types = make(map[MonoKey]*MonoType)
 	b.collectTypesFromFuncs()
+	b.mm.Callables = newCallableMap(b.identity)
+	for _, key := range b.mm.SortedFuncKeys() {
+		if fn := b.mm.Funcs[key]; fn != nil {
+			if err := b.mm.Callables.bind(fn.OrigSym, fn.TypeArgs, fn.InstanceSym); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
-func (b *monoBuilder) dceRoots() []symbols.SymbolID {
+func (b *monoBuilder) dceRoots() ([]symbols.SymbolID, error) {
 	if b == nil || b.mm == nil || b.mod == nil {
-		return nil
+		return nil, nil
 	}
 
 	var roots []symbols.SymbolID
@@ -65,29 +79,83 @@ func (b *monoBuilder) dceRoots() []symbols.SymbolID {
 			continue
 		}
 		if fn.Flags.HasFlag(hir.FuncEntrypoint) || fn.Flags.HasFlag(hir.FuncPublic) || fn.Name == "main" {
-			mf := b.mm.Funcs[MonoKey{Sym: fn.SymbolID, ArgsKey: ""}]
-			if mf != nil && mf.InstanceSym.IsValid() {
-				roots = append(roots, mf.InstanceSym)
+			if b.closure != nil {
+				_, retained, retainedErr := b.retainedCallableFor(fn.SymbolID, nil)
+				if retainedErr != nil {
+					return nil, retainedErr
+				}
+				if !retained {
+					continue
+				}
 			}
+			instance, ok, err := b.mm.Callables.LookupChecked(fn.SymbolID, nil)
+			if err != nil {
+				return nil, err
+			}
+			if !ok || !instance.IsValid() {
+				return nil, fmt.Errorf("mono: retained DCE root %s has no emitted callable instance", fn.Name)
+			}
+			roots = append(roots, instance)
 		}
 	}
-	return roots
+	for i := range b.entrypointBindings {
+		binding := &b.entrypointBindings[i]
+		if binding.Outcome != sema.EntrypointCallableUser {
+			continue
+		}
+		instance, ok, err := b.mm.Callables.LookupChecked(binding.Callee, binding.TemplateArgs)
+		if err != nil {
+			return nil, err
+		}
+		if !ok || !instance.IsValid() {
+			return nil, fmt.Errorf("mono: sema-selected entrypoint callable %s has no emitted instance", binding.CalleeKey)
+		}
+		roots = append(roots, instance)
+	}
+	return roots, nil
 }
 
 func collectCallSyms(b *hir.Block) []symbols.SymbolID {
-	if b == nil {
+	return collectCallSymsFrom(nil, b)
+}
+
+func collectFuncCallSyms(fn *hir.Func) []symbols.SymbolID {
+	if fn == nil {
+		return nil
+	}
+	defaults := make([]*hir.Expr, 0, len(fn.Params))
+	for i := range fn.Params {
+		defaults = append(defaults, fn.Params[i].Default)
+	}
+	return collectCallSymsFrom(defaults, fn.Body)
+}
+
+func collectCallSymsFrom(defaults []*hir.Expr, b *hir.Block) []symbols.SymbolID {
+	if b == nil && len(defaults) == 0 {
 		return nil
 	}
 	var out []symbols.SymbolID
 	var walkExpr func(e *hir.Expr)
 	var walkBlock func(bl *hir.Block)
 	var walkStmt func(st *hir.Stmt)
+	var walkCrossing func(data *hir.CrossingData)
 
 	walkExpr = func(e *hir.Expr) {
 		if e == nil {
 			return
 		}
 		switch e.Kind {
+		case hir.ExprOwnedTemp:
+			data, ok := e.Data.(hir.OwnedTempData)
+			if !ok {
+				return
+			}
+			walkExpr(data.Inner)
+		case hir.ExprVarRef:
+			data, ok := e.Data.(hir.VarRefData)
+			if ok && data.SymbolID.IsValid() {
+				out = append(out, data.SymbolID)
+			}
 		case hir.ExprCall:
 			data, ok := e.Data.(hir.CallData)
 			if !ok {
@@ -170,6 +238,16 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 				walkExpr(arm.Guard)
 				walkExpr(arm.Result)
 			}
+		case hir.ExprSelect, hir.ExprRace:
+			data, ok := e.Data.(hir.SelectData)
+			if !ok {
+				return
+			}
+			for i := range data.Arms {
+				walkExpr(data.Arms[i].Await)
+				walkExpr(data.Arms[i].Result)
+			}
+			walkCrossing(data.Crossing)
 		case hir.ExprTagTest:
 			data, ok := e.Data.(hir.TagTestData)
 			if !ok {
@@ -231,15 +309,7 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 			if !ok {
 				return
 			}
-			walkExpr(data.Destination.Value)
-			for i := range data.Captures {
-				walkExpr(data.Captures[i].Value)
-			}
-			for i := range data.RemoteOps {
-				walkExpr(data.RemoteOps[i].Receiver)
-			}
-			walkExpr(data.Receiver)
-			walkBlock(data.Body)
+			walkCrossing(&data)
 		case hir.ExprAsync:
 			data, ok := e.Data.(hir.AsyncData)
 			if !ok {
@@ -356,7 +426,25 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 			walkStmt(&bl.Stmts[i])
 		}
 	}
+	walkCrossing = func(data *hir.CrossingData) {
+		if data == nil {
+			return
+		}
+		walkExpr(data.Destination.Value)
+		for i := range data.Captures {
+			walkExpr(data.Captures[i].Value)
+		}
+		for i := range data.RemoteOps {
+			walkExpr(data.RemoteOps[i].Receiver)
+			walkExpr(data.RemoteOps[i].Value)
+		}
+		walkExpr(data.Receiver)
+		walkBlock(data.Body)
+	}
 
+	for _, expr := range defaults {
+		walkExpr(expr)
+	}
 	walkBlock(b)
 	return out
 }

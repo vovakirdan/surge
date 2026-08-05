@@ -161,6 +161,7 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 		if err := rewriteCallsInExpr(data.Inner, f); err != nil {
 			return err
 		}
+		e.Data = data
 	case hir.ExprRaiseReleaseGuard:
 		data, ok := e.Data.(hir.RaiseReleaseGuardData)
 		if !ok {
@@ -296,6 +297,23 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 			}
 		}
 		e.Data = data
+	case hir.ExprSelect, hir.ExprRace:
+		data, ok := e.Data.(hir.SelectData)
+		if !ok {
+			return nil
+		}
+		for i := range data.Arms {
+			if err := rewriteCallsInExpr(data.Arms[i].Await, f); err != nil {
+				return err
+			}
+			if err := rewriteCallsInExpr(data.Arms[i].Result, f); err != nil {
+				return err
+			}
+		}
+		if err := rewriteCallsInCrossingData(data.Crossing, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprTagTest:
 		data, ok := e.Data.(hir.TagTestData)
 		if !ok {
@@ -379,23 +397,7 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 		if !ok {
 			return nil
 		}
-		if err := rewriteCallsInExpr(data.Destination.Value, f); err != nil {
-			return err
-		}
-		for i := range data.Captures {
-			if err := rewriteCallsInExpr(data.Captures[i].Value, f); err != nil {
-				return err
-			}
-		}
-		for i := range data.RemoteOps {
-			if err := rewriteCallsInExpr(data.RemoteOps[i].Receiver, f); err != nil {
-				return err
-			}
-		}
-		if err := rewriteCallsInExpr(data.Receiver, f); err != nil {
-			return err
-		}
-		if err := rewriteCallsInBlock(data.Body, f); err != nil {
+		if err := rewriteCallsInCrossingData(&data, f); err != nil {
 			return err
 		}
 		e.Data = data
@@ -438,4 +440,30 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 	default:
 	}
 	return nil
+}
+
+func rewriteCallsInCrossingData(data *hir.CrossingData, f callRewriteFunc) error {
+	if data == nil {
+		return nil
+	}
+	if err := rewriteCallsInExpr(data.Destination.Value, f); err != nil {
+		return err
+	}
+	for i := range data.Captures {
+		if err := rewriteCallsInExpr(data.Captures[i].Value, f); err != nil {
+			return err
+		}
+	}
+	for i := range data.RemoteOps {
+		if err := rewriteCallsInExpr(data.RemoteOps[i].Receiver, f); err != nil {
+			return err
+		}
+		if err := rewriteCallsInExpr(data.RemoteOps[i].Value, f); err != nil {
+			return err
+		}
+	}
+	if err := rewriteCallsInExpr(data.Receiver, f); err != nil {
+		return err
+	}
+	return rewriteCallsInBlock(data.Body, f)
 }

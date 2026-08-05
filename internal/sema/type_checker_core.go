@@ -88,7 +88,6 @@ type typeChecker struct {
 	typeInstantiationInProgress map[string]struct{}           // tracks cycles during type instantiation
 	assignabilityInProgress     map[assignabilityKey]struct{} // tracks cycles during type assignability checks
 	typeNames                   map[types.TypeID]string
-	fnInstantiationSeen         map[string]struct{}
 	exportNames                 map[source.StringID]string
 	typeParamBounds             map[types.TypeID][]symbols.BoundInstance
 	typeParamStack              []types.TypeID
@@ -137,6 +136,7 @@ type typeChecker struct {
 	onCrossingStack        []onAnchorFrame                 // active `on dst { ... }` crossing frames
 	directFunctionCrossing map[symbols.SymbolID]struct{}
 	functionCrossingEdges  map[symbols.SymbolID]map[symbols.SymbolID]struct{}
+	callTargetDepth        int
 }
 
 type diagnosticCountingReporter struct {
@@ -277,7 +277,6 @@ func (tc *typeChecker) run() {
 	tc.typeInstantiations = make(map[string]types.TypeID)
 	tc.typeInstantiationInProgress = make(map[string]struct{})
 	tc.assignabilityInProgress = make(map[assignabilityKey]struct{})
-	tc.fnInstantiationSeen = make(map[string]struct{})
 	tc.fnConcurrencySummaries = make(map[symbols.SymbolID]*FnConcurrencySummary)
 	tc.lockOrderGraph = NewLockOrderGraph()
 	tc.taskTracker = NewTaskTracker()
@@ -342,8 +341,8 @@ func (tc *typeChecker) run() {
 	if rootPushed {
 		tc.leaveScope()
 	}
+	tc.result.rebuildFunctionInstantiations()
 	done()
-
 	done = phase("infer_function_effects")
 	tc.finalizeFunctionEffects()
 	done()

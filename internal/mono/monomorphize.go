@@ -57,26 +57,44 @@ func MonomorphizeModule(m *hir.Module, inst *InstantiationMap, semaRes *sema.Res
 	if typesIn == nil && semaRes != nil {
 		typesIn = semaRes.TypeInterner
 	}
-	b := newMonoBuilder(m, inst, typesIn, opt)
+	authoritative, closure, err := authoritativeInstantiationMap(inst, semaRes)
+	if err != nil {
+		return nil, err
+	}
+	var templateParams map[symbols.SymbolID][]types.TypeID
+	var identity *sema.InstantiationIdentity
+	if semaRes != nil {
+		templateParams = semaRes.InstantiationTemplateParams
+		identity = semaRes.InstantiationIdentity
+	}
+	b, err := newMonoBuilder(m, authoritative, closure, identity, templateParams, typesIn, opt)
+	if err != nil {
+		return nil, err
+	}
+	if semaRes != nil {
+		b.entrypointBindings = cloneEntrypointCallableBindings(semaRes.EntrypointCallableBindings)
+	}
 	if err := b.seed(); err != nil {
 		return nil, err
 	}
 	if opt.EnableDCE {
-		b.applyDCE()
+		if err := b.applyDCE(); err != nil {
+			return nil, err
+		}
 	}
 	return b.mm, nil
 }
 
 type useSiteKey struct {
-	Kind   InstantiationKind
-	Caller symbols.SymbolID
-	Callee symbols.SymbolID
-	Span   source.Span
+	Kind              InstantiationKind
+	Caller            CallableKey
+	CalleeTemplateKey string
+	Span              source.Span
 }
 
 type callSiteKey struct {
 	Kind   InstantiationKind
-	Caller symbols.SymbolID
+	Caller CallableKey
 	Span   source.Span
 }
 
@@ -85,17 +103,31 @@ type callSiteInfo struct {
 	TypeArgs []types.TypeID
 }
 
+type deferredCallSiteKey struct {
+	Caller sema.InstanceKey
+	UseID  sema.DeferredUseID
+}
+
 type monoBuilder struct {
-	mod   *hir.Module
-	inst  *InstantiationMap
-	types *types.Interner
-	opt   Options
+	mod            *hir.Module
+	inst           *InstantiationMap
+	closure        *sema.InstantiationClosure
+	identity       *sema.InstantiationIdentity
+	templateParams map[symbols.SymbolID][]types.TypeID
+	types          *types.Interner
+	opt            Options
 
 	origFuncBySym map[symbols.SymbolID]*hir.Func
 	typeSymByName map[source.StringID]symbols.SymbolID
 
-	useSites  map[useSiteKey][]types.TypeID
-	callSites map[callSiteKey]callSiteInfo
+	useSites           map[useSiteKey][]types.TypeID
+	callSites          map[callSiteKey]callSiteInfo
+	deferredCalls      map[deferredCallSiteKey]sema.ResolvedDeferredCall
+	entrypointBindings []sema.EntrypointCallableBinding
+	// retainedCallables is non-nil whenever a finalized semantic closure is
+	// present, including an intentionally empty closure. Its canonical keys
+	// collapse every post-merge raw symbol alias to one emitted representative.
+	retainedCallables map[CallableKey]retainedCallable
 
 	nextSym  uint32
 	nextFunc uint32
@@ -103,36 +135,62 @@ type monoBuilder struct {
 	mm *MonoModule
 }
 
-func newMonoBuilder(mod *hir.Module, inst *InstantiationMap, typesIn *types.Interner, opt Options) *monoBuilder {
-	return &monoBuilder{
-		mod:           mod,
-		inst:          inst,
-		types:         typesIn,
-		origFuncBySym: make(map[symbols.SymbolID]*hir.Func),
-		typeSymByName: make(map[source.StringID]symbols.SymbolID),
-		useSites:      make(map[useSiteKey][]types.TypeID),
-		callSites:     make(map[callSiteKey]callSiteInfo),
-		nextSym:       1,
-		nextFunc:      1,
+func cloneEntrypointCallableBindings(input []sema.EntrypointCallableBinding) []sema.EntrypointCallableBinding {
+	out := make([]sema.EntrypointCallableBinding, len(input))
+	for i := range input {
+		out[i] = input[i]
+		out[i].TemplateArgs = slices.Clone(input[i].TemplateArgs)
+		out[i].ParamTypes = slices.Clone(input[i].ParamTypes)
+	}
+	return out
+}
+
+func newMonoBuilder(
+	mod *hir.Module,
+	inst *InstantiationMap,
+	closure *sema.InstantiationClosure,
+	identity *sema.InstantiationIdentity,
+	templateParams map[symbols.SymbolID][]types.TypeID,
+	typesIn *types.Interner,
+	opt Options,
+) (*monoBuilder, error) {
+	b := &monoBuilder{
+		mod:            mod,
+		inst:           inst,
+		closure:        closure,
+		identity:       identity,
+		templateParams: templateParams,
+		types:          typesIn,
+		origFuncBySym:  make(map[symbols.SymbolID]*hir.Func),
+		typeSymByName:  make(map[source.StringID]symbols.SymbolID),
+		useSites:       make(map[useSiteKey][]types.TypeID),
+		callSites:      make(map[callSiteKey]callSiteInfo),
+		deferredCalls:  make(map[deferredCallSiteKey]sema.ResolvedDeferredCall),
+		nextSym:        1,
+		nextFunc:       1,
 		mm: &MonoModule{
 			Source:    mod,
 			Funcs:     make(map[MonoKey]*MonoFunc),
 			FuncBySym: make(map[symbols.SymbolID]*MonoFunc),
 			Types:     make(map[MonoKey]*MonoType),
+			Callables: newCallableMap(identity),
 		},
 		opt: opt,
 	}
+	for _, fn := range b.mod.Funcs {
+		if fn != nil && fn.SymbolID.IsValid() {
+			b.origFuncBySym[fn.SymbolID] = fn
+		}
+	}
+	if err := b.initializeRetainedCallables(); err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func (b *monoBuilder) seed() error {
 	if b == nil || b.mod == nil {
 		return nil
-	}
-	for _, fn := range b.mod.Funcs {
-		if fn == nil || !fn.SymbolID.IsValid() {
-			continue
-		}
-		b.origFuncBySym[fn.SymbolID] = fn
 	}
 	if b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Symbols != nil {
 		syms := b.mod.Symbols.Table.Symbols
@@ -153,23 +211,43 @@ func (b *monoBuilder) seed() error {
 		}
 	}
 
-	b.indexUseSites()
+	if err := b.indexUseSites(); err != nil {
+		return err
+	}
 
-	// 1) Instantiate every non-generic function definition.
-	for _, fn := range b.mod.Funcs {
-		if fn == nil || !fn.SymbolID.IsValid() {
-			continue
+	// The finalized closure is the sole callable worklist. Canonical sorting
+	// makes allocation and emitted output independent of raw SymbolID order.
+	if b.closure != nil {
+		for i := range b.closure.Instances {
+			instance := &b.closure.Instances[i]
+			if !typeArgsAreConcrete(b.types, instance.TemplateArgs) {
+				return fmt.Errorf("mono: authoritative callable %s has non-concrete type arguments", b.monoName(instance.Template, instance.TemplateArgs))
+			}
 		}
-		if fn.IsGeneric() || b.symbolTypeParamCount(fn.SymbolID) > 0 || b.funcHasGenericTypes(fn) {
-			continue
+		for _, key := range b.sortedRetainedCallableKeys() {
+			retained := b.retainedCallables[key]
+			if _, err := b.ensureFunc(retained.Template, retained.TemplateArgs, nil); err != nil {
+				return err
+			}
 		}
-		if _, err := b.ensureFunc(fn.SymbolID, nil, nil); err != nil {
-			return err
+	} else {
+		// Compatibility for isolated low-level callers without sema closure:
+		// instantiate every concrete non-generic HIR function first.
+		for _, fn := range b.mod.Funcs {
+			if fn == nil || !fn.SymbolID.IsValid() {
+				continue
+			}
+			if fn.IsGeneric() || b.symbolTypeParamCount(fn.SymbolID) > 0 || b.funcHasGenericTypes(fn) {
+				continue
+			}
+			if _, err := b.ensureFunc(fn.SymbolID, nil, nil); err != nil {
+				return err
+			}
 		}
 	}
 
-	// 2) Instantiate every recorded generic fn/tag instantiation with concrete type args.
-	if b.inst != nil {
+	// Legacy generic seed for isolated callers without finalized sema.
+	if b.closure == nil && b.inst != nil {
 		entries := make([]*InstEntry, 0, len(b.inst.Entries))
 		for _, e := range b.inst.Entries {
 			if e == nil || len(e.TypeArgs) == 0 {
@@ -238,9 +316,67 @@ func (b *monoBuilder) seed() error {
 	return nil
 }
 
-func (b *monoBuilder) indexUseSites() {
-	if b == nil || b.inst == nil {
-		return
+func (b *monoBuilder) indexUseSites() error {
+	if b == nil {
+		return nil
+	}
+	if b.closure != nil {
+		for i := range b.closure.UseSites {
+			use := &b.closure.UseSites[i]
+			if use.Site == (source.Span{}) || !use.CallerTemplate.IsValid() || !use.CalleeTemplate.IsValid() || len(use.TemplateArgs) == 0 {
+				continue
+			}
+			callerKey, err := canonicalCallableKey(b.identity, use.CallerTemplate, use.CallerTemplateArgs)
+			if err != nil {
+				return err
+			}
+			if use.Caller.TemplateKey != "" && (callerKey.TemplateKey != use.Caller.TemplateKey || callerKey.ArgsKey != use.Caller.ArgsKey) {
+				return fmt.Errorf("mono: closure use at %s disagrees with its canonical caller key", use.Site)
+			}
+			calleeKey, err := canonicalCallableKey(b.identity, use.CalleeTemplate, use.TemplateArgs)
+			if err != nil {
+				return err
+			}
+			if calleeKey.TemplateKey != use.Callee.TemplateKey || calleeKey.ArgsKey != use.Callee.ArgsKey {
+				return fmt.Errorf("mono: closure use at %s disagrees with its canonical callee key", use.Site)
+			}
+			kind := monoInstantiationKind(use.Kind)
+			key := useSiteKey{
+				Kind:              kind,
+				Caller:            callerKey,
+				CalleeTemplateKey: calleeKey.TemplateKey,
+				Span:              use.Site,
+			}
+			b.useSites[key] = slices.Clone(use.TemplateArgs)
+
+			callKey := callSiteKey{
+				Kind:   kind,
+				Caller: callerKey,
+				Span:   use.Site,
+			}
+			b.callSites[callKey] = callSiteInfo{
+				Callee:   use.CalleeTemplate,
+				TypeArgs: slices.Clone(use.TemplateArgs),
+			}
+		}
+		for i := range b.closure.ResolvedDeferredCalls {
+			call := sema.CloneResolvedDeferredCallForConsumer(&b.closure.ResolvedDeferredCalls[i])
+			callerKey, err := canonicalCallableKey(b.identity, call.CallerTemplate, call.CallerTemplateArgs)
+			if err != nil {
+				return err
+			}
+			if callerKey.TemplateKey != call.Caller.TemplateKey || callerKey.ArgsKey != call.Caller.ArgsKey {
+				return fmt.Errorf("mono: deferred callable %s disagrees with its canonical caller key", call.UseID)
+			}
+			key := deferredCallSiteKey{
+				Caller: call.Caller, UseID: call.UseID,
+			}
+			b.deferredCalls[key] = call
+		}
+		return nil
+	}
+	if b.inst == nil {
+		return nil
 	}
 	for _, e := range b.inst.Entries {
 		if e == nil || !e.Key.Sym.IsValid() || len(e.TypeArgs) == 0 {
@@ -250,11 +386,19 @@ func (b *monoBuilder) indexUseSites() {
 			if us.Span == (source.Span{}) || !us.Caller.IsValid() {
 				continue
 			}
+			callerKey, err := canonicalCallableKey(b.identity, us.Caller, nil)
+			if err != nil {
+				return err
+			}
+			calleeKey, err := canonicalCallableKey(b.identity, e.Key.Sym, e.TypeArgs)
+			if err != nil {
+				return err
+			}
 			key := useSiteKey{
-				Kind:   e.Kind,
-				Caller: us.Caller,
-				Callee: e.Key.Sym,
-				Span:   us.Span,
+				Kind:              e.Kind,
+				Caller:            callerKey,
+				CalleeTemplateKey: calleeKey.TemplateKey,
+				Span:              us.Span,
 			}
 			if _, ok := b.useSites[key]; ok {
 				continue
@@ -263,7 +407,7 @@ func (b *monoBuilder) indexUseSites() {
 
 			callKey := callSiteKey{
 				Kind:   e.Kind,
-				Caller: us.Caller,
+				Caller: callerKey,
 				Span:   us.Span,
 			}
 			if _, ok := b.callSites[callKey]; ok {
@@ -275,6 +419,7 @@ func (b *monoBuilder) indexUseSites() {
 			}
 		}
 	}
+	return nil
 }
 
 func (b *monoBuilder) allocInstanceSym() symbols.SymbolID {
@@ -316,6 +461,19 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	}
 
 	normalized := NormalizeTypeArgs(b.types, typeArgs)
+	requestedSym := origSym
+	requestedArgs := slices.Clone(normalized)
+	if b.closure != nil {
+		retained, found, err := b.retainedCallableFor(origSym, normalized)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, fmt.Errorf("mono: callable %s is not retained by the authoritative instantiation closure", b.monoName(requestedSym, requestedArgs))
+		}
+		origSym = retained.Template
+		normalized = slices.Clone(retained.TemplateArgs)
+	}
 	expectedTypeArgs := b.symbolTypeParamCount(origSym)
 	switch {
 	case expectedTypeArgs == 0 && len(normalized) > 0:
@@ -362,6 +520,9 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	}
 	b.mm.Funcs[key] = out
 	b.mm.FuncBySym[instanceSym] = out
+	if err := b.mm.Callables.bind(origSym, normalized, instanceSym); err != nil {
+		return nil, err
+	}
 
 	origFn := b.origFuncBySym[origSym]
 	if origFn == nil {
@@ -393,7 +554,20 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 			OwnerSym: origSym,
 			TypeArgs: normalized,
 		}
-		if b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Symbols != nil {
+		if params := b.templateParams[origSym]; len(params) > 0 {
+			if len(params) != len(normalized) {
+				return nil, fmt.Errorf("mono: generic function %s exact parameter ABI expects %d type args, got %d", origFn.Name, len(params), len(normalized))
+			}
+			subst.ExactArgs = make(map[types.TypeID]types.TypeID, len(params))
+			for i, param := range params {
+				if param == types.NoTypeID {
+					return nil, fmt.Errorf("mono: generic function %s has a missing exact parameter descriptor at index %d", origFn.Name, i)
+				}
+				subst.ExactArgs[param] = normalized[i]
+			}
+		} else if b.closure != nil {
+			return nil, fmt.Errorf("mono: generic function %s has no exact parameter ABI", origFn.Name)
+		} else if b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Symbols != nil {
 			if owner := b.mod.Symbols.Table.Symbols.Get(origSym); owner != nil && len(owner.TypeParams) == len(normalized) {
 				subst.NameArgs = make(map[source.StringID]types.TypeID, len(normalized))
 				for i, name := range owner.TypeParams {
@@ -403,8 +577,10 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 				}
 			}
 		}
-		if recvSym := b.receiverTypeSymbol(origSym); recvSym.IsValid() && recvSym != origSym {
-			subst.OwnerSyms = append(subst.OwnerSyms, recvSym)
+		if subst.ExactArgs == nil {
+			if recvSym := b.receiverTypeSymbol(origSym); recvSym.IsValid() && recvSym != origSym {
+				subst.OwnerSyms = append(subst.OwnerSyms, recvSym)
+			}
 		}
 		if err := subst.ApplyFunc(clone); err != nil {
 			return nil, err
@@ -420,6 +596,20 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 
 	out.Func = clone
 	return out, nil
+}
+
+func (b *monoBuilder) ensureCallableInstance(origSym symbols.SymbolID, typeArgs []types.TypeID, stack []MonoKey) (symbols.SymbolID, error) {
+	if _, err := b.ensureFunc(origSym, typeArgs, stack); err != nil {
+		return symbols.NoSymbolID, err
+	}
+	instance, ok, err := b.mm.Callables.LookupChecked(origSym, typeArgs)
+	if err != nil {
+		return symbols.NoSymbolID, err
+	}
+	if !ok || !instance.IsValid() {
+		return symbols.NoSymbolID, fmt.Errorf("mono: callable %s was authorized but has no emitted instance", b.monoName(origSym, typeArgs))
+	}
+	return instance, nil
 }
 
 func (b *monoBuilder) isTagSymbol(sym symbols.SymbolID) bool {

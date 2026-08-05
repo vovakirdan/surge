@@ -182,6 +182,7 @@ pub type HeapStats = {
 // Active async executor worker count (1 means single-worker mode).
 @intrinsic pub fn rt_worker_count() -> uint;
 
+@intrinsic
 pub type Task<T> = {
     __opaque: int,
 };

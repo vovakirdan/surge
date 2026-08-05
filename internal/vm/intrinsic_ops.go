@@ -227,13 +227,34 @@ func (vm *VM) handleIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 		}
 		objVal = v
 	}
-	res, vmErr := vm.evalIndex(objVal, idxVal)
-	if vmErr != nil {
-		return vmErr
-	}
 	dstLocal := call.Dst.Local
+	dstType := frame.Locals[dstLocal].TypeID
+	var res Value
+	if isReferenceType(vm.Types, dstType) {
+		if objVal.Kind != VKHandleArray {
+			return vm.eb.typeMismatch("array", objVal.Kind.String())
+		}
+		view, viewErr := vm.arrayViewFromHandle(objVal.H)
+		if viewErr != nil {
+			return viewErr
+		}
+		index, indexErr := vm.arrayIndexFromValue(idxVal, view.length)
+		if indexErr != nil {
+			return indexErr
+		}
+		index32, err := safecast.Conv[int32](index)
+		if err != nil {
+			return vm.eb.invalidLocation("array index overflow")
+		}
+		res = MakeRef(Location{Kind: LKArrayElem, Handle: objVal.H, Index: index32}, dstType)
+	} else {
+		res, vmErr = vm.evalIndex(objVal, idxVal)
+		if vmErr != nil {
+			return vmErr
+		}
+	}
 	if res.TypeID == types.NoTypeID {
-		res.TypeID = frame.Locals[dstLocal].TypeID
+		res.TypeID = dstType
 	}
 	if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
 		if res.IsHeap() {
@@ -241,11 +262,13 @@ func (vm *VM) handleIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 		}
 		return vmErr
 	}
-	*writes = append(*writes, LocalWrite{
-		LocalID: dstLocal,
-		Name:    frame.Locals[dstLocal].Name,
-		Value:   res,
-	})
+	if writes != nil {
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   res,
+		})
+	}
 	return nil
 }
 

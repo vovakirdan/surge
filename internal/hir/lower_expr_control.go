@@ -46,6 +46,7 @@ func (l *lowerer) lowerSelectExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 		}
 		if crossing == nil {
 			arms[i].Await = l.lowerExpr(arm.Await)
+			markSelectDispatch(arms[i].Await)
 		}
 	}
 
@@ -62,6 +63,54 @@ func (l *lowerer) lowerSelectExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 			Arms:     arms,
 			Crossing: crossing,
 		},
+	}
+}
+
+func markSelectDispatch(expr *Expr) {
+	for expr != nil {
+		switch expr.Kind {
+		case ExprBlock:
+			data, ok := expr.Data.(BlockExprData)
+			if !ok || data.Block == nil || len(data.Block.Stmts) != 1 {
+				return
+			}
+			stmt := data.Block.Stmts[0]
+			switch stmt.Kind {
+			case StmtReturn:
+				ret, ok := stmt.Data.(ReturnData)
+				if !ok {
+					return
+				}
+				expr = ret.Value
+			case StmtRet:
+				ret, ok := stmt.Data.(RetData)
+				if !ok {
+					return
+				}
+				expr = ret.Value
+			default:
+				return
+			}
+		case ExprCall:
+			data, ok := expr.Data.(CallData)
+			if !ok {
+				return
+			}
+			data.SelectDispatch = true
+			data.SymbolID = symbols.NoSymbolID
+			data.DeferredUseID = ""
+			if data.Callee != nil && data.Callee.Kind == ExprVarRef {
+				if ref, ok := data.Callee.Data.(VarRefData); ok {
+					ref.SymbolID = symbols.NoSymbolID
+					data.Callee.Data = ref
+					data.Callee.Type = types.NoTypeID
+				}
+			}
+			expr.Data = data
+			return
+		default:
+			return
+		}
 	}
 }
 

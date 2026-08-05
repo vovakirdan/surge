@@ -170,7 +170,7 @@ func (l *lowerer) applyParamBorrow(symID symbols.SymbolID, args []*Expr) []*Expr
 		if arg == nil || i >= len(sym.Signature.Params) {
 			continue
 		}
-		_, argIsRef, _ := l.referenceInfo(arg.Type)
+		_, argIsRef, argIsMut := l.referenceInfo(arg.Type)
 		param := strings.TrimSpace(string(sym.Signature.Params[i]))
 		switch {
 		case strings.HasPrefix(param, "&mut "):
@@ -186,6 +186,9 @@ func (l *lowerer) applyParamBorrow(symID symbols.SymbolID, args []*Expr) []*Expr
 			args[i] = l.applyBorrow(arg, true)
 		case strings.HasPrefix(param, "&"):
 			if argIsRef {
+				if argIsMut {
+					args[i] = l.applyBorrow(arg, false)
+				}
 				continue
 			}
 			args[i] = l.applyBorrow(arg, false)
@@ -222,25 +225,24 @@ func (l *lowerer) referenceInfo(id types.TypeID) (elem types.TypeID, ok, mut boo
 
 // wrapInSome wraps an expression in a Some() tag constructor call.
 // This is used for implicit tag injection: let x: int? = 1 becomes Some(1).
-func (l *lowerer) wrapInSome(inner *Expr, targetType types.TypeID) *Expr {
-	return l.wrapInTagConstructor(inner, targetType, "Some")
+func (l *lowerer) wrapInSome(inner *Expr, targetType types.TypeID, callee symbols.SymbolID) *Expr {
+	return l.wrapInTagConstructor(inner, targetType, "Some", callee)
 }
 
 // wrapInSuccess wraps an expression in a Success() tag constructor call.
 // This is used for implicit tag injection: let x: int! = 1 becomes Success(1).
-func (l *lowerer) wrapInSuccess(inner *Expr, targetType types.TypeID) *Expr {
-	return l.wrapInTagConstructor(inner, targetType, "Success")
+func (l *lowerer) wrapInSuccess(inner *Expr, targetType types.TypeID, callee symbols.SymbolID) *Expr {
+	return l.wrapInTagConstructor(inner, targetType, "Success", callee)
 }
 
 // wrapInTagConstructor creates a call to a tag constructor wrapping the inner expression.
-func (l *lowerer) wrapInTagConstructor(inner *Expr, targetType types.TypeID, tagName string) *Expr {
+func (l *lowerer) wrapInTagConstructor(inner *Expr, targetType types.TypeID, tagName string, tagSymID symbols.SymbolID) *Expr {
 	if inner == nil {
 		return nil
 	}
 
 	// Look up the tag symbol for the constructor
-	var tagSymID symbols.SymbolID
-	if l.symRes != nil && l.symRes.Table != nil && l.strings != nil {
+	if !tagSymID.IsValid() && l.symRes != nil && l.symRes.Table != nil && l.strings != nil {
 		nameID := l.strings.Intern(tagName)
 		// Look up tag in file scope
 		if l.symRes.Table.Scopes != nil && l.symRes.FileScope.IsValid() {

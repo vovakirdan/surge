@@ -12,7 +12,7 @@ import (
 // returns the call's result type. Outside a crossing it keeps Block 1's
 // rejection (SEM3142). Inside an `on` crossing it enforces the owner anchor
 // (SEM3150) and, for `far TcpConn`, the control-only whitelist (SEM3151).
-func (tc *typeChecker) typeFarHandleCall(member *ast.ExprMemberData, receiverType types.TypeID, call *ast.ExprCallData, span source.Span) types.TypeID {
+func (tc *typeChecker) typeFarHandleCall(callID ast.ExprID, member *ast.ExprMemberData, receiverType types.TypeID, call *ast.ExprCallData, span source.Span) types.TypeID {
 	methodName := tc.lookupName(member.Field)
 
 	// Outside any crossing: acting through a far handle is rejected (Block 1).
@@ -40,7 +40,7 @@ func (tc *typeChecker) typeFarHandleCall(member *ast.ExprMemberData, receiverTyp
 	// The op executes owner-side against the resolved local channel, so the
 	// signatures must not drift from `core/intrinsics.sg`.
 	if element := tc.channelPayloadType(tc.farInner(receiverType)); element != types.NoTypeID {
-		return tc.typeAnchoredChannelOp(methodName, element, member, receiverType, recvSym, call, span)
+		return tc.typeAnchoredChannelOp(callID, methodName, element, member, receiverType, recvSym, call, span)
 	}
 
 	// Accepted anchored operation: type argument expressions for the usual
@@ -50,6 +50,7 @@ func (tc *typeChecker) typeFarHandleCall(member *ast.ExprMemberData, receiverTyp
 	}
 	tc.recordActiveOnRemoteOp(CrossingRemoteOpInfo{
 		Method:         methodName,
+		CallExpr:       callID,
 		Span:           span,
 		ReceiverExpr:   member.Target,
 		ReceiverSymbol: recvSym,
@@ -62,6 +63,7 @@ func (tc *typeChecker) typeFarHandleCall(member *ast.ExprMemberData, receiverTyp
 // parity. Arity and value-type failures name the expected local signature so
 // the fix is readable from the diagnostic alone.
 func (tc *typeChecker) typeAnchoredChannelOp(
+	callID ast.ExprID,
 	methodName string,
 	element types.TypeID,
 	member *ast.ExprMemberData,
@@ -73,6 +75,7 @@ func (tc *typeChecker) typeAnchoredChannelOp(
 	record := func() {
 		tc.recordActiveOnRemoteOp(CrossingRemoteOpInfo{
 			Method:         methodName,
+			CallExpr:       callID,
 			Span:           span,
 			ReceiverExpr:   member.Target,
 			ReceiverSymbol: recvSym,
@@ -127,6 +130,12 @@ func (tc *typeChecker) recordActiveOnRemoteOp(op CrossingRemoteOpInfo) {
 	}
 	last := len(tc.onCrossingStack) - 1
 	tc.onCrossingStack[last].remoteOps = append(tc.onCrossingStack[last].remoteOps, op)
+	if op.CallExpr.IsValid() {
+		if tc.result.CrossingDispatchCalls == nil {
+			tc.result.CrossingDispatchCalls = make(map[ast.ExprID]struct{})
+		}
+		tc.result.CrossingDispatchCalls[op.CallExpr] = struct{}{}
+	}
 }
 
 // checkOnCaptures enforces capture legality for values crossing an `on`

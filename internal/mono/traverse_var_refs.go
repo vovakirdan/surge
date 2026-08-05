@@ -167,6 +167,7 @@ func rewriteVarRefsInExpr(e *hir.Expr, f varRefRewriteFunc) error {
 		if err := rewriteVarRefsInExpr(data.Inner, f); err != nil {
 			return err
 		}
+		e.Data = data
 	case hir.ExprRaiseReleaseGuard:
 		data, ok := e.Data.(hir.RaiseReleaseGuardData)
 		if !ok {
@@ -299,6 +300,23 @@ func rewriteVarRefsInExpr(e *hir.Expr, f varRefRewriteFunc) error {
 			}
 		}
 		e.Data = data
+	case hir.ExprSelect, hir.ExprRace:
+		data, ok := e.Data.(hir.SelectData)
+		if !ok {
+			return nil
+		}
+		for i := range data.Arms {
+			if err := rewriteVarRefsInExpr(data.Arms[i].Await, f); err != nil {
+				return err
+			}
+			if err := rewriteVarRefsInExpr(data.Arms[i].Result, f); err != nil {
+				return err
+			}
+		}
+		if err := rewriteVarRefsInCrossingData(data.Crossing, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprTagTest:
 		data, ok := e.Data.(hir.TagTestData)
 		if !ok {
@@ -382,23 +400,7 @@ func rewriteVarRefsInExpr(e *hir.Expr, f varRefRewriteFunc) error {
 		if !ok {
 			return nil
 		}
-		if err := rewriteVarRefsInExpr(data.Destination.Value, f); err != nil {
-			return err
-		}
-		for i := range data.Captures {
-			if err := rewriteVarRefsInExpr(data.Captures[i].Value, f); err != nil {
-				return err
-			}
-		}
-		for i := range data.RemoteOps {
-			if err := rewriteVarRefsInExpr(data.RemoteOps[i].Receiver, f); err != nil {
-				return err
-			}
-		}
-		if err := rewriteVarRefsInExpr(data.Receiver, f); err != nil {
-			return err
-		}
-		if err := rewriteVarRefsInBlock(data.Body, f); err != nil {
+		if err := rewriteVarRefsInCrossingData(&data, f); err != nil {
 			return err
 		}
 		e.Data = data
@@ -441,4 +443,30 @@ func rewriteVarRefsInExpr(e *hir.Expr, f varRefRewriteFunc) error {
 	default:
 	}
 	return nil
+}
+
+func rewriteVarRefsInCrossingData(data *hir.CrossingData, f varRefRewriteFunc) error {
+	if data == nil {
+		return nil
+	}
+	if err := rewriteVarRefsInExpr(data.Destination.Value, f); err != nil {
+		return err
+	}
+	for i := range data.Captures {
+		if err := rewriteVarRefsInExpr(data.Captures[i].Value, f); err != nil {
+			return err
+		}
+	}
+	for i := range data.RemoteOps {
+		if err := rewriteVarRefsInExpr(data.RemoteOps[i].Receiver, f); err != nil {
+			return err
+		}
+		if err := rewriteVarRefsInExpr(data.RemoteOps[i].Value, f); err != nil {
+			return err
+		}
+	}
+	if err := rewriteVarRefsInExpr(data.Receiver, f); err != nil {
+		return err
+	}
+	return rewriteVarRefsInBlock(data.Body, f)
 }

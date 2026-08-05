@@ -270,7 +270,7 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 	// empty). Returning from a helper means the operation completed. The far
 	// member call carries no resolved symbol, so it is intercepted on its
 	// HIR shape before the generic callee handling.
-	if l.anchoredBody && data.Callee != nil && data.Callee.Kind == hir.ExprFieldAccess {
+	if l.anchoredBody && data.CrossingDispatch && data.Callee != nil && data.Callee.Kind == hir.ExprFieldAccess {
 		if fa, ok := data.Callee.Data.(hir.FieldAccessData); ok && fa.Object != nil &&
 			l.isFarChannelType(fa.Object.Type) {
 			switch fa.FieldName {

@@ -23,6 +23,7 @@ func (tc *typeChecker) recordFunctionCrossingCall(callee symbols.SymbolID) {
 	if sym := tc.symbolFromID(callee); sym == nil || sym.Kind != symbols.SymbolFunction {
 		return
 	}
+	tc.recordFunctionCall(callee)
 	caller := tc.currentFnSym()
 	if !caller.IsValid() {
 		return

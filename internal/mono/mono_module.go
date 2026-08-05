@@ -54,6 +54,8 @@ type MonoModule struct { //nolint:revive
 	FuncBySym map[symbols.SymbolID]*MonoFunc
 
 	Types map[MonoKey]*MonoType
+
+	Callables CallableMap
 }
 
 // SortedFuncKeys returns the module's function keys in a stable order.

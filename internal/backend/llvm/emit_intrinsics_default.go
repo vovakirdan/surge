@@ -65,6 +65,13 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 	if fe.emitter == nil || fe.emitter.types == nil {
 		return "", "", fmt.Errorf("missing type interner")
 	}
+	if fe.emitter.types.IsRuntimeHandleType(typeID) {
+		// Runtime-owned handles use a null pointer as their uninitialized
+		// sentinel.  They are not language structs: allocating and populating
+		// their declared opaque field would manufacture an invalid runtime
+		// object and leak it when a container slot is later overwritten.
+		return "null", "ptr", nil
+	}
 	tt, ok := fe.emitter.types.Lookup(typeID)
 	if !ok {
 		return "", "", fmt.Errorf("missing type info for type#%d", typeID)

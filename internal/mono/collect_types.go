@@ -213,6 +213,16 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 			collectTypesFromExpr(arm.Guard, visit)
 			collectTypesFromExpr(arm.Result, visit)
 		}
+	case hir.ExprSelect, hir.ExprRace:
+		data, ok := e.Data.(hir.SelectData)
+		if !ok {
+			return
+		}
+		for i := range data.Arms {
+			collectTypesFromExpr(data.Arms[i].Await, visit)
+			collectTypesFromExpr(data.Arms[i].Result, visit)
+		}
+		collectTypesFromCrossing(data.Crossing, visit)
 	case hir.ExprTagTest:
 		data, ok := e.Data.(hir.TagTestData)
 		if !ok {
@@ -268,22 +278,7 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 		if !ok {
 			return
 		}
-		visit(data.Destination.Type)
-		collectTypesFromExpr(data.Destination.Value, visit)
-		for i := range data.Captures {
-			visit(data.Captures[i].Type)
-			collectTypesFromExpr(data.Captures[i].Value, visit)
-		}
-		for i := range data.RemoteOps {
-			visit(data.RemoteOps[i].ReceiverType)
-			collectTypesFromExpr(data.RemoteOps[i].Receiver, visit)
-		}
-		visit(data.ReceiverType)
-		collectTypesFromExpr(data.Receiver, visit)
-		visit(data.PayloadType)
-		visit(data.ResultType)
-		visit(data.HandleType)
-		collectTypesFromBlock(data.Body, visit)
+		collectTypesFromCrossing(&data, visit)
 	case hir.ExprAsync:
 		data, ok := e.Data.(hir.AsyncData)
 		if !ok {
@@ -311,4 +306,27 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 		collectTypesFromBlock(data.Block, visit)
 	default:
 	}
+}
+
+func collectTypesFromCrossing(data *hir.CrossingData, visit func(id types.TypeID)) {
+	if data == nil || visit == nil {
+		return
+	}
+	visit(data.Destination.Type)
+	collectTypesFromExpr(data.Destination.Value, visit)
+	for i := range data.Captures {
+		visit(data.Captures[i].Type)
+		collectTypesFromExpr(data.Captures[i].Value, visit)
+	}
+	for i := range data.RemoteOps {
+		visit(data.RemoteOps[i].ReceiverType)
+		collectTypesFromExpr(data.RemoteOps[i].Receiver, visit)
+		collectTypesFromExpr(data.RemoteOps[i].Value, visit)
+	}
+	visit(data.ReceiverType)
+	collectTypesFromExpr(data.Receiver, visit)
+	visit(data.PayloadType)
+	visit(data.ResultType)
+	visit(data.HandleType)
+	collectTypesFromBlock(data.Body, visit)
 }

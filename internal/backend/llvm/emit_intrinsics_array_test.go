@@ -67,3 +67,31 @@ fn main() -> int {
 		t.Fatalf("rt_byte_parse_uint64_token source was not loaded as an array handle:\n%s", ir)
 	}
 }
+
+func TestDynamicArrayOfBoxedStructUsesEmittedPointerStride(t *testing.T) {
+	withRepoStdlib(t)
+	sourceCode := `type Point = { x: int, y: int };
+
+@entrypoint
+fn main() -> int {
+    let points: Point[] = [
+        Point { x = 1, y = 2 },
+        Point { x = 3, y = 4 },
+        Point { x = 5, y = 6 },
+    ];
+    let mut sum: int = 0;
+    for point in points {
+        sum = sum + point.x + point.y;
+    }
+    return sum;
+}
+`
+
+	ir := emitLLVMFromSource(t, sourceCode)
+	if strings.Contains(ir, "call ptr @rt_alloc(i64 48, i64 8)") {
+		t.Fatalf("dynamic Point[] data used the 16-byte language stride while storing 8-byte pointers:\n%s", ir)
+	}
+	if !regexp.MustCompile(`call void @rt_array_free_elems\(ptr [^,]+, i64 8, i64 8,`).MatchString(ir) {
+		t.Fatalf("dynamic Point[] drop did not use the emitted pointer stride:\n%s", ir)
+	}
+}

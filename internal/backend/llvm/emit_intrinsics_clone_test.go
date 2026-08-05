@@ -16,6 +16,7 @@ fn main() -> int {
         Success(v) => print(v to string);
         Cancelled() => print("cancelled");
     };
+    let _ = worker.await();
     return 0;
 }
 `
@@ -31,7 +32,7 @@ fn main() -> int {
 }
 
 func TestEmitCloneErrorPayloadInErringCompare(t *testing.T) {
-	sourceCode := `pragma module;
+	sourceCode := `pragma module::emit_clone;
 
 pub tag Help(string);
 pub tag ErrorDiag(Error);
@@ -56,7 +57,7 @@ fn main() -> int {
             return 0;
         }
         err => {
-            print(err.message);
+            print(own err.message);
             return 1;
         }
     };

@@ -272,6 +272,7 @@ func (tc *typeChecker) handleCloneCall(callID ast.ExprID, args []callArg, span s
 	if tc.types != nil {
 		if tt, ok := tc.types.Lookup(tc.resolveAlias(innerType)); ok && tt.Kind == types.KindGenericParam {
 			// Defer clone validation for generic parameters to monomorphization.
+			tc.rememberDeferredCallable(DeferredCloneCall, innerType, "__clone", nil, nil, innerType, false, span, callID, DeferredCallableRequirement{})
 			return innerType
 		}
 	}
@@ -331,6 +332,7 @@ func (tc *typeChecker) recordCloneSymbol(expr ast.ExprID, symID symbols.SymbolID
 		tc.result.CloneSymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
 	tc.result.CloneSymbols[expr] = symID
+	tc.recordFunctionCall(symID)
 }
 
 func (tc *typeChecker) reportCannotInferTypeParams(name string, missing []string, span source.Span, call *ast.ExprCallData) {

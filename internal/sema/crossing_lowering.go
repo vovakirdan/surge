@@ -105,6 +105,7 @@ type CrossingCaptureInfo struct {
 // select (where ValueExpr carries a send arm's payload expression).
 type CrossingRemoteOpInfo struct {
 	Method         string
+	CallExpr       ast.ExprID
 	Span           source.Span
 	ReceiverExpr   ast.ExprID
 	ReceiverSymbol symbols.SymbolID

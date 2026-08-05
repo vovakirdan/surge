@@ -14,7 +14,9 @@ import (
 	"surge/internal/fix"
 	"surge/internal/project"
 	"surge/internal/project/dag"
+	"surge/internal/sema"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -340,6 +342,56 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 	}
 	if opts.ExportsOut != nil {
 		*opts.ExportsOut = exports
+	}
+
+	// Finalize one module-level authority per root table, then attach it to
+	// every per-file sema result retained by the language-server snapshot.
+	finalizedRecords := make(map[*moduleRecord]struct{}, len(records))
+	for _, modulePath := range paths {
+		rec := records[modulePath]
+		if rec == nil || rec.Bag == nil || rec.Bag.HasErrors() {
+			continue
+		}
+		if _, done := finalizedRecords[rec]; done {
+			continue
+		}
+		finalizedRecords[rec] = struct{}{}
+		var aggregate *sema.Result
+		var aggregateSymbols *symbols.Result
+		var aggregateFile *source.File
+		for i, astFile := range rec.FileIDs {
+			candidate := rec.Sema[astFile]
+			sym, ok := rec.Symbols[astFile]
+			if candidate == nil || !ok {
+				continue
+			}
+			symCopy := sym
+			aggregate = candidate
+			aggregateSymbols = &symCopy
+			if i < len(rec.Files) {
+				aggregateFile = rec.Files[i]
+			}
+			break
+		}
+		if aggregate == nil || aggregateSymbols == nil {
+			continue
+		}
+		diagnosed := &DiagnoseResult{
+			FileSet:       fileSet,
+			File:          aggregateFile,
+			Symbols:       aggregateSymbols,
+			Sema:          aggregate,
+			rootRecord:    rec,
+			moduleRecords: records,
+		}
+		if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
+			return fmt.Errorf("%s instantiation closure: %w", modulePath, err)
+		}
+		for _, astFile := range rec.FileIDs {
+			if fileSema := rec.Sema[astFile]; fileSema != nil && fileSema != aggregate {
+				sema.CopyInstantiationAuthority(fileSema, aggregate)
+			}
+		}
 	}
 
 	for _, rec := range records {

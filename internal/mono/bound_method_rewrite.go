@@ -180,6 +180,17 @@ func (b *monoBuilder) adjustExprForParam(expr *hir.Expr, expected symbols.TypeKe
 	}
 }
 
+func (b *monoBuilder) adjustExprForType(expr *hir.Expr, expected types.TypeID) *hir.Expr {
+	if expr == nil || expected == types.NoTypeID || b == nil || b.types == nil {
+		return expr
+	}
+	tt, ok := b.types.Lookup(resolveAlias(b.types, expected))
+	if !ok || tt.Kind != types.KindReference {
+		return b.ensureValue(expr)
+	}
+	return b.ensureBorrow(expr, tt.Mutable)
+}
+
 func (b *monoBuilder) ensureBorrow(expr *hir.Expr, mut bool) *hir.Expr {
 	if expr == nil {
 		return nil

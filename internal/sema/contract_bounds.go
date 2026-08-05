@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"slices"
+	"sort"
 	"strings"
 
 	"surge/internal/source"
@@ -124,8 +126,16 @@ func (tc *typeChecker) boundFieldType(id types.TypeID, name source.StringID) typ
 
 // boundMethodResult resolves a method required by any contract bound on the given type param.
 func (tc *typeChecker) boundMethodResult(id types.TypeID, name string, args []types.TypeID) types.TypeID {
-	if id == types.NoTypeID || name == "" {
+	result, _, ok := tc.boundMethodRequirement(id, name, args)
+	if !ok {
 		return types.NoTypeID
+	}
+	return result
+}
+
+func (tc *typeChecker) boundMethodRequirement(id types.TypeID, name string, args []types.TypeID) (types.TypeID, DeferredCallableRequirement, bool) {
+	if id == types.NoTypeID || name == "" {
+		return types.NoTypeID, DeferredCallableRequirement{}, false
 	}
 	resolved := tc.resolveAlias(id)
 
@@ -142,17 +152,19 @@ func (tc *typeChecker) boundMethodResult(id types.TypeID, name string, args []ty
 				innerTypeParam = inner
 			} else {
 				// Recursively try inner type
-				return tc.boundMethodResult(tt.Elem, name, args)
+				return tc.boundMethodRequirement(tt.Elem, name, args)
 			}
 		case types.KindGenericParam:
 			innerTypeParam = resolved
 		}
 	}
 	if innerTypeParam == types.NoTypeID {
-		return types.NoTypeID
+		return types.NoTypeID, DeferredCallableRequirement{}, false
 	}
 
 	// Search contract bounds on the inner type parameter
+	var selected DeferredCallableRequirement
+	found := false
 	for _, bound := range tc.typeParamContractBounds(innerTypeParam) {
 		reqs, ok := tc.requirementsForBound(bound)
 		if !ok {
@@ -185,12 +197,51 @@ func (tc *typeChecker) boundMethodResult(id types.TypeID, name string, args []ty
 					}
 				}
 				if match {
-					return req.result
+					attrs := make([]string, 0, len(req.attrs))
+					for _, attr := range req.attrs {
+						if text := tc.lookupName(attr); text != "" {
+							attrs = append(attrs, text)
+						}
+					}
+					sort.Strings(attrs)
+					attrs = slices.Compact(attrs)
+					candidate := DeferredCallableRequirement{
+						Contracts: []symbols.SymbolID{bound.Contract},
+						Name:      name,
+						Params:    slices.Clone(req.params),
+						Result:    req.result,
+						Attrs:     attrs,
+						Public:    req.pub,
+						Async:     req.async,
+					}
+					if !found {
+						selected = candidate
+						found = true
+						continue
+					}
+					if !deferredRequirementShapesEqual(selected, candidate) {
+						return types.NoTypeID, DeferredCallableRequirement{}, false
+					}
+					selected.Contracts = append(selected.Contracts, candidate.Contracts...)
 				}
 			}
 		}
 	}
-	return types.NoTypeID
+	if !found {
+		return types.NoTypeID, DeferredCallableRequirement{}, false
+	}
+	sort.Slice(selected.Contracts, func(i, j int) bool { return selected.Contracts[i] < selected.Contracts[j] })
+	selected.Contracts = slices.Compact(selected.Contracts)
+	return selected.Result, selected, true
+}
+
+func deferredRequirementsEqual(left, right DeferredCallableRequirement) bool {
+	return slices.Equal(left.Contracts, right.Contracts) && deferredRequirementShapesEqual(left, right)
+}
+
+func deferredRequirementShapesEqual(left, right DeferredCallableRequirement) bool {
+	return left.Name == right.Name && slices.Equal(left.Params, right.Params) && left.Result == right.Result &&
+		slices.Equal(left.Attrs, right.Attrs) && left.Public == right.Public && left.Async == right.Async
 }
 
 // typeParamContractBounds retrieves contract bounds for a type parameter from cache or its owner symbol.

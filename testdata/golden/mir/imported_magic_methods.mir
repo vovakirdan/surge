@@ -92,7 +92,7 @@ fn main:
     drop L0
     return const 3
   bb6:
-    L13 = call default()
+    L13 = call default::<int>()
     L14 = call __to(addr_of L3, copy L13)
     L12 = copy L14
     L15 = call __ne(copy L12, const 7)

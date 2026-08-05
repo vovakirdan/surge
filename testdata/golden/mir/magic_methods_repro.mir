@@ -28,11 +28,11 @@ fn __index:
   locals:
     L0: &type#1504 [copy,ref] name=self
     L1: int [copy] name=index
-    L2: int [copy] name=tmp_idx1
+    L2: &int [copy,ref] name=tmp_call1
     L3: int [copy] name=tmp_un2
   bb0:
-    L2 = copy L1
-    L3 = (* addr_of (*L0).values[L2])
+    L2 = call __index::<int>(addr_of (*L0).values, copy L1)
+    L3 = (* copy L2)
     return copy L3
 
 fn __index_set:
@@ -40,10 +40,9 @@ fn __index_set:
     L0: &mut type#1504 [refmut] name=self
     L1: int [copy] name=index
     L2: int [copy] name=value
-    L3: int [copy] name=tmp_idx1
+    L3: int [copy] name=tmp_call1
   bb0:
-    L3 = copy L1
-    (*L0).values[L3] = copy L2
+    L3 = call __index_set::<int>(addr_of_mut (*L0).values, copy L1, copy L2)
     return
 
 fn __not:

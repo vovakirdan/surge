@@ -264,6 +264,7 @@ func (tc *typeChecker) selectFarArmInfo(exprID ast.ExprID) (CrossingRemoteOpInfo
 	}
 	op := CrossingRemoteOpInfo{
 		Method:         name,
+		CallExpr:       exprID,
 		Span:           tc.exprSpan(exprID),
 		ReceiverExpr:   member.Target,
 		ReceiverSymbol: tc.symbolForExpr(member.Target),

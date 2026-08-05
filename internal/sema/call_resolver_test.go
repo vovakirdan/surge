@@ -324,4 +324,7 @@ func TestFunctionInstantiationsRecorded(t *testing.T) {
 	if len(seen) != 2 {
 		t.Fatalf("expected distinct type args recorded, got %v", insts)
 	}
+	if roots, edges := res.InstantiationGraph.Roots(), res.InstantiationGraph.Edges(); len(roots) != 2 || len(edges) != 0 {
+		t.Fatalf("always-on graph with nil recorder = %d roots/%d edges, want 2/0: roots=%+v edges=%+v", len(roots), len(edges), roots, edges)
+	}
 }

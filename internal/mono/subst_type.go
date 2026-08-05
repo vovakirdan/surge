@@ -36,6 +36,12 @@ func (s *Subst) typeNoCache(id types.TypeID) types.TypeID {
 		if !ok || info == nil {
 			return id
 		}
+		if s.ExactArgs != nil {
+			if replacement, found := s.ExactArgs[id]; found && replacement != types.NoTypeID {
+				return replacement
+			}
+			return id
+		}
 		if !s.ownerMatches(symbols.SymbolID(info.Owner)) {
 			if s.NameArgs != nil {
 				if repl, ok := s.NameArgs[info.Name]; ok && repl != types.NoTypeID {

@@ -33,9 +33,10 @@ type InstantiationKey struct {
 
 // UseSite records a location where an instantiation occurs.
 type UseSite struct {
-	Span   source.Span
-	Caller symbols.SymbolID
-	Note   string
+	Span      source.Span
+	SourceKey string
+	Caller    symbols.SymbolID
+	Note      string
 }
 
 // BoundInfo is reserved for future "bounds snapshot" debugging.
@@ -79,6 +80,12 @@ func NormalizeTypeArgs(_ *types.Interner, args []types.TypeID) []types.TypeID {
 
 // Record registers a generic instantiation at a specific site.
 func (m *InstantiationMap) Record(kind InstantiationKind, sym symbols.SymbolID, typeArgs []types.TypeID, site source.Span, caller symbols.SymbolID, note string) {
+	m.RecordCanonical(kind, sym, typeArgs, site, "", caller, note)
+}
+
+// RecordCanonical registers an instantiation with an allocation-order-
+// independent logical source path supplied by the finalized sema closure.
+func (m *InstantiationMap) RecordCanonical(kind InstantiationKind, sym symbols.SymbolID, typeArgs []types.TypeID, site source.Span, sourceKey string, caller symbols.SymbolID, note string) {
 	if m == nil || !sym.IsValid() || len(typeArgs) == 0 {
 		return
 	}
@@ -99,7 +106,7 @@ func (m *InstantiationMap) Record(kind InstantiationKind, sym symbols.SymbolID, 
 	}
 
 	if site != (source.Span{}) {
-		us := UseSite{Span: site, Caller: caller, Note: note}
+		us := UseSite{Span: site, SourceKey: sourceKey, Caller: caller, Note: note}
 		for _, existing := range entry.UseSites {
 			if existing == us {
 				return

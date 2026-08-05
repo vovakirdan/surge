@@ -30,7 +30,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 					tc.channelPayloadType(tc.farInner(receiverType)) != types.NoTypeID {
 					return tc.typeFarChannelShareCall(id, member, receiverType, call, span)
 				}
-				return tc.typeFarHandleCall(member, receiverType, call, span)
+				return tc.typeFarHandleCall(id, member, receiverType, call, span)
 			}
 			if !receiverIsType && tc.lookupName(member.Field) == "await" {
 				allowAwait := tc.awaitDepth > 0
@@ -96,6 +96,20 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 			var explicitArgs []types.TypeID
 			if !usedTypeArgsForReceiver {
 				explicitArgs = tc.resolveCallTypeArgs(call.TypeArgs)
+			}
+			if _, requirement, bound := tc.boundMethodRequirement(receiverType, methodName, argTypes); !symID.IsValid() && bound {
+				tc.rememberDeferredCallable(
+					DeferredMethodCall,
+					receiverType,
+					methodName,
+					argTypes,
+					explicitArgs,
+					resultType,
+					receiverIsType,
+					span,
+					id,
+					requirement,
+				)
 			}
 			tc.recordMethodCallInstantiation(symID, receiverType, explicitArgs, span)
 			appliedArgsOwnership := false
@@ -280,7 +294,7 @@ func (tc *typeChecker) typeExprCast(id ast.ExprID, span source.Span) types.TypeI
 			tc.result.ToSymbols[id] = symID
 		}
 		if symID.IsValid() {
-			tc.recordMethodCallInstantiation(symID, castSource, nil, span)
+			tc.recordToCallAuthority(symID, castSource, targetType, span)
 			if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil && len(sym.Signature.Params) > 0 {
 				tc.applyParamOwnership(sym.Signature.Params[0], cast.Value, sourceType, tc.exprSpan(cast.Value))
 				tc.dropImplicitBorrowForRefParam(cast.Value, sym.Signature.Params[0], sourceType, magic, tc.exprSpan(cast.Value))

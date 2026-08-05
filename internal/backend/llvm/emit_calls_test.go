@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/diag"
 	"surge/internal/driver"
 	"surge/internal/layout"
 	"surge/internal/mir"
@@ -234,13 +235,14 @@ func lowerMIRFromSource(t *testing.T, sourceCode string) (*mir.Module, *driver.D
 		Stage:              driver.DiagnoseStageSema,
 		EmitHIR:            true,
 		EmitInstantiations: true,
+		MaxDiagnostics:     100,
 	}
 	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), &opts)
 	if err != nil {
 		t.Fatalf("diagnose source: %v", err)
 	}
 	if result.Bag.HasErrors() {
-		t.Fatalf("unexpected diagnostics: %v", result.Bag.Items())
+		t.Fatalf("unexpected diagnostics:\n%s", diag.FormatGoldenDiagnostics(result.Bag.Items(), result.FileSet, false))
 	}
 	if result.HIR == nil || result.Instantiations == nil || result.Sema == nil || result.Symbols == nil {
 		t.Fatalf("missing compilation artifacts for LLVM emission test")

@@ -14,7 +14,7 @@ import (
 // - Return type must be nothing, int, or implement ExitCode contract
 // - argv mode: params without defaults must implement FromArgv
 // - stdin mode: params without defaults must implement FromStdin
-func (tc *typeChecker) validateEntrypoint(fnItem *ast.FnItem, sym *symbols.Symbol) {
+func (tc *typeChecker) validateEntrypoint(fnItem *ast.FnItem, symID symbols.SymbolID, sym *symbols.Symbol) {
 	if sym == nil || fnItem == nil {
 		return
 	}
@@ -31,14 +31,14 @@ func (tc *typeChecker) validateEntrypoint(fnItem *ast.FnItem, sym *symbols.Symbo
 	}
 
 	// 2. Check return type convertibility
-	tc.validateEntrypointReturn(fnItem, sym, scope)
+	tc.validateEntrypointReturn(fnItem, symID, scope)
 
 	// 3. Check param contracts based on mode
 	switch mode {
 	case symbols.EntrypointModeArgv:
-		tc.validateEntrypointParams(fnItem, sym, scope, "FromArgv", diag.SemaEntrypointParamNoFromArgv)
+		tc.validateEntrypointParams(fnItem, symID, sym, scope, "FromArgv", diag.SemaEntrypointParamNoFromArgv)
 	case symbols.EntrypointModeStdin:
-		tc.validateEntrypointParams(fnItem, sym, scope, "FromStdin", diag.SemaEntrypointParamNoFromStdin)
+		tc.validateEntrypointParams(fnItem, symID, sym, scope, "FromStdin", diag.SemaEntrypointParamNoFromStdin)
 	}
 }
 
@@ -64,7 +64,7 @@ func (tc *typeChecker) validateEntrypointNoMode(fnItem *ast.FnItem, sym *symbols
 }
 
 // validateEntrypointReturn checks that return type is nothing, int, or implements ExitCode.
-func (tc *typeChecker) validateEntrypointReturn(fnItem *ast.FnItem, _ *symbols.Symbol, scope symbols.ScopeID) {
+func (tc *typeChecker) validateEntrypointReturn(fnItem *ast.FnItem, symID symbols.SymbolID, scope symbols.ScopeID) {
 	returnType := tc.functionReturnType(fnItem, scope, false)
 	nothingType := tc.types.Builtins().Nothing
 	intType := tc.types.Builtins().Int
@@ -81,6 +81,21 @@ func (tc *typeChecker) validateEntrypointReturn(fnItem *ast.FnItem, _ *symbols.S
 
 	// Check if type has __to(self, int) -> int method (implements ExitCode)
 	if tc.typeHasToInt(returnType) {
+		returnSpan := fnItem.ReturnSpan
+		if returnSpan == (source.Span{}) {
+			returnSpan = fnItem.Span
+		}
+		tc.recordEntrypointCallableRequest(EntrypointCallableRequest{
+			Entrypoint:     symID,
+			Role:           EntrypointReturnToInt,
+			Receiver:       returnType,
+			Args:           []types.TypeID{intType},
+			ExpectedResult: intType,
+			Method:         "__to",
+			Builtin:        tc.entrypointToIntUsesBuiltin(returnType, intType),
+			AccessModule:   tc.modulePath,
+			Site:           returnSpan,
+		})
 		return
 	}
 
@@ -95,7 +110,7 @@ func (tc *typeChecker) validateEntrypointReturn(fnItem *ast.FnItem, _ *symbols.S
 }
 
 // validateEntrypointParams checks that params without defaults implement the required contract.
-func (tc *typeChecker) validateEntrypointParams(fnItem *ast.FnItem, sym *symbols.Symbol, scope symbols.ScopeID, contractName string, errCode diag.Code) {
+func (tc *typeChecker) validateEntrypointParams(fnItem *ast.FnItem, symID symbols.SymbolID, sym *symbols.Symbol, scope symbols.ScopeID, contractName string, errCode diag.Code) {
 	if sym.Signature == nil {
 		return
 	}
@@ -105,22 +120,66 @@ func (tc *typeChecker) validateEntrypointParams(fnItem *ast.FnItem, sym *symbols
 		if param == nil {
 			continue
 		}
-		// Params with defaults don't need to implement the contract
 		hasDefault := i < len(sym.Signature.Defaults) && sym.Signature.Defaults[i]
-		if hasDefault {
-			continue
-		}
 		paramType := tc.resolveTypeExprWithScope(param.Type, scope)
 		if paramType == types.NoTypeID {
 			continue
 		}
-		// Check if param type implements the required contract via from_str method
+		// All parseable parameters get an exact startup binding because argv may
+		// override a default. Only a non-default parameter is required to be
+		// parseable by the source-language contract.
 		if tc.typeHasFromStr(paramType) {
+			errType := tc.resolveErrorType(param.Span, scope)
+			expectedResult := tc.resolveResultType(paramType, errType, param.Span, scope)
+			tc.recordEntrypointCallableRequest(EntrypointCallableRequest{
+				Entrypoint:     symID,
+				Role:           EntrypointParamFromString,
+				ParamIndex:     uint32(i), //nolint:gosec -- an AST parameter slice cannot approach uint32 capacity
+				Receiver:       paramType,
+				Args:           []types.TypeID{tc.types.Intern(types.MakeReference(tc.types.Builtins().String, false))},
+				ExpectedResult: expectedResult,
+				Method:         "from_str",
+				Builtin:        tc.isBuiltinEntrypointFromStrType(paramType),
+				AccessModule:   tc.modulePath,
+				Site:           param.Span,
+			})
+			continue
+		}
+		if hasDefault {
 			continue
 		}
 		tc.report(errCode, param.Span,
 			"parameter '%s' of type '%s' does not implement %s contract (missing from_str method)",
 			tc.lookupName(param.Name), tc.typeLabel(paramType), contractName)
+	}
+}
+
+func (tc *typeChecker) entrypointToIntUsesBuiltin(sourceType, intType types.TypeID) bool {
+	userDefined := false
+	builtin := false
+	for _, sig := range tc.collectToMethods(sourceType, intType) {
+		if tc.magicSymbolForSignature(sig).IsValid() {
+			userDefined = true
+		} else {
+			builtin = true
+		}
+	}
+	return builtin && !userDefined
+}
+
+func (tc *typeChecker) isBuiltinEntrypointFromStrType(typeID types.TypeID) bool {
+	if tc == nil || tc.types == nil || typeID == types.NoTypeID {
+		return false
+	}
+	t, ok := tc.types.Lookup(tc.resolveAlias(typeID))
+	if !ok {
+		return false
+	}
+	switch t.Kind {
+	case types.KindInt, types.KindUint, types.KindFloat, types.KindBool, types.KindString:
+		return true
+	default:
+		return false
 	}
 }
 

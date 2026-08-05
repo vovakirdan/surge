@@ -362,6 +362,23 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 			}
 		}
 		e.Data = data
+	case hir.ExprSelect, hir.ExprRace:
+		data, ok := e.Data.(hir.SelectData)
+		if !ok {
+			return nil
+		}
+		for i := range data.Arms {
+			if err := s.ApplyExpr(data.Arms[i].Await); err != nil {
+				return err
+			}
+			if err := s.ApplyExpr(data.Arms[i].Result); err != nil {
+				return err
+			}
+		}
+		if err := s.applyCrossingData(data.Crossing); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprTagTest:
 		data, ok := e.Data.(hir.TagTestData)
 		if !ok {
@@ -465,38 +482,7 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 		if !ok {
 			return nil
 		}
-		data.Destination.Type = s.Type(data.Destination.Type)
-		if data.Destination.Value != nil {
-			if err := s.ApplyExpr(data.Destination.Value); err != nil {
-				return err
-			}
-		}
-		for i := range data.Captures {
-			data.Captures[i].Type = s.Type(data.Captures[i].Type)
-			if data.Captures[i].Value != nil {
-				if err := s.ApplyExpr(data.Captures[i].Value); err != nil {
-					return err
-				}
-			}
-		}
-		for i := range data.RemoteOps {
-			data.RemoteOps[i].ReceiverType = s.Type(data.RemoteOps[i].ReceiverType)
-			if data.RemoteOps[i].Receiver != nil {
-				if err := s.ApplyExpr(data.RemoteOps[i].Receiver); err != nil {
-					return err
-				}
-			}
-		}
-		data.ReceiverType = s.Type(data.ReceiverType)
-		if data.Receiver != nil {
-			if err := s.ApplyExpr(data.Receiver); err != nil {
-				return err
-			}
-		}
-		data.PayloadType = s.Type(data.PayloadType)
-		data.ResultType = s.Type(data.ResultType)
-		data.HandleType = s.Type(data.HandleType)
-		if err := s.ApplyBlock(data.Body); err != nil {
+		if err := s.applyCrossingData(&data); err != nil {
 			return err
 		}
 		e.Data = data
@@ -543,4 +529,37 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 	}
 
 	return nil
+}
+
+func (s *Subst) applyCrossingData(data *hir.CrossingData) error {
+	if s == nil || data == nil {
+		return nil
+	}
+	data.Destination.Type = s.Type(data.Destination.Type)
+	if err := s.ApplyExpr(data.Destination.Value); err != nil {
+		return err
+	}
+	for i := range data.Captures {
+		data.Captures[i].Type = s.Type(data.Captures[i].Type)
+		if err := s.ApplyExpr(data.Captures[i].Value); err != nil {
+			return err
+		}
+	}
+	for i := range data.RemoteOps {
+		data.RemoteOps[i].ReceiverType = s.Type(data.RemoteOps[i].ReceiverType)
+		if err := s.ApplyExpr(data.RemoteOps[i].Receiver); err != nil {
+			return err
+		}
+		if err := s.ApplyExpr(data.RemoteOps[i].Value); err != nil {
+			return err
+		}
+	}
+	data.ReceiverType = s.Type(data.ReceiverType)
+	if err := s.ApplyExpr(data.Receiver); err != nil {
+		return err
+	}
+	data.PayloadType = s.Type(data.PayloadType)
+	data.ResultType = s.Type(data.ResultType)
+	data.HandleType = s.Type(data.HandleType)
+	return s.ApplyBlock(data.Body)
 }

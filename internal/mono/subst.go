@@ -10,6 +10,7 @@ import (
 // Subst manages type parameter substitution during monomorphization.
 type Subst struct {
 	Types     *types.Interner
+	ExactArgs map[types.TypeID]types.TypeID
 	OwnerSym  symbols.SymbolID
 	OwnerSyms []symbols.SymbolID
 	TypeArgs  []types.TypeID

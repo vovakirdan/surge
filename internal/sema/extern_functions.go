@@ -60,6 +60,10 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		tc.attachTypeParamSymbols(symID, bounds)
 		tc.applyTypeParamBounds(symID)
 	}
+	tc.rememberInstantiationTemplateParams(symID)
+	if fn.Body.IsValid() {
+		tc.rememberInstantiationCallableSeed(symID)
+	}
 
 	returnType := tc.functionReturnType(fn, scope, true)
 	returnSpan := fn.ReturnSpan
@@ -124,6 +128,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		}
 	}
 	tc.validateFunctionAttrs(fn, symID, ownerTypeID)
+	tc.rememberCallableCandidate(symID, fn)
 
 	if typeParamsPushed {
 		tc.popTypeParams()

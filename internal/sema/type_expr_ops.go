@@ -74,6 +74,9 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 			return types.NoTypeID
 		}
 		mutable := data.Op == ast.ExprUnaryRefMut
+		if elem, ok := tc.indexPlaceElementType(data.Operand, operandType); ok {
+			return tc.types.Intern(types.MakeReference(elem, mutable))
+		}
 		return tc.types.Intern(types.MakeReference(operandType, mutable))
 	case ast.ExprUnaryDeref:
 		elem, ok := tc.elementType(operandType)
@@ -127,6 +130,34 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 		tc.reportMissingUnaryMethod(data.Op, operandType, span)
 		return types.NoTypeID
 	}
+}
+
+// indexPlaceElementType strips the reference used by the `__index` carrier.
+// At the language surface `a[i]` is an addressable element place, so `&a[i]`
+// reborrows that element; it does not create `&&T` around the carrier itself.
+func (tc *typeChecker) indexPlaceElementType(exprID ast.ExprID, operandType types.TypeID) (types.TypeID, bool) {
+	for exprID.IsValid() {
+		expr := tc.builder.Exprs.Get(exprID)
+		if expr == nil {
+			return types.NoTypeID, false
+		}
+		if expr.Kind != ast.ExprGroup {
+			if expr.Kind != ast.ExprIndex || tc.types == nil {
+				return types.NoTypeID, false
+			}
+			tt, ok := tc.types.Lookup(tc.resolveAlias(operandType))
+			if !ok || tt.Kind != types.KindReference {
+				return types.NoTypeID, false
+			}
+			return tt.Elem, true
+		}
+		group, ok := tc.builder.Exprs.Group(exprID)
+		if !ok || group == nil {
+			return types.NoTypeID, false
+		}
+		exprID = group.Inner
+	}
+	return types.NoTypeID, false
 }
 
 func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast.ExprBinaryData) types.TypeID {

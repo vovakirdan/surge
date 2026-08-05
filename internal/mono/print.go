@@ -65,7 +65,7 @@ func Dump(w io.Writer, m *InstantiationMap, fs *source.FileSet, syms *symbols.Re
 		useSites := slicesClone(e.UseSites)
 		sort.SliceStable(useSites, func(i, j int) bool {
 			ai, aj := useSites[i], useSites[j]
-			if si, sj := formatSpanForSort(ai.Span), formatSpanForSort(aj.Span); si != sj {
+			if si, sj := formatUseSiteForSort(ai), formatUseSiteForSort(aj); si != sj {
 				return si < sj
 			}
 			if ai.Caller != aj.Caller {
@@ -74,7 +74,7 @@ func Dump(w io.Writer, m *InstantiationMap, fs *source.FileSet, syms *symbols.Re
 			return ai.Note < aj.Note
 		})
 		for _, us := range useSites {
-			at := formatSpan(fs, us.Span, opts.PathMode)
+			at := formatUseSite(fs, us, opts.PathMode)
 			caller := symbolName(syms, strs, us.Caller)
 			if us.Caller == symbols.NoSymbolID {
 				caller = "_"
@@ -97,6 +97,24 @@ func formatSpanForSort(sp source.Span) string {
 		return ""
 	}
 	return fmt.Sprintf("%d:%d:%d", sp.File, sp.Start, sp.End)
+}
+
+func formatUseSiteForSort(use UseSite) string {
+	if use.SourceKey != "" {
+		return fmt.Sprintf("%s:%d:%d", use.SourceKey, use.Span.Start, use.Span.End)
+	}
+	return formatSpanForSort(use.Span)
+}
+
+func formatUseSite(fs *source.FileSet, use UseSite, pathMode string) string {
+	if use.SourceKey == "" {
+		return formatSpan(fs, use.Span, pathMode)
+	}
+	if fs == nil || use.Span == (source.Span{}) {
+		return fmt.Sprintf("%s:0:0", use.SourceKey)
+	}
+	start, _ := fs.Resolve(use.Span)
+	return fmt.Sprintf("%s:%d:%d", use.SourceKey, start.Line, start.Col)
 }
 
 func formatSpan(fs *source.FileSet, sp source.Span, pathMode string) string {

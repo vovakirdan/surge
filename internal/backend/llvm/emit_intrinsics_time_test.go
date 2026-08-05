@@ -42,7 +42,8 @@ fn main() -> int {
     }
     let started = time.Duration.now();
     let finished = time.Duration.now();
-    let _ = finished.sub(started).as_nanos();
+    let elapsed = finished.sub(started);
+    let _ = elapsed.as_nanos();
     return 0;
 }
 `

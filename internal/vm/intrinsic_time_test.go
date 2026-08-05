@@ -34,7 +34,8 @@ fn main() -> int {
     }
     let started = time.Duration.now();
     let finished = time.Duration.now();
-    if finished.sub(started).as_nanos() < 0:int64 {
+    let elapsed = finished.sub(started);
+    if elapsed.as_nanos() < 0:int64 {
         return 7;
     }
     return 0;

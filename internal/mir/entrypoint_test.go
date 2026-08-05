@@ -1,11 +1,13 @@
 package mir_test
 
 import (
+	"strings"
 	"testing"
 
 	"surge/internal/hir"
 	"surge/internal/mir"
 	"surge/internal/mono"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -142,5 +144,45 @@ func TestBuildSurgeStart_NilModule(t *testing.T) {
 	}
 	if f != nil {
 		t.Errorf("expected nil for nil module, got %v", f)
+	}
+}
+
+func TestBuildSurgeStartFailsClosedWhenSelectedCallableIsMissing(t *testing.T) {
+	typeInterner := types.NewInterner()
+	entrypointSym := symbols.SymbolID(1)
+	selectedSym := symbols.SymbolID(2)
+	key := mono.MonoKey{Sym: entrypointSym}
+	mm := &mono.MonoModule{
+		Source: &hir.Module{
+			TypeInterner: typeInterner,
+			Symbols: &symbols.Result{
+				Table: symbols.NewTable(symbols.Hints{}, nil),
+			},
+		},
+		Funcs: map[mono.MonoKey]*mono.MonoFunc{
+			key: {
+				Key:     key,
+				OrigSym: entrypointSym,
+				Func: &hir.Func{
+					Name:     "main",
+					SymbolID: entrypointSym,
+					Result:   typeInterner.Builtins().Bool,
+					Flags:    hir.FuncEntrypoint,
+				},
+			},
+		},
+		Callables: mono.CallableMap{},
+	}
+	semaRes := &sema.Result{EntrypointCallableBindings: []sema.EntrypointCallableBinding{{
+		Entrypoint: entrypointSym,
+		Role:       sema.EntrypointReturnToInt,
+		Outcome:    sema.EntrypointCallableUser,
+		Callee:     selectedSym,
+		CalleeKey:  "app/main.sg:1:2|__to",
+	}}}
+
+	_, err := mir.BuildSurgeStart(mm, semaRes, typeInterner, 1, nil, nil, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "selected by sema but has no retained mono instance") {
+		t.Fatalf("missing CallableMap entry error = %v", err)
 	}
 }

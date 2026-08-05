@@ -83,9 +83,23 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if data.Op != ast.ExprUnaryDeref {
 			return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got UnaryOp %s", data.Op)
 		}
-		if data.Operand != nil && data.Operand.Kind == hir.ExprIndex {
-			// Index expressions already lower to element places, so deref is redundant here.
-			return l.lowerPlace(data.Operand)
+		if data.Operand != nil {
+			switch data.Operand.Kind {
+			case hir.ExprIndex:
+				// Index expressions already lower to element places, so deref is redundant here.
+				return l.lowerPlace(data.Operand)
+			case hir.ExprFieldAccess:
+				field, ok := data.Operand.Data.(hir.FieldAccessData)
+				if ok {
+					fieldTy := l.fieldAccessType(field.Object, field.FieldName, field.FieldIdx)
+					if fieldTy == types.NoTypeID || !l.isRefType(fieldTy) {
+						// Projecting a value field through a reference already denotes that
+						// field's place. Its reference-typed HIR view is synthetic, so a
+						// second deref would target the field value rather than the place.
+						return l.lowerPlace(data.Operand)
+					}
+				}
+			}
 		}
 		base, err := l.lowerPlace(data.Operand)
 		if err != nil {
@@ -112,6 +126,23 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 			FieldIdx:  data.FieldIdx,
 		})
 		return base, nil
+
+	case hir.ExprCall:
+		if l.types == nil || e.Type == types.NoTypeID {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: expected reference-returning call place, got untyped call")
+		}
+		tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type))
+		if !ok || tt.Kind != types.KindReference {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got non-reference call result")
+		}
+		op, err := l.lowerCallExpr(e, false)
+		if err != nil {
+			return Place{Local: NoLocalID}, err
+		}
+		if op.Kind != OperandCopy && op.Kind != OperandMove {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: reference-returning call did not materialize a place")
+		}
+		return op.Place, nil
 
 	case hir.ExprIndex:
 		data, ok := e.Data.(hir.IndexData)

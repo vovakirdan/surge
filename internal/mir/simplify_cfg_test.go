@@ -473,6 +473,7 @@ func parseAndLowerMIRWithSimplify(t *testing.T, src string) (*mir.Module, *types
 		}
 		return nil, nil, nil
 	}
+	finalizeTestInstantiationClosure(t, typeInterner, &symbolsRes, &semaRes)
 
 	// Lower to HIR
 	hirModule, err := hir.Lower(context.Background(), builder, result.File, &semaRes, &symbolsRes)

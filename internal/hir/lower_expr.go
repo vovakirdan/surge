@@ -19,9 +19,9 @@ func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
 		if conv, ok := l.semaRes.ImplicitConversions[exprID]; ok {
 			switch conv.Kind {
 			case sema.ImplicitConversionSome:
-				result = l.wrapInSome(result, conv.Target)
+				result = l.wrapInSome(result, conv.Target, conv.Callee)
 			case sema.ImplicitConversionSuccess:
-				result = l.wrapInSuccess(result, conv.Target)
+				result = l.wrapInSuccess(result, conv.Target, conv.Callee)
 			case sema.ImplicitConversionTagUnion:
 				result = l.tagUnionUpcast(result, conv.Target)
 			case sema.ImplicitConversionTo:
@@ -167,7 +167,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerMapExpr(expr, ty)
 
 	case ast.ExprRangeLit:
-		return l.lowerRangeLitExpr(expr, ty)
+		return l.lowerRangeLitExpr(exprID, expr, ty)
 
 	case ast.ExprStruct:
 		return l.lowerStructExpr(expr, ty)
@@ -233,7 +233,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 }
 
 // lowerRangeLitExpr lowers a range literal expression.
-func (l *lowerer) lowerRangeLitExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerRangeLitExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	rangeData := l.builder.Exprs.RangeLits.Get(uint32(expr.Payload))
 	if rangeData == nil {
 		return nil
@@ -260,6 +260,13 @@ func (l *lowerer) lowerRangeLitExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 	}
 
 	callee, symID := l.intrinsicCallee(name, expr.Span)
+	if l.symRes != nil {
+		if exact := l.symRes.ExprSymbols[exprID]; exact.IsValid() {
+			if exactCallee := l.varRefForSymbol(exact, expr.Span); exactCallee != nil {
+				callee, symID = exactCallee, exact
+			}
+		}
+	}
 	return &Expr{
 		Kind: ExprCall,
 		Type: ty,
@@ -358,7 +365,14 @@ func (l *lowerer) lowerBinaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 			if idx, ok := l.builder.Exprs.Index(binData.Left); ok && idx != nil {
 				object := l.lowerExpr(idx.Target)
 				index := l.lowerExpr(idx.Index)
-				return l.magicCallExpr(expr.Span, ty, symID, []*Expr{object, index, right})
+				callSpan := expr.Span
+				if left := l.builder.Exprs.Get(binData.Left); left != nil {
+					// Sema records the exact __index_set use at the indexed
+					// place. Preserve that site on the synthetic HIR call so
+					// authoritative mono lookup cannot drift to the assignment.
+					callSpan = left.Span
+				}
+				return l.magicCallExpr(callSpan, ty, symID, []*Expr{object, index, right})
 			}
 		}
 	}
@@ -415,6 +429,9 @@ func (l *lowerer) lowerUnaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Typ
 	}
 
 	operand := l.lowerExpr(unaryData.Operand)
+	if unaryData.Op == ast.ExprUnaryRef || unaryData.Op == ast.ExprUnaryRefMut {
+		operand = l.lowerPlaceExpr(unaryData.Operand)
+	}
 	// If sema resolved a magic method, lower to a call.
 	if l.semaRes != nil && l.semaRes.MagicUnarySymbols != nil {
 		if symID, ok := l.semaRes.MagicUnarySymbols[exprID]; ok && symID.IsValid() {

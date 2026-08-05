@@ -7,10 +7,7 @@ import (
 
 	"fortio.org/safecast"
 
-	"surge/internal/diag"
 	"surge/internal/hir"
-	"surge/internal/mono"
-	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 )
@@ -36,16 +33,19 @@ func CombineHIRWithCore(ctx context.Context, res *DiagnoseResult) (*hir.Module, 
 	if res.Symbols == nil || res.Symbols.Table == nil {
 		return res.HIR, nil
 	}
+	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
+		return nil, err
+	}
 
-	mapping := buildCoreSymbolRemap(res.Symbols, coreRec)
+	mapping, cachedMapping := cachedInstantiationSymbolRemap(coreRec, res.Symbols.Table)
+	if !cachedMapping {
+		mapping = buildCoreSymbolRemap(res.Symbols, coreRec)
+	}
 	if len(mapping) == 0 {
 		return res.HIR, nil
 	}
 
-	if err := appendCoreInstantiations(ctx, res, coreRec, mapping); err != nil {
-		return nil, err
-	}
-	remapTypeParamOwners(res.Sema, mapping)
+	cacheInstantiationSymbolRemap(coreRec, res.Symbols.Table, mapping)
 
 	combined := &hir.Module{
 		Name:         res.HIR.Name,
@@ -92,28 +92,6 @@ func CombineHIRWithCore(ctx context.Context, res *DiagnoseResult) (*hir.Module, 
 	return combined, nil
 }
 
-func remapTypeParamOwners(semaRes *sema.Result, mapping map[symbols.SymbolID]symbols.SymbolID) {
-	if semaRes == nil || semaRes.TypeInterner == nil || len(mapping) == 0 {
-		return
-	}
-	owners := make(map[uint32]uint32, len(mapping))
-	for from, to := range mapping {
-		owners[uint32(from)] = uint32(to)
-	}
-	semaRes.TypeInterner.RemapTypeParamOwners(owners)
-}
-
-func remapTypeParamOwnersFrom(semaRes *sema.Result, mapping map[symbols.SymbolID]symbols.SymbolID, start int) {
-	if semaRes == nil || semaRes.TypeInterner == nil || len(mapping) == 0 {
-		return
-	}
-	owners := make(map[uint32]uint32, len(mapping))
-	for from, to := range mapping {
-		owners[uint32(from)] = uint32(to)
-	}
-	semaRes.TypeInterner.RemapTypeParamOwnersFrom(owners, start)
-}
-
 func findCoreRecord(records map[string]*moduleRecord) *moduleRecord {
 	if len(records) == 0 {
 		return nil
@@ -145,6 +123,7 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 	}
 
 	rootMap := make(map[string]symbols.SymbolID)
+	rootBuiltins := make(map[string]symbols.SymbolID)
 	rootSymsLen := rootSyms.Table.Symbols.Len()
 	for i := 1; i <= rootSymsLen; i++ {
 		id, err := safecast.Conv[symbols.SymbolID](i)
@@ -169,7 +148,10 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 			rootMap[key] = id
 			continue
 		}
-		if sym.ModulePath == "" && sym.Flags&symbols.SymbolFlagBuiltin != 0 {
+		if sym.Kind == symbols.SymbolType && sym.ModulePath == "" && sym.Flags&symbols.SymbolFlagBuiltin != 0 {
+			if _, exists := rootBuiltins[key]; !exists {
+				rootBuiltins[key] = id
+			}
 			if _, exists := rootMap[key]; !exists {
 				rootMap[key] = id
 			}
@@ -195,6 +177,12 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 		if !isLocalSymbol(sym, coreRec.Table) && (sym.Flags&symbols.SymbolFlagPublic != 0 || sym.Flags&symbols.SymbolFlagBuiltin != 0) {
 			key = symbolKey(sym, coreRec.Table.Strings)
 			if key != "" {
+				if sym.Kind == symbols.SymbolType && sym.ModulePath == "" && sym.Flags&symbols.SymbolFlagBuiltin != 0 {
+					if rootID, ok := rootBuiltins[key]; ok {
+						mapping[id] = rootID
+						continue
+					}
+				}
 				if rootID, ok := rootMap[key]; ok {
 					mapping[id] = rootID
 					continue
@@ -211,78 +199,6 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 	}
 
 	return mapping
-}
-
-func appendCoreInstantiations(ctx context.Context, res *DiagnoseResult, coreRec *moduleRecord, mapping map[symbols.SymbolID]symbols.SymbolID) error {
-	if res == nil || res.Instantiations == nil || res.Sema == nil || res.Sema.TypeInterner == nil || coreRec == nil || coreRec.Builder == nil {
-		return nil
-	}
-	if len(mapping) == 0 {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	coreInst := mono.NewInstantiationMap()
-	recorder := mono.NewInstantiationMapRecorder(coreInst)
-	exports := collectedExports(res.moduleRecords)
-	if exports == nil {
-		exports = make(map[string]*symbols.ModuleExports)
-	}
-
-	for _, fileID := range coreRec.FileIDs {
-		symRes, ok := coreRec.Symbols[fileID]
-		if !ok {
-			continue
-		}
-		bag := diag.NewBag(0)
-		modulePath := "core"
-		if coreRec.Meta != nil && coreRec.Meta.Path != "" {
-			modulePath = coreRec.Meta.Path
-		}
-		sema.Check(ctx, coreRec.Builder, fileID, sema.Options{
-			Reporter:       &diag.BagReporter{Bag: bag},
-			Symbols:        &symRes,
-			Exports:        exports,
-			Types:          res.Sema.TypeInterner,
-			ModulePath:     semaModulePath(coreRec.Builder, modulePath),
-			AlienHints:     false,
-			Instantiations: recorder,
-		})
-		if bag.HasErrors() {
-			items := bag.Items()
-			if len(items) > 0 {
-				return fmt.Errorf("core instantiation pass failed: %s", items[0].Message)
-			}
-			return fmt.Errorf("core instantiation pass failed")
-		}
-	}
-
-	mergeInstantiations(res.Instantiations, coreInst, mapping)
-	return nil
-}
-
-func mergeInstantiations(dst, src *mono.InstantiationMap, mapping map[symbols.SymbolID]symbols.SymbolID) {
-	if dst == nil || src == nil || len(src.Entries) == 0 || len(mapping) == 0 {
-		return
-	}
-	for _, entry := range src.Entries {
-		if entry == nil {
-			continue
-		}
-		mappedSym, ok := mapping[entry.Key.Sym]
-		if !ok {
-			continue
-		}
-		for _, site := range entry.UseSites {
-			mappedCaller, ok := mapping[site.Caller]
-			if !ok {
-				continue
-			}
-			dst.Record(entry.Kind, mappedSym, entry.TypeArgs, site.Span, mappedCaller, site.Note)
-		}
-	}
 }
 
 func symbolKey(sym *symbols.Symbol, strs *source.Interner) string {

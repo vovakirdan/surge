@@ -106,6 +106,25 @@ func llvmTypeSizeAlign(ty string) (size, align int, err error) {
 	}
 }
 
+func llvmTypeStrideAlign(ty string) (stride, align uint64, err error) {
+	size, rawAlign, err := llvmTypeSizeAlign(ty)
+	if err != nil {
+		return 0, 0, err
+	}
+	if rawAlign <= 0 {
+		return 0, 0, fmt.Errorf("LLVM type %s has invalid alignment %d", ty, rawAlign)
+	}
+	stride, err = safecast.Conv[uint64](roundUpInt(size, rawAlign))
+	if err != nil {
+		return 0, 0, fmt.Errorf("LLVM type %s stride: %w", ty, err)
+	}
+	align, err = safecast.Conv[uint64](rawAlign)
+	if err != nil {
+		return 0, 0, fmt.Errorf("LLVM type %s alignment: %w", ty, err)
+	}
+	return stride, align, nil
+}
+
 func roundUpInt(n, align int) int {
 	if align <= 1 {
 		return n
