@@ -1,0 +1,129 @@
+// Returning the nested family from every shape of function body: a single
+// return, a branch with several returns, a return from inside a loop, a return
+// of a value built in place, and a return that forwards another call's result.
+//
+// The destination for a returned composite is chosen by the caller, so the
+// interesting cases are the ones where the callee has more than one place the
+// value could have been built: each return site has to land in the same
+// destination.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Held = { name: string, leaf: Leaf };
+
+type Nested = {
+    head: Held,
+    pair: (int, int),
+    choice: Choice,
+    cells: Held[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Held { name = "head", leaf = Leaf { x = seed, y = seed + 1 } },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Held { name = "c0", leaf = Leaf { x = seed + 6, y = seed + 7 } },
+            Held { name = "c1", leaf = Leaf { x = seed + 8, y = seed + 9 } },
+            Held { name = "c2", leaf = Leaf { x = seed + 10, y = seed + 11 } },
+        ],
+    };
+}
+
+fn arm_x(n: &Nested) -> int {
+    return compare n.choice {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+// Two return sites, two separately constructed values, one caller destination.
+fn branched(pick: int) -> Nested {
+    if pick == 0 {
+        return nested(100);
+    }
+    return nested(200);
+}
+
+// A return from inside a loop, after the value has been rebuilt several times.
+fn looped(rounds: int) -> Nested {
+    let mut value = nested(300);
+    let mut index: int = 0;
+    while index < rounds {
+        value = nested(300 + index + 1);
+        if index == 2 {
+            return own value;
+        }
+        index = index + 1;
+    }
+    return own value;
+}
+
+// A forwarding return: the callee's result becomes this callee's result without
+// an intermediate binding.
+fn forwarded(pick: int) -> Nested {
+    return branched(pick);
+}
+
+// A returned Copy composite derived from a borrowed one.
+fn head_of(n: &Nested) -> Leaf {
+    return n.head.leaf;
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. a single return site
+    let plain = nested(10);
+    if plain.head.leaf.x != 10 || plain.pair.1 != 13 {
+        print("single return is wrong");
+        return 1;
+    }
+
+    // 2. two return sites into one destination
+    let first = branched(0);
+    if first.head.leaf.x != 100 || arm_x(&first) != 104 {
+        print("first branch return is wrong");
+        return 2;
+    }
+    let second = branched(1);
+    if second.head.leaf.x != 200 || arm_x(&second) != 204 {
+        print("second branch return is wrong");
+        return 3;
+    }
+
+    // 3. an early return from inside a loop
+    let early = looped(9);
+    if early.head.leaf.x != 303 {
+        print("loop return is wrong");
+        return 4;
+    }
+
+    // 4. the loop's normal exit return
+    let late = looped(1);
+    if late.head.leaf.x != 301 {
+        print("loop exit return is wrong");
+        return 5;
+    }
+
+    // 5. a forwarded return
+    let relayed = forwarded(1);
+    if relayed.head.leaf.x != 200 || relayed.cells[1].name != "c1" {
+        print("forwarded return is wrong");
+        return 6;
+    }
+
+    // 6. a Copy composite returned out of a borrow
+    let lifted = head_of(&plain);
+    if lifted.x != 10 || lifted.y != 11 {
+        print("Copy composite return is wrong");
+        return 7;
+    }
+
+    print("return ok");
+    return 0;
+}

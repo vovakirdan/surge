@@ -1,0 +1,49 @@
+// KNOWN RED on the native backend: a zero-sized member followed by a sized one.
+//
+// The value's own semantics are fine on both backends — every check below
+// passes and the success line prints — and then the process aborts while the
+// value is released. Reordering the two members so the zero-sized one comes
+// last makes the abort go away, which is what points at the drop walk: the
+// members after a zero-sized one are being addressed as if the zero-sized one
+// had storage, so something is released twice.
+//
+// This file is not part of the green corpus. Its harness row asserts the
+// divergence rather than the value, so the defect is executable evidence
+// instead of a note. When the native run stops aborting, that row fails and
+// this source moves into `layout/`.
+
+@copy type Leaf = { x: int, y: int };
+
+type Empty = { };
+
+type HoleFirst = {
+    hole: Empty,
+    after: Leaf,
+};
+
+fn borrow_empty(e: &Empty) -> int {
+    return 2;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut carrier = HoleFirst {
+        hole = Empty { },
+        after = Leaf { x = 3, y = 4 },
+    };
+    if carrier.after.x != 3 || carrier.after.y != 4 {
+        print("member after a zero-sized one is wrong");
+        return 1;
+    }
+    carrier.after.x = 30;
+    if carrier.after.x != 30 {
+        print("write to a member after a zero-sized one is wrong");
+        return 2;
+    }
+    if borrow_empty(&carrier.hole) != 2 {
+        print("borrowed zero-sized member is wrong");
+        return 3;
+    }
+    print("zero sized member order ok");
+    return 0;
+}

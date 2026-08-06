@@ -1,0 +1,107 @@
+// Partial moves out of the nested family and the reinitialization that follows.
+//
+// A partial move takes one field out of a live value. What has to be true
+// afterwards is a conjunction, and each half fails differently: the moved-out
+// field must be a complete, independent value, and the value it came from must
+// still own everything else — so a scope exit after a partial move drops the
+// remaining fields exactly once, no more and no fewer.
+//
+// The family members are move-only (`string`) so the drop count is real work
+// rather than a no-op a memory checker cannot see.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Held = { name: string, leaf: Leaf };
+
+type Nested = {
+    head: Held,
+    pair: (int, int),
+    choice: Choice,
+    cells: Held[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Held { name = "head", leaf = Leaf { x = seed, y = seed + 1 } },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Held { name = "c0", leaf = Leaf { x = seed + 6, y = seed + 7 } },
+            Held { name = "c1", leaf = Leaf { x = seed + 8, y = seed + 9 } },
+            Held { name = "c2", leaf = Leaf { x = seed + 10, y = seed + 11 } },
+        ],
+    };
+}
+
+fn arm_x(n: &Nested) -> int {
+    return compare n.choice {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+// A partial move whose residual value never leaves the callee: the remaining
+// fields are dropped at the callee's exit, not the caller's.
+fn take_head(n: Nested) -> Held {
+    return own n.head;
+}
+
+// A partial move followed by an ordinary scope exit with the hole still open.
+// The residual value's other fields must drop exactly once even though one of
+// them is gone.
+fn drop_with_hole(seed: int) -> int {
+    let mut local = nested(seed);
+    let taken = own local.head;
+    return taken.leaf.x;
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. take one field out, then reinitialize it
+    let mut n = nested(1);
+    let taken = own n.head;
+    if taken.name != "head" || taken.leaf.x != 1 {
+        print("partially moved field is wrong");
+        return 1;
+    }
+    n.head = Held { name = "again", leaf = Leaf { x = 90, y = 91 } };
+    if n.head.name != "again" || n.head.leaf.y != 91 {
+        print("reinitialized field is wrong");
+        return 2;
+    }
+
+    // 2. the rest of the value survives the partial move untouched
+    if n.pair.0 != 3 || arm_x(&n) != 5 {
+        print("residual tuple or union member is wrong");
+        return 3;
+    }
+
+    // 3. the residual value is dropped by the callee, not the caller
+    let lifted = take_head(nested(30));
+    if lifted.name != "head" || lifted.leaf.x != 30 {
+        print("field lifted out of a consumed value is wrong");
+        return 4;
+    }
+
+    // 4. a partial move left unrepaired until the scope ends
+    if drop_with_hole(40) != 40 {
+        print("value lifted out of a scope-exiting hole is wrong");
+        return 5;
+    }
+
+    // 5. the fixed-array member is untouched by all of the above. Array-element
+    //    partial moves are not a language shape today, so the corpus reads the
+    //    array rather than moving out of it; this read is last because it holds
+    //    a shared borrow for the rest of the function.
+    if n.cells[1].name != "c1" || n.cells[2].leaf.y != 12 {
+        print("residual array member is wrong");
+        return 6;
+    }
+
+    print("partial move ok");
+    return 0;
+}

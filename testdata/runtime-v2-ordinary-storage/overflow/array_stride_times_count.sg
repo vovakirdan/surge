@@ -1,0 +1,20 @@
+// Negative control: `stride * count` for a single array.
+//
+// `Half` is a representable array with a stride of 2^63. Multiplying that
+// stride by four elements is the operation that overflows; neither operand is
+// out of range on its own, so only a checked multiply catches it.
+//
+// Must fail at compile time, before anything is laid out or allocated, naming
+// the first overflowing type path.
+
+@align(4294967296)
+type Cell = { value: bool };
+
+type Half = Cell[2147483647];
+
+type Line = Half[4];
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

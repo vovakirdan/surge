@@ -1,0 +1,139 @@
+// Shared and mutable borrows of the nested family and of every member kind
+// inside it.
+//
+// The rows that matter most are the ones stating what must NOT happen: a
+// borrowing read must not duplicate, so it has to keep seeing later writes
+// through the place it borrows. Both a correct implementation and one that
+// silently copies on every read return the right answer to a single read; only
+// a read-write-read sequence through the same borrow separates them.
+//
+// Ordering note: every row that touches an INDEXED place is at the end. A read
+// of `n.cells[i]` leaves a shared borrow of `n` alive for the rest of the
+// function today, so a later `&mut n` is refused. That is a property of the
+// current borrow checker, not of storage, and the corpus works within it rather
+// than encoding it.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Nested = {
+    head: Leaf,
+    pair: (int, int),
+    choice: Choice,
+    cells: Leaf[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Leaf { x = seed, y = seed + 1 },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Leaf { x = seed + 6, y = seed + 7 },
+            Leaf { x = seed + 8, y = seed + 9 },
+            Leaf { x = seed + 10, y = seed + 11 },
+        ],
+    };
+}
+
+fn read_head_x(n: &Nested) -> int {
+    return n.head.x;
+}
+
+fn read_pair_sum(n: &Nested) -> int {
+    return n.pair.0 + n.pair.1;
+}
+
+fn read_arm_x(n: &Nested) -> int {
+    return compare n.choice {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+fn read_cell_y(n: &Nested, index: int) -> int {
+    return n.cells[index].y;
+}
+
+fn bump_head(n: &mut Nested, delta: int) {
+    n.head.x = n.head.x + delta;
+}
+
+fn retag(n: &mut Nested, x: int) {
+    n.choice = Wrapped(Leaf { x = x, y = x + 1 });
+}
+
+fn bump_cell(n: &mut Nested, index: int, delta: int) {
+    n.cells[index].y = n.cells[index].y + delta;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut n = nested(10);
+
+    // 1. a shared borrow observes the place, not a snapshot
+    if read_head_x(&n) != 10 {
+        print("shared borrow read the wrong value");
+        return 1;
+    }
+    n.head.x = 42;
+    if read_head_x(&n) != 42 {
+        print("shared borrow no longer observes the place");
+        return 2;
+    }
+
+    // 2. tuple and union members through a borrow
+    if read_pair_sum(&n) != 25 {
+        print("tuple borrow read the wrong value");
+        return 3;
+    }
+    if read_arm_x(&n) != 14 {
+        print("union payload borrow read the wrong value");
+        return 4;
+    }
+
+    // 3. mutable borrows write through to the borrowed place
+    bump_head(&mut n, 8);
+    if read_head_x(&n) != 50 {
+        print("mutable borrow did not write through");
+        return 5;
+    }
+    retag(&mut n, 77);
+    if read_arm_x(&n) != 77 {
+        print("mutable union borrow did not write through");
+        return 6;
+    }
+
+    // 4. the fixed-array member, shared and mutable
+    if read_cell_y(&n, 2) != 21 {
+        print("array element borrow read the wrong value");
+        return 7;
+    }
+    bump_cell(&mut n, 2, 78);
+    if read_cell_y(&n, 2) != 99 {
+        print("mutable array element borrow did not write through");
+        return 8;
+    }
+    n.cells[0].y = 22;
+    if read_cell_y(&n, 0) != 22 {
+        print("array element borrow no longer observes the place");
+        return 9;
+    }
+
+    // 5. a mutable borrow taken and used repeatedly stays bound to one place.
+    //    It is last because an exclusive borrow held in a local blocks every
+    //    other access to the value for the rest of the function.
+    let handle = &mut n;
+    handle.head.y = 3;
+    handle.head.y = handle.head.y + 4;
+    if handle.head.y != 7 {
+        print("repeated writes through one mutable borrow diverged");
+        return 10;
+    }
+
+    print("borrow ok");
+    return 0;
+}

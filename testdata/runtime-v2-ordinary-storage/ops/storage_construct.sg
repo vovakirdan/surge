@@ -1,0 +1,70 @@
+// Local construction of the frozen nested family, read back through every
+// member kind: a struct field, a tuple element, a tagged-union payload and a
+// fixed-array element.
+//
+// Nothing here names a box, a pointer, a count or an allocation. The whole
+// corpus is written so the same source passes before and after the storage
+// representation changes; a fixture that could tell the difference would be
+// pinning the representation instead of the semantics.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Nested = {
+    head: Leaf,
+    pair: (int, int),
+    choice: Choice,
+    cells: Leaf[3],
+};
+
+fn arm_x(c: &Choice) -> int {
+    return compare *c {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let n = Nested {
+        head = Leaf { x = 1, y = 2 },
+        pair = (3, 4),
+        choice = Wrapped(Leaf { x = 5, y = 6 }),
+        cells = [
+            Leaf { x = 7, y = 8 },
+            Leaf { x = 9, y = 10 },
+            Leaf { x = 11, y = 12 },
+        ],
+    };
+
+    if n.head.x != 1 || n.head.y != 2 {
+        print("struct member wrong");
+        return 1;
+    }
+    if n.pair.0 != 3 || n.pair.1 != 4 {
+        print("tuple member wrong");
+        return 2;
+    }
+    if arm_x(&n.choice) != 5 {
+        print("union payload wrong");
+        return 3;
+    }
+    if n.cells[0].x != 7 || n.cells[1].x != 9 || n.cells[2].y != 12 {
+        print("fixed-array member wrong");
+        return 4;
+    }
+
+    // The empty arm is a live shape too: a two-arm union whose second arm
+    // carries no payload still has to construct and read back.
+    let empty: Choice = Bare();
+    if arm_x(&empty) != 0 - 1 {
+        print("empty arm wrong");
+        return 5;
+    }
+
+    print("construct ok");
+    return 0;
+}

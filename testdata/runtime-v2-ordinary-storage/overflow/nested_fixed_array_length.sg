@@ -1,0 +1,21 @@
+// Negative control: nested fixed arrays near the uint32 length limit.
+//
+// `Row` is an array whose length is the largest the language accepts; `Grid`
+// then holds two of them. Each level is individually representable and the
+// nesting is what exceeds the target's address space, so a check that looks at
+// one array at a time in isolation misses it.
+//
+// Must fail at compile time, before anything is laid out or allocated, naming
+// the first overflowing type path.
+
+@align(4294967296)
+type Cell = { value: bool };
+
+type Row = Cell[4294967295];
+
+type Grid = Row[2];
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

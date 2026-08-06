@@ -1,0 +1,146 @@
+// Partial initialization of a destination: the window in which some members of
+// a composite hold their final value and the rest do not.
+//
+// The language has no uninitialized local, so the window is reached the way a
+// program actually reaches it: a destination is built, then rewritten member by
+// member, and something observes it — a call, a borrow, a loop iteration or an
+// early exit — while only part of the rewrite has happened. What must be true
+// is that the members already written are exactly the ones read back, that the
+// members not yet rewritten still hold their previous value, and that every
+// value displaced along the way is released exactly once.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Held = { name: string, leaf: Leaf };
+
+type Nested = {
+    head: Held,
+    pair: (int, int),
+    choice: Choice,
+    cells: Held[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Held { name = "head", leaf = Leaf { x = seed, y = seed + 1 } },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Held { name = "c0", leaf = Leaf { x = seed + 6, y = seed + 7 } },
+            Held { name = "c1", leaf = Leaf { x = seed + 8, y = seed + 9 } },
+            Held { name = "c2", leaf = Leaf { x = seed + 10, y = seed + 11 } },
+        ],
+    };
+}
+
+fn arm_x(n: &Nested) -> int {
+    return compare n.choice {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+// Rewrites the destination one member at a time and returns as soon as the
+// requested number of members has been rewritten, so the caller receives a
+// value that is genuinely half old and half new.
+fn rewrite(seed: int, steps: int) -> Nested {
+    let mut value = nested(seed);
+    if steps < 1 {
+        return own value;
+    }
+    value.head = Held { name = "new-head", leaf = Leaf { x = 900, y = 901 } };
+    if steps < 2 {
+        return own value;
+    }
+    value.pair = (902, 903);
+    if steps < 3 {
+        return own value;
+    }
+    value.choice = Wrapped(Leaf { x = 904, y = 905 });
+    return own value;
+}
+
+// Observes the destination from inside the rewrite, through a borrow taken
+// while only the first member has been replaced.
+fn observe_midway(seed: int) -> int {
+    let mut value = nested(seed);
+    value.head = Held { name = "new-head", leaf = Leaf { x = 910, y = 911 } };
+    let seen = arm_x(&value);
+    value.choice = Wrapped(Leaf { x = 912, y = 913 });
+    return seen + arm_x(&value);
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. nothing rewritten
+    let none = rewrite(10, 0);
+    if none.head.name != "head" || none.pair.0 != 12 || arm_x(&none) != 14 {
+        print("unrewritten destination is wrong");
+        return 1;
+    }
+
+    // 2. one member rewritten, the rest still original
+    let one = rewrite(10, 1);
+    if one.head.name != "new-head" || one.head.leaf.x != 900 {
+        print("rewritten member is wrong");
+        return 2;
+    }
+    if one.pair.0 != 12 || arm_x(&one) != 14 {
+        print("members after the first rewrite step changed");
+        return 3;
+    }
+
+    // 3. two members rewritten
+    let two = rewrite(10, 2);
+    if two.head.leaf.x != 900 || two.pair.0 != 902 {
+        print("second rewrite step is wrong");
+        return 4;
+    }
+    if arm_x(&two) != 14 {
+        print("union member changed before its rewrite step");
+        return 5;
+    }
+
+    // 4. all three rewritten; the fixed array is never rewritten and must have
+    //    survived every step
+    let three = rewrite(10, 3);
+    if three.head.leaf.x != 900 || three.pair.1 != 903 || arm_x(&three) != 904 {
+        print("third rewrite step is wrong");
+        return 6;
+    }
+    if three.cells[0].name != "c0" || three.cells[2].leaf.y != 21 {
+        print("untouched array member changed");
+        return 7;
+    }
+
+    // 5. the destination observed from inside the rewrite
+    if observe_midway(20) != 936 {
+        print("midway observation is wrong");
+        return 8;
+    }
+
+    // 6. the same destination rewritten repeatedly in a loop: each round
+    //    displaces the previous round's value
+    let mut rolling = nested(30);
+    let mut round: int = 0;
+    while round < 4 {
+        rolling.head = Held { name = "round", leaf = Leaf { x = 940 + round, y = 0 } };
+        rolling.choice = Wrapped(Leaf { x = 950 + round, y = 0 });
+        round = round + 1;
+    }
+    if rolling.head.leaf.x != 943 || arm_x(&rolling) != 953 {
+        print("looped rewrite is wrong");
+        return 9;
+    }
+    if rolling.pair.0 != 32 || rolling.cells[1].name != "c1" {
+        print("members outside the looped rewrite changed");
+        return 10;
+    }
+
+    print("partial init ok");
+    return 0;
+}

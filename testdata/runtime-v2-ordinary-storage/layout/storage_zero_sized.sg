@@ -1,0 +1,101 @@
+// Zero-sized values: a composite with no fields occupies no storage.
+//
+// The rows to get wrong here are the ones where a zero-sized value is still a
+// value: it is constructed, copied, moved, passed, returned and stored as a
+// member, and every one of those has to be a no-op on storage without becoming
+// a no-op on semantics.
+//
+// Two further zero-sized shapes — a zero-sized member FOLLOWED by a sized one,
+// and a fixed array of zero-sized elements — are not here. They abort on the
+// native backend today and live in the known-red corpus with their own rows, so
+// this file stays green on both backends and the defects stay pinned.
+
+type Empty = { };
+
+@copy type Leaf = { x: int, y: int };
+
+type WithEmpty = {
+    before: Leaf,
+    after: Leaf,
+    hole: Empty,
+};
+
+fn make_empty() -> Empty {
+    return Empty { };
+}
+
+fn consume_empty(e: Empty) -> int {
+    return 1;
+}
+
+fn borrow_empty(e: &Empty) -> int {
+    return 2;
+}
+
+fn pass_through(e: Empty) -> Empty {
+    return e;
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. construct, copy and move a zero-sized value
+    let first = Empty { };
+    let second = own first;
+    let third = make_empty();
+    if consume_empty(own second) != 1 {
+        print("by-value zero-sized argument is wrong");
+        return 1;
+    }
+    if borrow_empty(&third) != 2 {
+        print("borrowed zero-sized argument is wrong");
+        return 2;
+    }
+    let relayed = pass_through(own third);
+    if consume_empty(own relayed) != 1 {
+        print("relayed zero-sized value is wrong");
+        return 3;
+    }
+
+    // 2. a zero-sized member alongside members that do occupy storage: neither
+    //    sized member may be disturbed by the one that occupies nothing
+    let mut carrier = WithEmpty {
+        before = Leaf { x = 1, y = 2 },
+        after = Leaf { x = 3, y = 4 },
+        hole = Empty { },
+    };
+    if carrier.before.x != 1 || carrier.after.y != 4 {
+        print("members beside a zero-sized one are wrong");
+        return 4;
+    }
+    carrier.before.y = 20;
+    if carrier.after.x != 3 || carrier.after.y != 4 {
+        print("a write reached past a zero-sized member");
+        return 5;
+    }
+    carrier.after.x = 30;
+    if carrier.before.x != 1 || carrier.before.y != 20 {
+        print("a write reached back past a zero-sized member");
+        return 6;
+    }
+    if borrow_empty(&carrier.hole) != 2 {
+        print("borrowed zero-sized member is wrong");
+        return 7;
+    }
+
+    // 3. a zero-sized value crossing a call boundary many times: an
+    //    implementation that gives it storage accumulates the cost, one that
+    //    does not stays flat
+    let mut round: int = 0;
+    let mut total: int = 0;
+    while round < 32 {
+        total = total + consume_empty(make_empty());
+        round = round + 1;
+    }
+    if total != 32 {
+        print("repeated zero-sized calls are wrong");
+        return 8;
+    }
+
+    print("zero sized ok");
+    return 0;
+}

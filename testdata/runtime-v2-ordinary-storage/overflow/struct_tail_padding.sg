@@ -1,0 +1,23 @@
+// Negative control: the padding added AFTER the last field to round a struct up
+// to its own alignment.
+//
+// Every field fits and the running size is inside the address space; the tail
+// round-up to the struct's 2^32 alignment is the operation that overflows. A
+// check that only validates field offsets and sizes accepts this type.
+//
+// Must fail at compile time, before anything is laid out or allocated. The
+// message names the type; there is no layout-path note because the overflowing
+// site is the root type's own tail rather than a member below it.
+
+@align(4294967296)
+type Wide = { value: bool };
+
+type TailPadding = {
+    bulk: Wide[4294967295],
+    gap: int64,
+};
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

@@ -1,0 +1,23 @@
+// Negative control in the "must not be truncated" direction: a field whose
+// offset does not fit in a signed 32-bit integer.
+//
+// `bulk` is 2^32 bytes, so `edge` sits at offset 2^32 — above the range of the
+// signed 32-bit field that carries a byte offset. The type is representable and
+// must compile cleanly with the offset intact; the failure this guards against
+// is a host-width conversion that wraps the offset to a small or negative
+// number, which would place `edge` inside `bulk` without any diagnostic.
+//
+// So this file must COMPILE cleanly. It is never instantiated: a value of this
+// type would need four gigabytes of storage.
+
+type Word = { value: int64 };
+
+type LargeOffsets = {
+    bulk: Word[536870912],
+    edge: Word,
+};
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

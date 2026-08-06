@@ -1,0 +1,119 @@
+// Direct calls that pass the nested family across a function boundary in every
+// position the destination protocol has to handle: by value, by shared borrow,
+// by mutable borrow, as one of several arguments, and nested inside another
+// call's argument list.
+//
+// The by-value rows are the ones that pin the argument protocol: the callee
+// receives its own value, and a callee that mutates its parameter must not be
+// able to reach the caller's storage.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Held = { name: string, leaf: Leaf };
+
+type Nested = {
+    head: Held,
+    pair: (int, int),
+    choice: Choice,
+    cells: Held[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Held { name = "head", leaf = Leaf { x = seed, y = seed + 1 } },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Held { name = "c0", leaf = Leaf { x = seed + 6, y = seed + 7 } },
+            Held { name = "c1", leaf = Leaf { x = seed + 8, y = seed + 9 } },
+            Held { name = "c2", leaf = Leaf { x = seed + 10, y = seed + 11 } },
+        ],
+    };
+}
+
+fn arm_x(n: &Nested) -> int {
+    return compare n.choice {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+// By value: the callee owns what it received and may write it freely.
+fn consume(n: Nested) -> int {
+    let mut local = n;
+    local.head.leaf.x = 0 - 1;
+    local.choice = Bare();
+    return local.head.leaf.y;
+}
+
+// By value with a Copy composite, returning a derived Copy composite.
+fn scale(leaf: Leaf, factor: int) -> Leaf {
+    return Leaf { x = leaf.x * factor, y = leaf.y * factor };
+}
+
+fn read_pair_low(n: &Nested) -> int {
+    return n.pair.0;
+}
+
+fn set_name(n: &mut Nested, name: string) {
+    n.head.name = name;
+}
+
+// Several composites in one argument list, mixed with a scalar, so the argument
+// area holds more than one destination at a time.
+fn combine(left: Leaf, middle: int, right: Leaf) -> int {
+    return left.x * 1000 + middle * 100 + right.y;
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. by value: the callee's writes do not reach the caller
+    let mut keeper = nested(10);
+    if consume(nested(10)) != 11 {
+        print("by-value call returned the wrong value");
+        return 1;
+    }
+    if keeper.head.leaf.x != 10 || arm_x(&keeper) != 14 {
+        print("caller storage changed across a by-value call");
+        return 2;
+    }
+
+    // 2. by shared borrow
+    if read_pair_low(&keeper) != 12 {
+        print("shared-borrow call returned the wrong value");
+        return 3;
+    }
+
+    // 3. by mutable borrow
+    set_name(&mut keeper, "renamed");
+    if keeper.head.name != "renamed" {
+        print("mutable-borrow call did not write through");
+        return 4;
+    }
+
+    // 4. Copy composite in and out
+    let scaled = scale(Leaf { x = 3, y = 4 }, 5);
+    if scaled.x != 15 || scaled.y != 20 {
+        print("Copy composite call returned the wrong value");
+        return 5;
+    }
+
+    // 5. several composites in one argument list
+    if combine(Leaf { x = 7, y = 8 }, 6, Leaf { x = 1, y = 2 }) != 7602 {
+        print("multi-composite argument list is wrong");
+        return 6;
+    }
+
+    // 6. a call whose argument is itself a call result
+    if combine(scale(Leaf { x = 1, y = 1 }, 2), 3, scale(Leaf { x = 4, y = 4 }, 2)) != 2308 {
+        print("nested call arguments are wrong");
+        return 7;
+    }
+
+    print("direct call ok");
+    return 0;
+}

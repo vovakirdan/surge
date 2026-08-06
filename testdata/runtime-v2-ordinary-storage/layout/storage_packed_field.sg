@@ -1,0 +1,116 @@
+// `@packed` removes the padding between fields, so a wide field lands at an
+// offset its own alignment does not divide.
+//
+// Every access to such a field has to be emitted as an underaligned one. Read
+// and write each packed field, put packed values inside a fixed array so the
+// element stride is odd too, nest a packed struct inside an unpacked one and
+// hand packed values across a call boundary — the shapes where an emitter that
+// assumes natural alignment would produce a misaligned access.
+
+@packed type Packed = {
+    lead: bool,
+    wide: int64,
+    middle: bool,
+    second: int64,
+    trail: bool,
+};
+
+type Carrier = {
+    label: int,
+    inner: Packed,
+    cells: Packed[3],
+};
+
+fn sum_packed(p: &Packed) -> int64 {
+    return p.wide + p.second;
+}
+
+fn build_packed(base: int64) -> Packed {
+    return Packed {
+        lead = true,
+        wide = base,
+        middle = false,
+        second = base + 1:int64,
+        trail = true,
+    };
+}
+
+fn consume_packed(p: Packed) -> int64 {
+    return p.wide * 2:int64 + p.second;
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. read and write every field of a packed value
+    let mut p = build_packed(1000:int64);
+    if p.wide != 1000:int64 || p.second != 1001:int64 {
+        print("packed field read is wrong");
+        return 1;
+    }
+    if !p.lead || p.middle || !p.trail {
+        print("packed narrow field read is wrong");
+        return 2;
+    }
+    p.wide = 2000:int64;
+    p.middle = true;
+    p.second = 2001:int64;
+    if p.wide != 2000:int64 || p.second != 2001:int64 || !p.middle {
+        print("packed field write is wrong");
+        return 3;
+    }
+    if !p.lead || !p.trail {
+        print("packed field write reached a neighbour");
+        return 4;
+    }
+
+    // 2. a packed value nested inside an unpacked one
+    let mut carrier = Carrier {
+        label = 7,
+        inner = build_packed(3000:int64),
+        cells = [
+            build_packed(4000:int64),
+            build_packed(5000:int64),
+            build_packed(6000:int64),
+        ],
+    };
+    if carrier.inner.wide != 3000:int64 || carrier.label != 7 {
+        print("nested packed value is wrong");
+        return 5;
+    }
+    carrier.inner.second = 3100:int64;
+    if carrier.inner.second != 3100:int64 || carrier.inner.wide != 3000:int64 {
+        print("nested packed write is wrong");
+        return 6;
+    }
+
+    // 3. packed elements of a fixed array: the stride is not a multiple of the
+    //    widest field's alignment either
+    //    The write comes before the reads because a read of an indexed place
+    //    holds a shared borrow for the rest of the function.
+    carrier.cells[1].wide = 5500:int64;
+    if carrier.cells[1].wide != 5500:int64 || carrier.cells[1].second != 5001:int64 {
+        print("packed array element write is wrong");
+        return 7;
+    }
+    if carrier.cells[0].wide != 4000:int64 || carrier.cells[2].second != 6001:int64 {
+        print("packed array element read is wrong");
+        return 8;
+    }
+    if carrier.cells[0].second != 4001:int64 || carrier.cells[2].wide != 6000:int64 {
+        print("packed array element write reached a neighbour");
+        return 9;
+    }
+
+    // 4. packed values across a call boundary, borrowed and by value
+    if sum_packed(&carrier.inner) != 6100:int64 {
+        print("borrowed packed argument is wrong");
+        return 10;
+    }
+    if consume_packed(build_packed(10:int64)) != 31:int64 {
+        print("by-value packed argument is wrong");
+        return 11;
+    }
+
+    print("packed field ok");
+    return 0;
+}

@@ -1,0 +1,25 @@
+// Negative control: `@packed` removes the padding but not the checked
+// arithmetic.
+//
+// Packing lets more fields fit before the limit is reached, which is exactly
+// why it is a separate row: an implementation that skips the checks on the
+// packed path (there is no round-up to overflow, so the round-up check never
+// fires) still has to catch the running offset-plus-size total.
+//
+// Must fail at compile time, before anything is laid out or allocated, naming
+// the first overflowing type path.
+
+@align(4294967296)
+type Wide = { value: bool };
+
+@packed
+type PackedTotal = {
+    bulk: Wide[4294967295],
+    gap: int64,
+    edge: Wide,
+};
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

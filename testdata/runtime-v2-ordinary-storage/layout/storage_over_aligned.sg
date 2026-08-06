@@ -1,0 +1,115 @@
+// `@align(N)` raises a type's alignment above what its fields require, so its
+// storage — a local, a field, an array element, an argument slot and a return
+// destination — has to be placed at an N-byte boundary rather than at the
+// natural one.
+//
+// The alignment itself is not visible from the language, which is the point:
+// these rows exist so the alignment claims made in the emitted code have a
+// program to be checked against, and so a sanitizer run has something with a
+// raised alignment to trip on if a destination is placed wrongly.
+
+@align(64) type OverAligned = {
+    low: int64,
+    high: int64,
+};
+
+@align(32) type Modest = {
+    value: int64,
+};
+
+type Carrier = {
+    lead: bool,
+    over: OverAligned,
+    modest: Modest,
+    cells: OverAligned[3],
+    trail: bool,
+};
+
+fn build_over(base: int64) -> OverAligned {
+    return OverAligned { low = base, high = base + 1:int64 };
+}
+
+fn sum_over(o: &OverAligned) -> int64 {
+    return o.low + o.high;
+}
+
+fn consume_over(o: OverAligned) -> int64 {
+    return o.low * 2:int64 + o.high;
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. an over-aligned local
+    let mut o = build_over(100:int64);
+    if o.low != 100:int64 || o.high != 101:int64 {
+        print("over-aligned local is wrong");
+        return 1;
+    }
+    o.low = 200:int64;
+    if o.low != 200:int64 || o.high != 101:int64 {
+        print("over-aligned local write is wrong");
+        return 2;
+    }
+
+    // 2. an over-aligned field between narrower neighbours, so the field offset
+    //    is padded up
+    let mut carrier = Carrier {
+        lead = true,
+        over = build_over(300:int64),
+        modest = Modest { value = 400:int64 },
+        cells = [
+            build_over(500:int64),
+            build_over(600:int64),
+            build_over(700:int64),
+        ],
+        trail = false,
+    };
+    if carrier.over.low != 300:int64 || carrier.modest.value != 400:int64 {
+        print("over-aligned field is wrong");
+        return 3;
+    }
+    if !carrier.lead || carrier.trail {
+        print("neighbours of an over-aligned field are wrong");
+        return 4;
+    }
+    carrier.over.high = 301:int64;
+    carrier.modest.value = 401:int64;
+    if carrier.over.high != 301:int64 || carrier.modest.value != 401:int64 {
+        print("over-aligned field write is wrong");
+        return 5;
+    }
+    if !carrier.lead || carrier.trail {
+        print("over-aligned field write reached a neighbour");
+        return 6;
+    }
+
+    // 3. over-aligned array elements: every element start is an aligned address
+    //    The write comes before the reads because a read of an indexed place
+    //    holds a shared borrow for the rest of the function.
+    carrier.cells[1].low = 650:int64;
+    if carrier.cells[1].low != 650:int64 || carrier.cells[1].high != 601:int64 {
+        print("over-aligned array element write is wrong");
+        return 7;
+    }
+    if carrier.cells[0].low != 500:int64 || carrier.cells[2].high != 701:int64 {
+        print("over-aligned array element read is wrong");
+        return 8;
+    }
+    if carrier.cells[0].high != 501:int64 || carrier.cells[2].low != 700:int64 {
+        print("over-aligned array element write reached a neighbour");
+        return 9;
+    }
+
+    // 4. over-aligned argument and return destinations
+    if sum_over(&carrier.over) != 601:int64 {
+        print("borrowed over-aligned argument is wrong");
+        return 10;
+    }
+    if consume_over(build_over(10:int64)) != 31:int64 {
+        print("by-value over-aligned argument is wrong");
+        return 11;
+    }
+
+    print("over aligned ok");
+    return 0;
+}

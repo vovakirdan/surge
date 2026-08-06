@@ -1,0 +1,25 @@
+// Negative control OWED BY THE LANE: the envelope-plus-sidecar total.
+//
+// A crossing plan sizes a payload as fixed envelope/header bytes plus the
+// payload's own storage plus any typed sidecar, and that sum has its own
+// overflow. The arithmetic does not exist yet — `internal/layout` computes type
+// layouts only, and the envelope/sidecar totals belong to the transport work
+// that follows ordinary storage — so there is nothing for this source to trip
+// today and the harness row is skipped with that reason rather than asserted.
+//
+// The shape is recorded here so the row has a home the moment the arithmetic
+// lands: a composite large enough that its envelope total is what overflows
+// rather than the type itself. Until then this file must compile cleanly; a
+// diagnostic from it today would mean something else is wrong.
+
+@align(4294967296)
+type Wide = { value: bool };
+
+type NearLimitPayload = {
+    bulk: Wide[4294967294],
+};
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

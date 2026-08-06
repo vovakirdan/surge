@@ -1,0 +1,27 @@
+// KNOWN RED on the native backend: a fixed array of zero-sized elements.
+//
+// A zero-sized element has a zero stride, so an array of them occupies no
+// storage however long it is — that is also the language-level half of the
+// zero-sized multiplication control. Every check below passes and the success
+// line prints on both backends; the native run then aborts releasing the array.
+//
+// This file is not part of the green corpus. Its harness row asserts the
+// divergence rather than the value. When the native run stops aborting, that
+// row fails and this source moves into `layout/`.
+
+type Empty = { };
+
+fn borrow_empty(e: &Empty) -> int {
+    return 2;
+}
+
+@entrypoint
+fn main() -> int {
+    let cells: Empty[2] = [Empty { }, Empty { }];
+    if borrow_empty(&cells[0]) != 2 || borrow_empty(&cells[1]) != 2 {
+        print("zero-sized array element is wrong");
+        return 1;
+    }
+    print("zero sized array ok");
+    return 0;
+}

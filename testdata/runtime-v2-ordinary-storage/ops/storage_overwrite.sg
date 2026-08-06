@@ -1,0 +1,119 @@
+// Overwriting an initialized destination, including the cases where source and
+// destination name the same storage.
+//
+// Two failure directions live here. An overwrite that forgets to release the
+// old value leaks it, and an overwrite that releases the old value before
+// reading the new one destroys its own source when the two overlap. Both
+// produce the right answer on the non-overlapping rows, which is why the
+// overlapping rows are written out separately.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Held = { name: string, leaf: Leaf };
+
+type Nested = {
+    head: Held,
+    pair: (int, int),
+    choice: Choice,
+    cells: Held[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Held { name = "head", leaf = Leaf { x = seed, y = seed + 1 } },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Held { name = "c0", leaf = Leaf { x = seed + 6, y = seed + 7 } },
+            Held { name = "c1", leaf = Leaf { x = seed + 8, y = seed + 9 } },
+            Held { name = "c2", leaf = Leaf { x = seed + 10, y = seed + 11 } },
+        ],
+    };
+}
+
+fn arm_x(n: &Nested) -> int {
+    return compare n.choice {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. overwrite the whole value; the old one is released once
+    let mut n = nested(1);
+    n = nested(50);
+    if n.head.leaf.x != 50 || n.pair.1 != 53 {
+        print("whole-value overwrite is wrong");
+        return 1;
+    }
+
+    // 2. overwrite one field with a fresh value
+    n.head = Held { name = "fresh", leaf = Leaf { x = 7, y = 8 } };
+    if n.head.name != "fresh" || n.head.leaf.y != 8 {
+        print("field overwrite is wrong");
+        return 2;
+    }
+
+    // 3. overwrite the union member with the other arm, then back again
+    n.choice = Bare();
+    if arm_x(&n) != 0 - 1 {
+        print("union overwrite to the empty arm is wrong");
+        return 3;
+    }
+    n.choice = Wrapped(Leaf { x = 61, y = 62 });
+    if arm_x(&n) != 61 {
+        print("union overwrite back to the payload arm is wrong");
+        return 4;
+    }
+
+    // 4. self-assignment of a Copy member: source and destination are the same
+    //    place, so an implementation that releases before it reads destroys its
+    //    own source
+    let mut s = nested(70);
+    s.head.leaf = s.head.leaf;
+    if s.head.leaf.x != 70 || s.head.leaf.y != 71 {
+        print("self-assignment corrupted the value");
+        return 5;
+    }
+
+    // 5. overlapping assignment inside one value: the tuple member is swapped
+    //    through its own storage
+    s.pair = (s.pair.1, s.pair.0);
+    if s.pair.0 != 73 || s.pair.1 != 72 {
+        print("swapped tuple member is wrong");
+        return 6;
+    }
+
+    // 6. a move-only field taken out, replaced, taken out again and restored.
+    //    Every step either releases an old value or refills a hole, so a path
+    //    that skips one leaks and a path that does both drops twice.
+    let carried = own s.head;
+    s.head = Held { name = "replacement", leaf = Leaf { x = 96, y = 97 } };
+    let replaced = own s.head;
+    s.head = own carried;
+    if replaced.name != "replacement" || replaced.leaf.x != 96 {
+        print("replaced field is wrong");
+        return 7;
+    }
+    if s.head.name != "head" || s.head.leaf.x != 70 {
+        print("restored field is wrong");
+        return 8;
+    }
+    if arm_x(&s) != 74 {
+        print("union member did not survive the field exchange");
+        return 9;
+    }
+    if s.cells[1].name != "c1" {
+        print("array member did not survive the field exchange");
+        return 10;
+    }
+
+
+    print("overwrite ok");
+    return 0;
+}

@@ -1,0 +1,113 @@
+// Indirect calls: the same composite signatures reached through a function
+// value rather than a name.
+//
+// This is the row that separates a call protocol derived from the callee's
+// identity from one derived from the callee's type. An indirect call knows only
+// the type, so if the two disagree about how a composite argument or result is
+// passed, the direct rows keep passing and only this file breaks.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Held = { name: string, leaf: Leaf };
+
+type Nested = {
+    head: Held,
+    pair: (int, int),
+    choice: Choice,
+    cells: Held[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Held { name = "head", leaf = Leaf { x = seed, y = seed + 1 } },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Held { name = "c0", leaf = Leaf { x = seed + 6, y = seed + 7 } },
+            Held { name = "c1", leaf = Leaf { x = seed + 8, y = seed + 9 } },
+            Held { name = "c2", leaf = Leaf { x = seed + 10, y = seed + 11 } },
+        ],
+    };
+}
+
+fn arm_x(n: &Nested) -> int {
+    return compare n.choice {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+fn scale(leaf: Leaf, factor: int) -> Leaf {
+    return Leaf { x = leaf.x * factor, y = leaf.y * factor };
+}
+
+fn offset(leaf: Leaf, delta: int) -> Leaf {
+    return Leaf { x = leaf.x + delta, y = leaf.y + delta };
+}
+
+fn consume(n: Nested) -> int {
+    return n.head.leaf.y;
+}
+
+fn build(seed: int) -> Nested {
+    return nested(seed);
+}
+
+fn read_arm(n: &Nested) -> int {
+    return arm_x(n);
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. a Copy composite in and out, through a function value
+    let mut transform: fn(Leaf, int) -> Leaf = scale;
+    let scaled = transform(Leaf { x = 3, y = 4 }, 5);
+    if scaled.x != 15 || scaled.y != 20 {
+        print("indirect Copy composite call is wrong");
+        return 1;
+    }
+
+    // 2. the same function value rebound to a different implementation with the
+    //    same type: the call site cannot have specialized on the callee
+    transform = offset;
+    let shifted = transform(Leaf { x = 3, y = 4 }, 5);
+    if shifted.x != 8 || shifted.y != 9 {
+        print("rebound function value is wrong");
+        return 2;
+    }
+
+    // 3. a move-only composite passed by value through a function value
+    let sink: fn(Nested) -> int = consume;
+    if sink(nested(10)) != 11 {
+        print("indirect by-value call is wrong");
+        return 3;
+    }
+
+    // 4. a move-only composite RETURNED through a function value
+    let source: fn(int) -> Nested = build;
+    let made = source(20);
+    if made.head.leaf.x != 20 || made.cells[2].name != "c2" {
+        print("indirect composite return is wrong");
+        return 4;
+    }
+
+    // 5. a borrow passed through a function value
+    let reader: fn(&Nested) -> int = read_arm;
+    if reader(&made) != 24 {
+        print("indirect borrow call is wrong");
+        return 5;
+    }
+
+    // 6. an indirect call whose argument is another indirect call's result
+    if sink(source(30)) != 31 {
+        print("chained indirect calls are wrong");
+        return 6;
+    }
+
+    print("indirect call ok");
+    return 0;
+}

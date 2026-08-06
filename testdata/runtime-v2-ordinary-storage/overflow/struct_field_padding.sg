@@ -1,0 +1,22 @@
+// Negative control: the padding inserted BEFORE an over-aligned field.
+//
+// `bulk` fills the address space to within one alignment unit of the limit and
+// `gap` leaves the running offset unaligned for `edge`, so the round-up that
+// places `edge` is what overflows — not the field's own size.
+//
+// Must fail at compile time, before anything is laid out or allocated, naming
+// the first overflowing type path.
+
+@align(4294967296)
+type Wide = { value: bool };
+
+type FieldPadding = {
+    bulk: Wide[4294967295],
+    gap: int64,
+    edge: Wide,
+};
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

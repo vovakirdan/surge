@@ -1,0 +1,140 @@
+// The copy path over the family's Copy composites, plus a field-wise duplicate
+// of the whole move-only family.
+//
+// Why it is split that way: the language makes tuples and fixed arrays non-Copy,
+// so a `@copy` type may not contain either one. The full nested family is
+// therefore move-only by construction and cannot be copied in one assignment.
+// What CAN be copied is every Copy sub-composite it is built from — a struct, a
+// two-arm union with a composite payload, and an element lifted out of the
+// fixed array — and that is exactly the set the copy path has to get right.
+//
+// Every row asserts independence in BOTH directions: writing through the copy
+// must not reach the source, and writing through the source must not reach the
+// copy. A one-directional check passes on an implementation that aliases.
+//
+// Array elements are lifted through `lift`, a by-value return, rather than
+// through an inferred `let mut e = a[i]`. That is deliberate and load-bearing:
+// the inferred form does not reach the copy path today, and the corpus states
+// what must be true rather than pinning that defect.
+
+@copy type Leaf = { x: int, y: int };
+
+tag One(Leaf);
+tag None_();
+@copy type Pick = One(Leaf) | None_;
+
+type Nested = {
+    head: Leaf,
+    pair: (int, int),
+    choice: Pick,
+    cells: Leaf[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Leaf { x = seed, y = seed + 1 },
+        pair = (seed + 2, seed + 3),
+        choice = One(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Leaf { x = seed + 6, y = seed + 7 },
+            Leaf { x = seed + 8, y = seed + 9 },
+            Leaf { x = seed + 10, y = seed + 11 },
+        ],
+    };
+}
+
+fn pick_x(p: &Pick) -> int {
+    return compare *p {
+        One(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+fn lift(n: &Nested, index: int) -> Leaf {
+    return n.cells[index];
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. struct copy, both directions
+    let mut source = Leaf { x = 1, y = 2 };
+    let mut copied = source;
+    copied.x = 99;
+    if source.x != 1 || copied.x != 99 {
+        print("struct copy is not independent");
+        return 1;
+    }
+    source.y = 88;
+    if copied.y != 2 {
+        print("struct copy observes a later source write");
+        return 2;
+    }
+
+    // 2. union copy: only the active arm is duplicated, and the original keeps
+    //    its own payload.
+    let original: Pick = One(Leaf { x = 5, y = 6 });
+    let mut taken = original;
+    taken = One(Leaf { x = 77, y = 78 });
+    if pick_x(&original) != 5 || pick_x(&taken) != 77 {
+        print("union copy is not independent");
+        return 3;
+    }
+
+    // 3. a Copy struct member of a move-only value, both directions
+    let mut owner = nested(20);
+    let mut member: Leaf = owner.head;
+    member.x = 91;
+    if owner.head.x != 20 || member.x != 91 {
+        print("struct member copy is not independent");
+        return 4;
+    }
+    owner.head.y = 55;
+    if member.y != 21 {
+        print("struct member copy observes a later source write");
+        return 5;
+    }
+
+    // 4. a Copy element lifted out of the fixed-array member. The source write
+    //    happens before the lift because a shared borrow taken for the lift
+    //    keeps the container shared-borrowed for the lifetime of the result.
+    owner.cells[1].y = 77;
+    let mut lifted = lift(&owner, 1);
+    lifted.x = 99;
+    if owner.cells[1].x != 28 || lifted.x != 99 {
+        print("array element copy is not independent");
+        return 6;
+    }
+    if lifted.y != 77 {
+        print("array element copy did not observe the earlier source write");
+        return 7;
+    }
+
+    // 5. a field-wise duplicate of the whole family, one copy per member kind
+    let dup_head: Leaf = owner.head;
+    let dup_c0 = lift(&owner, 0);
+    let dup_c1 = lift(&owner, 1);
+    let dup_c2 = lift(&owner, 2);
+    let mut whole = Nested {
+        head = dup_head,
+        pair = (owner.pair.0, owner.pair.1),
+        choice = owner.choice,
+        cells = [dup_c0, dup_c1, dup_c2],
+    };
+    whole.head.x = 91;
+    whole.cells[2].x = 92;
+    if owner.head.x != 20 || whole.head.x != 91 {
+        print("duplicated struct member is not independent");
+        return 8;
+    }
+    if owner.cells[2].x != 30 || whole.cells[2].x != 92 {
+        print("duplicated array member is not independent");
+        return 9;
+    }
+    if whole.pair.0 != 22 || pick_x(&whole.choice) != 24 {
+        print("duplicated tuple or union member is wrong");
+        return 10;
+    }
+
+    print("copy ok");
+    return 0;
+}

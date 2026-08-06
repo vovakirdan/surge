@@ -1,0 +1,27 @@
+// Negative control: the round-up driven by a type's own `@align` attribute.
+//
+// Every field here has ordinary 8-byte alignment and the total fits; the
+// alignment that forces the overflowing round-up comes from the attribute on
+// the type rather than from anything inside it. An implementation that derives
+// the round-up alignment from the fields alone accepts this type.
+//
+// Must fail at compile time, before anything is laid out or allocated. The
+// message names the type; there is no layout-path note because the overflowing
+// site is the root type's own round-up rather than a member below it.
+
+type Word = { value: int64 };
+
+type WordRow = Word[4294967295];
+
+type WordGrid = WordRow[536870912];
+
+@align(4294967296)
+type OverAlignedTotal = {
+    grid: WordGrid,
+    gap: int64,
+};
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

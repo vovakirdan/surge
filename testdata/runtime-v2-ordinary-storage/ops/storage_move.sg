@@ -1,0 +1,99 @@
+// Whole-value move of the nested family, including a move of a value that owns
+// a heap resource so the move is observable as ownership transfer and not as a
+// silent duplication.
+//
+// The family carries a `string` member precisely so a move that secretly copies
+// or a move that drops twice has somewhere to show itself under a memory
+// checker; the language-level assertions here only pin that the destination
+// holds the value and the source is gone.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Held = { name: string, leaf: Leaf };
+
+type Nested = {
+    head: Held,
+    pair: (int, int),
+    choice: Choice,
+    cells: Held[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Held { name = "head", leaf = Leaf { x = seed, y = seed + 1 } },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Held { name = "c0", leaf = Leaf { x = seed + 6, y = seed + 7 } },
+            Held { name = "c1", leaf = Leaf { x = seed + 8, y = seed + 9 } },
+            Held { name = "c2", leaf = Leaf { x = seed + 10, y = seed + 11 } },
+        ],
+    };
+}
+
+fn arm_x(n: &Nested) -> int {
+    return compare n.choice {
+        Wrapped(leaf) => leaf.x;
+        _ => 0 - 1;
+    };
+}
+
+// A move INTO a callee: the argument is consumed, and the callee returns the
+// value on, so the same storage is handed along a chain rather than copied at
+// each hop.
+fn relay(n: Nested) -> Nested {
+    return n;
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. move to a new binding
+    let first = nested(1);
+    let second = own first;
+    if second.head.name != "head" || second.head.leaf.x != 1 {
+        print("moved struct member is wrong");
+        return 1;
+    }
+    if second.pair.1 != 4 {
+        print("moved tuple member is wrong");
+        return 2;
+    }
+
+    // 2. move through a call chain: three hops, one value. The fixed-array
+    //    member is read only after the last move, because a read of an indexed
+    //    place holds a shared borrow of the whole value for the rest of the
+    //    function and would refuse the move.
+    let relayed = relay(relay(relay(own second)));
+    if arm_x(&relayed) != 5 {
+        print("moved union member is wrong");
+        return 3;
+    }
+    if relayed.head.leaf.x != 1 || relayed.cells[0].name != "c0" {
+        print("relayed value is wrong");
+        return 4;
+    }
+    if relayed.cells[2].name != "c2" || relayed.cells[2].leaf.y != 12 {
+        print("moved array member is wrong");
+        return 5;
+    }
+
+    // 3. move into a fresh binding inside a loop, one live value at a time
+    let mut current = nested(50);
+    let mut round: int = 0;
+    while round < 3 {
+        let next = own current;
+        current = relay(own next);
+        round = round + 1;
+    }
+    if current.head.leaf.x != 50 || current.cells[1].leaf.y != 59 {
+        print("looped move is wrong");
+        return 6;
+    }
+
+    print("move ok");
+    return 0;
+}

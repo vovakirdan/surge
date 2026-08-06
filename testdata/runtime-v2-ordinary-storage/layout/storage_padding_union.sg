@@ -1,0 +1,155 @@
+// Padding holes and inactive union bytes: the parts of a composite's storage
+// that no member of the value currently occupies.
+//
+// Those bytes are unreadable from the language, so this file cannot assert
+// anything about their contents; that half of the claim belongs to the emitted
+// code and to a memory checker, which is where an implementation that reads an
+// uninitialized hole gets caught. What a program CAN pin is the observable
+// consequence of getting the holes wrong: a copy, a move or a re-tag that walks
+// bytes it does not own produces a value whose live members are wrong, and a
+// union that touches its inactive arm produces the wrong answer after a switch.
+//
+// The types below are shaped to have holes on purpose — narrow fields either
+// side of wide ones, and a two-arm union whose arms differ in size — so a walk
+// over "the whole thing" and a walk over "the live members" give different
+// results.
+
+@copy type Leaf = { x: int, y: int };
+
+// Alternating narrow and wide fields, so there is a padding hole before each
+// wide field and a tail hole after the last narrow one.
+@copy type Holey = {
+    lead: bool,
+    wide: int64,
+    middle: bool,
+    leaf: Leaf,
+    trail: bool,
+};
+
+// A two-arm union whose arms have different sizes: switching from the large arm
+// to the small one leaves bytes the small arm does not own.
+tag Large(Holey);
+tag Small(bool);
+type Either = Large(Holey) | Small(bool);
+
+type Carrier = {
+    first: Holey,
+    choice: Either,
+    second: Holey,
+};
+
+fn holey(base: int64, flag: bool) -> Holey {
+    return Holey {
+        lead = flag,
+        wide = base,
+        middle = !flag,
+        leaf = Leaf { x = 1, y = 2 },
+        trail = flag,
+    };
+}
+
+fn either_kind(c: &Carrier) -> int {
+    return compare c.choice {
+        Large(h) => 1;
+        Small(b) => 2;
+    };
+}
+
+fn either_wide(c: &Carrier) -> int64 {
+    return compare c.choice {
+        Large(h) => h.wide;
+        Small(b) => 0 - 1:int64;
+    };
+}
+
+fn either_flag(c: &Carrier) -> bool {
+    return compare c.choice {
+        Large(h) => false;
+        Small(b) => b;
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. a value with holes round-trips through construction and reads
+    let source = holey(1000:int64, true);
+    if source.wide != 1000:int64 || !source.lead || source.middle {
+        print("holey value construction is wrong");
+        return 1;
+    }
+    if source.leaf.x != 1 || source.leaf.y != 2 || !source.trail {
+        print("holey value members after a hole are wrong");
+        return 2;
+    }
+
+    // 2. a copy of a holey value carries every live member and nothing else
+    //    that is observable
+    let mut copied = source;
+    copied.wide = 2000:int64;
+    copied.trail = false;
+    if source.wide != 1000:int64 || !source.trail {
+        print("copy of a holey value is not independent");
+        return 3;
+    }
+    if !copied.lead || copied.middle || copied.leaf.y != 2 {
+        print("copy of a holey value lost a member across a hole");
+        return 4;
+    }
+
+    // 3. holey values as neighbours of a union inside one carrier: writing one
+    //    must not reach the other through the padding between them
+    let mut carrier = Carrier {
+        first = holey(3000:int64, true),
+        choice = Large(holey(4000:int64, false)),
+        second = holey(5000:int64, false),
+    };
+    if either_kind(&carrier) != 1 || either_wide(&carrier) != 4000:int64 {
+        print("large union arm is wrong");
+        return 5;
+    }
+    carrier.first.wide = 3100:int64;
+    if carrier.second.wide != 5000:int64 || either_wide(&carrier) != 4000:int64 {
+        print("a write reached across padding into a neighbour");
+        return 6;
+    }
+
+    // 4. switch to the smaller arm: the bytes the large arm used are no longer
+    //    part of the value, and reading the small arm must not consult them
+    carrier.choice = Small(true);
+    if either_kind(&carrier) != 2 {
+        print("union did not switch to the small arm");
+        return 7;
+    }
+    if !either_flag(&carrier) {
+        print("small union arm payload is wrong");
+        return 8;
+    }
+    if carrier.first.wide != 3100:int64 || carrier.second.wide != 5000:int64 {
+        print("the arm switch reached a neighbouring member");
+        return 9;
+    }
+
+    // 5. switch back to the larger arm: its payload is written afresh, not
+    //    recovered from whatever the small arm left behind
+    carrier.choice = Large(holey(6000:int64, true));
+    if either_kind(&carrier) != 1 || either_wide(&carrier) != 6000:int64 {
+        print("union did not switch back to the large arm");
+        return 10;
+    }
+
+    // 6. many switches in a row: an implementation that accumulates state in
+    //    the inactive bytes drifts, one that rewrites the live arm does not
+    let mut round: int = 0;
+    while round < 8 {
+        carrier.choice = Small(round == 3);
+        carrier.choice = Large(holey(7000:int64 + round:int64, true));
+        round = round + 1;
+    }
+    if either_kind(&carrier) != 1 || either_wide(&carrier) != 7007:int64 {
+        print("repeated arm switches drifted");
+        return 11;
+    }
+
+    print("padding union ok");
+    return 0;
+}

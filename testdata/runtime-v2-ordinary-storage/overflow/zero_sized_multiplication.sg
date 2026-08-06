@@ -1,0 +1,24 @@
+// Negative control in the OTHER direction: `stride * count` for a zero-sized
+// element must not overflow, and must not allocate.
+//
+// `Zst` carries a raised alignment and no fields. Its stride is zero, so an
+// array of 2^32-1 of them is itself zero-sized however the count is written.
+// The failure this row guards against is an implementation that rounds a
+// zero-sized element's stride up to its alignment: that would make the stride
+// 2^32 and the product 2^64, and the multiplication would overflow.
+//
+// So this file must COMPILE cleanly. A diagnostic here is the defect, not the
+// proof — which is why the row is a positive control that lives with the
+// negative battery rather than a compile-fail row.
+
+@align(4294967296)
+type Zst = { };
+
+type ZstRow = Zst[4294967295];
+
+type ZstGrid = ZstRow[4294967295];
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

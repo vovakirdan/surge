@@ -1,0 +1,17 @@
+// Negative control: an `@align` value that is a valid power of two in the
+// source but is not representable as a target alignment.
+//
+// The written value is 2^63. It parses, it is a power of two, and it survives
+// attribute validation; what it must not do is reach layout as a silently
+// truncated or silently dropped host-width integer. The type must be rejected
+// with a target-alignment diagnostic naming the limit.
+//
+// Must fail at compile time, before anything is laid out or allocated.
+
+@align(9223372036854775808)
+type WiderThanTarget = { value: bool };
+
+@entrypoint
+fn main() -> int {
+    return 0;
+}

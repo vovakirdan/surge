@@ -1,0 +1,139 @@
+// Early exit with live composites in scope.
+//
+// Every one of these functions leaves through a return that is not the last
+// statement, with owning values still live at the exit. Each exit has to drop
+// exactly the values that are live on THAT path — a drop list computed for the
+// fall-through path either leaks on the early path or drops something the early
+// path never initialized.
+//
+// The rows are arranged so the number of live values at the exit differs
+// between paths, because a drop list that is right by accident is usually right
+// for one count only.
+
+@copy type Leaf = { x: int, y: int };
+
+tag Wrapped(Leaf);
+tag Bare();
+type Choice = Wrapped(Leaf) | Bare;
+
+type Held = { name: string, leaf: Leaf };
+
+type Nested = {
+    head: Held,
+    pair: (int, int),
+    choice: Choice,
+    cells: Held[3],
+};
+
+fn nested(seed: int) -> Nested {
+    return Nested {
+        head = Held { name = "head", leaf = Leaf { x = seed, y = seed + 1 } },
+        pair = (seed + 2, seed + 3),
+        choice = Wrapped(Leaf { x = seed + 4, y = seed + 5 }),
+        cells = [
+            Held { name = "c0", leaf = Leaf { x = seed + 6, y = seed + 7 } },
+            Held { name = "c1", leaf = Leaf { x = seed + 8, y = seed + 9 } },
+            Held { name = "c2", leaf = Leaf { x = seed + 10, y = seed + 11 } },
+        ],
+    };
+}
+
+// One live value at the early exit, three at the fall-through exit.
+fn staged(exit_at: int) -> int {
+    let first = nested(10);
+    if exit_at == 1 {
+        return first.head.leaf.x;
+    }
+    let second = nested(20);
+    if exit_at == 2 {
+        return first.head.leaf.x + second.head.leaf.x;
+    }
+    let third = nested(30);
+    return first.head.leaf.x + second.head.leaf.x + third.head.leaf.x;
+}
+
+// An early exit out of a loop body, with a value created inside the body that
+// is live only on that iteration.
+fn from_loop(stop_at: int) -> int {
+    let outer = nested(40);
+    let mut index: int = 0;
+    while index < 8 {
+        let inner = nested(50 + index);
+        if index == stop_at {
+            return outer.head.leaf.x + inner.head.leaf.x;
+        }
+        index = index + 1;
+    }
+    return outer.head.leaf.x;
+}
+
+// An early exit after a partial move: the residual value must drop with the
+// hole open, and only on the path that made the hole.
+fn after_partial_move(take: bool) -> int {
+    let mut value = nested(60);
+    if take {
+        let lifted = own value.head;
+        return lifted.leaf.x;
+    }
+    return value.head.leaf.x + 1;
+}
+
+// An early exit while a borrow is live.
+fn while_borrowed(early: bool) -> int {
+    let value = nested(70);
+    let view = &value;
+    if early {
+        return view.head.leaf.x;
+    }
+    return view.head.leaf.y;
+}
+
+@entrypoint
+fn main() -> int {
+    if staged(1) != 10 {
+        print("first early exit is wrong");
+        return 1;
+    }
+    if staged(2) != 30 {
+        print("second early exit is wrong");
+        return 2;
+    }
+    if staged(3) != 60 {
+        print("fall-through exit is wrong");
+        return 3;
+    }
+
+    if from_loop(0) != 90 {
+        print("first-iteration loop exit is wrong");
+        return 4;
+    }
+    if from_loop(5) != 95 {
+        print("later-iteration loop exit is wrong");
+        return 5;
+    }
+    if from_loop(99) != 40 {
+        print("loop fall-through exit is wrong");
+        return 6;
+    }
+
+    if after_partial_move(true) != 60 {
+        print("early exit after a partial move is wrong");
+        return 7;
+    }
+    if after_partial_move(false) != 61 {
+        print("exit without a partial move is wrong");
+        return 8;
+    }
+
+    if while_borrowed(true) != 70 {
+        print("early exit under a live borrow is wrong");
+        return 9;
+    }
+    if while_borrowed(false) != 71 {
+        print("late exit under a live borrow is wrong");
+        return 10;
+    }
+
+    print("early exit ok");
+    return 0;
+}
