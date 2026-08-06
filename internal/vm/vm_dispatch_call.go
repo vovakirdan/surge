@@ -3,8 +3,6 @@ package vm
 import (
 	"fmt"
 
-	"fortio.org/safecast"
-
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -54,22 +52,30 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 		args[i] = val
 	}
 
+	// How the arguments and the result travel is the callee's contract, not
+	// this call site's choice, so it is asked for before either is moved.
+	contract, vmErr := vm.contractOf(targetFn)
+	if vmErr != nil {
+		return nil, vmErr
+	}
+
 	// Push new frame
 	newFrame := NewFrame(targetFn)
+	newFrame.Result = contract.resultProtocolFor(callResultDest(frame, call))
 
-	// Pass arguments as first locals (params)
-	if len(args) > len(newFrame.Locals) {
-		return nil, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("too many arguments: got %d, expected at most %d", len(args), len(newFrame.Locals)))
-	}
-	for i, arg := range args {
-		localID, err := safecast.Conv[mir.LocalID](i)
-		if err != nil {
-			return nil, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid argument index %d", i))
-		}
-		if vmErr := vm.writeLocal(newFrame, localID, arg); vmErr != nil {
-			return nil, vmErr
-		}
+	if vmErr := vm.passArguments(newFrame, contract, args); vmErr != nil {
+		return nil, vmErr
 	}
 
 	return newFrame, nil
+}
+
+// callResultDest names the caller's slot for the result of one call. A call
+// that discards its result provides no destination, which is a different fact
+// from providing one that is never written.
+func callResultDest(caller *Frame, call *mir.CallInstr) resultDest {
+	if caller == nil || call == nil || !call.HasDst {
+		return resultDest{}
+	}
+	return resultDest{Frame: caller, Local: call.Dst.Local, Has: true}
 }

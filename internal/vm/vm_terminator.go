@@ -49,6 +49,14 @@ func (vm *VM) execTermReturn(frame *Frame, term *mir.Terminator) *VMError {
 		retVal = val
 	}
 
+	// A hidden-destination result is initialized in the caller's storage while
+	// this activation is still standing. Recovering it afterwards would mean
+	// recovering it from storage that has already been torn down.
+	delivered, vmErr := vm.deliverResult(frame.Result, retVal)
+	if vmErr != nil {
+		return vmErr
+	}
+
 	// Implicit drops before returning.
 	vm.dropFrameLocals(frame)
 
@@ -58,16 +66,18 @@ func (vm *VM) execTermReturn(frame *Frame, term *mir.Terminator) *VMError {
 	// If stack not empty, store return value in caller's destination
 	if len(vm.Stack) > 0 {
 		callerFrame := vm.Stack[len(vm.Stack)-1]
-		// The caller's IP points to the call instruction that was just executed
-		// Find the call instruction and its destination
-		block := callerFrame.CurrentBlock()
-		if block != nil && callerFrame.IP < len(block.Instrs) {
-			instr := &block.Instrs[callerFrame.IP]
-			if instr.Kind == mir.InstrCall && instr.Call.HasDst {
-				localID := instr.Call.Dst.Local
-				vmErr := vm.writeLocal(callerFrame, localID, retVal)
-				if vmErr != nil {
-					return vmErr
+		if !delivered {
+			// The caller's IP points to the call instruction that was just executed
+			// Find the call instruction and its destination
+			block := callerFrame.CurrentBlock()
+			if block != nil && callerFrame.IP < len(block.Instrs) {
+				instr := &block.Instrs[callerFrame.IP]
+				if instr.Kind == mir.InstrCall && instr.Call.HasDst {
+					localID := instr.Call.Dst.Local
+					vmErr := vm.writeLocal(callerFrame, localID, retVal)
+					if vmErr != nil {
+						return vmErr
+					}
 				}
 			}
 		}

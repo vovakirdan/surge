@@ -24,6 +24,12 @@ type Frame struct {
 	IP     int         // Instruction pointer within BB.Instrs
 	Locals []LocalSlot // Local variable slots
 	Span   source.Span // Current instruction span for error reporting
+
+	// Result is how this activation's result reaches its caller, decided by
+	// the caller at the call boundary. An activation entered other than by a
+	// call — the program entry, or an async poll — leaves it unset, and its
+	// result travels back the way it always did.
+	Result resultProtocol
 }
 
 // NewFrame creates a new frame for executing the given function.

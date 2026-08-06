@@ -44,6 +44,7 @@ type VM struct {
 	netNextListen uint64
 	netNextConn   uint64
 
+	contracts           map[*mir.Func]callContract
 	eb                  *errorBuilder // for creating errors with backtrace
 	captureReturn       *Value
 	asyncCapture        *asyncExit
