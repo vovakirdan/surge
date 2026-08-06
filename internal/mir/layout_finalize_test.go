@@ -31,7 +31,7 @@ func TestFinalizeModuleMetaPreservesExactChildAliasLookup(t *testing.T) {
 	typesIn.SetStructFields(holder, []types.StructField{{Type: alias}})
 	mod := moduleWithLayoutGlobal(holder)
 
-	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU()); err != nil {
+	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU(), nil); err != nil {
 		t.Fatalf("FinalizeModuleMeta: %v", err)
 	}
 	facts, err := mod.Meta.Layouts.Require(alias)
@@ -60,7 +60,7 @@ func TestFinalizeModuleMetaStopsAtOpaqueGenericBoundaries(t *testing.T) {
 		Meta: &ModuleMeta{},
 	}
 
-	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU()); err != nil {
+	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU(), nil); err != nil {
 		t.Fatalf("FinalizeModuleMeta: %v", err)
 	}
 	for _, id := range []types.TypeID{ref, fn, phantom} {
@@ -120,7 +120,7 @@ func TestFinalizeModuleMetaKeepsRuntimeHandlePayloadRoots(t *testing.T) {
 	for _, id := range []types.TypeID{task, channel, rangeHandle, array, mapHandle, placement, ref, ptr, far, fn} {
 		mod.Globals = append(mod.Globals, Global{Type: id})
 	}
-	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU()); err != nil {
+	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU(), nil); err != nil {
 		t.Fatalf("FinalizeModuleMeta: %v", err)
 	}
 	for _, id := range []types.TypeID{task, channel, rangeHandle, array, mapHandle, placement} {
@@ -156,7 +156,7 @@ func TestFinalizeModuleMetaFixedArrayConstIsIdentityNotPhysicalRoot(t *testing.T
 	fixed := typesIn.RegisterStructInstance(name, source.Span{}, []types.TypeID{typesIn.Builtins().Int32, length})
 	mod := moduleWithLayoutGlobal(fixed)
 
-	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU()); err != nil {
+	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU(), nil); err != nil {
 		t.Fatalf("FinalizeModuleMeta: %v", err)
 	}
 	facts, err := mod.Meta.Layouts.Require(fixed)
@@ -181,7 +181,7 @@ func TestValidateStructureIsExplicitWhileValidateRequiresFinalLayouts(t *testing
 	if err := Validate(mod, typesIn); err == nil {
 		t.Fatal("Validate accepted production MIR without finalized layouts")
 	}
-	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU()); err != nil {
+	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU(), nil); err != nil {
 		t.Fatalf("FinalizeModuleMeta: %v", err)
 	}
 	if err := Validate(mod, typesIn); err != nil {
@@ -197,7 +197,7 @@ func TestFinalizeModuleMetaSkipsConstFunctionTypeArgument(t *testing.T) {
 		symbols.SymbolID(1): {constant},
 	}
 
-	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU()); err != nil {
+	if err := FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU(), nil); err != nil {
 		t.Fatalf("FinalizeModuleMeta: %v", err)
 	}
 	if _, ok := mod.Meta.Layouts.Lookup(constant); ok {

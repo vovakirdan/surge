@@ -7,6 +7,7 @@ import (
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
+	"surge/internal/valueops"
 )
 
 // ModuleMeta holds metadata for a MIR module.
@@ -18,6 +19,15 @@ type ModuleMeta struct {
 	// Layouts is the immutable, finalized source of truth for ABI layout
 	// queries. It is populated only after async lowering and final CFG cleanup.
 	Layouts *layout.Registry
+
+	// Operations is the immutable, finalized source of truth for what may be
+	// DONE with a value of a type: the frozen layout facts above paired with the
+	// program's capability verdicts and the symbols that implement them.
+	//
+	// It is nil wherever no whole-program capability authority was reached, and
+	// the registry's own accessors fail closed on a nil receiver, so a consumer
+	// never has to tell "no plan" apart from "an empty plan".
+	Operations *valueops.Registry
 
 	// FuncTypeArgs maps instantiated symbols to their concrete type arguments.
 	// This is used by intrinsic implementations like size_of/align_of.

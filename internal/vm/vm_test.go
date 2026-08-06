@@ -82,7 +82,7 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 	for _, f := range mirMod.Funcs {
 		mir.SimplifyCFG(f)
 	}
-	if err := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU()); err != nil {
+	if err := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU(), mir.NewOperationPlanInput(result.Sema, mm)); err != nil {
 		t.Fatalf("layout finalization failed: %v", err)
 	}
 

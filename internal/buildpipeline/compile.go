@@ -234,7 +234,8 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	for _, f := range mirMod.Funcs {
 		mir.SimplifyCFG(f)
 	}
-	if err := mir.FinalizeModuleMeta(mirMod, diagRes.Sema.TypeInterner, layout.X86_64LinuxGNU()); err != nil {
+	if err := mir.FinalizeModuleMeta(mirMod, diagRes.Sema.TypeInterner, layout.X86_64LinuxGNU(),
+		mir.NewOperationPlanInput(diagRes.Sema, mm)); err != nil {
 		err = fmt.Errorf("MIR layout finalization failed: %w", err)
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
 		return result, err

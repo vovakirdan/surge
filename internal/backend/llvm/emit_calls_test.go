@@ -276,7 +276,7 @@ func lowerMIRFromSource(t *testing.T, sourceCode string) (*mir.Module, *driver.D
 	for _, f := range mirMod.Funcs {
 		mir.SimplifyCFG(f)
 	}
-	if finalizeErr := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU()); finalizeErr != nil {
+	if finalizeErr := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU(), mir.NewOperationPlanInput(result.Sema, mm)); finalizeErr != nil {
 		t.Fatalf("finalize MIR layout metadata: %v", finalizeErr)
 	}
 	err = mir.Validate(mirMod, result.Sema.TypeInterner)

@@ -79,8 +79,16 @@ type layoutRootCollector struct {
 }
 
 // FinalizeModuleMeta collects every final-MIR type root in deterministic order,
-// computes checked physical layouts, and publishes one frozen registry.
-func FinalizeModuleMeta(m *Module, typesIn *types.Interner, target layout.Target) error {
+// computes checked physical layouts, and publishes the frozen registries derived
+// from them.
+//
+// Layouts are always published. Operation plans are published only when plan is
+// non-nil, because they need a whole-program capability authority that only the
+// production pipelines hold; see OperationPlanInput for what absence means.
+// Publication order is not incidental: an operation plan pairs semantic verdicts
+// with FROZEN physical facts, so the layout registry exists before any plan
+// reads from it.
+func FinalizeModuleMeta(m *Module, typesIn *types.Interner, target layout.Target, plan *OperationPlanInput) error {
 	if m == nil {
 		return fmt.Errorf("mir: cannot finalize layout metadata for a nil module")
 	}
@@ -100,6 +108,14 @@ func FinalizeModuleMeta(m *Module, typesIn *types.Interner, target layout.Target
 		return fmt.Errorf("mir: finalize physical layouts: %w", err)
 	}
 	m.Meta.Layouts = registry
+	if plan == nil {
+		return nil
+	}
+	operations, err := finalizeOperationPlans(census, registry, plan, typesIn)
+	if err != nil {
+		return err
+	}
+	m.Meta.Operations = operations
 	return nil
 }
 

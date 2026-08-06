@@ -187,7 +187,7 @@ func TestOperationRootCensusValuesMatchThePreRoleWalk(t *testing.T) {
 	mutated[0] = types.NoTypeID
 	assertSameRoots(t, f.types, "census.Values() after caller mutation", census.Values(), f.baselineOrder())
 
-	if err := FinalizeModuleMeta(f.mod, f.types, layout.X86_64LinuxGNU()); err != nil {
+	if err := FinalizeModuleMeta(f.mod, f.types, layout.X86_64LinuxGNU(), nil); err != nil {
 		t.Fatalf("FinalizeModuleMeta: %v", err)
 	}
 	hash, err := f.mod.Meta.Layouts.Hash()

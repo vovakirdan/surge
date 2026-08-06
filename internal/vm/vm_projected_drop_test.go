@@ -52,7 +52,7 @@ func TestVMDropOfProjectedPlaceReleasesOnlyThatField(t *testing.T) {
 	}
 
 	mod := &mir.Module{Funcs: map[mir.FuncID]*mir.Func{fn.ID: fn}, Meta: &mir.ModuleMeta{}}
-	if err := mir.FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU()); err != nil {
+	if err := mir.FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU(), nil); err != nil {
 		t.Fatalf("finalize layouts: %v", err)
 	}
 	vmInstance := New(mod, NewTestRuntime(nil, ""), nil, typesIn, nil)

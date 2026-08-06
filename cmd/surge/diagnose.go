@@ -438,7 +438,14 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			for _, f := range mirMod.Funcs {
 				mir.SimplifyCFG(f)
 			}
-			if err := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU()); err != nil {
+			// The plan input is assembled by the same constructor the build
+			// pipeline uses, so neither site can grow its own idea of what an
+			// operation plan is built from. It answers nil here: this dump
+			// monomorphizes one file's own HIR without the whole-program merge
+			// that classifies capabilities, so there is no authority to publish
+			// plans from and MIR carries layouts alone.
+			if err := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU(),
+				mir.NewOperationPlanInput(result.Sema, mm)); err != nil {
 				return 0, fmt.Errorf("failed to finalize MIR layouts: %w", err)
 			}
 

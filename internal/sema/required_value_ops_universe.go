@@ -19,6 +19,14 @@ import (
 // and the concrete arguments the closure settled for them, plus the types the
 // driver contributed from reachable bodies, all expanded through the structure
 // of each type.
+//
+// The entrypoint's resolved bindings are seeds for the same reason
+// RequiredValueOpRoots is a root input of its own: startup calls a program's
+// `from_str` conversions, and no expression in the source names those calls or
+// the `Erring<T, Error>` they hand back. Reading the closure alone therefore
+// missed types that reach final MIR — an argv entrypoint's `Error` among them —
+// and the operation registry then found a clonable type whose implementation
+// nothing had made reachable.
 func (r *Result) reachableValueTypes(c *CapabilityClassifier) []types.TypeID {
 	walk := &valueTypeWalk{classifier: c, seen: make(map[types.TypeID]struct{}, 64)}
 	closure := r.InstantiationClosure
@@ -50,6 +58,13 @@ func (r *Result) reachableValueTypes(c *CapabilityClassifier) []types.TypeID {
 	}
 	for id := range r.ReachableBodyTypes {
 		walk.push(id)
+	}
+	for i := range r.EntrypointCallableBindings {
+		binding := &r.EntrypointCallableBindings[i]
+		walk.pushAll(binding.TemplateArgs)
+		walk.pushAll(binding.ParamTypes)
+		walk.push(binding.Receiver)
+		walk.push(binding.ExpectedResult)
 	}
 	walk.drain()
 	return walk.sorted()

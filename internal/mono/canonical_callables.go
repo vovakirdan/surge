@@ -34,6 +34,19 @@ func newCallableMap(identity *sema.InstantiationIdentity) CallableMap {
 	}
 }
 
+// HasCanonicalIdentity reports whether this map resolves callables through the
+// program's canonical instantiation identity.
+//
+// A map built without one still answers, under the raw-symbol compatibility
+// spelling in canonicalCallableKey. That spelling is for isolated low-level
+// callers holding no finalized sema result; it keys on whichever symbol alias
+// the caller happened to have, so it cannot answer a whole-program question.
+// Anything asking one should refuse such a map by name rather than receive
+// confident answers from it.
+func (m CallableMap) HasCanonicalIdentity() bool {
+	return m.identity != nil
+}
+
 // Lookup returns the emitted instance symbol for one semantic callable
 // identity. Invalid or unresolvable aliases fail closed.
 func (m CallableMap) Lookup(template symbols.SymbolID, args []types.TypeID) (symbols.SymbolID, bool) {

@@ -54,40 +54,21 @@ func (r *Result) DeriveRequiredValueOps(c *CapabilityClassifier) ([]RequiredValu
 		return nil, fmt.Errorf("required value operations need the program's capability classifier")
 	}
 	universe := r.reachableValueTypes(c)
-	emitters := r.cloneEmitterIndex()
+	emitters := r.NewCloneEmissionIndex()
 	ops := make([]RequiredValueOp, 0, 4)
 	for _, id := range universe {
 		capability, err := c.Classify(id)
 		if err != nil {
 			return nil, err
 		}
-		if capability.Clone.State != CloneValidMethod {
+		op, required, err := emitters.RequiredValueOpFor(&capability)
+		if err != nil {
+			return nil, err
+		}
+		if !required {
 			continue
 		}
-		emitter, known := emitters[capability.Clone.MethodKey]
-		if !known {
-			return nil, fmt.Errorf(
-				"clone implementation %q was selected for type %d but names no callable in this program's merged catalog",
-				capability.Clone.MethodKey, uint32(id),
-			)
-		}
-		if !emitter.emits {
-			// An intrinsic or builtin clone is already whatever the runtime does
-			// with that type. There is no body to reach, so requiring one would
-			// name a root that can never be satisfied.
-			continue
-		}
-		ops = append(ops, RequiredValueOp{
-			Receiver:     id,
-			Template:     emitter.symbol,
-			TemplateArgs: slices.Clone(capability.Clone.TemplateArgs),
-			Reason:       requiredCloneOpReason,
-			Witness: InstantiationWitness{
-				Site:      emitter.site,
-				SourceKey: emitter.sourceKey,
-				Reason:    requiredValueOpWitnessReason,
-			},
-		})
+		ops = append(ops, op)
 	}
 	sort.SliceStable(ops, func(i, j int) bool { return compareRequiredValueOp(&ops[i], &ops[j]) < 0 })
 	return slices.CompactFunc(ops, func(left, right RequiredValueOp) bool {
@@ -167,6 +148,83 @@ type cloneEmitter struct {
 	site      source.Span
 	sourceKey string
 	emits     bool
+}
+
+// CloneEmissionIndex answers, for one type the classifier has already decided
+// about, whether that type's canonical clone is a body the compiler emits, and
+// which callable carries it.
+//
+// It exists so that the derivation above and the operation registry that later
+// demands a resolvable clone_init ask ONE authority the same question. The
+// registry's roots are MIR's, which is not the reachable universe walked here,
+// so a registry that inferred "no derived operation, therefore nothing to emit"
+// would read a type the derivation never reached as one that needs nothing —
+// silence and absence spelled the same way. Consulting the index directly keeps
+// the two answers the same answer.
+type CloneEmissionIndex struct {
+	byBodyKey map[string]cloneEmitter
+}
+
+// NewCloneEmissionIndex builds the index from this result's merged catalog.
+func (r *Result) NewCloneEmissionIndex() CloneEmissionIndex {
+	if r == nil {
+		return CloneEmissionIndex{}
+	}
+	return CloneEmissionIndex{byBodyKey: r.cloneEmitterIndex()}
+}
+
+// Built reports whether this index came from a result. The zero value is not an
+// empty program's index; it is no index at all, and consulting it would call
+// every clonable type unaccountable.
+func (x CloneEmissionIndex) Built() bool {
+	return x.byBodyKey != nil
+}
+
+// RequiredValueOpFor answers which value operation one classified type requires.
+//
+// The second result is false, with no error, when the type requires nothing
+// emitted, for either of two reasons. The type may not be clonable through a
+// `__clone` at all. Or its canonical clone may be an intrinsic or a builtin,
+// which IS already whatever the runtime does with that type: there is no body to
+// reach, so requiring one would name a root that can never be satisfied.
+//
+// A selected body naming no callable in the merged catalog is an error. The
+// classifier chose an implementation this result cannot account for, and a
+// missing operation is not something to infer a benign meaning for.
+func (x CloneEmissionIndex) RequiredValueOpFor(capability *Capability) (RequiredValueOp, bool, error) {
+	if capability == nil {
+		return RequiredValueOp{}, false, fmt.Errorf("a required value operation needs a classified capability")
+	}
+	if !x.Built() {
+		return RequiredValueOp{}, false, fmt.Errorf(
+			"required value operations for type %d need the program's clone emission index",
+			uint32(capability.Type),
+		)
+	}
+	if capability.Clone.State != CloneValidMethod {
+		return RequiredValueOp{}, false, nil
+	}
+	emitter, known := x.byBodyKey[capability.Clone.MethodKey]
+	if !known {
+		return RequiredValueOp{}, false, fmt.Errorf(
+			"clone implementation %q was selected for type %d but names no callable in this program's merged catalog",
+			capability.Clone.MethodKey, uint32(capability.Type),
+		)
+	}
+	if !emitter.emits {
+		return RequiredValueOp{}, false, nil
+	}
+	return RequiredValueOp{
+		Receiver:     capability.Type,
+		Template:     emitter.symbol,
+		TemplateArgs: slices.Clone(capability.Clone.TemplateArgs),
+		Reason:       requiredCloneOpReason,
+		Witness: InstantiationWitness{
+			Site:      emitter.site,
+			SourceKey: emitter.sourceKey,
+			Reason:    requiredValueOpWitnessReason,
+		},
+	}, true, nil
 }
 
 // cloneEmitterIndex maps a canonical body key to the callable that carries it.
