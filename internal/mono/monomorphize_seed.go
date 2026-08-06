@@ -49,7 +49,7 @@ func (b *monoBuilder) seed() error {
 		}
 		for _, key := range b.sortedRetainedCallableKeys() {
 			retained := b.retainedCallables[key]
-			if _, err := b.ensureFunc(retained.Template, retained.TemplateArgs, nil); err != nil {
+			if err := b.ensureFunc(retained.Template, retained.TemplateArgs, nil); err != nil {
 				return err
 			}
 		}
@@ -63,7 +63,7 @@ func (b *monoBuilder) seed() error {
 			if fn.IsGeneric() || b.symbolTypeParamCount(fn.SymbolID) > 0 || b.funcHasGenericTypes(fn) {
 				continue
 			}
-			if _, err := b.ensureFunc(fn.SymbolID, nil, nil); err != nil {
+			if err := b.ensureFunc(fn.SymbolID, nil, nil); err != nil {
 				return err
 			}
 		}
@@ -97,7 +97,7 @@ func (b *monoBuilder) seed() error {
 			if !typeArgsAreConcrete(b.types, e.TypeArgs) {
 				continue
 			}
-			if _, err := b.ensureFunc(e.Key.Sym, e.TypeArgs, nil); err != nil {
+			if err := b.ensureFunc(e.Key.Sym, e.TypeArgs, nil); err != nil {
 				return err
 			}
 		}

@@ -150,7 +150,7 @@ func TestMonoCannotMaterializeCallableMissingFromAuthoritativeClosure(t *testing
 	if err != nil {
 		t.Fatalf("create mono builder: %v", err)
 	}
-	if _, err := b.ensureFunc(7, nil, nil); err == nil || !strings.Contains(err.Error(), "not retained by the authoritative instantiation closure") {
+	if err := b.ensureFunc(7, nil, nil); err == nil || !strings.Contains(err.Error(), "not retained by the authoritative instantiation closure") {
 		t.Fatalf("unauthorized callable materialization error = %v", err)
 	}
 }
@@ -196,7 +196,7 @@ func TestCloneRewriteRefusesToRediscoverAnImplementation(t *testing.T) {
 	call := &hir.Expr{Kind: hir.ExprCall, Type: holder, Span: source.Span{File: 1, Start: 10, End: 20}}
 	data := &hir.CallData{Args: []*hir.Expr{{Kind: hir.ExprVarRef, Type: holder}}}
 
-	handled, err := b.rewriteCloneCall(call, data, nil)
+	handled, err := b.rewriteCloneCall(call, data)
 	if !handled {
 		t.Fatal("a clone of a non-Copy type was passed through untouched")
 	}
@@ -205,6 +205,25 @@ func TestCloneRewriteRefusesToRediscoverAnImplementation(t *testing.T) {
 	}
 	if data.Callee != nil || data.SymbolID.IsValid() {
 		t.Fatalf("the refused clone was rewritten anyway: %+v", data)
+	}
+
+	// The refusal does not depend on a closure being present: a builder with no
+	// closure at all — the isolated low-level construction some unit fixtures
+	// use — gets the same answer instead of the deleted symbol-table scan.
+	closureFree := &monoBuilder{
+		mod:   &hir.Module{},
+		types: in,
+	}
+	freeData := &hir.CallData{Args: []*hir.Expr{{Kind: hir.ExprVarRef, Type: holder}}}
+	handled, err = closureFree.rewriteCloneCall(call, freeData)
+	if !handled {
+		t.Fatal("a closure-free clone of a non-Copy type was passed through untouched")
+	}
+	if err == nil || !strings.Contains(err.Error(), "no authoritative implementation") {
+		t.Fatalf("closure-free clone rewrite error = %v", err)
+	}
+	if freeData.Callee != nil || freeData.SymbolID.IsValid() {
+		t.Fatalf("the refused closure-free clone was rewritten anyway: %+v", freeData)
 	}
 }
 

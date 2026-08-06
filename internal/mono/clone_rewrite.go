@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"fortio.org/safecast"
-
 	"surge/internal/hir"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -29,7 +27,7 @@ func (b *monoBuilder) isIntrinsicCloneSymbol(sym symbols.SymbolID) bool {
 	return ok && name == "clone"
 }
 
-func (b *monoBuilder) rewriteCloneCall(call *hir.Expr, data *hir.CallData, stack []MonoKey) (bool, error) {
+func (b *monoBuilder) rewriteCloneCall(call *hir.Expr, data *hir.CallData) (bool, error) {
 	if call == nil || data == nil || b == nil || b.types == nil {
 		return false, nil
 	}
@@ -46,103 +44,17 @@ func (b *monoBuilder) rewriteCloneCall(call *hir.Expr, data *hir.CallData, stack
 	if b.types.IsCopy(resolveAlias(b.types, recvType)) || b.isTaskType(recvType) {
 		return false, nil
 	}
-	if b.closure != nil {
-		// Under the whole-program authority every clone has an already-published
-		// implementation, so reaching here means the decision never arrived.
-		// Rediscovering one by scanning the symbol table could pick a different
-		// body than the rest of the program uses.
-		typeLabel := b.typeKeyForType(recvType)
-		if typeLabel == "" {
-			typeLabel = fmt.Sprintf("type#%d", recvType)
-		}
-		return true, fmt.Errorf("mono: clone of %s at %s has no authoritative implementation", typeLabel, call.Span)
+	// Which body clones a type is decided once, program-wide, before mono runs:
+	// sema publishes the decision into CloneSymbols and the closure carries the
+	// chosen callable. Reaching this rewrite means that decision never arrived,
+	// and rediscovering a body by scanning the symbol table could pick a
+	// different one than the rest of the program uses — so this refuses on
+	// every builder, closure-backed or not.
+	typeLabel := b.typeKeyForType(recvType)
+	if typeLabel == "" {
+		typeLabel = fmt.Sprintf("type#%d", recvType)
 	}
-	cloneSym, matchType := b.cloneSymbolForType(recvType)
-	if !cloneSym.IsValid() {
-		typeLabel := b.typeKeyForType(recvType)
-		if typeLabel == "" {
-			typeLabel = fmt.Sprintf("type#%d", recvType)
-		}
-		return true, fmt.Errorf("mono: clone for %s requires __clone method", typeLabel)
-	}
-	typeArgs := b.typeArgsForType(matchType)
-	target, err := b.ensureFunc(cloneSym, typeArgs, stack)
-	if err != nil {
-		return true, err
-	}
-	if target != nil && target.InstanceSym.IsValid() {
-		data.SymbolID = target.InstanceSym
-	} else {
-		data.SymbolID = cloneSym
-	}
-	name := b.monoName(cloneSym, typeArgs)
-	data.Callee = &hir.Expr{
-		Kind: hir.ExprVarRef,
-		Type: types.NoTypeID,
-		Span: call.Span,
-		Data: hir.VarRefData{
-			Name:     name,
-			SymbolID: data.SymbolID,
-		},
-	}
-	return true, nil
-}
-
-func (b *monoBuilder) cloneSymbolForType(recv types.TypeID) (symbols.SymbolID, types.TypeID) {
-	if recv == types.NoTypeID {
-		return symbols.NoSymbolID, types.NoTypeID
-	}
-	if sym := b.findCloneSymbol(recv); sym.IsValid() {
-		return sym, recv
-	}
-	if b.types != nil {
-		resolved := resolveAlias(b.types, recv)
-		if resolved != recv {
-			if sym := b.findCloneSymbol(resolved); sym.IsValid() {
-				return sym, resolved
-			}
-		}
-	}
-	return symbols.NoSymbolID, types.NoTypeID
-}
-
-func (b *monoBuilder) findCloneSymbol(recv types.TypeID) symbols.SymbolID {
-	typeKey := normalizeTypeKey(b.typeKeyForType(recv))
-	if typeKey == "" || b == nil || b.mod == nil || b.mod.Symbols == nil || b.mod.Symbols.Table == nil || b.mod.Symbols.Table.Symbols == nil || b.mod.Symbols.Table.Strings == nil {
-		return symbols.NoSymbolID
-	}
-	typeBase, typeArgs := parseTypeKeyShape(typeKey)
-	var fallback symbols.SymbolID
-	syms := b.mod.Symbols.Table.Symbols
-	limit := syms.Len()
-	for i := 1; i <= limit; i++ {
-		rawID, err := safecast.Conv[uint32](i)
-		if err != nil {
-			break
-		}
-		symID := symbols.SymbolID(rawID)
-		entry := syms.Get(symID)
-		if entry == nil || entry.Kind != symbols.SymbolFunction || entry.ReceiverKey == "" {
-			continue
-		}
-		name, ok := b.mod.Symbols.Table.Strings.Lookup(entry.Name)
-		if !ok || name != "__clone" {
-			continue
-		}
-		recvKey := normalizeTypeKey(string(entry.ReceiverKey))
-		if recvKey == typeKey {
-			return symID
-		}
-		if typeBase != "" {
-			base, args := parseTypeKeyShape(recvKey)
-			if base == typeBase && args == typeArgs {
-				if !fallback.IsValid() {
-					fallback = symID
-				}
-			}
-		}
-	}
-	return fallback
+	return true, fmt.Errorf("mono: clone of %s at %s has no authoritative implementation", typeLabel, call.Span)
 }
 
 func (b *monoBuilder) isTaskType(recv types.TypeID) bool {
@@ -171,32 +83,6 @@ func (b *monoBuilder) typeKeyForType(id types.TypeID) string {
 		return ""
 	}
 	return formatType(b.types, b.mod.Symbols.Table.Strings, id, 0)
-}
-
-func (b *monoBuilder) typeArgsForType(id types.TypeID) []types.TypeID {
-	if b == nil || b.types == nil || id == types.NoTypeID {
-		return nil
-	}
-	resolved := resolveAlias(b.types, id)
-	if info, ok := b.types.StructInfo(resolved); ok && info != nil {
-		return cloneTypeArgs(info.TypeArgs)
-	}
-	if info, ok := b.types.AliasInfo(resolved); ok && info != nil {
-		return cloneTypeArgs(info.TypeArgs)
-	}
-	if info, ok := b.types.UnionInfo(resolved); ok && info != nil {
-		return cloneTypeArgs(info.TypeArgs)
-	}
-	return nil
-}
-
-func cloneTypeArgs(args []types.TypeID) []types.TypeID {
-	if len(args) == 0 {
-		return nil
-	}
-	out := make([]types.TypeID, len(args))
-	copy(out, args)
-	return out
 }
 
 func valueType(typesIn *types.Interner, id types.TypeID) types.TypeID {

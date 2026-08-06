@@ -216,12 +216,12 @@ func (b *monoBuilder) monoName(sym symbols.SymbolID, args []types.TypeID) string
 	return base + formatTypeArgs(b.types, strs, args)
 }
 
-func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.TypeID, stack []MonoKey) (*MonoFunc, error) {
+func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.TypeID, stack []MonoKey) error {
 	if b == nil || !origSym.IsValid() {
-		return nil, nil
+		return nil
 	}
 	if b.types == nil {
-		return nil, fmt.Errorf("mono: missing types interner")
+		return fmt.Errorf("mono: missing types interner")
 	}
 
 	normalized := NormalizeTypeArgs(b.types, typeArgs)
@@ -230,10 +230,10 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	if b.closure != nil {
 		retained, found, err := b.retainedCallableFor(origSym, normalized)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if !found {
-			return nil, fmt.Errorf("mono: callable %s is not retained by the authoritative instantiation closure", b.monoName(requestedSym, requestedArgs))
+			return fmt.Errorf("mono: callable %s is not retained by the authoritative instantiation closure", b.monoName(requestedSym, requestedArgs))
 		}
 		origSym = retained.Template
 		normalized = slices.Clone(retained.TemplateArgs)
@@ -241,9 +241,9 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	expectedTypeArgs := b.symbolTypeParamCount(origSym)
 	switch {
 	case expectedTypeArgs == 0 && len(normalized) > 0:
-		return nil, fmt.Errorf("mono: non-generic symbol %d cannot be instantiated with type args", origSym)
+		return fmt.Errorf("mono: non-generic symbol %d cannot be instantiated with type args", origSym)
 	case expectedTypeArgs > 0 && len(normalized) != expectedTypeArgs:
-		return nil, fmt.Errorf("mono: symbol %d expects %d type args, got %d", origSym, expectedTypeArgs, len(normalized))
+		return fmt.Errorf("mono: symbol %d expects %d type args, got %d", origSym, expectedTypeArgs, len(normalized))
 	}
 	if len(normalized) > 0 && !typeArgsAreConcrete(b.types, normalized) {
 		name := b.monoName(origSym, nil)
@@ -259,19 +259,19 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 			}
 			stackMsg = " stack=" + strings.Join(parts, " -> ")
 		}
-		return nil, fmt.Errorf("mono: non-concrete type args for %s (sym=%d args=%s)%s", name, origSym, args, stackMsg)
+		return fmt.Errorf("mono: non-concrete type args for %s (sym=%d args=%s)%s", name, origSym, args, stackMsg)
 	}
 	key := MonoKey{Sym: origSym, ArgsKey: argsKeyFromTypes(normalized)}
 	if existing := b.mm.Funcs[key]; existing != nil {
-		return existing, nil
+		return nil
 	}
 
 	if len(stack) >= b.opt.MaxDepth {
-		return nil, fmt.Errorf("mono: instantiation depth exceeded (%d)", b.opt.MaxDepth)
+		return fmt.Errorf("mono: instantiation depth exceeded (%d)", b.opt.MaxDepth)
 	}
 	for _, k := range stack {
 		if k == key {
-			return nil, fmt.Errorf("mono: instantiation cycle detected at sym=%d args=%s", key.Sym, key.ArgsKey)
+			return fmt.Errorf("mono: instantiation cycle detected at sym=%d args=%s", key.Sym, key.ArgsKey)
 		}
 	}
 
@@ -285,21 +285,21 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	b.mm.Funcs[key] = out
 	b.mm.FuncBySym[instanceSym] = out
 	if err := b.mm.Callables.bind(origSym, normalized, instanceSym); err != nil {
-		return nil, err
+		return err
 	}
 
 	origFn := b.origFuncBySym[origSym]
 	if origFn == nil {
 		// Imported/intrinsic function without HIR body.
-		return out, nil
+		return nil
 	}
 
 	if origFn.IsGeneric() {
 		if len(normalized) == 0 {
-			return nil, fmt.Errorf("mono: missing type args for generic function %s", origFn.Name)
+			return fmt.Errorf("mono: missing type args for generic function %s", origFn.Name)
 		}
 		if len(normalized) != len(origFn.GenericParams) {
-			return nil, fmt.Errorf("mono: generic function %s expects %d type args, got %d", origFn.Name, len(origFn.GenericParams), len(normalized))
+			return fmt.Errorf("mono: generic function %s expects %d type args, got %d", origFn.Name, len(origFn.GenericParams), len(normalized))
 		}
 	}
 
@@ -320,17 +320,17 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 		}
 		if params := b.templateParams[origSym]; len(params) > 0 {
 			if len(params) != len(normalized) {
-				return nil, fmt.Errorf("mono: generic function %s exact parameter ABI expects %d type args, got %d", origFn.Name, len(params), len(normalized))
+				return fmt.Errorf("mono: generic function %s exact parameter ABI expects %d type args, got %d", origFn.Name, len(params), len(normalized))
 			}
 			subst.ExactArgs = make(map[types.TypeID]types.TypeID, len(params))
 			for i, param := range params {
 				if param == types.NoTypeID {
-					return nil, fmt.Errorf("mono: generic function %s has a missing exact parameter descriptor at index %d", origFn.Name, i)
+					return fmt.Errorf("mono: generic function %s has a missing exact parameter descriptor at index %d", origFn.Name, i)
 				}
 				subst.ExactArgs[param] = normalized[i]
 			}
 		} else if b.closure != nil {
-			return nil, fmt.Errorf("mono: generic function %s has no exact parameter ABI", origFn.Name)
+			return fmt.Errorf("mono: generic function %s has no exact parameter ABI", origFn.Name)
 		} else if b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Symbols != nil {
 			if owner := b.mod.Symbols.Table.Symbols.Get(origSym); owner != nil && len(owner.TypeParams) == len(normalized) {
 				subst.NameArgs = make(map[source.StringID]types.TypeID, len(normalized))
@@ -347,23 +347,23 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 			}
 		}
 		if err := subst.ApplyFunc(clone); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	if err := b.rewriteCallsInFunc(clone, origSym, subst, append(stack, key)); err != nil {
-		return nil, err
+		return err
 	}
 	if err := b.rewriteFuncValuesInFunc(clone, origSym, subst, append(stack, key)); err != nil {
-		return nil, err
+		return err
 	}
 
 	out.Func = clone
-	return out, nil
+	return nil
 }
 
 func (b *monoBuilder) ensureCallableInstance(origSym symbols.SymbolID, typeArgs []types.TypeID, stack []MonoKey) (symbols.SymbolID, error) {
-	if _, err := b.ensureFunc(origSym, typeArgs, stack); err != nil {
+	if err := b.ensureFunc(origSym, typeArgs, stack); err != nil {
 		return symbols.NoSymbolID, err
 	}
 	instance, ok, err := b.mm.Callables.LookupChecked(origSym, typeArgs)

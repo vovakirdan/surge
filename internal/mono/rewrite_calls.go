@@ -213,7 +213,7 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 		}
 
 		if b.isIntrinsicCloneSymbol(calleeSym) && deferred == nil {
-			handled, err := b.rewriteCloneCall(call, data, stack)
+			handled, err := b.rewriteCloneCall(call, data)
 			if err != nil {
 				return err
 			}
