@@ -4,13 +4,42 @@ import (
 	"fmt"
 
 	"surge/internal/layout"
+	"surge/internal/mir"
 	"surge/internal/types"
 )
 
-// noStorageOffset marks a slot that owns no arena bytes: a scalar, a
+// NoStorageOffset marks a slot that owns no arena bytes: a scalar, a
 // handle-backed value, or a reference. Only value composites are laid out
 // inline, so only they get an offset.
-const noStorageOffset = ^uint64(0)
+const NoStorageOffset = ^uint64(0)
+
+// FunctionStorage returns the arena plan for one activation of a function.
+// Parameters, ordinary locals and compiler temps are all slots, so they are all
+// laid out the same way: a value composite gets its own byte extent, and
+// everything else is named by its slot alone.
+func (vm *VM) FunctionStorage(fn *mir.Func) StoragePlan {
+	if vm == nil || fn == nil {
+		return StoragePlan{Align: 1}
+	}
+	slotTypes := make([]types.TypeID, len(fn.Locals))
+	for i := range fn.Locals {
+		slotTypes[i] = fn.Locals[i].Type
+	}
+	return buildStoragePlan(vm.Layouts, slotTypes, vm.isValueCompositeType)
+}
+
+// GlobalStorage returns the arena plan for the module's globals, which follow
+// locals rather than getting a scheme of their own.
+func (vm *VM) GlobalStorage() StoragePlan {
+	if vm == nil {
+		return StoragePlan{Align: 1}
+	}
+	slotTypes := make([]types.TypeID, len(vm.Globals))
+	for i := range vm.Globals {
+		slotTypes[i] = vm.Globals[i].TypeID
+	}
+	return buildStoragePlan(vm.Layouts, slotTypes, vm.isValueCompositeType)
+}
 
 // Arena owns the inline bytes of every composite value rooted in one frame
 // activation, in the globals table, or in one heap-owned composite.
@@ -72,11 +101,11 @@ type StoragePlan struct {
 // IsEmpty reports whether the plan needs no arena at all.
 func (p *StoragePlan) IsEmpty() bool { return p == nil || p.Size == 0 && p.Align <= 1 }
 
-// OffsetOf returns the arena offset of one slot, or noStorageOffset when the
+// OffsetOf returns the arena offset of one slot, or NoStorageOffset when the
 // slot is not composite-typed.
 func (p *StoragePlan) OffsetOf(slot int) uint64 {
 	if p == nil || slot < 0 || slot >= len(p.Offsets) {
-		return noStorageOffset
+		return NoStorageOffset
 	}
 	return p.Offsets[slot]
 }
@@ -93,7 +122,7 @@ func buildStoragePlan(layouts *layout.Registry, typeIDs []types.TypeID, isCompos
 	plan := StoragePlan{Offsets: make([]uint64, len(typeIDs)), Align: 1}
 	cursor := uint64(0)
 	for i, typeID := range typeIDs {
-		plan.Offsets[i] = noStorageOffset
+		plan.Offsets[i] = NoStorageOffset
 		if layouts == nil || isComposite == nil || !isComposite(typeID) {
 			continue
 		}

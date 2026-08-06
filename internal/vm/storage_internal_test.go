@@ -180,13 +180,13 @@ func TestStoragePlanGivesNoOffsetToNonComposites(t *testing.T) {
 		return composite[id]
 	})
 
-	if plan.OffsetOf(0) != noStorageOffset || plan.OffsetOf(2) != noStorageOffset {
+	if plan.OffsetOf(0) != NoStorageOffset || plan.OffsetOf(2) != NoStorageOffset {
 		t.Fatal("a scalar slot must own no arena bytes")
 	}
-	if plan.OffsetOf(1) == noStorageOffset {
+	if plan.OffsetOf(1) == NoStorageOffset {
 		t.Fatal("a composite slot must own arena bytes")
 	}
-	if plan.OffsetOf(7) != noStorageOffset {
+	if plan.OffsetOf(7) != NoStorageOffset {
 		t.Fatal("a slot index outside the plan must read as owning no storage")
 	}
 }
