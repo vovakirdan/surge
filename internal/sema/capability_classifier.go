@@ -74,7 +74,7 @@ type Capability struct {
 // module carries its facts only through that merge, so a file-local view would
 // answer differently depending on which file was asking.
 //
-// Its clone axis is a pure consumer of the B3A canonical selector and calls
+// Its clone axis is a pure consumer of the program-wide canonical clone selector and calls
 // Select, never Resolve. Select answers "which body clones this type" for the
 // whole program; Resolve then applies one use site's lexical view. A capability
 // is a property of the type, so a `__clone` that some caller cannot SEE is

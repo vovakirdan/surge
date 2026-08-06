@@ -6685,7 +6685,7 @@ implementation landed as ten reviewed commits on the integration branch:
   owned-move verdict under a greatest fixpoint, the emission-facing axes
   under a least one; CarrierDroppable deliberately disagrees with ownsHeap
   and is wired into nothing yet.
-- `f6bf5c7e` required clone operations derive from the reachable closure and
+- `6ea90a29` required clone operations derive from the reachable closure and
   re-enter it as explicit roots — a third root input beside the seed policy —
   iterating to a budget-bounded fixpoint before the single monomorphization
   pass. The golden corpus did not move.
@@ -6701,7 +6701,10 @@ implementation landed as ten reviewed commits on the integration branch:
   is closed.
 
 Every commit passed the normal pre-commit hook; each lane also ran
-golden-check, the crossing gate, and the file-size gate against the epic base
-in its own worktree before integration. Wave C/D own the staged slots
+golden-check and the crossing gate in its own worktree before integration.
+The committed-diff file-size gate was re-run on the integrated tree, where it
+caught two budget regressions the lanes had missed — a one-line legacy growth
+in the diagnose pipeline and a rewrite-threshold crossing in the monomorphize
+spine — both repaired before acceptance (`512269bb`, `4745f5d1`). Wave C/D own the staged slots
 (drop_in_place, trace, cross ops, key hash/equal) and the migration of the
 staged capability bits into the ABI flags as those slots fill.
