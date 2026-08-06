@@ -196,7 +196,9 @@ func isHandleValueType(typesIn *types.Interner, id types.TypeID) bool {
 		return false
 	}
 	switch tt.Kind {
-	case types.KindStruct, types.KindTuple, types.KindUnion, types.KindEnum, types.KindString, types.KindArray, types.KindFar, types.KindFn:
+	// An enum is not here: it is carried as its base type, and a base-typed
+	// scalar is not reached through a handle.
+	case types.KindStruct, types.KindTuple, types.KindUnion, types.KindString, types.KindArray, types.KindFar, types.KindFn:
 		return true
 	case types.KindPointer, types.KindReference:
 		return false

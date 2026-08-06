@@ -51,6 +51,11 @@ func llvmType(typesIn *types.Interner, id types.TypeID) (string, error) {
 	if !ok {
 		return "void", fmt.Errorf("unknown type id %d", id)
 	}
+	// Answered before the kind switch, because the switch groups enums with the
+	// composites and an enum is not one.
+	if tt.Kind == types.KindEnum {
+		return enumBaseCarrier(typesIn, id)
+	}
 	switch tt.Kind {
 	case types.KindUnit, types.KindNothing:
 		return "void", nil
@@ -80,6 +85,47 @@ func llvmType(typesIn *types.Interner, id types.TypeID) (string, error) {
 		return "void", nil
 	default:
 		return "void", fmt.Errorf("unsupported type kind %s", tt.Kind.String())
+	}
+}
+
+// enumBaseCarrier spells an enum as the type its constants already are.
+//
+// An enum declares a set of named constants of one base type. It has no members
+// and owns nothing, so there is no storage of its own to lay out — which is
+// exactly why `types.IsValueComposite` excludes it and why `mir.CallLayout`
+// puts it on the direct path rather than passing it through memory. Every other
+// view agrees: `internal/layout` computes an enum's layout by descending to its
+// base type, the layout root collector registers that base type INSTEAD of the
+// enum, and the constants themselves are lowered to base-typed literals long
+// before emission. Spelling every enum as a pointer was the one view that
+// disagreed — it made a `uint8`-based enum eight bytes wide instead of one — and
+// nothing in the language could show it, because nothing in the language
+// produces an enum-typed value.
+//
+// Sema defaults an unnamed base to `int`, so the no-base case below is not a
+// shape a source reaches; it matches the layout engine's own fallback for it.
+func enumBaseCarrier(typesIn *types.Interner, id types.TypeID) (string, error) {
+	info, ok := typesIn.EnumInfo(id)
+	if !ok || info == nil || info.BaseType == types.NoTypeID {
+		return "i32", nil
+	}
+	base := resolveAliasAndOwn(typesIn, info.BaseType)
+	baseType, ok := typesIn.Lookup(base)
+	if !ok {
+		return "void", fmt.Errorf("enum %s has an unknown base type", types.Label(typesIn, id))
+	}
+	// The base is spelled here rather than by recursing through llvmType so
+	// that a base an enum may not legally have — another enum, a composite —
+	// is refused instead of being carried as whatever that type is carried as.
+	switch baseType.Kind {
+	case types.KindInt, types.KindUint:
+		return intWidthType(baseType.Width), nil
+	case types.KindString:
+		return "ptr", nil
+	default:
+		return "void", fmt.Errorf(
+			"enum %s has base type %s, which is not a type constants can be carried as",
+			types.Label(typesIn, id), baseType.Kind.String())
 	}
 }
 
