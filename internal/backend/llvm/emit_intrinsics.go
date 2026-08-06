@@ -225,52 +225,6 @@ func (fe *funcEmitter) funcSigFromType(typeID types.TypeID) (funcSig, error) {
 	return funcSig{ret: ret, params: params, paramTypes: paramTypes}, nil
 }
 
-func (fe *funcEmitter) emitCallValue(call *mir.CallInstr) error {
-	if call == nil {
-		return nil
-	}
-	sig, err := fe.funcSigFromType(call.Callee.Value.Type)
-	if err != nil {
-		return err
-	}
-	calleeVal, calleeTy, err := fe.emitOperand(&call.Callee.Value)
-	if err != nil {
-		return err
-	}
-	if calleeTy != "ptr" {
-		return fmt.Errorf("callee value must be ptr, got %s", calleeTy)
-	}
-	args := make([]string, 0, len(call.Args))
-	for i := range call.Args {
-		arg := call.Args[i]
-		fe.patchNothingCallArg(&arg, sig, i)
-		val, ty, err := fe.emitOperand(&arg)
-		if err != nil {
-			return err
-		}
-		args = append(args, fmt.Sprintf("%s %s", ty, val))
-	}
-	callStmt := fmt.Sprintf("call %s %s(%s)", sig.ret, calleeVal, strings.Join(args, ", "))
-	if call.HasDst {
-		if sig.ret == "void" {
-			return fmt.Errorf("call has destination but returns void")
-		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = %s\n", tmp, callStmt)
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-		if err != nil {
-			return err
-		}
-		if dstTy != sig.ret {
-			dstTy = sig.ret
-		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
-		return nil
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  %s\n", callStmt)
-	return nil
-}
-
 func (fe *funcEmitter) emitLayoutIntrinsic(call *mir.CallInstr) (bool, error) {
 	if call == nil || call.Callee.Kind != mir.CalleeSym {
 		return false, nil
