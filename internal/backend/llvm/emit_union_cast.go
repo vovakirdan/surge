@@ -34,7 +34,7 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 	tagVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i32, ptr %s\n", tagVal, val)
 	resPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", resPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", resPtr, alignPtr)
 
 	cont := fe.nextInlineBlock()
 	def := fe.nextInlineBlock()

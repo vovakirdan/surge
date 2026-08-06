@@ -123,7 +123,9 @@ func (fe *funcEmitter) emitAllocas() error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  %%%s = alloca %s\n", fe.localAlloca[localID], llvmTy)
+		if err := fe.emitAlloca("%"+fe.localAlloca[localID], llvmTy); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -145,7 +147,9 @@ func (fe *funcEmitter) emitParamStores() error {
 			value = boxed
 			llvmTy = "ptr"
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %%%s\n", llvmTy, value, fe.localAlloca[localID])
+		if err := fe.emitStore(llvmTy, value, "%"+fe.localAlloca[localID]); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -197,7 +201,11 @@ func (fe *funcEmitter) emitAsyncRefParamBox(paramValue string, refType types.Typ
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
 	value := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", value, valueLLVM, paramValue)
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valueLLVM, value, box)
+	if err := fe.emitLoad(value, valueLLVM, paramValue); err != nil {
+		return "", err
+	}
+	if err := fe.emitStore(valueLLVM, value, box); err != nil {
+		return "", err
+	}
 	return box, nil
 }

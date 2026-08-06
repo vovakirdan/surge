@@ -37,9 +37,9 @@ func (fe *funcEmitter) emitChannelShareCrossing(ins *mir.CrossingInstr) error {
 	kindPtr := fe.nextTemp()
 	bitsPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", kindPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32\n", statusSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
 
 	pendingVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", pendingVal, pendingPtr)

@@ -46,7 +46,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				return "", "", fmt.Errorf("deref requires pointer type, got %s (%s)", curLLVMType, types.Label(fe.emitter.types, curType))
 			}
 			tmp := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, curPtr)
+			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", tmp, curPtr, alignPtr)
 			nextType, nextPlace, ok := fe.derefStorageType(curStorageLocal, curType)
 			if !ok {
 				return "", "", fmt.Errorf("unsupported place deref type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
@@ -63,7 +63,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				next := place.Proj[i+1].Kind
 				if next == mir.PlaceProjField {
 					tmpVal := fe.nextTemp()
-					fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmpVal, curPtr)
+					fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", tmpVal, curPtr, alignPtr)
 					curPtr = tmpVal
 					curIsValue = true
 					curStorageLocal = mir.NoLocalID
@@ -76,7 +76,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 					return "", "", fmt.Errorf("unsupported field reference type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
 				}
 				tmp := fe.nextTemp()
-				fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, curPtr)
+				fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", tmp, curPtr, alignPtr)
 				curPtr = tmp
 				curType = nextType
 				curStorageLocal = storageLocal(nextPlace)
@@ -103,7 +103,9 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			base := curPtr
 			if !curIsValue {
 				tmp := fe.nextTemp()
-				fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, curLLVMType, curPtr)
+				if loadErr := fe.emitLoad(tmp, curLLVMType, curPtr); loadErr != nil {
+					return "", "", loadErr
+				}
 				base = tmp
 			}
 			bytePtr := fe.nextTemp()
@@ -135,7 +137,9 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			}
 			idxPtr := fmt.Sprintf("%%%s", fe.localAlloca[idxLocal])
 			idxVal := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", idxVal, idxLLVM, idxPtr)
+			if err := fe.emitLoad(idxVal, idxLLVM, idxPtr); err != nil {
+				return "", "", err
+			}
 			handlePtr := curPtr
 			if curIsValue {
 				handlePtr = fe.emitHandleAddr(curPtr)

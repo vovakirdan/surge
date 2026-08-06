@@ -197,7 +197,7 @@ func (fe *funcEmitter) emitMapGet(call *mir.CallInstr, name string) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, i64 %s, ptr %s)\n", okVal, name, handle, keyBits, bitsPtr)
 	if !call.HasDst {
@@ -219,7 +219,7 @@ func (fe *funcEmitter) emitMapGet(call *mir.CallInstr, name string) error {
 	noneBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
@@ -301,7 +301,7 @@ func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_insert(ptr %s, i64 %s, i64 %s, ptr %s)\n", okVal, handle, keyBits, valueBits, bitsPtr)
 	if !call.HasDst {
@@ -323,7 +323,7 @@ func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
 	noneBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
@@ -391,7 +391,7 @@ func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_remove(ptr %s, i64 %s, ptr %s)\n", okVal, handle, keyBits, bitsPtr)
 	if !call.HasDst {
@@ -413,7 +413,7 @@ func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
 	noneBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)

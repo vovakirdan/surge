@@ -37,9 +37,9 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	kindPtr := fe.nextTemp()
 	bitsPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", kindPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32\n", statusSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
 
 	pendingVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", pendingVal, pendingPtr)
@@ -169,7 +169,7 @@ func (fe *funcEmitter) emitAnchoredOnErrorBlocks(errBB, statusVal string) error 
 // value, anything else is the closed outcome.
 func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	statusVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_anchored_channel_recv(ptr %s)\n", statusVal, bitsPtr)
 

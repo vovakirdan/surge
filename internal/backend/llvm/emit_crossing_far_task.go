@@ -51,9 +51,9 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 	kindPtr := fe.nextTemp()
 	bitsPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", kindPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32\n", statusSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
 
 	pendingVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", pendingVal, pendingPtr)
@@ -148,7 +148,7 @@ func (fe *funcEmitter) emitFarTaskLifecycleResult(ins *mir.CrossingInstr, result
 		return err
 	}
 	resultSlot := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", resultSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", resultSlot, alignPtr)
 	successBB := fe.nextInlineBlock()
 	cancelBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()

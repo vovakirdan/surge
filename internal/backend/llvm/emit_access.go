@@ -27,7 +27,7 @@ func (fe *funcEmitter) emitFieldAccess(fa *mir.FieldAccess) (val, ty string, err
 	}
 	if isRefType(fe.emitter.types, objType) && fa.Object.Kind != mir.OperandAddrOf && fa.Object.Kind != mir.OperandAddrOfMut {
 		deref := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, objVal)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", deref, objVal, alignPtr)
 		objVal = deref
 	}
 	structType := resolveValueType(fe.emitter.types, objType)
@@ -51,7 +51,9 @@ func (fe *funcEmitter) emitFieldAccess(fa *mir.FieldAccess) (val, ty string, err
 	bytePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, objVal, off)
 	val = fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", val, fieldLLVM, bytePtr)
+	if err := fe.emitLoad(val, fieldLLVM, bytePtr); err != nil {
+		return "", "", err
+	}
 	return val, fieldLLVM, nil
 }
 
@@ -98,7 +100,9 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 			return "", "", errEmit
 		}
 		val = fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", val, elemLLVM, elemPtr)
+		if err := fe.emitLoad(val, elemLLVM, elemPtr); err != nil {
+			return "", "", err
+		}
 		return val, elemLLVM, nil
 	}
 
@@ -184,7 +188,9 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 			return "", "", err
 		}
 		val = fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", val, elemLLVM, elemPtr)
+		if err := fe.emitLoad(val, elemLLVM, elemPtr); err != nil {
+			return "", "", err
+		}
 		return val, elemLLVM, nil
 	default:
 		return "", "", fmt.Errorf("unsupported index target")
@@ -243,28 +249,28 @@ func (fe *funcEmitter) emitArrayFixedSlice(handlePtr, rangeVal string, elemType 
 
 func (fe *funcEmitter) emitHandleAddr(val string) string {
 	ptr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", ptr)
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", val, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", ptr, alignPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s, align %d\n", val, ptr, alignPtr)
 	return ptr
 }
 
 func (fe *funcEmitter) emitArrayLen(handlePtr string) string {
 	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
 	lenPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, arrayLenOffset)
 	lenVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", lenVal, lenPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s, align %d\n", lenVal, lenPtr, alignWord)
 	return lenVal
 }
 
 func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType, elemType types.TypeID) (ptr, ty string, err error) {
 	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
 	lenPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, arrayLenOffset)
 	lenVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", lenVal, lenPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s, align %d\n", lenVal, lenPtr, alignWord)
 
 	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true, lenVal)
 	if err != nil {
@@ -274,7 +280,7 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 	dataPtrPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, handle, arrayDataOffset)
 	dataPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", dataPtr, dataPtrPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", dataPtr, dataPtrPtr, alignPtr)
 
 	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
 	if err != nil {
@@ -293,7 +299,7 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 
 func (fe *funcEmitter) emitArrayFixedElemPtr(handlePtr, idxVal, idxTy string, idxType, elemType types.TypeID, length uint32) (ptr, ty string, err error) {
 	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
 	lenVal := fmt.Sprintf("%d", length)
 
 	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true, lenVal)
@@ -318,7 +324,7 @@ func (fe *funcEmitter) emitArrayFixedElemPtr(handlePtr, idxVal, idxTy string, id
 
 func (fe *funcEmitter) emitBytesViewLen(handlePtr string, viewType types.TypeID) (string, error) {
 	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
 	ptrOff, lenOff, lenLLVM, err := fe.bytesViewOffsets(viewType)
 	if err != nil {
 		return "", err
@@ -327,7 +333,9 @@ func (fe *funcEmitter) emitBytesViewLen(handlePtr string, viewType types.TypeID)
 	lenPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, lenOff)
 	lenVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", lenVal, lenLLVM, lenPtr)
+	if err := fe.emitLoad(lenVal, lenLLVM, lenPtr); err != nil {
+		return "", err
+	}
 	if lenLLVM == "ptr" {
 		conv, convErr := fe.emitCheckedBigUintToU64(lenVal, "bytes view length out of range")
 		if convErr != nil {
@@ -344,7 +352,7 @@ func (fe *funcEmitter) emitBytesViewLen(handlePtr string, viewType types.TypeID)
 
 func (fe *funcEmitter) emitBytesViewIndex(handlePtr string, viewType types.TypeID, idxVal, idxTy string, idxType types.TypeID) (val, ty string, err error) {
 	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
 	ptrOff, lenOff, lenLLVM, err := fe.bytesViewOffsets(viewType)
 	if err != nil {
 		return "", "", err
@@ -352,11 +360,13 @@ func (fe *funcEmitter) emitBytesViewIndex(handlePtr string, viewType types.TypeI
 	ptrPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", ptrPtr, handle, ptrOff)
 	ptrVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", ptrVal, ptrPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", ptrVal, ptrPtr, alignPtr)
 	lenPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, lenOff)
 	lenVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", lenVal, lenLLVM, lenPtr)
+	if loadErr := fe.emitLoad(lenVal, lenLLVM, lenPtr); loadErr != nil {
+		return "", "", loadErr
+	}
 	if lenLLVM == "ptr" {
 		conv, convErr := fe.emitCheckedBigUintToU64(lenVal, "bytes view length out of range")
 		if convErr != nil {
@@ -377,7 +387,7 @@ func (fe *funcEmitter) emitBytesViewIndex(handlePtr string, viewType types.TypeI
 	bytePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", bytePtr, ptrVal, adjIdx)
 	val = fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", val, bytePtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s, align 1\n", val, bytePtr)
 	return val, "i8", nil
 }
 
@@ -416,8 +426,8 @@ func (fe *funcEmitter) emitIndexToI64(kind int, idxVal, idxTy string, idxType ty
 	maxIndex := int64(^uint64(0) >> 1)
 	if isBigIntType(fe.emitter.types, idxType) {
 		outPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", outPtr)
-		fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", outPtr, alignWord)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s, align %d\n", outPtr, alignWord)
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_bigint_to_i64(ptr %s, ptr %s)\n", okVal, idxVal, outPtr)
 		okBB := fe.nextInlineBlock()
@@ -428,13 +438,13 @@ func (fe *funcEmitter) emitIndexToI64(kind int, idxVal, idxTy string, idxType ty
 		fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
 		outVal := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", outVal, outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s, align %d\n", outVal, outPtr, alignWord)
 		return outVal, nil
 	}
 	if isBigUintType(fe.emitter.types, idxType) {
 		outPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", outPtr)
-		fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", outPtr, alignWord)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s, align %d\n", outPtr, alignWord)
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_biguint_to_u64(ptr %s, ptr %s)\n", okVal, idxVal, outPtr)
 		okBB := fe.nextInlineBlock()
@@ -445,7 +455,7 @@ func (fe *funcEmitter) emitIndexToI64(kind int, idxVal, idxTy string, idxType ty
 		fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
 		outVal := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", outVal, outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s, align %d\n", outVal, outPtr, alignWord)
 		tooHigh := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ugt i64 %s, %d\n", tooHigh, outVal, maxIndex)
 		limitBB := fe.nextInlineBlock()

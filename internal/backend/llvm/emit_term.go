@@ -110,7 +110,9 @@ func (fe *funcEmitter) emitOperand(op *mir.Operand) (val, ty string, err error) 
 			return "", "", err
 		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
+		if err := fe.emitLoad(tmp, ty, ptr); err != nil {
+			return "", "", err
+		}
 		return tmp, ty, nil
 	// OperandCopyValue is where a composite read stops being a pointer load.
 	// The loaded word is the SOURCE's box, so handing it on would give two
@@ -122,7 +124,9 @@ func (fe *funcEmitter) emitOperand(op *mir.Operand) (val, ty string, err error) 
 			return "", "", err
 		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
+		if err := fe.emitLoad(tmp, ty, ptr); err != nil {
+			return "", "", err
+		}
 		cloneTy := op.Type
 		if cloneTy == types.NoTypeID {
 			if base, baseErr := fe.placeBaseType(op.Place); baseErr == nil {
@@ -145,7 +149,9 @@ func (fe *funcEmitter) emitOperand(op *mir.Operand) (val, ty string, err error) 
 			return "", "", err
 		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
+		if err := fe.emitLoad(tmp, ty, ptr); err != nil {
+			return "", "", err
+		}
 		fe.emitRetainValue(tmp, ty)
 		return tmp, ty, nil
 	case mir.OperandAddrOf, mir.OperandAddrOfMut:
@@ -193,8 +199,12 @@ func (fe *funcEmitter) emitOperandAddr(op *mir.Operand) (string, error) {
 			return "", err
 		}
 		ptr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca %s\n", ptr, ty)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+		if err := fe.emitAlloca(ptr, ty); err != nil {
+			return "", err
+		}
+		if err := fe.emitStore(ty, val, ptr); err != nil {
+			return "", err
+		}
 		return ptr, nil
 	default:
 		return "", fmt.Errorf("unsupported operand kind %v", op.Kind)

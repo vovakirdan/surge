@@ -206,7 +206,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			return true, err
 		}
 		bitsPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 		kindVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv_blocking(ptr %s, ptr %s)\n", kindVal, chVal, bitsPtr)
 		if call.HasDst {
@@ -226,7 +226,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			noneBB := fe.nextInlineBlock()
 			contBB := fe.nextInlineBlock()
 			outPtr := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 			hasValue := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 1\n", hasValue, kindVal)
 			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", hasValue, readyBB, noneBB)
@@ -316,7 +316,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			return true, err
 		}
 		bitsPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_try_recv(ptr %s, ptr %s)\n", okVal, chVal, bitsPtr)
 		if call.HasDst {
@@ -336,7 +336,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			noneBB := fe.nextInlineBlock()
 			contBB := fe.nextInlineBlock()
 			outPtr := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 			fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
@@ -424,7 +424,7 @@ func (fe *funcEmitter) emitInstrChanRecv(ins *mir.Instr) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	kindVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv(ptr %s, ptr %s)\n", kindVal, chVal, bitsPtr)
 	pendingCond := fe.nextTemp()

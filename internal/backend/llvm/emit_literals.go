@@ -67,7 +67,9 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 		off := fieldOffsets[fieldIdx]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+		if err := fe.emitStore(valTy, val, bytePtr); err != nil {
+			return "", "", err
+		}
 	}
 	return mem, "ptr", nil
 }
@@ -145,7 +147,9 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 		off := fieldOffsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+		if err := fe.emitStore(valTy, val, bytePtr); err != nil {
+			return "", "", err
+		}
 	}
 	return mem, "ptr", nil
 }
@@ -188,13 +192,13 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 
 		lenPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, headPtr, arrayLenOffset)
-		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, lenPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s, align %d\n", length, lenPtr, alignWord)
 		capPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, headPtr, arrayCapOffset)
-		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, capPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s, align %d\n", length, capPtr, alignWord)
 		dataPtrPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, headPtr, arrayDataOffset)
-		fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", dataPtr, dataPtrPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s, align %d\n", dataPtr, dataPtrPtr, alignPtr)
 
 		for i := range lit.Elems {
 			val, valTy, emitErr := fe.emitValueOperand(&lit.Elems[i])
@@ -221,7 +225,9 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 			offset := uint64(i) * emittedStride
 			elemPtr := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, dataPtr, offset)
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+			if storeErr := fe.emitStore(valTy, val, elemPtr); storeErr != nil {
+				return "", "", storeErr
+			}
 		}
 		return headPtr, "ptr", nil
 	}
@@ -280,7 +286,9 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		offset := uint64(i) * stride
 		elemPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, mem, offset)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+		if err := fe.emitStore(valTy, val, elemPtr); err != nil {
+			return "", "", err
+		}
 	}
 	return mem, "ptr", nil
 }

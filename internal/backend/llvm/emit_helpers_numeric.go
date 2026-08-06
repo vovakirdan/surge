@@ -30,7 +30,7 @@ func (fe *funcEmitter) emitPanicNumeric(msg string) error {
 
 func (fe *funcEmitter) emitCheckedBigIntToI64(val, msg string) (string, error) {
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", outPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_bigint_to_i64(ptr %s, ptr %s)\n", okVal, val, outPtr)
@@ -51,7 +51,7 @@ func (fe *funcEmitter) emitCheckedBigIntToI64(val, msg string) (string, error) {
 
 func (fe *funcEmitter) emitCheckedBigUintToU64(val, msg string) (string, error) {
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", outPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_biguint_to_u64(ptr %s, ptr %s)\n", okVal, val, outPtr)
@@ -72,7 +72,7 @@ func (fe *funcEmitter) emitCheckedBigUintToU64(val, msg string) (string, error) 
 
 func (fe *funcEmitter) emitCheckedBigFloatToF64(val string) (string, error) {
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca double\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca double, align %d\n", outPtr, 8)
 	fmt.Fprintf(&fe.emitter.buf, "  store double 0.0, ptr %s\n", outPtr)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_bigfloat_to_f64(ptr %s, ptr %s)\n", okVal, val, outPtr)

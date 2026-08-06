@@ -103,7 +103,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		return nil
 	}
 	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, ptr, alignPtr)
 	switch {
 	case isRefCounted:
 		// Giving back this place's reference, not destroying the block: the
@@ -119,7 +119,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	default: // boxed composite that owns heap
 		fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n", fe.emitter.requireDropGlue(baseType), handle)
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s, align %d\n", ptr, alignPtr)
 	return nil
 }
 
@@ -140,7 +140,9 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 		if dstTy != ty {
 			ty = dstTy
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+		if err := fe.emitStore(ty, val, ptr); err != nil {
+			return err
+		}
 		return nil
 	}
 	if ins.Assign.Src.Kind == mir.RValueTupleLit {
@@ -159,7 +161,9 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 		if dstTy != ty {
 			ty = dstTy
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+		if err := fe.emitStore(ty, val, ptr); err != nil {
+			return err
+		}
 		return nil
 	}
 	if ins.Assign.Src.Kind == mir.RValueUse && ins.Assign.Src.Use.Kind == mir.OperandConst && ins.Assign.Src.Use.Const.Kind == mir.ConstNothing {
@@ -183,7 +187,9 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 			if dstTy != ty {
 				ty = dstTy
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+			if err := fe.emitStore(ty, val, ptr); err != nil {
+				return err
+			}
 			return nil
 		}
 	}
@@ -198,7 +204,9 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 	if dstTy != ty {
 		ty = dstTy
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+	if err := fe.emitStore(ty, val, ptr); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -277,8 +285,8 @@ func (fe *funcEmitter) emitShallowDrop(place mir.Place, baseType types.TypeID) e
 		return nil
 	}
 	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, ptr, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s, align %d\n", ptr, alignPtr)
 	return nil
 }

@@ -44,13 +44,13 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	armKindsPtr := fe.nextTemp()
 	armBitsPtr := fe.nextTemp()
 	armDropIDsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", kindPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32\n", statusSlot)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr]\n", anchorsPtr, armCount)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i8]\n", armKindsPtr, armCount)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", armBitsPtr, armCount)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", armDropIDsPtr, armCount)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr], align %d\n", anchorsPtr, armCount, alignPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i8], align %d\n", armKindsPtr, armCount, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64], align %d\n", armBitsPtr, armCount, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64], align %d\n", armDropIDsPtr, armCount, alignWord)
 
 	// The arm tables are built ONCE, on the true first attempt. A resumed
 	// retry re-enters this same block, and rt_far_channel_select's own retry

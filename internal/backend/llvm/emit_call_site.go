@@ -58,7 +58,9 @@ func (fe *funcEmitter) emitCallSite(call *mir.CallInstr, target *callTarget) err
 	if dstTy != target.sig.ret {
 		dstTy = target.sig.ret
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+	if err := fe.emitStore(dstTy, tmp, ptr); err != nil {
+		return err
+	}
 	return nil
 }
 

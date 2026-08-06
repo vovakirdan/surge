@@ -310,8 +310,8 @@ func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 	}
 	kindPtr := fe.nextTemp()
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", kindPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_await(ptr %s, ptr %s, ptr %s)\n", val, kindPtr, bitsPtr)
 	kindVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", kindVal, kindPtr)
@@ -327,7 +327,7 @@ func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 		return err
 	}
 	resultPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", resultPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", resultPtr, alignPtr)
 	successBB := fe.nextInlineBlock()
 	cancelBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
@@ -378,7 +378,7 @@ func (fe *funcEmitter) emitInstrPoll(ins *mir.Instr) error {
 		return fmt.Errorf("poll expects Task pointer: %w", err)
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	kindVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_task_poll(ptr %s, ptr %s)\n", kindVal, val, bitsPtr)
 	pendingCond := fe.nextTemp()
@@ -456,8 +456,8 @@ func (fe *funcEmitter) emitInstrJoinAll(ins *mir.Instr) error {
 	}
 	pendingPtr := fe.nextTemp()
 	failfastPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", pendingPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i1\n", failfastPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", pendingPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i1, align %d\n", failfastPtr, 1)
 	doneVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_scope_join_all(ptr %s, ptr %s, ptr %s)\n", doneVal, scopeVal, pendingPtr, failfastPtr)
 	readyBB := fmt.Sprintf("bb.inline.join_ready%d", fe.inlineBlock)
@@ -494,7 +494,7 @@ func (fe *funcEmitter) emitInstrTimeout(ins *mir.Instr) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	kindVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_timeout_poll(ptr %s, i64 %s, ptr %s)\n", kindVal, val, ms64, bitsPtr)
 	pendingCond := fe.nextTemp()
@@ -587,10 +587,10 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 	handlesPtr := fe.nextTemp()
 	valuesPtr := fe.nextTemp()
 	msPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i8]\n", kindsPtr, armCount)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr]\n", handlesPtr, armCount)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", valuesPtr, armCount)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", msPtr, armCount)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i8], align %d\n", kindsPtr, armCount, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr], align %d\n", handlesPtr, armCount, alignPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64], align %d\n", valuesPtr, armCount, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64], align %d\n", msPtr, armCount, alignWord)
 	for i := range ins.Select.Arms {
 		arm := &ins.Select.Arms[i]
 		kindPtr := fe.nextTemp()

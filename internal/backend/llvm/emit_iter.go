@@ -146,7 +146,7 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	payloadType := meta.PayloadTypes[0]
 
 	resPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", resPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", resPtr, alignPtr)
 
 	// Dispatch on the iterator's leading kind word: a range cursor steps its
 	// bounds; an array cursor walks its backing store.

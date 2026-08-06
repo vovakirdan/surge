@@ -76,10 +76,10 @@ func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, 
 
 func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) string {
 	capPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", capPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", capPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", currentCap, capPtr)
 	minPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", minPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", minPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", minCap, minPtr)
 
 	cur := fe.nextTemp()

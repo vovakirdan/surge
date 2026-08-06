@@ -24,7 +24,11 @@ func (e *Emitter) emitGlobals() error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(&e.buf, "@%s = global %s zeroinitializer\n", name, llvmTy)
+		align, err := naturalAlign(llvmTy)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&e.buf, "@%s = global %s zeroinitializer, align %d\n", name, llvmTy, align)
 	}
 	e.buf.WriteString("\n")
 	return nil
