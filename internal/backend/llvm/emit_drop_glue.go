@@ -290,29 +290,17 @@ func (e *Emitter) emitDropGlue() error {
 	doneResult := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
-		for id := range e.dropGlueNeeded {
-			if _, ok := done[id]; ok {
-				continue
-			}
-			done[id] = struct{}{}
+		for _, id := range takePendingGlue(e.dropGlueNeeded, done) {
 			if err := e.emitDropGlueBody(id); err != nil {
 				return err
 			}
 			progressed = true
 		}
-		for id := range e.dropElemGlueNeeded {
-			if _, ok := doneElem[id]; ok {
-				continue
-			}
-			doneElem[id] = struct{}{}
+		for _, id := range takePendingGlue(e.dropElemGlueNeeded, doneElem) {
 			e.emitDropElemGlueBody(id)
 			progressed = true
 		}
-		for id := range e.dropResultGlueNeeded {
-			if _, ok := doneResult[id]; ok {
-				continue
-			}
-			doneResult[id] = struct{}{}
+		for _, id := range takePendingGlue(e.dropResultGlueNeeded, doneResult) {
 			e.emitDropResultGlueBody(id)
 			progressed = true
 		}
@@ -321,6 +309,28 @@ func (e *Emitter) emitDropGlue() error {
 		}
 	}
 	return nil
+}
+
+// takePendingGlue is the not-yet-emitted part of a requested glue set, in type
+// order, marked emitted as it is taken.
+//
+// The order matters beyond tidiness. A map's iteration order is deliberately
+// unspecified, so walking one of these sets directly makes two compilations of
+// one unchanged program place the same glue bodies at different points in the
+// module. Output that differs run to run cannot be compared: a reader diffing
+// two builds cannot tell an ordering wobble from a change in what the compiler
+// emits, which is exactly the question a representation change has to answer.
+func takePendingGlue(needed, done map[types.TypeID]struct{}) []types.TypeID {
+	pending := make([]types.TypeID, 0, len(needed))
+	for id := range needed {
+		if _, already := done[id]; already {
+			continue
+		}
+		done[id] = struct{}{}
+		pending = append(pending, id)
+	}
+	sort.Slice(pending, func(i, j int) bool { return pending[i] < pending[j] })
+	return pending
 }
 
 // emitDropResultGlueBody emits `@drop_result.typeN(ptr %val)`: drop a

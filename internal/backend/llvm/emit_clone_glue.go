@@ -55,11 +55,7 @@ func (e *Emitter) emitCloneGlue() error {
 	done := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
-		for id := range e.cloneGlueNeeded {
-			if _, ok := done[id]; ok {
-				continue
-			}
-			done[id] = struct{}{}
+		for _, id := range takePendingGlue(e.cloneGlueNeeded, done) {
 			if err := e.emitCloneGlueBody(id); err != nil {
 				return err
 			}
