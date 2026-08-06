@@ -1,6 +1,7 @@
 package llvm
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -145,5 +146,38 @@ func TestArrayIterKindWordHandlesDegenerateFixedArrayStride(t *testing.T) {
 	}
 	if got != 16 {
 		t.Fatalf("dynamic kind word = %d, want 16", got)
+	}
+}
+
+// A fixed array keeps its elements inline and carries its length in its type,
+// so an element store must bounds-check against that static length. Reading a
+// length out of the storage instead — the dynamic Array<T> header layout, whose
+// first word is a length and whose third is a data pointer — reads element 0 of
+// the inline slots, so a freshly defaulted array rejects every in-range index
+// against a length of zero.
+func TestFixedArrayElementStoreBoundsChecksStaticLength(t *testing.T) {
+	withRepoStdlib(t)
+
+	ir := emitLLVMFromSource(t, `
+@entrypoint
+fn main() -> int {
+    let mut samples: int64[7] = default::<int64[7]>();
+    samples[3] = 9:int64;
+    print(samples[3] to string);
+    return 0;
+}
+`)
+
+	body := llvmFunctionContaining(t, ir, "@rt_alloc(i64 56, i64 8)")
+	bounds := regexp.MustCompile(
+		`@rt_panic_bounds\(i64 \d+, i64 [^,]+, i64 ([^)]+)\)`,
+	).FindAllStringSubmatch(body, -1)
+	if len(bounds) < 2 {
+		t.Fatalf("expected a bounds check for both the store and the load, got %d:\n%s", len(bounds), body)
+	}
+	for _, match := range bounds {
+		if match[1] != "7" {
+			t.Fatalf("fixed array access bounds-checked against %q, want the static length 7:\n%s", match[1], body)
+		}
 	}
 }

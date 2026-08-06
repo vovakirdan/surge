@@ -440,8 +440,8 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 			containerType = baseType
 		}
 	}
-	elemType, _, ok := arrayElemType(fe.emitter.types, containerType)
-	if ok {
+	elemType, dynamic, ok := arrayElemType(fe.emitter.types, containerType)
+	if ok && dynamic {
 		arrArg, err := fe.emitHandleOperandPtr(&call.Args[0])
 		if err != nil {
 			return err
