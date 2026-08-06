@@ -159,6 +159,8 @@ func (vm *VM) heapDumpRecord(obj *Object) (heapDumpRecord, error) {
 	case OKMap:
 		rec.kind = "map"
 		rec.mapLen = len(obj.MapEntries)
+	case OKResource:
+		rec.kind = "resource"
 	case OKStruct:
 		rec.kind = "struct"
 	case OKTag:

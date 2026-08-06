@@ -48,6 +48,10 @@ const (
 	VKBigUint
 	// VKBigFloat represents a big float handle value.
 	VKBigFloat
+
+	// VKResource represents a runtime-owned resource handle: a task, a channel,
+	// an open file, a socket or a point in time.
+	VKResource
 )
 
 // String returns a human-readable name for the value kind.
@@ -87,6 +91,8 @@ func (k ValueKind) String() string {
 		return "biguint"
 	case VKBigFloat:
 		return "bigfloat"
+	case VKResource:
+		return "resource"
 	default:
 		return fmt.Sprintf("ValueKind(%d)", k)
 	}
@@ -110,6 +116,9 @@ func (v Value) IsZero() bool {
 
 // IsHeap reports whether the value is stored on the heap.
 func (v Value) IsHeap() bool {
+	if v.Kind == VKResource {
+		return true
+	}
 	switch v.Kind {
 	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
 		return true
@@ -158,6 +167,8 @@ func (v Value) String() string {
 		return "biguint"
 	case VKBigFloat:
 		return "bigfloat"
+	case VKResource:
+		return "resource"
 	default:
 		return fmt.Sprintf("<unknown:%d>", v.Kind)
 	}
@@ -295,6 +306,15 @@ func MakeBigUint(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
 		Kind:   VKBigUint,
+		H:      h,
+	}
+}
+
+// MakeResource creates a runtime-resource handle value.
+func MakeResource(h Handle, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKResource,
 		H:      h,
 	}
 }

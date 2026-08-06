@@ -126,6 +126,8 @@ func (vm *VM) heapObjectBytes(obj *Object) (uint64, error) {
 			return 0, err
 		}
 		return checkedHeapMul(safeUint64FromInt(len(obj.MapEntries)), entrySize, "map length * entry size")
+	case OKResource:
+		return vm.typedObjectSize(obj)
 	case OKStruct, OKTag, OKRange:
 		if obj.TypeID == types.NoTypeID {
 			return 0, nil
@@ -319,6 +321,8 @@ func (vm *VM) objectSummary(obj *Object) string {
 		return fmt.Sprintf("array_view(rc=%d,len=%d,cap=%d,start=%d)", rc, obj.ArrSliceLen, obj.ArrSliceCap, obj.ArrSliceStart)
 	case OKMap:
 		return fmt.Sprintf("map(rc=%d,len=%d,type=%s)", rc, len(obj.MapEntries), typeLabel(vm.Types, obj.TypeID))
+	case OKResource:
+		return fmt.Sprintf("resource(rc=%d,type=%s)", rc, typeLabel(vm.Types, obj.TypeID))
 	case OKStruct:
 		return fmt.Sprintf("struct(rc=%d,type=%s)", rc, typeLabel(vm.Types, obj.TypeID))
 	case OKTag:
@@ -380,4 +384,20 @@ func (vm *VM) tagName(obj *Object) string {
 		}
 	}
 	return tagName
+}
+
+// typedObjectSize accounts an object by the layout of its type, which is what a
+// resource shares with the aggregates: the object is exactly its type's bytes.
+func (vm *VM) typedObjectSize(obj *Object) (uint64, error) {
+	if obj.TypeID == types.NoTypeID {
+		return 0, nil
+	}
+	if vm == nil || vm.Layouts == nil {
+		return 0, fmt.Errorf("typed %s requires finalized layout registry", vm.objectKindLabel(obj.Kind))
+	}
+	size, err := vm.Layouts.SizeOf(obj.TypeID)
+	if err != nil {
+		return 0, fmt.Errorf("typed %s layout: %w", vm.objectKindLabel(obj.Kind), err)
+	}
+	return size, nil
 }

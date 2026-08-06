@@ -34,6 +34,11 @@ const (
 	OKBigFloat
 	// OKRange represents a range object.
 	OKRange
+	// OKResource represents a runtime-owned resource: a task, a channel, an
+	// open file, a socket or a point in time. It carries one opaque word and
+	// nothing else, because that word is the whole value — the runtime owns
+	// what the word names, and the language can only pass the resource around.
+	OKResource
 )
 
 // StringKind identifies the kind of string representation.
@@ -117,4 +122,10 @@ type Object struct {
 	BigInt   bignum.BigInt
 	BigUint  bignum.BigUint
 	BigFloat bignum.BigFloat
+
+	// Resource is the opaque word of an OKResource: a task id, a channel id, a
+	// file handle, a socket handle or a nanosecond count. It is not a heap
+	// handle and is never followed, which is why releasing a resource releases
+	// nothing beneath it.
+	Resource int64
 }

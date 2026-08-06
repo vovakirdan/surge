@@ -185,6 +185,8 @@ func (vm *VM) objectKindLabel(k ObjectKind) string {
 		return "array_slice"
 	case OKMap:
 		return "map"
+	case OKResource:
+		return "resource"
 	case OKStruct:
 		return "struct"
 	case OKTag:

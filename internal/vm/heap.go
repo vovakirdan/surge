@@ -247,6 +247,12 @@ func (h *Heap) Free(handle Handle) {
 }
 
 func (h *Heap) releaseContainedValue(v Value) {
+	if v.Kind == VKResource {
+		if v.H != 0 {
+			h.Release(v.H)
+		}
+		return
+	}
 	switch v.Kind {
 	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
 		if v.H != 0 {
