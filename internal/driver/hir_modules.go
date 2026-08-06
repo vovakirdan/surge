@@ -36,6 +36,9 @@ func CombineHIRWithModulesWithOptions(ctx context.Context, res *DiagnoseResult, 
 	if res.Symbols == nil || res.Symbols.Table == nil || res.Symbols.Table.Symbols == nil {
 		return res.HIR, nil
 	}
+	if err := mergeTypeAttrFactsFromRecords(res); err != nil {
+		return nil, err
+	}
 	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
 		return nil, err
 	}
@@ -195,6 +198,60 @@ func appendModuleRecordHIR(ctx context.Context, res *DiagnoseResult, rec *module
 		combined.Globals = append(combined.Globals, modHIR.Globals...)
 	}
 	return nil
+}
+
+// mergeTypeAttrFactsFromRecords folds the detached type attribute facts of
+// every record backing this result into res.Sema, and refuses a merged table
+// that contradicts itself.
+//
+// This runs as a pre-pass rather than alongside the Copy merge because Copy is
+// not comparable here: it is written into the shared interner, so every
+// consumer reads the whole-program answer no matter when the record merge
+// happens. The capability attributes exist only in each record's semantic
+// result, so anything that runs before this fold — the instantiation closure
+// first among them — would see the root file's facts and call them the program's.
+func mergeTypeAttrFactsFromRecords(res *DiagnoseResult) error {
+	if res == nil || res.Sema == nil {
+		return nil
+	}
+	merge := sema.NewTypeAttrFactMerge()
+	rootPath := recordModulePath(res.rootRecord, "")
+	// The result's own facts are part of the merged table whether or not a
+	// record holds it, so they are attributed before the records are folded in.
+	merge.Fold(res.Sema, res.Sema, rootPath)
+	foldRecordTypeAttrFacts(merge, res.Sema, res.rootRecord, rootPath)
+
+	paths := make([]string, 0, len(res.moduleRecords))
+	for path := range res.moduleRecords {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		rec := res.moduleRecords[path]
+		if rec == nil || rec == res.rootRecord {
+			continue
+		}
+		foldRecordTypeAttrFacts(merge, res.Sema, rec, recordModulePath(rec, path))
+	}
+	return merge.Validate(res.Sema)
+}
+
+func foldRecordTypeAttrFacts(merge *sema.TypeAttrFactMerge, dst *sema.Result, rec *moduleRecord, modulePath string) {
+	if rec == nil || rec.Sema == nil {
+		return
+	}
+	for _, fileID := range rec.FileIDs {
+		if semaRes := rec.Sema[fileID]; semaRes != nil {
+			merge.Fold(dst, semaRes, modulePath)
+		}
+	}
+}
+
+func recordModulePath(rec *moduleRecord, fallback string) string {
+	if rec != nil && rec.Meta != nil && rec.Meta.Path != "" {
+		return rec.Meta.Path
+	}
+	return fallback
 }
 
 func mergeCopyTypesFromRecord(dst *sema.Result, rec *moduleRecord) {

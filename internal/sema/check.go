@@ -115,6 +115,12 @@ type Result struct {
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
 	CopyTypes map[types.TypeID]struct{}
+	// TypeAttrFacts carries the capability-bearing type attributes
+	// (@shard_movable, @shard_pinned, @nosend, @send) out of the checker in a
+	// detached form. Copy reaches its consumers through the shared interner and
+	// so needs no merge; these facts live only here, which makes merging every
+	// record's table the whole-program authority for them.
+	TypeAttrFacts map[types.TypeID]TypeAttrFacts
 	// InstantiationGraph is the always-on authority for generic callable
 	// reachability. FunctionInstantiations and FunctionInstantiationSites are
 	// compatibility views derived from it.

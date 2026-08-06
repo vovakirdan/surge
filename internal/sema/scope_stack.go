@@ -192,6 +192,7 @@ func (tc *typeChecker) flushBorrowResults() {
 		}
 		tc.result.CopyTypes = out
 	}
+	tc.flushTypeAttrFacts()
 }
 
 func (tc *typeChecker) releaseScopeBindings(scope symbols.ScopeID) {

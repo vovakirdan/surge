@@ -107,6 +107,9 @@ func finalizeParallelModuleRecords(
 			Symbols: aggregateSymbols, Sema: aggregate,
 			rootRecord: rec, moduleRecords: records, finalizationIndex: publicationIndex,
 		}
+		if err := mergeTypeAttrFactsFromRecords(diagnosed); err != nil {
+			return fmt.Errorf("%s type attribute facts: %w", modulePath, err)
+		}
 		if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
 			return fmt.Errorf("%s instantiation closure: %w", modulePath, err)
 		}
