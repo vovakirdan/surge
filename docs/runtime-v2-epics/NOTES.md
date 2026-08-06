@@ -6662,7 +6662,7 @@ figures. The staging branch advances to this commit.
 The B3B plan was accepted only after three independent review rounds (3 P0 +
 6 P1 in the first, 3 P1 in the second, PASS with two staged P2 folded into
 their commits) and is recorded, with its revisions, in agentmemory. The
-implementation landed as ten reviewed commits on the integration branch:
+implementation landed as ten reviewed feature commits on the integration branch, followed by two budget repairs and this record's corrections:
 
 - `5b3efb7b` publication identifies its owning file from the AST-file span
   both fields now derive from; an unknown identity fails closed naming both

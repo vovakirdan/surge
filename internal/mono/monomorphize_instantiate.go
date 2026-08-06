@@ -1,3 +1,9 @@
+// Callable instantiation: ensureFunc materializes one (template, type args)
+// pair into a mono function, enforcing the authoritative-closure retention
+// check, the depth and cycle budgets, and exact-ABI type-arg arity. It lives
+// apart from the monomorphize spine so the spine stays within its file budget;
+// it is the only entry point through which the seed worklist and call rewrites
+// may materialize callables.
 package mono
 
 import (
