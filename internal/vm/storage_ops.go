@@ -202,14 +202,94 @@ func (vm *VM) handleValue(handle Handle, typeID types.TypeID) (Value, error) {
 // change what those types mean; everything else copies its bits. The
 // destination is zeroed first, so a copy into storage that held something
 // larger cannot leave a tail of the old value behind.
+//
+// The destination is ZEROED AND NOT RELEASED, deliberately: what it held before
+// is its caller's to release, because the two callers owe different things. A
+// copy that INITIALIZES writes into storage owning nothing, and a release there
+// would be a drop nobody owes. A copy that REPLACES owes exactly one release,
+// and that release has to be ordered against reading the source. Only the
+// caller knows which it is doing. storageReplace is the one that owes it, and
+// storeLocation already draws the same line for a boxed field today.
 func (vm *VM) storageCopy(dst, src StorageRef) error {
-	if dst.TypeID != src.TypeID {
-		return fmt.Errorf("storage: cannot copy type#%d into type#%d", src.TypeID, dst.TypeID)
+	proceed, err := vm.copyPreflight(dst, src)
+	if err != nil || !proceed {
+		return err
 	}
 	if err := vm.storageZero(dst); err != nil {
 		return err
 	}
 	return vm.copyWalk(dst, src)
+}
+
+// storageReplace overwrites an INITIALIZED value with another one.
+//
+// This is the assignment path and it is what owes the release. Inline storage is
+// the only reference to what it holds, so the bytes about to be overwritten are
+// the last thing that could ever name it: an overwrite that merely zeroed them
+// would leave what they counted alive with nothing left to reach it.
+//
+// The release happens AFTER the identity check and BEFORE the walk. That order
+// is the whole of the operation's difficulty — releasing first and copying
+// second would destroy a value assigned to itself rather than merely garble it.
+func (vm *VM) storageReplace(dst, src StorageRef) error {
+	proceed, err := vm.copyPreflight(dst, src)
+	if err != nil || !proceed {
+		return err
+	}
+	if err := vm.storageDrop(dst); err != nil {
+		return err
+	}
+	return vm.copyWalk(dst, src)
+}
+
+// copyPreflight settles the two questions both copy paths must answer before
+// either touches a byte, and reports whether there is anything left to do.
+//
+// A value copied onto itself is left alone. It is already what the copy would
+// produce, and it is the one case where preparing the destination destroys the
+// source: zeroing it would erase the members the walk is about to read, and
+// releasing it would free them.
+func (vm *VM) copyPreflight(dst, src StorageRef) (bool, error) {
+	if dst.TypeID != src.TypeID {
+		return false, fmt.Errorf("storage: cannot copy type#%d into type#%d", src.TypeID, dst.TypeID)
+	}
+	if dst.Arena == src.Arena && dst.Offset == src.Offset {
+		return false, nil
+	}
+	if err := vm.refuseOverlap(dst, src); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// refuseOverlap rejects a copy between two extents that share bytes without
+// being the same extent.
+//
+// A well-typed program cannot ask for one: the two sides have the same type and
+// so the same size, and two same-sized extents of one arena either coincide or
+// are disjoint. Refusing is still what belongs here, because the alternative is
+// a walk that reads members it has already overwritten and then reports success.
+func (vm *VM) refuseOverlap(dst, src StorageRef) error {
+	if dst.Arena != src.Arena || dst.Arena == nil {
+		return nil
+	}
+	size, err := vm.storageSizeOf(dst.TypeID)
+	if err != nil {
+		return err
+	}
+	if size == 0 {
+		return nil
+	}
+	low, high := dst.Offset, src.Offset
+	if high < low {
+		low, high = high, low
+	}
+	if high < low+size {
+		return fmt.Errorf(
+			"storage: cannot copy type#%d between overlapping extents at %d and %d of %d bytes",
+			dst.TypeID, src.Offset, dst.Offset, size)
+	}
+	return nil
 }
 
 func (vm *VM) copyWalk(dst, src StorageRef) error {
