@@ -29,6 +29,17 @@ type ModuleMeta struct {
 	// never has to tell "no plan" apart from "an empty plan".
 	Operations *valueops.Registry
 
+	// CallLayouts is the single authority for how a call is lowered: which
+	// results travel through a hidden caller-owned destination, which arguments
+	// travel by address, and which carry no payload at all.
+	//
+	// It is bound to the frozen layouts above and classifies on demand, so a
+	// direct call and an indirect call to one callee reach one answer.
+	//
+	// It is nil wherever no finalized layout authority was reached, and its own
+	// accessors fail closed on a nil receiver.
+	CallLayouts *CallLayoutTable
+
 	// FuncTypeArgs maps instantiated symbols to their concrete type arguments.
 	// This is used by intrinsic implementations like size_of/align_of.
 	FuncTypeArgs map[symbols.SymbolID][]types.TypeID
