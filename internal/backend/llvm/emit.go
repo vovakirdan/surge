@@ -13,6 +13,12 @@ type funcSig struct {
 	ret        string
 	params     []string
 	paramTypes []types.TypeID
+	// abi is the generated call contract for this signature: which result
+	// travels through a hidden caller-owned destination, which arguments travel
+	// by address, and which carry no payload at all. It is classified from the
+	// callee's types alone (see emit_call_layout.go), so a definition and both
+	// kinds of call site reach one answer for one callee.
+	abi mir.SurgeABI
 }
 
 type addrOfTarget struct {

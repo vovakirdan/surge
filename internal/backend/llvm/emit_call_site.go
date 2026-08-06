@@ -34,7 +34,7 @@ func (fe *funcEmitter) emitCallSite(call *mir.CallInstr, target *callTarget) err
 	args := make([]string, 0, len(call.Args))
 	for i := range call.Args {
 		arg := call.Args[i]
-		fe.patchNothingCallArg(&arg, target.sig, i)
+		fe.patchNothingCallArg(&arg, &target.sig, i)
 		val, ty, err := fe.emitOperand(&arg)
 		if err != nil {
 			return err

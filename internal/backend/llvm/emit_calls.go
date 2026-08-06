@@ -80,7 +80,7 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	return fe.emitDirectCall(call)
 }
 
-func (fe *funcEmitter) patchNothingCallArg(op *mir.Operand, sig funcSig, idx int) {
+func (fe *funcEmitter) patchNothingCallArg(op *mir.Operand, sig *funcSig, idx int) {
 	if op == nil {
 		return
 	}

@@ -222,7 +222,11 @@ func (fe *funcEmitter) funcSigFromType(typeID types.TypeID) (funcSig, error) {
 	if err != nil {
 		return funcSig{}, err
 	}
-	return funcSig{ret: ret, params: params, paramTypes: paramTypes}, nil
+	abi, err := fe.emitter.surgeABIForType(typeID)
+	if err != nil {
+		return funcSig{}, fmt.Errorf("call contract for function value: %w", err)
+	}
+	return funcSig{ret: ret, params: params, paramTypes: paramTypes, abi: abi}, nil
 }
 
 func (fe *funcEmitter) emitLayoutIntrinsic(call *mir.CallInstr) (bool, error) {
