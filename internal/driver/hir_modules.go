@@ -39,10 +39,14 @@ func CombineHIRWithModulesWithOptions(ctx context.Context, res *DiagnoseResult, 
 	if err := mergeTypeAttrFactsFromRecords(res); err != nil {
 		return nil, err
 	}
+	res.wholeProgramAuthority = true
 	if err := classifyCapabilities(res); err != nil {
 		return nil, err
 	}
 	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
+		return nil, err
+	}
+	if err := reachRequiredValueOperations(res); err != nil {
 		return nil, err
 	}
 

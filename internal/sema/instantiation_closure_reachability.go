@@ -6,13 +6,18 @@ import (
 	"surge/internal/symbols"
 )
 
+// reachableInstantiationGraph filters the always-on graph down to what the
+// program can reach from its three root inputs: the root-module seed policy,
+// the operations reachable types require, and the resolved call graph that
+// carries liveness from either one into dependencies.
 func reachableInstantiationGraph(
 	graph *InstantiationGraph,
 	callEdges map[symbols.SymbolID]map[symbols.SymbolID]struct{},
 	seeds map[symbols.SymbolID]struct{},
+	requiredValueOpRoots map[symbols.SymbolID]struct{},
 ) (InstantiationGraph, []symbols.SymbolID) {
 	if graph == nil {
-		return InstantiationGraph{}, sortedCallableSet(seeds)
+		return InstantiationGraph{}, sortedCallableSet(unionCallableSets(seeds, requiredValueOpRoots))
 	}
 	roots := graph.Roots()
 	edges := graph.Edges()
@@ -31,9 +36,9 @@ func reachableInstantiationGraph(
 		edgesByCaller[edge.Caller] = append(edgesByCaller[edge.Caller], edge)
 	}
 
-	liveCallables := make(map[symbols.SymbolID]struct{}, len(seeds))
+	liveCallables := make(map[symbols.SymbolID]struct{}, len(seeds)+len(requiredValueOpRoots))
 	liveTemplates := make(map[symbols.SymbolID]struct{})
-	for seed := range seeds {
+	for seed := range unionCallableSets(seeds, requiredValueOpRoots) {
 		if !seed.IsValid() {
 			continue
 		}
@@ -96,6 +101,23 @@ func reachableInstantiationGraph(
 		filtered.recordEdge(&edges[i])
 	}
 	return filtered, sortedCallableSet(liveCallables)
+}
+
+// unionCallableSets folds the root inputs into one starting set. They are kept
+// apart everywhere else so each stays answerable for what it admits; liveness
+// itself does not care which door a callable came through.
+func unionCallableSets(sets ...map[symbols.SymbolID]struct{}) map[symbols.SymbolID]struct{} {
+	total := 0
+	for _, set := range sets {
+		total += len(set)
+	}
+	union := make(map[symbols.SymbolID]struct{}, total)
+	for _, set := range sets {
+		for id := range set {
+			union[id] = struct{}{}
+		}
+	}
+	return union
 }
 
 func sortedCallableSet(set map[symbols.SymbolID]struct{}) []symbols.SymbolID {

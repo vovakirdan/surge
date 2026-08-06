@@ -36,6 +36,7 @@ func buildReachableInstantiationClosureWithDeferred(
 	graph *InstantiationGraph,
 	callEdges map[symbols.SymbolID]map[symbols.SymbolID]struct{},
 	seeds map[symbols.SymbolID]struct{},
+	requiredValueOpRoots map[symbols.SymbolID]struct{},
 	candidates []CallableCandidate,
 	templateParams map[symbols.SymbolID][]types.TypeID,
 	identity InstantiationIdentity,
@@ -60,7 +61,11 @@ func buildReachableInstantiationClosureWithDeferred(
 	if err := b.index(); err != nil {
 		return InstantiationClosure{}, err
 	}
-	for seed := range seeds {
+	// The seed policy and the required-operation roots are separate inputs with
+	// separate justifications, and both start the same worklist. Neither ever
+	// enqueues a generic template as a callable: a template has no body until
+	// arguments exist, and the instantiation roots carry that demand instead.
+	for seed := range unionCallableSets(seeds, requiredValueOpRoots) {
 		if _, isGeneric := b.generic[seed]; !isGeneric {
 			b.enqueueCallable(seed)
 		}

@@ -137,6 +137,7 @@ func (r *Result) FinalizeInstantiationClosure(identity InstantiationIdentity, ma
 			&r.InstantiationGraph,
 			r.FunctionCallEdges,
 			r.InstantiationCallableSeeds,
+			r.RequiredValueOpRoots,
 			r.CallableCandidates,
 			r.InstantiationTemplateParams,
 			identity,
@@ -163,16 +164,17 @@ func BuildInstantiationClosure(graph *InstantiationGraph, identity Instantiation
 
 // BuildReachableInstantiationClosure applies the root-module callable policy
 // before computing concrete generic substitution. Dependency functions become
-// live only through sema-resolved calls from an already-live callable or
-// generic template.
+// live only through sema-resolved calls from an already-live callable, a
+// generic template, or an operation some reachable type requires.
 func BuildReachableInstantiationClosure(
 	graph *InstantiationGraph,
 	callEdges map[symbols.SymbolID]map[symbols.SymbolID]struct{},
 	seeds map[symbols.SymbolID]struct{},
+	requiredValueOpRoots map[symbols.SymbolID]struct{},
 	identity InstantiationIdentity,
 	maxDepth int,
 ) (InstantiationClosure, error) {
-	filtered, live := reachableInstantiationGraph(graph, callEdges, seeds)
+	filtered, live := reachableInstantiationGraph(graph, callEdges, seeds, requiredValueOpRoots)
 	closure, err := buildInstantiationClosure(&filtered, identity, instantiationClosureLimits{
 		maxDepth:     maxDepth,
 		maxInstances: DefaultInstantiationClosureInstanceLimit,

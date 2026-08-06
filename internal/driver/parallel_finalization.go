@@ -114,6 +114,7 @@ func finalizeParallelModuleRecords(
 			FileSet: fileSet, File: aggregateFile, Bag: rec.Bag,
 			Symbols: aggregateSymbols, Sema: aggregate,
 			rootRecord: rec, moduleRecords: records, finalizationIndex: publicationIndex,
+			wholeProgramAuthority: true,
 		}
 		if err := mergeTypeAttrFactsFromRecords(diagnosed); err != nil {
 			return fmt.Errorf("%s type attribute facts: %w", modulePath, err)
@@ -121,6 +122,9 @@ func finalizeParallelModuleRecords(
 		aggregate.Capabilities = capabilities
 		if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
 			return fmt.Errorf("%s instantiation closure: %w", modulePath, err)
+		}
+		if err := reachRequiredValueOperations(diagnosed); err != nil {
+			return fmt.Errorf("%s required value operations: %w", modulePath, err)
 		}
 		for _, astFile := range rec.FileIDs {
 			if fileSema := rec.Sema[astFile]; fileSema != nil && fileSema != aggregate {

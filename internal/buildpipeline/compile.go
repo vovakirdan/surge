@@ -17,6 +17,13 @@ import (
 	"surge/internal/sema"
 )
 
+// monomorphizeModule is the pipeline's one entry into monomorphization.
+//
+// Everything a program must emit has to be reachable before this call: nothing
+// behind it can go back and instantiate an implementation a later pass would
+// ask for. It is a variable so a test can count entries and hold that to one.
+var monomorphizeModule = mono.MonomorphizeModule
+
 // DirInfo describes a directory run target.
 type DirInfo struct {
 	Path      string
@@ -195,7 +202,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		hirModule = diagRes.HIR
 	}
 
-	mm, err := mono.MonomorphizeModule(hirModule, diagRes.Instantiations, diagRes.Sema, mono.Options{
+	mm, err := monomorphizeModule(hirModule, diagRes.Instantiations, diagRes.Sema, mono.Options{
 		MaxDepth: 64,
 	})
 	if err != nil {

@@ -135,6 +135,26 @@ type Result struct {
 	// Only root-module body-bearing functions belong here; dependencies become
 	// live through FunctionCallEdges, never merely because they were imported.
 	InstantiationCallableSeeds map[symbols.SymbolID]struct{}
+	// ReachableBodyTypes are the types named INSIDE reachable bodies, seeded by
+	// the post-merge driver the same way the callable seeds above are.
+	//
+	// A callable's signature is whole-program by construction — it survives the
+	// merge — but what a body says stays in the file that was checked, and a
+	// value built, used and dropped inside one function appears in no signature
+	// anywhere. Such a value still needs its operations, so the driver, which
+	// holds every file's result, contributes the types their bodies name.
+	ReachableBodyTypes map[types.TypeID]struct{}
+	// RequiredValueOpRoots is the third root input to reachability, beside the
+	// seed policy above and the resolved call graph below.
+	//
+	// It holds the non-generic implementations a TYPE requires rather than a
+	// call site: a clone body reached through a value's operation table has no
+	// caller to be found from, and the seed policy above cannot carry it either,
+	// because that policy is about bodies declared in the root module and a
+	// clone implementation is routinely declared in a dependency. Widening the
+	// seeds to fit would change what "seed" means for everything else, so a new
+	// kind of root gets a new input.
+	RequiredValueOpRoots map[symbols.SymbolID]struct{}
 	// InstantiationTemplateParams keeps declaration-ordered exact TypeID
 	// descriptors for generic callables. Mono consumes this substitution ABI.
 	InstantiationTemplateParams map[symbols.SymbolID][]types.TypeID
