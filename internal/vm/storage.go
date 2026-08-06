@@ -35,8 +35,9 @@ type Arena struct {
 	// refs holds the referents of reference and pointer members. A member's
 	// extent stores index+1, so a zeroed extent reads back as "no referent"
 	// and partially initialized storage cannot be mistaken for refs[0].
-	refs []Location
-	gen  uint32
+	refs     []Location
+	refIndex map[Location]uint64
+	gen      uint32
 	// pins counts the slots of the owning frame that some task state is
 	// borrowing as backing storage. An arena with a live pin is never retired,
 	// so a pinned frame that outlives the stack keeps valid storage.
@@ -151,6 +152,7 @@ func (a *Arena) retire() bool {
 	a.gen++
 	a.bytes = nil
 	a.refs = nil
+	a.refIndex = nil
 	return true
 }
 
@@ -201,12 +203,24 @@ func (r StorageRef) field(relative uint64, typeID types.TypeID, align uint64) (S
 }
 
 // addRef records one referent and returns the slot encoding for it.
+//
+// A referent already in the table is reused rather than appended again. Without
+// that, copying a value with a reference member in a loop would grow the table
+// once per iteration even though the storage it describes never changes.
 func (a *Arena) addRef(loc Location) (uint64, error) {
 	if a == nil {
 		return 0, fmt.Errorf("storage: no arena for a reference member")
 	}
+	if encoded, ok := a.refIndex[loc]; ok {
+		return encoded, nil
+	}
 	a.refs = append(a.refs, loc)
-	return uint64(len(a.refs)), nil
+	encoded := uint64(len(a.refs))
+	if a.refIndex == nil {
+		a.refIndex = make(map[Location]uint64, 4)
+	}
+	a.refIndex[loc] = encoded
+	return encoded, nil
 }
 
 // refAt returns the referent a slot encoding names.
