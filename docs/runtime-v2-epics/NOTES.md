@@ -6656,3 +6656,52 @@ comments now describe behavior instead of naming the epic, the retained mono
 clone rediscovery scan is tracked as `RV2-DEBT-149` (owned by the
 operation-plan registry work), and this correction note fixes the stale
 figures. The staging branch advances to this commit.
+
+## 2026-08-06 — B3B: the operation-plan registry
+
+The B3B plan was accepted only after three independent review rounds (3 P0 +
+6 P1 in the first, 3 P1 in the second, PASS with two staged P2 folded into
+their commits) and is recorded, with its revisions, in agentmemory. The
+implementation landed as ten reviewed commits on the integration branch:
+
+- `5b3efb7b` publication identifies its owning file from the AST-file span
+  both fields now derive from; an unknown identity fails closed naming both
+  id spaces. Measured on the unfixed tree, the drifted shape published no
+  clone symbols and left the entrypoint binding on the non-owning file.
+  `RV2-DEBT-148` is closed.
+- `4a068371` the four capability attributes travel as detached per-type facts
+  merged across records before the closure runs — pure OR, then one
+  validation naming every contributing module; a file whose own bag already
+  reports the contradiction does not flush the pair.
+- `c8188027` the layout root census carries Value and Key roles; the map-key
+  probe rides the existing handle-payload walk, so the physical root set and
+  the layout registry hash are unchanged.
+- `ae22667c` + `0b2e250e` builtin extern blocks reach the merged catalog
+  once: the census found TWO duplication shapes (996 records for 498
+  operations), so the fold sits at the merge that first joins two modules —
+  the selection-time collapse is deleted. `RV2-DEBT-146` is closed.
+- `631e40ca` the authoritative capability classifier: clone strictly through
+  the canonical selector's use-site-free Select; ShardMovable as the
+  owned-move verdict under a greatest fixpoint, the emission-facing axes
+  under a least one; CarrierDroppable deliberately disagrees with ownsHeap
+  and is wired into nothing yet.
+- `f6bf5c7e` required clone operations derive from the reachable closure and
+  re-enter it as explicit roots — a third root input beside the seed policy —
+  iterating to a budget-bounded fixpoint before the single monomorphization
+  pass. The golden corpus did not move.
+- `e9ed2e93` `internal/valueops`: an immutable registry whose ABI flags carry
+  only what is emissible today (COPY, CLONABLE), whose staged verdicts live
+  in a separate non-ABI field, and whose independence from the compiler is
+  enforced by an import-absence test and a no-live-references walk.
+- `19d84ab3` both production pipelines publish `m.Meta.Operations` after
+  layout finalization, resolving each CLONABLE entry's `clone_init` through
+  the callable map and failing closed on a nil identity or a missed lookup.
+- `49b8c8f8` the clone rediscovery scan is gone: `rewriteCloneCall` refuses
+  on every builder, and `ensureFunc` shed its unused result. `RV2-DEBT-149`
+  is closed.
+
+Every commit passed the normal pre-commit hook; each lane also ran
+golden-check, the crossing gate, and the file-size gate against the epic base
+in its own worktree before integration. Wave C/D own the staged slots
+(drop_in_place, trace, cross ops, key hash/equal) and the migration of the
+staged capability bits into the ABI flags as those slots fill.
