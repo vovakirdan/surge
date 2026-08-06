@@ -88,6 +88,14 @@ func finalizeParallelModuleRecords(
 	if err != nil {
 		return err
 	}
+	// One authority for every module below, built before the loop for the same
+	// reason the publication index is: what a type can do is a property of the
+	// program, not of whichever module happens to be finalizing when the
+	// question is asked.
+	capabilities, err := wholeProgramCapabilityAuthority(records)
+	if err != nil {
+		return fmt.Errorf("capability classification: %w", err)
+	}
 	finalized := make(map[*moduleRecord]struct{}, len(records))
 	for _, modulePath := range paths {
 		rec := records[modulePath]
@@ -110,6 +118,7 @@ func finalizeParallelModuleRecords(
 		if err := mergeTypeAttrFactsFromRecords(diagnosed); err != nil {
 			return fmt.Errorf("%s type attribute facts: %w", modulePath, err)
 		}
+		aggregate.Capabilities = capabilities
 		if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
 			return fmt.Errorf("%s instantiation closure: %w", modulePath, err)
 		}

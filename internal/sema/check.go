@@ -177,6 +177,12 @@ type Result struct {
 	FarTaskAwaitSpans  []source.Span
 	FarTaskCancelSpans []source.Span
 	CrossingLowering   []CrossingLoweringInfo
+	// Capabilities is the whole-program capability authority, attached by the
+	// driver at the two sites that hold the merged type attribute facts. It is
+	// nil everywhere else, and deliberately so: a classifier built from one
+	// file's view would answer for an imported type out of that file's
+	// ignorance of it.
+	Capabilities *CapabilityClassifier
 }
 
 // FunctionEffect stores inferred function-level effects used by later lowering
