@@ -444,8 +444,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			// monomorphizes one file's own HIR without the whole-program merge
 			// that classifies capabilities, so there is no authority to publish
 			// plans from and MIR carries layouts alone.
-			if err := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU(),
-				mir.NewOperationPlanInput(result.Sema, mm)); err != nil {
+			if err := mir.FinalizeModuleMeta(mirMod, result.Sema.TypeInterner, layout.X86_64LinuxGNU(), mir.NewOperationPlanInput(result.Sema, mm)); err != nil {
 				return 0, fmt.Errorf("failed to finalize MIR layouts: %w", err)
 			}
 
