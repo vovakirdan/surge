@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"fmt"
+
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -112,11 +114,61 @@ func (vm *VM) handleDurationUnit(frame *Frame, call *mir.CallInstr, writes *[]Lo
 }
 
 func (vm *VM) durationNanos(value Value) (int64, *VMError) {
-	return vm.resourceWord(value, "Duration", "Duration")
+	if value.Kind == VKRef || value.Kind == VKRefMut {
+		loaded, vmErr := vm.loadLocationRaw(value.Loc)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		value = loaded
+	}
+	if value.Kind != VKHandleStruct {
+		return 0, vm.eb.typeMismatch("Duration", value.Kind.String())
+	}
+	obj := vm.Heap.Get(value.H)
+	if obj == nil {
+		return 0, vm.eb.typeMismatch("Duration", "invalid handle")
+	}
+	if obj.Kind != OKStruct {
+		return 0, vm.eb.typeMismatch("Duration", fmt.Sprintf("%v", obj.Kind))
+	}
+	layout, vmErr := vm.layouts.Struct(value.TypeID)
+	if vmErr != nil {
+		return 0, vmErr
+	}
+	idx, ok := layout.IndexByName[durationOpaqueField]
+	if !ok {
+		return 0, vm.eb.makeError(PanicTypeMismatch, "Duration missing __opaque field")
+	}
+	if idx < 0 || idx >= len(obj.Fields) {
+		return 0, vm.eb.makeError(PanicOutOfBounds, "Duration __opaque field out of range")
+	}
+	field := obj.Fields[idx]
+	if field.Kind != VKInt {
+		return 0, vm.eb.typeMismatch("int64", field.Kind.String())
+	}
+	return field.Int, nil
 }
 
 func (vm *VM) durationValue(nanos int64, typeID types.TypeID) (Value, *VMError) {
-	return vm.resourceValue(nanos, typeID, "Duration")
+	layout, vmErr := vm.layouts.Struct(typeID)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	fields := make([]Value, len(layout.FieldNames))
+	for i := range fields {
+		fields[i] = Value{Kind: VKInvalid}
+	}
+	idx, ok := layout.IndexByName[durationOpaqueField]
+	if !ok {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch, "Duration missing __opaque field")
+	}
+	fieldType := layout.FieldTypes[idx]
+	if fieldType == types.NoTypeID && vm.Types != nil {
+		fieldType = vm.Types.Builtins().Int
+	}
+	fields[idx] = MakeInt(nanos, fieldType)
+	h := vm.Heap.AllocStruct(typeID, fields)
+	return MakeHandleStruct(h, typeID), nil
 }
 
 func (vm *VM) writeDurationResult(frame *Frame, dst mir.LocalID, value Value, writes *[]LocalWrite) *VMError {

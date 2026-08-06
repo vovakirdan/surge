@@ -34,10 +34,16 @@ const (
 	OKBigFloat
 	// OKRange represents a range object.
 	OKRange
-	// OKResource represents a runtime-owned resource: a task, a channel, an
-	// open file, a socket or a point in time. It carries one opaque word and
-	// nothing else, because that word is the whole value — the runtime owns
-	// what the word names, and the language can only pass the resource around.
+	// OKResource represents a runtime-owned resource: a task, a channel or an
+	// open file. It carries one opaque word and nothing else, because that word
+	// is the whole value — the runtime owns what the word names, and no Surge
+	// source can construct or read one.
+	//
+	// This is the settled shape for these types, not a step towards another
+	// one. The wave that moves task, channel and select OWNERSHIP builds on
+	// this carrier rather than replacing it: what that work changes is who
+	// reclaims what the word names and when, which is a question about the
+	// runtime's side of the word, not about how the language carries it.
 	OKResource
 )
 

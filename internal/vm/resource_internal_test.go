@@ -23,6 +23,10 @@ func newResourceFixture(t *testing.T) (*VM, types.TypeID, types.TypeID) {
 	interner.SetStructFields(handleType, []types.StructField{
 		{Name: interner.Strings.Intern(resourceOpaqueField), Type: i64},
 	})
+	// A runtime-handle type is a nominal struct that the interner has been told
+	// is one. Without that mark the fixture would be an ordinary struct and the
+	// verdicts below would answer about the wrong thing.
+	interner.MarkRuntimeHandleType(handleType)
 	plain := interner.RegisterStruct(interner.Strings.Intern("Point"), source.Span{})
 	interner.SetStructFields(plain, []types.StructField{
 		{Name: interner.Strings.Intern("x"), Type: i64},
@@ -113,5 +117,84 @@ func TestResourceWordAcceptsTheNumbersIntrinsicsHandBack(t *testing.T) {
 	}
 	if !strings.Contains(vmErr.Message, "Task") {
 		t.Fatalf("the refusal must name the type it wanted: %q", vmErr.Message)
+	}
+}
+
+// The guard on this carrier change is that it is behaviour-neutral for every
+// runtime-handle type. The resource-id lifecycle is pinned by the existing
+// suites that open, pass and close these resources end to end. What was NOT
+// pinned anywhere is the handful of verdicts below, which the carrier could
+// plausibly have moved, so they are pinned here.
+
+func TestResourceIsNotAValueCompositeAndClonesByCountingAReference(t *testing.T) {
+	machine, handleType, _ := newResourceFixture(t)
+
+	if machine.isValueCompositeType(handleType) {
+		t.Fatal("a runtime handle must not be a value composite, or copying one would duplicate the resource")
+	}
+	if kind := machine.storageCellKind(handleType); kind != cellHandle {
+		t.Fatalf("a runtime handle is stored as %s, want handle", kind)
+	}
+
+	value, vmErr := machine.resourceValue(5, handleType, "Task")
+	if vmErr != nil {
+		t.Fatalf("building a resource must succeed: %v", vmErr)
+	}
+	cloned, vmErr := machine.cloneValueComposite(value)
+	if vmErr != nil {
+		t.Fatalf("cloning a resource must succeed: %v", vmErr)
+	}
+	if cloned.H != value.H {
+		t.Fatalf("cloning a resource made a second object (%d vs %d); the runtime owns one resource, not two",
+			cloned.H, value.H)
+	}
+	if got := machine.Heap.Get(value.H).RefCount; got != 2 {
+		t.Fatalf("cloning a resource counted %d references, want 2", got)
+	}
+}
+
+func TestResourceEqualityComparesIdentityNotItsWord(t *testing.T) {
+	machine, handleType, _ := newResourceFixture(t)
+
+	first, vmErr := machine.resourceValue(7, handleType, "Task")
+	if vmErr != nil {
+		t.Fatalf("building a resource must succeed: %v", vmErr)
+	}
+	second, vmErr := machine.resourceValue(7, handleType, "Task")
+	if vmErr != nil {
+		t.Fatalf("building a second resource must succeed: %v", vmErr)
+	}
+
+	same, vmErr := machine.evalEqual(first, first)
+	if vmErr != nil || !same.Bool {
+		t.Fatalf("a resource must equal itself, got %v (%v)", same.Bool, vmErr)
+	}
+	other, vmErr := machine.evalEqual(first, second)
+	if vmErr != nil {
+		t.Fatalf("comparing two resources must succeed: %v", vmErr)
+	}
+	if other.Bool {
+		t.Fatal("two separately built resources must not compare equal; equality is identity here, as it was when they were struct boxes")
+	}
+}
+
+func TestResourceNamesItselfWhereverItIsRendered(t *testing.T) {
+	machine, handleType, _ := newResourceFixture(t)
+
+	value, vmErr := machine.resourceValue(3, handleType, "Task")
+	if vmErr != nil {
+		t.Fatalf("building a resource must succeed: %v", vmErr)
+	}
+	if got := value.Kind.String(); got != "resource" {
+		t.Fatalf("the value kind renders as %q, want \"resource\"", got)
+	}
+	if got := value.String(); got != "resource" {
+		t.Fatalf("the value renders as %q, want \"resource\"", got)
+	}
+	if got := machine.objectKindLabel(OKResource); got != "resource" {
+		t.Fatalf("a leaked resource would be reported as %q, want \"resource\"", got)
+	}
+	if !value.IsHeap() {
+		t.Fatal("a resource is heap-backed; a walk that thought otherwise would leak it")
 	}
 }

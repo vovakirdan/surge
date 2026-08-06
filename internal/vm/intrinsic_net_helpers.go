@@ -171,37 +171,157 @@ func (vm *VM) netWriteSuccess(frame *Frame, dstLocal mir.LocalID, dstType types.
 }
 
 func (vm *VM) netListenerHandleFromValue(val Value) (uint64, *VMError) {
-	word, vmErr := vm.resourceWord(val, "TcpListener", "TcpListener handle")
-	if vmErr != nil {
-		return 0, vmErr
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		loaded, vmErr := vm.loadLocationRaw(val.Loc)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		val = loaded
 	}
-	if word < 0 {
-		return 0, vm.eb.makeError(PanicInvalidHandle, "TcpListener handle out of range")
+	switch val.Kind {
+	case VKInt:
+		if val.Int < 0 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "negative TcpListener handle")
+		}
+		return uint64(val.Int), nil
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(val)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := i.Int64()
+		if !ok || n < 0 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "TcpListener handle out of range")
+		}
+		return uint64(n), nil
+	case VKBigUint:
+		u, vmErr := vm.mustBigUint(val)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := u.Uint64()
+		if !ok {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "TcpListener handle out of range")
+		}
+		return n, nil
+	case VKHandleStruct:
+		obj := vm.Heap.Get(val.H)
+		if obj == nil || obj.Kind != OKStruct {
+			return 0, vm.eb.typeMismatch("struct", "invalid TcpListener handle")
+		}
+		layout, vmErr := vm.layouts.Struct(val.TypeID)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		idx, ok := layout.IndexByName["__opaque"]
+		if !ok {
+			return 0, vm.eb.makeError(PanicTypeMismatch, "TcpListener missing __opaque field")
+		}
+		if idx < 0 || idx >= len(obj.Fields) {
+			return 0, vm.eb.makeError(PanicOutOfBounds, "TcpListener __opaque field out of range")
+		}
+		return vm.netListenerHandleFromValue(obj.Fields[idx])
+	default:
+		return 0, vm.eb.typeMismatch("TcpListener", val.Kind.String())
 	}
-	return uint64(word), nil
 }
 
 func (vm *VM) netListenerValue(handle uint64, typeID types.TypeID) (Value, *VMError) {
+	layout, vmErr := vm.layouts.Struct(typeID)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	fields := make([]Value, len(layout.FieldNames))
+	for i := range fields {
+		fields[i] = Value{Kind: VKInvalid}
+	}
+	idx, ok := layout.IndexByName["__opaque"]
+	if !ok {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch, "TcpListener missing __opaque field")
+	}
+	fieldType := layout.FieldTypes[idx]
 	if handle > uint64(math.MaxInt64) {
 		return Value{}, vm.eb.makeError(PanicInvalidHandle, "TcpListener handle out of range")
 	}
-	return vm.resourceValue(int64(handle), typeID, "TcpListener") //nolint:gosec // range-checked above
+	fields[idx] = MakeInt(int64(handle), fieldType)
+	h := vm.Heap.AllocStruct(typeID, fields)
+	return MakeHandleStruct(h, typeID), nil
 }
 
 func (vm *VM) netConnHandleFromValue(val Value) (uint64, *VMError) {
-	word, vmErr := vm.resourceWord(val, "TcpConn", "TcpConn handle")
-	if vmErr != nil {
-		return 0, vmErr
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		loaded, vmErr := vm.loadLocationRaw(val.Loc)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		val = loaded
 	}
-	if word < 0 {
-		return 0, vm.eb.makeError(PanicInvalidHandle, "TcpConn handle out of range")
+	switch val.Kind {
+	case VKInt:
+		if val.Int < 0 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "negative TcpConn handle")
+		}
+		return uint64(val.Int), nil
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(val)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := i.Int64()
+		if !ok || n < 0 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "TcpConn handle out of range")
+		}
+		return uint64(n), nil
+	case VKBigUint:
+		u, vmErr := vm.mustBigUint(val)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := u.Uint64()
+		if !ok {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "TcpConn handle out of range")
+		}
+		return n, nil
+	case VKHandleStruct:
+		obj := vm.Heap.Get(val.H)
+		if obj == nil || obj.Kind != OKStruct {
+			return 0, vm.eb.typeMismatch("struct", "invalid TcpConn handle")
+		}
+		layout, vmErr := vm.layouts.Struct(val.TypeID)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		idx, ok := layout.IndexByName["__opaque"]
+		if !ok {
+			return 0, vm.eb.makeError(PanicTypeMismatch, "TcpConn missing __opaque field")
+		}
+		if idx < 0 || idx >= len(obj.Fields) {
+			return 0, vm.eb.makeError(PanicOutOfBounds, "TcpConn __opaque field out of range")
+		}
+		return vm.netConnHandleFromValue(obj.Fields[idx])
+	default:
+		return 0, vm.eb.typeMismatch("TcpConn", val.Kind.String())
 	}
-	return uint64(word), nil
 }
 
 func (vm *VM) netConnValue(handle uint64, typeID types.TypeID) (Value, *VMError) {
+	layout, vmErr := vm.layouts.Struct(typeID)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	fields := make([]Value, len(layout.FieldNames))
+	for i := range fields {
+		fields[i] = Value{Kind: VKInvalid}
+	}
+	idx, ok := layout.IndexByName["__opaque"]
+	if !ok {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch, "TcpConn missing __opaque field")
+	}
+	fieldType := layout.FieldTypes[idx]
 	if handle > uint64(math.MaxInt64) {
 		return Value{}, vm.eb.makeError(PanicInvalidHandle, "TcpConn handle out of range")
 	}
-	return vm.resourceValue(int64(handle), typeID, "TcpConn") //nolint:gosec // range-checked above
+	fields[idx] = MakeInt(int64(handle), fieldType)
+	h := vm.Heap.AllocStruct(typeID, fields)
+	return MakeHandleStruct(h, typeID), nil
 }

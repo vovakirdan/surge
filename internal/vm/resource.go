@@ -6,14 +6,22 @@ import (
 	"surge/internal/types"
 )
 
-// resourceOpaqueField is the compiler-private member every runtime-resource
-// type declares. The language cannot name it; it exists so the type has a
-// layout, and it is where the native backend puts the word.
+// resourceOpaqueField is the private member a runtime-resource type declares.
+// It exists so the type has a layout, and it is where the native backend puts
+// the word.
+//
+// The name alone does NOT make a type a resource. `Duration`, `TcpListener` and
+// `TcpConn` spell their member the same way and are built and read FROM SURGE
+// SOURCE — stdlib/time/time.sg constructs `Duration { __opaque = nanos }`, and
+// stdlib/net/net.sg and stdlib/http/http.sg both construct and project the net
+// ones. They are ordinary composites wearing a naming convention, they belong
+// to the inline-storage work, and carrying them here would break the moment
+// source built one. The test for membership is whether the word is
+// unreachable from source, not what the member is called.
 const resourceOpaqueField = "__opaque"
 
-// A runtime resource — a task, a channel, an open file, a socket, a point in
-// time — is named in the language by a nominal struct with that one private
-// member. It is NOT an inline composite: `types.IsValueComposite` says so, its
+// A runtime resource — a task, a channel, an open file — is named in the
+// language by a nominal struct with that one private member. It is NOT an inline composite: `types.IsValueComposite` says so, its
 // member is unreachable from source, and the value's whole meaning is the word
 // the runtime handed out.
 //
