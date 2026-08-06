@@ -2,7 +2,6 @@ package vm
 
 import (
 	"fmt"
-	"math"
 
 	"fortio.org/safecast"
 
@@ -125,86 +124,11 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			}
 
 		case mir.PlaceProjIndex:
-			v, vmErr := vm.loadLocationRaw(loc)
+			next, vmErr := vm.projectIndexLocation(frame, loc, proj)
 			if vmErr != nil {
 				return Location{}, vmErr
 			}
-			for i := 0; i < 8 && (v.Kind == VKRef || v.Kind == VKRefMut); i++ {
-				v, vmErr = vm.loadLocationRaw(v.Loc)
-				if vmErr != nil {
-					return Location{}, vmErr
-				}
-			}
-			if v.Kind != VKHandleArray {
-				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection on non-array value (got %s)", v.Kind))
-			}
-
-			obj, vmErr := vm.heapAliveForRef(v.H)
-			if vmErr != nil {
-				return Location{}, vmErr
-			}
-
-			idxLocal := proj.IndexLocal
-			idxVal, vmErr := vm.readLocal(frame, idxLocal)
-			if vmErr != nil {
-				return Location{}, vmErr
-			}
-			if obj.Kind != OKArray && obj.Kind != OKArraySlice {
-				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection on %v", obj.Kind))
-			}
-			view, vmErr := vm.arrayViewFromHandle(v.H)
-			if vmErr != nil {
-				return Location{}, vmErr
-			}
-			idx, vmErr := vm.arrayIndexFromValue(idxVal, view.length)
-			if vmErr != nil {
-				return Location{}, vmErr
-			}
-
-			baseIdx := view.start + idx
-			idx32, err := safecast.Conv[int32](baseIdx)
-			if err != nil {
-				return Location{}, vm.eb.invalidLocation("index projection: index overflow")
-			}
-
-			if vm.Layouts == nil || vm.Types == nil {
-				return Location{}, vm.eb.invalidLocation("index projection: missing finalized layout registry or type interner")
-			}
-			elemType := types.NoTypeID
-			arrType := vm.valueType(v.TypeID)
-			if t, ok := vm.Types.ArrayInfo(arrType); ok {
-				elemType = t
-			} else if t, _, ok := vm.Types.ArrayFixedInfo(arrType); ok {
-				elemType = t
-			} else if tt, ok := vm.Types.Lookup(arrType); ok && tt.Kind == types.KindArray {
-				elemType = tt.Elem
-			}
-			if elemType == types.NoTypeID {
-				return Location{}, vm.eb.invalidLocation("index projection: missing element type")
-			}
-			el, err := vm.Layouts.Require(elemType)
-			if err != nil {
-				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection: %v", err))
-			}
-			baseIndex, err := safecast.Conv[uint64](baseIdx)
-			if err != nil {
-				return Location{}, vm.eb.invalidLocation("index projection: negative byte offset")
-			}
-			if el.Stride != 0 && baseIndex > math.MaxUint64/el.Stride {
-				return Location{}, vm.eb.invalidLocation("index projection: byte offset overflow")
-			}
-			off := el.Stride * baseIndex
-			byteOffset, err := safecast.Conv[int32](off)
-			if err != nil {
-				return Location{}, vm.eb.invalidLocation("index projection: byte offset overflow")
-			}
-			loc = Location{
-				Kind:       LKArrayElem,
-				Handle:     view.baseHandle,
-				Index:      idx32,
-				ByteOffset: byteOffset,
-				IsMut:      loc.IsMut,
-			}
+			loc = next
 
 		default:
 			return Location{}, vm.eb.invalidLocation(fmt.Sprintf("invalid place projection kind %d", proj.Kind))
@@ -267,52 +191,10 @@ func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 		return obj.Tag.Fields[fieldIdx], nil
 
 	case LKArrayElem:
-		obj, vmErr := vm.heapAliveForRef(loc.Handle)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		if obj.Kind != OKArray && obj.Kind != OKArraySlice {
-			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("expected array handle, got %v", obj.Kind))
-		}
-		view, vmErr := vm.arrayViewFromHandle(loc.Handle)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		idx := int(loc.Index)
-		if loc.Index < 0 || idx < 0 || idx >= view.length {
-			return Value{}, vm.eb.arrayIndexOutOfRange(idx, view.length)
-		}
-		val := view.baseObj.Arr[view.start+idx]
-		if vm.Types != nil && view.baseObj != nil {
-			if elemType, ok := vm.Types.ArrayInfo(view.baseObj.TypeID); ok {
-				if retagged, ok := vm.retagUnionValue(val, elemType); ok {
-					val = retagged
-				}
-			}
-		}
-		return val, nil
+		return vm.loadArrayElem(loc)
 
 	case LKMapElem:
-		obj, vmErr := vm.heapAliveForRef(loc.Handle)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		if obj.Kind != OKMap {
-			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("expected map handle, got %v", obj.Kind))
-		}
-		idx := int(loc.Index)
-		if loc.Index < 0 || idx < 0 || idx >= len(obj.MapEntries) {
-			return Value{}, vm.eb.outOfBounds(idx, len(obj.MapEntries))
-		}
-		val := obj.MapEntries[idx].Value
-		if vm.Types != nil {
-			if _, valueType, ok := vm.Types.MapInfo(obj.TypeID); ok {
-				if retagged, ok := vm.retagUnionValue(val, valueType); ok {
-					val = retagged
-				}
-			}
-		}
-		return val, nil
+		return vm.loadMapElem(loc)
 
 	default:
 		return Value{}, vm.eb.invalidLocation("unknown location kind")
@@ -376,55 +258,10 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 		return nil
 
 	case LKArrayElem:
-		obj, vmErr := vm.heapAliveForRef(loc.Handle)
-		if vmErr != nil {
-			return vmErr
-		}
-		if obj.Kind != OKArray && obj.Kind != OKArraySlice {
-			return vm.eb.invalidLocation(fmt.Sprintf("expected array handle, got %v", obj.Kind))
-		}
-		view, vmErr := vm.arrayViewFromHandle(loc.Handle)
-		if vmErr != nil {
-			return vmErr
-		}
-		idx := int(loc.Index)
-		if loc.Index < 0 || idx < 0 || idx >= view.length {
-			return vm.eb.arrayIndexOutOfRange(idx, view.length)
-		}
-		if vm.Types != nil && view.baseObj != nil {
-			if elemType, ok := vm.Types.ArrayInfo(view.baseObj.TypeID); ok {
-				if retagged, ok := vm.retagUnionValue(val, elemType); ok {
-					val = retagged
-				}
-			}
-		}
-		baseIdx := view.start + idx
-		vm.dropValue(view.baseObj.Arr[baseIdx])
-		view.baseObj.Arr[baseIdx] = val
-		return nil
+		return vm.storeArrayElem(loc, val)
 
 	case LKMapElem:
-		obj, vmErr := vm.heapAliveForRef(loc.Handle)
-		if vmErr != nil {
-			return vmErr
-		}
-		if obj.Kind != OKMap {
-			return vm.eb.invalidLocation(fmt.Sprintf("expected map handle, got %v", obj.Kind))
-		}
-		idx := int(loc.Index)
-		if loc.Index < 0 || idx < 0 || idx >= len(obj.MapEntries) {
-			return vm.eb.outOfBounds(idx, len(obj.MapEntries))
-		}
-		if vm.Types != nil {
-			if _, valueType, ok := vm.Types.MapInfo(obj.TypeID); ok {
-				if retagged, ok := vm.retagUnionValue(val, valueType); ok {
-					val = retagged
-				}
-			}
-		}
-		vm.dropValue(obj.MapEntries[idx].Value)
-		obj.MapEntries[idx].Value = val
-		return nil
+		return vm.storeMapElem(loc, val)
 
 	case LKRawBytes, LKStringBytes:
 		b, vmErr := vm.valueToUint8(val)
