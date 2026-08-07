@@ -134,8 +134,7 @@ func (vm *VM) defaultValue(typeID types.TypeID) (Value, *VMError) {
 		if !ok {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "default requires union with nothing")
 		}
-		h := vm.Heap.AllocTag(typeID, tc.TagSym, nil)
-		return MakeHandleTag(h, typeID), nil
+		return vm.buildTag(vm.currentFrame(), typeID, tc.TagSym, nil)
 	case types.KindConst:
 		return MakeInt(int64(tt.Count), typeID), nil
 	default:
@@ -159,8 +158,7 @@ func (vm *VM) defaultStruct(typeID types.TypeID) (Value, *VMError) {
 		}
 		fields = append(fields, val)
 	}
-	h := vm.Heap.AllocStruct(layout.TypeID, fields)
-	return MakeHandleStruct(h, typeID), nil
+	return vm.buildStruct(vm.currentFrame(), typeID, fields)
 }
 
 func (vm *VM) defaultArray(typeID, elemType types.TypeID, length int) (Value, *VMError) {

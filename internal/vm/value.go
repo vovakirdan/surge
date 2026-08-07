@@ -35,10 +35,6 @@ const (
 	VKHandleArray
 	// VKHandleMap represents a map handle value.
 	VKHandleMap
-	// VKHandleStruct represents a struct handle value.
-	VKHandleStruct
-	// VKHandleTag represents a tagged union handle value.
-	VKHandleTag
 	// VKHandleRange represents a range handle value.
 	VKHandleRange
 
@@ -52,6 +48,18 @@ const (
 	// VKResource represents a runtime-owned resource handle: a task, a channel,
 	// an open file, a socket or a point in time.
 	VKResource
+
+	// VKComposite is a struct, a tuple, a tagged union or a fixed array: a
+	// VALUE, carried as the storage that holds it.
+	//
+	// There is no object beneath it. A composite is its bytes, at an offset its
+	// layout decided, in an arena some activation or container owns, and the
+	// value carries the reference to those bytes rather than a handle to a box
+	// that carries them. That is the whole of the difference: two composites of
+	// one type are two byte ranges rather than two pointers, projecting a
+	// member is arithmetic rather than a second lookup, and copying one has to
+	// copy storage because there is nothing else to share.
+	VKComposite
 )
 
 // String returns a human-readable name for the value kind.
@@ -79,10 +87,6 @@ func (k ValueKind) String() string {
 		return "array"
 	case VKHandleMap:
 		return "map"
-	case VKHandleStruct:
-		return "struct"
-	case VKHandleTag:
-		return "tag"
 	case VKHandleRange:
 		return "range"
 	case VKBigInt:
@@ -93,6 +97,8 @@ func (k ValueKind) String() string {
 		return "bigfloat"
 	case VKResource:
 		return "resource"
+	case VKComposite:
+		return "composite"
 	default:
 		return fmt.Sprintf("ValueKind(%d)", k)
 	}
@@ -120,7 +126,7 @@ func (v Value) IsHeap() bool {
 		return true
 	}
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
+	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
 		return true
 	default:
 		return false
@@ -155,10 +161,6 @@ func (v Value) String() string {
 		return "array"
 	case VKHandleMap:
 		return "map"
-	case VKHandleStruct:
-		return "struct"
-	case VKHandleTag:
-		return "tag"
 	case VKHandleRange:
 		return "range"
 	case VKBigInt:
@@ -169,6 +171,8 @@ func (v Value) String() string {
 		return "bigfloat"
 	case VKResource:
 		return "resource"
+	case VKComposite:
+		return fmt.Sprintf("composite@%s", v.Loc)
 	default:
 		return fmt.Sprintf("<unknown:%d>", v.Kind)
 	}
@@ -265,24 +269,6 @@ func MakeHandleMap(h Handle, typeID types.TypeID) Value {
 	}
 }
 
-// MakeHandleStruct creates a struct handle value.
-func MakeHandleStruct(h Handle, typeID types.TypeID) Value {
-	return Value{
-		TypeID: typeID,
-		Kind:   VKHandleStruct,
-		H:      h,
-	}
-}
-
-// MakeHandleTag creates a tagged union handle value.
-func MakeHandleTag(h Handle, typeID types.TypeID) Value {
-	return Value{
-		TypeID: typeID,
-		Kind:   VKHandleTag,
-		H:      h,
-	}
-}
-
 // MakeHandleRange creates a range handle value.
 func MakeHandleRange(h Handle, typeID types.TypeID) Value {
 	return Value{
@@ -317,6 +303,28 @@ func MakeResource(h Handle, typeID types.TypeID) Value {
 		Kind:   VKResource,
 		H:      h,
 	}
+}
+
+// MakeComposite names a composite value by the storage that holds it.
+//
+// The static type comes from the reference rather than from the caller,
+// because the extent and the type are one fact: the bytes are only walkable as
+// the type whose layout chose their size, offsets and alignment, and a caller
+// that could name a different one could walk them as something they are not.
+func MakeComposite(ref StorageRef) Value {
+	return Value{
+		TypeID: ref.TypeID,
+		Kind:   VKComposite,
+		Loc:    Location{Kind: LKStorage, Storage: ref, IsMut: true},
+	}
+}
+
+// Storage returns the extent a composite value occupies.
+func (v Value) Storage() (StorageRef, bool) {
+	if v.Kind != VKComposite || v.Loc.Kind != LKStorage {
+		return StorageRef{}, false
+	}
+	return v.Loc.Storage, true
 }
 
 // MakeBigFloat creates a big float handle value.

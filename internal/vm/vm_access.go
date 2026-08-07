@@ -53,14 +53,20 @@ func (vm *VM) readGlobal(id mir.GlobalID) (Value, *VMError) {
 	return slot.V, nil
 }
 
-// writeLocal writes a value to a local variable.
-func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
-	if int(id) < 0 || int(id) >= len(frame.Locals) {
-		return vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid local id %d", id))
+// coerceToSlotType settles the difference between the type a value carries and
+// the type the slot it is going into declares.
+//
+// Both slot writers ask the same three questions, so they ask them in one
+// place. A value that carries no type adopts the slot's; a union adopts the
+// slot's union by CONVERSION rather than by relabelling, because the two
+// layouts put the same arm in different places; and `nothing` written into a
+// slot whose union has a nothing arm becomes that arm, which is the one case
+// where a value of no type at all acquires a representation.
+func (vm *VM) coerceToSlotType(frame *Frame, val Value, expectedType types.TypeID) (Value, *VMError) {
+	if expectedType == types.NoTypeID {
+		return val, nil
 	}
-
-	expectedType := frame.Locals[id].TypeID
-	if val.TypeID == types.NoTypeID && expectedType != types.NoTypeID {
+	if val.TypeID == types.NoTypeID {
 		val.TypeID = expectedType
 		if val.IsHeap() && val.H != 0 {
 			if obj := vm.Heap.Get(val.H); obj != nil && obj.TypeID == types.NoTypeID {
@@ -68,21 +74,70 @@ func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
 			}
 		}
 	}
-	if expectedType != types.NoTypeID {
-		if retagged, ok := vm.retagUnionValue(val, expectedType); ok {
-			val = retagged
+	if ref, isTag := vm.isTagStorage(val); isTag {
+		converted, changed, vmErr := vm.retagUnion(frame, ref, expectedType)
+		if vmErr != nil {
+			return Value{}, vmErr
 		}
+		if changed {
+			return converted, nil
+		}
+		unwrapped, applied, vmErr := vm.unwrapTypeArm(frame, ref, expectedType)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if applied {
+			return unwrapped, nil
+		}
+		return val, nil
 	}
-	if val.Kind == VKNothing && expectedType != types.NoTypeID && vm.tagLayouts != nil {
+	if wrapped, applied, vmErr := vm.wrapTypeArm(frame, val, expectedType); vmErr != nil {
+		return Value{}, vmErr
+	} else if applied {
+		return wrapped, nil
+	}
+	if val.Kind == VKNothing && vm.tagLayouts != nil {
 		if tagLayout, ok := vm.tagLayouts.Layout(vm.valueType(expectedType)); ok && tagLayout != nil {
 			if tc, ok := tagLayout.CaseByName("nothing"); ok {
-				h := vm.Heap.AllocTag(expectedType, tc.TagSym, nil)
-				val = MakeHandleTag(h, expectedType)
+				return vm.buildTag(frame, expectedType, tc.TagSym, nil)
 			}
 		}
 	}
+	return val, nil
+}
+
+// writeLocal writes a value to a local variable.
+func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
+	if int(id) < 0 || int(id) >= len(frame.Locals) {
+		return vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid local id %d", id))
+	}
+
+	expectedType := frame.Locals[id].TypeID
+	val, vmErr := vm.coerceToSlotType(frame, val, expectedType)
+	if vmErr != nil {
+		return vmErr
+	}
 
 	slot := &frame.Locals[id]
+	// A composite slot is DISCRIMINATED from every other kind: its value lives
+	// in the activation's arena, and the slot names those bytes rather than
+	// holding the value. Writing one is a move into storage this slot already
+	// owns, not a replacement of what it points at.
+	storage, composite, vmErr := vm.slotStorage(frame, id)
+	if vmErr != nil {
+		return vmErr
+	}
+	if composite {
+		live := slot.IsInit && !slot.IsMoved && !slot.IsDropped
+		if moveErr := vm.moveComposite(frame, storage, val, live); moveErr != nil {
+			return moveErr
+		}
+		slot.V = MakeComposite(storage)
+		slot.IsInit = true
+		slot.IsMoved = false
+		slot.IsDropped = false
+		return nil
+	}
 	if slot.IsInit && !slot.IsMoved && !slot.IsDropped {
 		vm.dropValue(slot.V)
 	}
@@ -100,29 +155,27 @@ func (vm *VM) writeGlobal(id mir.GlobalID, val Value) *VMError {
 	}
 
 	expectedType := vm.Globals[id].TypeID
-	if val.TypeID == types.NoTypeID && expectedType != types.NoTypeID {
-		val.TypeID = expectedType
-		if val.IsHeap() && val.H != 0 {
-			if obj := vm.Heap.Get(val.H); obj != nil && obj.TypeID == types.NoTypeID {
-				obj.TypeID = expectedType
-			}
-		}
-	}
-	if expectedType != types.NoTypeID {
-		if retagged, ok := vm.retagUnionValue(val, expectedType); ok {
-			val = retagged
-		}
-	}
-	if val.Kind == VKNothing && expectedType != types.NoTypeID && vm.tagLayouts != nil {
-		if tagLayout, ok := vm.tagLayouts.Layout(vm.valueType(expectedType)); ok && tagLayout != nil {
-			if tc, ok := tagLayout.CaseByName("nothing"); ok {
-				h := vm.Heap.AllocTag(expectedType, tc.TagSym, nil)
-				val = MakeHandleTag(h, expectedType)
-			}
-		}
+	val, vmErr := vm.coerceToSlotType(vm.currentFrame(), val, expectedType)
+	if vmErr != nil {
+		return vmErr
 	}
 
 	slot := &vm.Globals[id]
+	storage, composite, vmErr := vm.globalStorage(id)
+	if vmErr != nil {
+		return vmErr
+	}
+	if composite {
+		live := slot.IsInit && !slot.IsMoved && !slot.IsDropped
+		if moveErr := vm.moveComposite(vm.currentFrame(), storage, val, live); moveErr != nil {
+			return moveErr
+		}
+		slot.V = MakeComposite(storage)
+		slot.IsInit = true
+		slot.IsMoved = false
+		slot.IsDropped = false
+		return nil
+	}
 	if slot.IsInit && !slot.IsMoved && !slot.IsDropped {
 		vm.dropValue(slot.V)
 	}

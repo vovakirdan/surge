@@ -55,8 +55,8 @@ func TestResourceCarriesOneWordAndNoMembers(t *testing.T) {
 	if obj.Kind != OKResource {
 		t.Fatalf("a resource object is a %v, want resource", obj.Kind)
 	}
-	if len(obj.Fields) != 0 {
-		t.Fatalf("a resource must carry no member list, it has %d", len(obj.Fields))
+	if len(obj.Arr) != 0 {
+		t.Fatalf("a resource must carry no member list, it has %d", len(obj.Arr))
 	}
 	if obj.Resource != 9_000_000_042 {
 		t.Fatalf("the opaque word read back as %d", obj.Resource)

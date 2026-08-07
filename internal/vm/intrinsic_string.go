@@ -246,8 +246,10 @@ func (vm *VM) handleFromBytes(frame *Frame, call *mir.CallInstr, writes *[]Local
 	payloadType := successCase.PayloadTypes[0]
 	h := vm.Heap.AllocString(payloadType, str)
 	payload := MakeHandleString(h, payloadType)
-	tag := vm.Heap.AllocTag(dstType, successCase.TagSym, []Value{payload})
-	tagVal := MakeHandleTag(tag, dstType)
+	tagVal, buildErr := vm.buildTag(frame, dstType, successCase.TagSym, []Value{payload})
+	if buildErr != nil {
+		return buildErr
+	}
 	if vmErr := vm.writeLocal(frame, dstLocal, tagVal); vmErr != nil {
 		vm.dropValue(tagVal)
 		return vmErr
@@ -466,10 +468,12 @@ func (vm *VM) handleStringBytesView(frame *Frame, call *mir.CallInstr, writes *[
 		return vm.eb.invalidNumericConversion("bytes view length out of range")
 	}
 	fields[info.lenIdx] = vm.makeBigUint(info.layout.FieldTypes[info.lenIdx], bignum.UintFromUint64(u64))
-	h := vm.Heap.AllocStruct(info.layout.TypeID, fields)
-	val := MakeHandleStruct(h, dstType)
+	val, buildErr := vm.buildStruct(frame, dstType, fields)
+	if buildErr != nil {
+		return buildErr
+	}
 	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
-		vm.Heap.Release(h)
+		vm.dropValue(val)
 		return vmErr
 	}
 	*writes = append(*writes, LocalWrite{

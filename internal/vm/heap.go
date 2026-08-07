@@ -3,7 +3,6 @@ package vm
 import (
 	"fmt"
 
-	"surge/internal/symbols"
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
 )
@@ -51,27 +50,6 @@ func (h *Heap) alloc(kind ObjectKind, typeID types.TypeID) (Handle, *Object) {
 		h.vm.heapCounters.rcIncrCount++
 	}
 	return handle, obj
-}
-
-// AllocStruct allocates a struct object on the heap.
-func (h *Heap) AllocStruct(typeID types.TypeID, fields []Value) Handle {
-	handle, obj := h.alloc(OKStruct, typeID)
-	obj.Fields = append([]Value(nil), fields...)
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocTag allocates a tagged union object on the heap.
-func (h *Heap) AllocTag(typeID types.TypeID, tagSym symbols.SymbolID, fields []Value) Handle {
-	handle, obj := h.alloc(OKTag, typeID)
-	obj.Tag.TagSym = tagSym
-	obj.Tag.Fields = append([]Value(nil), fields...)
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
 }
 
 // Get retrieves an object from the heap by handle.
@@ -175,6 +153,7 @@ func (h *Heap) Free(handle Handle) {
 			h.releaseContainedValue(v)
 		}
 		obj.Arr = nil
+		h.releaseOwnStorage(obj)
 	case OKArraySlice:
 		if obj.ArrSliceBase != 0 {
 			h.Release(obj.ArrSliceBase)
@@ -190,11 +169,7 @@ func (h *Heap) Free(handle Handle) {
 		}
 		obj.MapEntries = nil
 		obj.MapIndex = nil
-	case OKStruct:
-		for _, v := range obj.Fields {
-			h.releaseContainedValue(v)
-		}
-		obj.Fields = nil
+		h.releaseOwnStorage(obj)
 	case OKString:
 		if obj.StrLeft != 0 {
 			h.Release(obj.StrLeft)
@@ -216,12 +191,6 @@ func (h *Heap) Free(handle Handle) {
 		obj.StrSliceBase = 0
 		obj.StrSliceStart = 0
 		obj.StrSliceLen = 0
-	case OKTag:
-		for _, v := range obj.Tag.Fields {
-			h.releaseContainedValue(v)
-		}
-		obj.Tag.Fields = nil
-		obj.Tag.TagSym = 0
 	case OKRange:
 		if obj.Range.Kind == RangeArrayIter {
 			if obj.Range.ArrayBase != 0 {
@@ -246,7 +215,23 @@ func (h *Heap) Free(handle Handle) {
 	}
 }
 
+// releaseOwnStorage gives up the arena a container held its composites in.
+func (h *Heap) releaseOwnStorage(obj *Object) {
+	if h == nil || h.vm == nil {
+		return
+	}
+	h.vm.releaseContainerStorage(obj)
+}
+
+// releaseContainedValue releases one value a container held.
+//
+// A COMPOSITE is deliberately not released here. The container's arena owns it,
+// and releasing it from the element list as well would release what it holds
+// twice — the arena walks every extent it still has when the object is freed.
 func (h *Heap) releaseContainedValue(v Value) {
+	if v.Kind == VKComposite {
+		return
+	}
 	if v.Kind == VKResource {
 		if v.H != 0 {
 			h.Release(v.H)
@@ -254,7 +239,7 @@ func (h *Heap) releaseContainedValue(v Value) {
 		return
 	}
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
+	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
 		if v.H != 0 {
 			h.Release(v.H)
 		}

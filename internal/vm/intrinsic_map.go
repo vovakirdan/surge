@@ -299,6 +299,14 @@ func (vm *VM) handleMapInsert(frame *Frame, call *mir.CallInstr, writes *[]Local
 			valArg = retagged
 		}
 	}
+	// The map keeps what it is given for as long as it lives, which is longer
+	// than the activation that built it, so a composite value moves into storage
+	// the map owns before either branch below stores it.
+	valArg, vmErr = vm.adoptIntoContainer(obj, valArg)
+	if vmErr != nil {
+		vm.dropValue(keyVal)
+		return vmErr
+	}
 
 	if idx, ok := obj.MapIndex[key]; ok {
 		entry := &obj.MapEntries[idx]

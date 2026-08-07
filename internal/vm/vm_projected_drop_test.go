@@ -57,46 +57,60 @@ func TestVMDropOfProjectedPlaceReleasesOnlyThatField(t *testing.T) {
 	}
 	vmInstance := New(mod, NewTestRuntime(nil, ""), nil, typesIn, nil)
 
-	// `o` is a struct { note: string, id: int } holding one heap string.
-	noteHandle := vmInstance.Heap.AllocString(strTy, "kept")
-	structHandle := vmInstance.Heap.AllocStruct(objTy, []Value{
-		{Kind: VKHandleString, H: noteHandle},
-		{Kind: VKInt, Int: 7},
-	})
-
-	frame := NewFrame(fn)
-	frame.Locals[0] = LocalSlot{
-		Name:   "o",
-		V:      Value{Kind: VKHandleStruct, H: structHandle, TypeID: objTy},
-		IsInit: true,
-	}
+	// `o` is a struct { note: string, id: int } holding one heap string. The
+	// activation gives it the storage it occupies: a composite IS its bytes, so
+	// there is no container object to hand the slot instead.
+	frame := vmInstance.activate(fn)
 	vmInstance.Stack = []*Frame{frame}
 
-	if vmErr := vmInstance.execInstrDrop(frame, &fn.Blocks[0].Instrs[0]); vmErr != nil {
-		t.Fatalf("projected drop failed: %v", vmErr)
+	noteHandle := vmInstance.Heap.AllocString(strTy, "kept")
+	built, vmErr := vmInstance.buildStruct(frame, objTy, []Value{
+		MakeHandleString(noteHandle, strTy),
+		MakeInt(7, typesIn.Builtins().Int),
+	})
+	if vmErr != nil {
+		t.Fatalf("build the struct: %v", vmErr)
+	}
+	if storeErr := vmInstance.writeLocal(frame, 0, built); storeErr != nil {
+		t.Fatalf("store the struct: %v", storeErr)
+	}
+
+	if dropErr := vmInstance.execInstrDrop(frame, &fn.Blocks[0].Instrs[0]); dropErr != nil {
+		t.Fatalf("projected drop failed: %v", dropErr)
 	}
 
 	// The field is gone...
 	if obj, ok := vmInstance.Heap.lookup(noteHandle); !ok || obj == nil || !obj.Freed {
 		t.Fatalf("the projected drop did not release the field it named")
 	}
-	// ...and the container it lived in is untouched.
-	obj, ok := vmInstance.Heap.lookup(structHandle)
-	if !ok || obj == nil || obj.Freed {
-		t.Fatalf("the projected drop released the whole container")
+	// ...and the rest of the container it lived in is untouched.
+	owner, isComposite := frame.Locals[0].V.Storage()
+	if !isComposite {
+		t.Fatalf("the projected drop took the whole container with it")
 	}
-	// The slot must be CLEARED, or freeing the container releases the field a
-	// second time — Heap.Free walks obj.Fields — and the refcount turns that
-	// into a use-after-free panic.
-	if obj.Fields[0].IsHeap() {
+	id, vmErr := vmInstance.peekMember(owner, 1)
+	if vmErr != nil {
+		t.Fatalf("read the surviving field: %v", vmErr)
+	}
+	if id.Kind != VKInt || id.Int != 7 {
+		t.Fatalf("the projected drop disturbed a field it did not name: %v", id)
+	}
+	// The member must be CLEARED, or dropping the container releases the field
+	// a second time — a drop walks every member it still owns — and the
+	// refcount turns that into a use-after-free panic.
+	note, vmErr := vmInstance.peekMember(owner, 0)
+	if vmErr != nil {
+		t.Fatalf("read the dropped field: %v", vmErr)
+	}
+	if note.IsHeap() {
 		t.Fatalf("the dropped field was left in the container and will be released again")
 	}
 
 	// Proof of that last point rather than assertion of it: dropping the
-	// container now must not panic.
-	vmInstance.Heap.Release(structHandle)
-	if obj, ok := vmInstance.Heap.lookup(structHandle); !ok || obj == nil || !obj.Freed {
-		t.Fatalf("releasing the container after a projected drop did not free it")
+	// container now must not release the field twice.
+	vmInstance.dropValue(frame.Locals[0].V)
+	if obj, ok := vmInstance.Heap.lookup(noteHandle); !ok || obj == nil || obj.RefCount != 0 {
+		t.Fatalf("dropping the container after a projected drop touched the field again")
 	}
 }
 
@@ -153,7 +167,12 @@ func TestVMWholeLocalDropStillReleasesTheBinding(t *testing.T) {
 // which is the representation this epic is clearing the way for.
 func TestVMShallowDropReleasesTheContainerAndNotItsContents(t *testing.T) {
 	typesIn := types.NewInterner()
+	typesIn.Strings = source.NewInterner()
 	strTy := typesIn.Builtins().String
+	objTy := typesIn.RegisterStruct(typesIn.Strings.Intern("Holder"), source.Span{})
+	typesIn.SetStructFields(objTy, []types.StructField{
+		{Name: typesIn.Strings.Intern("moved"), Type: strTy},
+	})
 
 	fn := &mir.Func{
 		ID:     1,
@@ -161,7 +180,7 @@ func TestVMShallowDropReleasesTheContainerAndNotItsContents(t *testing.T) {
 		Name:   "shallow_drop",
 		Result: types.NoTypeID,
 		Entry:  0,
-		Locals: []mir.Local{{Name: "o", Type: types.NoTypeID, Flags: mir.LocalFlagOwnsHeap}},
+		Locals: []mir.Local{{Name: "o", Type: objTy, Flags: mir.LocalFlagOwnsHeap}},
 		Blocks: []mir.Block{{
 			ID: 0,
 			Instrs: []mir.Instr{{
@@ -173,29 +192,44 @@ func TestVMShallowDropReleasesTheContainerAndNotItsContents(t *testing.T) {
 		Span: source.Span{Start: 1, End: 1},
 	}
 
-	vmInstance := New(&mir.Module{}, NewTestRuntime(nil, ""), nil, typesIn, nil)
-
-	// `moved` stands for a field that was given away: it is still sitting in
-	// the container, and it belongs to whoever took it.
-	movedHandle := vmInstance.Heap.AllocString(strTy, "given away")
-	structHandle := vmInstance.Heap.AllocStruct(types.NoTypeID, []Value{
-		{Kind: VKHandleString, H: movedHandle},
-	})
-
-	frame := NewFrame(fn)
-	frame.Locals[0] = LocalSlot{
-		Name:   "o",
-		V:      Value{Kind: VKHandleStruct, H: structHandle},
-		IsInit: true,
+	mod := &mir.Module{Funcs: map[mir.FuncID]*mir.Func{fn.ID: fn}, Meta: &mir.ModuleMeta{}}
+	if err := mir.FinalizeModuleMeta(mod, typesIn, layout.X86_64LinuxGNU(), nil); err != nil {
+		t.Fatalf("finalize layouts: %v", err)
 	}
+	vmInstance := New(mod, NewTestRuntime(nil, ""), nil, typesIn, nil)
+	frame := vmInstance.activate(fn)
 	vmInstance.Stack = []*Frame{frame}
 
-	if vmErr := vmInstance.execInstrDrop(frame, &fn.Blocks[0].Instrs[0]); vmErr != nil {
-		t.Fatalf("shallow drop failed: %v", vmErr)
+	// `moved` stands for a field that was given away: its bytes are still
+	// sitting in the container, and the count they name belongs to whoever took
+	// it. A shallow drop is what lets the container go without disturbing that.
+	movedHandle := vmInstance.Heap.AllocString(strTy, "given away")
+	built, vmErr := vmInstance.buildStruct(frame, objTy, []Value{
+		MakeHandleString(movedHandle, strTy),
+	})
+	if vmErr != nil {
+		t.Fatalf("build the struct: %v", vmErr)
+	}
+	if storeErr := vmInstance.writeLocal(frame, 0, built); storeErr != nil {
+		t.Fatalf("store the struct: %v", storeErr)
 	}
 
-	if obj, ok := vmInstance.Heap.lookup(structHandle); !ok || obj == nil || !obj.Freed {
-		t.Fatalf("a shallow drop did not release the container")
+	if dropErr := vmInstance.execInstrDrop(frame, &fn.Blocks[0].Instrs[0]); dropErr != nil {
+		t.Fatalf("shallow drop failed: %v", dropErr)
+	}
+
+	// A composite has no container allocation to free, so "the container is
+	// gone" is that its extent no longer holds anything.
+	owner, isComposite := frame.Locals[0].V.Storage()
+	if !isComposite {
+		t.Fatalf("the slot stopped naming its storage")
+	}
+	moved, vmErr := vmInstance.peekMember(owner, 0)
+	if vmErr != nil {
+		t.Fatalf("read the member after the shallow drop: %v", vmErr)
+	}
+	if moved.IsHeap() {
+		t.Fatalf("a shallow drop left the container still naming what moved away")
 	}
 	// The whole point: what moved away survives, because it is no longer this
 	// value's to release.

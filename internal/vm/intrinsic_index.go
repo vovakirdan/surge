@@ -36,6 +36,17 @@ func (vm *VM) handleIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 	dstType := frame.Locals[dstLocal].TypeID
 	var res Value
 	if isReferenceType(vm.Types, dstType) {
+		// Borrowing an element of a FIXED array borrows it where it lies: the
+		// element is part of its owner's extent, so the reference names those
+		// bytes rather than a slot of a container object.
+		if owner, isComposite := objVal.Storage(); isComposite {
+			member, memberErr := vm.storageElemRef(owner, idxVal)
+			if memberErr != nil {
+				return memberErr
+			}
+			res = MakeRef(Location{Kind: LKStorage, Storage: member, IsMut: true}, dstType)
+			return vm.finishIndexRead(frame, dstLocal, res, dstType, writes)
+		}
 		if objVal.Kind != VKHandleArray {
 			return vm.eb.typeMismatch("array", objVal.Kind.String())
 		}
@@ -58,6 +69,11 @@ func (vm *VM) handleIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 			return vmErr
 		}
 	}
+	return vm.finishIndexRead(frame, dstLocal, res, dstType, writes)
+}
+
+// finishIndexRead stores an element read into its destination.
+func (vm *VM) finishIndexRead(frame *Frame, dstLocal mir.LocalID, res Value, dstType types.TypeID, writes *[]LocalWrite) *VMError {
 	if res.TypeID == types.NoTypeID {
 		res.TypeID = dstType
 	}
@@ -75,6 +91,19 @@ func (vm *VM) handleIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 		})
 	}
 	return nil
+}
+
+// storageElemRef names one element of a fixed array, bounded by its layout.
+func (vm *VM) storageElemRef(owner StorageRef, idxVal Value) (StorageRef, *VMError) {
+	members, err := vm.compositeMembers(owner.TypeID)
+	if err != nil {
+		return StorageRef{}, vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	index, vmErr := vm.arrayIndexFromValue(idxVal, len(members))
+	if vmErr != nil {
+		return StorageRef{}, vmErr
+	}
+	return vm.memberStorage(owner, index)
 }
 
 // handleIndexSet handles the __index_set intrinsic.
@@ -105,6 +134,15 @@ func (vm *VM) handleIndexSet(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 			return loadErr
 		}
 		objVal = v
+	}
+	// Writing an element of a FIXED array writes into the owner's own extent.
+	if owner, isComposite := objVal.Storage(); isComposite {
+		member, memberErr := vm.storageElemRef(owner, idxVal)
+		if memberErr != nil {
+			vm.dropValue(val)
+			return memberErr
+		}
+		return vm.storeStorage(frame, member, val)
 	}
 	if objVal.Kind != VKHandleArray {
 		vm.dropValue(val)

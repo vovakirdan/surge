@@ -238,8 +238,7 @@ func (vm *VM) makeTermSizeTuple(typeID types.TypeID, cols, rows int) (Value, *VM
 		return Value{}, vmErr
 	}
 	fields := []Value{colVal, rowVal}
-	h := vm.Heap.AllocStruct(typeID, fields)
-	return MakeHandleStruct(h, typeID), nil
+	return vm.buildStruct(vm.currentFrame(), typeID, fields)
 }
 
 func (vm *VM) termEventValue(typeID types.TypeID, ev TermEventData) (Value, *VMError) {
@@ -260,8 +259,7 @@ func (vm *VM) termEventValue(typeID types.TypeID, ev TermEventData) (Value, *VME
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{keyEventVal})
-		return MakeHandleTag(h, typeID), nil
+		return vm.buildTag(vm.currentFrame(), typeID, tc.TagSym, []Value{keyEventVal})
 	case TermEventResize:
 		tc, ok := layout.CaseByName("Resize")
 		if !ok {
@@ -279,8 +277,7 @@ func (vm *VM) termEventValue(typeID types.TypeID, ev TermEventData) (Value, *VME
 			vm.dropValue(colsVal)
 			return Value{}, vmErr
 		}
-		h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{colsVal, rowsVal})
-		return MakeHandleTag(h, typeID), nil
+		return vm.buildTag(vm.currentFrame(), typeID, tc.TagSym, []Value{colsVal, rowsVal})
 	case TermEventEOF:
 		tc, ok := layout.CaseByName("Eof")
 		if !ok {
@@ -289,8 +286,7 @@ func (vm *VM) termEventValue(typeID types.TypeID, ev TermEventData) (Value, *VME
 		if len(tc.PayloadTypes) != 0 {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "term Eof expects 0 payload values")
 		}
-		h := vm.Heap.AllocTag(typeID, tc.TagSym, nil)
-		return MakeHandleTag(h, typeID), nil
+		return vm.buildTag(vm.currentFrame(), typeID, tc.TagSym, nil)
 	default:
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, "term event kind not supported")
 	}
@@ -318,8 +314,7 @@ func (vm *VM) termKeyEventValue(typeID types.TypeID, ev TermKeyEventData) (Value
 	}
 	fields[keyIdx] = keyVal
 	fields[modsIdx] = modsVal
-	h := vm.Heap.AllocStruct(typeID, fields)
-	return MakeHandleStruct(h, typeID), nil
+	return vm.buildStruct(vm.currentFrame(), typeID, fields)
 }
 
 func (vm *VM) termKeyValue(typeID types.TypeID, key TermKeyData) (Value, *VMError) {
@@ -344,8 +339,7 @@ func (vm *VM) termKeyValue(typeID types.TypeID, key TermKeyData) (Value, *VMErro
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{payload})
-		return MakeHandleTag(h, typeID), nil
+		return vm.buildTag(vm.currentFrame(), typeID, tc.TagSym, []Value{payload})
 	case TermKeyF:
 		if len(tc.PayloadTypes) != 1 {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "term F expects 1 payload value")
@@ -354,14 +348,12 @@ func (vm *VM) termKeyValue(typeID types.TypeID, key TermKeyData) (Value, *VMErro
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{payload})
-		return MakeHandleTag(h, typeID), nil
+		return vm.buildTag(vm.currentFrame(), typeID, tc.TagSym, []Value{payload})
 	default:
 		if len(tc.PayloadTypes) != 0 {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "term key expects 0 payload values")
 		}
-		h := vm.Heap.AllocTag(typeID, tc.TagSym, nil)
-		return MakeHandleTag(h, typeID), nil
+		return vm.buildTag(vm.currentFrame(), typeID, tc.TagSym, nil)
 	}
 }
 

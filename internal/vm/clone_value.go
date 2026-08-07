@@ -38,6 +38,13 @@ func (vm *VM) cloneValueComposite(v Value) (Value, *VMError) {
 	if vm == nil || vm.Heap == nil {
 		return v, nil
 	}
+	// A composite has storage rather than a counted object, so duplicating one
+	// duplicates bytes. There is no count to raise and nothing to share: the
+	// storage IS the value, and two names for one extent would be one value
+	// where the language says there are two.
+	if v.Kind == VKComposite {
+		return vm.duplicateComposite(vm.currentFrame(), v)
+	}
 	if !v.IsHeap() || v.H == 0 {
 		return v, nil
 	}
@@ -55,24 +62,10 @@ func (vm *VM) cloneValueComposite(v Value) (Value, *VMError) {
 		return Value{}, vm.eb.makeError(PanicRCUseAfterFree, "clone of a freed value")
 	}
 
+	// A struct and a tagged union no longer reach here at all: both are storage
+	// and were answered above. What remains is the one value composite the heap
+	// still owns.
 	switch obj.Kind {
-	case OKStruct:
-		fields, vmErr := vm.cloneMembers(obj.Fields)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		return MakeHandleStruct(vm.Heap.AllocStruct(obj.TypeID, fields), v.TypeID), nil
-
-	case OKTag:
-		// Only the ACTIVE arm's payload exists in Tag.Fields, so cloning them
-		// clones exactly the live payload — the same invariant the destructor
-		// relies on when it releases only these.
-		fields, vmErr := vm.cloneMembers(obj.Tag.Fields)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		return MakeHandleTag(vm.Heap.AllocTag(obj.TypeID, obj.Tag.TagSym, fields), v.TypeID), nil
-
 	case OKArray:
 		elems, vmErr := vm.cloneMembers(obj.Arr)
 		if vmErr != nil {

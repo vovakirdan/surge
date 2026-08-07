@@ -11,7 +11,12 @@ import (
 )
 
 // evalRValue evaluates an rvalue to a Value.
-func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
+//
+// dstType is the type the result is destined for. Most rvalues do not need it —
+// they know what they produce — but a composite literal does: MIR records a
+// tuple or an array literal as its elements and nothing else, so the only place
+// its type exists is the slot it is going into.
+func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue, dstType types.TypeID) (Value, *VMError) {
 	switch rv.Kind {
 	case mir.RValueUse:
 		return vm.evalOperand(frame, &rv.Use)
@@ -80,10 +85,10 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 		return vm.evalStructLit(frame, &rv.StructLit)
 
 	case mir.RValueArrayLit:
-		return vm.evalArrayLit(frame, &rv.ArrayLit)
+		return vm.evalArrayLit(frame, &rv.ArrayLit, dstType)
 
 	case mir.RValueTupleLit:
-		return vm.evalTupleLit(frame, &rv.TupleLit)
+		return vm.evalTupleLit(frame, &rv.TupleLit, dstType)
 
 	case mir.RValueField:
 		return vm.evalFieldAccess(frame, &rv.Field)
@@ -143,7 +148,15 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 	// case clones instead of counting.
 	case mir.OperandCopy, mir.OperandRetain, mir.OperandCopyValue:
 		duplicate := func(val Value) (Value, *VMError) {
-			if op.Kind == mir.OperandCopyValue {
+			// A composite read is a COPY whatever the operand kind says, and
+			// the three kinds collapse into one here. They differ only in how
+			// a duplicate is made, and a composite has exactly one way to make
+			// one: there is no count to raise, so the only way to hand back a
+			// value the consumer OWNS is to hand it its own bytes. The aliasing
+			// OperandCopyValue exists to prevent is not expressible any more —
+			// two names for one extent would be one value where the language
+			// says there are two.
+			if val.Kind == VKComposite || op.Kind == mir.OperandCopyValue {
 				return vm.cloneValueComposite(val)
 			}
 			if val.IsHeap() && val.H != 0 {
@@ -203,6 +216,19 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 		val, vmErr := vm.loadLocationRaw(loc)
 		if vmErr != nil {
 			return Value{}, vmErr
+		}
+		// Moving out of a PROJECTION has to take the member before the hole is
+		// filled. A composite read handed back a reference INTO the extent that
+		// is about to be overwritten, so keeping it and writing the default
+		// afterwards would return a value naming bytes the default replaced.
+		// Taking it first copies it out and empties the member in one step,
+		// which is also what leaves the default with nothing to release.
+		if val.Kind == VKComposite && loc.Kind == LKStorage {
+			taken, takeErr := vm.takeMember(frame, loc.Storage)
+			if takeErr != nil {
+				return Value{}, takeErr
+			}
+			val = taken
 		}
 		if val.IsHeap() && val.H != 0 {
 			vm.Heap.Retain(val.H)
@@ -311,11 +337,18 @@ func (vm *VM) evalConst(c *mir.Const) Value {
 		h := vm.Heap.AllocString(c.Type, s)
 		return MakeHandleString(h, c.Type)
 	case mir.ConstNothing:
+		// A `nothing` whose type is a union is that union's nothing ARM, and an
+		// arm is bytes rather than a bare marker. Building it needs the
+		// activation's scratch, so a constant evaluated where none is reachable
+		// stays the typeless nothing and acquires its representation at the
+		// slot it is written into — coerceToSlotType builds the same arm there,
+		// which is why the fallback loses nothing.
 		if c.Type != types.NoTypeID && vm.tagLayouts != nil {
 			if layout, ok := vm.tagLayouts.Layout(vm.valueType(c.Type)); ok && layout != nil {
 				if tc, ok := layout.CaseByName("nothing"); ok {
-					h := vm.Heap.AllocTag(c.Type, tc.TagSym, nil)
-					return MakeHandleTag(h, c.Type)
+					if val, vmErr := vm.buildTag(vm.currentFrame(), c.Type, tc.TagSym, nil); vmErr == nil {
+						return val
+					}
 				}
 			}
 		}

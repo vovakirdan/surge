@@ -46,14 +46,22 @@ func (vm *VM) storageCellKind(typeID types.TypeID) cellKind {
 	if vm == nil || vm.Types == nil || typeID == types.NoTypeID {
 		return cellUnsupported
 	}
+	// The reference question is asked FIRST and through aliases only, because
+	// valueType answers a different question: it says what a value IS, and to do
+	// that it unwraps `own`, `&` and `*` alike. That is the right answer for
+	// comparing two types and the wrong one for encoding a member — it turns
+	// `&int` into `int`, which hands a reference an integer cell and a `&Held` a
+	// composite one. Both were reached: a `&int` payload arrived at an unsized
+	// integer cell, and a `&mut` read back as the composite it points at.
+	if vm.isReferenceCell(typeID) {
+		return cellRefIndex
+	}
 	resolved := vm.valueType(typeID)
 	tt, ok := vm.Types.Lookup(resolved)
 	if !ok {
 		return cellUnsupported
 	}
 	switch tt.Kind {
-	case types.KindReference, types.KindPointer:
-		return cellRefIndex
 	case types.KindFn:
 		return cellFunc
 	case types.KindUnit, types.KindNothing:
@@ -90,6 +98,44 @@ func (vm *VM) storageCellKind(typeID types.TypeID) cellKind {
 		return cellUnsupported
 	}
 }
+
+// isReferenceCell reports whether a member is itself a reference — as opposed
+// to being the thing a reference points at.
+//
+// It resolves ALIASES and nothing else. `type IntRef = &int` is a reference and
+// has to be seen through; `own T` and `&T` are not the same question and must
+// not be unwrapped here, which is exactly where valueType cannot be used.
+func (vm *VM) isReferenceCell(typeID types.TypeID) bool {
+	tt, ok := vm.throughAliases(typeID)
+	return ok && (tt.Kind == types.KindReference || tt.Kind == types.KindPointer)
+}
+
+// throughAliases looks a type up with ALIASES resolved and nothing else
+// unwrapped, which is the lookup every question about a member's own shape
+// needs. valueType is the other lookup — it says what a value IS and so
+// unwraps `own`, `&` and `*` — and the two must not be confused.
+func (vm *VM) throughAliases(typeID types.TypeID) (types.Type, bool) {
+	id := typeID
+	for range aliasResolutionLimit {
+		tt, ok := vm.Types.Lookup(id)
+		if !ok {
+			return types.Type{}, false
+		}
+		if tt.Kind != types.KindAlias {
+			return tt, true
+		}
+		target, ok := vm.Types.AliasTarget(id)
+		if !ok || target == types.NoTypeID || target == id {
+			return types.Type{}, false
+		}
+		id = target
+	}
+	return types.Type{}, false
+}
+
+// aliasResolutionLimit bounds an alias walk so a cycle the interner failed to
+// reject ends in an answer rather than in a hang.
+const aliasResolutionLimit = 32
 
 // memberAt builds one member description from a type and an offset, refusing a
 // type whose layout is not concrete rather than guessing an extent for it.
@@ -165,11 +211,26 @@ func (vm *VM) compositeMembers(typeID types.TypeID) ([]storageMember, error) {
 		return nil, fmt.Errorf("storage: type#%d has %d members but %d layout offsets",
 			resolved, len(memberTypes), len(offsets))
 	}
+	// A member's alignment is the CONTAINER's business, not the member type's.
+	// `@packed` removes the padding between fields, so a wide field lands at an
+	// offset its own natural alignment does not divide — and the registry has
+	// recorded that per field, because it is what computed it. Asking the member
+	// type for its own alignment answers for a member standing alone, which for
+	// a packed field is the wrong question: the access is underaligned by
+	// construction, and refusing it rejects a program the language accepts.
+	aligns := facts.FieldAligns()
+	if len(aligns) != len(memberTypes) {
+		return nil, fmt.Errorf("storage: type#%d has %d members but %d layout alignments",
+			resolved, len(memberTypes), len(aligns))
+	}
 	members := make([]storageMember, len(memberTypes))
 	for i, memberType := range memberTypes {
 		member, err := vm.memberAt(offsets[i], memberType)
 		if err != nil {
 			return nil, err
+		}
+		if aligns[i] != 0 {
+			member.Align = aligns[i]
 		}
 		members[i] = member
 	}
@@ -237,29 +298,72 @@ func (vm *VM) unionMembers(typeID types.TypeID) (unionShape, error) {
 	return shape, nil
 }
 
+// unionArmName names one arm so a discriminant can select it.
+//
+// All three arm kinds are named, because all three are arms the language
+// writes and the physical layout gives each of them a case. A TAG is named by
+// its tag; a NOTHING arm is named "nothing", which is the name the tag layout
+// already gives it and the name coerceToSlotType already looks up; and a TYPE
+// alternative — the `E` in `Success(T) | E` — is named by the type it admits,
+// because that is the only thing that distinguishes it. Two spellings of one
+// type resolve to one name, since the name is taken after alias resolution.
 func (vm *VM) unionArmName(unionType types.TypeID, member *types.UnionMember) (string, error) {
-	if member.Kind != types.UnionMemberTag {
-		return "", fmt.Errorf(
-			"storage: union type#%d has an arm with no tag name, which no discriminant can select", unionType)
+	switch member.Kind {
+	case types.UnionMemberNothing:
+		return nothingArmName, nil
+	case types.UnionMemberType:
+		if member.Type == types.NoTypeID {
+			return "", fmt.Errorf("storage: union type#%d has a type arm that admits no type", unionType)
+		}
+		return typeArmName(vm.valueType(member.Type)), nil
+	case types.UnionMemberTag:
+		if vm.Types.Strings == nil {
+			return "", fmt.Errorf("storage: union type#%d has no string table for its arm names", unionType)
+		}
+		name, ok := vm.Types.Strings.Lookup(member.TagName)
+		if !ok {
+			return "", fmt.Errorf("storage: union type#%d has an arm whose name is not interned", unionType)
+		}
+		return name, nil
+	default:
+		return "", fmt.Errorf("storage: union type#%d has an arm of an unknown kind %d", unionType, member.Kind)
 	}
-	if vm.Types.Strings == nil {
-		return "", fmt.Errorf("storage: union type#%d has no string table for its arm names", unionType)
-	}
-	name, ok := vm.Types.Strings.Lookup(member.TagName)
-	if !ok {
-		return "", fmt.Errorf("storage: union type#%d has an arm whose name is not interned", unionType)
-	}
-	return name, nil
 }
 
+// nothingArmName is what a nothing arm is called everywhere — the tag layout
+// spells it this way and coerceToSlotType looks it up by this name.
+const nothingArmName = "nothing"
+
+// typeArmName is the name of a type alternative. It is deliberately not a name
+// a tag could collide with: a tag name is an identifier, and this is not.
+func typeArmName(resolved types.TypeID) string {
+	return fmt.Sprintf("type#%d", resolved)
+}
+
+// unionArmPayload describes what one arm carries.
+//
+// The values an arm carries come from its KIND, not from TagArgs alone: a
+// nothing arm carries none, a type alternative carries exactly the one value it
+// admits, and only a tag carries its TagArgs. Reading TagArgs for all three
+// described a type alternative as empty, so a copy or a drop of that arm walked
+// past the value it holds.
 func (vm *VM) unionArmPayload(member *types.UnionMember, layoutCase layout.UnionCaseLayout) ([]storageMember, error) {
-	offsets := layoutCase.FieldOffsets()
-	if len(offsets) != len(member.TagArgs) {
-		return nil, fmt.Errorf("storage: a union arm carries %d values but %d layout offsets",
-			len(member.TagArgs), len(offsets))
+	carried := member.TagArgs
+	switch member.Kind {
+	case types.UnionMemberNothing:
+		carried = nil
+	case types.UnionMemberType:
+		carried = []types.TypeID{member.Type}
+	case types.UnionMemberTag:
+	default:
 	}
-	payload := make([]storageMember, len(member.TagArgs))
-	for i, arg := range member.TagArgs {
+	offsets := layoutCase.FieldOffsets()
+	if len(offsets) != len(carried) {
+		return nil, fmt.Errorf("storage: a union arm carries %d values but %d layout offsets",
+			len(carried), len(offsets))
+	}
+	payload := make([]storageMember, len(carried))
+	for i, arg := range carried {
 		absolute, ok := addChecked(layoutCase.PayloadOffset, offsets[i])
 		if !ok {
 			return nil, fmt.Errorf("storage: a union payload offset overflows")

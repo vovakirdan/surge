@@ -22,6 +22,13 @@ func (vm *VM) projectIndexLocation(frame *Frame, base Location, proj mir.PlacePr
 			return Location{}, vmErr
 		}
 	}
+	// A FIXED array is a value composite, so indexing one is arithmetic on its
+	// own extent — the same operation as a field projection, differing only in
+	// how the member index is spelled. A dynamic array is still a heap object
+	// and keeps the path below.
+	if owner, isComposite := v.Storage(); isComposite {
+		return vm.projectStorageIndex(frame, owner, proj, base.IsMut)
+	}
 	if v.Kind != VKHandleArray {
 		return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection on non-array value (got %s)", v.Kind))
 	}
@@ -155,9 +162,13 @@ func (vm *VM) storeArrayElem(loc Location, val Value) *VMError {
 			}
 		}
 	}
+	adopted, vmErr := vm.adoptIntoContainer(view.baseObj, val)
+	if vmErr != nil {
+		return vmErr
+	}
 	baseIdx := view.start + idx
 	vm.dropValue(view.baseObj.Arr[baseIdx])
-	view.baseObj.Arr[baseIdx] = val
+	view.baseObj.Arr[baseIdx] = adopted
 	return nil
 }
 
@@ -208,4 +219,43 @@ func (vm *VM) storeMapElem(loc Location, val Value) *VMError {
 	vm.dropValue(obj.MapEntries[idx].Value)
 	obj.MapEntries[idx].Value = val
 	return nil
+}
+
+// projectStorageIndex names one element of a fixed array held in storage.
+//
+// The bound comes from the LAYOUT rather than from a length word: a fixed array
+// has as many members as its type says and no runtime length to disagree with,
+// which is the whole reason it can live inline.
+func (vm *VM) projectStorageIndex(frame *Frame, owner StorageRef, proj mir.PlaceProj, isMut bool) (Location, *VMError) {
+	members, err := vm.compositeMembers(owner.TypeID)
+	if err != nil {
+		return Location{}, vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	idxVal, vmErr := vm.readLocal(frame, proj.IndexLocal)
+	if vmErr != nil {
+		return Location{}, vmErr
+	}
+	idx, vmErr := vm.arrayIndexFromValue(idxVal, len(members))
+	if vmErr != nil {
+		return Location{}, vmErr
+	}
+	member, vmErr := vm.memberStorage(owner, idx)
+	if vmErr != nil {
+		return Location{}, vmErr
+	}
+	idx32, convErr := safecast.Conv[int32](idx)
+	if convErr != nil {
+		return Location{}, vm.eb.invalidLocation("index projection: index overflow")
+	}
+	byteOffset, convErr := safecast.Conv[int32](member.Offset)
+	if convErr != nil {
+		return Location{}, vm.eb.invalidLocation("index projection: byte offset overflow")
+	}
+	return Location{
+		Kind:       LKStorage,
+		Storage:    member,
+		Index:      idx32,
+		ByteOffset: byteOffset,
+		IsMut:      isMut,
+	}, nil
 }

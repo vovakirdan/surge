@@ -218,6 +218,14 @@ func (vm *VM) evalUnaryDeref(operand Value) (Value, *VMError) {
 				}
 			}
 		}
+		// A read through a reference hands back a value the consumer OWNS, and
+		// for a composite that means its own bytes: there is no count to raise,
+		// so returning what the referent named would hand out a borrow where a
+		// value was asked for, and the consumer's store would then drop storage
+		// the referent still owns.
+		if v.Kind == VKComposite {
+			return vm.duplicateComposite(vm.currentFrame(), v)
+		}
 		if v.IsHeap() && v.H != 0 {
 			vm.Heap.Retain(v.H)
 		}

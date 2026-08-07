@@ -89,6 +89,13 @@ func taggedWordBits(v Value) (uint64, error) {
 		return uint64(v.Int)<<1 | 1, nil //nolint:gosec // range-checked above
 	case VKBigInt, VKBigUint:
 		return uint64(v.H) << 1, nil
+	case VKNothing, VKInvalid:
+		// A ZEROED cell decodes as nothing — bit 0 clear means a handle, and
+		// handle 0 names no object — so nothing has to encode back to zero or
+		// an uninitialized member could be read but not written. Copying a
+		// composite that has one is exactly that round trip, and the handle and
+		// referent cells already draw the same line.
+		return 0, nil
 	default:
 		return 0, fmt.Errorf("storage: %s is not an unsized integer", v.Kind)
 	}

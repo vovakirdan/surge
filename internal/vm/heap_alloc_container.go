@@ -41,9 +41,19 @@ func (h *Heap) AllocArrayIterRange(typeID types.TypeID, base Handle, start, leng
 }
 
 // AllocArray allocates an array object on the heap.
+//
+// The elements are ADOPTED here rather than at each of the dozen call sites,
+// because every one of them owes the same thing and none of them is where the
+// obligation lives: a composite element has to be copied into storage the array
+// owns, since the array outlives the activation that built it.
 func (h *Heap) AllocArray(typeID types.TypeID, elems []Value) Handle {
 	handle, obj := h.alloc(OKArray, typeID)
 	obj.Arr = append([]Value(nil), elems...)
+	if h.vm != nil {
+		if vmErr := h.vm.adoptAllIntoContainer(obj, obj.Arr); vmErr != nil {
+			h.panic(vmErr.Code, vmErr.Message)
+		}
+	}
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
 	}

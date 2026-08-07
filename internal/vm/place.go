@@ -67,57 +67,44 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 					return Location{}, vmErr
 				}
 			}
-			if v.Kind != VKHandleStruct {
+			// Projecting a field is ARITHMETIC on the owner's offset rather
+			// than a second lookup through an object, and the result keeps the
+			// owner's arena and generation — so it goes stale exactly when the
+			// storage it was taken from does, instead of staying valid because
+			// some box it pointed at is still shared.
+			owner, isComposite := v.Storage()
+			if !isComposite {
 				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection on non-struct value (got %s)", v.Kind))
-			}
-
-			obj, vmErr := vm.heapAliveForRef(v.H)
-			if vmErr != nil {
-				return Location{}, vmErr
-			}
-			if obj.Kind != OKStruct {
-				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection on %v", obj.Kind))
 			}
 
 			fieldIdx := proj.FieldIdx
 			if fieldIdx < 0 {
-				layout, vmErr := vm.layouts.Struct(obj.TypeID)
-				if vmErr != nil {
-					return Location{}, vmErr
+				layout, layoutErr := vm.layouts.Struct(owner.TypeID)
+				if layoutErr != nil {
+					return Location{}, layoutErr
 				}
-				idx, ok := layout.IndexByName[proj.FieldName]
-				if !ok {
+				idx, found := layout.IndexByName[proj.FieldName]
+				if !found {
 					return Location{}, vm.eb.invalidLocation(fmt.Sprintf("unknown field %q on type#%d", proj.FieldName, layout.TypeID))
 				}
 				fieldIdx = idx
 			}
-			if fieldIdx < 0 || fieldIdx >= len(obj.Fields) {
-				return Location{}, vm.eb.fieldIndexOutOfRange(fieldIdx, len(obj.Fields))
-			}
 
+			member, vmErr := vm.memberStorage(owner, fieldIdx)
+			if vmErr != nil {
+				return Location{}, vmErr
+			}
 			fieldIdx32, err := safecast.Conv[int32](fieldIdx)
 			if err != nil {
 				return Location{}, vm.eb.invalidLocation("field projection: index overflow")
 			}
-
-			if vm.Layouts == nil {
-				return Location{}, vm.eb.invalidLocation("field projection: missing finalized layout registry")
-			}
-			typeForOffset := v.TypeID
-			if typeForOffset == types.NoTypeID {
-				typeForOffset = obj.TypeID
-			}
-			off, err := vm.Layouts.FieldOffset(typeForOffset, fieldIdx)
-			if err != nil {
-				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection: %v", err))
-			}
-			byteOffset, err := safecast.Conv[int32](off)
+			byteOffset, err := safecast.Conv[int32](member.Offset)
 			if err != nil {
 				return Location{}, vm.eb.invalidLocation("field projection: byte offset overflow")
 			}
 			loc = Location{
-				Kind:       LKStructField,
-				Handle:     v.H,
+				Kind:       LKStorage,
+				Storage:    member,
 				Index:      fieldIdx32,
 				ByteOffset: byteOffset,
 				IsMut:      loc.IsMut,
@@ -162,33 +149,13 @@ func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 		}
 		return vm.readGlobal(globalID)
 
-	case LKStructField:
-		obj, vmErr := vm.heapAliveForRef(loc.Handle)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		if obj.Kind != OKStruct {
-			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("expected struct handle, got %v", obj.Kind))
-		}
-		fieldIdx := int(loc.Index)
-		if loc.Index < 0 || fieldIdx < 0 || fieldIdx >= len(obj.Fields) {
-			return Value{}, vm.eb.fieldIndexOutOfRange(fieldIdx, len(obj.Fields))
-		}
-		return obj.Fields[fieldIdx], nil
-
-	case LKTagField:
-		obj, vmErr := vm.heapAliveForRef(loc.Handle)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		if obj.Kind != OKTag {
-			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("expected tag handle, got %v", obj.Kind))
-		}
-		fieldIdx := int(loc.Index)
-		if loc.Index < 0 || fieldIdx < 0 || fieldIdx >= len(obj.Tag.Fields) {
-			return Value{}, vm.eb.tagPayloadIndexOutOfRange(fieldIdx, len(obj.Tag.Fields))
-		}
-		return obj.Tag.Fields[fieldIdx], nil
+	// Uncounted, like every other arm here: a raw load answers with what the
+	// location holds and leaves the counting to whoever decides to keep it.
+	// Every other kind of location already read this way — a local hands back
+	// its slot — and inline storage has to read the same way or the callers
+	// that duplicate afterwards would count twice.
+	case LKStorage:
+		return vm.peekStorage(loc.Storage)
 
 	case LKArrayElem:
 		return vm.loadArrayElem(loc)
@@ -225,37 +192,8 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 		}
 		return vm.writeGlobal(globalID, val)
 
-	case LKStructField:
-		obj, vmErr := vm.heapAliveForRef(loc.Handle)
-		if vmErr != nil {
-			return vmErr
-		}
-		if obj.Kind != OKStruct {
-			return vm.eb.invalidLocation(fmt.Sprintf("expected struct handle, got %v", obj.Kind))
-		}
-		fieldIdx := int(loc.Index)
-		if loc.Index < 0 || fieldIdx < 0 || fieldIdx >= len(obj.Fields) {
-			return vm.eb.fieldIndexOutOfRange(fieldIdx, len(obj.Fields))
-		}
-		vm.dropValue(obj.Fields[fieldIdx])
-		obj.Fields[fieldIdx] = val
-		return nil
-
-	case LKTagField:
-		obj, vmErr := vm.heapAliveForRef(loc.Handle)
-		if vmErr != nil {
-			return vmErr
-		}
-		if obj.Kind != OKTag {
-			return vm.eb.invalidLocation(fmt.Sprintf("expected tag handle, got %v", obj.Kind))
-		}
-		fieldIdx := int(loc.Index)
-		if loc.Index < 0 || fieldIdx < 0 || fieldIdx >= len(obj.Tag.Fields) {
-			return vm.eb.tagPayloadIndexOutOfRange(fieldIdx, len(obj.Tag.Fields))
-		}
-		vm.dropValue(obj.Tag.Fields[fieldIdx])
-		obj.Tag.Fields[fieldIdx] = val
-		return nil
+	case LKStorage:
+		return vm.storeStorage(vm.currentFrame(), loc.Storage, val)
 
 	case LKArrayElem:
 		return vm.storeArrayElem(loc, val)

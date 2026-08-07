@@ -139,7 +139,16 @@ func (vm *VM) dropAsyncTasks() {
 }
 
 func (vm *VM) dropValue(v Value) {
-	if vm == nil || vm.Heap == nil || !v.IsHeap() || v.H == 0 {
+	if vm == nil || vm.Heap == nil {
+		return
+	}
+	// A composite owns storage rather than a counted object, so releasing one
+	// walks its members instead of decrementing anything.
+	if v.Kind == VKComposite {
+		vm.dropComposite(v)
+		return
+	}
+	if !v.IsHeap() || v.H == 0 {
 		return
 	}
 	vm.Heap.Release(v.H)
@@ -194,10 +203,6 @@ func (vm *VM) objectKindLabel(k ObjectKind) string {
 		return "map"
 	case OKResource:
 		return "resource"
-	case OKStruct:
-		return "struct"
-	case OKTag:
-		return "tag"
 	case OKRange:
 		return "range"
 	case OKBigInt:

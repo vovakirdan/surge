@@ -181,7 +181,12 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 }
 
 func (vm *VM) execInstrAssign(frame *Frame, instr *mir.Instr, writes []LocalWrite) (hasStore bool, storeLoc Location, storeVal Value, writesOut []LocalWrite, vmErr *VMError) {
-	val, vmErr := vm.evalRValue(frame, &instr.Assign.Src)
+	// The producer is told what type it is producing, because a composite
+	// cannot be built without one: exact layout takes the size, the alignment
+	// and every member offset from the type and from nothing else. It is the
+	// destination TYPE and not the destination STORAGE — where the value ends
+	// up is still this instruction's decision, made after the value exists.
+	val, vmErr := vm.evalRValue(frame, &instr.Assign.Src, vm.placeType(frame, instr.Assign.Dst))
 	if vmErr != nil {
 		return false, Location{}, Value{}, writes, vmErr
 	}
@@ -239,16 +244,26 @@ func (vm *VM) execInstrDrop(frame *Frame, instr *mir.Instr) *VMError {
 
 // execDropProjected releases the value at a projection and CLEARS the slot.
 //
-// Clearing is not tidiness. Freeing a struct releases every field it still
-// holds (Heap.Free walks obj.Fields), so a field released here and left in
-// place would be released a second time when its container goes — which the
-// refcount catches as a use-after-free panic rather than as silent corruption,
-// but a panic all the same. This mirrors the native backend, which stores null
-// into the slot after freeing for the same reason.
+// Clearing is not tidiness. Dropping a container walks its members and releases
+// each, so a member released here and left in place would be released a second
+// time when its container goes — which the refcount catches as a use-after-free
+// panic rather than as silent corruption, but a panic all the same. This mirrors
+// the native backend, which stores null into the slot after freeing for the same
+// reason.
 func (vm *VM) execDropProjected(frame *Frame, place mir.Place) *VMError {
 	loc, vmErr := vm.EvalPlace(frame, place)
 	if vmErr != nil {
 		return vmErr
+	}
+	// A member is released IN PLACE, without being loaded first. dropMember
+	// releases what the member holds and zeroes it in the same step, which is
+	// both halves of what this function owes: nothing is left behind for the
+	// owner's own drop to release a second time, and there is no separate store
+	// that could land on the other side of the release. Loading it first would
+	// be worse than redundant — a load of a non-composite member CLONES, so the
+	// release would land on the copy and leave the original standing.
+	if loc.Kind == LKStorage {
+		return vm.dropMember(loc.Storage)
 	}
 	val, vmErr := vm.loadLocationRaw(loc)
 	if vmErr != nil {
@@ -294,10 +309,10 @@ func (vm *VM) execInstrEndBorrow(frame *Frame, instr *mir.Instr) *VMError {
 // alone — the closing move of a residual drop, after the live fields have been
 // dropped one at a time.
 //
-// "Leaves them alone" needs doing rather than saying here: releasing a struct
-// walks its fields and releases each (Heap.Free), so the fields still present —
-// the ones that moved away — would be released as well. They are cleared first,
-// which makes the release touch nothing but the container itself.
+// "Leaves them alone" needs doing rather than saying here: releasing a container
+// walks its members and releases each, so the members still present — the ones
+// that moved away — would be released as well. They are cleared first, which
+// makes the release touch nothing but the container itself.
 func (vm *VM) execDropShallow(frame *Frame, place mir.Place) *VMError {
 	loc, vmErr := vm.EvalPlace(frame, place)
 	if vmErr != nil {
@@ -307,13 +322,18 @@ func (vm *VM) execDropShallow(frame *Frame, place mir.Place) *VMError {
 	if vmErr != nil {
 		return vmErr
 	}
-	if !val.IsHeap() || val.H == 0 {
+	// A composite has no container allocation of its own to free: the extent IS
+	// the container. Zeroing it WITHOUT walking its members is therefore exactly
+	// a shallow drop — what the members hold belongs to whoever took them, and
+	// nothing is left here for a later walk to release a second time.
+	if ref, isComposite := val.Storage(); isComposite {
+		if err := vm.storageZero(ref); err != nil {
+			return vm.eb.makeError(PanicUnimplemented, err.Error())
+		}
 		return nil
 	}
-	if obj, ok := vm.Heap.lookup(val.H); ok && obj != nil {
-		for i := range obj.Fields {
-			obj.Fields[i] = Value{}
-		}
+	if !val.IsHeap() || val.H == 0 {
+		return nil
 	}
 	// A PROJECTED container is released BY the store that clears its slot — a
 	// store releases whatever it overwrites — so releasing it here as well

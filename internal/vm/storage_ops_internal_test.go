@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"strings"
 	"testing"
 
 	"surge/internal/layout"
@@ -332,7 +331,13 @@ func TestStorageUnionKeepsNoByteOfTheArmItReplaced(t *testing.T) {
 	}
 }
 
-func TestStorageRefusesAnArmNoDiscriminantCanSelect(t *testing.T) {
+// A union arm that carries no TAG still has to be describable, because the
+// language writes those arms and the entrypoint's own parse envelope is one:
+// `Erring` is `Success(T) | E`, whose second arm is a bare type. This used to
+// be refused on the grounds that nothing could name it, which named the
+// limitation rather than a rule — the physical layout gives all three arm kinds
+// a case, and a type alternative is distinguished by the type it admits.
+func TestStorageDescribesArmsThatCarryNoTag(t *testing.T) {
 	interner := types.NewInterner()
 	interner.Strings = source.NewInterner()
 	i64 := interner.Intern(types.Type{Kind: types.KindInt, Width: 64})
@@ -349,12 +354,27 @@ func TestStorageRefusesAnArmNoDiscriminantCanSelect(t *testing.T) {
 	}
 	machine := New(&mir.Module{Meta: &mir.ModuleMeta{Layouts: registry}}, nil, nil, interner, nil)
 
-	_, err = machine.unionMembers(anonymous)
-	if err == nil {
-		t.Fatal("an arm with no tag name must be refused rather than guessed at")
+	shape, err := machine.unionMembers(anonymous)
+	if err != nil {
+		t.Fatalf("both arms must be describable: %v", err)
 	}
-	if !strings.Contains(err.Error(), "no tag name") {
-		t.Fatalf("the refusal must say what is missing: %q", err)
+	if len(shape.Cases) != 2 {
+		t.Fatalf("the union has %d described arms, want 2", len(shape.Cases))
+	}
+	// The type alternative is named by what it admits and carries exactly that
+	// one value, so a copy or a drop of this arm reaches it.
+	if got, want := shape.Cases[0].TagName, typeArmName(i64); got != want {
+		t.Fatalf("the type arm is called %q, want %q", got, want)
+	}
+	if len(shape.Cases[0].Payload) != 1 || shape.Cases[0].Payload[0].TypeID != i64 {
+		t.Fatalf("the type arm carries %#v, want one value of type#%d", shape.Cases[0].Payload, i64)
+	}
+	// A nothing arm carries nothing, and is called what the tag layout calls it.
+	if got := shape.Cases[1].TagName; got != nothingArmName {
+		t.Fatalf("the nothing arm is called %q, want %q", got, nothingArmName)
+	}
+	if len(shape.Cases[1].Payload) != 0 {
+		t.Fatalf("the nothing arm carries %d values, want none", len(shape.Cases[1].Payload))
 	}
 }
 

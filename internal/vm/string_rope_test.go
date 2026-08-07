@@ -8,6 +8,7 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/source"
 	"surge/internal/types"
@@ -22,7 +23,13 @@ func callUnaryIntrinsic(vm *VM, name string, arg Value, resultType types.TypeID)
 		Blocks: []mir.Block{{}},
 		Entry:  0,
 	}
-	frame := NewFrame(fn)
+	// Activated through the VM rather than built bare: a composite local lives
+	// in the activation's arena, so a frame with no storage has nowhere to put
+	// one. The stack is set for the same reason — a producer builds its
+	// temporary in the scratch of the activation whose instruction is running.
+	frame := vm.activate(fn)
+	vm.Stack = append(vm.Stack, frame)
+	defer func() { vm.Stack = vm.Stack[:len(vm.Stack)-1] }()
 
 	if vmErr := vm.writeLocal(frame, 0, arg); vmErr != nil {
 		return Value{}, vmErr
@@ -52,7 +59,9 @@ func callUnaryIntrinsicNoDst(vm *VM, name string, arg Value) *VMError {
 		Blocks: []mir.Block{{}},
 		Entry:  0,
 	}
-	frame := NewFrame(fn)
+	frame := vm.activate(fn)
+	vm.Stack = append(vm.Stack, frame)
+	defer func() { vm.Stack = vm.Stack[:len(vm.Stack)-1] }()
 
 	if vmErr := vm.writeLocal(frame, 0, arg); vmErr != nil {
 		return vmErr
@@ -311,6 +320,16 @@ func registerBytesViewType(t *testing.T, vm *VM) types.TypeID {
 		{Name: ptrName, Type: ptrType},
 		{Name: lenName, Type: builtins.Uint},
 	})
+	// A BytesView is a composite, and a composite IS the bytes its layout
+	// decided, so the fixture owes the same finalized registry a real module
+	// carries. Without one the type exists and has no extent, and every
+	// operation on it refuses rather than guessing a size.
+	engine := layout.New(layout.X86_64LinuxGNU(), vm.Types)
+	registry, layoutErr := layout.FinalizeRegistry(engine, []types.TypeID{ptrType, builtins.Uint, typeID})
+	if layoutErr != nil {
+		t.Fatalf("freezing the bytes view layout must succeed: %v", layoutErr)
+	}
+	vm.Layouts = registry
 	return typeID
 }
 
@@ -375,8 +394,20 @@ func TestStringSliceAndBytesViewOwnership(t *testing.T) {
 	}
 	// owner is a non-owning back-pointer into the source string's bytes, not a
 	// string share: a VKPtr at the source handle, mirroring ptr.
-	bvObj := vmInstance.Heap.Get(bvVal.H)
-	ownerVal := bvObj.Fields[info.ownerIdx]
+	bvRef, isComposite := bvVal.Storage()
+	if !isComposite {
+		vmInstance.dropValue(bvVal)
+		vmInstance.dropValue(base)
+		t.Fatalf("a bytes view is carried as %s, want composite", bvVal.Kind)
+	}
+	// Uncounted: this is an assertion about what the member holds, not a second
+	// holder of it.
+	ownerVal, vmErr := vmInstance.peekMember(bvRef, info.ownerIdx)
+	if vmErr != nil {
+		vmInstance.dropValue(bvVal)
+		vmInstance.dropValue(base)
+		t.Fatalf("reading the bytes view owner failed: %v", vmErr)
+	}
 	if ownerVal.Kind != VKPtr || ownerVal.Loc.Kind != LKStringBytes || ownerVal.Loc.Handle != base.H {
 		vmInstance.dropValue(bvVal)
 		vmInstance.dropValue(base)

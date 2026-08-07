@@ -53,8 +53,11 @@ func (t *Tracer) TraceInstr(depth int, fn *mir.Func, bb mir.BlockID, ip int, ins
 		panic(printErr)
 	}
 
-	// Print local writes
-	for _, w := range writes {
+	// Print local writes. Indexed rather than ranged by value: a LocalWrite
+	// carries a Value, and a Value carries the storage reference of a composite,
+	// so copying one per iteration copies more than the trace needs to read.
+	for i := range writes {
+		w := &writes[i]
 		_, printErr = fmt.Fprintf(t.w, "    write L%d(%s) = %s\n", w.LocalID, w.Name, t.formatValue(w.Value))
 		if printErr != nil {
 			panic(printErr)
@@ -130,10 +133,6 @@ func kindLabel(kind ObjectKind) string {
 		return "array_slice"
 	case OKMap:
 		return "map"
-	case OKStruct:
-		return "struct"
-	case OKTag:
-		return "tag"
 	case OKRange:
 		return "range"
 	case OKBigInt:
@@ -475,11 +474,8 @@ func (t *Tracer) formatValue(v Value) string {
 	case VKHandleMap:
 		return t.formatHandleValue("map", v.H)
 
-	case VKHandleStruct:
-		return t.formatHandleValue("struct", v.H)
-
-	case VKHandleTag:
-		return t.formatHandleValue("tag", v.H)
+	case VKComposite:
+		return v.String()
 
 	case VKHandleRange:
 		return t.formatHandleValue("range", v.H)
@@ -569,10 +565,8 @@ func (t *Tracer) formatLocation(loc Location) string {
 			}
 		}
 		return fmt.Sprintf("G%d(%s)", loc.Global, name)
-	case LKStructField:
-		return fmt.Sprintf("struct.field[%d]", loc.Index)
-	case LKTagField:
-		return fmt.Sprintf("tag.field[%d]", loc.Index)
+	case LKStorage:
+		return fmt.Sprintf("storage+%d", loc.Storage.Offset)
 	case LKArrayElem:
 		return fmt.Sprintf("array[%d]", loc.Index)
 	case LKMapElem:

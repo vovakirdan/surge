@@ -10,6 +10,12 @@ type pinnedLocal struct {
 type taskStatePins struct {
 	locals  []pinnedLocal
 	handles []Handle
+	// arenas are the storages a task state borrows bytes from. A composite has
+	// no handle to retain, so what keeps it alive is a pin on the arena that
+	// holds it: retirement is refused while a pin is outstanding, which is what
+	// makes a captured reference into an activation's storage stay valid
+	// exactly as long as the task state that captured it.
+	arenas []*Arena
 }
 
 type taskStatePinCollector struct {
@@ -18,6 +24,17 @@ type taskStatePinCollector struct {
 	visitedLocals   map[pinnedLocal]struct{}
 	visitedHandles  map[Handle]struct{}
 	retainedHandles map[Handle]struct{}
+	visitedArenas   map[*Arena]struct{}
+	visitedExtents  map[storageExtent]struct{}
+}
+
+// storageExtent identifies one extent for the purpose of not walking it twice.
+// A composite can be reached by more than one path — a reference to it and the
+// slot that owns it — and walking it once per path would retain its members
+// once per path.
+type storageExtent struct {
+	arena  *Arena
+	offset uint64
 }
 
 func (vm *VM) collectTaskStatePins(state Value) (taskStatePins, *VMError) {
@@ -29,6 +46,8 @@ func (vm *VM) collectTaskStatePins(state Value) (taskStatePins, *VMError) {
 		visitedLocals:   make(map[pinnedLocal]struct{}),
 		visitedHandles:  make(map[Handle]struct{}),
 		retainedHandles: make(map[Handle]struct{}),
+		visitedArenas:   make(map[*Arena]struct{}),
+		visitedExtents:  make(map[storageExtent]struct{}),
 	}
 	if vmErr := collector.visitValue(state); vmErr != nil {
 		collector.rollbackPins()
@@ -40,6 +59,11 @@ func (vm *VM) collectTaskStatePins(state Value) (taskStatePins, *VMError) {
 func (c *taskStatePinCollector) rollbackPins() {
 	if c == nil || c.vm == nil {
 		return
+	}
+	for i := len(c.pins.arenas) - 1; i >= 0; i-- {
+		if arena := c.pins.arenas[i]; arena != nil {
+			arena.unpin()
+		}
 	}
 	for i := len(c.pins.handles) - 1; i >= 0; i-- {
 		handle := c.pins.handles[i]
@@ -90,6 +114,11 @@ func (vm *VM) setUserTaskStateWithPins(state *userTaskState, next Value, pins ta
 func (vm *VM) releaseTaskStatePins(pins taskStatePins) {
 	if vm == nil {
 		return
+	}
+	for i := len(pins.arenas) - 1; i >= 0; i-- {
+		if arena := pins.arenas[i]; arena != nil {
+			arena.unpin()
+		}
 	}
 	for i := len(pins.handles) - 1; i >= 0; i-- {
 		handle := pins.handles[i]
@@ -157,6 +186,10 @@ func (c *taskStatePinCollector) visitValue(v Value) *VMError {
 		if vmErr := c.visitLocation(v.Loc); vmErr != nil {
 			return vmErr
 		}
+	case VKComposite:
+		if ref, ok := v.Storage(); ok {
+			return c.visitStorage(ref)
+		}
 	}
 	if v.IsHeap() && v.H != 0 {
 		return c.visitHandle(v.H)
@@ -168,7 +201,9 @@ func (c *taskStatePinCollector) visitLocation(loc Location) *VMError {
 	switch loc.Kind {
 	case LKLocal:
 		return c.pinLocal(loc.FrameRef, loc.Local)
-	case LKStructField, LKArrayElem, LKMapElem, LKStringBytes, LKRawBytes, LKTagField:
+	case LKStorage:
+		return c.visitStorage(loc.Storage)
+	case LKArrayElem, LKMapElem, LKStringBytes, LKRawBytes:
 		if vmErr := c.retainHandle(loc.Handle); vmErr != nil {
 			return vmErr
 		}
@@ -208,6 +243,80 @@ func (c *taskStatePinCollector) pinLocal(frame *Frame, local int32) *VMError {
 	pinFrameStorage(frame)
 	c.pins.locals = append(c.pins.locals, key)
 	return c.visitValue(slot.V)
+}
+
+// visitStorage pins the arena a composite lives in and retains what it holds.
+//
+// Two things happen and neither substitutes for the other. The arena PIN keeps
+// the bytes: without it the activation could retire and the captured reference
+// would name storage that is gone. The member walk retains what those bytes
+// point at: a handle sitting inside a composite is reachable only through the
+// composite, so a task state outliving the expression that built it would
+// otherwise hold counts nobody took.
+func (c *taskStatePinCollector) visitStorage(ref StorageRef) *VMError {
+	if ref.Arena == nil {
+		return nil
+	}
+	if _, ok := c.visitedArenas[ref.Arena]; !ok {
+		c.visitedArenas[ref.Arena] = struct{}{}
+		ref.Arena.pin()
+		c.pins.arenas = append(c.pins.arenas, ref.Arena)
+	}
+	key := storageExtent{arena: ref.Arena, offset: ref.Offset}
+	if _, ok := c.visitedExtents[key]; ok {
+		return nil
+	}
+	c.visitedExtents[key] = struct{}{}
+	return c.visitStorageMembers(ref)
+}
+
+func (c *taskStatePinCollector) visitStorageMembers(ref StorageRef) *VMError {
+	members, vmErr := c.storageMembersOf(ref)
+	if vmErr != nil {
+		return vmErr
+	}
+	for _, member := range members {
+		memberRef, err := ref.memberRef(member)
+		if err != nil {
+			return c.vm.eb.makeError(PanicUnimplemented, err.Error())
+		}
+		if member.Kind == cellComposite {
+			if vmErr := c.visitStorageMembers(memberRef); vmErr != nil {
+				return vmErr
+			}
+			continue
+		}
+		value, readErr := c.vm.storageReadCell(memberRef, member)
+		if readErr != nil {
+			return c.vm.eb.makeError(PanicRCUseAfterFree, readErr.Error())
+		}
+		if value.IsHeap() && value.H != 0 {
+			if vmErr := c.retainHandle(value.H); vmErr != nil {
+				return vmErr
+			}
+		}
+		if vmErr := c.visitValue(value); vmErr != nil {
+			return vmErr
+		}
+	}
+	return nil
+}
+
+// storageMembersOf returns the members a walk of one extent may touch. For a
+// union that is the LIVE arm only, which is the same rule its drop follows.
+func (c *taskStatePinCollector) storageMembersOf(ref StorageRef) ([]storageMember, *VMError) {
+	if shape, err := c.vm.unionMembers(ref.TypeID); err == nil {
+		index, activeErr := c.vm.storageActiveCase(ref, shape)
+		if activeErr != nil {
+			return nil, c.vm.eb.makeError(PanicRCUseAfterFree, activeErr.Error())
+		}
+		return shape.Cases[index].Payload, nil
+	}
+	members, err := c.vm.compositeMembers(ref.TypeID)
+	if err != nil {
+		return nil, c.vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	return members, nil
 }
 
 func (c *taskStatePinCollector) retainHandle(handle Handle) *VMError {
@@ -268,18 +377,6 @@ func (c *taskStatePinCollector) visitHandle(handle Handle) *VMError {
 				return vmErr
 			}
 			if vmErr := c.visitValue(obj.MapEntries[i].Value); vmErr != nil {
-				return vmErr
-			}
-		}
-	case OKStruct:
-		for _, field := range obj.Fields {
-			if vmErr := c.visitValue(field); vmErr != nil {
-				return vmErr
-			}
-		}
-	case OKTag:
-		for _, field := range obj.Tag.Fields {
-			if vmErr := c.visitValue(field); vmErr != nil {
 				return vmErr
 			}
 		}

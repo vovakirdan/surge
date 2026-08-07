@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"surge/internal/symbols"
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
 )
@@ -22,10 +21,6 @@ const (
 	OKArraySlice
 	// OKMap represents a map object.
 	OKMap
-	// OKStruct represents a struct object.
-	OKStruct
-	// OKTag represents a tagged union object.
-	OKTag
 	// OKBigInt represents a big integer object.
 	OKBigInt
 	// OKBigUint represents a big unsigned integer object.
@@ -58,12 +53,6 @@ const (
 	// StringSlice represents a string slice.
 	StringSlice
 )
-
-// TagObject represents a tagged union object.
-type TagObject struct {
-	TagSym symbols.SymbolID
-	Fields []Value
-}
 
 // RangeKind identifies the kind of range object.
 type RangeKind uint8
@@ -121,8 +110,6 @@ type Object struct {
 	ArrSliceCap   int
 	MapIndex      map[mapKey]int
 	MapEntries    []mapEntry
-	Fields        []Value
-	Tag           TagObject
 	Range         RangeObject
 
 	BigInt   bignum.BigInt
@@ -134,4 +121,14 @@ type Object struct {
 	// handle and is never followed, which is why releasing a resource releases
 	// nothing beneath it.
 	Resource int64
+
+	// storage is the arena the composite members of a container live in.
+	//
+	// A container OUTLIVES the activation that built what goes into it, so an
+	// element cannot be a reference into a frame arena that is about to retire —
+	// and with the boxed representation gone there is nothing else a composite
+	// element could be. The container therefore owns storage of its own: a value
+	// is COPIED into it on the way in and the whole arena is released when the
+	// object is freed.
+	storage *scratch
 }

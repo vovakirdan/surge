@@ -39,6 +39,7 @@ type scratch struct {
 // until the rewind, because rewinding is by mark and not by extent.
 type scratchEntry struct {
 	offset uint64
+	size   uint64
 	typeID types.TypeID
 	live   bool
 }
@@ -94,7 +95,7 @@ func (vm *VM) reserveScratch(s *scratch, typeID types.TypeID) (StorageRef, error
 	}
 	s.grow(end)
 	s.used = end
-	s.entries = append(s.entries, scratchEntry{offset: offset, typeID: typeID, live: true})
+	s.entries = append(s.entries, scratchEntry{offset: offset, size: facts.Size, typeID: typeID, live: true})
 	return StorageRef{
 		Arena:  s.arena,
 		Offset: offset,
@@ -139,8 +140,18 @@ func (s *scratch) release(ref StorageRef) error {
 		return nil
 	}
 	for i := len(s.entries) - 1; i >= 0; i-- {
-		if s.entries[i].offset == ref.Offset && s.entries[i].live {
+		entry := s.entries[i]
+		if entry.offset == ref.Offset && entry.live {
 			s.entries[i].live = false
+			return nil
+		}
+		// A reference INSIDE a live extent names a MEMBER of that temporary,
+		// not a temporary of its own, and there is nothing to retire: the thing
+		// a rewind will drop is still the owner, and the move that got here has
+		// already emptied the member out of it. Extents cannot overlap — a
+		// reservation bumps the high-water mark past the previous one — so an
+		// offset within one belongs to exactly that one.
+		if entry.live && ref.Offset > entry.offset && ref.Offset < entry.offset+entry.size {
 			return nil
 		}
 	}

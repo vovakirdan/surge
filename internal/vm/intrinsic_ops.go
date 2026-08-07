@@ -1,8 +1,6 @@
 package vm
 
 import (
-	"fmt"
-
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
@@ -67,7 +65,7 @@ func (vm *VM) handleLen(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite)
 			Name:    frame.Locals[dstLocal].Name,
 			Value:   val,
 		})
-	case VKHandleStruct:
+	case VKComposite:
 		info, vmErr := vm.bytesViewLayout(arg.TypeID)
 		if vmErr != nil {
 			return vmErr
@@ -75,14 +73,11 @@ func (vm *VM) handleLen(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite)
 		if !info.ok {
 			return vm.eb.typeMismatch("len-compatible", arg.Kind.String())
 		}
-		obj := vm.Heap.Get(arg.H)
-		if obj.Kind != OKStruct {
-			return vm.eb.typeMismatch("struct", fmt.Sprintf("%v", obj.Kind))
+		owner, ok := arg.Storage()
+		if !ok {
+			return vm.eb.typeMismatch("struct", arg.Kind.String())
 		}
-		if info.ownerIdx < 0 || info.ownerIdx >= len(obj.Fields) || info.lenIdx < 0 || info.lenIdx >= len(obj.Fields) {
-			return vm.eb.makeError(PanicOutOfBounds, "bytes view layout mismatch")
-		}
-		lenVal, vmErr := vm.cloneForShare(obj.Fields[info.lenIdx])
+		lenVal, vmErr := vm.readMember(frame, owner, info.lenIdx)
 		if vmErr != nil {
 			return vmErr
 		}

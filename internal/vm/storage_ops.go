@@ -146,9 +146,28 @@ func (vm *VM) storageReadCell(ref StorageRef, member storageMember) (Value, erro
 	case cellFunc:
 		return MakeFunc(decodeFuncBits(unsignedBits(src)), member.TypeID), nil
 	case cellRefIndex:
-		loc, ok := ref.Arena.refAt(unsignedBits(src))
+		encoded := unsignedBits(src)
+		if encoded == 0 {
+			// A ZEROED cell decodes as nothing, the same rule the handle and
+			// unsized-integer cells already keep, and for the same reason: a
+			// reference cell encodes `nothing` as zero, so refusing zero on the
+			// way back would make a member writable but not readable. Every
+			// overwrite reads the previous value first in order to release it,
+			// and a member that was zeroed rather than written has no previous
+			// value — which is an answer, not a failure.
+			return MakeNothing(), nil
+		}
+		loc, ok := ref.Arena.refAt(encoded)
 		if !ok {
 			return Value{}, fmt.Errorf("storage: type#%d holds no referent", member.TypeID)
+		}
+		// Which of the three a referent is comes from the member's TYPE, not
+		// from the location. The table holds only where the referent lives, and
+		// a `*byte` written into it came back as a reference — a pointer that
+		// round-tripped into something else, since the encoding accepts all
+		// three and only the type tells them apart.
+		if tt, ok := vm.throughAliases(member.TypeID); ok && tt.Kind == types.KindPointer {
+			return MakePtr(loc, member.TypeID), nil
 		}
 		if loc.IsMut {
 			return MakeRefMut(loc, member.TypeID), nil
@@ -188,6 +207,13 @@ func (vm *VM) handleValue(handle Handle, typeID types.TypeID) (Value, error) {
 		return MakeBigUint(handle, typeID), nil
 	case OKBigFloat:
 		return MakeBigFloat(handle, typeID), nil
+	case OKResource:
+		// A task, a channel, an open file or a point in time. It is handle-backed
+		// like the rest — storageCellKind gives it a handle cell and handleBits
+		// encodes it — so refusing it here made a member that could be written
+		// and not read, which an async frame holding a `Task<T>` reached the
+		// moment one async function spawned another.
+		return MakeResource(handle, typeID), nil
 	default:
 		return Value{}, fmt.Errorf("storage: handle %d names a %v, which inline storage does not carry", handle, obj.Kind)
 	}
@@ -250,7 +276,12 @@ func (vm *VM) storageReplace(dst, src StorageRef) error {
 // source: zeroing it would erase the members the walk is about to read, and
 // releasing it would free them.
 func (vm *VM) copyPreflight(dst, src StorageRef) (bool, error) {
-	if dst.TypeID != src.TypeID {
+	// The types are compared RESOLVED. An alias is its target — same size, same
+	// offsets, same members — so a copy between two spellings of one type is a
+	// copy within a type, and refusing it would refuse ordinary assignments
+	// wherever a slot is declared by an alias and its value built under the
+	// name behind it.
+	if vm.valueType(dst.TypeID) != vm.valueType(src.TypeID) {
 		return false, fmt.Errorf("storage: cannot copy type#%d into type#%d", src.TypeID, dst.TypeID)
 	}
 	if dst.Arena == src.Arena && dst.Offset == src.Offset {

@@ -262,8 +262,7 @@ func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKi
 			payload.TypeID = tc.PayloadTypes[0]
 		}
 		fields = []Value{payload}
-		h := vm.Heap.AllocTag(resultType, tc.TagSym, fields)
-		return MakeHandleTag(h, resultType), nil
+		return vm.buildTag(vm.currentFrame(), resultType, tc.TagSym, fields)
 	case asyncrt.TaskResultCancelled:
 		tagName = "Cancelled"
 		tc, ok := layout.CaseByName(tagName)
@@ -273,8 +272,7 @@ func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKi
 		if len(tc.PayloadTypes) != 0 {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult Cancelled expects no payload")
 		}
-		h := vm.Heap.AllocTag(resultType, tc.TagSym, nil)
-		return MakeHandleTag(h, resultType), nil
+		return vm.buildTag(vm.currentFrame(), resultType, tc.TagSym, nil)
 	default:
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
 	}

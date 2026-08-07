@@ -161,11 +161,6 @@ func (vm *VM) heapDumpRecord(obj *Object) (heapDumpRecord, error) {
 		rec.mapLen = len(obj.MapEntries)
 	case OKResource:
 		rec.kind = "resource"
-	case OKStruct:
-		rec.kind = "struct"
-	case OKTag:
-		rec.kind = "tag"
-		rec.tag = vm.tagName(obj)
 	case OKRange:
 		rec.kind = "range"
 		rec.rangeKind = rangeKindLabel(obj.Range.Kind)

@@ -204,9 +204,21 @@ func (a *Arena) extent(offset, size uint64) ([]byte, error) {
 }
 
 // resolve returns the bytes a StorageRef names, checking the generation first.
+//
+// An EMPTY extent is answered before any of those checks. A zero-sized value
+// occupies no bytes, so every question the checks below ask — is this extent
+// inside the arena, has the arena moved on since the reference was taken, does
+// the offset meet the alignment — is asked about nothing. Staleness is a real
+// hazard because the bytes may have been reused; where there are no bytes there
+// is nothing to read, nothing to overwrite and nothing to alias, so refusing
+// here rejects a program the language accepts. Passing a zero-sized value by
+// value across a call is exactly that program, and it is where this was found.
 func (r StorageRef) resolve(size uint64) ([]byte, error) {
 	if r.Arena == nil {
 		return nil, fmt.Errorf("storage: reference to type#%d has no arena", r.TypeID)
+	}
+	if size == 0 {
+		return nil, nil
 	}
 	if r.Gen != r.Arena.gen {
 		return nil, fmt.Errorf(

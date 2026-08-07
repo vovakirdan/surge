@@ -3,10 +3,7 @@ package vm
 import (
 	"fmt"
 
-	"fortio.org/safecast"
-
 	"surge/internal/mir"
-	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -28,169 +25,141 @@ func (vm *VM) tagLayoutFor(typeID types.TypeID) (*TagLayout, *VMError) {
 	return layout, nil
 }
 
+// tagScrutinee is the union a tag operation inspects, together with how the
+// operation came by it.
+//
+// Ownership is the field that matters and it is why this type exists. A
+// composite reached THROUGH a reference is a borrow: the reference names bytes
+// some slot owns, and the reader releasing them would destroy a live value
+// while its owner still names it. A composite reached any other way came from
+// evalOperand, which copies, and the reader owes its release. Under a box these
+// were one case because both ended in a counted handle; under storage they are
+// opposites, and the difference has to be carried rather than guessed.
+type tagScrutinee struct {
+	value     Value
+	storage   StorageRef
+	isTag     bool
+	owned     bool
+	viaRef    bool
+	viaRefMut bool
+}
+
+// evalTagScrutinee evaluates the operand a tag operation inspects.
+func (vm *VM) evalTagScrutinee(frame *Frame, op *mir.Operand) (tagScrutinee, *VMError) {
+	val, vmErr := vm.evalOperand(frame, op)
+	if vmErr != nil {
+		return tagScrutinee{}, vmErr
+	}
+	s := tagScrutinee{value: val, owned: true}
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		s.viaRef = true
+		s.viaRefMut = val.Kind == VKRefMut
+		loaded, loadErr := vm.loadLocationRaw(val.Loc)
+		if loadErr != nil {
+			return tagScrutinee{}, loadErr
+		}
+		switch {
+		case loaded.Kind == VKComposite:
+			// Borrowed. Nothing was duplicated, so nothing is owed.
+			s.owned = false
+		case loaded.IsHeap() && loaded.H != 0:
+			vm.Heap.Retain(loaded.H)
+		}
+		s.value = loaded
+	}
+	s.storage, s.isTag = vm.isTagStorage(s.value)
+	return s, nil
+}
+
+// release gives up whatever the scrutinee owns, and nothing it merely borrows.
+func (vm *VM) releaseTagScrutinee(s tagScrutinee) {
+	if s.owned {
+		vm.dropValue(s.value)
+	}
+}
+
 func (vm *VM) evalTagTest(frame *Frame, tt *mir.TagTest) (Value, *VMError) {
 	if tt == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "nil tag_test")
 	}
-	val, vmErr := vm.evalOperand(frame, &tt.Value)
+	s, vmErr := vm.evalTagScrutinee(frame, &tt.Value)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	if val.Kind == VKRef || val.Kind == VKRefMut {
-		var loaded Value
-		loaded, vmErr = vm.loadLocationRaw(val.Loc)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		if loaded.IsHeap() && loaded.H != 0 {
-			vm.Heap.Retain(loaded.H)
-		}
-		val = loaded
-	}
-	defer vm.dropValue(val)
-	if val.Kind != VKHandleTag {
+	defer vm.releaseTagScrutinee(s)
+	if !s.isTag {
 		return MakeBool(false, types.NoTypeID), nil
 	}
-	layout, vmErr := vm.tagLayoutFor(val.TypeID)
+	return vm.tagNameMatches(s.storage, tt.TagName)
+}
+
+// tagNameMatches reports whether the live arm of a union is the named one.
+//
+// The comparison is by arm NAME on both sides. Resolving the wanted name to a
+// symbol through the tag layout and the live arm to a symbol through its object
+// was two lookups to compare two things that are each already named — and the
+// two namings could disagree, which is what the old fallback through a symbol's
+// any-name existed to paper over. The layout gives the arms their names and the
+// discriminant selects one of them, so there is one naming now.
+func (vm *VM) tagNameMatches(ref StorageRef, want string) (Value, *VMError) {
+	name, vmErr := vm.tagArmName(ref)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	want, ok := layout.CaseByName(tt.TagName)
-	if !ok {
-		return MakeBool(false, types.NoTypeID), nil
-	}
-	obj := vm.Heap.Get(val.H)
-	if obj.Kind != OKTag {
-		return Value{}, vm.eb.typeMismatch("tag", fmt.Sprintf("%v", obj.Kind))
-	}
-	return MakeBool(obj.Tag.TagSym == want.TagSym, types.NoTypeID), nil
+	return MakeBool(name == want, types.NoTypeID), nil
 }
 
 func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError) {
 	if tp == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "nil tag_payload")
 	}
-	val, vmErr := vm.evalOperand(frame, &tp.Value)
+	s, vmErr := vm.evalTagScrutinee(frame, &tp.Value)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	operandIsRef := val.Kind == VKRef || val.Kind == VKRefMut
-	operandRefMut := val.Kind == VKRefMut
-	if operandIsRef {
-		var loaded Value
-		loaded, vmErr = vm.loadLocationRaw(val.Loc)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		if loaded.IsHeap() && loaded.H != 0 {
-			vm.Heap.Retain(loaded.H)
-		}
-		val = loaded
+	defer vm.releaseTagScrutinee(s)
+	if !s.isTag {
+		return Value{}, vm.eb.tagPayloadOnNonTag(s.value.Kind.String())
 	}
-	defer vm.dropValue(val)
-	if val.Kind != VKHandleTag {
-		return Value{}, vm.eb.tagPayloadOnNonTag(val.Kind.String())
-	}
-	layout, vmErr := vm.tagLayoutFor(val.TypeID)
+	// The arm the discriminant selects is the only arm whose members exist, so
+	// a payload asked for under a different name is refused BEFORE anything is
+	// projected. Reading it anyway would decode the live arm's bytes as the
+	// types of an arm that is not there.
+	live, vmErr := vm.tagArmName(s.storage)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	obj := vm.Heap.Get(val.H)
-	if obj.Kind != OKTag {
-		return Value{}, vm.eb.typeMismatch("tag", fmt.Sprintf("%v", obj.Kind))
+	if live != tp.TagName {
+		return Value{}, vm.eb.tagPayloadTagMismatch(tp.TagName, live)
 	}
-	want, ok := layout.CaseByName(tp.TagName)
-	if !ok {
-		gotName, okName := vm.tagNameForSym(layout, obj.Tag.TagSym)
-		if !okName {
-			return Value{}, vm.eb.unknownTagLayout(fmt.Sprintf("unknown tag %q in type#%d layout", tp.TagName, layout.TypeID))
-		}
-		if gotName != tp.TagName {
-			return Value{}, vm.eb.tagPayloadTagMismatch(tp.TagName, gotName)
-		}
-		if tc, okCase := layout.CaseBySym(obj.Tag.TagSym); okCase {
-			want = tc
-			ok = true
-		}
+	member, vmErr := vm.tagPayloadRef(s.storage, tp.Index)
+	if vmErr != nil {
+		return Value{}, vmErr
 	}
-	if !ok {
-		if tp.Index < 0 || tp.Index >= len(obj.Tag.Fields) {
-			return Value{}, vm.eb.tagPayloadIndexOutOfRange(tp.Index, len(obj.Tag.Fields))
-		}
-		field, cloneErr := vm.cloneForShare(obj.Tag.Fields[tp.Index])
-		if cloneErr != nil {
-			return Value{}, cloneErr
-		}
-		return field, nil
-	}
-	if obj.Tag.TagSym != want.TagSym {
-		gotName, ok := vm.tagNameForSym(layout, obj.Tag.TagSym)
-		if !ok || gotName != tp.TagName {
-			return Value{}, vm.eb.tagPayloadTagMismatch(tp.TagName, gotName)
-		}
-	}
-	if tp.Index < 0 || tp.Index >= len(want.PayloadTypes) {
-		return Value{}, vm.eb.tagPayloadIndexOutOfRange(tp.Index, len(want.PayloadTypes))
-	}
-	if tp.Index >= len(obj.Tag.Fields) {
-		return Value{}, vm.eb.tagPayloadIndexOutOfRange(tp.Index, len(obj.Tag.Fields))
-	}
-	field := obj.Tag.Fields[tp.Index]
-	wantTy := want.PayloadTypes[tp.Index]
-	if wantTy != types.NoTypeID && field.TypeID != types.NoTypeID {
-		wantVal := vm.valueType(wantTy)
-		fieldVal := vm.valueType(field.TypeID)
-		if wantVal != fieldVal {
-			switch {
-			case vm.isUnionType(wantVal) && vm.unionContains(wantVal, fieldVal):
-				if retagged, ok := vm.retagUnionValue(field, wantTy); ok {
-					field = retagged
-				}
-			case vm.isUnionType(fieldVal) && vm.unionContains(fieldVal, wantVal):
-				field.TypeID = wantTy
-				if field.IsHeap() && field.H != 0 {
-					if fieldObj := vm.Heap.Get(field.H); fieldObj != nil && fieldObj.Kind == OKTag {
-						fieldObj.TypeID = wantTy
-					}
-				}
-			default:
-				if !vm.compatiblePayloadTypes(wantTy, field.TypeID) {
-					return Value{}, vm.eb.typeMismatch(fmt.Sprintf("type#%d", wantTy), fmt.Sprintf("type#%d", field.TypeID))
-				}
-				field.TypeID = wantTy
-				if field.IsHeap() && field.H != 0 {
-					if fieldObj := vm.Heap.Get(field.H); fieldObj != nil {
-						fieldObj.TypeID = wantTy
-					}
-				}
-			}
-		}
-	}
-	payloadIsRef := false
-	if vm.Types != nil && wantTy != types.NoTypeID {
-		payloadIsRef = isReferenceType(vm.Types, wantTy)
-	}
-	if operandIsRef && !payloadIsRef {
-		obj.Tag.Fields[tp.Index] = field
-		idx32, err := safecast.Conv[int32](tp.Index)
-		if err != nil {
-			return Value{}, vm.eb.invalidLocation("tag payload index overflow")
-		}
-		loc := Location{Kind: LKTagField, Handle: val.H, Index: idx32}
+	// Destructuring THROUGH a reference borrows the payload where it lies. The
+	// binding then names the union's own bytes, so a write through it is a
+	// write to the union — which is what matching on a `&mut` is for. A payload
+	// that is itself a reference is excluded: handing back a reference to it
+	// would add a level of indirection the pattern did not ask for.
+	payloadIsRef := vm.Types != nil && member.TypeID != types.NoTypeID && isReferenceType(vm.Types, member.TypeID)
+	if s.viaRef && !payloadIsRef {
 		refType := types.NoTypeID
-		if vm.Types != nil && wantTy != types.NoTypeID {
-			refType = vm.Types.Intern(types.MakeReference(wantTy, operandRefMut))
+		if vm.Types != nil && member.TypeID != types.NoTypeID {
+			refType = vm.Types.Intern(types.MakeReference(member.TypeID, s.viaRefMut))
 		}
-		if operandRefMut {
+		loc := Location{Kind: LKStorage, Storage: member, IsMut: s.viaRefMut}
+		if s.viaRefMut {
 			return MakeRefMut(loc, refType), nil
 		}
 		return MakeRef(loc, refType), nil
 	}
-	out, vmErr := vm.cloneForShare(field)
-	if vmErr != nil {
-		return Value{}, vmErr
+	// Otherwise the payload is READ, and a read is a copy. A composite gets its
+	// own extent for the same reason a field read does; anything else is
+	// decoded and counted.
+	if vm.storageCellKind(member.TypeID) == cellComposite {
+		return vm.duplicateComposite(frame, MakeComposite(member))
 	}
-	return out, nil
+	return vm.loadStorage(member)
 }
 
 func isReferenceType(typesIn *types.Interner, id types.TypeID) bool {
@@ -219,46 +188,23 @@ func (vm *VM) execSwitchTag(frame *Frame, st *mir.SwitchTagTerm) *VMError {
 	if st == nil {
 		return vm.eb.makeError(PanicUnimplemented, "nil switch_tag terminator")
 	}
-	val, vmErr := vm.evalOperand(frame, &st.Value)
+	s, vmErr := vm.evalTagScrutinee(frame, &st.Value)
 	if vmErr != nil {
 		return vmErr
 	}
-	if val.Kind == VKRef || val.Kind == VKRefMut {
-		loaded, loadErr := vm.loadLocationRaw(val.Loc)
-		if loadErr != nil {
-			return loadErr
-		}
-		if loaded.IsHeap() && loaded.H != 0 {
-			vm.Heap.Retain(loaded.H)
-		}
-		val = loaded
+	defer vm.releaseTagScrutinee(s)
+	if !s.isTag {
+		return vm.eb.switchTagOnNonTag(s.value.Kind.String())
 	}
-	defer vm.dropValue(val)
-	if val.Kind != VKHandleTag {
-		return vm.eb.switchTagOnNonTag(val.Kind.String())
-	}
-	layout, vmErr := vm.tagLayoutFor(val.TypeID)
+	live, vmErr := vm.tagArmName(s.storage)
 	if vmErr != nil {
 		return vmErr
-	}
-	obj := vm.Heap.Get(val.H)
-	if obj.Kind != OKTag {
-		return vm.eb.switchTagOnNonTag(fmt.Sprintf("%v", obj.Kind))
 	}
 
 	target := st.Default
 	decision := "default"
 	for _, c := range st.Cases {
-		tagCase, ok := layout.CaseByName(c.TagName)
-		if !ok {
-			continue
-		}
-		if obj.Tag.TagSym == tagCase.TagSym {
-			target = c.Target
-			decision = c.TagName
-			break
-		}
-		if gotName, ok := vm.tagNameForSym(layout, obj.Tag.TagSym); ok && gotName == c.TagName {
+		if c.TagName == live {
 			target = c.Target
 			decision = c.TagName
 			break
@@ -301,57 +247,32 @@ func (vm *VM) callTagConstructor(frame *Frame, call *mir.CallInstr, writes *[]Lo
 		args[i] = val
 	}
 
-	typeID := types.NoTypeID
-	if call.HasDst && call.Dst.IsValid() {
-		typeID = frame.Locals[call.Dst.Local].TypeID
-	}
-	tagSym := call.Callee.Sym
-	if vm.tagLayouts != nil {
-		tagSym = vm.tagLayouts.CanonicalTagSym(tagSym)
-	}
-	if typeID != types.NoTypeID {
-		layout, vmErr := vm.tagLayoutFor(typeID)
-		if vmErr != nil {
-			return true, vmErr
-		}
-		if tc, ok := layout.CaseBySym(tagSym); ok {
-			if len(tc.PayloadTypes) != len(args) {
-				return true, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("tag %q expects %d payload value(s), got %d", tc.TagName, len(tc.PayloadTypes), len(args)))
-			}
-		}
-	}
-
-	h := vm.Heap.AllocTag(typeID, tagSym, args)
-	tagVal := MakeHandleTag(h, typeID)
-	if call.HasDst {
-		localID := call.Dst.Local
-		if vmErr := vm.writeLocal(frame, localID, tagVal); vmErr != nil {
-			return true, vmErr
-		}
-		if writes != nil {
-			*writes = append(*writes, LocalWrite{
-				LocalID: localID,
-				Name:    frame.Locals[localID].Name,
-				Value:   tagVal,
-			})
+	if !call.HasDst || !call.Dst.IsValid() {
+		// The constructed value is unused. The arguments were still moved into
+		// this call, so they are released here rather than built into a union
+		// that nothing would ever read — which also means no type is needed for
+		// a union that is never laid out.
+		for _, arg := range args {
+			vm.dropValue(arg)
 		}
 		return true, nil
 	}
 
-	// Tag value is unused; drop it to consume moved arguments deterministically.
-	vm.Heap.Release(h)
+	localID := call.Dst.Local
+	tagSym := vm.tagLayouts.CanonicalTagSym(call.Callee.Sym)
+	tagVal, vmErr := vm.buildTag(frame, frame.Locals[localID].TypeID, tagSym, args)
+	if vmErr != nil {
+		return true, vmErr
+	}
+	if vmErr := vm.writeLocal(frame, localID, tagVal); vmErr != nil {
+		return true, vmErr
+	}
+	if writes != nil {
+		*writes = append(*writes, LocalWrite{
+			LocalID: localID,
+			Name:    frame.Locals[localID].Name,
+			Value:   tagVal,
+		})
+	}
 	return true, nil
-}
-
-func (vm *VM) tagNameForSym(layout *TagLayout, sym symbols.SymbolID) (string, bool) {
-	if layout == nil {
-		return "", false
-	}
-	if tc, ok := layout.CaseBySym(sym); ok && tc.TagName != "" {
-		return tc.TagName, true
-	}
-	if vm != nil && vm.tagLayouts != nil {
-		return vm.tagLayouts.AnyTagName(sym)
-	}
-	return "", false
 }
