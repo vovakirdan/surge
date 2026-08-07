@@ -75,7 +75,7 @@ fn main(port: uint) -> int {
     let listen_res = net.listen("127.0.0.1", port);
     compare listen_res {
         Success(listener) => {
-            let server_task: Task<nothing> = spawn serve_once(listener);
+            let server_task: Task<nothing> = @local spawn serve_once(listener);
             let conn_res = net.connect("127.0.0.1", port);
             compare conn_res {
                 Success(conn) => {
