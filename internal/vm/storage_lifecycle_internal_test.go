@@ -192,6 +192,168 @@ func TestStoragePartialMoveLeavesAResidualThatDropsOnlyWhatItStillOwns(t *testin
 	}
 }
 
+// rearm gives a retired arena the storage its next occupant would get: fresh
+// bytes at the same offsets, one generation on.
+//
+// It reaches past the arena's own API because there is no reuse entry point
+// yet — retirement is the only thing that bumps a generation today, and it
+// releases the bytes as it goes. That makes retirement alone a weak test: a
+// reference into released bytes is refused for having no storage, which is not
+// the same fact as being refused for being stale. Arming the storage again is
+// what separates the two, and it is the state a frame arena reaches the moment
+// activations reuse their storage.
+func (f *storageFixture) rearm() {
+	f.arena.bytes = make([]byte, f.plan.Size)
+}
+
+// A reference into a reused extent must be refused rather than resolved
+// against whoever holds those bytes now.
+//
+// This is the row a box never had to answer. A box that outlives its reference
+// is still the same box, and the reference is still right about what it names;
+// an extent that outlives its reference is a different value at the same
+// address, and the bytes there are perfectly readable. Nothing but the
+// generation can tell those two apart, so the check has to be what refuses —
+// and the refusal has to happen before the read, not be inferred from a garbled
+// result afterwards.
+func TestStorageRefIntoAReusedExtentDoesNotReadItsNewOccupant(t *testing.T) {
+	f := newStorageFixture(t)
+	stale := f.ref(t, 0, f.node)
+	f.writeNode(t, stale, 1, 2, 3, "first activation")
+
+	members, describeErr := f.vm.compositeMembers(f.node)
+	if describeErr != nil {
+		t.Fatalf("Node must have describable members: %v", describeErr)
+	}
+
+	// The activation ends: what it owned is released and its storage retires.
+	if err := f.vm.storageDrop(stale); err != nil {
+		t.Fatalf("dropping the first activation's value must succeed: %v", err)
+	}
+	if !f.arena.retire() {
+		t.Fatal("an unpinned arena must retire when its activation ends")
+	}
+
+	// The next activation takes the same storage and writes a different value
+	// at the same offset.
+	f.rearm()
+	fresh := f.ref(t, 0, f.node)
+	if fresh.Gen == stale.Gen {
+		t.Fatal("reused storage handed out the generation it had before, so nothing distinguishes the two occupants")
+	}
+	occupant := f.writeNode(t, fresh, 4, 5, 6, "second activation")
+
+	// The reference the first activation left behind now names bytes that read
+	// perfectly well and belong to somebody else.
+	staleCount, projectErr := stale.memberRef(members[2])
+	if projectErr != nil {
+		t.Fatalf("projecting through a stale reference must still be arithmetic: %v", projectErr)
+	}
+	if got, readErr := f.vm.storageReadCell(staleCount, members[2]); readErr == nil {
+		t.Fatalf("a stale reference read %d out of the value that replaced it", got.Int)
+	}
+
+	// The whole-value operations refuse for the same reason, and refuse BEFORE
+	// touching anything: a drop through a stale reference that got as far as a
+	// member would release what the new occupant owns.
+	if err := f.vm.storageDrop(stale); err == nil {
+		t.Fatal("dropping through a stale reference must be refused")
+	}
+	if obj, ok := f.vm.Heap.lookup(occupant); !ok || obj.Freed {
+		t.Fatal("a refused stale drop released what the new occupant holds")
+	}
+
+	// The refusal is the generation and not a blanket one: a reference formed
+	// after the reuse reads the new occupant exactly.
+	if got := f.readCell(t, fresh, members[2]); got.Int != 6 {
+		t.Fatalf("the current reference reads %d, want 6", got.Int)
+	}
+
+	if err := f.vm.storageDrop(fresh); err != nil {
+		t.Fatalf("dropping the second activation's value must succeed: %v", err)
+	}
+	if f.vm.heapCounters.allocCount != f.vm.heapCounters.freeCount {
+		t.Fatalf("reused storage left the heap unbalanced: %d allocations, %d frees",
+			f.vm.heapCounters.allocCount, f.vm.heapCounters.freeCount)
+	}
+}
+
+// An operation that fails partway must leave a BOUNDED value: the members it
+// wrote are owned and droppable, the members it never reached are not, and
+// nothing is released twice.
+//
+// This is the shape a panic mid-construction leaves, and the shape a refusal to
+// obtain storage leaves. It is modelled here by a copy whose source cannot be
+// read all the way through, because that fails the walk at a member boundary
+// with earlier members already written — which is precisely what an interrupted
+// construction looks like from the destination's side.
+//
+// The distinguishing risk is the count. The walk retained a member before it
+// failed, so a destination treated as uninitialized leaks that retain, and a
+// destination treated as fully built releases a member that was never written.
+func TestStorageCopyThatFailsPartwayLeavesABoundedValue(t *testing.T) {
+	f := newStorageFixture(t)
+	dst := f.ref(t, 0, f.node)
+	src := f.ref(t, 1, f.node)
+
+	label := f.writeNode(t, src, 1, 2, 3, "kept")
+	members, describeErr := f.vm.compositeMembers(f.node)
+	if describeErr != nil {
+		t.Fatalf("Node must have describable members: %v", describeErr)
+	}
+
+	// The source's LAST member is made unreadable, so the walk fails after it
+	// has already written the two before it.
+	f.writeCell(t, src, members[2], MakeBigInt(Handle(4242), types.NoTypeID))
+
+	if err := f.vm.storageCopy(dst, src); err == nil {
+		t.Fatal("a copy whose source cannot be read to the end must fail")
+	}
+
+	// What the walk got to is owned by the destination: two holders of one
+	// string, the source's and the copy's.
+	if got := f.vm.Heap.Get(label).RefCount; got != 2 {
+		t.Fatalf("the member the walk wrote is held %d times, want 2", got)
+	}
+	if got := f.readCell(t, dst, members[2]); got.Kind != VKNothing {
+		t.Fatalf("the member the walk never reached reads back as %s, want nothing", got.Kind)
+	}
+
+	// Dropping the bounded value releases exactly what was written.
+	if err := f.vm.storageDrop(dst); err != nil {
+		t.Fatalf("dropping a value the copy left half-built must succeed: %v", err)
+	}
+	if got := f.vm.Heap.Get(label).RefCount; got != 1 {
+		t.Fatalf("dropping the half-built value left the member held %d times, want 1", got)
+	}
+
+	// And dropping it again releases nothing, because the first drop zeroed
+	// what it released.
+	if err := f.vm.storageDrop(dst); err != nil {
+		t.Fatalf("dropping an already dropped value must succeed: %v", err)
+	}
+	if got := f.vm.Heap.Get(label).RefCount; got != 1 {
+		t.Fatalf("a second drop released a member again: the member is held %d times, want 1", got)
+	}
+
+	// The source is the fixture's own debris: its last member still names a
+	// handle nothing issued, so it is cleared before the source is released.
+	srcCount, projectErr := src.memberRef(members[2])
+	if projectErr != nil {
+		t.Fatalf("projecting the source's last member must succeed: %v", projectErr)
+	}
+	if err := f.vm.storageZero(srcCount); err != nil {
+		t.Fatalf("clearing the source's unreadable member must succeed: %v", err)
+	}
+	if err := f.vm.storageDrop(src); err != nil {
+		t.Fatalf("dropping the source must succeed: %v", err)
+	}
+	if f.vm.heapCounters.allocCount != f.vm.heapCounters.freeCount {
+		t.Fatalf("a failed copy left the heap unbalanced: %d allocations, %d frees",
+			f.vm.heapCounters.allocCount, f.vm.heapCounters.freeCount)
+	}
+}
+
 // Partial initialization is the shape a user panic leaves behind when it
 // interrupts construction: some members written, the rest still zeroed. The
 // value must be droppable, and the drop must release exactly the members that
