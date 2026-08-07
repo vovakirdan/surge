@@ -61,14 +61,14 @@ func (fe *funcEmitter) emitPlacementIntrinsic(call *mir.CallInstr) (bool, error)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = shl i64 %s, %d\n", shifted, shardID, placementKindBits)
 	encoded := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = or i64 %s, %d\n", encoded, shifted, placementKindShard)
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
 	if dstTy != "i64" {
 		return true, fmt.Errorf("placement destination must lower as i64, got %s", dstTy)
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", encoded, ptr)
+	fe.emitValueStore("i64", encoded, ptr, dstAlign)
 	return true, nil
 }
 

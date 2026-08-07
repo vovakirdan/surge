@@ -67,7 +67,7 @@ func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID
 	if !ok {
 		return "", "", fmt.Errorf("range iter_init requires Range<T> type")
 	}
-	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
 		return "", "", err
 	}
@@ -132,7 +132,7 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	if !ok {
 		return "", "", fmt.Errorf("missing Option<T> type for iter_next")
 	}
-	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
 		return "", "", err
 	}
@@ -205,13 +205,19 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %s\n", offset, idxVal, strideVal)
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, offset)
-	elemVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", elemVal, elemLLVM, elemPtr)
+	_, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
+	if err != nil {
+		return "", "", err
+	}
+	elemVal, elemOpTy, err := fe.emitStorageMemberLoad(elemLLVM, elemPtr, elemAlign)
+	if err != nil {
+		return "", "", err
+	}
 	nextIdx := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = add i64 %s, 1\n", nextIdx, idxVal)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", nextIdx, idxPtr)
 
-	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, payloadType, elemVal, elemLLVM, elemType)
+	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, payloadType, elemVal, elemOpTy, elemType)
 	if err != nil {
 		return "", "", err
 	}
@@ -275,7 +281,7 @@ func (fe *funcEmitter) emitRangeIterStep(iterVal string, elemType, optType types
 	nextCur := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(ptr %s, ptr %s)\n", nextCur, addFn, cur, one)
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nextCur, curPtr)
-	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, payloadType, cur, "ptr", elemType)
+	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, payloadType, cur, handleType, elemType)
 	if err != nil {
 		return err
 	}
@@ -310,12 +316,10 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	if !ok || actualDynamic != dynamic {
 		return "", "", fmt.Errorf("array iter_init has inconsistent array type")
 	}
-	var stride uint64
-	if dynamic {
-		stride, err = fe.emittedArrayElemStride(elemType)
-	} else {
-		stride, err = fe.canonicalArrayElemStride(elemType)
-	}
+	// One stride for both shapes. A dynamic array used to step by a pointer
+	// while a fixed one stepped by the element's own size; both hold the
+	// elements themselves now, so both step by what the layout registry froze.
+	stride, err := fe.emitter.arrayElemStride(elemType)
 	if err != nil {
 		return "", "", err
 	}

@@ -40,8 +40,13 @@ fn main() -> int {
 	if regexp.MustCompile(`call ptr @fn\.\d+\(i8 0\)`).MatchString(ir) {
 		t.Fatalf("untyped nothing leaked into call ABI:\n%s", ir)
 	}
-	if !regexp.MustCompile(`call ptr @fn\.\d+\(ptr `).MatchString(ir) {
-		t.Fatalf("expected typed ptr call for Option<string> argument:\n%s", ir)
+	// `Option<string>` is a 16-byte value composite, so it crosses the call
+	// boundary as caller-allocated storage the callee is handed the address of
+	// — `byval` going in, `sret` coming back — and the size in the attribute is
+	// the one `internal/layout` froze. It used to cross as a bare `ptr`, which
+	// said only that a word was passed and not what the word addressed.
+	if !regexp.MustCompile(`call void @fn\.\d+\(ptr sret\(\[16 x i8\]\) align 8 %\w+, .*ptr byval\(\[16 x i8\]\) align 8 %\w+\)`).MatchString(ir) {
+		t.Fatalf("expected the Option<string> argument and result to cross as sized aggregates:\n%s", ir)
 	}
 }
 
@@ -74,10 +79,56 @@ fn main() -> int {
 }
 `
 
-	ir := emitLLVMFromSource(t, sourceCode)
+	mirMod, result := lowerMIRFromSource(t, sourceCode)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	// The assertions are about how `main` READS the nested union, so they look
+	// at `main` alone. `demo` builds one, and a module-wide search would let
+	// the construction satisfy assertions written about the destructuring.
+	body := functionBody(t, ir, findMIRFunc(t, mirMod, "main").ID)
 
-	if !regexp.MustCompile(`call ptr @rt_alloc`).MatchString(ir) {
-		t.Fatalf("expected nested union construction to emit runtime allocation:\n%s", ir)
+	// A union nested inside a union is one run of bytes, and the pipeline walks
+	// into it by offset. This used to assert only that SOMETHING was heap
+	// allocated, which was all the shape had to show for itself when each layer
+	// was a box holding a pointer to the next.
+	//
+	// `Erring<Option<string>, Error>` is 24 bytes: a 4-byte tag at 0 and a
+	// payload at 8. The `Option<string>` in that payload is 16 bytes with the
+	// same shape. So the walk is: read the outer tag where it sits, take the
+	// inner union out of the outer payload at its own size, and read the inner
+	// tag out of that.
+	// `main` holds several 24-byte slots — the call result, the binding and the
+	// scrutinee copy the compare walks. The one under test is whichever the tag
+	// is actually read from; naming it by position would pin an allocation
+	// order the test does not care about.
+	var walked string
+	for _, slot := range regexp.MustCompile(`(%l\d+) = alloca \[24 x i8\], align 8`).FindAllStringSubmatch(body, -1) {
+		if strings.Contains(body, "load i32, ptr "+slot[1]+", align 8") {
+			walked = slot[1]
+			break
+		}
+	}
+	if walked == "" {
+		t.Fatalf("no 24-byte inline slot had its outer tag read in place:\n%s", body)
+	}
+
+	payloadAt8 := regexp.MustCompile(
+		`(%t\d+) = getelementptr inbounds i8, ptr ` + regexp.QuoteMeta(walked) + `, i64 8\n`,
+	).FindStringSubmatch(body)
+	if len(payloadAt8) != 2 {
+		t.Fatalf("the outer payload was not addressed at offset 8:\n%s", body)
+	}
+	inner := regexp.MustCompile(
+		`call void @llvm\.memcpy\.p0\.p0\.i64\(ptr align 8 (%l\d+), ptr align 8 ` +
+			regexp.QuoteMeta(payloadAt8[1]) + `, i64 16,`,
+	).FindStringSubmatch(body)
+	if len(inner) != 2 {
+		t.Fatalf("the nested Option<string> was not taken whole out of the outer payload:\n%s", body)
+	}
+	if !strings.Contains(body, "load i32, ptr "+inner[1]+", align 8") {
+		t.Fatalf("the inner tag was not read from the extracted Option<string>:\n%s", body)
 	}
 }
 

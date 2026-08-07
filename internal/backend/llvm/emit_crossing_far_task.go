@@ -179,14 +179,14 @@ func (fe *funcEmitter) emitFarTaskLifecycleResult(ins *mir.CrossingInstr, result
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 	resultVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, resultSlot)
-	dstPtr, dstTy, err := fe.emitPlacePtr(ins.Dst)
+	dstPtr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, resultVal, dstPtr)
+	fe.emitValueStore(dstTy, resultVal, dstPtr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ReadyBB)
 	return nil
 }

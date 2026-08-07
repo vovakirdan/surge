@@ -97,7 +97,7 @@ func TestEnumIsSpelledAtTheSizeTheLayoutEngineComputes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		spelling, err := llvmType(e.types, ids[i])
+		spelling, err := e.llvmType(ids[i])
 		if err != nil {
 			t.Fatalf("%s: spelling: %v", name, err)
 		}
@@ -124,11 +124,11 @@ func TestEnumIsSpelledAsItsBaseType(t *testing.T) {
 		{"Named", "string"},
 		{"Aliased", "uint16"},
 	} {
-		enumSpelling, err := llvmType(e.types, findNamedType(t, e, tc.enum))
+		enumSpelling, err := e.llvmType(findNamedType(t, e, tc.enum))
 		if err != nil {
 			t.Fatalf("%s: %v", tc.enum, err)
 		}
-		baseSpelling, err := llvmType(e.types, findNamedType(t, e, tc.base))
+		baseSpelling, err := e.llvmType(findNamedType(t, e, tc.base))
 		if err != nil {
 			t.Fatalf("%s: %v", tc.base, err)
 		}
@@ -181,7 +181,7 @@ func TestEnumRefusesABaseItCannotBeCarriedAs(t *testing.T) {
 	t.Cleanup(func() { e.types.SetEnumBaseType(bare, original) })
 
 	e.types.SetEnumBaseType(bare, e.types.Builtins().Bool)
-	if spelling, err := llvmType(e.types, bare); err == nil {
+	if spelling, err := e.llvmType(bare); err == nil {
 		t.Errorf("an enum based on bool was spelled %s instead of refused", spelling)
 	}
 }

@@ -7,56 +7,92 @@ import (
 	"surge/internal/types"
 )
 
+// emitPlacePtr addresses a place, discarding what its address is aligned to.
+// Use emitPlaceStorage at any site that reads or writes through the address.
 func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error) {
+	ptr, ty, _, err = fe.emitPlaceStorage(place)
+	return ptr, ty, err
+}
+
+// emitPlaceStorage addresses a place and reports what that address is really
+// aligned to.
+//
+// The alignment travels with the address because it is a property of the
+// ADDRESS, not of the type: a `@packed` field sits at an offset its own type
+// does not divide, and an access there that claimed the type's natural
+// alignment would promise the hardware something false. Every access through a
+// place therefore states the alignment this walk arrived at.
+func (fe *funcEmitter) emitPlaceStorage(place mir.Place) (ptr, ty string, align uint64, err error) {
 	if fe.emitter.types == nil {
-		return "", "", fmt.Errorf("missing type interner")
+		return "", "", 0, fmt.Errorf("missing type interner")
 	}
 	var curPtr string
 	var curType types.TypeID
+	var curLLVMType string
+	var curAlign uint64
 	curIsValue := false
 	curStorageLocal := mir.NoLocalID
 	switch place.Kind {
 	case mir.PlaceLocal:
 		name, ok := fe.localAlloca[place.Local]
 		if !ok {
-			return "", "", fmt.Errorf("unknown local %d", place.Local)
+			return "", "", 0, fmt.Errorf("unknown local %d", place.Local)
 		}
 		curPtr = fmt.Sprintf("%%%s", name)
 		curType = fe.f.Locals[place.Local].Type
 		curStorageLocal = place.Local
+		// Read the same way the slot was reserved: a local whose flags say it
+		// holds a borrow allocated a pointer, whatever its declared type is,
+		// and a walk that disagreed with its own alloca would index storage
+		// that is not there.
+		curLLVMType, err = fe.emitter.llvmLocalValueType(fe.f.Locals[place.Local])
+		if err == nil {
+			curAlign, err = fe.emitter.storageAlignOf(localSlotType(fe.f.Locals[place.Local]), curLLVMType)
+		}
 	case mir.PlaceGlobal:
 		name := fe.emitter.globalNames[place.Global]
 		if name == "" {
-			return "", "", fmt.Errorf("unknown global %d", place.Global)
+			return "", "", 0, fmt.Errorf("unknown global %d", place.Global)
 		}
 		curPtr = fmt.Sprintf("@%s", name)
 		curType = fe.emitter.mod.Globals[place.Global].Type
+		curLLVMType, err = fe.emitter.llvmValueType(curType)
+		if err == nil {
+			curAlign, err = fe.emitter.storageAlignOf(curType, curLLVMType)
+		}
 	default:
-		return "", "", fmt.Errorf("unsupported place kind %v", place.Kind)
+		return "", "", 0, fmt.Errorf("unsupported place kind %v", place.Kind)
 	}
-	curLLVMType, err := llvmValueType(fe.emitter.types, curType)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 
 	for i, proj := range place.Proj {
 		switch proj.Kind {
 		case mir.PlaceProjDeref:
 			if curLLVMType != "ptr" {
-				return "", "", fmt.Errorf("deref requires pointer type, got %s (%s)", curLLVMType, types.Label(fe.emitter.types, curType))
+				return "", "", 0, fmt.Errorf("deref requires pointer type, got %s (%s)", curLLVMType, types.Label(fe.emitter.types, curType))
 			}
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", tmp, curPtr, alignPtr)
 			nextType, nextPlace, ok := fe.derefStorageType(curStorageLocal, curType)
 			if !ok {
-				return "", "", fmt.Errorf("unsupported place deref type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
+				return "", "", 0, fmt.Errorf("unsupported place deref type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
 			}
 			curPtr = tmp
 			curType = nextType
 			curStorageLocal = storageLocal(nextPlace)
-			curLLVMType, err = llvmValueType(fe.emitter.types, curType)
+			curLLVMType, err = fe.emitter.llvmValueType(curType)
 			if err != nil {
-				return "", "", err
+				return "", "", 0, err
+			}
+			// A borrow points at a whole value, so the pointee is aligned to
+			// that value's own alignment. A borrow of a packed member is the
+			// one shape that would not be, and the borrow checker does not
+			// hand one out.
+			curAlign, err = fe.emitter.storageAlignOf(curType, curLLVMType)
+			if err != nil {
+				return "", "", 0, err
 			}
 			curIsValue = false
 			if i+1 < len(place.Proj) && !isRefType(fe.emitter.types, curType) && isHandleValueType(fe.emitter.types, resolveValueType(fe.emitter.types, curType)) {
@@ -73,72 +109,88 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			for isRefType(fe.emitter.types, curType) {
 				nextType, nextPlace, ok := fe.derefStorageType(curStorageLocal, curType)
 				if !ok {
-					return "", "", fmt.Errorf("unsupported field reference type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
+					return "", "", 0, fmt.Errorf("unsupported field reference type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
 				}
 				tmp := fe.nextTemp()
 				fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", tmp, curPtr, alignPtr)
 				curPtr = tmp
 				curType = nextType
 				curStorageLocal = storageLocal(nextPlace)
-				curLLVMType, err = llvmValueType(fe.emitter.types, curType)
+				curLLVMType, err = fe.emitter.llvmValueType(curType)
 				if err != nil {
-					return "", "", err
+					return "", "", 0, err
+				}
+				curAlign, err = fe.emitter.storageAlignOf(curType, curLLVMType)
+				if err != nil {
+					return "", "", 0, err
 				}
 				curIsValue = false
 			}
 			fieldBaseType := resolveValueType(fe.emitter.types, curType)
 			fieldIdx, fieldType, err := fe.structFieldInfo(fieldBaseType, proj)
 			if err != nil {
-				return "", "", err
+				return "", "", 0, err
 			}
 			layoutInfo, err := fe.emitter.layoutOf(fieldBaseType)
 			if err != nil {
-				return "", "", err
+				return "", "", 0, err
 			}
 			fieldOffsets := layoutInfo.FieldOffsets()
 			if fieldIdx < 0 || fieldIdx >= len(fieldOffsets) {
-				return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
+				return "", "", 0, fmt.Errorf("field index %d out of range", fieldIdx)
+			}
+			// An ordinary composite's storage is already here, so the
+			// field's byte offset applies to the address in hand — whether
+			// that came from a local's slot, a field of an enclosing
+			// composite, an array element or a dereferenced borrow. The load
+			// that used to stand here unconditionally read a box pointer out
+			// of the slot first, and taking it off this path is what makes a
+			// field projection address inline storage.
+			//
+			// What survives is the load for a base that genuinely IS a word
+			// pointing somewhere else: a suspension frame, whose storage the
+			// runtime owns because it outlives the poll that built it. That
+			// case ends when those frames get typed owner storage of their own.
+			base := curPtr
+			if !curIsValue && !isStorageRun(curLLVMType) {
+				tmp := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", tmp, curPtr, curAlign)
+				base = tmp
+				curAlign = alignPtr
 			}
 			off := fieldOffsets[fieldIdx]
-			base := curPtr
-			if !curIsValue {
-				tmp := fe.nextTemp()
-				if loadErr := fe.emitLoad(tmp, curLLVMType, curPtr); loadErr != nil {
-					return "", "", loadErr
-				}
-				base = tmp
-			}
 			bytePtr := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, base, off)
-			fieldLLVMType, err := llvmValueType(fe.emitter.types, fieldType)
+			fieldLLVMType, err := fe.emitter.llvmValueType(fieldType)
 			if err != nil {
-				return "", "", err
+				return "", "", 0, err
 			}
 			curPtr = bytePtr
 			curType = fieldType
 			curLLVMType = fieldLLVMType
+			curAlign = memberAccessAlign(curAlign, off)
 			curIsValue = false
 			curStorageLocal = mir.NoLocalID
 		case mir.PlaceProjIndex:
 			if proj.IndexLocal == mir.NoLocalID {
-				return "", "", fmt.Errorf("missing index local")
+				return "", "", 0, fmt.Errorf("missing index local")
 			}
 			elemType, dynamic, ok := arrayElemType(fe.emitter.types, curType)
 			if !ok {
-				return "", "", fmt.Errorf("index projection on non-array type")
+				return "", "", 0, fmt.Errorf("index projection on non-array type")
 			}
 			idxLocal := proj.IndexLocal
 			if int(idxLocal) < 0 || int(idxLocal) >= len(fe.f.Locals) {
-				return "", "", fmt.Errorf("invalid index local %d", idxLocal)
+				return "", "", 0, fmt.Errorf("invalid index local %d", idxLocal)
 			}
-			idxLLVM, err := llvmValueType(fe.emitter.types, fe.f.Locals[idxLocal].Type)
+			idxLLVM, err := fe.emitter.llvmValueType(fe.f.Locals[idxLocal].Type)
 			if err != nil {
-				return "", "", err
+				return "", "", 0, err
 			}
 			idxPtr := fmt.Sprintf("%%%s", fe.localAlloca[idxLocal])
 			idxVal := fe.nextTemp()
 			if err := fe.emitLoad(idxVal, idxLLVM, idxPtr); err != nil {
-				return "", "", err
+				return "", "", 0, err
 			}
 			handlePtr := curPtr
 			if curIsValue {
@@ -147,32 +199,40 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			if dynamic {
 				elemPtr, elemLLVM, err := fe.emitArrayElemPtr(handlePtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
 				if err != nil {
-					return "", "", err
+					return "", "", 0, err
 				}
 				curPtr = elemPtr
 				curType = elemType
 				curLLVMType = elemLLVM
+				_, curAlign, err = fe.emitter.arrayElemStrideAlign(elemType)
+				if err != nil {
+					return "", "", 0, err
+				}
 			} else {
 				fixedElem, fixedLen, ok := arrayFixedInfo(fe.emitter.types, curType)
 				if !ok {
-					return "", "", fmt.Errorf("index projection on non-array type")
+					return "", "", 0, fmt.Errorf("index projection on non-array type")
 				}
 				elemPtr, elemLLVM, err := fe.emitArrayFixedElemPtr(handlePtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, fixedElem, fixedLen)
 				if err != nil {
-					return "", "", err
+					return "", "", 0, err
 				}
 				curPtr = elemPtr
 				curType = fixedElem
 				curLLVMType = elemLLVM
+				_, curAlign, err = fe.emitter.arrayElemStrideAlign(fixedElem)
+				if err != nil {
+					return "", "", 0, err
+				}
 			}
 			curIsValue = false
 			curStorageLocal = mir.NoLocalID
 		default:
-			return "", "", fmt.Errorf("unsupported place projection kind %v", proj.Kind)
+			return "", "", 0, fmt.Errorf("unsupported place projection kind %v", proj.Kind)
 		}
 	}
 
-	return curPtr, curLLVMType, nil
+	return curPtr, curLLVMType, curAlign, nil
 }
 
 func (fe *funcEmitter) derefStorageType(local mir.LocalID, curType types.TypeID) (types.TypeID, *mir.Place, bool) {
@@ -392,11 +452,11 @@ func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (ptrOffset, lenOffs
 	if ptrIdx < 0 || ptrIdx >= len(fieldOffsets) || lenIdx < 0 || lenIdx >= len(fieldOffsets) {
 		return 0, 0, "", fmt.Errorf("bytes view layout mismatch")
 	}
-	lenLLVM, err = llvmValueType(fe.emitter.types, lenType)
+	lenLLVM, err = fe.emitter.llvmValueType(lenType)
 	if err != nil {
 		return 0, 0, "", err
 	}
-	if _, err = llvmValueType(fe.emitter.types, ptrType); err != nil {
+	if _, err = fe.emitter.llvmValueType(ptrType); err != nil {
 		return 0, 0, "", err
 	}
 	return fieldOffsets[ptrIdx], fieldOffsets[lenIdx], lenLLVM, nil

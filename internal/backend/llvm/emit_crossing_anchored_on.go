@@ -204,14 +204,14 @@ func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	dstPtr, dstTy, err := fe.emitPlacePtr(ins.ChanRecv.Dst)
+	dstPtr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.ChanRecv.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, somePtr, dstPtr)
+	fe.emitValueStore(dstTy, somePtr, dstPtr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", joinBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", closedBB)
@@ -223,10 +223,10 @@ func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, nonePtr, dstPtr)
+	fe.emitValueStore(dstTy, nonePtr, dstPtr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", joinBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", joinBB)

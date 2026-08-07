@@ -58,7 +58,7 @@ func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, 
 	if !ok || !dynamic {
 		return types.NoTypeID, "", 0, 0, fmt.Errorf("rt_array_* requires a dynamic array")
 	}
-	elemLLVM, err = llvmValueType(fe.emitter.types, elemType)
+	elemLLVM, err = fe.emitter.llvmValueType(elemType)
 	if err != nil {
 		return types.NoTypeID, "", 0, 0, err
 	}

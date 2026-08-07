@@ -20,7 +20,7 @@ func (e *Emitter) emitGlobals() error {
 			return err
 		}
 		name := e.globalNames[gid]
-		llvmTy, err := llvmValueType(e.types, g.Type)
+		llvmTy, err := e.llvmValueType(g.Type)
 		if err != nil {
 			return err
 		}

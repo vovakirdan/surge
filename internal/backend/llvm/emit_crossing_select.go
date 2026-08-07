@@ -242,14 +242,14 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	if err != nil {
 		return err
 	}
-	dstPtr, dstTy, err := fe.emitPlacePtr(ins.Dst)
+	dstPtr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Dst)
 	if err != nil {
 		return err
 	}
 	if dstTy != valTy {
 		dstTy = valTy
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, dstPtr)
+	fe.emitValueStore(dstTy, val, dstPtr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ReadyBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
@@ -334,14 +334,14 @@ func (fe *funcEmitter) emitChannelSelectHandback(
 		if err != nil {
 			return err
 		}
-		placePtr, placeTy, err := fe.emitPlacePtr(*op.ReturnPlace)
+		placePtr, placeTy, placeAlign, err := fe.emitPlaceStorage(*op.ReturnPlace)
 		if err != nil {
 			return err
 		}
 		if placeTy != returnedTy {
 			return fmt.Errorf("channel_select return place %d lowers as %s, returned %s", i, placeTy, returnedTy)
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", placeTy, returned, placePtr)
+		fe.emitValueStore(placeTy, returned, placePtr, placeAlign)
 		fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", nextBB)
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", nextBB)
 	}

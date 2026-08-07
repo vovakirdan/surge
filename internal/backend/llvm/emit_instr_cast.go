@@ -22,7 +22,7 @@ func (fe *funcEmitter) emitCast(c *mir.CastOp) (val, ty string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	dstTy, err := llvmValueType(fe.emitter.types, c.TargetTy)
+	dstTy, err := fe.emitter.llvmValueType(c.TargetTy)
 	if err != nil {
 		return "", "", err
 	}
@@ -96,7 +96,7 @@ func (fe *funcEmitter) emitConstIntegerCast(c *mir.CastOp) (val, ty string, ok b
 	if !fits {
 		return "", "", false, nil
 	}
-	dstTy, err := llvmValueType(fe.emitter.types, c.TargetTy)
+	dstTy, err := fe.emitter.llvmValueType(c.TargetTy)
 	if err != nil {
 		return "", "", false, err
 	}
@@ -247,13 +247,17 @@ func (fe *funcEmitter) emitUnary(op *mir.UnaryOp) (val, ty string, err error) {
 		if !ok {
 			return "", "", fmt.Errorf("unsupported deref type %s (id=%d) for %s operand", types.Label(fe.emitter.types, op.Operand.Type), op.Operand.Type, op.Operand.Kind)
 		}
-		elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+		elemLLVM, err := fe.emitter.llvmValueType(elemType)
 		if err != nil {
 			return "", "", err
 		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, elemLLVM, ptrVal)
-		return tmp, elemLLVM, nil
+		elemAlign, err := fe.emitter.storageAlignOf(elemType, elemLLVM)
+		if err != nil {
+			return "", "", err
+		}
+		// Dereferencing a borrow of a composite yields where the value IS, not
+		// a copy of it: the borrow already points at its storage.
+		return fe.emitStorageMemberLoad(elemLLVM, ptrVal, elemAlign)
 	default:
 		return "", "", fmt.Errorf("unsupported unary op %v", op.Op)
 	}

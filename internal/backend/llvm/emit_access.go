@@ -43,18 +43,18 @@ func (fe *funcEmitter) emitFieldAccess(fa *mir.FieldAccess) (val, ty string, err
 	if fieldIdx < 0 || fieldIdx >= len(fieldOffsets) {
 		return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
 	}
-	fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
+	fieldLLVM, err := fe.emitter.llvmValueType(fieldType)
+	if err != nil {
+		return "", "", err
+	}
+	baseAlign, err := fe.emitter.storageAlignOf(structType, objTy)
 	if err != nil {
 		return "", "", err
 	}
 	off := fieldOffsets[fieldIdx]
 	bytePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, objVal, off)
-	val = fe.nextTemp()
-	if err := fe.emitLoad(val, fieldLLVM, bytePtr); err != nil {
-		return "", "", err
-	}
-	return val, fieldLLVM, nil
+	return fe.emitStorageMemberLoad(fieldLLVM, bytePtr, memberAccessAlign(baseAlign, off))
 }
 
 func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, errEmit error) {
@@ -99,11 +99,11 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if errEmit != nil {
 			return "", "", errEmit
 		}
-		val = fe.nextTemp()
-		if err := fe.emitLoad(val, elemLLVM, elemPtr); err != nil {
-			return "", "", err
+		_, elemAlign, errEmit := fe.emitter.arrayElemStrideAlign(elemType)
+		if errEmit != nil {
+			return "", "", errEmit
 		}
-		return val, elemLLVM, nil
+		return fe.emitStorageMemberLoad(elemLLVM, elemPtr, elemAlign)
 	}
 
 	_, objTy, err := fe.emitValueOperand(&idx.Object)
@@ -187,21 +187,34 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if err != nil {
 			return "", "", err
 		}
-		val = fe.nextTemp()
-		if err := fe.emitLoad(val, elemLLVM, elemPtr); err != nil {
+		_, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
+		if err != nil {
 			return "", "", err
 		}
-		return val, elemLLVM, nil
+		return fe.emitStorageMemberLoad(elemLLVM, elemPtr, elemAlign)
 	default:
 		return "", "", fmt.Errorf("unsupported index target")
 	}
 }
 
-// emittedArrayElemStride is the storage stride of a dynamic-array element.
-// Dynamic arrays still store the LLVM value representation until Wave C
-// inlines aggregates, so a boxed composite occupies one pointer-sized slot.
-func (fe *funcEmitter) emittedArrayElemStride(elemType types.TypeID) (uint64, error) {
-	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+// arrayElemStride is the distance from one array element to the next.
+//
+// One answer now serves fixed and dynamic arrays alike, because both hold their
+// elements at the element type's own layout. Two answers used to be needed: a
+// dynamic array stored the emitted LLVM value, so a boxed composite element sat
+// in one pointer-sized slot, while a fixed array already allocated the language
+// layout — and every producer and consumer had to know which kind of array it
+// was looking at to know which stride to walk by. A composite element that is
+// its own bytes ends that split.
+func (e *Emitter) arrayElemStride(elemType types.TypeID) (uint64, error) {
+	if e.hasInlineStorage(elemType) {
+		facts, err := e.storageFactsOf(elemType)
+		if err != nil {
+			return 0, err
+		}
+		return facts.Stride, nil
+	}
+	elemLLVM, err := e.llvmValueType(elemType)
 	if err != nil {
 		return 0, err
 	}
@@ -212,20 +225,26 @@ func (fe *funcEmitter) emittedArrayElemStride(elemType types.TypeID) (uint64, er
 	return stride, nil
 }
 
-// canonicalArrayElemStride is the authoritative storage stride of a fixed
-// array element. Fixed arrays allocate their finalized language layout, so
-// every producer and consumer must use this stride even when the emitted LLVM
-// value is currently pointer-shaped.
-func (fe *funcEmitter) canonicalArrayElemStride(elemType types.TypeID) (uint64, error) {
-	layoutInfo, err := fe.emitter.layoutOf(elemType)
+// arrayElemStrideAlign is the stride an element buffer is walked by together
+// with the alignment it is allocated and accessed at.
+func (e *Emitter) arrayElemStrideAlign(elemType types.TypeID) (stride, align uint64, err error) {
+	stride, err = e.arrayElemStride(elemType)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return layoutInfo.Stride, nil
+	elemLLVM, err := e.llvmValueType(elemType)
+	if err != nil {
+		return 0, 0, err
+	}
+	align, err = e.storageAlignOf(elemType, elemLLVM)
+	if err != nil {
+		return 0, 0, err
+	}
+	return stride, align, nil
 }
 
 func (fe *funcEmitter) emitArraySlice(handlePtr, rangeVal string, elemType types.TypeID) (string, error) {
-	stride, err := fe.emittedArrayElemStride(elemType)
+	stride, err := fe.emitter.arrayElemStride(elemType)
 	if err != nil {
 		return "", err
 	}
@@ -238,7 +257,7 @@ func (fe *funcEmitter) emitArrayFixedSlice(handlePtr, rangeVal string, elemType 
 	// A fixed slice crosses into the legacy stride-less dynamic Array header.
 	// Keep its pre-existing emitted-view behavior until Wave D replaces that
 	// boundary with a typed view descriptor carrying stride and backing owner.
-	stride, err := fe.emittedArrayElemStride(elemType)
+	stride, err := fe.emitter.arrayElemStride(elemType)
 	if err != nil {
 		return "", err
 	}
@@ -282,11 +301,11 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 	dataPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", dataPtr, dataPtrPtr, alignPtr)
 
-	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	stride, err := fe.emittedArrayElemStride(elemType)
+	stride, err := fe.emitter.arrayElemStride(elemType)
 	if err != nil {
 		return "", "", err
 	}
@@ -297,9 +316,12 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 	return elemPtr, elemLLVM, nil
 }
 
-func (fe *funcEmitter) emitArrayFixedElemPtr(handlePtr, idxVal, idxTy string, idxType, elemType types.TypeID, length uint32) (ptr, ty string, err error) {
-	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
+// emitArrayFixedElemPtr addresses one element of a fixed array.
+//
+// `arrayPtr` is the array's own storage. A fixed array lives inline, like every
+// other value composite: there is no buffer somewhere else and so no handle to
+// load first, and the element's address is the array's plus a stride offset.
+func (fe *funcEmitter) emitArrayFixedElemPtr(arrayPtr, idxVal, idxTy string, idxType, elemType types.TypeID, length uint32) (ptr, ty string, err error) {
 	lenVal := fmt.Sprintf("%d", length)
 
 	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true, lenVal)
@@ -307,18 +329,18 @@ func (fe *funcEmitter) emitArrayFixedElemPtr(handlePtr, idxVal, idxTy string, id
 		return "", "", err
 	}
 
-	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	stride, err := fe.canonicalArrayElemStride(elemType)
+	stride, err := fe.emitter.arrayElemStride(elemType)
 	if err != nil {
 		return "", "", err
 	}
 	off := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", off, adjIdx, stride)
 	elemPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, handle, off)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, arrayPtr, off)
 	return elemPtr, elemLLVM, nil
 }
 

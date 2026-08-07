@@ -7,7 +7,7 @@ import (
 )
 
 func (fe *funcEmitter) emitNumericCast(srcVal, srcLLVM string, srcTypeID, dstTypeID types.TypeID) (valOut, tyOut string, err error) {
-	dstLLVM, err := llvmValueType(fe.emitter.types, dstTypeID)
+	dstLLVM, err := fe.emitter.llvmValueType(dstTypeID)
 	if err != nil {
 		return "", "", err
 	}

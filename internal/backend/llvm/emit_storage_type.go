@@ -3,6 +3,7 @@ package llvm
 import (
 	"fmt"
 
+	"surge/internal/mir"
 	"surge/internal/types"
 )
 
@@ -91,12 +92,24 @@ func (e *Emitter) storageFactsOf(id types.TypeID) (storageFacts, error) {
 }
 
 // hasInlineStorage reports whether values of a type live in inline storage
-// rather than in their own native representation.
+// rather than in storage somebody else owns.
+//
+// A compiler-synthesized suspension frame is the exception, and it is a
+// lifetime exception rather than a layout one. Its fields sit at the offsets
+// the layout registry published, exactly like any other composite's, but the
+// frame itself is handed to the runtime when a computation suspends and read
+// back when it resumes — so it cannot live in the slot of a function that has
+// already returned. It keeps storage the runtime owns until each owner has
+// typed storage of its own to keep it in.
 func (e *Emitter) hasInlineStorage(id types.TypeID) bool {
 	if e == nil || e.types == nil {
 		return false
 	}
-	return e.types.IsValueComposite(resolveAliasAndOwn(e.types, id))
+	resolved := resolveAliasAndOwn(e.types, id)
+	if mir.IsSuspensionFrameType(e.types, resolved) {
+		return false
+	}
+	return e.types.IsValueComposite(resolved)
 }
 
 // memberAccessAlign is the alignment an access to a member at an offset may

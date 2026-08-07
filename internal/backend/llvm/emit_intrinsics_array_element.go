@@ -55,14 +55,14 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, nothingVal, ptr)
+		fe.emitValueStore(dstTy, nothingVal, ptr, dstAlign)
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", done)
 
@@ -79,8 +79,14 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, offset)
 	if call.HasDst {
-		elemVal := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", elemVal, elemLLVM, elemPtr)
+		_, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
+		if err != nil {
+			return err
+		}
+		elemVal, elemOpTy, err := fe.emitStorageMemberLoad(elemLLVM, elemPtr, elemAlign)
+		if err != nil {
+			return err
+		}
 		dstType, err := fe.placeBaseType(call.Dst)
 		if err != nil {
 			return err
@@ -92,18 +98,18 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 		if len(meta.PayloadTypes) != 1 {
 			return fmt.Errorf("tag %q expects 1 payload value, got %d", meta.TagName, len(meta.PayloadTypes))
 		}
-		tagVal, err := fe.emitTagValueSinglePayload(dstType, tagIndex, meta.PayloadTypes[0], elemVal, elemLLVM, elemType)
+		tagVal, err := fe.emitTagValueSinglePayload(dstType, tagIndex, meta.PayloadTypes[0], elemVal, elemOpTy, elemType)
 		if err != nil {
 			return err
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tagVal, ptr)
+		fe.emitValueStore(dstTy, tagVal, ptr, dstAlign)
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", done)
 
@@ -152,13 +158,13 @@ func (fe *funcEmitter) emitArrayGetMut(call *mir.CallInstr) error {
 		return fmt.Errorf("rt_array_get_mut requires array")
 	}
 
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, elemPtr, ptr)
+	fe.emitValueStore(dstTy, elemPtr, ptr, dstAlign)
 	return nil
 }

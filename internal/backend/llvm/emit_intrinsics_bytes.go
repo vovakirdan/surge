@@ -81,14 +81,14 @@ func (fe *funcEmitter) emitByteParseUint64Token(call *mir.CallInstr) error {
 	if !call.HasDst {
 		return nil
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
 	if dstTy != "i1" {
 		dstTy = "i1"
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+	fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	return nil
 }
 

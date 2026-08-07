@@ -59,11 +59,24 @@ func (e *Emitter) emitPollDispatch() error {
 		if len(sig.params) != 0 {
 			return fmt.Errorf("poll function %s must not have parameters", f.Name)
 		}
+		lowered, err := e.loweredSignature(&sig)
+		if err != nil {
+			return fmt.Errorf("call contract for %s: %w", f.Name, err)
+		}
 		fmt.Fprintf(&e.buf, "poll.%d:\n", id)
-		if sig.ret == "void" {
+		switch {
+		case lowered.sret:
+			// The dispatch discards a poll's result, but the callee still needs
+			// somewhere legal to write one. The destination is this frame's,
+			// like every other caller-owned destination.
+			dst := fmt.Sprintf("%%poll.ret.%d", id)
+			fmt.Fprintf(&e.buf, "  %s = alloca %s, align %d\n", dst, lowered.retStorage, lowered.retAlign)
+			fmt.Fprintf(&e.buf, "  call void @%s(ptr sret(%s) align %d %s)\n",
+				name, lowered.retStorage, lowered.retAlign, dst)
+		case lowered.ret == "void":
 			fmt.Fprintf(&e.buf, "  call void @%s()\n", name)
-		} else {
-			fmt.Fprintf(&e.buf, "  call %s @%s()\n", sig.ret, name)
+		default:
+			fmt.Fprintf(&e.buf, "  call %s @%s()\n", lowered.ret, name)
 		}
 		fmt.Fprintf(&e.buf, "  ret void\n")
 	}
@@ -95,7 +108,8 @@ func (e *Emitter) emitPollDispatch() error {
 	fmt.Fprintf(&e.buf, "  ]\n")
 	for _, id := range dropIDs {
 		fmt.Fprintf(&e.buf, "drop.%d:\n", id)
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", dropGlueName(e.crossingDropStates[id]))
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n",
+			e.requireRuntimeOwnedRelease(e.crossingDropStates[id]))
 		fmt.Fprintf(&e.buf, "  ret void\n")
 	}
 	fmt.Fprintf(&e.buf, "drop_default:\n")
@@ -132,7 +146,7 @@ func (e *Emitter) emitAbandonedStateDropDispatch() {
 	fmt.Fprintf(&e.buf, "  ]\n")
 	for _, id := range ids {
 		fmt.Fprintf(&e.buf, "drop_abandoned.%d:\n", id)
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", dropGlueName(id))
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", e.requireRuntimeOwnedRelease(id))
 		fmt.Fprintf(&e.buf, "  ret void\n")
 	}
 	fmt.Fprintf(&e.buf, "drop_abandoned_default:\n")
@@ -179,15 +193,34 @@ func (e *Emitter) emitBlockingDispatch() error {
 		if len(sig.params) != 1 {
 			return fmt.Errorf("blocking function %s must have 1 parameter", f.Name)
 		}
+		lowered, err := e.loweredSignature(&sig)
+		if err != nil {
+			return fmt.Errorf("call contract for %s: %w", f.Name, err)
+		}
 		fmt.Fprintf(&e.buf, "blocking.%d:\n", id)
-		if sig.ret == "void" {
+		if lowered.sret {
+			// The body writes its result into a destination this frame owns,
+			// and the result then travels on to the runtime as a payload of
+			// its own.
+			dst := fmt.Sprintf("%%blocking.ret.%d", id)
+			fmt.Fprintf(&e.buf, "  %s = alloca %s, align %d\n", dst, lowered.retStorage, lowered.retAlign)
+			fmt.Fprintf(&e.buf, "  call void @%s(ptr sret(%s) align %d %s, ptr %%state)\n",
+				name, lowered.retStorage, lowered.retAlign, dst)
+			bits, bitsErr := fe.emitValueToI64(dst, lowered.retStorage, f.Result)
+			if bitsErr != nil {
+				return bitsErr
+			}
+			fmt.Fprintf(&e.buf, "  ret i64 %s\n", bits)
+			continue
+		}
+		if lowered.ret == "void" {
 			fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", name)
 			fmt.Fprintf(&e.buf, "  ret i64 0\n")
 			continue
 		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&e.buf, "  %s = call %s @%s(ptr %%state)\n", tmp, sig.ret, name)
-		bits, err := fe.emitValueToI64(tmp, sig.ret, f.Result)
+		fmt.Fprintf(&e.buf, "  %s = call %s @%s(ptr %%state)\n", tmp, lowered.ret, name)
+		bits, err := fe.emitValueToI64(tmp, lowered.ret, f.Result)
 		if err != nil {
 			return err
 		}
@@ -200,103 +233,6 @@ func (e *Emitter) emitBlockingDispatch() error {
 	}
 	fmt.Fprintf(&e.buf, "  unreachable\n")
 	fmt.Fprintf(&e.buf, "}\n\n")
-	return nil
-}
-
-func isTaskType(typesIn *types.Interner, typeID types.TypeID) bool {
-	if typesIn == nil || typeID == types.NoTypeID {
-		return false
-	}
-	typeID = resolveAliasAndOwn(typesIn, typeID)
-	tt, ok := typesIn.Lookup(typeID)
-	if !ok || tt.Kind != types.KindStruct {
-		if info, aliasOK := typesIn.AliasInfo(typeID); aliasOK && info != nil && typesIn.Strings != nil {
-			name, nameOK := typesIn.Strings.Lookup(info.Name)
-			return nameOK && name == "Task"
-		}
-		return false
-	}
-	info, ok := typesIn.StructInfo(typeID)
-	if !ok || info == nil || typesIn.Strings == nil {
-		return false
-	}
-	name, ok := typesIn.Strings.Lookup(info.Name)
-	return ok && name == "Task"
-}
-
-func (fe *funcEmitter) emitTaskHandleOperand(op *mir.Operand) (string, error) {
-	if op == nil {
-		return "", fmt.Errorf("nil task operand")
-	}
-	val, valTy, typeID, err := fe.emitToSource(op)
-	if err != nil {
-		return "", err
-	}
-	if !isTaskType(fe.emitter.types, typeID) {
-		return "", fmt.Errorf("expected Task handle, got type#%d", typeID)
-	}
-	if valTy != "ptr" {
-		return "", fmt.Errorf("expected Task pointer, got %s", valTy)
-	}
-	return val, nil
-}
-
-func (fe *funcEmitter) emitInstrSpawn(ins *mir.Instr) error {
-	if ins == nil {
-		return nil
-	}
-	val, err := fe.emitTaskHandleOperand(&ins.Spawn.Value)
-	if err != nil {
-		return fmt.Errorf("spawn expects Task pointer: %w", err)
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_wake(ptr %s)\n", val)
-	ptr, dstTy, err := fe.emitPlacePtr(ins.Spawn.Dst)
-	if err != nil {
-		return err
-	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
-	return nil
-}
-
-func (fe *funcEmitter) emitInstrBlocking(ins *mir.Instr) error {
-	if ins == nil {
-		return nil
-	}
-	stateVal, stateTy, err := fe.emitStructLit(&ins.Blocking.State)
-	if err != nil {
-		return err
-	}
-	if stateTy != "ptr" {
-		return fmt.Errorf("blocking expects state pointer, got %s", stateTy)
-	}
-	layout, err := fe.emitter.layoutOf(ins.Blocking.State.TypeID)
-	if err != nil {
-		return err
-	}
-	size := layout.Size
-	align := layout.Align
-	if align <= 0 {
-		align = 1
-	}
-	callTmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call ptr @rt_blocking_submit(i64 %d, ptr %s, i64 %d, i64 %d)\n",
-		callTmp,
-		ins.Blocking.FuncID,
-		stateVal,
-		size,
-		align)
-	ptr, dstTy, err := fe.emitPlacePtr(ins.Blocking.Dst)
-	if err != nil {
-		return err
-	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, callTmp, ptr)
 	return nil
 }
 
@@ -358,14 +294,14 @@ func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 	resultVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, resultPtr)
-	ptr, dstTy, err := fe.emitPlacePtr(ins.Await.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Await.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, resultVal, ptr)
+	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
 	return nil
 }
 
@@ -414,14 +350,14 @@ func (fe *funcEmitter) emitInstrPoll(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(ins.Poll.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Poll.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, successPtr, ptr)
+	fe.emitValueStore(dstTy, successPtr, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Poll.ReadyBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cancelBB)
@@ -433,10 +369,10 @@ func (fe *funcEmitter) emitInstrPoll(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, cancelPtr, ptr)
+	fe.emitValueStore(dstTy, cancelPtr, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Poll.ReadyBB)
 
 	fe.blockTerminated = true
@@ -467,14 +403,14 @@ func (fe *funcEmitter) emitInstrJoinAll(ins *mir.Instr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
 	failfastVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i1, ptr %s\n", failfastVal, failfastPtr)
-	ptr, dstTy, err := fe.emitPlacePtr(ins.JoinAll.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.JoinAll.Dst)
 	if err != nil {
 		return err
 	}
 	if dstTy != "i1" {
 		dstTy = "i1"
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, failfastVal, ptr)
+	fe.emitValueStore(dstTy, failfastVal, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.JoinAll.ReadyBB)
 
 	fe.blockTerminated = true
@@ -530,14 +466,14 @@ func (fe *funcEmitter) emitInstrTimeout(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(ins.Timeout.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Timeout.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, successPtr, ptr)
+	fe.emitValueStore(dstTy, successPtr, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Timeout.ReadyBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cancelBB)
@@ -549,10 +485,10 @@ func (fe *funcEmitter) emitInstrTimeout(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, cancelPtr, ptr)
+	fe.emitValueStore(dstTy, cancelPtr, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Timeout.ReadyBB)
 
 	fe.blockTerminated = true
@@ -677,14 +613,14 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(ins.Select.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Select.Dst)
 	if err != nil {
 		return err
 	}
 	if dstTy != valTy {
 		dstTy = valTy
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+	fe.emitValueStore(dstTy, val, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Select.ReadyBB)
 
 	fe.blockTerminated = true

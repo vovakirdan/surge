@@ -49,7 +49,7 @@ func (e *Emitter) prepareFunctions() error {
 			if int(localID) < 0 || int(localID) >= len(f.Locals) {
 				return fmt.Errorf("invalid param local %d", localID)
 			}
-			llvmTy, llvmErr := llvmLocalValueType(e.types, f.Locals[localID])
+			llvmTy, llvmErr := e.llvmLocalValueType(f.Locals[localID])
 			if llvmErr != nil {
 				return llvmErr
 			}
@@ -57,7 +57,7 @@ func (e *Emitter) prepareFunctions() error {
 			paramTypes = append(paramTypes, f.Locals[localID].Type)
 		}
 		result := f.Result
-		ret, err := llvmType(e.types, result)
+		ret, err := e.llvmType(result)
 		if err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ func (e *Emitter) prepareFunctions() error {
 			inferred := e.inferResultType(f)
 			if inferred != types.NoTypeID {
 				result = inferred
-				ret, err = llvmType(e.types, result)
+				ret, err = e.llvmType(result)
 				if err != nil {
 					return err
 				}
@@ -79,7 +79,9 @@ func (e *Emitter) prepareFunctions() error {
 		if err != nil {
 			return fmt.Errorf("call contract for %s: %w", f.Name, err)
 		}
-		e.funcSigs[f.ID] = funcSig{ret: ret, params: params, paramTypes: paramTypes, abi: abi}
+		e.funcSigs[f.ID] = funcSig{
+			ret: ret, params: params, paramTypes: paramTypes, resultType: result, abi: abi,
+		}
 	}
 	return nil
 }

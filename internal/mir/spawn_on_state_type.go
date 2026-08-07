@@ -14,7 +14,7 @@ func buildSpawnOnStateStruct(typesIn *types.Interner, funcName string, captures 
 	if funcName == "" {
 		funcName = "anon"
 	}
-	name := fmt.Sprintf("__SpawnOnState$%s", funcName)
+	name := spawnOnStateTypePrefix + funcName
 	nameID := typesIn.Strings.Intern(name)
 	stateID := typesIn.RegisterStruct(nameID, source.Span{})
 

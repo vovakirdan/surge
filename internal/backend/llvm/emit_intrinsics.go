@@ -211,14 +211,14 @@ func (fe *funcEmitter) funcSigFromType(typeID types.TypeID) (funcSig, error) {
 	params := make([]string, 0, len(info.Params))
 	paramTypes := make([]types.TypeID, 0, len(info.Params))
 	for _, p := range info.Params {
-		llvmTy, err := llvmValueType(fe.emitter.types, p)
+		llvmTy, err := fe.emitter.llvmValueType(p)
 		if err != nil {
 			return funcSig{}, err
 		}
 		params = append(params, llvmTy)
 		paramTypes = append(paramTypes, p)
 	}
-	ret, err := llvmType(fe.emitter.types, info.Result)
+	ret, err := fe.emitter.llvmType(info.Result)
 	if err != nil {
 		return funcSig{}, err
 	}
@@ -226,7 +226,9 @@ func (fe *funcEmitter) funcSigFromType(typeID types.TypeID) (funcSig, error) {
 	if err != nil {
 		return funcSig{}, fmt.Errorf("call contract for function value: %w", err)
 	}
-	return funcSig{ret: ret, params: params, paramTypes: paramTypes, abi: abi}, nil
+	return funcSig{
+		ret: ret, params: params, paramTypes: paramTypes, resultType: info.Result, abi: abi,
+	}, nil
 }
 
 func (fe *funcEmitter) emitLayoutIntrinsic(call *mir.CallInstr) (bool, error) {
@@ -300,18 +302,18 @@ func (fe *funcEmitter) emitCloneIntrinsic(call *mir.CallInstr) (bool, error) {
 		}
 		return true, fmt.Errorf("__clone unsupported for type")
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
 	// Deep copy: __clone must yield an independent owned string. A bare
 	// handle store aliases the buffer, so dropping either copy frees
 	// storage the other still reads.
 	cloned := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_clone(ptr %s)\n", cloned, argVal)
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, cloned, ptr)
+	fe.emitValueStore(dstTy, cloned, ptr, dstAlign)
 	return true, nil
 }

@@ -14,10 +14,14 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 	if !isUnionType(fe.emitter.types, expected) {
 		return val, valTy, nil
 	}
-	expectedLLVM, err := llvmValueType(fe.emitter.types, expected)
+	expectedStorage, err := fe.emitter.llvmValueType(expected)
 	if err != nil {
 		return "", "", err
 	}
+	// The comparisons below check how the value TRAVELS, not where it lives: a
+	// union is carried as the address of its storage, so an operand that
+	// already names one is the shape a return wants.
+	expectedLLVM := operandTypeFor(expectedStorage)
 	opType := types.NoTypeID
 	if op != nil {
 		opType = operandValueType(fe.emitter.types, op)
@@ -101,10 +105,11 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 				if len(meta.PayloadTypes) != 1 {
 					return "", "", fmt.Errorf("tag %q expects 1 payload value, got %d", meta.TagName, len(meta.PayloadTypes))
 				}
-				payloadLLVM, err := llvmValueType(fe.emitter.types, meta.PayloadTypes[0])
+				payloadStorage, err := fe.emitter.llvmValueType(meta.PayloadTypes[0])
 				if err != nil {
 					return "", "", err
 				}
+				payloadLLVM := operandTypeFor(payloadStorage)
 				payloadVal := val
 				payloadTy := valTy
 				if payloadTy != payloadLLVM {
@@ -122,14 +127,14 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 				if err != nil {
 					return "", "", err
 				}
-				return tagVal, "ptr", nil
+				return tagVal, handleType, nil
 			case types.UnionMemberNothing:
 				if isNothingType(fe.emitter.types, opType) {
 					tagVal, err := fe.emitTagValue(expected, "nothing", symbols.NoSymbolID, nil)
 					if err != nil {
 						return "", "", err
 					}
-					return tagVal, "ptr", nil
+					return tagVal, handleType, nil
 				}
 			}
 		}

@@ -75,14 +75,14 @@ func (fe *funcEmitter) emitToIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, err
 	}
 
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
 	if dstTy != outTy {
 		outTy = dstTy
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", outTy, outVal, ptr)
+	fe.emitValueStore(outTy, outVal, ptr, dstAlign)
 	return true, nil
 }
 
@@ -141,7 +141,7 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, errBB)
 
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
@@ -151,10 +151,10 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tagVal, ptr)
+	fe.emitValueStore(dstTy, tagVal, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
@@ -170,7 +170,7 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, errVal, ptr)
+	fe.emitValueStore(dstTy, errVal, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
@@ -235,12 +235,12 @@ func (fe *funcEmitter) emitFromBytesIntrinsic(call *mir.CallInstr) (bool, error)
 	contBB := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, errBB)
 
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
@@ -250,7 +250,7 @@ func (fe *funcEmitter) emitFromBytesIntrinsic(call *mir.CallInstr) (bool, error)
 	if err != nil {
 		return true, err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tagVal, ptr)
+	fe.emitValueStore(dstTy, tagVal, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
@@ -266,7 +266,7 @@ func (fe *funcEmitter) emitFromBytesIntrinsic(call *mir.CallInstr) (bool, error)
 	if err != nil {
 		return true, err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, errVal, ptr)
+	fe.emitValueStore(dstTy, errVal, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
@@ -343,7 +343,7 @@ func (fe *funcEmitter) emitToSource(op *mir.Operand) (val, llvmTy string, typeID
 	if isRefType(fe.emitter.types, op.Type) {
 		elemType, ok := derefType(fe.emitter.types, op.Type)
 		if ok {
-			llvmElem, err := llvmValueType(fe.emitter.types, elemType)
+			llvmElem, err := fe.emitter.llvmValueType(elemType)
 			if err != nil {
 				return "", "", types.NoTypeID, err
 			}

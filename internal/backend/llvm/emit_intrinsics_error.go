@@ -197,11 +197,11 @@ func (fe *funcEmitter) emitErrorLikeValue(errType types.TypeID, msgVal, msgTy, c
 	if msgIdx < 0 || msgIdx >= len(fieldOffsets) || codeIdx < 0 || codeIdx >= len(fieldOffsets) {
 		return "", fmt.Errorf("error-like layout mismatch")
 	}
-	msgLLVM, err := llvmValueType(fe.emitter.types, msgFieldType)
+	msgLLVM, err := fe.emitter.llvmValueType(msgFieldType)
 	if err != nil {
 		return "", err
 	}
-	codeLLVM, err := llvmValueType(fe.emitter.types, codeFieldType)
+	codeLLVM, err := fe.emitter.llvmValueType(codeFieldType)
 	if err != nil {
 		return "", err
 	}
@@ -252,11 +252,11 @@ func (fe *funcEmitter) emitErrorLikeFields(errPtr string, errType types.TypeID) 
 	if msgIdx < 0 || msgIdx >= len(fieldOffsets) || codeIdx < 0 || codeIdx >= len(fieldOffsets) {
 		return "", "", "", types.NoTypeID, fmt.Errorf("error-like layout mismatch")
 	}
-	msgLLVM, err := llvmValueType(fe.emitter.types, msgFieldType)
+	msgLLVM, err := fe.emitter.llvmValueType(msgFieldType)
 	if err != nil {
 		return "", "", "", types.NoTypeID, err
 	}
-	codeLLVM, err = llvmValueType(fe.emitter.types, codeFieldType)
+	codeLLVM, err = fe.emitter.llvmValueType(codeFieldType)
 	if err != nil {
 		return "", "", "", types.NoTypeID, err
 	}

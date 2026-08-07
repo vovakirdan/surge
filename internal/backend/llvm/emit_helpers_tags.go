@@ -122,24 +122,24 @@ func (fe *funcEmitter) emitTagDiscriminant(op *mir.Operand) (string, error) {
 	if layoutInfo.TagSize != 4 {
 		return "", fmt.Errorf("unsupported tag size %d for type#%d", layoutInfo.TagSize, typeID)
 	}
+	// The operand already names the union's storage, whether it came from a
+	// place or from a borrow: a borrow of a value that lives inline points at
+	// that value, not at a slot holding its address. The load that used to
+	// stand here was the second half of the boxed representation, and reaching
+	// it now would read the discriminant as an address.
 	val, valTy, err := fe.emitValueOperand(op)
 	if err != nil {
 		return "", err
 	}
-	if isRefType(fe.emitter.types, op.Type) {
-		if valTy != "ptr" {
-			return "", fmt.Errorf("tag value must be ptr, got %s", valTy)
-		}
-		deref := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, val)
-		val = deref
-		valTy = "ptr"
+	if valTy != handleType {
+		return "", fmt.Errorf("tag value must be addressed, got %s", valTy)
 	}
-	if valTy != "ptr" {
-		return "", fmt.Errorf("tag value must be ptr, got %s", valTy)
+	align := layoutInfo.Align
+	if align == 0 {
+		align = 1
 	}
 	tagVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i32, ptr %s\n", tagVal, val)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i32, ptr %s, align %d\n", tagVal, val, align)
 	return tagVal, nil
 }
 
@@ -162,12 +162,8 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 	if layoutInfo.TagSize != 4 {
 		return "", fmt.Errorf("unsupported tag size %d for type#%d", layoutInfo.TagSize, typeID)
 	}
-	size := layoutInfo.Size
 	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
 	unionCase, ok := layoutInfo.UnionCase(caseIdx)
@@ -175,10 +171,14 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 		return "", fmt.Errorf("missing finalized union case %d for type#%d", caseIdx, typeID)
 	}
 
+	// A tag value is built in storage of its own, like every other literal:
+	// the assignment that receives it decides where it finally lives.
 	if len(meta.PayloadTypes) == 0 {
-		mem := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-		fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", caseIdx, mem)
+		mem, allocErr := fe.emitStorageAlloca(typeID)
+		if allocErr != nil {
+			return "", allocErr
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", caseIdx, mem, align)
 		return mem, nil
 	}
 	offsets := unionCase.FieldOffsets()
@@ -186,9 +186,11 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 		return "", fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", caseIdx, typeID, len(offsets), len(meta.PayloadTypes))
 	}
 
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", caseIdx, mem)
+	mem, err := fe.emitStorageAlloca(typeID)
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", caseIdx, mem, align)
 	for i := range args {
 		arg := &args[i]
 		payloadTy := meta.PayloadTypes[i]
@@ -199,10 +201,11 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 		if err != nil {
 			return "", err
 		}
-		payloadLLVM, err := llvmValueType(fe.emitter.types, payloadTy)
+		payloadStorage, err := fe.emitter.llvmValueType(payloadTy)
 		if err != nil {
 			return "", err
 		}
+		payloadLLVM := operandTypeFor(payloadStorage)
 		if valTy != payloadLLVM {
 			valType := operandValueType(fe.emitter.types, arg)
 			if valType == types.NoTypeID && arg.Kind != mir.OperandConst {
@@ -210,20 +213,19 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 					valType = baseType
 				}
 			}
-			casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, payloadTy)
-			if err != nil {
-				return "", err
+			// The coerced spelling is not carried forward: the store below
+			// names the payload's own storage type, which is what the value
+			// is being written as.
+			casted, _, coerceErr := fe.coerceNumericValue(val, valTy, valType, payloadTy)
+			if coerceErr != nil {
+				return "", coerceErr
 			}
 			val = casted
-			valTy = castTy
-		}
-		if valTy != payloadLLVM {
-			valTy = payloadLLVM
 		}
 		off := unionCase.PayloadOffset + offsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+		fe.emitValueStore(payloadStorage, val, bytePtr, memberAccessAlign(align, off))
 	}
 	return mem, nil
 }

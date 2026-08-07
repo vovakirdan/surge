@@ -3,6 +3,7 @@ package llvm
 import (
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -68,7 +69,15 @@ fn main() -> int {
 	}
 }
 
-func TestDynamicArrayOfBoxedStructUsesEmittedPointerStride(t *testing.T) {
+// A dynamic array of a struct holds the STRUCTS, not pointers to them. Its
+// data buffer is length times the language stride, and element `i` is written
+// where that stride puts it.
+//
+// This used to be the other way round: the buffer held one word per element and
+// each word pointed at a separately allocated box, so the buffer was allocated
+// at a pointer stride of 8 while `internal/layout` said 16. Two strides for one
+// array is what made every element access have to know which of them applied.
+func TestDynamicArrayOfStructValuesStoresElementsAtTheLanguageStride(t *testing.T) {
 	withRepoStdlib(t)
 	sourceCode := `type Point = { x: int, y: int };
 
@@ -88,10 +97,24 @@ fn main() -> int {
 `
 
 	ir := emitLLVMFromSource(t, sourceCode)
-	if strings.Contains(ir, "call ptr @rt_alloc(i64 48, i64 8)") {
-		t.Fatalf("dynamic Point[] data used the 16-byte language stride while storing 8-byte pointers:\n%s", ir)
+	body := llvmFunctionContaining(t, ir, "@rt_alloc(i64 48, i64 8)")
+
+	// Three elements at a 16-byte stride, and each one copied whole into its
+	// own slot. A buffer of pointers would be 24 bytes and each store a word.
+	data := regexp.MustCompile(`(%t\d+) = call ptr @rt_alloc\(i64 48, i64 8\)`).FindStringSubmatch(body)
+	if len(data) != 2 {
+		t.Fatalf("dynamic Point[] did not allocate 3 elements at the 16-byte language stride:\n%s", body)
 	}
-	if !regexp.MustCompile(`call void @rt_array_free_elems\(ptr [^,]+, i64 8, i64 8,`).MatchString(ir) {
-		t.Fatalf("dynamic Point[] drop did not use the emitted pointer stride:\n%s", ir)
+	for index, offset := range []int{0, 16, 32} {
+		slot := regexp.MustCompile(
+			`(%t\d+) = getelementptr inbounds i8, ptr ` + regexp.QuoteMeta(data[1]) +
+				`, i64 ` + strconv.Itoa(offset) + `\n`).FindStringSubmatch(body)
+		if len(slot) != 2 {
+			t.Fatalf("dynamic Point[] element %d is not at byte offset %d:\n%s", index, offset, body)
+		}
+		copied := `@llvm.memcpy.p0.p0.i64\(ptr align 8 ` + regexp.QuoteMeta(slot[1]) + `, ptr align 8 %\w+, i64 16,`
+		if !regexp.MustCompile(copied).MatchString(body) {
+			t.Fatalf("dynamic Point[] element %d was not copied whole into its slot:\n%s", index, body)
+		}
 	}
 }

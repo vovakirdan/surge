@@ -82,6 +82,18 @@ func (fe *funcEmitter) taskResultInfo(resultType types.TypeID) (successIdx int, 
 }
 
 func (fe *funcEmitter) emitValueToI64(val, valTy string, typeID types.TypeID) (string, error) {
+	if fe.emitter.hasInlineStorage(typeID) {
+		// The value is about to be handed to the runtime, which will hold it
+		// after this frame is gone. `val` addresses storage this frame owns, so
+		// the payload is a copy in an allocation the transport owns instead.
+		allocation, err := fe.emitPublishToTransportAllocation(val, typeID)
+		if err != nil {
+			return "", err
+		}
+		out := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = ptrtoint ptr %s to i64\n", out, allocation)
+		return out, nil
+	}
 	switch valTy {
 	case "i64":
 		return val, nil
@@ -129,9 +141,24 @@ func (fe *funcEmitter) emitI64ToValue(bits string, typeID types.TypeID) (value, 
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return "", "", fmt.Errorf("missing type info")
 	}
-	llvmTy, err := llvmValueType(fe.emitter.types, typeID)
+	llvmTy, err := fe.emitter.llvmValueType(typeID)
 	if err != nil {
 		return "", "", err
+	}
+	if fe.emitter.hasInlineStorage(typeID) {
+		// The bits address the transport allocation the producer copied into.
+		// Taking the value out of it and releasing it here is what returns the
+		// value to ordinary storage; nothing downstream sees the allocation.
+		allocation := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = inttoptr i64 %s to ptr\n", allocation, bits)
+		storage, err := fe.emitStorageAlloca(typeID)
+		if err != nil {
+			return "", "", err
+		}
+		if err := fe.emitAdoptFromTransportAllocation(allocation, storage, typeID); err != nil {
+			return "", "", err
+		}
+		return storage, handleType, nil
 	}
 	switch llvmTy {
 	case "ptr":

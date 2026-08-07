@@ -150,11 +150,22 @@ func retargetDropToField(fn *mir.Func, local mir.LocalID, field string) bool {
 	return false
 }
 
-// A SHALLOW drop frees the container's own box and calls no glue: the fields
-// still in it moved away, and the glue would free them along with everything
-// else. This is the closing move of a residual drop, and the reason one can be
-// expressed without writing a sentinel into the moved field.
-func TestEmitShallowDropFreesTheBoxWithoutTheGlue(t *testing.T) {
+// A SHALLOW drop reclaims NOTHING. It is the closing move of a residual drop:
+// the members still in the container were dropped one at a time just above, and
+// the container itself has no storage of its own to give back — its bytes are
+// the frame's, the enclosing value's or the array element's, and whoever
+// declared them reclaims them. Freeing anything here would be freeing memory
+// this value never owned.
+//
+// This is where the shallow drop used to free the container's box, back when a
+// composite was a pointer to a heap allocation it owned. There is no box to
+// free now, and emitting the free anyway would be a double free of the
+// declaring frame's storage.
+//
+// The assertion is differential, against the same drop left ordinary: an
+// absence on its own would also be satisfied by the drop vanishing for a reason
+// that has nothing to do with the shallow flag.
+func TestEmitShallowDropReclaimsNothingOfTheContainer(t *testing.T) {
 	const src = `
 type Holder = { note: string, id: int }
 
@@ -173,21 +184,29 @@ fn main() -> int { return build(); }
 		t.Fatalf("no local named `h` in the lowered function")
 	}
 
+	before, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	if err != nil {
+		t.Fatalf("emit before marking the drop shallow: %v", err)
+	}
+	if beforeBody := functionBody(t, before, fn.ID); !strings.Contains(beforeBody, "call void @drop.type") {
+		t.Fatalf("expected an ordinary drop of `h` to call the recursive glue:\n%s", beforeBody)
+	}
+
 	if !markDropShallow(fn, local) {
 		t.Fatalf("no drop of `h` found to mark shallow")
 	}
 
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	after, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
 	if err != nil {
 		t.Fatalf("emit: %v", err)
 	}
-	body := functionBody(t, ir, fn.ID)
+	body := functionBody(t, after, fn.ID)
 
 	if strings.Contains(body, "call void @drop.type") {
 		t.Fatalf("a shallow drop still called the recursive glue:\n%s", body)
 	}
-	if !strings.Contains(body, "call void @rt_free") {
-		t.Fatalf("a shallow drop freed no box:\n%s", body)
+	if strings.Contains(body, "call void @rt_free") {
+		t.Fatalf("a shallow drop freed storage the container does not own:\n%s", body)
 	}
 }
 

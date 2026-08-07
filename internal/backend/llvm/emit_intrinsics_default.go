@@ -47,14 +47,14 @@ func (fe *funcEmitter) emitDefaultIntrinsic(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
 	if dstTy != valTy {
 		valTy = dstTy
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, ptr)
+	fe.emitValueStore(valTy, val, ptr, dstAlign)
 	return true, nil
 }
 
@@ -90,7 +90,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 	case types.KindPointer:
 		return "null", "ptr", nil
 	case types.KindUnit, types.KindNothing:
-		llvmTy, typeErr := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, typeErr := fe.emitter.llvmValueType(typeID)
 		if typeErr != nil {
 			return "", "", typeErr
 		}
@@ -106,7 +106,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 		if isBigIntType(fe.emitter.types, typeID) || isBigUintType(fe.emitter.types, typeID) {
 			return "null", "ptr", nil
 		}
-		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, err := fe.emitter.llvmValueType(typeID)
 		if err != nil {
 			return "", "", err
 		}
@@ -115,7 +115,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 		if isBigFloatType(fe.emitter.types, typeID) {
 			return "null", "ptr", nil
 		}
-		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, err := fe.emitter.llvmValueType(typeID)
 		if err != nil {
 			return "", "", err
 		}
@@ -148,7 +148,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 		}
 		return ptr, "ptr", nil
 	case types.KindConst:
-		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, err := fe.emitter.llvmValueType(typeID)
 		if err != nil {
 			return "", "", err
 		}
@@ -186,7 +186,7 @@ func (fe *funcEmitter) emitDefaultStruct(typeID types.TypeID) (val, ty string, e
 		if err != nil {
 			return "", "", err
 		}
-		fieldLLVM, err := llvmValueType(fe.emitter.types, field.Type)
+		fieldLLVM, err := fe.emitter.llvmValueType(field.Type)
 		if err != nil {
 			return "", "", err
 		}
@@ -204,7 +204,7 @@ func (fe *funcEmitter) emitDefaultStruct(typeID types.TypeID) (val, ty string, e
 func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (val, ty string, err error) {
 	info, ok := fe.emitter.types.TupleInfo(resolveAliasAndOwn(fe.emitter.types, typeID))
 	if !ok || info == nil || len(info.Elems) == 0 {
-		llvmTy, typeErr := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, typeErr := fe.emitter.llvmValueType(typeID)
 		if typeErr != nil {
 			return "", "", typeErr
 		}
@@ -233,7 +233,7 @@ func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (val, ty string, er
 		if err != nil {
 			return "", "", err
 		}
-		elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+		elemLLVM, err := fe.emitter.llvmValueType(elemType)
 		if err != nil {
 			return "", "", err
 		}
@@ -281,11 +281,11 @@ func (fe *funcEmitter) emitDefaultArrayFixed(typeID, elemType types.TypeID, leng
 	if length == 0 {
 		return mem, "ptr", nil
 	}
-	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	stride, err := fe.canonicalArrayElemStride(elemType)
+	stride, err := fe.emitter.arrayElemStride(elemType)
 	if err != nil {
 		return "", "", err
 	}

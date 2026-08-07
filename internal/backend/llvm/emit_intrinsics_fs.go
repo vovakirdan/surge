@@ -217,13 +217,13 @@ func (fe *funcEmitter) storePtrResult(call *mir.CallInstr, val string) error {
 	if !call.HasDst {
 		return nil
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+	fe.emitValueStore(dstTy, val, ptr, dstAlign)
 	return nil
 }

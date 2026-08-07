@@ -42,7 +42,13 @@ func (f ordinaryStorageFixture) relPath() string {
 // The frozen nested family — a struct holding a tuple, a two-arm tagged union
 // with a composite payload, and a fixed array of composites — driven through
 // every operation the ordinary destination protocol has to carry, followed by
-// the four rows that exist for their layout rather than their operation.
+// the rows that exist for their layout rather than their operation.
+//
+// The last two layout rows were quarantined when the corpus was frozen: on the
+// boxed representation both produced the right answer and then aborted the
+// native process while releasing a zero-sized member. Neither aborts now — a
+// zero-sized value has no storage of its own to be released twice — so they are
+// ordinary rows, and their quarantine is gone rather than adapted.
 func ordinaryStorageFixtures() []ordinaryStorageFixture {
 	return []ordinaryStorageFixture{
 		{name: "storage_construct", dir: "ops", want: "construct ok"},
@@ -61,6 +67,8 @@ func ordinaryStorageFixtures() []ordinaryStorageFixture {
 		{name: "storage_over_aligned", dir: "layout", want: "over aligned ok"},
 		{name: "storage_padding_union", dir: "layout", want: "padding union ok"},
 		{name: "storage_zero_sized", dir: "layout", want: "zero sized ok"},
+		{name: "storage_zero_sized_member_order", dir: "layout", want: "zero sized member order ok"},
+		{name: "storage_zero_sized_array", dir: "layout", want: "zero sized array ok"},
 	}
 }
 
@@ -81,15 +89,8 @@ func TestRuntimeV2OrdinaryStorageCorpusIsComplete(t *testing.T) {
 		declared[fixture.name] = true
 	}
 
-	for _, fixture := range ordinaryStorageKnownRedFixtures() {
-		if declared[fixture.name] {
-			t.Fatalf("duplicate corpus row %q", fixture.name)
-		}
-		declared[fixture.name] = true
-	}
-
 	found := make(map[string]bool)
-	for _, dir := range []string{"ops", "layout", "known_red"} {
+	for _, dir := range []string{"ops", "layout"} {
 		base := filepath.Join(root, ordinaryStorageCorpusDir, dir)
 		entries, err := os.ReadDir(base)
 		if err != nil {

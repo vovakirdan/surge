@@ -98,14 +98,14 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 		}
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_repeat(ptr %s, i64 %s)\n", tmp, strPtr, count64)
-		ptr, dstTy, placeErr := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, placeErr := fe.emitPlaceStorage(call.Dst)
 		if placeErr != nil {
 			return placeErr
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return nil
 	}
 	if isStringLike(fe.emitter.types, leftType) || isStringLike(fe.emitter.types, rightType) {
@@ -137,14 +137,14 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 		default:
 			return fmt.Errorf("unsupported string op %s", name)
 		}
-		ptr, dstTy, placeErr := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, placeErr := fe.emitPlaceStorage(call.Dst)
 		if placeErr != nil {
 			return placeErr
 		}
 		if dstTy != resultTy {
 			dstTy = resultTy
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return nil
 	}
 
@@ -177,14 +177,14 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 		if binErr != nil {
 			return binErr
 		}
-		ptr, dstTy, placeErr := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, placeErr := fe.emitPlaceStorage(call.Dst)
 		if placeErr != nil {
 			return placeErr
 		}
 		if dstTy != resultTy {
 			dstTy = resultTy
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+		fe.emitValueStore(dstTy, val, ptr, dstAlign)
 		return nil
 	}
 	info, ok := intInfo(fe.emitter.types, leftType)
@@ -326,14 +326,14 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 	default:
 		return fmt.Errorf("unsupported magic binary op %s", name)
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
 	if dstTy != resultTy {
 		dstTy = resultTy
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+	fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	return nil
 }
 
@@ -387,14 +387,14 @@ func (fe *funcEmitter) emitMagicUnaryIntrinsic(call *mir.CallInstr, name string)
 	default:
 		return fmt.Errorf("unsupported magic unary op %s", name)
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
 	if dstTy != ty {
 		dstTy = ty
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+	fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	return nil
 }
 
