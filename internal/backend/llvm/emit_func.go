@@ -245,14 +245,16 @@ func (fe *funcEmitter) emitAsyncRefParamBox(paramValue string, refType types.Typ
 	if err != nil {
 		return "", err
 	}
-	size, align, err := llvmTypeSizeAlign(valueLLVM)
+	// Sized from the layout registry rather than from the spelling, so that a
+	// reference to a composite is boxed at the composite's own size.
+	size, align, err := fe.emitter.valueSizeAlign(valueType)
 	if err != nil {
 		return "", err
 	}
-	if size <= 0 {
+	if size == 0 {
 		size = 1
 	}
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
 	box := fe.nextTemp()

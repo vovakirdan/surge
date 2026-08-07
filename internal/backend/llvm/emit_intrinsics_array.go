@@ -41,7 +41,7 @@ func (fe *funcEmitter) emitArrayIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 }
 
-func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, elemLLVM string, stride, align int, err error) {
+func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, elemLLVM string, stride, align uint64, err error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return types.NoTypeID, "", 0, 0, fmt.Errorf("missing type interner")
 	}
@@ -62,15 +62,21 @@ func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, 
 	if err != nil {
 		return types.NoTypeID, "", 0, 0, err
 	}
-	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	// The stride comes from the layout registry, not from the spelling. Reading
+	// it back out of the LLVM type worked only while every element was a scalar
+	// or a pointer, because those are the spellings a size can be recovered
+	// from. A composite element is spelled as its own byte run, and asking that
+	// spelling how big it is asks the wrong authority a question it cannot
+	// answer — which is how a 64-byte payload reached a helper that knows only
+	// machine words.
+	elemStride, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
 	if err != nil {
 		return types.NoTypeID, "", 0, 0, err
 	}
-	if elemAlign <= 0 {
+	if elemAlign == 0 {
 		elemAlign = 1
 	}
-	stride = roundUpInt(elemSize, elemAlign)
-	return elemType, elemLLVM, stride, elemAlign, nil
+	return elemType, elemLLVM, elemStride, elemAlign, nil
 }
 
 func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) string {
