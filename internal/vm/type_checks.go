@@ -127,23 +127,37 @@ func (vm *VM) typeHeir(left, right types.TypeID) bool {
 // independently, so the same arm sits somewhere different in each. The work is
 // therefore a conversion, and retagUnion does it.
 //
-// A conversion that cannot be made leaves the value ALONE and reports false. It
-// does not raise: the store this feeds is about to refuse the value anyway, and
-// its refusal names both types, where a refusal here would name only the moment
-// somebody asked.
-func (vm *VM) retagUnionValue(val Value, expected types.TypeID) (Value, bool) {
+// There are three answers here, not two, and collapsing them is how a real
+// failure became a misleading one.
+//
+// A conversion that DOES NOT APPLY leaves the value alone and reports false
+// without raising: the value is not a union of a convertible shape, the store
+// this feeds is about to refuse it anyway, and that refusal names both types
+// where a refusal here would name only the moment somebody asked.
+//
+// A conversion that applies and FAILS is a different thing entirely — the arms
+// matched but the payload could not be moved, the destination could not be
+// built, the discriminant could not be written. That was reported as "does not
+// apply" too, which handed the caller back the unconverted value and let the
+// store fail later for a reason that had nothing to do with the actual fault.
+// It is how a precise storage error once surfaced as `unimplemented: __to
+// conversion`. The error is returned now, and every caller propagates it.
+func (vm *VM) retagUnionValue(val Value, expected types.TypeID) (Value, bool, *VMError) {
 	if vm == nil || vm.Types == nil || expected == types.NoTypeID {
-		return val, false
+		return val, false, nil
 	}
 	ref, isTag := vm.isTagStorage(val)
 	if !isTag {
-		return val, false
+		return val, false, nil
 	}
 	converted, changed, vmErr := vm.retagUnion(vm.currentFrame(), ref, expected)
-	if vmErr != nil || !changed {
-		return val, false
+	if vmErr != nil {
+		return val, false, vmErr
 	}
-	return converted, true
+	if !changed {
+		return val, false, nil
+	}
+	return converted, true, nil
 }
 
 func (vm *VM) isUnionType(id types.TypeID) bool {

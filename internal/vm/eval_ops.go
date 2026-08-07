@@ -213,7 +213,11 @@ func (vm *VM) evalUnaryDeref(operand Value) (Value, *VMError) {
 				break
 			}
 			if expected != types.NoTypeID {
-				if retagged, ok := vm.retagUnionValue(v, expected); ok {
+				retagged, converted, vmErr := vm.retagUnionValue(v, expected)
+				if vmErr != nil {
+					return Value{}, vmErr
+				}
+				if converted {
 					v = retagged
 				}
 			}

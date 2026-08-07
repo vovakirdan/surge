@@ -130,7 +130,11 @@ func (vm *VM) loadArrayElem(loc Location) (Value, *VMError) {
 	val := view.baseObj.Arr[view.start+idx]
 	if vm.Types != nil && view.baseObj != nil {
 		if elemType, ok := vm.Types.ArrayInfo(view.baseObj.TypeID); ok {
-			if retagged, ok := vm.retagUnionValue(val, elemType); ok {
+			retagged, converted, vmErr := vm.retagUnionValue(val, elemType)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			if converted {
 				val = retagged
 			}
 		}
@@ -157,7 +161,11 @@ func (vm *VM) storeArrayElem(loc Location, val Value) *VMError {
 	}
 	if vm.Types != nil && view.baseObj != nil {
 		if elemType, ok := vm.Types.ArrayInfo(view.baseObj.TypeID); ok {
-			if retagged, ok := vm.retagUnionValue(val, elemType); ok {
+			retagged, converted, retagErr := vm.retagUnionValue(val, elemType)
+			if retagErr != nil {
+				return retagErr
+			}
+			if converted {
 				val = retagged
 			}
 		}
@@ -188,7 +196,11 @@ func (vm *VM) loadMapElem(loc Location) (Value, *VMError) {
 	val := obj.MapEntries[idx].Value
 	if vm.Types != nil {
 		if _, valueType, ok := vm.Types.MapInfo(obj.TypeID); ok {
-			if retagged, ok := vm.retagUnionValue(val, valueType); ok {
+			retagged, converted, vmErr := vm.retagUnionValue(val, valueType)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			if converted {
 				val = retagged
 			}
 		}
@@ -211,13 +223,24 @@ func (vm *VM) storeMapElem(loc Location, val Value) *VMError {
 	}
 	if vm.Types != nil {
 		if _, valueType, ok := vm.Types.MapInfo(obj.TypeID); ok {
-			if retagged, ok := vm.retagUnionValue(val, valueType); ok {
+			retagged, converted, retagErr := vm.retagUnionValue(val, valueType)
+			if retagErr != nil {
+				return retagErr
+			}
+			if converted {
 				val = retagged
 			}
 		}
 	}
+	// The map outlives this activation, so what it keeps has to be its own —
+	// the same obligation the insert intrinsic has, owed here too because a
+	// store through an element location reaches the entry list directly.
+	adopted, adoptErr := vm.adoptIntoContainer(obj, val)
+	if adoptErr != nil {
+		return adoptErr
+	}
 	vm.dropValue(obj.MapEntries[idx].Value)
-	obj.MapEntries[idx].Value = val
+	obj.MapEntries[idx].Value = adopted
 	return nil
 }
 

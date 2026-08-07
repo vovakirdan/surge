@@ -118,7 +118,11 @@ func (vm *VM) evalCast(v Value, target types.TypeID) (Value, *VMError) {
 	}
 
 	if vm.Types != nil {
-		if retagged, ok := vm.retagUnionValue(v, target); ok {
+		retagged, converted, vmErr := vm.retagUnionValue(v, target)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if converted {
 			return retagged, nil
 		}
 	}

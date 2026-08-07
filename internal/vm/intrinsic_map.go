@@ -295,7 +295,13 @@ func (vm *VM) handleMapInsert(frame *Frame, call *mir.CallInstr, writes *[]Local
 		return vmErr
 	}
 	if vm.Types != nil && valueType != types.NoTypeID {
-		if retagged, ok := vm.retagUnionValue(valArg, valueType); ok {
+		retagged, converted, retagErr := vm.retagUnionValue(valArg, valueType)
+		if retagErr != nil {
+			vm.dropValue(keyVal)
+			vm.dropValue(valArg)
+			return retagErr
+		}
+		if converted {
 			valArg = retagged
 		}
 	}

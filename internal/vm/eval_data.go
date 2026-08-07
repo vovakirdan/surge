@@ -133,7 +133,11 @@ func (vm *VM) evalArrayIndex(obj, idx Value) (Value, *VMError) {
 			elemType, ok = vm.Types.ArrayInfo(view.baseObj.TypeID)
 		}
 		if ok {
-			if retagged, ok := vm.retagUnionValue(val, elemType); ok {
+			retagged, converted, vmErr := vm.retagUnionValue(val, elemType)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			if converted {
 				val = retagged
 			}
 		}
