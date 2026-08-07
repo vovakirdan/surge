@@ -17,6 +17,18 @@ document.
 
 ## Open Debt
 
+**The Status column is authoritative, not this heading.** A closed row keeps its
+place in this table rather than moving, so that the causal text explaining why
+the debt existed stays where the next reader of that area will find it — the
+same reason the Owner Overrides section below leaves historical owner cells
+alone. As a result this table holds every row, and 38 of the ones in it are
+already `Closed`. Scoping work by reading the section title, or by reading a row
+without its Status cell, will therefore over-count what is outstanding; that
+mistake has been made on this ledger more than once. Read the Status cell, and
+when a row names an epic in its Owner cell, check that epic's own scope section
+before treating the row as yours — a row can name an epic and still be excluded
+by it.
+
 | ID | Debt | Status | Owner | Close Condition |
 | --- | --- | --- | --- | --- |
 | RV2-DEBT-001 | Broad focused VM/backend command `go test ./internal/vm -run 'MT|Async|Net|LLVM'` fails when timeout-sensitive paths are not skipped. Epic 12 Task 1 re-ran it and confirmed the remaining failures are existing LLVM parity, terminal, and HTTP compatibility failures unrelated to compile-time crossing readiness. | Planned | Backend/Test Matrix Cleanup epic | Stable Runtime V2 contracts exist, the VM/native/LLVM matrix is rewritten, and the broad diagnostic command is either green or replaced by exact CI gates. |
