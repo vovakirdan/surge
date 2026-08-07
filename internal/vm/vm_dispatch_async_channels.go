@@ -24,8 +24,10 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	}
 
 	if task.Cancelled {
+		// A resume value on a cancelled task is a handover that will not
+		// happen: the receive it was delivered for never runs.
 		if v, ok := task.ResumeValue.(Value); ok {
-			vm.dropValue(v)
+			vm.transportRelease(v)
 		}
 		task.ResumeKind = asyncrt.ResumeNone
 		task.ResumeValue = nil
@@ -46,7 +48,7 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 		task.ResumeKind = asyncrt.ResumeNone
 		task.ResumeValue = nil
 		if v, ok := resumeVal.(Value); ok {
-			vm.dropValue(v)
+			vm.transportRelease(v)
 		}
 		return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
 	}
@@ -65,18 +67,29 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	if vmErr != nil {
 		return res, vmErr
 	}
+	// COPY IN. The runtime holds the payload — in a buffer, or in this task's
+	// own send queue entry while it is parked — and this activation rewinds
+	// before either is read. A composite that stayed in the sender's arena
+	// would be resolved against a generation that has moved on.
+	val, vmErr = vm.transportCopyIn(val)
+	if vmErr != nil {
+		return res, vmErr
+	}
 
 	if exec.ChanSendOrPark(chID, val) {
 		res.doJump = true
 		res.jumpBB = instr.ChanSend.ReadyBB
 		return res, nil
 	}
+	// Below here the payload was NOT taken: ChanSendOrPark refuses before it
+	// queues anything, and the parking path returns false having queued the
+	// value, so these two exits own what they release.
 	if exec.ChanIsClosed(chID) {
-		vm.dropValue(val)
+		vm.transportRelease(val)
 		return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
 	}
 	if task.Cancelled {
-		vm.dropValue(val)
+		vm.transportRelease(val)
 		res.doJump = true
 		res.jumpBB = instr.ChanSend.PendBB
 		return res, nil
@@ -104,8 +117,12 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 	}
 
 	if task.Cancelled {
+		// Cancel-before-receive. The payload reached this task and the receive
+		// that would have consumed it never runs, so this is where it is
+		// released — exactly once, and not again by the shutdown drain, which
+		// clears the resume value below.
 		if v, ok := task.ResumeValue.(Value); ok {
-			vm.dropValue(v)
+			vm.transportRelease(v)
 		}
 		task.ResumeKind = asyncrt.ResumeNone
 		task.ResumeValue = nil
@@ -159,6 +176,12 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		if !ok {
 			return res, vm.eb.makeError(PanicTypeMismatch, "invalid channel recv resume value")
 		}
+		// COPY OUT: the payload becomes this frame's, and the transport's copy
+		// is given up in the same step.
+		v, vmErr := vm.transportCopyOut(frame, v)
+		if vmErr != nil {
+			return res, vmErr
+		}
 		dstType, vmErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
 		if vmErr != nil {
 			vm.dropValue(v)
@@ -199,6 +222,10 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		v, ok := valAny.(Value)
 		if !ok {
 			return res, vm.eb.makeError(PanicTypeMismatch, "invalid channel recv value")
+		}
+		v, vmErr = vm.transportCopyOut(frame, v)
+		if vmErr != nil {
+			return res, vmErr
 		}
 		dstType, vmErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
 		if vmErr != nil {
