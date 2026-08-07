@@ -27,7 +27,7 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 	if align == 0 {
 		align = 1
 	}
-	mem, err := fe.emitStorageAlloca(lit.TypeID)
+	mem, err := fe.emitValueStorage(lit.TypeID)
 	if err != nil {
 		return "", "", err
 	}

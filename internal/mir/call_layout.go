@@ -8,9 +8,9 @@ import (
 	"surge/internal/types"
 )
 
-// callABIResolveLimit bounds alias/own unwrapping so a malformed type graph
+// aliasOwnResolveLimit bounds alias/own unwrapping so a malformed type graph
 // cannot spin here.
-const callABIResolveLimit = 32
+const aliasOwnResolveLimit = 32
 
 // ABIDomain names which authority governs a call site's lowered signature.
 //
@@ -230,7 +230,7 @@ func ComputeCallLayout(
 	if typesIn == nil {
 		return CallLayout{}, fmt.Errorf("mir: call layout requires a type interner")
 	}
-	resolved := resolveCallABIType(typesIn, fnType)
+	resolved := resolveAliasAndOwn(typesIn, fnType)
 	info, ok := typesIn.FnInfo(resolved)
 	if !ok || info == nil {
 		return CallLayout{}, fmt.Errorf("mir: type#%d is not a function type", fnType)
@@ -291,8 +291,11 @@ func classifyResult(
 	out := RetLayout{Type: result, Size: size, Align: align}
 	switch {
 	case size == 0:
+		// Nothing to hand back, whoever owns the storage. Unlike a parameter, a
+		// result has no position to keep: a zero-sized value and no value at all
+		// are the same returned function.
 		out.Class = RetVoid
-	case typesIn.IsValueComposite(result):
+	case LivesInInlineStorage(typesIn, result):
 		out.Class = RetSret
 	default:
 		out.Class = RetDirect
@@ -314,12 +317,19 @@ func classifyParam(
 	}
 	out := ParamLayout{Type: param, Size: size, Align: align}
 	switch {
+	case !LivesInInlineStorage(typesIn, param):
+		// A machine word, a handle, a borrow, or a suspension frame the runtime
+		// owns. Each is carried as itself in one argument position.
+		//
+		// Asked BEFORE size, which is the opposite of the result ordering above
+		// and is the difference between the two: a capture-free `blocking { }`
+		// frame is zero bytes and still has to be passed, because the argument
+		// is the runtime's handle to the frame rather than the frame's contents.
+		out.Class = ParamDirect
 	case size == 0:
 		out.Class = ParamElidedZST
-	case typesIn.IsValueComposite(param):
-		out.Class = ParamByval
 	default:
-		out.Class = ParamDirect
+		out.Class = ParamByval
 	}
 	return out, nil
 }
@@ -338,7 +348,7 @@ func physicalFacts(
 ) (size, align uint64, err error) {
 	facts, lookupErr := layouts.Require(id)
 	if lookupErr != nil {
-		resolved := resolveCallABIType(typesIn, id)
+		resolved := resolveAliasAndOwn(typesIn, id)
 		if resolved == id {
 			return 0, 0, fmt.Errorf("unresolved layout for type#%d: %w", id, lookupErr)
 		}
@@ -354,13 +364,17 @@ func physicalFacts(
 	return facts.Size, facts.Align, nil
 }
 
-// resolveCallABIType unwraps aliases and ownership so a signature spelled
-// through them classifies exactly as the underlying type does.
-func resolveCallABIType(typesIn *types.Interner, id types.TypeID) types.TypeID {
+// resolveAliasAndOwn unwraps aliases and ownership so a type spelled through
+// them answers exactly as the underlying type does.
+//
+// Both storage questions go through it — which representation a value has, and
+// which argument class carries it — because a spelling that reached only one of
+// them would answer the two questions differently for one type.
+func resolveAliasAndOwn(typesIn *types.Interner, id types.TypeID) types.TypeID {
 	if typesIn == nil {
 		return id
 	}
-	for range callABIResolveLimit {
+	for range aliasOwnResolveLimit {
 		next := resolveAlias(typesIn, id)
 		tt, ok := typesIn.Lookup(next)
 		if !ok || tt.Kind != types.KindOwn || tt.Elem == types.NoTypeID {
@@ -372,7 +386,7 @@ func resolveCallABIType(typesIn *types.Interner, id types.TypeID) types.TypeID {
 }
 
 // callLayoutKey identifies one classification. The function type is stored in
-// the form resolveCallABIType produced, so two spellings of one signature share
+// the form resolveAliasAndOwn produced, so two spellings of one signature share
 // an entry instead of racing to two.
 type callLayoutKey struct {
 	fn     types.TypeID
@@ -413,7 +427,7 @@ func (t *CallLayoutTable) Of(fnType types.TypeID, domain ABIDomain) (CallLayout,
 	if domain != ABIDomainSurge {
 		return CallLayout{domain: domain}, nil
 	}
-	key := callLayoutKey{fn: resolveCallABIType(t.types, fnType), domain: domain}
+	key := callLayoutKey{fn: resolveAliasAndOwn(t.types, fnType), domain: domain}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if cached, ok := t.memo[key]; ok {

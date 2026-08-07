@@ -145,7 +145,20 @@ func (fe *funcEmitter) emitStorageCopy(dst, src string, size, align uint64) {
 
 // emitStorageAlloca reserves one function-scoped storage for a value composite
 // and returns its address.
+//
+// A type that does NOT live in inline storage is refused rather than given a
+// slot. The slot would be the wrong lifetime, not the wrong size: a suspension
+// frame is handed to the runtime, which owns the pointer and frees it after the
+// function that built it has returned — so a frame in a function-scoped alloca
+// is read after that frame is gone and then freed at a stack address. Refusing
+// makes every site that materializes one say so, instead of one site quietly
+// producing storage whose owner cannot outlive it.
 func (fe *funcEmitter) emitStorageAlloca(id types.TypeID) (string, error) {
+	if !fe.emitter.hasInlineStorage(id) {
+		return "", fmt.Errorf(
+			"type#%d does not live in inline storage; reserve it where its owner does",
+			id)
+	}
 	facts, err := fe.emitter.storageFactsOf(id)
 	if err != nil {
 		return "", err
@@ -153,6 +166,44 @@ func (fe *funcEmitter) emitStorageAlloca(id types.TypeID) (string, error) {
 	ptr := fe.nextTemp()
 	fe.emitAllocaAligned(ptr, storageTypeForSize(facts.Size), facts.Align)
 	return ptr, nil
+}
+
+// emitRuntimeOwnedStorage reserves storage for a value whose owner outlives the
+// function that builds it, and returns its address.
+//
+// This is where a suspension frame is materialized. The address is handed to the
+// runtime — to `__task_create` for an async state and its payload, to
+// `rt_blocking_submit` for a blocking body's captures — and the runtime keeps it
+// past the suspension and releases it with the size and alignment recorded here.
+// So the allocation is the runtime's allocator, and this emission does not free
+// it: doing so would free storage whose owner is still holding it.
+func (fe *funcEmitter) emitRuntimeOwnedStorage(id types.TypeID) (string, error) {
+	facts, err := fe.emitter.layoutOf(id)
+	if err != nil {
+		return "", err
+	}
+	align := facts.Align
+	if align == 0 {
+		align = 1
+	}
+	ptr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n",
+		ptr, facts.Size, align)
+	return ptr, nil
+}
+
+// emitValueStorage reserves storage for one value in the place its
+// representation says that value lives.
+//
+// The two cases are not interchangeable and the difference is a lifetime. A
+// value composite lives in the slot of whoever declared it; a suspension frame
+// lives in storage the runtime owns. One predicate decides, so a new caller
+// cannot pick the wrong one by not knowing the question exists.
+func (fe *funcEmitter) emitValueStorage(id types.TypeID) (string, error) {
+	if fe.emitter.hasInlineStorage(id) {
+		return fe.emitStorageAlloca(id)
+	}
+	return fe.emitRuntimeOwnedStorage(id)
 }
 
 // emitTypedAlloca reserves the storage a value of typeID occupies, spelled

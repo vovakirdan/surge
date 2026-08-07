@@ -174,7 +174,7 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 	// A tag value is built in storage of its own, like every other literal:
 	// the assignment that receives it decides where it finally lives.
 	if len(meta.PayloadTypes) == 0 {
-		mem, allocErr := fe.emitStorageAlloca(typeID)
+		mem, allocErr := fe.emitValueStorage(typeID)
 		if allocErr != nil {
 			return "", allocErr
 		}
@@ -186,7 +186,7 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 		return "", fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", caseIdx, typeID, len(offsets), len(meta.PayloadTypes))
 	}
 
-	mem, err := fe.emitStorageAlloca(typeID)
+	mem, err := fe.emitValueStorage(typeID)
 	if err != nil {
 		return "", err
 	}

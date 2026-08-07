@@ -101,15 +101,18 @@ func (e *Emitter) storageFactsOf(id types.TypeID) (storageFacts, error) {
 // back when it resumes — so it cannot live in the slot of a function that has
 // already returned. It keeps storage the runtime owns until each owner has
 // typed storage of its own to keep it in.
+//
+// The rule itself is `mir.LivesInInlineStorage` and is deliberately NOT restated
+// here. The call contract classifies arguments and results from the same call,
+// and this backend's spelling and that classification are the two halves of one
+// ABI: when this file owned a copy of the exemption, the contract did not have
+// it, and every `blocking { }` capture set was classified by-value while being
+// spelled as a handle.
 func (e *Emitter) hasInlineStorage(id types.TypeID) bool {
 	if e == nil || e.types == nil {
 		return false
 	}
-	resolved := resolveAliasAndOwn(e.types, id)
-	if mir.IsSuspensionFrameType(e.types, resolved) {
-		return false
-	}
-	return e.types.IsValueComposite(resolved)
+	return mir.LivesInInlineStorage(e.types, id)
 }
 
 // valueSizeAlign is how many bytes one value of id occupies, and the alignment

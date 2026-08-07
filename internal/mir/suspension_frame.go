@@ -60,6 +60,40 @@ func IsSuspensionFrameType(typesIn *types.Interner, id types.TypeID) bool {
 	return false
 }
 
+// LivesInInlineStorage reports whether values of a type occupy storage at the
+// site that declares them, rather than naming storage somebody else owns.
+//
+// This is the ONE rule, and it exists because it has more than one consumer. The
+// call contract classifies a parameter or a result from it; a backend spells the
+// memory that holds a value from it. Those two answers become the two halves of
+// one ABI — who allocates, who copies, which argument position carries what —
+// and they are only an ABI while they agree.
+//
+// They stopped agreeing once before, and the shape of that failure is why the
+// rule is stated here instead of at each consumer. The frame exemption lived in
+// a backend and nowhere else, so the contract classified every `blocking { }`
+// capture set as a by-value composite while the backend spelled it as the handle
+// the runtime hands back. Neither side was wrong about a size or an offset; they
+// were answering different questions. A rule with one consumer is a convention,
+// and a convention is what drifts.
+//
+// The frame check comes FIRST, ahead of any question about size. A frame with no
+// captures is zero bytes, and a zero-sized value composite is elided from the
+// argument list entirely — so asking about size first would elide an argument
+// that is really a live runtime handle.
+func LivesInInlineStorage(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	// Resolved once, so the frame question and the composite question cannot be
+	// asked about two different spellings of one type.
+	resolved := resolveAliasAndOwn(typesIn, id)
+	if IsSuspensionFrameType(typesIn, resolved) {
+		return false
+	}
+	return typesIn.IsValueComposite(resolved)
+}
+
 // frameTypeName is the declared name of a struct or union type, if it has one.
 func frameTypeName(typesIn *types.Interner, id types.TypeID) (string, bool) {
 	if info, ok := typesIn.StructInfo(id); ok && info != nil {
