@@ -32,10 +32,21 @@ After this epic:
 - the integrated tree passes the correctness, liveness, sanitizer, performance,
   golden, absence, and independent-review gates below.
 
-The implementation merges to `main` together with the live Surge version-surface
-bump to `0.2.0`. Main CI plus that version gate close the implementation epic;
-the project owner may then dispatch the existing main-only release workflow to
-publish tag/assets, which is a separate externally authorized release action.
+The implementation merges to `main` and is closed by main CI. **It does not carry
+a version bump.** An earlier draft of this document had this epic merge together
+with a live version-surface bump to `0.2.0`; that was a misreading of the owner's
+direction and is corrected here.
+
+`0.2.0` belongs to the END of the whole Runtime V2 refactor, not to any single
+epic inside it. The owner's framing is "within this global refactor (Runtime V2,
+Surge 0.1.X -> 0.2.X)" — the version names the refactor, and the refactor is not
+this epic. Closing Epic 23b leaves unfinished epics to carry to completion, the
+debt ledger to burn down, a stdlib refresh the owner has deferred until after
+Runtime V2, further work still to be planned, and features whose ideas are not
+yet written down anywhere. The version moves when that work is done and the
+owner says so.
+
+Nothing in this epic changes `internal/version` or any other version surface.
 
 ## 2. Authority And Starting State
 
@@ -76,8 +87,7 @@ regression until a clean-base comparison proves otherwise.
 - user-facing diagnostic propagation required to make this epic's errors and
   notes observable;
 - removal of all old carrier entrypoints, fields, glue, wrappers, and tests;
-- new stable Runtime V2 carrier/diagnostic/absence gates;
-- the 0.2.0 version bump at main integration.
+- new stable Runtime V2 carrier/diagnostic/absence gates.
 
 ### Out of scope
 
@@ -724,7 +734,6 @@ make runtime-v2-check
 make golden-check
 make golden-check
 make runtime-v2-file-size-check EPIC_BASE="$EPIC_BASE"
-make version-check VERSION=0.2.0
 make check
 ```
 
@@ -750,9 +759,12 @@ Also required:
 - independent ABI/layout, ownership/lifetime, transport-credit, diagnostics,
   and final integrated-diff reviews;
 - documentation/status/debt reconciliation.
-- `make version-check VERSION=0.2.0` on the final main-integration candidate;
-  it pins `internal/version` fallback, new-project/tool metadata defaults, and
-  public install examples without rewriting unrelated fixture package versions.
+No version gate runs here. When the whole Runtime V2 refactor is finished and
+the owner decides the version moves, the surface to pin is `internal/version`'s
+fallback, new-project and tool metadata defaults, and the public install
+examples — without rewriting unrelated fixture package versions. That check does
+not exist yet (there is no `version-check` target in the Makefile), and building
+it belongs to whoever closes the refactor, not to this epic.
 
 An unavailable mandatory carrier/sanitizer/performance/golden/Sentrux/file-size
 gate blocks closeout; it cannot be converted to ordinary tooling debt. Known
@@ -833,9 +845,12 @@ Epic 23b closes only when:
 - owned debt rows close with exact evidence and nonblocking findings have
   durable owners;
 - target/current docs are reconciled without rewriting Phase 1 history;
-- the main integration candidate passes the `0.2.0` version-surface gate and
-  main CI; publishing `v0.2.0` remains the project owner's subsequent manual
-  release-workflow action.
+- the main integration candidate passes main CI, at the version the tree already
+  carries.
 
-After closeout, the epic chain resumes at Epic 22's remaining WidthAny
-`int`/`uint` reclamation work.
+Closing this epic is not close to the end of the work. The epic chain resumes at
+Epic 22's remaining WidthAny `int`/`uint` reclamation, and beyond it are the
+other unfinished epics, the debt ledger, the stdlib refresh the owner deferred
+until after Runtime V2, and further work still to be planned — including ideas
+not yet written down anywhere. The version surface moves once, at the end of all
+of that, and only when the owner says so.
