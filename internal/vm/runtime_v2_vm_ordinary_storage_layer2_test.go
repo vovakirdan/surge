@@ -6,11 +6,13 @@ package vm_test
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
 	"surge/internal/mir"
+	"surge/internal/source"
 	"surge/internal/types"
 	"surge/internal/vm"
 )
@@ -31,13 +33,23 @@ import (
 // backend lanes drive, so the gate measures the program the epic is about
 // rather than a shape invented to satisfy it.
 //
-// What this proves today is the storage DECISION: every composite slot in the
-// corpus owns a layout-sized extent, at an offset its own alignment divides,
-// sharing no byte with another slot, and every call signature classifies every
-// argument and its result. The other half of the layer-2 wording — that no slot
-// is ALSO reachable as a universal value — is a claim about a field that still
-// exists, and it becomes checkable here the moment the cutover removes it. That
-// assertion belongs to the cutover commit, and this comment is where to add it.
+// The gate asserts two things, and the second is the one that took a cutover to
+// become askable.
+//
+// The storage DECISION: every composite slot in the corpus owns a layout-sized
+// extent, at an offset its own alignment divides, sharing no byte with another
+// slot, and every call signature classifies every argument and its result.
+//
+// And the ABSENCE of the alternative. A gate that only checks the arena is
+// present is satisfied by a representation that has an arena AND a box, which is
+// exactly the half-migrated state this epic forbids — so presence is the weaker
+// half and was never the point. Until the cutover the absence was unaskable,
+// because the box was still there; now it is asked three ways. No value kind
+// names a boxed composite. No heap object carries a member list a composite
+// could live in. And every composite the corpus actually creates, at every step
+// of its execution, is carried as storage whose generation is still the one its
+// arena is on — which is the runtime form of the same claim, and the only one of
+// the three that a stale reference could fail.
 
 // storageSlot is one slot as the gate sees it, reduced to the facts the
 // structural rules are about.
@@ -94,6 +106,73 @@ func checkStoragePlan(owner string, planSize uint64, slots []storageSlot) error 
 	return nil
 }
 
+// checkLiveComposite states what a composite must BE while a program holds one.
+//
+// The plan check above proves an offset was assigned. This proves the value at
+// that offset is carried as the storage itself: not a handle to something, and
+// not a reference into an arena that has moved on. The generation is the part
+// that only a running program can be wrong about — a plan cannot go stale, and a
+// value can.
+func checkLiveComposite(owner string, index int, value vm.Value) error {
+	ref, isComposite := value.Storage()
+	if !isComposite {
+		return fmt.Errorf("%s slot %d holds a composite carried as %s, not as its storage",
+			owner, index, value.Kind)
+	}
+	if ref.Arena == nil {
+		return fmt.Errorf("%s slot %d is a composite that names no arena", owner, index)
+	}
+	if ref.Gen != ref.Arena.Generation() {
+		return fmt.Errorf("%s slot %d names generation %d of an arena now at %d",
+			owner, index, ref.Gen, ref.Arena.Generation())
+	}
+	if ref.Align == 0 || ref.Offset%ref.Align != 0 {
+		return fmt.Errorf("%s slot %d sits at %d, which its own %d-byte alignment does not divide",
+			owner, index, ref.Offset, ref.Align)
+	}
+	return nil
+}
+
+// TestRuntimeV2VMOrdinaryStorageCarriesNoBoxedRepresentation is the absence
+// half, asked of the types rather than of a program.
+//
+// A program can only show that the box was not used on the paths it took. These
+// two assertions show there is nothing to use: a kind that named a boxed
+// composite would have to exist for one to be built, and a member list on the
+// heap object would have to exist for one to be stored.
+func TestRuntimeV2VMOrdinaryStorageCarriesNoBoxedRepresentation(t *testing.T) {
+	// No value kind names a boxed composite. The kinds are a small dense enum,
+	// so walking past the end costs nothing and catches one appended later.
+	composites := 0
+	for raw := range 256 {
+		switch name := vm.ValueKind(raw).String(); name { //nolint:gosec // bounded by the loop
+		case "struct", "tag":
+			t.Fatalf("value kind %d is named %q, so a composite can still be carried as a box", raw, name)
+		case "composite":
+			composites++
+		}
+	}
+	if composites != 1 {
+		t.Fatalf("%d value kinds render as \"composite\", want exactly one", composites)
+	}
+
+	// No heap object carries a member list a composite could live in. Named
+	// exactly, because the point is not that these particular fields are gone
+	// but that nothing on the object holds Values for a composite to be spread
+	// across.
+	object := reflect.TypeOf(vm.Object{})
+	for i := range object.NumField() {
+		field := object.Field(i)
+		switch field.Name {
+		case "Fields", "Tag":
+			t.Fatalf("Object.%s survives, so a composite still has a box to live in", field.Name)
+		}
+		if strings.Contains(field.Type.String(), "TagObject") {
+			t.Fatalf("Object.%s is a %s, which is the tagged-union box", field.Name, field.Type)
+		}
+	}
+}
+
 func TestRuntimeV2VMOrdinaryStorageSelectsLayoutOwnedStorage(t *testing.T) {
 	if testing.Short() {
 		t.Skip("the layer-2 gate compiles the whole corpus")
@@ -133,6 +212,11 @@ func TestRuntimeV2VMOrdinaryStorageSelectsLayoutOwnedStorage(t *testing.T) {
 				t.Fatalf("%s creates no composite values, so it is not evidence for this gate", fixture.name)
 			}
 			composites += found
+
+			live := auditRunningComposites(t, module, files, interner)
+			if live == 0 {
+				t.Fatalf("%s held no composite while running, so the runtime half saw nothing", fixture.name)
+			}
 		})
 	}
 
@@ -140,6 +224,54 @@ func TestRuntimeV2VMOrdinaryStorageSelectsLayoutOwnedStorage(t *testing.T) {
 		t.Fatal("the corpus produced no composite slots at all, which means the walk found nothing")
 	}
 	t.Logf("layer 2: %d composite slots and %d call signatures, all layout-owned", composites, signatures)
+}
+
+// auditRunningComposites RUNS the program and checks every composite any
+// activation holds, at every step, returning how many it inspected.
+//
+// It steps rather than running to completion because the invariant is about
+// values while they are live: a composite that goes stale is wrong at the moment
+// it is read, and a program that has finished is holding nothing. The step
+// budget bounds a corpus row that loops; a row that stops early for any reason
+// still contributes every step it took, and stopping is not a failure here —
+// this gate is about what the storage IS, and the corpus rows prove that they
+// RUN somewhere else.
+func auditRunningComposites(t *testing.T, module *mir.Module, files *source.FileSet, interner *types.Interner) int {
+	t.Helper()
+	const stepBudget = 20000
+
+	machine := vm.New(module, vm.NewTestRuntime(nil, ""), files, interner, nil)
+	if vmErr := machine.Start(); vmErr != nil {
+		t.Fatalf("the corpus row must start: %v", vmErr)
+	}
+	seen := 0
+	for range stepBudget {
+		for _, frame := range machine.Stack {
+			if frame == nil {
+				continue
+			}
+			for index := range frame.Locals {
+				slot := &frame.Locals[index]
+				if !slot.IsInit || slot.IsMoved || slot.IsDropped {
+					continue
+				}
+				if _, isComposite := slot.V.Storage(); !isComposite {
+					continue
+				}
+				if err := checkLiveComposite(frame.Func.Name, index, slot.V); err != nil {
+					t.Fatal(err)
+				}
+				seen++
+			}
+		}
+		if machine.Halted {
+			break
+		}
+		if vmErr := machine.Step(); vmErr != nil {
+			break
+		}
+	}
+	return seen
 }
 
 // auditSlots reduces one plan to storage facts taken from the registry and
@@ -294,5 +426,57 @@ func TestRuntimeV2VMOrdinaryStorageGateRejectsStorageItShouldReject(t *testing.T
 		{index: 2, offset: vm.NoStorageOffset},
 	}); err != nil {
 		t.Fatalf("the gate must accept two disjoint, aligned extents beside a scalar: %v", err)
+	}
+}
+
+// TestRuntimeV2VMOrdinaryStorageGateRejectsCompositesItShouldReject is the same
+// control for the runtime rule, and the first case is the one that matters: a
+// composite carried as a handle is the box coming back, and a gate that could
+// not name it would be asserting nothing.
+func TestRuntimeV2VMOrdinaryStorageGateRejectsCompositesItShouldReject(t *testing.T) {
+	// An arena that has never been rewound is on generation 0, so a reference
+	// claiming any other generation is stale by construction.
+	arena := &vm.Arena{}
+
+	for _, tc := range []struct {
+		name  string
+		value vm.Value
+		says  string
+	}{
+		{
+			name:  "a composite carried as a handle",
+			value: vm.MakeHandleString(1, types.NoTypeID),
+			says:  "not as its storage",
+		},
+		{
+			name:  "a composite naming no arena",
+			value: vm.MakeComposite(vm.StorageRef{Offset: 0, Align: 8}),
+			says:  "names no arena",
+		},
+		{
+			name:  "a reference into an arena that has moved on",
+			value: vm.MakeComposite(vm.StorageRef{Arena: arena, Gen: 1, Offset: 0, Align: 8}),
+			says:  "names generation 1 of an arena now at 0",
+		},
+		{
+			name:  "a composite at an offset its alignment does not divide",
+			value: vm.MakeComposite(vm.StorageRef{Arena: arena, Offset: 4, Align: 8}),
+			says:  "alignment does not divide",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkLiveComposite("control", 0, tc.value)
+			if err == nil {
+				t.Fatal("the gate accepted a composite it must reject")
+			}
+			if !strings.Contains(err.Error(), tc.says) {
+				t.Fatalf("the refusal must name what is wrong; %q lacks %q", err, tc.says)
+			}
+		})
+	}
+
+	if err := checkLiveComposite("control", 0,
+		vm.MakeComposite(vm.StorageRef{Arena: arena, Offset: 8, Align: 8})); err != nil {
+		t.Fatalf("the gate must accept a live, aligned composite: %v", err)
 	}
 }
