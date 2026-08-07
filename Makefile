@@ -164,9 +164,16 @@ runtime-v2-ownership-check:
 	@echo ">> Running Runtime V2 ownership corpus gate"
 	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_ownership_corpus ./internal/ownershipgate -run '^Test(OwnershipCorpusCompileProfileContract|OwnershipCorpusInventoryDigestContract|OwnershipCorpusCensusReportContract|OwnershipCorpusCensusReportAccountingContract|OwnershipCorpusCensusReportInvalidationAndAtomicFailure|OwnershipCorpusFailureSignatureContract|OwnershipCorpusLLVMBackendContract|RuntimeV2OwnershipCorpus)$$' -count=1 -parallel=1 -p=1 -v --timeout 900s
 
+# The crossinggate package runs for about a minute on the reference host, so the
+# 60s it used to get made this gate a coin flip: measured runs landed at 59.9s
+# and 60.0s on either side of the limit. A timeout that close to the real
+# runtime does not catch a hang, it manufactures a red gate that goes green on
+# a re-run, which is the habit most corrosive to every other gate here. The
+# headroom below is deliberate; a genuine hang is unbounded and will still be
+# caught. Measure before lowering it.
 runtime-v2-crossing-check:
 	@echo ">> Running Runtime V2 crossing readiness gate"
-	$(GO) test ./internal/crossinggate -count=1 --timeout 60s
+	$(GO) test ./internal/crossinggate -count=1 --timeout 300s
 	$(GO) test ./internal/buildpipeline ./internal/hir -run '^(TestCrossingBackendUnavailableMessages|TestCrossingBackendGuardsAreDefaultClosed|TestCrossingBackendGuardDoesNotMaskSemaErrors|TestCrossingBackendGuardsCoverImportedModules|TestVMAndUnknownBackendsKeepExecutableAsyncFormsGuarded|TestLLVMTransportCapabilityOpensAsyncSpawnOn|TestLLVMTransportCapabilityOpensAsyncImmediateOn|TestLLVMTransportCapabilityOpensAsyncFarTaskLifecycle|TestLowerOnCrossingBypassReturnsError|TestLowerSpawnOnCrossingBypassReturnsError|TestLowerFarTaskCrossingBypassReturnsError|TestLowerCrossingRepresentationWithExplicitCapability)$$' -count=1 --timeout 60s
 	$(GO) test ./internal/mono ./internal/mir -run '^(TestMonoPreservesCrossingRepresentation|TestMIRCrossingRepresentationWithExplicitCapability|TestMIRCrossingValidationDefaultClosed|TestMIRAsyncCrossingSuspendRepresentation)$$' -count=1 --timeout 60s
 	$(GO) test ./internal/sema ./internal/driver -run '^(TestCrossingLowering.*|TestFunctionCrossingEffectInference|TestCrossingReadinessDebt024ModuleImportDoesNotRequireImportedEffects)$$' -count=1 --timeout 60s
