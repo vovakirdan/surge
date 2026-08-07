@@ -474,7 +474,7 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 	vm.Halted = false
 	vm.started = true
 
-	frame := NewFrame(fn)
+	frame := vm.activate(fn)
 	vm.Stack = []*Frame{frame}
 
 	for len(vm.Stack) > 0 && !vm.Halted {

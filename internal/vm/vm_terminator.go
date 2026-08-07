@@ -62,6 +62,9 @@ func (vm *VM) execTermReturn(frame *Frame, term *mir.Terminator) *VMError {
 
 	// Pop current frame
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	if vmErr := vm.retireActivation(frame); vmErr != nil {
+		return vmErr
+	}
 
 	// If stack not empty, store return value in caller's destination
 	if len(vm.Stack) > 0 {
@@ -103,6 +106,9 @@ func (vm *VM) execTermAsyncYield(frame *Frame, term *mir.Terminator) *VMError {
 	}
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	if vmErr := vm.retireActivation(frame); vmErr != nil {
+		return vmErr
+	}
 	vm.asyncCapture.set = true
 	switch {
 	case vm.currentTaskCancelled():
@@ -140,6 +146,9 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 	}
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	if vmErr := vm.retireActivation(frame); vmErr != nil {
+		return vmErr
+	}
 	vm.asyncCapture.set = true
 	vm.asyncCapture.kind = asyncrt.PollDoneSuccess
 	vm.asyncCapture.parkKey = asyncrt.WakerKey{}
@@ -159,6 +168,9 @@ func (vm *VM) execTermAsyncReturnCancelled(frame *Frame, term *mir.Terminator) *
 	}
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	if vmErr := vm.retireActivation(frame); vmErr != nil {
+		return vmErr
+	}
 	vm.asyncCapture.set = true
 	vm.asyncCapture.kind = asyncrt.PollDoneCancelled
 	vm.asyncCapture.parkKey = asyncrt.WakerKey{}

@@ -57,6 +57,7 @@ func (c *taskStatePinCollector) rollbackPins() {
 			continue
 		}
 		slot.PinCount--
+		unpinFrameStorage(pin.frame)
 	}
 }
 
@@ -106,8 +107,17 @@ func (vm *VM) releaseTaskStatePins(pins taskStatePins) {
 			continue
 		}
 		slot.PinCount--
+		unpinFrameStorage(pin.frame)
 		if slot.PinCount == 0 && !vm.frameOnStack(pin.frame) {
 			vm.releaseDetachedLocal(pin.frame, pin.local)
+			// The activation is off the stack and this slot no longer holds it
+			// up. Retiring is refused while any OTHER slot of the same frame is
+			// still pinned, so the last release is the one that takes effect.
+			// A temporary that could not be released is not reported from
+			// here: releasing a pin is not an operation the program asked for,
+			// so it has no result to fail. The shutdown leak check sees the
+			// same fact with the whole heap in front of it.
+			_ = vm.retireActivation(pin.frame) //nolint:errcheck // see above
 		}
 	}
 }
@@ -195,6 +205,7 @@ func (c *taskStatePinCollector) pinLocal(frame *Frame, local int32) *VMError {
 		return c.vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: local %q used after drop", slot.Name))
 	}
 	slot.PinCount++
+	pinFrameStorage(frame)
 	c.pins.locals = append(c.pins.locals, key)
 	return c.visitValue(slot.V)
 }

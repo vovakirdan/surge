@@ -60,7 +60,7 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 	}
 
 	// Push new frame
-	newFrame := NewFrame(targetFn)
+	newFrame := vm.activate(targetFn)
 	newFrame.Result = contract.resultProtocolFor(callResultDest(frame, call))
 
 	if vmErr := vm.passArguments(newFrame, contract, args); vmErr != nil {

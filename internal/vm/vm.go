@@ -45,6 +45,7 @@ type VM struct {
 	netNextConn   uint64
 
 	contracts           map[*mir.Func]callContract
+	storagePlans        map[*mir.Func]*StoragePlan
 	eb                  *errorBuilder // for creating errors with backtrace
 	captureReturn       *Value
 	asyncCapture        *asyncExit
@@ -158,7 +159,7 @@ func (vm *VM) Start() *VMError {
 		return nil
 	}
 
-	vm.Stack = append(vm.Stack, NewFrame(startFn))
+	vm.Stack = append(vm.Stack, vm.activate(startFn))
 	vm.started = true
 
 	if vm.Replayer != nil {
@@ -196,6 +197,10 @@ func (vm *VM) Step() (vmErr *VMError) {
 	block := frame.CurrentBlock()
 	if block == nil {
 		return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid block id: %d", frame.BB))
+	}
+
+	if boundaryErr := vm.beginStep(frame); boundaryErr != nil {
+		return boundaryErr
 	}
 
 	if frame.AtTerminator() {

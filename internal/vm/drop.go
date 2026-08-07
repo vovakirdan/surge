@@ -77,6 +77,13 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 func (vm *VM) dropAllFrames() {
 	for i := len(vm.Stack) - 1; i >= 0; i-- {
 		vm.dropFrameLocals(vm.Stack[i])
+		// Abandoning the stack abandons every activation on it, including the
+		// one that was partway through an instruction, so its temporaries are
+		// released here rather than at a boundary it will never reach. A
+		// temporary that cannot be released is not reported from here: this path
+		// is already unwinding, and the leak check that follows a shutdown sees
+		// the same fact with the whole heap in front of it.
+		_ = vm.retireActivation(vm.Stack[i]) //nolint:errcheck // see above
 	}
 }
 
