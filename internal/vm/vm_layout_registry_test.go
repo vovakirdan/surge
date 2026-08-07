@@ -19,7 +19,7 @@ func TestTypedHeapAccountingFailsClosedOnInvalidLayoutState(t *testing.T) {
 	typed := typesIn.RegisterStruct(typesIn.Strings.Intern("Typed"), source.Span{})
 	typesIn.SetStructFields(typed, []types.StructField{{Type: typesIn.Builtins().Int32}})
 
-	for _, kind := range []ObjectKind{OKArray, OKMap, OKStruct, OKTag, OKRange} {
+	for _, kind := range []ObjectKind{OKArray, OKMap, OKRange, OKResource} {
 		t.Run(fmt.Sprintf("kind_%d", kind), func(t *testing.T) {
 			instance := New(&mir.Module{Meta: &mir.ModuleMeta{}}, NewTestRuntime(nil, ""), nil, typesIn, nil)
 			instance.Heap.alloc(kind, typed)
@@ -40,7 +40,7 @@ func TestTypedHeapAccountingFailsClosedOnInvalidLayoutState(t *testing.T) {
 		t.Fatal(err)
 	}
 	instance := New(&mir.Module{Meta: &mir.ModuleMeta{Layouts: registry}}, NewTestRuntime(nil, ""), nil, typesIn, nil)
-	instance.Heap.AllocStruct(typed, nil)
+	instance.Heap.alloc(OKRange, typed)
 	if _, err := instance.heapStatsSnapshot(); err == nil || !strings.Contains(err.Error(), "missing finalized registry entry") {
 		t.Fatalf("missing-entry error = %v", err)
 	}
@@ -82,7 +82,7 @@ func TestHeapDebugIntrinsicsReturnDeterministicInternalErrors(t *testing.T) {
 				&mir.Module{Meta: &mir.ModuleMeta{Layouts: test.registry}},
 				NewTestRuntime(nil, ""), nil, typesIn, nil,
 			)
-			instance.Heap.AllocStruct(typed, nil)
+			instance.Heap.alloc(OKRange, typed)
 			statsFrame := NewFrame(&mir.Func{Locals: []mir.Local{{Type: statsType}}})
 			dumpFrame := NewFrame(&mir.Func{Locals: []mir.Local{{Type: typesIn.Builtins().String}}})
 			call := &mir.CallInstr{HasDst: true, Dst: mir.Place{Kind: mir.PlaceLocal, Local: 0}}
@@ -112,7 +112,7 @@ func TestHeapAccountingAcceptsTrueZSTAndRejectsOverflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	instance := New(&mir.Module{Meta: &mir.ModuleMeta{Layouts: registry}}, NewTestRuntime(nil, ""), nil, typesIn, nil)
-	instance.Heap.AllocStruct(zst, nil)
+	instance.Heap.alloc(OKRange, zst)
 	snapshot, err := instance.heapStatsSnapshot()
 	if err != nil || snapshot.liveBlocks != 1 || snapshot.liveBytes != 0 {
 		t.Fatalf("ZST snapshot = %+v, %v", snapshot, err)

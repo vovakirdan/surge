@@ -10,8 +10,6 @@ const (
 	LKLocal LocKind = iota
 	// LKGlobal represents a global variable location.
 	LKGlobal
-	// LKStructField represents a struct field location.
-	LKStructField
 	// LKArrayElem represents an array element location.
 	LKArrayElem
 	// LKMapElem represents a map element location.
@@ -20,8 +18,17 @@ const (
 	LKStringBytes
 	// LKRawBytes represents a raw bytes location.
 	LKRawBytes
-	// LKTagField represents a tagged union payload location.
-	LKTagField
+	// LKStorage names bytes in an arena: the storage of a composite value, or
+	// of one member projected out of it.
+	//
+	// It replaces naming a member by a container handle and an index. Those two
+	// answered "which slot of which object", which is a question only a boxed
+	// representation can answer; exact layout has no slots, it has offsets, and
+	// the offset of a member is arithmetic on the offset of its owner. Carrying
+	// the arena and the generation rather than a handle is also what lets a
+	// projection outlive nothing: the reference goes stale with the storage it
+	// came from instead of with an object that may be shared.
+	LKStorage
 )
 
 // Location represents a memory location in the VM.
@@ -36,6 +43,13 @@ type Location struct {
 	Handle     Handle
 	Kind       LocKind
 
+	// Storage is the extent an LKStorage location names. It is a StorageRef and
+	// not an offset beside the others because an offset alone is not a
+	// location: without the arena it belongs to and the generation it was
+	// formed at, bytes that have been handed to a different value read back
+	// perfectly well as the value that used to be there.
+	Storage StorageRef
+
 	IsMut bool
 }
 
@@ -45,8 +59,6 @@ func (l Location) String() string {
 		return fmt.Sprintf("L%d", l.Local)
 	case LKGlobal:
 		return fmt.Sprintf("G%d", l.Global)
-	case LKStructField:
-		return fmt.Sprintf("struct.field[%d]", l.Index)
 	case LKArrayElem:
 		return fmt.Sprintf("array[%d]", l.Index)
 	case LKMapElem:
@@ -55,8 +67,8 @@ func (l Location) String() string {
 		return fmt.Sprintf("string.bytes+%d", l.ByteOffset)
 	case LKRawBytes:
 		return fmt.Sprintf("raw+%d", l.ByteOffset)
-	case LKTagField:
-		return fmt.Sprintf("tag.field[%d]", l.Index)
+	case LKStorage:
+		return fmt.Sprintf("storage+%d:type#%d", l.Storage.Offset, l.Storage.TypeID)
 	default:
 		return "<invalid-loc>"
 	}

@@ -1,8 +1,6 @@
 package vm
 
 import (
-	"fmt"
-
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -121,17 +119,11 @@ func (vm *VM) durationNanos(value Value) (int64, *VMError) {
 		}
 		value = loaded
 	}
-	if value.Kind != VKHandleStruct {
+	owner, isComposite := value.Storage()
+	if !isComposite {
 		return 0, vm.eb.typeMismatch("Duration", value.Kind.String())
 	}
-	obj := vm.Heap.Get(value.H)
-	if obj == nil {
-		return 0, vm.eb.typeMismatch("Duration", "invalid handle")
-	}
-	if obj.Kind != OKStruct {
-		return 0, vm.eb.typeMismatch("Duration", fmt.Sprintf("%v", obj.Kind))
-	}
-	layout, vmErr := vm.layouts.Struct(value.TypeID)
+	layout, vmErr := vm.layouts.Struct(owner.TypeID)
 	if vmErr != nil {
 		return 0, vmErr
 	}
@@ -139,10 +131,10 @@ func (vm *VM) durationNanos(value Value) (int64, *VMError) {
 	if !ok {
 		return 0, vm.eb.makeError(PanicTypeMismatch, "Duration missing __opaque field")
 	}
-	if idx < 0 || idx >= len(obj.Fields) {
-		return 0, vm.eb.makeError(PanicOutOfBounds, "Duration __opaque field out of range")
+	field, vmErr := vm.peekMember(owner, idx)
+	if vmErr != nil {
+		return 0, vmErr
 	}
-	field := obj.Fields[idx]
 	if field.Kind != VKInt {
 		return 0, vm.eb.typeMismatch("int64", field.Kind.String())
 	}
@@ -167,8 +159,7 @@ func (vm *VM) durationValue(nanos int64, typeID types.TypeID) (Value, *VMError) 
 		fieldType = vm.Types.Builtins().Int
 	}
 	fields[idx] = MakeInt(nanos, fieldType)
-	h := vm.Heap.AllocStruct(typeID, fields)
-	return MakeHandleStruct(h, typeID), nil
+	return vm.buildStruct(vm.currentFrame(), typeID, fields)
 }
 
 func (vm *VM) writeDurationResult(frame *Frame, dst mir.LocalID, value Value, writes *[]LocalWrite) *VMError {

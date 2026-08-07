@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"surge/internal/symbols"
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
 )
@@ -22,10 +21,6 @@ const (
 	OKArraySlice
 	// OKMap represents a map object.
 	OKMap
-	// OKStruct represents a struct object.
-	OKStruct
-	// OKTag represents a tagged union object.
-	OKTag
 	// OKBigInt represents a big integer object.
 	OKBigInt
 	// OKBigUint represents a big unsigned integer object.
@@ -34,6 +29,17 @@ const (
 	OKBigFloat
 	// OKRange represents a range object.
 	OKRange
+	// OKResource represents a runtime-owned resource: a task, a channel or an
+	// open file. It carries one opaque word and nothing else, because that word
+	// is the whole value — the runtime owns what the word names, and no Surge
+	// source can construct or read one.
+	//
+	// This is the settled shape for these types, not a step towards another
+	// one. The wave that moves task, channel and select OWNERSHIP builds on
+	// this carrier rather than replacing it: what that work changes is who
+	// reclaims what the word names and when, which is a question about the
+	// runtime's side of the word, not about how the language carries it.
+	OKResource
 )
 
 // StringKind identifies the kind of string representation.
@@ -47,12 +53,6 @@ const (
 	// StringSlice represents a string slice.
 	StringSlice
 )
-
-// TagObject represents a tagged union object.
-type TagObject struct {
-	TagSym symbols.SymbolID
-	Fields []Value
-}
 
 // RangeKind identifies the kind of range object.
 type RangeKind uint8
@@ -110,11 +110,25 @@ type Object struct {
 	ArrSliceCap   int
 	MapIndex      map[mapKey]int
 	MapEntries    []mapEntry
-	Fields        []Value
-	Tag           TagObject
 	Range         RangeObject
 
 	BigInt   bignum.BigInt
 	BigUint  bignum.BigUint
 	BigFloat bignum.BigFloat
+
+	// Resource is the opaque word of an OKResource: a task id, a channel id, a
+	// file handle, a socket handle or a nanosecond count. It is not a heap
+	// handle and is never followed, which is why releasing a resource releases
+	// nothing beneath it.
+	Resource int64
+
+	// storage is the arena the composite members of a container live in.
+	//
+	// A container OUTLIVES the activation that built what goes into it, so an
+	// element cannot be a reference into a frame arena that is about to retire —
+	// and with the boxed representation gone there is nothing else a composite
+	// element could be. The container therefore owns storage of its own: a value
+	// is COPIED into it on the way in and the whole arena is released when the
+	// object is freed.
+	storage *scratch
 }

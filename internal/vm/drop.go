@@ -77,6 +77,13 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 func (vm *VM) dropAllFrames() {
 	for i := len(vm.Stack) - 1; i >= 0; i-- {
 		vm.dropFrameLocals(vm.Stack[i])
+		// Abandoning the stack abandons every activation on it, including the
+		// one that was partway through an instruction, so its temporaries are
+		// released here rather than at a boundary it will never reach. A
+		// temporary that cannot be released is not reported from here: this path
+		// is already unwinding, and the leak check that follows a shutdown sees
+		// the same fact with the whole heap in front of it.
+		_ = vm.retireActivation(vm.Stack[i]) //nolint:errcheck // see above
 	}
 }
 
@@ -117,22 +124,38 @@ func (vm *VM) dropAsyncTasks() {
 		if v, ok := task.ResultValue.(Value); ok {
 			vm.dropValue(v)
 		}
+		// A resume value still on a task at shutdown is a payload that was
+		// delivered and never read.
 		if v, ok := task.ResumeValue.(Value); ok {
-			vm.dropValue(v)
+			vm.transportRelease(v)
 		}
 		task.State = nil
 		task.ResultValue = nil
 		task.ResumeValue = nil
 	}
+	// Drop-without-receive: values still in a channel buffer, or in a parked
+	// sender's queue entry, when the program ends. The receive that would have
+	// consumed them never comes, so this is the release they get — and their
+	// only one, because the drain takes them out of the runtime's hold in the
+	// same step it hands them here.
 	for _, payload := range drained.ChannelPayloads {
 		if v, ok := payload.(Value); ok {
-			vm.dropValue(v)
+			vm.transportRelease(v)
 		}
 	}
 }
 
 func (vm *VM) dropValue(v Value) {
-	if vm == nil || vm.Heap == nil || !v.IsHeap() || v.H == 0 {
+	if vm == nil || vm.Heap == nil {
+		return
+	}
+	// A composite owns storage rather than a counted object, so releasing one
+	// walks its members instead of decrementing anything.
+	if v.Kind == VKComposite {
+		vm.dropComposite(v)
+		return
+	}
+	if !v.IsHeap() || v.H == 0 {
 		return
 	}
 	vm.Heap.Release(v.H)
@@ -185,10 +208,8 @@ func (vm *VM) objectKindLabel(k ObjectKind) string {
 		return "array_slice"
 	case OKMap:
 		return "map"
-	case OKStruct:
-		return "struct"
-	case OKTag:
-		return "tag"
+	case OKResource:
+		return "resource"
 	case OKRange:
 		return "range"
 	case OKBigInt:

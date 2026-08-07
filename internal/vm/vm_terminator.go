@@ -49,25 +49,38 @@ func (vm *VM) execTermReturn(frame *Frame, term *mir.Terminator) *VMError {
 		retVal = val
 	}
 
+	// A hidden-destination result is initialized in the caller's storage while
+	// this activation is still standing. Recovering it afterwards would mean
+	// recovering it from storage that has already been torn down.
+	delivered, vmErr := vm.deliverResult(frame.Result, retVal)
+	if vmErr != nil {
+		return vmErr
+	}
+
 	// Implicit drops before returning.
 	vm.dropFrameLocals(frame)
 
 	// Pop current frame
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	if vmErr := vm.retireActivation(frame); vmErr != nil {
+		return vmErr
+	}
 
 	// If stack not empty, store return value in caller's destination
 	if len(vm.Stack) > 0 {
 		callerFrame := vm.Stack[len(vm.Stack)-1]
-		// The caller's IP points to the call instruction that was just executed
-		// Find the call instruction and its destination
-		block := callerFrame.CurrentBlock()
-		if block != nil && callerFrame.IP < len(block.Instrs) {
-			instr := &block.Instrs[callerFrame.IP]
-			if instr.Kind == mir.InstrCall && instr.Call.HasDst {
-				localID := instr.Call.Dst.Local
-				vmErr := vm.writeLocal(callerFrame, localID, retVal)
-				if vmErr != nil {
-					return vmErr
+		if !delivered {
+			// The caller's IP points to the call instruction that was just executed
+			// Find the call instruction and its destination
+			block := callerFrame.CurrentBlock()
+			if block != nil && callerFrame.IP < len(block.Instrs) {
+				instr := &block.Instrs[callerFrame.IP]
+				if instr.Kind == mir.InstrCall && instr.Call.HasDst {
+					localID := instr.Call.Dst.Local
+					vmErr := vm.writeLocal(callerFrame, localID, retVal)
+					if vmErr != nil {
+						return vmErr
+					}
 				}
 			}
 		}
@@ -93,6 +106,9 @@ func (vm *VM) execTermAsyncYield(frame *Frame, term *mir.Terminator) *VMError {
 	}
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	if vmErr := vm.retireActivation(frame); vmErr != nil {
+		return vmErr
+	}
 	vm.asyncCapture.set = true
 	switch {
 	case vm.currentTaskCancelled():
@@ -130,6 +146,9 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 	}
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	if vmErr := vm.retireActivation(frame); vmErr != nil {
+		return vmErr
+	}
 	vm.asyncCapture.set = true
 	vm.asyncCapture.kind = asyncrt.PollDoneSuccess
 	vm.asyncCapture.parkKey = asyncrt.WakerKey{}
@@ -149,6 +168,9 @@ func (vm *VM) execTermAsyncReturnCancelled(frame *Frame, term *mir.Terminator) *
 	}
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	if vmErr := vm.retireActivation(frame); vmErr != nil {
+		return vmErr
+	}
 	vm.asyncCapture.set = true
 	vm.asyncCapture.kind = asyncrt.PollDoneCancelled
 	vm.asyncCapture.parkKey = asyncrt.WakerKey{}

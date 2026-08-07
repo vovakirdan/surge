@@ -24,6 +24,22 @@ type Frame struct {
 	IP     int         // Instruction pointer within BB.Instrs
 	Locals []LocalSlot // Local variable slots
 	Span   source.Span // Current instruction span for error reporting
+
+	// Result is how this activation's result reaches its caller, decided by
+	// the caller at the call boundary. An activation entered other than by a
+	// call — the program entry, or an async poll — leaves it unset, and its
+	// result travels back the way it always did.
+	Result resultProtocol
+
+	// storage holds the bytes of this activation's composite slots, laid out
+	// once per function by the layout registry. It is attached by the VM, so a
+	// frame built without one has none.
+	storage *Arena
+	// scratch holds the composites this activation's instructions build before
+	// they are stored anywhere, and scratchMark is the high-water point the
+	// current instruction started from.
+	scratch     *scratch
+	scratchMark scratchMark
 }
 
 // NewFrame creates a new frame for executing the given function.
@@ -39,11 +55,12 @@ func NewFrame(fn *mir.Func) *Frame {
 		}
 	}
 	return &Frame{
-		Func:   fn,
-		BB:     fn.Entry,
-		IP:     0,
-		Locals: locals,
-		Span:   fn.Span,
+		Func:    fn,
+		BB:      fn.Entry,
+		IP:      0,
+		Locals:  locals,
+		Span:    fn.Span,
+		scratch: newScratch(),
 	}
 }
 

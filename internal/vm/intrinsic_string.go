@@ -246,8 +246,10 @@ func (vm *VM) handleFromBytes(frame *Frame, call *mir.CallInstr, writes *[]Local
 	payloadType := successCase.PayloadTypes[0]
 	h := vm.Heap.AllocString(payloadType, str)
 	payload := MakeHandleString(h, payloadType)
-	tag := vm.Heap.AllocTag(dstType, successCase.TagSym, []Value{payload})
-	tagVal := MakeHandleTag(tag, dstType)
+	tagVal, buildErr := vm.buildTag(frame, dstType, successCase.TagSym, []Value{payload})
+	if buildErr != nil {
+		return buildErr
+	}
 	if vmErr := vm.writeLocal(frame, dstLocal, tagVal); vmErr != nil {
 		vm.dropValue(tagVal)
 		return vmErr
@@ -466,10 +468,12 @@ func (vm *VM) handleStringBytesView(frame *Frame, call *mir.CallInstr, writes *[
 		return vm.eb.invalidNumericConversion("bytes view length out of range")
 	}
 	fields[info.lenIdx] = vm.makeBigUint(info.layout.FieldTypes[info.lenIdx], bignum.UintFromUint64(u64))
-	h := vm.Heap.AllocStruct(info.layout.TypeID, fields)
-	val := MakeHandleStruct(h, dstType)
+	val, buildErr := vm.buildStruct(frame, dstType, fields)
+	if buildErr != nil {
+		return buildErr
+	}
 	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
-		vm.Heap.Release(h)
+		vm.dropValue(val)
 		return vmErr
 	}
 	*writes = append(*writes, LocalWrite{
@@ -595,37 +599,4 @@ func (vm *VM) extractStringValue(arg Value) (Value, *VMError) {
 		return Value{}, vm.eb.typeMismatch("string", strVal.Kind.String())
 	}
 	return strVal, nil
-}
-
-// decodeUTF16Strict decodes a UTF-16 sequence strictly, rejecting invalid sequences.
-func decodeUTF16Strict(units []uint16) (string, bool) {
-	if len(units) == 0 {
-		return "", true
-	}
-	runes := make([]rune, 0, len(units))
-	for i := 0; i < len(units); i++ {
-		u := units[i]
-		switch {
-		case u >= 0xD800 && u <= 0xDBFF:
-			if i+1 >= len(units) {
-				return "", false
-			}
-			lo := units[i+1]
-			if lo < 0xDC00 || lo > 0xDFFF {
-				return "", false
-			}
-			code := 0x10000 + ((uint32(u) - 0xD800) << 10) + (uint32(lo) - 0xDC00)
-			r, err := safecast.Conv[rune](code)
-			if err != nil {
-				return "", false
-			}
-			runes = append(runes, r)
-			i++
-		case u >= 0xDC00 && u <= 0xDFFF:
-			return "", false
-		default:
-			runes = append(runes, rune(u))
-		}
-	}
-	return string(runes), true
 }

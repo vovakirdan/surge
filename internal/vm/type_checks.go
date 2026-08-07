@@ -118,149 +118,46 @@ func (vm *VM) typeHeir(left, right types.TypeID) bool {
 	return false
 }
 
-func (vm *VM) retagUnionValue(val Value, expected types.TypeID) (Value, bool) {
+// retagUnionValue adapts a value to the union type its destination declares.
+//
+// Under a box this was a RELABEL — write a different TypeID onto the object and
+// change nothing else — and it could afford to be, because the object carried
+// its members as values and no layout depended on which union named it. Storage
+// removed that freedom: two unions order their arms and place their payloads
+// independently, so the same arm sits somewhere different in each. The work is
+// therefore a conversion, and retagUnion does it.
+//
+// There are three answers here, not two, and collapsing them is how a real
+// failure became a misleading one.
+//
+// A conversion that DOES NOT APPLY leaves the value alone and reports false
+// without raising: the value is not a union of a convertible shape, the store
+// this feeds is about to refuse it anyway, and that refusal names both types
+// where a refusal here would name only the moment somebody asked.
+//
+// A conversion that applies and FAILS is a different thing entirely — the arms
+// matched but the payload could not be moved, the destination could not be
+// built, the discriminant could not be written. That was reported as "does not
+// apply" too, which handed the caller back the unconverted value and let the
+// store fail later for a reason that had nothing to do with the actual fault.
+// It is how a precise storage error once surfaced as `unimplemented: __to
+// conversion`. The error is returned now, and every caller propagates it.
+func (vm *VM) retagUnionValue(val Value, expected types.TypeID) (Value, bool, *VMError) {
 	if vm == nil || vm.Types == nil || expected == types.NoTypeID {
-		return val, false
+		return val, false, nil
 	}
-	if val.Kind != VKHandleTag {
-		return val, false
+	ref, isTag := vm.isTagStorage(val)
+	if !isTag {
+		return val, false, nil
 	}
-	targetVal := vm.valueType(expected)
-	valType := vm.valueType(val.TypeID)
-	if targetVal == types.NoTypeID || valType == types.NoTypeID || targetVal == valType {
-		return val, false
+	converted, changed, vmErr := vm.retagUnion(vm.currentFrame(), ref, expected)
+	if vmErr != nil {
+		return val, false, vmErr
 	}
-	if vm.tagLayouts != nil {
-		if layout, ok := vm.tagLayouts.Layout(targetVal); ok && layout != nil {
-			if val.H != 0 {
-				if obj := vm.Heap.Get(val.H); obj != nil && obj.Kind == OKTag {
-					if _, ok := layout.CaseBySym(obj.Tag.TagSym); ok {
-						val.TypeID = expected
-						obj.TypeID = expected
-						return val, true
-					}
-				}
-			}
-		}
+	if !changed {
+		return val, false, nil
 	}
-	if !vm.isUnionType(targetVal) || !vm.unionContains(targetVal, valType) {
-		return val, false
-	}
-	val.TypeID = expected
-	if val.H != 0 {
-		if obj := vm.Heap.Get(val.H); obj != nil && obj.Kind == OKTag {
-			obj.TypeID = expected
-		}
-	}
-	return val, true
-}
-
-func (vm *VM) compatiblePayloadTypes(expected, got types.TypeID) bool {
-	if expected == got {
-		return true
-	}
-	if expected == types.NoTypeID || got == types.NoTypeID || vm.Types == nil {
-		return false
-	}
-	expVal := vm.valueType(expected)
-	gotVal := vm.valueType(got)
-	if expVal == gotVal {
-		return true
-	}
-	if expElem, ok := vm.Types.ArrayInfo(expVal); ok {
-		if gotElem, ok := vm.Types.ArrayInfo(gotVal); ok {
-			return vm.compatiblePayloadTypes(expElem, gotElem)
-		}
-	}
-	if expElem, expLen, ok := vm.Types.ArrayFixedInfo(expVal); ok {
-		if gotElem, gotLen, ok := vm.Types.ArrayFixedInfo(gotVal); ok && expLen == gotLen {
-			return vm.compatiblePayloadTypes(expElem, gotElem)
-		}
-	}
-	if expTuple, ok := vm.Types.TupleInfo(expVal); ok && expTuple != nil {
-		if gotTuple, ok := vm.Types.TupleInfo(gotVal); ok && gotTuple != nil {
-			if len(expTuple.Elems) != len(gotTuple.Elems) {
-				return false
-			}
-			for i := range expTuple.Elems {
-				if !vm.compatiblePayloadTypes(expTuple.Elems[i], gotTuple.Elems[i]) {
-					return false
-				}
-			}
-			return true
-		}
-	}
-	if expInfo, ok := vm.Types.UnionInfo(expVal); ok && expInfo != nil {
-		if gotInfo, ok := vm.Types.UnionInfo(gotVal); ok && gotInfo != nil {
-			if expInfo.Name != source.NoStringID && expInfo.Name == gotInfo.Name {
-				if len(expInfo.TypeArgs) != len(gotInfo.TypeArgs) {
-					return false
-				}
-				for i := range expInfo.TypeArgs {
-					if !vm.compatiblePayloadTypes(expInfo.TypeArgs[i], gotInfo.TypeArgs[i]) {
-						return false
-					}
-				}
-				return true
-			}
-			if len(expInfo.Members) != len(gotInfo.Members) {
-				return false
-			}
-			for i := range expInfo.Members {
-				expMember := expInfo.Members[i]
-				gotMember := gotInfo.Members[i]
-				if expMember.Kind != gotMember.Kind {
-					return false
-				}
-				switch expMember.Kind {
-				case types.UnionMemberNothing:
-					continue
-				case types.UnionMemberType:
-					if !vm.compatiblePayloadTypes(expMember.Type, gotMember.Type) {
-						return false
-					}
-				case types.UnionMemberTag:
-					if expMember.TagName != gotMember.TagName {
-						return false
-					}
-					if len(expMember.TagArgs) != len(gotMember.TagArgs) {
-						return false
-					}
-					for j := range expMember.TagArgs {
-						if !vm.compatiblePayloadTypes(expMember.TagArgs[j], gotMember.TagArgs[j]) {
-							return false
-						}
-					}
-				}
-			}
-			return true
-		}
-	}
-	if vm.tagLayouts != nil {
-		if expLayout, ok := vm.tagLayouts.Layout(expVal); ok && expLayout != nil {
-			if gotLayout, ok := vm.tagLayouts.Layout(gotVal); ok && gotLayout != nil {
-				if len(expLayout.Cases) != len(gotLayout.Cases) {
-					return false
-				}
-				for _, expCase := range expLayout.Cases {
-					gotCase, ok := gotLayout.CaseByName(expCase.TagName)
-					if !ok {
-						return false
-					}
-					if len(expCase.PayloadTypes) != len(gotCase.PayloadTypes) {
-						return false
-					}
-					for i := range expCase.PayloadTypes {
-						if !vm.compatiblePayloadTypes(expCase.PayloadTypes[i], gotCase.PayloadTypes[i]) {
-							return false
-						}
-					}
-				}
-				return true
-			}
-		}
-	}
-	return false
+	return converted, true, nil
 }
 
 func (vm *VM) isUnionType(id types.TypeID) bool {

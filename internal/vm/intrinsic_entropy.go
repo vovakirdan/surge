@@ -32,8 +32,7 @@ func (vm *VM) entropyErrorValue(dstType types.TypeID, code uint64) (Value, *VMEr
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	h := vm.Heap.AllocTag(dstType, tc.TagSym, []Value{errVal})
-	return MakeHandleTag(h, dstType), nil
+	return vm.buildTag(vm.currentFrame(), dstType, tc.TagSym, []Value{errVal})
 }
 
 func (vm *VM) entropySuccessValue(dstType types.TypeID, payload Value) (Value, *VMError) {
@@ -52,8 +51,7 @@ func (vm *VM) entropySuccessValue(dstType types.TypeID, payload Value) (Value, *
 	if payload.TypeID != types.NoTypeID && vm.valueType(payload.TypeID) != vm.valueType(payloadType) {
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, "Erring Success payload type mismatch")
 	}
-	h := vm.Heap.AllocTag(dstType, tc.TagSym, []Value{payload})
-	return MakeHandleTag(h, dstType), nil
+	return vm.buildTag(vm.currentFrame(), dstType, tc.TagSym, []Value{payload})
 }
 
 func (vm *VM) entropyWriteError(frame *Frame, dstLocal mir.LocalID, dstType types.TypeID, code uint64, writes *[]LocalWrite) *VMError {

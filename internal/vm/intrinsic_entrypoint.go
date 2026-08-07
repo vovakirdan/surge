@@ -130,8 +130,10 @@ func (vm *VM) handleFromStr(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		vm.dropValue(strVal)
 	}
 
-	h := vm.Heap.AllocTag(dstType, successCase.TagSym, []Value{parsed})
-	tagVal := MakeHandleTag(h, dstType)
+	tagVal, buildErr := vm.buildTag(frame, dstType, successCase.TagSym, []Value{parsed})
+	if buildErr != nil {
+		return buildErr
+	}
 	if vmErr := vm.writeLocal(frame, dstLocal, tagVal); vmErr != nil {
 		vm.dropValue(tagVal)
 		return vmErr
@@ -178,10 +180,11 @@ func (vm *VM) parseFromString(strVal Value, targetType types.TypeID) (Value, err
 }
 
 func (vm *VM) errorLikeMessageAndCode(val Value) (message string, code int, vmErr *VMError) {
-	if val.Kind != VKHandleStruct {
+	owner, isComposite := val.Storage()
+	if !isComposite {
 		return "", 0, vm.eb.typeMismatch("ErrorLike", val.Kind.String())
 	}
-	layout, vmErr := vm.layouts.Struct(val.TypeID)
+	layout, vmErr := vm.layouts.Struct(owner.TypeID)
 	if vmErr != nil {
 		return "", 0, vmErr
 	}
@@ -193,14 +196,10 @@ func (vm *VM) errorLikeMessageAndCode(val Value) (message string, code int, vmEr
 	if !ok {
 		return "", 0, vm.eb.makeError(PanicTypeMismatch, "ErrorLike missing field 'code'")
 	}
-	obj := vm.Heap.Get(val.H)
-	if obj == nil || obj.Kind != OKStruct {
-		return "", 0, vm.eb.typeMismatch("struct", fmt.Sprintf("%v", obj.Kind))
+	msgVal, vmErr := vm.peekMember(owner, msgIdx)
+	if vmErr != nil {
+		return "", 0, vmErr
 	}
-	if msgIdx < 0 || msgIdx >= len(obj.Fields) || codeIdx < 0 || codeIdx >= len(obj.Fields) {
-		return "", 0, vm.eb.makeError(PanicOutOfBounds, "ErrorLike field index out of range")
-	}
-	msgVal := obj.Fields[msgIdx]
 	if msgVal.Kind != VKHandleString {
 		return "", 0, vm.eb.typeMismatch("string", msgVal.Kind.String())
 	}
@@ -208,7 +207,10 @@ func (vm *VM) errorLikeMessageAndCode(val Value) (message string, code int, vmEr
 	if msgObj == nil {
 		return "", 0, vm.eb.makeError(PanicOutOfBounds, "invalid ErrorLike message handle")
 	}
-	codeVal := obj.Fields[codeIdx]
+	codeVal, vmErr := vm.peekMember(owner, codeIdx)
+	if vmErr != nil {
+		return "", 0, vmErr
+	}
 	code, vmErr = vm.errorCodeFromValue(codeVal)
 	if vmErr != nil {
 		return "", 0, vmErr
@@ -308,8 +310,7 @@ func (vm *VM) makeErrorLikeValue(errType types.TypeID, msg string, code uint64) 
 	}
 	fields[codeIdx] = codeVal
 
-	h := vm.Heap.AllocStruct(layout.TypeID, fields)
-	return MakeHandleStruct(h, errType), nil
+	return vm.buildStruct(vm.currentFrame(), errType, fields)
 }
 
 func (vm *VM) makeUintForType(typeID types.TypeID, n uint64) (Value, *VMError) {

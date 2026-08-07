@@ -23,27 +23,25 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 	}
 
 	// Legacy: allow custom exit code structs with `code: int`.
-	if dstValTy == vm.Types.Builtins().Int && src.Kind == VKHandleStruct {
-		obj := vm.Heap.Get(src.H)
-		layout, vmErr := vm.layouts.Struct(obj.TypeID)
+	owner, srcIsComposite := src.Storage()
+	if dstValTy == vm.Types.Builtins().Int && srcIsComposite {
+		layout, vmErr := vm.layouts.Struct(owner.TypeID)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
 		idx, ok := layout.IndexByName["code"]
 		if !ok {
-			return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("type#%d has no field \"code\" for __to(int)", obj.TypeID))
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("type#%d has no field \"code\" for __to(int)", owner.TypeID))
 		}
-		if idx < 0 || idx >= len(obj.Fields) {
-			return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("field index %d out of bounds for type#%d", idx, obj.TypeID))
+		field, vmErr := vm.readMember(vm.currentFrame(), owner, idx)
+		if vmErr != nil {
+			return Value{}, vmErr
 		}
-		field := obj.Fields[idx]
 		switch field.Kind {
 		case VKBigInt:
-			// Convert by retaining the field, then letting the caller drop the struct.
-			out, vmErr := vm.cloneForShare(field)
-			if vmErr != nil {
-				return Value{}, vmErr
-			}
+			// The read already counted this holder, so the caller dropping the
+			// composite it came from leaves this one standing.
+			out := field
 			out.TypeID = dstType
 			return out, nil
 		case VKInt:

@@ -126,7 +126,9 @@ func (vm *VM) heapObjectBytes(obj *Object) (uint64, error) {
 			return 0, err
 		}
 		return checkedHeapMul(safeUint64FromInt(len(obj.MapEntries)), entrySize, "map length * entry size")
-	case OKStruct, OKTag, OKRange:
+	case OKResource:
+		return vm.typedObjectSize(obj)
+	case OKRange:
 		if obj.TypeID == types.NoTypeID {
 			return 0, nil
 		}
@@ -262,18 +264,6 @@ func (vm *VM) objectRefCount(obj *Object) int {
 				count++
 			}
 		}
-	case OKStruct:
-		for _, v := range obj.Fields {
-			if v.IsHeap() && v.H != 0 {
-				count++
-			}
-		}
-	case OKTag:
-		for _, v := range obj.Tag.Fields {
-			if v.IsHeap() && v.H != 0 {
-				count++
-			}
-		}
 	case OKRange:
 		if obj.Range.Kind == RangeArrayIter {
 			if obj.Range.ArrayBase != 0 {
@@ -319,10 +309,8 @@ func (vm *VM) objectSummary(obj *Object) string {
 		return fmt.Sprintf("array_view(rc=%d,len=%d,cap=%d,start=%d)", rc, obj.ArrSliceLen, obj.ArrSliceCap, obj.ArrSliceStart)
 	case OKMap:
 		return fmt.Sprintf("map(rc=%d,len=%d,type=%s)", rc, len(obj.MapEntries), typeLabel(vm.Types, obj.TypeID))
-	case OKStruct:
-		return fmt.Sprintf("struct(rc=%d,type=%s)", rc, typeLabel(vm.Types, obj.TypeID))
-	case OKTag:
-		return fmt.Sprintf("tag(rc=%d,type=%s,tag=%s)", rc, typeLabel(vm.Types, obj.TypeID), vm.tagName(obj))
+	case OKResource:
+		return fmt.Sprintf("resource(rc=%d,type=%s)", rc, typeLabel(vm.Types, obj.TypeID))
 	case OKRange:
 		return fmt.Sprintf("range(rc=%d,kind=%s)", rc, rangeKindLabel(obj.Range.Kind))
 	case OKBigInt:
@@ -364,20 +352,18 @@ func rangeKindLabel(kind RangeKind) string {
 	}
 }
 
-func (vm *VM) tagName(obj *Object) string {
-	if obj == nil || obj.Kind != OKTag || vm == nil || vm.tagLayouts == nil {
-		return "<unknown>"
+// typedObjectSize accounts an object by the layout of its type, which is what a
+// resource shares with the aggregates: the object is exactly its type's bytes.
+func (vm *VM) typedObjectSize(obj *Object) (uint64, error) {
+	if obj.TypeID == types.NoTypeID {
+		return 0, nil
 	}
-	tagName := "<unknown>"
-	if layout, ok := vm.tagLayouts.Layout(vm.valueType(obj.TypeID)); ok && layout != nil {
-		if tc, ok := layout.CaseBySym(obj.Tag.TagSym); ok && tc.TagName != "" {
-			tagName = tc.TagName
-		}
+	if vm == nil || vm.Layouts == nil {
+		return 0, fmt.Errorf("typed %s requires finalized layout registry", vm.objectKindLabel(obj.Kind))
 	}
-	if tagName == "<unknown>" && obj.Tag.TagSym.IsValid() {
-		if name, ok := vm.tagLayouts.AnyTagName(obj.Tag.TagSym); ok && name != "" {
-			tagName = name
-		}
+	size, err := vm.Layouts.SizeOf(obj.TypeID)
+	if err != nil {
+		return 0, fmt.Errorf("typed %s layout: %w", vm.objectKindLabel(obj.Kind), err)
 	}
-	return tagName
+	return size, nil
 }

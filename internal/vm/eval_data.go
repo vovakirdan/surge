@@ -7,7 +7,14 @@ import (
 	"surge/internal/types"
 )
 
-func (vm *VM) evalArrayLit(frame *Frame, lit *mir.ArrayLit) (Value, *VMError) {
+// evalArrayLit builds an array literal.
+//
+// A FIXED array is a value composite and is built into its own extent; a
+// dynamic array is a heap object and keeps its handle. Which one this is comes
+// from the DESTINATION type, for the same reason a tuple literal needs one:
+// MIR records an ArrayLit as its elements and nothing else, so the literal has
+// no type of its own to decide with.
+func (vm *VM) evalArrayLit(frame *Frame, lit *mir.ArrayLit, dstType types.TypeID) (Value, *VMError) {
 	if lit == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "nil array literal")
 	}
@@ -19,28 +26,47 @@ func (vm *VM) evalArrayLit(frame *Frame, lit *mir.ArrayLit) (Value, *VMError) {
 		}
 		elems = append(elems, v)
 	}
+	if dstType != types.NoTypeID && vm.isValueCompositeType(dstType) {
+		return vm.buildStruct(frame, dstType, elems)
+	}
 
 	h := vm.Heap.AllocArray(types.NoTypeID, elems)
 	return MakeHandleArray(h, types.NoTypeID), nil
 }
 
-func (vm *VM) evalTupleLit(frame *Frame, lit *mir.TupleLit) (Value, *VMError) {
+// evalTupleLit builds a tuple into its own extent.
+//
+// The type comes from the DESTINATION because MIR does not record one: a
+// TupleLit is a list of elements and nothing else. Under a box that was
+// survivable — the old path allocated with types.NoTypeID, which is to say the
+// VM tracked no composite type at all and the members were whatever they
+// happened to be. Exact layout has no such option, so the type the destination
+// declares is the only type the tuple can have.
+func (vm *VM) evalTupleLit(frame *Frame, lit *mir.TupleLit, dstType types.TypeID) (Value, *VMError) {
 	if lit == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "nil tuple literal")
 	}
 	if len(lit.Elems) == 0 {
 		return MakeNothing(), nil
 	}
-	elems := make([]Value, 0, len(lit.Elems))
+	if dstType == types.NoTypeID {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch,
+			"a tuple literal has no type of its own and its destination declares none")
+	}
+	dst, vmErr := vm.buildComposite(frame, dstType)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
 	for i := range lit.Elems {
 		v, vmErr := vm.evalOperand(frame, &lit.Elems[i])
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		elems = append(elems, v)
+		if vmErr := vm.initCompositeMember(frame, dst, i, v); vmErr != nil {
+			return Value{}, vmErr
+		}
 	}
-	h := vm.Heap.AllocStruct(types.NoTypeID, elems)
-	return MakeHandleStruct(h, types.NoTypeID), nil
+	return MakeComposite(dst), nil
 }
 
 // evalIndex evaluates an index operation.
@@ -57,9 +83,12 @@ func (vm *VM) evalIndex(obj, idx Value) (Value, *VMError) {
 		return vm.evalArrayIndex(obj, idx)
 	case VKHandleString:
 		return vm.evalStringIndex(obj, idx)
-	case VKHandleStruct:
+	case VKComposite:
 		if res, handled, vmErr := vm.evalBytesViewIndex(obj, idx); handled {
 			return res, vmErr
+		}
+		if owner, ok := obj.Storage(); ok {
+			return vm.evalStorageIndex(owner, idx)
 		}
 	default:
 	}
@@ -104,7 +133,11 @@ func (vm *VM) evalArrayIndex(obj, idx Value) (Value, *VMError) {
 			elemType, ok = vm.Types.ArrayInfo(view.baseObj.TypeID)
 		}
 		if ok {
-			if retagged, ok := vm.retagUnionValue(val, elemType); ok {
+			retagged, converted, vmErr := vm.retagUnionValue(val, elemType)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			if converted {
 				val = retagged
 			}
 		}
@@ -186,20 +219,18 @@ func (vm *VM) evalBytesViewIndex(obj, idx Value) (Value, bool, *VMError) {
 	if !info.ok {
 		return Value{}, false, nil
 	}
-	sobj := vm.Heap.Get(obj.H)
-	if sobj == nil {
-		return Value{}, true, vm.eb.makeError(PanicOutOfBounds, "invalid struct handle")
+	owner, ok := obj.Storage()
+	if !ok {
+		return Value{}, true, vm.eb.typeMismatch("struct", obj.Kind.String())
 	}
-	if sobj.Kind != OKStruct {
-		return Value{}, true, vm.eb.typeMismatch("struct", fmt.Sprintf("%v", sobj.Kind))
+	ptrVal, vmErr := vm.peekMember(owner, info.ptrIdx)
+	if vmErr != nil {
+		return Value{}, true, vmErr
 	}
-	if info.ownerIdx < 0 || info.ownerIdx >= len(sobj.Fields) || info.ptrIdx < 0 || info.ptrIdx >= len(sobj.Fields) || info.lenIdx < 0 || info.lenIdx >= len(sobj.Fields) {
-		return Value{}, true, vm.eb.makeError(PanicOutOfBounds, "bytes view layout mismatch")
+	lenVal, vmErr := vm.peekMember(owner, info.lenIdx)
+	if vmErr != nil {
+		return Value{}, true, vmErr
 	}
-
-	ptrVal := sobj.Fields[info.ptrIdx]
-	lenVal := sobj.Fields[info.lenIdx]
-	_ = sobj.Fields[info.ownerIdx]
 
 	index, vmErr := vm.nonNegativeIndexValue(idx)
 	if vmErr != nil {
@@ -262,9 +293,12 @@ func (vm *VM) evalStructLit(frame *Frame, lit *mir.StructLit) (Value, *VMError) 
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	fields := make([]Value, len(layout.FieldNames))
-	for i := range fields {
-		fields[i] = Value{Kind: VKInvalid}
+	// The literal builds INTO its own extent rather than collecting values and
+	// boxing them afterwards, so there is no moment at which the struct exists
+	// as anything other than its bytes.
+	dst, vmErr := vm.buildComposite(frame, lit.TypeID)
+	if vmErr != nil {
+		return Value{}, vmErr
 	}
 	for i := range lit.Fields {
 		f := &lit.Fields[i]
@@ -276,21 +310,37 @@ func (vm *VM) evalStructLit(frame *Frame, lit *mir.StructLit) (Value, *VMError) 
 		if !ok {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("struct type#%d has no field %q", layout.TypeID, f.Name))
 		}
-		fields[idx] = val
+		if vmErr := vm.initCompositeMember(frame, dst, idx, val); vmErr != nil {
+			return Value{}, vmErr
+		}
 	}
-	h := vm.Heap.AllocStruct(layout.TypeID, fields)
-	return MakeHandleStruct(h, lit.TypeID), nil
+	return MakeComposite(dst), nil
+}
+
+// initCompositeMember writes one member of a composite that is being built.
+//
+// A composite member MOVES into its own extent inside the owner rather than
+// becoming a second value hanging off it, which is what makes a nested
+// composite one contiguous thing instead of a tree of boxes.
+func (vm *VM) initCompositeMember(frame *Frame, owner StorageRef, index int, val Value) *VMError {
+	member, vmErr := vm.memberStorage(owner, index)
+	if vmErr != nil {
+		return vmErr
+	}
+	return vm.storeStorage(frame, member, val)
 }
 
 func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMError) {
 	if fa == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "nil field access")
 	}
-	obj, vmErr := vm.evalOperand(frame, &fa.Object)
+	obj, owned, vmErr := vm.fieldAccessObject(frame, fa)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	defer vm.dropValue(obj)
+	if owned {
+		defer vm.dropValue(obj)
+	}
 	target := obj
 	if obj.Kind == VKRef || obj.Kind == VKRefMut {
 		v, loadErr := vm.loadLocationRaw(obj.Loc)
@@ -299,15 +349,9 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 		}
 		target = v
 	}
-	if target.Kind != VKHandleStruct {
+	owner, ok := target.Storage()
+	if !ok {
 		return Value{}, vm.eb.typeMismatch("struct", target.Kind.String())
-	}
-	sobj := vm.Heap.Get(target.H)
-	if sobj == nil {
-		return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid struct handle")
-	}
-	if sobj.Kind != OKStruct {
-		return Value{}, vm.eb.typeMismatch("struct", fmt.Sprintf("%v", sobj.Kind))
 	}
 	idx := fa.FieldIdx
 	if fa.FieldName != "" {
@@ -317,34 +361,110 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 		if fa.FieldName == "" {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "missing field name")
 		}
-		layout, vmErr := vm.layouts.Struct(sobj.TypeID)
+		layout, vmErr := vm.layouts.Struct(owner.TypeID)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		var ok bool
-		idx, ok = layout.IndexByName[fa.FieldName]
-		if !ok {
-			return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("unknown field %q on type#%d", fa.FieldName, sobj.TypeID))
+		var found bool
+		idx, found = layout.IndexByName[fa.FieldName]
+		if !found {
+			return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("unknown field %q on type#%d", fa.FieldName, owner.TypeID))
 		}
 	}
-	if idx < 0 || idx >= len(sobj.Fields) {
-		return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("field index %d out of bounds for type#%d", idx, sobj.TypeID))
-	}
 	if fa.MoveOut {
-		// The field is being TAKEN. Counting a second holder here is what makes
-		// it leak: the container's drop has been narrowed to the places that
-		// stayed, so nothing will ever release the count this read would add.
-		//
-		// The slot is cleared for the same reason from the other side. Nothing
-		// walks a container past a shallow free today, so leaving the handle
-		// behind would not be dereferenced — but a value that has gone must not
-		// still be reachable from where it left, or the next reader of this
-		// struct decides which of two owners is real.
-		taken := sobj.Fields[idx]
-		sobj.Fields[idx] = Value{}
-		return taken, nil
+		field, vmErr := vm.memberStorage(owner, idx)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		return vm.takeMember(frame, field)
 	}
-	return vm.cloneForShare(sobj.Fields[idx])
+	// Reading a field yields a VALUE, so it is a copy. Handing back the
+	// member's own reference would be right for a borrow and wrong here: the
+	// two would be one value under two names, and the language says a composite
+	// read is a copy.
+	return vm.readMember(frame, owner, idx)
+}
+
+// fieldAccessObject reads the container a field access projects into, and says
+// whether the caller owns what came back.
+//
+// A move-out EMPTIES the container it names, so it has to name the container
+// ITSELF. Reading the object as a value cannot do that any more: a composite
+// read is a copy, so the take would empty the copy while the original went on
+// holding the member. Nothing is miscounted at that moment — the copy and the
+// original each hold one reference — but the container's residual drop then
+// zeroes an extent it believes was emptied, and what the member held is left
+// with nothing that names it. That is the leak, and it is a leak the boxed
+// representation could not have: a copy of a struct was a second reference to
+// one box, so a take through it reached the original.
+//
+// The distinction only arises for the value-reading operand kinds. A borrow
+// already names the container — the reference is followed to the storage it
+// points at — and a move already transfers the container's own extent rather
+// than duplicating it, so both reach the original as they stand.
+func (vm *VM) fieldAccessObject(frame *Frame, fa *mir.FieldAccess) (Value, bool, *VMError) {
+	if !fa.MoveOut || !operandReadsAPlaceByValue(fa.Object.Kind) {
+		value, vmErr := vm.evalOperand(frame, &fa.Object)
+		return value, true, vmErr
+	}
+	loc, vmErr := vm.EvalPlace(frame, fa.Object.Place)
+	if vmErr != nil {
+		return Value{}, false, vmErr
+	}
+	// Uncounted on purpose: this is a look at where the container lives, not a
+	// second holder of it. The take that follows is what moves anything, and it
+	// moves out of exactly these bytes.
+	value, vmErr := vm.loadLocationRaw(loc)
+	if vmErr != nil {
+		return Value{}, false, vmErr
+	}
+	return value, false, nil
+}
+
+// operandReadsAPlaceByValue reports whether an operand kind names a place and
+// answers with a VALUE read out of it, as opposed to a reference to it or a
+// transfer of it.
+func operandReadsAPlaceByValue(kind mir.OperandKind) bool {
+	switch kind {
+	case mir.OperandCopy, mir.OperandRetain, mir.OperandCopyValue:
+		return true
+	default:
+		return false
+	}
+}
+
+// takeMember reads a member OUT of its owner, leaving the owner not holding it.
+//
+// The two halves are one operation for the same reason a store is: between a
+// read that has happened and a clearing that has not, the member has two
+// owners, and the container's drop would release what the reader now holds.
+// A composite member is copied into a temporary and its own extent released,
+// which transfers what it owned rather than duplicating it; anything else is
+// decoded WITHOUT counting a second holder and its extent zeroed, because the
+// container's drop has already been narrowed to the members that stayed.
+func (vm *VM) takeMember(frame *Frame, member StorageRef) (Value, *VMError) {
+	if vm.storageCellKind(member.TypeID) == cellComposite {
+		taken, vmErr := vm.buildComposite(frame, member.TypeID)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if vmErr := vm.moveComposite(frame, taken, MakeComposite(member), false); vmErr != nil {
+			return Value{}, vmErr
+		}
+		return MakeComposite(taken), nil
+	}
+	shape, err := vm.memberAt(member.Offset, member.TypeID)
+	if err != nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	taken, err := vm.storageReadCell(member, shape)
+	if err != nil {
+		return Value{}, vm.eb.makeError(PanicRCUseAfterFree, err.Error())
+	}
+	if err := vm.storageZero(member); err != nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	return taken, nil
 }
 
 func (vm *VM) cloneForShare(v Value) (Value, *VMError) {
@@ -362,4 +482,20 @@ func (vm *VM) cloneForShare(v Value) (Value, *VMError) {
 		vm.Heap.Retain(v.H)
 	}
 	return v, nil
+}
+
+// evalStorageIndex reads one element of a fixed array held in storage.
+//
+// The read is a COPY, like every other read of a member: an element handed back
+// as its own reference would be the array under a second name.
+func (vm *VM) evalStorageIndex(owner StorageRef, idx Value) (Value, *VMError) {
+	members, err := vm.compositeMembers(owner.TypeID)
+	if err != nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	index, vmErr := vm.arrayIndexFromValue(idx, len(members))
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	return vm.readMember(vm.currentFrame(), owner, index)
 }

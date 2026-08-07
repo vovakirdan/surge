@@ -88,10 +88,12 @@ func (vm *VM) handleHeapStats(frame *Frame, call *mir.CallInstr, writes *[]Local
 	fields[info.rcIncrIdx] = vm.makeBigUint(info.layout.FieldTypes[info.rcIncrIdx], bignum.UintFromUint64(snap.rcIncrCount))
 	fields[info.rcDecrIdx] = vm.makeBigUint(info.layout.FieldTypes[info.rcDecrIdx], bignum.UintFromUint64(snap.rcDecrCount))
 
-	h := vm.Heap.AllocStruct(info.layout.TypeID, fields)
-	val := MakeHandleStruct(h, dstType)
+	val, buildErr := vm.buildStruct(frame, dstType, fields)
+	if buildErr != nil {
+		return buildErr
+	}
 	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
-		vm.Heap.Release(h)
+		vm.dropValue(val)
 		return vmErr
 	}
 	*writes = append(*writes, LocalWrite{

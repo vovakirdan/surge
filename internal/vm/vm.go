@@ -44,6 +44,14 @@ type VM struct {
 	netNextListen uint64
 	netNextConn   uint64
 
+	contracts    map[*mir.Func]callContract
+	storagePlans map[*mir.Func]*StoragePlan
+	// globalArena holds the bytes of every composite global. Globals follow
+	// locals rather than getting a storage scheme of their own; the only
+	// difference is that there is one activation of them and it lasts as long
+	// as the program does.
+	globalArena         *Arena
+	globalPlan          StoragePlan
 	eb                  *errorBuilder // for creating errors with backtrace
 	captureReturn       *Value
 	asyncCapture        *asyncExit
@@ -85,6 +93,8 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 			}
 		}
 	}
+	vm.globalPlan = vm.GlobalStorage()
+	vm.globalArena = newArena(&vm.globalPlan, 1)
 	if vm.Trace != nil {
 		vm.Trace.vm = vm
 	}
@@ -157,7 +167,7 @@ func (vm *VM) Start() *VMError {
 		return nil
 	}
 
-	vm.Stack = append(vm.Stack, NewFrame(startFn))
+	vm.Stack = append(vm.Stack, vm.activate(startFn))
 	vm.started = true
 
 	if vm.Replayer != nil {
@@ -195,6 +205,10 @@ func (vm *VM) Step() (vmErr *VMError) {
 	block := frame.CurrentBlock()
 	if block == nil {
 		return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid block id: %d", frame.BB))
+	}
+
+	if boundaryErr := vm.beginStep(frame); boundaryErr != nil {
+		return boundaryErr
 	}
 
 	if frame.AtTerminator() {

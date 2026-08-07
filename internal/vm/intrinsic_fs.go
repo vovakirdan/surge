@@ -147,8 +147,7 @@ func (vm *VM) fsSuccessValue(dstType types.TypeID, payload Value) (Value, *VMErr
 	if payload.TypeID != types.NoTypeID && vm.valueType(payload.TypeID) != vm.valueType(payloadType) {
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, "Erring Success payload type mismatch")
 	}
-	h := vm.Heap.AllocTag(dstType, tc.TagSym, []Value{payload})
-	return MakeHandleTag(h, dstType), nil
+	return vm.buildTag(vm.currentFrame(), dstType, tc.TagSym, []Value{payload})
 }
 
 func (vm *VM) fsMetadataValue(typeID types.TypeID, info os.FileInfo) (Value, *VMError) {
@@ -197,8 +196,7 @@ func (vm *VM) fsMetadataValue(typeID types.TypeID, info os.FileInfo) (Value, *VM
 	fields[typeIdx] = MakeInt(int64(fileType), layout.FieldTypes[typeIdx])
 	fields[readonlyIdx] = MakeBool(readonly, layout.FieldTypes[readonlyIdx])
 
-	h := vm.Heap.AllocStruct(layout.TypeID, fields)
-	return MakeHandleStruct(h, typeID), nil
+	return vm.buildStruct(vm.currentFrame(), typeID, fields)
 }
 
 func (vm *VM) fsDirEntryValue(typeID types.TypeID, name, path string, fileType uint8) (Value, *VMError) {
@@ -232,6 +230,5 @@ func (vm *VM) fsDirEntryValue(typeID types.TypeID, name, path string, fileType u
 	fields[pathIdx] = MakeHandleString(pathHandle, pathType)
 	fields[typeIdx] = MakeInt(int64(fileType), layout.FieldTypes[typeIdx])
 
-	h := vm.Heap.AllocStruct(layout.TypeID, fields)
-	return MakeHandleStruct(h, typeID), nil
+	return vm.buildStruct(vm.currentFrame(), typeID, fields)
 }

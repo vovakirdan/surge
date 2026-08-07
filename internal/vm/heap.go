@@ -3,7 +3,6 @@ package vm
 import (
 	"fmt"
 
-	"surge/internal/symbols"
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
 )
@@ -51,228 +50,6 @@ func (h *Heap) alloc(kind ObjectKind, typeID types.TypeID) (Handle, *Object) {
 		h.vm.heapCounters.rcIncrCount++
 	}
 	return handle, obj
-}
-
-// AllocString allocates a string object on the heap.
-func (h *Heap) AllocString(typeID types.TypeID, s string) Handle {
-	handle, obj := h.alloc(OKString, typeID)
-	obj.Str = s
-	obj.StrKind = StringFlat
-	obj.StrFlatKnown = true
-	obj.StrByteLen = len(s)
-	obj.StrCPLen = 0
-	obj.StrCPLenKnown = false
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocStringWithCPLen allocates a string object with a known code point length.
-func (h *Heap) AllocStringWithCPLen(typeID types.TypeID, s string, cpLen int) Handle {
-	handle, obj := h.alloc(OKString, typeID)
-	obj.Str = s
-	obj.StrKind = StringFlat
-	obj.StrFlatKnown = true
-	obj.StrByteLen = len(s)
-	obj.StrCPLen = cpLen
-	obj.StrCPLenKnown = true
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocStringConcat allocates a concatenated string object.
-func (h *Heap) AllocStringConcat(typeID types.TypeID, left, right Handle, byteLen, cpLen int, cpLenKnown bool) Handle {
-	// Validate handles before retaining to avoid partial retain on panic
-	if left != 0 {
-		leftObj := h.Get(left)
-		if leftObj.Kind != OKString {
-			h.panic(PanicTypeMismatch, "left handle must be a string")
-		}
-	}
-	if right != 0 {
-		rightObj := h.Get(right)
-		if rightObj.Kind != OKString {
-			h.panic(PanicTypeMismatch, "right handle must be a string")
-		}
-	}
-
-	handle, obj := h.alloc(OKString, typeID)
-	obj.StrKind = StringConcat
-	obj.StrFlatKnown = false
-	obj.StrByteLen = byteLen
-	obj.StrCPLen = cpLen
-	obj.StrCPLenKnown = cpLenKnown
-	obj.StrLeft = left
-	obj.StrRight = right
-	if left != 0 {
-		h.Retain(left)
-	}
-	if right != 0 {
-		h.Retain(right)
-	}
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocStringSlice allocates a string slice object.
-func (h *Heap) AllocStringSlice(typeID types.TypeID, base Handle, startCP, cpLen, byteLen int) Handle {
-	// Validate base handle before retaining
-	if base != 0 {
-		baseObj := h.Get(base)
-		if baseObj.Kind != OKString {
-			h.panic(PanicTypeMismatch, "base handle must be a string")
-		}
-	}
-
-	handle, obj := h.alloc(OKString, typeID)
-	obj.StrKind = StringSlice
-	obj.StrFlatKnown = false
-	obj.StrByteLen = byteLen
-	obj.StrCPLen = cpLen
-	obj.StrCPLenKnown = true
-	obj.StrSliceBase = base
-	obj.StrSliceStart = startCP
-	obj.StrSliceLen = cpLen
-	if base != 0 {
-		h.Retain(base)
-	}
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocRange allocates a range object on the heap.
-func (h *Heap) AllocRange(typeID types.TypeID, start, end Value, hasStart, hasEnd, inclusive bool) Handle {
-	handle, obj := h.alloc(OKRange, typeID)
-	obj.Range = RangeObject{
-		Kind:      RangeDescriptor,
-		Start:     start,
-		End:       end,
-		HasStart:  hasStart,
-		HasEnd:    hasEnd,
-		Inclusive: inclusive,
-	}
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocArrayIterRange allocates an array iterator range object.
-func (h *Heap) AllocArrayIterRange(typeID types.TypeID, base Handle, start, length int) Handle {
-	handle, obj := h.alloc(OKRange, typeID)
-	obj.Range = RangeObject{
-		Kind:       RangeArrayIter,
-		ArrayBase:  base,
-		ArrayStart: start,
-		ArrayLen:   length,
-	}
-	if base != 0 {
-		h.Retain(base)
-	}
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocArray allocates an array object on the heap.
-func (h *Heap) AllocArray(typeID types.TypeID, elems []Value) Handle {
-	handle, obj := h.alloc(OKArray, typeID)
-	obj.Arr = append([]Value(nil), elems...)
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocArraySlice allocates an array slice object.
-func (h *Heap) AllocArraySlice(typeID types.TypeID, base Handle, start, length, capacity int) Handle {
-	if base != 0 {
-		baseObj := h.Get(base)
-		if baseObj.Kind != OKArray {
-			h.panic(PanicTypeMismatch, "base handle must be an array")
-		}
-	}
-	handle, obj := h.alloc(OKArraySlice, typeID)
-	obj.ArrSliceBase = base
-	obj.ArrSliceStart = start
-	obj.ArrSliceLen = length
-	obj.ArrSliceCap = capacity
-	if base != 0 {
-		h.Retain(base)
-	}
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocMap allocates a map object on the heap.
-func (h *Heap) AllocMap(typeID types.TypeID) Handle {
-	handle, obj := h.alloc(OKMap, typeID)
-	obj.MapIndex = make(map[mapKey]int)
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocStruct allocates a struct object on the heap.
-func (h *Heap) AllocStruct(typeID types.TypeID, fields []Value) Handle {
-	handle, obj := h.alloc(OKStruct, typeID)
-	obj.Fields = append([]Value(nil), fields...)
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocTag allocates a tagged union object on the heap.
-func (h *Heap) AllocTag(typeID types.TypeID, tagSym symbols.SymbolID, fields []Value) Handle {
-	handle, obj := h.alloc(OKTag, typeID)
-	obj.Tag.TagSym = tagSym
-	obj.Tag.Fields = append([]Value(nil), fields...)
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocBigInt allocates a big integer object on the heap.
-func (h *Heap) AllocBigInt(typeID types.TypeID, v bignum.BigInt) Handle {
-	handle, obj := h.alloc(OKBigInt, typeID)
-	obj.BigInt = v
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocBigUint allocates a big unsigned integer object on the heap.
-func (h *Heap) AllocBigUint(typeID types.TypeID, v bignum.BigUint) Handle {
-	handle, obj := h.alloc(OKBigUint, typeID)
-	obj.BigUint = v
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
-}
-
-// AllocBigFloat allocates a big float object on the heap.
-func (h *Heap) AllocBigFloat(typeID types.TypeID, v bignum.BigFloat) Handle {
-	handle, obj := h.alloc(OKBigFloat, typeID)
-	obj.BigFloat = v
-	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
-	}
-	return handle
 }
 
 // Get retrieves an object from the heap by handle.
@@ -376,6 +153,7 @@ func (h *Heap) Free(handle Handle) {
 			h.releaseContainedValue(v)
 		}
 		obj.Arr = nil
+		h.releaseOwnStorage(obj)
 	case OKArraySlice:
 		if obj.ArrSliceBase != 0 {
 			h.Release(obj.ArrSliceBase)
@@ -391,11 +169,7 @@ func (h *Heap) Free(handle Handle) {
 		}
 		obj.MapEntries = nil
 		obj.MapIndex = nil
-	case OKStruct:
-		for _, v := range obj.Fields {
-			h.releaseContainedValue(v)
-		}
-		obj.Fields = nil
+		h.releaseOwnStorage(obj)
 	case OKString:
 		if obj.StrLeft != 0 {
 			h.Release(obj.StrLeft)
@@ -417,12 +191,6 @@ func (h *Heap) Free(handle Handle) {
 		obj.StrSliceBase = 0
 		obj.StrSliceStart = 0
 		obj.StrSliceLen = 0
-	case OKTag:
-		for _, v := range obj.Tag.Fields {
-			h.releaseContainedValue(v)
-		}
-		obj.Tag.Fields = nil
-		obj.Tag.TagSym = 0
 	case OKRange:
 		if obj.Range.Kind == RangeArrayIter {
 			if obj.Range.ArrayBase != 0 {
@@ -447,9 +215,31 @@ func (h *Heap) Free(handle Handle) {
 	}
 }
 
+// releaseOwnStorage gives up the arena a container held its composites in.
+func (h *Heap) releaseOwnStorage(obj *Object) {
+	if h == nil || h.vm == nil {
+		return
+	}
+	h.vm.releaseContainerStorage(obj)
+}
+
+// releaseContainedValue releases one value a container held.
+//
+// A COMPOSITE is deliberately not released here. The container's arena owns it,
+// and releasing it from the element list as well would release what it holds
+// twice — the arena walks every extent it still has when the object is freed.
 func (h *Heap) releaseContainedValue(v Value) {
+	if v.Kind == VKComposite {
+		return
+	}
+	if v.Kind == VKResource {
+		if v.H != 0 {
+			h.Release(v.H)
+		}
+		return
+	}
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
+	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
 		if v.H != 0 {
 			h.Release(v.H)
 		}
