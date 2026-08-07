@@ -13,24 +13,29 @@ import (
 // It is written to parallel the drop glue next door, and the parallel is
 // deliberate — the two walk the same members of the same layouts and disagreeing
 // about which members those are is how a copy and a free stop matching. Where
-// drop glue frees a member, clone glue gives the fresh box its own claim on it.
+// drop glue releases a member, clone glue gives the destination its own claim
+// on it.
 //
-// The body is: allocate a box of the same size, MEMCPY the source over it, then
-// fix up only the members whose bits are not the value. That order matters. The
+// The body is: MEMCPY the source's bytes over the destination's, then fix up
+// only the members whose bits are not the whole value. That order matters. The
 // memcpy carries every plain-bits field, the padding, and — for a union — the
 // discriminant, so the fixups never have to know the layout of anything they do
 // not themselves own, and a member added to a struct is copied correctly the
 // day it is added rather than the day someone remembers to extend a switch.
 //
-// Only three member shapes need a fixup, because only a COPY composite ever
+// The destination is the CALLER'S storage, passed in. That is the shape of
+// every operation on an inline value: the glue does not decide where the copy
+// lives, because the copy lives wherever the assignment named. A body that
+// allocated its own would be inventing an owner the language never asked for.
+//
+// Only two member shapes need a fixup, because only a COPY composite ever
 // reaches here (`OperandCopyValue` is emitted for nothing else) and every
 // member of a Copy composite is itself Copy:
 //
-//   - a nested value composite: its copied word is the SOURCE's box pointer, so
-//     it is replaced by a clone of that box, recursively;
-//   - a reference-counted scalar: its copied word is a pointer into a counted
-//     block, so the fresh box takes its own reference;
-//   - everything else is its own value and the memcpy already finished it.
+//   - a reference-counted scalar: its copied word points into a counted block,
+//     so the destination takes its own reference;
+//   - a nested value composite: its own members may need the same treatment, so
+//     it is cloned recursively into the destination's bytes for it.
 //
 // A string, dynamic array or map can never appear: none of them is Copy, so a
 // composite holding one is not Copy either and is moved rather than copied.
@@ -55,11 +60,7 @@ func (e *Emitter) emitCloneGlue() error {
 	done := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
-		for id := range e.cloneGlueNeeded {
-			if _, ok := done[id]; ok {
-				continue
-			}
-			done[id] = struct{}{}
+		for _, id := range takePendingGlue(e.cloneGlueNeeded, done) {
 			if err := e.emitCloneGlueBody(id); err != nil {
 				return err
 			}
@@ -71,9 +72,10 @@ func (e *Emitter) emitCloneGlue() error {
 	}
 }
 
-// emitCloneGlueBody emits `@clone.typeN(ptr %p) -> ptr`: an INDEPENDENT box
-// holding the same value. Null-safe, so a null composite clones to null rather
-// than allocating an empty box.
+// emitCloneGlueBody emits `@clone.typeN(ptr %dst, ptr %src)`: make the value at
+// %dst an INDEPENDENT copy of the one at %src. Both are storage the caller
+// owns; null-safe on the source, so a source nobody wrote leaves the
+// destination alone rather than reading bytes that are not there.
 func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {
 	id = resolveValueType(e.types, id)
 	layoutInfo, err := e.layoutOf(id)
@@ -81,21 +83,21 @@ func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {
 		return err
 	}
 	align := layoutInfo.Align
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
 
-	fmt.Fprintf(&e.buf, "define ptr @%s(ptr %%p) {\n", cloneGlueName(id))
+	fmt.Fprintf(&e.buf, "define void @%s(ptr %%dst, ptr %%src) {\n", cloneGlueName(id))
 	fmt.Fprintf(&e.buf, "entry:\n")
-	fmt.Fprintf(&e.buf, "  %%isnull = icmp eq ptr %%p, null\n")
-	fmt.Fprintf(&e.buf, "  br i1 %%isnull, label %%null, label %%body\n")
+	fmt.Fprintf(&e.buf, "  %%isnull = icmp eq ptr %%src, null\n")
+	fmt.Fprintf(&e.buf, "  br i1 %%isnull, label %%ret, label %%body\n")
 	fmt.Fprintf(&e.buf, "body:\n")
-	fmt.Fprintf(&e.buf, "  %%box = call ptr @rt_alloc(i64 %d, i64 %d)\n", layoutInfo.Size, align)
-	fmt.Fprintf(&e.buf, "  call void @rt_memcpy(ptr %%box, ptr %%p, i64 %d)\n", layoutInfo.Size)
+	e.emitGlueStorageCopy("%dst", "%src", layoutInfo.Size, align)
+	e.emitCloneCopyCounter(layoutInfo.Size)
 
 	g := &glueTmp{}
 	if elem, length, ok := arrayFixedInfo(e.types, id); ok {
-		e.emitFixedArrayElemClones(g, elem, int(length))
+		e.emitFixedArrayElemClones(g, elem, align, int(length))
 	} else if tt, ok := e.types.Lookup(id); ok {
 		switch tt.Kind {
 		case types.KindStruct:
@@ -105,7 +107,7 @@ func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {
 				return err
 			}
 			for i, f := range fields {
-				e.emitFieldCloneAt(g, f.Type, fieldOffsets[i])
+				e.emitFieldCloneAt(g, f.Type, align, fieldOffsets[i])
 			}
 		case types.KindTuple:
 			if info, ok := e.types.TupleInfo(id); ok && info != nil {
@@ -114,54 +116,64 @@ func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {
 					return err
 				}
 				for i, el := range info.Elems {
-					e.emitFieldCloneAt(g, el, fieldOffsets[i])
+					e.emitFieldCloneAt(g, el, align, fieldOffsets[i])
 				}
 			}
 		case types.KindUnion:
-			if err := e.emitUnionPayloadClones(g, id, &layoutInfo); err != nil {
+			if err := e.emitUnionPayloadClones(g, id, &layoutInfo, align); err != nil {
 				return err
 			}
 		}
 	}
 
-	fmt.Fprintf(&e.buf, "  ret ptr %%box\n")
-	fmt.Fprintf(&e.buf, "null:\n")
-	fmt.Fprintf(&e.buf, "  ret ptr null\n}\n")
+	fmt.Fprintf(&e.buf, "  br label %%ret\n")
+	fmt.Fprintf(&e.buf, "ret:\n")
+	fmt.Fprintf(&e.buf, "  ret void\n}\n")
 	return nil
 }
 
-// emitFieldCloneAt fixes up one member of the freshly memcpy'd box at byte
-// offset `off`. A member the memcpy already finished emits nothing.
-func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, off uint64) {
+// emitGlueStorageCopy is the byte move inside a generated body. It states the
+// alignment on both ends, like every other access through storage.
+func (e *Emitter) emitGlueStorageCopy(dst, src string, size, align uint64) {
+	if size == 0 {
+		return
+	}
+	fmt.Fprintf(&e.buf,
+		"  call void @llvm.memcpy.p0.p0.i64(ptr align %d %s, ptr align %d %s, i64 %d, i1 false)\n",
+		align, dst, align, src, size)
+}
+
+// emitFieldCloneAt fixes up one member of the freshly copied destination at
+// byte offset `off`. A member the byte copy already finished emits nothing.
+func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, baseAlign, off uint64) {
 	resolved := resolveValueType(e.types, fieldType)
 
 	switch {
 	case e.types.IsRefCountedScalar(resolved):
-		// Immutable and counted: the fresh box shares the block and takes its
-		// own reference. A deep copy would be waste, and it would also make
-		// two values that must compare equal live at two addresses.
+		// Immutable and counted: the copy shares the block and takes its own
+		// reference. A deep copy would be waste, and it would also make two
+		// values that must compare equal live at two addresses.
 		fp := g.next()
-		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%box, i64 %d\n", fp, off)
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", fp, off)
 		fv := g.next()
-		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s\n", fv, fp)
+		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
 		e.emitGlueRetain(g, fv)
 
 	case e.isCloneableComposite(resolved):
-		// The memcpy copied the SOURCE's box pointer into the new box, which
-		// is exactly the aliasing this epic exists to remove. Replace it with
-		// a box of its own.
-		fp := g.next()
-		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%box, i64 %d\n", fp, off)
-		fv := g.next()
-		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s\n", fv, fp)
-		cloned := g.next()
-		fmt.Fprintf(&e.buf, "  %s = call ptr @%s(ptr %s)\n", cloned, e.requireCloneGlue(resolved), fv)
-		fmt.Fprintf(&e.buf, "  store ptr %s, ptr %s\n", cloned, fp)
+		// The byte copy carried this member's bits verbatim, which is right for
+		// everything it owns outright and wrong for anything it shares. Cloning
+		// it onto itself lets its own glue decide, member by member.
+		dstField := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", dstField, off)
+		srcField := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%src, i64 %d\n", srcField, off)
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %s, ptr %s)\n",
+			e.requireCloneGlue(resolved), dstField, srcField)
 	}
 }
 
-// emitFixedArrayElemClones fixes up each element of a cloned fixed-array box.
-func (e *Emitter) emitFixedArrayElemClones(g *glueTmp, elem types.TypeID, length int) {
+// emitFixedArrayElemClones fixes up each element of a copied fixed array.
+func (e *Emitter) emitFixedArrayElemClones(g *glueTmp, elem types.TypeID, baseAlign uint64, length int) {
 	if length <= 0 {
 		return
 	}
@@ -169,20 +181,19 @@ func (e *Emitter) emitFixedArrayElemClones(g *glueTmp, elem types.TypeID, length
 	if !e.types.IsRefCountedScalar(resolved) && !e.isCloneableComposite(resolved) {
 		return
 	}
-	elemLayout, err := e.layoutOf(elem)
+	stride, err := e.arrayElemStride(elem)
 	if err != nil {
 		return
 	}
-	stride := elemLayout.Stride
 	for i := range length {
-		e.emitFieldCloneAt(g, elem, uint64(i)*stride)
+		e.emitFieldCloneAt(g, elem, baseAlign, uint64(i)*stride)
 	}
 }
 
 // emitUnionPayloadClones reads the discriminant — already carried over by the
 // memcpy — and fixes up only the ACTIVE arm's payload. Walking every arm would
 // read payload bytes that were never written for the arms that are not live.
-func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts) error {
+func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts, baseAlign uint64) error {
 	cases, err := e.tagCases(id)
 	if err != nil {
 		return err
@@ -224,7 +235,7 @@ func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *lay
 	}
 
 	tag := g.next()
-	fmt.Fprintf(&e.buf, "  %s = load i32, ptr %%box\n", tag)
+	fmt.Fprintf(&e.buf, "  %s = load i32, ptr %%dst, align %d\n", tag, memberAccessAlign(baseAlign, 0))
 	joinLabel := fmt.Sprintf("cl%d.join", g.n)
 	fmt.Fprintf(&e.buf, "  switch i32 %s, label %%%s [", tag, joinLabel)
 	for _, dc := range needsFixup {
@@ -235,7 +246,7 @@ func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *lay
 	for _, dc := range needsFixup {
 		fmt.Fprintf(&e.buf, "cl%d.c%d:\n", base, dc.idx)
 		for i, pt := range dc.payloadTys {
-			e.emitFieldCloneAt(g, pt, dc.payloadOffset+dc.offsets[i])
+			e.emitFieldCloneAt(g, pt, baseAlign, dc.payloadOffset+dc.offsets[i])
 		}
 		fmt.Fprintf(&e.buf, "  br label %%%s\n", joinLabel)
 	}
@@ -258,12 +269,13 @@ func (e *Emitter) emitGlueRetain(g *glueTmp, val string) {
 	fmt.Fprintf(&e.buf, "  store i32 %s, ptr %s\n", bumped, slot)
 }
 
-// isCloneableComposite reports whether a member needs a box of its own in the
-// clone. It asks the shared value-composite predicate, so the VM, the native
-// backend and sema cannot drift on what counts as a value.
+// isCloneableComposite reports whether a member is a value whose own glue
+// decides how it is duplicated. It asks the shared value-composite predicate,
+// so the VM, the native backend and sema cannot drift on what counts as a
+// value.
 func (e *Emitter) isCloneableComposite(id types.TypeID) bool {
 	if e == nil || e.types == nil || id == types.NoTypeID {
 		return false
 	}
-	return e.types.IsValueComposite(id) && e.isBoxedComposite(id)
+	return e.hasInlineStorage(id)
 }

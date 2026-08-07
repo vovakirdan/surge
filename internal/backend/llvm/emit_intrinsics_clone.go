@@ -41,14 +41,14 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 		}
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_task_clone(ptr %s)\n", tmp, val)
-		ptr, dstTy, ptrErr := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, ptrErr := fe.emitPlaceStorage(call.Dst)
 		if ptrErr != nil {
 			return true, ptrErr
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return true, nil
 	}
 	if fe.emitter != nil && fe.emitter.types != nil && dstType != types.NoTypeID {
@@ -60,15 +60,25 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 	if err != nil {
 		return true, err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
+	if isStorageRun(dstTy) {
+		// A composite is duplicated by its own generated glue, into the
+		// destination's storage. A byte copy alone would be wrong for any
+		// member the two copies must not both own — which is the whole reason
+		// the glue exists — and the argument here is a borrow, so its storage
+		// is not this operation's to hand on.
+		fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s, ptr %s)\n",
+			fe.emitter.requireCloneGlue(resolveValueType(fe.emitter.types, dstType)), ptr, val)
+		return true, nil
+	}
 	if valTy == "ptr" && dstTy != "ptr" {
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, dstTy, val)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s, align %d\n", tmp, dstTy, val, dstAlign)
 		val = tmp
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+	fe.emitValueStore(dstTy, val, ptr, dstAlign)
 	return true, nil
 }

@@ -29,14 +29,14 @@ func (fe *funcEmitter) emitReadlineIntrinsic(call *mir.CallInstr) (bool, error) 
 	if call.HasDst {
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_readline()\n", tmp)
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return true, err
 		}
 		if dstTy != "ptr" {
 			return true, fmt.Errorf("%s expects destination ptr, got %s for %v", name, dstTy, call.Dst)
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return true, nil
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  call ptr @rt_readline()\n")

@@ -37,9 +37,9 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	kindPtr := fe.nextTemp()
 	bitsPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", kindPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32\n", statusSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
 
 	pendingVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", pendingVal, pendingPtr)
@@ -169,7 +169,7 @@ func (fe *funcEmitter) emitAnchoredOnErrorBlocks(errBB, statusVal string) error 
 // value, anything else is the closed outcome.
 func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	statusVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_anchored_channel_recv(ptr %s)\n", statusVal, bitsPtr)
 
@@ -204,14 +204,14 @@ func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	dstPtr, dstTy, err := fe.emitPlacePtr(ins.ChanRecv.Dst)
+	dstPtr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.ChanRecv.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, somePtr, dstPtr)
+	fe.emitValueStore(dstTy, somePtr, dstPtr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", joinBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", closedBB)
@@ -223,10 +223,10 @@ func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, nonePtr, dstPtr)
+	fe.emitValueStore(dstTy, nonePtr, dstPtr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", joinBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", joinBB)

@@ -7,6 +7,14 @@ import (
 	"surge/internal/types"
 )
 
+// emitStructLit builds a struct in storage of its own and returns that
+// storage's address.
+//
+// The storage is a frame slot, not an allocation. A literal is a value the
+// program is in the middle of producing; where it finally lives is the
+// assignment's business, and the byte move that puts it there is the
+// assignment's too. So nothing here allocates and nothing here has to be freed
+// — which is the whole of what a construction used to owe the allocator.
 func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err error) {
 	if lit == nil {
 		return "", "", fmt.Errorf("nil struct literal")
@@ -15,13 +23,14 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 	if err != nil {
 		return "", "", err
 	}
-	size := layoutInfo.Size
 	align := layoutInfo.Align
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	mem, err := fe.emitValueStorage(lit.TypeID)
+	if err != nil {
+		return "", "", err
+	}
 	fieldOffsets := layoutInfo.FieldOffsets()
 	for i := range lit.Fields {
 		field := &lit.Fields[i]
@@ -43,7 +52,7 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 		if err != nil {
 			return "", "", err
 		}
-		fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
+		fieldLLVM, err := fe.emitter.llvmValueType(fieldType)
 		if err != nil {
 			return "", "", err
 		}
@@ -67,9 +76,9 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 		off := fieldOffsets[fieldIdx]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+		fe.emitValueStore(valTy, val, bytePtr, memberAccessAlign(align, off))
 	}
-	return mem, "ptr", nil
+	return mem, handleType, nil
 }
 
 func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (val, ty string, err error) {
@@ -77,7 +86,7 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 		return "", "", fmt.Errorf("nil tuple literal")
 	}
 	if len(lit.Elems) == 0 {
-		llvmTy, typeErr := llvmValueType(fe.emitter.types, dstType)
+		llvmTy, typeErr := fe.emitter.llvmValueType(dstType)
 		if typeErr != nil {
 			return "", "", typeErr
 		}
@@ -97,13 +106,14 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 	if err != nil {
 		return "", "", err
 	}
-	size := layoutInfo.Size
 	align := layoutInfo.Align
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	mem, err := fe.emitStorageAlloca(dstType)
+	if err != nil {
+		return "", "", err
+	}
 	fieldOffsets := layoutInfo.FieldOffsets()
 	for i := range lit.Elems {
 		if i >= len(fieldOffsets) {
@@ -121,7 +131,7 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 		if err != nil {
 			return "", "", err
 		}
-		elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+		elemLLVM, err := fe.emitter.llvmValueType(elemType)
 		if err != nil {
 			return "", "", err
 		}
@@ -145,9 +155,9 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 		off := fieldOffsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+		fe.emitValueStore(valTy, val, bytePtr, memberAccessAlign(align, off))
 	}
-	return mem, "ptr", nil
+	return mem, handleType, nil
 }
 
 func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (val, ty string, err error) {
@@ -159,42 +169,38 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		return "", "", fmt.Errorf("unsupported array literal type")
 	}
 
-	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	elemLayout, err := fe.emitter.layoutOf(elemType)
+	stride, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
 	if err != nil {
 		return "", "", err
 	}
-	stride := elemLayout.Stride
 	length := len(lit.Elems)
 
 	if dynamic {
-		// Dynamic arrays still store the emitted value representation.  Until
-		// Wave C inlines aggregates, a composite element is a pointer even when
-		// its canonical language layout is wider; using that language stride
-		// leaves holes that every array reader correctly interprets as elements.
-		emittedStride, emittedAlign, sizeErr := llvmTypeStrideAlign(elemLLVM)
-		if sizeErr != nil {
-			return "", "", sizeErr
-		}
-		dataSize := emittedStride * uint64(length)
+		// The element buffer holds elements at the ELEMENT TYPE's own layout
+		// now, so a composite element occupies its own bytes rather than one
+		// pointer-sized slot pointing at a box somewhere else. The buffer is
+		// still allocated and still owned by the array header, which is what
+		// keeps this a container question rather than a value one.
+		dataSize := stride * uint64(length)
 
 		dataPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, emittedAlign)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, elemAlign)
 		headPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
 
 		lenPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, headPtr, arrayLenOffset)
-		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, lenPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s, align %d\n", length, lenPtr, alignWord)
 		capPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, headPtr, arrayCapOffset)
-		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, capPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s, align %d\n", length, capPtr, alignWord)
 		dataPtrPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, headPtr, arrayDataOffset)
-		fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", dataPtr, dataPtrPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s, align %d\n", dataPtr, dataPtrPtr, alignPtr)
 
 		for i := range lit.Elems {
 			val, valTy, emitErr := fe.emitValueOperand(&lit.Elems[i])
@@ -218,12 +224,12 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 			if valTy != elemLLVM {
 				valTy = elemLLVM
 			}
-			offset := uint64(i) * emittedStride
+			offset := uint64(i) * stride
 			elemPtr := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, dataPtr, offset)
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+			fe.emitValueStore(valTy, val, elemPtr, elemAlign)
 		}
-		return headPtr, "ptr", nil
+		return headPtr, handleType, nil
 	}
 
 	elemType, fixedLen, ok := arrayFixedInfo(fe.emitter.types, dstType)
@@ -233,25 +239,19 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 	if length != int(fixedLen) {
 		return "", "", fmt.Errorf("array literal length mismatch")
 	}
-	layoutInfo, err := fe.emitter.layoutOf(dstType)
+	mem, err := fe.emitStorageAlloca(dstType)
 	if err != nil {
 		return "", "", err
 	}
-	size := layoutInfo.Size
-	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
-		align = 1
-	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
 	if fixedLen == 0 {
-		return mem, "ptr", nil
+		return mem, handleType, nil
 	}
 
-	elemLLVM, err = llvmValueType(fe.emitter.types, elemType)
+	elemLLVM, err = fe.emitter.llvmValueType(elemType)
+	if err != nil {
+		return "", "", err
+	}
+	stride, elemAlign, err = fe.emitter.arrayElemStrideAlign(elemType)
 	if err != nil {
 		return "", "", err
 	}
@@ -280,7 +280,7 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		offset := uint64(i) * stride
 		elemPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, mem, offset)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+		fe.emitValueStore(valTy, val, elemPtr, elemAlign)
 	}
-	return mem, "ptr", nil
+	return mem, handleType, nil
 }

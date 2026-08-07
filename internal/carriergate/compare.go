@@ -23,10 +23,18 @@ type Difference struct {
 	Unexpected []Finding
 	Stale      []Finding
 	StaleAllow []Finding
+	// MigrationTracked counts the carriers this epic introduced that are still
+	// present. It is reported rather than asserted on: they are known and
+	// scheduled, so they are not a mismatch — but a wave that grows this number
+	// should have to see it.
+	MigrationTracked int
 }
 
 // Empty reports whether the exact census still matches.
-func (difference Difference) Empty() bool {
+//
+// A tracked migration carrier does not make it non-empty. It is expected to be
+// there, and it is expected to leave.
+func (difference *Difference) Empty() bool {
 	return len(difference.Unexpected) == 0 && len(difference.Stale) == 0 && len(difference.StaleAllow) == 0
 }
 
@@ -44,6 +52,7 @@ func CompareExact(manifest *Manifest, actual []Finding) Difference {
 func compare(manifest *Manifest, actual []Finding, requireLegacy bool) Difference {
 	legacy := make(map[findingKey]Finding, manifest.BaselineCount)
 	allowed := make(map[findingKey]Finding)
+	migration := make(map[findingKey]Finding)
 	for categoryIndex := range manifest.Categories {
 		category := &manifest.Categories[categoryIndex]
 		for i := range category.Legacy {
@@ -54,6 +63,15 @@ func compare(manifest *Manifest, actual []Finding, requireLegacy bool) Differenc
 			finding := &category.Allow[i].Finding
 			allowed[keyFor(finding)] = *finding
 		}
+		// The exact-base comparison scans the base commit, where none of these
+		// existed, so it does not consider them at all.
+		if requireLegacy {
+			continue
+		}
+		for i := range category.Migration {
+			finding := &category.Migration[i].Finding
+			migration[keyFor(finding)] = *finding
+		}
 	}
 	observed := make(map[findingKey]Finding, len(actual))
 	difference := Difference{}
@@ -62,6 +80,10 @@ func compare(manifest *Manifest, actual []Finding, requireLegacy bool) Differenc
 		key := keyFor(finding)
 		observed[key] = *finding
 		if _, known := legacy[key]; known {
+			continue
+		}
+		if _, tracked := migration[key]; tracked {
+			difference.MigrationTracked++
 			continue
 		}
 		if _, safe := allowed[key]; !safe {
@@ -87,7 +109,7 @@ func compare(manifest *Manifest, actual []Finding, requireLegacy bool) Differenc
 }
 
 // FormatDifference renders actionable paths and current diagnostic lines.
-func FormatDifference(difference Difference) string {
+func FormatDifference(difference *Difference) string {
 	var out strings.Builder
 	write := func(label string, findings []Finding) {
 		for i := range findings {
@@ -97,6 +119,11 @@ func FormatDifference(difference Difference) string {
 	write("unexpected", difference.Unexpected)
 	write("stale legacy", difference.Stale)
 	write("stale allow", difference.StaleAllow)
+	// Reported even when nothing is wrong, so that growing the tracked set is
+	// something a reader sees rather than something a diff hides.
+	if difference.MigrationTracked > 0 {
+		fmt.Fprintf(&out, "migration carriers still present: %d\n", difference.MigrationTracked)
+	}
 	return strings.TrimSpace(out.String())
 }
 

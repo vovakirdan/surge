@@ -38,7 +38,7 @@ import (
 // payload release branch (a full drop of the unconsumed Option box) this
 // same investigation found correct but dead code until that fix landed.
 const runtimeV2IterProtocolReclamationSource = `
-type Point = { x: int, y: int }
+type Point = { x: int64, y: int64 }
 
 fn array_for_n_times(n: int) -> int {
     let arr: int[] = [1, 2, 3];
@@ -160,17 +160,23 @@ fn string_for_n_times(n: int) -> int {
     return total;
 }
 
-fn struct_for_n_times(n: int) -> int {
-    let arr: Point[] = [{ x: 1, y: 2 }, { x: 3, y: 4 }, { x: 5, y: 6 }];
-    let mut total: int = 0;
-    let mut i: int = 0;
+// Every count here is fixed-width on purpose. This is the row held to strict
+// zero, and arbitrary-precision arithmetic allocates a block per operation — so
+// an int accumulator or an int loop counter would put the loop BODY's heap
+// traffic in front of the iteration's and leave nothing to measure. With
+// machine integers the only thing left that could touch the heap is the
+// iteration protocol itself, which is the question being asked.
+fn struct_for_n_times(n: int64) -> int {
+    let arr: Point[] = [{ x: 1:int64, y: 2:int64 }, { x: 3:int64, y: 4:int64 }, { x: 5:int64, y: 6:int64 }];
+    let mut total: int64 = 0:int64;
+    let mut i: int64 = 0:int64;
     while i < n {
         for p in arr {
             total = total + p.x + p.y;
         }
-        i = i + 1;
+        i = i + 1:int64;
     }
-    return total;
+    return total to int;
 }
 
 fn diff_check(label: string, before1: &HeapStats, after1: &HeapStats, before2: &HeapStats, after2: &HeapStats) -> int {
@@ -185,6 +191,35 @@ fn diff_check(label: string, before1: &HeapStats, after1: &HeapStats, before2: &
         print("alloc/free differential mismatch");
         print(alloc_diff to string);
         print(free_diff to string);
+        return 1;
+    }
+    return 0;
+}
+
+// per_pass_check names the exact cost instead of checking that two unknown
+// costs cancel: entering a for-loop N more times must allocate exactly N more
+// blocks and free exactly N more.
+//
+// That one block is the loop's cursor, which the runtime owns for as long as
+// the loop runs. What the count pins is everything it does NOT include: the
+// elements. Three composites are stepped over on every pass and they contribute
+// nothing, because each one is already in the array's buffer and stepping to it
+// is an address, not a copy onto the heap.
+//
+// A differential cannot ask this. It compares the growth in allocations against
+// the growth in frees, so a block per element per step passes as long as it is
+// also freed — which is why a box per element could sit behind it unremarked.
+fn per_pass_check(label: string, before1: &HeapStats, after1: &HeapStats, before2: &HeapStats, after2: &HeapStats, extra: uint) -> int {
+    let allocs1: uint = after1.alloc_count - before1.alloc_count;
+    let frees1: uint = after1.free_count - before1.free_count;
+    let allocs2: uint = after2.alloc_count - before2.alloc_count;
+    let frees2: uint = after2.free_count - before2.free_count;
+    if allocs2 - allocs1 != extra || frees2 - frees1 != extra {
+        print(label);
+        print("per-pass heap cost is not one cursor and nothing else");
+        print((allocs2 - allocs1) to string);
+        print((frees2 - frees1) to string);
+        print(extra to string);
         return 1;
     }
     return 0;
@@ -312,13 +347,22 @@ fn main() -> int {
     let r6: int = diff_check("string-for", &s1_before, &s1_after, &s2000_before, &s2000_after);
     if r6 != 0 { return 60 + r6; }
 
-    // array-for over a struct element type: same pin, for a composite
-    // (not heap-owning-leaf) payload shape.
+    // array-for over a struct element type. This row is held to STRICT ZERO
+    // rather than to a balance: a Point sits inline in the array's buffer, so
+    // stepping over one allocates nothing at all, and iterating 2000 times must
+    // cost exactly what iterating once does.
+    //
+    // The differential the other rows use cannot ask that. It compares the
+    // growth from N=1 to N=2000 in allocations against the same growth in
+    // frees, so a per-step allocation that is always freed passes — the right
+    // question when an element genuinely owns something, and the wrong one
+    // here, where the answer is that there is nothing to own. A box per element
+    // per step would cancel out of it exactly.
     let p1_before: HeapStats = rt_heap_stats();
-    let p1: int = struct_for_n_times(1);
+    let p1: int = struct_for_n_times(1:int64);
     let p1_after: HeapStats = rt_heap_stats();
     let p2000_before: HeapStats = rt_heap_stats();
-    let p2000: int = struct_for_n_times(2000);
+    let p2000: int = struct_for_n_times(2000:int64);
     let p2000_after: HeapStats = rt_heap_stats();
     if p1 != 21 || p2000 != 42000 {
         print("struct-for value mismatch");
@@ -328,6 +372,8 @@ fn main() -> int {
     }
     let r7: int = diff_check("struct-for", &p1_before, &p1_after, &p2000_before, &p2000_after);
     if r7 != 0 { return 70 + r7; }
+    let r10: int = per_pass_check("struct-for", &p1_before, &p1_after, &p2000_before, &p2000_after, 1999);
+    if r10 != 0 { return 100 + r10; }
 
     print("iter-protocol-reclamation-ok");
     return 0;

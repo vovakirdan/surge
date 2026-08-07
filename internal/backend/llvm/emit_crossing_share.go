@@ -37,9 +37,9 @@ func (fe *funcEmitter) emitChannelShareCrossing(ins *mir.CrossingInstr) error {
 	kindPtr := fe.nextTemp()
 	bitsPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", kindPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32\n", statusSlot)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
 
 	pendingVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", pendingVal, pendingPtr)
@@ -120,14 +120,14 @@ func (fe *funcEmitter) emitChannelShareCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
 	readyHandlePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", readyHandlePtr, handleSlot)
-	dstPtr, dstTy, err := fe.emitPlacePtr(ins.Dst)
+	dstPtr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Dst)
 	if err != nil {
 		return err
 	}
 	if dstTy != "ptr" {
 		return fmt.Errorf("channel_share handle destination must lower as ptr, got %s", dstTy)
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", readyHandlePtr, dstPtr)
+	fe.emitValueStore(dstTy, readyHandlePtr, dstPtr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ReadyBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)

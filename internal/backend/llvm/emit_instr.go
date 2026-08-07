@@ -49,10 +49,15 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 	}
 }
 
-// emitInstrDrop frees the dropped place's owned heap value for the leaf
-// types (string, dynamic array) and nulls the slot so a stale handle can
-// never free twice. Composite types wait for the recursive drop glue;
-// until then their drops stay no-ops, exactly as before.
+// emitInstrDrop releases what the dropped place owns.
+//
+// The two shapes are dropped differently and it is worth saying which is which.
+// A leaf handle — a string, a dynamic array, a counted scalar, a far channel —
+// has its word read out of the slot, released, and the slot nulled so a stale
+// handle can never free twice. A composite has no word: its bytes are the slot,
+// so its generated glue is called on the ADDRESS and releases its members in
+// place. There is nothing to null afterwards, because nothing was pointing
+// anywhere.
 //
 // A PROJECTED place is resolved through the same walk every other instruction
 // uses. It used to be refused by `placeBaseType` and the error swallowed just
@@ -67,7 +72,24 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		return nil
 	}
 	if ins.Drop.Shallow {
-		return fe.emitShallowDrop(ins.Drop.Place, baseType)
+		// A residual's container has no storage of its own to free any more:
+		// its bytes belong to the frame, the enclosing value or the array that
+		// declared them, and its live members were dropped one at a time just
+		// above. Freeing anything here would be freeing memory this value never
+		// owned.
+		return nil
+	}
+	if fe.emitter.hasInlineStorage(baseType) {
+		if !fe.emitter.typeOwnsHeap(baseType) {
+			return nil
+		}
+		ptr, _, ptrErr := fe.emitPlacePtr(ins.Drop.Place)
+		if ptrErr != nil {
+			return ptrErr
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n",
+			fe.emitter.requireDropGlue(baseType), ptr)
+		return nil
 	}
 	typesIn := fe.emitter.types
 	isRefCounted := typesIn.IsRefCountedScalar(resolveValueType(typesIn, baseType))
@@ -75,35 +97,18 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	isFarChan := isFarChannelType(typesIn, baseType)
 	elemType, dynamic, isArray := arrayElemType(typesIn, baseType)
 	dynArray := isArray && dynamic
-	composite := false
-	if fe.emitter.isBoxedComposite(baseType) {
-		composite = fe.emitter.typeOwnsHeap(baseType)
-		if !composite {
-			// A boxed composite with no heap-owning field still owns its BOX.
-			// Without this every such value leaks one block per construction —
-			// `type R = { a: int, b: int }` lost 16 bytes per `R` built. The
-			// exception used to be spelled for tag unions only, which is why
-			// discarded union temps were reclaimed while plain structs and
-			// tuples were not; the box is the same in all three cases and the
-			// glue for such a type is a null check plus the free.
-			if _, layoutErr := fe.emitter.layoutOf(baseType); layoutErr != nil {
-				return layoutErr
-			}
-			composite = true
-		}
-	}
-	if !isRefCounted && !isString && !dynArray && !composite && !isFarChan {
+	if !isRefCounted && !isString && !dynArray && !isFarChan {
 		return nil
 	}
-	ptr, ptrTy, err := fe.emitPlacePtr(ins.Drop.Place)
+	ptr, ptrTy, align, err := fe.emitPlaceStorage(ins.Drop.Place)
 	if err != nil {
 		return err
 	}
-	if ptrTy != "ptr" {
+	if ptrTy != handleType {
 		return nil
 	}
 	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, ptr, align)
 	switch {
 	case isRefCounted:
 		// Giving back this place's reference, not destroying the block: the
@@ -116,10 +121,8 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_far_channel_handle_drop(ptr %s)\n", handle)
 	case dynArray:
 		fe.emitter.emitDropDynArray(handle, elemType)
-	default: // boxed composite that owns heap
-		fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n", fe.emitter.requireDropGlue(baseType), handle)
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s, align %d\n", ptr, align)
 	return nil
 }
 
@@ -133,15 +136,7 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 		if err != nil {
 			return err
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(ins.Assign.Dst)
-		if err != nil {
-			return err
-		}
-		if dstTy != ty {
-			ty = dstTy
-		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
-		return nil
+		return fe.storeIntoPlace(ins.Assign.Dst, val, ty)
 	}
 	if ins.Assign.Src.Kind == mir.RValueTupleLit {
 		dstType, err := fe.placeBaseType(ins.Assign.Dst)
@@ -152,15 +147,7 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 		if err != nil {
 			return err
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(ins.Assign.Dst)
-		if err != nil {
-			return err
-		}
-		if dstTy != ty {
-			ty = dstTy
-		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
-		return nil
+		return fe.storeIntoPlace(ins.Assign.Dst, val, ty)
 	}
 	if ins.Assign.Src.Kind == mir.RValueUse && ins.Assign.Src.Use.Kind == mir.OperandConst && ins.Assign.Src.Use.Const.Kind == mir.ConstNothing {
 		dstType, err := fe.placeBaseType(ins.Assign.Dst)
@@ -176,29 +163,35 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 			if err != nil {
 				return err
 			}
-			ptr, dstTy, err := fe.emitPlacePtr(ins.Assign.Dst)
-			if err != nil {
-				return err
-			}
-			if dstTy != ty {
-				ty = dstTy
-			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
-			return nil
+			return fe.storeIntoPlace(ins.Assign.Dst, val, ty)
 		}
 	}
 	val, ty, err := fe.emitRValue(&ins.Assign.Src)
 	if err != nil {
 		return err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(ins.Assign.Dst)
+	return fe.storeIntoPlace(ins.Assign.Dst, val, ty)
+}
+
+// storeIntoPlace writes a produced value into a destination place.
+//
+// This is where the two representations part. A scalar or handle is stored into
+// its slot. A composite's `val` is the ADDRESS of the storage that holds it —
+// a source place, a literal built in a temporary, a clone — so the assignment
+// is a byte move into the destination's own storage, at the alignment the
+// layout registry published for the type.
+//
+// The destination's spelling wins when the two disagree, because the
+// destination is the storage that must end up holding a well-formed value.
+func (fe *funcEmitter) storeIntoPlace(place mir.Place, val, valTy string) error {
+	ptr, dstTy, align, err := fe.emitPlaceStorage(place)
 	if err != nil {
 		return err
 	}
-	if dstTy != ty {
-		ty = dstTy
+	if dstTy != valTy {
+		valTy = dstTy
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+	fe.emitValueStore(valTy, val, ptr, align)
 	return nil
 }
 
@@ -244,41 +237,4 @@ func (fe *funcEmitter) droppedPlaceType(place mir.Place) (types.TypeID, error) {
 		return fe.placeBaseType(place)
 	}
 	return fe.projectedPlaceTypeWithTargets(place, nil)
-}
-
-// emitShallowDrop frees a place's own box and leaves its contents alone. The
-// fields still sitting in it are the ones that moved away, and releasing them
-// here would free storage this value no longer owns.
-//
-// Same shape as the envelope release, which frees a synthesized box the same
-// way; the difference is only which box and why.
-func (fe *funcEmitter) emitShallowDrop(place mir.Place, baseType types.TypeID) error {
-	if !fe.emitter.isBoxedComposite(baseType) {
-		// Nothing of its own to free: a leaf's storage IS its value, and a
-		// shallow drop of one would be a deep drop by another name.
-		return nil
-	}
-	layoutInfo, layoutErr := fe.emitter.layoutOf(baseType)
-	if layoutErr != nil {
-		return layoutErr
-	}
-	size, align := layoutInfo.Size, layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
-		align = 1
-	}
-	ptr, ptrTy, err := fe.emitPlacePtr(place)
-	if err != nil {
-		return err
-	}
-	if ptrTy != "ptr" {
-		return nil
-	}
-	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
-	return nil
 }

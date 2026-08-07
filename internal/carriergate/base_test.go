@@ -43,7 +43,7 @@ func TestLegacyCarrierManifestMatchesExactBaseCensus(t *testing.T) {
 		t.Fatalf("scan exact base: %v", err)
 	}
 	if difference := CompareExact(&manifest, actual); !difference.Empty() {
-		t.Fatalf("exact-base carrier census changed:\n%s", FormatDifference(difference))
+		t.Fatalf("exact-base carrier census changed:\n%s", FormatDifference(&difference))
 	}
 	if len(actual) != frozenBaseCount || Digest(actual) != frozenBaseDigest {
 		t.Fatalf("exact-base scan count/digest = %d/%s", len(actual), Digest(actual))
@@ -81,7 +81,7 @@ func TestLiveCarrierRatchetAgainstRepository(t *testing.T) {
 		t.Fatalf("scan live repository: %v", err)
 	}
 	if difference := Compare(&manifest, actual); !difference.Empty() {
-		t.Fatalf("live carrier ratchet failed:\n%s", FormatDifference(difference))
+		t.Fatalf("live carrier ratchet failed:\n%s", FormatDifference(&difference))
 	}
 }
 

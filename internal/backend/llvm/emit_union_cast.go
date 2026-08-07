@@ -15,7 +15,7 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 	srcResolved := resolveValueType(fe.emitter.types, srcType)
 	dstResolved := resolveValueType(fe.emitter.types, dstType)
 	if srcResolved == dstResolved {
-		return val, "ptr", nil
+		return val, handleType, nil
 	}
 	srcCases, err := fe.emitter.tagCases(srcResolved)
 	if err != nil {
@@ -25,17 +25,29 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 	if err != nil {
 		return "", "", err
 	}
-	srcOwned := !isRefType(fe.emitter.types, srcType)
-	if !srcOwned {
+	if isRefType(fe.emitter.types, srcType) {
 		deref := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, val)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", deref, val, alignPtr)
 		val = deref
 	}
-	tagVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i32, ptr %s\n", tagVal, val)
-	resPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", resPtr)
 
+	srcLayout, err := fe.emitter.layoutOf(srcResolved)
+	if err != nil {
+		return "", "", err
+	}
+	srcAlign := srcLayout.Align
+	if srcAlign == 0 {
+		srcAlign = 1
+	}
+	tagVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i32, ptr %s, align %d\n", tagVal, val, srcAlign)
+	// The result is built in storage of its own, once, and each arm writes
+	// into it. There is no box to hand back and no source envelope to free:
+	// the source belongs to whoever declared it and outlives this cast.
+	resPtr, err := fe.emitStorageAlloca(dstResolved)
+	if err != nil {
+		return "", "", err
+	}
 	cont := fe.nextInlineBlock()
 	def := fe.nextInlineBlock()
 	castID := fe.inlineBlock
@@ -45,19 +57,6 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 		fmt.Fprintf(&fe.emitter.buf, " i32 %d, label %%tagcast%d.%d", i, castID, i)
 	}
 	fmt.Fprintf(&fe.emitter.buf, " ]\n")
-
-	srcLayout, err := fe.emitter.layoutOf(srcResolved)
-	if err != nil {
-		return "", "", err
-	}
-	srcFreeSize := srcLayout.Size
-	if srcFreeSize <= 0 {
-		srcFreeSize = 1
-	}
-	srcFreeAlign := srcLayout.Align
-	if srcFreeAlign <= 0 {
-		srcFreeAlign = 1
-	}
 	for i, srcCase := range srcCases {
 		fmt.Fprintf(&fe.emitter.buf, "tagcast%d.%d:\n", castID, i)
 		dstIdx, dstCase, ok := matchTagCase(dstCases, srcCase)
@@ -93,11 +92,11 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 						continue
 					}
 				}
-				srcLLVM, err := llvmValueType(fe.emitter.types, payloadType)
+				srcLLVM, err := fe.emitter.llvmValueType(payloadType)
 				if err != nil {
 					return "", "", err
 				}
-				dstLLVM, err := llvmValueType(fe.emitter.types, dstCase.PayloadTypes[j])
+				dstLLVM, err := fe.emitter.llvmValueType(dstCase.PayloadTypes[j])
 				if err != nil {
 					return "", "", err
 				}
@@ -107,8 +106,12 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 				off := srcCaseLayout.PayloadOffset + offsets[j]
 				bytePtr := fe.nextTemp()
 				fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, val, off)
-				loaded := fe.nextTemp()
-				fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", loaded, srcLLVM, bytePtr)
+				loaded, loadedTy, loadErr := fe.emitStorageMemberLoad(
+					srcLLVM, bytePtr, memberAccessAlign(srcAlign, off))
+				if loadErr != nil {
+					return "", "", loadErr
+				}
+				srcLLVM = loadedTy
 				if srcPayload != dstPayload && isUnionType(fe.emitter.types, srcPayload) && isUnionType(fe.emitter.types, dstPayload) {
 					casted, castTy, err := fe.emitUnionCast(loaded, payloadType, dstCase.PayloadTypes[j])
 					if err != nil {
@@ -121,19 +124,11 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 				payloadLLVM = append(payloadLLVM, srcLLVM)
 			}
 		}
-		newTag, err := fe.emitTagValueFromValues(dstResolved, dstIdx, dstCase.PayloadTypes, payloadVals, payloadLLVM)
-		if err != nil {
+		if err := fe.emitTagValueIntoStorage(
+			resPtr, dstResolved, dstIdx, dstCase.PayloadTypes, payloadVals, payloadLLVM,
+		); err != nil {
 			return "", "", err
 		}
-		// The new box (built above from copied-out payload values) fully
-		// replaces this one; every field it needs is already read into
-		// SSA temps, so the old envelope is dead from here and frees
-		// exactly once per arm. A borrowed source (&T) is never owned
-		// here and must not be freed.
-		if srcOwned {
-			fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", val, srcFreeSize, srcFreeAlign)
-		}
-		fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", newTag, resPtr)
 		fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", cont)
 	}
 
@@ -141,9 +136,7 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
-	out := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", out, resPtr)
-	return out, "ptr", nil
+	return resPtr, handleType, nil
 }
 
 func (fe *funcEmitter) emitNothingPayloadValue(dstType types.TypeID) (value, llvmTy string, ok bool, err error) {
@@ -164,7 +157,7 @@ func (fe *funcEmitter) emitNothingPayloadValue(dstType types.TypeID) (value, llv
 	if err != nil {
 		return "", "", false, err
 	}
-	return ptr, "ptr", true, nil
+	return ptr, handleType, true, nil
 }
 
 func matchTagCase(cases []mir.TagCaseMeta, src mir.TagCaseMeta) (int, mir.TagCaseMeta, bool) {
@@ -185,49 +178,53 @@ func matchTagCase(cases []mir.TagCaseMeta, src mir.TagCaseMeta) (int, mir.TagCas
 	return -1, mir.TagCaseMeta{}, false
 }
 
-func (fe *funcEmitter) emitTagValueFromValues(typeID types.TypeID, tagIndex int, payloadTypes []types.TypeID, payloadVals, payloadLLVM []string) (string, error) {
+// emitTagValueIntoStorage writes one tag and its payloads into storage the
+// caller owns. Every arm of a cast writes into the same destination, which is
+// what lets the cast produce one value rather than one box per arm.
+func (fe *funcEmitter) emitTagValueIntoStorage(
+	dst string, typeID types.TypeID, tagIndex int,
+	payloadTypes []types.TypeID, payloadVals, payloadLLVM []string,
+) error {
 	if len(payloadTypes) != len(payloadVals) || len(payloadTypes) != len(payloadLLVM) {
-		return "", fmt.Errorf("tag payload length mismatch")
+		return fmt.Errorf("tag payload length mismatch")
 	}
 	layoutInfo, err := fe.emitter.layoutOf(typeID)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if layoutInfo.TagSize != 4 {
-		return "", fmt.Errorf("unsupported tag size %d for type#%d", layoutInfo.TagSize, typeID)
+		return fmt.Errorf("unsupported tag size %d for type#%d", layoutInfo.TagSize, typeID)
 	}
-	size := layoutInfo.Size
 	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", tagIndex, mem)
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", tagIndex, dst, align)
 	if len(payloadTypes) == 0 {
-		return mem, nil
+		return nil
 	}
 	unionCase, ok := layoutInfo.UnionCase(tagIndex)
 	if !ok {
-		return "", fmt.Errorf("missing finalized union case %d for type#%d", tagIndex, typeID)
+		return fmt.Errorf("missing finalized union case %d for type#%d", tagIndex, typeID)
 	}
 	offsets := unionCase.FieldOffsets()
 	if len(offsets) != len(payloadTypes) {
-		return "", fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", tagIndex, typeID, len(offsets), len(payloadTypes))
+		return fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", tagIndex, typeID, len(offsets), len(payloadTypes))
 	}
 	for i := range payloadTypes {
 		if isNothingType(fe.emitter.types, payloadTypes[i]) {
 			continue
 		}
+		payloadStorage, storageErr := fe.emitter.llvmValueType(payloadTypes[i])
+		if storageErr != nil {
+			return storageErr
+		}
 		off := unionCase.PayloadOffset + offsets[i]
 		bytePtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", payloadLLVM[i], payloadVals[i], bytePtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, dst, off)
+		fe.emitValueStore(payloadStorage, payloadVals[i], bytePtr, memberAccessAlign(align, off))
 	}
-	return mem, nil
+	return nil
 }
 
 func isUnionType(typesIn *types.Interner, id types.TypeID) bool {

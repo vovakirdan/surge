@@ -16,9 +16,18 @@ func fixedCompositeArrayEmitter(t *testing.T) (*Emitter, types.TypeID, types.Typ
 	typesIn := types.NewInterner()
 	typesIn.Strings = source.NewInterner()
 
+	// The element owns heap through its `float` member, and that is
+	// load-bearing: clone and drop glue is only generated for an element with
+	// something to duplicate or reclaim, and this fixture exists to look at the
+	// strides those two walks use. A struct of `int` no longer qualifies — a
+	// composite used to own its box whatever its members held, and `int` is not
+	// reference counted yet — so it would leave both walks with nothing to emit
+	// and the stride assertions with nothing to read. Arbitrary-precision
+	// `float` is the one scalar that is counted today, and it needs no constant
+	// pool to default, which this hand-built emitter does not have.
 	item := typesIn.RegisterStruct(typesIn.Strings.Intern("Item"), source.Span{})
 	typesIn.SetStructFields(item, []types.StructField{
-		{Type: typesIn.Builtins().Int},
+		{Type: typesIn.Builtins().Float},
 		{Type: typesIn.Builtins().Int},
 	})
 	typesIn.MarkCopyType(item)
@@ -51,28 +60,38 @@ func fixedCompositeArrayEmitter(t *testing.T) (*Emitter, types.TypeID, types.Typ
 }
 
 func TestFixedCompositeArrayCloneAndDropUseCanonicalStride(t *testing.T) {
-	for _, operation := range []string{"clone", "drop"} {
-		t.Run(operation, func(t *testing.T) {
+	// Both walks step over storage the CALLER owns, so both are named by the
+	// pointers they were handed. A clone takes a destination and a source —
+	// it used to take one `%box`, allocate a second and return it, because a
+	// composite was its allocation.
+	for _, operation := range []struct {
+		name  string
+		bases []string
+	}{
+		{name: "clone", bases: []string{"%dst", "%src"}},
+		{name: "drop", bases: []string{"%p"}},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
 			emitter, fixed, _ := fixedCompositeArrayEmitter(t)
 			var err error
-			if operation == "clone" {
+			if operation.name == "clone" {
 				err = emitter.emitCloneGlueBody(fixed)
 			} else {
 				err = emitter.emitDropGlueBody(fixed)
 			}
 			if err != nil {
-				t.Fatalf("emit %s glue: %v", operation, err)
+				t.Fatalf("emit %s glue: %v", operation.name, err)
 			}
 			ir := emitter.buf.String()
-			base := "%p"
-			if operation == "clone" {
-				base = "%box"
-			}
-			if !strings.Contains(ir, "getelementptr inbounds i8, ptr "+base+", i64 16") {
-				t.Fatalf("fixed composite %s did not use canonical stride 16:\n%s", operation, ir)
-			}
-			if strings.Contains(ir, "getelementptr inbounds i8, ptr "+base+", i64 8") {
-				t.Fatalf("fixed composite %s used emitted pointer stride 8:\n%s", operation, ir)
+			for _, base := range operation.bases {
+				if !strings.Contains(ir, "getelementptr inbounds i8, ptr "+base+", i64 16") {
+					t.Fatalf("fixed composite %s did not reach %s element 1 at the canonical stride 16:\n%s",
+						operation.name, base, ir)
+				}
+				if strings.Contains(ir, "getelementptr inbounds i8, ptr "+base+", i64 8") {
+					t.Fatalf("fixed composite %s stepped %s by a pointer stride of 8:\n%s",
+						operation.name, base, ir)
+				}
 			}
 		})
 	}
@@ -82,16 +101,17 @@ func TestFixedCompositeArrayStoragePathsUseCanonicalStride(t *testing.T) {
 	emitter, fixed, item := fixedCompositeArrayEmitter(t)
 	fe := &funcEmitter{emitter: emitter}
 
-	canonical, err := fe.canonicalArrayElemStride(item)
+	// One stride, and it is the language's. There used to be two — the layout
+	// registry's canonical 16 and an emitted 8, because an element was a
+	// pointer to a box rather than the value — and every storage path had to
+	// pick the right one. An element is the value now, so the two collapsed
+	// into this single query and the picking is gone.
+	stride, err := fe.emitter.arrayElemStride(item)
 	if err != nil {
-		t.Fatalf("canonical stride: %v", err)
+		t.Fatalf("element stride: %v", err)
 	}
-	emitted, err := fe.emittedArrayElemStride(item)
-	if err != nil {
-		t.Fatalf("emitted stride: %v", err)
-	}
-	if canonical != 16 || emitted != 8 {
-		t.Fatalf("stride split = canonical %d, emitted %d; want 16 and 8", canonical, emitted)
+	if stride != 16 {
+		t.Fatalf("element stride = %d, want the canonical 16", stride)
 	}
 
 	if _, _, err = fe.emitDefaultArrayFixed(fixed, item, 2); err != nil {
@@ -168,7 +188,12 @@ fn main() -> int {
 }
 `)
 
-	body := llvmFunctionContaining(t, ir, "@rt_alloc(i64 56, i64 8)")
+	// Located by the array's own storage. A defaulted fixed array used to be a
+	// heap box, so this named `@rt_alloc(i64 56, i64 8)`; it now occupies inline
+	// storage like every other value composite, and that reservation is what
+	// identifies the function holding it. The assertion below is unchanged —
+	// what the test proves is the bounds check, not where the bytes live.
+	body := llvmFunctionContaining(t, ir, "alloca [56 x i8], align 8")
 	bounds := regexp.MustCompile(
 		`@rt_panic_bounds\(i64 \d+, i64 [^,]+, i64 ([^)]+)\)`,
 	).FindAllStringSubmatch(body, -1)

@@ -144,14 +144,14 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_channel_new(i64 %s, i64 %d)\n", tmp, cap64, dropID)
 		if call.HasDst {
-			ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+			ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 			if err != nil {
 				return true, err
 			}
-			if dstTy != "ptr" {
-				dstTy = "ptr"
+			if !isStorageRun(dstTy) {
+				dstTy = handleType
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+			fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		}
 		return true, nil
 	case "close":
@@ -206,7 +206,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			return true, err
 		}
 		bitsPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 		kindVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv_blocking(ptr %s, ptr %s)\n", kindVal, chVal, bitsPtr)
 		if call.HasDst {
@@ -226,7 +226,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			noneBB := fe.nextInlineBlock()
 			contBB := fe.nextInlineBlock()
 			outPtr := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 			hasValue := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 1\n", hasValue, kindVal)
 			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", hasValue, readyBB, noneBB)
@@ -256,14 +256,14 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 			resultVal := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
-			ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+			ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 			if err != nil {
 				return true, err
 			}
-			if dstTy != "ptr" {
-				dstTy = "ptr"
+			if !isStorageRun(dstTy) {
+				dstTy = handleType
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, resultVal, ptr)
+			fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
 		}
 		return true, nil
 	case "try_send":
@@ -294,14 +294,14 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_try_send(ptr %s, i64 %s)\n", okVal, chVal, bitsVal)
 		if call.HasDst {
-			ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+			ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 			if err != nil {
 				return true, err
 			}
 			if dstTy != "i1" {
 				dstTy = "i1"
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, okVal, ptr)
+			fe.emitValueStore(dstTy, okVal, ptr, dstAlign)
 		}
 		return true, nil
 	case "try_recv":
@@ -316,7 +316,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			return true, err
 		}
 		bitsPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_try_recv(ptr %s, ptr %s)\n", okVal, chVal, bitsPtr)
 		if call.HasDst {
@@ -336,7 +336,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			noneBB := fe.nextInlineBlock()
 			contBB := fe.nextInlineBlock()
 			outPtr := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 			fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
@@ -364,14 +364,14 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 			resultVal := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
-			ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+			ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 			if err != nil {
 				return true, err
 			}
-			if dstTy != "ptr" {
-				dstTy = "ptr"
+			if !isStorageRun(dstTy) {
+				dstTy = handleType
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, resultVal, ptr)
+			fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
 		}
 		return true, nil
 	default:
@@ -424,7 +424,7 @@ func (fe *funcEmitter) emitInstrChanRecv(ins *mir.Instr) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	kindVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv(ptr %s, ptr %s)\n", kindVal, chVal, bitsPtr)
 	pendingCond := fe.nextTemp()
@@ -464,14 +464,14 @@ func (fe *funcEmitter) emitInstrChanRecv(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(ins.ChanRecv.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.ChanRecv.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, somePtr, ptr)
+	fe.emitValueStore(dstTy, somePtr, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ChanRecv.ReadyBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", closedBB)
@@ -483,10 +483,10 @@ func (fe *funcEmitter) emitInstrChanRecv(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, nonePtr, ptr)
+	fe.emitValueStore(dstTy, nonePtr, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ChanRecv.ReadyBB)
 
 	fe.blockTerminated = true

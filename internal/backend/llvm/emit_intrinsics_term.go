@@ -45,14 +45,14 @@ func (fe *funcEmitter) emitTermSize(call *mir.CallInstr) error {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_term_size()\n", tmp)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	}
 	return nil
 }
@@ -85,14 +85,14 @@ func (fe *funcEmitter) emitTermReadEvent(call *mir.CallInstr) error {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_term_read_event()\n", tmp)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	}
 	return nil
 }

@@ -7,7 +7,7 @@ import (
 )
 
 func (fe *funcEmitter) emitNumericCast(srcVal, srcLLVM string, srcTypeID, dstTypeID types.TypeID) (valOut, tyOut string, err error) {
-	dstLLVM, err := llvmValueType(fe.emitter.types, dstTypeID)
+	dstLLVM, err := fe.emitter.llvmValueType(dstTypeID)
 	if err != nil {
 		return "", "", err
 	}
@@ -489,7 +489,7 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 
 	if isBoolType(fe.emitter.types, dstType) {
 		outPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", outPtr, 1)
 		fmt.Fprintf(&fe.emitter.buf, "  store i8 0, ptr %s\n", outPtr)
 		ok := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_parse_bool(ptr %s, ptr %s)\n", ok, strAddr, outPtr)
@@ -501,7 +501,7 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 	}
 	if isBigIntType(fe.emitter.types, dstType) {
 		outPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 		fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", outPtr)
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_parse_bigint(ptr %s, ptr %s)\n", okVal, strAddr, outPtr)
@@ -511,7 +511,7 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 	}
 	if isBigUintType(fe.emitter.types, dstType) {
 		outPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 		fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", outPtr)
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_parse_biguint(ptr %s, ptr %s)\n", okVal, strAddr, outPtr)
@@ -521,7 +521,7 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 	}
 	if isBigFloatType(fe.emitter.types, dstType) {
 		outPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 		fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", outPtr)
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_parse_bigfloat(ptr %s, ptr %s)\n", okVal, strAddr, outPtr)
@@ -531,7 +531,7 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 	}
 	if info, ok := intInfo(fe.emitter.types, dstType); ok {
 		outPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", outPtr, alignWord)
 		fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
 		okVal := fe.nextTemp()
 		if info.signed {
@@ -571,7 +571,7 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 	}
 	if _, ok := floatInfo(fe.emitter.types, dstType); ok {
 		outPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca double\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca double, align %d\n", outPtr, 8)
 		fmt.Fprintf(&fe.emitter.buf, "  store double 0.0, ptr %s\n", outPtr)
 		okVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_parse_float(ptr %s, ptr %s)\n", okVal, strAddr, outPtr)

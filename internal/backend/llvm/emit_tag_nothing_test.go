@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -30,26 +31,29 @@ fn main() -> int {
 	}
 	body := findLLVMFuncBody(t, ir, fmt.Sprintf("fn.%d", findMIRFunc(t, mirMod, "wait_once$poll").ID))
 
-	lines := strings.Split(body, "\n")
-	const allocSuffix = " = call ptr @rt_alloc(i64 4, i64 4)"
-	tagOnlyAllocs := 0
-	for i, line := range lines {
-		mem, found := strings.CutSuffix(line, allocSuffix)
-		if !found || i+1 >= len(lines) {
+	// `TaskResult<nothing>` is four bytes of tag and nothing else, so its
+	// storage is a four-byte slot and there is no byte past the tag to address.
+	// The slot used to be a heap allocation of the same four bytes; what the
+	// test watches for is unchanged — a payload store into a value that has no
+	// payload — and only where the four bytes live has moved.
+	//
+	// The slot and the store are no longer adjacent, though: inline storage is
+	// declared once at the top of the function while the tag is written
+	// wherever the value is built, so the two are matched by name rather than
+	// by position.
+	tagOnlySlots := 0
+	for _, slot := range regexp.MustCompile(`(%\w+) = alloca \[4 x i8\], align 4`).FindAllStringSubmatch(body, -1) {
+		mem := slot[1]
+		if !regexp.MustCompile(`store i32 \d+, ptr ` + regexp.QuoteMeta(mem) + `, align 4`).MatchString(body) {
 			continue
 		}
-		mem = strings.TrimSpace(mem)
-		tagStore := strings.TrimSpace(lines[i+1])
-		if !strings.HasPrefix(tagStore, "store i32 ") || !strings.HasSuffix(tagStore, ", ptr "+mem) {
-			continue
-		}
-		tagOnlyAllocs++
+		tagOnlySlots++
 		if strings.Contains(body, "ptr "+mem+", i64 4") {
-			t.Fatalf("tag-only TaskResult<nothing> allocation %s must not address a payload past its 4-byte layout:\n%s", mem, body)
+			t.Fatalf("tag-only TaskResult<nothing> slot %s must not address a payload past its 4-byte layout:\n%s", mem, body)
 		}
 	}
-	if tagOnlyAllocs == 0 {
-		t.Fatalf("missing 4-byte tag-only TaskResult<nothing> allocation:\n%s", body)
+	if tagOnlySlots == 0 {
+		t.Fatalf("missing 4-byte tag-only TaskResult<nothing> slot:\n%s", body)
 	}
 }
 

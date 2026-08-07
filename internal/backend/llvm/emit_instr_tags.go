@@ -71,24 +71,17 @@ func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, errTa
 		basePtr string
 		baseTy  string
 	)
+	// Same as the discriminant read next door: the operand already names the
+	// union's storage, so there is nothing to dereference first.
 	basePtr, baseTy, errTagPayload = fe.emitValueOperand(&tp.Value)
 	if errTagPayload != nil {
 		return "", "", errTagPayload
 	}
-	if isRefType(fe.emitter.types, tp.Value.Type) {
-		if baseTy != "ptr" {
-			return "", "", fmt.Errorf("tag payload requires ptr base, got %s", baseTy)
-		}
-		deref := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, basePtr)
-		basePtr = deref
-		baseTy = "ptr"
-	}
-	if baseTy != "ptr" {
-		return "", "", fmt.Errorf("tag payload requires ptr base, got %s", baseTy)
+	if baseTy != handleType {
+		return "", "", fmt.Errorf("tag payload requires an addressed base, got %s", baseTy)
 	}
 	payloadType := meta.PayloadTypes[tp.Index]
-	payloadLLVM, errPayloadLLVM := llvmValueType(fe.emitter.types, payloadType)
+	payloadLLVM, errPayloadLLVM := fe.emitter.llvmValueType(payloadType)
 	if errPayloadLLVM != nil {
 		return "", "", errPayloadLLVM
 	}
@@ -97,9 +90,11 @@ func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, errTa
 	operandIsRef := isRefType(fe.emitter.types, tp.Value.Type)
 	payloadIsRef := isRefType(fe.emitter.types, payloadType)
 	if operandIsRef && !payloadIsRef {
-		return bytePtr, "ptr", nil
+		return bytePtr, handleType, nil
 	}
-	val = fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", val, payloadLLVM, bytePtr)
-	return val, payloadLLVM, nil
+	unionAlign := layoutInfo.Align
+	if unionAlign == 0 {
+		unionAlign = 1
+	}
+	return fe.emitStorageMemberLoad(payloadLLVM, bytePtr, memberAccessAlign(unionAlign, offset))
 }

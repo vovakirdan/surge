@@ -195,8 +195,17 @@ func isHandleValueType(typesIn *types.Interner, id types.TypeID) bool {
 	if !ok {
 		return false
 	}
+	// A value composite is not here: it lives inline, so its address IS its
+	// storage and there is no handle word standing between the two. Asked
+	// before the kind switch, which groups it with the runtime-owned structs it
+	// is no longer one of.
+	if typesIn.IsValueComposite(id) {
+		return false
+	}
 	switch tt.Kind {
-	case types.KindStruct, types.KindTuple, types.KindUnion, types.KindEnum, types.KindString, types.KindArray, types.KindFar, types.KindFn:
+	// An enum is not here either: it is carried as its base type, and a
+	// base-typed scalar is not reached through a handle.
+	case types.KindStruct, types.KindTuple, types.KindUnion, types.KindString, types.KindArray, types.KindFar, types.KindFn:
 		return true
 	case types.KindPointer, types.KindReference:
 		return false
@@ -218,9 +227,9 @@ func isNothingType(typesIn *types.Interner, id types.TypeID) bool {
 	return ok && tt.Kind == types.KindNothing
 }
 
-func llvmLocalValueType(typesIn *types.Interner, local mir.Local) (string, error) {
+func (e *Emitter) llvmLocalValueType(local mir.Local) (string, error) {
 	if local.Flags&(mir.LocalFlagRef|mir.LocalFlagRefMut|mir.LocalFlagPtr) != 0 {
-		return "ptr", nil
+		return handleType, nil
 	}
-	return llvmValueType(typesIn, local.Type)
+	return e.llvmValueType(local.Type)
 }

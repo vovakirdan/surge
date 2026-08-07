@@ -14,12 +14,8 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if layoutInfo.TagSize != 4 {
 		return "", fmt.Errorf("unsupported tag size %d for type#%d", layoutInfo.TagSize, typeID)
 	}
-	size := layoutInfo.Size
 	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
 
@@ -27,9 +23,11 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if !ok {
 		return "", fmt.Errorf("missing finalized union case %d for type#%d", tagIndex, typeID)
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s\n", tagIndex, mem)
+	mem, err := fe.emitStorageAlloca(typeID)
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", tagIndex, mem, align)
 	if isNothingType(fe.emitter.types, payloadType) {
 		return mem, nil
 	}
@@ -37,10 +35,11 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if !ok {
 		return "", fmt.Errorf("missing finalized payload offset for type#%d case %d", typeID, tagIndex)
 	}
-	payloadLLVM, err := llvmValueType(fe.emitter.types, payloadType)
+	payloadStorage, err := fe.emitter.llvmValueType(payloadType)
 	if err != nil {
 		return "", err
 	}
+	payloadLLVM := operandTypeFor(payloadStorage)
 	if valTy != payloadLLVM {
 		casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, payloadType)
 		if err != nil {
@@ -55,6 +54,6 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	off := unionCase.PayloadOffset + payloadOffset
 	bytePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+	fe.emitValueStore(payloadStorage, val, bytePtr, memberAccessAlign(align, off))
 	return mem, nil
 }

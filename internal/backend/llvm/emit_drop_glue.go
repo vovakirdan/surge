@@ -63,15 +63,12 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	if isStringLike(e.types, id) {
 		return true
 	}
-	// A VALUE COMPOSITE owns its box, whatever its fields hold. Asked before
-	// the structural walk below, which answers a narrower question — "does a
-	// field own heap" — and therefore said no for the shape that leaks most
-	// visibly: a struct of plain scalars, whose box nothing ever freed. It is
-	// also what reaches a NESTED composite whose own fields own nothing, the
-	// inner box that the field walk skipped (RV2-DEBT-072).
-	if e.types.IsValueComposite(id) && e.isBoxedComposite(id) {
-		return true
-	}
+	// A value composite used to answer YES here whatever its fields held,
+	// because it owned its box and something had to free it — which is why a
+	// struct of plain scalars carried a drop obligation at all. It owns no box
+	// now: its storage belongs to whoever declared it, and a drop reclaims only
+	// what its members own. So the structural walk below is the whole answer,
+	// and a composite of Copy scalars correctly needs no drop.
 	if _, dynamic, isArray := arrayElemType(e.types, id); isArray && dynamic {
 		return true
 	}
@@ -115,34 +112,6 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	default:
 		// Enums (bare tags), maps (deferred), references, pointers,
 		// scalars: no owned heap the drop glue reclaims here.
-		return false
-	}
-}
-
-// isBoxedComposite reports whether the type is a heap-boxed composite
-// whose drop is a generated glue function (as opposed to a leaf).
-func (e *Emitter) isBoxedComposite(id types.TypeID) bool {
-	id = resolveValueType(e.types, id)
-	if e.types == nil || !e.types.IsValueComposite(id) {
-		return false
-	}
-	if isStringLike(e.types, id) {
-		return false
-	}
-	if _, dynamic, isArray := arrayElemType(e.types, id); isArray && dynamic {
-		return false
-	}
-	if _, _, ok := arrayFixedInfo(e.types, id); ok {
-		return true
-	}
-	tt, ok := e.types.Lookup(id)
-	if !ok {
-		return false
-	}
-	switch tt.Kind {
-	case types.KindStruct, types.KindTuple, types.KindUnion:
-		return true
-	default:
 		return false
 	}
 }
@@ -259,9 +228,13 @@ type glueTmp struct{ n int }
 
 func (g *glueTmp) next() string { g.n++; return fmt.Sprintf("%%g%d", g.n) }
 
-// emitDropValue frees a value already loaded as `val` (a pointer for
-// pointer-shaped owning types) of type `ty`. Records nested glue needs.
-func (e *Emitter) emitDropValue(val string, ty types.TypeID) {
+// emitDropHandle releases a value whose whole representation is the word
+// already loaded as `val`: a counted scalar, a string, a dynamic array.
+//
+// A value composite is not one of these and never reaches here. Its bytes are
+// not a word, so there is nothing to have loaded; it is dropped through
+// emitDropStorage, which is given where the bytes are.
+func (e *Emitter) emitDropHandle(val string, ty types.TypeID) {
 	ty = resolveValueType(e.types, ty)
 	if e.types.IsRefCountedScalar(ty) {
 		// The container is giving back the reference it held. Whether the block
@@ -275,45 +248,65 @@ func (e *Emitter) emitDropValue(val string, ty types.TypeID) {
 	}
 	if elem, dynamic, isArray := arrayElemType(e.types, ty); isArray && dynamic {
 		e.emitDropDynArray(val, elem)
+	}
+}
+
+// emitDropStorage releases what the value living at `ptr` owns, leaving the
+// storage itself alone: it belongs to whoever declared it, and this drop is not
+// the end of its life.
+func (e *Emitter) emitDropStorage(ptr string, ty types.TypeID) {
+	ty = resolveValueType(e.types, ty)
+	if e.hasInlineStorage(ty) && e.typeOwnsHeap(ty) {
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %s)\n", e.requireDropGlue(ty), ptr)
+	}
+}
+
+// emitDropAt releases the value of type `ty` at `ptr`, whichever shape it has:
+// storage is dropped in place, a handle is read out of its slot first.
+func (e *Emitter) emitDropAt(g *glueTmp, ptr string, ty types.TypeID, align uint64) {
+	if e.hasInlineStorage(ty) {
+		e.emitDropStorage(ptr, ty)
 		return
 	}
-	if e.isBoxedComposite(ty) && e.typeOwnsHeap(ty) {
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %s)\n", e.requireDropGlue(ty), val)
-	}
+	word := g.next()
+	fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", word, ptr, align)
+	e.emitDropHandle(word, ty)
 }
 
 // emitDropGlue emits every needed glue function, processing to a
 // fixpoint (a glue body can require more glue).
+//
+// All four kinds are drained in ONE fixpoint because they ask for each other in
+// both directions: dropping a value the runtime is holding reaches for the
+// release entry point of its type, and a release entry point reaches back for
+// the ordinary drop glue of the same type. Draining them in separate passes
+// emits whichever ran second and silently skips whatever it asked of the first
+// — leaving a call to a function the module never defines.
 func (e *Emitter) emitDropGlue() error {
 	done := make(map[types.TypeID]struct{})
 	doneElem := make(map[types.TypeID]struct{})
 	doneResult := make(map[types.TypeID]struct{})
+	doneRelease := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
-		for id := range e.dropGlueNeeded {
-			if _, ok := done[id]; ok {
-				continue
-			}
-			done[id] = struct{}{}
+		for _, id := range takePendingGlue(e.dropGlueNeeded, done) {
 			if err := e.emitDropGlueBody(id); err != nil {
 				return err
 			}
 			progressed = true
 		}
-		for id := range e.dropElemGlueNeeded {
-			if _, ok := doneElem[id]; ok {
-				continue
-			}
-			doneElem[id] = struct{}{}
+		for _, id := range takePendingGlue(e.dropElemGlueNeeded, doneElem) {
 			e.emitDropElemGlueBody(id)
 			progressed = true
 		}
-		for id := range e.dropResultGlueNeeded {
-			if _, ok := doneResult[id]; ok {
-				continue
-			}
-			doneResult[id] = struct{}{}
+		for _, id := range takePendingGlue(e.dropResultGlueNeeded, doneResult) {
 			e.emitDropResultGlueBody(id)
+			progressed = true
+		}
+		for _, id := range takePendingGlue(e.runtimeOwnedReleaseNeeded, doneRelease) {
+			if err := e.emitRuntimeOwnedReleaseBody(id); err != nil {
+				return err
+			}
 			progressed = true
 		}
 		if !progressed {
@@ -323,38 +316,81 @@ func (e *Emitter) emitDropGlue() error {
 	return nil
 }
 
+// takePendingGlue is the not-yet-emitted part of a requested glue set, in type
+// order, marked emitted as it is taken.
+//
+// The order matters beyond tidiness. A map's iteration order is deliberately
+// unspecified, so walking one of these sets directly makes two compilations of
+// one unchanged program place the same glue bodies at different points in the
+// module. Output that differs run to run cannot be compared: a reader diffing
+// two builds cannot tell an ordering wobble from a change in what the compiler
+// emits, which is exactly the question a representation change has to answer.
+func takePendingGlue(needed, done map[types.TypeID]struct{}) []types.TypeID {
+	pending := make([]types.TypeID, 0, len(needed))
+	for id := range needed {
+		if _, already := done[id]; already {
+			continue
+		}
+		done[id] = struct{}{}
+		pending = append(pending, id)
+	}
+	sort.Slice(pending, func(i, j int) bool { return pending[i] < pending[j] })
+	return pending
+}
+
 // emitDropResultGlueBody emits `@drop_result.typeN(ptr %val)`: drop a
-// heap-carried reply-edge RESULT loaded as its raw bits pointer. Reuses
-// emitDropValue, so a string frees via rt_string_free, a dynamic array
-// via rt_array_free(_elems), and a boxed composite via its recursive
-// glue — recording any nested glue the fixpoint then emits.
+// heap-carried reply-edge RESULT the runtime is holding. A handle result
+// arrives as its own word; a composite result arrives as the transport
+// allocation its bytes were copied into, so it is dropped in place and then the
+// allocation itself is released.
 func (e *Emitter) emitDropResultGlueBody(id types.TypeID) {
 	fmt.Fprintf(&e.buf, "define void @%s(ptr %%val) {\n", dropResultGlueName(id))
 	fmt.Fprintf(&e.buf, "entry:\n")
 	fmt.Fprintf(&e.buf, "  %%isnull = icmp eq ptr %%val, null\n")
 	fmt.Fprintf(&e.buf, "  br i1 %%isnull, label %%ret, label %%body\n")
 	fmt.Fprintf(&e.buf, "body:\n")
-	e.emitDropValue("%val", id)
+	if e.types.IsValueComposite(resolveValueType(e.types, id)) {
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%val)\n", e.requireRuntimeOwnedRelease(id))
+	} else {
+		e.emitDropHandle("%val", id)
+	}
 	fmt.Fprintf(&e.buf, "  br label %%ret\n")
 	fmt.Fprintf(&e.buf, "ret:\n")
 	fmt.Fprintf(&e.buf, "  ret void\n}\n")
 }
 
-// emitDropElemGlueBody emits `@drop_elem.typeN(ptr %slot)`: load the
-// element value from its slot and drop it (rt_array_free_elems calls
-// this once per element slot).
+// emitDropElemGlueBody emits `@drop_elem.typeN(ptr %slot)`: drop one element of
+// a dynamic array's buffer (rt_array_free_elems calls this once per slot).
+//
+// The slot IS the element now when the element lives inline, so the drop goes
+// straight through it. Only a handle element still has a word to read out.
 func (e *Emitter) emitDropElemGlueBody(id types.TypeID) {
 	fmt.Fprintf(&e.buf, "define void @%s(ptr %%slot) {\n", dropElemGlueName(id))
 	fmt.Fprintf(&e.buf, "entry:\n")
 	g := &glueTmp{}
-	v := g.next()
-	fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %%slot\n", v)
-	e.emitDropValue(v, id)
+	align, err := e.arrayElemSlotAlign(id)
+	if err != nil {
+		align = 1
+	}
+	e.emitDropAt(g, "%slot", id, align)
 	fmt.Fprintf(&e.buf, "  ret void\n}\n")
 }
 
-// emitDropGlueBody emits `@drop.typeN(ptr %p)` for a boxed composite:
-// free every owning field/element/payload, then the box. Null-safe.
+// arrayElemSlotAlign is the alignment one element slot guarantees.
+func (e *Emitter) arrayElemSlotAlign(elem types.TypeID) (uint64, error) {
+	_, align, err := e.arrayElemStrideAlign(elem)
+	return align, err
+}
+
+// emitDropGlueBody emits `@drop.typeN(ptr %p)` for a value composite: release
+// every owning field, element and active payload of the value whose storage is
+// at %p, and leave the storage alone.
+//
+// The `rt_free` that used to close this body is gone with the box it freed. A
+// composite's storage is now a local's slot, a field of an enclosing composite
+// or an element of an array, and freeing any of those would be freeing memory
+// this value never owned. Null-safe, because the runtime's abandon paths reach
+// the same glue for a transport allocation that may not have been filled.
 func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 	id = resolveValueType(e.types, id)
 	layoutInfo, err := e.layoutOf(id)
@@ -362,7 +398,7 @@ func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 		return err
 	}
 	align := layoutInfo.Align
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
 	fmt.Fprintf(&e.buf, "define void @%s(ptr %%p) {\n", dropGlueName(id))
@@ -373,7 +409,7 @@ func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 
 	g := &glueTmp{}
 	if elem, length, ok := arrayFixedInfo(e.types, id); ok {
-		e.emitFixedArrayElemDrops(g, elem, int(length))
+		e.emitFixedArrayElemDrops(g, elem, "%p", align, int(length))
 	} else if tt, ok := e.types.Lookup(id); ok {
 		switch tt.Kind {
 		case types.KindStruct:
@@ -383,7 +419,7 @@ func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 				return err
 			}
 			for i, f := range fields {
-				e.emitFieldDropAt(g, f.Type, fieldOffsets[i])
+				e.emitMemberDropAt(g, f.Type, "%p", align, fieldOffsets[i])
 			}
 		case types.KindTuple:
 			if info, ok := e.types.TupleInfo(id); ok && info != nil {
@@ -392,17 +428,16 @@ func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 					return err
 				}
 				for i, el := range info.Elems {
-					e.emitFieldDropAt(g, el, fieldOffsets[i])
+					e.emitMemberDropAt(g, el, "%p", align, fieldOffsets[i])
 				}
 			}
 		case types.KindUnion:
-			if err := e.emitUnionPayloadDrops(g, id, &layoutInfo); err != nil {
+			if err := e.emitUnionPayloadDrops(g, id, &layoutInfo, align); err != nil {
 				return err
 			}
 		}
 	}
 
-	fmt.Fprintf(&e.buf, "  call void @rt_free(ptr %%p, i64 %d, i64 %d)\n", layoutInfo.Size, align)
 	fmt.Fprintf(&e.buf, "  br label %%ret\n")
 	fmt.Fprintf(&e.buf, "ret:\n")
 	fmt.Fprintf(&e.buf, "  ret void\n}\n")
@@ -417,10 +452,13 @@ func requireAggregateFieldOffsets(typesIn *types.Interner, facts *layout.Physica
 	return offsets, nil
 }
 
-// emitUnionPayloadDrops reads the tag and drops the active variant's
-// owning payload. A default (no droppable payload) falls straight to
-// freeing the box.
-func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts) error {
+// emitUnionPayloadDrops reads the tag and drops the active variant's owning
+// payload. An arm with nothing to drop falls straight through to the join.
+//
+// Only the ACTIVE arm is walked, which is the point: the inactive arms' bytes
+// were never written, and reading them as payloads would release whatever
+// happened to be there.
+func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts, baseAlign uint64) error {
 	cases, err := e.tagCases(id)
 	if err != nil {
 		return err
@@ -461,12 +499,12 @@ func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layo
 		return nil
 	}
 	tag := g.next()
-	fmt.Fprintf(&e.buf, "  %s = load i32, ptr %%p\n", tag)
+	fmt.Fprintf(&e.buf, "  %s = load i32, ptr %%p, align %d\n", tag, memberAccessAlign(baseAlign, 0))
 	// Fix the block-id ONCE: field drops below call g.next(), which would
 	// otherwise drift the label names apart from the switch targets.
 	uid := g.n
-	freebox := fmt.Sprintf("u%d_free", uid)
-	fmt.Fprintf(&e.buf, "  switch i32 %s, label %%%s [", tag, freebox)
+	join := fmt.Sprintf("u%d_join", uid)
+	fmt.Fprintf(&e.buf, "  switch i32 %s, label %%%s [", tag, join)
 	for _, dc := range droppable {
 		fmt.Fprintf(&e.buf, " i32 %d, label %%u%d_c%d", dc.idx, uid, dc.idx)
 	}
@@ -474,11 +512,11 @@ func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layo
 	for _, dc := range droppable {
 		fmt.Fprintf(&e.buf, "u%d_c%d:\n", uid, dc.idx)
 		for i, pt := range dc.payloadTys {
-			e.emitFieldDropAt(g, pt, dc.payloadOffset+dc.offsets[i])
+			e.emitMemberDropAt(g, pt, "%p", baseAlign, dc.payloadOffset+dc.offsets[i])
 		}
-		fmt.Fprintf(&e.buf, "  br label %%%s\n", freebox)
+		fmt.Fprintf(&e.buf, "  br label %%%s\n", join)
 	}
-	fmt.Fprintf(&e.buf, "%s:\n", freebox)
+	fmt.Fprintf(&e.buf, "%s:\n", join)
 	return nil
 }
 

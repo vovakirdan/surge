@@ -14,7 +14,7 @@ func buildBlockingStateStruct(typesIn *types.Interner, funcName string, captures
 	if funcName == "" {
 		funcName = "anon"
 	}
-	name := fmt.Sprintf("__BlockingState$%s", funcName)
+	name := blockingStateTypePrefix + funcName
 	nameID := typesIn.Strings.Intern(name)
 	stateID := typesIn.RegisterStruct(nameID, source.Span{})
 

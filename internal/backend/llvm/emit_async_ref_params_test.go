@@ -84,7 +84,12 @@ fn main() -> int {
 func findLLVMFuncBody(t *testing.T, ir, name string) string {
 	t.Helper()
 
-	re := regexp.MustCompile(`(?s)define [^{]+ @` + regexp.QuoteMeta(name) + `\([^)]*\) \{.*?\n\}`)
+	// A parameter list nests one level of parentheses: an aggregate passed or
+	// returned by address carries its storage type inside the attribute, as in
+	// `ptr sret([16 x i8]) align 8`. Scanning to the first `)` stops inside
+	// that attribute and finds no function at all.
+	re := regexp.MustCompile(`(?s)define [^{]+ @` + regexp.QuoteMeta(name) +
+		`\((?:[^()]|\([^()]*\))*\) \{.*?\n\}`)
 	body := re.FindString(ir)
 	if body == "" {
 		t.Fatalf("missing LLVM function %s:\n%s", name, ir)

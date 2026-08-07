@@ -108,14 +108,14 @@ func (fe *funcEmitter) emitRtSleep(call *mir.CallInstr) error {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_sleep(i64 %s)\n", tmp, ms64)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return nil
 	}
 	return nil
@@ -158,14 +158,14 @@ func (fe *funcEmitter) emitRtEntropyBytes(call *mir.CallInstr) error {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_entropy_bytes(i64 %s)\n", tmp, n64)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	}
 	return nil
 }
@@ -185,14 +185,14 @@ func (fe *funcEmitter) emitRtAlloc(call *mir.CallInstr) error {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %s, i64 %s)\n", tmp, size64, align64)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return nil
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %s, i64 %s)\n", tmp, size64, align64)
@@ -248,14 +248,14 @@ func (fe *funcEmitter) emitRtRealloc(call *mir.CallInstr) error {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_realloc(ptr %s, i64 %s, i64 %s, i64 %s)\n", tmp, ptrVal, oldSize64, newSize64, align64)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return nil
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %s, i64 %s)\n", tmp, newSize64, align64)
@@ -383,14 +383,14 @@ func (fe *funcEmitter) emitRtStringFromBytes(call *mir.CallInstr, name string) e
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(ptr %s, i64 %s)\n", tmp, name, ptrVal, len64)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	}
 	return nil
 }
@@ -472,14 +472,14 @@ func (fe *funcEmitter) emitRtStringIndex(call *mir.CallInstr) error {
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @rt_string_index(ptr %s, i64 %s)\n", tmp, handlePtr, idx64)
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
 	if dstTy != "i32" {
 		dstTy = "i32"
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+	fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	return nil
 }
 

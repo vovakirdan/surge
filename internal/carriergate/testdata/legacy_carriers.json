@@ -430,7 +430,8 @@
           "ordinal": 2
         }
       ],
-      "allow": []
+      "allow": [],
+      "migration": []
     },
     {
       "id": "llvm-composite-to-ptr",
@@ -474,7 +475,8 @@
           "ordinal": 3
         }
       ],
-      "allow": []
+      "allow": [],
+      "migration": []
     },
     {
       "id": "llvm-erased-word-bridge",
@@ -658,7 +660,31 @@
           "ordinal": 1
         }
       ],
-      "allow": []
+      "allow": [],
+      "migration": [
+        {
+          "finding": {
+            "category": "llvm-erased-word-bridge",
+            "path": "internal/backend/llvm/emit_async.go",
+            "token": "emitValueToI64",
+            "evidence": "bits, bitsErr := fe.emitValueToI64(dst, lowered.retStorage, f.Result)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "llvm-erased-word-bridge",
+            "path": "internal/backend/llvm/emit_async.go",
+            "token": "emitValueToI64",
+            "evidence": "bits, err := fe.emitValueToI64(tmp, lowered.ret, f.Result)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d",
+          "tracked_as": "RV2-DEBT-151"
+        }
+      ]
     },
     {
       "id": "llvm-pointer-word-ir",
@@ -701,6 +727,30 @@
           "reason": "LLVM fixnum constants use the runtime's tagged immediate pointer representation.",
           "safe_because": "inlineFixnumWord constructs an immediate tag and never erases an owned composite.",
           "invalidated_when": "fixnums stop using pointer-typed tagged immediates or this helper handles owned values."
+        }
+      ],
+      "migration": [
+        {
+          "finding": {
+            "category": "llvm-pointer-word-ir",
+            "path": "internal/backend/llvm/emit_async_helpers.go",
+            "token": "inttoptr",
+            "evidence": "fmt.Fprintf(\u0026fe.emitter.buf, \"  %s = inttoptr i64 %s to ptr\\n\", allocation, bits)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "llvm-pointer-word-ir",
+            "path": "internal/backend/llvm/emit_async_helpers.go",
+            "token": "ptrtoint",
+            "evidence": "fmt.Fprintf(\u0026fe.emitter.buf, \"  %s = ptrtoint ptr %s to i64\\n\", out, allocation)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d",
+          "tracked_as": "RV2-DEBT-151"
         }
       ]
     },
@@ -1649,7 +1699,8 @@
           "ordinal": 1
         }
       ],
-      "allow": []
+      "allow": [],
+      "migration": []
     },
     {
       "id": "native-word-carrier",
@@ -2267,7 +2318,8 @@
           "safe_because": "the buffer contains scheduler IDs, not erased language values or owned payloads.",
           "invalidated_when": "rt_deque begins carrying language values, payload pointers, or ownership obligations."
         }
-      ]
+      ],
+      "migration": []
     },
     {
       "id": "numeric-drop-dispatch",
@@ -3592,7 +3644,20 @@
           "ordinal": 1
         }
       ],
-      "allow": []
+      "allow": [],
+      "migration": [
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "internal/backend/llvm/emit_async.go",
+            "token": "crossingDropStates",
+            "evidence": "e.requireRuntimeOwnedRelease(e.crossingDropStates[id]))",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-descriptor-emission",
+          "tracked_as": "RV2-DEBT-164"
+        }
+      ]
     },
     {
       "id": "vm-async-any-carrier",
@@ -3789,7 +3854,8 @@
           "safe_because": "Push immediately narrows the argument to a *Timer scheduler record.",
           "invalidated_when": "Push stops implementing container/heap or accepts Runtime V2 value payloads."
         }
-      ]
+      ],
+      "migration": []
     },
     {
       "id": "vm-boxed-composite-kind",
@@ -4316,7 +4382,8 @@
           "ordinal": 2
         }
       ],
-      "allow": []
+      "allow": [],
+      "migration": []
     },
     {
       "id": "vm-universal-owner",
@@ -4416,7 +4483,8 @@
           "ordinal": 1
         }
       ],
-      "allow": []
+      "allow": [],
+      "migration": []
     }
   ]
 }

@@ -24,7 +24,7 @@ func (fe *funcEmitter) emitRtMonotonicNow(call *mir.CallInstr) error {
 	if !call.HasDst {
 		return nil
 	}
-	_, _, _, ok, err := fe.durationLayoutForPlace(call.Dst)
+	_, ok, err := fe.durationLayoutForPlace(call.Dst)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (fe *funcEmitter) emitDurationNanosOperand(op *mir.Operand) (nanos string, 
 			typeID = elem
 		}
 	}
-	_, _, opaqueOffset, ok, err := fe.durationLayoutForType(typeID)
+	opaqueOffset, ok, err := fe.durationLayoutForType(typeID)
 	if err != nil || !ok {
 		return "", ok, err
 	}
@@ -133,31 +133,32 @@ func (fe *funcEmitter) emitDurationNanosOperand(op *mir.Operand) (nanos string, 
 }
 
 func (fe *funcEmitter) emitDurationValue(dst mir.Place, nanos string) error {
-	size, align, opaqueOffset, ok, err := fe.durationLayoutForPlace(dst)
+	opaqueOffset, ok, err := fe.durationLayoutForPlace(dst)
 	if err != nil {
 		return err
 	}
 	if !ok {
 		return fmt.Errorf("duration destination must contain int64 __opaque field")
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	opaquePtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", opaquePtr, mem, opaqueOffset)
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", nanos, opaquePtr)
-	ptr, dstTy, err := fe.emitPlacePtr(dst)
+	// A Duration is an ordinary one-field value, so it is written straight into
+	// the destination's own storage. There is no intermediate to build it in
+	// and no allocation to copy it out of.
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		return fmt.Errorf("duration destination must lower to ptr, got %s", dstTy)
+	if !isStorageRun(dstTy) {
+		return fmt.Errorf("duration destination must lower to inline storage, got %s", dstTy)
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, mem, ptr)
+	opaquePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", opaquePtr, ptr, opaqueOffset)
+	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s, align %d\n",
+		nanos, opaquePtr, memberAccessAlign(dstAlign, opaqueOffset))
 	return nil
 }
 
 func (fe *funcEmitter) emitI64Result(dst mir.Place, value string) error {
-	ptr, dstTy, err := fe.emitPlacePtr(dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(dst)
 	if err != nil {
 		return err
 	}
@@ -172,26 +173,32 @@ func (fe *funcEmitter) emitI64Result(dst mir.Place, value string) error {
 			return err
 		}
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", outTy, out, ptr)
+	fe.emitValueStore(outTy, out, ptr, dstAlign)
 	return nil
 }
 
-func (fe *funcEmitter) durationLayoutForPlace(place mir.Place) (size, align, opaqueOffset uint64, ok bool, err error) {
+// durationLayoutForPlace answers only what its callers ask: where the opaque
+// field sits, and whether the place is a duration at all. The whole layout is
+// available from durationLayoutForType for anyone who needs the rest.
+func (fe *funcEmitter) durationLayoutForPlace(place mir.Place) (opaqueOffset uint64, ok bool, err error) {
 	typeID, err := fe.placeBaseType(place)
 	if err != nil {
-		return 0, 0, 0, false, err
+		return 0, false, err
 	}
 	return fe.durationLayoutForType(typeID)
 }
 
-func (fe *funcEmitter) durationLayoutForType(typeID types.TypeID) (size, align, opaqueOffset uint64, ok bool, err error) {
+// durationLayoutForType reports where a duration's opaque field sits, and
+// whether the type is a duration at all. The size and alignment of the whole
+// struct used to come back with it and no caller ever read them.
+func (fe *funcEmitter) durationLayoutForType(typeID types.TypeID) (opaqueOffset uint64, ok bool, err error) {
 	typeID = resolveAliasAndOwn(fe.emitter.types, typeID)
-	if _, ok := fe.emitter.types.StructInfo(typeID); !ok {
-		return 0, 0, 0, false, nil
+	if _, isStruct := fe.emitter.types.StructInfo(typeID); !isStruct {
+		return 0, false, nil
 	}
 	layoutInfo, err := fe.emitter.layoutOf(typeID)
 	if err != nil {
-		return 0, 0, 0, false, err
+		return 0, false, err
 	}
 	fieldIdx, fieldType, err := fe.structFieldInfo(typeID, mir.PlaceProj{
 		Kind:      mir.PlaceProjField,
@@ -199,26 +206,18 @@ func (fe *funcEmitter) durationLayoutForType(typeID types.TypeID) (size, align, 
 		FieldIdx:  -1,
 	})
 	if err != nil {
-		return 0, 0, 0, false, nil
+		return 0, false, nil
 	}
 	fieldOffsets := layoutInfo.FieldOffsets()
 	if fieldIdx < 0 || fieldIdx >= len(fieldOffsets) {
-		return 0, 0, 0, false, fmt.Errorf("duration field index %d out of range", fieldIdx)
+		return 0, false, fmt.Errorf("duration field index %d out of range", fieldIdx)
 	}
-	fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
+	fieldLLVM, err := fe.emitter.llvmValueType(fieldType)
 	if err != nil {
-		return 0, 0, 0, false, err
+		return 0, false, err
 	}
 	if fieldLLVM != "i64" {
-		return 0, 0, 0, false, nil
+		return 0, false, nil
 	}
-	size = layoutInfo.Size
-	align = layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
-		align = 1
-	}
-	return size, align, fieldOffsets[fieldIdx], true, nil
+	return fieldOffsets[fieldIdx], true, nil
 }

@@ -12,7 +12,7 @@ import (
 func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	call := &ins.Call
 	if call.Callee.Kind == mir.CalleeValue && call.Callee.Value.Type != types.NoTypeID {
-		return fe.emitCallValue(call)
+		return fe.emitValueCall(call)
 	}
 	if handled, err := fe.emitTagConstructor(call); handled {
 		return err
@@ -77,42 +77,10 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if handled, err := fe.emitMagicIntrinsic(call); handled {
 		return err
 	}
-	callee, sig, err := fe.resolveCallee(call)
-	if err != nil {
-		return err
-	}
-	args := make([]string, 0, len(call.Args))
-	for i := range call.Args {
-		arg := call.Args[i]
-		fe.patchNothingCallArg(&arg, sig, i)
-		val, ty, err := fe.emitOperand(&arg)
-		if err != nil {
-			return err
-		}
-		args = append(args, fmt.Sprintf("%s %s", ty, val))
-	}
-	callStmt := fmt.Sprintf("call %s @%s(%s)", sig.ret, callee, strings.Join(args, ", "))
-	if call.HasDst {
-		if sig.ret == "void" {
-			return fmt.Errorf("call has destination but returns void: %s", callee)
-		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = %s\n", tmp, callStmt)
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-		if err != nil {
-			return err
-		}
-		if dstTy != sig.ret {
-			dstTy = sig.ret
-		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
-		return nil
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  %s\n", callStmt)
-	return nil
+	return fe.emitDirectCall(call)
 }
 
-func (fe *funcEmitter) patchNothingCallArg(op *mir.Operand, sig funcSig, idx int) {
+func (fe *funcEmitter) patchNothingCallArg(op *mir.Operand, sig *funcSig, idx int) {
 	if op == nil {
 		return
 	}

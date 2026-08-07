@@ -12,8 +12,8 @@ import (
 // A crossing that ships an owned state registers its body FuncID as the
 // drop-fn id: the publish call carries (drop_id == body_id) on the
 // state-shipping first attempt, the retry keeps (0, null), and the
-// __surge_drop_call switch routes the id to the state's recursive glue
-// while unregistered ids keep the panic arm.
+// __surge_drop_call switch routes the id to the release entry point of the
+// state's type while unregistered ids keep the panic arm.
 func TestEmitSpawnOnRegistersStateDropFn(t *testing.T) {
 	sourceCode := `
 @shard_movable
@@ -52,9 +52,27 @@ async fn run(dst: Placement) -> far Task<int> {
 	if !strings.Contains(dispatch, armLabel) {
 		t.Fatalf("__surge_drop_call switch missing the registered arm %q:\n%s", armLabel, dispatch)
 	}
-	armBody := regexp.MustCompile(fmt.Sprintf(`drop\.%d:\n  call void @drop\.type\d+\(ptr %%state\)\n  ret void`, bodyID))
-	if !armBody.MatchString(dispatch) {
-		t.Fatalf("dispatch arm must call the state's recursive glue:\n%s", dispatch)
+	// A shipped state lives in an allocation the runtime owns, so abandoning it
+	// has two halves: release what the state's members own, and give the
+	// allocation back. The arm reaches the release entry point, which does both
+	// in that order — the recursive glue first, then the free.
+	//
+	// The arm used to call the recursive glue directly, because the glue also
+	// freed the state: a composite WAS its allocation, so dropping it and
+	// reclaiming it were one act. They are two now, and calling only the glue
+	// here would leak the state of every abandoned spawn.
+	armBody := regexp.MustCompile(fmt.Sprintf(
+		`drop\.%d:\n  call void @(release\.type\d+)\(ptr %%state\)\n  ret void`, bodyID))
+	arm := armBody.FindStringSubmatch(dispatch)
+	if arm == nil {
+		t.Fatalf("dispatch arm must release the runtime-owned state:\n%s", dispatch)
+	}
+	release := findLLVMFuncBody(t, ir, arm[1])
+	if !regexp.MustCompile(`call void @drop\.type\d+\(ptr %p\)`).MatchString(release) {
+		t.Fatalf("the release entry point must call the state's recursive glue:\n%s", release)
+	}
+	if !strings.Contains(release, "call void @rt_free(ptr %p,") {
+		t.Fatalf("the release entry point must free the runtime-owned allocation:\n%s", release)
 	}
 	if !strings.Contains(dispatch, "drop_default:") {
 		t.Fatalf("dispatch must keep the default panic arm for unregistered ids:\n%s", dispatch)

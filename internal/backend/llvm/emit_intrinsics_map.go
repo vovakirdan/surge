@@ -76,14 +76,14 @@ func (fe *funcEmitter) emitMapNew(call *mir.CallInstr) error {
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_map_new(i64 %d)\n", tmp, keyKind)
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+	fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	return nil
 }
 
@@ -156,14 +156,14 @@ func (fe *funcEmitter) emitMapContains(call *mir.CallInstr) error {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_contains(ptr %s, i64 %s)\n", tmp, handle, keyBits)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
 		if dstTy != "i1" {
 			dstTy = "i1"
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	}
 	return nil
 }
@@ -197,7 +197,7 @@ func (fe *funcEmitter) emitMapGet(call *mir.CallInstr, name string) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, i64 %s, ptr %s)\n", okVal, name, handle, keyBits, bitsPtr)
 	if !call.HasDst {
@@ -219,7 +219,7 @@ func (fe *funcEmitter) emitMapGet(call *mir.CallInstr, name string) error {
 	noneBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
@@ -247,14 +247,14 @@ func (fe *funcEmitter) emitMapGet(call *mir.CallInstr, name string) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 	resultVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, resultVal, ptr)
+	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
 	return nil
 }
 
@@ -301,7 +301,7 @@ func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_insert(ptr %s, i64 %s, i64 %s, ptr %s)\n", okVal, handle, keyBits, valueBits, bitsPtr)
 	if !call.HasDst {
@@ -323,7 +323,7 @@ func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
 	noneBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
@@ -351,14 +351,14 @@ func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 	resultVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, resultVal, ptr)
+	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
 	return nil
 }
 
@@ -391,7 +391,7 @@ func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
 		return err
 	}
 	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_remove(ptr %s, i64 %s, ptr %s)\n", okVal, handle, keyBits, bitsPtr)
 	if !call.HasDst {
@@ -413,7 +413,7 @@ func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
 	noneBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
@@ -441,14 +441,14 @@ func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 	resultVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, resultVal, ptr)
+	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
 	return nil
 }
 
@@ -473,7 +473,7 @@ func (fe *funcEmitter) emitMapKeys(call *mir.CallInstr) error {
 		return keyErr
 	}
 	keyType = resolveMapKeyType(fe.emitter.types, keyType)
-	keyLLVM, err := llvmValueType(fe.emitter.types, keyType)
+	keyLLVM, err := fe.emitter.llvmValueType(keyType)
 	if err != nil {
 		return err
 	}
@@ -494,14 +494,14 @@ func (fe *funcEmitter) emitMapKeys(call *mir.CallInstr) error {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_map_keys(ptr %s, i64 %d, i64 %d)\n", tmp, handle, elemSize, elemAlign)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	}
 	return nil
 }

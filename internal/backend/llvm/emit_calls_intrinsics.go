@@ -29,14 +29,14 @@ func (fe *funcEmitter) emitTagConstructor(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
-	if dstTy != "ptr" {
-		dstTy = "ptr"
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, ptrVal, ptr)
+	fe.emitValueStore(dstTy, ptrVal, ptr, dstAlign)
 	return true, nil
 }
 
@@ -188,14 +188,14 @@ func (fe *funcEmitter) emitRangeIntrinsic(call *mir.CallInstr) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return true, err
 		}
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, iterPtr, ptr)
+		fe.emitValueStore(dstTy, iterPtr, ptr, dstAlign)
 		return true, nil
 	}
 	return true, fmt.Errorf("__range requires array")
@@ -236,14 +236,14 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 			}
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_slice(ptr %s, ptr %s)\n", tmp, strArg, rangeVal)
-			ptr, dstTy, placeErr := fe.emitPlacePtr(call.Dst)
+			ptr, dstTy, dstAlign, placeErr := fe.emitPlaceStorage(call.Dst)
 			if placeErr != nil {
 				return placeErr
 			}
-			if dstTy != "ptr" {
-				dstTy = "ptr"
+			if !isStorageRun(dstTy) {
+				dstTy = handleType
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+			fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 			return nil
 		}
 		idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
@@ -258,14 +258,14 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 		}
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @rt_string_index(ptr %s, i64 %s)\n", tmp, strArg, idx64)
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
 		if dstTy != "i32" {
 			dstTy = "i32"
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return nil
 	case isBytesViewType(fe.emitter.types, containerType):
 		viewArg, err := fe.emitHandleOperandPtr(&call.Args[0])
@@ -280,14 +280,14 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
 		if dstTy != ty {
 			dstTy = ty
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+		fe.emitValueStore(dstTy, val, ptr, dstAlign)
 		return nil
 	case fixedOK:
 		arrArg, err := fe.emitHandleOperandPtr(&call.Args[0])
@@ -304,14 +304,14 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 			if sliceErr != nil {
 				return sliceErr
 			}
-			ptr, dstTy, placeErr := fe.emitPlacePtr(call.Dst)
+			ptr, dstTy, dstAlign, placeErr := fe.emitPlaceStorage(call.Dst)
 			if placeErr != nil {
 				return placeErr
 			}
-			if dstTy != "ptr" {
-				dstTy = "ptr"
+			if !isStorageRun(dstTy) {
+				dstTy = handleType
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+			fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 			return nil
 		}
 		idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
@@ -333,14 +333,14 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 			val = tmp
 			ty = elemLLVM
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
 		if dstTy != ty {
 			dstTy = ty
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+		fe.emitValueStore(dstTy, val, ptr, dstAlign)
 		return nil
 	case isArrayLike(fe.emitter.types, containerType):
 		elemType, _, ok := arrayElemType(fe.emitter.types, containerType)
@@ -361,14 +361,14 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 			if sliceErr != nil {
 				return sliceErr
 			}
-			ptr, dstTy, placeErr := fe.emitPlacePtr(call.Dst)
+			ptr, dstTy, dstAlign, placeErr := fe.emitPlaceStorage(call.Dst)
 			if placeErr != nil {
 				return placeErr
 			}
-			if dstTy != "ptr" {
-				dstTy = "ptr"
+			if !isStorageRun(dstTy) {
+				dstTy = handleType
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+			fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 			return nil
 		}
 		idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
@@ -390,14 +390,14 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 			val = tmp
 			ty = elemLLVM
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
 		if dstTy != ty {
 			dstTy = ty
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+		fe.emitValueStore(dstTy, val, ptr, dstAlign)
 		return nil
 	default:
 		return fmt.Errorf("unsupported __index target")
@@ -405,17 +405,17 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 }
 
 func (fe *funcEmitter) emitLenStore(dst mir.Place, dstType types.TypeID, lenVal string) error {
-	ptr, dstTy, err := fe.emitPlacePtr(dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(dst)
 	if err != nil {
 		return err
 	}
 	if isBigUintType(fe.emitter.types, dstType) {
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_biguint_from_u64(i64 %s)\n", tmp, lenVal)
-		if dstTy != "ptr" {
-			dstTy = "ptr"
+		if !isStorageRun(dstTy) {
+			dstTy = handleType
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 		return nil
 	}
 	if dstTy != "i64" {
@@ -423,7 +423,7 @@ func (fe *funcEmitter) emitLenStore(dst mir.Place, dstType types.TypeID, lenVal 
 		fmt.Fprintf(&fe.emitter.buf, "  %s = trunc i64 %s to %s\n", tmp, lenVal, dstTy)
 		lenVal = tmp
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, lenVal, ptr)
+	fe.emitValueStore(dstTy, lenVal, ptr, dstAlign)
 	return nil
 }
 
@@ -454,14 +454,15 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		val, valTy, err := fe.emitValueOperand(&call.Args[2])
+		val, _, err := fe.emitValueOperand(&call.Args[2])
 		if err != nil {
 			return err
 		}
-		if valTy != elemLLVM {
-			valTy = elemLLVM
+		align, alignErr := fe.emitter.storageAlignOf(elemType, elemLLVM)
+		if alignErr != nil {
+			return alignErr
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+		fe.emitValueStore(elemLLVM, val, elemPtr, align)
 		return nil
 	}
 	fixedElemType, fixedLen, fixedOK := arrayFixedInfo(fe.emitter.types, containerType)
@@ -480,13 +481,14 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	val, valTy, err := fe.emitValueOperand(&call.Args[2])
+	val, _, err := fe.emitValueOperand(&call.Args[2])
 	if err != nil {
 		return err
 	}
-	if valTy != elemLLVM {
-		valTy = elemLLVM
+	fixedAlign, fixedAlignErr := fe.emitter.storageAlignOf(fixedElemType, elemLLVM)
+	if fixedAlignErr != nil {
+		return fixedAlignErr
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+	fe.emitValueStore(elemLLVM, val, elemPtr, fixedAlign)
 	return nil
 }

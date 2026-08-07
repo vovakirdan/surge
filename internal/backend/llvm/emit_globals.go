@@ -20,11 +20,15 @@ func (e *Emitter) emitGlobals() error {
 			return err
 		}
 		name := e.globalNames[gid]
-		llvmTy, err := llvmValueType(e.types, g.Type)
+		llvmTy, err := e.llvmValueType(g.Type)
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(&e.buf, "@%s = global %s zeroinitializer\n", name, llvmTy)
+		align, err := naturalAlign(llvmTy)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&e.buf, "@%s = global %s zeroinitializer, align %d\n", name, llvmTy, align)
 	}
 	e.buf.WriteString("\n")
 	return nil

@@ -17,7 +17,7 @@ func buildAsyncPayloadUnion(m *Module, typesIn *types.Interner, symTable *symbol
 	if typesIn == nil || typesIn.Strings == nil {
 		return types.NoTypeID, fmt.Errorf("mir: async: missing type interner strings")
 	}
-	name := fmt.Sprintf("__AsyncPayload$%s", f.Name)
+	name := asyncPayloadTypePrefix + f.Name
 	nameID := typesIn.Strings.Intern(name)
 	stateID := typesIn.RegisterUnion(nameID, source.Span{})
 
@@ -71,7 +71,7 @@ func buildAsyncStateStruct(typesIn *types.Interner, f *Func, payloadType types.T
 	if typesIn == nil || typesIn.Strings == nil {
 		return types.NoTypeID, fmt.Errorf("mir: async: missing type interner strings")
 	}
-	name := fmt.Sprintf("__AsyncState$%s", f.Name)
+	name := asyncStateTypePrefix + f.Name
 	nameID := typesIn.Strings.Intern(name)
 	stateID := typesIn.RegisterStruct(nameID, source.Span{})
 

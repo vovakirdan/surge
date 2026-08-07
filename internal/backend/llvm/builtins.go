@@ -16,6 +16,13 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_free", ret: "void", params: []string{"ptr", "i64", "i64"}},
 		{name: "rt_realloc", ret: "ptr", params: []string{"ptr", "i64", "i64", "i64"}},
 		{name: "llvm.trap", ret: "void", params: nil},
+		// The byte move behind every inline-storage copy. It is the intrinsic
+		// rather than the runtime helper next to it because a composite
+		// assignment is ordinary straight-line code now: routing each one
+		// through a call into the runtime would put a call where the language
+		// has none, and would hide a fixed-size move from every optimizer that
+		// knows how to widen one.
+		{name: "llvm.memcpy.p0.p0.i64", ret: "void", params: []string{"ptr", "ptr", "i64", "i1"}},
 		{name: "rt_memcpy", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_memmove", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_array_is_view", ret: "i1", params: []string{"ptr"}},
@@ -228,7 +235,8 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_range_int_to_end", ret: "ptr", params: []string{"ptr", "i1"}},
 		{name: "rt_range_int_full", ret: "ptr", params: []string{"i1"}},
 	}
-	return append(decls, typedCarrierRuntimeDecls()...)
+	decls = append(decls, typedCarrierRuntimeDecls()...)
+	return append(decls, carrierCounterDecls()...)
 }
 
 func runtimeSigMap() map[string]funcSig {

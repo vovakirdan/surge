@@ -39,11 +39,9 @@ func (fe *funcEmitter) emitTerminator(term *mir.Terminator) error {
 					}
 				}
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  ret %s %s\n", ty, val)
-			return nil
+			return fe.emitReturnValue(val, ty)
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  ret void\n")
-		return nil
+		return fe.emitReturnValue("", "void")
 	case mir.TermAsyncYield:
 		return fe.emitTermAsyncYield(term)
 	case mir.TermAsyncReturn:
@@ -71,6 +69,40 @@ func (fe *funcEmitter) emitTerminator(term *mir.Terminator) error {
 	default:
 		return fmt.Errorf("unsupported terminator kind %v", term.Kind)
 	}
+}
+
+// emitReturnValue hands one result back to the caller.
+//
+// A composite result is written into the destination the caller allocated and
+// passed in: the value never travels in a register, and there is no returned
+// address that could outlive the frame it came from. Everything else is
+// returned in the ordinary way.
+//
+// A function whose lowered contract says sret returns void, so an empty `ty`
+// here — a `ret` with no value in a function that does have a result — is a
+// return that already wrote its destination, and still ends the block.
+func (fe *funcEmitter) emitReturnValue(val, ty string) error {
+	if !fe.lowered.sret {
+		// A result the contract classified as carrying nothing — no declared
+		// result, or a zero-sized one — returns nothing, whatever the operand
+		// that reached here was. A zero-sized value is completely described by
+		// its own absence of bytes.
+		if fe.lowered.ret == "void" || ty == "void" || ty == "" {
+			fmt.Fprintf(&fe.emitter.buf, "  ret void\n")
+			return nil
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  ret %s %s\n", ty, val)
+		return nil
+	}
+	if val != "" {
+		size, ok := storageRunSize(fe.lowered.retStorage)
+		if !ok {
+			return fmt.Errorf("hidden result destination is not inline storage: %s", fe.lowered.retStorage)
+		}
+		fe.emitStorageCopy("%"+sretParamName, val, size, fe.lowered.retAlign)
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  ret void\n")
+	return nil
 }
 
 func (fe *funcEmitter) emitSwitchTag(term *mir.SwitchTagTerm) error {
@@ -104,56 +136,65 @@ func (fe *funcEmitter) emitOperand(op *mir.Operand) (val, ty string, err error) 
 			c.Type = op.Type
 		}
 		return fe.emitConst(&c)
+	// Reading a composite yields the ADDRESS of the source's storage, not a
+	// duplicate of it: reading is not copying, and whether any byte moves is
+	// the destination's decision. A scalar or a handle is loaded, as before.
 	case mir.OperandCopy, mir.OperandMove:
 		ptr, ty, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
 			return "", "", err
 		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
-		return tmp, ty, nil
-	// OperandCopyValue is where a composite read stops being a pointer load.
-	// The loaded word is the SOURCE's box, so handing it on would give two
-	// bindings one box — the aliasing this kind exists to end. The generated
-	// glue returns a box of its own, owned by whoever receives it.
+		return fe.emitValueLoad(ty, ptr)
+	// OperandCopyValue is where reading a Copy composite stops being a plain
+	// byte move. Its members may be shared rather than owned outright, so the
+	// generated glue builds an independent value in storage of its own, and
+	// that storage is what the operand names.
 	case mir.OperandCopyValue:
 		ptr, ty, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
 			return "", "", err
 		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
 		cloneTy := op.Type
 		if cloneTy == types.NoTypeID {
 			if base, baseErr := fe.placeBaseType(op.Place); baseErr == nil {
 				cloneTy = base
 			}
 		}
-		if ty != "ptr" || !fe.emitter.isCloneableComposite(resolveValueType(fe.emitter.types, cloneTy)) {
-			// Not a boxed composite after all — an unresolved type, or a shape
-			// the backend keeps flat. Duplicating the word IS the value then,
-			// which is what the load already produced.
-			return tmp, ty, nil
+		resolved := resolveValueType(fe.emitter.types, cloneTy)
+		if !isStorageRun(ty) || !fe.emitter.isCloneableComposite(resolved) {
+			// Not a composite after all — an unresolved type, or a shape the
+			// backend keeps flat. Duplicating the word IS the value then.
+			return fe.emitValueLoad(ty, ptr)
 		}
-		cloned := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(ptr %s)\n",
-			cloned, fe.emitter.requireCloneGlue(resolveValueType(fe.emitter.types, cloneTy)), tmp)
-		return cloned, ty, nil
+		dst, err := fe.emitStorageAlloca(resolved)
+		if err != nil {
+			return "", "", err
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s, ptr %s)\n",
+			fe.emitter.requireCloneGlue(resolved), dst, ptr)
+		return dst, handleType, nil
 	case mir.OperandRetain:
 		ptr, ty, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
 			return "", "", err
 		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, ty, ptr)
-		fe.emitRetainValue(tmp, ty)
-		return tmp, ty, nil
+		val, opTy, err := fe.emitValueLoad(ty, ptr)
+		if err != nil {
+			return "", "", err
+		}
+		if !isStorageRun(ty) {
+			// A retain bumps a count in a shared block. Inline storage has no
+			// count of its own; what its members share is retained by the
+			// generated clone, member by member.
+			fe.emitRetainValue(val, opTy)
+		}
+		return val, opTy, nil
 	case mir.OperandAddrOf, mir.OperandAddrOfMut:
 		ptr, _, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
 			return "", "", err
 		}
-		return ptr, "ptr", nil
+		return ptr, handleType, nil
 	default:
 		return "", "", fmt.Errorf("unsupported operand kind %v", op.Kind)
 	}
@@ -193,8 +234,12 @@ func (fe *funcEmitter) emitOperandAddr(op *mir.Operand) (string, error) {
 			return "", err
 		}
 		ptr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca %s\n", ptr, ty)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+		if err := fe.emitAlloca(ptr, ty); err != nil {
+			return "", err
+		}
+		if err := fe.emitStore(ty, val, ptr); err != nil {
+			return "", err
+		}
 		return ptr, nil
 	default:
 		return "", fmt.Errorf("unsupported operand kind %v", op.Kind)
@@ -295,7 +340,7 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_from_i64(i64 %d)\n", tmp, c.IntValue)
 			return tmp, "ptr", nil
 		}
-		ty, err := llvmValueType(fe.emitter.types, c.Type)
+		ty, err := fe.emitter.llvmValueType(c.Type)
 		if err != nil {
 			return "", "", err
 		}
@@ -324,7 +369,7 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_biguint_from_u64(i64 %d)\n", tmp, c.UintValue)
 			return tmp, "ptr", nil
 		}
-		ty, err := llvmValueType(fe.emitter.types, c.Type)
+		ty, err := fe.emitter.llvmValueType(c.Type)
 		if err != nil {
 			return "", "", err
 		}
@@ -346,7 +391,7 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigfloat_from_f64(double %v)\n", tmp, c.FloatValue)
 			return tmp, "ptr", nil
 		}
-		ty, err := llvmValueType(fe.emitter.types, c.Type)
+		ty, err := fe.emitter.llvmValueType(c.Type)
 		if err != nil {
 			return "", "", err
 		}
@@ -383,7 +428,7 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 				return ptr, "ptr", nil
 			}
 		}
-		ty, err := llvmValueType(fe.emitter.types, c.Type)
+		ty, err := fe.emitter.llvmValueType(c.Type)
 		if err != nil {
 			return "", "", err
 		}

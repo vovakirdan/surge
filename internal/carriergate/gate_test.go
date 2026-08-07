@@ -212,7 +212,7 @@ func newSnapshotManifest(findings []Finding, allowances []Allowance) (Manifest, 
 		Categories: make([]CategoryManifest, 0, len(requiredCategories)),
 	}
 	for _, categoryID := range requiredCategories {
-		category := CategoryManifest{ID: categoryID, RetireToZero: true, Legacy: []Finding{}, Allow: []Allowance{}}
+		category := CategoryManifest{ID: categoryID, RetireToZero: true, Legacy: []Finding{}, Allow: []Allowance{}, Migration: []MigrationCarrier{}}
 		baseline := make([]Finding, 0)
 		for i := range actual {
 			finding := &actual[i]
@@ -252,4 +252,147 @@ func cloneStrings(values []string) []string {
 	cloned := make([]string, len(values))
 	copy(cloned, values)
 	return cloned
+}
+
+// addMigration puts one tracked carrier into the category it belongs to.
+func addMigration(t *testing.T, manifest Manifest, carrier MigrationCarrier) Manifest {
+	t.Helper()
+	copied := cloneManifest(t, manifest)
+	for index := range copied.Categories {
+		if copied.Categories[index].ID != carrier.Finding.Category {
+			continue
+		}
+		copied.Categories[index].Migration = append(copied.Categories[index].Migration, carrier)
+		sortMigrations(copied.Categories[index].Migration)
+	}
+	return copied
+}
+
+func trackedCarrier() MigrationCarrier {
+	return MigrationCarrier{
+		Finding: Finding{
+			Category: categoryLLVMPointerWord, Path: "internal/backend/llvm/added.go",
+			Token: "ptrtoint", Evidence: "the carrier this epic added", Ordinal: 1,
+		},
+		RetiredBy: "a later wave",
+		TrackedAs: "the row that owns it",
+	}
+}
+
+// A carrier this epic introduced is known to the live ratchet, counted, and
+// absent from the base census — which is what lets the base census keep being
+// a census of a commit.
+func TestMigrationCarrierIsTrackedNotUnexpected(t *testing.T) {
+	base := []Finding{
+		{Category: categoryVMBoxKind, Path: "internal/vm/a.go", Token: "OKStruct", Evidence: "var _ = OKStruct", Ordinal: 1},
+	}
+	manifest, err := newSnapshotManifest(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	carrier := trackedCarrier()
+	tracked := addMigration(t, manifest, carrier)
+	if err := ValidateManifest(&tracked); err != nil {
+		t.Fatalf("tracked migration carrier rejected: %v", err)
+	}
+	if tracked.BaselineCount != manifest.BaselineCount || tracked.BaselineDigest != manifest.BaselineDigest {
+		t.Fatal("a migration carrier changed the base census")
+	}
+
+	live := append(append([]Finding(nil), base...), carrier.Finding)
+	difference := Compare(&tracked, live)
+	if !difference.Empty() {
+		t.Fatalf("tracked carrier reported as a mismatch: %+v", difference)
+	}
+	if difference.MigrationTracked != 1 {
+		t.Fatalf("tracked carrier count = %d, want 1", difference.MigrationTracked)
+	}
+	if !strings.Contains(FormatDifference(&difference), "migration carriers still present: 1") {
+		t.Fatalf("the tracked count is not reported:\n%s", FormatDifference(&difference))
+	}
+
+	// Untracked, the same finding is exactly what the ratchet exists to catch.
+	if difference := Compare(&manifest, live); len(difference.Unexpected) != 1 {
+		t.Fatalf("untracked carrier difference = %+v", difference)
+	}
+}
+
+// Retiring a tracked carrier is the point of tracking it, so it must not trip
+// the gate the way a vanished allowance does.
+func TestRetiringAMigrationCarrierIsProgress(t *testing.T) {
+	base := []Finding{
+		{Category: categoryVMBoxKind, Path: "internal/vm/a.go", Token: "OKStruct", Evidence: "var _ = OKStruct", Ordinal: 1},
+	}
+	manifest, err := newSnapshotManifest(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracked := addMigration(t, manifest, trackedCarrier())
+	difference := Compare(&tracked, base)
+	if !difference.Empty() {
+		t.Fatalf("retiring a tracked carrier failed the gate: %+v", difference)
+	}
+	if difference.MigrationTracked != 0 {
+		t.Fatalf("retired carrier still counted: %d", difference.MigrationTracked)
+	}
+}
+
+// The exact-base comparison scans the base commit, where a migration carrier
+// did not exist. It must not go looking for one.
+func TestMigrationCarrierIsInvisibleToTheExactBaseComparison(t *testing.T) {
+	base := []Finding{
+		{Category: categoryVMBoxKind, Path: "internal/vm/a.go", Token: "OKStruct", Evidence: "var _ = OKStruct", Ordinal: 1},
+	}
+	manifest, err := newSnapshotManifest(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracked := addMigration(t, manifest, trackedCarrier())
+	if difference := CompareExact(&tracked, base); !difference.Empty() {
+		t.Fatalf("exact-base comparison saw a migration carrier: %+v", difference)
+	}
+}
+
+func TestMigrationCarrierRequiresItsRetirement(t *testing.T) {
+	base := []Finding{
+		{Category: categoryVMBoxKind, Path: "internal/vm/a.go", Token: "OKStruct", Evidence: "var _ = OKStruct", Ordinal: 1},
+	}
+	manifest, err := newSnapshotManifest(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, missing := range []struct {
+		name   string
+		mutate func(*MigrationCarrier)
+	}{
+		{name: "no retiring work", mutate: func(c *MigrationCarrier) { c.RetiredBy = "  " }},
+		{name: "no owning row", mutate: func(c *MigrationCarrier) { c.TrackedAs = "" }},
+	} {
+		t.Run(missing.name, func(t *testing.T) {
+			carrier := trackedCarrier()
+			missing.mutate(&carrier)
+			invalid := addMigration(t, manifest, carrier)
+			if err := ValidateManifest(&invalid); err == nil {
+				t.Fatal("a carrier nobody promised to remove was accepted")
+			}
+		})
+	}
+}
+
+// A finding that IS in the base census belongs in legacy. Accepting it here
+// would let a base carrier be re-described as something this epic introduced.
+func TestMigrationCarrierRefusesABaseCensusFinding(t *testing.T) {
+	base := []Finding{
+		{Category: categoryVMBoxKind, Path: "internal/vm/a.go", Token: "OKStruct", Evidence: "var _ = OKStruct", Ordinal: 1},
+	}
+	manifest, err := newSnapshotManifest(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := addMigration(t, manifest, MigrationCarrier{
+		Finding: base[0], RetiredBy: "a later wave", TrackedAs: "the row that owns it",
+	})
+	if err := ValidateManifest(&invalid); err == nil {
+		t.Fatal("a base-census finding was accepted as a migration carrier")
+	}
 }

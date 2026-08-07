@@ -13,6 +13,27 @@ type funcSig struct {
 	ret        string
 	params     []string
 	paramTypes []types.TypeID
+	// resultType is the type `ret` spells. A composite result's storage facts
+	// are read from it, so the hidden destination the caller allocates and the
+	// one the callee writes state the same size and alignment.
+	resultType types.TypeID
+	// abi is the generated call contract for this signature: which result
+	// travels through a hidden caller-owned destination, which arguments travel
+	// by address, and which carry no payload at all. It is classified from the
+	// callee's types alone (see emit_call_layout.go), so a definition and both
+	// kinds of call site reach one answer for one callee.
+	//
+	// A hand-written runtime or foreign signature leaves it zero, which is the
+	// unusable ParamGoverned/RetGoverned class: those callees are governed by
+	// another authority and never take the hidden-destination or by-value
+	// contract. `governedElsewhere` is how a lowering asks.
+	abi mir.SurgeABI
+}
+
+// governedElsewhere reports whether another authority owns this signature's
+// lowering — the hand-written runtime declaration table or foreign C lowering.
+func (s *funcSig) governedElsewhere() bool {
+	return s.abi.Ret.Class == mir.RetGoverned
 }
 
 type addrOfTarget struct {
@@ -72,18 +93,36 @@ type Emitter struct {
 	// The dispatch (__surge_drop_abandoned_state_call) routes the id to
 	// that struct glue (emit_async.go).
 	abandonedStateDrops map[types.TypeID]struct{}
+	// Values the runtime holds in an allocation of its own — a suspension
+	// frame, an unadopted transport payload — need one entry point that
+	// releases what the value owns AND the allocation carrying it. See
+	// emit_transport_allocation.go.
+	runtimeOwnedReleaseNeeded map[types.TypeID]struct{}
 }
 
 type funcEmitter struct {
-	emitter         *Emitter
-	f               *mir.Func
-	tmpID           int
-	inlineBlock     int
-	localAlloca     map[mir.LocalID]string
+	emitter     *Emitter
+	f           *mir.Func
+	tmpID       int
+	inlineBlock int
+	localAlloca map[mir.LocalID]string
+	// lowered is this function's own contract: whether its result travels
+	// through the hidden destination named by sretParamName, and which of its
+	// parameters occupy an argument position at all.
+	lowered abiSignature
+	// entryAllocas collects every reservation this function makes, wherever in
+	// the body it was asked for, so they can all be placed in the entry block.
+	// See emitAllocaAligned for why that is both necessary and sound.
+	entryAllocas    strings.Builder
 	addrOfTargets   map[mir.LocalID]addrOfTarget
 	paramLocals     []mir.LocalID
 	blockTerminated bool
 }
+
+// sretParamName is the hidden caller-owned destination a composite result is
+// written into. It is named rather than numbered so that a `ret` cannot confuse
+// it with a declared parameter.
+const sretParamName = "surge.ret"
 
 const (
 	arrayHeaderSize  = 24
@@ -237,16 +276,23 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	if err := e.emitFunctions(); err != nil {
 		return "", err
 	}
-	if err := e.emitCloneGlue(); err != nil {
-		return "", err
-	}
-	if err := e.emitDropGlue(); err != nil {
-		return "", err
-	}
+	// The dispatches come before the glue passes. They emit no glue of their
+	// own; they name it — an abandoned state or an undelivered result is
+	// reclaimed through the glue of its type — so reaching them afterwards
+	// would put those names on the worklists after the only pass that drains
+	// them had already finished, and the module would call functions it never
+	// defines. Where a function is DEFINED in the module is not what orders
+	// this; what orders it is when the request to define it is made.
 	if err := e.emitPollDispatch(); err != nil {
 		return "", err
 	}
 	if err := e.emitBlockingDispatch(); err != nil {
+		return "", err
+	}
+	if err := e.emitCloneGlue(); err != nil {
+		return "", err
+	}
+	if err := e.emitDropGlue(); err != nil {
 		return "", err
 	}
 	return e.buf.String(), nil

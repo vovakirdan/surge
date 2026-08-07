@@ -47,14 +47,14 @@ func (fe *funcEmitter) emitDefaultIntrinsic(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
 	}
 	if dstTy != valTy {
 		valTy = dstTy
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, ptr)
+	fe.emitValueStore(valTy, val, ptr, dstAlign)
 	return true, nil
 }
 
@@ -90,7 +90,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 	case types.KindPointer:
 		return "null", "ptr", nil
 	case types.KindUnit, types.KindNothing:
-		llvmTy, typeErr := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, typeErr := fe.emitter.llvmValueType(typeID)
 		if typeErr != nil {
 			return "", "", typeErr
 		}
@@ -106,7 +106,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 		if isBigIntType(fe.emitter.types, typeID) || isBigUintType(fe.emitter.types, typeID) {
 			return "null", "ptr", nil
 		}
-		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, err := fe.emitter.llvmValueType(typeID)
 		if err != nil {
 			return "", "", err
 		}
@@ -115,7 +115,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 		if isBigFloatType(fe.emitter.types, typeID) {
 			return "null", "ptr", nil
 		}
-		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, err := fe.emitter.llvmValueType(typeID)
 		if err != nil {
 			return "", "", err
 		}
@@ -148,7 +148,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 		}
 		return ptr, "ptr", nil
 	case types.KindConst:
-		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, err := fe.emitter.llvmValueType(typeID)
 		if err != nil {
 			return "", "", err
 		}
@@ -167,44 +167,39 @@ func (fe *funcEmitter) emitDefaultStruct(typeID types.TypeID) (val, ty string, e
 	if err != nil {
 		return "", "", err
 	}
-	size := layoutInfo.Size
 	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	mem, err := fe.emitValueStorage(typeID)
+	if err != nil {
+		return "", "", err
+	}
 	fieldOffsets := layoutInfo.FieldOffsets()
 	for i, field := range info.Fields {
 		if i >= len(fieldOffsets) {
 			return "", "", fmt.Errorf("struct field %d out of range", i)
 		}
-		val, valTy, err := fe.emitDefaultValue(field.Type)
+		val, _, err := fe.emitDefaultValue(field.Type)
 		if err != nil {
 			return "", "", err
 		}
-		fieldLLVM, err := llvmValueType(fe.emitter.types, field.Type)
+		fieldLLVM, err := fe.emitter.llvmValueType(field.Type)
 		if err != nil {
 			return "", "", err
-		}
-		if valTy != fieldLLVM {
-			valTy = fieldLLVM
 		}
 		off := fieldOffsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+		fe.emitValueStore(fieldLLVM, val, bytePtr, memberAccessAlign(align, off))
 	}
-	return mem, "ptr", nil
+	return mem, handleType, nil
 }
 
 func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (val, ty string, err error) {
 	info, ok := fe.emitter.types.TupleInfo(resolveAliasAndOwn(fe.emitter.types, typeID))
 	if !ok || info == nil || len(info.Elems) == 0 {
-		llvmTy, typeErr := llvmValueType(fe.emitter.types, typeID)
+		llvmTy, typeErr := fe.emitter.llvmValueType(typeID)
 		if typeErr != nil {
 			return "", "", typeErr
 		}
@@ -214,38 +209,33 @@ func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (val, ty string, er
 	if err != nil {
 		return "", "", err
 	}
-	size := layoutInfo.Size
 	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	mem, err := fe.emitValueStorage(typeID)
+	if err != nil {
+		return "", "", err
+	}
 	fieldOffsets := layoutInfo.FieldOffsets()
 	for i, elemType := range info.Elems {
 		if i >= len(fieldOffsets) {
 			return "", "", fmt.Errorf("tuple field %d out of range", i)
 		}
-		val, valTy, err := fe.emitDefaultValue(elemType)
+		val, _, err := fe.emitDefaultValue(elemType)
 		if err != nil {
 			return "", "", err
 		}
-		elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+		elemLLVM, err := fe.emitter.llvmValueType(elemType)
 		if err != nil {
 			return "", "", err
-		}
-		if valTy != elemLLVM {
-			valTy = elemLLVM
 		}
 		off := fieldOffsets[i]
 		bytePtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+		fe.emitValueStore(elemLLVM, val, bytePtr, memberAccessAlign(align, off))
 	}
-	return mem, "ptr", nil
+	return mem, handleType, nil
 }
 
 func (fe *funcEmitter) emitDefaultArrayDynamic() (val, ty string, err error) {
@@ -253,13 +243,13 @@ func (fe *funcEmitter) emitDefaultArrayDynamic() (val, ty string, err error) {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
 	lenPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, headPtr, arrayLenOffset)
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", lenPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s, align %d\n", lenPtr, alignWord)
 	capPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, headPtr, arrayCapOffset)
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", capPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s, align %d\n", capPtr, alignWord)
 	dataPtrPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, headPtr, arrayDataOffset)
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", dataPtrPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s, align %d\n", dataPtrPtr, alignPtr)
 	return headPtr, "ptr", nil
 }
 
@@ -268,39 +258,34 @@ func (fe *funcEmitter) emitDefaultArrayFixed(typeID, elemType types.TypeID, leng
 	if err != nil {
 		return "", "", err
 	}
-	size := layoutInfo.Size
 	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
-	}
-	if align <= 0 {
+	if align == 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
-	if length == 0 {
-		return mem, "ptr", nil
-	}
-	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	mem, err := fe.emitValueStorage(typeID)
 	if err != nil {
 		return "", "", err
 	}
-	stride, err := fe.canonicalArrayElemStride(elemType)
+	if length == 0 {
+		return mem, handleType, nil
+	}
+	elemLLVM, err := fe.emitter.llvmValueType(elemType)
+	if err != nil {
+		return "", "", err
+	}
+	stride, err := fe.emitter.arrayElemStride(elemType)
 	if err != nil {
 		return "", "", err
 	}
 	for i := range length {
-		val, valTy, err := fe.emitDefaultValue(elemType)
+		val, _, err := fe.emitDefaultValue(elemType)
 		if err != nil {
 			return "", "", err
-		}
-		if valTy != elemLLVM {
-			valTy = elemLLVM
 		}
 		offset := uint64(i) * stride
 		elemPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, mem, offset)
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+		fe.emitValueStore(elemLLVM, val, elemPtr, memberAccessAlign(align, offset))
 	}
-	return mem, "ptr", nil
+	return mem, handleType, nil
 }

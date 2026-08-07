@@ -207,14 +207,14 @@ func (fe *funcEmitter) emitNetWait(call *mir.CallInstr, name, kind string) error
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s)\n", tmp, name, val)
 	if call.HasDst {
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
 			return err
 		}
 		if dstTy != "i1" {
 			dstTy = "i1"
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	}
 	return nil
 }

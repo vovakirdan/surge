@@ -49,32 +49,48 @@ func (e *Emitter) prepareFunctions() error {
 			if int(localID) < 0 || int(localID) >= len(f.Locals) {
 				return fmt.Errorf("invalid param local %d", localID)
 			}
-			llvmTy, llvmErr := llvmLocalValueType(e.types, f.Locals[localID])
+			llvmTy, llvmErr := e.llvmLocalValueType(f.Locals[localID])
 			if llvmErr != nil {
 				return llvmErr
 			}
 			params = append(params, llvmTy)
 			paramTypes = append(paramTypes, f.Locals[localID].Type)
 		}
-		ret, err := llvmType(e.types, f.Result)
+		result := f.Result
+		ret, err := e.llvmType(result)
 		if err != nil {
 			return err
 		}
 		if ret == "void" {
-			inferred, inferErr := e.inferReturnType(f)
-			if inferErr != nil {
-				return inferErr
+			// A lowered function can carry its result only in the operands it
+			// returns. The inferred type is adopted as THE result type, not just
+			// as an LLVM spelling, so the call contract below classifies the
+			// same result the signature declares.
+			inferred := e.inferResultType(f)
+			if inferred != types.NoTypeID {
+				result = inferred
+				ret, err = e.llvmType(result)
+				if err != nil {
+					return err
+				}
 			}
-			ret = inferred
 		}
-		e.funcSigs[f.ID] = funcSig{ret: ret, params: params, paramTypes: paramTypes}
+		abi, err := e.surgeABIForSignature(paramTypes, result)
+		if err != nil {
+			return fmt.Errorf("call contract for %s: %w", f.Name, err)
+		}
+		e.funcSigs[f.ID] = funcSig{
+			ret: ret, params: params, paramTypes: paramTypes, resultType: result, abi: abi,
+		}
 	}
 	return nil
 }
 
-func (e *Emitter) inferReturnType(f *mir.Func) (string, error) {
+// inferResultType is the type of the first value a lowered function returns,
+// for functions whose declared result did not survive lowering.
+func (e *Emitter) inferResultType(f *mir.Func) types.TypeID {
 	if e == nil || e.types == nil || f == nil {
-		return "void", nil
+		return types.NoTypeID
 	}
 	for i := range f.Blocks {
 		term := &f.Blocks[i].Term
@@ -98,13 +114,9 @@ func (e *Emitter) inferReturnType(f *mir.Func) (string, error) {
 		if typeID == types.NoTypeID {
 			continue
 		}
-		ret, err := llvmType(e.types, typeID)
-		if err != nil {
-			return "", err
-		}
-		return ret, nil
+		return typeID
 	}
-	return "void", nil
+	return types.NoTypeID
 }
 
 func (e *Emitter) collectParamCounts() error {
