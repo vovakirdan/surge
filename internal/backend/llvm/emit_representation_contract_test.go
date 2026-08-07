@@ -42,10 +42,17 @@ import (
 // value, by argument and by return, a zero-sized composite, a fixed array, a
 // composite array element, and the two suspension frames — an async state and a
 // blocking body's captures.
+//
+// It also builds each of those by DEFAULT as well as by literal. The two are
+// separate emitters, and a corpus that only wrote literals is what let a
+// composite-inside-a-composite keep moving through a register in the default
+// path long after the literal path was fixed. A shape is only covered here once
+// every emitter that can produce it does.
 const representationFixture = `
 @copy type Point = { x: int64, y: int64 }
 type Payload = { a: int64, b: int64, c: int64, d: int64 }
 type Empty = { }
+type Nested = { inner: Payload, mark: int64 }
 
 fn consume(p: Payload) -> int64 { return p.a + p.d; }
 
@@ -59,6 +66,16 @@ fn cells() -> int64 {
 	let mut arr: Payload[3] = [make(1:int64), make(2:int64), make(3:int64)];
 	arr[1] = make(9:int64);
 	return arr[1].a + arr[2].d;
+}
+
+// Defaulted composites: a struct whose FIELD is a composite, and a fixed array
+// whose ELEMENT is one. Both move a composite into storage it does not own, and
+// neither goes through the literal emitter.
+fn defaults() -> int64 {
+	let plain: Payload = default::<Payload>();
+	let nested: Nested = default::<Nested>();
+	let cellArr: Payload[3] = default::<Payload[3]>();
+	return plain.a + nested.inner.a + nested.mark + cellArr[2].d;
 }
 
 async fn work(seed: int64) -> int64 {
@@ -75,7 +92,7 @@ async fn work(seed: int64) -> int64 {
 @entrypoint
 fn main() -> int {
 	let p: Point = Point{ x: 1:int64, y: 2:int64 };
-	let total: int64 = consume(make(p.x)) + cells() + passEmpty(Empty{});
+	let total: int64 = consume(make(p.x)) + cells() + passEmpty(Empty{}) + defaults();
 	let async_total: int64 = compare work(3:int64).await() {
 		Success(v) => v;
 		Cancelled() => 0:int64;
@@ -288,6 +305,7 @@ var storageEmitters = []string{
 	"emit_globals.go",
 	"emit_helpers_place.go",
 	"emit_instr.go",
+	"emit_intrinsics_default.go",
 	"emit_intrinsics_array.go",
 	"emit_intrinsics_array_element.go",
 	"emit_literals.go",

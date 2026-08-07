@@ -188,7 +188,12 @@ fn main() -> int {
 }
 `)
 
-	body := llvmFunctionContaining(t, ir, "@rt_alloc(i64 56, i64 8)")
+	// Located by the array's own storage. A defaulted fixed array used to be a
+	// heap box, so this named `@rt_alloc(i64 56, i64 8)`; it now occupies inline
+	// storage like every other value composite, and that reservation is what
+	// identifies the function holding it. The assertion below is unchanged —
+	// what the test proves is the bounds check, not where the bytes live.
+	body := llvmFunctionContaining(t, ir, "alloca [56 x i8], align 8")
 	bounds := regexp.MustCompile(
 		`@rt_panic_bounds\(i64 \d+, i64 [^,]+, i64 ([^)]+)\)`,
 	).FindAllStringSubmatch(body, -1)

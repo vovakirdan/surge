@@ -110,6 +110,12 @@ var ordinaryStorageEmitters = []string{
 	"emit_globals.go",
 	"emit_helpers_place.go",
 	"emit_instr.go",
+	// Building a value from its default is building a value. It was missing
+	// here, and the omission is why this file kept writing composites through a
+	// register and stores with no alignment for a whole wave after the literal
+	// path stopped: a list that names the literal emitter but not the default
+	// emitter describes half of how a value comes into existence.
+	"emit_intrinsics_default.go",
 	"emit_literals.go",
 	"emit_term.go",
 }
