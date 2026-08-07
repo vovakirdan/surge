@@ -454,14 +454,15 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		val, valTy, err := fe.emitValueOperand(&call.Args[2])
+		val, _, err := fe.emitValueOperand(&call.Args[2])
 		if err != nil {
 			return err
 		}
-		if valTy != elemLLVM {
-			valTy = elemLLVM
+		align, alignErr := fe.emitter.storageAlignOf(elemType, elemLLVM)
+		if alignErr != nil {
+			return alignErr
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+		fe.emitValueStore(elemLLVM, val, elemPtr, align)
 		return nil
 	}
 	fixedElemType, fixedLen, fixedOK := arrayFixedInfo(fe.emitter.types, containerType)
@@ -480,13 +481,14 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	val, valTy, err := fe.emitValueOperand(&call.Args[2])
+	val, _, err := fe.emitValueOperand(&call.Args[2])
 	if err != nil {
 		return err
 	}
-	if valTy != elemLLVM {
-		valTy = elemLLVM
+	fixedAlign, fixedAlignErr := fe.emitter.storageAlignOf(fixedElemType, elemLLVM)
+	if fixedAlignErr != nil {
+		return fixedAlignErr
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+	fe.emitValueStore(elemLLVM, val, elemPtr, fixedAlign)
 	return nil
 }

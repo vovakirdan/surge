@@ -291,15 +291,14 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 				valType = baseType
 			}
 		}
-		casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, elemType)
-		if err != nil {
-			return err
+		// The coerced spelling is not carried forward: the store below names
+		// the element's own storage type, which is what the value is written
+		// as.
+		casted, _, coerceErr := fe.coerceNumericValue(val, valTy, valType, elemType)
+		if coerceErr != nil {
+			return coerceErr
 		}
 		val = casted
-		valTy = castTy
-	}
-	if valTy != elemLLVM {
-		valTy = elemLLVM
 	}
 
 	head := fe.nextTemp()
@@ -349,7 +348,10 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", offset, lenVal, stride)
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, offset)
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+	// A composite element is moved as bytes: `val` names its storage, not a
+	// register holding it, so storing it under the element's storage type would
+	// be storing an address where the value belongs.
+	fe.emitValueStore(elemLLVM, val, elemPtr, elemAlign)
 	newLen := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = add i64 %s, 1\n", newLen, lenVal)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", newLen, lenPtr)
