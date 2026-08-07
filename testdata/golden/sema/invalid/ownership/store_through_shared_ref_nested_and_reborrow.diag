@@ -1,0 +1,2 @@
+error SEM3187 testdata/golden/sema/invalid/ownership/store_through_shared_ref_nested_and_reborrow.sg:9:5 cannot write to `r.inner.x`: `r` is a shared reference, so declare it `&mut Outer` to write through it
+error SEM3187 testdata/golden/sema/invalid/ownership/store_through_shared_ref_nested_and_reborrow.sg:15:5 cannot write to `s.x`: `s` is a shared reference, so declare it `&mut Inner` to write through it

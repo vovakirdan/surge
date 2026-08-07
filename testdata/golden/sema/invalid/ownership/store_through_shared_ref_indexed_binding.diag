@@ -1,0 +1,1 @@
+error SEM3187 testdata/golden/sema/invalid/ownership/store_through_shared_ref_indexed_binding.sg:14:5 cannot write to `lifted.x`: `lifted` is a shared reference, so declare it `&mut Leaf` to write through it

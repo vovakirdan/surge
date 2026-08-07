@@ -1,12 +1,39 @@
 package vm_test
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"surge/internal/diag"
+	"surge/internal/driver"
 	"surge/internal/mir"
-	"surge/internal/vm"
 )
+
+// diagnoseSource runs the front end over one source and hands back its
+// diagnostics, without insisting they be empty. Every other helper here
+// compiles in order to RUN something and so fails the test on any error; a
+// source that must be refused needs the bag itself.
+func diagnoseSource(t *testing.T, sourceCode string) *diag.Bag {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "refused.sg")
+	if err := os.WriteFile(path, []byte(sourceCode), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	// MaxDiagnostics sizes the bag, and a zero leaves it holding nothing at
+	// all — a refusal test reading an unsized bag sees a clean compile and
+	// passes whatever the compiler did.
+	opts := driver.DiagnoseOptions{Stage: driver.DiagnoseStageSema, MaxDiagnostics: 100}
+	result, err := driver.DiagnoseWithOptions(context.Background(), path, &opts)
+	if err != nil {
+		t.Fatalf("diagnose failed: %v", err)
+	}
+	return result.Bag
+}
 
 func TestVMRefsRead(t *testing.T) {
 	sourceCode := `@entrypoint
@@ -126,7 +153,19 @@ fn main() -> int {
 	}
 }
 
-func TestVMRefsStoreThroughSharedRefPanics(t *testing.T) {
+// This program used to reach the VM and trap. It no longer compiles, and that
+// is the point: the trap was only ever half a rule.
+//
+// The native backend never had the other half. A reference there is a bare
+// pointer with nowhere to keep a mutability bit, so this same store landed in
+// the caller's `x` and the program carried on — two backends, two meanings, one
+// source. Refusing it in sema is what makes them agree, and it is the only
+// place that still knows `&int` from `&mut int`.
+//
+// VM2102 is now unreachable from well-typed source. It is deliberately not
+// deleted: TestStoreThroughANonMutableLocationStillTraps exercises the guard
+// directly, so a MIR that reaches the VM some other way still stops.
+func TestVMRefsStoreThroughSharedRefIsRefusedBeforeItRuns(t *testing.T) {
 	requireVMBackend(t)
 	sourceCode := `fn set(x: &int) -> nothing {
     *x = 2;
@@ -141,27 +180,26 @@ fn main() -> int {
 }
 `
 
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	_, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr == nil {
-		t.Fatal("expected panic, got nil")
+	bag := diagnoseSource(t, sourceCode)
+	if !bag.HasErrors() {
+		t.Fatal("expected the store through a shared reference to be refused, got a clean compile")
 	}
-	if vmErr.Code != vm.PanicStoreThroughNonMutRef {
-		t.Fatalf("expected %v, got %v", vm.PanicStoreThroughNonMutRef, vmErr.Code)
+	found := false
+	for _, item := range bag.Items() {
+		if item.Code == diag.SemaStoreThroughSharedRef {
+			found = true
+			break
+		}
 	}
-
-	out := vmErr.FormatWithFiles(files)
-	if !strings.Contains(out, "panic VM2102") {
-		t.Fatalf("expected panic code in output, got:\n%s", out)
-	}
-	// Проверяем, что путь к файлу присутствует (будет временный файл)
-	if !strings.Contains(out, ".sg:") {
-		t.Fatalf("expected span with file path in output, got:\n%s", out)
-	}
-	if !strings.Contains(out, "backtrace:") || !strings.Contains(out, "main") {
-		t.Fatalf("expected backtrace with main frame, got:\n%s", out)
+	if !found {
+		var sb strings.Builder
+		for _, item := range bag.Items() {
+			sb.WriteString(item.Code.ID())
+			sb.WriteString(": ")
+			sb.WriteString(item.Message)
+			sb.WriteString("\n")
+		}
+		t.Fatalf("expected %v, got:\n%s", diag.SemaStoreThroughSharedRef, sb.String())
 	}
 }
 

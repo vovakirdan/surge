@@ -1,0 +1,19 @@
+// A shared reference lends read access, so no place reached through one may be
+// written. Nothing here names a container: the reference is the whole defect.
+//
+// This program used to compile. The VM trapped on the store and the native
+// binary performed it, so the caller's value changed on one backend and not the
+// other, and both exited non-zero for unrelated reasons.
+
+@copy type Leaf = { x: int, y: int };
+
+fn poke(r: &Leaf) -> int {
+    r.x = 99;
+    return r.x;
+}
+
+@entrypoint
+fn main() -> int {
+    let base: Leaf = Leaf { x = 5, y = 6 };
+    return poke(&base);
+}

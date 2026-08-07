@@ -1,0 +1,29 @@
+store_through_shared_ref_indexed_binding.sg (span: 8:1-17:1)
+├─ Item[0]: Type (span: 8:1-8:38)
+│  ├─ Name: Leaf
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+└─ Item[1]: Fn (span: 10:1-16:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:18-16:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:94)
+         │  ├─ Name: arr
+         │  ├─ Mutable: false
+         │  ├─ Type: Leaf[3]
+         │  └─ Value: expr#16: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 13:5-13:29)
+         │  ├─ Name: lifted
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#19: arr[1]
+         ├─ Stmt[2]: Expr (span: 14:5-14:19)
+         │  └─ Expr: expr#23: (lifted.x = 99)
+         └─ Stmt[3]: Return (span: 15:5-15:21)
+            └─ Expr: expr#25: lifted.x

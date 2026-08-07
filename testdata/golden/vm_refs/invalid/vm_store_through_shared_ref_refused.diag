@@ -1,0 +1,1 @@
+error SEM3187 testdata/golden/vm_refs/invalid/vm_store_through_shared_ref_refused.sg:2:5 cannot write to `*x`: `x` is a shared reference, so declare it `&mut int` to write through it

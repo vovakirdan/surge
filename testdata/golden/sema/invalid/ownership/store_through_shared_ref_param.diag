@@ -1,0 +1,1 @@
+error SEM3187 testdata/golden/sema/invalid/ownership/store_through_shared_ref_param.sg:11:5 cannot write to `r.x`: `r` is a shared reference, so declare it `&mut Leaf` to write through it

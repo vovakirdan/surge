@@ -323,6 +323,23 @@ const (
 	// narrowed, so the release takes the extracted field with it.
 	SemaPartialMoveFromTemporary Code = 3179
 
+	// SemaStoreThroughSharedRef rejects writing to any place reached through a
+	// shared reference. `&T` grants read access to what it points at and
+	// nothing else: several holders may have one at the same time, and each is
+	// entitled to keep seeing the same bytes, which a write through any of them
+	// breaks.
+	//
+	// Refused here rather than left to a backend because the two backends
+	// cannot agree on it. The VM carries a mutability bit on every location and
+	// traps; a native reference is a bare pointer with nowhere to put that bit,
+	// so the same store silently lands in the caller's value. One rule at the
+	// only stage that still knows `&T` from `&mut T` is what keeps them the
+	// same language.
+	//
+	// Numbers up to 3186 are taken; the layout, entrypoint and clone blocks each
+	// carry their own file.
+	SemaStoreThroughSharedRef Code = 3187
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -577,6 +594,7 @@ var ( // todo расширить описания и использовать к
 		SemaPartialMoveNotEnumerable:       "what would remain after this move cannot be named",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
+		SemaStoreThroughSharedRef:          "cannot write through a shared reference",
 		SemaModuleLevelLet:                 "module-level `let` is not allowed; use `const`",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",

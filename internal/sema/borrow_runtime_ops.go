@@ -491,6 +491,15 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 	if !ok {
 		return
 	}
+	// Asked before any of the bookkeeping below, and before the place is
+	// expanded through its borrow: a write the language does not allow has no
+	// drop to record and no place to revive, and expanding it first would
+	// report the referent's borrow conflicting with itself rather than naming
+	// the reference that cannot carry the write.
+	if tc.storesThroughSharedRef(desc) {
+		tc.reportStoreThroughSharedRef(desc, span)
+		return
+	}
 	if desc.Base.IsValid() && len(desc.Segments) == 0 {
 		// The RHS is fully evaluated by now, so moved-ness decides the
 		// overwritten-value drop (x = f(x) suppresses it); the store

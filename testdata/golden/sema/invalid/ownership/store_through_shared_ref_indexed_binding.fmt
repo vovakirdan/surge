@@ -1,0 +1,16 @@
+// The same rule reached without writing `&` anywhere.
+//
+// An indexed read yields the element carrier, which is a shared reference, so
+// an un-annotated `let` binds one. `lifted` looks like a copy of the element
+// and is an alias of it, which is why the write below is a write through a
+// shared reference.
+
+@copy type Leaf = { x: int, y: int };
+
+@entrypoint
+fn main() -> int {
+    let arr: Leaf[3] = [Leaf { x = 3, y = 4 }, Leaf { x = 5, y = 6 }, Leaf { x = 7, y = 8 }];
+    let mut lifted = arr[1];
+    lifted.x = 99;
+    return lifted.x;
+}

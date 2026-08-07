@@ -1,0 +1,23 @@
+// Two ways a check that looked only at the outermost projection, or only at
+// parameters, would be bypassed: a write nested below the shared base, and a
+// write through a reborrow of it.
+
+@copy type Inner = { x: int };
+type Outer = { inner: Inner };
+
+fn deep(r: &Outer) -> int {
+    r.inner.x = 1;
+    return r.inner.x;
+}
+
+fn reborrowed(r: &Inner) -> int {
+    let s = &*r;
+    s.x = 2;
+    return s.x;
+}
+
+@entrypoint
+fn main() -> int {
+    let o: Outer = Outer { inner = Inner { x = 0 } };
+    return deep(&o) + reborrowed(&o.inner);
+}
