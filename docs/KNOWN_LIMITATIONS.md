@@ -66,6 +66,7 @@ captures (not loan-tracked yet).
 - Reading a MOVE-ONLY composite out of a container yields an ALIAS, not a value, and the container stays usable beside it: `let e = o.inner; e.x = 99;` is visible through `o`. Moving a field out of a live struct is a partial move, and partially-moved bindings are not tracked yet, so the program is neither rejected nor made independent. `@copy` composites are unaffected — those duplicate.
 - A `compare` over a value-composite scrutinee that is Copy or read through a borrow LEAKS its duplicate — roughly two blocks per evaluation for `compare *h { ... }` on a `@copy` union. The value is correct and nothing is freed twice; memory grows with the number of evaluations.
 - A composite carrying an arbitrary-precision `int`, `uint` or `float` cannot cross a shard boundary: such a field is shared by reference counting and the count is not safe between shards. Use a fixed-width field type for the value that crosses.
+- A `__clone` declared on an alias alone (`type Handle = Leaf` with `extern<Handle> { fn __clone(self: &Handle) -> Handle }` and nothing on `Leaf`) is accepted at its declaration but not found at the use site: `clone(&value)` reports `SEM3116` naming `Leaf`. Canonical clone selection asks the type the alias resolves to, and a declaration written against the alias spelling does not answer for it. Declare `__clone` on the target type. Other magic methods declared on an alias alone are unaffected.
 
 ## Native (LLVM) backend
 

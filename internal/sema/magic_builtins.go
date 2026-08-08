@@ -384,6 +384,7 @@ func (tc *typeChecker) ensureBuiltinMagic() {
 		for i, param := range spec.params {
 			sig.Params[i] = symbols.TypeKey(param)
 		}
+		tc.rememberBuiltinMagicDeclaration(recv, spec.name, sig.Params)
 		tc.addMagicEntry(recv, spec.name, sig, symbols.NoSymbolID)
 	}
 }

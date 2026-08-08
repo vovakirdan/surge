@@ -41,6 +41,7 @@ type typeChecker struct {
 	modulePath     string
 	magic          map[symbols.TypeKey]map[string][]*symbols.FunctionSignature
 	magicSymbols   map[*symbols.FunctionSignature]symbols.SymbolID
+	magicDecls     []magicDeclaration
 	borrow         *BorrowTable
 	borrowEvents   []BorrowEvent
 	borrowBindings map[BorrowID]symbols.SymbolID
@@ -330,6 +331,13 @@ func (tc *typeChecker) run() {
 
 	done = phase("validate_shard_movable")
 	tc.validateShardMovableTypes()
+	done()
+
+	// Runs once the alias chains are registered and before any use site is
+	// walked, so a hook an alias and its target both answer is refused where it
+	// is written rather than where it is silently picked.
+	done = phase("check_alias_magic")
+	tc.checkAliasMagicDeclarations()
 	done()
 
 	done = phase("walk_items")

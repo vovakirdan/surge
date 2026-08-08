@@ -1371,7 +1371,7 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 
 1. If `From` and `To` (after resolving aliases) are identical, the cast is a no-op.
 2. Built-in numeric rules from §6.5 are consulted first (e.g., dynamic↔fixed conversions).
-3. Otherwise the compiler looks for `__to` on the left operand’s type whose second parameter matches the resolved target type. Alias names participate in the lookup, so `type Gasoline = string` inherits `string -> string` conversions automatically. Any `__to` that adds extra parameters or returns anything other than the target type is rejected with a semantic error.
+3. Otherwise the compiler looks for `__to` on the left operand’s type whose second parameter matches the resolved target type. Alias names participate in the lookup, so `type Gasoline = string` inherits `string -> string` conversions automatically — and, because they do, an alias may not redeclare a conversion its target already provides (§6.9). Any `__to` that adds extra parameters or returns anything other than the target type is rejected with a semantic error.
 4. Multiple matches yield `SemaAmbiguousConversion`; no match yields `SemaTypeMismatch` for explicit casts (or `SemaNoConversion` at implicit-conversion sites).
 
 **A no-op cast produces no value.** Rule 1 is about ownership as much as cost: when `From` and `To` resolve to the same type, the compiler emits nothing at all, so `x to T` reads exactly like `x` — the same value, still owned by whoever owned it before, with no copy and no extra release. This is deliberately asymmetric with a user `__to(Foo, Foo)`, which stays a real call returning a value of its own, because a user overload may carry normalization logic the compiler cannot see. The asymmetry is intended: primitive conversions are allowed to be cheaper at runtime than user-defined ones.
@@ -1536,6 +1536,34 @@ The practical consequence: **`pub fn __clone` is the portable form.** A module-p
 
 * The signature is exact: `self` must be a shared reference `&T`, there must be no further parameters, no defaults and no variadics, and the result must be `T`. A declaration named `__clone` that misses any of these is not a candidate, and a type whose only declarations miss them reports `SemaTypeNotClonable` rather than being silently skipped.
 * The `.__clone()` member form calls the method directly and follows ordinary method lookup; `clone(&value)` is the form that goes through canonical selection.
+
+### 6.9. Aliases and Magic Methods
+
+An alias is transparent: `type Handle = Leaf` introduces a second name, not a second type. **An alias may not declare a magic method that the type it names already declares for the same operands.** Sema refuses the alias's declaration where it is written, with `SemaAliasMagicRedeclared` (3187).
+
+```sg
+type Leaf = { text: string };
+type Handle = Leaf;
+
+extern<Leaf> {
+  pub fn __eq(self: &Leaf, other: &Leaf) -> bool { return true; }
+}
+
+extern<Handle> {
+  // refused: `Handle` is another name for `Leaf`, which already declares `__eq`
+  pub fn __eq(self: &Handle, other: &Handle) -> bool { return false; }
+}
+```
+
+The reason is that a declaration on an alias outranks one on the type it names — the alias's receiver is nearer the requested type, so it wins the ordinary specificity ranking. With both present, `l1 == l2` runs one body and `h1 == h2` runs the other, though `Leaf` and `Handle` are the same type.
+
+**The refusal is scoped to magic methods, and the scope is the point.** For an ordinary method the call site writes `Leaf::label()` or `Handle::label()`, so the author names the receiver and chooses the body; overriding an ordinary method on an alias stays legal and keeps that ranking. A magic method is never named at the call site — `+`, `==`, `[]`, `to`, `for in`, `abs`, `len`, `if`, and `clone` all reach it through a receiver spelling the *compiler* picks. Where the author has no choice, two bodies are a trap rather than a feature.
+
+Two declarations rival each other only when they answer the same question. The receiver is excluded from the comparison — the alias and its target are bound to spell it differently — and what remains is compared through the alias chain. So two `__to` declarations that convert to different targets coexist (`type Meters = float` may convert to `Feet` even though `float` converts to `string`), while two `__eq` declarations over the same operand do not. A hook the compiler supplies for a builtin type counts as a declaration: `type Score = int` may not declare `__add(Score, Score)`, because `int` already adds.
+
+An alias declaring a magic method its target does *not* declare stays legal, and so does an alias of an alias — transparency runs the whole chain, so a hook on the outermost name rivals a hook on any type it stands for.
+
+`surge fix` offers to delete the alias's declaration, leaving the target's body to serve both spellings. It is offered for manual review, not applied by `surge fix --all`: values spelled with the alias run the alias's body today and the target's afterwards, and only the author knows whether those two agree.
 
 ---
 

@@ -139,6 +139,7 @@ func (tc *typeChecker) buildMagicIndex() {
 				if isOperatorMagicName(name) {
 					normalized = normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey)
 				}
+				tc.rememberMagicDeclaration(sym.Signature, sym.ReceiverKey, name, sym.ModulePath, sym.Span)
 				tc.addMagicEntry(sym.ReceiverKey, name, normalized, recordID)
 			}
 		}
@@ -164,6 +165,7 @@ func (tc *typeChecker) buildMagicIndex() {
 				if isOperatorMagicName(sym.Name) {
 					normalized = normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey)
 				}
+				tc.rememberMagicDeclaration(sym.Signature, sym.ReceiverKey, sym.Name, exp.Path, sym.Span)
 				tc.addMagicEntry(sym.ReceiverKey, sym.Name, normalized, symbols.NoSymbolID)
 			}
 		}
