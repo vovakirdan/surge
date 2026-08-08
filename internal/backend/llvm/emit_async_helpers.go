@@ -11,11 +11,10 @@ import (
 )
 
 // emitAsyncStateFreeIntrinsic lowers mir.AsyncStateFreeBuiltin: free the
-// consumed async resume boxes (payload union box + state struct box) and
-// null their slots so later reads of the same slot hand the runtime a null
-// it never dereferences. Frees are shallow by design — the payload's fields
-// were already unpacked (copied) into locals, so only the boxes themselves
-// are dead.
+// consumed suspension frame and null its slot so later reads of the same slot
+// hand the runtime a null it never dereferences. The free is shallow by
+// design — the frame's payload was already unpacked (copied) into locals, so
+// only the storage itself is dead.
 func (fe *funcEmitter) emitAsyncStateFreeIntrinsic(call *mir.CallInstr) (bool, error) {
 	if call == nil || call.Callee.Kind != mir.CalleeValue || call.Callee.Name != mir.AsyncStateFreeBuiltin {
 		return false, nil
@@ -28,6 +27,15 @@ func (fe *funcEmitter) emitAsyncStateFreeIntrinsic(call *mir.CallInstr) (bool, e
 		baseType, err := fe.placeBaseType(arg.Place)
 		if err != nil || baseType == types.NoTypeID {
 			continue
+		}
+		if fe.emitter.hasInlineStorage(baseType) {
+			// The slot would hold the value's own bytes, not the address of
+			// an allocation, so the load below would free whatever those
+			// bytes happened to spell. Only a frame the runtime allocated is
+			// released here.
+			return true, fmt.Errorf(
+				"async state free expects a runtime-owned frame, got inline storage for type#%d",
+				baseType)
 		}
 		layoutInfo, err := fe.emitter.layoutOf(baseType)
 		if err != nil {

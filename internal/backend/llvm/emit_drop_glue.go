@@ -187,8 +187,7 @@ func (e *Emitter) emitResultDropDispatch() {
 // registerAbandonedStateDrop records that a suspend-point/scope-join state
 // box may need reclaiming if a cancellation abandons it. The resolved
 // TypeID doubles as the drop-fn id __surge_drop_abandoned_state_call
-// dispatches on, routed to the state struct's recursive box-freeing glue
-// (dropGlueName) — unlike registerCrossingDropResult, there is no inert/
+// dispatches on — unlike registerCrossingDropResult, there is no inert/
 // Copy case to gate callers on: the box always exists, so it always needs
 // freeing, whether or not any of its fields separately own heap.
 func (e *Emitter) registerAbandonedStateDrop(stateType types.TypeID) types.TypeID {
@@ -197,8 +196,61 @@ func (e *Emitter) registerAbandonedStateDrop(stateType types.TypeID) types.TypeI
 		e.abandonedStateDrops = make(map[types.TypeID]struct{})
 	}
 	e.abandonedStateDrops[resolved] = struct{}{}
-	e.requireDropGlue(resolved)
+	e.requireSuspensionFrameRelease(resolved)
 	return resolved
+}
+
+// suspensionFrameReleaseName is the entry point that reclaims a suspension
+// frame the runtime is holding and will never resume.
+func suspensionFrameReleaseName(id types.TypeID) string {
+	return fmt.Sprintf("release.frame.type%d", id)
+}
+
+// requireSuspensionFrameRelease records that a frame type needs the entry
+// point and returns its name.
+func (e *Emitter) requireSuspensionFrameRelease(id types.TypeID) string {
+	id = resolveValueType(e.types, id)
+	if e.suspensionFrameReleases == nil {
+		e.suspensionFrameReleases = make(map[types.TypeID]struct{})
+	}
+	e.suspensionFrameReleases[id] = struct{}{}
+	return suspensionFrameReleaseName(id)
+}
+
+// emitSuspensionFrameReleaseBody emits one frame release: the storage goes
+// back to the allocator and NOTHING walks what is in it.
+//
+// The frame's resume payload is a bitwise duplicate of values the resumed
+// locals own — a poll takes its locals OUT of the payload on entry and leaves
+// those bytes behind until the next suspension overwrites them. So a walk here
+// would free a string, a task handle or a channel a second time, and it would
+// do it on the one path nobody exercises by accident. This is the same reason
+// the poll's own release of a completed frame is shallow.
+//
+// The cost of the shallowness is real and is not paid here: a frame abandoned
+// while it genuinely does hold the live copies — cancelled between a park and
+// its wake — leaks them. Closing that needs the frame to say which of the two
+// it is holding, which is a claim the frame does not carry today.
+func (e *Emitter) emitSuspensionFrameReleaseBody(id types.TypeID) error {
+	facts, err := e.layoutOf(id)
+	if err != nil {
+		return err
+	}
+	align := facts.Align
+	if align == 0 {
+		align = 1
+	}
+	fmt.Fprintf(&e.buf, "define void @%s(ptr %%p) {\n", suspensionFrameReleaseName(id))
+	fmt.Fprintf(&e.buf, "entry:\n")
+	fmt.Fprintf(&e.buf, "  %%isnull = icmp eq ptr %%p, null\n")
+	fmt.Fprintf(&e.buf, "  br i1 %%isnull, label %%ret, label %%body\n")
+	fmt.Fprintf(&e.buf, "body:\n")
+	fmt.Fprintf(&e.buf, "  call void @rt_free(ptr %%p, i64 %d, i64 %d)\n",
+		transportAllocationSize(facts.Size), align)
+	fmt.Fprintf(&e.buf, "  br label %%ret\n")
+	fmt.Fprintf(&e.buf, "ret:\n")
+	fmt.Fprintf(&e.buf, "  ret void\n}\n\n")
+	return nil
 }
 
 func (e *Emitter) registerCrossingDropResult(resultType types.TypeID) types.TypeID {
@@ -287,6 +339,7 @@ func (e *Emitter) emitDropGlue() error {
 	doneElem := make(map[types.TypeID]struct{})
 	doneResult := make(map[types.TypeID]struct{})
 	doneRelease := make(map[types.TypeID]struct{})
+	doneFrame := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
 		for _, id := range takePendingGlue(e.dropGlueNeeded, done) {
@@ -305,6 +358,12 @@ func (e *Emitter) emitDropGlue() error {
 		}
 		for _, id := range takePendingGlue(e.runtimeOwnedReleaseNeeded, doneRelease) {
 			if err := e.emitRuntimeOwnedReleaseBody(id); err != nil {
+				return err
+			}
+			progressed = true
+		}
+		for _, id := range takePendingGlue(e.suspensionFrameReleases, doneFrame) {
+			if err := e.emitSuspensionFrameReleaseBody(id); err != nil {
 				return err
 			}
 			progressed = true

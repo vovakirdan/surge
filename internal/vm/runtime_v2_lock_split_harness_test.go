@@ -544,7 +544,7 @@ static int mode_timeout_across_owners(rt_executor* ex) {
     }
     // rt_timeout_poll releases the target handle on the timeout path; keep a
     // main-owned reference so the later status wait and await stay valid.
-    g_join_target = rt_task_clone(gate);
+    g_join_target = rt_task_clone(gate, NULL, 0);
     if (g_join_target == NULL) {
         return fail("gate clone failed");
     }

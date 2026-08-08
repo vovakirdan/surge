@@ -10,30 +10,36 @@ import (
 )
 
 // AsyncStateFreeBuiltin releases a consumed async resume frame: the state
-// box handed out by __task_state plus the payload box its locals were
-// unpacked from. The native backend lowers it to rt_free of both boxes; the
-// VM's garbage collector reclaims them automatically, so it treats the call
-// as a no-op. Without this release every suspend leaks one state+payload
-// pair per poll.
+// box handed out by __task_state, which carries the resume payload in its own
+// bytes. The native backend lowers it to rt_free of that box; the VM's
+// garbage collector reclaims it automatically, so it treats the call as a
+// no-op. Without this release every completed task leaks its frame.
 const AsyncStateFreeBuiltin = "__async_state_free"
 
 // asyncStateFreeInstr builds the release call for the current invocation's
-// state and payload boxes. Operands are copies: the VM must keep its
-// bookkeeping untouched (the call is a no-op there), and the native backend
-// nulls the slots itself after freeing.
-func asyncStateFreeInstr(payloadLocal, stateLocal LocalID) Instr {
+// state box. The operand is a copy: the VM must keep its bookkeeping
+// untouched (the call is a no-op there), and the native backend nulls the
+// slot itself after freeing.
+func asyncStateFreeInstr(stateLocal LocalID) Instr {
 	return Instr{Kind: InstrCall, Call: CallInstr{
 		Callee: Callee{Kind: CalleeValue, Name: AsyncStateFreeBuiltin},
 		Args: []Operand{
-			{Kind: OperandCopy, Place: Place{Local: payloadLocal}},
 			{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 		},
-		// This call IS the release of both boxes, so each position must have
-		// been handed something the caller genuinely owned — the copies above
-		// are how the backend gets to null the slots itself, not a sign the
-		// boxes are borrowed.
-		ArgContracts: []ArgContract{ArgContractTransferOwned, ArgContractTransferOwned},
+		// This call IS the release of the box, so the position must have been
+		// handed something the caller genuinely owned — the copy above is how
+		// the backend gets to null the slot itself, not a sign the box is
+		// borrowed.
+		ArgContracts: []ArgContract{ArgContractTransferOwned},
 	}}
+}
+
+// asyncStateFieldPlace addresses one field of the state box a poll is holding.
+func asyncStateFieldPlace(stateLocal LocalID, field string) Place {
+	return Place{
+		Local: stateLocal,
+		Proj:  []PlaceProj{{Kind: PlaceProjField, FieldName: field, FieldIdx: -1}},
+	}
 }
 
 // stateVariant describes one variant of the async state union.
@@ -72,11 +78,12 @@ func buildAsyncPollEntry(f *Func, stateLocal, pcLocal, payloadLocal LocalID, var
 		Src: RValue{Kind: RValueField, Field: FieldAccess{
 			Object:    Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 			FieldName: asyncStatePayloadField,
-			// The payload is unpacked into resumed locals before
-			// __async_state_free shallow-frees the old state and payload
-			// boxes. This handle therefore transfers out of the state; an
-			// alias here would leave every resumed local without an owned
-			// root in MIR even though the runtime protocol hands it over.
+			// The payload is unpacked into resumed locals, and the frame's
+			// own copy of those bytes is dead from here on — the next
+			// suspension overwrites it and no release ever walks it. The
+			// payload therefore transfers out of the state; an alias here
+			// would leave every resumed local without an owned root in MIR
+			// even though the runtime protocol hands it over.
 			MoveOut: true,
 		}},
 	}})
@@ -114,10 +121,9 @@ func buildAsyncPollEntry(f *Func, stateLocal, pcLocal, payloadLocal LocalID, var
 					Value:   Operand{Kind: OperandCopy, Place: Place{Local: payloadLocal}},
 					TagName: variant.name,
 					Index:   idx,
-					// The resume envelope is shallow-freed by
-					// __async_state_free once these fields are unpacked into
-					// the resumed locals, so the fields transfer out rather
-					// than aliasing an envelope that outlives this unpack.
+					// The resume envelope is never walked by a release, so
+					// the fields transfer out rather than aliasing an
+					// envelope whose bytes outlive this unpack.
 					MoveOut: true,
 				}},
 			}})
@@ -160,11 +166,6 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 		pendingBB := newBlock(f)
 		sites[i].pendingBB = pendingBB
 
-		// The boxes this invocation resumed from are dead once the live
-		// locals are repacked below; release them before the rebuild
-		// overwrites the only remaining handles.
-		appendInstr(f, pendingBB, asyncStateFreeInstr(payloadLocal, stateLocal))
-
 		args := make([]Operand, 0, len(variants[variantIdx].locals))
 		for _, localID := range variants[variantIdx].locals {
 			args = append(args, operandForAsyncStateStore(f, localID))
@@ -178,25 +179,23 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 			// local across the suspension and is what releases them later.
 			ArgContracts: storeArgContracts(len(args)),
 		}})
-		stateType := types.NoTypeID
-		if int(stateLocal) >= 0 && int(stateLocal) < len(f.Locals) {
-			stateType = f.Locals[stateLocal].Type
-		}
+		// The frame this invocation resumed from is the frame it suspends
+		// into: it belongs to the activation, not to one suspension. Writing
+		// the resume point and the repacked payload through it keeps the
+		// runtime's pointer valid — which matters, because the block ends in
+		// a yield and the C frame that could have held a fresh one is gone
+		// the moment it does.
 		appendInstr(f, pendingBB, Instr{Kind: InstrAssign, Assign: AssignInstr{
-			Dst: Place{Local: stateLocal},
-			Src: RValue{Kind: RValueStructLit, StructLit: StructLit{
-				TypeID: stateType,
-				Fields: []StructLitField{
-					{
-						Name:  asyncStatePcField,
-						Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(variants[variantIdx].resumeBB)}},
-					},
-					{
-						Name:  asyncStatePayloadField,
-						Value: operandForLocal(f, payloadLocal),
-					},
-				},
+			Dst: asyncStateFieldPlace(stateLocal, asyncStatePcField),
+			Src: RValue{Kind: RValueUse, Use: Operand{
+				Kind:  OperandConst,
+				Type:  intType,
+				Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(variants[variantIdx].resumeBB)},
 			}},
+		}})
+		appendInstr(f, pendingBB, Instr{Kind: InstrAssign, Assign: AssignInstr{
+			Dst: asyncStateFieldPlace(stateLocal, asyncStatePayloadField),
+			Src: RValue{Kind: RValueUse, Use: operandForLocal(f, payloadLocal)},
 		}})
 		setBlockTerm(f, pendingBB, Terminator{Kind: TermAsyncYield, AsyncYield: AsyncYieldTerm{
 			State: operandForLocal(f, stateLocal),
@@ -236,7 +235,7 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 }
 
 // rewriteAsyncReturns transforms return terminators into AsyncReturn.
-func rewriteAsyncReturns(f *Func, stateLocal, payloadLocal LocalID) {
+func rewriteAsyncReturns(f *Func, stateLocal LocalID) {
 	if f == nil {
 		return
 	}
@@ -248,8 +247,8 @@ func rewriteAsyncReturns(f *Func, stateLocal, payloadLocal LocalID) {
 		if bb.Term.Return.Cancelled {
 			// A cancelled return's state may be re-parked and re-entered by
 			// the runtime while scope children drain (apply_poll_outcome
-			// stores it back into task->state), so its boxes must stay
-			// alive; the pair is abandoned once the task completes.
+			// stores it back into task->state), so its box must stay alive;
+			// it is abandoned once the task completes.
 			bb.Term = Terminator{Kind: TermAsyncReturnCancelled, AsyncReturnCancelled: AsyncReturnCancelledTerm{
 				State: operandForLocal(f, stateLocal),
 			}}
@@ -257,9 +256,10 @@ func rewriteAsyncReturns(f *Func, stateLocal, payloadLocal LocalID) {
 		}
 		// A successful completion never re-enters this state: mark_done
 		// clears task->state without reading the returned pointer. Release
-		// the resume boxes; the native lowering nulls the state slot, so the
+		// the frame here — this is the one place an activation's single box
+		// is freed; the native lowering nulls the state slot, so the
 		// AsyncReturn terminator hands the runtime a null it never reads.
-		bb.Instrs = append(bb.Instrs, asyncStateFreeInstr(payloadLocal, stateLocal))
+		bb.Instrs = append(bb.Instrs, asyncStateFreeInstr(stateLocal))
 		newTerm := Terminator{Kind: TermAsyncReturn, AsyncReturn: AsyncReturnTerm{
 			State: operandForLocal(f, stateLocal),
 		}}

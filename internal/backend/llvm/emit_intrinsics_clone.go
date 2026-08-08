@@ -7,6 +7,37 @@ import (
 	"surge/internal/types"
 )
 
+// taskResultServing works out how a task must serve its result once a second
+// handle exists: the function that builds each asker its own value, and the id
+// that releases the one original the task goes on holding.
+//
+// A result whose bits own nothing and travel in nothing needs neither. Any
+// number of askers can read the same bits and none of them reclaims anything,
+// so the pair is empty and the task keeps handing the bits over as before.
+func (fe *funcEmitter) taskResultServing(taskType types.TypeID) (copyFn string, releaseID types.TypeID, err error) {
+	payload, err := taskPayloadType(fe.emitter.types, taskType)
+	if err != nil {
+		return "", types.NoTypeID, err
+	}
+	if !fe.emitter.payloadNeedsRuntimeRelease(payload) {
+		return "null", types.NoTypeID, nil
+	}
+	name := fe.emitter.requireCopyResultGlue(payload)
+	return "@" + name, fe.emitter.registerCrossingDropResult(payload), nil
+}
+
+// taskPayloadType reads the T out of a Task<T>.
+func taskPayloadType(typesIn *types.Interner, taskType types.TypeID) (types.TypeID, error) {
+	resolved := resolveAliasAndOwn(typesIn, taskType)
+	if info, ok := typesIn.AliasInfo(resolved); ok && info != nil && len(info.TypeArgs) == 1 {
+		return info.TypeArgs[0], nil
+	}
+	if info, ok := typesIn.StructInfo(resolved); ok && info != nil && len(info.TypeArgs) == 1 {
+		return info.TypeArgs[0], nil
+	}
+	return types.NoTypeID, fmt.Errorf("task handle type#%d has no single result type", taskType)
+}
+
 func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error) {
 	if call == nil || call.Callee.Kind != mir.CalleeSym {
 		return false, nil
@@ -39,8 +70,13 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 		if valErr != nil {
 			return true, valErr
 		}
+		copyFn, releaseID, resErr := fe.taskResultServing(dstType)
+		if resErr != nil {
+			return true, resErr
+		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_task_clone(ptr %s)\n", tmp, val)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_task_clone(ptr %s, ptr %s, i64 %d)\n",
+			tmp, val, copyFn, releaseID)
 		ptr, dstTy, dstAlign, ptrErr := fe.emitPlaceStorage(call.Dst)
 		if ptrErr != nil {
 			return true, ptrErr

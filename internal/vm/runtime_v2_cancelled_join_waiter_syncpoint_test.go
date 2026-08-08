@@ -313,7 +313,7 @@ uint64_t __surge_blocking_call(uint64_t id, void* state) {
 }
 
 static int registration_failure(rt_executor* ex, rt_task* target) {
-    void* target_clone = rt_task_clone(target);
+    void* target_clone = rt_task_clone(target, NULL, 0);
     if (target_clone == NULL) {
         return fail("negative-control target clone failed");
     }
@@ -333,7 +333,7 @@ static int registration_failure(rt_executor* ex, rt_task* target) {
 static int positive_proof(rt_executor* ex, rt_task* target) {
     unsigned first_before = rt_sync_point_reached_count(
         RT_SYNC_POINT_SP_TASK_POLL_AFTER_JOIN_REGISTER);
-    void* first_target = rt_task_clone(target);
+    void* first_target = rt_task_clone(target, NULL, 0);
     if (first_target == NULL) {
         return fail("first target clone failed");
     }
@@ -359,7 +359,7 @@ static int positive_proof(rt_executor* ex, rt_task* target) {
         RT_SYNC_POINT_SP_TASK_POLL_AFTER_JOIN_REGISTER);
     unsigned second_park_before = rt_sync_point_reached_count(
         RT_SYNC_POINT_SP_PARK_BEFORE_WAITING);
-    void* second_target = rt_task_clone(target);
+    void* second_target = rt_task_clone(target, NULL, 0);
     if (second_target == NULL) {
         return fail("second target clone failed");
     }

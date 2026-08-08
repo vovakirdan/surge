@@ -305,7 +305,7 @@ static int mode_debt020_migrate_gap_proof(rt_executor* ex) {
         adopter->state = target;
         rt_task_set_placement(adopter, pin_shard(ex, 0), TASK_PLACEMENT_GENERIC);
     }
-    void* join_handle = adopter != NULL ? rt_task_clone(adopter) : NULL;
+    void* join_handle = adopter != NULL ? rt_task_clone(adopter, NULL, 0) : NULL;
     rt_task* gap_joiner = join_handle != NULL ? alloc_ready_task(ex, POLL_DEBT020_GAP_JOINER) : NULL;
     if (gap_joiner != NULL) {
         gap_joiner->state = join_handle;
@@ -368,7 +368,7 @@ static int mode_debt022_donecv_storeload_proof(rt_executor* ex) {
     atomic_store_explicit(&g_debt022_expected_bits, 77, memory_order_release);
 
     rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 1);
-    void* await_handle = target != NULL ? rt_task_clone(target) : NULL;
+    void* await_handle = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
     if (target == NULL || await_handle == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt022 target allocation failed");
@@ -449,8 +449,8 @@ static int mode_debt022_multi_awaiters(rt_executor* ex) {
     atomic_store_explicit(&g_debt022_expected_kind, 1, memory_order_release);
     atomic_store_explicit(&g_debt022_expected_bits, 77, memory_order_release);
     rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 1);
-    void* handle_a = target != NULL ? rt_task_clone(target) : NULL;
-    void* handle_b = target != NULL ? rt_task_clone(target) : NULL;
+    void* handle_a = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
+    void* handle_b = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
     if (target == NULL || handle_a == NULL || handle_b == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt022 multi-await target allocation failed");
@@ -522,7 +522,7 @@ static int mode_debt022_parked_target(rt_executor* ex) {
     }
 
     rt_task* target = spawn_pinned(ex, POLL_PARK_FOREVER, 1);
-    void* await_handle = target != NULL ? rt_task_clone(target) : NULL;
+    void* await_handle = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
     if (target == NULL || await_handle == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt022 parked-target allocation failed");
@@ -580,7 +580,7 @@ static int mode_debt022_cancelled_parked_target(rt_executor* ex) {
     }
 
     rt_task* target = spawn_pinned(ex, POLL_PARK_FOREVER, 1);
-    void* await_handle = target != NULL ? rt_task_clone(target) : NULL;
+    void* await_handle = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
     if (target == NULL || await_handle == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt022 cancelled-target allocation failed");
@@ -705,7 +705,7 @@ static int mode_debt046_join_stale_removal_proof(rt_executor* ex) {
     atomic_store_explicit(&g_debt046_wake_done, 0, memory_order_release);
 
     rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 0);
-    void* join_handle = target != NULL ? rt_task_clone(target) : NULL;
+    void* join_handle = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
     if (target == NULL || join_handle == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt046 target allocation failed");

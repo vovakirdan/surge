@@ -9,12 +9,20 @@ import (
 // Suspension frames: the compiler-synthesized structs that hold a paused
 // computation.
 //
-// Four kinds exist — an async state machine's frame, the payload union it
-// resumes with, a `spawn on` capture set and a blocking body's capture set —
-// and none of them is an ordinary value. Each outlives the frame that built it
-// by construction: its address is handed to the runtime when the computation
-// suspends and read back when the computation resumes, so it cannot live in a
-// caller's slot the way a struct the user wrote does.
+// Three kinds exist — an async state machine's frame, a `spawn on` capture set
+// and a blocking body's capture set — and none of them is an ordinary value.
+// Each outlives the frame that built it by construction: its address is handed
+// to the runtime when the computation suspends and read back when the
+// computation resumes, so it cannot live in a caller's slot the way a struct
+// the user wrote does.
+//
+// The resume payload union is NOT one of them, and the difference is exactly
+// the property above: it is a MEMBER of the async state frame, so the storage
+// it occupies is storage the frame already owns. Giving it a lifetime of its
+// own bought a second allocation per suspension and nothing else — the layout
+// registry had been sizing the frame's payload field as the union's own bytes
+// all along, so a frame that carried it by pointer left those bytes unwritten
+// and reached for the allocator instead.
 //
 // The prefixes are named once, here, and used both by the builders that mint
 // these types and by the backends that have to recognize them. Two lists would
@@ -30,9 +38,11 @@ const (
 )
 
 // suspensionFramePrefixes is every synthesized frame name this compiler mints.
+//
+// asyncPayloadTypePrefix is deliberately absent: that union is a field of the
+// async state frame, not a frame.
 var suspensionFramePrefixes = [...]string{
 	asyncStateTypePrefix,
-	asyncPayloadTypePrefix,
 	spawnOnStateTypePrefix,
 	blockingStateTypePrefix,
 }

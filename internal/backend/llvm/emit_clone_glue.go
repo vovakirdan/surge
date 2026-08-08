@@ -28,17 +28,26 @@ import (
 // lives, because the copy lives wherever the assignment named. A body that
 // allocated its own would be inventing an owner the language never asked for.
 //
-// Only two member shapes need a fixup, because only a COPY composite ever
-// reaches here (`OperandCopyValue` is emitted for nothing else) and every
-// member of a Copy composite is itself Copy:
+// Three member shapes need a fixup, because for the rest the bits ARE the
+// value and the memcpy already finished them:
 //
 //   - a reference-counted scalar: its copied word points into a counted block,
 //     so the destination takes its own reference;
+//   - a string: its copied word points at bytes with a single owner, so the
+//     destination gets bytes of its own;
 //   - a nested value composite: its own members may need the same treatment, so
 //     it is cloned recursively into the destination's bytes for it.
 //
-// A string, dynamic array or map can never appear: none of them is Copy, so a
-// composite holding one is not Copy either and is moved rather than copied.
+// The string arm is unreachable from `.clone()`, whose argument is always Copy
+// and so can hold no string. It is reached by a task result shown to a second
+// awaiter, which is a duplication of a MOVE value — and the two callers want
+// the same thing from this glue, an independent copy, so they get the same
+// walk rather than a second one that could drift from the drop next door.
+//
+// A dynamic array member has no fixup and cannot get one: duplicating its
+// buffer is not something the runtime offers. `canDuplicateValue` is how a
+// caller asks whether this glue reaches a type, and refusing there is what
+// keeps a shared buffer from reaching two owners.
 
 func cloneGlueName(id types.TypeID) string { return fmt.Sprintf("clone.type%d", id) }
 
@@ -159,6 +168,18 @@ func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, baseAlign
 		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
 		e.emitGlueRetain(g, fv)
 
+	case isStringLike(e.types, resolved):
+		// Single-owner bytes: the copied word still points at the source's, so
+		// the destination is given its own and the two can be dropped
+		// independently.
+		fp := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", fp, off)
+		fv := g.next()
+		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
+		dup := g.next()
+		fmt.Fprintf(&e.buf, "  %s = call ptr @rt_string_clone(ptr %s)\n", dup, fv)
+		fmt.Fprintf(&e.buf, "  store ptr %s, ptr %s, align %d\n", dup, fp, memberAccessAlign(baseAlign, off))
+
 	case e.isCloneableComposite(resolved):
 		// The byte copy carried this member's bits verbatim, which is right for
 		// everything it owns outright and wrong for anything it shares. Cloning
@@ -178,7 +199,7 @@ func (e *Emitter) emitFixedArrayElemClones(g *glueTmp, elem types.TypeID, baseAl
 		return
 	}
 	resolved := resolveValueType(e.types, elem)
-	if !e.types.IsRefCountedScalar(resolved) && !e.isCloneableComposite(resolved) {
+	if !e.memberNeedsCloneFixup(resolved) {
 		return
 	}
 	stride, err := e.arrayElemStride(elem)
@@ -211,8 +232,7 @@ func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *lay
 		}
 		needsWork := false
 		for _, pt := range c.PayloadTypes {
-			resolved := resolveValueType(e.types, pt)
-			if e.types.IsRefCountedScalar(resolved) || e.isCloneableComposite(resolved) {
+			if e.memberNeedsCloneFixup(resolveValueType(e.types, pt)) {
 				needsWork = true
 				break
 			}
@@ -278,4 +298,94 @@ func (e *Emitter) isCloneableComposite(id types.TypeID) bool {
 		return false
 	}
 	return e.hasInlineStorage(id)
+}
+
+// memberNeedsCloneFixup reports whether the byte copy left this member's word
+// meaning something the destination does not own yet. It is the one list the
+// arms of emitFieldCloneAt and the two "is there any work here" scans read, so
+// adding a shape cannot leave a scan behind.
+func (e *Emitter) memberNeedsCloneFixup(resolved types.TypeID) bool {
+	if e == nil || e.types == nil {
+		return false
+	}
+	return e.types.IsRefCountedScalar(resolved) ||
+		isStringLike(e.types, resolved) ||
+		e.isCloneableComposite(resolved)
+}
+
+// canDuplicateValue reports whether a second, independently owned value of this
+// type can be made from one that already exists.
+//
+// It is the reach of the duplication above, asked before anything calls it. The
+// answer is no for exactly one shape — a dynamic array — because duplicating a
+// buffer is not an operation the runtime offers, and a copy that shared the
+// buffer would hand the same storage to two owners to free. Everything else
+// either owns nothing (its bits are the value), owns bytes that rt_string_clone
+// duplicates, or shares a counted block that a reference makes safe.
+//
+// A map is a yes for the same reason a drop of one reclaims nothing: the
+// language has no reclamation for it yet, so a copy that shares it is exactly
+// as owned as the original.
+func (e *Emitter) canDuplicateValue(id types.TypeID) bool {
+	return e.canDuplicateValueRec(id, map[types.TypeID]struct{}{})
+}
+
+func (e *Emitter) canDuplicateValueRec(id types.TypeID, seen map[types.TypeID]struct{}) bool {
+	if id == types.NoTypeID || e == nil || e.types == nil {
+		return true
+	}
+	if base := resolveAliasAndOwn(e.types, id); base != types.NoTypeID {
+		if tt, ok := e.types.Lookup(base); ok {
+			switch tt.Kind {
+			case types.KindReference, types.KindPointer:
+				// A borrow owns nothing, so duplicating it is duplicating a word.
+				return true
+			}
+		}
+	}
+	id = resolveValueType(e.types, id)
+	if _, ok := seen[id]; ok {
+		return true
+	}
+	seen[id] = struct{}{}
+
+	if _, dynamic, isArray := arrayElemType(e.types, id); isArray && dynamic {
+		return false
+	}
+	if elem, _, ok := arrayFixedInfo(e.types, id); ok {
+		return e.canDuplicateValueRec(elem, seen)
+	}
+	tt, ok := e.types.Lookup(id)
+	if !ok {
+		return true
+	}
+	switch tt.Kind {
+	case types.KindStruct:
+		for _, f := range e.types.StructFields(id) {
+			if !e.canDuplicateValueRec(f.Type, seen) {
+				return false
+			}
+		}
+	case types.KindTuple:
+		if info, ok := e.types.TupleInfo(id); ok && info != nil {
+			for _, el := range info.Elems {
+				if !e.canDuplicateValueRec(el, seen) {
+					return false
+				}
+			}
+		}
+	case types.KindUnion:
+		cases, err := e.tagCases(id)
+		if err != nil {
+			return false
+		}
+		for _, c := range cases {
+			for _, pt := range c.PayloadTypes {
+				if !e.canDuplicateValueRec(pt, seen) {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }

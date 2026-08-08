@@ -63,6 +63,15 @@ void rt_far_task_release_result(rt_executor* ex, rt_task* producer) {
     }
 }
 
+// Reports whether the result came back from another shard, which carries it in
+// a lease exactly one holder may adopt. That lease is its own answer to "who
+// gets this", and it answers a second asker with "gone" rather than by
+// reclaiming under the first, so the copy-per-asker path leaves it alone.
+static int result_is_far_carried(const rt_task* producer) {
+    return atomic_load_explicit(&producer->far_task_result_lease, memory_order_acquire) != NULL ||
+           atomic_load_explicit(&producer->far_task_result_state, memory_order_acquire) != 0;
+}
+
 uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, uint64_t* out_bits) {
     if (producer == NULL) {
         if (out_bits != NULL) {
@@ -71,6 +80,17 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, uint64_t* ou
         return 2;
     }
     uint8_t kind = rt_remote_task_result_kind(producer);
+    if (kind == 1 && producer->result_copy_fn != NULL && !result_is_far_carried(producer)) {
+        // More than one handle can ask for this result, so it stays the task's
+        // and this asker gets a copy of its own. Nothing here reclaims the
+        // original: a later asker still has to be able to read it, and
+        // free_task discharges it once the last handle is gone.
+        if (out_bits != NULL) {
+            *out_bits = (uint64_t)(uintptr_t)producer->result_copy_fn(
+                (void*)(uintptr_t)producer->result_bits);
+        }
+        return kind;
+    }
     if (kind == 1 && !rt_far_task_adopt_result(producer, holder)) {
         kind = 2;
     }

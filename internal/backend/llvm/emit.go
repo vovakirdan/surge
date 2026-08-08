@@ -87,17 +87,23 @@ type Emitter struct {
 	// state's FuncID space): every yield/return-cancelled site in every
 	// function can build a differently-typed state, so there is no single
 	// natural FuncID to key on the way a crossing body has. Unlike a
-	// result, this box always exists (built fresh at every suspend, never
-	// inert/Copy), so every registration always needs the box-freeing
-	// struct glue (dropGlueName), not the value-drop wrapper results use.
-	// The dispatch (__surge_drop_abandoned_state_call) routes the id to
-	// that struct glue (emit_async.go).
+	// result, this box always exists (an activation allocates one, never
+	// inert/Copy), so every registration always needs an arm. The dispatch
+	// (__surge_drop_abandoned_state_call) routes the id to the frame
+	// release below (emit_async.go).
 	abandonedStateDrops map[types.TypeID]struct{}
-	// Values the runtime holds in an allocation of its own — a suspension
-	// frame, an unadopted transport payload — need one entry point that
-	// releases what the value owns AND the allocation carrying it. See
-	// emit_transport_allocation.go.
+	// Values the runtime holds in an allocation of its own — an unadopted
+	// transport payload, a crossing state that was never shipped — need one
+	// entry point that releases what the value owns AND the allocation
+	// carrying it. See emit_transport_allocation.go.
 	runtimeOwnedReleaseNeeded map[types.TypeID]struct{}
+	// Result payload types a cloned task handle must be served a copy of. See
+	// emit_copy_result_glue.go.
+	copyResultGlueNeeded map[types.TypeID]struct{}
+	// An ABANDONED async frame is released rather than dropped: the storage
+	// goes back to the allocator and nothing walks the resume payload, which
+	// is a duplicate of what the resumed locals own (emit_drop_glue.go).
+	suspensionFrameReleases map[types.TypeID]struct{}
 }
 
 type funcEmitter struct {
@@ -205,6 +211,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("missing poll function")
 	e.ensureStringConst("missing drop function")
 	e.ensureStringConst("missing blocking function")
+	e.ensureStringConst(uncopyableResultMessage)
 	e.ensureStringConst("spawn on remote publish requires an async task context")
 	e.ensureStringConst("spawn on destination is shut down")
 	e.ensureStringConst("spawn on remote publish queue is full")
@@ -287,6 +294,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 		return "", err
 	}
 	if err := e.emitBlockingDispatch(); err != nil {
+		return "", err
+	}
+	if err := e.emitCopyResultGlue(); err != nil {
 		return "", err
 	}
 	if err := e.emitCloneGlue(); err != nil {

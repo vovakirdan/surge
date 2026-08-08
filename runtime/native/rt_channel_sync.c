@@ -35,10 +35,22 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
 // Caller holds the channel owner's shard lock. Foreign parked senders are
 // woken to retry rather than consumed (their value stays under their own
 // lock), so a foreign-only sender queue reports "not ready".
+//
+// `out_bits` is where the value goes and is required. This core is the only
+// place that can take a buffered entry or ack a parked sender, and both are
+// irreversible: a caller with no sink was not asking a question, it was
+// destroying the answer. Callers that do not want the value must still take it
+// and then release it (rt_channel_release_payload), which is a decision the
+// caller can see and this core cannot make — it does not know what the bits
+// own, and it holds a lock under which compiled drop glue must not run.
 uint8_t rt_channel_try_recv_status_owner_locked(rt_executor* ex,
                                                 rt_shard* ch_shard,
                                                 rt_channel* ch,
                                                 uint64_t* out_bits) {
+    if (out_bits == NULL) {
+        panic_msg("async: channel try-recv with nowhere to put the value");
+        return 0;
+    }
     uint64_t val = 0;
     if (buf_pop(ch, &val)) {
         waiter cand;
@@ -65,9 +77,7 @@ uint8_t rt_channel_try_recv_status_owner_locked(rt_executor* ex,
             (void)channel_deliver_foreign(ex, &cand, RESUME_NONE, 0);
             rt_shard_lock(ch_shard);
         }
-        if (out_bits != NULL) {
-            *out_bits = val;
-        }
+        *out_bits = val;
         return 1;
     }
     waiter cand;
@@ -81,9 +91,7 @@ uint8_t rt_channel_try_recv_status_owner_locked(rt_executor* ex,
             if (!channel_candidate_valid(sender, &cand)) {
                 continue;
             }
-            if (out_bits != NULL) {
-                *out_bits = sender->resume_bits;
-            }
+            *out_bits = sender->resume_bits;
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_bits = 0;
             int pushed = wake_task_on_shard_locked(

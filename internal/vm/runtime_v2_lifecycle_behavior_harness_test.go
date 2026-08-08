@@ -482,7 +482,7 @@ static void poll_clone_racer(void) {
             rt_async_return(NULL, 0);
             return;
         }
-        cloned = rt_task_clone(target);
+        cloned = rt_task_clone(target, NULL, 0);
         if (cloned == NULL) {
             atomic_store_explicit(&g_clone_uaf_detected, 1, memory_order_release);
             rt_async_return(NULL, 0);

@@ -219,7 +219,16 @@ void rt_task_wake(void* task);
 uint8_t rt_task_poll(void* task, uint64_t* out_bits);
 void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits);
 void rt_task_cancel(void* task);
-void* rt_task_clone(void* task);
+// Builds a second, independently owned value out of a task result the task is
+// still holding, and answers with its bits. Generated per result type, because
+// what an independent copy costs is what the type owns.
+typedef void* (*rt_result_copy_fn)(void*);
+// `copy_result` and `result_drop_fn_id` describe how the task must serve a
+// result now that more than one handle can ask for it: the copy every asker
+// gets, and the release of the one original the task keeps. Both are 0/NULL for
+// a result whose bits own nothing and travel in nothing, which any number of
+// askers can simply read again.
+void* rt_task_clone(void* task, rt_result_copy_fn copy_result, uint64_t result_drop_fn_id);
 void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align);
 uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits);
 int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index);

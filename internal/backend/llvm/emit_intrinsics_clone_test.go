@@ -23,10 +23,10 @@ fn main() -> int {
 
 	ir := emitLLVMFromSource(t, sourceCode)
 
-	if regexp.MustCompile(`call ptr @rt_task_clone\(ptr %l\d+\)`).MatchString(ir) {
+	if regexp.MustCompile(`call ptr @rt_task_clone\(ptr %l\d+,`).MatchString(ir) {
 		t.Fatalf("task clone used the local slot address instead of the loaded handle:\n%s", ir)
 	}
-	if !regexp.MustCompile(`load ptr, ptr %l\d+\n  %t\d+ = call ptr @rt_task_clone\(ptr %t\d+\)`).MatchString(ir) {
+	if !regexp.MustCompile(`load ptr, ptr %l\d+\n  %t\d+ = call ptr @rt_task_clone\(ptr %t\d+, `).MatchString(ir) {
 		t.Fatalf("task clone did not load the task handle before calling rt_task_clone:\n%s", ir)
 	}
 }

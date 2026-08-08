@@ -110,6 +110,7 @@ fn main() -> int {
 
 	// A completing poll hands the envelope back; a cancelled one leaves it to
 	// the runtime, which still reaches it.
+	suspends := 0
 	for bi := range poll.Blocks {
 		term := poll.Blocks[bi].Term
 		releases := envelopeReleaseCount(poll.Blocks[bi])
@@ -123,8 +124,58 @@ fn main() -> int {
 				t.Errorf("block %d cancels after releasing the envelope %d times; the runtime still "+
 					"reaches that state (RV2-DEBT-044)", bi, releases)
 			}
+		case mir.TermAsyncYield:
+			suspends++
+			// The envelope belongs to the ACTIVATION: a suspension writes the
+			// resume point and the repacked payload through the one it was
+			// entered with. Releasing and rebuilding it here would be two
+			// allocations on every re-entry, and re-entry is decided by the
+			// scheduler — so the cost would land in a measurement nobody can
+			// hold still.
+			if releases != 0 {
+				t.Errorf("block %d suspends after releasing the envelope %d times; a suspension "+
+					"rewrites the envelope it holds, it does not rebuild one", bi, releases)
+			}
+			if rebuilds := envelopeRebuildCount(poll.Blocks[bi], frameLocals(poll)); rebuilds != 0 {
+				t.Errorf("block %d suspends after rebuilding the envelope %d times; the pointer the "+
+					"runtime already holds is the one that must carry the new state", bi, rebuilds)
+			}
 		}
 	}
+	if suspends == 0 {
+		t.Error("the poll function has no suspend block: the probe stopped measuring what it claims to")
+	}
+}
+
+// frameLocals returns the poll function's state-frame local by the name the
+// lowering gives it. The payload local is deliberately not here: it is an
+// ordinary value the suspension rebuilds, and only the frame is the pointer
+// the runtime is holding.
+func frameLocals(fn *mir.Func) map[mir.LocalID]bool {
+	out := map[mir.LocalID]bool{}
+	for i := range fn.Locals {
+		if fn.Locals[i].Name == "__state" {
+			out[mir.LocalID(i)] = true
+		}
+	}
+	return out
+}
+
+// envelopeRebuildCount counts the assignments in one block that replace a whole
+// envelope local rather than writing through it.
+func envelopeRebuildCount(bb mir.Block, envelope map[mir.LocalID]bool) int {
+	n := 0
+	for ii := range bb.Instrs {
+		ins := &bb.Instrs[ii]
+		if ins.Kind != mir.InstrAssign {
+			continue
+		}
+		dst := ins.Assign.Dst
+		if dst.Kind == mir.PlaceLocal && len(dst.Proj) == 0 && envelope[dst.Local] {
+			n++
+		}
+	}
+	return n
 }
 
 // findPollFunc returns the poll function whose name ends in suffix.

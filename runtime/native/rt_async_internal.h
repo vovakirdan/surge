@@ -217,6 +217,22 @@ typedef struct rt_task {
     // take_result), so the owner-side drop and the consume path are
     // mutually exclusive by construction (RV2-DEBT-053a).
     uint64_t result_drop_fn_id;
+    // How this task serves its result to a handle when it may be asked for it
+    // again. NULL means it will be asked at most once, and the single asker is
+    // simply handed result_bits.
+    //
+    // Cloning a handle is what makes it non-NULL, because cloning is what
+    // creates a second asker, and it is the operation that knows the result's
+    // type well enough to say how a copy of one is made. From then on the
+    // result belongs to the TASK: every asker is served a copy built by this
+    // function, nobody reclaims the original out from under a later asker, and
+    // free_task discharges result_drop_fn_id on the one original.
+    //
+    // The store is safe without serialization because the FIRST clone runs
+    // while its source is the only handle in existence, so no take can be in
+    // flight and no second asker exists yet to miss it. Later clones store the
+    // same pointer.
+    rt_result_copy_fn result_copy_fn;
     // A suspend-point or scope-join state box abandoned by a cancellation
     // that completes the task without ever resuming compiled code (the
     // ordinary path frees the INCOMING resumed state box at the START of
@@ -794,6 +810,7 @@ uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
                                                 rt_channel* ch,
                                                 uint64_t value_bits);
 uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits);
+void rt_channel_release_payload(void* channel, uint64_t payload);
 void clear_select_timers(rt_executor* ex, rt_task* task);
 void ready_push(rt_executor* ex, uint64_t id);
 int ready_push_task_locked(const rt_executor* ex,

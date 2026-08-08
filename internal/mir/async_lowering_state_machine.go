@@ -202,7 +202,7 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	if err := buildAsyncPendingBlocks(pollFn, stateLocal, payloadLocal, sites, variants, typesIn.Builtins().Int); err != nil {
 		return err
 	}
-	rewriteAsyncReturns(pollFn, stateLocal, payloadLocal)
+	rewriteAsyncReturns(pollFn, stateLocal)
 
 	if err := buildAsyncConstructorState(f, typesIn, semaRes, taskType, stateType, payloadType, pollFnID, variants[0], typesIn.Builtins().Int); err != nil {
 		return err

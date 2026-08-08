@@ -292,6 +292,12 @@ int64_t rt_select_poll(uint64_t count,
     int64_t selected = -1;
     int selected_timeout = 0;
     uint64_t selected_task_id = 0;
+    // A won recv arm's value, held until the control lock is gone (see the
+    // SELECT_CHAN_RECV scan below). Only ever set on the iteration that also
+    // sets `selected`, and the scan stops there, so at most one arm's value is
+    // ever in hand.
+    void* taken_channel = NULL;
+    uint64_t taken_payload = 0;
 
     for (uint64_t i = 0; i < count; i++) {
         uint8_t kind = kinds != NULL ? kinds[i] : SELECT_TASK;
@@ -315,7 +321,20 @@ int64_t rt_select_poll(uint64_t count,
                 break;
             }
             case SELECT_CHAN_RECV: {
-                uint8_t status = rt_channel_try_recv_status_locked(ex, handle, NULL);
+                // Winning this arm consumes one value — that is the contract
+                // the arm dispatch is written against, and what makes a losing
+                // arm's value stay put. The value itself has no destination:
+                // a recv arm binds nothing. Take it into a real sink anyway,
+                // because the alternative is the core destroying it where
+                // nobody can see, and destroy it below once the control lock
+                // is released — compiled drop glue must not run under a
+                // runtime lock.
+                uint64_t received = 0;
+                uint8_t status = rt_channel_try_recv_status_locked(ex, handle, &received);
+                if (status == 1) {
+                    taken_channel = handle;
+                    taken_payload = received;
+                }
                 if (status == 1 || status == 2) {
                     selected = (int64_t)i;
                 }
@@ -380,6 +399,9 @@ int64_t rt_select_poll(uint64_t count,
         clear_select_timers(ex, current);
         pending_key = waker_none();
         rt_control_unlock(ex);
+        if (taken_channel != NULL) {
+            rt_channel_release_payload(taken_channel, taken_payload);
+        }
         return selected;
     }
 

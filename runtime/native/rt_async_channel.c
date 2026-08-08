@@ -75,6 +75,25 @@ void rt_channel_free(void* channel) {
     rt_free((uint8_t*)ch, bytes, _Alignof(rt_channel));
 }
 
+// Destroys a value taken out of a channel that will never reach a receiver.
+//
+// A select's winning recv arm is the caller this exists for. Taking the value
+// is what makes that arm ready and the take is not undoable, but the arm has
+// nowhere to put it: an arm is `expr => expr`, with no binding for the payload
+// between them. Without this the take is a leak, and it is a silent one — the
+// program still prints the right answer, because it never had the value.
+//
+// Runs compiled drop glue, so no shard or control lock may be held here; the
+// caller only has to still hold the channel. A Copy/inert element type carries
+// no drop id and this costs a load and a branch.
+void rt_channel_release_payload(void* channel, uint64_t payload) {
+    rt_channel* ch = channel_from_handle(channel);
+    if (ch == NULL || ch->payload_drop_fn_id == 0) {
+        return;
+    }
+    __surge_drop_result_call(ch->payload_drop_fn_id, (void*)payload);
+}
+
 static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_after_handoff) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);

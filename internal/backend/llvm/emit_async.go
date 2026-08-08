@@ -126,9 +126,9 @@ func (e *Emitter) emitPollDispatch() error {
 
 // emitAbandonedStateDropDispatch emits `__surge_drop_abandoned_state_call`:
 // mark_done's abandoned-suspend-state consume dispatches here. Every
-// registered id routes to the state struct's recursive box-freeing glue
-// (dropGlueName) — every registration always needs a real arm, since the
-// box always exists regardless of field composition (see
+// registered id routes to the frame release, which reclaims the storage and
+// walks nothing — every registration always needs a real arm, since the frame
+// always exists regardless of field composition (see
 // registerAbandonedStateDrop). Unregistered ids keep the panic arm as the
 // negative control.
 func (e *Emitter) emitAbandonedStateDropDispatch() {
@@ -146,7 +146,7 @@ func (e *Emitter) emitAbandonedStateDropDispatch() {
 	fmt.Fprintf(&e.buf, "  ]\n")
 	for _, id := range ids {
 		fmt.Fprintf(&e.buf, "drop_abandoned.%d:\n", id)
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", e.requireRuntimeOwnedRelease(id))
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", e.requireSuspensionFrameRelease(id))
 		fmt.Fprintf(&e.buf, "  ret void\n")
 	}
 	fmt.Fprintf(&e.buf, "drop_abandoned_default:\n")

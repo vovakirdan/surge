@@ -382,10 +382,25 @@ void rt_task_cancel(void* task) {
     rt_control_unlock(ex);
 }
 
-void* rt_task_clone(void* task) {
+void* rt_task_clone(void* task, rt_result_copy_fn copy_result, uint64_t result_drop_fn_id) {
     rt_task* target = task_from_handle(task);
     if (target == NULL) {
         return NULL;
+    }
+    // From here on two handles can ask for one result, so the result stops
+    // being the first asker's and becomes the task's: everyone is served a
+    // copy, and free_task reclaims the original. A far-carried result keeps
+    // its own once-only lease answer, which already refuses a second asker
+    // rather than reclaiming under one.
+    //
+    // Only the FIRST clone writes, which is what makes the write safe to leave
+    // unserialized: it runs while its source is the only handle in existence,
+    // so no take can be reading and no later clone will write again.
+    if (copy_result != NULL && target->result_copy_fn == NULL) {
+        target->result_copy_fn = copy_result;
+        if (target->result_drop_fn_id == 0) {
+            target->result_drop_fn_id = result_drop_fn_id;
+        }
     }
     // S5-Q6: drops control unconditionally, not a rare
     // fallback - task_add_ref is a relaxed atomic increment, and the caller
