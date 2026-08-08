@@ -128,7 +128,7 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 			}
 			fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", bitsVal, bitsSlot)
 			dropID := types.TypeID(0)
-			if fe.emitter.typeOwnsHeap(valueType) {
+			if fe.emitter.payloadNeedsRuntimeRelease(valueType) {
 				dropID = fe.emitter.registerCrossingDropResult(valueType)
 			}
 			fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", dropID, dropIDSlot)

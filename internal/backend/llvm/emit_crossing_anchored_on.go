@@ -6,6 +6,7 @@ import (
 	"surge/internal/mir"
 	"surge/internal/sema"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 // emitAnchoredOnCrossing lowers `on ch { ... }` to the anchored immediate
@@ -161,6 +162,48 @@ func (fe *funcEmitter) emitAnchoredOnErrorBlocks(errBB, statusVal string) error 
 		return err
 	}
 	return fe.emitPanicBlock(defaultBB, "anchored on execute request failed")
+}
+
+// emitAnchoredChannelSend publishes the sent value into an allocation the
+// transport owns before handing it over.
+//
+// The anchored send is the one storing runtime call that reaches the backend as
+// an ordinary named call rather than as an instruction of its own, so nothing
+// downstream would otherwise widen its argument. The channel queues what it is
+// given and the value outlives this frame, so passing the operand as emitted
+// would hand the runtime an address in storage this frame owns — and the
+// matching receive adopts, which means it would free that address. This is the
+// copy-in leg of the same transport pair `emitAnchoredChanRecv` completes.
+func (fe *funcEmitter) emitAnchoredChannelSend(call *mir.CallInstr) (bool, error) {
+	if call == nil || fe == nil {
+		return false, nil
+	}
+	name := call.Callee.Name
+	if name == "" {
+		name = fe.symbolName(call.Callee.Sym)
+	}
+	if stripGenericSuffix(name) != "rt_anchored_channel_send" {
+		return false, nil
+	}
+	if len(call.Args) != 1 {
+		return true, fmt.Errorf("rt_anchored_channel_send expects 1 argument, got %d", len(call.Args))
+	}
+	val, valTy, err := fe.emitValueOperand(&call.Args[0])
+	if err != nil {
+		return true, err
+	}
+	valueType := operandValueType(fe.emitter.types, &call.Args[0])
+	if valueType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
+		if baseType, baseErr := fe.placeBaseType(call.Args[0].Place); baseErr == nil {
+			valueType = baseType
+		}
+	}
+	bitsVal, err := fe.emitValueToI64(val, valTy, valueType)
+	if err != nil {
+		return true, err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_anchored_channel_send(i64 %s)\n", bitsVal)
+	return true, nil
 }
 
 // emitAnchoredChanRecv materializes `Option<T>` from the anchored receive

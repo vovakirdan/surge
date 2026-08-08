@@ -72,6 +72,23 @@ func (fe *funcEmitter) emitAdoptFromTransportAllocation(allocation, storagePtr s
 	return nil
 }
 
+// payloadNeedsRuntimeRelease reports whether a payload the runtime may hold and
+// never deliver has to be released by the runtime rather than forgotten.
+//
+// `typeOwnsHeap` alone was the whole question while a composite WAS its heap
+// box: forgetting an inert composite forgot nothing, because the value and the
+// allocation carrying it were one and the same, and whoever adopted it freed
+// it. A composite now travels in a transport allocation of its own whatever its
+// members hold, so an inert composite that is never delivered leaks that
+// allocation with nothing left pointing at it. Both halves belong in the
+// question: what the value owns, and what carried it.
+func (e *Emitter) payloadNeedsRuntimeRelease(id types.TypeID) bool {
+	if e == nil || id == types.NoTypeID {
+		return false
+	}
+	return e.typeOwnsHeap(id) || e.hasInlineStorage(id)
+}
+
 // runtimeOwnedReleaseName is the entry point the runtime's abandon paths call
 // to destroy a value it is holding in an allocation of its own.
 func runtimeOwnedReleaseName(id types.TypeID) string {

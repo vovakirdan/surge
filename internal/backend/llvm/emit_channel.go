@@ -87,7 +87,7 @@ func channelElemType(typesIn *types.Interner, channelType types.TypeID) types.Ty
 // not an unconditionally-boxed envelope the way an async suspend state is).
 func (fe *funcEmitter) channelPayloadDropID(channelDstType types.TypeID) types.TypeID {
 	elem := channelElemType(fe.emitter.types, resolveValueType(fe.emitter.types, channelDstType))
-	if elem == types.NoTypeID || !fe.emitter.typeOwnsHeap(elem) {
+	if elem == types.NoTypeID || !fe.emitter.payloadNeedsRuntimeRelease(elem) {
 		return types.NoTypeID
 	}
 	return fe.emitter.registerCrossingDropResult(elem)

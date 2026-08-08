@@ -85,7 +85,7 @@ func (fe *funcEmitter) emitChannelCreateCrossing(ins *mir.CrossingInstr) error {
 		return err
 	}
 	dropID := types.TypeID(0)
-	if fe.emitter.typeOwnsHeap(ins.PayloadType) {
+	if fe.emitter.payloadNeedsRuntimeRelease(ins.PayloadType) {
 		dropID = fe.emitter.registerCrossingDropResult(ins.PayloadType)
 	}
 	initStatus := fe.nextTemp()

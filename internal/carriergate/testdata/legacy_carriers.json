@@ -683,6 +683,17 @@
           },
           "retired_by": "wave-d",
           "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "llvm-erased-word-bridge",
+            "path": "internal/backend/llvm/emit_crossing_anchored_on.go",
+            "token": "emitValueToI64",
+            "evidence": "bitsVal, err := fe.emitValueToI64(val, valTy, valueType)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d",
+          "tracked_as": "RV2-DEBT-151"
         }
       ]
     },
