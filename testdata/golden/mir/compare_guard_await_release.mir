@@ -36,7 +36,7 @@ fn inc$poll:
     call const 0(copy L1)
     if copy L3 then bb4 else bb3
   bb3:
-    call const 0(copy L6, copy L4)
+    call const 0(copy L4)
     async_return move L4, copy L2
   bb4:
     async_cancel move L4
@@ -62,9 +62,9 @@ fn inc$poll:
     L7 = (copy L5 == const 0)
     if copy L7 then bb9 else bb8
   bb11:
-    call const 0(copy L6, copy L4)
     L6 = call Pc1(copy L1, copy L2)
-    L4 = struct_lit type#1526 {__pc=const 1, __payload=move L6}
+    L4.__pc = const 1
+    L4.__payload = move L6
     async_yield move L4
 
 fn slow:
@@ -101,7 +101,7 @@ fn slow$poll:
     call const 0(copy L1)
     if copy L3 then bb4 else bb3
   bb3:
-    call const 0(copy L6, copy L4)
+    call const 0(copy L4)
     async_return move L4, copy L2
   bb4:
     async_cancel move L4
@@ -127,9 +127,9 @@ fn slow$poll:
     L7 = (copy L5 == const 0)
     if copy L7 then bb9 else bb8
   bb11:
-    call const 0(copy L6, copy L4)
     L6 = call Pc1(copy L1, copy L2)
-    L4 = struct_lit type#1528 {__pc=const 1, __payload=move L6}
+    L4.__pc = const 1
+    L4.__payload = move L6
     async_yield move L4
 
 fn test:
@@ -263,7 +263,7 @@ fn test$poll:
     call const 0(copy L0)
     if copy L23 then bb18 else bb17
   bb17:
-    call const 0(copy L26, copy L24)
+    call const 0(copy L24)
     async_return move L24, copy L7
   bb18:
     async_cancel move L24
@@ -305,17 +305,17 @@ fn test$poll:
     L27 = (copy L25 == const 0)
     if copy L27 then bb27 else bb26
   bb29:
-    call const 0(copy L26, copy L24)
     L26 = call Pc13(copy L0, move L1, move L4)
-    L24 = struct_lit type#1530 {__pc=const 13, __payload=move L26}
+    L24.__pc = const 13
+    L24.__payload = move L26
     async_yield move L24
   bb30:
-    call const 0(copy L26, copy L24)
     L26 = call Pc15(copy L0, move L4, move L8, copy L11)
-    L24 = struct_lit type#1530 {__pc=const 15, __payload=move L26}
+    L24.__pc = const 15
+    L24.__payload = move L26
     async_yield move L24
   bb31:
-    call const 0(copy L26, copy L24)
     L26 = call Pc16(copy L0, copy L7)
-    L24 = struct_lit type#1530 {__pc=const 16, __payload=move L26}
+    L24.__pc = const 16
+    L24.__payload = move L26
     async_yield move L24
