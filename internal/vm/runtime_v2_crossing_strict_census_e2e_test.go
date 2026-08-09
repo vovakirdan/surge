@@ -466,17 +466,14 @@ func TestRuntimeV2CrossingStrictCensusValgrindBounded(t *testing.T) {
 	if _, err := exec.LookPath("valgrind"); err != nil {
 		t.Skip("valgrind not installed; skipping valgrind leak-check census")
 	}
-	// Recalibrated 2026-07-24, DOWN from 344 bytes in 13 blocks. A boxed
-	// composite with no heap-owning field now frees its box, where the
-	// exception used to be spelled for tag unions only — so six of the blocks
-	// this row recorded were struct/tuple boxes and are now reclaimed.
-	//
-	// Proven a real reduction rather than balanced churn: the change only ADDS
-	// drop-glue calls and can never remove an allocation, and the direct probe
-	// went from 51 allocs / 35 frees to 51 allocs / 51 frees — allocations
-	// identical, frees up by exactly the leaked count.
-	const wantDefinitelyLostBytes = 28
-	const wantDefinitelyLostBlocks = 7
+	// This allowance is gone. It stood at 344 bytes in 13 blocks, was
+	// recalibrated to 28 in 7 once a boxed composite with no heap-owning field
+	// began freeing its box, and reached zero when a task result stopped being
+	// the first awaiter's property and a payload the runtime holds but never
+	// delivers started being released. Each step was a real reduction rather
+	// than balanced churn, so the row asserts none rather than a smaller
+	// number: a residual that comes back is a regression, and there is no
+	// longer a documented amount for it to hide inside.
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2CrossingStrictCensusValgrindSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	for _, shardCount := range []int{1, 2, 8} {
@@ -498,10 +495,10 @@ func TestRuntimeV2CrossingStrictCensusValgrindBounded(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse valgrind leak summary: %v\nstderr:\n%s", err, stderr)
 			}
-			if bytesLost != wantDefinitelyLostBytes || blocksLost != wantDefinitelyLostBlocks {
+			if bytesLost != 0 || blocksLost != 0 {
 				t.Fatalf(
-					"valgrind definitely-lost drifted at shards=%d: got %d bytes in %d blocks, want the documented tag-only TaskResult<nothing> residual %d bytes in %d blocks; Wave D must tighten this to 0/0\nstderr:\n%s",
-					shardCount, bytesLost, blocksLost, wantDefinitelyLostBytes, wantDefinitelyLostBlocks, stderr,
+					"crossing strict census leaked %d bytes in %d blocks at shards=%d, want none\nstderr:\n%s",
+					bytesLost, blocksLost, shardCount, stderr,
 				)
 			}
 		})

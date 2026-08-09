@@ -8,14 +8,14 @@ import (
 
 func TestVMTermReadEventQueue(t *testing.T) {
 	requireVMBackend(t)
-	sourceCode := `import stdlib/term;
+	sourceCode := `import stdlib/term as term;
 
 @entrypoint
 fn main() -> int {
     let mut out: byte[] = [];
     let mut i: int = 0;
     while i < 3 {
-        let ev = term_read_event();
+        let ev = term.term_read_event();
         let code: uint8 = compare &ev {
             Key(_) => 75:uint8;
             Resize(_, _) => 82:uint8;
@@ -24,8 +24,8 @@ fn main() -> int {
         out.push(code);
         i = i + 1;
     }
-    term_write(out);
-    term_flush();
+    term.term_write(out);
+    term.term_flush();
     return 0;
 }
 `
@@ -62,14 +62,14 @@ fn main() -> int {
 
 func TestVMTermCallsLog(t *testing.T) {
 	requireVMBackend(t)
-	sourceCode := `import stdlib/term;
+	sourceCode := `import stdlib/term as term;
 
 @entrypoint
 fn main() -> int {
-    enter();
-    write_str("hi");
-    term_flush();
-    exit();
+    term.enter();
+    term.write_str("hi");
+    term.term_flush();
+    term.leave();
     return 0;
 }
 `
@@ -114,11 +114,11 @@ fn main() -> int {
 
 func TestVMTermSizeOverride(t *testing.T) {
 	requireVMBackend(t)
-	sourceCode := `import stdlib/term;
+	sourceCode := `import stdlib/term as term;
 
 @entrypoint
 fn main() -> int {
-    let (cols, rows) = term_size();
+    let (cols, rows) = term.term_size();
     if cols == 120 && rows == 30 {
         return 0;
     }

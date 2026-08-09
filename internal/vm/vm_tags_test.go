@@ -3,6 +3,7 @@ package vm_test
 import (
 	"testing"
 
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -10,13 +11,33 @@ import (
 	"surge/internal/vm"
 )
 
+// frozenLayouts freezes the physical layouts a hand-built module needs.
+//
+// A module the compiler produces carries these already. One assembled here does
+// not, and a union has to be asked for its physical shape now that a value is
+// its own storage rather than a pointer to a box -- so a fixture without them
+// fails at the first tag read rather than at construction, which reads like a
+// VM defect and is not one.
+func frozenLayouts(intTy, unionType types.TypeID, typesIn *types.Interner) *layout.Registry {
+	engine := layout.New(layout.X86_64LinuxGNU(), typesIn)
+	registry, err := layout.FinalizeRegistry(engine, []types.TypeID{intTy, unionType})
+	if err != nil {
+		panic("tag fixture layouts must freeze: " + err.Error())
+	}
+	return registry
+}
+
 func buildTagMatchModule(tagName string, tagSym symbols.SymbolID, makeTag bool) (*mir.Module, *types.Interner) {
 	typesIn := types.NewInterner()
 	intTy := typesIn.Builtins().Int
 
-	unionType := typesIn.RegisterUnion(source.StringID(1), source.Span{})
+	// The arm name is interned rather than spelled as a bare id: a union is
+	// asked for its arm names by name now, so an id with no table behind it
+	// fails at the first tag read instead of here.
+	typesIn.Strings = source.NewInterner()
+	unionType := typesIn.RegisterUnion(typesIn.Strings.Intern("TagUnion"), source.Span{})
 	typesIn.SetUnionMembers(unionType, []types.UnionMember{
-		{Kind: types.UnionMemberTag, TagName: source.StringID(2), TagArgs: []types.TypeID{intTy}},
+		{Kind: types.UnionMemberTag, TagName: typesIn.Strings.Intern(tagName), TagArgs: []types.TypeID{intTy}},
 		{Kind: types.UnionMemberNothing, Type: typesIn.Builtins().Nothing},
 	})
 
@@ -163,6 +184,7 @@ func buildTagMatchModule(tagName string, tagSym symbols.SymbolID, makeTag bool) 
 			mainSym: mainID,
 		},
 		Meta: &mir.ModuleMeta{
+			Layouts: frozenLayouts(intTy, unionType, typesIn),
 			TagLayouts: map[types.TypeID][]mir.TagCaseMeta{
 				unionType: {
 					{TagName: tagName, TagSym: tagSym, PayloadTypes: []types.TypeID{intTy}},
@@ -207,13 +229,17 @@ func TestVMTagsTagPayloadMismatchPanics(t *testing.T) {
 	requireVMBackend(t)
 	typesIn := types.NewInterner()
 	intTy := typesIn.Builtins().Int
-	unionType := typesIn.RegisterUnion(source.StringID(1), source.Span{})
+	tagName := "Some"
+	// The arm name is interned rather than spelled as a bare id: a union is
+	// asked for its arm names by name now, so an id with no table behind it
+	// fails at the first tag read instead of here.
+	typesIn.Strings = source.NewInterner()
+	unionType := typesIn.RegisterUnion(typesIn.Strings.Intern("TagUnion"), source.Span{})
 	typesIn.SetUnionMembers(unionType, []types.UnionMember{
-		{Kind: types.UnionMemberTag, TagName: source.StringID(2), TagArgs: []types.TypeID{intTy}},
+		{Kind: types.UnionMemberTag, TagName: typesIn.Strings.Intern(tagName), TagArgs: []types.TypeID{intTy}},
 		{Kind: types.UnionMemberNothing, Type: typesIn.Builtins().Nothing},
 	})
 
-	tagName := "Some"
 	tagSym := symbols.SymbolID(100)
 	mainSym := symbols.SymbolID(10)
 	mainID := mir.FuncID(1)
@@ -274,6 +300,7 @@ func TestVMTagsTagPayloadMismatchPanics(t *testing.T) {
 			mainSym: mainID,
 		},
 		Meta: &mir.ModuleMeta{
+			Layouts: frozenLayouts(intTy, unionType, typesIn),
 			TagLayouts: map[types.TypeID][]mir.TagCaseMeta{
 				unionType: {
 					{TagName: tagName, TagSym: tagSym, PayloadTypes: []types.TypeID{intTy}},

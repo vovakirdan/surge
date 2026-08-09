@@ -116,19 +116,17 @@ func TestRuntimeV2FarChannelNonCopyRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse valgrind leak summary: %v\nstderr:\n%s", err, stderr)
 		}
-		// KNOWN RESIDUAL, pre-existing and unrelated to this row: the
-		// discarded `TaskResult<nothing>` in `s` has no async scope-exit drop
-		// and leaves one tag-only outcome box behind. The exact tag-only
-		// layout corrected that box from the historical 8 bytes to
-		// 4; Valgrind still reports the same single allocation site and block.
-		// This row asserts the string payload itself never leaks while Wave D
-		// replaces the boxed task-result carrier and removes this residual.
-		const knownResidualBytes = 4
-		const knownResidualBlocks = 1
-		if bytesLost != knownResidualBytes || blocksLost != knownResidualBlocks {
+		// This used to allow one tag-only outcome box through: the discarded
+		// `TaskResult<nothing>` in `s` had no scope-exit drop, so four bytes in
+		// one block were documented as a residual to be removed later. Serving
+		// a task result to each asker in its own storage, and releasing a
+		// payload the runtime holds and never delivers, removed it -- so the
+		// allowance is gone rather than re-tuned. Zero is the assertion now,
+		// and a residual that returns is a regression rather than a baseline.
+		if bytesLost != 0 || blocksLost != 0 {
 			t.Fatalf(
-				"non-copy far-channel round trip leaked %d bytes in %d blocks, want exactly the documented discarded-outcome baseline (%d bytes in %d blocks); this looks like a NEW leak, not the known tag-only residual\nstderr:\n%s",
-				bytesLost, blocksLost, knownResidualBytes, knownResidualBlocks, stderr,
+				"non-copy far-channel round trip leaked %d bytes in %d blocks, want none\nstderr:\n%s",
+				bytesLost, blocksLost, stderr,
 			)
 		}
 	})
