@@ -504,7 +504,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 278,
+      "candidate_structural_allocations_per_batch": 277,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -540,7 +540,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 278,
+      "candidate_structural_allocations_per_batch": 213,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -576,7 +576,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 15,
+      "candidate_structural_allocations_per_batch": 78,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -612,7 +612,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 15,
+      "candidate_structural_allocations_per_batch": 14,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -720,7 +720,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 544,
+      "candidate_structural_allocations_per_batch": 474,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -762,7 +762,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "2432",
-      "candidate_structural_allocations_per_batch": 544,
+      "candidate_structural_allocations_per_batch": 410,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -804,7 +804,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 281,
+      "candidate_structural_allocations_per_batch": 277,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -846,7 +846,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 281,
+      "candidate_structural_allocations_per_batch": 149,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -888,7 +888,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "68928",
-      "candidate_structural_allocations_per_batch": 1042,
+      "candidate_structural_allocations_per_batch": 657,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -942,7 +942,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "68032",
-      "candidate_structural_allocations_per_batch": 1049,
+      "candidate_structural_allocations_per_batch": 661,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -996,7 +996,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "68032",
-      "candidate_structural_allocations_per_batch": 537,
+      "candidate_structural_allocations_per_batch": 405,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1050,7 +1050,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "1344",
-      "candidate_structural_allocations_per_batch": 615,
+      "candidate_structural_allocations_per_batch": 479,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1092,7 +1092,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "1344",
-      "candidate_structural_allocations_per_batch": 615,
+      "candidate_structural_allocations_per_batch": 415,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1134,7 +1134,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "64",
-      "candidate_structural_allocations_per_batch": 351,
+      "candidate_structural_allocations_per_batch": 217,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1170,7 +1170,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 537,
+      "candidate_structural_allocations_per_batch": 405,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1212,7 +1212,7 @@
       "timeout_seconds": 20,
       "relative_performance": true,
       "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 537,
+      "candidate_structural_allocations_per_batch": 277,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1410,7 +1410,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "8512",
-      "candidate_structural_allocations_per_batch": 4,
+      "candidate_structural_allocations_per_batch": 68,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1482,7 +1482,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "9844",
-      "candidate_structural_allocations_per_batch": 4,
+      "candidate_structural_allocations_per_batch": 68,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1626,7 +1626,7 @@
       "timeout_seconds": 10,
       "relative_performance": false,
       "expected_checksum": "25568",
-      "candidate_structural_allocations_per_batch": 0,
+      "candidate_structural_allocations_per_batch": 64,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1806,7 +1806,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "15947",
-      "candidate_structural_allocations_per_batch": 7,
+      "candidate_structural_allocations_per_batch": 134,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1854,7 +1854,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "11432",
-      "candidate_structural_allocations_per_batch": 7,
+      "candidate_structural_allocations_per_batch": 6,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1896,7 +1896,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "4608",
-      "candidate_structural_allocations_per_batch": 278,
+      "candidate_structural_allocations_per_batch": 405,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1932,7 +1932,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "4736",
-      "candidate_structural_allocations_per_batch": 278,
+      "candidate_structural_allocations_per_batch": 213,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1968,7 +1968,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 278,
+      "candidate_structural_allocations_per_batch": 277,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -2004,7 +2004,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 278,
+      "candidate_structural_allocations_per_batch": 213,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
