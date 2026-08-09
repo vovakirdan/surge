@@ -1,1 +1,1 @@
-error SEM3139 testdata/golden/crossing/block01/invalid/far_negative_extern_target.sg:3:9 `extern<T>` is not a value capability for `far`
+error SEM3191 testdata/golden/crossing/block01/invalid/far_negative_extern_target.sg:3:9 `extern<T>` is not a value capability for `far`

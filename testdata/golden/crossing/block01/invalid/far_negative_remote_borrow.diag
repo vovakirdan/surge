@@ -1,1 +1,1 @@
-error SEM3138 testdata/golden/crossing/block01/invalid/far_negative_remote_borrow.sg:3:9 `far &T` and `far &mut T` are invalid remote lifetimes
+error SEM3190 testdata/golden/crossing/block01/invalid/far_negative_remote_borrow.sg:3:9 `far &T` and `far &mut T` are invalid remote lifetimes

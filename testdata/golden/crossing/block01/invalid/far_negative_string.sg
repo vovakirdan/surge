@@ -1,4 +1,4 @@
-// EXPECT-DIAG: SEM3141
+// EXPECT-DIAG: SEM3193
 // negative: far string
 fn f(x: far string) -> nothing {
     return nothing;

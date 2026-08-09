@@ -106,7 +106,7 @@ load-bearing and must remain explicit in fixtures and AST/unit tests.
 | `FAR-PREC-006` | `far Task<T>` | Remote handle to a task owned elsewhere. | valid |
 | `FAR-PREC-007` | `&far T[]` | Shared borrow of the local `far (T[])` value. | parses; sema-rejects as postponed (far arrays are postponed) |
 | `FAR-PREC-008` | `&mut far Channel<T>` | Exclusive borrow of the local remote channel handle. | valid |
-| `FAR-PREC-NEG-001` | `far (T)[]` | Grouped single type does not create a local array of far handles. | `SEM3140` |
+| `FAR-PREC-NEG-001` | `far (T)[]` | Grouped single type does not create a local array of far handles. | `SEM3192` |
 | `FAR-PREC-NEG-002` | `(far T)[]` | Local array of remote handles is postponed until an accepted grouping form exists. | `FUT7010` |
 
 Block 1 must not invent a new grouping syntax to express a local array of remote
@@ -186,9 +186,9 @@ Surfaces and `RV2-DEBT-025`).
 | `FAR-OWN-006` | Take `&far T` while `&mut far T` exists. | rejected by ordinary borrow rules. | existing borrow diagnostic or `SEM3018` |
 | `FAR-OWN-007` | `@drop r;` where `r: &far T`. | accepted; ends local handle borrow. | none |
 | `FAR-OWN-008` | Copy a `far T` handle, then use both the source and the copy. | rejected; `far` handles are affine (move-only), so the second use is a use-after-move. | reuse `SemaUseAfterMove` (3130) as the ordinary non-Copy move diagnostic |
-| `FAR-OWN-NEG-001` | Treat `own far T` as `far own T`. | rejected; remote ownership is not represented. | `SEM3137` |
-| `FAR-OWN-NEG-002` | Treat `&far T` as `far &T`. | rejected; remote borrowed lifetime is not represented. | `SEM3138` |
-| `FAR-OWN-NEG-003` | Treat `&mut far T` as `far &mut T`. | rejected; remote mutable borrowed lifetime is not represented. | `SEM3138` |
+| `FAR-OWN-NEG-001` | Treat `own far T` as `far own T`. | rejected; remote ownership is not represented. | `SEM3189` |
+| `FAR-OWN-NEG-002` | Treat `&far T` as `far &T`. | rejected; remote borrowed lifetime is not represented. | `SEM3190` |
+| `FAR-OWN-NEG-003` | Treat `&mut far T` as `far &mut T`. | rejected; remote mutable borrowed lifetime is not represented. | `SEM3190` |
 
 ## Local Operation Rejection Matrix
 
@@ -198,13 +198,13 @@ own the accepted remote execution forms.
 
 | ID | Operation shape | Expected result | Diagnostic |
 | --- | --- | --- | --- |
-| `FAR-OPS-NEG-001` | `conn.close();` where `conn: far TcpConn` outside `on conn { ... }`. | rejected. | `SEM3142` |
-| `FAR-OPS-NEG-002` | `conn.read(buf);` where `conn: far TcpConn` outside `on`. | rejected. | `SEM3142` |
-| `FAR-OPS-NEG-003` | `ch.send(own msg);` where `ch: far Channel<T>` outside `on ch { ... }`. | rejected. | `SEM3142` |
-| `FAR-OPS-NEG-004` | `ch.recv();` where `ch: far Channel<T>` outside `on ch { ... }`. | rejected. | `SEM3142` |
-| `FAR-OPS-NEG-006` | `value.field` where `value: far Struct`. | rejected. | `SEM3142` |
+| `FAR-OPS-NEG-001` | `conn.close();` where `conn: far TcpConn` outside `on conn { ... }`. | rejected. | `SEM3194` |
+| `FAR-OPS-NEG-002` | `conn.read(buf);` where `conn: far TcpConn` outside `on`. | rejected. | `SEM3194` |
+| `FAR-OPS-NEG-003` | `ch.send(own msg);` where `ch: far Channel<T>` outside `on ch { ... }`. | rejected. | `SEM3194` |
+| `FAR-OPS-NEG-004` | `ch.recv();` where `ch: far Channel<T>` outside `on ch { ... }`. | rejected. | `SEM3194` |
+| `FAR-OPS-NEG-006` | `value.field` where `value: far Struct`. | rejected. | `SEM3194` |
 | `FAR-OPS-NEG-007` | `value to T` where `value: far T`. | rejected; `far` does not participate in value casts. | `SEM3015` |
-| `FAR-OPS-NEG-008` | Define `extern<far T> { fn m(self: &far T) -> int; }` and call it locally. | rejected unless explicitly accepted by later contract. | `SEM3142` |
+| `FAR-OPS-NEG-008` | Define `extern<far T> { fn m(self: &far T) -> int; }` and call it locally. | rejected unless explicitly accepted by later contract. | `SEM3194` |
 | `FAR-OPS-INT-001` | `on conn { conn.close(); ret nothing; }` where `conn: far TcpConn`. | integration obligation for Block 2. | none after Block 2 |
 | `FAR-OPS-INT-002` | `t.await()` where `t: far Task<T>`. | integration obligation for Block 3 remote task operations. | none after Block 3 |
 | `FAR-OPS-INT-003` | `t.cancel()` where `t: far Task<T>`. | integration obligation for Block 3 remote task operations. | none after Block 3 |
@@ -244,23 +244,23 @@ postponed surfaces to the `FUT` (7xxx) range. New Epic 11 codes are reserved in
 | Code | Allocation rule (reuse-first) | Rows |
 | --- | --- | --- |
 | `SYN2031` | Reuse the existing reserved-keyword-as-identifier diagnostic if one exists; otherwise allocate new (SYN range). Message shape: "`far` is a reserved keyword; rename this identifier". Fix: rename identifier. | `FAR-LEX-NEG-*` |
-| `SEM3136` | Allocate new (SEM range); new invariant. Message shape: "nested `far` handles are not allowed". Fix: remove one `far` only when semantics remain local-handle equivalent. | `FAR-PARSE-NEG-001` |
-| `SEM3137` | Allocate new (SEM range); new invariant. Message shape: "`far own T` is invalid; move `own T` through `on` or `spawn on`". Fix: rewrite as `own far T` only when local-handle move is intended. | `FAR-PARSE-NEG-002`, `FAR-OWN-NEG-001` |
-| `SEM3138` | Allocate new (SEM range); new invariant. Message shape: "`far &T` and `far &mut T` are invalid remote lifetimes". Fix: rewrite as `&far T` or `&mut far T` only when borrowing the local handle is intended. | `FAR-PARSE-NEG-003`, `FAR-PARSE-NEG-004`, `FAR-OWN-NEG-002`, `FAR-OWN-NEG-003` |
+| `SEM3188` | Allocate new (SEM range); new invariant. Message shape: "nested `far` handles are not allowed". Fix: remove one `far` only when semantics remain local-handle equivalent. | `FAR-PARSE-NEG-001` |
+| `SEM3189` | Allocate new (SEM range); new invariant. Message shape: "`far own T` is invalid; move `own T` through `on` or `spawn on`". Fix: rewrite as `own far T` only when local-handle move is intended. | `FAR-PARSE-NEG-002`, `FAR-OWN-NEG-001` |
+| `SEM3190` | Allocate new (SEM range); new invariant. Message shape: "`far &T` and `far &mut T` are invalid remote lifetimes". Fix: rewrite as `&far T` or `&mut far T` only when borrowing the local handle is intended. | `FAR-PARSE-NEG-003`, `FAR-PARSE-NEG-004`, `FAR-OWN-NEG-002`, `FAR-OWN-NEG-003` |
 | `SEM3129` | Reuse `SemaRawPointerNotAllowed` (3129) if it renders `far`; else allocate new. Message shape: "`far *T` is not allowed". Fix: none. | `FAR-PARSE-NEG-005`, `FAR-PTR-NEG-001`, `FAR-PTR-NEG-003` |
 | `SEM3129` | Reuse `SemaRawPointerNotAllowed` (3129) if it renders `far`; else allocate new. Message shape: "`*far T` is not allowed in user code". Fix: none. | `FAR-PARSE-NEG-006`, `FAR-PTR-NEG-002`, `FAR-PTR-NEG-004` |
 | `FUT7011` | Allocate new in the `FUT` (7xxx) range; postponed remote-function-handle surface. Message shape: "function types cannot be used as `far` remote handles yet". Fix: none. | `FAR-PARSE-NEG-007` |
-| `SEM3139` | Allocate new (SEM range); new invariant. Message shape: "`extern<T>` is not a value capability for `far`". Fix: none. | `FAR-PARSE-NEG-008` |
+| `SEM3191` | Allocate new (SEM range); new invariant. Message shape: "`extern<T>` is not a value capability for `far`". Fix: none. | `FAR-PARSE-NEG-008` |
 | `SYN2015` | Reuse `SynModifierNotAllowed` (2015). Message shape: "`far` is a type modifier, not an item modifier". Fix: move `far` into the type position when applicable. | `FAR-PARSE-NEG-009`, `FAR-PARSE-NEG-010` |
-| `SEM3140` | Allocate new (SEM range) if grouped single-type syntax reaches the type parser. Message shape: "grouping does not change `far` array precedence". Fix: use a supported generic container. | `FAR-PREC-NEG-001` |
+| `SEM3192` | Allocate new (SEM range) if grouped single-type syntax reaches the type parser. Message shape: "grouping does not change `far` array precedence". Fix: use a supported generic container. | `FAR-PREC-NEG-001` |
 | `FUT7010` | Allocate new in the `FUT` (7xxx) range; postponed local-array-of-`far`-handles surface. Message shape: "local arrays of `far` handles are not supported yet". Fix: use a supported generic container. | `FAR-PREC-NEG-002` |
 | `FUT7009` | Allocate new in the `FUT` (7xxx) range; `far T[]` (remote handle to an array) is postponed. Message shape: "array types cannot be used as `far` remote handles yet". Fix: use a remote-handle-capable type instead of an array. | `FAR-PREC-001`, `FAR-PREC-002`, `FAR-CAP-NEG-008` |
 | `SEM3015` | Reuse `SemaTypeMismatch` (3015); it must preserve `far` in rendered types (show both `far T` and `T`). Fix: none unless an explicit handle/resource conversion exists. | `FAR-ID-002`, `FAR-ID-003`, `FAR-ID-005`, `FAR-ID-007`, `FAR-ID-008`, `FAR-ID-009` |
-| `SEM3141` | Allocate new (SEM range); new invariant. Message shape: "`far` requires a remote-handle-capable type". Fix: use `own T` crossing or add `@shard_pinned` (Block 4). | `FAR-CAP-NEG-001` through `FAR-CAP-NEG-007` |
+| `SEM3193` | Allocate new (SEM range); new invariant. Message shape: "`far` requires a remote-handle-capable type". Fix: use `own T` crossing or add `@shard_pinned` (Block 4). | `FAR-CAP-NEG-001` through `FAR-CAP-NEG-007` |
 | `SEM3130` | Reuse `SemaUseAfterMove` (3130) if it renders `far`; else allocate new. | `FAR-OWN-002` |
 | `SEM3018` | Reuse `SemaBorrowConflict` (3018) if it renders `far`; else allocate new. | `FAR-OWN-005`, `FAR-OWN-006` |
 | `SEM3130` | Reuse `SemaUseAfterMove` (3130); a `far` handle is affine, so a copy attempt is an ordinary non-Copy move / use-after-move. | `FAR-OWN-008` |
-| `SEM3142` | Allocate new (SEM range); new invariant. Message shape: "operation on `far T` requires an accepted remote context". Fix: wrap in `on handle { ... }` only for operations accepted by Block 2. | `FAR-OPS-NEG-001` through `FAR-OPS-NEG-004`, `FAR-OPS-NEG-006`, `FAR-OPS-NEG-008` |
+| `SEM3194` | Allocate new (SEM range); new invariant. Message shape: "operation on `far T` requires an accepted remote context". Fix: wrap in `on handle { ... }` only for operations accepted by Block 2. | `FAR-OPS-NEG-001` through `FAR-OPS-NEG-004`, `FAR-OPS-NEG-006`, `FAR-OPS-NEG-008` |
 | `SEM3015` | Reuse `SemaTypeMismatch` (3015) if it renders `far`; else allocate new (SEM range). Message shape: "`far T` cannot be cast to `T`". Fix: none. | `FAR-OPS-NEG-007` |
 
 Every negative golden fixture must assert the exact allocated code, not only the
@@ -294,17 +294,17 @@ matrix rows.
 | `far_negative_reserved_function.sg` | `FAR-LEX-NEG-002` | `SYN2031` |
 | `far_negative_reserved_type.sg` | `FAR-LEX-NEG-003` | `SYN2031` |
 | `far_negative_reserved_extern_target.sg` | `FAR-LEX-NEG-004` | `SYN2031` |
-| `far_negative_nested.sg` | `FAR-PARSE-NEG-001` | `SEM3136` |
-| `far_negative_remote_own.sg` | `FAR-PARSE-NEG-002`, `FAR-OWN-NEG-001` | `SEM3137` |
-| `far_negative_remote_borrow.sg` | `FAR-PARSE-NEG-003`, `FAR-OWN-NEG-002` | `SEM3138` |
-| `far_negative_remote_mut_borrow.sg` | `FAR-PARSE-NEG-004`, `FAR-OWN-NEG-003` | `SEM3138` |
+| `far_negative_nested.sg` | `FAR-PARSE-NEG-001` | `SEM3188` |
+| `far_negative_remote_own.sg` | `FAR-PARSE-NEG-002`, `FAR-OWN-NEG-001` | `SEM3189` |
+| `far_negative_remote_borrow.sg` | `FAR-PARSE-NEG-003`, `FAR-OWN-NEG-002` | `SEM3190` |
+| `far_negative_remote_mut_borrow.sg` | `FAR-PARSE-NEG-004`, `FAR-OWN-NEG-003` | `SEM3190` |
 | `far_negative_remote_raw_pointer.sg` | `FAR-PARSE-NEG-005`, `FAR-PTR-NEG-001` | `SEM3129` |
 | `far_negative_raw_pointer_handle.sg` | `FAR-PARSE-NEG-006`, `FAR-PTR-NEG-002` | `SEM3129` |
 | `far_negative_function_handle.sg` | `FAR-PARSE-NEG-007` | `FUT7011` |
-| `far_negative_extern_target.sg` | `FAR-PARSE-NEG-008` | `SEM3139` |
+| `far_negative_extern_target.sg` | `FAR-PARSE-NEG-008` | `SEM3191` |
 | `far_negative_item_modifier_fn.sg` | `FAR-PARSE-NEG-009` | `SYN2015` |
 | `far_negative_item_modifier_type.sg` | `FAR-PARSE-NEG-010` | `SYN2015` |
-| `far_negative_grouping_unsupported.sg` | `FAR-PREC-NEG-001` | `SEM3140` |
+| `far_negative_grouping_unsupported.sg` | `FAR-PREC-NEG-001` | `SEM3192` |
 | `far_negative_local_array_postponed.sg` | `FAR-PREC-NEG-002` | `FUT7010` |
 | `far_negative_array_remote.sg` | `FAR-PREC-001`, `FAR-CAP-NEG-008` | `FUT7009` |
 | `far_negative_fixed_array_remote.sg` | `FAR-PREC-002` | `FUT7009` |
@@ -312,19 +312,19 @@ matrix rows.
 | `far_negative_assign_resource_to_handle.sg` | `FAR-ID-003` | `SEM3015` |
 | `far_negative_channel_identity.sg` | `FAR-ID-007` | `SEM3015` |
 | `far_negative_task_identity.sg` | `FAR-ID-008` | `SEM3015` |
-| `far_negative_nothing.sg` | `FAR-CAP-NEG-001` | `SEM3141` |
-| `far_negative_unit.sg` | `FAR-CAP-NEG-002` | `SEM3141` |
-| `far_negative_error.sg` | `FAR-CAP-NEG-003` | `SEM3141` |
-| `far_negative_primitive.sg` | `FAR-CAP-NEG-004` | `SEM3141` |
-| `far_negative_string.sg` | `FAR-CAP-NEG-005` | `SEM3141` |
-| `far_negative_nosend_bypass.sg` | `FAR-CAP-NEG-006` | `SEM3141` |
-| `far_negative_plain_struct.sg` | `FAR-CAP-NEG-007` | `SEM3141` |
+| `far_negative_nothing.sg` | `FAR-CAP-NEG-001` | `SEM3193` |
+| `far_negative_unit.sg` | `FAR-CAP-NEG-002` | `SEM3193` |
+| `far_negative_error.sg` | `FAR-CAP-NEG-003` | `SEM3193` |
+| `far_negative_primitive.sg` | `FAR-CAP-NEG-004` | `SEM3193` |
+| `far_negative_string.sg` | `FAR-CAP-NEG-005` | `SEM3193` |
+| `far_negative_nosend_bypass.sg` | `FAR-CAP-NEG-006` | `SEM3193` |
+| `far_negative_plain_struct.sg` | `FAR-CAP-NEG-007` | `SEM3193` |
 | `far_negative_use_after_handle_move.sg` | `FAR-OWN-002` | `SEM3130` (reuse `SemaUseAfterMove` 3130) |
 | `far_negative_copy_handle.sg` | `FAR-OWN-008` | `SEM3130` (reuse `SemaUseAfterMove` 3130) |
 | `far_negative_handle_borrow_conflict.sg` | `FAR-OWN-005`, `FAR-OWN-006` | `SEM3018` (reuse `SemaBorrowConflict` 3018) |
-| `far_negative_local_method_call.sg` | `FAR-OPS-NEG-001` | `SEM3142` |
-| `far_negative_local_channel_send.sg` | `FAR-OPS-NEG-003` | `SEM3142` |
-| `far_negative_local_field_access.sg` | `FAR-OPS-NEG-006` | `SEM3142` |
+| `far_negative_local_method_call.sg` | `FAR-OPS-NEG-001` | `SEM3194` |
+| `far_negative_local_channel_send.sg` | `FAR-OPS-NEG-003` | `SEM3194` |
+| `far_negative_local_field_access.sg` | `FAR-OPS-NEG-006` | `SEM3194` |
 | `far_negative_cast_to_resource.sg` | `FAR-OPS-NEG-007` | `SEM3015` |
 
 ## Follow-Up Unit And Sema Test Obligations

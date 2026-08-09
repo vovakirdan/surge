@@ -10,7 +10,7 @@ import (
 
 // typeFarHandleCall types a method call whose receiver is a `far T` handle and
 // returns the call's result type. Outside a crossing it keeps Block 1's
-// rejection (SEM3142). Inside an `on` crossing it enforces the owner anchor
+// rejection (SEM3194). Inside an `on` crossing it enforces the owner anchor
 // (SEM3150) and, for `far TcpConn`, the control-only whitelist (SEM3151).
 func (tc *typeChecker) typeFarHandleCall(callID ast.ExprID, member *ast.ExprMemberData, receiverType types.TypeID, call *ast.ExprCallData, span source.Span) types.TypeID {
 	methodName := tc.lookupName(member.Field)

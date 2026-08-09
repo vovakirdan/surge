@@ -76,7 +76,7 @@ path, per the Epic 13 handoff contract.
   and the orphaned reply edge is consumed autonomously.
 - Language surface (Epic 11, accepted and guarded): `on ch { ... }` anchored
   crossing — the far handle is both destination and the only permitted
-  operation target inside the block (`SEM3150` unanchored, `SEM3142` outside
+  operation target inside the block (`SEM3150` unanchored, `SEM3194` outside
   `on`, `SEM3153` nested); the block evaluates to `TaskResult<T>`. Sema
   records `CrossingLoweringOnFarHandle` with destination anchor + RemoteOps.
 - Payload constraint: executable captures and `ret` payloads remain
@@ -185,7 +185,7 @@ path, per the Epic 13 handoff contract.
      is not the cause); a non-crossable payload or capture ("field `x.y`
      owns heap memory and cannot cross shards yet" — name the exact nested
      field and type, not just the struct); anchor-handle misuse (already
-     SEM3142/3150/3153 from Epic 11; any hole found gets a row here, not a
+     SEM3194/3150/3153 from Epic 11; any hole found gets a row here, not a
      runtime check);
    - compile-time-but-backend-dependent (keep FUT700x): the same construct
      on VM/unknown backends — the backend genuinely is the cause;

@@ -55,7 +55,7 @@ already only a Block 4 dependency here:
   and `on_positive_async_crosses_fn.sg` keep their matrix-documented filenames but
   no longer carry the keyword (naming drift, intentional). The `crosses` keyword
   was stripped from every remaining Block 2 fixture signature; all other negatives
-  re-assert their unchanged codes (`SEM3142`–`SEM3153`, captures, `FUT7012/7014`).
+  re-assert their unchanged codes (`SEM3194`–`SEM3153`, captures, `FUT7012/7014`).
 
 ## Scope
 
@@ -119,7 +119,7 @@ fixture metadata.
 
 | Row | Destination | Fixture | Diagnostic code | Fix availability | Required message shape |
 | --- | --- | --- | --- | --- | --- |
-| ON-DST-N001 | `t: far Task<T>` | `on_negative_far_task_destination.sg` | `SEM3143` | Fixable: use `t.await()` or `t.cancel()`. | `far Task<T>` is not an `on` destination. |
+| ON-DST-N001 | `t: far Task<T>` | `on_negative_far_task_destination.sg` | `SEM3195` | Fixable: use `t.await()` or `t.cancel()`. | `far Task<T>` is not an `on` destination. |
 | ON-DST-N002 | `blocking` | `on_negative_blocking_destination.sg` | `FUT7012` | Fixable: use existing `blocking { ... }` or choose a `Placement`. | `on blocking` is postponed beyond Epic 11. |
 | ON-DST-N003 | ordinary value | `on_negative_integer_destination.sg` | `SEM3144` | Fixable: pass `Placement`, `shard(id)`, or an accepted `far` handle. | Destination type is not `Placement` or accepted `far` handle. |
 | ON-DST-N004 | type name | `on_negative_type_destination.sg` | `SEM3145` | Fixable: use a value of type `Placement`. | Type names are not placement targets. |
@@ -165,7 +165,7 @@ operations through that same handle only.
 | ON-ANCHOR-V002 | `on conn { conn.close(); ret nothing; }` | `on_positive_far_tcpconn_close.sg` | `TaskResult<nothing>` | N/A | `conn` is the destination and the anchored control target. |
 | ON-ANCHOR-N001 | `on a { b.send(own msg); ret nothing; }` | `on_negative_unanchored_far_channel.sg` | `SEM3150` | Not safely fixable automatically. | `b` is not proven to share owner with destination `a`. |
 | ON-ANCHOR-N002 | `on conn_a { conn_b.close(); ret nothing; }` | `on_negative_unanchored_far_tcpconn.sg` | `SEM3150` | Not safely fixable automatically. | A different far handle is not anchored by the destination. |
-| ON-ANCHOR-N003 | local method call on `far T` outside `on` | `on_negative_far_operation_outside_on.sg` | `SEM3142` | Fixable: wrap the accepted operation in `on handle { ... }`. | Acting through a far handle requires an accepted crossing surface. |
+| ON-ANCHOR-N003 | local method call on `far T` outside `on` | `on_negative_far_operation_outside_on.sg` | `SEM3194` | Fixable: wrap the accepted operation in `on handle { ... }`. | Acting through a far handle requires an accepted crossing surface. |
 
 ## `far TcpConn` Control-Only Matrix
 
@@ -233,7 +233,7 @@ leaking, or falling through to an ambiguous backend error.
 
 | Code | Allocation rule |
 | --- | --- |
-| `SEM3143` | Reuse if a destination-kind diagnostic exists; otherwise allocate for `far Task<T>` destination rejection. |
+| `SEM3195` | Reuse if a destination-kind diagnostic exists; otherwise allocate for `far Task<T>` destination rejection. |
 | `FUT7012` | Postponed surface: reuse the `FUT`-range blocking diagnostic (e.g. `FutBlockingNotSupported`) unless the parser already owns a precise unsupported-form code. |
 | `SEM3144` | Reuse generic type mismatch only if it can name the accepted destination classes. |
 | `SEM3145` | Reuse existing value-required diagnostic if it reports type-name misuse deterministically. |
@@ -243,7 +243,7 @@ leaking, or falling through to an ambiguous backend error.
 | `SEM3148` | Reuse block-result diagnostic if it is explicit about `ret`. |
 | `SEM3149` | Reuse type mismatch only if the message names `TaskResult<T>` wrapping. |
 | `SEM3150` | Allocate for unproven far-handle owner relation. |
-| `SEM3142` | Reuse Block 1 local-operation-on-`far T` diagnostic (`SEM3142`) if exact. |
+| `SEM3194` | Reuse Block 1 local-operation-on-`far T` diagnostic (`SEM3194`) if exact. |
 | `SEM3151` | Allocate for rejected remote socket I/O through `far TcpConn`. |
 | `SEM3152` | Reuse existing await/suspension-context diagnostic if exact. |
 | `SEM3153` | Allocate for nested crossing rejection. |
@@ -284,7 +284,7 @@ shared-diagnostics ownership table in `11-tasks/README.md`.
 
 | Fixture | Matrix row | Diagnostic code | Fix availability |
 | --- | --- | --- | --- |
-| `on_negative_far_task_destination.sg` | ON-DST-N001 | `SEM3143` | Fixable |
+| `on_negative_far_task_destination.sg` | ON-DST-N001 | `SEM3195` | Fixable |
 | `on_negative_blocking_destination.sg` | ON-DST-N002 | `FUT7012` | Fixable |
 | `on_negative_integer_destination.sg` | ON-DST-N003 | `SEM3144` | Fixable |
 | `on_negative_type_destination.sg` | ON-DST-N004 | `SEM3145` | Fixable |
@@ -302,7 +302,7 @@ shared-diagnostics ownership table in `11-tasks/README.md`.
 | `on_negative_unmarked_owned_capture.sg` | ON-CAP-N005 | `SEM3168` (Block 4) | Fixable |
 | `on_negative_unanchored_far_channel.sg` | ON-ANCHOR-N001 | `SEM3150` | Not safely fixable automatically |
 | `on_negative_unanchored_far_tcpconn.sg` | ON-ANCHOR-N002 | `SEM3150` | Not safely fixable automatically |
-| `on_negative_far_operation_outside_on.sg` | ON-ANCHOR-N003 | `SEM3142` | Fixable |
+| `on_negative_far_operation_outside_on.sg` | ON-ANCHOR-N003 | `SEM3194` | Fixable |
 | `on_negative_tcpconn_read.sg` | ON-TCP-N001 | `SEM3151` | Not safely fixable automatically |
 | `on_negative_tcpconn_write.sg` | ON-TCP-N002 | `SEM3151` | Not safely fixable automatically |
 | `on_negative_tcpconn_accept.sg` | ON-TCP-N003 | `SEM3151` | Not safely fixable automatically |

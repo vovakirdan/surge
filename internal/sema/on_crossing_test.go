@@ -107,7 +107,7 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		// Destinations (ON-DST).
 		{"placement_const_ok", `fn f() -> TaskResult<int> { return on pool { ret 1; }; }`, ""},
 		{"placement_call_ok", `fn g(id: ShardId) -> TaskResult<int> { return on shard(id) { ret 1; }; }`, ""},
-		{"far_task_dest", `fn f(t: far Task<int>) -> TaskResult<int> { return on t { ret 1; }; }`, "SEM3143"},
+		{"far_task_dest", `fn f(t: far Task<int>) -> TaskResult<int> { return on t { ret 1; }; }`, "SEM3195"},
 		{"integer_dest", `fn f(p: Placement) -> TaskResult<int> { let x: int = 1; return on x { ret 1; }; }`, "SEM3144"},
 		{"bare_fn_dest", `fn r() -> Placement { return pool; } fn f() -> TaskResult<int> { return on r { ret 1; }; }`, "SEM3146"},
 
@@ -128,7 +128,7 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"unanchored_far", `fn f(a: far Channel<int>, b: far Channel<int>) -> TaskResult<nothing> { return on a { b.close(); ret nothing; }; }`, "SEM3150"},
 		{"tcp_close_ok", `fn f(conn: far TcpConn) -> TaskResult<nothing> { return on conn { conn.close(); ret nothing; }; }`, ""},
 		{"tcp_read_rejected", `fn f(conn: far TcpConn) -> TaskResult<nothing> { return on conn { conn.read(); ret nothing; }; }`, "SEM3151"},
-		{"far_op_outside_on", `fn f(conn: far TcpConn) -> nothing { conn.close(); return nothing; }`, "SEM3142"},
+		{"far_op_outside_on", `fn f(conn: far TcpConn) -> nothing { conn.close(); return nothing; }`, "SEM3194"},
 
 		// Anchored channel operations carry the local surface (ON-CHAN):
 		// send(own T) -> nothing, recv() -> Option<T>, close() -> nothing.

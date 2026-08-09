@@ -1,4 +1,4 @@
-// EXPECT-DIAG: SEM3136
+// EXPECT-DIAG: SEM3188
 // negative: nested far
 fn f(x: far far TcpConn) -> nothing {
     return nothing;

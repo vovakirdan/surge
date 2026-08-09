@@ -60,7 +60,7 @@ model and rejected both alternatives on grounds we adopt verbatim:
   "entry reclaimable iff active_lease_count == 0 && pin_count == 0";
   releasing a lease marks THAT lease released and never reclaims the
   entry directly; the proven release-vs-pin protocol is untouched.
-- **C stays dead** per the far-borrow exclusion (SEM3138) and
+- **C stays dead** per the far-borrow exclusion (SEM3190) and
   non-lexical task lifetimes.
 
 Two hard rules adopted: no ordinary holder may force-close (release
@@ -123,7 +123,7 @@ How does a far handle become shareable?
   copies; a borrow-checked lending of the handle into child tasks whose
   lifetimes are bounded by the lender (structured concurrency). Closest
   to the language's ownership story, but far borrows were explicitly
-  rejected in the far-type design (SEM3138) and task lifetimes are not
+  rejected in the far-type design (SEM3190) and task lifetimes are not
   lexically bounded today.
 
 Constraints from shipped machinery: the registry already survives

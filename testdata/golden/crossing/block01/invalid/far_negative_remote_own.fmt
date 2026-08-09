@@ -1,4 +1,4 @@
-// EXPECT-DIAG: SEM3137
+// EXPECT-DIAG: SEM3189
 // negative: far own T
 fn f(x: far own TcpConn) -> nothing {
     return nothing;

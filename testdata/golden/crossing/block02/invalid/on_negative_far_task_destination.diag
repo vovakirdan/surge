@@ -1,1 +1,1 @@
-error SEM3143 testdata/golden/crossing/block02/invalid/on_negative_far_task_destination.sg:4:15 `far Task<T>` is not an `on` destination; use `await()` or `cancel()`
+error SEM3195 testdata/golden/crossing/block02/invalid/on_negative_far_task_destination.sg:4:15 `far Task<T>` is not an `on` destination; use `await()` or `cancel()`

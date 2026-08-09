@@ -8,9 +8,3 @@ const (
 	SemaLayoutUnsupportedAlignment Code = 3181
 	SemaLayoutDeferred             Code = 3182
 )
-
-func init() {
-	codeDescription[SemaLayoutOverflow] = "physical layout exceeds the target address space"
-	codeDescription[SemaLayoutUnsupportedAlignment] = "alignment is not supported by the target ABI"
-	codeDescription[SemaLayoutDeferred] = "physical layout is not concrete after type checking"
-}

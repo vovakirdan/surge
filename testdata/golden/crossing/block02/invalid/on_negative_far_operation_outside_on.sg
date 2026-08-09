@@ -1,4 +1,4 @@
-// EXPECT-DIAG: SEM3142
+// EXPECT-DIAG: SEM3194
 // negative: far operation outside on
 fn run(conn: far TcpConn) -> nothing {
     conn.close();

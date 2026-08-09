@@ -1,4 +1,4 @@
-// EXPECT-DIAG: SEM3140
+// EXPECT-DIAG: SEM3192
 // negative: grouped far array
 fn f(x: far (TcpConn)[]) -> nothing {
     return nothing;

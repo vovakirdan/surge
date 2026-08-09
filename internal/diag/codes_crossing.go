@@ -15,27 +15,27 @@ package diag
 // owns the shared crosses/capture families; Blocks 2 and 3 reference them.
 
 const (
-	// --- Block 1: `far` type modifier (SEM 3136-3142) ---
+	// --- Block 1: `far` type modifier (SEM 3188-3194) ---
 
 	// SemaFarNested rejects nested remote handles (`far far T`).
-	SemaFarNested Code = 3136
+	SemaFarNested Code = 3188
 	// SemaFarRemoteOwn rejects `far own T` (remote ownership).
-	SemaFarRemoteOwn Code = 3137
+	SemaFarRemoteOwn Code = 3189
 	// SemaFarRemoteBorrow rejects `far &T` / `far &mut T` (remote borrowed lifetimes).
-	SemaFarRemoteBorrow Code = 3138
+	SemaFarRemoteBorrow Code = 3190
 	// SemaFarExternTarget rejects `far extern<T>` as a value capability.
-	SemaFarExternTarget Code = 3139
+	SemaFarExternTarget Code = 3191
 	// SemaFarGroupingUnsupported rejects grouped type forms that would change `far` precedence.
-	SemaFarGroupingUnsupported Code = 3140
+	SemaFarGroupingUnsupported Code = 3192
 	// SemaFarNonCapability rejects `far` over a non-remote-handle-capable base type.
-	SemaFarNonCapability Code = 3141
+	SemaFarNonCapability Code = 3193
 	// SemaFarLocalOp rejects local operations on `far T` outside an accepted crossing context.
-	SemaFarLocalOp Code = 3142
+	SemaFarLocalOp Code = 3194
 
-	// --- Block 2: `on dst { ... }` placement crossing (SEM 3143-3153) ---
+	// --- Block 2: `on dst { ... }` placement crossing (SEM 3195, 3144-3153) ---
 
 	// SemaOnDestFarTask rejects `far Task<T>` used as an `on` destination.
-	SemaOnDestFarTask Code = 3143
+	SemaOnDestFarTask Code = 3195
 	// SemaOnDestNotPlacement rejects an `on` destination that is not `Placement` or an accepted far handle.
 	SemaOnDestNotPlacement Code = 3144
 	// SemaOnDestTypeName rejects a type name used as an `on` destination.
@@ -163,82 +163,3 @@ const (
 	// FutChannelSelectBackendUnavailable marks a remote select as unavailable in this backend/configuration.
 	FutChannelSelectBackendUnavailable Code = 7022
 )
-
-// crossingCodeDescriptions holds the human-readable titles for the
-// crossing diagnostics. Merged into codeDescription by init() so Title()/String()
-// resolve them like any other code. Messages name the invariant, matching the
-// message shapes recorded in the block matrices.
-var crossingCodeDescriptions = map[Code]string{
-	FutCrossingSyncContext:             "this crossing suspends and needs an `async` context",
-	FutCrossingPayloadNotShippable:     "this crossing's payload cannot cross shards yet",
-	FutChannelShareBackendUnavailable:  "`share()` is not available in this backend/configuration yet",
-	FutChannelSelectBackendUnavailable: "remote `select` is not available in this backend/configuration yet",
-	SemaFarNested:                      "nested `far` handles are not allowed",
-	SemaFarRemoteOwn:                   "`far own T` is invalid; move `own T` through `on` or `spawn on`",
-	SemaFarRemoteBorrow:                "`far &T` and `far &mut T` are invalid remote lifetimes",
-	SemaFarExternTarget:                "`extern<T>` is not a value capability for `far`",
-	SemaFarGroupingUnsupported:         "grouping does not change `far` array precedence",
-	SemaFarNonCapability:               "`far` requires a remote-handle-capable type",
-	SemaFarLocalOp:                     "operation on `far T` requires an accepted remote context",
-
-	SemaOnDestFarTask:      "`far Task<T>` is not an `on` destination; use `await()` or `cancel()`",
-	SemaOnDestNotPlacement: "`on` destination must be a `Placement` value or an accepted `far` handle",
-	SemaOnDestTypeName:     "a type name is not a placement target",
-	SemaOnDestBareFn:       "a function value is not a placement target; call it if it returns `Placement`",
-	SemaOnBodyReturn:       "`return` cannot exit through a crossing block; use `ret`",
-	SemaOnBodyMissingRet:   "an `on` crossing block must produce its value with `ret`",
-	SemaOnResultTaskResult: "`on` evaluates to `TaskResult<T>`, not `T`",
-	SemaOnAnchorUnproven:   "this remote handle is not anchored by the current `on` destination",
-	SemaOnTcpRemoteIO:      "remote socket I/O through `far TcpConn` is not supported yet",
-	SemaOnSuspendContext:   "`on` is allowed only where suspension is legal",
-	SemaOnNested:           "nested `on` crossing blocks are not allowed",
-
-	SemaSpawnOnDestNotPlacement:    "`spawn on` destination must be a `Placement` value",
-	SemaSpawnOnDestTypeName:        "a type name is not a `spawn on` placement target",
-	SemaSpawnOnDestBareFn:          "a bare function name is not a `spawn on` placement target; call it if it returns `Placement`",
-	SemaSpawnOnDestFarHandle:       "`far` handle destinations are invalid for `spawn on`; use `on` for immediate handle operations",
-	SemaSpawnOnDestFarTask:         "`far Task<T>` is not a `spawn on` destination; use `await()` or `cancel()`",
-	SemaSpawnOnBodyReturn:          "`return` cannot exit through a `spawn on` block; use `ret`",
-	SemaSpawnOnBodyMissingRet:      "a `spawn on` block must produce its result with `ret`",
-	SemaSpawnOnUnreachableAfterRet: "unreachable statement after `ret` in a `spawn on` block",
-
-	SemaCrossesMissing:               "retired diagnostic: crossing effects are inferred",
-	SemaCrossesCallerMissing:         "retired diagnostic: crossing call effects are inferred",
-	SemaFarTaskCrossesMissing:        "retired diagnostic: remote task operations infer crossing effects",
-	SemaCrossBorrowCapture:           "borrowed values cannot cross shard boundaries",
-	SemaCrossNosendCapture:           "`@nosend` values cannot cross task or shard boundaries outside `@local spawn`",
-	SemaCrossPinnedCapture:           "this operation would move a shard-pinned resource; use a far handle or explicit migration",
-	SemaCrossNotShardMovable:         "owned user-defined values must be `@shard_movable` to cross shard boundaries",
-	SemaShardMovableSendInsufficient: "`@send` is not sufficient for shard movement; add `@shard_movable`",
-	SemaShardMovableCopyInsufficient: "`@copy` is not sufficient for shard movement; add `@shard_movable`",
-	SemaShardMovableField:            "a `@shard_movable` type must have only shard-movable fields",
-	SemaShardAttrConflict:            "`@shard_movable` conflicts with `@shard_pinned`",
-	SemaCrossesAttribute:             "`@crosses` is not supported; crossing effects are inferred",
-	SemaLocalSpawnOn:                 "`@local spawn on` is invalid; local spawn and remote placement are mutually exclusive",
-	SemaOnChannelOp:                  "Unsupported anchored channel operation",
-	SemaSelectFarArmsSingleOwner:     "a `select` with `far` channel arms cannot mix in other arm kinds",
-
-	SynFarReservedIdent:          "`far` is a reserved keyword; rename this identifier",
-	SynSpawnOnMissingBlock:       "`spawn on` requires a `{ ret expr; }` block",
-	SynSpawnOnMissingDestination: "`spawn on` requires a `Placement` destination",
-	SynCrossesPlacement:          "retired diagnostic: `crosses` is not a function modifier",
-	SynCrossesTarget:             "retired diagnostic: `crosses` is not a function modifier",
-	SynCrossesFnType:             "`crosses fn(...)` function types are not part of the language",
-
-	FutFarArrayPostponed:               "array types cannot be used as `far` remote handles yet",
-	FutFarLocalArrayPostponed:          "local arrays of `far` handles are not supported yet",
-	FutFarFnHandle:                     "function types cannot be used as `far` remote handles yet",
-	FutOnDestBlocking:                  "`on blocking` is not a valid crossing destination",
-	FutSpawnOnDestBlocking:             "`spawn on blocking` is not a valid placement destination",
-	FutOnBackendUnavailable:            "`on` placement crossing cannot be executed: no available backend supports cross-shard transport",
-	FutSpawnOnBackendUnavailable:       "`spawn on` remote spawn cannot be executed: no available backend supports cross-shard transport",
-	FutFarTaskAwaitBackendUnavailable:  "`far Task<T>.await()` cannot be executed: no available backend supports remote task transport",
-	FutFarTaskCancelBackendUnavailable: "`far Task<T>.cancel()` cannot be executed: no available backend supports remote task transport",
-	FutChannelOnBackendUnavailable:     "`channel_on(...)` cannot be executed: this backend has no remote channel transport",
-}
-
-func init() {
-	for c, d := range crossingCodeDescriptions {
-		codeDescription[c] = d
-	}
-}

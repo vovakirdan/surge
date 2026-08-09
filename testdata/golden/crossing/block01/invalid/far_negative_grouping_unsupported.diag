@@ -1,2 +1,2 @@
 error FUT7009 testdata/golden/crossing/block01/invalid/far_negative_grouping_unsupported.sg:3:9 array types cannot be used as `far` remote handles yet
-error SEM3140 testdata/golden/crossing/block01/invalid/far_negative_grouping_unsupported.sg:3:9 grouping does not change `far` array precedence
+error SEM3192 testdata/golden/crossing/block01/invalid/far_negative_grouping_unsupported.sg:3:9 grouping does not change `far` array precedence

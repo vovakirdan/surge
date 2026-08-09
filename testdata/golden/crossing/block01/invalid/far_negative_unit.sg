@@ -1,4 +1,4 @@
-// EXPECT-DIAG: SEM3141
+// EXPECT-DIAG: SEM3193
 // negative: far unit
 fn f(x: far unit) -> nothing {
     return nothing;

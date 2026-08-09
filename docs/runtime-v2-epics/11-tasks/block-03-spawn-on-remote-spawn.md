@@ -181,7 +181,7 @@ are demoted to plain positives (they parse and type-check with `crosses` absent)
 | T06 | `t.cancel()` where `t: far Task<T>` | Valid | Consumes the handle (affine), returns `TaskResult<nothing>`, and infers `MayCross`. |
 | T07 | `t.await()` where `t: far Task<T>` inside a non-crossing function | PARKED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture parked in `crosses_deferred/`. |
 | T08 | `t.cancel()` where `t: far Task<T>` inside a non-crossing function | PARKED | Was `SEM3164`; crossing now inferred, no diagnostic. Fixture parked in `crosses_deferred/`. |
-| T09 | `on t { ret value; }` where `t: far Task<T>` | Invalid by Block 2 dependency | Diagnostic: `SEM3143` (Block 2); fix: use `t.await()` or `t.cancel()`. |
+| T09 | `on t { ret value; }` where `t: far Task<T>` | Invalid by Block 2 dependency | Diagnostic: `SEM3195` (Block 2); fix: use `t.await()` or `t.cancel()`. |
 | T10 | `let r: TaskResult<T> = t.await();` where `t: far Task<T>` | Valid | Result identity matches local `Task<T>.await()` shape but crosses remotely. |
 | T11 | `let r: T = t.await();` where `t: far Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: handle `TaskResult<T>`. |
 | T12 | `let r: nothing = t.cancel();` where `t: far Task<T>` | Invalid | Diagnostic: `SEM3015`; fix: handle `TaskResult<nothing>`. |

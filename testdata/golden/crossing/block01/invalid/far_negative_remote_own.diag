@@ -1,1 +1,1 @@
-error SEM3137 testdata/golden/crossing/block01/invalid/far_negative_remote_own.sg:3:9 `far own T` is invalid; move `own T` through `on` or `spawn on`
+error SEM3189 testdata/golden/crossing/block01/invalid/far_negative_remote_own.sg:3:9 `far own T` is invalid; move `own T` through `on` or `spawn on`

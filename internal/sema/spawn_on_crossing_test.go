@@ -73,10 +73,10 @@ func TestSpawnOnDiagnostics(t *testing.T) {
 		{"spawn_missing_on", `fn f() -> far Task<int> { spawn distributed { ret 1; }; return spawn on pool { ret 1; }; }`, "SEM3111"},
 
 		// Routing split (mandated regression): non-far-Task far operations still
-		// reach the generic far-handle path (SEM3142), not the far Task await/cancel
+		// reach the generic far-handle path (SEM3194), not the far Task await/cancel
 		// branch.
-		{"far_channel_send_routing", `fn f(ch: far Channel<int>) -> nothing { ch.send(1); return nothing; }`, "SEM3142"},
-		{"far_tcp_close_routing", `fn f(conn: far TcpConn) -> nothing { conn.close(); return nothing; }`, "SEM3142"},
+		{"far_channel_send_routing", `fn f(ch: far Channel<int>) -> nothing { ch.send(1); return nothing; }`, "SEM3194"},
+		{"far_tcp_close_routing", `fn f(conn: far TcpConn) -> nothing { conn.close(); return nothing; }`, "SEM3194"},
 	}
 
 	for _, tc := range cases {

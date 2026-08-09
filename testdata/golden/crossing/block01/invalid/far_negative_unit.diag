@@ -1,1 +1,1 @@
-error SEM3141 testdata/golden/crossing/block01/invalid/far_negative_unit.sg:3:9 `far` requires a remote-handle-capable type, got unit
+error SEM3193 testdata/golden/crossing/block01/invalid/far_negative_unit.sg:3:9 `far` requires a remote-handle-capable type, got unit

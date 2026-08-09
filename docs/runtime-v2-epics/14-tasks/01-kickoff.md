@@ -38,7 +38,7 @@ Compiler surface this epic opens:
 - Sema records `CrossingLoweringOnFarHandle` with the anchor destination
   (`CrossingDestinationFarHandle`, `AnchorSymbol`, `OwnerAnchored`) and the
   in-block operation list (`RemoteOps`, `internal/sema/on_crossing.go`).
-  Anchor discipline shipped in Epic 11: `SEM3142` (op outside `on`),
+  Anchor discipline shipped in Epic 11: `SEM3194` (op outside `on`),
   `SEM3150` (unanchored handle in block), `SEM3153` (nested `on`);
   `far TcpConn` is control-only (`on_crossing_capture.go:32` — only
   `close`).
@@ -167,7 +167,7 @@ create/send/recv e2e; (6) the G4 `channel_on` API shape as G1 sugar.
 
 | Failure | Tier | Code plan |
 | --- | --- | --- |
-| anchored op outside `on` / unanchored handle / nested `on` | sema (shipped) | SEM3142/3150/3153 unchanged |
+| anchored op outside `on` / unanchored handle / nested `on` | sema (shipped) | SEM3194/3150/3153 unchanged |
 | crossing in synchronous context | sema (precision pass, slice 5b) | new SEM code + "make the enclosing function `async`" hint |
 | non-crossable payload/capture | sema (precision pass, slice 5b) | new SEM code naming the exact nested field |
 | `on ch` on VM/unknown backend | compile, backend-dependent | FUT7014 (message narrowed to the true cause) |

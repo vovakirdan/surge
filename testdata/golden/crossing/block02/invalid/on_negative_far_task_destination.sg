@@ -1,4 +1,4 @@
-// EXPECT-DIAG: SEM3143
+// EXPECT-DIAG: SEM3195
 // negative: far Task as on destination
 fn run(t: far Task<int>) -> TaskResult<int> {
     return on t {

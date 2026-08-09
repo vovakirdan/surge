@@ -73,8 +73,8 @@ surfaces use the `FUT` 7xxx range.
 | `SEM3171` | Block 4 | `@shard_movable` type contains a non-shard-movable field/member. | Block 4 movable fixtures |
 | `SEM3172` | Block 4 | `@shard_movable` conflicts with `@shard_pinned`. | Block 4 attr/pinned fixtures |
 | `SEM3174` | Block 4 | `@local spawn on` is used. | Block 3 (S07) |
-| `SEM3143` | Block 2 | `far Task<T>` used as an `on` destination. | Block 3 (T09) |
-| `SEM3142` | Block 1 | Local operation on `far T` outside an accepted crossing context. | Block 2 (ON-ANCHOR-N003) |
+| `SEM3195` | Block 2 | `far Task<T>` used as an `on` destination. | Block 3 (T09) |
+| `SEM3194` | Block 1 | Local operation on `far T` outside an accepted crossing context. | Block 2 (ON-ANCHOR-N003) |
 
 > **`crosses` retirement note (design change D17, completed 2026-07-08).** The
 > explicit `crosses` keyword has been REMOVED from the language: the crossing
@@ -111,25 +111,25 @@ been replaced in the docs with the allocated code below. New codes live in
 | Placeholder | Code | Disposition |
 | --- | --- | --- |
 | `TBD-DIAG-FAR-RESERVED-IDENT` | `SYN2031` | new |
-| `TBD-DIAG-FAR-NESTED` | `SEM3136` | new |
-| `TBD-DIAG-FAR-REMOTE-OWN` | `SEM3137` | new |
-| `TBD-DIAG-FAR-REMOTE-BORROW` | `SEM3138` | new |
+| `TBD-DIAG-FAR-NESTED` | `SEM3188` | new |
+| `TBD-DIAG-FAR-REMOTE-OWN` | `SEM3189` | new |
+| `TBD-DIAG-FAR-REMOTE-BORROW` | `SEM3190` | new |
 | `TBD-DIAG-FAR-REMOTE-RAW-PTR` | `SEM3129` | reuse (existing) |
 | `TBD-DIAG-FAR-RAW-PTR-HANDLE` | `SEM3129` | reuse (existing) |
 | `TBD-DIAG-FAR-FN-HANDLE` | `FUT7011` | new |
-| `TBD-DIAG-FAR-EXTERN-TARGET` | `SEM3139` | new |
+| `TBD-DIAG-FAR-EXTERN-TARGET` | `SEM3191` | new |
 | `TBD-DIAG-FAR-ITEM-MODIFIER` | `SYN2015` | reuse (existing) |
-| `TBD-DIAG-FAR-GROUPING-UNSUPPORTED` | `SEM3140` | new |
+| `TBD-DIAG-FAR-GROUPING-UNSUPPORTED` | `SEM3192` | new |
 | `TBD-DIAG-FAR-LOCAL-ARRAY-POSTPONED` | `FUT7010` | new |
 | `TBD-DIAG-FAR-ARRAY-POSTPONED` | `FUT7009` | new |
 | `TBD-DIAG-FAR-TYPE-MISMATCH` | `SEM3015` | reuse (existing) |
-| `TBD-DIAG-FAR-NONCAPABILITY` | `SEM3141` | new |
+| `TBD-DIAG-FAR-NONCAPABILITY` | `SEM3193` | new |
 | `TBD-DIAG-FAR-HANDLE-MOVED` | `SEM3130` | reuse (existing) |
 | `TBD-DIAG-FAR-HANDLE-NONCOPY` | `SEM3130` | reuse (existing) |
 | `TBD-DIAG-FAR-HANDLE-BORROWED` | `SEM3018` | reuse (existing) |
-| `TBD-DIAG-FAR-LOCAL-OP` | `SEM3142` | new |
+| `TBD-DIAG-FAR-LOCAL-OP` | `SEM3194` | new |
 | `TBD-DIAG-FAR-CONVERSION` | `SEM3015` | reuse (existing) |
-| `TBD-DIAG-ON-DST-FAR-TASK` | `SEM3143` | new |
+| `TBD-DIAG-ON-DST-FAR-TASK` | `SEM3195` | new |
 | `TBD-DIAG-ON-DST-BLOCKING` | `FUT7012` | new |
 | `TBD-DIAG-ON-DST-NOT-PLACEMENT` | `SEM3144` | new |
 | `TBD-DIAG-ON-DST-TYPE-NAME` | `SEM3145` | new |
@@ -139,7 +139,7 @@ been replaced in the docs with the allocated code below. New codes live in
 | `TBD-DIAG-ON-BODY-MISSING-RET` | `SEM3148` | new |
 | `TBD-DIAG-ON-RESULT-TASKRESULT` | `SEM3149` | new |
 | `TBD-DIAG-ON-ANCHOR-UNPROVEN` | `SEM3150` | new |
-| `TBD-DIAG-ON-ANCHOR-REQUIRED` | `SEM3142` | new |
+| `TBD-DIAG-ON-ANCHOR-REQUIRED` | `SEM3194` | new |
 | `TBD-DIAG-ON-TCP-REMOTE-IO` | `SEM3151` | new |
 | `TBD-DIAG-ON-SUSPEND-CONTEXT` | `SEM3152` | new |
 | `TBD-DIAG-ON-NESTED` | `SEM3153` | new |

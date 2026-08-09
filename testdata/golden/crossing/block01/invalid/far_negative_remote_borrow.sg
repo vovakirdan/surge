@@ -1,4 +1,4 @@
-// EXPECT-DIAG: SEM3138
+// EXPECT-DIAG: SEM3190
 // negative: far &T
 fn f(x: far &TcpConn) -> nothing {
     return nothing;
