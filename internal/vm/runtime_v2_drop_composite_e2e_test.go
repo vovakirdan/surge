@@ -11,17 +11,39 @@ import (
 
 // Recursive composite drop glue: dropping a struct / tuple / union /
 // fixed array / array-of-droppables frees its owning fields and elements,
-// then the box — not just the leaves. Assertions ride exact free_count
-// deltas around drop-only windows (nothing frees spontaneously).
+// not just the outermost one. Assertions ride exact free_count deltas
+// around drop-only windows (nothing frees spontaneously) minus the cost of
+// the measurement itself: each `let x: HeapStats = rt_heap_stats()`
+// allocates a snapshot box, copies it into the local and reclaims the box
+// inside the window its own probe opened.
+//
+// A composite value itself costs the heap nothing — it lives in ordinary
+// storage, so only its droppable leaves (strings, dynamic-array buffers
+// and headers) are blocks. value_composite_costs_no_block pins that,
+// because every count below is stated in leaves alone.
 const runtimeV2DropCompositeSource = `
 type Inner = { label: string }
 type User = { name: string, note: string }
 type Outer = { inner: Inner, items: string[] }
 type FixedItem = { name: string, id: int }
 type FixedStrideItem = { left: int, right: int }
+type Pair = { left: int, right: int }
+
+fn probe_window_cost() -> uint {
+    let a: HeapStats = rt_heap_stats();
+    let b: HeapStats = rt_heap_stats();
+    return b.free_count - a.free_count;
+}
 
 fn check_frees(win: string, before: &HeapStats, after: &HeapStats, want: uint) -> int {
-    let f: uint = after.free_count - before.free_count;
+    let raw: uint = after.free_count - before.free_count;
+    let cost: uint = probe_window_cost();
+    if raw < cost {
+        print(win);
+        print("window freed less than its own probe");
+        return 2;
+    }
+    let f: uint = raw - cost;
     if f != want {
         print(win);
         print(f to string);
@@ -31,44 +53,67 @@ fn check_frees(win: string, before: &HeapStats, after: &HeapStats, want: uint) -
     return 0;
 }
 
+fn value_composite_costs_no_block() -> int {
+    let before: HeapStats = rt_heap_stats();
+    let p: Pair = Pair { left: 1, right: 2 };
+    @drop p;
+    let after: HeapStats = rt_heap_stats();
+    let cost: uint = probe_window_cost();
+    let allocs: uint = after.alloc_count - before.alloc_count;
+    let frees: uint = after.free_count - before.free_count;
+    if allocs != frees {
+        print("value-composite window unbalanced");
+        print(allocs to string);
+        print(frees to string);
+        return 1;
+    }
+    if frees != cost {
+        print("value-composite reached the heap");
+        print(frees to string);
+        print(cost to string);
+        return 2;
+    }
+    return 0;
+}
+
 fn struct_drop() -> int {
     let u: User = User { name: "alice", note: "friend" };
     let before: HeapStats = rt_heap_stats();
-    @drop u;                       // name + note + box
+    @drop u;                       // name + note
     let after: HeapStats = rt_heap_stats();
-    return check_frees("struct", &before, &after, 3:uint);
+    return check_frees("struct", &before, &after, 2:uint);
 }
 
 fn tuple_drop() -> int {
     let t: (string, string) = ("first", "second");
     let before: HeapStats = rt_heap_stats();
-    @drop t;                       // two strings + box
+    @drop t;                       // two strings
     let after: HeapStats = rt_heap_stats();
-    return check_frees("tuple", &before, &after, 3:uint);
+    return check_frees("tuple", &before, &after, 2:uint);
 }
 
 fn option_some_drop() -> int {
     let o: string? = Some("payload");
     let before: HeapStats = rt_heap_stats();
-    @drop o;                       // payload string + box
+    @drop o;                       // payload string
     let after: HeapStats = rt_heap_stats();
-    return check_frees("option-some", &before, &after, 2:uint);
+    return check_frees("option-some", &before, &after, 1:uint);
 }
 
 fn option_none_drop() -> int {
     let o: string? = nothing;
     let before: HeapStats = rt_heap_stats();
-    @drop o;                       // box only, no payload
+    @drop o;                       // no payload, nothing to reclaim
     let after: HeapStats = rt_heap_stats();
-    return check_frees("option-none", &before, &after, 1:uint);
+    return check_frees("option-none", &before, &after, 0:uint);
 }
 
 fn fixed_array_drop() -> int {
     let a: string[3] = ["u", "v", "w"];
     let before: HeapStats = rt_heap_stats();
-    @drop a;                       // three element strings + box
+    @drop a;                       // three element strings
     let after: HeapStats = rt_heap_stats();
-    return check_frees("fixed-array", &before, &after, 4:uint);
+    return check_frees("fixed-array", &before, &after, 3:uint);
 }
 
 fn fixed_composite_array_drop() -> int {
@@ -77,17 +122,17 @@ fn fixed_composite_array_drop() -> int {
         FixedItem { name: "right", id: 2 },
     ];
     let before: HeapStats = rt_heap_stats();
-    @drop a;                       // two (string + item) pairs + array box
+    @drop a;                       // one string per element
     let after: HeapStats = rt_heap_stats();
-    return check_frees("fixed-composite-array", &before, &after, 5:uint);
+    return check_frees("fixed-composite-array", &before, &after, 2:uint);
 }
 
 fn fixed_composite_array_default_drop() -> int {
     let a: FixedItem[2] = default::<FixedItem[2]>();
     let before: HeapStats = rt_heap_stats();
-    @drop a;                       // two (empty string + item) pairs + array box
+    @drop a;                       // one empty string per element
     let after: HeapStats = rt_heap_stats();
-    return check_frees("fixed-composite-array-default", &before, &after, 5:uint);
+    return check_frees("fixed-composite-array-default", &before, &after, 2:uint);
 }
 
 fn fixed_composite_array_index_iter() -> int {
@@ -120,9 +165,9 @@ fn array_of_structs_drop() -> int {
     arr.push(Inner { label: "a" });
     arr.push(Inner { label: "b" });
     let before: HeapStats = rt_heap_stats();
-    @drop arr;                     // 2*(label + box) + data + header
+    @drop arr;                     // 2 labels + data + header
     let after: HeapStats = rt_heap_stats();
-    return check_frees("array-of-structs", &before, &after, 6:uint);
+    return check_frees("array-of-structs", &before, &after, 4:uint);
 }
 
 fn nested_drop() -> int {
@@ -131,9 +176,9 @@ fn nested_drop() -> int {
     items.push("y");
     let o: Outer = Outer { inner: Inner { label: "deep" }, items: items };
     let before: HeapStats = rt_heap_stats();
-    @drop o;                       // inner(label+box) + items(x,y,data,header) + outer box
+    @drop o;                       // inner label + items(x, y, data, header)
     let after: HeapStats = rt_heap_stats();
-    return check_frees("nested", &before, &after, 7:uint);
+    return check_frees("nested", &before, &after, 5:uint);
 }
 
 fn array_with_view_drop() -> int {
@@ -157,6 +202,8 @@ fn array_with_view_drop() -> int {
 
 @entrypoint
 fn main() -> int {
+    let r0: int = value_composite_costs_no_block();
+    if r0 != 0 { return 5 + r0; }
     let r1: int = struct_drop();
     if r1 != 0 { return 10 + r1; }
     let r2: int = tuple_drop();

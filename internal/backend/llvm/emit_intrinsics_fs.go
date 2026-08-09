@@ -205,7 +205,15 @@ func (fe *funcEmitter) emitFsFileHandle(op *mir.Operand) (string, error) {
 			opType = baseType
 		}
 	}
-	if op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut || isRefType(fe.emitter.types, opType) {
+	// What the operand produced is the ADDRESS of the File's inline storage in
+	// every spelling these intrinsics accept: `&file` yields the address of the
+	// slot, a `&File` binding yields the address it holds, and a `File` passed
+	// by value is inline storage named by its address. The word the runtime
+	// handed out is what that storage holds, so exactly one load stands between
+	// the operand and the argument. A by-value `own File` had no load and passed
+	// the slot's own address, which the runtime then read as an open file.
+	byValue := fe.emitter.hasInlineStorage(opType)
+	if op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut || isRefType(fe.emitter.types, opType) || byValue {
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, val)
 		val = tmp

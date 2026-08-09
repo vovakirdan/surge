@@ -282,23 +282,22 @@ void* rt_array_slice(void* array_slot, void* r, uint64_t elem_stride) {
     return view;
 }
 
-void* rt_array_slice_fixed(void* data_slot, void* r, uint64_t length, uint64_t elem_stride) {
-    if (data_slot == NULL) {
+// `elems` addresses the elements themselves, not a slot holding their address.
+// A fixed array is its own storage: the caller's slot IS the element run, and
+// the element index path walks that same address directly. Reading a pointer
+// out of it would take the first element for a heap box and hand back a view
+// onto whatever that value happens to number.
+void* rt_array_slice_fixed(void* elems, void* r, uint64_t length, uint64_t elem_stride) {
+    if (elems == NULL) {
         array_panic("array slice received null pointer");
         return NULL;
     }
-    void* data = *(void**)data_slot;
     uint64_t view_len = 0;
     uint64_t offset = 0;
     if (!array_slice_bounds((const SurgeRange*)r, length, elem_stride, &view_len, &offset)) {
         return NULL;
     }
-    if (data == NULL && view_len > 0) {
-        array_panic("array slice received null data");
-        return NULL;
-    }
-    SurgeArrayHeader* view =
-        array_alloc_view(view_len, data == NULL ? NULL : (uint8_t*)data + offset);
+    SurgeArrayHeader* view = array_alloc_view(view_len, (uint8_t*)elems + offset);
     return view;
 }
 

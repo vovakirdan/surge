@@ -144,6 +144,7 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 		}
 		retVal = val
 	}
+	vm.releaseFinishedTaskState(stateVal)
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
 	if vmErr := vm.retireActivation(frame); vmErr != nil {
@@ -153,9 +154,26 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 	vm.asyncCapture.kind = asyncrt.PollDoneSuccess
 	vm.asyncCapture.parkKey = asyncrt.WakerKey{}
 	vm.asyncPendingParkKey = asyncrt.WakerKey{}
-	vm.asyncCapture.state = stateVal
+	vm.asyncCapture.state = Value{}
 	vm.asyncCapture.value = retVal
 	return nil
+}
+
+// releaseFinishedTaskState gives back what a state still holds at the terminator
+// that ends its computation for good.
+//
+// A yield hands the state on to the scheduler and pins the bytes it lives in,
+// so a later reader still finds them. These terminators have no later reader:
+// they leave the stack, and the activation they leave retires the arena the
+// state sits in. Releasing after that retirement reaches a stale reference and
+// silently gives back nothing, which is how a resume counter kept its own heap
+// object alive past the end of every async program. Doing it here is the last
+// moment the bytes can still be read.
+func (vm *VM) releaseFinishedTaskState(state Value) {
+	if vm == nil || state.Kind == VKInvalid {
+		return
+	}
+	vm.dropValue(state)
 }
 
 func (vm *VM) execTermAsyncReturnCancelled(frame *Frame, term *mir.Terminator) *VMError {
@@ -166,6 +184,7 @@ func (vm *VM) execTermAsyncReturnCancelled(frame *Frame, term *mir.Terminator) *
 	if vmErr != nil {
 		return vmErr
 	}
+	vm.releaseFinishedTaskState(stateVal)
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
 	if vmErr := vm.retireActivation(frame); vmErr != nil {
@@ -175,7 +194,7 @@ func (vm *VM) execTermAsyncReturnCancelled(frame *Frame, term *mir.Terminator) *
 	vm.asyncCapture.kind = asyncrt.PollDoneCancelled
 	vm.asyncCapture.parkKey = asyncrt.WakerKey{}
 	vm.asyncPendingParkKey = asyncrt.WakerKey{}
-	vm.asyncCapture.state = stateVal
+	vm.asyncCapture.state = Value{}
 	vm.asyncCapture.value = Value{}
 	return nil
 }

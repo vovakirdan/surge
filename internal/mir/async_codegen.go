@@ -245,10 +245,13 @@ func rewriteAsyncReturns(f *Func, stateLocal LocalID) {
 			continue
 		}
 		if bb.Term.Return.Cancelled {
-			// A cancelled return's state may be re-parked and re-entered by
-			// the runtime while scope children drain (apply_poll_outcome
-			// stores it back into task->state), so its box must stay alive;
-			// it is abandoned once the task completes.
+			// The backend releases this state where the terminator lands
+			// rather than abandoning it for the runtime to reclaim later.
+			// The state was kept alive here on the belief that a cancelled
+			// return could be re-parked and re-entered while scope children
+			// drain; a cancelled outcome goes straight to completion instead,
+			// so nothing reads the state afterwards and holding it only
+			// stranded the allocation.
 			bb.Term = Terminator{Kind: TermAsyncReturnCancelled, AsyncReturnCancelled: AsyncReturnCancelledTerm{
 				State: operandForLocal(f, stateLocal),
 			}}

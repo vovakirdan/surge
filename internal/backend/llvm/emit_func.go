@@ -268,12 +268,14 @@ func (fe *funcEmitter) emitAsyncRefParamBox(paramValue string, refType types.Typ
 	fmt.Fprintf(&fe.emitter.buf, "  call void @llvm.trap()\n")
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
-	value := fe.nextTemp()
-	if err := fe.emitLoad(value, valueLLVM, paramValue); err != nil {
+	// A pointee that lives in inline storage has no register wide enough to
+	// carry it, so the move into the box is a byte move from the address the
+	// parameter already names. Going through the value helpers is what keeps
+	// the two cases from needing to be told apart here.
+	value, _, err := fe.emitValueLoad(valueLLVM, paramValue)
+	if err != nil {
 		return "", err
 	}
-	if err := fe.emitStore(valueLLVM, value, box); err != nil {
-		return "", err
-	}
+	fe.emitValueStore(valueLLVM, value, box, align)
 	return box, nil
 }

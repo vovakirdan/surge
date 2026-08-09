@@ -161,17 +161,11 @@ func (vm *VM) fsMetadataValue(typeID types.TypeID, info os.FileInfo) (Value, *VM
 	if !okSize || !okType || !okReadonly {
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, "Metadata layout mismatch")
 	}
+	// Every member is assigned below, so none is seeded with a default first.
+	// Seeding one built a value that the assignment then overwrote without
+	// releasing — the size member's zero arrived as a counted big integer and
+	// stayed alive with nothing left reaching it.
 	fields := make([]Value, len(layout.FieldTypes))
-	for i, ft := range layout.FieldTypes {
-		val, vmErr := vm.defaultValue(ft)
-		if vmErr != nil {
-			for j := range i {
-				vm.dropValue(fields[j])
-			}
-			return Value{}, vmErr
-		}
-		fields[i] = val
-	}
 
 	size := info.Size()
 	if size < 0 {
@@ -210,17 +204,9 @@ func (vm *VM) fsDirEntryValue(typeID types.TypeID, name, path string, fileType u
 	if !okName || !okPath || !okType {
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, "DirEntry layout mismatch")
 	}
+	// Every member is assigned below, so none is seeded with a default first:
+	// the seed would be overwritten without being released.
 	fields := make([]Value, len(layout.FieldTypes))
-	for i, ft := range layout.FieldTypes {
-		val, vmErr := vm.defaultValue(ft)
-		if vmErr != nil {
-			for j := range i {
-				vm.dropValue(fields[j])
-			}
-			return Value{}, vmErr
-		}
-		fields[i] = val
-	}
 
 	nameType := layout.FieldTypes[nameIdx]
 	pathType := layout.FieldTypes[pathIdx]

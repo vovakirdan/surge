@@ -12,12 +12,17 @@ import (
 // The leaf free floor end to end: the EXISTING explicit `@drop` statement
 // now actually frees strings and dynamic arrays.
 //
-// Assertion currency is the FREE count only. Until scope-exit synthesis
-// lands, every temporary (literal operands, converted strings, snapshot
-// boxes) allocates and leaks by design, so alloc/free balance cannot hold
-// inside any window — but nothing in the runtime frees spontaneously, so
-// the free_count delta across a window containing only @drop statements
-// is exact. Expected counts come from the reclamation layout:
+// Assertion currency is the FREE count only, minus the cost of the
+// measurement itself: `let x: HeapStats = rt_heap_stats()` allocates a
+// snapshot box, copies it into the local and then reclaims the box, and
+// that reclaim lands after the opening probe has read the counters and
+// before the closing one reads them. So every window carries exactly one
+// free belonging to its own opening probe. The fixture measures that cost
+// at runtime rather than folding it into the constants, which keeps the
+// expected counts below pure reclamation. Nothing else in the runtime
+// frees spontaneously, so the adjusted delta across a window containing
+// only @drop statements is exact. Expected counts come from the
+// reclamation layout:
 //
 //	string                          = 1 free (single allocation)
 //	base array, no views            = 2 frees (data + header)
@@ -29,8 +34,21 @@ import (
 const runtimeV2DropLeafSource = `
 @intrinsic fn rt_array_debug_deferred_base_drops() -> uint;
 
+fn probe_window_cost() -> uint {
+    let a: HeapStats = rt_heap_stats();
+    let b: HeapStats = rt_heap_stats();
+    return b.free_count - a.free_count;
+}
+
 fn check_frees(label: string, before: &HeapStats, after: &HeapStats, expected: uint) -> int {
-    let frees: uint = after.free_count - before.free_count;
+    let raw: uint = after.free_count - before.free_count;
+    let cost: uint = probe_window_cost();
+    if raw < cost {
+        print(label);
+        print("window freed less than its own probe");
+        return 2;
+    }
+    let frees: uint = raw - cost;
     if frees != expected {
         print(label);
         print(frees to string);

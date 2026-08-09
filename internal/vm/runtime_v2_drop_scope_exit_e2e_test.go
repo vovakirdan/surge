@@ -13,8 +13,14 @@ import (
 // an explicit @drop — at block ends, early returns, break/continue, and
 // reassignment — while moved values never double-free.
 //
-// Measurement keeps Task 2's currency (exact free_count deltas around
-// tight windows). Two windows ride an int-storage cost: `a.push(1)` and
+// Measurement keeps the leaf fixture's currency: exact free_count deltas
+// around tight windows, minus the cost of the measurement itself. Each
+// `let x: HeapStats = rt_heap_stats()` allocates a snapshot box, copies it
+// into the local and reclaims the box, and that reclaim lands inside the
+// window its own probe opened — so the fixture measures that cost at
+// runtime instead of folding it into the constants below.
+//
+// Two windows ride an int-storage cost: `a.push(1)` and
 // `a.slice(..)` move an int into typed array storage, and the free count
 // of that path is pinned into the scope-end and view-order rows. Those
 // two constants were re-pinned when small ints became inline (fixnum):
@@ -30,8 +36,21 @@ import (
 const runtimeV2DropScopeExitSource = `
 @intrinsic fn rt_array_debug_deferred_base_drops() -> uint;
 
+fn probe_window_cost() -> uint {
+    let a: HeapStats = rt_heap_stats();
+    let b: HeapStats = rt_heap_stats();
+    return b.free_count - a.free_count;
+}
+
 fn check_frees(label: string, before: &HeapStats, after: &HeapStats, expected: uint) -> int {
-    let frees: uint = after.free_count - before.free_count;
+    let raw: uint = after.free_count - before.free_count;
+    let cost: uint = probe_window_cost();
+    if raw < cost {
+        print(label);
+        print("window freed less than its own probe");
+        return 2;
+    }
+    let frees: uint = raw - cost;
     if frees != expected {
         print(label);
         print(frees to string);
@@ -106,9 +125,17 @@ fn check_balance(label: string, before: &HeapStats, after: &HeapStats, noise: ui
         print(frees to string);
         return 1;
     }
-    if frees != expected {
+    // The probe pays for itself on both sides, so the balance above is
+    // unaffected; only the absolute reclamation count has to shed it.
+    let cost: uint = probe_window_cost();
+    if frees < cost {
         print(label);
-        print(frees to string);
+        print("window freed less than its own probe");
+        return 3;
+    }
+    if frees - cost != expected {
+        print(label);
+        print((frees - cost) to string);
         print(expected to string);
         return 2;
     }

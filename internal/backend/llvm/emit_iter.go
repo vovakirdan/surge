@@ -353,9 +353,9 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 		dataPtr = fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", dataPtr, dataPtrPtr)
 	} else {
-		head := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", head, handlePtr)
-		dataPtr = head
+		// A fixed array has no header to indirect through: the operand address
+		// IS the element buffer, the same address element indexing walks.
+		dataPtr = handlePtr
 		lenVal = fmt.Sprintf("%d", fixedLength)
 	}
 

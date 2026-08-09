@@ -223,55 +223,38 @@ async fn run() -> int {
         return 1;
     }
 
-    // MIGRATION is genuinely strict zero: the far Task<int> handle's own
-    // per-operation allocation is reclaimed when the caller consumes it
-    // via await (task teardown already frees it, matching DEBT-044's
-    // resume-frame release), so the window stays flat at the same fixed
-    // window-edge residual the heap-capture census already documents.
-    if mg8v != mg1v { return fail_growth("migration", mg1v, mg8v); }
+    // MIGRATION reaches exact zero, and is pinned at zero rather than merely
+    // flat: the far Task<int> handle's per-operation allocation is reclaimed
+    // when the caller consumes it via await, and the fixed window-edge unit
+    // that used to sit alongside it was a composite's heap box, which went
+    // away when a composite got its own storage.
+    if mg1v != 0 { return fail_growth("migration-baseline", mg1v, mg8v); }
+    if mg8v != 0 { return fail_growth("migration-growth", mg1v, mg8v); }
 
-    // SHARE and SELECT are NOT strict zero, though the larger of the two
-    // per-call costs is now closed: every channel_on(...) and every
-    // .share() call emits a caller-side
-    // rt_far_channel_handle_alloc box (internal/backend/llvm/
-    // emit_crossing_channel_create.go, emit_crossing_share.go) to hold
-    // the returned far Channel<T> value, and it now frees at the
-    // binding's ordinary scope exit (isFarChannelType's case in
-    // emitInstrDrop dispatches to rt_far_channel_handle_drop). Bisected
-    // with isolated probes (not checked in): a bare repeated ch.share()
-    // used to cost exactly 2 HeapStats units/call (the 24-byte caller
-    // box, definitely-lost -- now freed) plus the dispatch-side sibling
-    // lease (lease_new/rt_far_channel_mint_sibling) -- that lease STRUCT
-    // is the remaining 1 unit/call residual pinned below: release_entry
-    // frees every accumulated lease struct together, but only once the
-    // registry entry's LAST lease releases and its active_leases/inflight
-    // predicate hits zero, which happens after this window closes (ch
-    // itself, created outside the measured c0..c1 window, is what
-    // eventually triggers that reclaim) -- so within the window, each
-    // .share() call's lease struct accumulates as still-reachable, not
-    // yet freed — an already-flagged, out-of-scope residual (buffered/
-    // internal bookkeeping, not the handle box or the channel object). Every
-    // window function's OWN growth arithmetic (declared once, verified by
-    // the differential itself) drops by 1 unit per .share() call:
-    // share_window's 4 calls/iteration take the baseline from 11 to 7 and
-    // the eight-iteration figure from 67 to 35 (4 fewer/iteration x 8);
-    // select_window's 5 calls/iteration take 14 to 9 and 91 to 51 (5
-    // fewer/iteration x 8) -- both differences land exactly on the
-    // call-count x iteration-count arithmetic, confirming the fix's
-    // effect is precisely the handle box and nothing else. These exact
-    // figures are pinned in-program (not merely asserted flat) so a real
-    // fix collapses this check loudly; see
-    // TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero for the
-    // strict-zero valgrind confirmation of the handle+object class this
-    // reduction reflects (a narrower create+share-only program, since
-    // this file's on-ch-heavy windows hit an unrelated, pre-existing,
-    // separately-tracked race under valgrind). The remaining
-    // lease-struct residual rides the sibling-lease reclaim design, not
-    // row-sized here.
-    if sh1v != 7 { return fail_growth("share-baseline", sh1v, sh8v); }
-    if sh8v != 35 { return fail_growth("share-growth", sh1v, sh8v); }
-    if se1v != 9 { return fail_growth("select-baseline", se1v, se8v); }
-    if se8v != 51 { return fail_growth("select-growth", se1v, se8v); }
+    // SHARE and SELECT are not zero, and what remains is now exactly one unit
+    // per .share() call plus two at the window edge, in both verticals.
+    //
+    // The per-call unit is the dispatch-side sibling lease struct. Leases are
+    // freed together, but only once the registry entry's last lease releases,
+    // and that is triggered by the channel itself — created outside the
+    // measured window — so within the window every .share() accumulates one
+    // still-reachable struct. share_window makes 4 such calls per iteration
+    // and select_window 5, which is exactly the growth pinned below:
+    // (34 - 6) / 7 = 4 and (42 - 7) / 7 = 5.
+    //
+    // Two earlier costs are gone. The caller-side box each channel_on(...)
+    // and .share() allocated to hold the returned far Channel<T> value now
+    // frees at the binding's ordinary scope exit. And a composite stopped
+    // being a heap box, which removed one window-edge unit from every vertical
+    // and one further per-iteration unit from select — select used to grow by
+    // 6 per iteration against 5 .share() calls, and now the two agree.
+    //
+    // The figures are pinned exactly, not asserted flat, so the next real
+    // reduction collapses this check loudly instead of passing quietly.
+    if sh1v != 6 { return fail_growth("share-baseline", sh1v, sh8v); }
+    if sh8v != 34 { return fail_growth("share-growth", sh1v, sh8v); }
+    if se1v != 7 { return fail_growth("select-baseline", se1v, se8v); }
+    if se8v != 42 { return fail_growth("select-growth", se1v, se8v); }
 
     print("crossing-strict-census-ok");
     return 0;

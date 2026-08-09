@@ -107,9 +107,35 @@ fn main() -> int {
 	if len(stats) != 19 {
 		t.Fatalf("snapshot count: want 19, got %d (%v)", len(stats), stats)
 	}
+	// The counters have to be moving at all before any window below means
+	// anything: every one of them is expressed as a difference from `overhead`,
+	// so a report frozen at a constant would make each difference zero, and the
+	// exact sizes they demand are what would catch it. Say it once here about
+	// the run as a whole, where an absent mechanism cannot satisfy it.
+	if stats[len(stats)-1].allocs <= stats[0].allocs {
+		t.Fatalf("cumulative allocation counter never advanced: first=%+v last=%+v", stats[0], stats[len(stats)-1])
+	}
+
+	// Two snapshots with nothing between them measure what ASKING costs. The
+	// question may allocate the answer, but it has to give those bytes back
+	// before it answers, or every window's live figures describe the act of
+	// measuring as much as the program. Both halves are checked because they
+	// are separately reported numbers: live must not move, and the two
+	// cumulative counters must agree with it.
+	//
+	// This once required the opposite. The answer was handed over as a heap box
+	// the caller freed only at scope exit — after the window closed — so a
+	// snapshot pair left one live block behind, and the assertion here demanded
+	// that residue instead of forbidding it. Giving the composite its own
+	// storage freed the box at the call, which is what took the residue to zero:
+	// the allocation counts across this whole program are unchanged, and only
+	// the free counts moved.
 	overhead := heapStatsDelta(t, "stats overhead", stats[1], stats[0])
-	if overhead.allocs == 0 || overhead.liveBlocks == 0 || overhead.liveBytes == 0 {
-		t.Fatalf("unexpected zero rt_heap_stats overhead: %+v", overhead)
+	if overhead.liveBlocks != 0 || overhead.liveBytes != 0 {
+		t.Fatalf("taking a heap snapshot left live heap behind: %+v", overhead)
+	}
+	if overhead.allocs != overhead.frees {
+		t.Fatalf("heap snapshot allocated and freed different numbers of blocks: %+v", overhead)
 	}
 
 	requireHeapDelta(t, "alloc", heapStatsDelta(t, "alloc", stats[3], stats[2]),

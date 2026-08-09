@@ -253,16 +253,16 @@ func (fe *funcEmitter) emitArraySlice(handlePtr, rangeVal string, elemType types
 	return tmp, nil
 }
 
-func (fe *funcEmitter) emitArrayFixedSlice(handlePtr, rangeVal string, elemType types.TypeID, length uint32) (string, error) {
-	// A fixed slice crosses into the legacy stride-less dynamic Array header.
-	// Keep its pre-existing emitted-view behavior until Wave D replaces that
-	// boundary with a typed view descriptor carrying stride and backing owner.
+// elemsPtr addresses the fixed array's element buffer — the same address
+// element indexing walks. A fixed array carries no header to indirect through,
+// so the view the runtime builds points straight into that storage.
+func (fe *funcEmitter) emitArrayFixedSlice(elemsPtr, rangeVal string, elemType types.TypeID, length uint32) (string, error) {
 	stride, err := fe.emitter.arrayElemStride(elemType)
 	if err != nil {
 		return "", err
 	}
 	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_array_slice_fixed(ptr %s, ptr %s, i64 %d, i64 %d)\n", tmp, handlePtr, rangeVal, length, stride)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_array_slice_fixed(ptr %s, ptr %s, i64 %d, i64 %d)\n", tmp, elemsPtr, rangeVal, length, stride)
 	return tmp, nil
 }
 
@@ -344,16 +344,15 @@ func (fe *funcEmitter) emitArrayFixedElemPtr(arrayPtr, idxVal, idxTy string, idx
 	return elemPtr, elemLLVM, nil
 }
 
-func (fe *funcEmitter) emitBytesViewLen(handlePtr string, viewType types.TypeID) (string, error) {
-	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
-	ptrOff, lenOff, lenLLVM, err := fe.bytesViewOffsets(viewType)
+// viewPtr addresses the view's own fields, not a slot holding a pointer to
+// them: a bytes view is a plain struct that lives wherever its owner put it.
+func (fe *funcEmitter) emitBytesViewLen(viewPtr string, viewType types.TypeID) (string, error) {
+	_, lenOff, lenLLVM, err := fe.bytesViewOffsets(viewType)
 	if err != nil {
 		return "", err
 	}
-	_ = ptrOff
 	lenPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, lenOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, viewPtr, lenOff)
 	lenVal := fe.nextTemp()
 	if err := fe.emitLoad(lenVal, lenLLVM, lenPtr); err != nil {
 		return "", err
@@ -372,19 +371,18 @@ func (fe *funcEmitter) emitBytesViewLen(handlePtr string, viewType types.TypeID)
 	return lenVal, nil
 }
 
-func (fe *funcEmitter) emitBytesViewIndex(handlePtr string, viewType types.TypeID, idxVal, idxTy string, idxType types.TypeID) (val, ty string, err error) {
-	handle := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
+// viewPtr addresses the view's own fields; see emitBytesViewLen.
+func (fe *funcEmitter) emitBytesViewIndex(viewPtr string, viewType types.TypeID, idxVal, idxTy string, idxType types.TypeID) (val, ty string, err error) {
 	ptrOff, lenOff, lenLLVM, err := fe.bytesViewOffsets(viewType)
 	if err != nil {
 		return "", "", err
 	}
 	ptrPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", ptrPtr, handle, ptrOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", ptrPtr, viewPtr, ptrOff)
 	ptrVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", ptrVal, ptrPtr, alignPtr)
 	lenPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, lenOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, viewPtr, lenOff)
 	lenVal := fe.nextTemp()
 	if loadErr := fe.emitLoad(lenVal, lenLLVM, lenPtr); loadErr != nil {
 		return "", "", loadErr

@@ -110,6 +110,33 @@ func (r *DiagnoseResult) Entrypoints() []EntrypointInfo {
 	return entries
 }
 
+// RootModuleFileIDs returns the source files that make up the root module.
+//
+// The root module's AST builder holds more than the root module: every `.sg`
+// beside the root file is parsed into the shared arena before the module
+// boundary is known, and a root without a `module` pragma then keeps only its
+// own file. A pass that walks that arena directly must scope itself by this set
+// or it reports on files the build excluded.
+func (r *DiagnoseResult) RootModuleFileIDs() []source.FileID {
+	if r == nil {
+		return nil
+	}
+	if r.rootRecord == nil {
+		if r.File == nil {
+			return nil
+		}
+		return []source.FileID{r.File.ID}
+	}
+	ids := make([]source.FileID, 0, len(r.rootRecord.Files))
+	for _, file := range r.rootRecord.Files {
+		if file == nil {
+			continue
+		}
+		ids = append(ids, file.ID)
+	}
+	return ids
+}
+
 // ModuleAnalysis exposes one dependency module's parsed AST and per-file sema
 // results for pipeline passes that must inspect every compiled module, such as
 // the crossing backend guards.

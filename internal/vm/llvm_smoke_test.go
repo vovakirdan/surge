@@ -32,6 +32,7 @@ func TestLLVMSmoke(t *testing.T) {
 		{name: "time_monotonic_now", file: "time_monotonic_now.sg"},
 		{name: "unicode_print", file: "unicode_print.sg"},
 		{name: "exit_code", file: "exit_code.sg"},
+		{name: "bytes_view_read", file: "bytes_view_read.sg"},
 		{name: "json_validate", file: "json_validate.sg"},
 	}
 

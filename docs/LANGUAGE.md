@@ -2026,10 +2026,12 @@ async fn process_all(urls: string[]) -> Data[] {
 ```sg
 blocking {
     // synchronous, possibly OS-blocking work
-    expr
+    return value;
 }
 ```
 
+- The body is statements (see the `Blocking` production in the grammar); the
+  result leaves through `return`, not through a trailing expression.
 - Creates `Task<T>` where `T` is the block's result type.
 - The block runs on the blocking pool in native/LLVM.
 - The VM backend rejects `blocking { ... }` with a diagnostic.

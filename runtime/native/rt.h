@@ -29,7 +29,7 @@ void rt_array_free_elems(void* array_header,
 // Debug observability for the deferred-reclamation float.
 uint64_t rt_array_debug_deferred_base_drops(void);
 void* rt_array_slice(void* array_slot, void* r, uint64_t elem_stride);
-void* rt_array_slice_fixed(void* data_slot, void* r, uint64_t length, uint64_t elem_stride);
+void* rt_array_slice_fixed(void* elems, void* r, uint64_t length, uint64_t elem_stride);
 void rt_array_sync_views(void* array_header);
 void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t len);
 void rt_byte_array_append_range(void* dst_slot,

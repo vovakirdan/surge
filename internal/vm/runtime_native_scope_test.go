@@ -118,7 +118,7 @@ static rt_task* alloc_task(rt_executor* ex, uint64_t id) {
     task->kind = TASK_KIND_USER;
     task_status_store(task, TASK_READY);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
-    ex->tasks[id] = task;
+    rt_task_slot_store(ex, id, task);
     if (ex->next_id <= id) {
         ex->next_id = id + 1;
     }
@@ -129,9 +129,7 @@ static void free_task_slot(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL) {
         return;
     }
-    if (task->id < ex->tasks_cap) {
-        ex->tasks[task->id] = NULL;
-    }
+    rt_task_slot_store(ex, task->id, NULL);
     rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
 }
 

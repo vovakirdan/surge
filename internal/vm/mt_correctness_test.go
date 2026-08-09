@@ -707,14 +707,31 @@ fn main(port: uint) -> int {
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start http server: %v", err)
 	}
+	startedAt := time.Now()
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
 
 	addr := net.JoinHostPort("127.0.0.1", portStr)
 	fail := func(action string, err error) {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
+		// A refused dial and a mid-response EOF are the same server-side fault
+		// seen from either side of a race, and reported bare they read like a
+		// network flake. Say whether the server was still alive, so a failure
+		// here names which side broke.
+		serverState := ""
+		select {
+		case waitErr := <-waitCh:
+			serverState = fmt.Sprintf("\nserver had already exited (wait: %v); the client gave up %s after start",
+				waitErr, time.Since(startedAt).Round(time.Millisecond))
+		default:
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			<-waitCh
+			serverState = "\nserver was still running when the client gave up"
 		}
-		_ = cmd.Wait()
-		t.Fatalf("%s: %v\nstdout:\n%s\nstderr:\n%s", action, err, outBuf.String(), errBuf.String())
+		t.Fatalf("%s: %v%s\nstdout:\n%s\nstderr:\n%s", action, err, serverState, outBuf.String(), errBuf.String())
 	}
 
 	if err := runMTHTTPKeepaliveScenario(addr); err != nil {
@@ -726,11 +743,6 @@ fn main(port: uint) -> int {
 	if err := runMTHTTPPostScenario(addr); err != nil {
 		fail("post scenario failed", err)
 	}
-
-	waitCh := make(chan error, 1)
-	go func() {
-		waitCh <- cmd.Wait()
-	}()
 
 	select {
 	case err := <-waitCh:

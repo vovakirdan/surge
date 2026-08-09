@@ -129,6 +129,19 @@ static uint64_t fs_error_code_from_errno(int err) {
     }
 }
 
+// Releases what a run of entries holds, leaving the run itself to its owner.
+// A partially built directory listing is abandoned on exactly the paths that
+// never reach the caller, so its strings have nobody else to release them.
+static void fs_release_dir_entries(DirEntry* entries, size_t count) {
+    if (entries == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        rt_string_free(entries[i].name);
+        rt_string_free(entries[i].path);
+    }
+}
+
 static void* fs_make_error(uint64_t code) {
     FsError* err = (FsError*)rt_alloc((uint64_t)sizeof(FsError), (uint64_t)alignof(FsError));
     if (err == NULL) {
@@ -155,6 +168,29 @@ static void* fs_make_success_ptr(void* payload) {
         return NULL;
     }
     memcpy(mem + payload_offset, (const void*)&payload, sizeof(payload));
+    return mem;
+}
+
+// Metadata is a value composite, so the caller copies the WHOLE struct out of
+// the payload region rather than following a pointer stored there. Handing back
+// a pointer left the first field — `size`, itself a bignum handle — reading as
+// the address of the block, which printed as an enormous number instead of a
+// file size.
+static void* fs_make_success_meta(const Metadata* meta) {
+    size_t payload_align = alignof(void*);
+    size_t payload_size = sizeof(FsError);
+    if (payload_size < sizeof(Metadata)) {
+        payload_size = sizeof(Metadata);
+    }
+    if (payload_size < sizeof(void*)) {
+        payload_size = sizeof(void*);
+    }
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
+    if (mem == NULL) {
+        return NULL;
+    }
+    memcpy(mem + payload_offset, (const void*)meta, sizeof(Metadata));
     return mem;
 }
 
@@ -436,16 +472,13 @@ void* rt_fs_metadata(void* path) {
     if (st.st_size > 0) {
         size = (uint64_t)st.st_size;
     }
-    Metadata* meta = (Metadata*)rt_alloc((uint64_t)sizeof(Metadata), (uint64_t)alignof(Metadata));
-    if (meta == NULL) {
-        free(buf);
-        return fs_make_error(FS_ERR_IO);
-    }
-    meta->size = rt_biguint_from_u64(size);
-    meta->file_type = fs_file_type_from_mode(st.st_mode);
-    meta->readonly = (st.st_mode & 0222) == 0;
+    Metadata meta;
+    memset(&meta, 0, sizeof(meta));
+    meta.size = rt_biguint_from_u64(size);
+    meta.file_type = fs_file_type_from_mode(st.st_mode);
+    meta.readonly = (st.st_mode & 0222) == 0;
     free(buf);
-    return fs_make_success_ptr((void*)meta);
+    return fs_make_success_meta(&meta);
 }
 
 void* rt_fs_read_dir(void* path) {
@@ -463,12 +496,27 @@ void* rt_fs_read_dir(void* path) {
     }
     size_t cap = 0;
     size_t len = 0;
-    void** elems = NULL;
+    // The entries themselves, laid out the way the array is walked. A composite
+    // element IS its bytes, so the buffer this hands to the array header holds
+    // whole entries at their own stride and not pointers to entries: the reader
+    // projects `name` and `path` straight out of the element it lands on.
+    DirEntry* elems = NULL;
     errno = 0;
     const struct dirent* ent;
     while ((ent = readdir(dir)) != NULL) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
             continue;
+        }
+        // Grown before anything is built, so a failure here owes no release.
+        if (len >= cap) {
+            size_t next = cap == 0 ? 8 : cap * 2;
+            DirEntry* grown = (DirEntry*)realloc((void*)elems, next * sizeof(DirEntry));
+            if (grown == NULL) {
+                errno = ENOMEM;
+                break;
+            }
+            elems = grown;
+            cap = next;
         }
         size_t name_len = strlen(ent->d_name);
         void* name_str = rt_string_from_bytes((const uint8_t*)ent->d_name, (uint64_t)name_len);
@@ -478,6 +526,7 @@ void* rt_fs_read_dir(void* path) {
         }
         char* full = fs_join_path(buf, path_len, ent->d_name, name_len);
         if (full == NULL) {
+            rt_string_free(name_str);
             errno = ENOMEM;
             break;
         }
@@ -511,36 +560,21 @@ void* rt_fs_read_dir(void* path) {
         void* path_str = rt_string_from_bytes((const uint8_t*)full, (uint64_t)strlen(full));
         free(full);
         if (path_str == NULL) {
+            rt_string_free(name_str);
             errno = ENOMEM;
             break;
         }
 
-        DirEntry* entry =
-            (DirEntry*)rt_alloc((uint64_t)sizeof(DirEntry), (uint64_t)alignof(DirEntry));
-        if (entry == NULL) {
-            errno = ENOMEM;
-            break;
-        }
-        entry->name = name_str;
-        entry->path = path_str;
-        entry->file_type = file_type;
-
-        if (len >= cap) {
-            size_t next = cap == 0 ? 8 : cap * 2;
-            void** tmp = (void**)realloc((void*)elems, next * sizeof(void*));
-            if (tmp == NULL) {
-                errno = ENOMEM;
-                break;
-            }
-            elems = tmp;
-            cap = next;
-        }
-        elems[len++] = entry;
+        elems[len].name = name_str;
+        elems[len].path = path_str;
+        elems[len].file_type = file_type;
+        len++;
     }
     if (errno != 0) {
         uint64_t code = fs_error_code_from_errno(errno);
         closedir(dir);
         free(buf);
+        fs_release_dir_entries(elems, len);
         free((void*)elems);
         return fs_make_error(code);
     }
@@ -549,18 +583,25 @@ void* rt_fs_read_dir(void* path) {
 
     void* data = NULL;
     if (len > 0) {
-        data = rt_alloc((uint64_t)len * (uint64_t)sizeof(void*), (uint64_t)alignof(void*));
+        data = rt_alloc((uint64_t)len * (uint64_t)sizeof(DirEntry), (uint64_t)alignof(DirEntry));
         if (data == NULL) {
+            fs_release_dir_entries(elems, len);
             free((void*)elems);
             return fs_make_error(FS_ERR_IO);
         }
-        memcpy(data, (const void*)elems, len * sizeof(void*));
+        memcpy(data, (const void*)elems, len * sizeof(DirEntry));
     }
     free((void*)elems);
 
     SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
                                                            (uint64_t)alignof(SurgeArrayHeader));
     if (header == NULL) {
+        if (data != NULL) {
+            fs_release_dir_entries((DirEntry*)data, len);
+            rt_free((uint8_t*)data,
+                    (uint64_t)len * (uint64_t)sizeof(DirEntry),
+                    (uint64_t)alignof(DirEntry));
+        }
         return fs_make_error(FS_ERR_IO);
     }
     header->len = (uint64_t)len;
@@ -967,12 +1008,10 @@ void* rt_fs_file_metadata(void* file) {
     if (st.st_size > 0) {
         size = (uint64_t)st.st_size;
     }
-    Metadata* meta = (Metadata*)rt_alloc((uint64_t)sizeof(Metadata), (uint64_t)alignof(Metadata));
-    if (meta == NULL) {
-        return fs_make_error(FS_ERR_IO);
-    }
-    meta->size = rt_biguint_from_u64(size);
-    meta->file_type = fs_file_type_from_mode(st.st_mode);
-    meta->readonly = (st.st_mode & 0222) == 0;
-    return fs_make_success_ptr((void*)meta);
+    Metadata meta;
+    memset(&meta, 0, sizeof(meta));
+    meta.size = rt_biguint_from_u64(size);
+    meta.file_type = fs_file_type_from_mode(st.st_mode);
+    meta.readonly = (st.st_mode & 0222) == 0;
+    return fs_make_success_meta(&meta);
 }

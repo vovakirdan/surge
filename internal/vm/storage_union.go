@@ -58,8 +58,17 @@ func (vm *VM) buildTag(frame *Frame, typeID types.TypeID, tagSym symbols.SymbolI
 		if projectErr != nil {
 			return Value{}, vm.eb.makeError(PanicUnimplemented, projectErr.Error())
 		}
+		// A payload cell declares a type the same way a slot does, so the same
+		// difference has to be settled here: `Some(a)` where `a` is one tag of a
+		// wider union arrives carrying the narrow union, and the two put the
+		// same arm at different offsets. Without the conversion the copy was
+		// refused — correctly — and the constructor had no way to succeed.
 		//nolint:gosec // the arm and the payload are the same length, refused above
-		if vmErr := vm.storeStorage(frame, ref, payload[i]); vmErr != nil {
+		value, vmErr := vm.coerceToSlotType(frame, payload[i], member.TypeID)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if vmErr := vm.storeStorage(frame, ref, value); vmErr != nil {
 			return Value{}, vmErr
 		}
 	}
@@ -299,6 +308,19 @@ func (vm *VM) retagUnion(frame *Frame, src StorageRef, dstType types.TypeID) (Va
 		taken, vmErr := vm.takeMember(frame, from)
 		if vmErr != nil {
 			return Value{}, false, vmErr
+		}
+		// The arm's payload can itself need widening: `Success(JsonNull())`
+		// builds a payload typed by the tag alone, and the union it is being
+		// moved into declares that arm carrying the whole tag union. Storing
+		// the narrow payload into the wide slot is a copy between two types,
+		// which storage refuses, so convert it the same way and by the same
+		// rules as the arm around it.
+		if widened, changed, retagErr := vm.retagUnionValue(taken, to.TypeID); retagErr != nil {
+			vm.dropValue(taken)
+			return Value{}, false, retagErr
+		} else if changed {
+			vm.dropValue(taken)
+			taken = widened
 		}
 		if vmErr := vm.storeStorage(frame, to, taken); vmErr != nil {
 			return Value{}, false, vmErr

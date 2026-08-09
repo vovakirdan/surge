@@ -190,13 +190,18 @@ func (e *Emitter) emitResultDropDispatch() {
 // dispatches on — unlike registerCrossingDropResult, there is no inert/
 // Copy case to gate callers on: the box always exists, so it always needs
 // freeing, whether or not any of its fields separately own heap.
+//
+// The full release is what gets registered, members and storage both. Only
+// the yield that finds its task already cancelled abandons a frame this way,
+// and it abandons one it has just finished packing, so the frame is the only
+// owner of what is in it.
 func (e *Emitter) registerAbandonedStateDrop(stateType types.TypeID) types.TypeID {
 	resolved := resolveValueType(e.types, stateType)
 	if e.abandonedStateDrops == nil {
 		e.abandonedStateDrops = make(map[types.TypeID]struct{})
 	}
 	e.abandonedStateDrops[resolved] = struct{}{}
-	e.requireSuspensionFrameRelease(resolved)
+	e.requireRuntimeOwnedRelease(resolved)
 	return resolved
 }
 
@@ -220,17 +225,18 @@ func (e *Emitter) requireSuspensionFrameRelease(id types.TypeID) string {
 // emitSuspensionFrameReleaseBody emits one frame release: the storage goes
 // back to the allocator and NOTHING walks what is in it.
 //
-// The frame's resume payload is a bitwise duplicate of values the resumed
-// locals own — a poll takes its locals OUT of the payload on entry and leaves
-// those bytes behind until the next suspension overwrites them. So a walk here
-// would free a string, a task handle or a channel a second time, and it would
-// do it on the one path nobody exercises by accident. This is the same reason
-// the poll's own release of a completed frame is shallow.
+// This is the release for a frame whose payload is spent. A poll takes its
+// locals OUT of the payload on entry and leaves those bytes behind, so from
+// then on the frame holds a bitwise duplicate of values those locals own; a
+// walk would free a string, a task handle or a channel a second time. The
+// terminator that ends a poll by cancellation reclaims its frame this way, and
+// so does the poll's own release of a completed frame.
 //
-// The cost of the shallowness is real and is not paid here: a frame abandoned
-// while it genuinely does hold the live copies — cancelled between a park and
-// its wake — leaks them. Closing that needs the frame to say which of the two
-// it is holding, which is a claim the frame does not carry today.
+// The frame a YIELD abandons is the other case and takes the full release:
+// there the packing store has just run, so the frame is the only owner of what
+// it holds and walking is the only thing that reclaims it. Which of the two a
+// frame is, is known at the site that gives it up rather than by the frame,
+// which is why nothing here has to ask.
 func (e *Emitter) emitSuspensionFrameReleaseBody(id types.TypeID) error {
 	facts, err := e.layoutOf(id)
 	if err != nil {

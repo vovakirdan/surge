@@ -100,7 +100,16 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 				if err != nil {
 					return "", "", err
 				}
-				if srcLLVM != dstLLVM {
+				// A payload that is itself widened below arrives in the
+				// SOURCE's shape and leaves in the destination's, so the two
+				// spellings differing is what that conversion is for. Asking
+				// them to agree first would refuse the very case the arm loop
+				// converts, and refusing is still right for every other way
+				// two payload types can disagree.
+				widensPayload := srcPayload != dstPayload &&
+					isUnionType(fe.emitter.types, srcPayload) &&
+					isUnionType(fe.emitter.types, dstPayload)
+				if srcLLVM != dstLLVM && !widensPayload {
 					return "", "", fmt.Errorf("union cast payload type mismatch for tag %q", srcCase.TagName)
 				}
 				off := srcCaseLayout.PayloadOffset + offsets[j]
@@ -112,7 +121,7 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 					return "", "", loadErr
 				}
 				srcLLVM = loadedTy
-				if srcPayload != dstPayload && isUnionType(fe.emitter.types, srcPayload) && isUnionType(fe.emitter.types, dstPayload) {
+				if widensPayload {
 					casted, castTy, err := fe.emitUnionCast(loaded, payloadType, dstCase.PayloadTypes[j])
 					if err != nil {
 						return "", "", err

@@ -13,9 +13,12 @@ import (
 // send arm moves only where that arm won. A winning send delivers the
 // value (the receiver frees it, exactly once); a losing send reclaims the
 // payload via per-arm drop synthesis inside the winning arm's block.
-// Assertions ride exact free_count deltas around print-free windows;
-// payloads are runtime-built (string literals are static and never touch
-// the heap, so they cannot witness reclamation).
+// Assertions ride exact free_count deltas around print-free windows, minus
+// the cost of the measurement itself: each `let x: HeapStats =
+// rt_heap_stats()` allocates a snapshot box, copies it into the local and
+// reclaims the box inside the window its own probe opened. Payloads are
+// runtime-built (string literals are static and never touch the heap, so
+// they cannot witness reclamation).
 const runtimeV2DropSelectSendSource = `
 fn build(prefix: string) -> string {
     let mut s = prefix;
@@ -27,8 +30,22 @@ fn build(prefix: string) -> string {
     return s;
 }
 
+fn probe_window_cost() -> uint {
+    let a: HeapStats = rt_heap_stats();
+    let b: HeapStats = rt_heap_stats();
+    return b.free_count - a.free_count;
+}
+
 fn check_frees(win: string, before: &HeapStats, after: &HeapStats, want: uint) -> int {
-    let f: uint = after.free_count - before.free_count;
+    let raw: uint = after.free_count - before.free_count;
+    let cost: uint = probe_window_cost();
+    if raw < cost {
+        print("FAIL ");
+        print(win);
+        print(" freed less than its own probe\n");
+        return 1;
+    }
+    let f: uint = raw - cost;
     if f != want {
         print("FAIL ");
         print(win);
@@ -60,17 +77,17 @@ async fn run() -> int {
     let a3: HeapStats = rt_heap_stats();
     if v != 1 { print("FAIL winner-arm\n"); return 11; }
     // The select window must NOT free the delivered payload, so it frees
-    // nothing here. (This was 2 before RV2-DEBT-036: the two arm-result
-    // literals were each a re-parsed heap bignum freed in this window.
-    // Folding in-range literals to inline words removed that churn;
-    // winner-drop-got below staying at 2 proves the real payload
-    // reclamation is unchanged.)
+    // nothing here. What proves the real reclamation is unchanged is
+    // winner-drop-got below, which stays at exactly one free -- the payload
+    // itself, released where the receiver drops it.
     let r1: int = check_frees("winner-select", &a0, &a1, 0:uint);
     if r1 != 0 { return 12; }
     let r2: int = check_frees("winner-recv", &a1, &a2, 0:uint);
     if r2 != 0 { return 13; }
-    // The payload string + Option box free HERE, exactly once.
-    let r3: int = check_frees("winner-drop-got", &a2, &a3, 2:uint);
+    // The payload string frees HERE, exactly once. The optional that carries
+    // it out of the channel lives in ordinary storage, so there is no second
+    // block to reclaim alongside the payload.
+    let r3: int = check_frees("winner-drop-got", &a2, &a3, 1:uint);
     if r3 != 0 { return 14; }
 
     // Loser path: the send arm cannot proceed (channel full) and the

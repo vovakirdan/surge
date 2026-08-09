@@ -125,12 +125,20 @@ func (e *Emitter) emitPollDispatch() error {
 }
 
 // emitAbandonedStateDropDispatch emits `__surge_drop_abandoned_state_call`:
-// mark_done's abandoned-suspend-state consume dispatches here. Every
-// registered id routes to the frame release, which reclaims the storage and
-// walks nothing — every registration always needs a real arm, since the frame
-// always exists regardless of field composition (see
-// registerAbandonedStateDrop). Unregistered ids keep the panic arm as the
-// negative control.
+// mark_done's abandoned-suspend-state consume dispatches here. Every registered
+// id routes to the full release — the frame's members and then its storage —
+// and every registration always needs a real arm, since the frame always
+// exists regardless of field composition (see registerAbandonedStateDrop).
+// Unregistered ids keep the panic arm as the negative control.
+//
+// Walking is right BECAUSE only one kind of frame reaches here. A frame is
+// handed to this dispatch by the yield that finds its task already cancelled,
+// and the block that yields has just written the live locals into the frame,
+// so the frame is their only owner: nothing else will ever run to release
+// them. The other abandoning terminator holds the opposite — a payload read
+// out at the top of the poll whose values have since gone — and it reclaims
+// its own storage without walking rather than arriving here (see
+// emitTermAsyncReturnCancelled).
 func (e *Emitter) emitAbandonedStateDropDispatch() {
 	ids := make([]types.TypeID, 0, len(e.abandonedStateDrops))
 	for id := range e.abandonedStateDrops {
@@ -146,7 +154,7 @@ func (e *Emitter) emitAbandonedStateDropDispatch() {
 	fmt.Fprintf(&e.buf, "  ]\n")
 	for _, id := range ids {
 		fmt.Fprintf(&e.buf, "drop_abandoned.%d:\n", id)
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", e.requireSuspensionFrameRelease(id))
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", e.requireRuntimeOwnedRelease(id))
 		fmt.Fprintf(&e.buf, "  ret void\n")
 	}
 	fmt.Fprintf(&e.buf, "drop_abandoned_default:\n")
@@ -635,11 +643,21 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 // inert Copy bits with no box at all — there is always something to
 // register here.
 func (fe *funcEmitter) abandonedStateDropID(state *mir.Operand) (types.TypeID, error) {
+	stateType, err := fe.suspensionFrameTypeOf(state)
+	if err != nil {
+		return types.NoTypeID, err
+	}
+	return fe.emitter.registerAbandonedStateDrop(stateType), nil
+}
+
+// suspensionFrameTypeOf names the frame a suspension terminator is holding,
+// for the terminators that reclaim it themselves rather than registering it.
+func (fe *funcEmitter) suspensionFrameTypeOf(state *mir.Operand) (types.TypeID, error) {
 	stateType, err := fe.placeBaseType(state.Place)
 	if err != nil || stateType == types.NoTypeID {
 		return types.NoTypeID, fmt.Errorf("async state missing type info")
 	}
-	return fe.emitter.registerAbandonedStateDrop(stateType), nil
+	return stateType, nil
 }
 
 func (fe *funcEmitter) emitTermAsyncYield(term *mir.Terminator) error {
@@ -707,11 +725,24 @@ func (fe *funcEmitter) emitTermAsyncReturnCancelled(term *mir.Terminator) error 
 	if stateTy != "ptr" {
 		return fmt.Errorf("async_cancel expects state pointer, got %s", stateTy)
 	}
-	dropID, err := fe.abandonedStateDropID(&term.AsyncReturnCancelled.State)
+	frameType, err := fe.suspensionFrameTypeOf(&term.AsyncReturnCancelled.State)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_return_cancelled(ptr %s, i64 %d)\n", stateVal, dropID)
+	// This frame's payload was read out at the top of the poll and the locals
+	// that took those bytes have been released since, so what sits here is a
+	// duplicate of values that are already gone: give back the storage and
+	// walk nothing. Handing it to the runtime's abandoned-frame release
+	// instead would free them a second time, because that release is written
+	// for the frame a yield packs and abandons, which owns what it holds.
+	//
+	// Zero says there is nothing left to reclaim. Nothing reads the state
+	// pointer after a cancelled outcome — the runtime's cancelled arm goes
+	// straight to completion — so passing the freed pointer alongside it
+	// keeps the call shape without anyone dereferencing it.
+	fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n",
+		fe.emitter.requireSuspensionFrameRelease(frameType), stateVal)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_return_cancelled(ptr %s, i64 0)\n", stateVal)
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil
 }

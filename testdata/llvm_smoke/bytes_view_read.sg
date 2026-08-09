@@ -1,0 +1,42 @@
+// A bytes view answers for its length and its bytes through every shape that
+// reaches one: a local, a reference parameter, and a field of a struct the
+// caller holds by reference. A bounds fixture cannot see a wrong answer here —
+// it only proves that SOME length was refused — so these are printed.
+
+type Holder = {
+    view: BytesView,
+    cursor: int64
+};
+
+fn at(data: &BytesView, index: int64) -> uint8 {
+    return (*data)[index];
+}
+
+fn holder_len(h: &mut Holder) -> int64 {
+    return h.view.__len() to int64;
+}
+
+fn checksum(h: &mut Holder) -> uint {
+    let mut total: uint = 0:uint;
+    let length: int64 = holder_len(h);
+    while h.cursor < length {
+        let b: uint8 = at(h.view, h.cursor);
+        total = total + (b to uint);
+        h.cursor = h.cursor + 1:int64;
+    }
+    return total;
+}
+
+@entrypoint
+fn main() -> int {
+    let src: string = "abc";
+    let view: BytesView = src.bytes();
+    print(view.__len() to string);
+    print(view[0] to string);
+    print(at(&view, 2:int64) to string);
+
+    let mut holder: Holder = { view: src.bytes(), cursor: 0:int64 };
+    print(holder_len(&mut holder) to string);
+    print(checksum(&mut holder) to string);
+    return 0;
+}

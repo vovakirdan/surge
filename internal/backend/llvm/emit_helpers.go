@@ -108,7 +108,23 @@ func (fe *funcEmitter) emitHandleOperandPtr(op *mir.Operand) (string, error) {
 			baseType = next
 		}
 	}
-	if fe.isArrayOrMapType(baseType) || isStringLike(fe.emitter.types, baseType) || isBytesViewType(fe.emitter.types, baseType) {
+	if isBytesViewType(fe.emitter.types, baseType) {
+		// A bytes view is stored inline, so the caller wants the address of
+		// the view itself. Spilling a loaded word into a fresh slot would
+		// hand back the address of the view's first field instead.
+		if fe.operandIsRef(op, opType) {
+			val, ty, err := fe.emitOperand(op)
+			if err != nil {
+				return "", err
+			}
+			if ty != "ptr" {
+				return "", fmt.Errorf("expected ptr to a bytes view, got %s", ty)
+			}
+			return val, nil
+		}
+		return fe.emitOperandAddr(op)
+	}
+	if fe.isArrayOrMapType(baseType) || isStringLike(fe.emitter.types, baseType) {
 		if fe.operandIsRef(op, opType) {
 			val, ty, err := fe.emitOperand(op)
 			if err != nil {
