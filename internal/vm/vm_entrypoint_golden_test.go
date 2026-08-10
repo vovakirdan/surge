@@ -1,13 +1,7 @@
-//go:build golden
-// +build golden
-
 package vm_test
 
 import (
-	"bytes"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -95,28 +89,4 @@ func TestVMEntrypointGolden(t *testing.T) {
 			}
 		})
 	}
-}
-
-func runSurgeWithInput(t *testing.T, root, surgeBin, stdin string, args ...string) (stdout, stderr string, exitCode int) {
-	t.Helper()
-	cmd := exec.Command(surgeBin, args...)
-	cmd.Dir = root
-	cmd.Env = envWithStdlib(root)
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-	cmd.Stdin = strings.NewReader(stdin)
-	err := cmd.Run()
-
-	stdout = stripTimingLines(outBuf.String())
-	stderr = errBuf.String()
-
-	if err == nil {
-		return stdout, stderr, 0
-	}
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("run surge: %v\nstderr:\n%s", err, stderr)
-	}
-	return stdout, stderr, exitErr.ProcessState.ExitCode()
 }

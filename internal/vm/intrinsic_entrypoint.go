@@ -179,10 +179,46 @@ func (vm *VM) parseFromString(strVal Value, targetType types.TypeID) (Value, err
 	}
 }
 
+// errorLikeOwner names the value `exit` reads a message and code out of.
+//
+// An entrypoint whose argument parse failed hands `exit` the whole
+// `Erring<T, E>` envelope rather than the error inside it
+// (internal/mir/entrypoint_args.go:126 for argv and :192 for stdin), so the
+// error has to come out of the union's live arm before anything asks it for
+// fields. The native backend takes the same step from the other side, by
+// reinterpreting the envelope's address at the error type
+// (internal/backend/llvm/emit_intrinsics_error.go:30-36); the VM projects
+// instead, because it reaches members by name rather than by offset.
+//
+// A value that is not a union is already the error and comes back untouched,
+// so this stays out of the way of every ordinary `exit(someError)`.
+func (vm *VM) errorLikeOwner(ref StorageRef) (StorageRef, *VMError) {
+	if _, err := vm.unionMembers(ref.TypeID); err != nil {
+		return ref, nil
+	}
+	errType, vmErr := vm.erringErrorType(ref.TypeID)
+	if vmErr != nil {
+		return StorageRef{}, vmErr
+	}
+	shape, arm, vmErr := vm.tagArm(ref)
+	if vmErr != nil {
+		return StorageRef{}, vmErr
+	}
+	payload := shape.Cases[arm].Payload
+	if len(payload) != 1 || vm.valueType(payload[0].TypeID) != vm.valueType(errType) {
+		return StorageRef{}, vm.eb.typeMismatch("ErrorLike", shape.Cases[arm].TagName)
+	}
+	return vm.tagPayloadRef(ref, 0)
+}
+
 func (vm *VM) errorLikeMessageAndCode(val Value) (message string, code int, vmErr *VMError) {
 	owner, isComposite := val.Storage()
 	if !isComposite {
 		return "", 0, vm.eb.typeMismatch("ErrorLike", val.Kind.String())
+	}
+	owner, vmErr = vm.errorLikeOwner(owner)
+	if vmErr != nil {
+		return "", 0, vmErr
 	}
 	layout, vmErr := vm.layouts.Struct(owner.TypeID)
 	if vmErr != nil {

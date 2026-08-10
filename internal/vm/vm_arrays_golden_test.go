@@ -1,6 +1,16 @@
 //go:build golden
 // +build golden
 
+// This runner executes compiled Surge programs and compares their real output
+// against the recorded .out, which is the whole point of RV2-DEBT-173. It sits
+// behind the `golden` build tag ONLY because a case in it is still red, and a
+// red case would block every commit through the `make check` hook.
+//
+// Still behind the tag: arrays_option_nested (a generic method whose receiver
+// type argument is itself an ArrayFixed has no authoritative instantiation) and
+// arrays_slice_view (range-slicing a fixed array in ordinary storage is
+// unimplemented in the VM). The tag comes off with them.
+
 package vm_test
 
 import (

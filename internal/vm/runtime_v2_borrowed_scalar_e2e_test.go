@@ -1,5 +1,3 @@
-//go:build !golden
-
 package vm_test
 
 import "testing"

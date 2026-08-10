@@ -176,6 +176,15 @@ func (vm *VM) defaultArray(typeID, elemType types.TypeID, length int) (Value, *V
 		}
 		elems[i] = val
 	}
+	// Both callers reach here for a FIXED array, and a fixed array lives inline
+	// in its owner's storage rather than in a heap object — the same choice
+	// evalArrayLit makes for a literal (internal/vm/eval_data.go:29-31). Handing
+	// back a heap array left the destination slot, classified as composite, being
+	// given a shape it cannot hold, and the store refused it rather than the
+	// producer being asked to make the right thing.
+	if vm.isValueCompositeType(typeID) {
+		return vm.buildStruct(vm.currentFrame(), typeID, elems)
+	}
 	h := vm.Heap.AllocArray(typeID, elems)
 	return MakeHandleArray(h, typeID), nil
 }

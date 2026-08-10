@@ -38,12 +38,7 @@ func (vm *VM) execInstrPoll(frame *Frame, instr *mir.Instr, writes []LocalWrite)
 	if current == taskID {
 		return res, vm.eb.makeError(PanicInvalidHandle, "task cannot await itself")
 	}
-	if currentTask.Cancelled {
-		res.doJump = true
-		res.jumpBB = instr.Poll.PendBB
-		return res, nil
-	}
-	if targetTask.Status != asyncrt.TaskWaiting && targetTask.Status != asyncrt.TaskDone {
+	if targetTask.Status != asyncrt.TaskWaiting && targetTask.Status != asyncrt.TaskDone && !currentTask.Cancelled {
 		exec.Wake(taskID)
 	}
 	if targetTask.Status == asyncrt.TaskDone {
@@ -99,6 +94,23 @@ func (vm *VM) execInstrPoll(frame *Frame, instr *mir.Instr, writes []LocalWrite)
 		res.storeVal = doneVal
 		res.doJump = true
 		res.jumpBB = instr.Poll.ReadyBB
+		return res, nil
+	}
+	// Only here does this poll actually have to wait, so only here does being
+	// cancelled decide anything. A cancelled task may not park again, so it goes
+	// to the pending block, whose yield the terminator turns into a cancelled
+	// completion (internal/vm/vm_terminator.go:113-117), and it does so without
+	// arming a park key.
+	//
+	// This question used to be asked BEFORE the readiness question above, which
+	// cut a cancelled awaiter off from a result that was already sitting there:
+	// the awaited task had finished and its TaskResult was ready to be handed
+	// over, but the awaiter unwound at its first suspension attempt and never
+	// ran the code that reads it. Cancellation stops a task from WAITING; it
+	// does not stop it from being handed something already computed.
+	if currentTask.Cancelled {
+		res.doJump = true
+		res.jumpBB = instr.Poll.PendBB
 		return res, nil
 	}
 	// Task not done - set pending park key and jump to pending block

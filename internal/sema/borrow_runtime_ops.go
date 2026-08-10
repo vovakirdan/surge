@@ -605,9 +605,19 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 			Scope:   tc.currentScope(),
 			Note:    "drop",
 		})
-		// Dropping an owned non-copy value consumes it: later uses
+		// Dropping a value that owns heap storage consumes it: later uses
 		// (including a second drop) are use-after-move.
-		if exprType != types.NoTypeID && !tc.isCopyType(exprType) {
+		//
+		// The question is OwnsHeap and not Copy, and the two stopped coinciding
+		// for the arbitrary-precision scalars (see ownership_axes.go): a `float`
+		// is duplicable, so it is Copy, yet it owns a heap block, so MIR emits a
+		// drop for it. Asking about Copy here left an explicitly dropped `float`
+		// unconsumed, so scope exit still counted it live and emitted a SECOND
+		// InstrDrop on the same local — which the VM met with VM3301 at run time.
+		// Asking about the axis MIR actually gates on makes the two agree, and
+		// makes reading a dropped scalar a use-after-move diagnostic instead of a
+		// runtime panic.
+		if exprType != types.NoTypeID && tc.ownsHeap(exprType) {
 			tc.markBindingMoved(symID, span)
 		}
 		return

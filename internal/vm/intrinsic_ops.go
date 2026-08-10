@@ -9,6 +9,22 @@ import (
 	"surge/internal/vm/bignum"
 )
 
+// storeLen writes a counted length into __len's destination. Three of the four
+// shapes that answer __len arrive here with a plain count and differ only in how
+// they arrived at it.
+func (vm *VM) storeLen(frame *Frame, dstLocal mir.LocalID, dstType types.TypeID, length uint64, writes *[]LocalWrite) *VMError {
+	val := vm.makeBigUint(dstType, bignum.UintFromUint64(length))
+	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   val,
+	})
+	return nil
+}
+
 // handleLen handles the __len intrinsic.
 func (vm *VM) handleLen(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if !call.HasDst {
@@ -38,15 +54,7 @@ func (vm *VM) handleLen(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite)
 		if err != nil {
 			return vm.eb.invalidNumericConversion("string length out of range")
 		}
-		val := vm.makeBigUint(dstType, bignum.UintFromUint64(u64))
-		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
-			return vmErr
-		}
-		*writes = append(*writes, LocalWrite{
-			LocalID: dstLocal,
-			Name:    frame.Locals[dstLocal].Name,
-			Value:   val,
-		})
+		return vm.storeLen(frame, dstLocal, dstType, u64, writes)
 	case VKHandleArray:
 		view, vmErr := vm.arrayViewFromHandle(arg.H)
 		if vmErr != nil {
@@ -56,16 +64,17 @@ func (vm *VM) handleLen(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite)
 		if err != nil {
 			return vm.eb.invalidNumericConversion("array length out of range")
 		}
-		val := vm.makeBigUint(dstType, bignum.UintFromUint64(u64))
-		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
-			return vmErr
-		}
-		*writes = append(*writes, LocalWrite{
-			LocalID: dstLocal,
-			Name:    frame.Locals[dstLocal].Name,
-			Value:   val,
-		})
+		return vm.storeLen(frame, dstLocal, dstType, u64, writes)
 	case VKComposite:
+		// A fixed array is a composite rather than a heap array, so its length
+		// is a property of its TYPE and never of an object. The native backend
+		// answers the same call with the same constant
+		// (internal/backend/llvm/emit_calls_intrinsics.go:110-115); asked here
+		// first, the question stops reaching the byte-view layout below, which
+		// does not describe an ArrayFixed and so used to refuse the call.
+		if _, length, isFixed := vm.Types.ArrayFixedInfo(vm.valueType(arg.TypeID)); isFixed {
+			return vm.storeLen(frame, dstLocal, dstType, uint64(length), writes)
+		}
 		info, vmErr := vm.bytesViewLayout(arg.TypeID)
 		if vmErr != nil {
 			return vmErr

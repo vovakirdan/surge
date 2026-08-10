@@ -1,6 +1,3 @@
-//go:build golden
-// +build golden
-
 package vm_test
 
 import (
@@ -9,17 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
-)
-
-var (
-	surgeBinOnce sync.Once
-	surgeBinPath string
-	errSurgeBin  error
 )
 
 func TestVMDebuggerGolden(t *testing.T) {
@@ -78,60 +67,6 @@ func TestVMDebuggerGolden(t *testing.T) {
 	}
 }
 
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
-	}
-	// internal/vm/vm_debug_golden_test.go -> repo root
-	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
-}
-
-func envWithStdlib(root string) []string {
-	env := os.Environ()
-	key := "SURGE_STDLIB="
-	out := make([]string, 0, len(env)+1)
-	for _, kv := range env {
-		if strings.HasPrefix(kv, key) {
-			continue
-		}
-		out = append(out, kv)
-	}
-	out = append(out, key+root)
-	return out
-}
-
-func buildSurgeBinary(t *testing.T, root string) string {
-	t.Helper()
-
-	surgeBinOnce.Do(func() {
-		tmp, err := os.MkdirTemp("", "surge-bin-*")
-		if err != nil {
-			errSurgeBin = err
-			return
-		}
-		surgeBinPath = filepath.Join(tmp, "surge")
-
-		cmd := exec.Command("go", "build", "-o", surgeBinPath, "./cmd/surge")
-		cmd.Dir = root
-		cmd.Env = envWithStdlib(root)
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			errSurgeBin = errors.New(strings.TrimSpace(stderr.String()))
-			if errSurgeBin.Error() == "" {
-				errSurgeBin = err
-			}
-		}
-	})
-
-	if errSurgeBin != nil {
-		t.Fatalf("build surge binary: %v", errSurgeBin)
-	}
-	return surgeBinPath
-}
-
 func runSurge(t *testing.T, root, surgeBin string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 	cmd := exec.Command(surgeBin, args...)
@@ -152,5 +87,5 @@ func runSurge(t *testing.T, root, surgeBin string, args ...string) (stdout, stde
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("run surge: %v\nstderr:\n%s", err, stderr)
 	}
-	return stdout, stderr, exitErr.ProcessState.ExitCode()
+	return stdout, stderr, exitErr.ExitCode()
 }

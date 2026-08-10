@@ -48,6 +48,7 @@ type Interner struct {
 	unions           []UnionInfo
 	enums            []EnumInfo
 	tuples           []TupleInfo
+	tupleIndex       map[string]TypeID
 	fns              []FnInfo
 	arrayType        TypeID
 	arrayParam       TypeID

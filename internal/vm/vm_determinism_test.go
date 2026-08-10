@@ -1,6 +1,3 @@
-//go:build golden
-// +build golden
-
 package vm_test
 
 import (
@@ -33,8 +30,16 @@ func TestVMDebugTraceDeterminism(t *testing.T) {
 	stdout1, stderr1, code1 := runSurge(t, root, surge, args...)
 	stdout2, stderr2, code2 := runSurge(t, root, surge, args...)
 
-	if code1 != 0 || code2 != 0 {
-		t.Fatalf("unexpected exit codes: first=%d second=%d\nstderr1:\n%s\nstderr2:\n%s", code1, code2, stderr1, stderr2)
+	// The program returns a+b, and an int-returning entrypoint's value IS the
+	// process exit code (internal/mir/entrypoint.go:17-21), so 3 is the right
+	// answer and the run that produces it succeeded. Repeatability is what this
+	// test is for, so the codes are compared to each other first and only then
+	// to the one value the program can return.
+	if code1 != code2 {
+		t.Fatalf("exit code differs across runs: first=%d second=%d\nstderr1:\n%s\nstderr2:\n%s", code1, code2, stderr1, stderr2)
+	}
+	if code1 != 3 {
+		t.Fatalf("unexpected exit code %d, want 3 (the entrypoint returns a+b)\nstderr:\n%s", code1, stderr1)
 	}
 	if stdout1 != stdout2 {
 		t.Fatalf("stdout mismatch across runs:\nfirst:\n%s\nsecond:\n%s", stdout1, stdout2)
@@ -85,8 +90,14 @@ func TestVMDebugInspectDeterminism(t *testing.T) {
 	stdout1, stderr1, code1 := runSurge(t, root, surge, args...)
 	stdout2, stderr2, code2 := runSurge(t, root, surge, args...)
 
-	if code1 != 0 || code2 != 0 {
-		t.Fatalf("unexpected exit codes: first=%d second=%d\nstderr1:\n%s\nstderr2:\n%s", code1, code2, stderr1, stderr2)
+	// `return x` with x = 1 makes the process exit 1, the same way the trace case
+	// exits 3: the entrypoint's int return IS the exit code. Sameness across the
+	// two runs is the property under test, so it is asserted before the value.
+	if code1 != code2 {
+		t.Fatalf("exit code differs across runs: first=%d second=%d\nstderr1:\n%s\nstderr2:\n%s", code1, code2, stderr1, stderr2)
+	}
+	if code1 != 1 {
+		t.Fatalf("unexpected exit code %d, want 1 (the entrypoint returns x)\nstderr:\n%s", code1, stderr1)
 	}
 	if stderr1 != "" || stderr2 != "" {
 		t.Fatalf("unexpected stderr:\nfirst:\n%s\nsecond:\n%s", stderr1, stderr2)
